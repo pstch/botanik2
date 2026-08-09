@@ -181,7 +181,15 @@ namespace Botanik { namespace Vars {
          *  once a transaction has carried it. Marked at the WRITE rather than
          *  diffed against a shadow copy, which would cost another 8 bytes a row
          *  to answer a question the writer already knew the answer to. */
-        VF_FIELD_DIRTY = 1u << 0
+        VF_FIELD_DIRTY = 1u << 0,
+        /** @brief This row has had more than one control program write it.
+         *
+         *  Latched, and that is the point: the two programs go on writing every
+         *  beat, so counting collisions would count the SAME defect thousands of
+         *  times a minute and never settle. What is worth knowing is how many
+         *  ROWS have two authors, which is a fixed property of the site's
+         *  design. @see Bank::claim_writer() */
+        VF_TWO_WRITERS = 1u << 1
     };
 
     /** @brief How a driver reaches a variable.
@@ -451,8 +459,22 @@ namespace Botanik { namespace Vars {
         bool     ovr_on;     ///< an override is in force
         bool     ovr_valid;  ///< what valid() reports while overridden
         uint8_t  vflags;     ///< ValueFlags
-        uint8_t  _rsv[2];
+        /** @brief Which control program last claimed this row, as its index in
+         *  the site's program table; WRITER_NONE until one does.
+         *
+         *  Spent out of the reserved bytes, so the 32 below is unchanged. It
+         *  answers two questions that used to have no answer: which program
+         *  computes a row (the MONITOR page's, so a reader can go and look at
+         *  the logic), and whether TWO of them are driving one output - which is
+         *  a wiring mistake in the site's design that otherwise shows up as an
+         *  actuator that chatters at the beat rate. */
+        uint8_t  writer;
+        uint8_t  _rsv[1];
     };
+
+    /** @brief No program has claimed this row. Not 0, which is a real program
+     *  index - the same trap VAR_NONE exists to avoid. */
+    static const uint8_t WRITER_NONE = 0xFFu;
     // The override costs 8 bytes per variable, in RAM, on every site whether it
     // uses one or not - so it is pinned here rather than left to drift. Adding a
     // field means spending another 8 across the whole table; say so out loud.
@@ -760,6 +782,10 @@ namespace Botanik { namespace Vars {
          *  Mutable because find() is const and this is diagnostics, not
          *  state. */
         mutable uint16_t _unresolved = 0;
+        /** @brief Rows written by more than one program, and the first such row.
+         *  @see claim_writer() */
+        uint16_t _conflicts   = 0;
+        VarRef   _conflict_row = { VAR_NONE };
         /** @brief Whether VarTables::index holds a usable sorted mapping. False
          *  when the site supplied no scratch, and find() then walks the table.
          *  @see _build_index() */
@@ -866,6 +892,47 @@ namespace Botanik { namespace Vars {
          *  correctly wired site; the test suite asserts that after resolving
          *  every table and running every control program. */
         uint16_t unresolved_count() const { return _unresolved; }
+
+        /** @name Write attribution
+         *
+         *  Who among the control programs drives a row. Recorded on the way
+         *  through `Plc::Io`, which is the only route a program has to write -
+         *  that is what makes this knowable at all.
+         *  @{ */
+
+        /** @brief Record @p who as the writer of @p r, and report whether that
+         *  is a change of author.
+         *
+         *  First claim wins and is silent. A SECOND program writing the same row
+         *  is a defect in the site's design, not a race: an output with two
+         *  authors gets whichever ran last in the beat, so it chatters at the
+         *  scan rate while both keep insisting. Latched rather than per-beat,
+         *  because two programs on different rungs collide rarely and would
+         *  otherwise go unnoticed for however long the rates take to line up.
+         *
+         *  @return false when @p r already belonged to a different program. The
+         *          write still goes through: refusing it would leave the plant
+         *          in whatever state the losing program had reached, which is
+         *          worse than the chatter and harder to read.
+         */
+        bool claim_writer(VarRef r, uint8_t who);
+
+        /** @brief The program that claimed @p r, or WRITER_NONE. */
+        uint8_t writer_of(VarRef r) const;
+
+        /** @brief How many ROWS have been written by more than one program, and
+         *  the first one that was - counted rather than logged from inside the
+         *  write, which has no logger and runs in the control phase.
+         *
+         *  Rows, not collisions. Two programs go on writing every beat and each
+         *  takes the row from the other, so a collision count would climb
+         *  forever and never let a reporter settle; how many rows have two
+         *  authors is a fixed property of the site's design, which is the thing
+         *  actually worth knowing. */
+        uint16_t writer_conflicts() const { return _conflicts; }
+        VarRef   first_conflict() const   { return _conflict_row; }
+
+        /** @} */
 
         /** @brief Whether the name index is in use. False means the site gave
          *  VarTables no index scratch and every find() is a full scan -

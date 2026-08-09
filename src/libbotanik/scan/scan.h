@@ -68,6 +68,10 @@ namespace Botanik { namespace Scan {
          *  when it goes; the authority itself lives in the Bank. Starts false
          *  because control starts withheld. */
         bool                 _enabled  = false;
+        /** @brief The conflict count already reported, so a design defect that
+         *  is true on every beat is named once and not every 10 ms.
+         *  @see Vars::Bank::claim_writer() */
+        uint16_t             _conflicts_said = 0;
 
         /** @} */
 
@@ -100,6 +104,12 @@ namespace Botanik { namespace Scan {
         void on_setup(uint64_t now_ms) override;
         /** @brief Run every program that has come due, in table order. */
         void on_step(uint64_t now_ms) override;
+
+    private:
+        /** @brief Name a row that has acquired a second author, once per new
+         *  conflict. The bank counts them; only the driver can turn a program
+         *  index back into a program name. */
+        void _report_conflicts();
     };
 
 }}  // namespace Botanik::Scan

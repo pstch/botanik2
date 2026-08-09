@@ -11,6 +11,7 @@
  * The narrowing itself is guarded by the compiler.
  */
 #include <cstdint>
+#include <cstdio>                   // snprintf - the test log sink
 #include <string>
 
 #include "doctest.h"
@@ -38,12 +39,43 @@ struct Live {
     VarRef ref(const char* name) { return bank.find(name); }
 };
 
+/** @brief A sink that counts criticals and keeps the last, so a test can ask
+ *  whether the driver said something and how often. */
+class Criticals : public Logs::LogWriter {
+public:
+    int  seen = 0;
+    char last[Config::LOG_MESSAGE_LEN] = {};
+
+    void push(const Logs::LogEntry* e) override {
+        if (e == nullptr || e->level != Logs::LOG_CRITICAL) return;
+        seen++;
+        std::snprintf(last, sizeof last, "%s", e->message);
+    }
+    void drain() override {}
+protected:
+    size_t write(const char*, size_t) override { return 0; }
+    size_t format(const Logs::LogEntry*, char*, size_t) override { return 0; }
+};
+
+/** @brief A program that drives one named row every beat. Two of them pointed
+ *  at the same row is the design defect WP-3 exists to notice. */
+class Drives : public Plc::Program {
+    VarRef      _r = { VAR_NONE };
+    const char* _row;
+public:
+    Drives(const char* name, const char* row) : Program(name, 0), _row(row) {}
+protected:
+    void bind(Bank& io) override { _r = io.find(_row); }
+    void run(Plc::Context& c) override { c.io.set(_r, 1.0f); }
+};
+
 }  // namespace
 
-TEST_CASE("plc io: it costs one pointer, so passing it by value is free") {
-    // The Context is built per activation. If this grew, every program would
-    // pay for the narrowing on every beat.
-    CHECK(sizeof(Io) == sizeof(void*));
+TEST_CASE("plc io: it stays small enough to pass by value") {
+    // The Context is built per activation, so this is per program per beat. A
+    // pointer plus the writer byte: one word on the M7, where the byte lands in
+    // padding that was already there.
+    CHECK(sizeof(Io) <= 2 * sizeof(void*));
 }
 
 TEST_CASE("plc io: a program reads what the operator forced, not what the wire said") {
@@ -107,6 +139,117 @@ TEST_CASE("plc io: a write lands on the row and is owed to the field") {
 
     io.set(out, false);
     CHECK_FALSE(io.on(out));
+}
+
+TEST_CASE("plc io: a row remembers which program drives it") {
+    Live f;
+    Io one(f.bank, 3);
+    const VarRef r = f.ref("cli_temp_ext1");
+
+    CHECK(f.bank.writer_of(r) == WRITER_NONE);
+    one.set(r, 1.0f);
+    CHECK(f.bank.writer_of(r) == 3);
+
+    // The same program writing again, every beat, is the ordinary case and
+    // must stay silent.
+    for (int i = 0; i < 10; ++i) one.set(r, 2.0f);
+    CHECK(f.bank.writer_conflicts() == 0);
+}
+
+TEST_CASE("plc io: a second program on one row is counted, and the write stands") {
+    // Two authors is a defect in the site's design: the row gets whichever ran
+    // last in the beat, so it chatters at the scan rate while both insist.
+    Live f;
+    Io one(f.bank, 1), two(f.bank, 2);
+    const VarRef r = f.ref("cli_temp_ext1");
+
+    one.set(r, 10.0f);
+    REQUIRE(f.bank.writer_conflicts() == 0);
+
+    two.set(r, 20.0f);
+    CHECK(f.bank.writer_conflicts() == 1);
+    CHECK(f.bank.first_conflict().index == r.index);
+
+    INFO("the write is not refused - that would strand the plant wherever the "
+         "losing program had got to");
+    CHECK(f.bank.var(r).value() == doctest::Approx(20.0f));
+
+    // Both keep writing every beat, each taking the row from the other. The
+    // count is ROWS with two authors, so it settles at one instead of climbing
+    // forever - which is what lets the driver report the defect once.
+    for (int i = 0; i < 50; ++i) { one.set(r, 10.0f); two.set(r, 20.0f); }
+    CHECK(f.bank.writer_conflicts() == 1);
+
+    // A THIRD author is the same bad row, not a new one - but the row still
+    // reports whoever wrote it last, rather than freezing on the first claimant.
+    Io three(f.bank, 3);
+    three.set(r, 30.0f);
+    CHECK(f.bank.writer_conflicts() == 1);
+    CHECK(f.bank.writer_of(r) == 3);
+
+    // A DIFFERENT row with two authors is a second defect, and counts.
+    const VarRef r2 = f.ref("cli_temp_ext2");
+    one.set(r2, 1.0f);
+    two.set(r2, 2.0f);
+    CHECK(f.bank.writer_conflicts() == 2);
+}
+
+TEST_CASE("plc io: an unattributed view claims nothing") {
+    // A program stepped by hand in a test has no slot. It must not claim rows
+    // as writer 255 and then collide with a real program.
+    Live f;
+    Io anon(f.bank);
+    const VarRef r = f.ref("cli_temp_ext1");
+
+    anon.set(r, 1.0f);
+    CHECK(f.bank.writer_of(r) == WRITER_NONE);
+    CHECK(f.bank.writer_conflicts() == 0);
+
+    Io real(f.bank, 0);
+    real.set(r, 2.0f);
+    CHECK(f.bank.writer_of(r) == 0);
+    CHECK(f.bank.writer_conflicts() == 0);
+}
+
+TEST_CASE("scan: two programs on one row is named once, not every beat") {
+    // The driver is the only thing that can turn a writer index back into a
+    // program name, which is why the report lives there and the counting in
+    // the bank.
+    Live f;
+    Logs::Logger logger;
+    Criticals sink;
+    logger.add_writer(&sink);
+
+    Drives a("prog_a", "cli_temp_ext1");
+    Drives b("prog_b", "cli_temp_ext1");
+    Plc::Program* const progs[] = { &a, &b };
+    Scan::Driver d(progs, 2, &f.bank, &logger);
+
+    for (uint64_t t = 0; t <= 500; t += 10) d.step(t);
+
+    INFO("last critical: " << std::string(sink.last));
+    CHECK(f.bank.writer_conflicts() >= 1);
+    INFO("a defect that is true on every beat must not be said on every beat");
+    CHECK(sink.seen == 1);
+    CHECK(std::string(sink.last).find("cli_temp_ext1") != std::string::npos);
+    CHECK(std::string(sink.last).find("prog_") != std::string::npos);
+}
+
+TEST_CASE("scan: one program driving its own rows says nothing") {
+    Live f;
+    Logs::Logger logger;
+    Criticals sink;
+    logger.add_writer(&sink);
+
+    Drives a("prog_a", "cli_temp_ext1");
+    Drives b("prog_b", "cli_temp_ext2");
+    Plc::Program* const progs[] = { &a, &b };
+    Scan::Driver d(progs, 2, &f.bank, &logger);
+
+    for (uint64_t t = 0; t <= 500; t += 10) d.step(t);
+
+    CHECK(f.bank.writer_conflicts() == 0);
+    CHECK(sink.seen == 0);
 }
 
 TEST_CASE("plc io: a bad reference moves nothing") {

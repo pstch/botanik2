@@ -8,6 +8,7 @@
 #include "libbotanik/config/scheduler.h"  // Config::LOOP_* / TASK_* / GROUP_*
 
 #include "libbotanik/hal/platform.h"    // HAL::Clock
+#include "libbotanik/logs/logger.h"     // Logs::Logger - naming a conflicting row
 
 namespace Botanik { namespace Scan {
 
@@ -19,6 +20,10 @@ namespace Botanik { namespace Scan {
             if (p == nullptr) continue;
 
             p->attach(*_io, _logger);
+            // Its index in the site's table, which is what every row it writes
+            // is stamped with. Here rather than in the program, because a
+            // program cannot know where the site put it.
+            p->set_slot(i);
             p->set_offset(Tasks::stagger_offset(i, Config::SCAN_STAGGER_MS,
                                                     p->period_ms()));
             // Resolve its names now rather than letting step() do it lazily on
@@ -71,6 +76,29 @@ namespace Botanik { namespace Scan {
         // that runs at its own rate; step() is what applies it.
         for (uint8_t i = 0; i < _count; i++)
             if (_programs[i] != nullptr) _programs[i]->step(now_ms);
+
+        _report_conflicts();
+    }
+
+    void Driver::_report_conflicts() {
+        const uint16_t n = _io->writer_conflicts();
+        if (n == _conflicts_said || _logger == nullptr) return;
+
+        // Edge-triggered and named once. Two programs driving one output is a
+        // defect in the site's design, not a passing condition: it will be true
+        // on every beat from here, so a per-beat line would bury the log and
+        // teach an operator to ignore it.
+        const Vars::VarRef r = _io->first_conflict();
+        const Vars::Var    v = _io->var(r);
+        const uint8_t      w = _io->writer_of(r);
+        const char* other = (w < _count && _programs[w] != nullptr)
+                                ? _programs[w]->name() : "?";
+        _logger->critical(Logs::STATUS,
+                          "scan: '%s' is driven by more than one program "
+                          "(now '%s'); %u row(s) affected",
+                          v.name() != nullptr ? v.name() : "?", other,
+                          (unsigned)n);
+        _conflicts_said = n;
     }
 
 }}  // namespace Botanik::Scan

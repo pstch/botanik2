@@ -97,6 +97,10 @@ namespace Botanik { namespace Plc {
         /** @brief Borrowed; the firmware owns it. Held rather than passed in
          *  because Component::step() takes only a timestamp. */
         Vars::Bank* _io = nullptr;
+        /** @brief This program's index in the site's table, stamped onto every
+         *  row it writes. The driver assigns it; WRITER_NONE until then, which
+         *  is what a program stepped by hand in a test writes as. */
+        uint8_t     _slot = Vars::WRITER_NONE;
 
         /** @} */
 
@@ -118,6 +122,13 @@ namespace Botanik { namespace Plc {
             _io = &io;
             if (logger != nullptr) _logger = logger;
         }
+
+        /** @brief Tell the program which slot of the site's table it occupies.
+         *  The DRIVER's to call: a program cannot know where the site put it,
+         *  and two programs claiming one index would silently share an author.
+         */
+        void set_slot(uint8_t slot) { _slot = slot; }
+        uint8_t slot() const        { return _slot; }
 
         /** @brief Drop state a control withdrawal has made stale; default,
          *  nothing is (@ref plc_program_bind). Public because it is the
@@ -151,7 +162,7 @@ namespace Botanik { namespace Plc {
          *  timer's own reading of how late this activation is, then run. */
         void on_step(uint64_t now_ms) override {
             if (_io == nullptr) return;
-            Context c = { now_ms, dt_ms(), missed(), Io(*_io) };
+            Context c = { now_ms, dt_ms(), missed(), Io(*_io, _slot) };
             run(c);
         }
 

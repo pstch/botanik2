@@ -108,6 +108,12 @@ namespace Botanik {
             : _logger(logger), _name(name) {}
         virtual ~Component() {}
 
+        /** @brief The announce label, for anything that has to name this
+         *  component to a human - a driver reporting which of its components
+         *  did something, a page listing them. Borrowed, never null in
+         *  practice: every constructor takes it. */
+        const char* name() const { return _name; }
+
         /** @brief Set the run interval; 0 means every beat. Call it during
          *  wiring, before the loop starts.
          *  @note A period should be an integer multiple of the beat, or the

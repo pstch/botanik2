@@ -40,9 +40,10 @@
  *
  * @section plc_io_cost What it costs
  *
- * One pointer, passed by value in the Context a program already receives. The
- * calls are inline and forward straight to `Vars::Var`, so the generated code is
- * what the direct call was.
+ * A pointer and a byte, passed by value in the Context a program already
+ * receives. The reads are inline and forward straight to `Vars::Var`, so they
+ * are what the direct call was; a write adds one byte compared against the row's
+ * recorded author, which on the usual path matches and does nothing.
  */
 
 #include <cstdint>                  // int64_t
@@ -69,11 +70,15 @@ namespace Botanik { namespace Plc {
          *  @{ */
 
         Vars::Bank* _bank;
+        /** @brief Which program is holding this view, as its index in the
+         *  site's program table. Every write is stamped with it. */
+        uint8_t     _who;
 
         /** @} */
 
     public:
-        explicit Io(Vars::Bank& bank) : _bank(&bank) {}
+        explicit Io(Vars::Bank& bank, uint8_t who = Vars::WRITER_NONE)
+            : _bank(&bank), _who(who) {}
 
         /** @name Read
          *
@@ -101,11 +106,16 @@ namespace Botanik { namespace Plc {
          *  field-bus driver is asked to carry it.
          *  @{ */
 
-        void set(Vars::VarRef r, bool v)    { _bank->var(r).set(v); }
-        void set(Vars::VarRef r, float v)   { _bank->var(r).set(v); }
-        void set_i(Vars::VarRef r, int64_t v) { _bank->var(r).set_i(v); }
+        void set(Vars::VarRef r, bool v)  { _claim(r); _bank->var(r).set(v); }
+        void set(Vars::VarRef r, float v) { _claim(r); _bank->var(r).set(v); }
+        void set_i(Vars::VarRef r, int64_t v) { _claim(r); _bank->var(r).set_i(v); }
 
         /** @} */
+
+    private:
+        /** @brief Stamp this row with its author. One byte compared and, on the
+         *  usual path, left alone - the row already belongs to us. */
+        void _claim(Vars::VarRef r) { (void)_bank->claim_writer(r, _who); }
     };
 
 }}  // namespace Botanik::Plc

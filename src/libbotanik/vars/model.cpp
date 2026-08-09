@@ -93,6 +93,9 @@ namespace Botanik { namespace Vars {
             // An output starts at its safe state and the driver's first
             // unconditional rewrite is what puts it there.
             _terminal.val[i].vflags   = 0;
+            // Nobody has claimed it. Set here rather than left to the store's
+            // zero fill, because zero is program 0 and not "no program".
+            _terminal.val[i].writer   = WRITER_NONE;
 
             uint16_t cap = 0;
             char* text = text_at(Var(&d, &_terminal.val[i]), &cap);
@@ -271,6 +274,37 @@ namespace Botanik { namespace Vars {
         if ((d.flags & F_BOUNDED) == 0 || payload_arm(d) != PAY_NUM) return false;
         const NumBand b = num_band(d);
         return !in_range(d.type, v, b.min, b.max);
+    }
+
+    bool Bank::claim_writer(VarRef r, uint8_t who) {
+        if (r.index >= _terminal.count || who == WRITER_NONE) return true;
+        uint8_t& held = _terminal.val[r.index].writer;
+        if (held == who) return true;               // the usual case, every beat
+        if (held == WRITER_NONE) { held = who; return true; }
+
+        // A second author. Counted, not logged: this runs inside the control
+        // phase, from a class with no logger, on a path that must stay bounded.
+        // The driver reads the count on the edge and names the row.
+        //
+        // Counted ONCE PER ROW, not per collision. Both programs keep writing
+        // every beat and each takes the row from the other, so a per-collision
+        // count would rise forever and the report would fire on every beat -
+        // which is exactly what happened before the flag was added.
+        uint8_t& vf = _terminal.val[r.index].vflags;
+        if ((vf & VF_TWO_WRITERS) == 0) {
+            vf = (uint8_t)(vf | VF_TWO_WRITERS);
+            _conflicts++;
+            if (_conflict_row.index == VAR_NONE) _conflict_row = r;
+        }
+        // The newest writer becomes the holder, so the row reports whoever
+        // actually wrote it last rather than freezing on the first claimant.
+        held = who;
+        return false;
+    }
+
+    uint8_t Bank::writer_of(VarRef r) const {
+        return (r.index < _terminal.count) ? _terminal.val[r.index].writer
+                                           : WRITER_NONE;
     }
 
     uint16_t Bank::reject_implausible() {
