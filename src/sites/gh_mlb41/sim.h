@@ -73,7 +73,21 @@ struct MockAlarm { const char* name; bool on; };
  *  directly is how the simulated field silently drifted out of step with the
  *  model, since it would not fail to compile when the model changed. */
 inline void put(Vars::Bank& io, const char* id, float v, uint32_t now_ms) {
-    io.var(id).publish(Scalar::F(v), now_ms);
+    Vars::Var h = io.var(id);
+    // A row that lives on the FIELD BUS gets its timestamp from the master, not
+    // from us. We are the physical quantity - the voltage the meter would be
+    // measuring - and the bus is how it arrives; FieldBus copies this value into
+    // the device's register image and the master polls it back, stamping it when
+    // it lands. Re-stamping here as well made every bussed row read 0 s old
+    // whatever its rung, because the animator runs every beat and the scan runs
+    // once a second, so the age said how often the SIMULATOR ran.
+    //
+    // The value still goes in the row, because that is where FieldBus reads it
+    // from. Cutting simulate() off the bank entirely is the real fix and is the
+    // step fieldbus.h describes; this is the part of it that the age display
+    // needs today.
+    const bool bussed = h.meta()->bind.transport == Vars::XP_MODBUS;
+    h.publish(Scalar::F(v), bussed ? h.stamp() : now_ms);
 }
 
 /**
