@@ -159,12 +159,19 @@ if(BOTANIK_PYTE_TESTS AND Python3_Interpreter_FOUND)
         # itself when its inputs change, so this only has to create the tree once.
         # LTO off: the whole-program link dominated this build, and the tests need
         # a sim that isn't sanitizer-slow, not one that is optimally inlined.
+        #
+        # The OUTPUT is a stamp we touch ourselves, NOT the sub-tree's
+        # CMakeCache.txt. CMake leaves that file's mtime alone when a re-configure
+        # changes no cache value, so it stayed older than the CMakeLists it depends
+        # on and make re-ran this step on EVERY build - ~6 s added to a no-op
+        # `make check`, which is most of the ones a pre-push gate does.
         add_custom_command(
-            OUTPUT ${_pyte_sim_dir}/CMakeCache.txt
+            OUTPUT ${_pyte_sim_dir}/configure.stamp
             COMMAND ${CMAKE_COMMAND} -G ${CMAKE_GENERATOR} -S ${CMAKE_SOURCE_DIR}
                     -B ${_pyte_sim_dir} -DBOTANIK_TARGET=SIMULATOR
                     -DCMAKE_BUILD_TYPE=RELEASE -DBOTANIK_SANITIZE=OFF
                     -DBOTANIK_PYTE_TESTS=OFF -DBOTANIK_LTO=OFF
+            COMMAND ${CMAKE_COMMAND} -E touch ${_pyte_sim_dir}/configure.stamp
             DEPENDS ${CMAKE_SOURCE_DIR}/CMakeLists.txt
                     ${CMAKE_CURRENT_SOURCE_DIR}/CMakeLists.txt
             COMMENT "Configuring the release botanik_sim tree for the pyte tests"
@@ -177,7 +184,7 @@ if(BOTANIK_PYTE_TESTS AND Python3_Interpreter_FOUND)
             OUTPUT ${_pyte_sim_bin}
             COMMAND ${CMAKE_COMMAND} --build ${_pyte_sim_dir} --target botanik_sim
                     --parallel ${_nproc}
-            DEPENDS ${_pyte_sim_srcs} ${_pyte_sim_dir}/CMakeCache.txt
+            DEPENDS ${_pyte_sim_srcs} ${_pyte_sim_dir}/configure.stamp
             COMMENT "Building release botanik_sim for the pyte tests"
             VERBATIM)
         # In ALL, so an ordinary `make` produces it. CTest never builds anything -
