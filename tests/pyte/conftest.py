@@ -62,10 +62,16 @@ GOLDEN_DIR = Path(__file__).parent / "golden"
 # What keeps a broken build from paying the cap 22 times is helpers.boot(): it
 # reports the first failure and short-circuits the rest, so broken firmware costs
 # one cap per file rather than one per test.
+#
+# The golden compare uses the same budgets, and used to have tighter ones of its
+# own (4 s idle / 20 s cap). Nothing justified the difference - it is the same
+# heuristic against the same starvation - and 4 s is inside the range the
+# paragraph above records as false-failing. It was also the most exposed caller:
+# a page whose volatile cells are all masked (MONITOR) has a normalized screen
+# that is STATIC once painted, so idleness is its normal state and the only
+# question the heuristic gets to answer is whether the sim was scheduled.
 WAIT_IDLE_S = float(os.environ.get("BOTANIK_PYTE_WAIT_IDLE", "15.0"))
 WAIT_CAP_S = float(os.environ.get("BOTANIK_PYTE_WAIT_CAP", "30.0"))
-MATCH_IDLE_S = float(os.environ.get("BOTANIK_PYTE_MATCH_IDLE", "4.0"))
-MATCH_CAP_S = float(os.environ.get("BOTANIK_PYTE_MATCH_CAP", "20.0"))
 SETTLE_IDLE_S = float(os.environ.get("BOTANIK_PYTE_SETTLE_IDLE", "0.2"))
 SETTLE_CAP_S = float(os.environ.get("BOTANIK_PYTE_SETTLE_CAP", "5.0"))
 
@@ -318,13 +324,13 @@ def assert_screen(request):
         # with wait_for() instead, as test_logs does.
         want = drop_log_lines(meaningful_lines(clip(path.read_text().split("\n"))))
         got = lambda: drop_log_lines(strip_noise(clip(term.view())))
-        if term.poll(lambda: got() == want, MATCH_IDLE_S, MATCH_CAP_S):
+        if term.poll(lambda: got() == want):
             return
         diff = "".join(difflib.unified_diff(
             path.read_text().splitlines(keepends=True),
             term.snapshot().splitlines(keepends=True),
             fromfile=f"{name} (expected)", tofile=f"{name} (actual)"))
-        pytest.fail(f"screen never matched '{name}' (unchanged for {MATCH_IDLE_S}s):"
+        pytest.fail(f"screen never matched '{name}' (unchanged for {WAIT_IDLE_S}s):"
                     f"\n{diff}")
 
     return _check

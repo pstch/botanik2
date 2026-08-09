@@ -116,9 +116,8 @@ failures attributable and the `-j` slots busy, measured 2.5x faster on 4 cores.
 `.envrc` exports `CTEST_PARALLEL_LEVEL=$(nproc)`.
 
 Because a CTest entry is a whole file, a file may share one booted sim across its
-tests (`spawn_module`). `test_pages`, `test_shell_reconcile` and
-`test_shell_scroll` do; each resets state between tests (`^U`+`^L`, or a freshly
-submitted line). Anything that **mutates** - an edit, a reset, a persisted
+tests (`spawn_module`). `test_shell_reconcile` and `test_shell_scroll` do; each
+resets state between tests (`^U`+`^L`, or a freshly submitted line). Anything that **mutates** - an edit, a reset, a persisted
 override or note - keeps its own `spawn`. It also pays to keep a one-assertion
 test out of a file of its own: each entry costs an interpreter startup, which is
 why the odds and ends live together in `test_page_behaviour.py`.
@@ -153,13 +152,14 @@ The rule: sync on chrome, on the page's own widgets, or on output you asked for.
 The MARK check in `test_page_behaviour.py` is the one legitimate log-tail
 assertion, and LOGS is the page whose entire content is the log.
 
-## Every page has a display test
+## Goldens
 
-**Standing rule: each page registered in `BotanikFirmware::register_pages()` has
-one settled-screen golden in `test_pages.py`.** Its `PAGES` table is the list, and
-`test_every_registered_page_has_a_golden` checks it against the running firmware
-by reading the status bar's tab strip - so a new page cannot quietly arrive
-without a display test.
+`page_home` is the one settled-screen golden left, asserted by
+`test_page_behaviour.py`. There used to be one per page, in a `test_pages.py`
+that also checked the status bar's tab strip so a new page could not arrive
+without a display test. It was removed: it cost ~10 s of the gate, and a
+full-screen golden per page is an expensive way to notice a renamed column.
+Per-page BEHAVIOUR is still covered by the files below.
 
 A golden pins **layout**: which rows a page draws, in what order, with what
 labels, columns, rules and chrome. It does not pin **values** - `normalize.py`
@@ -209,7 +209,6 @@ strip anything matching `normalize._NOISE`.
 - `normalize.py`  - the masks for volatile cells, by regex and by table geometry.
 - `keys.py`       - input byte sequences matching `console/parser.cpp`.
 - `helpers.py`    - `boot` / `goto` / `shell`, and `assert_editor`.
-- `test_pages.py` - the per-page goldens, and the invariant above.
 - `test_*.py`     - per-page behaviour: home reboot, log marks, monitor
   navigation, param editing, notes, shell commands, shell reconciliation and
   scrollback.

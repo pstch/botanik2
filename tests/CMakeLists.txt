@@ -11,55 +11,21 @@
 add_executable(botanik_tests
     ${BOTANIK_SITE_SOURCES}
     doctest_main.cpp
-    test_text.cpp
-    test_time.cpp
-    test_sun.cpp
-    test_sizes.cpp
-    test_site_names.cpp
-    test_logger.cpp
     test_alarms.cpp
-    test_functions.cpp
-    test_blocks.cpp
-    test_pid.cpp
-    test_actuator.cpp
-    test_scalar.cpp
-    test_model.cpp
-    test_scan.cpp
-    test_plc_io.cpp
-    test_retain.cpp
-    test_task_timer.cpp
-    test_component.cpp
-    test_tasks.cpp
-    test_alarms_render.cpp
-    test_terminal_present.cpp
-    test_editor_bytes.cpp
-    test_filters.cpp
-    test_line_buffer.cpp
-    test_scrollback.cpp
-    test_parser.cpp
-    test_shell.cpp
-    test_serial.cpp
-    test_writer.cpp
-    test_params.cpp
-    test_storage.cpp
-    test_resolver.cpp
-    test_sun_tracker.cpp
+    test_console.cpp
+    test_logging.cpp
+    test_modbus_master.cpp
+    test_modbus_rtu.cpp
+    test_modbus_tcp.cpp
     test_network.cpp
-    test_hal_net.cpp
-    test_notifier.cpp
-    test_mqtt_log.cpp
-    test_hal_memory.cpp
-    test_modbus_codec.cpp
-    test_modbus_framing.cpp
-    test_modbus_rtu_slave.cpp
-    test_site_bindings.cpp
-    test_modbus_vendor.cpp
-    test_modbus_image.cpp
-    test_modbus_device.cpp
-    test_modbus_client.cpp
-    test_modbus_map.cpp
-    test_modbus_tcp_master.cpp
-    test_modbus_tcp_pdu.cpp
+    test_plc.cpp
+    test_scan.cpp
+    test_site.cpp
+    test_storage.cpp
+    test_sun.cpp
+    test_tasks.cpp
+    test_utils.cpp
+    test_vars.cpp
 )
 
 # vendor/ for doctest.h; src/ for the library and the simulator's site payloads.
@@ -72,19 +38,28 @@ target_link_libraries(botanik_tests botanik)
 # test_sizes.cpp pins the selected site's payload via BOTANIK_SITE_HEADER, derived
 # from the PUBLIC BOTANIK_SITE define (libbotanik_site.h) inherited from botanik.
 
-# One CTest entry per TEST_CASE: doctest_discover_tests runs the binary at build
-# time with --list-test-cases and emits an add_test() per case, so `ctest` and
-# VS Code's Testing panel can show, run and debug a single case rather than the
-# whole binary as one pass/fail. The module and its helper are vendored next to
-# doctest.h; no fetch, no install.
+# The doctest binary is registered TWICE, and the label is what tells them apart:
 #
-# Note this gives every case a fresh process, so a test that corrupts state for
-# the ones after it stays invisible here (that is how an unbound Bank walking
-# garbage pointers hid - see its value-init). Run the binary directly to catch
-# that class: `./build/tests/botanik_tests` puts all the cases in one process.
+#   doctest        - one entry running every case in one process. UNLABELLED, so
+#                    the gate runs it. ~0.6 s.
+#   <case name>    - one entry per TEST_CASE, labelled `unit`, so `ctest -R`, the
+#                    VS Code Testing panel and an IDE debugger can each address a
+#                    single case. ~14 s for the set, which is why the gate skips
+#                    them (`ctest -LE unit`, see the check target).
+#
+# The cost is per-PROCESS, not per-test: 491 cases run in ~0.6 s together and
+# ~14 s apart, all of it process startup and static-table init paid 491 times.
+# Running them together is also the configuration that catches a case corrupting
+# state for the ones after it - a per-case process hides that by construction
+# (which is how an unbound Bank walking garbage pointers hid; see its value-init).
+#
+# So the gate gets the fast, stricter one, and per-case addressing stays for the
+# times you actually want it: a bare `ctest` runs both.
+add_test(NAME doctest COMMAND botanik_tests)
+
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/vendor)
 include(doctest)
-doctest_discover_tests(botanik_tests)
+doctest_discover_tests(botanik_tests PROPERTIES LABELS unit)
 
 # `make check` is the one-shot pre-push gate. Its dependencies build everything
 # the suite needs (`make test`/`ctest` do not) plus the two static gates, then the
@@ -112,8 +87,14 @@ if(_nproc EQUAL 0)
 endif()
 set(BOTANIK_CTEST_JOBS ${_nproc} CACHE STRING
     "Parallel job count for the ctest gate (make check)")
+# The run itself is gate.cmake: `-LE unit` first, and the per-case entries only
+# when doctest failed and there is something to attribute. Excluding by LABEL
+# rather than naming what to run means a newly added test joins the gate by
+# default - it has to be labelled `unit` to be left out.
 add_custom_target(check
-    COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure -j ${BOTANIK_CTEST_JOBS}
+    COMMAND ${CMAKE_COMMAND} -DCTEST=${CMAKE_CTEST_COMMAND}
+            -DJOBS=${BOTANIK_CTEST_JOBS}
+            -P ${CMAKE_CURRENT_SOURCE_DIR}/gate.cmake
     DEPENDS botanik_tests botanik_strict
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
     COMMENT "Pre-push gate: warning-clean build + unit tests"
@@ -155,12 +136,19 @@ if(BOTANIK_PYTE_TESTS AND Python3_Interpreter_FOUND)
         # itself when its inputs change, so this only has to create the tree once.
         # LTO off: the whole-program link dominated this build, and the tests need
         # a sim that isn't sanitizer-slow, not one that is optimally inlined.
+        #
+        # The OUTPUT is a stamp we touch ourselves, NOT the sub-tree's
+        # CMakeCache.txt. CMake leaves that file's mtime alone when a re-configure
+        # changes no cache value, so it stayed older than the CMakeLists it depends
+        # on and make re-ran this step on EVERY build - ~6 s added to a no-op
+        # `make check`, which is most of the ones a pre-push gate does.
         add_custom_command(
-            OUTPUT ${_pyte_sim_dir}/CMakeCache.txt
+            OUTPUT ${_pyte_sim_dir}/configure.stamp
             COMMAND ${CMAKE_COMMAND} -G ${CMAKE_GENERATOR} -S ${CMAKE_SOURCE_DIR}
                     -B ${_pyte_sim_dir} -DBOTANIK_TARGET=SIMULATOR
                     -DCMAKE_BUILD_TYPE=RELEASE -DBOTANIK_SANITIZE=OFF
                     -DBOTANIK_PYTE_TESTS=OFF -DBOTANIK_LTO=OFF
+            COMMAND ${CMAKE_COMMAND} -E touch ${_pyte_sim_dir}/configure.stamp
             DEPENDS ${CMAKE_SOURCE_DIR}/CMakeLists.txt
                     ${CMAKE_CURRENT_SOURCE_DIR}/CMakeLists.txt
             COMMENT "Configuring the release botanik_sim tree for the pyte tests"
@@ -173,7 +161,7 @@ if(BOTANIK_PYTE_TESTS AND Python3_Interpreter_FOUND)
             OUTPUT ${_pyte_sim_bin}
             COMMAND ${CMAKE_COMMAND} --build ${_pyte_sim_dir} --target botanik_sim
                     --parallel ${_nproc}
-            DEPENDS ${_pyte_sim_srcs} ${_pyte_sim_dir}/CMakeCache.txt
+            DEPENDS ${_pyte_sim_srcs} ${_pyte_sim_dir}/configure.stamp
             COMMENT "Building release botanik_sim for the pyte tests"
             VERBATIM)
         # In ALL, so an ordinary `make` produces it. CTest never builds anything -

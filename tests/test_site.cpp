@@ -1,35 +1,29 @@
 /**
- * @file test_site_names.cpp
- * @brief The selected site's tables name their variables; this checks the names
- *        are real.
+ * @file test_site.cpp
+ * @brief The selected site: names resolve, bindings hold, structs stay their size.
  *
- * Nothing addresses a variable by index any more. The status groups, the home
- * fields, the alarm conditions and the control programs all spell a name, and
- * Vars::Bank resolves it once at bring-up. That removed a 249-line enum whose
- * order had to be kept in step with the table by hand - and with it, the whole
- * class of bug where inserting a row silently re-points every reference after
- * it.
- *
- * What it costs is that a typo no longer fails to compile: an unknown name
- * resolves to the inert sink and reads as a dead variable forever. That is what
- * this suite exists to catch, in the gate rather than on a running machine.
- * Bank counts every miss, so the check is not "did I remember to test this row"
- * but "did anything, anywhere, fail to resolve".
- *
- * @see @ref cpptests
+ * Each section below is the former test_<name>.cpp, kept in its own
+ * namespace so their fixtures and helpers cannot collide.
  */
+
 #include <cstdint>              // uint16_t
 #include <cstring>              // strcmp
-
 #include "libbotanik_site.h"    // resolves BOTANIK_SITE -> BOTANIK_SITE_HEADER
 #include "libbotanik.h"         // Vars::Bank::find / unresolved_count
-
 #include "doctest.h"
 #include BOTANIK_SITE_HEADER
-
-#if BOTANIK_FEATURE_SUN
+#if BOTANIK_FEATURE_SUN_TRACKER
 #  include "libbotanik/sun/sun_tracker.h"
 #endif
+#include <string>   // doctest streams a const char* as a pointer
+#include <cstddef>              // size_t / offsetof
+
+// --------------------------------------------------------------------------
+// site_names
+// --------------------------------------------------------------------------
+
+namespace site_names {
+
 
 using namespace Botanik;
 
@@ -199,13 +193,9 @@ TEST_CASE("site: nothing the site touches fails to resolve") {
          "that is not in vars.h; the bank logs which one");
     CHECK(f.bank.unresolved_count() == 0);
 
-    // Nothing the site RUNS may write a parameter. Bank::set() is the only way
-    // one legitimately moves, and that is the operator's path (the shell, the
-    // PARAMS page) - never a control program or the simulated field. This is
-    // the check that catches a write aimed at a row nobody meant: an index that
-    // is stale or simply zero lands somewhere real, and with the parameters
-    // leading the table, zero is the first config row rather than a harmless
-    // one. Names cannot drift, but a leftover index still can.
+    // Nothing the site RUNS may write a parameter - Bank::set() is the
+    // operator's path alone. Catches a write aimed at a row nobody meant: names
+    // cannot drift, but a stale index can, and index zero is a real config row.
     for (uint16_t k = 0; k < f.bank.param_count(); k++) {
         const Vars::Var h = f.bank.param(k);
         if (h.meta()->type == Vars::T_STR) continue;   // lives in the pool
@@ -215,18 +205,13 @@ TEST_CASE("site: nothing the site touches fails to resolve") {
     }
 }
 
-#if BOTANIK_FEATURE_SUN
+#if BOTANIK_FEATURE_SUN_TRACKER
 TEST_CASE("site: the standalone components resolve their config names too") {
-    // The catch-all above runs what the SiteDescriptor bundles. A standalone
-    // component is not in it - BotanikFirmware never instantiates the sun
-    // tracker, a site owns the instance - so the names it looks up are reached
-    // by no table walk and no task run. They are string literals in
-    // sun/sun_tracker.cpp, and a miss reads 0 rather than failing.
-    //
-    // It had drifted exactly that way: the tracker reads geo_lat_deg/geo_lon_deg
-    // and the test fixture declared geo_latitude/geo_longitude, so both sides
-    // resolved to the sink and the site sat on the equator at 0 N 0 E, with a
-    // 12-hour day all year. Nothing failed, because nothing looked.
+    // A standalone component is not in the SiteDescriptor, so the names it looks
+    // up are reached by no table walk and no task run - and a miss reads 0
+    // rather than failing. It had drifted exactly so: the tracker read
+    // geo_lat_deg/geo_lon_deg against a fixture declaring geo_latitude, putting
+    // the site on the equator with a 12-hour day all year, and nothing looked.
     SiteBank f;
     Logs::Logger logger;
     Sun::SunPositionTracker sun(&f.bank, &logger);
@@ -472,3 +457,184 @@ TEST_CASE("analog: a tunable falls back to its constant when the parameter is ab
     // ...and the miss is counted, which is what the catch-all test asserts.
     CHECK(f.bank.unresolved_count() > 0);
 }
+
+}  // namespace site_names
+
+// --------------------------------------------------------------------------
+// site_bindings
+// --------------------------------------------------------------------------
+
+namespace site_bindings {
+
+using namespace Botanik;
+using namespace Botanik::Vars;
+
+namespace {
+
+const VarTables& tables() { return Site::g_site.vars; }
+
+bool on_the_bus(const Variable& d) {
+    return d.bind.transport == XP_MODBUS;
+}
+
+/** @brief Registers, or coils, that @p d occupies: [reg, reg + regs). */
+uint32_t span_end(const Variable& d) {
+    const uint16_t n = d.bind.regs != 0 ? d.bind.regs : 1;
+    return (uint32_t)d.bind.reg + n;
+}
+
+/** @brief doctest stringifies a const char* as an address, so names go
+ *  through std::string or a failure names nothing useful. */
+std::string nm(const Variable& d) { return std::string(d.name); }
+
+}  // namespace
+
+TEST_CASE("site bindings: no two field-bus rows overlap on a device") {
+    const VarTables& t = tables();
+
+    for (uint16_t i = 0; i < t.count; ++i) {
+        const Variable& a = t.var[i];
+        if (!on_the_bus(a)) continue;
+        for (uint16_t j = (uint16_t)(i + 1); j < t.count; ++j) {
+            const Variable& b = t.var[j];
+            if (!on_the_bus(b)) continue;
+            // Same device, and the same address space: bit function codes and
+            // register function codes are numbered apart.
+            if (a.bind.device != b.bind.device) continue;
+            if (Modbus::is_bit(a.bind.fc) != Modbus::is_bit(b.bind.fc)) continue;
+            // A read and a write of the same coil are the same coil.
+            const bool overlap = (uint32_t)a.bind.reg < span_end(b) &&
+                                 (uint32_t)b.bind.reg < span_end(a);
+            INFO("dev " << (int)a.bind.device
+                        << ": '" << nm(a) << "' [" << a.bind.reg << ","
+                        << span_end(a) << ") overlaps '" << nm(b) << "' ["
+                        << b.bind.reg << "," << span_end(b) << ")");
+            CHECK_FALSE(overlap);
+        }
+    }
+}
+
+TEST_CASE("site bindings: a row's span matches the width its wire type needs") {
+    const VarTables& t = tables();
+
+    for (uint16_t i = 0; i < t.count; ++i) {
+        const Variable& d = t.var[i];
+        if (!on_the_bus(d)) continue;
+        if (Modbus::is_bit(d.bind.fc)) {
+            INFO("'" << nm(d) << "' is a bit row spanning " << d.bind.regs);
+            CHECK(d.bind.regs <= 1);
+            continue;
+        }
+        // 32-bit wire values take a register pair; 16-bit ones take one.
+        const uint16_t want = (uint16_t)((type_width(d.bind.wire) + 1) / 2);
+        INFO("'" << nm(d) << "' wire type wants " << want
+                 << " register(s), declares " << d.bind.regs);
+        CHECK(d.bind.regs == want);
+    }
+}
+
+TEST_CASE("site bindings: every field-bus input can go stale") {
+    // expire_stale() skips a row whose timeout_ms is 0, and the driver does not
+    // invalidate on a failed read - so such a row would hold its last value for
+    // ever after the device died, reading GOOD the whole time.
+    const VarTables& t = tables();
+
+    for (uint16_t i = 0; i < t.count; ++i) {
+        const Variable& d = t.var[i];
+        if (!on_the_bus(d) || d.role != ROLE_INPUT) continue;
+        INFO("'" << nm(d) << "' is a field-bus input with no timeout");
+        CHECK(d.timeout_ms > 0);
+    }
+}
+
+TEST_CASE("site bindings: no read block can exceed a device's own request limit") {
+    // The SDM630 refuses a request for more than 40 parameters (80 registers),
+    // and answers with an exception rather than data. The planner's ceiling is
+    // MODBUS_MAX_REGS_PER_BLOCK; this checks the site stays inside it, which is
+    // what keeps a merged block legal at the far end.
+    const VarTables& t = tables();
+
+    for (uint16_t i = 0; i < t.count; ++i) {
+        const Variable& d = t.var[i];
+        if (!on_the_bus(d) || Modbus::is_bit(d.bind.fc)) continue;
+        INFO("'" << nm(d) << "' spans " << d.bind.regs << " registers");
+        CHECK(d.bind.regs <= Config::MODBUS_MAX_REGS_PER_BLOCK);
+    }
+}
+
+}  // namespace site_bindings
+
+// --------------------------------------------------------------------------
+// sizes
+// --------------------------------------------------------------------------
+
+namespace sizes {
+
+// Concrete instantiations of the templated pages, matching what the
+// simulator actually builds (see botanik_sim/main.cpp).
+using HomePage_t   = Botanik::Pages::HomePage;
+// StatusPage is an unregistered building block; its template parameter is what
+// a site subclass draws in its own data rows. Nothing at this site has one
+// any more - variables are reached through the bank - so it is sized here on a
+// stand-in, and the parameter is arguably vestigial now.
+struct StatusPayloadStandIn { uint32_t whatever; };
+using StatusPage_t = Botanik::Pages::StatusPage<StatusPayloadStandIn>;
+
+// Guard a type against runaway growth. The budget is a loose ceiling - bump it
+// deliberately if a structure legitimately needs it. The failure message names
+// the type and both numbers, so a trip reads without a separate size table.
+#define REPORT_SIZE(T, budget)                                               \
+    CHECK_MESSAGE(sizeof(T) <= (size_t)(budget),                             \
+                  #T " = " << sizeof(T) << " bytes, budget " << (budget))
+
+// Budgets are loose round ceilings above the current host-build size — a
+// regression tripwire for accidental bloat, not a tight spec. The page sizes are
+// dominated by config-driven line/log buffers (scrollback + BufferedLogWriter),
+// so they move with the Config::*_LINES / LOG_* knobs, not with code churn.
+TEST_CASE("sizeof: terminal & input objects") {
+    // AnsiTerminal owns the screen back-buffer: two GRID_ROWS x GRID_COLS cell
+    // grids (front + back, ~8 KB) diffed by present(); its size tracks the grid
+    // dimensions, not the VT device state (~100 B).
+    REPORT_SIZE(Botanik::Terminal::AnsiTerminal, 12288);
+    // The editor borrows its text buffer and row arrays, so it is just cursor
+    // and layout state; the bytes live in whatever EditorBuffers fed it.
+    REPORT_SIZE(Botanik::Terminal::TextEditor,    256);
+    REPORT_SIZE(Botanik::Terminal::InputParser,   512);
+}
+
+// The editors' actual footprint, one instantiation per job. These are the sizes
+// that move when SHELL_INPUT_LEN / EDITOR_MAX_ROWS / NOTES_* change.
+TEST_CASE("sizeof: editor buffers") {
+    using ShellBufs = Botanik::Terminal::EditorBuffers<Botanik::Config::SHELL_INPUT_LEN,
+                                                       Botanik::Config::EDITOR_MAX_ROWS>;
+    REPORT_SIZE(ShellBufs, 2048);
+}
+
+TEST_CASE("sizeof: pages") {
+    REPORT_SIZE(HomePage_t,                     32768);
+    REPORT_SIZE(StatusPage_t,                    4096);
+    REPORT_SIZE(Botanik::Pages::LogsPage,       65536);
+    REPORT_SIZE(Botanik::Pages::ShellPage,      65536);
+    REPORT_SIZE(Botanik::Pages::MetricPage,      4096);
+    REPORT_SIZE(Botanik::Pages::ShellScrollback,16384);
+    REPORT_SIZE(Botanik::Pages::LogsScrollback, 32768);
+    REPORT_SIZE(Botanik::Pages::HomeScrollback,  4096);
+}
+
+TEST_CASE("sizeof: logging & serial") {
+    REPORT_SIZE(Botanik::Logs::LogEntry,             1024);
+    REPORT_SIZE(Botanik::Logs::Logger,               1024);
+    REPORT_SIZE(Botanik::Logs::BufferedLogWriter,   16384);
+    REPORT_SIZE(Botanik::Logs::SerialLogWriter,     16384);
+    REPORT_SIZE(Botanik::Utils::BufferedSerial,      8192);
+}
+
+TEST_CASE("sizeof: the site's variable table and value store") {
+    // The site payload is gone entirely: parameters, status, actuators and
+    // alarms are all rows of one table now. The descriptors are flash, the
+    // values are the only RAM cost.
+    REPORT_SIZE(Botanik::Vars::Variable, 128);
+    REPORT_SIZE(Botanik::Vars::Value, 32);
+}
+
+}  // namespace sizes

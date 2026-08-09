@@ -1,9 +1,8 @@
 """Per-page behaviour a golden cannot express, for the pages that need little.
 
-Layout for all three is pinned by test_pages.py; what is left is what pressing
-something does. Kept in one file because a CTest entry is a whole file and each
-one pays an interpreter startup - a file per assertion made the startup tax the
-main cost of these.
+What pressing something does, for the pages that need little. Kept in one file
+because a CTest entry is a whole file and each pays an interpreter startup - a
+file per assertion made the startup tax the main cost of these.
 
 Own sim per test: the reset test restarts the firmware, and entering a monitor
 group is page state the next test would inherit.
@@ -15,7 +14,7 @@ import keys
 from helpers import boot, goto, shell
 
 # HOME's rows 16+ are a live log tail the greenhouse floods; the widget rows are
-# the comparable part. The same clip test_pages.py uses, against the same golden.
+# the comparable part, and the only full-screen golden left in the suite.
 HOME_WIDGET = (0, 16)
 
 
