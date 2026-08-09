@@ -11,6 +11,7 @@
 
 // Forward-declare pointer types for context members
 namespace Botanik { namespace Scheduler { struct SchedulerContext;  } }
+namespace Botanik { namespace Tasks     {  class Registry;          } }
 namespace Botanik { namespace Vars      {  class Bank;              } }
 
 
@@ -42,6 +43,12 @@ namespace Botanik {
     struct SystemContext {
 
         Scheduler::SchedulerContext*   scheduler = nullptr; ///< Performance snapshots
+
+        /** @brief The task table, with the per-task cost samples. The beat's
+         *  CPU figure in `scheduler` has no attribution; this is where it comes
+         *  from, and what the `tasks` command reports. Const: the registry is
+         *  frozen once the loop starts, and a reader must not add to it. */
+        const Tasks::Registry*         tasks     = nullptr;
 
         /** @brief The variables - THE object to get, set and override anything
          *  the firmware exposes. Non-const: `set` and `override` write through

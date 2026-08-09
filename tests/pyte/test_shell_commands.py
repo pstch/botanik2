@@ -129,3 +129,27 @@ def test_features(spawn):
                           "modbus_rtu_client", "modbus_tcp_server")), \
         "features did not list the site's enabled subsystems"
     assert term.wait_for("off : (none)"), "the off partition did not render"
+
+
+def test_tasks(spawn):
+    """The beat, task by task - `stats` gives its CPU with no attribution.
+
+    One row per registered task plus a header and a footer makes this the longest
+    reply any built-in prints, which is why it wants `quiet_logs`: the greenhouse's
+    alarm churn and the reply compete for the same throttled 4800-baud console, and
+    under host load the churn wins long before the footer is painted.
+
+    Presence, not order - `wait_for` is a latched set, so it cannot see that the
+    phases came out phase-major. `test_tasks.cpp` pins the dispatch order.
+    """
+    term = shell(spawn, quiet_logs=True)
+    _run(term, b"tasks")
+    assert term.wait_for(("PHASE", "expire_stale", "execute", "peaks add to")), \
+        "tasks did not render the table"
+
+    _run(term, b"tasks expire_stale")
+    assert term.wait_for(("input (bkgnd", "Activations", "Cost")), \
+        "tasks <name> did not detail the task"
+
+    _run(term, b"tasks nosuchtask")
+    assert term.wait_for("no task named"), "an unknown task name said otherwise"
