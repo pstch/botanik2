@@ -443,10 +443,18 @@ extern char** environ;
 
 namespace {
 
-/** @brief Pre-raw-mode terminal settings. */
-struct termios* saved_console_termios() {
-    static struct termios saved;  // NOLINT(bugprone-signal-handler)
-    return &saved;
+/** @brief Pre-raw-mode terminal settings. At namespace scope rather than as a
+ *  function-local static on purpose: a local static carries a thread-safe
+ *  initialisation guard, and that guard is a C++-only construct the signal
+ *  handler chain below must not contain (until C++17). A POD here is
+ *  zero-initialised before main, with no guard and no dynamic init. */
+struct termios g_saved_console_termios;
+
+/** @brief Accessor for it. extern "C" because the signal handler reaches this
+ *  through botanik_restore_console, and C++11 allows only C-linkage functions
+ *  in that chain (the rule relaxes in C++17). */
+extern "C" struct termios* saved_console_termios() {
+    return &g_saved_console_termios;
 }
 
 }  // namespace
