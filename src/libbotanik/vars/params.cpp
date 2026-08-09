@@ -173,8 +173,9 @@ namespace Botanik { namespace Vars {
         const uint16_t n = _io->load_overrides();
         if (n != 0 && _logger != nullptr)
             _logger->critical(Logs::BOOT,
-                              "%u override(s) restored from storage - the field is "
-                              "not being read or driven normally", (unsigned)n);
+                              "%u override(s) restored from storage\n"
+                              "the field is not being read or driven normally",
+                              (unsigned)n);
 
         // Retained totals last. They are computed rows, so nothing above has
         // touched them, and restoring after the overrides means a forced

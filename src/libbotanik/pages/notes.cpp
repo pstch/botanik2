@@ -98,7 +98,8 @@ namespace Botanik { namespace Pages {
         if (ok) {
             _editor.clear_dirty();
         } else if (_logger != nullptr) {
-            _logger->critical(Logs::STORAGE, "notes not saved: storage refused %u bytes",
+            _logger->critical(Logs::STORAGE, "notes not saved\n"
+                              "storage refused %u bytes",
                               (unsigned)_editor.buffer_len());
         }
     }

@@ -41,15 +41,17 @@ void RtuClient::on_setup(uint64_t now_ms) {
     _publish_health();
 
     if (_logger == nullptr) return;
-    // Two lines, and the first one has to FIT. At 80 columns the timestamp,
-    // level and topic take 37, so the message gets 43 - which "102 rows -> 22
-    // blocks on 20 device(s)" overran, wrapping mid-word into "device(" / "s)"
-    // and pushing the duty figure onto a third line. Commas instead of arrows
-    // and "devices" instead of "device(s)" is 39 characters and reads better
-    // besides. The duty is the second line because it is the number an engineer
-    // actually goes looking for, and it must not be split across a fold.
-    _logger->info(Logs::SHARED_IO,
-                  "modbus: %u rows, %u blocks, %u devices\n"
+    // Two lines, and the first one has to FIT (see logs/format.h for the
+    // arithmetic). At 80 columns the timestamp, level and MODBUS take 34, so
+    // the message gets 46 - which "102 rows -> 22 blocks on 20 device(s)"
+    // overran, wrapping mid-word into "device(" / "s)" and pushing the duty
+    // figure onto a third line. Commas instead of arrows and "devices" instead
+    // of "device(s)" is 29 characters and reads better besides. The duty is the
+    // second line because it is the number an engineer actually goes looking
+    // for, and it must not be split across a fold. No "modbus:" scope word on
+    // any of these: the topic column already says it.
+    _logger->info(Logs::MODBUS,
+                  "%u rows, %u blocks, %u devices\n"
                   "%u.%u%% of the bus at %u baud",
                   (unsigned)_plan.row_count(), (unsigned)_plan.block_count(),
                   (unsigned)_plan.device_count(),
@@ -60,11 +62,10 @@ void RtuClient::on_setup(uint64_t now_ms) {
     // will never be scanned, and it would otherwise look exactly like a sensor
     // that is simply never answering.
     if (_plan.rows_dropped() != 0)
-        _logger->critical(Logs::SHARED_IO, "modbus: %u row(s) unplanned",
+        _logger->critical(Logs::MODBUS, "%u row(s) unplanned",
                           (unsigned)_plan.rows_dropped());
     if (_plan.rows_unscanned() != 0)
-        _logger->critical(Logs::SHARED_IO,
-                          "modbus: %u row(s) will never be scanned",
+        _logger->critical(Logs::MODBUS, "%u row(s) never scanned",
                           (unsigned)_plan.rows_unscanned());
 }
 
@@ -85,7 +86,7 @@ void RtuClient::_answered(const Block& b) {
     if (p->misses > Config::MODBUS_RETRIES) {
         if (_logger != nullptr) {
             char who[40];
-            _logger->notice(Logs::SHARED_IO, "modbus: dev %s answering again",
+            _logger->notice(Logs::MODBUS, "dev %s answering again",
                             device_label(_devices, b.device, who, sizeof who));
         }
         // Every write block of THIS device, not just the block that happened to
@@ -128,8 +129,9 @@ void RtuClient::_missed(const Block& b, uint64_t now_ms) {
     // log entry every 30 seconds.
     if (p->misses == Config::MODBUS_RETRIES + 1 && _logger != nullptr) {
         char who[40];
-        _logger->error(Logs::SHARED_IO,
-                       "modbus: dev %s not answering, probing every %u ms",
+        _logger->error(Logs::MODBUS,
+                       "dev %s not answering\n"
+                       "probing every %u ms",
                        device_label(_devices, b.device, who, sizeof who),
                        (unsigned)wait);
     }
@@ -299,8 +301,8 @@ bool RtuClient::_send() {
             // that reads as a wiring fault - so it is said out loud rather than
             // counted quietly.
             if (_logger != nullptr)
-                _logger->critical(Logs::SHARED_IO,
-                                  "modbus: TX ring refused byte %u of %u; "
+                _logger->critical(Logs::MODBUS,
+                                  "TX ring refused byte %u of %u\n"
                                   "MODBUS_TX_RING_BYTES is wrong",
                                   (unsigned)i, (unsigned)_frame_len);
             return false;
@@ -452,8 +454,9 @@ void RtuClient::_settle(uint64_t now_ms) {
         if (is_read(b.fc)) invalidate_block(*_io, _plan, b, Vars::Q_REFUSED);
         if (_logger != nullptr) {
             char who[40];
-            _logger->warning(Logs::SHARED_IO,
-                          "modbus: dev %s fc %u reg %u refused (exception %u)",
+            _logger->warning(Logs::MODBUS,
+                          "dev %s refused\n"
+                          "fc %u reg %u, exception %u",
                           device_label(_devices, b.device, who, sizeof who),
                           (unsigned)b.fc, (unsigned)b.reg,
                           (unsigned)_framer.response().ex);

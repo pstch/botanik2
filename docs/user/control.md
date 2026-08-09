@@ -85,14 +85,19 @@ Control is withdrawn automatically on a health fault, logged as a critical on th
 `HEALTH` topic:
 
 ```
-[@] HEALTH: control disabled: outputs at their safe state, scan inhibited
+[@] HEALTH: control disabled
+                        > outputs at their safe state, scan inhibited
 ```
 
 Recovery logs a warning and hands control back:
 
 ```
-[!] HEALTH: control enabled, scan resuming
+[!] HEALTH: health recovered
+                        > control enabled, scan resuming
 ```
+
+(or `control still disabled by the operator` on the second line, if you also
+hold it down by hand.)
 
 This is edge-triggered on the fault, not re-decided every beat, and it moves only the
 **health** inhibit. A recovery therefore hands control back only if you had not also

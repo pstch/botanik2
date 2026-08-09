@@ -22,6 +22,9 @@ namespace Botanik { namespace Pages {
     LogsPage::LogsPage(Terminal::Console& console) :
         _console(console), _terminal(console.terminal())
     {
+        // This page IS the record, so it takes whatever the logger forwarded -
+        // DEBUG included. Raising the master floor (`loglevel`) still quiets it.
+        set_min_level((Logs::LogLevel)Config::LOGS_LOG_MIN_LEVEL);
     }
 
     // Page interface

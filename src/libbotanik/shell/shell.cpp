@@ -808,6 +808,9 @@ namespace Botanik { namespace Shell {
             for (const auto& L : LEVELS)
                 if (L.lvl == _logger->min_level()) cur = L.name;
             _emitf(out, sizeof(out), "loglevel: %s", cur);
+            // Say it, because "loglevel debug" not making DEBUG appear here
+            // otherwise reads as a broken command rather than a page floor.
+            _println("(master floor; each page filters further)");
             return;
         }
         for (const auto& L : LEVELS)

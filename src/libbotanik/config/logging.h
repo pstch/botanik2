@@ -22,12 +22,46 @@ namespace Botanik { namespace Config {
      *  in front of them.
      *  @{ */
 
-    /** @brief Default minimum forwarded log level.
-     *  @note SIMULATOR builds force it to 1 (debug) from CMakeLists.txt. */
+    /** @brief Minimum level the LOGGER forwards at all - the master floor, and
+     *  what the `loglevel` command moves. DEBUG, so the LOGS page can show
+     *  everything; each page sink then applies its own floor on top (below).
+     *  Cheap to leave open: every debug() call site is a one-shot boot line. */
 #ifndef BOTANIK_LOG_MIN_LEVEL
-#  define BOTANIK_LOG_MIN_LEVEL 2   /* Logs::LOG_INFO */
+#  define BOTANIK_LOG_MIN_LEVEL 1   /* Logs::LOG_DEBUG */
 #endif
     BOTANIK_CFG(uint8_t, LOG_MIN_LEVEL);
+
+    /** @name Per-page sink floors
+     *
+     *  What each console page shows, on top of LOG_MIN_LEVEL. A sink floor can
+     *  only ever be MORE restrictive: an entry the logger dropped never reaches
+     *  a sink to be admitted. LOG_CRITICAL is the enum maximum, so a critical
+     *  clears every floor.
+     *
+     *  HOME is a landing screen an operator glances at, so it carries only what
+     *  is worth looking up for; the SHELL is where you are already working, so
+     *  it keeps the running commentary; LOGS is the record and holds the lot.
+     *  @{ */
+
+    /** @brief HOME page log band. */
+#ifndef BOTANIK_HOME_LOG_MIN_LEVEL
+#  define BOTANIK_HOME_LOG_MIN_LEVEL 4   /* Logs::LOG_NOTICE */
+#endif
+    BOTANIK_CFG(uint8_t, HOME_LOG_MIN_LEVEL);
+
+    /** @brief SHELL page log drain. */
+#ifndef BOTANIK_SHELL_LOG_MIN_LEVEL
+#  define BOTANIK_SHELL_LOG_MIN_LEVEL 2   /* Logs::LOG_INFO */
+#endif
+    BOTANIK_CFG(uint8_t, SHELL_LOG_MIN_LEVEL);
+
+    /** @brief LOGS page. Everything the logger forwarded. */
+#ifndef BOTANIK_LOGS_LOG_MIN_LEVEL
+#  define BOTANIK_LOGS_LOG_MIN_LEVEL 1   /* Logs::LOG_DEBUG */
+#endif
+    BOTANIK_CFG(uint8_t, LOGS_LOG_MIN_LEVEL);
+
+    /** @} */
 
     /** @brief Maximum length of a single log message, before formatting. */
 #ifndef BOTANIK_LOG_MESSAGE_LEN

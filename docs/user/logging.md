@@ -26,7 +26,7 @@ out-of-band monitor port, and MQTT where telemetry is enabled.
 | `[@]` | critical | you need to know now |
 
 **Topics** say which part of the firmware spoke: `BOOT`, `NETWORK`, `TIME`,
-`STATUS`, `HEALTH`, `STORAGE`, `SHARED_IO`, `ASSERT`, and the alarm transitions
+`STATUS`, `HEALTH`, `STORAGE`, `MODBUS`, `ASSERT`, and the alarm transitions
 `ALARM_BEG`, `ALARM_END`, `ALARM_FLAP`.
 
 `STORAGE` is its own topic on purpose - a persistence failure must not be buried
@@ -34,16 +34,45 @@ under boot chatter.
 
 ## Choosing how much
 
-`loglevel` sets the minimum level that is emitted at all:
+Two filters in series. `loglevel` is the **master floor** - below it nothing is
+emitted at all, to any sink:
 
 ```
 botanik> loglevel            # report the current threshold
-loglevel: info
+loglevel: debug
+(master floor; each page filters further)
 botanik> loglevel warning    # quieten everything below warnings
 ```
 
-The default is `info`. This applies to every sink, not just the page you are on. To
-quieten only the SHELL page's interleaved log, use `logs off` instead.
+The default is `debug`, so the LOGS page can be the complete record. Each page
+then applies its **own** floor on top:
+
+| Page | Shows | Why |
+|---|---|---|
+| HOME | `notice` and up | a landing screen you glance at - only what is worth looking up for |
+| SHELL | `info` and up | you are already working here, so keep the running commentary |
+| LOGS | everything, `debug` included | this page is the record |
+
+A page floor can only ever be *more* restrictive: `loglevel warning` quietens
+every page, but `loglevel debug` does **not** make debug lines appear on HOME.
+Criticals clear every floor. To silence only the SHELL page's interleaved log
+entirely, use `logs off`.
+
+A site can move any of the three (`BOTANIK_HOME_LOG_MIN_LEVEL`,
+`BOTANIK_SHELL_LOG_MIN_LEVEL`, `BOTANIK_LOGS_LOG_MIN_LEVEL`).
+
+## Long entries
+
+An entry too long for one line is written with an explicit break, and the second
+line is indented under a `>`:
+
+```
+[@] HEALTH: control disabled
+                        > outputs at their safe state, scan inhibited
+```
+
+On the monitor port and in MQTT payloads the break is folded to ` | ` instead,
+so one entry stays one greppable record.
 
 ## Rate limiting, and what it tells you
 

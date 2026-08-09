@@ -203,7 +203,6 @@ if(BOTANIK_TARGET STREQUAL "SIMULATOR")
         TARGET_SIMULATOR
         DEBUG
         _GNU_SOURCE
-        BOTANIK_LOG_MIN_LEVEL=1   # Logs::LOG_DEBUG - verbose on the sim (header default is LOG_INFO)
     )
 
     target_include_directories(botanik PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/src")

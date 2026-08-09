@@ -13,8 +13,9 @@
 
 namespace Botanik { namespace Network {
 
-    MqttLogWriter::MqttLogWriter(Logs::LogLevel min_level)
-        : _min_level(min_level) {}
+    MqttLogWriter::MqttLogWriter(Logs::LogLevel min_level) {
+        set_min_level(min_level);
+    }
 
     void MqttLogWriter::push(const Logs::LogEntry* entry) {
         // sink-local level gate (criticals always pass: LOG_CRITICAL is the max)
@@ -54,6 +55,10 @@ namespace Botanik { namespace Network {
         for (const char* p = time_buf; *p != 0 && n + 1 < len; ++p) buf[n++] = *p;
         if (n + 1 < len) buf[n++] = ' ';
         for (const char* p = entry->message; *p != 0 && n + 1 < len; ++p) buf[n++] = *p;
+        // Same reason as the serial sink: a message's '\n' is the console's
+        // fold marker, and a payload split across it is one record pretending
+        // to be two. Same helper, so the two wire shapes cannot drift.
+        n = Logs::fold_newlines(buf, n, len - 1);
         buf[n] = '\0';
         return n;
     }

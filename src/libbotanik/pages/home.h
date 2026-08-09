@@ -169,6 +169,10 @@ namespace Botanik { namespace Pages {
             // cold-field redraw cadence is MetricPage's default (PAGE_COLD_MS)
             // uptime ticks every second
             _hot_ms     = Config::PAGE_HOT_MS;
+            // The band is a glance, not a record: NOTICE and up by default, so
+            // boot chatter does not push the one line worth seeing off the
+            // bottom. The full stream is the LOGS page.
+            set_min_level((Logs::LogLevel)Config::HOME_LOG_MIN_LEVEL);
         }
 
         const char* name() const override { return "HOME"; }

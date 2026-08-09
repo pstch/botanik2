@@ -185,7 +185,7 @@ namespace Botanik { namespace Vars {
         // that exists in a table or a program but not in vars.h. Count it (and
         // say which) rather than letting it read as a dead variable forever.
         if (_unresolved < 0xFFFFu) _unresolved++;
-        if (_logger != nullptr) _logger->error(Logs::BOOT, "unknown variable '%s'", name);
+        if (_logger != nullptr) _logger->error(Logs::BOOT, "unknown variable\n'%s'", name);
         return r;
     }
 
@@ -421,7 +421,7 @@ namespace Botanik { namespace Vars {
             // Loud: the value is live, so nothing looks wrong until the reboot
             // that quietly reverts it.
             if (_logger != nullptr)
-                _logger->critical(Logs::STORAGE, "param '%s' not persisted", d.name);
+                _logger->critical(Logs::STORAGE, "param not persisted\n'%s'", d.name);
             return SET_NOT_PERSISTED;
         }
         return SET_OK;
@@ -474,7 +474,7 @@ namespace Botanik { namespace Vars {
         if (_store == nullptr || row == VAR_NONE) return;
         const Variable* d = h.meta();
         if (!_store->save_override(*d, _terminal.val[row]) && _logger != nullptr)
-            _logger->critical(Logs::STORAGE, "override on '%s' not persisted", d->name);
+            _logger->critical(Logs::STORAGE, "override not persisted\n'%s'", d->name);
     }
 
     uint16_t Bank::load_overrides() {
@@ -491,7 +491,7 @@ namespace Botanik { namespace Vars {
             // nobody remembers setting it. The row's own scope says whether it
             // is an actuator, so the entry does not shout about it.
             if (_logger != nullptr)
-                _logger->critical(Logs::BOOT, "override restored on '%s'", d.name);
+                _logger->critical(Logs::BOOT, "override restored\non '%s'", d.name);
         }
         return n;
     }

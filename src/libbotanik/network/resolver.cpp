@@ -92,7 +92,7 @@ namespace Botanik { namespace Network {
                 return RESOLVE_OK;
             case HAL::Network::DNS_FAILED:
                 if (_logger != nullptr)
-                    _logger->error(Logs::NETWORK, "DNS resolve failed: %s", host);
+                    _logger->error(Logs::NETWORK, "DNS resolve failed\n%s", host);
                 e.state = SLOT_FREE;
                 return RESOLVE_FAILED;
             default:

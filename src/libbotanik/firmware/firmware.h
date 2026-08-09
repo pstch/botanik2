@@ -733,14 +733,19 @@ namespace Botanik {
                     _health_fault = true;
                     _io.disable_control(Vars::Bank::INHIBIT_HEALTH);
                     _logger.critical(Logs::HEALTH,
-                        "control disabled: outputs at their safe state, scan inhibited");
+                        "control disabled\n"
+                        "outputs at their safe state, scan inhibited");
                 }
             } else if (_health_fault) {
                 _health_fault = false;
                 _io.enable_control(Vars::Bank::INHIBIT_HEALTH);
-                _logger.warning(Logs::HEALTH, _io.control_enabled()
-                    ? "health recovered, control enabled, scan resuming"
-                    : "health recovered, but control is still disabled by the operator");
+                // The lead is hoisted out of the ternary, so the format string
+                // is a literal the printf attribute can still check, and both
+                // outcomes grep as "health recovered".
+                _logger.warning(Logs::HEALTH, "health recovered\n%s",
+                    _io.control_enabled()
+                        ? "control enabled, scan resuming"
+                        : "control still disabled by the operator");
             }
         }
 

@@ -171,6 +171,12 @@ namespace Botanik { namespace Alarms {
         AlarmNotifier* const* notifiers;       ///< borrowed notifier array (may be null)
         uint8_t               notifier_count;  ///< entries in @c notifiers
 
+        /** @name Transition log lines
+         *
+         *  The label is the row's own desc, so the message is site DATA and not
+         *  a literal anyone can fold at. test_site_names.cpp caps it at the 40
+         *  characters logs/format.h asks of a first line.
+         *  @{ */
         void log_start(const char* label) const {
             if (logger) logger->warning(Logs::ALARM_BEG, "%s", label);
         }
@@ -180,6 +186,7 @@ namespace Botanik { namespace Alarms {
         void log_flap(const char* label) const {
             if (logger) logger->notice(Logs::ALARM_FLAP, "%s", label);
         }
+        /** @} */
         void _fan(void (AlarmNotifier::*m)(const AlarmCondition&), const AlarmCondition& c) const {
             for (uint8_t i = 0; i < notifier_count; i++)
                 if (notifiers[i]) (notifiers[i]->*m)(c);

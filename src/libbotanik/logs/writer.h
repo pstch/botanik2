@@ -24,6 +24,18 @@ namespace Botanik { namespace Logs {
      *  format() and write(); the standard implementation is
      *  @ref BufferedLogWriter. */
     class LogWriter {
+    protected:
+        /** @name Level gate
+         *  @{ */
+
+        /** @brief Sink-local floor. Only ever MORE restrictive than the
+         *  logger's: an entry the logger dropped never arrives here to be
+         *  admitted. LOG_CRITICAL is the enum maximum, so a critical always
+         *  passes. Open by default - a sink that wants less says so. */
+        Logs::LogLevel _min_level = Logs::LOG_DEBUG;
+
+        /** @} */
+
     public:
         /** @name Queue interface
          *  @{ */
@@ -34,6 +46,16 @@ namespace Botanik { namespace Logs {
         virtual void    drain() = 0;
         /** @brief Cumulative entries lost at this sink, for loss reporting. */
         virtual uint32_t loss_count() const { return 0; }
+
+        /** @} */
+
+        /** @name Level gate
+         *  @{ */
+
+        /** @brief Set this sink's floor. */
+        void set_min_level(Logs::LogLevel level) { _min_level = level; }
+        /** @brief This sink's floor. */
+        Logs::LogLevel min_level() const { return _min_level; }
 
         /** @} */
     protected:
@@ -92,10 +114,11 @@ namespace Botanik { namespace Logs {
         /** @name Queue interface
          *  @{ */
 
-        /** @brief Enqueue @p entry. The last LOG_QUEUE_CRITICAL_RESERVE slots
-         *  are kept for LOG_CRITICAL: a normal that would intrude is dropped
-         *  (counted); a critical seats into the reserve, or evicts the oldest
-         *  only if the queue is wholly full. */
+        /** @brief Enqueue @p entry, unless it is below this sink's _min_level.
+         *  The last LOG_QUEUE_CRITICAL_RESERVE slots are kept for LOG_CRITICAL:
+         *  a normal that would intrude is dropped (counted); a critical seats
+         *  into the reserve, or evicts the oldest only if the queue is wholly
+         *  full. */
         void push(const Logs::LogEntry* entry) override;
         /** @brief Flush queued entries to the output medium (call from the main
          *  loop) */

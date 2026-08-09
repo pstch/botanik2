@@ -162,7 +162,7 @@ namespace Botanik { namespace Health {
 
         /** @brief Log a POST failure line (CRITICAL, HEALTH topic). */
         void _post_fail(const char* what, const char* detail) {
-            if (_logger) _logger->critical(Logs::HEALTH, "POST: %s %s", what, detail);
+            if (_logger) _logger->critical(Logs::HEALTH, "POST: %s\n%s", what, detail);
         }
 
         /** @brief Bind every alarm this class raises, once. Nothing else names

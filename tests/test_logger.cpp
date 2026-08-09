@@ -9,6 +9,7 @@
 #include <string>                   // std::string
 #include <vector>                   // std::vector
 
+#include "libbotanik/logs/format.h" // Logs::fold_newlines
 #include "libbotanik/logs/logger.h" // Logs::Logger
 
 #include "doctest.h"
@@ -88,14 +89,14 @@ TEST_CASE("logger: min_level drops sub-threshold entries, criticals always pass"
     lg.set_min_level(Logs::LOG_WARNING);
     CHECK(lg.min_level() == Logs::LOG_WARNING);
 
-    lg.push_entry(info_on(Logs::SHARED_IO));          // LOG_INFO < WARNING -> dropped
+    lg.push_entry(info_on(Logs::MODBUS));          // LOG_INFO < WARNING -> dropped
     CHECK(w.pushes == 0);
 
-    Logs::LogEntry warn = info_on(Logs::SHARED_IO); warn.level = Logs::LOG_WARNING;
+    Logs::LogEntry warn = info_on(Logs::MODBUS); warn.level = Logs::LOG_WARNING;
     lg.push_entry(warn);                            // == threshold -> passes
     CHECK(w.pushes == 1);
 
-    Logs::LogEntry crit = info_on(Logs::SHARED_IO); crit.level = Logs::LOG_CRITICAL;
+    Logs::LogEntry crit = info_on(Logs::MODBUS); crit.level = Logs::LOG_CRITICAL;
     lg.push_entry(crit);                            // critical (max level) always passes
     CHECK(w.pushes == 2);
 }
@@ -165,7 +166,7 @@ TEST_CASE("bucket: _report_suppressed emits a critical summary and clears the ta
     lg.add_writer(&w);
     Logs::LogBucket_t b;
     b.suppressed = 5;
-    lg._report_suppressed(&b, Logs::SHARED_IO, 1234);
+    lg._report_suppressed(&b, Logs::MODBUS, 1234);
     CHECK(w.pushes == 1);
     CHECK(w.last_level == Logs::LOG_CRITICAL);   // critical so the writer can't drop it
     CHECK(std::string(w.last_msg).find("5") != std::string::npos);
@@ -178,7 +179,7 @@ TEST_CASE("bucket: _report_suppressed with nothing suppressed emits nothing") {
     RecordingWriter w;
     lg.add_writer(&w);
     Logs::LogBucket_t b;                          // suppressed == 0
-    lg._report_suppressed(&b, Logs::SHARED_IO, 1);
+    lg._report_suppressed(&b, Logs::MODBUS, 1);
     CHECK(w.pushes == 0);
 }
 
@@ -194,7 +195,7 @@ TEST_CASE("rate limit: a flooded topic passes up to the burst, then drops") {
     const int gburst = Config::LOG_GLOBAL_BUCKET_BURST;
     const int tburst = Config::LOG_PERTOPIC_BUCKET_BURST;
     const int cap = gburst < tburst ? gburst : tburst;
-    Logs::LogEntry e = info_on(Logs::SHARED_IO);
+    Logs::LogEntry e = info_on(Logs::MODBUS);
     for (int i = 0; i < cap + 10; ++i) lg.push_entry(e);
     CHECK(w.pushes == cap);
 }
@@ -208,7 +209,7 @@ TEST_CASE("rate limit: the global bucket caps total throughput across topics") {
     // it, so the total is the global burst. (Assumes tburst <= gburst <= 2*tburst.)
     const int gburst = Config::LOG_GLOBAL_BUCKET_BURST;
     const int tburst = Config::LOG_PERTOPIC_BUCKET_BURST;
-    Logs::LogEntry a = info_on(Logs::SHARED_IO);
+    Logs::LogEntry a = info_on(Logs::MODBUS);
     Logs::LogEntry b = info_on(Logs::BOOT);
     for (int i = 0; i < tburst; ++i) lg.push_entry(a);   // A's topic bucket -> 0, global -= tburst
     for (int i = 0; i < tburst; ++i) lg.push_entry(b);   // B has topic tokens, global (gburst-tburst) gates it
@@ -227,4 +228,92 @@ TEST_CASE("rate limit: topics with no per-topic bucket are gated by the global b
     Logs::LogEntry e = info_on(topic);
     for (int i = 0; i < burst + 5; ++i) lg.push_entry(e);
     CHECK(w.pushes == burst);                            // limited by the global bucket alone
+}
+
+TEST_CASE("writer: each sink applies its own floor on top of the logger's") {
+    // What the HOME / SHELL / LOGS split rests on: one logger, three sinks,
+    // three different floors. The logger stays open at DEBUG.
+    Logs::Logger lg;
+    lg.set_min_level(Logs::LOG_DEBUG);
+
+    TestBuffered logs, shell, home;
+    logs.set_min_level(Logs::LOG_DEBUG);      // the record: everything
+    shell.set_min_level(Logs::LOG_INFO);
+    home.set_min_level(Logs::LOG_NOTICE);
+    lg.add_writer(&logs); lg.add_writer(&shell); lg.add_writer(&home);
+
+    // One entry per level, timestamped by level so the survivors are nameable.
+    const Logs::LogLevel LEVELS[] = { Logs::LOG_DEBUG, Logs::LOG_INFO,
+                                      Logs::LOG_NOTICE, Logs::LOG_WARNING,
+                                      Logs::LOG_ERROR, Logs::LOG_CRITICAL };
+    for (const auto& lvl : LEVELS) {
+        Logs::LogEntry e = info_on(Logs::MODBUS);
+        e.level = lvl; e.timestamp = (uint32_t)lvl;
+        lg.push_entry(e);
+    }
+    logs.drain(); shell.drain(); home.drain();
+
+    CHECK(logs.sent.size()  == 6);   // DEBUG and up
+    CHECK(shell.sent.size() == 5);   // INFO and up
+    CHECK(home.sent.size()  == 4);   // NOTICE and up
+
+    CHECK(logs.sent.front()  == (uint32_t)Logs::LOG_DEBUG);
+    CHECK(shell.sent.front() == (uint32_t)Logs::LOG_INFO);
+    CHECK(home.sent.front()  == (uint32_t)Logs::LOG_NOTICE);
+
+    // A critical clears every floor - it is the enum maximum.
+    TestBuffered* const SINKS[] = { &logs, &shell, &home };
+    for (const auto& w : SINKS)
+        CHECK(w->sent.back() == (uint32_t)Logs::LOG_CRITICAL);
+
+    // A sink floor cannot ADMIT what the logger already refused.
+    lg.set_min_level(Logs::LOG_ERROR);
+    Logs::LogEntry warn = info_on(Logs::MODBUS);
+    warn.level = Logs::LOG_WARNING; warn.timestamp = 4242;
+    lg.push_entry(warn);
+    logs.drain();
+    CHECK(logs.sent.size() == 6);    // unchanged: the logger dropped it first
+}
+
+TEST_CASE("format: fold_newlines keeps one entry to one wire record") {
+    char buf[64];
+
+    SUBCASE("a break becomes ' | '") {
+        std::string s = "control disabled\noutputs safe";
+        std::copy(s.begin(), s.end(), buf);
+        size_t n = Logs::fold_newlines(buf, s.size(), sizeof(buf));
+        CHECK(std::string(buf, n) == "control disabled | outputs safe");
+        CHECK(n == s.size() + 2);
+    }
+    SUBCASE("several breaks all fold") {
+        std::string s = "a\nb\nc";
+        std::copy(s.begin(), s.end(), buf);
+        size_t n = Logs::fold_newlines(buf, s.size(), sizeof(buf));
+        CHECK(std::string(buf, n) == "a | b | c");
+    }
+    SUBCASE("no break is left untouched") {
+        std::string s = "nothing to fold";
+        std::copy(s.begin(), s.end(), buf);
+        size_t n = Logs::fold_newlines(buf, s.size(), sizeof(buf));
+        CHECK(std::string(buf, n) == s);
+    }
+    SUBCASE("growth past cap truncates the TAIL, never overruns") {
+        // " | " costs 2 more than the '\n' it replaces, and LOG_FORMATTED_LEN
+        // is only exactly LOG_MESSAGE_LEN + 64 - so this path is reachable.
+        std::string s = "abc\ndef";               // would be 9: "abc | def"
+        char guarded[16];
+        std::fill(guarded, guarded + sizeof(guarded), '#');
+        std::copy(s.begin(), s.end(), guarded);
+        size_t n = Logs::fold_newlines(guarded, s.size(), 6);
+        CHECK(n == 6);
+        CHECK(std::string(guarded, 6) == "abc | ");
+        // Nothing written at or past cap: [6] still holds the source byte the
+        // copy above put there, and [7] onward is still the fill.
+        CHECK(guarded[6] == 'f');
+        CHECK(guarded[7] == '#');
+    }
+    SUBCASE("an empty buffer is not a fold") {
+        CHECK(Logs::fold_newlines(buf, 0, sizeof(buf)) == 0);
+        CHECK(Logs::fold_newlines(nullptr, 5, sizeof(buf)) == 0);
+    }
 }

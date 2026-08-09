@@ -45,8 +45,8 @@ namespace Botanik { namespace Modbus {
         _map.build();
         _bind_acks();
         if (_map.overflow() != 0 && _logger != nullptr)
-            _logger->critical(Logs::SHARED_IO,
-                              "modbus map full: %u rows unpublished",
+            _logger->critical(Logs::MODBUS,
+                              "map full: %u rows unpublished",
                               (unsigned)_map.overflow());
         _apply_config(now_ms);
     }
@@ -240,7 +240,8 @@ namespace Botanik { namespace Modbus {
         _ctx.writes += committed;
         if (committed > 0 && _logger != nullptr) {
             char ip[16];
-            _logger->notice(Logs::SHARED_IO, "modbus write from %s: %u row(s) at %u",
+            _logger->notice(Logs::MODBUS, "write from %s\n"
+                            "%u row(s) at %u",
                             Net::ip4_to_str(c.peer, ip, sizeof(ip)),
                             (unsigned)committed, (unsigned)r.addr);
         }
@@ -303,7 +304,8 @@ namespace Botanik { namespace Modbus {
             const uint8_t n = _alarms->ack_all();
             if (n > 0 && _logger != nullptr) {
                 char ip[16];
-                _logger->notice(Logs::STATUS, "modbus %s: acknowledged %u alarm(s)",
+                _logger->notice(Logs::STATUS, "modbus %s: acknowledged\n"
+                                "%u alarm(s)",
                                 Net::ip4_to_str(peer, ip, sizeof(ip)), (unsigned)n);
             }
             return EX_NONE;
@@ -316,7 +318,7 @@ namespace Botanik { namespace Modbus {
         // block, and most of them are quiet.
         if (_alarms->ack(name) && _logger != nullptr) {
             char ip[16];
-            _logger->notice(Logs::STATUS, "modbus %s: acknowledged %s",
+            _logger->notice(Logs::STATUS, "modbus %s: acknowledged\n%s",
                             Net::ip4_to_str(peer, ip, sizeof(ip)), name);
         }
         return EX_NONE;
@@ -421,7 +423,7 @@ namespace Botanik { namespace Modbus {
         c.pending  = PEND_NONE;
         if (why != nullptr && _logger != nullptr) {
             char ip[16];
-            _logger->warning(Logs::NETWORK, "modbus: dropped %s (%s)",
+            _logger->warning(Logs::NETWORK, "modbus: dropped %s\n%s",
                           Net::ip4_to_str(c.peer, ip, sizeof(ip)), why);
         }
     }

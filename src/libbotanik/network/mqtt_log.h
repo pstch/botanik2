@@ -8,7 +8,7 @@
  *
  * Each entry is published QoS-0 under
  * "<MQTT_TOPIC_PREFIX>/<MQTT_LOG_TOPIC>/<level>/<topic>"
- * (e.g. ".../logs/debug/shared_io") with a "<timestamp> <message>" payload.
+ * (e.g. ".../logs/debug/modbus") with a "<timestamp> <message>" payload.
  * Publish-only, best-effort: an entry that can't go out now (link down, broker
  * gone) is dropped, not queued - MQTT already owns the socket TX, so a second
  * queue here would be redundant. A sink-local min level keeps low-severity
@@ -43,7 +43,6 @@ namespace Botanik { namespace Network {
         /** @name State
          *  @{ */
         MqttClient*    _mqtt = nullptr;   ///< transport (null = drop)
-        Logs::LogLevel _min_level;        ///< sink-local level gate
         bool           _busy  = false;    ///< reentrancy guard (publish -> log -> push)
         /** @} */
 
@@ -51,14 +50,13 @@ namespace Botanik { namespace Network {
         /** @name Lifecycle
          *  @{ */
 
-        /** @brief @p min_level is the sink's own threshold (criticals always
-         *  pass); defaults from Config::MQTT_LOG_MIN_LEVEL. */
+        /** @brief @p min_level seeds the base's sink-local floor (criticals
+         *  always pass); defaults from Config::MQTT_LOG_MIN_LEVEL. Adjust it
+         *  later with LogWriter::set_min_level(). */
         explicit MqttLogWriter(Logs::LogLevel min_level =
                                    (Logs::LogLevel)Config::MQTT_LOG_MIN_LEVEL);
         /** @brief Bind the transport (called once at firmware setup). */
         void set_publisher(MqttClient* mqtt) { _mqtt = mqtt; }
-        /** @brief Adjust the sink-local level gate. */
-        void set_min_level(Logs::LogLevel level) { _min_level = level; }
 
         /** @} */
 

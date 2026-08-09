@@ -24,6 +24,9 @@ namespace Botanik { namespace Pages {
         _editor(&console, _editor_bufs.storage()),
         _shell(console.terminal(), _editor, *this, sys)
     {
+        // You are working here, so keep the running commentary (INFO and up)
+        // but not the one-shot DEBUG boot lines.
+        set_min_level((Logs::LogLevel)Config::SHELL_LOG_MIN_LEVEL);
     }
 
     // Page interface

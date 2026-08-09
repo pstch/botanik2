@@ -33,7 +33,7 @@ namespace Botanik { namespace Logs {
      *  longer drift apart. */
     static const char* const TOPIC_NAMES[Logs::LOG_TOPIC_COUNT][2] = {
         { "",            "none"        },
-        { "SHARED_IO",   "shared_io"   },
+        { "MODBUS",      "modbus"      },
         { "BOOT",        "boot"        },
         { "NETWORK",     "network"     },
         { "TIME",        "time"        },
@@ -62,23 +62,102 @@ namespace Botanik { namespace Logs {
         default:                    return "unknown";
     } }
 
-    /** @brief Lowercase topic word, for MQTT topic segments (SHARED_IO -> "shared_io",
-     *  matching the SHARED_IO display label). */
+    /** @brief Lowercase topic word, for MQTT topic segments (ALARM_BEG -> "alarm_beg",
+     *  matching the ALARM_BEG display label). */
     inline const char* format_log_topic_name(Logs::LogTopic topic) {
         return topic < Logs::LOG_TOPIC_COUNT ? TOPIC_NAMES[topic][1] : "unknown";
     }
 
-    /** @name Wrapped-row continuation prefixes
+    /** @name Wrapped-row continuation prefixes and the width budget
      *
-     *  What a page puts at the start of a soft-wrapped row. The log one indents
-     *  past the prefix format_log_entry() below emits, so a wrapped log row
-     *  lines up under the start of the message. It lives HERE, beside the format
-     *  string that sets that width, because sized anywhere else it goes quietly
-     *  out of alignment the next time the prefix moves.
+     *  What a page puts at the start of a wrapped row. It lives HERE, beside
+     *  the format string that sets the width, because sized anywhere else it
+     *  goes quietly out of alignment the next time the prefix moves.
+     *
+     *  ## What the prefix costs
+     *
+     *  format_log_entry() below emits `"%s %s %s%s %s"`, so the message starts
+     *  at column `28 + strlen(topic)`, or 27 with no topic (the ":" is skipped).
+     *  At CONSOLE_COLS = 80 that leaves the FIRST line:
+     *
+     *      no topic ............................ 53
+     *      BOOT, TIME .......................... 48
+     *      MODBUS, STATUS, ASSERT, HEALTH ...... 46
+     *      NETWORK, STORAGE .................... 45
+     *      ALARM_BEG, ALARM_END ................ 43
+     *      ALARM_FLAP .......................... 42
+     *
+     *  A continuation row gets `80 - strlen(LOG_CONT_PREFIX)` = 54, which is
+     *  WIDER than any first line. That is what makes lead-plus-detail work.
+     *
+     *  ## The rule for writing a message
+     *
+     *  Keep the first line at or under **40 characters** - below every topic's
+     *  real budget, so a line survives a topic being renamed - and put the rest
+     *  after an explicit '\n'. The lead is what an operator scans for; the
+     *  number an engineer goes looking for belongs on line 2, whole, where it
+     *  cannot be split across a fold. A variable-width "%s" (a device label, an
+     *  IP, a variable name) does not go on line 1 unless the fixed text around
+     *  it leaves room for its worst case. Reword before breaking when the
+     *  rewording is the better sentence anyway.
+     *
+     *  There is no constant for the 40: CONSOLE_COLS is site-overridable and
+     *  the console is resizable at runtime, so a hard number would be a lie -
+     *  and nothing can consult a constant from inside a string literal.
+     *
+     *  ## Why LOG_CONT_PREFIX is 26 and not 34
+     *
+     *  It does NOT line up under the start of the message (it used to claim it
+     *  did): at 26 it sits under the TOPIC, short by 6 to 12 for every non-empty
+     *  topic. Deliberately left there. store_wrapped() takes one prefix per
+     *  entry while the message column is topic-dependent, so aligning it means
+     *  threading the topic through LineBuffer and its three call sites; and
+     *  widening it to 34 would cut the continuation budget from 54 to 46, which
+     *  is the headroom every two-line message above is written against. A fixed
+     *  left edge marked "> " also scans better than a per-topic ragged one.
      *  @{ */
     static constexpr const char* CONT_PREFIX     = "> ";
     static constexpr const char* LOG_CONT_PREFIX = "                        > ";
     /** @} */
+
+    /** @brief Rewrite every '\n' in `[buf, buf+n)` as `" | "`, in place.
+     *
+     *  A '\n' in a message is a DISPLAY directive, for the console renderer to
+     *  fold into a LOG_CONT_PREFIX row. A wire sink has no such row: the break
+     *  would put half the entry on a second physical line carrying no
+     *  timestamp, level or topic - unparseable to a collector and invisible to
+     *  a grep on the topic. Folding keeps one entry to one record.
+     *
+     *  @param cap Bytes available in @p buf. Each break grows the text by 2, so
+     *             the tail is truncated rather than overrun; LOG_FORMATTED_LEN
+     *             is only exactly LOG_MESSAGE_LEN + 64, which is not headroom
+     *             to assume. @return the new length, never counting a NUL.
+     */
+    inline size_t fold_newlines(char* buf, size_t n, size_t cap) {
+        if (buf == nullptr || cap == 0) return 0;
+        if (n > cap) n = cap;
+        // Right to left, so a byte still to be read is never one just shifted.
+        // Count first to know where the text ends; a position past cap is
+        // simply not written, which truncates the TAIL and keeps the head.
+        size_t breaks = 0;
+        for (size_t i = 0; i < n; ++i) if (buf[i] == '\n') breaks++;
+        if (breaks == 0) return n;
+
+        static const char SEP[3] = { ' ', '|', ' ' };
+        const size_t len = n + 2 * breaks;   // where the text WOULD end
+        size_t out = len;
+        size_t src = n;                      // one past the byte to read next
+        while (src > 0) {
+            const char c = buf[--src];
+            if (c != '\n') {
+                if (--out < cap) buf[out] = c;
+            } else {
+                for (int k = 2; k >= 0; --k)
+                    if (--out < cap) buf[out] = SEP[k];
+            }
+        }
+        return len < cap ? len : cap;
+    }
 
     /** @brief Format a complete log entry as `TIMESTAMP LEVEL TOPIC MESSAGE`.
      *  @return Bytes of TEXT written, never counting the NUL; 0 on encoding

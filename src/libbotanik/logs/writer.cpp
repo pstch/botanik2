@@ -21,6 +21,9 @@ namespace Botanik { namespace Logs {
     // ------------------------------------------------------------------------
 
     void BufferedLogWriter::push(const Logs::LogEntry* entry) {
+        // Sink-local floor, before the queue and before the drop counters: an
+        // entry this sink was never meant to show is not a loss to report.
+        if (entry->level < _min_level) return;
         uint8_t nextIndex = (_writeIndex + 1) % Config::LOG_QUEUE_SIZE;
         bool    crit      = entry->level >= Logs::LOG_CRITICAL;
         if (nextIndex == _readIndex) {   // completely full
@@ -114,6 +117,10 @@ namespace Botanik { namespace Logs {
         // len-1 to always leave room.
         if (len == 0) return 0;
         size_t written = format_log_entry(entry, buf, len - 1);
+        // A '\n' INSIDE the message is the console's fold marker, and here it
+        // would end the record early - leaving the rest on a line with no
+        // timestamp, level or topic. Fold it so one entry stays one record.
+        written = fold_newlines(buf, written, len - 1);
         buf[written++] = '\n';
         return written;
     }

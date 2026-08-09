@@ -120,6 +120,10 @@ TEST_CASE("site: every alarm declares a code and a policy") {
         REQUIRE(sp.code != nullptr);
         CHECK(sp.code[0] != 0);
         CHECK(std::strlen(sp.code) <= 9);   // AlarmsPage::CODE_W
+        // The desc IS the ALARM_* log message (AlarmSink::log_start), and it is
+        // one line with no '\n' to break at. 40 is the house rule in
+        // logs/format.h, under every topic's real first-line budget.
+        CHECK(std::strlen(d.desc != nullptr ? d.desc : "") <= 40);
         CHECK(d.type == Vars::T_BOOL);      // a condition is a boolean
     }
     CHECK(alarms > 0);

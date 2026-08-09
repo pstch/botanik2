@@ -76,7 +76,8 @@ tagged with the site name (`Config::SITE_NAME`):
 
 - success -> `INFO  HEALTH: POST ok (site <name>)`
 - failure -> `CRITICAL HEALTH: POST failed (site <name>)`, preceded by one
-  `CRITICAL HEALTH: POST: <what> <detail>` line per failed check.
+  `CRITICAL HEALTH: POST: <what>` line per failed check, with `<detail>` on a
+  second line (see the width rule in `logs/format.h`).
 
 A failure is **loud but not fatal**: POST does *not* withhold the watchdog or halt
 the boot. The firmware keeps running so the operator can read the diagnostics over

@@ -33,7 +33,11 @@ namespace Botanik { namespace Logs {
     /** @brief Log topic / category. */
     enum LogTopic : uint8_t {
         NONE = 0,
-        SHARED_IO = 1,
+        // The field bus. Was SHARED_IO, which nothing but modbus/ ever raised;
+        // the shorter name is honest and buys 3 columns of message width. The
+        // VALUE stays 1 - see the file header, it is what sits in already-
+        // written records - so only the label moved.
+        MODBUS = 1,
         BOOT = 2,
         NETWORK = 3,
         TIME = 4,

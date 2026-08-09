@@ -126,11 +126,13 @@ namespace Botanik { namespace Scan {
         const uint8_t      w = _io->writer_of(r);
         const char* other = (w < _count && _programs[w] != nullptr)
                                 ? _programs[w]->name() : "?";
+        // Count first: both names are variable-width (a row name runs to 23
+        // characters), so neither can lead without overrunning the line.
         _logger->critical(Logs::STATUS,
-                          "scan: '%s' is driven by more than one program "
-                          "(now '%s'); %u row(s) affected",
-                          v.name() != nullptr ? v.name() : "?", other,
-                          (unsigned)n);
+                          "scan: %u row(s) with 2+ writers\n"
+                          "'%s' driven by '%s'",
+                          (unsigned)n,
+                          v.name() != nullptr ? v.name() : "?", other);
         _conflicts_said = n;
     }
 
