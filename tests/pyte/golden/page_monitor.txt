@@ -17,8 +17,8 @@
  Description  : field devices not answering
  Notes        : 0 when every planned device is talking
  Mapping      : computed
- Quality      : <Q>
- Override     : -
+ Quality      : <Q> by no program
+
                       [all]          (sys)      <N>
 
  ALARMS :<BAR>
