@@ -106,12 +106,21 @@ add_custom_target(check
     VERBATIM
 )
 
-# `make check-full` is the whole gate again, this time instrumented: it is where
-# ASan+UBSan went when they came off the everyday `check` (the measured reason is
-# on BOTANIK_SANITIZE in the top-level CMakeLists - instrumentation more than
-# doubles compile CPU, and the test TUs are where most of that lands). Same
-# treatment clang-tidy already gets here: a sweep you run periodically, not a tax
-# on every edit. Run it before a push that touches memory handling.
+# `make check-full` is the SWEEP: everything deliberately kept out of the everyday
+# `check` because it is too slow to pay per edit, in one target.
+#
+#   1. clang-tidy  - the bugprone-* checks (incremental, one stamp per TU)
+#   2. the whole gate again under ASan+UBSan, in a tree of its own
+#
+# Both were exiled for the same reason and on the same reasoning, so they belong
+# behind the same command: clang-tidy re-lints on any touched header, and
+# instrumentation more than doubles compile CPU (the measured detail is on
+# BOTANIK_SANITIZE in the top-level CMakeLists). Run this before a push that
+# touches memory handling, and periodically otherwise.
+#
+# clang-tidy runs in THIS tree, not the sanitized one: it lints the compile flags
+# an editor and clangd actually see, and -fsanitize= changes none of its findings
+# while doubling the compile it does to get them.
 #
 # It drives the sub-tree's OWN `check`, so it is the same gate by construction -
 # doctest and pyte, gate.cmake's failure attribution, all of it - rather than a
@@ -132,9 +141,17 @@ add_custom_target(check-full
     COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR}/asan
             --target check --parallel ${_nproc}
     USES_TERMINAL
-    COMMENT "Full gate under ASan+UBSan (build/asan/)"
+    COMMENT "Sweep: clang-tidy + the full gate under ASan+UBSan (build/asan/)"
     VERBATIM
 )
+# Guarded: the clang-tidy target only exists when clang-tidy was found at configure
+# time and the generator is Make (see the top-level CMakeLists). Without the guard
+# a tree without it fails to configure rather than simply skipping the lint. As a
+# DEPENDS it runs BEFORE the commands above, so a lint finding stops the sweep
+# before it pays for an instrumented rebuild.
+if(TARGET clang-tidy)
+    add_dependencies(check-full clang-tidy)
+endif()
 
 # pyte screen-assertion tests (Python) — host-only, joined to the same CTest
 # ============================================================================
