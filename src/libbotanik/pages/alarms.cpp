@@ -61,17 +61,17 @@ namespace Botanik { namespace Pages {
         _blank_line((uint16_t)(br + 1));
         // Description leads: it was a table column until the name became the
         // variable's own, which says what the row IS but not what it means.
-        _panel_field((uint16_t)(br + 2), "Description",  c ? c->desc  : nullptr);
-        _panel_field((uint16_t)(br + 3), "Remediation",  c ? c->notes : nullptr);
+        _panel_field((uint16_t)(br + 2), "Description",  c ? c->desc()  : nullptr);
+        _panel_field((uint16_t)(br + 3), "Remediation",  c ? c->notes() : nullptr);
         _panel_field((uint16_t)(br + 4), "Acknowledged", ack);
     }
 
     bool AlarmsPage::_is_recent(const Alarms::AlarmCondition& c, uint64_t now) const {
         if (c.edge_ms == 0) return false;     // never fired -> no event
         if (c.active)       return true;      // on -> always recent
-        if (c.recent_s < 0) return true;      // never expires
-        uint64_t window_ms = (uint64_t)(c.recent_s == 0 ? Config::ALARM_RECENT_S
-                                                       : c.recent_s) * 1000u;
+        if (c.recent_s() < 0) return true;      // never expires
+        uint64_t window_ms = (uint64_t)(c.recent_s() == 0 ? Config::ALARM_RECENT_S
+                                                       : c.recent_s()) * 1000u;
         return (now - c.edge_ms) <= window_ms;
     }
 
@@ -82,7 +82,7 @@ namespace Botanik { namespace Pages {
         for (uint8_t i = 0;
              i < _model->count() && _nvis < Config::ALARM_SLOTS; i++) {
             const Alarms::AlarmCondition& c = _model->condition(i);
-            if (c.name == nullptr) continue;             // undefined slot
+            if (c.name() == nullptr) continue;             // undefined slot
             bool include;
             switch (_mode) {
                 case MODE_RECENT:   include = _is_recent(c, now);     break;
@@ -126,9 +126,9 @@ namespace Botanik { namespace Pages {
         _draw_rule(_brule_row(), bot, bot);
     }
 
-    void AlarmsPage::_write_code_cell(const char* line, bool selected) {
-        const uint16_t l = _cell_col(C_CODE), r = _code_cell_r();
-        _terminal.write_chars(line, l);                        // margin + "| "
+    void AlarmsPage::_write_name_cell(const char* line, bool selected) {
+        const uint16_t l = _cell_col(C_NAME), r = _name_cell_r();
+        _terminal.write_chars(line, l);            // margin + CODE cell + "| "
         if (selected) _terminal.set_inverted(true);
         _terminal.write_chars(line + l, (uint16_t)(r - l));
         if (selected) _terminal.set_inverted(false);
@@ -155,23 +155,23 @@ namespace Botanik { namespace Pages {
             bool held = false;
             if (_model->forced(idx, &held)) forced = held ? "ON" : "OFF";
         }
-        const char* cells[5] = { c.code ? c.code : "?",
-                                 c.name ? c.name : "?", state, forced, ev };
+        const char* cells[5] = { c.code() ? c.code() : "?",
+                                 c.name() ? c.name() : "?", state, forced, ev };
         char     line[Config::TABLE_LINE_LEN];
         uint16_t n = _build_row(line, sizeof(line), cells);
-        const uint16_t code_r = _code_cell_r(), badge = _cell_col(C_STATE);
+        const uint16_t name_r = _name_cell_r(), badge = _cell_col(C_STATE);
         _terminal.move_to({row, 0});
         _terminal.set_inverted(false);
-        _write_code_cell(line, selected);
+        _write_name_cell(line, selected);
         if (c.active && !c.user_ack && n > (uint16_t)(badge + 2)) {
             // "ON" leads the STATE cell: split so only it inverts.
-            _terminal.write_chars(line + code_r, (uint16_t)(badge - code_r));
+            _terminal.write_chars(line + name_r, (uint16_t)(badge - name_r));
             _terminal.set_inverted(true);
             _terminal.write_chars(line + badge, 2);
             _terminal.set_inverted(false);
             _terminal.write_chars(line + badge + 2, (uint16_t)(n - badge - 2));
         } else {
-            _terminal.write_chars(line + code_r, (uint16_t)(n - code_r));
+            _terminal.write_chars(line + name_r, (uint16_t)(n - name_r));
         }
         _terminal.clear_to_eol();
     }
@@ -184,13 +184,16 @@ namespace Botanik { namespace Pages {
 
     const char* AlarmsPage::_selected_cell() const {
         if (_model == nullptr || _selected >= _nvis) return nullptr;
-        return _model->condition(_vis[_selected]).code;
+        // The variable name, matching the cell the cursor sits on: it is what
+        // `get` and `override` resolve, so a yank into the shell prompt is a
+        // usable argument. The CODE would only answer `alarms ack`.
+        return _model->condition(_vis[_selected]).name();
     }
 
     void AlarmsPage::_ack_selected() {
         if (_model == nullptr || _selected >= _nvis) return;
         const Alarms::AlarmCondition& c = _model->condition(_vis[_selected]);
-        if (c.name != nullptr) _model->ack(c.name);
+        if (c.name() != nullptr) _model->ack(c.name());
         _dirty = true;   // ack changes the badge / sort
     }
 
@@ -227,11 +230,11 @@ namespace Botanik { namespace Pages {
     void AlarmsPage::tick(bool active) {
         if (!active) return;
         // Rebuild on the value cadence (or immediately after a nav), exactly
-        // as the MONITOR and PARAMS tables do. This page used to carry three
-        // 64-bit signatures of the alarm set to decide whether a repaint was
-        // needed at all; that is the terminal back-buffer's job, and it does
-        // it per cell. What is left is the cheap guard the other tables use:
-        // don't re-collect and re-format twenty rows every single beat.
+        // as the MONITOR and PARAMS tables do. No signature of the alarm set to
+        // decide whether a repaint is needed - that is the terminal
+        // back-buffer's job and it does it per cell. This is only the cheap
+        // guard the other tables use: don't re-collect and re-format twenty rows
+        // every single beat.
         uint64_t now = HAL::Clock::uptime_ms();
         if (!_dirty && now - _last_refresh_ms < Config::PAGE_HOT_MS) return;
         _last_refresh_ms = now;

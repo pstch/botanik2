@@ -8,7 +8,7 @@
  *
  * Layout (row 0 is the terminal status bar):
  *   row 1            blank top margin
- *   row 2            table header  (| CODE | VARIABLE | ON | LAST EVENT |)
+ *   row 2            table header  (| CODE | VARIABLE | ON | OVR | LAST EVENT |)
  *   row 3            top rule (+----+...+); its corners cap to '^' when more above
  *   rows 4..N-5      data rows
  *   row N-4          bottom rule; corners cap to 'v' when more below
@@ -88,8 +88,9 @@ namespace Botanik { namespace Pages {
         /** @} */
 
         /** @name Layout
-         *  Columns: CODE | ON (reverse-video badge when active) | LAST EVENT
-         *  (the last transition's timestamp, "YY/MM/DD HH:MM") | DESCRIPTION.
+         *  Columns: CODE | VARIABLE (the selection cursor's cell) | ON
+         *  (reverse-video badge when active) | OVR | LAST EVENT (the last
+         *  transition's timestamp, "YY/MM/DD HH:MM").
          *  @{ */
         static constexpr uint16_t CODE_W     = 9;   // short display code
         /** @brief The VARIABLE column is the flexible one: it absorbs whatever
@@ -113,13 +114,14 @@ namespace Botanik { namespace Pages {
         static constexpr uint16_t HEADER_ROW = 2;
         static constexpr uint16_t RULE_ROW   = 3;
         static constexpr uint16_t DATA_TOP   = 4;
-        /** @brief Column order. The CODE cell is the only part inverted for the
-         *  selection cursor, so a selection move patches one small field, not a
-         *  whole row; the highlight stops one column short of its right edge
-         *  (_code_cell_r()), leaving a plain gap before the border - which is
-         *  safe because the highlight stops one short of the cell. The STATE cell carries
-         *  its own reverse-video "ON" badge, split out of the row write so there
-         *  is no flicker-prone overdraw. */
+        /** @brief Column order. The VARIABLE cell is the part inverted for the
+         *  selection cursor: it is the row's identity, and it is what Alt+W
+         *  copies and what `get` / `override` want typed at them, so the cursor
+         *  sits on the thing the operator is about to act on rather than beside
+         *  it. The highlight stops one column short of the cell's right edge
+         *  (_name_cell_r()), leaving a plain gap before the border. The STATE
+         *  cell carries its own reverse-video "ON" badge, split out of the row
+         *  write so there is no flicker-prone overdraw. */
         enum { C_CODE = 0, C_NAME, C_STATE, C_OVR, C_EVENT };
         /** @} */
 
@@ -129,9 +131,9 @@ namespace Botanik { namespace Pages {
 
         uint8_t _columns(Col* out) const override;
 
-        /** @brief Right edge of the selection highlight: one short of the CODE
-         *  cell's contents (see the column note above). */
-        uint16_t _code_cell_r() const { return (uint16_t)(_cell_end(C_CODE) - 1); }
+        /** @brief Right edge of the selection highlight: one short of the
+         *  VARIABLE cell's contents (see the column note above). */
+        uint16_t _name_cell_r() const { return (uint16_t)(_cell_end(C_NAME) - 1); }
 
         /** @brief Format the last-event cell: edge_ms as "YY/MM/DD HH:MM", or
          *  empty if it never fired (ON vs OFF is shown by the ON column). */
@@ -204,15 +206,16 @@ namespace Botanik { namespace Pages {
         void _draw_rules(uint16_t window);
         /** @} */
 
-        /** @brief Write the margin + CODE cell of @p line, inverting the CODE field
-         *  for the selection cursor (only the first cell highlights). Leaves the
-         *  cursor at CODE_CELL_R. */
-        void _write_code_cell(const char* line, bool selected);
+        /** @brief Write @p line up to and including the VARIABLE cell, inverting
+         *  that cell for the selection cursor. Leaves the cursor at
+         *  _name_cell_r(). */
+        void _write_name_cell(const char* line, bool selected);
 
-        /** @brief Draw a full data row (CODE/ON/EVENT/DESCRIPTION) immediate-mode.
-         *  Only the CODE cell inverts for the selection cursor; the state cell shows
-         *  its own reverse-video "ON" badge while active and unacked. The terminal's
-         *  back-buffer diff pares this to the cells that actually moved. */
+        /** @brief Draw a full data row (CODE/VARIABLE/ON/OVR/LAST EVENT)
+         *  immediate-mode. Only the VARIABLE cell inverts for the selection
+         *  cursor; the state cell shows its own reverse-video "ON" badge while
+         *  active and unacked. The terminal's back-buffer diff pares this to the
+         *  cells that actually moved. */
         void _draw_full_row(uint16_t row, uint8_t idx,
                             const Alarms::AlarmCondition& c, bool selected);
 
