@@ -136,42 +136,47 @@ namespace Botanik { namespace Sim {
         /** @brief Copy this beat's simulated values into the devices, then carry
          *  the wire in both directions. */
         void step(uint64_t now_ms) {
-            _publish();
             _pump(now_ms);
         }
 
-    private:
-        /** @brief The bank's INPUT rows into the register images they are read
-         *  from. Only inputs: an output row is what the firmware drives, and
-         *  writing it here would be the sim answering its own command. */
-        void _publish() {
-            if (_io == nullptr) return;
-            for (uint16_t i = 0; i < _io->count(); i++) {
-                const Vars::Var v = _io->var(i);
-                const Vars::Variable& d = *v.meta();
-                if (d.bind.transport != Vars::XP_MODBUS) continue;
-                if (d.role != Vars::ROLE_INPUT) continue;
-                Modbus::RtuSlave* dev = _find(d.bind.device);
-                if (dev == nullptr) continue;
+        /**
+         * @brief Put one simulated reading into the device that carries it.
+         *
+         * This is where the plant's values enter the bus, and the ONLY place
+         * they should. The animator used to write them into the bank row and
+         * this class copied them out again - so the row held the animator's
+         * signal, updated every beat, and the master's poll only ever refreshed
+         * its timestamp. A meter on a 10 s rung therefore appeared to change
+         * every beat, and no display could show what the bus was actually
+         * delivering. Now the row is written by the MASTER and by nothing else,
+         * which is what makes the poll interval visible at last.
+         *
+         * @param d the row's descriptor, for its device / fc / reg binding
+         * @param v the physical quantity, in the row's own engineering units
+         */
+        void set_physical(const Vars::Variable& d, float v) {
+            if (d.bind.transport != Vars::XP_MODBUS) return;
+            Modbus::RtuSlave* dev = _find(d.bind.device);
+            if (dev == nullptr) return;
 
-                if (d.bind.fc == Modbus::FC_READ_COILS ||
-                    d.bind.fc == Modbus::FC_READ_DISCRETE) {
-                    dev->set_coil(d.bind.reg, v.b());
-                    continue;
-                }
-                // The wire carries what the row says it carries: a REAL spans
-                // two registers, high word first, and anything narrower is one.
-                if (d.bind.wire == Vars::T_F32) {
-                    const float f = v.value();
-                    uint32_t bits = 0;
-                    memcpy(&bits, &f, 4);
-                    dev->set_reg(d.bind.reg, (uint16_t)(bits >> 16));
-                    dev->set_reg((uint16_t)(d.bind.reg + 1), (uint16_t)(bits & 0xFFFF));
-                } else {
-                    dev->set_reg(d.bind.reg, (uint16_t)v.i());
-                }
+            if (d.bind.fc == Modbus::FC_READ_COILS ||
+                d.bind.fc == Modbus::FC_READ_DISCRETE) {
+                dev->set_coil(d.bind.reg, v != 0.0f);
+                return;
+            }
+            // The wire carries what the row says it carries: a REAL spans two
+            // registers, high word first, and anything narrower is one.
+            if (d.bind.wire == Vars::T_F32) {
+                uint32_t bits = 0;
+                memcpy(&bits, &v, 4);
+                dev->set_reg(d.bind.reg, (uint16_t)(bits >> 16));
+                dev->set_reg((uint16_t)(d.bind.reg + 1), (uint16_t)(bits & 0xFFFF));
+            } else {
+                dev->set_reg(d.bind.reg, (uint16_t)(int32_t)v);
             }
         }
+
+    private:
 
         /** @brief Everything the firmware wrote to the devices, and everything
          *  they answer. Bounded per call like any other beat work. */

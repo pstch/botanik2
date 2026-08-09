@@ -361,7 +361,11 @@ TEST_CASE("plc io: an invalid row reads as its declared default") {
     Io io(f.bank);
     const VarRef r = f.ref("cli_temp_ext1");
 
-    f.bank.var(r).invalidate(Q_STALE);
+    // Q_REFUSED, not Q_STALE: a stale row KEEPS its last reading now, and this
+    // row has never been published, so asserting the fallback through Q_STALE
+    // would pass on the coincidence that the slot still holds the default.
+    f.bank.var(r).publish(from_f32(T_F32, 33.0f), 1000);
+    f.bank.var(r).invalidate(Q_REFUSED);
     CHECK_FALSE(io.valid(r));
     CHECK(io.value(r) == doctest::Approx(f.bank.var(r).meta()->def.f));
 }

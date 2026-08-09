@@ -567,8 +567,31 @@ namespace Botanik { namespace Vars {
          *  telemetry and the alarm model alike - there is no path that sees
          *  around it.
          *  @{ */
-        Scalar   raw()   const { return _v->ovr_on ? _v->ovr
-                                                   : (live_valid() ? _v->v : _d->def); }
+        /** @brief What this row reads, override applied.
+         *
+         *  An invalid row falls back to its declared default - EXCEPT a STALE
+         *  one, which keeps the last value it actually had.
+         *
+         *  Those are different situations and they were being answered the same
+         *  way. A row that has never been read has nothing to offer, and an
+         *  output dropped to safe or a reading outside its band must NOT be
+         *  believed - the default is the whole point there. But a sensor that
+         *  answered a moment ago and then missed its timeout still knows what
+         *  the plant was doing: 20 C from a minute ago is a far better account
+         *  of a greenhouse than the 0 C its declared default reads as, and
+         *  `valid()` is false either way, so anything that cares still knows
+         *  not to trust it.
+         *
+         *  Q_IMPLAUSIBLE and Q_REFUSED deliberately do NOT keep their value: the
+         *  first IS a bad number, and the second means the device says the
+         *  register is not there, so whatever is in the slot answered a
+         *  different question. */
+        Scalar   raw()   const {
+            if (_v->ovr_on)              return _v->ovr;
+            if (live_valid())            return _v->v;
+            if (_v->qual == Q_STALE)     return _v->v;
+            return _d->def;
+        }
         /** @brief As a float; a digital reads 0/1, so a consumer that only
          *  displays or publishes never branches on the type. */
         float    value() const { return as_f32(_d->type, raw()); }

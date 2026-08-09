@@ -270,6 +270,30 @@ TEST_CASE("model: publish carries the timestamp, so staleness cannot be forgotte
     CHECK(f.bank.var(V_EXT_TEMP).valid());
     f.bank.expire_stale(7000);                          // 6 s old, past it
     CHECK_FALSE(f.bank.var(V_EXT_TEMP).valid());
+    // ...and it KEEPS the reading it had. A sensor that answered a moment ago
+    // and then missed its timeout still knows what the plant was doing; 30 C
+    // from six seconds ago is a far better account of a greenhouse than the
+    // 20.5 its declared default reads as. valid() is false either way, so
+    // anything that cares still knows not to trust it.
+    CHECK(f.bank.var(V_EXT_TEMP).value() == doctest::Approx(30.0f));
+}
+
+TEST_CASE("model: a row that never read anything still falls back to its default") {
+    // The other half of the rule above. Q_STALE keeps its value because there
+    // IS one; Q_NO_DATA has nothing to keep, and a row dropped to safe or
+    // reading outside its band must not be believed at all.
+    Fixture f;
+    CHECK(f.bank.var(V_EXT_TEMP).live_quality() == Q_NO_DATA);
+    CHECK(f.bank.var(V_EXT_TEMP).value() == doctest::Approx(20.5f));
+
+    f.bank.var(V_EXT_TEMP).publish(Scalar::F(30.0f), 1000);
+    f.bank.var(V_EXT_TEMP).invalidate(Q_IMPLAUSIBLE);
+    INFO("an implausible reading IS a bad number - keeping it would hand a "
+         "control program the rail voltage it was rejected for");
+    CHECK(f.bank.var(V_EXT_TEMP).value() == doctest::Approx(20.5f));
+
+    f.bank.var(V_EXT_TEMP).invalidate(Q_REFUSED);
+    INFO("and a refused register means the slot answered a different question");
     CHECK(f.bank.var(V_EXT_TEMP).value() == doctest::Approx(20.5f));
 }
 

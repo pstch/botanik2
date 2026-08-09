@@ -220,6 +220,10 @@ namespace Botanik { namespace Shell {
         /** @brief The field bus: what the plan costs, what state the master is
          *  in, and which devices are answering. */
         void _cmd_modbus(const char* args, uint16_t alen);
+        #if BOTANIK_FEATURE_MODBUS_RTU_CLIENT
+        /** @brief `modbus devices`: one line per unit, named and counted. */
+        void _modbus_devices(const Modbus::RtuClient& rtu);
+        #endif
         void _cmd_net(const char* args, uint16_t alen);
         void _cmd_ntpsync(const char* args, uint16_t alen);
         void _cmd_loglevel(const char* args, uint16_t alen);

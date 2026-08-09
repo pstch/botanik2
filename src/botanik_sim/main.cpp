@@ -122,6 +122,12 @@ int main(int argc, char** argv) {
     // XP_MODBUS row names is a box that has to answer.
     Sim::FieldBus fieldbus;
     fieldbus.bind(&greenhouse.io());
+    // The animator's readings go into the DEVICES from here, not into the bank
+    // rows - so a row shows what the bus delivered, at the rate it delivered it.
+    Site::field_ctx()  = &fieldbus;
+    Site::field_sink() = [](void* ctx, const Vars::Variable& d, float v) {
+        static_cast<Sim::FieldBus*>(ctx)->set_physical(d, v);
+    };
     if (fieldbus.dropped() != 0) {
         // Not a warning. A sim missing devices reports them as unanswering, so
         // the operator debugs a bus that is fine - which is exactly what

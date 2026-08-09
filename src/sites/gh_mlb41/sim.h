@@ -72,29 +72,38 @@ struct MockAlarm { const char* name; bool on; };
  *  one step. Through the handle, not the value array - writing the array
  *  directly is how the simulated field silently drifted out of step with the
  *  model, since it would not fail to compile when the model changed. */
+/** @brief Where a bussed reading goes: into the DEVICE, not into the row.
+ *
+ *  Set by the harness when it has stood the simulated field up (botanik_sim's
+ *  FieldBus). Null on a build with no bus, where put() falls back to writing the
+ *  row so the console still shows something moving.
+ *
+ *  A hook rather than a direct call because this file is SITE code: it has to
+ *  cross-compile for the OPTA, where botanik_sim does not exist. The whole body
+ *  is inside TARGET_SIMULATOR, but the dependency direction still matters - the
+ *  harness reaches into the site, never the other way. */
+typedef void (*FieldSink)(void* ctx, const Vars::Variable& d, float v);
+inline FieldSink& field_sink() { static FieldSink fn = nullptr; return fn; }
+inline void*&     field_ctx()  { static void* ctx = nullptr; return ctx; }
+
 inline void put(Vars::Bank& io, const char* id, float v, uint32_t now_ms) {
     Vars::Var h = io.var(id);
-    // A row that lives on the FIELD BUS gets its timestamp from the master, not
-    // from us. We are the physical quantity - the voltage the meter would be
-    // measuring - and the bus is how it arrives; FieldBus copies this value into
-    // the device's register image and the master polls it back, stamping it when
-    // it lands. Re-stamping here as well made every bussed row read 0 s old
-    // whatever its rung, because the animator runs every beat and the scan runs
-    // once a second, so the age said how often the SIMULATOR ran.
+    const Vars::Variable& d = *h.meta();
+
+    // A row that lives on the FIELD BUS is not ours to write. We are the
+    // physical quantity - the voltage the meter would be measuring - so it goes
+    // into the device's register image, and the row is filled by the MASTER when
+    // it polls, with the master's own timestamp and quality.
     //
-    // The value still goes in the row, because that is where FieldBus reads it
-    // from. Cutting simulate() off the bank entirely is the real fix and is the
-    // step fieldbus.h describes; this is the part of it that the age display
-    // needs today.
-    // Value ONLY for a bussed row - no stamp, no quality. Both belong to the
-    // master, which is the thing that actually hears the device. Asserting
-    // Q_GOOD here every beat is what stopped a device going quiet from ever
-    // going stale in the simulator: the row was being marked good underneath a
-    // master that had stopped hearing anything, so expire_stale() never had a
-    // row to catch. It now reads Q_NO_DATA until the first poll lands, which is
-    // what the hardware does too.
-    if (h.meta()->bind.transport == Vars::XP_MODBUS) h.set_physical(Scalar::F(v));
-    else                                            h.publish(Scalar::F(v), now_ms);
+    // Writing the row here as well is what made a 10 s meter appear to change
+    // every beat: the value on screen was the animator's, and the poll only
+    // refreshed the stamp underneath it.
+    if (d.bind.transport == Vars::XP_MODBUS) {
+        if (field_sink() != nullptr) field_sink()(field_ctx(), d, v);
+        else h.publish(Scalar::F(v), now_ms);   // no bus: nothing else would
+        return;
+    }
+    h.publish(Scalar::F(v), now_ms);
 }
 
 /**

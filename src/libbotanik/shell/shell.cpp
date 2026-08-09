@@ -100,7 +100,8 @@ namespace Botanik { namespace Shell {
             { "net",        "network / NTP / MQTT status",     &CommandShell::_cmd_net        },
             { "ntpsync",    "force an NTP resync now",         &CommandShell::_cmd_ntpsync    },
             { "alarms",     "[list|ack <code|all>] alarms",   &CommandShell::_cmd_alarms     },
-            { "modbus",     "field bus plan, state and devices", &CommandShell::_cmd_modbus   },
+            { "modbus",     "field bus plan and state; `modbus devices` for the roll-call",
+                                                     &CommandShell::_cmd_modbus   },
             { "list",       "[<prefix>] list variables",      &CommandShell::_cmd_list       },
             { "get",        "<name>  read a variable",        &CommandShell::_cmd_get        },
             { "set",        "<name> <value>  edit a parameter", &CommandShell::_cmd_set       },
@@ -1102,14 +1103,68 @@ namespace Botanik { namespace Shell {
 // modbus - the field bus and the SCADA-facing server
 // ---------------------------------------------------------------------------
 
+#if BOTANIK_FEATURE_MODBUS_RTU_CLIENT
+    /** @brief The roll-call: one line per unit, with what the plant calls it and
+     *  what the bus is doing with it.
+     *
+     *  The tag first, because an operator holding a drawing knows the box by its
+     *  designation and not by its unit id. Blocks and rows say how much of the
+     *  scan this device accounts for - a unit with one block and thirty rows is
+     *  a very different tenant from one with eight blocks - and the period is
+     *  the fastest rung any of its blocks sits on, which is the number that
+     *  bounds how quickly a fault on it can be noticed. */
+    void CommandShell::_modbus_devices(const Modbus::RtuClient& rtu) {
+        char val[96];
+        const Modbus::Planner& plan = rtu.plan();
+        for (uint8_t i = 0; i < rtu.peer_count(); ++i) {
+            const uint8_t unit = rtu.peer_unit(i);
+
+            uint16_t blocks = 0, rows = 0;
+            uint32_t fastest = 0;
+            for (uint16_t b = 0; b < plan.block_count(); ++b) {
+                const Modbus::Block& blk = plan.block(b);
+                if (blk.device != unit) continue;
+                blocks++;
+                rows = (uint16_t)(rows + blk.row_count);
+                if (blk.period_ms != 0 && (fastest == 0 || blk.period_ms < fastest))
+                    fastest = blk.period_ms;
+            }
+
+            const char* tag = Modbus::device_tag(rtu.devices(), unit);
+            char rate[16];
+            if (fastest == 0) snprintf(rate, sizeof(rate), "%s", "on demand");
+            else if (fastest >= 1000) snprintf(rate, sizeof(rate), "%us", (unsigned)(fastest / 1000u));
+            else snprintf(rate, sizeof(rate), "%ums", (unsigned)fastest);
+
+            // The state last: it is the column an eye runs down looking for the
+            // one that is not "ok".
+            char state[16];
+            if (!rtu.peer_dead(i)) snprintf(state, sizeof(state), "%s", "ok");
+            else snprintf(state, sizeof(state), "DEAD x%u", (unsigned)rtu.peer_misses(i));
+
+            snprintf(val, sizeof(val), "  %-18s dev %-3u %2u blk %3u row %-9s %s",
+                     (tag != nullptr && tag[0] != '\0') ? tag : "-",
+                     (unsigned)unit, (unsigned)blocks, (unsigned)rows, rate, state);
+            _println(val);
+        }
+    }
+#endif
+
 #if !BOTANIK_FEATURE_MODBUS_RTU_CLIENT && !BOTANIK_FEATURE_MODBUS_TCP_SERVER
     void CommandShell::_cmd_modbus(const char*, uint16_t) {
         _println("modbus: not built in");
     }
 #else
-    void CommandShell::_cmd_modbus(const char*, uint16_t) {
+    void CommandShell::_cmd_modbus(const char* args, uint16_t alen) {
         if (_sys == nullptr) { _println("modbus: no context"); return; }
         char val[96];
+
+        // `modbus devices` is the roll-call; a bare `modbus` is the plan and
+        // the state. One word, matched on its first letter like the other
+        // sub-commands here.
+        uint16_t wn = 0;
+        const char* sub = arg_next(args, alen, wn);
+        const bool want_devices = (sub != nullptr && wn > 0 && sub[0] == 'd');
 
 #if BOTANIK_FEATURE_MODBUS_RTU_CLIENT
         const Modbus::RtuClient* rtu = _sys->modbus_rtu;
@@ -1152,13 +1207,19 @@ namespace Botanik { namespace Shell {
             if (rtu->safe_state_pending())
                 _println("  (safe state owed to the field)");
 
-            // One line per device: the whole point of the command, since a bus
-            // is usually only interesting when one of them has stopped talking.
-            for (uint8_t i = 0; i < rtu->peer_count(); ++i) {
-                snprintf(val, sizeof(val), "    dev %-3u %s",
-                         (unsigned)rtu->peer_unit(i),
-                         rtu->peer_dead(i) ? "DEAD" : "ok");
+            // The roll-call moved to `modbus devices`. Twenty units is a
+            // screenful on its own, and it pushed the plan and the state - the
+            // things you came for - off the top. What belongs here is how many
+            // there are and how many are not talking; WHICH ones is the next
+            // question, and it gets its own command.
+            if (!want_devices) {
+                snprintf(val, sizeof(val), "  %u device(s), %u not answering"
+                                           "%s",
+                         (unsigned)rtu->peer_count(), (unsigned)rtu->dead_count(),
+                         rtu->dead_count() != 0 ? "  (modbus devices)" : "");
                 _println(val);
+            } else {
+                _modbus_devices(*rtu);
             }
         }
 #endif

@@ -214,6 +214,16 @@ namespace Botanik { namespace Modbus {
         /** @brief Unit id of tracked device @p i, and whether it is answering.
          *  For the shell: "which one" is the operator's next question. */
         uint8_t peer_unit(uint8_t i) const { return _plan.device_at(i); }
+        /** @brief Consecutive failures for tracked device @p i; 0 = answering.
+         *  The count behind peer_dead(), for a display that wants to say how
+         *  bad it is rather than just that it is bad. */
+        uint8_t peer_misses(uint8_t i) const {
+            return (i < _plan.device_count()) ? _peer[i].misses : 0;
+        }
+        /** @brief The device table this client was planned against, so a caller
+         *  can name a unit without being handed the site's descriptor. */
+        const DeviceTable* devices() const { return _devices; }
+
         bool peer_dead(uint8_t i) const {
             return (i < _plan.device_count()) &&
                    _peer[i].misses > Config::MODBUS_RETRIES;
