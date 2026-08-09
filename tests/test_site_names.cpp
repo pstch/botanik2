@@ -171,8 +171,12 @@ TEST_CASE("site: nothing the site touches fails to resolve") {
     Alarms::AlarmController m(&f.bank, &logger);
     (void)m;
 
-    // Control has to be on or every ROLE_OUTPUT write is refused before it ever
-    // names anything.
+    // The state the programs actually run in. Not a precondition for the writes
+    // below - Var::set() is not gated, because a two-pointer handle has no route
+    // to the latch; authority is enforced where a writer is DISPATCHED (the scan
+    // driver, and BotanikFirmware's on_control hook). This is here so the names
+    // are resolved against a bank in its running state rather than its
+    // powered-on-and-stopped one.
     f.bank.enable_control(Vars::Bank::INHIBIT_HEALTH);
 #ifdef TARGET_SIMULATOR
     Site::simulate(f.bank, 1000);

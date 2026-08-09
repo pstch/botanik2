@@ -596,6 +596,22 @@ namespace Botanik {
 #if BOTANIK_FEATURE_PLC_SCAN
             _tasks.add_component("scan", GROUP_FAST, PHASE_EXECUTE, _scan);
 #endif
+            // The site's own control law, under authority - the same gate the
+            // scan driver applies to the programs, for the same reason. Ahead of
+            // the ungated hook below, so a site's law runs with the programs and
+            // its bookkeeping sees the result.
+            //
+            // The gate is per DISPATCH POINT rather than per write: Var is two
+            // pointers passed by value and stays that way, so it cannot check a
+            // latch it has no route to. That makes this list exhaustive by
+            // construction - the scan driver and this - and a third place that
+            // drives the field has to come and gate itself here.
+            _tasks.add("site_ctl", GROUP_FAST, PHASE_EXECUTE,
+                [](void* s, uint64_t now) {
+                    BotanikFirmware* f = static_cast<BotanikFirmware*>(s);
+                    if (f->io().control_enabled()) f->on_control(now);
+                },
+                this);
             _tasks.add("site", GROUP_FAST, PHASE_EXECUTE,
                 [](void* s, uint64_t now) { static_cast<BotanikFirmware*>(s)->on_step(now); },
                 this);
@@ -899,8 +915,28 @@ namespace Botanik {
         /** @brief Site per-beat work, run each loop() with fresh variable data
          *  (after health, before the logger drains). Named to match the Component
          *  hook (the firmware is the loop driver, not itself a Component).
-         *  Default: nothing. */
+         *  Default: nothing.
+         *
+         *  **Runs whatever control authority says.** For bookkeeping, derived
+         *  values, telemetry - anything that is still correct to do while the
+         *  plant is stopped. Anything that DRIVES the field goes in
+         *  on_control(), or it will keep driving it through a health fault. */
         virtual void on_step(uint64_t now_ms) { (void)now_ms; }
+
+        /** @brief Site control law, run each beat only while control authority
+         *  is held. Default: nothing.
+         *
+         *  The gated twin of on_step(), and where a site's own driving belongs.
+         *  Control authority is enforced per dispatch point rather than per
+         *  write - `Vars::Var` is two pointers passed by value and has no route
+         *  to the latch - so the gate has to be here, next to the scan driver's.
+         *
+         *  Unlike a `Plc::Program` this carries no scheduling state, so there is
+         *  nothing to reset on the way down or reseed on the way back up. A site
+         *  needing those wants a program, which the driver already gives both.
+         *  It runs BEFORE on_step(), so bookkeeping there sees this beat's
+         *  decisions. */
+        virtual void on_control(uint64_t now_ms) { (void)now_ms; }
 
         /** @} */
 

@@ -77,5 +77,29 @@ Both edges reach the programs (`Scan::Driver::on_step`):
 `reset()` is opt-in per program and deliberately not "clear everything": a dwell
 timer is stale, but a totalizer holding the litres delivered today is a record.
 
+## Where the gate lives
+
+Per **dispatch point**, not per write. `Vars::Var::set()` is not gated: the
+handle is two pointers passed by value, made on the fly and passed everywhere,
+and it has no route to the latch - giving it one would cost eight bytes on the
+hot path to re-answer a question the caller already knew.
+
+So the gate sits wherever a writer is *dispatched*, and there are exactly two:
+
+| Dispatch point | Hook | Gated |
+|---|---|---|
+| `Scan::Driver::on_step` | each `Plc::Program::run` | yes |
+| the `site_ctl` task | `BotanikFirmware::on_control` | yes |
+| the `site` task | `BotanikFirmware::on_step` | **no** - by design |
+
+`on_step()` is for work that is still correct while the plant is stopped:
+bookkeeping, derived values, telemetry. Anything that DRIVES the field belongs
+in `on_control()`, or it keeps driving through a health fault. `on_control()`
+runs first, so `on_step()` sees the same beat's decisions.
+
+That list is exhaustive by construction: a third thing that drives the field has
+no gate unless it comes here and adds one. Which is the point - it is a short
+list that has to be read, rather than a rule spread over every write.
+
 See @ref user_control for the operator's view, and @ref dev_architecture for where
 in the loop this sits.
