@@ -6,6 +6,7 @@
 
 #include <cstdio>                           // snprintf
 
+#include "libbotanik/console/kill_ring.h"   // Terminal::kill_ring
 #include "libbotanik/hal/platform.h"        // HAL::Clock::uptime_ms
 
 namespace Botanik { namespace Pages {
@@ -33,8 +34,27 @@ namespace Botanik { namespace Pages {
             case Command::PAGE_DOWN: _move_selection(+(int)_page_step()); return true;
             case Command::HOME: _move_selection(-(int)_row_count()); return true;
             case Command::END:  _move_selection(+(int)_row_count()); return true;
+            case Command::ALT_W: _copy_selected_cell();              return true;
             default: return false;
         }
+    }
+
+    bool ScrollTablePage::_copy_selected_cell() {
+        char cell[COPY_CELL_MAX];
+        uint16_t n = _selected_cell(cell, (uint16_t)sizeof(cell));
+        if (n == 0) return false;
+        n = Terminal::kill_ring().set(cell, n);
+        if (n == 0) return false;
+
+        // Say so: the table looks identical after a copy, so without the badge
+        // the only way to know the key landed is to go and paste it.
+        snprintf(_copied, sizeof(_copied), "copied %.*s", (int)n, cell);
+        _copied_until_ms = HAL::Clock::uptime_ms() + COPIED_BADGE_MS;
+        return true;
+    }
+
+    const char* ScrollTablePage::_copied_badge() const {
+        return HAL::Clock::uptime_ms() < _copied_until_ms ? _copied : "";
     }
 
     void ScrollTablePage::_move_selection(int dir) {
@@ -67,6 +87,11 @@ namespace Botanik { namespace Pages {
     }
 
     void ScrollTablePage::_draw_mode_line(uint16_t row, const char* group, const char* detail) {
+        // A fresh Alt+W borrows the detail slot. The page's own detail is a
+        // standing hint and comes back in a few seconds; the copy is news.
+        const char* badge = _copied_badge();
+        if (badge[0] != '\0') detail = badge;
+
         const uint8_t n_modes = _mode_count();
         const bool    in_all  = (group != nullptr && group[0] != '\0');
         char left[Config::TABLE_LINE_LEN], field[32];

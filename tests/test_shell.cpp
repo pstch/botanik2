@@ -1,8 +1,8 @@
 /**
  * @file test_shell.cpp
  * @brief CommandShell history recall (prev/next + draft restore, dup-skip) and the
- *        single-entry kill ring (Ctrl-K cut to EOL / Ctrl-Y yank), driven against a
- *        real TextEditor over a pipe-backed terminal.
+ *        editor's kill ring (Ctrl-K cut to EOL / Ctrl-W kill word / Ctrl-Y yank),
+ *        driven against a real TextEditor over a pipe-backed terminal.
  */
 #include <cstdint>                  // uint16_t
 #include <cstring>                  // strstr / strlen
@@ -10,6 +10,7 @@
 #include <unistd.h>                 // pipe / read
 
 #include "libbotanik/console/console.h" // Terminal::Console (the fixture builds one)
+#include "libbotanik/console/kill_ring.h" // Terminal::kill_ring
 #include "libbotanik/shell/shell.h" // Shell::CommandShell
 #include "libbotanik/vars/declare.h"
 
@@ -56,6 +57,9 @@ namespace {
             REQUIRE(::pipe(pipe_fds) == 0);
             raw.set_fds(pipe_fds[0], pipe_fds[1]);
             editor.reset();
+            // The ring is console-wide, so it outlives a case: start each one
+            // with it empty rather than with the last one's cut still in it.
+            Terminal::kill_ring().clear();
         }
         ~ShellFixture() { ::close(pipe_fds[0]); ::close(pipe_fds[1]); }
 
@@ -101,15 +105,80 @@ TEST_CASE("shell history: consecutive duplicates are not stored twice") {
     CHECK(f.line() == "help");
 }
 
-TEST_CASE("shell kill ring: Ctrl-K cuts to EOL, Ctrl-Y yanks it back") {
+TEST_CASE("kill ring: Ctrl-K cuts to EOL, Ctrl-Y yanks it back") {
     ShellFixture f;
     f.editor.insert_characters("hello world", 11);
     for (int i = 0; i < 5; ++i) f.editor.move_left();   // cursor before "world"
-    f.shell.kill_to_line_end();
+    CHECK(f.editor.kill_to_line_end());
     CHECK(f.line() == "hello ");
     f.editor.move_to_line_end();
-    f.shell.paste_kill();
+    CHECK(f.editor.yank());
     CHECK(f.line() == "hello world");
+}
+
+TEST_CASE("kill ring: Ctrl-K stops at the newline, and then eats it") {
+    ShellFixture f;
+    f.editor.insert_characters("one\ntwo", 7);
+    f.editor.move_to_start();
+    f.editor.move_to_line_end();            // end of "one", on the \n
+    CHECK(f.editor.kill_to_line_end());     // sitting on it, so it IS the kill
+    CHECK(f.line() == "onetwo");            // ...and the next line closes up
+    CHECK(f.editor.kill_to_line_end());     // now the rest of the joined line
+    CHECK(f.line() == "one");
+}
+
+TEST_CASE("kill ring: Ctrl-K mid-line leaves the following lines alone") {
+    ShellFixture f;
+    f.editor.insert_characters("one\ntwo", 7);
+    f.editor.move_to_start();
+    f.editor.move_right();                  // after "o"
+    CHECK(f.editor.kill_to_line_end());
+    CHECK(f.line() == "o\ntwo");            // "ne" went, the newline did not
+}
+
+TEST_CASE("kill ring: Ctrl-W cuts the word before the cursor") {
+    ShellFixture f;
+    f.editor.insert_characters("set cli_setpoint 21", 19);
+    f.editor.move_word_left();              // before "21"
+    CHECK(f.editor.kill_word_back());       // takes "cli_setpoint "
+    CHECK(f.line() == "set 21");
+    CHECK(f.editor.yank());
+    CHECK(f.line() == "set cli_setpoint 21");
+}
+
+TEST_CASE("kill ring: Ctrl-W at the start of the buffer does nothing") {
+    ShellFixture f;
+    f.editor.insert_characters("word", 4);
+    f.editor.move_to_line_start();
+    CHECK_FALSE(f.editor.kill_word_back());
+    CHECK(f.line() == "word");
+}
+
+TEST_CASE("kill ring: Ctrl-W over trailing space takes the space and the word") {
+    ShellFixture f;
+    f.editor.insert_characters("alpha beta   ", 13);
+    CHECK(f.editor.kill_word_back());
+    CHECK(f.line() == "alpha ");
+}
+
+TEST_CASE("kill ring: a kill longer than the ring leaves the overflow in place") {
+    ShellFixture f;
+    const uint16_t n = (uint16_t)(Config::KILL_RING_SIZE + 10);
+    std::string big(n, 'x');
+    f.editor.insert_characters(big.data(), n);
+    f.editor.move_to_line_start();
+    CHECK(f.editor.kill_to_line_end());
+    // Only what the ring could hold went, so the yank restores exactly that.
+    CHECK(f.line() == std::string(10, 'x'));
+    CHECK(f.editor.yank());
+    CHECK(f.line() == big);
+}
+
+TEST_CASE("kill ring: yank with an empty ring is a no-op") {
+    ShellFixture f;
+    f.editor.insert_characters("abc", 3);
+    CHECK_FALSE(f.editor.yank());
+    CHECK(f.line() == "abc");
 }
 
 // ---------------------------------------------------------------------------

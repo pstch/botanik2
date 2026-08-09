@@ -12,7 +12,8 @@
 #include <cstdint>                      // uint16_t/int32_t
 #include <cstring>                      // memcpy / memmove
 
-#include "libbotanik/console/console.h" // Console::rows / terminal
+#include "libbotanik/console/console.h"   // Console::rows / terminal
+#include "libbotanik/console/kill_ring.h" // kill_ring()
 
 
 namespace Botanik { namespace Terminal {
@@ -700,16 +701,63 @@ namespace Botanik { namespace Terminal {
         return isalnum(uc) || c == '_';
     }
 
+    uint16_t TextEditor::_word_start() const {
+        uint16_t p = _pos;
+        while (p > 0 && !_is_word_char(_buf[p - 1])) p--;
+        while (p > 0 &&  _is_word_char(_buf[p - 1])) p--;
+        return p;
+    }
+
+    uint16_t TextEditor::_word_end() const {
+        uint16_t p = _pos;
+        while (p < _len &&  _is_word_char(_buf[p])) p++;
+        while (p < _len && !_is_word_char(_buf[p])) p++;
+        return p;
+    }
+
     void TextEditor::move_word_left() {
-        while (_pos > 0 && !_is_word_char(_buf[_pos - 1])) _pos--;
-        while (_pos > 0 &&  _is_word_char(_buf[_pos - 1])) _pos--;
+        _pos = _word_start();
         _settle_cursor();
     }
 
     void TextEditor::move_word_right() {
-        while (_pos < _len &&  _is_word_char(_buf[_pos])) _pos++;
-        while (_pos < _len && !_is_word_char(_buf[_pos])) _pos++;
+        _pos = _word_end();
         _settle_cursor();
+    }
+
+    // kill / yank
+
+    bool TextEditor::_kill_span(uint16_t from, uint16_t to) {
+        if (to <= from) return false;
+        // Take only what the ring can hold, and remove only what it took: the
+        // rest stays in the buffer, so a yank puts back exactly what went.
+        uint16_t taken = kill_ring().set(_buf + from, (uint16_t)(to - from));
+        if (taken == 0) return false;
+        _pos = from;
+        remove_characters(taken);
+        return true;
+    }
+
+    bool TextEditor::kill_to_line_end() {
+        if (_pos >= _len) return false;
+        // On the newline, the newline IS the kill: that is what closes this
+        // line up onto the next.
+        if (_buf[_pos] == '\n') return _kill_span(_pos, (uint16_t)(_pos + 1));
+
+        uint16_t end = _pos;
+        while (end < _len && _buf[end] != '\n') end++;
+        return _kill_span(_pos, end);
+    }
+
+    bool TextEditor::kill_word_back() {
+        return _kill_span(_word_start(), _pos);
+    }
+
+    bool TextEditor::yank() {
+        KillRing& ring = kill_ring();
+        if (ring.len() == 0) return false;
+        insert_characters(ring.text(), ring.len());
+        return true;
     }
 
 }}

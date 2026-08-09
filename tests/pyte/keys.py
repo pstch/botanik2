@@ -25,6 +25,12 @@ ALT_6 = ESC + b"6"
 ALT_7 = ESC + b"7"
 ALT_8 = ESC + b"8"
 
+# Alt+letter: word motion, and Alt+W to copy a table's selected cell into the
+# kill ring (scroll_table.cpp).
+ALT_B = ESC + b"b"
+ALT_F = ESC + b"f"
+ALT_W = ESC + b"w"
+
 # Cursor / editing keys (CSI forms).
 UP = ESC + b"[A"
 DOWN = ESC + b"[B"
@@ -43,9 +49,12 @@ SHIFT_DOWN = ESC + b"[1;2B"
 # Control bytes.
 BACKSPACE = b"\x7f"
 CTRL_A = b"\x01"             # line start
+CTRL_K = b"\x0b"             # cut to end of line, into the kill ring
 CTRL_L = b"\x0c"             # console-level full repaint, chrome included (console.cpp)
 CTRL_O = b"\x0f"             # NOTES: write the note out (nano's key, not ^S/XOFF)
 CTRL_U = b"\x15"             # clear input
+CTRL_W = b"\x17"             # cut the word before the cursor
+CTRL_Y = b"\x19"             # paste the kill ring back
 
 SPACE = b" "
 

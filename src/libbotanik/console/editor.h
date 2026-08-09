@@ -303,6 +303,33 @@ namespace Botanik { namespace Terminal {
         /** @brief Move the cursor one word to the right */
         void move_word_right();
 
+        /** @} */
+
+        /**
+         * @name Kill and yank
+         *
+         * The three cut/paste keys, over the console-wide kill ring (see
+         * console/kill_ring.h) rather than a buffer of this editor's own - so
+         * what is cut here can be yanked wherever the operator goes next.
+         *
+         * A kill takes only what the ring can hold and leaves the rest in the
+         * buffer, so a yank always restores exactly what went. Each returns
+         * false when there was nothing to do.
+         * @{
+         */
+
+        /** @brief Cut from the cursor to the end of the logical line (Ctrl-K).
+         *  On the newline itself, cuts the newline - which is how a line is
+         *  closed up onto the one before it. */
+        bool kill_to_line_end();
+
+        /** @brief Cut the word before the cursor (Ctrl-W), whitespace between
+         *  it and the cursor included. */
+        bool kill_word_back();
+
+        /** @brief Insert the ring's contents at the cursor (Ctrl-Y). */
+        bool yank();
+
         /** @brief Move the cursor one display row up / down, holding the goal
          *  column. On the first/last row it falls to the start/end of the
          *  buffer. */
@@ -503,6 +530,17 @@ namespace Botanik { namespace Terminal {
          *  column. Clamped to the layout; a move that cannot go further falls
          *  to the buffer start/end instead. */
         void _move_row(int32_t delta);
+
+        /** @brief Offset one word left / right of the cursor. Where
+         *  move_word_left() / move_word_right() land, and what kill_word_back()
+         *  cuts back to. */
+        uint16_t _word_start() const;
+        uint16_t _word_end() const;
+
+        /** @brief Cut `[from, to)` into the kill ring and remove exactly the
+         *  bytes it took. Leaves the cursor at @p from.
+         *  @return false if the span was empty or nothing fit. */
+        bool _kill_span(uint16_t from, uint16_t to);
 
         /** @} */
 

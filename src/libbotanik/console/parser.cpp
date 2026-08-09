@@ -206,6 +206,7 @@ namespace Botanik { namespace Terminal {
             case '0':   return Command::ALT_0;
             case 'b':   return Command::ALT_B;          // Alt+B (Back word)
             case 'f':   return Command::ALT_F;          // Alt+F (Forward word)
+            case 'w':   return Command::ALT_W;          // Alt+W (Copy)
             default:    return Command::NONE;
         }
     }

@@ -96,6 +96,16 @@ CASES = {
         [b"abc", keys.LEFT, keys.BACKSPACE, b"X"],           # "ac" cursor 1 -> "aXc"
         ["botanik> aXc"]),
 
+    # Kill and yank: the cut is a plain remove, but the yank re-inserts a whole
+    # span mid-buffer, which is the multi-char splice branch under another name.
+    "kill_word_back": (
+        [b"set cli_setpoint 21", keys.ALT_B, keys.CTRL_W],
+        ["botanik> set 21"]),
+    "kill_to_eol_then_yank": (
+        [b"echo hello world", keys.CTRL_A, keys.RIGHT * 5, keys.CTRL_K,
+         keys.CTRL_A, keys.CTRL_Y],
+        ["botanik> hello worldecho"]),
+
     # Empty the buffer back to a single PS1 row (row count shrinks to 1).
     "clear_to_empty": (
         [RULER.encode(), keys.CTRL_U],

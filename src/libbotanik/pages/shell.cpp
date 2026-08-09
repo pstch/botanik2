@@ -85,9 +85,9 @@ namespace Botanik { namespace Pages {
             case Command::CTRL_D:     _editor.delete_forward(count); break;
 
             // Kill / yank
-            case Command::CTRL_K:     _shell.kill_to_line_end();    break;
-            case Command::CTRL_W:     /* TODO: kill word back */     break;
-            case Command::CTRL_Y:     _shell.paste_kill();          break;
+            case Command::CTRL_K:     _editor.kill_to_line_end();   break;
+            case Command::CTRL_W:     _editor.kill_word_back();     break;
+            case Command::CTRL_Y:     _editor.yank();               break;
 
             // Cursor movement
             case Command::LEFT:

@@ -24,7 +24,7 @@
 
 #include <cstdint>                          // uint8_t/uint16_t/int32_t
 #include <cstdio>                           // snprintf
-#include <cstring>                          // strlen
+#include <cstring>                          // strlen / memcpy
 
 #include "libbotanik/console/terminal.h"    // AnsiTerminal
 #include "libbotanik/pages/page.h"          // Pages::Page
@@ -47,6 +47,14 @@ namespace Botanik { namespace Pages {
         /** @brief Selection cursor: index into the row set (drawn inverted). */
         uint16_t      _selected = 0;
 
+        /** @brief When the Alt+W badge stops being shown, in uptime ms. The
+         *  mode line lends its detail slot for a couple of seconds - a copy is
+         *  otherwise entirely invisible, the table looking exactly as it did
+         *  before the keypress. */
+        uint64_t      _copied_until_ms = 0;
+        /** @brief The badge text, naming what was copied. */
+        char          _copied[40] = {0};
+
         /** @} */
 
         explicit ScrollTablePage(AnsiTerminal& terminal) : _terminal(terminal) {}
@@ -60,6 +68,27 @@ namespace Botanik { namespace Pages {
         virtual uint16_t _window() const = 0;
         /** @brief Rows in the set the cursor moves over. */
         virtual uint16_t _row_count() const = 0;
+
+        /** @brief Copy the selected row's KEY CELL - the one the cursor inverts
+         *  - into @p out, at most @p cap bytes, for the Alt+W copy.
+         *
+         *  What is highlighted is what you get: the name on MONITOR / PARAMS /
+         *  TASKS, the code on ALARMS. A table with nothing worth copying leaves
+         *  the default, and Alt+W does nothing there.
+         *  @return bytes written (no NUL needed; 0 = nothing to copy). */
+        virtual uint16_t _selected_cell(char* /*out*/, uint16_t /*cap*/) const {
+            return 0;
+        }
+
+        /** @brief What every _selected_cell() override does with the string it
+         *  found: copy it into @p out, truncated to @p cap. Null-safe. */
+        static uint16_t _copy_cell(char* out, uint16_t cap, const char* s) {
+            if (s == nullptr || cap == 0) return 0;
+            uint16_t n = (uint16_t)strlen(s);
+            if (n > cap) n = cap;
+            memcpy(out, s, n);
+            return n;
+        }
 
         /** @} */
 
@@ -87,10 +116,26 @@ namespace Botanik { namespace Pages {
         void _follow_selection();
 
         /** @brief Handle the standard table nav keys (UP/DOWN, CTRL_P/N,
-         *  PAGE_UP/DOWN, HOME/END). @return true if @p cmd was a nav key, so the
-         *  caller can set its dirty flag and stop; false leaves the caller to try
-         *  its own keys (ENTER = edit / jump, etc.). */
+         *  PAGE_UP/DOWN, HOME/END), and Alt+W over _selected_cell(). @return
+         *  true if @p cmd was one of them, so the caller can set its dirty flag
+         *  and stop; false leaves the caller to try its own keys (ENTER = edit /
+         *  jump, etc.). */
         bool _nav_command(Command cmd);
+
+        /** @brief How long the Alt+W badge stays on the mode line (ms). */
+        static constexpr uint32_t COPIED_BADGE_MS = 3000;
+        /** @brief Longest cell Alt+W copies. A key cell is a name or a code, not
+         *  a sentence; anything longer is truncated to this. */
+        static constexpr uint16_t COPY_CELL_MAX = 48;
+
+        /** @brief Put the selected cell in the kill ring (Alt+W), so it can be
+         *  yanked into the shell prompt or the PARAMS value field.
+         *  @return true if anything was copied. */
+        bool _copy_selected_cell();
+
+        /** @brief The Alt+W badge, or "" once it has expired. What
+         *  _draw_mode_line() shows in place of the page's own detail. */
+        const char* _copied_badge() const;
 
         /** @brief Move the cursor by @p dir (clamped to the set), auto-scrolling
          *  the band to keep it visible. A shift smaller than the window rides a

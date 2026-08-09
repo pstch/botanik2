@@ -1105,22 +1105,4 @@ namespace Botanik { namespace Shell {
         _load_browse();
     }
 
-    void CommandShell::push_kill(const char* buf, uint16_t len) {
-        _kill_len = std::min(len, (uint16_t)Config::SHELL_KILL_SIZE);
-        memcpy(_kill, buf, _kill_len);
-    }
-
-    void CommandShell::kill_to_line_end() {
-        uint16_t off  = _editor.cursor_offset();
-        uint16_t rest = (uint16_t)(_editor.buffer_len() - off);
-        if (rest == 0) return;
-        // stores up to SHELL_KILL_SIZE
-        push_kill(_editor.buffer() + off, rest);
-        _editor.delete_forward(rest);              // remove the whole tail
-    }
-
-    void CommandShell::paste_kill() {
-        if (_kill_len > 0) _editor.insert_characters(_kill, _kill_len);
-    }
-
 }}

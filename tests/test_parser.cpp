@@ -84,6 +84,13 @@ TEST_CASE("parser: control bytes decode to commands") {
     CHECK(f.parse().command == Command::TAB);
     f.feed("\x03");                         // Ctrl+C
     CHECK(f.parse().command == Command::CTRL_C);
+    // The three cut/paste keys.
+    f.feed("\x0B");                         // Ctrl+K
+    CHECK(f.parse().command == Command::CTRL_K);
+    f.feed("\x17");                         // Ctrl+W
+    CHECK(f.parse().command == Command::CTRL_W);
+    f.feed("\x19");                         // Ctrl+Y
+    CHECK(f.parse().command == Command::CTRL_Y);
 }
 
 // CSI sequences
@@ -142,6 +149,7 @@ TEST_CASE("parser: Alt+letter and Alt+digit") {
     ParserFixture f;
     f.feed("\x1B" "b"); CHECK(f.parse().command == Command::ALT_B);
     f.feed("\x1B" "f"); CHECK(f.parse().command == Command::ALT_F);
+    f.feed("\x1B" "w"); CHECK(f.parse().command == Command::ALT_W);
     f.feed("\x1B" "3"); CHECK(f.parse().command == Command::ALT_3);
 }
 

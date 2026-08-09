@@ -81,6 +81,30 @@ def test_notes_scrolls_when_taller_than_the_screen(spawn):
     assert term.wait_for("line00"), "paging up never reached the first line"
 
 
+def test_notes_kill_and_yank(spawn):
+    """^K / ^W cut and ^Y pastes, over the console-wide ring: the whole reason
+    the ring left CommandShell is that this page has no shell under it."""
+    term = notes(spawn)
+    _type_lines(term, ["valve three sticks", "pump B runs hot"])
+
+    # Waited on the ABSENCE: "pump B runs" is a prefix of the line before the
+    # cut too, so waiting for it would pass on the pre-keypress screen.
+    term.send(keys.CTRL_W)                       # the word before the cursor
+    assert term.wait_screen("hot", present=False), "^W did not cut the last word"
+    assert term.screen.display[2].rstrip() == "> pump B runs", \
+        "^W took more than the last word"
+
+    term.send(keys.CTRL_Y)                       # ...and back
+    assert term.wait_screen("pump B runs hot"), "^Y did not yank the word back"
+
+    # ^K takes the rest of the line, and only that line: the one above it is
+    # what a kill-to-buffer-end would have taken with it.
+    term.send(keys.CTRL_A + keys.CTRL_K)
+    assert term.wait_screen("pump B runs", present=False), "^K did not cut the line"
+    assert term.screen.display[1].rstrip() == "> valve three sticks", \
+        "^K ate the line above it"
+
+
 def test_notes_survives_a_reboot(spawn, tmp_path):
     """The note is persisted - the whole point of it over a scratch buffer."""
     store = tmp_path / "notes_store"

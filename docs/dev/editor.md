@@ -139,6 +139,23 @@ never had corrupts it.
 the layout) is the guard. A row that fails it drops to `_new_row()` - a repaint, which is
 what it needed anyway.
 
+### The kill ring
+
+Cut and paste (`Ctrl+K` / `Ctrl+W` / `Ctrl+Y`) are the editor's, over ONE buffer for the
+whole console (`console/kill_ring.h`) rather than one per instance. That is deliberate:
+the point of a clipboard on a terminal with no mouse is to move text between the places
+that hold it, and a per-editor buffer makes each of them a dead end. It used to live on
+`CommandShell`, which is why the NOTES page had no cut and paste at all.
+
+The editor is not its only writer - `Alt+W` on a table page puts the selected cell in it
+(`ScrollTablePage::_copy_selected_cell()`) - so the ring is plain storage with no editor
+in it, and everything that fills it goes through `set()`.
+
+A kill takes only what the ring can hold and leaves the remainder in the buffer, so a yank
+always restores exactly what the kill removed. Removing more than was stored was the old
+`kill_to_line_end()`'s bug: past 128 bytes it deleted a tail that `Ctrl+Y` could not put
+back.
+
 ### Capacity
 
 Buffer and row array are supplied by the owner (`EditorStorage` / `EditorBuffers<BUF,ROWS>`),

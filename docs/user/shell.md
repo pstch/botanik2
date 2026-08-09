@@ -17,12 +17,19 @@ commands the site adds.
 | `Ctrl+A`, `END` / `Ctrl+E` | start / end of line |
 | `BACKSPACE` / `Ctrl+H`, `DELETE` / `Ctrl+D` | delete backwards / forwards |
 | `Ctrl+U` | clear the line |
-| `Ctrl+K` | cut from the cursor to end of line |
-| `Ctrl+Y` | paste back what `Ctrl+K` cut |
+| `Ctrl+K` | cut from the cursor to end of line (on the line end, joins the next line up) |
+| `Ctrl+W` | cut the word before the cursor |
+| `Ctrl+Y` | paste back what was cut |
 | `Ctrl+C` | abandon the line (it stays echoed above) |
 
 History holds the last 8 commands; consecutive duplicates are not stored, and a line
 you were part-way through typing is kept as you scroll away from it.
+
+The cut buffer is **the console's, not the prompt's**: `Ctrl+K` here and `Ctrl+Y`
+on the NOTES page are the same clipboard, and `Alt+W` on any of the tables puts
+the selected row's name in it. Copy a name off MONITOR, come back here, type
+`get ` and `Ctrl+Y`. A cut longer than the buffer (256 bytes) takes what fits and
+leaves the rest where it was, so a paste always restores exactly what went.
 
 `TAB` switches pages - there is no completion.
 
