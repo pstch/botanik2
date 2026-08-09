@@ -51,18 +51,16 @@ see @ref dev_architecture.
 an inactive page banks queued entries without drawing (see
 @ref dev_logging).
 
-## Testing: every page has a display test
+## Testing: page behaviour
 
-**A page registered in `BotanikFirmware::register_pages()` has a settled-screen
-golden.** They live in `tests/pyte/test_pages.py`, whose `PAGES` table is the
-list: adding a page means adding a row and running
-`make -C build pyte-sim && make -C build pytest-update`, then reviewing the
-generated golden before committing it.
+Each page has a behaviour test under `tests/pyte/` - what pressing a key does,
+what a page reports - driven against the real firmware over a PTY.
 
-Nobody has to remember. `test_pages.py` reads the status bar's tab strip, which
-the terminal draws from the page list itself, and fails if it shows a tab the
-table does not cover - so a page registered without a display test is a failing
-test, not a gap someone notices later.
+Full-screen goldens are now the exception rather than the rule: `page_home` is
+the only one left (`test_page_behaviour.py`). A `test_pages.py` used to hold one
+per page, plus a tab-strip check that failed when a page was registered without
+one; it was removed because it cost ~10 s of the gate. Adding a page therefore
+means adding a BEHAVIOUR test - nothing fails automatically if you do not.
 
 A golden pins *layout* - rows, order, labels, columns, rules, chrome - and not
 *values*: `tests/pyte/normalize.py` masks every cell the greenhouse moves, so a

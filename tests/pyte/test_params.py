@@ -1,7 +1,6 @@
-"""PARAMS page behaviour. Its layout is pinned by test_pages.py (page_params).
+"""PARAMS page behaviour.
 
-Own sim per test: an edit here commits to the parameter store, and page_params is
-taken against the declared defaults.
+Own sim per test: an edit here commits to the parameter store.
 
 Cursor arithmetic below counts rows in the ROLE_PARAM block, which the library's
 parameters open (its own go last within its block, which places them first):

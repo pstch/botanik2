@@ -38,23 +38,28 @@ target_link_libraries(botanik_tests botanik)
 # test_sizes.cpp pins the selected site's payload via BOTANIK_SITE_HEADER, derived
 # from the PUBLIC BOTANIK_SITE define (libbotanik_site.h) inherited from botanik.
 
-# ONE CTest entry for the whole binary. doctest_discover_tests emitted an
-# add_test() per TEST_CASE, and a fresh process per case is nearly all of what
-# that cost: the cases run in ~0.6 s together and took ~15 s apart, the
-# difference being ASAN startup and static-table init paid ~500 times.
+# The doctest binary is registered TWICE, and the label is what tells them apart:
 #
-# It also cost correctness twice over. A per-case process hides a case that
-# corrupts state for the ones after it (that is how an unbound Bank walking
-# garbage pointers hid - see its value-init); running them together is the
-# configuration that catches it. And ~500 ASAN processes on -j4 starved the
-# pyte sims sharing the run, which is what made the screen tests flaky under
-# load - a page whose masked screen holds still reads as settled when it is
-# merely not being scheduled.
+#   doctest        - one entry running every case in one process. UNLABELLED, so
+#                    the gate runs it. ~0.6 s.
+#   <case name>    - one entry per TEST_CASE, labelled `unit`, so `ctest -R`, the
+#                    VS Code Testing panel and an IDE debugger can each address a
+#                    single case. ~14 s for the set, which is why the gate skips
+#                    them (`ctest -LE unit`, see the check target).
 #
-# Debugging one case needs no CTest entry: `./tests/botanik_tests -tc=<name>`
-# selects it, and --output-on-failure prints doctest's own report naming the
-# failing case and line.
+# The cost is per-PROCESS, not per-test: 491 cases run in ~0.6 s together and
+# ~14 s apart, all of it process startup and static-table init paid 491 times.
+# Running them together is also the configuration that catches a case corrupting
+# state for the ones after it - a per-case process hides that by construction
+# (which is how an unbound Bank walking garbage pointers hid; see its value-init).
+#
+# So the gate gets the fast, stricter one, and per-case addressing stays for the
+# times you actually want it: a bare `ctest` runs both.
 add_test(NAME doctest COMMAND botanik_tests)
+
+list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/vendor)
+include(doctest)
+doctest_discover_tests(botanik_tests PROPERTIES LABELS unit)
 
 # `make check` is the one-shot pre-push gate. Its dependencies build everything
 # the suite needs (`make test`/`ctest` do not) plus the two static gates, then the
@@ -82,8 +87,14 @@ if(_nproc EQUAL 0)
 endif()
 set(BOTANIK_CTEST_JOBS ${_nproc} CACHE STRING
     "Parallel job count for the ctest gate (make check)")
+# -LE unit EXCLUDES the per-case entries: the aggregate `doctest` entry above
+# covers the same cases in one process, and running both would pay for the same
+# 491 tests twice over. Excluding by label rather than naming what to run means a
+# newly added test joins the gate by default - it has to be labelled `unit` to be
+# left out of it.
 add_custom_target(check
-    COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure -j ${BOTANIK_CTEST_JOBS}
+    COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure -LE unit
+            -j ${BOTANIK_CTEST_JOBS}
     DEPENDS botanik_tests botanik_strict
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
     COMMENT "Pre-push gate: warning-clean build + unit tests"
