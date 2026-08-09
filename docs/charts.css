@@ -1,3 +1,13 @@
+/* Doxygen renders an @image html SVG as <object>, which takes the file's own
+   width (1240px for the beat diagram) and does NOT shrink - so a narrow window
+   scrolls the whole page sideways rather than the figure. Applies to every SVG
+   figure, so a new diagram needs no rule of its own. */
+
+div.image object[type="image/svg+xml"] {
+    max-width: 100%;
+    height: auto;
+}
+
 /* Layout for the code charts at the top of the developer manual.
    Two figures that sit side by side when the content column is wide enough and
    wrap to a stack when it is not. flex-basis sets the side-by-side threshold:

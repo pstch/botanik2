@@ -27,20 +27,26 @@ should ever be automatic.
 
 ## The beat
 
-Six phases, in this order, every beat:
+Six phases run in this order, every beat: INPUT, CONFIG, SERVICE, EXECUTE,
+OUTPUT, PRESENT, then the watchdog kick.
 
-```
- INPUT  ─▶ CONFIG ─▶ SERVICE ─▶ EXECUTE ─▶ OUTPUT ─▶ PRESENT ─▶ kick
- serial    params    health     control    (field    logger
- expire              net        programs    write)   console/TX
-                                gated by
-                                control_enabled()
-```
+@image html beat.drawio.svg "One beat, with every task the reference site registers. The number on a task is its group period in ms; a task runs only on the beats its group has come due, so most beats are far emptier than this."
 
 Within a phase, tasks run in registration order; a task runs only on the beats its
 group has come due (@ref dev_scheduler). The sandwich is **read, execute, write**,
 and it holds on every beat regardless of which programs happen to be due: whatever
 is due runs between this beat's input phase and this beat's output phase.
+
+The dashed box is the control-authority gate - the scan driver and `site_ctl`,
+but not the ungated `site` hook; *Where the gate lives* below is the whole rule.
+Note also that `modbus_tcp_wr` sits in SERVICE although it is registered beside
+its TCP siblings much further down the function: a task declares its phase, so
+where its line falls in `_register_tasks()` says nothing about when it runs.
+
+@note The diagram is `images/beat.drawio.svg` - an SVG that doubles as a draw.io
+document (the model rides in the root `content` attribute). Open it in draw.io or
+the VS Code extension to edit; saving re-renders the SVG in place, so there is no
+export step and no second file to keep in step.
 
 ## What a program is guaranteed
 
