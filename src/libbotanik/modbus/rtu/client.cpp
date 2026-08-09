@@ -196,8 +196,27 @@ uint16_t RtuClient::_pick(uint64_t now_ms) const {
             // timing a stroke keeps enough blocks dirty to hold the bus and
             // starve the image underneath the programs reading it.
             const bool starved = b.period_ms != 0 && late >= b.period_ms;
-            const uint32_t lateness = (late > 999999u) ? 999999u : (uint32_t)late;
-            s = (starved ? T_STARVED : T_READ) + lateness;
+            // Lateness RELATIVE to the period the block asked for, in permille -
+            // for exactly the reason the starvation floor is per-block: a 1 s
+            // rung and a 10 s rung do not agree about what late means, and
+            // ranking them by absolute milliseconds hands the bus to the fast
+            // ones for ever.
+            //
+            // Twelve 1 s blocks re-arm constantly, so at any moment one of them
+            // is a few hundred ms late. A 10 s block that has just come due is
+            // 0 ms late and loses to every one of them; and it keeps losing,
+            // because their lateness resets and its own only creeps up. It could
+            // not win until it crossed the starvation floor at +10 s - so a 10 s
+            // meter refreshed every TWENTY seconds, went invalid at its 15 s
+            // timeout on the way, and came back at 20. In permille the same
+            // comparison is fair: 900 ms late on a 1 s rung is 900, and 800 ms
+            // late on a 10 s rung is 80, so the 1 s block still wins - but a
+            // 10 s block 5 s late is 500 and beats a 1 s block 400 ms late,
+            // which is the outcome absolute milliseconds could never reach.
+            const uint64_t denom = (b.period_ms != 0) ? (uint64_t)b.period_ms : 1u;
+            uint64_t permille = (late * 1000u) / denom;
+            if (permille > 999999u) permille = 999999u;
+            s = (starved ? T_STARVED : T_READ) + (uint32_t)permille;
         }
 
         if (s > score) { score = s; best = i; }

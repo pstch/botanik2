@@ -635,9 +635,9 @@ namespace Botanik { namespace Vars {
          *  resolve. An integer literal is deliberately not accepted - it would be
          *  ambiguous; use set_i().
          *  @{ */
-        void set(bool v)      { _v->v = from_bool(_d->type, v); _v->qual = Q_GOOD; _touch_field(); }
-        void set(float v)     { _v->v = from_f32 (_d->type, v); _v->qual = Q_GOOD; _touch_field(); }
-        void set_i(int64_t v) { _v->v = from_i64 (_d->type, v); _v->qual = Q_GOOD; _touch_field(); }
+        void set(bool v)      { _drive(from_bool(_d->type, v)); }
+        void set(float v)     { _drive(from_f32 (_d->type, v)); }
+        void set_i(int64_t v) { _drive(from_i64 (_d->type, v)); }
 
         /** @brief What a DRIVER calls: value, timestamp and validity in one
          *  step, so the staleness clock cannot be forgotten.
@@ -729,6 +729,31 @@ namespace Botanik { namespace Vars {
          *  actuator wherever the maintainer left it. */
         void override_clear() { _v->ovr_on = false; _touch_field(); }
         /** @} */
+
+        /** @brief Take a new demand, and owe it to the field only if it is
+         *  actually NEW.
+         *
+         *  A control law is level-driven: it re-states its whole demand on every
+         *  activation, so a coil that has been shut for an hour is written shut
+         *  ten times a second. Marking the field dirty on every one of those
+         *  made every output permanently owed - and since a pending write
+         *  outranks a due read on the bus, the writes held the wire and the
+         *  READINGS starved. A 10 s meter could not get a turn until it went a
+         *  whole period late and the starvation tier rescued it, so it refreshed
+         *  every twenty seconds and went invalid at fifteen on the way.
+         *
+         *  Comparing costs one 8-byte compare on a path that is already storing
+         *  8 bytes, and needs no shadow copy: the slot itself is the shadow.
+         *
+         *  Quality is part of the question. A row sitting at Q_SAFE is NOT
+         *  showing its demand - the fault path put it somewhere known - so
+         *  re-stating the same value there is a real change and must be owed. */
+        void _drive(Scalar v) {
+            const bool moved = (_v->v.u != v.u) || (_v->qual != Q_GOOD);
+            _v->v    = v;
+            _v->qual = Q_GOOD;
+            if (moved) _touch_field();
+        }
 
         /** @brief Note that a ROLE_OUTPUT's demand has moved. One compare on a
          *  path that is already writing; every other role ignores it. */
