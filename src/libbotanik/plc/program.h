@@ -40,6 +40,7 @@
 #include <cstdint>                      // uint16_t/uint32_t/uint64_t
 
 #include "libbotanik/core/component.h"  // Component
+#include "libbotanik/plc/io.h"           // Plc::Io - the narrowed view a program gets
 #include "libbotanik/vars/model.h"      // Vars::Bank / VarRef
 
 namespace Botanik { namespace Plc {
@@ -48,10 +49,14 @@ namespace Botanik { namespace Plc {
      *  the driver: it is the PROGRAM's argument, and the dependency runs
      *  driver -> POU library, never back. */
     struct Context {
-        uint64_t    now_ms;   ///< beat timestamp; the same for every program this beat
-        uint32_t    dt_ms;    ///< REAL ms since this program last ran; drives every timed block
-        uint16_t    missed;   ///< activations dropped since the last run; 0 normally
-        Vars::Bank& io;       ///< the variables it reads and drives
+        uint64_t now_ms;   ///< beat timestamp; the same for every program this beat
+        uint32_t dt_ms;    ///< REAL ms since this program last ran; drives every timed block
+        uint16_t missed;   ///< activations dropped since the last run; 0 normally
+        /** @brief The variables it reads and drives - the narrowed view, not the
+         *  Bank. A program has no business editing a parameter, forcing an
+         *  override or withdrawing control authority, and this is what stops it
+         *  reaching them by accident (@ref Botanik::Plc::Io). */
+        Io       io;
     };
 
     /**
@@ -77,8 +82,8 @@ namespace Botanik { namespace Plc {
      *         _out = io.find("sys_supply_lockout");
      *     }
      *     void run(Plc::Context& c) override {
-     *         const bool bad = !Plc::in_range(c.io.var(_ln).value(), 200.0f, 260.0f);
-     *         c.io.var(_out).set(_lockout(_bad_for(bad, 5000, c.dt_ms), !bad));
+     *         const bool bad = !Plc::in_range(c.io.value(_ln), 200.0f, 260.0f);
+     *         c.io.set(_out, _lockout(_bad_for(bad, 5000, c.dt_ms), !bad));
      *     }
      *     void reset() override { _bad_for.reset(); _lockout.reset(); }
      * };
@@ -146,7 +151,7 @@ namespace Botanik { namespace Plc {
          *  timer's own reading of how late this activation is, then run. */
         void on_step(uint64_t now_ms) override {
             if (_io == nullptr) return;
-            Context c = { now_ms, dt_ms(), missed(), *_io };
+            Context c = { now_ms, dt_ms(), missed(), Io(*_io) };
             run(c);
         }
 
