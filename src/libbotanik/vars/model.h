@@ -168,7 +168,24 @@ namespace Botanik { namespace Vars {
          *  device model. A bit rather than a device-profile table because the
          *  flags byte already exists, so this costs nothing and a bus of mixed
          *  vendors needs no new machinery. Meaningless unless `bind.regs` is 2. */
-        F_WORD_SWAP = 1u << 3
+        F_WORD_SWAP = 1u << 3,
+        /** @brief Keep this row's value across a reboot (IEC 61131-3 RETAIN).
+         *
+         *  For the rows whose value IS the history: litres delivered, hours
+         *  run, cycles counted. A totalizer that restarts at zero every time the
+         *  cabinet loses power is not a totalizer, and nothing downstream can
+         *  tell "the season's total" from "the total since the last brownout".
+         *
+         *  Meant for `ROLE_COMPUTED`. A parameter already persists (that is what
+         *  a parameter IS), an input is overwritten by the next scan, and an
+         *  output must come back at its declared safe state rather than at
+         *  whatever it was doing when the power went - so the bank only retains
+         *  computed rows and says so if a site asks for more.
+         *
+         *  Saved on a cadence and on the way down, never on the write: a
+         *  totalizer moves every beat, and a flash write per beat would wear the
+         *  part out in days. @see Bank::save_retained() */
+        F_RETAIN = 1u << 4
     };
 
     /** @brief Per-slot state bits, as opposed to the row's declared behaviour.
@@ -741,6 +758,16 @@ namespace Botanik { namespace Vars {
         /** @brief Forget @p d's stored override. Called on every release, so a
          *  cleared override cannot come back at the next boot. */
         virtual bool clear_override(const Variable& d) = 0;
+
+        /** @brief Load @p d's RETAINED value (F_RETAIN). @return false when
+         *  none is stored - a first boot, or a row that has never been saved.
+         *
+         *  Its own key, for the same reason an override has one: a retained
+         *  total and a configured setting are different facts, and a row can
+         *  have both. */
+        virtual bool load_retained(const Variable& d, Value& v) = 0;
+        /** @brief Persist @p d's current value as its retained one. */
+        virtual bool save_retained(const Variable& d, const Value& v) = 0;
     };
 
     /**
@@ -842,6 +869,34 @@ namespace Botanik { namespace Vars {
          *
          *  @return how many were restored. */
         uint16_t load_overrides();
+
+        /** @name Retained values (F_RETAIN)
+         *
+         *  The rows whose value IS the history - litres delivered, hours run.
+         *  @{ */
+
+        /** @brief Whether @p d is a row this bank will retain.
+         *
+         *  `F_RETAIN` on a `ROLE_COMPUTED` row, and nothing else. A parameter
+         *  already persists, an input is overwritten by the next scan, and an
+         *  output must come back at its declared safe state rather than at
+         *  whatever it was doing when the power went - restoring a coil from
+         *  flash would energise a contactor before anything had looked at the
+         *  plant. Stated as one predicate so the load and save paths cannot
+         *  disagree about it. */
+        static bool retainable(const Variable& d) {
+            return (d.flags & F_RETAIN) != 0 && d.role == ROLE_COMPUTED;
+        }
+
+        /** @brief Restore every retained row from the store. Called at bring-up
+         *  after load_params(). @return how many were restored. */
+        uint16_t load_retained();
+        /** @brief Write every retained row out. Called on a cadence and on the
+         *  way down - never per write, which would be a flash erase per beat.
+         *  @return how many were written. */
+        uint16_t save_retained();
+
+        /** @} */
 
         const VarTables& tables() const { return _terminal; }
         char*            pool() const   { return _terminal.pool; }

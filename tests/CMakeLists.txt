@@ -26,6 +26,7 @@ add_executable(botanik_tests
     test_model.cpp
     test_scan.cpp
     test_plc_io.cpp
+    test_retain.cpp
     test_task_timer.cpp
     test_component.cpp
     test_tasks.cpp

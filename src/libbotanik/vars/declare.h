@@ -183,6 +183,30 @@ namespace Botanik { namespace Vars {
                          type, ROLE_COMPUTED, SCOPE_G, digits, 0, {} };
     }
 
+    /** @brief A **retained** computed value: G(), but its value survives a
+     *  reboot (IEC 61131-3 RETAIN).
+     *
+     *  For the rows whose value IS the history - litres delivered, hours run,
+     *  cycles counted. A totalizer that restarts at zero every time the cabinet
+     *  loses power is not a totalizer, and nothing downstream can tell "the
+     *  season's total" from "the total since the last brownout".
+     *
+     *  Its own factory rather than a flag argument on G(), so a row that is
+     *  retained says so where it is declared and a reader does not have to
+     *  decode a bitmask to find out. @p def is what it reads on a FIRST boot,
+     *  before anything has ever been stored.
+     *
+     *  Costs one storage key and a write every Config::RETAIN_SAVE_MS - so this
+     *  is for values that are worth that, not for every computed row. */
+    constexpr Variable GR(const char* name, VarType type, Scalar def,
+                          uint8_t digits, const char* unit, const char* desc,
+                          const char* notes) {
+        return Variable{ def, name, unit, desc, notes,
+                         Payload(Scalar::U(0), Scalar::U(0)),
+                         { XP_NONE, type, 0, 0, 0, 0, 1.0f, 0.0f }, 0, nullptr,
+                         type, ROLE_COMPUTED, SCOPE_G, digits, F_RETAIN, {} };
+    }
+
     /** @brief A **status value**: computed like G(), but PUBLISHED - MQTT
      *  telemetry and the Modbus TCP slave. Its name and its scaling are an
      *  external contract, so renaming one breaks whatever is subscribed.

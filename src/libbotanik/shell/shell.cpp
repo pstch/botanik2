@@ -197,7 +197,13 @@ namespace Botanik { namespace Shell {
     void CommandShell::_leave_running() {
         // The system's hold, not the operator's: this is the firmware deciding
         // to stop running, not someone turning control off.
-        if (Vars::Bank* io = _bank()) io->disable_control(Vars::Bank::INHIBIT_HEALTH);
+        if (Vars::Bank* io = _bank()) {
+            io->disable_control(Vars::Bank::INHIBIT_HEALTH);
+            // A DELIBERATE stop loses no counting. The cadence bounds what an
+            // unexpected power cut costs; this makes a planned one cost
+            // nothing, which is the case an operator is entitled to expect.
+            (void)io->save_retained();
+        }
         // Wipe the screen (flushed straight to the wire) before leaving: the
         // main loop won't run again to drain the TX ring.
         _terminal.clear_screen_now();

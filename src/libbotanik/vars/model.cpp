@@ -496,6 +496,41 @@ namespace Botanik { namespace Vars {
         return n;
     }
 
+    uint16_t Bank::load_retained() {
+        if (_store == nullptr) return 0;
+        uint16_t n = 0;
+        for (uint16_t i = 0; i < _terminal.count; i++) {
+            const Variable& d = _terminal.var[i];
+            if (!retainable(d)) continue;
+            if (!_store->load_retained(d, _terminal.val[i])) continue;
+            // Q_GOOD, because it IS good: the value a totalizer carried when the
+            // unit went down is the right value to carry on from, and leaving it
+            // Q_NO_DATA would have every reader fall back to the default it was
+            // restored precisely to avoid.
+            _terminal.val[i].qual = Q_GOOD;
+            n++;
+        }
+        return n;
+    }
+
+    uint16_t Bank::save_retained() {
+        if (_store == nullptr) return 0;
+        uint16_t n = 0;
+        for (uint16_t i = 0; i < _terminal.count; i++) {
+            const Variable& d = _terminal.var[i];
+            if (!retainable(d)) continue;
+            // The LIVE value, never the override: a maintainer forcing a
+            // totalizer to 1000 to test an alarm must not have that written into
+            // the plant's history. What is retained is what the program
+            // computed, which is what the override is shadowing.
+            // A refused write is already counted by HAL::Storage, which is what
+            // alarm_flash_error watches; counting it again here would be a
+            // second number for one fact.
+            if (_store->save_retained(d, _terminal.val[i])) n++;
+        }
+        return n;
+    }
+
     uint16_t Bank::clear_overrides() {
         uint16_t n = 0;
         for (uint16_t i = 0; i < _terminal.count; i++) {

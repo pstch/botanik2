@@ -120,6 +120,49 @@ namespace Botanik { namespace Vars {
         return HAL::Storage::remove(key);
     }
 
+    namespace {
+        /** @brief A retained value's key. Its own prefix, like an override's:
+         *  a retained total and a configured setting are different facts about
+         *  one row, and a row may legitimately have both. */
+        bool retained_key(const Variable& d, char* out, size_t cap) {
+            if (d.name == nullptr) return false;
+            const int n = snprintf(out, cap, "ret.%s", d.name);
+            return n > 0 && (size_t)n < cap;
+        }
+    }  // namespace
+
+    bool KvParamStore::load_retained(const Variable& d, Value& v) {
+        char key[HAL::Storage::KEY_MAX];
+        if (!retained_key(d, key, sizeof(key))) return false;
+        const uint8_t w = type_width(d.type);
+        if (w == 0) return false;
+        uint64_t raw = 0;
+        size_t n = 0;
+        if (!HAL::Storage::get(key, &raw, w, &n)) return false;
+        if (n != w) return false;
+        // Sign-extended the same way a parameter is, so a negative total comes
+        // back negative rather than as a very large positive one.
+        if (type_real(d.type))        { float f; memcpy(&f, &raw, 4); v.v = Scalar::F(f); }
+        else if (type_signed(d.type)) {
+            const int64_t x = (int64_t)raw;
+            const unsigned shift = (unsigned)(64 - 8 * w);
+            v.v = Scalar::I((int64_t)((x << shift) >> shift));
+        }
+        else                          { v.v = Scalar::U(raw); }
+        return true;
+    }
+
+    bool KvParamStore::save_retained(const Variable& d, const Value& v) {
+        char key[HAL::Storage::KEY_MAX];
+        if (!retained_key(d, key, sizeof(key))) return false;
+        const uint8_t w = type_width(d.type);
+        if (w == 0) return false;
+        uint64_t raw = 0;
+        if (type_real(d.type)) { const float f = v.v.f; memcpy(&raw, &f, 4); }
+        else                   { raw = v.v.u; }
+        return HAL::Storage::set(key, &raw, w);
+    }
+
     // ---- Params --------------------------------------------------------------
 
     void Params::on_setup(uint64_t /*now_ms*/) {
@@ -132,6 +175,27 @@ namespace Botanik { namespace Vars {
             _logger->critical(Logs::BOOT,
                               "%u override(s) restored from storage - the field is "
                               "not being read or driven normally", (unsigned)n);
+
+        // Retained totals last. They are computed rows, so nothing above has
+        // touched them, and restoring after the overrides means a forced
+        // totalizer still reads as forced.
+        const uint16_t r = _io->load_retained();
+        if (r != 0 && _logger != nullptr)
+            _logger->notice(Logs::BOOT, "%u retained value(s) restored",
+                            (unsigned)r);
+    }
+
+    void Params::on_step(uint64_t now_ms) {
+        if (_io == nullptr || Config::RETAIN_SAVE_MS == 0) return;
+        // A cadence, not a write-through. A totalizer moves every beat and a
+        // flash erase per beat would wear the part out in days; what this buys
+        // is a bounded loss - at most one interval of counting on an unexpected
+        // power cut. A DELIBERATE stop loses nothing, because the shutdown path
+        // calls save_retained() itself.
+        if (_last_retain_ms != 0 &&
+            (now_ms - _last_retain_ms) < Config::RETAIN_SAVE_MS) return;
+        _last_retain_ms = now_ms;
+        (void)_io->save_retained();
     }
 
     VarRef Params::find(const char* name, uint16_t len) const {

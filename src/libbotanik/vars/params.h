@@ -36,6 +36,8 @@ namespace Botanik { namespace Vars {
                   const char* text, uint16_t cap) override;
         bool load_override(const Variable& d, Value& v) override;
         bool save_override(const Variable& d, const Value& v) override;
+        bool load_retained(const Variable& d, Value& v) override;
+        bool save_retained(const Variable& d, const Value& v) override;
         bool clear_override(const Variable& d) override;
     };
 
@@ -48,6 +50,9 @@ namespace Botanik { namespace Vars {
      */
     class Params : public Component {
         Bank* _io;
+        /** @brief When the retained rows were last written out; 0 until the
+         *  first save. @see Config::RETAIN_SAVE_MS */
+        uint64_t _last_retain_ms = 0;
     public:
         /** @brief Binds @p store to @p io: the bank is what actually reads and
          *  writes variables (set() included), so it is what holds the store. */
@@ -82,6 +87,9 @@ namespace Botanik { namespace Vars {
     protected:
         /** @brief Load every parameter from the store. */
         void on_setup(uint64_t now_ms) override;
+        /** @brief Write the retained rows out, at most once per
+         *  Config::RETAIN_SAVE_MS. Nothing else per beat. */
+        void on_step(uint64_t now_ms) override;
     };
 
     /** @name Read parameters by name (null-safe)

@@ -51,6 +51,24 @@ namespace Botanik { namespace Config {
 #endif
     BOTANIK_CFG(size_t, VAR_GROUP_NAME_LEN);
 
+    /** @brief How often the F_RETAIN rows are written to storage, in ms. 0
+     *  turns the cadence off, leaving only the save on the way down.
+     *
+     *  This is a wear-versus-loss dial and there is no free setting. A totalizer
+     *  moves every beat, so writing through would be a flash erase every 10 ms;
+     *  writing every five minutes costs about 300 erases a day per row and
+     *  bounds an unexpected power cut to five minutes of lost counting. A
+     *  DELIBERATE stop loses nothing either way, because the shutdown path
+     *  writes them out itself.
+     *
+     *  Five minutes is the default because the rows this is for - litres, hours
+     *  run - are read by people in days and weeks. A site counting something
+     *  that matters by the minute should say so here. */
+#ifndef BOTANIK_RETAIN_SAVE_MS
+#  define BOTANIK_RETAIN_SAVE_MS 300000
+#endif
+    BOTANIK_CFG(uint32_t, RETAIN_SAVE_MS);
+
     /** @} */
 
 } }
