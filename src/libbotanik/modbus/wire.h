@@ -27,6 +27,7 @@
  * from both ends rather than only against its own expectations.
  */
 
+#include <cstddef>                  // size_t - pointer-offset arithmetic in reg_at
 #include <cstdint>
 
 namespace Botanik { namespace Modbus {
@@ -252,9 +253,15 @@ namespace Botanik { namespace Modbus {
     constexpr uint16_t rd16(const uint8_t* p) { return be16(p[0], p[1]); }
     inline void wr16(uint8_t* p, uint16_t v) { p[0] = hi8(v); p[1] = lo8(v); }
 
-    /** @brief Register @p i of a read response's payload. */
+    /** @brief Register @p i of a read response's payload.
+     *
+     *  The doubling is done in `size_t`, not in the `unsigned` that `i` would
+     *  promote to. It cannot overflow here - the protocol's own ceiling is 125
+     *  registers - but the index arithmetic for a pointer offset should be in
+     *  the pointer's own width regardless of who is asking, and doing it late
+     *  is the habit that eventually meets a caller with a bigger index. */
     constexpr uint16_t reg_at(const uint8_t* payload, uint16_t i) {
-        return be16(payload[i * 2u], payload[i * 2u + 1u]);
+        return be16(payload[(size_t)i * 2u], payload[(size_t)i * 2u + 1u]);
     }
 
     /** @brief Bit @p i of a coil response's payload, LSB of byte 0 first. */
