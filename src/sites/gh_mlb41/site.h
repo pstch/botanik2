@@ -123,6 +123,18 @@ const Botanik::Modbus::DeviceModel MDL_WS_AO8 =
 const Botanik::Modbus::DeviceModel MDL_WS_RELAY =
     Botanik::Modbus::relay_board("Waveshare Relay (D)", 8);
 
+/** @brief The temperature / humidity sensors: an f32 pair at 0 (temperature)
+ *  and another at 2 (humidity), so four registers and nothing else worth
+ *  reading. Pair-aligned like any device storing 32-bit values that way, and
+ *  read-only, so the multi-write question does not arise.
+ *
+ *  @note FC04 is assumed, matching every other measurement on this bus. If
+ *  these particular sensors answer only FC03, that is a one-character change
+ *  per row in vars.h - and it will announce itself loudly, as exception 02 on
+ *  all twelve at once. */
+const Botanik::Modbus::DeviceModel MDL_TEMP_RH =
+    Botanik::Modbus::meter("Temp/RH sensor", 4, 2);
+
 const Botanik::Modbus::Device g_devices[] = {
     {  5, &MDL_SDM630 },      // SRR/TAC/MTR-1
     {  6, &MDL_MCT1_140 },    // SRR/TAC/MTR-2
@@ -132,6 +144,18 @@ const Botanik::Modbus::Device g_devices[] = {
     { 32, &MDL_WS_RELAY },    // SRR/TDC/RO-2
     { 33, &MDL_WS_RELAY },    // SRR/TDC/RO-3
     { 34, &MDL_WS_RELAY },    // SRR/TDC/RO-4
+    { 41, &MDL_TEMP_RH },     // exterior 1..3
+    { 42, &MDL_TEMP_RH },
+    { 43, &MDL_TEMP_RH },
+    { 44, &MDL_TEMP_RH },     // crawlspace 1..3
+    { 45, &MDL_TEMP_RH },
+    { 46, &MDL_TEMP_RH },
+    { 47, &MDL_TEMP_RH },     // low level 1..3
+    { 48, &MDL_TEMP_RH },
+    { 49, &MDL_TEMP_RH },
+    { 50, &MDL_TEMP_RH },     // high level 1..3
+    { 51, &MDL_TEMP_RH },
+    { 52, &MDL_TEMP_RH },
 };
 
 const Botanik::Modbus::DeviceTable g_device_table = {

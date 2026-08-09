@@ -11,7 +11,7 @@
  *
  * Bus: RS485, ModbusRTU master, 38400 baud, none/8/1, on COM2.
  * (BOTANIK_MODBUS_BAUD is pinned to match, in this site's config.h.)
- * 8 field devices, 78 mapped signals, 13 free channels.
+ * 20 field devices, 102 mapped signals, 13 free channels.
  * (70 in the published device map, plus MTR-2 object 2 - active power,
  * which the published map omits and the device answers for all the same.)
  *
@@ -23,6 +23,10 @@
  *   SRR/TDC/RO-2   Waveshare 26517   addr 32   6 coils (+2 free)
  *   SRR/TDC/RO-3   Waveshare 26517   addr 33   8 coils
  *   SRR/TDC/RO-4   Waveshare 26517   addr 34   8 coils
+ *   SRR/CLI/TH-1..3   temp/RH           addr 41-43  exterior
+ *   SRR/CLI/TH-4..6   temp/RH           addr 44-46  crawlspace
+ *   SRR/CLI/TH-7..9   temp/RH           addr 47-49  low level
+ *   SRR/CLI/TH-10..12 temp/RH           addr 50-52  high level
  *
  * Everything is XP_MODBUS today: the site has no XP_LOCAL variables yet, and a
  * later mapping is purely additive - one more row, nothing else to touch.
@@ -393,6 +397,34 @@ const Variable g_vars[] = {
     MI("ats_VAr",         T_F32, 6, 4,   6, 2, SF(-1000000.0f),   SF(1000000.0f),   SF(0.0f), 5000,  0, "VAr",   "ATS reactive power",                 "MCT1-140 0x0006"),
     MI("ats_VA",          T_F32, 6, 4,   8, 2, SF(-1000000.0f),   SF(1000000.0f),   SF(0.0f), 5000,  0, "VA",    "ATS apparent power",                 "MCT1-140 0x0008"),
     MI("ats_Hz",          T_F32, 6, 4,  12, 2, SF(0.0f),          SF(100.0f),       SF(0.0f), 5000,  2, "Hz",    "ATS frequency",                      "MCT1-140 0x000C"),
+
+    // Temperature / humidity, 12 sensors on 4 groups of 3. Each device is one
+    // block: an f32 pair at 0 and another at 2, contiguous, so a sensor costs
+    // one transaction rather than two.
+    MI("cli_temp_ext1",   T_F32, 41, 4,   0, 2, SF(-40.0f),        SF(80.0f),        SF(0.0f), 5000,  1, "C",     "exterior temperature 1",              "temp/RH sensor 0x0000"),
+    MI("cli_rh_ext1",   T_F32, 41, 4,   2, 2, SF(0.0f),          SF(100.0f),       SF(0.0f), 5000,  1, "%",     "exterior humidity 1",                 "temp/RH sensor 0x0002"),
+    MI("cli_temp_ext2",   T_F32, 42, 4,   0, 2, SF(-40.0f),        SF(80.0f),        SF(0.0f), 5000,  1, "C",     "exterior temperature 2",              "temp/RH sensor 0x0000"),
+    MI("cli_rh_ext2",   T_F32, 42, 4,   2, 2, SF(0.0f),          SF(100.0f),       SF(0.0f), 5000,  1, "%",     "exterior humidity 2",                 "temp/RH sensor 0x0002"),
+    MI("cli_temp_ext3",   T_F32, 43, 4,   0, 2, SF(-40.0f),        SF(80.0f),        SF(0.0f), 5000,  1, "C",     "exterior temperature 3",              "temp/RH sensor 0x0000"),
+    MI("cli_rh_ext3",   T_F32, 43, 4,   2, 2, SF(0.0f),          SF(100.0f),       SF(0.0f), 5000,  1, "%",     "exterior humidity 3",                 "temp/RH sensor 0x0002"),
+    MI("cli_temp_cs1",   T_F32, 44, 4,   0, 2, SF(-40.0f),        SF(80.0f),        SF(0.0f), 5000,  1, "C",     "crawlspace temperature 1",            "temp/RH sensor 0x0000"),
+    MI("cli_rh_cs1",    T_F32, 44, 4,   2, 2, SF(0.0f),          SF(100.0f),       SF(0.0f), 5000,  1, "%",     "crawlspace humidity 1",               "temp/RH sensor 0x0002"),
+    MI("cli_temp_cs2",   T_F32, 45, 4,   0, 2, SF(-40.0f),        SF(80.0f),        SF(0.0f), 5000,  1, "C",     "crawlspace temperature 2",            "temp/RH sensor 0x0000"),
+    MI("cli_rh_cs2",    T_F32, 45, 4,   2, 2, SF(0.0f),          SF(100.0f),       SF(0.0f), 5000,  1, "%",     "crawlspace humidity 2",               "temp/RH sensor 0x0002"),
+    MI("cli_temp_cs3",   T_F32, 46, 4,   0, 2, SF(-40.0f),        SF(80.0f),        SF(0.0f), 5000,  1, "C",     "crawlspace temperature 3",            "temp/RH sensor 0x0000"),
+    MI("cli_rh_cs3",    T_F32, 46, 4,   2, 2, SF(0.0f),          SF(100.0f),       SF(0.0f), 5000,  1, "%",     "crawlspace humidity 3",               "temp/RH sensor 0x0002"),
+    MI("cli_temp_lo1",   T_F32, 47, 4,   0, 2, SF(-40.0f),        SF(80.0f),        SF(0.0f), 5000,  1, "C",     "low level temperature 1",             "temp/RH sensor 0x0000"),
+    MI("cli_rh_lo1",    T_F32, 47, 4,   2, 2, SF(0.0f),          SF(100.0f),       SF(0.0f), 5000,  1, "%",     "low level humidity 1",                "temp/RH sensor 0x0002"),
+    MI("cli_temp_lo2",   T_F32, 48, 4,   0, 2, SF(-40.0f),        SF(80.0f),        SF(0.0f), 5000,  1, "C",     "low level temperature 2",             "temp/RH sensor 0x0000"),
+    MI("cli_rh_lo2",    T_F32, 48, 4,   2, 2, SF(0.0f),          SF(100.0f),       SF(0.0f), 5000,  1, "%",     "low level humidity 2",                "temp/RH sensor 0x0002"),
+    MI("cli_temp_lo3",   T_F32, 49, 4,   0, 2, SF(-40.0f),        SF(80.0f),        SF(0.0f), 5000,  1, "C",     "low level temperature 3",             "temp/RH sensor 0x0000"),
+    MI("cli_rh_lo3",    T_F32, 49, 4,   2, 2, SF(0.0f),          SF(100.0f),       SF(0.0f), 5000,  1, "%",     "low level humidity 3",                "temp/RH sensor 0x0002"),
+    MI("cli_temp_hi1",   T_F32, 50, 4,   0, 2, SF(-40.0f),        SF(80.0f),        SF(0.0f), 5000,  1, "C",     "high level temperature 1",            "temp/RH sensor 0x0000"),
+    MI("cli_rh_hi1",    T_F32, 50, 4,   2, 2, SF(0.0f),          SF(100.0f),       SF(0.0f), 5000,  1, "%",     "high level humidity 1",               "temp/RH sensor 0x0002"),
+    MI("cli_temp_hi2",   T_F32, 51, 4,   0, 2, SF(-40.0f),        SF(80.0f),        SF(0.0f), 5000,  1, "C",     "high level temperature 2",            "temp/RH sensor 0x0000"),
+    MI("cli_rh_hi2",    T_F32, 51, 4,   2, 2, SF(0.0f),          SF(100.0f),       SF(0.0f), 5000,  1, "%",     "high level humidity 2",               "temp/RH sensor 0x0002"),
+    MI("cli_temp_hi3",   T_F32, 52, 4,   0, 2, SF(-40.0f),        SF(80.0f),        SF(0.0f), 5000,  1, "C",     "high level temperature 3",            "temp/RH sensor 0x0000"),
+    MI("cli_rh_hi3",    T_F32, 52, 4,   2, 2, SF(0.0f),          SF(100.0f),       SF(0.0f), 5000,  1, "%",     "high level humidity 3",               "temp/RH sensor 0x0002"),
 
  // TDC/AI-1 - calibrated 0-10 V / 4-20 mA channels. The wire unit is the module's
  // (mV, uA) and the calibration block turns it into the engineering one; every
