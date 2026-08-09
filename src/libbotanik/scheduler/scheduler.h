@@ -309,14 +309,13 @@ namespace Botanik { namespace Scheduler {
      *
      * Spawn the emulator thread *before* this: arming MCL_FUTURE first makes
      * pthread_create lock the new thread's full stack and trip RLIMIT_MEMLOCK
-     * (EAGAIN). Call after the log sinks are registered (so the failure warning
-     * isn't dropped). On failure (usually lack of privileges) the process keeps
-     * running. The failure warning is suppressible via BOTANIK_NO_RT_WARNING
-     * (sim/test determinism).
-     *
-     * @param logger Logger for failure warnings (optional).
+     * (EAGAIN). On failure (usually lack of privileges) the process keeps
+     * running and says so on stderr under `[sim-rt]`, NOT through the logger:
+     * "this kernel would not let me mlock" is a fact about the development box,
+     * and the log is the firmware's account of the plant. Suppressible via
+     * BOTANIK_NO_RT_WARNING (sim/test determinism).
      */
-    void lock_process_memory(Logs::Logger* logger = nullptr);
+    void lock_process_memory();
 
     /**
      * @brief Best-effort: switch the *calling thread* to SCHED_FIFO and pin it
@@ -325,13 +324,12 @@ namespace Botanik { namespace Scheduler {
      * Policy and affinity are per-thread on Linux, so call it from each thread
      * that needs realtime (main loop on one core, emulator on another,
      * mirroring the OPTA's cores). On failure (usually lack of privileges) the
-     * thread keeps running. The failure warnings are suppressible via
-     * BOTANIK_NO_RT_WARNING (sim/test determinism).
+     * thread keeps running and says so on stderr under `[sim-rt]`, for the same
+     * reason lock_process_memory() does. Suppressible via BOTANIK_NO_RT_WARNING.
      *
      * @param cpu_core_id Core to pin the calling thread to.
-     * @param logger      Logger for failure warnings (optional).
      */
-    void make_thread_realtime(int cpu_core_id, Logs::Logger* logger = nullptr);
+    void make_thread_realtime(int cpu_core_id);
 #endif
 
 } }

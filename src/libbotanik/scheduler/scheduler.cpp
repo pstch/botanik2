@@ -8,7 +8,9 @@
  *        duty cycle, jitter filtering, stack painting + high-water scan). The
  *        hot tick() path and the stack paint live inline in the header.
  */
-#include "libbotanik/scheduler/scheduler.h" // LoopScheduler
+#include "libbotanik/scheduler/scheduler.h"
+
+#include <cstdio>   // fprintf - host-side notes go to stderr, not the log
 
 #include <cstddef>                          // size_t / ptrdiff_t
 #include <cstring>                          // memset
@@ -278,33 +280,43 @@ namespace Botanik { namespace Scheduler {
     // constrained host (CI/sandbox) denies these privileges, and which it
     // denies varies, so the warnings are host-dependent noise the screen
     // goldens silence. The call itself still runs either way.
-    static bool _rt_warn(Logs::Logger* logger) {
-        return logger != nullptr && HAL::Env::u8("BOTANIK_NO_RT_WARNING", 0) == 0;
+    static bool _rt_warn() {
+        return HAL::Env::u8("BOTANIK_NO_RT_WARNING", 0) == 0;
     }
 
-    void lock_process_memory(Logs::Logger* logger) {
+    /** @brief Say so on stderr, with an area tag, the way the sim's other
+     *  host-side scaffolding does.
+     *
+     *  NOT through the logger. These are facts about the DEVELOPMENT BOX - this
+     *  kernel would not grant SCHED_FIFO, this user cannot mlock - and the log
+     *  is the firmware's account of the plant. Mixing the two puts host noise in
+     *  front of an operator who has no host, and into the LOGS page and the MQTT
+     *  log topic with it. */
+    static void _rt_say(const char* what, int err) {
+        if (!_rt_warn()) return;
+        fprintf(stderr, "[sim-rt] %s: %s\n", what, strerror(err));
+        fflush(stderr);
+    }
+
+    void lock_process_memory() {
         // Lock pages into RAM (avoid page-fault latency). Process-wide incl.
         // future mappings, so it's a one-time call.
-        if (mlockall(MCL_CURRENT | MCL_FUTURE) == -1 && _rt_warn(logger))
-            logger->warning(Logs::BOOT, "mlockall failed: \n%s", strerror(errno));
+        if (mlockall(MCL_CURRENT | MCL_FUTURE) == -1) _rt_say("mlockall", errno);
     }
 
-    void make_thread_realtime(int cpu_core_id, Logs::Logger* logger) {
-        const bool warn = _rt_warn(logger);
+    void make_thread_realtime(int cpu_core_id) {
         // SCHED_FIFO + priority; pid 0 = the calling thread.
         struct sched_param param;
         param.sched_priority = 95; // 1 (low) .. 99 (high)
-        if (sched_setscheduler(0, SCHED_FIFO, &param) == -1 && warn)
-            logger->warning(Logs::BOOT, "sched_setscheduler failed: \n%s",
-                            strerror(errno));
+        if (sched_setscheduler(0, SCHED_FIFO, &param) == -1)
+            _rt_say("sched_setscheduler", errno);
 
         // pin to a core to prevent migration
         cpu_set_t mask;
         CPU_ZERO(&mask);
         CPU_SET(cpu_core_id, &mask);
-        if (sched_setaffinity(0, sizeof(cpu_set_t), &mask) == -1 && warn)
-            logger->warning(Logs::BOOT, "sched_setaffinity failed: \n%s",
-                            strerror(errno));
+        if (sched_setaffinity(0, sizeof(cpu_set_t), &mask) == -1)
+            _rt_say("sched_setaffinity", errno);
     }
 
 #endif

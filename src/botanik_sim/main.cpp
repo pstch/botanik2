@@ -93,7 +93,7 @@ int main(int argc, char** argv) {
 #if BOTANIK_FEATURE_NETWORK
     // Mock NTP/MQTT responder on loopback. Spawned before we lock process memory
     // (mlockall MCL_FUTURE), like any other thread we create.
-    Network::start_mock_netd(&greenhouse.logger());
+    Network::start_mock_netd();
 #endif
 
     // Real-time posture for the beat: pages locked in RAM and the loop thread on
@@ -110,12 +110,11 @@ int main(int argc, char** argv) {
     // parallel became load-sensitive. A harness that wants throughput rather
     // than jitter fidelity sets $BOTANIK_NO_RT and lets the OS place them.
     if (HAL::Env::u32("BOTANIK_NO_RT", 0) == 0) {
-        Scheduler::lock_process_memory(&greenhouse.logger());
+        Scheduler::lock_process_memory();
         // Which core is free is a property of the dev box, not of the site, so it
         // comes from the environment like the other host knobs above. Mirrors the
         // main loop running on one core of the OPTA.
-        Scheduler::make_thread_realtime((int)HAL::Env::u32("BOTANIK_SIM_CPU", 0),
-                                        &greenhouse.logger());
+        Scheduler::make_thread_realtime((int)HAL::Env::u32("BOTANIK_SIM_CPU", 0));
     }
 
 #if BOTANIK_FEATURE_MODBUS_RTU_SERVER

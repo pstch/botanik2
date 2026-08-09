@@ -37,7 +37,6 @@
 
 #include "libbotanik/hal/net.h"         // HAL::Network::NTP_MOCK_PORT / MQTT_MOCK_PORT
 #include "libbotanik/hal/platform.h"    // HAL::Clock::sleep_ms / HAL::Memory::dsb
-#include "libbotanik/logs/logger.h"     // Logs::Logger
 
 namespace Botanik { namespace Network {
 
@@ -237,7 +236,7 @@ namespace Botanik { namespace Network {
     /** @brief Spawn the mock responder thread and register its teardown with
      *  HAL::System::reset(). Start it before the process locks memory (mlockall
      *  MCL_FUTURE), like the emulator. */
-    inline void start_mock_netd(Logs::Logger* logger = nullptr) {
+    inline void start_mock_netd() {
         // Bind here rather than in the thread: the firmware's first NTP/MQTT
         // query goes out ~2 ms after we return, and losing that race cost a
         // whole retry backoff (60 s of sim time) plus two bogus boot errors.
@@ -247,7 +246,11 @@ namespace Botanik { namespace Network {
         HAL::Memory::dsb();
         if (pthread_create(&_netd_thread(), nullptr, &_netd_main, nullptr) != 0) {
             _netd_running() = false;
-            if (logger != nullptr) logger->error(Logs::NETWORK, "mock netd failed to start");
+            // stderr, with an area tag, like the mock broker and the self-check:
+            // the harness failing to start is a fact about this host, not about
+            // the greenhouse, and it must not reach the LOGS page or MQTT.
+            fprintf(stderr, "[mock-netd] failed to start\n");
+            fflush(stderr);
             return;
         }
         HAL::System::on_reset(&stop_mock_netd);
