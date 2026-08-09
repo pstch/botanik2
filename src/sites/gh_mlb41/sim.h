@@ -86,8 +86,15 @@ inline void put(Vars::Bank& io, const char* id, float v, uint32_t now_ms) {
     // from. Cutting simulate() off the bank entirely is the real fix and is the
     // step fieldbus.h describes; this is the part of it that the age display
     // needs today.
-    const bool bussed = h.meta()->bind.transport == Vars::XP_MODBUS;
-    h.publish(Scalar::F(v), bussed ? h.stamp() : now_ms);
+    // Value ONLY for a bussed row - no stamp, no quality. Both belong to the
+    // master, which is the thing that actually hears the device. Asserting
+    // Q_GOOD here every beat is what stopped a device going quiet from ever
+    // going stale in the simulator: the row was being marked good underneath a
+    // master that had stopped hearing anything, so expire_stale() never had a
+    // row to catch. It now reads Q_NO_DATA until the first poll lands, which is
+    // what the hardware does too.
+    if (h.meta()->bind.transport == Vars::XP_MODBUS) h.set_physical(Scalar::F(v));
+    else                                            h.publish(Scalar::F(v), now_ms);
 }
 
 /**

@@ -59,6 +59,11 @@ namespace {
      *  fallback for the other roles. */
     uint8_t rung_of(const Vars::Variable& d) {
         if (!is_read(d.bind.fc)) return 0;
+        // What the row ASKED for, when it asked. poll_ms and timeout_ms are two
+        // different facts - how often to spend the bus, and how long a reading
+        // may be believed - and a row that states the first gets it honoured
+        // rather than back-computed from the second.
+        if (d.poll_ms != 0) return (uint8_t)ladder_of(d.poll_ms);
         if (d.timeout_ms == 0) return (uint8_t)L_60S;
         return (uint8_t)ladder_of(period_of(d.timeout_ms));
     }

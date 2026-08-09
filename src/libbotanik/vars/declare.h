@@ -134,7 +134,7 @@ namespace Botanik { namespace Vars {
                          const char* desc, const char* notes) {
         return Variable{ Scalar::B(false), name, "", desc, notes,
                          Payload(code, on_s, off_s, recent_s, hold_on_s, min_on_s),
-                         { XP_NONE, T_BOOL, 0, 0, reg, 1, 1.0f, 0.0f }, 0, nullptr,
+                         { XP_NONE, T_BOOL, 0, 0, reg, 1, 1.0f, 0.0f }, 0, 0, nullptr,
                          T_BOOL, ROLE_COMPUTED, SCOPE_A, 0, 0, {} };
     }
 
@@ -153,7 +153,7 @@ namespace Botanik { namespace Vars {
                          const char* desc, const char* notes) {
         return Variable{ num(type, def), name, unit, desc, notes,
                          Payload(num(type, lo), num(type, hi)),
-                         { XP_NONE, type, 0, 0, reg, 1, 1.0f, 0.0f }, 0, nullptr,
+                         { XP_NONE, type, 0, 0, reg, 1, 1.0f, 0.0f }, 0, 0, nullptr,
                          type, ROLE_PARAM, SCOPE_P, digits, F_BOUNDED, {} };
     }
 
@@ -168,7 +168,7 @@ namespace Botanik { namespace Vars {
     constexpr Variable PS(const char* name, const char* def, uint16_t cap, StrKind kind,
                           uint16_t reg, const char* desc, const char* notes) {
         return Variable{ Scalar::S(def), name, "", desc, notes, Payload(cap, kind),
-                         { XP_NONE, T_STR, 0, 0, reg, 1, 1.0f, 0.0f }, 0, nullptr,
+                         { XP_NONE, T_STR, 0, 0, reg, 1, 1.0f, 0.0f }, 0, 0, nullptr,
                          T_STR, ROLE_PARAM, SCOPE_P, 0, 0, {} };
     }
 
@@ -179,7 +179,7 @@ namespace Botanik { namespace Vars {
                          const char* unit, const char* desc, const char* notes) {
         return Variable{ def, name, unit, desc, notes,
                          Payload(Scalar::U(0), Scalar::U(0)),
-                         { XP_NONE, type, 0, 0, 0, 0, 1.0f, 0.0f }, 0, nullptr,
+                         { XP_NONE, type, 0, 0, 0, 0, 1.0f, 0.0f }, 0, 0, nullptr,
                          type, ROLE_COMPUTED, SCOPE_G, digits, 0, {} };
     }
 
@@ -203,7 +203,7 @@ namespace Botanik { namespace Vars {
                           const char* notes) {
         return Variable{ def, name, unit, desc, notes,
                          Payload(Scalar::U(0), Scalar::U(0)),
-                         { XP_NONE, type, 0, 0, 0, 0, 1.0f, 0.0f }, 0, nullptr,
+                         { XP_NONE, type, 0, 0, 0, 0, 1.0f, 0.0f }, 0, 0, nullptr,
                          type, ROLE_COMPUTED, SCOPE_G, digits, F_RETAIN, {} };
     }
 
@@ -220,7 +220,7 @@ namespace Botanik { namespace Vars {
                           const char* desc, const char* notes) {
         return Variable{ num(type, def), name, unit, desc, notes,
                          Payload(Scalar::U(0), Scalar::U(0)),
-                         { XP_NONE, type, 0, 0, reg, 1, 1.0f, 0.0f }, 0, nullptr,
+                         { XP_NONE, type, 0, 0, reg, 1, 1.0f, 0.0f }, 0, 0, nullptr,
                          type, ROLE_COMPUTED, SCOPE_SV, digits, 0, {} };
     }
 
@@ -233,10 +233,11 @@ namespace Botanik { namespace Vars {
     constexpr Variable MI(const char* name, VarType type, uint8_t device, uint8_t fc,
                           uint16_t reg, uint16_t regs, Scalar lo, Scalar hi, Scalar def,
                           uint32_t timeout_ms, uint8_t digits, const char* unit,
-                          const char* desc, const char* notes, bool word_swap = false) {
+                          const char* desc, const char* notes,
+                          uint16_t poll_ms = 0, bool word_swap = false) {
         return Variable{ def, name, unit, desc, notes, Payload(lo, hi),
                          { xp_of(device), type, device, fc, reg, regs, 1.0f, 0.0f },
-                         timeout_ms, nullptr,
+                         timeout_ms, poll_ms, nullptr,
                          type, ROLE_INPUT, SCOPE_MI, digits,
                          (uint8_t)(F_BOUNDED | (word_swap ? F_WORD_SWAP : 0)), {} };
     }
@@ -254,10 +255,10 @@ namespace Botanik { namespace Vars {
                           uint8_t fc, uint16_t reg, uint16_t regs, VarType wire,
                           Scalar def, uint32_t timeout_ms, uint8_t digits,
                           const char* unit, const char* desc, const char* notes,
-                          bool word_swap = false) {
+                          uint16_t poll_ms = 0, bool word_swap = false) {
         return Variable{ def, name, unit, desc, notes, Payload(cal),
                          { xp_of(device), wire, device, fc, reg, regs, 1.0f, 0.0f },
-                         timeout_ms, nullptr,
+                         timeout_ms, poll_ms, nullptr,
                          T_F32, ROLE_INPUT, SCOPE_AI, digits,
                          (uint8_t)(F_BOUNDED | (word_swap ? F_WORD_SWAP : 0)), {} };
     }
@@ -267,11 +268,12 @@ namespace Botanik { namespace Vars {
      *  local input bit. */
     constexpr Variable DI(const char* name, uint8_t device, uint8_t fc, uint16_t reg,
                           bool def, uint32_t timeout_ms, bool invert,
-                          const char* desc, const char* notes) {
+                          const char* desc, const char* notes,
+                          uint16_t poll_ms = 0) {
         return Variable{ Scalar::B(def), name, "", desc, notes,
                          Payload(Scalar::B(false), Scalar::B(true)),
                          { xp_of(device), T_BOOL, device, fc, reg, 1, 1.0f, 0.0f },
-                         timeout_ms, nullptr,
+                         timeout_ms, poll_ms, nullptr,
                          T_BOOL, ROLE_INPUT, SCOPE_DI, 0, (uint8_t)(invert ? F_INVERT : 0), {} };
     }
 
@@ -284,7 +286,7 @@ namespace Botanik { namespace Vars {
                           bool word_swap = false) {
         return Variable{ safe, name, unit, desc, notes,
                          Payload(Scalar::U(0), Scalar::U(0)),
-                         { xp_of(device), type, device, fc, reg, regs, 1.0f, 0.0f }, 0, nullptr,
+                         { xp_of(device), type, device, fc, reg, regs, 1.0f, 0.0f }, 0, 0, nullptr,
                          type, ROLE_OUTPUT, SCOPE_MO, digits,
                          (uint8_t)(word_swap ? F_WORD_SWAP : 0), {} };
     }
@@ -300,7 +302,7 @@ namespace Botanik { namespace Vars {
                           bool word_swap = false) {
         return Variable{ Scalar::F(safe), name, unit, desc, notes, Payload(cal),
                          { xp_of(device), wire, device, fc, reg, regs, 1.0f, 0.0f },
-                         0, nullptr,
+                         0, 0, nullptr,
                          T_F32, ROLE_OUTPUT, SCOPE_AO, digits,
                          (uint8_t)(F_BOUNDED | (word_swap ? F_WORD_SWAP : 0)), {} };
     }
@@ -312,7 +314,7 @@ namespace Botanik { namespace Vars {
                           bool safe, bool invert, const char* desc, const char* notes) {
         return Variable{ Scalar::B(safe), name, "", desc, notes,
                          Payload(Scalar::B(false), Scalar::B(true)),
-                         { xp_of(device), T_BOOL, device, fc, reg, 1, 1.0f, 0.0f }, 0, nullptr,
+                         { xp_of(device), T_BOOL, device, fc, reg, 1, 1.0f, 0.0f }, 0, 0, nullptr,
                          T_BOOL, ROLE_OUTPUT, SCOPE_DO, 0,
                          (uint8_t)(invert ? F_INVERT : 0), {} };
     }
@@ -331,7 +333,7 @@ namespace Botanik { namespace Vars {
                           bool invert, const char* desc, const char* notes) {
         return Variable{ Scalar::B(safe), name, "", desc, notes,
                          Payload(Scalar::B(false), Scalar::B(true)),
-                         { xp_of(device), T_BOOL, device, 5, coil, 1, 1.0f, 0.0f }, 0, nullptr,
+                         { xp_of(device), T_BOOL, device, 5, coil, 1, 1.0f, 0.0f }, 0, 0, nullptr,
                          T_BOOL, ROLE_OUTPUT, SCOPE_RO, 0,
                          (uint8_t)(invert ? F_INVERT : 0), {} };
     }

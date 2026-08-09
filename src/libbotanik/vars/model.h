@@ -359,6 +359,24 @@ namespace Botanik { namespace Vars {
         Payload     pay;        ///< band or pool slot, per `type == T_STR`
         Binding     bind;
         uint32_t    timeout_ms;///< ROLE_INPUT: no good read within this -> invalid; 0 = never
+        /** @brief How often to ASK for this row, in ms; 0 derives it from
+         *  @c timeout_ms.
+         *
+         *  Two different questions that used to have one answer. The timeout is
+         *  a CONTRACT with whatever reads the row - "believe this for 15 s and
+         *  no longer" - and the poll interval is a COST on the bus. Deriving one
+         *  from the other (period = timeout/3) tied them together: asking for a
+         *  slower poll meant accepting a longer staleness window, and tightening
+         *  the staleness window silently tripled the traffic.
+         *
+         *  A meter can now say "poll me every 10 s, and call me stale at 15" -
+         *  which is the honest shape of it, since the 5 s of slack is exactly
+         *  the one missed reading you are willing to tolerate before saying so.
+         *
+         *  16 bits because the poll ladder tops out at 60 s, and it lands in
+         *  padding that was already being wasted after @c timeout_ms - so a
+         *  descriptor costs no more than it did. */
+        uint16_t    poll_ms;
         /** @brief T_ENUM renderer; null for a plain number. */
         const char* (*str)(uint64_t);
         VarType     type;
@@ -607,6 +625,19 @@ namespace Botanik { namespace Vars {
         void publish(Scalar v, uint64_t now_ms) {
             _v->v = v; _v->stamp_ms = now_ms; _v->qual = Q_GOOD;
         }
+        /** @brief The quantity, without claiming anything has MEASURED it.
+         *
+         *  publish() is what a driver calls: it stamps and marks the row good
+         *  because a device has just told it something. A simulated field has
+         *  not been told anything - it IS the device - so it must not do either,
+         *  or the row reads good for ever and no timeout can ever catch it. That
+         *  is precisely what stopped a device going quiet from going stale in
+         *  the simulator: the animator re-asserted Q_GOOD every beat, underneath
+         *  a master that had stopped hearing anything.
+         *
+         *  Value only. Quality and staleness stay the business of whatever
+         *  actually reads the wire. */
+        void set_physical(Scalar v) { _v->v = v; }
         /** @brief Mark the reading bad, and say why. For a driver that decided a
          *  well-formed value is not a believable one - an analog reading outside
          *  its band, which Bank::reject_implausible() cannot judge because the

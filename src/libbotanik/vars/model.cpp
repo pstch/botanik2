@@ -20,7 +20,7 @@ namespace Botanik { namespace Vars {
         Scalar::U(0), "<none>", "", "", "",
         Payload(),
         { XP_NONE, T_U8, 0, 0, 0, 0, 1.0f, 0.0f },
-        0, nullptr, T_U8, ROLE_COMPUTED, SCOPE_G, 0, 0, {}
+        0, 0, nullptr, T_U8, ROLE_COMPUTED, SCOPE_G, 0, 0, {}
     };
     Value Bank::_sink_v = {};
 
