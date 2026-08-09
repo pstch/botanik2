@@ -44,6 +44,12 @@ is due runs between this beat's input phase and this beat's output phase.
 
 ## What a program is guaranteed
 
+- **Table order is execution order.** The programs run in the order the site
+  declared them - not alphabetically, not by period, not by construction order.
+  So a law that computes a setpoint and a law that acts on it complete in *one*
+  beat when written in that order, and take a beat per link when written the
+  other way. That is a contract sites rely on, so `test_plc_io.cpp` pins it both
+  ways round: the same three programs in two orders must produce two orders.
 - **The image is stable within a beat.** It mutates only between phases, never
   under a running program, because every writer is cooperative and runs to
   completion. Two programs due on the same beat agree about what they read.

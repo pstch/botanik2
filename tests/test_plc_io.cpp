@@ -70,6 +70,32 @@ protected:
     void run(Plc::Context& c) override { c.io.set(_r, 1.0f); }
 };
 
+/** @brief Appends its own name to a shared log when it runs, so a case can ask
+ *  what ran in what order. */
+class Ordered : public Plc::Program {
+    std::vector<std::string>* _log;
+public:
+    Ordered(const char* name, std::vector<std::string>* log)
+        : Program(name, 0), _log(log) {}
+protected:
+    void run(Plc::Context&) override { _log->push_back(name()); }
+};
+
+/** @brief Reads one row and writes another, so a pair of them can show whether
+ *  the second saw what the first wrote IN THE SAME BEAT. */
+class Relay : public Plc::Program {
+    VarRef      _in = { VAR_NONE }, _out = { VAR_NONE };
+    const char* _from;
+    const char* _to;
+    float       _add;
+public:
+    Relay(const char* name, const char* from, const char* to, float add)
+        : Program(name, 0), _from(from), _to(to), _add(add) {}
+protected:
+    void bind(Bank& io) override { _in = io.find(_from); _out = io.find(_to); }
+    void run(Plc::Context& c) override { c.io.set(_out, c.io.value(_in) + _add); }
+};
+
 /** @brief Records the lifecycle edges and what the first-scan flag said. */
 class Lifecycle : public Plc::Program {
 public:
@@ -395,6 +421,85 @@ TEST_CASE("scan: bring-up is itself a resume, and reset is not called for it") {
     CHECK(p.resumes == 1);
     INFO("nothing was ever driving, so nothing has gone stale");
     CHECK(p.resets == 0);
+}
+
+TEST_CASE("scan: table order is execution order") {
+    // A site orders its programs on purpose - a law that computes a setpoint
+    // before the law that acts on it - and nothing else in the firmware says so.
+    // Not alphabetical, not by period, not by when they were constructed: the
+    // order the site wrote them in.
+    Live f;
+    std::vector<std::string> ran;
+    Ordered a("zulu",  &ran);
+    Ordered b("alpha", &ran);
+    Ordered c("mike",  &ran);
+    Plc::Program* const progs[] = { &a, &b, &c };
+    Scan::Driver d(progs, 3, &f.bank);
+
+    d.step(0);
+
+    REQUIRE(ran.size() == 3);
+    INFO("declared zulu, alpha, mike - and that is the order, not sorted");
+    CHECK(ran[0] == "zulu");
+    CHECK(ran[1] == "alpha");
+    CHECK(ran[2] == "mike");
+}
+
+TEST_CASE("scan: reordering the table reorders the beat") {
+    // The same three programs, declared the other way round. If the order came
+    // from anything but the table, this would not change.
+    Live f;
+    std::vector<std::string> ran;
+    Ordered a("zulu",  &ran);
+    Ordered b("alpha", &ran);
+    Ordered c("mike",  &ran);
+    Plc::Program* const progs[] = { &c, &b, &a };
+    Scan::Driver d(progs, 3, &f.bank);
+
+    d.step(0);
+
+    REQUIRE(ran.size() == 3);
+    CHECK(ran[0] == "mike");
+    CHECK(ran[1] == "alpha");
+    CHECK(ran[2] == "zulu");
+}
+
+TEST_CASE("scan: a later program sees what an earlier one wrote this beat") {
+    // Which is WHY the order is a contract rather than an accident: the image
+    // mutates between phases, not under a running program, so a chain within
+    // one beat is exactly as long as the table says it is.
+    Live f;
+    const VarRef src = f.ref("cli_temp_ext1");
+    const VarRef mid = f.ref("cli_temp_ext2");
+    const VarRef dst = f.ref("cli_temp_ext3");
+    f.bank.var(src).publish(from_f32(T_F32, 10.0f), 0);
+
+    Relay first("first",  "cli_temp_ext1", "cli_temp_ext2", 1.0f);
+    Relay second("second", "cli_temp_ext2", "cli_temp_ext3", 1.0f);
+
+    SUBCASE("in order, the whole chain completes in one beat") {
+        Plc::Program* const progs[] = { &first, &second };
+        Scan::Driver d(progs, 2, &f.bank);
+        d.step(0);
+
+        CHECK(f.bank.var(mid).value() == doctest::Approx(11.0f));
+        INFO("second read what first had just written");
+        CHECK(f.bank.var(dst).value() == doctest::Approx(12.0f));
+    }
+
+    SUBCASE("out of order, the chain takes a beat per link") {
+        Plc::Program* const progs[] = { &second, &first };
+        Scan::Driver d(progs, 2, &f.bank);
+        d.step(0);
+
+        // second ran first, on the value mid held BEFORE first wrote it.
+        CHECK(f.bank.var(mid).value() == doctest::Approx(11.0f));
+        INFO("the far end is a beat behind, which is what mis-ordering costs");
+        CHECK(f.bank.var(dst).value() != doctest::Approx(12.0f));
+
+        d.step(10);
+        CHECK(f.bank.var(dst).value() == doctest::Approx(12.0f));
+    }
 }
 
 TEST_CASE("plc io: a bad reference moves nothing") {
