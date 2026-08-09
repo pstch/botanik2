@@ -40,7 +40,7 @@ TEST_CASE("modbus vendor: the SDM630 manual's own read request, byte for byte") 
 TEST_CASE("modbus vendor: the SDM630 manual's own response decodes to 230.2 V") {
     // 01 04 04 43 66 33 34, error check 1B 38. "the contents of Volts 1 as 230.2"
     const uint8_t rsp[9] = { 0x01, 0x04, 0x04, 0x43, 0x66, 0x33, 0x34, 0x1B, 0x38 };
-    const Expect e = { 1, FC_READ_INPUT, 0, 2 };
+    const Expect e = { 1, FC_READ_INPUT, 0, 2, 0 };
 
     Response r;
     REQUIRE(parse_response(rsp, sizeof rsp, e, &r) == ERR_OK);
@@ -70,7 +70,7 @@ TEST_CASE("modbus vendor: the MCT1-140 manual's own exchange") {
     }
 
     const uint8_t rsp[9] = { 0x02, 0x03, 0x04, 0x43, 0x68, 0x99, 0x9A, 0xB7, 0x50 };
-    const Expect e = { 2, FC_READ_HOLDING, 0, 2 };
+    const Expect e = { 2, FC_READ_HOLDING, 0, 2, 0 };
     Response r;
     REQUIRE(parse_response(rsp, sizeof rsp, e, &r) == ERR_OK);
     CHECK(f32_from_regs(r.data, REG_HI_FIRST) == doctest::Approx(232.6f).epsilon(0.001));
@@ -79,7 +79,7 @@ TEST_CASE("modbus vendor: the MCT1-140 manual's own exchange") {
 TEST_CASE("modbus vendor: the SDM630 manual's own exception frame") {
     // 3.10: function 10 OR 80 = 90, exception code 01, error check 8D C0.
     const uint8_t rsp[5] = { 0x01, 0x90, 0x01, 0x8D, 0xC0 };
-    const Expect e = { 1, FC_WRITE_REGISTERS, 0, 2 };
+    const Expect e = { 1, FC_WRITE_REGISTERS, 0, 2, 0 };
 
     Response r;
     CHECK(parse_response(rsp, sizeof rsp, e, &r) == ERR_EXCEPTION);

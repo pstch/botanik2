@@ -13,7 +13,7 @@
   | modbus_rtu_tx         | fast  | 10       | output  | <V>      | <V>      |
   | modbus_tcp_rx         | fast  | 10       | input   | <V>      | <V>      |
   | modbus_tcp_tx         | fast  | 10       | present | <V>      | <V>      |
-  | monitor_log           | fast  | 10       | present | <V>      | <V>      |
+  | modbus_tcp_wr         | fast  | 10       | service | <V>      | <V>      |
   ----------------------------------------------------------------------------
 
  Last us      : <T>
