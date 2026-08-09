@@ -39,7 +39,14 @@ namespace Botanik { namespace Plc {
         const float p_term = t.kp * _error;
         const float d_term = t.kd * (t.reverse ? _deriv : -_deriv);
 
-        if (t.ki != 0.0f && dt > 0.0f) {
+        if (t.ki == 0.0f) {
+            // No integral action means NO integral term, not a frozen one.
+            // Leaving whatever had accumulated in place would keep commanding
+            // the output for ever with nothing able to remove it - and since
+            // PidTuning::ki is an operator-editable number, "turn the I off"
+            // is a thing someone does to a loop that is already running.
+            _integral = 0.0f;
+        } else if (dt > 0.0f) {
             // Conditional integration: only when it does not push further into
             // a limit the output is already against.
             const float unsat = p_term + _integral + d_term;

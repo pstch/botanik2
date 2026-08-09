@@ -552,6 +552,24 @@ TEST_CASE("Pid: the integral removes the offset a P-only loop leaves") {
     CHECK(p.integral() > 0.0f);        // it is the integral holding it there
 }
 
+TEST_CASE("Pid: ki back to 0 removes the integral rather than freezing it") {
+    // The tunings are operator-editable parameters, so turning the I off on a
+    // running loop is a thing that happens. A frozen integral would go on
+    // commanding the output for ever with nothing able to take it away.
+    Plant plant = { 0.0f, 0.5f, 20.0f };
+    Pid p;
+    const PidTuning pi(2.0f, 0.5f);
+    for (int i = 0; i < 2000; i++) plant.step(p(25.0f, plant.pv, pi, 100), 100);
+    REQUIRE(p.integral() > 0.0f);          // wound up holding the setpoint
+
+    const PidTuning p_only(2.0f);          // same loop, ki now 0
+    const float out = p(25.0f, plant.pv, p_only, 100);
+    CHECK(p.integral() == 0.0f);
+    // The loop was settled, so P alone is ~0: the output collapses instead of
+    // staying where the accumulated integral had it.
+    CHECK(out < 1.0f);
+}
+
 TEST_CASE("Pid: derivative is on the reading, so a setpoint step gives no kick") {
     Pid with_d;
     const PidTuning t(1.0f, 0.0f, 10.0f);

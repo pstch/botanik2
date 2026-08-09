@@ -106,7 +106,11 @@ namespace Botanik { namespace Plc {
          *  scan starts from there rather than from zero. The proportional term
          *  still lands on top, so match the setpoint before transferring if the
          *  bump has to be nil. Also re-seeds the derivative, so the jump does
-         *  not read as a rate of change. */
+         *  not read as a rate of change.
+         *
+         *  @note Meaningless with @c ki at 0: a loop with no integral action
+         *  carries no integral, so the next scan clears it. Preset a PI loop, or
+         *  add the bias where it belongs. */
         void preset(float out);
 
         /** @brief Back to a cold loop: no integral, no derivative history. */
