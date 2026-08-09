@@ -35,7 +35,7 @@
 #if BOTANIK_FEATURE_MODBUS_TCP_CLIENT
 
 #include "libbotanik/hal/net.h"           // mock_loopback_ip - where our own slave listens
-#include "libbotanik/logs/logger.h"       // the verdict goes to the log like anything else
+#include "libbotanik/logs/logger.h"       // the master logs; the VERDICT goes to stderr
 #include "libbotanik/modbus/tcp/master.h" // Modbus::TcpMaster
 #include "libbotanik/vars/model.h"        // Vars::Bank - to name the row under test
 
@@ -54,7 +54,7 @@ namespace Botanik { namespace Sim {
          *  @{ */
 
         enum Step : uint8_t {
-            MC_WAIT,     ///< letting the firmware finish booting
+            MC_WAIT,     ///< the one beat spent resolving the row
             MC_READ1,    ///< read the row as it stands
             MC_WRITE,    ///< write it something else
             MC_READ2,    ///< read it back
@@ -65,7 +65,6 @@ namespace Botanik { namespace Sim {
         Vars::Bank*       _io;
         Logs::Logger*     _logger;
         Step              _step  = MC_WAIT;
-        uint64_t          _start = 0;
         uint32_t          _was   = 0;   ///< what the row read before the write
         bool              _ok    = true;
 
@@ -91,13 +90,17 @@ namespace Botanik { namespace Sim {
         void step(uint64_t now_ms) {
             if (_step == MC_DONE) return;
 
-            // Deliberately past the boot storm, not merely past bring-up: the
-            // listener is bound in Registry::setup(), but for the first seconds
-            // the log sinks are still draining the bring-up burst, and a verdict
-            // emitted into that is a verdict nobody ever reads.
+            // The first real beat is early enough. The listener is bound in
+            // Registry::setup(), which has already run by the time the main loop
+            // calls us, so there is nothing left to wait for.
+            //
+            // This used to sit out six seconds to clear the bring-up log burst,
+            // on the theory that a verdict emitted into it is a verdict nobody
+            // reads. But _report() writes to stderr and always has - it never
+            // went through the logger at all, so it was never in that burst. Six
+            // seconds of every sim run, and of every screen test that waited for
+            // the answer, spent guarding against something that could not happen.
             if (_step == MC_WAIT) {
-                if (_start == 0) _start = now_ms;
-                if ((now_ms - _start) < 6000) return;
                 const Vars::Var v = _io->var(ROW_NAME);
                 if (v.meta()->name == nullptr || v.meta()->bind.reg == 0) {
                     _report("skipped", "'%s' has no register", ROW_NAME);
