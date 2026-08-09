@@ -14,15 +14,31 @@
  *    ceilings and the frame arithmetic. Header-only `constexpr`, no state, no
  *    buffers, and no idea which transport is carrying it. **Both** halves agree
  *    here or nowhere.
- *  - `rtu/` - the field-bus MASTER: this unit polling meters and relay boards
- *    over RS-485.
- *  - `tcp/` - the plant-network SLAVE: this unit answering a SCADA master over
- *    Ethernet.
+ *  - @ref modbus/response.h - and having agreed, they check an answer with the
+ *    same code: the transports differ about FRAMING and not about what is
+ *    inside a frame.
+ *  - `rtu/` - the RS-485 field bus, both ends of it.
+ *  - `tcp/` - the plant network, both ends of it.
  *
- * They are opposite ends of opposite buses, which is why one file cannot serve
- * both: RTU frames are length-driven with a CRC and no header, TCP frames carry
- * an MBAP header and no checksum, and a master validates answers where a slave
- * validates requests.
+ * @section modbus_corners Four corners, and what they are called
+ *
+ * Each transport has a master and a slave, and this firmware ships all four:
+ *
+ *  | class       | flag                   | what it is        |
+ *  |-------------|------------------------|-------------------|
+ *  | `RtuClient` | `MODBUS_RTU_CLIENT`    | bus MASTER, polling the field |
+ *  | `RtuSlave`  | `MODBUS_RTU_SERVER`    | a device model, answering |
+ *  | `TcpSlave`  | `MODBUS_TCP_SERVER`    | the SCADA-facing server |
+ *  | `TcpMaster` | `MODBUS_TCP_CLIENT`    | this unit polling another |
+ *
+ * The names disagree with the flags on purpose, not by accident: Modbus's newer
+ * vocabulary calls a master a client and a slave a server, the classes use the
+ * older spelling the wire documentation uses, and the flags use the newer one.
+ * Read the middle column as the authority.
+ *
+ * Framing is where the two transports genuinely differ: RTU frames are
+ * length-driven with a CRC and no header, TCP frames carry an MBAP header and no
+ * checksum. Everything after that is shared.
  *
  * @section modbus_rtu The RTU client (rtu/)
  *
@@ -62,13 +78,20 @@
 
 #include "libbotanik/modbus/wire.h"
 
+#include "libbotanik/modbus/response.h"
+
+#include "libbotanik/modbus/rtu/alarms.h"
 #include "libbotanik/modbus/rtu/client.h"
 #include "libbotanik/modbus/rtu/codec.h"
+#include "libbotanik/modbus/rtu/device.h"
 #include "libbotanik/modbus/rtu/framing.h"
 #include "libbotanik/modbus/rtu/image.h"
 #include "libbotanik/modbus/rtu/plan.h"
+#include "libbotanik/modbus/rtu/slave.h"
 
 #include "libbotanik/modbus/tcp/map.h"
+#include "libbotanik/modbus/tcp/master.h"
+#include "libbotanik/modbus/tcp/params.h"
 #include "libbotanik/modbus/tcp/pdu.h"
 #include "libbotanik/modbus/tcp/slave.h"
 

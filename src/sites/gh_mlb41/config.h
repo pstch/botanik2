@@ -142,11 +142,10 @@
 // dependency rule requires and which is what a headless cut-down build would
 // have turned off.
 //
-// Only the protocol layer exists so far (modbus/: the codec and the framer).
-// Nothing instantiates it and no task steps it, so turning this on today adds
-// no work to the beat - what it adds is the two .cpp files and the two test
-// files to the build. Off, they compile to nothing while still looking like
-// coverage, which is the same argument the sun tracker's note above makes.
+// Fully wired: BotanikFirmware owns the client and steps it in PHASE_INPUT and
+// PHASE_OUTPUT, so turning this on puts the field bus on the beat. The eight
+// devices below are what it polls; see vars.h for the register map and
+// site.h's device table for what each model will answer.
 #if !defined(BOTANIK_FEATURE_PLC_SCAN) || BOTANIK_FEATURE_PLC_SCAN
 #  ifndef BOTANIK_FEATURE_MODBUS_RTU_CLIENT
 #    define BOTANIK_FEATURE_MODBUS_RTU_CLIENT 1

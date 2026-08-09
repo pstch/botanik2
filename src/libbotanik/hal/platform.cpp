@@ -195,9 +195,11 @@ namespace Botanik { namespace HAL {
      *  would not want to try.
      *
      *  RE is held asserted, so the receiver is always listening. That means we
-     *  hear our own transmission come back; see fieldbus_flush_input(), which is
-     *  how the caller is meant to deal with it and which works whether or not
-     *  the echo turns out to be real on this board.
+     *  hear our own transmission come back, exactly as long as what we wrote -
+     *  which is what fieldbus_echoes() reports and what lets the master count it
+     *  off rather than try to recognise it. DE and RE are separate pins here, so
+     *  gating RE around transmission instead is a real option; fieldbus_echoes()
+     *  is the one line that would change with it.
      *  @{ */
 
     /** @brief The RS-485 transceiver on USART3.
@@ -272,14 +274,21 @@ namespace Botanik { namespace HAL {
 
         /** @brief Whether everything written has finished leaving the wire.
          *
-         *  Computed, not observed. The caller waits for this before listening,
-         *  which is what makes the echo question moot: by the time this is true
-         *  our frame is gone, and a slave cannot have answered yet (its
-         *  turnaround is milliseconds), so anything in the receive path is ours
-         *  or noise, and either way wants discarding. */
+         *  Computed, not observed: there is no TX-complete interrupt, so this is
+         *  character-time arithmetic accumulated per byte in write().
+         *
+         *  The caller uses it to know the transmit ring has DRAINED before it
+         *  starts the next frame, which is what makes "a frame goes out whole or
+         *  not at all" true. It is no longer a gate on listening - the master
+         *  listens from the moment the frame is queued, because a quick slave
+         *  can answer inside the same beat. */
         bool tx_idle() const { return Clock::uptime_us() >= _tx_done_us; }
 
         /** @brief Throw away whatever is sitting in the receive path.
+         *
+         *  Bring-up only now. It used to run between the frame leaving and the
+         *  answer arriving, which threw away the reply of every device quick
+         *  enough to answer inside the beat.
          *
          *  Bounded, because an unbounded drain inside the beat is exactly the
          *  thing this codebase does not do. Two full frames is far more than a

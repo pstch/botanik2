@@ -9,14 +9,14 @@
  *
  * Like the serial pump, whose halves the loop drives at the phases they belong
  * to. receive_step() runs at the top of the beat, so a control program sees the
- * freshest image; transmit_step() runs after the programs have executed, so a
- * demand written this beat reaches the wire without waiting for the next one.
+ * freshest image; on_step() runs after the programs have executed, so a demand
+ * written this beat reaches the wire without waiting for the next one.
  * Stepping it once, at either end, would cost a beat of latency in one direction
  * or the other.
  *
  * @section cl_gate Collect is not gated with execute
  *
- * transmit_step() runs whatever control authority says. disable_control() drops
+ * on_step() runs whatever control authority says. disable_control() drops
  * every output to its safe state and inhibits the scan, but those safe values are
  * only in the image until a transaction carries them out. Gating the collector
  * alongside the programs would leave the actuators energised at exactly the
