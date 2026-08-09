@@ -219,10 +219,9 @@ namespace Botanik { namespace Config {
 
     /** @brief How long a slave has to answer before the transaction is lost.
      *
-     *  Sized tightly on purpose. Libraries default to a second; a dead-slave
-     *  backoff at that deadline is what actually takes field buses down, because
-     *  one unplugged sensor then spends a full second of every sweep. Worst
-     *  turnaround plus the response time is about 300 ms at 19200. */
+     *  Worst turnaround plus the response time, which is about 300 ms at 19200.
+     *  Tight on purpose - libraries default to a second - and modbus/rtu/client.h
+     *  (@c cl_dead) is where what that costs a bus is worked out. */
 #ifndef BOTANIK_MODBUS_TIMEOUT_MS
 #  define BOTANIK_MODBUS_TIMEOUT_MS 300
 #endif
@@ -260,11 +259,8 @@ namespace Botanik { namespace Config {
     /** @brief First backoff after a device has failed its retry; each further
      *  failure doubles it, up to MODBUS_BACKOFF_MAX_MS.
      *
-     *  This is the number that decides whether one dead device takes the whole
-     *  bus with it. Without it, three dead slaves at a 300 ms timeout burn 2.7 s
-     *  of every sweep against a 555 ms budget for the entire plant
-     *  (docs/design/modbus-budget.md); with it they cost one probe each per
-     *  backoff interval and the live devices keep their rates. */
+     *  The number that decides whether one dead device takes the whole bus with
+     *  it; modbus/rtu/client.h (@c cl_dead) does the arithmetic. */
 #ifndef BOTANIK_MODBUS_BACKOFF_MS
 #  define BOTANIK_MODBUS_BACKOFF_MS 1000
 #endif
