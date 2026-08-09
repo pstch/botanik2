@@ -56,8 +56,6 @@ namespace Botanik { namespace Pages {
         /** @name State
          *  @{ */
 
-        /** @brief Owning console (content-area geometry). */
-        Console&                  _console;
         /** @brief Alarm source (may be null). Non-const: the `a` key acks the
          *  selected condition through it. */
         Alarms::AlarmController*       _model;
@@ -234,7 +232,7 @@ namespace Botanik { namespace Pages {
     public:
         /** @brief Bind to a terminal and alarm model. */
         AlarmsPage(Console& console, Alarms::AlarmController* model)
-            : ScrollTablePage(console.terminal()), _console(console), _model(model) {}
+            : ScrollTablePage(console), _model(model) {}
 
         /** @name Page interface
          *  @{ */

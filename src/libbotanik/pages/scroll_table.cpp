@@ -42,7 +42,7 @@ namespace Botanik { namespace Pages {
     void ScrollTablePage::_copy_selected_cell() {
         const char* cell = _selected_cell();
         if (cell == nullptr || cell[0] == '\0') return;
-        if (Terminal::kill_ring().set(cell, (uint16_t)strlen(cell)) == 0) return;
+        if (_console.kill_ring().set(cell, (uint16_t)strlen(cell)) == 0) return;
 
         // Say so: the table looks identical after a copy, so without the badge
         // the only way to know the key landed is to go and paste it.

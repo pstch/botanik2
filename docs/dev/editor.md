@@ -142,10 +142,17 @@ what it needed anyway.
 ### The kill ring
 
 Cut and paste (`Ctrl+K` / `Ctrl+W` / `Ctrl+Y`) are the editor's, over ONE buffer for the
-whole console (`console/kill_ring.h`) rather than one per instance. That is deliberate:
-the point of a clipboard on a terminal with no mouse is to move text between the places
-that hold it, and a per-editor buffer makes each of them a dead end. It used to live on
-`CommandShell`, which is why the NOTES page had no cut and paste at all.
+whole console rather than one per instance. That is deliberate: the point of a clipboard
+on a terminal with no mouse is to move text between the places that hold it, and a
+per-editor buffer makes each of them a dead end. It used to live on `CommandShell`, which
+is why the NOTES page had no cut and paste at all.
+
+The **`Console` owns it** (`Console::kill_ring()`, `console/kill_ring.h`) and everything
+reaches it through the console it already holds - `TextEditor` through its `_console`,
+a table page through `ScrollTablePage::_console`. Not a global: there is one console per
+firmware, so ownership gives the same single clipboard without a free function anything
+could write to, and a test fixture's own console brings its own ring, so cases cannot
+leak a cut into each other.
 
 The editor is not its only writer - `Alt+W` on a table page puts the selected cell in it
 (`ScrollTablePage::_copy_selected_cell()`) - so the ring is plain storage with no editor

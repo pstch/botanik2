@@ -10,7 +10,6 @@
 #include <unistd.h>                 // pipe / read
 
 #include "libbotanik/console/console.h" // Terminal::Console (the fixture builds one)
-#include "libbotanik/console/kill_ring.h" // Terminal::kill_ring
 #include "libbotanik/shell/shell.h" // Shell::CommandShell
 #include "libbotanik/vars/declare.h"
 
@@ -57,9 +56,6 @@ namespace {
             REQUIRE(::pipe(pipe_fds) == 0);
             raw.set_fds(pipe_fds[0], pipe_fds[1]);
             editor.reset();
-            // The ring is console-wide, so it outlives a case: start each one
-            // with it empty rather than with the last one's cut still in it.
-            Terminal::kill_ring().clear();
         }
         ~ShellFixture() { ::close(pipe_fds[0]); ::close(pipe_fds[1]); }
 

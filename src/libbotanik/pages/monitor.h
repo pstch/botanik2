@@ -74,7 +74,6 @@ namespace Botanik { namespace Pages {
 
         /** @name State
          *  @{ */
-        Console&            _console;
         /** @brief Distinct groups discovered from the published rows' names,
          *  interned so the mode labels can keep pointing at them. Built once,
          *  lazily: the table does not change after boot. */
@@ -124,8 +123,7 @@ namespace Botanik { namespace Pages {
          *  table this shows (null -> empty page). */
         MonitorPage(Console& console,
                     const Vars::Bank* io)
-            : ScrollTablePage(console.terminal()), _console(console),
-              _io(io) {}
+            : ScrollTablePage(console), _io(io) {}
 
         /** @brief Teach the page to name the program that computes a row.
          *  Wired by the firmware, which is the only thing holding both the page

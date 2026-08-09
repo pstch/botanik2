@@ -13,7 +13,7 @@
 #include <cstring>                      // memcpy / memmove
 
 #include "libbotanik/console/console.h"   // Console::rows / terminal
-#include "libbotanik/console/kill_ring.h" // kill_ring()
+#include "libbotanik/console/kill_ring.h" // KillRing
 
 
 namespace Botanik { namespace Terminal {
@@ -820,7 +820,7 @@ namespace Botanik { namespace Terminal {
         if (to <= from) return false;
         // Take only what the ring can hold, and remove only what it took: the
         // rest stays in the buffer, so a yank puts back exactly what went.
-        uint16_t taken = kill_ring().set(_buf + from, (uint16_t)(to - from));
+        uint16_t taken = _console->kill_ring().set(_buf + from, (uint16_t)(to - from));
         if (taken == 0) return false;
         _pos = from;
         remove_characters(taken);
@@ -843,7 +843,7 @@ namespace Botanik { namespace Terminal {
     }
 
     bool TextEditor::yank() {
-        KillRing& ring = kill_ring();
+        KillRing& ring = _console->kill_ring();
         if (ring.len() == 0) return false;
         insert_characters(ring.text(), ring.len());
         return true;
@@ -892,7 +892,7 @@ namespace Botanik { namespace Terminal {
     bool TextEditor::copy_region() {
         uint16_t from = 0, to = 0;
         if (!region(from, to) || to == from) { clear_mark(); return false; }
-        kill_ring().set(_buf + from, (uint16_t)(to - from));
+        _console->kill_ring().set(_buf + from, (uint16_t)(to - from));
         clear_mark();
         return true;
     }

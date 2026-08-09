@@ -12,6 +12,12 @@
  * the MONITOR table and paste it into a `get`. A per-editor buffer makes each
  * of those a dead end.
  *
+ * One per CONSOLE, though, not one per firmware: the Console owns it
+ * (Console::kill_ring()) and everything reaches it through the console it is
+ * already holding. There is one console, so that is the same single clipboard -
+ * without a global that anything including a header could write to, and with
+ * test isolation for free, since a fixture's console brings its own.
+ *
  * Single entry, replace on kill: no Emacs-style append across consecutive
  * kills. What does NOT fit is not taken (see set()), which is what lets the
  * editor promise that a yank restores exactly what the kill removed.
@@ -47,13 +53,9 @@ namespace Botanik { namespace Terminal {
         /** @brief Bytes held. */
         uint16_t len() const { return _len; }
 
-        /** @brief Drop the contents. Mostly for tests, which share one process
-         *  across cases. */
+        /** @brief Drop the contents. */
         void clear() { _len = 0; }
     };
-
-    /** @brief The one ring. */
-    KillRing& kill_ring();
 
 }}
 

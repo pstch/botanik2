@@ -79,7 +79,6 @@ namespace Botanik { namespace Pages {
 
         /** @name State
          *  @{ */
-        Console&                     _console;
         /** @brief Borrowed; the firmware owns it and it outlives the page. */
         const Tasks::Registry&   _reg;
         bool                         _dirty = true;
@@ -99,7 +98,7 @@ namespace Botanik { namespace Pages {
         /** @param console owns the content geometry; @p reg is the task table the
          *  page reads. Both outlive the page (the firmware owns them). */
         TasksPage(Console& console, const Tasks::Registry& reg)
-            : ScrollTablePage(console.terminal()), _console(console), _reg(reg) {}
+            : ScrollTablePage(console), _reg(reg) {}
 
         const char* name() const override { return "TASKS"; }
 

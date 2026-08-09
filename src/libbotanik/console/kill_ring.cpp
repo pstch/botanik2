@@ -17,13 +17,4 @@ namespace Botanik { namespace Terminal {
         return _len;
     }
 
-    namespace {
-        /** @brief The ring itself. At namespace scope, not function-local: a
-         *  local static costs a guard variable and a check on every kill, and
-         *  this one is plain storage that static init zeroes anyway. */
-        KillRing g_ring;
-    }
-
-    KillRing& kill_ring() { return g_ring; }
-
 }}

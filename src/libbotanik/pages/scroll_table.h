@@ -26,6 +26,7 @@
 #include <cstdio>                           // snprintf
 #include <cstring>                          // strlen / memcpy
 
+#include "libbotanik/console/console.h"     // Console::rows / terminal / kill_ring
 #include "libbotanik/console/terminal.h"    // AnsiTerminal
 #include "libbotanik/pages/page.h"          // Pages::Page
 
@@ -35,12 +36,17 @@ namespace Botanik { namespace Pages {
     class ScrollTablePage : public Page {
     protected:
         using AnsiTerminal = Terminal::AnsiTerminal;
+        using Console      = Terminal::Console;
         using Command      = Terminal::InputEvent::Command;
 
         /** @name State
          *  @{ */
 
-        /** @brief The VT device the table paints through. */
+        /** @brief The console the table lives on: its content geometry, and the
+         *  kill ring Alt+W copies into. Every subclass wanted it anyway and used
+         *  to keep its own reference beside the base's terminal. */
+        Console&      _console;
+        /** @brief The VT device the table paints through (_console's). */
         AnsiTerminal& _terminal;
         /** @brief First visible row: the scroll offset into the row set. */
         uint16_t      _top      = 0;
@@ -58,7 +64,8 @@ namespace Botanik { namespace Pages {
 
         /** @} */
 
-        explicit ScrollTablePage(AnsiTerminal& terminal) : _terminal(terminal) {}
+        explicit ScrollTablePage(Console& console)
+            : _console(console), _terminal(console.terminal()) {}
 
         /** @name Subclass geometry
          *  @{ */
