@@ -121,11 +121,11 @@ namespace Botanik { namespace Pages {
     }
 
     uint8_t ParamsPage::_columns(Col* out) const {
-        out[C_NAME]    = Col{ "PARAMETER", NAME_W     };
-        out[C_TYPE]    = Col{ "TYPE",      TYPE_W     };
-        out[C_VALUE]   = Col{ "VALUE",     _value_w() };
-        out[C_DEFAULT] = Col{ "DEFAULT",   DEFAULT_W  };
-        out[C_UNIT]    = Col{ "UNIT",      UNIT_W     };
+        out[C_NAME]     = Col{ "PARAMETER", NAME_W     };
+        out[C_TYPE]     = Col{ "TYPE",      TYPE_W     };
+        out[C_VALUE]    = Col{ "VALUE",     _value_w() };
+        out[C_UNIT]     = Col{ "UNIT",      UNIT_W     };
+        out[C_REGISTER] = Col{ "REGISTER",  REGISTER_W };
         return 5;
     }
 
@@ -133,17 +133,19 @@ namespace Botanik { namespace Pages {
         const uint16_t k = _param_at(idx);
         Vars::Var p = _params->param(k);
         const Vars::Variable& d = *p.meta();
-        char val[VAL_CAP], dflt[VAL_CAP], line[LINE_CAP];
+        char val[VAL_CAP], reg[8], line[LINE_CAP];
         // Use what format() RETURNS, not the buffer: a T_STR's live text
         // lives in the pool and a T_ENUM's in flash, so neither writes into
         // val - and reading val anyway showed the previous row's text, which
         // is only visible once a string parameter sits under a numeric one.
         const char* v = _params->format(k, val, sizeof(val));
-        const char* dv = _params->format_scalar_of(d, d.def, dflt, sizeof(dflt));
+        // 0 is "no register": a parameter the slave does not publish, which is
+        // a blank cell rather than a register an external master could quote.
+        if (d.bind.reg != 0) snprintf(reg, sizeof(reg), "%u", (unsigned)d.bind.reg);
+        else                 reg[0] = '\0';
         const char* cells[5] = {
             d.name, Vars::type_name(d.type), v,
-            (d.type == Vars::T_STR && d.def.s) ? d.def.s : dv,
-            d.unit ? d.unit : ""
+            d.unit ? d.unit : "", reg
         };
         uint16_t n = _build_row(line, sizeof(line), cells);
         _draw_selected_line(row, line, n, _cell_col(C_NAME), _cell_end(C_NAME),
@@ -200,19 +202,28 @@ namespace Botanik { namespace Pages {
         // operator edits the real ones is the worst of both.
         const Vars::NumBand band =
             Vars::var_band(_params != nullptr ? _params->bank() : nullptr, d);
-        // ...and the register rides along on the same row. It is the one
-        // number about a parameter that is an EXTERNAL contract - a Modbus
-        // master's map is written against it - and it was reachable only by
-        // reading the site's table. Hand-assigned per row, so it is also the
-        // one an operator may need to read back and quote.
-        char b3[8];
-        snprintf(b3, sizeof(b3), "%u", (unsigned)d.bind.reg);
-        _panel_field3((uint16_t)(r + 2),
-                      "Minimum", _fmt_bound(b,  sizeof(b),  d, band.min),
-                      PANEL_COL2,
-                      "Maximum", _fmt_bound(b2, sizeof(b2), d, band.max),
-                      PANEL_COL3,
-                      "Register", d.bind.reg != 0 ? b3 : nullptr);
+        // ...and the factory default rides along on the same row. It is a fact
+        // about the row you are already looking at - what `set` would put back -
+        // so it belongs beside the band that bounds it rather than in a column
+        // nobody scans down.
+        //
+        // Unless there is no band. A T_STR or an unbounded row reads
+        // "Minimum : -   Maximum : -" and then clips the one field that had
+        // something to say, in the narrowest slot on the row - and those are
+        // exactly the rows whose default is long (a hostname, a dotted quad).
+        // So it takes the whole row when the other two have nothing.
+        char b3[VAL_CAP];
+        const bool banded = d.type != Vars::T_STR && (d.flags & Vars::F_BOUNDED) != 0;
+        if (banded)
+            _panel_field3((uint16_t)(r + 2),
+                          "Minimum", _fmt_bound(b,  sizeof(b),  d, band.min),
+                          PANEL_COL2,
+                          "Maximum", _fmt_bound(b2, sizeof(b2), d, band.max),
+                          PANEL_COL3,
+                          "Default", _fmt_default(b3, sizeof(b3), d));
+        else
+            _panel_field((uint16_t)(r + 2), "Default",
+                         _fmt_default(b3, sizeof(b3), d));
         _panel_field((uint16_t)(r + 3), "Description", d.desc);
         _panel_field((uint16_t)(r + 4), "Notes",       d.notes);
         _blank_line((uint16_t)(r + 5));                     // blank above the legend

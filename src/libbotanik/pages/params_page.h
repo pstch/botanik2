@@ -10,11 +10,11 @@
  * same bordered shape as AlarmsPage - a blank top margin and blank columns each
  * side, widened to the display:
  *   row 1            blank top margin
- *   row 2            header  (| PARAMETER | TYPE | VALUE | DEFAULT | UNIT |)
+ *   row 2            header  (| PARAMETER | TYPE | VALUE | UNIT | REGISTER |)
  *   row 3            top rule
  *   rows 4..K        one row per Param (windowed / scrollable)
  *   rows K..         detail panel for the selected parameter: a separator then
- *                    Minimum / Maximum / Description / Notes
+ *                    Minimum / Maximum / Default, Description, Notes
  *   rows()-1         edit prompt / hint line (just above the alarm bar)
  *
  * UP/DOWN move a selection cursor (the selected row is drawn inverted); the
@@ -63,18 +63,31 @@ namespace Botanik { namespace Pages {
         // Wide enough for the longest name today plus headroom (see monitor.h).
         static constexpr uint16_t NAME_W     = 24;   // parameter-name column
         static constexpr uint16_t TYPE_W     = 4;    // data-type column (u16/enum/f32/b)
-        static constexpr uint16_t DEFAULT_W  = 12;   // default-value column
+        /** @brief The Modbus TCP slave register column. 8 wide: it has to hold
+         *  the "REGISTER" header, and the number itself never exceeds 5 digits. */
+        static constexpr uint16_t REGISTER_W = 8;
         static constexpr uint16_t UNIT_W     = 5;    // physical-unit column
         static constexpr uint16_t VAL_CAP    = 40;   // formatted value cap
         static constexpr uint16_t LINE_CAP   = Config::TABLE_LINE_LEN;
         // Detail panel below the table: a separator rule, a blank spacer, then
-        // Minimum / Maximum / Description / Notes for the selected parameter, and
-        // a trailing blank spacer (default + unit are already table columns).
-        // ... then a blank, the [group] legend, and a blank - the same framing
-        // the ALARMS table gives its mode badge.
+        // Minimum / Maximum / Default, then Description and Notes for the
+        // selected parameter, and a trailing blank spacer (unit is a table
+        // column). ... then a blank, the [group] legend, and a blank - the same
+        // framing the ALARMS table gives its mode badge.
         static constexpr uint16_t PANEL_H    = 7;
-        /** @brief Column order; the selection cursor inverts C_NAME's cell. */
-        enum { C_NAME = 0, C_TYPE, C_VALUE, C_DEFAULT, C_UNIT };
+        /** @brief Column order; the selection cursor inverts C_NAME's cell.
+         *
+         *  REGISTER rather than DEFAULT, because the two want opposite things
+         *  from a table. A register is an EXTERNAL contract - a Modbus master's
+         *  map is written against it - so what an operator needs is to scan the
+         *  whole map down one column. A default is a per-row fact you consult
+         *  when you are already looking at that row, which is what the panel
+         *  below is for.
+         *
+         *  REGISTER sits last, outboard of UNIT: the unit belongs against the
+         *  value it qualifies, and the register is the one column that says
+         *  nothing about the reading - it is the external map. */
+        enum { C_NAME = 0, C_TYPE, C_VALUE, C_UNIT, C_REGISTER };
         /** @} */
 
         /** @name State
@@ -195,10 +208,17 @@ namespace Botanik { namespace Pages {
          *  never covers it. */
         uint16_t _mode_row() const { return (uint16_t)(_panel_top() + PANEL_H - 1); }
         /** @brief Columns the panel's second and third fields start at
-         *  (Minimum | Maximum | Register). COL3 is where the Maximum field's
-         *  widest value ends, so the three fit an 80-column row. */
-        static constexpr uint16_t PANEL_COL2 = 38;
-        static constexpr uint16_t PANEL_COL3 = 60;
+         *  (Minimum | Maximum | Default).
+         *
+         *  Each is placed one value-field past the one before it rather than
+         *  spread across the row: a 12-wide label and " : " put a value at
+         *  +15, and a bound is at most ~12 characters wide, so the next field
+         *  starts at +12 from there. Spacing them evenly across 80 columns
+         *  instead left ~19 blank columns between a bound and the next label,
+         *  which reads as three unrelated fields rather than one band. The
+         *  slack goes to Default, the only one whose value is not a number. */
+        static constexpr uint16_t PANEL_COL2 = 28;
+        static constexpr uint16_t PANEL_COL3 = 55;
 
 
 
@@ -223,14 +243,14 @@ namespace Botanik { namespace Pages {
         const char* _selected_cell() const override;
         /** @} */
 
-        // Table rendering (5 columns: name | type | value | default | unit)
+        // Table rendering (5 columns: name | type | value | register | unit)
         // --------------------------------------------------------------------
 
         /** @brief Flexible VALUE width: the display minus the four fixed columns
          *  and every border, floored at 8 and capped at VAL_CAP-1. */
         uint16_t _value_w() const {
             return _flex_width((uint16_t)(MARGIN + 2 + NAME_W + 3 + TYPE_W + 3 + 3
-                                          + DEFAULT_W + 3 + UNIT_W + 2), (uint16_t)(VAL_CAP - 1));
+                                          + REGISTER_W + 3 + UNIT_W + 2), (uint16_t)(VAL_CAP - 1));
         }
 
         uint8_t _columns(Col* out) const override;
@@ -257,6 +277,15 @@ namespace Botanik { namespace Pages {
             const char* t = _params->format_scalar_of(d, v, buf, cap);
             if (t != buf) { strncpy(buf, t, cap - 1); buf[cap - 1] = 0; }
             return buf;
+        }
+
+        /** @brief @p d's factory default, rendered. A T_STR's lives in flash as
+         *  text rather than in the Scalar, so it is taken straight; everything
+         *  else goes through the row's own type and digits. */
+        const char* _fmt_default(char* buf, size_t cap,
+                                 const Vars::Variable& d) const {
+            if (d.type == Vars::T_STR) return d.def.s ? d.def.s : "";
+            return _params->format_scalar_of(d, d.def, buf, cap);
         }
 
 
