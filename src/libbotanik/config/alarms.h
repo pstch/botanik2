@@ -78,8 +78,13 @@ namespace Botanik { namespace Config {
     /** @brief SCOPE_A rows the alarm model has room for - the site's own and the
      *  library's (alarms/platform.h) together, since they share one table. What
      *  AlarmController sizes itself on; a table with more loses its tail, which
-     *  BOTANIK_ASSERT catches. One number, because there are no longer two
-     *  tables to divide it between. */
+     *  BOTANIK_ASSERT catches. One number, because there is one table.
+     *
+     *  @warning **64 is a ceiling, not a default.** It may be lowered to save
+     *  RAM, but it cannot be raised: `Alarms::alarm_bit()` shifts into a
+     *  `uint64_t` to build the alarm bar's change signature, so a 65th slot
+     *  would make that shift undefined. A `static_assert` in alarms/alarms.h
+     *  enforces it. Widen the mask there first if a site ever needs more. */
 #ifndef BOTANIK_ALARM_SLOTS
 #  define BOTANIK_ALARM_SLOTS 64
 #endif

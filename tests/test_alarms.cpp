@@ -9,6 +9,7 @@
 #include <cstddef>                      // size_t
 #include <vector>                       // std::vector
 #include "libbotanik/alarms/alarms.h"   // Alarms::AlarmController
+#include "libbotanik/alarms/notifier.h" // Alarms::MqttAlarmNotifier
 #include "libbotanik/logs/logger.h"     // Logs::Logger
 #include "libbotanik/vars/declare.h"    // the A() factory
 #include "doctest.h"
@@ -460,25 +461,26 @@ TEST_CASE("alarms render: identity change redraws the row in full") {
     CHECK(out.find("BBB") != std::string::npos);   // a full row carried the new CODE
 }
 
-// Moving the selection within the window (no scroll) changes only the old row's
-// CODE cell (un-highlighted) and the new row's CODE cell (highlighted), so the
-// diff emits just those two runs. The descriptions and the other rows never reach
-// the wire, proving the highlight costs cells, not full-row redraws.
-TEST_CASE("alarms render: a selection move repaints both CODE cells, nothing else") {
+// The cursor sits on the VARIABLE cell, so moving the selection within the
+// window (no scroll) changes only the old row's variable cell (un-highlighted)
+// and the new row's (highlighted), and the diff emits just those two runs. The
+// CODE cells and the other rows never reach the wire, proving the highlight
+// costs cells, not full-row redraws.
+TEST_CASE("alarms render: a selection move repaints both VARIABLE cells, nothing else") {
     RenderFixture f;                             // 24 rows: all four fit, so no scroll
-    step_bits(f.bank, f.model, 0xF, 1000);                     // AAA..DDD active; row0=AAA selected
+    step_bits(f.bank, f.model, 0xF, 1000);                     // aaa..ddd active; row0=aaa selected
     f.page.focus();
     f.paint();                                   // initial paint; discard
 
-    f.page.handle_command(Command::DOWN, 1);     // AAA(row0) -> BBB(row1), stays in window
+    f.page.handle_command(Command::DOWN, 1);     // aaa(row0) -> bbb(row1), stays in window
     std::string out = f.paint();
 
-    CHECK(out.find("AAA")     != std::string::npos);  // old row's CODE repainted (plain)
-    CHECK(out.find("BBB")     != std::string::npos);  // new row's CODE repainted (inverted)
-    CHECK(out.find("alarm A") == std::string::npos);  // DESCRIPTION untouched (cell patch)
-    CHECK(out.find("alarm B") == std::string::npos);
-    CHECK(out.find("CCC")     == std::string::npos);  // no other row repainted
-    CHECK(out.find("DDD")     == std::string::npos);
+    CHECK(out.find("aaa")     != std::string::npos);  // old row's VARIABLE repainted (plain)
+    CHECK(out.find("bbb")     != std::string::npos);  // new row's VARIABLE repainted (inverted)
+    CHECK(out.find("AAA")     == std::string::npos);  // CODE cells untouched (cell patch)
+    CHECK(out.find("BBB")     == std::string::npos);
+    CHECK(out.find("ccc")     == std::string::npos);  // no other row repainted
+    CHECK(out.find("ddd")     == std::string::npos);
     CHECK(out.find("CODE")    == std::string::npos);  // header/rules not re-emitted
     CHECK(out.find("----")    == std::string::npos);
 }
@@ -577,8 +579,12 @@ TEST_CASE("MqttAlarmNotifier: notify_on/off build the topic + payload and forwar
     MqttAlarmNotifier n("botanik/greenhouse");
     n.set_publisher(&pub);
 
+    // The condition borrows its row rather than copying its text, so the
+    // fixture has to be a real SCOPE_A descriptor.
+    static const Botanik::Vars::Variable ROW =
+        Botanik::Vars::A("NET_FLT", "NET_FLT", 0, 0, 0, 0, 0, 990, "", "");
     AlarmCondition c = {};
-    c.name = "NET_FLT";
+    c.var = &ROW;
 
     n.notify_on(c);
     CHECK(pub.calls == 1);

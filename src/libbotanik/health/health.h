@@ -24,7 +24,8 @@
 #include "libbotanik/config/identity.h"   // Config::SITE_NAME / FIRMWARE_VERSION / MQTT_TOPIC_PREFIX
 #include "libbotanik/config/scheduler.h"  // Config::LOOP_* / TASK_* / GROUP_*
 
-#include "libbotanik/alarms/alarms.h"       // Alarms::AlarmController / MqttAlarmNotifier
+#include "libbotanik/alarms/alarms.h"       // Alarms::AlarmController
+#include "libbotanik/alarms/notifier.h"     // Alarms::MqttAlarmNotifier
 #include "libbotanik/alarms/platform.h"
 #include "libbotanik/alarms/publisher.h"    // Alarms::Publisher
 #include "libbotanik/hal/storage.h"         // HAL::Storage::fault_count

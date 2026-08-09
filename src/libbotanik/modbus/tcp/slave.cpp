@@ -89,9 +89,9 @@ namespace Botanik { namespace Modbus {
         }
         // Retried, and reported. A port already taken is usually a configuration
         // mistake with an operator behind it - but "usually" is not "always",
-        // and the old behaviour was to give up for the life of the firmware
-        // while healthy() went on saying yes. Once per failure in the log, so a
-        // permanent misconfiguration does not become a log entry every minute.
+        // and giving up for the life of the firmware would leave healthy()
+        // saying yes over a slave that is not there. Once per failure in the
+        // log, so a permanent misconfiguration is not a log entry every minute.
         if (!_bind_failed && _logger != nullptr)
             _logger->error(Logs::NETWORK, "modbus slave cannot bind port %u",
                            (unsigned)_port);
@@ -312,7 +312,7 @@ namespace Botanik { namespace Modbus {
         }
         const int k = _ack_index(addr);
         if (k < 0) return EX_ILLEGAL_ADDRESS;
-        const char* name = _alarms->condition((uint8_t)k).name;
+        const char* name = _alarms->condition((uint8_t)k).name();
         // ack() refuses a condition that is not active. That is not an error to
         // report: a SCADA's "acknowledge all" button reaches every coil in the
         // block, and most of them are quiet.

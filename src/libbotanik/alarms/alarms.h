@@ -6,39 +6,42 @@
  * @file alarms.h
  * @brief Alarm model - per-condition dwell/latch state machine.
  *
- * This file tries to implement alarms in a way that matches standard
- * alarm-handling procedures in industrial PLC systems. For each condition
- * we use a global boolean variable, and we track :
+ * Alarm handling in the shape industrial PLC systems use it. A condition is a
+ * `SCOPE_A` row in the variable table - the boolean that raises it plus the
+ * announce policy it runs on - and the model tracks, per condition:
  *  - the raw input
  *  - the active state
  *  - the dwell since the last edge
- *  - what this episode already announced to detect FLAPs
+ *  - what this episode already announced, which is what detects a FLAP
  *  - the operator's acknowledgement, cleared on each fresh ON edge.
  *
  * Conditions are built by scanning the variable table for SCOPE_A rows.
- * .
  */
 
 #include <cstdint>                          // uint8_t/uint32_t/uint64_t
-#include <cstdio>                           // snprintf
-#include <cstring>                          // std::memset
+#include <cstring>                          // std::memset / std::strcmp / strlen
 
 #include "libbotanik/config/alarms.h"     // Config::ALARM_* / HEALTH_*
-#include "libbotanik/config/net.h"        // Config::NET_* / DNS_* / NTP_* / MQTT_*
 
-#include "libbotanik/alarms/publisher.h"    // Alarms::Publisher
 #include "libbotanik/core/component.h"      // Component
 #include "libbotanik/logs/logger.h"         // Logger
 #include "libbotanik/utils/assert.h"        // BOTANIK_ASSERT
-#include "libbotanik/utils/text.h"          // Utils::compare_str
-#include "libbotanik/vars/model.h"          // Vars::VarRef / Bank
+#include "libbotanik/vars/model.h"          // Vars::VarRef / Bank / alarm_spec
 
 namespace Botanik { namespace Alarms {
 
     /** @brief @p id as a 64-bit mask */
-    inline uint64_t alarm_bit(uint8_t id) { 
-        return (uint64_t)1u << id; 
+    inline uint64_t alarm_bit(uint8_t id) {
+        return (uint64_t)1u << id;
     }
+
+    // alarm_bit() is a shift into a uint64_t, so 64 is a hard ceiling on the
+    // model, not a sizing preference. Config::ALARM_SLOTS is site-overridable;
+    // raising it past 64 would make that shift undefined the moment a site
+    // declared the 65th alarm. Widen the mask (and AlarmBar::unmasked_set)
+    // before touching the slot count.
+    static_assert(Config::ALARM_SLOTS <= 64,
+                  "ALARM_SLOTS cannot exceed 64: alarm_bit() shifts into a uint64_t");
 
     /** @brief countdown drain, @p rem - @p dt, floored at 0. */
     inline uint32_t drain_ms(uint32_t rem, uint32_t dt) {
@@ -48,28 +51,57 @@ namespace Botanik { namespace Alarms {
     // forward declaration for the alarm's side effect sink
     struct AlarmSink;
 
-    /** @brief One alarm condition: static metadata + model-owned dynamic state. */
+    /** @brief One alarm condition: the row it reads, plus the model-owned
+     *  dynamic state.
+     *
+     *  The row is BORROWED, not copied. Its text and its announce policy are
+     *  already flash-resident on the `SCOPE_A` descriptor, and copying them into
+     *  every slot cost ~36 bytes of RAM each to hold a second version of
+     *  something that can then disagree with the table. The accessors below read
+     *  straight through. */
     struct AlarmCondition {
-        /** @name Static metadata
+        /** @name The row
          *  @{ */
 
-        const char* code;           ///< short display code (max 9: AlarmsPage::CODE_W)
-        const char* name;           ///< the variable this reads, by name
-        const char* desc;           ///< human-readable description
-        const char* notes;          ///< alarm remediation instructions
+        /** @brief The `SCOPE_A` descriptor this condition is built from; null on
+         *  an unfilled slot. Flash-resident and const. */
+        const Vars::Variable* var;
+        Vars::VarRef ref;           ///< the same row, as an index into the bank
 
-        int32_t     on_s;           ///< time ON  before announcing (-1: off)
-        int32_t     off_s;          ///< time OFF before announcing (-1: off)
-        int32_t     recent_s;       ///< duration the event is "recent" (-1: forever)
-        int32_t     hold_on_s;      ///< hold ON this long after raw clears (0: none)
-        int32_t     min_on_s;       ///< minimum ON time from onset (0: no latch)
+        /** @} */
+
+        /** @name Row metadata
+         *  Read through @c var, so there is no second copy to keep in step.
+         *  @{ */
+
+        /** @brief Short display code, max 9 (AlarmsPage::CODE_W). */
+        const char* code() const {
+            return (var != nullptr) ? Vars::alarm_spec(*var).code : nullptr;
+        }
+        /** @brief The variable carrying this condition, by name. */
+        const char* name()  const { return (var != nullptr) ? var->name  : nullptr; }
+        /** @brief Human-readable description. */
+        const char* desc()  const { return (var != nullptr) ? var->desc  : nullptr; }
+        /** @brief Remediation instructions. */
+        const char* notes() const { return (var != nullptr) ? var->notes : nullptr; }
+
+        /** @brief Time ON before announcing (-1: never announce). */
+        int16_t on_s()      const { return _spec().on_s; }
+        /** @brief Time OFF before announcing (-1: never announce). */
+        int16_t off_s()     const { return _spec().off_s; }
+        /** @brief How long the event stays "recent" (0: the default window,
+         *  <0: forever). */
+        int16_t recent_s()  const { return _spec().recent_s; }
+        /** @brief Hold ON this long after the raw input clears (0: none). */
+        int16_t hold_on_s() const { return _spec().hold_on_s; }
+        /** @brief Minimum ON time from onset (0: no latch). */
+        int16_t min_on_s()  const { return _spec().min_on_s; }
 
         /** @} */
 
         /** @name Dynamic state
          *  @{ */
 
-        Vars::VarRef ref;           ///< the variable carrying this condition
         bool        active;         ///< alarm active or latched
 
         bool        on_sent;        ///< ON  transition announced (log + notify)
@@ -85,39 +117,48 @@ namespace Botanik { namespace Alarms {
 
         /** @} */
 
-        /** @brief Advance this condition one tick. 
-         *  @note Drains the countdowns, do some edge bookkeeping, 
-         *        recompute local state and announce transitions. */
-        /** @brief Advance one activation.
+        /** @brief Advance one activation: drain the countdowns, stamp any edge,
+         *  recompute the active state and announce a transition whose dwell
+         *  threshold has elapsed.
          *
          *  @p forced says the row is being held by an operator override. A
          *  forced condition follows the force immediately: the hold-on and
          *  minimum-on latches are for smoothing a real signal that flaps, and a
-         *  hand-held row does not flap. Without it, forcing a platform alarm on
-         *  and back off left it up for its whole 300 s hold. */
+         *  hand-held row does not flap. */
         void step(bool raw_on, bool forced, uint32_t dt, uint64_t now,
                   const AlarmSink& sink);
 
     private:
+        /** @brief The announce policy off the row; all-zero on an empty slot,
+         *  which reads as "announce immediately, no latch" and never fires
+         *  because such a slot has no variable to raise it. */
+        Vars::AlarmSpec _spec() const {
+            return (var != nullptr) ? Vars::alarm_spec(*var)
+                                    : Vars::AlarmSpec{nullptr, 0, 0, 0, 0, 0};
+        }
+
         /** @brief The ON event is due: unannounced, enabled (on_s >= 0), and
          *         @p dwell_ms has reached the threshold. */
         bool due_on(uint64_t dwell_ms) const {
-            return !on_sent && on_s >= 0 &&
-                   dwell_ms >= (uint64_t)on_s * 1000u;
+            const int16_t t = on_s();
+            return !on_sent && t >= 0 && dwell_ms >= (uint64_t)t * 1000u;
         }
 
         /** @brief The OFF event is due: unannounced, enabled (off_s >= 0), and
          *         @p dwell_ms has reached the threshold. */
         bool due_off(uint64_t dwell_ms) const {
-            return !off_sent && off_s >= 0 &&
-                   dwell_ms >= (uint64_t)off_s * 1000u;
+            const int16_t t = off_s();
+            return !off_sent && t >= 0 && dwell_ms >= (uint64_t)t * 1000u;
         }
     };
 
     /** @brief Abstract alarm-transition sink the model fans out to.
-     * 
+     *
      *  A bit like the Logs::LogWriter abstraction, but for alarms. Provides
-     *  hooks for their three distinct notifications : ON, OFF and FLAP. */
+     *  hooks for their three distinct notifications : ON, OFF and FLAP.
+     *
+     *  Concrete sinks live elsewhere - see alarms/notifier.h for the MQTT one -
+     *  so the model itself depends on nothing but the variable table. */
     struct AlarmNotifier {
         virtual ~AlarmNotifier() {}
 
@@ -129,42 +170,8 @@ namespace Botanik { namespace Alarms {
         virtual void notify_flap(const AlarmCondition& a) = 0;
     };
 
-    // TODO: move to notifier.h
-    /** @brief AlarmNotifier that formats a transition as an MQTT topic/payload.
-     *
-     *  Publishes "ON/OFF/FLAP" at topic "<prefix>/alarms/<CODE>" */
-    class MqttAlarmNotifier : public AlarmNotifier {
-    private:
-        /** @name State
-         *  @{ */
-        const char* _prefix;   // topic root, e.g. "botanik/greenhouse"
-        Publisher*  _pub;      // transport (null = no-op)
-        /** @} */
-
-    public:
-        /** @brief Construct a new notifier with the given @p prefix MQTT topic root. */
-        explicit MqttAlarmNotifier(const char* prefix) : _prefix(prefix), _pub(nullptr) {}
-
-        /** @brief Wire the transport (called once at firmware setup). */
-        void set_publisher(Publisher* pub) { _pub = pub; }
-
-        void notify_on(const AlarmCondition& a)   override { _emit(a, "ON"); }
-        void notify_off(const AlarmCondition& a)  override { _emit(a, "OFF"); }
-        void notify_flap(const AlarmCondition& a) override { _emit(a, "FLAP"); }
-
-    private:
-        /** @brief Build an MQTT entry and publish it. */
-        void _emit(const AlarmCondition& a, const char* state) {
-            if (_pub == nullptr) return;
-            char topic[Config::MQTT_TOPIC_LEN];
-            snprintf(topic, sizeof(topic), "%s/%s/%s", _prefix,
-                     Config::MQTT_ALARM_TOPIC, a.name ? a.name : "?");
-            _pub->publish(topic, state);
-        }
-    };
-
-    /** @brief This sink is passed to AlarmCondition when stepping through it 
-     *         and allows it to log events and fan out to the notifiers 
+    /** @brief This sink is passed to AlarmCondition when stepping through it
+     *         and allows it to log events and fan out to the notifiers
      *         registered in the controller. */
     struct AlarmSink {
         Logs::Logger*         logger;          ///< ALARM-topic sink (null = no logging)
@@ -210,6 +217,10 @@ namespace Botanik { namespace Alarms {
         /// model-owned working array, in table order
         AlarmCondition  _conditions[Config::ALARM_SLOTS];
         uint8_t         _count;          // conditions scanned out of the table
+        /** @brief SCOPE_A rows the table DECLARES, which is @c _count unless the
+         *  table overran the slots. The pair is what makes a lost tail visible;
+         *  @c _count alone saturates and cannot say. */
+        uint16_t        _declared;
         /** @brief Condition numbers sorted by CODE, built once by the
          *  constructor. The other spelling needs no mapping of its own: a name
          *  goes through the bank's index to a row, and the conditions were
@@ -236,44 +247,39 @@ namespace Botanik { namespace Alarms {
          *  alarms/platform.h), so this is one scan in one order. */
         AlarmController(const Vars::Bank* io, Logs::Logger* logger)
             : Component(logger, "AlarmController"),
-              _count(0), _io(io), _notifier_count(0),
+              _count(0), _declared(0), _io(io), _notifier_count(0),
               _last_now(0), _first_step(true), _active_count(0) {
 
-            // zero the alarms table
             std::memset(_conditions, 0, sizeof(_conditions));
 
-            uint8_t n = 0;
+            uint8_t  n     = 0;
+            uint16_t found = 0;   // SCOPE_A rows in the table, slots or not
             if (io != nullptr) {
                 // One bound, because there is one table: the site's rows and the
                 // library's are scanned together, so there is no reservation for
-                // an over-long site table to eat into. It loses its own tail,
-                // and BOTANIK_ASSERT below says so on a debug build.
-                for (uint16_t i = 0; i < io->count() && n < Config::ALARM_SLOTS; i++) {
-                    // fetch the generic variable metadata
+                // an over-long site table to eat into.
+                //
+                // The scan runs to the END of the table rather than stopping at
+                // the last slot, because `found` is the only thing that can tell
+                // a table that filled the slots EXACTLY from one that filled them
+                // and lost a tail - `n` saturates at ALARM_SLOTS either way, so
+                // it cannot answer the question the assert is asking.
+                for (uint16_t i = 0; i < io->count(); i++) {
                     const Vars::Variable& d = *io->var(i).meta();
-                    // continue through the loop unless it's an alarm-variable
                     if (d.scope != Vars::SCOPE_A) continue;
-                    // get the alarm-specific variable metadata
-                    const Vars::AlarmSpec sp = Vars::alarm_spec(d);
-                    // build a new alarm condition
+                    found++;
+                    if (n >= Config::ALARM_SLOTS) continue;   // no slot left
                     AlarmCondition& c = _conditions[n];
-                    c.ref.index   = i;
-                    c.code        = sp.code;
-                    c.name        = d.name;
-                    c.desc        = d.desc;
-                    c.notes       = d.notes;
-                    c.on_s        = sp.on_s;
-                    c.off_s       = sp.off_s;
-                    c.recent_s    = sp.recent_s;
-                    c.hold_on_s   = sp.hold_on_s;
-                    c.min_on_s    = sp.min_on_s;
+                    c.var       = &d;
+                    c.ref.index = i;
                     n++;
                 }
                 // A table with more alarms than slots loses its tail silently,
                 // which is the one failure a count cannot show after the fact.
-                BOTANIK_ASSERT(n < Config::ALARM_SLOTS);
+                BOTANIK_ASSERT(found <= Config::ALARM_SLOTS);
             }
-            _count = n;
+            _count    = n;
+            _declared = found;
             for (uint8_t i = 0; i < _count; i++)     // boot state: settled OFF
                 _conditions[i].off_sent = true;
             _build_code_index();
@@ -285,35 +291,27 @@ namespace Botanik { namespace Alarms {
         /** @brief Register a transition sink; false if failed.
          *  @note May fail if @p n is null, already registered, or the list is full. */
         bool add_notifier(AlarmNotifier* n) {
-            // nullref and overflow checks
             if (n == nullptr || _notifier_count >= Config::ALARM_NOTIFIERS_MAX) return false;
-            // loop through existing to avoid double-registration
             for (uint8_t i = 0; i < _notifier_count; i++) if (_notifiers[i] == n) return false;
-            // register the notifier
             _notifiers[_notifier_count++] = n;
             return true;
         }
 
-        /** @brief Unregister a previously added notifier; false if failed. */
+        /** @brief Unregister a previously added notifier; false if it was not
+         *  registered. */
         bool remove_notifier(AlarmNotifier* n) {
-            // loop through the table to find the notifier
             for (uint8_t i = 0; i < _notifier_count; i++) {
-                // go to next row if the current row's notifier does not match
                 if (_notifiers[i] != n) continue;
-                // once we've found it, left-shift remaining notifiers
                 for (uint8_t j = i; j + 1 < _notifier_count; j++)
                     _notifiers[j] = _notifiers[j + 1];
-                // decrement the notifier count and return
                 _notifier_count--;
                 return true;
             }
             return false;
         }
 
-        /** @brief Determines if at least one notifier is registered. */
-        bool has_notifiers() const { 
-            return _notifier_count > 0;
-         }
+        /** @brief Whether at least one notifier is registered. */
+        bool has_notifiers() const { return _notifier_count > 0; }
 
         /** @} */
 
@@ -323,11 +321,8 @@ namespace Botanik { namespace Alarms {
         /** @brief Mark an active condition acknowledged, by code or by variable
          *  name (see index_of). */
         bool ack(const char* name) {
-            // find the alarm's index
-            int i = index_of(name);
-            // check that the condition is properly defined
+            const int i = index_of(name);
             if (i < 0 || !_conditions[i].active) return false;
-            // update the condition
             _conditions[i].user_ack = true;
             _conditions[i].ack_ms   = _last_now;
             return true;
@@ -337,9 +332,7 @@ namespace Botanik { namespace Alarms {
         uint8_t ack_all() {
             uint8_t n = 0;
             for (uint8_t i = 0; i < _count; i++) {
-                // skip the conditions that are not active
                 if (!_conditions[i].active) continue;
-                // acknowledge and count it
                 _conditions[i].user_ack = true;
                 _conditions[i].ack_ms   = _last_now;
                 n++;
@@ -352,8 +345,13 @@ namespace Botanik { namespace Alarms {
         /** @name State queries
          *  @{ */
 
-        /** @brief Number of table entries scanned. */
+        /** @brief Number of table entries scanned, i.e. conditions this model
+         *  actually drives. */
         uint8_t  count() const { return _count; }
+
+        /** @brief SCOPE_A rows the variable table declares. Above count() means
+         *  the table overran ALARM_SLOTS and the tail is not being driven. */
+        uint16_t declared_count() const { return _declared; }
 
         /** @brief Active conditions this step. */
         uint8_t  active_count() const { return _active_count; }
@@ -412,20 +410,16 @@ namespace Botanik { namespace Alarms {
         /** @brief Read each condition's raw input, combine to the local override
          *         and step through the condition's handling code. */
         void on_step(uint64_t now) override {
-            // measure dt (use 0 for first step)
-            uint32_t dt = _first_step ? 0 : (uint32_t)(now - _last_now);
-            _first_step = false;
-            _last_now   = now;
+            const uint32_t dt = _first_step ? 0 : (uint32_t)(now - _last_now);
+            _first_step   = false;
+            _last_now     = now;
             _active_count = 0;
-            // build an alarm sink from our logger and notifiers
+
             AlarmSink sink{_logger, _notifiers, _notifier_count};
             for (uint8_t i = 0; i < _count; i++) {
-                // for each condition
                 AlarmCondition& c = _conditions[i];
-                // step it on whatever its variable currently reads
                 c.step(_raw(i), _io != nullptr && _io->var(c.ref).overridden(),
                        dt, now, sink);
-                // count active conditions
                 if (c.active) _active_count++;
             }
         }
@@ -443,8 +437,8 @@ namespace Botanik { namespace Alarms {
                 uint8_t lo = 0, hi = i;
                 while (lo < hi) {
                     const uint8_t mid = (uint8_t)(lo + (hi - lo) / 2);
-                    if (_code_cmp(_conditions[c].code,
-                                  _conditions[_by_code[mid]].code) < 0) hi = mid;
+                    if (_code_cmp(_conditions[c].code(),
+                                  _conditions[_by_code[mid]].code()) < 0) hi = mid;
                     else                                                lo = (uint8_t)(mid + 1);
                 }
                 for (uint8_t k = i; k > lo; k--) _by_code[k] = _by_code[k - 1];
@@ -465,14 +459,14 @@ namespace Botanik { namespace Alarms {
             uint8_t lo = 0, hi = _count;
             while (lo < hi) {
                 const uint8_t mid = (uint8_t)(lo + (hi - lo) / 2);
-                if (_code_cmp(_conditions[_by_code[mid]].code, key) < 0)
+                if (_code_cmp(_conditions[_by_code[mid]].code(), key) < 0)
                     lo = (uint8_t)(mid + 1);
                 else
                     hi = mid;
             }
             if (lo >= _count) return -1;
             const uint8_t i = _by_code[lo];
-            return (_code_cmp(_conditions[i].code, key) == 0) ? (int)i : -1;
+            return (_code_cmp(_conditions[i].code(), key) == 0) ? (int)i : -1;
         }
 
         /** @brief Condition reading row @p r, or -1. The conditions were built by

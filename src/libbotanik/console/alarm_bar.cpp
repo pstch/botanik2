@@ -35,40 +35,30 @@ namespace Botanik { namespace Terminal {
     }
 
     void AlarmBar::draw() {
-        // fetch alarm controller from the console
         const Alarms::AlarmController* alarms = _console.alarms();
-
-        // bail-out if things look too weird
         if (alarms == nullptr || _terminal.rows_total() == 0 || _terminal.cols() == 0) return;
 
-        // physical last row (reserved for us)
-        uint16_t row  = _row();
-        uint16_t cols = _terminal.cols();
+        const uint16_t row  = _row();   // physical last row, reserved for us
+        const uint16_t cols = _terminal.cols();
 
-        // write bar header
         static const char hdr[] = " ALARMS : ";
         uint16_t used = (uint16_t)(sizeof(hdr) - 1);
         _terminal.move_to({row, 0});
         _terminal.set_inverted(true);
         _terminal.write_chars(hdr, used);
 
-        // for each alarm condition...
         for (uint8_t i = 0; i < alarms->count(); i++) {
             const Alarms::AlarmCondition& c = alarms->condition(i);
-            // skip ACK'd alarms
-            if (!c.active || c.user_ack || c.code == nullptr) continue;
-            
-            // break if out of room on the row
-            uint16_t clen = (uint16_t)strlen(c.code);
-            if ((uint16_t)(used + clen + 1) > cols) break;
+            const char* code = c.code();
+            if (!c.active || c.user_ack || code == nullptr) continue;
 
-            // write out the alarm's code
+            const uint16_t clen = (uint16_t)strlen(code);
+            if ((uint16_t)(used + clen + 1) > cols) break;   // out of room
+
             _terminal.set_inverted(false);
-            _terminal.write_chars(c.code, clen);
+            _terminal.write_chars(code, clen);
             _terminal.set_inverted(true);
-            
-            // inverted separator
-            _terminal.write_chars(" ", 1);
+            _terminal.write_chars(" ", 1);                   // inverted separator
             used = (uint16_t)(used + clen + 1);
         }
 
@@ -78,13 +68,13 @@ namespace Botanik { namespace Terminal {
     }
 
     void AlarmBar::step() {
-        if (_console.alarms() == nullptr) return;   // bail-out if we have no alarms controller
-        uint64_t sig = unmasked_set();              // get the bitset of active alarms
-        if (sig != _sig) _dirty = true;             // determine if we need to redraw
-        if (!_dirty) return;                        // if not, we just bail out
-        draw();                                     // redraw the alarm bar
-        _sig   = sig;                               // update bitset of active alarms
-        _dirty = false;                             // reset dirty flag
+        if (_console.alarms() == nullptr) return;
+        const uint64_t sig = unmasked_set();
+        if (sig != _sig) _dirty = true;
+        if (!_dirty) return;
+        draw();
+        _sig   = sig;
+        _dirty = false;
     }
 
 }}
