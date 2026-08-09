@@ -20,6 +20,7 @@
 
 #include <cmath>        // pow
 #include <cstdint>      // uint32_t/uint64_t
+#include <cstdio>       // snprintf - the sensor names are patterned
 #include <random>       // std::mt19937 + distributions
 
 #include "libbotanik.h" // Vars::Bank
@@ -118,6 +119,58 @@ inline void publish_meters(Vars::Bank& io, uint32_t now_ms) {
     // the reading stays consistent with the volts and amps beside it.
     put(io, "ats_W",  (ln - 0.5f) * amps * 0.15f * pf, now_ms);
     put(io, "ats_Hz", 50.0f + 0.03f * sinf(t / 37.0f), now_ms);
+}
+
+/**
+ * @brief The twelve Temp/RH sensors: exterior, crawlspace, low and high.
+ *
+ * Animated because the rows exist. Without this the field bus answers with
+ * zeroed registers, so every sensor reads a perfectly VALID 0.0 C - which is
+ * the worst of both worlds: it looks like a working instrument and it is not a
+ * measurement. A row in the table and a row in the animator go together.
+ *
+ * Shaped so the four groups say something a greenhouse would: the exterior
+ * swings hardest over the day, the crawlspace barely moves (it is under the
+ * floor), and high sits above low because warm air does. RH runs opposite to
+ * temperature, which is what actually happens when you heat the same air.
+ */
+inline void publish_climate(Vars::Bank& io, uint32_t now_ms) {
+    const float t = (float)now_ms / 1000.0f;
+    // One slow "day", fast enough to watch: a full cycle every four minutes.
+    const float day = sinf(t / 38.0f);
+
+    struct Group {
+        const char* temp;   ///< printf pattern, one %u for the sensor number
+        const char* rh;
+        float       base;   ///< mid-point temperature, C
+        float       swing;  ///< how far it moves over the day
+    };
+    const Group groups[] = {
+        { "cli_temp_ext%u", "cli_rh_ext%u",  12.0f, 9.0f },   // outside, wide swing
+        { "cli_temp_cs%u",  "cli_rh_cs%u",   14.0f, 1.5f },   // crawlspace, damped
+        { "cli_temp_lo%u",  "cli_rh_lo%u",   19.0f, 4.0f },   // canopy level
+        { "cli_temp_hi%u",  "cli_rh_hi%u",   22.0f, 5.0f },   // ridge, warmer
+    };
+
+    for (uint8_t g = 0; g < 4; g++) {
+        for (uint8_t n = 1; n <= 3; n++) {
+            // Each sensor of a group sees the same weather, offset a little -
+            // three instruments in one space never agree exactly, and a display
+            // that shows them identical hides the one that has drifted.
+            const float spread = ((float)n - 2.0f) * 0.4f;
+            const float temp = groups[g].base + groups[g].swing * day + spread;
+            // Warmer air, drier reading; kept inside the sensor's 0-100 band.
+            float rh = 68.0f - 1.8f * (temp - groups[g].base) + spread;
+            if (rh < 5.0f)  rh = 5.0f;
+            if (rh > 99.0f) rh = 99.0f;
+
+            char name[24];
+            snprintf(name, sizeof name, groups[g].temp, (unsigned)n);
+            put(io, name, temp, now_ms);
+            snprintf(name, sizeof name, groups[g].rh, (unsigned)n);
+            put(io, name, rh, now_ms);
+        }
+    }
 }
 
 /**
@@ -240,6 +293,7 @@ inline void publish_alarms(Vars::Bank& io, uint32_t now_ms) {
  */
 inline void simulate(Vars::Bank& io, uint32_t now_ms) {
     publish_meters(io, now_ms);
+    publish_climate(io, now_ms);
     drive_coils(io, now_ms);
     publish_alarms(io, now_ms);
 }
