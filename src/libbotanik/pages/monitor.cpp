@@ -8,6 +8,7 @@
 #include <cstring>                          // strlen / strcmp / memcpy
 
 #include "libbotanik/hal/platform.h"        // HAL::Clock::uptime_ms
+#include "libbotanik/utils/text.h"        // Utils::format_age - how old a reading is
 
 namespace Botanik { namespace Pages {
 
@@ -148,9 +149,18 @@ namespace Botanik { namespace Pages {
             // RIGHT), so repeating it down a column said the same thing on
             // every row. Where a reading comes from does not.
             sc = Vars::var_scope(*m);
-            _adopt(val, sizeof(val), Vars::var_format(*_io, h, val, sizeof(val)));
-            if (h.overridden())
+            // The LIVE value, not the forced one. The OVERRIDE column beside
+            // this already shows what is being forced, and printing the force
+            // in both columns hid the very thing an operator is deciding on:
+            // whether the reading underneath has come back.
+            _adopt(val, sizeof(val), _live_text(h, val, sizeof(val)));
+            _flag_value(h, val, sizeof(val));
+            if (h.overridden()) {
                 _adopt(ovr, sizeof(ovr), Vars::var_format(*_io, h, ovr, sizeof(ovr)));
+                // A force can itself be "read as a dead sensor"; say so, or the
+                // column claims a number the row is not actually reporting.
+                if (!h.valid()) _prefix(ovr, sizeof(ovr), "[I]");
+            }
         }
         const char* cells[5] = { sc, nm, val, un, ovr };
         return _build_row(out, cap, cells);
@@ -163,12 +173,55 @@ namespace Botanik { namespace Pages {
                             selected);
     }
 
-    void MonitorPage::_describe_binding(const Vars::Binding& b, char* out, size_t cap) {
+    void MonitorPage::_prefix(char* buf, size_t cap, const char* tag) {
+        char tmp[VAL_CAP];
+        snprintf(tmp, sizeof(tmp), "%s%s", tag, buf);
+        snprintf(buf, cap, "%s", tmp);
+    }
+
+    const char* MonitorPage::_live_text(Vars::Var h, char* buf, size_t cap) const {
+        const Vars::Variable* d = h.meta();
+        if (d->type == Vars::T_STR) {
+            const char* t = _io->text_at(h);
+            return (t != nullptr) ? t : "";
+        }
+        return Vars::format_scalar(d->type, h.live(), d->digits, d->str, buf, cap);
+    }
+
+    void MonitorPage::_flag_value(Vars::Var h, char* buf, size_t cap) {
+        // [O] forced, [I] the reading underneath is not good, [OI] both. Two
+        // independent facts, so two independent letters rather than one word
+        // that has to pick.
+        const bool o = h.overridden();
+        const bool i = !h.live_valid();
+        if (!o && !i) return;
+        char tag[6] = "[";
+        size_t n = 1;
+        if (o) tag[n++] = 'O';
+        if (i) tag[n++] = 'I';
+        tag[n++] = ']';
+        tag[n] = '\0';
+        _prefix(buf, cap, tag);
+    }
+
+    void MonitorPage::_describe_binding(const Vars::Binding& b, char* out,
+                                        size_t cap) const {
         switch (b.transport) {
-            case Vars::XP_MODBUS:
-                snprintf(out, cap, "Modbus dev %u fc %u reg %u",
-                         (unsigned)b.device, (unsigned)b.fc, (unsigned)b.reg);
+            case Vars::XP_MODBUS: {
+                // The unit number is what the wire uses; the TAG is what the
+                // plant calls the box. An operator reading "dev 34" has to go
+                // and look it up, which is the whole reason the device table
+                // carries a tag at all.
+                const char* tag = (_device_name != nullptr)
+                                      ? _device_name(_device_ctx, b.device) : nullptr;
+                if (tag != nullptr && tag[0] != '\0')
+                    snprintf(out, cap, "Modbus %s (dev %u) fc %u reg %u",
+                             tag, (unsigned)b.device, (unsigned)b.fc, (unsigned)b.reg);
+                else
+                    snprintf(out, cap, "Modbus dev %u fc %u reg %u",
+                             (unsigned)b.device, (unsigned)b.fc, (unsigned)b.reg);
                 break;
+            }
             case Vars::XP_LOCAL:
                 // The wire type is what makes a local channel analog or
                 // digital; the transport only says it is not Modbus.
@@ -205,41 +258,52 @@ namespace Botanik { namespace Pages {
         // this value came from", which for an OUTPUT is backwards - nothing
         // comes from it, it goes there. What the field actually says is which
         // point on which device this row is mapped to, in both directions.
-        char bind[64];
+        char bind[72];
+        if (have) _describe_binding(h.meta()->bind, bind, sizeof(bind));
+        _panel_field((uint16_t)(br + 4), "Mapping", have ? bind : nullptr);
+
+        // Quality, and the two things that qualify it.
+        //
+        // The row used to say only Q_GOOD / Q_STALE, with a separate "Override"
+        // line below repeating what the OVERRIDE column already showed. What an
+        // operator actually asks next is one of two questions, and which one
+        // depends on the kind of row: for a READING, "how old is it" - Q_GOOD
+        // from four minutes ago is not the same fact as Q_GOOD from this beat;
+        // for something DRIVEN or COMPUTED, "who decided that", which is the
+        // program, and is the thing that tells you where to go and look.
+        char qual[80];
         if (have) {
-            _describe_binding(h.meta()->bind, bind, sizeof(bind));
-            // A computed row's mapping is the logic that computes it, so name
-            // the program. "computed" alone told an operator only that nothing
-            // on the bus explains the number - not where to go and look.
-            if (h.meta()->bind.transport == Vars::XP_NONE && _writer_name != nullptr) {
-                const uint8_t w = _io->writer_of(ref);
-                const char* who = _writer_name(_writer_ctx, w);
-                if (who != nullptr) {
-                    const size_t n = strlen(bind);
-                    snprintf(bind + n, sizeof(bind) - n, " (%s)", who);
-                }
+            size_t n = (size_t)snprintf(qual, sizeof(qual), "%s",
+                                        Vars::quality_str(h.live_quality()));
+            // A force reads as its own quality - that is what ovr_valid means -
+            // so an overridden row says both: what is being forced, and what
+            // the row underneath still reports.
+            if (h.overridden() && n < sizeof(qual))
+                n += (size_t)snprintf(qual + n, sizeof(qual) - n, ", forced %s",
+                                      h.valid() ? "valid" : "invalid");
+
+            const Vars::VarRole role = h.meta()->role;
+            if (role == Vars::ROLE_INPUT && h.stamp() != 0 && n < sizeof(qual)) {
+                char age[16];
+                const uint64_t now = HAL::Clock::uptime_ms();
+                const uint32_t secs = (uint32_t)((now - h.stamp()) / 1000u);
+                // format_age already says "ago"; the width is fixed so the
+                // field does not reflow as the reading gets older.
+                n += (size_t)snprintf(qual + n, sizeof(qual) - n, ", %s",
+                                      Utils::format_age(age, sizeof(age), secs));
+            } else if (role != Vars::ROLE_INPUT && role != Vars::ROLE_PARAM &&
+                       _writer_name != nullptr && n < sizeof(qual)) {
+                // Outputs, computed rows and status values alike: whatever a
+                // program wrote, name it. A row with no name here is one no
+                // program drives, which is itself the answer to "why is this
+                // sitting at its default".
+                const char* who = _writer_name(_writer_ctx, _io->writer_of(ref));
+                n += (size_t)snprintf(qual + n, sizeof(qual) - n, ", by %s",
+                                      who != nullptr ? who : "no program");
             }
         }
-        _panel_field((uint16_t)(br + 4), "Mapping", have ? bind : nullptr);
-        // Quality is likewise new: a variable nothing has written reads as its
-        // default, which looks exactly like a real reading otherwise.
-        //
-        // Two lines, not one. An override SHADOWS the row rather than replacing
-        // it - the driver keeps publishing underneath - so the two facts are
-        // independent and an operator needs both: whether the reading is being
-        // forced, and whether the thing underneath is healthy. Folding them into
-        // one field meant a forced row never showed its own quality, which is
-        // exactly what decides whether the override can come off.
-        _panel_field((uint16_t)(br + 5), "Quality",
-                     have ? Vars::quality_str(h.live_quality()) : nullptr);
-        const char* forced = nullptr;
-        if (have && h.overridden())
-            // valid() IS the forced quality while overridden - that is what
-            // ovr_valid means - so this reads the override's own verdict, not
-            // the row's underneath.
-            forced = h.valid() ? "forced by hand"
-                               : "forced, and forced to read invalid";
-        _panel_field((uint16_t)(br + 6), "Override", forced);
+        _panel_field((uint16_t)(br + 5), "Quality", have ? qual : nullptr);
+        _blank_line((uint16_t)(br + 6));   // where the Override line used to be
     }
 
     void MonitorPage::_draw_footer() {

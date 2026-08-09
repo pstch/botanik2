@@ -112,6 +112,11 @@ namespace Botanik { namespace Pages {
          *  name a writer" rather than on the scan cycle. */
         const char* (*_writer_name)(const void*, uint8_t) = nullptr;
         const void*           _writer_ctx = nullptr;
+        /** @brief How to turn a Modbus unit id into the plant's own tag for it.
+         *  Same shape and same reason as _writer_name: the page depends on
+         *  "something can name a device", not on the field bus. */
+        const char* (*_device_name)(const void*, uint8_t) = nullptr;
+        const void*           _device_ctx = nullptr;
         /** @brief A nav happened: redraw on the next tick rather than waiting for
          *  the value cadence, so scrolling/selection feels immediate. */
         bool                _dirty    = true;
@@ -135,6 +140,14 @@ namespace Botanik { namespace Pages {
                               const void* ctx) {
             _writer_name = fn;
             _writer_ctx  = ctx;
+        }
+
+        /** @brief Teach the page the plant's name for a Modbus unit. Without it
+         *  the Mapping row says "dev 34", which is what it said before. */
+        void set_device_names(const char* (*fn)(const void*, uint8_t),
+                              const void* ctx) {
+            _device_name = fn;
+            _device_ctx  = ctx;
         }
 
         const char* name() const override { return "MONITOR"; }
@@ -244,7 +257,17 @@ namespace Botanik { namespace Pages {
         void _draw_row(uint16_t r, uint16_t row, bool selected);
 
         /** @brief One line saying where a reading comes from. */
-        static void _describe_binding(const Vars::Binding& b, char* out, size_t cap);
+        void _describe_binding(const Vars::Binding& b, char* out, size_t cap) const;
+
+        /** @brief Format a row's LIVE value - what the driver or the program
+         *  last put there, with any override ignored. The VALUE column shows
+         *  this; the OVERRIDE column shows the force. */
+        const char* _live_text(Vars::Var h, char* buf, size_t cap) const;
+        /** @brief Put @p tag in front of what is already in @p buf. */
+        static void _prefix(char* buf, size_t cap, const char* tag);
+        /** @brief Mark a VALUE cell: `[O]` forced, `[I]` the reading underneath
+         *  is not good, `[OI]` both. */
+        static void _flag_value(Vars::Var h, char* buf, size_t cap);
 
         /** @brief Draw both rules, capping with '^' / 'v' when rows are hidden
          *  above / below the window. */

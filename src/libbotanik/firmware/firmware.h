@@ -886,6 +886,16 @@ namespace Botanik {
                 },
                 &_scan);
 #endif
+#if BOTANIK_FEATURE_MODBUS_RTU_CLIENT
+            // ...and the plant's name for a unit id, from the same place the
+            // field-bus log lines get it.
+            _monitor_page.set_device_names(
+                [](const void* ctx, uint8_t unit) -> const char* {
+                    return Modbus::device_tag(
+                        static_cast<const Modbus::DeviceTable*>(ctx), unit);
+                },
+                _site.devices);
+#endif
 #endif
 #if BOTANIK_FEATURE_TASKS_PAGE
             _console.terminal().add_page(&_tasks_page);
