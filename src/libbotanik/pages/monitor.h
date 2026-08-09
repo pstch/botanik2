@@ -19,7 +19,7 @@
  *   row 3            top rule (corners cap to '^' when rows are hidden above)
  *   rows 4..N-3      one row per status variable (window into the full set)
  *   row N-8          bottom rule (corners cap to 'v' when hidden below)
- *   rows N-7..N-3    detail panel: Description / Notes / Source / Quality
+ *   rows N-7..N-3    detail panel: Description / Notes / Mapping / Quality
  *   row N-2          legend: [group] badge + position + hint, blank each side
  *
  * UP/DOWN move a selection cursor (the selected variable's NAME is drawn
@@ -65,7 +65,7 @@ namespace Botanik { namespace Pages {
         static constexpr uint16_t VAL_CAP    = 48;   // formatted value buffer
         static constexpr uint16_t LINE_CAP   = Config::TABLE_LINE_LEN;
         // Detail panel below the table: bottom rule + blank spacer +
-        // Description + Source + Quality + blank spacer, then the legend and its
+        // Description + Mapping + Quality + blank spacer, then the legend and its
         // own trailing blank (see _footer_row()).
         static constexpr uint16_t PANEL_H    = 7;
         /** @brief Column order, for the derived cell positions below. */
@@ -103,6 +103,15 @@ namespace Botanik { namespace Pages {
          *  _on_mode_changed() cannot leave a stale count behind. */
         mutable uint8_t     _total_mode = 0xFF;
         const Vars::Bank*     _io;
+        /** @brief How to turn a row's writer index into a program name, and the
+         *  thing that knows. Null when the build has no scan.
+         *
+         *  A function pointer rather than a `Scan::Driver*` so this page does
+         *  not have to be compiled differently depending on a feature flag it
+         *  has no other interest in - and so the page depends on "something can
+         *  name a writer" rather than on the scan cycle. */
+        const char* (*_writer_name)(const void*, uint8_t) = nullptr;
+        const void*           _writer_ctx = nullptr;
         /** @brief A nav happened: redraw on the next tick rather than waiting for
          *  the value cadence, so scrolling/selection feels immediate. */
         bool                _dirty    = true;
@@ -117,6 +126,16 @@ namespace Botanik { namespace Pages {
                     const Vars::Bank* io)
             : ScrollTablePage(console.terminal()), _console(console),
               _io(io) {}
+
+        /** @brief Teach the page to name the program that computes a row.
+         *  Wired by the firmware, which is the only thing holding both the page
+         *  and the scan driver. Without it a computed row still reads
+         *  "computed", which is what it said before. */
+        void set_writer_names(const char* (*fn)(const void*, uint8_t),
+                              const void* ctx) {
+            _writer_name = fn;
+            _writer_ctx  = ctx;
+        }
 
         const char* name() const override { return "MONITOR"; }
 

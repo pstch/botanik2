@@ -200,9 +200,27 @@ namespace Botanik { namespace Pages {
         // The binding, which the byte-offset model had nowhere to put: where
         // this reading physically comes from is the first thing you want
         // when one looks wrong.
-        char bind[48];
-        if (have) _describe_binding(h.meta()->bind, bind, sizeof(bind));
-        _panel_field((uint16_t)(br + 4), "Source", have ? bind : nullptr);
+        //
+        // "Mapping", not "Source": for a relay coil the old label read as "where
+        // this value came from", which for an OUTPUT is backwards - nothing
+        // comes from it, it goes there. What the field actually says is which
+        // point on which device this row is mapped to, in both directions.
+        char bind[64];
+        if (have) {
+            _describe_binding(h.meta()->bind, bind, sizeof(bind));
+            // A computed row's mapping is the logic that computes it, so name
+            // the program. "computed" alone told an operator only that nothing
+            // on the bus explains the number - not where to go and look.
+            if (h.meta()->bind.transport == Vars::XP_NONE && _writer_name != nullptr) {
+                const uint8_t w = _io->writer_of(ref);
+                const char* who = _writer_name(_writer_ctx, w);
+                if (who != nullptr) {
+                    const size_t n = strlen(bind);
+                    snprintf(bind + n, sizeof(bind) - n, " (%s)", who);
+                }
+            }
+        }
+        _panel_field((uint16_t)(br + 4), "Mapping", have ? bind : nullptr);
         // Quality is likewise new: a variable nothing has written reads as its
         // default, which looks exactly like a real reading otherwise.
         //

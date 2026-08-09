@@ -502,6 +502,31 @@ TEST_CASE("scan: a later program sees what an earlier one wrote this beat") {
     }
 }
 
+TEST_CASE("scan: a computed row can be traced back to the program that wrote it") {
+    // What the MONITOR page's Mapping field turns into "computed (prog_a)".
+    // The page only formats; this is the path it formats - writer_of() gives the
+    // index, the driver turns it into a name, and neither is much use alone.
+    Live f;
+    Drives a("prog_a", "cli_temp_ext1");
+    Drives b("prog_b", "cli_temp_ext2");
+    Plc::Program* const progs[] = { &a, &b };
+    Scan::Driver d(progs, 2, &f.bank);
+
+    d.step(0);
+
+    const uint8_t w1 = f.bank.writer_of(f.ref("cli_temp_ext1"));
+    const uint8_t w2 = f.bank.writer_of(f.ref("cli_temp_ext2"));
+    REQUIRE(d.program(w1) != nullptr);
+    REQUIRE(d.program(w2) != nullptr);
+    CHECK(std::string(d.program(w1)->name()) == "prog_a");
+    CHECK(std::string(d.program(w2)->name()) == "prog_b");
+
+    // A row no program has written names nobody, rather than naming program 0.
+    const uint8_t none = f.bank.writer_of(f.ref("cli_temp_ext3"));
+    CHECK(none == WRITER_NONE);
+    CHECK(d.program(none) == nullptr);
+}
+
 TEST_CASE("plc io: a bad reference moves nothing") {
     // A program driving a row that does not exist has to be inert, not land on
     // row zero - which with the parameters leading the table is a real setting.

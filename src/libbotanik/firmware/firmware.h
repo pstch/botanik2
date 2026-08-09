@@ -875,6 +875,17 @@ namespace Botanik {
 #endif
 #if BOTANIK_FEATURE_MONITOR_PAGE
             _console.terminal().add_page(&_monitor_page);
+#if BOTANIK_FEATURE_PLC_SCAN
+            // Only this class holds both the page and the scan driver, so the
+            // join is made here rather than by widening either of them.
+            _monitor_page.set_writer_names(
+                [](const void* ctx, uint8_t w) -> const char* {
+                    const Scan::Driver* d = static_cast<const Scan::Driver*>(ctx);
+                    const Plc::Program* p = d->program(w);
+                    return (p != nullptr) ? p->name() : nullptr;
+                },
+                &_scan);
+#endif
 #endif
 #if BOTANIK_FEATURE_TASKS_PAGE
             _console.terminal().add_page(&_tasks_page);
