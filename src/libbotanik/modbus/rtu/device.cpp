@@ -5,6 +5,8 @@
 
 #include "libbotanik/modbus/rtu/device.h"
 
+#include <cstdio>
+
 #if BOTANIK_FEATURE_MODBUS_RTU_CLIENT
 
 namespace Botanik { namespace Modbus {
@@ -27,6 +29,24 @@ const DeviceModel& model_of(const DeviceTable* t, uint8_t unit) {
                 return *t->devices[i].model;
     }
     return generic_model();
+}
+
+const char* device_label(const DeviceTable* t, uint8_t unit,
+                         char* buf, uint8_t n) {
+    if (buf == nullptr || n == 0) return "";
+    const char* tag = device_tag(t, unit);
+    if (tag != nullptr && tag[0] != '\0')
+        snprintf(buf, n, "%u (%s)", (unsigned)unit, tag);
+    else
+        snprintf(buf, n, "%u", (unsigned)unit);
+    return buf;
+}
+
+const char* device_tag(const DeviceTable* t, uint8_t unit) {
+    if (t == nullptr || t->devices == nullptr) return nullptr;
+    for (uint8_t i = 0; i < t->count; ++i)
+        if (t->devices[i].unit == unit) return t->devices[i].tag;
+    return nullptr;
 }
 
 }}  // namespace Botanik::Modbus

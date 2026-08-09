@@ -58,7 +58,17 @@ namespace Botanik { namespace Sim {
         /** @name State
          *  @{ */
 
-        static const uint8_t MAX_DEVICES = 16;
+        /** @brief How many distinct units the harness can stand up.
+         *
+         *  A host-side bound, not a protocol one - each slave carries its own
+         *  register and coil image, so this is about a megabyte's worth of the
+         *  sim process and nothing else. It sat at 16 while the site grew to 20
+         *  devices, and the four past the ceiling were dropped in silence: the
+         *  firmware was correct, the bus was correct, and four units simply
+         *  never answered, which reads exactly like a wiring fault. Sized well
+         *  clear of the site now, and @c dropped() makes a future overrun say
+         *  so instead of looking like dead hardware. */
+        static const uint8_t MAX_DEVICES = 64;
 
         /** @brief How long a simulated device thinks before answering.
          *
@@ -73,6 +83,7 @@ namespace Botanik { namespace Sim {
 
         Modbus::RtuSlave _dev[MAX_DEVICES];
         uint8_t          _count = 0;
+        uint8_t          _dropped = 0;  ///< units past MAX_DEVICES, see bind()
         Vars::Bank*      _io    = nullptr;
         uint32_t         _frames = 0;   ///< requests answered, all devices
 
@@ -91,20 +102,35 @@ namespace Botanik { namespace Sim {
         void bind(Vars::Bank* io) {
             _io = io;
             _count = 0;
+            _dropped = 0;
             if (io == nullptr) return;
+
+            // Distinctness is tracked in a bitmap over the whole unit space
+            // rather than by scanning the devices already made. Both because
+            // it is O(1) per row instead of O(devices), and because the scan
+            // could only ever see units that fit: past the ceiling every row
+            // of a dropped unit read as another new device, so the count was
+            // rows, not boxes.
+            uint8_t seen[32] = {};
             for (uint16_t i = 0; i < io->count(); i++) {
                 const Vars::Variable& d = *io->var(i).meta();
                 if (d.bind.transport != Vars::XP_MODBUS || d.bind.device == 0) continue;
-                bool known = false;
-                for (uint8_t k = 0; k < _count; k++)
-                    if (_dev[k].unit() == d.bind.device) { known = true; break; }
-                if (known || _count >= MAX_DEVICES) continue;
-                _dev[_count].set_unit(d.bind.device);
+                const uint8_t u = d.bind.device;
+                if ((seen[u >> 3] & (uint8_t)(1u << (u & 7))) != 0) continue;
+                seen[u >> 3] |= (uint8_t)(1u << (u & 7));
+                if (_count >= MAX_DEVICES) { _dropped++; continue; }
+                _dev[_count].set_unit(u);
                 _count++;
             }
         }
 
         uint8_t  device_count() const { return _count; }
+
+        /** @brief Units the table names that this harness could not stand up.
+         *  Nonzero means the sim is quietly less than the site: every row on
+         *  those units will time out and look like hardware that is not there.
+         *  The caller is expected to say so. */
+        uint8_t  dropped() const      { return _dropped; }
         uint32_t frames() const       { return _frames; }
 
         /** @brief Copy this beat's simulated values into the devices, then carry

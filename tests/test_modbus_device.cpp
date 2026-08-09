@@ -39,7 +39,7 @@ TEST_CASE("modbus device: an undescribed unit gets the protocol's own limits") {
 
     // ...and so does a unit a table exists for but does not mention.
     const DeviceModel m = meter("described", 80, 2);
-    const Device rows[] = { { 5, &m } };
+    const Device rows[] = { { 5, &m, "described" } };
     const DeviceTable t = { rows, 1 };
     CHECK(std::string(model_of(&t, 5).name) == "described");
     CHECK(std::string(model_of(&t, 9).name) == std::string(generic_model().name));
@@ -57,6 +57,35 @@ TEST_CASE("modbus device: the site describes every unit its table addresses") {
         CHECK(std::string(model_of(Site::g_site.devices, d.bind.device).name)
               != std::string(generic_model().name));
     }
+}
+
+TEST_CASE("modbus device: the site names every unit it addresses") {
+    // A tag is what turns "dev 34 not answering" into a cabinet. Optional in
+    // the library - a table may leave one null - but not on a commissioned
+    // site, where a nameless unit is one somebody added without finishing.
+    const DeviceTable* t = Site::g_site.devices;
+    REQUIRE(t != nullptr);
+    for (uint8_t i = 0; i < t->count; ++i) {
+        INFO("unit " << (int)t->devices[i].unit << " has no tag");
+        REQUIRE(t->devices[i].tag != nullptr);
+        CHECK(t->devices[i].tag[0] != '\0');
+    }
+}
+
+TEST_CASE("modbus device: a device reads as its tag, and without one as itself") {
+    char buf[40];
+    const DeviceModel m = meter("m", 8, 1);
+    const Device rows[] = { { 34, &m, "SRR/TDC/RO-4" }, { 35, &m, nullptr } };
+    const DeviceTable t = { rows, 2 };
+
+    CHECK(std::string(device_label(&t, 34, buf, sizeof buf)) == "34 (SRR/TDC/RO-4)");
+    CHECK(std::string(device_label(&t, 35, buf, sizeof buf)) == "35");
+    CHECK(std::string(device_label(&t, 99, buf, sizeof buf)) == "99");
+    CHECK(std::string(device_label(nullptr, 7, buf, sizeof buf)) == "7");
+
+    // Truncates rather than running off the end.
+    char tiny[6];
+    CHECK(std::strlen(device_label(&t, 34, tiny, sizeof tiny)) == 5);
 }
 
 TEST_CASE("modbus device: the Waveshare boards are what their manuals say") {
@@ -182,8 +211,8 @@ TEST_CASE("modbus device: a tight ceiling cuts a run into more blocks") {
     const DeviceModel loose  = meter("loose",  0, 2);
     const DeviceModel strict = meter("strict", 4, 2);
 
-    const Device lrows[] = { { 5, &loose } };
-    const Device srows[] = { { 5, &strict } };
+    const Device lrows[] = { { 5, &loose, "loose" } };
+    const Device srows[] = { { 5, &strict, "strict" } };
     const DeviceTable lt = { lrows, 1 };
     const DeviceTable st = { srows, 1 };
 
@@ -212,7 +241,7 @@ TEST_CASE("modbus device: an odd row is widened, not sent to be refused") {
     bank.init();
 
     const DeviceModel pairs = meter("pairs", 80, 2);
-    const Device rows[] = { { 11, &pairs } };   // the AI board, 1-register rows
+    const Device rows[] = { { 11, &pairs, "pairs" } };   // the AI board, 1-register rows
     const DeviceTable t = { rows, 1 };
 
     Planner p;

@@ -123,6 +123,18 @@ int main(int argc, char** argv) {
     // XP_MODBUS row names is a box that has to answer.
     Sim::FieldBus fieldbus;
     fieldbus.bind(&greenhouse.io());
+    if (fieldbus.dropped() != 0) {
+        // Not a warning. A sim missing devices reports them as unanswering, so
+        // the operator debugs a bus that is fine - which is exactly what
+        // happened at 16 devices. Refuse to be a misleading harness.
+        std::fprintf(stderr,
+                     "sim: FieldBus holds %u of %u devices - %u dropped. "
+                     "Raise MAX_DEVICES in fieldbus.h.\n",
+                     (unsigned)fieldbus.device_count(),
+                     (unsigned)(fieldbus.device_count() + fieldbus.dropped()),
+                     (unsigned)fieldbus.dropped());
+        return 1;
+    }
 #endif
 #if BOTANIK_FEATURE_MODBUS_TCP_CLIENT
     // A master pointed at our own slave: it reads a parameter, writes it

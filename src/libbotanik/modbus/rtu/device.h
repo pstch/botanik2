@@ -127,10 +127,17 @@ namespace Botanik { namespace Modbus {
      *  @name The table
      *  @{ */
 
-    /** @brief One unit address on the segment, and the model answering there. */
+    /** @brief One unit address on the segment: what answers there, and what the
+     *  people who wired it call it.
+     *
+     *  @c tag is the plant's own designation - the label on the enclosure, the
+     *  one on the drawing - not the model. "dev 34 not answering" sends an
+     *  engineer to a spreadsheet; "dev 34 (SRR/TDC/RO-4) not answering" sends
+     *  them to a cabinet. Optional: null falls back to the unit number alone. */
     struct Device {
         uint8_t            unit;
         const DeviceModel* model;
+        const char*        tag;
     };
 
     /** @brief A site's devices. Borrowed and flash-resident, like every other
@@ -153,6 +160,21 @@ namespace Botanik { namespace Modbus {
      *  null or does not name it. Never returns null: an unknown device is a
      *  device we make no assumptions about, not an error. */
     const DeviceModel& model_of(const DeviceTable* t, uint8_t unit);
+
+    /** @brief What the plant calls the device at @p unit, or nullptr when the
+     *  table does not name it. Never invents one: a missing tag reads as the
+     *  bare unit number, which is what it was before anybody wrote tags. */
+    const char* device_tag(const DeviceTable* t, uint8_t unit);
+
+    /** @brief Render a device for a human: "34 (SRR/TDC/RO-4)", or bare "34"
+     *  when it has no tag.
+     *
+     *  Returns @p buf so it drops straight into a "%s" argument. One helper
+     *  rather than the same ternary at each log site, because the log lines are
+     *  read together and a device that is spelled two ways reads as two
+     *  devices. Truncates rather than overflows; @p n of 0 is a no-op. */
+    const char* device_label(const DeviceTable* t, uint8_t unit,
+                             char* buf, uint8_t n);
 
     /** @} */
 

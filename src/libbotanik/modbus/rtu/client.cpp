@@ -72,9 +72,11 @@ bool RtuClient::_due(const Block& b, uint64_t now_ms) const {
 void RtuClient::_answered(const Block& b) {
     Peer* p = &_peer[b.peer];
     if (p->misses == 0) return;
-    if (p->misses > Config::MODBUS_RETRIES && _logger != nullptr)
-        _logger->notice(Logs::SHARED_IO, "modbus: dev %u answering again",
-                        (unsigned)b.device);
+    if (p->misses > Config::MODBUS_RETRIES && _logger != nullptr) {
+        char who[40];
+        _logger->notice(Logs::SHARED_IO, "modbus: dev %s answering again",
+                        device_label(_devices, b.device, who, sizeof who));
+    }
     p->misses   = 0;
     p->probe_ms = 0;
     _publish_health();
@@ -98,10 +100,13 @@ void RtuClient::_missed(const Block& b, uint64_t now_ms) {
 
     // Once, on the way in. A device that is unplugged for a week must not be a
     // log entry every 30 seconds.
-    if (p->misses == Config::MODBUS_RETRIES + 1 && _logger != nullptr)
+    if (p->misses == Config::MODBUS_RETRIES + 1 && _logger != nullptr) {
+        char who[40];
         _logger->error(Logs::SHARED_IO,
-                       "modbus: dev %u not answering, probing every %u ms",
-                       (unsigned)b.device, (unsigned)wait);
+                       "modbus: dev %s not answering, probing every %u ms",
+                       device_label(_devices, b.device, who, sizeof who),
+                       (unsigned)wait);
+    }
     _publish_health();
 }
 
@@ -407,11 +412,14 @@ void RtuClient::_settle(uint64_t now_ms) {
         // Q_GOOD until expire_stale() catches up - and a row declared with no
         // timeout is never caught up with at all.
         if (is_read(b.fc)) invalidate_block(*_io, _plan, b, Vars::Q_REFUSED);
-        if (_logger != nullptr)
+        if (_logger != nullptr) {
+            char who[40];
             _logger->warning(Logs::SHARED_IO,
-                          "modbus: dev %u fc %u reg %u refused (exception %u)",
-                          (unsigned)b.device, (unsigned)b.fc, (unsigned)b.reg,
+                          "modbus: dev %s fc %u reg %u refused (exception %u)",
+                          device_label(_devices, b.device, who, sizeof who),
+                          (unsigned)b.fc, (unsigned)b.reg,
                           (unsigned)_framer.response().ex);
+        }
         return;
     }
 

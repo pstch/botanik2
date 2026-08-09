@@ -135,27 +135,32 @@ const Botanik::Modbus::DeviceModel MDL_WS_RELAY =
 const Botanik::Modbus::DeviceModel MDL_TEMP_RH =
     Botanik::Modbus::meter("Temp/RH sensor", 4, 2);
 
+/** @brief Every unit on the segment, and what the plant calls it.
+ *
+ *  The tags were comments here until a log line said "dev 34 not answering" and
+ *  somebody had to come back to this file to find out which cabinet that is.
+ *  They are data now, so the firmware can say it itself. */
 const Botanik::Modbus::Device g_devices[] = {
-    {  5, &MDL_SDM630 },      // SRR/TAC/MTR-1
-    {  6, &MDL_MCT1_140 },    // SRR/TAC/MTR-2
-    { 11, &MDL_WS_AI8 },      // SRR/TDC/AI-1
-    { 16, &MDL_WS_AO8 },      // SRR/TDC/AO-1
-    { 31, &MDL_WS_RELAY },    // SRR/TDC/RO-1
-    { 32, &MDL_WS_RELAY },    // SRR/TDC/RO-2
-    { 33, &MDL_WS_RELAY },    // SRR/TDC/RO-3
-    { 34, &MDL_WS_RELAY },    // SRR/TDC/RO-4
-    { 41, &MDL_TEMP_RH },     // exterior 1..3
-    { 42, &MDL_TEMP_RH },
-    { 43, &MDL_TEMP_RH },
-    { 44, &MDL_TEMP_RH },     // crawlspace 1..3
-    { 45, &MDL_TEMP_RH },
-    { 46, &MDL_TEMP_RH },
-    { 47, &MDL_TEMP_RH },     // low level 1..3
-    { 48, &MDL_TEMP_RH },
-    { 49, &MDL_TEMP_RH },
-    { 50, &MDL_TEMP_RH },     // high level 1..3
-    { 51, &MDL_TEMP_RH },
-    { 52, &MDL_TEMP_RH },
+    {  5, &MDL_SDM630,   "SRR/TAC/MTR-1" },
+    {  6, &MDL_MCT1_140, "SRR/TAC/MTR-2" },
+    { 11, &MDL_WS_AI8,   "SRR/TDC/AI-1" },
+    { 16, &MDL_WS_AO8,   "SRR/TDC/AO-1" },
+    { 31, &MDL_WS_RELAY, "SRR/TDC/RO-1" },
+    { 32, &MDL_WS_RELAY, "SRR/TDC/RO-2" },
+    { 33, &MDL_WS_RELAY, "SRR/TDC/RO-3" },
+    { 34, &MDL_WS_RELAY, "SRR/TDC/RO-4" },
+    { 41, &MDL_TEMP_RH,  "SRR/CLI/TRH-EXT-1" },
+    { 42, &MDL_TEMP_RH,  "SRR/CLI/TRH-EXT-2" },
+    { 43, &MDL_TEMP_RH,  "SRR/CLI/TRH-EXT-3" },
+    { 44, &MDL_TEMP_RH,  "SRR/CLI/TRH-CS-1" },
+    { 45, &MDL_TEMP_RH,  "SRR/CLI/TRH-CS-2" },
+    { 46, &MDL_TEMP_RH,  "SRR/CLI/TRH-CS-3" },
+    { 47, &MDL_TEMP_RH,  "SRR/CLI/TRH-LO-1" },
+    { 48, &MDL_TEMP_RH,  "SRR/CLI/TRH-LO-2" },
+    { 49, &MDL_TEMP_RH,  "SRR/CLI/TRH-LO-3" },
+    { 50, &MDL_TEMP_RH,  "SRR/CLI/TRH-HI-1" },
+    { 51, &MDL_TEMP_RH,  "SRR/CLI/TRH-HI-2" },
+    { 52, &MDL_TEMP_RH,  "SRR/CLI/TRH-HI-3" },
 };
 
 const Botanik::Modbus::DeviceTable g_device_table = {
