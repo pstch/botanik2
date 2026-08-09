@@ -196,14 +196,10 @@ TEST_CASE("alarm: releasing an override clears a condition it was holding on") {
 }
 
 TEST_CASE("alarm: a forced alarm comes down when the force does") {
-    // The platform alarms (STACK, CPU_LOAD, CPU_JITT) carry hold_on_s = 300, so
-    // a load spike stays annunciated long enough for somebody to see it. That
-    // same latch applies when an OPERATOR forces the row: override it on, take
-    // it back off, and it holds for five more minutes with nothing asserting it.
-    //
-    // That was exactly "I forced alarm_stack and it will not come down". A
-    // forced row follows the force now: the latches smooth a real signal that
-    // flaps, and a hand-held row does not flap.
+    // Platform alarms carry hold_on_s = 300 so a load spike stays annunciated.
+    // That latch must NOT apply to an operator's force: the latches smooth a
+    // real signal that flaps, and a hand-held row does not flap. Without this,
+    // releasing a forced alarm_stack left it up for five more minutes.
     AlarmBank f(HOLD_ON_TABLE, 1);
     Alarms::AlarmController m(&f.bank, nullptr);
     Vars::Var v = f.bank.var(m.condition(0).ref);

@@ -82,11 +82,12 @@ ctest --test-dir build -R pyte --output-on-failure  # just the pyte suite
 `make check` is the pre-push gate; it fails on the first problem:
 - **`botanik_strict`** - a `-Werror` mirror of the library (plain `make` stays
   warning-tolerant; this gate fails on any warning).
-- the **doctest + pyte** suites via `ctest`: one entry per `TEST_CASE` (so a
-  single case is runnable/debuggable from `ctest -R` or an IDE), plus one per
-  pyte test file. Note each case gets its own process, so a test that corrupts
-  state for later ones hides here - run `./build/tests/botanik_tests` directly
-  to put them all in one process.
+- the **doctest + pyte** suites via `ctest`: ONE entry for the whole doctest
+  binary, plus one per pyte test file. It used to be one entry per `TEST_CASE`,
+  which cost a process each (~0.6 s together against ~15 s apart, all of it ASAN
+  startup) and starved the pyte sims sharing the `-j` run. Running the cases in
+  one process is also what catches a case that corrupts state for later ones.
+  Debug a single case with `./build/tests/botanik_tests -tc=<name>`.
 
 **clang-tidy is NOT in the gate** - it is a periodic sweep, not a per-change
 check. Run it when a batch review is due:

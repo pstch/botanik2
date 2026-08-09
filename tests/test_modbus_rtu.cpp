@@ -361,16 +361,10 @@ TEST_CASE("modbus codec: every request round-trips through the parser") {
 }
 
 TEST_CASE("modbus codec: an Expect we could not have sent sizes nothing") {
-    // A quantity past the protocol's own ceiling describes a payload no frame
-    // could carry. Unreachable through the builders, which refuse it outright;
-    // this is the caller who hand-builds an Expect, which the framer and both
-    // transports all do.
-    //
-    // What is pinned is the ANSWER - ERR_COUNT, and nothing handed back - not
-    // which of the three checks produces it. Traced: with the explicit ceiling
-    // removed the byte-count comparison refuses it anyway, and the length
-    // equality after that is what actually stops a size reaching out->len. The
-    // ceiling is there to fail earlier and name the right fault.
+    // A quantity past the protocol ceiling describes a payload no frame could
+    // carry. The builders refuse it outright, so this is the hand-built Expect
+    // path. Pinned: the ANSWER (ERR_COUNT, nothing handed back), not which of
+    // the three checks gets there first.
     Response r;
     const uint8_t rsp[9] = { 0x05, 0x03, 0x04, 0x00, 0x0A, 0x00, 0x14, 0x9F, 0xFE };
 

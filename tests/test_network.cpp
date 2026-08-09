@@ -294,16 +294,10 @@ TEST_CASE("HAL::Network sim: DNS of a guaranteed-bad name fails, not pending for
 }
 
 TEST_CASE("HAL::Network sim: an off-host destination is diverted, never contacted") {
-    // The sim must never put a packet on the wire, whatever address it is handed
-    // - including a non-loopback IPv4 literal that bypasses DNS, which is what a
-    // site's real broker address is.
-    //
-    // It used to REFUSE those outright. That kept the guarantee but made the
-    // shipped configuration untestable: the moment the site declared its actual
-    // broker (192.168.1.43:58443) the sim could not connect to anything, so the
-    // MQTT state machine never ran. Diverting to the in-process responder keeps
-    // the same guarantee - the real address is never contacted - while letting
-    // the sim exercise the config the hardware will run.
+    // The sim must never put a packet on the wire, whatever address it is given
+    // - including the non-loopback literal a site's real broker address is.
+    // Such addresses are DIVERTED to the in-process responder rather than
+    // refused, so the MQTT state machine still runs against the shipped config.
     Network::Ip4 ext = {{8, 8, 8, 8}};              // clearly off-host
     uint8_t pkt[4] = {0};
 
@@ -323,11 +317,9 @@ TEST_CASE("HAL::Network sim: a listener accepts a connection and carries bytes")
     // and a byte in each direction. The sim binds this instance's own 127/8
     // address, so this runs unchanged beside every other test process.
     //
-    // NOT 502: that is Config::MODBUS_TCP_PORT, and TcpSlave has no destructor
-    // closing its listener - so the modbus tcp cases leak one and hold the port
-    // for the rest of the process. Invisible while every case had a process of
-    // its own; a real leak either way. 503 is privileged too, so the backend's
-    // port shift is still what this exercises.
+    // NOT 502 (Config::MODBUS_TCP_PORT): TcpSlave has no destructor closing its
+    // listener, so the modbus tcp cases leak one and hold that port for the rest
+    // of the process. 503 is privileged too, so the port shift still applies.
     const uint16_t PORT = 503;                  // privileged: the backend shifts it
     Network::TcpSocket srv = Network::tcp_listen(PORT);
     REQUIRE(srv >= 0);

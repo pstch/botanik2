@@ -357,13 +357,10 @@ TEST_CASE("present: rows revealed by a band scroll go out oldest first") {
     CHECK(older < newer);
 }
 
-// Chrome is not one contiguous band: the status bar is row 0, the alarms legend
-// sits mid-screen and the alarm strip is the bottom row. So the class routinely
-// parks the walk below one of its own rows - and reaching the bottom from there
-// does not mean the class is done. Letting the page through at that point is a
-// priority inversion: the alarms table painted while the legend above it waited a
-// tick, which is exactly the frame-after-what-it-frames case PRIO_CHROME exists
-// to prevent.
+// Chrome is not one contiguous band (status bar row 0, legend mid-screen, alarm
+// strip at the bottom), so reaching the bottom does not mean the class is done.
+// Letting the page through there is a priority inversion: the alarms table
+// painted while the legend above it waited a tick.
 TEST_CASE("present: chrome above the parked walk still beats the page") {
     TermFixture f(20, 12, BAUD_2ROWS);
     f.term.set_row_priority(1, Terminal::PRIO_CHROME);    // legend, mid-screen
@@ -566,21 +563,10 @@ TEST_CASE("editor bytes: inserting at the line head repaints one row, not the sc
     CHECK(cost <= 28);          // a DCH/insert-mode shift, not a row rewrite
 }
 
-// A head insert that also grows the editor by a soft-wrapped row: every row
-// below reflows one column sideways, and the body gains a row.
-//
-// This case does NOT ride a band scroll, despite what this test used to be
-// called. _grow_editor() asks for one, but present() only emits a DL/IL when
-// that beats repainting the band, and here it does not: the frame is one IRM
-// shift per reflowed row (ESC[4h/ESC[4l) and no scroll escape at all.
-//
-// Nor can the budget pin the scroll. Removing the scroll_region() call outright
-// makes this frame CHEAPER, not dearer - 43 bytes against 59 - because the
-// editor then renders from a stale origin instead of paying for the shift. An
-// upper bound passes the broken case by construction. What survives is the
-// honest claim: a head insert into a multi-row editor costs a per-row shift,
-// not a body rewrite (which runs to several hundred bytes). The rendered result
-// is pinned where it can be seen, by the pyte reconcile scenarios.
+// A head insert that grows the editor by a soft-wrapped row: every row below
+// reflows one column sideways. The claim is that this costs a per-row IRM shift
+// (ESC[4h/ESC[4l), not a body rewrite of several hundred bytes. No scroll
+// escape is emitted - present() only uses DL/IL when it beats repainting.
 TEST_CASE("editor bytes: a head insert that grows the editor shifts rows, not rewrites them") {
     EditorBytes f;
     // Fill well past one row (80 cols) so the editor is several rows tall.
@@ -629,16 +615,11 @@ TEST_CASE("editor bytes: a hard break costs a scroll plus the new row") {
     CHECK(cost <= 120);
 }
 
-// The case where a row moves vertically AND slides sideways at once: editing at
-// the head of a multi-row input reflows every row below by a column, while the
-// editor also grows or shrinks a row. Neither optimization catches a row that
-// did both - the shift detection compares a row against the same row in the
-// back-buffer - so the reconcile must not displace rows the reflow left in
-// place. A soft-wrap row appears at the bottom, so the bottom-pinned grow has
-// already positioned everything: an IL below the edit would push each reflowed
-// row out from under the shift detection and cost a full rewrite each.
-//
-// The budgets below are per-row: one shift escape each, not one row rewrite each.
+// A row that moves vertically AND slides sideways at once. Shift detection
+// compares a row against the SAME row in the back-buffer, so the reconcile must
+// not displace rows the reflow left in place - an IL below the edit would push
+// each one out from under it and cost a full rewrite. Budgets are per-row: one
+// shift escape each.
 TEST_CASE("editor bytes: head edits reflow rows without rewriting them") {
     // 80 columns exactly, so each typed block fills one row with no wrap slack.
     const char* ROW = "0123456789abcdefghijklmnopqrstuvwxyz0123456789"
@@ -692,13 +673,11 @@ TEST_CASE("editor bytes: a hard break still slides the rows below it") {
     CHECK(f.flush().empty());                 // and it converged
 }
 
-// The same head edit at the link baud the sim (and the installation) actually
-// runs at. Every case above uses a baud high enough that present()'s per-tick
-// budget never binds, which is exactly what hid this: a shift refused for want
-// of budget used to fall through to the run loop, whose oversized-run escape
-// then emitted the full-row rewrite past the same budget - so the tail was
-// repainted per keystroke precisely when bytes were scarcest. A refused shift
-// now defers the row to the next tick, where the escape fits.
+// The same head edit at the baud the installation runs at. The cases above use
+// a baud where present()'s per-tick budget never binds, which is what hid the
+// bug: a shift refused for want of budget fell through to a full-row rewrite,
+// repainting the tail per keystroke exactly when bytes were scarcest. A refused
+// shift now defers the row to the next tick.
 TEST_CASE("editor bytes: a paced link still shifts rows rather than rewriting them") {
     const char* ROW = "0123456789abcdefghijklmnopqrstuvwxyz0123456789"
                       "ABCDEFGHIJKLMNOPQRSTUVWXYZ01234567";   // 80 cols

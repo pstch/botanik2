@@ -189,13 +189,9 @@ TEST_CASE("site: nothing the site touches fails to resolve") {
          "that is not in vars.h; the bank logs which one");
     CHECK(f.bank.unresolved_count() == 0);
 
-    // Nothing the site RUNS may write a parameter. Bank::set() is the only way
-    // one legitimately moves, and that is the operator's path (the shell, the
-    // PARAMS page) - never a control program or the simulated field. This is
-    // the check that catches a write aimed at a row nobody meant: an index that
-    // is stale or simply zero lands somewhere real, and with the parameters
-    // leading the table, zero is the first config row rather than a harmless
-    // one. Names cannot drift, but a leftover index still can.
+    // Nothing the site RUNS may write a parameter - Bank::set() is the
+    // operator's path alone. Catches a write aimed at a row nobody meant: names
+    // cannot drift, but a stale index can, and index zero is a real config row.
     for (uint16_t k = 0; k < f.bank.param_count(); k++) {
         const Vars::Var h = f.bank.param(k);
         if (h.meta()->type == Vars::T_STR) continue;   // lives in the pool
@@ -207,16 +203,11 @@ TEST_CASE("site: nothing the site touches fails to resolve") {
 
 #if BOTANIK_FEATURE_SUN_TRACKER
 TEST_CASE("site: the standalone components resolve their config names too") {
-    // The catch-all above runs what the SiteDescriptor bundles. A standalone
-    // component is not in it - BotanikFirmware never instantiates the sun
-    // tracker, a site owns the instance - so the names it looks up are reached
-    // by no table walk and no task run. They are string literals in
-    // sun/sun_tracker.cpp, and a miss reads 0 rather than failing.
-    //
-    // It had drifted exactly that way: the tracker reads geo_lat_deg/geo_lon_deg
-    // and the test fixture declared geo_latitude/geo_longitude, so both sides
-    // resolved to the sink and the site sat on the equator at 0 N 0 E, with a
-    // 12-hour day all year. Nothing failed, because nothing looked.
+    // A standalone component is not in the SiteDescriptor, so the names it looks
+    // up are reached by no table walk and no task run - and a miss reads 0
+    // rather than failing. It had drifted exactly so: the tracker read
+    // geo_lat_deg/geo_lon_deg against a fixture declaring geo_latitude, putting
+    // the site on the equator with a 12-hour day all year, and nothing looked.
     SiteBank f;
     Logs::Logger logger;
     Sun::SunPositionTracker sun(&f.bank, &logger);
