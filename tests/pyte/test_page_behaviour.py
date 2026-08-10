@@ -100,6 +100,31 @@ def test_monitor_group_modes(spawn):
     assert term.wait_screen("[all]"), "BACKSPACE did not reset to the all-groups view"
 
 
+# The six per-phase site hooks are registered as tasks of their own, so a slow one
+# is attributable on the TASKS page rather than hidden inside the base. They are
+# also what the task table is most likely to overflow on, and MAX_TASKS refusals
+# are counted and logged rather than fatal - so a hook that never registered
+# would simply never run, silently.
+def test_every_site_hook_is_registered(spawn):
+    term = goto(boot(spawn), keys.ALT_7)
+    want = {"site_input", "site_config", "site_service",
+            "site_control", "site_output", "site_present"}
+    seen = set()
+
+    def scan():
+        for row in term.view():
+            seen.update(w for w in want if w in row)
+        return want <= seen
+
+    # The table is taller than the screen and sorted by name, so the hooks are
+    # spread through it: scan what is visible, scroll, repeat.
+    for _ in range(40):
+        if term.until(scan, max_beats=200):
+            break
+        term.send(keys.DOWN)
+    assert want <= seen, "not registered (MAX_TASKS overflow?): %s" % sorted(want - seen)
+
+
 def _group(term):
     """The group name in the footer's [brackets], or None."""
     m = re.search(r"\[([a-z_]+)\]", term.snapshot())

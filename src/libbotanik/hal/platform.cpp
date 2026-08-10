@@ -573,8 +573,23 @@ namespace Botanik { namespace HAL {
         // Manual clock: a fixed epoch plus simulated uptime, so every run stamps
         // its logs and status bar identically. 2026-01-01T00:00:00Z.
         if (_manual_clock()) return 1767225600000ull + _now_as<std::chrono::milliseconds>();
-        return (uint64_t)std::chrono::duration_cast<std::chrono::milliseconds>(
-            std::chrono::system_clock::now().time_since_epoch()).count();
+
+        const uint64_t host = (uint64_t)std::chrono::duration_cast<
+            std::chrono::milliseconds>(
+                std::chrono::system_clock::now().time_since_epoch()).count();
+        if (_time_scale() <= 1) return host;
+
+        // Dilated: the wall clock has to run in the SAME time base as uptime.
+        // Left on the host clock it does not, and Utils::_boot_epoch_ms() caches
+        // `wall - uptime` expecting that difference to hold still: it instead
+        // slides by (scale - 1) per ms, crosses the RTC-step threshold at
+        // unpredictable moments, and re-latches. The visible result is a
+        // calendar clock that sawtooths - measured at scale 50, 189 backward
+        // jumps in 8 s, oscillating over a 1 s span while uptime raced ahead.
+        // So latch the host clock ONCE and advance it with the dilated reading.
+        static const uint64_t epoch =
+            host - _now_as<std::chrono::milliseconds>();
+        return epoch + _now_as<std::chrono::milliseconds>();
     }
 
     /// No-op: the host system clock is the wall-clock source on the simulator.
