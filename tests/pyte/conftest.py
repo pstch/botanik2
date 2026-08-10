@@ -231,7 +231,7 @@ def _sim_binary(config):
         # broken run, not an absent capability. A skip here would let the whole
         # suite report green having asserted nothing.
         pytest.fail(f"simulator binary not built: {sim}\n"
-                    f"build it with: make -C <build> pyte-sim")
+                    f"build it with: make -C <build> botanik_sim")
     return sim
 
 

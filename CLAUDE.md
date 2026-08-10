@@ -78,8 +78,8 @@ Host-only, SIMULATOR build. There are two suites, both wired into CTest:
   can address a single case (`-tc=<name>` does the same from the CLI).
 - **pyte** Python screen-assertion tests in `tests/pyte/` that drive `botanik_sim` over a
   PTY and assert its rendered ANSI screen against golden captures. Registered only when
-  `pytest`+`pyte` are importable; they run against a dedicated RELEASE no-sanitizer sim
-  (timing budget). Regenerate goldens with `make -C build pytest-update` (review the diff;
+  `pytest`+`pyte` are importable; they run against this tree's own `botanik_sim`.
+  Regenerate goldens with `make -C build pytest-update` (review the diff;
   never part of the gate).
 
 ```bash
@@ -97,9 +97,9 @@ ctest --test-dir build -R pyte --output-on-failure  # just the pyte suite
 `src/` first (so a finding stops it before it pays for an instrumented rebuild),
 then the whole `check` gate again in `build/asan/` under ASan+UBSan. It drives
 that tree's own `check` target rather than a second list of commands, so the two
-cannot drift. One asymmetry: the pyte half is NOT instrumented and cannot be -
-its sim comes from a nested sub-build that pins RELEASE and `BOTANIK_SANITIZE=OFF`
-unconditionally, because those tests need a sim that is not sanitizer-slow.
+cannot drift. Both halves are instrumented, screen tests included: the pyte
+entries drive that tree's own sim, so a fault in the rendering path is caught
+under the sanitizers like any other.
 
 `make check` is the pre-push gate; it fails on the first problem:
 - the **warning gate**, which is no longer a separate target: the library compiles
@@ -137,12 +137,10 @@ dependency scanner). Re-configuring, or editing `.clang-tidy`, invalidates every
 stamp: the lint depends on the exact compile flags and check set, not only on the
 source text.
 
-The pyte suite needs its own release sim (RELEASE, no sanitizers, built in a
-sub-tree under `build/pyte-sim/`). It is part of `all`, so a plain `make` builds
-it and `make test` / `ctest` then have it - CTest itself never builds anything,
-and CMake's built-in `test` target cannot be given dependencies. A screen test
-that finds the sim missing fails loudly; it used to skip, which CTest reported as
-`Passed`.
+The pyte suite drives `botanik_sim`, which a plain `make` builds, so `make test` /
+`ctest` then have it - CTest itself never builds anything, and CMake's built-in
+`test` target cannot be given dependencies. A screen test that finds the sim
+missing fails loudly rather than skipping, which CTest would report as `Passed`.
 
 ## Architecture
 

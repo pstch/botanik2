@@ -23,9 +23,9 @@ moves, IL/DL, the line editor's reconciliation) that a source diff cannot.
   do not shrink. The suite is CPU-bound (wall ~= user+sys), so what helps is
   doing less: fewer boots, content sync instead of quiet windows, and not
   normalizing the same screen twice.
-- **Release sim only** (`build/pyte-sim/`, RELEASE, no sanitizers). A debug+ASAN
-  build is too slow per dilated tick. `make -C build` does **not** rebuild it -
-  run `make -C build pyte-sim`, or the suite silently tests a stale binary.
+- **The tree's own sim** (`build/botanik_sim`), built by a plain `make -C build`.
+  Under `check-full` that sim is instrumented like everything else, which costs
+  wall time per dilated tick: raise `--time-scale` there rather than lowering it.
 - **A fast-living greenhouse is the point, and the hazard.** At scale 50 the mock
   plant lives 50x faster, so alarms cycle and the log tail floods while a test
   looks at the screen. `normalize.py` masks the cells that move, `drop_log_lines`
@@ -107,7 +107,7 @@ never fails configure and never installs.
 ```sh
 ctest --test-dir build -R pyte --output-on-failure
 make -C build check                                  # part of the gate
-pytest tests/pyte --sim build/pyte-sim/botanik_sim   # or set BOTANIK_SIM
+pytest tests/pyte --sim build/botanik_sim            # or set BOTANIK_SIM
 ```
 
 One CTest entry per test **file** (a glob at configure time). Per-function
@@ -192,7 +192,7 @@ replaces, and `<ALARM_TS>` pads to the stamp it replaces for the same reason.
 ## Regenerating
 
 ```sh
-make -C build pyte-sim        # goldens capture a STALE sim otherwise
+make -C build                 # goldens capture a STALE sim otherwise
 make -C build pytest-update
 ```
 
