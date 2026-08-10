@@ -53,7 +53,7 @@ def _copied_name(term):
         was, prev[0] = prev[0], name
         return was == name
 
-    assert term.poll(settled), "Alt+W did not report a copy"
+    assert term.until(settled), "Alt+W did not report a copy"
     return _badge_name(term)
 
 
@@ -81,5 +81,5 @@ def test_alt_w_copies_the_row_the_cursor_is_on(spawn):
 
     term.send(keys.DOWN)
     term.send(keys.ALT_W)
-    assert term.poll(lambda: _badge_name(term) not in (None, first)), \
+    assert term.until(lambda: _badge_name(term) not in (None, first)), \
         f"the badge still names {first!r} after moving the cursor"

@@ -23,6 +23,9 @@
 #include "botanik_sim/network.h"        // the in-process mock NTP/MQTT responder (loopback)
 #endif
 
+
+#include "botanik_sim/clockctl.h"       // the manual-clock driver (BOTANIK_SIM_CLOCK=manual)
+
 // The scheduler's stack-usage scan paints the free stack, so it needs locals on
 // the real stack. ASan's use-after-return check relocates them to a heap "fake
 // stack" and the scan then reports a constant STACK_SCAN_LIMIT, so turn that one
@@ -85,8 +88,8 @@ int main(int argc, char** argv) {
     greenhouse.setup();
 
 #if BOTANIK_FEATURE_NETWORK
-    // Mock NTP/MQTT responder on loopback. Spawned before we lock process
-    // memory (mlockall MCL_FUTURE), like any other thread we create.
+    // Mock NTP/MQTT responder on loopback. Binds here so the firmware's first
+    // query has somewhere to land; the beat loop below services it.
     Network::start_mock_netd();
 #endif
 
@@ -140,7 +143,23 @@ int main(int argc, char** argv) {
 
     // Drive the firmware until a shutdown signal flips the run flag. SIGUSR1
     // re-execs at this safe point between iterations.
+
+    // Manual clock: the harness owns the passage of time. Nothing advances
+    // between commands, so the loop blocks on the control fd rather than
+    // spinning against a clock that will not move.
+    const bool manual = HAL::_manual_clock() && Sim::ctl_fd() >= 0;
+    int pending_beats = 0;
+    if (manual) Sim::ctl_ack();      // ready; also what a re-exec announces itself with
+
     while (botanik_running) {
+        if (manual) {
+            if (pending_beats == 0) {
+                pending_beats = Sim::ctl_next_command();
+                if (pending_beats == 0) break;      // QUIT, or the harness left
+            }
+            Sim::ctl_advance_one_beat();
+            --pending_beats;
+        }
         // The field is serviced ONCE PER BEAT, and loop() says when one ran:
         // unguarded, this would run tens of times per beat, giving a simulated
         // bus quicker than any real one and charging the spin to the duty metric.
@@ -151,6 +170,11 @@ int main(int argc, char** argv) {
         // phase - one turnaround, like a real device.
         if (greenhouse.loop()) {
             Site::simulate(greenhouse.io(), (uint32_t)HAL::Clock::uptime_ms());
+#if BOTANIK_FEATURE_NETWORK
+            // The mock NTP/MQTT peer, serviced like the field bus: one
+            // non-blocking pass per beat, on this thread.
+            Network::netd_step();
+#endif
 #if BOTANIK_FEATURE_MODBUS_RTU_SERVER
             fieldbus.step(HAL::Clock::uptime_ms());
 #endif
@@ -160,6 +184,7 @@ int main(int argc, char** argv) {
             if (mbcheck_on) modbus_check.step(HAL::Clock::uptime_ms());
 #endif
         }
+        if (manual && pending_beats == 0) Sim::ctl_ack();
         if (botanik_reexec) HAL::System::reset();
     }
 

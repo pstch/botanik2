@@ -86,7 +86,7 @@ def test_monitor_group_modes(spawn):
     # goes: the footer repaints a cell at a time, so the first frame without
     # "[all]" can still hold half of the new label.
     term.send(keys.SPACE)
-    assert term.poll(lambda: _group(term) not in (None, "all")), \
+    assert term.until(lambda: _group(term) not in (None, "all")), \
         "SPACE did not enter a group"
     entered = _group(term)
 

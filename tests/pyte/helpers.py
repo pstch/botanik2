@@ -91,6 +91,6 @@ def assert_editor(term, *rows, **kw):
         view = term.view()
         return drop_log_lines(strip_noise(view[clip[0]:clip[1]] if clip else view))
 
-    term.poll(lambda: got() == want)
+    term.until(lambda: got() == want)
     assert got() == want, "editor screen mismatch\n  want: %s\n  got:  %s" % (
         "\n        ".join(want), "\n        ".join(got()))

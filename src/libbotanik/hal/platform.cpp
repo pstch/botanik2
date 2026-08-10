@@ -505,6 +505,16 @@ namespace Botanik { namespace HAL {
         return scale;
     }
 
+    bool _manual_clock() {
+        static const bool manual = []() -> bool {
+            const char* s = getenv("BOTANIK_SIM_CLOCK");
+            return s != nullptr && strcmp(s, "manual") == 0;
+        }();
+        return manual;
+    }
+
+    uint64_t& _virtual_ns() { static uint64_t ns = 0; return ns; }
+
 
     /** @name Hardware identity
      *  @{ */
@@ -560,6 +570,9 @@ namespace Botanik { namespace HAL {
     }
 
     uint64_t wall_ms() {
+        // Manual clock: a fixed epoch plus simulated uptime, so every run stamps
+        // its logs and status bar identically. 2026-01-01T00:00:00Z.
+        if (_manual_clock()) return 1767225600000ull + _now_as<std::chrono::milliseconds>();
         return (uint64_t)std::chrono::duration_cast<std::chrono::milliseconds>(
             std::chrono::system_clock::now().time_since_epoch()).count();
     }
@@ -568,6 +581,9 @@ namespace Botanik { namespace HAL {
     void set_wall_ms(uint64_t /*unix_ms*/) {}
 
     void sleep_ms(uint32_t ms) {
+        // Manual clock: a sleep IS the passage of time, so advance rather than
+        // block - otherwise the caller waits for a clock nothing will move.
+        if (_manual_clock()) { _virtual_ns() += (uint64_t)ms * 1000000u; return; }
         // uint64 product: ms*1000 overflows uint32 for ms > ~71 min.
         // scaled to the sped-up clock
         usleep((useconds_t)((uint64_t)ms * 1000u / _time_scale()));

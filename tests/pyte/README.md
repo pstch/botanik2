@@ -10,7 +10,12 @@ moves, IL/DL, the line editor's reconciliation) that a source diff cannot.
 - **PTY, not a pipe:** `RawSerial::availableForWrite()` uses `ioctl(TIOCOUTQ)`,
   which only answers on a tty. A pipe would bypass the baud throttle and the TX
   back-pressure the tests exist to exercise.
-- **Speed via `BOTANIK_TIME_SCALE`, never a higher baud.** Console baud is
+- **The tests drive the clock.** The sim advances one beat per command over a
+  control pipe (`BOTANIK_SIM_CLOCK=manual`), so a wait is bounded in BEATS
+  rather than host seconds: the same run gives the same screen whatever else the
+  box is doing, and a failure costs the beats instead of waiting 15 s to see
+  whether more output was coming.
+- **Never a higher baud.** Console baud is
   compile-time (`Config::CONSOLE_BAUD`, 4800) and the terminal derives its
   per-render byte budget from it, so raising the wire speed alone would just
   leave the renderer pacing for 4800. Dilating the clock keeps every byte/event

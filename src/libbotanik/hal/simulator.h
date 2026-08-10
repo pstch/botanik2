@@ -37,6 +37,14 @@ namespace Botanik { namespace HAL {
      *  Default 1, clamped >= 1. */
     uint32_t _time_scale();
 
+    /** @brief BOTANIK_SIM_CLOCK=manual: time advances only when the harness asks
+     *  (see _virtual_ns), never from the host clock. Read once. */
+    bool _manual_clock();
+
+    /** @brief The manual clock's reading, in ns of simulated time. Only the
+     *  harness driver writes it; every clock below reads it. */
+    uint64_t& _virtual_ns();
+
     /** @brief Elapsed time since process start, in the duration type T. The
      *  time-scale multiply is __int128 over nanoseconds (sim is x86-64 only):
      *  full precision without overflowing at the far timepoints dilation exists
@@ -45,6 +53,7 @@ namespace Botanik { namespace HAL {
     inline uint64_t _now_as() {
         const int64_t ns_per_unit =
             std::chrono::duration_cast<std::chrono::nanoseconds>(T(1)).count();
+        if (_manual_clock()) return (uint64_t)(_virtual_ns() / (uint64_t)ns_per_unit);
         __int128 ns = (__int128)std::chrono::duration_cast<std::chrono::nanoseconds>(
                           std::chrono::steady_clock::now() - _process_start()).count();
         return (uint64_t)(ns * _time_scale() / ns_per_unit);
