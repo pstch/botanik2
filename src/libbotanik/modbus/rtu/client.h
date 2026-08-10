@@ -146,7 +146,10 @@ namespace Botanik { namespace Modbus {
         /** @brief The library's field-bus rows, resolved by name once at
          *  bring-up. @see modbus/rtu/alarms.h */
         Vars::VarRef _alarm_ref;
+        Vars::VarRef _line_ref;
         Vars::VarRef _dead_ref;
+        Vars::VarRef _crc_ref;
+        Vars::VarRef _stray_ref;
         uint64_t            _since_ms = 0;     ///< when the current state was entered
 
         /** @name Counters

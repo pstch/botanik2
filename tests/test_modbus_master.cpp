@@ -577,6 +577,34 @@ TEST_CASE("modbus slow: a unit that declares its own deadline is not") {
     CHECK(m.client.dead_count() == 0);
 }
 
+TEST_CASE("modbus line: one device quiet is not the same fault as all of them") {
+    // F4. A babbling unit corrupts whichever transaction is in flight, so the
+    // miss is charged to whoever was being polled and every healthy device is
+    // faulted in turn. From the boolean alone that reads as twenty devices
+    // failing at once, which is the one hypothesis that is certainly wrong.
+    LiveBus m;
+    const Vars::VarRef dead_ref = m.bank.find("alarm_fieldbus");
+    const Vars::VarRef line_ref = m.bank.find("alarm_fieldbus_line");
+    REQUIRE(dead_ref.index != Vars::VAR_NONE);
+    REQUIRE(line_ref.index != Vars::VAR_NONE);
+
+    const uint8_t units = m.client.peer_count();
+    REQUIRE(units > 1);
+
+    // One device down: the bus is faulty, the segment is not.
+    m.bus.set_fault(m.client.peer_unit(0), Sim::FieldBus::FAULT_ABSENT);
+    REQUIRE(m.until([&] { return m.client.dead_count() == 1; }, 4000));
+    CHECK(as_bool(Vars::T_BOOL, m.bank.var(dead_ref).raw()));
+    INFO("1 of " << (unsigned)units << " devices quiet");
+    CHECK_FALSE(as_bool(Vars::T_BOOL, m.bank.var(line_ref).raw()));
+
+    // The whole segment: same boolean, different fault, different engineer.
+    for (uint8_t p = 1; p < units; ++p)
+        m.bus.set_fault(m.client.peer_unit(p), Sim::FieldBus::FAULT_ABSENT);
+    REQUIRE(m.until([&] { return m.client.dead_count() == units; }, 20000));
+    CHECK(as_bool(Vars::T_BOOL, m.bank.var(line_ref).raw()));
+}
+
 TEST_CASE("modbus fault: a dead output device does not pin the safe-state urgency") {
     // F1. The clearing sweep walks every write block; one on a backed-off device
     // is dirty and stays dirty, so without the _due() test the sweep never comes

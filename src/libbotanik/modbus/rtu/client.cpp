@@ -38,7 +38,10 @@ void RtuClient::on_setup(uint64_t now_ms) {
     for (uint8_t i = 0; i < _plan.device_count(); ++i) _peer[i] = Peer();
     // Resolved once, by name, like every other consumer of the bank.
     _alarm_ref = _io->find("alarm_fieldbus");
+    _line_ref  = _io->find("alarm_fieldbus_line");
     _dead_ref  = _io->find("sys_fieldbus_dead");
+    _crc_ref   = _io->find("sys_fieldbus_crc");
+    _stray_ref = _io->find("sys_fieldbus_stray");
     _publish_health();
 
     if (_logger == nullptr) return;
@@ -155,6 +158,20 @@ void RtuClient::_publish_health() {
     // boolean, and the status value is published to MQTT and the TCP slave.
     _io->var(_alarm_ref).set(_dead != 0);
     _io->var(_dead_ref).set_i((int64_t)_dead);
+
+    // Every planned device at once is not twenty devices failing, it is the
+    // segment. Guarded on _dead so a plan with no devices in it does not read as
+    // a dead line.
+    _io->var(_line_ref).set(_dead != 0 && _dead == _plan.device_count());
+
+    // The framer has always kept these apart because they point at different
+    // physical faults; until now nothing read them. Saturating rather than
+    // wrapping: a counter that rolls over to nothing reads as a bus that
+    // recovered.
+    const uint32_t crc   = _framer.crc_errors();
+    const uint32_t stray = _framer.stray_bytes() + _stale_rx;
+    _io->var(_crc_ref).set_i((int64_t)(crc   > 65535u ? 65535u : crc));
+    _io->var(_stray_ref).set_i((int64_t)(stray > 65535u ? 65535u : stray));
 }
 
 void RtuClient::_enter(State s, uint64_t now_ms) {
@@ -525,6 +542,10 @@ void RtuClient::receive_step(uint64_t now_ms) {
         _gap_ms = (m.min_gap_ms > Config::MODBUS_GAP_MS) ? m.min_gap_ms
                                                          : Config::MODBUS_GAP_MS;
     }
+    // Once per transaction, not only on a health transition: the two counter
+    // rows move with the frames and not with the device set.
+    _publish_health();
+
     _framer.disarm();
     _active = NO_BLOCK;
     _enter(MB_GAP, now_ms);

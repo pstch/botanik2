@@ -10,8 +10,8 @@ Everything here is `modbus/rtu/`. The TCP corners are untouched.
 Phases are ordered so each one is safe to stop after. Phase 0 comes first because
 none of the rest is verifiable without it.
 
-**Status.** Phases 0.1 and 1 to 4 are done on `mb-solidify`. What is left is the
-diagnosis rows (5) and the documentation (6).
+**Status.** Phases 0.1 and 1 to 5 are done on `mb-solidify`. What is left is the
+documentation sweep (6).
 
 One thing phase 0 turned up that the plan did not predict: the simulator paces
 its bytes against the HOST clock, so a test stepping a virtual beat sees the port
@@ -330,9 +330,9 @@ planned the other nineteen devices as generic and tested two things at once.
 
 ---
 
-## Phase 5 - diagnosis
+## Phase 5 - diagnosis [DONE]
 
-### 5.1 A line fault is not twenty device faults (F4)
+### 5.1 A line fault is not twenty device faults (F4) [DONE]
 
 A babbling unit, a duplicate address or a second master corrupts whichever
 transaction is in flight, and `_missed()` charges it to whichever device was
@@ -347,7 +347,12 @@ remediation note naming termination, stubs and a second master. The distinction
 is worth a row of its own because "the segment is gone" and "a sensor is gone"
 send different people with different tools.
 
-### 5.2 Publish what the framer already knows
+**As built:** register **998**, not 997 as first written - 997 is the scan
+cycle's `alarm_scan_late`. The site test caught the collision, which is what it
+is for; the library's 990-999 reserve is now 990-995 platform, 996 field bus, 997
+scan, 998 line.
+
+### 5.2 Publish what the framer already knows [DONE]
 
 `timeouts`, `crc_errors`, `bad_frames`, `stray_bytes` and `_stale_rx` are kept
 apart precisely because they point at different physical faults, and nothing
@@ -355,6 +360,15 @@ reads any of them. Surface the split in the `modbus` shell command, and the two
 that an operator away from the console needs as status rows. A bus failing on CRC
 errors is a wiring or termination fault; one failing on clean timeouts is a power
 or addressing fault.
+
+**As built:** a `Line` row in `modbus` carrying crc / bad frame / timeout / stray
+bytes, plus a line naming the segment when every device is quiet, and two status
+rows - `sys_fieldbus_crc` (903) and `sys_fieldbus_stray` (904, the framer's stray
+bytes plus the client's own `_stale_rx`, since both mean "something talked out of
+turn"). Both saturate at 65535 rather than wrapping: a counter that rolls over to
+nothing reads as a bus that recovered. They are written once per transaction
+rather than only on a health transition, because they move with the frames and
+not with the device set.
 
 ---
 

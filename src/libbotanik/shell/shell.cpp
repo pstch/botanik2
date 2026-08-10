@@ -1142,6 +1142,17 @@ namespace Botanik { namespace Shell {
                      (unsigned long)rtu->stale_rx());
             _line("  Transactions .......", val);
 
+            // The framer has always kept these apart because they point at
+            // different physical faults, and until now nothing read them: a bus
+            // failing on CRC is a cable, a terminator or the wrong baud; one
+            // failing on clean timeouts is power or addressing; and bytes out of
+            // turn are a second master or a duplicate address.
+            const Modbus::RtuFramer& fr = rtu->framer();
+            snprintf(val, sizeof(val), "%lu crc, %lu bad frame, %lu timeout, %lu stray B",
+                     (unsigned long)fr.crc_errors(), (unsigned long)fr.bad_frames(),
+                     (unsigned long)fr.timeouts(), (unsigned long)fr.stray_bytes());
+            _line("  Line ...............", val);
+
             // Unplanned rows are signals that will never be scanned: a critical
             // at bring-up, repeated here rather than only in a log.
             if (plan.rows_dropped() != 0 || plan.rows_unscanned() != 0) {
@@ -1153,6 +1164,13 @@ namespace Botanik { namespace Shell {
 
             if (rtu->safe_state_pending())
                 _println("  (safe state owed to the field)");
+
+            // Twenty devices do not fail at once. Said here as well as in the
+            // alarm, because this is the screen an engineer is already looking
+            // at when they ask which cabinet to walk to.
+            if (rtu->peer_count() != 0 && rtu->dead_count() == rtu->peer_count())
+                _println("  (the whole segment is quiet: trunk, termination, "
+                         "this unit's transceiver, or a second master)");
 
             // Counts only: twenty units is a screenful that would push the plan
             // and the state off the top. WHICH ones is `modbus devices`.
