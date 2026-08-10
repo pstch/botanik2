@@ -130,12 +130,6 @@ make -C build clang-tidy       # incremental: one stamp per TU under build/clang
 rm -rf build/clang-tidy && make -C build clang-tidy   # the whole tree, ignoring stamps
 ```
 
-There is no `clang-tidy-all` target: dropping the stamp directory IS the full
-re-lint, and a second target would have been a second way to say it. Worth
-knowing because a `make` invocation naming a target that does not exist fails
-with `No rule to make target`, and a grep for `warning:` over that output comes
-back empty - which reads exactly like a clean sweep.
-
 It runs the `bugprone-*` checks from `.clang-tidy` with findings promoted to
 errors, and exists only when `clang-tidy` was found at configure time AND the
 generator is Make (the stamps' header tracking is the Makefile generator's own

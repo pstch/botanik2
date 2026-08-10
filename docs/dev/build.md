@@ -104,7 +104,6 @@ It is a periodic sweep, run when a batch review is due - not a per-change check.
 make -C build clang-tidy       # incremental: one stamp per TU under build/clang-tidy/,
                                # so only sources whose text or included headers
                                # changed are re-analysed (Makefile generator only)
-make -C build clang-tidy-all   # the whole tree, ignoring the stamps
 rm -rf build/clang-tidy        # force a full re-lint next time
 ```
 

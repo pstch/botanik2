@@ -79,7 +79,6 @@ doctest_discover_tests(botanik_tests PROPERTIES LABELS unit)
 # edit, and its bugprone-* findings are the kind you review in a batch rather
 # than react to one at a time. Run it on its own when that batch is due:
 #     make clang-tidy        # incremental, one stamp per TU
-#     make clang-tidy-all    # the whole tree, ignoring stamps
 #
 # The gate runs ctest in parallel (-j): the doctest cases and, now, the per-test
 # pyte entries are independent, so a multi-core host clears the suite far faster.
@@ -125,11 +124,7 @@ add_custom_target(check-full
     COMMENT "Sweep: clang-tidy + the full gate under ASan+UBSan (build/asan/)"
     VERBATIM
 )
-# Guarded: the clang-tidy target only exists when clang-tidy was found at configure
-# time and the generator is Make (see the top-level CMakeLists). Without the guard
-# a tree without it fails to configure rather than simply skipping the lint. As a
-# DEPENDS it runs BEFORE the commands above, so a lint finding stops the sweep
-# before it pays for an instrumented rebuild.
+# Guarded: the target only exists when clang-tidy was found and the generator is Make.
 if(TARGET clang-tidy)
     add_dependencies(check-full clang-tidy)
 endif()
