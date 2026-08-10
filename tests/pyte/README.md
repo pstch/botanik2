@@ -21,13 +21,13 @@ moves, IL/DL, the line editor's reconciliation) that a source diff cannot.
   leave the renderer pacing for 4800. Dilating the clock keeps every byte/event
   ratio identical to a real run and compresses only wall time. Default 50;
   override with `PYTE_TIME_SCALE=N` (honored through pytest, ctest and make).
-- **Do not raise the scale to go faster - it is slower.** Measured, three runs
-  each: 50 → 6.3 s, 100 → 7.3-9.5 s, 200 → 9.5-10.9 s, 400 → 10.5-14.1 s. At 50
-  the suite is already off the sim-time critical path; past it the sim only burns
-  CPU competing with the harness, while the costs that remain are host-time and
-  do not shrink. The suite is CPU-bound (wall ~= user+sys), so what helps is
-  doing less: fewer boots, content sync instead of quiet windows, and not
-  normalizing the same screen twice.
+- **The scale no longer buys or costs wall time.** Measured over the whole suite:
+  50 → 4.64 s, 200 → 4.66 s, 400 → 4.65 s. Nothing free-runs any more, so the sim
+  cannot compete with the harness for CPU and the dilation only decides how much
+  plant-time a beat represents. What still helps is doing less: fewer boots,
+  content sync instead of `settle()`, and not normalizing the same screen twice.
+  (Under the old wall-clock harness raising the scale actively hurt - 50 → 6.3 s
+  against 400 → 10.5-14.1 s - which is why the knob reads as a tuning lever.)
 - **The tree's own sim** (`build/botanik_sim`), built by a plain `make -C build`.
   Under `check-full` that sim is instrumented like everything else, which costs
   wall time per dilated tick: raise `--time-scale` there rather than lowering it.
@@ -39,52 +39,42 @@ moves, IL/DL, the line editor's reconciliation) that a source diff cannot.
 
 ## Waiting
 
-Every wait is the same loop, `Term.poll(done, idle_s, cap_s)`: pump the PTY until
-the predicate says yes, the normalized screen has been **still** for `idle_s`, or
-`cap_s` has passed outright. `settle()`, `wait_for()`, `wait_screen()` and the
-golden compare are each one predicate over it.
+Every wait is the same loop, `Term.until(done, max_beats)`: run the sim in steps
+of `BEATS_PER_STEP` beats until the predicate says yes, or `max_beats` have
+passed. `settle()`, `wait_for()` and `wait_screen()` are each one predicate over
+it, and the golden compare is `settle()` plus a diff.
 
-| call | question | idle | cap |
-|---|---|---|---|
-| `wait_for(needles)` | has this string **ever** been on screen (latched as it went by, so a scrolled-away log line still counts) | 15 s | 30 s |
-| `wait_screen(needle, present)` | is it on screen **now**, or has it left | 15 s | 30 s |
-| `assert_screen(term, golden)` | does the screen match the golden | 4 s | 20 s |
-| `settle(quiet)` | has the repaint I just triggered finished | 0.2 s | 5 s |
+| call | question |
+|---|---|
+| `wait_for(needles)` | has this string **ever** been on screen (latched as it went by, so a scrolled-away log line still counts) |
+| `wait_screen(needle, present)` | is it on screen **now**, or has it left |
+| `settle()` | has the repaint finished - the screen held still across two steps |
 
-**Both bounds are load-bearing, and they are not interchangeable.** Idle is a
-heuristic - "nothing has happened for a while, so probably nothing will" - and it
-cannot tell a stuck firmware from a starved one, so it has to stay generous;
-tightening it from 15 s to 3 s false-failed four runs in six against a sim known
-to be good. The cap is what actually bounds a wait, and without it the suite can
-**hang outright**: a page with a live log tail repaints forever, so on a firmware
-that never reaches the awaited state the idle rule never fires. That is not
-hypothetical - it is how a merge to a branch with a chatty modbus probe turned a
-4-second suite into one that blew a 900-second timeout.
+**The bound is BEATS, not seconds.** The sim runs only when the harness says so,
+so a wait cannot be starved by a loaded box: the same run gives the same screen
+every time, and a failing wait costs `MAX_BEATS` of simulated time rather than
+15 s of real waiting to see whether more output was coming. Override the step and
+the ceiling with `BOTANIK_PYTE_BEAT_STEP` / `BOTANIK_PYTE_MAX_BEATS`.
 
-Budgets are in **host seconds on `time.monotonic()`**. No passing test reaches
-one; they only bound how long a stuck wait takes to report.
+The one real-time bound left is `ACK_TIMEOUT_S`, and it is a liveness check
+rather than a budget: it bounds the round-trip of a single `RUN n` command, so
+firing it means the sim is **wedged**, not slow.
 
-That is a correction of an earlier design, and the reasoning is worth keeping
-because it reads so plausibly. The budget used to be denominated in the sim's own
-clock, read off the status bar, on the theory that a budget measured in the
-observed thing scales with load by itself. It does not - that clock is not a
-measure of the firmware's progress at all. It reads `boot_epoch + uptime`, and
-the sim re-derives `boot_epoch` from the host clock (`utils/time.cpp`), which
-cancels the dilation exactly: measured, the status bar advances 21 s in 20 s of
-wall time while the uptime field beside it advances 200 s in 4. So the budget was
-a wall clock in fancy dress, with a 2-second sawtooth on top from the epoch
-re-latch, firing at unpredictable moments - which is what kept failing a
-*different* screen test on every loaded run. It also reset under a test's feet on
-a reboot.
+That replaced a pair of wall-clock bounds - an idle heuristic and a hard cap -
+and the reasoning against them is worth keeping, because the obvious fix was the
+wrong one twice. Denominating the budget in the sim's own clock reads as if it
+would scale with load by itself; it does not, because the status-bar clock is
+`boot_epoch + uptime` and the sim re-derives `boot_epoch` from the host clock,
+which cancels the dilation exactly (measured: the bar advances 21 s in 20 s of
+wall time while the uptime beside it advances 200 s in 4). Tightening the idle
+window instead false-failed four runs in six against a sim known to be good.
+Neither survives a sim that is starved rather than stuck. Driving the clock is
+what removes the question.
 
-If you want a true measure of firmware progress, the uptime field is dilated and
-the status-bar clock is not. Neither survives a sim that is starved rather than
-stuck, which is why the bounds above are honest wall clocks with a cap.
-
-**Prefer content sync to `settle()`.** Measured, `settle()` costs ~200 ms against
-~20 ms for a `wait_screen()`: it can only wait out the 4800-baud dribble, where a
-content wait stops at the first frame that says yes. Reach for `settle()` only
-when the test cannot name what it is waiting to see.
+**Prefer content sync to `settle()`.** `settle()` has to wait out the whole
+4800-baud dribble, where a content wait stops at the first frame that says yes.
+Reach for `settle()` only when the test cannot name what it is waiting to see -
+capturing a golden, mostly.
 
 **`wait_for` is latched**, and that is a trap as well as a feature: a marker seen
 earlier answers instantly, which silently makes an assertion vacuous
