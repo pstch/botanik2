@@ -67,7 +67,7 @@ MQTT sinks + register_telemetry()
 on_setup()             ← site post-wiring
 tasks.setup()          ← every task's one-time init: announce(), POST, param load
 Watchdog::start()
-io.enable_control()    ← the field is ours from here, and not before
+io.set_health_hold(false)  ← the field is ours from here, and not before
 ```
 
 The last two are the point of the ordering: control authority starts **disabled**,
@@ -93,7 +93,7 @@ now_ms = uptime_ms()            one 64-bit "now" for every task this beat
 run_phase(PHASE_INPUT)          console/monitor RX; expire_stale, reject_implausible
 run_phase(PHASE_CONFIG)         params: the config image everything below reads
 run_phase(PHASE_SERVICE)        health, the control latch, network / NTP / MQTT
-run_phase(PHASE_EXECUTE)        the scan - the control programs, and on_step()
+run_phase(PHASE_CONTROL)        the scan - the control programs, and on_control()
 run_phase(PHASE_OUTPUT)         the field write
 run_phase(PHASE_PRESENT)        logger refill, console render, the two TX halves
 watchdog kick                   only while healthy

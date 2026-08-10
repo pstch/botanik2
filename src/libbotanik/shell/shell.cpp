@@ -104,7 +104,7 @@ namespace Botanik { namespace Shell {
             { "get",        "<name>  read a variable",        &CommandShell::_cmd_get        },
             { "set",        "<name> <value>  edit a parameter", &CommandShell::_cmd_set       },
             { "override",   "list|clear|<name> [off|<value>] [valid|invalid]", &CommandShell::_cmd_override },
-            { "control",    "[enable|disable] drive the field", &CommandShell::_cmd_control   },
+            { "control",    "[enable|inhibit|disable] drive the field", &CommandShell::_cmd_control },
             { "loglevel",   "[debug|info|..|critical] filter",&CommandShell::_cmd_loglevel   },
             { "version",    "firmware version",               &CommandShell::_cmd_version    },
             { "features",   "which subsystems are built in",  &CommandShell::_cmd_features   },
@@ -198,7 +198,7 @@ namespace Botanik { namespace Shell {
         // The system's hold, not the operator's: the firmware is deciding to
         // stop running, not someone turning control off.
         if (Vars::Bank* io = _bank()) {
-            io->disable_control(Vars::Bank::INHIBIT_HEALTH);
+            io->set_health_hold(true);
             // A deliberate stop loses no counting: the retain cadence bounds
             // what a power cut costs, a planned stop should cost nothing.
             (void)io->save_retained();
@@ -858,33 +858,47 @@ namespace Botanik { namespace Shell {
         if (a == nullptr) { _report_control(io); return; }
 
         if (arg_eq(a, w, "enable")) {
-            io->enable_control();          // releases the operator's hold only
-            _report_control(io);           // ...which may not be the only one
+            io->set_control_mode(Vars::CONTROL_ENABLED);
+            _report_control(io);           // ...which the system may still veto
             return;
         }
-        if (arg_eq(a, w, "disable")) {
+        if (arg_eq(a, w, "inhibit")) {
             // The programs stop deciding, but `override` still reaches an
             // actuator - the whole reason to type this before working on the
             // plant.
-            io->disable_control();
-            _println("control: DISABLED - outputs at their safe state, "
-                     "scan inhibited; `override` still drives them by hand");
+            io->set_control_mode(Vars::CONTROL_INHIBITED);
+            _println("control: INHIBITED - outputs at their safe state, scan "
+                     "stopped; `override` still drives them by hand");
             return;
         }
-        _println("usage: control [enable|disable]");
+        if (arg_eq(a, w, "disable")) {
+            io->set_control_mode(Vars::CONTROL_DISABLED);
+            _println("control: DISABLED - outputs at their safe state, scan "
+                     "stopped, output overrides ignored (kept, not cleared)");
+            return;
+        }
+        _println("usage: control [enable|inhibit|disable]");
     }
 
-    // Two independent holds, so a `control enable` that changes nothing reads
-    // as a health fault still in force rather than a broken command.
+    // The operator's choice and the system's hold are reported separately: a
+    // `control enable` that changes nothing must read as a health fault still in
+    // force rather than a broken command.
     void CommandShell::_report_control(Vars::Bank* io) {
-        if (io->control_enabled()) { _println("control: enabled"); return; }
-        const bool op  = io->control_inhibited_by(Vars::Bank::INHIBIT_OPERATOR);
-        const bool sys = io->control_inhibited_by(Vars::Bank::INHIBIT_HEALTH);
-        char out[128];
-        _emitf(out, sizeof(out), "control: DISABLED by %s%s%s",
-               op  ? "the operator" : "",
-               (op && sys) ? " and " : "",
-               sys ? "the system (bring-up, health, or a pending reset)" : "");
+        const Vars::ControlMode eff = io->control_mode();
+        const Vars::ControlMode op  = io->operator_mode();
+        char out[160];
+        if (!io->health_hold()) {
+            _emitf(out, sizeof(out), "control: %s",
+                   Vars::Bank::control_mode_name(eff));
+            return;
+        }
+        // Held by the system: say so, and say what the operator asked for, so
+        // releasing the fault has a predictable result.
+        _emitf(out, sizeof(out),
+               "control: %s - held by the system (bring-up, health, or a "
+               "pending reset); operator asked for %s",
+               Vars::Bank::control_mode_name(eff),
+               Vars::Bank::control_mode_name(op));
     }
 
     void CommandShell::_cmd_loglevel(const char* args, uint16_t alen) {

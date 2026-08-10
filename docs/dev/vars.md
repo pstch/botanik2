@@ -135,7 +135,7 @@ from the context; nothing gets its own pointer.
 | `find(name[, len])` | resolve a name to a `VarRef`, through the name index |
 | `set(...)` | edit a **parameter**: validate against its band, then persist |
 | `override_set(...)` | force **any** variable: range-checked against the type only |
-| `enable_control()` / `disable_control()` / `control_enabled()` | control authority |
+| `set_control_mode()` / `set_health_hold()` / `control_mode()` | control authority |
 | `clear_overrides()` | release the lot |
 
 The two writes are deliberately different. `set()` refuses anything that is not a
@@ -176,23 +176,37 @@ longer row name sorts after the key, because the key ends there.
 
 ### Control authority
 
-One latch, two independent inhibits. `disable_control()` drops every `ROLE_OUTPUT` to
-its declared `def` and (through the loop) inhibits the scan, so nothing re-drives them
-on the next beat.
+Three modes, and two INDEPENDENT sources that decide which is in force. The
+**operator** picks a standing mode at the console; the **system** raises a hold
+for bring-up, a health fault or a pending reset. `control_mode()` is the
+STRICTER of the two, so a recovered firmware never talks over the operator and
+an operator's choice survives a fault coming and going.
 
-What happens to an **override** depends on which inhibit:
+| Mode | Outputs | An output's override |
+|---|---|---|
+| `CONTROL_ENABLED` | driven by the programs | drives |
+| `CONTROL_INHIBITED` | dropped to `def`, scan stopped | still drives |
+| `CONTROL_DISABLED` | dropped to `def`, scan stopped | muted |
 
-| Source | Overrides on outputs |
-|---|---|
-| `INHIBIT_OPERATOR` (`control disable`) | left alone |
-| `INHIBIT_HEALTH` (fault, bring-up, pending reset) | released, stored copy included |
+The middle mode is how an operator takes the plant by hand: the programs stop
+deciding, and an override is then the only thing that *can* move an actuator.
+The strictest stops even that.
 
-That asymmetry is the whole design. `control disable` is how an operator takes the
-plant by hand: the programs stop deciding, and an override is then the only thing that
-*can* move an actuator - wiping them would leave nothing able to. The health inhibit
-means something else entirely - the firmware can no longer reason about what it is
-driving, or is about to stop running, and nobody is necessarily watching - so a
-hand-held output is exactly what the safe state exists to release.
+**Muted is not erased.** `CONTROL_DISABLED` sets `VF_OVR_MUTED` on the row, which
+`Var::raw()` and `valid()` read, so the field sees the safe state while the
+forced value waits; leaving the mode restores it with nothing to re-enter.
+Crossing that edge in either direction marks the row `VF_FIELD_DIRTY`, because
+both directions change what the field is owed.
+
+The one destructive path is the SYSTEM's hold (`set_health_hold(true)`), which
+**erases** every output override, stored copy included. The two differ because
+the operator is present and a fault is not: an actuator held energised by hand
+through a fault, or resurrected by the next boot, is what the safe state exists
+to prevent.
+
+Outputs only, in every mode. Muting a forced sensor would erase the diagnosis it
+was forced to get, and sweeping a parameter would revert the network settings on
+a scan overrun.
 
 `override_set()` therefore never refuses an output on control grounds. It is live
 immediately rather than staged, and it is never persisted, so there is no session it

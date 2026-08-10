@@ -55,7 +55,7 @@ namespace {
     /** @brief Bank with control granted, which is what bring-up does. */
     struct Live {
         Bank io;
-        Live() { io.enable_control(Bank::INHIBIT_HEALTH); }
+        Live() { io.set_health_hold(false); }
     };
 }
 
@@ -147,7 +147,7 @@ TEST_CASE("scan: an every-beat program is left alone by the stagger") {
 TEST_CASE("scan: programs are inhibited while control is withheld") {
     Recorder fast("fast", 100);
     Program* const progs[] = { &fast };
-    Bank io;                                   // starts at INHIBIT_HEALTH
+    Bank io;                                   // starts held by the system
     Driver d(progs, 1, &io);
     for (uint64_t t = 0; t <= 500; t += 10) d.step(t);
 
@@ -164,7 +164,7 @@ TEST_CASE("scan: control being withdrawn resets the programs, once") {
     d.step(0);
     REQUIRE(fast.resets == 0);
 
-    f.io.disable_control(Bank::INHIBIT_OPERATOR);
+    f.io.set_control_mode(Botanik::Vars::CONTROL_INHIBITED);
     for (uint64_t t = 10; t <= 500; t += 10) d.step(t);
 
     // On the withdrawal edge only: the process moves without us from here, and what a program remembered is stale.
@@ -179,11 +179,11 @@ TEST_CASE("scan: control returning does not hand a program the whole outage") {
     d.step(0);                                // one activation, seeds the timer
     fast.runs_seen.clear();
 
-    f.io.disable_control(Bank::INHIBIT_OPERATOR);
+    f.io.set_control_mode(Botanik::Vars::CONTROL_INHIBITED);
     for (uint64_t t = 10; t <= 60000; t += 10) d.step(t);
     REQUIRE(fast.runs_seen.empty());          // inhibited throughout
 
-    f.io.enable_control(Bank::INHIBIT_OPERATOR);
+    f.io.set_control_mode(Botanik::Vars::CONTROL_ENABLED);
     d.step(60010);                            // the reseed beat: nothing runs yet
     d.step(60110);
 
@@ -225,8 +225,8 @@ struct Live {
     Bank bank;
     Live() : bank(Site::g_site.vars) {
         bank.init();
-        bank.enable_control(Bank::INHIBIT_HEALTH);
-        bank.enable_control(Bank::INHIBIT_OPERATOR);
+        bank.set_health_hold(false);
+        bank.set_control_mode(CONTROL_ENABLED);
     }
     VarRef ref(const char* name) { return bank.find(name); }
 };
@@ -514,12 +514,12 @@ TEST_CASE("scan: control coming back is a first scan again") {
     REQUIRE(p.firsts[0]);
     REQUIRE_FALSE(p.firsts[1]);
 
-    f.bank.disable_control(Bank::INHIBIT_OPERATOR);
+    f.bank.set_control_mode(CONTROL_INHIBITED);
     for (uint64_t t = 20; t <= 5000; t += 10) d.step(t);
     CHECK(p.resets == 1);                    // the withdrawal edge, once
     CHECK(p.firsts.size() == 2);             // nothing ran while stopped
 
-    f.bank.enable_control(Bank::INHIBIT_OPERATOR);
+    f.bank.set_control_mode(CONTROL_ENABLED);
     d.step(5010);
 
     CHECK(p.resumes == 2);                   // bring-up, then this return

@@ -54,7 +54,7 @@ leaves the rest where it was, so a paste always restores exactly what went.
 | `get <name>` | the detail view of one variable, laid out like `stats`: scope, group, access, the raw and override values with their validity, the band, and where it physically comes from |
 | `set <name> <value>` | edit a **parameter** and persist it |
 | `override list\|clear\|<name> [off\|<value>] [valid\|invalid]` | force **any** variable by hand; `clear` releases the lot |
-| `control [enable\|disable]` | report or change whether the firmware may drive the field |
+| `control [enable\|inhibit\|disable]` | report or change whether the firmware may drive the field |
 
 These are covered in @ref user_variables, @ref user_params and @ref user_control.
 Booleans read and write as `0` / `1`; `on`, `off` and `true` are not accepted as

@@ -196,43 +196,62 @@ namespace Botanik { namespace Vars {
         }
     }
 
-    void Bank::enable_control(ControlInhibit source) {
-        _inhibits &= (uint8_t)~(uint8_t)source;
-        // Nothing to do on the way up: the outputs sit at their safe state and
-        // the scan drives them from there on the next beat.
+    void Bank::set_control_mode(ControlMode mode) {
+        const ControlMode before = control_mode();
+        _op_mode = mode;
+        _apply_control(before, false);
     }
 
-    void Bank::disable_control(ControlInhibit source) {
-        const uint8_t before = _inhibits;
-        _inhibits |= (uint8_t)source;
-        // Already held: the per-beat watchdog path re-asserts the health hold
-        // for as long as the fault lasts, so the early exit is worth it.
-        if (before == _inhibits) return;
+    void Bank::set_health_hold(bool held) {
+        const ControlMode before = control_mode();
+        const bool        was    = _health_hold;
+        _health_hold = held;
+        // The system RAISING its hold is the destructive edge, and only on the
+        // transition: the per-beat watchdog path re-asserts it for as long as
+        // the fault lasts, so re-erasing every beat would be wasted work.
+        _apply_control(before, held && !was);
+    }
 
-        // Drop to safe on the transition only; a second inhibit arriving on top
-        // finds the outputs already there.
-        const bool to_safe = (before == 0);
-        // Only the SYSTEM's withdrawal releases a hand-held output - see the
-        // header.
-        const bool release = (source == INHIBIT_HEALTH);
-        if (!to_safe && !release) return;
+    void Bank::_apply_control(ControlMode before, bool erase_overrides) {
+        const ControlMode now = control_mode();
+        if (now == before && !erase_overrides) return;
+
+        // Drop to safe on the way out of ENABLED only; a mode change between the
+        // two withheld modes finds the outputs already there.
+        const bool to_safe = (before == CONTROL_ENABLED && now != CONTROL_ENABLED);
+        // DISABLED is the one mode an override does not survive into. Muting is
+        // reversible; erasing is not, and only the system does it.
+        const bool mute    = (now == CONTROL_DISABLED);
 
         for (uint16_t i = 0; i < _tables.count; i++) {
             if (_tables.var[i].role != ROLE_OUTPUT) continue;
-            if (release && _tables.val[i].ovr_on) {
+            Value& v = _tables.val[i];
+
+            if (erase_overrides && v.ovr_on) {
                 // Wipe the stored copy too: overrides persist, so clearing only
                 // RAM hands the actuator back to whoever forced it at the next
                 // boot.
                 if (_store != nullptr) (void)_store->clear_override(_tables.var[i]);
-                _tables.val[i].ovr_on = false;
-                _tables.val[i].vflags |= VF_FIELD_DIRTY;
+                v.ovr_on  = false;
+                v.vflags |= VF_FIELD_DIRTY;
             }
+
+            // Muting and unmuting both CHANGE what the field is owed, so both
+            // mark the row: unmuting hands the actuator back to the forced
+            // value, and nothing else would carry it out there.
+            const uint8_t was_muted = (uint8_t)(v.vflags & VF_OVR_MUTED);
+            if (mute) v.vflags |= VF_OVR_MUTED;
+            else      v.vflags  = (uint8_t)(v.vflags & ~VF_OVR_MUTED);
+            if (v.ovr_on && was_muted != (uint8_t)(v.vflags & VF_OVR_MUTED)) {
+                v.vflags |= VF_FIELD_DIRTY;
+            }
+
             if (to_safe) {
-                _tables.val[i].qual = Q_SAFE;
+                v.qual = Q_SAFE;
                 // The safe state is only in the image until something carries it
                 // out: over a field bus that is a transaction, and an unmarked
                 // row leaves the actuator energised.
-                _tables.val[i].vflags |= VF_FIELD_DIRTY;
+                v.vflags |= VF_FIELD_DIRTY;
             }
         }
     }
@@ -424,12 +443,26 @@ namespace Botanik { namespace Vars {
 
     void Bank::override_set(Var h, Scalar v, bool valid) {
         h.override_set(v, valid);
+        _mute_if_disabled(h);
         _persist_override(h);
     }
 
     void Bank::override_freeze(Var h) {
         h.override_freeze();
+        _mute_if_disabled(h);
         _persist_override(h);
+    }
+
+    void Bank::_mute_if_disabled(Var h) {
+        const Variable* d = h.meta();
+        if (d == nullptr || d->role != ROLE_OUTPUT) return;
+        const uint16_t i = _row_of(h);
+        if (i == VAR_NONE) return;
+        // An override forced while control is disabled is stored and muted, not
+        // refused: it takes effect the moment control comes back, which is what
+        // an operator staging a hand-drive before enabling expects.
+        if (control_mode() == CONTROL_DISABLED) _tables.val[i].vflags |= VF_OVR_MUTED;
+        else _tables.val[i].vflags = (uint8_t)(_tables.val[i].vflags & ~VF_OVR_MUTED);
     }
 
     void Bank::override_clear(Var h) {

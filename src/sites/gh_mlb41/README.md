@@ -18,7 +18,7 @@ passes `g_site` to the base constructor - it declares no pages and overrides no 
 The base owns every page (home/shell/logs/alarms/config/monitor) and wires the
 descriptor's tables generically, so the site is data, not code. A site needing custom
 per-beat logic or an extra page (e.g. re-adding a STATUS page by subclassing
-`Pages::StatusPage`) would override the base's `on_step()` / `register_pages()`. See
+`Pages::StatusPage`) would override a base phase hook / `register_pages()`. See
 `src/libbotanik/firmware/firmware.h` for the full extension model and a worked example.
 
 ## Data model

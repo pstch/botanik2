@@ -70,7 +70,7 @@ namespace Botanik { namespace Config {
     /** @brief Capacity of the scheduler's task table. Fixed, no allocation;
      *  registrations past it are refused and counted, never silently dropped. */
 #ifndef BOTANIK_MAX_TASKS
-#  define BOTANIK_MAX_TASKS 24
+#  define BOTANIK_MAX_TASKS 32
 #endif
     BOTANIK_CFG(uint8_t, MAX_TASKS);
 

@@ -170,7 +170,30 @@ namespace Botanik { namespace Vars {
         /** @brief This row has had more than one control program write it.
          *  Latched, so the count is of ROWS with two authors rather than of
          *  per-beat collisions. @see Bank::claim_writer() */
-        VF_TWO_WRITERS = 1u << 1
+        VF_TWO_WRITERS = 1u << 1,
+        /** @brief This output's override is in force but must not reach the
+         *  field: CONTROL_DISABLED. The override is NOT erased, so leaving that
+         *  mode restores it. ROLE_OUTPUT only, and maintained by the Bank alone.
+         *  @see Bank::set_control_mode() */
+        VF_OVR_MUTED   = 1u << 2
+    };
+
+    /** @brief What the firmware may drive, strictest first. The order is
+     *  load-bearing: the effective mode is the MINIMUM of the operator's
+     *  choice and what the system's hold allows. */
+    enum ControlMode : uint8_t {
+        /** @brief Outputs safe, and an output override does NOT reach the
+         *  field. The forced value is muted, not erased, so restoring a less
+         *  strict mode brings it back - unless the SYSTEM withdrew control,
+         *  which erases it (see set_health_hold()). */
+        CONTROL_DISABLED  = 0,
+        /** @brief Outputs safe and the programs stopped, but an override
+         *  still drives. This is how you take the plant by hand: with the
+         *  programs stopped, an override is the only thing left that can
+         *  move an actuator. */
+        CONTROL_INHIBITED = 1,
+        /** @brief Normal operation. */
+        CONTROL_ENABLED   = 2
     };
 
     /** @brief How a driver reaches a variable.
@@ -488,13 +511,13 @@ namespace Botanik { namespace Vars {
          *  @{ */
         /** @brief What this row reads, override applied. @see _under() for
          *  the fallback rule. */
-        Scalar   raw()   const { return _v->ovr_on ? _v->ovr : _under(); }
+        Scalar   raw()   const { return _forced() ? _v->ovr : _under(); }
         /** @brief As a float; a digital reads 0/1, so a consumer that only
          *  displays or publishes never branches on the type. */
         float    value() const { return as_f32(_d->type, raw()); }
         bool     b()     const { return as_bool(_d->type, raw()); }
         int64_t  i()     const { return as_i64(_d->type, raw()); }
-        bool     valid() const { return _v->ovr_on ? _v->ovr_valid : live_valid(); }
+        bool     valid() const { return _forced() ? _v->ovr_valid : live_valid(); }
         /** @name Under the override
          *
          *  What the row would read with nothing forced: the driver's last value
@@ -643,6 +666,15 @@ namespace Botanik { namespace Vars {
             return (_v->qual == Q_GOOD || _v->qual == Q_STALE) ? _v->v : _d->def;
         }
 
+        /** @brief Whether the override actually reaches this reader. In force
+         *  and not muted: CONTROL_DISABLED mutes an OUTPUT's override without
+         *  erasing it, so the field sees the safe state while the forced value
+         *  waits for control to come back. Every other role is unaffected -
+         *  muting a forced sensor would erase the diagnosis. */
+        bool _forced() const {
+            return _v->ovr_on && (_v->vflags & VF_OVR_MUTED) == 0;
+        }
+
         /** @brief Note that a ROLE_OUTPUT's demand has moved. One compare on a
          *  path that is already writing; every other role ignores it. */
         void _touch_field() {
@@ -754,9 +786,13 @@ namespace Botanik { namespace Vars {
         /** @brief Where ROLE_PARAM writes are persisted (null -> RAM only, and
          *  set() reports SET_NOT_PERSISTED). */
         VarStore*     _store  = nullptr;
-        /** @brief The holds currently in force. Starts held by the system:
-         *  outputs are not ours to move until bring-up says so. */
-        uint8_t       _inhibits = (uint8_t)INHIBIT_HEALTH;
+        /** @brief The operator's standing choice. Survives a health fault
+         *  coming and going, which is the point of keeping it separate. */
+        ControlMode   _op_mode = CONTROL_ENABLED;
+        /** @brief The system's own hold: not yet brought up, a health fault, or
+         *  a reset we have decided to take. Starts SET - outputs are not ours to
+         *  move until bring-up says so. */
+        bool          _health_hold = true;
         /** @brief For the one thing the bank must not swallow: a write the
          *  store refused (see set()). May be null. */
         Logs::Logger* _logger = nullptr;
@@ -946,54 +982,57 @@ namespace Botanik { namespace Vars {
         uint16_t pool_overflow() const { return _pool_overflow; }
 
         /** @name Control authority
+
+         *  Whether the firmware is allowed to drive the field, in three modes.
          *
-         *  Whether the firmware is allowed to drive the field at all.
+         *  Two INDEPENDENT sources decide it and the STRICTER one wins: the
+         *  operator's standing choice, and the system's own hold. An operator's
+         *  `control disable` must survive a health fault coming and going, and a
+         *  recovered firmware must not talk over the operator.
          *
-         *  Two INDEPENDENT sources can hold it down, and control returns only
-         *  when both have let go: an operator's `control disable` must survive a
-         *  health fault coming and going, and a recovered firmware must not talk
-         *  over the operator.
-         *
-         *  Starts held by INHIBIT_HEALTH, so a half-constructed firmware cannot
+         *  Starts held by the system, so a half-constructed firmware cannot
          *  energise an actuator before bring-up says it is ready.
          *  @{ */
 
-        /** @brief Who is holding control down. Control is enabled only when the
-         *  set is empty. */
-        enum ControlInhibit : uint8_t {
-            INHIBIT_OPERATOR = 1u << 0,  ///< `control disable` at the console
-            INHIBIT_HEALTH   = 1u << 1,  ///< not yet brought up, health fault,
-                                         ///< or a reset we have decided to take
-        };
+        /** @brief Set the OPERATOR's standing mode (the console's `control`
+         *  command). Independent of the system's hold; the stricter of the two
+         *  is what takes effect. */
+        void set_control_mode(ControlMode mode);
 
-        /** @brief Release @p source's hold. The field becomes drivable again
-         *  only if nothing else is still holding it. */
-        void enable_control(ControlInhibit source = INHIBIT_OPERATOR);
+        /** @brief The operator's standing choice, whatever the system is doing.
+         *  What `control` reports back so a mode that is not in effect still
+         *  reads as the operator's. */
+        ControlMode operator_mode() const { return _op_mode; }
 
-        /** @brief Have @p source withhold control: drop every ROLE_OUTPUT to its
-         *  declared safe state and stop the scan re-driving it.
+        /** @brief Raise or release the SYSTEM's hold: bring-up, a health fault,
+         *  or a reset we have decided to take.
          *
-         *  @section ctl_override What happens to an override depends on WHO
-         *
-         *  **INHIBIT_OPERATOR** leaves overrides alone: `control disable` is how
-         *  you take the plant by hand, and an override is then the only thing
-         *  that can move an actuator. **INHIBIT_HEALTH** releases them, stored
-         *  copy included: it runs when the firmware cannot reason about what it
-         *  is driving, and an actuator held energised by hand through that is
-         *  what the safe state exists to prevent.
-         *
-         *  Outputs only. Clearing an internal would erase the diagnosis;
-         *  sweeping a parameter would revert the network settings on a scan
-         *  overrun. */
-        void disable_control(ControlInhibit source = INHIBIT_OPERATOR);
+         *  Raising it forces CONTROL_DISABLED whatever the operator asked for,
+         *  and unlike the operator's own disable it **erases** every output
+         *  override, stored copy included. The two differ because the operator
+         *  is present and the fault is not: an actuator held energised by hand
+         *  through a fault, or resurrected by the next boot, is exactly what the
+         *  safe state exists to prevent. */
+        void set_health_hold(bool held);
+
+        /** @brief Whether the system is holding control down, so the console can
+         *  say WHY a `control enable` did not take effect. */
+        bool health_hold() const { return _health_hold; }
+
+        /** @brief What is actually in force: the stricter of the two sources. */
+        ControlMode control_mode() const {
+            return _health_hold ? CONTROL_DISABLED
+                                : _op_mode;
+        }
 
         /** @brief Whether the field may be driven (the scan is gated on it). */
-        bool control_enabled() const { return _inhibits == 0; }
+        bool control_enabled() const { return control_mode() == CONTROL_ENABLED; }
 
-        /** @brief True while @p source is one of the holds in force, so the
-         *  console can say WHY a `control enable` did not bring control back. */
-        bool control_inhibited_by(ControlInhibit source) const {
-            return (_inhibits & (uint8_t)source) != 0;
+        /** @brief The effective mode as a word, for the console and the logs. */
+        static const char* control_mode_name(ControlMode m) {
+            return (m == CONTROL_ENABLED)   ? "enabled"
+                 : (m == CONTROL_INHIBITED) ? "inhibited"
+                                            : "disabled";
         }
 
         /** @} */
@@ -1115,6 +1154,17 @@ namespace Botanik { namespace Vars {
         /** @brief Write an edited parameter through to the store, and say so
          *  loudly when the store refuses. Shared by both set() overloads. */
         SetResult _persist_param(Var h, const Variable& d, Value& slot);
+
+        /** @brief The one output sweep both control edges run. @p before is the
+         *  effective mode before the change, so a transition can be told from a
+         *  re-assertion; @p erase_overrides is the system's destructive edge.
+         *  Outputs only: clearing an internal would erase the diagnosis, and
+         *  sweeping a parameter would revert the network settings on a scan
+         *  overrun. */
+        void _apply_control(ControlMode before, bool erase_overrides);
+        /** @brief Bring one output's mute bit in step with the current mode,
+         *  for an override forced while control is already withheld. */
+        void _mute_if_disabled(Var h);
 
         /** @brief Locate the ROLE_PARAM run: first such row, then how many
          *  follow it without a break. A parameter outside that run is a table

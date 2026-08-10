@@ -92,8 +92,8 @@ def test_control_disable_leaves_an_actuator_commandable(spawn):
     inhibited an override is the only thing that can move an actuator, which is
     the whole reason to type it before working on the plant."""
     term = shell(spawn, quiet_logs=True)
-    _run(term, b"control disable")
-    assert term.wait_for("by hand"), "control disable did not mention overrides"
+    _run(term, b"control inhibit")
+    assert term.wait_for("by hand"), "control inhibit did not mention overrides"
 
     _run(term, b"override cli_screen 1")
     assert term.wait_for("forced to"), "an output could not be forced by hand"

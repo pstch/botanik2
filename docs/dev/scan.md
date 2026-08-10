@@ -30,15 +30,16 @@ should ever be automatic.
 Six phases run in this order, every beat: INPUT, CONFIG, SERVICE, EXECUTE,
 OUTPUT, PRESENT, then the watchdog kick.
 
-@image html beat.drawio.svg "One beat, with every task the reference site registers. The number on a task is its group period in ms; a task runs only on the beats its group has come due, so most beats are far emptier than this."
+@image html beat.drawio.svg "One beat. The number on a task is its group period in ms; a task runs only on the beats its group has come due, so most beats are far emptier than this. Only the gated site hook is drawn - the five ungated ones sit at the end of their own phases."
 
 Within a phase, tasks run in registration order; a task runs only on the beats its
 group has come due (@ref dev_scheduler). The sandwich is **read, execute, write**,
 and it holds on every beat regardless of which programs happen to be due: whatever
 is due runs between this beat's input phase and this beat's output phase.
 
-The dashed box is the control-authority gate - the scan driver and `site_ctl`,
-but not the ungated `site` hook; *Where the gate lives* below is the whole rule.
+The dashed box is the control-authority gate - the scan driver and
+`site_control`, but not the ungated site hooks; *Where the gate lives* below is
+the whole rule.
 Note also that `modbus_tcp_wr` sits in SERVICE although it is registered beside
 its TCP siblings much further down the function: a task declares its phase, so
 where its line falls in `_register_tasks()` says nothing about when it runs.
@@ -75,8 +76,8 @@ which they already are, without making them *contemporaneous*.
 
 ## Control authority, and its two edges
 
-`Vars::Bank::control_enabled()` gates the execute phase and nothing else. The
-phases around it must **not** be gated with it: `disable_control()` writes safe
+`Vars::Bank::control_enabled()` gates the control phase and nothing else. The
+phases around it must **not** be gated with it: withholding control writes safe
 states into the image, and something still has to carry them outward.
 
 Both edges reach the programs (`Scan::Driver::on_step`):
@@ -113,13 +114,13 @@ So the gate sits wherever a writer is *dispatched*, and there are exactly two:
 | Dispatch point | Hook | Gated |
 |---|---|---|
 | `Scan::Driver::on_step` | each `Plc::Program::run` | yes |
-| the `site_ctl` task | `BotanikFirmware::on_control` | yes |
-| the `site` task | `BotanikFirmware::on_step` | **no** - by design |
+| the `site_control` task | `BotanikFirmware::on_control` | yes |
+| the other five `site_*` tasks | `on_input` / `on_config` / `on_service` / `on_output` / `on_present` | **no** - by design |
 
-`on_step()` is for work that is still correct while the plant is stopped:
+The ungated five are for work that is still correct while the plant is stopped:
 bookkeeping, derived values, telemetry. Anything that DRIVES the field belongs
-in `on_control()`, or it keeps driving through a health fault. `on_control()`
-runs first, so `on_step()` sees the same beat's decisions.
+in `on_control()`, or it keeps driving through a health fault. It runs in its own
+phase, so `on_output()` and `on_present()` see the same beat's decisions.
 
 That list is exhaustive by construction: a third thing that drives the field has
 no gate unless it comes here and adds one. Which is the point - it is a short

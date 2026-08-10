@@ -46,7 +46,7 @@ namespace Botanik { namespace Tasks {
         PHASE_INPUT = 0,   ///< field commit, serial RX, expiry
         PHASE_CONFIG,      ///< parameter commit, before anything reads config
         PHASE_SERVICE,     ///< health, network - background state machines
-        PHASE_EXECUTE,     ///< the control programs
+        PHASE_CONTROL,     ///< the control programs
         PHASE_OUTPUT,      ///< collect driven outputs, hand them to the field
         PHASE_PRESENT,     ///< log drain, render, serial TX
         PHASE_COUNT
@@ -57,7 +57,7 @@ namespace Botanik { namespace Tasks {
     uint32_t group_period_ms(GroupId g);
     /** @brief Display name of @p g ("fast", "slow"...). */
     const char* group_name(GroupId g);
-    /** @brief Display name of @p p ("input", "execute"...). */
+    /** @brief Display name of @p p ("input", "control"...). */
     const char* phase_name(Phase p);
 
     /** @brief What one task costs, for the TASKS page and the stats command.

@@ -35,7 +35,7 @@ namespace Botanik { namespace Tasks {
             case PHASE_INPUT:   return "input";
             case PHASE_CONFIG:  return "config";
             case PHASE_SERVICE: return "service";
-            case PHASE_EXECUTE: return "execute";
+            case PHASE_CONTROL: return "control";
             case PHASE_OUTPUT:  return "output";
             case PHASE_PRESENT: return "present";
             default:            return "?";

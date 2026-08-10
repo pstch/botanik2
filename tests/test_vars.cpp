@@ -248,11 +248,11 @@ TEST_CASE("model: invalid records WHY, not just that") {
     CHECK(f.bank.reject_implausible() == 1);
     CHECK(h.live_quality() == Q_IMPLAUSIBLE);
 
-    f.bank.enable_control(Bank::INHIBIT_HEALTH);   // a 4th: safe-state, not a fault
+    f.bank.set_health_hold(false);   // a 4th: safe-state, not a fault
     Var out = f.bank.var(V_VALVE);
     out.set(true);
     CHECK(out.live_quality() == Q_GOOD);
-    f.bank.disable_control(Bank::INHIBIT_HEALTH);
+    f.bank.set_health_hold(true);
     CHECK(out.live_quality() == Q_SAFE);
 
     // All four still read as invalid through the single bool.
@@ -326,13 +326,13 @@ TEST_CASE("model: timeout 0 never expires, and only inputs expire at all") {
 
 TEST_CASE("control: disabling takes outputs to safe and nothing else") {
     Fixture f;
-    f.bank.enable_control(Bank::INHIBIT_HEALTH);
+    f.bank.set_health_hold(false);
     f.bank.var(V_VALVE).set(false);
     f.bank.var(V_ALARM_HOT).set(true);
     f.bank.var(V_SETPOINT).set(21.5f);
     f.bank.var(V_NTP_POLL).set_i(120);
 
-    f.bank.disable_control();
+    f.bank.set_control_mode(CONTROL_INHIBITED);
 
     CHECK_FALSE(f.bank.control_enabled());
     CHECK_FALSE(f.bank.var(V_VALVE).valid());
@@ -387,7 +387,7 @@ TEST_CASE("model: an empty table is safe to index and sweep") {
     CHECK(b.count() == 0);
     CHECK(b.var((uint16_t)0).value() == doctest::Approx(0.0f));
     b.var((uint16_t)0).set(50.0f);             // absorbed
-    b.disable_control();                       // and sweeps cleanly
+    b.set_control_mode(CONTROL_INHIBITED);                       // and sweeps cleanly
     b.expire_stale(1000);
     CHECK(b.find("anything").index == VAR_NONE);
 }
@@ -464,7 +464,7 @@ TEST_CASE("override: an expired input still reads its forced value") {
 
 TEST_CASE("control: the operator's inhibit keeps a forced output, the system's takes it") {
     Fixture f;
-    f.bank.enable_control(Bank::INHIBIT_HEALTH);   // bring-up finished
+    f.bank.set_health_hold(false);   // bring-up finished
     REQUIRE(f.bank.control_enabled());
     Var h = f.bank.var(V_VALVE);
     h.set(true);
@@ -472,7 +472,7 @@ TEST_CASE("control: the operator's inhibit keeps a forced output, the system's t
 
     // `control disable` takes the plant by hand: an override is the only thing
     // left that can move an actuator, and must still be TAKEN in that state.
-    f.bank.disable_control(Bank::INHIBIT_OPERATOR);
+    f.bank.set_control_mode(CONTROL_INHIBITED);
     CHECK(h.overridden());
     f.bank.override_clear(h);
     CHECK(f.bank.override_set(h, "1") == SET_OK);
@@ -480,14 +480,14 @@ TEST_CASE("control: the operator's inhibit keeps a forced output, the system's t
     // The system's hold must fire even with the operator's already in force,
     // or a "control already off" early exit lets a hand-held actuator ride
     // through a health fault.
-    f.bank.disable_control(Bank::INHIBIT_HEALTH);
+    f.bank.set_health_hold(true);
     CHECK_FALSE(h.overridden());
     CHECK_FALSE(h.valid());
     CHECK(h.b() == true);      // reads its declared safe state (def = true here)
 
     Var in = f.bank.var(V_EXT_TEMP);   // an input's override is untouched either way
     f.bank.override_set(in, Scalar::F(5.0f));
-    f.bank.disable_control(Bank::INHIBIT_HEALTH);
+    f.bank.set_health_hold(true);
     CHECK(in.overridden());
 }
 
@@ -496,49 +496,147 @@ TEST_CASE("control: starts disabled, and an output is forceable while it is") {
     // The system holds control until bring-up says it's ready; an override is
     // live immediately, not staged, so there is nothing to refuse.
     CHECK_FALSE(f.bank.control_enabled());
-    CHECK(f.bank.control_inhibited_by(Bank::INHIBIT_HEALTH));
+    CHECK(f.bank.health_hold());
     CHECK(f.bank.override_set(f.bank.var(V_VALVE), "1") == SET_OK);
 }
 
 TEST_CASE("control: an operator disable survives a health fault coming and going") {
     Fixture f;
-    f.bank.enable_control(Bank::INHIBIT_HEALTH);      // bring-up finished
+    f.bank.set_health_hold(false);      // bring-up finished
     CHECK(f.bank.control_enabled());
 
-    f.bank.disable_control(Bank::INHIBIT_OPERATOR);   // someone at the console
+    f.bank.set_control_mode(CONTROL_INHIBITED);   // someone at the console
     CHECK_FALSE(f.bank.control_enabled());
 
     // Health releasing its own hold must not hand control back too.
-    f.bank.disable_control(Bank::INHIBIT_HEALTH);
-    f.bank.enable_control(Bank::INHIBIT_HEALTH);
+    f.bank.set_health_hold(true);
+    f.bank.set_health_hold(false);
     CHECK_FALSE(f.bank.control_enabled());
-    CHECK(f.bank.control_inhibited_by(Bank::INHIBIT_OPERATOR));
-    CHECK_FALSE(f.bank.control_inhibited_by(Bank::INHIBIT_HEALTH));
+    CHECK(f.bank.operator_mode() != CONTROL_ENABLED);
+    CHECK_FALSE(f.bank.health_hold());
 
     // Only they can give it back.
-    f.bank.enable_control(Bank::INHIBIT_OPERATOR);
+    f.bank.set_control_mode(CONTROL_ENABLED);
     CHECK(f.bank.control_enabled());
+}
+
+// The three modes differ ONLY in what happens to an output override; both
+// withheld modes drop the outputs to safe and stop the scan.
+TEST_CASE("control: inhibit keeps an output override, disable mutes it") {
+    Fixture f;
+    f.bank.set_health_hold(false);
+    Var out = f.bank.var(V_VALVE);
+    out.set(false);                                  // def (safe) is true here
+    f.bank.override_set(out, Scalar::B(false));
+    REQUIRE(out.overridden());
+    REQUIRE(out.b() == false);                       // the forced value drives
+
+    // INHIBITED: programs stopped, but the hand still reaches the actuator.
+    f.bank.set_control_mode(CONTROL_INHIBITED);
+    CHECK(f.bank.control_mode() == CONTROL_INHIBITED);
+    CHECK(out.overridden());
+    CHECK(out.b() == false);                         // still the forced value
+
+    // DISABLED: the override is muted, so the row reads its safe state - but it
+    // is KEPT, which is the whole difference from the system's withdrawal.
+    f.bank.set_control_mode(CONTROL_DISABLED);
+    CHECK(out.b() == true);                          // def, not the forced false
+    CHECK_FALSE(out.valid());
+    CHECK(out.overridden());                         // not erased
+
+    // ...and it comes back on the way out, without being re-entered.
+    f.bank.set_control_mode(CONTROL_INHIBITED);
+    CHECK(out.b() == false);
+}
+
+// Muting and unmuting both change what the field is owed, so both must mark the
+// row - an unmuted override that nothing carries out leaves the actuator where
+// the safe state put it.
+TEST_CASE("control: crossing the mute edge marks the output for the field") {
+    Fixture f;
+    f.bank.set_health_hold(false);
+    Var out = f.bank.var(V_VALVE);
+    f.bank.override_set(out, Scalar::B(false));
+
+    f.bank.set_control_mode(CONTROL_DISABLED);
+    CHECK(out.field_dirty());
+    out.clear_field_dirty();
+
+    f.bank.set_control_mode(CONTROL_ENABLED);
+    CHECK(out.field_dirty());
+}
+
+// Staging a hand-drive before enabling is a real workflow, so the write is
+// stored rather than refused - it simply does not reach the field yet.
+TEST_CASE("control: an override forced while disabled is kept, muted, and lands later") {
+    Fixture f;
+    f.bank.set_health_hold(false);
+    f.bank.set_control_mode(CONTROL_DISABLED);
+
+    Var out = f.bank.var(V_VALVE);
+    CHECK(f.bank.override_set(out, "0") == SET_OK);   // the text overload reports
+    CHECK(out.overridden());
+    CHECK(out.b() == true);                          // muted: reads its safe state
+
+    f.bank.set_control_mode(CONTROL_ENABLED);
+    CHECK(out.b() == false);                         // now it drives
+}
+
+// The operator's choice and the system's hold are independent, and the STRICTER
+// one is what takes effect.
+TEST_CASE("control: the effective mode is the stricter of the two sources") {
+    Fixture f;
+    f.bank.set_health_hold(false);
+    f.bank.set_control_mode(CONTROL_INHIBITED);
+    CHECK(f.bank.control_mode() == CONTROL_INHIBITED);
+
+    // The system can only make it stricter, never looser...
+    f.bank.set_health_hold(true);
+    CHECK(f.bank.control_mode() == CONTROL_DISABLED);
+    CHECK(f.bank.operator_mode() == CONTROL_INHIBITED);   // ...and remembers
+
+    f.bank.set_health_hold(false);
+    CHECK(f.bank.control_mode() == CONTROL_INHIBITED);
+
+    // ...and an ENABLED operator under a system hold is still disabled.
+    f.bank.set_control_mode(CONTROL_ENABLED);
+    f.bank.set_health_hold(true);
+    CHECK(f.bank.control_mode() == CONTROL_DISABLED);
+}
+
+// A muted override is an OUTPUT rule. Muting a forced sensor would erase the
+// diagnosis the operator forced it to get.
+TEST_CASE("control: disable does not mute an input's override") {
+    Fixture f;
+    f.bank.set_health_hold(false);
+    Var in = f.bank.var(V_EXT_TEMP);
+    f.bank.override_set(in, Scalar::F(35.0f));
+
+    f.bank.set_control_mode(CONTROL_DISABLED);
+    CHECK(in.overridden());
+    CHECK(in.value() == doctest::Approx(35.0f));
+    CHECK(in.valid());
 }
 
 TEST_CASE("control: an operator enable cannot override a health fault either") {
     Fixture f;
-    f.bank.enable_control(Bank::INHIBIT_HEALTH);
-    f.bank.disable_control(Bank::INHIBIT_HEALTH);     // health faulted
+    f.bank.set_health_hold(false);
+    f.bank.set_health_hold(true);     // health faulted
 
     // The console must not talk over the firmware's own judgement.
-    f.bank.enable_control(Bank::INHIBIT_OPERATOR);
+    f.bank.set_control_mode(CONTROL_ENABLED);
     CHECK_FALSE(f.bank.control_enabled());
-    CHECK(f.bank.control_inhibited_by(Bank::INHIBIT_HEALTH));
+    CHECK(f.bank.health_hold());
 }
 
 TEST_CASE("control: a second hold arriving does not re-sweep") {
     Fixture f;
-    f.bank.enable_control(Bank::INHIBIT_HEALTH);
+    f.bank.set_health_hold(false);
     Var in = f.bank.var(V_EXT_TEMP);
-    f.bank.disable_control(Bank::INHIBIT_OPERATOR);
+    f.bank.set_control_mode(CONTROL_INHIBITED);
 
     f.bank.override_set(in, Scalar::F(5.0f));   // sweep already ran; survives piling on
-    f.bank.disable_control(Bank::INHIBIT_HEALTH);
+    f.bank.set_health_hold(true);
     CHECK(in.overridden());
 }
 
@@ -879,7 +977,7 @@ namespace {
             bank = Bank(t);
             bank.set_store(&store, nullptr);
             bank.init();
-            bank.enable_control(Bank::INHIBIT_HEALTH);   // so an output is drivable
+            bank.set_health_hold(false);   // so an output is drivable
             bank.load_overrides();
         }
     };
@@ -970,7 +1068,7 @@ TEST_CASE("override: an actuator override persists like any other") {
     // A health withdrawal takes it away, stored copy included, for good.
     {
         OvrFx f;
-        f.bank.disable_control(Bank::INHIBIT_HEALTH);
+        f.bank.set_health_hold(true);
         CHECK_FALSE(f.bank.var("coil").overridden());
     }
     {
@@ -986,7 +1084,7 @@ TEST_CASE("override: the system withdrawing control wipes the stored copy") {
     {
         OvrFx f;
         REQUIRE(f.bank.override_set(f.bank.var("sensor"), "5") == SET_OK);
-        f.bank.disable_control(Bank::INHIBIT_HEALTH);
+        f.bank.set_health_hold(true);
         CHECK(f.bank.var("sensor").overridden());   // inputs: reading isn't driving
     }
     {

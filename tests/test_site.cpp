@@ -160,7 +160,7 @@ TEST_CASE("site: nothing the site touches fails to resolve") {
 
     // Var::set() isn't gated (authority is enforced where a writer is
     // DISPATCHED); this resolves names against a running bank, not a stopped one.
-    f.bank.enable_control(Vars::Bank::INHIBIT_HEALTH);
+    f.bank.set_health_hold(false);
 #ifdef TARGET_SIMULATOR
     Site::simulate(f.bank, 1000);
 #endif

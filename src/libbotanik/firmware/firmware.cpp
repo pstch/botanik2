@@ -191,7 +191,7 @@ namespace Botanik {
         // Bring-up is done: release the system's hold on control. It starts held
         // (Bank's default), so nothing between power-on and here can energise an
         // actuator on the way past.
-        _io.enable_control(Vars::Bank::INHIBIT_HEALTH);
+        _io.set_health_hold(false);
 
         // One line per UART so neither overflows 80 cols and each gates with its
         // feature (console/monitor dropped when their UART is absent).
@@ -258,6 +258,10 @@ namespace Botanik {
             [](void* s, uint64_t) { (void)static_cast<Vars::Bank*>(s)->reject_implausible(); },
             &_io);
 
+        _tasks.add("site_input", GROUP_FAST, PHASE_INPUT,
+            [](void* s, uint64_t now) { static_cast<BotanikFirmware*>(s)->on_input(now); },
+            this);
+
         // --- CONFIG: the image every config-driven component reads below ---
         _tasks.add_component("params", GROUP_SLOW, PHASE_CONFIG, _params);
         // ...and the two rates that are config for the firmware ITSELF. After
@@ -268,9 +272,13 @@ namespace Botanik {
                 static_cast<BotanikFirmware*>(s)->_apply_serial_config();
             }, this);
 
+        _tasks.add("site_config", GROUP_FAST, PHASE_CONFIG,
+            [](void* s, uint64_t now) { static_cast<BotanikFirmware*>(s)->on_config(now); },
+            this);
+
         // --- SERVICE: supervision and the background state machines ---
         // Health before the logger drains, so an alarm START/END lands this
-        // beat, and before EXECUTE, so a fault inhibits this beat's programs.
+        // beat, and before CONTROL, so a fault inhibits this beat's programs.
         _tasks.add_component("health", GROUP_SLOW, PHASE_SERVICE, _health);
         _tasks.add("control_latch", GROUP_FAST, PHASE_SERVICE,
             [](void* s, uint64_t) { static_cast<BotanikFirmware*>(s)->_latch_control(); },
@@ -291,27 +299,27 @@ namespace Botanik {
             &_modbus_tcp);
 #endif
 
-        // --- EXECUTE: the control programs ---
+        _tasks.add("site_service", GROUP_FAST, PHASE_SERVICE,
+            [](void* s, uint64_t now) { static_cast<BotanikFirmware*>(s)->on_service(now); },
+            this);
+
+        // --- CONTROL: the control programs ---
         // Unconditional: the driver holds the Bank and inhibits the programs
         // itself while control is withheld, so it announces at boot (when
         // control is withheld by definition) and its non-driving work runs
         // DURING a withdrawal rather than being skipped with it.
 #if BOTANIK_FEATURE_PLC_SCAN
-        _tasks.add_component("scan", GROUP_FAST, PHASE_EXECUTE, _scan);
+        _tasks.add_component("scan", GROUP_FAST, PHASE_CONTROL, _scan);
 #endif
         // The site's own control law, under the same gate the scan driver
-        // applies to the programs, and ahead of the ungated hook below so its
-        // bookkeeping sees the result. The gate is per DISPATCH POINT, not per
-        // write (see on_control()), so the scan driver and this are the whole
-        // list: a third place that drives the field must gate itself here.
-        _tasks.add("site_ctl", GROUP_FAST, PHASE_EXECUTE,
+        // applies to the programs. The gate is per DISPATCH POINT, not per write
+        // (see on_control()), so the scan driver and this are the whole list: a
+        // third place that drives the field must gate itself here.
+        _tasks.add("site_control", GROUP_FAST, PHASE_CONTROL,
             [](void* s, uint64_t now) {
                 BotanikFirmware* f = static_cast<BotanikFirmware*>(s);
                 if (f->io().control_enabled()) f->on_control(now);
             },
-            this);
-        _tasks.add("site", GROUP_FAST, PHASE_EXECUTE,
-            [](void* s, uint64_t now) { static_cast<BotanikFirmware*>(s)->on_step(now); },
             this);
 
         // --- OUTPUT: hand what the programs drove to the field ---
@@ -321,7 +329,16 @@ namespace Botanik {
         _tasks.add_component("modbus_rtu_tx", GROUP_FAST, PHASE_OUTPUT, _modbus_rtu);
 #endif
 
+        _tasks.add("site_output", GROUP_FAST, PHASE_OUTPUT,
+            [](void* s, uint64_t now) { static_cast<BotanikFirmware*>(s)->on_output(now); },
+            this);
+
         // --- PRESENT: report what just happened ---
+        // First in the phase, so anything it logs is drained by the logger below
+        // in the SAME beat rather than waiting for the next one.
+        _tasks.add("site_present", GROUP_FAST, PHASE_PRESENT,
+            [](void* s, uint64_t now) { static_cast<BotanikFirmware*>(s)->on_present(now); },
+            this);
 #if BOTANIK_FEATURE_MODBUS_TCP_SERVER
         // The answer goes out off the image the scan just produced: one beat of
         // latency on a read, against a poll measured in seconds, and no request
@@ -392,14 +409,14 @@ namespace Botanik {
         if (!_health.watchdog_ok()) {
             if (!_health_fault) {
                 _health_fault = true;
-                _io.disable_control(Vars::Bank::INHIBIT_HEALTH);
+                _io.set_health_hold(true);
                 _logger.critical(Logs::HEALTH,
                     "control disabled\n"
                     "outputs at their safe state, scan inhibited");
             }
         } else if (_health_fault) {
             _health_fault = false;
-            _io.enable_control(Vars::Bank::INHIBIT_HEALTH);
+            _io.set_health_hold(false);
             // Lead hoisted out of the ternary: the format string stays a
             // literal the printf attribute can check, and both outcomes grep
             // as "health recovered".

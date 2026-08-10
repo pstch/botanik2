@@ -11,7 +11,8 @@
  * loop() order, and exposes a reference accessor for each. A site is DATA: it
  * fills a SiteDescriptor and derives a thin `GreenhouseXXX : BotanikFirmware`
  * that passes it to the base ctor, customizing only through the register_*() /
- * on_setup() / on_step() / on_control() hooks. See docs/integration and CLAUDE.md
+ * on_setup() plus one hook per phase (on_input ... on_present). See
+ * docs/integration and CLAUDE.md
  * ("Site-specific code").
  *
  * Target-independent: the site's tables are borrowed site statics. Tunable
@@ -280,7 +281,7 @@ namespace Botanik {
             _tasks.run_phase(Tasks::PHASE_INPUT,   now_ms);
             _tasks.run_phase(Tasks::PHASE_CONFIG,  now_ms);
             _tasks.run_phase(Tasks::PHASE_SERVICE, now_ms);
-            _tasks.run_phase(Tasks::PHASE_EXECUTE, now_ms);
+            _tasks.run_phase(Tasks::PHASE_CONTROL, now_ms);
             _tasks.run_phase(Tasks::PHASE_OUTPUT,  now_ms);
             _tasks.run_phase(Tasks::PHASE_PRESENT, now_ms);
 
@@ -290,7 +291,7 @@ namespace Botanik {
             // and the gap before the reboot is exactly when an actuator must
             // not be left energised.
             if (_health.watchdog_ok()) HAL::Watchdog::kick();
-            else                       _io.disable_control(Vars::Bank::INHIBIT_HEALTH);
+            else                       _io.set_health_hold(true);
             return true;
         }
 
@@ -382,28 +383,59 @@ namespace Botanik {
          *  nothing. */
         virtual void on_setup() {}
 
-        /** @brief Site per-beat work, run each loop() with fresh variable data
-         *  (after health, before the logger drains). Default: nothing.
+        /** @name Per-phase hooks
          *
-         *  **Runs whatever control authority says**, so it is for bookkeeping,
-         *  derived values and telemetry: work that stays correct while the plant
-         *  is stopped. Anything that DRIVES the field goes in on_control(), or
-         *  it will keep driving through a health fault. */
-        virtual void on_step(uint64_t now_ms) { (void)now_ms; }
+         *  One hook per phase of the beat, each registered as a task of its own
+         *  ("site_input", "site_config", ...) so a slow one is attributable on
+         *  the TASKS page rather than hiding inside the base. Default: nothing.
+         *
+         *  Pick the hook by where the work belongs in the DATA FLOW, the same
+         *  rule the phases themselves follow (@ref dev_tasks): read in
+         *  on_input(), settle configuration in on_config(), run background state
+         *  machines in on_service(), decide in on_control(), hand demands to the
+         *  field in on_output(), report in on_present().
+         *
+         *  **Only on_control() is gated by control authority.** The other five
+         *  run whatever the mode, so bookkeeping, derived values and telemetry
+         *  stay correct while the plant is stopped - which is what makes a
+         *  stopped plant diagnosable. Anything that DRIVES the field belongs in
+         *  on_control(), or it keeps driving through a health fault.
+         *  @{ */
 
-        /** @brief Site control law, run each beat only while control authority
-         *  is held. Default: nothing.
+        /** @brief After the field commit, the serial RX and the expiry sweep, so
+         *  this beat's readings are in and coherent. */
+        virtual void on_input(uint64_t now_ms) { (void)now_ms; }
+
+        /** @brief After the parameter commit, so a value read here is the one
+         *  everything below will use this beat. */
+        virtual void on_config(uint64_t now_ms) { (void)now_ms; }
+
+        /** @brief Beside health and the network: a site's own background state
+         *  machine, stepped once per beat. */
+        virtual void on_service(uint64_t now_ms) { (void)now_ms; }
+
+        /** @brief The site's control law, run ONLY while control authority is
+         *  enabled, beside the scan driver.
          *
-         *  The gated twin of on_step(), and where a site's own driving belongs.
-         *  Control authority is enforced per dispatch point rather than per
-         *  write - `Vars::Var` is two pointers passed by value and has no route
-         *  to the latch - so the gate has to be here, next to the scan driver's.
+         *  Authority is enforced per dispatch point rather than per write -
+         *  `Vars::Var` is two pointers passed by value and has no route to the
+         *  latch - so the gate has to be here. A third place that drives the
+         *  field must gate itself the same way.
          *
          *  Carries no scheduling state, so nothing is reset on the way down or
          *  reseeded on the way back up; a site needing those wants a
-         *  `Plc::Program`. Runs BEFORE on_step(), so bookkeeping there sees this
-         *  beat's decisions. */
+         *  `Plc::Program`. */
         virtual void on_control(uint64_t now_ms) { (void)now_ms; }
+
+        /** @brief After the programs have driven their demands and before the
+         *  field write, for a site that has to shape what goes out. */
+        virtual void on_output(uint64_t now_ms) { (void)now_ms; }
+
+        /** @brief With the beat's decisions made: telemetry, counters, anything
+         *  that reports rather than decides. */
+        virtual void on_present(uint64_t now_ms) { (void)now_ms; }
+
+        /** @} */
 
         /** @} */
 

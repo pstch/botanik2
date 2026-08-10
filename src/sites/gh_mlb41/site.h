@@ -159,7 +159,7 @@ const Botanik::SiteDescriptor g_site = {
  *
  * A thin binding of the generic base to this site's descriptor: it declares no
  * pages and overrides no hooks. A site needing custom per-beat logic or an extra
- * page overrides the base's on_step() / register_pages() here; see
+ * page overrides one of the base's phase hooks / register_pages() here; see
  * libbotanik/firmware/firmware.h for the extension model.
  */
 class GreenhouseMLB41 final : public Botanik::BotanikFirmware {

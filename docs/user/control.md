@@ -1,23 +1,31 @@
 # Control authority and the safe state {#user_control}
 
-Whether the firmware may drive the field at all is one latch: **control authority**.
-Everything that touches the outputs goes through it.
+Whether the firmware may drive the field at all is **control authority**, and it
+has three modes. Everything that touches the outputs goes through it.
 
-It is held down by two **independent** inhibits, and control returns only when both
-let go:
+| Mode | The programs | The outputs | An `override` on an output |
+|---|---|---|---|
+| `enable` | run | driven normally | drives |
+| `inhibit` | stopped | at their safe state | **still drives** |
+| `disable` | stopped | at their safe state | **ignored** |
 
-| Inhibit | Held by |
+Two **independent** sources decide which mode is in force, and the **stricter**
+one wins:
+
+| Source | Set by |
 |---|---|
-| operator | you, with `control disable` |
-| health | the firmware: bring-up not finished, a health fault, a pending reset |
+| operator | you, with `control enable` / `inhibit` / `disable` |
+| system | the firmware: bring-up not finished, a health fault, a pending reset |
 
-That is why it is not a single flag. An operator who typed `control disable` stays
-disabled across a health fault that comes and goes, and equally the console cannot
-talk over the firmware's own judgement that it must not drive.
+That is why it is not a single setting. An operator who typed `control disable`
+stays disabled across a health fault that comes and goes, and equally the console
+cannot talk over the firmware's own judgement that it must not drive. `control`
+reports both, so an `enable` that changes nothing reads as a health fault rather
+than a broken command.
 
-## What withdrawing control does
+## What withholding control does
 
-Two things, at once:
+Two things, at once, in both withheld modes:
 
 1. every output goes to its **declared safe state** - for the reference site, every
    relay coil de-energised;
@@ -33,33 +41,44 @@ way past.
 ```
 botanik> control                 # report
 control: enabled
+botanik> control inhibit
+control: INHIBITED - outputs at their safe state, scan stopped; `override` still drives them by hand
 botanik> control disable
-control: DISABLED - outputs at their safe state, scan inhibited; `override` still drives them by hand
+control: DISABLED - outputs at their safe state, scan stopped, output overrides ignored (kept, not cleared)
 botanik> control enable
 control: enabled
 ```
 
-Use `control disable` before working on the plant. It is the one command that
-guarantees the firmware is not about to move something on its own.
+Use `control inhibit` before working on the plant: it stops the firmware deciding
+anything while leaving the outputs reachable by hand. `control disable` is the
+stricter one - nothing at all drives an output, not even you.
+
+**A disabled override is muted, not deleted.** Going back to `inhibit` or `enable`
+restores whatever you had forced, with nothing to re-enter. The one thing that
+does erase output overrides is the *system* withholding control - a health fault
+or a pending reset - because then nobody is necessarily watching, and an actuator
+held energised by hand through a fault (or resurrected at the next boot) is
+exactly what the safe state exists to prevent.
 
 ### Driving an actuator by hand
 
-Disabling control does **not** take the outputs away from you - it takes them away
+Inhibiting control does **not** take the outputs away from you - it takes them away
 from the control programs. `override` still reaches them, and with the scan stopped
 there is nothing left to fight it, so the two commands together are how you command a
 valve or a fan by hand:
 
 ```
-botanik> control disable
+botanik> control inhibit
 botanik> override irr_tray1 1        # open tray 1's valve
 botanik> override irr_tray1 0        # close it
 botanik> override clear              # hand everything back
 botanik> control enable
 ```
 
-That is the whole reason the operator's inhibit leaves overrides alone. Wiping them
-would leave nothing at all able to move an actuator, which is the opposite of what
-someone standing at the machine with a wrench needs.
+That is the whole reason `inhibit` leaves overrides alone. Wiping them would leave
+nothing at all able to move an actuator, which is the opposite of what someone
+standing at the machine with a wrench needs. Reach for `disable` when you want the
+opposite guarantee: that nothing moves, including you.
 
 @warning Nothing supervises a hand-driven output. The interlocks live in the control
 programs, and those are exactly what you just stopped. Release the overrides before
@@ -109,7 +128,8 @@ The firmware's own withdrawal is the stricter of the two, and it is the one case
 longer reason about what it is driving, or is about to stop running altogether, and
 nobody is necessarily watching - an actuator held energised by hand through that is
 the one outcome the safe state exists to prevent. So a health fault will take a
-hand-driven valve off you; `control disable` will not.
+hand-driven valve off you, and keep it off across a reboot; the operator's own
+`control disable` only mutes it.
 
 `reset` and `exit` also drop the outputs to safe state before leaving, because the
 reboot itself gives no guarantee about what the outputs do on the way through.

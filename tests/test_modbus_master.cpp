@@ -35,8 +35,8 @@ struct Master {
 
     Master() : bank(Site::g_site.vars), client(&bank, nullptr, Site::g_site.devices) {
         bank.init();
-        bank.enable_control(Bank::INHIBIT_HEALTH);
-        bank.enable_control(Bank::INHIBIT_OPERATOR);
+        bank.set_health_hold(false);
+        bank.set_control_mode(CONTROL_ENABLED);
         client.setup(0);
     }
 
@@ -109,7 +109,7 @@ TEST_CASE("modbus client: withdrawing control puts the safe state ahead of every
     (void)m.client.next_block(10);
     REQUIRE_FALSE(m.client.safe_state_pending());
 
-    m.bank.disable_control(Bank::INHIBIT_HEALTH);
+    m.bank.set_health_hold(true);
 
     // The very next beat, and well inside the ordinary write interval.
     const uint16_t pick = m.client.next_block(20);
@@ -128,7 +128,7 @@ TEST_CASE("modbus client: a safe state outranks even a starved read") {
     const uint64_t late = (uint64_t)period * 4u;
 
     // Same instant as above, but now a safe state is owed and outranks it.
-    m.bank.disable_control(Bank::INHIBIT_HEALTH);
+    m.bank.set_health_hold(true);
     const uint16_t pick = m.client.next_block(late);
 
     REQUIRE(m.client.safe_state_pending());
@@ -139,7 +139,7 @@ TEST_CASE("modbus client: the urgency is spent once the safe state is out") {
     // Leaving control disabled must not keep the bus at emergency priority forever.
     Master m;
     (void)m.client.next_block(10);
-    m.bank.disable_control(Bank::INHIBIT_HEALTH);
+    m.bank.set_health_hold(true);
     REQUIRE(m.client.next_block(20) != RtuClient::NO_BLOCK);
     REQUIRE(m.client.safe_state_pending());
 
@@ -569,8 +569,8 @@ struct Bus {
     Planner plan;
     Bus() : bank(Site::g_site.vars) {
         bank.init();
-        bank.enable_control(Bank::INHIBIT_HEALTH);
-        bank.enable_control(Bank::INHIBIT_OPERATOR);
+        bank.set_health_hold(false);
+        bank.set_control_mode(CONTROL_ENABLED);
         plan.plan(bank, 38400, 10);
     }
     /** @brief First write block carrying registers or bits; both encode differently and need pinning. */
