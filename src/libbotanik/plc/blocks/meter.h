@@ -19,6 +19,7 @@
 #include <cstdint>              // uint32_t
 
 #include "libbotanik/config/base.h"       // the BOTANIK_FEATURE_* gates
+#include "libbotanik/plc/blocks/block.h"  // Plc::Block / BOTANIK_PLC_BLOCK
 #if BOTANIK_FEATURE_PLC_BLK_BASE
 
 namespace Botanik { namespace Plc {
@@ -35,7 +36,7 @@ namespace Botanik { namespace Plc {
      * millilitres stops changing it at all, so it silently stops advancing.
      * total() still hands back a float for the variable table.
      */
-    class Integral {
+    class Integral : public Block {
 
         double _total = 0.0;
         float  _rate  = 0.0f;   ///< last rate counted, after the cutoff
@@ -74,7 +75,7 @@ namespace Botanik { namespace Plc {
      * A counter reset or wrap shows up as one window of large negative rate;
      * preset() re-seeds without one.
      */
-    class Derivative {
+    class Derivative : public Block {
 
         float    _prev    = 0.0f;   ///< quantity at the start of the window
         float    _rate    = 0.0f;   ///< last completed window, per second
@@ -94,6 +95,13 @@ namespace Botanik { namespace Plc {
         void reset();
 
     };
+
+    /** @name Family checks
+     *  @see block.h - every block is reset by the scan driver.
+     *  @{ */
+    BOTANIK_PLC_BLOCK(Integral);
+    BOTANIK_PLC_BLOCK(Derivative);
+    /** @} */
 
 }}  // namespace Botanik::Plc
 

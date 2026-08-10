@@ -10,6 +10,7 @@
 #include <cstdint>              // uint8_t/uint32_t
 
 #include "libbotanik/config/base.h"       // the BOTANIK_FEATURE_* gates
+#include "libbotanik/plc/blocks/block.h"  // Plc::Block / BOTANIK_PLC_BLOCK
 #if BOTANIK_FEATURE_PLC_BLK_BASE
 
 namespace Botanik { namespace Plc {
@@ -65,7 +66,7 @@ namespace Botanik { namespace Plc {
      * Control authority is not this block's business - a program that must stop
      * driving calls stop(), and the coil rows drop to safe on their own.
      */
-    class Actuator {
+    class Actuator : public Block {
     public:
         /** @brief Where the actuator is, as far as the block can tell. */
         enum State {
@@ -147,12 +148,25 @@ namespace Botanik { namespace Plc {
          *  manual crank, hand/off/auto coming back to auto. */
         void home();
 
+        /** @brief Cold: coils dropped, position forgotten, so the next command
+         *  datums. The same thing home() does - named reset() because that is
+         *  what the scan driver calls on every program when control is
+         *  withdrawn, and an actuator's estimate is exactly what an outage
+         *  invalidates. */
+        void reset() { home(); }
+
         /** @brief Declare the position known, skipping the datum stroke. Only
          *  when something else actually establishes it. */
         void preset(float pos);
 
         /** @} */
     };
+
+    /** @name Family checks
+     *  @see block.h - every block is reset by the scan driver.
+     *  @{ */
+    BOTANIK_PLC_BLOCK(Actuator);
+    /** @} */
 
 }}  // namespace Botanik::Plc
 

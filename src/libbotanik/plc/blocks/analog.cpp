@@ -51,7 +51,14 @@ namespace Botanik { namespace Plc {
 
     float Ramp::operator()(float target, float rate_per_s, uint32_t dt_ms) {
         if (!_seed) { _out = target; _seed = true; return _out; }
-        const float step = rate_per_s * seconds(dt_ms);
+        // A non-positive rate is no motion, not motion the other way. The
+        // clamps below are written for a positive step; a negative one inverts
+        // them and walks the output AWAY from its target, without bound. The
+        // rate is commonly a Tunable off the PARAMS page, so a mistyped sign is
+        // operator-reachable on a block that drives a stroke demand. Same rule
+        // as scale()'s degenerate span: a misconfigured input gives a dull
+        // answer, never a runaway one.
+        const float step = (rate_per_s > 0.0f) ? rate_per_s * seconds(dt_ms) : 0.0f;
         float diff = target - _out;
         if (diff >  step) diff =  step;
         if (diff < -step) diff = -step;

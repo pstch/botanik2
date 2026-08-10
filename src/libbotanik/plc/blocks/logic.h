@@ -11,6 +11,7 @@
 #include <cstdint>              // uint8_t
 
 #include "libbotanik/config/base.h"       // the BOTANIK_FEATURE_* gates
+#include "libbotanik/plc/blocks/block.h"  // Plc::Block / BOTANIK_PLC_BLOCK
 #if BOTANIK_FEATURE_PLC_BLK_BASE
 
 namespace Botanik { namespace Plc {
@@ -20,7 +21,7 @@ namespace Botanik { namespace Plc {
 
     /** @brief Rising edge: true for the one scan where the input went false to
      *  true. */
-    class RTrig {
+    class RTrig : public Block {
         bool _prev = false;
     public:
         bool operator()(bool in);
@@ -28,7 +29,7 @@ namespace Botanik { namespace Plc {
     };
 
     /** @brief Falling edge. */
-    class FTrig {
+    class FTrig : public Block {
         // Assumes the input starts low, matching RTrig: neither fires on the
         // first scan merely because of where the input happens to sit.
         bool _prev = false;
@@ -42,7 +43,7 @@ namespace Botanik { namespace Plc {
      *  @{ */
 
     /** @brief Set-dominant latch: set wins when both inputs are true. */
-    class Sr {
+    class Sr : public Block {
         bool _q = false;
     public:
         bool operator()(bool set, bool reset);
@@ -52,7 +53,7 @@ namespace Botanik { namespace Plc {
 
     /** @brief Reset-dominant latch: reset wins when both inputs are true. The
      *  safer default for anything an interlock can stop. */
-    class Rs {
+    class Rs : public Block {
         bool _q = false;
     public:
         bool operator()(bool set, bool reset);
@@ -86,7 +87,7 @@ namespace Botanik { namespace Plc {
      * with six chains two interlocks. Fixed width keeps first_out() meaningful
      * and the block free of storage to size.
      */
-    class Interlock {
+    class Interlock : public Block {
 
         const char* _names[4];       ///< borrowed, flash-resident labels
         RTrig       _reset_edge;
@@ -127,6 +128,16 @@ namespace Botanik { namespace Plc {
 
     };
 
+    /** @} */
+
+    /** @name Family checks
+     *  @see block.h - every block is reset by the scan driver.
+     *  @{ */
+    BOTANIK_PLC_BLOCK(RTrig);
+    BOTANIK_PLC_BLOCK(FTrig);
+    BOTANIK_PLC_BLOCK(Sr);
+    BOTANIK_PLC_BLOCK(Rs);
+    BOTANIK_PLC_BLOCK(Interlock);
     /** @} */
 
 }}  // namespace Botanik::Plc

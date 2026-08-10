@@ -54,7 +54,16 @@ namespace Botanik { namespace Plc {
                               || (unsat <= t.out_min && _error < 0.0f);
             if (!winding) {
                 _integral += t.ki * _error * dt;
-                _integral = limit(_integral, t.out_min, t.out_max);
+                // Clamped so the integral can span the output, NOT to the
+                // output's own limits: with a non-zero floor, limit(i, 20, 100)
+                // clamps a fresh integral of 0.01 UP to 20, and the winding
+                // test above then pins it there for good - twenty units of
+                // authority the loop never earned and cannot unwind. A
+                // minimum-fan-speed or minimum-stroke loop is exactly that
+                // shape. Zero has to stay reachable from either side.
+                _integral = limit(_integral,
+                                  (t.out_min < 0.0f) ? t.out_min : 0.0f,
+                                  (t.out_max > 0.0f) ? t.out_max : 0.0f);
             }
         }
 

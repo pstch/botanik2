@@ -581,12 +581,7 @@ namespace Botanik { namespace Vars {
          *  first IS a bad number, and the second means the device says the
          *  register is not there, so whatever is in the slot answered a
          *  different question. */
-        Scalar   raw()   const {
-            if (_v->ovr_on)              return _v->ovr;
-            if (live_valid())            return _v->v;
-            if (_v->qual == Q_STALE)     return _v->v;
-            return _d->def;
-        }
+        Scalar   raw()   const { return _v->ovr_on ? _v->ovr : _under(); }
         /** @brief As a float; a digital reads 0/1, so a consumer that only
          *  displays or publishes never branches on the type. */
         float    value() const { return as_f32(_d->type, raw()); }
@@ -602,7 +597,7 @@ namespace Botanik { namespace Vars {
          *  "the sensor now reads sane again" is exactly what you want to know
          *  before releasing an override.
          *  @{ */
-        Scalar   live()       const { return live_valid() ? _v->v : _d->def; }
+        Scalar   live()       const { return _under(); }
         bool     live_valid() const { return _v->qual == Q_GOOD; }
         /** @brief ...and WHY, when it is not good. An override does not change
          *  it: the row underneath still has whatever quality it had, which is
@@ -747,6 +742,26 @@ namespace Botanik { namespace Vars {
             _v->v    = v;
             _v->qual = Q_GOOD;
             if (moved) _touch_field();
+        }
+
+        /** @brief What the row reads with no override in force: the ONE
+         *  statement of the fallback rule.
+         *
+         *  A STALE row keeps the value it actually had - a sensor that answered
+         *  a minute ago still knows what the plant was doing, and 20 C from a
+         *  minute ago is a better account of a greenhouse than the 0 C its
+         *  declared default reads as. Q_NO_DATA, Q_SAFE and Q_IMPLAUSIBLE fall
+         *  back: nothing to keep, a deliberate safe state, and a number already
+         *  rejected for being wrong.
+         *
+         *  Private and shared by raw() and live() because they had drifted:
+         *  raw() kept the stale value and live() did not, so the MONITOR page's
+         *  live column and `get`'s Raw value row showed 0 for a stale sensor
+         *  while the value beside them showed the last reading. Those two
+         *  fields are what an engineer reads to decide whether a sensor has
+         *  died. */
+        Scalar _under() const {
+            return (_v->qual == Q_GOOD || _v->qual == Q_STALE) ? _v->v : _d->def;
         }
 
         /** @brief Note that a ROLE_OUTPUT's demand has moved. One compare on a

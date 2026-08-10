@@ -125,6 +125,17 @@ namespace Botanik { namespace Vars {
             const double d = strtod(text, &end);
             if (end == text || !only_spaces_left(end)) return PARSE_MALFORMED;
             if (errno == ERANGE) return PARSE_RANGE;
+            // ERANGE is not the whole story for a real. strtod accepts "nan"
+            // and "inf" outright, and a literal like 1e300 is a perfectly good
+            // DOUBLE that becomes +inf on the narrowing cast below - neither
+            // sets errno. The integer branches range-check; this one has to as
+            // well, or the console's `override <row> nan` writes a NaN into the
+            // slot, persists it, and reject_implausible() skips it because the
+            // row is overridden. It then survives the reboot, and every
+            // hysteresis and deadband downstream compares false against it.
+            if (!(d == d)) return PARSE_MALFORMED;          // NaN: not a number
+            if (d > 3.4028234663852886e+38 ||
+                d < -3.4028234663852886e+38) return PARSE_RANGE;
             *out = Scalar::F((float)d);
             return PARSE_OK;
         }

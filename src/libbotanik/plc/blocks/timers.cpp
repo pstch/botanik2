@@ -28,12 +28,19 @@ namespace Botanik { namespace Plc {
     }
 
     bool Tp::operator()(bool in, uint32_t width_ms, uint32_t dt_ms) {
-        if (in && !_prev && !_q) { _q = true; _elapsed = 0; }   // rising edge
-        _prev = in;
+        // Expiry is judged BEFORE this scan's edge, on time that has already
+        // elapsed. Judging it after starting the pulse would spend the whole
+        // width inside the activation that began it, so a pulse at or below one
+        // scan period would go up and down without ever being returned - and
+        // width_ms is routinely a parameter, so a value typed under the
+        // program's period would be a silent no-op rather than a short pulse.
+        // IEC 61131-3 gives TP a minimum of one activation.
         if (_q) {
             accumulate(_elapsed, width_ms, dt_ms);
             if (_elapsed >= width_ms) _q = false;
         }
+        if (in && !_prev && !_q) { _q = true; _elapsed = 0; }   // rising edge
+        _prev = in;
         return _q;
     }
 

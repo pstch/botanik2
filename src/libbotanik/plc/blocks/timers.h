@@ -13,13 +13,14 @@
 #include <cstdint>              // uint32_t
 
 #include "libbotanik/config/base.h"       // the BOTANIK_FEATURE_* gates
+#include "libbotanik/plc/blocks/block.h"  // Plc::Block / BOTANIK_PLC_BLOCK
 #if BOTANIK_FEATURE_PLC_BLK_BASE
 
 namespace Botanik { namespace Plc {
 
     /** @brief On-delay: true once @p in has held true for @p delay_ms, false the
      *  moment it drops. Debounce, dwell, "has been wet for 30 s". */
-    class Ton {
+    class Ton : public Block {
         uint32_t _elapsed = 0;
         bool     _q       = false;
     public:
@@ -32,7 +33,7 @@ namespace Botanik { namespace Plc {
 
     /** @brief Off-delay: follows @p in up, holds true for @p delay_ms after it
      *  drops. Minimum run time, fan overrun. */
-    class Tof {
+    class Tof : public Block {
         uint32_t _elapsed = 0;
         bool     _q       = false;
     public:
@@ -44,7 +45,7 @@ namespace Botanik { namespace Plc {
 
     /** @brief Pulse: a rising @p in starts a fixed @p width_ms pulse, which runs
      *  to completion whatever the input does next. */
-    class Tp {
+    class Tp : public Block {
         uint32_t _elapsed = 0;
         bool     _q       = false;
         bool     _prev    = false;
@@ -54,6 +55,14 @@ namespace Botanik { namespace Plc {
         uint32_t elapsed_ms() const { return _elapsed; }
         void reset() { _elapsed = 0; _q = false; _prev = false; }
     };
+
+    /** @name Family checks
+     *  @see block.h - every block is reset by the scan driver.
+     *  @{ */
+    BOTANIK_PLC_BLOCK(Ton);
+    BOTANIK_PLC_BLOCK(Tof);
+    BOTANIK_PLC_BLOCK(Tp);
+    /** @} */
 
 }}  // namespace Botanik::Plc
 

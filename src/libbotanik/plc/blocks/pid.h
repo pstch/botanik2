@@ -9,6 +9,7 @@
 #include <cstdint>              // uint32_t
 
 #include "libbotanik/config/base.h"       // the BOTANIK_FEATURE_* gates
+#include "libbotanik/plc/blocks/block.h"  // Plc::Block / BOTANIK_PLC_BLOCK
 #if BOTANIK_FEATURE_PLC_BLK_BASE
 
 namespace Botanik { namespace Plc {
@@ -64,7 +65,7 @@ namespace Botanik { namespace Plc {
      * filling). @c reverse flips the error and the derivative together; swapping
      * the two arguments instead would silently differentiate the setpoint.
      */
-    class Pid {
+    class Pid : public Block {
 
         /** @name State
          *  @{ */
@@ -118,6 +119,12 @@ namespace Botanik { namespace Plc {
 
         /** @} */
     };
+
+    /** @name Family checks
+     *  @see block.h - every block is reset by the scan driver.
+     *  @{ */
+    BOTANIK_PLC_BLOCK(Pid);
+    /** @} */
 
 }}  // namespace Botanik::Plc
 

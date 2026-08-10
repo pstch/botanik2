@@ -552,6 +552,80 @@ TEST_CASE("Pid: the integral removes the offset a P-only loop leaves") {
     CHECK(p.integral() > 0.0f);        // it is the integral holding it there
 }
 
+TEST_CASE("Tp: a pulse shorter than the scan still shows for one activation") {
+    // IEC 61131-3 gives TP a minimum of one activation. Judging expiry after
+    // starting the pulse spends the whole width inside the scan that began it,
+    // so a width at or below dt_ms goes up and down without ever being seen -
+    // and width_ms is routinely a parameter typed against a 100 ms program.
+    Tp a;
+    CHECK(a(true, 50, 100) == true);         // width < dt: still one activation
+    CHECK(a(true, 50, 100) == false);        // ...and only one
+    Tp b;
+    CHECK(b(true, 100, 100) == true);        // width == dt
+    CHECK(b(true, 100, 100) == false);
+    // The ordinary case is unchanged: a pulse wider than the scan spans scans.
+    Tp c;
+    CHECK(c(true, 250, 100) == true);
+    CHECK(c(true, 250, 100) == true);
+    CHECK(c(true, 250, 100) == true);
+    CHECK(c(true, 250, 100) == false);
+}
+
+TEST_CASE("Ramp: a non-positive rate freezes rather than running away") {
+    // The clamps are written for a positive step; a negative one inverts them
+    // and walks the output away from its target without bound. The rate is a
+    // Tunable off the PARAMS page, so the sign is operator-reachable.
+    Ramp r;
+    r(0.0f, 1.0f, 100);                      // seed at 0
+    for (int i = 0; i < 20; i++) r(5.0f, -0.01f, 100);
+    CHECK(r.value() == doctest::Approx(0.0f));   // frozen, not diverging
+    CHECK(r.value() <= 5.0f);                    // never past the target
+    Ramp z;
+    z(0.0f, 1.0f, 100);
+    for (int i = 0; i < 20; i++) z(5.0f, 0.0f, 100);
+    CHECK(z.value() == doctest::Approx(0.0f));   // a zero rate is no motion
+}
+
+TEST_CASE("blocks: every block in the family can be reset") {
+    // block.h asserts this at compile time; this is the runtime half - a reset
+    // block reads as a cold one. The scan driver resets every program on a
+    // control-authority withdrawal, and a program's reset is the sum of its
+    // blocks'.
+    Ramp ramp;   ramp(7.0f, 1.0f, 100);   ramp.reset();
+    CHECK(ramp(3.0f, 1.0f, 100) == doctest::Approx(3.0f));   // re-seeds, no ramp from 7
+
+    Deadband db;  db(10.0f, 1.0f);        db.reset();
+    CHECK(db(2.0f, 1.0f) == doctest::Approx(2.0f));          // reports, not suppressed
+
+    Actuator act; const ActuatorConfig cfg(10000, 8000, 0.02f, 1000, 250, 500);
+    for (int i = 0; i < 10; i++) act.step(1.0f, cfg, 2000);   // datum stroke, seated
+    REQUIRE(act.known());
+    act.reset();
+    CHECK_FALSE(act.known());                                 // datums again
+    CHECK_FALSE(act.open_cmd());
+    CHECK_FALSE(act.close_cmd());
+}
+
+TEST_CASE("Pid: a non-zero output floor does not become a phantom integral") {
+    // limit(i, out_min, out_max) clamps a fresh integral UP to out_min, and the
+    // anti-windup guard then pins it there: authority the loop never earned and
+    // cannot unwind. A minimum-fan-speed or minimum-stroke loop is this shape.
+    Pid p;
+    const PidTuning t(2.0f, 0.5f, 0.0f, 20.0f, 100.0f);   // floor at 20
+    p(25.0f, 24.0f, t, 100);                              // one integrating scan
+    CHECK(p.integral() < 1.0f);        // ~0.5, not 20
+    CHECK(p.integral() > 0.0f);
+
+    // ...and the loop still settles, with the integral it actually earned. The
+    // phantom made the first scan command the floor's worth of authority, which
+    // a loop whose equilibrium sits near the floor cannot then give back.
+    Plant plant = { 0.0f, 0.5f, 20.0f };                  // equilibrium: out 50 -> pv 25
+    Pid q;
+    for (int i = 0; i < 2000; i++) plant.step(q(25.0f, plant.pv, t, 100), 100);
+    CHECK(plant.pv == doctest::Approx(25.0f).epsilon(0.01));
+    CHECK(q.integral() == doctest::Approx(50.0f).epsilon(0.1));   // earned, not granted
+}
+
 TEST_CASE("Pid: ki back to 0 removes the integral rather than freezing it") {
     // The tunings are operator-editable parameters, so turning the I off on a
     // running loop is a thing that happens. A frozen integral would go on

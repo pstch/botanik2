@@ -39,6 +39,28 @@ namespace {
 
 }
 
+TEST_CASE("scalar: a real parse refuses nan, inf and anything past float range") {
+    // strtod accepts "nan" and "inf" outright, and 1e300 is a perfectly good
+    // DOUBLE that becomes +inf on the narrowing cast - none of them set ERANGE,
+    // which was the only check. The console reaches this through
+    // `override <row> nan`, which persists the value; reject_implausible()
+    // skips overridden rows, so it survives the reboot and every hysteresis and
+    // deadband downstream then compares false against it.
+    Scalar out;
+    CHECK(parse_scalar(T_F32, "nan",   &out) == PARSE_MALFORMED);
+    CHECK(parse_scalar(T_F32, "NaN",   &out) == PARSE_MALFORMED);
+    CHECK(parse_scalar(T_F32, "inf",   &out) == PARSE_RANGE);
+    CHECK(parse_scalar(T_F32, "-inf",  &out) == PARSE_RANGE);
+    CHECK(parse_scalar(T_F32, "1e300", &out) == PARSE_RANGE);   // fits double, not float
+    CHECK(parse_scalar(T_F32, "1e400", &out) == PARSE_RANGE);   // ERANGE, as before
+
+    // Ordinary values are untouched, including the float extremes.
+    REQUIRE(parse_scalar(T_F32, "42.5", &out) == PARSE_OK);
+    CHECK(out.f == doctest::Approx(42.5f));
+    CHECK(parse_scalar(T_F32, "3.4e38",  &out) == PARSE_OK);
+    CHECK(parse_scalar(T_F32, "-3.4e38", &out) == PARSE_OK);
+}
+
 TEST_CASE("scalar: every type round-trips through its own slot") {
     // Each write lands in the union member the type names, so the read is exact
     // rather than a reinterpretation of a neighbouring member.
@@ -276,6 +298,29 @@ TEST_CASE("model: publish carries the timestamp, so staleness cannot be forgotte
     // 20.5 its declared default reads as. valid() is false either way, so
     // anything that cares still knows not to trust it.
     CHECK(f.bank.var(V_EXT_TEMP).value() == doctest::Approx(30.0f));
+}
+
+TEST_CASE("model: live() and raw() agree about a stale reading") {
+    // They are the two halves of one question, and they had drifted: raw() kept
+    // the stale value, live() fell back to the default. The MONITOR page's live
+    // column and `get`'s Raw value row read live(); the value beside them reads
+    // raw(). A dying sensor is exactly when an engineer reads those two fields,
+    // and they contradicted each other.
+    Fixture f;
+    Var h = f.bank.var(V_EXT_TEMP);
+    h.publish(Scalar::F(30.0f), 1000);
+    f.bank.expire_stale(7000);                       // past the 5 s timeout
+    REQUIRE(h.live_quality() == Q_STALE);
+
+    CHECK(h.raw().f  == doctest::Approx(30.0f));
+    CHECK(h.live().f == doctest::Approx(30.0f));     // not the 20.5 default
+    CHECK_FALSE(h.valid());                          // still not to be trusted
+
+    // ...and where there is nothing to keep, both fall back together.
+    Var g = f.bank.var(V_EXT_TEMP);
+    g.invalidate(Q_IMPLAUSIBLE);
+    CHECK(g.raw().f  == doctest::Approx(20.5f));
+    CHECK(g.live().f == doctest::Approx(20.5f));
 }
 
 TEST_CASE("model: a row that never read anything still falls back to its default") {

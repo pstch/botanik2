@@ -14,6 +14,7 @@
 #include <cstdint>              // uint8_t/uint32_t
 
 #include "libbotanik/config/base.h"       // the BOTANIK_FEATURE_* gates
+#include "libbotanik/plc/blocks/block.h"  // Plc::Block / BOTANIK_PLC_BLOCK
 #if BOTANIK_FEATURE_PLC_BLK_FILTERS
 
 namespace Botanik { namespace Plc {
@@ -28,7 +29,7 @@ namespace Botanik { namespace Plc {
      * filter creeping from 0 to 21 C spends its warm-up reporting a frost that
      * is not there.
      */
-    class Ewma {
+    class Ewma : public Block {
 
         float _value = 0.0f;
         bool  _seed  = false;
@@ -50,7 +51,7 @@ namespace Botanik { namespace Plc {
      * For a reading that is clean except for the occasional garbage conversion.
      * Two samples of lag; often used ahead of an Ewma rather than instead of it.
      */
-    class MedianOf3 {
+    class MedianOf3 : public Block {
 
         float   _s[3] = { 0.0f, 0.0f, 0.0f };   ///< newest last
         uint8_t _n    = 0;                      ///< samples seen, saturating at 3
@@ -72,7 +73,7 @@ namespace Botanik { namespace Plc {
      * storage, so this is the one block that lives entirely in the header.
      */
     template <uint8_t N>
-    class MovingAverage {
+    class MovingAverage : public Block {
         static_assert(N >= 1, "MovingAverage needs at least one sample");
 
         float   _buf[N] = {};
@@ -101,6 +102,16 @@ namespace Botanik { namespace Plc {
         void reset() { _head = 0; _fill = 0; }
 
     };
+
+    /** @name Family checks
+     *  @see block.h - every block is reset by the scan driver.
+     *  @{ */
+    BOTANIK_PLC_BLOCK(Ewma);
+    BOTANIK_PLC_BLOCK(MedianOf3);
+    // A template is checked at a representative instantiation: the members
+    // and the base do not vary with N.
+    BOTANIK_PLC_BLOCK(MovingAverage<3>);
+    /** @} */
 
 }}  // namespace Botanik::Plc
 
