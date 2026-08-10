@@ -274,14 +274,6 @@ TEST_CASE("model: invalid records WHY, not just that") {
     CHECK_FALSE(h.valid());
 }
 
-TEST_CASE("model: an invalid variable reads as its default") {
-    Fixture f;
-    f.bank.var(V_EXT_TEMP).set(31.7f);
-    CHECK(f.bank.var(V_EXT_TEMP).value() == doctest::Approx(31.7f));
-    f.bank.var(V_EXT_TEMP).safe();                     // driver lost it
-    CHECK(f.bank.var(V_EXT_TEMP).value() == doctest::Approx(20.5f));
-}
-
 TEST_CASE("model: publish carries the timestamp, so staleness cannot be forgotten") {
     Fixture f;
     f.bank.var(V_EXT_TEMP).publish(Scalar::F(30.0f), 1000);

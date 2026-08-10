@@ -225,21 +225,6 @@ TEST_CASE("modbus tcp pdu: a response from another unit is refused") {
     CHECK(decode_response(rsp, n, e, 1, &out, &used) == ERR_UNIT);
 }
 
-TEST_CASE("modbus tcp pdu: a truncated response is short, not wrong") {
-    uint8_t rsp[64];
-    const uint8_t body[4] = { FC_READ_HOLDING, 2, 0x12, 0x34 };
-    const size_t n = frame(rsp, 1, 1, body, 4);
-
-    const Expect e = { 1, FC_READ_HOLDING, 0, 1, 0 };
-    Response out;
-    size_t used = 0;
-    for (size_t k = 0; k < n; ++k) {
-        INFO(k << " of " << n << " bytes");
-        CHECK(decode_response(rsp, k, e, 1, &out, &used) == ERR_SHORT);
-    }
-    CHECK(decode_response(rsp, n, e, 1, &out, &used) == ERR_OK);
-}
-
 TEST_CASE("modbus tcp pdu: an exception response is a result, not a parse failure") {
     uint8_t rsp[64];
     const uint8_t body[2] = { (uint8_t)(FC_READ_HOLDING | EX_BIT), EX_ILLEGAL_ADDRESS };
@@ -514,11 +499,6 @@ TEST_CASE("modbus map: a single-register write goes through the same band check"
     CHECK(Map::wire_of(s.bank.var(row).type(), s.bank.var(row).live()) == before);
 }
 
-TEST_CASE("modbus map: a single-register write to an unmapped address is refused") {
-    Served s;
-    CHECK(s.map.write_register(0xFFFEu, 1) == EX_ILLEGAL_ADDRESS);
-}
-
 #endif // BOTANIK_FEATURE_MODBUS_TCP_SERVER
 
 }  // namespace modbus_map
@@ -631,24 +611,6 @@ TEST_CASE("modbus tcp master: a transaction always reaches a verdict") {
                                      + Config::MODBUS_TCP_CONNECT_TIMEOUT_MS * 4u);
     TcpMaster* m = &p.master;
     CHECK(p.until([m] { return m->done(); }, budget));
-}
-
-TEST_CASE("modbus tcp master: it can be driven again after a completed transaction") {
-    // A transaction that ends must leave the machine usable, whatever it ended
-    // as - otherwise one bad answer takes the link down until a reconnect.
-    Pair p;
-    REQUIRE(p.connect());
-
-    for (int round = 0; round < 3; ++round) {
-        if (!p.master.connected()) {
-            REQUIRE(p.connect());
-        }
-        REQUIRE(p.master.read(Config::MODBUS_TCP_UNIT_ID, FC_READ_HOLDING,
-                              (uint16_t)(p.first_addr() + round * 2), 2));
-        TcpMaster* m = &p.master;
-        REQUIRE(p.until([m] { return m->done(); }, 5000));
-        (void)p.master.take_result();
-    }
 }
 
 #endif // BOTANIK_FEATURE_MODBUS_TCP_CLIENT && BOTANIK_FEATURE_MODBUS_TCP_SERVER

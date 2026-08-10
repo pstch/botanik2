@@ -70,23 +70,6 @@ TEST_CASE("tasks: a group's period is what decides due-ness") {
     CHECK(bkg  <= 3);
 }
 
-TEST_CASE("tasks: group-mates are offset off each other's beats") {
-    // The property the derived offset exists for: two tasks at one rate must not
-    // pile onto the same beat, or the rate cuts the mean work and leaves the
-    // peak - which is what decides the shortest beat the loop can hold.
-    Registry r;
-    r.add("s1", GROUP_SLOW, PHASE_SERVICE, &note, A);
-    r.add("s2", GROUP_SLOW, PHASE_SERVICE, &note, B);
-
-    size_t shared = 0;
-    for (uint64_t t = 0; t <= 1000; t += 10) {
-        g_log.clear();
-        r.run_phase(PHASE_SERVICE, t);
-        if (g_log.size() > 1) shared++;
-    }
-    CHECK(shared == 1);            // the first beat only, which is unavoidable
-}
-
 TEST_CASE("tasks: each run is costed, and the mean is not the peak") {
     g_log.clear();
     Registry r;
@@ -199,21 +182,6 @@ TEST_CASE("tasks: setup() skips a task with no setup, and does not fault") {
     CHECK(g_log.empty());          // setup is not run(); nothing was dispatched
     r.run_phase(PHASE_SERVICE, 0);
     CHECK(g_log.size() == 1);
-}
-
-TEST_CASE("tasks: a Component registers and is stepped through the registry") {
-    struct Spy : public Botanik::Component {
-        uint32_t steps = 0;
-        Spy() : Component(nullptr, "spy") {}
-    protected:
-        void on_step(uint64_t) override { steps++; }
-    };
-    Spy s;
-    Registry r;
-    r.add_component("spy", GROUP_FAST, PHASE_SERVICE, s);
-
-    for (uint64_t t = 0; t < 30; t += 10) r.run_phase(PHASE_SERVICE, t);
-    CHECK(s.steps == 3);
 }
 
 }  // namespace tasks

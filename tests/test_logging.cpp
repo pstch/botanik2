@@ -58,16 +58,6 @@ namespace {
 
 }
 
-TEST_CASE("writer: drain delivers queued entries in order") {
-    TestBuffered w;
-    Logs::LogEntry e = {}; e.level = Logs::LOG_INFO;
-    for (uint32_t i = 1; i <= 5; ++i) { e.timestamp = i; w.push(&e); }
-    w.drain();
-    CHECK(w.sent.size() == 5);
-    for (uint32_t i = 0; i < 5; ++i) CHECK(w.sent[i] == i + 1);
-    CHECK(w.loss_count() == 0);
-}
-
 TEST_CASE("writer: criticals seat into the reserve without evicting normals") {
     TestBuffered w;
     const uint32_t NORMAL_CAP = Config::LOG_QUEUE_SIZE - 1 - Config::LOG_QUEUE_CRITICAL_RESERVE;

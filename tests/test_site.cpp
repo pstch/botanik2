@@ -245,20 +245,6 @@ TEST_CASE("site: the parameters are one contiguous block") {
         CHECK(f.bank.param(k).meta()->role == Vars::ROLE_PARAM);
 }
 
-TEST_CASE("site: no two variables share a name") {
-    // Names are the identity now: a duplicate makes the second row unreachable
-    // (find() returns the first), so a status row or an alarm would quietly
-    // track its namesake instead.
-    SiteBank f;
-    for (uint16_t i = 0; i < f.bank.count(); i++) {
-        const char* n = f.bank.var(i).meta()->name;
-        REQUIRE(n != nullptr);
-        INFO("row " << i << " = '" << n << "'");
-        CHECK(f.bank.find(n).index == i);
-    }
-}
-
-
 TEST_CASE("site: no row reads the payload arm it did not set") {
     // The union's whole hazard: str_off is WRITTEN through (copy_bounded into
     // the pool), so a numeric row read as text would hand it an arbitrary

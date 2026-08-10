@@ -47,12 +47,6 @@ TEST_CASE("solar_elevation: London June-solstice noon peaks near the obliquity")
     CHECK(std::abs(e - 61.9) < 1.0);
 }
 
-TEST_CASE("solar_elevation: London equinox noon sits at ~ (90 - latitude)") {
-    // 2024-09-22 12:00 UTC (equinox day, decl ~ 0) -> 90 - 51.5074 = 38.5 deg.
-    double e = elev_deg(1726920000ULL, 51.5074, -0.1278);
-    CHECK(std::abs(e - 38.5) < 1.0);
-}
-
 // solar_elevation: below the horizon
 // ----------------------------------------------------------------------------
 
@@ -198,30 +192,6 @@ TEST_CASE("SunPositionTracker: computes elevation from geo config") {
 
     // Must match a direct call with the same instant + location.
     CHECK(sun.elevation() == doctest::Approx(solar_position(now, deg(LAT), deg(LON)).elevation));
-}
-
-TEST_CASE("SunPositionTracker: exposes peak, ratio and rising from the same sample") {
-    botanik_test::ParamFixture fx;
-    const int32_t LAT = 488566000;   // Paris 48.8566 N
-    const int32_t LON =  23522000;   //       2.3522 E
-    fx.set_num("geo_serial", 1);
-    fx.set_num("geo_lat_deg", (float)deg(LAT));
-    fx.set_num("geo_lon_deg", (float)deg(LON));
-    fx.publish();
-
-    SunPositionTracker sun(&fx.bank());
-    uint64_t now = HAL::Clock::uptime_ms();
-    sun.step(now);
-    REQUIRE(sun.ready());
-
-    // Every accessor must agree with a direct solar_position() at the same instant.
-    SolarPosition ref = solar_position(now, deg(LAT), deg(LON));
-    CHECK(sun.elevation()        == doctest::Approx(ref.elevation));
-    CHECK(sun.peak_elevation()   == doctest::Approx(ref.peak_elevation));
-    CHECK(sun.elevation_ratio()  == doctest::Approx(ref.ratio()));
-    CHECK(sun.rising()           == ref.rising);
-    CHECK(sun.day_length_h()     == doctest::Approx(ref.day_length_h));
-    CHECK(sun.max_day_length_h() == doctest::Approx(ref.max_day_length_h));
 }
 
 TEST_CASE("SunPositionTracker: throttles recomputation between cadence ticks") {

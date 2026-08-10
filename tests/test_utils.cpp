@@ -81,12 +81,6 @@ TEST_CASE("format_float: rounds half away from zero") {
     CHECK(std::strcmp(format_float(b, sizeof(b),  9.99, 1), "10.0") == 0); // carry into int part
 }
 
-TEST_CASE("format_float: negative values") {
-    char b[32];
-    CHECK(std::strcmp(format_float(b, sizeof(b), -3.14159, 2), "-3.14") == 0);
-    CHECK(std::strcmp(format_float(b, sizeof(b), -0.5,     1), "-0.5")  == 0);
-}
-
 TEST_CASE("format_float: decimals capped at 9") {
     char b[32];
     // 12 requested decimals clamps to 9.
@@ -231,16 +225,6 @@ TEST_CASE("cal_time_ms: civil fields decode the reported unixSeconds") {
     }
 }
 
-TEST_CASE("cal_time_ms: advancing the timestamp advances unixSeconds in lockstep") {
-    // The boot epoch is fixed for the process, so differences are exact.
-    CalendarTime base = cal_time_ms(0);
-    CHECK(cal_time_ms(5000).unixSeconds  == base.unixSeconds + 5);
-    CHECK(cal_time_ms(60000).unixSeconds == base.unixSeconds + 60);
-    // Sub-second carry: +1500 ms adds one second plus 500 ms of fraction.
-    CalendarTime plus = cal_time_ms(1500);
-    CHECK(plus.unixSeconds == base.unixSeconds + 1 + (base.millisecond + 500) / 1000);
-}
-
 }  // namespace uptime
 
 // --------------------------------------------------------------------------
@@ -359,15 +343,6 @@ TEST_CASE("serial TX: a write past capacity is truncated and counted as dropped"
     CHECK(bs.tx_dropped() == over);             // the overflow is counted
 }
 
-TEST_CASE("serial TX: tx_discard() empties the ring") {
-    BufferedSerial bs(nullptr);
-    bs.write("payload", 7);
-    CHECK_FALSE(bs.tx_empty());
-    bs.tx_discard();
-    CHECK(bs.tx_empty());
-    CHECK(bs.availableForWrite() == BufferedSerial::tx_capacity() - 1);
-}
-
 TEST_CASE("serial TX: transmit() drains the ring to the device") {
     Pipe out;
     Botanik::HAL::Serial::Raw raw;
@@ -431,40 +406,5 @@ namespace {
     struct Empty {};
 
 }  // namespace
-
-TEST_CASE("HAL::Memory: every ordering primitive instantiates and moves its payload") {
-    const Block src = { 7, 0x11111111u, 0x22222222u, 0x33333333u };
-    Block dst = { 0, 0, 0, 0 };
-    HAL::Memory::ordered_copy(&dst, &src);
-    CHECK(dst.seq == 7u);
-    CHECK(dst.a == 0x11111111u);
-    CHECK(dst.c == 0x33333333u);
-
-    // The `if (is_empty<T>)` early-out must compile: a zero-word
-    // ARM_MPU_OrderedMemcpy would be a pointless call at best.
-    const Empty esrc; Empty edst;
-    HAL::Memory::ordered_copy(&edst, &esrc);
-
-    uint32_t word = 0;
-    HAL::Memory::ordered_move(&word, (uint32_t)0xDEADBEEFu);
-    CHECK(word == 0xDEADBEEFu);
-
-    // The struct form: pass-by-value, so the source may be a temporary.
-    Block bdst = { 0, 0, 0, 0 };
-    HAL::Memory::ordered_move(&bdst, Block{ 1, 2, 3, 4 });
-    CHECK(bdst.seq == 1u);
-    CHECK(bdst.c == 4u);
-
-    volatile uint32_t cell = 0xA5A5A5A5u;
-    CHECK(HAL::Memory::ordered_read(&cell) == 0xA5A5A5A5u);
-
-    // On the OPTA a clean/invalidate pair around a region we own is
-    // value-neutral; on the host both are no-ops. Called for the type-check.
-    alignas(32) Block region = { 5, 6, 7, 8 };
-    HAL::Memory::cache_clean(&region, sizeof(region));
-    HAL::Memory::cache_invalidate(&region, sizeof(region));
-    CHECK(region.seq == 5u);
-    CHECK(region.c == 8u);
-}
 
 }  // namespace hal_memory

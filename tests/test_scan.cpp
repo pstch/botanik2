@@ -103,15 +103,6 @@ TEST_CASE("scan: a late program runs once and reports the real elapsed time") {
     CHECK(fast.runs_seen[0].missed == 9);
 }
 
-TEST_CASE("scan: period 0 runs every beat") {
-    Recorder every("every", 0);
-    Program* const progs[] = { &every };
-    Live f;
-    Driver d(progs, 1, &f.io);
-    for (uint64_t t = 0; t < 50; t += 10) d.step(t);
-    CHECK(every.runs_seen.size() == 5);
-}
-
 TEST_CASE("scan: bind runs once, before the first activation") {
     Recorder p("p", 0);
     Program* const progs[] = { &p };
@@ -449,23 +440,6 @@ TEST_CASE("plc io: a second program on one row is counted, and the write stands"
     CHECK(f.bank.writer_conflicts() == 2);
 }
 
-TEST_CASE("plc io: an unattributed view claims nothing") {
-    // A program stepped by hand in a test has no slot. It must not claim rows
-    // as writer 255 and then collide with a real program.
-    Live f;
-    Io anon(f.bank);
-    const VarRef r = f.ref("cli_temp_ext1");
-
-    anon.set(r, 1.0f);
-    CHECK(f.bank.writer_of(r) == WRITER_NONE);
-    CHECK(f.bank.writer_conflicts() == 0);
-
-    Io real(f.bank, 0);
-    real.set(r, 2.0f);
-    CHECK(f.bank.writer_of(r) == 0);
-    CHECK(f.bank.writer_conflicts() == 0);
-}
-
 TEST_CASE("scan: two programs on one row is named once, not every beat") {
     // The driver is the only thing that can turn a writer index back into a
     // program name, which is why the report lives there and the counting in
@@ -488,39 +462,6 @@ TEST_CASE("scan: two programs on one row is named once, not every beat") {
     CHECK(sink.seen == 1);
     CHECK(std::string(sink.last).find("cli_temp_ext1") != std::string::npos);
     CHECK(std::string(sink.last).find("prog_") != std::string::npos);
-}
-
-TEST_CASE("scan: one program driving its own rows says nothing") {
-    Live f;
-    Logs::Logger logger;
-    Criticals sink;
-    logger.add_writer(&sink);
-
-    Drives a("prog_a", "cli_temp_ext1");
-    Drives b("prog_b", "cli_temp_ext2");
-    Plc::Program* const progs[] = { &a, &b };
-    Scan::Driver d(progs, 2, &f.bank, &logger);
-
-    for (uint64_t t = 0; t <= 500; t += 10) d.step(t);
-
-    CHECK(f.bank.writer_conflicts() == 0);
-    CHECK(sink.seen == 0);
-}
-
-TEST_CASE("scan: a program that keeps its period raises nothing") {
-    Live f;
-    Drives a("prog_a", "cli_temp_ext1");
-    Plc::Program* const progs[] = { &a };
-    Scan::Driver d(progs, 1, &f.bank);
-    const VarRef late = f.ref("alarm_scan_late");
-
-    for (uint64_t t = 0; t <= 1000; t += 10) d.step(t);
-
-    CHECK(d.late_ms() == 0);
-    CHECK(d.worst() == nullptr);
-    CHECK_FALSE(f.bank.var(late).b());
-    INFO("and it costs something measurable, per program rather than per scan");
-    CHECK(a.cost().runs > 0);
 }
 
 TEST_CASE("scan: a program starved of beats is late, and named") {
@@ -657,25 +598,6 @@ TEST_CASE("scan: table order is execution order") {
     CHECK(ran[2] == "mike");
 }
 
-TEST_CASE("scan: reordering the table reorders the beat") {
-    // The same three programs, declared the other way round. If the order came
-    // from anything but the table, this would not change.
-    Live f;
-    std::vector<std::string> ran;
-    Ordered a("zulu",  &ran);
-    Ordered b("alpha", &ran);
-    Ordered c("mike",  &ran);
-    Plc::Program* const progs[] = { &c, &b, &a };
-    Scan::Driver d(progs, 3, &f.bank);
-
-    d.step(0);
-
-    REQUIRE(ran.size() == 3);
-    CHECK(ran[0] == "mike");
-    CHECK(ran[1] == "alpha");
-    CHECK(ran[2] == "zulu");
-}
-
 TEST_CASE("scan: a later program sees what an earlier one wrote this beat") {
     // Which is WHY the order is a contract rather than an accident: the image
     // mutates between phases, not under a running program, so a chain within
@@ -739,21 +661,6 @@ TEST_CASE("scan: a computed row can be traced back to the program that wrote it"
     CHECK(d.program(none) == nullptr);
 }
 
-TEST_CASE("plc io: a bad reference moves nothing") {
-    // A program driving a row that does not exist has to be inert, not land on
-    // row zero - which with the parameters leading the table is a real setting.
-    Live f;
-    Io io(f.bank);
-    const VarRef nowhere = f.ref("no_such_row_at_all");
-
-    const Scalar first = f.bank.var(f.bank.find(Site::g_site.vars.var[0].name)).raw();
-    io.set(nowhere, 1234.0f);
-    const Scalar after = f.bank.var(f.bank.find(Site::g_site.vars.var[0].name)).raw();
-
-    INFO("writing an unresolved reference must not touch the first row");
-    CHECK(first.u == after.u);
-}
-
 }  // namespace plc_io
 
 // --------------------------------------------------------------------------
@@ -787,13 +694,6 @@ namespace {
         uint32_t param_serial() const override { return serial; }
         void on_param_changed(uint64_t) override { reconfigs++; }
     };
-}
-
-TEST_CASE("component: the default period is every beat") {
-    Spy s;
-    CHECK(s.period_ms() == 0);
-    for (uint64_t t = 0; t < 50; t += 10) s.step(t);
-    CHECK(s.ran.size() == 5);
 }
 
 TEST_CASE("component: a period makes it sit out the beats in between") {

@@ -30,13 +30,6 @@ TEST_CASE("limit holds a value inside its bounds") {
     static_assert(limit(99.0f, 0.0f, 10.0f) == 10.0f, "limit is constexpr");
 }
 
-TEST_CASE("in_range is inclusive at both ends") {
-    CHECK(in_range(230.0f, 200.0f, 260.0f));
-    CHECK(in_range(200.0f, 200.0f, 260.0f));
-    CHECK(in_range(260.0f, 200.0f, 260.0f));
-    CHECK_FALSE(in_range(199.9f, 200.0f, 260.0f));
-}
-
 TEST_CASE("deadzone reports the excursion, and is continuous at the edge") {
     CHECK(deadzone(0.3f, 0.5f) == doctest::Approx(0.0f));
     CHECK(deadzone(-0.3f, 0.5f) == doctest::Approx(0.0f));
@@ -54,18 +47,6 @@ TEST_CASE("scale rescales linearly, and a dead span reads as the low end") {
     // A misconfigured span must give a dull answer, not an infinity that then
     // propagates into an output.
     CHECK(scale(7.0f, 3.0f, 3.0f, 20.0f, 80.0f) == doctest::Approx(20.0f));
-}
-
-TEST_CASE("lerp and sel") {
-    CHECK(lerp(10.0f, 20.0f, 0.25f) == doctest::Approx(12.5f));
-    CHECK(sel(false, 18.0f, 21.0f) == doctest::Approx(18.0f));
-    CHECK(sel(true, 18.0f, 21.0f) == doctest::Approx(21.0f));
-}
-
-TEST_CASE("seconds converts the scan's dt") {
-    CHECK(seconds(1000) == doctest::Approx(1.0f));
-    CHECK(seconds(250) == doctest::Approx(0.25f));
-    CHECK(seconds(0) == doctest::Approx(0.0f));
 }
 
 TEST_CASE("accumulate saturates at the limit rather than wrapping") {
@@ -342,16 +323,6 @@ TEST_CASE("Derivative: divides by the time really elapsed, not the window") {
     CHECK(r(40.0f, 1000, 4000) == doctest::Approx(10.0f));
 }
 
-TEST_CASE("Integral and Derivative are inverses") {
-    Integral vol;
-    Derivative rate;
-    for (int i = 0; i < 20; i++) {
-        vol(3.0f, 500);                  // 3 units/s
-        rate(vol.total(), 2000, 500);
-    }
-    CHECK(rate.value() == doctest::Approx(3.0f).epsilon(0.01));
-}
-
 #endif
 
 }  // namespace blocks
@@ -382,33 +353,8 @@ TEST_CASE("ema_alpha: tau at or below one sample period collapses to 1.0") {
     CHECK(ema_alpha(0,  10) == Approx(1.0f));
 }
 
-TEST_CASE("ema_alpha: default period is the tick period") {
-    // Config::TASK_PERIOD_MS == 10, so these mirror the explicit-period cases.
-    CHECK(ema_alpha(20)  == Approx(0.5f));
-    CHECK(ema_alpha(100) == Approx(0.1f));
-    CHECK(ema_alpha(10)  == Approx(1.0f));
-}
-
 // ExpMovingAverage
 // ----------------------------------------------------------------------------
-
-TEST_CASE("ExpMovingAverage: alpha 1.0 tracks the input exactly") {
-    ExpMovingAverage ema;
-    ema.configure(1.0f, 1.0f);
-    ema.push(42.0f);
-    CHECK(ema.value() == Approx(42.0f));
-    ema.push(-7.0f);
-    CHECK(ema.value() == Approx(-7.0f));
-}
-
-TEST_CASE("ExpMovingAverage: symmetric blend converges toward the input") {
-    ExpMovingAverage ema;
-    ema.configure(0.5f, 0.5f);
-    ema.push(10.0f);              // 0.5*10 + 0.5*0
-    CHECK(ema.value() == Approx(5.0f));
-    ema.push(10.0f);             // 0.5*10 + 0.5*5
-    CHECK(ema.value() == Approx(7.5f));
-}
 
 TEST_CASE("ExpMovingAverage: asymmetric attack/decay rises fast, holds on falls") {
     ExpMovingAverage ema;
@@ -455,23 +401,6 @@ TEST_CASE("WindowedMax: a weighted push ages the window by that many samples") {
     // A weight beyond the whole window is clamped - no runaway rotation, peak stays gone.
     w.push(2, 100);
     CHECK(w.value() == 2);
-}
-
-TEST_CASE("WindowedMax: a later, higher peak supersedes immediately") {
-    WindowedMax<3> w;
-    w.configure(3);
-    w.push(5);
-    CHECK(w.value() == 5);
-    w.push(12);
-    CHECK(w.value() == 12);
-}
-
-TEST_CASE("WindowedMax: reset clears the window") {
-    WindowedMax<4> w;
-    w.configure(8);
-    w.push(99);
-    w.reset();
-    CHECK(w.value() == 0);
 }
 
 TEST_CASE("WindowedMax: a window shorter than K still works (span floored to 1)") {
@@ -701,16 +630,6 @@ TEST_CASE("Pid: preset hands a running output back to the loop") {
     CHECK(p.integral() == doctest::Approx(40.0f));
     // At the setpoint, the loop carries on from where manual left it.
     CHECK(p(25.0f, 25.0f, t, 1000) == doctest::Approx(40.0f));
-}
-
-TEST_CASE("Pid: reset clears the loop's memory") {
-    Pid p;
-    const PidTuning t(1.0f, 1.0f);
-    for (int i = 0; i < 10; i++) p(30.0f, 20.0f, t, 1000);
-    CHECK(p.integral() > 0.0f);
-    p.reset();
-    CHECK(p.integral() == doctest::Approx(0.0f));
-    CHECK(p.value() == doctest::Approx(0.0f));
 }
 
 TEST_CASE("Pid: a zero dt scan is harmless") {

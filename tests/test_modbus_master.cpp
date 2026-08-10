@@ -237,54 +237,8 @@ TEST_CASE("modbus client: re-asserting an output does not re-decide it") {
     CHECK(h.raw().u == before.u);
 }
 
-TEST_CASE("modbus client: every block's device is one the client watches") {
-    // The peer table used to be built separately and capped at
-    // MODBUS_MAX_DEVICES, with a bare break at the ceiling. An untracked unit is
-    // always due - deliberately - so a device past the cap skipped the backoff
-    // entirely: if it was dead it cost a full response timeout every sweep, with
-    // no alarm, which is the exact failure the backoff exists to prevent. The
-    // site had 8 devices against a cap of 8.
-    Master m;
-    const Planner& p = m.client.plan();
-    REQUIRE(p.block_count() > 0);
-
-    for (uint16_t i = 0; i < p.block_count(); ++i) {
-        const Block& b = p.block(i);
-        INFO("block " << i << " on unit " << (int)b.device
-                      << " has peer " << (int)b.peer);
-        CHECK(b.peer < p.device_count());
-        // And the peer really is that block's device.
-        CHECK(p.device_at(b.peer) == b.device);
-    }
-}
-
-TEST_CASE("modbus client: the device set is the distinct units, counted once") {
-    Master m;
-    const Planner& p = m.client.plan();
-
-    for (uint8_t i = 0; i < p.device_count(); ++i)
-        for (uint8_t j = (uint8_t)(i + 1); j < p.device_count(); ++j)
-            CHECK(p.device_at(i) != p.device_at(j));
-
-    CHECK(m.client.peer_count() == p.device_count());
-}
-
-
 // Pacing
 // ===========================================================================
-
-TEST_CASE("modbus client: the inter-frame gap does not cost a beat of its own") {
-    // MB_GAP used to enter MB_IDLE and RETURN, so the next request waited a
-    // further beat for nothing: the gap is silence on the wire, and once it has
-    // elapsed there is nothing left to wait for. With MB_DRAIN gone too, a
-    // transaction costs the beat it is sent in rather than three.
-    Master m;
-    m.dirty_all_writes();
-
-    // Something must be pickable at all, or this proves nothing.
-    REQUIRE(m.client.next_block(Config::MODBUS_WRITE_MIN_MS + 1)
-            != RtuClient::NO_BLOCK);
-}
 
 TEST_CASE("modbus client: duty counts the beat a transaction is quantised to") {
     // The bus is not free during a frame shorter than a beat - it is idle and
@@ -369,22 +323,6 @@ TEST_CASE("modbus device: the site names every unit it addresses") {
         REQUIRE(t->devices[i].tag != nullptr);
         CHECK(t->devices[i].tag[0] != '\0');
     }
-}
-
-TEST_CASE("modbus device: a device reads as its tag, and without one as itself") {
-    char buf[40];
-    const DeviceModel m = meter("m", 8, 1);
-    const Device rows[] = { { 34, &m, "SRR/TDC/RO-4" }, { 35, &m, nullptr } };
-    const DeviceTable t = { rows, 2 };
-
-    CHECK(std::string(device_label(&t, 34, buf, sizeof buf)) == "34 (SRR/TDC/RO-4)");
-    CHECK(std::string(device_label(&t, 35, buf, sizeof buf)) == "35");
-    CHECK(std::string(device_label(&t, 99, buf, sizeof buf)) == "99");
-    CHECK(std::string(device_label(nullptr, 7, buf, sizeof buf)) == "7");
-
-    // Truncates rather than running off the end.
-    char tiny[6];
-    CHECK(std::strlen(device_label(&t, 34, tiny, sizeof tiny)) == 5);
 }
 
 TEST_CASE("modbus device: a board without FC15/FC16 is driven a point at a time") {

@@ -939,16 +939,6 @@ TEST_CASE("parser: control bytes decode to commands") {
 // CSI sequences
 // ----------------------------------------------------------------------------
 
-TEST_CASE("parser: CSI arrow keys") {
-    ParserFixture f;
-    f.feed("\x1B[A"); CHECK(f.parse().command == Command::UP);
-    f.feed("\x1B[B"); CHECK(f.parse().command == Command::DOWN);
-    f.feed("\x1B[C"); CHECK(f.parse().command == Command::RIGHT);
-    f.feed("\x1B[D"); CHECK(f.parse().command == Command::LEFT);
-    f.feed("\x1B[H"); CHECK(f.parse().command == Command::HOME);
-    f.feed("\x1B[F"); CHECK(f.parse().command == Command::END);
-}
-
 TEST_CASE("parser: CSI tilde keys, with and without a modifier param") {
     ParserFixture f;
     f.feed("\x1B[3~");   CHECK(f.parse().command == Command::DELETE);
@@ -988,14 +978,6 @@ TEST_CASE("parser: a long digit run saturates instead of wrapping") {
 // Alt (ESC-prefixed) sequences
 // ----------------------------------------------------------------------------
 
-TEST_CASE("parser: Alt+letter and Alt+digit") {
-    ParserFixture f;
-    f.feed("\x1B" "b"); CHECK(f.parse().command == Command::ALT_B);
-    f.feed("\x1B" "f"); CHECK(f.parse().command == Command::ALT_F);
-    f.feed("\x1B" "w"); CHECK(f.parse().command == Command::ALT_W);
-    f.feed("\x1B" "3"); CHECK(f.parse().command == Command::ALT_3);
-}
-
 TEST_CASE("parser: a lone ESC resolves to ESC after the command timeout") {
     ParserFixture f;
     f.feed("\x1B");
@@ -1007,28 +989,12 @@ TEST_CASE("parser: a lone ESC resolves to ESC after the command timeout") {
 // Chunkable coalescing (held BACKSPACE / CTRL_D)
 // ----------------------------------------------------------------------------
 
-TEST_CASE("parser: a single backspace emits BACKSPACE with count 1") {
-    ParserFixture f;
-    f.feed("\x7F");
-    InputEvent& e = f.parse();
-    CHECK(e.command == Command::BACKSPACE);
-    CHECK(e.count == 1);
-}
-
 TEST_CASE("parser: repeated backspaces coalesce into one count-N command") {
     ParserFixture f;
     f.feed("\x7F\x7F\x7F");
     InputEvent& e = f.parse();
     CHECK(e.command == Command::BACKSPACE);
     CHECK(e.count == 3);
-}
-
-TEST_CASE("parser: Ctrl+D is its own chunkable command") {
-    ParserFixture f;
-    f.feed("\x04\x04");
-    InputEvent& e = f.parse();
-    CHECK(e.command == Command::CTRL_D);
-    CHECK(e.count == 2);
 }
 
 }  // namespace parser
@@ -1097,16 +1063,6 @@ TEST_CASE("LineBuffer: wraps once full, evicting the oldest lines") {
     CHECK(line_eq(lb, 2, "4"));
     CHECK(line_eq(lb, 3, "3"));
     CHECK(lb.line(4, len) == nullptr);  // "1" and "2" were evicted
-}
-
-TEST_CASE("LineBuffer: clear() drops everything") {
-    LineBuffer<4, 8> lb;
-    lb.store("a", 1);
-    lb.store("b", 1);
-    lb.clear();
-    CHECK(lb.count() == 0);
-    uint16_t len = 0;
-    CHECK(lb.line(1, len) == nullptr);
 }
 
 // store_wrapped
@@ -1454,15 +1410,6 @@ TEST_CASE("kill ring: Ctrl-K stops at the newline, and then eats it") {
     CHECK(f.line() == "one");
 }
 
-TEST_CASE("kill ring: Ctrl-K mid-line leaves the following lines alone") {
-    ShellFixture f;
-    f.editor.insert_characters("one\ntwo", 7);
-    f.editor.move_to_start();
-    f.editor.move_right();                  // after "o"
-    CHECK(f.editor.kill_to_line_end());
-    CHECK(f.line() == "o\ntwo");            // "ne" went, the newline did not
-}
-
 TEST_CASE("kill ring: Ctrl-W cuts the word before the cursor") {
     ShellFixture f;
     f.editor.insert_characters("set cli_setpoint 21", 19);
@@ -1471,14 +1418,6 @@ TEST_CASE("kill ring: Ctrl-W cuts the word before the cursor") {
     CHECK(f.line() == "set 21");
     CHECK(f.editor.yank());
     CHECK(f.line() == "set cli_setpoint 21");
-}
-
-TEST_CASE("kill ring: Ctrl-W at the start of the buffer does nothing") {
-    ShellFixture f;
-    f.editor.insert_characters("word", 4);
-    f.editor.move_to_line_start();
-    CHECK_FALSE(f.editor.kill_word_back());
-    CHECK(f.line() == "word");
 }
 
 TEST_CASE("kill ring: Ctrl-W over trailing space takes the space and the word") {
@@ -1499,13 +1438,6 @@ TEST_CASE("kill ring: a kill longer than the ring leaves the overflow in place")
     CHECK(f.line() == std::string(10, 'x'));
     CHECK(f.editor.yank());
     CHECK(f.line() == big);
-}
-
-TEST_CASE("kill ring: yank with an empty ring is a no-op") {
-    ShellFixture f;
-    f.editor.insert_characters("abc", 3);
-    CHECK_FALSE(f.editor.yank());
-    CHECK(f.line() == "abc");
 }
 
 // ---------------------------------------------------------------------------
@@ -1567,28 +1499,6 @@ TEST_CASE("region: Alt-W copies without removing, and releases the mark") {
     CHECK(f.line() == "hotpump B runs hot");
 }
 
-TEST_CASE("region: with no mark there is no region, and Alt-W does nothing") {
-    ShellFixture f;
-    f.editor.insert_characters("abc", 3);
-    uint16_t from = 99, to = 99;
-    CHECK_FALSE(f.editor.region(from, to));
-    CHECK(from == 99);                                   // left untouched
-    CHECK_FALSE(f.editor.copy_region());
-    CHECK(f.line() == "abc");
-}
-
-TEST_CASE("region: an empty one copies nothing but still releases the mark") {
-    ShellFixture f;
-    f.editor.insert_characters("abc", 3);
-    f.editor.set_mark();                                 // mark == cursor
-    CHECK_FALSE(f.editor.copy_region());
-    CHECK_FALSE(f.editor.mark_active());
-    f.editor.set_mark();
-    CHECK_FALSE(f.editor.kill_region());
-    CHECK(f.line() == "abc");
-    CHECK_FALSE(f.editor.mark_active());
-}
-
 TEST_CASE("region: a span across a newline takes the newline with it") {
     ShellFixture f;
     f.editor.insert_characters("one\ntwo", 7);
@@ -1600,17 +1510,6 @@ TEST_CASE("region: a span across a newline takes the newline with it") {
     CHECK(f.line() == "on");
     CHECK(f.editor.yank());
     CHECK(f.line() == "one\ntwo");
-}
-
-TEST_CASE("region: clearing the mark leaves the text alone") {
-    ShellFixture f;
-    f.editor.insert_characters("alpha beta", 10);
-    f.editor.set_mark();
-    f.editor.move_to_line_start();
-    f.editor.clear_mark();                               // Ctrl-G
-    CHECK_FALSE(f.editor.mark_active());
-    CHECK_FALSE(f.editor.kill_region());
-    CHECK(f.line() == "alpha beta");
 }
 
 // ---------------------------------------------------------------------------

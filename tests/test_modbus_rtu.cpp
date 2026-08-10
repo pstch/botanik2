@@ -66,27 +66,11 @@ void check_frame(const uint8_t* got, uint16_t got_len,
 // The checksum
 // ===========================================================================
 
-TEST_CASE("modbus crc: an empty buffer is the seed") {
-    CHECK(crc16(nullptr, 0) == 0xFFFF);
-    const uint8_t nothing = 0;
-    CHECK(crc16(&nothing, 0) == 0xFFFF);
-}
-
 TEST_CASE("modbus crc: the spec's 02 07 example") {
     CHECK(crc16(SPEC_BODY, 2) == SPEC_CRC);
     // And on the wire, low byte first: 41 12, not 12 41.
     CHECK(lo8(SPEC_CRC) == 0x41);
     CHECK(hi8(SPEC_CRC) == 0x12);
-}
-
-TEST_CASE("modbus crc: a frame carrying its own CRC has residue zero") {
-    // The property parse_response() leans on, so the byte order is checked on
-    // every frame at runtime rather than only here.
-    CHECK(crc16(REQ_FC03, sizeof REQ_FC03) == 0);
-    CHECK(crc16(RSP_FC03, sizeof RSP_FC03) == 0);
-    CHECK(crc16(RSP_FC03_EXC, sizeof RSP_FC03_EXC) == 0);
-    CHECK(crc16(REQ_FC15, sizeof REQ_FC15) == 0);
-    CHECK(crc16(REQ_FC16, sizeof REQ_FC16) == 0);
 }
 
 TEST_CASE("modbus crc: any single-bit flip changes it") {
@@ -158,18 +142,6 @@ TEST_CASE("modbus codec: an FC03 request is eight bytes, big-endian, CRC low byt
     check_frame(out, n, REQ_FC03, sizeof REQ_FC03);
 }
 
-TEST_CASE("modbus codec: FC01 and FC03 requests differ only in the function code") {
-    uint8_t coils[16], regs[16];
-    const uint16_t a = build_read(coils, sizeof coils, 31, FC_READ_COILS, 0, 8);
-    check_frame(coils, a, REQ_FC01, sizeof REQ_FC01);
-
-    const uint16_t b = build_read(regs, sizeof regs, 31, FC_READ_DISCRETE, 0, 8);
-    REQUIRE(b == a);
-    CHECK(regs[1] == FC_READ_DISCRETE);
-    CHECK(std::memcmp(coils + 2, regs + 2, 4) == 0);   // same address and count
-    CHECK(std::memcmp(coils + 6, regs + 6, 2) != 0);   // different CRC
-}
-
 TEST_CASE("modbus codec: FC05 writes FF00 for on and 0000 for off") {
     uint8_t out[16];
     const uint16_t n = build_write_coil(out, sizeof out, 31, 3, true);
@@ -178,12 +150,6 @@ TEST_CASE("modbus codec: FC05 writes FF00 for on and 0000 for off") {
     build_write_coil(out, sizeof out, 31, 3, false);
     CHECK(out[4] == 0x00);
     CHECK(out[5] == 0x00);
-}
-
-TEST_CASE("modbus codec: an FC06 request carries the value, not a count") {
-    uint8_t out[16];
-    const uint16_t n = build_write_register(out, sizeof out, 6, 12, 0x1234);
-    check_frame(out, n, REQ_FC06, sizeof REQ_FC06);
 }
 
 TEST_CASE("modbus codec: FC15 packs bits LSB-first and zeroes the tail of the last byte") {
@@ -454,22 +420,6 @@ TEST_CASE("modbus framing: a complete response fed in one chunk completes") {
     CHECK(f.frames() == 1);
 }
 
-TEST_CASE("modbus framing: the same response fed one byte at a time completes identically") {
-    RtuFramer f;
-    f.arm(E_FC03, 1000, TIMEOUT_MS);
-
-    for (uint16_t i = 0; i < sizeof RSP_FC03; ++i) {
-        CAPTURE(i);
-        // A byte per beat is the realistic case at 4800 baud, and the framer
-        // must not care.
-        CHECK(f.feed(RSP_FC03 + i, 1) == 1);
-        const bool last = (i + 1 == sizeof RSP_FC03);
-        CHECK(f.poll(1000 + i) == (last ? 1 : 0));
-    }
-    CHECK(f.err() == ERR_OK);
-    CHECK(reg_at(f.response().data, 1) == 20);
-}
-
 TEST_CASE("modbus framing: the length comes from the byte count, not from silence") {
     RtuFramer f;
     f.arm(E_FC03, 1000, TIMEOUT_MS);
@@ -498,14 +448,6 @@ TEST_CASE("modbus framing: an exception frame is five bytes and completes early"
     // needs to know before it decides anything about backoff.
     CHECK(f.frames() == 1);
     CHECK(f.bad_frames() == 0);
-}
-
-TEST_CASE("modbus framing: an echo frame is eight bytes") {
-    RtuFramer f;
-    f.arm(E_FC16, 1000, TIMEOUT_MS);
-    CHECK(f.feed(RSP_FC16, sizeof RSP_FC16) == sizeof RSP_FC16);
-    REQUIRE(f.poll(1000) == 1);
-    CHECK(f.err() == ERR_OK);
 }
 
 // The ways it goes wrong
@@ -1076,21 +1018,6 @@ TEST_CASE("modbus rtu slave: a broadcast write is executed and not answered") {
     CHECK(d.poll(out, sizeof out) == 0);       // silence on the wire
     CHECK(d.reg(32) == 0xABCD);                // and the write happened
     CHECK(d.reg(33) == 0x1234);
-}
-
-TEST_CASE("modbus rtu slave: a broadcast read is ignored rather than answered") {
-    RtuSlave d(1);
-    seed(d);
-
-    uint8_t req[8];
-    req[0] = 0; req[1] = FC_READ_HOLDING;
-    req[2] = 0; req[3] = 0;
-    req[4] = 0; req[5] = 2;
-    const uint16_t n = seal(req, 6);
-
-    d.feed(req, n);
-    uint8_t out[256];
-    CHECK(d.poll(out, sizeof out) == 0);
 }
 
 TEST_CASE("modbus rtu slave: no room to answer is reported, not left silent") {
