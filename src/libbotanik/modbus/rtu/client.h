@@ -12,12 +12,13 @@
  * written this beat reaches the wire without waiting for the next one. Stepping
  * it once would cost a beat of latency in one direction or the other.
  *
- * @section cl_gate Collect is not gated with execute
+ * @section cl_gate Collect is not gated with the control phase
  *
- * on_step() runs whatever control authority says. disable_control() drops every
- * output to its safe state and inhibits the scan, but those safe values sit in
- * the image until a transaction carries them out: gating the collector too would
- * leave the actuators energised at exactly the moment control was withdrawn.
+ * on_step() runs whatever control authority says. Withholding control drops
+ * every output to its safe state and stops the scan, but those safe values sit
+ * in the image until a transaction carries them out: gating the collector too
+ * would leave the actuators energised at exactly the moment control was
+ * withdrawn.
  *
  * @section cl_rank What goes out next
  *

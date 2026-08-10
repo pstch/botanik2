@@ -262,7 +262,7 @@ namespace Botanik {
          *  property of the task, so retuning one can never reorder the cycle.
          *
          *  Non-virtual, so the order can't be overridden; a site adds per-beat
-         *  work via on_step(), which is registered as the "site" task.
+         *  work through the per-phase hooks, each its own "site_*" task.
          *
          *  Inline, unlike the rest of the bring-up: it is the hot path, and the
          *  scheduler's tick() paints the stack below its caller's frame, so this

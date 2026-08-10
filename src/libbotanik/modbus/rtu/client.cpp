@@ -226,7 +226,7 @@ uint16_t RtuClient::_pick(uint64_t now_ms) const {
 
     // The one absolute pre-empt, ahead of the scale rather than on it: a scale
     // has no top, so a sufficiently late block could otherwise climb into any
-    // rank reserved for this. disable_control() marked every output dirty
+    // rank reserved for this. Withholding control marked every output dirty
     // precisely so a transaction carries the safe state out, and it does not
     // wait for the ordinary write interval either.
     // At most ONE device that is not answering may be offered the bus, and only
@@ -281,7 +281,7 @@ void RtuClient::_track_control(uint64_t now_ms) {
     if (_control_was && !on) _urgent = true;
     // And the rising edge spends it, whatever the sweep below would have said.
     // With control back the programs drive the outputs again from the next beat
-    // (Bank::enable_control), so nothing is owed an EMERGENCY delivery any more
+    // (control returning), so nothing is owed an EMERGENCY delivery any more
     // - the safe values still in the image go out at ordinary write priority.
     // Without this the flag's lifetime depends on the sweep finding nothing,
     // which a block that cannot go out makes impossible.
