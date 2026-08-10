@@ -238,6 +238,19 @@ namespace Botanik { namespace Config {
 #endif
     BOTANIK_CFG(uint32_t, MODBUS_REWRITE_MS);
 
+    /** @brief Longest a write block waits after being refused.
+     *
+     *  An exception is not silence: the device heard us and declined, so its
+     *  other blocks keep their rates and only this one backs off, doubling from
+     *  MODBUS_WRITE_MIN_MS. Without a penalty at all a register map that does
+     *  not match the device costs a transaction every MODBUS_WRITE_MIN_MS for
+     *  the life of the boot - about an eighth of the bus, and a warning per
+     *  attempt - because a refusal leaves the row dirty and nothing counts it. */
+#ifndef BOTANIK_MODBUS_REFUSAL_MAX_MS
+#  define BOTANIK_MODBUS_REFUSAL_MAX_MS 60000
+#endif
+    BOTANIK_CFG(uint32_t, MODBUS_REFUSAL_MAX_MS);
+
     /** @brief Immediate retries before a device is backed off.
      *
      *  One. A lost frame on a long RS-485 run is weather - retrying at once

@@ -168,6 +168,11 @@ uint16_t RtuClient::_pick(uint64_t now_ms) const {
 
         uint32_t s = 0;
         if (!is_read(b.fc)) {
+            // A write block's due_ms is a floor, normally in the past. It is
+            // raised only by the refusal penalty, which is what stops a block
+            // the device keeps declining from taking a transaction every
+            // MODBUS_WRITE_MIN_MS for ever.
+            if (now_ms < b.due_ms) continue;
             const uint64_t since = now_ms - b.last_ms;
             const bool dirty = block_dirty(*_io, _plan, b);
             if (_urgent && dirty) {
@@ -207,12 +212,18 @@ uint16_t RtuClient::_pick(uint64_t now_ms) const {
 }
 
 void RtuClient::_track_control(uint64_t now_ms) {
-    (void)now_ms;
     if (_io == nullptr) return;
     const bool on = _io->control_enabled();
     // The falling edge, and only that: an operator who leaves control disabled
     // must not keep the bus at emergency priority for the rest of the day.
     if (_control_was && !on) _urgent = true;
+    // And the rising edge spends it, whatever the sweep below would have said.
+    // With control back the programs drive the outputs again from the next beat
+    // (Bank::enable_control), so nothing is owed an EMERGENCY delivery any more
+    // - the safe values still in the image go out at ordinary write priority.
+    // Without this the flag's lifetime depends on the sweep finding nothing,
+    // which a block that cannot go out makes impossible.
+    if (!_control_was && on) _urgent = false;
     _control_was = on;
 
     // Spent once the safe state is out. Cheaper than it looks - it stops at the
@@ -221,6 +232,13 @@ void RtuClient::_track_control(uint64_t now_ms) {
     for (uint16_t i = 0; i < _plan.block_count(); ++i) {
         const Block& b = _plan.block(i);
         if (is_read(b.fc)) continue;
+        // Only a block that could ACTUALLY go out holds the urgency. One on a
+        // backed-off device is dirty and stays dirty, because _pick() will never
+        // offer it the bus - so without this the sweep always finds it, and one
+        // dead output device pins every live device's writes at safe-state
+        // priority (above starved reads, and exempt from MODBUS_WRITE_MIN_MS)
+        // for the rest of the boot.
+        if (!_due(b, now_ms)) continue;
         if (block_dirty(*_io, _plan, b)) return;
     }
     _urgent = false;
@@ -439,7 +457,7 @@ void RtuClient::receive_step(uint64_t now_ms) {
 
 void RtuClient::_settle(uint64_t now_ms) {
     if (_active == NO_BLOCK) return;
-    const Block& b = _plan.block(_active);
+    Block& b = _plan.block(_active);
 
     // Whatever it said, it said something: the device is alive and its silence
     // count starts again. A refusal is a register map that does not match the
@@ -454,8 +472,29 @@ void RtuClient::_settle(uint64_t now_ms) {
         // And the rows say so too. Without this they keep their last value at
         // Q_GOOD until expire_stale() catches up - and a row declared with no
         // timeout is never caught up with at all.
+        //
+        // Only the LOG is edge-triggered below; a read block needs no penalty
+        // because it already waits for its own poll period.
         if (is_read(b.fc)) invalidate_block(*_io, _plan, b, Vars::Q_REFUSED);
-        if (_logger != nullptr) {
+
+        // A refused write stays dirty - correctly, since it never reached the
+        // field - so nothing else would ever slow it down. Back the BLOCK off,
+        // doubling, while the device keeps its place in the rotation.
+        uint32_t wait = 0;
+        if (!is_read(b.fc)) {
+            wait = Config::MODBUS_WRITE_MIN_MS;
+            for (uint8_t i = 0; i < b.refusals && wait < Config::MODBUS_REFUSAL_MAX_MS; ++i)
+                wait *= 2;
+            if (wait > Config::MODBUS_REFUSAL_MAX_MS) wait = Config::MODBUS_REFUSAL_MAX_MS;
+            b.due_ms = now_ms + wait;
+            if (b.refusals < 255) b.refusals++;
+        }
+
+        // Once, on the way in, like _missed(): a map that does not match the
+        // device is refused on every attempt, and at five a second that is the
+        // rate limiter's whole budget spent on one wrong register.
+        const bool first = is_read(b.fc) || b.refusals == 1;
+        if (_logger != nullptr && first) {
             char who[40];
             _logger->warning(Logs::MODBUS,
                           "dev %s refused\n"
@@ -482,6 +521,9 @@ void RtuClient::_settle(uint64_t now_ms) {
         const uint16_t sent = (_frame_len > head + 2u)
                                   ? (uint16_t)(_frame_len - head - 2u) : 0u;
         clear_dirty(*_io, _plan, b, sent != 0 ? _frame + head : nullptr, sent);
+        // Accepted, so whatever the map was wrong about has been fixed. The
+        // penalty starts from the base again rather than from where it stopped.
+        b.refusals = 0;
     }
 }
 

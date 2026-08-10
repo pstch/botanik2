@@ -13,6 +13,11 @@
 #include "libbotanik_site.h"
 #include "libbotanik.h"
 #include BOTANIK_SITE_HEADER
+#if BOTANIK_FEATURE_MODBUS_RTU_SERVER && defined(TARGET_SIMULATOR)
+#include <unistd.h>                     // read - draining the peer end between cases
+#include "botanik_sim/fieldbus.h"       // Sim::FieldBus - the devices, and their faults
+#include "libbotanik/hal/simulator.h"   // HAL::Serial::fieldbus_peer_fd
+#endif
 
 // --------------------------------------------------------------------------
 // modbus_client
@@ -244,6 +249,162 @@ TEST_CASE("modbus client: a short frame on a quick device is charged a whole bea
     INFO("wire " << p.wire_duty_ppm() << " ppm, scheduled " << p.duty_ppm() << " ppm");
     CHECK(p.duty_ppm() > p.wire_duty_ppm());
 }
+
+TEST_CASE("modbus client: control returning spends the safe-state urgency") {
+    // Otherwise the flag's lifetime depends on the sweep finding no dirty write,
+    // which a block on a backed-off device makes impossible: see the rising-edge
+    // half of _track_control().
+    Master m;
+
+    (void)m.client.next_block(10);                       // control up: an edge to fall from
+    m.bank.disable_control(Bank::INHIBIT_OPERATOR);
+    (void)m.client.next_block(20);
+    REQUIRE(m.client.safe_state_pending());
+
+    m.bank.enable_control(Bank::INHIBIT_OPERATOR);
+    (void)m.client.next_block(30);
+    INFO("with control back the programs drive the outputs again");
+    CHECK_FALSE(m.client.safe_state_pending());
+}
+
+// --------------------------------------------------------------------------
+// The failure paths, against devices that really answer
+// --------------------------------------------------------------------------
+//
+// Sim::FieldBus stands a real RtuSlave up per unit the site addresses and
+// carries framed bytes over the socketpair, so these drive the master's own
+// state machine rather than a mock of it. What they need beyond that is the
+// ability to make ONE unit misbehave, which is Sim::FieldBus::set_fault().
+
+#if BOTANIK_FEATURE_MODBUS_RTU_SERVER && defined(TARGET_SIMULATOR)
+
+namespace {
+
+/** @brief A master with the far end of the wire actually connected. */
+struct LiveBus {
+    Bank          bank;
+    RtuClient     client;
+    Sim::FieldBus bus;
+    uint64_t      t = 0;
+
+    LiveBus() : bank(Site::g_site.vars), client(&bank, nullptr, Site::g_site.devices) {
+        bank.init();
+        bank.enable_control(Bank::INHIBIT_HEALTH);
+        bank.enable_control(Bank::INHIBIT_OPERATOR);
+        // The socketpair is one per PROCESS, so a previous case's unread request
+        // bytes are still in the peer's buffer and would be answered as if they
+        // were ours. setup() drains the master's end; this drains the devices'.
+        const int fd = HAL::Serial::fieldbus_peer_fd();
+        if (fd >= 0) { uint8_t junk[512]; while (::read(fd, junk, sizeof junk) > 0) {} }
+        client.setup(0);
+        // setup() opened the port at MODBUS_BAUD, and the simulator paces its
+        // bytes against the HOST clock while the beat below is virtual: 200
+        // beats pass in microseconds of real time, so a paced line reads as
+        // permanently busy and on_step()'s tx_idle() guard lets exactly one
+        // transaction out. Baud 0 removes the pacing, which is the harness
+        // saying that byte time is not what these cases are about.
+        HAL::Serial::fieldbus_begin(0, 8, HAL::Serial::PARITY_NONE, 1);
+        bus.bind(&bank);
+    }
+
+    /** @brief One beat, in the phase order firmware.cpp uses. */
+    void beat(uint32_t dt = 10) {
+        t += dt;
+        client.receive_step(t);   // PHASE_INPUT
+        client.step(t);           // PHASE_OUTPUT
+        bus.step(t);              // and the far end
+    }
+    void beats(uint32_t n) { for (uint32_t i = 0; i < n; ++i) beat(); }
+
+    /** @brief Peer index of the first device carrying a write block, and the
+     *  block itself. Both are what an output device means to the client. */
+    uint16_t write_block() const {
+        for (uint16_t i = 0; i < client.plan().block_count(); ++i)
+            if (!is_read(client.plan().block(i).fc)) return i;
+        return RtuClient::NO_BLOCK;
+    }
+    /** @brief Run until @p pred holds or @p limit beats have passed. */
+    template <typename F> bool until(F pred, uint32_t limit = 2000) {
+        for (uint32_t i = 0; i < limit; ++i) { if (pred()) return true; beat(); }
+        return pred();
+    }
+};
+
+}  // namespace
+
+TEST_CASE("modbus fault: an absent unit is backed off and the rest keep answering") {
+    // The harness itself, and the baseline the two cases below stand on: if this
+    // fails they are testing nothing.
+    LiveBus m;
+    const uint16_t w = m.write_block();
+    REQUIRE(w != RtuClient::NO_BLOCK);
+    const uint8_t peer = m.client.plan().block(w).peer;
+
+    m.bus.set_fault(m.client.peer_unit(peer), Sim::FieldBus::FAULT_ABSENT);
+    m.client.reassert_outputs(peer);   // owe the block, so the misses come at the write interval
+    REQUIRE(m.until([&] { return m.client.peer_dead(peer); }));
+
+    const uint32_t before = m.client.txns();
+    m.beats(300);
+    INFO("dev " << (unsigned)m.client.peer_unit(peer) << " is out of the rotation");
+    CHECK(m.client.txns() > before);          // the live devices never stopped
+    CHECK(m.client.dead_count() == 1);
+}
+
+TEST_CASE("modbus fault: a dead output device does not pin the safe-state urgency") {
+    // F1. The clearing sweep walks every write block; one on a backed-off device
+    // is dirty and stays dirty, so without the _due() test the sweep never comes
+    // back empty and every live device's writes sit at safe-state priority for
+    // the rest of the boot.
+    LiveBus m;
+    const uint16_t w = m.write_block();
+    REQUIRE(w != RtuClient::NO_BLOCK);
+    const uint8_t peer = m.client.plan().block(w).peer;
+
+    m.bus.set_fault(m.client.peer_unit(peer), Sim::FieldBus::FAULT_ABSENT);
+    m.client.reassert_outputs(peer);   // owe the block, so the misses come at the write interval
+    REQUIRE(m.until([&] { return m.client.peer_dead(peer); }));
+
+    m.bank.disable_control(Bank::INHIBIT_OPERATOR);
+    m.beat();
+    REQUIRE(m.client.safe_state_pending());
+
+    INFO("an unreachable dirty block must not hold the urgency");
+    CHECK(m.until([&] { return !m.client.safe_state_pending(); }));
+}
+
+TEST_CASE("modbus fault: a refused write backs the block off, not the device") {
+    // F2. An exception leaves the row dirty, correctly - it never reached the
+    // field - so nothing else slows the retry down, and MODBUS_WRITE_MIN_MS
+    // alone means five transactions a second for the life of the boot.
+    LiveBus m;
+    const uint16_t w = m.write_block();
+    REQUIRE(w != RtuClient::NO_BLOCK);
+    const uint8_t peer = m.client.plan().block(w).peer;
+
+    m.bus.set_fault(m.client.peer_unit(peer), Sim::FieldBus::FAULT_REFUSE);
+    m.client.reassert_outputs(peer);   // owe the block, so it retries at the write interval
+
+    REQUIRE(m.until([&] { return m.client.plan().block(w).refusals >= 3; }));
+
+    // The RATE is the property, not the field that implements it: ten seconds
+    // after the penalty has started doubling (1.6 s, 3.2 s, 6.4 s) the block
+    // gets a handful of attempts. At MODBUS_WRITE_MIN_MS alone it would get
+    // fifty, which is the eighth of the bus this exists to stop.
+    const uint8_t before = m.client.plan().block(w).refusals;
+    m.beats(1000);
+    const uint8_t added = (uint8_t)(m.client.plan().block(w).refusals - before);
+
+    INFO(added << " further refusals in 10 s, at t=" << m.t);
+    CHECK(added <= 4);
+    CHECK(m.client.plan().block(w).due_ms > m.t);      // still held off
+    // The device answered every one of them, so it is not the device at fault
+    // and its reads must keep their rates.
+    CHECK_FALSE(m.client.peer_dead(peer));
+    CHECK(m.client.refusals() > 0);
+}
+
+#endif // BOTANIK_FEATURE_MODBUS_RTU_SERVER && TARGET_SIMULATOR
 
 #endif // BOTANIK_FEATURE_MODBUS_RTU_CLIENT
 
