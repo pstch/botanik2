@@ -57,6 +57,7 @@
 #include "libbotanik/config/serial.h"   // BOTANIK_CONSOLE_BAUD / MONITOR_BAUD
 #include "libbotanik/config/sun.h"      // the geo_ row defaults
 #include "libbotanik/config/vars.h"     // BOTANIK_RETAIN_SAVE_MS - sys_retain_sec's default
+#include "libbotanik/logs/topics.h"     // Logs::log_level_label - sys_log_level's converter
 #if BOTANIK_FEATURE_CONSOLE
 #include "libbotanik/console/params.h"  // BOTANIK_CONSOLE_PARAM_VARS - the term_ rows
 #else
@@ -237,10 +238,10 @@
     ::Botanik::Vars::P("sys_stack_pct", ::Botanik::Vars::T_U8,                 \
         BOTANIK_ALARM_STACK_PCT, 1, 100, 0, "%", 972,                          \
         "STACK alarm threshold", "percent of the stack in use"),               \
-    ::Botanik::Vars::P("sys_log_level", ::Botanik::Vars::T_U8,                 \
-        BOTANIK_LOG_MIN_LEVEL, 1, 32, 0, "", 973,                              \
+    ::Botanik::Vars::PE("sys_log_level", BOTANIK_LOG_MIN_LEVEL,                \
+        &::Botanik::Logs::log_level_label, 973,                                \
         "lowest level the logger forwards",                                    \
-        "1 dbg 2 inf 4 ntc 8 wrn 16 err 32 crt; between rounds DOWN"),         \
+        "the floor for EVERY sink; each page filters further"),                \
     ::Botanik::Vars::P("sys_retain_sec", ::Botanik::Vars::T_U32,               \
         (BOTANIK_RETAIN_SAVE_MS / 1000), 0, 86400, 0, "sec", 974,              \
         "how often retained values reach flash",                               \

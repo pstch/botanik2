@@ -101,11 +101,42 @@ namespace Botanik { namespace Vars {
             while (*end == ' ' || *end == '\t') end++;
             return *end == 0;
         }
+
+        /** @brief @p text as one of @p str's labels, or PARSE_MALFORMED.
+         *
+         *  Searched rather than inverted: the converter is a function, so the
+         *  only way back from a label to its code is to ask it for each. The
+         *  space is bounded and small - T_ENUM's type_max is UINT8_MAX - and
+         *  this runs on a `set`, which is a human typing, never on a beat. */
+        ParseResult parse_enum_label(const char* (*str)(uint64_t),
+                                     const char* text, Scalar* out) {
+            while (*text == ' ' || *text == '\t') text++;
+            for (uint32_t code = 0; code <= 255u; code++) {
+                const char* label = str(code);
+                if (label == nullptr) continue;
+                const char* a = label;
+                const char* b = text;
+                while (*a != 0 && *a == *b) { a++; b++; }
+                if (*a == 0 && only_spaces_left(b)) {
+                    *out = Scalar::U(code);
+                    return PARSE_OK;
+                }
+            }
+            return PARSE_MALFORMED;
+        }
     }  // namespace
 
-    ParseResult parse_scalar(VarType t, const char* text, Scalar* out) {
+    ParseResult parse_scalar(VarType t, const char* text, Scalar* out,
+                             const char* (*str)(uint64_t)) {
         if (out == nullptr || text == nullptr || *text == 0) return PARSE_MALFORMED;
         if (t == T_STR) return PARSE_MALFORMED;   // not a scalar; see validate_str
+
+        // A labelled enum answers to its words first, so `set <row> warning`
+        // works and is the spelling worth teaching. A number still parses below,
+        // which is what a Modbus master and the stored form both write.
+        if (t == T_ENUM && str != nullptr) {
+            if (parse_enum_label(str, text, out) == PARSE_OK) return PARSE_OK;
+        }
 
         char* end = nullptr;
         // strto* SATURATE on overflow rather than failing, so a literal too big
@@ -148,6 +179,10 @@ namespace Botanik { namespace Vars {
         if (errno == ERANGE) return PARSE_RANGE;
         Scalar s = Scalar::U((uint64_t)v);
         if (!in_range(t, s, type_min(t), type_max(t))) return PARSE_RANGE;
+        // A labelled enum's codes are not an interval, so the type range above
+        // admits every gap between them. Membership is the real bound: a code
+        // the converter cannot name is one this row has no meaning for.
+        if (t == T_ENUM && str != nullptr && str(s.u) == nullptr) return PARSE_RANGE;
         *out = s;
         return PARSE_OK;
     }

@@ -125,11 +125,11 @@ persist, and reach from the PARAMS page and over Modbus too. It is the **master
 floor** for every sink, not just this page:
 
 ```
-botanik> set sys_log_level 8      # warning and up, everywhere
+botanik> set sys_log_level warning     # warning and up, everywhere
 ```
 
-The value is the level's own number (1 debug, 2 info, 4 notice, 8 warning,
-16 error, 32 critical). See @ref user_logging.
+It takes the level as a word, and `get sys_log_level` lists the ones it accepts
+on its `Range` line. See @ref user_logging.
 
 `features` partitions the optional subsystems into what is present and what is not:
 

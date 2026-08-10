@@ -31,7 +31,7 @@ to agree.
 | Scope | Row |
 |---|---|
 | `A` | alarm: the boolean an `AlarmCondition` reads |
-| `P` | parameter: persisted, editable |
+| `P` | parameter: persisted, editable. Written `P` (numeric, banded), `PS` (text) or `PE` (enumerated - its labels are its bound) |
 | `G` | computed value, HMI only - rename it freely |
 | `SV` | status value, **published** over MQTT and the Modbus TCP slave, so its name is an external contract |
 | `MI` / `MO` | direct input / output: the register maps 1:1, no conversion |
@@ -55,6 +55,8 @@ const Variable g_vars[] = {
     P ("ntp_poll_sec", T_U32, 3600, 10, 86400, 0, "sec", 10,
                      "NTP poll interval, in seconds", ""),
     PS("ntp_srv1",   DEF_NTP_SRV1, STR_CAP, STR_HOST, 11, "NTP server 1", ""),
+    PE("sys_log_level", 1, &Logs::log_level_label, 973,
+                     "lowest level the logger forwards", ""),
     MI("grid_L1_V",  T_F32, 5, 3, 0, 2, SF(0.0f), SF(500.0f), SF(0.0f), 5000, 1,
                      "V", "L1 phase voltage", ""),
     A ("alarm_too_hot", "TOO_HOT", 2, 2, 0, 0, 10,
@@ -68,6 +70,15 @@ Every factory ends with `desc` and `notes`, and `notes` is never optional: `""` 
 "nothing more to add" in the same shape as a real note. `SU`/`SI`/`SF`/`SB` build the
 typed `Scalar` - a bare literal cannot, since the union takes `uint64`/`int64`/`float`/
 `const char*` equally well, and `Scalar(int)` is deleted so the error names itself.
+
+@note **`PE()` has no band**, and that is the point. Its converter is the row's
+whole vocabulary: it renders a code as a word, parses a word back (`set
+sys_log_level warning`), and a code it cannot name is REFUSED - by `set`, by the
+typed overload, and by `override`, which skips a band but not this. A set of
+codes is not an interval, so a `min`/`max` would admit every gap between them.
+`get` prints the accepted words on its `Range` line, so the vocabulary is never
+only in the notes. The codes are what reach the store and an external master, so
+a converter may gain labels but must never renumber them.
 
 @note **`def` does three jobs**, which is why every factory takes one: an input's
 substitute when the reading is invalid, an output's **safe state** when control is

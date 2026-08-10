@@ -206,8 +206,19 @@ namespace Botanik { namespace Vars {
      *  "12abc" is malformed rather than quietly becoming 12. Range-checks
      *  against the TYPE only; declared min/max are the caller's business (see
      *  in_range). T_STR always returns PARSE_MALFORMED - a string is not a
-     *  scalar; use validate_str(). */
-    ParseResult parse_scalar(VarType t, const char* text, Scalar* out);
+     *  scalar; use validate_str().
+     *
+     *  @p str is a T_ENUM's converter, and it makes the labels part of the
+     *  TYPE rather than of a band:
+     *    - `text` matching a label parses to that label's code, so an operator
+     *      types the word rather than looking a number up;
+     *    - a NUMBER the converter does not map is PARSE_RANGE. An enum's codes
+     *      are not an interval, so `in_range` cannot express "one of these" and
+     *      a bare band would admit the gaps between them.
+     *  Null (the default) leaves T_ENUM a plain small unsigned, which is what
+     *  every other type passes. */
+    ParseResult parse_scalar(VarType t, const char* text, Scalar* out,
+                             const char* (*str)(uint64_t) = nullptr);
 
     /** @brief Does @p text satisfy @p kind, and fit in @p cap bytes incl NUL? */
     bool validate_str(StrKind kind, const char* text, uint16_t cap);

@@ -326,7 +326,13 @@ namespace Botanik { namespace Vars {
         SetResult parse_for(const Variable& d, const char* text, bool bounded,
                             Scalar* out) {
             const NumBand band = num_band(d);
-            if (parse_scalar(d.type, text, out) != PARSE_OK) return SET_INVALID;
+            // d.str goes in so a labelled enum answers to its own words, and so
+            // a code it cannot name is refused. That refusal is NOT the band and
+            // so is not gated on `bounded`: an override may push a reading past
+            // what is plausible, but there is no such thing as an enum value
+            // outside its labels - it would render as a bare number and mean
+            // nothing to anything reading it.
+            if (parse_scalar(d.type, text, out, d.str) != PARSE_OK) return SET_INVALID;
             if (bounded && (d.flags & F_BOUNDED) != 0 &&
                 !in_range(d.type, *out, band.min, band.max)) return SET_INVALID;
             return SET_OK;
@@ -351,6 +357,11 @@ namespace Botanik { namespace Vars {
         // write; the text overload is the only way in.
         if (d->type == T_STR) return SET_INVALID;
         if (editable_slot(_tables, d) == nullptr) return SET_INVALID;
+        // Same rule the text path gets through parse_for(): a labelled enum's
+        // codes are its labels, and this overload never goes near a parser, so
+        // the check has to be here too or a typed write is the way around it.
+        if (d->type == T_ENUM && d->str != nullptr && d->str(v.u) == nullptr)
+            return SET_INVALID;
         const NumBand band = num_band(*d);
         if ((d->flags & F_BOUNDED) != 0 && !in_range(d->type, v, band.min, band.max))
             return SET_INVALID;

@@ -169,6 +169,56 @@ TEST_CASE("parse: a literal too big for the type is a range error, not a maximum
     CHECK(out.u == 12345u);
 }
 
+namespace {
+    /** @brief A deliberately GAPPED converter: the codes are not a run, which is
+     *  the whole reason an enum cannot be expressed as a band. */
+    const char* colour(uint64_t v) {
+        switch (v) {
+            case 1:  return "red";
+            case 4:  return "green";
+            case 16: return "blue";
+            default: return nullptr;
+        }
+    }
+}
+
+TEST_CASE("parse: a labelled enum answers to its words") {
+    Scalar out;
+    CHECK(parse_scalar(T_ENUM, "green", &out, &colour) == PARSE_OK);
+    CHECK(out.u == 4u);
+
+    SUBCASE("surrounding space is trimmed, trailing junk is not a match") {
+        CHECK(parse_scalar(T_ENUM, "  blue  ", &out, &colour) == PARSE_OK);
+        CHECK(out.u == 16u);
+        CHECK(parse_scalar(T_ENUM, "bluey", &out, &colour) != PARSE_OK);
+        // A prefix of a label is not that label, or "re" would set red.
+        CHECK(parse_scalar(T_ENUM, "re", &out, &colour) != PARSE_OK);
+    }
+
+    SUBCASE("a number still parses - it is what the store and Modbus write") {
+        CHECK(parse_scalar(T_ENUM, "16", &out, &colour) == PARSE_OK);
+        CHECK(out.u == 16u);
+    }
+
+    SUBCASE("but a number the converter cannot name is a range error") {
+        // The point of the whole exercise: 3 sits inside the type's range and
+        // between two valid codes, so nothing but membership rejects it.
+        CHECK(parse_scalar(T_ENUM, "3", &out, &colour) == PARSE_RANGE);
+        CHECK(parse_scalar(T_ENUM, "0", &out, &colour) == PARSE_RANGE);
+    }
+
+    SUBCASE("an unknown word is malformed, not a silent zero") {
+        CHECK(parse_scalar(T_ENUM, "mauve", &out, &colour) == PARSE_MALFORMED);
+    }
+
+    SUBCASE("with no converter it is a plain small unsigned") {
+        // T_ENUM without labels keeps the old behaviour: nothing to check
+        // membership against, so the type's own range is the only bound.
+        CHECK(parse_scalar(T_ENUM, "3", &out) == PARSE_OK);
+        CHECK(parse_scalar(T_ENUM, "300", &out) == PARSE_RANGE);
+    }
+}
+
 }  // namespace scalar
 
 // --------------------------------------------------------------------------
@@ -1177,6 +1227,87 @@ TEST_CASE("override: every release path also forgets the stored copy") {
         OvrFx f;
         CHECK_FALSE(f.bank.var("sensor").overridden());
         CHECK(f.bank.override_count() == 0);
+    }
+}
+
+// PE() - a parameter whose labels ARE its bound.
+
+namespace {
+    const char* mode_label(uint64_t v) {
+        switch (v) {
+            case 1:  return "off";
+            case 4:  return "auto";
+            case 16: return "manual";
+            default: return nullptr;
+        }
+    }
+
+    const Variable ENUMS[] = {
+        PE("p_mode", 4, &mode_label, 10, "operating mode", ""),
+    };
+
+    struct EnumFx {
+        Value    vals[1]{};
+        uint16_t index[1]{};
+        Bank     bank;
+        EnumFx() {
+            VarTables t = {};
+            t.var = ENUMS; t.val = vals; t.count = 1; t.index = index;
+            bank = Bank(t);
+            bank.init();
+        }
+        Var row() { return bank.var(bank.find("p_mode")); }
+        const char* shown() {
+            static char buf[32];
+            return var_format(bank, row(), buf, sizeof(buf));
+        }
+    };
+}
+
+TEST_CASE("enum param: it reads and writes as a word, and refuses a non-member") {
+    StoreEnv env("/tmp/botanik_test_enum");
+    EnumFx f;
+
+    INFO("the default renders as its label, not as 4");
+    CHECK(std::strcmp(f.shown(), "auto") == 0);
+
+    SUBCASE("a label sets it") {
+        CHECK(f.bank.set(f.row(), "manual") != SET_INVALID);
+        CHECK(f.row().i() == 16);
+        CHECK(std::strcmp(f.shown(), "manual") == 0);
+    }
+
+    SUBCASE("so does the code, which is what the store and a master write") {
+        CHECK(f.bank.set(f.row(), "1") != SET_INVALID);
+        CHECK(std::strcmp(f.shown(), "off") == 0);
+    }
+
+    SUBCASE("a code with no label is refused") {
+        // No band is declared, so nothing but membership stands between this
+        // and a stored value that renders as a bare number forever after.
+        CHECK(f.bank.set(f.row(), "3") == SET_INVALID);
+        CHECK(f.bank.set(f.row(), "0") == SET_INVALID);
+        CHECK(std::strcmp(f.shown(), "auto") == 0);      // unmoved
+    }
+
+    SUBCASE("an unknown word is refused") {
+        CHECK(f.bank.set(f.row(), "banana") == SET_INVALID);
+        CHECK(std::strcmp(f.shown(), "auto") == 0);
+    }
+
+    SUBCASE("the typed overload cannot get around the check") {
+        // set(Var, Scalar) never goes near a parser, so it needs the rule too.
+        CHECK(f.bank.set(f.row(), Scalar::U(3)) == SET_INVALID);
+        CHECK(f.bank.set(f.row(), Scalar::U(16)) != SET_INVALID);
+    }
+
+    SUBCASE("nor can an override, which skips the BAND but not the labels") {
+        // An override may push a reading past what is plausible; there is no
+        // equivalent freedom here, because a code outside the labels has no
+        // meaning to render or to act on.
+        CHECK(f.bank.override_set(f.row(), "3") == SET_INVALID);
+        CHECK(f.bank.override_set(f.row(), "manual") == SET_OK);
+        CHECK(std::strcmp(f.shown(), "manual") == 0);
     }
 }
 

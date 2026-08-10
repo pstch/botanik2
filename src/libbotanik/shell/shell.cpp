@@ -596,6 +596,20 @@ namespace Botanik { namespace Shell {
                      Vars::format_scalar(d->type, b.max, d->digits, nullptr, hi, sizeof(hi)), u);
             _field(d->role == Vars::ROLE_PARAM ? "Range" : "Plausible", det, nullptr);
         }
+        // A labelled enum's bound is its label set, so that is what its "Range"
+        // is - and it belongs here rather than in the notes, which are free text
+        // and drift from the converter the moment one gains a label.
+        else if (d->type == Vars::T_ENUM && d->str != nullptr) {
+            size_t n = 0;
+            for (uint32_t code = 0; code <= 255u && n + 1 < sizeof(det); code++) {
+                const char* label = d->str(code);
+                if (label == nullptr) continue;
+                if (n != 0 && n + 1 < sizeof(det)) det[n++] = '|';
+                while (*label != 0 && n + 1 < sizeof(det)) det[n++] = *label++;
+            }
+            det[n] = 0;
+            if (n != 0) _field("Range", det, nullptr);
+        }
 
         // Where the value physically comes from.
         _field("Source", _binding_phrase(d->bind, det, sizeof(det)), nullptr);

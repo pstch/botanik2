@@ -40,20 +40,26 @@ Two filters in series. The `sys_log_level` **parameter** is the master floor -
 below it nothing is emitted at all, to any sink:
 
 ```
-botanik> get sys_log_level        # report the current threshold
-botanik> set sys_log_level 8      # quieten everything below warnings
+botanik> get sys_log_level              # report the current threshold
+sys_log_level = debug
+...
+Range ....................... : debug|info|notice|warning|error|critical
+
+botanik> set sys_log_level warning      # quieten everything below warnings
 ```
 
-It is an ordinary parameter, so it persists, and it reads and writes the same
-from the PARAMS page or over Modbus. Its value is the level's own number:
+It reads and writes as a **word**, and `get` lists the whole vocabulary on its
+`Range` line, so there is no numbering to look up. Anything that is not one of
+those words is refused rather than stored - there is no rounding to a nearby
+level, because a level is not a quantity.
 
-| | 1 | 2 | 4 | 8 | 16 | 32 |
-|---|---|---|---|---|---|---|
-| | debug | info | notice | warning | error | critical |
+It is an ordinary parameter otherwise, so it persists, and the PARAMS page and a
+Modbus master reach the same setting. `BOTANIK_LOG_MIN_LEVEL` is the factory
+value.
 
-A value between two rounds **down** to the level at or below it, which is the
-permissive way to be wrong about a log filter. `BOTANIK_LOG_MIN_LEVEL` is the
-factory value.
+@note Over Modbus it is the level's own **code** that travels - 1 debug, 2 info,
+4 notice, 8 warning, 16 error, 32 critical. Those codes are also what sits in
+already-written log records, so they never get renumbered.
 
 That factory value is `debug`, so the LOGS page can be the complete record. Each
 page then applies its **own** floor on top:

@@ -445,18 +445,13 @@ namespace Botanik {
     void BotanikFirmware::_apply_log_config() {
         const int32_t want = Vars::get_int(&_io, "sys_log_level",
                                            (int32_t)Config::LOG_MIN_LEVEL);
-        // LogLevel is a bit-per-level enum (1/2/4/8/16/32) and the row is a
-        // plain number, so a value between two levels is rounded DOWN to the
-        // level at or below it - the permissive reading, which is the safe way
-        // to be wrong about a log filter. Anything under the lowest level is
-        // simply the lowest.
-        Logs::LogLevel lvl = Logs::LOG_DEBUG;
-        static const Logs::LogLevel LEVELS[] = {
-            Logs::LOG_DEBUG, Logs::LOG_INFO, Logs::LOG_NOTICE,
-            Logs::LOG_WARNING, Logs::LOG_ERROR, Logs::LOG_CRITICAL,
-        };
-        for (const Logs::LogLevel L : LEVELS)
-            if (want >= (int32_t)L) lvl = L;
+        // No coercion here, and none needed: the row is a T_ENUM over
+        // log_level_label(), so the model refused anything that is not a level
+        // long before it could reach the slot. The one value that arrives
+        // unvetted is the Config fallback above, from a build whose site left
+        // the row out - hence a guard rather than a bare cast.
+        if (Logs::log_level_label((uint64_t)want) == nullptr) return;
+        const Logs::LogLevel lvl = (Logs::LogLevel)want;
         if (lvl != _logger.min_level()) _logger.set_min_level(lvl);
     }
 #endif
