@@ -259,17 +259,18 @@ if(BOTANIK_TARGET STREQUAL "SIMULATOR")
         ${BOTANIK_SITE_SOURCES})
     target_link_libraries(botanik_sim botanik)
 
-    # Hot-restart: after every relink, signal any running simulators to re-exec the
-    # rebuilt binary (SIGUSR1 -> botanik_sim_reexec -> HAL::reset, which re-execs the
-    # resolved exe path). pkill exits non-zero when none are running, so `|| true`
-    # keeps the build green. Runs only when the target is actually relinked. VERBATIM
-    # so the whole `sh -c` script reaches the shell as one argument - without it CMake
-    # escapes only the spaces, not the `||`, and make's shell splits the fallback into
-    # a bogus ` true` command ("true: not found") whenever no sim is running.
-    add_custom_command(TARGET botanik_sim POST_BUILD
-        COMMAND sh -c "pkill -USR1 -x botanik_sim || true"
-        VERBATIM
-        COMMENT "Signaling running botanik_sim instances to hot-restart (SIGUSR1)")
+    # NOTE: the hot-restart POST_BUILD hook is gone. It ran
+    # `pkill -USR1 -x botanik_sim` after every relink so a running sim would
+    # re-exec the rebuilt binary. Convenient, but pkill matches by NAME across the
+    # WHOLE MACHINE: it had no way to tell a sim you were watching from one a test
+    # was driving, or from another user's. Building while the screen tests ran
+    # re-execed the sims under test mid-assertion, which is a spurious failure with
+    # no visible cause - and observed here trying to signal another account's
+    # process (it only failed on permissions).
+    #
+    # The SIGUSR1 handler in botanik_sim stays, so a hot-restart is still one
+    # `pkill -USR1 -x botanik_sim` away when you actually want one. It is just no
+    # longer fired by the build, behind your back, at every sim on the box.
 
     # Link-time optimization for Release only (cross-TU inlining on top of -O3).
     # Probed so a toolchain without LTO support degrades to a plain -O3 build.
