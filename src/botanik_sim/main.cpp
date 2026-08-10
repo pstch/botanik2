@@ -23,6 +23,7 @@
 #include "botanik_sim/network.h"        // the in-process mock NTP/MQTT responder (loopback)
 #endif
 
+
 // The scheduler's stack-usage scan paints the free stack, so it needs locals on
 // the real stack. ASan's use-after-return check relocates them to a heap "fake
 // stack" and the scan then reports a constant STACK_SCAN_LIMIT, so turn that one
@@ -85,8 +86,8 @@ int main(int argc, char** argv) {
     greenhouse.setup();
 
 #if BOTANIK_FEATURE_NETWORK
-    // Mock NTP/MQTT responder on loopback. Spawned before we lock process
-    // memory (mlockall MCL_FUTURE), like any other thread we create.
+    // Mock NTP/MQTT responder on loopback. Binds here so the firmware's first
+    // query has somewhere to land; the beat loop below services it.
     Network::start_mock_netd();
 #endif
 
@@ -151,6 +152,11 @@ int main(int argc, char** argv) {
         // phase - one turnaround, like a real device.
         if (greenhouse.loop()) {
             Site::simulate(greenhouse.io(), (uint32_t)HAL::Clock::uptime_ms());
+#if BOTANIK_FEATURE_NETWORK
+            // The mock NTP/MQTT peer, serviced like the field bus: one
+            // non-blocking pass per beat, on this thread.
+            Network::netd_step();
+#endif
 #if BOTANIK_FEATURE_MODBUS_RTU_SERVER
             fieldbus.step(HAL::Clock::uptime_ms());
 #endif

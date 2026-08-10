@@ -14,9 +14,9 @@
  * MQTT_MOCK_PORT.
  *
  * The NTP/MQTT wire knowledge (the SNTP reply, the CONNACK/PINGRESP) lives here,
- * above the HAL, so the HAL transport stays protocol-agnostic. The thread
- * lifecycle is a volatile run flag published with HAL::Memory::dsb(), torn down
- * through HAL::System::on_reset().
+ * above the HAL, so the HAL transport stays protocol-agnostic. Every socket is
+ * non-blocking and the main loop drives netd_step() once per beat, so there is
+ * no thread; teardown goes through HAL::System::on_reset().
  */
 
 #ifdef TARGET_SIMULATOR
@@ -29,22 +29,18 @@
 // POSIX - the mock responder is a real in-process socket peer, not a stub.
 #include <fcntl.h>                      // fcntl / O_NONBLOCK
 #include <netinet/in.h>                 // sockaddr_in / htons
-#include <pthread.h>                    // pthread_t
 #include <sys/socket.h>                 // socket / bind / recvfrom / sendto
 #include <unistd.h>                     // close
 
 #include "libbotanik/config/scheduler.h"  // Config::LOOP_* / TASK_* / GROUP_*
 
 #include "libbotanik/hal/net.h"         // HAL::Network::NTP_MOCK_PORT / MQTT_MOCK_PORT
-#include "libbotanik/hal/platform.h"    // HAL::Clock::sleep_ms / HAL::Memory::dsb
+#include "libbotanik/hal/platform.h"    // HAL::System::on_reset
 
 namespace Botanik { namespace Network {
 
-    /** @brief Run flag/handle for the single responder thread. Single-writer
-     *  (lifecycle) / single-reader (thread loop): volatile + HAL::Memory::dsb()
-     *  to publish, the lock-free pattern used throughout (no std::atomic). */
-    inline volatile bool& _netd_running() { static volatile bool running = false; return running; }
-    inline pthread_t&      _netd_thread()  { static pthread_t thread; return thread; }
+    /** @brief Whether the endpoints are bound and netd_step() has work to do. */
+    inline bool& _netd_running() { static bool running = false; return running; }
 
     namespace detail {
         /** @brief A non-blocking loopback socket bound to @p port (UDP if @p
@@ -182,75 +178,77 @@ namespace Botanik { namespace Network {
         }
     }  // namespace detail
 
-    /** @brief Stop the responder thread and join it (idempotent). */
+    /** @brief The listening sockets. [0] NTP/UDP, [1] MQTT/TCP. */
+    inline int* _netd_fds() { static int fd[2] = { -1, -1 }; return fd; }
+
+    enum { NETD_MAX_CLIENTS = 4 };
+
+    /** @brief The accepted MQTT connections, held across steps. */
+    inline detail::MqttConn* _netd_clients() {
+        static detail::MqttConn client[NETD_MAX_CLIENTS];
+        return client;
+    }
+
+    /** @brief Close the endpoints and any accepted connection (idempotent). */
     inline void stop_mock_netd() {
         if (!_netd_running()) return;
         _netd_running() = false;
-        HAL::Memory::dsb();
-        pthread_join(_netd_thread(), nullptr);
-    }
-
-    /** @brief The listening sockets, bound by start_mock_netd() before the
-     *  thread exists (see there). [0] NTP/UDP, [1] MQTT/TCP. */
-    inline int* _netd_fds() { static int fd[2] = { -1, -1 }; return fd; }
-
-    /** @brief Thread entry point: service the loopback endpoints until stopped.
-     *  A background peer, not realtime: the clients retry. */
-    inline void* _netd_main(void*) {
-        const int MAX_CLIENTS = 4;
-        int udp = _netd_fds()[0];
-        int tcp = _netd_fds()[1];
-        detail::MqttConn client[MAX_CLIENTS];
-
-        while (_netd_running()) {
-            if (udp >= 0) detail::netd_serve_ntp(udp);
-            if (tcp >= 0) {
-                int c = ::accept(tcp, nullptr, nullptr);
-                if (c >= 0) {
-                    int fl = fcntl(c, F_GETFL, 0);
-                    fcntl(c, F_SETFL, fl | O_NONBLOCK);
-                    fcntl(c, F_SETFD, FD_CLOEXEC);   // drop on a reset re-exec
-                    int slot = -1;
-                    for (int i = 0; i < MAX_CLIENTS; ++i) if (client[i].fd < 0) { slot = i; break; }
-                    if (slot >= 0) { client[slot].fd = c; client[slot].len = 0; }
-                    else ::close(c);
-                }
-                for (int i = 0; i < MAX_CLIENTS; ++i) {
-                    if (client[i].fd < 0) continue;
-                    if (!detail::netd_serve_mqtt(client[i])) {
-                        ::close(client[i].fd); client[i].fd = -1; client[i].len = 0;
-                    }
-                }
-            }
-            HAL::Clock::sleep_ms(Config::TASK_PERIOD_MS);
+        for (int i = 0; i < 2; ++i) {
+            if (_netd_fds()[i] >= 0) { ::close(_netd_fds()[i]); _netd_fds()[i] = -1; }
         }
-
-        if (udp >= 0) ::close(udp);
-        if (tcp >= 0) ::close(tcp);
-        for (int i = 0; i < MAX_CLIENTS; ++i) if (client[i].fd >= 0) ::close(client[i].fd);
-        return nullptr;
+        detail::MqttConn* client = _netd_clients();
+        for (int i = 0; i < NETD_MAX_CLIENTS; ++i) {
+            if (client[i].fd >= 0) { ::close(client[i].fd); client[i].fd = -1; client[i].len = 0; }
+        }
     }
 
-    /** @brief Spawn the mock responder thread and register its teardown with
-     *  HAL::System::reset(). Start it before the process locks memory (mlockall
-     *  MCL_FUTURE), like the emulator. */
+    /** @brief Service the loopback endpoints once, from the main loop after each
+     *  beat like the field bus. Every socket here is non-blocking, so one pass is
+     *  all a background peer needs and the clients retry. */
+    inline void netd_step() {
+        if (!_netd_running()) return;
+        const int udp = _netd_fds()[0];
+        const int tcp = _netd_fds()[1];
+        detail::MqttConn* client = _netd_clients();
+
+        if (udp >= 0) detail::netd_serve_ntp(udp);
+        if (tcp < 0) return;
+
+        int c = ::accept(tcp, nullptr, nullptr);
+        if (c >= 0) {
+            int fl = fcntl(c, F_GETFL, 0);
+            fcntl(c, F_SETFL, fl | O_NONBLOCK);
+            fcntl(c, F_SETFD, FD_CLOEXEC);   // drop on a reset re-exec
+            int slot = -1;
+            for (int i = 0; i < NETD_MAX_CLIENTS; ++i) if (client[i].fd < 0) { slot = i; break; }
+            if (slot >= 0) { client[slot].fd = c; client[slot].len = 0; }
+            else ::close(c);
+        }
+        for (int i = 0; i < NETD_MAX_CLIENTS; ++i) {
+            if (client[i].fd < 0) continue;
+            if (!detail::netd_serve_mqtt(client[i])) {
+                ::close(client[i].fd); client[i].fd = -1; client[i].len = 0;
+            }
+        }
+    }
+
+    /** @brief Bind the mock endpoints and register their teardown with
+     *  HAL::System::reset(). The main loop drives them through netd_step().
+     *  Binding here and not later: the firmware's first NTP/MQTT query goes out
+     *  ~2 ms after we return, and losing that race costs a whole retry backoff
+     *  (60 s of sim time) plus two bogus boot errors. */
     inline void start_mock_netd() {
-        // Bind here rather than in the thread: the firmware's first NTP/MQTT
-        // query goes out ~2 ms after we return, and losing that race costs a
-        // whole retry backoff (60 s of sim time) plus two bogus boot errors.
         _netd_fds()[0] = detail::netd_bind(HAL::Network::NTP_MOCK_PORT,  /*dgram=*/true);
         _netd_fds()[1] = detail::netd_bind(HAL::Network::MQTT_MOCK_PORT, /*dgram=*/false);
-        _netd_running() = true;
-        HAL::Memory::dsb();
-        if (pthread_create(&_netd_thread(), nullptr, &_netd_main, nullptr) != 0) {
-            _netd_running() = false;
+        if (_netd_fds()[0] < 0 && _netd_fds()[1] < 0) {
             // stderr, like the mock broker and the self-check: the harness
             // failing to start is a fact about this host, not the greenhouse,
             // and must not reach the LOGS page or MQTT.
-            fprintf(stderr, "[mock-netd] failed to start\n");
+            fprintf(stderr, "[mock-netd] failed to bind\n");
             fflush(stderr);
             return;
         }
+        _netd_running() = true;
         HAL::System::on_reset(&stop_mock_netd);
     }
 
