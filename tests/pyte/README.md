@@ -14,10 +14,8 @@ moves, IL/DL, the line editor's reconciliation) that a source diff cannot.
   control pipe (`BOTANIK_SIM_CLOCK=manual`), so a wait is bounded in BEATS
   rather than host seconds: the same run gives the same screen whatever else the
   box is doing, and a failure costs the beats instead of waiting 15 s to see
-  whether more output was coming. `BOTANIK_PYTE_MANUAL=0` restores the
-  wall-clock path, which is still there and still passes.
-- **Speed via `BOTANIK_TIME_SCALE`, never a higher baud** (wall-clock path only;
-  the manual clock ignores it). Console baud is
+  whether more output was coming.
+- **Never a higher baud.** Console baud is
   compile-time (`Config::CONSOLE_BAUD`, 4800) and the terminal derives its
   per-render byte budget from it, so raising the wire speed alone would just
   leave the renderer pacing for 4800. Dilating the clock keeps every byte/event

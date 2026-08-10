@@ -154,13 +154,13 @@ def test_region_is_highlighted(term):
     # Anchor after "echo ", then drag over "hello ". PS1 is 9 columns.
     term.send(keys.CTRL_A + keys.RIGHT * 5 + keys.CTRL_SPACE)
     term.send(keys.RIGHT * 6)
-    term.poll(lambda: _reversed_span(term, row) == (14, 20))
+    term.until(lambda: _reversed_span(term, row) == (14, 20))
     assert _reversed_span(term, row) == (14, 20), \
         "the region did not land on the columns holding 'hello '"
 
     # ^G releases it and the row goes plain again, text untouched.
     term.send(keys.CTRL_G)
-    term.poll(lambda: _reversed_span(term, row) is None)
+    term.until(lambda: _reversed_span(term, row) is None)
     assert _reversed_span(term, row) is None, "^G left the highlight behind"
     assert_editor(term, "botanik> echo hello world")
 

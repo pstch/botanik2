@@ -5,9 +5,8 @@ throttled 4800 baud. It gets a PTY rather than a pipe (RawSerial's TIOCOUTQ only
 answers on a tty), and pyte replays the bytes into an 80x24 screen to assert on.
 
 Time is the harness's, not the host's: the sim runs one beat per command over a
-control pipe (BOTANIK_SIM_CLOCK=manual), so a wait is bounded in beats and the
-same run gives the same screen. BOTANIK_PYTE_MANUAL=0 falls back to the
-wall-clock path below. See README.md.
+control pipe (BOTANIK_SIM_CLOCK=manual), so every wait is bounded in BEATS and
+the same run gives the same screen whatever else the box is doing. See README.md.
 """
 
 import difflib
@@ -27,27 +26,13 @@ from normalize import (normalize_lines, meaningful_lines, strip_noise,
 COLS, ROWS = 80, 24                       # matches AnsiTerminal(..., 80, 24, ...) in main.cpp
 GOLDEN_DIR = Path(__file__).parent / "golden"
 
-# Wall-clock fallback (BOTANIK_PYTE_MANUAL=0). Every wait is bounded twice and
-# must never depend on either firing: IDLE gives up once the screen has stopped
-# moving, CAP gives up regardless (a live log tail repaints forever, so IDLE
-# alone never fires on a firmware whose boot never completes). Both on
-# time.monotonic(), which does not count time the box spent suspended. IDLE is a
-# heuristic and cannot tell a stuck sim from a starved one, so it stays generous:
-# tightening it to 3 s false-failed four runs in six against a good sim.
-#
-# Manual clock (BOTANIK_PYTE_MANUAL=1): the sim advances one beat per command
-# instead of following the host clock, so a wait is bounded in BEATS and the
-# same run always produces the same screen. The budgets below then bound only
-# the ack round-trip, which is a liveness check rather than a race.
-MANUAL = os.environ.get("BOTANIK_PYTE_MANUAL", "1") != "0"
+# The sim advances one beat per command, so a wait is bounded in beats: the same
+# on a loaded box as on an idle one. ACK_TIMEOUT_S bounds only the round-trip,
+# and firing it means the sim is wedged rather than slow.
 ACK = b"\033]777;botanik-ack\007"
 BEATS_PER_STEP = int(os.environ.get("BOTANIK_PYTE_BEAT_STEP", "20"))
 MAX_BEATS = int(os.environ.get("BOTANIK_PYTE_MAX_BEATS", "4000"))
-
-WAIT_IDLE_S = float(os.environ.get("BOTANIK_PYTE_WAIT_IDLE", "15.0"))
-WAIT_CAP_S = float(os.environ.get("BOTANIK_PYTE_WAIT_CAP", "30.0"))
-SETTLE_IDLE_S = float(os.environ.get("BOTANIK_PYTE_SETTLE_IDLE", "0.2"))
-SETTLE_CAP_S = float(os.environ.get("BOTANIK_PYTE_SETTLE_CAP", "5.0"))
+ACK_TIMEOUT_S = float(os.environ.get("BOTANIK_PYTE_ACK_TIMEOUT", "30.0"))
 
 
 def pytest_addoption(parser):
@@ -60,9 +45,8 @@ def pytest_addoption(parser):
 class Term:
     """A running botanik_sim plus a pyte screen fed from its PTY."""
 
-    def __init__(self, binary, time_scale=50, watch=(), store=None, manual=MANUAL):
+    def __init__(self, binary, time_scale=50, watch=(), store=None):
         env = dict(os.environ)
-        self.manual = manual
         self._ctl_w = None
         self._raw = b""                       # undecoded tail, for the ack split
         self.beats = 0                        # beats run, for the bounded waits
@@ -79,25 +63,20 @@ class Term:
             # other and with the developer's own (test_params commits an edit).
             env["BOTANIK_CONFIG_STORE"] = str(store)
 
-        # Manual clock: the sim runs a beat only when told to, over a control
-        # pipe it inherits as fd 3. Nothing else about the run changes.
-        # The fd keeps its number in the child: close_fds runs AFTER preexec_fn,
-        # so a dup2 to a fixed 3 would be closed again unless 3 were itself in
+        # The sim runs a beat only when told to, over a control pipe. The fd
+        # keeps its number in the child: close_fds runs AFTER preexec_fn, so a
+        # dup2 to a fixed 3 would be closed again unless 3 were itself in
         # pass_fds. Naming the real number is one fewer thing to get wrong.
-        pass_fds = ()
-        if manual:
-            ctl_r, self._ctl_w = os.pipe()
-            env["BOTANIK_SIM_CLOCK"] = "manual"
-            env["BOTANIK_SIM_CONTROL_FD"] = str(ctl_r)
-            pass_fds = (ctl_r,)
+        ctl_r, self._ctl_w = os.pipe()
+        env["BOTANIK_SIM_CLOCK"] = "manual"
+        env["BOTANIK_SIM_CONTROL_FD"] = str(ctl_r)
 
         self.master, slave = pty.openpty()
         self.proc = subprocess.Popen(
             [binary], stdin=slave, stdout=slave, stderr=subprocess.DEVNULL,
-            env=env, close_fds=True, pass_fds=pass_fds)
+            env=env, close_fds=True, pass_fds=(ctl_r,))
         os.close(slave)
-        if manual:
-            os.close(ctl_r)
+        os.close(ctl_r)
         os.set_blocking(self.master, False)
 
         # latin-1, not pyte.ByteStream: its UTF-8 decoder can resync-drop a byte
@@ -111,8 +90,7 @@ class Term:
         self._watch = set(watch)
         self._seen = set()
         self._view = None                     # normalized screen, see view()
-        if manual:
-            self._await_ack()                 # the sim announcing it is ready
+        self._await_ack()                     # the sim announcing it is ready
 
     # -- raw I/O -------------------------------------------------------------
 
@@ -142,7 +120,7 @@ class Term:
 
         Cached until the next byte arrives. Normalizing a full screen runs ~45
         regexes over 24 rows and measured 1 ms, and every wait wants the same
-        answer two or three times per poll - the loop's own movement check plus
+        answer two or three times per wait - the loop's own movement check plus
         whatever its predicate looks at.
         """
         if self._view is None:
@@ -169,7 +147,7 @@ class Term:
 
     def _await_ack(self, beats=0):
         """Absorb output until the sim's next ack. Raises if it never comes."""
-        deadline = time.monotonic() + WAIT_CAP_S   # liveness only: a dead sim
+        deadline = time.monotonic() + ACK_TIMEOUT_S   # liveness only: a dead sim
         while time.monotonic() < deadline:
             r, _, _ = select.select([self.master], [], [], 0.05)
             if not r:
@@ -190,13 +168,13 @@ class Term:
                 self.beats += beats
                 return True
         raise AssertionError(
-            f"sim never acknowledged {beats} beats within {WAIT_CAP_S}s "
+            f"sim never acknowledged {beats} beats within {ACK_TIMEOUT_S}s "
             f"(after {self.beats} beats) - it is wedged, not slow")
 
     def until(self, done, max_beats=MAX_BEATS):
         """Run beats in steps until `done()`, or `max_beats` have passed.
 
-        The manual-clock replacement for poll(): the bound is simulated beats,
+        The one wait in the harness: the bound is simulated beats,
         so it is the same on a loaded box as on an idle one, and a failure costs
         the beats rather than 15 s of waiting to see if anything else arrives.
         """
@@ -208,74 +186,23 @@ class Term:
                 return True
         return False
 
-    def poll(self, done, idle_s=WAIT_IDLE_S, cap_s=WAIT_CAP_S):
-        """Pump until `done()`, the screen is still for `idle_s`, or `cap_s` passes.
+    def settle(self):
+        """Run beats until the normalized screen holds still across two steps.
 
-        The one wait in the harness: settle(), wait_for(), wait_screen() and the
-        golden compare are this loop with a different predicate. Both bounds are
-        real - see the note on the budgets. Returns done().
-
-        Under the manual clock there is nothing to wait FOR: the sim advances only
-        when asked, so the wait becomes until(), bounded in beats. Dispatching
-        here rather than at each call site covers the helpers that reach for
-        poll() directly.
+        The blunt instrument, used to capture a golden: a content wait stops at
+        the first frame that says yes, where this has to wait out the whole
+        4800-baud dribble. Name what you are waiting for and this stays out of
+        the assert path.
         """
-        if self.manual:
-            return self.until(done)
-        prev = self.view()
-        now = time.monotonic()
-        idle_since, deadline = now, now + cap_s
-        while not done():
-            self._pump(0.02)
-            cur = self.view()
-            now = time.monotonic()
-            if cur != prev:
-                prev, idle_since = cur, now
-            if now - idle_since >= idle_s or now >= deadline:
-                return done()
-        return True
-
-    def settle(self, quiet=0.02):
-        """Pump until the normalized screen has held still for `quiet` seconds.
-
-        The screen never goes byte-quiet - the clock and the metrics keep
-        trickling - but those cells normalize to fixed tokens, so a finished
-        repaint reads as a still screen. At least one change must be observed
-        first, or a slow repaint would let the caller assert on the pre-action
-        screen; an action that paints nothing therefore costs SETTLE_IDLE_S.
-
-        The blunt instrument, and now used only to capture a golden: a quiet
-        window has to wait out the whole 4800-baud dribble, where a content wait
-        stops at the first frame that says yes. Measured at ~200 ms against
-        ~20 ms, and trading the suite's 29 settles for wait_for/wait_screen took
-        it from ~10 s to ~4 s. Name what you are waiting for, and this stays out
-        of the assert path.
-        """
-        if self.manual:
-            # Quiescence in BEATS, not seconds: run steps until the screen holds
-            # still across two of them. A fixed number of beats is not enough -
-            # it captured a golden before the page had painted at all.
-            last = self.view()
-            stable = 0
-            for _ in range(0, MAX_BEATS, BEATS_PER_STEP):
-                self.run(BEATS_PER_STEP)
-                cur = self.view()
-                stable = stable + 1 if cur == last else 0
-                last = cur
-                if stable >= 2:
-                    return
-            return
-        changed_at = None
         last = self.view()
-
-        def still():
-            nonlocal last, changed_at
-            now = self.view()
-            if now != last:
-                last, changed_at = now, time.monotonic()
-            return changed_at is not None and time.monotonic() - changed_at >= quiet
-
-        self.poll(still, SETTLE_IDLE_S, SETTLE_CAP_S)
+        stable = 0
+        for _ in range(0, MAX_BEATS, BEATS_PER_STEP):
+            self.run(BEATS_PER_STEP)
+            cur = self.view()
+            stable = stable + 1 if cur == last else 0
+            last = cur
+            if stable >= 2:
+                return
 
     def wait_for(self, needles):
         """Pump until every string in `needles` HAS BEEN on screen.
@@ -289,12 +216,12 @@ class Term:
         self._watch |= want
         self._latch()
         done = lambda: self._seen >= want                     # noqa: E731
-        return self.until(done) if self.manual else self.poll(done)
+        return self.until(done)
 
     def wait_screen(self, needle, present=True):
         """Pump until `needle` is (or with present=False, is no longer) on screen."""
         done = lambda: (needle in "\n".join(self.screen.display)) is present  # noqa: E731
-        return self.until(done) if self.manual else self.poll(done)
+        return self.until(done)
 
     # -- inspection ----------------------------------------------------------
 
@@ -387,7 +314,7 @@ def assert_screen(request):
         path = GOLDEN_DIR / f"{name}.txt"
         clip = (lambda lines: lines[rows[0]:rows[1]]) if rows else (lambda lines: lines)
         if update:
-            term.settle(quiet=0.4)        # extra-stable capture for the golden
+            term.settle()                 # a still screen, so the capture is stable
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text(term.snapshot())
             return
@@ -399,15 +326,13 @@ def assert_screen(request):
         # with wait_for() instead, as test_logs does.
         want = drop_log_lines(meaningful_lines(clip(path.read_text().split("\n"))))
         got = lambda: drop_log_lines(strip_noise(clip(term.view())))
-        matched = (term.until(lambda: got() == want) if term.manual
-                   else term.poll(lambda: got() == want))
-        if matched:
+        if term.until(lambda: got() == want):
             return
         diff = "".join(difflib.unified_diff(
             path.read_text().splitlines(keepends=True),
             term.snapshot().splitlines(keepends=True),
             fromfile=f"{name} (expected)", tofile=f"{name} (actual)"))
-        pytest.fail(f"screen never matched '{name}' (unchanged for {WAIT_IDLE_S}s):"
+        pytest.fail(f"screen never matched '{name}' after {MAX_BEATS} beats:"
                     f"\n{diff}")
 
     return _check
