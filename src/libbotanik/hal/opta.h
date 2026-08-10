@@ -277,7 +277,7 @@ namespace Botanik { namespace HAL {
      *  echo is sitting there and the slave has not yet spoken - so this is what
      *  keeps a write echo from being mistaken for the response to it, which for
      *  FC05 and FC06 would be byte-identical and silently wrong. */
-    void fieldbus_flush_input();
+    uint16_t fieldbus_flush_input();
 
     /** @} */
 

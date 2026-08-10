@@ -148,6 +148,13 @@ namespace Botanik { namespace Modbus {
         uint32_t _faults    = 0;   ///< that did not: no answer, bad frame, refusal
         uint32_t _refusals  = 0;   ///< a slave answered, and said no
         uint32_t _tx_short  = 0;   ///< the UART would not take a whole frame
+        /** @brief Bytes discarded from the receive path before a frame went out.
+         *
+         *  Non-zero means something answered after its turn had passed - a slow
+         *  device replying past its timeout, or a second master on the segment.
+         *  Discarding them is what keeps the next transaction aligned; counting
+         *  them is what stops that being silent. */
+        uint32_t _stale_rx  = 0;
         /** @} */
 
         enum State : uint8_t {
@@ -207,6 +214,9 @@ namespace Botanik { namespace Modbus {
         uint32_t faults() const    { return _faults; }
         uint32_t refusals() const  { return _refusals; }
         uint32_t tx_short() const  { return _tx_short; }
+        /** @brief Bytes dropped before a frame, i.e. answers that arrived too
+         *  late to be anyone's. @see _stale_rx */
+        uint32_t stale_rx() const  { return _stale_rx; }
         const RtuFramer& framer() const { return _framer; }
         /** @brief Devices in backoff right now, and how many are tracked. */
         uint8_t dead_count() const  { return _dead; }

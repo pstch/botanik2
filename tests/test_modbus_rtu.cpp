@@ -872,6 +872,41 @@ TEST_CASE("modbus rtu slave: a write of quantity zero is refused") {
     CHECK(out[2] == EX_ILLEGAL_VALUE);
 }
 
+TEST_CASE("modbus rtu slave: every answered request counts once, exceptions included") {
+    // served() is the device's "requests answered" figure. _except() counted
+    // one and poll() counted another on the way out, so an exception raised
+    // inside _do_read/_do_write was worth two - while an unsupported function
+    // code, which returns straight from poll(), was worth one. The two
+    // exception routes disagreed with each other as well as with reality.
+    RtuSlave d(1);
+    seed(d);
+    uint8_t out[256];
+
+    // 1. a good read
+    uint8_t rd[8];
+    rd[0] = 1; rd[1] = FC_READ_HOLDING; rd[2] = 0; rd[3] = 0; rd[4] = 0; rd[5] = 1;
+    uint16_t n = seal(rd, 6);
+    d.feed(rd, n);
+    REQUIRE(d.poll(out, sizeof out) > 0);
+    CHECK(d.served() == 1);
+
+    // 2. an exception raised inside the read path (quantity 0)
+    rd[0] = 1; rd[1] = FC_READ_HOLDING; rd[2] = 0; rd[3] = 0; rd[4] = 0; rd[5] = 0;
+    n = seal(rd, 6);
+    d.feed(rd, n);
+    REQUIRE(d.poll(out, sizeof out) > 0);
+    CHECK(out[1] == (FC_READ_HOLDING | EX_BIT));
+    CHECK(d.served() == 2);                 // one answer, one count
+
+    // 3. an unsupported function code, which returns from poll() directly
+    rd[0] = 1; rd[1] = 0x2B; rd[2] = 0; rd[3] = 0; rd[4] = 0; rd[5] = 1;
+    n = seal(rd, 6);
+    d.feed(rd, n);
+    REQUIRE(d.poll(out, sizeof out) > 0);
+    CHECK(out[2] == EX_ILLEGAL_FUNCTION);
+    CHECK(d.served() == 3);                 // the other route agrees
+}
+
 TEST_CASE("modbus rtu slave: a byte count that cannot fit does not wedge it") {
     // want = 9 + 255 = 264, past ADU_MAX. feed() resets the buffer at 256, so a
     // slave that waits for 264 bytes waits for ever - it goes deaf rather than

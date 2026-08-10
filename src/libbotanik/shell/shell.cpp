@@ -1189,9 +1189,10 @@ namespace Botanik { namespace Shell {
                      (unsigned)((plan.duty_ppm() / 1000u) % 10u));
             _line("  State ..............", val);
 
-            snprintf(val, sizeof(val), "%lu sent, %lu faults, %lu refused, %lu short tx",
+            snprintf(val, sizeof(val), "%lu sent, %lu faults, %lu refused, %lu short tx, %lu late B",
                      (unsigned long)rtu->txns(), (unsigned long)rtu->faults(),
-                     (unsigned long)rtu->refusals(), (unsigned long)rtu->tx_short());
+                     (unsigned long)rtu->refusals(), (unsigned long)rtu->tx_short(),
+                     (unsigned long)rtu->stale_rx());
             _line("  Transactions .......", val);
 
             // Anything unplanned is signals that will never be scanned, and it

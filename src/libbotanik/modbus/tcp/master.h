@@ -117,7 +117,7 @@ namespace Botanik { namespace Modbus {
         /** @brief Point it at a slave. Takes effect on the next step; an open
          *  connection to another peer is dropped. */
         void connect_to(const HAL::Network::Ip4& peer, uint16_t port);
-        bool connected() const { return _state >= MA_READY; }
+        bool connected() const { return _state >= MA_READY && _sock >= 0; }
         /** @brief Drop the connection (idempotent). */
         void disconnect();
 
@@ -149,7 +149,15 @@ namespace Botanik { namespace Modbus {
         /** @brief The payload, valid until the next request reuses the buffer. */
         const Response& response() const { return _resp; }
         /** @brief Consume the result and go back to READY. */
-        void take_result() { if (_state == MA_DONE) _state = MA_READY; }
+        void take_result() {
+            // Back to READY only if the socket survived. Every failure path does
+            // disconnect() then _finish(), so a plain MA_DONE -> MA_READY parked
+            // the master in "connected, nothing in flight" holding _sock == -1,
+            // and on_step()'s MA_READY case is a bare return - so one response
+            // timeout meant it never reconnected again.
+            if (_state != MA_DONE) return;
+            _state = (_sock >= 0) ? MA_READY : MA_IDLE;
+        }
 
         /** @} */
 

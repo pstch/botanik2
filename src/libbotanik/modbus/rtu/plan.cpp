@@ -230,6 +230,25 @@ void Planner::_cut(const Vars::Bank& io) {
 
         b.regs = (uint16_t)(end - b.reg);
 
+        // The merge loop bounds what it ADDS by cap; the first row is admitted
+        // unconditionally, so a single row wider than the device will accept
+        // lands here over-wide. Reads are caught after their alignment padding
+        // below; writes had nothing, and the consequence is worse than a refused
+        // read: block_fc() picks FC06 for a device without FC16, span_cap() is
+        // then 1, and a 2-register setpoint went out as its HIGH WORD ALONE -
+        // with an echo that matches, because the echo carries the address and
+        // the value that were sent. A physically wrong actuator command, with no
+        // diagnostic anywhere.
+        //
+        // Dropping the rows instead makes it a bring-up critical through
+        // rows_unscanned(), which is where a site learns its device model and
+        // its table disagree.
+        if (!is_read(k.fc) && b.regs > cap) {
+            _rows_unscanned = (uint16_t)(_rows_unscanned + (j - i));
+            i = j;
+            continue;
+        }
+
         // The device set, in first-seen order. Bounded by the block table, so a
         // block that exists always has a peer: there is no separate cap to run
         // past and no untracked unit to skip the backoff.

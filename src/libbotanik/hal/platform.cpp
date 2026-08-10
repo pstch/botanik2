@@ -286,18 +286,26 @@ namespace Botanik { namespace HAL {
 
         /** @brief Throw away whatever is sitting in the receive path.
          *
-         *  Bring-up ONLY. Running this between the frame leaving and the answer
-         *  arriving would throw away the reply of every device quick enough to
-         *  answer inside the beat.
+         *  Called at bring-up, and again immediately before each frame goes
+         *  out - never between the frame leaving and the answer arriving, which
+         *  would throw away the reply of every device quick enough to answer
+         *  inside the beat.
          *
          *  Bounded, because an unbounded drain inside the beat is exactly the
          *  thing this codebase does not do. Two full frames is far more than a
-         *  turnaround can have delivered. */
-        void flush_input() {
+         *  turnaround can have delivered.
+         *
+         *  @return how many bytes were discarded, so the caller can say that a
+         *  device answered after its turn had passed rather than dropping the
+         *  evidence with the bytes. */
+        uint16_t flush_input() {
             uint8_t c;
+            uint16_t n = 0;
             for (uint16_t i = 0; i < 512; ++i) {
-                if (_port.read(&c, 1) != 1) return;
+                if (_port.read(&c, 1) != 1) break;
+                n++;
             }
+            return n;
         }
 
     private:
@@ -368,7 +376,7 @@ namespace Botanik { namespace HAL {
 
     bool fieldbus_echoes() { return true; }   // RE is tied low; see opta.h
 
-    void fieldbus_flush_input() { fieldbus()->flush_input(); }
+    uint16_t fieldbus_flush_input() { return fieldbus()->flush_input(); }
 
     }  // namespace Serial
 
@@ -686,12 +694,15 @@ namespace Botanik { namespace HAL {
 
     int& fieldbus_peer_fd() { static int fd = -1; return fd; }
 
-    void Raw::flush_input() {
-        if (_fd_in == -1) return;
+    uint16_t Raw::flush_input() {
+        if (_fd_in == -1) return 0;
         uint8_t c;
+        uint16_t n = 0;
         for (uint16_t i = 0; i < 512; ++i) {
-            if (::read(_fd_in, &c, 1) <= 0) return;
+            if (::read(_fd_in, &c, 1) <= 0) break;
+            n++;
         }
+        return n;
     }
 
     Raw* get(Port port) {

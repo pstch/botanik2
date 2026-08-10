@@ -426,6 +426,60 @@ TEST_CASE("modbus device: a board without FC15/FC16 is driven a point at a time"
     REQUIRE(saw_single);
 }
 
+TEST_CASE("modbus device: a wide write no device will take is dropped, not half sent") {
+    // The merge loop bounds what it ADDS against the device cap; the FIRST row
+    // of a block is admitted unconditionally. A read's alignment pass catches an
+    // over-wide block afterwards - a write had nothing. And block_fc() picks
+    // FC06 for a device without FC16, where span_cap() is 1, so a 32-bit
+    // setpoint was planned with regs == 2 and would go out as its HIGH WORD
+    // ALONE, with an echo that matches because the echo carries what was sent.
+    //
+    // gh_mlb41 has no >=1-register write row today, so this needs its own table:
+    // the bug is latent in the shipped site and would arrive with the first
+    // 32-bit setpoint anyone maps.
+    static const Vars::Variable ROWS[] = {
+        Vars::MO("wide_setpoint", Vars::T_U32, /*device*/7, FC_WRITE_REGISTERS,
+                 /*reg*/100, /*regs*/2, Vars::Scalar::U(0), 0, "", "32-bit setpoint", ""),
+    };
+    static Vars::Value VALS[1];
+    static uint16_t    IDX[1];
+    Vars::VarTables t = {};
+    t.var = ROWS; t.val = VALS; t.count = 1; t.index = IDX;
+    Bank bank(t);
+    bank.init();
+
+    DeviceModel narrow = meter("narrow", 80, 1);
+    narrow.write_multiple = false;              // FC05/FC06 only
+    const Device rows[] = { { 7, &narrow, "no-fc16" } };
+    const DeviceTable dt = { rows, 1 };
+
+    Planner plan;
+    plan.plan(bank, 38400, 10, &dt);
+
+    for (uint16_t i = 0; i < plan.block_count(); ++i) {
+        const Block& b = plan.block(i);
+        INFO("block fc " << (int)b.fc << " reg " << b.reg << " regs " << b.regs);
+        // FC06 carries exactly one register. A block wider than that cannot be
+        // put on the wire whole, so it must not have been planned at all.
+        if (b.fc == FC_WRITE_REGISTER) CHECK(b.regs == 1);
+    }
+    // The row is not scannable on this device, and the planner says so rather
+    // than sending half of it. rows_unscanned() is a bring-up critical.
+    CHECK(plan.rows_unscanned() == 1);
+
+    // ...and the same row on a device that DOES take FC16 plans normally.
+    DeviceModel wide = meter("wide", 80, 1);
+    wide.write_multiple = true;
+    const Device wrows[] = { { 7, &wide, "fc16" } };
+    const DeviceTable wdt = { wrows, 1 };
+    Planner ok;
+    ok.plan(bank, 38400, 10, &wdt);
+    CHECK(ok.rows_unscanned() == 0);
+    REQUIRE(ok.block_count() == 1);
+    CHECK(ok.block(0).fc == FC_WRITE_REGISTERS);
+    CHECK(ok.block(0).regs == 2);
+}
+
 TEST_CASE("modbus device: the Waveshare boards are what their manuals say") {
     // Waveshare "Development Protocol V2" for the relay, "Development Protocol"
     // for the two analog boards.

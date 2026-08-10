@@ -225,9 +225,10 @@ namespace Botanik { namespace HAL {
             return _next_write_us <= _now_as<std::chrono::microseconds>();
         }
 
-        /** @brief Discard whatever is sitting in the receive path. Bounded, like
-         *  its OPTA counterpart: nothing inside the beat drains without a limit. */
-        void flush_input();
+        /** @brief Discard whatever is sitting in the receive path, and say how
+         *  much there was. Bounded, like its OPTA counterpart: nothing inside the
+         *  beat drains without a limit. */
+        uint16_t flush_input();
 
         /** @brief Number of bytes currently available to read. */
         int available();
@@ -300,7 +301,7 @@ namespace Botanik { namespace HAL {
      *  the master reads it rather than assuming either way. */
     inline bool fieldbus_echoes() { return false; }
 
-    inline void fieldbus_flush_input() { get(FIELDBUS)->flush_input(); }
+    inline uint16_t fieldbus_flush_input() { return get(FIELDBUS)->flush_input(); }
 
     /** @} */
 

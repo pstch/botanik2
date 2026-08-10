@@ -370,6 +370,18 @@ void RtuClient::on_step(uint64_t now_ms) {
         return;
     }
 
+    // Clear the receive path BEFORE the frame goes out. receive_step() only
+    // listens while MB_RX, so anything arriving during the gap or while the bus
+    // was idle is still sitting in the UART ring - and arm() below resets the
+    // FRAMER, not the port. A device that timed out and then answered late
+    // therefore had its reply read as the head of the NEXT transaction: taken
+    // for the echo skip, or for the response, misaligning both. A healthy device
+    // was then faulted for a different device's lateness.
+    //
+    // Here rather than after _send(): the echo of our own frame has not been
+    // transmitted yet, so this cannot eat it.
+    _stale_rx += HAL::Serial::fieldbus_flush_input();
+
     if (!_send()) {
         _tx_short++;
         _faults++;

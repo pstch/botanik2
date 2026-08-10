@@ -109,7 +109,12 @@ namespace Botanik { namespace Modbus {
 
         if (!is_supported(fc)) {
             if (broadcast) return 0;
-            return _except(fc, EX_ILLEGAL_FUNCTION, out, cap);
+            // Counted here because this one returns without passing the tally
+            // at the end of the function. Every answered request is worth
+            // exactly one, whichever route produced it.
+            const uint16_t n = _except(fc, EX_ILLEGAL_FUNCTION, out, cap);
+            if (n > 0) _served++;
+            return n;
         }
 
         const uint16_t addr = be16(frame[2], frame[3]);
@@ -141,7 +146,10 @@ namespace Botanik { namespace Modbus {
         out[2] = (uint8_t)ex;
         (void)seal(out, 3);
         _refused++;
-        _served++;
+        // NOT _served++: poll() counts any non-zero answer, and this returns
+        // through it. Counting here too made an exception worth two served
+        // requests, while the unsupported-function path counted one - so the
+        // two exception routes disagreed with each other as well.
         return exception_len();
     }
 
