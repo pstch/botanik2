@@ -123,7 +123,7 @@ TEST_CASE("modbus client: a demand past its deadline outranks a read that is lat
 }
 
 TEST_CASE("modbus client: withdrawing control puts the safe state ahead of everything") {
-    // disable_control() dirties every ROLE_OUTPUT so the safe state ships at once, not after MODBUS_WRITE_MIN_MS.
+    // Leaving CONTROL_ENABLED dirties every ROLE_OUTPUT so the safe state ships at once, not after MODBUS_WRITE_MIN_MS.
     Master m;
 
     // A beat with control up, so the withdrawal is an edge rather than a state.
@@ -273,11 +273,11 @@ TEST_CASE("modbus client: control returning spends the safe-state urgency") {
     Master m;
 
     (void)m.client.next_block(10);                       // control up: an edge to fall from
-    m.bank.disable_control(Bank::INHIBIT_OPERATOR);
+    m.bank.set_control_mode(CONTROL_DISABLED);
     (void)m.client.next_block(20);
     REQUIRE(m.client.safe_state_pending());
 
-    m.bank.enable_control(Bank::INHIBIT_OPERATOR);
+    m.bank.set_control_mode(CONTROL_ENABLED);
     (void)m.client.next_block(30);
     INFO("with control back the programs drive the outputs again");
     CHECK_FALSE(m.client.safe_state_pending());
@@ -306,8 +306,10 @@ struct LiveBus {
     explicit LiveBus(const DeviceTable* devs = Site::g_site.devices)
         : bank(Site::g_site.vars), client(&bank, nullptr, devs) {
         bank.init();
-        bank.enable_control(Bank::INHIBIT_HEALTH);
-        bank.enable_control(Bank::INHIBIT_OPERATOR);
+        // Both halves: the system's hold defaults to held, so the operator's
+        // mode alone leaves the effective mode DISABLED.
+        bank.set_health_hold(false);
+        bank.set_control_mode(CONTROL_ENABLED);
         // The socketpair is one per PROCESS, so a previous case's unread request
         // bytes are still in the peer's buffer and would be answered as if they
         // were ours. setup() drains the master's end; this drains the devices'.
@@ -320,6 +322,12 @@ struct LiveBus {
         // permanently busy and on_step()'s tx_idle() guard lets exactly one
         // transaction out. Baud 0 removes the pacing, which is the harness
         // saying that byte time is not what these cases are about.
+        //
+        // The general fix now exists - BOTANIK_SIM_CLOCK=manual, and a
+        // _virtual_ns() the harness drives - but it is read once per PROCESS and
+        // every other case in this binary expects the host clock, so adopting it
+        // is a change to doctest_main and to all of them rather than to this
+        // fixture. Worth doing; deliberately not done here.
         HAL::Serial::fieldbus_begin(0, 8, HAL::Serial::PARITY_NONE, 1);
         bus.bind(&bank);
     }
@@ -619,7 +627,7 @@ TEST_CASE("modbus fault: a dead output device does not pin the safe-state urgenc
     m.client.reassert_outputs(peer);   // owe the block, so the misses come at the write interval
     REQUIRE(m.until([&] { return m.client.peer_dead(peer); }));
 
-    m.bank.disable_control(Bank::INHIBIT_OPERATOR);
+    m.bank.set_control_mode(CONTROL_DISABLED);
     m.beat();
     REQUIRE(m.client.safe_state_pending());
 

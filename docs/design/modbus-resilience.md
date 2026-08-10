@@ -20,7 +20,13 @@ One thing phase 0 turned up that the plan did not predict: the simulator paces
 its bytes against the HOST clock, so a test stepping a virtual beat sees the port
 as permanently busy and exactly one transaction ever leaves. The harness opens
 the port at baud 0 to say that byte time is not what it is testing. A virtual
-clock in HAL would be the general fix, and is not needed for anything below.
+clock in HAL would be the general fix.
+
+It landed on `main` while this branch was in flight (`BOTANIK_SIM_CLOCK=manual`,
+with a `_virtual_ns()` the harness drives). It is read once per PROCESS, so
+adopting it here is a change to `doctest_main` and to every case in the binary
+rather than to one fixture: worth doing as its own piece of work, deliberately
+not folded into this one.
 
 ---
 
