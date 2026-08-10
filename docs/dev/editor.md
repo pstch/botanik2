@@ -89,13 +89,14 @@ contiguous edit changes the screen in a very constrained way, which it exploits:
    - a row whose old glyphs are unrelated to the wanted content is full-painted
      (`_new_row`) - byte-optimal when a cheap splice wouldn't be.
 
-## Why it pays off
+## Why it earns the exception
 
-Typing one character mid-line emits roughly *one insert char + one cursor move*,
-not a row (or screen) repaint. The byte cost scales with what actually changed,
-not with the buffer size - the whole point on a serial link measured in hundreds
-of baud. See @ref dev_input for how the bytes that *trigger* an
-edit arrive in the first place.
+Typing one character mid-line emits an insert-char plus a cursor move rather
+than a row repaint: measured, 25 bytes against 195. The cost scales with what
+changed, not with the buffer, which is the whole point on a link measured in
+hundreds of baud. **Do not fold this into the back-buffer diff** - the diff
+cannot infer a shift it was never told about, and it is that inference the
+splice is doing. See @ref dev_input for how the triggering bytes arrive.
 
 ## Geometry: anchor and viewport
 

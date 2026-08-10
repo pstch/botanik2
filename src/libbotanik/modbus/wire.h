@@ -171,7 +171,7 @@ namespace Botanik { namespace Modbus {
      *  do not speak.
      *
      *  Nowhere near binding at this site: the planner runs out of milliseconds
-     *  long before it runs out of registers (see docs/design/modbus-budget.md).
+     *  long before it runs out of registers (@ref dev_modbus).
      *  Enforced anyway, because a slave's answer to an over-long request is
      *  undefined and the failure would look like a bad cable. */
     constexpr uint16_t max_quantity(uint8_t fc) {

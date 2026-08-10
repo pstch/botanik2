@@ -27,9 +27,8 @@
  * 163 ms, a dead slave the response timeout - 2, 16 and 50 beats of a 10 ms
  * loop in which nothing else would run.
  *
- * @see docs/design/modbus-budget.md - what the bus costs, and the four rules the
- *      client is built to.
- * @see docs/design/modbus-tcp-server.md - the register map the slave publishes.
+ * @see @ref dev_modbus - what the bus costs, how a block is planned, and the
+ *      register map the TCP slave publishes.
  */
 
 #include "libbotanik/modbus/wire.h"

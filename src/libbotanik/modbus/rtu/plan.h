@@ -10,7 +10,7 @@
  * anything, and each register adds about 1.1 ms. So read in bulk, and merge
  * across a gap up to the point where the skipped registers cost a transaction's
  * worth of bytes (merge_gap()). The static_asserts at the bottom pin this
- * arithmetic to the figures published in docs/design/modbus-budget.md.
+ * arithmetic to the figures published in @ref dev_modbus.
  *
  * A poll period comes from the row's own staleness timeout: a group polled
  * slower than a third of its @c timeout_ms flaps between valid and stale
@@ -277,10 +277,10 @@ namespace Botanik { namespace Modbus {
 
     /** @} */
 
-    /** @name Pinned against the design note
+    /** @name Pinned against the manual
      *
-     *  The figures docs/design/modbus-budget.md publishes, checked at compile
-     *  time so the planner and the doc cannot drift apart.
+     *  The figures @ref dev_modbus publishes, checked at compile time so the
+     *  planner and the doc cannot drift apart.
      *  @{ */
 
     static_assert(tchar_us(19200) == 572,  "one character at 19200 is 0.573 ms");

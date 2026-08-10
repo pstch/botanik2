@@ -7,9 +7,3 @@
   shrink the surface where practical - prefer the in-house `utils/text` helpers and
   bounded equivalents, so the firmware leans on as little of the C library as
   possible. (No known bugs; the hand-rolled parsing is already bounds-checked.)
-
-- **Docs still describe the removed PLC interface.** `docs/CONTEXTS.md` (the
-  `PlcSyncContext` class + its `SystemContext` edge), `docs/LOG_FLOW.md`
-  (`PlcLogReader`, "the `LogTopic` enum in `plcio/vars.h`"), `docs/CONCURRENCY.md`
-  (steps 3-4 of the loop order), `docs/library.dox` (the `plcio/` subsystem row
-  and the whole `BOTANIK_FEATURE_PLC` section - that flag no longer exists).

@@ -3,27 +3,14 @@
 How the console gets a whole screen's worth of intent onto a slow serial link:
 one diff, in one place, paced under a per-tick byte budget.
 
-Status: **shipped**. (This replaces an earlier "transactional multi-queue"
-proposal; see §6 for why that was abandoned.)
+Three constraints shape all of it. `BufferedSerial`'s TX ring silently **drops**
+bytes when full, so nothing may overrun it. Wire bytes are scarce, so an
+unchanged row must cost nothing. And no write may tear: a row cut in half, or a
+scroll whose DL/IL did not fit, must never corrupt the screen.
 
-## 1. The problem
+The design keeps all three in ONE place. Renderers know nothing about the wire.
 
-The console renders over a slow serial link with a small TX ring
-(`utils/serial.h` `BufferedSerial`). `write()` silently **drops** bytes when the
-ring is full, so every renderer has to (a) emit only what changed and (b) pace
-itself so it never overruns the ring. The hard constraints:
-
-- **Wire bytes are scarce.** Re-sending an unchanged row is waste we can't afford.
-- **No torn frames.** A dropped mid-row write, or a scroll whose DL/IL didn't
-  fit, must never corrupt the screen.
-- **Priority.** A scroll or keystroke echo must beat telemetry churn for the ring.
-
-The earlier design met these by making *each renderer* reason about a paced,
-coalescing, droppable queue - per-page "what's on the wire vs. what's queued"
-shadows, promotion, scroll reconciliation, replicated across every page. That
-bookkeeping was the complexity, and it was where the bugs lived.
-
-## 2. The model: one diff, dumb renderers
+## The model: one diff, dumb renderers
 
 The terminal owns a **cell back-buffer** and does the diffing once, for everyone.
 
@@ -51,7 +38,7 @@ immediate-mode (no memory of what they drew), while the *screen* is retained-mod
 
 A cell is one byte: a 7-bit glyph with the top bit (`CELL_INV`) for reverse
 video. Two grids sized for the largest terminal (`GRID_ROWS x GRID_COLS`) cost
-~8 kB - it *replaced* the ~9 kB transaction pool, so RAM is flat.
+~8 kB.
 
 ### What this buys, for free
 
@@ -71,7 +58,7 @@ wire shadow: it answers "did this value change since last tick" so the page can
 apply the watch-style highlight. That's a semantic question about the data, which
 the terminal can't answer - it only knows which cells differ, not why.
 
-## 3. `present()` - the diff (`console/terminal.cpp`)
+## `present()` - the diff (`console/terminal.cpp`)
 
 1. **Pending scrolls first.** `scroll_region()` shifts the FRONT grid and records
    a DL/IL. `present()` emits the DL/IL and, *only if it fit*, shifts BACK to
@@ -152,9 +139,8 @@ thing on screen rather than whatever sat lowest.
 
 There is deliberately no queue. A row that misses a tick simply still differs
 from BACK on the next one, so nothing is stored, reordered, coalesced or
-evicted - the back-buffer already *is* the record of outstanding work. This is
-the thing the earlier `TxScheduler` needed hundreds of lines and a shadow per
-renderer to achieve (§6).
+evicted - the back-buffer already *is* the record of outstanding work. Priority
+is therefore a rank on a row, not a lane in a queue.
 
 **Fairness within a class.** Priority orders *unequal* rows; it does nothing for
 a page like STATUS whose every row is a live field on the same cadence. Restarting
@@ -225,15 +211,15 @@ the restricted TX budget" story, in one place.
 Ordering beyond the priority classes falls out of the emit order: the scroll
 DL/IL goes before the cell diff, since it is what makes the diff cheap.
 
-## 4. Scrolling (the one stateful op)
+## Scrolling: the one stateful op
 
 A DL/IL scroll is order-dependent, so it's the only thing `present()` treats
-specially (§3.1). A page that scrolls calls `scroll_region(top, bottom, up, n)`
+specially. A page that scrolls calls `scroll_region(top, bottom, up, n)`
 and then just redraws its rows; the terminal shifts FRONT, emits the DL/IL,
 shifts BACK on success, and the diff repaints exactly the revealed rows. The page
 keeps no shifted-shadow of its own.
 
-## 5. What a page looks like now
+## What a page looks like
 
 ```cpp
 void tick(bool active) {
@@ -255,22 +241,3 @@ The line editor is the deliberate exception: it keeps a real reconcile pass
 rows *and* changes its row count in the same edit - the case above. Its per-row
 splicing is byte-neutral against the diff, but the layout diff it does to place
 the IL/DL is not something the back-buffer can infer.
-
-## 6. Why not the multi-queue
-
-The abandoned proposal put a priority-laned, coalescing, atomic transaction
-*queue* (`TxScheduler`) between renderers and the ring. It worked, but it pushed
-the "on the wire vs. queued" reasoning **into every renderer** (each needed a
-drawn-vs-submitted shadow + promotion to diff and to reconcile scrolls). That
-per-page machinery - replicated three-plus times - was the actual complexity and
-the source of a run of stuck-highlight / redraw-pileup bugs.
-
-The back-buffer moves that reasoning into **one** place the renderers never see.
-It subsumes coalescing (FRONT holds the latest), atomicity (per-cell attributes,
-whole-cell emits), and pacing (one budget in `present()`), and deletes the queue,
-the shims, and every per-page shadow. Net: ~1.3k fewer lines, `AnsiTerminal`
-smaller, and the bug classes gone by construction.
-
-Explicit priority did come back, but as a byte per row rather than a queue (see
-the Priority section above): the back-buffer already holds the outstanding work,
-so ordering it needs a rank, not a lane.

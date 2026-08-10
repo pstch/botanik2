@@ -268,7 +268,7 @@ namespace {
     bool mapped(const Vars::Variable& d) { return Vars::var_mapped(d); }
     /** @brief Whether @p d's register sits in its scope's block: site rows
      *  below 900, library's above; alarms 800-899 (library's at the top).
-     *  See docs/design/modbus-tcp-server.md. */
+     *  See @ref dev_modbus. */
     bool in_block(const Vars::Variable& d) {
         const uint16_t r = d.bind.reg;
         return (d.scope == Vars::SCOPE_A) ? ((r >= 800 && r <= 899) ||

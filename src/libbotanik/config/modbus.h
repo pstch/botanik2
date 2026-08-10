@@ -109,7 +109,7 @@ namespace Botanik { namespace Config {
      *  19200 carries the reference plant at about a fifth of the bus and
      *  survives long greenhouse cable runs; 115200 returns barely 2x on paper,
      *  less once the beat quantises each transaction, for real signal-integrity
-     *  risk. 38400 is the first step up. See docs/design/modbus-budget.md. */
+     *  risk. 38400 is the first step up; the arithmetic is in @ref dev_modbus. */
 #ifndef BOTANIK_MODBUS_BAUD
 #  define BOTANIK_MODBUS_BAUD 19200
 #endif

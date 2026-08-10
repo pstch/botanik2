@@ -7,8 +7,9 @@
  *        select, deadzone, range test.
  *
  * IEC 61131-3 FUNCTIONs: no state, no dt, same inputs always the same output.
- * They are `constexpr` and header-only on purpose - see @ref plc_functions for
- * why that rule is what separates this directory from the blocks one.
+ * `constexpr` and header-only on purpose: a function is a single expression in
+ * a header, a block needs a .cpp, and that is the whole rule separating this
+ * directory from blocks/.
  */
 
 namespace Botanik { namespace Plc {

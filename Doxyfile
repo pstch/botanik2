@@ -28,9 +28,9 @@ FILE_PATTERNS          = *.h *.cpp *.c *.md *.dox
 RECURSIVE              = YES
 IMAGE_PATH             = images
 
-# Design notes: budgets and designs for things not built yet. Kept in the repo,
-# out of the manual: a plan rendered beside the pages that document real
-# mechanisms reads as if it were one of them.
+# Scratch space for working notes. Excluded so a plan never renders beside the
+# pages documenting real mechanisms and reads as one of them; when a note comes
+# true, fold it into the manual rather than linking it.
 EXCLUDE                = docs/design
 
 # Vendored toolchain/Mbed headers and build artifacts are not our code. The

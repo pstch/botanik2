@@ -99,12 +99,9 @@ run_phase(PHASE_PRESENT)        logger refill, console render, the two TX halves
 watchdog kick                   only while healthy
 ```
 
-Two axes, deliberately separate. A task's **phase** is where it sits in the data
-flow, and the phase order above is written out as code because it must not become
-configurable. A task's **rate** is its `GROUP_FAST` / `_MAIN` / `_SLOW` /
-`_BACKGROUND` group - a property of the task, so retuning one never silently
-reorders the cycle. A phase runs the tasks registered to it whose group has come
-due; a not-due task costs two comparisons.
+Two axes, deliberately separate: a task's **phase** is where it sits in the data
+flow, written out as code because it must not become configurable, and its
+**rate** is its group. See @ref dev_tasks for the groups and what sets each one.
 
 Every task gets the same fresh 64-bit `now_ms`. The order is load-bearing:
 
@@ -118,12 +115,9 @@ Every task gets the same fresh 64-bit `now_ms`. The order is load-bearing:
   loop reads full scale, which no timeout notices). Field drivers slot in here.
 - **Health before the logger drains**, so an alarm transition is logged in the same
   beat it happens, and before EXECUTE, so a fault inhibits *this* beat's programs.
-- **The scan runs only while control is enabled.** Withdrawing control is a *latch*,
-  not a per-beat sweep: sweeping outputs after the scan would flicker, because the
-  next beat's tasks re-drive the same demands before the sweep runs again. The latch
-  carries two independent inhibits (operator and health), and the health edge moves
-  only its own - so a recovery hands control back without overruling an operator who
-  disabled it by hand. See @ref user_control.
+- **The scan runs only while control is enabled**, and withdrawing control is a
+  *latch* rather than a per-beat sweep - @ref dev_scan has the rule and its two
+  independent inhibits.
 - **The watchdog kick is withheld deliberately** when unhealthy, and the outputs are
   dropped to safe state first. The reset itself gives no such guarantee, and the gap
   between the last kick and the reboot is exactly when an actuator must not be left

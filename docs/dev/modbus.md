@@ -49,6 +49,50 @@ frame arithmetic - header-only `constexpr`, no state, no buffers) and
 `response.h` holds the answer-check. Both transports agree there or nowhere. A
 rule added to one used to reach only one of them.
 
+## What the bus costs
+
+Every number the planner and the client are built around comes from one split.
+RTU is half-duplex and strictly request/response - one transaction in flight, no
+pipelining - and a transaction costs the inter-frame silence, the bytes, and the
+slave's own turnaround. Only the middle term scales with baud; turnaround is the
+slave's firmware and does not move. At 19200 with a 10 ms turnaround:
+
+| | fixed, per transaction | marginal, per register |
+|---|---|---|
+| 19200 | 19.45 ms | 1.15 ms |
+| 115200 | 12.99 ms | 0.19 ms |
+
+**A register costs a 17th of a transaction at 19200, a 68th at 115200.
+Transactions are the scarce resource; registers are nearly free.** Three things
+follow, and they are the whole design:
+
+- **Bulk or nothing.** The grid meter's 150 registers cost 3.09 s read one at a
+  time and 211 ms as two blocks. Single-register polling of the plant is 4.4 s,
+  which puts a 1 s update out of reach even at 115200.
+- **Merge across gaps.** Break-even is `fixed / (2 x Tchar)` - **17 unused
+  registers at 19200, 68 at 115200**. Reading registers nobody wants is cheaper
+  than a second transaction, which is why `plan.h` coalesces across a gap
+  instead of splitting at one.
+- **Baud buys less than it looks.** Sweeping the whole plant is 16 transactions,
+  555 ms at 19200 against 249 ms at 115200 - 2.2x for 6x the wire, and under 2x
+  once the beat quantises each transaction. At the declared poll periods that is
+  **~20 % bus duty at 19200**, so the default stands and 38400 is the first step
+  up. Above that, service the UART more than once per beat.
+
+Two ceilings bound a block, and neither is the protocol's. `BufferedSerial`'s RX
+ring is 256 bytes, 255 usable, and a maximum FC03 response is exactly 255 - one
+byte of margin. And the beat: a 125-register read is 163 ms, 16 beats in which
+nothing else would run, which is why the client is a `step()` state machine
+holding one transaction rather than a call that blocks.
+
+**The real bandwidth risk is a dead device, not register count.** One unplugged
+sensor pays a full response timeout on every sweep; three of them at a 300 ms
+timeout with two retries burn 2.7 s per sweep and dwarf the entire 555 ms
+budget. So the deadline is sized tightly (worst turnaround plus the response,
+~300 ms at 19200 - not the 1000 ms libraries default to), one immediate retry,
+then per-device exponential backoff to a slow probe and a comms alarm. That is
+what actually takes a field bus down.
+
 ## The master, end to end
 
 ```
@@ -116,10 +160,26 @@ frame from a healthy device.
 
 ## The TCP slave
 
-`tcp/map.h` is the register map over the variable table. Registers are
-**hand-assigned per row**, so inserting a parameter never renumbers the map an
-external master holds. Parameters and status values share the space; the library
-reserves 900-999 and a site's alarms sit at 800-899.
+`tcp/map.h` is the register map over the variable table, and its header is the
+reference: the declared `reg` is a **row number**, each Modbus table derives its
+own address from it (`2 * reg` for the wide tables, `reg` for the bit tables),
+gaps read as zeros rather than faulting, and quality rides on the discrete
+inputs because Modbus has no quality bit.
+
+Registers are **hand-assigned per row**, so inserting a parameter never
+renumbers the map an external master holds. What the number itself says is the
+block it falls in:
+
+| Range | Rows |
+|---|---|
+| 1-799 | site parameters and status values |
+| 800-899 | site alarms |
+| 900-989 | library parameters and status values |
+| 990-999 | library alarms (the platform alarms) |
+
+Uniqueness alone would let an alarm take 750 and read as a parameter to
+everyone downstream, so `test_site.cpp` asserts that every row sits in the block
+its scope puts it in - not merely that no two rows collide.
 
 A write reaches `Bank::set()`, which validates against the row's declared band.
 Persisting is queued rather than synchronous: a master writing forty parameters
@@ -145,5 +205,4 @@ to 20, and that is exactly what happened.
 
 - @ref dev_scan - the beat the master is stepped in (`PHASE_INPUT` / `PHASE_OUTPUT`)
 - @ref dev_vars - the variable model the whole thing reads and writes
-- `docs/design/modbus-review.md` and `modbus-remediation.md` - the review that
-  produced most of the above, and the fix path
+- `modbus/tcp/map.h` - the addressing, encoding and gap rules in full

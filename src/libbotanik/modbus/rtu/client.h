@@ -23,7 +23,7 @@
  *
  * An unplugged device costs a full response timeout, and left alone that is paid
  * on EVERY sweep until the live devices lose their rates to the dead ones (the
- * arithmetic is in docs/design/modbus-budget.md). So each device carries its own
+ * arithmetic is in @ref dev_modbus). So each device carries its own
  * health: consecutive failures, and the earliest time it may be spoken to again.
  * One immediate retry, then backoff doubling from MODBUS_BACKOFF_MS to
  * MODBUS_BACKOFF_MAX_MS, and `_pick()` does not offer the bus to a device that
