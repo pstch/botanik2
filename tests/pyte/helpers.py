@@ -77,7 +77,7 @@ def assert_editor(term, *rows, **kw):
     Stands in for a golden file: once the volatile cells are masked and the blank
     and log rows dropped, a reconcile screen is only ever SHELL_BAR + the
     editor's rows + ALARM_BAR, so a 24-line fixture would spend 23 lines
-    restating chrome. Polls like assert_screen: under dilation a render can span
+    restating chrome. Polls like assert_screen: a render can span
     ticks, so a transient partial frame must not fail a correct screen.
 
     `clip=(a, b)` compares only that half-open band; `alarm_bar=False` drops the

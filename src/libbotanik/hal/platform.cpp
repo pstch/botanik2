@@ -493,18 +493,6 @@ namespace Botanik { namespace HAL {
         return t0;
     }
 
-    /** @brief BOTANIK_TIME_SCALE: run the sim clocks (and baud throttle) N
-     *  times faster so tests finish sooner with unchanged byte/event ratios.
-     *  Default 1, clamped >= 1. */
-    uint32_t _time_scale() {
-        static const uint32_t scale = []() -> uint32_t {
-            const char* s = getenv("BOTANIK_TIME_SCALE");
-            long v = s ? atol(s) : 1;
-            return v < 1 ? 1u : (uint32_t)v;
-        }();
-        return scale;
-    }
-
     bool _manual_clock() {
         static const bool manual = []() -> bool {
             const char* s = getenv("BOTANIK_SIM_CLOCK");
@@ -563,8 +551,9 @@ namespace Botanik { namespace HAL {
     namespace Clock {
 
     uint64_t real_uptime_ms() {
-        // deliberately skips the _time_scale() factor _now_as() applies, so it
-        // tracks real wall-clock time even under BOTANIK_TIME_SCALE dilation
+        // Host time, deliberately not _now_as(): under the manual clock that
+        // reads the harness's virtual clock, and a per-real-second rate measured
+        // against it would read as infinite between commands.
         auto elapsed = std::chrono::steady_clock::now() - _process_start();
         return (uint64_t)std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count();
     }
@@ -573,23 +562,8 @@ namespace Botanik { namespace HAL {
         // Manual clock: a fixed epoch plus simulated uptime, so every run stamps
         // its logs and status bar identically. 2026-01-01T00:00:00Z.
         if (_manual_clock()) return 1767225600000ull + _now_as<std::chrono::milliseconds>();
-
-        const uint64_t host = (uint64_t)std::chrono::duration_cast<
-            std::chrono::milliseconds>(
-                std::chrono::system_clock::now().time_since_epoch()).count();
-        if (_time_scale() <= 1) return host;
-
-        // Dilated: the wall clock has to run in the SAME time base as uptime.
-        // Left on the host clock it does not, and Utils::_boot_epoch_ms() caches
-        // `wall - uptime` expecting that difference to hold still: it instead
-        // slides by (scale - 1) per ms, crosses the RTC-step threshold at
-        // unpredictable moments, and re-latches. The visible result is a
-        // calendar clock that sawtooths - measured at scale 50, 189 backward
-        // jumps in 8 s, oscillating over a 1 s span while uptime raced ahead.
-        // So latch the host clock ONCE and advance it with the dilated reading.
-        static const uint64_t epoch =
-            host - _now_as<std::chrono::milliseconds>();
-        return epoch + _now_as<std::chrono::milliseconds>();
+        return (uint64_t)std::chrono::duration_cast<std::chrono::milliseconds>(
+            std::chrono::system_clock::now().time_since_epoch()).count();
     }
 
     /// No-op: the host system clock is the wall-clock source on the simulator.
@@ -600,8 +574,7 @@ namespace Botanik { namespace HAL {
         // block - otherwise the caller waits for a clock nothing will move.
         if (_manual_clock()) { _virtual_ns() += (uint64_t)ms * 1000000u; return; }
         // uint64 product: ms*1000 overflows uint32 for ms > ~71 min.
-        // scaled to the sped-up clock
-        usleep((useconds_t)((uint64_t)ms * 1000u / _time_scale()));
+        usleep((useconds_t)((uint64_t)ms * 1000u));
     }
 
 

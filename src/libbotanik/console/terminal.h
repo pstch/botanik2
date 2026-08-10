@@ -153,7 +153,7 @@ namespace Botanik { namespace Terminal {
 
         /** @brief Bytes that drain in @p target_ms at @p baud (8N1: baud/10 B/s),
          *  clamped to a small floor and to leave TX_HEADROOM_BYTES of ring free.
-         *  The latency target turned into a byte depth; dilation-invariant. */
+         *  The latency target turned into a byte depth. */
         static uint16_t depth_for_baud(uint32_t baud, uint32_t target_ms) {
             static_assert(Utils::BufferedSerial::tx_capacity() > TX_HEADROOM_BYTES + 8,
                           "TX ring too small to keep the headroom above the floor");

@@ -32,11 +32,6 @@ namespace Botanik { namespace HAL {
      *  once. */
     std::chrono::steady_clock::time_point _process_start();
 
-    /** @brief BOTANIK_TIME_SCALE: run the sim clocks (and baud throttle) N
-     *  times faster so tests finish sooner with unchanged byte/event ratios.
-     *  Default 1, clamped >= 1. */
-    uint32_t _time_scale();
-
     /** @brief BOTANIK_SIM_CLOCK=manual: time advances only when the harness asks
      *  (see _virtual_ns), never from the host clock. Read once. */
     bool _manual_clock();
@@ -45,18 +40,17 @@ namespace Botanik { namespace HAL {
      *  harness driver writes it; every clock below reads it. */
     uint64_t& _virtual_ns();
 
-    /** @brief Elapsed time since process start, in the duration type T. The
-     *  time-scale multiply is __int128 over nanoseconds (sim is x86-64 only):
-     *  full precision without overflowing at the far timepoints dilation exists
-     *  to reach (an int64 ns multiply overflows in ~days at scale 1000). */
+    /** @brief Elapsed time since process start, in the duration type T. Under
+     *  the manual clock it is the harness's reading instead, which is the only
+     *  thing that moves it. */
     template <typename T>
     inline uint64_t _now_as() {
         const int64_t ns_per_unit =
             std::chrono::duration_cast<std::chrono::nanoseconds>(T(1)).count();
         if (_manual_clock()) return (uint64_t)(_virtual_ns() / (uint64_t)ns_per_unit);
-        __int128 ns = (__int128)std::chrono::duration_cast<std::chrono::nanoseconds>(
-                          std::chrono::steady_clock::now() - _process_start()).count();
-        return (uint64_t)(ns * _time_scale() / ns_per_unit);
+        return (uint64_t)(std::chrono::duration_cast<std::chrono::nanoseconds>(
+                   std::chrono::steady_clock::now() - _process_start()).count()
+               / ns_per_unit);
     }
 
     /** @} */
@@ -75,8 +69,10 @@ namespace Botanik { namespace HAL {
         return _now_as<std::chrono::microseconds>();
     }
 
-    /** @brief Undilated ms uptime: what a wall clock saw, ignoring
-     *  BOTANIK_TIME_SCALE. Simulator-only. */
+    /** @brief HOST ms since process start, whatever the firmware's clock is
+     *  doing: under the manual clock uptime_ms() advances only when the harness
+     *  says so, and a rate measured against it would read as infinite.
+     *  Simulator-only. */
     uint64_t real_uptime_ms();
 
     /** @brief Host wall clock, as UNIX ms. */

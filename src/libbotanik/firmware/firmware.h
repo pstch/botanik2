@@ -148,7 +148,7 @@ namespace Botanik {
         SiteDescriptor                _site;
 
         /** @brief HW-watchdog period armed in setup(); the harness overrides it
-         *  (the simulator dilates it) via set_hw_watchdog_ms() before
+         *  (the harness overrides it) via set_hw_watchdog_ms() before
          *  setup(). */
         uint32_t                      _hw_watchdog_ms = Config::HW_WATCHDOG_MS;
 

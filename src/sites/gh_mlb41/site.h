@@ -20,7 +20,6 @@
  * Every site exposes the same surface, so a harness never names the site:
  *   - `BotanikSite`       the firmware type to instantiate
  *   - `Site::simulate()`  the simulated field (sim.h)
- *   - `dilated_timeout()` sim-only timeout dilation (sim.h)
  *
  * A target selects a site by directory (-DBOTANIK_SITE_DIR, or -DBOTANIK_SITE
  * for one in the library tree); CMake points BOTANIK_SITE_HEADER at this file.

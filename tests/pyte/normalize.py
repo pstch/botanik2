@@ -26,7 +26,7 @@ _SUBS = [
     (re.compile(r"stk:\s*\d+%"), "stk:<S>"),
 
     # Home's identity block: version and commit change with every build, the site
-    # name does not. The watchdog timeout is dilated by BOTANIK_TIME_SCALE, so it
+    # name does not. The watchdog timeout is a build constant, so it
     # differs between the assert suite and a slower golden regen.
     (re.compile(r"(Version \.+ : )\S+"), r"\g<1><VERSION>"),
     (re.compile(r"(Commit \.+ : )\S+"), r"\g<1><COMMIT>"),
@@ -98,7 +98,7 @@ _NOISE = re.compile(r"ALARM_(?:START|END|FLAP):")
 #
 # MONITOR's VALUE is live on all ~72 rows, so a per-name regex does not
 # generalise; ALARMS' ON/OFF flips and its LAST EVENT is blank until the alarm
-# first trips; TASKS' last two are host timing (under dilation the sim drops
+# first trips; TASKS' last two are host timing (the sim drops
 # activations by the thousand where the OPTA drops none). The rest of each table
 # IS the layout under test.
 _TABLE_ROW = re.compile(r"^\s*\|(?:[^|]*\|){4,6}\s*$")

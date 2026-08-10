@@ -4,7 +4,7 @@
 /**
  * @file sim.h
  * @brief HAND-WRITTEN - the gh_mlb41 simulated field: the data animator the
- *        simulator runs, and the timeout dilation.
+ *        simulator runs.
  *
  * Not generated: how a greenhouse *behaves* is judgement, not schema. It
  * animates THIS site's tables, so the simulator exercises the same layout the
@@ -17,27 +17,12 @@
 
 #ifdef TARGET_SIMULATOR
 
-#include <cmath>        // pow
 #include <cstdint>      // uint32_t/uint64_t
 #include <cstdio>       // snprintf - the sensor names are patterned
 #include <random>       // std::mt19937 + distributions
 
 #include "libbotanik.h" // Vars::Bank
 
-
-/**
- * @brief Grow a base timeout (ms) by time-dilation factor S, so jitter
- * (amplified by a high BOTANIK_TIME_SCALE) can't false-trip the link. Clamped
- * below 2^31 to keep the 32-bit elapsed compares rollover-safe. No-op when
- * S == 1.
- */
-inline uint32_t dilated_timeout(uint32_t base_ms) {
-    uint32_t s = Botanik::HAL::_time_scale();
-    if (s <= 1) return base_ms;
-    double scaled = (double)base_ms * std::pow((double)s, 3);
-    const double cap = 2147483647.0;  // < 2^31
-    return scaled >= cap ? (uint32_t)cap : (uint32_t)scaled;
-}
 
 namespace Site {
 

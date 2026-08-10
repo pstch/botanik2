@@ -15,22 +15,17 @@ moves, IL/DL, the line editor's reconciliation) that a source diff cannot.
   rather than host seconds: the same run gives the same screen whatever else the
   box is doing, and a failure costs the beats instead of waiting 15 s to see
   whether more output was coming.
-- **Never a higher baud.** Console baud is
-  compile-time (`Config::CONSOLE_BAUD`, 4800) and the terminal derives its
-  per-render byte budget from it, so raising the wire speed alone would just
-  leave the renderer pacing for 4800. Dilating the clock keeps every byte/event
-  ratio identical to a real run and compresses only wall time. Default 50;
-  override with `PYTE_TIME_SCALE=N` (honored through pytest, ctest and make).
-- **The scale no longer buys or costs wall time.** Measured over the whole suite:
-  50 → 4.64 s, 200 → 4.66 s, 400 → 4.65 s. Nothing free-runs any more, so the sim
-  cannot compete with the harness for CPU and the dilation only decides how much
-  plant-time a beat represents. What still helps is doing less: fewer boots,
-  content sync instead of `settle()`, and not normalizing the same screen twice.
-  (Under the old wall-clock harness raising the scale actively hurt - 50 → 6.3 s
-  against 400 → 10.5-14.1 s - which is why the knob reads as a tuning lever.)
+- **Never a higher baud.** Console baud is compile-time
+  (`Config::CONSOLE_BAUD`, 4800) and the terminal derives its per-render byte
+  budget from it, so raising the wire speed alone would leave the renderer pacing
+  for 4800. Run more beats instead: every byte/event ratio then matches a real
+  4800-baud run exactly.
+- **The watchdog is live.** It arms at its real 10 s, which is 1000 beats, so a
+  firmware that stops kicking gets caught here rather than only on hardware.
 - **The tree's own sim** (`build/botanik_sim`), built by a plain `make -C build`.
-  Under `check-full` that sim is instrumented like everything else, which costs
-  wall time per dilated tick: raise `--time-scale` there rather than lowering it.
+  Under `check-full` it is instrumented like everything else, so each beat costs
+  more host time - but the waits are bounded in beats, not seconds, so the suite
+  gets slower without getting flakier. Nothing to retune.
 - **A fast-living greenhouse is the point, and the hazard.** At scale 50 the mock
   plant lives 50x faster, so alarms cycle and the log tail floods while a test
   looks at the screen. `normalize.py` masks the cells that move, `drop_log_lines`
@@ -60,16 +55,12 @@ The one real-time bound left is `ACK_TIMEOUT_S`, and it is a liveness check
 rather than a budget: it bounds the round-trip of a single `RUN n` command, so
 firing it means the sim is **wedged**, not slow.
 
-That replaced a pair of wall-clock bounds - an idle heuristic and a hard cap -
-and the reasoning against them is worth keeping, because the obvious fix was the
-wrong one twice. Denominating the budget in the sim's own clock reads as if it
-would scale with load by itself; it does not, because the status-bar clock is
-`boot_epoch + uptime` and the sim re-derives `boot_epoch` from the host clock,
-which cancels the dilation exactly (measured: the bar advances 21 s in 20 s of
-wall time while the uptime beside it advances 200 s in 4). Tightening the idle
-window instead false-failed four runs in six against a sim known to be good.
-Neither survives a sim that is starved rather than stuck. Driving the clock is
-what removes the question.
+Wall-clock bounds were tried first, as an idle heuristic plus a hard cap, and
+neither works: idle cannot tell a stuck firmware from a starved one (tightening
+it to 3 s false-failed four runs in six against a sim known to be good), and
+without a cap a page with a live log tail repaints forever, so the idle rule
+never fires and the suite hangs. Driving the clock removes the question rather
+than retuning the answer.
 
 **Prefer content sync to `settle()`.** `settle()` has to wait out the whole
 4800-baud dribble, where a content wait stops at the first frame that says yes.
@@ -192,7 +183,7 @@ make -C build pytest-update
 ```
 
 Deliberately separate from `check`/`test` - the gate never rewrites its own
-expectations. Regeneration runs at `PYTE_TIME_SCALE=6` so captures are low-drift.
+expectations.
 **Review the diff before committing**: `--update` writes the full snapshot
 including the `ALARM_*` noise lines that are only dropped at compare time, so
 strip anything matching `normalize._NOISE`.

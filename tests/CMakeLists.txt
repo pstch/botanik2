@@ -59,7 +59,7 @@ doctest_discover_tests(botanik_tests PROPERTIES LABELS unit)
 # Sanitizers and clang-tidy are sweeps, not per-change checks: see `check-full`.
 #
 # -j defaults to the host core count (override with -DBOTANIK_CTEST_JOBS=N),
-# which is the cap because each dilated pyte sim wants a core to itself.
+# which is the cap because each pyte sim wants a core to itself.
 include(ProcessorCount)
 ProcessorCount(_nproc)
 if(_nproc EQUAL 0)
@@ -144,14 +144,10 @@ if(BOTANIK_PYTE_TESTS AND Python3_Interpreter_FOUND)
         add_dependencies(check botanik_sim)
 
         # Opt-in golden regeneration, NOT part of check/test so the gate never
-        # rewrites expectations. Review the diff before committing. The moderate
-        # time scale keeps each golden a low-drift snapshot; raise it on the
-        # command line if a capture races (tests/pyte/README.md on dilation).
-        set(BOTANIK_PYTE_UPDATE_SCALE 6 CACHE STRING
-            "Sim time-scale used when regenerating pyte goldens (pytest-update)")
+        # rewrites expectations. Review the diff before committing. No time scale
+        # to pick: the harness drives the clock, so a capture cannot race.
         add_custom_target(pytest-update
-            COMMAND ${CMAKE_COMMAND} -E env PYTE_TIME_SCALE=${BOTANIK_PYTE_UPDATE_SCALE}
-                    ${Python3_EXECUTABLE} -m pytest -q -p no:cacheprovider
+            COMMAND ${Python3_EXECUTABLE} -m pytest -q -p no:cacheprovider
                     ${_pyte_dir} --sim $<TARGET_FILE:botanik_sim> --update
             WORKING_DIRECTORY ${_pyte_dir}
             DEPENDS botanik_sim

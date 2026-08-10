@@ -100,7 +100,7 @@ namespace Botanik { namespace Scheduler {
             // weight this tick's metric samples
             _missed_this_beat = (uint32_t)missed_beats;
             _next_tick_ms += (missed_beats * _period_ms);
-            // No log line: it would flood, especially under sim time dilation.
+            // No log line: it would flood.
             // Surfaced by the CPU_XRUN alarm and the `stats` overrun count.
             _context.overruns += (uint32_t)missed_beats;
         }
@@ -138,8 +138,8 @@ namespace Botanik { namespace Scheduler {
     void LoopScheduler::_record_tps(uint64_t now_ms) {
 #ifdef TARGET_SIMULATOR
         // TPS is the one metric expressed per *real* second: under
-        // BOTANIK_TIME_SCALE the loop runs faster, so ticks/real-second shows
-        // whether the host sustains the sped-up rate. Hardware has no dilation,
+        // the manual clock the loop runs on demand, so ticks/real-second shows
+        // whether the host sustains the beat rate. Hardware runs free,
         // so its uptime is already real.
         now_ms = HAL::Clock::real_uptime_ms();
 #endif

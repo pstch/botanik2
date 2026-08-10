@@ -131,7 +131,7 @@ namespace Botanik { namespace Pages {
                          Utils::format_size(fs, sizeof(fs), ctx.scheduler->stack_bytes_free));
                 _cell(SLOT_STACK, 5, L_VAL, rjust(fld, sizeof(fld), L_W, val), L_W);
                 // Task period: nominal loop period + real tick rate (RTPS =
-                // ticks per real second; under sim dilation shows sustain).
+                // ticks per real second).
                 // Count width-padded so " RTPS)" never shifts.
                 snprintf(val, sizeof(val), "%lums (%3lu RTPS)",
                          (unsigned long)Config::TASK_PERIOD_MS,

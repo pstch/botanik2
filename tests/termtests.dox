@@ -11,11 +11,11 @@
  * moves, insert/delete, IL/DL, editor reconciliation - that a source diff cannot.
  *
  * Two design choices make it deterministic: a PTY (not a pipe) so the baud throttle
- * and TX back-pressure path are real, and time dilation via `BOTANIK_TIME_SCALE` so
+ * and TX back-pressure path are real, and a harness-driven clock so
  * a run is fast while every byte/event ratio matches a real 4800-baud session. The
  * suite is opt-in: CMake skips it unless pyte/pytest are importable.
  *
  * - @subpage md_tests_2pyte_2README - the full how-and-why: dependencies, the PTY
- *   and time-dilation rationale, the golden-fixture workflow, and how screens are
+ *   and the beat-bounded waits, the golden-fixture workflow, and how screens are
  *   normalised before comparison.
  */

@@ -45,15 +45,11 @@ def pytest_addoption(parser):
 class Term:
     """A running botanik_sim plus a pyte screen fed from its PTY."""
 
-    def __init__(self, binary, time_scale=50, watch=(), store=None):
+    def __init__(self, binary, watch=(), store=None):
         env = dict(os.environ)
         self._ctl_w = None
         self._raw = b""                       # undecoded tail, for the ack split
         self.beats = 0                        # beats run, for the bounded waits
-        # Scale 50: the greenhouse lives 50x faster, so every byte/event ratio
-        # matches a real 4800-baud run and only wall time is compressed. Green
-        # far higher too (verified at 500). PYTE_TIME_SCALE overrides per run.
-        env["BOTANIK_TIME_SCALE"] = str(int(os.environ.get("PYTE_TIME_SCALE", time_scale)))
         env["BOTANIK_NO_RT_WARNING"] = "1"    # host-dependent privilege warnings
         env["BOTANIK_NO_RT"] = "1"            # ...and the pinning itself: ctest runs sims in parallel
         env["BOTANIK_NO_LOAD_ALARMS"] = "1"   # CPU_* fire on host timing, moving the alarm bar
@@ -300,7 +296,7 @@ def spawn_module(request, tmp_path_factory):
 def assert_screen(request):
     """Compare a Term's screen against a committed golden.
 
-    Polls until the screen matches rather than snapshotting once: under dilation
+    Polls until the screen matches rather than snapshotting once:
     a render can span ticks, so a transient partial frame must not fail a correct
     screen. With --update the golden is rewritten from a settled snapshot, so
     authoring is: write the test, `make pytest-update`, eyeball, commit.

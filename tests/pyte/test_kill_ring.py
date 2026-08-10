@@ -8,15 +8,10 @@ it. The claim worth pinning is the crossing itself.
 import keys
 from helpers import boot, goto
 
-# The Alt+W badge is a THREE-SECOND affordance held in uptime, so the suite's
-# default 50x dilation puts it on screen for ~60 ms of wall time: about three
-# pump cycles, during which the console is still painting the name into it under
-# its byte budget, so a read lands on a half-painted row.
-#
-# 5x leaves the badge up for ~600 ms - long enough to paint whole, still eight
-# times faster than the plant. Nothing else here is timing-sensitive, so this is
-# the one file that buys its determinism back with wall time.
-BADGE_SCALE = 5
+# The Alt+W badge is a THREE-SECOND affordance held in uptime - 300 beats, and
+# the clock only moves when this harness says so, so it cannot expire while a
+# read is in flight. It can still be caught HALF-PAINTED under the byte budget,
+# which is what _copied_name() below waits out.
 
 
 def _badge_name(term):
@@ -59,7 +54,7 @@ def _copied_name(term):
 
 def test_alt_w_on_monitor_yanks_into_the_shell(spawn):
     """Alt+W copies the selected row's name; ^Y at the prompt pastes it."""
-    term = goto(boot(spawn, time_scale=BADGE_SCALE), keys.ALT_6)
+    term = goto(boot(spawn), keys.ALT_6)
 
     # Whichever row the cursor starts on: the test does not care which, only
     # that the badge names it and the same text arrives at the prompt.
@@ -75,7 +70,7 @@ def test_alt_w_on_monitor_yanks_into_the_shell(spawn):
 def test_alt_w_copies_the_row_the_cursor_is_on(spawn):
     """Move the selection first and it is the new row that gets copied - the
     badge is read off _selected, not off the top of the table."""
-    term = goto(boot(spawn, time_scale=BADGE_SCALE), keys.ALT_6)
+    term = goto(boot(spawn), keys.ALT_6)
     term.send(keys.ALT_W)
     first = _copied_name(term)
 

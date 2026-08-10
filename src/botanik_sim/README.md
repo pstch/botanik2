@@ -36,29 +36,21 @@ UI's screen.
 
 ## Fast / high-iteration testing
 
-Two environment variables compress the wall-clock cost of a run so the simulator
-can churn through many scheduler ticks quickly. Both are simulator-only and read
-once at startup.
+`BOTANIK_SIM_CLOCK=manual` hands the clock to a harness: the sim runs one beat
+per `RUN n` command on `BOTANIK_SIM_CONTROL_FD` and stands still between them, so
+a run is bounded in beats rather than seconds and repeats identically. That is
+what the pyte suite drives; see
+[tests/pyte/README.md](../../tests/pyte/README.md) and `botanik_sim/clockctl.h`.
+
+There is no clock-scaling knob: a firmware clock running faster than the host's
+puts uptime and the wall clock in different time bases, which sawtooths the
+calendar clock and forces the watchdog to be inflated out of the way. Driving the
+beat gets the speed-up with neither.
 
 | Variable | Effect |
 |---|---|
-| `BOTANIK_TIME_SCALE` | Runs the sim clocks (and the baud throttle) N times faster. Default 1, clamped to >= 1. See `hal/simulator.h`. |
+| `BOTANIK_SIM_CLOCK` | `manual` to take the clock (with `BOTANIK_SIM_CONTROL_FD`). Default: free-running on the host clock. |
 | `BOTANIK_NO_LOAD_ALARMS` | Holds the CPU_* load alarms (CPU_LOAD / CPU_JITT / CPU_XRUN) cleared, so the active-alarm set is deterministic for screen goldens. Set it to a non-zero value. No effect on OPTA (no environment). See `health/health.h`. |
-
-`BOTANIK_TIME_SCALE=N` dilates time uniformly: every byte/event ratio matches a normal
-run, only wall time is divided by N, so you reach a given iteration count ~N times
-sooner. Pushing it very high starves the per-tick budget (input/render race at the
-~1 ms floor around scale >= 5), so raise it until ticks overrun, then back off. Overruns under dilation are counted, not logged (the CPU_XRUN alarm and the
-`stats` overrun count carry them), so a hot run stays quiet:
-
-```bash
-# Hammer the scheduler ~10x faster, without overrun-warning spam.
-BOTANIK_TIME_SCALE=10 ./build-debug/botanik_sim 2> sim.log
-```
-
-For an unattended high-iteration soak, build the release (no-sanitizer) sim - a
-debug+ASan build is too slow per dilated tick. The pyte test suite uses exactly
-this mechanism; see [tests/pyte/README.md](../../tests/pyte/README.md).
 
 See also the developer manual: [the page framework](../../docs/dev/pages.md),
 [the scheduler](../../docs/dev/scheduler.md), and

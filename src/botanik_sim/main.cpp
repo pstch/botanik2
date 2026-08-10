@@ -3,7 +3,7 @@
  * @file main.cpp
  * @brief Botanik simulator entry point - a thin harness around a site firmware.
  *
- * Selects the site, applies the sim-only timing dilation, drives loop(), and
+ * Selects the site, drives loop(), and
  * animates the site's variable tables through its simulated field (sim.h).
  */
 
@@ -66,7 +66,6 @@ int main(int argc, char** argv) {
     // TX pacing at the rate the hardware sees. No runtime override: the terminal
     // derives its per-render byte budget from that constant at construction, so
     // a later change would speed the wire up without letting the renderer fill
-    // it. BOTANIK_TIME_SCALE is the way to go faster.
 
     // Stash argv so HAL::System::reset() can re-exec the process with the same args.
     HAL::System::set_reboot_args(argc, argv);
@@ -83,7 +82,7 @@ int main(int argc, char** argv) {
     std::signal(SIGPIPE, SIG_IGN);                // NOLINT(bugprone-signal-handler)
 
     BotanikSite greenhouse;
-    greenhouse.set_hw_watchdog_ms(dilated_timeout(Config::HW_WATCHDOG_MS));
+    greenhouse.set_hw_watchdog_ms(Config::HW_WATCHDOG_MS);
 
     greenhouse.setup();
 

@@ -7,7 +7,7 @@
  * @brief OPTA firmware: the selected site, built for the hardware.
  *
  * Hardware counterpart of botanik_sim: same site, plain Config timeouts (the
- * simulator dilates them).
+ * simulator overrides them).
  */
 
 // Site selected at configure time (-DBOTANIK_SITE).
