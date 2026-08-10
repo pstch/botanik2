@@ -105,17 +105,10 @@ namespace Botanik { namespace Logs {
      *  the console is resizable at runtime, so a hard number would be a lie -
      *  and nothing can consult a constant from inside a string literal.
      *
-     *  ## Why LOG_CONT_PREFIX is 26 and not 34
-     *
-     *  It does NOT line up under the start of the message: at 26 it sits under
-     *  the TOPIC, short by 6 to 12 for every non-empty
-     *  topic. Deliberately left there. store_wrapped() takes one prefix per
-     *  entry while the message column is topic-dependent, so aligning it means
-     *  threading the topic through LineBuffer and its three call sites; and
-     *  widening it to 34 would cut the continuation budget from 54 to 46, which
-     *  is the headroom every two-line message above is written against. A fixed
-     *  left edge marked "> " also scans better than a per-topic ragged one.
-     *  @{ */
+     *  LOG_CONT_PREFIX sits under the TOPIC column, not under the message:
+     *  store_wrapped() takes one prefix per entry while the message column is
+     *  topic-dependent, and widening it would cut the continuation budget the
+     *  two-line messages above are written against. */
     static constexpr const char* CONT_PREFIX     = "> ";
     static constexpr const char* LOG_CONT_PREFIX = "                        > ";
     /** @} */

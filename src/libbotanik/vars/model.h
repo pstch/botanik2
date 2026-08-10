@@ -450,28 +450,15 @@ namespace Botanik { namespace Vars {
      *
      *  @section value_override The override
      *
-     *  A slot carries a second value that, while @c ovr_on, is what every
-     *  reader sees instead of @c v - a maintenance tool: force a sensor to test
-     *  the logic above it, freeze a computed value, or drive an actuator by
-     *  hand. It shadows rather than replaces: the driver keeps publishing into
-     *  @c v underneath, so clearing the override snaps straight back to the live
-     *  reading with no gap and nothing to restore.
+     *  While @c ovr_on, @c ovr is what every reader sees instead of @c v. It
+     *  SHADOWS: the driver keeps publishing into @c v underneath, so clearing
+     *  snaps back to live with nothing to restore. @c ovr_valid is separate
+     *  because "force this to 20 C" and "make this read as a dead sensor" are
+     *  different jobs.
      *
-     *  @c ovr_valid is separate because "force this to 20 C" and "make this read
-     *  as a dead sensor" are both things you need, and quality is what tells
-     *  them apart. Note what it does NOT do: the forced value is still what
-     *  raw() returns, so a consumer that gates on valid() sees bad data while
-     *  one that does not still reads the number. Forcing the quality is not the
-     *  same as simulating the timeout fallback.
-     *
-     *  Both halves are PERSISTED. An override outlives the session that set it
-     *  and now the reboot too, which is a deliberate trade: a maintainer who
-     *  forced a signal to work on the plant should not lose it to a power cut,
-     *  and the cost is that a forgotten one survives the reboot someone reaches
-     *  for when the machine behaves strangely. That is why a restored override
-     *  is announced as a CRITICAL at boot and why `override list` says so. Every
-     *  role behaves the same way here, ROLE_OUTPUT included - see
-     *  Bank::load_overrides(). */
+     *  Both halves are PERSISTED, so a forgotten override survives the reboot
+     *  someone reaches for when the machine behaves strangely - which is why
+     *  each restore is announced as a CRITICAL. @see Bank::load_overrides() */
     struct Value {
         Scalar   v;
         Scalar   ovr;        ///< forced value, while ovr_on
@@ -562,25 +549,8 @@ namespace Botanik { namespace Vars {
          *  telemetry and the alarm model alike - there is no path that sees
          *  around it.
          *  @{ */
-        /** @brief What this row reads, override applied.
-         *
-         *  An invalid row falls back to its declared default - EXCEPT a STALE
-         *  one, which keeps the last value it actually had.
-         *
-         *  Those are different situations and they were being answered the same
-         *  way. A row that has never been read has nothing to offer, and an
-         *  output dropped to safe or a reading outside its band must NOT be
-         *  believed - the default is the whole point there. But a sensor that
-         *  answered a moment ago and then missed its timeout still knows what
-         *  the plant was doing: 20 C from a minute ago is a far better account
-         *  of a greenhouse than the 0 C its declared default reads as, and
-         *  `valid()` is false either way, so anything that cares still knows
-         *  not to trust it.
-         *
-         *  Q_IMPLAUSIBLE and Q_REFUSED deliberately do NOT keep their value: the
-         *  first IS a bad number, and the second means the device says the
-         *  register is not there, so whatever is in the slot answered a
-         *  different question. */
+        /** @brief What this row reads, override applied. @see _under() for
+         *  the fallback rule. */
         Scalar   raw()   const { return _v->ovr_on ? _v->ovr : _under(); }
         /** @brief As a float; a digital reads 0/1, so a consumer that only
          *  displays or publishes never branches on the type. */
@@ -719,24 +689,14 @@ namespace Botanik { namespace Vars {
         void override_clear() { _v->ovr_on = false; _touch_field(); }
         /** @} */
 
-        /** @brief Take a new demand, and owe it to the field only if it is
-         *  actually NEW.
+        /** @brief Take a new demand, and owe it to the field only if it MOVED.
          *
-         *  A control law is level-driven: it re-states its whole demand on every
-         *  activation, so a coil that has been shut for an hour is written shut
-         *  ten times a second. Marking the field dirty on every one of those
-         *  made every output permanently owed - and since a pending write
-         *  outranks a due read on the bus, the writes held the wire and the
-         *  READINGS starved. A 10 s meter could not get a turn until it went a
-         *  whole period late and the starvation tier rescued it, so it refreshed
-         *  every twenty seconds and went invalid at fifteen on the way.
-         *
-         *  Comparing costs one 8-byte compare on a path that is already storing
-         *  8 bytes, and needs no shadow copy: the slot itself is the shadow.
-         *
-         *  Quality is part of the question. A row sitting at Q_SAFE is NOT
-         *  showing its demand - the fault path put it somewhere known - so
-         *  re-stating the same value there is a real change and must be owed. */
+         *  A control law re-states its whole demand every activation, so
+         *  dirtying on each one leaves every output permanently owed - and a
+         *  pending write outranks a due read, so the writes hold the wire and
+         *  the readings starve. The slot itself is the shadow, so the compare is
+         *  free. Q_SAFE counts as moved: the fault path put the row somewhere
+         *  known, so it is not showing its demand. */
         void _drive(Scalar v) {
             const bool moved = (_v->v.u != v.u) || (_v->qual != Q_GOOD);
             _v->v    = v;
@@ -1121,24 +1081,16 @@ namespace Botanik { namespace Vars {
          *
          *  @section ctl_override What happens to an override depends on WHO
          *
-         *  The two inhibits mean different things, so they treat a hand-held
-         *  output differently:
+         *  **INHIBIT_OPERATOR** leaves overrides alone: `control disable` is how
+         *  you take the plant by hand, and an override is then the only thing
+         *  that can move an actuator. **INHIBIT_HEALTH** releases them, stored
+         *  copy included - it runs when the firmware cannot reason about what it
+         *  is driving, and an actuator held energised by hand through that is
+         *  what the safe state exists to prevent.
          *
-         *  - **INHIBIT_OPERATOR** leaves overrides alone. `control disable` is
-         *    how you take the plant by hand: the programs stop deciding, and an
-         *    override is then the only thing that can move an actuator. Wiping
-         *    them would leave no way to command one at all, which is the
-         *    opposite of what an operator standing at the machine wants.
-         *  - **INHIBIT_HEALTH** releases them, stored copy included. This one
-         *    runs when the firmware can no longer reason about what it is
-         *    driving, or is about to stop running altogether - and an actuator
-         *    held energised by hand through that is the one outcome the safe
-         *    state exists to prevent. Nobody is necessarily watching.
-         *
-         *  Outputs only. An internal is derived state - an alarm condition, a
-         *  latched interlock - and clearing it would erase the very diagnosis
-         *  that got us here. A parameter is configuration, and sweeping it would
-         *  revert the network settings on a scan overrun. */
+         *  Outputs only. Clearing an internal would erase the diagnosis that got
+         *  us here; sweeping a parameter would revert the network settings on a
+         *  scan overrun. */
         void disable_control(ControlInhibit source = INHIBIT_OPERATOR);
 
         /** @brief Whether the field may be driven (the scan is gated on it). */

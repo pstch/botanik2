@@ -259,18 +259,12 @@ namespace Botanik { namespace Health {
             _raise(r, now < until_ms);
         }
 
-        /** @brief Watchdog verdict. The timed escalation existed to reboot both
-         *  cores when the coprocessor link stayed faulted; with no link to lose,
-         *  we kick while the loop is alive. Control-side fault escalation
-         *  belongs to the scan cycle, not here.
+        /** @brief Watchdog verdict: the loop is alive.
          *
-         *  @note So the verdict is CONSTANT today, and every consumer of a false
-         *  one - the firmware loop's fault latch, the safe-state sweep it
-         *  triggers, the withheld kick - is unreachable. That is deliberate: the
-         *  seam is where a real verdict goes when there is something to judge,
-         *  and it is cheaper to keep than to re-derive under whatever fault
-         *  motivates it. Do not delete it as dead code without deciding that
-         *  question first. */
+         *  Constant while stepping. With no coprocessor link to lose, nothing
+         *  else justifies letting the hardware watchdog fire; control-side
+         *  escalation belongs to the scan cycle. The seam stays for the day
+         *  something does. */
         void _update_watchdog(uint64_t /*now*/) {
             _watchdog_ok = true;
         }

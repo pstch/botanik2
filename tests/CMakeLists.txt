@@ -107,36 +107,14 @@ add_custom_target(check
     VERBATIM
 )
 
-# `make check-full` is the SWEEP: everything deliberately kept out of the everyday
-# `check` because it is too slow to pay per edit, in one target.
+# `make check-full` is the periodic SWEEP: clang-tidy, then the whole gate again
+# under ASan+UBSan in a tree of its own under build/asan/. Both are too slow to pay
+# per edit; run this before a push that touches memory handling.
 #
-#   1. clang-tidy  - the bugprone-* checks (incremental, one stamp per TU)
-#   2. the whole gate again under ASan+UBSan, in a tree of its own
-#
-# Both were exiled for the same reason and on the same reasoning, so they belong
-# behind the same command: clang-tidy re-lints on any touched header, and
-# instrumentation more than doubles compile CPU (the measured detail is on
-# BOTANIK_SANITIZE in the top-level CMakeLists). Run this before a push that
-# touches memory handling, and periodically otherwise.
-#
-# clang-tidy runs in THIS tree, not the sanitized one: it lints the compile flags
-# an editor and clangd actually see, and -fsanitize= changes none of its findings
-# while doubling the compile it does to get them.
-#
-# It drives the sub-tree's OWN `check`, so it is the same gate by construction -
-# doctest and pyte, gate.cmake's failure attribution, all of it - rather than a
-# second list of test commands that could drift from this one.
-#
-# It builds in a tree of ITS OWN under build/asan/, so the default tree keeps its
-# uninstrumented objects and the two never invalidate each other.
-#
-# Both halves are instrumented, screen tests included: the pyte entries run this
-# tree's own botanik_sim, which in build/asan is the sanitized one. That was not
-# true while those tests had a pinned RELEASE sim of their own - a sanitized sim
-# was assumed too slow for the tick budget, and measured, it is not (0 failures in
-# 20 runs at the default dilation, against 5/16 for the RELEASE sim it replaced).
-# It IS slower in wall time, roughly 3x, which is the right place to spend it: a
-# sweep, not the everyday gate.
+# It drives the sub-tree's own `check`, so it is the same gate by construction
+# rather than a second list of test commands that could drift from this one.
+# clang-tidy runs in THIS tree, on the flags an editor sees, and as a DEPENDS - so
+# a finding stops the sweep before it pays for an instrumented rebuild.
 add_custom_target(check-full
     COMMAND ${CMAKE_COMMAND} -G ${CMAKE_GENERATOR} -S ${CMAKE_SOURCE_DIR}
             -B ${CMAKE_BINARY_DIR}/asan -DBOTANIK_TARGET=SIMULATOR
@@ -164,23 +142,8 @@ endif()
 # can already import them, so a tree without the venv still gets a green
 # `make check`. Point CMake at the venv with -DPython3_EXECUTABLE=... .
 #
-# They run against THIS tree's own botanik_sim. That used to be a dedicated
-# RELEASE, no-sanitizer sim built in a sub-tree of its own, on the grounds that
-# dilated time leaves a ~1ms wall budget per tick which a debug+ASAN build could
-# not meet. Measured, that did not hold: over 16-20 run batches on an idle box the
-# RELEASE sim failed 5/16, a plain DEBUG sim 3/16, and a full ASan+UBSan sim 0/20.
-# The same ASan binary failed 3/12 an hour earlier under load, so what moves this
-# suite's failure rate is the MACHINE, not the optimisation level - the sub-tree
-# was buying a property it never had.
-#
-# Deleting it takes the library from two compiles to one (63 TUs, ~32 s of CPU off
-# every clean build) and makes the screen tests test the binary this tree actually
-# produces. In build/asan (see check-full) that binary is instrumented, so the
-# screen tests run sanitized there too - the one thing the sub-tree structurally
-# could not do.
-#
-# botanik_sim is an add_executable, so it is in ALL already: `make && make test`
-# finds it without the pyte-sim-in-ALL trick this block used to need.
+# They run against THIS tree's own botanik_sim, which is in ALL already - so in
+# build/asan (see check-full) the screen tests run instrumented too.
 option(BOTANIK_PYTE_TESTS "Register the pyte screen-assertion tests" ON)
 find_package(Python3 COMPONENTS Interpreter QUIET)
 if(BOTANIK_PYTE_TESTS AND Python3_Interpreter_FOUND)

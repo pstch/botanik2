@@ -28,23 +28,7 @@
  * | edit a parameter | the operator, through `Bank::set()` |
  * | force a row | the operator, through `override_set()` |
  * | publish a reading, invalidate on a bad read | the field-bus driver |
- * | withhold control | `HealthMonitor`, or the console |
- *
- * @section plc_io_chokepoint The write chokepoint
- *
- * Every write a program makes goes through one function here. That is worth
- * more than the narrowing on its own: it is the only place that can know WHICH
- * program is writing, which is what attributing a row to its author needs, and
- * what noticing two programs driving one output needs. Neither is possible while
- * the write is a method on a handle the program made itself.
- *
- * @section plc_io_cost What it costs
- *
- * A pointer and a byte, passed by value in the Context a program already
- * receives. The reads are inline and forward straight to `Vars::Var`, so they
- * are what the direct call was; a write adds one byte compared against the row's
- * recorded author, which on the usual path matches and does nothing.
- */
+ * | withhold control | `HealthMonitor`, or the console | */
 
 #include <cstdint>                  // int64_t
 

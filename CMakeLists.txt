@@ -59,18 +59,9 @@ if(NOT CMAKE_BUILD_TYPE)
 endif()
 
 # Runtime sanitizers for the SIMULATOR build (ignored on OPTA, which we can't run).
-# OFF | address | undefined | address+undefined.
-#
-# Default OFF, DEBUG included. Instrumentation is the largest single cost in this
-# build: measured over the 7 costliest TUs, ASan+UBSan is +116% compile CPU (12.0s
-# -> 25.9s), and UBSan alone accounts for 72% of that. It lands hardest exactly
-# where the tree is heaviest - the 16 test TUs are 72% of all compile CPU - so the
-# gate that runs most often was paying most of the bill.
-#
-# The sanitizers are not gone, they are a SWEEP: `make check-full` configures an
-# instrumented tree of its own and runs the suite in it, the same way clang-tidy
-# is a periodic batch rather than a per-change check. To instrument a whole tree,
-# configure it with -DBOTANIK_SANITIZE=address+undefined.
+# OFF | address | undefined | address+undefined. Default OFF: instrumentation more
+# than doubles compile CPU, most of it on the test TUs. `make check-full` runs the
+# gate instrumented in a tree of its own.
 string(TOUPPER "${CMAKE_BUILD_TYPE}" _build_type_upper)
 set(BOTANIK_SANITIZE "OFF" CACHE STRING "Sanitizers for the SIMULATOR build")
 
@@ -216,16 +207,8 @@ if(BOTANIK_TARGET STREQUAL "SIMULATOR")
     # column-aligned for readability, which trips this heuristic.
     target_compile_options(botanik PUBLIC -Wall -Wextra -Wno-misleading-indentation)
 
-    # Warnings are errors on the library's own sources. This used to be a second
-    # EXCLUDE_FROM_ALL copy of the whole library (botanik_strict), compiled purely
-    # for its diagnostics - 63 extra TUs on every `make check`, for a guarantee the
-    # real objects can carry themselves. The tree is warning-clean in this exact
-    # configuration (verified across all 63 library TUs at -O0 -g3), so the gate
-    # gets the same result for free.
-    #
-    # PRIVATE, which is the mirror's old scope: it compiled LIB_SOURCES only, so
-    # the sketch and the test suite keep -Wall -Wextra without -Werror. -DBOTANIK_
-    # WERROR=OFF for a WIP tree with a deliberate unused parameter in it.
+    # Warnings are errors, on the library's own sources only: PRIVATE, so the
+    # sketch and the test suite keep -Wall -Wextra without -Werror.
     option(BOTANIK_WERROR "Treat warnings as errors when compiling the library" ON)
     if(BOTANIK_WERROR)
         target_compile_options(botanik PRIVATE -Werror)
@@ -259,18 +242,6 @@ if(BOTANIK_TARGET STREQUAL "SIMULATOR")
         ${BOTANIK_SITE_SOURCES})
     target_link_libraries(botanik_sim botanik)
 
-    # NOTE: the hot-restart POST_BUILD hook is gone. It ran
-    # `pkill -USR1 -x botanik_sim` after every relink so a running sim would
-    # re-exec the rebuilt binary. Convenient, but pkill matches by NAME across the
-    # WHOLE MACHINE: it had no way to tell a sim you were watching from one a test
-    # was driving, or from another user's. Building while the screen tests ran
-    # re-execed the sims under test mid-assertion, which is a spurious failure with
-    # no visible cause - and observed here trying to signal another account's
-    # process (it only failed on permissions).
-    #
-    # The SIGUSR1 handler in botanik_sim stays, so a hot-restart is still one
-    # `pkill -USR1 -x botanik_sim` away when you actually want one. It is just no
-    # longer fired by the build, behind your back, at every sim on the box.
 
     # Link-time optimization for Release only (cross-TU inlining on top of -O3).
     # Probed so a toolchain without LTO support degrades to a plain -O3 build.
@@ -288,14 +259,6 @@ if(BOTANIK_TARGET STREQUAL "SIMULATOR")
     else()
         message(STATUS "IPO/LTO not supported, Release will use -O3 only: ${_ipo_msg}")
     endif()
-
-    # NOTE: botanik_strict is gone. It was a second EXCLUDE_FROM_ALL copy of the
-    # library compiled -Werror -g0 purely for its diagnostics, which made `make
-    # check` compile all 63 library sources twice. The library now compiles with
-    # -Werror itself (see BOTANIK_WERROR above), so the gate keeps the guarantee
-    # and drops the duplicate objects. A welcome side effect: compile_commands.json
-    # no longer needs the EXPORT_COMPILE_COMMANDS OFF dance that kept the mirror's
-    # second, -Werror entry per TU out of clang-tidy's way.
 
     # clang-tidy static analysis over our own src/ tree. The check set and header
     # filter live in .clang-tidy, with bugprone-* promoted to errors there so a

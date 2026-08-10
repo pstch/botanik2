@@ -1,43 +1,18 @@
-#ifndef PLC_BLOCKS_H
-#define PLC_BLOCKS_H
+#ifndef PLC_BLOCKS_BLOCKS_H
+#define PLC_BLOCKS_BLOCKS_H
 
 /**
  * @file blocks.h
- * @brief Function blocks: the STATEFUL half of the POU library. Umbrella
- *        header.
+ * @brief Every function block, in one include.
  *
- * These are the PLC idioms - on-delay, edge, latch, hysteresis, PID - as
- * ordinary C++ objects. A program declares them as members and calls them each
- * scan; they hold their own state and nothing else needs to know about it.
- * That state is the whole distinction from plc/functions/, which holds the
- * things that remember nothing (see @ref plc_functions).
- *
- * Every timed block takes @p dt_ms, the ACTUAL elapsed time since that program
- * last ran, rather than reading a clock itself. Two reasons: a program that ran
- * late must not lose the time it was late by, and a block driven purely by its
- * inputs is trivially testable without a clock.
- *
- * All state is RAM; unlike the descriptor tables there is no flash-residency
- * constraint here, so these are ordinary classes.
- *
- * | Header | Blocks |
- * |---|---|
- * | @ref timers.h   | `Ton` `Tof` `Tp` |
- * | @ref logic.h    | `RTrig` `FTrig` `Sr` `Rs` `Interlock` |
- * | @ref analog.h   | `Hysteresis` `Hysteresis3` `Ramp` `Deadband` |
- * | @ref filters.h  | `Ewma` `MedianOf3` `MovingAverage<N>` |
- * | @ref meter.h    | `Integral` `Derivative` |
- * | @ref pid.h      | `PidTuning` `Pid` |
- * | @ref actuator.h | `ActuatorConfig` `Actuator` |
- *
- * Include this header for all of them, or one of the above when a translation
- * unit only needs its corner.
+ * A block REMEMBERS - that is what separates it from a function (see
+ * functions.h). Two consequences the whole family obeys: every timed block
+ * takes @c dt_ms rather than reading a clock, so it is testable without one;
+ * and every block provides reset(), which block.h enforces at compile time
+ * because the scan driver resets each program on a control-authority
+ * withdrawal.
  */
 
-// This header is the convenience roll-up: it exists only to pull in every block
-// family, so each include is re-exported to the site rather than used here.
-// The families gate themselves on BOTANIK_FEATURE_PLC_BLK_*, so this list is
-// unconditional and an excluded family contributes nothing.
 #include "libbotanik/plc/blocks/actuator.h" // Actuator
 #include "libbotanik/plc/blocks/analog.h"   // Hysteresis / Hysteresis3 / Ramp / Deadband
 #include "libbotanik/plc/blocks/filters.h"  // Ewma / MedianOf3 / MovingAverage
@@ -47,4 +22,4 @@
 #include "libbotanik/plc/blocks/timers.h"   // Ton / Tof / Tp
 #include "libbotanik/plc/functions/functions.h"
 
-#endif // PLC_BLOCKS_H
+#endif // PLC_BLOCKS_BLOCKS_H
