@@ -243,8 +243,21 @@ namespace Botanik { namespace Modbus {
         /** @brief Enter @p s, stamping when. Every transition goes through here,
          *  so a state cannot be changed without its clock being reset. */
         void _enter(State s, uint64_t now_ms);
-        /** @brief Which block goes out next, or NO_BLOCK. Scores every block in
-         *  one pass and takes the highest; see the tier table in the .cpp. */
+        /** @brief When a block asks for the bus, and how long it may then wait.
+         *  The two numbers every block is ranked on. @see _slot_of */
+        struct Slot {
+            uint64_t due;        ///< not offered the bus before this
+            uint32_t deadline;   ///< the lateness it is allowed, as the normaliser
+        };
+        /** @brief @p b's due time and deadline.
+         *
+         *  The ONE place reads and writes differ. A read's pair comes from its
+         *  poll period; a write's from the minimum interval and the delivery
+         *  deadline. Everything downstream compares the same number. */
+        Slot _slot_of(const Block& b) const;
+
+        /** @brief Which block goes out next, or NO_BLOCK. One urgency per block
+         *  in one pass, highest wins; see the note in the .cpp. */
         uint16_t _pick(uint64_t now_ms) const;
         /** @brief Watch control authority, and raise the safe-state urgency on
          *  the beat it is withdrawn. */

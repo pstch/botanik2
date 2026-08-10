@@ -149,64 +149,82 @@ void RtuClient::_enter(State s, uint64_t now_ms) {
     _since_ms = now_ms;
 }
 
-uint16_t RtuClient::_pick(uint64_t now_ms) const {
-    // One pass, scoring each block, highest score wins. The tiers are decades
-    // apart so nothing inside one can ever outrank the one above: lateness is
-    // measured in whole periods and could otherwise climb into a neighbour's
-    // range on a starved block.
-    static const uint32_t T_SAFE    = 4000000u;  // the field is owed a safe state
-    static const uint32_t T_STARVED = 3000000u;  // a read a whole period late
-    static const uint32_t T_WRITE   = 2000000u;  // a demand that has changed
-    static const uint32_t T_READ    = 1000000u;  // a reading that is due
+RtuClient::Slot RtuClient::_slot_of(const Block& b) const {
+    Slot s;
+    if (is_read(b.fc)) {
+        // A poll falls due on its period, and the period is also what it may
+        // acceptably slip by: poll any later and the row flaps between valid and
+        // stale, which is the relationship the ladder is derived from.
+        s.due      = b.due_ms;
+        s.deadline = (b.period_ms != 0) ? b.period_ms : 1u;
+        return s;
+    }
 
-    uint16_t best  = NO_BLOCK;
-    uint32_t score = 0;
+    // A write has no period. It falls due a minimum interval after the last one
+    // went out, so a chattering demand still cannot monopolise the bus, and
+    // due_ms raises that floor further while a refusal penalty is running.
+    const bool dirty = block_dirty(*_io, _plan, b);
+    const uint64_t floor_ms = b.last_ms +
+        (dirty ? Config::MODBUS_WRITE_MIN_MS : Config::MODBUS_REWRITE_MS);
+    s.due      = (b.due_ms > floor_ms) ? b.due_ms : floor_ms;
+    // A demand that has moved is owed to the field inside MODBUS_WRITE_DEADLINE_MS;
+    // an unchanged one is only the keepalive a slave-side failsafe watches for,
+    // so its own interval is the deadline.
+    s.deadline = dirty ? Config::MODBUS_WRITE_DEADLINE_MS : Config::MODBUS_REWRITE_MS;
+    return s;
+}
+
+uint16_t RtuClient::_pick(uint64_t now_ms) const {
+    // ONE clock for every block: how far it is through the lateness it is
+    // allowed, in permille. Highest wins, ties to the lowest index.
+    //
+    // There is no tier ladder any more. Reads and writes differ in how their due
+    // time and deadline are DERIVED (see _slot_of), never in how they are
+    // compared, and that is what removes the two asymmetries the ladder had.
+    // Writes used to sit at a fixed rank with no escalation, so any starved read
+    // outranked them for as long as it stayed starved and output delivery simply
+    // stopped; now a write's urgency grows exactly like a read's and starvation
+    // is unreachable rather than patched. And the per-block starvation floor is
+    // no longer a jump between tiers, just the point where urgency passes 1000.
+    //
+    // Relative and not absolute, for the reason the floor was per-block: ranked
+    // by milliseconds the fast rungs hold the bus for ever, since they re-arm
+    // constantly while a slow block's lateness only creeps up. In permille
+    // 900 ms late on a 1 s rung is 900 and 800 ms late on a 10 s rung is 80 (the
+    // fast block still wins), but a 10 s block 5 s late is 500 and beats a 1 s
+    // block 400 ms late.
+
+    // The one absolute pre-empt, ahead of the scale rather than on it: a scale
+    // has no top, so a sufficiently late block could otherwise climb into any
+    // rank reserved for this. disable_control() marked every output dirty
+    // precisely so a transaction carries the safe state out, and it does not
+    // wait for the ordinary write interval either.
+    if (_urgent) {
+        for (uint16_t i = 0; i < _plan.block_count(); ++i) {
+            const Block& b = _plan.block(i);
+            if (is_read(b.fc) || !_due(b, now_ms)) continue;
+            if (block_dirty(*_io, _plan, b)) return i;
+        }
+    }
+
+    uint16_t best    = NO_BLOCK;
+    uint32_t urgency = 0;
 
     for (uint16_t i = 0; i < _plan.block_count(); ++i) {
         const Block& b = _plan.block(i);
         if (!_due(b, now_ms)) continue;          // its device is in backoff
 
-        uint32_t s = 0;
-        if (!is_read(b.fc)) {
-            // A write block's due_ms is a floor, normally in the past. It is
-            // raised only by the refusal penalty, which is what stops a block
-            // the device keeps declining from taking a transaction every
-            // MODBUS_WRITE_MIN_MS for ever.
-            if (now_ms < b.due_ms) continue;
-            const uint64_t since = now_ms - b.last_ms;
-            const bool dirty = block_dirty(*_io, _plan, b);
-            if (_urgent && dirty) {
-                // disable_control() marked every output dirty precisely so a
-                // transaction carries the safe state out. Nothing pre-empts it,
-                // and it does not wait for the ordinary write interval.
-                s = T_SAFE;
-            } else if (since >= Config::MODBUS_REWRITE_MS) {
-                s = T_WRITE + 1u;                // the unconditional re-drive
-            } else if (dirty && since >= Config::MODBUS_WRITE_MIN_MS) {
-                s = T_WRITE;
-            }
-        } else if (now_ms >= b.due_ms) {
-            const uint64_t late = now_ms - b.due_ms;
-            // A read jumps the write queue once it is later than the period it
-            // asks for - per block, since a 1 s rung and a 60 s rung do not
-            // agree about what late means. Without that floor an Actuator
-            // timing a stroke keeps enough blocks dirty to hold the bus and
-            // starve the image underneath the programs reading it.
-            const bool starved = b.period_ms != 0 && late >= b.period_ms;
-            // Lateness RELATIVE to the period asked for, in permille, for the
-            // same reason the starvation floor is per-block: ranked by absolute
-            // milliseconds the fast rungs hold the bus for ever, since they
-            // re-arm constantly while a slow block's lateness only creeps up.
-            // In permille 900 ms late on a 1 s rung is 900 and 800 ms late on a
-            // 10 s rung is 80 (the fast block still wins), but a 10 s block 5 s
-            // late is 500 and beats a 1 s block 400 ms late.
-            const uint64_t denom = (b.period_ms != 0) ? (uint64_t)b.period_ms : 1u;
-            uint64_t permille = (late * 1000u) / denom;
-            if (permille > 999999u) permille = 999999u;
-            s = (starved ? T_STARVED : T_READ) + (uint32_t)permille;
-        }
+        const Slot s = _slot_of(b);
+        if (now_ms < s.due) continue;            // not yet asking for the bus
 
-        if (s > score) { score = s; best = i; }
+        uint64_t permille = ((now_ms - s.due) * 1000u) / s.deadline;
+        if (permille > 0xFFFFFFFFull) permille = 0xFFFFFFFFull;
+        // `best == NO_BLOCK` and not `> urgency` alone: a block exactly at its
+        // due time is urgency 0, and is still asking for the bus.
+        if (best == NO_BLOCK || (uint32_t)permille > urgency) {
+            urgency = (uint32_t)permille;
+            best    = i;
+        }
     }
     return best;
 }

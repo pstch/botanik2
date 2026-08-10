@@ -10,9 +10,9 @@ Everything here is `modbus/rtu/`. The TCP corners are untouched.
 Phases are ordered so each one is safe to stop after. Phase 0 comes first because
 none of the rest is verifiable without it.
 
-**Status.** Phase 0.1 and Phase 1 are done on `mb-solidify`. What is left is the
-scheduling work: one clock (phase 2), the probe interleave (phase 3), the
-per-device timeout (4), the diagnosis rows (5) and the documentation (6).
+**Status.** Phases 0.1, 1 and 2 are done on `mb-solidify`. What is left is the
+probe interleave (phase 3), the per-device timeout (4), the diagnosis rows (5)
+and the documentation (6).
 
 One thing phase 0 turned up that the plan did not predict: the simulator paces
 its bytes against the HOST clock, so a test stepping a virtual beat sees the port
@@ -160,7 +160,7 @@ keep their declared rates throughout.
 
 ---
 
-## Phase 2 - one clock for every block
+## Phase 2 - one clock for every block [DONE]
 
 The tier ladder goes. Every block ranks on a single number: **how far it is
 through the lateness it is allowed**, in permille.
@@ -217,7 +217,14 @@ the commit.
 
 Arithmetic note: the numerator is `uint64_t` milliseconds and the result is
 clamped into `uint32_t` before comparison. `deadline_ms` is guarded against zero
-at plan time, not at every comparison.
+where it is derived, in `_slot_of()`, not at every comparison.
+
+**As built.** The derivation lives in `RtuClient::_slot_of()`, which returns the
+`(due, deadline)` pair for a block and is the one place the two kinds differ;
+`_pick()` compares the same number for every block and no longer mentions
+`is_read()`. One subtlety the plan did not: a block exactly at its due time has
+urgency 0, so the selection tests `best == NO_BLOCK` as well as `> urgency`, or a
+read that has only just come due is never picked at all.
 
 ---
 

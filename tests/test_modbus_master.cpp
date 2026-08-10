@@ -77,33 +77,49 @@ uint32_t shortest_read_period(const Planner& p) {
 
 }  // namespace
 
-TEST_CASE("modbus client: an ordinary dirty write goes before a read that is merely due") {
+// Ranking
+// ===========================================================================
+//
+// One clock: every block is ranked on how far it is through the lateness it is
+// allowed, in permille. These two pin that it cuts BOTH ways, which is the whole
+// of it - under the old tier ladder the first was decided by kind, and the
+// second could not happen at all.
+
+TEST_CASE("modbus client: a read that is due outranks a demand only just asked for") {
+    // The old ladder put every dirty write above every read that was not yet a
+    // whole period late. It is a relative comparison now: 1 ms into a 500 ms
+    // delivery deadline is 2 permille, and a read a fifth of the way through its
+    // period is a hundred times that.
     Master m;
     m.dirty_all_writes();
 
-    // Past the write interval; reads are due but not yet a whole period late.
     const uint16_t pick = m.client.next_block(Config::MODBUS_WRITE_MIN_MS + 1);
-    INFO("writes are worth more than a reading about to be taken again anyway");
-    CHECK(m.is_write(pick));
+    INFO("a demand 1 ms past its floor is not yet owed anything");
+    CHECK(m.is_a_read(pick));
 }
 
-TEST_CASE("modbus client: a read starved by a whole period jumps the write queue") {
-    // A stroking Actuator keeps writes dirty continuously; without a floor, reads starve and the image goes stale.
+TEST_CASE("modbus client: a demand past its deadline outranks a read that is late") {
+    // And the other way. Under the ladder a starved read outranked every write
+    // for as long as it stayed starved, with no escalation on the write side at
+    // all, so output delivery simply stopped while reads were behind.
     Master m;
     m.dirty_all_writes();
 
     const uint32_t period = shortest_read_period(m.client.plan());
     REQUIRE(period > 0);
+    // The arithmetic below needs the fastest rung to be no faster than a second:
+    // a 200 ms rung climbs at 5 permille/ms against a 500 ms deadline's 2, and
+    // no static instant would show the write ahead. Non-starvation still holds
+    // dynamically there, because a served read resets to zero and the undelivered
+    // write does not - which is what the live-bus case below actually measures.
+    INFO("the site's fastest read rung is " << period << " ms");
+    REQUIRE(period >= 1000);
 
-    // Long enough that the fastest read has missed a whole period of its own.
-    const uint64_t late = (uint64_t)period * 4u;
-    const uint16_t pick = m.client.next_block(late);
-
-    INFO("at t=" << late << " ms, with every write dirty");
+    // 1.8 s into a 500 ms deadline is 3600 permille; the fastest read is 2 s into
+    // a 1 s period, so 2000.
+    const uint16_t pick = m.client.next_block(2000);
     REQUIRE(pick != RtuClient::NO_BLOCK);
-    CHECK(m.is_a_read(pick));
-    CHECK((late - m.client.plan().block(pick).due_ms)
-              >= m.client.plan().block(pick).period_ms);
+    CHECK(m.is_write(pick));
 }
 
 TEST_CASE("modbus client: withdrawing control puts the safe state ahead of everything") {
@@ -311,10 +327,29 @@ struct LiveBus {
     void beat(uint32_t dt = 10) {
         t += dt;
         client.receive_step(t);   // PHASE_INPUT
+        bank.expire_stale(t);     // ...and it runs ahead of this, as in firmware.cpp
         client.step(t);           // PHASE_OUTPUT
         bus.step(t);              // and the far end
     }
     void beats(uint32_t n) { for (uint32_t i = 0; i < n; ++i) beat(); }
+
+    /** @brief Owe every output to the field again, i.e. what a control program
+     *  that moved its demand looks like to the collector. */
+    void dirty_all_writes() {
+        for (uint8_t p = 0; p < client.peer_count(); ++p) client.reassert_outputs(p);
+    }
+
+    /** @brief The fastest read block, which is the one that starves first. */
+    uint16_t fastest_read() const {
+        uint16_t best = RtuClient::NO_BLOCK;
+        for (uint16_t i = 0; i < client.plan().block_count(); ++i) {
+            const Block& b = client.plan().block(i);
+            if (!is_read(b.fc) || b.period_ms == 0) continue;
+            if (best == RtuClient::NO_BLOCK ||
+                b.period_ms < client.plan().block(best).period_ms) best = i;
+        }
+        return best;
+    }
 
     /** @brief Peer index of the first device carrying a write block, and the
      *  block itself. Both are what an output device means to the client. */
@@ -349,6 +384,38 @@ TEST_CASE("modbus fault: an absent unit is backed off and the rest keep answerin
     INFO("dev " << (unsigned)m.client.peer_unit(peer) << " is out of the rotation");
     CHECK(m.client.txns() > before);          // the live devices never stopped
     CHECK(m.client.dead_count() == 1);
+}
+
+TEST_CASE("modbus live: a modulating output and the read image share the bus") {
+    // The property phase 2 exists for, measured rather than reasoned about: a
+    // demand that keeps moving must not starve the image the control programs
+    // read, and a busy read schedule must not stop the demand reaching the
+    // field. Under one clock both urgencies grow and both reset on service, so
+    // neither can hold the bus - but only a run shows it.
+    LiveBus m;
+    const uint16_t w = m.write_block();
+    const uint16_t r = m.fastest_read();
+    REQUIRE(w != RtuClient::NO_BLOCK);
+    REQUIRE(r != RtuClient::NO_BLOCK);
+
+    m.beats(200);                                  // let the sweep settle
+
+    uint64_t rlast = m.client.plan().block(r).last_ms;
+    uint64_t wlast = m.client.plan().block(w).last_ms;
+    uint32_t reads = 0, writes = 0;
+    for (uint32_t i = 0; i < 800; ++i) {           // 8 s of beats
+        if (i % 50 == 0) m.dirty_all_writes();     // the demand moves twice a second
+        m.beat();
+        const uint64_t rn = m.client.plan().block(r).last_ms;
+        const uint64_t wn = m.client.plan().block(w).last_ms;
+        if (rn != rlast) { reads++;  rlast = rn; }
+        if (wn != wlast) { writes++; wlast = wn; }
+    }
+
+    INFO(reads << " polls of the fastest read block and " << writes
+               << " deliveries of a continuously moving demand, over 8 s");
+    CHECK(reads  >= 5);    // 7 measured, against a nominal 8 for a 1 s rung
+    CHECK(writes >= 10);   // 16 measured, one per time the demand moved
 }
 
 TEST_CASE("modbus fault: a dead output device does not pin the safe-state urgency") {

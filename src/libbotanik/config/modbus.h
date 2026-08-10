@@ -238,6 +238,22 @@ namespace Botanik { namespace Config {
 #endif
     BOTANIK_CFG(uint32_t, MODBUS_REWRITE_MS);
 
+    /** @brief How long a demand that has moved may sit behind reads.
+     *
+     *  Not a throttle: it is the DENOMINATOR a write block's lateness is
+     *  measured against, so it decides where a write ranks rather than when it
+     *  is allowed. Every block competes on how far it is through the lateness it
+     *  is allowed, and this is a write's share of that. Shorter therefore means
+     *  higher priority against the read rungs, not a faster retry.
+     *
+     *  The one value here with a plant consequence rather than a bus one, and
+     *  the one to check against a real actuator: at 500 ms a demand reaches the
+     *  field inside half a second even with every read rung competing. */
+#ifndef BOTANIK_MODBUS_WRITE_DEADLINE_MS
+#  define BOTANIK_MODBUS_WRITE_DEADLINE_MS 500
+#endif
+    BOTANIK_CFG(uint32_t, MODBUS_WRITE_DEADLINE_MS);
+
     /** @brief Longest a write block waits after being refused.
      *
      *  An exception is not silence: the device heard us and declined, so its
