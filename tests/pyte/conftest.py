@@ -3,7 +3,11 @@
 The sim is the real firmware, speaking ANSI over its console serial at a
 throttled 4800 baud. It gets a PTY rather than a pipe (RawSerial's TIOCOUTQ only
 answers on a tty), and pyte replays the bytes into an 80x24 screen to assert on.
-Speed comes from BOTANIK_TIME_SCALE, never from a higher baud. See README.md.
+
+Time is the harness's, not the host's: the sim runs one beat per command over a
+control pipe (BOTANIK_SIM_CLOCK=manual), so a wait is bounded in beats and the
+same run gives the same screen. BOTANIK_PYTE_MANUAL=0 falls back to the
+wall-clock path below. See README.md.
 """
 
 import difflib
@@ -23,58 +27,19 @@ from normalize import (normalize_lines, meaningful_lines, strip_noise,
 COLS, ROWS = 80, 24                       # matches AnsiTerminal(..., 80, 24, ...) in main.cpp
 GOLDEN_DIR = Path(__file__).parent / "golden"
 
-# Every wait is bounded twice, and a test must never depend on either being hit:
+# Wall-clock fallback (BOTANIK_PYTE_MANUAL=0). Every wait is bounded twice and
+# must never depend on either firing: IDLE gives up once the screen has stopped
+# moving, CAP gives up regardless (a live log tail repaints forever, so IDLE
+# alone never fires on a firmware whose boot never completes). Both on
+# time.monotonic(), which does not count time the box spent suspended. IDLE is a
+# heuristic and cannot tell a stuck sim from a starved one, so it stays generous:
+# tightening it to 3 s false-failed four runs in six against a good sim.
 #
-#   IDLE  - give up once the screen has stopped moving for this long. The fast
-#           path out of a wait for something that is never coming.
-#   CAP   - give up regardless. The screen moving is NOT evidence that the thing
-#           being waited for is on its way: a page with a live log tail repaints
-#           forever, so on a firmware whose boot handshake never completes the
-#           idle rule alone never fires and the wait runs to the end of time.
-#           That is exactly what happened, and a suite that hangs is worse than
-#           one that fails - it cannot even tell you what broke.
-#
-# Both in host seconds on time.monotonic(). Suspend the box mid-suite and
-# time.time() leaps forward on resume, ending every wait in flight (one soak run
-# here reported 19.9 hours); CLOCK_MONOTONIC does not count suspended time.
-#
-# Host seconds, and not the sim's own clock, because that clock is not a measure
-# of the firmware's progress. It reads boot_epoch + uptime, and the sim
-# re-derives boot_epoch from the host clock (utils/time.cpp), which cancels the
-# dilation exactly: measured, the status bar advances 21 s in 20 s of wall time
-# while the uptime beside it advances 200 s in 4. The budget denominated in it
-# was therefore a wall-clock budget with a 2-second sawtooth on top, firing at
-# unpredictable moments - which is what used to fail a different screen test on
-# every loaded run.
-#
-# The two do different jobs and must be sized differently. IDLE is a HEURISTIC -
-# "nothing has happened for a while, so probably nothing will" - and it cannot
-# tell a stuck firmware from a starved one: a sim getting a fraction of a core
-# legitimately paints nothing for seconds at a time. Tightening it from 15 s to
-# 3 s to make failures quicker false-failed four runs in six against a sim known
-# to be good. So IDLE stays generous, and CAP is what actually bounds a wait.
-#
-# Measured, for sizing: a healthy boot waits 0.10 s (0.36 s under 8x CPU load),
-# and a whole suite run against a healthy sim has stretched to 457 s on a box
-# also running another build and test suite. The cap is 30 s - two orders of
-# magnitude over the nominal wait, over any contention seen, and still a bound.
-#
-# What keeps a broken build from paying the cap 22 times is helpers.boot(): it
-# reports the first failure and short-circuits the rest, so broken firmware costs
-# one cap per file rather than one per test.
-#
-# The golden compare uses the same budgets, and used to have tighter ones of its
-# own (4 s idle / 20 s cap). Nothing justified the difference - it is the same
-# heuristic against the same starvation - and 4 s is inside the range the
-# paragraph above records as false-failing. It was also the most exposed caller:
-# a page whose volatile cells are all masked (MONITOR) has a normalized screen
-# that is STATIC once painted, so idleness is its normal state and the only
-# question the heuristic gets to answer is whether the sim was scheduled.
 # Manual clock (BOTANIK_PYTE_MANUAL=1): the sim advances one beat per command
 # instead of following the host clock, so a wait is bounded in BEATS and the
 # same run always produces the same screen. The budgets below then bound only
 # the ack round-trip, which is a liveness check rather than a race.
-MANUAL = os.environ.get("BOTANIK_PYTE_MANUAL", "0") == "1"
+MANUAL = os.environ.get("BOTANIK_PYTE_MANUAL", "1") != "0"
 ACK = b"\033]777;botanik-ack\007"
 BEATS_PER_STEP = int(os.environ.get("BOTANIK_PYTE_BEAT_STEP", "20"))
 MAX_BEATS = int(os.environ.get("BOTANIK_PYTE_MAX_BEATS", "4000"))
@@ -287,7 +252,18 @@ class Term:
         of the assert path.
         """
         if self.manual:
-            self.run(BEATS_PER_STEP)      # a fixed, repeatable amount of settling
+            # Quiescence in BEATS, not seconds: run steps until the screen holds
+            # still across two of them. A fixed number of beats is not enough -
+            # it captured a golden before the page had painted at all.
+            last = self.view()
+            stable = 0
+            for _ in range(0, MAX_BEATS, BEATS_PER_STEP):
+                self.run(BEATS_PER_STEP)
+                cur = self.view()
+                stable = stable + 1 if cur == last else 0
+                last = cur
+                if stable >= 2:
+                    return
             return
         changed_at = None
         last = self.view()
