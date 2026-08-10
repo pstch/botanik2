@@ -303,7 +303,8 @@ struct LiveBus {
     Sim::FieldBus bus;
     uint64_t      t = 0;
 
-    LiveBus() : bank(Site::g_site.vars), client(&bank, nullptr, Site::g_site.devices) {
+    explicit LiveBus(const DeviceTable* devs = Site::g_site.devices)
+        : bank(Site::g_site.vars), client(&bank, nullptr, devs) {
         bank.init();
         bank.enable_control(Bank::INHIBIT_HEALTH);
         bank.enable_control(Bank::INHIBIT_OPERATOR);
@@ -337,6 +338,13 @@ struct LiveBus {
      *  that moved its demand looks like to the collector. */
     void dirty_all_writes() {
         for (uint8_t p = 0; p < client.peer_count(); ++p) client.reassert_outputs(p);
+    }
+
+    /** @brief Peer index of @p unit, or NO_PEER. */
+    uint8_t peer_of(uint8_t unit) const {
+        for (uint8_t p = 0; p < client.peer_count(); ++p)
+            if (client.peer_unit(p) == unit) return p;
+        return RtuClient::NO_PEER;
     }
 
     /** @brief The fastest read block, which is the one that starves first. */
@@ -505,6 +513,68 @@ TEST_CASE("modbus probe: the probes go round the dead devices, not at one of the
     INFO(probed << " of the 4 absent devices have misses against them");
     CHECK(probed == 4);
     CHECK(m.client.dead_count() == 4);
+}
+
+// A copy of the site's device table with ONE unit given a deadline of its own,
+// so the two cases below differ in exactly that and nothing else. Built at run
+// time from the site's own models rather than written out again, or the other
+// nineteen devices would quietly plan as generic.
+namespace {
+
+const uint8_t SLOW_UNIT = 41;          // a Temp/RH sensor
+
+struct SlowTable {
+    DeviceModel model;
+    Device      devs[64];
+    DeviceTable table;
+
+    explicit SlowTable(uint32_t timeout_ms) {
+        const DeviceTable* site = Site::g_site.devices;
+        model = model_of(site, SLOW_UNIT);      // same limits, same alignment
+        model.timeout_ms = timeout_ms;          // ...and its own patience
+        for (uint8_t i = 0; i < site->count; ++i) {
+            devs[i] = site->devices[i];
+            if (devs[i].unit == SLOW_UNIT) devs[i].model = &model;
+        }
+        table.devices = devs;
+        table.count   = site->count;
+    }
+};
+
+}  // namespace
+
+TEST_CASE("modbus slow: a unit past the bus deadline is faulted like a dead one") {
+    // F3, and the behaviour that makes the fix worth having. Nothing is wrong
+    // with this device except that it is slower than one global number.
+    LiveBus m;                                   // the site table: no timeout declared
+    const uint8_t peer = m.peer_of(SLOW_UNIT);
+    REQUIRE(peer != RtuClient::NO_PEER);
+
+    m.bus.set_fault(SLOW_UNIT, Sim::FieldBus::FAULT_LATE,
+                    Config::MODBUS_TIMEOUT_MS + 100);
+
+    REQUIRE(m.until([&] { return m.client.peer_dead(peer); }, 4000));
+    INFO("it answers 100 ms after the master has stopped listening");
+    // And the answer it did send arrived too late to be anyone's, which is the
+    // other half of the symptom: a device in backoff that is talking.
+    CHECK(m.client.stale_rx() > 0);
+}
+
+TEST_CASE("modbus slow: a unit that declares its own deadline is not") {
+    SlowTable slow(Config::MODBUS_TIMEOUT_MS * 2u);
+    LiveBus m(&slow.table);
+    const uint8_t peer = m.peer_of(SLOW_UNIT);
+    REQUIRE(peer != RtuClient::NO_PEER);
+
+    m.bus.set_fault(SLOW_UNIT, Sim::FieldBus::FAULT_LATE,
+                    Config::MODBUS_TIMEOUT_MS + 100);
+
+    m.beats(2000);
+    INFO("declared " << slow.model.timeout_ms << " ms, answers in "
+         << (Config::MODBUS_TIMEOUT_MS + 100) << " ms");
+    CHECK_FALSE(m.client.peer_dead(peer));
+    CHECK(m.client.peer_misses(peer) == 0);
+    CHECK(m.client.dead_count() == 0);
 }
 
 TEST_CASE("modbus fault: a dead output device does not pin the safe-state urgency") {

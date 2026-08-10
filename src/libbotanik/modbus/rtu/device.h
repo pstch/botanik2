@@ -70,6 +70,16 @@ namespace Botanik { namespace Modbus {
         /** @brief Silence this model needs after its answer, in ms, when that
          *  is more than the bus default. 0 to use MODBUS_GAP_MS. */
         uint16_t    min_gap_ms;
+        /** @brief How long this model may take to ANSWER, in ms; 0 for the bus
+         *  default (MODBUS_TIMEOUT_MS).
+         *
+         *  The other side of min_gap_ms, and needed for the same reason: the
+         *  budget note puts real devices at 2-30 ms and the cheap ones at 20-50,
+         *  and one slower than the bus deadline is otherwise indistinguishable
+         *  from a dead one. It answers after the master has stopped listening,
+         *  its answer is flushed as a stale byte by the next transaction, and it
+         *  sits in backoff for ever with nothing wrong with it. */
+        uint32_t    timeout_ms;
     };
 
     /** @}
@@ -89,20 +99,23 @@ namespace Botanik { namespace Modbus {
      *               point at a time, and then a single write's echoed VALUE is
      *               the only confirmation the point moved. */
     constexpr DeviceModel meter(const char* name, uint16_t regs, uint8_t align,
-                                bool multi = false, uint16_t gap_ms = 0) {
-        return DeviceModel{ name, regs, 0, align, align, multi, gap_ms };
+                                bool multi = false, uint16_t gap_ms = 0,
+                                uint32_t timeout_ms = 0) {
+        return DeviceModel{ name, regs, 0, align, align, multi, gap_ms, timeout_ms };
     }
 
     /** @brief A relay or discrete board: coils only, no alignment rule. */
     constexpr DeviceModel relay_board(const char* name, uint16_t coils,
-                                      bool multi = true, uint16_t gap_ms = 0) {
-        return DeviceModel{ name, 0, coils, 1, 1, multi, gap_ms };
+                                      bool multi = true, uint16_t gap_ms = 0,
+                                      uint32_t timeout_ms = 0) {
+        return DeviceModel{ name, 0, coils, 1, 1, multi, gap_ms, timeout_ms };
     }
 
     /** @brief An analog IO board: registers, one per channel, no pairing. */
     constexpr DeviceModel io_board(const char* name, uint16_t regs,
-                                   bool multi = true, uint16_t gap_ms = 0) {
-        return DeviceModel{ name, regs, 0, 1, 1, multi, gap_ms };
+                                   bool multi = true, uint16_t gap_ms = 0,
+                                   uint32_t timeout_ms = 0) {
+        return DeviceModel{ name, regs, 0, 1, 1, multi, gap_ms, timeout_ms };
     }
 
     /** @}

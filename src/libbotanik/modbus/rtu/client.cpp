@@ -18,6 +18,7 @@ namespace Botanik { namespace Modbus {
 // ODR-used - bound to a reference, which any comparison in a test macro does.
 // Without it the header's initialiser is a compile-time value and nothing else.
 const uint16_t RtuClient::NO_BLOCK;
+const uint8_t  RtuClient::NO_PEER;
 
 void RtuClient::on_setup(uint64_t now_ms) {
     HAL::Serial::fieldbus_begin(Config::MODBUS_BAUD, 8, HAL::Serial::PARITY_NONE, 1);
@@ -437,7 +438,12 @@ void RtuClient::on_step(uint64_t now_ms) {
     // with RE tied low echoes, the simulator's socketpair does not, and HAL
     // knows which. Straight to MB_RX - the tx_idle() check above is what stops
     // the NEXT frame starting before this one has gone.
-    _framer.arm(_expect, now_ms, Config::MODBUS_TIMEOUT_MS,
+    // The deadline is the DEVICE's where it declares one, beside the gap that
+    // comes from the same model. A unit slower than the bus default is otherwise
+    // indistinguishable from a dead one, and no amount of probing fixes it.
+    const DeviceModel& m = model_of(_devices, _plan.block(pick).device);
+    _framer.arm(_expect, now_ms,
+                (m.timeout_ms != 0) ? m.timeout_ms : Config::MODBUS_TIMEOUT_MS,
                 HAL::Serial::fieldbus_echoes() ? _frame_len : 0);
     _enter(MB_RX, now_ms);
 }

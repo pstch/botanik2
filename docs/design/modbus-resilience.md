@@ -10,8 +10,8 @@ Everything here is `modbus/rtu/`. The TCP corners are untouched.
 Phases are ordered so each one is safe to stop after. Phase 0 comes first because
 none of the rest is verifiable without it.
 
-**Status.** Phases 0.1, 1, 2 and 3 are done on `mb-solidify`. What is left is
-the per-device timeout (4), the diagnosis rows (5) and the documentation (6).
+**Status.** Phases 0.1 and 1 to 4 are done on `mb-solidify`. What is left is the
+diagnosis rows (5) and the documentation (6).
 
 One thing phase 0 turned up that the plan did not predict: the simulator paces
 its bytes against the HOST clock, so a test stepping a virtual beat sees the port
@@ -305,9 +305,9 @@ all twelve reach backoff.
 
 ---
 
-## Phase 4 - the device model
+## Phase 4 - the device model [DONE]
 
-### 4.1 A per-device response timeout (F3)
+### 4.1 A per-device response timeout (F3) [DONE]
 
 `MODBUS_TIMEOUT_MS` is global, so a device slower than 300 ms is indistinguishable
 from a dead one: it answers after the master has stopped listening, the answer is
@@ -323,7 +323,10 @@ arithmetic: the gate's guarantee is stated against whatever timeout the device
 actually got.
 
 **Test.** A late unit inside its own declared timeout answers and stays live; the
-same unit under the bus default is faulted.
+same unit under the bus default is faulted. The two cases run the SAME site
+device table with one entry's model copied and given a deadline, built at run
+time from the site's own models - writing a second table out by hand would have
+planned the other nineteen devices as generic and tested two things at once.
 
 ---
 
