@@ -76,6 +76,7 @@ namespace Botanik {
         _sys_ctx.scheduler = _scheduler.context();
         _sys_ctx.tasks     = &_tasks;
         _sys_ctx.vars      = &_io;
+        _sys_ctx.params    = &_params;
 #if BOTANIK_FEATURE_NETWORK
         _sys_ctx.network = &_net.network();
 #endif
@@ -186,6 +187,13 @@ namespace Botanik {
         // out at the configured rate. Everything above them is at the
         // compile-time default: the port must be open before the store is read.
         _apply_serial_config();
+#if BOTANIK_FEATURE_CONSOLE
+        // Likewise the terminal, and here rather than on the first beat because
+        // nothing has been drawn yet: the console establishes its screen on its
+        // first step(), so picking the stored geometry up now costs one repaint
+        // instead of two.
+        _apply_console_config();
+#endif
 
         _scheduler.setup(HAL::Clock::uptime_ms(), _hw_watchdog_ms);
 
@@ -256,13 +264,31 @@ namespace Botanik {
 
         // --- CONFIG: the image every config-driven component reads below ---
         _tasks.add_component<PHASE_CONFIG>("params", GROUP_SLOW, _params);
-        // ...and the two rates that are config for the firmware ITSELF. After
-        // the params component, so an edit committed this beat is applied this
-        // beat rather than the next.
+        // ...and what is config for the firmware ITSELF. After the params
+        // component, so an edit committed this beat is applied this beat rather
+        // than the next.
         _tasks.add("serial_cfg", GROUP_SLOW, PHASE_CONFIG,
             [](void* s, uint64_t) {
                 static_cast<BotanikFirmware*>(s)->_apply_serial_config();
             }, this);
+#if BOTANIK_FEATURE_CONSOLE
+        // The terminal the console draws on, after the rates: one commit can
+        // move both, and a repaint belongs at the rate it will actually go out
+        // at rather than the one it was queued at.
+        _tasks.add("console_cfg", GROUP_SLOW, PHASE_CONFIG,
+            [](void* s, uint64_t) {
+                static_cast<BotanikFirmware*>(s)->_apply_console_config();
+            }, this);
+#endif
+#if BOTANIK_FEATURE_LOGGING
+        // The one sys_ row with a consumer that keeps its own copy. The rest are
+        // read live where they are used (health.h thresholds, Params' retain
+        // cadence, the telemetry sender), which needs no task at all.
+        _tasks.add("log_cfg", GROUP_SLOW, PHASE_CONFIG,
+            [](void* s, uint64_t) {
+                static_cast<BotanikFirmware*>(s)->_apply_log_config();
+            }, this);
+#endif
 
         _tasks.add("site_config", GROUP_FAST, PHASE_CONFIG,
                    &_site_hook<&BotanikFirmware::on_config>, this);
@@ -382,6 +408,59 @@ namespace Botanik {
         }
 #endif
     }
+
+#if BOTANIK_FEATURE_CONSOLE
+    void BotanikFirmware::_apply_console_config() {
+        const uint32_t serial = Vars::group_serial(&_io, "term");
+        // A group with no rows answers 0, which is also the "never applied"
+        // seed - so a build whose site left the splice out simply never
+        // reconfigures, and keeps the geometry it was constructed at.
+        if (serial == 0 || serial == _term_serial) return;
+        _term_serial = serial;
+
+        const uint8_t  ty = (uint8_t)Vars::get_int(&_io, "term_type",
+                                (int32_t)Config::TERMINAL_TYPE);
+        const uint16_t co = (uint16_t)Vars::get_int(&_io, "term_cols",
+                                (int32_t)_console_cols);
+        const uint16_t ro = (uint16_t)Vars::get_int(&_io, "term_rows",
+                                (int32_t)_console_rows);
+        // The row's band is 0..3, but it is the only guard and a corrupt store
+        // reaches this by another road; an out-of-range make would index the
+        // handshake switch with no case for it.
+        const Terminal::Ansi::TerminalType type =
+            ty <= (uint8_t)Terminal::Ansi::TerminalType::MINITEL_2
+                ? (Terminal::Ansi::TerminalType)ty
+                : Terminal::Ansi::CONFIGURED_TERMINAL;
+
+        if (!_console.terminal().reconfigure(type, co, ro)) return;
+        _console_cols = co;
+        _console_rows = ro;
+        // After the repaint, so the line lands on the screen it describes. The
+        // rate is not mentioned: serial_console_baud reports its own.
+        _logger.notice(Logs::BOOT, "console now %ux%u, terminal type %u",
+                       (unsigned)co, (unsigned)ro, (unsigned)ty);
+    }
+#endif
+
+#if BOTANIK_FEATURE_LOGGING
+    void BotanikFirmware::_apply_log_config() {
+        const int32_t want = Vars::get_int(&_io, "sys_log_level",
+                                           (int32_t)Config::LOG_MIN_LEVEL);
+        // LogLevel is a bit-per-level enum (1/2/4/8/16/32) and the row is a
+        // plain number, so a value between two levels is rounded DOWN to the
+        // level at or below it - the permissive reading, which is the safe way
+        // to be wrong about a log filter. Anything under the lowest level is
+        // simply the lowest.
+        Logs::LogLevel lvl = Logs::LOG_DEBUG;
+        static const Logs::LogLevel LEVELS[] = {
+            Logs::LOG_DEBUG, Logs::LOG_INFO, Logs::LOG_NOTICE,
+            Logs::LOG_WARNING, Logs::LOG_ERROR, Logs::LOG_CRITICAL,
+        };
+        for (const Logs::LogLevel L : LEVELS)
+            if (want >= (int32_t)L) lvl = L;
+        if (lvl != _logger.min_level()) _logger.set_min_level(lvl);
+    }
+#endif
 
     void BotanikFirmware::_latch_control() {
         if (!_health.watchdog_ok()) {

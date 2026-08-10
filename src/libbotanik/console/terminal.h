@@ -231,8 +231,27 @@ namespace Botanik { namespace Terminal {
          *  once before the first render. */
         void setup_terminal();
 
-        /** @brief Which terminal is on the wire (fixed at construction). */
+        /** @brief Which terminal is on the wire. */
         Ansi::TerminalType terminal_type() const { return _type; }
+
+        /** @brief Re-declare what is on the console wire: its make and its size.
+         *
+         *  The device half of the `term_` parameter group (console/params.h).
+         *  Both grids are sized for the largest supported terminal and every
+         *  renderer reads cols() / rows() live, so a resize is a re-clamp plus a
+         *  repaint - there is nothing to reallocate and no layout cached anywhere
+         *  to invalidate. @p cols / @p rows are clamped to the grid exactly as
+         *  the constructor clamps them, so a band that got past the parameter
+         *  cannot get past this.
+         *
+         *  Blanks the screen and re-emits the setup handshake when the type
+         *  moved. It does NOT repaint: the caller owns the frame, so the Console
+         *  redraws its chrome and re-focuses the page (which is also what
+         *  re-declares the per-row priorities for the new height).
+         *
+         *  @return true when something actually moved, i.e. the caller owes a
+         *  repaint. A no-op call costs nothing and emits nothing. */
+        bool reconfigure(Ansi::TerminalType type, uint16_t cols, uint16_t rows);
 
         /** @}
          *  @name Cursor & geometry

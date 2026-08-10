@@ -391,6 +391,72 @@ TEST_CASE("present: a scroll whose escape does not fit leaves BACK alone") {
     CHECK(f.present().empty());         // and FRONT now matches BACK
 }
 
+// reconfigure() - the device half of the `term_` parameter group.
+
+TEST_CASE("reconfigure: a new geometry takes, and blanks what addressed the old one") {
+    TermFixture f(20, 10);
+    f.put(3, 0, "0123456789");
+    f.settle();
+
+    REQUIRE(f.term.reconfigure(f.term.terminal_type(), 40, 12));
+    CHECK(f.term.cols() == 40);
+    CHECK(f.term.rows_total() == 12);
+
+    // Every cell's meaning moved with _cols, so nothing may survive into the
+    // new screen: both grids are blank and agree, so the frame has no CONTENT
+    // to emit. (It still parks the idle cursor, whose corner just moved, so
+    // this is not an empty string.)
+    f.capture();
+    const std::string first = f.present();
+    INFO("emitted after the resize: " << first);
+    CHECK(first.find("0123456789") == std::string::npos);
+    CHECK(f.present().empty());          // ...and by the second frame, settled
+
+    INFO("and the wider row is now reachable");
+    f.put(3, 35, "X");
+    CHECK(f.present().size() > 0);
+}
+
+TEST_CASE("reconfigure: a no-op call changes nothing and emits nothing") {
+    TermFixture f(20, 10);
+    f.put(1, 1, "hello");
+    f.settle();
+
+    CHECK_FALSE(f.term.reconfigure(f.term.terminal_type(), 20, 10));
+    INFO("the screen was not blanked, so the painted row is still on the wire");
+    CHECK(f.capture().empty());
+    CHECK(f.present().empty());
+}
+
+TEST_CASE("reconfigure: a geometry past the grid is clamped, not honoured") {
+    TermFixture f(20, 10);
+    // The parameter band stops this, but the band is the only guard and a
+    // corrupt store reaches the device by another road. Clamped exactly as the
+    // constructor clamps, or _idx() walks off both grids.
+    REQUIRE(f.term.reconfigure(f.term.terminal_type(), 60000, 60000));
+    CHECK(f.term.cols() == Config::TERMINAL_MAX_COLS);
+    CHECK(f.term.rows_total() == Config::TERMINAL_MAX_ROWS);
+
+    SUBCASE("and a zero is a terminal of one, never a division by it") {
+        REQUIRE(f.term.reconfigure(f.term.terminal_type(), 0, 0));
+        CHECK(f.term.cols() == 1);
+        CHECK(f.term.rows_total() == 1);
+    }
+}
+
+TEST_CASE("reconfigure: swapping the make re-emits its setup handshake") {
+    TermFixture f(20, 10);
+    REQUIRE(f.term.terminal_type() == Terminal::Ansi::TerminalType::VT102);
+
+    // A Minitel needs its PRO2 sequences; a make swap without them leaves the
+    // terminal in whatever mode the last one put it in.
+    REQUIRE(f.term.reconfigure(Terminal::Ansi::TerminalType::MINITEL_1B, 40, 24));
+    CHECK(f.term.terminal_type() == Terminal::Ansi::TerminalType::MINITEL_1B);
+    const std::string out = f.capture();
+    INFO("PRO2 is an ESC 0x3A sequence: <ESC>: ...");
+    CHECK(out.find("\x1b:") != std::string::npos);
+}
+
 }  // namespace terminal_present
 
 // --------------------------------------------------------------------------

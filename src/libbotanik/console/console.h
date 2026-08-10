@@ -112,6 +112,17 @@ namespace Botanik { namespace Terminal {
          *  device); call once before the first render. */
         void setup_terminal() { _term.setup_terminal(); }
 
+        /** @brief Re-declare which terminal is on the wire and how big it is,
+         *  and put the frame back on the screen it just blanked.
+         *
+         *  What the `term_` parameter group commits to (console/params.h);
+         *  BotanikFirmware drives it from PHASE_CONFIG. Everything that lays
+         *  itself out reads rows() / cols() at render, so the repaint here IS the
+         *  reflow - there is no geometry cached in a page to update.
+         *
+         *  @return true when something moved. A no-op call emits nothing. */
+        bool reconfigure(Ansi::TerminalType type, uint16_t cols, uint16_t rows);
+
         /** @}
          *  @name Content-area geometry & scrolling
          *  @{ */
@@ -185,6 +196,12 @@ namespace Botanik { namespace Terminal {
         /** @brief Hand the content band back to the incoming page as plain
          *  structure (see the definition). */
         void _reset_content_priority();
+
+        /** @brief Redraw the whole frame onto a screen the device has just
+         *  blanked: chrome, then the active page's focus(). Shared by the
+         *  first-step establish and reconfigure(), which owe the identical
+         *  repaint for the identical reason. */
+        void _repaint_frame();
 
         /** @brief Last screen row a page may scroll/draw content into (0-indexed):
          *  physical last row minus the reserved bottom bar minus row 0. */

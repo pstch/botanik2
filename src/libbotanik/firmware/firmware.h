@@ -152,14 +152,21 @@ namespace Botanik {
         uint32_t                      _hw_watchdog_ms = Config::HW_WATCHDOG_MS;
 
 #if BOTANIK_FEATURE_CONSOLE
-        /** @brief Terminal geometry, fixed at construction (the AnsiTerminal
-         *  takes it by value and has no resize). From the config: it is a
-         *  property of the installation, not of the target. */
+        /** @brief What the console is built at, and what the `term_` group then
+         *  moves it to. These are the CONSTRUCTION values - the Config defaults,
+         *  since the parameter store cannot be read before the port is open -
+         *  and _apply_console_config() applies the stored ones once setup() has
+         *  loaded them. */
         uint16_t                      _console_cols = Config::CONSOLE_COLS;
         uint16_t                      _console_rows = Config::CONSOLE_ROWS;
         static_assert(Config::CONSOLE_COLS <= Config::TERMINAL_MAX_COLS &&
                       Config::CONSOLE_ROWS <= Config::TERMINAL_MAX_ROWS,
                       "console geometry exceeds the screen back-buffer");
+        /** @brief Last `term_serial` applied, so the CONFIG task reconfigures on
+         *  the COMMIT and not on each of the three edits behind it. 0 is not a
+         *  valid serial (the row's default is 1), so the first pass always
+         *  applies - which is what picks the stored geometry up at bring-up. */
+        uint32_t                      _term_serial = 0;
 #endif
 
         /** @} */
@@ -474,6 +481,44 @@ namespace Botanik {
          *  own notes say so. The confirming log line lands at the NEW rate, so
          *  it is the first thing read after reconnecting. */
         void _apply_serial_config();
+
+#if BOTANIK_FEATURE_CONSOLE
+        /** @brief Apply the `term_` group: which terminal is on the console wire
+         *  and how big it is. Registered as the "console_cfg" task.
+         *
+         *  Gated on the group's commit serial, unlike the baud above, and for a
+         *  reason the baud does not have: these three rows describe ONE physical
+         *  terminal, so applying them one edit at a time walks the screen through
+         *  sizes that match nothing on the wire. Staged, a make-and-size swap is
+         *  a single repaint.
+         *
+         *  The firmware drives this rather than the Console watching the bank
+         *  itself: the Console holds no SystemContext and has no route to a
+         *  variable, which is deliberate (a terminal is for drawing). So the
+         *  reader that has the bank pushes, exactly as it does for the baud.
+         *
+         *  @warning A geometry the terminal does not actually have is a garbled
+         *  screen that survives a reboot - there is no resize handshake to
+         *  discover the truth and correct it. The rows' declared bands are the
+         *  whole guard. */
+        void _apply_console_config();
+#endif
+
+#if BOTANIK_FEATURE_LOGGING
+        /** @brief Apply `sys_log_level` to the live logger. Registered as the
+         *  "log_cfg" task.
+         *
+         *  The logger keeps its own copy of the floor (it is read on every
+         *  _emit(), before any formatting), so unlike the other sys_ rows this
+         *  one needs pushing. Edge-triggered against what is running, so the
+         *  steady case is a read and a compare.
+         *
+         *  The `loglevel` command writes the same parameter and then sets the
+         *  logger itself, which makes this a no-op for that path - it exists for
+         *  the boot load, and for a level set from the PARAMS page or over
+         *  Modbus. */
+        void _apply_log_config();
+#endif
 
         /** @brief Track the health verdict against control authority. Registered
          *  as the "control_latch" task.

@@ -170,11 +170,16 @@ The sections below follow the header's own order.
 
 ### Health and alarms
 
+The three thresholds are **runtime parameters** (`sys_cpu_load_pct`,
+`sys_jitter_pct`, `sys_stack_pct`), read live each beat: what counts as too much
+load is a property of the installation, and the number worth moving is the one a
+unit is nuisance-alarming on. The macros are their factory values.
+
 | Macro | Default | |
 |---|---|---|
-| `ALARM_CPU_LOAD_PCT` | 50 | `CPU_LOAD` alarm threshold |
-| `ALARM_CPU_JITTER_PCT` | 50 | `CPU_JITT` alarm threshold. Equal to the load one today, but they threshold different quantities |
-| `ALARM_STACK_PCT` | 80 | `STACK` alarm threshold |
+| `ALARM_CPU_LOAD_PCT` | 50 | factory default for `sys_cpu_load_pct`; the `CPU_LOAD` threshold |
+| `ALARM_CPU_JITTER_PCT` | 50 | factory default for `sys_jitter_pct`. Equal to the load one today, but they threshold different quantities, so they stay two knobs |
+| `ALARM_STACK_PCT` | 80 | factory default for `sys_stack_pct`; the `STACK` threshold |
 | `ALARM_EVENT_HOLD_MS` | 300000 | how long an event-style alarm stays active |
 | `HEALTH_RESET_WINDOW_MS` | 300000 | how long after boot `SYS_RST` stays asserted |
 | `ALARM_NOTIFIERS_MAX` | 4 | |
@@ -186,14 +191,15 @@ The sections below follow the header's own order.
 | Macro | Default | |
 |---|---|---|
 | `HOME_FIELDS_MAX` | 22 | home fields (3 columns x 8, minus the uptime cells) |
-| `VAR_GROUPS_MAX` | 16 | distinct variable groups a site may have. A group is a name prefix, so this bounds how many domains one table spans; past it `var_group()` answers `?` |
+| `VAR_GROUPS_MAX` | 24 | distinct variable groups a site may have. A group is a name prefix, so this bounds how many domains one table spans; past it `var_group()` answers `?`. The pool covers the WHOLE table, so the library's eight config groups (`serial`, `net`, `ntp`, `mqtt`, `geo`, `mb`, `term`, `sys`) count against it - `gh_mlb41` reaches 15 |
 | `VAR_GROUP_NAME_LEN` | 16 | bytes one interned group name may take, NUL included |
+| `RETAIN_SAVE_MS` | 300000 | factory default for `sys_retain_sec` (in SECONDS there): how often the `F_RETAIN` rows are written to flash. A wear-versus-loss dial. 0 leaves only the save on the way down and the `save` command |
 
 ### Logging
 
 | Macro | Default | |
 |---|---|---|
-| `LOG_MIN_LEVEL` | 2 (info) | the initial `loglevel`. SIMULATOR builds force it to 1 (debug) from `CMakeLists.txt`, so the sim never shows this default |
+| `LOG_MIN_LEVEL` | 2 (info) | factory default for `sys_log_level`, which IS the master floor: `loglevel` writes that parameter, so a level set over the terminal survives a reboot. SIMULATOR builds force this to 1 (debug) from `CMakeLists.txt`, so the sim never shows this default |
 | `LOG_MESSAGE_LEN` | 256 | the raw message, before formatting |
 | `LOG_FORMATTED_LEN` | 320 | the formatted line. A `static_assert` keeps it at least `LOG_MESSAGE_LEN + 64`, so a full-length message does not lose its tail to the timestamp/level/topic prefix |
 | `LOG_WRITERS_MAX` | 8 | |
@@ -250,9 +256,9 @@ Broker host, port and keepalive are runtime parameters (`mqtt_host`, `mqtt_port`
 | `MQTT_TOPIC_LEN` | 96 | topic buffer shared by all three publishers, so a long `MQTT_TOPIC_PREFIX` truncates the same way everywhere |
 | `MQTT_PAYLOAD_LEN` | 64 | caps a published telemetry value's formatted width |
 | `MQTT_RX_PER_STEP` | 8 | socket reads drained per activation, the RX-side twin of `MQTT_TELEMETRY_PER_STEP` |
-| `MQTT_TELEMETRY_PERIOD_MS` | 30000 | 0 disables telemetry |
+| `MQTT_TELEMETRY_PERIOD_MS` | 30000 | factory default for `mqtt_tlm_sec` (in SECONDS there); 0 disables telemetry |
 | `MQTT_TELEMETRY_PER_STEP` | 8 | fields published per step, so one cycle cannot eat a beat |
-| `MQTT_TELEMETRY_RETAIN` | 1 | @warning an invalid reading is skipped rather than published, and there is no last will, so the broker keeps serving the last good value of a dead sensor. Turn it off where "current" must be distinguishable from "last seen" |
+| `MQTT_TELEMETRY_RETAIN` | 1 | factory default for `mqtt_retain`. @warning an invalid reading is skipped rather than published, and there is no last will, so the broker keeps serving the last good value of a dead sensor. Turn it off where "current" must be distinguishable from "last seen" |
 | `MQTT_TELEMETRY_TOPIC` / `MQTT_LOG_TOPIC` / `MQTT_ALARM_TOPIC` | `"status"` / `"logs"` / `"alarms"` | the path schema under `MQTT_TOPIC_PREFIX`. Changing one moves every subscriber |
 | `MQTT_LOG_MIN_LEVEL` | 1 (debug) | the MQTT sink's own threshold; DEBUG, so the broker carries everything the logger does |
 
@@ -264,11 +270,27 @@ Broker host, port and keepalive are runtime parameters (`mqtt_host`, `mqtt_port`
 
 ### Terminal and console
 
+Which terminal is on the wire and how big it is are **runtime parameters**
+(`term_type`, `term_cols`, `term_rows`), so swapping a VT102 for a Minitel, or
+an 80x24 for a 132x32, needs no firmware build. The three below are their
+factory values: what the console is CONSTRUCTED at, since the parameter store
+cannot be read before the port is open, and what a wiped store comes back to.
+
+They are staged behind `term_serial`, unlike `serial_console_baud`: the three
+describe ONE physical terminal, and applying them one edit at a time walks the
+screen through geometries that match nothing on the wire.
+
+@warning A geometry the terminal does not actually have is a garbled screen that
+**survives a reboot** - there is no resize handshake to discover the truth and
+correct it. The rows' declared bands (`EDITOR_MIN_COLS`..`TERMINAL_MAX_COLS`,
+12..`TERMINAL_MAX_ROWS`) are the whole guard. Same class of footgun as
+`serial_console_baud`, which can lock the console out entirely.
+
 | Macro | Default | |
 |---|---|---|
-| `TERMINAL_TYPE` | 1 | 0 = VT100, 1 = VT102, 2 = Minitel 1B, 3 = Minitel 2. A plain integer, because this header is included everywhere and must not depend on the console |
-| `CONSOLE_COLS` / `CONSOLE_ROWS` | 80 / 24 | geometry of the terminal on the wire. Fixed at construction, bounded by the two below |
-| `TERMINAL_MAX_COLS` / `_ROWS` | 132 / 32 | largest terminal supported. They size the screen back-buffer (two cell grids, so 2 x their product in RAM) and clamp `CONSOLE_COLS` / `_ROWS` |
+| `TERMINAL_TYPE` | 1 | factory default for `term_type`. 0 = VT100, 1 = VT102, 2 = Minitel 1B, 3 = Minitel 2. A plain integer, because this header is included everywhere and must not depend on the console |
+| `CONSOLE_COLS` / `CONSOLE_ROWS` | 80 / 24 | factory defaults for `term_cols` / `term_rows` |
+| `TERMINAL_MAX_COLS` / `_ROWS` | 132 / 32 | largest terminal supported. They size the screen back-buffer (two cell grids, so 2 x their product in RAM) and clamp both the construction geometry and anything the `term_` rows ask for |
 | `CONSOLE_PAGES_MAX` | 10 | pages the Console multiplexes, at the Alt+`<digit>` ceiling. The full page set is 8, and registration past the cap is refused **silently**, so the headroom is what lets a site splice its own page in |
 
 ### Terminal input decoding

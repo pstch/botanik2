@@ -105,6 +105,7 @@ namespace Botanik { namespace Shell {
             { "set",        "<name> <value>  edit a parameter", &CommandShell::_cmd_set       },
             { "override",   "list|clear|<name> [off|<value>] [valid|invalid]", &CommandShell::_cmd_override },
             { "control",    "[enable|inhibit|disable] drive the field", &CommandShell::_cmd_control },
+            { "save",       "flush retained values to flash", &CommandShell::_cmd_save      },
             { "loglevel",   "[debug|info|..|critical] filter",&CommandShell::_cmd_loglevel   },
             { "version",    "firmware version",               &CommandShell::_cmd_version    },
             { "features",   "which subsystems are built in",  &CommandShell::_cmd_features   },
@@ -901,6 +902,20 @@ namespace Botanik { namespace Shell {
                Vars::Bank::control_mode_name(op));
     }
 
+    void CommandShell::_cmd_save(const char* args, uint16_t alen) {
+        (void)args; (void)alen;
+        Vars::Params* p = _params();
+        if (p == nullptr) { _println("save: no parameters"); return; }
+        // Parameters are written the moment they are set, so there is nothing
+        // of theirs pending: what this flushes is the RETAINED rows, whose
+        // whole point is that they are written on a cadence rather than per
+        // change. Say which, or "save" reads as "my `set` did not take".
+        char out[96];
+        const uint16_t n = p->save_retained(HAL::Clock::uptime_ms());
+        if (n == 0) { _println("save: no retained values"); return; }
+        _emitf(out, sizeof(out), "save: %u retained value(s) written", (unsigned)n);
+    }
+
     void CommandShell::_cmd_loglevel(const char* args, uint16_t alen) {
 #if !BOTANIK_FEATURE_LOGGING
         // The Logger object still exists (an inert shell), so a null check would
@@ -931,8 +946,34 @@ namespace Botanik { namespace Shell {
         }
         for (const auto& L : LEVELS)
             if (arg_eq(w, wlen, L.name)) {
+                // Write the PARAMETER, not the logger: `sys_log_level` is the
+                // setting and the CONFIG task pushes it down. Setting the logger
+                // straight would give one knob two owners, and the copy the
+                // operator moved is the one that dies at the next reboot.
+                Vars::Bank* io = _bank();
+                Vars::VarRef r = { Vars::VAR_NONE };
+                if (io != nullptr) r = io->find("sys_log_level");
+                if (r.index == Vars::VAR_NONE) {
+                    // No row (a site that left the library splice out): honour
+                    // the command anyway, live, and say what it did not do.
+                    _logger->set_min_level(L.lvl);
+                    _emitf(out, sizeof(out),
+                           "loglevel: %s (not saved: no sys_log_level row)", L.name);
+                    return;
+                }
+                char num[8];
+                Utils::format_int(num, sizeof(num), (long long)L.lvl);
+                const Vars::SetResult res = io->set(io->var(r), num);
+                if (res == Vars::SET_INVALID) {
+                    _emitf(out, sizeof(out), "loglevel: %s refused", L.name);
+                    return;
+                }
+                // Down to the logger here rather than waiting for the CONFIG
+                // beat: this command's own confirmation is a log line.
                 _logger->set_min_level(L.lvl);
-                _emitf(out, sizeof(out), "loglevel: %s", L.name);
+                _emitf(out, sizeof(out), "loglevel: %s%s", L.name,
+                       res == Vars::SET_NOT_PERSISTED
+                           ? "  (NOT SAVED: storage refused it)" : "");
                 return;
             }
         _println("usage: loglevel [debug|info|notice|warning|error|critical]");

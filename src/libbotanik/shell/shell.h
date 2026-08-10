@@ -223,6 +223,7 @@ namespace Botanik { namespace Shell {
         void _cmd_set(const char* args, uint16_t alen);
         void _cmd_override(const char* args, uint16_t alen);
         void _cmd_control(const char* args, uint16_t alen);
+        void _cmd_save(const char* args, uint16_t alen);
         /** @brief Report control state, naming every hold still in force. */
         void _report_control(Vars::Bank* io);
 
@@ -267,6 +268,9 @@ namespace Botanik { namespace Shell {
         /** @brief The variables, from the injected SystemContext (null when the
          *  firmware wired none). One lookup point for the variable commands. */
         Vars::Bank* _bank() const { return _sys != nullptr ? _sys->vars : nullptr; }
+        /** @brief The parameter surface, from the same context. What `save`
+         *  drives; null when the firmware wired none. */
+        Vars::Params* _params() const { return _sys != nullptr ? _sys->params : nullptr; }
         /** @brief Handle an unrecognised command (echoes "Unknown command:
          *  ..."). */
         void _unknown(const char* cmd, uint16_t len);

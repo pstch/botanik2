@@ -46,8 +46,15 @@ loglevel: debug
 botanik> loglevel warning    # quieten everything below warnings
 ```
 
-The default is `debug`, so the LOGS page can be the complete record. Each page
-then applies its **own** floor on top:
+The master floor is the `sys_log_level` **parameter**, and that is what
+`loglevel` writes - so a level set here survives a reboot, and reads the same
+from the PARAMS page or over Modbus. Its value is the level's own number
+(1 debug, 2 info, 4 notice, 8 warning, 16 error, 32 critical); a value between
+two rounds DOWN to the level at or below it, which is the permissive way to be
+wrong about a log filter. `BOTANIK_LOG_MIN_LEVEL` is its factory value.
+
+That factory value is `debug`, so the LOGS page can be the complete record. Each
+page then applies its **own** floor on top:
 
 | Page | Shows | Why |
 |---|---|---|

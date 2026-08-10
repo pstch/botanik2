@@ -1368,4 +1368,90 @@ TEST_CASE("retain: with no store at all, nothing pretends to persist") {
     CHECK(a.load_retained() == 0);
 }
 
+// The cadence is `sys_retain_sec` where the row exists and the Config default
+// where it does not; 0 turns it off. Params owns it, so these drive Params.
+namespace cadence {
+
+// Needs a ROLE_PARAM run for the cadence row plus a retained row to write. The
+// parameters come first, as everywhere else.
+const Variable g_cad[] = {
+    P ("sys_retain_sec", T_U32, 2, 0, 86400, 0, "sec", 974, "cadence", ""),
+    GR("total_litres",   T_U32, Scalar::U(0), 0, "L", "litres", ""),
+};
+const uint16_t CAD_COUNT = (uint16_t)(sizeof(g_cad) / sizeof(g_cad[0]));
+Value    g_cad_vals[CAD_COUNT];
+uint16_t g_cad_index[CAD_COUNT];
+
+VarTables cad_tables() {
+    VarTables t;
+    t.var   = g_cad;
+    t.val   = g_cad_vals;
+    t.count = CAD_COUNT;
+    t.index = g_cad_index;
+    t.pool  = nullptr;
+    t.pool_bytes = 0;
+    return t;
+}
+
+}  // namespace cadence
+
+TEST_CASE("retain: the cadence is the sys_retain_sec parameter") {
+    MemStore store;
+    VarTables t = cadence::cad_tables();
+    Bank a(t);
+    a.init();
+    Params p(&a, &store, nullptr);
+
+    a.var(a.find("total_litres")).set_i(1);
+
+    // The first step writes (nothing written yet); the 2 s band then holds off.
+    p.step(1000);
+    const uint32_t after_first = store.saves;
+    CHECK(after_first > 0);
+    p.step(2000);                                  // 1 s in: inside the band
+    CHECK(store.saves == after_first);
+    p.step(3001);                                  // past 2 s: due again
+    CHECK(store.saves > after_first);
+
+    SUBCASE("0 turns the cadence off entirely") {
+        REQUIRE(a.set(a.var(a.find("sys_retain_sec")), "0") != SET_INVALID);
+        const uint32_t before = store.saves;
+        for (uint64_t ms = 4000; ms < 400000; ms += 10000) p.step(ms);
+        INFO("no amount of elapsed time may trigger a write once it is off");
+        CHECK(store.saves == before);
+
+        // ...which is what makes the explicit save the whole mechanism there.
+        p.save_retained(500000);
+        CHECK(store.saves > before);
+    }
+
+    SUBCASE("an explicit save restarts the interval") {
+        p.step(10000);                             // due: writes, stamps 10 s
+        const uint32_t before = store.saves;
+        p.save_retained(11000);
+        CHECK(store.saves == before + 1);
+        // Without the restart this step is 2 s past the 10 s stamp and writes a
+        // second time for nothing - a flash erase the operator did not ask for.
+        p.step(12000);
+        CHECK(store.saves == before + 1);
+    }
+}
+
+TEST_CASE("retain: with no sys_retain_sec row the cadence is the Config default") {
+    MemStore store;
+    VarTables t = tables();          // the plain table: no parameters at all
+    Bank a(t);
+    a.init();
+    Params p(&a, &store, nullptr);
+    a.var(a.find("total_litres")).set_i(1);
+
+    p.step(1);
+    const uint32_t after_first = store.saves;
+    CHECK(after_first > 0);
+    p.step(Config::RETAIN_SAVE_MS - 1);
+    CHECK(store.saves == after_first);
+    p.step((uint64_t)Config::RETAIN_SAVE_MS + 2);
+    CHECK(store.saves > after_first);
+}
+
 }  // namespace retain

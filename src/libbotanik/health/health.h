@@ -86,6 +86,25 @@ namespace Botanik { namespace Health {
         bool         _bound_ok = true;
         /** @} */
 
+        /** @name The thresholds those alarms fire at
+         *
+         *  Parameters, not constants: what counts as too much load, jitter or
+         *  stack is a property of the INSTALLATION, and the number you want to
+         *  move is the one a unit is nuisance-alarming on - at 3am, over a
+         *  terminal, without a toolchain. `Config::ALARM_*_PCT` are the factory
+         *  defaults behind them.
+         *
+         *  Read live off the bound row each beat rather than cached on a commit
+         *  serial: it is one indexed load against a threshold comparison that
+         *  was already happening, and there is nothing to re-initialise when it
+         *  moves. Bound beside the alarms they threshold, and unbound they read
+         *  the bank's inert sink, so _pct() falls back to the Config value.
+         *  @{ */
+        Vars::VarRef _p_load_pct   = { Vars::VAR_NONE };
+        Vars::VarRef _p_jitter_pct = { Vars::VAR_NONE };
+        Vars::VarRef _p_stack_pct  = { Vars::VAR_NONE };
+        /** @} */
+
     public:
         /** @brief Build the notifier + model. The model finds every alarm by
          *  scanning @p io for SCOPE_A rows, so there is no alarm table to
@@ -192,6 +211,26 @@ namespace Botanik { namespace Health {
             _a_stack  = _bind("alarm_stack");
             _a_jitter = _bind("alarm_cpu_jitter");
             _a_flash  = _bind("alarm_flash_error");
+            // The thresholds go through find() directly, not _bind(): a missing
+            // one falls back to its Config default and the monitor still works,
+            // where a missing ALARM row means a fault that can never be raised.
+            // Failing POST for the two together would say the same word about
+            // two different severities.
+            if (_io != nullptr) {
+                _p_load_pct   = _io->find("sys_cpu_load_pct");
+                _p_jitter_pct = _io->find("sys_jitter_pct");
+                _p_stack_pct  = _io->find("sys_stack_pct");
+            }
+        }
+
+        /** @brief A threshold's live percent: the parameter, or @p dflt when the
+         *  row is absent or reads invalid. */
+        uint8_t _pct(Vars::VarRef r, uint8_t dflt) const {
+            if (_io == nullptr || r.index == Vars::VAR_NONE) return dflt;
+            const Vars::Var h = _io->var(r);
+            if (!h.valid()) return dflt;
+            const float v = h.value();
+            return (v >= 1.0f && v <= 100.0f) ? (uint8_t)v : dflt;
         }
 
         /** @brief Resolve @p name, reporting a miss for POST. A site that left
@@ -232,12 +271,12 @@ namespace Botanik { namespace Health {
             const bool load = !_no_load_alarms;
             _raise(_a_load, load &&
                 (uint64_t)_sched->cpu_loop_us_recent * 100u
-                    > (uint64_t)period_us * Config::ALARM_CPU_LOAD_PCT);
+                    > (uint64_t)period_us * _pct(_p_load_pct, Config::ALARM_CPU_LOAD_PCT));
             _raise(_a_jitter, load &&
                 (uint64_t)_sched->cpu_jitter_us_recent * 100u
-                    > (uint64_t)period_us * Config::ALARM_CPU_JITTER_PCT);
+                    > (uint64_t)period_us * _pct(_p_jitter_pct, Config::ALARM_CPU_JITTER_PCT));
             _raise(_a_stack,
-                _sched->stack_usage * 100.0f > (float)Config::ALARM_STACK_PCT);
+                _sched->stack_usage * 100.0f > (float)_pct(_p_stack_pct, Config::ALARM_STACK_PCT));
             if (load) _held_event(_a_xrun, _sched->overruns, _xrun_last,
                                   _xrun_until_ms, now);
             else      _raise(_a_xrun, false);

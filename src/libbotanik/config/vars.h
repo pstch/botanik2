@@ -36,9 +36,16 @@ namespace Botanik { namespace Config {
      *  a variable's name up to the first '_' (vars/access.h), interned into a
      *  small pool: naming a variable is what files it, so this bounds how many
      *  domains a table may span. Past it, var_group() answers "?" and the
-     *  MONITOR / PARAMS view modes stop gaining rows. */
+     *  MONITOR / PARAMS view modes stop gaining rows.
+     *
+     *  The intern pool covers the WHOLE table, parameters and alarms included -
+     *  not just the published rows - so the library's own config groups count
+     *  against it. There are eight of those today (serial, net, ntp, mqtt, geo,
+     *  mb, term, sys), which is most of the reason this is not 8: `gh_mlb41`
+     *  reaches 15 with seven groups of its own. Cheap to raise - one pool of
+     *  VAR_GROUP_NAME_LEN bytes per slot, plus a pointer in two pages. */
 #ifndef BOTANIK_VAR_GROUPS_MAX
-#  define BOTANIK_VAR_GROUPS_MAX 16
+#  define BOTANIK_VAR_GROUPS_MAX 24
 #endif
     BOTANIK_CFG(uint8_t, VAR_GROUPS_MAX);
 

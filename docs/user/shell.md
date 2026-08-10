@@ -121,7 +121,9 @@ build - `tasks` prints the four rates.
 | `loglevel [<level>]` | report or set the minimum level that gets logged at all: `debug`, `info` (default), `notice`, `warning`, `error`, `critical` |
 
 `loglevel` changes what the logger emits to **every** sink, not just this page. See
-@ref user_logging.
+@ref user_logging. It writes the `sys_log_level` parameter rather than the logger
+directly, so the level you set survives a reboot - and `set sys_log_level <n>` or
+the PARAMS page reach the same setting.
 
 `features` partitions the optional subsystems into what is present and what is not:
 
@@ -143,6 +145,7 @@ two units on the same firmware **version** can still differ here. See
 | Command | Does |
 |---|---|
 | `ntpsync` | force an NTP resync now |
+| `save` | write the retained values to flash now |
 | `clear` | wipe the shell scrollback |
 | `breakpoint` | trap into an attached debugger |
 | `reset` | reboot the controller |
@@ -150,6 +153,15 @@ two units on the same firmware **version** can still differ here. See
 
 `reset` and `exit` both drop every output to its safe state and clear the screen
 before leaving - a reboot on its own gives no such guarantee. See @ref user_control.
+
+`save` is for the **retained** rows only - the totalizers and hour counters whose
+value IS their history. A parameter is written the moment you `set` it, so there
+is never anything of its pending; the retained rows are the ones written on a
+cadence (`sys_retain_sec`) rather than per change, because writing a litre
+counter through would be a flash erase every beat. Use it before pulling a fuse,
+after a commissioning run, or as the whole mechanism on a unit running
+`sys_retain_sec 0`. A deliberate `reset` / `exit` already writes them, so this is
+for the stop the firmware does not get told about.
 
 @note There is no raw `storage` command. Every persisted value belongs to a
 parameter or an override and is reached through `set` / `override`, both of which
