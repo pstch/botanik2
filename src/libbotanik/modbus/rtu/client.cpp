@@ -69,6 +69,18 @@ bool RtuClient::_due(const Block& b, uint64_t now_ms) const {
     return now_ms >= _peer[b.peer].probe_ms;
 }
 
+uint8_t RtuClient::_next_suspect(uint64_t now_ms) const {
+    const uint8_t n = _plan.device_count();
+    if (n == 0 || now_ms < _probe_gate_ms) return NO_PEER;   // the gate is shut
+    for (uint8_t k = 0; k < n; ++k) {
+        const uint8_t p = (uint8_t)((_probe_cursor + k) % n);
+        if (_peer[p].misses == 0) continue;        // answering; not a suspect
+        if (now_ms < _peer[p].probe_ms) continue;  // still serving its backoff
+        return p;
+    }
+    return NO_PEER;
+}
+
 void RtuClient::_answered(const Block& b) {
     Peer* p = &_peer[b.peer];
     if (p->misses == 0) return;
@@ -199,10 +211,23 @@ uint16_t RtuClient::_pick(uint64_t now_ms) const {
     // rank reserved for this. disable_control() marked every output dirty
     // precisely so a transaction carries the safe state out, and it does not
     // wait for the ordinary write interval either.
+    // At most ONE device that is not answering may be offered the bus, and only
+    // when the gate is open. Computed once: it is a property of the beat, not of
+    // the block. A probe is otherwise enormously late against its own period and
+    // would win every comparison it entered, which is how the least valuable and
+    // most expensive transaction on the bus came to be scheduled first.
+    const uint8_t suspect = _next_suspect(now_ms);
+
     if (_urgent) {
         for (uint16_t i = 0; i < _plan.block_count(); ++i) {
             const Block& b = _plan.block(i);
-            if (is_read(b.fc) || !_due(b, now_ms)) continue;
+            if (is_read(b.fc)) continue;
+            // Absolute in PRIORITY, not in eligibility. A safe state owed to a
+            // device that is not answering still waits its turn in the rotation:
+            // the bus cannot deliver it any faster by trying more often, and the
+            // devices that can still hear one are behind it.
+            if (_peer[b.peer].misses != 0 && b.peer != suspect) continue;
+            if (!_due(b, now_ms)) continue;
             if (block_dirty(*_io, _plan, b)) return i;
         }
     }
@@ -212,6 +237,7 @@ uint16_t RtuClient::_pick(uint64_t now_ms) const {
 
     for (uint16_t i = 0; i < _plan.block_count(); ++i) {
         const Block& b = _plan.block(i);
+        if (_peer[b.peer].misses != 0 && b.peer != suspect) continue;
         if (!_due(b, now_ms)) continue;          // its device is in backoff
 
         const Slot s = _slot_of(b);
@@ -436,6 +462,12 @@ void RtuClient::receive_step(uint64_t now_ms) {
     const int r = _framer.poll(now_ms);
     if (r == 0) return;
 
+    // Before _settle(), which clears the miss count on an answer: the cursor has
+    // to move on from a device it has just spoken to whether or not that device
+    // turned out to still be down.
+    const bool was_suspect = (_active != NO_BLOCK) &&
+                             _peer[_plan.block(_active).peer].misses != 0;
+
     if (r == 1) {
         _settle(now_ms);
     } else {
@@ -453,13 +485,32 @@ void RtuClient::receive_step(uint64_t now_ms) {
         }
     }
 
+    // A transaction that produced no answer costs the bus a full response
+    // timeout, so the next one to a device that is not answering owes the live
+    // devices some traffic first. Any failure arms it, not only a probe's: the
+    // FIRST miss of each device is what a mass outage is made of.
+    if (r != 1) _probe_gate_ms = now_ms + Config::MODBUS_PROBE_SPACING_MS;
+
     // Whatever happened, this block has had its turn. A read comes round again
     // on its period; a failed write stays dirty and will be retried at the
     // minimum interval.
     if (_active != NO_BLOCK) {
         Block& b = _plan.block(_active);
-        if (is_read(b.fc)) b.due_ms = now_ms + b.period_ms;
+        if (is_read(b.fc)) {
+            uint32_t next = b.period_ms;
+            // A miss must not push the retry out by a whole poll period: that is
+            // what made declaring a device dead cost two of them, so two minutes
+            // on the 60 s rung. Capped, the latency is the fault's and not the
+            // rung's. The gate above is what keeps the shorter retry affordable.
+            if (r != 1 && next > Config::MODBUS_RETRY_DELAY_MS)
+                next = Config::MODBUS_RETRY_DELAY_MS;
+            b.due_ms = now_ms + next;
+        }
         b.last_ms = now_ms;
+        // Round-robin: the next probe goes to a different device, however late
+        // this one's blocks have become.
+        if (was_suspect && _plan.device_count() != 0)
+            _probe_cursor = (uint8_t)((b.peer + 1u) % _plan.device_count());
     }
     // How much silence this device wants before the next frame, which some
     // models specify well above the protocol's 3.5 character times.

@@ -418,6 +418,95 @@ TEST_CASE("modbus live: a modulating output and the read image share the bus") {
     CHECK(writes >= 10);   // 16 measured, one per time the demand moved
 }
 
+TEST_CASE("modbus probe: six dead devices cannot take the bus between them") {
+    // The scenario the interleave exists for. Twelve sensors on a cut spur used
+    // to need 12 x 2 x 300 ms of bus to be declared dead and simply took it,
+    // because a late dead block and a late live block scored identically. One
+    // suspect at a time behind MODBUS_PROBE_SPACING_MS bounds that at
+    // timeout/(timeout + spacing) however many are down.
+    LiveBus m;
+    const uint16_t r = m.fastest_read();
+    REQUIRE(r != RtuClient::NO_BLOCK);
+    const uint8_t keep = m.client.plan().block(r).peer;
+
+    uint8_t killed = 0;
+    for (uint8_t p = 0; p < m.client.peer_count() && killed < 6; ++p) {
+        if (p == keep) continue;
+        m.bus.set_fault(m.client.peer_unit(p), Sim::FieldBus::FAULT_ABSENT);
+        killed++;
+    }
+    REQUIRE(killed == 6);
+
+    // Discovery first. A device that has never missed is presumed good, so its
+    // FIRST failure cannot be gated - there is no way to know a device is down
+    // without trying it - and six of them therefore cost six timeouts once. The
+    // bound below is on the steady state, which is where the old behaviour
+    // spent 7.2 s and kept spending it.
+    const uint64_t t0 = m.t;
+    REQUIRE(m.until([&] { return m.client.dead_count() == 6; }, 6000));
+    const uint64_t discovery_ms = m.t - t0;
+
+    uint32_t polls = 0, faults = m.client.faults();
+    const uint32_t faults0 = faults;
+    uint64_t rlast = m.client.plan().block(r).last_ms;
+    uint64_t prev_fault_ms = 0;
+    uint64_t min_gap = 0xFFFFFFFFull;
+    for (uint32_t i = 0; i < 3000; ++i) {          // 30 s of steady state
+        m.beat();
+        if (m.client.faults() != faults) {
+            faults = m.client.faults();
+            if (prev_fault_ms != 0) {
+                const uint64_t gap = m.t - prev_fault_ms;
+                if (gap < min_gap) min_gap = gap;
+            }
+            prev_fault_ms = m.t;
+        }
+        const uint64_t rn = m.client.plan().block(r).last_ms;
+        if (rn != rlast) { polls++; rlast = rn; }
+    }
+    const uint32_t probes = faults - faults0;
+
+    INFO("discovery took " << discovery_ms << " ms; then " << probes
+         << " probes in 30 s, closest pair " << min_gap
+         << " ms apart, live block polled " << polls << " times");
+    // No two unanswered transactions inside one spacing interval. That IS the
+    // bound, and it does not depend on six being the number.
+    CHECK(min_gap >= Config::MODBUS_PROBE_SPACING_MS);
+    // Which caps what the dead can take: six of them, at a 300 ms timeout each.
+    CHECK(probes * Config::MODBUS_TIMEOUT_MS <= 30000u / 4u);
+    // And the live device never stopped being served.
+    CHECK(polls >= 24);      // 28 measured, against a nominal 30
+    CHECK(m.client.dead_count() == 6);
+}
+
+TEST_CASE("modbus probe: the probes go round the dead devices, not at one of them") {
+    // A cursor rather than lateness deciding: without it the rotation is a
+    // by-product of which suspect happens to be latest, and one device can be
+    // probed over and over while another is never revisited.
+    LiveBus m;
+    const uint16_t r = m.fastest_read();
+    REQUIRE(r != RtuClient::NO_BLOCK);
+    const uint8_t keep = m.client.plan().block(r).peer;
+
+    uint8_t killed = 0;
+    for (uint8_t p = 0; p < m.client.peer_count() && killed < 4; ++p) {
+        if (p == keep) continue;
+        m.bus.set_fault(m.client.peer_unit(p), Sim::FieldBus::FAULT_ABSENT);
+        killed++;
+    }
+
+    // Long enough for every one of them to have been visited twice over.
+    m.beats(3000);
+
+    uint8_t probed = 0;
+    for (uint8_t p = 0; p < m.client.peer_count(); ++p)
+        if (m.client.peer_misses(p) > 0) probed++;
+
+    INFO(probed << " of the 4 absent devices have misses against them");
+    CHECK(probed == 4);
+    CHECK(m.client.dead_count() == 4);
+}
+
 TEST_CASE("modbus fault: a dead output device does not pin the safe-state urgency") {
     // F1. The clearing sweep walks every write block; one on a backed-off device
     // is dirty and stays dirty, so without the _due() test the sweep never comes

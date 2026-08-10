@@ -102,6 +102,33 @@ namespace Botanik { namespace Modbus {
         };
         Peer     _peer[Config::MODBUS_MAX_BLOCKS];
         uint8_t  _dead       = 0;    ///< how many are in backoff right now
+
+        /** @name The probe interleave
+         *
+         *  One device that is not answering is offered the bus at a time, and
+         *  not until MODBUS_PROBE_SPACING_MS of live traffic has been owed since
+         *  the last transaction that failed. Together those bound what devices
+         *  that are not answering can cost at timeout/(timeout + spacing),
+         *  INDEPENDENT of how many of them there are - which is the whole point,
+         *  since twelve dead sensors used to need 7.2 s of bus to be declared
+         *  dead and simply took it.
+         *
+         *  A gate and a cursor here rather than a state in the transaction FSM:
+         *  a probe is an ordinary transaction over the same framer, settle path
+         *  and gap, and only the SCHEDULING of it differs.
+         *  @{ */
+
+        /** @brief No suspect is eligible before this. Set by any transaction
+         *  that failed, not only by a probe: the first miss of each device is
+         *  what a mass outage is made of, and gating only confirmed-dead ones
+         *  would let the whole detection burst through ungated. */
+        uint64_t _probe_gate_ms = 0;
+        /** @brief Where the round-robin over devices that are not answering
+         *  resumes, so the rotation is a guarantee and not a by-product of which
+         *  suspect happens to be latest. */
+        uint8_t  _probe_cursor  = 0;
+
+        /** @} */
         /** @brief Whether control authority was up on the previous beat, so the
          *  withdrawal EDGE can be seen. */
         bool     _control_was = false;
@@ -151,6 +178,8 @@ namespace Botanik { namespace Modbus {
     public:
         /** @brief What Block index means "none". */
         static const uint16_t NO_BLOCK = 0xFFFFu;
+        /** @brief What a peer index means "none". */
+        static const uint8_t  NO_PEER  = 0xFFu;
 
         /** @param devices what each unit on the segment will answer; null plans
          *  every unit as generic_model(). Borrowed and flash-resident. */
@@ -277,6 +306,15 @@ namespace Botanik { namespace Modbus {
         /** @brief Whether @p unit may be spoken to now. An untracked unit may:
          *  refusing would silently drop a block the planner asked for. */
         bool _due(const Block& b, uint64_t now_ms) const;
+        /** @brief The one device that is not answering which may be offered the
+         *  bus now, or NO_PEER.
+         *
+         *  The first at or after the cursor that has misses against it and is
+         *  out of its backoff, wrapping. Healthy peers are skipped rather than
+         *  blocking the rotation, which is why the cursor is a starting point
+         *  and not an index. */
+        uint8_t _next_suspect(uint64_t now_ms) const;
+
         /** @brief @p unit answered: clear its miss count. */
         void _answered(const Block& b);
         /** @brief @p unit did not: retry once, then back off, doubling. */

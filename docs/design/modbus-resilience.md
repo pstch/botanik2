@@ -10,9 +10,8 @@ Everything here is `modbus/rtu/`. The TCP corners are untouched.
 Phases are ordered so each one is safe to stop after. Phase 0 comes first because
 none of the rest is verifiable without it.
 
-**Status.** Phases 0.1, 1 and 2 are done on `mb-solidify`. What is left is the
-probe interleave (phase 3), the per-device timeout (4), the diagnosis rows (5)
-and the documentation (6).
+**Status.** Phases 0.1, 1, 2 and 3 are done on `mb-solidify`. What is left is
+the per-device timeout (4), the diagnosis rows (5) and the documentation (6).
 
 One thing phase 0 turned up that the plan did not predict: the simulator paces
 its bytes against the HOST clock, so a test stepping a virtual beat sees the port
@@ -228,7 +227,7 @@ read that has only just come due is never picked at all.
 
 ---
 
-## Phase 3 - the probe interleave
+## Phase 3 - the probe interleave [DONE]
 
 D3 and D4, and the answer to "twelve devices go down at once". One dead device is
 polled, then live traffic for a spacing interval, then the *next* dead device.
@@ -262,12 +261,28 @@ spent on devices that are not answering is at most
     timeout / (timeout + spacing)   =   300 / 1800   =   17 %
 ```
 
-and **that figure does not depend on how many devices are down**. One dead device
-is unaffected in practice: its two detection attempts are a spacing interval
-apart rather than a poll period apart, which is faster than today. Twelve are
-throttled to one failed transaction per 1.5 s, so declaring the lot takes about
-thirty seconds instead of taking the bus for seven, and the live devices keep
-their rates throughout.
+and **that figure does not depend on how many devices are down**.
+
+**As built, with one correction the plan got wrong.** The bound is on the STEADY
+STATE, not on discovery. A device that has never missed is presumed good, so its
+first failure cannot be gated - there is no way to know a device is down without
+trying it - and N devices therefore cost N response timeouts once. Only the
+retries and the probes that follow are interleaved. That is inherent rather than
+a shortcoming of the design, but the plan claimed a flat bound and it is not one.
+
+Measured on six absent devices against a live one, in the doctest harness:
+
+| | before | after |
+|---|---|---|
+| closest pair of unanswered transactions | 310 ms | 1800 ms |
+| probes in a 30 s steady state | 22 | 16, i.e. 16 % of the bus |
+| live block polls in that 30 s | 26 | 28, against a nominal 30 |
+| all six declared dead after | 13.6 s | 16.3 s |
+
+Discovery is the one thing that got slower, by about 20 %, and that is the trade
+being made: the bus stays healthy throughout instead of being taken for seven
+seconds. The first device is still declared dead within a couple of seconds; it
+is the sixth that waits.
 
 ### 3.3 Detection latency independent of the rung
 
