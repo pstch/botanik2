@@ -467,6 +467,19 @@ TEST_CASE("mqtt log: no publisher wired is a safe no-op") {
     CHECK(sink.loss_count() == 0); // best-effort: link-down drops aren't losses
 }
 
+// The broker is the sink read from off-site, so it carries everything the
+// logger lets through - DEBUG included. A site that cannot afford the volume
+// raises MQTT_LOG_MIN_LEVEL; the default must not be doing that filtering for
+// it, silently, on a link nobody is watching.
+TEST_CASE("mqtt log: the default sink floor passes DEBUG") {
+    CHECK((Logs::LogLevel)Config::MQTT_LOG_MIN_LEVEL == Logs::LOG_DEBUG);
+    Network::MqttLogWriter sink;
+    CHECK(sink.min_level() == Logs::LOG_DEBUG);
+    // ...and the logger's master floor does not filter it out first, which
+    // would leave the sink floor answering a question nothing asks.
+    CHECK((Logs::LogLevel)Config::LOG_MIN_LEVEL <= Logs::LOG_DEBUG);
+}
+
 #endif
 
 }  // namespace mqtt_log

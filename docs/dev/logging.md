@@ -72,7 +72,8 @@ kinds:
   @ref Botanik::Pages::HomePage surface entries in the UI.
 - **MQTT** - @ref Botanik::Network::MqttLogWriter publishes each entry to the broker
   under `<prefix>/<log topic>/<level>/<topic>`, best-effort and with its own minimum
-  level (`MQTT_LOG_MIN_LEVEL`).
+  level (`MQTT_LOG_MIN_LEVEL`, DEBUG by default - this is the sink read from
+  off-site, so it carries everything the logger does).
 
 All derive from @ref Botanik::Logs::BufferedLogWriter, whose `push()` queues into a
 FIFO and `drain()` flushes incrementally across calls so nothing blocks. On overflow a

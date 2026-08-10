@@ -254,7 +254,7 @@ Broker host, port and keepalive are runtime parameters (`mqtt_host`, `mqtt_port`
 | `MQTT_TELEMETRY_PER_STEP` | 8 | fields published per step, so one cycle cannot eat a beat |
 | `MQTT_TELEMETRY_RETAIN` | 1 | @warning an invalid reading is skipped rather than published, and there is no last will, so the broker keeps serving the last good value of a dead sensor. Turn it off where "current" must be distinguishable from "last seen" |
 | `MQTT_TELEMETRY_TOPIC` / `MQTT_LOG_TOPIC` / `MQTT_ALARM_TOPIC` | `"status"` / `"logs"` / `"alarms"` | the path schema under `MQTT_TOPIC_PREFIX`. Changing one moves every subscriber |
-| `MQTT_LOG_MIN_LEVEL` | 4 (notice) | the MQTT sink's own threshold |
+| `MQTT_LOG_MIN_LEVEL` | 1 (debug) | the MQTT sink's own threshold; DEBUG, so the broker carries everything the logger does |
 
 ### Sun position tracking
 

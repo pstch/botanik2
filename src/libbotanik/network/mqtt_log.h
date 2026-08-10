@@ -11,8 +11,12 @@
  * (e.g. ".../logs/debug/modbus") with a "<timestamp> <message>" payload.
  * Publish-only, best-effort: an entry that can't go out now (link down, broker
  * gone) is dropped, not queued - MQTT already owns the socket TX, so a second
- * queue here would be redundant. A sink-local min level keeps low-severity
- * chatter off the broker.
+ * queue here would be redundant.
+ *
+ * The sink-local floor defaults to DEBUG, so the broker carries everything the
+ * logger does. This is the sink read from off-site, and the entries that matter
+ * there are the ones nobody was at the console for; a site on a thin link can
+ * raise MQTT_LOG_MIN_LEVEL.
  */
 
 #include <cstddef>                      // size_t
