@@ -20,6 +20,46 @@ namespace Botanik { namespace Vars {
     // u32/f32 key, and HAL::Storage::get rejects an oversized value, so the
     // whole configuration would quietly revert to factory on the next boot.
 
+    namespace {
+        /** @brief A stored word back into a Scalar of @p t's type.
+         *
+         *  The sign-extension is the reason this is a function: it was written
+         *  out three times, and three copies of a width-dependent shift is three
+         *  places for a stored negative total to come back as a very large
+         *  positive one. */
+        Scalar decode_scalar(VarType t, uint64_t raw, uint8_t w) {
+            if (type_real(t)) { float f; memcpy(&f, &raw, 4); return Scalar::F(f); }
+            if (type_signed(t)) {
+                const int64_t x = (int64_t)raw;
+                const unsigned shift = (unsigned)(64 - 8 * w);
+                return Scalar::I((int64_t)((x << shift) >> shift));
+            }
+            return Scalar::U(raw);
+        }
+
+        /** @brief A Scalar into the word that is stored. The inverse of
+         *  decode_scalar(); a float goes out as its four bytes, everything else
+         *  as the union's unsigned arm. */
+        uint64_t encode_scalar(VarType t, const Scalar& s) {
+            uint64_t raw = 0;
+            if (type_real(t)) { const float f = s.f; memcpy(&raw, &f, 4); }
+            else              { raw = s.u; }
+            return raw;
+        }
+
+        /** @brief "<prefix><name>" - a storage key in its own namespace.
+         *
+         *  A parameter's setting, an override on it and a retained total are
+         *  three different facts about one row, and a row may carry all three,
+         *  so each lives behind a prefix no identifier can spell. */
+        bool prefixed_key(const Variable& d, const char* prefix,
+                          char* out, size_t cap) {
+            if (d.name == nullptr) return false;
+            const int n = snprintf(out, cap, "%s%s", prefix, d.name);
+            return n > 0 && (size_t)n < cap;
+        }
+    }  // namespace
+
     bool KvParamStore::load(const Variable& d, Value& v, char* text, uint16_t cap) {
         if (d.type == T_STR) {
             if (text == nullptr || cap == 0) return false;
@@ -35,16 +75,7 @@ namespace Botanik { namespace Vars {
         uint64_t raw = 0;
         size_t n = 0;
         if (!HAL::Storage::get(d.name, &raw, w, &n) || n != w) return false;
-        Scalar s;
-        if (type_real(d.type))        { float f; memcpy(&f, &raw, 4); s = Scalar::F(f); }
-        else if (type_signed(d.type)) {
-            // Sign-extend from the stored width.
-            int64_t x = (int64_t)raw;
-            const unsigned shift = (unsigned)(64 - 8 * w);
-            s = Scalar::I((int64_t)((x << shift) >> shift));
-        }
-        else                          { s = Scalar::U(raw); }
-        v.v = s;
+        v.v = decode_scalar(d.type, raw, w);
         v.qual = Q_GOOD;
         return true;
     }
@@ -57,27 +88,13 @@ namespace Botanik { namespace Vars {
         }
         const uint8_t w = type_width(d.type);
         if (w == 0) return false;
-        uint64_t raw = 0;
-        if (type_real(d.type)) { const float f = v.v.f; memcpy(&raw, &f, 4); }
-        else                   { raw = v.v.u; }
+        uint64_t raw = encode_scalar(d.type, v.v);
         return HAL::Storage::set(d.name, &raw, w);
     }
 
-    namespace {
-        /** @brief An override's storage key: the variable's name behind a prefix
-         *  no identifier can carry, so it can never collide with the parameter
-         *  key of the same row - the setting and the override are two facts
-         *  about one variable and must not overwrite each other. */
-        bool override_key(const Variable& d, char* out, size_t cap) {
-            if (d.name == nullptr) return false;
-            const int n = snprintf(out, cap, "ovr.%s", d.name);
-            return n > 0 && (size_t)n < cap;
-        }
-    }  // namespace
-
     bool KvParamStore::load_override(const Variable& d, Value& v) {
         char key[HAL::Storage::KEY_MAX];
-        if (!override_key(d, key, sizeof(key))) return false;
+        if (!prefixed_key(d, "ovr.", key, sizeof(key))) return false;
         const uint8_t w = type_width(d.type);
         if (w == 0) return false;
         // Value bytes then the validity byte: an override records BOTH what the
@@ -89,26 +106,18 @@ namespace Botanik { namespace Vars {
         if (n != (size_t)w + 1) return false;
         uint64_t raw = 0;
         memcpy(&raw, buf, w);
-        if (type_real(d.type))        { float f; memcpy(&f, &raw, 4); v.ovr = Scalar::F(f); }
-        else if (type_signed(d.type)) {
-            const int64_t x = (int64_t)raw;
-            const unsigned shift = (unsigned)(64 - 8 * w);
-            v.ovr = Scalar::I((int64_t)((x << shift) >> shift));
-        }
-        else                          { v.ovr = Scalar::U(raw); }
+        v.ovr = decode_scalar(d.type, raw, w);
         v.ovr_valid = (buf[w] != 0);
         return true;
     }
 
     bool KvParamStore::save_override(const Variable& d, const Value& v) {
         char key[HAL::Storage::KEY_MAX];
-        if (!override_key(d, key, sizeof(key))) return false;
+        if (!prefixed_key(d, "ovr.", key, sizeof(key))) return false;
         const uint8_t w = type_width(d.type);
         if (w == 0) return false;
         uint8_t buf[sizeof(uint64_t) + 1] = {};
-        uint64_t raw = 0;
-        if (type_real(d.type)) { const float f = v.ovr.f; memcpy(&raw, &f, 4); }
-        else                   { raw = v.ovr.u; }
+        uint64_t raw = encode_scalar(d.type, v.ovr);
         memcpy(buf, &raw, w);
         buf[w] = v.ovr_valid ? 1 : 0;
         return HAL::Storage::set(key, buf, (size_t)w + 1);
@@ -116,50 +125,29 @@ namespace Botanik { namespace Vars {
 
     bool KvParamStore::clear_override(const Variable& d) {
         char key[HAL::Storage::KEY_MAX];
-        if (!override_key(d, key, sizeof(key))) return false;
+        if (!prefixed_key(d, "ovr.", key, sizeof(key))) return false;
         return HAL::Storage::remove(key);
     }
 
-    namespace {
-        /** @brief A retained value's key. Its own prefix, like an override's:
-         *  a retained total and a configured setting are different facts about
-         *  one row, and a row may legitimately have both. */
-        bool retained_key(const Variable& d, char* out, size_t cap) {
-            if (d.name == nullptr) return false;
-            const int n = snprintf(out, cap, "ret.%s", d.name);
-            return n > 0 && (size_t)n < cap;
-        }
-    }  // namespace
-
     bool KvParamStore::load_retained(const Variable& d, Value& v) {
         char key[HAL::Storage::KEY_MAX];
-        if (!retained_key(d, key, sizeof(key))) return false;
+        if (!prefixed_key(d, "ret.", key, sizeof(key))) return false;
         const uint8_t w = type_width(d.type);
         if (w == 0) return false;
         uint64_t raw = 0;
         size_t n = 0;
         if (!HAL::Storage::get(key, &raw, w, &n)) return false;
         if (n != w) return false;
-        // Sign-extended the same way a parameter is, so a negative total comes
-        // back negative rather than as a very large positive one.
-        if (type_real(d.type))        { float f; memcpy(&f, &raw, 4); v.v = Scalar::F(f); }
-        else if (type_signed(d.type)) {
-            const int64_t x = (int64_t)raw;
-            const unsigned shift = (unsigned)(64 - 8 * w);
-            v.v = Scalar::I((int64_t)((x << shift) >> shift));
-        }
-        else                          { v.v = Scalar::U(raw); }
+        v.v = decode_scalar(d.type, raw, w);
         return true;
     }
 
     bool KvParamStore::save_retained(const Variable& d, const Value& v) {
         char key[HAL::Storage::KEY_MAX];
-        if (!retained_key(d, key, sizeof(key))) return false;
+        if (!prefixed_key(d, "ret.", key, sizeof(key))) return false;
         const uint8_t w = type_width(d.type);
         if (w == 0) return false;
-        uint64_t raw = 0;
-        if (type_real(d.type)) { const float f = v.v.f; memcpy(&raw, &f, 4); }
-        else                   { raw = v.v.u; }
+        uint64_t raw = encode_scalar(d.type, v.v);
         return HAL::Storage::set(key, &raw, w);
     }
 

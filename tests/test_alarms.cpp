@@ -13,6 +13,7 @@
 #include "libbotanik/logs/logger.h"     // Logs::Logger
 #include "libbotanik/vars/declare.h"    // the A() factory
 #include "doctest.h"
+#include "term_fixture.h"              // botanik_test::PipeSerial
 #include <cstdint>                          // uint8_t/uint16_t/uint64_t
 #include <fcntl.h>                          // fcntl / O_NONBLOCK
 #include <string>                           // std::string
@@ -340,9 +341,7 @@ namespace {
 
     // AnsiTerminal + AlarmController over a pipe; drains TX into a captured string.
     struct RenderFixture {
-        int                    fds[2];
-        HAL::Serial::Raw         raw;
-        Utils::BufferedSerial  serial;
+        botanik_test::PipeSerial wire;
         uint64_t               now = 0;
         Terminal::Console      console;
         Vars::Value            vals[4]{};
@@ -353,25 +352,20 @@ namespace {
         // @p rows lets a test pick a short screen so the 4-alarm set overflows the
         // data window and UP/DOWN actually scroll (the default 24 rows holds them all).
         explicit RenderFixture(uint16_t rows = 24)
-            : serial(&raw),
-              // Very high baud so the cooperative TX floor never throttles a paint.
-              console(serial, 80, rows, &now, 4000000u),
+            // Very high baud so the cooperative TX floor never throttles a paint.
+            : console(wire.serial, 80, rows, &now, 4000000u),
               bank(make_tables(TABLE, vals, 4)),
               model(&bank, nullptr),
               page(console, &model) {
-            REQUIRE(::pipe(fds) == 0);
-            ::fcntl(fds[0], F_SETFL, O_NONBLOCK);   // read end never blocks
-            raw.set_fds(fds[0], fds[1]);
         }
-        ~RenderFixture() { ::close(fds[0]); ::close(fds[1]); }
 
         // Drain TX to the pipe and return whatever has accumulated since last call.
         std::string capture() {
             std::string out;
             char buf[8192];
-            for (int i = 0; i < 64; i++) serial.transmit();
+            for (int i = 0; i < 64; i++) wire.serial.transmit();
             ssize_t n;
-            while ((n = ::read(fds[0], buf, sizeof buf)) > 0) out.append(buf, (size_t)n);
+            while ((n = ::read(wire.fds[0], buf, sizeof buf)) > 0) out.append(buf, (size_t)n);
             return out;
         }
         // Pump ticks until a paint settles, capturing all bytes it wrote. Each

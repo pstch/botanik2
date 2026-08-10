@@ -1,6 +1,6 @@
 /**
  * @file test_utils.cpp
- * @brief Utility layer: text formatting, uptime, buffered serial, memory barriers.
+ * @brief Utility layer: text formatting, uptime, buffered wire.serial, memory barriers.
  *
  * Each section below is the former test_<name>.cpp, kept in its own
  * namespace so their fixtures and helpers cannot collide.
@@ -255,7 +255,6 @@ namespace {
     struct Pipe {
         int fds[2];
         Pipe()  { REQUIRE(::pipe(fds) == 0); }
-        ~Pipe() { ::close(fds[0]); ::close(fds[1]); }
         int r() const { return fds[0]; }
         int w() const { return fds[1]; }
     };

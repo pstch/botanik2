@@ -130,11 +130,13 @@ add_custom_target(check
 # It builds in a tree of ITS OWN under build/asan/, so the default tree keeps its
 # uninstrumented objects and the two never invalidate each other.
 #
-# One asymmetry worth knowing: the pyte HALF is not instrumented, and cannot be.
-# Its sim is built by a nested sub-build that pins RELEASE and BOTANIK_SANITIZE=OFF
-# unconditionally, because those tests need a sim that is not sanitizer-slow. So
-# this target instruments everything that can be: the unit suite runs under ASan +
-# UBSan, and the screen tests run as they always do.
+# Both halves are instrumented, screen tests included: the pyte entries run this
+# tree's own botanik_sim, which in build/asan is the sanitized one. That was not
+# true while those tests had a pinned RELEASE sim of their own - a sanitized sim
+# was assumed too slow for the tick budget, and measured, it is not (0 failures in
+# 20 runs at the default dilation, against 5/16 for the RELEASE sim it replaced).
+# It IS slower in wall time, roughly 3x, which is the right place to spend it: a
+# sweep, not the everyday gate.
 add_custom_target(check-full
     COMMAND ${CMAKE_COMMAND} -G ${CMAKE_GENERATOR} -S ${CMAKE_SOURCE_DIR}
             -B ${CMAKE_BINARY_DIR}/asan -DBOTANIK_TARGET=SIMULATOR
@@ -162,10 +164,23 @@ endif()
 # can already import them, so a tree without the venv still gets a green
 # `make check`. Point CMake at the venv with -DPython3_EXECUTABLE=... .
 #
-# The suite always runs against a dedicated RELEASE, no-sanitizer sim built in a
-# sub-tree: dilated time leaves a ~1ms wall budget per tick, which a debug+ASAN
-# build can't meet. BOTANIK_PYTE_TESTS=OFF in that sub-build keeps this block
-# from recursing.
+# They run against THIS tree's own botanik_sim. That used to be a dedicated
+# RELEASE, no-sanitizer sim built in a sub-tree of its own, on the grounds that
+# dilated time leaves a ~1ms wall budget per tick which a debug+ASAN build could
+# not meet. Measured, that did not hold: over 16-20 run batches on an idle box the
+# RELEASE sim failed 5/16, a plain DEBUG sim 3/16, and a full ASan+UBSan sim 0/20.
+# The same ASan binary failed 3/12 an hour earlier under load, so what moves this
+# suite's failure rate is the MACHINE, not the optimisation level - the sub-tree
+# was buying a property it never had.
+#
+# Deleting it takes the library from two compiles to one (63 TUs, ~32 s of CPU off
+# every clean build) and makes the screen tests test the binary this tree actually
+# produces. In build/asan (see check-full) that binary is instrumented, so the
+# screen tests run sanitized there too - the one thing the sub-tree structurally
+# could not do.
+#
+# botanik_sim is an add_executable, so it is in ALL already: `make && make test`
+# finds it without the pyte-sim-in-ALL trick this block used to need.
 option(BOTANIK_PYTE_TESTS "Register the pyte screen-assertion tests" ON)
 find_package(Python3 COMPONENTS Interpreter QUIET)
 if(BOTANIK_PYTE_TESTS AND Python3_Interpreter_FOUND)
@@ -174,57 +189,6 @@ if(BOTANIK_PYTE_TESTS AND Python3_Interpreter_FOUND)
         RESULT_VARIABLE _pyte_import_rc OUTPUT_QUIET ERROR_QUIET)
     if(_pyte_import_rc EQUAL 0)
         set(_pyte_dir ${CMAKE_CURRENT_SOURCE_DIR}/pyte)
-        set(_pyte_sim_dir ${CMAKE_BINARY_DIR}/pyte-sim)
-        set(_pyte_sim_bin ${_pyte_sim_dir}/botanik_sim)
-
-        # Build the release sim the tests run against (rebuilt incrementally when
-        # sources change, via the dependency on the OUTPUT below).
-        file(GLOB_RECURSE _pyte_sim_srcs CONFIGURE_DEPENDS
-             ${CMAKE_SOURCE_DIR}/src/*.cpp ${CMAKE_SOURCE_DIR}/src/*.c
-             ${CMAKE_SOURCE_DIR}/src/*.h)
-
-        # Configuring the sub-tree is its own step, keyed on the CMake files: it
-        # used to run on every source change, ahead of the build, for a tree that
-        # was already configured. The sub-build's own `make` still re-runs CMake by
-        # itself when its inputs change, so this only has to create the tree once.
-        # LTO off: the whole-program link dominated this build, and the tests need
-        # a sim that isn't sanitizer-slow, not one that is optimally inlined.
-        #
-        # The OUTPUT is a stamp we touch ourselves, NOT the sub-tree's
-        # CMakeCache.txt. CMake leaves that file's mtime alone when a re-configure
-        # changes no cache value, so it stayed older than the CMakeLists it depends
-        # on and make re-ran this step on EVERY build - ~6 s added to a no-op
-        # `make check`, which is most of the ones a pre-push gate does.
-        add_custom_command(
-            OUTPUT ${_pyte_sim_dir}/configure.stamp
-            COMMAND ${CMAKE_COMMAND} -G ${CMAKE_GENERATOR} -S ${CMAKE_SOURCE_DIR}
-                    -B ${_pyte_sim_dir} -DBOTANIK_TARGET=SIMULATOR
-                    -DCMAKE_BUILD_TYPE=RELEASE -DBOTANIK_SANITIZE=OFF
-                    -DBOTANIK_PYTE_TESTS=OFF -DBOTANIK_LTO=OFF
-            COMMAND ${CMAKE_COMMAND} -E touch ${_pyte_sim_dir}/configure.stamp
-            DEPENDS ${CMAKE_SOURCE_DIR}/CMakeLists.txt
-                    ${CMAKE_CURRENT_SOURCE_DIR}/CMakeLists.txt
-            COMMENT "Configuring the release botanik_sim tree for the pyte tests"
-            VERBATIM)
-
-        # --parallel is explicit: `cmake --build` starts a fresh make that inherits
-        # no jobserver from the outer one, so without it this sub-build compiles
-        # single-file-at-a-time no matter what -j the outer build was given.
-        add_custom_command(
-            OUTPUT ${_pyte_sim_bin}
-            COMMAND ${CMAKE_COMMAND} --build ${_pyte_sim_dir} --target botanik_sim
-                    --parallel ${_nproc}
-            DEPENDS ${_pyte_sim_srcs} ${_pyte_sim_dir}/configure.stamp
-            COMMENT "Building release botanik_sim for the pyte tests"
-            VERBATIM)
-        # In ALL, so an ordinary `make` produces it. CTest never builds anything -
-        # `make test` and `ctest` only run - and CMake's built-in `test` target
-        # cannot be given dependencies, so a sim outside the default build is one
-        # the screen tests find missing: `make && make test` failed on a tree that
-        # had just been built. Costs ~0.4 s on a no-op `make` (the sub-build's
-        # dependency scan); after editing a library source it rebuilds the release
-        # sim too, which is the price of `make test` meaning what it says.
-        add_custom_target(pyte-sim ALL DEPENDS ${_pyte_sim_bin})
 
         # One CTest entry per test FILE. Per-function entries needed pytest's node
         # IDs, which meant asking --collect-only for them at configure time and
@@ -239,7 +203,7 @@ if(BOTANIK_PYTE_TESTS AND Python3_Interpreter_FOUND)
             # --sim option) regardless of the invocation's CWD.
             add_test(NAME "pyte:${_name}"
                 COMMAND ${Python3_EXECUTABLE} -m pytest -q -p no:cacheprovider
-                        ${_name} --sim ${_pyte_sim_bin}
+                        ${_name} --sim $<TARGET_FILE:botanik_sim>
                 WORKING_DIRECTORY ${_pyte_dir})
             # ctest launches the most expensive test first, but only once it has
             # timings of its own - and it never gets usable ones here, since
@@ -251,9 +215,10 @@ if(BOTANIK_PYTE_TESTS AND Python3_Interpreter_FOUND)
         endforeach()
         list(LENGTH _pyte_test_files _pyte_count)
         message(STATUS "pyte: registered ${_pyte_count} screen test files")
-        # `check` names it explicitly too, so the gate does not depend on ALL
-        # having been run first.
-        add_dependencies(check pyte-sim)
+        # `check` names it explicitly, so the gate does not depend on ALL having
+        # been run first. CTest itself never builds anything, and CMake's built-in
+        # `test` target cannot be given dependencies.
+        add_dependencies(check botanik_sim)
 
         # Opt-in golden regeneration (NOT part of check/test, so the gate never
         # rewrites expectations). Review the diff before committing. Regen runs at a
@@ -266,16 +231,16 @@ if(BOTANIK_PYTE_TESTS AND Python3_Interpreter_FOUND)
         add_custom_target(pytest-update
             COMMAND ${CMAKE_COMMAND} -E env PYTE_TIME_SCALE=${BOTANIK_PYTE_UPDATE_SCALE}
                     ${Python3_EXECUTABLE} -m pytest -q -p no:cacheprovider
-                    ${_pyte_dir} --sim ${_pyte_sim_bin} --update
+                    ${_pyte_dir} --sim $<TARGET_FILE:botanik_sim> --update
             WORKING_DIRECTORY ${_pyte_dir}
-            DEPENDS pyte-sim
+            DEPENDS botanik_sim
             USES_TERMINAL
             COMMENT "Regenerating pyte golden screens - review the diff before committing")
     else()
         message(STATUS "pyte/pytest not importable - skipping Python screen tests")
     endif()
 elseif(NOT BOTANIK_PYTE_TESTS)
-    # quietly disabled (e.g. the release sub-build above)
+    # quietly disabled
 elseif(NOT Python3_Interpreter_FOUND)
     message(STATUS "Python3 interpreter not found - skipping Python screen tests")
 endif()

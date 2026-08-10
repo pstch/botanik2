@@ -15,6 +15,7 @@
 #include "libbotanik/console/terminal.h"    // AnsiTerminal::present
 #include "libbotanik/utils/serial.h"        // Utils::BufferedSerial
 #include "doctest.h"
+#include "term_fixture.h"                  // botanik_test::PipeSerial
 #include "libbotanik/console/console.h" // Console
 #include "libbotanik/console/editor.h"  // Terminal::TextEditor
 #include "libbotanik/console/parser.h"  // Terminal::InputParser
@@ -34,34 +35,23 @@ using namespace Botanik;
 namespace {
     /** @brief A bare AnsiTerminal over a pipe, drained into a string. */
     struct TermFixture {
-        int                    fds[2];
-        HAL::Serial::Raw       raw;
-        Utils::BufferedSerial  serial;
-        Terminal::AnsiTerminal term;
+        botanik_test::PipeSerial wire;
+        Terminal::AnsiTerminal   term;
 
         // Small screen so a row is cheap to assert. The default baud is far above
         // the link so the budget never throttles; a test that wants pacing passes
         // a low one (budget = baud * TX_COLD_TARGET_MS / 10000).
         explicit TermFixture(uint16_t cols = 20, uint16_t rows = 10,
                              uint32_t baud = 4000000u)
-            : serial(&raw), term(serial, cols, rows, baud) {
-            REQUIRE(::pipe(fds) == 0);
-            ::fcntl(fds[0], F_SETFL, O_NONBLOCK);   // read end never blocks
-            raw.set_fds(fds[0], fds[1]);
+            : term(wire.serial, cols, rows, baud) {
             term.establish_screen();                // blank both grids
             capture();                              // discard the bring-up bytes
         }
-        ~TermFixture() { ::close(fds[0]); ::close(fds[1]); }
 
-        /** @brief Push the TX ring to the pipe and return what accumulated. */
-        std::string capture() {
-            std::string out;
-            char buf[8192];
-            for (int i = 0; i < 64; i++) serial.transmit();
-            ssize_t n;
-            while ((n = ::read(fds[0], buf, sizeof buf)) > 0) out.append(buf, (size_t)n);
-            return out;
-        }
+        std::string capture() { return wire.capture(); }
+        /** @brief The serial itself, for a test that stuffs the TX ring to
+         *  starve the budget on purpose. */
+        Utils::BufferedSerial& serial_ref() { return wire.serial; }
         /** @brief One frame: reconcile FRONT to the wire and read the bytes. */
         std::string present() { term.present(); return capture(); }
         /** @brief Present until the screen settles, returning everything emitted. */
@@ -141,7 +131,7 @@ TEST_CASE("present: a run that cannot fit the ring is deferred whole") {
     TermFixture f;
     // Stuff the TX ring so no run can fit ("HELLO" costs ~8 + 5 bytes).
     const char pad = '.';
-    while (f.serial.availableForWrite() > 12) f.serial.write(&pad, 1);
+    while (f.serial_ref().availableForWrite() > 12) f.serial_ref().write(&pad, 1);
 
     f.put(2, 0, "HELLO");
     f.term.present();                  // must not emit a partial run
@@ -426,7 +416,7 @@ TEST_CASE("present: a scroll whose escape does not fit leaves BACK alone") {
 
     // Stuff the ring so neither the DL nor its compensating IL can be emitted.
     const char pad = '.';
-    while (f.serial.availableForWrite() > 4) f.serial.write(&pad, 1);
+    while (f.serial_ref().availableForWrite() > 4) f.serial_ref().write(&pad, 1);
 
     f.term.scroll_region(1, 6, /*up=*/true, 1);
     for (uint16_t r = 1; r <= 6; r++) {
@@ -462,9 +452,7 @@ namespace {
     // is high so present()'s pacing never truncates a frame: we want the total
     // cost of an edit, not what fits in one tick.
     struct EditorBytes {
-        int                   fds[2];
-        HAL::Serial::Raw      raw;
-        Utils::BufferedSerial serial;
+        botanik_test::PipeSerial wire;
         uint64_t              now = 0;
         Terminal::Console     console;
         Terminal::EditorBuffers<Config::SHELL_INPUT_LEN,
@@ -472,11 +460,8 @@ namespace {
         Terminal::TextEditor  editor;
 
         explicit EditorBytes(uint32_t baud = 4000000u)
-            : serial(&raw), console(serial, 80, 24, &now, baud),
+            : console(wire.serial, 80, 24, &now, baud),
               editor(&console, bufs.storage()) {
-            REQUIRE(::pipe(fds) == 0);
-            ::fcntl(fds[0], F_SETFL, O_NONBLOCK);
-            raw.set_fds(fds[0], fds[1]);
             console.terminal().establish_screen();
             editor.reset();
             flush();                 // discard bring-up + the initial prompt
@@ -512,7 +497,6 @@ namespace {
             }
             flush();
         }
-        ~EditorBytes() { ::close(fds[0]); ::close(fds[1]); }
 
         /** @brief Present until settled and return everything that reached the pipe. */
         std::string flush() {
@@ -520,9 +504,9 @@ namespace {
             char buf[8192];
             for (int i = 0; i < 40; i++) {
                 console.terminal().present();
-                for (int j = 0; j < 8; j++) serial.transmit();
+                for (int j = 0; j < 8; j++) wire.serial.transmit();
                 ssize_t n;
-                while ((n = ::read(fds[0], buf, sizeof buf)) > 0) out.append(buf, (size_t)n);
+                while ((n = ::read(wire.fds[0], buf, sizeof buf)) > 0) out.append(buf, (size_t)n);
             }
             return out;
         }
@@ -886,22 +870,20 @@ namespace {
     // A parser wired to a pipe: bytes written into feed() land in the RX ring and
     // are decoded by parse(). `now` is the parser's shared loop clock (ms).
     struct ParserFixture {
-        int                       pipe_fds[2];
-        Botanik::HAL::Serial::Raw   raw;
-        Botanik::Utils::BufferedSerial serial;
+        botanik_test::PipeSerial wire;
         uint64_t                  now = 0;
         InputParser               parser;
 
-        ParserFixture() : serial(&raw), parser(serial, &now) {
-            REQUIRE(::pipe(pipe_fds) == 0);
-            raw.set_fds(pipe_fds[0], -1);     // RX reads the pipe's read end
+        ParserFixture() : parser(wire.serial, &now) {
+            // RX only: the parser is fed, never drained. PipeSerial binds both
+            // ends, so drop the write end here.
+            wire.raw.set_fds(wire.fds[0], -1);
         }
-        ~ParserFixture() { ::close(pipe_fds[0]); ::close(pipe_fds[1]); }
 
         // Push raw bytes through the wire into the RX ring.
         void feed(const char* data, size_t n) {
-            REQUIRE(::write(pipe_fds[1], data, n) == (ssize_t)n);
-            serial.receive();
+            REQUIRE(::write(wire.fds[1], data, n) == (ssize_t)n);
+            wire.serial.receive();
         }
         void feed(const char* s) { feed(s, std::strlen(s)); }
 
@@ -1185,9 +1167,7 @@ namespace {
 
     /** @brief A Scrollback over a pipe-backed terminal, drained into a string. */
     struct ScrollFixture {
-        int                     fds[2];
-        HAL::Serial::Raw        raw;
-        Utils::BufferedSerial   serial;
+        botanik_test::PipeSerial wire;
         Terminal::AnsiTerminal  term;
         // 16 lines: enough history behind a 5-row window to scroll through, few
         // enough that a test can walk the ring off its own end.
@@ -1195,22 +1175,18 @@ namespace {
 
         // Baud far above the link so the byte budget never throttles a frame:
         // these cases assert what a scroll paints, not how it is paced.
-        ScrollFixture() : serial(&raw), term(serial, 20, 10, 4000000u) {
-            REQUIRE(::pipe(fds) == 0);
-            ::fcntl(fds[0], F_SETFL, O_NONBLOCK);   // read end never blocks
-            raw.set_fds(fds[0], fds[1]);
+        ScrollFixture() : term(wire.serial, 20, 10, 4000000u) {
             term.establish_screen();                // blank both grids
             capture();                              // discard the bring-up bytes
         }
-        ~ScrollFixture() { ::close(fds[0]); ::close(fds[1]); }
 
         /** @brief Push the TX ring to the pipe and return what accumulated. */
         std::string capture() {
             std::string out;
             char buf[8192];
-            for (int i = 0; i < 64; i++) serial.transmit();
+            for (int i = 0; i < 64; i++) wire.serial.transmit();
             ssize_t n;
-            while ((n = ::read(fds[0], buf, sizeof buf)) > 0) out.append(buf, (size_t)n);
+            while ((n = ::read(wire.fds[0], buf, sizeof buf)) > 0) out.append(buf, (size_t)n);
             return out;
         }
         /** @brief One frame: reconcile FRONT to the wire and read the bytes. */
@@ -1398,9 +1374,7 @@ namespace {
     // A CommandShell wired to a real editor + terminal whose serial is a pipe (TX is
     // buffered and never flushed, so reconcile output is harmlessly discarded).
     struct ShellFixture {
-        int                            pipe_fds[2];
-        HAL::Serial::Raw                 raw;
-        Utils::BufferedSerial          serial;
+        botanik_test::PipeSerial wire;
         uint64_t                       now = 0;
         Terminal::Console              console;
         Terminal::EditorBuffers<Config::SHELL_INPUT_LEN,
@@ -1410,15 +1384,11 @@ namespace {
         Shell::CommandShell            shell;
 
         ShellFixture()
-            : serial(&raw),
-              console(serial, 80, 24, &now, 115200),
+            : console(wire.serial, 80, 24, &now, 115200),
               editor(&console, bufs.storage()),
               shell(console.terminal(), editor, writer) {
-            REQUIRE(::pipe(pipe_fds) == 0);
-            raw.set_fds(pipe_fds[0], pipe_fds[1]);
             editor.reset();
         }
-        ~ShellFixture() { ::close(pipe_fds[0]); ::close(pipe_fds[1]); }
 
         std::string line() const { return std::string(editor.buffer(), editor.buffer_len()); }
     };
@@ -1658,9 +1628,7 @@ namespace {
 
     /** @brief A shell with a bank behind it and its output kept. */
     struct CmdFixture {
-        int                            pipe_fds[2];
-        HAL::Serial::Raw               raw;
-        Utils::BufferedSerial          serial;
+        botanik_test::PipeSerial wire;
         uint64_t                       now = 0;
         Terminal::Console              console;
         Terminal::EditorBuffers<Config::SHELL_INPUT_LEN,
@@ -1676,12 +1644,9 @@ namespace {
         Shell::CommandShell            shell;
 
         CmdFixture()
-            : serial(&raw),
-              console(serial, 80, 24, &now, 115200),
+            : console(wire.serial, 80, 24, &now, 115200),
               editor(&console, bufs.storage()),
               shell(console.terminal(), editor, writer, &ctx) {
-            REQUIRE(::pipe(pipe_fds) == 0);
-            raw.set_fds(pipe_fds[0], pipe_fds[1]);
             editor.reset();
             Vars::VarTables t = {};
             t.var = CMD_VARS; t.val = values; t.count = 2; t.index = index;
@@ -1689,7 +1654,6 @@ namespace {
             bank.init();
             ctx.vars = &bank;
         }
-        ~CmdFixture() { ::close(pipe_fds[0]); ::close(pipe_fds[1]); }
 
         void run(const char* cmd) {
             writer.text.clear();
