@@ -13,6 +13,7 @@ add_executable(botanik_tests
     doctest_main.cpp
     test_alarms.cpp
     test_console.cpp
+    test_health.cpp
     test_logging.cpp
     test_modbus_master.cpp
     test_modbus_rtu.cpp
