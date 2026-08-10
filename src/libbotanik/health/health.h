@@ -19,6 +19,7 @@
  */
 
 #include <cstdint>                          // uint8_t/int16_t/uint64_t
+#include <cstdio>                           // snprintf - the POST detail line
 
 #include "libbotanik/config/alarms.h"     // Config::ALARM_* / HEALTH_*
 #include "libbotanik/config/identity.h"   // Config::SITE_NAME / FIRMWARE_VERSION / MQTT_TOPIC_PREFIX
@@ -152,6 +153,21 @@ namespace Botanik { namespace Health {
             // build's own configuration as a fault.
             if (_logger == nullptr || !_logger->has_writers()) ok = false;
 #endif
+            // The alarm model holds ALARM_SLOTS conditions and the table may
+            // declare more. Losing the tail means those alarms are never driven
+            // - and because the library's platform rows are spliced FIRST, what
+            // goes is the site's own. The only guard was a BOTANIK_ASSERT, which
+            // compiles to nothing without DEBUG, i.e. on every OPTA build. This
+            // is the one place that runs on hardware and can say so.
+            if (_model.declared_count() > _model.count()) {
+                ok = false;
+                char detail[80];
+                snprintf(detail, sizeof(detail),
+                         "%u alarms declared, %u driven: raise ALARM_SLOTS",
+                         (unsigned)_model.declared_count(),
+                         (unsigned)_model.count());
+                _post_fail("alarm table overruns the model", detail);
+            }
             _post_ok = ok;
             if (_logger) {
                 if (ok) _logger->info(Logs::HEALTH, "POST ok (site %s)",

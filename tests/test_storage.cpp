@@ -97,6 +97,41 @@ TEST_CASE("storage: a value past the store cap is refused and counted") {
     CHECK_FALSE(Storage::get("k_huge", huge, sizeof(huge), &n));
 }
 
+TEST_CASE("storage: a write that would not fit refuses, and keeps what is there") {
+    // The store is rewritten whole on every write, so the interesting property
+    // is not that an over-large value is refused but that refusing it costs
+    // nothing already committed. Pinned here because the rewrite-whole design
+    // is what would make a partial write destructive.
+    StoreEnv env;
+
+    // Fill most of the store with records that must survive.
+    static uint8_t blob[Config::STORE_MAX_BYTES / 8];
+    memset(blob, 0x5A, sizeof(blob));
+    REQUIRE(Storage::set("keep_a", blob, sizeof(blob)));
+    REQUIRE(Storage::set("keep_b", blob, sizeof(blob)));
+    REQUIRE(Storage::set("keep_c", blob, sizeof(blob)));
+
+    // One more that cannot fit alongside them.
+    static uint8_t rest[Config::STORE_MAX_BYTES / 2];
+    memset(rest, 0x33, sizeof(rest));
+    const uint32_t before = Storage::fault_count();
+    CHECK_FALSE(Storage::set("too_big", rest, sizeof(rest)));
+    CHECK(Storage::fault_count() > before);          // counted, so FLASH_FLT can see it
+
+    // ...and the refusal cost nothing that was already stored.
+    static uint8_t back[Config::STORE_MAX_BYTES / 8];
+    size_t n = 0;
+    static const char* const KEPT[] = { "keep_a", "keep_b", "keep_c" };
+    for (const char* k : KEPT) {
+        INFO("record ", k, " must survive a refused write");
+        memset(back, 0, sizeof(back));
+        REQUIRE(Storage::get(k, back, sizeof(back), &n));
+        CHECK(n == sizeof(blob));
+        CHECK(back[0] == 0x5A);
+        CHECK(back[n - 1] == 0x5A);
+    }
+}
+
 TEST_CASE("storage: value larger than the caller buffer fails cleanly") {
     StoreEnv env;
     uint8_t big[10];

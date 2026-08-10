@@ -162,6 +162,27 @@ namespace Botanik { namespace Network {
             return 0;
         }
         if (r < (int)sizeof(pkt)) { HAL::Network::udp_close(_udp); _udp = -1; return -1; }
+
+        // Only the server we asked, and only an answer shaped like one. The
+        // socket is an unbound ephemeral UDP port, so without this ANY host that
+        // lands a 48-byte datagram inside the query window sets the RTC through
+        // set_wall_ms() below - moving every log timestamp and every MQTT record
+        // on the unit. Both values are already in hand from the recvfrom.
+        //
+        // Not a timing-attack defence: a spoofed source still passes, and NTP
+        // without authentication cannot do better. It is the difference between
+        // "a peer we addressed" and "anything at all".
+        const bool from_server =
+            (from.b[0] == _server_addr.b[0] && from.b[1] == _server_addr.b[1] &&
+             from.b[2] == _server_addr.b[2] && from.b[3] == _server_addr.b[3] &&
+             port == server_port());
+        const bool is_reply = ((pkt[0] & 0x07u) == 4u);   // mode 4: server
+        if (!from_server || !is_reply) {
+            // Not ours: drop the datagram and keep waiting out the window,
+            // rather than failing the query on someone else's traffic.
+            return 0;
+        }
+
         uint64_t unix_ms = ntp_to_unix_ms(pkt);
         HAL::Network::udp_close(_udp); _udp = -1;
         if (unix_ms == 0) return -1;

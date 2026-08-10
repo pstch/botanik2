@@ -425,14 +425,46 @@ namespace Botanik { namespace HAL { namespace Network {
         int fd = ::socket(AF_INET, SOCK_DGRAM, 0);
         return fd < 0 ? -1 : set_nonblock(fd);
     }
+    namespace {
+        /** @brief Where each UDP socket was last aimed, BEFORE the diversion.
+         *
+         *  The emulation has to be transparent in both directions. sendto()
+         *  redirects every datagram to the in-process responder on a shifted
+         *  port; if recvfrom() then reported that physical peer, the firmware
+         *  would see an answer from a host it never addressed - and code that
+         *  checks (NtpClient does, so a stray datagram cannot set the clock)
+         *  would reject every reply on the simulator while working on hardware.
+         *
+         *  One row per socket, keyed by fd. NET_MAX_UDP is 2. */
+        struct UdpAim { int fd; Ip4 addr; uint16_t port; };
+        UdpAim g_udp_aim[Config::NET_MAX_UDP] = {};
+
+        void aim_remember(int fd, const Ip4& a, uint16_t port) {
+            for (int i = 0; i < Config::NET_MAX_UDP; ++i)
+                if (g_udp_aim[i].fd == fd) { g_udp_aim[i].addr = a; g_udp_aim[i].port = port; return; }
+            for (int i = 0; i < Config::NET_MAX_UDP; ++i)
+                if (g_udp_aim[i].fd == 0) { g_udp_aim[i] = UdpAim{ fd, a, port }; return; }
+        }
+        const UdpAim* aim_of(int fd) {
+            for (int i = 0; i < Config::NET_MAX_UDP; ++i)
+                if (g_udp_aim[i].fd == fd) return &g_udp_aim[i];
+            return nullptr;
+        }
+        void aim_forget(int fd) {
+            for (int i = 0; i < Config::NET_MAX_UDP; ++i)
+                if (g_udp_aim[i].fd == fd) g_udp_aim[i] = UdpAim{};
+        }
+    }  // namespace
+
     bool udp_sendto(UdpSocket s, const Ip4& a, uint16_t port, const void* buf, size_t len) {
         if (s < 0) return false;
         // Hermetic: whatever the site aims at, the packet goes to the in-process
         // responder (see to_mock_peer) - and no privileged ports in the sim, so
         // a well-known port (NTP's 123) is shifted by the same rule a listener
         // binds under.
-        port = sim_port(port);
-        sockaddr_in sin = make_sin(to_mock_peer(a), port);
+        aim_remember(s, a, port);
+        const uint16_t phys = sim_port(port);
+        sockaddr_in sin = make_sin(to_mock_peer(a), phys);
         ssize_t n = ::sendto(s, buf, len, 0, reinterpret_cast<sockaddr*>(&sin), sizeof(sin));
         return n == (ssize_t)len;
     }
@@ -441,11 +473,20 @@ namespace Botanik { namespace HAL { namespace Network {
         sockaddr_in sin; socklen_t sl = sizeof(sin);
         ssize_t n = ::recvfrom(s, buf, len, 0, reinterpret_cast<sockaddr*>(&sin), &sl);
         if (n < 0) return (errno == EAGAIN || errno == EWOULDBLOCK) ? 0 : -1;
-        if (from) memcpy(from->b, &sin.sin_addr, 4);
-        if (port) *port = ntohs(sin.sin_port);
+        // Undo the diversion: an answer from the mock is reported as coming from
+        // whoever this socket was aimed at. Anything else (nothing sends here in
+        // practice) is passed through as itself.
+        const UdpAim* aim = aim_of(s);
+        Ip4 phys_from; memcpy(phys_from.b, &sin.sin_addr, 4);
+        const uint16_t phys_port = ntohs(sin.sin_port);
+        const bool from_mock = aim != nullptr &&
+            memcmp(phys_from.b, to_mock_peer(aim->addr).b, 4) == 0 &&
+            phys_port == sim_port(aim->port);
+        if (from) *from = from_mock ? aim->addr : phys_from;
+        if (port) *port = from_mock ? aim->port : phys_port;
         return (int)n;
     }
-    void udp_close(UdpSocket s) { if (s >= 0) ::close(s); }
+    void udp_close(UdpSocket s) { if (s >= 0) { aim_forget(s); ::close(s); } }
 
     TcpSocket tcp_open() {
         int fd = ::socket(AF_INET, SOCK_STREAM, 0);
@@ -513,7 +554,7 @@ namespace Botanik { namespace HAL { namespace Network {
     }
     int tcp_send(TcpSocket s, const void* buf, size_t len) {
         if (s < 0) return -1;
-        ssize_t n = ::send(s, buf, len, 0);
+        ssize_t n = ::send(s, buf, len, MSG_NOSIGNAL);
         if (n < 0) return (errno == EAGAIN || errno == EWOULDBLOCK) ? 0 : -1;
         return (int)n;
     }

@@ -137,10 +137,10 @@ namespace Botanik { namespace Network {
             netd_trace_mqtt(pkt, (ssize_t)n);
             if ((pkt[0] & 0xF0) == 0x10) {              // CONNECT
                 uint8_t ack[4] = { 0x20, 0x02, 0x00, 0x00 };   // CONNACK, accepted
-                ::send(fd, ack, sizeof(ack), 0);
+                ::send(fd, ack, sizeof(ack), MSG_NOSIGNAL);
             } else if ((pkt[0] & 0xF0) == 0xC0) {       // PINGREQ
                 uint8_t pong[2] = { 0xD0, 0x00 };       // PINGRESP
-                ::send(fd, pong, sizeof(pong), 0);
+                ::send(fd, pong, sizeof(pong), MSG_NOSIGNAL);
             }
         }
 

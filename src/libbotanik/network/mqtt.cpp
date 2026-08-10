@@ -20,7 +20,8 @@ namespace Botanik { namespace Network {
     MqttClient::MqttClient(const Vars::Bank* cfg, Logs::Logger* logger,
                            NameResolver* resolver, const NetworkHandler* net)
         : Component(logger, "MqttClient"), _cfg(cfg),
-          _state(MQTT_IDLE), _since_ms(0), _last_ping_ms(0), _last_pub_ms(0),
+          _state(MQTT_IDLE), _since_ms(0), _last_ping_ms(0), _last_pong_ms(0),
+          _connack(), _connack_len(0), _last_pub_ms(0),
           _resolver(resolver), _net(net), _sock(-1) {
         _broker_addr = HAL::Network::Ip4();   // 0.0.0.0 until resolved
     }
@@ -105,6 +106,10 @@ namespace Botanik { namespace Network {
                 if (r > 0) {
                     _enter(MQTT_READY, now_ms);
                     _last_ping_ms = now_ms;
+                    // The broker has just answered, so the liveness clock
+                    // starts here rather than at 0 (which would read as a
+                    // silence stretching back to boot).
+                    _last_pong_ms = now_ms;
                     if (_logger) {
                         char ab[16];
                         _logger->notice(Logs::NETWORK, "MQTT connected (%s:%u)",
@@ -154,6 +159,10 @@ namespace Botanik { namespace Network {
         if (_sock >= 0) HAL::Network::tcp_close(_sock);
         _sock = HAL::Network::tcp_open();
         if (_sock < 0) return false;
+        // A new socket is a new handshake: whatever the last one had collected
+        // is not part of this CONNACK.
+        _connack_len = 0;
+        _last_pong_ms = 0;
         // 1 done, 0 pending, <0 err
         int r = HAL::Network::tcp_connect(_sock, _broker_addr, peer_port());
         if (r >= 0) return true;
@@ -195,11 +204,24 @@ namespace Botanik { namespace Network {
     }
 
     int MqttClient::_poll_connack() {
-        uint8_t buf[4];
-        int r = HAL::Network::tcp_recv(_sock, buf, sizeof(buf));
-        if (r == 0) return 0;            // would-block
-        if (r < 4) return -1;
-        if (buf[0] != 0x20 || buf[3] != 0x00) return -1;
+        // Reassembled across beats. TCP promises a byte stream, not segment
+        // boundaries: a CONNACK split 2+2 by a proxy or a loaded broker is
+        // perfectly legal, and treating a short read as a hard failure dropped
+        // the client into MQTT_ERROR for the whole retry period - for good, on a
+        // path where the split reproduces. The in-process mock cannot produce
+        // one, so no test here can catch it. MQTT_CONNECT_TIMEOUT_MS in
+        // on_step() is what bounds the wait.
+        while (_connack_len < sizeof(_connack)) {
+            int r = HAL::Network::tcp_recv(_sock, _connack + _connack_len,
+                                           (int)(sizeof(_connack) - _connack_len));
+            if (r == 0) return 0;                       // would-block: more later
+            if (r < 0) return -1;                       // closed / error
+            _connack_len = (uint8_t)(_connack_len + r);
+        }
+        // Fixed header 0x20, remaining length 2, then the session flag and the
+        // return code; only a zero return code is an accepted connection.
+        if (_connack[0] != 0x20 || _connack[1] != 0x02 || _connack[3] != 0x00)
+            return -1;
         return 1;
     }
 
@@ -212,9 +234,30 @@ namespace Botanik { namespace Network {
             int r = HAL::Network::tcp_recv(_sock, scratch, sizeof(scratch));
             if (r == 0) break;           // would-block: drained
             if (r < 0) { _fail(now_ms); return; }   // closed/error
+            // A PINGRESP anywhere in what we drained is proof the broker is
+            // still answering. Only the packet type is checked: the byte after
+            // it is a zero remaining-length, and nothing else the broker sends
+            // us on this connection begins 0xD0.
+            for (int j = 0; j < r; ++j)
+                if (scratch[j] == 0xD0) { _last_pong_ms = now_ms; break; }
         }
-        uint32_t ka_s = (uint32_t)Vars::get_int(_cfg, "mqtt_ka_sec");
-        if (now_ms - _last_ping_ms > (uint64_t)ka_s * 1000ull / 2ull) {
+
+        const uint32_t ka_s = (uint32_t)Vars::get_int(_cfg, "mqtt_ka_sec");
+        const uint64_t ka_ms = (uint64_t)ka_s * 1000ull;
+
+        // A wedged broker, or a path that black-holes, leaves the socket open
+        // and answering nothing. Without this the client reports connected for
+        // ever while telemetry, alarm transitions and published logs go into the
+        // send buffer and vanish - and mqtt_ka_sec is documented as the
+        // dead-broker detection, which it was not. Half a keep-alive out, so a
+        // miss is noticed inside one and a half.
+        if (ka_ms != 0 && _last_pong_ms != 0 &&
+            now_ms - _last_pong_ms > ka_ms + ka_ms / 2ull) {
+            _fail(now_ms);
+            return;
+        }
+
+        if (now_ms - _last_ping_ms > ka_ms / 2ull) {
             uint8_t ping[2] = { 0xC0, 0x00 };
             if (HAL::Network::tcp_send(_sock, ping, 2) != 2) { _fail(now_ms); return; }
             _last_ping_ms = now_ms;

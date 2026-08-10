@@ -174,7 +174,20 @@ namespace Botanik { namespace HAL { namespace Storage {
                    memcmp(s + ls, key, klen) == 0;
         }
 
-        // Append every line of the store except @p key's into @p out.
+        /** @brief Append every line of the store except @p key's into @p out.
+         *
+         *  @return the bytes written, or COPY_TRUNCATED if @p out could not
+         *  hold them all.
+         *
+         *  Unreachable as wired - `g_in` and `g_out` are both STORE_MAX, load()
+         *  caps at sizeof(g_in), and this only ever DROPS a line, so the output
+         *  cannot outgrow the input. The signal exists because the callers write
+         *  what they get back as the WHOLE store: a short count would delete
+         *  every record that did not fit and report success. That is a bad
+         *  enough failure to be worth making unrepresentable rather than
+         *  leaving to a buffer-size invariant two hundred lines away. */
+        static const size_t COPY_TRUNCATED = (size_t)-1;
+
         size_t copy_without(const char* in, size_t n, const char* key,
                             size_t klen, char* out, size_t cap) {
             size_t o = 0, i = 0;
@@ -184,7 +197,7 @@ namespace Botanik { namespace HAL { namespace Storage {
                 if (i < n) i++;                        // consume the newline
                 size_t le = (i > ls && in[i - 1] == '\n') ? i - 1 : i;
                 if (line_is_key(in, ls, le, key, klen)) continue;
-                if (o + (i - ls) > cap) break;         // overflow: drop the tail
+                if (o + (i - ls) > cap) return COPY_TRUNCATED;
                 memcpy(out + o, in + ls, i - ls);
                 o += (i - ls);
             }
@@ -197,6 +210,9 @@ namespace Botanik { namespace HAL { namespace Storage {
         size_t klen = strlen(key);
         size_t n = load(g_in, sizeof(g_in));
         size_t o = copy_without(g_in, n, key, klen, g_out, sizeof(g_out));
+        // A truncated copy is a FAILED write, not a smaller store: writing it
+        // back would drop whatever did not fit and report success.
+        if (o == COPY_TRUNCATED) return note(false);
         // Append "key=<hex>\n" (a raw record, not a NUL-terminated string).
         if (o + klen + 1 + 2 * len + 1 > sizeof(g_out)) return note(false);
         for (size_t j = 0; j < klen; j++) g_out[o++] = key[j];
@@ -243,6 +259,7 @@ namespace Botanik { namespace HAL { namespace Storage {
         size_t n = load(g_in, sizeof(g_in));
         if (n == 0) return true;                       // nothing stored
         size_t o = copy_without(g_in, n, key, klen, g_out, sizeof(g_out));
+        if (o == COPY_TRUNCATED) return note(false);    // see set()
         if (o == n) return true;                        // key absent: idempotent
         return note(store(g_out, o));
     }

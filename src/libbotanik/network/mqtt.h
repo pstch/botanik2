@@ -60,6 +60,15 @@ namespace Botanik { namespace Network {
         /// when this state was entered (timeouts)
         uint64_t              _since_ms;
         uint64_t              _last_ping_ms;   ///< last keepalive PINGREQ
+        /** @brief Uptime of the last PINGRESP seen; 0 until the connection is
+         *  up. What turns mqtt_ka_sec into the dead-broker detection its own
+         *  parameter notes claim it is. */
+        uint64_t              _last_pong_ms;
+        /** @brief CONNACK bytes held so far. TCP may split the four across
+         *  segments, so the handshake reassembles rather than failing on a
+         *  short read. Reset when the socket is opened. */
+        uint8_t               _connack[4];
+        uint8_t               _connack_len;
         uint64_t              _last_pub_ms;    ///< last successful publish (0 = none)
         NameResolver*         _resolver;       ///< DNS resolver
         ResolvedAddr          _broker_addr;    ///< resolved broker address
