@@ -10,6 +10,16 @@ Everything here is `modbus/rtu/`. The TCP corners are untouched.
 Phases are ordered so each one is safe to stop after. Phase 0 comes first because
 none of the rest is verifiable without it.
 
+**Status.** Phase 0.1 and Phase 1 are done on `mb-solidify`. What is left is the
+scheduling work: one clock (phase 2), the probe interleave (phase 3), the
+per-device timeout (4), the diagnosis rows (5) and the documentation (6).
+
+One thing phase 0 turned up that the plan did not predict: the simulator paces
+its bytes against the HOST clock, so a test stepping a virtual beat sees the port
+as permanently busy and exactly one transaction ever leaves. The harness opens
+the port at baud 0 to say that byte time is not what it is testing. A virtual
+clock in HAL would be the general fix, and is not needed for anything below.
+
 ---
 
 ## What the investigation found
@@ -88,7 +98,7 @@ Nothing below is worth landing unverified, and the seams already exist:
 without a wire, and the simulator's `FieldBus` stands a real `RtuSlave` up per
 unit over a socketpair.
 
-### 0.1 Fault injection on the simulated field bus
+### 0.1 Fault injection on the simulated field bus [DONE]
 
 Three states per simulated unit, set from the harness: **absent** (drop every
 request), **late** (answer after a delay, past the deadline), **refusing**
@@ -105,12 +115,12 @@ cheap enough to be exhaustive.
 
 ---
 
-## Phase 1 - the two latches
+## Phase 1 - the two latches [DONE]
 
 Correctness only. Neither changes a scheduling policy, and both are small enough
 to land and verify independently of the ladder work.
 
-### 1.1 The safe-state urgency latches for ever (F1)
+### 1.1 The safe-state urgency latches for ever (F1) [DONE]
 
 `_track_control()` spends `_urgent` by sweeping for any remaining dirty write
 block, and the sweep does not consult `_due()`. A block on a backed-off device is
@@ -129,7 +139,7 @@ than by the sweep finding nothing.
 spent once the reachable safe-state writes are out, and that an ordinary dirty
 write is then throttled by `MODBUS_WRITE_MIN_MS` again.
 
-### 1.2 A refused write is retried five times a second, for ever (F2)
+### 1.2 A refused write is retried five times a second, for ever (F2) [DONE]
 
 `_answered()` correctly clears the miss count on an exception: the device heard
 us. But `_settle()` returns before `clear_dirty()`, so the block stays dirty and
