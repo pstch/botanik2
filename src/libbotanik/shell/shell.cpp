@@ -106,7 +106,6 @@ namespace Botanik { namespace Shell {
             { "override",   "list|clear|<name> [off|<value>] [valid|invalid]", &CommandShell::_cmd_override },
             { "control",    "[enable|inhibit|disable] drive the field", &CommandShell::_cmd_control },
             { "save",       "flush retained values to flash", &CommandShell::_cmd_save      },
-            { "loglevel",   "[debug|info|..|critical] filter",&CommandShell::_cmd_loglevel   },
             { "version",    "firmware version",               &CommandShell::_cmd_version    },
             { "features",   "which subsystems are built in",  &CommandShell::_cmd_features   },
             { "breakpoint", "trap into an attached debugger", &CommandShell::_cmd_breakpoint },
@@ -915,71 +914,6 @@ namespace Botanik { namespace Shell {
         if (n == 0) { _println("save: no retained values"); return; }
         _emitf(out, sizeof(out), "save: %u retained value(s) written", (unsigned)n);
     }
-
-    void CommandShell::_cmd_loglevel(const char* args, uint16_t alen) {
-#if !BOTANIK_FEATURE_LOGGING
-        // The Logger object still exists (an inert shell), so a null check would
-        // not catch this and the command would silently appear to work.
-        (void)args; (void)alen;
-        _println("loglevel: logging is compiled out (see `features`)");
-        return;
-#else
-        if (_logger == nullptr) {
-            _println("loglevel: logger unavailable"); return;
-        }
-        static const struct { const char* name; Logs::LogLevel lvl; } LEVELS[] = {
-            { "debug",  Logs::LOG_DEBUG   }, { "info",    Logs::LOG_INFO    },
-            { "notice", Logs::LOG_NOTICE  }, { "warning", Logs::LOG_WARNING },
-            { "error",  Logs::LOG_ERROR   }, { "critical",Logs::LOG_CRITICAL},
-        };
-        char out[48];
-        uint16_t wlen; const char* w = arg_next(args, alen, wlen);
-        if (w == nullptr) {   // report current threshold
-            const char* cur = "?";
-            for (const auto& L : LEVELS)
-                if (L.lvl == _logger->min_level()) cur = L.name;
-            _emitf(out, sizeof(out), "loglevel: %s", cur);
-            // Say it, because "loglevel debug" not making DEBUG appear here
-            // otherwise reads as a broken command rather than a page floor.
-            _println("(master floor; each page filters further)");
-            return;
-        }
-        for (const auto& L : LEVELS)
-            if (arg_eq(w, wlen, L.name)) {
-                // Write the PARAMETER, not the logger: `sys_log_level` is the
-                // setting and the CONFIG task pushes it down. Setting the logger
-                // straight would give one knob two owners, and the copy the
-                // operator moved is the one that dies at the next reboot.
-                Vars::Bank* io = _bank();
-                Vars::VarRef r = { Vars::VAR_NONE };
-                if (io != nullptr) r = io->find("sys_log_level");
-                if (r.index == Vars::VAR_NONE) {
-                    // No row (a site that left the library splice out): honour
-                    // the command anyway, live, and say what it did not do.
-                    _logger->set_min_level(L.lvl);
-                    _emitf(out, sizeof(out),
-                           "loglevel: %s (not saved: no sys_log_level row)", L.name);
-                    return;
-                }
-                char num[8];
-                Utils::format_int(num, sizeof(num), (long long)L.lvl);
-                const Vars::SetResult res = io->set(io->var(r), num);
-                if (res == Vars::SET_INVALID) {
-                    _emitf(out, sizeof(out), "loglevel: %s refused", L.name);
-                    return;
-                }
-                // Down to the logger here rather than waiting for the CONFIG
-                // beat: this command's own confirmation is a log line.
-                _logger->set_min_level(L.lvl);
-                _emitf(out, sizeof(out), "loglevel: %s%s", L.name,
-                       res == Vars::SET_NOT_PERSISTED
-                           ? "  (NOT SAVED: storage refused it)" : "");
-                return;
-            }
-        _println("usage: loglevel [debug|info|notice|warning|error|critical]");
-#endif
-    }
-
 
 #if !BOTANIK_FEATURE_NETWORK
 

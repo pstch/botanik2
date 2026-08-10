@@ -21,10 +21,13 @@ namespace Botanik { namespace Config {
      *  in front of them.
      *  @{ */
 
-    /** @brief Minimum level the LOGGER forwards at all - the master floor, and
-     *  what the `loglevel` command moves. DEBUG, so the LOGS page can show
-     *  everything; each page sink then applies its own floor on top (below).
-     *  Cheap to leave open: every debug() call site is a one-shot boot line. */
+    /** @brief The FACTORY DEFAULT for the `sys_log_level` parameter, which is
+     *  the master floor: below it nothing is forwarded to any sink.
+     *
+     *  The live value is the parameter, so a level set over the terminal
+     *  survives a reboot. DEBUG, so the LOGS page can show everything; each page
+     *  sink then applies its own floor on top (below). Cheap to leave open:
+     *  every debug() call site is a one-shot boot line. */
 #ifndef BOTANIK_LOG_MIN_LEVEL
 #  define BOTANIK_LOG_MIN_LEVEL 1   /* Logs::LOG_DEBUG */
 #endif

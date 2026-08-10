@@ -118,12 +118,18 @@ build - `tasks` prints the four rates.
 | Command | Does |
 |---|---|
 | `logs [on\|off]` | show or hide the live log interleave on this page |
-| `loglevel [<level>]` | report or set the minimum level that gets logged at all: `debug`, `info` (default), `notice`, `warning`, `error`, `critical` |
 
-`loglevel` changes what the logger emits to **every** sink, not just this page. See
-@ref user_logging. It writes the `sys_log_level` parameter rather than the logger
-directly, so the level you set survives a reboot - and `set sys_log_level <n>` or
-the PARAMS page reach the same setting.
+How much gets logged at all is the `sys_log_level` parameter, so it is `get` and
+`set` like any other rather than a command of its own - which is what makes it
+persist, and reach from the PARAMS page and over Modbus too. It is the **master
+floor** for every sink, not just this page:
+
+```
+botanik> set sys_log_level 8      # warning and up, everywhere
+```
+
+The value is the level's own number (1 debug, 2 info, 4 notice, 8 warning,
+16 error, 32 critical). See @ref user_logging.
 
 `features` partitions the optional subsystems into what is present and what is not:
 

@@ -513,10 +513,9 @@ namespace Botanik {
          *  one needs pushing. Edge-triggered against what is running, so the
          *  steady case is a read and a compare.
          *
-         *  The `loglevel` command writes the same parameter and then sets the
-         *  logger itself, which makes this a no-op for that path - it exists for
-         *  the boot load, and for a level set from the PARAMS page or over
-         *  Modbus. */
+         *  This is the ONLY thing that moves the logger's floor, so a level set
+         *  from the shell, the PARAMS page or a Modbus master all arrive the
+         *  same way: through the parameter, and then through here. */
         void _apply_log_config();
 #endif
 

@@ -36,22 +36,24 @@ is logged and delivered to every sink. The base library provides up to five sink
 
 ## Choosing how much
 
-Two filters in series. `loglevel` is the **master floor** - below it nothing is
-emitted at all, to any sink:
+Two filters in series. The `sys_log_level` **parameter** is the master floor -
+below it nothing is emitted at all, to any sink:
 
 ```
-botanik> loglevel            # report the current threshold
-loglevel: debug
-(master floor; each page filters further)
-botanik> loglevel warning    # quieten everything below warnings
+botanik> get sys_log_level        # report the current threshold
+botanik> set sys_log_level 8      # quieten everything below warnings
 ```
 
-The master floor is the `sys_log_level` **parameter**, and that is what
-`loglevel` writes - so a level set here survives a reboot, and reads the same
-from the PARAMS page or over Modbus. Its value is the level's own number
-(1 debug, 2 info, 4 notice, 8 warning, 16 error, 32 critical); a value between
-two rounds DOWN to the level at or below it, which is the permissive way to be
-wrong about a log filter. `BOTANIK_LOG_MIN_LEVEL` is its factory value.
+It is an ordinary parameter, so it persists, and it reads and writes the same
+from the PARAMS page or over Modbus. Its value is the level's own number:
+
+| | 1 | 2 | 4 | 8 | 16 | 32 |
+|---|---|---|---|---|---|---|
+| | debug | info | notice | warning | error | critical |
+
+A value between two rounds **down** to the level at or below it, which is the
+permissive way to be wrong about a log filter. `BOTANIK_LOG_MIN_LEVEL` is the
+factory value.
 
 That factory value is `debug`, so the LOGS page can be the complete record. Each
 page then applies its **own** floor on top:
@@ -62,10 +64,10 @@ page then applies its **own** floor on top:
 | SHELL | `info` and up | you are already working here, so keep the running commentary |
 | LOGS | everything, `debug` included | this page is the record |
 
-A page floor can only ever be *more* restrictive: `loglevel warning` quietens
-every page, but `loglevel debug` does **not** make debug lines appear on HOME.
-Criticals clear every floor. To silence only the SHELL page's interleaved log
-entirely, use `logs off`.
+A page floor can only ever be *more* restrictive: raising the master floor to
+`warning` quietens every page, but lowering it to `debug` does **not** make
+debug lines appear on HOME. Criticals clear every floor. To silence only the
+SHELL page's interleaved log entirely, use `logs off`.
 
 A site can move any of the three (`BOTANIK_HOME_LOG_MIN_LEVEL`,
 `BOTANIK_SHELL_LOG_MIN_LEVEL`, `BOTANIK_LOGS_LOG_MIN_LEVEL`).
@@ -114,7 +116,7 @@ carry it. It never competes with the UI for the console's byte budget, so it doe
 drop lines the way a busy screen can.
 
 On hardware, plug in a USB cable and open the CDC device at 115200. Everything the
-logger emits appears there, at whatever `loglevel` is set.
+logger emits appears there, at whatever `sys_log_level` is set to.
 
 @note On the simulator the monitor stream goes to **stderr** and suppresses itself
 when that is a terminal, so it cannot garble the UI on the same screen. Redirect it

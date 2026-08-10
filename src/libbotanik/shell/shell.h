@@ -16,9 +16,7 @@
 #include "libbotanik/vars/params.h"         // Vars::Params
 
 namespace Botanik {
-    // loglevel command (set_diagnostics)
-    namespace Logs    { class Logger;     }
-    // alarm list/ack command (set_diagnostics)
+    // alarm list/ack command (set_alarms)
     namespace Alarms  { class AlarmController; }
     // ntpsync command (set_ntp); null when the NTP feature is off
     namespace Network { class NtpClient;  }
@@ -85,10 +83,9 @@ namespace Botanik { namespace Shell {
         size_t                  _command_count = 0;
         /** opaque ctx for each site callback */
         void*                   _command_ctx   = nullptr;
-        /** @brief Mutable diagnostics targets for the loglevel / alarm
-         *  commands; null until set_diagnostics() wires them (commands then
-         *  report "unavailable"). */
-        Logs::Logger*           _logger        = nullptr;
+        /** @brief The alarm model the `alarms` list/ack command works on; null
+         *  until set_alarms() wires it (the command then reports
+         *  "unavailable"). */
         Alarms::AlarmController*     _alarm_model   = nullptr;
         /** @brief NTP client for the `ntpsync` command; null until set_ntp()
          *  wires it (off when the NTP feature is absent). */
@@ -127,11 +124,11 @@ namespace Botanik { namespace Shell {
          *  reset). A zero-length command is ignored. */
         void run(const char* cmd, uint16_t len);
 
-        /** @brief Wire the mutable diagnostics targets the loglevel / alarm-ack
-         *  commands act on (the firmware passes its logger and alarm model). */
-        void set_diagnostics(Logs::Logger* logger, Alarms::AlarmController* alarms) {
-            _logger = logger; _alarm_model = alarms;
-        }
+        /** @brief Wire the alarm model the `alarms` list/ack command acts on.
+         *
+         *  The shell holds no logger: the one setting it used to reach one for
+         *  is `sys_log_level`, which `set` edits like any other parameter. */
+        void set_alarms(Alarms::AlarmController* alarms) { _alarm_model = alarms; }
 
         /** @brief Wire the NTP client `ntpsync` resyncs. Null when the NTP
          *  feature is off, so the command reports "unavailable". */
@@ -217,7 +214,6 @@ namespace Botanik { namespace Shell {
         #endif
         void _cmd_net(const char* args, uint16_t alen);
         void _cmd_ntpsync(const char* args, uint16_t alen);
-        void _cmd_loglevel(const char* args, uint16_t alen);
         void _cmd_list(const char* args, uint16_t alen);
         void _cmd_get(const char* args, uint16_t alen);
         void _cmd_set(const char* args, uint16_t alen);

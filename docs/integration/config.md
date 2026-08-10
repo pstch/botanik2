@@ -199,7 +199,7 @@ unit is nuisance-alarming on. The macros are their factory values.
 
 | Macro | Default | |
 |---|---|---|
-| `LOG_MIN_LEVEL` | 2 (info) | factory default for `sys_log_level`, which IS the master floor: `loglevel` writes that parameter, so a level set over the terminal survives a reboot. SIMULATOR builds force this to 1 (debug) from `CMakeLists.txt`, so the sim never shows this default |
+| `LOG_MIN_LEVEL` | 2 (info) | factory default for `sys_log_level`, which IS the master floor. Moving it is a parameter edit, so it persists. SIMULATOR builds force this to 1 (debug) from `CMakeLists.txt`, so the sim never shows this default |
 | `LOG_MESSAGE_LEN` | 256 | the raw message, before formatting |
 | `LOG_FORMATTED_LEN` | 320 | the formatted line. A `static_assert` keeps it at least `LOG_MESSAGE_LEN + 64`, so a full-length message does not lose its tail to the timestamp/level/topic prefix |
 | `LOG_WRITERS_MAX` | 8 | |
