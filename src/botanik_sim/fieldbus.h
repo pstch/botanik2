@@ -61,6 +61,11 @@ namespace Botanik { namespace Sim {
         Vars::Bank*      _io    = nullptr;
         uint32_t         _frames = 0;   ///< requests answered, all devices
 
+        /** @brief Per-device fault, parallel to _dev. @see Fault */
+        uint8_t          _fault[MAX_DEVICES] = {};
+        /** @brief How long a FAULT_LATE device thinks, in ms. */
+        uint32_t         _late_ms[MAX_DEVICES] = {};
+
         /** @brief The answer a device has ready, and when it may go out
          *  (see TURNAROUND_MS). */
         uint8_t  _pending[Modbus::ADU_MAX] = {};
@@ -70,12 +75,51 @@ namespace Botanik { namespace Sim {
         /** @} */
 
     public:
+        /**
+         * @brief What a unit does with a request, so the master's failure paths
+         * can be driven from a test or from the sim by hand.
+         *
+         * The three shapes the master must tell apart, and does not today: a box
+         * that is not there, one that is there but slower than the deadline, and
+         * one that is there and says no. Only the first was expressible before,
+         * and only by leaving the device out of the table.
+         */
+        enum Fault : uint8_t {
+            FAULT_NONE,    ///< answers normally
+            FAULT_ABSENT,  ///< hears nothing and says nothing: unplugged
+            FAULT_LATE,    ///< answers correctly, after its own delay
+            FAULT_REFUSE   ///< answers every request with exception 02
+        };
+
+        /** @brief Put @p unit into @p f. @p late_ms is FAULT_LATE's turnaround,
+         *  and is meaningless for the others. A unit the table never names is
+         *  silently ignored: it has no device to fault. */
+        void set_fault(uint8_t unit, Fault f, uint32_t late_ms = 0) {
+            for (uint8_t k = 0; k < _count; k++) {
+                if (_dev[k].unit() != unit) continue;
+                _fault[k]   = (uint8_t)f;
+                _late_ms[k] = late_ms;
+                return;
+            }
+        }
+
+        /** @brief Every unit back to answering. */
+        void clear_faults() {
+            for (uint8_t k = 0; k < MAX_DEVICES; k++) {
+                _fault[k]   = FAULT_NONE;
+                _late_ms[k] = 0;
+            }
+        }
+
         /** @brief Learn the devices from the table itself: every distinct unit
          *  id an XP_MODBUS row names is a box that has to answer. */
         void bind(Vars::Bank* io) {
             _io = io;
             _count = 0;
             _dropped = 0;
+            // The fault array is indexed like _dev, so re-learning the device
+            // set makes every entry in it mean something else.
+            clear_faults();
             if (io == nullptr) return;
 
             // Distinctness comes from a bitmap over the whole unit space, not
@@ -165,14 +209,21 @@ namespace Botanik { namespace Sim {
                 if (n <= 0) break;
                 // Every device hears every byte: it is one wire, and deciding
                 // whether a frame is theirs is the device's own job (the unit id
-                // and the checksum).
-                for (uint8_t k = 0; k < _count; k++) _dev[k].feed(buf, (uint16_t)n);
+                // and the checksum). An ABSENT one is off the wire entirely, so
+                // it is not fed either - a device that hears nothing has nothing
+                // to hold, and feeding one we will never poll would eventually
+                // overrun its own frame buffer.
+                for (uint8_t k = 0; k < _count; k++) {
+                    if (_fault[k] == FAULT_ABSENT) continue;
+                    _dev[k].feed(buf, (uint16_t)n);
+                }
             }
 
             // One answer in flight, because it is one wire: two devices talking
             // at once is a collision, and a stream cannot represent one.
             if (_pending_len > 0) return;
             for (uint8_t k = 0; k < _count; k++) {
+                if (_fault[k] == FAULT_ABSENT) continue;
                 // Repeatedly, not once: every device hears every frame, so one
                 // normally holds several that belong to other units, and a
                 // backlog drained one per pump makes its own answer miss the
@@ -180,13 +231,29 @@ namespace Botanik { namespace Sim {
                 // is this device's and answers only its own, so a zero means
                 // "that one was not mine", not "there is nothing left".
                 for (uint8_t pass = 0; pass < MAX_DEVICES + 2; ++pass) {
-                    const uint16_t n = _dev[k].poll(_pending, (uint16_t)sizeof(_pending));
+                    uint16_t n = _dev[k].poll(_pending, (uint16_t)sizeof(_pending));
                     if (n == 0) continue;
+                    if (_fault[k] == FAULT_REFUSE) n = _refuse(_pending, n);
                     _pending_len = n;
-                    _pending_at  = now_ms + TURNAROUND_MS;
+                    _pending_at  = now_ms + ((_fault[k] == FAULT_LATE)
+                                                 ? _late_ms[k] : TURNAROUND_MS);
                     return;
                 }
             }
+        }
+
+        /** @brief Rewrite the answer @p out into exception 02 over the same unit
+         *  and function code. @return the exception's length.
+         *
+         *  Over the device's own answer rather than built from the request: the
+         *  slave has already decided which unit and function it is replying
+         *  about, and re-deriving that here would be a second parser. */
+        static uint16_t _refuse(uint8_t* out, uint16_t len) {
+            if (len < 2 || Modbus::exception_len() > Modbus::ADU_MAX) return len;
+            out[1] = (uint8_t)(out[1] | Modbus::EX_BIT);
+            out[2] = (uint8_t)Modbus::EX_ILLEGAL_ADDRESS;
+            (void)Modbus::seal(out, 3);
+            return Modbus::exception_len();
         }
 
         Modbus::RtuSlave* _find(uint8_t unit) {
