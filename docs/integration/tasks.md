@@ -15,8 +15,16 @@ public:
     virtual void bind(Vars::Bank& io) {}    // bring-up: names -> VarRefs, once
     virtual void run(Context& c) = 0;       // one activation
     virtual void reset() {}                 // control withdrawn: drop stale state
+    virtual void resume() {}                // control returned: re-datum
 };
 ```
+
+`reset()` and `resume()` are the two control-authority edges, and they are not
+the same event. On withdrawal the process moves without us, so what a program
+REMEMBERED is stale - a filter's history, a position estimate. On return the
+timers are reseeded so the first activation reports its nominal period rather
+than the whole outage. A totaliser keeps its total across both; that is the
+distinction the pair exists to express.
 
 The site's table is an array of **pointers**, so it stays const and
 flash-resident even though the programs it names live in RAM:

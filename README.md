@@ -28,14 +28,16 @@ Abstraction Layer so the same code builds as a Linux simulator or for the OPTA.
 | **HAL** | `hal/` | Unified platform interface (clocks, memory ordering, stack/PLC introspection, serial). `simulator.h` and `opta.h` implement it. |
 | **Scheduler** | `scheduler/` | Non-blocking fixed-period loop driver with overrun handling and built-in CPU-load, scheduling-jitter, work-duration, and stack-usage instrumentation. |
 | **Console UI** | `console/` | `Console` drives a multiplexed page display over the `AnsiTerminal` VT device; `InputParser` decodes byte streams into events; `TextEditor` is a byte-efficient line editor. |
-| **Pages** | `pages/` | Full-screen views (`Shell`, `Logs`, `Home`, `Status`) behind a common `Page` interface. |
+| **Pages** | `pages/` | Full-screen views (`Home`, `Shell`, `Logs`, `Alarms`, `Params`, `Monitor`, `Tasks`) behind a common `Page` interface. |
 | **Logging** | `logs/` | `Logger` rate-limits with a dual token-bucket, then fans entries out to `LogWriter`s. |
-| **PLC I/O** | `plcio/` | `PlcSyncHandler` runs RX/TX state machines over shared memory with the PLC coprocessor; an emulator stands in for it on the simulator. |
+| **Variables** | `vars/` | One table of `Variable` rows - readings, coils, computed values, parameters, alarms - with `Bank` the only thing that gets, sets and overrides them. |
+| **PLC** | `plc/` | The IEC 61131-3 POU vocabulary a site's control programs are written in: stateless functions, and function blocks that take `dt_ms` rather than reading a clock. |
+| **Modbus** | `modbus/` | The RS-485 field bus (master and device model) and the plant network (TCP server over the register map, and a TCP master). |
 | **Utils** | `utils/` | `BufferedSerial` (ring-buffered UART), `filters.h` (reusable EMA / windowed-max metric filters), and time/uptime helpers. |
 
 The application wires these together and runs them from a single non-blocking
-loop - see `src/botanik_sim/main.cpp` for the canonical setup (the OPTA `.ino`
-sketch does the equivalent).
+loop - see `src/botanik_sim/main.cpp` for the canonical setup. `BotanikFirmware`
+owns the components and the beat; a site supplies the tables it runs on.
 
 ## Key concepts
 
@@ -44,11 +46,12 @@ sketch does the equivalent).
   them in a fixed order. Blocking would stall the RTOS and trip the watchdog on
   the OPTA. See [CONTRIBUTING.md](CONTRIBUTING.md) for the full contract.
 - **HAL-only platform access.** Code never calls `<time.h>` or platform APIs
-  directly - only `HAL::current_ms()`, `HAL::dsb()`, `HAL::ordered_copy()`, etc.
-  This is what makes the simulator possible.
-- **PLC shared memory.** Host and PLC coprocessor communicate through shared
-  memory using transactional read/write patterns and explicit ARM DSB barriers
-  to avoid torn reads, with heartbeat / timeout / watchdog tracking.
+  directly - only `HAL::Clock::uptime_ms()`, `HAL::Memory::dsb()`,
+  `HAL::Memory::ordered_copy()`, etc. This is what makes the simulator possible.
+- **One variable model.** A Modbus reading, a relay coil, a computed value and
+  a configuration parameter are all rows of one table, differing by field rather
+  than by type. Everything addresses a row by NAME; a name that matches nothing
+  resolves to an inert sink and is counted, never to a real row.
 - **Rate-limited logging.** A global bucket plus a per-topic bucket throttle log
   volume; suppressed-message counts are reported on a slower cadence.
 - **Byte-efficient terminal.** The UI targets a low-bandwidth serial link, so

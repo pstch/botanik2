@@ -194,13 +194,21 @@ char  g_str_pool[STR_POOL_BYTES];
 ```
 
 ```cpp
-#define SITE_VAR_TABLES { g_vars, g_var_values, VAR_TOTAL, \
-                          g_str_pool, STR_POOL_BYTES }
+#define SITE_VAR_TABLES { \
+    g_vars, Site::Store::values, VAR_TOTAL, \
+    Site::Store::pool, STR_POOL_BYTES, Site::Store::name_index }
 ```
 
-`VarTables` is `{ var, val, count, pool, pool_bytes }`, and `VAR_TOTAL` is
+`VarTables` is `{ var, val, count, pool, pool_bytes, index }`, and `VAR_TOTAL` is
 `sizeof(g_vars) / sizeof(g_vars[0])` - derived, so there is no second count to keep
 in step.
+
+@warning **Do not omit `index`.** It is the scratch `Bank`'s constructor sorts into
+a name -> row mapping, and it is what makes `find()` a binary search. A null one is
+legal and leaves every lookup walking the whole table - correct, but the cost the
+index exists to avoid, on the call every site table and every control program makes
+at bring-up. `Bank::name_index_built()` reports it and `tests/test_site.cpp` fails
+on it, so this is caught - but only if the site is in the suite.
 
 @warning `SITE_VAR_TABLES` is a **macro, not a function**. Any function call in that
 initialiser would make the `SiteDescriptor` dynamically initialised and drag the
