@@ -13,6 +13,11 @@
 #include "libbotanik_site.h"
 #include "libbotanik.h"
 #include BOTANIK_SITE_HEADER
+#if BOTANIK_FEATURE_MODBUS_RTU_SERVER && defined(TARGET_SIMULATOR)
+#include <unistd.h>                     // read - draining the peer end between cases
+#include "botanik_sim/fieldbus.h"       // Sim::FieldBus - the devices, and their faults
+#include "libbotanik/hal/simulator.h"   // HAL::Serial::fieldbus_peer_fd
+#endif
 
 // --------------------------------------------------------------------------
 // modbus_client
@@ -72,37 +77,53 @@ uint32_t shortest_read_period(const Planner& p) {
 
 }  // namespace
 
-TEST_CASE("modbus client: an ordinary dirty write goes before a read that is merely due") {
+// Ranking
+// ===========================================================================
+//
+// One clock: every block is ranked on how far it is through the lateness it is
+// allowed, in permille. These two pin that it cuts BOTH ways, which is the whole
+// of it - under the old tier ladder the first was decided by kind, and the
+// second could not happen at all.
+
+TEST_CASE("modbus client: a read that is due outranks a demand only just asked for") {
+    // The old ladder put every dirty write above every read that was not yet a
+    // whole period late. It is a relative comparison now: 1 ms into a 500 ms
+    // delivery deadline is 2 permille, and a read a fifth of the way through its
+    // period is a hundred times that.
     Master m;
     m.dirty_all_writes();
 
-    // Past the write interval; reads are due but not yet a whole period late.
     const uint16_t pick = m.client.next_block(Config::MODBUS_WRITE_MIN_MS + 1);
-    INFO("writes are worth more than a reading about to be taken again anyway");
-    CHECK(m.is_write(pick));
+    INFO("a demand 1 ms past its floor is not yet owed anything");
+    CHECK(m.is_a_read(pick));
 }
 
-TEST_CASE("modbus client: a read starved by a whole period jumps the write queue") {
-    // A stroking Actuator keeps writes dirty continuously; without a floor, reads starve and the image goes stale.
+TEST_CASE("modbus client: a demand past its deadline outranks a read that is late") {
+    // And the other way. Under the ladder a starved read outranked every write
+    // for as long as it stayed starved, with no escalation on the write side at
+    // all, so output delivery simply stopped while reads were behind.
     Master m;
     m.dirty_all_writes();
 
     const uint32_t period = shortest_read_period(m.client.plan());
     REQUIRE(period > 0);
+    // The arithmetic below needs the fastest rung to be no faster than a second:
+    // a 200 ms rung climbs at 5 permille/ms against a 500 ms deadline's 2, and
+    // no static instant would show the write ahead. Non-starvation still holds
+    // dynamically there, because a served read resets to zero and the undelivered
+    // write does not - which is what the live-bus case below actually measures.
+    INFO("the site's fastest read rung is " << period << " ms");
+    REQUIRE(period >= 1000);
 
-    // Long enough that the fastest read has missed a whole period of its own.
-    const uint64_t late = (uint64_t)period * 4u;
-    const uint16_t pick = m.client.next_block(late);
-
-    INFO("at t=" << late << " ms, with every write dirty");
+    // 1.8 s into a 500 ms deadline is 3600 permille; the fastest read is 2 s into
+    // a 1 s period, so 2000.
+    const uint16_t pick = m.client.next_block(2000);
     REQUIRE(pick != RtuClient::NO_BLOCK);
-    CHECK(m.is_a_read(pick));
-    CHECK((late - m.client.plan().block(pick).due_ms)
-              >= m.client.plan().block(pick).period_ms);
+    CHECK(m.is_write(pick));
 }
 
 TEST_CASE("modbus client: withdrawing control puts the safe state ahead of everything") {
-    // disable_control() dirties every ROLE_OUTPUT so the safe state ships at once, not after MODBUS_WRITE_MIN_MS.
+    // Leaving CONTROL_ENABLED dirties every ROLE_OUTPUT so the safe state ships at once, not after MODBUS_WRITE_MIN_MS.
     Master m;
 
     // A beat with control up, so the withdrawal is an edge rather than a state.
@@ -244,6 +265,408 @@ TEST_CASE("modbus client: a short frame on a quick device is charged a whole bea
     INFO("wire " << p.wire_duty_ppm() << " ppm, scheduled " << p.duty_ppm() << " ppm");
     CHECK(p.duty_ppm() > p.wire_duty_ppm());
 }
+
+TEST_CASE("modbus client: control returning spends the safe-state urgency") {
+    // Otherwise the flag's lifetime depends on the sweep finding no dirty write,
+    // which a block on a backed-off device makes impossible: see the rising-edge
+    // half of _track_control().
+    Master m;
+
+    (void)m.client.next_block(10);                       // control up: an edge to fall from
+    m.bank.set_control_mode(CONTROL_DISABLED);
+    (void)m.client.next_block(20);
+    REQUIRE(m.client.safe_state_pending());
+
+    m.bank.set_control_mode(CONTROL_ENABLED);
+    (void)m.client.next_block(30);
+    INFO("with control back the programs drive the outputs again");
+    CHECK_FALSE(m.client.safe_state_pending());
+}
+
+// --------------------------------------------------------------------------
+// The failure paths, against devices that really answer
+// --------------------------------------------------------------------------
+//
+// Sim::FieldBus stands a real RtuSlave up per unit the site addresses and
+// carries framed bytes over the socketpair, so these drive the master's own
+// state machine rather than a mock of it. What they need beyond that is the
+// ability to make ONE unit misbehave, which is Sim::FieldBus::set_fault().
+
+#if BOTANIK_FEATURE_MODBUS_RTU_SERVER && defined(TARGET_SIMULATOR)
+
+namespace {
+
+/** @brief A master with the far end of the wire actually connected. */
+struct LiveBus {
+    Bank          bank;
+    RtuClient     client;
+    Sim::FieldBus bus;
+    uint64_t      t = 0;
+
+    explicit LiveBus(const DeviceTable* devs = Site::g_site.devices)
+        : bank(Site::g_site.vars), client(&bank, nullptr, devs) {
+        bank.init();
+        // Both halves: the system's hold defaults to held, so the operator's
+        // mode alone leaves the effective mode DISABLED.
+        bank.set_health_hold(false);
+        bank.set_control_mode(CONTROL_ENABLED);
+        // The socketpair is one per PROCESS, so a previous case's unread request
+        // bytes are still in the peer's buffer and would be answered as if they
+        // were ours. setup() drains the master's end; this drains the devices'.
+        const int fd = HAL::Serial::fieldbus_peer_fd();
+        if (fd >= 0) { uint8_t junk[512]; while (::read(fd, junk, sizeof junk) > 0) {} }
+        client.setup(0);
+        // setup() opened the port at MODBUS_BAUD, and the simulator paces its
+        // bytes against the HOST clock while the beat below is virtual: 200
+        // beats pass in microseconds of real time, so a paced line reads as
+        // permanently busy and on_step()'s tx_idle() guard lets exactly one
+        // transaction out. Baud 0 removes the pacing, which is the harness
+        // saying that byte time is not what these cases are about.
+        //
+        // The general fix now exists - BOTANIK_SIM_CLOCK=manual, and a
+        // _virtual_ns() the harness drives - but it is read once per PROCESS and
+        // every other case in this binary expects the host clock, so adopting it
+        // is a change to doctest_main and to all of them rather than to this
+        // fixture. Worth doing; deliberately not done here.
+        HAL::Serial::fieldbus_begin(0, 8, HAL::Serial::PARITY_NONE, 1);
+        bus.bind(&bank);
+    }
+
+    /** @brief One beat, in the phase order firmware.cpp uses. */
+    void beat(uint32_t dt = 10) {
+        t += dt;
+        client.receive_step(t);   // PHASE_INPUT
+        bank.expire_stale(t);     // ...and it runs ahead of this, as in firmware.cpp
+        client.step(t);           // PHASE_OUTPUT
+        bus.step(t);              // and the far end
+    }
+    void beats(uint32_t n) { for (uint32_t i = 0; i < n; ++i) beat(); }
+
+    /** @brief Owe every output to the field again, i.e. what a control program
+     *  that moved its demand looks like to the collector. */
+    void dirty_all_writes() {
+        for (uint8_t p = 0; p < client.peer_count(); ++p) client.reassert_outputs(p);
+    }
+
+    /** @brief Peer index of @p unit, or NO_PEER. */
+    uint8_t peer_of(uint8_t unit) const {
+        for (uint8_t p = 0; p < client.peer_count(); ++p)
+            if (client.peer_unit(p) == unit) return p;
+        return RtuClient::NO_PEER;
+    }
+
+    /** @brief The fastest read block, which is the one that starves first. */
+    uint16_t fastest_read() const {
+        uint16_t best = RtuClient::NO_BLOCK;
+        for (uint16_t i = 0; i < client.plan().block_count(); ++i) {
+            const Block& b = client.plan().block(i);
+            if (!is_read(b.fc) || b.period_ms == 0) continue;
+            if (best == RtuClient::NO_BLOCK ||
+                b.period_ms < client.plan().block(best).period_ms) best = i;
+        }
+        return best;
+    }
+
+    /** @brief Peer index of the first device carrying a write block, and the
+     *  block itself. Both are what an output device means to the client. */
+    uint16_t write_block() const {
+        for (uint16_t i = 0; i < client.plan().block_count(); ++i)
+            if (!is_read(client.plan().block(i).fc)) return i;
+        return RtuClient::NO_BLOCK;
+    }
+    /** @brief Run until @p pred holds or @p limit beats have passed. */
+    template <typename F> bool until(F pred, uint32_t limit = 2000) {
+        for (uint32_t i = 0; i < limit; ++i) { if (pred()) return true; beat(); }
+        return pred();
+    }
+};
+
+}  // namespace
+
+TEST_CASE("modbus fault: an absent unit is backed off and the rest keep answering") {
+    // The harness itself, and the baseline the two cases below stand on: if this
+    // fails they are testing nothing.
+    LiveBus m;
+    const uint16_t w = m.write_block();
+    REQUIRE(w != RtuClient::NO_BLOCK);
+    const uint8_t peer = m.client.plan().block(w).peer;
+
+    m.bus.set_fault(m.client.peer_unit(peer), Sim::FieldBus::FAULT_ABSENT);
+    m.client.reassert_outputs(peer);   // owe the block, so the misses come at the write interval
+    REQUIRE(m.until([&] { return m.client.peer_dead(peer); }));
+
+    const uint32_t before = m.client.txns();
+    m.beats(300);
+    INFO("dev " << (unsigned)m.client.peer_unit(peer) << " is out of the rotation");
+    CHECK(m.client.txns() > before);          // the live devices never stopped
+    CHECK(m.client.dead_count() == 1);
+}
+
+TEST_CASE("modbus live: a modulating output and the read image share the bus") {
+    // The property phase 2 exists for, measured rather than reasoned about: a
+    // demand that keeps moving must not starve the image the control programs
+    // read, and a busy read schedule must not stop the demand reaching the
+    // field. Under one clock both urgencies grow and both reset on service, so
+    // neither can hold the bus - but only a run shows it.
+    LiveBus m;
+    const uint16_t w = m.write_block();
+    const uint16_t r = m.fastest_read();
+    REQUIRE(w != RtuClient::NO_BLOCK);
+    REQUIRE(r != RtuClient::NO_BLOCK);
+
+    m.beats(200);                                  // let the sweep settle
+
+    uint64_t rlast = m.client.plan().block(r).last_ms;
+    uint64_t wlast = m.client.plan().block(w).last_ms;
+    uint32_t reads = 0, writes = 0;
+    for (uint32_t i = 0; i < 800; ++i) {           // 8 s of beats
+        if (i % 50 == 0) m.dirty_all_writes();     // the demand moves twice a second
+        m.beat();
+        const uint64_t rn = m.client.plan().block(r).last_ms;
+        const uint64_t wn = m.client.plan().block(w).last_ms;
+        if (rn != rlast) { reads++;  rlast = rn; }
+        if (wn != wlast) { writes++; wlast = wn; }
+    }
+
+    INFO(reads << " polls of the fastest read block and " << writes
+               << " deliveries of a continuously moving demand, over 8 s");
+    CHECK(reads  >= 5);    // 7 measured, against a nominal 8 for a 1 s rung
+    CHECK(writes >= 10);   // 16 measured, one per time the demand moved
+}
+
+TEST_CASE("modbus probe: six dead devices cannot take the bus between them") {
+    // The scenario the interleave exists for. Twelve sensors on a cut spur used
+    // to need 12 x 2 x 300 ms of bus to be declared dead and simply took it,
+    // because a late dead block and a late live block scored identically. One
+    // suspect at a time behind MODBUS_PROBE_SPACING_MS bounds that at
+    // timeout/(timeout + spacing) however many are down.
+    LiveBus m;
+    const uint16_t r = m.fastest_read();
+    REQUIRE(r != RtuClient::NO_BLOCK);
+    const uint8_t keep = m.client.plan().block(r).peer;
+
+    uint8_t killed = 0;
+    for (uint8_t p = 0; p < m.client.peer_count() && killed < 6; ++p) {
+        if (p == keep) continue;
+        m.bus.set_fault(m.client.peer_unit(p), Sim::FieldBus::FAULT_ABSENT);
+        killed++;
+    }
+    REQUIRE(killed == 6);
+
+    // Discovery first. A device that has never missed is presumed good, so its
+    // FIRST failure cannot be gated - there is no way to know a device is down
+    // without trying it - and six of them therefore cost six timeouts once. The
+    // bound below is on the steady state, which is where the old behaviour
+    // spent 7.2 s and kept spending it.
+    const uint64_t t0 = m.t;
+    REQUIRE(m.until([&] { return m.client.dead_count() == 6; }, 6000));
+    const uint64_t discovery_ms = m.t - t0;
+
+    uint32_t polls = 0, faults = m.client.faults();
+    const uint32_t faults0 = faults;
+    uint64_t rlast = m.client.plan().block(r).last_ms;
+    uint64_t prev_fault_ms = 0;
+    uint64_t min_gap = 0xFFFFFFFFull;
+    for (uint32_t i = 0; i < 3000; ++i) {          // 30 s of steady state
+        m.beat();
+        if (m.client.faults() != faults) {
+            faults = m.client.faults();
+            if (prev_fault_ms != 0) {
+                const uint64_t gap = m.t - prev_fault_ms;
+                if (gap < min_gap) min_gap = gap;
+            }
+            prev_fault_ms = m.t;
+        }
+        const uint64_t rn = m.client.plan().block(r).last_ms;
+        if (rn != rlast) { polls++; rlast = rn; }
+    }
+    const uint32_t probes = faults - faults0;
+
+    INFO("discovery took " << discovery_ms << " ms; then " << probes
+         << " probes in 30 s, closest pair " << min_gap
+         << " ms apart, live block polled " << polls << " times");
+    // No two unanswered transactions inside one spacing interval. That IS the
+    // bound, and it does not depend on six being the number.
+    CHECK(min_gap >= Config::MODBUS_PROBE_SPACING_MS);
+    // Which caps what the dead can take: six of them, at a 300 ms timeout each.
+    CHECK(probes * Config::MODBUS_TIMEOUT_MS <= 30000u / 4u);
+    // And the live device never stopped being served.
+    CHECK(polls >= 24);      // 28 measured, against a nominal 30
+    CHECK(m.client.dead_count() == 6);
+}
+
+TEST_CASE("modbus probe: the probes go round the dead devices, not at one of them") {
+    // A cursor rather than lateness deciding: without it the rotation is a
+    // by-product of which suspect happens to be latest, and one device can be
+    // probed over and over while another is never revisited.
+    LiveBus m;
+    const uint16_t r = m.fastest_read();
+    REQUIRE(r != RtuClient::NO_BLOCK);
+    const uint8_t keep = m.client.plan().block(r).peer;
+
+    uint8_t killed = 0;
+    for (uint8_t p = 0; p < m.client.peer_count() && killed < 4; ++p) {
+        if (p == keep) continue;
+        m.bus.set_fault(m.client.peer_unit(p), Sim::FieldBus::FAULT_ABSENT);
+        killed++;
+    }
+
+    // Long enough for every one of them to have been visited twice over.
+    m.beats(3000);
+
+    uint8_t probed = 0;
+    for (uint8_t p = 0; p < m.client.peer_count(); ++p)
+        if (m.client.peer_misses(p) > 0) probed++;
+
+    INFO(probed << " of the 4 absent devices have misses against them");
+    CHECK(probed == 4);
+    CHECK(m.client.dead_count() == 4);
+}
+
+// A copy of the site's device table with ONE unit given a deadline of its own,
+// so the two cases below differ in exactly that and nothing else. Built at run
+// time from the site's own models rather than written out again, or the other
+// nineteen devices would quietly plan as generic.
+namespace {
+
+const uint8_t SLOW_UNIT = 41;          // a Temp/RH sensor
+
+struct SlowTable {
+    DeviceModel model;
+    Device      devs[64];
+    DeviceTable table;
+
+    explicit SlowTable(uint32_t timeout_ms) {
+        const DeviceTable* site = Site::g_site.devices;
+        model = model_of(site, SLOW_UNIT);      // same limits, same alignment
+        model.timeout_ms = timeout_ms;          // ...and its own patience
+        for (uint8_t i = 0; i < site->count; ++i) {
+            devs[i] = site->devices[i];
+            if (devs[i].unit == SLOW_UNIT) devs[i].model = &model;
+        }
+        table.devices = devs;
+        table.count   = site->count;
+    }
+};
+
+}  // namespace
+
+TEST_CASE("modbus slow: a unit past the bus deadline is faulted like a dead one") {
+    // F3, and the behaviour that makes the fix worth having. Nothing is wrong
+    // with this device except that it is slower than one global number.
+    LiveBus m;                                   // the site table: no timeout declared
+    const uint8_t peer = m.peer_of(SLOW_UNIT);
+    REQUIRE(peer != RtuClient::NO_PEER);
+
+    m.bus.set_fault(SLOW_UNIT, Sim::FieldBus::FAULT_LATE,
+                    Config::MODBUS_TIMEOUT_MS + 100);
+
+    REQUIRE(m.until([&] { return m.client.peer_dead(peer); }, 4000));
+    INFO("it answers 100 ms after the master has stopped listening");
+    // And the answer it did send arrived too late to be anyone's, which is the
+    // other half of the symptom: a device in backoff that is talking.
+    CHECK(m.client.stale_rx() > 0);
+}
+
+TEST_CASE("modbus slow: a unit that declares its own deadline is not") {
+    SlowTable slow(Config::MODBUS_TIMEOUT_MS * 2u);
+    LiveBus m(&slow.table);
+    const uint8_t peer = m.peer_of(SLOW_UNIT);
+    REQUIRE(peer != RtuClient::NO_PEER);
+
+    m.bus.set_fault(SLOW_UNIT, Sim::FieldBus::FAULT_LATE,
+                    Config::MODBUS_TIMEOUT_MS + 100);
+
+    m.beats(2000);
+    INFO("declared " << slow.model.timeout_ms << " ms, answers in "
+         << (Config::MODBUS_TIMEOUT_MS + 100) << " ms");
+    CHECK_FALSE(m.client.peer_dead(peer));
+    CHECK(m.client.peer_misses(peer) == 0);
+    CHECK(m.client.dead_count() == 0);
+}
+
+TEST_CASE("modbus line: one device quiet is not the same fault as all of them") {
+    // F4. A babbling unit corrupts whichever transaction is in flight, so the
+    // miss is charged to whoever was being polled and every healthy device is
+    // faulted in turn. From the boolean alone that reads as twenty devices
+    // failing at once, which is the one hypothesis that is certainly wrong.
+    LiveBus m;
+    const Vars::VarRef dead_ref = m.bank.find("alarm_fieldbus");
+    const Vars::VarRef line_ref = m.bank.find("alarm_fieldbus_line");
+    REQUIRE(dead_ref.index != Vars::VAR_NONE);
+    REQUIRE(line_ref.index != Vars::VAR_NONE);
+
+    const uint8_t units = m.client.peer_count();
+    REQUIRE(units > 1);
+
+    // One device down: the bus is faulty, the segment is not.
+    m.bus.set_fault(m.client.peer_unit(0), Sim::FieldBus::FAULT_ABSENT);
+    REQUIRE(m.until([&] { return m.client.dead_count() == 1; }, 4000));
+    CHECK(as_bool(Vars::T_BOOL, m.bank.var(dead_ref).raw()));
+    INFO("1 of " << (unsigned)units << " devices quiet");
+    CHECK_FALSE(as_bool(Vars::T_BOOL, m.bank.var(line_ref).raw()));
+
+    // The whole segment: same boolean, different fault, different engineer.
+    for (uint8_t p = 1; p < units; ++p)
+        m.bus.set_fault(m.client.peer_unit(p), Sim::FieldBus::FAULT_ABSENT);
+    REQUIRE(m.until([&] { return m.client.dead_count() == units; }, 20000));
+    CHECK(as_bool(Vars::T_BOOL, m.bank.var(line_ref).raw()));
+}
+
+TEST_CASE("modbus fault: a dead output device does not pin the safe-state urgency") {
+    // F1. The clearing sweep walks every write block; one on a backed-off device
+    // is dirty and stays dirty, so without the _due() test the sweep never comes
+    // back empty and every live device's writes sit at safe-state priority for
+    // the rest of the boot.
+    LiveBus m;
+    const uint16_t w = m.write_block();
+    REQUIRE(w != RtuClient::NO_BLOCK);
+    const uint8_t peer = m.client.plan().block(w).peer;
+
+    m.bus.set_fault(m.client.peer_unit(peer), Sim::FieldBus::FAULT_ABSENT);
+    m.client.reassert_outputs(peer);   // owe the block, so the misses come at the write interval
+    REQUIRE(m.until([&] { return m.client.peer_dead(peer); }));
+
+    m.bank.set_control_mode(CONTROL_DISABLED);
+    m.beat();
+    REQUIRE(m.client.safe_state_pending());
+
+    INFO("an unreachable dirty block must not hold the urgency");
+    CHECK(m.until([&] { return !m.client.safe_state_pending(); }));
+}
+
+TEST_CASE("modbus fault: a refused write backs the block off, not the device") {
+    // F2. An exception leaves the row dirty, correctly - it never reached the
+    // field - so nothing else slows the retry down, and MODBUS_WRITE_MIN_MS
+    // alone means five transactions a second for the life of the boot.
+    LiveBus m;
+    const uint16_t w = m.write_block();
+    REQUIRE(w != RtuClient::NO_BLOCK);
+    const uint8_t peer = m.client.plan().block(w).peer;
+
+    m.bus.set_fault(m.client.peer_unit(peer), Sim::FieldBus::FAULT_REFUSE);
+    m.client.reassert_outputs(peer);   // owe the block, so it retries at the write interval
+
+    REQUIRE(m.until([&] { return m.client.plan().block(w).refusals >= 3; }));
+
+    // The RATE is the property, not the field that implements it: ten seconds
+    // after the penalty has started doubling (1.6 s, 3.2 s, 6.4 s) the block
+    // gets a handful of attempts. At MODBUS_WRITE_MIN_MS alone it would get
+    // fifty, which is the eighth of the bus this exists to stop.
+    const uint8_t before = m.client.plan().block(w).refusals;
+    m.beats(1000);
+    const uint8_t added = (uint8_t)(m.client.plan().block(w).refusals - before);
+
+    INFO(added << " further refusals in 10 s, at t=" << m.t);
+    CHECK(added <= 4);
+    CHECK(m.client.plan().block(w).due_ms > m.t);      // still held off
+    // The device answered every one of them, so it is not the device at fault
+    // and its reads must keep their rates.
+    CHECK_FALSE(m.client.peer_dead(peer));
+    CHECK(m.client.refusals() > 0);
+}
+
+#endif // BOTANIK_FEATURE_MODBUS_RTU_SERVER && TARGET_SIMULATOR
 
 #endif // BOTANIK_FEATURE_MODBUS_RTU_CLIENT
 

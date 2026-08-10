@@ -238,6 +238,35 @@ namespace Botanik { namespace Config {
 #endif
     BOTANIK_CFG(uint32_t, MODBUS_REWRITE_MS);
 
+    /** @brief How long a demand that has moved may sit behind reads.
+     *
+     *  Not a throttle: it is the DENOMINATOR a write block's lateness is
+     *  measured against, so it decides where a write ranks rather than when it
+     *  is allowed. Every block competes on how far it is through the lateness it
+     *  is allowed, and this is a write's share of that. Shorter therefore means
+     *  higher priority against the read rungs, not a faster retry.
+     *
+     *  The one value here with a plant consequence rather than a bus one, and
+     *  the one to check against a real actuator: at 500 ms a demand reaches the
+     *  field inside half a second even with every read rung competing. */
+#ifndef BOTANIK_MODBUS_WRITE_DEADLINE_MS
+#  define BOTANIK_MODBUS_WRITE_DEADLINE_MS 500
+#endif
+    BOTANIK_CFG(uint32_t, MODBUS_WRITE_DEADLINE_MS);
+
+    /** @brief Longest a write block waits after being refused.
+     *
+     *  An exception is not silence: the device heard us and declined, so its
+     *  other blocks keep their rates and only this one backs off, doubling from
+     *  MODBUS_WRITE_MIN_MS. Without a penalty at all a register map that does
+     *  not match the device costs a transaction every MODBUS_WRITE_MIN_MS for
+     *  the life of the boot - about an eighth of the bus, and a warning per
+     *  attempt - because a refusal leaves the row dirty and nothing counts it. */
+#ifndef BOTANIK_MODBUS_REFUSAL_MAX_MS
+#  define BOTANIK_MODBUS_REFUSAL_MAX_MS 60000
+#endif
+    BOTANIK_CFG(uint32_t, MODBUS_REFUSAL_MAX_MS);
+
     /** @brief Immediate retries before a device is backed off.
      *
      *  One. A lost frame on a long RS-485 run is weather - retrying at once
@@ -259,13 +288,53 @@ namespace Botanik { namespace Config {
 #endif
     BOTANIK_CFG(uint32_t, MODBUS_BACKOFF_MS);
 
-    /** @brief Longest a backed-off device waits between probes. 30 s: long
-     *  enough that a dead trunk costs nothing, short enough that plugging a
-     *  device back in is noticed while the engineer is still standing there. */
+    /** @brief Longest a backed-off device waits between probes.
+     *
+     *  A minute. A device that is down is a work order, not something the
+     *  firmware recovers from, and the probe is no longer disruptive: it is one
+     *  device at a time behind MODBUS_PROBE_SPACING_MS, so a longer cap only
+     *  makes the discovery of one that came back slower, never the bus quieter.
+     *  It was 30 s while a probe could pre-empt live traffic, where the cap was
+     *  the only thing bounding the damage. */
 #ifndef BOTANIK_MODBUS_BACKOFF_MAX_MS
-#  define BOTANIK_MODBUS_BACKOFF_MAX_MS 30000
+#  define BOTANIK_MODBUS_BACKOFF_MAX_MS 60000
 #endif
     BOTANIK_CFG(uint32_t, MODBUS_BACKOFF_MAX_MS);
+
+    /** @brief Live traffic owed between one unanswered transaction and the next.
+     *
+     *  The interleave, and the whole bound on what devices that are not
+     *  answering may cost: at most one of them is ever offered the bus, and not
+     *  until this much has passed since the last transaction that failed. The
+     *  share of the bus they can take is therefore
+     *
+     *      timeout / (timeout + spacing)  =  300 / 1800  =  17 %
+     *
+     *  and it does NOT depend on how many devices are down. Twelve dead sensors
+     *  used to need 7.2 s of bus to be declared dead and simply took it.
+     *
+     *  Measured in TIME and not in transactions on purpose: a probe costs a full
+     *  response timeout and a live two-register read costs 22 ms, so "one probe
+     *  per four transactions" would be 77 % of the bus. */
+#ifndef BOTANIK_MODBUS_PROBE_SPACING_MS
+#  define BOTANIK_MODBUS_PROBE_SPACING_MS 1500
+#endif
+    BOTANIK_CFG(uint32_t, MODBUS_PROBE_SPACING_MS);
+
+    /** @brief Longest a block waits before its retry after a missed answer.
+     *
+     *  A read's turn otherwise comes round on its own poll period, which is what
+     *  MODBUS_RETRIES' "immediate" retry actually cost: two periods to declare a
+     *  device dead, so 2 s on the 1 s rung but two MINUTES on the 60 s one, with
+     *  a full response timeout burned every period throughout. Capping it makes
+     *  detection latency a property of the fault rather than of the rung.
+     *
+     *  Safe only because MODBUS_PROBE_SPACING_MS bounds what the retries can
+     *  cost; on its own this would make a mass outage worse. */
+#ifndef BOTANIK_MODBUS_RETRY_DELAY_MS
+#  define BOTANIK_MODBUS_RETRY_DELAY_MS 500
+#endif
+    BOTANIK_CFG(uint32_t, MODBUS_RETRY_DELAY_MS);
 
     /** @brief Registers and coils a simulated field device holds.
      *

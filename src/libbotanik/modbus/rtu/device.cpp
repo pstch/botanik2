@@ -16,7 +16,7 @@ const DeviceModel& generic_model() {
     // max_quantity(fc)): a device nobody described has constraints we have not
     // read, and guessing at them would be worse than saying so. No shape
     // factory expresses that, hence the literal.
-    static const DeviceModel k = DeviceModel{ "generic", 0, 0, 1, 1, true, 0 };
+    static const DeviceModel k = DeviceModel{ "generic", 0, 0, 1, 1, true, 0, 0 };
     return k;
 }
 

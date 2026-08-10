@@ -193,6 +193,7 @@ void Planner::_cut(const Vars::Bank& io) {
         b.period_ms  = is_read(k.fc) ? ladder_ms(k.rung) : 0;
         b.due_ms     = 0;
         b.last_ms    = 0;
+        b.refusals   = 0;
 
         uint16_t end = row_end(first);
         uint16_t j   = i + 1;

@@ -19,18 +19,54 @@
  * the image until a transaction carries them out: gating the collector too would
  * leave the actuators energised at exactly the moment control was withdrawn.
  *
+ * @section cl_rank What goes out next
+ *
+ * ONE clock. Every block is ranked on how far it is through the lateness it is
+ * allowed, in permille, and the highest wins. Reads and writes differ only in
+ * how that pair is DERIVED (`_slot_of()`: a poll period on one side, the minimum
+ * write interval and MODBUS_WRITE_DEADLINE_MS on the other), never in how they
+ * are compared.
+ *
+ * Relative and not absolute, because ranked by milliseconds the fast rungs hold
+ * the bus for ever: they re-arm constantly while a slow block's lateness only
+ * creeps up. There is no tier ladder, and the per-block starvation floor is not
+ * a jump between tiers but simply the point where urgency passes 1000.
+ *
+ * The one absolute pre-empt sits AHEAD of the scale rather than on it: a dirty
+ * write while a safe state is owed. A scale has no top, so a late enough block
+ * could otherwise climb into any rank reserved above it.
+ *
  * @section cl_dead A silent device must not take the bus down
  *
  * An unplugged device costs a full response timeout, and left alone that is paid
  * on EVERY sweep until the live devices lose their rates to the dead ones (the
- * arithmetic is in @ref dev_modbus). So each device carries its own
- * health: consecutive failures, and the earliest time it may be spoken to again.
- * One immediate retry, then backoff doubling from MODBUS_BACKOFF_MS to
- * MODBUS_BACKOFF_MAX_MS, and `_pick()` does not offer the bus to a device that
- * is not due. The rest of the plan keeps running at its own rates throughout.
+ * arithmetic is in @ref dev_modbus). Three things stop it, and the third is the
+ * one that matters at scale:
  *
- * A REFUSAL clears the count: an exception response means the device heard us,
- * understood us and declined, so it is alive and its register map is the problem.
+ *  - Each device carries its own health: consecutive failures, and the earliest
+ *    time it may be spoken to again. One retry, then backoff doubling from
+ *    MODBUS_BACKOFF_MS to MODBUS_BACKOFF_MAX_MS.
+ *  - A miss does not push a read's retry out by a whole poll period
+ *    (MODBUS_RETRY_DELAY_MS caps it), so how long a device takes to be declared
+ *    dead is a property of the fault and not of the rung it happens to sit on.
+ *  - At most ONE device that is not answering is offered the bus at a time (a
+ *    cursor, round-robin), and not until MODBUS_PROBE_SPACING_MS has passed
+ *    since the last transaction that failed (a gate). Their share of the bus is
+ *    therefore timeout/(timeout + spacing), INDEPENDENT of how many are down.
+ *
+ * Without the interleave a probe is enormously late against its own period and
+ * wins every comparison it enters, so the least valuable and most expensive
+ * transaction on the bus goes first, and N dead devices arrive as one contiguous
+ * burst of response timeouts every backoff interval.
+ *
+ * The bound is on the STEADY STATE. A device that has never missed is presumed
+ * good, so its first failure cannot be gated - there is no way to know a device
+ * is down without trying it - and discovering N of them costs N timeouts once.
+ *
+ * A REFUSAL clears the device's count: an exception means it heard us,
+ * understood us and declined, so it is alive and its register map is the
+ * problem. The BLOCK backs off instead, doubling to MODBUS_REFUSAL_MAX_MS, since
+ * a refused write stays dirty and nothing else would ever slow the retry down.
  *
  * @section cl_frame A frame goes out whole or not at all
  *
@@ -102,6 +138,33 @@ namespace Botanik { namespace Modbus {
         };
         Peer     _peer[Config::MODBUS_MAX_BLOCKS];
         uint8_t  _dead       = 0;    ///< how many are in backoff right now
+
+        /** @name The probe interleave
+         *
+         *  One device that is not answering is offered the bus at a time, and
+         *  not until MODBUS_PROBE_SPACING_MS of live traffic has been owed since
+         *  the last transaction that failed. Together those bound what devices
+         *  that are not answering can cost at timeout/(timeout + spacing),
+         *  INDEPENDENT of how many of them there are - which is the whole point,
+         *  since twelve dead sensors used to need 7.2 s of bus to be declared
+         *  dead and simply took it.
+         *
+         *  A gate and a cursor here rather than a state in the transaction FSM:
+         *  a probe is an ordinary transaction over the same framer, settle path
+         *  and gap, and only the SCHEDULING of it differs.
+         *  @{ */
+
+        /** @brief No suspect is eligible before this. Set by any transaction
+         *  that failed, not only by a probe: the first miss of each device is
+         *  what a mass outage is made of, and gating only confirmed-dead ones
+         *  would let the whole detection burst through ungated. */
+        uint64_t _probe_gate_ms = 0;
+        /** @brief Where the round-robin over devices that are not answering
+         *  resumes, so the rotation is a guarantee and not a by-product of which
+         *  suspect happens to be latest. */
+        uint8_t  _probe_cursor  = 0;
+
+        /** @} */
         /** @brief Whether control authority was up on the previous beat, so the
          *  withdrawal EDGE can be seen. */
         bool     _control_was = false;
@@ -119,7 +182,10 @@ namespace Botanik { namespace Modbus {
         /** @brief The library's field-bus rows, resolved by name once at
          *  bring-up. @see modbus/rtu/alarms.h */
         Vars::VarRef _alarm_ref;
+        Vars::VarRef _line_ref;
         Vars::VarRef _dead_ref;
+        Vars::VarRef _crc_ref;
+        Vars::VarRef _stray_ref;
         uint64_t            _since_ms = 0;     ///< when the current state was entered
 
         /** @name Counters
@@ -151,6 +217,8 @@ namespace Botanik { namespace Modbus {
     public:
         /** @brief What Block index means "none". */
         static const uint16_t NO_BLOCK = 0xFFFFu;
+        /** @brief What a peer index means "none". */
+        static const uint8_t  NO_PEER  = 0xFFu;
 
         /** @param devices what each unit on the segment will answer; null plans
          *  every unit as generic_model(). Borrowed and flash-resident. */
@@ -243,8 +311,21 @@ namespace Botanik { namespace Modbus {
         /** @brief Enter @p s, stamping when. Every transition goes through here,
          *  so a state cannot be changed without its clock being reset. */
         void _enter(State s, uint64_t now_ms);
-        /** @brief Which block goes out next, or NO_BLOCK. Scores every block in
-         *  one pass and takes the highest; see the tier table in the .cpp. */
+        /** @brief When a block asks for the bus, and how long it may then wait.
+         *  The two numbers every block is ranked on. @see _slot_of */
+        struct Slot {
+            uint64_t due;        ///< not offered the bus before this
+            uint32_t deadline;   ///< the lateness it is allowed, as the normaliser
+        };
+        /** @brief @p b's due time and deadline.
+         *
+         *  The ONE place reads and writes differ. A read's pair comes from its
+         *  poll period; a write's from the minimum interval and the delivery
+         *  deadline. Everything downstream compares the same number. */
+        Slot _slot_of(const Block& b) const;
+
+        /** @brief Which block goes out next, or NO_BLOCK. One urgency per block
+         *  in one pass, highest wins; see the note in the .cpp. */
         uint16_t _pick(uint64_t now_ms) const;
         /** @brief Watch control authority, and raise the safe-state urgency on
          *  the beat it is withdrawn. */
@@ -264,6 +345,15 @@ namespace Botanik { namespace Modbus {
         /** @brief Whether @p unit may be spoken to now. An untracked unit may:
          *  refusing would silently drop a block the planner asked for. */
         bool _due(const Block& b, uint64_t now_ms) const;
+        /** @brief The one device that is not answering which may be offered the
+         *  bus now, or NO_PEER.
+         *
+         *  The first at or after the cursor that has misses against it and is
+         *  out of its backoff, wrapping. Healthy peers are skipped rather than
+         *  blocking the rotation, which is why the cursor is a starting point
+         *  and not an index. */
+        uint8_t _next_suspect(uint64_t now_ms) const;
+
         /** @brief @p unit answered: clear its miss count. */
         void _answered(const Block& b);
         /** @brief @p unit did not: retry once, then back off, doubling. */

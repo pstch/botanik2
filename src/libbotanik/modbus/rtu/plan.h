@@ -140,8 +140,9 @@ namespace Botanik { namespace Modbus {
         /** @brief How often this block is read. 0 for a write block: those are
          *  driven by what the control programs demanded, not by a clock. */
         uint32_t period_ms;
-        /** @brief When it is next due. Seeded by Planner::seed(). Reads only:
-         *  a write block goes out when something demanded it. */
+        /** @brief The earliest this block may go out. For a read it is when the
+         *  next poll falls due; for a write it is a floor and nothing more,
+         *  normally in the past, raised only by the refusal penalty below. */
         uint64_t due_ms;
         /** @brief When it last went out. Both halves of the write policy come
          *  from this one stamp: a minimum interval between writes to a slave,
@@ -161,6 +162,13 @@ namespace Botanik { namespace Modbus {
          *  without this every block costs a linear scan of the peers on every
          *  beat. The planner already groups rows by device, so it is free here. */
         uint8_t  peer;
+        /** @brief Consecutive refusals of THIS block; 0 once one is accepted.
+         *
+         *  Per block and not per device, because an exception says the device is
+         *  alive and its register map is wrong: its other blocks must keep their
+         *  rates, and only the one that cannot be delivered backs off. Writes
+         *  only - a refused read already waits for its own poll period. */
+        uint8_t  refusals;
     };
 
     /**
