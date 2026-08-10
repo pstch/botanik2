@@ -219,32 +219,24 @@ namespace Botanik {
 
         // --- INPUT: fresh bytes and fresh field, before anything reads ---
 #if BOTANIK_FEATURE_CONSOLE
-        // BufferedSerial is one Component whose halves belong at opposite ends
-        // of the beat: RX here, TX after the render.
-        _tasks.add("console_rx", GROUP_FAST, PHASE_INPUT,
-            [](void* s, uint64_t) { static_cast<Utils::BufferedSerial*>(s)->receive(); },
-            &_console.serial());
+        // One Component registered at both ends of the beat: RX here, TX after
+        // the render. Two tasks, so each half keeps its own cost on TASKS.
+        _tasks.add_component<PHASE_INPUT>("console_rx", GROUP_FAST, _console.serial());
 #endif
 #if BOTANIK_FEATURE_MODBUS_RTU_CLIENT
         // The field bus commits its readings ahead of expire_stale, which must
         // judge the freshest image and not the one from before this beat's
         // answers.
-        _tasks.add("modbus_rtu_rx", GROUP_FAST, PHASE_INPUT,
-            [](void* s, uint64_t now) {
-                static_cast<Modbus::RtuClient*>(s)->receive_step(now);
-            },
-            &_modbus_rtu);
+        _tasks.add_component<PHASE_INPUT>("modbus_rtu_rx", GROUP_FAST, _modbus_rtu);
 #endif
 #if BOTANIK_FEATURE_MODBUS_TCP_SERVER
         // A master's write lands HERE, before the programs run, so a setpoint
         // written this beat is what they run on this beat. add_component, so the
         // map is built in Registry::setup() rather than inside the first beat.
-        _tasks.add_component("modbus_tcp_rx", GROUP_FAST, PHASE_INPUT, _modbus_tcp);
+        _tasks.add_component<PHASE_INPUT>("modbus_tcp_rx", GROUP_FAST, _modbus_tcp);
 #endif
 #if BOTANIK_FEATURE_LOGS_MONITOR
-        _tasks.add("monitor_rx", GROUP_FAST, PHASE_INPUT,
-            [](void* s, uint64_t) { static_cast<Utils::BufferedSerial*>(s)->receive(); },
-            &_monitor.serial());
+        _tasks.add_component<PHASE_INPUT>("monitor_rx", GROUP_FAST, _monitor.serial());
 #endif
         // A full linear scan of the variable table, resolving timeouts measured
         // in seconds.
@@ -263,7 +255,7 @@ namespace Botanik {
             this);
 
         // --- CONFIG: the image every config-driven component reads below ---
-        _tasks.add_component("params", GROUP_SLOW, PHASE_CONFIG, _params);
+        _tasks.add_component<PHASE_CONFIG>("params", GROUP_SLOW, _params);
         // ...and the two rates that are config for the firmware ITSELF. After
         // the params component, so an edit committed this beat is applied this
         // beat rather than the next.
@@ -279,12 +271,12 @@ namespace Botanik {
         // --- SERVICE: supervision and the background state machines ---
         // Health before the logger drains, so an alarm START/END lands this
         // beat, and before CONTROL, so a fault inhibits this beat's programs.
-        _tasks.add_component("health", GROUP_SLOW, PHASE_SERVICE, _health);
+        _tasks.add_component<PHASE_SERVICE>("health", GROUP_SLOW, _health);
         _tasks.add("control_latch", GROUP_FAST, PHASE_SERVICE,
             [](void* s, uint64_t) { static_cast<BotanikFirmware*>(s)->_latch_control(); },
             this);
 #if BOTANIK_FEATURE_NETWORK
-        _tasks.add_component("net", GROUP_FAST, PHASE_SERVICE, _net);
+        _tasks.add_component<PHASE_SERVICE>("net", GROUP_FAST, _net);
 #endif
 #if BOTANIK_FEATURE_MODBUS_TCP_SERVER
         // The flash half of a master's write, paced: storage is synchronous and
@@ -292,11 +284,7 @@ namespace Botanik {
         // are decoded and made durable a couple per beat here. SERVICE, not
         // PRESENT: a side effect of the request, not part of answering it - the
         // answer itself goes out in PRESENT below.
-        _tasks.add("modbus_tcp_wr", GROUP_FAST, PHASE_SERVICE,
-            [](void* s, uint64_t now) {
-                static_cast<Modbus::TcpSlave*>(s)->service_persist(now);
-            },
-            &_modbus_tcp);
+        _tasks.add_component<PHASE_SERVICE>("modbus_tcp_wr", GROUP_FAST, _modbus_tcp);
 #endif
 
         _tasks.add("site_service", GROUP_FAST, PHASE_SERVICE,
@@ -309,7 +297,7 @@ namespace Botanik {
         // control is withheld by definition) and its non-driving work runs
         // DURING a withdrawal rather than being skipped with it.
 #if BOTANIK_FEATURE_PLC_SCAN
-        _tasks.add_component("scan", GROUP_FAST, PHASE_CONTROL, _scan);
+        _tasks.add_component<PHASE_CONTROL>("scan", GROUP_FAST, _scan);
 #endif
         // The site's own control law, under the same gate the scan driver
         // applies to the programs. The gate is per DISPATCH POINT, not per write
@@ -324,9 +312,11 @@ namespace Botanik {
 
         // --- OUTPUT: hand what the programs drove to the field ---
 #if BOTANIK_FEATURE_MODBUS_RTU_CLIENT
-        // add_component: on_step() IS the transmit half, and setup() is where
-        // the port bring-up and the bus planning run, off the first beat.
-        _tasks.add_component("modbus_rtu_tx", GROUP_FAST, PHASE_OUTPUT, _modbus_rtu);
+        // The same component as modbus_rtu_rx above, registered again for its
+        // other half: on_output() issues the next request. setup() runs once
+        // whichever registration reaches it first, so the port bring-up and the
+        // bus planning stay off the first beat.
+        _tasks.add_component<PHASE_OUTPUT>("modbus_rtu_tx", GROUP_FAST, _modbus_rtu);
 #endif
 
         _tasks.add("site_output", GROUP_FAST, PHASE_OUTPUT,
@@ -343,11 +333,7 @@ namespace Botanik {
         // The answer goes out off the image the scan just produced: one beat of
         // latency on a read, against a poll measured in seconds, and no request
         // ever answered from a half-updated image.
-        _tasks.add("modbus_tcp_tx", GROUP_FAST, PHASE_PRESENT,
-            [](void* s, uint64_t now) {
-                static_cast<Modbus::TcpSlave*>(s)->service_tx(now);
-            },
-            &_modbus_tcp);
+        _tasks.add_component<PHASE_PRESENT>("modbus_tcp_tx", GROUP_FAST, _modbus_tcp);
 #endif
 #if BOTANIK_FEATURE_LOGGING
         _tasks.add("logger", GROUP_FAST, PHASE_PRESENT,
@@ -357,20 +343,16 @@ namespace Botanik {
 #if BOTANIK_FEATURE_CONSOLE
         // The Console is the Component, not the stack around it: the stack's
         // serial pump is registered separately, at its own phases.
-        _tasks.add_component("console", GROUP_SLOW, PHASE_PRESENT, _console.terminal());
+        _tasks.add_component<PHASE_PRESENT>("console", GROUP_SLOW, _console.terminal());
 #endif
 #if BOTANIK_FEATURE_LOGS_MONITOR
-        _tasks.add_component("monitor_log", GROUP_FAST, PHASE_PRESENT, _monitor.writer());
+        _tasks.add_component<PHASE_PRESENT>("monitor_log", GROUP_FAST, _monitor.writer());
 #endif
 #if BOTANIK_FEATURE_CONSOLE
-        _tasks.add("console_tx", GROUP_FAST, PHASE_PRESENT,
-            [](void* s, uint64_t) { static_cast<Utils::BufferedSerial*>(s)->transmit(); },
-            &_console.serial());
+        _tasks.add_component<PHASE_PRESENT>("console_tx", GROUP_FAST, _console.serial());
 #endif
 #if BOTANIK_FEATURE_LOGS_MONITOR
-        _tasks.add("monitor_tx", GROUP_FAST, PHASE_PRESENT,
-            [](void* s, uint64_t) { static_cast<Utils::BufferedSerial*>(s)->transmit(); },
-            &_monitor.serial());
+        _tasks.add_component<PHASE_PRESENT>("monitor_tx", GROUP_FAST, _monitor.serial());
 #endif
 
         if (_tasks.overflow() != 0)

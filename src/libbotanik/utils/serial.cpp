@@ -119,10 +119,9 @@ namespace Botanik { namespace Utils {
         return sent;
     }
 
-    void BufferedSerial::on_step(uint64_t now_ms) {
-        (void)now_ms;
-        receive();
-        transmit();
-    }
+    // The two halves belong at opposite ends of the beat: bytes in before
+    // anything reads them, bytes out after the render has produced them.
+    void BufferedSerial::on_input(uint64_t now_ms) { (void)now_ms; receive(); }
+    void BufferedSerial::on_present(uint64_t now_ms) { (void)now_ms; transmit(); }
 
 }}

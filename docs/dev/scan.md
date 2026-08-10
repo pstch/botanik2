@@ -80,7 +80,7 @@ which they already are, without making them *contemporaneous*.
 phases around it must **not** be gated with it: withholding control writes safe
 states into the image, and something still has to carry them outward.
 
-Both edges reach the programs (`Scan::Driver::on_step`):
+Both edges reach the programs (`Scan::Driver::on_control`):
 
 | Edge | What the driver does | Why |
 |---|---|---|
@@ -113,7 +113,7 @@ So the gate sits wherever a writer is *dispatched*, and there are exactly two:
 
 | Dispatch point | Hook | Gated |
 |---|---|---|
-| `Scan::Driver::on_step` | each `Plc::Program::run` | yes |
+| `Scan::Driver::on_control` | each `Plc::Program::run` | yes |
 | the `site_control` task | `BotanikFirmware::on_control` | yes |
 | the other five `site_*` tasks | `on_input` / `on_config` / `on_service` / `on_output` / `on_present` | **no** - by design |
 

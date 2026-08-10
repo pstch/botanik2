@@ -53,7 +53,7 @@ namespace Botanik { namespace Network {
 
     void NtpClient::resync() {
         // Drop any in-flight query and restart from the primary server now. The
-        // next on_step() picks it up; if NTP is disabled it falls back to IDLE.
+        // next on_service() picks it up; if NTP is disabled it falls back to IDLE.
         if (_udp >= 0) { HAL::Network::udp_close(_udp); _udp = -1; }
         _server_idx = 0;
         _state      = TIME_RESOLVE;
@@ -73,7 +73,7 @@ namespace Botanik { namespace Network {
         }
     }
 
-    void NtpClient::on_step(uint64_t now_ms) {
+    void NtpClient::on_service(uint64_t now_ms) {
         switch (_state) {
             case TIME_IDLE:
                 break;

@@ -98,7 +98,7 @@ namespace Botanik { namespace Sun {
         void on_param_changed(uint64_t now_ms) override;
 
         /** @brief Recompute the solar position after a delay has elapsed. */
-        void on_step(uint64_t now_ms) override;
+        void on_service(uint64_t now_ms) override;
     };
 
     /** @} */

@@ -319,7 +319,7 @@ struct LiveBus {
         // setup() opened the port at MODBUS_BAUD, and the simulator paces its
         // bytes against the HOST clock while the beat below is virtual: 200
         // beats pass in microseconds of real time, so a paced line reads as
-        // permanently busy and on_step()'s tx_idle() guard lets exactly one
+        // permanently busy and on_output()'s tx_idle() guard lets exactly one
         // transaction out. Baud 0 removes the pacing, which is the harness
         // saying that byte time is not what these cases are about.
         //
@@ -335,9 +335,9 @@ struct LiveBus {
     /** @brief One beat, in the phase order firmware.cpp uses. */
     void beat(uint32_t dt = 10) {
         t += dt;
-        client.receive_step(t);   // PHASE_INPUT
+        client.step(t, Botanik::Tasks::PHASE_INPUT);
         bank.expire_stale(t);     // ...and it runs ahead of this, as in firmware.cpp
-        client.step(t);           // PHASE_OUTPUT
+        client.step(t, Botanik::Tasks::PHASE_OUTPUT);
         bus.step(t);              // and the far end
     }
     void beats(uint32_t n) { for (uint32_t i = 0; i < n; ++i) beat(); }

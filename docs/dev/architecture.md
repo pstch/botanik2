@@ -105,10 +105,11 @@ flow, written out as code because it must not become configurable, and its
 
 Every task gets the same fresh 64-bit `now_ms`. The order is load-bearing:
 
-- **RX at the top, TX at the bottom.** `BufferedSerial` is a `Component`, but the
-  loop registers its two halves as separate tasks at the phases they belong to.
-  Stepping the whole pump at both ends would cost an extra read per beat and split
-  the console's baud-paced TX across the render.
+- **RX at the top, TX at the bottom.** `BufferedSerial` is ONE `Component`
+  registered in two phases: `on_input()` takes the bytes in, `on_present()` puts
+  them out. Two tasks, so each half keeps its own cost on the TASKS page, but one
+  object and one lifecycle. Stepping the whole pump at both ends would cost an
+  extra read per beat and split the console's baud-paced TX across the render.
 - **Inputs age out before anything reads**, so one beat is coherent - every task sees
   the same instant. `expire_stale()` catches a reading nothing refreshed;
   `reject_implausible()` catches one that is fresh and still nonsense (a dead 4-20 mA
@@ -125,9 +126,23 @@ Every task gets the same fresh 64-bit `now_ms`. The order is load-bearing:
 
 ## Components and contexts
 
-**`Component`** (`core/component.h`) is a mixin giving each subsystem a one-shot
-BOOT/DEBUG announce on its first `step()`, so a subsystem missing from the loop is
-obvious in the log rather than silently inert.
+**`Component`** (`core/component.h`) is the mixin every subsystem derives. It
+gives each a one-shot BOOT/DEBUG announce on its first `step()`, so a subsystem
+missing from the loop is obvious in the log rather than silently inert, an
+optional per-component rate, and a watched config serial.
+
+It has **one hook per phase** - `on_input()` ... `on_present()` - and a component
+overrides the one whose place in the data flow matches its work. Most override
+exactly one. A component that genuinely spans the beat overrides several and is
+registered once per phase (`add_component<PHASE_INPUT>(...)`): the field-bus
+master commits answers at INPUT and issues the next request at OUTPUT, and the
+TCP slave decodes at INPUT, persists at SERVICE and answers at PRESENT.
+
+`step()` is non-virtual and fixes the order - due check, first-step `setup()` and
+`announce()`, `on_param_changed()` on a serial change, then the phase hook. The
+lifecycle is per BEAT, not per phase: a component registered twice would
+otherwise consume its activation at the first phase and sit out the second, so
+the first dispatch of a beat decides and the rest reuse the verdict.
 
 **`SystemContext`** (`core/context.h`) is a borrowed-pointer aggregate the read-only
 paths share, so the UI takes one handle instead of a pointer per subsystem:

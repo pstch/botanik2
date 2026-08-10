@@ -104,7 +104,7 @@ namespace Botanik { namespace Modbus {
     // The input half of the beat
     // ------------------------------------------------------------------------
 
-    void TcpSlave::on_step(uint64_t now_ms) {
+    void TcpSlave::on_input(uint64_t now_ms) {
         _retry_listener(now_ms);
 
         // Disabled, or a bind that has not come good yet: either way there is no
@@ -329,12 +329,12 @@ namespace Botanik { namespace Modbus {
     // The present half of the beat
     // ------------------------------------------------------------------------
 
-    void TcpSlave::service_persist(uint64_t now_ms) {
+    void TcpSlave::on_service(uint64_t now_ms) {
         (void)now_ms;
         (void)_map.drain_persists(Config::MODBUS_PERSIST_PER_STEP);
     }
 
-    void TcpSlave::service_tx(uint64_t now_ms) {
+    void TcpSlave::on_present(uint64_t now_ms) {
         (void)now_ms;
         for (Conn& c : _conn) {
             if (c.sock < 0) continue;

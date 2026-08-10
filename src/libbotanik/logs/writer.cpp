@@ -89,7 +89,7 @@ namespace Botanik { namespace Logs {
 
     // Drain into the serial's TX ring; the serial is flushed separately by the
     // main loop.
-    void SerialLogWriter::on_step(uint64_t now_ms) {
+    void SerialLogWriter::on_present(uint64_t now_ms) {
         (void)now_ms;
         drain();
     }

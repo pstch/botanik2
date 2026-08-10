@@ -10,7 +10,7 @@
  * component). The non-virtual step() fixes the order: it checks whether the
  * component is due, then on the first step runs setup() then announce(); every
  * due step it dispatches on_param_changed() when the watched config serial
- * changes, then runs on_step(). Sites/subsystems customize only through the
+ * changes, then runs the phase hook. Sites/subsystems customize only through the
  * protected hooks. healthy() is a common liveness query (default true).
  *
  * @section component_rate Rate
@@ -31,6 +31,7 @@
 
 #include <cstdint>                              // uint16_t/uint32_t/uint64_t
 
+#include "libbotanik/tasks/phase.h"         // Tasks::Phase
 #include "libbotanik/tasks/task_timer.h"    // Tasks::TaskTimer
 
 // Forward-declared, NOT included: keeps Component free of the Logger include so
@@ -58,6 +59,17 @@ namespace Botanik {
         Tasks::TaskTimer _timer;              ///< the due/late/dropped rule
         uint32_t             _dt_ms  = 0;         ///< real ms since the last run
         uint16_t             _missed = 0;         ///< activations dropped
+
+        /** @name This beat's verdict
+         *
+         *  The due check is per BEAT, not per phase: a component registered in
+         *  two phases would otherwise consume its activation at the first and
+         *  sit out the second. @see step()
+         *  @{ */
+        uint64_t             _beat_ms   = 0;      ///< the beat the verdict is for
+        bool                 _beat_seen = false;  ///< ...and whether there is one
+        bool                 _beat_due  = false;  ///< run the phase hooks this beat
+        /** @} */
 
         /** @} */
 
@@ -142,28 +154,69 @@ namespace Botanik {
         /** @brief Whether setup() has run. */
         bool started() const { return _started; }
 
-        /** @brief Advance one beat with the cycle timestamp. Non-virtual so the
-         *  order can't be reordered: due check first, then on the first step
-         *  setup() and announce(); then, if param_serial() changed from the
-         *  applied value, on_param_changed(); then on_step().
+        /** @brief Advance through a WHOLE beat: every phase hook, in phase order.
+         *
+         *  For a component the task table does not own - one stepped by another
+         *  component, or by a test - where there is no single phase to name. A
+         *  single-phase component runs its one hook and five no-ops; one that
+         *  spans phases runs each half in beat order, which is what stepping it
+         *  "for this beat" means.
+         *
+         *  This IS a fresh beat by definition, so it re-runs the lifecycle even
+         *  when the clock has not moved since the last call. Without that, two
+         *  steps inside one millisecond - a test changing a parameter and
+         *  stepping again, an owner stepping its children twice - would take the
+         *  second for the same beat and never fire on_param_changed(). */
+        void step(uint64_t now_ms) {
+            _beat_seen = false;
+            for (uint8_t p = 0; p < (uint8_t)Tasks::PHASE_COUNT; p++)
+                step(now_ms, (Tasks::Phase)p);
+        }
+
+        /** @brief Advance one beat, in @p phase. Non-virtual so the order can't
+         *  be reordered: due check first, then on the first step setup() and
+         *  announce(); then, if param_serial() changed from the applied value,
+         *  on_param_changed(); then the hook for @p phase.
          *
          *  The due check gates the whole body, so a component with a period does
          *  not poll its config serial on the beats it sits out either. It never
          *  gates the FIRST step: TaskTimer is always due on its first call, so
-         *  setup() runs on the first beat whatever the period. */
-        void step(uint64_t now_ms) {
-            if (!_timer.due(now_ms, _period_ms, _dt_ms, _missed)) return;
-            _timer.ran(now_ms);
-            setup(now_ms);   // idempotent: a no-op once the registry set us up
-            uint32_t serial = param_serial();
-            // _applied_serial starts at 0, so an unset block (serial 0) never
-            // fires at boot; a config later cleared back to 0 does, being a real
-            // reconfiguration.
-            if (serial != _applied_serial) {
-                _applied_serial = serial;
-                on_param_changed(now_ms);
+         *  setup() runs on the first beat whatever the period.
+         *
+         *  **A component may run in more than one phase**, and the lifecycle
+         *  above is per BEAT, not per phase: the serial pumps take their bytes in
+         *  at PHASE_INPUT and put them out at PHASE_PRESENT, and a due check run
+         *  twice would consume the activation at the first and skip the second.
+         *  So the first dispatch of a beat decides, and the rest of that beat
+         *  reuses the verdict. */
+        void step(uint64_t now_ms, Tasks::Phase phase) {
+            if (now_ms != _beat_ms || !_beat_seen) {
+                _beat_ms   = now_ms;
+                _beat_seen = true;
+                _beat_due  = _timer.due(now_ms, _period_ms, _dt_ms, _missed);
+                if (_beat_due) {
+                    _timer.ran(now_ms);
+                    setup(now_ms);   // idempotent: a no-op once the registry set us up
+                    uint32_t serial = param_serial();
+                    // _applied_serial starts at 0, so an unset block (serial 0)
+                    // never fires at boot; a config later cleared back to 0 does,
+                    // being a real reconfiguration.
+                    if (serial != _applied_serial) {
+                        _applied_serial = serial;
+                        on_param_changed(now_ms);
+                    }
+                }
             }
-            on_step(now_ms);
+            if (!_beat_due) return;
+            switch (phase) {
+                case Tasks::PHASE_INPUT:   on_input(now_ms);   break;
+                case Tasks::PHASE_CONFIG:  on_config(now_ms);  break;
+                case Tasks::PHASE_SERVICE: on_service(now_ms); break;
+                case Tasks::PHASE_CONTROL: on_control(now_ms); break;
+                case Tasks::PHASE_OUTPUT:  on_output(now_ms);  break;
+                case Tasks::PHASE_PRESENT: on_present(now_ms); break;
+                default: break;
+            }
         }
 
         /** @brief Liveness query polled by reporting. Default true; a component
@@ -182,8 +235,23 @@ namespace Botanik {
 
         /** @brief One-time init, run by setup(). Default: nothing. */
         virtual void on_setup(uint64_t now_ms) { (void)now_ms; }
-        /** @brief Advance the component's state one tick. Default: nothing. */
-        virtual void on_step(uint64_t now_ms) { (void)now_ms; }
+        /** @name Per-phase work
+         *
+         *  One hook per phase of the beat; override the one whose place in the
+         *  DATA FLOW matches the work (@ref dev_tasks). A component that spans
+         *  phases overrides several - the serial pumps read at PHASE_INPUT and
+         *  write at PHASE_PRESENT - and is registered once per phase, so each
+         *  half is separately attributable on the TASKS page.
+         *
+         *  Default: nothing.
+         *  @{ */
+        virtual void on_input(uint64_t now_ms)   { (void)now_ms; }
+        virtual void on_config(uint64_t now_ms)  { (void)now_ms; }
+        virtual void on_service(uint64_t now_ms) { (void)now_ms; }
+        virtual void on_control(uint64_t now_ms) { (void)now_ms; }
+        virtual void on_output(uint64_t now_ms)  { (void)now_ms; }
+        virtual void on_present(uint64_t now_ms) { (void)now_ms; }
+        /** @} */
         /** @brief Serial of the watched config block (0 = none / not
          *  config-driven). Default: 0. */
         virtual uint32_t param_serial() const { return 0; }

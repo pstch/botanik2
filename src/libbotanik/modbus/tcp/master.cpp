@@ -87,7 +87,7 @@ namespace Botanik { namespace Modbus {
     // The beat
     // ------------------------------------------------------------------------
 
-    void TcpMaster::on_step(uint64_t now_ms) {
+    void TcpMaster::on_service(uint64_t now_ms) {
         _now_ms = now_ms;
         switch (_state) {
             case MA_IDLE:

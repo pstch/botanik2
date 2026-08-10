@@ -177,22 +177,11 @@ namespace Botanik { namespace Modbus {
          *  the port and the sim could not restart cleanly. */
         ~TcpSlave() override { _close_listener(); }
 
-        /** @name Per-beat entry points
-         *  @{ */
-
-        /** @brief Make a couple of the parameter writes a master has asked for
-         *  durable. PHASE_SERVICE, once per beat.
-         *
-         *  Separate from the request that caused them because storage is
-         *  synchronous: one FC16 can cover 61 rows, and committing them where
-         *  they were decoded would put hundreds of milliseconds of flash into
-         *  PHASE_INPUT, remotely triggerable, on a beat the field bus shares. */
-        void service_persist(uint64_t now_ms);
-        /** @brief PHASE_PRESENT: answer the reads off the post-scan image and
-         *  push bytes out. Not a Component step - a component has one. */
-        void service_tx(uint64_t now_ms);
-
-        /** @} */
+        /** @brief The persist queue is drained in on_service() rather than where
+         *  the write was decoded because storage is synchronous: one FC16 can
+         *  cover 61 rows, and committing them in PHASE_INPUT would put hundreds
+         *  of milliseconds of flash on a beat the field bus shares, remotely
+         *  triggerable. @see on_input / on_service / on_present */
 
         /** @name Readback
          *  @{ */
@@ -218,7 +207,16 @@ namespace Botanik { namespace Modbus {
         void     on_setup(uint64_t now_ms) override;
         /** @brief PHASE_INPUT: accept, receive, decode, apply writes. Also where
          *  the config group is re-read. */
-        void     on_step(uint64_t now_ms) override;
+        /** @brief Accept and decode (PHASE_INPUT): a master's write lands
+         *  before the programs run, so a setpoint written this beat is what
+         *  they run on. */
+        void     on_input(uint64_t now_ms) override;
+        /** @brief Drain the persist queue (PHASE_SERVICE), a few per beat so a
+         *  burst of writes is not a flash storm. */
+        void     on_service(uint64_t now_ms) override;
+        /** @brief Answer (PHASE_PRESENT), off the image the scan just
+         *  produced, so no request is served from a half-updated one. */
+        void     on_present(uint64_t now_ms) override;
         uint32_t param_serial() const override;
         void     on_param_changed(uint64_t now_ms) override;
 

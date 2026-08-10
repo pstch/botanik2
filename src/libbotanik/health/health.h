@@ -122,11 +122,11 @@ namespace Botanik { namespace Health {
         /** @brief Per beat: assert the platform alarms, update the watchdog
          *  verdict, and advance the model (which reads each site alarm's boolean
          *  from its variable directly). @p now is uptime in ms. */
-        void on_step(uint64_t now) override {
+        void on_service(uint64_t now) override {
             _assert_platform_alarms(now);
             _update_watchdog(now);
             // The model reads each site alarm's boolean variable itself.
-            _model.step(now);
+            _model.step(now, Tasks::PHASE_SERVICE);
         }
 
     private:

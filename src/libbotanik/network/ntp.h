@@ -107,7 +107,7 @@ namespace Botanik { namespace Network {
     protected:
         uint32_t param_serial() const override;
         void on_param_changed(uint64_t now_ms) override;
-        void on_step(uint64_t now_ms) override;
+        void on_service(uint64_t now_ms) override;
 
     private:
         /** @name Internals

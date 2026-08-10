@@ -361,7 +361,7 @@ bool RtuClient::_build(uint16_t block, uint64_t now_ms) {
 
 // The two conditions that together make a partial frame unreachable. The first
 // is checked here, once; the second is enforced per transaction by the tx_idle()
-// guard in on_step(), which will not start a frame until the ring has drained.
+// guard in on_output(), which will not start a frame until the ring has drained.
 static_assert(9u + 2u * Config::MODBUS_MAX_REGS_PER_BLOCK
                   <= Config::MODBUS_TX_RING_BYTES,
               "a full FC16 must fit the transmit ring in one go: raise "
@@ -390,7 +390,7 @@ bool RtuClient::_send() {
     return true;
 }
 
-void RtuClient::on_step(uint64_t now_ms) {
+void RtuClient::on_output(uint64_t now_ms) {
     if (_io == nullptr || _port == nullptr) return;
 
     // Every beat, not only when idle. The control-authority edge is what raises
@@ -406,7 +406,7 @@ void RtuClient::on_step(uint64_t now_ms) {
         _enter(MB_IDLE, now_ms);
     }
 
-    // MB_RX belongs to receive_step(): it owns the listening half, and it runs
+    // MB_RX belongs to on_input(): it owns the listening half, and it runs
     // in PHASE_INPUT, ahead of this.
     if (_state != MB_IDLE) return;
 
@@ -430,7 +430,7 @@ void RtuClient::on_step(uint64_t now_ms) {
         return;
     }
 
-    // Clear the receive path BEFORE the frame goes out. receive_step() only
+    // Clear the receive path BEFORE the frame goes out. on_input() only
     // listens while MB_RX, so anything arriving during the gap or while the bus
     // was idle is still in the UART ring, and arm() below resets the FRAMER, not
     // the port. A device answering after its timeout would otherwise be read as
@@ -465,7 +465,7 @@ void RtuClient::on_step(uint64_t now_ms) {
     _enter(MB_RX, now_ms);
 }
 
-void RtuClient::receive_step(uint64_t now_ms) {
+void RtuClient::on_input(uint64_t now_ms) {
     if (_port == nullptr || _state != MB_RX) return;
 
     // Drain what the UART has, bounded: a wedged port must not turn into an

@@ -30,7 +30,7 @@ namespace Botanik { namespace Network {
          *  @{ */
 
         /** @brief Bring-up state. on_param_changed() resets to SETUP (or IDLE
-         *  if no usable config); on_step() drives SETUP -> RUNNING; ERROR backs
+         *  if no usable config); on_service() drives SETUP -> RUNNING; ERROR backs
          *  off. */
         enum State : uint8_t {
             /// no usable config (serial 0); nothing to bring up
@@ -82,7 +82,7 @@ namespace Botanik { namespace Network {
          *  @{ */
         uint32_t param_serial() const override;
         void on_param_changed(uint64_t now_ms) override;
-        void on_step(uint64_t now_ms) override;
+        void on_service(uint64_t now_ms) override;
         /** @} */
 
     private:

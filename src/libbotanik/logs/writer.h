@@ -192,7 +192,7 @@ namespace Botanik { namespace Logs {
 
         /** @brief Drain queued entries into the serial's TX ring (driven by
          *  Component::step; @p now_ms unused). */
-        void on_step(uint64_t now_ms) override;
+        void on_present(uint64_t now_ms) override;
 
         /** @} */
 

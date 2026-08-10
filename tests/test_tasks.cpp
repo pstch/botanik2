@@ -125,12 +125,13 @@ TEST_CASE("tasks: setup() runs before any beat, exactly once") {
         Spy() : Component(nullptr, "spy") {}
     protected:
         void on_setup(uint64_t) override { setups++; }
-        void on_step(uint64_t) override { steps++; }
+        void on_input(uint64_t) override { steps++; }
+        void on_present(uint64_t) override { steps++; }   // b is registered here
     };
     Spy a, b;
     Registry r;
-    r.add_component("a", GROUP_FAST, PHASE_INPUT,  a);
-    r.add_component("b", GROUP_SLOW, PHASE_PRESENT, b);
+    r.add_component<PHASE_INPUT>("a", GROUP_FAST, a);
+    r.add_component<PHASE_PRESENT>("b", GROUP_SLOW, b);
 
     r.setup(0);
     CHECK(a.setups == 1);

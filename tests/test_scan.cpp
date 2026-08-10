@@ -649,7 +649,7 @@ namespace {
 
     protected:
         void on_setup(uint64_t) override { setups++; }
-        void on_step(uint64_t now_ms) override {
+        void on_service(uint64_t now_ms) override {
             ran.push_back(now_ms);
             dts.push_back(dt_ms());
             misses.push_back(missed());

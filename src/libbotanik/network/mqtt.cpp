@@ -64,7 +64,7 @@ namespace Botanik { namespace Network {
         _enter(Vars::get_int(_cfg, "mqtt_enable") ? MQTT_RESOLVE : MQTT_IDLE, now_ms);
     }
 
-    void MqttClient::on_step(uint64_t now_ms) {
+    void MqttClient::on_service(uint64_t now_ms) {
         switch (_state) {
             case MQTT_IDLE:
                 break;

@@ -36,7 +36,7 @@ namespace Botanik { namespace Scan {
         }
     }
 
-    void Driver::on_step(uint64_t now_ms) {
+    void Driver::on_control(uint64_t now_ms) {
         if (_programs == nullptr || _io == nullptr) return;
 
         // Control authority gates the programs, and it lives here rather than at
@@ -79,7 +79,7 @@ namespace Botanik { namespace Scan {
         // Due, how late, how many dropped: Component's arithmetic, applied by
         // step().
         for (uint8_t i = 0; i < _count; i++)
-            if (_programs[i] != nullptr) _programs[i]->step(now_ms);
+            if (_programs[i] != nullptr) _programs[i]->step(now_ms, Tasks::PHASE_CONTROL);
 
         _report_conflicts();
         _publish_lateness();

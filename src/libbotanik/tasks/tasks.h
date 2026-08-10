@@ -25,6 +25,7 @@
 
 #include "libbotanik/config/scheduler.h"  // Config::LOOP_* / TASK_* / GROUP_*
 
+#include "libbotanik/tasks/phase.h"         // Tasks::Phase
 #include "libbotanik/tasks/task_timer.h"    // Tasks::TaskTimer
 
 namespace Botanik { namespace Tasks {
@@ -39,26 +40,11 @@ namespace Botanik { namespace Tasks {
         GROUP_COUNT
     };
 
-    /** @brief Where in the beat a task runs. The order is the data flow, fixed
-     *  here and not registerable: commit the field, run the programs, collect
-     *  what they drove, then report. */
-    enum Phase {
-        PHASE_INPUT = 0,   ///< field commit, serial RX, expiry
-        PHASE_CONFIG,      ///< parameter commit, before anything reads config
-        PHASE_SERVICE,     ///< health, network - background state machines
-        PHASE_CONTROL,     ///< the control programs
-        PHASE_OUTPUT,      ///< collect driven outputs, hand them to the field
-        PHASE_PRESENT,     ///< log drain, render, serial TX
-        PHASE_COUNT
-    };
-
     /** @brief Period of @p g in ms. Config-driven so a site retunes a whole
      *  rate class at once. */
     uint32_t group_period_ms(GroupId g);
     /** @brief Display name of @p g ("fast", "slow"...). */
     const char* group_name(GroupId g);
-    /** @brief Display name of @p p ("input", "control"...). */
-    const char* phase_name(Phase p);
 
     /** @brief What one task costs, for the TASKS page and the stats command.
      *
@@ -151,11 +137,18 @@ namespace Botanik { namespace Tasks {
                  void (*run)(void* self, uint64_t now_ms), void* self,
                  void (*setup)(void* self, uint64_t now_ms) = nullptr);
 
-        /** @brief Register a Component: step() per activation, setup() once. */
-        template <typename C>
-        bool add_component(const char* name, GroupId group, Phase phase, C& c) {
-            return add(name, group, phase,
-                       [](void* s, uint64_t now) { static_cast<C*>(s)->step(now); },
+        /** @brief Register a Component in phase @p P: its hook for that phase
+         *  per activation, setup() once.
+         *
+         *  The phase is a TEMPLATE argument because the dispatcher is a plain
+         *  function pointer with no captures, and it has to carry the phase into
+         *  Component::step(). A component spanning phases is registered once per
+         *  phase, under its own name, so each half keeps its own TaskCost and
+         *  stays attributable on the TASKS page. */
+        template <Phase P, typename C>
+        bool add_component(const char* name, GroupId group, C& c) {
+            return add(name, group, P,
+                       [](void* s, uint64_t now) { static_cast<C*>(s)->step(now, P); },
                        &c,
                        [](void* s, uint64_t now) { static_cast<C*>(s)->setup(now); });
         }

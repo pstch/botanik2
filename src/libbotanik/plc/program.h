@@ -191,7 +191,7 @@ namespace Botanik { namespace Plc {
 
         /** @brief Component's per-activation hook: build the Context from the
          *  timer's own reading of how late this activation is, then run. */
-        void on_step(uint64_t now_ms) override {
+        void on_control(uint64_t now_ms) override {
             if (_io == nullptr) return;
 
             // Against the program's OWN period, not the beat: 40 ms late is

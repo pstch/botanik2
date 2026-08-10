@@ -72,7 +72,7 @@ namespace Botanik { namespace Network {
         _enter(NET_SETUP, now_ms);
     }
 
-    void NetworkHandler::on_step(uint64_t now_ms) {
+    void NetworkHandler::on_service(uint64_t now_ms) {
         switch (_state) {
             case NET_IDLE:
                 // wait for a config to arrive (handled in on_param_changed)

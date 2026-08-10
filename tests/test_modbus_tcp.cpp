@@ -511,7 +511,7 @@ struct Pair {
         now += 10;
         slave.step(now);
         master.step(now);
-        slave.service_tx(now);
+        slave.step(now, Botanik::Tasks::PHASE_PRESENT);
     }
 
     /** @brief Beat until @p done, or give up after @p budget ms. */

@@ -140,7 +140,7 @@ namespace Botanik { namespace Modbus {
         void take_result() {
             // Back to READY only if the socket survived. Every failure path
             // disconnects before finishing, and MA_READY with _sock == -1 is a
-            // master that never reconnects: on_step()'s MA_READY is a bare
+            // master that never reconnects: on_service()'s MA_READY is a bare
             // return.
             if (_state != MA_DONE) return;
             _state = (_sock >= 0) ? MA_READY : MA_IDLE;
@@ -155,7 +155,7 @@ namespace Botanik { namespace Modbus {
         /** @} */
 
     protected:
-        void on_step(uint64_t now_ms) override;
+        void on_service(uint64_t now_ms) override;
 
     private:
         void _enter(State s, uint64_t now_ms);

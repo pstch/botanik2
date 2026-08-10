@@ -113,7 +113,7 @@ namespace Botanik { namespace Scan {
          *  whose programs must share a beat. */
         void on_setup(uint64_t now_ms) override;
         /** @brief Run every program that has come due, in table order. */
-        void on_step(uint64_t now_ms) override;
+        void on_control(uint64_t now_ms) override;
 
     private:
         /** @brief Name a row that has acquired a second author, once per new

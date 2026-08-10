@@ -44,7 +44,7 @@ namespace Botanik { namespace Terminal {
         _reserved_bottom = (_alarms != nullptr) ? 1 : 0;
     }
 
-    void Console::on_step(uint64_t now_ms) {
+    void Console::on_present(uint64_t now_ms) {
         // Establish the screen on the first step (not in setup_*()) so the clear
         // lands after the handshake setup_*() queued (establish_screen(), not
         // clear_screen, so it keeps the queued handshake bytes).

@@ -146,9 +146,6 @@ namespace Botanik {
         Pages::NotesPage&       notes()    { return _notes; }
 #endif
 
-        /** @brief Terminal logic step (the serial pump is stepped separately by
-         *  the firmware via serial()). */
-        void step(uint64_t now_ms) { _terminal.step(now_ms); }
     };
 #endif
 
@@ -217,15 +214,18 @@ namespace Botanik {
 #endif
         }
 
-        /** @brief Advance every enabled service for this beat. */
-        void step(uint64_t now_ms) {
-            _network.step(now_ms);
+        /** @brief Advance every enabled service for this beat.
+         *
+         *  Not a Component itself - it owns several - so it takes the phase and
+         *  hands it down, and each child runs the hook it implements. */
+        void step(uint64_t now_ms, Tasks::Phase phase) {
+            _network.step(now_ms, phase);
 #if BOTANIK_FEATURE_NTP
-            _ntp.step(now_ms);
+            _ntp.step(now_ms, phase);
 #endif
 #if BOTANIK_FEATURE_MQTT
-            _mqtt.step(now_ms);
-            _telemetry.step(now_ms);   // periodic field publication (base + site)
+            _mqtt.step(now_ms, phase);
+            _telemetry.step(now_ms);   // not a Component: no phase to give it
 #endif
         }
     };

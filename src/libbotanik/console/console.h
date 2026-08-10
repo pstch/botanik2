@@ -171,7 +171,7 @@ namespace Botanik { namespace Terminal {
     protected:
         /** @brief Process input and update the display, once per beat (driven by
          *  Component::step with the cycle timestamp). */
-        void on_step(uint64_t now_ms) override;
+        void on_present(uint64_t now_ms) override;
 
     private:
         /** @name Internals

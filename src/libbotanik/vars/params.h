@@ -85,7 +85,7 @@ namespace Botanik { namespace Vars {
         void on_setup(uint64_t now_ms) override;
         /** @brief Write the retained rows out, at most once per
          *  Config::RETAIN_SAVE_MS. Nothing else per beat. */
-        void on_step(uint64_t now_ms) override;
+        void on_config(uint64_t now_ms) override;
     };
 
     /** @name Read parameters by name (null-safe)

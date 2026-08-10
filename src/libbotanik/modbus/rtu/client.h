@@ -7,14 +7,14 @@
  *
  * @section cl_split Why it is stepped twice
  *
- * receive_step() runs at the top of the beat, so a control program sees the
- * freshest image; on_step() runs after the programs have executed, so a demand
+ * on_input() runs at the top of the beat, so a control program sees the
+ * freshest image; on_output() runs after the programs have executed, so a demand
  * written this beat reaches the wire without waiting for the next one. Stepping
  * it once would cost a beat of latency in one direction or the other.
  *
  * @section cl_gate Collect is not gated with the control phase
  *
- * on_step() runs whatever control authority says. Withholding control drops
+ * on_output() runs whatever control authority says. Withholding control drops
  * every output to its safe state and stops the scan, but those safe values sit
  * in the image until a transaction carries them out: gating the collector too
  * would leave the actuators energised at exactly the moment control was
@@ -75,7 +75,7 @@
  * register empties, so a frame handed to the UART in pieces would have DE fall
  * mid-frame and every slave on the bus would see a truncated frame - which reads
  * as a wiring fault, not a firmware one. A `static_assert` in client.cpp proves
- * a full FC16 fits the transmit ring (MODBUS_TX_RING_BYTES), and on_step() will
+ * a full FC16 fits the transmit ring (MODBUS_TX_RING_BYTES), and on_output() will
  * not begin a transaction until fieldbus_tx_idle() says the ring has DRAINED,
  * not merely that it has room for one more byte. A refused byte is then
  * impossible, and is logged as a critical if it ever happens anyway.
@@ -227,15 +227,6 @@ namespace Botanik { namespace Modbus {
                   const DeviceTable* devices = nullptr)
             : Component(logger, "ModbusRTU"), _io(io), _devices(devices) {}
 
-        /** @name Operation
-         *  @{ */
-
-        /** @brief Drain the receive path and commit anything complete.
-         *  PHASE_INPUT, ahead of Bank::expire_stale(). */
-        void receive_step(uint64_t now_ms);
-
-        /** @} */
-
         /** @name Status
          *  @{ */
 
@@ -305,8 +296,12 @@ namespace Botanik { namespace Modbus {
     protected:
         /** @brief Bring the port up and plan the bus. */
         void on_setup(uint64_t now_ms) override;
-        /** @brief Collect, send, and advance the transaction. PHASE_OUTPUT. */
-        void on_step(uint64_t now_ms) override;
+        /** @brief Parse and commit whatever answered (PHASE_INPUT), so the
+         *  programs run on this beat's readings. */
+        void on_input(uint64_t now_ms) override;
+        /** @brief Issue the next request (PHASE_OUTPUT), so a demand written
+         *  this beat reaches the wire without waiting for the next. */
+        void on_output(uint64_t now_ms) override;
 
     private:
         /** @brief Enter @p s, stamping when. Every transition goes through here,

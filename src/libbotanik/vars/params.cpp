@@ -168,7 +168,7 @@ namespace Botanik { namespace Vars {
                             (unsigned)r);
     }
 
-    void Params::on_step(uint64_t now_ms) {
+    void Params::on_config(uint64_t now_ms) {
         if (_io == nullptr || Config::RETAIN_SAVE_MS == 0) return;
         // A cadence, not a write-through: a flash erase per beat would wear the
         // part out in days. The loss is bounded at one interval of counting on

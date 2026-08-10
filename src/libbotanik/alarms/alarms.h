@@ -383,7 +383,7 @@ namespace Botanik { namespace Alarms {
 
         /** @brief Read each condition's raw input, combine to the local override
          *         and step through the condition's handling code. */
-        void on_step(uint64_t now) override {
+        void on_service(uint64_t now) override {
             const uint32_t dt = _first_step ? 0 : (uint32_t)(now - _last_now);
             _first_step   = false;
             _last_now     = now;

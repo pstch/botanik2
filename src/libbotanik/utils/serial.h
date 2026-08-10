@@ -138,7 +138,10 @@ namespace Botanik { namespace Utils {
     protected:
         /** @brief Run one receive + transmit cycle (driven by Component::step;
          *  @p now_ms unused). Main-loop only (not ISR-safe). */
-        void on_step(uint64_t now_ms) override;
+        /** @brief Take the wire's bytes into the RX ring (PHASE_INPUT). */
+        void on_input(uint64_t now_ms) override;
+        /** @brief Push the TX ring out at the link's pace (PHASE_PRESENT). */
+        void on_present(uint64_t now_ms) override;
     };
 
 }}
