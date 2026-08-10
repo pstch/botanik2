@@ -623,6 +623,10 @@ void RtuClient::_settle(uint64_t now_ms) {
     }
 }
 
+// Deliberately without a consumer: nothing withdraws control authority on a
+// field fault, and nothing should. A failed humidity sensor raises an alarm; it
+// does not shut a greenhouse down. This is reported (the shell, the status bar,
+// alarm_fieldbus), not acted on.
 bool RtuClient::healthy() const {
     // Nothing planned is not a fault: a site with no field bus is a legitimate
     // build, and saying otherwise would raise an alarm nobody can clear.

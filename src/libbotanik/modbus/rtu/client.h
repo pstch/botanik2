@@ -19,18 +19,54 @@
  * the image until a transaction carries them out: gating the collector too would
  * leave the actuators energised at exactly the moment control was withdrawn.
  *
+ * @section cl_rank What goes out next
+ *
+ * ONE clock. Every block is ranked on how far it is through the lateness it is
+ * allowed, in permille, and the highest wins. Reads and writes differ only in
+ * how that pair is DERIVED (`_slot_of()`: a poll period on one side, the minimum
+ * write interval and MODBUS_WRITE_DEADLINE_MS on the other), never in how they
+ * are compared.
+ *
+ * Relative and not absolute, because ranked by milliseconds the fast rungs hold
+ * the bus for ever: they re-arm constantly while a slow block's lateness only
+ * creeps up. There is no tier ladder, and the per-block starvation floor is not
+ * a jump between tiers but simply the point where urgency passes 1000.
+ *
+ * The one absolute pre-empt sits AHEAD of the scale rather than on it: a dirty
+ * write while a safe state is owed. A scale has no top, so a late enough block
+ * could otherwise climb into any rank reserved above it.
+ *
  * @section cl_dead A silent device must not take the bus down
  *
  * An unplugged device costs a full response timeout, and left alone that is paid
  * on EVERY sweep until the live devices lose their rates to the dead ones (the
- * arithmetic is in @ref dev_modbus). So each device carries its own
- * health: consecutive failures, and the earliest time it may be spoken to again.
- * One immediate retry, then backoff doubling from MODBUS_BACKOFF_MS to
- * MODBUS_BACKOFF_MAX_MS, and `_pick()` does not offer the bus to a device that
- * is not due. The rest of the plan keeps running at its own rates throughout.
+ * arithmetic is in @ref dev_modbus). Three things stop it, and the third is the
+ * one that matters at scale:
  *
- * A REFUSAL clears the count: an exception response means the device heard us,
- * understood us and declined, so it is alive and its register map is the problem.
+ *  - Each device carries its own health: consecutive failures, and the earliest
+ *    time it may be spoken to again. One retry, then backoff doubling from
+ *    MODBUS_BACKOFF_MS to MODBUS_BACKOFF_MAX_MS.
+ *  - A miss does not push a read's retry out by a whole poll period
+ *    (MODBUS_RETRY_DELAY_MS caps it), so how long a device takes to be declared
+ *    dead is a property of the fault and not of the rung it happens to sit on.
+ *  - At most ONE device that is not answering is offered the bus at a time (a
+ *    cursor, round-robin), and not until MODBUS_PROBE_SPACING_MS has passed
+ *    since the last transaction that failed (a gate). Their share of the bus is
+ *    therefore timeout/(timeout + spacing), INDEPENDENT of how many are down.
+ *
+ * Without the interleave a probe is enormously late against its own period and
+ * wins every comparison it enters, so the least valuable and most expensive
+ * transaction on the bus goes first, and N dead devices arrive as one contiguous
+ * burst of response timeouts every backoff interval.
+ *
+ * The bound is on the STEADY STATE. A device that has never missed is presumed
+ * good, so its first failure cannot be gated - there is no way to know a device
+ * is down without trying it - and discovering N of them costs N timeouts once.
+ *
+ * A REFUSAL clears the device's count: an exception means it heard us,
+ * understood us and declined, so it is alive and its register map is the
+ * problem. The BLOCK backs off instead, doubling to MODBUS_REFUSAL_MAX_MS, since
+ * a refused write stays dirty and nothing else would ever slow the retry down.
  *
  * @section cl_frame A frame goes out whole or not at all
  *

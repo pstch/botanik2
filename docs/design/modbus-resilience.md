@@ -10,8 +10,11 @@ Everything here is `modbus/rtu/`. The TCP corners are untouched.
 Phases are ordered so each one is safe to stop after. Phase 0 comes first because
 none of the rest is verifiable without it.
 
-**Status.** Phases 0.1 and 1 to 5 are done on `mb-solidify`. What is left is the
-documentation sweep (6).
+**Status.** Done, on `mb-solidify`. Every phase below is landed and the gate is
+green; read this as the record of a finished piece of work rather than a
+worklist. The one thing it did NOT do is listed under "what this does not do" at
+the bottom, and the slave-side failsafe there is a commissioning task that no
+firmware change can cover.
 
 One thing phase 0 turned up that the plan did not predict: the simulator paces
 its bytes against the HOST clock, so a test stepping a virtual beat sees the port
@@ -372,13 +375,18 @@ not with the device set.
 
 ---
 
-## Phase 6 - documentation
+## Phase 6 - documentation [DONE]
 
 Rewrite `modbus/rtu/client.h`'s `cl_dead` section, which describes the backoff as
 the whole answer, and replace `_pick()`'s tier table with the one clock and the
 two maintenance rules. Correct figure 3 of the review per fact 3 above. Update
 `docs/integration/config.md` with the new values, and note beside
 `RtuClient::healthy()` that having no consumer is deliberate.
+
+**As built.** `cl_dead` is rewritten and a `cl_rank` section added for the one
+clock. `config.md` turned out to have no field-bus section at all - the Modbus
+values had never been in the reference - so it gained one covering the line, the
+deadlines and the whole failure policy, not only the values this work added.
 
 ---
 

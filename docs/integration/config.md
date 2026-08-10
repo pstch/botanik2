@@ -335,6 +335,28 @@ The same layout `static_assert` applies. The editor's buffers are supplied by th
 owner, so these size the NOTES page alone and are independent of the `EDITOR_*`
 values the shell prompt uses. The storage key is `NotesPage::STORAGE_KEY`.
 
+### Field bus (Modbus RTU)
+
+The line, and what the master does when a device stops answering. The bus
+arithmetic these sit on is worked out in `docs/design/modbus-budget.md`; what
+happens under fault is `docs/design/modbus-resilience.md`.
+
+| Macro | Default | |
+|---|---|---|
+| `MODBUS_BAUD` | 19200 | carries the reference plant at about a fifth of the bus and survives long cable runs. 38400 is the first step up |
+| `MODBUS_TURNAROUND_MS` | 10 | what the PLANNER costs a transaction with, not a timeout. It dominates everything and the link speed does not touch it, so measure it rather than trusting it |
+| `MODBUS_TIMEOUT_MS` | 300 | how long a slave has to answer. A device slower than this is indistinguishable from a dead one unless its model says otherwise (`DeviceModel::timeout_ms`) |
+| `MODBUS_RETRIES` | 1 | misses before a device is backed off |
+| `MODBUS_RETRY_DELAY_MS` | 500 | caps how long the retry waits. Without it a read's retry comes round on its own poll period, so declaring a device dead cost two of them: 2 s on the 1 s rung but two **minutes** on the 60 s one |
+| `MODBUS_BACKOFF_MS` | 1000 | first probe interval after a device is declared down, doubling |
+| `MODBUS_BACKOFF_MAX_MS` | 60000 | the ceiling on that. Affordable only because a probe can no longer pre-empt live traffic |
+| `MODBUS_PROBE_SPACING_MS` | 1500 | live traffic owed between two unanswered transactions. With the timeout it fixes the share of the bus devices that are not answering can take, at `timeout/(timeout + spacing)` = 17 %, **independent of how many are down**. Measured in time and not in transactions: a probe costs a full timeout and a live two-register read costs 22 ms, so "one per four transactions" would be 77 % of the bus |
+| `MODBUS_WRITE_MIN_MS` | 200 | shortest interval between two writes to one block, so a chattering demand cannot monopolise the bus |
+| `MODBUS_WRITE_DEADLINE_MS` | 500 | how long a demand that has moved may sit behind reads. A **denominator**, not a throttle: every block is ranked on how far it is through the lateness it is allowed, and this is a write's share of that, so shorter means higher priority against the read rungs and not a faster retry. The one value here with a plant consequence rather than a bus one |
+| `MODBUS_REWRITE_MS` | 5000 | unconditional re-drive: it re-drives a slave that rebooted, and is the keepalive that slave's own failsafe timer watches for. **Configure that failsafe** - it is the only mechanism that still works when the master is the thing that failed |
+| `MODBUS_REFUSAL_MAX_MS` | 60000 | ceiling on a refused write block's own backoff. Per block and not per device: an exception says the register map is wrong, not that the box is gone, so its reads keep their rates |
+| `MODBUS_GAP_MS` | 3 | inter-frame silence, raised per device by `DeviceModel::min_gap_ms` |
+
 ### Simulator only
 
 `STORE_MAX_BYTES` 16384, the cap on the key-value store file, guarded by
