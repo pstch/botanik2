@@ -1699,7 +1699,7 @@ namespace {
 
 }
 
-TEST_CASE("shell override: a bare name forces a GOOD reading; `clear` releases all") {
+TEST_CASE("shell override: a bare name forces a GOOD reading, and `clear` releases all") {
     // Freezing used to carry the row's current quality through, so a bare
     // `override` on a variable nothing had written yet handed back an override
     // that read as a dead sensor. Only the word `invalid` says that.

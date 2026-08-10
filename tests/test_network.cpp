@@ -78,10 +78,10 @@ TEST_CASE("MqttClient: never reports connected to a dead broker, publish gated o
     net.step(HAL::Clock::uptime_ms());                 // sim link up
 
     fx.set_num("mqtt_serial", 1);
-    fx.set_num("mqtt_enabled", 1);
+    fx.set_num("mqtt_enable", 1);
     // Off-host literal: the hermetic sim refuses any non-loopback destination, so the
     // connect can never complete.
-    fx.set_str("mqtt_broker", "192.0.2.1");
+    fx.set_str("mqtt_host", "192.0.2.1");
     fx.publish();
     for (int i = 0; i < 5; ++i) mqtt.step(HAL::Clock::uptime_ms());
 
@@ -108,10 +108,10 @@ TEST_CASE("NtpClient: stepped as a Component (announces once), query is non-bloc
     net.step(HAL::Clock::uptime_ms());
 
     fx.set_num("ntp_serial", 1);
-    fx.set_num("ntp_enabled", 1);
+    fx.set_num("ntp_enable", 1);
     // Off-host literal: the hermetic sim refuses the send, so no reply arrives and the
     // query stays non-blocking (no sync).
-    fx.set_str("ntp_server1", "192.0.2.1");
+    fx.set_str("ntp_srv1", "192.0.2.1");
     fx.publish();
 
     for (int i = 0; i < 5; ++i) ts.step(HAL::Clock::uptime_ms());   // must not fault or block

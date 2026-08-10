@@ -127,7 +127,7 @@ TEST_CASE("storage: bad keys rejected") {
     CHECK_FALSE(Storage::get("has/slash", &x, 1, &n));
 }
 
-TEST_CASE("storage: a refused write is counted; a bad key is not") {
+TEST_CASE("storage: a refused write is counted, and a bad key is not") {
     // fault_count() is what raises FLASH_FLT, so it must track real backend
     // refusals only. A malformed key is a programming error and must not put
     // the firmware into a persistent fault.
