@@ -119,8 +119,7 @@ namespace Botanik { namespace Pages {
         if (field[0] != '\0')
             _place_centered(left, w, sizeof(left), ML_NEXT, ML_SLOT_W, field);
 
-        // How much of the set is on screen - every table shows it, since
-        // "am I looking at all of this?" is the same question everywhere.
+        // How much of the set is on screen; every table shows it.
         _pad_to(left, w, sizeof(left), ML_POS);
         const uint16_t total = _row_count(), win = _window();
         const uint16_t last  = (uint16_t)(_top + (win < total ? win : total));

@@ -80,10 +80,9 @@ namespace Botanik { namespace Modbus {
         uint8_t frame[ADU_MAX];
         memcpy(frame, _req, want);
 
-        // A corrupt frame means we do not know where the frame boundary IS, so
-        // discarding `want` bytes fixes the misalignment in place: one byte lost
-        // on the wire would leave every following window failing its CRC, for
-        // good. Drop one byte and rescan instead.
+        // A corrupt frame means the frame boundary is unknown, so discarding
+        // `want` bytes would leave every following window failing its CRC after
+        // a single lost byte. Drop one byte and rescan instead.
         if (crc16(frame, want) != 0) {
             _dropped++;
             if (_req_len > 1) memmove(_req, _req + 1, (size_t)(_req_len - 1));
@@ -109,9 +108,8 @@ namespace Botanik { namespace Modbus {
 
         if (!is_supported(fc)) {
             if (broadcast) return 0;
-            // Counted here because this one returns without passing the tally
-            // at the end of the function. Every answered request is worth
-            // exactly one, whichever route produced it.
+            // Counted here: this route returns without passing the tally at the
+            // end of poll(), and every answered request is worth exactly one.
             const uint16_t n = _except(fc, EX_ILLEGAL_FUNCTION, out, cap);
             if (n > 0) _served++;
             return n;
@@ -147,9 +145,7 @@ namespace Botanik { namespace Modbus {
         (void)seal(out, 3);
         _refused++;
         // NOT _served++: poll() counts any non-zero answer, and this returns
-        // through it. Counting here too made an exception worth two served
-        // requests, while the unsupported-function path counted one - so the
-        // two exception routes disagreed with each other as well.
+        // through it. Counting here too would make an exception worth two.
         return exception_len();
     }
 
@@ -208,9 +204,9 @@ namespace Botanik { namespace Modbus {
                 const uint8_t bc = pdu[5];
                 // The quantity ceiling first, and in 32-bit arithmetic: the
                 // expected byte count is 2*qty for registers, which wraps to 0
-                // at qty 128 if it is computed in a uint8_t and then matches a
-                // declared count of 0. That let a 9-byte frame commit 128
-                // registers from past the end of the buffer.
+                // at qty 128 in a uint8_t and would then match a declared count
+                // of 0, letting a 9-byte frame commit 128 registers from past
+                // the end of the buffer.
                 if (val < 1 || val > max_quantity(fc))
                     return _except(fc, EX_ILLEGAL_VALUE, out, cap);
                 if (pdu_len < (uint16_t)(6 + bc) ||

@@ -4,10 +4,8 @@
  * @brief ANSI helper implementations
  *
  * Each writer reserves ANSI_MAX_SEQ bytes via availableForWrite() before
- * emitting; if the whole sequence won't fit it writes nothing and returns
- * false. That guard keeps an escape from ever being split mid-sequence.
- *
- * Callers may retry on a later redraw.
+ * emitting; if the whole sequence won't fit it writes nothing and returns false,
+ * so an escape is never split mid-sequence. Callers may retry on a later redraw.
  */
 
 #include <cstddef>                  // size_t
@@ -40,11 +38,11 @@ namespace Botanik { namespace Terminal { namespace Ansi {
     // TODO: find a better name for _csi_count
     template <size_t N>
     bool _csi_count(ByteSink& _serial, const char (&tail)[N], uint16_t count = 1) {
-        if (count == 0) return true;                    // return early if count is zero
-        if (!can_emit(_serial)) return false;           // bail if not enough TX space
-        _serial.write(CSI, sizeof(CSI) - 1);            // write CSI header
-        if (count > 1) write_uint16(_serial, count);    // write count parameter
-        _serial.write(tail, (uint16_t)(N - 1));         // write the final byte(s)
+        if (count == 0) return true;
+        if (!can_emit(_serial)) return false;
+        _serial.write(CSI, sizeof(CSI) - 1);
+        if (count > 1) write_uint16(_serial, count);
+        _serial.write(tail, (uint16_t)(N - 1));
         return true;
     }
 

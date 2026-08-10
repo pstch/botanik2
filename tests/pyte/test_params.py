@@ -54,9 +54,9 @@ def test_notes_row(spawn):
 def test_group_follows_selection(spawn):
     """The legend's (group) tracks the cursor.
 
-    It did not: _group_of() returned a pointer into one shared static, and
-    drawing the legend re-entered it to name the neighbouring views, so every row
-    showed whichever group came last in the table.
+    Guards the defect where _group_of() returns a pointer into one shared static:
+    drawing the legend re-enters it to name the neighbouring views, so every row
+    shows whichever group came last in the table.
     """
     term = _params(spawn)
     assert term.wait_for("(serial)"), "first row is a library serial_* parameter"

@@ -6,21 +6,11 @@
  * @file kill_ring.h
  * @brief The console's clipboard: one buffer every editor and table cuts into.
  *
- * Deliberately ONE, not one per TextEditor. The point of a kill ring on a
- * terminal with no mouse is to move text between the places that hold it - cut
- * a line at the shell prompt and yank it into NOTES, copy a variable name off
- * the MONITOR table and paste it into a `get`. A per-editor buffer makes each
- * of those a dead end.
+ * ONE per Console (Console::kill_ring()), not per TextEditor and not global, so
+ * text moves between the places that hold it. See @ref dev_editor.
  *
- * One per CONSOLE, though, not one per firmware: the Console owns it
- * (Console::kill_ring()) and everything reaches it through the console it is
- * already holding. There is one console, so that is the same single clipboard -
- * without a global that anything including a header could write to, and with
- * test isolation for free, since a fixture's console brings its own.
- *
- * Single entry, replace on kill: no Emacs-style append across consecutive
- * kills. What does NOT fit is not taken (see set()), which is what lets the
- * editor promise that a yank restores exactly what the kill removed.
+ * Single entry, replace on kill. What does not fit is not taken (see set()), so
+ * a yank restores exactly what the kill removed.
  */
 
 #include <cstdint>                        // uint16_t

@@ -131,8 +131,7 @@ namespace Botanik { namespace Logs {
 
     protected:
         /** @brief The standard entry rendering (Logs::format_log_entry). A sink
-         *  that needs its own wire shape overrides this; the page-side sinks all
-         *  want exactly this, so it is the default rather than three copies. */
+         *  that needs its own wire shape overrides this. */
         size_t format(const Logs::LogEntry* entry, char* buf, size_t len) override;
 
     private:
@@ -160,10 +159,9 @@ namespace Botanik { namespace Logs {
          *  @{ */
 
         BufferedSerial* _serial;   ///< bound output port
-        /** @brief drop every entry when the port is an interactive terminal: a diagnostic
-         *  monitor port can share a tty with the console UI (sim: UI on stdout, monitor on
-         *  stderr, same screen unless redirected), where log lines would garble the display.
-         *  Decided once at construction; the monitor UART is never a tty on hardware. */
+        /** @brief Drop every entry when the port is an interactive terminal, so
+         *  log lines cannot garble a console UI sharing the same tty. Decided
+         *  once at construction; the monitor UART is never a tty on hardware. */
         bool _suppressed;
 
         /** @} */
@@ -172,11 +170,9 @@ namespace Botanik { namespace Logs {
         /** @name Lifecycle
          *  @{ */
 
-        /** @brief Bind the writer to @p serial. With @p drop_if_tty, the writer self-
-         *  suppresses (drops every entry at push()) when @p serial is an interactive
-         *  terminal - for a diagnostic monitor port that may share the console's tty.
-         *  @p logger / @p name feed the Component base (announce; logger may be
-         *  null to stay silent). */
+        /** @brief Bind the writer to @p serial. @p drop_if_tty self-suppresses
+         *  on an interactive terminal (see @c _suppressed). @p logger / @p name
+         *  feed the Component base; a null logger stays silent. */
         SerialLogWriter(BufferedSerial& serial, bool drop_if_tty = false,
                         Logger* logger = nullptr, const char* name = "SerialLogWriter");
 

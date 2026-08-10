@@ -2,8 +2,7 @@
  * @file test_tasks.cpp
  * @brief The task registry and its timing primitive.
  *
- * Each section below is the former test_<name>.cpp, kept in its own
- * namespace so their fixtures and helpers cannot collide.
+ * Two sections, each in its own namespace to avoid fixture collisions.
  */
 
 #include <cstdint>                      // uint8_t/uint32_t/uint64_t
@@ -14,9 +13,7 @@
 #include "doctest.h"
 #include "libbotanik/tasks/task_timer.h"    // Tasks::TaskTimer
 
-// --------------------------------------------------------------------------
 // tasks
-// --------------------------------------------------------------------------
 
 namespace tasks {
 
@@ -27,8 +24,7 @@ namespace {
 
     void note(void* self, uint64_t) { g_log.push_back((const char*)self); }
 
-    // Distinct storage per task, since `self` is what identifies it here.
-    char A[] = "a", B[] = "b", C[] = "c";
+    char A[] = "a", B[] = "b", C[] = "c";  // distinct storage: `self` identifies the task
 }
 
 TEST_CASE("tasks: a phase runs only its own members, in registration order") {
@@ -96,15 +92,11 @@ TEST_CASE("tasks: dropped activations are counted, not caught up") {
     REQUIRE(r.count() == 1);
     CHECK(r.task(0).cost.missed == 0);
 
-    // Five periods later. It runs ONCE and the four activations in between are
-    // gone - the count is the only trace they leave, which is what the TASKS
-    // page and `tasks` read.
-    r.run_phase(PHASE_SERVICE, 5 * p);
+    r.run_phase(PHASE_SERVICE, 5 * p);   // runs ONCE; the four in between just count as missed
     CHECK(r.task(0).cost.runs   == 2);
     CHECK(r.task(0).cost.missed == 4);
 
-    // On time again: the count holds rather than decaying.
-    r.run_phase(PHASE_SERVICE, 6 * p);
+    r.run_phase(PHASE_SERVICE, 6 * p);   // on time again: count holds, doesn't decay
     CHECK(r.task(0).cost.runs   == 3);
     CHECK(r.task(0).cost.missed == 4);
 }
@@ -126,9 +118,8 @@ TEST_CASE("tasks: a null dispatch is refused rather than called") {
     r.run_phase(PHASE_SERVICE, 0);   // must not fault
 }
 
+// Lazy init on first step() would put the parameter load's 423 storage reads inside the first beat.
 TEST_CASE("tasks: setup() runs before any beat, exactly once") {
-    // Setup used to happen lazily on a component's first step(), which put the
-    // parameter load's 423 storage reads inside the first beat.
     struct Spy : public Botanik::Component {
         uint32_t setups = 0, steps = 0;
         Spy() : Component(nullptr, "spy") {}
@@ -147,8 +138,7 @@ TEST_CASE("tasks: setup() runs before any beat, exactly once") {
     CHECK(a.steps == 0);          // init, not a beat
     CHECK(b.steps == 0);
 
-    // The lazy path in step() must not run it a second time.
-    r.run_phase(PHASE_INPUT, 0);
+    r.run_phase(PHASE_INPUT, 0);   // lazy path in step() must not run it a second time
     r.run_phase(PHASE_PRESENT, 0);
     CHECK(a.setups == 1);
     CHECK(b.setups == 1);
@@ -156,9 +146,8 @@ TEST_CASE("tasks: setup() runs before any beat, exactly once") {
     CHECK(b.steps == 1);
 }
 
+// Fallback the network stack's children rely on: nested components have no registration to set them up.
 TEST_CASE("tasks: a component the registry never set up still self-inits") {
-    // The fallback the network stack's children rely on: nested components have
-    // no registration to be set up from, so step() still does it.
     struct Spy : public Botanik::Component {
         uint32_t setups = 0;
         Spy() : Component(nullptr, "spy") {}
@@ -186,9 +175,7 @@ TEST_CASE("tasks: setup() skips a task with no setup, and does not fault") {
 
 }  // namespace tasks
 
-// --------------------------------------------------------------------------
 // task_timer
-// --------------------------------------------------------------------------
 
 namespace task_timer {
 
@@ -199,9 +186,7 @@ TEST_CASE("task timer: the first call is always due, at the nominal period") {
     uint32_t dt = 0; uint16_t missed = 0;
 
     CHECK(t.runs() == 0);
-    // Due at t=0 even though nothing has elapsed: dt is the nominal period, or
-    // a timer handed "everything since boot" would fire immediately.
-    CHECK(t.due(0, 100, dt, missed));
+    CHECK(t.due(0, 100, dt, missed));   // due at t=0: dt is the nominal period, not "since boot"
     CHECK(dt == 100);
     CHECK(missed == 0);
 }
@@ -210,9 +195,7 @@ TEST_CASE("task timer: due() is a pure query, ran() is what commits") {
     TaskTimer t;
     uint32_t dt = 0; uint16_t missed = 0;
 
-    // Asking repeatedly must not consume the activation - the scan cycle asks
-    // and then declines to run while control is withheld.
-    CHECK(t.due(0, 100, dt, missed));
+    CHECK(t.due(0, 100, dt, missed));   // asking repeatedly must not consume the activation
     CHECK(t.due(0, 100, dt, missed));
     CHECK(t.runs() == 0);
 
@@ -251,8 +234,7 @@ TEST_CASE("task timer: a late run reports the real gap and the dropped count") {
     uint32_t dt = 0; uint16_t missed = 0;
     t.due(0, 100, dt, missed); t.ran(0);
 
-    // A 900 ms stall on a 100 ms task: nine activations went past.
-    REQUIRE(t.due(1000, 100, dt, missed));
+    REQUIRE(t.due(1000, 100, dt, missed));   // 900 ms stall on a 100 ms task: nine went past
     CHECK(dt == 1000);      // the REAL gap, not the nominal 100
     CHECK(missed == 9);
 }
@@ -262,8 +244,7 @@ TEST_CASE("task timer: one period late is late, not missed") {
     uint32_t dt = 0; uint16_t missed = 0;
     t.due(0, 100, dt, missed); t.ran(0);
 
-    // 199 ms is one activation, served late; nothing was skipped.
-    REQUIRE(t.due(199, 100, dt, missed));
+    REQUIRE(t.due(199, 100, dt, missed));   // one activation, served late; nothing skipped
     CHECK(dt == 199);
     CHECK(missed == 0);
 }
@@ -273,8 +254,7 @@ TEST_CASE("task timer: the missed count saturates instead of wrapping") {
     uint32_t dt = 0; uint16_t missed = 0;
     t.due(0, 1, dt, missed); t.ran(0);
 
-    // 100 M activations of a 1 ms task: far past what uint16_t holds.
-    REQUIRE(t.due(100000000ull, 1, dt, missed));
+    REQUIRE(t.due(100000000ull, 1, dt, missed));   // 100 M activations, far past what uint16_t holds
     CHECK(missed == 0xFFFF);
 }
 
@@ -289,14 +269,12 @@ TEST_CASE("task timer: an offset delays the first interval and only that one") {
     REQUIRE(t.due(130, 100, dt, missed));
     t.ran(130);
 
-    // Offset spent: the rate is nominal from here on, not 130.
-    CHECK_FALSE(t.due(229, 100, dt, missed));
+    CHECK_FALSE(t.due(229, 100, dt, missed));   // offset spent: rate is nominal from here, not 130
     CHECK(t.due(230, 100, dt, missed));
 }
 
+// What the offset exists for: same period, different offsets spreads work over beats.
 TEST_CASE("task timer: offset timers of one period never share a beat again") {
-    // The property the offset exists for: same period, different offsets, so
-    // the periodic work spreads over beats instead of piling onto one.
     TaskTimer a, b;
     uint32_t dt = 0; uint16_t missed = 0;
     a.set_offset(0);
@@ -312,9 +290,7 @@ TEST_CASE("task timer: offset timers of one period never share a beat again") {
     }
 
     CHECK(shared == 0);            // never coincide after boot
-    // Same rate, not the same count: b's activations sit 40 ms later, so its
-    // last one falls past the window edge rather than being lost.
-    CHECK(a_runs == 21);           // 0, 100 .. 2000
+    CHECK(a_runs == 21);           // 0, 100 .. 2000; same rate, not same count as b
     CHECK(b_runs == 20);           // 0, 140 .. 1940
 }
 
@@ -323,8 +299,7 @@ TEST_CASE("task timer: dt saturates instead of truncating past 32 bits") {
     uint32_t dt = 0; uint16_t missed = 0;
     t.due(0, 1000, dt, missed); t.ran(0);
 
-    // Beyond a 32-bit ms span (~49 days). Truncating would report a small dt and
-    // silently hand a timer a fraction of the time that actually passed.
+    // Beyond a 32-bit ms span (~49 days); truncating would silently hand a fraction of the real gap.
     REQUIRE(t.due(0x1FFFFFFFFull, 1000, dt, missed));
     CHECK(dt == 0xFFFFFFFFu);
 }

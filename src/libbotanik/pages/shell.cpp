@@ -50,10 +50,9 @@ namespace Botanik { namespace Pages {
 
     void ShellPage::handle_command(Command cmd, uint16_t count) {
         // The transcript's keys, not the editor's: they touch no editor state,
-        // so they return before the suppress/occupied-rows bookkeeping below.
-        // Shift+arrow goes a line at a time (plain UP/DOWN are the command
-        // history here); a page keeps one row of overlap, the way a pager does,
-        // and scroll() clamps a longer move to a screenful.
+        // so they return before the bookkeeping below. Shift+arrow steps a line
+        // (plain UP/DOWN are the command history here); a page keeps one row of
+        // overlap, and scroll() clamps a longer move to a screenful.
         if (cmd == Command::PAGE_UP   || cmd == Command::PAGE_DOWN ||
             cmd == Command::SHIFT_UP  || cmd == Command::SHIFT_DOWN) {
             const bool up   = (cmd == Command::PAGE_UP || cmd == Command::SHIFT_UP);
@@ -137,21 +136,20 @@ namespace Botanik { namespace Pages {
 
     void ShellPage::tick(bool active) {
         _active = active;
-        // Drain any staged focus replay first; bail until it finishes so the live tail's
-        // DL scroll can't shift rows the replay already drew.
+        // Staged focus replay first, and bail until it finishes: the live
+        // tail's DL scroll must not shift rows the replay already drew.
         if (_scrollback.tick_redraw_gate(_terminal, active)) return;
-        // Bank queued log entries (pending when active; only the active page queues, see
-        // push()); command output banks the same way via write_lines().
+        // Bank queued log entries (only the active page queues, see push());
+        // command output banks the same way via write_lines().
         drain();
-        // Paint pending lines paced into the log area; emit_tail shifts the
-        // editor up (DL) and back down (IL), so reposition the cursor onto it
-        // afterwards.
+        // Paint pending lines paced into the log area. emit_tail shifts the
+        // editor up (DL) and back down (IL), so re-place the cursor after.
         if (active) {
             uint16_t log_rows = _log_rows();
             if (_scrollback.drain_tail(_terminal, 1, log_rows))
                 _editor.place_cursor();
             // Keep the "scrolled up" marker in sync with the view (no-op unless
-            // it moved); survives unrelated repaints since it runs every tick.
+            // it moved); running every tick survives unrelated repaints.
             _scrollback.refresh_scroll_indicator(_terminal, 1, log_rows);
         }
     }
@@ -168,9 +166,8 @@ namespace Botanik { namespace Pages {
 
     size_t ShellPage::write(const char* buf, size_t len) {
         // Store-only, for both log output (via drain(), indented prefix) and
-        // command output (via write_lines(), plain "> " prefix). Bank, mark
-        // pending when active. Never blocks/returns short, so write_lines()
-        // can't drop command output.
+        // command output (via write_lines(), plain "> " prefix). Never blocks
+        // or returns short, so write_lines() cannot drop command output.
         const char* prefix = _draining_log ? Logs::LOG_CONT_PREFIX
                                            : Logs::CONT_PREFIX;
         uint16_t    plen   = (uint16_t)strlen(prefix);
@@ -305,9 +302,8 @@ namespace Botanik { namespace Pages {
         if (log_rows == 0) return;
 
         // Scroll the content band down by delta: opens delta rows at the top
-        // for older scrollback; the editor rows fall off the bottom (redrawn
-        // after).
-        // Bounded so row 0 stays put.
+        // for older scrollback, the editor rows fall off the bottom (redrawn
+        // after). Bounded at row 1 so row 0 stays put.
         _terminal.scroll_region(1, (uint16_t)(rows - 1), /*up=*/false, delta);
 
         // Fill newly blank rows 1..delta with older scrollback entries (the log

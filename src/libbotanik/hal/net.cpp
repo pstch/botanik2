@@ -249,15 +249,13 @@ namespace Botanik { namespace HAL { namespace Network {
 #else
 // ---- Simulator backend (real BSD sockets, loopback-only) ----
 //
-// Thin and protocol-agnostic, like the OPTA backend: it opens real host sockets
-// but is hermetic by construction - udp_sendto/tcp_connect refuse any destination
-// that isn't 127.0.0.0/8, so the process can never send a packet off-host no matter
-// what a config carries. DNS reinforces this by resolving every name to 127.0.0.1,
-// where the in-process mock NTP/MQTT responder (botanik_sim/network.h) answers; the
-// loopback guard also catches non-loopback IPv4 literals that bypass DNS. DNS is the
-// one emulated piece - it mirrors the OPTA gethostbyname_async poll model rather than
-// blocking in getaddrinfo. No NTP/MQTT wire knowledge lives here; that stays in the
-// responder and in network/.
+// Thin and protocol-agnostic, like the OPTA backend: real host sockets, but
+// hermetic by construction - udp_sendto/tcp_connect divert every destination to
+// this instance's loopback, where the in-process mock NTP/MQTT responder
+// (botanik_sim/network.h) answers, so the process can never send a packet
+// off-host whatever a config carries. DNS is the one emulated piece: it mirrors
+// the OPTA gethostbyname_async poll model rather than blocking in getaddrinfo.
+// No NTP/MQTT wire knowledge here; that stays in the responder and in network/.
 
 #include <cerrno>                           // errno / EAGAIN / EINPROGRESS
 #include <cstring>                          // memcpy / memset / strcmp / strlen
@@ -290,14 +288,11 @@ namespace Botanik { namespace HAL { namespace Network {
             return s;
         }
         // The ports this process is listening on, in sim (shifted) form; port 0
-        // is a free row.
-        //
-        // What they are for is tcp_connect: a connect aimed at a port WE serve is
-        // the firmware talking to its own server, which is already hermetic and
-        // must reach that port rather than the mock broker. Everything else is
-        // still diverted. The fd is kept beside the port so tcp_close() can
-        // retire the row - a stale one would divert a later connect to a port
-        // nothing answers on any more.
+        // is a free row. For tcp_connect: a connect aimed at a port WE serve is
+        // the firmware talking to its own server, which must reach that port
+        // rather than the mock broker. The fd is kept beside the port so
+        // tcp_close() can retire the row - a stale one would divert a later
+        // connect to a port nothing answers on any more.
         struct Listener { int fd; uint16_t port; };
         Listener g_listen[Config::NET_MAX_TCP] = {};
         bool listening_on(uint16_t p) {
@@ -319,11 +314,9 @@ namespace Botanik { namespace HAL { namespace Network {
     /** @brief Where a packet actually goes, whatever address the firmware aimed
      *  at: the in-process responder.
      *
-     *  Refusing a non-loopback address kept the sim hermetic, but it also made
-     *  the shipped configuration untestable - the moment the site declared its
-     *  real broker (an IP literal, which no mock resolver ever sees) nothing
-     *  connected. Diverting keeps the guarantee (the real address is never
-     *  contacted) and lets the sim run the config the hardware will run.
+     *  Diverting rather than refusing keeps the guarantee (the real address is
+     *  never contacted) while letting the sim run the config the hardware runs,
+     *  IP literals included.
      *
      *  It must be mock_loopback_ip(), not 127.0.0.1: the responder binds a
      *  PID-derived 127/8 address so two sims cannot fight over the shared mock
@@ -428,14 +421,12 @@ namespace Botanik { namespace HAL { namespace Network {
     namespace {
         /** @brief Where each UDP socket was last aimed, BEFORE the diversion.
          *
-         *  The emulation has to be transparent in both directions. sendto()
-         *  redirects every datagram to the in-process responder on a shifted
-         *  port; if recvfrom() then reported that physical peer, the firmware
-         *  would see an answer from a host it never addressed - and code that
-         *  checks (NtpClient does, so a stray datagram cannot set the clock)
-         *  would reject every reply on the simulator while working on hardware.
+         *  The emulation must be transparent in both directions: if recvfrom()
+         *  reported the physical peer, code that checks the source (NtpClient
+         *  does, so a stray datagram cannot set the clock) would reject every
+         *  reply on the simulator while working on hardware.
          *
-         *  One row per socket, keyed by fd. NET_MAX_UDP is 2. */
+         *  One row per socket, keyed by fd. */
         struct UdpAim { int fd; Ip4 addr; uint16_t port; };
         UdpAim g_udp_aim[Config::NET_MAX_UDP] = {};
 
@@ -495,14 +486,10 @@ namespace Botanik { namespace HAL { namespace Network {
     int tcp_connect(TcpSocket s, const Ip4& a, uint16_t port) {
         if (s < 0) return -1;
         // Hermetic, exactly as udp_sendto: any peer and any port land on the
-        // in-process broker. Matching one well-known port tied the sim to
-        // whatever the site happened to configure, which broke the moment the
-        // site declared its real broker (192.168.1.43:58443).
-        //
-        // The exception is a port this process is itself listening on: that is
-        // the firmware's own server, already in-process, and diverting it would
-        // make the one thing the sim can genuinely test - a client reaching our
-        // slave - unreachable.
+        // in-process broker. The exception is a port this process is itself
+        // listening on: that is the firmware's own server, already in-process,
+        // and diverting it would make the one thing the sim can genuinely test
+        // (a client reaching our slave) unreachable.
         port = listening_on(sim_port(port)) ? sim_port(port) : MQTT_MOCK_PORT;
         sockaddr_in sin = make_sin(to_mock_peer(a), port);
         int r = ::connect(s, reinterpret_cast<sockaddr*>(&sin), sizeof(sin));
@@ -519,12 +506,9 @@ namespace Botanik { namespace HAL { namespace Network {
         int fd = ::socket(AF_INET, SOCK_STREAM, 0);
         if (fd < 0) return -1;
         if (set_nonblock(fd) < 0) return -1;     // closed the fd already
-        // Rebind over our own TIME_WAIT. The listener itself is FD_CLOEXEC and
-        // really is gone after System::reset()'s execve - but any connection it
-        // ACCEPTED leaves a TIME_WAIT entry on the same local port, and a bind
-        // without this is refused for as long as one lingers. Which is why the
-        // slave came up on a fresh boot and not after a reset: the self-check
-        // connects, so a reset always had one to trip over.
+        // Rebind over our own TIME_WAIT: any connection this listener ACCEPTED
+        // leaves an entry on the same local port, and a bind without this is
+        // refused for as long as one lingers.
         //
         // Not SO_REUSEPORT: two live listeners on one port is exactly the
         // collision the per-instance 127/8 address below exists to prevent.

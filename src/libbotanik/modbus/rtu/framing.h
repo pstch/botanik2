@@ -9,14 +9,10 @@
  * @section fr_silence Why not t3.5
  *
  * Modbus RTU delimits frames by 3.5 character times of silence: 2.005 ms at
- * 19200, and a spec-fixed 1.75 ms above it. This firmware cannot observe that.
- * The loop runs on a 10 ms beat, so whatever the clock's resolution, the framer
- * is only LOOKED AT once per beat and every gap it could measure has already
- * closed. Lowering the beat to chase it is not on the table (see
- * docs/dev/scheduler.md).
- *
- * Three things replace it, and together they are strictly stronger than a
- * timer would be:
+ * 19200, and a spec-fixed 1.75 ms above it. This firmware cannot observe that -
+ * the framer is only LOOKED AT once per 10 ms beat, so every gap it could
+ * measure has already closed. Three things replace it, and together they are
+ * strictly stronger than a timer would be:
  *
  *  - @ref RtuFramer::arm() drops whatever the previous transaction left behind,
  *    so every frame begins at a known offset rather than at a guessed boundary.
@@ -30,13 +26,10 @@
  * a frame boundary. Nothing here treats elapsed time as evidence about where a
  * frame ends.
  *
- * @section fr_pure What this class does not know
- *
- * It takes bytes and a clock reading. It has never heard of BufferedSerial,
- * HAL::Serial, the beat, or RS-485. That is what lets it be tested with array
- * literals and a fake @c now_ms, and it is also what makes servicing the UART
- * more than once per beat (which the budget doc wants above 38400) a change in
- * the caller and not in here.
+ * It takes bytes and a clock reading, and has never heard of BufferedSerial,
+ * HAL::Serial, the beat or RS-485: so it is tested with array literals and a
+ * fake @c now_ms, and servicing the UART more than once per beat (which the
+ * budget doc wants above 38400) is a change in the caller.
  */
 
 #include <cstdint>
@@ -128,23 +121,16 @@ namespace Botanik { namespace Modbus {
         /** @brief Expect the answer to @p e, allowing @p timeout_ms for it.
          *
          *  Resets everything, dropping any bytes the previous transaction left
-         *  unconsumed. That is the point: on a shared bus a late answer from the
-         *  last slave can still be arriving, and treating those bytes as the head
-         *  of this frame would desynchronise every transaction after it.
+         *  unconsumed: on a shared bus a late answer from the last slave can
+         *  still be arriving, and treating those bytes as the head of this frame
+         *  would desynchronise every transaction after it.
          *
          *  @p echo_len is how many bytes of our own transmission to discard
-         *  first: the length of the frame just sent, or 0 when nothing was.
-         *
-         *  A COUNT, not a comparison. The receiver hears the wire while we drive
-         *  it, so the echo is our frame, whole, before anything else - there is
-         *  nothing to recognise. Matching bytes against the sent frame instead
-         *  was written while it was unclear whether this board echoes at all;
-         *  it does, by construction (RE is tied low), and the machinery that
-         *  hedged both ways cost more than the certainty is worth.
-         *
-         *  Noise on an idle line is the case this cannot tell apart, and neither
-         *  could the comparison: a corrupted echo byte simply shifts the frame,
-         *  which the CRC then rejects. That is the same answer either way. */
+         *  first: the length of the frame just sent, or 0 when nothing was. A
+         *  COUNT, not a comparison - the receiver hears the wire while we drive
+         *  it (RE is tied low), so the echo is our frame, whole, before anything
+         *  else. A corrupted echo byte shifts the frame and the CRC rejects it,
+         *  which is what a comparison would have come to as well. */
         void arm(const Expect& e, uint64_t now_ms, uint32_t timeout_ms,
                  uint16_t echo_len = 0);
 

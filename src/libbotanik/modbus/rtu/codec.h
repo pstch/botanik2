@@ -7,8 +7,8 @@
  *        builders, the parser, and the 32-bit register pair.
  *
  * A BLOCK by the plc/ rule (these loop over buffers, so they need a .cpp), but
- * stateless all the same: no object, no member, nothing remembered between
- * calls, and nothing here allocates or owns memory. Buffers are the caller's.
+ * stateless all the same: nothing is remembered between calls and nothing is
+ * allocated or owned. Buffers are the caller's.
  *
  * @see wire.h for the vocabulary and the frame sizes these agree on.
  */
@@ -31,30 +31,23 @@ namespace Botanik { namespace Modbus {
     /** @brief CRC-16/MODBUS over @p n bytes of @p buf: reflected 0xA001, seeded
      *  0xFFFF. A null @p buf reads as the bare seed.
      *
-     *  Bitwise rather than table-driven, deliberately. A 256-entry table would
-     *  save around 2000 iterations on a maximum-length frame, which is tens of
-     *  microseconds on a 480 MHz M7 - against the 133 ms that same frame spends
-     *  on the wire at 19200. The flash costs more than the time is worth. Do not
+     *  Bitwise rather than table-driven, deliberately: a 256-entry table saves
+     *  tens of microseconds on a maximum-length frame that spends 133 ms on the
+     *  wire at 19200, so the flash costs more than the time is worth. Do not
      *  "optimise" this.
      *
-     *  The CRC goes on the wire LOW BYTE FIRST, which is the one detail every
-     *  implementation gets wrong at least once. The property that catches it:
-     *  run this over a frame INCLUDING its own two CRC bytes and the result is
-     *  0. That residue is what parse_response() checks, so the byte order is
-     *  verified on every single frame rather than once in a test. */
+     *  The CRC goes on the wire LOW BYTE FIRST. Run this over a frame INCLUDING
+     *  its own two CRC bytes and the result is 0; that residue is what
+     *  parse_response() checks, so the byte order is verified on every frame. */
     uint16_t crc16(const uint8_t* buf, uint16_t n);
 
     /** @brief Append the CRC over @p body bytes and return the total frame
      *  length.
      *
-     *  THE one place the byte order is decided - low byte first, which is the
-     *  detail every implementation gets wrong at least once and the one thing in
-     *  the protocol that runs opposite to everything else on the wire. It used
-     *  to say that of itself while three more sites in the device model spelled
-     *  it out by hand.
-     *
-     *  Both RTU ends: a master sealing a request and a slave sealing its answer
-     *  are the same two bytes in the same order. */
+     *  THE one place the byte order is decided (low byte first, opposite to
+     *  everything else on the wire), and both RTU ends go through it: a master
+     *  sealing a request and a slave sealing its answer are the same two bytes
+     *  in the same order. @see crc16() */
     uint16_t seal(uint8_t* out, uint16_t body);
 
     /** @}
@@ -65,8 +58,7 @@ namespace Botanik { namespace Modbus {
      *  small, the quantity was outside what the function code allows, or an
      *  argument was null.
      *
-     *  Never a partial frame. A truncated request is a caller bug, and half a
-     *  frame on a shared bus does not fail quietly: it corrupts whatever
+     *  Never a partial frame: half a frame on a shared bus corrupts whatever
      *  transaction comes next and reads as a cable fault.
      *  @{ */
 
@@ -92,12 +84,10 @@ namespace Botanik { namespace Modbus {
                                uint16_t addr, uint16_t qty, const uint8_t* bits);
 
     /** @brief FC16: write @p qty holding registers from @p regs, which is
-     *  @p qty big-endian words - the layout they go out in.
+     *  @p qty big-endian words, the layout they go out in.
      *
-     *  Bytes rather than uint16_t, matching build_write_coils(): every caller
-     *  has already laid the payload out that way (collect_write does), so words
-     *  here meant unpacking and repacking the same bytes across a stack array
-     *  the size of a whole block. */
+     *  Bytes rather than uint16_t, matching build_write_coils(): callers lay the
+     *  payload out that way already (collect_write does). */
     uint16_t build_write_registers(uint8_t* out, uint16_t cap, uint8_t unit,
                                    uint16_t addr, uint16_t qty,
                                    const uint8_t* regs);
@@ -109,14 +99,13 @@ namespace Botanik { namespace Modbus {
     /** @brief Check the @p len bytes at @p adu against the request @p e and, on
      *  success, point @p out at the payload inside them.
      *
-     *  Checked in the order that yields the most useful diagnosis: length, then
-     *  the checksum (nothing else in the frame can be trusted before it passes),
-     *  then who answered, then what they answered about, then whether the shape
-     *  matches what was asked.
+     *  Order: length, then the checksum (nothing else in the frame can be
+     *  trusted before it passes), then who answered, what they answered about,
+     *  and whether the shape matches what was asked.
      *
-     *  @return ERR_OK, or ERR_EXCEPTION when the slave refused - which is a
-     *  RESULT and not a parse failure. The frame was well formed and the device
-     *  is alive; @p out carries the code. Everything else is a real failure. */
+     *  @return ERR_OK, or ERR_EXCEPTION when the slave refused, which is a
+     *  RESULT and not a parse failure: the frame was well formed and the device
+     *  is alive, and @p out carries the code. Everything else is a failure. */
     Error parse_response(const uint8_t* adu, uint16_t len, const Expect& e,
                          Response* out);
 

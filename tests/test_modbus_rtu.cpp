@@ -96,7 +96,7 @@ TEST_CASE("modbus wire: quantity ceilings and frame lengths are per function cod
     CHECK(max_quantity(FC_WRITE_COILS) == 1968);
     CHECK(max_quantity(FC_WRITE_REGISTERS) == 123);
     CHECK(max_quantity(FC_WRITE_COIL) == 1);
-    // A code we do not speak sizes to nothing rather than to something plausible.
+    // An unspoken code sizes to nothing, not something plausible.
     CHECK(max_quantity(0x2B) == 0);
     CHECK(request_len(0x2B, 1) == 0);
     CHECK(response_len(0x2B, 1) == 0);
@@ -111,8 +111,7 @@ TEST_CASE("modbus wire: quantity ceilings and frame lengths are per function cod
     CHECK(response_len(FC_WRITE_REGISTERS, 2) == 8);  // every write echoes
     CHECK(exception_len() == 5);
 
-    // The two extremes the buffer is sized for: both land on 255, one byte
-    // under ADU_MAX.
+    // The two extremes the buffer is sized for both land on 255, one byte under ADU_MAX.
     CHECK(response_len(FC_READ_HOLDING, 125) == 255);
     CHECK(request_len(FC_WRITE_REGISTERS, 123) == 255);
 
@@ -158,8 +157,7 @@ TEST_CASE("modbus codec: FC15 packs bits LSB-first and zeroes the tail of the la
     const uint16_t n = build_write_coils(out, sizeof out, 33, 0, 10, bits);
     check_frame(out, n, REQ_FC15, sizeof REQ_FC15);
 
-    // The spec requires the unused bits of the last byte to be zero. A caller
-    // that leaves rubbish there gets it masked off rather than sent.
+    // Unused bits of the last byte must read zero per spec; rubbish gets masked off.
     const uint8_t dirty[] = { 0xCD, 0xFD };
     const uint16_t m = build_write_coils(out, sizeof out, 33, 0, 10, dirty);
     check_frame(out, m, REQ_FC15, sizeof REQ_FC15);
@@ -167,8 +165,7 @@ TEST_CASE("modbus codec: FC15 packs bits LSB-first and zeroes the tail of the la
 
 TEST_CASE("modbus codec: FC16 carries a byte count of 2N") {
     uint8_t out[32];
-    // Big-endian bytes: the layout they go out in, and what collect_write()
-    // hands the builder.
+    // Big-endian, as collect_write() hands the builder.
     const uint8_t regs[] = { 0x00, 0x01, 0x00, 0x02 };
     const uint16_t n = build_write_registers(out, sizeof out, 34, 0, 2, regs);
     check_frame(out, n, REQ_FC16, sizeof REQ_FC16);
@@ -179,8 +176,7 @@ TEST_CASE("modbus codec: a builder refuses rather than truncating or overrunning
     uint8_t out[8];
     const uint8_t regs[] = { 0x00, 0x01, 0x00, 0x02 };
 
-    // Too small a buffer: nothing is written and 0 comes back. Half a frame on
-    // a shared bus would corrupt the next transaction, not merely fail.
+    // Too small a buffer: nothing written, 0 returned - half a frame on a shared bus would corrupt the next transaction.
     CHECK(build_read(out, 7, 5, FC_READ_HOLDING, 0, 10) == 0);
     CHECK(build_write_registers(out, sizeof out, 34, 0, 2, regs) == 0);
 
@@ -229,9 +225,7 @@ TEST_CASE("modbus codec: a coil response yields its bits LSB-first") {
 TEST_CASE("modbus codec: an exception response is flagged with its code, not parsed as data") {
     const Expect e = { 5, FC_READ_HOLDING, 0, 10, 0 };
     Response r;
-    // A RESULT, not a parse failure: the frame was well formed and the slave is
-    // alive. That distinction is what lets the driver tell a refusing device
-    // from a dead one.
+    // A RESULT, not a parse failure: well formed and alive, so a driver can tell refusing from dead.
     CHECK(parse_response(RSP_FC03_EXC, sizeof RSP_FC03_EXC, e, &r) == ERR_EXCEPTION);
     CHECK(r.ex == EX_ILLEGAL_ADDRESS);
     CHECK(r.fc == FC_READ_HOLDING);   // the exception bit is stripped
@@ -278,10 +272,8 @@ TEST_CASE("modbus codec: an echo response is checked against the request address
     const Expect fc15 = { 33, FC_WRITE_COILS, 0, 10, 0 };
     CHECK(parse_response(RSP_FC15, sizeof RSP_FC15, fc15, &r) == ERR_OK);
 
-    // FC05 and FC06 echo a VALUE where the multi-writes echo a count, so the
-    // value is what gets compared - and it is the only confirmation there is
-    // that the point moved, which matters on a device that cannot be driven
-    // with FC15/FC16 at all.
+    // FC05/FC06 echo a VALUE (multi-writes echo a count), so the value is what's
+    // compared - the only confirmation a point moved on a device with no FC15/FC16.
     const Expect fc05 = { 31, FC_WRITE_COIL, 3, 1, 0xFF00 };
     REQUIRE(parse_response(REQ_FC05, sizeof REQ_FC05, fc05, &r) == ERR_OK);
     CHECK(be16(r.data[2], r.data[3]) == 0xFF00);
@@ -292,9 +284,7 @@ TEST_CASE("modbus codec: an echo response is checked against the request address
 }
 
 TEST_CASE("modbus codec: a single write that echoes another value is refused") {
-    // A relay board that clamps, inverts or ignores what it was told answers
-    // with a perfectly well-formed frame. Before this, the driver cleared the
-    // demand and recorded the actuator as moved.
+    // A relay board that clamps or ignores commands still answers well-formed; a disagreeing echo must not clear the demand or mark the actuator moved.
     Response r;
 
     // We asked for the coil OFF; the board says it set it ON.
@@ -305,15 +295,13 @@ TEST_CASE("modbus codec: a single write that echoes another value is refused") {
     const Expect other = { 6, FC_WRITE_REGISTER, 12, 1, 0x9999 };
     CHECK(parse_response(REQ_FC06, sizeof REQ_FC06, other, &r) == ERR_ECHO);
 
-    // And the matching value still passes, so this is a comparison and not a
-    // blanket refusal.
+    // The matching value still passes: a comparison, not a blanket refusal.
     const Expect ok = { 6, FC_WRITE_REGISTER, 12, 1, 0x1234 };
     CHECK(parse_response(REQ_FC06, sizeof REQ_FC06, ok, &r) == ERR_OK);
 }
 
 TEST_CASE("modbus codec: every request round-trips through the parser") {
-    // Each builder's own output, checked back through the parser: whatever the
-    // frozen frames say, these two must at least agree with each other.
+    // Each builder's output checked back through the parser: the two must agree.
     uint8_t out[32];
     Response r;
 
@@ -327,10 +315,8 @@ TEST_CASE("modbus codec: every request round-trips through the parser") {
 }
 
 TEST_CASE("modbus codec: an Expect we could not have sent sizes nothing") {
-    // A quantity past the protocol ceiling describes a payload no frame could
-    // carry. The builders refuse it outright, so this is the hand-built Expect
-    // path. Pinned: the ANSWER (ERR_COUNT, nothing handed back), not which of
-    // the three checks gets there first.
+    // A quantity past the ceiling describes a payload no frame could carry, hence
+    // the hand-built Expect; pinned is the answer (ERR_COUNT), not which check catches it.
     Response r;
     const uint8_t rsp[9] = { 0x05, 0x03, 0x04, 0x00, 0x0A, 0x00, 0x14, 0x9F, 0xFE };
 
@@ -339,8 +325,7 @@ TEST_CASE("modbus codec: an Expect we could not have sent sizes nothing") {
     CHECK(r.data == nullptr);
     CHECK(r.len == 0);
 
-    // And the largest quantity that IS legal still parses, so this is a ceiling
-    // and not a blanket refusal.
+    // The largest legal quantity still parses: a ceiling, not a blanket refusal.
     const Expect ok = { 5, FC_READ_HOLDING, 0, 2, 0 };
     CHECK(parse_response(rsp, sizeof rsp, ok, &r) == ERR_OK);
 }
@@ -365,8 +350,7 @@ TEST_CASE("modbus codec: u32 and f32 round-trip through to_regs in both word ord
         f32_to_regs(-273.15f, orders[i], buf);
         CHECK(f32_from_regs(buf, orders[i]) == doctest::Approx(-273.15f));
 
-        // Swapping the order on the way back gives the other pairing, which is
-        // exactly the misconfiguration this argument exists to express.
+        // Swapping the order back gives the other pairing - the misconfiguration modeled here.
         u32_to_regs(0x11112222u, orders[i], buf);
         CHECK(u32_from_regs(buf, orders[1 - i]) == 0x22221111u);
     }
@@ -425,27 +409,22 @@ TEST_CASE("modbus framing: the length comes from the byte count, not from silenc
     f.arm(E_FC03, 1000, TIMEOUT_MS);
     f.feed(RSP_FC03, sizeof RSP_FC03);
 
-    // No gap has been observed and no time has passed - the clock has not moved
-    // at all - and the frame is nonetheless complete. That is the whole design:
-    // a 1.75 ms silence is unobservable on a 10 ms beat, so length plus CRC is
-    // the delimiter and time is only ever a backstop.
+    // No time passes at all, yet the frame completes: a 1.75 ms silence is
+    // unobservable on a 10 ms beat, so length+CRC is the delimiter, time only a backstop.
     CHECK(f.poll(1000) == 1);
     CHECK(f.err() == ERR_OK);
 }
 
 TEST_CASE("modbus framing: an exception frame is five bytes and completes early") {
     RtuFramer f;
-    // Asked for two registers, so a normal answer would be nine bytes. The
-    // refusal is five, and a framer that sized from the request would sit
-    // waiting for four bytes that are never coming.
+    // A normal answer to two registers is nine bytes, the exception five; sizing purely from the request would wait forever for the missing four.
     f.arm(E_FC03, 1000, TIMEOUT_MS);
     CHECK(f.feed(RSP_FC03_EXC, sizeof RSP_FC03_EXC) == sizeof RSP_FC03_EXC);
 
     REQUIRE(f.poll(1000) == 1);
     CHECK(f.err() == ERR_EXCEPTION);
     CHECK(f.response().ex == EX_ILLEGAL_ADDRESS);
-    // It COMPLETED: the slave is alive and answering, which is what the driver
-    // needs to know before it decides anything about backoff.
+    // Completes: the slave is alive and answering, which the driver needs before backoff decisions.
     CHECK(f.frames() == 1);
     CHECK(f.bad_frames() == 0);
 }
@@ -455,16 +434,14 @@ TEST_CASE("modbus framing: an exception frame is five bytes and completes early"
 
 TEST_CASE("modbus framing: a byte count disagreeing with the request is a frame error") {
     RtuFramer f;
-    // The frame is well formed, and its CRC is good - but we asked for ten
-    // registers and it is answering with two.
+    // Well formed and good CRC, but we asked for ten registers and got two.
     const Expect asked_ten = { 5, FC_READ_HOLDING, 0, 10, 0 };
     f.arm(asked_ten, 1000, TIMEOUT_MS);
 
     const uint16_t used = f.feed(RSP_FC03, sizeof RSP_FC03);
     CHECK(f.poll(1000) == -1);
     CHECK(f.err() == ERR_COUNT);
-    // Rejected the moment the count was read, not after collecting a frame's
-    // worth: only three bytes were taken.
+    // Rejected the moment the count was read: only three bytes taken.
     CHECK(used == 3);
     CHECK(f.bad_frames() == 1);
     CHECK(f.crc_errors() == 0);
@@ -480,8 +457,7 @@ TEST_CASE("modbus framing: a corrupted byte reads as a CRC error, not a short fr
     f.feed(bent, sizeof bent);
     CHECK(f.poll(1000) == -1);
     CHECK(f.err() == ERR_CRC);
-    // Counted apart from the rest, because it means something physical: a
-    // cable, a termination resistor, or a baud mismatch.
+    // Counted apart: it means something physical - a cable, a resistor, a baud mismatch.
     CHECK(f.crc_errors() == 1);
     CHECK(f.bad_frames() == 0);
 }
@@ -515,8 +491,7 @@ TEST_CASE("modbus framing: bytes after a complete frame are counted, not consume
     std::memset(stream + sizeof RSP_FC03, 0xAA, 4);
 
     f.arm(E_FC03, 1000, TIMEOUT_MS);
-    // A caller that drained a whole ring in one read must keep its surplus:
-    // swallowing it would hide a second master on the bus.
+    // A caller draining a whole ring must keep its surplus; swallowing it would hide a second master.
     CHECK(f.feed(stream, sizeof stream) == sizeof RSP_FC03);
     CHECK(f.poll(1000) == 1);
     CHECK(f.stray_bytes() == 4);
@@ -534,8 +509,7 @@ TEST_CASE("modbus framing: arm() drops whatever the previous transaction left") 
     f.arm(E_FC03, 1000, TIMEOUT_MS);
     f.feed(RSP_FC03, 4);            // a partial answer, still arriving
 
-    // The next transaction starts clean. Treating those four bytes as this
-    // frame's head is exactly how a bus desynchronises and stays that way.
+    // The next transaction starts clean; treating those bytes as its head is how a bus desynchronises for good.
     f.arm(E_FC03, 2000, TIMEOUT_MS);
     CHECK(f.len() == 0);
     CHECK(f.feed(RSP_FC03, sizeof RSP_FC03) == sizeof RSP_FC03);
@@ -578,10 +552,8 @@ TEST_CASE("modbus framing: a 125-register response fills the ADU buffer exactly"
 }
 
 TEST_CASE("modbus framing: a lying byte count writes nothing past the ADU buffer") {
-    // The one input that could reach past the buffer: a slave claiming far more
-    // than it was asked for. Refused when the count is read, rather than
-    // clamped - a clamp would leave the frame misaligned and the next one
-    // unparseable too.
+    // The one input reaching past the buffer: a slave claiming far more than requested,
+    // refused at the count rather than clamped (a clamp would misalign the next frame).
     uint8_t evil[ADU_MAX * 2];
     evil[0] = 5;
     evil[1] = FC_READ_HOLDING;
@@ -607,8 +579,7 @@ TEST_CASE("modbus framing: counters survive a transaction and reset on demand") 
     f.arm(E_FC03, 2000, TIMEOUT_MS);
     CHECK(f.poll(2300) == -1);
 
-    // Counters are the raw material for the comms alarms a later stage raises,
-    // so they accumulate across transactions rather than resetting with arm().
+    // Raw material for later comms alarms, so it accumulates across transactions rather than resetting with arm().
     CHECK(f.frames() == 1);
     CHECK(f.timeouts() == 1);
     f.reset_counters();
@@ -619,11 +590,8 @@ TEST_CASE("modbus framing: counters survive a transaction and reset on demand") 
 
 // Our own transmission coming back
 // ===========================================================================
-//
-// RE is held asserted for the life of the port (hal/platform.cpp), so the
-// receiver hears the frame we drive onto the wire. It arrives first and is
-// exactly as long as what we wrote, so the framer counts it off rather than
-// recognising it.
+// RE stays asserted for the port's life, so the receiver hears our own frame first
+// - exactly as long as what we sent, so the framer counts it off rather than recognising it.
 
 TEST_CASE("modbus framing: our own request is counted off before the answer") {
     uint8_t req[8] = { 0x05, 0x03, 0x00, 0x00, 0x00, 0x02 };
@@ -632,7 +600,6 @@ TEST_CASE("modbus framing: our own request is counted off before the answer") {
     RtuFramer f;
     f.arm(E_FC03, 1000, TIMEOUT_MS, rn);
 
-    // The echo arrives first, then the answer.
     CHECK(f.feed(req, rn) == rn);
     CHECK(f.poll(1000) == 0);            // nothing framed yet: that was us
     CHECK(f.len() == 0);
@@ -661,10 +628,8 @@ TEST_CASE("modbus framing: an echo split across beats is still counted off") {
 }
 
 TEST_CASE("modbus framing: a write echo is read as the answer, not as our own") {
-    // The case that used to be ambiguous. A write response is byte-identical to
-    // its request, so a framer comparing bytes could not tell the two apart and
-    // had to guess at the deadline. Counting removes the question: the first
-    // eight bytes are ours, the next eight are the slave's.
+    // A write response is byte-identical to its request; comparing bytes alone can't
+    // disambiguate, so counting does: first eight bytes ours, next eight the slave's.
     uint8_t req[8] = { 0x22, 0x10, 0x00, 0x00, 0x00, 0x02 };
     const uint16_t rn = seal(req, 6);
     REQUIRE(rn == sizeof RSP_FC16);
@@ -675,8 +640,7 @@ TEST_CASE("modbus framing: a write echo is read as the answer, not as our own") 
     CHECK(f.poll(1000) == 0);
     CHECK(f.feed(RSP_FC16, sizeof RSP_FC16) == sizeof RSP_FC16);
 
-    // Immediately, not at the deadline: a single write to a quiet device used to
-    // cost the whole response timeout while the framer waited to find out.
+    // Immediately, not at the deadline: a single write must not cost the whole response timeout.
     REQUIRE(f.poll(1000) == 1);
     CHECK(f.err() == ERR_OK);
     CHECK(f.timeouts() == 0);
@@ -711,8 +675,7 @@ TEST_CASE("modbus framing: an echo followed by a refusal reads as the refusal") 
 }
 
 TEST_CASE("modbus framing: armed with no echo, the answer is framed as it stands") {
-    // The caller that did not transmit - a test, or a listener - passes 0 and
-    // gets the old behaviour.
+    // A caller that did not transmit (a test, a listener) passes 0; the answer frames as it stands.
     RtuFramer f;
     f.arm(E_FC03, 1000, TIMEOUT_MS);
     CHECK(f.feed(RSP_FC03, sizeof RSP_FC03) == sizeof RSP_FC03);
@@ -736,8 +699,7 @@ using namespace Botanik::Modbus;
 
 namespace {
 
-/** @brief A device at unit 1 with a recognisable image: register i holds
- *  0x1000 + i, coil i is on when i is even. */
+/** @brief Unit 1 seeded with register i = 0x1000 + i, coil i on when i is even. */
 void seed(Botanik::Modbus::RtuSlave& d) {
     for (uint16_t i = 0; i < 64; ++i) d.set_reg(i, (uint16_t)(0x1000 + i));
     for (uint16_t i = 0; i < 32; ++i) d.set_coil(i, (i % 2) == 0);
@@ -769,10 +731,8 @@ TEST_CASE("modbus rtu slave: a well formed read is answered") {
 }
 
 TEST_CASE("modbus rtu slave: FC16 quantity 128 does not read past the buffer") {
-    // The regression. 128 registers means an expected byte count of 256, which
-    // truncates to 0 in a uint8_t and so used to MATCH a declared count of 0:
-    // a nine-byte frame that committed 128 registers out of whatever followed
-    // the request buffer on the stack.
+    // 128 registers implies a byte count of 256, truncating to 0 in a uint8_t -
+    // matching a declared count of 0 and committing 128 registers from whatever follows.
     RtuSlave d(1);
     seed(d);
 
@@ -815,11 +775,7 @@ TEST_CASE("modbus rtu slave: a write of quantity zero is refused") {
 }
 
 TEST_CASE("modbus rtu slave: every answered request counts once, exceptions included") {
-    // served() is the device's "requests answered" figure. _except() counted
-    // one and poll() counted another on the way out, so an exception raised
-    // inside _do_read/_do_write was worth two - while an unsupported function
-    // code, which returns straight from poll(), was worth one. The two
-    // exception routes disagreed with each other as well as with reality.
+    // served() is "requests answered"; an in-path exception and an unsupported-fc exception (from poll()) must each count exactly one.
     RtuSlave d(1);
     seed(d);
     uint8_t out[256];
@@ -850,9 +806,7 @@ TEST_CASE("modbus rtu slave: every answered request counts once, exceptions incl
 }
 
 TEST_CASE("modbus rtu slave: a byte count that cannot fit does not wedge it") {
-    // want = 9 + 255 = 264, past ADU_MAX. feed() resets the buffer at 256, so a
-    // slave that waits for 264 bytes waits for ever - it goes deaf rather than
-    // dropping one bad frame.
+    // want = 9+255 = 264, past ADU_MAX; feed() resets the buffer at 256, so it must drop one bad frame rather than wait forever and go deaf.
     RtuSlave d(1);
     seed(d);
 
@@ -883,9 +837,7 @@ TEST_CASE("modbus rtu slave: a byte count that cannot fit does not wedge it") {
 }
 
 TEST_CASE("modbus rtu slave: one lost byte costs one frame, not the link") {
-    // A CRC failure used to discard `want` bytes, which fixes the misalignment
-    // in place: with a master sending 8-byte requests, a single dropped byte
-    // left every following window failing its CRC for good.
+    // A CRC failure must not discard `want` bytes: with 8-byte requests, one dropped byte would misalign every following window for good.
     RtuSlave d(1);
     seed(d);
 
@@ -997,9 +949,7 @@ TEST_CASE("modbus rtu slave: a full-width register write round-trips") {
 // ===========================================================================
 
 TEST_CASE("modbus rtu slave: a broadcast write is executed and not answered") {
-    // Unit 0 addresses every device on the segment. Answering it would put
-    // several devices on the wire at once; ignoring it means a broadcast does
-    // nothing at all, which is what used to happen.
+    // Unit 0 addresses every device; answering would put several on the wire at once, but the write must still execute even though nothing answers.
     RtuSlave d(1);
     seed(d);
 
@@ -1021,8 +971,7 @@ TEST_CASE("modbus rtu slave: a broadcast write is executed and not answered") {
 }
 
 TEST_CASE("modbus rtu slave: no room to answer is reported, not left silent") {
-    // Silence makes the master wait out its whole response timeout for a fault
-    // that is entirely ours, and then charge it to the device as a miss.
+    // Silence would cost the master its full response timeout for a fault that's entirely ours, then charge the device with a miss.
     RtuSlave d(1);
     seed(d);
 

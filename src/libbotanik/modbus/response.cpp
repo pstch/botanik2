@@ -10,14 +10,12 @@ namespace Botanik { namespace Modbus {
 namespace {
 
     /** @brief The most payload bytes a read can legally answer with: a
-     *  125-register read, which is the largest of the four.
+     *  125-register read, the largest of the four.
      *
-     *  Belt, not braces. What actually stops a bad size reaching @c out is the
-     *  length equality below - @c out->len is only assigned where body_len is
-     *  exactly 2 + want, so the caller really did supply that many bytes. This
-     *  refuses a request we could not have sent EARLIER and with the right
-     *  diagnosis: ERR_COUNT rather than a confusing ERR_SHORT about a frame that
-     *  was never the problem. */
+     *  Belt, not braces: what stops a bad size reaching @c out is the length
+     *  equality below (@c out->len is assigned only where body_len is exactly
+     *  2 + want). This refuses an impossible request earlier and with the right
+     *  diagnosis, ERR_COUNT rather than a confusing ERR_SHORT. */
     const uint16_t PAYLOAD_MAX = 250;
 
 }  // namespace
@@ -59,9 +57,8 @@ Error match_response(uint8_t unit, const uint8_t* body, uint16_t body_len,
     if (rd16(body + 1) != e.addr) return ERR_ECHO;
 
     // The multi-writes echo a count; the single writes echo the VALUE. Both are
-    // checked, rather than left to the caller: a relay board that clamps,
-    // inverts or ignores what it was told answers with a well-formed frame, and
-    // the only thing separating that from success is this comparison.
+    // checked here: a relay board that clamps, inverts or ignores what it was
+    // told still answers with a well-formed frame.
     const uint16_t echoed = rd16(body + 3);
     if (e.fc == FC_WRITE_COILS || e.fc == FC_WRITE_REGISTERS) {
         if (echoed != e.qty) return ERR_ECHO;

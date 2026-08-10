@@ -6,24 +6,16 @@
  * @brief Sim-only: a Modbus TCP master that talks to this firmware's own slave,
  *        once, at boot, and says whether it worked.
  *
- * Simulator scaffolding, so it lives here and not in the library - but the
- * master it drives (@ref Botanik::Modbus::TcpMaster) is ordinary firmware. What
- * is sim-only is pointing one at ourselves.
+ * Simulator scaffolding, so it lives here and not in the library; the master it
+ * drives (@ref Botanik::Modbus::TcpMaster) is ordinary firmware, and what is
+ * sim-only is pointing one at ourselves.
  *
- * @section mb_what What it proves
- *
- * The whole path, with nothing mocked: a real socket to the real listener, real
- * MBAP frames, the real register map over the real variable table, and
- * `Bank::set()` doing the writing. It runs a round trip that is self-checking
- * rather than value-dependent - read a parameter, write it something else, read
- * it back and compare - so it needs no golden and cannot pass by coincidence.
- *
- * @section mb_why_here Why at boot, in the sim, rather than a test
- *
- * Because it is the first thing that answers "does the slave actually serve?"
- * and it answers it every time the simulator runs, on the shipping code path. A
- * unit test would have to build a bank and a listener of its own, and would
- * then be testing that arrangement.
+ * Nothing is mocked: a real socket to the real listener, real MBAP frames, the
+ * real register map over the real variable table, and `Bank::set()` doing the
+ * writing. The round trip is self-checking rather than value-dependent (read a
+ * parameter, write it something else, read it back and compare), so it needs no
+ * golden and cannot pass by coincidence - and it runs on the shipping code path
+ * every time the simulator does.
  */
 
 #include <cstdarg>                    // va_list - the verdict formatter
@@ -45,8 +37,7 @@ namespace Botanik { namespace Sim {
      * @brief One scripted exchange against our own Modbus TCP slave.
      *
      * Stepped from the sim's main loop; it does nothing after it has reported.
-     * Shaped as a state machine for the same reason everything else here is: one
-     * bounded action per beat, no waiting.
+     * A state machine like everything else here: one bounded action per beat.
      */
     class ModbusCheck {
 
@@ -72,10 +63,9 @@ namespace Botanik { namespace Sim {
          *  value nothing else in the sim depends on. Writing a setpoint would
          *  move the plant; writing the slave's own port would move the slave.
          *
-         *  Its ADDRESS is asked of the bank rather than written down here. The
-         *  register is the row's own, and rows move between the site's table and
-         *  the library's - a number copied into this file goes stale silently and
-         *  the check then fails against a perfectly good slave. */
+         *  Its ADDRESS is asked of the bank rather than written down here: a
+         *  number copied into this file goes stale silently, and the check then
+         *  fails against a perfectly good slave. */
         static constexpr const char* ROW_NAME  = "ntp_poll_sec";
         static const uint32_t        NEW_VALUE = 1234;
         uint16_t _row_addr = 0;
@@ -90,14 +80,10 @@ namespace Botanik { namespace Sim {
         void step(uint64_t now_ms) {
             if (_step == MC_DONE) return;
 
-            // The first real beat is early enough. The listener is bound in
+            // The first real beat is early enough: the listener is bound in
             // Registry::setup(), which has already run by the time the main loop
-            // calls us, so there is nothing left to wait for.
-            //
-            // No delay to clear the bring-up log burst: _report() writes to
-            // stderr and never goes through the logger, so the verdict was never
-            // in that burst. Waiting would cost every sim run - and every screen
-            // test that waits for the answer - several seconds for nothing.
+            // calls us. No delay for the bring-up log burst either, since
+            // _report() writes to stderr rather than through the logger.
             if (_step == MC_WAIT) {
                 const Vars::Var v = _io->var(ROW_NAME);
                 if (v.meta()->name == nullptr || v.meta()->bind.reg == 0) {
@@ -133,8 +119,8 @@ namespace Botanik { namespace Sim {
                                  _row_addr, 2);
                     return;
                 case MC_WRITE: {
-                    // Big-endian register bytes, high word first - the map's own
-                    // convention, and the master does not reinterpret it.
+                    // Big-endian register bytes, high word first: the map's own
+                    // convention, which the master does not reinterpret.
                     uint8_t regs[4];
                     Modbus::wr16(regs + 0, (uint16_t)(NEW_VALUE >> 16));
                     Modbus::wr16(regs + 2, (uint16_t)(NEW_VALUE & 0xFFFF));
@@ -191,7 +177,7 @@ namespace Botanik { namespace Sim {
         }
 
         /** @brief Return the row to what it was, through the bank rather than
-         *  the wire: the wire half is what was under test, and it has been. */
+         *  the wire (the wire half has already been tested). */
         void _restore() {
             if (_io == nullptr) return;
             Vars::Var v = _io->var(ROW_NAME);
@@ -205,16 +191,11 @@ namespace Botanik { namespace Sim {
             _report("FAILED", "%s (%u)", why, detail);
         }
 
-        /** @brief Say what happened, where it cannot be lost.
-         *
-         *  To stderr, and deliberately NOT through the firmware's logger.
-         *
-         *  Two reasons, and the second is the one that decided it. The sim's log
-         *  sinks are baud-paced and drop entries under load, so a verdict sent
-         *  that way reads as "the check never ran" whenever it is busy. And this
-         *  is scaffolding: its verdict belongs to whoever ran the simulator, not
-         *  in the log an operator reads to understand the plant - where it would
-         *  also sit in the home page's log tail, moving whatever was there. */
+        /** @brief Say what happened, where it cannot be lost: stderr, and
+         *  deliberately NOT the firmware's logger. The sim's log sinks are
+         *  baud-paced and drop entries under load, and this verdict belongs to
+         *  whoever ran the simulator rather than in the log an operator reads
+         *  (or in the home page's log tail). */
         void _report(const char* verdict, const char* fmt, ...)
             __attribute__((format(printf, 3, 4))) {
             char detail[96];

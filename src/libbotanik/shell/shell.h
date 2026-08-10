@@ -46,12 +46,11 @@ namespace Botanik { namespace Shell {
         virtual void   write_lines(const char* buf, uint16_t len) { write(buf, len); }
     };
 
-    /** @brief Site-defined shell command: a name, one-line help text, and a
-     *  callback. Registered as a table via CommandShell::set_commands() and
-     *  tried before the built-ins, so the table can override one. The name
-     *  may be followed by arguments: the remainder of the line after the name
-     *  (leading spaces trimmed) is handed to the callback as @p args /
-     *  @p arglen, and @p ctx is the opaque pointer passed to set_commands(). */
+    /** @brief Site-defined shell command: name, one-line help, callback.
+     *  Registered as a table via CommandShell::set_commands() and tried before
+     *  the built-ins, so the table can override one. The callback gets the line
+     *  after the name (leading spaces trimmed) as @p args / @p arglen, and the
+     *  @p ctx passed to set_commands(). */
     struct ShellCommand {
         const char* name;
         const char* help;
@@ -61,14 +60,10 @@ namespace Botanik { namespace Shell {
     /** @class CommandShell
      *  @brief Handles command submission, built-in dispatch, and extensibility.
      *
-     *  Site commands are added data-driven via set_commands() (a table of
-     *  ShellCommand), tried before the built-ins so the table can override one.
-     *
      *  Command history (up/down recall with a saved draft) is backed by the
-     *  SHELL_HISTORY_* buffers in config/terminal.h. Cut and paste are NOT
-     *  here: they belong to the editor, over the console-wide kill ring
-     *  (console/kill_ring.h), so what is cut at the prompt can be yanked on
-     *  another page. */
+     *  SHELL_HISTORY_* buffers in config/terminal.h.
+     *  @see Terminal::TextEditor - cut and paste are the editor's, over the
+     *  console-wide kill ring, so a line cut here yanks on another page. */
     class CommandShell {
     private:
         /** @name State
@@ -76,9 +71,8 @@ namespace Botanik { namespace Shell {
 
         /** @brief The subsystem handles the reporting commands read (scheduler
          *  for `stats`, network/ntp/mqtt for `net`, the bank for the variable
-         *  commands). Injected by the firmware rather than reached for through
-         *  the console: the shell is a command interpreter over the variable
-         *  model, and should not need a terminal to find one. */
+         *  commands). Injected by the firmware, never reached for through the
+         *  console. */
         const SystemContext*    _sys;
         /** VT device the shell renders through */
         Terminal::AnsiTerminal& _terminal;
@@ -139,9 +133,8 @@ namespace Botanik { namespace Shell {
             _logger = logger; _alarm_model = alarms;
         }
 
-        /** @brief Wire the NTP client the `ntpsync` command resyncs (the
-         *  firmware passes it when the NTP feature is on; left null otherwise,
-         *  so the command reports "unavailable"). */
+        /** @brief Wire the NTP client `ntpsync` resyncs. Null when the NTP
+         *  feature is off, so the command reports "unavailable". */
         void set_ntp(Network::NtpClient* ntp) { _ntp_client = ntp; }
 
         /** @brief Register a site command table, tried before the built-ins.
@@ -210,15 +203,13 @@ namespace Botanik { namespace Shell {
         void _cmd_reset(const char* args, uint16_t alen);
         void _cmd_exit(const char* args, uint16_t alen);
         void _cmd_stats(const char* args, uint16_t alen);
-        /** @brief The beat, task by task: what runs in which phase, at which
-         *  rate, and what each one costs. `stats` gives the beat's CPU with no
-         *  attribution; this is where that number comes from. */
+        /** @brief The beat's totals, or one task: where `stats`' unattributed
+         *  CPU figure went. */
         void _cmd_tasks(const char* args, uint16_t alen);
         void _cmd_version(const char* args, uint16_t alen);
         void _cmd_features(const char* args, uint16_t alen);
         void _cmd_alarms(const char* args, uint16_t alen);
-        /** @brief The field bus: what the plan costs, what state the master is
-         *  in, and which devices are answering. */
+        /** @brief The field bus: plan cost, master state, devices answering. */
         void _cmd_modbus(const char* args, uint16_t alen);
         #if BOTANIK_FEATURE_MODBUS_RTU_CLIENT
         /** @brief `modbus devices`: one line per unit, named and counted. */
@@ -245,8 +236,8 @@ namespace Botanik { namespace Shell {
         void _leave_running();
 
         /** @brief Emit one variable's row (name, value, unit, and the flags a
-         *  bare number hides). Shared by `get` and `list` so the same variable
-         *  reads identically whichever showed it. */
+         *  bare number hides). Shared by `get` and `list`, so a row reads the
+         *  same whichever showed it. */
         void _emit_var(const Vars::Bank& io, Vars::Var h);
 
         /** @name `get`'s detail rows
@@ -254,7 +245,7 @@ namespace Botanik { namespace Shell {
          *  Laid out like `stats`: a dotted leader to a fixed column, the value,
          *  then the detail in parentheses.
          *  @{ */
-        /** @brief Where the leader ends and " : " begins. Matches the width
+        /** @brief Where the leader ends and " : " begins. 29 is the width
          *  `stats` writes into its own labels, so the two line up on screen. */
         static const size_t LEADER_W = 29;
         /** @brief One "Label ....... : value (detail)" row. @p detail may be

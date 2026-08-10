@@ -11,9 +11,8 @@
  *
  * Bus: RS485, ModbusRTU master, 38400 baud, none/8/1, on COM2.
  * (BOTANIK_MODBUS_BAUD is pinned to match, in this site's config.h.)
- * 20 field devices, 102 mapped signals, 13 free channels.
- * (70 in the published device map, plus MTR-2 object 2 - active power,
- * which the published map omits and the device answers for all the same.)
+ * 20 field devices, 102 mapped signals, 13 free channels. (The published map
+ * lists 70, and omits MTR-2 object 2, active power, which the device answers.)
  *
  *   SRR/TAC/MTR-1  Eastron SDM630    addr 5   37 readings
  *   SRR/TAC/MTR-2  Lettel MCT1-140   addr 6    6 readings
@@ -28,35 +27,25 @@
  *   SRR/CLI/TH-7..9   temp/RH           addr 47-49  low level
  *   SRR/CLI/TH-10..12 temp/RH           addr 50-52  high level
  *
- * Everything is XP_MODBUS today: the site has no XP_LOCAL variables yet, and a
- * later mapping is purely additive - one more row, nothing else to touch.
+ * Everything is XP_MODBUS today: the site has no XP_LOCAL variables yet.
  *
- * @warning Binding::reg holds the FIELD-DEVICE address the master puts on the
- * wire: the coil number on the relay boards, and the Modbus PROTOCOL START
- * ADDRESS on the meters (30001 -> 0, 30003 -> 2, ...). It is not the device
- * profile's object index, and it is not the register column of the device map -
- * that one is the Opta's own Modbus *slave* address, which belongs in the slave
- * map, not here.
+ * @warning Binding::reg is the Modbus REGISTER ADDRESS the master puts on the
+ * wire: the coil number on the relay boards, and the protocol START ADDRESS on
+ * the meters (30001 -> 0, 30003 -> 2, ...). NEVER the device profile's object
+ * index - nothing translates one into the other, and a row carrying the index
+ * decodes half of the row before it. Nor the register column of the device map,
+ * which is the Opta's own Modbus *slave* address and belongs in the slave map.
+ * Each row's notes record the object index, so a reading can still be traced
+ * back to the published map.
  *
- * The REGISTER ADDRESS, never the object index: nothing translates one into the
- * other, and a row carrying the index decodes half of the row before it. Nor is
- * there a translation worth writing - the site's index order does not follow the
- * SDM630's parameter order (index 6 is apparent power, parameter 7 is watts), so
- * a profile table would be a second hand-copy of the same PDF. The address goes
- * here, once, and each row's notes record the object index so a reading can
- * still be traced back to the published map.
+ * @note The meters answer FC04 (input registers). The SDM630 manual requires it;
+ * the MCT1-140 accepts 03 or 04 and is given 04 to match.
  *
- * @note The meters answer FC04 (input registers). The SDM630 manual requires it
- * ("function code 04 is used to access all parameters"); the MCT1-140 accepts
- * 03 or 04 and is given 04 to match.
- *
- * @note Both meters publish IEEE-754 singles, high word at the lower address,
- * in direct engineering units - so these rows are 1:1 and carry no calibration.
- * The MCT1-140's "unite et precision" column (0.1V, 0.01A, 10W) is RESOLUTION,
- * not a scale factor, which its own worked example proves: register 0 answers
- * 43 68 99 9A and the manual reads it as 232.6 V, which is the float unscaled.
- * The same column IS a multiplier for the Long energy counters lower down
- * (10 Wh per count), which is what makes it worth writing down.
+ * @note Both meters publish IEEE-754 singles, high word at the lower address, in
+ * direct engineering units, so these rows are 1:1 and carry no calibration. The
+ * MCT1-140's "unite et precision" column (0.1V, 0.01A, 10W) is RESOLUTION, not a
+ * scale factor - except on the Long energy counters, where it is a multiplier
+ * (10 Wh per count).
  */
 
 #include <cstdint>      // uint8_t/uint16_t
@@ -70,25 +59,20 @@ using namespace Botanik::Vars;
 
 /** @brief Text-parameter capacity, including the NUL. */
 static const uint16_t STR_CAP = 64;
-/** @brief Room for every text parameter in the table. This site declares none
- *  of its own today, so it is exactly what the library's rows need (the
- *  net_/ntp_/mqtt_ hosts and addresses); a site adding one of its own adds
+/** @brief Room for every text parameter in the table. This site declares none of
+ *  its own, so it is exactly what the library's rows need; adding one adds
  *  `+ n * STR_CAP` here. */
 static const uint16_t STR_POOL_BYTES = BOTANIK_LIBRARY_STR_BYTES;
 
 
 /** @name Analog calibration - the two-point span and the believable band
  *
- *  One block per channel here, deliberately. A block may be SHARED - point two
- *  rows at the same one and they share its calibration - but sharing means
- *  sharing the PARAMETERS, so the two can never be trimmed apart. PS1, PS2 and
- *  the UPS battery are the same divider DESIGN and still get a block each,
- *  because three physical dividers have three tolerances. Share a block when
- *  two readings must agree by construction, not when they merely look alike.
+ *  One block per channel: sharing a block shares its PARAMETERS, so share only
+ *  when two readings must agree by construction. PS1, PS2 and the UPS battery
+ *  are the same divider design but three physical dividers, so three blocks.
  *
- *  Every field here is R(), an operator-editable parameter: these are bench
- *  measurements, and correcting one should not need a firmware build. K() is
- *  there for the fields a site does want pinned.
+ *  Every field is R(), an operator-editable parameter: these are bench
+ *  measurements, and correcting one should not need a firmware build.
  *  @{ */
 
 /** @brief DC PS1: 4-6 V across the divider is a 20-30 V bus. */
@@ -135,9 +119,7 @@ const AnalogCal CAL_INTRACTOR = {
 };
 
 /** @brief Every calibration block, so the site test can walk them: each name
- *  must resolve, and a channel's two raw endpoints must agree on their unit.
- *  Until the AI-1 / AO-1 channel maps land there is no row pointing at these,
- *  and this is what keeps them honest in the meantime. */
+ *  must resolve, and a channel's two raw endpoints must agree on their unit. */
 const AnalogCal* const g_analog_cals[] = {
     &CAL_PWR_DC1, &CAL_PWR_DC2, &CAL_PWR_UPS_BAT, &CAL_PWR_GEN_BAT,
     &CAL_IRR_OUTPUT, &CAL_INTRACTOR,
@@ -149,27 +131,21 @@ const uint8_t g_analog_cal_count =
 
 /** @brief Every variable this site declares, in one table.
  *
- *  Every row is a call to one of the scope factories in vars/declare.h - A, P,
- *  G, SV, MI, AI, DI, MO, AO, DO, RO. Each takes only the arguments its scope
- *  can use, so a relay with a plausibility band or an alarm with a timeout does
- *  not compile. The row's `scope` follows from which factory built it, which is
- *  what the tables filter on.
+ *  Each row is a call to one of the scope factories in vars/declare.h - A, P, G,
+ *  SV, MI, AI, DI, MO, AO, DO, RO - and takes only the arguments its scope can
+ *  use, so a relay with a plausibility band does not compile. Alarms live here
+ *  and only here: an A() row carries both the boolean that raises it and the
+ *  policy the AlarmController runs it on, found by scanning for SCOPE_A.
  *
- *  Alarms live here too, and only here: an A() row carries the boolean that
- *  raises the alarm AND the policy the AlarmController runs it on, and the model
- *  finds them by scanning for SCOPE_A. There is no second alarm table whose row
- *  order has to be kept in step with anything.
- *
- *  Plain `const`, so each including TU gets its own copy; only main.cpp does,
- *  today. */
+ *  Plain `const`, so each including TU gets its own copy. */
 const Variable g_vars[] = {
 
 /** @name The library's own rows
  *
- *  Not the site's, but they live here: the bank holds one contiguous table, so
- *  everything libbotanik declares is spliced in through this single define. It
- *  goes FIRST and ends with its parameters, so they abut the site's below and
- *  the ROLE_PARAM run stays contiguous. See library_vars.h.
+ *  The bank holds one contiguous table, so everything libbotanik declares is
+ *  spliced in through this single define. It goes FIRST and ends with its
+ *  parameters, so they abut the site's below and the ROLE_PARAM run stays
+ *  contiguous. See library_vars.h.
  *  @{ */
 
     BOTANIK_LIBRARY_VARS
@@ -179,10 +155,9 @@ const Variable g_vars[] = {
 /** @name Parameters - persisted and editable; the PARAMS page and `set` write these
  *
  *  The `reg` column is the Modbus TCP *slave* register an external master reads
- *  this parameter at. It is hand-assigned and an external master holds it, so
- *  **adding a parameter must never renumber the others**. To make that possible
- *  rather than merely intended, each group gets a block with room to grow, and a
- *  new row takes the next free register INSIDE its own block:
+ *  this parameter at. It is hand-assigned, so **adding a parameter must never
+ *  renumber the others**: each group gets a block with room to grow, and a new
+ *  row takes the next free register INSIDE its own block:
  *
  *      net    1.. 19      cli  100..199
  *      ntp   20.. 39      sol  200..249
@@ -192,10 +167,10 @@ const Variable g_vars[] = {
  *      (90..99 spare)
  *
  *  Status values live at 500+, alarms at 800..899 and the library's own rows at
- *  900..999, so the four kinds never collide and the number itself says which
- *  one a row is. A group that outgrows its block takes one of the spare ranges
- *  rather than spilling into its neighbour. tests/test_site_names.cpp fails on a
- *  duplicate, a zero, or a row outside the block its scope belongs to.
+ *  900..999, so the four kinds never collide and the number says which one a row
+ *  is. A group that outgrows its block takes a spare range rather than spilling
+ *  into its neighbour. tests/test_site_names.cpp fails on a duplicate, a zero,
+ *  or a row outside its scope's block.
  *  @{ */
 
     //name                    type    default  min     max      dgt unit    reg  description                               notes
@@ -344,8 +319,7 @@ const Variable g_vars[] = {
     P("pwr_genBat_avg_ms",    T_U16,  1000,    10,     10000,   0,  "ms",   427, "rolling average for the Gen. battery",   "per divider setup"),
 
     // The net_ / ntp_ / mqtt_ / geo_ parameters are the LIBRARY's rows, spliced
-    // in above by BOTANIK_LIBRARY_VARS: libbotanik reads them by name, so it
-    // declares them. This site pins its values in config.h.
+    // in above by BOTANIK_LIBRARY_VARS. This site pins their values in config.h.
 
 /** @} */
 
@@ -426,8 +400,8 @@ const Variable g_vars[] = {
     MI("cli_rh_hi3",    T_F32, 52, 4,   2, 2, SF(0.0f),          SF(100.0f),       SF(0.0f), 5000,  1, "%",     "high level humidity 3",               "temp/RH sensor 0x0002"),
 
  // TDC/AI-1 - calibrated 0-10 V / 4-20 mA channels. The wire unit is the module's
- // (mV, uA) and the calibration block turns it into the engineering one; every
- // field of every block is a parameter, so a channel is re-trimmed from PARAMS.
+ // (mV, uA); the calibration block turns it into the engineering one, and every
+ // field of it is a parameter, so a channel is re-trimmed from PARAMS.
 
     // name              calibration        dev fc ch n  wire   fallback  timeout dgt unit   description                notes
     AI("pwr_genBat_V",   &CAL_PWR_GEN_BAT,  11, 4, 0, 1, T_U16, SF(0.0f), 5000,   1,  "V",   "generator start battery", ""),
@@ -468,8 +442,8 @@ const Variable g_vars[] = {
 
 /** @name Status values - published over MQTT and the Modbus TCP slave
  *
- *  Their register is hand-assigned from a range of its own, so the parameter
- *  block above can grow without renumbering anything an external master holds.
+ *  Hand-assigned from a range of their own, so the parameter block above can
+ *  grow without renumbering anything an external master holds.
  *  @{ */
     // name                  type    default dgt unit  reg  description                             notes
     SV("sys_supply_lockout", T_BOOL, 0,      0,  "",   500, "supply unhealthy: actuators held off", ""),
@@ -532,24 +506,20 @@ const Variable g_vars[] = {
 const uint16_t g_var_count = (uint16_t)(sizeof(g_vars) / sizeof(g_vars[0]));
 
 
-/** @brief How many rows the table has. Derived from the table itself - there
- *  is no second list of variables to keep in step with it. Everything else
- *  addresses a row by NAME and the bank resolves it: see Bank::find(). */
+/** @brief How many rows the table has, derived from the table itself.
+ *  Everything else addresses a row by NAME: see Bank::find(). */
 constexpr uint16_t VAR_TOTAL = (uint16_t)(sizeof(g_vars) / sizeof(g_vars[0]));
 
 /** @name Home screen - the one table no rule derives
  *
- *  Everything else about a variable follows from the variable: its group is its
- *  name prefix, whether it is published is its scope, whether it is an alarm is
- *  its scope again. A home field is different. "Line V" is a caption a person
- *  chose for grid_LN_V, and nothing in the name says the row belongs on the
- *  landing page, let alone where in the layout - so it is declared.
+ *  A variable's group and whether it is published follow from its name and
+ *  scope. A home field does not: the caption is a person's choice and nothing in
+ *  the name says the row belongs on the landing page, so it is declared.
  *  @{ */
 
-/** @brief Home-screen readings: label + variable. The HomePage lays these out
- *  in three columns of 8, filled column-major; column 1 holds 6 (its top two
- *  cells carry the uptime readout and a spacer). Labels are capped at 11 chars
- *  and values at 13 by the column geometry. */
+/** @brief Home-screen readings: label + variable. Laid out in three columns of
+ *  8, column-major; column 1 holds 6 (its top two cells carry the uptime readout
+ *  and a spacer). The geometry caps labels at 11 chars and values at 13. */
 const HomeVar g_home_fields[] = {
     // column 1 (6): the incoming supply at a glance
     { "Line V",    "grid_LN_V" },
@@ -584,38 +554,30 @@ static const uint16_t HOME_FIELDS = sizeof(g_home_fields) / sizeof(g_home_fields
 
 /** @} */
 
-// Capacity contract: the home screen silently ignores fields past its two
-// columns, so pin the count at compile time instead.
+// The home screen silently ignores fields past its columns, so pin the count.
 static_assert(sizeof(g_home_fields) / sizeof(g_home_fields[0]) <= Config::HOME_FIELDS_MAX,
               "too many home fields: the HomePage would silently drop the tail");
 
 /** @name Value store (RAM, parallel to the table)
  *
- *  Header-only, which needs one trick worth explaining. A plain
- *  `Value g_var_values[]` at namespace scope here would be a DEFINITION in every
- *  TU that includes this file, and the link breaks the moment two of them do
- *  (the firmware has two, the test binary more). C++17 would spell the fix
- *  `inline`; the portable C++11 equivalent is a class template's static member,
- *  which has vague linkage - the compiler emits it in each TU and the linker
- *  folds them into one object.
- *
- *  That is the whole reason this site needs no .cpp beside its tables. Taking
- *  the address of a static member is still a constant expression, so
- *  SITE_VAR_TABLES below stays constant-initialised into flash.
+ *  Header-only through one trick: a namespace-scope array would be a DEFINITION
+ *  in every including TU and the link would break on the second. C++11's
+ *  equivalent of C++17 `inline` is a class template's static member, which has
+ *  vague linkage. Its address is still a constant expression, so SITE_VAR_TABLES
+ *  below stays constant-initialised into flash.
  *  @{ */
 
-/** @brief The site's mutable state. @c Tag is never used - the template exists
- *  only to get vague linkage; there is exactly one instantiation, @c Store. */
+/** @brief The site's mutable state. @c Tag is unused: the template exists only
+ *  for vague linkage, and @c Store is the one instantiation. */
 template <typename Tag>
 struct SiteStore {
     /** @brief One slot per row of g_vars, addressed the same way. */
     static Value  values[VAR_TOTAL];
     /** @brief T_STR live text: one STR_CAP slot per text parameter, addressed by
-     *  the row's TextSlot offset. The one place a byte offset survives. */
+     *  the row's TextSlot offset. */
     static char   pool[STR_POOL_BYTES];
     /** @brief Scratch for the bank's name index: one row number per row, sorted
-     *  by name at construction so find() is a binary search. Sized off the table
-     *  itself, so there is no capacity to keep in step with it. */
+     *  by name at construction so find() is a binary search. */
     static uint16_t name_index[VAR_TOTAL];
     /** @brief Where the home fields' names resolve to, filled at bring-up
      *  (BotanikFirmware::setup). VAR_NONE until then, which reads as the inert
@@ -637,8 +599,7 @@ using Store = SiteStore<void>;
     g_vars, Site::Store::values, VAR_TOTAL, \
     Site::Store::pool, STR_POOL_BYTES, Site::Store::name_index }
 
-// The pool must cover every text parameter's slot; a short pool would let one
-// silently overlap its neighbour.
+// A short pool would let one text parameter's slot overlap its neighbour.
 static_assert(STR_POOL_BYTES >= 8 * STR_CAP, "the string pool is too small");
 
 }  // namespace Site

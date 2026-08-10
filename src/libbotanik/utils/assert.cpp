@@ -21,7 +21,6 @@ namespace Botanik {
     Logs::Logger* get_assert_logger() { return _sink(); }
 
     void assert_fail(const char* expr, const char* file, int line) {
-        // Log a message if we have a logger
         Logs::Logger* logger = _sink();
         if (logger != nullptr)
             logger->critical(Logs::ASSERT, "assertion failed:\n%s (%s:%d)",
@@ -33,12 +32,10 @@ namespace Botanik {
             return;
         }
 
-        // If on the simulator, abort the program.
 #ifdef TARGET_SIMULATOR
         abort();
 #endif
-
-        // If on hardware, keep running.
+        // On hardware, keep running.
         return;
     }
 

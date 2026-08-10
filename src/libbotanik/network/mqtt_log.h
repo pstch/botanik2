@@ -10,13 +10,10 @@
  * "<MQTT_TOPIC_PREFIX>/<MQTT_LOG_TOPIC>/<level>/<topic>"
  * (e.g. ".../logs/debug/modbus") with a "<timestamp> <message>" payload.
  * Publish-only, best-effort: an entry that can't go out now (link down, broker
- * gone) is dropped, not queued - MQTT already owns the socket TX, so a second
- * queue here would be redundant.
+ * gone) is dropped, not queued - MQTT already owns the socket TX.
  *
  * The sink-local floor defaults to DEBUG, so the broker carries everything the
- * logger does. This is the sink read from off-site, and the entries that matter
- * there are the ones nobody was at the console for; a site on a thin link can
- * raise MQTT_LOG_MIN_LEVEL.
+ * logger does; see Config::MQTT_LOG_MIN_LEVEL.
  */
 
 #include <cstddef>                      // size_t
@@ -31,9 +28,8 @@
 
 namespace Botanik { namespace Network {
 
-    // This writer is what puts a log line on an MQTT topic, so it is where the
-    // two bounds have to agree. Asserted here rather than in either config
-    // header: neither concern owns the constraint on its own.
+    // This writer puts a log line on an MQTT topic, so it is where the two
+    // bounds must agree - neither config header owns the constraint alone.
     static_assert(Config::MQTT_TX_BUF >=
                       Config::MQTT_TOPIC_LEN + Config::LOG_MESSAGE_LEN + 32,
                   "MQTT_TX_BUF cannot carry a full log line under the longest topic");

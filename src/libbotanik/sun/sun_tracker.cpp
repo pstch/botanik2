@@ -123,10 +123,9 @@ namespace Botanik { namespace Sun {
         // Current altitude (elevation) above the horizon.
         double sin_alt = sin_lat * sin_decl + cos_lat * cos_decl * std::cos(H_r);
         p.elevation = std::asin(sin_alt);
-        // Peak altitude is reached at solar noon, where the hour angle is 0 (so
-        // cos(H) = 1); it reduces to the classic 90 - |lat - decl|. Reported as a
-        // magnitude (always >= 0): it only goes negative in deep polar night,
-        // where we still want a positive reference for the (signed) elevation ratio.
+        // Peak altitude at solar noon, where the hour angle is 0 (cos(H) = 1);
+        // reduces to the classic 90 - |lat - decl|. Reported as a magnitude, so
+        // deep polar night still gives the elevation ratio a positive reference.
         double sin_alt_peak = sin_lat * sin_decl + cos_lat * cos_decl;
         p.peak_elevation = std::fabs(std::asin(sin_alt_peak));
         // Before transit the sun is still climbing toward noon; after, falling.
@@ -168,7 +167,6 @@ namespace Botanik { namespace Sun {
     }
 
     void SunPositionTracker::on_step(uint64_t now_ms) {
-        // no location configured
         if (applied_serial() == 0) return;   // geo not configured
         // wait for a real (NTP) time before the date-dependent solar math
         if (HAL::Clock::wall_ms() < WALL_CLOCK_VALID_MS) return;

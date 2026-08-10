@@ -30,10 +30,8 @@ namespace Botanik { namespace Scan {
             p->set_slot(i);
             p->set_offset(Tasks::stagger_offset(i, Config::SCAN_STAGGER_MS,
                                                     p->period_ms()));
-            // Resolve its names now rather than letting step() do it lazily on
-            // the first beat: this runs inside BotanikFirmware::setup(), before
-            // the watchdog is armed, which is where the rest of the firmware's
-            // one-shot work already sits.
+            // Resolves its names here, off the beat and before the watchdog is
+            // armed, rather than lazily on its first step().
             p->setup(now_ms);
         }
     }
@@ -48,11 +46,10 @@ namespace Botanik { namespace Scan {
         // field (see docs/dev/scan.md).
         if (!_io->control_enabled()) {
             if (_enabled) {
-                // Falling edge. From here the process moves without us, so
-                // whatever a program remembered about the field is stale the
-                // moment we stop driving - and reseeding dt on the way back in
-                // cannot express that. Each program drops what has gone stale
-                // and keeps what is a record (see plc/program.h).
+                // Falling edge: from here the process moves without us, so
+                // whatever a program remembered about the field is stale. Each
+                // program drops what has gone stale and keeps what is a record
+                // (see plc/program.h).
                 for (uint8_t i = 0; i < _count; i++)
                     if (_programs[i] != nullptr) _programs[i]->reset();
             }
@@ -60,22 +57,17 @@ namespace Botanik { namespace Scan {
             return;
         }
         if (!_enabled) {
-            // Control just came back. Reseed every program's timer so the first
-            // activation reports its nominal period instead of the whole
-            // outage: a Ton holding 5 s handed an hour of dt fires the instant
-            // control returns, which is the one thing a withdrawal exists to
-            // prevent.
+            // Control just came back. reseed() fixes the CLOCK: the first
+            // activation reports its nominal period, not the whole outage (a
+            // Ton holding 5 s handed an hour of dt fires the instant control
+            // returns). It leaves a program that has never run alone, since its
+            // first activation is due immediately by design - which is also the
+            // bring-up case.
             //
-            // reseed() leaves a program that has never run alone: its first
-            // activation is due immediately by design and must not be spent
-            // here. That also covers bring-up, where control goes from withheld
-            // to held with nothing having run yet.
-            //
-            // resume() is the other half, and a different question: reseed()
-            // fixes the CLOCK, resume() lets a program look at the plant before
-            // it commands it again. It also raises the first-scan flag, so a
-            // program with nothing to re-datum still learns that its next run
-            // has no previous activation worth comparing against.
+            // resume() is the other half: it lets a program look at the plant
+            // before commanding it again, and raises the first-scan flag so
+            // even a program with nothing to re-datum knows its next run has no
+            // previous activation to compare against.
             _enabled = true;
             for (uint8_t i = 0; i < _count; i++) {
                 if (_programs[i] == nullptr) continue;
@@ -84,9 +76,8 @@ namespace Botanik { namespace Scan {
             }
         }
 
-        // Due, how late, and how many activations were dropped is Component's
-        // arithmetic, the same for a control program as for any other component
-        // that runs at its own rate; step() is what applies it.
+        // Due, how late, how many dropped: Component's arithmetic, applied by
+        // step().
         for (uint8_t i = 0; i < _count; i++)
             if (_programs[i] != nullptr) _programs[i]->step(now_ms);
 
@@ -95,9 +86,8 @@ namespace Botanik { namespace Scan {
     }
 
     void Driver::_publish_lateness() {
-        // The worst offender this beat, not a count: an operator's next question
-        // after "is the scan keeping up" is always "which one", and a boolean
-        // that six programs can raise answers neither.
+        // The worst offender this beat, not a count: the question after "is the
+        // scan keeping up" is always "which one".
         uint32_t worst = 0;
         _worst = nullptr;
         for (uint8_t i = 0; i < _count; i++) {
@@ -118,16 +108,15 @@ namespace Botanik { namespace Scan {
         if (n == _conflicts_said || _logger == nullptr) return;
 
         // Edge-triggered and named once. Two programs driving one output is a
-        // defect in the site's design, not a passing condition: it will be true
-        // on every beat from here, so a per-beat line would bury the log and
-        // teach an operator to ignore it.
+        // design defect, true on every beat from here, so a per-beat line would
+        // bury the log.
         const Vars::VarRef r = _io->first_conflict();
         const Vars::Var    v = _io->var(r);
         const uint8_t      w = _io->writer_of(r);
         const char* other = (w < _count && _programs[w] != nullptr)
                                 ? _programs[w]->name() : "?";
         // Count first: both names are variable-width (a row name runs to 23
-        // characters), so neither can lead without overrunning the line.
+        // characters), so either leading would overrun the line.
         _logger->critical(Logs::STATUS,
                           "scan: %u row(s) with 2+ writers\n"
                           "'%s' driven by '%s'",

@@ -9,18 +9,16 @@
  *  an #ifndef-guarded BOTANIK_* macro a site may override; see
  *  libbotanik_config.h, which aggregates these and holds the rules.
  *
- *  The protocol's own fixed numbers are NOT here - the ADU ceilings, the
- *  quantity limits, the frame arithmetic - because a protocol is not
- *  something an installation varies. They live beside the arithmetic that
- *  depends on them, in modbus/wire.h. What is here is what a plant varies:
- *  the line rate, the deadlines, and how much of each the firmware may hold. */
+ *  The protocol's own fixed numbers (ADU ceilings, quantity limits, frame
+ *  arithmetic) are NOT here: an installation does not vary a protocol, so they
+ *  live beside the arithmetic that depends on them, in modbus/wire.h. Here is
+ *  what a plant varies: line rate, deadlines, and how much the firmware holds. */
 
 #include <cstdint>                        // uint8_t/uint16_t/uint32_t
 
 #include "libbotanik/config/base.h"       // the BOTANIK_FEATURE_* gates
 
-// Defined and undefined per file rather than in base.h: base.h is guarded,
-// so a second include of it would not restore a macro this file undefined.
+// Defined and undefined per file, not in base.h: see base.h.
 #define BOTANIK_CFG(type, name) static constexpr type name = BOTANIK_##name
 
 namespace Botanik { namespace Config {
@@ -91,10 +89,9 @@ namespace Botanik { namespace Config {
     /** @brief How long the MASTER waits for an answer before giving up on the
      *  connection.
      *
-     *  The connection, not just the transaction: a late answer would arrive
-     *  while the next request is in flight, and the transaction id only tells us
-     *  it is stale after it has been read. Starting clean is cheaper than
-     *  reasoning about a stream that is out of step. */
+     *  The connection, not just the transaction: a late answer arrives while the
+     *  next request is in flight, and the transaction id only says it is stale
+     *  after it has been read. Starting clean is cheaper. */
 #ifndef BOTANIK_MODBUS_TCP_RESPONSE_TIMEOUT_MS
 #  define BOTANIK_MODBUS_TCP_RESPONSE_TIMEOUT_MS 1000
 #endif
@@ -110,11 +107,9 @@ namespace Botanik { namespace Config {
     /** @brief Bus line rate.
      *
      *  19200 carries the reference plant at about a fifth of the bus and
-     *  survives long greenhouse cable runs; 115200 returns barely 2x on paper
-     *  and less than that once the beat quantises each transaction, in exchange
-     *  for real signal-integrity risk. See docs/design/modbus-budget.md, which
-     *  works the whole sum. 38400 is the step to take first if a site outgrows
-     *  it. */
+     *  survives long greenhouse cable runs; 115200 returns barely 2x on paper,
+     *  less once the beat quantises each transaction, for real signal-integrity
+     *  risk. 38400 is the first step up. See docs/design/modbus-budget.md. */
 #ifndef BOTANIK_MODBUS_BAUD
 #  define BOTANIK_MODBUS_BAUD 19200
 #endif
@@ -164,10 +159,9 @@ namespace Botanik { namespace Config {
 
     /** @brief How often to try binding the slave's port again after a failure.
      *
-     *  A port already taken is usually an operator's configuration mistake.
-     *  Giving up on it for good would leave the slave silently absent while
-     *  healthy() said yes, so it is retried, slowly: whatever is holding the
-     *  port may well let go. */
+     *  A port already taken is usually a configuration mistake. Giving up for
+     *  good would leave the slave silently absent while healthy() said yes, so
+     *  it is retried slowly: whatever holds the port may let go. */
 #ifndef BOTANIK_MODBUS_TCP_BIND_RETRY_MS
 #  define BOTANIK_MODBUS_TCP_BIND_RETRY_MS 30000
 #endif
@@ -185,12 +179,11 @@ namespace Botanik { namespace Config {
 
     /** @brief How many of those may actually be written per beat.
      *
-     *  Storage is synchronous (docs/dev/concurrency.md). A TDBStore write is a
-     *  record append plus a page program, and a garbage-collection pass adds a
-     *  sector erase - milliseconds each, hundreds in the worst case. Doing 61 of
-     *  them in one beat is how a remote master could stall the field bus past
-     *  its own response deadline, so they are paced instead, the same way
-     *  SERIAL_TX_PER_STEP paces the console. */
+     *  Storage is synchronous (docs/dev/concurrency.md): a TDBStore write is a
+     *  record append plus a page program, and a GC pass adds a sector erase -
+     *  milliseconds each, hundreds in the worst case. 61 of them in one beat
+     *  would let a remote master stall the field bus past its own response
+     *  deadline, so they are paced, as SERIAL_TX_PER_STEP paces the console. */
 #ifndef BOTANIK_MODBUS_PERSIST_PER_STEP
 #  define BOTANIK_MODBUS_PERSIST_PER_STEP 2
 #endif
@@ -203,7 +196,7 @@ namespace Botanik { namespace Config {
      *  than assuming it in a comment. On OPTA that buffer is Mbed's
      *  MBED_CONF_DRIVERS_UART_SERIAL_TXBUF_SIZE, 256 by default; the simulator's
      *  socketpair holds far more. Lower this and the static_assert in
-     *  modbus/rtu/client.cpp tells you which block size no longer fits. */
+     *  modbus/rtu/client.cpp names the block size that stops fitting. */
 #ifndef BOTANIK_MODBUS_TX_RING_BYTES
 #  define BOTANIK_MODBUS_TX_RING_BYTES 256
 #endif
@@ -280,11 +273,9 @@ namespace Botanik { namespace Config {
      *  these are RAM, one image per device, and only ever instantiated by the
      *  simulator.
      *
-     *  512 covers the SDM630's published map, which runs to 0x018E - its THD and
-     *  line-to-line blocks live in the 200s and 300s. 256 was enough only while
-     *  the site addressed that meter by object index; the moment the real
-     *  protocol addresses went in, the simulated device started answering
-     *  exception 02 to a read the real one would have served. */
+     *  512 covers the SDM630's published map, which runs to 0x018E (its THD and
+     *  line-to-line blocks live in the 200s and 300s). Below that the simulated
+     *  device answers exception 02 to a read the real one serves. */
 #ifndef BOTANIK_MODBUS_SIM_REGS
 #  define BOTANIK_MODBUS_SIM_REGS 512
 #endif

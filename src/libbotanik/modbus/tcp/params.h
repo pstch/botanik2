@@ -5,12 +5,11 @@
  *  @brief The slave's own configuration rows, for a site's variable table.
  *
  *  `TcpSlave` reads these BY NAME (the `mb` group), so the library declares them
- *  rather than leaving every site to spell them correctly - the same rule the
- *  net_ / ntp_ / mqtt_ rows follow, and for the same reason: a site that misnames
- *  one gets a slave silently running on its defaults, which looks exactly like a
- *  slave that is working.
+ *  rather than leaving every site to spell them correctly: a misnamed row gets a
+ *  slave silently running on its defaults, which looks exactly like a slave that
+ *  is working. Same rule as the net_ / ntp_ / mqtt_ rows.
  *
- *  Registers 950-953, inside the library's 900-999 reserve - clear of the
+ *  Registers 950-953, inside the library's 900-999 reserve: clear of the
  *  net_/ntp_/mqtt_/geo_ rows below them and of the alarms at its top.
  */
 

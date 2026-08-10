@@ -6,12 +6,11 @@
  * @file alarm_bar.h
  * @brief AlarmBar - the terminal-owned bottom-row alarm strip.
  *
- * A reverse-video bar on the physical last row (reserved by the terminal when
- * an alarm model is wired), showing " ALARMS : " then the unmasked, un-ack'd
- * alarm codes drawn normal-video so they read as a set. Owned by Console
- * and repainted from step() only when the unmasked set changes or the row was
- * wiped (mark_dirty()); the terminal's back-buffer diff then emits just the
- * cells that moved. No change-highlighting - the set is visible as a whole.
+ * A reverse-video bar on the physical last row (reserved when an alarm model is
+ * wired), showing " ALARMS : " then the unmasked, un-ack'd alarm codes in
+ * normal video so they read as a set. Owned by Console, repainted from step()
+ * only when that set changes or the row was wiped (mark_dirty()). No
+ * change-highlighting: the set is visible as a whole.
  */
 
 #include <cstdint>  // uint16_t/uint64_t

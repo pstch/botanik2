@@ -29,9 +29,7 @@
 
 namespace network {
 
-// Pulls the site config, then the feature defaults: the guards below
-// need the flags DEFINED, and an undefined one reads as 0 in #if.
-
+// #if guards below need the flags DEFINED (undefined reads as 0).
 
 using namespace Botanik;
 using namespace Botanik::Network;
@@ -39,7 +37,6 @@ using namespace Botanik::Network;
 namespace {
 }
 
-// Gated: see above, for the network stack.
 #if BOTANIK_FEATURE_NETWORK
 TEST_CASE("NetworkHandler: sim path comes up on net config and idles when it is cleared") {
     botanik_test::ParamFixture fx;
@@ -47,15 +44,14 @@ TEST_CASE("NetworkHandler: sim path comes up on net config and idles when it is 
     NetworkHandler net(&fx.bank(), nullptr, &resolver);
     CHECK_FALSE(net.is_up());
 
-    // HAL::Network::link_status() returns LINK_UP immediately on the simulator,
-    // so one step() promotes SETUP to RUNNING.
+    // link_status() returns LINK_UP immediately in sim, so one step() promotes SETUP to RUNNING.
     fx.set_num("net_serial", 1);
     fx.set_num("net_dhcp", 1);
     fx.publish();
     net.step(HAL::Clock::uptime_ms());
     CHECK(net.is_up());
 
-    // Serial back to 0 (config removed) -> back to idle.
+    // Serial back to 0 (config removed): back to idle.
     fx.set_num("net_serial", 0);
     fx.publish();
     net.step(HAL::Clock::uptime_ms());
@@ -63,7 +59,6 @@ TEST_CASE("NetworkHandler: sim path comes up on net config and idles when it is 
 }
 #endif
 
-// Gated: see above, for MQTT.
 #if BOTANIK_FEATURE_MQTT
 TEST_CASE("MqttClient: never reports connected to a dead broker, publish gated on connection") {
     botanik_test::ParamFixture fx;
@@ -79,8 +74,7 @@ TEST_CASE("MqttClient: never reports connected to a dead broker, publish gated o
 
     fx.set_num("mqtt_serial", 1);
     fx.set_num("mqtt_enable", 1);
-    // Off-host literal: the hermetic sim refuses any non-loopback destination, so the
-    // connect can never complete.
+    // Off-host: the hermetic sim refuses non-loopback, so the connect never completes.
     fx.set_str("mqtt_host", "192.0.2.1");
     fx.publish();
     for (int i = 0; i < 5; ++i) mqtt.step(HAL::Clock::uptime_ms());
@@ -90,7 +84,7 @@ TEST_CASE("MqttClient: never reports connected to a dead broker, publish gated o
 }
 #endif
 
-// Gated: an NTP-less build should not report NTP coverage it does not have.
+// NTP-less builds must not report NTP coverage they don't have.
 #if BOTANIK_FEATURE_NTP
 TEST_CASE("NtpClient: stepped as a Component (announces once), query is non-blocking") {
     botanik_test::ParamFixture fx;
@@ -109,28 +103,24 @@ TEST_CASE("NtpClient: stepped as a Component (announces once), query is non-bloc
 
     fx.set_num("ntp_serial", 1);
     fx.set_num("ntp_enable", 1);
-    // Off-host literal: the hermetic sim refuses the send, so no reply arrives and the
-    // query stays non-blocking (no sync).
+    // Off-host: the hermetic sim refuses the send, so the query stays non-blocking with no sync.
     fx.set_str("ntp_srv1", "192.0.2.1");
     fx.publish();
 
     for (int i = 0; i < 5; ++i) ts.step(HAL::Clock::uptime_ms());   // must not fault or block
 
 #ifdef DEBUG
-    // >= 1 not == 1: the live UDP path and link-up sequence may emit extra log
-    // lines beyond the first-step announce, so exact count is not pinned.
-    // Search all recorded lines, not last_msg: which line lands last is
-    // timing-dependent (a trailing NETWORK/TIME line can follow the announce).
+    // >= 1, not == 1: link-up may emit extra lines beyond the announce, so count
+    // isn't pinned; search all lines, not last_msg, since last is timing-dependent.
     CHECK(w.pushes >= 1);
     CHECK(w.saw("NtpClient"));
 #endif
 }
 #endif
 
-// Note: the NTP-synced / MQTT-connected success paths need the loopback mock
-// responder (botanik_sim/network.h), which runs only in the full simulator, so they
-// are exercised end-to-end by the pyte suite rather than here. These unit tests
-// cover the config-gated state machines and the non-blocking dead-peer behaviour.
+// The NTP-synced / MQTT-connected success paths need the loopback mock responder
+// (botanik_sim/network.h) and run only in the full simulator, covered by the pyte
+// suite; these unit tests cover config-gated state machines and dead-peer behaviour.
 
 }  // namespace network
 
@@ -140,23 +130,16 @@ TEST_CASE("NtpClient: stepped as a Component (announces once), query is non-bloc
 
 namespace resolver {
 
-// Pulls the site config, then the feature defaults: the guards below
-// need the flags DEFINED, and an undefined one reads as 0 in #if.
-
-// HAL::Clock::sleep_ms / uptime_ms (poll the async DNS)
-
-// Compiles to an empty TU when the feature is off (the DNS resolver is part of the network stack),
-// contributing no CTest cases - the shape test_sun.cpp uses.
+// Empty TU when the feature is off (flag must be DEFINED, else #if reads 0);
+// no CTest cases - test_sun.cpp's shape.
 #if BOTANIK_FEATURE_NETWORK
 
 using namespace Botanik;
 using namespace Botanik::Network;
 
 namespace {
-    // Drive resolve() to a terminal status. A literal / malformed-numeric name
-    // settles on the first call; a real name goes through async DNS (getaddrinfo_a)
-    // and returns PENDING until the lookup lands. Bounded so a hang fails the test,
-    // not spins.
+    // Drive resolve() to a terminal status: a literal/malformed name settles on
+    // the first call, a real one goes through async DNS. Bounded so a hang fails, not spins.
     ResolveStatus settle(NameResolver& r, const char* host, ResolvedAddr* a) {
         uint64_t start = HAL::Clock::uptime_ms();
         for (;;) {
@@ -189,10 +172,8 @@ TEST_CASE("NameResolver: a dotted-decimal IPv4 literal resolves to its octets") 
 TEST_CASE("NameResolver: malformed literals are not mis-parsed as addresses") {
     NameResolver r;
     ResolvedAddr a;
-    // None are valid 4-octet dotted-decimal literals, so parse_ipv4 must reject
-    // each (never a bogus RESOLVE_OK with the wrong octets). The all-numeric forms
-    // are also rejected by the sim resolver (treated as a bad name), as is junk
-    // with a character illegal in a hostname - so each comes back FAILED.
+    // None are valid dotted-decimal literals, so parse_ipv4 must reject each rather
+    // than return a bogus RESOLVE_OK; the sim resolver rejects them too, as bad names.
     CHECK(settle(r, "1.2.3", &a)     == RESOLVE_FAILED);   // too few octets
     CHECK(settle(r, "1.2.3.4.5", &a) == RESOLVE_FAILED);   // too many octets
     CHECK(settle(r, "256.1.1.1", &a) == RESOLVE_FAILED);   // octet out of range
@@ -212,8 +193,7 @@ TEST_CASE("NameResolver: a resolvable hostname resolves to the loopback peer") {
     NameResolver r;
     ResolvedAddr a;
     // The sim resolver is hermetic: any well-formed name maps to this instance's
-    // per-process loopback (127/8, mock_loopback_ip()) where the in-process mock
-    // responder listens, after an async PENDING phase that settle() polls through.
+    // per-process loopback (127/8), after settle() polls an async PENDING phase.
     REQUIRE(settle(r, "broker.local", &a) == RESOLVE_OK);
     CHECK(a.b[0] == 127);          // loopback (exact host part is PID-derived)
 }
@@ -224,12 +204,10 @@ TEST_CASE("NameResolver: a cached entry is re-resolved after the TTL") {
     ResolvedAddr a;
 
     REQUIRE(settle(r, "broker.local", &a) == RESOLVE_OK);   // first lookup -> cached
-    // Still fresh: served straight from the cache, no new async lookup (OK now,
-    // not PENDING).
+    // Still fresh: served from cache, no new lookup (OK, not PENDING).
     CHECK(r.resolve("broker.local", &a) == RESOLVE_OK);
 
-    // Past the max-age: the stale entry is dropped and a fresh lookup begins, so
-    // this call is PENDING rather than an instant cache hit.
+    // Past max-age: the stale entry drops and a fresh lookup begins, so this is PENDING, not an instant hit.
     HAL::Clock::sleep_ms(30);
     CHECK(r.resolve("broker.local", &a) == RESOLVE_PENDING);
     CHECK(settle(r, "broker.local", &a) == RESOLVE_OK);      // and it re-resolves
@@ -259,20 +237,14 @@ TEST_CASE("NameResolver: empty / null inputs fail cleanly") {
 
 namespace hal_net {
 
-// Pulls the site config, then the feature defaults: the guards below
-// need the flags DEFINED, and an undefined one reads as 0 in #if.
-
-// HAL::Clock::sleep_ms / uptime_ms (poll the async DNS)
-
-// Compiles to an empty TU when the feature is off (HAL::Network is the transport the network stack sits on),
-// contributing no CTest cases - the shape test_sun.cpp uses.
+// Empty TU when the feature is off; no CTest cases - test_sun.cpp's shape.
 #if BOTANIK_FEATURE_NETWORK
 
 using namespace Botanik::HAL;
 
 namespace {
-    // Poll an async DNS handle to a terminal result, bounded so a hang fails the
-    // test instead of spinning forever.
+    // Poll an async DNS handle to a terminal result, bounded so a hang fails
+    // the test rather than spins.
     Network::DnsResult dns_settle(Network::DnsHandle h, Network::Ip4* out) {
         uint64_t start = Clock::uptime_ms();
         for (;;) {
@@ -288,16 +260,15 @@ TEST_CASE("HAL::Network sim: DNS of a guaranteed-bad name fails, not pending for
     Network::DnsHandle h = Network::dns_begin("nonexistent.invalid");
     REQUIRE(h != 0);
     Network::Ip4 out;
-    // Emulated async resolver: poll until terminal, which must be FAILED, not pending
-    // forever.
+    // Emulated async resolver: poll to terminal, which must be FAILED, never
+    // pending forever.
     CHECK(dns_settle(h, &out) == Network::DNS_FAILED);
 }
 
 TEST_CASE("HAL::Network sim: an off-host destination is diverted, never contacted") {
-    // The sim must never put a packet on the wire, whatever address it is given
-    // - including the non-loopback literal a site's real broker address is.
-    // Such addresses are DIVERTED to the in-process responder rather than
-    // refused, so the MQTT state machine still runs against the shipped config.
+    // The sim must never put a packet on the wire, including a site's real
+    // (non-loopback) broker literal - such addresses are DIVERTED to the in-process
+    // responder, not refused, so MQTT still runs against the shipped config.
     Network::Ip4 ext = {{8, 8, 8, 8}};              // clearly off-host
     uint8_t pkt[4] = {0};
 
@@ -313,15 +284,11 @@ TEST_CASE("HAL::Network sim: an off-host destination is diverted, never contacte
 }
 
 TEST_CASE("HAL::Network sim: a listener accepts a connection and carries bytes") {
-    // What the Modbus TCP slave needs from the HAL, end to end: bind, accept,
-    // and a byte in each direction. The sim binds this instance's own 127/8
-    // address, so this runs unchanged beside every other test process.
-    //
-    // NOT 502 (Config::MODBUS_TCP_PORT): a TcpSlave still ALIVE in another case
-    // holds it. It has a destructor now, so the port comes back when one goes
-    // out of scope - but doctest cases share a process and nothing orders them,
-    // so borrowing the slave's own port is still a race worth not running.
-    // 503 is privileged too, so the port shift still applies.
+    // What the Modbus TCP slave needs from the HAL end to end: bind, accept, a byte
+    // each way. The sim binds this instance's own 127/8 address, so this runs
+    // unchanged beside other test processes.
+    // NOT 502 (Config::MODBUS_TCP_PORT): a TcpSlave elsewhere may still hold it,
+    // and doctest cases share a process with no ordering. 503 is privileged too.
     const uint16_t PORT = 503;                  // privileged: the backend shifts it
     Network::TcpSocket srv = Network::tcp_listen(PORT);
     REQUIRE(srv >= 0);
@@ -329,8 +296,7 @@ TEST_CASE("HAL::Network sim: a listener accepts a connection and carries bytes")
 
     Network::TcpSocket cli = Network::tcp_open();
     REQUIRE(cli >= 0);
-    // Aimed at an address the firmware would use; it lands on the listener
-    // because THIS process serves that port, not on the mock broker.
+    // A firmware-like address; lands on the listener because THIS process serves that port, not the mock broker.
     Network::Ip4 any = {{192, 168, 1, 43}};
     REQUIRE(Network::tcp_connect(cli, any, PORT) >= 0);
 
@@ -362,8 +328,7 @@ TEST_CASE("HAL::Network sim: a listener accepts a connection and carries bytes")
     REQUIRE(n == 1);
     CHECK(got[0] == 9);
 
-    // A closed peer reads as closed, not as would-block: that is what tells the
-    // server to free the connection slot.
+    // A closed peer reads as closed, not would-block: that frees the server's connection slot.
     Network::tcp_close(cli);
     n = 0;
     for (int i = 0; i < 100 && n == 0; ++i) {
@@ -377,9 +342,8 @@ TEST_CASE("HAL::Network sim: a listener accepts a connection and carries bytes")
 }
 
 TEST_CASE("HAL::Network sim: a released port stops capturing connects") {
-    // The listening-port table is what keeps a connect from being diverted to the
-    // mock broker. A stale row would send a later connect to a port nothing
-    // answers on, so closing the listener has to retire it.
+    // The listening-port table keeps a connect from diverting to the mock broker;
+    // a stale row would send later connects to a port nothing answers.
     const uint16_t PORT = 15502;
     Network::TcpSocket srv = Network::tcp_listen(PORT);
     REQUIRE(srv >= 0);
@@ -402,12 +366,7 @@ TEST_CASE("HAL::Network sim: a released port stops capturing connects") {
 
 namespace mqtt_log {
 
-// Pulls the site config, then the feature defaults: the guards below
-// need the flags DEFINED, and an undefined one reads as 0 in #if.
-
-
-// Compiles to an empty TU when the feature is off (MqttLogWriter is the LOGS_PUBLISH transport),
-// contributing no CTest cases - the shape test_sun.cpp uses.
+// Empty TU when the feature is off; no CTest cases - test_sun.cpp's shape.
 #if BOTANIK_FEATURE_LOGS_PUBLISH
 
 using namespace Botanik;
@@ -467,16 +426,13 @@ TEST_CASE("mqtt log: no publisher wired is a safe no-op") {
     CHECK(sink.loss_count() == 0); // best-effort: link-down drops aren't losses
 }
 
-// The broker is the sink read from off-site, so it carries everything the
-// logger lets through - DEBUG included. A site that cannot afford the volume
-// raises MQTT_LOG_MIN_LEVEL; the default must not be doing that filtering for
-// it, silently, on a link nobody is watching.
+// The broker is read off-site, so it must carry everything the logger lets through,
+// DEBUG included; a site that can't afford it raises MQTT_LOG_MIN_LEVEL itself.
 TEST_CASE("mqtt log: the default sink floor passes DEBUG") {
     CHECK((Logs::LogLevel)Config::MQTT_LOG_MIN_LEVEL == Logs::LOG_DEBUG);
     Network::MqttLogWriter sink;
     CHECK(sink.min_level() == Logs::LOG_DEBUG);
-    // ...and the logger's master floor does not filter it out first, which
-    // would leave the sink floor answering a question nothing asks.
+    // ...and the logger's own floor must not filter it first, or the sink floor answers a question nothing asks.
     CHECK((Logs::LogLevel)Config::LOG_MIN_LEVEL <= Logs::LOG_DEBUG);
 }
 

@@ -5,7 +5,7 @@
         // compile_commands.json and settings.json already configured here.
         "ms-vscode.cpptools",
         // CMake Tools: configure/build from the editor and, crucially, the
-        // Testing panel ("beaker" icon) — it reads the per-TEST_CASE entries
+        // Testing panel ("beaker" icon) - it reads the per-TEST_CASE entries
         // that doctest_discover_tests registers with CTest, so each case is
         // individually runnable/debuggable from the gutter.
         "ms-vscode.cmake-tools"

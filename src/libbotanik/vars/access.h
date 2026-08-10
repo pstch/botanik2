@@ -3,19 +3,12 @@
 
 /**
  * @file access.h
- * @brief Grouping variables for display, and resolving a reference for the
- *        consumers that only observe one.
+ * @brief Grouping variables for display, and rendering one a consumer only
+ *        observes (monitor page, shell, telemetry, home screen).
  *
- * Control programs name the signal they mean and the bank resolves it. What is
- * left over is everything that merely *observes* a variable without knowing
- * which: the monitor page, the shell, MQTT telemetry, the home screen and the
- * alarm reader all want "whatever this reference points at, read it and render
- * it".
- *
- * Deliberately thin. Resolving and grouping are RULES over the one variable
- * table - a group is a name prefix, and what gets published is a scope - so what
- * lives here is those rules, the home-screen row (the one thing no rule derives)
- * and a rendering convenience.
+ * Deliberately thin: grouping and publishing are RULES over the one variable
+ * table (a group is a name prefix, what is published is a scope), plus the
+ * home-screen row, which is the one thing no rule derives.
  */
 
 #include <cstddef>                      // size_t
@@ -30,10 +23,8 @@
 namespace Botanik { namespace Vars {
 
     /** @brief A home-screen reading: a display @p label paired with the name of
-     *  the variable whose live value it shows. The label is separate from the
-     *  variable's own name because the home screen wants "Line V" where the
-     *  monitor table wants "grid_LN_V", and no rule derives one from the
-     *  other - which is why this is the one declarative table left. */
+     *  the variable whose live value it shows. The label is declared because no
+     *  rule derives "Line V" from "grid_LN_V". */
     struct HomeVar {
         const char* label;
         const char* name;
@@ -41,15 +32,8 @@ namespace Botanik { namespace Vars {
 
     /** @name Grouping
      *
-     *  A variable's group is the prefix of its name, up to the first underscore.
-     *  A declared table per site - one VarRef[] per domain plus a VarGroup[]
-     *  listing them - would be pure restatement: every grid_* variable in the
-     *  grid group, every cli_* in climate. It would also be a second place to
-     *  remember, and forgetting means the variable silently never appears on the
-     *  monitor page or in telemetry.
-     *
-     *  Naming a variable IS filing it. The PARAMS page already worked this
-     *  way for the config groups; this is the same rule applied to the rest.
+     *  A variable's group is the prefix of its name, up to the first
+     *  underscore. Naming a variable IS filing it: there is no group table.
      *  @{ */
 
     /** @brief Distinct group names a site may have. Both tables' view modes are
@@ -58,11 +42,9 @@ namespace Botanik { namespace Vars {
 
     /** @brief Intern @p g so the pointer outlives the call.
      *
-     *  var_group() has to return storage of its own, and a shared scratch buffer
-     *  is not enough: the table legend passes the selected row's group to the
-     *  mode line, which then walks every row asking for ITS group - so the
-     *  buffer was overwritten mid-call and the legend always showed whatever
-     *  came last. */
+     *  var_group() must return storage of its own: a shared scratch buffer
+     *  cannot survive a caller that holds one group while asking for others.
+     *  Returns "?" once VAR_GROUPS_MAX distinct groups are interned. */
     inline const char* group_intern(const char* g) {
         static char pool[VAR_GROUPS_MAX][Config::VAR_GROUP_NAME_LEN];
         static uint8_t used = 0;
@@ -93,10 +75,8 @@ namespace Botanik { namespace Vars {
     /** @brief Whether @p d belongs on the MONITOR page and in MQTT telemetry.
      *
      *  Everything except the two kinds of row that have a page of their own: a
-     *  parameter is the PARAMS page's, an alarm is the ALARMS page's. Declared
-     *  by scope rather than by listing the survivors, so a new row is published
-     *  by default - the failure mode is a variable that shows up uninvited,
-     *  which someone notices, rather than one that silently never appears. */
+     *  parameter is the PARAMS page's, an alarm is the ALARMS page's. Tested by
+     *  scope, so a new row is published by default. */
     inline bool var_published(const Variable& d) {
         return d.scope != SCOPE_P && d.scope != SCOPE_A;
     }
@@ -104,27 +84,18 @@ namespace Botanik { namespace Vars {
     /** @brief Whether this row carries a Modbus TCP *slave* register: a
      *  parameter, a status value or an alarm.
      *
-     *  Deliberately not the same set as var_published() - that one answers "does
-     *  the HMI and MQTT show it", and it excludes exactly the two kinds this one
-     *  includes, because a parameter and an alarm each have a page of their own.
-     *  Beside it all the same, because both are the same kind of rule: what a row
-     *  IS decides where it appears, and the answer lives here rather than being
-     *  restated by every consumer.
-     *
-     *  The register itself is the site's to assign; a row of one of these scopes
-     *  with reg 0 is a table defect the site test fails on, not a row that
-     *  quietly does not publish. */
+     *  Deliberately not the same set as var_published(), which excludes exactly
+     *  the two kinds this one includes. The register is the site's to assign; a
+     *  row of one of these scopes with reg 0 is a table defect the site test
+     *  fails on, not a row that quietly does not publish. */
     inline bool var_mapped(const Variable& d) {
         return d.scope == SCOPE_P || d.scope == SCOPE_SV || d.scope == SCOPE_A;
     }
 
     /** @} */
 
-    /** @brief What kind of row this is, as a short column label.
-     *
-     *  One field lookup, because the scope is declared. Reconstructing it here
-     *  from (transport, role, type) would make this function agree with three
-     *  others about what a row is, and a new kind of row a new case in each. */
+    /** @brief What kind of row this is, as a short column label: the declared
+     *  scope, never reconstructed from (transport, role, type). */
     inline const char* var_scope(const Variable& d) { return scope_label(d.scope); }
 
     /** @brief Render @p h's current value into @p buf. Returns the text - an

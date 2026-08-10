@@ -9,10 +9,10 @@ Four charts, all bucketed by "code area" (the folder under src/):
   - code_tests.svg   : per area, unit-test cases (doctest TEST_CASE) AND pyte
                        screen-test functions.
 
-Stdlib only; shells out to `cloc` (LoC) and `git` (churn). If either is missing
-(or there is no git history), the affected chart is written as a placeholder so the
-Doxygen build never hits a missing-image warning. Output is build-only and
-gitignored; the CMake `docs` target runs this before doxygen.
+Stdlib only; shells out to `cloc` (LoC) and `git` (churn). If either is missing,
+the affected chart is written as a placeholder so the Doxygen build never hits a
+missing-image warning. Output is gitignored; the CMake `docs` target runs this
+before doxygen.
 """
 
 import argparse
@@ -42,9 +42,9 @@ def area_for(path):
     return parts[1]
 
 
-# Each test file maps to the code area it exercises (the test name rarely matches
-# the area verbatim, e.g. test_serial -> utils). Add a row when a test file is
-# added; unmapped files fall into "other" so they stay visible.
+# Each test file maps to the code area it exercises; the name rarely matches the
+# area verbatim. Add a row when a test file is added; unmapped files fall into
+# "other" so they stay visible.
 TEST_AREA = {
     "test_actuator":       "plc",
     "test_alarms":         "alarms",
@@ -69,17 +69,15 @@ TEST_AREA = {
 }
 
 
-# POST structural checks (HealthMonitor::_post in health/health.h), counted by the
-# area each one guards. A fixed handful, so it's a small hand-maintained map - update
-# it if a POST check is added or removed: alarm-code resolution -> alarms; PLC region
-# non-null + 32-byte aligned -> plcio (2); logger-has-writers -> logs.
+# POST structural checks (HealthMonitor::_post), counted by the area each one
+# guards. Hand-maintained: update it when a POST check is added or removed.
 POST_CHECKS = {"alarms": 1, "plcio": 2, "logs": 1}
 
 
-# Historical path renames, applied (in order) before area-mapping so churn from a
-# file's pre-rename life attributes to its current area. `-M` only rewrites the path
-# at the rename commit itself; earlier commits carry the literal old path. Add a row
-# here when a directory/file is renamed and its old name still falls in the window.
+# Path renames, applied in order before area-mapping so churn from a file's
+# pre-rename life attributes to its current area (`-M` rewrites the path only at
+# the rename commit; earlier commits carry the literal old path). Add a row when
+# a directory or file is renamed and its old name still falls in the window.
 PATH_ALIASES = (
     ("src/libbotanix/", "src/libbotanik/"),                       # lib dir typo fix
     ("src/libbotanix_config.h", "src/libbotanik_config.h"),
@@ -98,9 +96,9 @@ PATH_ALIASES = (
 
 
 def normalize_path(path):
-    """Resolve a git-numstat path to its current canonical location: strip any
-    rename syntax ('old => new' and the brace form 'pre/{old => new}/post'), then
-    fold the known historical renames so old paths land in current areas.
+    """Resolve a git-numstat path to its current location: strip the rename
+    syntax ('old => new' and the brace form 'pre/{old => new}/post'), then fold
+    the PATH_ALIASES so old paths land in current areas.
     """
     if "=>" in path:
         if "{" in path and "}" in path:

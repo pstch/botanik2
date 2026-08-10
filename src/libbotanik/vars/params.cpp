@@ -15,18 +15,15 @@
 namespace Botanik { namespace Vars {
 
     // ---- KvParamStore --------------------------------------------------------
-    // The narrow value bytes under the parameter's own name. Narrow on purpose:
-    // serialising the 8-byte Scalar would change the encoding of every u8/u16/
-    // u32/f32 key, and HAL::Storage::get rejects an oversized value, so the
-    // whole configuration would quietly revert to factory on the next boot.
+    // The narrow value bytes under the parameter's own name. Narrow is required:
+    // storing the 8-byte Scalar changes the encoding of every u8/u16/u32/f32
+    // key, and HAL::Storage::get rejects an oversized value, so the whole
+    // configuration would revert to factory on the next boot.
 
     namespace {
-        /** @brief A stored word back into a Scalar of @p t's type.
-         *
-         *  The sign-extension is the reason this is a function: it was written
-         *  out three times, and three copies of a width-dependent shift is three
-         *  places for a stored negative total to come back as a very large
-         *  positive one. */
+        /** @brief A stored word back into a Scalar of @p t's type. The one copy
+         *  of the width-dependent sign extension: get it wrong and a stored
+         *  negative total returns as a very large positive one. */
         Scalar decode_scalar(VarType t, uint64_t raw, uint8_t w) {
             if (type_real(t)) { float f; memcpy(&f, &raw, 4); return Scalar::F(f); }
             if (type_signed(t)) {
@@ -49,8 +46,7 @@ namespace Botanik { namespace Vars {
 
         /** @brief "<prefix><name>" - a storage key in its own namespace.
          *
-         *  A parameter's setting, an override on it and a retained total are
-         *  three different facts about one row, and a row may carry all three,
+         *  A row may carry a setting, an override and a retained total at once,
          *  so each lives behind a prefix no identifier can spell. */
         bool prefixed_key(const Variable& d, const char* prefix,
                           char* out, size_t cap) {
@@ -98,8 +94,7 @@ namespace Botanik { namespace Vars {
         const uint8_t w = type_width(d.type);
         if (w == 0) return false;
         // Value bytes then the validity byte: an override records BOTH what the
-        // variable reads and whether it reads as good data, because "force this
-        // to 20 C" and "make this read as a dead sensor" are different jobs.
+        // variable reads and whether it reads as good data.
         uint8_t buf[sizeof(uint64_t) + 1] = {};
         size_t n = 0;
         if (!HAL::Storage::get(key, buf, (size_t)w + 1, &n)) return false;
@@ -156,8 +151,8 @@ namespace Botanik { namespace Vars {
     void Params::on_setup(uint64_t /*now_ms*/) {
         if (_io == nullptr) return;
         _io->load_params();
-        // After the parameters, so a restored override shadows the setting it is
-        // meant to shadow rather than being loaded over.
+        // After the parameters, so a restored override shadows the setting
+        // rather than being loaded over.
         const uint16_t n = _io->load_overrides();
         if (n != 0 && _logger != nullptr)
             _logger->critical(Logs::BOOT,
@@ -165,9 +160,8 @@ namespace Botanik { namespace Vars {
                               "the field is not being read or driven normally",
                               (unsigned)n);
 
-        // Retained totals last. They are computed rows, so nothing above has
-        // touched them, and restoring after the overrides means a forced
-        // totalizer still reads as forced.
+        // Retained totals last: computed rows, untouched by either step above,
+        // and a forced totalizer still reads as forced.
         const uint16_t r = _io->load_retained();
         if (r != 0 && _logger != nullptr)
             _logger->notice(Logs::BOOT, "%u retained value(s) restored",
@@ -176,11 +170,10 @@ namespace Botanik { namespace Vars {
 
     void Params::on_step(uint64_t now_ms) {
         if (_io == nullptr || Config::RETAIN_SAVE_MS == 0) return;
-        // A cadence, not a write-through. A totalizer moves every beat and a
-        // flash erase per beat would wear the part out in days; what this buys
-        // is a bounded loss - at most one interval of counting on an unexpected
-        // power cut. A DELIBERATE stop loses nothing, because the shutdown path
-        // calls save_retained() itself.
+        // A cadence, not a write-through: a flash erase per beat would wear the
+        // part out in days. The loss is bounded at one interval of counting on
+        // an unexpected power cut; a deliberate stop loses nothing, the shutdown
+        // path calling save_retained() itself.
         if (_last_retain_ms != 0 &&
             (now_ms - _last_retain_ms) < Config::RETAIN_SAVE_MS) return;
         _last_retain_ms = now_ms;
@@ -262,10 +255,8 @@ namespace Botanik { namespace Vars {
     }
 
     uint32_t group_serial(const Bank* io, const char* group) {
-        // "<group>_serial". The suffix matters: without it the serial was named
-        // bare after its group, so it was the one parameter whose name carried no
-        // group prefix - it sorted apart from the group it belongs to and read
-        // like a stray in any listing.
+        // "<group>_serial": the suffix keeps the row inside its own group's name
+        // prefix, so it sorts and lists with the group it belongs to.
         char key[HAL::Storage::KEY_MAX];
         if (group == nullptr) return 0;
         size_t n = strlen(group);

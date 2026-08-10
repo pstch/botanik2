@@ -39,9 +39,8 @@ namespace Botanik { namespace Modbus {
     // ------------------------------------------------------------------------
 
     void TcpSlave::on_setup(uint64_t now_ms) {
-        // The map is built once, here rather than on the first beat: it is a
-        // scan of the whole variable table, and the first beat is not where a
-        // couple of hundred rows of insertion sort belongs.
+        // Built once, here rather than on the first beat: a scan of the whole
+        // variable table does not belong in a beat.
         _map.build();
         _bind_acks();
         if (_map.overflow() != 0 && _logger != nullptr)
@@ -87,11 +86,9 @@ namespace Botanik { namespace Modbus {
                               (unsigned)_port);
             return;
         }
-        // Retried, and reported. A port already taken is usually a configuration
-        // mistake with an operator behind it - but "usually" is not "always",
-        // and giving up for the life of the firmware would leave healthy()
-        // saying yes over a slave that is not there. Once per failure in the
-        // log, so a permanent misconfiguration is not a log entry every minute.
+        // Retried, and reported once per failure: giving up for the life of the
+        // firmware would leave healthy() saying yes over a slave that is not
+        // there, and logging every attempt would be a line a minute.
         if (!_bind_failed && _logger != nullptr)
             _logger->error(Logs::NETWORK, "modbus slave cannot bind port %u",
                            (unsigned)_port);
@@ -131,11 +128,10 @@ namespace Botanik { namespace Modbus {
             Conn* free_slot = nullptr;
             for (Conn& c : _conn) if (c.sock < 0) { free_slot = &c; break; }
             if (free_slot == nullptr) {
-                // Full: take it and hang up at once rather than leaving it in the
-                // backlog, where the master would sit waiting on a connection
-                // that looks established. Counted, because "the SCADA cannot
-                // connect" and "somebody is leaking sockets" look identical from
-                // the outside.
+                // Full: take it and hang up at once rather than leave it in the
+                // backlog, where the master would wait on a connection that
+                // looks established. Counted: "the SCADA cannot connect" and
+                // "somebody is leaking sockets" look identical from outside.
                 Net::tcp_close(s);
                 _ctx.rejects++;
                 if (_logger != nullptr)
@@ -260,9 +256,8 @@ namespace Botanik { namespace Modbus {
         if (_alarms == nullptr || _io == nullptr) return;
         for (uint16_t i = 0; i < _map.count(); ++i) {
             const Var v = _map.row(i);
-            // An alarm and nothing else: the block is the alarm model's, so a
-            // parameter's register appearing in it would be a coincidence of
-            // arithmetic rather than an address anybody published.
+            // An alarm and nothing else: a parameter's register landing in the
+            // block would be arithmetic, not a published address.
             if (v.meta()->scope != SCOPE_A) continue;
             const int k = _alarms->index_of(v.name());
             if (k >= 0) _ack_cond[i] = (int16_t)k;
@@ -352,8 +347,8 @@ namespace Botanik { namespace Modbus {
         const Request& r = c.req;
         // The payload is built HERE, in the present phase: this is the post-scan
         // image, and answering off it is the reason the two halves are split.
-        // 125 registers or 2000 bits: 250 bytes either way, which is why one
-        // buffer serves both (wire.h owns both ceilings).
+        // 125 registers or 2000 bits is 250 bytes either way, so one buffer
+        // serves both (wire.h owns both ceilings).
         uint8_t payload[2 * 125];
         uint8_t n = 0;
         Exception ex = EX_NONE;
@@ -366,9 +361,7 @@ namespace Botanik { namespace Modbus {
                 break;
             case FC_READ_COILS:
             case FC_READ_DISCRETE: {
-                // 2000 bits is the protocol ceiling decode() already held this to,
-                // and 2000 bits is 250 bytes: the same as 125 registers, which is
-                // why one buffer serves both.
+                // decode() already held the count to the 2000-bit ceiling.
                 n = (uint8_t)bit_bytes(r.count);
                 // Only the coil table has an ack block. FC02 there falls through
                 // to the map, which refuses it: a discrete input is quality, and
@@ -422,11 +415,9 @@ namespace Botanik { namespace Modbus {
         c.tx_since = 0;
         c.pending  = PEND_NONE;
         // Only a FAULT is worth a line. A client closing, or going quiet until
-        // the idle timer reaps it, is what clients do all day - a SCADA poller
-        // reconnecting on its own schedule would fill the log with its own good
-        // behaviour, and the sim's self-check did exactly that on every run.
-        // Both are already counted in `rejects`, which is where a rate belongs;
-        // what a log line is for is the one that should not have happened.
+        // the idle timer reaps it, is what clients do all day, and a SCADA
+        // poller reconnecting on its own schedule would fill the log with its
+        // own good behaviour. Both are counted in `rejects` instead.
         if (why != nullptr && _logger != nullptr) {
             char ip[16];
             _logger->warning(Logs::MODBUS, "dropped %s\n%s",
@@ -443,8 +434,7 @@ namespace Botanik { namespace Modbus {
             // other measure, and the slot is what it is holding.
             if (c.pending != PEND_NONE) {
                 // Armed here rather than where the answer was staged: this is
-                // the one place with a clock, and threading now_ms through three
-                // framing paths to save a beat of resolution is not worth it.
+                // the one place with a clock.
                 if (c.tx_since == 0 || c.tx_sent != c.tx_mark) {
                     c.tx_mark  = c.tx_sent;
                     c.tx_since = now_ms;

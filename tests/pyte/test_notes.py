@@ -20,10 +20,9 @@ def notes(spawn, **kwargs):
 def _type_lines(term, lines):
     """Type `lines` as hard-broken rows.
 
-    Waiting for the last line to land every few rows keeps a long burst from
-    overrunning the sim's 256-byte RX ring. A drop early in the burst is the
-    failure mode to avoid: the tail still renders, so only an assertion on the
-    FIRST line would catch it.
+    Waiting for the last line every few rows keeps a long burst from overrunning
+    the sim's 256-byte RX ring. A drop early in the burst still renders the tail,
+    so nothing but an assertion on the FIRST line would catch it.
     """
     for i, line in enumerate(lines):
         if i:
@@ -44,9 +43,8 @@ def test_notes_wraps_and_reports_state(spawn):
     assert "saved" in term.screen.display[-2], "an untouched note should not read as modified"
 
     # 89 chars over 80 columns with a 2-column gutter, so a row holds 78. The
-    # editor owns the wrapping (autowrap is off), so assert where the break falls
-    # - and that the gutter marks the row the operator started but not its
-    # wrapped tail, which is the whole point of having one.
+    # editor owns the wrapping (autowrap is off), so assert where the break falls,
+    # and that the gutter marks the row the operator started but not its tail.
     line = "the tank three valve sticks when it is cold, tap it before blaming the level sensor again"
     term.send(keys.text(line))
     assert term.wait_screen(line[78:]), "the wrapped tail never reached the second row"
@@ -73,17 +71,17 @@ def test_notes_scrolls_when_taller_than_the_screen(spawn):
     assert term.screen.display[1].startswith("> "), "each note line carries the gutter"
 
     # Page back to the top: one press moves a screenful, the extra ones clamp on
-    # the first row. Sent back to back and synced once on content - a press that
-    # moves only the CURSOR, or that is clamped, changes no cell, and pyte's
-    # display holds no cursor, so a settle() after each would just wait it out.
+    # the first row. Sent back to back and synced once on content, because a
+    # press that only moves the cursor or is clamped changes no cell, and pyte's
+    # display holds no cursor.
     for _ in range(4):
         term.send(keys.PAGE_UP)
     assert term.wait_for("line00"), "paging up never reached the first line"
 
 
 def test_notes_kill_and_yank(spawn):
-    """^K / ^W cut and ^Y pastes, over the console-wide ring: the whole reason
-    the ring left CommandShell is that this page has no shell under it."""
+    """^K / ^W cut and ^Y pastes, over the console-wide ring: this page has no
+    shell under it, so the ring cannot belong to CommandShell."""
     term = notes(spawn)
     _type_lines(term, ["valve three sticks", "pump B runs hot"])
 

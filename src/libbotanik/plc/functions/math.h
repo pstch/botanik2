@@ -17,22 +17,20 @@ namespace Botanik { namespace Plc {
      *  @{ */
 
     /** @brief @p v held inside [@p lo, @p hi]. IEC's LIMIT, in std::clamp
-     *  argument order - every call site here reads "this value, between these
-     *  bounds". */
+     *  argument order. */
     constexpr float limit(float v, float lo, float hi) {
         return (v < lo) ? lo : ((v > hi) ? hi : v);
     }
 
-    /** @brief Whether @p v is within [@p lo, @p hi], inclusive. The
-     *  plausibility test said once - `!in_range(ln, 200.0f, 260.0f)` rather
-     *  than a pair of comparisons whose bounds must be read twice to trust. */
+    /** @brief Whether @p v is within [@p lo, @p hi], inclusive: the
+     *  plausibility test said once. */
     constexpr bool in_range(float v, float lo, float hi) {
         return (v >= lo) && (v <= hi);
     }
 
     /** @brief Zero inside +/- @p band, and outside it the EXCURSION beyond the
-     *  band rather than the raw value - continuous, because a step from 0 to
-     *  `band` on leaving would kick whatever acts on it.
+     *  band rather than the raw value: continuous, so leaving the band does not
+     *  step from 0 to `band` and kick whatever acts on it.
      *
      *  The stateless cousin of the Deadband block, which suppresses reports of
      *  small moves rather than ignoring a small error. */
@@ -69,8 +67,8 @@ namespace Botanik { namespace Plc {
      *  @name Selection
      *  @{ */
 
-    /** @brief IEC's SEL: @p in1 when @p g, else @p in0. Worth a name because it
-     *  reads as data flow rather than a branch - `sel(night, day_sp, night_sp)`. */
+    /** @brief IEC's SEL: @p in1 when @p g, else @p in0. Reads as data flow
+     *  rather than a branch: `sel(night, day_sp, night_sp)`. */
     constexpr float sel(bool g, float in0, float in1) {
         return g ? in1 : in0;
     }

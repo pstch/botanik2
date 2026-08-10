@@ -2,11 +2,10 @@
  * @file modbus/tcp/map.cpp
  * @brief Map: the scan that builds it, the lookup, and the type conversion.
  *
- * The conversion is the part worth reading twice. Every row occupies exactly two
- * registers whatever its type, so the wire form is always 32 bits: a float is
- * its IEEE-754 bits, an unsigned is zero-extended, a signed is sign-extended,
- * and the 64-bit types saturate. Uniform width is what makes an address derivable
- * from a row number, which is what keeps the map stable when a row is inserted.
+ * Every row occupies exactly two registers whatever its type, so the wire form
+ * is always 32 bits: a float is its IEEE-754 bits, an unsigned is zero-extended,
+ * a signed is sign-extended, and the 64-bit types saturate.
+ * @see map.h for what an address means.
  */
 #include "libbotanik/modbus/tcp/map.h"    // Map - implemented here
 
@@ -29,9 +28,9 @@ namespace Botanik { namespace Modbus {
         const Variable g_sink_d = {};
         Value          g_sink_v = {};
 
-        /** @brief 32-bit saturation for the types that do not fit. A truncated
-         *  value would read as a plausible small number; a saturated one reads as
-         *  "at least this", which is what a rail means everywhere else here. */
+        /** @brief 32-bit saturation for the types that do not fit. Truncation
+         *  would read as a plausible small number; a rail reads as "at least
+         *  this". */
         uint32_t sat_u64(uint64_t v) {
             return (v > 0xFFFFFFFFull) ? 0xFFFFFFFFu : (uint32_t)v;
         }
@@ -60,18 +59,16 @@ namespace Botanik { namespace Modbus {
 
     bool Map::published(const Variable& d) {
         // WHICH KINDS of row carry a register is a rule about the table, so it
-        // lives with the other such rules (vars/access.h) rather than here; a
-        // row of one of those kinds with no register is a table defect the
-        // site test fails on, and this simply does not serve it.
+        // lives in vars/access.h. Such a row with no register is a table defect
+        // the site test fails on, and this simply does not serve it.
         return var_mapped(d) && d.bind.reg != 0;
     }
 
     void Map::build() {
-        // Whatever is queued was ACKNOWLEDGED to a master with EX_NONE, and a
-        // rebuild is no reason to break that promise: the queue holds bank row
-        // indices, which a rebuild does not renumber - only this map's own order
-        // changes. So it is drained, not discarded. Unbounded, uniquely: this
-        // runs at bring-up and on a config commit, never in an ordinary beat.
+        // Whatever is queued was ACKNOWLEDGED to a master with EX_NONE, so it is
+        // drained rather than discarded: the queue holds bank row indices, which
+        // a rebuild does not renumber. Unbounded, uniquely: this runs at
+        // bring-up and on a config commit, never in an ordinary beat.
         (void)drain_persists(Config::MODBUS_PERSIST_QUEUE);
 
         _count = 0; _overflow = 0; _reg_lo = 0; _reg_hi = 0;
@@ -81,9 +78,8 @@ namespace Botanik { namespace Modbus {
             const Variable& d = *_io->var(i).meta();
             if (!published(d)) continue;
             if (_count >= Config::MODBUS_TCP_MAX_ROWS) { _overflow++; continue; }
-            // Insertion sort by register. The table is a couple of hundred rows
-            // and this runs once at bring-up, so the simple thing is the right
-            // thing; what matters is that the result is ordered, since every
+            // Insertion sort by register: a couple of hundred rows, once at
+            // bring-up. What matters is that the result is ordered, since every
             // lookup binary-searches it.
             uint16_t k = _count;
             while (k > 0 && _io->var(_rows[k - 1]).meta()->bind.reg > d.bind.reg) {
@@ -241,11 +237,10 @@ namespace Botanik { namespace Modbus {
         // setpoint nobody asked for.
         if ((addr % 2) != 0 || (count % 2) != 0) return EX_ILLEGAL_ADDRESS;
 
-        // Two passes: validate every row first, commit only once all of them
-        // pass. A multi-register write that failed halfway would leave the plant
-        // on a mixture of the old settings and the new, with an exception saying
-        // only that something went wrong - and the band check is exactly the one
-        // that fails on the last row of a block a master sent in good faith.
+        // Two passes: validate every row, commit only once all of them pass. A
+        // write failing halfway would leave the plant on a mixture of the old
+        // settings and the new, with an exception saying only that something
+        // went wrong.
         uint16_t changing = 0;
         for (uint16_t i = 0; i < count; i += 2) {
             bool found = false;
@@ -261,9 +256,8 @@ namespace Botanik { namespace Modbus {
         }
 
         // Every changed row owes a flash write, and those are paced across
-        // beats. If they will not all fit, refuse the request WHOLE - a master
-        // that is told to come back is better served than a plant left on half
-        // the new settings, and EX_SLAVE_BUSY is exactly what a retry is for.
+        // beats. If they will not all fit, refuse the request WHOLE with
+        // EX_SLAVE_BUSY rather than leave the plant on half the new settings.
         if (changing > persist_room()) return EX_SLAVE_BUSY;
 
         for (uint16_t i = 0; i < count; i += 2) {
@@ -271,14 +265,13 @@ namespace Botanik { namespace Modbus {
             if (k < 0) continue;                    // ruled out by the pass above
             Var v = _io->var(_rows[k]);
             const uint32_t w = word_at(data, i);
-            // Against live(), not raw(): if the row is overridden, raw() is the
-            // forced value, and a master writing that same number would skip the
-            // commit while the parameter underneath stayed where it was.
+            // Against live(), not raw(): raw() is an override's forced value,
+            // and a master writing that same number would skip the commit while
+            // the parameter underneath stayed where it was.
             if (w == wire_of(v.type(), v.live())) continue;   // no commit, no wear
-            // Live immediately - the master and the control programs both care
-            // about that - with the durable copy queued for drain_persists() to
-            // make a couple at a time. Cannot fail on validity: the pass above
-            // checked every row.
+            // Live immediately, with the durable copy queued for
+            // drain_persists(). Cannot fail on validity: the pass above checked
+            // every row.
             (void)_io->set_deferred(v, from_wire(v.type(), w));
             (void)_queue_persist(_rows[k]);
             if (committed != nullptr) (*committed)++;
@@ -322,9 +315,8 @@ namespace Botanik { namespace Modbus {
         if (!found || !writable(*v.meta())) return EX_ILLEGAL_ADDRESS;
 
         // Splice into what the row already holds, so the half the master did not
-        // address survives. Against live() for the same reason the pair write
-        // uses it: raw() would be an override's forced value, and the parameter
-        // underneath is what is being edited.
+        // address survives. Against live(), not raw(): raw() would be an
+        // override's forced value, and the parameter underneath is being edited.
         const uint32_t cur = wire_of(v.type(), v.live());
         const uint32_t w = ((addr % 2) == 0)
                                ? (uint32_t)(((uint32_t)value << 16) | (cur & 0xFFFFu))

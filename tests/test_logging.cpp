@@ -2,8 +2,7 @@
  * @file test_logging.cpp
  * @brief The logger's rate limiting and its buffered writer.
  *
- * Each section below is the former test_<name>.cpp, kept in its own
- * namespace so their fixtures and helpers cannot collide.
+ * Two sections, each in its own namespace to avoid fixture collisions.
  */
 
 #include <algorithm>                // std::find
@@ -19,9 +18,7 @@
 #include <cstring>                  // memcpy / strlen
 #include "libbotanik/logs/writer.h" // Logs::BufferedLogWriter
 
-// --------------------------------------------------------------------------
 // logger
-// --------------------------------------------------------------------------
 
 namespace logger {
 
@@ -29,9 +26,7 @@ using namespace Botanik;
 
 namespace {
 
-    // A BufferedLogWriter whose sink always accepts, recording the timestamps it
-    // drains so we can see which entries survived the queue.
-    struct TestBuffered : Logs::BufferedLogWriter {
+    struct TestBuffered : Logs::BufferedLogWriter {  // sink always accepts; records what drained
         std::vector<uint32_t> sent;
         size_t format(const Logs::LogEntry* e, char* buf, size_t len) override {
             (void)len; sent.push_back(e->timestamp); buf[0] = 'x'; return 1;
@@ -39,17 +34,13 @@ namespace {
         size_t write(const char* buf, size_t len) override { (void)buf; return len; }
     };
 
-    // Exposes the protected token-bucket primitives so the rate-limiter mechanics
-    // can be driven directly, independent of the (real, un-mockable) clock.
-    struct TestLogger : Logs::Logger {
+    struct TestLogger : Logs::Logger {  // exposes token-bucket internals, no real clock needed
         using Logs::Logger::_try_bucket;
         using Logs::Logger::_fill_bucket;
         using Logs::Logger::_report_suppressed;
     };
 
-    // A LOG_INFO entry on a given topic (the level the limiter actually gates;
-    // criticals bypass the writer queue, not the buckets).
-    Logs::LogEntry info_on(Logs::LogTopic topic) {
+    Logs::LogEntry info_on(Logs::LogTopic topic) {  // criticals bypass the buckets entirely
         Logs::LogEntry e = {};
         e.level = Logs::LOG_INFO;
         e.topic = topic;
@@ -60,20 +51,16 @@ namespace {
 
 TEST_CASE("writer: criticals seat into the reserve without evicting normals") {
     TestBuffered w;
-    const uint32_t NORMAL_CAP = Config::LOG_QUEUE_SIZE - 1 - Config::LOG_QUEUE_CRITICAL_RESERVE;
+    const uint32_t NORMAL_CAP = Config::LOG_QUEUE_SIZE - 1 - Config::LOG_QUEUE_CRITICAL_RESERVE;  // last K slots reserved for criticals
     Logs::LogEntry e = {}; e.level = Logs::LOG_INFO;
-    // Normals fill only up to NORMAL_CAP; the last K slots are reserved for criticals.
     for (uint32_t i = 1; i <= NORMAL_CAP; ++i) { e.timestamp = i; w.push(&e); }
     CHECK(w.loss_count() == 0);
     e.timestamp = 1000; w.push(&e);                 // would intrude on the reserve: dropped
     CHECK(w.loss_count() == 1);
-    // Criticals fill the reserve WITHOUT evicting any normal - the key fix that stops the
-    // sink-loss report from manufacturing the drop it reports.
-    e.level = Logs::LOG_CRITICAL;
+    e.level = Logs::LOG_CRITICAL;                   // fills the reserve without evicting a normal
     for (uint32_t i = 0; i < Config::LOG_QUEUE_CRITICAL_RESERVE; ++i) { e.timestamp = 200 + i; w.push(&e); }
     CHECK(w.loss_count() == 1);                     // no eviction occurred
-    // Only now (completely full) does a further critical evict the oldest as a last resort.
-    e.timestamp = 999; w.push(&e);
+    e.timestamp = 999; w.push(&e);                  // full now: evicts oldest as last resort
     CHECK(w.loss_count() == 2);
     w.drain();
     CHECK(w.sent.size() == Config::LOG_QUEUE_SIZE - 1);
@@ -122,7 +109,6 @@ TEST_CASE("logger: sink-drop report is edge-triggered, critical, held off") {
 }
 
 // Token-bucket mechanics (direct)
-// ----------------------------------------------------------------------------
 
 TEST_CASE("bucket: _try_bucket consumes a token, then suppresses") {
     TestLogger lg;
@@ -184,17 +170,14 @@ TEST_CASE("bucket: _report_suppressed with nothing suppressed emits nothing") {
 }
 
 // Dual-bucket filtering (through push_entry, against the constructor's full buckets)
-// ----------------------------------------------------------------------------
 
 TEST_CASE("rate limit: a flooded topic passes up to the burst, then drops") {
     Logs::Logger lg;
     RecordingWriter w;
     lg.add_writer(&w);
-    // A single topic is gated by the smaller of its per-topic bucket and the
-    // shared global bucket.
     const int gburst = Config::LOG_GLOBAL_BUCKET_BURST;
     const int tburst = Config::LOG_PERTOPIC_BUCKET_BURST;
-    const int cap = gburst < tburst ? gburst : tburst;
+    const int cap = gburst < tburst ? gburst : tburst;  // gated by the smaller of the two buckets
     Logs::LogEntry e = info_on(Logs::MODBUS);
     for (int i = 0; i < cap + 10; ++i) lg.push_entry(e);
     CHECK(w.pushes == cap);
@@ -204,9 +187,7 @@ TEST_CASE("rate limit: the global bucket caps total throughput across topics") {
     Logs::Logger lg;
     RecordingWriter w;
     lg.add_writer(&w);
-    // Exhaust topic A's per-topic bucket (global drops by tburst), then flood a
-    // second topic: B still has per-topic tokens, but the global remainder gates
-    // it, so the total is the global burst. (Assumes tburst <= gburst <= 2*tburst.)
+    // Exhausts A's per-topic bucket; B's global remainder gates it (assumes tburst <= gburst <= 2*tburst).
     const int gburst = Config::LOG_GLOBAL_BUCKET_BURST;
     const int tburst = Config::LOG_PERTOPIC_BUCKET_BURST;
     Logs::LogEntry a = info_on(Logs::MODBUS);
@@ -223,16 +204,13 @@ TEST_CASE("rate limit: topics with no per-topic bucket are gated by the global b
     const int burst = Config::LOG_GLOBAL_BUCKET_BURST;
     Logs::LogTopic topic = Logs::NONE;
     SUBCASE("NONE skips the per-topic bucket")           { topic = Logs::NONE; }
-    // Out of range is the no-OOB-bucket-access regression: it must be clamped to NONE.
-    SUBCASE("an out-of-range topic is treated as NONE")  { topic = (Logs::LogTopic)255; }
+    SUBCASE("an out-of-range topic is treated as NONE")  { topic = (Logs::LogTopic)255; }  // must clamp, not read OOB
     Logs::LogEntry e = info_on(topic);
     for (int i = 0; i < burst + 5; ++i) lg.push_entry(e);
     CHECK(w.pushes == burst);                            // limited by the global bucket alone
 }
 
 TEST_CASE("writer: each sink applies its own floor on top of the logger's") {
-    // What the HOME / SHELL / LOGS split rests on: one logger, three sinks,
-    // three different floors. The logger stays open at DEBUG.
     Logs::Logger lg;
     lg.set_min_level(Logs::LOG_DEBUG);
 
@@ -242,7 +220,6 @@ TEST_CASE("writer: each sink applies its own floor on top of the logger's") {
     home.set_min_level(Logs::LOG_NOTICE);
     lg.add_writer(&logs); lg.add_writer(&shell); lg.add_writer(&home);
 
-    // One entry per level, timestamped by level so the survivors are nameable.
     const Logs::LogLevel LEVELS[] = { Logs::LOG_DEBUG, Logs::LOG_INFO,
                                       Logs::LOG_NOTICE, Logs::LOG_WARNING,
                                       Logs::LOG_ERROR, Logs::LOG_CRITICAL };
@@ -298,8 +275,7 @@ TEST_CASE("format: fold_newlines keeps one entry to one wire record") {
         CHECK(std::string(buf, n) == s);
     }
     SUBCASE("growth past cap truncates the TAIL, never overruns") {
-        // " | " costs 2 more than the '\n' it replaces, and LOG_FORMATTED_LEN
-        // is only exactly LOG_MESSAGE_LEN + 64 - so this path is reachable.
+        // " | " costs 2 more than '\n'; LOG_FORMATTED_LEN is exactly LOG_MESSAGE_LEN+64, so this path is reachable.
         std::string s = "abc\ndef";               // would be 9: "abc | def"
         char guarded[16];
         std::fill(guarded, guarded + sizeof(guarded), '#');
@@ -307,8 +283,7 @@ TEST_CASE("format: fold_newlines keeps one entry to one wire record") {
         size_t n = Logs::fold_newlines(guarded, s.size(), 6);
         CHECK(n == 6);
         CHECK(std::string(guarded, 6) == "abc | ");
-        // Nothing written at or past cap: [6] still holds the source byte the
-        // copy above put there, and [7] onward is still the fill.
+        // Nothing written at/past cap: [6] keeps the copied byte, [7]+ is still the fill.
         CHECK(guarded[6] == 'f');
         CHECK(guarded[7] == '#');
     }
@@ -320,9 +295,7 @@ TEST_CASE("format: fold_newlines keeps one entry to one wire record") {
 
 }  // namespace logger
 
-// --------------------------------------------------------------------------
 // writer
-// --------------------------------------------------------------------------
 
 namespace writer {
 
@@ -330,10 +303,7 @@ using namespace Botanik;
 
 namespace {
 
-    // A BufferedLogWriter whose sink accepts at most `cap` bytes per write() call
-    // and whose format() emits a fixed-length blob. format_calls / written let a
-    // test see how often an entry was formatted vs. how much actually drained.
-    struct CapWriter : Logs::BufferedLogWriter {
+    struct CapWriter : Logs::BufferedLogWriter {  // cap bytes/write(); format_calls/written track drain
         std::vector<uint32_t> order;     // timestamps in the order format() saw them
         int    format_calls = 0;
         size_t written      = 0;
@@ -367,12 +337,10 @@ namespace {
 }
 
 // Ring wrap-around
-// ----------------------------------------------------------------------------
 
 TEST_CASE("writer ring: FIFO order is preserved as the cursors wrap repeatedly") {
     CapWriter w;
-    // Push-then-drain many more times than the ring is deep, so read/write
-    // indices wrap around LOG_QUEUE_SIZE several times. Order must stay intact.
+    // Push-drain far more than ring depth so head/tail wrap repeatedly; order must hold.
     const uint32_t total = (uint32_t)Config::LOG_QUEUE_SIZE * 3 + 5;
     for (uint32_t i = 1; i <= total; ++i) {
         Logs::LogEntry e = make_entry(i);
@@ -386,14 +354,13 @@ TEST_CASE("writer ring: FIFO order is preserved as the cursors wrap repeatedly")
 
 TEST_CASE("writer ring: a batch that straddles the wrap boundary drains in order") {
     CapWriter w;
-    // Advance the cursors close to the end of the ring one entry at a time...
+    // Advance near the ring's end, then queue a burst that wraps before draining.
     uint64_t ts = 0;
     for (int i = 0; i < (int)Config::LOG_QUEUE_SIZE - 3; ++i) {
         Logs::LogEntry e = make_entry(++ts);
         w.push(&e);
         w.drain();
     }
-    // ...then queue a burst that wraps past the end before a single drain.
     w.order.clear();
     const int burst = 8;
     for (int i = 0; i < burst; ++i) { Logs::LogEntry e = make_entry(++ts); w.push(&e); }
@@ -404,7 +371,6 @@ TEST_CASE("writer ring: a batch that straddles the wrap boundary drains in order
 }
 
 // Partial-send resumption
-// ----------------------------------------------------------------------------
 
 TEST_CASE("writer: a partial write resumes without re-formatting the entry") {
     CapWriter w;
@@ -441,7 +407,6 @@ TEST_CASE("writer: a stalled sink (cap 0) makes no progress but never re-formats
 }
 
 // Format-failure accounting
-// ----------------------------------------------------------------------------
 
 TEST_CASE("writer: entries that fail to format are skipped and counted as loss") {
     CapWriter w;

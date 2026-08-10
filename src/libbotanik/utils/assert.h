@@ -17,11 +17,10 @@
  *  An assertion is the one thing any file may want, so this header must cost
  *  its includers nothing. Logs::Logger is only forward-declared and
  *  assert_fail()'s body lives in assert.cpp, the one TU that pulls the full
- *  Logger and the HAL - the same arrangement core/component.h uses, and for the
- *  same reason. Including logger.h here dragged the logging subsystem (and
- *  through it core/ and tasks/) into every file that asserts, which is also why
- *  hal/ still falls back to plain assert(): it sits below the logger and could
- *  not afford the include. */
+ *  Logger and the HAL (the arrangement core/component.h uses). Naming logger.h
+ *  here would drag the logging subsystem, and through it core/ and tasks/, into
+ *  every file that asserts; hal/ sits below the logger and cannot afford even
+ *  this, so it falls back to plain assert(). */
 
 namespace Botanik {
 

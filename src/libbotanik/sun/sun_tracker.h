@@ -33,10 +33,9 @@ namespace Botanik { namespace Sun {
         double day_length_h;    ///< Today's daylight duration (hours); 0 polar night, 24 polar day.
         double max_day_length_h;///< The longest daylight at this latitude (hours), at the summer solstice.
 
-        /** @brief Elevation as a signed fraction of the day's peak: ~1.0 at solar
-         *  noon, and negative whenever the sun is below the horizon (matching the
-         *  sign of elevation()). Peak is always >= 0, so the sign is the current
-         *  elevation's. Zero only in the degenerate peak-grazes-the-horizon case. */
+        /** @brief Elevation as a signed fraction of the day's peak: ~1.0 at
+         *  solar noon, negative below the horizon (peak is always >= 0, so the
+         *  sign is elevation()'s). Zero only when the peak grazes the horizon. */
         double ratio() const {
             return peak_elevation > 0.0 ? elevation / peak_elevation : 0.0;
         }

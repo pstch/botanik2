@@ -17,21 +17,15 @@ def boot(spawn, **kwargs):
     """Launch a sim and wait for the console to come up.
 
     Synced on the status bar's tab strip, which is chrome: always on screen, on
-    every page, for as long as the firmware lives.
-
-    It used to wait for the handshake's log lines ("NTP synced" / "MQTT
-    connected") instead, so that a late one could not land in a later page's log
-    tail. Goldens drop log rows now, so nothing needs that - and it made every
-    boot in the suite depend on catching two TRANSIENT lines in a 7-row tail. On
-    a busy console the greenhouse's alarm churn scrolls them past unpainted, and
-    the whole file then failed against a firmware whose network was verifiably
-    fine. test_page_behaviour asks `net` for that state instead.
+    every page, for as long as the firmware lives. Never on a handshake log line
+    ("NTP synced" / "MQTT connected") - those are TRANSIENT in a 7-row tail, and
+    alarm churn scrolls them past unpainted on a busy console.
+    test_page_behaviour asks `net` for that state instead.
     """
     global _boot_failed
-    # A firmware that cannot start cannot start for the next test either, and
-    # paying the full wait once per test is how a broken build turns a 4-second
-    # suite into a quarter of an hour. Report the first one and short-circuit the
-    # rest: every test still fails, and says the same thing.
+    # A firmware that cannot start cannot start for the next test either, and the
+    # full wait once per test turns a 4-second suite into a quarter of an hour.
+    # Report the first failure and short-circuit: every test still fails.
     if _boot_failed is not None:
         raise AssertionError(f"not retrying: {_boot_failed}")
 
@@ -46,9 +40,7 @@ def goto(term, page_key, marker=None):
     """Switch page and wait for the redraw, syncing on `marker` (default: the tab).
 
     wait_screen, not wait_for: a tab label is only true while that page is
-    active, and a latched marker would answer for a visit two tests ago. Content
-    sync rather than settle() throughout - it stops at the first frame that says
-    yes, where a quiet window has to wait out the 4800-baud dribble.
+    active, and a latched marker would answer for a visit two tests ago.
     """
     term.send(page_key)
     marker = marker if marker is not None else TABS[page_key]
@@ -59,16 +51,12 @@ def goto(term, page_key, marker=None):
 def shell(spawn, quiet_logs=False, **kwargs):
     """Boot and switch to the SHELL page, ready for editor input.
 
-    `quiet_logs` runs `logs off` first, and a test that asserts on a command's
-    REPLY wants it: the reply and the greenhouse's alarm churn compete for the
-    same throttled 4800-baud console, and under host load the churn wins - the
-    reply is never painted and the assertion fails against a firmware that
-    answered correctly.
+    `quiet_logs` runs `logs off` first, which a test asserting on a command's
+    REPLY wants: reply and alarm churn compete for the same throttled console,
+    and under host load the churn wins, so the reply is never painted.
 
-    Off by default because it is not free: it puts two lines in the transcript,
-    which a test asserting the whole editor screen (test_shell_reconcile) counts
-    as content. Those tests drop log rows from the comparison anyway, so the
-    flood costs them nothing but bytes.
+    Off by default because it puts two lines in the transcript, which a test
+    asserting the whole editor screen counts as content.
     """
     term = goto(boot(spawn, **kwargs), keys.ALT_2)
     if quiet_logs:
@@ -89,10 +77,8 @@ def assert_editor(term, *rows, **kw):
     Stands in for a golden file: once the volatile cells are masked and the blank
     and log rows dropped, a reconcile screen is only ever SHELL_BAR + the
     editor's rows + ALARM_BAR, so a 24-line fixture would spend 23 lines
-    restating chrome to pin one to three rows of payload.
-
-    Polls like assert_screen, and on the same terms - under dilation a render can
-    span ticks, so a transient partial frame must not fail a correct screen.
+    restating chrome. Polls like assert_screen: under dilation a render can span
+    ticks, so a transient partial frame must not fail a correct screen.
 
     `clip=(a, b)` compares only that half-open band; `alarm_bar=False` drops the
     trailing bar from the expectation when the band excludes it.

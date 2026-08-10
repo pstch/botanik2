@@ -134,10 +134,9 @@ namespace Botanik { namespace Pages {
         Vars::Var p = _params->param(k);
         const Vars::Variable& d = *p.meta();
         char val[VAL_CAP], reg[8], line[LINE_CAP];
-        // Use what format() RETURNS, not the buffer: a T_STR's live text
-        // lives in the pool and a T_ENUM's in flash, so neither writes into
-        // val - and reading val anyway showed the previous row's text, which
-        // is only visible once a string parameter sits under a numeric one.
+        // Use what format() RETURNS, not the buffer: a T_STR's live text is in
+        // the pool and a T_ENUM's in flash, so neither writes into val, and
+        // reading val would show the previous row's text.
         const char* v = _params->format(k, val, sizeof(val));
         // 0 is "no register": a parameter the slave does not publish, which is
         // a blank cell rather than a register an external master could quote.
@@ -165,12 +164,10 @@ namespace Botanik { namespace Pages {
         size_t n = (size_t)(u - d.name);
         if (n >= sizeof(g)) n = sizeof(g) - 1;
         memcpy(g, d.name, n); g[n] = 0;
-        // Interned, NOT a pointer into a shared static: the legend passes
-        // the selected row's group to _draw_mode_line, which then asks for
-        // the neighbouring view names - and that walks every parameter
-        // through here. A shared buffer was overwritten mid-call, so the
-        // legend always showed the LAST group in the table whatever was
-        // selected.
+        // Interned, NOT a pointer into a shared static: _draw_mode_line holds
+        // the selected row's group while it asks for the neighbouring view
+        // names, and that walks every parameter through here - a shared buffer
+        // would be overwritten mid-call.
         return _group_intern(g);
     }
 
@@ -192,26 +189,20 @@ namespace Botanik { namespace Pages {
         Vars::Var p = _params->param(_param_at(_selected));
         const Vars::Variable& d = *p.meta();
         char b[24];
-        // The band is one fact, so it costs one row - and the row that buys
-        // back is a row of the table.
         char b2[24];
-        // No blank under the separator - it already separates, and the row it
-        // would cost is a row of the table.
-        // Through var_band(), not num_band(): an analog row's band can live
-        // in parameters, and showing the firmware defaults while the
-        // operator edits the real ones is the worst of both.
+        // Through var_band(), not num_band(): an analog row's band can live in
+        // parameters, and showing the firmware defaults while the operator
+        // edits the real ones is the worst of both.
         const Vars::NumBand band =
             Vars::var_band(_params != nullptr ? _params->bank() : nullptr, d);
-        // ...and the factory default rides along on the same row. It is a fact
-        // about the row you are already looking at - what `set` would put back -
-        // so it belongs beside the band that bounds it rather than in a column
-        // nobody scans down.
+        // Minimum / Maximum / Default share one row: three facts about the row
+        // already selected, and every panel row costs a table row.
         //
-        // Unless there is no band. A T_STR or an unbounded row reads
-        // "Minimum : -   Maximum : -" and then clips the one field that had
+        // Unless there is no band. A T_STR or unbounded row would read
+        // "Minimum : -   Maximum : -" and then clip the one field with
         // something to say, in the narrowest slot on the row - and those are
-        // exactly the rows whose default is long (a hostname, a dotted quad).
-        // So it takes the whole row when the other two have nothing.
+        // exactly the rows with a long default (a hostname, a dotted quad). So
+        // Default takes the whole row when the other two have nothing.
         char b3[VAL_CAP];
         const bool banded = d.type != Vars::T_STR && (d.flags & Vars::F_BOUNDED) != 0;
         if (banded)
@@ -227,10 +218,8 @@ namespace Botanik { namespace Pages {
         _panel_field((uint16_t)(r + 3), "Description", d.desc);
         _panel_field((uint16_t)(r + 4), "Notes",       d.notes);
         _blank_line((uint16_t)(r + 5));                     // blank above the legend
-        // The group is on the legend line instead of costing a panel row -
-        // and only in the "all" view, where it is the one thing the badge
-        // does not already say. The prompt row below is the legend's blank
-        // frame while nothing is being edited.
+        // The group rides the legend line rather than costing a panel row, and
+        // only in the "all" view, where the badge cannot say it.
         _draw_mode_line(_mode_row(), _mode == 0 ? _group_of(d) : nullptr, nullptr);
     }
 
@@ -254,9 +243,9 @@ namespace Botanik { namespace Pages {
             return;
         }
         _terminal.set_cursor_visible(false);
-        // No key legend: UP/DOWN/ENTER/ESC on a table are not worth a
-        // permanent row. Only the one thing an operator cannot infer stays -
-        // that a value they just set did not reach storage.
+        // No key legend: UP/DOWN/ENTER/ESC are not worth a permanent row. Only
+        // what an operator cannot infer stays - that a value just set did not
+        // reach storage.
         const char* hint = _not_persisted
             ? " NOT SAVED - value is live but storage refused it" : "";
         _draw_line(row, hint, (uint16_t)strlen(hint));
@@ -322,9 +311,9 @@ namespace Botanik { namespace Pages {
             _draw_error_marker();
             return;
         }
-        // Applied. SET_NOT_PERSISTED means it is live but will not survive a
-        // reboot - leaving the operator stuck in the editor would suggest the
-        // input was wrong, which it was not; the critical log carries it.
+        // Applied. SET_NOT_PERSISTED means live but not surviving a reboot:
+        // leave the editor anyway, since the input was not wrong (the critical
+        // log carries the failure).
         _not_persisted = (r == Vars::SET_NOT_PERSISTED);
         _editing = false;
         _dirty = true;            // value diff repaints the table row next tick

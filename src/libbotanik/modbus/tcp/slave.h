@@ -13,27 +13,24 @@
  *
  * @section server_beat Two phases, one request
  *
- * The server is stepped TWICE per beat, from two different phases, and that is
- * the whole design:
+ * The server is stepped TWICE per beat, from two different phases:
  *
- *  - `step()` in `PHASE_INPUT` accepts, reads, decodes, and applies WRITES. It
- *    is registered with `add_component()`, the same as every other component.
- *    A setpoint written this beat is therefore what the control programs run on
- *    this beat, and `PHASE_CONFIG` picks up the group serial in the same cycle.
+ *  - `step()` in `PHASE_INPUT` accepts, reads, decodes, and applies WRITES, so a
+ *    setpoint written this beat is what the control programs run on this beat
+ *    and `PHASE_CONFIG` picks up the group serial in the same cycle.
  *  - `service_tx()` in `PHASE_PRESENT` answers READS, off the image the scan just
  *    produced, and pushes the bytes out.
  *
  * The cost is one beat of latency on a read, against a SCADA poll measured in
- * seconds. What it buys is that no request is ever answered from a half-updated
+ * seconds. What it buys is that no request is answered from a half-updated
  * image: nothing writes the bank between the output phase and the encode.
  *
  * @section server_ack The acknowledgement block
  *
- * An alarm is published as a READ-ONLY coil at its row number (map.h): forcing
- * one by hand is an override, which is the console's job. But acknowledging one
- * is the interaction an operator actually performs at a SCADA station, and it is
- * a write. It gets a block of its own at `MODBUS_TCP_ACK_COIL_BASE + reg` rather
- * than a second meaning on the alarm's own bit:
+ * An alarm is published as a READ-ONLY coil at its row number (map.h), but
+ * acknowledging one is a write and is what an operator does at a SCADA station.
+ * It gets a block of its own at `MODBUS_TCP_ACK_COIL_BASE + reg` rather than a
+ * second meaning on the alarm's own bit:
  *
  *  - FC01 there reads the condition's `user_ack`, which clears itself on the
  *    next fresh ON edge, exactly as the ALARMS page shows it;
@@ -79,8 +76,8 @@ namespace Botanik { namespace Modbus {
      *  consumers read, and nobody hands anybody a setter. */
     struct SlaveContext {
         /** @name Derived, filled by TcpSlave::context()
-         *  The server holds these as the socket and the map, so keeping a second
-         *  copy in step is work with nothing to show for it.
+         *  The server holds these as the socket and the map, so there is no
+         *  second copy to keep in step.
          *  @{ */
         bool     listening   = false;   ///< the port is bound
         uint16_t port        = 0;       ///< what it is bound to
@@ -130,9 +127,8 @@ namespace Botanik { namespace Modbus {
             uint64_t last_ms  = 0;     ///< last complete request (idle reap)
             /** @brief When this answer started waiting to go out, and how far it
              *  had got then. A peer that stops reading leaves `pending` set for
-             *  ever, and the idle reap skips a connection with work pending - so
-             *  without these two, two such peers hold both slots and lock the
-             *  SCADA out with nothing timing them out. */
+             *  ever and the idle reap skips a connection with work pending, so
+             *  without these two, two such peers hold both slots for good. */
             uint64_t tx_since = 0;
             uint16_t tx_mark  = 0;
         };
@@ -151,10 +147,9 @@ namespace Botanik { namespace Modbus {
          *  alarm. Resolved once at bring-up.
          *
          *  Answering the ack block by NAME would be two strcmp searches per
-         *  coil, and a legal FC01 may ask for 2000 of them - about 2 ms in
-         *  PHASE_PRESENT, per connection, per beat, at a remote peer's choosing.
-         *  Everything else in the tree resolves names once at bring-up; this is
-         *  the same rule applied here. */
+         *  coil, and a legal FC01 may ask for 2000 of them: about 2 ms in
+         *  PHASE_PRESENT, per connection, per beat, at a remote peer's
+         *  choosing. */
         int16_t       _ack_cond[Config::MODBUS_TCP_MAX_ROWS];
         /** @brief Whether the `mb` config says the slave should be up at all. */
         bool          _enabled = false;
@@ -176,26 +171,21 @@ namespace Botanik { namespace Modbus {
 
         /** @brief Give the port back.
          *
-         *  On the OPTA this never runs - the slave outlives the firmware - but
-         *  in a HOST process one that does not is a real leak: the listener and
-         *  every open connection stay bound for the life of the process, so a
-         *  later test cannot use the port and the sim cannot restart cleanly.
-         *  test_network.cpp had to avoid 502 entirely because of it. */
+         *  On the OPTA this never runs (the slave outlives the firmware), but in
+         *  a HOST process the listener and every open connection would otherwise
+         *  stay bound for the life of the process, so a later test could not use
+         *  the port and the sim could not restart cleanly. */
         ~TcpSlave() override { _close_listener(); }
 
         /** @name Per-beat entry points
          *  @{ */
-
-        /** @brief PHASE_INPUT: accept, receive, decode, apply writes. This is
-         *  the Component's on_step(), so it is also where the config group is
-         *  re-read. */
 
         /** @brief Make a couple of the parameter writes a master has asked for
          *  durable. PHASE_SERVICE, once per beat.
          *
          *  Separate from the request that caused them because storage is
          *  synchronous: one FC16 can cover 61 rows, and committing them where
-         *  they were decoded put hundreds of milliseconds of flash into
+         *  they were decoded would put hundreds of milliseconds of flash into
          *  PHASE_INPUT, remotely triggerable, on a beat the field bus shares. */
         void service_persist(uint64_t now_ms);
         /** @brief PHASE_PRESENT: answer the reads off the post-scan image and
@@ -215,10 +205,9 @@ namespace Botanik { namespace Modbus {
 
         /** @brief Healthy unless it was asked to serve and cannot.
          *
-         *  Component's default is an unconditional yes, which meant a slave that
-         *  never bound its port reported well for the life of the firmware -
-         *  the one failure an operator most needs told about, since from outside
-         *  it is indistinguishable from a network problem. */
+         *  Component's default is an unconditional yes, under which a slave that
+         *  never bound its port would report well for the life of the firmware,
+         *  a failure indistinguishable from outside from a network problem. */
         bool healthy() const override { return !_enabled || _listener >= 0; }
         /** @brief Whether writes are accepted at all right now (`mb_write_enable`). */
         bool writable() const  { return _writable; }
@@ -227,6 +216,8 @@ namespace Botanik { namespace Modbus {
 
     protected:
         void     on_setup(uint64_t now_ms) override;
+        /** @brief PHASE_INPUT: accept, receive, decode, apply writes. Also where
+         *  the config group is re-read. */
         void     on_step(uint64_t now_ms) override;
         uint32_t param_serial() const override;
         void     on_param_changed(uint64_t now_ms) override;

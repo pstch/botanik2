@@ -20,10 +20,8 @@ namespace Botanik { namespace Alarms {
         if (raw_on && hold_s > 0 && !forced)
             hold_on_rem_ms = (uint32_t)hold_s * 1000u;
 
-        // A FORCED condition follows the force, now. The latches exist to smooth
-        // a real signal that flaps - a load spike worth annunciating for five
-        // minutes, a contact that chatters - and while an operator is holding the
-        // row by hand THEY are the signal, and it does not flap.
+        // A FORCED condition follows the force immediately: the latches exist to
+        // smooth a real signal that flaps, and a hand-held row does not flap.
         if (forced) { hold_on_rem_ms = 0; min_on_rem_ms = 0; }
 
         const bool on = raw_on || hold_on_rem_ms > 0 || min_on_rem_ms > 0;

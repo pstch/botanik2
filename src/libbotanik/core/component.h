@@ -16,22 +16,17 @@
  * @section component_rate Rate
  *
  * A component may run slower than the beat: set_period(ms), and step() sits out
- * the beats in between. The default period of 0 means every beat, so a component
- * that never sets one is unaffected. The loop keeps calling step() every beat
- * either way - the fixed loop ORDER in firmware/firmware.h is load-bearing and stays
- * written out as code; only the RATE moves into the component.
+ * the beats in between (0, the default, means every beat). The loop calls step()
+ * every beat either way - the fixed loop ORDER in firmware/firmware.h is
+ * load-bearing; only the RATE lives here.
  *
  * Anything a hook does that is per-unit-time must therefore read dt_ms() rather
  * than assume the beat period, or it silently rescales itself when its period
- * changes. See docs/dev/scheduler.md for what each component's rate should be
- * and what sets it.
+ * changes. See docs/dev/scheduler.md for what sets each component's rate.
  *
- * Dependency-light on purpose: Logs::Logger is only forward-declared here (so
- * even Logger can derive Component); announce()'s body lives in component.cpp,
- * the one TU that pulls the full Logger + BOOT topic. In DEBUG builds announce()
- * logs one BOOT line the first time a component is stepped, confirming it reached
- * the loop (a constructed-but-never-stepped component stays silent); it compiles
- * to nothing with DEBUG undefined.
+ * In DEBUG builds announce() logs one BOOT line on a component's first step, so
+ * a constructed-but-never-stepped component stays silent; without DEBUG it
+ * compiles to nothing.
  */
 
 #include <cstdint>                              // uint16_t/uint32_t/uint64_t
@@ -55,15 +50,10 @@ namespace Botanik {
 
         /** @}
          *  @name Rate
-         *  @brief What makes a component multi-rate. The loop still calls step()
-         *  every beat; the component decides whether it is due, so the fixed
-         *  loop ORDER (which is load-bearing - see firmware/firmware.h) stays
-         *  written out as code and only the RATE becomes a property of the
-         *  component.
+         *  @brief What makes a component multi-rate. @see component_rate
          *  @{ */
 
-        /** @brief Run interval in ms; 0 (the default) means every beat, so a
-         *  component that never calls set_period() behaves exactly as before. */
+        /** @brief Run interval in ms; 0 (the default) means every beat. */
         uint32_t             _period_ms = 0;
         Tasks::TaskTimer _timer;              ///< the due/late/dropped rule
         uint32_t             _dt_ms  = 0;         ///< real ms since the last run
@@ -73,19 +63,15 @@ namespace Botanik {
 
     protected:
         /** @brief The group serial step() last acted on. Resolving it costs a
-         *  linear name scan of the parameter table, and step() already paid for
-         *  it this beat - so a hook asking "is my group configured?" reads this
+         *  linear name scan of the parameter table and step() already paid for
+         *  it this beat, so a hook asking "is my group configured?" reads this
          *  instead of scanning again. */
         uint32_t applied_serial() const { return _applied_serial; }
 
         /** @brief ACTUAL ms since this component last ran, never its nominal
-         *  period. An accessor rather than an on_step() argument for the same
-         *  reason applied_serial() is one: the hook that wants it reads it, and
-         *  every component that does not stays untouched.
-         *
-         *  Anything holding a per-tick budget or integrating over time must use
-         *  this rather than assuming the beat, or it silently rescales itself
-         *  the moment its period moves. */
+         *  period. Anything holding a per-tick budget or integrating over time
+         *  must use this rather than assuming the beat, or it silently rescales
+         *  itself the moment its period moves. */
         uint32_t dt_ms() const { return _dt_ms; }
         /** @brief Activations dropped since the last run; 0 normally. Late runs
          *  happen ONCE - see Tasks::TaskTimer. */
@@ -108,10 +94,8 @@ namespace Botanik {
             : _logger(logger), _name(name) {}
         virtual ~Component() {}
 
-        /** @brief The announce label, for anything that has to name this
-         *  component to a human - a driver reporting which of its components
-         *  did something, a page listing them. Borrowed, never null in
-         *  practice: every constructor takes it. */
+        /** @brief The announce label, for anything naming this component to a
+         *  human. Borrowed; every constructor takes one. */
         const char* name() const { return _name; }
 
         /** @brief Set the run interval; 0 means every beat. Call it during
@@ -125,38 +109,26 @@ namespace Botanik {
 
         /** @brief Offset this component from others sharing its period, so the
          *  periodic work spreads across beats instead of piling onto one.
-         *
-         *  Without it every period is phase-locked to boot (everything first
-         *  runs on the same beat and seeds from it), so a rate cuts the mean
-         *  work per beat and leaves the PEAK untouched - and the peak is what
-         *  decides the shortest beat the loop can hold. Set it beside the
-         *  period, before the loop starts; keep it under the period. */
+         *  Set it beside the period, before the loop starts; keep it under the
+         *  period. @see timer_offset */
         void set_offset(uint32_t offset_ms) { _timer.set_offset(offset_ms); }
 
         /** @brief Treat this component as having just run at @p now_ms without
          *  running it, so its next activation is a full period away rather than
-         *  immediate.
-         *
-         *  For a gap the caller deliberately did not step it across: the scan
-         *  cycle does this to every control program when control authority
-         *  returns, since handing one the whole outage as dt fires every timer
-         *  it holds. Does not count as a run - see Tasks::TaskTimer. */
+         *  immediate. For a gap the caller deliberately did not step it across:
+         *  the scan cycle does this to every control program when control
+         *  authority returns, since the whole outage as dt fires every timer a
+         *  program holds. Does not count as a run - see Tasks::TaskTimer. */
         void reseed(uint64_t now_ms) { _timer.reseed(now_ms); }
 
         /** @brief Run this component's one-time init: on_setup() then
          *  announce().
          *
-         *  The public driver for the protected on_setup() hook, exactly as
-         *  step() is the driver for on_step(). **Idempotent** - the second call
-         *  does nothing - which is what lets the two ways in coexist:
-         *
-         *   - the scheduler calls it for every registered task during
-         *     BotanikFirmware::setup(), so a component that reads storage or runs
-         *     a self-test does it BEFORE the loop starts rather than inside the
-         *     first beat;
-         *   - step() still calls it lazily for anything the scheduler does not
-         *     own - a component stepped by another component (the network stack's
-         *     children) has no registration to be begun from.
+         *  **Idempotent**, which is what lets the two ways in coexist: the task
+         *  registry calls it for every registered task during
+         *  BotanikFirmware::setup(), and step() still calls it lazily for a
+         *  component the registry does not own (one stepped by another
+         *  component, e.g. the network stack's children).
          *
          *  @note Only call it once the log sinks are registered. announce(), and
          *  anything setup() logs (HealthMonitor's POST), goes nowhere before
@@ -178,15 +150,15 @@ namespace Botanik {
          *  The due check gates the whole body, so a component with a period does
          *  not poll its config serial on the beats it sits out either. It never
          *  gates the FIRST step: TaskTimer is always due on its first call, so
-         *  setup() still runs on the first beat whatever the period. */
+         *  setup() runs on the first beat whatever the period. */
         void step(uint64_t now_ms) {
             if (!_timer.due(now_ms, _period_ms, _dt_ms, _missed)) return;
             _timer.ran(now_ms);
-            setup(now_ms);   // idempotent: a no-op once the scheduler has set us up
+            setup(now_ms);   // idempotent: a no-op once the registry set us up
             uint32_t serial = param_serial();
-            // Fire on any change from the applied serial. _applied_serial starts
-            // at 0, so an unset block (serial 0) never fires at boot, but a
-            // config later cleared back to 0 does (a real reconfiguration).
+            // _applied_serial starts at 0, so an unset block (serial 0) never
+            // fires at boot; a config later cleared back to 0 does, being a real
+            // reconfiguration.
             if (serial != _applied_serial) {
                 _applied_serial = serial;
                 on_param_changed(now_ms);
@@ -194,8 +166,8 @@ namespace Botanik {
             on_step(now_ms);
         }
 
-        /** @brief Liveness query polled by reporting / a future scheduler.
-         *  Default true; a component overrides it where it has a real signal. */
+        /** @brief Liveness query polled by reporting. Default true; a component
+         *  overrides it where it has a real signal. */
         virtual bool healthy() const { return true; }
 
         /** @} */
@@ -204,9 +176,8 @@ namespace Botanik {
         /** @name Hooks (implemented by the component)
          *  @{ */
 
-        /** @brief One-shot BOOT/DEBUG announce, run once from step()'s first-call
-         *  block (out-of-line: see component.cpp). Compiled out (bar the flag)
-         *  when DEBUG is undefined. */
+        /** @brief One-shot BOOT/DEBUG announce, run by setup() (out-of-line: see
+         *  component.cpp). Compiled out when DEBUG is undefined. */
         void announce();
 
         /** @brief One-time init, run by setup(). Default: nothing. */

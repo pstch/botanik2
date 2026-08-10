@@ -50,16 +50,11 @@ namespace Botanik { namespace Logs {
         // resume the current message first, yield if still partial
         if (_length > 0 && !_drain_message()) return;
         while (_readIndex != _writeIndex) {
-            // fetch the next log entry
             const Logs::LogEntry* entry = &_queue[_readIndex];
-            // consume the log entry now
             _readIndex = (_readIndex + 1) % Config::LOG_QUEUE_SIZE;
-            // format the message into the outgoing message buffer
             _length = format(entry, _message, Config::LOG_FORMATTED_LEN);
-            // skip unformattable messages, record as failures
-            if (_length == 0) { _failed++; continue; }
-            // yield if not fully sent
-            if (!_drain_message()) return;
+            if (_length == 0) { _failed++; continue; }   // unformattable
+            if (!_drain_message()) return;               // yield, still partial
         }
     }
 
@@ -68,11 +63,8 @@ namespace Botanik { namespace Logs {
 
     // Drain one message; return whether it was fully sent.
     bool BufferedLogWriter::_drain_message() {
-        // try to write more bytes from the message
         _sent += write(&_message[_sent], _length - _sent);
-        // yield if not fully sent
         if (_sent < _length) return false;
-        // reset state if fully sent
         _length = 0; _sent = 0; return true;
     }
 
@@ -85,8 +77,6 @@ namespace Botanik { namespace Logs {
     // Lifecycle
     // ------------------------------------------------------------------------
 
-    // Suppression (drop_if_tty) is decided once: when the output is a tty it shares the
-    // screen with the console UI, so log entries would garble the display.
     SerialLogWriter::SerialLogWriter(BufferedSerial& serial, bool drop_if_tty,
                                      Logger* logger, const char* name) :
         Component(logger, name),
@@ -112,14 +102,12 @@ namespace Botanik { namespace Logs {
     }
 
     size_t SerialLogWriter::format(const Logs::LogEntry* entry, char* buf, size_t len) {
-        // The shared formatter emits no terminator; on a serial sink,
-        // newline-terminate each entry so they don't run together. Format into
-        // len-1 to always leave room.
+        // The shared formatter emits no terminator; newline-terminate each entry
+        // so they do not run together. Format into len-1 to leave the room.
         if (len == 0) return 0;
         size_t written = format_log_entry(entry, buf, len - 1);
-        // A '\n' INSIDE the message is the console's fold marker, and here it
-        // would end the record early - leaving the rest on a line with no
-        // timestamp, level or topic. Fold it so one entry stays one record.
+        // A '\n' inside the message is the console's fold marker and would end
+        // the record early here (@see Logs::fold_newlines).
         written = fold_newlines(buf, written, len - 1);
         buf[written++] = '\n';
         return written;

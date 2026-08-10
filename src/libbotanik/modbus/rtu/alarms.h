@@ -5,12 +5,9 @@
  *  @brief The field bus's own rows, for a site's variable table.
  *
  *  Ordinary rows written with the same factories a site uses, spliced into every
- *  site's table through BOTANIK_LIBRARY_VARS (library_vars.h) - the same route
- *  the platform-health alarms take, and for the same reason: the code that
+ *  site's table through BOTANIK_LIBRARY_VARS (library_vars.h): the code that
  *  raises a row and the declaration of that row belong in one place.
- *
- *  `RtuClient` drives both by name, resolved once at bring-up, exactly as
- *  HealthMonitor drives the platform alarms. There is no second table.
+ *  `RtuClient` drives both by name, resolved once at bring-up.
  */
 
 #include "libbotanik/vars/declare.h"    // the A/SV factories these rows are written with
@@ -18,14 +15,12 @@
 /** @brief The field bus alarm: a device has stopped answering.
  *
  *  Raised when a device has failed its retry and gone into backoff, not on the
- *  first missed answer - one lost frame on an RS-485 run is weather, and an
- *  alarm that fires on it teaches an operator to ignore alarms. The backoff IS
- *  the dwell, so `on_s` is 0.
+ *  first missed answer: one lost frame on an RS-485 run is weather. The backoff
+ *  IS the dwell, so `on_s` is 0.
  *
  *  `off_s` is not: a device that answers one probe and then goes quiet again is
- *  a loose connector, and announcing the recovery instantly would fill the log
- *  with a fault that never really cleared. Five seconds of an answering bus is
- *  the evidence that it came back.
+ *  a loose connector, so five seconds of an answering bus is the evidence that
+ *  it came back.
  *
  *  Register 996: the top of the library's 900-999 reserve, beside the platform
  *  alarms at 990-995. */
@@ -36,11 +31,10 @@
 
 /** @brief How many devices are in backoff right now.
  *
- *  A status value rather than a second alarm: the alarm answers "is the bus
- *  healthy", and an operator's next question is always "how much of it is
- *  gone" - one dead sensor and a whole dead trunk raise the same boolean and
- *  need different people. Published, so it reaches MQTT and a SCADA master
- *  without anyone opening the console.
+ *  A status value rather than a second alarm: the alarm says whether the bus is
+ *  healthy, this says how much of it is gone (one dead sensor and a whole dead
+ *  trunk raise the same boolean and need different people). Published, so it
+ *  reaches MQTT and a SCADA master without anyone opening the console.
  *
  *  Register 902, after the library's two UART-rate parameters. */
 #define BOTANIK_MODBUS_RTU_STATUS_VARS                                         \

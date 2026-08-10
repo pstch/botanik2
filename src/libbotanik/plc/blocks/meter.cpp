@@ -27,9 +27,9 @@ namespace Botanik { namespace Plc {
         _elapsed += dt_ms;
         if (_elapsed == 0 || _elapsed < window_ms) return _rate;
 
-        // One division per window, over the time actually accumulated rather
-        // than the nominal window - a late scan overshoots it, and dividing by
-        // the nominal figure would report a rate that never happened.
+        // Over the time actually accumulated, not the nominal window: a late
+        // scan overshoots it, and the nominal figure would report a rate that
+        // never happened.
         _rate = (quantity - _prev) / seconds(_elapsed);
         _prev = quantity;
         _elapsed = 0;

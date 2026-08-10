@@ -9,17 +9,12 @@
  *
  * Owns the window offset (_top) and the selection cursor (_selected). A subclass
  * supplies only the band geometry (_data_top / _window) and the row count;
- * clamping, follow-scroll, and the DL/IL band shift are shared.
- *
- * The bordered-table chrome is shared too: a full-line draw, an N-column dash
- * rule, a selection-cell inversion, a flexible-column width and the detail-panel
- * line all three tables use. Each page keeps its own row builder (their column
- * sets differ).
+ * clamping, follow-scroll, the DL/IL band shift and the bordered-table chrome
+ * are shared. Each page keeps its own row builder (their column sets differ).
  *
  * Moving the cursor past a window edge scrolls the band through
- * AnsiTerminal::scroll_region(), so the terminal's back-buffer diff repaints just
- * the revealed rows; the subclass's tick() then redraws the table immediate-mode
- * and the diff pares it to the cells that actually moved.
+ * AnsiTerminal::scroll_region(), so only the revealed rows repaint (@ref
+ * dev_screen).
  */
 
 #include <cstdint>                          // uint8_t/uint16_t/int32_t
@@ -43,8 +38,7 @@ namespace Botanik { namespace Pages {
          *  @{ */
 
         /** @brief The console the table lives on: its content geometry, and the
-         *  kill ring Alt+W copies into. Every subclass wanted it anyway and used
-         *  to keep its own reference beside the base's terminal. */
+         *  kill ring Alt+W copies into. */
         Console&      _console;
         /** @brief The VT device the table paints through (_console's). */
         AnsiTerminal& _terminal;
@@ -53,10 +47,8 @@ namespace Botanik { namespace Pages {
         /** @brief Selection cursor: index into the row set (drawn inverted). */
         uint16_t      _selected = 0;
 
-        /** @brief When the Alt+W badge stops being shown, in uptime ms. The
-         *  mode line lends its detail slot for a couple of seconds - a copy is
-         *  otherwise entirely invisible, the table looking exactly as it did
-         *  before the keypress. */
+        /** @brief When the Alt+W badge stops being shown, in uptime ms. The mode
+         *  line lends its detail slot: a copy is otherwise invisible. */
         uint64_t      _copied_until_ms = 0;
         /** @brief The badge text, naming what was copied. Sized for "copied "
          *  plus the longest key cell worth reading back. */
@@ -79,13 +71,9 @@ namespace Botanik { namespace Pages {
 
         /** @brief The selected row's KEY CELL - the one the cursor inverts -
          *  for the Alt+W copy, or null when this table has nothing worth
-         *  copying (the default, and Alt+W then does nothing).
-         *
-         *  What is highlighted is what you get: the name on MONITOR / PARAMS /
-         *  TASKS, the code on ALARMS. Taken from the MODEL rather than scraped
-         *  off the rendered line, which is padded and column-truncated - and a
-         *  name clipped to its column is no use in the `get` it gets pasted
-         *  into. */
+         *  copying (the default, and Alt+W then does nothing). Taken from the
+         *  MODEL, not scraped off the rendered line, which is padded and
+         *  column-truncated. */
         virtual const char* _selected_cell() const { return nullptr; }
 
         /** @} */
@@ -94,8 +82,7 @@ namespace Botanik { namespace Pages {
          *  @{ */
 
         /** @brief Cursor step for PAGE_UP / PAGE_DOWN: half a window (never less
-         *  than one row), so a page jump keeps half the current view on screen for
-         *  context instead of replacing it wholesale. */
+         *  than one row), so a page jump keeps half the view for context. */
         uint16_t _page_step() const {
             uint16_t win = _window();
             return (win > 2) ? (uint16_t)(win / 2) : 1;
@@ -114,10 +101,9 @@ namespace Botanik { namespace Pages {
         void _follow_selection();
 
         /** @brief Handle the standard table nav keys (UP/DOWN, CTRL_P/N,
-         *  PAGE_UP/DOWN, HOME/END), and Alt+W over _selected_cell(). @return
-         *  true if @p cmd was one of them, so the caller can set its dirty flag
-         *  and stop; false leaves the caller to try its own keys (ENTER = edit /
-         *  jump, etc.). */
+         *  PAGE_UP/DOWN, HOME/END), and Alt+W over _selected_cell().
+         *  @return true if @p cmd was one, so the caller marks itself dirty and
+         *  stops; false leaves it to try its own keys. */
         bool _nav_command(Command cmd);
 
         /** @brief How long the Alt+W badge stays on the mode line (ms). */
@@ -140,17 +126,10 @@ namespace Botanik { namespace Pages {
         /** @}
          *  @name View modes
          *
-         *  A table usually has more than one useful view of its rows: the alarms
-         *  filter (recent / all / active / unmasked), the monitor's variable
-         *  groups (all / power / environment / ...). Both are the same thing -
-         *  a small ordered set of named views, one active at a time - so it lives
-         *  here rather than being re-invented per page.
-         *
-         *  Keys: SPACE and RIGHT step forward, LEFT steps back. NOT Shift+SPACE:
-         *  a terminal sends 0x20 for both Space and Shift+Space, so the two are
-         *  indistinguishable on the wire and a "shift to go back" binding would
-         *  simply never fire. LEFT/RIGHT are free (the row cursor uses UP/DOWN)
-         *  and read as "move the view" against "move within it".
+         *  A small ordered set of named views, one active at a time (the alarms
+         *  filter, the monitor's variable groups). SPACE and RIGHT step forward,
+         *  LEFT steps back; NOT Shift+SPACE, which a terminal sends as the same
+         *  0x20 as SPACE.
          *  @{ */
 
         /** @brief Active view. Always < _mode_count() (or 0 when there are none). */
@@ -173,43 +152,20 @@ namespace Botanik { namespace Pages {
         /** @brief Step the view by @p dir, wrapping, and reset the cursor to the
          *  top of the new set.
          *
-         *  Deliberately does NOT blank the band first. The badge already reaches
-         *  the wire ahead of the rows, because the footer row is declared
-         *  PRIO_CHROME and present() walks rows by priority class - so one tick
-         *  after the keypress the new mode is on screen and the table follows
-         *  under the byte budget. Clearing would instead queue a band scroll,
-         *  which present() emits BEFORE the diff and outside that pacing: the
-         *  first frame then carries a table's worth of bytes (measured 320 vs
-         *  106) and data rows land with the badge rather than after it. The
-         *  keypress feels acknowledged because of the priority, not in spite of
-         *  the rows. See the "mode change shows the new mode before the rows"
-         *  case in test_alarms_render.cpp, which pins exactly this. */
+         *  Deliberately does NOT blank the band first: the footer row is
+         *  PRIO_CHROME, so the badge reaches the wire a tick ahead of the rows.
+         *  Clearing would queue a band scroll, which present() emits before the
+         *  diff and outside its pacing: 320 bytes in the first frame against 106.
+         *  Pinned by test_alarms_render.cpp. */
         void _cycle_mode(int dir);
 
         /** @name Mode-line layout
-         *  Fixed columns, so the four fields sit in the same place on every
-         *  table and on every redraw. Free-form padding drifted the moment a
-         *  label changed length, which made the eye re-find the position counter
-         *  each time a group was cycled.
-         *
-         *  The neighbours sit either side of the badge - "prev < [cur] > next" -
-         *  rather than as a hint off on the right. The keys move you along that
-         *  row, so the row is the thing to look at, and it says where you are and
-         *  what is on each side in one glance.
-         *
-         *  The three view fields are CENTRED in equal slots. Their labels are all
-         *  different lengths, so aligning them to an edge left the trio looking
-         *  lopsided and moved the badge - the one thing the eye returns to -
-         *  whenever a neighbour's name changed length. Centring in a fixed slot
-         *  keeps each field in its own region and lets it grow both ways.
-         *
-         *  The slot is sized to the widest field any table actually produces,
-         *  not to the widest a group name could be: "> unmasked" and
-         *  "[unmasked]" are 10, and every group prefix in a real table is
-         *  shorter. A field that overruns its slot is not clipped - it simply
-         *  pushes the ones after it right, so an unusually long group name
-         *  degrades to the ragged spacing the slots exist to avoid rather than
-         *  to lost text.
+         *  Fixed columns, so the fields sit in the same place on every table and
+         *  every redraw. The three view fields ("prev < [cur] > next") are
+         *  CENTRED in equal slots, so a neighbour's name changing length does not
+         *  move the badge. ML_SLOT_W is 11 because the widest field any table
+         *  produces is "> unmasked" / "[unmasked]" at 10. An overrunning field is
+         *  not clipped, it just pushes the ones after it right.
          *  @{ */
         static constexpr uint16_t ML_SLOT_W = 11;   // each view field's slot
         static constexpr uint16_t ML_PREV   = 2;    // previous view
@@ -243,32 +199,21 @@ namespace Botanik { namespace Pages {
          *  of a reverse-video badge naming the active one, how much of the set is
          *  on screen, and @p detail.
          *
-         *  When the page passes a @p group - which it does only in an "all" view,
-         *  where the badge cannot say which group the cursor is in - that takes
-         *  the place of the forward neighbour: in "all" the useful thing to show
-         *  is where you ARE, not where SPACE would take you.
+         *  A @p group (passed only in an "all" view, where the badge cannot say
+         *  which group the cursor is in) replaces the forward neighbour.
          *
-         *  The badge is the only thing that tells an operator the keypress
-         *  landed, since the rows themselves arrive over the following ticks
-         *  under the byte budget. Painted in ONE pass with the badge split out
-         *  rather than drawn normal-then-inverted, which would flicker.
-         *
-         *  The position counter is computed here rather than passed in: _top,
-         *  _window() and _row_count() are the base's own state, so a page could
-         *  only have got it wrong.
-         *
-         *  Pair it with _claim_mode_row(): the line is only fast because its row
-         *  outranks the table. */
+         *  The badge is the only acknowledgement of the keypress, since the rows
+         *  arrive over the following ticks under the byte budget. Painted in ONE
+         *  pass with the badge split out, not normal-then-inverted, which would
+         *  flicker. Pair it with _claim_mode_row(). */
         void _draw_mode_line(uint16_t row, const char* group, const char* detail);
 
         /** @brief Declare @p row as this table's mode line: PRIO_CHROME, so
-         *  present() puts it on the wire ahead of the table rows and the new
-         *  badge shows up the tick after the keypress.
+         *  present() puts it on the wire ahead of the table rows.
          *
-         *  Call it from focus(), not around a draw: the Console hands the content
-         *  band back as plain structure on every page switch, so the claim has to
-         *  be re-made, and it is a standing property of the row rather than
-         *  something raised for one paint. */
+         *  Call it from focus(), not around a draw: a priority is a standing
+         *  property, and the Console hands the content band back as plain
+         *  structure on every page switch. */
         void _claim_mode_row(uint16_t row) {
             _terminal.set_row_priority(row, Terminal::PRIO_CHROME);
         }
@@ -316,11 +261,9 @@ namespace Botanik { namespace Pages {
          *  @name Column model
          *
          *  A subclass declares its columns once (heading + content width, flex
-         *  already resolved) and the base builds the row, the header and the
-         *  rule from that, and derives the screen column each cell's contents
-         *  start at. Before this, each page carried its own snprintf row
-         *  builder plus hand-computed highlight columns that had to be kept in
-         *  step with it by eye.
+         *  already resolved); the base builds the row, the header and the rule
+         *  from that, and derives the screen column each cell's contents start
+         *  at, so the two cannot drift.
          *  @{ */
 
         /** @brief One table column: its heading and its CONTENT width (the
@@ -340,9 +283,8 @@ namespace Botanik { namespace Pages {
 
         /** @brief Whether a cell carries a pad column after its contents, so a
          *  row reads "| a | b |" rather than "| a| b". The alarms grid packs its
-         *  cells (it spends the width on the description instead); the other two
-         *  pad. A per-table property, not a preference - it sets the cell pitch
-         *  every derived column position falls out of. */
+         *  cells (the width goes to its flexible column); the other two pad. It
+         *  sets the cell pitch every derived column position falls out of. */
         virtual bool _pad_cells() const { return true; }
 
         /** @brief Columns one cell occupies on screen: "| " + contents + any
@@ -352,8 +294,7 @@ namespace Botanik { namespace Pages {
         }
 
         /** @brief Screen column where column @p i's CONTENTS start - what a
-         *  selection cursor or an in-cell badge inverts from. Derived from the
-         *  same spec that builds the row, so the two cannot drift. */
+         *  selection cursor or an in-cell badge inverts from. */
         uint16_t _cell_col(uint8_t i) const;
 
         /** @brief One past the last column of column @p i's contents. */
@@ -377,23 +318,18 @@ namespace Botanik { namespace Pages {
         uint16_t _flex_width(uint16_t used, uint16_t cap) const;
 
         /** @brief A full-width dashed separator, for a page that puts a detail
-         *  panel under its table. Chrome, so it lives here beside _draw_rule()
-         *  and _panel_field() rather than being re-derived per page. */
+         *  panel under its table. */
         void _draw_separator(uint16_t row);
 
         /** @brief " Label        : value" panel line (clear_to_eol wipes the old
          *  value's tail when the selection moves to a shorter one). The label
-         *  field is 12 wide because that is the longest label any panel uses
-         *  ("Acknowledged"); a longer one would shove its own colon right and
-         *  break the column the panels share. */
+         *  field is 12 wide, the longest label any panel uses ("Acknowledged");
+         *  a longer one shoves its colon out of the column the panels share. */
         void _panel_field(uint16_t row, const char* label, const char* value);
 
         /** @brief Pad @p buf out to column @p col, then append
-         *  "label<pad to lw> : value". Returns the new width.
-         *
-         *  The one piece of column arithmetic the multi-field panel rows share,
-         *  so a row with two fields and a row with three lay their columns out
-         *  the same way rather than each getting it slightly wrong. */
+         *  "label<pad to lw> : value". Returns the new width. Shared by every
+         *  multi-field panel row, so they all lay out the same way. */
         static uint16_t _panel_cell(char* buf, size_t cap, uint16_t w,
                                     uint16_t col, uint8_t lw,
                                     const char* label, const char* value) {
@@ -406,8 +342,8 @@ namespace Botanik { namespace Pages {
         }
 
         /** @brief Two panel fields on one row, for a pair that reads naturally
-         *  side by side (a min/max band). Each row a panel spends is a row the
-         *  table loses, so a pair that is really one fact should cost one. */
+         *  side by side (a min/max band): each row a panel spends is a row the
+         *  table loses. */
         void _panel_field2(uint16_t row, const char* l1, const char* v1,
                            uint16_t col2, const char* l2, const char* v2) {
             char buf[Config::TABLE_LINE_LEN];
@@ -416,11 +352,10 @@ namespace Botanik { namespace Pages {
             _draw_line(row, buf, w);
         }
 
-        /** @brief Three panel fields on one row. The third gets a narrower label
+        /** @brief Three panel fields on one row. The third gets an 8-wide label
          *  field: two 12-wide labels and their values already reach column 60,
-         *  and the point of putting a third fact here rather than on its own row
-         *  is that the row is free - so it has to fit in what is left, not push
-         *  the first two out of the column the other panels share. */
+         *  so it has to fit in what is left rather than push the first two out
+         *  of the column the other panels share. */
         void _panel_field3(uint16_t row, const char* l1, const char* v1,
                            uint16_t col2, const char* l2, const char* v2,
                            uint16_t col3, const char* l3, const char* v3) {

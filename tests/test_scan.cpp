@@ -2,8 +2,7 @@
  * @file test_scan.cpp
  * @brief The scan cycle: the driver, its programs' IO binding, and Component announce.
  *
- * Each section below is the former test_<name>.cpp, kept in its own
- * namespace so their fixtures and helpers cannot collide.
+ * Each section is its own namespace, isolating fixtures and helpers.
  */
 
 #include <cstddef>                  // size_t
@@ -34,9 +33,8 @@ using namespace Botanik::Scan;
 namespace {
     struct Rec { uint32_t dt; uint16_t missed; uint64_t now; };
 
-    /** @brief A program that records every activation. Its state is its own -
-     *  which is the point of the base class - so a test case owns its
-     *  recording instead of sharing a file static with every other case. */
+    /** @brief A program that records every activation; its state is its
+     *  own, so a case owns its recording instead of sharing a file static. */
     class Recorder : public Program {
     public:
         std::vector<Rec> runs_seen;
@@ -68,8 +66,7 @@ TEST_CASE("scan: each program runs at its own rate") {
     Driver d(progs, 2, &f.io);
     for (uint64_t t = 0; t <= 2000; t += 10) d.step(t);
 
-    // ~20 fast runs per 2 s, ~2 slow. Exact counts depend on the first-run
-    // seeding, so assert the ratio holds rather than pinning both.
+    // ~20 fast runs per 2 s, ~2 slow; assert the ratio, not exact counts.
     CHECK(fast.runs_seen.size() >= 19);
     CHECK(fast.runs_seen.size() <= 21);
     CHECK(slow.runs_seen.size() >= 2);
@@ -115,8 +112,7 @@ TEST_CASE("scan: bind runs once, before the first activation") {
 }
 
 TEST_CASE("scan: same-period programs are spread across beats, not piled up") {
-    // Two programs at one rate: without the stagger they would share every beat
-    // forever, which is what puts the peak work per beat back where it started.
+    // Without the stagger, two same-rate programs would share every beat forever.
     Recorder a("a", 100), b("b", 100);
     Program* const progs[] = { &a, &b };
     Live f;
@@ -126,8 +122,7 @@ TEST_CASE("scan: same-period programs are spread across beats, not piled up") {
     // Both ran at their declared rate...
     CHECK(a.runs_seen.size() >= 9);
     CHECK(b.runs_seen.size() >= 9);
-    // ...but only ever together on the first beat, which is unavoidable: a
-    // program's first activation is what seeds its timer.
+    // ...but only ever together on the first beat - unavoidable, since that's what seeds each timer.
     size_t shared = 0;
     for (size_t i = 0; i < a.runs_seen.size(); i++)
         for (size_t j = 0; j < b.runs_seen.size(); j++)
@@ -172,9 +167,7 @@ TEST_CASE("scan: control being withdrawn resets the programs, once") {
     f.io.disable_control(Bank::INHIBIT_OPERATOR);
     for (uint64_t t = 10; t <= 500; t += 10) d.step(t);
 
-    // On the withdrawal edge, not on every beat it stays withdrawn: from here
-    // the process moves without us, and what a program remembered about the
-    // field is stale.
+    // On the withdrawal edge only: the process moves without us from here, and what a program remembered is stale.
     CHECK(fast.resets == 1);
 }
 
@@ -195,9 +188,8 @@ TEST_CASE("scan: control returning does not hand a program the whole outage") {
     d.step(60110);
 
     REQUIRE(fast.runs_seen.size() == 1);
-    // The nominal period, NOT the 60 s outage. A Ton holding 5 s handed an hour
-    // of dt fires the moment control returns, which is what a withdrawal exists
-    // to prevent.
+    // The nominal period, NOT the 60 s outage - a Ton holding 5 s handed an
+    // hour of dt fires the moment control returns, which withdrawal prevents.
     CHECK(fast.runs_seen[0].dt == 100);
     CHECK(fast.runs_seen[0].missed == 0);
 }
@@ -239,8 +231,8 @@ struct Live {
     VarRef ref(const char* name) { return bank.find(name); }
 };
 
-/** @brief A sink that counts criticals and keeps the last, so a test can ask
- *  whether the driver said something and how often. */
+/** @brief A sink that counts criticals and keeps the last, so a test can
+ *  check what the driver said and how often. */
 class Criticals : public Logs::LogWriter {
 public:
     int  seen = 0;
@@ -257,8 +249,8 @@ protected:
     size_t format(const Logs::LogEntry*, char*, size_t) override { return 0; }
 };
 
-/** @brief A program that drives one named row every beat. Two of them pointed
- *  at the same row is the design defect WP-3 exists to notice. */
+/** @brief Drives one named row every beat; two on the same row is the
+ *  design defect WP-3 exists to notice. */
 class Drives : public Plc::Program {
     VarRef      _r = { VAR_NONE };
     const char* _row;
@@ -269,8 +261,7 @@ protected:
     void run(Plc::Context& c) override { c.io.set(_r, 1.0f); }
 };
 
-/** @brief Appends its own name to a shared log when it runs, so a case can ask
- *  what ran in what order. */
+/** @brief Appends its name to a shared log when it runs, so a case can check order. */
 class Ordered : public Plc::Program {
     std::vector<std::string>* _log;
 public:
@@ -280,8 +271,8 @@ protected:
     void run(Plc::Context&) override { _log->push_back(name()); }
 };
 
-/** @brief Reads one row and writes another, so a pair of them can show whether
- *  the second saw what the first wrote IN THE SAME BEAT. */
+/** @brief Reads one row and writes another, showing whether the second saw
+ *  the first's write IN THE SAME BEAT. */
 class Relay : public Plc::Program {
     VarRef      _in = { VAR_NONE }, _out = { VAR_NONE };
     const char* _from;
@@ -314,16 +305,12 @@ protected:
 }  // namespace
 
 TEST_CASE("plc io: it stays small enough to pass by value") {
-    // The Context is built per activation, so this is per program per beat. A
-    // pointer plus the writer byte: one word on the M7, where the byte lands in
-    // padding that was already there.
+    // Built per activation: a pointer plus the writer byte, one word on the M7.
     CHECK(sizeof(Io) <= 2 * sizeof(void*));
 }
 
 TEST_CASE("plc io: a program reads what the operator forced, not what the wire said") {
-    // The whole point of applying an override in Var::raw(): a forced reading
-    // has to reach control logic, or forcing one proves nothing about the logic
-    // that watches it.
+    // The point of applying an override in Var::raw(): a forced reading must reach control logic.
     Live f;
     Io io(f.bank);
     const VarRef r = f.ref("cli_temp_ext1");
@@ -346,15 +333,13 @@ TEST_CASE("plc io: a program reads what the operator forced, not what the wire s
 }
 
 TEST_CASE("plc io: an invalid row reads as its declared default") {
-    // So logic that does not care about quality still gets a sane number
-    // instead of whatever was in the slot.
+    // So logic that doesn't care about quality still gets a sane number, not the slot's leftover.
     Live f;
     Io io(f.bank);
     const VarRef r = f.ref("cli_temp_ext1");
 
-    // Q_REFUSED, not Q_STALE: a stale row KEEPS its last reading now, and this
-    // row has never been published, so asserting the fallback through Q_STALE
-    // would pass on the coincidence that the slot still holds the default.
+    // Q_REFUSED, not Q_STALE: a stale row keeps its last reading, and this
+    // row was never published - Q_STALE would pass only by coincidence.
     f.bank.var(r).publish(from_f32(T_F32, 33.0f), 1000);
     f.bank.var(r).invalidate(Q_REFUSED);
     CHECK_FALSE(io.valid(r));
@@ -396,15 +381,13 @@ TEST_CASE("plc io: a row remembers which program drives it") {
     one.set(r, 1.0f);
     CHECK(f.bank.writer_of(r) == 3);
 
-    // The same program writing again, every beat, is the ordinary case and
-    // must stay silent.
+    // The same program writing again every beat is the ordinary case and must stay silent.
     for (int i = 0; i < 10; ++i) one.set(r, 2.0f);
     CHECK(f.bank.writer_conflicts() == 0);
 }
 
 TEST_CASE("plc io: a second program on one row is counted, and the write stands") {
-    // Two authors is a defect in the site's design: the row gets whichever ran
-    // last in the beat, so it chatters at the scan rate while both insist.
+    // Two authors is a site design defect: the row gets whichever ran last, chattering at the scan rate.
     Live f;
     Io one(f.bank, 1), two(f.bank, 2);
     const VarRef r = f.ref("cli_temp_ext1");
@@ -420,14 +403,11 @@ TEST_CASE("plc io: a second program on one row is counted, and the write stands"
          "losing program had got to");
     CHECK(f.bank.var(r).value() == doctest::Approx(20.0f));
 
-    // Both keep writing every beat, each taking the row from the other. The
-    // count is ROWS with two authors, so it settles at one instead of climbing
-    // forever - which is what lets the driver report the defect once.
+    // Both keep writing every beat, taking the row from each other; the count settles at one.
     for (int i = 0; i < 50; ++i) { one.set(r, 10.0f); two.set(r, 20.0f); }
     CHECK(f.bank.writer_conflicts() == 1);
 
-    // A THIRD author is the same bad row, not a new one - but the row still
-    // reports whoever wrote it last, rather than freezing on the first claimant.
+    // A THIRD author is the same bad row; it still reports whoever wrote it last.
     Io three(f.bank, 3);
     three.set(r, 30.0f);
     CHECK(f.bank.writer_conflicts() == 1);
@@ -441,9 +421,7 @@ TEST_CASE("plc io: a second program on one row is counted, and the write stands"
 }
 
 TEST_CASE("scan: two programs on one row is named once, not every beat") {
-    // The driver is the only thing that can turn a writer index back into a
-    // program name, which is why the report lives there and the counting in
-    // the bank.
+    // Only the driver can turn a writer index back into a program name.
     Live f;
     Logs::Logger logger;
     Criticals sink;
@@ -465,9 +443,7 @@ TEST_CASE("scan: two programs on one row is named once, not every beat") {
 }
 
 TEST_CASE("scan: a program starved of beats is late, and named") {
-    // Lateness is against the PROGRAM's own period, so one threshold serves
-    // every rate. Here the driver is simply not stepped for a while, which is
-    // what an overrunning beat looks like from a program's point of view.
+    // Lateness is against the PROGRAM's own period; not stepping the driver is what an overrunning beat looks like.
     Live f;
     Drives slow("prog_slow", "cli_temp_ext1");
     slow.set_period(100);
@@ -487,8 +463,7 @@ TEST_CASE("scan: a program starved of beats is late, and named") {
     INFO("the row is driven; the alarm's own dwell decides if it annunciates");
     CHECK(f.bank.var(late).b());
 
-    // Back on schedule, and the row clears - the peak is kept, because that is
-    // the number worth keeping.
+    // Back on schedule, and the row clears - the peak is kept, since that's the number worth keeping.
     d.step(1100);
     CHECK(d.late_ms() == 0);
     CHECK_FALSE(f.bank.var(late).b());
@@ -496,8 +471,7 @@ TEST_CASE("scan: a program starved of beats is late, and named") {
 }
 
 TEST_CASE("scan: an every-beat program is never reported late") {
-    // Period 0 is due every beat and has no nominal to be late against, so it
-    // must not raise the alarm just because the beat itself slipped.
+    // Period 0 has no nominal to be late against, so it must not alarm just because the beat slipped.
     Live f;
     Drives every("prog_every", "cli_temp_ext1");
     Plc::Program* const progs[] = { &every };
@@ -528,8 +502,7 @@ TEST_CASE("scan: the first activation says so, and only the first") {
 }
 
 TEST_CASE("scan: control coming back is a first scan again") {
-    // The process moved without us, so the previous activation describes a
-    // plant that no longer exists - which is the same situation bring-up is in.
+    // The process moved without us: the previous activation describes a plant that no longer exists.
     Live f;
     Lifecycle p("p", 0);
     Plc::Program* const progs[] = { &p };
@@ -560,10 +533,7 @@ TEST_CASE("scan: control coming back is a first scan again") {
 }
 
 TEST_CASE("scan: bring-up is itself a resume, and reset is not called for it") {
-    // Control starts withheld and is granted before the first beat, so the
-    // return edge fires at bring-up too. That is correct rather than incidental:
-    // at bring-up a program knows no more about the plant than it does after an
-    // outage, and a program that re-datums an actuator wants to do it in both.
+    // Control starts withheld, granted before the first beat, so the return edge fires at bring-up too.
     Live f;
     Lifecycle p("p", 0);
     Plc::Program* const progs[] = { &p };
@@ -577,10 +547,7 @@ TEST_CASE("scan: bring-up is itself a resume, and reset is not called for it") {
 }
 
 TEST_CASE("scan: table order is execution order") {
-    // A site orders its programs on purpose - a law that computes a setpoint
-    // before the law that acts on it - and nothing else in the firmware says so.
-    // Not alphabetical, not by period, not by when they were constructed: the
-    // order the site wrote them in.
+    // A site orders its programs on purpose (a setpoint law before the acting law) - as written.
     Live f;
     std::vector<std::string> ran;
     Ordered a("zulu",  &ran);
@@ -599,9 +566,7 @@ TEST_CASE("scan: table order is execution order") {
 }
 
 TEST_CASE("scan: a later program sees what an earlier one wrote this beat") {
-    // Which is WHY the order is a contract rather than an accident: the image
-    // mutates between phases, not under a running program, so a chain within
-    // one beat is exactly as long as the table says it is.
+    // Why order is a contract: the image mutates between phases, so a chain spans exactly as many beats as the table says.
     Live f;
     const VarRef src = f.ref("cli_temp_ext1");
     const VarRef mid = f.ref("cli_temp_ext2");
@@ -637,9 +602,7 @@ TEST_CASE("scan: a later program sees what an earlier one wrote this beat") {
 }
 
 TEST_CASE("scan: a computed row can be traced back to the program that wrote it") {
-    // What the MONITOR page's Mapping field turns into "computed (prog_a)".
-    // The page only formats; this is the path it formats - writer_of() gives the
-    // index, the driver turns it into a name, and neither is much use alone.
+    // What MONITOR's Mapping shows as "computed (prog_a)": writer_of() + driver name lookup.
     Live f;
     Drives a("prog_a", "cli_temp_ext1");
     Drives b("prog_b", "cli_temp_ext2");

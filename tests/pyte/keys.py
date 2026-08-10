@@ -11,11 +11,9 @@ ESC = b"\x1b"
 ENTER = b"\r"
 SHIFT_ENTER = ESC + b"\n"
 
-# Page switch: Alt+digit. ALT_1 -> page 0 (HOME), ALT_2 -> SHELL, ALT_3 -> LOGS,
-# ALT_4 -> ALARMS, ALT_5 -> PARAMS, ALT_6 -> MONITOR, ALT_7 -> TASKS,
-# ALT_8 -> NOTES (terminal.cpp routes ALT_n to switch_to(n-1)). STATUS was
-# removed from the tab order. The full set is named even though the tests reach
-# only some of them, so a page's key is here when a test for it arrives.
+# Page switch: Alt+digit, routed as switch_to(n-1). ALT_1 -> HOME, ALT_2 ->
+# SHELL, ALT_3 -> LOGS, ALT_4 -> ALARMS, ALT_5 -> PARAMS, ALT_6 -> MONITOR,
+# ALT_7 -> TASKS, ALT_8 -> NOTES. All named, even the ones no test reaches yet.
 ALT_1 = ESC + b"1"
 ALT_2 = ESC + b"2"
 ALT_3 = ESC + b"3"

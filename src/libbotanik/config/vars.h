@@ -10,8 +10,7 @@
 
 #include "libbotanik/config/base.h"       // the BOTANIK_FEATURE_* gates
 
-// Defined and undefined per file rather than in base.h: base.h is guarded,
-// so a second include of it would not restore a macro this file undefined.
+// Defined and undefined per file, not in base.h: see base.h.
 #define BOTANIK_CFG(type, name) static constexpr type name = BOTANIK_##name
 
 namespace Botanik { namespace Config {
@@ -54,16 +53,12 @@ namespace Botanik { namespace Config {
     /** @brief How often the F_RETAIN rows are written to storage, in ms. 0
      *  turns the cadence off, leaving only the save on the way down.
      *
-     *  This is a wear-versus-loss dial and there is no free setting. A totalizer
-     *  moves every beat, so writing through would be a flash erase every 10 ms;
-     *  writing every five minutes costs about 300 erases a day per row and
+     *  A wear-versus-loss dial: writing a totalizer through would be a flash
+     *  erase every beat, while five minutes costs ~300 erases a day per row and
      *  bounds an unexpected power cut to five minutes of lost counting. A
-     *  DELIBERATE stop loses nothing either way, because the shutdown path
-     *  writes them out itself.
-     *
-     *  Five minutes is the default because the rows this is for - litres, hours
-     *  run - are read by people in days and weeks. A site counting something
-     *  that matters by the minute should say so here. */
+     *  DELIBERATE stop loses nothing either way (the shutdown path writes them
+     *  out). Five minutes because these rows - litres, hours run - are read in
+     *  days and weeks; a site counting by the minute should say so here. */
 #ifndef BOTANIK_RETAIN_SAVE_MS
 #  define BOTANIK_RETAIN_SAVE_MS 300000
 #endif

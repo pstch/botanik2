@@ -8,25 +8,17 @@
  *
  * The low-level half of the console. Renderers (pages, editor, bars) draw
  * immediate-mode through the usual ops (move_to / write_chars / set_inverted /
- * clear_to_eol / scroll_region ...); those ops paint into an in-memory FRONT
- * cell grid rather than the wire. Once per tick the Console calls present(),
- * which diffs FRONT against BACK (what is on the wire), emits the minimal ANSI
- * to reconcile them - paced under the tick's byte budget - and copies the
- * emitted cells into BACK. Renderers therefore keep no "what did I draw" shadow
- * of their own: redrawing an unchanged cell costs nothing because the diff drops
- * it. The Console (console.h) composes one of these and drives page
- * multiplexing, the status/alarm bars, and the per-tick step().
+ * scroll_region ...), which paint into an in-memory FRONT cell grid. Once a tick
+ * the Console calls present(): it diffs FRONT against BACK (the wire), emits the
+ * minimal ANSI to reconcile them under that tick's byte budget, and copies the
+ * emitted cells into BACK. Renderers keep no shadow of their own - redrawing an
+ * unchanged cell costs nothing.
  *
- * This intermediate buffering is load-bearing, not an optimization. It is what
- * lets every page (config/monitor/alarms/home) redraw its whole content
- * immediate-mode each tick - full tables, detail panels, selection cursors,
- * watch-style value highlights - while the wire only ever sees the handful of
- * cells that actually moved. Over the low-bandwidth serial link that "redraw
- * everything, let the diff pare it" pattern is only affordable because of this
- * back-buffer, so the pages are written against it deliberately and must not be
- * rewritten to track their own dirty regions or diff by hand. The one measured
- * exception is the line editor, which reconciles its own row (docs/
- * dev/editor.md); see also docs/dev/screen.md.
+ * The back-buffer is load-bearing, not an optimization: it is what makes "redraw
+ * everything each tick, let the diff pare it" affordable over the serial link.
+ * Pages must NOT track their own dirty regions or diff by hand. The one measured
+ * exception is the line editor, which reconciles its own rows (@ref dev_editor).
+ * See @ref dev_screen.
  */
 
 #include <cstdint>                      // uint8_t/uint16_t/uint64_t
@@ -41,19 +33,16 @@ namespace Botanik { namespace Terminal {
     /** @brief How urgently a row's changes want the wire, when a tick's byte
      *  budget cannot carry all of them. Lower goes first.
      *
-     *  This is the whole priority mechanism: present() walks rows in this order,
-     *  so an exhausted budget drops the least important rows rather than whatever
-     *  sat lowest on screen. There is no queue - a row that misses a tick simply
-     *  still differs from the back-buffer on the next one, so nothing is lost,
-     *  reordered or coalesced. That is what the back-buffer buys here. */
+     *  present() walks rows in this order, so an exhausted budget drops the least
+     *  important rows rather than whatever sat lowest. No queue: a row that
+     *  misses a tick still differs from the back-buffer on the next one. */
     enum RowPriority : uint8_t {
         PRIO_INPUT  = 0,  /**< Keystroke echo and the edit point: must feel instant. */
-        PRIO_CHROME = 1,  /**< The frame around the page - the status bar and the
-                           *   alarm strip. It outranks the page because a frame
-                           *   arriving after what it frames reads as a fault, and
-                           *   the alarm bar is the bottom row, so top-down order
-                           *   alone would put it behind every page row. A standing
-                           *   property, not a claim raised around a draw. */
+        PRIO_CHROME = 1,  /**< The frame around the page (status bar, alarm strip).
+                           *   It outranks the page because a frame arriving after
+                           *   what it frames reads as a fault, and the alarm bar is
+                           *   the bottom row, so top-down order alone would put it
+                           *   behind every page row. */
         PRIO_STRUCT = 2,  /**< Page structure and fresh content: drawn once, and a
                            *   page that only half-arrives looks broken. Also the
                            *   resting class of every row nobody has claimed. */
@@ -123,17 +112,14 @@ namespace Botanik { namespace Terminal {
         uint8_t       _nscrolls = 0;
 
         /** @brief Per-row priority class, the order present() reconciles rows in.
-         *  A standing property of the row, set by whoever owns it - not something
-         *  a renderer raises and lowers around a draw. Filled by the constructor
-         *  (a brace-initialiser would set only the first row and leave the rest at
-         *  0, which is PRIO_INPUT). */
+         *  Filled by the constructor: a brace-initialiser would set only the first
+         *  row and leave the rest at 0, which is PRIO_INPUT. */
         uint8_t _row_prio[GRID_ROWS];
 
         /** @brief Per class, the row present() resumes its scan at - wherever the
          *  tick's budget ran out. The walk only ever runs downward from there and
          *  starts a fresh pass at the top once the class is drained, so what
-         *  reaches the wire in a tick is always in row order. A byte a class
-         *  (rows are bounded by GRID_ROWS), and no queue. */
+         *  reaches the wire in a tick is always in row order. */
         uint8_t _resume[PRIO_COUNT] = { 0 };
 
         /** @}
@@ -199,10 +185,9 @@ namespace Botanik { namespace Terminal {
         /** @brief Reconcile @p row as a horizontal shift (SM4/RM4 insert or DCH)
          *  when its cells merely slid sideways, which the per-cell diff would
          *  otherwise rewrite in full. @return bytes emitted, 0 if not applicable
-         *  or not cheaper than a rewrite. Sets @p defer when the shift applies
-         *  and only the tick's budget (or the ring) stood in its way: the row is
-         *  then owed the next tick rather than the full rewrite it would fall
-         *  through to. */
+         *  or not cheaper than a rewrite. Sets @p defer when only the tick's
+         *  budget (or the ring) stood in the shift's way: the row is then owed
+         *  the next tick rather than the full rewrite it would fall through to. */
         uint16_t _shift_row(uint16_t row, uint16_t budget, bool& defer);
         /** @brief Smallest changed span worth expressing as a shift, and the
          *  widest slide still plausibly a slide rather than new content. */
@@ -282,30 +267,26 @@ namespace Botanik { namespace Terminal {
         /** @brief Re-derive the per-render TX budget for a link now running at
          *  @p baud.
          *
-         *  The budget and the wire have to agree, which is the whole reason this
-         *  exists rather than the rate being set on the UART alone: retuning the
-         *  UART without this would leave the renderer pacing for a rate the wire
-         *  no longer runs at - too slow and the screen crawls, too fast and the
-         *  ring overflows into a torn write. So whoever changes one changes both,
-         *  and BotanikFirmware does exactly that from `serial_console_baud`. */
+         *  The budget and the wire must agree: pacing for a rate the wire no
+         *  longer runs at either crawls or overflows the ring into a torn write.
+         *  Whoever retunes the UART calls this too (BotanikFirmware does, from
+         *  `serial_console_baud`). */
         void set_baud(uint32_t baud) {
             _tx_cold_depth = depth_for_baud(baud, Config::TX_COLD_TARGET_MS);
         }
 
         /** @brief Classify rows [@p top, @p bottom] for present()'s emit order.
-         *  A row's class says what kind of thing lives there, so it is declared
-         *  once by whoever owns the row - the Console resets the content band on a
-         *  page switch and the incoming page declares its own in focus(). The
-         *  default is PRIO_STRUCT. */
+         *  A class is a standing property, declared once by whoever owns the row:
+         *  the Console resets the content band on a page switch, and the incoming
+         *  page declares its own in focus(). Default PRIO_STRUCT. */
         void set_row_priority(uint16_t top, uint16_t bottom, RowPriority prio);
         void set_row_priority(uint16_t row, RowPriority prio) {
             set_row_priority(row, row, prio);
         }
 
         /** @brief Send present()'s row walk back to the top of every class.
-         *  Call it when the content changed as an ordered whole - a band scroll,
-         *  a page switch, a full repaint - so the rows reach the wire in the
-         *  order they read in. Without it a walk parked mid-screen by the
+         *  Call it when the content changed as an ordered whole (a band scroll,
+         *  a page switch, a full repaint), or a walk parked mid-screen by the
          *  previous frame decides where the next one starts painting.
          *  scroll_region() and establish_screen() call it themselves. */
         void restart_scan();

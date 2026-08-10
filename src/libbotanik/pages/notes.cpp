@@ -44,9 +44,9 @@ namespace Botanik { namespace Pages {
             case Command::ALT_B:       _editor.move_word_left();           break;
             case Command::ALT_F:       _editor.move_word_right();          break;
 
-            // Cut and paste, over the console-wide ring: a line cut here can
-            // be yanked at the shell prompt and the other way about. Bound
-            // although they delete, because CTRL_Y brings the text back.
+            // Cut and paste over the console-wide ring: a line cut here yanks
+            // at the shell prompt and back. Safe to bind despite deleting,
+            // since CTRL_Y restores.
             case Command::CTRL_K:      _editor.kill_to_line_end();         break;
             case Command::CTRL_Y:      _editor.yank();                     break;
 
@@ -58,10 +58,9 @@ namespace Botanik { namespace Pages {
 
             case Command::CTRL_O:      _save();                            break;
 
-            // Deliberately unbound: CTRL_U clears the buffer in the shell,
-            // which on a page whose whole content is the buffer is a
-            // keystroke away from losing the lot - and unlike the kills above,
-            // nothing puts it back.
+            // CTRL_U is deliberately unbound: it clears the buffer in the
+            // shell, and here the buffer IS the note, with nothing to put it
+            // back (unlike the kills above).
             default: break;
         }
         _settle();

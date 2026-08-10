@@ -10,11 +10,11 @@
  * The components look their values up BY NAME, so this only has to declare the
  * same names - not the same layout, and not the site's whole table.
  *
- * @warning That makes the SPELLING load-bearing and unchecked. A name that does
+ * @warning That makes the SPELLING load-bearing and unchecked: a name that does
  * not match what the component reads resolves to the inert sink and reads 0, so
- * the component sits idle and a test asserting it did nothing passes without
- * ever reaching the code under test. The names below are the library's own, in
- * `library_vars.h`; keep them in step with it, not with this file's history.
+ * a test asserting the component did nothing passes without ever reaching the
+ * code under test. The names below are the library's own - keep them in step
+ * with `library_vars.h`.
  */
 
 #include <cstdint>                      // uint16_t
@@ -44,9 +44,8 @@ namespace botanik_test {
                 FX_NUM("ntp_poll_sec", T_U16, 64), FX_STR("ntp_srv1", CAP),
                 FX_NUM("mqtt_serial", T_U32, 0), FX_NUM("mqtt_enable", T_BOOL, 1),
                 FX_NUM("mqtt_port", T_U16, 1883), FX_STR("mqtt_host", 2 * CAP),
-                // Names must match the site's (src/sites/*/vars.h) and therefore
-                // what SunPositionTracker looks up: a miss resolves to the inert
-                // sink and reads 0, which silently puts the site on the equator.
+                // A miss here reads 0, which silently puts the site on the
+                // equator. See the @warning above.
                 FX_NUM("geo_serial", T_U32, 0), FX_F32("geo_lat_deg"), FX_F32("geo_lon_deg"),
             };
             *n = (uint16_t)(sizeof(v) / sizeof(v[0]));
@@ -95,8 +94,7 @@ namespace botanik_test {
         }
         /** @} */
 
-        /** @brief No-op: edits take effect immediately. Kept so the tests read
-         *  the way they did against the old fixture. */
+        /** @brief No-op: edits take effect immediately. */
         void publish() {}
     };
 

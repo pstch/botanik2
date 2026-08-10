@@ -5,44 +5,20 @@
  * @file modbus/rtu/plan.h
  * @brief What the bus costs, and the blocks the variable table turns into.
  *
- * @section plan_why Transactions are the scarce resource, registers are nearly free
+ * Transactions are the scarce resource and registers are nearly free: at 19200
+ * with a 10 ms turnaround a transaction costs about 19.4 ms before it carries
+ * anything, and each register adds about 1.1 ms. So read in bulk, and merge
+ * across a gap up to the point where the skipped registers cost a transaction's
+ * worth of bytes (merge_gap()). The static_asserts at the bottom pin this
+ * arithmetic to the figures published in docs/design/modbus-budget.md.
  *
- * An RTU transaction is dominated by things that do not depend on how much it
- * carries: the inter-frame silence, the bytes of header, and above all the
- * slave's own thinking time, which the link speed does not touch at all. At
- * 19200 with a 10 ms turnaround a transaction costs about 19.4 ms before it has
- * carried anything, and each additional register costs about 1.1 ms. A register
- * is therefore a SEVENTEENTH of a transaction.
+ * A poll period comes from the row's own staleness timeout: a group polled
+ * slower than a third of its @c timeout_ms flaps between valid and stale
+ * forever, so the period is @c timeout_ms/3 floored onto a short fixed ladder.
+ * The ladder is what bounds the plan at devices x function codes x rungs.
  *
- * Two consequences, and the whole planner follows from them:
- *
- *  - Read in bulk or not at all. The reference site's grid meter is 150
- *    registers: two bulk reads take 211 ms, and 150 single-register reads take
- *    3.09 seconds. That is not an optimisation, it is the difference between a
- *    working bus and a broken one.
- *  - Read registers nobody wants. Merging across a gap is cheaper than issuing a
- *    second transaction, right up to the point where the skipped registers cost
- *    a transaction's worth of bytes. That break-even is merge_gap(), and it is
- *    17 registers at 19200.
- *
- * The numbers are worked out in full in docs/design/modbus-budget.md. The
- * arithmetic here reproduces that page, and the static_asserts at the bottom pin
- * it to the published figures so the two cannot drift apart.
- *
- * @section plan_ladder Where a poll period comes from
- *
- * Nowhere new. Every ROLE_INPUT row already declares @c timeout_ms - how long
- * its reading stays good - and the relationship between the two is fixed: a
- * group polled slower than a third of its timeout flaps between valid and stale
- * forever. So the period is @c timeout_ms/3, floored onto a short fixed ladder.
- *
- * The ladder is what keeps the plan bounded. Without it every distinct timeout
- * in the table would invent its own group, and the block count would be a
- * property of how carefully a site rounded its numbers. With it, the count is
- * at most devices x function codes x rungs.
- *
- * Everything here is integer. No floats reach the bus arithmetic, which keeps it
- * `constexpr` and keeps the M4's missing double FPU out of the discussion.
+ * Everything here is integer, which keeps it `constexpr` and keeps the M4's
+ * missing double FPU out of the discussion.
  */
 
 #include <cstdint>
@@ -183,10 +159,7 @@ namespace Botanik { namespace Modbus {
          *
          *  Health is per device and the client asks about it per block, so
          *  without this every block costs a linear scan of the peers on every
-         *  beat. The planner already groups rows by device, so it is free here
-         *  and there is one fewer array to keep in step - and one fewer array to
-         *  silently overflow, which is what the client's own peer table did at
-         *  the ninth device on an eight-device cap. */
+         *  beat. The planner already groups rows by device, so it is free here. */
         uint8_t  peer;
     };
 
@@ -194,15 +167,13 @@ namespace Botanik { namespace Modbus {
      * @brief Turns the variable table into blocks, once, at bring-up.
      *
      * Nothing here talks to a bus, a clock or a serial port; it reads a
-     * Vars::Bank and produces an array. The plan is DERIVED, which is the whole
-     * point: there is no second copy of the register map for a site to keep in
-     * step with its own table, and inserting a row re-plans rather than
-     * renumbering anything.
+     * Vars::Bank and produces an array. The plan is DERIVED, so there is no
+     * second copy of the register map to keep in step and inserting a row
+     * re-plans rather than renumbering anything.
      *
-     * Overflow is counted, not logged, because this layer has no logger and
-     * should not grow one. The owner reports rows_dropped() and rows_unscanned()
-     * at bring-up; both are zero on a sane table, and neither is allowed to be
-     * silent.
+     * Overflow is counted, not logged (this layer has no logger). The owner
+     * reports rows_dropped() and rows_unscanned() at bring-up; both are zero on
+     * a sane table, and neither is allowed to be silent.
      */
     class Planner {
 
@@ -219,9 +190,8 @@ namespace Botanik { namespace Modbus {
         const DeviceTable* _devices = nullptr;
         uint16_t _rows_dropped   = 0;   ///< more XP_MODBUS rows than _rows holds
         /** @brief Rows that will never be scanned: the plan ran out of blocks,
-         *  or a block could not be made legal for its device. Counted in ROWS
-         *  because that is what an operator can go and look for, and because
-         *  two causes in one number must at least share a unit. */
+         *  or a block could not be made legal for its device. Counted in ROWS,
+         *  which is what an operator can go and look for. */
         uint16_t _rows_unscanned = 0;
         /** @brief The distinct unit addresses the plan talks to, in the order
          *  they were first seen. Bounded by the block table, not by a separate
@@ -280,19 +250,11 @@ namespace Botanik { namespace Modbus {
          *  @{ */
 
         /** @brief Share of the bus the read plan occupies, in parts per million,
-         *  at the planned periods. The one number that answers "is there room
-         *  for another sensor", which is why it counts the SCHEDULING as well as
-         *  the wire.
-         *
-         *  A transaction is not just its byte time: the client runs one at a
-         *  time and advances it from the beat, so it occupies the bus for at
-         *  least one beat however short the frame is.
-         *
-         *  On the reference site the two are equal, because MODBUS_TURNAROUND_MS
-         *  is already a whole beat and every planned block is longer than one.
-         *  The distinction bites a fast device on a short frame: turnaround 2 ms
-         *  and a two-register read is 3.6 ms of wire in a 10 ms beat, and
-         *  reporting 3.6 would promise room that is not there. */
+         *  at the planned periods. Counts the SCHEDULING as well as the wire:
+         *  the client runs one transaction at a time and advances it from the
+         *  beat, so a transaction occupies the bus for at least one beat however
+         *  short the frame is. Reporting the 3.6 ms of a two-register read in a
+         *  10 ms beat would promise room that is not there. */
         uint32_t duty_ppm() const;
 
         /** @brief The same, counting only time on the wire. What the budget
@@ -317,9 +279,8 @@ namespace Botanik { namespace Modbus {
 
     /** @name Pinned against the design note
      *
-     *  docs/design/modbus-budget.md publishes these figures, and the planner is
-     *  only trustworthy insofar as it reproduces them. Checking at compile time
-     *  rather than in a test costs nothing and cannot be skipped.
+     *  The figures docs/design/modbus-budget.md publishes, checked at compile
+     *  time so the planner and the doc cannot drift apart.
      *  @{ */
 
     static_assert(tchar_us(19200) == 572,  "one character at 19200 is 0.573 ms");

@@ -7,54 +7,41 @@
  *
  * @section cl_split Why it is stepped twice
  *
- * Like the serial pump, whose halves the loop drives at the phases they belong
- * to. receive_step() runs at the top of the beat, so a control program sees the
+ * receive_step() runs at the top of the beat, so a control program sees the
  * freshest image; on_step() runs after the programs have executed, so a demand
- * written this beat reaches the wire without waiting for the next one.
- * Stepping it once, at either end, would cost a beat of latency in one direction
- * or the other.
+ * written this beat reaches the wire without waiting for the next one. Stepping
+ * it once would cost a beat of latency in one direction or the other.
  *
  * @section cl_gate Collect is not gated with execute
  *
- * on_step() runs whatever control authority says. disable_control() drops
- * every output to its safe state and inhibits the scan, but those safe values are
- * only in the image until a transaction carries them out. Gating the collector
- * alongside the programs would leave the actuators energised at exactly the
- * moment control was withdrawn - which is the one outcome the safe state exists
- * to prevent.
+ * on_step() runs whatever control authority says. disable_control() drops every
+ * output to its safe state and inhibits the scan, but those safe values sit in
+ * the image until a transaction carries them out: gating the collector too would
+ * leave the actuators energised at exactly the moment control was withdrawn.
  *
- * @section cl_dead What a silent device costs, and what is done about it
+ * @section cl_dead A silent device must not take the bus down
  *
- * A device that is unplugged answers nothing, and the transaction it was asked
- * for costs a full response timeout. Left alone, that is paid on EVERY sweep:
- * three dead slaves at a 300 ms timeout burn 2.7 s against a 555 ms budget for
- * the whole plant (docs/design/modbus-budget.md), so the live devices lose their
- * rates to the dead ones. This is what actually takes a field bus down - well
- * ahead of register counts.
+ * An unplugged device costs a full response timeout, and left alone that is paid
+ * on EVERY sweep until the live devices lose their rates to the dead ones (the
+ * arithmetic is in docs/design/modbus-budget.md). So each device carries its own
+ * health: consecutive failures, and the earliest time it may be spoken to again.
+ * One immediate retry, then backoff doubling from MODBUS_BACKOFF_MS to
+ * MODBUS_BACKOFF_MAX_MS, and `_pick()` does not offer the bus to a device that
+ * is not due. The rest of the plan keeps running at its own rates throughout.
  *
- * So each device carries its own health: consecutive failures, and the earliest
- * time it may be spoken to again. One immediate retry (weather), then backoff
- * doubling from MODBUS_BACKOFF_MS to MODBUS_BACKOFF_MAX_MS, and `_pick()` simply
- * does not offer the bus to a device that is not due. The rest of the plan keeps
- * running at its own rates throughout.
- *
- * A REFUSAL clears the count. An exception response means the device heard us,
- * understood us and declined - it is alive, and its register map is the problem.
- * Treating that as silence would back off a device that is answering perfectly.
+ * A REFUSAL clears the count: an exception response means the device heard us,
+ * understood us and declined, so it is alive and its register map is the problem.
  *
  * @section cl_frame A frame goes out whole or not at all
  *
  * The driver enable is hardware-timed: the USART drops DE when its shift
- * register empties. So a frame handed to the UART in pieces would have DE fall
- * in the middle of it, and every slave on the bus would see a truncated frame -
- * which reads as a wiring fault, not a firmware one.
- *
- * Two things make that unreachable rather than merely unlikely, neither of them
- * a comment. A `static_assert` in client.cpp proves a full
- * FC16 fits the transmit ring (MODBUS_TX_RING_BYTES), and on_step() will not
- * begin a transaction until fieldbus_tx_idle() says the ring has DRAINED - not
- * merely that it has room for one more byte. A refused byte is then impossible,
- * and is logged as a critical if it ever happens anyway.
+ * register empties, so a frame handed to the UART in pieces would have DE fall
+ * mid-frame and every slave on the bus would see a truncated frame - which reads
+ * as a wiring fault, not a firmware one. A `static_assert` in client.cpp proves
+ * a full FC16 fits the transmit ring (MODBUS_TX_RING_BYTES), and on_step() will
+ * not begin a transaction until fieldbus_tx_idle() says the ring has DRAINED,
+ * not merely that it has room for one more byte. A refused byte is then
+ * impossible, and is logged as a critical if it ever happens anyway.
  */
 
 #include <cstdint>
@@ -82,10 +69,8 @@ namespace Botanik { namespace Modbus {
      * Half duplex and strictly request/response, so there is exactly one
      * transaction in flight and the state machine is a small ring: pick work,
      * send it, wait for the wire to clear, listen, leave a gap, pick again.
-     *
-     * Shaped like NtpClient - a state, an entry stamp, one non-blocking action
-     * per beat - because the constraint is the same: nothing may block, and every
-     * timeout is a comparison against the stamp rather than a sleep.
+     * A state, an entry stamp, one non-blocking action per beat: nothing may
+     * block, so every timeout is a comparison against the stamp, not a sleep.
      */
     class RtuClient : public Component {
 
@@ -110,18 +95,13 @@ namespace Botanik { namespace Modbus {
          *
          *  Parallel to the planner's device set rather than a table of its own:
          *  the planner assigns every block a peer index, so a block that exists
-         *  always has an entry. The unit address is not repeated here - the
-         *  planner holds it, and two copies of the same fact is how the old
-         *  table came to silently drop the ninth device. */
+         *  always has an entry. The unit address is not repeated here. */
         struct Peer {
             uint8_t  misses   = 0;   ///< consecutive failures; 0 = answering
             uint64_t probe_ms = 0;   ///< do not speak to it before this
         };
         Peer     _peer[Config::MODBUS_MAX_BLOCKS];
         uint8_t  _dead       = 0;    ///< how many are in backoff right now
-        /** @brief The library's field-bus rows, resolved by name once at
-         *  bring-up - the same way HealthMonitor drives the platform alarms.
-         *  See modbus/rtu/alarms.h. */
         /** @brief Whether control authority was up on the previous beat, so the
          *  withdrawal EDGE can be seen. */
         bool     _control_was = false;
@@ -136,6 +116,8 @@ namespace Botanik { namespace Modbus {
          *  model that answered it. */
         uint32_t _gap_ms = Config::MODBUS_GAP_MS;
 
+        /** @brief The library's field-bus rows, resolved by name once at
+         *  bring-up. @see modbus/rtu/alarms.h */
         Vars::VarRef _alarm_ref;
         Vars::VarRef _dead_ref;
         uint64_t            _since_ms = 0;     ///< when the current state was entered
@@ -195,11 +177,10 @@ namespace Botanik { namespace Modbus {
         /** @brief Which block would go out if a transaction started now, or
          *  NO_BLOCK.
          *
-         *  The scheduling decision itself, and public because two other things
-         *  want it: a diagnostic showing what the bus is about to do, and a test
-         *  that can pin the priority rules without a wire. Not const - it also
-         *  samples control authority, which is where the safe-state urgency is
-         *  raised, and that has to happen on the beat control is withdrawn. */
+         *  Public for a diagnostic and for tests that pin the priority rules
+         *  without a wire. Not const: it also samples control authority, which
+         *  is where the safe-state urgency is raised, and that has to happen on
+         *  the beat control is withdrawn. */
         uint16_t next_block(uint64_t now_ms) {
             _track_control(now_ms);
             return _pick(now_ms);
@@ -242,13 +223,11 @@ namespace Botanik { namespace Modbus {
         /**
          * @brief Owe every output on tracked device @p peer to the field again.
          *
-         * What a device that was declared down and came back gets, because it
-         * has been through its own power-on defaults in the meantime: a relay
-         * board reboots with its coils open while the firmware still believes it
-         * commanded them shut, and a level-driven scan never disagrees, because
-         * the demand has not moved.
-         *
-         * Values are untouched - only their delivery is owed again.
+         * What a device that was declared down and came back gets: it has been
+         * through its own power-on defaults meanwhile (a relay board reboots
+         * with its coils open while the firmware still believes it commanded
+         * them shut), and a level-driven scan never disagrees because the demand
+         * has not moved. Values are untouched, only their delivery is owed again.
          */
         void reassert_outputs(uint8_t peer);
 
@@ -264,11 +243,6 @@ namespace Botanik { namespace Modbus {
         /** @brief Enter @p s, stamping when. Every transition goes through here,
          *  so a state cannot be changed without its clock being reset. */
         void _enter(State s, uint64_t now_ms);
-        /** @brief The block that most wants the bus, or NO_BLOCK.
-         *
-         *  Writes first: a demand that has changed is worth more than a reading
-         *  that is about to be taken again anyway, and a safe state is worth more
-         *  than either. */
         /** @brief Which block goes out next, or NO_BLOCK. Scores every block in
          *  one pass and takes the highest; see the tier table in the .cpp. */
         uint16_t _pick(uint64_t now_ms) const;
@@ -287,7 +261,6 @@ namespace Botanik { namespace Modbus {
 
         /** @name Device health
          *  @{ */
-        /** @brief @p unit's entry, or null when the plan never talks to it. */
         /** @brief Whether @p unit may be spoken to now. An untracked unit may:
          *  refusing would silently drop a block the planner asked for. */
         bool _due(const Block& b, uint64_t now_ms) const;

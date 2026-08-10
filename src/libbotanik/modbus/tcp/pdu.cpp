@@ -109,10 +109,9 @@ namespace Botanik { namespace Modbus {
                 const bool bits = is_bit(out->fc);
                 if (out->count < 1 || out->count > max_quantity(out->fc))
                     return refuse(out, EX_ILLEGAL_VALUE);
-                // The byte count is redundant with the quantity, which is exactly
-                // why it is checked: the two disagreeing means the request was
-                // built wrong, and guessing which one to believe is how a master
-                // ends up writing a register it did not name.
+                // The byte count is redundant with the quantity, and checked
+                // because of it: guessing which to believe when they disagree is
+                // how a master ends up writing a register it did not name.
                 const uint16_t want = bits ? bit_bytes(out->count)
                                            : (uint16_t)(out->count * 2);
                 if (bc != want) return refuse(out, EX_ILLEGAL_VALUE);
@@ -163,12 +162,12 @@ namespace Botanik { namespace Modbus {
     size_t encode_read_request(uint8_t* buf, size_t cap, const Mbap& m,
                                uint8_t fc, uint16_t addr, uint16_t qty) {
         // Refused here rather than sent: a quantity past the protocol's ceiling
-        // has an undefined answer, and the failure would arrive looking like a
-        // bad connection.
+        // has an undefined answer, and the failure would look like a bad
+        // connection.
         if (qty < 1 || qty > max_quantity(fc)) return 0;
-        // A read REQUEST and a write ECHO are the same five-byte PDU - code,
-        // address, count - which is why a write's answer can be checked against
-        // the request that caused it at all.
+        // A read REQUEST and a write ECHO are the same five-byte PDU (code,
+        // address, count), which is what lets a write's answer be checked
+        // against the request that caused it.
         return encode_echo(buf, cap, m, fc, addr, qty);
     }
 
@@ -202,9 +201,9 @@ namespace Botanik { namespace Modbus {
         if (len < total) return ERR_SHORT;
         *consumed = total;
 
-        // Whose answer is this? The transaction id first: a reply to a request we
-        // have already given up on is not this request's answer, however well it
-        // matches otherwise. That id is MBAP's, and so is this check.
+        // The transaction id first: a reply to a request we have already given
+        // up on is not this request's answer, however well it matches
+        // otherwise. That id is MBAP's, and so is this check.
         if (rd16(buf + 0) != txn) return ERR_ECHO;
 
         // The rest is the protocol's, not this transport's. mlen counts the unit

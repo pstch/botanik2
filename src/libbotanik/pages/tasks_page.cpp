@@ -20,9 +20,9 @@ namespace Botanik { namespace Pages {
     void TasksPage::tick(bool active) {
         if (!active) return;
         uint64_t now = HAL::Clock::uptime_ms();
-        // The costs move every beat, so this is a live page - but repainting
-        // a whole table at the beat rate would spend the console's entire
-        // byte budget on digits nobody can read that fast.
+        // The costs move every beat, but repainting the whole table at that
+        // rate would spend the console's entire byte budget on digits nobody
+        // can read that fast.
         if (!_dirty && now - _last_refresh_ms < REFRESH_MS) return;
         _last_refresh_ms = now;
         _dirty = false;
@@ -148,10 +148,9 @@ namespace Botanik { namespace Pages {
             snprintf(duty, sizeof(duty), "%s %%", pct);
             duty_s = duty;
         }
-        // Two facts per row: the peak lost its column to MISSED and lands here,
-        // and MISSED itself repeats beside the run count, which is the number it
-        // has to be read against (12 dropped out of 12 is a dead task, out of a
-        // million is a bad afternoon).
+        // Two facts per row. MISSED repeats here beside the run count, the
+        // number it has to be read against: 12 dropped out of 12 is a dead
+        // task, out of a million is a bad afternoon.
         _panel_field2((uint16_t)(r + 2), "Last us", last_s,
                       PANEL_COL2, "Peak us", peak_s);
         _panel_field2((uint16_t)(r + 3), "Runs", runs,

@@ -11,9 +11,8 @@
 
 // NOTE: precedence is command line > site > library default
 
-// Factory values for the library's own parameter rows (declared in
-// library_vars.h, since libbotanik reads them by name). These are what a wiped
-// store comes back as; an operator retunes them from the PARAMS page.
+// Factory values for the library's own parameter rows (library_vars.h): what a
+// wiped store comes back as, retuned from the PARAMS page.
 #ifndef BOTANIK_NET_IP
 #  define BOTANIK_NET_IP        "192.168.1.42"
 #endif
@@ -103,18 +102,16 @@
 #  ifndef BOTANIK_FEATURE_MODBUS_TCP_SERVER
 #    define BOTANIK_FEATURE_MODBUS_TCP_SERVER 1
 #  endif
-// The master is the simulator's counterpart to the slave: on hardware it is
-// simply unused, and on the sim it is what proves the slave serves.
+// The master is the simulator's counterpart to the slave: unused on hardware,
+// and on the sim it is what proves the slave serves.
 #  ifndef BOTANIK_FEATURE_MODBUS_TCP_CLIENT
 #    define BOTANIK_FEATURE_MODBUS_TCP_CLIENT 1
 #  endif
 #endif
 // --- The field bus, as this installation actually runs it -----------------
-// The site's own device map says 38400 baud, none/8/1, on COM2 (see the header
-// of vars.h). The library defaults to 19200 - the rate docs/design/modbus-
-// budget.md recommends, and the right default for a site that has not measured
-// its bus - so the installation that runs faster has to say so, or the firmware
-// brings the port up at a rate no device on the wire is listening at.
+// The site's device map says 38400 baud, none/8/1, on COM2 (vars.h's header).
+// The library defaults to 19200, so without this the master talks at half rate
+// and nothing on the wire answers.
 #ifndef BOTANIK_MODBUS_BAUD
 #  define BOTANIK_MODBUS_BAUD 38400
 #endif
@@ -137,24 +134,15 @@
 #endif
 
 // --- Field bus: the RS-485 Modbus RTU master ------------------------------
-// This greenhouse IS a Modbus plant - 8 devices, 71 mapped signals - so the
-// reference site is where the client belongs. Guarded on PLC_SCAN, which the
-// dependency rule requires and which is what a headless cut-down build would
-// have turned off.
-//
-// Fully wired: BotanikFirmware owns the client and steps it in PHASE_INPUT and
-// PHASE_OUTPUT, so turning this on puts the field bus on the beat. The eight
-// devices below are what it polls; see vars.h for the register map and
-// site.h's device table for what each model will answer.
+// This greenhouse IS a Modbus plant (vars.h has the device map, site.h what
+// each model answers). Guarded on PLC_SCAN, which the dependency rule requires.
 #if !defined(BOTANIK_FEATURE_PLC_SCAN) || BOTANIK_FEATURE_PLC_SCAN
 #  ifndef BOTANIK_FEATURE_MODBUS_RTU_CLIENT
 #    define BOTANIK_FEATURE_MODBUS_RTU_CLIENT 1
 #  endif
 #endif
 
-// The segment runs at 38400, which is what vars.h's header records and what the
-// devices are configured for. The library default is 19200, so without this the
-// master talks at half rate and nothing on the bus answers at all.
+// The segment's baud rate again; see above.
 #ifndef BOTANIK_MODBUS_BAUD
 #  define BOTANIK_MODBUS_BAUD 38400
 #endif

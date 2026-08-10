@@ -47,8 +47,7 @@ namespace Botanik { namespace Logs {
 
         /** @name Rate-limiter
          *  @brief Token buckets and their refill anchors. Burst sizes and
-         *  periods come straight from Config (they were mirrored into members
-         *  that nothing ever wrote).
+         *  periods come straight from Config.
          *  @{ */
 
         uint32_t        _global_fillTime_ms     = 0;   ///< last global refill
@@ -128,12 +127,10 @@ namespace Botanik { namespace Logs {
          *  edge-triggered report of what got suppressed. Call once per main-loop
          *  period.
          *
-         *  NOT Component::step(), and deliberately not named like it: the Logger
-         *  is a Component for uniformity (and to break the Logger/Component
-         *  include cycle) but is driven with no timestamp and never announced,
-         *  so a step() here would only hide the base one. It reads the clock
-         *  itself and refills by elapsed time, which makes it rate-independent
-         *  already - calling it less often fills more tokens at once. */
+         *  NOT Component::step(), and deliberately not named like it: the
+         *  Logger is driven with no timestamp and never announced, so a step()
+         *  here would hide the base one. It reads the clock itself and refills
+         *  by elapsed time, so calling it less often fills more tokens. */
         void refill();
         /** @brief Healthy while at least one writer is registered (a writerless
          *  logger silently swallows everything). */

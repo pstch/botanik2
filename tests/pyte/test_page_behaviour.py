@@ -1,11 +1,8 @@
-"""Per-page behaviour a golden cannot express, for the pages that need little.
+"""Per-page behaviour a golden cannot express: what pressing something does.
 
-What pressing something does, for the pages that need little. Kept in one file
-because a CTest entry is a whole file and each pays an interpreter startup - a
-file per assertion made the startup tax the main cost of these.
-
-Own sim per test: the reset test restarts the firmware, and entering a monitor
-group is page state the next test would inherit.
+One file, because a CTest entry is a whole file and each pays an interpreter
+startup. Own sim per test: the reset test restarts the firmware, and entering a
+monitor group is page state the next test would inherit.
 """
 
 import re
@@ -22,9 +19,8 @@ def test_home_after_reset(spawn, assert_screen):
     """`reset` re-execs the firmware and it reboots to Home.
 
     HAL::reset() execve's /proc/self/exe and the PTY fds survive, so the screen
-    clears and redraws to a freshly booted Home (main.cpp always switch_to(0)).
-    Asserting the SAME golden as the cold boot is the claim: not that Home
-    renders, but that a reboot is indistinguishable from a cold start.
+    clears and redraws to a freshly booted Home. Asserting the SAME golden as the
+    cold boot is the claim: a reboot is indistinguishable from a cold start.
     """
     term = boot(spawn)
     goto(term, keys.ALT_2)                       # SHELL
@@ -35,12 +31,10 @@ def test_home_after_reset(spawn, assert_screen):
 def test_network_comes_up(spawn):
     """The DNS -> NTP -> MQTT handshake finishes, per the firmware's own report.
 
-    Asked with `net` rather than watched for in the boot log. The log lines are
-    transient - two rows in a 7-row tail that the greenhouse's alarm churn
-    scrolls past, and on a busy console they can go unpainted on a firmware whose
-    network is perfectly healthy, which is exactly what they were doing here.
-    `net` prints current state on demand, so this asks a question that has an
-    answer instead of hoping to catch a line going by.
+    Asked with `net`, not watched for in the boot log: those lines are transient
+    in a 7-row tail that alarm churn scrolls past, so on a busy console they go
+    unpainted on a firmware whose network is healthy. `net` prints current state
+    on demand, which is a question with an answer.
     """
     term = shell(spawn, quiet_logs=True)
     term.send(b"net" + keys.ENTER)
@@ -80,14 +74,12 @@ def test_monitor_group_modes(spawn):
     """SPACE / LEFT / BACKSPACE cycle the group view (scroll_table.h).
 
     wait_screen throughout: "[all]" is on screen in half these states and gone in
-    the other half, which a latched wait_for could not tell apart - it answered
-    yes to every one of them from the first view.
+    the other half, which a latched wait_for answers yes to from the first view.
     """
     term = boot(spawn)
     goto(term, keys.ALT_6, "SCOPE")
-    # WHICH group comes first is not this test's business - the groups are the
-    # name prefixes of whatever the site and the library publish, so the first
-    # moves whenever either does. Read the group entered rather than predict it.
+    # WHICH group comes first is not this test's business: the groups are name
+    # prefixes of whatever the site publishes. Read it rather than predict it.
     assert term.wait_screen("[all]"), "the monitor did not open on the all-groups view"
 
     # Poll for a settled group name rather than reading one the instant "[all]"

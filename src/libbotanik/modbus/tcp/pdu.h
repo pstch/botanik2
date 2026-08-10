@@ -6,14 +6,14 @@
  * @brief What Modbus TCP adds to a PDU: the MBAP header, request decoding and
  *        response encoding.
  *
- * The vocabulary itself - function codes, exceptions, the quantity ceilings, the
- * byte order - is @ref modbus/wire.h, shared with the RTU client. The two transports
- * differ in their FRAMING and in nothing else, and this file is that difference.
+ * The vocabulary (function codes, exceptions, quantity ceilings, byte order) is
+ * @ref modbus/wire.h, shared with the RTU client; the transports differ in their
+ * FRAMING and in nothing else, and this file is that difference.
  *
- * No sockets, no variables, no clock. What arrives is a byte buffer and what
- * leaves is a byte buffer, so this is testable from a literal frame.
+ * No sockets, no variables, no clock: a byte buffer in, a byte buffer out, so
+ * this is testable from a literal frame.
  *
- * Two kinds of bad input, and they get different answers on purpose:
+ * Two kinds of bad input, answered differently on purpose:
  *
  *  - a **framing** error (a protocol id that is not 0, a declared length outside
  *    the legal range) means the peer is not speaking Modbus TCP. TCP is a stream,
@@ -115,10 +115,8 @@ namespace Botanik { namespace Modbus {
      *  @name The master's half
      *
      *  A slave frames requests IN and answers OUT; a master does the mirror
-     *  image. Both live here because both are MBAP, and MBAP is the only thing
-     *  that differs from the RTU client - which is why what comes back is
-     *  wire.h's Response and wire.h's Error, the same types that half parses
-     *  into.
+     *  image. Both live here because both are MBAP, the only thing that differs
+     *  from the RTU client, so what comes back is wire.h's Response and Error.
      *  @{ */
 
     /** @brief Frame a read request (FC01-04): @p qty items from @p addr. */
@@ -134,10 +132,9 @@ namespace Botanik { namespace Modbus {
     /**
      * @brief Check a response against the request that earned it.
      *
-     * Checked in the order that yields the most useful diagnosis, the same order
-     * the RTU parser uses (codec.h): the frame's own shape, then who answered,
-     * then what they answered about, then whether it matches what was asked. The
-     * only step missing is the checksum, because TCP already carried one.
+     * Same order as the RTU parser (codec.h): the frame's own shape, who
+     * answered, what they answered about, whether it matches what was asked.
+     * Only the checksum is missing, because TCP already carried one.
      *
      * @param txn       the transaction id that was sent; a reply carrying
      *                  another one is an answer to a question we have stopped
@@ -155,12 +152,9 @@ namespace Botanik { namespace Modbus {
 
     /** @name MBAP helpers
      *
-     *  The header's own two-byte fields. Everything else about byte order is
-     *  wire.h's, and is the same on both transports.
+     *  rd16 / wr16 are wire.h's: the byte order is the protocol's, not this
+     *  transport's, and is the same on both.
      *  @{ */
-
-    // rd16 / wr16 are wire.h's - the byte order is the protocol's, not this
-    // transport's, and it was forked here before that was said out loud.
 
     /** @} */
 

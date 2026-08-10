@@ -6,37 +6,28 @@
  * @brief One constexpr factory per VarScope: how a site spells a row.
  *
  * A site's variable table is a list of these calls. Each factory takes ONLY the
- * arguments its scope can use, so a meaningless row is unspellable rather than
- * merely wrong: a relay with a plausibility band, an alarm with a Modbus
- * register, a parameter with a timeout. The fields those rows do not carry are
- * not written as zeros in the table - they are absent from the call, and the
+ * arguments its scope can use, so a meaningless row is unspellable: a relay with
+ * a plausibility band, an alarm with a Modbus register, a parameter with a
+ * timeout. The fields a row does not carry are absent from the call, and the
  * factory supplies them.
  *
- * Functions rather than site-local macros: these are type-checked, shared by
- * every site, and need no `#undef` after the table.
- *
- * @section declare_flash Why constexpr, and why one return
+ * @section declare_flash constexpr and the single return
  *
  * These build the site's `const Variable g_vars[]`, which must be
  * constant-initialised straight into flash: a runtime call in that initialiser
  * would drag ~20 KB of table into `.data` behind a startup loop. A C++11
- * constexpr function body must be a SINGLE return statement, so each one below
- * is exactly that - an aggregate initialiser, no locals and no branches.
+ * constexpr body must be a SINGLE return statement, so each one below is
+ * exactly that - an aggregate initialiser, no locals and no branches.
  *
  * @section declare_local Local I/O
  *
  * There is no separate scope for a local channel. A local row is one whose
  * Modbus device address is 0, and the factories derive `transport` from that,
- * so the two can never disagree. `AI(...)`, `DI(...)`, `AO(...)`, `DO(...)` and
- * `RO(...)` all take a device: pass 0 and the row is local, pass a unit id and
- * it is on the bus.
+ * so the two can never disagree. `AI`, `DI`, `AO`, `DO` and `RO` all take a
+ * device: 0 is local, anything else is a unit on the bus.
  *
- * @section declare_names Why the names are abbreviations
- *
- * The table is meant to be READ as a table - one row per line, columns aligned.
- * A four-word factory name would push every row past the width where that stops
- * working. The scope enum uses the same abbreviations, so a row and the value it
- * filters on are spelled the same way.
+ * The names are the scope enum's own abbreviations, so a row and the value a
+ * table filters on are spelled the same way, and rows stay one line wide.
  */
 
 #include <cstdint>                  // uint8_t/uint16_t/int64_t
@@ -47,9 +38,9 @@ namespace Botanik { namespace Vars {
 
     /** @name Scalar shorthands
      *
-     *  A bare literal cannot build a Scalar: the union takes uint64 / int64 /
-     *  float / const char* equally well, so the type has to be said. These are
-     *  Scalar::U/I/F/B under names short enough to keep a table row on one line.
+     *  A bare literal cannot build a Scalar (the union takes uint64 / int64 /
+     *  float / const char* equally well), so the type must be said. Scalar::
+     *  U/I/F/B under names short enough to keep a table row on one line.
      *  @{ */
 
     constexpr Scalar SU(uint64_t v) { return Scalar::U(v); }
@@ -60,13 +51,8 @@ namespace Botanik { namespace Vars {
     /// site table has to compile inside an Arduino sketch.
     constexpr Scalar ST(const char* v) { return Scalar::S(v); }
 
-    /** @brief Build a Scalar of @p t from a plain number.
-     *
-     *  A parameter row already says its type, so making it repeat itself in
-     *  every one of its three value cells - SU(20), SU(10), SU(1800) - was three
-     *  wrappers per row saying what the column beside them already said. This
-     *  reads the type once and picks the arm, which is why P() below takes
-     *  literals. Single-return, so the table stays constant-initialised. */
+    /** @brief Build a Scalar of @p t from a plain number: the row's own type
+     *  picks the arm, which is why P() below takes bare literals. */
     constexpr Scalar num(VarType t, double v) {
         return type_real(t)   ? Scalar::F((float)v)
              : type_signed(t) ? Scalar::I((int64_t)v)
@@ -77,10 +63,9 @@ namespace Botanik { namespace Vars {
 
     /** @name Calibration tunables
      *
-     *  Each field of an AnalogCal is one of these: K() pins it in firmware,
-     *  R() points it at a parameter an operator can edit. R() also takes the
-     *  value to fall back on if the parameter is missing, so a typo degrades to
-     *  a sane number instead of to zero.
+     *  Each field of an AnalogCal is one of these: K() pins it in firmware, R()
+     *  points it at a parameter an operator can edit, with a fallback so a typo
+     *  degrades to a sane number instead of to zero.
      *  @{ */
 
     /** @brief A fixed value: this one is not the operator's to change. */
@@ -94,22 +79,20 @@ namespace Botanik { namespace Vars {
      *
      *  Argument order is the same everywhere it applies: identity (name), then
      *  what it reads or drives, then the band, then presentation (digits, unit),
-     *  then prose (desc, notes). Every row ends with desc and notes; notes is
-     *  never optional, because "" says "nothing more to add" in the same shape
-     *  as a real note.
+     *  then prose (desc, notes). Every row ends with desc and notes, and notes
+     *  is never optional ("" is a valid note).
      *  @{ */
 
     /** @brief Modbus RTU device 0 means the row is wired locally rather than on
-     *  the bus. One place decides it, so `transport` cannot contradict the
-     *  address. */
+     *  the bus. The one place that decides, so `transport` cannot contradict
+     *  the address. */
     constexpr Transport xp_of(uint8_t device) { return device == 0 ? XP_LOCAL : XP_MODBUS; }
 
     /** @brief An **alarm**: the boolean carrying the condition, AND the policy
-     *  the AlarmController runs it on. There is no second alarm table - the model
-     *  builds its working conditions by scanning the variable table for
-     *  SCOPE_A rows, in table order, so an alarm is declared once.
+     *  the AlarmController runs it on. There is no second alarm table: the model
+     *  scans the variable table for SCOPE_A rows, in table order.
      *
-     *  @p code is the short display code (max 8 chars) the ALARMS table's first
+     *  @p code is the short display code (max 9: AlarmsPage::CODE_W) the first
      *  column and the alarm bar show; identity still belongs to @p name.
      *  @p on_s / @p off_s are the dwell before a START / END is announced, -1
      *  to never announce that edge. @p recent_s is the RECENT filter window
@@ -119,14 +102,12 @@ namespace Botanik { namespace Vars {
      *
      *  @p reg is its register on the Modbus TCP slave, hand-assigned like a
      *  parameter's and in the same space, but in a block of its own (a site's
-     *  alarms in 800-899, the library's at the top of its 900-999 reserve) so
-     *  the number itself says what kind of row it is. An alarm is published as a
-     *  read-only coil; acknowledging one is a write to a separate block, not to
-     *  the alarm's own bit.
+     *  alarms in 800-899, the library's at the top of its 900-999 reserve).
+     *  Published as a read-only coil; acknowledging one is a write to a
+     *  separate block, not to the alarm's own bit.
      *
      *  Carries no band and no unit: it is raised by a control program and read
-     *  by the alarm model, and the binding says where it is published, not where
-     *  it comes from. */
+     *  by the alarm model. */
     constexpr Variable A(const char* name, const char* code,
                          int16_t on_s, int16_t off_s, int16_t recent_s,
                          int16_t hold_on_s, int16_t min_on_s, uint16_t reg,
@@ -139,14 +120,12 @@ namespace Botanik { namespace Vars {
 
     /** @brief A numeric **parameter**: persisted, editable, always valid.
      *
-     *  @p def, @p lo and @p hi are plain numbers - the row's @p type is what
-     *  decides whether they land as unsigned, signed or float, so a cell says a
-     *  value and nothing else. @p reg is
-     *  the row's register on the Modbus TCP slave, hand-assigned and NOT derived
-     *  from its position: an external master's register map is a contract, so
-     *  inserting a parameter must not renumber the ones after it. That is the
-     *  one number a site still writes down, and the site test asserts no two
-     *  share it. */
+     *  @p def, @p lo and @p hi are plain numbers - the row's @p type decides
+     *  whether they land as unsigned, signed or float. @p reg is the row's
+     *  register on the Modbus TCP slave, hand-assigned and NOT derived from its
+     *  position: an external master's map is a contract, so inserting a
+     *  parameter must not renumber the ones after it. The site test asserts no
+     *  two rows share a register. */
     constexpr Variable P(const char* name, VarType type, double def, double lo, double hi,
                          uint8_t digits, const char* unit, uint16_t reg,
                          const char* desc, const char* notes) {
@@ -156,10 +135,8 @@ namespace Botanik { namespace Vars {
                          type, ROLE_PARAM, SCOPE_P, digits, F_BOUNDED, {} };
     }
 
-    /** @brief A text **parameter**. Its own factory rather than a column set on
-     *  P(): bounds mean nothing for a string and a pool slot means nothing for a
-     *  number, so one shape carrying both made every row spell four cells that
-     *  never applied to it, and the block stopped reading as a table.
+    /** @brief A text **parameter**: its own factory, since bounds mean nothing
+     *  for a string and a pool slot nothing for a number.
      *
      *  @p cap is the slot size including the NUL; WHERE the slot sits is not
      *  declared, Bank::init() lays them out in table order. @p kind is what a
@@ -185,18 +162,12 @@ namespace Botanik { namespace Vars {
     /** @brief A **retained** computed value: G(), but its value survives a
      *  reboot (IEC 61131-3 RETAIN).
      *
-     *  For the rows whose value IS the history - litres delivered, hours run,
-     *  cycles counted. A totalizer that restarts at zero every time the cabinet
-     *  loses power is not a totalizer, and nothing downstream can tell "the
-     *  season's total" from "the total since the last brownout".
+     *  For the rows whose value IS the history: litres delivered, hours run,
+     *  cycles counted. @p def is what it reads on a FIRST boot, before anything
+     *  has ever been stored.
      *
-     *  Its own factory rather than a flag argument on G(), so a row that is
-     *  retained says so where it is declared and a reader does not have to
-     *  decode a bitmask to find out. @p def is what it reads on a FIRST boot,
-     *  before anything has ever been stored.
-     *
-     *  Costs one storage key and a write every Config::RETAIN_SAVE_MS - so this
-     *  is for values that are worth that, not for every computed row. */
+     *  Costs one storage key and a write every Config::RETAIN_SAVE_MS, so it is
+     *  for values worth that, not for every computed row. */
     constexpr Variable GR(const char* name, VarType type, Scalar def,
                           uint8_t digits, const char* unit, const char* desc,
                           const char* notes) {
@@ -211,9 +182,8 @@ namespace Botanik { namespace Vars {
      *  external contract, so renaming one breaks whatever is subscribed.
      *
      *  @p reg is its register on that slave, hand-assigned for the same reason a
-     *  parameter's is: the map an external master holds must not renumber when a
-     *  row is inserted. Parameters and status values share one register space,
-     *  and the site test asserts no two rows claim the same one. */
+     *  parameter's is (@see P). Parameters and status values share one register
+     *  space, and the site test asserts no two rows claim the same one. */
     constexpr Variable SV(const char* name, VarType type, double def, uint8_t digits,
                           const char* unit, uint16_t reg,
                           const char* desc, const char* notes) {
@@ -227,8 +197,8 @@ namespace Botanik { namespace Vars {
      *  conversion. @p lo / @p hi are the plausibility band - generous on
      *  purpose, to catch a dead meter reporting a rail rather than to police
      *  the process. A read older than @p timeout_ms marks the row invalid, and
-     *  @p def is what it reads then - a safety-relevant choice, so it is
-     *  spelled per row rather than assumed to be zero. */
+     *  @p def is what it reads then: safety-relevant, so it is spelled per row
+     *  rather than assumed to be zero. */
     constexpr Variable MI(const char* name, VarType type, uint8_t device, uint8_t fc,
                           uint16_t reg, uint16_t regs, Scalar lo, Scalar hi, Scalar def,
                           uint32_t timeout_ms, uint8_t digits, const char* unit,
@@ -247,9 +217,8 @@ namespace Botanik { namespace Vars {
      *
      *  @p cal carries the endpoints AND the plausibility band, each of them a
      *  constant or a parameter, and it may be SHARED with any other channel
-     *  calibrated identically. There is no scale/offset argument: those are
-     *  derived from the endpoints, so there is nothing to recompute by hand
-     *  when a sensor is re-trimmed. */
+     *  calibrated identically. No scale/offset argument: both are derived from
+     *  the endpoints. */
     constexpr Variable AI(const char* name, const AnalogCal* cal, uint8_t device,
                           uint8_t fc, uint16_t reg, uint16_t regs, VarType wire,
                           Scalar def, uint32_t timeout_ms, uint8_t digits,
@@ -339,13 +308,8 @@ namespace Botanik { namespace Vars {
 
     /** @} */
 
-    /** @brief A scope's column label: the abbreviation itself.
-     *
-     *  The code rather than a phrase, because it is the same token the row was
-     *  declared with and the same one the enum is named after - one vocabulary
-     *  instead of three. It also stops the column needing eight characters to
-     *  say what two do, and the detail panel below the table still spells the
-     *  binding out in full ("Modbus dev 5 fc 3 reg 0"). */
+    /** @brief A scope's column label: the abbreviation the row was declared
+     *  with, so table, enum and factory share one vocabulary. */
     inline const char* scope_label(VarScope s) {
         switch (s) {
             case SCOPE_A:  return "A";

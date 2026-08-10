@@ -3,8 +3,7 @@
 #define ALARMS_PUBLISHER_H
 
 /** @file publisher.h
- *  @brief The file contains the transport interface for external alarm notifications, for
- *  example through MQTT.*/
+ *  @brief Transport interface for external alarm notifications (e.g. MQTT). */
 
 namespace Botanik { namespace Alarms {
 

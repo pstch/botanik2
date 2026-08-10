@@ -7,10 +7,9 @@
  * @brief MetricPage - shared base for read-only metric displays (Home/Status).
  *
  * Shares the terminal binding, focus/periodic-refresh lifecycle, and drawing
- * helpers. Fields are drawn immediate-mode; the terminal's back-buffer diff
- * emits only the cells that moved. A per-slot value cache is kept solely to drive
- * the change highlight (which must know what changed since last refresh), not for
- * byte-level diffing.
+ * helpers. Fields are drawn immediate-mode and pared by the terminal's diff
+ * (@ref dev_screen); the per-slot value cache exists only for the change
+ * highlight, which needs to know WHAT changed, not which cells moved.
  *
  * A changed digit run is drawn reverse-video and cleared once it settles -
  * watch(1) -d highlighting. Fields are fixed-width space-padded, so each subfield
@@ -77,10 +76,8 @@ namespace Botanik { namespace Pages {
                       "CACHE_COLS must fit a uint32 per-column mask");
         static_assert(CACHE_SLOTS <= 32,
                       "CACHE_SLOTS must fit a uint32 per-slot mask");
-        /** @brief Last value drawn per slot: the previous value a refresh diffs
-         *  against to drive the watch(1)-style change highlight. (The terminal's
-         *  back-buffer diff handles the byte-level "emit only what moved"; this
-         *  cache exists only for the highlight, which needs to know what changed.) */
+        /** @brief Last value drawn per slot: what a refresh diffs against to
+         *  drive the watch(1)-style change highlight (see the file header). */
         char          _vcache[CACHE_SLOTS][CACHE_COLS];
         /** @brief Slots awaiting a first paint after a clear (bit i = slot i):
          *  drawn unhighlighted (nothing has "changed" yet). */
@@ -99,10 +96,10 @@ namespace Botanik { namespace Pages {
             _vfresh = ~0u;
         }
 
-        /** @brief Draw a label at column 2. Only
-         *  its own glyphs are written - no clear-to-EOL: a label is always drawn
-         *  onto a freshly-cleared screen (focus / Ctrl-L), so a clear would be
-         *  redundant (and would wipe an adjacent block). Not value-cached. */
+        /** @brief Draw a label at column 2. Its own glyphs only, no
+         *  clear-to-EOL: a label is always drawn onto a freshly-cleared screen
+         *  (focus / Ctrl-L), and a clear would wipe an adjacent block. Not
+         *  value-cached. */
         void _label(uint16_t row, const char* s) { _label_at(row, 2, s); }
 
 
@@ -119,9 +116,7 @@ namespace Botanik { namespace Pages {
          *  Space-padded (so it never touches an adjacent column) and diffed
          *  against the previous draw. Highlighting is per subfield: each digit
          *  run lights when any of its digits changed, cleared once it settles
-         *  (first paint after a clear is never lit). The whole field is painted
-         *  with the highlight mask; the terminal's back-buffer diff emits only
-         *  the cells that actually moved. */
+         *  (first paint after a clear is never lit). */
         void _cell(uint16_t slot, uint16_t row, uint16_t col, const char* s,
                    uint16_t width, bool highlight = true) {
             if (row >= _console.rows() || width == 0) return;
@@ -201,8 +196,7 @@ namespace Botanik { namespace Pages {
         void handle_text(char) override {}
 
         /** @brief ENTER forces an immediate value refresh (otherwise throttled
-         *  to _refresh_ms); other keys ignored. The refresh is diff-gated, so it
-         *  re-emits only fields that actually changed. */
+         *  to _refresh_ms); other keys ignored. */
         void handle_command(Command cmd, uint16_t = 1) override {
             if (cmd == Command::ENTER) _cold_due = true;
         }

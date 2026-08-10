@@ -5,14 +5,10 @@
  * @file term_fixture.h
  * @brief PipeSerial - a BufferedSerial whose wire is a pipe the test can read.
  *
- * Every screen-level fixture in the suite needs the same thing: a
- * HAL::Serial::Raw bound to a non-blocking pipe, a BufferedSerial over it, and
- * a way to drain the TX ring into a string. What each one builds ON TOP differs
- * legitimately - a bare AnsiTerminal, a Console, a Console plus a CommandShell,
- * a Console plus an AlarmController - but the plumbing underneath was written
- * out six times, with three spellings of the fd pair and two of the drain loop.
- *
- * So this is the plumbing only. A fixture holds one and adds its own members.
+ * Every screen-level fixture needs the same plumbing: a HAL::Serial::Raw bound
+ * to a non-blocking pipe, a BufferedSerial over it, and a way to drain the TX
+ * ring into a string. This is that plumbing only; a fixture holds one and adds
+ * whatever it builds on top.
  */
 
 #include <fcntl.h>                          // fcntl / O_NONBLOCK
@@ -29,8 +25,7 @@ namespace botanik_test {
     /** @brief A BufferedSerial whose far end is a pipe this object owns.
      *
      *  The read end is non-blocking, so capture() never hangs on a fixture that
-     *  emitted nothing - which is the assertion half the byte-budget tests are
-     *  making. */
+     *  emitted nothing - which is what half the byte-budget tests assert. */
     struct PipeSerial {
         int                           fds[2];
         Botanik::HAL::Serial::Raw     raw;
@@ -48,10 +43,9 @@ namespace botanik_test {
 
         /** @brief Push the TX ring to the pipe and return what accumulated.
          *
-         *  The 64 transmit() calls are the per-activation cap being paid off:
-         *  BufferedSerial hands the driver a bounded slice per call, so one
-         *  call would leave a long frame half-written and the test would assert
-         *  on a fragment. */
+         *  BufferedSerial hands the driver a bounded slice per call, so the 64
+         *  calls pay off the per-activation cap: one call would leave a long
+         *  frame half-written and the test would assert on a fragment. */
         std::string capture() {
             std::string out;
             char buf[8192];

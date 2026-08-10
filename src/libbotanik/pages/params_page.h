@@ -23,9 +23,8 @@
  * bottom row) render the value, seeded with the row's current text. ENTER
  * commits (parse + validate through Params::set, which persists it; applying a
  * config group still means bumping that group's commit serial by hand);
- * ESC/Ctrl+C cancels. An invalid value is rejected and
- * flagged, leaving edit mode open. Rows repaint only on a change, so a steady
- * screen spends no TX budget.
+ * ESC/Ctrl+C cancels. An invalid value is rejected and flagged, leaving edit
+ * mode open.
  */
 
 #include <cstdint>                          // uint8_t/uint16_t/uint64_t
@@ -69,24 +68,18 @@ namespace Botanik { namespace Pages {
         static constexpr uint16_t UNIT_W     = 5;    // physical-unit column
         static constexpr uint16_t VAL_CAP    = 40;   // formatted value cap
         static constexpr uint16_t LINE_CAP   = Config::TABLE_LINE_LEN;
-        // Detail panel below the table: a separator rule, a blank spacer, then
-        // Minimum / Maximum / Default, then Description and Notes for the
-        // selected parameter, and a trailing blank spacer (unit is a table
-        // column). ... then a blank, the [group] legend, and a blank - the same
-        // framing the ALARMS table gives its mode badge.
+        // Detail panel below the table: separator, blank spacer, Minimum /
+        // Maximum / Default, Description, Notes, then the trailing spacer the
+        // [group] badge sits on (unit is a table column).
         static constexpr uint16_t PANEL_H    = 7;
         /** @brief Column order; the selection cursor inverts C_NAME's cell.
          *
-         *  REGISTER rather than DEFAULT, because the two want opposite things
-         *  from a table. A register is an EXTERNAL contract - a Modbus master's
-         *  map is written against it - so what an operator needs is to scan the
-         *  whole map down one column. A default is a per-row fact you consult
-         *  when you are already looking at that row, which is what the panel
-         *  below is for.
-         *
-         *  REGISTER sits last, outboard of UNIT: the unit belongs against the
-         *  value it qualifies, and the register is the one column that says
-         *  nothing about the reading - it is the external map. */
+         *  REGISTER rather than DEFAULT: a register is an EXTERNAL contract (a
+         *  Modbus master's map is written against it), so it wants scanning
+         *  down a column, while a default is a per-row fact the panel below
+         *  answers. It sits last, outboard of UNIT, since the unit belongs
+         *  against the value it qualifies and the register says nothing about
+         *  the reading. */
         enum { C_NAME = 0, C_TYPE, C_VALUE, C_UNIT, C_REGISTER };
         /** @} */
 
@@ -156,14 +149,11 @@ namespace Botanik { namespace Pages {
          *  @{ */
         static constexpr uint8_t GROUPS_MAX = Vars::VAR_GROUPS_MAX;
 
-        /** @brief Distinct group prefixes, in table order, discovered ONCE.
-         *
-         *  The parameter table is fixed at build time, so the group set cannot
-         *  move. Rebuilding it inside _mode_label() - which _in_mode() calls per
-         *  parameter, which _visible_count() calls per parameter - would be a
-         *  walk of the whole table squared on every repaint, over ~150 rows.
-         *  Mutable because the query side is const and this is a cache, not
-         *  state. */
+        /** @brief Distinct group prefixes, in table order, discovered ONCE. The
+         *  table is fixed at build time, so the set cannot move; rebuilding it
+         *  inside _mode_label() (called per parameter by _in_mode(), itself
+         *  called per parameter by _visible_count()) would be a squared walk of
+         *  ~150 rows on every repaint. Mutable: a cache, not state. */
         mutable const char* _group_name[GROUPS_MAX];
         mutable uint8_t     _group_n      = 0;
         mutable bool        _groups_ready = false;
@@ -210,13 +200,12 @@ namespace Botanik { namespace Pages {
         /** @brief Columns the panel's second and third fields start at
          *  (Minimum | Maximum | Default).
          *
-         *  Each is placed one value-field past the one before it rather than
-         *  spread across the row: a 12-wide label and " : " put a value at
-         *  +15, and a bound is at most ~12 characters wide, so the next field
-         *  starts at +12 from there. Spacing them evenly across 80 columns
-         *  instead left ~19 blank columns between a bound and the next label,
-         *  which reads as three unrelated fields rather than one band. The
-         *  slack goes to Default, the only one whose value is not a number. */
+         *  Each sits one value-field past the one before, not spread across the
+         *  row: a 12-wide label plus " : " puts a value at +15, and a bound is
+         *  at most ~12 wide, so the next field starts +12 from there. Even
+         *  spacing over 80 columns leaves ~19 blank between a bound and the
+         *  next label, which reads as three unrelated fields rather than one
+         *  band. The slack goes to Default, the only non-numeric value. */
         static constexpr uint16_t PANEL_COL2 = 28;
         static constexpr uint16_t PANEL_COL3 = 55;
 

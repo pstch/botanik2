@@ -25,11 +25,10 @@
 namespace Botanik { namespace Pages {
 
 #ifdef TARGET_SIMULATOR
-    // The note is the largest single value the store ever holds, and the sim
-    // backend keeps every key in one hex-encoded file - so the cap has to clear
-    // twice NOTES_LEN plus room for the parameters. Asserted here rather than in
-    // the config: it relates two different concerns (the store's size and this
-    // page's buffer), and this page is the reason the constraint exists.
+    // The note is the largest single value the store holds, and the sim backend
+    // keeps every key in one hex-encoded file, so the cap must clear twice
+    // NOTES_LEN plus the parameters. Asserted here, not in the config: it spans
+    // two concerns and this page is why it exists.
     static_assert(2 * (uint32_t)Config::NOTES_LEN + 1024 <= Config::STORE_MAX_BYTES,
                   "STORE_MAX_BYTES too small for a hex-encoded NOTES_LEN plus the parameters");
 #endif
@@ -39,14 +38,13 @@ namespace Botanik { namespace Pages {
      *
      * A `TextEditor` in Anchor::TOP over the content area, minus the bottom row
      * which holds a status line. The editor owns the wrapping and the
-     * reconcile, so editing in the middle of a paragraph reflows the rows below
-     * with one IL/DL rather than repainting the screen - the whole reason this
-     * is the shell's editor and not a second one.
+     * reconcile, so a mid-paragraph edit reflows the rows below with one IL/DL
+     * instead of a screen repaint (@ref dev_editor) - the reason this is the
+     * shell's editor and not a second one.
      *
      * Persistence is deliberate, not continuous: Ctrl+O writes, and leaving the
-     * page flushes if there is anything unsaved. A note is kilobytes, so each
-     * write is a real flash erase; doing it per keystroke would be an overrun
-     * per keystroke.
+     * page flushes anything unsaved. A note is kilobytes, so each write is a
+     * real flash erase; per keystroke it would be an overrun per keystroke.
      */
     class NotesPage : public Page {
     private:
@@ -61,10 +59,10 @@ namespace Botanik { namespace Pages {
         static const uint16_t PROMPT_COLS = 2;
         /** @} */
 
-        /** @brief HAL::Storage key the note is persisted under. Its own key
-         *  rather than a parameter: prose has no band to validate, no Modbus
-         *  register and no business on the PARAMS page. Private to this page -
-         *  renaming it would orphan the note already on the unit. */
+        /** @brief HAL::Storage key the note is persisted under. Its own key,
+         *  not a parameter: prose has no band, no Modbus register and no
+         *  business on the PARAMS page. @warning Renaming it orphans the note
+         *  already stored on the unit. */
         static constexpr const char* STORAGE_KEY = "notes";
 
         using AnsiTerminal = Terminal::AnsiTerminal;
@@ -173,11 +171,9 @@ namespace Botanik { namespace Pages {
         }
 
         /** @brief The status row: the bottom content row, claimed as CHROME in
-         *  focus() so a squeezed byte budget drops it before the text.
-         *
-         *  Painted unconditionally. The terminal's back-buffer already prices an
-         *  unchanged row at zero bytes, so a page-side "what did I draw" cache
-         *  would buy nothing and cost an invalidation to get wrong. */
+         *  focus() so a squeezed byte budget drops it before the text. Painted
+         *  unconditionally - an unchanged row costs zero bytes at the diff
+         *  (@ref dev_screen), so a page-side paint cache would buy nothing. */
         void _draw_status();
 
         /** @} */

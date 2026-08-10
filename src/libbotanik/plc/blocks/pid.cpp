@@ -40,11 +40,9 @@ namespace Botanik { namespace Plc {
         const float d_term = t.kd * (t.reverse ? _deriv : -_deriv);
 
         if (t.ki == 0.0f) {
-            // No integral action means NO integral term, not a frozen one.
-            // Leaving whatever had accumulated in place would keep commanding
-            // the output for ever with nothing able to remove it - and since
-            // PidTuning::ki is an operator-editable number, "turn the I off"
-            // is a thing someone does to a loop that is already running.
+            // No integral action means NO integral term, not a frozen one: ki
+            // is operator-editable, and whatever had accumulated would go on
+            // commanding the output for ever with nothing able to remove it.
             _integral = 0.0f;
         } else if (dt > 0.0f) {
             // Conditional integration: only when it does not push further into
@@ -54,13 +52,11 @@ namespace Botanik { namespace Plc {
                               || (unsat <= t.out_min && _error < 0.0f);
             if (!winding) {
                 _integral += t.ki * _error * dt;
-                // Clamped so the integral can span the output, NOT to the
+                // Clamped so the integral can SPAN the output, NOT to the
                 // output's own limits: with a non-zero floor, limit(i, 20, 100)
-                // clamps a fresh integral of 0.01 UP to 20, and the winding
-                // test above then pins it there for good - twenty units of
-                // authority the loop never earned and cannot unwind. A
-                // minimum-fan-speed or minimum-stroke loop is exactly that
-                // shape. Zero has to stay reachable from either side.
+                // would clamp a fresh integral of 0.01 UP to 20 and the winding
+                // test would pin it there for good. Zero has to stay reachable
+                // from either side.
                 _integral = limit(_integral,
                                   (t.out_min < 0.0f) ? t.out_min : 0.0f,
                                   (t.out_max > 0.0f) ? t.out_max : 0.0f);

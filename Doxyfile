@@ -1,11 +1,10 @@
-# Doxyfile for Botanik — greenhouse control system (libbotanik)
+# Doxyfile for Botanik - greenhouse control system (libbotanik)
 #
 # Generate docs with:    doxygen Doxyfile
 # Output lands in:       docs/doxygen/html/index.html
 #
-# Tuned for Doxygen 1.9.x. The source already uses JavaDoc-style comments
-# (/** ... */ with @brief, @param, @return, @name groups), so this config
-# mostly points Doxygen at src/ and turns on full extraction.
+# Tuned for Doxygen 1.9.x. The source uses JavaDoc-style comments, so this
+# config mostly points Doxygen at src/ and turns on full extraction.
 
 #---------------------------------------------------------------------------
 # Project identity
@@ -29,9 +28,9 @@ FILE_PATTERNS          = *.h *.cpp *.c *.md *.dox
 RECURSIVE              = YES
 IMAGE_PATH             = images
 
-# Design notes: budgets, and designs for things not built yet. Kept in the repo
-# but deliberately out of the manual - a plan rendered beside the pages that
-# document real mechanisms reads as if it were one of them.
+# Design notes: budgets and designs for things not built yet. Kept in the repo,
+# out of the manual: a plan rendered beside the pages that document real
+# mechanisms reads as if it were one of them.
 EXCLUDE                = docs/design
 
 # Vendored toolchain/Mbed headers and build artifacts are not our code. The
@@ -44,8 +43,8 @@ EXCLUDE_PATTERNS       = */build/* \
                          */.pytest_cache/* \
                          */__pycache__/*
 
-# Implementation-detail namespaces are not API. Anonymous namespaces are dropped
-# via EXTRACT_ANON_NSPACES below; named `detail` namespaces are excluded by symbol.
+# Implementation-detail namespaces are not API. Anonymous ones go via
+# EXTRACT_ANON_NSPACES below; named `detail` ones are excluded by symbol.
 EXCLUDE_SYMBOLS        = *::detail \
                          *::detail::*
 
@@ -107,9 +106,8 @@ CALL_GRAPH             = NO
 CALLER_GRAPH           = NO
 DOT_MULTI_TARGETS      = YES
 
-# PlantUML (\startuml blocks) - sequence/state/class diagrams. Externally
-# provided, not vendored: point this at the system jar (Debian/Ubuntu:
-# `apt install plantuml`). Override the path here for other locations.
+# PlantUML (\startuml blocks). Not vendored: point this at the system jar
+# (Debian/Ubuntu: `apt install plantuml`).
 PLANTUML_JAR_PATH      = /usr/share/plantuml/plantuml.jar
 
 #---------------------------------------------------------------------------
@@ -121,11 +119,10 @@ GENERATE_TREEVIEW      = YES
 DISABLE_INDEX          = NO
 GENERATE_LATEX         = NO
 
-# Scoped layout for the Library page's code charts: a small stylesheet (the
-# .code-charts flex wrapper, side-by-side when wide, stacked when narrow) plus the
-# generated SVGs copied into the HTML output so the raw <img> tags resolve. The
-# SVGs come from scripts/code_charts.py (run by the `docs` target); on a build
-# where they weren't generated, Doxygen just warns they're missing.
+# Layout for the Library page's code charts: the .code-charts stylesheet plus
+# the generated SVGs copied into the HTML output so the <img> tags resolve. The
+# SVGs come from scripts/code_charts.py (run by the `docs` target); where they
+# were not generated, Doxygen just warns they are missing.
 HTML_EXTRA_STYLESHEET  = docs/charts.css
 HTML_EXTRA_FILES       = docs/generated/code_loc.svg \
                          docs/generated/code_churn.svg \

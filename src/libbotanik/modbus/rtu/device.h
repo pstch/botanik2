@@ -5,36 +5,22 @@
  * @file modbus/rtu/device.h
  * @brief What one MODEL of field device will and will not answer.
  *
- * @section dev_why Why this is not in the variable table
- *
  * A row says where a signal lives. It cannot say that this meter refuses a
- * request for more than 40 values, or that it answers exception 02 to any
- * request whose start address is odd, because those are facts about the DEVICE
- * and the same fact would then be repeated on all 37 of its rows.
+ * request for more than 40 values, or answers exception 02 to any request whose
+ * start address is odd: those are facts about the DEVICE, and not about the bus
+ * either, since two models on one RS-485 segment disagree about all of them. So
+ * they sit here, one entry per model, and the site names which model answers at
+ * which unit address.
  *
- * They are also not facts about the bus: two models on the same RS-485 segment
- * disagree about all of them. So they sit here, one entry per model, and the
- * site names which model answers at which unit address.
- *
- * @section dev_notprofile What this is deliberately NOT
- *
- * Not a device profile in the SCADA sense: there is no per-signal map here, no
- * object index, no register list. That was considered and rejected - a
- * translation table from object index to register would be a second hand-copy of
- * the vendor PDF the addresses already came from, with a second chance to be
- * wrong and nothing to check it against. Addresses live in the row, once.
- *
- * What is here is the handful of scalars a PLANNER needs in order to cut a legal
- * request: how many registers may be asked for at once, what the address and
- * quantity must be multiples of, whether the multi-writes exist, and how much
- * silence the device wants afterwards.
- *
- * @section dev_unknown A device nobody described
+ * Not a device profile in the SCADA sense: no per-signal map, no object index,
+ * no register list. Addresses live in the row, once. What is here is what a
+ * PLANNER needs to cut a legal request: how many registers may be asked for at
+ * once, what the address and quantity must be multiples of, whether the
+ * multi-writes exist, and how much silence the device wants afterwards.
  *
  * generic_model() is what a unit no table names gets: the protocol's own limits
- * and nothing assumed. That is the honest default - a model entry is only ever
- * as good as the manual behind it, and inventing constraints for a device whose
- * datasheet nobody has read would be worse than admitting we do not know.
+ * and nothing assumed, since a model entry is only as good as the manual behind
+ * it.
  */
 
 #include <cstdint>
@@ -55,13 +41,10 @@ namespace Botanik { namespace Modbus {
      * initialised straight into flash like every other table here.
      */
     struct DeviceModel {
-        // Built through the factories below, not brace-initialised: C++11 has no
-        // designated initialisers, so a field inserted anywhere but the end
+        // Build through the factories below, never brace-initialised: C++11 has
+        // no designated initialisers, so a field inserted anywhere but the end
         // silently reinterprets every existing literal rather than failing to
-        // compile. Adding max_bits did exactly that to four test models, which
-        // still built and one of which then asserted nothing. The factories take
-        // only the arguments a shape can use, so there is no positional literal
-        // left to get wrong - the same reason vars/declare.h exists.
+        // compile. The factories take only the arguments a shape can use.
 
         /** @brief For logs and the `modbus` command. Never matched on. */
         const char* name;
@@ -70,9 +53,8 @@ namespace Botanik { namespace Modbus {
          *  "prompting the SDM630Modbus to generate an exception response". */
         uint16_t    max_regs;
         /** @brief Most coils one read or write may cover; 0 means the
-         *  protocol's own. A relay board with eight relays says 8, and it is a
-         *  separate number from max_regs because a device can have plenty of
-         *  one and none of the other. */
+         *  protocol's own. Separate from max_regs because a device can have
+         *  plenty of one and none of the other. */
         uint16_t    max_bits;
         /** @brief What a start address must be a multiple of. 2 on a device
          *  that stores 32-bit values in register pairs and refuses a request
@@ -130,10 +112,10 @@ namespace Botanik { namespace Modbus {
     /** @brief One unit address on the segment: what answers there, and what the
      *  people who wired it call it.
      *
-     *  @c tag is the plant's own designation - the label on the enclosure, the
-     *  one on the drawing - not the model. "dev 34 not answering" sends an
-     *  engineer to a spreadsheet; "dev 34 (SRR/TDC/RO-4) not answering" sends
-     *  them to a cabinet. Optional: null falls back to the unit number alone. */
+     *  @c tag is the plant's own designation (the label on the enclosure), not
+     *  the model: "dev 34 (SRR/TDC/RO-4) not answering" sends an engineer to a
+     *  cabinet rather than to a spreadsheet. Optional: null falls back to the
+     *  unit number alone. */
     struct Device {
         uint8_t            unit;
         const DeviceModel* model;
@@ -163,16 +145,15 @@ namespace Botanik { namespace Modbus {
 
     /** @brief What the plant calls the device at @p unit, or nullptr when the
      *  table does not name it. Never invents one: a missing tag reads as the
-     *  bare unit number, which is what it was before anybody wrote tags. */
+     *  bare unit number. */
     const char* device_tag(const DeviceTable* t, uint8_t unit);
 
     /** @brief Render a device for a human: "34 (SRR/TDC/RO-4)", or bare "34"
      *  when it has no tag.
      *
-     *  Returns @p buf so it drops straight into a "%s" argument. One helper
-     *  rather than the same ternary at each log site, because the log lines are
-     *  read together and a device that is spelled two ways reads as two
-     *  devices. Truncates rather than overflows; @p n of 0 is a no-op. */
+     *  Returns @p buf so it drops straight into a "%s" argument. One helper for
+     *  every log site, since a device spelled two ways reads as two devices.
+     *  Truncates rather than overflows; @p n of 0 is a no-op. */
     const char* device_label(const DeviceTable* t, uint8_t unit,
                              char* buf, uint8_t n);
 

@@ -10,8 +10,7 @@
 
 #include "libbotanik/config/base.h"       // the BOTANIK_FEATURE_* gates
 
-// Defined and undefined per file rather than in base.h: base.h is guarded,
-// so a second include of it would not restore a macro this file undefined.
+// Defined and undefined per file, not in base.h: see base.h.
 #define BOTANIK_CFG(type, name) static constexpr type name = BOTANIK_##name
 
 namespace Botanik { namespace Config {
@@ -38,9 +37,8 @@ namespace Botanik { namespace Config {
      *  a sink to be admitted. LOG_CRITICAL is the enum maximum, so a critical
      *  clears every floor.
      *
-     *  HOME is a landing screen an operator glances at, so it carries only what
-     *  is worth looking up for; the SHELL is where you are already working, so
-     *  it keeps the running commentary; LOGS is the record and holds the lot.
+     *  HOME is a landing screen, so it carries only what is worth looking up
+     *  for; SHELL keeps the running commentary; LOGS is the record.
      *  @{ */
 
     /** @brief HOME page log band. */
@@ -91,11 +89,10 @@ namespace Botanik { namespace Config {
     /** @brief Per-writer in-flight message queue depth.
      *
      *  The dominant RAM line in a logging build: one writer costs roughly
-     *  LOG_QUEUE_SIZE * (LOG_MESSAGE_LEN + 16) + LOG_FORMATTED_LEN, and the
-     *  full page set registers five of them, each holding its own copy of every
-     *  entry. Lowering it is the first thing to try on a tight build - but keep
-     *  it above the boot burst (~20 entries in the first beat) or the announces
-     *  are what gets dropped. */
+     *  LOG_QUEUE_SIZE * (LOG_MESSAGE_LEN + 16) + LOG_FORMATTED_LEN, and the full
+     *  page set registers five. Lowering it is the first thing to try on a tight
+     *  build, but keep it above the boot burst (~20 entries in the first beat)
+     *  or the announces are what gets dropped. */
 #ifndef BOTANIK_LOG_QUEUE_SIZE
 #  define BOTANIK_LOG_QUEUE_SIZE 32
 #endif

@@ -54,10 +54,9 @@ namespace Botanik { namespace Terminal {
     /** @brief A laid-out view of the buffer: the row slices plus their count.
      *  Used for both `_layout` (current/target) and `_pre` (pre-edit).
      *
-     *  @note `rows` is BORROWED, not owned - the two views point at distinct
-     *  arrays supplied by the owner (see EditorStorage). Copying a TextView by
-     *  value would alias them, which is why the editor snapshots through
-     *  `_snapshot_pre()` rather than assigning. */
+     *  @note `rows` is BORROWED - the two views point at distinct owner-supplied
+     *  arrays (see EditorStorage). Copying a TextView by value would alias them,
+     *  hence `_snapshot_pre()` rather than assignment. */
     struct TextView {
         RowView* rows  = nullptr; /**< Borrowed row array (see EditorStorage). */
         uint16_t count = 0;       /**< Rows laid out right now. */
@@ -65,9 +64,9 @@ namespace Botanik { namespace Terminal {
 
     /** @brief The buffers a TextEditor works over, owned by whoever built it.
      *
-     *  Kept external so each editor is sized for its job: a shell prompt and a
-     *  PARAMS value field want a few hundred bytes, a full-screen notes editor
-     *  wants kilobytes, and none of them should pay for the largest. */
+     *  External so each editor is sized for its job: a shell prompt wants a few
+     *  hundred bytes, a full-screen notes editor kilobytes, and neither pays for
+     *  the other. */
     struct EditorStorage {
         char*    buf;      /**< Text buffer, `buf_cap` bytes (one reserved for NUL). */
         uint16_t buf_cap;
@@ -101,11 +100,10 @@ namespace Botanik { namespace Terminal {
      * the screen by diffing `_pre` against `_layout`: one IL/DL for the
      * row-count change, then a forward per-row splice walk from the edit row.
      *
-     * @note Layout is capped at the row array the owner supplied. At >=
-     * `EDITOR_MIN_COLS` the buffer always fits by soft-wrap (static_asserts in
-     * config), so the cap is only reachable through hard `\n` breaks - and an
-     * insert that would cross it is refused rather than laid out short, since
-     * the rows past the cap are text nobody can see or reach.
+     * @note Layout is capped at the owner's row array. At >= `EDITOR_MIN_COLS`
+     * the buffer always fits by soft-wrap (static_asserts in config), so the cap
+     * is only reachable through hard `\n` breaks; an insert that would cross it
+     * is refused, since rows past the cap are text nobody can reach.
      *
      * @note Text taller than the viewport is not a special case: the window
      * scrolls over it (see Anchor and set_view_rows()).
@@ -161,9 +159,9 @@ namespace Botanik { namespace Terminal {
         uint16_t _mark     = 0;
         bool     _mark_set = false;
         /** @brief What the screen currently shows highlighted, so _sync_region()
-         *  can tell that it is already right and return without touching a cell
-         *  - which is every call with no mark, so ordinary editing stays exactly
-         *  as cheap as it was. */
+         *  can return without touching a cell when it is already right - which is
+         *  every call with no mark, so ordinary editing costs what it always
+         *  did. */
         uint16_t _painted_from = 0, _painted_to = 0;
         bool     _painted_active = false;
 
@@ -320,13 +318,11 @@ namespace Botanik { namespace Terminal {
         /**
          * @name Kill and yank
          *
-         * The three cut/paste keys, over the console-wide kill ring (see
-         * console/kill_ring.h) rather than a buffer of this editor's own - so
-         * what is cut here can be yanked wherever the operator goes next.
-         *
-         * A kill takes only what the ring can hold and leaves the rest in the
-         * buffer, so a yank always restores exactly what went. Each returns
-         * false when there was nothing to do.
+         * The three cut/paste keys, over the console-wide kill ring
+         * (console/kill_ring.h), so what is cut here yanks wherever the operator
+         * goes next. A kill takes only what the ring can hold and leaves the rest
+         * in the buffer, so a yank restores exactly what went. Each returns false
+         * when there was nothing to do.
          * @{
          */
 
@@ -349,13 +345,9 @@ namespace Botanik { namespace Terminal {
          *
          * Ctrl-Space drops a mark; the region is the span between it and the
          * cursor, drawn reverse-video, and Ctrl-W / Alt-W act on it instead of
-         * on a word.
-         *
-         * The mark is TRANSIENT: any edit drops it, so a kill after typing is
-         * a word kill again. That is what a region does not have to be - a mark
-         * that survived edits would have to be shifted by every insert and
-         * clamped by every delete, and getting that wrong deletes the wrong
-         * bytes without saying so.
+         * on a word. The mark is TRANSIENT: any edit drops it, so one can never
+         * need shifting by an insert or clamping by a delete. See @ref
+         * dev_editor.
          * @{
          */
 
@@ -371,11 +363,8 @@ namespace Botanik { namespace Terminal {
 
         /** @brief What Ctrl-W does: the region when there is one, the word
          *  before the cursor when there is not - which is what makes the mark
-         *  optional rather than a mode.
-         *
-         *  Here rather than in each page's key switch: it is a statement about
-         *  how the mark behaves, and three pages holding their own copy of it
-         *  is three places for it to drift. */
+         *  optional rather than a mode. Here rather than in each page's key
+         *  switch, so the three cannot drift. */
         bool kill_region_or_word();
 
         /** @brief Whether an anchor is live. */
@@ -526,15 +515,15 @@ namespace Botanik { namespace Terminal {
          * @name Viewport
          *
          * The window of layout rows currently on screen. A bottom-anchored
-         * editor is the degenerate case - `_view_top` 0 and a height that runs
-         * to the content bottom - so these subsume a bare `_origin + i` and a
-         * clip against `_console->rows()`.
+         * editor is the degenerate case (`_view_top` 0, height running to the
+         * content bottom), so these subsume a bare `_origin + i` and a clip
+         * against `_console->rows()`.
          * @{
          */
 
-        /** @brief Content-area height. Out of line on purpose: `Console` is only
-         *  forward-declared here (it owns pages, which own editors), so the
-         *  inlines below cannot reach `_console->rows()` directly. */
+        /** @brief Content-area height. Out of line because `Console` is only
+         *  forward-declared here, so the inlines below cannot reach
+         *  `_console->rows()` directly. */
         uint16_t _console_rows() const;
 
         /** @brief Screen rows the viewport spans right now. */

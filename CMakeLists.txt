@@ -1,9 +1,7 @@
 cmake_minimum_required(VERSION 3.10)
 
-# A cross-compilation toolchain must be chosen before project() runs the compiler
-# detection. BOTANIK_TARGET arrives via -D (already in the cache at this point),
-# so we can select the OPTA toolchain here and keep the plain
-# `cmake -DBOTANIK_TARGET=OPTA` invocation.
+# The toolchain must be chosen before project() runs compiler detection.
+# BOTANIK_TARGET arrives via -D, so it is already in the cache here.
 if("${BOTANIK_TARGET}" STREQUAL "OPTA")
     set(CMAKE_TOOLCHAIN_FILE "${CMAKE_CURRENT_SOURCE_DIR}/cmake/opta-toolchain.cmake")
 endif()
@@ -16,16 +14,11 @@ set(CMAKE_C_USE_RESPONSE_FILE_FOR_INCLUDES ON)
 # Global definitions
 # ============================================================================
 
-# Change with cmake -DBOTANIK_TARGET=SIMULATOR ..
 set(BOTANIK_TARGET "SIMULATOR" CACHE STRING "Target platform: SIMULATOR or OPTA")
 
-# Greenhouse site to build: one directory holding the payload, the generated
-# tables, the alarm table and the mock PLC. Two ways to name it:
-#
-#   -DBOTANIK_SITE=<name>     a site in this tree, i.e. src/sites/<name>/
-#   -DBOTANIK_SITE_DIR=<path> any directory on disk, e.g. a consumer project's
-#                             LLSketch dir holding its generated site
-#
+# Greenhouse site to build, named either way:
+#   -DBOTANIK_SITE=<name>     a site under src/sites/
+#   -DBOTANIK_SITE_DIR=<path> any directory on disk, possibly out of tree
 # BOTANIK_SITE_DIR wins when both are given. One site per build; both targets
 # run the same one. See the site resolution block further down.
 set(BOTANIK_SITE "gh_mlb41" CACHE STRING "Greenhouse site under src/sites/")
@@ -35,11 +28,8 @@ set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-# Use ccache as the compiler launcher when it's installed. Auto-detected, so it's
-# a no-op when absent; an existing CMAKE_CXX_COMPILER_LAUNCHER (e.g. passed on the
-# command line) is left untouched. Pays off on the frequent clean rebuilds this
-# project does ('rm -rf build', config/branch switches): cached objects replay in
-# ~2s instead of a full recompile.
+# ccache as compiler launcher when installed: a no-op when absent, and an
+# existing CMAKE_CXX_COMPILER_LAUNCHER is left untouched.
 if(NOT CMAKE_CXX_COMPILER_LAUNCHER)
     find_program(CCACHE_PROGRAM ccache)
     if(CCACHE_PROGRAM)
@@ -51,39 +41,31 @@ if(NOT CMAKE_CXX_COMPILER_LAUNCHER)
     endif()
 endif()
 
-# Default to a DEBUG build so profiling/debugging works out of the box. Build
-# types are spelled in upper case (DEBUG / RELEASE); CMake upper-cases the type
-# anyway when resolving the per-config CMAKE_*_FLAGS_<CONFIG> variables.
+# Default to DEBUG so profiling works out of the box. Build types are spelled
+# upper case; CMake upper-cases them anyway for CMAKE_*_FLAGS_<CONFIG>.
 if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE DEBUG CACHE STRING "Build type" FORCE)
 endif()
 
-# Runtime sanitizers for the SIMULATOR build (ignored on OPTA, which we can't run).
-# OFF | address | undefined | address+undefined. Default OFF: instrumentation more
-# than doubles compile CPU, most of it on the test TUs. `make check-full` runs the
-# gate instrumented in a tree of its own.
+# Runtime sanitizers for the SIMULATOR build (ignored on OPTA, which we can't
+# run). OFF | address | undefined | address+undefined. Default OFF: instrumentation
+# more than doubles compile CPU. `make check-full` runs the gate instrumented.
 string(TOUPPER "${CMAKE_BUILD_TYPE}" _build_type_upper)
 set(BOTANIK_SANITIZE "OFF" CACHE STRING "Sanitizers for the SIMULATOR build")
 
-# Override CMake's default Debug flags ("-g") with profiler-friendly ones:
-# optimizations disabled, full DWARF-4 debug info, frame pointer preserved.
+# Profiler-friendly Debug flags in place of CMake's bare "-g".
 set(CMAKE_C_FLAGS_DEBUG   "-O0 -g3 -gdwarf-4 -fno-omit-frame-pointer" CACHE STRING "" FORCE)
 set(CMAKE_CXX_FLAGS_DEBUG "-O0 -g3 -gdwarf-4 -fno-omit-frame-pointer" CACHE STRING "" FORCE)
 
-# Release: maximum optimization with assertions compiled out, and the final
-# executable stripped of its symbol table at link time (-s). We stop at -O3
-# rather than -Ofast on purpose: -Ofast pulls in -ffast-math, which would relax
-# the FP semantics the metric filters rely on. LTO is enabled separately below.
+# Release: -O3 (not -Ofast: it pulls in -ffast-math, which would relax the FP
+# semantics the metric filters rely on), NDEBUG, stripped at link. LTO below.
 set(CMAKE_C_FLAGS_RELEASE          "-O3 -DNDEBUG" CACHE STRING "" FORCE)
 set(CMAKE_CXX_FLAGS_RELEASE        "-O3 -DNDEBUG" CACHE STRING "" FORCE)
 set(CMAKE_EXE_LINKER_FLAGS_RELEASE "-s"           CACHE STRING "" FORCE)
 
 
-# Symlink compile_commands.json to the project root so clang-tidy/clangd find it
-# without extra configuration. Only the DEBUG tree drives editor tooling, so a
-# parallel RELEASE (or other) configure won't repoint the symlink at the
-# optimized/NDEBUG compile flags. Compared case-insensitively (via the
-# _build_type_upper computed above) so any spelling of the build type resolves.
+# Symlink compile_commands.json to the project root for clang-tidy/clangd. DEBUG
+# trees only, so a parallel RELEASE configure cannot repoint it at NDEBUG flags.
 if(_build_type_upper STREQUAL "DEBUG")
     execute_process(
         COMMAND ${CMAKE_COMMAND} -E create_symlink
@@ -92,9 +74,8 @@ if(_build_type_upper STREQUAL "DEBUG")
     )
 endif()
 
-# The library is just src/libbotanik/. The src/botanik_sim/ sketch (main + mock
-# PLC) is the host application, compiled into botanik_sim below — never into the
-# library, so it stays out of the OPTA build, which has no host entry point.
+# The library is just src/libbotanik/. src/botanik_sim/ is the host application
+# and never enters the library, so it stays out of the OPTA build.
 file(GLOB_RECURSE LIB_SOURCES CONFIGURE_DEPENDS
     "src/libbotanik/*.cpp"
     "src/libbotanik/*.c"
@@ -102,9 +83,8 @@ file(GLOB_RECURSE LIB_SOURCES CONFIGURE_DEPENDS
 
 add_library(botanik STATIC ${LIB_SOURCES})
 
-# Build-time git short hash, stamped into a generated header (BOTANIK_GIT_HASH) and
-# refreshed every build (written only when it changes, so it doesn't churn rebuilds).
-# The Arduino .ino deploy doesn't run CMake, so version.h falls back to "unknown" there.
+# Git short hash stamped into a generated header (BOTANIK_GIT_HASH), refreshed
+# every build but written only when it changes, so it doesn't churn rebuilds.
 set(BOTANIK_GENERATED_DIR "${CMAKE_BINARY_DIR}/generated")
 add_custom_target(botanik_gitversion
     BYPRODUCTS "${BOTANIK_GENERATED_DIR}/botanik_gitversion.h"
@@ -116,35 +96,25 @@ add_custom_target(botanik_gitversion
 add_dependencies(botanik botanik_gitversion)
 target_include_directories(botanik PUBLIC "${BOTANIK_GENERATED_DIR}")
 
-# Keep the per-beat metric math single-precision on the M4 (no double FPU): the
-# scheduler/filters hot path must stay float-clean. Scoped to that one TU so it
-# enforces the hot path without flagging the benign float->double promotions in
-# display formatting (format_float takes a double). COMPILE_FLAGS (string) for the
-# CMake 3.10 floor; applies in every target that compiles this source.
+# Keep the per-beat metric math single-precision (no double FPU on the M4).
+# Scoped to this one TU so it does not flag the benign float->double promotions
+# in display formatting. COMPILE_FLAGS (string) for the CMake 3.10 floor.
 set_source_files_properties(
     "${CMAKE_CURRENT_SOURCE_DIR}/src/libbotanik/scheduler/scheduler.cpp"
     PROPERTIES COMPILE_FLAGS "-Wdouble-promotion")
 
-# Site resolution: the site DIRECTORY is the single source of truth. We resolve it
-# to an absolute path and forward it PUBLIC on the library, so the site's files are
-# found by full path and nothing has to sit on the include path (a flat site dir
-# carries names like config.h / vars.h, which we must not let shadow anyone else's
-# headers - notably Mbed's on the OPTA build).
+# Site resolution: the site DIRECTORY is the single source of truth, resolved
+# absolute and forwarded PUBLIC so its files are found by full path. It never
+# sits on the include path: a flat site dir carries names like config.h / vars.h,
+# which must not shadow other headers (notably Mbed's). Site-internal includes
+# are RELATIVE, which is what makes an out-of-tree site work.
 #
-# Site-internal includes are RELATIVE ("payload.h", not "sites/<name>/payload.h"),
-# which is what makes an out-of-tree site work: a quoted include resolves against
-# the including file's own directory first, so a site's files always find each
-# other and can never be shadowed by the reference site in this tree.
+# config.h carries the build-wide Config overrides, read before libbotanik's
+# #ifndef defaults and with none of the library in scope.
 #
-# config.h carries the build-wide Config overrides libbotanik_config.h #includes
-# before its #ifndef defaults, so libbotanik's own TUs and every consumer compile
-# against the same values. It is separate from site.h because it is read with none
-# of the library in scope.
-# ABI guard: any TU that includes libbotanik_config.h MUST link `botanik` so it picks
-# up these PUBLIC defines transitively; a TU that includes the header without linking
-# the library would silently compile against the un-overridden defaults and mismatch
-# the rest of the build. Sizes that are part of the PLC wire contract are declared by
-# the site's payload.h instead, precisely so they cannot go missing this way.
+# ABI guard: any TU including libbotanik_config.h MUST link `botanik` for these
+# PUBLIC defines, or it silently compiles against the un-overridden defaults.
+# Sizes in the PLC wire contract live in the site's payload.h for that reason.
 if(BOTANIK_SITE_DIR)
     get_filename_component(_site_dir "${BOTANIK_SITE_DIR}" ABSOLUTE
                            BASE_DIR "${CMAKE_CURRENT_SOURCE_DIR}")
@@ -163,18 +133,13 @@ target_compile_definitions(botanik PUBLIC
     BOTANIK_SITE_HEADER=\"${_site_dir}/site.h\")
 message(STATUS "Site: ${_site_dir}")
 
-# Optional-subsystem feature flags (libbotanik_features.h), which is where each
-# one's default lives; pass -DBOTANIK_FEATURE_<X>=ON/OFF to override. Forwarded
-# as a PUBLIC define on `botanik` so the whole build agrees (same ABI discipline
-# as BOTANIK_SITE_CONFIG above). Only flags actually given on the command line
-# are forwarded - an unset one is absent from the compile line and falls through
-# to the site config, then the header default.
+# Optional-subsystem feature flags; defaults live in libbotanik_features.h.
+# -DBOTANIK_FEATURE_<X>=ON/OFF overrides, forwarded PUBLIC so the whole build
+# agrees (same ABI discipline as BOTANIK_SITE_CONFIG). An unset flag falls
+# through to the site config, then the header default.
 #
-# Discovered, not listed. This used to be a hand-written `foreach(_feat NETWORK
-# NTP ...)` that had to be kept in step with the header, and a flag missing from
-# it had its -D SILENTLY ignored - which is exactly what happened when NOTES was
-# added. Sweeping the cache for the prefix means a new flag needs no edit here at
-# all, and cannot be half-wired.
+# Discovered by sweeping the cache for the prefix, never listed: a hand-written
+# list silently ignores the -D of any flag missing from it.
 get_cmake_property(_all_vars VARIABLES)
 foreach(_v ${_all_vars})
     if(_v MATCHES "^BOTANIK_FEATURE_[A-Z0-9_]+$")
@@ -201,10 +166,9 @@ if(BOTANIK_TARGET STREQUAL "SIMULATOR")
 
     target_include_directories(botanik PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/src")
 
-    # Enable the common warning set on the host build (no -Werror yet; the goal is
-    # visibility, not a hard gate). PUBLIC so it also covers the simulator sketch.
+    # Common warning set, PUBLIC so it covers the simulator sketch too.
     # -Wno-misleading-indentation: the plcio state machines are deliberately
-    # column-aligned for readability, which trips this heuristic.
+    # column-aligned, which trips that heuristic.
     target_compile_options(botanik PUBLIC -Wall -Wextra -Wno-misleading-indentation)
 
     # Warnings are errors, on the library's own sources only: PRIVATE, so the
@@ -214,28 +178,21 @@ if(BOTANIK_TARGET STREQUAL "SIMULATOR")
         target_compile_options(botanik PRIVATE -Werror)
     endif()
 
-    # Sanitizers (PUBLIC so the library and the sketch are both instrumented, and
-    # propagated as link flags so the runtimes are linked in). Findings stay
-    # recoverable (UBSAN logs each and continues) so the interactive simulator
-    # remains usable; set UBSAN_OPTIONS=halt_on_error=1 at runtime for a strict
-    # one-shot/CI run. The frame pointer keeps stacks readable.
+    # Sanitizers, PUBLIC so the library and the sketch are both instrumented.
+    # Findings stay recoverable (UBSAN logs and continues) so the interactive
+    # simulator stays usable; UBSAN_OPTIONS=halt_on_error=1 for a strict run.
     if(NOT BOTANIK_SANITIZE STREQUAL "OFF")
         string(REPLACE "+" "," _san "${BOTANIK_SANITIZE}")
         set(_san_flags -fsanitize=${_san} -fno-omit-frame-pointer)
-        # Everything that links botanik gets instrumented. This used to carry a
-        # genex opting the botanik_strict mirror out; the mirror is gone (the
-        # library compiles -Werror directly now), so the plain form is enough.
         target_compile_options(botanik PUBLIC ${_san_flags})
-        # Propagate as link flags too (via target_link_libraries for CMake 3.10
-        # compatibility — target_link_options is 3.13+) so the runtimes get linked.
+        # Also as link flags so the runtimes get linked; via
+        # target_link_libraries because target_link_options is CMake 3.13+.
         target_link_libraries(botanik PUBLIC ${_san_flags})
         message(STATUS "Sanitizers enabled: ${BOTANIK_SANITIZE}")
     endif()
 
-    # The selected site (payload + tables + alarm table + mock PLC) compiles into
-    # the host application, not the library: it stays out of the OPTA `botanik`
-    # archive. gh_mlb41 is header-only, so this glob is empty; it stays for sites
-    # that ship their own .cpp.
+    # The selected site compiles into the host application, not the library, so
+    # it stays out of the OPTA `botanik` archive. Empty for a header-only site.
     file(GLOB BOTANIK_SITE_SOURCES CONFIGURE_DEPENDS "${_site_dir}/*.cpp")
     add_executable(botanik_sim
         "src/botanik_sim/main.cpp"
@@ -243,11 +200,9 @@ if(BOTANIK_TARGET STREQUAL "SIMULATOR")
     target_link_libraries(botanik_sim botanik)
 
 
-    # Link-time optimization for Release only (cross-TU inlining on top of -O3).
-    # Probed so a toolchain without LTO support degrades to a plain -O3 build.
-    # -DBOTANIK_LTO=OFF turns it off for builds that want the -O3 codegen without
-    # paying the whole-program link: the pyte sub-build below does exactly that,
-    # since its sim only has to be "not sanitizer-slow", not optimally inlined.
+    # Link-time optimization for Release only, probed so a toolchain without LTO
+    # degrades to plain -O3. -DBOTANIK_LTO=OFF buys the -O3 codegen without
+    # paying the whole-program link.
     option(BOTANIK_LTO "Link-time optimization for RELEASE builds" ON)
     include(CheckIPOSupported)
     check_ipo_supported(RESULT _ipo_ok OUTPUT _ipo_msg)
@@ -260,20 +215,15 @@ if(BOTANIK_TARGET STREQUAL "SIMULATOR")
         message(STATUS "IPO/LTO not supported, Release will use -O3 only: ${_ipo_msg}")
     endif()
 
-    # clang-tidy static analysis over our own src/ tree. The check set and header
-    # filter live in .clang-tidy, with bugprone-* promoted to errors there so a
-    # finding makes the target (and `make check`) fail.
+    # clang-tidy over src/. The check set and header filter live in .clang-tidy,
+    # with bugprone-* promoted to errors so a finding fails the target.
     #
-    # Incremental, one stamp file per TU: `make check` re-lints only the sources
-    # whose text (or whose included headers) changed, instead of re-analyzing all
-    # of src/ on every run. That full sweep cost ~130s here and was pure waste on
-    # an unchanged tree, since a bare custom target has no outputs to compare.
-    # Header tracking comes from IMPLICIT_DEPENDS, i.e. the Makefile generator's
-    # own dependency scanner, so the target exists only there; every tree here is
-    # a Makefile one. Re-generating compile_commands.json (any re-configure) or
-    # editing .clang-tidy invalidates every stamp: the lint depends on the exact
-    # compile flags and check set, not only on the source text. To re-lint the
-    # whole tree, `rm -rf build/clang-tidy` first.
+    # Incremental, one stamp per TU: only sources whose text or included headers
+    # changed are re-analyzed. Header tracking is IMPLICIT_DEPENDS, i.e. the
+    # Makefile generator's dependency scanner, so the target exists only there.
+    # Any re-configure or edit to .clang-tidy invalidates every stamp: the lint
+    # depends on the compile flags and check set too. `rm -rf build/clang-tidy`
+    # to re-lint the whole tree.
     set(_tidy_sources ${LIB_SOURCES} ${BOTANIK_SITE_SOURCES}
                       "${CMAKE_CURRENT_SOURCE_DIR}/src/botanik_sim/main.cpp")
     find_program(CLANG_TIDY NAMES clang-tidy)
@@ -287,10 +237,8 @@ if(BOTANIK_TARGET STREQUAL "SIMULATOR")
             set(_tidy_stamp "${_tidy_stamp_dir}/${_tidy_stamp}.stamp")
             add_custom_command(
                 OUTPUT "${_tidy_stamp}"
-                # Re-create the stamp dir here, not only at configure time: the
-                # documented way to force a full re-lint is to delete it, and
-                # the touch below then had nothing to write into - the sweep
-                # failed on every TU with a cmake error instead of running.
+                # Re-created here, not only at configure time: deleting the dir
+                # is how a full re-lint is forced, and the touch below needs it.
                 COMMAND ${CMAKE_COMMAND} -E make_directory "${_tidy_stamp_dir}"
                 COMMAND ${CLANG_TIDY} -p ${CMAKE_BINARY_DIR} --quiet "${_tidy_src}"
                 COMMAND ${CMAKE_COMMAND} -E touch "${_tidy_stamp}"
@@ -306,22 +254,20 @@ if(BOTANIK_TARGET STREQUAL "SIMULATOR")
         message(STATUS "clang-tidy not found (or non-Make generator) - skipping the target")
     endif()
 
-    # doctest unit tests (host-only, so SIMULATOR-only). enable_testing() here
-    # registers the CTest machinery for `ctest`/`make test`; the suite itself —
-    # and a `make check` that builds-then-runs it — is defined in tests/.
+    # Tests are host-only, so SIMULATOR-only. enable_testing() registers the
+    # CTest machinery; the suites and `make check` are defined in tests/.
     enable_testing()
     add_subdirectory(tests)
 
 elseif(BOTANIK_TARGET STREQUAL "OPTA")
     message(STATUS "Configuring for OPTA (Arduino/Mbed) sanity check")
 
-    # Compiler + ar/ranlib come from cmake/opta-toolchain.cmake (selected before
-    # project()), so the ARM toolchain is used consistently for compiling and
-    # archiving — see the LTO note below for why plain ar suffices here.
+    # Compiler + ar/ranlib come from cmake/opta-toolchain.cmake, selected before
+    # project(). See the LTO note below for why plain ar suffices.
 
     # Cortex-M7 + double-precision FPU (STM32H747). These set the __ARM_ARCH_*
-    # macros Mbed's headers gate on (atomics, CRC) — without them mbed_atomic.h
-    # errors out with "Unknown ARM architecture for exclusive access".
+    # macros Mbed's headers gate on: without them mbed_atomic.h errors out with
+    # "Unknown ARM architecture for exclusive access".
     target_compile_options(botanik PUBLIC
         -mcpu=cortex-m7 -mthumb -mfpu=fpv5-d16 -mfloat-abi=softfp
         # libmbed.a is built -fno-rtti; without matching it we get
@@ -429,12 +375,10 @@ elseif(BOTANIK_TARGET STREQUAL "OPTA")
         EXTRA_IDLE_STACK_REQUIRED
     )
 
-    # Locate the Arduino Mbed OPTA core. Default to the one arduino-cli installs
-    # under ~/.arduino15 (override with -DMBED_CORE_ROOT=... or ARDUINO_DATA_DIR);
-    # the highest installed version wins. The include layout below has been stable
-    # across the 4.x cores, so we don't pin a version. This replaces the old
-    # vendored includes/ tree - the ARM compiler ships its own libstdc++/newlib
-    # headers, so no separate toolchain include path is needed here.
+    # Locate the Arduino Mbed OPTA core, by default where arduino-cli installs it
+    # under ~/.arduino15 (override with -DMBED_CORE_ROOT=... or ARDUINO_DATA_DIR).
+    # The highest installed version wins: the include layout below has been
+    # stable across the 4.x cores, so no version is pinned.
     if(NOT MBED_CORE_ROOT)
         if(DEFINED ENV{ARDUINO_DATA_DIR})
             set(_ard_data "$ENV{ARDUINO_DATA_DIR}")
@@ -487,8 +431,8 @@ elseif(BOTANIK_TARGET STREQUAL "OPTA")
         "${MBED_ROOT}/cores/arduino/mbed/events/include"
         "${MBED_ROOT}/cores/arduino/mbed/storage/filesystem/include"
         "${MBED_ROOT}/cores/arduino/mbed/storage/blockdevice/include"
-        # KVStore: HAL::Storage's OPTA backend. Already in the prebuilt libmbed.a
-        # (kv_set/kv_get/kv_remove + TDBStore); only the headers were missing.
+        # KVStore: HAL::Storage's OPTA backend. Already in the prebuilt
+        # libmbed.a; only the headers were missing.
         "${MBED_ROOT}/cores/arduino/mbed/storage/kvstore/include"
         "${MBED_ROOT}/cores/arduino/mbed/storage/kvstore/kvstore_global_api/include"
         "${MBED_ROOT}/cores/arduino/mbed/storage/kvstore/tdbstore/include"
@@ -505,53 +449,44 @@ elseif(BOTANIK_TARGET STREQUAL "OPTA")
         "${MBED_ROOT}/libraries/Wire"
         "${MBED_ROOT}/libraries/Ethernet/src"
     )
-    # Mbed's headers (e.g. MbedCRC.h) use C++14 (std::enable_if_t), so this build
-    # needs C++14 even though our own code is C++11 — the layout/ABI is identical
-    # between the two, so the footprint asserts in libbotanik.h still hold.
+    # Mbed's headers use C++14, so this build needs it even though our code is
+    # C++11. Layout/ABI is identical, so libbotanik.h's footprint asserts hold.
     set_target_properties(botanik PROPERTIES CXX_STANDARD 14 CXX_STANDARD_REQUIRED ON)
 
-    # Firmware that must fit in the STM32H747's flash, so build it the way it ships:
-    # size-optimized, no debug info, dead code split out for the final --gc-sections,
-    # and LTO so the whole-program link in the sketch can inline and prune across TUs.
-    # These override the inherited DEBUG flags (-O0 -g3) — GCC honors the last -O/-g
-    # on the line, and target options come after the per-config ones.
+    # The firmware must fit the STM32H747's flash: size-optimized, no debug info,
+    # sections split for the final --gc-sections. These override the inherited
+    # DEBUG flags, since GCC honors the last -O/-g and target options come after
+    # the per-config ones.
     #
-    # -flto carries the cross-TU optimization into the final link; -ffat-lto-objects
-    # makes each object *also* hold real -Os machine code, so the archive is usable
-    # without LTO and its code size is measurable here (arm-none-eabi-size) even
-    # though the final binary is linked elsewhere. CMake's own IPO support is not
-    # used: check_ipo_supported links a test executable, which can't succeed in this
-    # bare-metal build (no startup/linker script), so it always reports unsupported.
-    # Fat objects keep a normal symbol table, so the toolchain's plain ar/ranlib
-    # archive them correctly — the gcc-ar LTO wrappers are only needed for thin ones.
+    # -ffat-lto-objects makes each object *also* hold real -Os machine code, so
+    # the archive is usable without LTO, its size is measurable here, and plain
+    # ar/ranlib archive it correctly. CMake's IPO support is unusable here:
+    # check_ipo_supported links a test executable, which no bare-metal build
+    # without a startup or linker script can do, so it always reports false.
     target_compile_options(botanik PUBLIC
         -Os -g0 -flto -ffat-lto-objects -ffunction-sections -fdata-sections)
 
-    # Because the PLC objects are not available in this build, we
-    # tell CMake to compile the objects without trying to create a final binary
+    # Compile the objects without trying to link a final binary.
     set_target_properties(botanik PROPERTIES LINKER_LANGUAGE CXX)
 
-    # The selected site (payload + tables + alarm table) compiles into the firmware
-    # alongside the entry wiring; gh_mlb41 is header-only, so this glob is empty.
-    # It stays for sites that ship their own .cpp.
+    # The selected site compiles into the firmware alongside the entry wiring.
+    # Empty for a header-only site.
     file(GLOB BOTANIK_SITE_SOURCES CONFIGURE_DEPENDS "${_site_dir}/*.cpp")
 
     # ------------------------------------------------------------------
     # botanik_opta - the flashable M7 image
     # ------------------------------------------------------------------
-    # Built entirely by us: no Arduino IDE, no Arduino core sources, and not the
-    # core's 2017 toolchain (which is ~40x slower on Mbed headers - a three-line
-    # Mbed program does not finish compiling in 100 s with it, versus 2.6 s on
-    # GCC 14). We take only three things from the core package: the prebuilt
-    # libmbed.a, the linker script, and the target's PinNames.
+    # Built here, not by the Arduino IDE and not with the core's own toolchain
+    # (~40x slower on Mbed headers). Only three things come from the core
+    # package: the prebuilt libmbed.a, the linker script, and PinNames.
     #
-    # Two things are load-bearing here:
+    # Two load-bearing details:
     #  - -mfloat-abi=softfp above. libmbed.a is softfp; mixing float ABIs does
     #    not link at all.
     #  - the linker script is PREPROCESSED first: it references CM4_BINARY_START.
     #
-    # Resulting layout: .text at 0x08040000 (the app base, with a bootloader
-    # below it), .data/.bss in RAM at 0x24000000, entry at Reset_Handler.
+    # Layout: .text at 0x08040000 (the app base, bootloader below it), .data/.bss
+    # in RAM at 0x24000000, entry at Reset_Handler.
     set(MBED_VARIANT "${MBED_ROOT}/variants/OPTA")
     set(MBED_CM4_DEFS -DCM4_BINARY_START=0x60000000
                       -DCM4_BINARY_END=0x60040000
@@ -576,9 +511,9 @@ elseif(BOTANIK_TARGET STREQUAL "OPTA")
         SUFFIX ".elf"
         CXX_STANDARD 14 CXX_STANDARD_REQUIRED ON
         LINK_FLAGS "-Wl,--gc-sections -Wl,--as-needed @${MBED_VARIANT}/ldflags.txt -T${_ldscript} -Wl,-Map,${CMAKE_BINARY_DIR}/botanik_opta.map --specs=nosys.specs")
-    # Libraries via target_link_libraries so they land AFTER our objects.
+    # Via target_link_libraries so the libraries land AFTER our objects.
     # --whole-archive keeps libmbed's vector table and RTOS entry, which nothing
-    # references by symbol; --gc-sections then prunes what is genuinely unused.
+    # references by symbol; --gc-sections then prunes what is unused.
     target_link_libraries(botanik_opta
         botanik
         -Wl,--whole-archive "${MBED_VARIANT}/libs/libmbed.a" -Wl,--no-whole-archive
@@ -592,35 +527,29 @@ elseif(BOTANIK_TARGET STREQUAL "OPTA")
 
 endif()
 
-# NOTE: the Arduino library zip and the vendored-sketch tree are gone. Both
-# existed to get sources into the Axel PLC IDE; we build the flashable image
-# ourselves now (botanik_opta above) and sites live in this tree.
-
 # Doxygen documentation
 # ============================================================================
-# Platform-independent: `make -C build docs` regenerates the HTML API docs
-# from the Doxyfile at the project root (output under docs/doxygen/html/).
+# Platform-independent: `make -C build docs` regenerates the HTML API docs from
+# the root Doxyfile, into docs/doxygen/html/.
 find_program(DOXYGEN doxygen)
 find_program(PYTHON3 NAMES python3 python)
 if(DOXYGEN)
-    # Code charts (LoC + churn by area) shown atop the Library page. Generated into
-    # docs/generated/ (gitignored) just before doxygen runs, so they always reflect
-    # the current tree. The script falls back to a placeholder SVG if git/cloc are
-    # missing; the whole step is skipped when there is no Python interpreter.
+    # Code charts (LoC + churn by area) atop the Library page, generated just
+    # before doxygen runs. The script falls back to a placeholder SVG when
+    # git/cloc are missing; without Python the step is skipped entirely.
     set(DOCS_CHART_CMD "")
     if(PYTHON3)
         set(DOCS_CHART_CMD COMMAND ${PYTHON3}
             ${CMAKE_SOURCE_DIR}/scripts/code_charts.py
             --out ${CMAKE_SOURCE_DIR}/docs/generated
             --since "12 months ago"
-            # The module coupling matrix on the same page: which way the
-            # cross-module includes point. Reads the source tree directly, so it
-            # needs neither a build nor any tool beyond Python.
+            # Module coupling matrix on the same page: which way the cross-module
+            # includes point. Reads the source tree, so it needs no build.
             COMMAND ${PYTHON3}
             ${CMAKE_SOURCE_DIR}/scripts/coupling_matrix.py
             --out ${CMAKE_SOURCE_DIR}/docs/generated)
     else()
-        message(STATUS "python3 not found — Library code charts will be skipped")
+        message(STATUS "python3 not found - Library code charts will be skipped")
     endif()
     add_custom_target(docs
         ${DOCS_CHART_CMD}
@@ -630,15 +559,13 @@ if(DOXYGEN)
         VERBATIM
     )
 
-    # `make clean` wipes the whole generated docs output (CMake 3.15+; ignored on
-    # older). Doxygen never deletes stale pages on its own, so without this a removed
-    # page lingers in docs/doxygen/html until a manual rm - clean now purges it, along
-    # with the generated code charts.
+    # `make clean` wipes the generated docs output (CMake 3.15+). Doxygen never
+    # deletes stale pages, so without this a removed page lingers until a rm.
     set_property(DIRECTORY APPEND PROPERTY ADDITIONAL_CLEAN_FILES
         "${CMAKE_SOURCE_DIR}/docs/doxygen"
         "${CMAKE_SOURCE_DIR}/docs/generated")
 
     # To read them: xdg-open docs/doxygen/html/index.html
 else()
-    message(STATUS "doxygen not found — skipping docs target")
+    message(STATUS "doxygen not found - skipping docs target")
 endif()

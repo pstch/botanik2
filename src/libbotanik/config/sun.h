@@ -10,8 +10,7 @@
 
 #include "libbotanik/config/base.h"       // the BOTANIK_FEATURE_* gates
 
-// Defined and undefined per file rather than in base.h: base.h is guarded,
-// so a second include of it would not restore a macro this file undefined.
+// Defined and undefined per file, not in base.h: see base.h.
 #define BOTANIK_CFG(type, name) static constexpr type name = BOTANIK_##name
 
 namespace Botanik { namespace Config {

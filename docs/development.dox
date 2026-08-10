@@ -34,11 +34,10 @@ to top (`scripts/coupling_matrix.py`). A cell **left of the diagonal** is a modu
 depending on something beneath it: the layering working. A cell **right of the
 diagonal** points back up the stack, and is a layering violation.
 
-Only header (`.h` -> `.h`) edges are shown, because only those are contagious - an
+Only header (`.h` -> `.h`) edges are shown, because only those are contagious: an
 include in a `.cpp` is private to one translation unit, while one in a header lands
-in every file that transitively includes it, and is what fuses modules into
-dependency cycles. The config headers are held out: every module includes them, so
-they would render as a solid column and say nothing.
+in every file that transitively includes it. The config headers are held out - every
+module includes them, so they would render as a solid column and say nothing.
 
 @htmlonly
 <div class="code-charts">
@@ -49,34 +48,19 @@ they would render as a solid column and say nothing.
 </div>
 @endhtmlonly
 
-**There are no red cells, and the module graph is acyclic.** That is the point of
-keeping this chart where you can see it: the baseline is zero, so the first one to
-appear stands out. A baseline of "four known-good exceptions" does not work - the
-fifth blends in.
+**There are no red cells, and the module graph is acyclic.** The baseline is zero
+so the first one to appear stands out; a baseline of "four known-good exceptions"
+does not work, because the fifth blends in.
 
-Getting there took no new abstractions, because the last few upward edges were
-misplacements rather than couplings:
-
-- `Console` holds `Pages::Page*` and calls it only from `console.cpp`, so the page
-  interface is **forward-declared** in `console.h`. A page multiplexer knowing the
-  page interface is fine; all of `pages/` landing in everything that draws is not.
-- `library_vars.h` - the manifest of rows the library splices into a site's table -
-  used to live in `vars/`, which put the variable model above the subsystems that
-  contribute to it. It is macro-only and site-facing, so it sits beside the umbrella
-  instead. Nothing in `vars/` ever compiled against it.
-- `ShellPage` owning a `Shell::CommandShell` was never a violation: `shell/` includes
-  nothing from `pages/` (that is what `Shell::ShellWriter` is for), so the consistent
-  order is console, then shell, then pages.
-
-What was NOT done is worth recording too. A `PageHost` interface for the console, or
-a pimpl'd `ShellPage`, would each buy a green cell at the price of a vtable or an
-allocation on a path that does not want one. An indirection added to fix a picture
-is not an improvement.
+Fixing an upward edge means putting the declaration where it belongs, not adding an
+indirection: `Console` forward-declares `Pages::Page` rather than including all of
+`pages/`, and `library_vars.h` sits beside the umbrella because it is macro-only and
+site-facing. An interface or a pimpl bought only to green a cell costs a vtable or
+an allocation on a path that does not want one.
 
 Run `python3 scripts/coupling_matrix.py --text` for the current state; it prints the
-exact files behind any upward edge, and says so plainly when there are none. A NEW
-red cell is a layering regression, and wants either a fix or a line here saying why
-it earns its place.
+exact files behind any upward edge. A NEW red cell is a layering regression, and
+wants either a fix or a line here saying why it earns its place.
 
 @section dev_core Core
 
@@ -87,9 +71,9 @@ it earns its place.
 - @subpage dev_scheduler - the fixed-period driver, overrun handling, and the
   self-instrumented metrics.
 - @subpage dev_scan - the scan cycle: rate against phase, what a program is
-- @subpage dev_modbus - the field bus and the plant network: planning, framing,
-  the register map
   guaranteed to see, and where the field bus commits and collects.
+- @subpage dev_modbus - the field bus and the plant network: planning, framing,
+  the register map.
 - @subpage dev_vars - the variable model: descriptors, value slots, the sink, and
   where overrides are applied.
 

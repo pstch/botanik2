@@ -2,8 +2,7 @@
  * @file test_alarms.cpp
  * @brief Alarm conditions, their rendering, and the MQTT notifier.
  *
- * Each section below is the former test_<name>.cpp, kept in its own
- * namespace so their fixtures and helpers cannot collide.
+ * Each section is its own namespace, isolating fixtures and helpers.
  */
 
 #include <cstddef>                      // size_t
@@ -34,26 +33,22 @@ namespace alarms {
 using namespace Botanik;
 
 namespace {
-    // Drive the model the way the firmware does: write each condition's own
-    // variable (bit i -> condition i), then step. There is no other way in now -
-    // an alarm IS its row.
+    // Sets condition i's variable to bit i, then steps: an alarm is its row.
     void step_bits(Vars::Bank& io, Alarms::AlarmController& m, uint64_t bits, uint64_t now) {
         for (uint8_t i = 0; i < m.count(); i++)
             io.var(m.condition(i).ref).set(((bits >> i) & 1u) != 0);
         m.step(now);
     }
 
-    // An alarm is a SCOPE_A row in a variable table now, so these read exactly
-    // the way a site declares one: A(name, code, on_s, off_s, recent_s,
-    // hold_on_s, min_on_s, desc, notes). The model finds them by scanning.
+    // A SCOPE_A row: A(name, code, on_s, off_s, recent_s, hold_on_s,
+    // min_on_s, reg, desc, notes).
 
     // Two unmasked, unlatched conditions (announce disabled) at bits 0 and 1.
     const Vars::Variable TABLE[] = {
         Vars::A("aaa", "AAA", -1, -1, 0, 0, 0, 800, "alarm A", ""),
         Vars::A("bbb", "BBB", -1, -1, 0, 0, 0, 801, "alarm B", ""),
     };
-    // One condition with a 5 s minimum-ON hold (announce disabled).
-    // hold_on_s = 300, exactly like the platform's STACK / CPU_LOAD / CPU_JITT.
+    // hold_on_s=300 (announce disabled), like platform STACK/CPU_LOAD/CPU_JITT.
     const Vars::Variable HOLD_ON_TABLE[] = {
         Vars::A("hld", "HLD", 5, 5, 0, 300, 0, 805, "hold on", ""),
     };
@@ -61,8 +56,7 @@ namespace {
     const Vars::Variable MIN_ON_TABLE[] = {
         Vars::A("min", "MIN", -1, -1, 0, 0, 5, 802, "min on", ""),
     };
-    // One condition that announces a START only after a 2 s dwell, and an END as
-    // soon as it clears (off_s 0). A brief blip clears before the START dwell -> FLAP.
+    // START after a 2 s dwell, END at once (off_s 0); a shorter blip -> FLAP.
     const Vars::Variable FLAP_TABLE[] = {
         Vars::A("flp", "FLP", 2, 0, 0, 0, 0, 803, "flap", ""),
     };
@@ -110,10 +104,7 @@ TEST_CASE("alarm: ack marks an active condition, ignores inactive / unknown") {
     CHECK(m.condition(0).user_ack == true);
     CHECK(m.ack("bbb") == false);                   // B is not active
     CHECK(m.ack("zzz") == false);                   // unknown code
-    // Both spellings are on screen - the alarm bar and this command's own help
-    // show the CODE, `alarms list` and the variable table show the NAME - so
-    // both have to resolve, or the one the operator is looking at is the one
-    // that does not work.
+    // Both must resolve: the alarm bar shows CODE, `alarms list` shows NAME.
     CHECK(m.ack("AAA") == true);
     CHECK(m.index_of("BBB") == m.index_of("bbb"));
 }
@@ -158,10 +149,7 @@ TEST_CASE("alarm: min_on_s holds a condition active after the raw bit clears") {
 }
 
 TEST_CASE("alarm: forcing a condition on and then off clears it") {
-    // How an operator actually exercises an alarm: override the row true, watch
-    // it raise, override it back to false. It has to clear - a forced alarm that
-    // will not come down is worse than one that never went up, because the next
-    // real one is now invisible under it.
+    // A forced alarm must clear, or the next real one is invisible under it.
     AlarmBank f(MIN_ON_TABLE, 1);           // min_on_s = 5, the sticky case
     Alarms::AlarmController m(&f.bank, nullptr);
     Vars::Var v = f.bank.var(m.condition(0).ref);
@@ -171,7 +159,7 @@ TEST_CASE("alarm: forcing a condition on and then off clears it") {
     m.step(1000);
     REQUIRE(m.condition(0).active == true);
 
-    // Forced back to false, still overridden - which is what `override x 0` does.
+    // Forced false while still overridden, as `override x 0` does.
     f.bank.override_set(v, Vars::from_bool(Vars::T_BOOL, false), true);
     m.step(2000);
     INFO("the minimum-on hold does not outlive a force either");
@@ -180,8 +168,7 @@ TEST_CASE("alarm: forcing a condition on and then off clears it") {
 }
 
 TEST_CASE("alarm: releasing an override clears a condition it was holding on") {
-    // `override x off` rather than `override x 0`: the row snaps back to the
-    // live value underneath, which nothing has written, so it reads false.
+    // `override x off`: the row snaps back to the live (unwritten) value, false.
     AlarmBank f(NORMAL_TABLE, 1);
     Alarms::AlarmController m(&f.bank, nullptr);
     Vars::Var v = f.bank.var(m.condition(0).ref);
@@ -198,10 +185,7 @@ TEST_CASE("alarm: releasing an override clears a condition it was holding on") {
 }
 
 TEST_CASE("alarm: a forced alarm comes down when the force does") {
-    // Platform alarms carry hold_on_s = 300 so a load spike stays annunciated.
-    // That latch must NOT apply to an operator's force: the latches smooth a
-    // real signal that flaps, and a hand-held row does not flap. Without this,
-    // releasing a forced alarm_stack left it up for five more minutes.
+    // A forced alarm must not inherit hold_on_s's 5-minute latch.
     AlarmBank f(HOLD_ON_TABLE, 1);
     Alarms::AlarmController m(&f.bank, nullptr);
     Vars::Var v = f.bank.var(m.condition(0).ref);
@@ -219,8 +203,7 @@ TEST_CASE("alarm: a forced alarm comes down when the force does") {
 }
 
 TEST_CASE("alarm: hold_on_s still latches a condition nobody is forcing") {
-    // The fix above must not cost the latch its actual job - a real signal that
-    // clears immediately still stays annunciated, which is what hold_on_s is for.
+    // hold_on_s must still latch a real signal that clears immediately.
     AlarmBank f(HOLD_ON_TABLE, 1);
     Alarms::AlarmController m(&f.bank, nullptr);
 
@@ -272,8 +255,7 @@ TEST_CASE("alarm: a normal episode logs START then END (not FLAP)") {
 }
 
 TEST_CASE("alarm reader: model reads each condition's variable") {
-    // Three alarm rows. The row IS the condition, so there is no second table
-    // and nothing to keep in step: condition i reads variable i.
+    // The row IS the condition: condition i reads variable i, nothing to sync.
     const Vars::Variable VARS[] = {
         Vars::A("alarm_a", "AAA", -1, -1, 0, 0, 0, 805, "a", ""),
         Vars::A("alarm_b", "BBB", -1, -1, 0, 0, 0, 806, "b", ""),
@@ -313,18 +295,14 @@ using namespace Botanik;
 using Command = Terminal::InputEvent::Command;
 
 namespace {
-    // Drive the model the way the firmware does: write each condition's own
-    // variable (bit i -> condition i), then step. There is no other way in now -
-    // an alarm IS its row.
+    // As above: bit i drives condition i's variable, then step.
     void step_bits(Vars::Bank& io, Alarms::AlarmController& m, uint64_t bits, uint64_t now) {
         for (uint8_t i = 0; i < m.count(); i++)
             io.var(m.condition(i).ref).set(((bits >> i) & 1u) != 0);
         m.step(now);
     }
 
-    // Four always-recent alarms (recent_s < 0 never expires), logging/notify
-    // off. Declared as SCOPE_A rows, the way a site declares one; the model
-    // finds them by scanning the bank.
+    // Four always-recent alarms (recent_s<0 never expires), logging/notify off.
     const Vars::Variable TABLE[] = {
         Vars::A("aaa", "AAA", -1, -1, -1, 0, 0, 800, "alarm A", ""),
         Vars::A("bbb", "BBB", -1, -1, -1, 0, 0, 801, "alarm B", ""),
@@ -349,8 +327,7 @@ namespace {
         Alarms::AlarmController     model;
         Pages::AlarmsPage      page;
 
-        // @p rows lets a test pick a short screen so the 4-alarm set overflows the
-        // data window and UP/DOWN actually scroll (the default 24 rows holds them all).
+        // @p rows: a short screen overflows the 4-alarm set so UP/DOWN actually scroll.
         explicit RenderFixture(uint16_t rows = 24)
             // Very high baud so the cooperative TX floor never throttles a paint.
             : console(wire.serial, 80, rows, &now, 4000000u),
@@ -368,9 +345,8 @@ namespace {
             while ((n = ::read(wire.fds[0], buf, sizeof buf)) > 0) out.append(buf, (size_t)n);
             return out;
         }
-        // Pump ticks until a paint settles, capturing all bytes it wrote. Each
-        // tick draws into the FRONT grid; present() diffs it to the wire; capture()
-        // reads the emitted bytes off the pipe.
+        // Pump ticks until a paint settles: draw into FRONT, present() diffs
+        // to the wire, capture() reads it.
         std::string paint() {
             std::string out;
             for (int i = 0; i < 64; i++) {
@@ -383,10 +359,8 @@ namespace {
     };
 }
 
-// With no visible alarms (RECENT mode, nothing fired), a focus paints the
-// structural rows; an immediate repaint with nothing changed must skip them all.
-// Only the always-redrawn footer (one line) is re-emitted, so the repaint is a
-// fraction of the first paint and carries no header or rule bytes.
+// Focus paints structural rows once; an unchanged repaint skips them all but
+// the footer.
 TEST_CASE("alarms render: unchanged repaint skips the structural rows") {
     RenderFixture f;
     f.page.focus();
@@ -408,11 +382,8 @@ static void raise_all(RenderFixture& f) {
     f.paint();                   // initial full paint; discard
 }
 
-// Acking an active alarm flips its ON badge (active+unack -> active+ack). The
-// page redraws the whole table, but only the cells that actually moved reach the
-// wire: the badge and the timestamp on that one row. The static DESCRIPTION
-// column is byte-identical, so "alarm B" never reaches the wire again, and the
-// untouched AAA row, header and rules are all diffed away.
+// Acking flips one row's badge; only the moved cells (badge+timestamp) reach
+// the wire.
 TEST_CASE("alarms render: a same-alarm state change patches its cells, skips the rest") {
     RenderFixture f;
     step_bits(f.bank, f.model, 0x3, 1000);                     // AAA + BBB active; row0=AAA (sel), row1=BBB
@@ -441,8 +412,7 @@ TEST_CASE("alarms render: unchanged data repaint emits nothing") {
     CHECK(out.find("----") == std::string::npos);  // no rule re-emitted
 }
 
-// Raising a new alarm reorders the list, so a row's whole content changes and
-// the diff has no choice but to send it - CODE and DESCRIPTION both.
+// A newly-raised alarm reorders the list, so the diff resends the whole row.
 TEST_CASE("alarms render: identity change redraws the row in full") {
     RenderFixture f;
     step_bits(f.bank, f.model, 0x1, 1000);             // only AAA
@@ -455,11 +425,8 @@ TEST_CASE("alarms render: identity change redraws the row in full") {
     CHECK(out.find("BBB") != std::string::npos);   // a full row carried the new CODE
 }
 
-// The cursor sits on the VARIABLE cell, so moving the selection within the
-// window (no scroll) changes only the old row's variable cell (un-highlighted)
-// and the new row's (highlighted), and the diff emits just those two runs. The
-// CODE cells and the other rows never reach the wire, proving the highlight
-// costs cells, not full-row redraws.
+// The cursor sits on the VARIABLE cell; moving selection (no scroll) touches
+// only the old/new row's cells - highlight costs cells, not full rows.
 TEST_CASE("alarms render: a selection move repaints both VARIABLE cells, nothing else") {
     RenderFixture f;                             // 24 rows: all four fit, so no scroll
     step_bits(f.bank, f.model, 0xF, 1000);                     // aaa..ddd active; row0=aaa selected
@@ -479,11 +446,8 @@ TEST_CASE("alarms render: a selection move repaints both VARIABLE cells, nothing
     CHECK(out.find("----")    == std::string::npos);
 }
 
-// DOWN moves the selection cursor, not the window. A short window (13 rows ->
-// data window of 2, after the detail panel's bottom reserve) overflows the
-// 4-alarm set; with all four raised at once they keep table order (AAA, BBB,
-// CCC, DDD). top=0 shows AAA,BBB; moving the cursor down past the window bottom
-// auto-scrolls so CCC comes into view.
+// DOWN moves the cursor, not the window. A 13-row screen (window of 2)
+// overflows the 4 alarms; scrolling past the bottom brings CCC into view.
 TEST_CASE("alarms render: DOWN moves the selection and scrolls it into view") {
     RenderFixture f(13);
     step_bits(f.bank, f.model, 0xF, 1000);
@@ -499,12 +463,9 @@ TEST_CASE("alarms render: DOWN moves the selection and scrolls it into view") {
     CHECK(out.find("CCC") != std::string::npos);      // the cursor followed down into view
 }
 
-// SPACE cycles the filter mode, and the badge is the acknowledgement of that
-// keypress - so it has to reach the wire before the table rewrite the same
-// keypress triggered, not after a screenful of rows. The legend row is raised to
-// PRIO_INPUT for exactly that, and it must survive the tick it was raised in:
-// with a repaint pending the row still shows the old badge, so a naive
-// "reconciled?" check reads true and demotes it before it is ever drawn.
+// SPACE's badge must reach the wire before the table rewrite it triggers;
+// the legend row must survive the tick it's raised in, or a naive
+// "reconciled?" check demotes it before it is ever drawn.
 TEST_CASE("alarms render: a mode change shows the new mode before the rows") {
     RenderFixture f(13);                          // short screen: rows overflow
     step_bits(f.bank, f.model, 0xF, 1000);
@@ -520,7 +481,7 @@ TEST_CASE("alarms render: a mode change shows the new mode before the rows") {
     CHECK(first.find("all") != std::string::npos);   // the new mode badge
     CHECK(first.find("AAA") == std::string::npos);   // ...ahead of any data row
     CHECK(first.find("DDD") == std::string::npos);
-    // Just the legend, not a table's worth of bytes riding along with it.
+    // Just the legend, not a table's worth of bytes.
     CHECK(first.size() < 150);      // one row, not a table
     // And the page settles rather than churning on the raised row.
     f.paint();
@@ -535,17 +496,13 @@ TEST_CASE("alarms render: a mode change shows the new mode before the rows") {
 
 namespace notifier {
 
-// Pulls the site config, then the feature defaults: the guards below
-// need the flags DEFINED, and an undefined one reads as 0 in #if.
+// The #if guards below need BOTANIK_FEATURE_* defined (undefined reads as 0).
 
 
 using namespace Botanik;
 using namespace Botanik::Alarms;
 
 namespace {
-    // Drive the model the way the firmware does: write each condition's own
-    // variable (bit i -> condition i), then step. There is no other way in now -
-    // an alarm IS its row.
     void step_bits(Vars::Bank& io, AlarmController& m, uint64_t bits, uint64_t now) {
         for (uint8_t i = 0; i < m.count(); i++)
             io.var(m.condition(i).ref).set(((bits >> i) & 1u) != 0);
@@ -565,16 +522,16 @@ namespace {
     };
 }
 
-// Gated: the AlarmController fan-out case below is NOT - it uses a stub
-// notifier and tests the controller, which is always present.
+// Only MqttAlarmNotifier needs BOTANIK_FEATURE_ALARMS_PUBLISH (the fan-out
+// case below uses a stub notifier).
 #if BOTANIK_FEATURE_ALARMS_PUBLISH
 TEST_CASE("MqttAlarmNotifier: notify_on/off build the topic + payload and forward to the publisher") {
     MockPublisher pub;
     MqttAlarmNotifier n("botanik/greenhouse");
     n.set_publisher(&pub);
 
-    // The condition borrows its row rather than copying its text, so the
-    // fixture has to be a real SCOPE_A descriptor.
+    // The condition borrows its row (no text copy), so this needs a real
+    // SCOPE_A descriptor.
     static const Botanik::Vars::Variable ROW =
         Botanik::Vars::A("NET_FLT", "NET_FLT", 0, 0, 0, 0, 0, 990, "", "");
     AlarmCondition c = {};
@@ -595,9 +552,6 @@ TEST_CASE("MqttAlarmNotifier: notify_on/off build the topic + payload and forwar
     CHECK(std::string(pub.payload) == "FLAP");
 }
 #endif
-
-// The AlarmController fan-out case below is NOT gated: it uses a stub notifier
-// and tests the controller, which is always present.
 
 namespace {
     // Counts the transitions the model fans out to it.

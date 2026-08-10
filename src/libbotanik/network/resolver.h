@@ -133,11 +133,11 @@ namespace Botanik { namespace Network {
          *  READY/ERROR row, else null (every row is PENDING). Never evicts PENDING. */
         Entry* _alloc();
 
-        /** @brief Fold one dns_poll() result into row @p e and turn it into a
-         *  ResolveStatus: OK caches the address into @p out, FAILED logs and
-         *  frees the row, PENDING leaves it in flight. Shared by the two places
-         *  that poll (an already-pending row, and the first poll right after
-         *  dns_begin) so their handling cannot drift apart. */
+        /** @brief Fold one dns_poll() result into row @p e as a ResolveStatus:
+         *  OK caches the address into @p out, FAILED logs and frees the row,
+         *  PENDING leaves it in flight. Shared by both polling sites (an
+         *  already-pending row, and the first poll after dns_begin) so their
+         *  handling cannot drift apart. */
         ResolveStatus _apply_poll(Entry& e, const char* host, ResolvedAddr* out);
 
         /** @} */

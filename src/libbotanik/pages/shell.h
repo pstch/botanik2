@@ -136,12 +136,10 @@ namespace Botanik { namespace Pages {
         uint16_t _log_rows() const;
 
         /** @brief Return the transcript to the live bottom; no-op unless
-         *  scrolled back. Every key but PAGE_UP/PAGE_DOWN does this, the way a
-         *  Linux terminal's scroll-on-keystroke does - and it is what keeps the
-         *  frozen view honest: the editor moves the log band without telling
-         *  the scrollback (line_feed() on submit, the band shift when the
-         *  prompt shrinks), so anything editing the line must land at the
-         *  bottom first. */
+         *  scrolled back. Every key but PAGE_UP/PAGE_DOWN must do this: the
+         *  editor moves the log band without telling the scrollback (line_feed()
+         *  on submit, the band shift when the prompt shrinks), so anything
+         *  editing the line has to land at the bottom first. */
         void _follow_tail();
 
         /** @brief Snapshot the current line into @p line, echo it to history and

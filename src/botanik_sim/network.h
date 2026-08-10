@@ -7,16 +7,16 @@
  * @brief Simulator-only mock NTP/MQTT responder.
  *
  * Header-only and guarded by TARGET_SIMULATOR (a near-empty include on OPTA,
- * where the real network plays this role). It runs a tiny cooperative peer on
- * loopback so the firmware's real NtpClient/MqttClient state machines reach
- * SYNCED/READY in the sim without touching the public network: the HAL resolves
- * every name to 127.0.0.1 and routes loopback NTP to NTP_MOCK_PORT, and this
- * responder answers there and on MQTT_MOCK_PORT (the sim's broker port).
+ * where the real network plays this role). A tiny cooperative peer on loopback,
+ * so the firmware's real NtpClient/MqttClient state machines reach SYNCED/READY
+ * without touching the public network: the HAL resolves every name to 127.0.0.1
+ * and routes loopback NTP to NTP_MOCK_PORT, and this answers there and on
+ * MQTT_MOCK_PORT.
  *
  * The NTP/MQTT wire knowledge (the SNTP reply, the CONNACK/PINGRESP) lives here,
- * above the HAL - the HAL transport stays protocol-agnostic. The thread lifecycle is
- * a volatile run flag published with HAL::Memory::dsb(), torn down through
- * HAL::System::on_reset().
+ * above the HAL, so the HAL transport stays protocol-agnostic. The thread
+ * lifecycle is a volatile run flag published with HAL::Memory::dsb(), torn down
+ * through HAL::System::on_reset().
  */
 
 #ifdef TARGET_SIMULATOR
@@ -40,9 +40,9 @@
 
 namespace Botanik { namespace Network {
 
-    /** @brief Run flag/handle for the single responder thread. Single-writer (lifecycle)
-     *  / single-reader (thread loop): volatile + HAL::Memory::dsb() to publish, the lock-free
-     *  pattern used throughout (no std::atomic). */
+    /** @brief Run flag/handle for the single responder thread. Single-writer
+     *  (lifecycle) / single-reader (thread loop): volatile + HAL::Memory::dsb()
+     *  to publish, the lock-free pattern used throughout (no std::atomic). */
     inline volatile bool& _netd_running() { static volatile bool running = false; return running; }
     inline pthread_t&      _netd_thread()  { static pthread_t thread; return thread; }
 
@@ -54,9 +54,9 @@ namespace Botanik { namespace Network {
             if (fd < 0) return -1;
             int one = 1;
             ::setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &one, sizeof(one));
-            // Bind this instance's per-process loopback address (matches what
-            // the HAL resolver hands the firmware) so concurrent sims don't
-            // share the port on 127.0.0.1.
+            // This instance's per-process loopback address, matching what the
+            // HAL resolver hands the firmware, so concurrent sims do not share
+            // the port on 127.0.0.1.
             HAL::Network::Ip4 lo = HAL::Network::mock_loopback_ip();
             sockaddr_in a;
             memset(&a, 0, sizeof(a));
@@ -121,10 +121,9 @@ namespace Botanik { namespace Network {
                     (int)(n - i - tlen), (const char*)&pkt[i + tlen]);
         }
 
-        /** @brief One MQTT client: its fd plus a reassembly buffer. TCP is a
-         *  byte stream, so a single read can carry several small packets coalesced
-         *  or split a large one; buffering lets us trace + answer each whole
-         *  packet (the publisher's fields would otherwise show up fragmented). */
+        /** @brief One MQTT client: its fd plus a reassembly buffer. TCP is a byte
+         *  stream, so one read can coalesce several packets or split one;
+         *  buffering lets us trace and answer each whole packet. */
         struct MqttConn {
             int      fd  = -1;
             uint8_t  buf[256];
@@ -196,8 +195,7 @@ namespace Botanik { namespace Network {
     inline int* _netd_fds() { static int fd[2] = { -1, -1 }; return fd; }
 
     /** @brief Thread entry point: service the loopback endpoints until stopped.
-     *  A background peer (not realtime); the clients retry, so it need not race
-     *  the main loop. */
+     *  A background peer, not realtime: the clients retry. */
     inline void* _netd_main(void*) {
         const int MAX_CLIENTS = 4;
         int udp = _netd_fds()[0];
@@ -238,7 +236,7 @@ namespace Botanik { namespace Network {
      *  MCL_FUTURE), like the emulator. */
     inline void start_mock_netd() {
         // Bind here rather than in the thread: the firmware's first NTP/MQTT
-        // query goes out ~2 ms after we return, and losing that race cost a
+        // query goes out ~2 ms after we return, and losing that race costs a
         // whole retry backoff (60 s of sim time) plus two bogus boot errors.
         _netd_fds()[0] = detail::netd_bind(HAL::Network::NTP_MOCK_PORT,  /*dgram=*/true);
         _netd_fds()[1] = detail::netd_bind(HAL::Network::MQTT_MOCK_PORT, /*dgram=*/false);
@@ -246,9 +244,9 @@ namespace Botanik { namespace Network {
         HAL::Memory::dsb();
         if (pthread_create(&_netd_thread(), nullptr, &_netd_main, nullptr) != 0) {
             _netd_running() = false;
-            // stderr, with an area tag, like the mock broker and the self-check:
-            // the harness failing to start is a fact about this host, not about
-            // the greenhouse, and it must not reach the LOGS page or MQTT.
+            // stderr, like the mock broker and the self-check: the harness
+            // failing to start is a fact about this host, not the greenhouse,
+            // and must not reach the LOGS page or MQTT.
             fprintf(stderr, "[mock-netd] failed to start\n");
             fflush(stderr);
             return;

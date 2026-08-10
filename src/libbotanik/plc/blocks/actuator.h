@@ -18,9 +18,8 @@ namespace Botanik { namespace Plc {
     /** @brief One actuator's mechanics: travel times, and how finely it is
      *  worth chasing a target.
      *
-     *  @c close_ms defaults to @c open_ms but is separate because the two are
-     *  rarely equal - a window that opens against its own weight closes faster,
-     *  and one figure for both walks the estimate off a few percent per stroke. */
+     *  @c close_ms defaults to @c open_ms but is separate: the two are rarely
+     *  equal, and one figure for both walks the estimate off per stroke. */
     struct ActuatorConfig {
         uint32_t open_ms;      ///< full travel, closed -> open
         uint32_t close_ms;     ///< full travel, open -> closed
@@ -149,10 +148,8 @@ namespace Botanik { namespace Plc {
         void home();
 
         /** @brief Cold: coils dropped, position forgotten, so the next command
-         *  datums. The same thing home() does - named reset() because that is
-         *  what the scan driver calls on every program when control is
-         *  withdrawn, and an actuator's estimate is exactly what an outage
-         *  invalidates. */
+         *  datums. home() under the name the scan driver calls on a control
+         *  withdrawal, which is exactly what invalidates the estimate. */
         void reset() { home(); }
 
         /** @brief Declare the position known, skipping the datum stroke. Only

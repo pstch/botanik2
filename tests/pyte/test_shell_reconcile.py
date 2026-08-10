@@ -27,18 +27,16 @@ def sim(spawn_module):
 def term(sim):
     """The shared shell, reset to an empty prompt.
 
-    ^U clears the input; ^L is the console's own full repaint, which matters
-    after a scenario that grew the editor past the screen and overprinted the
-    alarm bar (console.cpp redraws the chrome before the page).
+    ^U clears the input; ^L is the console's full repaint, needed after a
+    scenario that grew the editor past the screen and overprinted the alarm bar.
     """
     sim.send(keys.CTRL_U + keys.CTRL_L)
     assert_editor(sim, "botanik>")
     return sim
 
 
-# Each case is (keys to send, expected editor rows). The comment on each says
-# which branch of the reconciliation it is there to exercise - that, and not the
-# keystrokes, is why the case exists.
+# Each case is (keys to send, expected editor rows); its comment names the
+# reconciliation branch it exists to exercise.
 SPLICED = RULER[:40] + "ZZZZZ" + RULER[40:]      # a mid-row insert that reflows
 BATCH = RULER + RULER[:100]                      # ~180 chars in one send, ~3 rows
 
@@ -144,9 +142,9 @@ def _reversed_span(term, row):
 def test_region_is_highlighted(term):
     """The region is reverse-video on the wire, not just a pair of offsets.
 
-    Asserted on pyte's per-cell attributes rather than on the text, because that
-    is the whole mechanism: the editor re-stamps its rows and the terminal's cell
-    diff turns that into the few SGR runs that actually changed.
+    Asserted on pyte's per-cell attributes rather than the text: the editor
+    re-stamps its rows and the terminal's cell diff reduces that to the SGR runs
+    that changed, which is the mechanism under test.
     """
     term.send(b"echo hello world")
     assert_editor(term, "botanik> echo hello world")

@@ -57,9 +57,8 @@ namespace Botanik { namespace Tasks {
             return false;
         }
 
-        // Derive the offset from how many members this group already has, so
-        // each one lands a beat further along (stagger_offset() holds the rule,
-        // shared with the scan cycle).
+        // Offset by how many members this group has, so each lands a beat
+        // further along (stagger_offset(), shared with the scan cycle).
         uint8_t rank = 0;
         for (uint8_t i = 0; i < _count; i++)
             if (_tasks[i].group == group) rank++;

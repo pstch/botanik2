@@ -5,15 +5,11 @@
  * @file params.h
  * @brief Parameters: the persisted, editable variables.
  *
- * A parameter is not a separate kind of thing - it is a variable with
- * ROLE_PARAM, min/max as edit bounds, and a name that doubles as its storage
- * key. What is left here is the two behaviours a parameter has and other
- * variables do not: it persists, and a user can edit it.
+ * A parameter is a variable with ROLE_PARAM, min/max as edit bounds, and a name
+ * that doubles as its storage key. What lives here is the two behaviours other
+ * variables do not have: it persists, and a user can edit it.
  *
- * Addressed by INDEX into the bank, never by an offset into a flat byte image:
- * an image is what lets a parameter overrun the buffer it lives in and be
- * silently dropped at boot, and indexing removes that failure mode rather than
- * guarding against it.
+ * Addressed by INDEX into the bank, never by an offset into a flat byte image.
  */
 
 #include <cstddef>                      // size_t
@@ -27,8 +23,8 @@ namespace Botanik { namespace Vars {
     /** @brief A VarStore over HAL::Storage: one key per parameter, named for
      *  it, holding the narrow value bytes.
      *
-     *  Per key rather than one blob so that adding, removing or reordering a
-     *  parameter cannot invalidate the others - there is no layout to version. */
+     *  Per key rather than one blob, so adding, removing or reordering a
+     *  parameter cannot invalidate the others: there is no layout to version. */
     class KvParamStore : public VarStore {
     public:
         bool load(const Variable& d, Value& v, char* text, uint16_t cap) override;
@@ -44,9 +40,9 @@ namespace Botanik { namespace Vars {
     /**
      * @brief The parameter surface: the editable view of the ROLE_PARAM block.
      *
-     * Holds no registry of its own - the variables are the registry. It exists
-     * to own the store, run the boot load, and give the PARAMS page and the
-     * shell a dense 0-based index over just the parameters.
+     * Holds no registry of its own: the variables are the registry. It owns the
+     * store, runs the boot load, and gives the PARAMS page and the shell a dense
+     * 0-based index over just the parameters.
      */
     class Params : public Component {
         Bank* _io;
@@ -54,8 +50,8 @@ namespace Botanik { namespace Vars {
          *  first save. @see Config::RETAIN_SAVE_MS */
         uint64_t _last_retain_ms = 0;
     public:
-        /** @brief Binds @p store to @p io: the bank is what actually reads and
-         *  writes variables (set() included), so it is what holds the store. */
+        /** @brief Binds @p store to @p io: the bank reads and writes variables
+         *  (set() included), so it is what holds the store. */
         Params(Bank* io, VarStore* store, Logs::Logger* logger)
             : Component(logger, "Params"), _io(io) {
             if (_io != nullptr) _io->set_store(store, logger);
@@ -112,8 +108,7 @@ namespace Botanik { namespace Vars {
     /** @name Analog calibration
      *
      *  Resolving an AnalogCal needs the bank, because most of its fields name a
-     *  parameter. That is why it lives here rather than beside the declaration:
-     *  declaring a calibration and reading one are different jobs.
+     *  parameter, which is why it lives here and not beside the declaration.
      *  @{ */
 
     /** @brief One tunable's live value: its constant, or the parameter it names
@@ -122,9 +117,8 @@ namespace Botanik { namespace Vars {
 
     /** @brief An analog channel's six numbers, resolved now.
      *
-     *  Read them together rather than one at a time: they are used together,
-     *  and a driver that re-read each field per sample would pay six name
-     *  lookups where one call pays six. */
+     *  Read together, in one call: they are used together, and per-field reads
+     *  would pay a name lookup each, every sample. */
     struct AnalogValues {
         float raw_min, raw_max;
         float eng_min, eng_max;
@@ -159,9 +153,9 @@ namespace Botanik { namespace Vars {
      *  band comes from its calibration (and may be operator-editable), every
      *  other row's from the flash constants.
      *
-     *  Everything that DISPLAYS a band must come through here. Reading
-     *  num_band() directly would show an analog row the firmware defaults while
-     *  the operator is looking at the numbers they just changed. */
+     *  @warning Everything that DISPLAYS a band must come through here: reading
+     *  num_band() directly shows an analog row the firmware defaults rather than
+     *  the parameters the operator just edited. */
     NumBand var_band(const Bank* io, const Variable& d);
 
     /** @} */

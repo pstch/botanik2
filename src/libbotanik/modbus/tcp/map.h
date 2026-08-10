@@ -6,17 +6,16 @@
  * @brief The register map: what a master's addresses mean in terms of the
  *        variable bank, and the type conversion in both directions.
  *
- * No transport here either - this is addresses and values. The server (tcp/slave.h)
- * owns the sockets and the beat; pdu.h owns the framing; this owns the answer.
+ * No transport here: the server (tcp/slave.h) owns the sockets and the beat,
+ * pdu.h owns the framing, this owns the answer.
  *
  * @section map_address The address is derived, the row number is declared
  *
  * A parameter, status value or alarm carries a hand-assigned `Binding::reg`
  * (@ref dev_vars). That number is a ROW number, not an address: one register is
- * 16 bits and most rows are wider, and the declared numbers are dense (a site's
- * `cli_*` block runs 100..136, all floats), so a row cannot span `reg` and
- * `reg+1` without landing on its neighbour. Each Modbus table therefore derives
- * its own address from the same number:
+ * 16 bits, most rows are wider, and the declared numbers are dense, so a row
+ * cannot span `reg` and `reg+1` without landing on its neighbour. Each Modbus
+ * table derives its own address from the same number:
  *
  * | Table | FC | Address | Holds |
  * |---|---|---|---|
@@ -26,30 +25,26 @@
  * | Coils | 01, 05, 15 | `reg` | boolean rows; writable only if the row is a parameter |
  *
  * `2 * reg` is injective, so the site test's guarantee that no two rows share a
- * register carries over to the addresses without further checking.
- *
- * FC06 addresses one register, which is half a row. Rather than refuse it - the
- * commonest thing a SCADA does is write one setpoint - the addressed half is
- * spliced into what the row already holds and the whole row is then validated
- * and committed as a pair. See write_register().
+ * register carries over to the addresses without further checking. FC06
+ * addresses half a row; see write_register().
  *
  * @section map_gaps Gaps read, they do not fault
  *
- * A master reads blocks, and the map is sparse (every number nobody assigned,
- * plus the odd register of every 32-bit row that only needs one). A read
- * overlapping a gap returns zeros there; only a request landing entirely outside
- * the mapped span is refused. A read that starts or ends mid-row gets that row's
- * corresponding half, so a master polling a round block never has to know where
- * the rows begin. A WRITE is the opposite: it must cover a row completely, or
- * half a 32-bit value would be committed as a whole one.
+ * The map is sparse (every number nobody assigned, plus the odd register of a
+ * row that needs only one). A read overlapping a gap returns zeros there, and
+ * only a request landing entirely outside the mapped span is refused; a read
+ * starting or ending mid-row gets that row's corresponding half, so a master
+ * polling a round block need not know where the rows begin. A WRITE is the
+ * opposite: it must cover a row completely, or half a 32-bit value would be
+ * committed as a whole one.
  *
  * @section map_quality Quality is a discrete input
  *
- * Modbus has no quality bit, so an invalid reading would otherwise be
- * indistinguishable from a real zero. An invalid row publishes its declared
- * substitute (`def`, which is what every other consumer sees through
- * `Var::raw()`) and reads 0 at discrete input `reg`. One FC02 block gives a
- * master the quality of everything it just read.
+ * Modbus has no quality bit, so an invalid reading would be indistinguishable
+ * from a real zero. An invalid row publishes its declared substitute (`def`,
+ * what every other consumer sees through `Var::raw()`) and reads 0 at discrete
+ * input `reg`. One FC02 block gives a master the quality of everything it just
+ * read.
  */
 
 #include <cstddef>                    // size_t - payload buffer capacities
@@ -76,11 +71,10 @@ namespace Botanik { namespace Modbus {
      * @brief The published rows, sorted by register, with the conversion to and
      *        from wire words.
      *
-     * Built once at bring-up by scanning the bank - there is no second table to
-     * keep in step, exactly as the alarm model has none. The sort is what lets a
-     * lookup binary-search; the bank's own rows are in table order, which is not
-     * register order (the library's rows come first and hold the highest
-     * numbers).
+     * Built once at bring-up by scanning the bank, so there is no second table
+     * to keep in step. The sort is what lets a lookup binary-search: the bank's
+     * rows are in table order, which is not register order (the library's rows
+     * come first and hold the highest numbers).
      */
     class Map {
 
@@ -91,9 +85,8 @@ namespace Botanik { namespace Modbus {
         /** @brief Row indices into the bank, ascending by register. */
         uint16_t _rows[Config::MODBUS_TCP_MAX_ROWS];
         uint16_t _count;
-        /** @brief Rows that did not fit MODBUS_TCP_MAX_ROWS. Non-zero means the map
-         *  is silently short of what the site declared, which is exactly the
-         *  kind of thing that must be reported rather than discovered. */
+        /** @brief Rows that did not fit MODBUS_TCP_MAX_ROWS. Non-zero means the
+         *  map is short of what the site declared, and must be reported. */
         uint16_t _overflow;
         /** @brief The register span actually claimed, for the "entirely outside
          *  the map" test. Both 0 when nothing is mapped. */
@@ -103,8 +96,8 @@ namespace Botanik { namespace Modbus {
          *
          *  Rows a master has written whose flash copy has not been made yet.
          *  Storage is synchronous, so committing a full request's worth inside
-         *  the beat that decoded it is how a remote peer could stall the whole
-         *  firmware - see drain_persists().
+         *  the beat that decoded it would let a remote peer stall the firmware.
+         *  @see drain_persists()
          *  @{ */
         uint16_t     _pending[Config::MODBUS_PERSIST_QUEUE];
         uint16_t     _pending_head  = 0;
@@ -134,9 +127,9 @@ namespace Botanik { namespace Modbus {
          *  @return how many were written.
          *
          *  Called once per beat. A TDBStore write is a record append plus a page
-         *  program, and a garbage-collection pass adds a sector erase; doing all
-         *  61 rows of a full FC16 in one beat would run past the field bus's own
-         *  response deadline and take the plant's readings down with it. */
+         *  program, and a garbage collection adds a sector erase: all 61 rows of
+         *  a full FC16 in one beat would run past the field bus's own response
+         *  deadline and take the plant's readings down with it. */
         uint16_t drain_persists(uint16_t n);
 
         /** @brief How many rows are still owed a flash write. */
@@ -151,10 +144,8 @@ namespace Botanik { namespace Modbus {
         /** @} */
         /** @brief The @p i-th mapped row, ascending by register. An index past
          *  the end, or a map with no bank, reads as an inert row rather than
-         *  faulting - the same answer the bank gives a bad index.
-         *
-         *  Pairs with index_of(): together they let a consumer resolve
-         *  something per row once at bring-up and then look it up by address. */
+         *  faulting. Pairs with index_of(), so a consumer can resolve something
+         *  per row at bring-up and then look it up by address. */
         Vars::Var row(uint16_t i) const;
 
         /** @brief Position of the row holding register @p reg in this map's own
@@ -175,8 +166,7 @@ namespace Botanik { namespace Modbus {
         /** @brief The row holding register @p reg. @p found (optional) says
          *  whether there is one; without it, an unmapped register reads as the
          *  inert row, whose name is null. Used by the server for the windows the
-         *  map does not own itself - the ack block, which needs the alarm model
-         *  rather than the bank. */
+         *  map does not own (the ack block, which needs the alarm model). */
         Vars::Var row_at(uint16_t reg, bool* found = nullptr) const;
 
         /** @} */
@@ -213,12 +203,9 @@ namespace Botanik { namespace Modbus {
          * FC06 writes one register and a row is two, so the addressed half is
          * spliced into what the row already holds and the whole row is then
          * validated and committed exactly as a pair write would be. Anything
-         * else would let a master set half a 32-bit value - the case
-         * write_registers() refuses an odd count for.
-         *
-         * Worth supporting rather than refusing: writing one setpoint is the
-         * commonest thing a SCADA does, and EX_ILLEGAL_ADDRESS would not even be
-         * the right objection - the address is fine, the granularity is not.
+         * else would let a master set half a 32-bit value, the case
+         * write_registers() refuses an odd count for. Supported rather than
+         * refused: writing one setpoint is the commonest thing a SCADA does.
          */
         Exception write_register(uint16_t addr, uint16_t value,
                                  uint16_t* committed = nullptr);
@@ -238,18 +225,17 @@ namespace Botanik { namespace Modbus {
         /** @name Conversion
          *
          *  A row's value as the 32 bits two registers carry, and back. Exposed
-         *  because the tests are the specification of the wire format, and
-         *  because the CSV generator (the integrator's document) must produce the
-         *  same numbers the server serves.
+         *  so the tests can specify the wire format and the CSV generator (the
+         *  integrator's document) produces the numbers the server serves.
          *  @{ */
 
         /** @brief @p v's value as the 32-bit word its two registers carry -
          *  override-aware, since every other reader sees the forced value too. */
         static uint32_t to_wire(const Vars::Var& v);
-        /** @brief The same conversion on an explicit Scalar. What the no-op
-         *  write check runs against `Var::live()`: comparing the incoming value
-         *  with the OVERRIDE would skip a commit whenever a forced row happened
-         *  to agree with it, and the parameter underneath would never change. */
+        /** @brief The same conversion on an explicit Scalar. The no-op write
+         *  check runs it against `Var::live()`: comparing the incoming value
+         *  with an OVERRIDE would skip the commit whenever a forced row agreed
+         *  with it, leaving the parameter underneath unchanged. */
         static uint32_t wire_of(Vars::VarType type, Vars::Scalar s);
         /** @brief The inverse: @p w as a Scalar of @p type. */
         static Vars::Scalar from_wire(Vars::VarType type, uint32_t w);
@@ -264,10 +250,9 @@ namespace Botanik { namespace Modbus {
         /** @brief Index of the first row at or past register @p reg (count()
          *  when there is none).
          *
-         *  What every request walks from. The map is SPARSE by design, so a
-         *  block read is mostly gaps: searching per register would pay a
-         *  binary search for each of them, where one lower bound plus a
-         *  cursor pays nothing at all. */
+         *  What every request walks from: the map is SPARSE, so a block read is
+         *  mostly gaps and one lower bound plus a cursor replaces a binary
+         *  search per register. */
         uint16_t _lower_bound(uint16_t reg) const;
         /** @brief Register of the @p i-th mapped row; 0xFFFF past the end, so
          *  a walk can compare against it without a bounds test. */

@@ -5,28 +5,21 @@
  * @file modbus/tcp/master.h
  * @brief TcpMaster: the other end of the TCP slave, one transaction at a time.
  *
- * Written for the simulator, where it is what proves the slave actually serves -
- * but it is ordinary firmware, not test scaffolding: a site polling another PLC
- * over Ethernet uses the same object, which is why it is here behind its own
- * feature flag rather than under `botanik_sim/`.
+ * Written for the simulator, where it proves the slave actually serves, but
+ * ordinary firmware: a site polling another PLC over Ethernet uses the same
+ * object, hence its own feature flag rather than a home under `botanik_sim/`.
+ * A `step()` state machine (connect, send, poll, time out) for the reason
+ * @ref modbus/modbus.h gives once for the subsystem.
  *
- * A `step()` state machine like everything else here - connect, send, poll,
- * time out - for the reason @ref modbus/modbus.h gives once for the subsystem.
+ * ONE transaction in flight. MBAP carries a transaction id so a master MAY
+ * pipeline, and one that does needs a table of outstanding requests; one at a
+ * time makes the id a check instead: an answer carrying a different one is an
+ * answer to a question we already gave up on, and is refused as ERR_ECHO rather
+ * than accepted for the current request.
  *
- * @section ma_one One transaction in flight
- *
- * Deliberately, and not only for simplicity: MBAP carries a transaction id
- * precisely so a master MAY pipeline, and a master that does has to keep a table
- * of outstanding requests and match answers to it. One at a time makes the id a
- * check rather than a lookup - an answer carrying a different one is an answer to
- * a question we already gave up on, and is refused as ERR_ECHO instead of being
- * quietly accepted for the current request.
- *
- * @section ma_share What it shares with the RTU client
- *
- * The vocabulary and the diagnosis: it reports wire.h's @ref Error, fills
- * wire.h's @ref Response, and checks the answer against wire.h's @ref Expect in
- * the same order the RTU parser does. Only the framing differs.
+ * It shares the vocabulary and the diagnosis with the RTU client: wire.h's
+ * @ref Error, @ref Response and @ref Expect, checked in the same order. Only the
+ * framing differs.
  */
 
 #include <cstddef>                    // size_t - frame lengths
@@ -82,8 +75,8 @@ namespace Botanik { namespace Modbus {
         uint64_t                _since_ms = 0;   ///< when this state was entered
         /** @brief The beat's timestamp, kept because a request may be started
          *  from outside a step() and every deadline here is measured from when
-         *  the transaction ACTUALLY began. Stamping one with the time the
-         *  connection went ready made every request arrive already expired. */
+         *  the transaction ACTUALLY began, not from when the connection went
+         *  ready (which would arrive already expired). */
         uint64_t                _now_ms = 0;
 
         uint8_t  _tx[TCP_ADU_MAX];
@@ -104,9 +97,8 @@ namespace Botanik { namespace Modbus {
 
     public:
         /** @param name what it calls itself in the log. The simulator's own
-         *  master passes a name saying so: its lines are otherwise
-         *  indistinguishable from firmware talking to a real peer, and a reader
-         *  cannot tell a field fault from the harness testing itself. */
+         *  master passes a name saying so, or its lines read as firmware talking
+         *  to a real peer. */
         TcpMaster(Logs::Logger* logger = nullptr,
                   const char* name = "ModbusTCPMaster")
             : Component(logger, name), _name(name) {}
@@ -129,12 +121,8 @@ namespace Botanik { namespace Modbus {
          *  not be framed - never a silent enqueue, because there is no queue.
          *  @{ */
 
-        /** @brief FC01/02/03/04 - the function code says which table.
-         *
-         *  One entry point, because there was never more than one: the old
-         *  read_registers() forwarded to a read_bits() that took an fc and read
-         *  whatever it was given, so the pair named a distinction that did not
-         *  exist. A code that is not a read is refused rather than framed. */
+        /** @brief FC01/02/03/04: the function code says which table. A code that
+         *  is not a read is refused rather than framed. */
         bool read(uint8_t unit, uint8_t fc, uint16_t addr, uint16_t qty);
         /** @brief FC16 from @p data, already big-endian register bytes. */
         bool write_registers(uint8_t unit, uint16_t addr, uint16_t qty,
@@ -150,11 +138,10 @@ namespace Botanik { namespace Modbus {
         const Response& response() const { return _resp; }
         /** @brief Consume the result and go back to READY. */
         void take_result() {
-            // Back to READY only if the socket survived. Every failure path does
-            // disconnect() then _finish(), so a plain MA_DONE -> MA_READY parked
-            // the master in "connected, nothing in flight" holding _sock == -1,
-            // and on_step()'s MA_READY case is a bare return - so one response
-            // timeout meant it never reconnected again.
+            // Back to READY only if the socket survived. Every failure path
+            // disconnects before finishing, and MA_READY with _sock == -1 is a
+            // master that never reconnects: on_step()'s MA_READY is a bare
+            // return.
             if (_state != MA_DONE) return;
             _state = (_sock >= 0) ? MA_READY : MA_IDLE;
         }

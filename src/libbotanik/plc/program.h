@@ -9,11 +9,9 @@
  * variable bank, applies its blocks, and writes demands back. It is the only
  * one of the three that knows the field exists.
  *
- * A program is a Component, so the lateness contract, the multi-rate dispatch
- * and the stagger live in one place for the whole firmware: the driver calls
- * step(), Component does the due/late/dropped arithmetic. It inherits
- * on_param_changed() (re-read tuning when its parameter group commits) and
- * healthy() with it.
+ * A program is a Component: the driver calls step(), Component does the
+ * due/late/dropped arithmetic, and on_param_changed() and healthy() come with
+ * it.
  *
  * Four hooks, in lifecycle order:
  *
@@ -24,31 +22,18 @@
  * | `reset()` | control authority withdrawn | drop what has gone stale |
  * | `resume()` | control authority returned | look at the plant before driving it |
  *
- * @section plc_program_bind bind, and reset
+ * @section plc_program_bind reset, and resume
  *
- * Every other consumer in the firmware resolves its names once at bring-up;
- * control programs were the last still searching on every activation, which for
- * six names at 10 Hz is sixty table searches a second to learn what the program
- * already knew.
+ * While control is withdrawn the process moves without us, so reset() drops
+ * what has gone stale. Opt-in, and not "clear everything": a dwell timer is
+ * stale, a totalizer holding the day's litres is a record.
  *
- * reset() is called because while control is withdrawn the process moves
- * without us - a vent creeps shut, a tank drains - so what a program remembered
- * is stale, and reseeding dt on the way back cannot express that. Opt-in, and
- * deliberately not "clear everything": a dwell timer is stale, but a totalizer
- * holding the litres delivered today is a record.
+ * resume() is the counterpart on the way back up: the chance to LOOK at the
+ * plant before commanding it, so a program estimating a valve position by
+ * timing its strokes re-datums here. It also raises `Context::first_scan`.
  *
- * resume() is its counterpart on the way back up, and asks a different question.
- * reset() throws away what went stale; resume() is the chance to LOOK at the
- * plant before commanding it - an actuator whose position was being estimated by
- * timing its strokes has been moving without us, and a program that re-datums
- * here drives from where the valve IS. It also raises `Context::first_scan`, so
- * a program with nothing to re-establish still learns that its next activation
- * has no previous one worth comparing against.
- *
- * Bring-up runs resume() too, and that is deliberate: control starts withheld
- * and is granted before the first beat, so the return edge fires there as well -
- * and at bring-up a program knows no more about the plant than it does after an
- * outage. reset() is NOT called there, because nothing was ever driving.
+ * Bring-up runs resume() too (control starts withheld and is granted before the
+ * first beat). reset() is NOT called there: nothing was ever driving.
  */
 
 #include <cstdint>                      // uint16_t/uint32_t/uint64_t
@@ -62,28 +47,21 @@
 namespace Botanik { namespace Plc {
 
     /** @brief What a program is handed each time it runs. Lives here, not with
-     *  the driver: it is the PROGRAM's argument, and the dependency runs
-     *  driver -> POU library, never back. */
+     *  the driver: the dependency runs driver -> POU library, never back. */
     struct Context {
         uint64_t now_ms;   ///< beat timestamp; the same for every program this beat
         uint32_t dt_ms;    ///< REAL ms since this program last ran; drives every timed block
         uint16_t missed;   ///< activations dropped since the last run; 0 normally
-        /** @brief This is the program's FIRST activation since it last had
-         *  nothing to go on - at bring-up, or on the beat control came back.
+        /** @brief The program's FIRST activation since it last had nothing to
+         *  go on: at bring-up, or on the beat control came back.
          *
-         *  IEC 61131-3's first-scan flag, and it is here for the same reason:
-         *  a law that ramps, latches or compares against "last time" has no
-         *  last time on the first scan, and reading one gives it the value a
-         *  member happened to be initialised with. Ask instead of assuming.
-         *
-         *  True again after a control withdrawal because that IS the same
-         *  situation: the process moved without us, so the previous activation
-         *  describes a plant that no longer exists. */
+         *  IEC 61131-3's first-scan flag. A law that ramps, latches or compares
+         *  against "last time" has no last time here, so it must ask rather
+         *  than read a member's initial value. */
         bool     first_scan;
-        /** @brief The variables it reads and drives - the narrowed view, not the
-         *  Bank. A program has no business editing a parameter, forcing an
-         *  override or withdrawing control authority, and this is what stops it
-         *  reaching them by accident (@ref Botanik::Plc::Io). */
+        /** @brief The variables it reads and drives - the narrowed view, not
+         *  the Bank: a program has no business editing a parameter, forcing an
+         *  override or withdrawing control authority (@ref Botanik::Plc::Io). */
         Io       io;
     };
 
@@ -91,10 +69,8 @@ namespace Botanik { namespace Plc {
      * @brief Base class for a site's control programs: name and rate to the
      * constructor, function blocks as members, run() overridden.
      *
-     * RAM-resident, so the NSDMIs are fine - unlike the descriptor tables, which
-     * are const and flash-resident. A site's table of programs is an array of
-     * POINTERS, which stays in flash: the pointer values are link-time constants
-     * even though the objects are in RAM.
+     * RAM-resident, so the NSDMIs are fine. A site's table of programs is an
+     * array of POINTERS, which stays in flash.
      *
      * @code
      * class SupplyWatch : public Plc::Program {
@@ -126,17 +102,14 @@ namespace Botanik { namespace Plc {
          *  because Component::step() takes only a timestamp. */
         Vars::Bank* _io = nullptr;
         /** @brief This program's index in the site's table, stamped onto every
-         *  row it writes. The driver assigns it; WRITER_NONE until then, which
-         *  is what a program stepped by hand in a test writes as. */
+         *  row it writes. The driver assigns it; WRITER_NONE until then. */
         uint8_t     _slot = Vars::WRITER_NONE;
-        /** @brief What this program costs, sampled the way a task's is - the
-         *  scan is ONE task, so without this every program in a site collapses
-         *  into a single row on the TASKS page and the expensive one cannot be
-         *  told from the cheap ones. */
+        /** @brief What this program costs. The scan is ONE task, so without
+         *  this every program is a single row on the TASKS page. */
         Tasks::TaskCost _cost;
         /** @brief How far past its nominal period this activation was, and the
-         *  worst yet. Zero for a period-0 program, which is due every beat and
-         *  has no nominal to be late against. */
+         *  worst yet. Zero for a period-0 program: due every beat, so it has no
+         *  nominal to be late against. */
         uint32_t    _late_ms     = 0;
         uint32_t    _late_max_ms = 0;
         /** @brief Whether the next activation is a first scan. Starts true, so
@@ -165,18 +138,14 @@ namespace Botanik { namespace Plc {
         }
 
         /** @brief Tell the program which slot of the site's table it occupies.
-         *  The DRIVER's to call: a program cannot know where the site put it,
-         *  and two programs claiming one index would silently share an author.
-         */
+         *  The DRIVER's to call: two programs claiming one index would silently
+         *  share an author. */
         void set_slot(uint8_t slot) { _slot = slot; }
         uint8_t slot() const        { return _slot; }
 
         /** @} */
         /** @name Accounting
-         *
-         *  What this program costs and how late it has been. Per PROGRAM,
-         *  because the scan is one task: the TASKS page can say the whole scan
-         *  took 800 us without being able to say which of six programs spent it.
+         *  Per PROGRAM, because the scan is one task.
          *  @{ */
 
         /** @brief Duration of the last run, the peak, the mean and the count. */
@@ -192,18 +161,9 @@ namespace Botanik { namespace Plc {
         virtual void reset() {}
 
         /** @brief Control authority has come back; the next activation will
-         *  drive the field again. Default: nothing to do.
-         *
-         *  The counterpart to reset(), and not the same as it: reset() throws
-         *  away what went stale while we were stopped, this is the chance to
-         *  LOOK at the plant before commanding it. An actuator whose position
-         *  the firmware was estimating by timing its strokes has been moving
-         *  without us; a program that re-datums here drives from where the valve
-         *  is rather than from where it was an hour ago.
-         *
-         *  Also raises the first-scan flag, so a program with nothing to
-         *  re-establish still learns that its next run starts from nothing.
-         *  Public for the same reason reset() is: the edge is the driver's. */
+         *  drive the field again. Default: raise the first-scan flag and
+         *  nothing else (@ref plc_program_bind). Public for the same reason
+         *  reset() is: the edge is the driver's. */
         virtual void resume() { _first_scan = true; }
 
         /** @} */
@@ -234,9 +194,8 @@ namespace Botanik { namespace Plc {
         void on_step(uint64_t now_ms) override {
             if (_io == nullptr) return;
 
-            // Lateness is measured against the program's OWN period, not the
-            // beat: a 1 s program running 40 ms late is fine, a 100 ms one
-            // running 40 ms late is not, and one number cannot say both.
+            // Against the program's OWN period, not the beat: 40 ms late is
+            // fine for a 1 s program and not for a 100 ms one.
             const uint32_t p = period_ms();
             _late_ms = (p != 0 && dt_ms() > p) ? (dt_ms() - p) : 0;
             if (_late_ms > _late_max_ms) _late_max_ms = _late_ms;
@@ -245,10 +204,8 @@ namespace Botanik { namespace Plc {
             const uint64_t t0 = HAL::Clock::uptime_us();
             run(c);
             _cost.record((uint32_t)(HAL::Clock::uptime_us() - t0), missed());
-            // Cleared after the run, not before: a program that throws its way
-            // out would otherwise lose the flag without having seen it. (There
-            // are no exceptions here, but the ordering is free and says what it
-            // means - the flag describes the activation that just happened.)
+            // Cleared after the run: the flag describes the activation that
+            // just happened.
             _first_scan = false;
         }
 
@@ -258,14 +215,10 @@ namespace Botanik { namespace Plc {
     /**
      * @brief One statically-allocated @p T, safe to name from a header.
      *
-     * A program is mutable state declared in a header that several TUs include,
-     * so a plain definition would be a duplicate symbol. A class template's
-     * static member has vague linkage: emitted per TU, folded by the linker,
-     * for one guard byte tested once during static init. (Not a function-local
-     * static, which tests its guard on every access and pulls in
-     * __cxa_guard_acquire/release.)
-     *
-     * It lives here so a site never reproduces the trick:
+     * A program is mutable state declared in a header several TUs include, so a
+     * plain definition would be a duplicate symbol. A class template's static
+     * member has vague linkage: emitted per TU, folded by the linker. It lives
+     * here so a site never reproduces the trick:
      *
      * @code
      * Plc::Program* const g_programs[] = {
@@ -274,8 +227,8 @@ namespace Botanik { namespace Plc {
      * };
      * @endcode
      *
-     * @tparam Tag distinguishes two instances of the same program class - two
-     *  irrigation zones running the same logic. Default: the only one.
+     * @tparam Tag distinguishes two instances of the same program class (two
+     *  irrigation zones running the same logic). Default: the only one.
      */
     template <typename T, typename Tag = void>
     struct Instance { static T obj; };

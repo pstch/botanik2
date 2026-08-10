@@ -11,29 +11,21 @@
  *
  * Every FUNCTION_BLOCK provides `reset()`: back to a cold block, as if it had
  * just been constructed. `Scan::Driver` calls `Plc::Program::reset()` on every
- * control-authority withdrawal, and a program's reset is the sum of its blocks'
- * - so a block without one is a piece of state that survives an outage it should
- * not have survived. That is the whole reason this is enforced rather than
- * documented.
+ * control-authority withdrawal, and a program's reset is the sum of its blocks',
+ * so a block without one is state that survives an outage it should not have.
+ * That is why this is enforced rather than documented.
  *
  * `preset()` is deliberately NOT part of the contract. It means "declare the
  * state without a reading", and its argument is whatever the block holds - a
- * bool for a threshold, a float for a ramp, a double for a totaliser, a position
- * for an actuator. A uniform signature would have to lie about at least one of
- * them. Blocks that can be preset say so individually.
+ * bool, a float, a double, a position - so a uniform signature would have to lie
+ * about at least one. Blocks that can be preset say so individually.
  *
  * @section blk_novirtual Why the interface is checked, not dispatched
  *
- * `reset()` is not virtual and `Block` has no vtable. Nothing ever holds a
- * `Block*`: blocks are value members of a `Plc::Program`, named directly by the
- * control law, and a greenhouse carries dozens of them. A virtual would add a
- * pointer to every instance and an indirect call to a scan-rate path, to buy a
- * polymorphism no caller wants.
- *
- * So the base carries the family membership and BOTANIK_PLC_BLOCK() carries the
- * interface, as three static_asserts per block. A new block that forgets
- * `reset()` fails to compile with a message saying why, which is what a pure
- * virtual would have bought at a cost this tree should not pay.
+ * `reset()` is not virtual and `Block` has no vtable: nothing ever holds a
+ * `Block*`, since blocks are value members of a `Plc::Program` named directly by
+ * the control law. So the base carries the family membership and
+ * BOTANIK_PLC_BLOCK() carries the interface, as three static_asserts per block.
  */
 
 #include <type_traits>   // std::is_base_of / std::is_polymorphic
@@ -44,9 +36,9 @@ namespace Botanik { namespace Plc {
      *  marks the family and gives BOTANIK_PLC_BLOCK() something to check.
      *
      *  Empty, so the empty-base optimisation applies and a derived block is the
-     *  size of its own members - `tests/test_plc.cpp` pins that. The special
-     *  members are protected: `Block` is not a thing to instantiate, and the
-     *  non-virtual destructor is not a thing to delete through. */
+     *  size of its own members (`tests/test_plc.cpp` pins that). The special
+     *  members are protected: not a thing to instantiate, and the non-virtual
+     *  destructor is not a thing to delete through. */
     class Block {
     protected:
         Block() = default;
@@ -73,9 +65,8 @@ namespace Botanik { namespace Plc {
 /** @brief Assert that @p T is a well-formed function block. Place it at
  *  namespace scope directly after the class.
  *
- *  Three claims: it is in the family, it can be reset, and it costs no vptr.
- *  The third is not pedantry - it is the property that lets a program hold
- *  twenty blocks by value without paying for a polymorphism nobody uses. */
+ *  Three claims: it is in the family, it can be reset, and it costs no vptr
+ *  (@ref blk_novirtual). */
 #define BOTANIK_PLC_BLOCK(T)                                                   \
     static_assert(::std::is_base_of< ::Botanik::Plc::Block, T >::value,        \
                   #T " must derive from Plc::Block");                          \

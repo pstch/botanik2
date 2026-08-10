@@ -7,9 +7,9 @@
  *        the two saturating steps every timed block runs on.
  *
  * No clock is read here and none is held: a block passes its own counter in and
- * these say what one step of @c dt_ms does to it. That is why they count as
- * FUNCTIONs despite writing through a reference - the state belongs to the
- * caller (IEC's VAR_IN_OUT), not to anything here.
+ * these say what one step of @c dt_ms does to it. FUNCTIONs despite writing
+ * through a reference, because the state belongs to the caller (IEC's
+ * VAR_IN_OUT).
  */
 
 #include <cstdint>  // uint32_t
@@ -29,8 +29,8 @@ namespace Botanik { namespace Plc {
      *  @name Stepping a counter
      *  @{ */
 
-    /** @brief Advance @p elapsed by @p dt_ms, saturating at @p limit - a hold
-     *  far longer than the limit must stay elapsed, not wrap back to zero.
+    /** @brief Advance @p elapsed by @p dt_ms, saturating at @p limit: a hold far
+     *  longer than the limit must stay elapsed, not wrap back to zero.
      *
      *  @note Inline rather than constexpr: C++11 forbids writing through a
      *   reference in a constant expression. */

@@ -4,12 +4,8 @@
 One chart, `coupling.svg`: every cross-module `#include` in src/, with the modules
 on both axes ordered bottom-of-stack to top. A cell left of the diagonal is a
 module depending on something BENEATH it - the layering working. A cell right of
-the diagonal points back UP the stack, and is a layering violation.
-
-Why a matrix and not a graph: the question is never "what depends on what" (the
-answer is "a lot"), it is "does anything depend UPWARDS". A matrix ordered by
-layer answers that at a glance - the violations are the cells on the wrong side
-of the diagonal, and there is nowhere for one to hide.
+the diagonal points back UP the stack, and is a layering violation with nowhere
+to hide.
 
 Two kinds of edge are counted separately, because they cost differently:
   - a `.h -> .h` include is CONTAGIOUS: it lands in every file that transitively
@@ -17,8 +13,8 @@ Two kinds of edge are counted separately, because they cost differently:
   - a `.cpp -> .h` include is private to one translation unit.
 The matrix shows header edges; `--json` reports both.
 
-Stdlib only, no build required - it reads the source tree directly. Output is
-build-only and gitignored; the CMake `docs` target runs this before doxygen.
+Stdlib only, no build required. Output is gitignored; the CMake `docs` target
+runs this before doxygen.
 """
 
 import argparse
@@ -31,12 +27,10 @@ import sys
 # Layering - the one thing this script asserts rather than derives
 # --------------------------------------------------------------------------
 
-# Bottom of the stack first. This is the intended layering, written down: a
-# module may depend on anything ABOVE it in this list and nothing below.
-#
-# Adding a module means adding a row here. One that is missing is appended at the
-# top and reported on stderr rather than silently dropped, so a new subsystem
-# cannot quietly acquire a free pass.
+# The intended layering, bottom of the stack first: a module may depend on
+# anything ABOVE it in this list and nothing below. Adding a module means adding
+# a row; a missing one is appended at the top and reported on stderr, so a new
+# subsystem cannot quietly acquire a free pass.
 LAYERS = [
     "hal",        # the platform boundary; everything may reach it
     "tasks",      # TaskTimer + the task registry - BELOW core, because Component
@@ -62,8 +56,8 @@ LAYERS = [
     "site",       # sites/<name> and the target entry points
 ]
 
-# Cross-cutting: every module includes these, so they would render as a solid
-# column and say nothing. Held out of the matrix deliberately.
+# Held out of the matrix: every module includes these, so they would render as a
+# solid column and say nothing.
 CONFIG_FILES = {"libbotanik_config.h", "libbotanik_features.h", "libbotanik_site.h"}
 CONFIG_DIR = "libbotanik/config"
 
@@ -96,8 +90,8 @@ def module_of(rel):
         return None
     if "/".join(parts[:2]) == CONFIG_DIR:
         return None
-    # A loose file directly under libbotanik/ (library_vars.h) is part of the
-    # library's face to a SITE, like the umbrella - not a subsystem of its own.
+    # A loose file directly under libbotanik/ is part of the library's face to a
+    # SITE, like the umbrella, not a subsystem of its own.
     if len(parts) == 2:
         return "umbrella"
     return parts[1]

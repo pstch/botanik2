@@ -17,15 +17,10 @@
 #include <cstdint>      // uint8_t/uint64_t/uintptr_t
 #include <type_traits>  // std::is_empty
 
-// CMSIS only - resolved from the installed mbed_opta core, not this tree.
-//
-// NOT mbed.h. What has to be inline here is the memory-ordering and cache
-// surface, and every one of those (__DSB, __DMB, ARM_MPU_OrderedMemcpy,
-// SCB_*DCache_by_Addr, __BKPT, CoreDebug) is a CMSIS intrinsic, not part of
-// Mbed's C++ API. Measured with this build's own flags: mbed.h preprocesses to
-// 97,696 lines against stm32h7xx.h's 20,940, and 40 files reach this header -
-// so pulling the whole of Mbed OS through them bought nothing but the two C++
-// pieces below, which moved to platform.cpp instead.
+// CMSIS only - resolved from the installed mbed_opta core, not this tree. NOT
+// mbed.h: what must be inline here (__DSB, __DMB, ARM_MPU_OrderedMemcpy,
+// SCB_*DCache_by_Addr, __BKPT, CoreDebug) is all CMSIS, and the two pieces of
+// Mbed C++ the HAL needs live in platform.cpp - see its file header.
 #include "stm32h7xx.h"  // __DSB / __DMB / ARM_MPU_OrderedMemcpy / SCB_*DCache_by_Addr
 
 
@@ -56,14 +51,10 @@ namespace Botanik { namespace HAL {
     /** @brief Timing and clocks. */
     namespace Clock {
 
-    /*  The three below read mbed::LowPowerClock, which is Mbed C++ and the only
-     *  reason this header would need mbed.h - so they are defined in
-     *  platform.cpp instead. Inlining them was never buying anything: at -O2
-     *  uptime_ms() is 8 instructions and already THREE out-of-line calls deep
-     *  (get_lp_ticker_data, ticker_read_us, and a software __aeabi_ldivmod for
-     *  the 64-bit divide), all to read a 32.768 kHz peripheral. A fourth call to
-     *  get here is noise against that, and it is what keeps the whole of Mbed OS
-     *  out of the 40 files that include this header. */
+    /*  These read mbed::LowPowerClock, the only reason this header would need
+     *  mbed.h, so they are defined in platform.cpp instead. The extra call is
+     *  noise: uptime_ms() is already three out-of-line calls deep reading a
+     *  32.768 kHz peripheral. */
 
     uint32_t current_ms();
 
@@ -123,11 +114,10 @@ namespace Botanik { namespace HAL {
     }
 
     // Cache discipline for a cross-core shared region. clean (write-back) is
-    // always safe - it rounds to whole lines and only ever writes back, losing
-    // nothing. invalidate DISCARDS whole lines, so it is safe ONLY on a region
-    // we treat as read-only: invalidate what the other core produces, clean
-    // what we produce. Sub-region calls are fine - they round to that region's
-    // own lines - provided the two regions never share one (align each to 32).
+    // always safe: it rounds to whole lines and only ever writes back.
+    // invalidate DISCARDS whole lines, so it is safe ONLY on a region we treat
+    // as read-only: invalidate what the other core produces, clean what we
+    // produce, and never let the two regions share a line (align each to 32).
     // @warning never invalidate a line holding data we wrote; that write is
     // silently dropped.
     inline void cache_clean(const void* addr, size_t len) {
@@ -176,8 +166,7 @@ namespace Botanik { namespace HAL {
     void start(uint32_t timeout_ms);
 
     /** @brief Reset the countdown; called once per beat. Out of line for the
-     *  same reason as the clocks: it is the Mbed Watchdog singleton, and one
-     *  call a beat is not worth a header full of Mbed OS. */
+     *  same reason as the clocks: it is the Mbed Watchdog singleton. */
     void kick();
 
     void stop();
@@ -187,15 +176,15 @@ namespace Botanik { namespace HAL {
     /**
      * @brief Serial access.
      *
-     * CONSOLE and MONITOR are *logical* endpoints. Each is backed by a concrete
+     * CONSOLE and MONITOR are *logical* endpoints, each backed by a concrete
      * transport behind one small interface, so which physical port serves which
-     * role is a one-line change in get() rather than a change to any caller.
-     * Today: CONSOLE on the hardware UART (Mbed's own CONSOLE_TX/RX pins for
-     * this target, PG_14 / PG_9), MONITOR on USB CDC.
+     * role is a one-line change in get(). Today: CONSOLE on the hardware UART
+     * (Mbed's own CONSOLE_TX/RX for this target, PG_14 / PG_9), MONITOR on USB
+     * CDC.
      *
-     * Pure Mbed - no Arduino core. Virtual dispatch is deliberate and cheap
-     * here: these are two long-lived RAM objects, not the flash-resident
-     * descriptor tables where a vptr would force the table out of .rodata.
+     * Pure Mbed - no Arduino core. Virtual dispatch is cheap here: two
+     * long-lived RAM objects, not a flash-resident descriptor table where a vptr
+     * would force it out of .rodata.
      */
     namespace Serial {
 
@@ -236,19 +225,12 @@ namespace Botanik { namespace HAL {
 
     /** @name Field bus control
      *
-     *  Free functions rather than virtuals on Raw, deliberately. Raw is the
-     *  surface BufferedSerial drives for every port, and widening it would make
-     *  CONSOLE and MONITOR implement a line format and a turnaround they do not
-     *  have. These three are the field bus's alone, and the simulator backend
-     *  declares the same three, so a caller never branches on the target.
+     *  Free functions rather than virtuals on Raw: Raw is the surface
+     *  BufferedSerial drives for EVERY port, and widening it would make CONSOLE
+     *  and MONITOR implement a line format and a turnaround they do not have.
+     *  The simulator backend declares the same three, so a caller never branches
+     *  on the target. Defined in platform.cpp, where the concrete Rs485Raw is.
      *  @{ */
-
-    /*  Defined in platform.cpp, not here. The RS-485 port is a concrete
-     *  Rs485Raw - it carries a frame format, a driver-enable pin and a
-     *  character-time estimate that the abstract Raw has no business knowing -
-     *  and that class lives in platform.cpp with the rest of the Mbed-facing
-     *  code. A header cannot call into it inline without dragging it back out,
-     *  so these three are ordinary declarations. */
 
     /** @brief Bring the bus up at @p baud with the given frame format. */
     void fieldbus_begin(uint32_t baud, uint8_t data_bits, Parity parity,
@@ -259,24 +241,19 @@ namespace Botanik { namespace HAL {
 
     /** @brief Whether the receiver hears our own transmission on this port.
      *
-     *  TRUE here. RE (PB_13) is held asserted for the life of the port, so the
-     *  transceiver's receiver is enabled while its driver is on and our own
-     *  frame arrives back at the UART ahead of any answer. It is exactly as long
-     *  as what was written, which is what lets the master count it off rather
-     *  than try to recognise it.
-     *
-     *  Deassert RE around transmission instead and this becomes false: DE and RE
-     *  are independent pins here, so that is a real option, and it is the one
-     *  thing that would have to change with it. */
+     *  TRUE here: RE (PB_13) is held asserted for the life of the port, so our
+     *  own frame arrives back at the UART ahead of any answer, exactly as long
+     *  as what was written - which lets the master count it off rather than try
+     *  to recognise it. Deassert RE around transmission instead and this becomes
+     *  false. See the RS-485 notes in platform.cpp. */
     bool fieldbus_echoes();
 
     /** @brief Discard whatever is sitting in the receive path.
      *
-     *  Called once a request has drained and before its answer is expected. On a
-     *  bus where the receiver never stops listening, that is the moment our own
-     *  echo is sitting there and the slave has not yet spoken - so this is what
-     *  keeps a write echo from being mistaken for the response to it, which for
-     *  FC05 and FC06 would be byte-identical and silently wrong. */
+     *  Called once a request has drained and before its answer is expected: on a
+     *  bus whose receiver never stops listening, that is when our own echo is
+     *  sitting there. Keeps a write echo from being taken for the response to
+     *  it, which for FC05 and FC06 would be byte-identical and silently wrong. */
     uint16_t fieldbus_flush_input();
 
     /** @} */

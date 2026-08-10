@@ -30,10 +30,9 @@ namespace Botanik { namespace Terminal {
 
     StatusBar::StatusBar(Console& console, const Scheduler::SchedulerContext* sched)
         : _console(console), _terminal(console.terminal()), _sched(sched) {
-        // Row 0 is the frame around the page: it should land before the page on
-        // boot and on a page switch. Its routine churn costs almost nothing - the
-        // clock and metrics rebuild once a second, some tens of bytes against a
-        // budget of thousands, so ranking it above the page starves nothing.
+        // Row 0 frames the page, so it lands before it. Ranking it above the page
+        // starves nothing: the clock and metrics rebuild once a second, tens of
+        // bytes against a budget of thousands.
         _terminal.set_row_priority(0, PRIO_CHROME);
     }
 
@@ -53,12 +52,11 @@ namespace Botanik { namespace Terminal {
     void StatusBar::draw_row() {
         constexpr uint16_t mlen = METRICS_LEN - 1;   // field width (drop NUL)
 
-        // Save the attribute only, not the cursor: every caller repositions
-        // absolutely right after, so a cursor restore here would be wasted.
+        // Save the attribute only: every caller repositions absolutely right
+        // after, so a cursor restore would be wasted.
         bool saved_inv = _terminal.inverted();
 
         _terminal.move_to({0, 0});
-
         // Assert the reverse-video background (the row-0 bar).
         _terminal.set_inverted(true);
 
@@ -75,8 +73,6 @@ namespace Botanik { namespace Terminal {
         update_metrics();
         update_clock();
 
-        // Restore only the attribute; the cursor is left where fill_spaces
-        // parked it (the caller repositions absolutely).
         _terminal.set_inverted(saved_inv);
     }
 
@@ -131,13 +127,12 @@ namespace Botanik { namespace Terminal {
         uint16_t visible = (uint16_t)std::min((int)_terminal.cols(), mlen);
         if (visible == 0) return;
         uint16_t metrics_col = (uint16_t)(_terminal.cols() - visible);
-        // The bar is reverse video except the live readings (cpu/stk), drawn
-        // normal: highlight mask inverts all but the value cols.
+        // The bar is reverse video except the live readings (cpu/stk), so the
+        // mask inverts everything but the value columns. Paint the whole field;
+        // the diff drops the cells that did not move.
         uint32_t hi = 0;
         for (uint16_t i = 0; i < visible; ++i)
             if (!metric_value_col(i)) hi |= (1u << i);
-        // Paint the whole field; the terminal's diff drops the cells that did
-        // not move. hi segments the reverse-video runs.
         _terminal.paint_field_runs(0, metrics_col, metrics, visible, hi);
     }
 

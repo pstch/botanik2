@@ -44,11 +44,8 @@ namespace Botanik { namespace HAL { namespace Storage {
 #ifdef TARGET_OPTA
 // ---- OPTA: the Mbed global KV store ------------------------------------------
 // kv_set/kv_get/kv_remove resolve to the configured default kvstore, a TDBStore
-// over BlockDevice::get_default_instance(). On the OPTA that is the external
-// QSPI NOR (Arduino's PlatformStorage builds a QSPIFBlockDevice), and the
-// variant's COMPONENT_QSPIF + STORAGE_TYPE=default picks TDB_EXTERNAL. The
-// region base and size are both 0, so Mbed places it over the whole device -
-// see the warning in storage.h. Confirm the placement on hardware.
+// over BlockDevice::get_default_instance() - the external QSPI NOR here. See
+// storage.h, including its @warning about where Mbed places the region.
 #include "kvstore_global_api/kvstore_global_api.h"  // kv_set / kv_get / kv_remove
 #include "platform/mbed_error.h"                    // MBED_ERROR_ITEM_NOT_FOUND
 
@@ -118,11 +115,10 @@ namespace Botanik { namespace HAL { namespace Storage {
     namespace {
         constexpr size_t STORE_MAX = Config::STORE_MAX_BYTES;  // whole-file cap
 
-        // One scratch pair for the whole backend. The store is sized for the
-        // largest value it holds (a note is kilobytes, hex-doubled), so these do
-        // not belong on the stack of a main-loop call - and there is no reason
-        // for each of set/get/remove to own its own copy. Main-loop only, never
-        // re-entrant, nothing live across calls.
+        // One scratch pair for the whole backend: the store is sized for its
+        // largest value (a note is kilobytes, hex-doubled), too big for the
+        // stack of a main-loop call. Main-loop only, never re-entrant, nothing
+        // live across calls.
         char g_in[STORE_MAX];
         char g_out[STORE_MAX];
 
@@ -179,13 +175,10 @@ namespace Botanik { namespace HAL { namespace Storage {
          *  @return the bytes written, or COPY_TRUNCATED if @p out could not
          *  hold them all.
          *
-         *  Unreachable as wired - `g_in` and `g_out` are both STORE_MAX, load()
-         *  caps at sizeof(g_in), and this only ever DROPS a line, so the output
-         *  cannot outgrow the input. The signal exists because the callers write
-         *  what they get back as the WHOLE store: a short count would delete
-         *  every record that did not fit and report success. That is a bad
-         *  enough failure to be worth making unrepresentable rather than
-         *  leaving to a buffer-size invariant two hundred lines away. */
+         *  Unreachable as wired (g_in and g_out are both STORE_MAX and this only
+         *  ever DROPS a line), but the signal has to exist: callers write what
+         *  they get back as the WHOLE store, so a short count would delete every
+         *  record that did not fit and report success. */
         static const size_t COPY_TRUNCATED = (size_t)-1;
 
         size_t copy_without(const char* in, size_t n, const char* key,

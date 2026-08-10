@@ -6,16 +6,14 @@
  * @file platform.h
  * @brief Unified hardware abstraction layer (HAL) interface.
  *
- * Declares the platform-independent surface that the rest of the codebase
- * builds on: hardware identity, stack introspection, timing clocks,
- * memory-ordering primitives, and serial access. Exactly one backend
- * implements it, selected at compile time below: opta.h for the Arduino OPTA
- * hardware, simulator.h for the Linux host build.
+ * Declares the platform-independent surface the rest of the codebase builds on:
+ * hardware identity, stack introspection, clocks, memory-ordering primitives and
+ * serial access, grouped into nested namespaces by concern (Clock, Memory,
+ * Stack, Debug, System, Watchdog, Serial, plus Storage (storage.h) and Network
+ * (net.h)). Exactly one backend implements it, selected below: opta.h for the
+ * Arduino OPTA, simulator.h for the Linux host build.
  *
- * The surface is grouped into nested namespaces by concern (Clock, Memory,
- * Stack, Debug, System, Watchdog, Serial, plus Storage (storage.h) and
- * Network (net.h)). All
- * other code must go through this interface; never reach for raw <time.h> or
+ * All other code must go through this interface; never reach for raw <time.h> or
  * platform-specific calls directly.
  */
 
@@ -55,11 +53,10 @@ namespace Botanik { namespace HAL {
 
     /** @brief Timing and clocks.
      *
-     *  Declared without `inline` even for the readings taken every beat: the
-     *  OPTA backend defines them in platform.cpp so mbed.h stays out of every
-     *  includer, and the simulator's are still inline in its own backend
-     *  header. An `inline` here would apply to both and leave the OPTA link
-     *  looking for a definition no translation unit has. */
+     *  Declared without `inline` even for the per-beat readings: the OPTA
+     *  backend defines them in platform.cpp (the simulator's stay inline in its
+     *  own header), and an `inline` here would apply to both, leaving the OPTA
+     *  link looking for a definition no translation unit has. */
     namespace Clock {
 
         /** @brief Sawtooth ms uptime (rolls over ~49 days), low-power clock
@@ -107,10 +104,8 @@ namespace Botanik { namespace HAL {
          *  alias (the OPTA path declares src __RESTRICT, so an overlapping copy
          *  is UB there).
          *
-         *  @note Currently unused. Kept for the M4 core: publishing a block to
-         *  a second core is what this is for, and it is the kind of primitive
-         *  that must be right rather than rewritten in a hurry. Do not remove
-         *  it as dead code. */
+         *  @note Currently unused; kept for the M4 core (publishing a block to
+         *  a second core is what it is for). Do not remove as dead code. */
         template <typename T>
         inline void ordered_copy(T* dst, const T* src);
 
@@ -129,10 +124,8 @@ namespace Botanik { namespace HAL {
         /** @brief Clean (write back) the D-cache over [addr, addr+len) after
          *  writing a shared region, so the other core sees the data in SRAM.
          *  Rounds to whole cache lines. No-op without a D-cache (the simulator,
-         *  or a Cortex-M4).
-         *
-         *  Always safe: it only ever writes back, so a rounded-up line loses
-         *  nothing.
+         *  or a Cortex-M4). Always safe: it only ever writes back, so a
+         *  rounded-up line loses nothing.
          *
          *  @note Currently unused; kept for the M4 core. See ordered_copy(). */
         inline void cache_clean(const void* addr, size_t len);
@@ -141,11 +134,11 @@ namespace Botanik { namespace HAL {
          *  shared region, so a stale cached copy cannot hide the other core's
          *  writes. Rounds to whole cache lines. No-op without a D-cache.
          *
-         *  @warning Unlike cache_clean(), this DISCARDS whole lines. It is safe
-         *  only on a region we treat as read-only. Invalidating a line that
-         *  holds something we wrote silently drops that write - so pair the two
-         *  by direction: invalidate what the other core produces, clean what we
-         *  produce, and keep the two regions on separate cache lines.
+         *  @warning Unlike cache_clean(), this DISCARDS whole lines, so it is
+         *  safe only on a region we treat as read-only: invalidating a line
+         *  holding something we wrote silently drops that write. Pair the two by
+         *  direction (invalidate what the other core produces, clean what we
+         *  produce) and keep the two regions on separate cache lines.
          *
          *  @note Currently unused; kept for the M4 core. See ordered_copy(). */
         inline void cache_invalidate(const void* addr, size_t len);
@@ -174,9 +167,9 @@ namespace Botanik { namespace HAL {
         void reset();
 
         /** @brief Shut down; does not return. Sim: runs the on_reset hook, then
-         *  exits with status @p code (default 0; atexit restores the console;
-         *  pass 128+signo for a signal exit). OPTA: no clean halt, so falls back
-         *  to reset() and @p code is ignored. */
+         *  exits with status @p code (0 for "exit", 128+signo on a signal).
+         *  OPTA: no clean halt, so falls back to reset() and @p code is
+         *  ignored. */
         void shutdown(int code = 0);
 
     }  // namespace System
@@ -192,10 +185,8 @@ namespace Botanik { namespace HAL {
 
         /** @brief Reset the watchdog countdown; call once per healthy
          *  iteration. */
-        /*  Not declared inline: the OPTA backend defines it in platform.cpp (it
-         *  is the Mbed Watchdog singleton, which would drag mbed.h into every
-         *  includer), while the simulator's is a two-line store and stays inline
-         *  in its own backend header. */
+        /*  Not declared inline: the OPTA backend defines it in platform.cpp,
+         *  while the simulator's stays inline in its own backend header. */
         void kick();
 
         /** @brief Stop the watchdog (no-op if not started). */
@@ -218,11 +209,10 @@ namespace Botanik { namespace HAL {
 
     }  // namespace Env
 
-    /** @brief Serial access (Serial::Raw, Serial::get(), ports) is
-     *  intentionally *not* re-declared here: the types and (host-only)
-     *  setup_raw_console() are platform-specific and live in the selected
-     *  backend header (opta.h / simulator.h). The network transport lives in
-     *  the HAL::Network namespace (net.h). */
+    /** @brief Serial access (Serial::Raw, Serial::get(), ports) is deliberately
+     *  *not* re-declared here: the types and the host-only setup_raw_console()
+     *  are platform-specific and live in the selected backend header. The
+     *  network transport is HAL::Network (net.h). */
 
 }}
 

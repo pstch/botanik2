@@ -11,8 +11,7 @@
 
 #include "libbotanik/config/base.h"       // the BOTANIK_FEATURE_* gates
 
-// Defined and undefined per file rather than in base.h: base.h is guarded,
-// so a second include of it would not restore a macro this file undefined.
+// Defined and undefined per file, not in base.h: see base.h.
 #define BOTANIK_CFG(type, name) static constexpr type name = BOTANIK_##name
 
 namespace Botanik { namespace Config {
@@ -25,12 +24,11 @@ namespace Botanik { namespace Config {
      *  @{ */
 
     /** @brief Which terminal is wired to the console UART - a property of the
-     *  installation, so a site declares it rather than a harness passing it in.
-     *  It selects the one-time setup handshake and is what any
-     *  terminal-specific behaviour branches on.
+     *  installation, so a site declares it. Selects the one-time setup
+     *  handshake, and is what terminal-specific behaviour branches on.
      *
-     *  A plain integer here because this header is included by everything and
-     *  must not depend on the console: it is the numeric form of
+     *  A plain integer because this header is included by everything and must
+     *  not depend on the console: it is the numeric form of
      *  Terminal::Ansi::TerminalType, which static_asserts the two agree.
      *    0 = VT100, 1 = VT102, 2 = Minitel 1B, 3 = Minitel 2 */
 #ifndef BOTANIK_TERMINAL_TYPE
@@ -49,13 +47,11 @@ namespace Botanik { namespace Config {
 #endif
     BOTANIK_CFG(uint16_t, CONSOLE_ROWS);
 
-    /** @brief Largest terminal the UI supports. These size the screen
-     *  back-buffer (AnsiTerminal keeps two cell grids of COLS x ROWS bytes, so
-     *  the pair costs 2 x their product in RAM) and clamp the console geometry
-     *  at construction; they are also the sanity bound on full-width fills like
-     *  the Home log-header bar, so a bogus column count cannot drive an
-     *  unbounded paint. 132x32 is a wide VT with room to spare over the 80x24
-     *  the pages actually lay out for. */
+    /** @brief Largest terminal the UI supports. Sizes the screen back-buffer
+     *  (two cell grids of COLS x ROWS bytes), clamps the console geometry at
+     *  construction, and bounds full-width fills so a bogus column count cannot
+     *  drive an unbounded paint. 132x32 is a wide VT with room to spare over the
+     *  80x24 the pages lay out for. */
 #ifndef BOTANIK_TERMINAL_MAX_COLS
 #  define BOTANIK_TERMINAL_MAX_COLS 132
 #endif
@@ -70,9 +66,8 @@ namespace Botanik { namespace Config {
      *  so the tab order simply stops gaining pages. Cannot exceed 10: a page is
      *  also reachable by Alt+<digit>, and there are ten digits.
      *
-     *  The full page set is already 8, so the default sits at the ceiling: at 8
-     *  a site splicing in its own page (the documented StatusPage extension) got
-     *  nothing, with no way to tell. */
+     *  The full page set is 8, so the default sits at the ceiling to leave room
+     *  for a site splicing in its own page (the StatusPage extension). */
 #ifndef BOTANIK_CONSOLE_PAGES_MAX
 #  define BOTANIK_CONSOLE_PAGES_MAX 10
 #endif
@@ -161,21 +156,18 @@ namespace Botanik { namespace Config {
 
     /** @name TX pacing
      *
-     *  We only have one FIFO queue for serial TX and cannot jump ahead, so we need
-     *  bulk producers to only progress while the TX buffer is shallow to keep the
-     *  the interactive path responsive.
-     *
-     *  A depth floor gates that; per-tick caps bound the burst once open.
-     *  See docs/ for the full model.
-     *
+     *  Serial TX is one FIFO with no jumping ahead, so bulk producers may only
+     *  progress while the buffer is shallow, keeping the interactive path
+     *  responsive. A depth floor gates that; per-tick caps bound the burst once
+     *  open. See docs/ for the full model.
      *  @{ */
 
     /** @brief Single paint depth floor, in ms of wire time at CONSOLE_BAUD.
      *
      *  Must stay above GROUP_SLOW_MS (console.cpp static_asserts it): the render
-     *  runs on that group, so a floor below it would let the wire drain empty
-     *  between paints. The margin is thin at the defaults - 128 against 100 -
-     *  and nothing measures an underrun, so raise this rather than lower it. */
+     *  runs on that group, so a lower floor lets the wire drain empty between
+     *  paints. 128 against a 100 ms group is a thin margin and nothing measures
+     *  an underrun, so raise this rather than lower it. */
 #ifndef BOTANIK_TX_COLD_TARGET_MS
 #  define BOTANIK_TX_COLD_TARGET_MS 128
 #endif
@@ -297,10 +289,10 @@ namespace Botanik { namespace Config {
 #endif
     BOTANIK_CFG(uint16_t, EDITOR_MIN_COLS);
 
-    // Ensure that the specified editor minimum size can hold the whole input
-    // buffer. Exact at the defaults; it passes only because the buffer reserves
-    // its NUL. Note it does not model TextEditor's _indent, which is safe today
-    // only because the one indented editor is also single-line.
+    // The editor's minimum size must hold the whole input buffer. Exact at the
+    // defaults, passing only because the buffer reserves its NUL. Does not model
+    // TextEditor's _indent, which is safe only while the one indented editor is
+    // single-line.
     static_assert(EDITOR_MAX_ROWS * (EDITOR_MIN_COLS - EDITOR_PROMPT_MAX) >= SHELL_INPUT_LEN,
                   "EDITOR_MAX_ROWS too small to lay out SHELL_INPUT_LEN at EDITOR_MIN_COLS");
 

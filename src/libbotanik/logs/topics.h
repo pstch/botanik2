@@ -6,10 +6,8 @@
  * @file topics.h
  * @brief Log severity levels and topics.
  *
- * These are logging primitives, so they live with the logger. The values were
- * once a wire protocol shared with a coprocessor; that is gone, so a new topic
- * is now an ordinary local addition. The numbering is kept as-is rather than
- * compacted, because it is what sits in already-written log records.
+ * The numbering is kept as-is rather than compacted: it is what sits in
+ * already-written log records, so a rename moves the label and never the value.
  */
 
 #include <cstdint>              // uint8_t
@@ -33,34 +31,22 @@ namespace Botanik { namespace Logs {
     /** @brief Log topic / category. */
     enum LogTopic : uint8_t {
         NONE = 0,
-        // The field bus. Was SHARED_IO, which nothing but modbus/ ever raised;
-        // the shorter name is honest and buys 3 columns of message width. The
-        // VALUE stays 1 - see the file header, it is what sits in already-
-        // written records - so only the label moved.
-        MODBUS = 1,
+        MODBUS = 1,        // the field bus
         BOOT = 2,
         NETWORK = 3,
         TIME = 4,
         STATUS = 5,
         ASSERT = 6,        // firmware assertions
-        // Spelled to the same width as ALARM_END, so the topic column in the
-        // log view lines up: a transition pair that does not align is harder
-        // to scan than either name is to read.
+        // BEG spelled to ALARM_END's width, so the topic column lines up.
         ALARM_BEG = 7,     // alarm went active
         ALARM_END = 8,     // alarm cleared
-        // alarm cleared without ever logging a START (toggled too fast to
-        // dwell)
-        ALARM_FLAP = 9,
+        ALARM_FLAP = 9,    // cleared without ever logging a START (too fast to dwell)
         HEALTH = 10,       // HealthMonitor (POST verdict, etc.)
-        // Persistence. Its own topic because a storage failure is a distinct
-        // fault with a distinct fix - it is not a boot problem, and burying it
-        // under BOOT is how it went unnoticed that nothing persisted at all.
-        STORAGE = 11,
+        STORAGE = 11,      // persistence; its own topic, not a boot problem
     };
 
     /** @brief Number of defined topics (the enum is dense 0..STORAGE). Bounds
-     *  the logger's per-tick scan loops so they cover the real topics instead
-     *  of the full wire range, and sizes the per-topic bucket array. */
+     *  the logger's per-tick scan loops and sizes the per-topic bucket array. */
     static constexpr uint8_t LOG_TOPIC_COUNT = STORAGE + 1;
 
     // The wire format and every bucket-loop counter are uint8_t.

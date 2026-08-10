@@ -17,10 +17,9 @@
  *        is: command line > site config > the `#ifndef` default here.
  *
  *  @note What belongs here is what an INSTALLATION varies: a baud rate, a
- *        threshold, the size of a table a site fills. What does not is a number
- *        the code, a data type or a protocol already fixes - that is a
- *        `static constexpr` beside its one consumer, where the thing that
- *        constrains it can be read in the same breath.
+ *        threshold, the size of a table a site fills. A number the code, a data
+ *        type or a protocol already fixes belongs beside its one consumer as a
+ *        `static constexpr`, where its constraint reads in the same breath.
  *
  *  @note Adding a parameter is an `#ifndef` default plus a BOTANIK_CFG line in
  *        the one concern header it belongs to. Adding a CONCERN is a new file

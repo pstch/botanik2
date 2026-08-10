@@ -2,8 +2,7 @@
  * @file test_console.cpp
  * @brief The console: terminal diff/present, the editor, input parsing, scrollback, shell.
  *
- * Each section below is the former test_<name>.cpp, kept in its own
- * namespace so their fixtures and helpers cannot collide.
+ * Each section is its own namespace so fixtures and helpers cannot collide.
  */
 
 #include <cstdint>                          // uint8_t/uint16_t
@@ -38,9 +37,8 @@ namespace {
         botanik_test::PipeSerial wire;
         Terminal::AnsiTerminal   term;
 
-        // Small screen so a row is cheap to assert. The default baud is far above
-        // the link so the budget never throttles; a test that wants pacing passes
-        // a low one (budget = baud * TX_COLD_TARGET_MS / 10000).
+        // Small screen keeps a row cheap to assert; default baud keeps the byte
+        // budget from throttling (budget = baud * TX_COLD_TARGET_MS / 10000).
         explicit TermFixture(uint16_t cols = 20, uint16_t rows = 10,
                              uint32_t baud = 4000000u)
             : term(wire.serial, cols, rows, baud) {
@@ -49,8 +47,7 @@ namespace {
         }
 
         std::string capture() { return wire.capture(); }
-        /** @brief The serial itself, for a test that stuffs the TX ring to
-         *  starve the budget on purpose. */
+        /** @brief The serial itself, to stuff the TX ring and starve the budget. */
         Utils::BufferedSerial& serial_ref() { return wire.serial; }
         /** @brief One frame: reconcile FRONT to the wire and read the bytes. */
         std::string present() { term.present(); return capture(); }
@@ -67,24 +64,19 @@ namespace {
     };
 }
 
-// The diff's core contract: one changed cell costs a move plus that glyph, and a
-// frame with nothing new costs nothing at all.
+// A changed cell costs a move plus a glyph; an unchanged frame costs nothing.
 TEST_CASE("present: one changed cell emits only that cell") {
     TermFixture f;
     f.put(2, 5, "X");
     std::string out = f.present();
 
     CHECK(out.find('X') != std::string::npos);
-    // A move to the cell, the glyph, and the idle-cursor park - nothing like a
-    // row, let alone a screen.
-    CHECK(out.size() < 24);
+    CHECK(out.size() < 24);        // move + glyph + cursor park, not a row
     CHECK(f.present().empty());        // settled: a second frame writes nothing
 }
 
-// A frame whose changes exceed the tick's byte budget emits what fits and leaves
-// the rest in FRONT; later frames drain it. Two separated runs so the first fits
-// and the second is deferred (a single run larger than the whole budget takes the
-// oversized escape and goes out whole, by design).
+// A frame over budget emits what fits and leaves the rest in FRONT for later
+// frames (a run bigger than the whole budget still goes out whole).
 TEST_CASE("present: changes beyond the tick budget are paced across frames") {
     TermFixture f(20, 10, 1200u);      // budget = 1200 * 128 / 10000 = 15 bytes
     f.put(1, 0, "AAAA");
@@ -99,8 +91,8 @@ TEST_CASE("present: changes beyond the tick budget are paced across frames") {
     CHECK(f.present().empty());                    // converged
 }
 
-// A band scroll rides a DL/IL: BACK is shifted to mirror the wire, so the diff
-// then repaints only the revealed row - not the whole band.
+// A band scroll rides a DL/IL: BACK shifts to mirror the wire, so the diff then
+// repaints only the revealed row, not the whole band.
 TEST_CASE("present: a band scroll emits a DL/IL, not a band repaint") {
     TermFixture f(20, 10);
     for (uint16_t r = 1; r <= 6; r++) {
@@ -109,8 +101,7 @@ TEST_CASE("present: a band scroll emits a DL/IL, not a band repaint") {
     }
     f.settle();                        // screen established and quiet
 
-    // Scroll the band up one and redraw the shifted content: rows 1..5 now hold
-    // what 2..6 held, and row 6 is revealed as "row7".
+    // Rows 1..5 now hold what 2..6 held; row 6 is revealed as "row7".
     f.term.scroll_region(1, 6, /*up=*/true, 1);
     for (uint16_t r = 1; r <= 6; r++) {
         char line[8]; snprintf(line, sizeof line, "row%u", (unsigned)(r + 1));
@@ -124,9 +115,8 @@ TEST_CASE("present: a band scroll emits a DL/IL, not a band repaint") {
     CHECK(out.size() < 64);                         // nowhere near a band repaint
 }
 
-// The ring is droppable, so a run is emitted only when it fits whole: with the
-// ring stuffed, present() writes nothing rather than a torn half-row, and the
-// change survives in FRONT to be emitted once there is room.
+// A run is droppable and must be emitted only when it fits whole: a stuffed ring
+// must write nothing rather than a torn half-row.
 TEST_CASE("present: a run that cannot fit the ring is deferred whole") {
     TermFixture f;
     // Stuff the TX ring so no run can fit ("HELLO" costs ~8 + 5 bytes).
@@ -142,31 +132,23 @@ TEST_CASE("present: a run that cannot fit the ring is deferred whole") {
     CHECK(f.present().empty());        // converged
 }
 
-// With no renderer asking for a visible cursor, a settled frame leaves the real
-// cursor idling in the bottom-right corner rather than wherever the last run
-// ended - so it never sits in the middle of the content.
+// With no renderer requesting a visible cursor, a settled frame parks the real
+// cursor at bottom-right rather than wherever the last run ended.
 TEST_CASE("present: the idle cursor parks in the bottom-right corner") {
     TermFixture f(20, 10);
     f.put(3, 4, "mid-screen");
     f.settle();
-    // Draw nothing new; the cursor is already parked, so a frame is free...
-    CHECK(f.present().empty());
-    // ...and a fresh change re-parks it there afterwards: the last thing emitted
-    // is a move, not a glyph.
+    CHECK(f.present().empty());        // already parked: a quiet frame is free
     f.put(3, 4, "MID-SCREEN");
     std::string out = f.settle();
-    // The '-' is unchanged, so the diff emits two runs around it rather than the
-    // whole string - which is the point.
-    CHECK(out.find("MID")    != std::string::npos);
-    CHECK(out.find("SCREEN") != std::string::npos);
+    CHECK(out.find("MID")    != std::string::npos);   // two runs, not one string:
+    CHECK(out.find("SCREEN") != std::string::npos);   // the '-' between is unchanged
     CHECK(out.find("MID-SCREEN") == std::string::npos);
     CHECK(out.back() == 'H');          // ends on an absolute CUP (ESC[r;cH)
 }
 
-// A row shifted sideways is the case a plain cell diff is worst at: every column
-// from the shift point on differs, so a naive diff rewrites the whole tail.
-// _shift_row spots the slide and sends one escape (SM4/RM4 insert mode, or DCH)
-// instead - but only when that actually beats rewriting the span.
+// A row shifted sideways is worst-case for a plain cell diff (every column past
+// the shift differs); _shift_row spots the slide and sends one escape instead.
 TEST_CASE("present: a row shifted right rides an insert, not a tail rewrite") {
     TermFixture f(80, 10);
     const char* text = "the quick brown fox jumps over the lazy dog and keeps running";
@@ -200,9 +182,8 @@ TEST_CASE("present: a row shifted left rides a DCH") {
     CHECK(out.size() < 24);
 }
 
-// The control for the two ordering tests below: with every row in one class the
-// walk really is top-down, so row 0 wins the budget. Without this they could pass
-// for the wrong reason.
+// Control for the two tests below: with every row in one class, row 0 wins the
+// budget on plain top-down order - so those tests aren't passing by accident.
 TEST_CASE("present: without priorities the top row wins the budget") {
     TermFixture f(20, 10, 1200u);
     f.settle();
@@ -215,11 +196,8 @@ TEST_CASE("present: without priorities the top row wins the budget") {
     CHECK(first.find("PAGECONTENT") == std::string::npos);
 }
 
-// The alarm strip is the physical bottom row, so top-down order alone puts it
-// behind every page row above it - the frame arriving after the thing it frames,
-// which reads as a fault on a slow link. PRIO_CHROME outranks page structure to
-// stop that, and this pins it: a bottom row drawn as chrome beats a page row well
-// above it.
+// The alarm strip sits at the bottom, so top-down order alone would draw it
+// after the page it frames. PRIO_CHROME must outrank page structure instead.
 TEST_CASE("present: the bottom chrome row is drawn before the page it frames") {
     TermFixture f(20, 10, 1200u);        // budget = 15 bytes a tick
     f.settle();
@@ -235,12 +213,9 @@ TEST_CASE("present: the bottom chrome row is drawn before the page it frames") {
     CHECK(f.settle().find("PAGEROW") != std::string::npos);   // page follows
 }
 
-// A run is emitted either because it fits this tick's remaining budget, or
-// because it is too big to ever fit one and takes the oversized escape. Those two
-// tests have to overlap, or a run in the gap between them is deferred every tick
-// forever. They did not: tx_used() reports a byte in use even on an empty ring,
-// so the budget is always under the full depth, and a run costing exactly the
-// full depth fell straight through the crack.
+// "fits the budget" and "too big to ever fit" must overlap: tx_used() counts a
+// byte in use even on an empty ring, so a run at exactly full depth must not fall
+// through the gap between them.
 TEST_CASE("present: a run costing exactly the tick budget still goes out") {
     TermFixture f(20, 10, 1200u);        // depth = 1200 * 128 / 10000 = 15 bytes
     f.settle();
@@ -251,11 +226,8 @@ TEST_CASE("present: a run costing exactly the tick budget still goes out") {
     CHECK(f.present().empty());          // and it converged rather than looping
 }
 
-// The STATUS page is a screenful of live fields all updating on the same cadence.
-// They share one priority class, so priority alone does nothing for them - and
-// walking the class top-down means the upper rows spend the whole budget every
-// tick and the lower ones never reach the wire at all. That is starvation within
-// a class, and it is what a FIFO queue would have fixed by fairness.
+// A screenful of same-priority rows updating every tick: walking the class
+// top-down must not let the upper rows spend the whole budget and starve the rest.
 TEST_CASE("present: no row starves when every row updates every tick") {
     TermFixture f(20, 12, 1200u);        // 15-byte budget, ~half a row
     f.settle();
@@ -281,8 +253,8 @@ TEST_CASE("present: no row starves when every row updates every tick") {
 }
 
 namespace {
-    // A row wide enough that two of them cannot share a tick at BAUD_2ROWS, so a
-    // frame reliably runs out of budget partway down and parks the walk there.
+    // Wide enough that two rows cannot share a tick at BAUD_2ROWS, parking the
+    // walk mid-frame.
     const char WIDE[] = "####################";
     // budget = baud * TX_COLD_TARGET_MS / 10000 = 40 bytes, one WIDE row and a bit
     constexpr uint32_t BAUD_2ROWS = 3125u;
@@ -296,10 +268,8 @@ namespace {
     }
 }
 
-// Whatever a single frame puts on the wire has to read top-down: lines of shell
-// output, the rows of a page. An earlier cut resumed each class where the budget
-// ran out and then *wrapped* within the tick, so one frame could carry rows
-// N..max followed by rows 0..N-1 - the page painting its bottom half first.
+// A single frame must read top-down: resuming a parked walk must never *wrap*
+// within the tick and carry rows N..max then 0..N-1.
 TEST_CASE("present: one frame never emits a row before one above it") {
     TermFixture f(20, 12, BAUD_2ROWS);
     strand_walk_at(f, 11);               // budget died on the last row
@@ -312,11 +282,9 @@ TEST_CASE("present: one frame never emits a row before one above it") {
     CHECK((top == std::string::npos || bottom == std::string::npos || top < bottom));
 }
 
-// The parked walk is per class and outlives the frame that parked it, so on its
-// own it also outlives the page that drew it: the outgoing page's budget ran out
-// at row N and the incoming page starts painting there. restart_scan() is what
-// the Console calls on a switch - and what a band scroll and a full repaint call
-// for themselves.
+// A parked walk outlives the page that drew it, so a switch must call
+// restart_scan() or the incoming page starts painting where the outgoing
+// page's budget ran out.
 TEST_CASE("present: restart_scan sends the walk back to the top") {
     TermFixture f(20, 12, BAUD_2ROWS);
     strand_walk_at(f, 11);
@@ -328,10 +296,9 @@ TEST_CASE("present: restart_scan sends the walk back to the top") {
     CHECK(one.find("TOP") != std::string::npos);   // the top row leads again
 }
 
-// A band scroll is the shell/logs tail: DL the rows off the top, paint the freed
-// slots at the bottom oldest-first. Those slots are consecutive lines of output,
-// so the wire has to carry them in that order - which it does only because
-// scroll_region() restarts the walk, rather than resuming it below them.
+// A band scroll (the shell/logs tail) must paint its freed bottom slots
+// oldest-first, which needs scroll_region() to restart the walk rather than
+// resume it below them.
 TEST_CASE("present: rows revealed by a band scroll go out oldest first") {
     TermFixture f(20, 12, BAUD_2ROWS);
     strand_walk_at(f, 9);                // parked on the band's bottom row
@@ -347,10 +314,8 @@ TEST_CASE("present: rows revealed by a band scroll go out oldest first") {
     CHECK(older < newer);
 }
 
-// Chrome is not one contiguous band (status bar row 0, legend mid-screen, alarm
-// strip at the bottom), so reaching the bottom does not mean the class is done.
-// Letting the page through there is a priority inversion: the alarms table
-// painted while the legend above it waited a tick.
+// Chrome is not one contiguous band (status row, legend, alarm strip), so
+// reaching the bottom of it does not mean the class is done.
 TEST_CASE("present: chrome above the parked walk still beats the page") {
     TermFixture f(20, 12, BAUD_2ROWS);
     f.term.set_row_priority(1, Terminal::PRIO_CHROME);    // legend, mid-screen
@@ -374,27 +339,21 @@ TEST_CASE("present: chrome above the parked walk still beats the page") {
     CHECK(legend < page);
 }
 
-// A row's class is a standing property of what lives there, not something raised
-// around a draw. That only works if ownership is handed over cleanly: the Console
-// returns the content band to plain structure on a page switch and the incoming
-// page declares its own rows in focus(). Without that handover the outgoing
-// page's classes (the shell editor's rows, say) would outrank the new page's
-// content for good - which is how the first cut of this leaked.
+// A row's priority class is a standing property, not raised per-draw, so a page
+// switch must hand it back cleanly: Console resets the band to plain structure
+// and the incoming page reclaims its own rows in focus().
 TEST_CASE("present: reclassifying a row hands it back to the page") {
     TermFixture f(20, 10, 1200u);        // budget ~ one row
     f.settle();
 
-    // A page owns row 6 and marks it as carrying keystroke echo.
-    f.term.set_row_priority(6, Terminal::PRIO_INPUT);
+    f.term.set_row_priority(6, Terminal::PRIO_INPUT);   // row 6: keystroke echo
     f.put(6, 0, "EDITROW");
     f.put(2, 0, "PAGEROW");
     std::string out = f.present();
     CHECK(out.find("EDITROW") < out.find("PAGEROW"));   // echo goes first
     f.settle();
 
-    // Page switch: the band goes back to plain structure, and the row stops
-    // outranking its neighbours.
-    f.term.set_row_priority(1, 9, Terminal::PRIO_STRUCT);
+    f.term.set_row_priority(1, 9, Terminal::PRIO_STRUCT);   // page switch: reset
     f.put(6, 0, "was-edit");
     f.put(2, 0, "now-page");
     out = f.present();
@@ -402,10 +361,8 @@ TEST_CASE("present: reclassifying a row hands it back to the page") {
     CHECK(out.find("was-edit") == std::string::npos);
 }
 
-// A scroll only mirrors into BACK if the whole DL/IL actually reached the wire.
-// The ring drops silently, so shifting BACK after a dropped escape is the worst
-// possible outcome: the diff would then believe those rows were already correct
-// and never repaint them, leaving the band wrong until a full clear.
+// A scroll must mirror into BACK only if the whole DL/IL reached the wire, or
+// the diff believes those rows are already correct and never repaints them.
 TEST_CASE("present: a scroll whose escape does not fit leaves BACK alone") {
     TermFixture f(20, 10);
     for (uint16_t r = 1; r <= 6; r++) {
@@ -426,11 +383,9 @@ TEST_CASE("present: a scroll whose escape does not fit leaves BACK alone") {
     f.term.present();          // the scroll cannot go out
     f.capture();               // drain the stuffing
 
-    // The band must still converge. With BACK left unshifted the diff repaints
-    // whatever really differs - here just the digit per row, since row1 -> row2
-    // is a one-cell change - and the screen ends consistent. Convergence is the
-    // property under test: a wrongly-mirrored BACK would leave FRONT and the wire
-    // permanently disagreeing, and present() would go quiet with the band wrong.
+    // The band must still converge: BACK left unshifted, the diff repaints
+    // whatever really differs. A wrongly-mirrored BACK would leave FRONT and
+    // the wire disagreeing forever, with present() going quiet on a wrong band.
     std::string out = f.settle();
     CHECK(out.size() > 0);              // the band was reconciled somehow
     CHECK(f.present().empty());         // and FRONT now matches BACK
@@ -448,9 +403,7 @@ using namespace Botanik;
 
 namespace {
 
-    // A TextEditor over a real Console whose serial is a pipe we can drain. Baud
-    // is high so present()'s pacing never truncates a frame: we want the total
-    // cost of an edit, not what fits in one tick.
+    // A TextEditor over a real Console; high baud so pacing never truncates a frame.
     struct EditorBytes {
         botanik_test::PipeSerial wire;
         uint64_t              now = 0;
@@ -467,9 +420,8 @@ namespace {
             flush();                 // discard bring-up + the initial prompt
         }
 
-        /** @brief Re-pin as a top-anchored viewport `rows` tall at row 1, with
-         *  the NOTES gutter ("> " on a row the operator started, "  " on its
-         *  wrapped tail). Call before typing anything. */
+        /** @brief Re-pin as a top-anchored viewport `rows` tall with the NOTES
+         *  gutter. Call before typing anything. */
         void as_viewport(uint16_t rows) {
             editor.set_anchor(Terminal::Anchor::TOP);
             editor.set_ps1("> ", 2);
@@ -481,12 +433,8 @@ namespace {
             flush();
         }
 
-        /** @brief Type `n` hard-broken rows "lineNN", flushing as we go.
-         *
-         *  Two digits by construction - every caller asks for a screenful, not a
-         *  hundred rows. Bounded here rather than trusted, so the name cannot
-         *  overrun row[] AND the compiler can see that it cannot: unbounded, the
-         *  format is an 11-digit int into 8 bytes (-Wformat-truncation). */
+        /** @brief Type `n` hard-broken rows "lineNN", flushing as we go. Bounded
+         *  to 100: unbounded, the format is an 11-digit int into 8 bytes. */
         void fill_rows(int n) {
             REQUIRE(n <= 100);
             for (int i = 0; i < n; i++) {
@@ -519,8 +467,7 @@ namespace {
 
 }
 
-// Typing at the end of a short line: one glyph per keystroke, plus whatever the
-// cursor park costs. This is the common case and it must stay tiny.
+// The common case: appending must stay one glyph plus the cursor park.
 TEST_CASE("editor bytes: appending a char costs about a char") {
     EditorBytes f;
     f.type("hello");
@@ -531,9 +478,8 @@ TEST_CASE("editor bytes: appending a char costs about a char") {
     CHECK(cost <= 20);
 }
 
-// Inserting at the *start* of a line shifts everything right. Every column past
-// the cursor differs from the back-buffer, so a plain cell diff would rewrite the
-// whole tail; the terminal recognises the slide and sends one insert instead.
+// A head insert shifts everything right; the terminal must send one insert
+// escape, not rewrite the whole tail.
 TEST_CASE("editor bytes: inserting at the line head repaints one row, not the screen") {
     EditorBytes f;
     f.type("the quick brown fox jumps over the lazy dog");
@@ -547,19 +493,14 @@ TEST_CASE("editor bytes: inserting at the line head repaints one row, not the sc
     CHECK(cost <= 28);          // a DCH/insert-mode shift, not a row rewrite
 }
 
-// A head insert that grows the editor by a soft-wrapped row: every row below
-// reflows one column sideways. The claim is that this costs a per-row IRM shift
-// (ESC[4h/ESC[4l), not a body rewrite of several hundred bytes. No scroll
-// escape is emitted - present() only uses DL/IL when it beats repainting.
+// A head insert that grows the editor by a soft-wrapped row must cost a per-row
+// IRM shift, not a several-hundred-byte body rewrite.
 TEST_CASE("editor bytes: a head insert that grows the editor shifts rows, not rewrites them") {
     EditorBytes f;
-    // Fill well past one row (80 cols) so the editor is several rows tall.
-    for (int i = 0; i < 5; i++)
+    for (int i = 0; i < 5; i++)   // several rows tall (past 80 cols each)
         f.type("0123456789abcdefghijklmnopqrstuvwxyz0123456789ABCDEFGHIJKLMNOP ");
     f.flush();
 
-    // Go to the head of the text and insert there: every following row reflows by
-    // one column, and the body grows a row once it crosses the wrap boundary.
     uint16_t len = f.editor.buffer_len();
     for (uint16_t i = 0; i < len; i++) f.editor.move_left();
     f.flush();
@@ -599,11 +540,9 @@ TEST_CASE("editor bytes: a hard break costs a scroll plus the new row") {
     CHECK(cost <= 120);
 }
 
-// A row that moves vertically AND slides sideways at once. Shift detection
-// compares a row against the SAME row in the back-buffer, so the reconcile must
-// not displace rows the reflow left in place - an IL below the edit would push
-// each one out from under it and cost a full rewrite. Budgets are per-row: one
-// shift escape each.
+// A row that moves vertically AND slides sideways: shift detection compares a
+// row against the SAME row in the back-buffer, so unmoved rows must not be
+// displaced by an IL. Budgets are per-row: one shift escape each.
 TEST_CASE("editor bytes: head edits reflow rows without rewriting them") {
     // 80 columns exactly, so each typed block fills one row with no wrap slack.
     const char* ROW = "0123456789abcdefghijklmnopqrstuvwxyz0123456789"
@@ -634,9 +573,8 @@ TEST_CASE("editor bytes: head edits reflow rows without rewriting them") {
     }
 }
 
-// A hard break is the case that genuinely does need the IL: it splits a row in
-// place, so the rows below move down bodily rather than reflowing. Dropping the
-// slide for reflows must not drop it here.
+// A hard break genuinely needs the IL: it splits a row in place and moves the
+// rows below down bodily, unlike a reflow.
 TEST_CASE("editor bytes: a hard break still slides the rows below it") {
     EditorBytes f;
     f.type("first line");
@@ -657,11 +595,9 @@ TEST_CASE("editor bytes: a hard break still slides the rows below it") {
     CHECK(f.flush().empty());                 // and it converged
 }
 
-// The same head edit at the baud the installation runs at. The cases above use
-// a baud where present()'s per-tick budget never binds, which is what hid the
-// bug: a shift refused for want of budget fell through to a full-row rewrite,
-// repainting the tail per keystroke exactly when bytes were scarcest. A refused
-// shift now defers the row to the next tick.
+// At the installation's real baud, where the budget actually binds: a shift
+// refused for want of budget must defer to the next tick, not fall through to
+// a full-row rewrite.
 TEST_CASE("editor bytes: a paced link still shifts rows rather than rewriting them") {
     const char* ROW = "0123456789abcdefghijklmnopqrstuvwxyz0123456789"
                       "ABCDEFGHIJKLMNOPQRSTUVWXYZ01234567";   // 80 cols
@@ -682,10 +618,8 @@ TEST_CASE("editor bytes: a paced link still shifts rows rather than rewriting th
     CHECK(del <= 100);                          // was 153
 }
 
-// A bulk edit (a paste, a yank, coalesced fast typing) slides a row by many
-// columns at once. The shift detector must have no ceiling on the width: capping
-// it turns every wider slide into a silent full-row rewrite, which is worth ~120
-// bytes a keystroke on a two-row input.
+// A bulk edit (paste, yank, coalesced typing) slides a row by many columns at
+// once; the shift detector must have no ceiling on the width.
 TEST_CASE("editor bytes: a wide slide is still one escape") {
     const char* ROW = "0123456789abcdefghijklmnopqrstuvwxyz0123456789"
                       "ABCDEFGHIJKLMNOPQRSTUVWXYZ01234567";
@@ -716,16 +650,12 @@ TEST_CASE("editor bytes: a wide slide is still one escape") {
 
 // Top-anchored viewport (the NOTES geometry)
 // ----------------------------------------------------------------------------
-//
-// Same reconcile, but the text is now taller than the window and the window is
-// what moves. Two things that could go wrong and cost a screen each: a row
-// scrolled in from outside the window being spliced against glyphs it never
-// had, and a viewport scroll repainting the whole band instead of the rows the
-// scroll uncovered. The budgets below are what pins them.
+// Text taller than the window, and the window moves. Two failure modes cost a
+// screen each: a scrolled-in row spliced against glyphs it never had, and a
+// scroll repainting the whole band instead of just the rows it uncovered.
 
-// The editor is 8 rows over 20 rows of text, so most of the note is off screen.
-// Typing into the middle must still cost a splice - the rows below it are the
-// same rows, just shown through a smaller hole.
+// Typing into the middle of an 8-row window over 20 rows of text must still
+// cost a splice, not a repaint of the smaller hole it is shown through.
 TEST_CASE("editor bytes: a mid-document insert splices, viewport or not") {
     EditorBytes f;
     f.as_viewport(8);
@@ -740,9 +670,8 @@ TEST_CASE("editor bytes: a mid-document insert splices, viewport or not") {
     CHECK(cost <= 28);          // an insert-mode shift on one row
 }
 
-// A hard break in the middle pushes every row below it down one. Inside a
-// viewport that also drops a row off the bottom edge - which must cost nothing,
-// because it is no longer on screen.
+// A hard break pushes every row below it down one; the row it drops off the
+// bottom edge must cost nothing, since it is no longer on screen.
 TEST_CASE("editor bytes: a hard break in a viewport slides rows, none below it") {
     EditorBytes f;
     f.as_viewport(8);
@@ -757,9 +686,8 @@ TEST_CASE("editor bytes: a hard break in a viewport slides rows, none below it")
     CHECK(cost <= 60);          // one IL plus the row it opened; a band is 300+
 }
 
-// The reverse: joining two rows pulls the tail up, and a row that was BELOW the
-// window slides into its last line. That row has no glyphs on screen, so the
-// walk must repaint it rather than splice it - and repaint only it.
+// The reverse: joining pulls a row from BELOW the window into view with no
+// glyphs on screen, so the walk must repaint only it, not splice it.
 TEST_CASE("editor bytes: a join repaints just the row the viewport uncovers") {
     EditorBytes f;
     f.as_viewport(8);
@@ -775,8 +703,8 @@ TEST_CASE("editor bytes: a join repaints just the row the viewport uncovers") {
     CHECK(cost <= 70);          // one DL, one uncovered row, one merged row
 }
 
-// Walking off the TOP edge scrolls the window by one. That is a scroll plus the
-// single row it revealed - not a repaint of the eight rows on screen.
+// Walking off the TOP edge must cost a scroll plus the one revealed row, not a
+// repaint of the eight rows on screen.
 TEST_CASE("editor bytes: the viewport follows the cursor by scrolling one row") {
     EditorBytes f;
     f.as_viewport(8);
@@ -792,9 +720,8 @@ TEST_CASE("editor bytes: the viewport follows the cursor by scrolling one row") 
     CHECK(cost <= 40);          // a scroll and the one row it uncovered
 }
 
-// A jump longer than the window is the case where scrolling buys nothing: no row
-// on screen survives it. The cost is a repaint of the WINDOW - bounded by the
-// eight rows on screen, never by the sixty in the note.
+// A jump longer than the window means scrolling buys nothing; the cost is a
+// repaint bounded by the WINDOW, never by the note's full length.
 TEST_CASE("editor bytes: a long jump repaints the window, not the note") {
     EditorBytes f;
     f.as_viewport(8);
@@ -810,10 +737,9 @@ TEST_CASE("editor bytes: a long jump repaints the window, not the note") {
     CHECK(cost <= 220);         // eight rows; the note is sixty
 }
 
-// The region re-stamps every visible row on every motion, which is only
-// affordable because present() diffs CELLS: dragging the selection one character
-// flips one cell's attribute and the other 600-odd are identical. If this budget
-// goes, the editor has quietly become a full-screen renderer on a 4800-baud link.
+// The region re-stamps every visible row on every motion, affordable only
+// because present() diffs CELLS: dragging it one character flips one cell's
+// attribute, not the other 600-odd.
 TEST_CASE("editor bytes: extending a region costs a cell, not a window") {
     EditorBytes f;
     f.as_viewport(8);
@@ -837,9 +763,8 @@ TEST_CASE("editor bytes: extending a region costs a cell, not a window") {
     CHECK(f.flush().empty());   // and it converged
 }
 
-// The other half of that claim: with no mark, _sync_region() must return without
-// touching a cell, so an ordinary edit costs exactly what it did before there was
-// such a thing as a region. Same shape as the appending case at the top.
+// With no mark, _sync_region() must return without touching a cell: an ordinary
+// edit costs the same as if there were no region at all.
 TEST_CASE("editor bytes: no mark means the region pass is not there") {
     EditorBytes f;
     f.type("hello");
@@ -867,20 +792,17 @@ using EventType = InputEvent::EventType;
 
 namespace {
 
-    // A parser wired to a pipe: bytes written into feed() land in the RX ring and
-    // are decoded by parse(). `now` is the parser's shared loop clock (ms).
+    // A parser wired to a pipe: feed() lands bytes in the RX ring for parse() to
+    // decode. `now` is the parser's shared loop clock (ms).
     struct ParserFixture {
         botanik_test::PipeSerial wire;
         uint64_t                  now = 0;
         InputParser               parser;
 
         ParserFixture() : parser(wire.serial, &now) {
-            // RX only: the parser is fed, never drained. PipeSerial binds both
-            // ends, so drop the write end here.
-            wire.raw.set_fds(wire.fds[0], -1);
+            wire.raw.set_fds(wire.fds[0], -1);   // RX only: fed, never drained
         }
 
-        // Push raw bytes through the wire into the RX ring.
         void feed(const char* data, size_t n) {
             REQUIRE(::write(wire.fds[1], data, n) == (ssize_t)n);
             wire.serial.receive();
@@ -1008,9 +930,8 @@ namespace line_buffer {
 using Botanik::Pages::LineBuffer;
 
 namespace {
-    // True if the line @p dist back from newest equals @p expect. Calls line()
-    // internally so its out-param is populated before the comparison (sibling
-    // call-argument evaluation order would otherwise be unspecified).
+    // True if the line @p dist back from newest equals @p expect. line() is
+    // called first: inlined into the comparison, argument order is unspecified.
     template <class LB>
     bool line_eq(const LB& lb, uint16_t dist, const char* expect) {
         uint16_t len = 0;
@@ -1116,8 +1037,7 @@ using namespace Botanik;
 
 namespace {
 
-    // The window under test: 5 rows of a 10-row screen, starting at row 1, so
-    // there is chrome above and below that a scroll must not touch.
+    // 5 rows of a 10-row screen at row 1: chrome above/below a scroll must not touch.
     const uint16_t FIRST_ROW = 1;
     const uint16_t LOG_ROWS  = 5;
 
@@ -1125,12 +1045,9 @@ namespace {
     struct ScrollFixture {
         botanik_test::PipeSerial wire;
         Terminal::AnsiTerminal  term;
-        // 16 lines: enough history behind a 5-row window to scroll through, few
-        // enough that a test can walk the ring off its own end.
-        Pages::Scrollback<16>   view;
+        Pages::Scrollback<16>   view;   // enough to scroll through, few enough to wrap
 
-        // Baud far above the link so the byte budget never throttles a frame:
-        // these cases assert what a scroll paints, not how it is paced.
+        // High baud: these cases assert what a scroll paints, not how it is paced.
         ScrollFixture() : term(wire.serial, 20, 10, 4000000u) {
             term.establish_screen();                // blank both grids
             capture();                              // discard the bring-up bytes
@@ -1148,15 +1065,11 @@ namespace {
         /** @brief One frame: reconcile FRONT to the wire and read the bytes. */
         std::string frame() { term.present(); return capture(); }
 
-        /** @brief Blank both grids, so the next frame reports every cell the
-         *  operation paints rather than its diff against what was already
-         *  there. Repainting "L02" as "L16" otherwise emits two digits, not the
-         *  line - which is the terminal doing its job, and is pinned where it
-         *  belongs, in test_terminal_present.cpp. */
+        /** @brief Blank both grids so the next frame reports every painted cell,
+         *  not its diff against what was there (e.g. a full line, not two digits). */
         void forget_screen() { term.establish_screen(); capture(); }
 
-        /** @brief Bank line "Lnn" as the live tail does, active so the view
-         *  tracks it. */
+        /** @brief Bank line "Lnn" as the live tail does. */
         void feed(uint16_t n) {
             char line[8];
             int len = snprintf(line, sizeof(line), "L%02u", (unsigned)n);
@@ -1171,9 +1084,7 @@ namespace {
         }
 
         /** @brief The offset the "v N more" tag reports, read off the wire; -1
-         *  when the frame drew no tag. Only meaningful where the tag is drawn
-         *  onto rows that did not already carry one - re-tagging 2 as 4 changes
-         *  a single cell, and a single cell is all present() then emits. */
+         *  if the frame drew no tag. */
         int tagged_offset() {
             view.refresh_scroll_indicator(term, FIRST_ROW, LOG_ROWS);
             std::string out = frame();
@@ -1194,9 +1105,8 @@ namespace {
 
 }
 
-// The offset is anchored to the newest line, so a scroll of n exposes the n
-// lines just older than the window's top - the baseline the drift case below
-// is a variation on.
+// The offset anchors to the newest line, so scrolling n exposes the n lines
+// just older than the window's top.
 TEST_CASE("scrollback: scrolling up exposes the lines above the window") {
     ScrollFixture f;
     f.fill(12);                       // L00..L11; window shows L07..L11
@@ -1209,11 +1119,8 @@ TEST_CASE("scrollback: scrolling up exposes the lines above the window") {
     CHECK(f.tagged_offset() == 2);
 }
 
-// The drift. A line banked under a frozen view shifts every line the offset
-// names one step further from the newest; left alone, the window would keep
-// showing L05..L09 while the offset now said L06..L10, and the next scroll
-// would paint rows that did not join the ones above them. Advancing the offset
-// by as much keeps it naming what is actually on screen.
+// A line banked under a frozen view must advance the offset by one, or it
+// drifts from what the window actually shows and the next scroll misaligns.
 TEST_CASE("scrollback: a frozen view keeps its place as lines arrive under it") {
     ScrollFixture f;
     f.fill(12);
@@ -1225,32 +1132,24 @@ TEST_CASE("scrollback: a frozen view keeps its place as lines arrive under it") 
     CHECK(f.view.drain_tail(f.term, FIRST_ROW, LOG_ROWS) == false);  // frozen
     CHECK(f.frame().empty());         // ...so the window does not move
 
-    // The next scroll therefore continues from L05 - the line actually at the
-    // top of the window. Left at its old value the offset would name L07 by
-    // now, and this would paint L05/L06 again, one row above themselves.
-    CHECK(f.scroll_up(2));
+    CHECK(f.scroll_up(2));   // continues from L05, not the stale L07
     std::string out = f.frame();
     CHECK(has(out, "L03"));
     CHECK(has(out, "L04"));
     CHECK_FALSE(has(out, "L06"));
 }
 
-// A view can be read out from under: the ring keeps evicting while the offset
-// keeps counting, so the lines it named stop existing. It re-anchors on the
-// oldest line there is and repaints - the alternative is leaving evicted text
-// on screen and painting the next scroll's rows above it.
+// A view read out from under by the ring must re-anchor on the oldest line
+// left and repaint, not leave evicted text on screen.
 TEST_CASE("scrollback: a view left behind by the ring re-anchors on the oldest line") {
     ScrollFixture f;
     f.fill(12);
     CHECK(f.scroll_up(5));
     f.frame();
 
-    // Twenty more: the 16-line ring has wrapped past everything the view was
-    // parked on, and the offset it walked to is far beyond what is left.
+    // 20 more: the 16-line ring wraps past everything the view was parked on.
     for (uint16_t i = 12; i < 32; i++) f.feed(i);
 
-    // The key is absorbed by the re-anchor (there is nothing further up), but
-    // the window still changed, so it reports true and repaints whole.
     f.forget_screen();                // report painted cells, not a diff
     CHECK(f.scroll_up(3));
     std::string out = f.frame();
@@ -1258,8 +1157,7 @@ TEST_CASE("scrollback: a view left behind by the ring re-anchors on the oldest l
     CHECK(has(out, "L20"));           // ...through the bottom of the window
 }
 
-// The whole point of the freeze is that it ends: scroll_to_bottom() is what
-// every key but PAGE_UP/PAGE_DOWN calls on the shell page.
+// scroll_to_bottom() is what every key but PAGE_UP/PAGE_DOWN calls to end the freeze.
 TEST_CASE("scrollback: scroll_to_bottom releases the frozen tail") {
     ScrollFixture f;
     f.fill(12);
@@ -1280,8 +1178,7 @@ TEST_CASE("scrollback: scroll_to_bottom releases the frozen tail") {
     CHECK(f.view.drain_tail(f.term, FIRST_ROW, LOG_ROWS));
 }
 
-// At the bottom already, so nothing to do and nothing to pay: the shell calls
-// this on every keystroke.
+// Free at the bottom, since the shell calls this on every keystroke.
 TEST_CASE("scrollback: scroll_to_bottom is free at the live bottom") {
     ScrollFixture f;
     f.fill(12);
@@ -1289,8 +1186,7 @@ TEST_CASE("scrollback: scroll_to_bottom is free at the live bottom") {
     CHECK(f.frame().empty());
 }
 
-// A buffer that fits the window has nothing to scroll, and must not leave a
-// stale offset holding the tail frozen forever.
+// Nothing to scroll must not leave a stale offset holding the tail frozen forever.
 TEST_CASE("scrollback: a buffer that fits the window cannot be scrolled") {
     ScrollFixture f;
     f.fill(3);                        // fewer lines than the 5-row window
@@ -1327,8 +1223,8 @@ namespace {
         bool has(const char* s) const { return text.find(s) != std::string::npos; }
     };
 
-    // A CommandShell wired to a real editor + terminal whose serial is a pipe (TX is
-    // buffered and never flushed, so reconcile output is harmlessly discarded).
+    // A CommandShell over a real editor + terminal; TX is buffered and never
+    // flushed, so reconcile output is harmlessly discarded.
     struct ShellFixture {
         botanik_test::PipeSerial wire;
         uint64_t                       now = 0;
@@ -1513,8 +1409,7 @@ TEST_CASE("region: a span across a newline takes the newline with it") {
 }
 
 // ---------------------------------------------------------------------------
-// The variable commands, driven against a real bank so the output is the real
-// output.
+// The variable commands, driven against a real bank so the output is real.
 // ---------------------------------------------------------------------------
 
 namespace {
@@ -1537,8 +1432,7 @@ namespace {
         Vars::Value                    values[2]{};
         uint16_t                       index[2]{};
         Vars::Bank                     bank;
-        // Declared before the shell so its address is valid in the init list;
-        // the fields are filled in the body, which is what the shell reads.
+        // Declared before shell: its address must be valid in shell's init list.
         SystemContext                  ctx{};
         Shell::CommandShell            shell;
 
@@ -1563,9 +1457,8 @@ namespace {
 }
 
 TEST_CASE("shell override: a bare name forces a GOOD reading, and `clear` releases all") {
-    // Freezing used to carry the row's current quality through, so a bare
-    // `override` on a variable nothing had written yet handed back an override
-    // that read as a dead sensor. Only the word `invalid` says that.
+    // A bare `override` must force a GOOD reading, not carry through whatever
+    // quality the row had - only the word `invalid` asks for a dead sensor.
     CmdFixture f;
     REQUIRE_FALSE(f.bank.var("ext_temp").valid());   // nothing has published it
 
@@ -1598,9 +1491,7 @@ TEST_CASE("shell get: the detail view, and what it adds when a row is forced") {
     CHECK(f.writer.has("Modbus dev 5"));          // where it comes from
     CHECK(f.writer.has("Override value .............. : -"));   // nothing forced
 
-    // Forced: both values, kept apart, each saying whether it is worth
-    // believing. "Has the sensor come back?" is the question someone deciding
-    // whether to release an override actually has.
+    // Forced: both values kept apart, each with its own validity.
     f.run("override ext_temp 35");
     f.run("get ext_temp");
     MESSAGE("get ext_temp (forced) ->\n" << f.writer.text);

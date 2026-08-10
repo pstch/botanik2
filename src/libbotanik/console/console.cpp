@@ -18,14 +18,10 @@ namespace Botanik { namespace Terminal {
 
     // The render rate against the TX pacing. present() tops the ring back up to
     // TX_COLD_TARGET_MS of wire time however often it runs, so a slower render
-    // costs no throughput - right up until the ring drains empty between two of
-    // them, at which point the wire idles and the pacing model breaks.
-    //
-    // The render is registered in GROUP_SLOW (firmware/firmware.h). At 100 ms against
-    // a 128 ms depth the ring still holds ~28 ms of wire when the next render
-    // arrives, so the link never idles - but that is the whole margin, and a
-    // render delayed past 128 ms by jitter or an overrun WILL idle it. Raise
-    // TX_COLD_TARGET_MS before slowing the render further.
+    // costs no throughput until the ring drains empty between two of them and
+    // the wire idles. The render is GROUP_SLOW (firmware/firmware.h): 100 ms
+    // against a 128 ms depth leaves ~28 ms of wire in hand, and that is the whole
+    // margin. Raise TX_COLD_TARGET_MS before slowing the render further.
     static_assert(Config::GROUP_SLOW_MS < Config::TX_COLD_TARGET_MS,
                   "the console's group period must stay under TX_COLD_TARGET_MS, "
                   "or the TX ring drains between renders and the link idles");
@@ -54,9 +50,8 @@ namespace Botanik { namespace Terminal {
         // clear_screen, so it keeps the queued handshake bytes).
         if (!_term.screen_ready()) {
             _term.establish_screen();
-            // Full redraw order: status bar, alarm bar, then the page. Order is
-            // cosmetic now that present() reconciles the whole frame at once, but
-            // it keeps the chrome first if a paced frame only gets partway.
+            // Chrome first, then the page: if a paced frame only gets partway,
+            // the frame lands before what it frames.
             _status_bar.draw_row();
             _alarm_bar.mark_dirty();      // the clear wiped the alarm-bar row
             _alarm_bar.step();
@@ -65,8 +60,6 @@ namespace Botanik { namespace Terminal {
                 _pages[_page_index]->focus();
             }
         }
-        // Status bar paints first each tick (self-contained), interleaving with
-        // the active page's draw.
         _status_bar.step(now_ms);
         // Drain buffered input into the active page (terminal-level intercepts
         // like Ctrl-L and page switches are consumed first).
@@ -78,8 +71,7 @@ namespace Botanik { namespace Terminal {
             if (_pages[i] != nullptr) _pages[i]->tick(i == _page_index);
         // Last: top up the bottom alarm bar over whatever the active page drew.
         _alarm_bar.step();
-        // Reconcile the frame: diff the FRONT grid the renderers just drew against
-        // the wire and emit the minimal, paced ANSI to catch it up.
+        // Reconcile the frame: diff the FRONT grid to the wire, paced.
         _term.present();
     }
 
@@ -207,33 +199,27 @@ namespace Botanik { namespace Terminal {
         // Hide the cursor before any repaint so it doesn't blink across the
         // cleared content or the row-0 tabs. focus() shows it again if wanted.
         _term.set_cursor_visible(false);
-        // Clear only the content band: preserves the row-0 status bar and the
-        // bottom alarm bar. The new page's focus() redraws it and the back-buffer
-        // diff emits just the net change - no wipe-and-repaint flicker.
+        // Clear only the content band: the row-0 status bar and the bottom alarm
+        // bar survive, and the diff emits just the net change (no flicker).
         clear_content();
-        // The active tab expands to "N:NAME" and the rest collapse to a number,
-        // so a switch reflows the whole strip (widths shift); repaint it as a unit.
+        // A switch reflows the whole strip (the active tab expands to "N:NAME"),
+        // so repaint it as a unit.
         _status_bar.draw_tabs();
-        // The alarm bar is NOT redrawn here: clear_content() preserves its bottom
-        // row, so its already-drawn content survives the switch unchanged. Its
-        // step() repaints it only when the alarm set actually moves (a switch that
-        // coincides with an alarm change is caught by the next set-change check).
+        // The alarm bar is NOT redrawn: clear_content() preserves its row, and
+        // its step() repaints only when the alarm set moves.
         //
         // The whole content band is about to be redrawn, so send the diff's walk
-        // back to the top: left where the outgoing page's budget ran out, the new
-        // page would paint from that row down and only then fill in above it.
-        // clear_content() does this itself on its scroll path, but not on the
-        // clear_to_eos one.
+        // back to the top, or the new page paints from wherever the outgoing
+        // page's budget ran out and fills in above it afterwards.
         _term.restart_scan();
         _reset_content_priority();
         _pages[_page_index]->focus();
     }
 
     void Console::_reset_content_priority() {
-        // The content band belongs to whichever page is on it, so hand it back as
-        // plain structure on a switch. The incoming page declares anything of its
-        // own in focus() - without this the outgoing page's classes (the shell
-        // editor's rows, say) would outrank the new page's content indefinitely.
+        // Hand the content band back as plain structure on a switch; the incoming
+        // page declares its own in focus(). Otherwise the outgoing page's classes
+        // (the shell editor's rows) outrank the new page's content for good.
         _term.set_row_priority(1, _content_bottom(), Terminal::PRIO_STRUCT);
     }
 

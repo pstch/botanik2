@@ -46,7 +46,7 @@
     "C_Cpp.codeAnalysis.clangTidy.useBuildPath": true,
     "C_Cpp.codeAnalysis.runAutomatically": false,
     // Use the same clang-tidy binary as the CLI/CI (the extension otherwise uses
-    // its own bundled build, whose version — and findings — can differ).
+    // its own bundled build, whose version - and findings - can differ).
     "C_Cpp.codeAnalysis.clangTidy.path": "/usr/bin/clang-tidy-19",
     "C_Cpp.codeAnalysis.exclude": {
         ".claude/**": true,

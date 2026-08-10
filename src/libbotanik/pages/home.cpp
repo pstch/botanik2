@@ -45,10 +45,8 @@ namespace Botanik { namespace Pages {
         static const uint16_t COLON_AT = 16;
         static const uint16_t SEP = 3;         // " : " separator width
 
-        // Fixed value-field width = widest value, commit reserving
-        // "-dirty".
-        // Padding to this gives a flush right edge identical for clean and
-        // dirty builds.
+        // Fixed value-field width = widest value, the commit reserving
+        // "-dirty", so clean and dirty builds share one right edge.
         static const char DIRTY[] = "-dirty";
         uint16_t vwidth = 0;
         for (int i = 0; i < 3; ++i) {
@@ -141,10 +139,9 @@ namespace Botanik { namespace Pages {
 
     void HomePage::draw_dynamic() {
         // Cold fields only: the uptime counter is hot (see draw_hot()).
-        // Site home-field values (formatted off the live payload + unit).
-        // No refs means bring-up has not resolved the names yet, so there
-        // is nothing to read: the labels stand alone rather than every row
-        // showing the first variable.
+        // No refs means bring-up has not resolved the names, so there is
+        // nothing to read: leave the labels bare rather than have every row
+        // show the first variable.
         if (_io == nullptr || _refs == nullptr) return;
         for (uint8_t i = 0; i < _field_count; i++) {
             uint16_t row, lbl, val, w, slot;
@@ -169,8 +166,8 @@ namespace Botanik { namespace Pages {
     void HomePage::focus() {
         MetricPage::focus();                 // logo, readings, divider
         _log_active = true;
-        // Stage the bottom band (drained by tick()); spanning the content
-        // area bottom-aligns the lines against the last row.
+        // Stage the bottom band (drained by tick()); spanning the content area
+        // bottom-aligns the lines against the last row.
         _scrollback.begin_redraw((uint16_t)(_console.rows() - 1));
     }
 
@@ -178,11 +175,10 @@ namespace Botanik { namespace Pages {
         // logo/readings (paced) refresh
         MetricPage::tick(active);
         _log_active = active;
-        // Drain any staged focus replay first; bail until it finishes so the live
-        // band's DL scroll can't shift rows the replay already drew.
+        // Staged focus replay first, and bail until it finishes: the live
+        // band's DL scroll must not shift rows the replay already drew.
         if (_scrollback.tick_redraw_gate(_terminal, active)) return;
-        // Bank queued entries (pending when active), then paint them paced into the
-        // bottom log band.
+        // Bank queued entries, then paint them paced into the bottom band.
         drain();
         if (active) {
             uint16_t band_top = log_band_top();
@@ -192,9 +188,8 @@ namespace Botanik { namespace Pages {
     }
 
     size_t HomePage::write(const char* buf, size_t len) {
-        // Store-only: bank the entry, mark pending when active for the
-        // paced drain_tail. Never blocks/drops, so report the whole entry
-        // consumed.
+        // Store-only: bank the entry, mark pending when active for the paced
+        // drain_tail. Never blocks or drops, so report it all consumed.
         _scrollback.ingest(buf, len, (uint16_t)_terminal.cols(),
             Logs::LOG_CONT_PREFIX,
             (uint16_t)strlen(Logs::LOG_CONT_PREFIX), _log_active);

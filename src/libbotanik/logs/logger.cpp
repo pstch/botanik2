@@ -3,12 +3,9 @@
  * @file logger.cpp
  * @brief Logger implementation - token-bucket refill and dispatch.
  *
- * This logger provides dispatch to multiple writers as well as a
- * single-level hierarchical token bucket filter (TBF) to avoid flooding
- * the writers. We use a global bucket, and a specific bucket for each
- * log topic. We take care to apply the per-topic filter before the global
- * one, so that messages suppressed by their topic-specific bucket don't
- * drain the global bucket.
+ * Dispatch to multiple writers, behind a token-bucket filter: one global bucket
+ * plus one per topic. The per-topic filter applies BEFORE the global one, so a
+ * message suppressed by its topic bucket does not drain the global one.
  */
 #include "libbotanik/logs/logger.h"     // Logger
 
@@ -92,10 +89,10 @@ namespace Botanik { namespace Logs {
             for (uint8_t i = 1; i < Logs::LOG_TOPIC_COUNT; ++i)
                 _report_suppressed(&_perTopic_buckets[i], (LogTopic)i, now_ms);
         }
-        // Report data actually lost (not just rate-limited): entries dropped at
-        // the sinks (summed across writers) and, across the watched serials,
-        // their TX-full drops. Edge-triggered with a per-category holdoff,
-        // emitted as criticals so the writers never drop the report itself.
+        // Data actually lost, not just rate-limited: sink drops summed across
+        // writers, and TX-full drops across the watched serials. Edge-triggered
+        // with a per-category holdoff, and emitted as criticals so the writers
+        // never drop the report itself.
         uint32_t sink_total = 0;
         for (uint8_t i = 0; i < _writerCount; i++)
             sink_total += _writers[i]->loss_count();
@@ -110,11 +107,11 @@ namespace Botanik { namespace Logs {
 #endif
     }
 
-    // Two-stage drop policy: the rate limiter applies to EVERY level (a flood
-    // backstop; even a critical storm must not flood the TX chain). Whatever
-    // survives is undroppable at the WRITER FIFO, which reserves slots for
-    // criticals. So "critical is undroppable" means at the sink queue, not the
-    // limiter; a limiter-dropped critical is still counted + summary-reported.
+    // Two-stage drop policy: the rate limiter applies to EVERY level, even a
+    // critical storm. Whatever survives is undroppable at the WRITER FIFO,
+    // which reserves slots for criticals. So "critical is undroppable" means at
+    // the sink queue, not the limiter; a limiter-dropped critical is still
+    // counted and summary-reported.
     void Logger::push_entry(const Logs::LogEntry& entry) {
         // Level gate before the limiter so a filtered entry costs no token.
         // LogLevel is monotonic and LOG_CRITICAL is the max, so a critical
@@ -173,9 +170,8 @@ namespace Botanik { namespace Logs {
 
     void Logger::_emit_critical(Logs::LogTopic topic, uint32_t timestamp_ms,
                                 const char* fmt, ...) {
-        // Push a CRITICAL entry straight to every writer, bypassing the rate
-        // limiter: these loss/suppression reports must survive the very storm
-        // they summarize (REPORT-SLOT keeps criticals when the FIFO is full).
+        // Straight to every writer, bypassing the rate limiter: a loss report
+        // must survive the storm it summarizes.
         Logs::LogEntry entry = {};
         va_list ap; va_start(ap, fmt);
         _build_entry(entry, Logs::LOG_CRITICAL, topic, timestamp_ms, fmt, ap);
@@ -217,9 +213,8 @@ namespace Botanik { namespace Logs {
                        const char* fmt, va_list ap) {
 #if !BOTANIK_FEATURE_LOGGING
         // The one funnel every level helper reaches, and where the vsnprintf
-        // happens - so returning here is what actually makes a logging-off build
-        // cheap. The helpers keep their signatures, so the ~31 call sites and
-        // the 19 headers that hold a Logger* need no change at all.
+        // happens: returning here is what makes a logging-off build cheap
+        // without changing a call site or a header holding a Logger*.
         (void)level; (void)topic; (void)fmt; (void)ap;
         return;
 #else

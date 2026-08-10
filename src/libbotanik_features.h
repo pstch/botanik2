@@ -16,14 +16,10 @@
  *  member declaration and a constructor-init entry, and C++11 has no
  *  `if constexpr`.
  *
- *  @section feat_list One list, three consumers
- *
- *  BOTANIK_FEATURE_LIST is the single source of truth for which flags EXIST. The
- *  `features` shell command expands it, so a new flag is reported without
- *  touching the shell; CMake discovers `-D`s by prefix rather than from a list,
- *  so a new flag cannot be half-wired. Neither is a hand-maintained copy of the
- *  roster: a CMake-side list would silently ignore the `-D` of any flag missing
- *  from it.
+ *  BOTANIK_FEATURE_LIST is the single source of truth for which flags EXIST: the
+ *  `features` shell command expands it, and CMake discovers `-D`s by prefix
+ *  rather than from a list of its own, which would silently ignore the `-D` of
+ *  any flag missing from it.
  *
  *  Adding a flag: one `X()` entry, one `#ifndef` default, any dependency rule,
  *  and a row in docs/integration/config.md.
@@ -102,10 +98,9 @@
 #endif
 
 // --- Console pages -------------------------------------------------------
-// HOME and SHELL default to CONSOLE's value rather than to a literal, so a
-// headless build drops them without anyone having written the contradiction the
-// dependency rules would then reject. The rest default off: they are the ones a
-// site chooses.
+// HOME and SHELL default to CONSOLE's value rather than a literal, so a headless
+// build drops them without writing a contradiction the dependency rules would
+// reject. The rest default off: they are what a site chooses.
 
 /** @brief HOME: logo, identity, uptime, log tail, site home fields. */
 #ifndef BOTANIK_FEATURE_HOME_PAGE
@@ -224,8 +219,7 @@
 
 // Dependency rules
 // ===========================================================================
-// A contradiction is a build error, not a silent no-op: asking for a subsystem
-// whose substrate is off is a mistake in the asking, and the alternative is a
+// A contradiction is a build error, not a silent no-op: the alternative is a
 // binary quietly missing what was requested.
 
 #if BOTANIK_FEATURE_NTP && !BOTANIK_FEATURE_NETWORK
@@ -293,7 +287,6 @@
 #endif
 // MODBUS_RTU_SERVER depends on nothing, deliberately: it is a device model over
 // a serial port and a register image, with no variable table and no scan behind
-// it. Stated here because the absence of a rule is otherwise indistinguishable
-// from a rule nobody wrote.
+// it. Stated because an absent rule reads like a forgotten one.
 
 #endif // LIBBOTANIK_FEATURES_H

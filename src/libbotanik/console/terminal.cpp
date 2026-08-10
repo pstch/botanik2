@@ -163,9 +163,8 @@ namespace Botanik { namespace Terminal {
         // Overflow degrades to a band repaint by the cell diff (FRONT already
         // shifted), never a lost frame - so silently dropping the record is safe.
         if (_nscrolls < MAX_SCROLLS) _scrolls[_nscrolls++] = { top, bottom, n, up };
-        // The band moved as a unit and the rows it reveals are meant to be read
-        // in order, so the diff has to walk them from the top rather than from
-        // wherever the last frame's budget happened to stop.
+        // The band moved as a unit, so the diff walks the revealed rows from the
+        // top rather than from wherever the last frame's budget stopped.
         restart_scan();
     }
 
@@ -179,9 +178,8 @@ namespace Botanik { namespace Terminal {
     void AnsiTerminal::paint_field_runs(uint16_t row, uint16_t col, const char* cf,
                                         uint16_t width, uint32_t hi) {
         // Paint the whole field, split into reverse-video segments per `hi`. No
-        // per-cell gating here: the back-buffer diff already drops every cell whose
-        // glyph and attribute both held, so a "changed cells only" mask would be
-        // hand-rolled coalescing in front of a coalescing diff.
+        // per-cell gating: the back-buffer diff already drops every cell whose
+        // glyph and attribute both held.
         if (width == 0) return;
         move_to({row, col});
         uint16_t seg = 0;
@@ -314,27 +312,21 @@ namespace Botanik { namespace Terminal {
 
     void AnsiTerminal::present() {
         _emit_scrolls();
-        // The cursor is parked only once the frame is fully reconciled: while the
-        // diff is still paced out over several ticks the cursor is being moved by
-        // the runs anyway, and re-homing it every tick would burn a move per tick
-        // for nothing. A settled screen gets the cursor put where it belongs.
+        // Park only once the frame is fully reconciled: mid-repaint the runs are
+        // moving the cursor anyway, so re-homing it would burn a move per tick.
         if (_emit_diff()) _park_cursor();
     }
 
     void AnsiTerminal::_emit_scrolls() {
-        // Emit each pending band DL/IL and, only if every part of it reached the
-        // wire, shift BACK to match. If any part did not fit the ring, BACK stays
-        // put and the cell diff repaints the whole band instead - more bytes, but
-        // correct. Shifting BACK after a dropped escape would be the opposite: the
-        // diff would believe those rows were already right and never repaint them,
-        // so the band would stay wrong until something forced a full clear.
+        // Emit each pending band DL/IL and shift BACK to match ONLY if every part
+        // of it reached the wire. Shifting after a dropped escape would leave the
+        // diff believing those rows were already right, so the band would stay
+        // wrong until a full clear.
         for (uint8_t i = 0; i < _nscrolls; i++) {
             const PendingScroll& s = _scrolls[i];
             bool restore = (s.bottom < (uint16_t)(_rows - 1));
             uint16_t back = (uint16_t)(s.bottom - s.n + 1);
             bool ok;
-            // A DL/IL that did not fit the ring leaves BACK unshifted, so the
-            // cell diff repaints the band instead - more bytes, but correct.
             if (s.up) {
                 ok = _go({s.top, 0}) && Ansi::delete_rows(_serial, s.n);
                 if (ok && restore) ok = _go({back, 0}) && Ansi::insert_rows(_serial, s.n);
@@ -349,16 +341,14 @@ namespace Botanik { namespace Terminal {
 
     uint16_t AnsiTerminal::_shift_row(uint16_t row, uint16_t budget, bool& defer) {
         defer = false;
-        // A row whose content slid sideways (the line editor inserting or deleting
-        // characters, a column widening) differs from BACK at every column past
-        // the edit, so the plain run diff rewrites the whole tail. The terminal
-        // can do it in one escape instead: SM4/RM4 insert mode to open cells, DCH
-        // to close them. Both shift the row's cells *with* their attributes,
-        // exactly like the grid shift the renderer did.
+        // A row whose content slid sideways (the editor inserting a character, a
+        // column widening) differs from BACK at every column past the edit, so
+        // the plain run diff rewrites the whole tail. One escape does it instead:
+        // SM4/RM4 insert mode to open cells, DCH to close them, both shifting the
+        // cells *with* their attributes.
         //
         // @return bytes emitted, or 0 when a shift does not apply or does not pay
-        // (the caller's run loop then reconciles the row the ordinary way, and
-        // also mops up whatever a shift left over).
+        // (the caller's run loop then reconciles the row the ordinary way).
         uint16_t a = 0;
         while (a < _cols && _front[_idx(row, a)] == _back[_idx(row, a)]) a++;
         if (a >= _cols) return 0;                          // row already matches
@@ -368,12 +358,11 @@ namespace Botanik { namespace Terminal {
         // Short diffs are cheaper to just rewrite than to bracket in an escape.
         if ((uint16_t)(last - a + 1) < SHIFT_MIN_SPAN) return 0;
 
-        // Derive the width from the content rather than trying every width: the
-        // cell sitting at column `a` on one side must reappear further along on
-        // the other, and where it lands *is* the width. A few candidate landings
-        // cost a few memcmps, where scanning every width costs one per column -
-        // and this puts no ceiling on how far a row may have slid, which a fixed
-        // cap silently turns into a full-row rewrite.
+        // Derive the width from the content: the cell at column `a` on one side
+        // must reappear further along on the other, and where it lands *is* the
+        // width. A few candidate landings cost a few memcmps, and this puts no
+        // ceiling on how far a row may have slid (a fixed cap silently turns a
+        // wider slide into a full-row rewrite).
         const uint8_t* fr = &_front[_idx(row, 0)];
         const uint8_t* bk = &_back [_idx(row, 0)];
         uint16_t right = 0, left = 0;
@@ -430,10 +419,9 @@ namespace Botanik { namespace Terminal {
         if (cost >= plain) return 0;
         if (_serial.availableForWrite() < cost) { defer = true; return 0; }
         // A shift the tick's budget cannot hold is owed the next tick, not the
-        // fallback: the run loop would rewrite the row whole, and that run -
-        // being oversized - takes the escape past the very budget the shift was
-        // just refused for. Only a slide too wide to ever fit a whole budget
-        // takes that escape itself.
+        // fallback: the run loop's whole-row rewrite is oversized, so it escapes
+        // the very budget the shift was just refused for. Only a slide too wide
+        // to ever fit a whole budget takes that escape itself.
         bool oversized = cost >= _tx_cold_depth;
         if (oversized ? (budget == 0) : (cost > budget)) { defer = true; return 0; }
 
@@ -507,24 +495,18 @@ namespace Botanik { namespace Terminal {
     }
 
     bool AnsiTerminal::_emit_diff() {
-        // Walk FRONT vs BACK and emit each changed run, all-or-nothing (the ring
-        // drops silently, so a partial run would be a torn frame) and paced under
-        // this tick's budget. @return true when the screen is fully reconciled;
-        // false means work is left for the next tick.
-        //
-        // Rows are visited by priority class, so an exhausted budget drops the
-        // least important rows rather than whatever sat lowest. Nothing is queued:
-        // a row that misses a tick still differs from BACK on the next one.
+        // Walk FRONT vs BACK by priority class and emit each changed run,
+        // all-or-nothing (the ring drops silently, so a partial run would be a
+        // torn frame) and paced under this tick's budget. @return true when the
+        // screen is fully reconciled.
         uint16_t used   = tx_used();
         uint16_t budget = (used < _tx_cold_depth) ? (uint16_t)(_tx_cold_depth - used) : 0;
         for (uint8_t prio = 0; prio < PRIO_COUNT; prio++) {
             // Within a class the walk only ever runs downward: it resumes where
-            // the budget ran out and stops at the bottom, then starts the next
-            // pass at the top. That is what keeps a tick's emissions in row
-            // order - lines of output, and the rows of a freshly drawn page,
-            // read top-down and have to arrive that way. Advancing the cursor
-            // past budget-hungry upper rows is also what stops them winning the
-            // budget every tick. See docs/dev/screen.md.
+            // the budget ran out, stops at the bottom, then starts the next pass
+            // at the top. That keeps a tick's emissions in row order (content
+            // reads top-down) while stopping budget-hungry upper rows from
+            // winning the budget every tick. See @ref dev_screen.
             uint16_t start = _resume[prio];
             for (uint16_t row = start; row < _rows; row++) {
                 if (_row_prio[row] != prio) continue;
@@ -536,13 +518,11 @@ namespace Botanik { namespace Terminal {
                 }
             }
             _resume[prio] = 0;      // next pass starts at the top
-            // Reaching the bottom is not the same as being drained: the rows above
-            // `start` were served on an earlier tick and may be dirty again, and
-            // they still outrank every lower class. Ending the tick here is what
-            // keeps that true - a class only lets the page through once it has
-            // been all the way down from the top. Without it the alarm bar parking
-            // the walk on the bottom row let the table paint while the legend row
-            // above it waited, which is the frame arriving after what it frames.
+            // Reaching the bottom is not being drained: the rows above `start`
+            // may be dirty again and still outrank every lower class. A class
+            // only lets the page through once it has been all the way down from
+            // the top - otherwise the alarm bar parking the walk on the bottom
+            // row lets the table paint while the legend row above it waits.
             if (start != 0) return false;
         }
         return true;

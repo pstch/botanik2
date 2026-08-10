@@ -9,12 +9,12 @@
  * Publishes named values under "<prefix>/<root>/<group>/<field>" every
  * Config::MQTT_TELEMETRY_PERIOD_MS while the MqttClient is connected (root =
  * Config::MQTT_TELEMETRY_TOPIC, prefix supplied at construction). Each cycle
- * publishes the library base set (uptime, CPU load/jitter, stack - read from
- * the SystemContext) under "system", then every site variable group registered
- * through set_variables(), grouped by the prefix of each name.
+ * publishes the library base set (uptime, CPU load/jitter, stack, from the
+ * SystemContext) under "system", then the variable table registered through
+ * set_variables(), grouped by the prefix of each name.
  *
- * Non-blocking: a cycle that the link can't absorb is simply skipped (the next
- * one retries); nothing is queued.
+ * Non-blocking: a cycle the link can't absorb is skipped and the next one
+ * retries; nothing is queued.
  */
 
 #include <cstdint>                      // uint16_t/uint64_t
@@ -29,8 +29,8 @@
 namespace Botanik { namespace Network {
 
     // Vars::var_published / var_group (what goes out, and under what) live in
-    // vars/access.h, so non-network consumers (the MONITOR page)
-    // read them without the MqttSender. Published here.
+    // vars/access.h, so non-network consumers (the MONITOR page) read them
+    // without the MqttSender.
 
     /** @brief Periodic MQTT telemetry publisher (see file header). */
     class MqttSender {
@@ -57,17 +57,10 @@ namespace Botanik { namespace Network {
          *  companion bool, because "sweeping" is exactly "the cursor is inside
          *  the table" and two fields encoding one fact can disagree.
          *
-         *  Publishing every eligible row in ONE activation would be 38-80
-         *  topics, each its own snprintf and its own tcp_send, for 0.8-1.9 ms
-         *  inside a 10 ms beat - a 100-300x spike over steady state, once per
-         *  cadence. MQTT 3.1.1 has no multi-topic PUBLISH, so the answer is not
-         *  to batch but to PACE: hand out MQTT_TELEMETRY_PER_STEP topics per
-         *  beat and carry the cursor, the way the log rows and the terminal's
-         *  byte budget already bound their own work per tick.
-         *
-         *  The cadence still starts on time; it just no longer lands all at
-         *  once. A value published a few beats into a 30 s sweep is not less
-         *  true. */
+         *  A sweep hands out MQTT_TELEMETRY_PER_STEP topics per beat and carries
+         *  the cursor, so the per-beat work stays bounded (config/net.h has the
+         *  cost of an unpaced sweep). The cadence starts on time and lands over
+         *  the beats that follow. */
         uint16_t              _cursor      = SWEEP_IDLE;
 
         /** @} */

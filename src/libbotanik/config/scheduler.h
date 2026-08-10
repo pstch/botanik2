@@ -10,8 +10,7 @@
 
 #include "libbotanik/config/base.h"       // the BOTANIK_FEATURE_* gates
 
-// Defined and undefined per file rather than in base.h: base.h is guarded,
-// so a second include of it would not restore a macro this file undefined.
+// Defined and undefined per file, not in base.h: see base.h.
 #define BOTANIK_CFG(type, name) static constexpr type name = BOTANIK_##name
 
 namespace Botanik { namespace Config {
@@ -43,11 +42,10 @@ namespace Botanik { namespace Config {
 
     /** @brief The operator-facing rate.
      *
-     *  @note Currently has NO members: the console render, which this class was
-     *  named for, now runs in GROUP_SLOW. Kept because a rate between "every
-     *  beat" and "dwell" is the obvious home for the next interactive thing -
-     *  but changing it presently affects nothing, so check tasks.h before
-     *  tuning it. */
+     *  @note Has NO members: the console render runs in GROUP_SLOW. Kept because
+     *  a rate between "every beat" and "dwell" is the obvious home for the next
+     *  interactive thing, but tuning it affects nothing today - check tasks.h
+     *  first. */
 #ifndef BOTANIK_GROUP_MAIN_MS
 #  define BOTANIK_GROUP_MAIN_MS 50
 #endif
@@ -90,12 +88,11 @@ namespace Botanik { namespace Config {
     /** @brief How far past its own period a control program may run before
      *  SCAN_LATE is raised, in ms.
      *
-     *  Measured against the PROGRAM's period, not the beat, so one number
-     *  serves every rate: a 1 s program and a 100 ms one are both allowed the
-     *  same absolute slip. Two beats' worth by default - one late activation is
-     *  the stagger or a flash write, two in a row is the cycle running out of
-     *  room. The alarm's own dwell (5 s on, 30 s off) is what stops a burst
-     *  becoming an annunciation; this is only the threshold. */
+     *  Measured against the PROGRAM's period, not the beat, so one number serves
+     *  every rate. Two beats' worth: one late activation is the stagger or a
+     *  flash write, two in a row is the cycle running out of room. The alarm's
+     *  own dwell stops a burst becoming an annunciation; this is only the
+     *  threshold. */
 #ifndef BOTANIK_SCAN_LATE_MS
 #  define BOTANIK_SCAN_LATE_MS (BOTANIK_TASK_PERIOD_MS * 2)
 #endif

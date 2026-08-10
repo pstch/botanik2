@@ -2,8 +2,7 @@
  * @file test_vars.cpp
  * @brief The variable model: Scalar, Variable/Value/Bank, parameters and retention.
  *
- * Each section below is the former test_<name>.cpp, kept in its own
- * namespace so their fixtures and helpers cannot collide.
+ * Each section is its own namespace so fixtures and helpers cannot collide.
  */
 
 #include <cstdint>                  // int64_t/uint64_t
@@ -40,12 +39,9 @@ namespace {
 }
 
 TEST_CASE("scalar: a real parse refuses nan, inf and anything past float range") {
-    // strtod accepts "nan" and "inf" outright, and 1e300 is a perfectly good
-    // DOUBLE that becomes +inf on the narrowing cast - none of them set ERANGE,
-    // which was the only check. The console reaches this through
-    // `override <row> nan`, which persists the value; reject_implausible()
-    // skips overridden rows, so it survives the reboot and every hysteresis and
-    // deadband downstream then compares false against it.
+    // strtod accepts "nan"/"inf" outright and 1e300 becomes +inf on the narrowing
+    // cast - none set ERANGE. Reachable via `override <row> nan`, which persists
+    // and survives reject_implausible() (it skips overridden rows).
     Scalar out;
     CHECK(parse_scalar(T_F32, "nan",   &out) == PARSE_MALFORMED);
     CHECK(parse_scalar(T_F32, "NaN",   &out) == PARSE_MALFORMED);
@@ -62,8 +58,7 @@ TEST_CASE("scalar: a real parse refuses nan, inf and anything past float range")
 }
 
 TEST_CASE("scalar: every type round-trips through its own slot") {
-    // Each write lands in the union member the type names, so the read is exact
-    // rather than a reinterpretation of a neighbouring member.
+    // Each write lands in the union member the type names, not a neighbour's.
     CHECK(as_f32(T_F32, from_f32(T_F32, 20.5f)) == doctest::Approx(20.5f));
     CHECK(as_i64(T_U16, from_i64(T_U16, 3600)) == 3600);
     CHECK(as_i64(T_I32, from_i64(T_I32, -5000)) == -5000);
@@ -80,13 +75,10 @@ TEST_CASE("scalar: every type round-trips through its own slot") {
 }
 
 TEST_CASE("scalar: a write is coerced into the slot, not reinterpreted") {
-    // Writing a float to an integer variable rounds; the old model wrote the
-    // float's bits and read them back as an integer.
+    // A float written to an integer must round, not have its bits reinterpreted.
     CHECK(as_i64(T_U16, from_f32(T_U16, 63.6f)) == 64);
     CHECK(as_i64(T_I16, from_f32(T_I16, -63.6f)) == -64);
-    // An unsigned variable cannot hold a negative: clamp rather than wrap to a
-    // huge positive, which is what a cast would do.
-    CHECK(as_i64(T_U16, from_f32(T_U16, -5.0f)) == 0);
+    CHECK(as_i64(T_U16, from_f32(T_U16, -5.0f)) == 0);   // clamps, does not wrap
     CHECK(as_i64(T_U32, from_i64(T_U32, -1)) == 0);
     // An integer written to a real variable keeps its value.
     CHECK(as_f32(T_F32, from_i64(T_F32, 42)) == doctest::Approx(42.0f));
@@ -98,8 +90,7 @@ TEST_CASE("scalar: digitals read as 0/1 so consumers need not branch") {
 }
 
 TEST_CASE("scalar: bounds compare in the variable's own type") {
-    // What int32 bounds could not express: a fractional band. Bounds of
-    // 0.5..2.5 truncated to 0..2 before the comparison ever happened.
+    // A fractional band: int32 bounds would truncate 0.5..2.5 to 0..2.
     CHECK(in_range(T_F32, Scalar::F(-90.5f), Scalar::F(-90.5f), Scalar::F(90.5f)));
     CHECK_FALSE(in_range(T_F32, Scalar::F(-90.6f), Scalar::F(-90.5f), Scalar::F(90.5f)));
     CHECK(in_range(T_U16, Scalar::U(3600), Scalar::U(0), Scalar::U(3600)));
@@ -167,9 +158,8 @@ TEST_CASE("scalar: string validation by kind") {
 }
 
 TEST_CASE("parse: a literal too big for the type is a range error, not a maximum") {
-    // strto* SATURATE rather than fail, so an overflowing literal used to
-    // arrive as a perfectly plausible type maximum. in_range catches that for
-    // the narrow types; for the widest it did not.
+    // strto* SATURATE rather than fail: in_range must catch an overflow even at
+    // the widest types, not read it as a plausible maximum.
     Scalar out;
     CHECK(parse_scalar(T_U64, "99999999999999999999999", &out) == PARSE_RANGE);
     CHECK(parse_scalar(T_I64, "-99999999999999999999999", &out) == PARSE_RANGE);
@@ -196,9 +186,8 @@ namespace {
         V_NTP_POLL, V_NTP_SERVER, V_COUNT
     };
 
-    // One table, every scope and several types - the shape a site has. Each row
-    // is the factory for its scope, so a row cannot carry a field its kind has
-    // no use for.
+    // One table, every scope - the shape a site has. Each row's factory takes
+    // only the fields its scope can use.
     const Variable VARS[] = {
         MI("ext_temp",    T_F32, 5, 3, 18, 2, SF(-40.0f), SF(85.0f), SF(20.5f), 5000, 1,
                           "C", "outside", ""),
@@ -243,9 +232,8 @@ TEST_CASE("model: seeding sets validity by role, not by type") {
 }
 
 TEST_CASE("model: invalid records WHY, not just that") {
-    // The whole point of Quality: three different things invalidate a reading,
-    // they want three different next moves from whoever is looking, and the
-    // model used to answer all three with the same bare "invalid".
+    // Three different things invalidate a reading, each wanting a different
+    // next move - a bare valid/invalid cannot tell them apart.
     Fixture f;
     Var h = f.bank.var(V_EXT_TEMP);
     CHECK(h.live_quality() == Q_NO_DATA);          // seeded, nothing written
@@ -260,16 +248,14 @@ TEST_CASE("model: invalid records WHY, not just that") {
     CHECK(f.bank.reject_implausible() == 1);
     CHECK(h.live_quality() == Q_IMPLAUSIBLE);
 
-    // ...and an output taken to its safe state is a fourth, which is not a
-    // fault at all - it is the firmware declining to drive.
-    f.bank.enable_control(Bank::INHIBIT_HEALTH);
+    f.bank.enable_control(Bank::INHIBIT_HEALTH);   // a 4th: safe-state, not a fault
     Var out = f.bank.var(V_VALVE);
     out.set(true);
     CHECK(out.live_quality() == Q_GOOD);
     f.bank.disable_control(Bank::INHIBIT_HEALTH);
     CHECK(out.live_quality() == Q_SAFE);
 
-    // Every one of them reads as invalid, which is what the old bool said.
+    // All four still read as invalid through the single bool.
     CHECK_FALSE(out.valid());
     CHECK_FALSE(h.valid());
 }
@@ -284,20 +270,14 @@ TEST_CASE("model: publish carries the timestamp, so staleness cannot be forgotte
     CHECK(f.bank.var(V_EXT_TEMP).valid());
     f.bank.expire_stale(7000);                          // 6 s old, past it
     CHECK_FALSE(f.bank.var(V_EXT_TEMP).valid());
-    // ...and it KEEPS the reading it had. A sensor that answered a moment ago
-    // and then missed its timeout still knows what the plant was doing; 30 C
-    // from six seconds ago is a far better account of a greenhouse than the
-    // 20.5 its declared default reads as. valid() is false either way, so
-    // anything that cares still knows not to trust it.
+    // ...and it KEEPS the reading: a moment-old sensor still knows more than
+    // the 20.5 default. valid() is false either way.
     CHECK(f.bank.var(V_EXT_TEMP).value() == doctest::Approx(30.0f));
 }
 
 TEST_CASE("model: live() and raw() agree about a stale reading") {
-    // They are the two halves of one question, and they had drifted: raw() kept
-    // the stale value, live() fell back to the default. The MONITOR page's live
-    // column and `get`'s Raw value row read live(); the value beside them reads
-    // raw(). A dying sensor is exactly when an engineer reads those two fields,
-    // and they contradicted each other.
+    // live() and raw() must agree: MONITOR's live column and `get`'s Raw row
+    // read one each, and a dying sensor is exactly when both get checked.
     Fixture f;
     Var h = f.bank.var(V_EXT_TEMP);
     h.publish(Scalar::F(30.0f), 1000);
@@ -308,17 +288,15 @@ TEST_CASE("model: live() and raw() agree about a stale reading") {
     CHECK(h.live().f == doctest::Approx(30.0f));     // not the 20.5 default
     CHECK_FALSE(h.valid());                          // still not to be trusted
 
-    // ...and where there is nothing to keep, both fall back together.
-    Var g = f.bank.var(V_EXT_TEMP);
+    Var g = f.bank.var(V_EXT_TEMP);   // nothing to keep: both fall back together
     g.invalidate(Q_IMPLAUSIBLE);
     CHECK(g.raw().f  == doctest::Approx(20.5f));
     CHECK(g.live().f == doctest::Approx(20.5f));
 }
 
 TEST_CASE("model: a row that never read anything still falls back to its default") {
-    // The other half of the rule above. Q_STALE keeps its value because there
-    // IS one; Q_NO_DATA has nothing to keep, and a row dropped to safe or
-    // reading outside its band must not be believed at all.
+    // The other half: Q_STALE keeps its value because there is one, but
+    // Q_NO_DATA, Q_REFUSED and Q_IMPLAUSIBLE have nothing to keep.
     Fixture f;
     CHECK(f.bank.var(V_EXT_TEMP).live_quality() == Q_NO_DATA);
     CHECK(f.bank.var(V_EXT_TEMP).value() == doctest::Approx(20.5f));
@@ -356,16 +334,12 @@ TEST_CASE("control: disabling takes outputs to safe and nothing else") {
 
     f.bank.disable_control();
 
-    // The output drops to its declared safe state...
     CHECK_FALSE(f.bank.control_enabled());
     CHECK_FALSE(f.bank.var(V_VALVE).valid());
-    CHECK(f.bank.var(V_VALVE).b());                     // def is true
-    // ...the alarm survives, because clearing it would erase the diagnosis that
-    // took control away in the first place...
-    CHECK(f.bank.var(V_ALARM_HOT).b());
+    CHECK(f.bank.var(V_VALVE).b());                     // dropped to its safe def
+    CHECK(f.bank.var(V_ALARM_HOT).b());                 // alarm survives: keep the diagnosis
     CHECK(f.bank.var(V_SETPOINT).value() == doctest::Approx(21.5f));
-    // ...and the config survives, because a scan overrun must not revert it.
-    CHECK(f.bank.var(V_NTP_POLL).i() == 120);
+    CHECK(f.bank.var(V_NTP_POLL).i() == 120);           // config survives too
 }
 
 TEST_CASE("model: writes are coerced into the variable's own type") {
@@ -384,15 +358,13 @@ TEST_CASE("model: lookup by name, exact and length-bounded") {
     CHECK(f.bank.find("ntp_server1").index == V_NTP_SERVER);
     CHECK(f.bank.find("nope").index == VAR_NONE);
     CHECK(f.bank.find(nullptr).index == VAR_NONE);
-    // A shell argument is a span, not a NUL-terminated string: "ext_temp" must
-    // not match on a prefix of a longer name, nor a longer name on a prefix.
+    // A shell argument is a span, not a NUL-terminated string: no prefix matches.
     CHECK(f.bank.find("ext_temp_extra", 8).index == V_EXT_TEMP);
     CHECK(f.bank.find("ext", 3).index == VAR_NONE);
 }
 
 TEST_CASE("model: a bad index resolves to an inert sink, never a clamp") {
-    // NOT clamped to the last entry: clamping aliased a typo onto a real
-    // signal, so a bad index would have driven an actual relay.
+    // NOT clamped to the last entry: that would alias a typo onto a real signal.
     Fixture f;
     CHECK(f.bank.var((uint16_t)999).value() == doctest::Approx(0.0f));
     CHECK(Utils::compare_str(f.bank.var((uint16_t)999).name(), "<none>"));
@@ -401,8 +373,8 @@ TEST_CASE("model: a bad index resolves to an inert sink, never a clamp") {
     f.bank.var((uint16_t)999).set(false);      // absorbed, drives nothing
     CHECK(f.bank.var(V_VALVE).b());            // the real coil is untouched
 
-    // VAR_NONE is the same story, which is what lets a platform alarm spell
-    // "reads no variable" without aliasing row 0.
+    // VAR_NONE: same story, so a platform alarm spells "no variable" without
+    // aliasing row 0.
     VarRef none = { VAR_NONE };
     CHECK_FALSE(f.bank.var(none).valid());
     CHECK(f.bank.var(none).value() == doctest::Approx(0.0f));
@@ -498,27 +470,22 @@ TEST_CASE("control: the operator's inhibit keeps a forced output, the system's t
     h.set(true);
     f.bank.override_set(h, Scalar::B(true));
 
-    // `control disable` is how you take the plant by hand: the programs stop
-    // deciding, and the override is then the only thing that can move an
-    // actuator. Releasing it would leave no way to command one at all - and one
-    // can still be TAKEN in that state, which is the point.
+    // `control disable` takes the plant by hand: an override is the only thing
+    // left that can move an actuator, and must still be TAKEN in that state.
     f.bank.disable_control(Bank::INHIBIT_OPERATOR);
     CHECK(h.overridden());
     f.bank.override_clear(h);
     CHECK(f.bank.override_set(h, "1") == SET_OK);
 
-    // The other inhibit means something else entirely: the firmware can no
-    // longer reason about what it drives, and nobody is necessarily watching.
-    // It must still fire with the operator's hold already in force, or the
-    // "was control already off?" early exit would let a hand-held actuator ride
-    // straight through a health fault.
+    // The system's hold must fire even with the operator's already in force,
+    // or a "control already off" early exit lets a hand-held actuator ride
+    // through a health fault.
     f.bank.disable_control(Bank::INHIBIT_HEALTH);
     CHECK_FALSE(h.overridden());
     CHECK_FALSE(h.valid());
     CHECK(h.b() == true);      // reads its declared safe state (def = true here)
 
-    // An input's override is untouched either way - the sweep is outputs only.
-    Var in = f.bank.var(V_EXT_TEMP);
+    Var in = f.bank.var(V_EXT_TEMP);   // an input's override is untouched either way
     f.bank.override_set(in, Scalar::F(5.0f));
     f.bank.disable_control(Bank::INHIBIT_HEALTH);
     CHECK(in.overridden());
@@ -526,9 +493,8 @@ TEST_CASE("control: the operator's inhibit keeps a forced output, the system's t
 
 TEST_CASE("control: starts disabled, and an output is forceable while it is") {
     Fixture f;
-    // Nothing may drive the field between power-on and the point bring-up says
-    // it is ready - the system holds control until then. An override is live
-    // immediately rather than staged, so there is nothing to refuse.
+    // The system holds control until bring-up says it's ready; an override is
+    // live immediately, not staged, so there is nothing to refuse.
     CHECK_FALSE(f.bank.control_enabled());
     CHECK(f.bank.control_inhibited_by(Bank::INHIBIT_HEALTH));
     CHECK(f.bank.override_set(f.bank.var(V_VALVE), "1") == SET_OK);
@@ -542,8 +508,7 @@ TEST_CASE("control: an operator disable survives a health fault coming and going
     f.bank.disable_control(Bank::INHIBIT_OPERATOR);   // someone at the console
     CHECK_FALSE(f.bank.control_enabled());
 
-    // A fault arrives and clears underneath them. Health releasing its own hold
-    // must not hand control back - the operator never asked for it back.
+    // Health releasing its own hold must not hand control back too.
     f.bank.disable_control(Bank::INHIBIT_HEALTH);
     f.bank.enable_control(Bank::INHIBIT_HEALTH);
     CHECK_FALSE(f.bank.control_enabled());
@@ -560,8 +525,7 @@ TEST_CASE("control: an operator enable cannot override a health fault either") {
     f.bank.enable_control(Bank::INHIBIT_HEALTH);
     f.bank.disable_control(Bank::INHIBIT_HEALTH);     // health faulted
 
-    // The symmetric case, and the more important one: the console must not be
-    // able to talk over the firmware's own judgement that it cannot drive.
+    // The console must not talk over the firmware's own judgement.
     f.bank.enable_control(Bank::INHIBIT_OPERATOR);
     CHECK_FALSE(f.bank.control_enabled());
     CHECK(f.bank.control_inhibited_by(Bank::INHIBIT_HEALTH));
@@ -573,9 +537,7 @@ TEST_CASE("control: a second hold arriving does not re-sweep") {
     Var in = f.bank.var(V_EXT_TEMP);
     f.bank.disable_control(Bank::INHIBIT_OPERATOR);
 
-    // An input override set to diagnose the fault survives health piling on:
-    // the sweep already ran, and the outputs cannot have moved since.
-    f.bank.override_set(in, Scalar::F(5.0f));
+    f.bank.override_set(in, Scalar::F(5.0f));   // sweep already ran; survives piling on
     f.bank.disable_control(Bank::INHIBIT_HEALTH);
     CHECK(in.overridden());
 }
@@ -602,8 +564,7 @@ TEST_CASE("override: parses text, and deliberately ignores the plausibility band
     CHECK(f.bank.override_set(h, "12.5") == SET_OK);
     CHECK(h.value() == doctest::Approx(12.5f));
 
-    // Out of band on purpose: forcing a reading past its plausibility limit is
-    // how you exercise the alarm that watches for exactly that.
+    // Out of band on purpose - see "plausibility: an override is exempt" below.
     CHECK(f.bank.override_set(h, "999") == SET_OK);
     CHECK(h.value() == doctest::Approx(999.0f));
 
@@ -632,10 +593,8 @@ TEST_CASE("set: holds a parameter to its declared band") {
 // ---- String pool: a row that does not fit must not land on another ----------
 
 TEST_CASE("pool: a row that does not fit gets no slot, not row 0's") {
-    // Two 32-byte slots into a 40-byte pool: the second cannot fit. It used to
-    // be parked at offset 0 with its declared capacity intact, so every writer
-    // wrote a full slot on top of the FIRST row - and with a pool smaller than
-    // one slot, past the end of the array entirely.
+    // Two 32-byte slots in a 40-byte pool: the second must not fall back to
+    // offset 0, or every writer would overwrite the FIRST row's slot.
     const Variable V[] = {
         PS("a", "first", 32, STR_NONE, 1, "", ""),
         PS("b", "second", 32, STR_NONE, 2, "", ""),
@@ -660,8 +619,8 @@ TEST_CASE("pool: a row that does not fit gets no slot, not row 0's") {
 }
 
 TEST_CASE("pool: a pool smaller than a single slot writes nothing") {
-    // The out-of-bounds case: offset 0 + a 32-byte capacity into 8 bytes.
-    // ASan is what makes this test worth having.
+    // Out-of-bounds: offset 0 + a 32-byte capacity into 8 bytes. ASan is what
+    // makes this test worth having.
     const Variable V[] = { PS("a", "aaaaaaaaaaaaaaaaaaaaaaaaaaaa", 32, STR_NONE, 1, "", "") };
     Value vals[1]{};
     char  pool[8]{};
@@ -679,8 +638,8 @@ TEST_CASE("pool: a pool smaller than a single slot writes nothing") {
 // ---- Implausible readings --------------------------------------------------
 
 TEST_CASE("plausibility: a reading outside its declared band goes invalid") {
-    // What F_BOUNDED was declared FOR on an input, and what nothing enforced:
-    // a shorted 4-20 mA loop reads full scale, which no timeout catches.
+    // What F_BOUNDED is for: a shorted 4-20 mA loop reads full scale, and no
+    // timeout catches that.
     Fixture f;
     Var h = f.bank.var(V_EXT_TEMP);          // band -40..85, def 20.5
 
@@ -691,14 +650,11 @@ TEST_CASE("plausibility: a reading outside its declared band goes invalid") {
     h.publish(Scalar::F(500.0f), 2000);      // fresh, well-formed, impossible
     CHECK(f.bank.reject_implausible() == 1);
     CHECK_FALSE(h.valid());
-    // ...and it reads its declared fallback, which is what lets a control
-    // program lean on `def` instead of testing valid().
-    CHECK(h.value() == doctest::Approx(20.5f));
+    CHECK(h.value() == doctest::Approx(20.5f));   // falls back to `def`
 }
 
 TEST_CASE("plausibility: a non-finite reading is a failed read") {
-    // A NaN compares false against everything, so it trips no band - and it
-    // makes every downstream hysteresis and deadband misbehave quietly.
+    // A NaN compares false against everything, so it trips no band on its own.
     Fixture f;
     Var h = f.bank.var(V_EXT_TEMP);
     const float nan = 0.0f / 0.0f, inf = 1.0f / 0.0f;
@@ -726,7 +682,7 @@ TEST_CASE("plausibility: an override is exempt") {
 }
 
 TEST_CASE("plausibility: an unbounded row is left alone") {
-    // No F_BOUNDED means min/max are not a band, so there is nothing to judge.
+    // No F_BOUNDED: min/max are not a band, so there is nothing to judge.
     Fixture f;
     Var h = f.bank.var(V_NO_TIMEOUT);        // bounded 0..100
     Var g = f.bank.var(V_SETPOINT);          // ROLE_COMPUTED: not an input
@@ -829,8 +785,8 @@ TEST_CASE("params: a missing key keeps the declared default") {
 }
 
 TEST_CASE("params: stored values keep the type's NARROW width") {
-    // Not sizeof(Scalar): a u16 must occupy 2 bytes, or every existing record
-    // changes encoding and HAL::Storage::get starts rejecting them.
+    // Not sizeof(Scalar): a u16 must occupy 2 bytes, or existing records change
+    // encoding and HAL::Storage::get starts rejecting them.
     StoreEnv env;
     Fx f;
     CHECK(f.params.set(f.by("p_u16"), "300") == SET_OK);
@@ -869,9 +825,8 @@ TEST_CASE("params: a string edit is validated by its declared kind") {
 }
 
 TEST_CASE("params: a refused persist still applies the value") {
-    // The distinction the tri-state exists for: reporting "invalid" when the
-    // storage refused a perfectly good value sends the operator to fix their
-    // input, which was never the problem.
+    // The tri-state exists for this: reporting "invalid" for a storage refusal
+    // would send the operator to fix input that was never the problem.
     StoreEnv env("/nonexistent-dir-botanik-test/store");
     Fx f;
     CHECK(f.params.set(f.by("p_u16"), "120") == SET_NOT_PERSISTED);
@@ -903,7 +858,7 @@ TEST_CASE("params: find only matches parameters, not any variable") {
 // ---- Persistent overrides ---------------------------------------------------
 
 namespace {
-    // A table with one row per role, so the output exclusion is testable.
+    // One row per role, so the output exclusion is testable.
     const Variable OVR_VARS[] = {
         MI("sensor", T_F32, 5, 3, 0, 2, SF(-50.0f), SF(150.0f), SF(1.5f), 5000, 1,
                      "C", "a reading", ""),
@@ -912,8 +867,7 @@ namespace {
         P ("setting", T_U16, 64, 0, 3600, 0, "s", 1, "a parameter", ""),
     };
 
-    /** @brief A bank over OVR_VARS, rebuilt from scratch to simulate a reboot -
-     *  same store, fresh RAM. */
+    /** @brief A bank over OVR_VARS, rebuilt to simulate a reboot: same store, fresh RAM. */
     struct OvrFx {
         Value        vals[4]{};
         uint16_t     index[4]{};
@@ -951,8 +905,7 @@ TEST_CASE("override: the validity it reads as survives too") {
     StoreEnv env("/tmp/botanik_test_ovr_b");
     {
         OvrFx f;
-        // "force it, and make it read as a dead sensor" - the two are separate
-        // facts and both have to come back.
+        // Force it, and make it read as a dead sensor: two separate facts.
         REQUIRE(f.bank.override_set(f.bank.var("sensor"), "42.5", false) == SET_OK);
         CHECK_FALSE(f.bank.var("sensor").valid());
     }
@@ -960,12 +913,9 @@ TEST_CASE("override: the validity it reads as survives too") {
         OvrFx f;
         CHECK(f.bank.var("sensor").overridden());
         CHECK_FALSE(f.bank.var("sensor").valid());
-        // The forced value is still what it reads - forcing the QUALITY is a
-        // separate thing from simulating the timeout fallback (see Value's
-        // header note), and both halves came back from storage.
+        // Forcing the QUALITY is separate from the value; both came back.
         CHECK(f.bank.var("sensor").value() == doctest::Approx(42.5f));
-        // Clearing it hands the live value back.
-        f.bank.override_clear(f.bank.var("sensor"));
+        f.bank.override_clear(f.bank.var("sensor"));   // clearing hands the live value back
         CHECK_FALSE(f.bank.var("sensor").overridden());
     }
 }
@@ -1003,11 +953,8 @@ TEST_CASE("override: `override clear` clears the stored copies too") {
 }
 
 TEST_CASE("override: an actuator override persists like any other") {
-    // An override means one thing whatever row it is on - "a person has taken
-    // this by hand" - so an actuator's survives the reboot the same way a
-    // sensor's does. Carving out an exception made it mean two things, and left
-    // an operator wondering why the valve they forced came back and the reading
-    // they forced did not.
+    // An override means "a person has taken this by hand" on any row, so an
+    // actuator's must persist across a reboot exactly like a sensor's.
     StoreEnv env("/tmp/botanik_test_ovr_e");
     {
         OvrFx f;
@@ -1020,8 +967,7 @@ TEST_CASE("override: an actuator override persists like any other") {
         CHECK(f.bank.var("coil").b());
         CHECK(f.bank.override_count() == 1);
     }
-    // ...and the system withdrawing control still takes it away, stored copy
-    // included, so the restore cannot bring it back a second time.
+    // A health withdrawal takes it away, stored copy included, for good.
     {
         OvrFx f;
         f.bank.disable_control(Bank::INHIBIT_HEALTH);
@@ -1035,16 +981,13 @@ TEST_CASE("override: an actuator override persists like any other") {
 }
 
 TEST_CASE("override: the system withdrawing control wipes the stored copy") {
-    // A health withdrawal releases output overrides; a stored copy would hand
-    // one back at the next boot, which is the hole the release exists to shut.
+    // Otherwise a stored copy hands the override back at the next boot.
     StoreEnv env("/tmp/botanik_test_ovr_f");
     {
         OvrFx f;
         REQUIRE(f.bank.override_set(f.bank.var("sensor"), "5") == SET_OK);
         f.bank.disable_control(Bank::INHIBIT_HEALTH);
-        // An input's override is NOT released by a control withdrawal - control
-        // authority is about driving the field, not about reading it.
-        CHECK(f.bank.var("sensor").overridden());
+        CHECK(f.bank.var("sensor").overridden());   // inputs: reading isn't driving
     }
     {
         OvrFx f;
@@ -1070,9 +1013,8 @@ TEST_CASE("override: a parameter override shadows without disturbing the setting
 }
 
 TEST_CASE("override: forcing only the quality persists the quality") {
-    // Regression. `override <name> invalid` froze through the bank (persisting
-    // the CURRENT quality) and then forced the new quality through the HANDLE,
-    // which cannot reach the store - so the reboot handed back the old one.
+    // Forcing quality through the handle alone cannot reach the store; it must
+    // persist or a reboot hands back the old quality.
     StoreEnv env("/tmp/botanik_test_ovr_q");
     {
         OvrFx f;
@@ -1091,10 +1033,8 @@ TEST_CASE("override: forcing only the quality persists the quality") {
 }
 
 TEST_CASE("override: every release path also forgets the stored copy") {
-    // Regression. Var's mutators were public and cleared RAM only, so a release
-    // through the handle left the record behind and the override came back at
-    // the next boot. They are Bank's now, which is why this can only be spelled
-    // one way.
+    // A release must clear the stored copy too, not just RAM, or it comes back
+    // at the next boot - why Var's override mutators are private to Bank.
     StoreEnv env("/tmp/botanik_test_ovr_r");
     {
         OvrFx f;
@@ -1169,8 +1109,7 @@ struct MemStore : public VarStore {
     }
 };
 
-// A table with one of each interesting kind. G() is the computed factory; the
-// retained one carries F_RETAIN, its neighbour does not.
+// One of each interesting kind: the retained rows carry F_RETAIN, the plain one does not.
 const Variable g_rows[] = {
     GR("total_litres", T_U32, Scalar::U(0), 0, "L", "litres delivered", ""),
     G ("plain_count",  T_U32, Scalar::U(0), 0, "",  "not retained",     ""),
@@ -1195,10 +1134,8 @@ VarTables tables() {
 }  // namespace
 
 TEST_CASE("retain: only a computed row carrying F_RETAIN is retained") {
-    // The predicate is one function so the load and save paths cannot disagree.
-    // A parameter already persists, an input is overwritten by the next scan,
-    // and restoring an OUTPUT from flash would energise a contactor before
-    // anything had looked at the plant.
+    // One predicate, so load/save cannot disagree: restoring an OUTPUT from
+    // flash would energise a contactor before anything looked at the plant.
     const Variable computed = G("c", T_U32, Scalar::U(0), 0, "", "", "");
     CHECK_FALSE(Bank::retainable(computed));      // no flag
 
@@ -1226,8 +1163,7 @@ TEST_CASE("retain: a total survives the reboot, a plain computed row does not") 
         CHECK(a.save_retained() >= 1);
     }
 
-    // The unit goes down and comes back: a fresh bank over the same store.
-    VarTables t2 = tables();
+    VarTables t2 = tables();   // down and back: a fresh bank over the same store
     Bank b(t2);
     b.init();
     b.set_store(&store);
@@ -1243,8 +1179,7 @@ TEST_CASE("retain: a total survives the reboot, a plain computed row does not") 
 }
 
 TEST_CASE("retain: a restored total reads as good, not as no-data") {
-    // Otherwise every reader falls back to the declared default - which is the
-    // zero the restore existed to avoid.
+    // Otherwise every reader falls back to the zero the restore exists to avoid.
     MemStore store;
     store.retained["total_litres"] = 777;
 
@@ -1261,8 +1196,7 @@ TEST_CASE("retain: a restored total reads as good, not as no-data") {
 }
 
 TEST_CASE("retain: what is saved is what the program computed, not a force") {
-    // A maintainer forcing a totalizer to exercise an alarm must not have that
-    // written into the plant's history.
+    // Forcing a totalizer to exercise an alarm must not corrupt the plant's history.
     MemStore store;
     VarTables t = tables();
     Bank a(t);

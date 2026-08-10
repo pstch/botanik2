@@ -1,20 +1,19 @@
 """The kill ring is console-wide: what one page cuts, another pastes.
 
-A per-page clipboard would pass every single-page test in the suite and still
-be useless, because the reason to copy a variable name off a table is to type a
-command with it. So the claim worth pinning is the crossing itself.
+A per-page clipboard would pass every single-page test in the suite and still be
+useless: the reason to copy a variable name off a table is to type a command with
+it. The claim worth pinning is the crossing itself.
 """
 
 import keys
 from helpers import boot, goto
 
 # The Alt+W badge is a THREE-SECOND affordance held in uptime, so the suite's
-# default 50x dilation puts it on screen for ~60 ms of wall time - about three
+# default 50x dilation puts it on screen for ~60 ms of wall time: about three
 # pump cycles, during which the console is still painting the name into it under
-# its byte budget. That is how this file used to read a half-painted row and,
-# before the helper below tolerated it, raise IndexError inside a poll().
+# its byte budget, so a read lands on a half-painted row.
 #
-# 5x leaves the badge up for ~600 ms: long enough to paint whole, still eight
+# 5x leaves the badge up for ~600 ms - long enough to paint whole, still eight
 # times faster than the plant. Nothing else here is timing-sensitive, so this is
 # the one file that buys its determinism back with wall time.
 BADGE_SCALE = 5
@@ -23,11 +22,9 @@ BADGE_SCALE = 5
 def _badge_name(term):
     """The name in the mode line's Alt+W badge, or None if it is not showing.
 
-    None also covers "showing, but not painted yet". The console emits under a
-    per-tick byte budget, so the badge arrives progressively: the row reads
-    "copied " with nothing after it, then a few characters of the name, then the
-    whole of it. This is polled, so a half-painted row is "not yet" - it must
-    not raise, or the retry the caller is built around never happens.
+    None also covers "showing, but not painted yet": under the per-tick byte
+    budget the badge arrives progressively. This is polled, so a half-painted row
+    must read as "not yet" and must not raise, or the caller never retries.
     """
     for row in term.screen.display:
         if "copied " in row:
@@ -39,17 +36,12 @@ def _badge_name(term):
 def _copied_name(term):
     """Wait for a COMPLETE badge, then read the name out of it.
 
-    Not wait_screen("copied "): that fires on the prefix, which the byte budget
-    can deliver a frame or more before the name behind it, and the read then
-    finds nothing to return. Waiting on the parsed name is the same wait done
-    against the thing actually being read.
-
-    Nor is the first frame that carries a name enough: the name itself arrives a
-    few characters at a time, so a single read returns "sys_fi" as readily as
-    "sys_fieldbus_dead" - and every assertion here is a substring match, which
-    would accept it. The wait is therefore for a name that has stopped growing,
-    two consecutive pumps agreeing, which is the only observation available that
-    says the repaint finished.
+    Not wait_screen("copied "): the byte budget can deliver that prefix a frame
+    or more before the name, leaving nothing to read. Nor is the first frame
+    carrying a name enough - it arrives a few characters at a time, so a single
+    read returns "sys_fi" as readily as "sys_fieldbus_dead", and the assertions
+    here are substring matches that would accept it. So the wait is for a name
+    that has stopped growing, two consecutive pumps agreeing.
     """
     prev = [None]
 

@@ -24,11 +24,11 @@ namespace Botanik { namespace Pages {
     /**
      * @brief Circular scrollback buffer with an incremental redraw.
      *
-     * Layers a deferred redraw over a @ref LineBuffer of @p L lines: each log-line
-     * row, DL/IL scroll and replay draw immediate-mode; the terminal back-buffer diff
-     * pares the bytes.
-     * The window is bottom-aligned within rows 1..log_rows (caller-supplied). Name
-     * it through @ref ShellScrollback / @ref LogsScrollback / @ref HomeScrollback.
+     * Layers a deferred redraw over a @ref LineBuffer of @p L lines: rows,
+     * DL/IL scrolls and replays all draw immediate-mode and are pared by the
+     * terminal's diff (@ref dev_screen). The window is bottom-aligned within
+     * rows 1..log_rows (caller-supplied). Name it through @ref ShellScrollback
+     * / @ref LogsScrollback / @ref HomeScrollback.
      */
     template<uint16_t L>
     class Scrollback : public LineBuffer<L, Config::SCROLLBACK_LINE_LEN> {
@@ -79,8 +79,7 @@ namespace Botanik { namespace Pages {
         /** @name Paint (owner set by the page)
          *  These draw into the terminal's FRONT grid, never the wire: a scroll
          *  shifts the grid and the row paints stamp over it, so ordering within
-         *  a tick is just program order. present() then emits the DL/IL and the
-         *  minimal cell diff, paced under the tick's byte budget.
+         *  a tick is just program order (@ref dev_screen).
          *  @{ */
 
         /** @brief Draw log line @p from_newest (steps back from the newest
@@ -143,11 +142,11 @@ namespace Botanik { namespace Pages {
             _redraw_i         = 0;
         }
 
-        /** @brief Shared head of a log page's tick(): when @p active, drain a batch of any
-         *  staged focus replay and report whether it is still going. The page returns early
-         *  on true so the live-tail drain (a DL scroll) can't shift rows the replay already
-         *  drew. No-op (returns false) on a background page. Same call sequence the pages
-         *  open their tick() with - centralised here so the gate can't drift between them. */
+        /** @brief Shared head of a log page's tick(): when @p active, drain any
+         *  staged focus replay and report whether it is still going. The page
+         *  must return early on true, so the live-tail drain (a DL scroll)
+         *  cannot shift rows the replay already drew. No-op (false) on a
+         *  background page. */
         bool tick_redraw_gate(AnsiTerminal& terminal, bool active) {
             if (!active) return false;
             drain_redraw(terminal);
@@ -216,10 +215,9 @@ namespace Botanik { namespace Pages {
             if (_pending > cnt) _pending = cnt;
             // Scrolled back: the offset counts from the NEWEST line, so lines
             // arriving under a frozen view would slide what it names out from
-            // under the rows already on screen (the next scroll then paints
-            // rows discontinuous with them). Advance it by as much, so the
-            // view keeps naming the same lines and the marker's count stays
-            // "newer lines below".
+            // under the rows on screen. Advance it by as much, so the view
+            // keeps naming the same lines and the marker still counts "newer
+            // lines below".
             if (_view_offset != 0) {
                 _view_offset = (uint16_t)(_view_offset + n);
                 if (_view_offset > cnt) _view_offset = cnt;
@@ -272,10 +270,10 @@ namespace Botanik { namespace Pages {
                 return false;
             }
             // The lines the view named may have been evicted from under it (the
-            // ring wraps while note_pending() keeps walking the offset out).
-            // Re-anchor on the oldest still stored - the subtraction below would
-            // otherwise underflow - and repaint: what is on screen is gone, and
-            // the incremental move below only ever fixes the rows it uncovers.
+            // ring wraps while note_pending() walks the offset out). Re-anchor
+            // on the oldest still stored (the subtraction below would otherwise
+            // underflow) and repaint whole: the incremental move only fixes the
+            // rows it uncovers.
             bool anchored = false;
             if (_view_offset > maxoff) {
                 _view_offset      = maxoff;
@@ -293,11 +291,10 @@ namespace Botanik { namespace Pages {
             uint16_t moved = up ? (uint16_t)(want - _view_offset)
                                 : (uint16_t)(_view_offset - want);
             if (moved > log_rows) moved = log_rows;    // at most one screenful
-            // Wipe any marker off the top row first: it overlays content there,
-            // and the hardware scroll below would otherwise smear a stale copy
-            // into the window (a ghost trail). refresh_scroll_indicator() redraws
-            // it after the move. Repaint the line it sits on (oldest shown at the
-            // current, pre-move offset).
+            // Wipe any marker off the top row FIRST: it overlays content there,
+            // and the scroll below would smear a stale copy into the window.
+            // Repaint the line it sits on (oldest shown, at the pre-move
+            // offset); refresh_scroll_indicator() redraws the tag after.
             if (_indicator_offset != 0) {
                 _draw_line(terminal, first_row, (uint16_t)(log_rows + _view_offset));
                 _indicator_offset = 0;
@@ -310,9 +307,8 @@ namespace Botanik { namespace Pages {
             // the exposed lines at the bottom (offset+1 back from newest).
             else    emit_tail(terminal, moved, first_row, log_rows,
                               (uint16_t)(_view_offset + 1));
-            // The "scrolled up" marker is repainted by refresh_scroll_indicator()
-            // from the page tick (not here), so it survives unrelated repaints
-            // and a hardware scroll can't strand a stale copy.
+            // The marker is repainted from the page tick, not here, so it
+            // survives unrelated repaints and no scroll can strand a stale copy.
             return true;
         }
 
@@ -330,14 +326,13 @@ namespace Botanik { namespace Pages {
 
         /** @brief Keep the "scrolled up" marker in sync with the view, called
          *  each tick by the page. While scrolled back it overlays a compact
-         *  reverse-video tag at the top-right of the window (how many newer
-         *  lines lie below toward the live bottom); at the live bottom it shows
-         *  nothing. Diffed against the last drawn offset so it emits only on a
-         *  change, and saves/restores the cursor so it never disturbs the page.
+         *  reverse-video tag at the window's top-right (how many newer lines
+         *  lie below); at the live bottom, nothing. Diffed against the last
+         *  drawn offset, so it emits only on a change.
          *
-         *  Placed on the top window row: a scroll-down's hardware scroll carries
-         *  it off the top (no stranded ghost), and the bottom-return replay
-         *  repaints over it. */
+         *  Must sit on the TOP window row: a scroll-down carries it off the top
+         *  rather than stranding a ghost, and the bottom-return replay repaints
+         *  over it. */
         void refresh_scroll_indicator(AnsiTerminal& terminal,
                                       uint16_t first_row, uint16_t log_rows) {
             if (_view_offset == _indicator_offset) return;   // unchanged

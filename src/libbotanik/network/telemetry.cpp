@@ -96,13 +96,12 @@ namespace Botanik { namespace Network {
         if (_io == nullptr) { _cursor = SWEEP_IDLE; return; }
         char payload[Config::MQTT_PAYLOAD_LEN];
         // Straight down the variable table: what gets published is a property of
-        // the row (its scope), and its sub-topic is the prefix of its name. No
-        // site table selects them, so a new variable is on the broker as soon as
-        // it exists rather than when someone remembers to list it.
+        // the row (its scope), and its sub-topic is the prefix of its name, so
+        // no site table selects them.
         //
-        // Resumed from _cursor and capped per activation - the scan of skipped
-        // rows is cheap, the publish is not, so the budget counts topics SENT
-        // rather than rows visited.
+        // Resumed from _cursor and capped per activation. The scan of skipped
+        // rows is cheap and the publish is not, so the budget counts topics
+        // SENT, not rows visited.
         const uint16_t budget = Config::MQTT_TELEMETRY_PER_STEP;
         uint16_t sent = 0;
         for (; _cursor < _io->count(); ++_cursor) {

@@ -71,10 +71,9 @@ namespace Botanik { namespace Network {
         HAL::Network::UdpSocket   _udp;
         /** @brief Last measured clock offset, ms (correction applied at sync). */
         int32_t               _offset_ms;
-        /** @brief True while a valid sync is held. Set on a sync, kept across
-         *  the routine re-poll, cleared on a failure (ERROR / disabled / reconfig)
-         *  so the next sync reads as initial-or-recovery (the only ones logged /
-         *  surfaced). */
+        /** @brief True while a valid sync is held: kept across the routine
+         *  re-poll, cleared on a failure (ERROR / disabled / reconfig) so the
+         *  next sync reads as initial-or-recovery (the only ones logged). */
         bool                  _sync_held;
         /** @} */
 
@@ -98,9 +97,7 @@ namespace Botanik { namespace Network {
          *  the resolve step (all-zero until then). */
         ResolvedAddr server_addr() const { return _server_addr; }
         /** @brief NTP server UDP port, from the ntp_port parameter (123 unless
-         *  the installation reaches its time source through a proxy). A
-         *  parameter like the rest of the time config, so it is one commit of
-         *  the ntp_ group rather than a rebuild. */
+         *  the installation reaches its time source through a proxy). */
         uint16_t server_port() const;
         /** @brief Force an immediate resync: restart from the first server now
          *  (resolve -> query), regardless of the poll cadence. No-op effect

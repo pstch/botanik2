@@ -18,10 +18,9 @@ namespace Botanik { namespace Utils {
     // ------------------------------------------------------------------------
 
     // Wall-clock epoch as UNIX ms at uptime 0. `wall_now - uptime_now` is
-    // invariant while the RTC free-runs, so it is sampled lazily and cached -
-    // but an NTP sync *steps* the RTC, which moves it. Latching once would peg
-    // every timestamp to the pre-sync epoch (the first sample happens at t~0,
-    // long before NTP), so the cache is re-checked and re-latched on a step.
+    // invariant while the RTC free-runs, so it is cached; an NTP sync STEPS the
+    // RTC and moves it, so the cache is re-checked and re-latched on a step.
+    // Latching once would peg every timestamp to the pre-sync epoch.
     static const int64_t  EPOCH_STEP_MS  = 2000;   // > wall_ms()'s 1 s granularity
     static const uint64_t EPOCH_RECHECK_MS = 1000; // bound the RTC reads per beat
 
@@ -82,8 +81,7 @@ namespace Botanik { namespace Utils {
         result.minute      = (uint8_t)((secs_of_day % 3600) / 60);
         result.second      = (uint8_t)(secs_of_day % 60);
 
-        // sub-second straight from the wall-clock ms (a real boot epoch, so
-        // even boot-time entries get their true fraction).
+        // sub-second straight from the wall-clock ms
         result.millisecond = (uint16_t)(wall_ms % 1000);
         result.unixSeconds = total_secs;
         result.unixDays    = (uint32_t)days;

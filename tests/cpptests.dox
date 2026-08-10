@@ -4,9 +4,9 @@
  * @brief Native unit tests for the host-runnable parts of @c libbotanik, built on
  *        [doctest](https://github.com/doctest/doctest).
  *
- * The framework ships as a single vendored header (`tests/vendor/doctest.h`), so
- * there is nothing to fetch or install. Tests compile and run only in the
- * @c SIMULATOR build - they link the host `botanik` library and execute natively.
+ * The framework is a single vendored header (`tests/vendor/doctest.h`), so there
+ * is nothing to fetch. The tests compile and run only in the @c SIMULATOR build:
+ * they link the host `botanik` library and execute natively.
  *
  * @section cpptests_run Building & running
  *
@@ -15,57 +15,29 @@
  *     cmake -B build -DBOTANIK_TARGET=SIMULATOR   # once
  *     make -C build check                         # build the suite + run it
  *
- * `make check` builds the `botanik_tests` binary and runs it through CTest with
- * failures echoed inline. Equivalent lower-level invocations:
+ * `make check` builds `botanik_tests` and runs it through CTest with failures
+ * echoed inline. Lower-level equivalents:
  *
  *     make -C build botanik_tests          # just build the binary
  *     ./build/tests/botanik_tests          # run directly (doctest CLI)
  *     ./build/tests/botanik_tests -s       # ...with every successful check shown
  *     ctest --test-dir build --output-on-failure
  *
- * The raw binary accepts the full doctest command line - e.g.
- * `-tc="format_float*"` to run matching cases, `-ltc` to list them.
+ * The raw binary accepts the full doctest command line - `-tc="format_float*"`
+ * to run matching cases, `-ltc` to list them.
  *
  * @section cpptests_suites Suites
  *
- * - @ref test_text.cpp - the fixed-point `format_float()` (the stand-in for the
- *   missing `%f`) and the "N u ago" `format_age()` duration formatter.
- * - @ref test_time.cpp - 32-bit uptime rollover projection and the
- *   calendar/UNIX conversion, checked for internal consistency against an
- *   independent date algorithm rather than a pinned wall-clock date.
- * - @ref test_parser.cpp - the input parser decoding raw byte streams into
- *   events (CSI, Alt, and function-key escape sequences).
- * - @ref test_line_buffer.cpp - the fixed-capacity circular line buffer behind
- *   the scrollback (soft-wrap splitting, newest-first access).
- * - @ref test_logger.cpp / @ref test_writer.cpp / @ref test_filters.cpp - the
- *   logger: dual token-bucket rate limiting, the writers, and the topic filters.
- * - @ref test_alarms.cpp - the alarm model (raise/clear, the platform/site bit
- *   splice, sorting).
- * - @ref test_serial.cpp - the `BufferedSerial` ring buffer.
- * - @ref test_shell.cpp - command dispatch and the built-in handlers.
- * - @ref test_sizes.cpp - living documentation of the in-memory footprint of the
- *   long-lived UI and PLC objects (see below).
+ * One `tests/test_<subsystem>.cpp` per subsystem, named after the part of
+ * `src/libbotanik/` it covers. `-ltc` lists the cases in the current binary.
  *
  * @section cpptests_sizes Object sizes
  *
- * The OPTA core is RAM-constrained, so `test_sizes.cpp` prints the size of the
- * "big" structures on every run and fails only if one grows past a generous
- * budget. The figures below are from the x86-64 host build; the ARM target
- * differs (notably 4-byte pointers/`size_t`), and the page sizes are dominated by
- * config-driven line/log buffers, so they track the `Config::*` buffer knobs
- * rather than code changes.
+ * The OPTA core is RAM-constrained, so the suite prints the size of the big
+ * long-lived structures on every run and fails only if one grows past a generous
+ * budget. The page sizes are dominated by config-driven line/log buffers, so they
+ * track the `Config::*` buffer knobs rather than code changes, and the host
+ * figures differ from the ARM target's (narrower pointers there).
  *
- * | Structure                  | Host size (bytes) |
- * |----------------------------|------------------:|
- * | `Terminal::AnsiTerminal`   |               264 |
- * | `Terminal::TextEditor`     |               976 |
- * | `Terminal::InputParser`    |               112 |
- * | `Pages::HomePage<…>`       |            20'232 |
- * | `Pages::StatusPage<…>`     |             1'216 |
- * | `Pages::LogsPage`          |            50'504 |
- * | `Pages::ShellPage`         |            51'520 |
- * | `PlcIO::PlcInput<…>`       |                16 |
- * | `PlcIO::PlcOutput<…>`      |             8'648 |
- *
- * Run `./build/tests/botanik_tests -s` for the authoritative, current numbers.
+ * Run `./build/tests/botanik_tests -s` for the current numbers.
  */

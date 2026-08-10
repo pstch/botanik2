@@ -5,10 +5,9 @@
  * @file tasks_page.h
  * @brief TasksPage - the beat, as a table: what runs, how often, and what it costs.
  *
- * The scheduler self-instruments per task (Tasks::TaskCost), and until this
- * page there was nowhere to read it: `stats` reports the whole beat's CPU with no
- * attribution, so "which task blew the budget" had no answer. That is the
- * question this page exists for.
+ * The scheduler self-instruments per task (Tasks::TaskCost); this page is where
+ * that is read. `stats` reports the whole beat's CPU with no attribution, so
+ * "which task blew the budget" is the question this page answers.
  *
  * Layout (row 0 is the terminal status bar, the bottom row the alarm bar), the
  * same bordered shape as PARAMS and MONITOR:
@@ -25,11 +24,11 @@
  * still carries it, but finding one task by eye beats reading the cycle here.
  *
  * MEAN is microseconds measured by the registry around each dispatch, and says
- * whether a task is affordable. MISSED is beside it rather than the peak because
- * the two answer different questions and only one of them is a fault: the peak
- * is a diagnostic that never decays (one outlier pins it for the boot), while a
- * missed activation means the task did NOT run at the rate it declared - dropped
- * and never caught up (Tasks::TaskTimer). The peak keeps its place in the panel.
+ * whether a task is affordable. MISSED takes the column beside it rather than
+ * the peak: only one of the two is a fault. The peak never decays (one outlier
+ * pins it for the boot) and lives in the panel; a missed activation means the
+ * task did NOT run at the rate it declared, dropped and never caught up
+ * (Tasks::TaskTimer).
  */
 
 #include <cstdint>                          // uint8_t/uint32_t/uint64_t
@@ -77,9 +76,9 @@ namespace Botanik { namespace Pages {
          *  so the panels of the two tables line up. */
         static constexpr uint16_t PANEL_COL2 = 38;
         /** @brief How often the table repaints (Config::PAGE_TASKS_MS). Slower
-         *  than PAGE_HOT_MS: these are smoothed aggregates, not a live trace, and
-         *  a whole table of digits churning once a second is both unreadable and
-         *  a standing charge on the console's byte budget. */
+         *  than PAGE_HOT_MS: these are smoothed aggregates, and a whole table of
+         *  digits churning once a second is unreadable and a standing charge on
+         *  the console's byte budget. */
         static constexpr uint32_t REFRESH_MS = Config::PAGE_TASKS_MS;
         /** @brief Column order; the selection cursor inverts C_NAME's cell. */
         enum { C_NAME = 0, C_GROUP, C_PERIOD, C_PHASE, C_MEAN, C_MISSED };
@@ -91,13 +90,10 @@ namespace Botanik { namespace Pages {
         const Tasks::Registry&   _reg;
         bool                         _dirty = true;
         uint64_t                     _last_refresh_ms = 0;
-        /** @brief Row order: task indices sorted by name.
-         *
-         *  Registration order is the order the beat runs them, which is the more
-         *  informative default - but it makes finding one task a scan of the
-         *  whole table, and PHASE already carries the ordering. Built once; the
-         *  registry is frozen after bring-up, so a changed count is the only
-         *  thing that can invalidate it. */
+        /** @brief Row order: task indices sorted by name. Registration order is
+         *  the beat's order, but PHASE already carries that and finding one task
+         *  by eye matters more here. Built once: the registry is frozen after
+         *  bring-up, so only a changed count invalidates it. */
         mutable uint8_t              _order[Config::MAX_TASKS] = {};
         mutable uint8_t              _order_n = 0;
         /** @} */
@@ -169,10 +165,9 @@ namespace Botanik { namespace Pages {
 
         uint8_t _columns(Col* out) const override;
 
-        /** @brief One of the task's counters, or "-" before the first run.
-         *  Rendered as a plain integer: a task that has never run and one that
-         *  ran in under a microsecond are different facts, and 0 would conflate
-         *  them - as it would "never ran" with "has never missed one". */
+        /** @brief One of the task's counters, or "-" before the first run: 0
+         *  would conflate "never ran" with "ran in under a microsecond", and
+         *  with "has never missed one". */
         static const char* _num(char* buf, size_t cap, uint32_t v, uint32_t runs) {
             if (runs == 0) return "-";      // never run: not the same fact as 0
             return Utils::format_int(buf, cap, (long long)v);
@@ -189,9 +184,8 @@ namespace Botanik { namespace Pages {
 
 
         /** @brief Panel for the selected task: its last and peak sample, its run
-         *  and missed counts, and what share of its own period the mean accounts
-         *  for - which is the number that says whether a task is affordable at
-         *  the rate it is running. */
+         *  and missed counts, and the share of its own period the mean takes -
+         *  the number that says whether it is affordable at its rate. */
         void _draw_panel();
     };
 

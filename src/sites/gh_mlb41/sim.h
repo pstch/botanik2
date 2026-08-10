@@ -6,14 +6,13 @@
  * @brief HAND-WRITTEN - the gh_mlb41 simulated field: the data animator the
  *        simulator runs, and the timeout dilation.
  *
- * Not generated: how a greenhouse *behaves* is judgement, not schema, so this
- * file is yours. What matters for the interface is that it animates THIS site's
- * generated payload, so the simulator exercises the same layout, tables and
- * offsets the hardware will.
+ * Not generated: how a greenhouse *behaves* is judgement, not schema. It
+ * animates THIS site's tables, so the simulator exercises the same layout the
+ * hardware will.
  *
  * Header-only; the whole body is guarded by TARGET_SIMULATOR, so it is a
  * near-empty include on the OPTA / Arduino build, where the real field plays
- * this role. The floats here only shape the mock signal.
+ * this role. Site code must cross-compile, so keep the guard.
  */
 
 #ifdef TARGET_SIMULATOR
@@ -62,42 +61,31 @@ inline float drift(float v, float step, float lo, float hi, float p) {
 inline bool chance(float p) { return frand() < p; }
 
 /** @brief One mock alarm cause: the row it drives, and whether it is on right
- *  now. Named rather than positional - the animator drives the handful of
- *  conditions it has a story for, and must leave every other alarm row alone.
- *  Two of them are not the site's at all: the platform-health rows are in the
- *  same table now, and the firmware raises those itself. */
+ *  now. Named rather than positional - the animator drives only the conditions
+ *  it has a story for and must leave every other alarm row alone, including the
+ *  platform-health rows the firmware raises itself. */
 struct MockAlarm { const char* name; bool on; };
 
-/** @brief Publish one reading as a driver would: value, timestamp, valid in
- *  one step. Through the handle, not the value array - writing the array
- *  directly is how the simulated field silently drifted out of step with the
- *  model, since it would not fail to compile when the model changed. */
-/** @brief Where a bussed reading goes: into the DEVICE, not into the row.
+/** @brief Where a bussed reading goes: into the DEVICE, not into the row. Set by
+ *  the harness once the simulated field is up (botanik_sim's FieldBus); null on
+ *  a build with no bus, where put() writes the row instead.
  *
- *  Set by the harness when it has stood the simulated field up (botanik_sim's
- *  FieldBus). Null on a build with no bus, where put() falls back to writing the
- *  row so the console still shows something moving.
- *
- *  A hook rather than a direct call because this file is SITE code: it has to
- *  cross-compile for the OPTA, where botanik_sim does not exist. The whole body
- *  is inside TARGET_SIMULATOR, but the dependency direction still matters - the
- *  harness reaches into the site, never the other way. */
+ *  A hook rather than a direct call because this file is SITE code and must
+ *  cross-compile for the OPTA: the harness reaches into the site, never the
+ *  other way. */
 typedef void (*FieldSink)(void* ctx, const Vars::Variable& d, float v);
 inline FieldSink& field_sink() { static FieldSink fn = nullptr; return fn; }
 inline void*&     field_ctx()  { static void* ctx = nullptr; return ctx; }
 
+/** @brief Publish one reading as a driver would: value, timestamp and quality in
+ *  one step, through the handle rather than the value array. */
 inline void put(Vars::Bank& io, const char* id, float v, uint32_t now_ms) {
     Vars::Var h = io.var(id);
     const Vars::Variable& d = *h.meta();
 
-    // A row that lives on the FIELD BUS is not ours to write. We are the
-    // physical quantity - the voltage the meter would be measuring - so it goes
-    // into the device's register image, and the row is filled by the MASTER when
-    // it polls, with the master's own timestamp and quality.
-    //
-    // Writing the row here as well is what made a 10 s meter appear to change
-    // every beat: the value on screen was the animator's, and the poll only
-    // refreshed the stamp underneath it.
+    // A row on the FIELD BUS is not ours to write: we are the physical quantity,
+    // so it goes into the device's register image and the MASTER fills the row
+    // when it polls, with its own timestamp and quality.
     if (d.bind.transport == Vars::XP_MODBUS) {
         if (field_sink() != nullptr) field_sink()(field_ctx(), d, v);
         else h.publish(Scalar::F(v), now_ms);   // no bus: nothing else would
@@ -111,8 +99,7 @@ inline void put(Vars::Bank& io, const char* id, float v, uint32_t now_ms) {
  * two meters.
  *
  * Only the signals worth watching are animated; the rest of the table stays
- * invalid, which is honest - it reads as "no data" on the monitor page rather
- * than as a fabricated measurement.
+ * invalid, so it reads as "no data" rather than as a fabricated measurement.
  */
 inline void publish_meters(Vars::Bank& io, uint32_t now_ms) {
     const float t = (float)now_ms / 1000.0f;
@@ -154,15 +141,13 @@ inline void publish_meters(Vars::Bank& io, uint32_t now_ms) {
 /**
  * @brief The twelve Temp/RH sensors: exterior, crawlspace, low and high.
  *
- * Animated because the rows exist. Without this the field bus answers with
- * zeroed registers, so every sensor reads a perfectly VALID 0.0 C - which is
- * the worst of both worlds: it looks like a working instrument and it is not a
- * measurement. A row in the table and a row in the animator go together.
+ * Animated because the rows exist: without this the field bus answers zeroed
+ * registers and every sensor reads a perfectly VALID 0.0 C, which looks like a
+ * working instrument and is not a measurement.
  *
  * Shaped so the four groups say something a greenhouse would: the exterior
- * swings hardest over the day, the crawlspace barely moves (it is under the
- * floor), and high sits above low because warm air does. RH runs opposite to
- * temperature, which is what actually happens when you heat the same air.
+ * swings hardest, the crawlspace barely moves, high sits above low. RH runs
+ * opposite to temperature.
  */
 inline void publish_climate(Vars::Bank& io, uint32_t now_ms) {
     const float t = (float)now_ms / 1000.0f;
@@ -184,9 +169,8 @@ inline void publish_climate(Vars::Bank& io, uint32_t now_ms) {
 
     for (uint8_t g = 0; g < 4; g++) {
         for (uint8_t n = 1; n <= 3; n++) {
-            // Each sensor of a group sees the same weather, offset a little -
-            // three instruments in one space never agree exactly, and a display
-            // that shows them identical hides the one that has drifted.
+            // Each sensor of a group sees the same weather, offset a little:
+            // three instruments in one space never agree exactly.
             const float spread = ((float)n - 2.0f) * 0.4f;
             const float temp = groups[g].base + groups[g].swing * day + spread;
             // Warmer air, drier reading; kept inside the sensor's 0-100 band.
@@ -207,8 +191,8 @@ inline void publish_climate(Vars::Bank& io, uint32_t now_ms) {
  * @brief Drive the relay coils, so the climate and irrigation groups show
  * something moving.
  *
- * A caricature of a control law, not one: the point is that the console reads
- * these through the same handles a real program writes them with.
+ * A caricature of a control law: the console reads these through the same
+ * handles a real program writes them with.
  */
 inline void drive_coils(Vars::Bank& io, uint32_t now_ms) {
     const float t = (float)now_ms / 1000.0f;
@@ -254,9 +238,8 @@ inline void drive_coils(Vars::Bank& io, uint32_t now_ms) {
  * @brief Raise and clear alarm conditions.
  *
  * Triggers read the same variables the console shows, so an alarm on screen
- * always has a visible cause in the monitor table. The site has no climate
- * instrumentation mapped yet, so those conditions rest on their own slow drift
- * until it has.
+ * always has a visible cause in the monitor table. The climate conditions have
+ * no instrumentation mapped yet and rest on a slow drift instead.
  */
 inline void publish_alarms(Vars::Bank& io, uint32_t now_ms) {
     // Real causes, read back through the variable tables.
@@ -281,14 +264,12 @@ inline void publish_alarms(Vars::Bank& io, uint32_t now_ms) {
     };
     const uint8_t N = (uint8_t)(sizeof(mock) / sizeof(mock[0]));
 
-    // Settle window: keep alarms clear for the first stretch after boot (real
-    // plant likewise masks process alarms until its sensors settle). Kept
-    // generous so the first alarm lands well after boot, not seconds in.
+    // Settle window: keep alarms clear for the first stretch after boot, as a
+    // real plant masks process alarms until its sensors settle.
     const uint32_t SETTLE_MS = 120000;   // 2 min
 
     // Debounce: hold each cause ON for a minimum dwell so a signal hovering at
-    // its threshold cannot strobe the ribbon. The firmware's per-alarm min_on_s
-    // is the further local net.
+    // its threshold cannot strobe the ribbon.
     static uint32_t hold_ms[16] = {0};
     static uint32_t prev_ms = 0;
     const uint32_t dt = (prev_ms == 0) ? 0 : (now_ms - prev_ms);
@@ -301,9 +282,8 @@ inline void publish_alarms(Vars::Bank& io, uint32_t now_ms) {
         else if (hold_ms[i] > dt)   hold_ms[i] -= dt;
         else                        hold_ms[i] = 0;
         // By name, and only the rows above: an alarm this animator has no story
-        // for stays where it is, rather than being cleared every beat. That
-        // matters now that the platform-health rows share the table - writing a
-        // 0 over one would fight the health monitor that owns it.
+        // for stays where it is. Clearing it every beat would fight the health
+        // monitor that owns the platform rows in the same table.
         io.var(mock[i].name).set(on || hold_ms[i] > 0);
     }
 }
@@ -314,11 +294,7 @@ inline void publish_alarms(Vars::Bank& io, uint32_t now_ms) {
 
 /**
  * @brief Stand in for the field: publish meter readings, drive the coils, and
- * raise alarms.
- *
- * Called straight from the sim harness. It writes the variable tables - the
- * same ones a Modbus driver will write - so nothing downstream can tell the
- * difference.
+ * raise alarms. Called straight from the sim harness.
  */
 inline void simulate(Vars::Bank& io, uint32_t now_ms) {
     publish_meters(io, now_ms);

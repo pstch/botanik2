@@ -11,13 +11,11 @@
 *  for `SCOPE_A` and finds site and platform conditions together, in table order.
 *
 *  HealthMonitor drives them the way anything drives a variable: it resolves the
-*  names once at bring-up and writes the boolean. It has no alarm-model API of
-*  its own any more.
+*  names once at bring-up and writes the boolean.
 *
-*  These rows reach a site's table through BOTANIK_LIBRARY_VARS, the one splice
-*  point for everything libbotanik declares - see library_vars.h, which is also
-*  where the placement rules and the failure mode for leaving it out are written
-*  down. This header only owns the rows. */
+*  They reach a site's table through BOTANIK_LIBRARY_VARS, the one splice point
+*  for everything libbotanik declares; the placement rules live in
+*  library_vars.h. This header only owns the rows. */
 
 #include "libbotanik/vars/declare.h"    // the A() factory these rows are written with
 
@@ -32,7 +30,7 @@
  *  empty group vanishes cleanly. */
 #define BOTANIK_PLATFORM_ALARM_VARS                                                 \
     /* The window is Config::HEALTH_RESET_WINDOW_MS; the text says "recently"       \
-       rather than repeating the number, which drifted the moment one moved. */     \
+       rather than repeating a number that would drift from it. */                  \
     ::Botanik::Vars::A("alarm_system_reset", "SYS_RST", -1, 0, 0, 0, 0,        990, \
         "unit reset recently", ""),                                                 \
     ::Botanik::Vars::A("alarm_cpu_xrun", "CPU_XRUN", 0, -1, 0, 0, 0,           991, \

@@ -6,11 +6,12 @@
  *  types a caller holds by value). Everything else is defined here, under the
  *  same `#ifdef TARGET_OPTA / #else` split hal/net.cpp and hal/storage.cpp use.
  *
- *  This is where the platform's own headers - <termios.h>, <pthread.h>,
- *  <sys/ioctl.h> and friends on the host, mbed.h on the OPTA - are allowed to
- *  be included. Keeping them out of the backend headers is the point: those are
- *  reached by ~30 translation units, none of which want the POSIX or Mbed
- *  preprocessor surface in scope just to read the clock. */
+ *  This is the ONLY place the platform's own headers are allowed in:
+ *  <termios.h>, <pthread.h>, <sys/ioctl.h> and friends on the host, mbed.h on
+ *  the OPTA. The backend headers are reached by ~30 translation units, and
+ *  mbed.h alone preprocesses to 97,696 lines - none of them want that in scope
+ *  just to read the clock. This is the canonical statement of the split; the
+ *  backend headers point here. */
 
 #include "libbotanik/hal/platform.h"    // the surface defined here
 
@@ -22,19 +23,16 @@
 #include <cstdint>                      // uint32_t/uint64_t/uintptr_t
 #include <ctime>                        // time / time_t / set_time
 
-// mbed.h lives HERE and not in opta.h. The backend header carries the CMSIS
-// intrinsics it must inline; the two pieces of Mbed C++ the HAL needs
-// (LowPowerClock and the Watchdog singleton) are defined below, so 40 files stop
-// paying 97,696 preprocessed lines for them.
+// mbed.h lives HERE and not in opta.h (see the file header): the backend header
+// carries only the CMSIS intrinsics it must inline, and the two pieces of Mbed
+// C++ the HAL needs (LowPowerClock, the Watchdog singleton) are defined below.
 #include "mbed.h"                       // mbed::LowPowerClock / mbed::Watchdog
 #include "USBSerial.h"                  // USBSerial (the MONITOR transport)
 
 // Arduino.h defines `Serial` as a macro (#define Serial _UART_USB_), and the HAL
 // has a namespace by that name - so everything below would be parsed as
-// `namespace _UART_USB_`. Dropped here, after the vendor headers and before any
-// of our own code. It did not bite while mbed.h was reached through opta.h, only
-// once this file pulled it directly, which is exactly the kind of order
-// dependence keeping it to one TU is meant to contain.
+// `namespace _UART_USB_`. Must be dropped here: after the vendor headers, before
+// any of our own code.
 #ifdef Serial
 #undef Serial
 #endif
@@ -171,35 +169,27 @@ namespace Botanik { namespace HAL {
 
     /** @name RS-485 field bus
      *
-     *  The third endpoint, and the only one that is a BUS rather than a
-     *  point-to-point link. Two things follow from that, and both are hidden
-     *  here so nothing above this file learns what RS-485 is:
+     *  The only endpoint that is a BUS. Two constraints follow, both hidden here
+     *  so nothing above this file learns what RS-485 is:
      *
-     *  - **Only one device may drive the pair at a time.** A transceiver's
-     *    driver is switched on by DE and its receiver by RE (active low), and
-     *    getting the handover wrong is not a soft failure: drop DE early and the
-     *    last byte is truncated on the wire, drop it late and we are still
-     *    driving when the slave answers.
-     *  - **We cannot see when our own frame has left.** A UART's software
-     *    buffer going empty is not the shift register going empty; up to two
-     *    characters are still in flight.
+     *  - **Only one device may drive the pair at a time.** DE switches the
+     *    transceiver's driver on, RE its receiver (active low). Drop DE early
+     *    and the last byte is truncated on the wire; drop it late and we are
+     *    still driving when the slave answers.
+     *  - **We cannot see when our own frame has left.** A UART's software buffer
+     *    going empty is not the shift register going empty; up to two characters
+     *    are still in flight.
      *
-     *  @section fb_de Why the silicon drives DE and not us
+     *  PB_14 is USART3's own RTS/DE pin, so the handover is the peripheral's:
+     *  alternate function plus CR3.DEM, and the silicon asserts DE a guard time
+     *  before the start bit and drops it a guard time after the last stop bit -
+     *  timing a 10 ms beat could not reproduce.
      *
-     *  PB_14 is not an arbitrary GPIO the board happened to wire to DE: it is
-     *  USART3's own RTS/DE pin (Arduino picked it for exactly that reason, and
-     *  then drove it by hand anyway). Putting it in its alternate function and
-     *  setting CR3.DEM hands the whole handover to the peripheral, which asserts
-     *  DE a guard time before the start bit and drops it a guard time after the
-     *  last stop bit - timing we could not reproduce from a 10 ms beat, and
-     *  would not want to try.
-     *
-     *  RE is held asserted, so the receiver is always listening. That means we
-     *  hear our own transmission come back, exactly as long as what we wrote -
-     *  which is what fieldbus_echoes() reports and what lets the master count it
-     *  off rather than try to recognise it. DE and RE are separate pins here, so
-     *  gating RE around transmission instead is a real option; fieldbus_echoes()
-     *  is the one line that would change with it.
+     *  RE is held asserted, so we hear our own transmission come back, exactly as
+     *  long as what we wrote: that is what fieldbus_echoes() reports and what
+     *  lets the master count the echo off rather than recognise it. Gating RE
+     *  around transmission instead is a real option (separate pins), and
+     *  fieldbus_echoes() is the one line that would change with it.
      *  @{ */
 
     /** @brief The RS-485 transceiver on USART3.
@@ -273,31 +263,25 @@ namespace Botanik { namespace HAL {
         uint16_t availableForWrite() override { return _port.writable() ? 1 : 0; }
 
         /** @brief Whether everything written has finished leaving the wire.
+         *  Computed, not observed (there is no TX-complete interrupt): the
+         *  character-time arithmetic write() accumulates per byte.
          *
-         *  Computed, not observed: there is no TX-complete interrupt, so this is
-         *  character-time arithmetic accumulated per byte in write().
-         *
-         *  The caller uses it to know the transmit ring has DRAINED before it
-         *  starts the next frame, which is what makes "a frame goes out whole or
-         *  not at all" true. NOT a gate on listening - the master listens from
-         *  the moment the frame is queued, because a quick slave can answer
-         *  inside the same beat. */
+         *  Gates the START of the next frame, so a frame goes out whole or not
+         *  at all. NOT a gate on listening: the master listens from the moment
+         *  the frame is queued, since a quick slave can answer in the same
+         *  beat. */
         bool tx_idle() const { return Clock::uptime_us() >= _tx_done_us; }
 
         /** @brief Throw away whatever is sitting in the receive path.
          *
-         *  Called at bring-up, and again immediately before each frame goes
-         *  out - never between the frame leaving and the answer arriving, which
-         *  would throw away the reply of every device quick enough to answer
-         *  inside the beat.
+         *  Called at bring-up and immediately before each frame goes out - never
+         *  between the frame leaving and the answer arriving, which would discard
+         *  the reply of any device quick enough to answer inside the beat.
+         *  Bounded (no unbounded drain inside a beat); two full frames is more
+         *  than a turnaround can have delivered.
          *
-         *  Bounded, because an unbounded drain inside the beat is exactly the
-         *  thing this codebase does not do. Two full frames is far more than a
-         *  turnaround can have delivered.
-         *
-         *  @return how many bytes were discarded, so the caller can say that a
-         *  device answered after its turn had passed rather than dropping the
-         *  evidence with the bytes. */
+         *  @return how many bytes were discarded, so the caller can report a
+         *  device that answered after its turn had passed. */
         uint16_t flush_input() {
             uint8_t c;
             uint16_t n = 0;
@@ -451,11 +435,10 @@ extern char** environ;
 
 namespace {
 
-/** @brief Pre-raw-mode terminal settings. At namespace scope rather than as a
- *  function-local static on purpose: a local static carries a thread-safe
- *  initialisation guard, and that guard is a C++-only construct the signal
- *  handler chain below must not contain (until C++17). A POD here is
- *  zero-initialised before main, with no guard and no dynamic init. */
+/** @brief Pre-raw-mode terminal settings. Namespace scope, not a function-local
+ *  static: a local static carries a thread-safe init guard, which the signal
+ *  handler chain below must not contain. A POD here is zero-initialised before
+ *  main, with no guard and no dynamic init. */
 struct termios g_saved_console_termios;
 
 /** @brief Accessor for it. extern "C" because the signal handler reaches this
@@ -602,9 +585,8 @@ namespace Botanik { namespace HAL {
     }
 
     /** @brief True if a debugger (or any ptrace tracer) is attached: Linux
-     *  reports a non-zero TracerPid in /proc/self/status. Re-read on each call
-     *  (cheap, and
-     *  a debugger may attach late). */
+     *  reports a non-zero TracerPid in /proc/self/status. Re-read on each call,
+     *  since a debugger may attach late. */
     bool under_debugger() {
         int fd = open("/proc/self/status", O_RDONLY);
         if (fd < 0) return false;
@@ -711,10 +693,8 @@ namespace Botanik { namespace HAL {
         if (!initialized) {
             console.set_fds(STDIN_FILENO, STDOUT_FILENO);
             monitor.set_fds(-1, STDERR_FILENO);
-            // The field bus is a real socketpair: the firmware holds one end and
-            // the simulated devices the other, so the master's framing and its
-            // timeouts are exercised rather than emulated. A pair that cannot be
-            // created leaves the port unbound - a bus with no devices on it.
+            // Real socketpair (see simulator.h): a pair that cannot be created
+            // leaves the port unbound - a bus with no devices on it.
             int sp[2] = { -1, -1 };
             if (::socketpair(AF_UNIX, SOCK_STREAM, 0, sp) == 0) {
                 ::fcntl(sp[0], F_SETFL, ::fcntl(sp[0], F_GETFL, 0) | O_NONBLOCK);
@@ -764,11 +744,9 @@ namespace Botanik { namespace HAL {
     char*** reboot_argv() { static char** argv = nullptr; return &argv; }
 
     /** @brief Resolved on-disk path of this executable, captured at startup.
-     *  reset() re-execs this path rather than the /proc/self/exe magic symlink:
-     *  the symlink pins the running inode, so after a relink (a new inode at the
-     *  same path) it would re-run the old, now-deleted image. Re-resolving the
-     *  path picks up a rebuilt binary - this is what lets a SIGUSR1 after a build
-     *  hot-restart the sim. */
+     *  reset() re-execs this path, not the /proc/self/exe symlink: the symlink
+     *  pins the running inode, so after a relink it would re-run the old,
+     *  now-deleted image. Re-resolving picks up a rebuilt binary. */
     char* reboot_path() { static char path[PATH_MAX] = { 0 }; return path; }
 
     /** @brief Slot holding the optional reset hook (a single registrant today). */

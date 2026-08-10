@@ -31,10 +31,9 @@ namespace Botanik { namespace Network {
     }
 
     uint16_t MqttClient::peer_port() const {
-        // The mqtt_port parameter IS the setting: its declared default is the
-        // default, and its band starts at 1, so there is no zero to substitute
-        // for. A firmware-side fallback here would be a second default, free to
-        // drift from the one the operator sees on the PARAMS page.
+        // The mqtt_port parameter IS the setting: its band starts at 1, so
+        // there is no zero to substitute for. A fallback here would be a second
+        // default, free to drift from the one on the PARAMS page.
         return (uint16_t)Vars::get_int(_cfg, "mqtt_port");
     }
 
@@ -204,13 +203,10 @@ namespace Botanik { namespace Network {
     }
 
     int MqttClient::_poll_connack() {
-        // Reassembled across beats. TCP promises a byte stream, not segment
-        // boundaries: a CONNACK split 2+2 by a proxy or a loaded broker is
-        // perfectly legal, and treating a short read as a hard failure dropped
-        // the client into MQTT_ERROR for the whole retry period - for good, on a
-        // path where the split reproduces. The in-process mock cannot produce
-        // one, so no test here can catch it. MQTT_CONNECT_TIMEOUT_MS in
-        // on_step() is what bounds the wait.
+        // Reassembled across beats, never failed on a short read: TCP promises a
+        // byte stream, not segment boundaries, so a CONNACK split 2+2 by a proxy
+        // or a loaded broker is legal. The in-process mock cannot produce one,
+        // so no test covers it. MQTT_CONNECT_TIMEOUT_MS bounds the wait.
         while (_connack_len < sizeof(_connack)) {
             int r = HAL::Network::tcp_recv(_sock, _connack + _connack_len,
                                            (int)(sizeof(_connack) - _connack_len));
@@ -246,11 +242,10 @@ namespace Botanik { namespace Network {
         const uint64_t ka_ms = (uint64_t)ka_s * 1000ull;
 
         // A wedged broker, or a path that black-holes, leaves the socket open
-        // and answering nothing. Without this the client reports connected for
-        // ever while telemetry, alarm transitions and published logs go into the
-        // send buffer and vanish - and mqtt_ka_sec is documented as the
-        // dead-broker detection, which it was not. Half a keep-alive out, so a
-        // miss is noticed inside one and a half.
+        // and answering nothing; without this the client reports connected for
+        // ever while everything it publishes vanishes. This is what makes
+        // mqtt_ka_sec the dead-broker detection. Half a keep-alive of slack, so
+        // a miss is noticed inside one and a half.
         if (ka_ms != 0 && _last_pong_ms != 0 &&
             now_ms - _last_pong_ms > ka_ms + ka_ms / 2ull) {
             _fail(now_ms);

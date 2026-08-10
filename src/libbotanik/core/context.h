@@ -44,16 +44,15 @@ namespace Botanik {
 
         Scheduler::SchedulerContext*   scheduler = nullptr; ///< Performance snapshots
 
-        /** @brief The task table, with the per-task cost samples. The beat's
-         *  CPU figure in `scheduler` has no attribution; this is where it comes
-         *  from, and what the `tasks` command reports. Const: the registry is
-         *  frozen once the loop starts, and a reader must not add to it. */
+        /** @brief The task table, with the per-task cost samples: the
+         *  attribution the beat's CPU figure lacks, and what `tasks` reports.
+         *  Const, because the registry is frozen once the loop starts. */
         const Tasks::Registry*         tasks     = nullptr;
 
         /** @brief The variables - THE object to get, set and override anything
          *  the firmware exposes. Non-const: `set` and `override` write through
-         *  it. Consumers reach it here rather than being handed their own
-         *  pointer, so there is one wiring point instead of one per consumer. */
+         *  it. Consumers reach it here, so there is one wiring point rather than
+         *  one per consumer. */
         Vars::Bank*                    vars      = nullptr;
 
 
@@ -70,10 +69,9 @@ namespace Botanik {
 #endif
 
 #if BOTANIK_FEATURE_MODBUS_TCP_SERVER
-        /** @brief The Modbus TCP slave. The component rather than its context
+        /** @brief The Modbus TCP slave. The component rather than a context
          *  struct, like the network handlers above: SlaveContext is computed on
-         *  demand (half of it is derived from the socket and the map), so there
-         *  is no long-lived struct to point at. */
+         *  demand, so there is no long-lived struct to point at. */
         const Modbus::TcpSlave*        modbus_tcp = nullptr;
 #endif
 

@@ -86,9 +86,8 @@ namespace Botanik { namespace Scheduler {
 
     // Tick
     // ------------------------------------------------------------------------
-    // tick() is defined inline in the header (always_inline + BOTANIK_NO_ASAN)
-    // so its trailing stack paint folds into the caller's frame and captures
-    // the loop body's SP. The cold helpers below stay out of line.
+    // tick() is inline in the header (always_inline + BOTANIK_NO_ASAN, see its
+    // @warning); the cold helpers below stay out of line.
 
     // Internals
     // ------------------------------------------------------------------------
@@ -101,9 +100,8 @@ namespace Botanik { namespace Scheduler {
             // weight this tick's metric samples
             _missed_this_beat = (uint32_t)missed_beats;
             _next_tick_ms += (missed_beats * _period_ms);
-            // Count overruns - surfaced by the CPU_XRUN alarm and the `stats`
-            // overrun count. No log line: it would flood, especially under sim
-            // time dilation.
+            // No log line: it would flood, especially under sim time dilation.
+            // Surfaced by the CPU_XRUN alarm and the `stats` overrun count.
             _context.overruns += (uint32_t)missed_beats;
         }
     }
@@ -122,9 +120,8 @@ namespace Botanik { namespace Scheduler {
     }
 
     void LoopScheduler::_record_load(uint64_t now_us) {
-        // duty cycle: active (non-slept) time over the nominal period.
-        // Normalizing by the period (not elapsed) lets an overrunning beat read
-        // past 100%.
+        // Active (non-slept) time over the NOMINAL period, not the elapsed one,
+        // so an overrunning beat reads past 100%.
         if (_last_release_us != 0) {
             uint64_t elapsed = now_us - _last_release_us;
             uint64_t active  = (elapsed > _slept_us) ? (elapsed - _slept_us) : 0;
@@ -171,10 +168,9 @@ namespace Botanik { namespace Scheduler {
         // age by elapsed beats
         _cpu_loop_us_window.push(busy, 1 + _missed_this_beat);
 
-        // Scan the stack high-water. The sim repaints the free stack each slice
-        // and scans the sentinel (STACK_SLICE_TICKS throttles the repaint); OPTA
-        // reads the monotonic RTOS watermark, so it needs neither the paint nor
-        // the throttle - just sample it each beat.
+        // Stack high-water: the sim repaints and scans the sentinel once per
+        // slice (STACK_SLICE_TICKS), OPTA samples the monotonic RTOS watermark
+        // each beat and needs neither paint nor throttle.
 #ifdef TARGET_SIMULATOR
         if (++_stack_slice_tick >= STACK_SLICE_TICKS) {
             _stack_slice_tick = 0;
@@ -190,21 +186,18 @@ namespace Botanik { namespace Scheduler {
     }
 
     void LoopScheduler::_measure_stack_usage() {
-        // High-water used bytes. On hardware the RTOS already watermarks each
-        // thread's stack (painted once at thread creation), so we just read
-        // it - no manual paint of the wrong (MSP) stack. NOTE: that watermark
-        // is ALL-TIME (monotonic, can't reset), so on OPTA the all-time peak
-        // (stack_bytes_max) is exact, but the per-slice "recent" window/EMA
-        // degenerate to that same all-time figure. The sim repaints each slice,
-        // so there it's a true recent high-water that can fall.
+        // High-water used bytes. On hardware the RTOS watermarks each thread's
+        // stack, so just read it (a manual paint would hit the wrong, MSP,
+        // stack). That watermark is ALL-TIME and cannot reset, so on OPTA the
+        // all-time peak is exact while any "recent" figure degenerates to it;
+        // the sim repaints each slice and its high-water can fall.
         uint32_t low = HAL::Stack::high();
 #ifdef TARGET_SIMULATOR
         // The host has no RTOS watermark: read back the sentinel painted below
         // the loop frame. Scan the painted region top-down for the first
-        // RUN-long run of intact sentinel words - the start of untouched stack.
+        // RUN-long run of intact sentinel words, the start of untouched stack.
         // A multi-word run makes a coincidental match in used data (~1/2^32 per
-        // word) impossible, so this is the true high-water without the old
-        // (non-monotone, unsound) bisection.
+        // word) impossible.
         if (_paint_top != nullptr) {
             const uint32_t PAT = (uint32_t)0x01010101u * STACK_PAINT_BYTE;
             const int RUN = 4;   // 16 bytes of intact pattern == untouched
@@ -227,10 +220,9 @@ namespace Botanik { namespace Scheduler {
 #endif
         if (low == 0 || _stack_depth == 0) return;   // nothing measurable yet
 
-        // The high-water is already a max; just track the all-time peak - no
-        // EMA / rolling window. Publish the usage fraction and the absolute
-        // worst-case headroom (least free stack ever = depth - peak used), the
-        // safety-relevant value.
+        // The high-water is already a max, so only the all-time peak is kept.
+        // Publish the usage fraction and the worst-case headroom (least free
+        // stack ever = depth - peak used), which is the safety-relevant value.
         if (low > _stack_bytes_max) _stack_bytes_max = low;
         _context.stack_usage      = static_cast<float>(_stack_bytes_max)
                                   / static_cast<float>(_stack_depth);
@@ -239,21 +231,18 @@ namespace Botanik { namespace Scheduler {
 
 #ifdef TARGET_SIMULATOR
 
-    // Simulator only: hardware uses the RTOS stack watermark instead (see
-    // _measure_stack_usage), and manually repainting an RTOS thread's stack
-    // would clobber the RTOS's own watermark fill. noinline is load-bearing: it
-    // paints below its own &marker, so if it folded into the caller the paint
-    // would clobber the caller's live locals.
+    // Simulator only: repainting an RTOS thread's stack would clobber the
+    // watermark hardware reads instead (see _measure_stack_usage). noinline is
+    // load-bearing: it paints below its own &marker, so folded into the caller
+    // the paint would clobber the caller's live locals.
     __attribute__((noinline)) void LoopScheduler::_paint_below() {
         if (_stack_base == 0) return;
         // Ceiling = our own frame (a local), so the region is below the CALLER
-        // regardless of how inlining grows its frame - no dependency on the
-        // caller's size. Back off a margin that clears this function's own
-        // locals + memset's frame (the only thing below us); painting below
-        // &marker without it would clobber our spilled locals. The margin need
-        // only cover memset (a known leaf), not an unknown caller frame. memset
-        // (bounds captured once) is correct even at -O0, unlike an inline loop
-        // that re-reads now-clobbered local bounds each iteration.
+        // however inlining grows its frame. The margin must clear this
+        // function's own spilled locals plus memset's frame (a known leaf, the
+        // only thing below us). memset captures its bounds once, so it is
+        // correct even at -O0, where an inline loop would re-read bounds it has
+        // just clobbered.
         volatile uint8_t marker = 0;
         const ptrdiff_t MARGIN = 512;
         // Through uintptr_t deliberately: this walks the stack, it does not
@@ -276,22 +265,18 @@ namespace Botanik { namespace Scheduler {
     // Simulator utilities (memlock, CPU-pinning and SCHED_FIFO)
     // ------------------------------------------------------------------------
 
-    // BOTANIK_NO_RT_WARNING gates the best-effort failure warnings: a
-    // constrained host (CI/sandbox) denies these privileges, and which it
-    // denies varies, so the warnings are host-dependent noise the screen
-    // goldens silence. The call itself still runs either way.
+    // BOTANIK_NO_RT_WARNING gates the best-effort failure warnings: which
+    // privileges a constrained host (CI/sandbox) denies varies, so the warnings
+    // are host-dependent noise the screen goldens silence. The call itself runs
+    // either way.
     static bool _rt_warn() {
         return HAL::Env::u8("BOTANIK_NO_RT_WARNING", 0) == 0;
     }
 
-    /** @brief Say so on stderr, with an area tag, the way the sim's other
-     *  host-side scaffolding does.
-     *
-     *  NOT through the logger. These are facts about the DEVELOPMENT BOX - this
-     *  kernel would not grant SCHED_FIFO, this user cannot mlock - and the log
-     *  is the firmware's account of the plant. Mixing the two puts host noise in
-     *  front of an operator who has no host, and into the LOGS page and the MQTT
-     *  log topic with it. */
+    /** @brief Say so on stderr with an area tag, NOT through the logger: these
+     *  are facts about the development box, and the log is the firmware's
+     *  account of the plant (and reaches the LOGS page and the MQTT log
+     *  topic). */
     static void _rt_say(const char* what, int err) {
         if (!_rt_warn()) return;
         fprintf(stderr, "[sim-rt] %s: %s\n", what, strerror(err));

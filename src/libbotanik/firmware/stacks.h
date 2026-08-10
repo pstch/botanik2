@@ -7,10 +7,9 @@
  * @brief Feature-gated composition sub-objects for BotanikFirmware.
  *
  * Each optional subsystem group is bundled into one small owner so the firmware
- * base carries a single `#if BOTANIK_FEATURE_*` member per group instead of
- * scattering the components (and their ctor-init lines and per-beat steps)
- * across the template. The firmware still owns the shared singletons (logger,
- * scheduler, health, sys context) and injects them by pointer.
+ * base carries a single `#if BOTANIK_FEATURE_*` member per group. The firmware
+ * still owns the shared singletons (logger, scheduler, health, sys context) and
+ * injects them by pointer.
  *
  *  - MonitorStack  - the secondary MONITOR UART + its SerialLogWriter sink.
  *  - ConsoleStack  - the console UART + AnsiTerminal + the built-in pages.
@@ -76,8 +75,7 @@ namespace Botanik {
 
         Utils::BufferedSerial& serial() { return _serial; }
         Logs::SerialLogWriter& writer() { return _writer; }
-        // Both the serial pump (serial().step) and the writer drain
-        // (writer().step) are Components stepped directly by the firmware loop.
+        // Both halves are Components stepped directly by the firmware loop.
     };
 #endif
 
@@ -85,8 +83,8 @@ namespace Botanik {
     /** @brief The interactive console: the console UART, the AnsiTerminal, and
      *  the built-in pages that need nothing but it (shell / logs / alarms, and
      *  the notes editor when that feature is on). @p sched and @p sys are
-     *  borrowed by the status bar and the shell respectively - taken by pointer,
-     *  so the firmware may pass its members before their fields are filled. */
+     *  borrowed by the status bar and the shell, by pointer, so the firmware may
+     *  pass its members before their fields are filled. */
     class ConsoleStack {
 
         Utils::BufferedSerial   _serial;
@@ -115,8 +113,8 @@ namespace Botanik {
                      const Scheduler::SchedulerContext* sched = nullptr,
                      const SystemContext* sys = nullptr)
             : _serial(HAL::Serial::get(HAL::Serial::CONSOLE), logger, "ConsoleSerial"),
-              // Leading commas from here down, so any of the optional pages can
-              // drop out without stranding a separator.
+              // Leading commas from here down: an optional page can drop out
+              // without stranding a separator.
               _terminal(_serial, cols, rows, timestamp_ms, baud,
                         sched, alarms, logger)
 #if BOTANIK_FEATURE_SHELL_PAGE
@@ -205,10 +203,9 @@ namespace Botanik {
 
         /** @brief One-time init for every enabled service, mirroring step().
          *
-         *  The stack is a bundle, not a Component, so the scheduler cannot set up
-         *  its members for it - it only knows the bundle. Without this their
-         *  setup() and announce() would run lazily on their first step(), inside
-         *  the first beat, which is the thing Registry::setup() exists to stop. */
+         *  The stack is a bundle, not a Component, so the registry can only set
+         *  up the bundle; without this its members would init lazily inside the
+         *  first beat. */
         void setup(uint64_t now_ms) {
             _network.setup(now_ms);
 #if BOTANIK_FEATURE_NTP

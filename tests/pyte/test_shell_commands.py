@@ -1,8 +1,7 @@
 """Shell built-ins, driven through the real console - nothing else covers dispatch.
 
-`get` / `set` replaced three commands that each walked the variable table through
-a different lens; `override` is the other half, forcing any variable for
-maintenance where `set` only edits a parameter.
+`set` edits a parameter; `override` is the other half, forcing any variable for
+maintenance.
 
 Own sim per test: `set` and `override` both write, and a persisted override would
 outlive the test.
@@ -49,8 +48,8 @@ def test_override(spawn):
     _run(term, b"override grid_L1_V 123.5")
     assert term.wait_for("forced to"), "override did not take"
     # Both halves on rows of their own: what it is held at, and what it reads
-    # underneath. "Has the sensor come back?" is the question someone deciding
-    # whether to release an override actually has.
+    # underneath - "has the sensor come back?" is the question behind releasing
+    # an override.
     _run(term, b"get grid_L1_V")
     assert term.wait_for(("Override value", "123.5", "Raw value")), \
         "get did not show the override over the live reading"
@@ -135,20 +134,17 @@ def test_tasks(spawn):
     """The beat's totals - `stats` gives its CPU with no attribution.
 
     A summary in `stats`' shape, not a listing: the TASKS page is the table, and
-    22 rows over a throttled 4800-baud console was an index of a page. It still
-    wants `quiet_logs`, since the greenhouse's alarm churn competes with the
-    reply for that console and under host load the churn wins.
+    22 rows over a throttled 4800-baud console is an index of a page. Wants
+    `quiet_logs`, since alarm churn competes with the reply for that console.
 
     Presence, not order - `wait_for` is a latched set. `test_tasks.cpp` pins the
     dispatch order, and the missed count it reports.
     """
     term = shell(spawn, quiet_logs=True)
     _run(term, b"tasks")
-    # The four markers are the summary's own, and none of them can come from the
-    # old per-task table - which is the whole assertion that this is no longer a
-    # listing. Nothing asserts the table's ABSENCE directly: it would have
-    # scrolled out of a 24-row screen by the time the last line lands, so the
-    # check would pass either way.
+    # The four markers belong to the summary and to no per-task row, which is
+    # what asserts this is not a listing. The table's absence cannot be checked
+    # directly: it would have scrolled off a 24-row screen either way.
     assert term.wait_for(("Registered", "Missed", "Peaks add to", "TASKS page")), \
         "tasks did not render the beat summary"
 

@@ -8,9 +8,9 @@
  *  include.
  */
 
-// Every include here is RE-EXPORTED, not used: this header's whole job is to
-// give a site one include for the public API. The reason on each line is what
-// that header contributes to that API, not a dependency of this file.
+// Every include here is RE-EXPORTED, not used: the job of this header is to give
+// a site one include for the public API. Each trailing note says what that header
+// contributes to the API, not a dependency of this file.
 #include "libbotanik/alarms/alarms.h"           // AlarmController / AlarmCondition
 #include "libbotanik/console/console.h"         // Console
 #include "libbotanik/console/editor.h"          // TextEditor + EditorBuffers

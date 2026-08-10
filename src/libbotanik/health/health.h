@@ -8,14 +8,11 @@
  *
  * Owns the alarm model + MQTT notifier; each beat it asserts the generic
  * platform-health alarms from the scheduler metrics, runs a small self-test,
- * and advances the model. It also produces the watchdog verdict - the one
- * principled "should we keep kicking" input:
+ * and advances the model.
  *
- *   - our loop is alive (we reach watchdog_ok() every beat) -> keep kicking.
- *
- * That is the whole verdict today: with no coprocessor link to lose, nothing
- * else can justify letting the hardware watchdog fire. Control-side fault
- * escalation belongs to the scan cycle, not here.
+ * It also produces the watchdog verdict, which is simply "the loop is alive":
+ * reaching watchdog_ok() every beat is the only thing that keeps the kick
+ * going. Control-side fault escalation belongs to the scan cycle, not here.
  */
 
 #include <cstdint>                          // uint8_t/int16_t/uint64_t
@@ -63,13 +60,10 @@ namespace Botanik { namespace Health {
 
         /** @name The alarms this class raises
          *
-         *  A named reference each, bound once in on_setup(). No enum, no index
-         *  table and no order to keep in step with anything: the row is found by
-         *  the name written beside it in _bind_alarms(), and a name matching no
-         *  row is counted by the bank, logged, and failed by POST.
-         *
-         *  Bound rather than looked up per beat: a name lookup is a search, and
-         *  these six names cannot change once the table is built.
+         *  A named reference each, bound once in on_setup() rather than looked
+         *  up per beat. No enum and no index table: the row is found by the name
+         *  written beside it in _bind_alarms(), and a name matching no row is
+         *  counted by the bank, logged, and failed by POST.
          *  @{ */
         Vars::VarRef _a_reset  = { Vars::VAR_NONE };
         Vars::VarRef _a_xrun   = { Vars::VAR_NONE };
@@ -83,8 +77,8 @@ namespace Botanik { namespace Health {
 
     public:
         /** @brief Build the notifier + model. The model finds every alarm by
-         *  scanning @p io for SCOPE_A rows - the site's and the library's own
-         *  (alarms/platform.h) alike - so there is no alarm table to pass. */
+         *  scanning @p io for SCOPE_A rows, so there is no alarm table to
+         *  pass. */
         HealthMonitor(Logs::Logger* logger,
                       const Scheduler::SchedulerContext* sched,
                       const Vars::Bank* io = nullptr)
@@ -143,22 +137,19 @@ namespace Botanik { namespace Health {
         void _post() {
             bool ok = true;
             // Every alarm this class raises has to exist in the table, or the
-            // raise would write to the inert sink and the fault would never be
-            // announced. _bind() reported each miss by name as it happened.
+            // raise writes to the inert sink and the fault is never announced.
             if (!_bound_ok) ok = false;
 #if BOTANIK_FEATURE_LOGGING
-            // A logger with no writers would silently swallow everything. Only
-            // a defect when logging was asked for: a LOGGING=OFF build has no
-            // writers BY CONSTRUCTION, and failing POST for it would report the
-            // build's own configuration as a fault.
+            // A logger with no writers silently swallows everything. Only a
+            // defect when logging was asked for: a LOGGING=OFF build has no
+            // writers by construction.
             if (_logger == nullptr || !_logger->has_writers()) ok = false;
 #endif
-            // The alarm model holds ALARM_SLOTS conditions and the table may
-            // declare more. Losing the tail means those alarms are never driven
-            // - and because the library's platform rows are spliced FIRST, what
-            // goes is the site's own. The only guard was a BOTANIK_ASSERT, which
-            // compiles to nothing without DEBUG, i.e. on every OPTA build. This
-            // is the one place that runs on hardware and can say so.
+            // The model holds ALARM_SLOTS conditions and the table may declare
+            // more; the lost tail is never driven, and since the library's rows
+            // splice FIRST what goes is the site's own. The BOTANIK_ASSERT in
+            // the controller compiles to nothing without DEBUG (every OPTA
+            // build), so this is the check that runs on hardware.
             if (_model.declared_count() > _model.count()) {
                 ok = false;
                 char detail[80];
@@ -183,8 +174,7 @@ namespace Botanik { namespace Health {
         }
 
         /** @brief Bind every alarm this class raises, once. Nothing else names
-         *  them, so this list IS the list - there is no second copy to drift
-         *  from, which is what the code table beside the alarm table was. */
+         *  them, so this list IS the list: no second copy to drift from. */
         void _bind_alarms() {
             _bound_ok = true;
             _a_reset  = _bind("alarm_system_reset");
@@ -196,8 +186,8 @@ namespace Botanik { namespace Health {
         }
 
         /** @brief Resolve @p name, reporting a miss for POST. A site that left
-         *  BOTANIK_PLATFORM_ALARM_VARS out of its table lands here, six times,
-         *  by name - which is the whole diagnosis. */
+         *  BOTANIK_PLATFORM_ALARM_VARS out of its table lands here six times,
+         *  by name, which is the whole diagnosis. */
         Vars::VarRef _bind(const char* name) {
             Vars::VarRef r = { Vars::VAR_NONE };
             if (_io != nullptr) r = _io->find(name);
@@ -208,10 +198,9 @@ namespace Botanik { namespace Health {
             return r;
         }
 
-        /** @brief Raise or clear @p r. Writing the variable IS raising the alarm
-         *  now: the model reads the same row on its next step. An unbound one
-         *  lands on the bank's inert sink, so this needs no guard of its own -
-         *  but POST has already said so out loud. */
+        /** @brief Raise or clear @p r. Writing the variable IS raising the
+         *  alarm: the model reads the same row on its next step. An unbound one
+         *  lands on the bank's inert sink, so this needs no guard. */
         void _raise(Vars::VarRef r, bool on) {
             if (_io != nullptr) _io->var(r).set(on);
         }
@@ -222,11 +211,9 @@ namespace Botanik { namespace Health {
          *  overrun. */
         void _assert_platform_alarms(uint64_t now) {
             _raise(_a_reset, now < Config::HEALTH_RESET_WINDOW_MS);
-            // Sticky by construction: the counter only ever rises, so once a
-            // write has been refused the alarm stays up until a reboot. That is
-            // the honest shape - a store that will not take writes does not
-            // recover on its own, and the damage (settings reverting) is only
-            // visible long after the fact.
+            // Sticky by construction: the counter only ever rises, so a refused
+            // write holds the alarm up until a reboot. A store that will not
+            // take writes does not recover on its own.
             _raise(_a_flash, HAL::Storage::fault_count() > 0);
             if (_sched == nullptr) return;
             const uint32_t period_us = Config::TASK_PERIOD_MS * 1000u;
@@ -259,12 +246,9 @@ namespace Botanik { namespace Health {
             _raise(r, now < until_ms);
         }
 
-        /** @brief Watchdog verdict: the loop is alive.
-         *
-         *  Constant while stepping. With no coprocessor link to lose, nothing
-         *  else justifies letting the hardware watchdog fire; control-side
-         *  escalation belongs to the scan cycle. The seam stays for the day
-         *  something does. */
+        /** @brief Watchdog verdict: the loop is alive, so constant while
+         *  stepping (see the file header). The seam stays for the day something
+         *  else justifies letting the watchdog fire. */
         void _update_watchdog(uint64_t /*now*/) {
             _watchdog_ok = true;
         }

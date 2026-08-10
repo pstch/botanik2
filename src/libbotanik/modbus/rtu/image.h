@@ -6,22 +6,16 @@
  * @brief Where the bus meets the bank: a response becomes readings, and demands
  *        become a frame.
  *
- * @section img_image The scan never touches the wire
+ * The scan never touches the wire. A sweep of this plant is hundreds of
+ * milliseconds - tens of beats - so the textbook cycle-boundary I/O is out of
+ * reach: the bus runs on its own clock and maintains a PROCESS IMAGE the cycle
+ * reads. Vars::Bank already is that image and XP_MODBUS already marks the rows
+ * the driver owns, so there is nothing here to build, only two directions to
+ * move values in.
  *
- * The textbook PLC cycle reads its inputs, executes, and writes its outputs,
- * once per cycle, with I/O synchronous at the cycle boundary. That works when
- * the I/O is backplane-local and costs microseconds. A sweep of this plant is
- * hundreds of milliseconds - tens of beats - so it cannot be done at the top of
- * one.
- *
- * So the bus runs on its own clock and maintains a PROCESS IMAGE, and the cycle
- * reads the image. Vars::Bank already is that image, and XP_MODBUS already marks
- * the rows the driver owns, so there is nothing here to build: only two
- * directions to move values in.
- *
- * Free functions rather than a class, because there is no state to keep. What
- * has been read lives in the bank, and what is owed to the field is a bit on the
- * row that owes it.
+ * Free functions rather than a class: there is no state to keep. What has been
+ * read lives in the bank, and what is owed to the field is a bit on the row
+ * that owes it.
  */
 
 #include <cstdint>
@@ -43,60 +37,48 @@ namespace Botanik { namespace Modbus {
      *  @{ */
 
     /**
-     * @brief Publish @p r's payload into the rows of @p b.
-     *
-     * Each row knows where it sits: its register minus the block's is its offset
-     * into the payload. Digital rows fold in F_INVERT here, which is the one
-     * place active-low wiring is dealt with, so everything above reads
-     * true = asserted.
-     *
-     * Every row is CHECKED before it is published, not after. A shorted 4-20 mA
-     * loop reads full scale, which is a perfectly well-formed number, and this
-     * is what stops it reaching a control program as a measurement.
-     *
-     * Two bands, one rule. A calibrated row (`SCOPE_AI`) is converted through
-     * its calibration and judged against the band in the PARAMETER table, which
-     * only a driver holding the bank can resolve. A direct row is judged by
-     * `Vars::value_implausible()` against the band on the descriptor. Both
-     * happen here, at commit. Leaving the direct rows to
-     * `Bank::reject_implausible()` meant they were judged at background rate, so
-     * a reading outside its band was Q_GOOD to every control program that ran in
-     * between - the sweep remains, as the backstop for rows that do not arrive
-     * over this bus at all.
-     *
-     * @return how many rows were published as good.
-     */
-    /**
-     * @brief Invalidate every row of @p b with @p q, because the read failed.
-     *
-     * A driver that knows a read failed should say so. Left alone, a row keeps
-     * Q_GOOD and its last value until expire_stale() catches up - and a row
-     * declared with timeout_ms == 0 is skipped by expire_stale entirely, so it
-     * would read good, with a value from before the device died, for ever.
-     *
-     * @p q is the diagnosis: Q_REFUSED when the device answered and declined
-     * (its register map is not the one we hold), Q_STALE when nothing came back.
-     */
-    /**
      * @brief Owe every row of @p b to the field again, without changing what
      *        any of them demands.
      *
-     * For a device that went away and came back. The dirty mark means "the wire
-     * has not carried this yet", and it was cleared when the write landed - on a
-     * device that has since been through its own power-on defaults. A relay
-     * board that reboots comes back with its coils open while the firmware still
-     * believes it commanded them shut, and nothing in a level-driven scan ever
-     * disagrees: the demand has not moved, so no write is queued, so the plant
-     * sits wrong until something else happens to change it.
-     *
-     * Re-marking is not a re-decision. The value stands; only its delivery is
+     * For a device that went away and came back: the dirty mark means "the wire
+     * has not carried this yet", and it was cleared when the write landed, on a
+     * device that has since been through its own power-on defaults. A level
+     * driven scan never disagrees on its own, because the demand has not moved.
+     * Re-marking is not a re-decision: the value stands, only its delivery is
      * owed again.
      */
     void reassert_block(Vars::Bank& io, const Planner& p, const Block& b);
 
+    /**
+     * @brief Invalidate every row of @p b with @p q, because the read failed.
+     *
+     * Left alone a row keeps Q_GOOD and its last value until expire_stale()
+     * catches up - and a row declared with timeout_ms == 0 is skipped by
+     * expire_stale entirely, so it would read good, with a value from before the
+     * device died, for ever.
+     *
+     * @p q is the diagnosis: Q_REFUSED when the device answered and declined
+     * (its register map is not the one we hold), Q_STALE when nothing came back.
+     */
     void invalidate_block(Vars::Bank& io, const Planner& p, const Block& b,
                           Vars::Quality q);
 
+    /**
+     * @brief Publish @p r's payload into the rows of @p b.
+     *
+     * Each row knows where it sits: its register minus the block's is its offset
+     * into the payload. Digital rows fold in F_INVERT here, the one place
+     * active-low wiring is dealt with, so everything above reads true = asserted.
+     *
+     * Every row is CHECKED before it is published, not after: a shorted 4-20 mA
+     * loop reads full scale, which is a perfectly well-formed number. A
+     * calibrated row (`SCOPE_AI`) is judged against the band in the PARAMETER
+     * table, a direct row by `Vars::value_implausible()` against the band on the
+     * descriptor. Both at commit, since `Bank::reject_implausible()` runs at
+     * background rate and is only the backstop for rows off this bus.
+     *
+     * @return how many rows were published as good.
+     */
     uint16_t commit_read(Vars::Bank& io, const Planner& p, const Block& b,
                          const Response& r, uint64_t now_ms);
 
@@ -117,8 +99,8 @@ namespace Botanik { namespace Modbus {
      * writing them is the price of the same merge.
      *
      * Reads through Var::raw(), NOT the underlying value, so an operator's
-     * override on an actuator reaches the wire. Driving one by hand with the
-     * programs stopped is the entire point of `control disable`.
+     * override on an actuator reaches the wire, which is what `control disable`
+     * is for.
      *
      * @return bytes written, or 0 if @p cap is too small.
      */
@@ -132,12 +114,10 @@ namespace Botanik { namespace Modbus {
      * Only after the slave has confirmed: clearing on send would lose a demand
      * to a frame that never arrived.
      *
-     * And only PER ROW, because the two ends of a transaction are several beats
-     * apart. collect_write() runs when the frame is built and this runs when the
-     * echo comes back; a program that moves a demand in between has set the
-     * dirty mark on a value this frame never carried, and clearing the block
-     * wholesale would drop it until the rewrite interval - five seconds of a
-     * stale command on an actuator.
+     * And only PER ROW: the two ends of a transaction are several beats apart,
+     * so a program that moved a demand in between has marked dirty a value this
+     * frame never carried, and clearing the block wholesale would drop it until
+     * the rewrite interval.
      *
      * @p sent is the payload collect_write() produced, which is still sitting in
      * the caller's frame buffer, so nothing has to be copied to compare against.

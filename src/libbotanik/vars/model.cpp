@@ -2,9 +2,8 @@
  * @file model.cpp
  * @brief Bank: seeding, lookup, staleness expiry and the fail-safe sweep.
  *
- * Each is ONE loop over the one table, with a role switch. Nothing here names a
- * subset by hand: a sweep that covers some roles and not others is a rule with
- * nowhere to write down why.
+ * Each is ONE loop over the one table, with a role switch; no sweep names a
+ * subset of rows by hand.
  */
 
 #include "libbotanik/vars/model.h"  // Bank / Var / Variable
@@ -29,13 +28,10 @@ namespace Botanik { namespace Vars {
          *  bounded to @p len characters when @p len is non-zero (a shell word
          *  has no NUL of its own).
          *
-         *  The bounded arm is the same order as the unbounded one: with the
-         *  first @p len characters equal, a longer row name sorts after the key,
-         *  because the key ends there. That is what lets one sorted mapping
-         *  serve both find() overloads.
-         *
-         *  A nameless row sorts after everything and matches nothing, so it
-         *  simply falls off the end of the search. */
+         *  Both arms give the same order (with the first @p len characters
+         *  equal, a longer row name sorts after the key), so one sorted mapping
+         *  serves both find() overloads. A nameless row sorts after everything
+         *  and matches nothing. */
         int cmp_name(const char* n, const char* key, uint16_t len) {
             if (n == nullptr)   return (key == nullptr) ? 0 : 1;
             if (key == nullptr) return -1;
@@ -56,20 +52,17 @@ namespace Botanik { namespace Vars {
     }  // namespace
 
     void Bank::init() {
-        // Text rows are laid out first, in table order, so a slot's position is
-        // derived rather than declared: inserting a text parameter shifts the
-        // ones after it here, not by hand in the site's table, where getting one
-        // wrong overlaps two settings silently.
+        // Text rows first, in table order, so a slot's position is derived and
+        // never declared.
         _pool_used = 0;
         for (uint16_t i = 0; i < _tables.count; i++) {
             const uint16_t cap = text_slot(_tables.var[i]).cap;
             if (cap == 0) { _tables.val[i].str_off = 0; continue; }
             if ((uint32_t)_pool_used + cap > _tables.pool_bytes) {
                 // Out of pool. STR_NO_SLOT, not 0: offset 0 is the first text
-                // row's slot, so parking an overflowed row there made the two
-                // share bytes, and a pool smaller than one slot wrote past the
-                // end of the array. text_at() refuses on the sentinel, so the
-                // row reads empty and every write bounces.
+                // row's slot, so an overflowed row parked there would share its
+                // bytes. text_at() refuses on the sentinel, so the row reads
+                // empty and every write bounces.
                 _tables.val[i].str_off = STR_NO_SLOT;
                 _pool_overflow++;
                 continue;
@@ -84,17 +77,15 @@ namespace Botanik { namespace Vars {
             _tables.val[i].stamp_ms = 0;
             // Overrides are a live-session tool; a fresh table has none.
             _tables.val[i].ovr_on   = false;
-            // A parameter always HAS a value - its factory default until the
-            // store loads one - so it starts good. Everything else starts with
-            // nothing written, so it reads as its default and the console says
-            // so rather than presenting a default as a measurement.
+            // A parameter always HAS a value (its factory default until the
+            // store loads one), so it starts good. Everything else starts with
+            // nothing written, so a default is never shown as a measurement.
             _tables.val[i].qual     = (d.role == ROLE_PARAM) ? Q_GOOD : Q_NO_DATA;
-            // Nothing has been demanded yet, so nothing is owed to the field.
-            // An output starts at its safe state and the driver's first
-            // unconditional rewrite is what puts it there.
+            // Nothing demanded yet, so nothing is owed to the field: an output
+            // starts at its safe state and the driver's first unconditional
+            // rewrite is what puts it there.
             _tables.val[i].vflags   = 0;
-            // Nobody has claimed it. Set here rather than left to the store's
-            // zero fill, because zero is program 0 and not "no program".
+            // Explicit, not left to zero fill: zero is program 0, not "none".
             _tables.val[i].writer   = WRITER_NONE;
 
             uint16_t cap = 0;
@@ -119,9 +110,8 @@ namespace Botanik { namespace Vars {
         const uint16_t cap = text_slot(*h.meta()).cap;
         const uint16_t off = h.str_off();
         if (_tables.pool == nullptr || cap == 0 || off == STR_NO_SLOT) return nullptr;
-        // Belt and braces: init() already bounded this, but this is the one
-        // place a pool pointer is handed out, so it is the one place worth
-        // proving it lands inside the array.
+        // Belt and braces: init() already bounded this, but this is the only
+        // place a pool pointer is handed out.
         if ((uint32_t)off + cap > _tables.pool_bytes) return nullptr;
         if (cap_out != nullptr) *cap_out = cap;
         return _tables.pool + off;
@@ -137,10 +127,9 @@ namespace Botanik { namespace Vars {
         if (_tables.index == nullptr || _tables.var == nullptr || _tables.count == 0) return;
 
         for (uint16_t i = 0; i < _tables.count; i++) _tables.index[i] = i;
-        // Binary insertion sort. The expensive operation here is the strcmp, and
-        // this does n log n of them (~2000 for a 260-row site); the shuffling is
-        // uint16_t moves, which are free by comparison. Once, at construction -
-        // there is no insertion, no removal and nothing to invalidate later.
+        // Binary insertion sort: the strcmp is the expensive part and this does
+        // n log n of them (~2000 for a 260-row site), the shuffling being
+        // uint16_t moves. Once, at construction; nothing invalidates it.
         for (uint16_t i = 1; i < _tables.count; i++) {
             const uint16_t row = _tables.index[i];
             uint16_t lo = 0, hi = i;
@@ -181,9 +170,8 @@ namespace Botanik { namespace Vars {
         if (name == nullptr) return r;
         r.index = _lookup(name, 0);
         if (r.index != VAR_NONE) return r;
-        // Nothing addresses a row by number any more, so a miss here is a name
-        // that exists in a table or a program but not in vars.h. Count it (and
-        // say which) rather than letting it read as a dead variable forever.
+        // A miss is a name a table or a program uses but vars.h does not
+        // declare. Count it and say which, or it reads as a dead variable.
         if (_unresolved < 0xFFFFu) _unresolved++;
         if (_logger != nullptr) _logger->error(Logs::BOOT, "unknown variable\n'%s'", name);
         return r;
@@ -217,27 +205,24 @@ namespace Botanik { namespace Vars {
     void Bank::disable_control(ControlInhibit source) {
         const uint8_t before = _inhibits;
         _inhibits |= (uint8_t)source;
-        // Nothing new: this hold was already in force. Worth the early exit -
-        // the loop's caller is the per-beat watchdog path, which re-asserts the
-        // health hold every beat for as long as the fault lasts.
+        // Already held: the per-beat watchdog path re-asserts the health hold
+        // for as long as the fault lasts, so the early exit is worth it.
         if (before == _inhibits) return;
 
-        // Drop to safe on the transition only. Control was live until now, so
-        // this is the one moment the outputs need putting somewhere known; a
-        // second inhibit arriving on top finds them already there.
+        // Drop to safe on the transition only; a second inhibit arriving on top
+        // finds the outputs already there.
         const bool to_safe = (before == 0);
-        // Only the SYSTEM's withdrawal releases a hand-held output. The
-        // operator's is how you take the plant by hand, and wiping the overrides
-        // would leave nothing able to move an actuator at all - see the header.
+        // Only the SYSTEM's withdrawal releases a hand-held output - see the
+        // header.
         const bool release = (source == INHIBIT_HEALTH);
         if (!to_safe && !release) return;
 
         for (uint16_t i = 0; i < _tables.count; i++) {
             if (_tables.var[i].role != ROLE_OUTPUT) continue;
             if (release && _tables.val[i].ovr_on) {
-                // Wipe the stored copy in the same breath: overrides persist, so
-                // a release that only cleared RAM would hand the actuator back
-                // to whoever forced it at the next boot.
+                // Wipe the stored copy too: overrides persist, so clearing only
+                // RAM hands the actuator back to whoever forced it at the next
+                // boot.
                 if (_store != nullptr) (void)_store->clear_override(_tables.var[i]);
                 _tables.val[i].ovr_on = false;
                 _tables.val[i].vflags |= VF_FIELD_DIRTY;
@@ -245,9 +230,8 @@ namespace Botanik { namespace Vars {
             if (to_safe) {
                 _tables.val[i].qual = Q_SAFE;
                 // The safe state is only in the image until something carries it
-                // out. With local I/O that is instant; over a field bus it is a
-                // transaction, and an unmarked row would leave the actuator
-                // energised at exactly the moment control was withdrawn.
+                // out: over a field bus that is a transaction, and an unmarked
+                // row leaves the actuator energised.
                 _tables.val[i].vflags |= VF_FIELD_DIRTY;
             }
         }
@@ -282,14 +266,12 @@ namespace Botanik { namespace Vars {
         if (held == who) return true;               // the usual case, every beat
         if (held == WRITER_NONE) { held = who; return true; }
 
-        // A second author. Counted, not logged: this runs inside the control
-        // phase, from a class with no logger, on a path that must stay bounded.
-        // The driver reads the count on the edge and names the row.
+        // A second author. Counted, not logged: this runs in the control phase,
+        // from a class with no logger. The driver reads the count on the edge
+        // and names the row.
         //
-        // Counted ONCE PER ROW, not per collision. Both programs keep writing
-        // every beat and each takes the row from the other, so a per-collision
-        // count would rise forever and the report would fire on every beat -
-        // which is exactly what happened before the flag was added.
+        // Counted ONCE PER ROW, not per collision: both programs keep writing
+        // every beat, so a per-collision count would rise forever.
         uint8_t& vf = _tables.val[r.index].vflags;
         if ((vf & VF_TWO_WRITERS) == 0) {
             vf = (uint8_t)(vf | VF_TWO_WRITERS);
@@ -297,7 +279,7 @@ namespace Botanik { namespace Vars {
             if (_conflict_row.index == VAR_NONE) _conflict_row = r;
         }
         // The newest writer becomes the holder, so the row reports whoever
-        // actually wrote it last rather than freezing on the first claimant.
+        // actually wrote it last.
         held = who;
         return false;
     }
@@ -312,9 +294,8 @@ namespace Botanik { namespace Vars {
         for (uint16_t i = 0; i < _tables.count; i++) {
             const Variable& d = _tables.var[i];
             if (d.role != ROLE_INPUT || _tables.val[i].qual != Q_GOOD) continue;
-            // An override is a maintainer deliberately pushing a reading past
-            // its band to exercise what watches for it - the one case where an
-            // implausible value is the point.
+            // An override pushes a reading past its band on purpose, to
+            // exercise what watches for it.
             if (_tables.val[i].ovr_on) continue;
 
             if (!value_implausible(d, _tables.val[i].v)) continue;
@@ -344,9 +325,8 @@ namespace Botanik { namespace Vars {
     namespace {
         /** @brief Whether @p d may be edited at all, and where its slot is.
          *
-         *  The handle already points INTO the table, so its row is the offset -
-         *  no name scan. (It may instead point at the sink, which is what the
-         *  range check rejects; a Var is only ever one or the other.) */
+         *  The handle points INTO the table, so its row is the offset. The range
+         *  check rejects a handle on the sink, which is the only alternative. */
         Value* editable_slot(const VarTables& t, const Variable* d) {
             if (d->role != ROLE_PARAM || (d->flags & F_RDONLY) != 0) return nullptr;
             if (t.var == nullptr || d < t.var || d >= t.var + t.count) return nullptr;
@@ -430,13 +410,11 @@ namespace Botanik { namespace Vars {
     SetResult Bank::override_set(Var h, const char* text, bool valid) {
         const Variable* d = h.meta();
         // A T_STR's live text lives in the pool, not the slot, so there is
-        // nothing for an override to shadow - and a hostname is configuration
-        // anyway, which is set()'s business.
+        // nothing for an override to shadow.
         if (text == nullptr || d->type == T_STR) return SET_INVALID;
-        // An output is deliberately NOT refused while control is disabled: that
-        // is the state in which the control programs have stopped deciding, so
-        // an override is the only way left to command an actuator - which is
-        // what `control disable` is for.
+        // An output is deliberately NOT refused while control is disabled: with
+        // the programs stopped, an override is the only way left to command an
+        // actuator.
         Scalar parsed;
         // Band deliberately NOT applied - see the header note.
         if (parse_for(*d, text, /*bounded=*/false, &parsed) != SET_OK) return SET_INVALID;
@@ -456,9 +434,8 @@ namespace Botanik { namespace Vars {
 
     void Bank::override_clear(Var h) {
         h.override_clear();
-        // Forget the stored copy in the same breath. A release that only cleared
-        // RAM would come back at the next boot, which is the opposite of what
-        // "override off" means.
+        // Forget the stored copy too, or the override comes back at the next
+        // boot.
         if (_store != nullptr && _row_of(h) != VAR_NONE)
             (void)_store->clear_override(*h.meta());
     }
@@ -486,10 +463,8 @@ namespace Botanik { namespace Vars {
             _tables.val[i].ovr_on = true;
             if (d.role == ROLE_OUTPUT) _tables.val[i].vflags |= VF_FIELD_DIRTY;
             n++;
-            // CRITICAL, not a warning: an override is the one thing that
-            // explains behaviour nothing else accounts for, and after a reboot
-            // nobody remembers setting it. The row's own scope says whether it
-            // is an actuator, so the entry does not shout about it.
+            // CRITICAL, not a warning: an override explains behaviour nothing
+            // else accounts for, and after a reboot nobody remembers setting it.
             if (_logger != nullptr)
                 _logger->critical(Logs::BOOT, "override restored\non '%s'", d.name);
         }
@@ -503,10 +478,9 @@ namespace Botanik { namespace Vars {
             const Variable& d = _tables.var[i];
             if (!retainable(d)) continue;
             if (!_store->load_retained(d, _tables.val[i])) continue;
-            // Q_GOOD, because it IS good: the value a totalizer carried when the
-            // unit went down is the right value to carry on from, and leaving it
-            // Q_NO_DATA would have every reader fall back to the default it was
-            // restored precisely to avoid.
+            // Q_GOOD, because it is: the value a totalizer carried when the unit
+            // went down is what to carry on from. Q_NO_DATA would send every
+            // reader to the default this restore exists to avoid.
             _tables.val[i].qual = Q_GOOD;
             n++;
         }
@@ -519,13 +493,10 @@ namespace Botanik { namespace Vars {
         for (uint16_t i = 0; i < _tables.count; i++) {
             const Variable& d = _tables.var[i];
             if (!retainable(d)) continue;
-            // The LIVE value, never the override: a maintainer forcing a
-            // totalizer to 1000 to test an alarm must not have that written into
-            // the plant's history. What is retained is what the program
-            // computed, which is what the override is shadowing.
+            // The LIVE value, never the override: a totalizer forced to 1000 to
+            // test an alarm must not enter the plant's history.
             // A refused write is already counted by HAL::Storage, which is what
-            // alarm_flash_error watches; counting it again here would be a
-            // second number for one fact.
+            // alarm_flash_error watches.
             if (_store->save_retained(d, _tables.val[i])) n++;
         }
         return n;
@@ -537,9 +508,8 @@ namespace Botanik { namespace Vars {
             if (!_tables.val[i].ovr_on) continue;
             _tables.val[i].ovr_on = false;
             if (_store != nullptr) (void)_store->clear_override(_tables.var[i]);
-            // What the field should be showing has just changed back to whatever
-            // the programs demand underneath; a released override that was never
-            // written out would leave the actuator where the maintainer left it.
+            // The field owes the programs' demand again; a release never written
+            // out would leave the actuator where the maintainer left it.
             if (_tables.var[i].role == ROLE_OUTPUT)
                 _tables.val[i].vflags |= VF_FIELD_DIRTY;
             n++;

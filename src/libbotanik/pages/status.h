@@ -7,13 +7,12 @@
  * @brief StatusPage - full-screen runtime status display (template base).
  *
  * Templated on whatever site data struct the derived page wants typed access to
- * through data(); pass Empty for none. The
- * base renders system health as a two-column grid (rows 3..6): left CPU load /
- * jitter / stack, right wall clock / uptime / task period / console
- * TX. Values are right-aligned so label and value read as separate sub-columns.
- * Rows 7..8 (network / NTP / MQTT) are rendered generically from the live
- * network components (via SystemContext) when BOTANIK_FEATURE_NETWORK is set;
- * everything below comes from the payload hooks (site-specific).
+ * through data(); pass Empty for none. The base renders system health as a
+ * two-column grid (rows 3..6): left CPU load / jitter / stack, right wall clock
+ * / uptime / task period / console TX. Values are right-aligned so label and
+ * value read as separate sub-columns. Rows 7..8 (network / NTP / MQTT) render
+ * from the live components (via SystemContext) when BOTANIK_FEATURE_NETWORK is
+ * set; everything below comes from the site-specific payload hooks.
  *
  * Drawing is diffed by MetricPage; derived content starts at PAYLOAD_ROW. The
  * alarm set is shown on the terminal-owned bottom bar, not here.
@@ -55,8 +54,7 @@ namespace Botanik { namespace Pages {
         /** @brief Typed site data struct (may be null). */
         const OutputData* _data;
         /** @brief The subsystem handles the system band renders from. Injected,
-         *  like every other page's model, rather than read back off the
-         *  console. */
+         *  not read back off the console. */
         const SystemContext* _sys;
 
         /** @} */
@@ -142,10 +140,10 @@ namespace Botanik { namespace Pages {
             }
 
 #if BOTANIK_FEATURE_NETWORK
-            // Network band (rows 7..8) from the live components. Each cell needs
-            // its OWN gate, not NETWORK's: SystemContext declares ntp / mqtt
-            // under their own flags, so with NETWORK on and MQTT off the member
-            // does not exist to be null-checked. The rows stay either way and
+            // Network band (rows 7..8) from the live components. Each cell
+            // needs its OWN gate, not NETWORK's: SystemContext declares ntp /
+            // mqtt under their own flags, so with NETWORK on and MQTT off the
+            // member does not exist to null-check. The rows stay either way and
             // read "off", so the grid does not reflow between builds.
             _cell(SLOT_NET, 7, L_VAL,
                   rjust(fld, sizeof(fld), L_W,
@@ -178,9 +176,8 @@ namespace Botanik { namespace Pages {
                 if (last != 0) {
                     char nf[12];
                     uint32_t age_s = (uint32_t)((HAL::Clock::uptime_ms() - last) / 1000);
-                    // floor_min: clamp sub-minute to "0 m" so this cold field
-                    // changes at most once a minute (not every second), sparing
-                    // the diff-render the per-second redraw.
+                    // floor_min clamps sub-minute to "0 m", so this cold field
+                    // changes at most once a minute rather than every second.
                     snprintf(val, sizeof(val), "%s (%s)", ctx.mqtt->status_str(),
                              Utils::format_age(nf, sizeof(nf), age_s, false, true));
                 } else {
@@ -229,8 +226,8 @@ namespace Botanik { namespace Pages {
 
             // Console TX (right): ring depth / capacity + cumulative drops.
             // Settles between bursts, so keep the highlight. Drops clamped
-            // against field overflow, depth and drops width-padded so the
-            // separators hold a fixed column.
+            // against field overflow; both width-padded so the separators hold
+            // a fixed column.
             uint32_t drops = _terminal.serial().tx_dropped();
             if (drops > 9999) drops = 9999;
             snprintf(val, sizeof(val), "%4u/%u (drops: %4lu)",

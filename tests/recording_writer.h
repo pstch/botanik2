@@ -17,9 +17,8 @@ namespace Botanik {
         Logs::LogLevel last_level = Logs::LOG_DEBUG;
         Logs::LogTopic last_topic = Logs::NONE;
         char            last_msg[Config::LOG_MESSAGE_LEN] = {0};
-        // Every message seen this run, newline-joined. Lets a test look for a
-        // line anywhere in the log instead of pinning it to last_msg, which is
-        // fragile when the order/count of emitted lines is timing-dependent.
+        // Every message seen this run, newline-joined: lets a test look for a
+        // line anywhere in the log rather than pinning it to last_msg.
         std::string     all_msgs;
         uint32_t        loss       = 0;
         void push(const Logs::LogEntry* e) override {

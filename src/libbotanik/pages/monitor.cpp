@@ -23,10 +23,9 @@ namespace Botanik { namespace Pages {
 
     void MonitorPage::tick(bool active) {
         if (!active) return;
-        // Rebuild on the value cadence (or immediately after a nav): the table
-        // is redrawn immediate-mode and the terminal's back-buffer diff emits
-        // only the cells that moved, so the page keeps no per-row cache - but
-        // re-formatting every row every tick would still burn CPU for nothing.
+        // Rebuild on the value cadence, or immediately after a nav. The
+        // terminal's diff decides what reaches the wire; this only stops the
+        // page re-formatting every row every beat for nothing.
         uint64_t now = HAL::Clock::uptime_ms();
         if (!_dirty && now - _last_refresh_ms < Config::PAGE_HOT_MS) return;
         _last_refresh_ms = now;
@@ -36,13 +35,10 @@ namespace Botanik { namespace Pages {
         _follow_selection();
         _draw_structure();
         _draw_rules();
-        // The band goes out BEFORE the panel and footer, which is not
-        // cosmetic: both of those resolve _selected, and doing it first
-        // parked _ref_at()'s memo past the band's first row - so the band
-        // rescanned from the top, and the panel had already paid a scan of
-        // its own to get there. Rows first seeds the memo at _top and walks
-        // forward; _selected is inside the band, so the two trailing lookups
-        // then resume instead of scanning. One walk per refresh, not three.
+        // The band must go out BEFORE the panel and footer: rows first seed
+        // _ref_at()'s memo at _top and walk forward, and _selected is inside
+        // the band, so the two trailing lookups resume instead of rescanning.
+        // One walk per refresh, not three.
         for (uint16_t vi = 0; vi < win; vi++) {
             uint16_t r = (uint16_t)(_top + vi);
             _draw_row(r, (uint16_t)(DATA_TOP + vi), r == _selected);
@@ -145,14 +141,12 @@ namespace Botanik { namespace Pages {
             const Vars::Variable* m = h.meta();
             if (m->name != nullptr) nm = m->name;
             if (m->unit != nullptr) un = m->unit;
-            // Scope, not the group: the group is the VIEW now (SPACE/LEFT/
-            // RIGHT), so repeating it down a column said the same thing on
-            // every row. Where a reading comes from does not.
+            // Scope, not the group: the group is the VIEW, so a group column
+            // would say the same thing on every row.
             sc = Vars::var_scope(*m);
-            // The LIVE value, not the forced one. The OVERRIDE column beside
-            // this already shows what is being forced, and printing the force
-            // in both columns hid the very thing an operator is deciding on:
-            // whether the reading underneath has come back.
+            // The LIVE value, not the forced one - the OVERRIDE column shows
+            // the force. Printing it in both hides what the operator is
+            // deciding on: whether the reading underneath has come back.
             _adopt(val, sizeof(val), _live_text(h, val, sizeof(val)));
             _flag_value(h, val, sizeof(val));
             if (h.overridden()) {
@@ -189,9 +183,8 @@ namespace Botanik { namespace Pages {
     }
 
     void MonitorPage::_flag_value(Vars::Var h, char* buf, size_t cap) {
-        // [O] forced, [I] the reading underneath is not good, [OI] both. Two
-        // independent facts, so two independent letters rather than one word
-        // that has to pick.
+        // [O] forced, [I] the reading underneath is not good, [OI] both: two
+        // independent facts, so two independent letters.
         const bool o = h.overridden();
         const bool i = !h.live_valid();
         if (!o && !i) return;
@@ -209,9 +202,8 @@ namespace Botanik { namespace Pages {
         switch (b.transport) {
             case Vars::XP_MODBUS: {
                 // The unit number is what the wire uses; the TAG is what the
-                // plant calls the box. An operator reading "dev 34" has to go
-                // and look it up, which is the whole reason the device table
-                // carries a tag at all.
+                // plant calls the box, so an operator need not look "dev 34"
+                // up in a spreadsheet.
                 const char* tag = (_device_name != nullptr)
                                       ? _device_name(_device_ctx, b.device) : nullptr;
                 if (tag != nullptr && tag[0] != '\0')
@@ -257,33 +249,22 @@ namespace Botanik { namespace Pages {
         Vars::Var h = have ? _io->var(ref) : Vars::Var(nullptr, nullptr);
         _panel_field((uint16_t)(br + 2), "Description", have ? h.meta()->desc : nullptr);
         _panel_field((uint16_t)(br + 3), "Notes",       have ? h.meta()->notes : nullptr);
-        // The binding, which the byte-offset model had nowhere to put: where
-        // this reading physically comes from is the first thing you want
-        // when one looks wrong.
-        //
-        // "Mapping", not "Source": for a relay coil "source" reads as "where
-        // this value came from", which for an OUTPUT is backwards - nothing
-        // comes from it, it goes there. What the field says is which point on
-        // which device this row is mapped to, in both directions.
+        // "Mapping", not "Source": for an OUTPUT nothing comes FROM the row,
+        // it goes there. The field names which point on which device the row
+        // is mapped to, in either direction.
         char bind[72];
         if (have) _describe_binding(h.meta()->bind, bind, sizeof(bind));
         _panel_field((uint16_t)(br + 4), "Mapping", have ? bind : nullptr);
 
-        // Quality, and the two things that qualify it.
-        //
-        // Q_GOOD / Q_STALE alone is not what an operator asks next. That is
-        // one of two questions, and which one depends on the kind of row:
-        // for a READING, "how old is it" - Q_GOOD
-        // from four minutes ago is not the same fact as Q_GOOD from this beat;
-        // for something DRIVEN or COMPUTED, "who decided that", which is the
-        // program, and is the thing that tells you where to go and look.
+        // Quality, plus whichever of the two things qualifies it: for a
+        // READING its age (Q_GOOD from four minutes ago is not Q_GOOD from
+        // this beat), for a DRIVEN or COMPUTED row the program that wrote it.
         char qual[80];
         if (have) {
             size_t n = (size_t)snprintf(qual, sizeof(qual), "%s",
                                         Vars::quality_str(h.live_quality()));
-            // A force reads as its own quality - that is what ovr_valid means -
-            // so an overridden row says both: what is being forced, and what
-            // the row underneath still reports.
+            // A force carries its own quality (ovr_valid), so an overridden
+            // row says both: the force, and what the row underneath reports.
             if (h.overridden() && n < sizeof(qual))
                 n += (size_t)snprintf(qual + n, sizeof(qual) - n, ", forced %s",
                                       h.valid() ? "valid" : "invalid");
@@ -299,23 +280,21 @@ namespace Botanik { namespace Pages {
                                       Utils::format_age(age, sizeof(age), secs));
             } else if (role != Vars::ROLE_INPUT && role != Vars::ROLE_PARAM &&
                        _writer_name != nullptr && n < sizeof(qual)) {
-                // Outputs, computed rows and status values alike: whatever a
-                // program wrote, name it. A row with no name here is one no
-                // program drives, which is itself the answer to "why is this
-                // sitting at its default".
+                // Outputs, computed rows and status values alike: name the
+                // program that wrote it. No name means no program drives the
+                // row, which answers "why is this sitting at its default".
                 const char* who = _writer_name(_writer_ctx, _io->writer_of(ref));
                 n += (size_t)snprintf(qual + n, sizeof(qual) - n, ", by %s",
                                       who != nullptr ? who : "no program");
             }
         }
         _panel_field((uint16_t)(br + 5), "Quality", have ? qual : nullptr);
-        _blank_line((uint16_t)(br + 6));   // the OVERRIDE column already says so
+        _blank_line((uint16_t)(br + 6));   // blank: the OVERRIDE column says it
     }
 
     void MonitorPage::_draw_footer() {
-        // In the "all" view the badge does not say which group the cursor is
-        // sitting in, so the legend does; in a single-group view it would
-        // just repeat the badge.
+        // Only in the "all" view: there the badge cannot say which group the
+        // cursor sits in, elsewhere it would just repeat the badge.
         const char* grp = nullptr;
         if (_mode == 0) {
             bool ok = false;

@@ -10,8 +10,7 @@
 
 #include "libbotanik/config/base.h"       // the BOTANIK_FEATURE_* gates
 
-// Defined and undefined per file rather than in base.h: base.h is guarded,
-// so a second include of it would not restore a macro this file undefined.
+// Defined and undefined per file, not in base.h: see base.h.
 #define BOTANIK_CFG(type, name) static constexpr type name = BOTANIK_##name
 
 namespace Botanik { namespace Config {
@@ -24,13 +23,10 @@ namespace Botanik { namespace Config {
 
     /** @brief The FACTORY DEFAULT for the `serial_console_baud` parameter.
      *
-     *  The live value is a parameter, not this - the rate an installation runs
-     *  its console at is the operator's, and a unit whose terminal was swapped
-     *  should not need a firmware build. `set serial_console_baud 9600` retunes
-     *  the UART and the per-render TX budget together, on the next beat.
-     *
-     *  Kept here as the default so a site can still pin what its hardware ships
-     *  with, and so a wiped store comes back at a known rate. */
+     *  The live value is the parameter, so a swapped terminal needs no firmware
+     *  build: `set serial_console_baud 9600` retunes the UART and the per-render
+     *  TX budget together on the next beat. This default is what a site pins for
+     *  its hardware, and what a wiped store comes back at. */
 #ifndef BOTANIK_CONSOLE_BAUD
 #  define BOTANIK_CONSOLE_BAUD 4800
 #endif
@@ -61,17 +57,16 @@ namespace Botanik { namespace Config {
     /** @brief Most bytes BufferedSerial::transmit() hands the driver in one
      *  activation. 0 disables the cap (drain until the ring empties).
      *
-     *  A bound, not a throttle. Draining until the ring empties or the driver
-     *  refuses is fine for a UART - its availableForWrite() reflects a real FIFO
-     *  - but the OPTA's MONITOR port is USB CDC, where with no host attached
-     *  availableForWrite() always answers 1. One activation would then push the
-     *  whole 4095-byte ring, and with a host attached USBCDC::send() blocks per
-     *  byte, putting tens of milliseconds inside a 10 ms beat.
+     *  A bound, not a throttle. Draining until the ring empties is fine for a
+     *  UART, whose availableForWrite() reflects a real FIFO, but the OPTA's
+     *  MONITOR port is USB CDC: with no host attached it always answers 1, so
+     *  one activation would push the whole 4095-byte ring, and with a host
+     *  attached USBCDC::send() blocks per byte - tens of milliseconds inside a
+     *  10 ms beat.
      *
      *  256 is far above steady demand on either port (the console's TX ring is
-     *  self-capped near 61 bytes by the terminal's depth floor, and a log line
-     *  is ~90), so nothing normal ever reaches it. What it buys is a bounded
-     *  worst case. */
+     *  self-capped near 61 bytes by the terminal's depth floor, a log line is
+     *  ~90), so it only ever bounds the worst case. */
 #ifndef BOTANIK_SERIAL_TX_PER_STEP
 #  define BOTANIK_SERIAL_TX_PER_STEP 256
 #endif

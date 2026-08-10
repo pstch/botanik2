@@ -3,10 +3,9 @@
  * @file firmware.cpp
  * @brief BotanikFirmware: construction, bring-up, and the task table.
  *
- * Everything cold. The header keeps the class, the accessors and loop() - the
- * hot path, and the frame the scheduler's stack painting is measured against -
- * and nothing else: these bodies are ~350 lines that every site and every test
- * used to compile for themselves out of the tree's highest-fan-out header.
+ * Everything cold. The header keeps only the class, the accessors and loop() -
+ * the hot path, and the frame the scheduler's stack painting is measured
+ * against.
  */
 #include "libbotanik/firmware/firmware.h"   // BotanikFirmware - implemented here
 
@@ -50,9 +49,8 @@ namespace Botanik {
           , _modbus_tcp(&_io, &_logger, &_health.alarm_model())
 #endif
 #if BOTANIK_FEATURE_CONSOLE
-          // _sys_ctx is declared above, so it exists (empty) by now; the console
-          // borrows it by pointer and reads it later, once the body below has
-          // filled in the subsystem addresses.
+          // The console borrows _sys_ctx (declared above, still empty here) by
+          // pointer and reads it once the body below has filled it in.
           , _console(_console_cols, _console_rows,
                      &_scheduler.context()->timestamp_ms, _console_baud,
                      &_health.alarm_model(), &_logger,
@@ -103,18 +101,12 @@ namespace Botanik {
         // Seed every variable with its declared default, so a value read before
         // any driver has spoken is the default rather than zero.
         _io.init();
-        // Bind the site's declarative tables to the variable table. They name
-        // their rows rather than indexing them, so this is where a name becomes
-        // an index - once, here, because no renderer should pay for the lookup
-        // per frame. A name with no row lands on the sink and is counted (and
-        // logged) by the bank, which is what the site test asserts is zero.
+        // Where a site's names become indices, once, so no renderer pays for
+        // the lookup per frame. A name with no row lands on the sink and is
+        // counted by the bank, which the site test asserts is zero.
         _resolve_site_refs();
 
-        // What runs on the beat, in which phase, and how often. A component
-        // whose work resolves something measured in seconds need not pay 100 Hz
-        // for it; the scan driver and the logger keep the beat deliberately,
-        // since the scan's not-due path is two comparisons per task and the
-        // logger drains a queue that evicts under pressure.
+        // What runs on the beat, in which phase, and how often.
         _register_tasks();
 
 #if BOTANIK_FEATURE_CONSOLE
@@ -169,7 +161,7 @@ namespace Botanik {
 
 #if BOTANIK_FEATURE_ALARMS_PUBLISH
         // Route alarm transitions out through the MQTT client (it is an
-        // Alarms::Publisher). Until now the notifier was a no-op.
+        // Alarms::Publisher).
         _health.set_alarm_publisher(&_net.mqtt());
 #endif
 #if BOTANIK_FEATURE_LOGS_PUBLISH
@@ -183,31 +175,22 @@ namespace Botanik {
 
         on_setup();   // site post-wiring (extra sinks / components)
 
-        // Every registered task's one-time init, before the loop exists.
-        // Deliberately HERE and not beside _register_tasks(): this is what runs
-        // each component's announce() and HealthMonitor's POST, and a line
-        // emitted before the sinks above were registered would go nowhere.
-        // After on_setup() too, so a site's own sinks catch them.
-        //
-        // It also takes the parameter load - hundreds of storage reads, tens of
-        // ms of flash - out of the first beat, where it read as a boot overrun
-        // against a 10 ms budget.
+        // Every registered task's one-time init. It must come after every sink
+        // above (and after on_setup(), for a site's own): this is what runs each
+        // component's announce() and HealthMonitor's POST. It also keeps the
+        // parameter load, tens of ms of flash, out of the first beat.
         _tasks.setup(HAL::Clock::uptime_ms());
 
-        // The parameter load just happened, so this is the first moment the
-        // stored UART rates exist. Applied here rather than left to the first
-        // beat so the boot lines below go out at the rate the operator actually
-        // configured - everything above them was emitted at the compile-time
-        // default, which is unavoidable: something has to open the port before
-        // the store can be read.
+        // First moment the stored UART rates exist, so the boot lines below go
+        // out at the configured rate. Everything above them is at the
+        // compile-time default: the port must be open before the store is read.
         _apply_serial_config();
 
         HAL::Watchdog::start(_hw_watchdog_ms);
 
-        // Bring-up is done: the system's hold on control is released, so the
-        // field is ours to drive. It starts held (Bank's default), so nothing
-        // between power-on and here - a half-wired component, a site hook that
-        // faults - can energise an actuator on the way past.
+        // Bring-up is done: release the system's hold on control. It starts held
+        // (Bank's default), so nothing between power-on and here can energise an
+        // actuator on the way past.
         _io.enable_control(Vars::Bank::INHIBIT_HEALTH);
 
         // One line per UART so neither overflows 80 cols and each gates with its
@@ -237,17 +220,15 @@ namespace Botanik {
         // --- INPUT: fresh bytes and fresh field, before anything reads ---
 #if BOTANIK_FEATURE_CONSOLE
         // BufferedSerial is one Component whose halves belong at opposite ends
-        // of the beat - RX here, TX after the render. Stepping the whole pump at
-        // both ends would cost an extra read() each beat and split the console's
-        // baud-paced TX across the render.
+        // of the beat: RX here, TX after the render.
         _tasks.add("console_rx", GROUP_FAST, PHASE_INPUT,
             [](void* s, uint64_t) { static_cast<Utils::BufferedSerial*>(s)->receive(); },
             &_console.serial());
 #endif
 #if BOTANIK_FEATURE_MODBUS_RTU_CLIENT
-        // The field bus commits its readings here, ahead of expire_stale: the
-        // sweep that decides a reading has gone stale has to judge the freshest
-        // image, not the one from before this beat's answers.
+        // The field bus commits its readings ahead of expire_stale, which must
+        // judge the freshest image and not the one from before this beat's
+        // answers.
         _tasks.add("modbus_rtu_rx", GROUP_FAST, PHASE_INPUT,
             [](void* s, uint64_t now) {
                 static_cast<Modbus::RtuClient*>(s)->receive_step(now);
@@ -257,8 +238,7 @@ namespace Botanik {
 #if BOTANIK_FEATURE_MODBUS_TCP_SERVER
         // A master's write lands HERE, before the programs run, so a setpoint
         // written this beat is what they run on this beat. add_component, so the
-        // map is built and the `mb` group read in Registry::setup() rather than
-        // inside the first beat.
+        // map is built in Registry::setup() rather than inside the first beat.
         _tasks.add_component("modbus_tcp_rx", GROUP_FAST, PHASE_INPUT, _modbus_tcp);
 #endif
 #if BOTANIK_FEATURE_LOGS_MONITOR
@@ -271,9 +251,9 @@ namespace Botanik {
         _tasks.add("expire_stale", GROUP_BACKGROUND, PHASE_INPUT,
             [](void* s, uint64_t now) { static_cast<Vars::Bank*>(s)->expire_stale(now); },
             &_io);
-        // Beside it, and for the same reason: a reading can be fresh and still
-        // be nonsense. A dead 4-20 mA loop reads full scale, which no timeout
-        // catches - the declared plausibility band does.
+        // Beside it: a reading can be fresh and still be nonsense. A dead
+        // 4-20 mA loop reads full scale, which no timeout catches - the
+        // declared plausibility band does.
         _tasks.add("reject_implausible", GROUP_BACKGROUND, PHASE_INPUT,
             [](void* s, uint64_t) { (void)static_cast<Vars::Bank*>(s)->reject_implausible(); },
             &_io);
@@ -299,11 +279,11 @@ namespace Botanik {
         _tasks.add_component("net", GROUP_FAST, PHASE_SERVICE, _net);
 #endif
 #if BOTANIK_FEATURE_MODBUS_TCP_SERVER
-        // The flash half of a master's write, paced. Storage is synchronous and
-        // one request can cover 61 parameters, so the commits are queued where
-        // they are decoded and made durable a couple per beat here. SERVICE, not
-        // PRESENT: this is a side effect of the request, not part of answering
-        // it - the answer itself goes out in PRESENT below.
+        // The flash half of a master's write, paced: storage is synchronous and
+        // one request can cover 61 parameters, so commits are queued where they
+        // are decoded and made durable a couple per beat here. SERVICE, not
+        // PRESENT: a side effect of the request, not part of answering it - the
+        // answer itself goes out in PRESENT below.
         _tasks.add("modbus_tcp_wr", GROUP_FAST, PHASE_SERVICE,
             [](void* s, uint64_t now) {
                 static_cast<Modbus::TcpSlave*>(s)->service_persist(now);
@@ -313,22 +293,17 @@ namespace Botanik {
 
         // --- EXECUTE: the control programs ---
         // Unconditional: the driver holds the Bank and inhibits the programs
-        // itself while control is withheld, so it still announces at boot (when
-        // control is withheld by definition) and a future output-collect phase
-        // runs DURING a withdrawal rather than being skipped with it.
+        // itself while control is withheld, so it announces at boot (when
+        // control is withheld by definition) and its non-driving work runs
+        // DURING a withdrawal rather than being skipped with it.
 #if BOTANIK_FEATURE_PLC_SCAN
         _tasks.add_component("scan", GROUP_FAST, PHASE_EXECUTE, _scan);
 #endif
-        // The site's own control law, under authority - the same gate the scan
-        // driver applies to the programs, for the same reason. Ahead of the
-        // ungated hook below, so a site's law runs with the programs and its
-        // bookkeeping sees the result.
-        //
-        // The gate is per DISPATCH POINT rather than per write: Var is two
-        // pointers passed by value and stays that way, so it cannot check a
-        // latch it has no route to. That makes this list exhaustive by
-        // construction - the scan driver and this - and a third place that
-        // drives the field has to come and gate itself here.
+        // The site's own control law, under the same gate the scan driver
+        // applies to the programs, and ahead of the ungated hook below so its
+        // bookkeeping sees the result. The gate is per DISPATCH POINT, not per
+        // write (see on_control()), so the scan driver and this are the whole
+        // list: a third place that drives the field must gate itself here.
         _tasks.add("site_ctl", GROUP_FAST, PHASE_EXECUTE,
             [](void* s, uint64_t now) {
                 BotanikFirmware* f = static_cast<BotanikFirmware*>(s);
@@ -341,9 +316,8 @@ namespace Botanik {
 
         // --- OUTPUT: hand what the programs drove to the field ---
 #if BOTANIK_FEATURE_MODBUS_RTU_CLIENT
-        // add_component: on_step() IS the transmit half, and this is also what
-        // runs the port bring-up and the bus planning in Registry::setup()
-        // rather than inside the first beat.
+        // add_component: on_step() IS the transmit half, and setup() is where
+        // the port bring-up and the bus planning run, off the first beat.
         _tasks.add_component("modbus_rtu_tx", GROUP_FAST, PHASE_OUTPUT, _modbus_rtu);
 #endif
 
@@ -396,8 +370,8 @@ namespace Botanik {
                                                      (int32_t)_console_baud);
         if (con != _console_baud && con != 0) {
             _console_baud = con;
-            // Both, together: the wire and the budget the renderer paces to.
-            // Either alone is the bug this stayed compile-time to avoid.
+            // Both together: the wire and the budget the renderer paces to.
+            // Either alone leaves the renderer pacing for the wrong rate.
             HAL::Serial::get(HAL::Serial::CONSOLE)->begin(con);
             _console.terminal().terminal().set_baud(con);
             _logger.notice(Logs::BOOT, "console now %lu baud", (unsigned long)con);
@@ -426,9 +400,9 @@ namespace Botanik {
         } else if (_health_fault) {
             _health_fault = false;
             _io.enable_control(Vars::Bank::INHIBIT_HEALTH);
-            // The lead is hoisted out of the ternary, so the format string is a
-            // literal the printf attribute can still check, and both outcomes
-            // grep as "health recovered".
+            // Lead hoisted out of the ternary: the format string stays a
+            // literal the printf attribute can check, and both outcomes grep
+            // as "health recovered".
             _logger.warning(Logs::HEALTH, "health recovered\n%s",
                 _io.control_enabled()
                     ? "control enabled, scan resuming"
@@ -441,9 +415,9 @@ namespace Botanik {
 
 #if BOTANIK_FEATURE_CONSOLE
     void BotanikFirmware::register_pages() {
-        // Whichever page registers FIRST is page 0, the boot page. That is
-        // positional, not a property of HOME: with HOME_PAGE off the boot page
-        // is simply the next one that exists.
+        // Whichever page registers FIRST is page 0, the boot page: positional,
+        // not a property of HOME. With HOME_PAGE off it is the next one that
+        // exists.
 #if BOTANIK_FEATURE_HOME_PAGE
         _console.terminal().add_page(&_home_page);
 #endif

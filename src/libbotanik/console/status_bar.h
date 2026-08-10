@@ -33,9 +33,8 @@ namespace Botanik { namespace Terminal {
         Console&            _console;
         /** @brief The VT device it paints through (cached _console.terminal()). */
         AnsiTerminal&       _terminal;
-        /** @brief The metrics the bar displays; null shows zeros. Injected
-         *  rather than read back off the console, so the bar states what it
-         *  needs and the console does not carry the whole SystemContext for it. */
+        /** @brief The metrics the bar displays; null shows zeros. Injected, so
+         *  the console need not carry a whole SystemContext for it. */
         const Scheduler::SchedulerContext* _sched;
         /** @brief Last refresh of the row (clock and metrics share the gate). */
         uint64_t            _last_ms = 0;
@@ -67,10 +66,9 @@ namespace Botanik { namespace Terminal {
         /** @brief Full rebuild of the whole row (first paint, Ctrl-L redraw). */
         void draw_row();
 
-        /** @brief Repaint the whole tab strip, used by switch_to(). The active
-         *  tab's width changes on a switch (N:NAME vs N), shifting every tab
-         *  after it, so the strip is redrawn as a unit (and shrink residue
-         *  cleared) rather than patching individual tabs. */
+        /** @brief Repaint the whole tab strip, used by switch_to(): the active
+         *  tab's width changes on a switch, shifting every tab after it, so the
+         *  strip is redrawn as a unit and the shrink residue cleared. */
         void draw_tabs();
 
         /** @} */

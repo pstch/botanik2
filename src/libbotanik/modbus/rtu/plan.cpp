@@ -28,15 +28,11 @@ namespace {
      *
      *  Reads use theirs as-is: FC03 and FC04 address different register spaces
      *  and must never share a block. Writes are declared one at a time (a relay
-     *  row is an FC05 coil) and are normally issued coalesced, so they group
-     *  under the multi-write code.
-     *
-     *  Unless the device has no multi-write. `DeviceModel::write_multiple` says
-     *  whether FC15/FC16 exist there, and a model that says no has to be driven
-     *  a point at a time - so its blocks are cut at one point (span_cap) and
-     *  issued as FC05/FC06. Deciding it HERE rather than at build time is what
-     *  keeps `Expect::fc` right: the client sets it straight from the block, so
-     *  a wire code chosen later would be checked against the wrong one.
+     *  row is an FC05 coil) and group under the multi-write code, unless
+     *  `DeviceModel::write_multiple` says FC15/FC16 do not exist there, in which
+     *  case the blocks are cut at one point (span_cap) and issued as FC05/FC06.
+     *  Decided HERE, not at build time, so `Expect::fc` matches: the client sets
+     *  it straight from the block.
      *
      *  @return 0 for a code we cannot plan, which drops the row. */
     uint8_t block_fc(uint8_t fc, const DeviceModel& m) {
@@ -59,10 +55,9 @@ namespace {
      *  fallback for the other roles. */
     uint8_t rung_of(const Vars::Variable& d) {
         if (!is_read(d.bind.fc)) return 0;
-        // What the row ASKED for, when it asked. poll_ms and timeout_ms are two
-        // different facts - how often to spend the bus, and how long a reading
-        // may be believed - and a row that states the first gets it honoured
-        // rather than back-computed from the second.
+        // poll_ms and timeout_ms are two facts: how often to spend the bus, and
+        // how long a reading may be believed. A row stating the first gets it
+        // honoured rather than back-computed from the second.
         if (d.poll_ms != 0) return (uint8_t)ladder_of(d.poll_ms);
         if (d.timeout_ms == 0) return (uint8_t)L_60S;
         return (uint8_t)ladder_of(period_of(d.timeout_ms));
@@ -99,22 +94,20 @@ namespace {
      *  protocol ceiling binds long before any buffer does. */
     uint16_t span_cap(uint8_t fc, const DeviceModel& m) {
         // FC05 and FC06 carry exactly one point, so a device without FC15/FC16
-        // gets one-point write blocks. block_fc() has already chosen the single
-        // code; this is what stops two adjacent dirty rows being coalesced into
-        // a block the wire form cannot express.
+        // gets one-point write blocks: two adjacent dirty rows must not be
+        // coalesced into a block the wire form cannot express.
         if (fc == FC_WRITE_COIL || fc == FC_WRITE_REGISTER) return 1;
 
         uint16_t proto = max_quantity(fc);
         // What the DEVICE will answer, when that is tighter than the protocol.
-        // The SDM630 refuses past 80 registers with an exception rather than a
-        // short read, which on a bus looks exactly like a broken cable; a relay
-        // board simply has eight relays and nothing at the ninth address.
+        // The SDM630 refuses past 80 registers with an exception, which on a bus
+        // looks exactly like a broken cable.
         const uint16_t dev = is_bit(fc) ? m.max_bits : m.max_regs;
         if (dev != 0 && dev < proto) proto = dev;
         // Bits are eight to a byte, so their protocol ceiling is far above what
-        // the collect buffer holds - 1968 coils against 240 bytes. Capping at
-        // the buffer is what stops a wide coil block failing to build on every
-        // turn, silently, for the life of the firmware.
+        // the collect buffer holds (1968 coils against 240 bytes). Capping at
+        // the buffer stops a wide coil block silently failing to build on every
+        // turn.
         const uint16_t buf = is_bit(fc)
                                  ? (uint16_t)(Config::MODBUS_MAX_REGS_PER_BLOCK * 16)
                                  : Config::MODBUS_MAX_REGS_PER_BLOCK;
@@ -145,17 +138,15 @@ void Planner::_collect(const Vars::Bank& io) {
         const Vars::Variable* d = io.var(i).meta();
         if (d->bind.transport != Vars::XP_MODBUS) continue;
         // A row whose code we cannot issue is not a row we can plan. Counted
-        // with the overflow, because both mean the same thing to an operator:
-        // something in the table is not going to be scanned.
+        // with the overflow: to an operator both mean a row that is not scanned.
         if (block_fc(d->bind.fc, model_of(_devices, d->bind.device)) == 0) {
             _rows_dropped++;
             continue;
         }
-        // An input that can never go stale is a trap, not a slow signal:
-        // expire_stale() skips timeout_ms == 0 outright, so once the device
-        // stopped answering the row would hold its last reading, at Q_GOOD, for
-        // the life of the firmware. Refused loudly here instead - _rows_dropped
-        // is logged as a critical at bring-up and named by the site test.
+        // An input that can never go stale is a trap: expire_stale() skips
+        // timeout_ms == 0, so a row would hold its last reading at Q_GOOD for
+        // the life of the firmware once its device went quiet. Refused loudly
+        // instead, since _rows_dropped is a bring-up critical.
         if (d->role == Vars::ROLE_INPUT && is_read(d->bind.fc) &&
             d->timeout_ms == 0) { _rows_dropped++; continue; }
         if (_row_count >= Config::MODBUS_MAX_ROWS) { _rows_dropped++; continue; }
@@ -182,9 +173,8 @@ void Planner::_cut(const Vars::Bank& io) {
     uint16_t i = 0;
     while (i < _row_count) {
         if (_block_count >= Config::MODBUS_MAX_BLOCKS) {
-            // Everything left is unreachable. Counted in ROWS rather than in
-            // blocks we did not make: a row is what an operator can go and look
-            // for, and it is the same unit the other drop path below uses.
+            // Everything left is unreachable. Counted in ROWS, the unit every
+            // drop path here uses and the one an operator can look for.
             _rows_unscanned = (uint16_t)(_rows_unscanned + (_row_count - i));
             return;
         }
@@ -212,10 +202,9 @@ void Planner::_cut(const Vars::Bank& io) {
             if (kj.device != k.device || kj.fc != k.fc || kj.rung != k.rung) break;
 
             // Sorted by register, so anything at or below the current end merely
-            // overlaps and costs nothing to absorb.
-            // Reading a register nobody wants is free; WRITING one is not - a
-            // merged write zero-fills the gap and would command registers no
-            // row claims. So the gap is a read-side economy only.
+            // overlaps and costs nothing to absorb. The gap is a read-side
+            // economy only: a merged write zero-fills it and would command
+            // registers no row claims.
             const uint16_t allow = is_read(k.fc) ? _merge_gap : 0;
             const uint16_t gap = (kj.reg > end) ? (uint16_t)(kj.reg - end) : 0;
             if (gap > allow) break;
@@ -230,19 +219,14 @@ void Planner::_cut(const Vars::Bank& io) {
 
         b.regs = (uint16_t)(end - b.reg);
 
-        // The merge loop bounds what it ADDS by cap; the first row is admitted
-        // unconditionally, so a single row wider than the device will accept
-        // lands here over-wide. Reads are caught after their alignment padding
-        // below; writes had nothing, and the consequence is worse than a refused
-        // read: block_fc() picks FC06 for a device without FC16, span_cap() is
-        // then 1, and a 2-register setpoint went out as its HIGH WORD ALONE -
-        // with an echo that matches, because the echo carries the address and
-        // the value that were sent. A physically wrong actuator command, with no
-        // diagnostic anywhere.
-        //
-        // Dropping the rows instead makes it a bring-up critical through
-        // rows_unscanned(), which is where a site learns its device model and
-        // its table disagree.
+        // The merge loop bounds what it ADDS by cap, but the first row is
+        // admitted unconditionally, so a single row wider than the device will
+        // accept lands here over-wide. Reads are caught after their alignment
+        // padding below; a write must be dropped, because span_cap() is 1 on a
+        // device without FC16 and a 2-register setpoint would go out as its HIGH
+        // WORD ALONE, with a matching echo (the echo carries the address and
+        // value that were sent) and no diagnostic anywhere. Dropping makes it a
+        // bring-up critical through rows_unscanned() instead.
         if (!is_read(k.fc) && b.regs > cap) {
             _rows_unscanned = (uint16_t)(_rows_unscanned + (j - i));
             i = j;
@@ -250,23 +234,18 @@ void Planner::_cut(const Vars::Bank& io) {
         }
 
         // The device set, in first-seen order. Bounded by the block table, so a
-        // block that exists always has a peer: there is no separate cap to run
-        // past and no untracked unit to skip the backoff.
+        // block that exists always has a peer and no unit escapes the backoff.
         b.peer = _device_count;
         for (uint8_t p = 0; p < _device_count; ++p)
             if (_devices_seen[p] == b.device) { b.peer = p; break; }
         if (b.peer == _device_count) _devices_seen[_device_count++] = b.device;
 
-        // Widen a READ out to what this model insists on being asked for. A
+        // Widen a READ out to what this model insists on being asked for: a
         // device storing 32-bit values in register pairs answers exception 02 to
-        // a request landing in the middle of one, so the request is grown to the
-        // boundary rather than sent to be refused; the extra registers are read
-        // and ignored, which costs a few byte-times.
-        //
-        // Reads only. Padding a WRITE would command registers no row claims, for
-        // the same reason the merge gap is a read-side economy - so a write block
-        // that violates its device's alignment is left alone and shows up as a
-        // refusal, which is at least honest.
+        // a request landing in the middle of one, so the request grows to the
+        // boundary and the extra registers are read and ignored. Reads only -
+        // padding a WRITE would command registers no row claims, so a misaligned
+        // write block is left alone and shows up as a refusal.
         if (is_read(k.fc) && !is_bit(k.fc)) {
             const uint16_t aa = m.addr_align > 1 ? m.addr_align : 1;
             const uint16_t qa = m.qty_align  > 1 ? m.qty_align  : 1;
@@ -321,9 +300,8 @@ uint32_t Planner::duty_ppm() const {
         const Block& b = _blocks[i];
         if (!is_read(b.fc) || b.period_ms == 0) continue;
         // Whichever is larger: the frame's own byte time, or the beat it is
-        // quantised to. One transaction is in flight at a time and it is
-        // advanced from the beat, so a frame shorter than a beat still costs
-        // one - the bus is not free during it, it is simply idle and unusable.
+        // quantised to. One transaction at a time, advanced from the beat, so a
+        // frame shorter than a beat still costs one.
         uint32_t cost = txn_us(_baud, _turnaround_us, b.fc, b.regs);
         if (cost < beat_us) cost = beat_us;
         ppm += (cost * 1000u) / b.period_ms;

@@ -9,20 +9,18 @@
  * @section scalar_one_tag One tag, four uses
  *
  * A variable carries a single VarType. That tag governs its live value AND its
- * declared @c min, @c max and @c def - they are the same union, read the same
- * way, so they cannot disagree about what the variable is. That is the whole
- * point: the previous model had a type on the descriptor, bounds as int32_t and
- * a default as text, so a real-valued parameter could not express a fractional
- * band at all - bounds of 0.5..2.5 truncated to 0..2 before the comparison.
+ * declared @c min, @c max and @c def: the same union, read the same way, so
+ * they cannot disagree about what the variable is (a real-valued parameter's
+ * band of 0.5..2.5 stays fractional).
  *
  * @section scalar_flash Why constexpr constructors
  *
  * A site's variable table is `const` and must be constant-initialised straight
  * into flash: no `.data` copy, no startup initialiser. A union with constexpr
- * constructors keeps that property (the enclosing descriptor stays an aggregate,
- * since a *member* having constructors does not disqualify it), while plain
- * brace-initialisation could only ever reach the union's FIRST member - C++11
- * has no designated initialisers. Two constraints fall out and are load-bearing:
+ * constructors keeps that property (a *member* having constructors does not
+ * stop the enclosing descriptor being an aggregate), while brace-initialisation
+ * could only ever reach the union's FIRST member, C++11 having no designated
+ * initialisers. Two load-bearing constraints fall out:
  *
  *  - a C++11 constexpr function body must be a SINGLE return statement, so the
  *    factories below construct rather than assign
@@ -31,9 +29,9 @@
  *
  * @section scalar_width Persisted width
  *
- * @c type_width() is the NARROW width (1/2/4/8), not sizeof(Scalar). It is what
- * a value occupies in storage, and keeping it narrow is what lets already-stored
- * records stay readable.
+ * @c type_width() is the NARROW width (1/2/4/8), not sizeof(Scalar): what a
+ * value occupies in storage. It must stay narrow, or already-stored records
+ * stop being readable.
  */
 
 #include <cmath>    // roundf
@@ -84,7 +82,7 @@ namespace Botanik { namespace Vars {
         constexpr Scalar(float v)       : f(v) {}
         constexpr Scalar(const char* v) : s(v) {}
         /** Deleted so a stray `Scalar(0)` names itself in the error instead of
-         *  listing four equally good candidates from inside a macro expansion. */
+         *  listing four equally good candidates. */
         Scalar(int) = delete;
 
         static constexpr Scalar U(uint64_t v)    { return Scalar(v); }
@@ -96,11 +94,9 @@ namespace Botanik { namespace Vars {
     static_assert(sizeof(Scalar)  == 8, "Scalar must stay 8 bytes");
     static_assert(alignof(Scalar) == 8, "Scalar must stay 8-aligned");
 
-    // The flash-placement claim rests on these being usable in a constant
-    // expression: a site's table is a file-scope const aggregate of them, and
-    // the moment one factory stops being constexpr the table quietly acquires a
-    // runtime initialiser and moves to RAM. Asserted here rather than in a test
-    // so the guarantee sits with the code it constrains.
+    // Flash placement rests on these staying usable in a constant expression:
+    // the moment one factory stops being constexpr, a site's table acquires a
+    // runtime initialiser and moves to RAM.
     static_assert(Scalar::U(64).u  == 64, "Scalar::U must be constexpr");
     static_assert(Scalar::I(-5).i  == -5, "Scalar::I must be constexpr");
     static_assert(Scalar::B(true).u == 1, "Scalar::B must be constexpr");
@@ -126,8 +122,7 @@ namespace Botanik { namespace Vars {
     constexpr bool type_real(VarType t) { return t == T_F32; }
 
     // Same claim as the Scalar asserts above: a site's table selects on the type
-    // in a constant expression, so this has to stay usable in one. The widths
-    // themselves are what keeps already-stored KV records readable.
+    // in a constant expression, so this must stay usable in one.
     static_assert(type_width(T_U16)  == 2, "type_width must be constexpr");
     static_assert(type_width(T_BOOL) == 1, "narrow widths are the persisted ones");
     static_assert(type_width(T_STR)  == 0, "T_STR's width is its declared capacity");
@@ -158,13 +153,13 @@ namespace Botanik { namespace Vars {
     /** @} */
 
     /** @name Writes - normalised INTO the slot the type names
-     *  The one place a write is coerced, so a later read is exact rather than a
-     *  reinterpretation of the wrong union member.
+     *  The one place a write is coerced, so a later read cannot reinterpret the
+     *  wrong union member.
      *  @{ */
 
     inline Scalar from_f32(VarType t, float x) {
-        // roundf, not (int)(x + 0.5f): the add-then-truncate idiom rounds the
-        // wrong way for values just under .5, where the addition itself carries.
+        // roundf, not (int)(x + 0.5f): add-then-truncate rounds the wrong way
+        // for values just under .5, where the addition itself carries.
         return type_real(t)   ? Scalar::F(x)
              : type_signed(t) ? Scalar::I((int64_t)roundf(x))
                               : Scalar::U(x < 0.0f ? 0u : (uint64_t)roundf(x));

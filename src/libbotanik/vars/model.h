@@ -15,29 +15,23 @@
  *  - @ref VarRole   what it is FOR, which is what drives behaviour: who expires,
  *                   who drops to safe on a fault, who persists, who is editable
  *
- * There is ONE descriptor, one value struct and one handle, so adding a
- * transport or a role touches a switch rather than a hierarchy - and "analog
- * versus digital" is a field to read rather than a type to dispatch on.
+ * There is ONE descriptor, one value struct and one handle: "analog versus
+ * digital" is a field to read, not a type to dispatch on.
  *
  * @section model_split Descriptor and value
  *
- * A variable is split in two, deliberately: its **descriptor** is `const` and
- * lives in flash (generated from the site's project), and its **value** lives in
- * a parallel RAM array indexed the same way. That split is what lets the tables
- * stay in flash while the values move.
+ * A variable is split in two: its **descriptor** is `const` and lives in flash,
+ * its **value** in a parallel RAM array indexed the same way.
  *
  * Plain aggregates only, no constructors and no virtuals: a type with a vptr is
  * not a literal type in C++11 and would land the whole table in .bss behind a
- * startup initialiser. The Scalar members are the one exception and are
- * deliberately safe - see scalar.h.
+ * startup initialiser. The Scalar members are the one exception - see scalar.h.
  *
  * @section model_default The default does three jobs
  *
  * @c def is an input's substitute when a read is invalid, an output's safe state
- * on a fault, and a parameter's factory value. One field, three uses, so there
- * is no separate fallback or safe-state concept to keep in sync. It is a typed
- * literal, not text: a bad default is a compile error rather than a boot-time
- * parse that quietly yields zero.
+ * on a fault, and a parameter's factory value. One field, three uses. It is a
+ * typed literal, not text, so a bad default is a compile error.
  */
 
 #include <cstdint>                  // uint8_t/uint16_t/int64_t
@@ -72,20 +66,13 @@ namespace Botanik { namespace Vars {
     /**
      * @brief What a variable IS, declared rather than inferred.
      *
-     * `Transport` and `VarRole` stay the axes BEHAVIOUR turns on - who expires,
-     * who drops to safe, who persists. This is the third thing a reader wants
-     * and neither of them answers: which of the dozen concrete kinds of row this
-     * is. Declared rather than reconstructed from (transport, role, type) at
-     * each display site, which would mean three fields had to agree and a new
-     * kind was a new case in every one of them.
+     * `Transport` and `VarRole` are the axes BEHAVIOUR turns on. This is the
+     * third thing a reader wants and neither answers: which concrete kind of row
+     * this is. Declared, never reconstructed from (transport, role, type), so a
+     * table filters on one comparison.
      *
-     * Declared, so it is also what a table ITERATES on: "every alarm", "every
-     * relay", "every Modbus reading" is one comparison rather than a predicate
-     * over three fields.
-     *
-     * Each value has exactly one factory in declare.h, named after it, and that
-     * factory takes only the arguments its scope can use - which is what makes a
-     * coil with a plausibility band, or an alarm with a register, unspellable.
+     * Each value has exactly one factory in declare.h, named after it, taking
+     * only the arguments its scope can use.
      *
      * Two distinctions worth spelling out, because neither is visible in the
      * name:
@@ -99,8 +86,7 @@ namespace Botanik { namespace Vars {
      *    renamed freely.
      *
      * Local I/O is not a separate scope: a local row is one whose Modbus device
-     * address is 0. That kept the enum from doubling to say a thing the binding
-     * already says.
+     * address is 0.
      */
     enum VarScope : uint8_t {
         SCOPE_A = 0,   ///< alarm: the boolean an AlarmCondition reads
@@ -120,13 +106,9 @@ namespace Botanik { namespace Vars {
     /** @brief WHY a value reads as it does.
      *
      *  Three quite different things invalidate a reading: nothing ever wrote the
-     *  row, it was live and stopped, or it is answering with nonsense. Those
-     *  want three different actions from whoever is looking - check the wiring,
-     *  check the device, check the sensor - so a bare "invalid" is not an
-     *  answer.
-     *
-     *  Written by whichever path invalidated the row, so it is a diagnosis
-     *  rather than a guess made at display time.
+     *  row, it was live and stopped, or it is answering with nonsense. Written
+     *  by whichever path invalidated the row, so it is a diagnosis rather than a
+     *  guess made at display time.
      *
      *  @warning Q_NO_DATA is 0 deliberately: a zero-initialised Value - which is
      *  how every site's value store starts, and what the sink is - must read as
@@ -161,23 +143,14 @@ namespace Botanik { namespace Vars {
         /** @brief A 32-bit value's registers arrive low word first.
          *
          *  Registers are big-endian on the wire with no vendor freedom; only
-         *  which half of a PAIR carries the high word varies, and it varies by
-         *  device model. A bit rather than a device-profile table because the
-         *  flags byte already exists, so this costs nothing and a bus of mixed
-         *  vendors needs no new machinery. Meaningless unless `bind.regs` is 2. */
+         *  which half of a PAIR carries the high word varies, by device model.
+         *  Meaningless unless `bind.regs` is 2. */
         F_WORD_SWAP = 1u << 3,
         /** @brief Keep this row's value across a reboot (IEC 61131-3 RETAIN).
          *
          *  For the rows whose value IS the history: litres delivered, hours
-         *  run, cycles counted. A totalizer that restarts at zero every time the
-         *  cabinet loses power is not a totalizer, and nothing downstream can
-         *  tell "the season's total" from "the total since the last brownout".
-         *
-         *  Meant for `ROLE_COMPUTED`. A parameter already persists (that is what
-         *  a parameter IS), an input is overwritten by the next scan, and an
-         *  output must come back at its declared safe state rather than at
-         *  whatever it was doing when the power went - so the bank only retains
-         *  computed rows and says so if a site asks for more.
+         *  run, cycles counted. Only `ROLE_COMPUTED` rows are retained
+         *  (@see Bank::retainable()).
          *
          *  Saved on a cadence and on the way down, never on the write: a
          *  totalizer moves every beat, and a flash write per beat would wear the
@@ -192,17 +165,11 @@ namespace Botanik { namespace Vars {
         /** @brief This output's demand has changed and has not reached the field.
          *
          *  Set on every write that moves a ROLE_OUTPUT, cleared by the driver
-         *  once a transaction has carried it. Marked at the WRITE rather than
-         *  diffed against a shadow copy, which would cost another 8 bytes a row
-         *  to answer a question the writer already knew the answer to. */
+         *  once a transaction has carried it. */
         VF_FIELD_DIRTY = 1u << 0,
         /** @brief This row has had more than one control program write it.
-         *
-         *  Latched, and that is the point: the two programs go on writing every
-         *  beat, so counting collisions would count the SAME defect thousands of
-         *  times a minute and never settle. What is worth knowing is how many
-         *  ROWS have two authors, which is a fixed property of the site's
-         *  design. @see Bank::claim_writer() */
+         *  Latched, so the count is of ROWS with two authors rather than of
+         *  per-beat collisions. @see Bank::claim_writer() */
         VF_TWO_WRITERS = 1u << 1
     };
 
@@ -231,11 +198,8 @@ namespace Botanik { namespace Vars {
     /** @brief What a T_STR row DECLARES about its pool slot: how big it is and
      *  what a new value is checked against.
      *
-     *  Not where it sits. Bank::init() lays the slots out in table order and
-     *  puts the result in the Value, so the offset is derived rather than
-     *  declared - a number a site would otherwise re-type for every row after an
-     *  inserted text parameter, and one whose only failure mode is silently
-     *  overlapping two settings. */
+     *  Not where it sits: Bank::init() lays the slots out in table order and
+     *  puts the offset in the Value, so it is derived and never declared. */
     struct TextSlot {
         uint16_t cap;    ///< capacity including the NUL; 0 = no slot
         StrKind  kind;   ///< edit validation
@@ -244,11 +208,10 @@ namespace Botanik { namespace Vars {
     /** @brief An alarm row's announce policy: the short display code plus the
      *  dwell thresholds the AlarmController runs it on.
      *
-     *  Seconds as int16 rather than int32 because that is what fits: it keeps
-     *  the arm inside the 16 bytes NumBand already costs, so carrying the alarm
-     *  policy in the variable table is free. Nine hours of dwell is past any
-     *  plausible setting, and the sentinels (-1 = never announce, recent_s 0 =
-     *  the default window) are unaffected. */
+     *  Seconds as int16 because that is what fits: it keeps the arm inside the
+     *  16 bytes NumBand already costs. Nine hours of dwell is past any plausible
+     *  setting, and the sentinels (-1 = never announce, recent_s 0 = the default
+     *  window) are unaffected. */
     struct AlarmSpec {
         const char* code;         ///< short display code (max 9: AlarmsPage::CODE_W)
         int16_t     on_s;         ///< time ON before announcing (-1: off)
@@ -261,15 +224,13 @@ namespace Botanik { namespace Vars {
     /** @brief A number a row declares: a fixed value, or the parameter that
      *  holds it.
      *
-     *  Calibration is the operator's, not the firmware's: a divider ratio or a
-     *  4-20 mA span is measured on the bench and changes when the hardware does,
-     *  so pinning it in flash means a rebuild to correct a sensor. Pointing the
-     *  field at a parameter lets it be corrected from the PARAMS page.
+     *  Pointing a field at a parameter is what lets a calibration be re-trimmed
+     *  from the PARAMS page without a rebuild.
      *
-     *  @c k is not merely the alternative - it is also the FALLBACK. A named
-     *  parameter that does not exist reads as @c k, so a mistyped name degrades
-     *  to the declared constant rather than to zero (and the bank counts the
-     *  miss, which the site test asserts is never). */
+     *  @c k is also the FALLBACK: a named parameter that does not exist reads as
+     *  @c k, so a mistyped name degrades to the declared constant rather than to
+     *  zero (and the bank counts the miss, which the site test asserts is
+     *  never). */
     struct Tunable {
         float       k;      ///< the value, when @c param is null or absent
         const char* param;  ///< the parameter to read instead (null = fixed)
@@ -280,51 +241,46 @@ namespace Botanik { namespace Vars {
      *
      *  The endpoints say how the wire maps to engineering units - raw_min/max in
      *  the WIRE's unit (mV, uA), eng_min/max in the variable's. @c scale and
-     *  @c offset are deliberately not stored: they are derived from the
-     *  endpoints, so a recalibration takes effect the moment the parameter
-     *  commits and there is no second copy to update.
+     *  @c offset are never stored: they are derived from the endpoints, so a
+     *  recalibration takes effect the moment the parameter commits.
      *
-     *  min/max are a separate pair on purpose. The endpoints are where the
-     *  sensor was calibrated; the band is what counts as a believable reading,
-     *  and it is usually wider - a value just past the top of the calibrated
-     *  span is still a measurement, not a dead sensor.
+     *  min/max are a separate pair: the endpoints are where the sensor was
+     *  calibrated, the band is what counts as a believable reading, and it is
+     *  usually wider.
      *
      *  Blocks are SHARED by pointer: two identical dividers name one block, and
-     *  then they share its parameters too, which is what "identical" should
-     *  mean. Give a channel its own block the moment it needs its own trim. */
+     *  then share its parameters too. Give a channel its own block the moment it
+     *  needs its own trim. */
     struct AnalogCal {
         Tunable raw_min, raw_max;   ///< wire units at the two calibration points
         Tunable eng_min, eng_max;   ///< engineering units at those same points
         Tunable min, max;           ///< plausibility band, engineering units
     };
 
-    /** @brief Which arm of Payload a row is using. Three kinds of row, three
-     *  shapes, one question - asked here rather than open-coded, so a new arm
-     *  cannot be added without every reader seeing it. */
+    /** @brief Which arm of Payload a row is using. The one place the question is
+     *  answered; nothing open-codes it. */
     enum PayloadArm : uint8_t { PAY_NUM, PAY_TEXT, PAY_ALARM, PAY_ANALOG };
 
     /** @brief The half of a row that depends on whether it holds text.
      *
-     *  A band is meaningless for a string, a pool slot is meaningless for a
-     *  number, and an alarm wants neither - it wants its announce policy. No
-     *  two ever coexist, so one slot serves all three. The discriminant is
-     *  already on the row: see payload_arm().
+     *  A band is meaningless for a string, a pool slot for a number, and an
+     *  alarm wants neither. No two ever coexist, so one slot serves all four.
+     *  The discriminant is on the row: see payload_arm().
      *
      *  Constexpr constructors rather than an aggregate, because C++11 aggregate
-     *  initialisation can only reach a union's FIRST member - the same reason
-     *  Scalar has them (see scalar.h). Reach the arms through num_band() /
-     *  text_slot(), never directly: those check the discriminant, and a T_STR
-     *  read as a band would return two pointers-as-doubles, while a number read
-     *  as a slot would hand `copy_bounded` an arbitrary pool offset to write
-     *  through. */
+     *  initialisation can only reach a union's FIRST member (same reason Scalar
+     *  has them, see scalar.h).
+     *
+     *  @warning Reach the arms through num_band() / text_slot() / analog_cal() /
+     *  alarm_spec(), never directly: those check the discriminant. A T_STR read
+     *  as a band returns two pointers-as-doubles, and a number read as a slot
+     *  hands `copy_bounded` an arbitrary pool offset to write through. */
     union Payload {
         NumBand   num;
         TextSlot  text;
         AlarmSpec alarm;
-        /** @brief Borrowed, and shareable: several rows may name one block.
-         *  A pointer rather than the block itself because six Tunables are 48
-         *  bytes and this union is 16 - inlining them would grow EVERY row to
-         *  serve the handful that are analog. */
+        /** @brief Borrowed, and shareable: several rows may name one block. A
+         *  pointer because six Tunables are 48 bytes and this union is 16. */
         const AnalogCal* cal;
         /// An unset band: what a row with no meaningful bounds carries.
         constexpr Payload() : num{Scalar(), Scalar()} {}
@@ -338,13 +294,11 @@ namespace Botanik { namespace Vars {
 
     /** @brief Every variable, whatever its kind.
      *
-     *  Field order is load-bearing: @c pay is 8-aligned, so putting the 4-byte
-     *  @c str pointer before it would buy 4 bytes of padding and give the whole
-     *  union back. After it, @c str lands in the tail hole and the row is 72
-     *  bytes on the M7 rather than 80.
+     *  @warning Field order is load-bearing: @c pay is 8-aligned, so @c str must
+     *  stay AFTER it, where it lands in the tail hole (72 bytes on the M7).
+     *  Ahead of it, the padding costs 8 more.
      *
-     *  Built through the declare.h factories, not brace-initialised: each scope
-     *  has one, and it takes only the arguments that scope can use. */
+     *  Built through the declare.h factories, not brace-initialised. */
     struct Variable {
         Scalar      def;        ///< invalid-read fallback / safe state / factory value
         const char* name;       ///< symbolic name; the telemetry leaf; the storage key
@@ -358,19 +312,12 @@ namespace Botanik { namespace Vars {
          *  @c timeout_ms.
          *
          *  Two different questions, kept apart. The timeout is a CONTRACT with
-         *  whatever reads the row - "believe this for 15 s and no longer" - and
-         *  the poll interval is a COST on the bus. Deriving one from the other
-         *  ties them together: a slower poll would mean accepting a longer
-         *  staleness window, and tightening the staleness window would silently
-         *  multiply the traffic.
-         *
-         *  A meter can now say "poll me every 10 s, and call me stale at 15" -
-         *  which is the honest shape of it, since the 5 s of slack is exactly
-         *  the one missed reading you are willing to tolerate before saying so.
+         *  whatever reads the row ("believe this for 15 s and no longer"); the
+         *  poll interval is a COST on the bus. A meter can say "poll me every
+         *  10 s, call me stale at 15".
          *
          *  16 bits because the poll ladder tops out at 60 s, and it lands in
-         *  padding that was already being wasted after @c timeout_ms - so a
-         *  descriptor costs no more than it did. */
+         *  padding after @c timeout_ms, so the descriptor costs no more. */
         uint16_t    poll_ms;
         /** @brief T_ENUM renderer; null for a plain number. */
         const char* (*str)(uint64_t);
@@ -433,11 +380,9 @@ namespace Botanik { namespace Vars {
      * everything. Those are checked by their driver, which can resolve the
      * calibration; see `AnalogValues::plausible()`.
      *
-     * One predicate because there are two callers and they must agree:
+     * One predicate because two callers must agree about it:
      * `Bank::reject_implausible()` sweeping the table, and the field-bus driver
-     * judging a row the moment it commits it. When they were separate the sweep
-     * was the only judge, so an out-of-band reading was `Q_GOOD` to every
-     * control program that ran before the next background beat.
+     * judging a row the moment it commits it.
      */
     bool value_implausible(const Variable& d, const Scalar& v);
 
@@ -456,9 +401,10 @@ namespace Botanik { namespace Vars {
      *  because "force this to 20 C" and "make this read as a dead sensor" are
      *  different jobs.
      *
-     *  Both halves are PERSISTED, so a forgotten override survives the reboot
-     *  someone reaches for when the machine behaves strangely - which is why
-     *  each restore is announced as a CRITICAL. @see Bank::load_overrides() */
+     *  @warning Both halves are PERSISTED, so a forgotten override survives the
+     *  reboot someone reaches for when the machine behaves strangely - which is
+     *  why each restore is announced as a CRITICAL.
+     *  @see Bank::load_overrides() */
     struct Value {
         Scalar   v;
         Scalar   ovr;        ///< forced value, while ovr_on
@@ -469,9 +415,8 @@ namespace Botanik { namespace Vars {
          *  alignment, and behind them it bought a pad byte that pushed the row
          *  past 32. */
         uint16_t str_off;
-        /** @brief The live value's quality - valid, or invalid and why. A byte
-         *  rather than a bool, at the same cost, because "invalid" alone is the
-         *  same answer to three different questions (see Quality). */
+        /** @brief The live value's quality - valid, or invalid and why.
+         *  @see Quality */
         Quality  qual;
         bool     ovr_on;     ///< an override is in force
         bool     ovr_valid;  ///< what valid() reports while overridden
@@ -479,10 +424,8 @@ namespace Botanik { namespace Vars {
         /** @brief Which control program last claimed this row, as its index in
          *  the site's program table; WRITER_NONE until one does.
          *
-         *  Spent out of the reserved bytes, so the 32 below is unchanged. It
-         *  answers two questions: which program computes a row (the MONITOR
-         *  page's, so a reader can go and look at the logic), and whether TWO of
-         *  them are driving one output - a wiring mistake in the site's design
+         *  Answers two questions: which program computes a row (the MONITOR
+         *  page shows it), and whether TWO of them drive one output - a defect
          *  that otherwise shows up only as an actuator chattering at the beat
          *  rate. */
         uint8_t  writer;
@@ -492,9 +435,8 @@ namespace Botanik { namespace Vars {
     /** @brief No program has claimed this row. Not 0, which is a real program
      *  index - the same trap VAR_NONE exists to avoid. */
     static const uint8_t WRITER_NONE = 0xFFu;
-    // The override costs 8 bytes per variable, in RAM, on every site whether it
-    // uses one or not - so it is pinned here rather than left to drift. Adding a
-    // field means spending another 8 across the whole table; say so out loud.
+    // Every field here costs RAM on every row of every site, so the size is
+    // pinned rather than left to drift.
     static_assert(sizeof(Value) == 32, "Value must stay 32 bytes (RAM per variable)");
 
     /** @brief A reference to any variable: a bare index into the one table.
@@ -510,11 +452,10 @@ namespace Botanik { namespace Vars {
 
     /** @brief A text row that found no room in the pool.
      *
-     *  Not 0, which is a REAL slot - the first text row's. An overflowed row
-     *  parked at offset 0 keeps a non-zero declared capacity, so every writer
-     *  would write a full slot's worth on top of that first row, and a pool
-     *  smaller than a single slot would run off the end of the array entirely.
-     *  "No slot" has to be sayable for a writer to be able to refuse. */
+     *  Not 0, which is a REAL slot (the first text row's): an overflowed row
+     *  parked at offset 0 keeps its declared capacity, so writers would write a
+     *  full slot on top of that first row. "No slot" must be sayable for a
+     *  writer to refuse. */
     static const uint16_t STR_NO_SLOT = 0xFFFFu;
 
     /** @} */
@@ -525,9 +466,6 @@ namespace Botanik { namespace Vars {
     /**
      * @brief The one handle: a non-owning (descriptor, value slot) pair,
      * constructed on the fly and passed by value.
-     *
-     * It costs nothing to make and gives control logic type safety without any
-     * offset arithmetic:
      * @code
      * float t = io.var(V_EXT_TEMP).value();
      * io.var(V_DRAIN_VALVE).set(true);
@@ -544,10 +482,9 @@ namespace Botanik { namespace Vars {
          *  that does not care about quality still gets a sane number, and logic
          *  that does care asks valid().
          *
-         *  An override is applied HERE, at the one place every reader goes
-         *  through, so forcing a variable reaches control logic, the console,
-         *  telemetry and the alarm model alike - there is no path that sees
-         *  around it.
+         *  An override is applied HERE, the one place every reader goes
+         *  through, so it reaches control logic, console, telemetry and the
+         *  alarm model alike: no path sees around it.
          *  @{ */
         /** @brief What this row reads, override applied. @see _under() for
          *  the fallback rule. */
@@ -563,15 +500,13 @@ namespace Botanik { namespace Vars {
          *  What the row would read with nothing forced: the driver's last value
          *  (or the declared default, when nothing has written it) and its real
          *  quality. Diagnostics only - control logic reads raw()/valid() and is
-         *  meant to see the forced value. It exists so `get` can show BOTH, since
-         *  "the sensor now reads sane again" is exactly what you want to know
-         *  before releasing an override.
+         *  meant to see the forced value. `get` shows both, so an operator can
+         *  see whether a sensor reads sane again before releasing an override.
          *  @{ */
         Scalar   live()       const { return _under(); }
         bool     live_valid() const { return _v->qual == Q_GOOD; }
         /** @brief ...and WHY, when it is not good. An override does not change
-         *  it: the row underneath still has whatever quality it had, which is
-         *  exactly what someone deciding whether to release one wants. */
+         *  it: the row underneath keeps whatever quality it had. */
         Quality  live_quality() const { return _v->qual; }
         /** @} */
         /** @brief Where this row's text sits in the pool (T_STR only; 0
@@ -610,13 +545,9 @@ namespace Botanik { namespace Vars {
         }
         /** @brief The quantity, without claiming anything has MEASURED it.
          *
-         *  publish() is what a driver calls: it stamps and marks the row good
-         *  because a device has just told it something. A simulated field has
-         *  not been told anything - it IS the device - so it must not do either,
-         *  or the row reads good for ever and no timeout can ever catch it. That
-         *  is precisely what stopped a device going quiet from going stale in
-         *  the simulator: the animator re-asserted Q_GOOD every beat, underneath
-         *  a master that had stopped hearing anything.
+         *  For a simulated field, which IS the device rather than a reader of
+         *  it: stamping and marking Q_GOOD here would keep the row good for
+         *  ever, so no timeout could ever catch a device going quiet.
          *
          *  Value only. Quality and staleness stay the business of whatever
          *  actually reads the wire. */
@@ -643,11 +574,9 @@ namespace Botanik { namespace Vars {
          *  demand itself.
          *
          *  For a driver that has learned the device no longer necessarily has
-         *  what it was last sent - a slave that dropped off the bus and came
-         *  back has been through its own power-on defaults, and the firmware's
-         *  belief that the coil is still set is a belief about a device that
-         *  rebooted underneath it. Re-marking is not a re-decision: the value
-         *  stands, only its delivery is owed again. */
+         *  what it was last sent: a slave that dropped off the bus and came back
+         *  has been through its own power-on defaults. The value stands, only
+         *  its delivery is owed again. */
         void mark_field_dirty() { _touch_field(); }
 
         /** @} */
@@ -661,12 +590,10 @@ namespace Botanik { namespace Vars {
     private:
         /** @name Override mutation - Bank's, not yours
          *
-         *  Private, and it is load-bearing. An override is PERSISTED, so every
-         *  one of these has a storage side to it that only the Bank can reach: a
-         *  set that skipped the store would vanish at the next boot, and a clear
-         *  that skipped it would come BACK at the next boot. One caller reaching
-         *  past the bank is enough to produce both, so the rule is written in
-         *  the access specifier rather than in a comment.
+         *  @warning Private, and load-bearing. An override is PERSISTED, so
+         *  each of these has a storage side only the Bank can reach: a set that
+         *  skipped the store would vanish at the next boot, and a clear that
+         *  skipped it would come BACK at the next boot.
          *  @{ */
         friend class Bank;
 
@@ -674,7 +601,7 @@ namespace Botanik { namespace Vars {
          *
          *  Marks the field dirty, like any other write: an operator forcing an
          *  actuator by hand expects it to move, and the collector reads raw()
-         *  rather than the underlying value precisely so that it does. */
+         *  so that it does. */
         void override_set(Scalar v, bool valid = true) {
             _v->ovr = v; _v->ovr_valid = valid; _v->ovr_on = true; _touch_field();
         }
@@ -682,10 +609,8 @@ namespace Botanik { namespace Vars {
         void override_freeze() { override_set(raw(), valid()); }
         /** @brief Release the override; the live value takes over again.
          *
-         *  Also a change to what the field should be showing - back to whatever
-         *  the programs were demanding underneath - so it marks dirty too. An
-         *  override that was released but never written back would leave the
-         *  actuator wherever the maintainer left it. */
+         *  Marks the field dirty too: a release that was never written back
+         *  would leave the actuator wherever the maintainer left it. */
         void override_clear() { _v->ovr_on = false; _touch_field(); }
         /** @} */
 
@@ -693,10 +618,9 @@ namespace Botanik { namespace Vars {
          *
          *  A control law re-states its whole demand every activation, so
          *  dirtying on each one leaves every output permanently owed - and a
-         *  pending write outranks a due read, so the writes hold the wire and
-         *  the readings starve. The slot itself is the shadow, so the compare is
-         *  free. Q_SAFE counts as moved: the fault path put the row somewhere
-         *  known, so it is not showing its demand. */
+         *  pending write outranks a due read, so the readings starve. Q_SAFE
+         *  counts as moved: the fault path put the row somewhere known, so it is
+         *  not showing its demand. */
         void _drive(Scalar v) {
             const bool moved = (_v->v.u != v.u) || (_v->qual != Q_GOOD);
             _v->v    = v;
@@ -707,19 +631,14 @@ namespace Botanik { namespace Vars {
         /** @brief What the row reads with no override in force: the ONE
          *  statement of the fallback rule.
          *
-         *  A STALE row keeps the value it actually had - a sensor that answered
-         *  a minute ago still knows what the plant was doing, and 20 C from a
-         *  minute ago is a better account of a greenhouse than the 0 C its
-         *  declared default reads as. Q_NO_DATA, Q_SAFE and Q_IMPLAUSIBLE fall
-         *  back: nothing to keep, a deliberate safe state, and a number already
-         *  rejected for being wrong.
+         *  A STALE row keeps the value it actually had: a sensor that answered a
+         *  minute ago still knows what the plant was doing, and 20 C from a
+         *  minute ago is a better account of a greenhouse than its declared
+         *  default. Q_NO_DATA, Q_SAFE and Q_IMPLAUSIBLE fall back: nothing to
+         *  keep, a deliberate safe state, and a number already rejected for
+         *  being wrong.
          *
-         *  Private and shared by raw() and live() because they had drifted:
-         *  raw() kept the stale value and live() did not, so the MONITOR page's
-         *  live column and `get`'s Raw value row showed 0 for a stale sensor
-         *  while the value beside them showed the last reading. Those two
-         *  fields are what an engineer reads to decide whether a sensor has
-         *  died. */
+         *  Shared by raw() and live() so the two cannot drift. */
         Scalar _under() const {
             return (_v->qual == Q_GOOD || _v->qual == Q_STALE) ? _v->v : _d->def;
         }
@@ -753,9 +672,7 @@ namespace Botanik { namespace Vars {
         uint16_t        pool_bytes;
         /** @brief Scratch for the name index: @c count row numbers, which
          *  Bank's constructor sorts by name (see Bank::find()). Borrowed and
-         *  exactly sized, like the value store - a fixed array inside Bank would
-         *  need a maximum row count declared somewhere, and that number is
-         *  already written down here as @c count.
+         *  exactly sized, like the value store.
          *
          *  Optional: a null one leaves find() walking the table, which is what a
          *  small test fixture wants and what a real site must not ship. */
@@ -777,10 +694,9 @@ namespace Botanik { namespace Vars {
      *  and an override. The implementation over HAL::Storage lives in params.h;
      *  the Bank only needs the interface, so a test can hand it a stub.
      *
-     *  Overrides are kept under their own keys rather than mixed into the
-     *  parameter's, because they are a different fact about the same row: one is
-     *  the configured value, the other is a maintainer holding it somewhere
-     *  else, and clearing the override must not disturb the setting under it. */
+     *  Overrides are kept under their own keys, not mixed into the parameter's:
+     *  they are a different fact about the same row, and clearing the override
+     *  must not disturb the setting under it. */
     struct VarStore {
         virtual ~VarStore() {}
         /** @brief Load @p d's stored value into @p v, or into @p text for a
@@ -788,10 +704,9 @@ namespace Botanik { namespace Vars {
          *  the caller keeps the declared default.
          *
          *  @p text / @p cap is the row's slot, already resolved and bounded by
-         *  the bank - null and 0 for a row that has none. The store is handed a
-         *  buffer rather than the pool and an offset on purpose: it has no way
-         *  to know how big the pool is, so it had no way to prove its own
-         *  arithmetic landed inside it. */
+         *  the bank - null and 0 for a row that has none. A buffer rather than
+         *  the pool and an offset: the store cannot know the pool's size, so it
+         *  could not prove its own arithmetic landed inside it. */
         virtual bool load(const Variable& d, Value& v, char* text, uint16_t cap) = 0;
         /** @brief Persist @p d's current value. */
         virtual bool save(const Variable& d, const Value& v,
@@ -810,9 +725,8 @@ namespace Botanik { namespace Vars {
         /** @brief Load @p d's RETAINED value (F_RETAIN). @return false when
          *  none is stored - a first boot, or a row that has never been saved.
          *
-         *  Its own key, for the same reason an override has one: a retained
-         *  total and a configured setting are different facts, and a row can
-         *  have both. */
+         *  Its own key, for the same reason an override has one: a row can have
+         *  both, and they are different facts. */
         virtual bool load_retained(const Variable& d, Value& v) = 0;
         /** @brief Persist @p d's current value as its retained one. */
         virtual bool save_retained(const Variable& d, const Value& v) = 0;
@@ -821,21 +735,18 @@ namespace Botanik { namespace Vars {
     /**
      * @brief What everything is handed to reach the variables.
      *
-     * An out-of-range index - VAR_NONE included - resolves to an inert sink
-     * rather than faulting or clamping. Clamping was worse than it looked: it
-     * aliased a bad index onto the LAST entry, so a typo would drive a real
-     * relay. The sink absorbs reads and writes harmlessly, so a mistake shows up
-     * as a signal that never moves instead of the wrong actuator firing.
+     * An out-of-range index - VAR_NONE included - resolves to an inert sink,
+     * never faulting and never CLAMPING: clamping would alias a bad index onto
+     * a real row, so a typo could drive an actual relay. The sink absorbs reads
+     * and writes harmlessly, so a mistake shows up as a signal that never moves.
      */
     class Bank {
         VarTables   _tables;
         /** @name Parameter block
          *
-         *  The ROLE_PARAM rows are one contiguous run, which is what lets the
+         *  The ROLE_PARAM rows MUST be one contiguous run: that is what lets the
          *  parameter pages address them with a dense 0-based index and one add.
-         *  Found by scanning the table rather than written into the site's
-         *  descriptor: a boundary spelled out by hand is a second copy of the
-         *  row order, and that is the copy that goes stale.
+         *  Found by scanning the table, never declared. @see _find_param_block()
          *  @{ */
         uint16_t      _param_first = 0;
         uint16_t      _param_count = 0;
@@ -850,12 +761,10 @@ namespace Botanik { namespace Vars {
          *  store refused (see set()). May be null. */
         Logs::Logger* _logger = nullptr;
         /** @brief How many name lookups have found nothing since construction.
-         *  Variables are addressed by NAME, so a typo does not fail to compile -
-         *  it resolves to the sink and reads zero forever. Counting the misses
-         *  is what makes that visible: non-zero after bring-up means a table or
-         *  a control program names a row that is not in vars.h.
-         *  Mutable because find() is const and this is diagnostics, not
-         *  state. */
+         *  A typo resolves to the sink and reads zero forever, so counting the
+         *  misses is what makes it visible: non-zero after bring-up means a
+         *  table or a control program names a row that is not in vars.h.
+         *  Mutable because find() is const and this is diagnostics. */
         mutable uint16_t _unresolved = 0;
         /** @brief Rows written by more than one program, and the first such row.
          *  @see claim_writer() */
@@ -875,16 +784,14 @@ namespace Botanik { namespace Vars {
         uint16_t      _pool_overflow = 0;
         /** @} */
     public:
-        /** VarTables is a bare aggregate (no member initializers, so a site's
-         *  descriptor stays in flash), so value-initialize it here: without the
-         *  `()` an unbound bank starts on indeterminate pointers and init()
-         *  walks them. */
+        /** VarTables has no member initializers (so a site's descriptor stays in
+         *  flash); the `()` is required, or an unbound bank starts on
+         *  indeterminate pointers that init() then walks. */
         Bank() : _tables() {}
         explicit Bank(const VarTables& t) : _tables(t) {
             _find_param_block();
-            // The table is const and never grows, so the mapping is built here
-            // rather than in init(): a find() before init() (a site test, a
-            // fixture) then gets the fast path too.
+            // Built here, not in init(): the table is const, and a find() before
+            // init() (a site test, a fixture) then gets the fast path too.
             _build_index();
         }
 
@@ -905,11 +812,8 @@ namespace Botanik { namespace Vars {
 
         /** @brief Restore the overrides that were in force at the last shutdown.
          *
-         *  Every role, ROLE_OUTPUT included. An override means one thing
-         *  whatever it is on - "a person has taken this row by hand" - and
-         *  carving an exception out for actuators made it mean two, which is how
-         *  you end up with an operator wondering why the valve they forced came
-         *  back and the sensor they forced did not.
+         *  Every role, ROLE_OUTPUT included: an override means one thing
+         *  whatever row it is on, "a person has taken this row by hand".
          *
          *  @warning A restored output override is DRIVING the plant from this
          *  moment, so each restore is announced as a CRITICAL naming the row.
@@ -927,11 +831,9 @@ namespace Botanik { namespace Vars {
          *
          *  `F_RETAIN` on a `ROLE_COMPUTED` row, and nothing else. A parameter
          *  already persists, an input is overwritten by the next scan, and an
-         *  output must come back at its declared safe state rather than at
-         *  whatever it was doing when the power went - restoring a coil from
-         *  flash would energise a contactor before anything had looked at the
-         *  plant. Stated as one predicate so the load and save paths cannot
-         *  disagree about it. */
+         *  output MUST come back at its declared safe state: restoring a coil
+         *  from flash would energise a contactor before anything had looked at
+         *  the plant. One predicate, so load and save cannot disagree. */
         static bool retainable(const Variable& d) {
             return (d.flags & F_RETAIN) != 0 && d.role == ROLE_COMPUTED;
         }
@@ -972,9 +874,8 @@ namespace Botanik { namespace Vars {
         /** @brief Where @p h's text lives in the pool, or null when it has none
          *  - not a T_STR, no pool bound, or the row found no room at init().
          *
-         *  The ONLY way to reach a row's text. A caller computing `pool + off`
-         *  itself would have to gate on the declared capacity, which is in flash
-         *  and says nothing about whether the row actually got a slot.
+         *  The ONLY way to reach a row's text: the declared capacity is in
+         *  flash and says nothing about whether the row actually got a slot.
          *  @p cap_out receives the usable capacity (0 when there is no slot). */
         char* text_at(Var h, uint16_t* cap_out = nullptr) const;
 
@@ -1015,8 +916,7 @@ namespace Botanik { namespace Vars {
          *
          *  @return false when @p r already belonged to a different program. The
          *          write still goes through: refusing it would leave the plant
-         *          in whatever state the losing program had reached, which is
-         *          worse than the chatter and harder to read.
+         *          in whatever state the losing program reached.
          */
         bool claim_writer(VarRef r, uint8_t who);
 
@@ -1024,22 +924,18 @@ namespace Botanik { namespace Vars {
         uint8_t writer_of(VarRef r) const;
 
         /** @brief How many ROWS have been written by more than one program, and
-         *  the first one that was - counted rather than logged from inside the
-         *  write, which has no logger and runs in the control phase.
+         *  the first one that was. Counted rather than logged: the write path
+         *  has no logger and runs in the control phase.
          *
-         *  Rows, not collisions. Two programs go on writing every beat and each
-         *  takes the row from the other, so a collision count would climb
-         *  forever and never let a reporter settle; how many rows have two
-         *  authors is a fixed property of the site's design, which is the thing
-         *  actually worth knowing. */
+         *  Rows, not collisions: two programs go on colliding every beat, while
+         *  the number of rows with two authors is fixed by the site's design. */
         uint16_t writer_conflicts() const { return _conflicts; }
         VarRef   first_conflict() const   { return _conflict_row; }
 
         /** @} */
 
         /** @brief Whether the name index is in use. False means the site gave
-         *  VarTables no index scratch and every find() is a full scan -
-         *  correct, but the cost the index exists to avoid. */
+         *  VarTables no index scratch and every find() is a full scan. */
         bool name_index_built() const { return _indexed; }
 
         /** @brief Pool bytes the text rows actually claimed, and how many rows
@@ -1054,14 +950,12 @@ namespace Botanik { namespace Vars {
          *  Whether the firmware is allowed to drive the field at all.
          *
          *  Two INDEPENDENT sources can hold it down, and control returns only
-         *  when both have let go. That is the whole reason this is a set rather
-         *  than a flag: an operator who disabled control at the console must
-         *  still be disabled after a health fault comes and goes, and a firmware
-         *  that has just recovered must not quietly talk over them.
+         *  when both have let go: an operator's `control disable` must survive a
+         *  health fault coming and going, and a recovered firmware must not talk
+         *  over the operator.
          *
-         *  It starts held by INHIBIT_HEALTH, so a half-constructed firmware
-         *  cannot energise an actuator between power-on and the point bring-up
-         *  says it is ready.
+         *  Starts held by INHIBIT_HEALTH, so a half-constructed firmware cannot
+         *  energise an actuator before bring-up says it is ready.
          *  @{ */
 
         /** @brief Who is holding control down. Control is enabled only when the
@@ -1084,21 +978,20 @@ namespace Botanik { namespace Vars {
          *  **INHIBIT_OPERATOR** leaves overrides alone: `control disable` is how
          *  you take the plant by hand, and an override is then the only thing
          *  that can move an actuator. **INHIBIT_HEALTH** releases them, stored
-         *  copy included - it runs when the firmware cannot reason about what it
+         *  copy included: it runs when the firmware cannot reason about what it
          *  is driving, and an actuator held energised by hand through that is
          *  what the safe state exists to prevent.
          *
-         *  Outputs only. Clearing an internal would erase the diagnosis that got
-         *  us here; sweeping a parameter would revert the network settings on a
-         *  scan overrun. */
+         *  Outputs only. Clearing an internal would erase the diagnosis;
+         *  sweeping a parameter would revert the network settings on a scan
+         *  overrun. */
         void disable_control(ControlInhibit source = INHIBIT_OPERATOR);
 
         /** @brief Whether the field may be driven (the scan is gated on it). */
         bool control_enabled() const { return _inhibits == 0; }
 
-        /** @brief True while @p source is one of the holds in force - what lets
-         *  the console say WHY control is off, so an operator whose `control
-         *  enable` did not bring it back is told what else is holding it. */
+        /** @brief True while @p source is one of the holds in force, so the
+         *  console can say WHY a `control enable` did not bring control back. */
         bool control_inhibited_by(ControlInhibit source) const {
             return (_inhibits & (uint8_t)source) != 0;
         }
@@ -1113,17 +1006,12 @@ namespace Botanik { namespace Vars {
         /** @brief Invalidate any ROLE_INPUT whose reading has left its declared
          *  plausibility band, and any T_F32 that has gone non-finite.
          *
-         *  This is what F_BOUNDED was declared FOR on an input, and it went
-         *  years unenforced: a shorted 4-20 mA loop reads full scale, which is a
-         *  perfectly well-formed number, and every consumer treated it as a
-         *  measurement. Marking it invalid instead is what makes the declared
-         *  band worth writing - and what makes `def` do its documented job, so a
-         *  control program reads the fallback without testing valid() at all.
+         *  What F_BOUNDED is declared FOR on an input: a shorted 4-20 mA loop
+         *  reads full scale, a well-formed number no timeout catches. Marking it
+         *  invalid puts `def` in front of control logic instead.
          *
-         *  Non-finite is the same argument in a nastier form: a NaN compares
-         *  false against everything, so it does not trip a band, and it makes
-         *  every downstream hysteresis and deadband behave oddly rather than
-         *  fault. A driver that produces one has failed, so the reading has.
+         *  Non-finite separately, because a NaN compares false against
+         *  everything and so trips no band.
          *
          *  Analog rows are skipped here: their band is operator-editable and
          *  needs the parameter table to resolve, which the bank has no route to.
@@ -1132,12 +1020,10 @@ namespace Botanik { namespace Vars {
 
         /** @name Writing
          *
-         *  The two ways a human changes a variable, and they are deliberately
-         *  different things. set() edits a PARAMETER: validated against its
-         *  declared band and persisted, because it is configuration. override()
-         *  forces ANY variable: volatile, and range-checked against the type
-         *  only - forcing a reading outside its plausibility band is precisely
-         *  how you exercise the alarm that watches for it.
+         *  Two different things. set() edits a PARAMETER: validated against its
+         *  declared band and persisted. override() forces ANY variable:
+         *  volatile, and range-checked against the type only, so a reading can
+         *  be pushed past its band to exercise the alarm watching for it.
          *  @{ */
 
         /** @brief Apply @p text to parameter @p h and persist it. Rejects a
@@ -1147,34 +1033,29 @@ namespace Botanik { namespace Vars {
 
         /** @brief Whether @p v WOULD be accepted, without writing anything.
          *
-         *  The admission half of set(), split out because a caller that commits
-         *  several rows as one unit has to know they all pass before it changes
-         *  any of them - the Modbus slave applies a multi-register write that
-         *  way. Restating the rules at that call site instead would mean a rule
-         *  added here later is enforced only on commit, which is exactly the
-         *  half-applied write the two passes exist to prevent. */
+         *  The admission half of set(), for a caller committing several rows as
+         *  one unit: it must know they all pass before changing any of them (the
+         *  Modbus slave applies a multi-register write that way). The rules live
+         *  here only, so a rule added later cannot be missed on the check. */
         SetResult check(Var h, Scalar v) const;
 
         /** @brief The same, with the value already typed.
          *
-         *  Both callers of the text form are a human at a keyboard; a Modbus
-         *  write arrives as bytes that are already the row's type. Rendering
-         *  those to a string and parsing them back would put the value through
-         *  the row's DISPLAY rounding (`digits`) on the way in, so a master
-         *  writing 0.083 to a 2-decimal parameter would find it had written
-         *  0.08. T_STR is refused: its text lives in the pool, not the slot. */
+         *  For a caller whose value is already the row's type (a Modbus write).
+         *  Going via text would put it through the row's DISPLAY rounding
+         *  (`digits`), so 0.083 into a 2-decimal parameter would store 0.08.
+         *  T_STR is refused: its text lives in the pool, not the slot. */
         SetResult set(Var h, Scalar v);
 
         /** @brief Apply @p v now and leave the flash write to the caller.
          *
-         *  Storage is synchronous, so a caller committing many rows at once has
-         *  to pace the writes or stall the beat - see the Modbus TCP slave,
-         *  where a single request can cover 61 parameters. The value is live
-         *  immediately either way, which is what the master and the control
-         *  programs care about; only the durable copy is deferred.
+         *  Storage is synchronous, so a caller committing many rows at once must
+         *  pace the writes or stall the beat (one Modbus request can cover 61
+         *  parameters). The value is live immediately; only the durable copy is
+         *  deferred.
          *
-         *  Pair every SET_OK with a persist() or the setting is lost at the next
-         *  reboot, silently, which is the whole hazard of splitting these. */
+         *  @warning Pair every SET_OK with a persist(), or the setting is
+         *  silently lost at the next reboot. */
         SetResult set_deferred(Var h, Scalar v);
 
         /** @brief Write @p h's current value to the store. The other half of
@@ -1188,10 +1069,9 @@ namespace Botanik { namespace Vars {
          *  `control disable`. */
         SetResult override_set(Var h, const char* text, bool valid = true);
 
-        /** @brief The same, with the value already typed - for a caller that has
-         *  a Scalar rather than text to parse. Forcing only the QUALITY is
-         *  `override_set(h, h.raw(), false)`: it goes through here so the
-         *  changed quality is persisted like any other override. */
+        /** @brief The same, with the value already typed. Forcing only the
+         *  QUALITY is `override_set(h, h.raw(), false)`, which persists like any
+         *  other override. */
         void override_set(Var h, Scalar v, bool valid = true);
 
         /** @brief Force @p h to whatever it reads right now, keeping its current
@@ -1215,15 +1095,12 @@ namespace Botanik { namespace Vars {
 
     private:
         /** @brief Sort VarTables::index into name order, once, at construction.
-         *
-         *  There is nothing to keep in step afterwards: the descriptor table is
-         *  const and never grows, so the mapping built here is the mapping for
-         *  the life of the bank. A no-op (leaving _indexed false) when the site
-         *  supplied no scratch array. */
+         *  The descriptor table is const and never grows, so there is nothing to
+         *  keep in step. A no-op (leaving _indexed false) when the site supplied
+         *  no scratch array. */
         void _build_index();
-        /** @brief Row order for the sort: by name, ties broken on row number so
-         *  a duplicated name still resolves to the first of the two - which is
-         *  what the linear scan did. */
+        /** @brief Row order for the sort: by name, ties broken on row number, so
+         *  a duplicated name resolves to the first of the two. */
         bool _order_before(uint16_t a, uint16_t b) const;
         /** @brief The one lookup both find() overloads run. @p len 0 means
          *  "@p name is NUL-terminated"; anything else bounds the comparison.
@@ -1236,20 +1113,17 @@ namespace Botanik { namespace Vars {
         /** @brief Write @p h's override through to the store. */
         void _persist_override(Var h);
         /** @brief Write an edited parameter through to the store, and say so
-         *  loudly when the store refuses. Shared by both set() overloads: the
-         *  value is already live either way, and a refused PERSIST is not a
-         *  rejected EDIT. */
+         *  loudly when the store refuses. Shared by both set() overloads. */
         SetResult _persist_param(Var h, const Variable& d, Value& slot);
 
         /** @brief Locate the ROLE_PARAM run: first such row, then how many
          *  follow it without a break. A parameter outside that run is a table
-         *  defect (the pages address the block by offset); it is simply not
-         *  reachable as a parameter, and the site test asserts there is none. */
+         *  defect: the pages address the block by offset, so it is unreachable
+         *  as a parameter. The site test asserts there is none. */
         void _find_param_block();
 
         /** @brief The inert sink a bad index resolves to. Reset on every such
-         *  access, so a write to one bad index is never visible to the next
-         *  reader - the sink is scratch, not shared state. */
+         *  access: it is scratch, never shared state. */
         static const Variable _sink_d;
         static Value          _sink_v;
     };

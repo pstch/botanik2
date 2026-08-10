@@ -13,16 +13,14 @@
 
 /** @brief A control program is not keeping its declared period.
  *
- *  Which is not the same as the beat being late. `CPU_XRUN` says the scheduler
- *  missed a beat; this says a PROGRAM ran later than the period it asked for,
- *  which happens for reasons the beat metrics cannot see - a program whose own
- *  run is long enough to push the ones after it, or a site declaring more work
- *  per second than the cycle has room for. The plant does not care which; a
- *  control law is only as good as the interval it actually runs at.
+ *  Not the same as the beat being late: `CPU_XRUN` says the scheduler missed a
+ *  beat, this says a PROGRAM ran later than the period it asked for - a long
+ *  run pushing the ones after it, or a site asking for more work per second
+ *  than the cycle holds.
  *
- *  `on_s` is 5: lateness comes in bursts (a flash write, a DNS retry) and a law
- *  that survives one late activation is not worth an alarm. `off_s` is 30,
- *  because "it caught up once" is not evidence the cycle has room again.
+ *  `on_s` is 5: lateness comes in bursts (a flash write, a DNS retry) and one
+ *  late activation is not worth an alarm. `off_s` is 30, because "it caught up
+ *  once" is not evidence the cycle has room again.
  *
  *  Register 997, after the field bus at 996 in the library's 900-999 reserve. */
 #define BOTANIK_PLC_SCAN_ALARM_VARS                                            \

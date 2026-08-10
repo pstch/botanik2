@@ -10,8 +10,7 @@
  * (terminal.h), routes input events to the active page, owns the row-0 status
  * bar and the bottom alarm bar, reserves the content area, and drives the
  * per-tick step() order. Renderers reach the device through terminal();
- * content-area geometry (rows()), the shared SystemContext (context()), and the
- * alarm model (alarms()) live here.
+ * content-area geometry (rows()) and the alarm model (alarms()) live here.
  */
 
 #include <cstdint>                          // int8_t/uint16_t/uint64_t
@@ -27,10 +26,8 @@
 
 namespace Botanik { namespace Alarms { class AlarmController; } }
 namespace Botanik { namespace Scheduler { struct SchedulerContext; } }
-// Held by pointer only, and every call on one lives in console.cpp - so the page
-// interface is forward-declared rather than included. A page multiplexer knowing
-// the page interface is fine; the whole of pages/ landing in everything that
-// draws is not.
+// Held by pointer only, every call on one in console.cpp: forward-declared so
+// pages/ does not land in everything that draws.
 namespace Botanik { namespace Pages { class Page; } }
 
 namespace Botanik { namespace Terminal {
@@ -47,9 +44,8 @@ namespace Botanik { namespace Terminal {
         /** @brief The VT device this console paints through. */
         AnsiTerminal        _term;
         /** @brief The cut buffer every editor and table on this console shares.
-         *  Owned here rather than reached for globally: there is one console per
-         *  firmware, so this is the same single clipboard without being
-         *  reachable from anywhere that includes a header. */
+         *  Owned here, not global: one console per firmware, so it is the same
+         *  single clipboard without being reachable from any header. */
         KillRing            _kill_ring;
 
         /** @}
@@ -107,9 +103,8 @@ namespace Botanik { namespace Terminal {
         AnsiTerminal&       terminal()       { return _term; }
         const AnsiTerminal& terminal() const { return _term; }
 
-        /** @brief The console's cut buffer, shared by every editor and table on
-         *  it: a line cut at the shell prompt yanks into NOTES, and Alt+W on a
-         *  table copies into the same place. */
+        /** @brief The console's cut buffer: a line cut at the shell prompt yanks
+         *  into NOTES, and Alt+W on a table copies into the same place. */
         KillRing&           kill_ring()       { return _kill_ring; }
         const KillRing&     kill_ring() const { return _kill_ring; }
 
@@ -160,9 +155,7 @@ namespace Botanik { namespace Terminal {
 
         /** @brief Name of page @p i, or null when the slot is empty / out of
          *  range (lets the status bar iterate tabs without touching _pages).
-         *  Out of line: it is the only thing here that needs Pages::Page to be
-         *  complete, and keeping it in the .cpp is what lets this header get by
-         *  with a forward declaration. */
+         *  Out of line: the only thing here needing Pages::Page complete. */
         const char* page_name(uint8_t i) const;
 
         /** @}

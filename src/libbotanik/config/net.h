@@ -10,8 +10,7 @@
 
 #include "libbotanik/config/base.h"       // the BOTANIK_FEATURE_* gates
 
-// Defined and undefined per file rather than in base.h: base.h is guarded,
-// so a second include of it would not restore a macro this file undefined.
+// Defined and undefined per file, not in base.h: see base.h.
 #define BOTANIK_CFG(type, name) static constexpr type name = BOTANIK_##name
 
 namespace Botanik { namespace Config {
@@ -186,11 +185,10 @@ namespace Botanik { namespace Config {
     /** @brief Topics published per activation while a telemetry sweep is in
      *  progress. 0 publishes the whole table in one go (the old behaviour).
      *
-     *  Each topic is its own snprintf and its own tcp_send - MQTT 3.1.1 has no
-     *  multi-topic PUBLISH - so a full sweep in one beat was 38-80 of them,
-     *  0.8-1.9 ms against a 10 ms budget. Pacing spreads that over as many beats
-     *  as it takes; 8 clears a typical table in well under a second, against a
-     *  cadence measured in tens of seconds. */
+     *  Each topic is its own snprintf and its own tcp_send (MQTT 3.1.1 has no
+     *  multi-topic PUBLISH), so a full sweep in one beat is 38-80 of them,
+     *  0.8-1.9 ms against a 10 ms budget. 8 clears a typical table in well under
+     *  a second, against a cadence measured in tens of seconds. */
 #ifndef BOTANIK_MQTT_TELEMETRY_PER_STEP
 #  define BOTANIK_MQTT_TELEMETRY_PER_STEP 8
 #endif
@@ -231,16 +229,14 @@ namespace Botanik { namespace Config {
     /** @brief Minimum level the MQTT log sink publishes (its own gate, on top of
      *  the logger's).
      *
-     *  DEBUG, i.e. everything the logger lets through. The broker is where a
+     *  DEBUG, i.e. everything the logger lets through: the broker is where a
      *  unit's log is read from off-site, and the entries worth having there are
-     *  precisely the ones nobody is at the console for - a DEBUG line that only
-     *  ever reached the LOGS page is not available when it matters. The console
-     *  sinks keep their own higher floors, so raising this one does not make the
-     *  screen noisier.
+     *  the ones nobody is at the console for. The console sinks keep their own
+     *  higher floors, so this does not make the screen noisier.
      *
-     *  Raise it per site if a link is too thin to carry the volume: every entry
-     *  is one QoS-0 PUBLISH, dropped rather than queued while the broker is
-     *  away. Criticals always pass whatever this says. */
+     *  Raise it per site if a link is too thin: every entry is one QoS-0
+     *  PUBLISH, dropped rather than queued while the broker is away. Criticals
+     *  always pass. */
 #ifndef BOTANIK_MQTT_LOG_MIN_LEVEL
 #  define BOTANIK_MQTT_LOG_MIN_LEVEL 1   /* Logs::LOG_DEBUG */
 #endif

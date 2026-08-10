@@ -46,8 +46,7 @@ struct Master {
     bool is_a_read(uint16_t i) const {
         return i != RtuClient::NO_BLOCK && is_read(client.plan().block(i).fc);
     }
-    /** @brief Demand something on every output row, so the write blocks are
-     *  dirty and competing for the bus. */
+    /** @brief Dirties every output row so the write blocks compete for the bus. */
     void dirty_all_writes() {
         const VarTables& t = Site::g_site.vars;
         for (uint16_t i = 0; i < t.count; ++i) {
@@ -60,8 +59,7 @@ struct Master {
     }
 };
 
-/** @brief The shortest read period the plan uses, which is how long "one whole
- *  period late" is for the block that starves first. */
+/** @brief The plan's shortest read period: one whole period late for the block that starves first. */
 uint32_t shortest_read_period(const Planner& p) {
     uint32_t best = 0;
     for (uint16_t i = 0; i < p.block_count(); ++i) {
@@ -75,21 +73,17 @@ uint32_t shortest_read_period(const Planner& p) {
 }  // namespace
 
 TEST_CASE("modbus client: an ordinary dirty write goes before a read that is merely due") {
-    // The base case the other two are measured against.
     Master m;
     m.dirty_all_writes();
 
-    // Past the ordinary write interval, and far enough that reads are due but
-    // not yet a whole period late.
+    // Past the write interval; reads are due but not yet a whole period late.
     const uint16_t pick = m.client.next_block(Config::MODBUS_WRITE_MIN_MS + 1);
     INFO("writes are worth more than a reading about to be taken again anyway");
     CHECK(m.is_write(pick));
 }
 
 TEST_CASE("modbus client: a read starved by a whole period jumps the write queue") {
-    // An Actuator timing a stroke keeps three or four write blocks continuously
-    // dirty. Without a floor they hold the bus and the process image goes stale
-    // underneath the programs reading it.
+    // A stroking Actuator keeps writes dirty continuously; without a floor, reads starve and the image goes stale.
     Master m;
     m.dirty_all_writes();
 
@@ -108,9 +102,7 @@ TEST_CASE("modbus client: a read starved by a whole period jumps the write queue
 }
 
 TEST_CASE("modbus client: withdrawing control puts the safe state ahead of everything") {
-    // disable_control() marks every ROLE_OUTPUT dirty precisely so a transaction
-    // carries the safe state out. Making that wait for MODBUS_WRITE_MIN_MS left
-    // an actuator energised for it.
+    // disable_control() dirties every ROLE_OUTPUT so the safe state ships at once, not after MODBUS_WRITE_MIN_MS.
     Master m;
 
     // A beat with control up, so the withdrawal is an edge rather than a state.
@@ -135,8 +127,7 @@ TEST_CASE("modbus client: a safe state outranks even a starved read") {
     REQUIRE(period > 0);
     const uint64_t late = (uint64_t)period * 4u;
 
-    // Same instant that picked a read above - but now the field is owed a safe
-    // state, and nothing outranks that.
+    // Same instant as above, but now a safe state is owed and outranks it.
     m.bank.disable_control(Bank::INHIBIT_HEALTH);
     const uint16_t pick = m.client.next_block(late);
 
@@ -145,15 +136,14 @@ TEST_CASE("modbus client: a safe state outranks even a starved read") {
 }
 
 TEST_CASE("modbus client: the urgency is spent once the safe state is out") {
-    // An operator who leaves control disabled must not keep the bus at emergency
-    // priority for the rest of the day.
+    // Leaving control disabled must not keep the bus at emergency priority forever.
     Master m;
     (void)m.client.next_block(10);
     m.bank.disable_control(Bank::INHIBIT_HEALTH);
     REQUIRE(m.client.next_block(20) != RtuClient::NO_BLOCK);
     REQUIRE(m.client.safe_state_pending());
 
-    // Pretend the sweep happened: nothing is owed to the field any more.
+    // Pretend the sweep ran: nothing is owed to the field.
     const VarTables& t = Site::g_site.vars;
     for (uint16_t i = 0; i < t.count; ++i)
         if (t.var[i].bind.transport == XP_MODBUS && t.var[i].role == ROLE_OUTPUT)
@@ -168,14 +158,11 @@ TEST_CASE("modbus client: the urgency is spent once the safe state is out") {
 // ===========================================================================
 
 TEST_CASE("modbus client: a device that came back is owed its outputs again") {
-    // The dirty mark means "the wire has not carried this yet", and it is
-    // cleared when the write lands. A device that then reboots comes back at
-    // its own power-on defaults, and nothing in a level-driven scan disagrees:
-    // the demand has not moved, so no write is queued, so the plant sits wrong.
+    // A rebooted device returns to power-on defaults; nothing re-dirties it since the demand hasn't moved, so the plant sits wrong.
     Master m;
     m.dirty_all_writes();
 
-    // Pretend every write has landed, which is where the trouble starts.
+    // Pretend every write has landed - where the trouble starts.
     for (uint16_t i = 0; i < m.client.plan().block_count(); ++i) {
         const Block& b = m.client.plan().block(i);
         if (is_read(b.fc)) continue;
@@ -185,7 +172,6 @@ TEST_CASE("modbus client: a device that came back is owed its outputs again") {
     }
     REQUIRE_FALSE(m.is_write(m.client.next_block(1000)));
 
-    // One device comes back.
     uint8_t peer = 0xFF, unit = 0;
     for (uint16_t i = 0; i < m.client.plan().block_count(); ++i) {
         const Block& b = m.client.plan().block(i);
@@ -197,7 +183,7 @@ TEST_CASE("modbus client: a device that came back is owed its outputs again") {
     REQUIRE(peer != 0xFF);
     m.client.reassert_outputs(peer);
 
-    // Its rows are owed again; every other device's are still settled.
+    // Its rows are re-owed; every other device's stay settled.
     uint16_t mine = 0, others = 0;
     for (uint16_t i = 0; i < m.client.plan().block_count(); ++i) {
         const Block& b = m.client.plan().block(i);
@@ -216,8 +202,7 @@ TEST_CASE("modbus client: a device that came back is owed its outputs again") {
 }
 
 TEST_CASE("modbus client: re-asserting an output does not re-decide it") {
-    // The value stands - only its delivery is owed again. A re-assert that
-    // reset the demand would drop an actuator on every bus glitch.
+    // The value stands; only delivery is re-owed, or a bus glitch would reset every actuator's demand.
     Master m;
     const Block* w = nullptr;
     for (uint16_t i = 0; i < m.client.plan().block_count(); ++i)
@@ -241,8 +226,7 @@ TEST_CASE("modbus client: re-asserting an output does not re-decide it") {
 // ===========================================================================
 
 TEST_CASE("modbus client: duty counts the beat a transaction is quantised to") {
-    // The bus is not free during a frame shorter than a beat - it is idle and
-    // unusable, which is the same thing to the next sensor somebody adds.
+    // A frame shorter than a beat still occupies the bus; idle time is unusable to the next sensor added.
     Master m;
     const Planner& p = m.client.plan();
 
@@ -251,9 +235,7 @@ TEST_CASE("modbus client: duty counts the beat a transaction is quantised to") {
 }
 
 TEST_CASE("modbus client: a short frame on a quick device is charged a whole beat") {
-    // Where the two models actually diverge. The reference site cannot show it:
-    // MODBUS_TURNAROUND_MS is already a beat, so every block it plans is longer
-    // than one. A quick device on a fast link is the case that matters.
+    // Where wire and scheduled duty diverge; the reference site can't show it (MODBUS_TURNAROUND_MS is already a beat), so this uses a fast link.
     Bank bank(Site::g_site.vars);
     bank.init();
     Planner p;
@@ -280,8 +262,7 @@ using namespace Botanik::Vars;
 using namespace Botanik::Modbus;
 
 TEST_CASE("modbus device: an undescribed unit gets the protocol's own limits") {
-    // A model entry is only as good as the manual behind it, so a unit nobody
-    // named must not acquire invented constraints.
+    // A model is only as good as its manual; an unnamed unit must not acquire invented constraints.
     const DeviceModel& g = model_of(nullptr, 5);
     CHECK(g.max_regs == 0);          // 0 defers to max_quantity(fc)
     CHECK(g.max_bits == 0);
@@ -299,8 +280,7 @@ TEST_CASE("modbus device: an undescribed unit gets the protocol's own limits") {
 }
 
 TEST_CASE("modbus device: the site describes every unit its table addresses") {
-    // A device with rows but no model is not an error - it plans as generic -
-    // but on this site it means somebody added hardware and stopped there.
+    // Rows with no model plan as generic, not an error - but here means hardware was added without one.
     const VarTables& t = Site::g_site.vars;
     for (uint16_t i = 0; i < t.count; ++i) {
         const Variable& d = t.var[i];
@@ -313,9 +293,7 @@ TEST_CASE("modbus device: the site describes every unit its table addresses") {
 }
 
 TEST_CASE("modbus device: the site names every unit it addresses") {
-    // A tag is what turns "dev 34 not answering" into a cabinet. Optional in
-    // the library - a table may leave one null - but not on a commissioned
-    // site, where a nameless unit is one somebody added without finishing.
+    // A tag turns "dev 34 not answering" into a cabinet; a commissioned site should never leave one nameless.
     const DeviceTable* t = Site::g_site.devices;
     REQUIRE(t != nullptr);
     for (uint8_t i = 0; i < t->count; ++i) {
@@ -326,15 +304,12 @@ TEST_CASE("modbus device: the site names every unit it addresses") {
 }
 
 TEST_CASE("modbus device: a board without FC15/FC16 is driven a point at a time") {
-    // write_multiple was carried, documented as decisive, and never read - so a
-    // device that only understands FC05/FC06 was still sent FC15/FC16, which it
-    // answers with exception 01. The planner has to choose the wire form, not
-    // the client: Expect::fc is set straight from the block.
+    // write_multiple must be read, not merely carried: a device without FC15/FC16
+    // must never be sent them (exception 01); the planner chooses the wire form.
     Bank bank(Site::g_site.vars);
     bank.init();
 
-    // The relay board at 31, once as it really is and once as a model that has
-    // no multi-write. Same table, same rows, so only the models differ.
+    // Relay board 31: once as it is, once as a model without multi-write; only the model differs.
     DeviceModel single = relay_board("single", 8);
     single.write_multiple = false;
     const Device srows[] = { { 31, &single, "no-multi" } };
@@ -357,7 +332,7 @@ TEST_CASE("modbus device: a board without FC15/FC16 is driven a point at a time"
         saw_single = true;
         INFO("block at " << b.reg << " x " << b.regs);
         CHECK(b.fc == FC_WRITE_COIL);
-        // FC05 carries exactly one coil, so the block must not have coalesced.
+        // FC05 carries exactly one coil; the block must not coalesce.
         CHECK(b.regs == 1);
     }
     REQUIRE(saw_multi);
@@ -365,16 +340,9 @@ TEST_CASE("modbus device: a board without FC15/FC16 is driven a point at a time"
 }
 
 TEST_CASE("modbus device: a wide write no device will take is dropped, not half sent") {
-    // The merge loop bounds what it ADDS against the device cap; the FIRST row
-    // of a block is admitted unconditionally. A read's alignment pass catches an
-    // over-wide block afterwards - a write had nothing. And block_fc() picks
-    // FC06 for a device without FC16, where span_cap() is 1, so a 32-bit
-    // setpoint was planned with regs == 2 and would go out as its HIGH WORD
-    // ALONE, with an echo that matches because the echo carries what was sent.
-    //
-    // gh_mlb41 has no >=1-register write row today, so this needs its own table:
-    // the bug is latent in the shipped site and would arrive with the first
-    // 32-bit setpoint anyone maps.
+    // The merge loop admits a block's first row unconditionally and skips read
+    // alignment on writes; FC06 (device without FC16, span_cap 1) sends a
+    // 32-bit setpoint's HIGH WORD ALONE. gh_mlb41 has none yet - latent until mapped.
     static const Vars::Variable ROWS[] = {
         Vars::MO("wide_setpoint", Vars::T_U32, /*device*/7, FC_WRITE_REGISTERS,
                  /*reg*/100, /*regs*/2, Vars::Scalar::U(0), 0, "", "32-bit setpoint", ""),
@@ -397,12 +365,10 @@ TEST_CASE("modbus device: a wide write no device will take is dropped, not half 
     for (uint16_t i = 0; i < plan.block_count(); ++i) {
         const Block& b = plan.block(i);
         INFO("block fc " << (int)b.fc << " reg " << b.reg << " regs " << b.regs);
-        // FC06 carries exactly one register. A block wider than that cannot be
-        // put on the wire whole, so it must not have been planned at all.
+        // FC06 carries exactly one register; a wider block must not be planned.
         if (b.fc == FC_WRITE_REGISTER) CHECK(b.regs == 1);
     }
-    // The row is not scannable on this device, and the planner says so rather
-    // than sending half of it. rows_unscanned() is a bring-up critical.
+    // Unscannable on this device; the planner says so instead of sending half. rows_unscanned() is a bring-up critical.
     CHECK(plan.rows_unscanned() == 1);
 
     // ...and the same row on a device that DOES take FC16 plans normally.
@@ -419,8 +385,7 @@ TEST_CASE("modbus device: a wide write no device will take is dropped, not half 
 }
 
 TEST_CASE("modbus device: the Waveshare boards are what their manuals say") {
-    // Waveshare "Development Protocol V2" for the relay, "Development Protocol"
-    // for the two analog boards.
+    // Waveshare "Development Protocol V2" (relay), "Development Protocol" (analog boards).
     const DeviceModel& relay = model_of(Site::g_site.devices, 31);
     INFO("Relay (D): eight relays as coils 0x0000-0x0007, written with 05 or 0F");
     CHECK(relay.max_bits == 8);
@@ -435,10 +400,7 @@ TEST_CASE("modbus device: the Waveshare boards are what their manuals say") {
 }
 
 TEST_CASE("modbus device: the AI board's channels are read where they live") {
-    // The channel readings are INPUT registers at 3x0000-3x0007, read with 0x04.
-    // The board's holding registers start at 4x1000, so reading the channels
-    // with 0x03 lands on nothing and draws exception 02 - which is what the
-    // table used to ask for.
+    // Channel readings are INPUT registers 3x0000-3x0007 (fc 0x04); the board's holding registers start at 4x1000, so fc 0x03 lands on nothing (exception 02).
     const VarTables& t = Site::g_site.vars;
     uint16_t seen = 0;
     for (uint16_t i = 0; i < t.count; ++i) {
@@ -480,8 +442,7 @@ TEST_CASE("modbus device: the SDM630's own limits are what the manual says") {
 }
 
 TEST_CASE("modbus device: no planned read block exceeds its device's ceiling") {
-    // Task 6's acceptance check. An over-long request is answered with an
-    // exception rather than a short read, which on a bus reads as a bad cable.
+    // An over-long request draws an exception, not a short read, which reads as a bad cable on the bus.
     Bank bank(Site::g_site.vars);
     bank.init();
     Planner p;
@@ -500,10 +461,8 @@ TEST_CASE("modbus device: no planned read block exceeds its device's ceiling") {
 }
 
 TEST_CASE("modbus device: the site's own plan loses nothing to its constraints") {
-    // Padding a block out to its device's alignment can push it past that
-    // device's ceiling, and a block dropped there would be signals that are
-    // never scanned. Both counters are logged as criticals at bring-up; this
-    // says the reference site does not trip either.
+    // Alignment padding can push a block past its ceiling and drop it - signals
+    // never scanned. Both counters are bring-up criticals; the site must trip neither.
     Bank bank(Site::g_site.vars);
     bank.init();
     Planner p;
@@ -533,8 +492,7 @@ TEST_CASE("modbus device: a planned read is aligned the way its device demands")
 }
 
 TEST_CASE("modbus device: a tight ceiling cuts a run into more blocks") {
-    // The planner has to actually READ max_regs, not merely carry it. Same
-    // table, two models, and the strict one must produce more blocks.
+    // The planner must actually READ max_regs, not merely carry it.
     Bank bank(Site::g_site.vars);
     bank.init();
 
@@ -564,9 +522,7 @@ TEST_CASE("modbus device: a tight ceiling cuts a run into more blocks") {
 }
 
 TEST_CASE("modbus device: an odd row is widened, not sent to be refused") {
-    // A device storing pairs answers exception 02 to a request landing in the
-    // middle of one. The planner grows the request to the boundary instead - the
-    // extra registers are read and ignored, which costs a few byte-times.
+    // A device storing pairs answers exception 02 mid-pair; the planner grows the request to the boundary instead.
     Bank bank(Site::g_site.vars);
     bank.init();
 
@@ -617,8 +573,7 @@ struct Bus {
         bank.enable_control(Bank::INHIBIT_OPERATOR);
         plan.plan(bank, 38400, 10);
     }
-    /** @brief The first write block carrying registers, or carrying bits. The
-     *  two encode differently and both have to be pinned. */
+    /** @brief First write block carrying registers or bits; both encode differently and need pinning. */
     const Block* first_write(bool bits) const {
         for (uint16_t i = 0; i < plan.block_count(); ++i) {
             const Block& b = plan.block(i);
@@ -626,9 +581,8 @@ struct Bus {
         }
         return nullptr;
     }
-    /** @brief Demand @p x on row @p k of @p b, in whatever type the row is. A
-     *  bool written into an F32 row lands as a denormal, which reads back as the
-     *  same zero either way and quietly makes a comparison test pass. */
+    /** @brief Demand @p x on row @p k of @p b, in its own type. A bool in an F32
+     *  row lands as a denormal reading zero either way, hiding a bad comparison. */
     void demand(const Block& b, uint16_t k, float x) {
         Var h = bank.var(plan.row((uint16_t)(b.first_row + k)));
         bank.override_set(h, (h.meta()->type == T_BOOL)
@@ -643,11 +597,7 @@ struct Bus {
 }  // namespace
 
 TEST_CASE("modbus image: a demand that moves in flight stays owed") {
-    // The regression. collect_write() runs when the frame is built and
-    // clear_dirty() when the echo comes back, several beats later. A program
-    // that moves a demand in between marked a row dirty for a value this frame
-    // never carried - and clearing the block wholesale dropped it until the
-    // rewrite interval, five seconds of a stale command on an actuator.
+    // collect_write() builds the frame, clear_dirty() lands beats later; a demand that moves in between must survive the wholesale clear.
     for (int pass = 0; pass < 2; ++pass) {
         const bool bits = (pass == 1);
         Bus bus;
@@ -655,7 +605,6 @@ TEST_CASE("modbus image: a demand that moves in flight stays owed") {
         if (b == nullptr || b->row_count < 2) continue;
         CAPTURE(bits);
 
-        // Two demands go out together.
         bus.demand(*b, 0, 1.0f);
         bus.demand(*b, 1, 1.0f);
         REQUIRE(block_dirty(bus.bank, bus.plan, *b));
@@ -694,8 +643,7 @@ TEST_CASE("modbus image: a block whose demands held still clears whole") {
 }
 
 TEST_CASE("modbus image: with no payload to compare, the block clears wholesale") {
-    // The caller could not say what went out, so the old behaviour stands - it
-    // must not silently stop clearing and rewrite for ever.
+    // With no payload to compare, the block must still clear wholesale, not silently stop clearing.
     Bus bus;
     const Block* b = bus.first_write(false);
     REQUIRE(b != nullptr);
@@ -712,7 +660,7 @@ TEST_CASE("modbus image: an active-low coil is inverted on the way out") {
     const Block* b = bus.first_write(true);
     if (b == nullptr) return;   // no coil block on this site
 
-    // Find a row on this block that declares F_INVERT, if the site has one.
+    // Find a row that declares F_INVERT, if the site has one.
     const Variable* inv = nullptr;
     uint16_t inv_off = 0;
     for (uint16_t k = 0; k < b->row_count; ++k) {
@@ -734,12 +682,7 @@ TEST_CASE("modbus image: an active-low coil is inverted on the way out") {
 
 
 TEST_CASE("modbus image: an AO row goes out through its calibration") {
-    // The arm that could vanish in a merge. An AO's wire value is its
-    // engineering value put back through the two-point span; everything else
-    // goes out as it stands. Both used to be spelled out in near-identical
-    // branches that differed in the calibration AND in whether the integer came
-    // from the float or from the row, which is why merging them needed a test
-    // rather than a reading.
+    // An AO's wire value is its engineering value through the two-point span, everything else as-is - easy to lose silently in a merge.
     Bus bus;
     const Block* b = bus.first_write(false);
     REQUIRE(b != nullptr);
@@ -755,8 +698,7 @@ TEST_CASE("modbus image: an AO row goes out through its calibration") {
     const AnalogCal* cal = analog_cal(d);
     REQUIRE(cal != nullptr);
 
-    // Somewhere inside the engineering span, and not at an endpoint, so a
-    // calibration that was skipped would give a visibly different number.
+    // Inside the span but not at an endpoint, so a skipped calibration would visibly differ.
     const AnalogValues av = analog_values(&bus.bank, cal);
     const float eng = av.eng_min + (av.eng_max - av.eng_min) * 0.25f;
     bus.bank.override_set(h, from_f32(d.type, eng));
@@ -772,8 +714,7 @@ TEST_CASE("modbus image: an AO row goes out through its calibration") {
     INFO("'" << std::string(d.name) << "' eng " << eng
              << " -> raw " << av.to_raw(eng));
     CHECK(got == want);
-    // And it is NOT the engineering value gone out uncalibrated, or the
-    // calibration is doing nothing and this test proves nothing.
+    // Confirms it isn't the raw engineering value uncalibrated, or the test proves nothing.
     if ((uint16_t)(int64_t)eng != want) CHECK(got != (uint16_t)(int64_t)eng);
 }
 
@@ -837,11 +778,8 @@ TEST_CASE("modbus image: a row the payload never reached is not left reading goo
 }
 
 TEST_CASE("modbus image: a bounded direct row is judged at commit, not at a sweep") {
-    // A Temp/RH sensor: T_F32 read 1:1 off the wire, with its band declared on
-    // the descriptor. That band used to be enforced only by
-    // Bank::reject_implausible(), which runs at background rate - so a reading
-    // of -3000 was Q_GOOD to every control program that ran before the next
-    // sweep. Note there is no sweep anywhere in this test.
+    // A T_F32 sensor with a band on the descriptor: the band must be enforced at
+    // commit, not only by reject_implausible()'s background sweep. No sweep runs here.
     Bus bus;
     const Block* b = nullptr;
     for (uint16_t i = 0; i < bus.plan.block_count(); ++i) {
@@ -886,7 +824,7 @@ TEST_CASE("modbus image: a bounded direct row is judged at commit, not at a swee
     CHECK_FALSE(temp.live_valid());
     CHECK(temp.live_quality() == Q_IMPLAUSIBLE);
 
-    // And a NaN is refused as well, without being reported as a band failure.
+    // A NaN is refused too, without being reported as a band failure.
     const float nan_v = 0.0f / (float)(1.0 - 1.0);
     Put::f32(payload, (uint16_t)sizeof payload, nan_v);
     commit_read(bus.bank, bus.plan, *b, r, 3000);
@@ -894,9 +832,8 @@ TEST_CASE("modbus image: a bounded direct row is judged at commit, not at a swee
 }
 
 TEST_CASE("modbus plan: an input that could never go stale is refused a place") {
-    // expire_stale() skips timeout_ms == 0, and nothing else would ever
-    // invalidate such a row - so planning it would create a reading that stays
-    // good, with a value from before the device died, for ever.
+    // expire_stale() skips timeout_ms == 0 and nothing else invalidates such a row,
+    // so planning it would leave a forever-good reading from before the device died.
     const VarTables& t = Site::g_site.vars;
     uint16_t offenders = 0;
     for (uint16_t i = 0; i < t.count; ++i) {

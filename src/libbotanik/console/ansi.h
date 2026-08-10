@@ -103,9 +103,9 @@ namespace Botanik { namespace Terminal { namespace Ansi {
 
     /** @brief The serial terminals the console knows how to drive.
      *
-     *  The console emits plain X3.64 to all of them; what the type selects is
-     *  the one-time setup handshake, and it gives any terminal-specific quirk a
-     *  declared place to live rather than a comment (see is_minitel()). */
+     *  The console emits plain X3.64 to all of them; the type selects the
+     *  one-time setup handshake and is what any terminal-specific quirk branches
+     *  on (see is_minitel()). */
     enum class TerminalType : uint8_t {
         VT100      = 0,  ///< plain X3.64, no setup handshake
         VT102      = 1,  ///< VT100 plus IRM/DCH - what the editor's splice path wants
@@ -113,7 +113,7 @@ namespace Botanik { namespace Terminal { namespace Ansi {
         MINITEL_2  = 3,  ///< Minitel 2, same PRO2 handshake
     };
 
-    /** @brief The terminal this build is wired to (Config::TERMINAL_TYPE), which
+    /** @brief The terminal this build is wired to (Config::TERMINAL_TYPE).
      *  @note Pinned to the numbering, since the config header cannot name this enum. */
     static constexpr TerminalType CONFIGURED_TERMINAL = (TerminalType)Botanik::Config::TERMINAL_TYPE;
     static_assert(Botanik::Config::TERMINAL_TYPE <= (uint8_t)TerminalType::MINITEL_2,

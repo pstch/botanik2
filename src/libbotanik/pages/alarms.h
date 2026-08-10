@@ -16,19 +16,13 @@
  *   row N-2          footer legend: reverse-video mode badge + counts, SPACE hint
  *   row N-1          blank row below the legend
  *
- * Rows are ordered active-first then by most-recent onset (started_ms);
- * never-active alarms sit at the bottom. The exception is the "all" filter,
- * which keeps the fixed definition (table) order so rows never reorder as
- * alarms toggle. The top / bottom rules cap their
- * column marks with '^' / 'v' when alarms are hidden above / below the window.
- * SPACE cycles the filter: recent (default) -> all -> active -> active and not
- * masked. A condition's recent window defaults to one week
- * (AlarmCondition::recent_s). UP/DOWN move a selection cursor (drawn inverted),
- * auto-scrolling the window only when the cursor would leave it; PAGE_UP/DOWN
- * move it half a window at a time and ENTER jumps back to the top. `a` acknowledges
- * the selected condition. The set is re-checked once a second; a repaint is
- * paced a few rows per tick under the shared TX floor, so it interleaves with
- * the bars.
+ * Rows are ordered active-first then by most-recent onset; the "all" filter is
+ * the exception, keeping definition (table) order so rows never reorder as
+ * alarms toggle. The rules cap their column marks with '^' / 'v' when rows are
+ * hidden above / below the window. SPACE cycles the filter (recent -> all ->
+ * active -> unmasked); UP/DOWN and PAGE_UP/DOWN move the selection cursor,
+ * ENTER jumps back to the top, `a` acknowledges the selected condition. The set
+ * is re-collected on the value cadence.
  */
 
 #include <cstdint>                          // uint8_t/uint16_t/uint64_t
@@ -93,9 +87,8 @@ namespace Botanik { namespace Pages {
          *  transition's timestamp, "YY/MM/DD HH:MM").
          *  @{ */
         static constexpr uint16_t CODE_W     = 9;   // short display code
-        /** @brief The VARIABLE column is the flexible one: it absorbs whatever
-         *  the fixed columns leave, so the table spans the display instead of
-         *  stopping short of it. */
+        /** @brief The VARIABLE column is the flexible one: it absorbs what the
+         *  fixed columns leave, so the table spans the display. */
         uint16_t _name_w() const {
             return _flex_width((uint16_t)(2 * MARGIN + (CODE_W + 2) + 2
                                           + (STATE_W + 2) + (OVR_W + 2)
@@ -103,30 +96,25 @@ namespace Botanik { namespace Pages {
         }
         static constexpr uint16_t STATE_W    = 3;   // "ON" badge / "ON" header
         /** @brief The override marker: what the row is being HELD at, in the
-         *  same ON/OFF vocabulary the state column uses, because that is what
-         *  the state column is showing while it is forced. Blank when live.
-         *
-         *  An alarm is a row like any other, so it can be overridden - and a
-         *  forced one is otherwise indistinguishable from a real one on the page
-         *  an operator reads during a fault. */
+         *  state column's own ON/OFF vocabulary (that is what the state column
+         *  shows while forced). Blank when live. Without it a hand-forced alarm
+         *  is indistinguishable from a real one during a fault. */
         static constexpr uint16_t OVR_W      = 4;   // "ON" / "OFF", padded
         static constexpr uint16_t EVENT_W    = 15;  // "YY/MM/DD HH:MM"
         static constexpr uint16_t HEADER_ROW = 2;
         static constexpr uint16_t RULE_ROW   = 3;
         static constexpr uint16_t DATA_TOP   = 4;
-        /** @brief Column order. The VARIABLE cell is the part inverted for the
-         *  selection cursor: it is the row's identity, and it is what Alt+W
-         *  copies and what `get` / `override` want typed at them, so the cursor
-         *  sits on the thing the operator is about to act on rather than beside
-         *  it. The highlight stops one column short of the cell's right edge
-         *  (_name_cell_r()), leaving a plain gap before the border. The STATE
-         *  cell carries its own reverse-video "ON" badge, split out of the row
-         *  write so there is no flicker-prone overdraw. */
+        /** @brief Column order. The selection cursor inverts the VARIABLE cell:
+         *  it is the row's identity, and what Alt+W copies and `get` /
+         *  `override` want typed at them. The highlight stops one column short
+         *  of the cell's right edge (_name_cell_r()), leaving a plain gap before
+         *  the border. The STATE cell's reverse-video "ON" badge is split out of
+         *  the row write, so there is no flicker-prone overdraw. */
         enum { C_CODE = 0, C_NAME, C_STATE, C_OVR, C_EVENT };
         /** @} */
 
         /** @brief The alarms grid packs its cells (no trailing pad): the width
-         *  it saves goes to the description column. */
+         *  it saves goes to the flexible VARIABLE column (_name_w()). */
         bool _pad_cells() const override { return false; }
 
         uint8_t _columns(Col* out) const override;
@@ -141,14 +129,12 @@ namespace Botanik { namespace Pages {
 
 
         /** @brief Draw the footer legend: reverse-video mode badge + counts on
-         *  the left, SPACE-cycles-mode hint on the right. Drawn immediate-mode; the
-         *  terminal's back-buffer diff repaints it only on an actual mode / count
-         *  change. */
+         *  the left, SPACE-cycles-mode hint on the right. */
         void _draw_footer(uint16_t row, uint8_t active);
 
-        /** @brief Detail panel between the bottom rule and the legend, spaced by
-         *  a blank row each side: the selected alarm's Remediation (its notes -
-         *  what to do while it is up) and the time it was acknowledged (if any). */
+        /** @brief Detail panel between the bottom rule and the legend, a blank
+         *  row each side: the selected alarm's Description, its Remediation
+         *  (what to do while it is up) and its ack time. */
         void _draw_notes();
 
         /** @brief True if @p c belongs in RECENT mode: a last event still
@@ -176,13 +162,12 @@ namespace Botanik { namespace Pages {
 
         /** @name Window geometry
          *  Bottom-anchored on the content area. From the bottom up: free row,
-         *  legend, blank, Acknowledged line, Remediation line, blank, bottom rule, then
-         *  the data band up to the top rule. The rules carry the scroll arrows
-         *  (see _draw_rules()).
+         *  legend, blank, Acknowledged, Remediation, Description, blank, bottom
+         *  rule, then the data band up to the top rule. The rules carry the
+         *  scroll arrows (see _draw_rules()).
          *  @{ */
         // free row below at rows()-1
         uint16_t _legend_row()  const { return (uint16_t)(_console.rows() - 2); }
-        // bottom rule; between it and the legend: blank, Remediation, Acknowledged, blank
         uint16_t _brule_row()   const { return (uint16_t)(_console.rows() - 8); }
         /** @brief Number of data rows that fit, or 0 if the screen is too
          *  short. */
@@ -211,17 +196,14 @@ namespace Botanik { namespace Pages {
          *  _name_cell_r(). */
         void _write_name_cell(const char* line, bool selected);
 
-        /** @brief Draw a full data row (CODE/VARIABLE/ON/OVR/LAST EVENT)
-         *  immediate-mode. Only the VARIABLE cell inverts for the selection
-         *  cursor; the state cell shows its own reverse-video "ON" badge while
-         *  active and unacked. The terminal's back-buffer diff pares this to the
-         *  cells that actually moved. */
+        /** @brief Draw a full data row (CODE/VARIABLE/ON/OVR/LAST EVENT). Only
+         *  the VARIABLE cell inverts for the selection cursor; the state cell
+         *  shows its own reverse-video "ON" badge while active and unacked. */
         void _draw_full_row(uint16_t row, uint8_t idx,
                             const Alarms::AlarmCondition& c, bool selected);
 
-        /** @brief Paint data row at screen @p row for visible entry @p vi: the full
-         *  row when it holds an alarm, else a blanked row (past the set). Drawn every
-         *  time; the terminal's back-buffer diff drops the cells that did not move. */
+        /** @brief Paint data row at screen @p row for visible entry @p vi: the
+         *  full row when it holds an alarm, else a blanked row (past the set). */
         void _draw_data_row(uint16_t row, uint16_t vi);
 
 

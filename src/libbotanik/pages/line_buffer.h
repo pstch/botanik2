@@ -74,11 +74,10 @@ namespace Botanik { namespace Pages {
                 if (cols != 0 && prefix_len != 0 &&
                     (uint16_t)(cols - prefix_len) < CONT_MIN)
                     prefix_len = 0;
-                // Per-row byte budget: fill to the width, or everything left
-                // when unbounded (cols == 0), but never overflow the segment
-                // buffer.
-                // (Input is ASCII-only, so a byte budget == a column budget; a
-                // multibyte glyph would need breaking on a lead-byte boundary.)
+                // Per-row byte budget: the width, or all that is left when
+                // unbounded (cols == 0), never past the segment buffer. Input
+                // is ASCII-only, so bytes == columns; a multibyte glyph would
+                // need breaking on a lead-byte boundary.
                 uint16_t budget = (cols == 0) ? (uint16_t)(len - off)
                                               : (uint16_t)(cols - prefix_len);
                 if (budget > (uint16_t)(seg_cap - prefix_len))

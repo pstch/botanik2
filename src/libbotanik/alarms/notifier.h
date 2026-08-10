@@ -7,9 +7,7 @@
  * @brief MqttAlarmNotifier - the MQTT transport for alarm transitions.
  *
  * Kept out of alarms.h so the alarm MODEL depends on nothing but the variable
- * table. It lived there, which meant every consumer of AlarmController - the
- * console bars, the ALARMS page, the shell, the firmware base - pulled the
- * network configuration in to get at a state machine that has no network in it.
+ * table, and a consumer of AlarmController does not pull in the network config.
  */
 
 #include <cstdio>                           // snprintf

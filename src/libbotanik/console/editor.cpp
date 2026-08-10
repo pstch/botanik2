@@ -113,9 +113,8 @@ namespace Botanik { namespace Terminal {
     }
 
     bool TextEditor::_follow_cursor() {
-        // Bottom-anchored, the text moves the screen rather than the other way
-        // round: _grow_editor scrolls the whole content band so the prompt stays
-        // put. Scrolling a window over the text as well would double up.
+        // Bottom-anchored, _grow_editor scrolls the whole content band so the
+        // prompt stays put; scrolling a window over the text too would double up.
         if (_anchor != Anchor::TOP) return false;
         uint16_t h = _view_height();
         if (h == 0) return false;
@@ -210,9 +209,8 @@ namespace Botanik { namespace Terminal {
             _write_prompt(i);
             _write_row_content(i);
         }
-        // Every visible row has just been painted with the current region on it,
-        // so say so: without this a _sync_region() behind us (the long-jump
-        // branch of _follow_cursor() calls both) would paint the lot again.
+        // Record the region as painted, or a _sync_region() behind us (the
+        // long-jump branch of _follow_cursor() calls both) repaints the lot.
         _record_painted();
         _place_cursor(_map_cursor_pos(_pos));
     }
@@ -221,9 +219,7 @@ namespace Botanik { namespace Terminal {
     // ------------------------------------------------------------------------
 
     void TextEditor::insert_characters(const char* buf, uint16_t len) {
-        // One byte is reserved for the NUL, so usable content is _buf_cap-1:
-        // the layout asserts size rows against the full buffer capacity, one
-        // byte of slack.
+        // One byte is reserved for the NUL, so usable content is _buf_cap-1.
         if (len == 0 || (uint32_t)_len + 1 >= _buf_cap) return;
         if ((uint32_t)_len + len >= _buf_cap) len = (uint16_t)(_buf_cap - _len - 1);
         if (len == 0) return;
@@ -251,9 +247,9 @@ namespace Botanik { namespace Terminal {
 
         if (_rebuild_layout()) {
             // More rows than the layout can hold: the tail would be text the
-            // operator can neither see nor reach. Refuse the keystroke instead,
-            // the way _single_line refuses one past the row end. Nothing has
-            // reached the wire yet - the reconcile below is what emits.
+            // operator can neither see nor reach, so refuse the keystroke.
+            // Nothing has reached the wire yet - the reconcile below is what
+            // emits.
             memmove(&_buf[pos], &_buf[pos + len], (size_t)(_len - (pos + len)));
             _len -= len;
             _buf[_len] = '\0';
@@ -310,9 +306,8 @@ namespace Botanik { namespace Terminal {
         _painted_active = false;
         bool overflow = _rebuild_layout();
 
-        // Drop what the row cap could not lay out rather than carry text the
-        // operator cannot see: an invisible tail that a later save writes back
-        // truncated is the worse failure.
+        // Drop what the row cap could not lay out: an invisible tail that a
+        // later save writes back truncated is the worse failure.
         if (overflow) {
             const RowView& last = _layout.rows[_layout.count - 1];
             _len = (uint16_t)(last.buf_start + last.buf_len);
@@ -335,10 +330,9 @@ namespace Botanik { namespace Terminal {
         if (rows == 0) return;
 
         if (_anchor == Anchor::TOP) {
-            // The viewport is fixed and the editor owns all of it, so claim
-            // exactly that and leave the rest of the band alone. Releasing the
-            // whole band here would demote a row the page keeps for itself (a
-            // status line under the editor) on every keystroke.
+            // The viewport is fixed and the editor owns all of it: claim exactly
+            // that. Releasing the whole band would demote a row the page keeps
+            // for itself (a status line under the editor) every keystroke.
             uint16_t view_bottom = _view_bottom_hw();
             if (_origin > view_bottom) return;
             _terminal->set_row_priority(_origin, view_bottom, PRIO_INPUT);
@@ -346,13 +340,9 @@ namespace Botanik { namespace Terminal {
         }
 
         // Bottom-anchored the extent moves as the text grows, so release the
-        // content band and reclaim exactly the rows occupied now - not
-        // everything below _origin, since the rows under a mid-screen editor
-        // belong to whoever drew them.
-        //
-        // Releasing the whole band is only safe while no page keeps a class of
-        // its own on a row a bottom-anchored editor shares a screen with.
-        // Nothing does today, and a page re-declares in focus() anyway.
+        // content band and reclaim exactly the rows occupied now. Safe only
+        // while no page keeps a class of its own on a row a bottom-anchored
+        // editor shares a screen with; a page re-declares in focus() anyway.
         uint16_t bottom = (uint16_t)(rows - 1);
         _terminal->set_row_priority(1, bottom, PRIO_STRUCT);
         if (_layout.count == 0 || _origin > bottom) return;
@@ -419,11 +409,10 @@ namespace Botanik { namespace Terminal {
         uint16_t prompt = _prompt_len(_row_prompt(post_idx));
         uint16_t cap    = _row_cap(post_idx);
 
-        // Say the pen rather than inherit whatever the last renderer left. A
-        // splice never paints a region - an edit has just dropped the mark, and
-        // _sync_region() repaints the rows behind us - but its delete_chars and
+        // Say the pen rather than inherit the last renderer's: delete_chars and
         // clear_to_eol stamp blanks with the CURRENT pen, so an inherited
-        // inverted one would smear to the margin.
+        // inverted one would smear to the margin. A splice never paints a
+        // region (an edit drops the mark; _sync_region() repaints behind us).
         _terminal->set_inverted(false);
 
         // Prompt-class flip (PS2<->PS3): rewrite the gutter. A longer prompt's
@@ -476,26 +465,21 @@ namespace Botanik { namespace Terminal {
         const uint16_t start = r.buf_start;
         const uint16_t end   = (uint16_t)(r.buf_start + r.buf_len);
 
-        // The editor draws with whatever pen the last renderer left, so say so
-        // rather than inherit it - and leave it plain, since the caller's
-        // clear_to_eol() would otherwise stamp an inverted bar to the margin.
+        // Say the pen, and leave it plain: the caller's clear_to_eol() would
+        // otherwise stamp an inverted bar out to the margin.
         _terminal->set_inverted(false);
 
-        // The inverted run, clipped to this row. l >= rr means the row has no
-        // highlight on it, which covers all three ways that happens: no mark,
-        // the region lying entirely off this row, and the anchor belonging to
-        // another row.
+        // The inverted run, clipped to this row. l >= rr means no highlight
+        // here: no mark, region off this row, or the anchor on another row.
         uint16_t from = 0, to = 0, l = 1, rr = 0;
         if (region(from, to)) {
             if (from != to) {
                 l  = from > start ? from : start;
                 rr = to   < end   ? to   : end;
             } else if (_owner_row(from, _layout) == i) {
-                // Nothing selected yet: mark the anchor with one inverted cell,
-                // or Ctrl-Space would have nothing to show for itself.
-                // _owner_row settles an offset sitting on a wrap boundary,
-                // which the row ending there and the row starting there would
-                // otherwise both paint.
+                // Nothing selected yet: one inverted cell at the anchor, or
+                // Ctrl-Space shows nothing. _owner_row settles an offset on a
+                // wrap boundary, which both adjoining rows would else paint.
                 l  = from;
                 rr = (uint16_t)(from + 1);
             }
@@ -527,8 +511,7 @@ namespace Botanik { namespace Terminal {
         uint16_t f = 0, t = 0;
         region(f, t);                   // leaves 0,0 when there is no mark
         // Nothing to do when the screen already shows this region - which is
-        // every call with no mark, so editing without one costs exactly what it
-        // did before there was a region at all.
+        // every call with no mark, so editing without one costs no extra bytes.
         if (_mark_set == _painted_active && f == _painted_from && t == _painted_to)
             return;
         _record_painted();
@@ -594,18 +577,15 @@ namespace Botanik { namespace Terminal {
         uint16_t bottom = _view_bottom_hw();
         uint16_t row    = at >= _view_top ? _hw_row(at) : _origin;
         if (row > bottom) return;               // tail lies entirely below the view
-        // Slide the absorbed tail to its new rows (insert also opens the blank
-        // rows the forward walk paints inserted content into). Bounded to the
-        // viewport, so nothing outside the editor moves. Grow (row_delta > 0)
+        // Bounded to the viewport, so nothing outside the editor moves. Grow
         // scrolls the tail down; shrink scrolls it up.
         _terminal->scroll_region(row, bottom, /*up=*/row_delta < 0, n);
     }
 
     void TextEditor::_reconcile(uint16_t span_start, uint16_t span_len, bool is_insert) {
-        // Keystroke echo has to feel immediate however busy the screen is, so
-        // re-declare which rows are input rows before touching any of them.
-        // Bottom-anchored the extent moves with the text, and rows the editor
-        // has grown past would otherwise keep its class forever.
+        // Keystroke echo must feel immediate however busy the screen is, so
+        // re-declare the input rows before touching any of them. The extent
+        // moves with the text; rows grown past would else keep the class.
         _place_rows();
         int32_t l_shift;
         if (is_insert) l_shift = (int32_t)span_len;
@@ -636,10 +616,8 @@ namespace Botanik { namespace Terminal {
                                                 edit_post, edit_pre);
 
         // Forward walk from the edit row, bounded to the viewport. Each row maps
-        // to the pre row now physically present (or is fresh: an IL-opened
-        // blank, or a row whose old glyphs are unrelated to the wanted
-        // content). Rows carry no state across iterations - each is spliced from
-        // its own `_pre`/`_layout` pair - so skipping ones off screen is safe.
+        // to the pre row now physically present, or is fresh. Rows carry no
+        // state across iterations, so skipping off-screen ones is safe.
         uint16_t walk_from = span.edit_row > _view_top ? span.edit_row : _view_top;
         uint16_t walk_to   = _visible_end();
         for (uint16_t i = walk_from; i < walk_to; i++) {
@@ -653,9 +631,9 @@ namespace Botanik { namespace Terminal {
             uint16_t pre_idx = (i < span.absorbed_post)
                 ? i : (uint16_t)((int32_t)i - row_delta);
             // A pre row that was outside the viewport has no glyphs on screen,
-            // whatever its slice says: after a DL the rows sliding up into the
-            // window came from below it, so the physical row is blank. Splicing
-            // against what it "shows" would corrupt it; repaint instead.
+            // whatever its slice says: after a DL the rows sliding up came from
+            // below the window, so the physical row is blank. Splicing against
+            // what it "shows" would corrupt it; repaint instead.
             bool has_pre = !(i >= span.absorbed_pre && i < span.absorbed_post)
                            && _was_visible(pre_idx);
             const RowView& shown  = _pre.rows[pre_idx];
@@ -692,11 +670,9 @@ namespace Botanik { namespace Terminal {
         // row below it, or a delete that pulled the text up past the top).
         _follow_cursor();
 
-        // Last, so the screen matches _layout when we return - which is the
-        // invariant the next _snapshot_pre() asserts by copying it into _pre.
-        // Earlier and _grow_editor()/_shrink_editor()'s scroll_region() would
-        // carry whatever we stamped off to another row. Normally a no-op: the
-        // edit dropped the mark, so this is the pass that erases the highlight.
+        // Last, so the screen matches _layout on return - the invariant the next
+        // _snapshot_pre() assumes. Earlier, and _grow_editor()/_shrink_editor()'s
+        // scroll_region() would carry what we stamped off to another row.
         _sync_region();
     }
 

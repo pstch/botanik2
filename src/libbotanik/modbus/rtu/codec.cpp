@@ -35,9 +35,8 @@ uint16_t crc16(const uint8_t* buf, uint16_t n) {
 namespace {
 
     /** @brief The shape three of the five requests share: unit, code, and two
-     *  big-endian words, sealed. What each word MEANS differs - address and
-     *  quantity, address and coil state, address and value - which is exactly
-     *  why the callers keep their own names and their own validation. */
+     *  big-endian words, sealed. What each word MEANS differs, which is why the
+     *  callers keep their own names and their own validation. */
     uint16_t build_pair(uint8_t* out, uint8_t unit, uint8_t fc,
                         uint16_t a, uint16_t b) {
         out[0] = unit;

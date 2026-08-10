@@ -1,8 +1,8 @@
 /**
  * @file test_storage.cpp
- * @brief Tests for the simulator HAL::Storage backend (a single external KV
- *        file). Points the store at a throwaway per-test file via
- *        $BOTANIK_CONFIG_STORE and starts each case from empty.
+ * @brief The simulator HAL::Storage backend (single external KV file).
+ *
+ * Each case points $BOTANIK_CONFIG_STORE at a throwaway file, starting empty.
  */
 #include <cstdint>                  // uint8_t/uint32_t
 #include <cstdio>                   // snprintf
@@ -25,7 +25,7 @@ namespace {
         StoreEnv() {
             snprintf(path, sizeof(path), "/tmp/botanik_test_store_%ld", (long)getpid());
             setenv("BOTANIK_CONFIG_STORE", path, 1);
-            unlink(path);   // start from an empty store
+            unlink(path);
         }
         ~StoreEnv() {
             unlink(path);
@@ -44,7 +44,6 @@ TEST_CASE("storage: set/get round-trip and missing key") {
     CHECK(n == sizeof(v));
     CHECK(back == v);
 
-    // A string value.
     const char* s = "192.168.1.5";
     CHECK(Storage::set("k_str", s, strlen(s) + 1));
     char sb[32] = {};
@@ -52,13 +51,10 @@ TEST_CASE("storage: set/get round-trip and missing key") {
     CHECK(n == strlen(s) + 1);
     CHECK(strcmp(sb, s) == 0);
 
-    // Missing key.
     CHECK_FALSE(Storage::get("k_gone", sb, sizeof(sb), &n));
 }
 
-// The operator's note is kilobytes, an order of magnitude past anything the
-// store used to be asked for, and the sim backend hex-encodes into one file - so
-// a note has to fit alongside every parameter, twice over.
+// Notes run kilobytes (hex-encoded, twice over); must not evict or be evicted by a parameter.
 TEST_CASE("storage: a note-sized value survives the round-trip") {
     StoreEnv env;
 
@@ -66,7 +62,6 @@ TEST_CASE("storage: a note-sized value survives the round-trip") {
     for (size_t i = 0; i < sizeof(note); i++) note[i] = (uint8_t)(i * 31 + 7);
     CHECK(Storage::set("notes", note, sizeof(note)));
 
-    // A parameter written afterwards must not evict it, nor be evicted by it.
     uint32_t p = 0x12345678;
     CHECK(Storage::set("ntp_poll_sec", &p, sizeof(p)));
 
@@ -81,8 +76,7 @@ TEST_CASE("storage: a note-sized value survives the round-trip") {
     CHECK(pback == p);
 }
 
-// Past the file cap the write is refused rather than truncated, and counted, so
-// FLASH_FLT tells the operator the note did not reach flash.
+// Refused rather than truncated past the file cap, and counted for FLASH_FLT.
 TEST_CASE("storage: a value past the store cap is refused and counted") {
     StoreEnv env;
 
@@ -97,28 +91,22 @@ TEST_CASE("storage: a value past the store cap is refused and counted") {
     CHECK_FALSE(Storage::get("k_huge", huge, sizeof(huge), &n));
 }
 
+// Rewritten whole on every write: an oversized write must refuse without touching what's committed.
 TEST_CASE("storage: a write that would not fit refuses, and keeps what is there") {
-    // The store is rewritten whole on every write, so the interesting property
-    // is not that an over-large value is refused but that refusing it costs
-    // nothing already committed. Pinned here because the rewrite-whole design
-    // is what would make a partial write destructive.
     StoreEnv env;
 
-    // Fill most of the store with records that must survive.
     static uint8_t blob[Config::STORE_MAX_BYTES / 8];
     memset(blob, 0x5A, sizeof(blob));
     REQUIRE(Storage::set("keep_a", blob, sizeof(blob)));
     REQUIRE(Storage::set("keep_b", blob, sizeof(blob)));
     REQUIRE(Storage::set("keep_c", blob, sizeof(blob)));
 
-    // One more that cannot fit alongside them.
-    static uint8_t rest[Config::STORE_MAX_BYTES / 2];
+    static uint8_t rest[Config::STORE_MAX_BYTES / 2];   // cannot fit alongside them
     memset(rest, 0x33, sizeof(rest));
     const uint32_t before = Storage::fault_count();
     CHECK_FALSE(Storage::set("too_big", rest, sizeof(rest)));
     CHECK(Storage::fault_count() > before);          // counted, so FLASH_FLT can see it
 
-    // ...and the refusal cost nothing that was already stored.
     static uint8_t back[Config::STORE_MAX_BYTES / 8];
     size_t n = 0;
     static const char* const KEPT[] = { "keep_a", "keep_b", "keep_c" };
@@ -162,10 +150,8 @@ TEST_CASE("storage: bad keys rejected") {
     CHECK_FALSE(Storage::get("has/slash", &x, 1, &n));
 }
 
+// fault_count() drives FLASH_FLT: real backend refusals only, not a malformed key.
 TEST_CASE("storage: a refused write is counted, and a bad key is not") {
-    // fault_count() is what raises FLASH_FLT, so it must track real backend
-    // refusals only. A malformed key is a programming error and must not put
-    // the firmware into a persistent fault.
     const uint32_t before = Storage::fault_count();
 
     {   // a well-formed key the backend cannot write

@@ -31,10 +31,10 @@ namespace Botanik { namespace Plc {
      * Accumulates `rate * dt`, so it must be handed the REAL dt - a program that
      * ran 400 ms late has genuinely delivered 400 ms of water.
      *
-     * The total is a double, and that is not fussiness: a float loses its low
-     * bits as it grows, and somewhere near 10000 L an increment of a few
-     * millilitres stops changing it at all, so it silently stops advancing.
-     * total() still hands back a float for the variable table.
+     * The total is a double because a float loses its low bits as it grows:
+     * near 10000 L an increment of a few millilitres stops changing it at all,
+     * so it silently stops advancing. total() still hands back a float for the
+     * variable table.
      */
     class Integral : public Block {
 

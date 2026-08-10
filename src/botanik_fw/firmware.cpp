@@ -2,7 +2,6 @@
 /**
  * @file firmware.cpp
  * @brief Constructs the OPTA firmware singleton (see firmware.h).
- *
  */
 
 #include "botanik_fw/firmware.h"    // the setup()/loop() entry points implemented here

@@ -6,9 +6,8 @@
  * @file alarms.h
  * @brief Alarm model - per-condition dwell/latch state machine.
  *
- * Alarm handling in the shape industrial PLC systems use it. A condition is a
- * `SCOPE_A` row in the variable table - the boolean that raises it plus the
- * announce policy it runs on - and the model tracks, per condition:
+ * A condition is a `SCOPE_A` row in the variable table: the boolean that raises
+ * it plus the announce policy it runs on. Per condition the model tracks:
  *  - the raw input
  *  - the active state
  *  - the dwell since the last edge
@@ -35,11 +34,8 @@ namespace Botanik { namespace Alarms {
         return (uint64_t)1u << id;
     }
 
-    // alarm_bit() is a shift into a uint64_t, so 64 is a hard ceiling on the
-    // model, not a sizing preference. Config::ALARM_SLOTS is site-overridable;
-    // raising it past 64 would make that shift undefined the moment a site
-    // declared the 65th alarm. Widen the mask (and AlarmBar::unmasked_set)
-    // before touching the slot count.
+    // A hard ceiling, not a sizing preference: widen the mask (and
+    // AlarmBar::unmasked_set) before raising the site-overridable slot count.
     static_assert(Config::ALARM_SLOTS <= 64,
                   "ALARM_SLOTS cannot exceed 64: alarm_bit() shifts into a uint64_t");
 
@@ -54,11 +50,9 @@ namespace Botanik { namespace Alarms {
     /** @brief One alarm condition: the row it reads, plus the model-owned
      *  dynamic state.
      *
-     *  The row is BORROWED, not copied. Its text and its announce policy are
-     *  already flash-resident on the `SCOPE_A` descriptor, and copying them into
-     *  every slot cost ~36 bytes of RAM each to hold a second version of
-     *  something that can then disagree with the table. The accessors below read
-     *  straight through. */
+     *  The row is BORROWED, not copied: its text and announce policy are
+     *  already flash-resident on the `SCOPE_A` descriptor, so the accessors
+     *  below read straight through and there is no second copy to disagree. */
     struct AlarmCondition {
         /** @name The row
          *  @{ */
@@ -154,11 +148,9 @@ namespace Botanik { namespace Alarms {
 
     /** @brief Abstract alarm-transition sink the model fans out to.
      *
-     *  A bit like the Logs::LogWriter abstraction, but for alarms. Provides
-     *  hooks for their three distinct notifications : ON, OFF and FLAP.
-     *
-     *  Concrete sinks live elsewhere - see alarms/notifier.h for the MQTT one -
-     *  so the model itself depends on nothing but the variable table. */
+     *  Shaped like Logs::LogWriter, with a hook per transition: ON, OFF, FLAP.
+     *  Concrete sinks live elsewhere (@see alarms/notifier.h), so the model
+     *  depends on nothing but the variable table. */
     struct AlarmNotifier {
         virtual ~AlarmNotifier() {}
 
@@ -170,9 +162,8 @@ namespace Botanik { namespace Alarms {
         virtual void notify_flap(const AlarmCondition& a) = 0;
     };
 
-    /** @brief This sink is passed to AlarmCondition when stepping through it
-     *         and allows it to log events and fan out to the notifiers
-     *         registered in the controller. */
+    /** @brief Handed to AlarmCondition::step() so it can log events and fan out
+     *  to the notifiers registered in the controller. */
     struct AlarmSink {
         Logs::Logger*         logger;          ///< ALARM-topic sink (null = no logging)
         AlarmNotifier* const* notifiers;       ///< borrowed notifier array (may be null)
@@ -222,9 +213,8 @@ namespace Botanik { namespace Alarms {
          *  @c _count alone saturates and cannot say. */
         uint16_t        _declared;
         /** @brief Condition numbers sorted by CODE, built once by the
-         *  constructor. The other spelling needs no mapping of its own: a name
-         *  goes through the bank's index to a row, and the conditions were
-         *  scanned in table order, so their refs are already sorted. */
+         *  constructor. Names need no mapping of their own: they go through the
+         *  bank's index to a row, and the refs are already sorted. */
         uint8_t         _by_code[Config::ALARM_SLOTS];
         /** the variable table the condition refs resolve against (null -> every
          *  condition reads false, which is what an unbound model is) */
@@ -241,10 +231,8 @@ namespace Botanik { namespace Alarms {
 
     public:
         /** @brief Build the condition table by scanning @p io for SCOPE_A rows.
-         *
-         *  Every alarm, whoever declared it: a site's own and the library's
-         *  platform-health ones alike are rows of that one table (see
-         *  alarms/platform.h), so this is one scan in one order. */
+         *  A site's own and the library's platform-health ones alike are rows
+         *  of that one table (@see alarms/platform.h): one scan, one order. */
         AlarmController(const Vars::Bank* io, Logs::Logger* logger)
             : Component(logger, "AlarmController"),
               _count(0), _declared(0), _io(io), _notifier_count(0),
@@ -255,15 +243,9 @@ namespace Botanik { namespace Alarms {
             uint8_t  n     = 0;
             uint16_t found = 0;   // SCOPE_A rows in the table, slots or not
             if (io != nullptr) {
-                // One bound, because there is one table: the site's rows and the
-                // library's are scanned together, so there is no reservation for
-                // an over-long site table to eat into.
-                //
-                // The scan runs to the END of the table rather than stopping at
-                // the last slot, because `found` is the only thing that can tell
-                // a table that filled the slots EXACTLY from one that filled them
-                // and lost a tail - `n` saturates at ALARM_SLOTS either way, so
-                // it cannot answer the question the assert is asking.
+                // Runs to the END of the table rather than stopping at the last
+                // slot: `n` saturates at ALARM_SLOTS, so only `found` can tell a
+                // table that filled the slots exactly from one that lost a tail.
                 for (uint16_t i = 0; i < io->count(); i++) {
                     const Vars::Variable& d = *io->var(i).meta();
                     if (d.scope != Vars::SCOPE_A) continue;
@@ -274,8 +256,7 @@ namespace Botanik { namespace Alarms {
                     c.ref.index = i;
                     n++;
                 }
-                // A table with more alarms than slots loses its tail silently,
-                // which is the one failure a count cannot show after the fact.
+                // More alarms than slots loses the tail silently.
                 BOTANIK_ASSERT(found <= Config::ALARM_SLOTS);
             }
             _count    = n;
@@ -362,12 +343,9 @@ namespace Botanik { namespace Alarms {
         /** @brief Whether condition @p i's variable is being FORCED, and to
          *  what.
          *
-         *  An alarm is a row like any other, so an override on it is how you
-         *  exercise the logic watching it - and it reaches the model through
-         *  Var::raw(), so a forced condition behaves exactly like a real one.
-         *  That is correct and is precisely why a display has to be able to say
-         *  so: on the page an operator reads during a fault, the two are
-         *  otherwise indistinguishable.
+         *  A forced condition behaves exactly like a real one (the override
+         *  reaches the model through Var::raw()), which is why a display has to
+         *  be able to say so.
          *
          *  @return false when the row is live; on true, @p on says what it is
          *  held at. */
@@ -383,23 +361,19 @@ namespace Botanik { namespace Alarms {
          *  either spelling: the short display CODE (`SYS_RST`) or the variable
          *  NAME (`alarm_system_reset`).
          *
-         *  Both, because both are on screen. The alarm bar, the ALARMS page and
-         *  `alarms ack <code>`'s own help show the code; `alarms list` and the
-         *  variable table show the name. Matching only one meant the spelling
-         *  the operator was looking at was the one that did not work.
+         *  Both, because both are on screen: the alarm bar and the ALARMS page
+         *  show the code, `alarms list` and the variable table the name.
          *
-         *  Two binary searches, no scan: the codes through the mapping built at
-         *  construction, the names through the bank's own name index and then
-         *  through the refs, which are sorted because the conditions were
-         *  scanned in table order. */
+         *  Two binary searches, no scan: codes through the mapping built at
+         *  construction, names through the bank's name index and then the refs
+         *  (sorted, since the conditions were scanned in table order). */
         int index_of(const char* key) const {
             if (key == nullptr) return -1;
             const int by_code = _find_code(key);
             if (by_code >= 0) return by_code;
             if (_io == nullptr) return -1;
             // The length-bounded find(), deliberately: this is operator input,
-            // so a miss is a typo at the keyboard, not a table defect, and it
-            // must not be counted as an unresolved name.
+            // so a miss is a typo and must not count as an unresolved name.
             return _find_ref(_io->find(key, (uint16_t)strlen(key)));
         }
 
@@ -426,10 +400,8 @@ namespace Botanik { namespace Alarms {
 
     private:
 
-        /** @brief Sort _by_code, once. Binary insertion, over at most
-         *  ALARM_SLOTS entries: the comparisons are strcmps and the shuffling is
-         *  uint8_t moves. Same shape as the bank's name index, same reason -
-         *  the table is built here and never changes again. */
+        /** @brief Sort _by_code, once. Binary insertion over at most
+         *  ALARM_SLOTS entries; the table never changes again. */
         void _build_code_index() {
             for (uint8_t i = 0; i < _count; i++) _by_code[i] = i;
             for (uint8_t i = 1; i < _count; i++) {
@@ -485,8 +457,8 @@ namespace Botanik { namespace Alarms {
         }
 
         /** @brief Condition @p i's variable, as a boolean. An override on that
-         *  variable is what "force this alarm" means now - it reaches here the
-         *  same way it reaches everything else, through Var::raw(). */
+         *  variable is what "force this alarm" means, and it arrives here
+         *  through Var::raw() like everywhere else. */
         bool _raw(uint8_t i) const {
             if (_io == nullptr) return false;
             return _io->var(_conditions[i].ref).b();

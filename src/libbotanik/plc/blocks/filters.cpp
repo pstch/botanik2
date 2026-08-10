@@ -16,9 +16,8 @@ namespace Botanik { namespace Plc {
         if (!_seed) { _value = x; _seed = true; return _value; }
         if (tau_s <= 0.0f) { _value = x; return _value; }
 
-        // dt / (tau + dt) rather than dt / tau: the exact first-order blend,
-        // and one that cannot exceed 1 when a scan comes in later than the time
-        // constant. The naive form overshoots and rings there.
+        // dt / (tau + dt) rather than dt / tau: the exact first-order blend, and
+        // one that cannot exceed 1 when a scan comes in later than tau.
         const float dt = seconds(dt_ms);
         const float a  = dt / (tau_s + dt);
         _value += a * (x - _value);

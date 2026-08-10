@@ -48,9 +48,9 @@ namespace Botanik { namespace Network {
         uint64_t ts = entry->timestamp;
         char time_buf[Utils::TIMESTAMP_LEN];
         Utils::format_ms_timestamp(ts, time_buf, sizeof(time_buf));
-        // "<timestamp> <message>", truncated to fit. Built by hand rather than
-        // with snprintf's %s: losing the tail of an over-long line is the
-        // intent here, and there is no way to say so to -Wformat-truncation.
+        // "<timestamp> <message>", truncated to fit. By hand rather than
+        // snprintf's %s: truncation is intended here, and -Wformat-truncation
+        // has no way to be told so.
         size_t n = 0;
         for (const char* p = time_buf; *p != 0 && n + 1 < len; ++p) buf[n++] = *p;
         if (n + 1 < len) buf[n++] = ' ';

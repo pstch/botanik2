@@ -16,10 +16,9 @@
  * rate would silently reorder the cycle - which is why dispatch is phase-major
  * and the group only answers "is it due".
  *
- * There is deliberately no priority. Priority means preemption, and there is
- * none here: one cooperative loop, every step runs to completion. The only
- * meaningful reading would be a load-shedding policy, and shedding a control
- * program is not something that should happen automatically.
+ * There is deliberately no priority: preemption does not exist here (one
+ * cooperative loop, every step runs to completion), and the only other reading
+ * would be load-shedding, which must not shed a control program automatically.
  */
 
 #include <cstdint>                              // uint8_t/uint32_t/uint64_t
@@ -34,7 +33,7 @@ namespace Botanik { namespace Tasks {
      *  so a rate is retuned in one place for everything that shares it. */
     enum GroupId {
         GROUP_FAST = 0,    ///< every beat: the field bus, the log drain, the pumps
-        GROUP_MAIN,        ///< the operator-facing rate (unused since the console moved to SLOW)
+        GROUP_MAIN,        ///< the operator-facing rate (currently unused)
         GROUP_SLOW,        ///< dwell and config: health, parameters
         GROUP_BACKGROUND,  ///< housekeeping measured in seconds
         GROUP_COUNT
@@ -64,21 +63,19 @@ namespace Botanik { namespace Tasks {
     /** @brief What one task costs, for the TASKS page and the stats command.
      *
      *  Per TASK, not per group: "the slow group cost 3 ms" does not say which of
-     *  its members to look at. Report the windowed peak and the mean; an
-     *  all-time max never decays, so one outlier pins it for the whole boot.
+     *  its members to look at.
      *
      *  It also carries what the task did NOT run: TaskTimer drops a late task's
-     *  missed activations rather than catching them up, and until they were
-     *  accumulated here the drop left no trace at all - a task quietly running at
-     *  half its declared rate looked exactly like one keeping up. */
+     *  missed activations rather than catching them up, and this count is the
+     *  only trace that it happened. */
     struct TaskCost {
         uint32_t us_last  = 0;   ///< duration of the most recent run
         uint32_t us_max   = 0;   ///< all-time peak (diagnostic only)
         uint64_t us_total = 0;   ///< accumulated, for the mean
         uint32_t runs     = 0;   ///< completed runs
-        /** @brief Activations dropped since boot, never caught up. A count and
-         *  not a rate: what an operator asks is "has this task ever been
-         *  skipped", and a decaying figure cannot answer it. */
+        /** @brief Activations dropped since boot, never caught up. A count, not
+         *  a rate: the question is "has this task ever been skipped", which a
+         *  decaying figure cannot answer. */
         uint32_t missed   = 0;
 
         /** @brief Fold one run's duration in, plus the activations that were
@@ -100,9 +97,9 @@ namespace Botanik { namespace Tasks {
      *  call that advances it.
      *
      *  The dispatch is a plain function pointer plus a `self`, not a Component*,
-     *  so the scheduler stays free of every subsystem it drives - including
-     *  Vars, which a control program's context needs and which must not become a
-     *  dependency of scheduler/. add_component() wraps the common case. */
+     *  so this stays free of every subsystem it drives - including Vars, which
+     *  must not become a dependency here. add_component() wraps the common
+     *  case. */
     struct Task {
         const char* name     = nullptr;   ///< shown in the TASKS table
         GroupId     group    = GROUP_FAST;
@@ -121,9 +118,8 @@ namespace Botanik { namespace Tasks {
      *         per-task numbers the HMI reads back.
      *
      *  Fixed capacity, no allocation. Registration happens during bring-up and
-     *  the table is frozen once the loop starts - nothing needs to add a task at
-     *  runtime, and a fixed table is what lets the TASKS page hold a stable row
-     *  order across redraws. */
+     *  the table is frozen once the loop starts, which is what lets the TASKS
+     *  page hold a stable row order across redraws. */
     class Registry {
 
         /** @name State
@@ -131,9 +127,9 @@ namespace Botanik { namespace Tasks {
 
         Task     _tasks[Config::MAX_TASKS];
         uint8_t  _count = 0;
-        /** @brief Registrations refused for want of capacity. Surfaced rather
-         *  than silently dropped: a task missing from the beat is not something
-         *  that should have to be noticed by its absence. */
+        /** @brief Registrations refused for want of capacity. Surfaced, never
+         *  silently dropped: a task missing from the beat must not have to be
+         *  noticed by its absence. */
         uint8_t  _overflow = 0;
 
         /** @} */
@@ -145,11 +141,9 @@ namespace Botanik { namespace Tasks {
         /**
          * @brief Register @p name to run @p run at @p group's rate, in @p phase.
          *
-         * The offset that keeps this task off the same beat as its group-mates
-         * is derived: each new member of a group is placed one beat further
-         * along, wrapped into the group's period. Without it every rate stays
-         * phase-locked to boot and the peak work per beat never moves, however
-         * many rates there are (@ref timer_offset).
+         * The offset keeping this task off the same beat as its group-mates is
+         * derived: each new member of a group is placed one beat further along,
+         * wrapped into the group's period (@ref timer_offset).
          *
          * @return false if the table is full (counted in overflow()).
          */
@@ -175,10 +169,9 @@ namespace Botanik { namespace Tasks {
          * @brief Run every registered task's one-time init, phase-major, before
          *        the loop starts.
          *
-         * Explicit, not lazy on a component's first step(): that would put it
-         * inside the first beat, and the parameter load alone is hundreds of
-         * storage reads - tens of milliseconds of flash inside a 10 ms budget,
-         * which reads as a boot overrun. It belongs before the beat exists.
+         * Explicit, not lazy on a component's first step(): the parameter load
+         * alone is tens of milliseconds of flash inside a 10 ms budget, which
+         * would read as a boot overrun.
          *
          * Phase-major, like run_phase(), so init obeys the same data-flow order
          * the beat does - parameters are loaded before anything reads config.

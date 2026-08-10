@@ -7,13 +7,12 @@
  * @brief HomePage - landing screen: ASCII logo, a compact system summary, and
  *        a small live log tail along the bottom.
  *
- * Site-independent: it shows the logo, the firmware identity block, uptime, the
- * log tail, and the site's home-field readings laid out in three columns of 8
- * (the site supplies the table; the page owns the geometry). Drawing is diffed
- * by MetricPage.
+ * Site-independent: logo, firmware identity block, uptime, log tail, and the
+ * site's home-field readings in three columns of 8 (the site supplies the
+ * table, the page owns the geometry).
  *
- * Also a LogWriter: the bottom HOME_SCROLLBACK_LINES rows show a live tail (no
- * scroll-up), replayed from a small HomeScrollback. begin_redraw() over the
+ * Also a LogWriter: the bottom HOME_SCROLLBACK_LINES rows are a live tail (no
+ * scroll-up) replayed from a small HomeScrollback. begin_redraw() over the
  * whole content area bottom-aligns the lines, so the band needs no bespoke
  * render.
  */
@@ -73,10 +72,10 @@ namespace Botanik { namespace Pages {
          *  field so columns stay put. Per-column geometry lives in _field_place().
          *  @{ */
         static constexpr uint8_t  COLS = 3, COL_MAX = 8, UPTIME_CELLS = 2;
-        /** @brief Site fields the three columns hold. Published as
-         *  Config::HOME_FIELDS_MAX for generated home-field tables to
-         *  static_assert against: extras are silently ignored by _field_place(),
-         *  so a site must be able to catch that at build time. */
+        /** @brief Site fields the three columns hold. Mirrored as
+         *  Config::HOME_FIELDS_MAX so a generated home-field table can
+         *  static_assert against it: _field_place() silently ignores extras, so
+         *  a site has to catch that at build time. */
         static constexpr uint8_t  FIELD_CAP = COLS * COL_MAX - UPTIME_CELLS;
         static_assert(FIELD_CAP == Config::HOME_FIELDS_MAX,
                       "Config::HOME_FIELDS_MAX must track the three columns' capacity");
@@ -126,9 +125,9 @@ namespace Botanik { namespace Pages {
          *  upward free. */
         bool _field_place(uint8_t i, uint16_t& row, uint16_t& lbl, uint16_t& val,
                           uint16_t& w, uint16_t& slot) const {
-            // Per-column geometry (a static constexpr array member would be
-            // odr-used here and need an out-of-class definition). Column 1 starts
-            // below the uptime readout and its spacer, so it is that much shorter.
+            // Per-column geometry (a static constexpr member would be odr-used
+            // here and need an out-of-class definition). Column 1 starts below
+            // the uptime readout and its spacer, so it is that much shorter.
             static const uint16_t LBL[COLS] = { 2, 28, 54 };
             static const uint16_t VAL[COLS] = { 13, 39, 65 };
             static const uint16_t TOP[COLS] = { COL_TOP + UPTIME_CELLS,
@@ -169,9 +168,9 @@ namespace Botanik { namespace Pages {
             // cold-field redraw cadence is MetricPage's default (PAGE_COLD_MS)
             // uptime ticks every second
             _hot_ms     = Config::PAGE_HOT_MS;
-            // The band is a glance, not a record: NOTICE and up by default, so
-            // boot chatter does not push the one line worth seeing off the
-            // bottom. The full stream is the LOGS page.
+            // The band is a glance, not a record: NOTICE and up, so boot
+            // chatter cannot push the one line worth seeing off the bottom.
+            // The full stream is the LOGS page.
             set_min_level((Logs::LogLevel)Config::HOME_LOG_MIN_LEVEL);
         }
 

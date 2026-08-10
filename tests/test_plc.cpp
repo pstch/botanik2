@@ -2,8 +2,7 @@
  * @file test_plc.cpp
  * @brief The PLC vocabulary: stateless functions, the block families, PID and actuator.
  *
- * Each section below is the former test_<name>.cpp, kept in its own
- * namespace so their fixtures and helpers cannot collide.
+ * Each section is its own namespace, isolating fixtures and helpers.
  */
 
 #include "libbotanik/plc/functions/functions.h" // the stateless POU vocabulary
@@ -44,8 +43,7 @@ TEST_CASE("scale rescales linearly, and a dead span reads as the low end") {
     CHECK(scale(0.0f, 0.0f, 1.0f, 20.0f, 80.0f) == doctest::Approx(20.0f));
     CHECK(scale(2.0f, 0.0f, 1.0f, 20.0f, 80.0f) == doctest::Approx(140.0f));  // no clamp
     CHECK(scale(1.0f, 0.0f, 1.0f, 80.0f, 20.0f) == doctest::Approx(20.0f));   // inverted
-    // A misconfigured span must give a dull answer, not an infinity that then
-    // propagates into an output.
+    // A misconfigured span must give a dull answer, not a propagating infinity.
     CHECK(scale(7.0f, 3.0f, 3.0f, 20.0f, 80.0f) == doctest::Approx(20.0f));
 }
 
@@ -80,8 +78,7 @@ TEST_CASE("countdown stops at zero rather than wrapping") {
 
 namespace blocks {
 
-// Compiles to an empty TU when the blocks are off - the namespace
-// itself is gated, so this must sit ABOVE the using-directive.
+// Empty TU when blocks are off (guard sits above the using-directive).
 #if BOTANIK_FEATURE_PLC_BLK_BASE && BOTANIK_FEATURE_PLC_BLK_FILTERS
 
 using namespace Botanik::Plc;
@@ -127,8 +124,7 @@ TEST_CASE("Tp: fixed-width pulse, immune to the input dropping") {
 TEST_CASE("RTrig / FTrig: one scan per edge") {
     RTrig r; FTrig f;
     CHECK(r(true));  CHECK_FALSE(r(true));   // only the transition
-    // Both assume the input starts low, so neither fires on the first scan
-    // merely because of where the input sits.
+    // Both assume the input starts low; neither fires on the first scan alone.
     CHECK_FALSE(f(false));
     f(true);
     CHECK(f(false)); CHECK_FALSE(f(false));
@@ -190,8 +186,7 @@ TEST_CASE("Hysteresis3: seeds into the band it starts in, either end") {
     Hysteresis3 cold, hot;
     CHECK(cold(5.0f, 18.0f, 26.0f, 1.0f) == Hysteresis3::BAND_LOW);
     CHECK(hot(40.0f, 18.0f, 26.0f, 1.0f) == Hysteresis3::BAND_HIGH);
-    // ...and a value parked between low and low+hyst reads MID rather than
-    // sticking in LOW forever waiting for an edge that never comes.
+    // A value parked between low and low+hyst reads MID, not stuck in LOW.
     Hysteresis3 parked;
     CHECK(parked(18.5f, 18.0f, 26.0f, 1.0f) == Hysteresis3::BAND_MID);
 }
@@ -221,8 +216,7 @@ TEST_CASE("Interlock: the acknowledge is an edge, and needs the inputs back") {
     Interlock il;
     CHECK(il(true, true, true, true, true));
     CHECK_FALSE(il(true, true, false, true, true));   // trips despite reset held
-    // Reset held true throughout: no rising edge, so no clear even once the
-    // input recovers. A stuck reset button must not stand as permission.
+    // No rising edge, no clear, even once recovered: a stuck button isn't permission.
     CHECK_FALSE(il(true, true, true, true, true));
     CHECK(il(true, true, true, true, false) == false);
     CHECK(il(true, true, true, true, true));          // a fresh edge clears it
@@ -296,8 +290,8 @@ TEST_CASE("Integral: integrates a rate, and cuts off sensor noise") {
 }
 
 TEST_CASE("Integral: still counts millilitres at ten thousand litres") {
-    // The reason the accumulator is a double: at 1e4, a float's step is ~1e-3,
-    // so a 0.5 mL increment would round away and the total would freeze.
+    // A double accumulator: at 1e4, a float's ~1e-3 step would round away a
+    // 0.5 mL increment and freeze the total.
     Integral t;
     t.preset(10000.0);
     for (int i = 0; i < 1000; i++) t(0.5f, 1000);   // 500 L, 0.5 L at a time
@@ -425,8 +419,7 @@ TEST_CASE("WindowedMax: a window shorter than K still works (span floored to 1)"
 
 namespace pid {
 
-// Compiles to an empty TU when the blocks are off - the namespace
-// itself is gated, so this must sit ABOVE the using-directive.
+// Empty TU when blocks are off (guard sits above the using-directive).
 #if BOTANIK_FEATURE_PLC_BLK_BASE
 
 using namespace Botanik::Plc;
@@ -434,8 +427,8 @@ using namespace Botanik::Plc;
 
 namespace {
 
-/** @brief A first-order plant: the reading chases the output with a lag, which
- *  is close enough to a heater in a room to exercise a loop. */
+/** @brief A first-order plant: reading chases output with a lag, close
+ *  enough to a heater to exercise a loop. */
 struct Plant {
     float pv;
     float gain;      ///< reading units per output unit at equilibrium
@@ -482,10 +475,7 @@ TEST_CASE("Pid: the integral removes the offset a P-only loop leaves") {
 }
 
 TEST_CASE("Tp: a pulse shorter than the scan still shows for one activation") {
-    // IEC 61131-3 gives TP a minimum of one activation. Judging expiry after
-    // starting the pulse spends the whole width inside the scan that began it,
-    // so a width at or below dt_ms goes up and down without ever being seen -
-    // and width_ms is routinely a parameter typed against a 100 ms program.
+    // IEC 61131-3 gives TP a minimum of one activation; judging expiry from pulse start would let width <= dt_ms go unseen.
     Tp a;
     CHECK(a(true, 50, 100) == true);         // width < dt: still one activation
     CHECK(a(true, 50, 100) == false);        // ...and only one
@@ -501,9 +491,7 @@ TEST_CASE("Tp: a pulse shorter than the scan still shows for one activation") {
 }
 
 TEST_CASE("Ramp: a non-positive rate freezes rather than running away") {
-    // The clamps are written for a positive step; a negative one inverts them
-    // and walks the output away from its target without bound. The rate is a
-    // Tunable off the PARAMS page, so the sign is operator-reachable.
+    // The clamps assume a positive step; a negative one walks the output away unbounded (an operator-reachable Tunable).
     Ramp r;
     r(0.0f, 1.0f, 100);                      // seed at 0
     for (int i = 0; i < 20; i++) r(5.0f, -0.01f, 100);
@@ -516,10 +504,7 @@ TEST_CASE("Ramp: a non-positive rate freezes rather than running away") {
 }
 
 TEST_CASE("blocks: every block in the family can be reset") {
-    // block.h asserts this at compile time; this is the runtime half - a reset
-    // block reads as a cold one. The scan driver resets every program on a
-    // control-authority withdrawal, and a program's reset is the sum of its
-    // blocks'.
+    // block.h asserts this at compile time; runtime: reset reads as cold, summed across blocks.
     Ramp ramp;   ramp(7.0f, 1.0f, 100);   ramp.reset();
     CHECK(ramp(3.0f, 1.0f, 100) == doctest::Approx(3.0f));   // re-seeds, no ramp from 7
 
@@ -536,18 +521,14 @@ TEST_CASE("blocks: every block in the family can be reset") {
 }
 
 TEST_CASE("Pid: a non-zero output floor does not become a phantom integral") {
-    // limit(i, out_min, out_max) clamps a fresh integral UP to out_min, and the
-    // anti-windup guard then pins it there: authority the loop never earned and
-    // cannot unwind. A minimum-fan-speed or minimum-stroke loop is this shape.
+    // limit() clamps a fresh integral UP to out_min, and anti-windup pins it there: authority never earned.
     Pid p;
     const PidTuning t(2.0f, 0.5f, 0.0f, 20.0f, 100.0f);   // floor at 20
     p(25.0f, 24.0f, t, 100);                              // one integrating scan
     CHECK(p.integral() < 1.0f);        // ~0.5, not 20
     CHECK(p.integral() > 0.0f);
 
-    // ...and the loop still settles, with the integral it actually earned. The
-    // phantom made the first scan command the floor's worth of authority, which
-    // a loop whose equilibrium sits near the floor cannot then give back.
+    // The loop still settles with the integral it earned - the phantom grants the floor's worth up front, un-refundable near the floor.
     Plant plant = { 0.0f, 0.5f, 20.0f };                  // equilibrium: out 50 -> pv 25
     Pid q;
     for (int i = 0; i < 2000; i++) plant.step(q(25.0f, plant.pv, t, 100), 100);
@@ -556,9 +537,7 @@ TEST_CASE("Pid: a non-zero output floor does not become a phantom integral") {
 }
 
 TEST_CASE("Pid: ki back to 0 removes the integral rather than freezing it") {
-    // The tunings are operator-editable parameters, so turning the I off on a
-    // running loop is a thing that happens. A frozen integral would go on
-    // commanding the output for ever with nothing able to take it away.
+    // Tunings are operator-editable; a frozen integral after I->0 would command the output forever.
     Plant plant = { 0.0f, 0.5f, 20.0f };
     Pid p;
     const PidTuning pi(2.0f, 0.5f);
@@ -568,8 +547,7 @@ TEST_CASE("Pid: ki back to 0 removes the integral rather than freezing it") {
     const PidTuning p_only(2.0f);          // same loop, ki now 0
     const float out = p(25.0f, plant.pv, p_only, 100);
     CHECK(p.integral() == 0.0f);
-    // The loop was settled, so P alone is ~0: the output collapses instead of
-    // staying where the accumulated integral had it.
+    // Settled loop, P alone ~0: output collapses instead of holding the old integral.
     CHECK(out < 1.0f);
 }
 
@@ -577,8 +555,7 @@ TEST_CASE("Pid: derivative is on the reading, so a setpoint step gives no kick")
     Pid with_d;
     const PidTuning t(1.0f, 0.0f, 10.0f);
     with_d(20.0f, 20.0f, t, 1000);                     // settled, no error
-    // Setpoint jumps 5 in one scan. On the error the derivative would be
-    // 5/1s * kd = 50; on the reading it is zero, so only P responds.
+    // Setpoint jumps 5 in one scan: on error kd*5/1s=50, on reading zero - only P responds.
     CHECK(with_d(25.0f, 20.0f, t, 1000) == doctest::Approx(5.0f));
 }
 
@@ -608,15 +585,14 @@ TEST_CASE("Pid: the derivative filter trades response for noise rejection") {
 TEST_CASE("Pid: anti-windup - a saturated loop comes off the limit at once") {
     Pid guarded;
     const PidTuning t(0.1f, 5.0f);
-    // An hour of unreachable setpoint against a stuck reading. Unbounded, the
-    // integral would reach 5 * 100 * 3600 = 1.8 million.
+    // An hour of unreachable setpoint on a stuck reading; unbounded, the
+    // integral would reach 5*100*3600 = 1.8 million.
     for (int i = 0; i < 3600; i++) guarded(100.0f, 0.0f, t, 1000);
     CHECK(guarded.value() == doctest::Approx(100.0f));
     CHECK(guarded.saturated());
     CHECK(guarded.integral() <= 100.0f);     // never grew past the output span
 
-    // Setpoint reached and overshot: the output backs off on the next scan
-    // rather than spending an hour of accumulated excess first.
+    // Setpoint reached and overshot: output backs off next scan, not after an hour of excess.
     const float out = guarded(100.0f, 130.0f, t, 1000);
     CHECK(out == doctest::Approx(0.0f));
     CHECK(guarded.integral() < 100.0f);
@@ -650,8 +626,7 @@ TEST_CASE("Pid: a zero dt scan is harmless") {
 
 namespace actuator {
 
-// Compiles to an empty TU when the blocks are off - the namespace
-// itself is gated, so this must sit ABOVE the using-directive.
+// Empty TU when blocks are off (guard sits above the using-directive).
 #if BOTANIK_FEATURE_PLC_BLK_BASE
 
 using namespace Botanik::Plc;
@@ -670,8 +645,7 @@ int drive(Actuator& a, float target, uint32_t ms) {
     for (uint32_t t = 0; t < ms; t += 100) {
         a.step(target, CFG, 100);
         if (a.open_cmd()) open_scans++;
-        // Extra parentheses: doctest decomposes the expression, and cannot
-        // take one apart across a &&.
+        // Extra parens: doctest can't decompose an expression across &&.
         CHECK_FALSE((a.open_cmd() && a.close_cmd()));   // never both coils
     }
     return open_scans;
@@ -684,8 +658,7 @@ TEST_CASE("Actuator: starts UNKNOWN and datums against the closed stop") {
     CHECK(a.state() == Actuator::ST_UNKNOWN);
     CHECK_FALSE(a.known());
 
-    // A mid target from UNKNOWN closes fully first: the position estimate is
-    // worth nothing until something has reached a mechanical stop.
+    // A mid target from UNKNOWN closes fully first: the estimate is worthless until a stop is reached.
     a.step(0.5f, CFG, 100);
     CHECK(a.state() == Actuator::ST_CLOSING);
     CHECK(a.close_cmd());
@@ -731,8 +704,7 @@ TEST_CASE("Actuator: CLOSED means on the seat, and only a full close gives it") 
 TEST_CASE("Actuator: a stroke to an end overruns, so the estimate re-datums") {
     Actuator a;
     a.preset(0.0f);
-    // Walk it half open and back a few times. Without the seating overrun the
-    // estimate would drift; with it, every full close puts it back on zero.
+    // Without the seating overrun the estimate would drift; every full close re-zeros it.
     for (int i = 0; i < 3; i++) {
         drive(a, 0.5f, 8000);
         drive(a, 0.0f, 8000);
@@ -746,8 +718,7 @@ TEST_CASE("Actuator: no twitching inside the deadband or under the minimum run")
     a.preset(0.5f);
     drive(a, 0.51f, 2000);                      // inside the 2% deadband
     CHECK(a.position() == doctest::Approx(0.5f));
-    // Outside the deadband, but 2.3% of a 10 s travel is a 230 ms run - under
-    // min_run_ms, so still not worth energising the motor.
+    // 2.3% of a 10 s travel is 230 ms - under min_run_ms, not worth energising.
     drive(a, 0.523f, 2000);
     CHECK(a.position() == doctest::Approx(0.5f));
     drive(a, 0.6f, 3000);                       // 1 s of travel, worth doing
@@ -760,8 +731,7 @@ TEST_CASE("Actuator: reversing mid-stroke passes through the dead time") {
     for (int i = 0; i < 10; i++) a.step(1.0f, CFG, 100);   // ~9% open
     CHECK(a.open_cmd());
 
-    // Demand flips to closed: the open coil drops in the same scan, and the
-    // close coil stays off for the reversal dead time.
+    // Demand flips closed: open coil drops same scan, close coil waits out the dead time.
     a.step(0.0f, CFG, 100);
     CHECK_FALSE(a.open_cmd());
     CHECK_FALSE(a.close_cmd());
@@ -774,9 +744,7 @@ TEST_CASE("Actuator: reversing mid-stroke passes through the dead time") {
 TEST_CASE("Actuator: a committed seating stroke is not cut short") {
     Actuator a;
     a.preset(0.1f);
-    // Target 0 from 10% open: the estimate says 800 ms of travel, but the
-    // stroke is armed for that plus the seating overrun, and nothing cuts it
-    // short at the estimated arrival - that overrun IS the datum.
+    // Target 0 from 10% open: armed for the 800 ms estimate plus the seating overrun - the overrun IS the datum.
     for (int i = 0; i < 12; i++) a.step(0.0f, CFG, 100);
     CHECK(a.position() == doctest::Approx(0.0f));   // estimate says arrived
     CHECK(a.close_cmd());                           // ...and it is still driving
@@ -797,8 +765,7 @@ TEST_CASE("Actuator: stop drops both coils, home forgets the position") {
     a.home();
     CHECK_FALSE(a.known());
     CHECK(a.state() == Actuator::ST_UNKNOWN);
-    // ...and the next command datums again rather than trusting the estimate.
-    // (The stop left a dead time behind, which this scan serves out.)
+    // The next command datums again rather than trusting the estimate.
     a.step(0.5f, CFG, 500);
     CHECK(a.state() == Actuator::ST_CLOSING);
 }

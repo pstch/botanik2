@@ -2,14 +2,13 @@
 #define LIBBOTANIK_LIBRARY_VARS_H
 
 /**
- * @file library.h
+ * @file library_vars.h
  * @brief The variable rows libbotanik itself declares, for a site's table.
  *
- * A site's `g_vars[]` is not only the site's. The library has state of its own
- * that belongs in the variable model rather than beside it - alarms it raises,
- * readings it publishes, parameters it reads - and the bank holds ONE contiguous
- * descriptor array, so those rows have to live in the site's table. This header
- * is the single splice point:
+ * A site's `g_vars[]` is not only the site's: the library declares rows of its
+ * own (alarms it raises, readings it publishes, parameters it reads), and the
+ * bank holds ONE contiguous descriptor array, so they must live in the site's
+ * table. This header is the single splice point:
  *
  * @code
  * const Variable g_vars[] = {
@@ -21,42 +20,34 @@
  * @endcode
  *
  * One `#define`, no comma after it: every row inside carries its own trailing
- * comma, so a group with nothing in it expands to nothing at all and the ones
- * around it still read correctly. Three of the four groups are empty today; the
- * plumbing is here so that filling one is an edit to this file and nothing else.
+ * comma, so an empty group expands to nothing and the rows around it still read
+ * correctly.
  *
  * @section lib_order Why it goes first, and why the parameters are last
  *
- * Two ordering rules, and both come from the same place - `Bank` requires the
- * `ROLE_PARAM` rows to be **one contiguous run**, because that is what lets the
- * PARAMS page and the shell address them by a dense 0-based index.
+ * `Bank` requires the `ROLE_PARAM` rows to be **one contiguous run**, which is
+ * what lets the PARAMS page and the shell address them by a dense 0-based index.
+ * Sites put their parameters at the top of their table, so the library block
+ * goes **first** and its parameters **last within it**, and the two parameter
+ * blocks abut.
  *
- * So the library's parameters have to sit immediately beside the site's. Sites
- * put their parameters at the top of their table (it reads well and it is the
- * convention), which pins both rules: the library block goes **first**, and its
- * parameters go **last within it**, so the two parameter blocks abut.
- *
- * Nothing else in the model cares about position. Alarm conditions are numbered
- * by table order, so the library's alarms head the ALARMS page - which is fine,
- * they are the ones every unit has.
+ * Nothing else in the model cares about position.
  *
  * @section lib_regs Register space
  *
  * A parameter, status value or alarm carries a hand-assigned Modbus TCP slave
  * register (`Binding::reg`), and an external master's map is a contract. The
- * library reserves **900-999** for its own rows so a site never has to guess
- * which numbers are safe: its parameters and status values grow upward from 900,
- * its alarms take the top (990-999), and a site's own alarms live in 800-899.
- * `tests/test_site_names.cpp` fails on a collision and on a row outside the
- * block its scope belongs to.
+ * library reserves **900-999** for its own rows: parameters and status values
+ * grow upward from 900, its alarms take 990-999, and a site's own alarms live in
+ * 800-899. `tests/test_site_names.cpp` fails on a collision and on a row outside
+ * the block its scope belongs to.
  *
  * @section lib_missing Leaving it out
  *
- * A site that omits the splice still builds and boots. What it loses is
- * everything the library expected to find: today, the health monitor's six alarm
- * rows, so no platform-health fault can be raised at all. POST reports each
- * missing row by name, the bank counts and logs every unresolved lookup, and
- * `tests/test_site_names.cpp` fails before either of those is reached.
+ * A site that omits the splice still builds and boots, but loses every row the
+ * library expects: today the health monitor's six alarms, so no platform-health
+ * fault can be raised at all. POST names each missing row, the bank counts and
+ * logs every unresolved lookup, and `tests/test_site_names.cpp` fails first.
  */
 
 #include "libbotanik/alarms/platform.h" // BOTANIK_PLATFORM_ALARM_VARS
@@ -87,12 +78,12 @@
 /** @name The four groups
  *
  *  One per kind of row the library may declare, each a concatenation of whatever
- *  subsystem headers contribute to it. A subsystem defines its own macro next to
- *  the code that owns the rows (as `alarms/platform.h` does) and gets added to
- *  the group here - so this file stays the one place that says what the library
- *  puts in a site's table.
+ *  subsystem headers contribute. A subsystem defines its own macro beside the
+ *  code that owns the rows (as `alarms/platform.h` does) and is added to the
+ *  group here, so this file stays the one place that says what the library puts
+ *  in a site's table.
  *
- *  Every row must end with a comma, its own, so an empty group vanishes cleanly.
+ *  Every row must end with its own comma, so an empty group vanishes cleanly.
  *  @{ */
 
 /** @brief Alarms the library raises. Its rows live beside the code that raises
@@ -101,16 +92,11 @@
                                      BOTANIK_MODBUS_RTU_ALARM_VARS           \
                                      BOTANIK_PLC_SCAN_ALARM_VARS
 
-/** @brief Status values the library publishes - MQTT telemetry and the Modbus
- *  TCP slave - so a name here is an external contract.
+/** @brief Status values the library publishes (MQTT telemetry and the Modbus
+ *  TCP slave), so a name here is an external contract.
  *
- *  The field bus's dead-device count is the first tenant (modbus/rtu/alarms.h).
- *  The scheduler's per-beat metrics are the obvious next ones: they are read off
- *  `SchedulerContext` by three separate consumers today, none of which can be
- *  reached by `get`, MQTT or a Modbus master.
- *
- *  Rows must be fully qualified and end with their own comma, as the alarm ones
- *  are - a site's table may be in a namespace that has not pulled Vars in:
+ *  Rows must be fully qualified and end with their own comma: a site's table may
+ *  be in a namespace that has not pulled Vars in.
  *
  *  //                    name            type   def  dgt unit reg  description      notes
  *  // ::Botanik::Vars::SV("sys_cpu_load", ::Botanik::Vars::T_F32, 0.0, 1, "%", 900,
@@ -129,17 +115,13 @@
 
 /** @brief Parameters the library reads.
  *
- *  The two UART rates: what an installation runs its console at is the
- *  operator's business, and a unit whose terminal was swapped should not need a
- *  firmware build. `Config::CONSOLE_BAUD` / `MONITOR_BAUD` are still where the
- *  DEFAULT lives, so a site pins what its hardware ships with and a wiped store
- *  comes back at a known rate.
+ *  The two UART rates are operator-editable, so a swapped terminal needs no
+ *  firmware build. `Config::CONSOLE_BAUD` / `MONITOR_BAUD` hold the DEFAULT, so
+ *  a wiped store comes back at the rate the hardware ships with.
  *
- *  The band is the standard rates either UART can actually be driven at. It is
- *  a band and not an enum because a parameter's declared bounds are the whole
- *  validation a `set` gets: a number inside it that no divisor can hit lands as
- *  the nearest the driver manages, which is a wrong rate rather than a refused
- *  one - so keep it to rates that are real.
+ *  @warning The band must stay to rates the UARTs can really be driven at: a
+ *  parameter's declared bounds are the whole validation a `set` gets, so a
+ *  number no divisor can hit lands as the nearest the driver manages.
  *
  *  LAST in the aggregate below, and that is load-bearing: see @ref lib_order.
  *
@@ -224,11 +206,11 @@
         "geographical longitude, in degrees", "per site location"),  \
     BOTANIK_MODBUS_TCP_PARAM_VARS
 
-/** @brief Pool bytes the library's own text parameters need: net_ip, net_mask,
- *  net_gw, net_dns1, net_dns2, ntp_srv1, ntp_srv2 and mqtt_host - eight rows,
- *  each BOTANIK_HOST_STR_LEN. A site sizes its string pool as this plus whatever
- *  its own text rows take; `Bank::init()` lays the slots out, so a site says how
- *  much room there is and never where anything goes. */
+/** @brief Pool bytes the library's own text parameters need: eight rows (net_ip,
+ *  net_mask, net_gw, net_dns1, net_dns2, ntp_srv1, ntp_srv2, mqtt_host), each
+ *  BOTANIK_HOST_STR_LEN. A site sizes its string pool as this plus its own text
+ *  rows; `Bank::init()` lays the slots out, so a site says how much room there
+ *  is and never where anything goes. */
 #define BOTANIK_LIBRARY_STR_BYTES   (8u * BOTANIK_HOST_STR_LEN)
 
 /** @} */

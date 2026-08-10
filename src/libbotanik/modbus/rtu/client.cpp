@@ -41,15 +41,10 @@ void RtuClient::on_setup(uint64_t now_ms) {
     _publish_health();
 
     if (_logger == nullptr) return;
-    // Two lines, and the first one has to FIT (see logs/format.h for the
-    // arithmetic). At 80 columns the timestamp, level and MODBUS take 34, so
-    // the message gets 46 - which "102 rows -> 22 blocks on 20 device(s)"
-    // overran, wrapping mid-word into "device(" / "s)" and pushing the duty
-    // figure onto a third line. Commas instead of arrows and "devices" instead
-    // of "device(s)" is 29 characters and reads better besides. The duty is the
-    // second line because it is the number an engineer actually goes looking
-    // for, and it must not be split across a fold. No "modbus:" scope word on
-    // any of these: the topic column already says it.
+    // Two lines, and the first one has to FIT: at 80 columns the timestamp,
+    // level and MODBUS take 34, leaving 46 for the message (see logs/format.h).
+    // The duty gets its own line so a fold cannot split it. No "modbus:" scope
+    // word: the topic column already says it.
     _logger->info(Logs::MODBUS,
                   "%u rows, %u blocks, %u devices\n"
                   "%u.%u%% of the bus at %u baud",
@@ -155,13 +150,10 @@ void RtuClient::_enter(State s, uint64_t now_ms) {
 }
 
 uint16_t RtuClient::_pick(uint64_t now_ms) const {
-    // One pass, scoring each block, highest score wins. As a table the
-    // precedence reads at a glance and the bus is walked once; as sequential
-    // loops it would have to be read in order to know what beat what.
-    //
-    // The tiers are decades apart so nothing inside one can ever outrank the
-    // one above: lateness is measured in whole periods and could otherwise
-    // climb into a neighbour's range on a starved block.
+    // One pass, scoring each block, highest score wins. The tiers are decades
+    // apart so nothing inside one can ever outrank the one above: lateness is
+    // measured in whole periods and could otherwise climb into a neighbour's
+    // range on a starved block.
     static const uint32_t T_SAFE    = 4000000u;  // the field is owed a safe state
     static const uint32_t T_STARVED = 3000000u;  // a read a whole period late
     static const uint32_t T_WRITE   = 2000000u;  // a demand that has changed
@@ -196,23 +188,13 @@ uint16_t RtuClient::_pick(uint64_t now_ms) const {
             // timing a stroke keeps enough blocks dirty to hold the bus and
             // starve the image underneath the programs reading it.
             const bool starved = b.period_ms != 0 && late >= b.period_ms;
-            // Lateness RELATIVE to the period the block asked for, in permille -
-            // for exactly the reason the starvation floor is per-block: a 1 s
-            // rung and a 10 s rung do not agree about what late means, and
-            // ranking them by absolute milliseconds hands the bus to the fast
-            // ones for ever.
-            //
-            // Twelve 1 s blocks re-arm constantly, so at any moment one of them
-            // is a few hundred ms late. A 10 s block that has just come due is
-            // 0 ms late and loses to every one of them; and it keeps losing,
-            // because their lateness resets and its own only creeps up. It could
-            // not win until it crossed the starvation floor at +10 s - so a 10 s
-            // meter refreshed every TWENTY seconds, went invalid at its 15 s
-            // timeout on the way, and came back at 20. In permille the same
-            // comparison is fair: 900 ms late on a 1 s rung is 900, and 800 ms
-            // late on a 10 s rung is 80, so the 1 s block still wins - but a
-            // 10 s block 5 s late is 500 and beats a 1 s block 400 ms late,
-            // which is the outcome absolute milliseconds could never reach.
+            // Lateness RELATIVE to the period asked for, in permille, for the
+            // same reason the starvation floor is per-block: ranked by absolute
+            // milliseconds the fast rungs hold the bus for ever, since they
+            // re-arm constantly while a slow block's lateness only creeps up.
+            // In permille 900 ms late on a 1 s rung is 900 and 800 ms late on a
+            // 10 s rung is 80 (the fast block still wins), but a 10 s block 5 s
+            // late is 500 and beats a 1 s block 400 ms late.
             const uint64_t denom = (b.period_ms != 0) ? (uint64_t)b.period_ms : 1u;
             uint64_t permille = (late * 1000u) / denom;
             if (permille > 999999u) permille = 999999u;
@@ -289,9 +271,7 @@ bool RtuClient::_build(uint16_t block, uint64_t now_ms) {
         break;
     default:
         // collect_write laid the registers out big-endian already, which is the
-        // layout they go out in - so they go straight across. Unpacking them
-        // into words for the builder to repack cost a second stack array the
-        // size of a whole block.
+        // layout they go out in, so they go straight across.
         _frame_len = build_write_registers(_frame, (uint16_t)sizeof _frame,
                                            b.device, b.reg, b.regs, payload);
         break;
@@ -372,14 +352,11 @@ void RtuClient::on_step(uint64_t now_ms) {
 
     // Clear the receive path BEFORE the frame goes out. receive_step() only
     // listens while MB_RX, so anything arriving during the gap or while the bus
-    // was idle is still sitting in the UART ring - and arm() below resets the
-    // FRAMER, not the port. A device that timed out and then answered late
-    // therefore had its reply read as the head of the NEXT transaction: taken
-    // for the echo skip, or for the response, misaligning both. A healthy device
-    // was then faulted for a different device's lateness.
-    //
-    // Here rather than after _send(): the echo of our own frame has not been
-    // transmitted yet, so this cannot eat it.
+    // was idle is still in the UART ring, and arm() below resets the FRAMER, not
+    // the port. A device answering after its timeout would otherwise be read as
+    // the head of the NEXT transaction - taken for the echo skip or for the
+    // response, misaligning both. Here rather than after _send(): the echo of
+    // our own frame has not been transmitted yet, so this cannot eat it.
     _stale_rx += HAL::Serial::fieldbus_flush_input();
 
     if (!_send()) {
@@ -391,18 +368,13 @@ void RtuClient::on_step(uint64_t now_ms) {
         return;
     }
 
-    // Armed HERE, not a beat later. The answer can be on the wire before this
-    // beat ends - at 38400 an 8-byte request clears in 2.3 ms - and anything not
-    // being listened for is lost.
-    //
-    // Whether our own frame comes back first is a property of the PORT, not
-    // something to infer from the bytes: a transceiver with RE tied low echoes,
-    // and the simulator's socketpair does not. HAL knows which it is.
-    //
-    // Straight to MB_RX: there is no separate state for "the frame is still
-    // leaving". Nothing waits on that any more - the framer is listening from
-    // this instant, and the tx_idle() check above is what stops the NEXT frame
-    // starting before this one has gone.
+    // Armed HERE, not a beat later: the answer can be on the wire before this
+    // beat ends (at 38400 an 8-byte request clears in 2.3 ms) and anything not
+    // being listened for is lost. Whether our own frame comes back first is a
+    // property of the PORT, not something to infer from the bytes: a transceiver
+    // with RE tied low echoes, the simulator's socketpair does not, and HAL
+    // knows which. Straight to MB_RX - the tx_idle() check above is what stops
+    // the NEXT frame starting before this one has gone.
     _framer.arm(_expect, now_ms, Config::MODBUS_TIMEOUT_MS,
                 HAL::Serial::fieldbus_echoes() ? _frame_len : 0);
     _enter(MB_RX, now_ms);

@@ -74,18 +74,16 @@ namespace Botanik { namespace Plc {
      *
      *  - **It latches.** A condition that trips and recovers on its own must
      *    still be seen and cleared by hand. A latching interlock also starts
-     *    WITHOUT the permit, so nothing arms itself after a power cycle - the
-     *    same reasoning as control authority starting disabled. `Interlock(false)`
-     *    opts out and just follows the inputs.
+     *    WITHOUT the permit, so nothing arms itself after a power cycle.
+     *    `Interlock(false)` opts out and just follows the inputs.
      *  - **The acknowledge is an edge**, so a reset wired true (a stuck button,
      *    a forgotten override) cannot silently clear every future trip.
-     *  - **It remembers which input went first.** The rest usually fall over as
-     *    a consequence, so first_out() is what lets a log line say why rather
-     *    than just "interlocked". Held until the acknowledge.
+     *  - **It remembers which input went first**, held until the acknowledge:
+     *    the rest usually fall over as a consequence, so first_out() is what
+     *    lets a log line say why rather than just "interlocked".
      *
-     * Four inputs, no more: a site with three passes @c true for the fourth, one
-     * with six chains two interlocks. Fixed width keeps first_out() meaningful
-     * and the block free of storage to size.
+     * Four inputs, no more: pass @c true for an unused one, chain two blocks
+     * for more.
      */
     class Interlock : public Block {
 

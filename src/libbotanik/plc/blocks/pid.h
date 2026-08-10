@@ -17,11 +17,10 @@ namespace Botanik { namespace Plc {
     /**
      * @brief What a Pid is tuned with: gains, output span, action.
      *
-     * Data, not state - typically rebuilt each scan from parameters, so a loop
-     * is retunable from the PARAMS page while the block keeps its history.
-     * Gains are the parallel form, so each stands on its own: @c kp is output
-     * units per unit of error, @c ki per (error x second), @c kd per
-     * (error / second).
+     * Data, not state: typically rebuilt each scan from parameters, so a loop is
+     * retunable from the PARAMS page while the block keeps its history. Gains
+     * are the parallel form - @c kp is output units per unit of error, @c ki per
+     * (error x second), @c kd per (error / second).
      *
      * @note constexpr with defaults: `PidTuning(2.0f)` is pure P,
      *  `PidTuning(2.0f, 0.05f)` is PI.
@@ -47,8 +46,7 @@ namespace Botanik { namespace Plc {
      * @brief PID regulator: holds a reading at a setpoint by driving a
      * continuous output.
      *
-     * Three departures from the textbook sum, each the difference between a loop
-     * that works on a greenhouse and one that works on paper:
+     * Three departures from the textbook sum:
      *
      *  - **Derivative on the measurement, not the error**, so a setpoint typed
      *    at the console does not slam the output to a limit for one scan;
@@ -56,8 +54,8 @@ namespace Botanik { namespace Plc {
      *    amplifies exactly the noise.
      *  - **Conditional integration**: frozen while it would push further into a
      *    limit the output is already against, so a loop that spent the night on
-     *    its ceiling comes off it when the error changes sign rather than
-     *    unwinding for an hour. No back-calculation gain to tune.
+     *    its ceiling comes off it when the error changes sign. No
+     *    back-calculation gain to tune.
      *  - **The integral is clamped to the output span** - a term larger than any
      *    output the actuator can produce is time the loop must spend undoing it.
      *

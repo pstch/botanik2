@@ -127,10 +127,9 @@ namespace Botanik { namespace Modbus {
             const int n = Net::tcp_send(_sock, _tx + _tx_sent,
                                         (size_t)(_tx_len - _tx_sent));
             if (n == 0) {
-                // Would block. A peer that accepts the connection and then never
-                // reads is the case with no natural end: every other state had a
-                // deadline and this one did not, so the master sat here for ever
-                // with no fault counted and no reconnect.
+                // Would block. Deadlined like every other state: a peer that
+                // accepts the connection and then never reads has no natural
+                // end, and would hold the master here for ever.
                 if ((now_ms - _since_ms) > Config::MODBUS_TCP_RESPONSE_TIMEOUT_MS) {
                     disconnect();
                     _finish(ERR_TIMEOUT, now_ms);
@@ -175,11 +174,10 @@ namespace Botanik { namespace Modbus {
             _rx_len = 0;
         }
 
-        // A frame we could not place is not a transaction that merely failed:
-        // the stream is out of step by an unknown amount, and the next request
-        // would read whatever is left as its answer. Only OK and a REFUSAL are
-        // well-formed enough to leave the socket up - the slave takes the same
-        // view of a request it cannot parse.
+        // A frame we could not place leaves the stream out of step by an unknown
+        // amount, and the next request would read whatever is left as its
+        // answer. Only OK and a REFUSAL are well formed enough to leave the
+        // socket up, the same view the slave takes of a request it cannot parse.
         if (e != ERR_OK && e != ERR_EXCEPTION) disconnect();
         _finish(e, now_ms);
     }

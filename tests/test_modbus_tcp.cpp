@@ -69,9 +69,7 @@ TEST_CASE("modbus tcp pdu: a well formed read decodes and reports its length") {
 }
 
 TEST_CASE("modbus tcp pdu: a frame that is not Modbus is dropped, not parsed") {
-    // Protocol id is zero for Modbus and nothing else. A non-zero one means the
-    // stream is something else entirely, so there is no resynchronising: the
-    // connection goes.
+    // Protocol id is zero for Modbus; a non-zero stream means no resynchronising - the connection goes.
     uint8_t buf[64];
     const size_t n = read_frame(buf, 1, 1, 0, 2);
     buf[2] = 0x00; buf[3] = 0x01;                 // protocol id 1
@@ -95,15 +93,13 @@ TEST_CASE("modbus tcp pdu: an impossible length field is refused") {
         CHECK(decode(buf, n, &r, &used) == DEC_INVALID);
     }
 
-    // And one that cannot fit a Modbus PDU at all. A peer claiming 0xFFFF is
-    // not a peer we can stay in step with.
+    // And one that can't fit a PDU at all: 0xFFFF is a peer we can't stay in step with.
     buf[4] = 0xFF; buf[5] = 0xFF;
     CHECK(decode(buf, n, &r, &used) == DEC_INVALID);
 }
 
 TEST_CASE("modbus tcp pdu: a frame still arriving is incomplete, not invalid") {
-    // The difference matters: INCOMPLETE means read more, INVALID drops the
-    // connection. Getting it wrong either way is a hang or a dropped SCADA.
+    // INCOMPLETE means read more, INVALID drops the connection; wrong either way is a hang or a dropped SCADA.
     uint8_t buf[64];
     const size_t n = read_frame(buf, 1, 1, 0, 2);
 
@@ -117,8 +113,7 @@ TEST_CASE("modbus tcp pdu: a frame still arriving is incomplete, not invalid") {
 }
 
 TEST_CASE("modbus tcp pdu: two frames in one read are taken one at a time") {
-    // TCP is a stream: a peer that pipelines, or a segment that happens to carry
-    // two requests, must not lose the second.
+    // TCP is a stream: a pipelining peer or a two-request segment must not lose the second.
     uint8_t buf[128];
     const size_t a = read_frame(buf, 0x0001, 1, 0, 2);
     const size_t b = read_frame(buf + a, 0x0002, 1, 10, 4);
@@ -137,8 +132,7 @@ TEST_CASE("modbus tcp pdu: two frames in one read are taken one at a time") {
 }
 
 TEST_CASE("modbus tcp pdu: a quantity past its function code's ceiling is refused") {
-    // Refused as an EXCEPTION rather than dropped: the frame is well formed and
-    // addressed to us, so the peer deserves an answer saying why.
+    // Refused as an EXCEPTION, not dropped: well formed and addressed to us, so the peer deserves an answer.
     uint8_t buf[64];
     const size_t n = read_frame(buf, 1, 1, 0, (uint16_t)(max_quantity(FC_READ_HOLDING) + 1));
 
@@ -188,8 +182,7 @@ TEST_CASE("modbus tcp pdu: an unsupported function code is refused with its own 
     size_t used = 0;
     REQUIRE(decode(buf, n, &r, &used) == DEC_EXCEPTION);
     CHECK(r.ex == EX_ILLEGAL_FUNCTION);
-    // Addressed back to the right peer and transaction, which is why decode
-    // fills the mbap on a refusal too.
+    // decode() fills the mbap on a refusal too, so it still addresses the right peer and transaction.
     CHECK(r.mbap.txn == 0x4321);
     CHECK(r.mbap.unit == 3);
 }
@@ -198,8 +191,7 @@ TEST_CASE("modbus tcp pdu: an unsupported function code is refused with its own 
 // ===========================================================================
 
 TEST_CASE("modbus tcp pdu: a response for another transaction is not our answer") {
-    // The whole point of the transaction id. A late reply arriving while the
-    // next request is in flight must not be matched to it.
+    // The whole point of the transaction id: a late reply in flight with the next request must not match it.
     uint8_t rsp[64];
     const uint8_t body[4] = { FC_READ_HOLDING, 2, 0x12, 0x34 };
     const size_t n = frame(rsp, 0x0007, 1, body, 4);
@@ -268,9 +260,7 @@ struct Served {
         const VarTables& t = Site::g_site.vars;
         for (uint16_t i = 0; i < t.count; ++i) {
             const Variable& d = t.var[i];
-            // Map::writable() is file-local, so the rule is restated: a
-            // parameter, not read-only, not text. A numeric one, since the
-            // register path is what is under test here.
+            // Map::writable() is file-local; restated here: a numeric, writable parameter.
             if (!Map::published(d) || d.role != ROLE_PARAM) continue;
             if ((d.flags & F_RDONLY) != 0) continue;
             if (d.type == T_BOOL || d.type == T_STR) continue;
@@ -282,22 +272,20 @@ struct Served {
     }
 };
 
-/** @brief One row's value into @p p: 32 bits across TWO big-endian registers,
- *  high word first, which is what word_at() reads back. */
+/** @brief @p v into @p p as two big-endian registers, high word first (what word_at() reads back). */
 void put_row(uint8_t* p, uint32_t v) {
     p[0] = (uint8_t)(v >> 24); p[1] = (uint8_t)(v >> 16);
     p[2] = (uint8_t)(v >> 8);  p[3] = (uint8_t)(v & 0xFF);
 }
 
-/** @brief A wire value the bank will accept for @p row and that differs from
- *  what it holds. Probed rather than computed: a parameter's band is its own
- *  business, and "current minus one" is outside plenty of them. */
+/** @brief A wire value the bank accepts for @p row, differing from current.
+ *  Probed, not computed: bands are the parameter's own business, and
+ *  "current minus one" often falls outside them. */
 bool other_value(Bank& bank, uint16_t row, uint32_t* out) {
     Var v = bank.var(row);
     const Variable& d = *v.meta();
     INFO("row '" << std::string(d.name) << "'");
-    // var_band(), not num_band(): a parameter's limits can themselves be
-    // parameters, and num_band() would hand back the firmware defaults.
+    // var_band(), not num_band(): limits can be parameters; num_band() would give firmware defaults.
     const NumBand b = var_band(&bank, d);
     const float lo = as_f32(d.type, b.min);
     const float hi = as_f32(d.type, b.max);
@@ -318,10 +306,8 @@ bool other_value(Bank& bank, uint16_t row, uint32_t* out) {
 }  // namespace
 
 TEST_CASE("modbus map: a bulk write is applied at once and persisted a few per beat") {
-    // The regression. Every changed row used to reach HAL::Storage inside the
-    // beat that decoded the request - up to 61 synchronous flash writes, which
-    // is hundreds of milliseconds with a garbage-collection pass in it, on the
-    // beat the field bus shares.
+    // A changed row must not reach HAL::Storage inside the decoding beat - up to
+    // 61 synchronous flash writes (hundreds of ms with a GC pass) on the shared beat.
     Served s;
     uint16_t addr = 0;
     uint16_t row = 0;
@@ -337,8 +323,7 @@ TEST_CASE("modbus map: a bulk write is applied at once and persisted a few per b
     REQUIRE(s.map.write_registers(addr, 2, data, &committed) == EX_NONE);
     CHECK(committed == 1);
 
-    // Live straight away: that is what the master and the control programs
-    // both care about.
+    // Live straight away, which is what the master and control programs care about.
     CHECK(Map::wire_of(s.bank.var(row).type(), s.bank.var(row).live()) == after);
 
     // ...and the flash write is owed, not done.
@@ -353,8 +338,7 @@ TEST_CASE("modbus map: the drain is bounded, however much is queued") {
     uint16_t row = 0;
     REQUIRE(s.first_writable(&addr, &row));
 
-    // Queue several writes to the same row, alternating between two accepted
-    // values so each one is a real change.
+    // Queue writes to the same row, alternating two accepted values so each is a real change.
     uint32_t a = 0;
     REQUIRE(other_value(s.bank, row, &a));
     const uint32_t b0 = Map::wire_of(s.bank.var(row).type(), s.bank.var(row).live());
@@ -375,14 +359,13 @@ TEST_CASE("modbus map: the drain is bounded, however much is queued") {
 }
 
 TEST_CASE("modbus map: a write with nowhere to queue is refused whole") {
-    // EX_SLAVE_BUSY is what a retry is for. A master told to come back is
-    // better served than a plant left on half the new settings.
+    // EX_SLAVE_BUSY is what a retry is for: better a master told to come back than a plant left on half the settings.
     Served s;
     uint16_t addr = 0;
     uint16_t row = 0;
     REQUIRE(s.first_writable(&addr, &row));
 
-    // Fill the queue by alternating the row between two accepted values.
+    // Fill the queue, alternating between two accepted values.
     uint32_t a = 0;
     REQUIRE(other_value(s.bank, row, &a));
     const uint32_t b0 = Map::wire_of(s.bank.var(row).type(), s.bank.var(row).live());
@@ -429,10 +412,8 @@ TEST_CASE("modbus map: an odd address or count is refused, not rounded") {
 }
 
 TEST_CASE("modbus map: rebuilding makes the queue durable rather than dropping it") {
-    // Everything queued was acknowledged to a master with EX_NONE. Discarding it
-    // on a rebuild would break that promise silently - and the refs are BANK row
-    // indices, which a rebuild does not renumber, so there was never anything
-    // stale about them to justify it.
+    // Everything queued was acknowledged with EX_NONE; discarding it on rebuild
+    // would break that promise, and the refs (BANK row indices) don't go stale across one.
     Served s;
     uint16_t addr = 0;
     uint16_t row = 0;
@@ -448,7 +429,7 @@ TEST_CASE("modbus map: rebuilding makes the queue durable rather than dropping i
     s.map.build();
     // Drained, so nothing is owed...
     CHECK(s.map.pending_persists() == 0);
-    // ...and the value the master was promised is still the one in the bank.
+    // ...and the value promised to the master is still in the bank.
     CHECK(Map::wire_of(s.bank.var(row).type(), s.bank.var(row).live()) == w);
     // The map itself is intact after the rebuild.
     CHECK(s.map.count() > 0);
@@ -459,9 +440,7 @@ TEST_CASE("modbus map: rebuilding makes the queue durable rather than dropping i
 // ===========================================================================
 
 TEST_CASE("modbus map: a single-register write keeps the half it did not address") {
-    // Writing one setpoint is the commonest thing a SCADA does, and it used to
-    // come back EX_ILLEGAL_ADDRESS - not even the right objection, since the
-    // address was fine and only the granularity was not.
+    // The commonest SCADA write must not come back EX_ILLEGAL_ADDRESS when only the granularity, not the address, differs.
     Served s;
     uint16_t addr = 0, row = 0;
     REQUIRE(s.first_writable(&addr, &row));
@@ -472,8 +451,7 @@ TEST_CASE("modbus map: a single-register write keeps the half it did not address
     const uint16_t hi = (uint16_t)(want >> 16);
     const uint16_t lo = (uint16_t)(want & 0xFFFFu);
 
-    // Two FC06s, one per half, in either order: after both the row must hold
-    // exactly the value a single pair write would have put there.
+    // Two FC06s, either order: after both, the row must hold what a single pair write would have.
     uint16_t committed = 0;
     REQUIRE(s.map.write_register(addr, hi, &committed) == EX_NONE);
     REQUIRE(s.map.write_register((uint16_t)(addr + 1), lo, &committed) == EX_NONE);
@@ -486,9 +464,7 @@ TEST_CASE("modbus map: a single-register write goes through the same band check"
     uint16_t addr = 0, row = 0;
     REQUIRE(s.first_writable(&addr, &row));
 
-    // A value the band will not have. Both halves at 0x7FFF gives a large
-    // positive float and a large integer alike; if the row happens to accept it
-    // there is nothing to test here.
+    // A value the band should reject: both halves at 0x7FFF gives a large float and integer alike; if the row accepts it, nothing to test.
     const Scalar wild = Map::from_wire(s.bank.var(row).type(), 0x7F7FFFFFu);
     if (s.bank.check(s.bank.var(row), wild) == SET_OK) return;
 
@@ -546,8 +522,7 @@ struct Pair {
         return done();
     }
 
-    /** @brief The address of the lowest published row: the map is sparse and
-     *  starts well above zero, so a read of register 0 is off the end of it. */
+    /** @brief Lowest published row's address; the sparse map starts well above zero. */
     uint16_t first_addr() const {
         const VarTables& t = Site::g_site.vars;
         uint16_t best = 0xFFFF;
@@ -579,17 +554,13 @@ TEST_CASE("modbus tcp master: it reaches the slave and reads a register") {
     TcpMaster* m = &p.master;
     REQUIRE(p.until([m] { return m->done(); }, 5000));
     INFO("error " << (int)p.master.error());
-    // A real answer, not merely a verdict: this is the end-to-end path, so a
-    // timeout here would mean the two never spoke and every other case in this
-    // file was passing on the strength of its deadlines alone.
+    // A real answer, not a verdict: end-to-end, so a timeout would mean every other case here was passing on deadlines alone.
     REQUIRE(p.master.error() == ERR_OK);
     CHECK(p.master.response().len == 4);
 }
 
 TEST_CASE("modbus tcp master: a function code that is not a read is refused") {
-    // read() took over from a read_bits() that framed whatever fc it was given,
-    // so a write code could go out through the read path carrying a read's
-    // Expect - and then be checked against the wrong shape of answer.
+    // read() must refuse a non-read fc, or a write code would be checked against the wrong shape of Expect.
     Pair p;
     REQUIRE(p.connect());
 
@@ -599,8 +570,7 @@ TEST_CASE("modbus tcp master: a function code that is not a read is refused") {
 }
 
 TEST_CASE("modbus tcp master: a transaction always reaches a verdict") {
-    // Every state has a deadline now, MA_SENDING included - it was the one with
-    // none, so a peer that accepted and never read wedged the master for good.
+    // Every state must have a deadline (MA_SENDING included), or an accept-then-silent peer wedges the master.
     Pair p;
     REQUIRE(p.connect());
     REQUIRE(p.master.read(Config::MODBUS_TCP_UNIT_ID, FC_READ_HOLDING,

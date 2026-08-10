@@ -12,12 +12,10 @@
 namespace Botanik { namespace Modbus {
 
 const DeviceModel& generic_model() {
-    // Every field left at what the protocol itself allows. A device nobody has
-    // described is not a device with no constraints - it is one whose
-    // constraints we have not read, and guessing at them would be worse than
-    // saying so. max_regs 0 defers to max_quantity(fc).
-    // Every field at what the protocol itself allows, which is what the shape
-    // factories cannot express: a device nobody described has no shape.
+    // Every field at what the protocol itself allows (max_regs 0 defers to
+    // max_quantity(fc)): a device nobody described has constraints we have not
+    // read, and guessing at them would be worse than saying so. No shape
+    // factory expresses that, hence the literal.
     static const DeviceModel k = DeviceModel{ "generic", 0, 0, 1, 1, true, 0 };
     return k;
 }

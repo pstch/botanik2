@@ -24,9 +24,9 @@
  *
  * UP/DOWN move a selection cursor (the selected variable's NAME is drawn
  * inverted), auto-scrolling the window when the cursor would leave it;
- * PAGE_UP/DOWN move half a window, HOME/END jump to the ends. The table is redrawn
- * immediate-mode each tick and the terminal's back-buffer diff emits only the
- * cells that actually changed, so the page keeps no paint cache.
+ * PAGE_UP/DOWN move half a window, HOME/END jump to the ends. Redrawn
+ * immediate-mode each tick and pared by the terminal's diff (@ref dev_screen),
+ * so the page keeps no paint cache.
  */
 
 #include <cstdint>                          // uint8_t/uint16_t/uint64_t
@@ -82,33 +82,28 @@ namespace Botanik { namespace Pages {
         mutable bool        _groups_built = false;
         /** @brief Sequential-scan memo for _ref_at(), and the cached row total.
          *
-         *  Both _ref_at() and _total() walk the whole table applying _in_mode(),
-         *  which is a strcmp per row. _ref_at() is called once per DRAWN row, so
-         *  a 12-row window over a 259-row table cost ~3100 comparisons a refresh
-         *  to answer a question whose answer only changes with the mode.
-         *
-         *  Rows are drawn top to bottom, so remembering the last (row -> index)
-         *  pair turns the walk into a resume: the first row of a window pays the
-         *  scan, every row after it advances by one. Invalidated by
-         *  _on_mode_changed(), which is the only thing that moves the mapping -
-         *  the table's rows and scopes are fixed at build time. */
+         *  _ref_at() and _total() both walk the table applying _in_mode() (a
+         *  strcmp per row), and _ref_at() runs once per DRAWN row: a 12-row
+         *  window over a 259-row table is ~3100 comparisons a refresh. Rows are
+         *  drawn top to bottom, so remembering the last (row -> index) pair
+         *  turns the walk into a resume. Invalidated by _on_mode_changed(), the
+         *  only thing that moves the mapping - the table's rows and scopes are
+         *  fixed at build time. */
         mutable uint16_t    _memo_row  = 0;
         mutable uint16_t    _memo_idx  = 0;
         mutable bool        _memo_ok   = false;
         mutable uint16_t    _total_n   = 0;
         /** @brief Which mode _total_n was counted for; 0xFF = none yet. Holding
-         *  the mode rather than a valid/invalid flag makes the invalidation
-         *  structural - a future path that moves _mode without going through
-         *  _on_mode_changed() cannot leave a stale count behind. */
+         *  the mode rather than a valid flag makes the invalidation structural:
+         *  a path that moves _mode without going through _on_mode_changed()
+         *  still cannot leave a stale count behind. */
         mutable uint8_t     _total_mode = 0xFF;
         const Vars::Bank*     _io;
         /** @brief How to turn a row's writer index into a program name, and the
-         *  thing that knows. Null when the build has no scan.
-         *
-         *  A function pointer rather than a `Scan::Driver*` so this page does
-         *  not have to be compiled differently depending on a feature flag it
-         *  has no other interest in - and so the page depends on "something can
-         *  name a writer" rather than on the scan cycle. */
+         *  thing that knows. Null when the build has no scan. A function
+         *  pointer rather than a `Scan::Driver*`, so the page depends on
+         *  "something can name a writer" and not on the scan cycle or its
+         *  feature flag. */
         const char* (*_writer_name)(const void*, uint8_t) = nullptr;
         const void*           _writer_ctx = nullptr;
         /** @brief How to turn a Modbus unit id into the plant's own tag for it.
@@ -130,10 +125,9 @@ namespace Botanik { namespace Pages {
                     const Vars::Bank* io)
             : ScrollTablePage(console), _io(io) {}
 
-        /** @brief Teach the page to name the program that computes a row.
-         *  Wired by the firmware, which is the only thing holding both the page
-         *  and the scan driver. Without it a computed row still reads
-         *  "computed", which is what it said before. */
+        /** @brief Teach the page to name the program that computes a row. Wired
+         *  by the firmware, the only thing holding both the page and the scan
+         *  driver. Without it a computed row just reads "computed". */
         void set_writer_names(const char* (*fn)(const void*, uint8_t),
                               const void* ctx) {
             _writer_name = fn;
@@ -141,7 +135,7 @@ namespace Botanik { namespace Pages {
         }
 
         /** @brief Teach the page the plant's name for a Modbus unit. Without it
-         *  the Mapping row says "dev 34", which is what it said before. */
+         *  the Mapping row just says "dev 34". */
         void set_device_names(const char* (*fn)(const void*, uint8_t),
                               const void* ctx) {
             _device_name = fn;
@@ -178,10 +172,10 @@ namespace Botanik { namespace Pages {
         // --------------------------------------------------------------------
 
         /** @name Group modes
-         *  Mode 0 shows every group; modes 1..N show one each. The site already
-         *  groups its variables for the monitor table and telemetry, so this is
-         *  the grouping it declared, surfaced as a view rather than a second
-         *  concept. SPACE / RIGHT step forward, LEFT back (scroll_table.h).
+         *  Mode 0 shows every group; modes 1..N show one each. The groups are
+         *  the site's own (a variable's name prefix), surfaced as a view rather
+         *  than a second concept. SPACE / RIGHT step forward, LEFT back
+         *  (scroll_table.h).
          *  @{ */
         /** @brief Discover the distinct groups, in table order. */
         void _ensure_groups() const;
@@ -201,10 +195,9 @@ namespace Botanik { namespace Pages {
         uint16_t _total() const;
 
         /** @brief Legend row and bottom rule row. The legend sits one row up
-         *  from the bottom so it has a blank line each side, the same framing the
-         *  ALARMS table gives its own - a badge reads as a badge when it is not
-         *  jammed against the alarm bar. The bottom rule sits PANEL_H rows above
-         *  it, reserving the detail panel. */
+         *  from the bottom so it has a blank line each side (a badge jammed
+         *  against the alarm bar does not read as one). The bottom rule sits
+         *  PANEL_H rows above it, reserving the detail panel. */
         uint16_t _footer_row() const { return (uint16_t)(_console.rows() - 2); }
         uint16_t _brule_row() const {
             uint16_t f = _footer_row();
@@ -250,9 +243,8 @@ namespace Botanik { namespace Pages {
          *  every refresh, and _at() is a walk over the group table. */
         uint16_t _row_text(uint16_t r, char* out, size_t cap) const;
 
-        /** @brief Draw data row @p r at screen @p row, inverting the NAME field for
-         *  the selection cursor when @p selected. The terminal's back-buffer diff
-         *  pares it to the cells that actually moved. */
+        /** @brief Draw data row @p r at screen @p row, inverting the NAME field
+         *  for the selection cursor when @p selected. */
         void _draw_row(uint16_t r, uint16_t row, bool selected);
 
         /** @brief One line saying where a reading comes from. */

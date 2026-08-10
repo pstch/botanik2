@@ -10,16 +10,9 @@
  *  memory barriers, both read every beat), the templates, and the TYPES a
  *  caller needs by value (Serial::Raw, Serial::Port, System::ResetHook).
  *
- *  @section sim_split Why the rest is in platform.cpp
- *
- *  Everything cold - the serial device's bodies, raw-console/termios setup,
- *  reset, shutdown, the stack walk, the watchdog thread's poll - lives in
- *  hal/platform.cpp, the same arrangement hal/net.{h,cpp} and hal/storage.{h,cpp}
- *  already use. It is not about line count: those bodies need <termios.h>,
- *  <pthread.h>, <sys/ioctl.h>, <fcntl.h>, <csignal> and <unistd.h>, and this
- *  header is reached by ~30 translation units, so every one of them was paying
- *  for the POSIX preprocessor surface (and inheriting its macros) to call
- *  uptime_ms(). */
+ *  Everything cold (the serial bodies, raw-console/termios setup, reset,
+ *  shutdown, the stack walk, the watchdog poll) is in hal/platform.cpp, which
+ *  keeps the POSIX headers they need out of this one - see its file header. */
 
 #ifdef TARGET_SIMULATOR
 
@@ -44,11 +37,10 @@ namespace Botanik { namespace HAL {
      *  Default 1, clamped >= 1. */
     uint32_t _time_scale();
 
-    /** @brief Elapsed time since process start, expressed in the duration type
-     *  T. The time-scale multiply is done in __int128 over nanoseconds (sim is
-     *  x86-64 only), so it keeps full precision yet can't overflow at the far
-     *  timepoints dilation exists to reach - multiplying the raw ns int64 by
-     *  the scale first overflowed in ~days at scale 1000. */
+    /** @brief Elapsed time since process start, in the duration type T. The
+     *  time-scale multiply is __int128 over nanoseconds (sim is x86-64 only):
+     *  full precision without overflowing at the far timepoints dilation exists
+     *  to reach (an int64 ns multiply overflows in ~days at scale 1000). */
     template <typename T>
     inline uint64_t _now_as() {
         const int64_t ns_per_unit =
@@ -102,8 +94,7 @@ namespace Botanik { namespace HAL {
     template <typename T>
     inline void ordered_copy(T* dst, const T* src) {
         // Match the OPTA backend's word-multiple + no-alias contract, so the sim
-        // build (where DEBUG and the tests run) catches violations the hardware
-        // cannot surface.
+        // build catches violations the hardware cannot surface.
         static_assert(std::is_empty<T>::value || sizeof(T) % sizeof(uint32_t) == 0,
                       "ordered_copy needs a word-multiple T");
         if (std::is_empty<T>::value) return;   // empty payload carries no data
@@ -143,7 +134,7 @@ namespace Botanik { namespace HAL {
      *  descriptors with a baud-rate throttle and a simulated UART buffer.
      *
      *  Declared here (callers hold one by value) with every body in
-     *  platform.cpp, so the POSIX headers they need stay out of this header. */
+     *  platform.cpp. */
     class Raw {
         /** @brief Simulated UART FIFO depth (bytes); also caps the token
          *  bucket's bank. */
@@ -215,12 +206,9 @@ namespace Botanik { namespace HAL {
          *  that would garble a console. */
         bool is_output_tty() const { return _out_is_tty; }
 
-        /** @brief Whether everything written has finished leaving the wire.
-         *
-         *  The token bucket already knows: it holds the earliest time the next
-         *  byte may go out, which is the same instant the last one finished.
-         *  Mirrors the OPTA's Rs485Raw::tx_idle(), which has to compute it for
-         *  want of a TX-complete interrupt. */
+        /** @brief Whether everything written has finished leaving the wire. The
+         *  token bucket already knows: the earliest time the next byte may go
+         *  out is the instant the last one finished. */
         inline bool tx_idle() const {
             return _next_write_us <= _now_as<std::chrono::microseconds>();
         }
@@ -253,17 +241,12 @@ namespace Botanik { namespace HAL {
      *  CONSOLE is wired to stdin/stdout, MONITOR to stderr (output only).
      *
      *  FIELDBUS is a SOCKETPAIR: the firmware holds one end and the simulated
-     *  devices hold the other (fieldbus_peer_fd()). Bytes really travel - the
-     *  same read()/write() path the other two ports use - so the master's
-     *  framing, its CRCs and its timeouts are exercised rather than emulated.
-     *
-     *  It is a stream, and RS-485 is a shared half-duplex wire, which differ in
-     *  one way that matters: a stream cannot lose a collision. Nothing here
-     *  models two devices answering at once, because nothing here can produce
-     *  one - the sim's devices answer strictly in turn.
-     *
-     *  A pair that cannot be created leaves the port unbound, which is the old
-     *  behaviour: a bus with no devices on it.
+     *  devices the other (fieldbus_peer_fd()). Bytes really travel, over the
+     *  same read()/write() path, so the master's framing, CRCs and timeouts are
+     *  exercised rather than emulated. A stream cannot lose a collision, so
+     *  nothing here models two devices answering at once; the sim's devices
+     *  answer strictly in turn. A pair that cannot be created leaves the port
+     *  unbound: a bus with no devices on it.
      *  @param port CONSOLE, MONITOR or FIELDBUS. */
     Raw* get(Port port);
 
@@ -279,10 +262,9 @@ namespace Botanik { namespace HAL {
     /** @name Field bus control
      *
      *  The same three the OPTA backend declares, so a caller never branches on
-     *  the target. There is no transceiver to enable here and nothing echoes,
-     *  but the turnaround still has to be MODELLED: a client that only ever ran
-     *  against a port claiming to be instantly idle would be tuned for a bus
-     *  that does not exist.
+     *  the target. There is no transceiver to enable and nothing echoes, but the
+     *  turnaround is still MODELLED: a client tuned against a port that claimed
+     *  to be instantly idle would be tuned for a bus that does not exist.
      *  @{ */
 
     inline void fieldbus_begin(uint32_t baud, uint8_t data_bits, Parity parity,
@@ -295,9 +277,9 @@ namespace Botanik { namespace HAL {
 
     /** @brief Whether the receiver hears our own transmission on this port.
      *
-     *  FALSE here. The simulated bus is a socketpair: what we write goes to the
-     *  devices' end, not back to ours. A real RS-485 transceiver with RE tied
-     *  low does hear it, so this is the one place the two genuinely differ, and
+     *  FALSE here: what we write goes to the devices' end of the socketpair,
+     *  not back to ours. A real transceiver with RE tied low does hear it, so
+     *  this is the one place the two backends genuinely differ - which is why
      *  the master reads it rather than assuming either way. */
     inline bool fieldbus_echoes() { return false; }
 
@@ -315,10 +297,8 @@ namespace Botanik { namespace HAL {
     namespace System {
 
     /** @brief Capture argv and the resolved exe path at the top of main() so
-     *  reset() can re-exec. Resolving the path now, while /proc/self/exe still
-     *  points at the running (not-yet-replaced) file, records the directory
-     *  entry for later re-exec. Simulator-only (the OPTA reset takes no
-     *  arguments). */
+     *  reset() can re-exec. Must resolve the path now, while /proc/self/exe
+     *  still points at the running (not-yet-replaced) file. Simulator-only. */
     void set_reboot_args(int argc, char** argv);
 
     /** @brief A teardown hook run by reset() just before re-exec. */
@@ -333,10 +313,10 @@ namespace Botanik { namespace HAL {
 
     namespace Watchdog {
 
-    // State is written on the main thread (kick/start/stop) and read by
-    // poll() on the emulator thread, shared via the codebase's volatile +
-    // dsb() idiom (no std::atomic). 64-bit volatile is fine: simulator-only on
-    // x86-64, where aligned 64-bit loads/stores are atomic.
+    // Written on the main thread (kick/start/stop), read by poll() on the
+    // emulator thread, shared via the codebase's volatile + dsb() idiom (no
+    // std::atomic). 64-bit volatile is fine: sim is x86-64 only, where aligned
+    // 64-bit loads/stores are atomic.
 
     /** @brief Watchdog timeout in ms; 0 means disabled/stopped. */
     volatile uint32_t& _wd_timeout_ms();

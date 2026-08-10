@@ -6,11 +6,11 @@
  * @file net.h
  * @brief Minimal HAL socket layer: a single network link, non-blocking DNS, UDP and TCP.
  *
- * Portable surface used by the network components (resolver / NTP / MQTT). The
- * two backends live in net.cpp: Mbed sockets on OPTA, Linux BSD sockets on the
- * simulator. No Mbed or POSIX socket headers leak through this header. The link
- * is implicit: a socket is opened on the active interface, so callers never hold
- * an interface handle.
+ * Portable surface used by the network components (resolver / NTP / MQTT). Both
+ * backends live in net.cpp (Mbed sockets on OPTA, BSD sockets on the simulator);
+ * no Mbed or POSIX socket headers leak through this header. The link is
+ * implicit: a socket opens on the active interface, so callers never hold an
+ * interface handle.
  */
 
 #include <cstddef>  // size_t
@@ -34,11 +34,10 @@ namespace Botanik { namespace HAL { namespace Network {
 
 #ifdef TARGET_SIMULATOR
     /** @name Simulator loopback endpoints
-     *  The sim is hermetic: names resolve to mock_loopback_ip() and an in-process
-     *  mock responder (botanik_sim/network.h) answers NTP/MQTT over loopback. The
-     *  sim has no privileged ports, so the responder binds these high ports; the
-     *  HAL routes the well-known NTP port (123) here, and the sim's MQTT config
-     *  points at MQTT_MOCK_PORT directly.
+     *  The sim is hermetic: names resolve to mock_loopback_ip(), where an
+     *  in-process responder (botanik_sim/network.h) answers NTP/MQTT. It has no
+     *  privileged ports, so the responder binds these high ones and the HAL
+     *  routes the well-known NTP port (123) here.
      *  @{ */
     /** @brief What a privileged port becomes in the sim. A process without
      *  CAP_NET_BIND_SERVICE cannot bind below 1024, so a listener (and a connect
@@ -50,10 +49,9 @@ namespace Botanik { namespace HAL { namespace Network {
     }
 
     /** @brief Where the in-process responder answers. NTP's is DERIVED from the
-     *  rule above rather than written out: as the same arithmetic in two places,
-     *  moving the shift would leave the mock responder behind while the HAL went
-     *  on ahead. MQTT's is its own number - 1883 is not privileged, so nothing
-     *  shifts it. */
+     *  rule above, so moving the shift cannot leave the responder behind while
+     *  the HAL moves on. MQTT's is its own number: 1883 is not privileged, so
+     *  nothing shifts it. */
     static const uint16_t NTP_MOCK_PORT  = sim_port(123);
     static const uint16_t MQTT_MOCK_PORT = 11883;
 
@@ -133,12 +131,12 @@ namespace Botanik { namespace HAL { namespace Network {
      *  is none.
      *
      *  "Nothing pending" and "error" are the same answer on purpose: a server
-     *  polls this every beat and does the same thing either way - nothing. The
-     *  returned socket is an ordinary one, closed with tcp_close(). */
+     *  polls this every beat and does nothing either way. The returned socket is
+     *  an ordinary one, closed with tcp_close(). */
     TcpSocket tcp_accept(TcpSocket listener);
     /** @brief The address at the far end of @p s into @p out; false if it has
-     *  none (not connected). What a server logs a write against - over Modbus
-     *  the peer address is all the identity there is. */
+     *  none (not connected). What a server logs a write against: over Modbus the
+     *  peer address is all the identity there is. */
     bool      tcp_peer(TcpSocket s, Ip4* out);
     /** @brief Send: bytes written, <0 error. */
     int       tcp_send(TcpSocket s, const void* buf, size_t len);

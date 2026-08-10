@@ -68,14 +68,9 @@ namespace {
 
     /** @brief One register row's demand, big-endian into @p at.
      *
-     *  Two questions, asked in order rather than as one branch answering both
-     *  at once: is the value calibrated, and is the integer form taken from the
-     *  float or from the row?
-     *
-     *  The second is the one worth keeping apart. An AO's integer comes from its
-     *  calibrated float, because that is the only place the calibration exists;
-     *  every other row's comes from the row itself, because routing a large u32
-     *  or i32 through a float would round it. */
+     *  An AO's integer comes from its calibrated float, the only place the
+     *  calibration exists; every other row's comes from the row itself, since
+     *  routing a large u32 or i32 through a float would round it. */
     void row_regs(const Vars::Bank& io, const Vars::Variable& d, Vars::Var h,
                   uint8_t* at) {
         // A float on the wire goes out as one, calibrated or not.
@@ -111,9 +106,9 @@ namespace {
         const Vars::AnalogValues v = Vars::analog_values(&io, cal);
         const float eng = v.to_eng(wire_f32(d, payload, offset_of(d, b)));
         if (!v.plausible(eng)) {
-            // Well-formed and not believable. Publishing it would hand a control
-            // program a rail voltage as a measurement; saying WHY is what lets
-            // an operator tell a dead sensor from a quiet one.
+            // Well-formed and not believable: publishing it would hand a control
+            // program a rail voltage as a measurement. The quality says WHY, so
+            // an operator can tell a dead sensor from a quiet one.
             h.invalidate(Vars::Q_IMPLAUSIBLE);
             return false;
         }
@@ -141,13 +136,8 @@ namespace {
     }
 
     /** @brief Commit one direct row: decode, then judge - the same order a
-     *  calibrated row goes through.
-     *
-     *  A reading is judged where it ENTERS, not only by
-     *  `Bank::reject_implausible()`, which runs at background rate: a bounded
-     *  row that came back at -3000 would otherwise read `Q_GOOD` to every
-     *  control program running in the meantime, for up to a background
-     *  period. */
+     *  calibrated row goes through, and for the same reason.
+     *  @see commit_read() in image.h */
     bool commit_direct(Vars::Var h, const Vars::Variable& d, const Block& b,
                        const uint8_t* payload, uint64_t now_ms) {
         const Vars::Scalar v = decode_direct(d, b, payload);

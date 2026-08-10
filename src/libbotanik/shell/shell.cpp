@@ -32,9 +32,8 @@
 #include "libbotanik/utils/text.h"          // Utils::format_age / format_float / format_size
 #include "libbotanik/vars/params.h"         // Vars::Params
 
-// Build-time git short hash: a generated header on the CMake builds (see
-// CMakeLists), "unknown" on the Arduino .ino deploy (no CMake, so the header
-// isn't generated).
+// Build-time git short hash: a generated header on the CMake builds, "unknown"
+// on the Arduino .ino deploy (no CMake, so the header isn't generated).
 #if defined(__has_include) && __has_include("botanik_gitversion.h")
 #  include "botanik_gitversion.h"           // BOTANIK_GIT_HASH
 #endif
@@ -45,10 +44,9 @@
 namespace Botanik { namespace Shell {
 
     namespace {
-    /** @brief Extract the next whitespace-delimited word from [@p args, @p
-     *  args+alen). Returns the word start (nullptr if none) and sets @p wlen to
-     *  its length, advancing @p args / @p alen past the word (leading spaces
-     *  are skipped first). */
+    /** @brief Next whitespace-delimited word from [@p args, @p args+alen),
+     *  leading spaces skipped. Returns its start (nullptr if none), sets
+     *  @p wlen to its length, and advances @p args / @p alen past it. */
     inline const char* arg_next(const char*& args, uint16_t& alen, uint16_t& wlen) {
         while (alen > 0 && *args == ' ') { args++; alen--; }
         if (alen == 0) { wlen = 0; return nullptr; }
@@ -126,9 +124,8 @@ namespace Botanik { namespace Shell {
         // trim to arg slice
         while (alen > 0 && *args == ' ') { args++; alen--; }
 
-        // Site commands first, so the table can override a built-in (e.g. a
-        // site that wants its own `stats`); unmatched names fall through to the
-        // built-ins.
+        // Site commands first, so the table can override a built-in; unmatched
+        // names fall through.
         for (size_t i = 0; i < _command_count; i++) {
             const ShellCommand& c = _commands[i];
             if (c.name != nullptr && c.fn != nullptr &&
@@ -163,9 +160,8 @@ namespace Botanik { namespace Shell {
     }
 
     void CommandShell::_cmd_help(const char*, uint16_t) {
-        // One line per command, generated from the tables so help can't drift
-        // from the command set. %-10s is a minimum width, not a cap (a long
-        // name pushes help right).
+        // Generated from the tables, so help cannot drift from the command set.
+        // %-10s is a minimum width, not a cap (a long name pushes help right).
         char out[Config::LOG_FORMATTED_LEN];
         uint8_t bcount; const Builtin* B = _builtins(bcount);
         for (uint8_t i = 0; i < bcount; i++)
@@ -199,13 +195,12 @@ namespace Botanik { namespace Shell {
     // reset() nor shutdown() promises anything about the outputs, and the gap
     // across a reboot is exactly when an actuator must not be left energised.
     void CommandShell::_leave_running() {
-        // The system's hold, not the operator's: this is the firmware deciding
-        // to stop running, not someone turning control off.
+        // The system's hold, not the operator's: the firmware is deciding to
+        // stop running, not someone turning control off.
         if (Vars::Bank* io = _bank()) {
             io->disable_control(Vars::Bank::INHIBIT_HEALTH);
-            // A DELIBERATE stop loses no counting. The cadence bounds what an
-            // unexpected power cut costs; this makes a planned one cost
-            // nothing, which is the case an operator is entitled to expect.
+            // A deliberate stop loses no counting: the retain cadence bounds
+            // what a power cut costs, a planned stop should cost nothing.
             (void)io->save_retained();
         }
         // Wipe the screen (flushed straight to the wire) before leaving: the
@@ -280,11 +275,10 @@ namespace Botanik { namespace Shell {
 
         if (want != nullptr) { _task_detail(*reg, want, wlen); return; }
 
-        // The beat as a whole, in `stats`' shape - NOT a listing. The TASKS page
-        // is the table, and printing 22 rows over a 4800-baud console to say
-        // what a page already draws spent the console's byte budget on an index
-        // of itself. What is left here is what no per-task row can say: the
-        // totals, and which task to go and look at.
+        // The beat as a whole, in `stats`' shape - NOT a listing: 22 rows over
+        // a 4800-baud console spend the byte budget on an index of the TASKS
+        // page. Only what no per-task row can say: the totals, and which task
+        // to go and look at.
         uint64_t runs = 0, peaks_us = 0, missed = 0;
         uint8_t  missed_tasks = 0;
         const Tasks::Task* worst   = nullptr;   // most missed activations
@@ -310,10 +304,9 @@ namespace Botanik { namespace Shell {
         _emitf(out, sizeof(out), "%-29s : %-8s (%s)",
                "Registered ..................", val, detail);
 
-        // The rate classes, since a task's period is its group's and nothing
-        // else here says what those are. Names then periods, both slash-joined:
-        // the pairwise form ("fast 10, main 50, ...") is three characters too
-        // wide for an 80-column line and wrapped every time.
+        // The rate classes, since a task's period is its group's. Names then
+        // periods, both slash-joined: the pairwise form ("fast 10, main 50")
+        // is three characters too wide for an 80-column line.
         snprintf(val, sizeof(val), "%lums", (unsigned long)Config::TASK_PERIOD_MS);
         int w = 0;
         for (uint8_t g = 0; g < Tasks::GROUP_COUNT && w >= 0 && w < (int)sizeof(detail); g++)
@@ -326,9 +319,8 @@ namespace Botanik { namespace Shell {
         _emitf(out, sizeof(out), "%-29s : %-8s (%s ms)",
                "Beat ........................", val, detail);
 
-        // Total runs, and total drops. Missed is the headline of this command:
-        // a dropped activation is never caught up (Tasks::TaskTimer), so this
-        // count is the only record that the beat ever failed to deliver a rate.
+        // Missed is the headline: a dropped activation is never caught up
+        // (Tasks::TaskTimer), so this is the only record of a rate not kept.
         _emitf(out, sizeof(out), "%-29s : %-8s (across %u task(s))",
                "Activations .................",
                Utils::format_int(n1, sizeof(n1), (long long)runs),
@@ -346,9 +338,8 @@ namespace Botanik { namespace Shell {
                "Missed ......................",
                Utils::format_int(n1, sizeof(n1), (long long)missed), detail);
 
-        // The peaks added up is the beat that never happened: every task at its
-        // own worst, all due together. It is the figure the beat period has to
-        // survive - so it exceeding the beat is normal, and is not an overrun.
+        // Every task at its own worst, all due together: the beat that never
+        // happened. Exceeding the beat period is normal, not an overrun.
         snprintf(val, sizeof(val), "%sus",
                  Utils::format_int(n1, sizeof(n1), (long long)peaks_us));
         _emitf(out, sizeof(out), "%-29s : %-8s (%s)",
@@ -392,9 +383,8 @@ namespace Botanik { namespace Shell {
 
             // last_run_ms() is meaningless until the first activation, so a task
             // that has never run says so rather than reporting the uptime.
-            // Missed rides on the same line because it only means anything
-            // against the run count: dropped activations are never caught up
-            // (Tasks::TaskTimer), so this is the whole record of them.
+            // Missed rides here because it only means anything against the run
+            // count.
             if (t.timer.runs() == 0) snprintf(val, sizeof(val), "none yet");
             else snprintf(val, sizeof(val), "%lu run, %lu missed, last %lu ms ago",
                           (unsigned long)t.timer.runs(),
@@ -431,30 +421,22 @@ namespace Botanik { namespace Shell {
                Config::SITE_NAME, HAL::hardware_description());
     }
     void CommandShell::_cmd_features(const char*, uint16_t) {
-        // What this binary IS, not anything it can be told to become: the flags
-        // are compile-time, so there is no argument form and nothing to set. It
-        // answers the question `version` cannot - two units on the same firmware
-        // version can differ here, and an absent subsystem is otherwise
-        // indistinguishable from a broken one (no `net` output because MQTT was
-        // compiled out reads exactly like a broker that will not connect).
-        // Expanded from BOTANIK_FEATURE_LIST, so this is not a second roster
-        // to keep in step - a flag added to the header is reported here without
-        // anyone remembering to come back. Names carry the macro spelling and
-        // are lower-cased for display below.
+        // Compile-time flags, so there is no argument form and nothing to set.
+        // An absent subsystem is otherwise indistinguishable from a broken one.
+        // Expanded from BOTANIK_FEATURE_LIST rather than a second roster, so a
+        // flag added to the header is reported here. Names carry the macro
+        // spelling and are lower-cased for display below.
 #define BOTANIK_FEAT_ROW(f) { #f, BOTANIK_FEATURE_##f != 0 },
         static const struct { const char* name; bool on; } FEATURES[] = {
             BOTANIK_FEATURE_LIST(BOTANIK_FEAT_ROW)
         };
 #undef BOTANIK_FEAT_ROW
 
-        // Partitioned rather than one line per flag: two dozen booleans is a
-        // glance, and every line costs the same 4800-baud budget the rest of the
-        // UI is fighting over. Wrapped rather than truncated - two dozen names
-        // do not fit 80 columns, and a silently clipped list is worse than no
-        // list, since the flag you cannot see reads as absent.
-        // The shell has no terminal handle, so this is the conventional 80
-        // columns minus the label, not a measured width. Wrapping short is
-        // harmless; wrapping long would clip.
+        // Partitioned rather than one line per flag: every line costs the same
+        // 4800-baud budget. Wrapped rather than truncated, since two dozen
+        // names do not fit 80 columns and a clipped flag reads as absent.
+        // 72 = the conventional 80 columns minus the label; the shell has no
+        // terminal handle to measure. Wrapping short is harmless, long clips.
         static const size_t WRAP_W = 72;
         char out[Config::LOG_FORMATTED_LEN];
         for (uint8_t pass = 0; pass < 2; pass++) {
@@ -530,10 +512,8 @@ namespace Botanik { namespace Shell {
                 const Alarms::AlarmCondition& c = m->condition(i);
                 if (!c.active) continue;
                 uint32_t secs = (uint32_t)((now - c.started_ms) / 1000);
-                // Code FIRST: it is what the alarm bar and the ALARMS page show,
-                // and it is what you type back at `alarms ack`. The variable name
-                // follows, because that is what `get` and the MONITOR page use -
-                // one line rather than making someone map between two screens.
+                // Code first (what the alarm bar shows and what `alarms ack`
+                // takes), then the variable name (what `get` takes).
                 _emitf(out, sizeof(out), "  %-9s %-22s %s%s",
                     c.code() ? c.code() : "?",
                     c.name() ? c.name() : "?",
@@ -547,22 +527,14 @@ namespace Botanik { namespace Shell {
         _emitf(out, sizeof(out), "alarms: %u active", m->active_count());
     }
 
-    // Render one variable's row, shared by `get` and `list` so a name shown by
-    // one is formatted identically by the other.
     void CommandShell::_emit_var(const Vars::Bank& io, Vars::Var h) {
         char out[128], val[48];
         const char* s = Vars::var_format(io, h, val, sizeof(val));
         const char* u = h.meta()->unit;
-        // Flag the three things a bare number hides: WHAT KIND of row it is,
-        // that it is being forced by hand, and that a reading is really its
-        // default because nothing has written it (the trap - it looks like a
-        // perfectly reasonable measurement).
-        //
-        // The scope on every row, not just a "(param)" on the writable ones: a
-        // listing mixes readings, coils, computed values and parameters, and
-        // which one you are looking at decides whether `set` or `override`
-        // applies. Marking only parameters answered that for one row in ten and
-        // left the rest to be inferred from the name.
+        // Flag the three things a bare number hides: the scope (on every row,
+        // since it decides whether `set` or `override` applies), that it is
+        // forced by hand, and that a reading is really its default because
+        // nothing has written it.
         _emitf(out, sizeof(out), "  %-20s %-12s %-4s (%s)%s%s", h.meta()->name, s,
                (u && u[0]) ? u : "",
                Vars::var_scope(*h.meta()),
@@ -570,14 +542,9 @@ namespace Botanik { namespace Shell {
                h.valid() ? "" : " (default: nothing has written it)");
     }
 
-    // `get` is the detail view, so it answers the questions the one-line form
-    // cannot: what KIND of row this is, whether you may write it, what it reads
-    // underneath any override, and - the one that explains behaviour nothing
-    // else accounts for - whether somebody has taken it by hand.
-    //
-    // Laid out like `stats` and `net`: a dotted leader to a fixed column, the
-    // value, then the detail in parentheses. Three commands that all answer
-    // "what is the state of X" should not each look different.
+    // The detail view: what kind of row, whether you may write it, what it
+    // reads underneath any override. Laid out like `stats` and `net` (dotted
+    // leader to a fixed column, value, detail in parentheses).
     void CommandShell::_cmd_get(const char* args, uint16_t alen) {
         Vars::Bank* io = _bank();
         if (io == nullptr) { _println("get: no variables"); return; }
@@ -593,30 +560,26 @@ namespace Botanik { namespace Shell {
         char out[Config::LOG_FORMATTED_LEN], val[64], det[80];
         const char* u = (d->unit && d->unit[0]) ? d->unit : "";
 
-        // The name and what every other reader in the firmware sees for it -
-        // the override applied. The rows below take that apart.
+        // The name and what every other reader sees for it: the override
+        // applied. The rows below take that apart.
         _emitf(out, sizeof(out), "%s = %s %s", d->name,
                Vars::var_format(*io, h, val, sizeof(val)), u);
 
-        // What kind of row, and which group it files under. Both are derived -
-        // the scope from the factory that declared it, the group from the name -
-        // so neither can disagree with the table.
+        // Both derived (scope from the factory that declared it, group from the
+        // name), so neither can disagree with the table.
         _field("Scope", Vars::var_scope(*d), _scope_phrase(d->scope));
         _field("Group", Vars::var_group(*d), nullptr);
-        // Whether `set` works. Everything is forceable, so that is the only
-        // question, and it is a yes or a no.
+        // Whether `set` works; everything is forceable, so that is the only
+        // question.
         _field("Access", _writable(h) ? "read-write" : "read-only", nullptr);
 
-        // The two values, kept apart. An override SHADOWS - the driver keeps
-        // publishing underneath - so "what is it held at" and "what would it
-        // read if I let go" are different questions, and someone deciding
-        // whether to release one is asking the second.
-        // The raw row says WHY, not just whether: "nothing has written it",
-        // "past its timeout" and "outside its band" want three different next
-        // moves, and a bare "invalid" answers none of them.
+        // The two values, kept apart: an override SHADOWS (the driver keeps
+        // publishing underneath), so "held at what" and "would read what if
+        // released" are different questions. The raw row says WHY it is
+        // invalid, not just that it is.
         _value_field("Raw value", *io, h, h.live(), Vars::quality_str(h.live_quality()), u);
-        // The override's is a person's choice, not a diagnosis, so it stays a
-        // yes or a no.
+        // The override's quality is a person's choice, not a diagnosis: a yes
+        // or a no.
         if (h.overridden())
             _value_field("Override value", *io, h, h.raw(),
                          h.valid() ? "valid" : "invalid", u);
@@ -634,16 +597,14 @@ namespace Botanik { namespace Shell {
             _field(d->role == Vars::ROLE_PARAM ? "Range" : "Plausible", det, nullptr);
         }
 
-        // Where the value physically comes from, which is the first thing you
-        // want when one looks wrong.
+        // Where the value physically comes from.
         _field("Source", _binding_phrase(d->bind, det, sizeof(det)), nullptr);
         if (d->desc  && d->desc[0])  _field("Description", d->desc,  nullptr);
         if (d->notes && d->notes[0]) _field("Notes",       d->notes, nullptr);
     }
 
-    // One "Label ......... : value (detail)" row, the shape `stats` uses. The
-    // leader is built rather than written into each label so the column cannot
-    // drift one row at a time.
+    // The leader is built rather than written into each label, so the column
+    // cannot drift one row at a time.
     void CommandShell::_field(const char* label, const char* value,
                               const char* detail) {
         char lead[LEADER_W + 1];
@@ -660,9 +621,8 @@ namespace Botanik { namespace Shell {
             _emitf(out, sizeof(out), "%s : %s", lead, value);
     }
 
-    // A value row: the number, its unit, and whether it is worth believing.
-    // Quality rides here rather than on a row of its own, because a value and
-    // whether it is good are one fact - and there are two values.
+    // Quality rides on the value row rather than one of its own: a value and
+    // whether it is good are one fact, and there are two values.
     void CommandShell::_value_field(const char* label, const Vars::Bank& io,
                                     Vars::Var h, Vars::Scalar v,
                                     const char* quality, const char* unit) {
@@ -677,9 +637,8 @@ namespace Botanik { namespace Shell {
         _field(label, cell, quality);
     }
 
-    // What a scope abbreviation MEANS, for the detail column. The table shows
-    // the code because a column cannot spare eight characters to say what two
-    // do; `get` has the room.
+    // What a scope abbreviation means, for the detail column: the table shows
+    // the two-character code because a column cannot spare eight.
     const char* CommandShell::_scope_phrase(uint8_t scope) {
         switch ((Vars::VarScope)scope) {
             case Vars::SCOPE_A:  return "alarm condition";
@@ -697,9 +656,8 @@ namespace Botanik { namespace Shell {
         }
     }
 
-    // Whether `set` will take it. A parameter, unless the site marked it
-    // read-only; everything else is driven by something and would be overwritten
-    // on the next scan.
+    // A parameter, unless the site marked it read-only; everything else is
+    // driven by something and would be overwritten on the next scan.
     bool CommandShell::_writable(Vars::Var h) {
         const Vars::Variable* d = h.meta();
         return d->role == Vars::ROLE_PARAM && (d->flags & Vars::F_RDONLY) == 0;
@@ -734,10 +692,8 @@ namespace Botanik { namespace Shell {
         uint16_t wp = 0;
         const char* prefix = arg_next(args, alen, wp);
 
-        // One table, so one loop. A prefix is how you actually navigate a few
-        // hundred variables: they are named by domain (`pwr_`, `env_`), so
-        // `list pwr_` is the subsystem view without needing a grouping concept
-        // in the command.
+        // Variables are named by domain (`pwr_`, `env_`), so a prefix is the
+        // subsystem view without a grouping concept in the command.
         uint16_t n = 0;
         for (uint16_t i = 0; i < io->count(); i++) {
             Vars::Var h = io->var(i);
@@ -764,9 +720,8 @@ namespace Botanik { namespace Shell {
         const Vars::VarRef r = io->find(nm, wn);
         if (r.index == Vars::VAR_NONE) { _println("set: unknown variable"); return; }
         Vars::Var p = io->var(r);
-        // Point at `override` rather than failing flatly: writing a sensor or an
-        // output here is a reasonable thing to WANT, it is just not what `set`
-        // does - the next scan would put the value straight back.
+        // Point at `override` rather than failing flatly: the next scan would
+        // put a value written here straight back.
         if (p.role() != Vars::ROLE_PARAM) {
             _emitf(out, sizeof(out),
                    "set: %s is not a parameter (override %s <value> to force it)",
@@ -783,8 +738,8 @@ namespace Botanik { namespace Shell {
                 _emitf(out, sizeof(out), "%s = %s", p.meta()->name, val);
                 break;
             case Vars::SET_NOT_PERSISTED:
-                // Live, but it dies at the next reboot - say which of the two
-                // failed, since the fixes are entirely different.
+                // Live, but it dies at the next reboot: say which of the two
+                // failed, the fixes are different.
                 _emitf(out, sizeof(out), "%s = %s  (NOT SAVED: storage refused it)",
                        p.meta()->name, val);
                 break;
@@ -804,9 +759,8 @@ namespace Botanik { namespace Shell {
         const char* nm = arg_next(args, alen, wn);
 
         // `override list` (or a bare `override`): what is forced right now. An
-        // override outlives the session that set it and explains behaviour
-        // nothing else accounts for, so it must be one command away, not
-        // something you have to remember to look for.
+        // override is persisted and outlives the session that set it, so it
+        // must be one command away.
         if (nm == nullptr || arg_eq(nm, wn, "list")) {
             char val[48];
             uint16_t n = 0;
@@ -823,10 +777,8 @@ namespace Botanik { namespace Shell {
             return;
         }
 
-        // "override clear" releases the lot, so a maintainer can hand the
-        // machine back without walking the list. "off" is the older spelling and
-        // still works - it is what `override <name> off` says, and there is no
-        // sense in the two forms disagreeing.
+        // "override clear" releases the lot; "off" is an accepted synonym,
+        // since that is what `override <name> off` says.
         if (arg_eq(nm, wn, "clear") || arg_eq(nm, wn, "off")) {
             _emitf(out, sizeof(out), "override: cleared %u",
                    io->clear_overrides());
@@ -842,7 +794,7 @@ namespace Botanik { namespace Shell {
 
         if (a != nullptr && arg_eq(a, wa, "off")) {
             // Through the bank, not the handle: the handle cannot reach the
-            // store, and a release that left the stored copy behind would come
+            // store, and a release leaving the stored copy behind would come
             // back at the next boot.
             io->override_clear(h);
             _emitf(out, sizeof(out), "%s: override off", h.meta()->name);
@@ -853,11 +805,9 @@ namespace Botanik { namespace Shell {
         if (a != nullptr && arg_eq(a, wa, "on")) a = arg_next(args, alen, wa);
 
         char val[48];
-        // A trailing `valid` / `invalid` says what the forced value READS as.
-        // "invalid" is how you stand a variable up as a dead sensor without
-        // touching what it reports, which is the only way to exercise the code
-        // that watches for one. Accepted either side of the value, since
-        // `override x invalid` and `override x 20 invalid` both read naturally.
+        // A trailing `valid` / `invalid` says what the forced value READS as:
+        // "invalid" stands a variable up as a dead sensor without touching what
+        // it reports. Accepted either side of the value.
         bool valid = true;
         auto take_validity = [&](const char* w, uint16_t wl) {
             if (w == nullptr) return false;
@@ -869,12 +819,9 @@ namespace Botanik { namespace Shell {
         if (take_validity(a, wa)) a = arg_next(args, alen, wa);   // may be null
 
         if (a == nullptr) {
-            // No value: hold it where it is. The quality is the SAME default as
-            // the value form - good unless `invalid` was asked for. Carrying the
-            // CURRENT quality through instead would mean freezing a variable
-            // nothing had written yet handed back an override reading as dead,
-            // which is not what anyone typing a bare `override` means. Through
-            // the bank, not the handle: the handle cannot reach the store.
+            // No value: hold it where it is, with the same quality default as
+            // the value form (good unless `invalid` was asked for), never the
+            // variable's current quality. Through the bank, not the handle.
             io->override_set(h, h.raw(), valid);
             const char* s = Vars::var_format(*io, h, val, sizeof(val));
             _emitf(out, sizeof(out), "%s: frozen at %s%s", h.meta()->name, s,
@@ -886,9 +833,8 @@ namespace Botanik { namespace Shell {
         uint16_t vc = std::min(wa, (uint16_t)(sizeof(text) - 1));
         memcpy(text, a, vc); text[vc] = '\0';
 
-        // Sequenced deliberately: arg_next() WRITES wt, and passing both to one
-        // call left the read of wt unordered against it - which is how the word
-        // after the value stopped being seen.
+        // Sequenced deliberately: arg_next() WRITES wt, so passing both to one
+        // call leaves the read of wt unordered against it.
         uint16_t wt = 0;
         const char* t = arg_next(args, alen, wt);
         (void)take_validity(t, wt);
@@ -917,10 +863,9 @@ namespace Botanik { namespace Shell {
             return;
         }
         if (arg_eq(a, w, "disable")) {
-            // Says what it actually did, and what is still possible: the
-            // programs have stopped deciding, but `override` still reaches an
-            // actuator - which is the whole reason to type this before working
-            // on the plant.
+            // The programs stop deciding, but `override` still reaches an
+            // actuator - the whole reason to type this before working on the
+            // plant.
             io->disable_control();
             _println("control: DISABLED - outputs at their safe state, "
                      "scan inhibited; `override` still drives them by hand");
@@ -929,9 +874,8 @@ namespace Botanik { namespace Shell {
         _println("usage: control [enable|disable]");
     }
 
-    // Two independent holds, so "why is it still off?" has to be answerable -
-    // otherwise `control enable` that changes nothing looks like a broken
-    // command rather than a health fault still in force.
+    // Two independent holds, so a `control enable` that changes nothing reads
+    // as a health fault still in force rather than a broken command.
     void CommandShell::_report_control(Vars::Bank* io) {
         if (io->control_enabled()) { _println("control: enabled"); return; }
         const bool op  = io->control_inhibited_by(Vars::Bank::INHIBIT_OPERATOR);
@@ -992,7 +936,7 @@ namespace Botanik { namespace Shell {
         if (_sys == nullptr) { _println("net: networking disabled"); return; }
         const SystemContext&           ctx = *_sys;
         const Network::NetworkHandler* net = ctx.network;
-        // Report and bail if the link never came up (config absent / offline).
+        // Link never came up (config absent / offline).
         if (net == nullptr) { _println("net: networking disabled"); return; }
 #if BOTANIK_FEATURE_NTP
         const Network::NtpClient*       ntp = ctx.ntp;
@@ -1004,14 +948,12 @@ namespace Botanik { namespace Shell {
 #else
         const Network::MqttClient*      mqt = nullptr;    // _MQTT off: not built
 #endif
-        // Config values are read by name off the config handler (null-safe).
-        // Dotted-leader "label .... : value" lines. Sized to hold
-        // a pair of host strings (DNS / NTP servers); the scrollback soft-wraps
-        // if a long pair overruns 80 cols.
+        // Dotted-leader "label .... : value" lines. Sized for a pair of host
+        // strings (DNS / NTP servers); the scrollback soft-wraps if a long pair
+        // overruns 80 cols.
         char val[2 * Config::HOST_STR_LEN + 8];
 
-        // Format an address into a small static scratch (one at a time;
-        // sequential use is fine).
+        // One address at a time into a shared scratch: sequential use only.
         char ipbuf[16];
         auto ip4 = [&](const HAL::Network::Ip4& a) -> const char* {
             return HAL::Network::ip4_to_str(a, ipbuf, sizeof(ipbuf));
@@ -1022,9 +964,8 @@ namespace Botanik { namespace Shell {
         snprintf(val, sizeof(val), "%s  (%s)", net->status_str(), mode);
         _line("Network ..............", val);
 
-        // IP / netmask / gateway / DNS are the active link parameters (the DHCP
-        // lease or static config, whichever is live), read back from the HAL so
-        // a DHCP-assigned value shows too.
+        // The active link parameters (DHCP lease or static config, whichever is
+        // live), read back from the HAL so a DHCP-assigned value shows too.
         HAL::Network::Ip4 a4;
         _line("IP address ...........", net->ip(&a4) ? ip4(a4) : "-");
         _line("Netmask ..............",
@@ -1071,7 +1012,6 @@ namespace Botanik { namespace Shell {
 
         // --- MQTT --------------------------------------------------------
         if (mqt != nullptr) {
-            // State, then time since the last successful publish in parens.
             uint64_t lp = mqt->last_publish_ms();
             if (lp != 0) {
                 char ageb[12];
@@ -1104,15 +1044,10 @@ namespace Botanik { namespace Shell {
 // ---------------------------------------------------------------------------
 
 #if BOTANIK_FEATURE_MODBUS_RTU_CLIENT
-    /** @brief The roll-call: one line per unit, with what the plant calls it and
-     *  what the bus is doing with it.
-     *
-     *  The tag first, because an operator holding a drawing knows the box by its
-     *  designation and not by its unit id. Blocks and rows say how much of the
-     *  scan this device accounts for - a unit with one block and thirty rows is
-     *  a very different tenant from one with eight blocks - and the period is
-     *  the fastest rung any of its blocks sits on, which is the number that
-     *  bounds how quickly a fault on it can be noticed. */
+    /** @brief The roll-call: one line per unit. The plant's tag first (an
+     *  operator knows the box by its designation, not its unit id), then how
+     *  much of the scan it accounts for, then the fastest period any of its
+     *  blocks sits on, which bounds how quickly a fault on it is noticed. */
     void CommandShell::_modbus_devices(const Modbus::RtuClient& rtu) {
         char val[96];
         const Modbus::Planner& plan = rtu.plan();
@@ -1136,8 +1071,8 @@ namespace Botanik { namespace Shell {
             else if (fastest >= 1000) snprintf(rate, sizeof(rate), "%us", (unsigned)(fastest / 1000u));
             else snprintf(rate, sizeof(rate), "%ums", (unsigned)fastest);
 
-            // The state last: it is the column an eye runs down looking for the
-            // one that is not "ok".
+            // The state last: the column an eye runs down for the one that is
+            // not "ok".
             char state[16];
             if (!rtu.peer_dead(i)) snprintf(state, sizeof(state), "%s", "ok");
             else snprintf(state, sizeof(state), "DEAD x%u", (unsigned)rtu.peer_misses(i));
@@ -1160,8 +1095,7 @@ namespace Botanik { namespace Shell {
         char val[96];
 
         // `modbus devices` is the roll-call; a bare `modbus` is the plan and
-        // the state. One word, matched on its first letter like the other
-        // sub-commands here.
+        // the state. Matched on its first letter, like the other sub-commands.
         uint16_t wn = 0;
         const char* sub = arg_next(args, alen, wn);
         const bool want_devices = (sub != nullptr && wn > 0 && sub[0] == 'd');
@@ -1173,9 +1107,8 @@ namespace Botanik { namespace Shell {
         } else {
             const Modbus::Planner& plan = rtu->plan();
 
-            // The plan: what it costs, and whether any of it was dropped. Duty
-            // is the scheduled figure, not the wire one - it is what answers
-            // "is there room for another sensor".
+            // Duty is the scheduled figure, not the wire one: it answers "is
+            // there room for another sensor".
             _println("RTU master (the field bus)");
 
             snprintf(val, sizeof(val), "%u rows -> %u blocks on %u device(s)",
@@ -1195,9 +1128,8 @@ namespace Botanik { namespace Shell {
                      (unsigned long)rtu->stale_rx());
             _line("  Transactions .......", val);
 
-            // Anything unplanned is signals that will never be scanned, and it
-            // is a critical at bring-up - so it is worth repeating here rather
-            // than leaving in a log somebody has to go back and find.
+            // Unplanned rows are signals that will never be scanned: a critical
+            // at bring-up, repeated here rather than only in a log.
             if (plan.rows_dropped() != 0 || plan.rows_unscanned() != 0) {
                 snprintf(val, sizeof(val), "%u unplanned, %u never scanned",
                          (unsigned)plan.rows_dropped(),
@@ -1208,11 +1140,8 @@ namespace Botanik { namespace Shell {
             if (rtu->safe_state_pending())
                 _println("  (safe state owed to the field)");
 
-            // The roll-call moved to `modbus devices`. Twenty units is a
-            // screenful on its own, and it pushed the plan and the state - the
-            // things you came for - off the top. What belongs here is how many
-            // there are and how many are not talking; WHICH ones is the next
-            // question, and it gets its own command.
+            // Counts only: twenty units is a screenful that would push the plan
+            // and the state off the top. WHICH ones is `modbus devices`.
             if (!want_devices) {
                 snprintf(val, sizeof(val), "  %u device(s), %u not answering"
                                            "%s",
@@ -1269,7 +1198,7 @@ namespace Botanik { namespace Shell {
         _output.write_lines(out, (uint16_t)(plen + clen));
     }
 
-    // History & kill ring
+    // History
     // ------------------------------------------------------------------------
 
     void CommandShell::_history_add(const char* cmd, uint16_t len) {
@@ -1299,8 +1228,7 @@ namespace Botanik { namespace Shell {
                                      % Config::SHELL_HISTORY_SIZE);
             text = _history[slot]; len = _hist_len[slot];
         }
-        // Replace the editor line: go to the end, delete it, insert recalled
-        // text.
+        // Replace the editor line with the recalled text.
         _editor.move_to_line_end();
         _editor.backspace(_editor.buffer_len());
         _editor.insert_characters(text, len);

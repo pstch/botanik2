@@ -44,9 +44,9 @@ namespace Botanik { namespace Pages {
                 _console.clear_content();
                 focus();
                 break;
-            // Shift+arrow too: this page has no other use for a bare arrow, but
-            // the shell's are its command history, so the line-at-a-time key is
-            // the shifted one everywhere a scrollback is on screen.
+            // Shift+arrow too: the shell's bare arrows are its command
+            // history, so the line-at-a-time key is the shifted one wherever a
+            // scrollback is on screen.
             case Command::UP:
             case Command::SHIFT_UP:
             case Command::CTRL_P:
@@ -82,16 +82,15 @@ namespace Botanik { namespace Pages {
 
     void LogsPage::tick(bool active) {
         _active = active;
-        // Drain any staged focus replay first; bail until it finishes so the live tail's
-        // DL scroll can't shift rows the replay already drew.
+        // Staged focus replay first, and bail until it finishes: the live
+        // tail's DL scroll must not shift rows the replay already drew.
         if (_scrollback.tick_redraw_gate(_terminal, active)) return;
-        // Bank queued entries (pending when active), then paint them paced into the
-        // content area (rows 1..rows-1).
+        // Bank queued entries, then paint them paced into rows 1..rows-1.
         drain();
         if (active) {
             _scrollback.drain_tail(_terminal, 1, (uint16_t)(_console.rows() - 1));
             // Keep the "scrolled up" marker in sync with the view (no-op unless
-            // it moved); survives unrelated repaints since it runs every tick.
+            // it moved); running every tick survives unrelated repaints.
             _scrollback.refresh_scroll_indicator(_terminal, 1,
                                                  (uint16_t)(_console.rows() - 1));
         }
@@ -102,8 +101,7 @@ namespace Botanik { namespace Pages {
 
     size_t LogsPage::write(const char* buf, size_t len) {
         // Store-only: bank the entry, mark pending when active for the paced
-        // drain_tail. Never blocks/drops, so always report the whole entry
-        // consumed.
+        // drain_tail. Never blocks or drops, so report it all consumed.
         _scrollback.ingest(buf, len, (uint16_t)_terminal.cols(),
             Logs::LOG_CONT_PREFIX,
             (uint16_t)strlen(Logs::LOG_CONT_PREFIX), _active);
@@ -114,8 +112,7 @@ namespace Botanik { namespace Pages {
     // ------------------------------------------------------------------------
 
     void LogsPage::_emit_mark() {
-        // Don't disturb the tail while a page-switch replay is still filling
-        // it.
+        // Don't disturb the tail while a page-switch replay is still filling it.
         if (_scrollback.redraw_pending()) return;
 
         // Stamp the marker like a log line, then store it as any entry.

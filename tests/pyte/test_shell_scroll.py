@@ -1,9 +1,8 @@
 """SHELL page scrollback: PAGE_UP/PAGE_DOWN and Shift+arrow walk the transcript.
 
 The shell's bare UP/DOWN are command history, so the transcript gets the page
-keys (a screenful) and the SHIFTED arrows (a line) - and every OTHER key returns
-the view to the live bottom, the way a Linux terminal's scroll-on-keystroke does.
-That last part is not a nicety: submitting a line scrolls the content band itself
+keys (a screenful) and the SHIFTED arrows (a line). Every OTHER key returns the
+view to the live bottom: submitting a line scrolls the content band itself
 (line_feed), which would move a frozen window without the scrollback knowing.
 
 Assertions are relative - a line left the screen and came back - rather than
@@ -13,9 +12,8 @@ command's output wrapped and on a 32-line ring, neither of which is under test.
 wait_screen(), not wait_for(): a scroll is about what is on screen NOW, and about
 a line having LEFT it, which a latched marker cannot answer.
 
-One sim for the file, filled once. Each test takes a freshly submitted newest
-line from the `newest` fixture, which also snaps the view back to the bottom, so
-no test depends on where the one before it left the window.
+One sim for the file. Each test takes a freshly submitted newest line from the
+`newest` fixture, which also snaps the view back to the bottom.
 """
 
 import itertools

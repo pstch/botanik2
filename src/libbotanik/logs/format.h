@@ -71,67 +71,50 @@ namespace Botanik { namespace Logs {
     /** @name Wrapped-row continuation prefixes and the width budget
      *
      *  What a page puts at the start of a wrapped row. It lives HERE, beside
-     *  the format string that sets the width, because sized anywhere else it
-     *  goes quietly out of alignment the next time the prefix moves.
-     *
-     *  ## What the prefix costs
+     *  the format string that sets the width, or it goes quietly out of
+     *  alignment the next time the prefix moves.
      *
      *  format_log_entry() below emits `"%s %s %s%s %s"`, so the message starts
-     *  at column `28 + strlen(topic)`, or 27 with no topic (the ":" is skipped).
-     *  At CONSOLE_COLS = 80 that leaves the FIRST line:
+     *  at column `28 + strlen(topic)`, or 27 with no topic (the ":" is
+     *  skipped). At CONSOLE_COLS = 80 that leaves the first line 42 (ALARM_FLAP)
+     *  to 53 (no topic) columns, while a continuation row gets
+     *  `80 - strlen(LOG_CONT_PREFIX)` = 54, WIDER than any first line. That is
+     *  what makes lead-plus-detail work.
      *
-     *      no topic ............................ 53
-     *      BOOT, TIME .......................... 48
-     *      MODBUS, STATUS, ASSERT, HEALTH ...... 46
-     *      NETWORK, STORAGE .................... 45
-     *      ALARM_BEG, ALARM_END ................ 43
-     *      ALARM_FLAP .......................... 42
+     *  **Rule for writing a message**: keep the first line at or under 40
+     *  characters - below every topic's budget, so a line survives a topic being
+     *  renamed - and put the rest after an explicit '\n'. The lead is what an
+     *  operator scans for; a number an engineer goes looking for belongs whole
+     *  on line 2, where no fold can split it. A variable-width "%s" goes on
+     *  line 1 only if the fixed text around it leaves room for its worst case.
      *
-     *  A continuation row gets `80 - strlen(LOG_CONT_PREFIX)` = 54, which is
-     *  WIDER than any first line. That is what makes lead-plus-detail work.
-     *
-     *  ## The rule for writing a message
-     *
-     *  Keep the first line at or under **40 characters** - below every topic's
-     *  real budget, so a line survives a topic being renamed - and put the rest
-     *  after an explicit '\n'. The lead is what an operator scans for; the
-     *  number an engineer goes looking for belongs on line 2, whole, where it
-     *  cannot be split across a fold. A variable-width "%s" (a device label, an
-     *  IP, a variable name) does not go on line 1 unless the fixed text around
-     *  it leaves room for its worst case. Reword before breaking when the
-     *  rewording is the better sentence anyway.
-     *
-     *  There is no constant for the 40: CONSOLE_COLS is site-overridable and
-     *  the console is resizable at runtime, so a hard number would be a lie -
-     *  and nothing can consult a constant from inside a string literal.
+     *  There is no constant for the 40: CONSOLE_COLS is site-overridable, the
+     *  console is resizable at runtime, and nothing can consult a constant from
+     *  inside a string literal.
      *
      *  LOG_CONT_PREFIX sits under the TOPIC column, not under the message:
      *  store_wrapped() takes one prefix per entry while the message column is
-     *  topic-dependent, and widening it would cut the continuation budget the
-     *  two-line messages above are written against. */
+     *  topic-dependent, and widening it would cut the continuation budget. */
     static constexpr const char* CONT_PREFIX     = "> ";
     static constexpr const char* LOG_CONT_PREFIX = "                        > ";
     /** @} */
 
     /** @brief Rewrite every '\n' in `[buf, buf+n)` as `" | "`, in place.
      *
-     *  A '\n' in a message is a DISPLAY directive, for the console renderer to
-     *  fold into a LOG_CONT_PREFIX row. A wire sink has no such row: the break
-     *  would put half the entry on a second physical line carrying no
-     *  timestamp, level or topic - unparseable to a collector and invisible to
-     *  a grep on the topic. Folding keeps one entry to one record.
+     *  A '\n' in a message is a DISPLAY directive for the console renderer's
+     *  LOG_CONT_PREFIX row. A wire sink has no such row, and the break would put
+     *  half the entry on a record carrying no timestamp, level or topic.
      *
      *  @param cap Bytes available in @p buf. Each break grows the text by 2, so
-     *             the tail is truncated rather than overrun; LOG_FORMATTED_LEN
-     *             is only exactly LOG_MESSAGE_LEN + 64, which is not headroom
-     *             to assume. @return the new length, never counting a NUL.
+     *             the tail is truncated rather than overrun (LOG_FORMATTED_LEN
+     *             is exactly LOG_MESSAGE_LEN + 64, not headroom to assume).
+     *  @return the new length, never counting a NUL.
      */
     inline size_t fold_newlines(char* buf, size_t n, size_t cap) {
         if (buf == nullptr || cap == 0) return 0;
         if (n > cap) n = cap;
         // Right to left, so a byte still to be read is never one just shifted.
-        // Count first to know where the text ends; a position past cap is
-        // simply not written, which truncates the TAIL and keeps the head.
+        // A position past cap is simply not written: truncates the TAIL.
         size_t breaks = 0;
         for (size_t i = 0; i < n; ++i) if (buf[i] == '\n') breaks++;
         if (breaks == 0) return n;
@@ -159,21 +142,17 @@ namespace Botanik { namespace Logs {
      *          wire. */
     inline size_t format_log_entry(const Logs::LogEntry* entry, char* buf, size_t len) {
         using namespace Botanik::Utils;
-        // format the log level and log topic of the log entry
         const char* level = format_log_level(entry->level);
         const char* topic = format_log_topic(entry->topic);
-        // skip the separator if the topic is empty
+        // no separator when the topic is empty
         const char* topic_sep = (topic[0] != '\0') ? ":" : "";
-        // format the timestamp
         uint64_t timestamp = entry->timestamp;
         char time_buf[TIMESTAMP_LEN];
         format_ms_timestamp(timestamp, time_buf, sizeof(time_buf));
-        // build the formatted log entry
         int written = snprintf(buf, len, "%s %s %s%s %s",
                                time_buf, level, topic, topic_sep, entry->message);
-        // Return the written bytes, or 0 on encoding error. snprintf answers
-        // what it WOULD have written, so on truncation clamp to the text that
-        // actually landed - len-1, the NUL is not ours to emit.
+        // snprintf answers what it WOULD have written, so clamp to what landed:
+        // len-1, the NUL is not ours to emit.
         if (written < 0 || len == 0) return 0;
         return std::min((size_t)written, len - 1);
     }

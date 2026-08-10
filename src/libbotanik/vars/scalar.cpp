@@ -1,11 +1,6 @@
 /**
  * @file scalar.cpp
  * @brief Type-driven render, parse and validate for a Scalar.
- *
- * The parsing and IPv4 / hostname validation are carried over from the byte-image
- * parameter model (params.cpp) with their behaviour intact - the tests that
- * pinned them still apply. What changed is the addressing: these take a VarType
- * and a value, not a descriptor and a byte offset.
  */
 
 #include "libbotanik/vars/scalar.h" // Scalar + the read/write/render/parse
@@ -42,8 +37,7 @@ namespace Botanik { namespace Vars {
             case T_I16:  return Scalar::I(INT16_MIN);
             case T_I32:  return Scalar::I(INT32_MIN);
             case T_I64:  return Scalar::I(INT64_MIN);
-            // Not -FLT_MAX: a float min/max is a display and clamping aid, and
-            // the honest bound for "no declared minimum" is the whole range.
+            // The whole range: the honest bound for "no declared minimum".
             case T_F32:  return Scalar::F(-3.402823466e+38f);
             default:     return Scalar::U(0);
         }
@@ -102,9 +96,7 @@ namespace Botanik { namespace Vars {
 
     namespace {
         /** @brief Step past trailing spaces; true when nothing else follows.
-         *  Rejecting trailing junk is deliberate: "12abc" must be an error, not
-         *  a quiet 12, so a broken table entry is obviously wrong rather than
-         *  subtly plausible. */
+         *  Trailing junk is rejected: "12abc" is an error, never a quiet 12. */
         bool only_spaces_left(const char* end) {
             while (*end == ' ' || *end == '\t') end++;
             return *end == 0;
@@ -117,22 +109,18 @@ namespace Botanik { namespace Vars {
 
         char* end = nullptr;
         // strto* SATURATE on overflow rather than failing, so a literal too big
-        // for the type arrives as a perfectly plausible maximum. For the narrow
-        // types in_range catches it; for the widest it would not, which is the
-        // one place a malformed input could pass as a real setting.
+        // arrives as a plausible maximum; in_range catches that for the narrow
+        // types, errno for the widest.
         errno = 0;
         if (type_real(t)) {
             const double d = strtod(text, &end);
             if (end == text || !only_spaces_left(end)) return PARSE_MALFORMED;
             if (errno == ERANGE) return PARSE_RANGE;
-            // ERANGE is not the whole story for a real. strtod accepts "nan"
-            // and "inf" outright, and a literal like 1e300 is a perfectly good
-            // DOUBLE that becomes +inf on the narrowing cast below - neither
-            // sets errno. The integer branches range-check; this one has to as
-            // well, or the console's `override <row> nan` writes a NaN into the
-            // slot, persists it, and reject_implausible() skips it because the
-            // row is overridden. It then survives the reboot, and every
-            // hysteresis and deadband downstream compares false against it.
+            // ERANGE is not the whole story for a real: strtod accepts "nan"
+            // and "inf", and 1e300 is a good DOUBLE that becomes +inf on the
+            // narrowing cast below, neither setting errno. Unchecked, `override
+            // <row> nan` persists a NaN that reject_implausible() skips (the row
+            // is overridden) and every downstream compare reads false against.
             if (!(d == d)) return PARSE_MALFORMED;          // NaN: not a number
             if (d > 3.4028234663852886e+38 ||
                 d < -3.4028234663852886e+38) return PARSE_RANGE;

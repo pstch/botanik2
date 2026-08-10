@@ -13,9 +13,9 @@
 #include "libbotanik/hal/platform.h"    // HAL::Clock::sleep_ms / uptime_us
 #include "libbotanik/utils/filters.h"   // Utils::ExpMovingAverage / WindowedMax
 
-// Because the address sanitizer uses a fake stack for locals, stack-usage
-// measurement is fundamentally incompatible with ASAN; the BOTANIK_NO_ASAN
-// macro annotates the stack paint/scan code so it works against the real stack.
+// ASAN puts locals on a fake stack, which stack-usage measurement cannot see.
+// BOTANIK_NO_ASAN annotates the paint/scan code so it works against the real
+// stack.
 #if defined(__has_feature)
 #  if __has_feature(address_sanitizer)
 #    define BOTANIK_NO_ASAN __attribute__((no_sanitize("address")))
@@ -125,10 +125,9 @@ namespace Botanik { namespace Scheduler {
         /** @} */
 
         /** @name Stack-usage metrics
-         *  @brief The high-water mark is itself a max (the RTOS thread
-         *  watermark on OPTA, a per-slice painted high-water on the sim), so we
-         *  just track the all-time peak - no EMA or rolling-max window layered
-         *  on top of a max.
+         *  @brief The high-water mark is itself a max (the RTOS thread watermark
+         *  on OPTA, a per-slice painted high-water on the sim), so only the
+         *  all-time peak is tracked: no EMA or window on top of a max.
          *  @{ */
 
         /** @brief total thread stack allocation, bytes */
@@ -172,14 +171,12 @@ namespace Botanik { namespace Scheduler {
          *  @{ */
 
         /**
-         * @brief Non-blocking check. Evaluates if it is time to run the task.
+         * @brief Non-blocking check: is it time to run the beat?
          *
-         * On each call it closes the previous beat's work window (work duration
-         * + stack scan); while waiting it accumulates the slept time used for
-         * the CPU duty cycle. When it releases a beat it republishes the loop
-         * "now", records the scheduling jitter and the duty cycle, opens the
-         * next work window, and paints the free stack so the loop work that
-         * runs next dirties it.
+         * Each call closes the previous beat's work window (work duration +
+         * stack scan) and accumulates slept time for the CPU duty cycle. On a
+         * release it republishes the loop "now", records jitter and duty cycle,
+         * opens the next work window, and paints the free stack.
          *
          * @warning always_inline + BOTANIK_NO_ASAN: it must fold into the
          * caller's frame so the stack paint it ends with captures the loop
@@ -198,15 +195,12 @@ namespace Botanik { namespace Scheduler {
             // wrapping the unsigned subtraction).
             uint64_t now_us = HAL::Clock::uptime_us();
             uint64_t now_ms = now_us / 1000;
-            // close the previous beat's work window (work duration + stack
-            // scan)
             if (_measuring) { _measuring = false; _sample_work(now_us); }
             int64_t remaining_ms = (int64_t)_next_tick_ms - (int64_t)now_ms;
             if (remaining_ms > 0) {
-                // Sleep until the grid minus 1 ms (the last ~1 ms is
-                // busy-waited = active CPU), counting the *actual* slept time
-                // toward idle: timing the sleep rather than trusting the
-                // request keeps the duty cycle honest on overrun.
+                // Sleep to the grid minus 1 ms (the last ~1 ms is busy-waited =
+                // active CPU). Count the ACTUAL slept time, not the requested
+                // one, or the duty cycle lies on overrun.
                 if (remaining_ms > 1) {
                     uint64_t sleep_start_us = HAL::Clock::uptime_us();
                     HAL::Clock::sleep_ms((uint32_t)(remaining_ms - 1));
@@ -230,9 +224,8 @@ namespace Botanik { namespace Scheduler {
             _work_start_us = now_us;
             _measuring     = true;
             // Repaint the free stack for the high-water scan, at slice
-            // boundaries only. Sim only: on hardware the RTOS watermarks the
-            // thread stack, and repainting would clobber that watermark (see
-            // _measure_stack_usage).
+            // boundaries only. Sim only: on hardware repainting would clobber
+            // the RTOS thread watermark (see _measure_stack_usage).
             if (_repaint_pending) {
                 _repaint_pending = false;
 #ifdef TARGET_SIMULATOR
@@ -310,10 +303,8 @@ namespace Botanik { namespace Scheduler {
      * Spawn the emulator thread *before* this: arming MCL_FUTURE first makes
      * pthread_create lock the new thread's full stack and trip RLIMIT_MEMLOCK
      * (EAGAIN). On failure (usually lack of privileges) the process keeps
-     * running and says so on stderr under `[sim-rt]`, NOT through the logger:
-     * "this kernel would not let me mlock" is a fact about the development box,
-     * and the log is the firmware's account of the plant. Suppressible via
-     * BOTANIK_NO_RT_WARNING (sim/test determinism).
+     * running and says so on stderr under `[sim-rt]`, never through the logger
+     * (see _rt_say). Suppressible via BOTANIK_NO_RT_WARNING.
      */
     void lock_process_memory();
 
@@ -323,9 +314,8 @@ namespace Botanik { namespace Scheduler {
      *
      * Policy and affinity are per-thread on Linux, so call it from each thread
      * that needs realtime (main loop on one core, emulator on another,
-     * mirroring the OPTA's cores). On failure (usually lack of privileges) the
-     * thread keeps running and says so on stderr under `[sim-rt]`, for the same
-     * reason lock_process_memory() does. Suppressible via BOTANIK_NO_RT_WARNING.
+     * mirroring the OPTA's cores). On failure the thread keeps running and says
+     * so on stderr under `[sim-rt]`. Suppressible via BOTANIK_NO_RT_WARNING.
      *
      * @param cpu_core_id Core to pin the calling thread to.
      */

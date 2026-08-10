@@ -6,7 +6,7 @@
  * @brief HAND-WRITTEN - the gh_mlb41 control programs.
  *
  * Not generated: this is the one place a site expresses *behaviour* rather than
- * schema, so it sits with site.h and sim.h rather than with the tables.
+ * schema.
  *
  * A program is a Plc::Program subclass. It holds its function blocks and its
  * resolved variable references as members, resolves the names it uses once in
@@ -35,10 +35,9 @@ using namespace Botanik;
  * @brief Supply watchdog: hold the windows shut while the incoming mains is
  * unhealthy.
  *
- * A worked example of the intended shape rather than the final control law.
- * Note what it does NOT do: no clock reads, no direct IO, no knowledge of
- * Modbus, and no variable lookup by name once it is running. It reads two
- * variables, applies a debounce, and drives four coils.
+ * A worked example of the intended shape rather than the final control law: it
+ * reads two variables, applies a debounce and drives four coils, with no clock
+ * read, no direct IO and no name lookup once it is running.
  */
 class SupplyWatch : public Plc::Program {
 
@@ -144,10 +143,8 @@ protected:
 
 /** @brief The site's control programs, in execution order.
  *
- *  Pointers, so the table itself stays const and flash-resident even though
- *  what it points at is RAM. Plc::Instance holds the one static of each - a
- *  program is mutable state named from a header, and that is the library's
- *  trick to reproduce, not the site's. */
+ *  Pointers, so the table itself stays const and flash-resident even though what
+ *  it points at is RAM. Plc::Instance holds the one static of each. */
 Plc::Program* const g_programs[] = {
     &Plc::Instance<SupplyWatch>::obj,
     &Plc::Instance<SupplyReport>::obj,

@@ -4,8 +4,7 @@ The firmware paints cells that change every run or every tick - the clock,
 uptime, load, the live readings, log stamps. Each is rewritten to a fixed token.
 
 Two rules for adding one:
-  - Only mask a cell some test asserts on. This file once carried 25 masks for
-    the StatusPage, which no site registers.
+  - Only mask a cell some test asserts on.
   - Inside a bordered table, a mask must be WIDTH-PRESERVING, or the row changes
     width and stops matching the golden's.
 """
@@ -17,8 +16,8 @@ import re
 _SUBS = [
     (re.compile(r"\d{2}/\d{2}/\d{2} \d{2}:\d{2}:\d{2}\.\d{3}"), "<TS>"),   # log / MARK stamp
     (re.compile(r"\d{2}/\d{2}/\d{2} \d{2}:\d{2}:\d{2}"), "<CLOCK>"),       # status page wall clock
-    # ALARMS' LAST EVENT stamp, padded: it sits in a table cell, and an alarms row
-    # was changing width the moment its alarm first fired.
+    # ALARMS' LAST EVENT stamp, padded: it sits in a table cell, so an unpadded
+    # mask changes the row's width the moment the alarm first fires.
     (re.compile(r"\d{2}/\d{2}/\d{2} \d{2}:\d{2}\b"),
      lambda m: "<ALARM_TS>".ljust(len(m.group(0)))),
     (re.compile(r"\d{3,}d \d{2}:\d{2}:\d{2}"), "<UPTIME>"),                # uptime DDDd HH:MM:SS
@@ -48,10 +47,10 @@ _SUBS = [
     (re.compile(r"\d+-\d+ / \d+"), lambda m: "<N>".ljust(len(m.group(0)))),
     (re.compile(r"\d+ active"), "<NA> active"),          # alarms footer count
     (re.compile(r"(Quality\s+: )\S+"), r"\g<1><Q>"),     # MONITOR detail panel
-    # TASKS detail panel: every one of the five is host timing, not firmware
-    # layout. Two per row now, so the first field's mask must be padded to the
-    # width it replaced and must stop at the value - a mask running to end of
-    # line would swallow the second field's LABEL, which IS layout under test.
+    # TASKS detail panel: all five are host timing, not firmware layout. Two
+    # fields per row, so the first field's mask must be padded to the width it
+    # replaced and must stop at the value: a mask running to end of line would
+    # swallow the second field's LABEL, which IS layout under test.
     (re.compile(r"(Last us\s+: )(\S+ *)"),
      lambda m: m.group(1) + "<T>".ljust(len(m.group(2)))),
     (re.compile(r"(Peak us\s+: )\S+"), r"\g<1><T>"),
@@ -61,10 +60,9 @@ _SUBS = [
     (re.compile(r"(Of period\s+: ).*$"), r"\g<1><D>"),
 ]
 
-# Home page site readings, from the site's home-field table (label + live value,
-# three columns). The mock animates them, and on a constrained host the emulator
-# may not run at all, so they read zero: mask the value, keep the label. Mirrors
-# src/sites/gh_mlb41/status.h g_home_fields[] in table order, so a renamed field
+# Home page site readings (label + live value). The mock animates them, and on a
+# constrained host it may not run at all, so they read zero: mask the value, keep
+# the label. Mirrors the site's home-field table in order, so a renamed field
 # shows up here as an unmasked - and therefore flaky - value.
 _HOME_FIELDS = (
     ("Line V", " V"), ("Line-line", " V"), ("Line Hz", " Hz"), ("Current", " A"),
@@ -100,10 +98,9 @@ _NOISE = re.compile(r"ALARM_(?:START|END|FLAP):")
 #
 # MONITOR's VALUE is live on all ~72 rows, so a per-name regex does not
 # generalise; ALARMS' ON/OFF flips and its LAST EVENT is blank until the alarm
-# first trips; TASKS' last two are host-dependent - the mean is microseconds
-# measured here, and the sim under time dilation drops activations by the
-# thousand where the OPTA drops none. The rest of each table IS the layout under
-# test.
+# first trips; TASKS' last two are host timing (under dilation the sim drops
+# activations by the thousand where the OPTA drops none). The rest of each table
+# IS the layout under test.
 _TABLE_ROW = re.compile(r"^\s*\|(?:[^|]*\|){4,6}\s*$")
 # A header row has a data row's shape, and for ALARMS the same text too (its
 # third column is headed "ON"), so it is spotted by its first cell.
@@ -143,9 +140,9 @@ def strip_noise(view):
     positions means a stray scheduler-overrun line, and the scroll it causes,
     cannot fail a correct screen.
 
-    Separate from meaningful_lines so a caller holding Term.view() does not pay
-    to normalize a screen twice; normalization is a per-line map, so clipping a
-    band before or after it gives the same rows.
+    Separate from meaningful_lines so a caller holding Term.view() does not
+    normalize twice; normalization is a per-line map, so clipping a band before
+    or after it gives the same rows.
     """
     return [ln for ln in view if ln and not _NOISE.search(ln)]
 
@@ -164,8 +161,7 @@ _LOG_LINE = re.compile(r"^(?:<TS> |\s+> )")
 def drop_log_lines(lines):
     """Drop log entries from a normalized screen.
 
-    A page's live tail shows whatever the greenhouse logged at that instant,
-    which is a function of the sim's age and not of what a test exercises. Assert
-    log content with wait_for() instead (see test_logs.py).
+    A page's live tail shows whatever the greenhouse logged at that instant, not
+    what a test exercises. Assert log content with wait_for() instead.
     """
     return [ln for ln in lines if not _LOG_LINE.match(ln)]

@@ -30,46 +30,27 @@ GOLDEN_DIR = Path(__file__).parent / "golden"
 #   CAP   - give up regardless. The screen moving is NOT evidence that the thing
 #           being waited for is on its way: a page with a live log tail repaints
 #           forever, so on a firmware whose boot handshake never completes the
-#           idle rule alone never fires and the wait runs to the end of time.
-#           That is exactly what happened, and a suite that hangs is worse than
-#           one that fails - it cannot even tell you what broke.
+#           idle rule never fires and the wait runs to the end of time. A suite
+#           that hangs is worse than one that fails.
 #
-# Both in host seconds on time.monotonic(). Suspend the box mid-suite and
-# time.time() leaps forward on resume, ending every wait in flight (one soak run
-# here reported 19.9 hours); CLOCK_MONOTONIC does not count suspended time.
+# Both in host seconds on time.monotonic(): time.time() leaps forward when the
+# box resumes from suspend, ending every wait in flight. Not the sim's own clock,
+# which reads boot_epoch + uptime with boot_epoch re-derived from the host clock
+# (utils/time.cpp) - that cancels the dilation and leaves a wall-clock budget
+# with a 2-second sawtooth on top.
 #
-# Host seconds, and not the sim's own clock, because that clock is not a measure
-# of the firmware's progress. It reads boot_epoch + uptime, and the sim
-# re-derives boot_epoch from the host clock (utils/time.cpp), which cancels the
-# dilation exactly: measured, the status bar advances 21 s in 20 s of wall time
-# while the uptime beside it advances 200 s in 4. The budget denominated in it
-# was therefore a wall-clock budget with a 2-second sawtooth on top, firing at
-# unpredictable moments - which is what used to fail a different screen test on
-# every loaded run.
+# IDLE is a HEURISTIC and cannot tell a stuck firmware from a starved one: a sim
+# given a fraction of a core legitimately paints nothing for seconds at a time.
+# At 3 s it false-fails four runs in six against a good sim, so IDLE stays
+# generous and CAP is what actually bounds a wait. Sizing: a healthy boot waits
+# 0.10 s (0.36 s under 8x load) and a whole suite run has stretched to 457 s on a
+# contended box, so the 30 s cap is orders of magnitude over the nominal wait and
+# still a bound. helpers.boot() short-circuits after the first failure, so a
+# broken build pays one cap per file rather than one per test.
 #
-# The two do different jobs and must be sized differently. IDLE is a HEURISTIC -
-# "nothing has happened for a while, so probably nothing will" - and it cannot
-# tell a stuck firmware from a starved one: a sim getting a fraction of a core
-# legitimately paints nothing for seconds at a time. Tightening it from 15 s to
-# 3 s to make failures quicker false-failed four runs in six against a sim known
-# to be good. So IDLE stays generous, and CAP is what actually bounds a wait.
-#
-# Measured, for sizing: a healthy boot waits 0.10 s (0.36 s under 8x CPU load),
-# and a whole suite run against a healthy sim has stretched to 457 s on a box
-# also running another build and test suite. The cap is 30 s - two orders of
-# magnitude over the nominal wait, over any contention seen, and still a bound.
-#
-# What keeps a broken build from paying the cap 22 times is helpers.boot(): it
-# reports the first failure and short-circuits the rest, so broken firmware costs
-# one cap per file rather than one per test.
-#
-# The golden compare uses the same budgets, and used to have tighter ones of its
-# own (4 s idle / 20 s cap). Nothing justified the difference - it is the same
-# heuristic against the same starvation - and 4 s is inside the range the
-# paragraph above records as false-failing. It was also the most exposed caller:
-# a page whose volatile cells are all masked (MONITOR) has a normalized screen
-# that is STATIC once painted, so idleness is its normal state and the only
-# question the heuristic gets to answer is whether the sim was scheduled.
+# The golden compare uses the same budgets and is the most exposed caller: a page
+# whose volatile cells are all masked is STATIC once painted, so idleness is its
+# normal state.
 WAIT_IDLE_S = float(os.environ.get("BOTANIK_PYTE_WAIT_IDLE", "15.0"))
 WAIT_CAP_S = float(os.environ.get("BOTANIK_PYTE_WAIT_CAP", "30.0"))
 SETTLE_IDLE_S = float(os.environ.get("BOTANIK_PYTE_SETTLE_IDLE", "0.2"))
@@ -89,8 +70,8 @@ class Term:
     def __init__(self, binary, time_scale=50, watch=(), store=None):
         env = dict(os.environ)
         # Scale 50: the greenhouse lives 50x faster, so every byte/event ratio
-        # matches a real 4800-baud run and only wall time is compressed. Green
-        # far higher too (verified at 500). PYTE_TIME_SCALE overrides per run.
+        # matches a real 4800-baud run and only wall time is compressed (green
+        # at 500 too). PYTE_TIME_SCALE overrides per run.
         env["BOTANIK_TIME_SCALE"] = str(int(os.environ.get("PYTE_TIME_SCALE", time_scale)))
         env["BOTANIK_NO_RT_WARNING"] = "1"    # host-dependent privilege warnings
         env["BOTANIK_NO_RT"] = "1"            # ...and the pinning itself: ctest runs sims in parallel
@@ -114,8 +95,8 @@ class Term:
         self.stream = pyte.Stream(self.screen)
 
         # Markers latched as they go by, so wait_for() can answer for a line that
-        # has already scrolled out of the 7-row log tail. Registered here to cover
-        # the bytes that land before the first wait_for().
+        # has scrolled out of the log tail. Registered here to cover the bytes
+        # that land before the first wait_for().
         self._watch = set(watch)
         self._seen = set()
         self._view = None                     # normalized screen, see view()
@@ -146,10 +127,9 @@ class Term:
     def view(self):
         """The normalized screen, as a tuple of rows.
 
-        Cached until the next byte arrives. Normalizing a full screen runs ~45
-        regexes over 24 rows and measured 1 ms, and every wait wants the same
-        answer two or three times per poll - the loop's own movement check plus
-        whatever its predicate looks at.
+        Cached until the next byte arrives: normalizing a full screen costs ~1 ms
+        (~45 regexes over 24 rows) and every poll wants the same answer two or
+        three times, for the movement check and for the predicate.
         """
         if self._view is None:
             self._view = tuple(normalize_lines(self.screen.display))
@@ -190,12 +170,10 @@ class Term:
         first, or a slow repaint would let the caller assert on the pre-action
         screen; an action that paints nothing therefore costs SETTLE_IDLE_S.
 
-        The blunt instrument, and now used only to capture a golden: a quiet
-        window has to wait out the whole 4800-baud dribble, where a content wait
-        stops at the first frame that says yes. Measured at ~200 ms against
-        ~20 ms, and trading the suite's 29 settles for wait_for/wait_screen took
-        it from ~10 s to ~4 s. Name what you are waiting for, and this stays out
-        of the assert path.
+        The blunt instrument, for capturing a golden: a quiet window waits out
+        the whole 4800-baud dribble (~200 ms) where a content wait stops at the
+        first frame that says yes (~20 ms). Name what you are waiting for and
+        this stays out of the assert path.
         """
         changed_at = None
         last = self.view()
@@ -249,9 +227,9 @@ def _sim_binary(config):
     if not sim:
         pytest.skip("no simulator binary: pass --sim or set BOTANIK_SIM")
     if not Path(sim).exists():
-        # A path that was NAMED and is absent means the sim was not built, which
-        # is a broken run and not an absent capability. Skipping here once had
-        # the whole suite report green having asserted nothing.
+        # A path that was NAMED and is absent means the sim was not built: a
+        # broken run, not an absent capability. A skip here would let the whole
+        # suite report green having asserted nothing.
         pytest.fail(f"simulator binary not built: {sim}\n"
                     f"build it with: make -C <build> pyte-sim")
     return sim
@@ -307,8 +285,8 @@ def assert_screen(request):
 
     def _check(term, name, rows=None):
         # rows=(start, stop) compares only that band, for a page whose other rows
-        # hold something the golden has no business pinning (a live log tail).
-        # The golden still stores the whole screen, for review.
+        # hold something the golden must not pin (a live log tail). The golden
+        # still stores the whole screen, for review.
         path = GOLDEN_DIR / f"{name}.txt"
         clip = (lambda lines: lines[rows[0]:rows[1]]) if rows else (lambda lines: lines)
         if update:
@@ -319,9 +297,8 @@ def assert_screen(request):
         if not path.exists():
             pytest.fail(f"missing golden '{name}'; run `make pytest-update` to author it")
         # Compared on meaningful_lines with log lines dropped: volatile cells are
-        # masked, and a page's live tail shows whatever the greenhouse logged at
-        # that instant, which is a function of the sim's age. Assert log content
-        # with wait_for() instead, as test_logs does.
+        # masked, and a live tail shows whatever the greenhouse logged at that
+        # instant. Assert log content with wait_for() instead.
         want = drop_log_lines(meaningful_lines(clip(path.read_text().split("\n"))))
         got = lambda: drop_log_lines(strip_noise(clip(term.view())))
         if term.poll(lambda: got() == want):
