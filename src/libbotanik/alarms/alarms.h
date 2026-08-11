@@ -27,6 +27,8 @@
 #include "libbotanik/utils/assert.h"        // BOTANIK_ASSERT
 #include "libbotanik/vars/model.h"          // Vars::VarRef / Bank / alarm_spec
 
+namespace Botanik { namespace Tasks { struct Tick; } }
+
 namespace Botanik { namespace Alarms {
 
     /** @brief @p id as a 64-bit mask */
@@ -202,6 +204,13 @@ namespace Botanik { namespace Alarms {
      * or stored.
      */
     class AlarmController : public Botanik::Component {
+    public:
+        void register_tasks(Tasks::Registry& r) override;
+    private:
+        /** @brief The registration handler. A static MEMBER, so the cast has
+         *  access to the protected hook and stays beside the class it casts to. */
+        static void _service_task(Component* c, const Tasks::Tick& t);
+
     private:
         /** @name State
          *  @{ */
@@ -383,6 +392,7 @@ namespace Botanik { namespace Alarms {
 
         /** @brief Read each condition's raw input, combine to the local override
          *         and step through the condition's handling code. */
+
         void on_service(uint64_t now) override {
             const uint32_t dt = _first_step ? 0 : (uint32_t)(now - _last_now);
             _first_step   = false;

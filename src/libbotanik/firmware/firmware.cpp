@@ -270,7 +270,7 @@ namespace Botanik {
         // --- SERVICE: supervision and the background state machines ---
         // Health before the logger drains, so an alarm START/END lands this
         // beat, and before CONTROL, so a fault inhibits this beat's programs.
-        _tasks.add_component<PHASE_SERVICE>("health", GROUP_SLOW, _health);
+        _health.register_tasks(_tasks);   // health, then the alarm model
         _tasks.add("control_latch", GROUP_FAST, PHASE_SERVICE,
             [](void* s, uint64_t) { static_cast<BotanikFirmware*>(s)->_latch_control(); },
             this);

@@ -37,6 +37,9 @@
 // Forward-declared, NOT included: keeps Component free of the Logger include so
 // Logger itself can derive it (the body of announce() lives in component.cpp).
 namespace Botanik { namespace Logs { class Logger; } }
+// Forward-declared, not included: a component names the registry to hand it
+// its tasks, and must not acquire the whole of tasks/ to do so.
+namespace Botanik { namespace Tasks { class Registry; } }
 
 namespace Botanik {
 
@@ -154,6 +157,11 @@ namespace Botanik {
         }
         /** @brief Whether setup() has run. */
         bool started() const { return _started; }
+
+        /** @brief Hand the registry this component's tasks: one per point in the
+         *  beat it acts at, each with its own name, rate group and phase.
+         *  Default: none. @see design/scan-cycle-rework.md */
+        virtual void register_tasks(Tasks::Registry&) {}
 
         /** @brief Advance through a WHOLE beat: every phase hook, in phase order.
          *

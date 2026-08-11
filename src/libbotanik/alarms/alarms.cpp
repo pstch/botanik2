@@ -7,6 +7,7 @@
  * otherwise header-only alarm types, and it needs the complete AlarmSink.
  */
 
+#include "libbotanik/tasks/tasks.h"   // Tasks::Registry / Tick / GroupId
 #include "libbotanik/alarms/alarms.h"   // AlarmController / AlarmCondition
 
 namespace Botanik { namespace Alarms {
@@ -67,3 +68,18 @@ namespace Botanik { namespace Alarms {
     }
 
 }}
+
+namespace Botanik { namespace Alarms {
+
+    void AlarmController::_service_task(Component* c, const Tasks::Tick& t) {
+        static_cast<AlarmController*>(c)->on_service(t.now_ms);
+    }
+
+    void AlarmController::register_tasks(Tasks::Registry& r) {
+        // Its own row on the TASKS page: it was stepped inside HealthMonitor's
+        // task, so its cost was charged to health and it had no rate of its own.
+        r.add(*this, &AlarmController::_service_task, "alarms", Tasks::GROUP_SLOW,
+              Tasks::PHASE_SERVICE);
+    }
+
+}}  // namespace Botanik::Alarms

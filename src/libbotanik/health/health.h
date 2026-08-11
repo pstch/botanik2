@@ -30,12 +30,23 @@
 #include "libbotanik/logs/logger.h"         // Logs::Logger::has_writers
 #include "libbotanik/scheduler/scheduler.h" // Scheduler::SchedulerContext
 
+namespace Botanik { namespace Tasks { struct Tick; } }
+
 namespace Botanik { namespace Health {
 
     /** @brief Owns the alarm model + notifier, asserts platform-health alarms,
      *  runs the self-test, and gates the watchdog kick (see file header). */
     class HealthMonitor : public Component {
+    public:
+        /** @brief This monitor, then the alarm model - the order they ran in
+         *  when this stepped it directly. Nothing steps anything now: both are
+         *  registry entries, so both are attributable and both have a rate. */
+        void register_tasks(Tasks::Registry& r) override;
     private:
+        /** @brief The registration handler. A static MEMBER, so the cast has
+         *  access to the protected hook and stays beside the class. */
+        static void _service_task(Component* c, const Tasks::Tick& t);
+
         /** @name State
          *  @{ */
 #if BOTANIK_FEATURE_ALARMS_PUBLISH
@@ -125,8 +136,6 @@ namespace Botanik { namespace Health {
         void on_service(uint64_t now) override {
             _assert_platform_alarms(now);
             _update_watchdog(now);
-            // The model reads each site alarm's boolean variable itself.
-            _model.step(now, Tasks::PHASE_SERVICE);
         }
 
     private:
