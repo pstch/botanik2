@@ -97,7 +97,7 @@ namespace Botanik { namespace Sim {
                 _step = MC_READ1;
             }
 
-            _master.step(now_ms);
+            _master.step(now_ms, Tasks::PHASE_SERVICE);
             if (!_master.connected()) return;
 
             if (_master.done()) {

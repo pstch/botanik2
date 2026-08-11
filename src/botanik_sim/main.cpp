@@ -65,7 +65,7 @@ int main(int argc, char** argv) {
     // The console runs at Config::CONSOLE_BAUD (4800), so the sim exercises the
     // TX pacing at the rate the hardware sees. No runtime override: the terminal
     // derives its per-render byte budget from that constant at construction, so
-    // a later change would speed the wire up without letting the renderer fill
+    // a later change would speed the wire up without letting the renderer fill it.
 
     // Stash argv so HAL::System::reset() can re-exec the process with the same args.
     HAL::System::set_reboot_args(argc, argv);

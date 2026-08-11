@@ -509,9 +509,10 @@ struct Pair {
     /** @brief One beat of both ends, in the order the firmware runs them. */
     void beat() {
         now += 10;
-        slave.step(now);
-        master.step(now);
-        slave.step(now, Botanik::Tasks::PHASE_PRESENT);
+        slave.step(now, Botanik::Tasks::PHASE_INPUT);     // accept, decode, apply
+        master.step(now, Botanik::Tasks::PHASE_SERVICE);
+        slave.step(now, Botanik::Tasks::PHASE_SERVICE);   // drain the persist queue
+        slave.step(now, Botanik::Tasks::PHASE_PRESENT);   // answer off the settled image
     }
 
     /** @brief Beat until @p done, or give up after @p budget ms. */

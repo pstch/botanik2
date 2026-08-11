@@ -147,9 +147,8 @@ namespace Botanik {
          *  outlive the firmware). Drives page/command/telemetry/config wiring. */
         SiteDescriptor                _site;
 
-        /** @brief HW-watchdog period armed in setup(); the harness overrides it
-         *  (the harness overrides it) via set_hw_watchdog_ms() before
-         *  setup(). */
+        /** @brief HW-watchdog period armed in setup(); a harness overrides it
+         *  via set_hw_watchdog_ms() before setup(). */
         uint32_t                      _hw_watchdog_ms = Config::HW_WATCHDOG_MS;
 
 #if BOTANIK_FEATURE_CONSOLE
@@ -440,6 +439,16 @@ namespace Botanik {
         /** @} */
 
     private:
+        /** @brief Dispatcher for an ungated site hook, so the five that need no
+         *  gate are a name each rather than five copies of the same cast. The
+         *  hook is a template argument for the same reason the phase is one on
+         *  Registry::add_component: Task::run is a plain function pointer and a
+         *  capturing lambda will not convert to one. */
+        template <void (BotanikFirmware::*Hook)(uint64_t)>
+        static void _site_hook(void* self, uint64_t now_ms) {
+            (static_cast<BotanikFirmware*>(self)->*Hook)(now_ms);
+        }
+
         /** @brief Resolve every name the site's tables declare into the ref
          *  arrays they carry alongside. The alarm table binds itself when the
          *  model copies it, so it is not repeated here. */

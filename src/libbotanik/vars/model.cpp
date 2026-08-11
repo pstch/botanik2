@@ -219,9 +219,6 @@ namespace Botanik { namespace Vars {
         // Drop to safe on the way out of ENABLED only; a mode change between the
         // two withheld modes finds the outputs already there.
         const bool to_safe = (before == CONTROL_ENABLED && now != CONTROL_ENABLED);
-        // DISABLED is the one mode an override does not survive into. Muting is
-        // reversible; erasing is not, and only the system does it.
-        const bool mute    = (now == CONTROL_DISABLED);
 
         for (uint16_t i = 0; i < _tables.count; i++) {
             if (_tables.var[i].role != ROLE_OUTPUT) continue;
@@ -239,12 +236,7 @@ namespace Botanik { namespace Vars {
             // Muting and unmuting both CHANGE what the field is owed, so both
             // mark the row: unmuting hands the actuator back to the forced
             // value, and nothing else would carry it out there.
-            const uint8_t was_muted = (uint8_t)(v.vflags & VF_OVR_MUTED);
-            if (mute) v.vflags |= VF_OVR_MUTED;
-            else      v.vflags  = (uint8_t)(v.vflags & ~VF_OVR_MUTED);
-            if (v.ovr_on && was_muted != (uint8_t)(v.vflags & VF_OVR_MUTED)) {
-                v.vflags |= VF_FIELD_DIRTY;
-            }
+            if (_sync_override_mute(i) && v.ovr_on) v.vflags |= VF_FIELD_DIRTY;
 
             if (to_safe) {
                 v.qual = Q_SAFE;
@@ -443,26 +435,26 @@ namespace Botanik { namespace Vars {
 
     void Bank::override_set(Var h, Scalar v, bool valid) {
         h.override_set(v, valid);
-        _mute_if_disabled(h);
+        (void)_sync_override_mute(_row_of(h));
         _persist_override(h);
     }
 
     void Bank::override_freeze(Var h) {
         h.override_freeze();
-        _mute_if_disabled(h);
+        (void)_sync_override_mute(_row_of(h));
         _persist_override(h);
     }
 
-    void Bank::_mute_if_disabled(Var h) {
-        const Variable* d = h.meta();
-        if (d == nullptr || d->role != ROLE_OUTPUT) return;
-        const uint16_t i = _row_of(h);
-        if (i == VAR_NONE) return;
-        // An override forced while control is disabled is stored and muted, not
-        // refused: it takes effect the moment control comes back, which is what
-        // an operator staging a hand-drive before enabling expects.
-        if (control_mode() == CONTROL_DISABLED) _tables.val[i].vflags |= VF_OVR_MUTED;
-        else _tables.val[i].vflags = (uint8_t)(_tables.val[i].vflags & ~VF_OVR_MUTED);
+    bool Bank::_sync_override_mute(uint16_t i) {
+        // VAR_NONE lands here as an out-of-range index, so a sink handle is a
+        // no-op rather than a special case at each caller.
+        if (i >= _tables.count || _tables.var[i].role != ROLE_OUTPUT) return false;
+        Value& v = _tables.val[i];
+        const uint8_t before = v.vflags;
+        v.vflags = (control_mode() == CONTROL_DISABLED)
+                     ? (uint8_t)(before | VF_OVR_MUTED)
+                     : (uint8_t)(before & ~VF_OVR_MUTED);
+        return v.vflags != before;
     }
 
     void Bank::override_clear(Var h) {
@@ -494,6 +486,10 @@ namespace Botanik { namespace Vars {
             const Variable& d = _tables.var[i];
             if (!_store->load_override(d, _tables.val[i])) continue;
             _tables.val[i].ovr_on = true;
+            // Restored while the system still holds control, i.e. with the mode
+            // at CONTROL_DISABLED, so this is exactly the window the mute covers:
+            // an output override must not reach the field until control does.
+            (void)_sync_override_mute(i);
             if (d.role == ROLE_OUTPUT) _tables.val[i].vflags |= VF_FIELD_DIRTY;
             n++;
             // CRITICAL, not a warning: an override explains behaviour nothing

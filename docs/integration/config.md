@@ -361,7 +361,7 @@ happens under fault is `docs/design/modbus-resilience.md`.
 
 `STORE_MAX_BYTES` 16384, the cap on the key-value store file, guarded by
 `TARGET_SIMULATOR`. The host-side knobs are environment variables, not build
-settings: `BOTANIK_SIM_CPU`, `BOTANIK_TIME_SCALE` (see `tests/pyte/README.md`).
+settings: `BOTANIK_SIM_CPU`, `BOTANIK_SIM_CLOCK` (see `tests/pyte/README.md`).
 
 @note These per-parameter `#ifndef` guards cannot be collapsed into a helper macro:
 the C++11 preprocessor has no way to conditionally define a macro whose name it

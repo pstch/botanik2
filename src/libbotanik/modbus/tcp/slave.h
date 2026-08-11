@@ -177,12 +177,6 @@ namespace Botanik { namespace Modbus {
          *  the port and the sim could not restart cleanly. */
         ~TcpSlave() override { _close_listener(); }
 
-        /** @brief The persist queue is drained in on_service() rather than where
-         *  the write was decoded because storage is synchronous: one FC16 can
-         *  cover 61 rows, and committing them in PHASE_INPUT would put hundreds
-         *  of milliseconds of flash on a beat the field bus shares, remotely
-         *  triggerable. @see on_input / on_service / on_present */
-
         /** @name Readback
          *  @{ */
 
@@ -205,14 +199,15 @@ namespace Botanik { namespace Modbus {
 
     protected:
         void     on_setup(uint64_t now_ms) override;
-        /** @brief PHASE_INPUT: accept, receive, decode, apply writes. Also where
-         *  the config group is re-read. */
-        /** @brief Accept and decode (PHASE_INPUT): a master's write lands
-         *  before the programs run, so a setpoint written this beat is what
-         *  they run on. */
+        /** @brief Accept, receive, decode and apply writes (PHASE_INPUT), so a
+         *  setpoint a master writes this beat is what the programs run on. Also
+         *  where the config group is re-read. */
         void     on_input(uint64_t now_ms) override;
         /** @brief Drain the persist queue (PHASE_SERVICE), a few per beat so a
-         *  burst of writes is not a flash storm. */
+         *  burst of writes is not a flash storm. Separate from the request that
+         *  caused it because storage is synchronous: one FC16 can cover 61 rows,
+         *  and committing them in PHASE_INPUT would put hundreds of milliseconds
+         *  of flash, remotely triggerable, on a beat the field bus shares. */
         void     on_service(uint64_t now_ms) override;
         /** @brief Answer (PHASE_PRESENT), off the image the scan just
          *  produced, so no request is served from a half-updated one. */

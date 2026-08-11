@@ -29,7 +29,7 @@
  * compiles to nothing.
  */
 
-#include <cstdint>                              // uint16_t/uint32_t/uint64_t
+#include <cstdint>                              // uint16_t/uint32_t/uint64_t/UINT64_MAX
 
 #include "libbotanik/tasks/phase.h"         // Tasks::Phase
 #include "libbotanik/tasks/task_timer.h"    // Tasks::TaskTimer
@@ -66,8 +66,9 @@ namespace Botanik {
          *  two phases would otherwise consume its activation at the first and
          *  sit out the second. @see step()
          *  @{ */
-        uint64_t             _beat_ms   = 0;      ///< the beat the verdict is for
-        bool                 _beat_seen = false;  ///< ...and whether there is one
+        /** @brief The beat the verdict is for. UINT64_MAX means "none yet", a
+         *  value uptime_ms() cannot reach, so no separate validity flag. */
+        uint64_t             _beat_ms   = UINT64_MAX;
         bool                 _beat_due  = false;  ///< run the phase hooks this beat
         /** @} */
 
@@ -168,7 +169,7 @@ namespace Botanik {
          *  stepping again, an owner stepping its children twice - would take the
          *  second for the same beat and never fire on_param_changed(). */
         void step(uint64_t now_ms) {
-            _beat_seen = false;
+            _beat_ms = UINT64_MAX;
             for (uint8_t p = 0; p < (uint8_t)Tasks::PHASE_COUNT; p++)
                 step(now_ms, (Tasks::Phase)p);
         }
@@ -190,10 +191,9 @@ namespace Botanik {
          *  So the first dispatch of a beat decides, and the rest of that beat
          *  reuses the verdict. */
         void step(uint64_t now_ms, Tasks::Phase phase) {
-            if (now_ms != _beat_ms || !_beat_seen) {
-                _beat_ms   = now_ms;
-                _beat_seen = true;
-                _beat_due  = _timer.due(now_ms, _period_ms, _dt_ms, _missed);
+            if (now_ms != _beat_ms) {
+                _beat_ms  = now_ms;
+                _beat_due = _timer.due(now_ms, _period_ms, _dt_ms, _missed);
                 if (_beat_due) {
                     _timer.ran(now_ms);
                     setup(now_ms);   // idempotent: a no-op once the registry set us up

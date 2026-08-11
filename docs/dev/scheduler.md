@@ -71,8 +71,9 @@ peak, plus a plain **ticks-per-second** rate.
   `tick()`, which is `always_inline` so the painted ceiling sits just above the work
   that dirties it.
 - **Ticks per second** - the achieved loop rate, counted over each elapsed *real*
-  second (`HAL::real_uptime_ms()`), so it stays truthful when `BOTANIK_TIME_SCALE`
-  dilates sim time. A single value (no EMA/peak).
+  second (`HAL::real_uptime_ms()`), so it stays truthful under the simulator's
+  manual clock, where sim time advances only when a harness says so. A single
+  value (no EMA/peak).
 
 Two filters back the "smoothed / recent" columns: `ExpMovingAverage` (asymmetric
 attack/decay EMA) and `WindowedMax<K>` (O(1)-per-sample sliding-window maximum over K

@@ -1,8 +1,13 @@
 # Logging {#user_logging}
 
-Every notable thing the firmware does is logged once and delivered to every sink at
-once: the LOGS page, the live tail on HOME, the SHELL page while it is in front, the
-out-of-band monitor port, and MQTT where telemetry is enabled.
+The logging system supports multiple sinks. Every important thing the firmware does
+is logged and delivered to every sink. The base library provides up to five sinks :
+ - the LOGS page
+ - the live tail on HOME
+ - the SHELL page when it's active
+ - the MONITOR serial port
+ - the MQTT broker
+
 
 ## Reading a line
 
@@ -16,21 +21,18 @@ out-of-band monitor port, and MQTT where telemetry is enabled.
 
 **Levels**, least to most severe:
 
-| Glyph | Level | Typically |
-|---|---|---|
-| `[~]` | debug | development detail; off by default |
-| `[-]` | info | normal progress |
-| `[+]` | notice | something worth noticing but not wrong |
-| `[!]` | warning | degraded, still running |
-| `[*]` | error | something failed |
-| `[@]` | critical | you need to know now |
+| Glyph | Level    | Typically                               |
+|-------|----------|-----------------------------------------|
+| `[~]` | debug    | debugging information                   |
+| `[-]` | info     | normal progress                         |
+| `[+]` | notice   | something worth noticing                |
+| `[!]` | warning  | degraded but still running              |
+| `[*]` | error    | something failed                        |
+| `[@]` | critical | you need to know now                    |
 
 **Topics** say which part of the firmware spoke: `BOOT`, `NETWORK`, `TIME`,
 `STATUS`, `HEALTH`, `STORAGE`, `MODBUS`, `ASSERT`, and the alarm transitions
 `ALARM_BEG`, `ALARM_END`, `ALARM_FLAP`.
-
-`STORAGE` is its own topic on purpose - a persistence failure must not be buried
-under boot chatter.
 
 ## Choosing how much
 

@@ -251,8 +251,7 @@ namespace Botanik {
             &_io);
 
         _tasks.add("site_input", GROUP_FAST, PHASE_INPUT,
-            [](void* s, uint64_t now) { static_cast<BotanikFirmware*>(s)->on_input(now); },
-            this);
+                   &_site_hook<&BotanikFirmware::on_input>, this);
 
         // --- CONFIG: the image every config-driven component reads below ---
         _tasks.add_component<PHASE_CONFIG>("params", GROUP_SLOW, _params);
@@ -265,8 +264,7 @@ namespace Botanik {
             }, this);
 
         _tasks.add("site_config", GROUP_FAST, PHASE_CONFIG,
-            [](void* s, uint64_t now) { static_cast<BotanikFirmware*>(s)->on_config(now); },
-            this);
+                   &_site_hook<&BotanikFirmware::on_config>, this);
 
         // --- SERVICE: supervision and the background state machines ---
         // Health before the logger drains, so an alarm START/END lands this
@@ -288,8 +286,7 @@ namespace Botanik {
 #endif
 
         _tasks.add("site_service", GROUP_FAST, PHASE_SERVICE,
-            [](void* s, uint64_t now) { static_cast<BotanikFirmware*>(s)->on_service(now); },
-            this);
+                   &_site_hook<&BotanikFirmware::on_service>, this);
 
         // --- CONTROL: the control programs ---
         // Unconditional: the driver holds the Bank and inhibits the programs
@@ -320,15 +317,13 @@ namespace Botanik {
 #endif
 
         _tasks.add("site_output", GROUP_FAST, PHASE_OUTPUT,
-            [](void* s, uint64_t now) { static_cast<BotanikFirmware*>(s)->on_output(now); },
-            this);
+                   &_site_hook<&BotanikFirmware::on_output>, this);
 
         // --- PRESENT: report what just happened ---
         // First in the phase, so anything it logs is drained by the logger below
         // in the SAME beat rather than waiting for the next one.
         _tasks.add("site_present", GROUP_FAST, PHASE_PRESENT,
-            [](void* s, uint64_t now) { static_cast<BotanikFirmware*>(s)->on_present(now); },
-            this);
+                   &_site_hook<&BotanikFirmware::on_present>, this);
 #if BOTANIK_FEATURE_MODBUS_TCP_SERVER
         // The answer goes out off the image the scan just produced: one beat of
         // latency on a read, against a poll measured in seconds, and no request

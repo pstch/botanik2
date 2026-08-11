@@ -68,7 +68,6 @@ Every site exposes the same three names, so a harness never spells the site name
 |---|---|---|
 | `BotanikSite` | `site.h` | the firmware type to instantiate |
 | `Site::simulate(Vars::Bank&, uint32_t now_ms)` | `sim.h` | the simulated field |
-| `dilated_timeout(uint32_t base_ms)` | `sim.h` | simulator-only timeout dilation |
 
 `sim.h` is included **after** the variable tables it animates, and its whole body is
 `#ifdef TARGET_SIMULATOR` so it compiles to nothing on hardware. Keep

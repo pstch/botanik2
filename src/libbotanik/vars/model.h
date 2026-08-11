@@ -1162,9 +1162,16 @@ namespace Botanik { namespace Vars {
          *  sweeping a parameter would revert the network settings on a scan
          *  overrun. */
         void _apply_control(ControlMode before, bool erase_overrides);
-        /** @brief Bring one output's mute bit in step with the current mode,
-         *  for an override forced while control is already withheld. */
-        void _mute_if_disabled(Var h);
+        /** @brief Bring row @p i's mute bit in step with the current mode; true
+         *  when it moved. ROLE_OUTPUT only, and an out-of-range index (VAR_NONE
+         *  from a sink handle) is a no-op.
+         *
+         *  The one owner of the rule "an output's override reaches the field iff
+         *  the mode is not CONTROL_DISABLED". Every path that raises @c ovr_on
+         *  goes through it - a mode change, an override taken by hand, and the
+         *  boot restore - so none of them can state the invariant differently or
+         *  forget it. */
+        bool _sync_override_mute(uint16_t i);
 
         /** @brief Locate the ROLE_PARAM run: first such row, then how many
          *  follow it without a break. A parameter outside that run is a table

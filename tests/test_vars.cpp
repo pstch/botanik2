@@ -983,6 +983,39 @@ namespace {
     };
 }
 
+// The store is read while the system still holds control (Params::on_setup runs
+// inside _tasks.setup(), before the hold is released), so this is the one window
+// the mute bit exists to cover: a restored OUTPUT override must not reach the
+// field until control does.
+TEST_CASE("override: an output restored at boot is muted until control returns") {
+    StoreEnv env("/tmp/botanik_test_ovr_boot");
+    {
+        OvrFx f;   // control released, so the force is takeable and persists
+        REQUIRE(f.bank.override_set(f.bank.var("coil"), "1") == SET_OK);
+        CHECK(f.bank.var("coil").b() == true);
+    }
+    {
+        // Fresh RAM, same store, and the hold NOT released - as at bring-up.
+        Value    vals[4]{};
+        uint16_t index[4]{};
+        VarTables t = {};
+        t.var = OVR_VARS; t.val = vals; t.count = 4; t.index = index;
+        Bank bank;
+        KvParamStore store;
+        bank = Bank(t);
+        bank.set_store(&store, nullptr);
+        bank.init();
+        REQUIRE(bank.control_mode() == CONTROL_DISABLED);   // the system holds it
+        bank.load_overrides();
+
+        CHECK(bank.var("coil").overridden());   // restored...
+        CHECK(bank.var("coil").b() == false);   // ...but muted: reads its safe state
+
+        bank.set_health_hold(false);            // bring-up done
+        CHECK(bank.var("coil").b() == true);    // and now it drives
+    }
+}
+
 TEST_CASE("override: a forced value survives a reboot") {
     StoreEnv env("/tmp/botanik_test_ovr_a");
     {
