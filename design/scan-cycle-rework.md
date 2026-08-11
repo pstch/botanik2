@@ -166,19 +166,37 @@ of the beat.
 
 | program | was | becomes |
 |---|---|---|
-| `supply_watch` | 100 ms; debounce + lockout over the supply, writes the quality flag | folded into the writer of the values it watches |
-| `supply_report` | 1000 ms; deadbands `grid_Hz` into `sys_supply_hz` | folded into the writer of the value it reports |
+| `supply_watch` | 100 ms; debounce + lockout over the supply | nothing - the **Modbus master** sets quality itself |
+| `supply_report` | 1000 ms; deadbands `grid_Hz` into `sys_supply_hz` | nothing - the derived row is deleted |
+
+**Quality is the master's job, not a program's.** Each row already declares its
+plausibility band (`min`/`max`, `F_BOUNDED`), and the master is the thing that
+commits the reading - so it judges the value against the band as it writes it,
+and a site does not write a program to watch for a bad reading.
 
 Which settles the rate question by removing it: nothing is left asking for a
 period the four groups cannot express, so **no fifth rate group is needed**.
 `GROUP_BACKGROUND` stays at 500 ms and keeps its argument (`expire_stale`).
 
-It also removes the only two programs the site has, so step 5 of the migration
-has nothing left to migrate - the program registration path still needs
-building, but no existing program exercises it.
+It also empties step 5 of the migration - the program registration path still
+needs building, but no existing program exercises it.
 
-@todo Nail down what "the writer" is concretely before building this: the
-component that produces the SOURCE rows (`grid_Hz` comes off the field bus, and
-generic Modbus code cannot compute a site's derived values), or whatever
-registers as the PROVIDER of the derived output. The two put the deadband in
-very different places.
+#### Two loose ends in deleting `sys_supply_hz`
+
+It is not an internal value. `vars.h:451` declares it `SV(..., reg 501)`, so:
+
+- **Register 501 leaves the published map.** SV names and scaling are an
+  external contract (MQTT telemetry and the Modbus TCP slave), so a master
+  polling 501 stops getting an answer. Registers are hand-assigned precisely so
+  inserting a row never renumbers the others - deleting one is the other
+  direction, and wants to be a deliberate note to whoever owns the SCADA side.
+- **The "Supply Hz" home field is orphaned** (`vars.h:544`). Point it at
+  `grid_Hz`, or the name resolves to the inert sink and `test_site_names.cpp`
+  fails the gate - which is the intended behaviour, not a surprise.
+
+#### And one question it raises
+
+If the master judges plausibility as it commits, what is left for
+`Bank::reject_implausible()`, which sweeps every row at `GROUP_BACKGROUND` for
+exactly that? Either it becomes the fallback for rows no master writes (local
+I/O, computed values), or it goes. Decide when the master change lands.
