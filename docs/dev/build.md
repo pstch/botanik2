@@ -126,3 +126,26 @@ A new page in `docs/` must be `@subpage`d from its part's hub (`manual.dox`,
 `integration.dox`, `development.dox`) or it floats unparented in the tree. Give it an
 explicit `{#anchor}` on its title so cross-references stay readable and survive a
 rename.
+
+### Diagrams
+
+Three kinds, and the choice is mechanical:
+
+| Kind | Written as | Examples |
+|---|---|---|
+| Flow, structure, timeline | a **draw.io SVG** in `images/`, referenced with `@image html <name>.drawio.svg "caption"` | @ref dev_input, @ref dev_logging, @ref dev_scan |
+| Class and relationship | an inline `\startuml … \enduml` block (PlantUML, `PLANTUML_JAR_PATH`) | @ref dev_input, @ref dev_pages |
+| A monospace artifact shown as it really renders | a fenced ASCII block | the screen layouts in @ref user_console and @ref dev_pages, the log line in @ref user_logging, the editor rows in @ref dev_editor |
+
+The last row is the one worth stating: a terminal screen mockup, an annotated log
+line and the editor's row layout are all **text**, drawn in the same monospace grid
+the firmware actually paints. Redrawing those as boxes would lose the thing they
+document. Everything that is genuinely a graph of boxes and arrows is a draw.io file.
+
+Each `images/*.drawio.svg` is a plain SVG that **doubles as its own draw.io
+document** - the editable model rides in the root element's `content` attribute.
+Open one in draw.io or the VS Code extension and save; it re-renders the SVG in
+place. There is no export step, no second source file, and nothing to regenerate,
+so the file in `images/` is always the only copy. `IMAGE_PATH` is `images`, so
+`@image html` finds them by bare filename and Doxygen copies them into the HTML
+output.

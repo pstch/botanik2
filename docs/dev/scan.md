@@ -44,10 +44,10 @@ Note also that `modbus_tcp_wr` sits in SERVICE although it is registered beside
 its TCP siblings much further down the function: a task declares its phase, so
 where its line falls in `_register_tasks()` says nothing about when it runs.
 
-@note The diagram is `images/beat.drawio.svg` - an SVG that doubles as a draw.io
-document (the model rides in the root `content` attribute). Open it in draw.io or
-the VS Code extension to edit; saving re-renders the SVG in place, so there is no
-export step and no second file to keep in step.
+@note The diagram is `images/beat.drawio.svg`, an SVG that doubles as its own
+draw.io document - open it in draw.io or the VS Code extension and save, and it
+re-renders in place. Every diagram under `images/` works this way; see
+[Diagrams](@ref dev_build) for the convention.
 
 ## What a program is guaranteed
 
