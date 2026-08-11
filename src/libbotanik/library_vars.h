@@ -70,12 +70,14 @@
 #endif
 #if BOTANIK_FEATURE_MODBUS_RTU_CLIENT
 #include "libbotanik/modbus/rtu/alarms.h" // BOTANIK_MODBUS_RTU_ALARM_VARS / _STATUS_VARS
+#include "libbotanik/modbus/rtu/params.h" // BOTANIK_MODBUS_RTU_PARAM_VARS
 #else
 // The rows exist only where the field bus does, but the GROUPS below are
 // spliced unconditionally - so an absent subsystem contributes nothing rather
 // than failing to expand.
 #  define BOTANIK_MODBUS_RTU_ALARM_VARS
 #  define BOTANIK_MODBUS_RTU_STATUS_VARS
+#  define BOTANIK_MODBUS_RTU_PARAM_VARS
 #endif
 #if BOTANIK_FEATURE_PLC_SCAN
 #include "libbotanik/plc/alarms.h"       // BOTANIK_PLC_SCAN_ALARM_VARS
@@ -245,7 +247,8 @@
     ::Botanik::Vars::P("sys_retain_sec", ::Botanik::Vars::T_U32,               \
         (BOTANIK_RETAIN_SAVE_MS / 1000), 0, 86400, 0, "sec", 974,              \
         "how often retained values reach flash",                               \
-        "0 leaves only `save` and the way down; wear vs loss"),
+        "0 leaves only `save` and the way down; wear vs loss"),                \
+    BOTANIK_MODBUS_RTU_PARAM_VARS
 
 /** @brief Pool bytes the library's own text parameters need: eight rows (net_ip,
  *  net_mask, net_gw, net_dns1, net_dns2, ntp_srv1, ntp_srv2, mqtt_host), each

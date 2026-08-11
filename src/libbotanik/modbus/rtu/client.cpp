@@ -20,6 +20,16 @@ namespace Botanik { namespace Modbus {
 const uint16_t RtuClient::NO_BLOCK;
 const uint8_t  RtuClient::NO_PEER;
 
+uint32_t RtuClient::_tune(Vars::VarRef r, uint32_t dflt) const {
+    if (_io == nullptr || r.index == Vars::VAR_NONE) return dflt;
+    const Vars::Var h = _io->var(r);
+    if (!h.valid()) return dflt;
+    const int64_t v = h.i();
+    // A band keeps these non-negative on the way in; this guards the way a
+    // corrupt store or a forced override could still reach here.
+    return (v >= 0) ? (uint32_t)v : dflt;
+}
+
 void RtuClient::on_setup(uint64_t now_ms) {
     HAL::Serial::fieldbus_begin(Config::MODBUS_BAUD, 8, HAL::Serial::PARITY_NONE, 1);
     _port = HAL::Serial::get(HAL::Serial::FIELDBUS);
@@ -42,6 +52,14 @@ void RtuClient::on_setup(uint64_t now_ms) {
     _dead_ref  = _io->find("sys_fieldbus_dead");
     _crc_ref   = _io->find("sys_fieldbus_crc");
     _stray_ref = _io->find("sys_fieldbus_stray");
+    // The tuning rows, the same way. Absent (no library splice) is not a fault:
+    // _tune() falls back to the Config constant these default from.
+    _p_timeout     = _io->find("rtu_timeout_ms");
+    _p_retries     = _io->find("rtu_retries");
+    _p_backoff     = _io->find("rtu_backoff_ms");
+    _p_backoff_max = _io->find("rtu_backoff_max_ms");
+    _p_write_min   = _io->find("rtu_write_min_ms");
+    _p_rewrite     = _io->find("rtu_rewrite_ms");
     _publish_health();
 
     if (_logger == nullptr) return;
@@ -94,7 +112,7 @@ void RtuClient::_answered(const Block& b) {
     // outputs there would put a write on the bus every time the line glitched.
     // Past the retries we have to assume it rebooted, and a device that
     // rebooted is back at its own power-on defaults.
-    if (p->misses > Config::MODBUS_RETRIES) {
+    if (p->misses > _retries()) {
         if (_logger != nullptr) {
             char who[40];
             _logger->notice(Logs::MODBUS, "dev %s answering again",
@@ -125,20 +143,21 @@ void RtuClient::_missed(const Block& b, uint64_t now_ms) {
     if (p->misses < 255) p->misses++;
     // The retries are free-running: until they are spent the device keeps its
     // place in the rotation, because one lost frame is weather.
-    if (p->misses <= Config::MODBUS_RETRIES) return;
+    if (p->misses <= _retries()) return;
 
     // Spent. Double from the base, capped - and shift by the number of backoffs
     // already served, not by the miss count, so the first one is the base.
-    const uint8_t steps = (uint8_t)(p->misses - Config::MODBUS_RETRIES - 1);
-    uint32_t wait = Config::MODBUS_BACKOFF_MS;
-    for (uint8_t i = 0; i < steps && wait < Config::MODBUS_BACKOFF_MAX_MS; ++i)
+    const uint8_t steps = (uint8_t)(p->misses - _retries() - 1);
+    const uint32_t cap = _backoff_max_ms();
+    uint32_t wait = _backoff_ms();
+    for (uint8_t i = 0; i < steps && wait < cap; ++i)
         wait *= 2;
-    if (wait > Config::MODBUS_BACKOFF_MAX_MS) wait = Config::MODBUS_BACKOFF_MAX_MS;
+    if (wait > cap) wait = cap;
     p->probe_ms = now_ms + wait;
 
     // Once, on the way in. A device that is unplugged for a week must not be a
     // log entry every 30 seconds.
-    if (p->misses == Config::MODBUS_RETRIES + 1 && _logger != nullptr) {
+    if (p->misses == _retries() + 1 && _logger != nullptr) {
         char who[40];
         _logger->error(Logs::MODBUS,
                        "dev %s not answering\n"
@@ -152,7 +171,7 @@ void RtuClient::_missed(const Block& b, uint64_t now_ms) {
 void RtuClient::_publish_health() {
     _dead = 0;
     for (uint8_t i = 0; i < _plan.device_count(); ++i)
-        if (_peer[i].misses > Config::MODBUS_RETRIES) _dead++;
+        if (_peer[i].misses > _retries()) _dead++;
     if (_io == nullptr) return;
     // Written like any other driver writes a variable: the alarm model reads the
     // boolean, and the status value is published to MQTT and the TCP slave.
@@ -195,12 +214,12 @@ RtuClient::Slot RtuClient::_slot_of(const Block& b) const {
     // due_ms raises that floor further while a refusal penalty is running.
     const bool dirty = block_dirty(*_io, _plan, b);
     const uint64_t floor_ms = b.last_ms +
-        (dirty ? Config::MODBUS_WRITE_MIN_MS : Config::MODBUS_REWRITE_MS);
+        (dirty ? _write_min_ms() : _rewrite_ms());
     s.due      = (b.due_ms > floor_ms) ? b.due_ms : floor_ms;
     // A demand that has moved is owed to the field inside MODBUS_WRITE_DEADLINE_MS;
     // an unchanged one is only the keepalive a slave-side failsafe watches for,
     // so its own interval is the deadline.
-    s.deadline = dirty ? Config::MODBUS_WRITE_DEADLINE_MS : Config::MODBUS_REWRITE_MS;
+    s.deadline = dirty ? Config::MODBUS_WRITE_DEADLINE_MS : _rewrite_ms();
     return s;
 }
 
@@ -460,7 +479,7 @@ void RtuClient::on_output(uint64_t now_ms) {
     // indistinguishable from a dead one, and no amount of probing fixes it.
     const DeviceModel& m = model_of(_devices, _plan.block(pick).device);
     _framer.arm(_expect, now_ms,
-                (m.timeout_ms != 0) ? m.timeout_ms : Config::MODBUS_TIMEOUT_MS,
+                (m.timeout_ms != 0) ? m.timeout_ms : _timeout_ms(),
                 HAL::Serial::fieldbus_echoes() ? _frame_len : 0);
     _enter(MB_RX, now_ms);
 }
@@ -578,7 +597,7 @@ void RtuClient::_settle(uint64_t now_ms) {
         // doubling, while the device keeps its place in the rotation.
         uint32_t wait = 0;
         if (!is_read(b.fc)) {
-            wait = Config::MODBUS_WRITE_MIN_MS;
+            wait = _write_min_ms();
             for (uint8_t i = 0; i < b.refusals && wait < Config::MODBUS_REFUSAL_MAX_MS; ++i)
                 wait *= 2;
             if (wait > Config::MODBUS_REFUSAL_MAX_MS) wait = Config::MODBUS_REFUSAL_MAX_MS;

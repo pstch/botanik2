@@ -187,6 +187,22 @@ namespace Botanik { namespace Modbus {
         Vars::VarRef _dead_ref;
         Vars::VarRef _crc_ref;
         Vars::VarRef _stray_ref;
+
+        /** @brief The `rtu_` tuning rows, resolved the same way.
+         *
+         *  Bound rather than looked up per use: the scoring pass reads two of
+         *  them for every block on every beat, and a name lookup is a binary
+         *  search over the whole table. Read live off the bound row, so a change
+         *  lands on the next transaction with nothing to re-initialise - which
+         *  is why the group carries no commit serial.
+         *  @see modbus/rtu/params.h */
+        Vars::VarRef _p_timeout;
+        Vars::VarRef _p_retries;
+        Vars::VarRef _p_backoff;
+        Vars::VarRef _p_backoff_max;
+        Vars::VarRef _p_write_min;
+        Vars::VarRef _p_rewrite;
+
         uint64_t            _since_ms = 0;     ///< when the current state was entered
 
         /** @name Counters
@@ -276,8 +292,12 @@ namespace Botanik { namespace Modbus {
         const DeviceTable* devices() const { return _devices; }
 
         bool peer_dead(uint8_t i) const {
+            // The same threshold the backoff runs on, read the same way: this is
+            // what the shell and the health rows report, and an accessor saying
+            // a device is dead while the rotation still retries it would be a
+            // display disagreeing with the bus.
             return (i < _plan.device_count()) &&
-                   _peer[i].misses > Config::MODBUS_RETRIES;
+                   _peer[i].misses > _retries();
         }
 
         /**
@@ -304,6 +324,21 @@ namespace Botanik { namespace Modbus {
         void on_output(uint64_t now_ms) override;
 
     private:
+        /** @brief One `rtu_` row's live value, or @p dflt when the row is absent
+         *  (a site without the library splice) or reads invalid.
+         *
+         *  The Config constant is the fallback as well as the row's factory
+         *  value, so a build with no rows behaves exactly as it did before they
+         *  existed. */
+        uint32_t _tune(Vars::VarRef r, uint32_t dflt) const;
+
+        uint32_t _timeout_ms()     const { return _tune(_p_timeout,     Config::MODBUS_TIMEOUT_MS); }
+        uint8_t  _retries()        const { return (uint8_t)_tune(_p_retries, Config::MODBUS_RETRIES); }
+        uint32_t _backoff_ms()     const { return _tune(_p_backoff,     Config::MODBUS_BACKOFF_MS); }
+        uint32_t _backoff_max_ms() const { return _tune(_p_backoff_max, Config::MODBUS_BACKOFF_MAX_MS); }
+        uint32_t _write_min_ms()   const { return _tune(_p_write_min,   Config::MODBUS_WRITE_MIN_MS); }
+        uint32_t _rewrite_ms()     const { return _tune(_p_rewrite,     Config::MODBUS_REWRITE_MS); }
+
         /** @brief Enter @p s, stamping when. Every transition goes through here,
          *  so a state cannot be changed without its clock being reset. */
         void _enter(State s, uint64_t now_ms);
