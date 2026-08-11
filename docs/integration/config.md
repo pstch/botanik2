@@ -370,12 +370,14 @@ device mix, a slave-side failsafe somebody else configured - and each is read
 where it is used, so a change lands on the next transaction and the group needs
 no commit serial. The macros below are their factory values.
 
-The rest stay constants on purpose, and `modbus/rtu/params.h` says why: anything
-sizing an array cannot move at all, `MODBUS_GAP_MS` is the protocol's own
-3.5-character silence (and `DeviceModel::min_gap_ms` already overrides it per
-model), and `MODBUS_BAUD` / `_TURNAROUND_MS` / `_BLOCK_STAGGER_MS` feed
-`Plan::plan()`, which runs once at bring-up - moving those means re-planning and
-resetting every block's place in the poll ladder.
+The rest stay constants, and `modbus/rtu/params.h` says why: anything sizing an
+array cannot move at all, `MODBUS_GAP_MS` is the protocol's own 3.5-character
+silence (and `DeviceModel::min_gap_ms` already overrides it per model), and
+`MODBUS_BAUD` / `_TURNAROUND_MS` / `_BLOCK_STAGGER_MS` feed `Plan::plan()`,
+which runs once at bring-up. The last three were considered and **decided
+against**: the line rate is settled when the segment is wired, and re-planning a
+running bus to change it costs a reboot's worth of disruption for something a
+reboot already does.
 
 | Macro | Default | |
 |---|---|---|

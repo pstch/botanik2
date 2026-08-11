@@ -25,8 +25,10 @@
  *    a device really needs more.
  *  - **Anything the PLANNER reads** - MODBUS_BAUD, _TURNAROUND_MS,
  *    _BLOCK_STAGGER_MS. Those feed `Plan::plan()`, which runs once at bring-up,
- *    so moving them means re-planning and resetting every block's place in the
- *    poll ladder. A real change, deliberately not this one.
+ *    so moving them would mean re-planning a running bus and resetting every
+ *    block's place in the poll ladder. Decided against: the line rate is settled
+ *    when the segment is wired, and re-planning to change it is a reboot's worth
+ *    of disruption for something a reboot already does. They stay constants.
  *
  *  No commit serial: every row below is read where it is used, on the beat that
  *  needs it, and none has a peer to reconnect or a half-applied state to avoid.
