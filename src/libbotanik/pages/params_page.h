@@ -97,9 +97,10 @@ namespace Botanik { namespace Pages {
         bool                _editing    = false;
         uint16_t _edit_index = 0;   ///< the parameter being edited
         bool                _edit_error = false;      ///< last commit rejected
-        /** last commit applied but did not reach storage (shown on the prompt
-         *  row, since the value itself is live and the row will show it) */
-        bool                _not_persisted = false;
+        /** an edit made here is live but not written (shown on the prompt row).
+         *  Sticky for the visit: it is the one thing an operator cannot infer
+         *  from the table, which shows the new value either way. */
+        bool                _unsaved = false;
         /** @} */
         /** @} */
 

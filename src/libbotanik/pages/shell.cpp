@@ -163,10 +163,9 @@ namespace Botanik { namespace Pages {
         if (!_active) return;
         // "logs off" silences the running COMMENTARY, not an emergency: a
         // critical clears every other floor in the system and this is a floor
-        // like the rest. It is also load-bearing for anything whose prompt is a
-        // log line - the console probation asks to be confirmed exactly once,
-        // and an operator with the interleave off would otherwise watch their
-        // settings revert with nothing ever having said why.
+        // like the rest. Load-bearing for anything that says something once and
+        // does not repeat it - a restored override, a store that refused a
+        // write - which an operator with the interleave off would never see.
         if (!_logs_enabled &&
             (entry == nullptr || entry->level != Logs::LOG_CRITICAL)) return;
         Logs::BufferedLogWriter::push(entry);

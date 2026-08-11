@@ -61,24 +61,6 @@ namespace Botanik { namespace Config {
 #endif
     BOTANIK_CFG(uint16_t, TERMINAL_MAX_ROWS);
 
-    /** @brief How long a committed console configuration has to prove itself,
-     *  in ms. 0 disables probation: a commit then applies and persists at once.
-     *
-     *  The rate, make and size are the settings that can break the very channel
-     *  used to fix them, so a commit APPLIES them without making them durable.
-     *  The operator has this long to type `console confirm` from the far end -
-     *  being able to type it is itself the proof that the link works both ways -
-     *  and anything else puts the previous settings back.
-     *
-     *  60 s because the RATE is one of them: changing it means physically
-     *  reconnecting a terminal at the new speed, which is the slow case this has
-     *  to leave room for. Too short and an honest change is reverted out from
-     *  under someone still plugging a cable in. */
-#ifndef BOTANIK_CONSOLE_PROBATION_MS
-#  define BOTANIK_CONSOLE_PROBATION_MS 60000
-#endif
-    BOTANIK_CFG(uint32_t, CONSOLE_PROBATION_MS);
-
     /** @brief Pages the Console multiplexes over. Registration past it is
      *  refused SILENTLY (add_page() returns -1 and register_pages() ignores it),
      *  so the tab order simply stops gaining pages. Cannot exceed 10: a page is

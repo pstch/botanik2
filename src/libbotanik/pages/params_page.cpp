@@ -244,10 +244,10 @@ namespace Botanik { namespace Pages {
         }
         _terminal.set_cursor_visible(false);
         // No key legend: UP/DOWN/ENTER/ESC are not worth a permanent row. Only
-        // what an operator cannot infer stays - that a value just set did not
-        // reach storage.
-        const char* hint = _not_persisted
-            ? " NOT SAVED - value is live but storage refused it" : "";
+        // what an operator cannot infer stays - that the value they just typed
+        // is live but has not been written, and what to type to write it.
+        const char* hint = _unsaved
+            ? " UNSAVED - live now; `params save` from the shell keeps it" : "";
         _draw_line(row, hint, (uint16_t)strlen(hint));
     }
 
@@ -311,10 +311,10 @@ namespace Botanik { namespace Pages {
             _draw_error_marker();
             return;
         }
-        // Applied. SET_NOT_PERSISTED means live but not surviving a reboot:
-        // leave the editor anyway, since the input was not wrong (the critical
-        // log carries the failure).
-        _not_persisted = (r == Vars::SET_NOT_PERSISTED);
+        // Applied - and, like every edit, live rather than durable. The prompt
+        // row says so until somebody saves; `params save` from the shell is what
+        // writes it. See @ref user_params.
+        _unsaved = true;
         _editing = false;
         _dirty = true;            // value diff repaints the table row next tick
         _draw_prompt_row();

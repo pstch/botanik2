@@ -52,13 +52,28 @@ leaves the rest where it was, so a paste always restores exactly what went.
 |---|---|
 | `list [<prefix>]` | browse the variable table, or just the rows whose name starts with `<prefix>`. Each row carries its scope in parentheses |
 | `get <name>` | the detail view of one variable, laid out like `stats`: scope, group, access, the raw and override values with their validity, the band, and where it physically comes from |
-| `set <name> <value>` | edit a **parameter** and persist it |
-| `override list\|clear\|<name> [off\|<value>] [valid\|invalid]` | force **any** variable by hand; `clear` releases the lot |
+| `params` | which parameters are edited but not yet written |
+| `params set <name> <value>` | edit a **parameter** - live at once, not saved |
+| `params save` | write every edited parameter to flash |
+| `overrides` | what is forced right now, and how much of it is unsaved |
+| `overrides set <name> [off\|<value>] [valid\|invalid]` | force **any** variable by hand |
+| `overrides clear` | release the lot, stored copies included |
+| `overrides save` | make the forced values outlive a reboot |
 | `control [enable\|inhibit\|disable]` | report or change whether the firmware may drive the field |
 
 These are covered in @ref user_variables, @ref user_params and @ref user_control.
 Booleans read and write as `0` / `1`; `on`, `off` and `true` are not accepted as
 values.
+
+**An edit is live when you set it and durable when you save it.** Nothing above
+writes to flash on its own - not a parameter, not an override. That is one rule
+for the whole table, and it is what makes every misconfiguration recoverable the
+same way: a setting that breaks the console it was typed on was never written, so
+a power cycle brings the last saved one back.
+
+@warning The other side of that rule is that unsaved work is losable. `params`
+and `overrides` with no argument are what tell you, and every edit's own
+confirmation ends in `(unsaved)`. `save` writes everything pending in one word.
 
 Variables are named by domain, so `list` with a prefix is the subsystem view:
 `list grid_` shows the grid meter and nothing else.
@@ -120,12 +135,12 @@ build - `tasks` prints the four rates.
 | `logs [on\|off]` | show or hide the live log interleave on this page |
 
 How much gets logged at all is the `sys_log_level` parameter, so it is `get` and
-`set` like any other rather than a command of its own - which is what makes it
-persist, and reach from the PARAMS page and over Modbus too. It is the **master
+`params set` like any other rather than a command of its own - which is what lets
+it reach from the PARAMS page and over Modbus too. It is the **master
 floor** for every sink, not just this page:
 
 ```
-botanik> set sys_log_level warning     # warning and up, everywhere
+botanik> params set sys_log_level warning     # warning and up, everywhere
 ```
 
 It takes the level as a word, and `get sys_log_level` lists the ones it accepts
@@ -151,40 +166,33 @@ two units on the same firmware **version** can still differ here. See
 | Command | Does |
 |---|---|
 | `ntpsync` | force an NTP resync now |
-| `console [confirm\|revert]` | keep or undo a committed console configuration |
-| `save` | write the retained values to flash now |
+| `save` | write everything pending to flash |
 | `clear` | wipe the shell scrollback |
 | `breakpoint` | trap into an attached debugger |
 | `reset` | reboot the controller |
 | `exit` | quit (simulator) / reboot (hardware) |
 
-`console` answers for the settings that can break the terminal you are reading
-it on - the rate, the make and the size. Committing one applies it and starts a
-probation rather than saving it, so `console confirm` is what keeps it and
-silence is what undoes it. See @ref user_console.
-
 `reset` and `exit` both drop every output to its safe state and clear the screen
 before leaving - a reboot on its own gives no such guarantee. See @ref user_control.
+Neither saves anything: an unsaved edit is gone either way, which is the point.
 
-`save` is for the **retained** rows only - the totalizers and hour counters whose
-value IS their history. A parameter is written the moment you `set` it, so there
-is never anything of its pending; the retained rows are the ones written on a
-cadence (`sys_retain_sec`) rather than per change, because writing a litre
-counter through would be a flash erase every beat. Use it before pulling a fuse,
-after a commissioning run, or as the whole mechanism on a unit running
-`sys_retain_sec 0`. A deliberate `reset` / `exit` already writes them, so this is
-for the stop the firmware does not get told about.
+`save` covers all three kinds of pending state in one word - edited parameters,
+forced values, and the **retained** rows (the totalizers and hour counters whose
+value IS their history, written on a cadence rather than per change because a
+litre counter would otherwise be a flash erase every beat). One command for the
+moment you actually want it, which is just before the power goes. `params save`
+and `overrides save` stay for when you mean only one of them.
 
 @note There is no raw `storage` command. Every persisted value belongs to a
-parameter or an override and is reached through `set` / `override`, both of which
-validate; a back door into the key-value store only ever let someone seed a setting
-the firmware would have refused.
+parameter or an override and is reached through `params set` / `overrides set`,
+both of which validate; a back door into the key-value store only ever let
+someone seed a setting the firmware would have refused.
 
 ## What the site adds
 
 A site may register its own commands; they appear in `help` after the built-ins. The
 reference site `gh_mlb41` registers none - everything it exposes is a variable, and
-`list` / `get` / `set` already read it.
+`list` / `get` / `params set` already read it.
 
 @note Site commands are matched **before** the built-ins, so a site command named
 after a built-in shadows it. Sites should avoid reusing built-in names, `reset` and

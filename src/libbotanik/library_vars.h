@@ -141,13 +141,10 @@
  *  // ::Botanik::Vars::P("sys_watchdog_ms", ::Botanik::Vars::T_U32,
  *  //                    10000, 100, 60000, 0, "ms", 975, "HW watchdog", ""), */
 #define BOTANIK_LIBRARY_PARAM_VARS                                             \
-    /* F_STAGED, and the one row where it really earns its keep: a rate the   \
-       UART cannot reach leaves nothing to type into. See console/params.h. */ \
     ::Botanik::Vars::P("serial_console_baud", ::Botanik::Vars::T_U32,          \
         BOTANIK_CONSOLE_BAUD, 1200, 921600, 0, "Bd", 900,                      \
         "console UART rate",                                                   \
-        "reconnect at the new rate, then `console confirm`",                   \
-        ::Botanik::Vars::F_STAGED),                                            \
+        "reconnect at the new rate; unsaved, so a power cycle undoes it"),     \
     ::Botanik::Vars::P("serial_monitor_baud", ::Botanik::Vars::T_U32,          \
         BOTANIK_MONITOR_BAUD, 1200, 921600, 0, "Bd", 901,                      \
         "monitor UART rate",                                                   \

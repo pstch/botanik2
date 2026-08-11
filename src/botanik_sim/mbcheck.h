@@ -177,12 +177,18 @@ namespace Botanik { namespace Sim {
         }
 
         /** @brief Return the row to what it was, through the bank rather than
-         *  the wire (the wire half has already been tested). */
+         *  the wire (the wire half has already been tested).
+         *
+         *  Persisted, not merely set: the WRITE half went through the slave's
+         *  map, which makes a master's write durable, so a restore that only
+         *  touched RAM would leave this check's own test value in the store and
+         *  the row reading unsaved from every boot onward. */
         void _restore() {
             if (_io == nullptr) return;
             Vars::Var v = _io->var(ROW_NAME);
-            if (v.meta()->name != nullptr)
-                (void)_io->set(v, Vars::Scalar::U((uint64_t)_was));
+            if (v.meta()->name == nullptr) return;
+            (void)_io->set(v, Vars::Scalar::U((uint64_t)_was));
+            (void)_io->persist(v);
         }
 
         void _fail(const char* why, unsigned detail) {

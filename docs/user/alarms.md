@@ -8,7 +8,7 @@ keep in step.
 Two consequences worth having:
 
 - an alarm is readable and forcible by name like any other variable - `get
-  alarm_dc_ups`, or `override alarm_dc_ups 1` to exercise whatever watches it;
+  alarm_dc_ups`, or `overrides set alarm_dc_ups 1` to exercise whatever watches it;
 - the ALARMS page shows that variable name beside the code, so what you see on screen
   is what you type at the prompt (the `alarm_` prefix is stripped on screen).
 
@@ -71,9 +71,10 @@ Every unit has these regardless of site, raised from the firmware's own health:
 | `STACK` | `alarm_stack` | stack usage over its threshold | |
 | `FLASH_FLT` | `alarm_flash_error` | a write to persistent storage failed | **sticky until reboot** |
 
-`FLASH_FLT` is the one to act on: parameters will not survive a reboot until it is
-resolved. It is the same fault behind `set`'s `(NOT SAVED: storage refused it)` and
-the PARAMS page's `NOT SAVED` warning - one problem seen from three places.
+`FLASH_FLT` is the one to act on: nothing will survive a reboot until it is
+resolved. It is the same fault behind a `params save` that writes fewer rows than
+it was owed, and rows that keep their `(unsaved)` mark after one - one problem
+seen from three places.
 
 The `cpu:` and `stk:` figures in the status bar are the same measurements the
 `CPU_LOAD` and `STACK` alarms watch, and `stats` shows their recent and peak values.

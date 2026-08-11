@@ -82,21 +82,23 @@ Writes keep landing in `v` underneath while an override is in force, so the over
 *shadows* rather than replaces: clearing it resumes the live value with no gap and
 nothing to restore. `ovr_valid` is separate because "force this to 20 C" and "make
 this read as a dead sensor" are both needed, and quality is what distinguishes them.
-Set it from the console with `override <name> [<value>] [valid|invalid]`. Note what it
+Set it from the console with `overrides set <name> [<value>] [valid|invalid]`. Note what it
 does not do: the forced value is still what `raw()` returns, so a consumer gating on
 `valid()` sees bad data while one that does not still reads the number. Forcing the
 quality is not the same as simulating the timeout fallback, which substitutes `def`.
 
-Overrides **are persisted**, under an `ovr.<name>` key of their own so the override and
-the parameter setting beneath it stay separate facts - clearing one leaves the other
-untouched. `Bank::load_overrides()` restores them after `load_params()`, and a restored
-override is announced as a CRITICAL at boot.
+Overrides are **not** persisted by `override_set()`. A forced value lives for the
+session, which is what a maintenance tool should do: a forgotten override must not
+survive the reboot someone reaches for when a machine misbehaves, and an actuator
+driven by hand must not come back driven. `overrides save` is the deliberate act
+that writes them, under an `ovr.<name>` key of their own so the override and the
+parameter setting beneath it stay separate facts - clearing one leaves the other
+untouched.
 
-That is a deliberate trade, and it cuts the other way too: a maintainer who forced a
-signal to work on the plant should not lose it to a power cut, but a forgotten one now
-survives the reboot someone reaches for when a machine misbehaves. Three things keep
-that honest - the boot CRITICAL, `override list` saying plainly that they survive, and
-`override clear` clearing the lot in one command.
+`Bank::load_overrides()` restores the saved ones after `load_params()`, and a
+restored override is announced as a CRITICAL at boot. Releasing (`override_clear()`,
+`clear_overrides()`, a health withdrawal) erases the stored copy in the same breath,
+so nothing comes back.
 
 @note The three mutators live on `Bank`, not on the `Var` handle - the handle's
 are private to it. Each has a storage side, so a caller that reached past the bank
@@ -106,8 +108,8 @@ got RAM-only behaviour that looked right until the next boot.
 design: a power cycle clears every force, so power-cycling is a reliable way back to
 normal operation. Here it is not. The trade was made knowingly - a maintainer who forced
 a signal to work on the plant should not lose it to a power cut - and it is mitigated by
-the boot CRITICAL, by `override list` saying so in as many words, and by
-`override clear` clearing the lot in one command. Anyone arriving with PLC habits
+the boot CRITICAL, by `overrides` saying so in as many words, and by
+`overrides clear` clearing the lot in one command. Anyone arriving with PLC habits
 should be told.
 
 Every role, `ROLE_OUTPUT` included. An override means one thing whatever row it is on
@@ -209,18 +211,23 @@ was forced to get, and sweeping a parameter would revert the network settings on
 a scan overrun.
 
 `override_set()` therefore never refuses an output on control grounds. It is live
-immediately rather than staged, and it is never persisted, so there is no session it
-can outlive.
+immediately, and durable only if somebody says `overrides save`.
 
 ## Parameters
 
 A parameter is just a `ROLE_PARAM` variable. `Params` is the editable view over that
-contiguous block: dense 0-based indexing for the PARAMS page and the shell, the boot
-load, and a `set()` returning `SET_OK` / `SET_INVALID` / `SET_NOT_PERSISTED`.
+contiguous block: dense 0-based indexing for the PARAMS page and the shell, and the
+boot load.
 
-That third result matters: a refused *persist* is not a rejected *edit*. The value is
-live; it just will not survive a reboot, and the caller must say so rather than
-pretend either success or failure.
+`Bank::set()` validates and applies; it does **not** write. `persist()` is the only
+thing that writes, and `save_params()` walks the rows `set()` marked `VF_UNSAVED`.
+That is one rule for the whole table (@ref user_shell): an edit is live when it is
+set and durable when it is saved, so a setting that breaks the console it was typed
+on was never written and a power cycle undoes it.
+
+`SET_NOT_PERSISTED` therefore comes from `persist()`, never from `set()`: a refused
+*write* is not a rejected *edit*. The row keeps its `VF_UNSAVED` mark so `params`
+goes on reporting the debt rather than the work being silently lost.
 
 `KvParamStore` is one `HAL::Storage` key per parameter, named after the parameter, plus
 one `ovr.<name>` key per persisted override. There is no layout to version, so adding,
@@ -231,7 +238,7 @@ Config-driven components read by name (`Vars::get_int` / `get_f32` / `get_str`) 
 re-apply their whole group when its commit serial changes - `group_serial(io, "net")`
 is just `get_int(io, "net")`, the group's own same-named parameter.
 
-@note Nothing bumps that serial automatically. `set()` persists the value and stops
+@note Nothing bumps that serial automatically. `set()` applies the value and stops
 there; the operator commits the group by writing its serial. That is deliberate - a
 group like the static IP block is incoherent until every field is in, so applying per
 edit would restart the interface through states that were never meant to exist. See

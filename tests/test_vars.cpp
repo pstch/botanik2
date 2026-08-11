@@ -723,9 +723,12 @@ TEST_CASE("override: parses text, and deliberately ignores the plausibility band
 
 TEST_CASE("set: refuses anything that is not a parameter") {
     Fixture f;
-    // No store bound, so a valid write reports NOT_PERSISTED rather than OK.
-    CHECK(f.bank.set(f.bank.var(V_NTP_POLL), "120") == SET_NOT_PERSISTED);
+    // SET_OK even with no store bound: set() no longer writes, so there is
+    // nothing here for a missing store to refuse. That answer moved to
+    // persist(), which is the only thing that writes.
+    CHECK(f.bank.set(f.bank.var(V_NTP_POLL), "120") == SET_OK);
     CHECK(f.bank.var(V_NTP_POLL).i() == 120);
+    CHECK(f.bank.persist(f.bank.var(V_NTP_POLL)) == SET_NOT_PERSISTED);
 
     CHECK(f.bank.set(f.bank.var(V_EXT_TEMP), "20") == SET_INVALID);   // input
     CHECK(f.bank.set(f.bank.var(V_VALVE), "1")     == SET_INVALID);   // output
@@ -903,7 +906,7 @@ TEST_CASE("params: a parameter starts at its factory default, and valid") {
     CHECK(Utils::compare_str(get_str(&f.bank, "p_str"), "pool.ntp.org"));
 }
 
-TEST_CASE("params: an edit applies, persists, and survives a reload") {
+TEST_CASE("params: an edit applies, saves, and survives a reload") {
     StoreEnv env;
     {
         Fx f;
@@ -912,6 +915,8 @@ TEST_CASE("params: an edit applies, persists, and survives a reload") {
         CHECK(f.params.set(f.by("p_f32"), "-12.25") == SET_OK);
         CHECK(f.params.set(f.by("p_bool"), "0") == SET_OK);
         CHECK(f.params.set(f.by("p_str"), "ntp.example.org") == SET_OK);
+        // The edits are live but not durable; this is what makes them durable.
+        CHECK(f.bank.save_params() == 5);
     }
     {   // a fresh bank, loading from the same store
         Fx f;
@@ -940,6 +945,7 @@ TEST_CASE("params: stored values keep the type's NARROW width") {
     CHECK(f.params.set(f.by("p_u16"), "300") == SET_OK);
     CHECK(f.params.set(f.by("p_bool"), "0") == SET_OK);
     CHECK(f.params.set(f.by("p_f32"), "1.5") == SET_OK);
+    REQUIRE(f.bank.save_params() == 3);
     uint8_t buf[16]; size_t n = 0;
     REQUIRE(HAL::Storage::get("p_u16", buf, sizeof(buf), &n));
     CHECK(n == 2);
@@ -972,13 +978,19 @@ TEST_CASE("params: a string edit is validated by its declared kind") {
     CHECK(Utils::compare_str(get_str(&f.bank, "p_str"), "ntp.example.org"));
 }
 
-TEST_CASE("params: a refused persist still applies the value") {
+TEST_CASE("params: a refused SAVE still leaves the value applied") {
     // The tri-state exists for this: reporting "invalid" for a storage refusal
-    // would send the operator to fix input that was never the problem.
+    // would send the operator to fix input that was never the problem. The
+    // refusal moved to the save, which is now the only thing that writes.
     StoreEnv env("/nonexistent-dir-botanik-test/store");
     Fx f;
-    CHECK(f.params.set(f.by("p_u16"), "120") == SET_NOT_PERSISTED);
+    CHECK(f.params.set(f.by("p_u16"), "120") == SET_OK);   // the EDIT always takes
     CHECK(f.by("p_u16").i() == 120);
+    CHECK(f.bank.persist(f.by("p_u16")) == SET_NOT_PERSISTED);
+    // ...and the row still owes flash a copy, so `params` goes on saying so
+    // rather than reporting the work as done.
+    CHECK(f.by("p_u16").unsaved());
+    CHECK(f.bank.save_params() == 0);
     CHECK(f.params.set(f.by("p_u16"), "99999") == SET_INVALID);   // still invalid
 }
 
@@ -1040,9 +1052,12 @@ namespace {
 TEST_CASE("override: an output restored at boot is muted until control returns") {
     StoreEnv env("/tmp/botanik_test_ovr_boot");
     {
-        OvrFx f;   // control released, so the force is takeable and persists
+        OvrFx f;   // control released, so the force is takeable
         REQUIRE(f.bank.override_set(f.bank.var("coil"), "1") == SET_OK);
         CHECK(f.bank.var("coil").b() == true);
+        // Saved explicitly: an override lives for the session unless somebody
+        // says otherwise, and "restored at boot" is what this case is about.
+        REQUIRE(f.bank.save_overrides() == 1);
     }
     {
         // Fresh RAM, same store, and the hold NOT released - as at bring-up.
@@ -1072,6 +1087,9 @@ TEST_CASE("override: a forced value survives a reboot") {
         OvrFx f;
         REQUIRE(f.bank.override_set(f.bank.var("sensor"), "42.5") == SET_OK);
         CHECK(f.bank.var("sensor").value() == doctest::Approx(42.5f));
+        // Explicitly: a forced value is a live-session tool until somebody
+        // decides it should outlive the unit.
+        REQUIRE(f.bank.save_overrides() == 1);
     }
     {
         OvrFx f;   // fresh RAM, same store
@@ -1089,6 +1107,7 @@ TEST_CASE("override: the validity it reads as survives too") {
         // Force it, and make it read as a dead sensor: two separate facts.
         REQUIRE(f.bank.override_set(f.bank.var("sensor"), "42.5", false) == SET_OK);
         CHECK_FALSE(f.bank.var("sensor").valid());
+        REQUIRE(f.bank.save_overrides() == 1);
     }
     {
         OvrFx f;
@@ -1106,6 +1125,7 @@ TEST_CASE("override: releasing one stops it coming back") {
     {
         OvrFx f;
         REQUIRE(f.bank.override_set(f.bank.var("derived"), "7") == SET_OK);
+        REQUIRE(f.bank.save_overrides() == 1);
     }
     {
         OvrFx f;
@@ -1125,6 +1145,7 @@ TEST_CASE("override: `override clear` clears the stored copies too") {
         OvrFx f;
         REQUIRE(f.bank.override_set(f.bank.var("sensor"), "1") == SET_OK);
         REQUIRE(f.bank.override_set(f.bank.var("derived"), "2") == SET_OK);
+        REQUIRE(f.bank.save_overrides() == 2);
         CHECK(f.bank.clear_overrides() == 2);
     }
     {
@@ -1141,6 +1162,7 @@ TEST_CASE("override: an actuator override persists like any other") {
         OvrFx f;
         REQUIRE(f.bank.override_set(f.bank.var("coil"), "1") == SET_OK);
         CHECK(f.bank.var("coil").overridden());
+        REQUIRE(f.bank.save_overrides() == 1);
     }
     {
         OvrFx f;
@@ -1167,6 +1189,7 @@ TEST_CASE("override: the system withdrawing control wipes the stored copy") {
     {
         OvrFx f;
         REQUIRE(f.bank.override_set(f.bank.var("sensor"), "5") == SET_OK);
+        REQUIRE(f.bank.save_overrides() == 1);
         f.bank.set_health_hold(true);
         CHECK(f.bank.var("sensor").overridden());   // inputs: reading isn't driving
     }
@@ -1181,7 +1204,9 @@ TEST_CASE("override: a parameter override shadows without disturbing the setting
     {
         OvrFx f;
         REQUIRE(f.bank.set(f.bank.var("setting"), "100") != SET_INVALID);
+        REQUIRE(f.bank.save_params() == 1);
         REQUIRE(f.bank.override_set(f.bank.var("setting"), "7") == SET_OK);
+        REQUIRE(f.bank.save_overrides() == 1);
         CHECK(f.bank.var("setting").i() == 7);
     }
     {
@@ -1204,6 +1229,7 @@ TEST_CASE("override: forcing only the quality persists the quality") {
         f.bank.override_freeze(f.bank.var("sensor"));
         f.bank.override_set(f.bank.var("sensor"), f.bank.var("sensor").raw(), false);
         CHECK_FALSE(f.bank.var("sensor").valid());
+        REQUIRE(f.bank.save_overrides() == 1);
     }
     {
         OvrFx f;
@@ -1220,6 +1246,7 @@ TEST_CASE("override: every release path also forgets the stored copy") {
     {
         OvrFx f;
         REQUIRE(f.bank.override_set(f.bank.var("sensor"), "9") == SET_OK);
+        REQUIRE(f.bank.save_overrides() == 1);
         f.bank.override_clear(f.bank.var("sensor"));
         CHECK_FALSE(f.bank.var("sensor").overridden());
     }
@@ -1230,23 +1257,23 @@ TEST_CASE("override: every release path also forgets the stored copy") {
     }
 }
 
-// F_STAGED - a parameter live now, durable only when its group commits.
+// Saving - an edit is LIVE when it is set and DURABLE when it is saved.
 
 namespace {
-    const Variable STAGED[] = {
-        P("p_staged", T_U16, 10, 0, 1000, 0, "", 20, "", "", F_STAGED),
-        P("p_plain",  T_U16, 10, 0, 1000, 0, "", 21, "", ""),
+    const Variable SAVED[] = {
+        P("p_a", T_U16, 10, 0, 1000, 0, "", 20, "", ""),
+        P("p_b", T_U16, 10, 0, 1000, 0, "", 21, "", ""),
     };
 
-    struct StagedFx {
+    struct SaveFx {
         Value    vals[2]{};
         uint16_t index[2]{};
         Bank         bank;
         KvParamStore store;
         Params       params;
-        StagedFx() : params(&bank, &store, nullptr) {
+        SaveFx() : params(&bank, &store, nullptr) {
             VarTables t = {};
-            t.var = STAGED; t.val = vals; t.count = 2; t.index = index;
+            t.var = SAVED; t.val = vals; t.count = 2; t.index = index;
             bank = Bank(t);
             bank.init();
             params = Params(&bank, &store, nullptr);
@@ -1255,57 +1282,103 @@ namespace {
     };
 }
 
-TEST_CASE("staged: the edit is live at once and durable only on a persist") {
-    StoreEnv env("/tmp/botanik_test_staged");
+TEST_CASE("save: an edit is live at once and forgotten unless it is saved") {
+    StoreEnv env("/tmp/botanik_test_save1");
     {
-        StagedFx f;
-        // SET_OK, not SET_NOT_PERSISTED: the edit took, and the row is doing
-        // what it was declared to do. NOT_PERSISTED is a store that refused.
-        CHECK(f.bank.set(f.by("p_staged"), "300") == SET_OK);
-        CHECK(f.bank.set(f.by("p_plain"),  "400") == SET_OK);
-        INFO("both are live immediately - staging is about flash, not about RAM");
-        CHECK(f.by("p_staged").i() == 300);
-        CHECK(f.by("p_plain").i()  == 400);
+        SaveFx f;
+        // SET_OK, not SET_NOT_PERSISTED: the EDIT took. NOT_PERSISTED means a
+        // store refused a write, which is a fault; no write was attempted.
+        CHECK(f.bank.set(f.by("p_a"), "300") == SET_OK);
+        INFO("live immediately - staging is about flash, not about RAM");
+        CHECK(f.by("p_a").i() == 300);
+        CHECK(f.by("p_a").unsaved());
+        CHECK(f.bank.unsaved_params() == 1);
     }
-    {   // down and back: only the unstaged row was ever written
-        StagedFx f;
+    {   // down and back
+        SaveFx f;
         f.params.step(0);
-        CHECK(f.by("p_staged").i() == 10);      // back to its factory default
-        CHECK(f.by("p_plain").i()  == 400);
+        CHECK(f.by("p_a").i() == 10);           // the factory default
     }
 }
 
-TEST_CASE("staged: persist() is what makes it durable, and nothing else is") {
-    StoreEnv env("/tmp/botanik_test_staged2");
+TEST_CASE("save: save_params writes what is pending, and only that") {
+    StoreEnv env("/tmp/botanik_test_save2");
     {
-        StagedFx f;
-        REQUIRE(f.bank.set(f.by("p_staged"), "300") == SET_OK);
-        CHECK(f.bank.persist(f.by("p_staged")) == SET_OK);
+        SaveFx f;
+        REQUIRE(f.bank.set(f.by("p_a"), "300") == SET_OK);
+        REQUIRE(f.bank.set(f.by("p_b"), "400") == SET_OK);
+        CHECK(f.bank.save_params() == 2);
+        INFO("saving clears the mark, so a second save has nothing to do");
+        CHECK(f.bank.unsaved_params() == 0);
+        CHECK(f.bank.save_params() == 0);
+        CHECK_FALSE(f.by("p_a").unsaved());
     }
     {
-        StagedFx f;
+        SaveFx f;
         f.params.step(0);
-        CHECK(f.by("p_staged").i() == 300);
+        CHECK(f.by("p_a").i() == 300);
+        CHECK(f.by("p_b").i() == 400);
     }
 }
 
-TEST_CASE("staged: a withdrawn edit leaves nothing behind to come back") {
-    // The probation revert path in miniature: put the old value back in RAM and
-    // never persist, so what was in flash all along is what boots.
-    StoreEnv env("/tmp/botanik_test_staged3");
+TEST_CASE("save: a boot load is not an unsaved edit") {
+    // load_params() writes the slot directly. If it went through set() every
+    // boot would come up owing flash a copy of what it just read from flash.
+    StoreEnv env("/tmp/botanik_test_save3");
     {
-        StagedFx f;
-        REQUIRE(f.bank.set(f.by("p_staged"), "300") == SET_OK);
-        REQUIRE(f.bank.persist(f.by("p_staged")) == SET_OK);   // a confirmed 300
-        REQUIRE(f.bank.set(f.by("p_staged"), "900") == SET_OK);  // ...then a bad edit
-        // Withdrawn: restore the applied value, persist nothing.
-        CHECK(f.bank.set_deferred(f.by("p_staged"), Scalar::U(300)) == SET_OK);
+        SaveFx f;
+        REQUIRE(f.bank.set(f.by("p_a"), "300") == SET_OK);
+        REQUIRE(f.bank.save_params() == 1);
     }
     {
-        StagedFx f;
+        SaveFx f;
         f.params.step(0);
-        INFO("the confirmed value, not the withdrawn one");
-        CHECK(f.by("p_staged").i() == 300);
+        REQUIRE(f.by("p_a").i() == 300);
+        CHECK(f.bank.unsaved_params() == 0);
+        CHECK_FALSE(f.by("p_a").unsaved());
+    }
+}
+
+TEST_CASE("save: an override is live for this session and no longer") {
+    StoreEnv env("/tmp/botanik_test_save4");
+    {
+        SaveFx f;
+        REQUIRE(f.bank.override_set(f.by("p_a"), "77") == SET_OK);
+        CHECK(f.by("p_a").overridden());
+        CHECK(f.by("p_a").override_unsaved());
+        CHECK(f.bank.unsaved_overrides() == 1);
+    }
+    {   // an actuator driven by hand must not resurrect itself at the next boot
+        SaveFx f;
+        f.params.step(0);
+        (void)f.bank.load_overrides();
+        CHECK_FALSE(f.by("p_a").overridden());
+    }
+}
+
+TEST_CASE("save: an override that IS saved comes back, and clearing it kills it") {
+    StoreEnv env("/tmp/botanik_test_save5");
+    {
+        SaveFx f;
+        REQUIRE(f.bank.override_set(f.by("p_a"), "77") == SET_OK);
+        CHECK(f.bank.save_overrides() == 1);
+        CHECK(f.bank.unsaved_overrides() == 0);
+    }
+    {
+        SaveFx f;
+        f.params.step(0);
+        REQUIRE(f.bank.load_overrides() == 1);
+        REQUIRE(f.by("p_a").overridden());
+        // Releasing reaches the store at ONCE, unlike setting: an override that
+        // survived its own release would come back at the next boot, which is
+        // the hazard the safe state exists to prevent.
+        f.bank.override_clear(f.by("p_a"));
+    }
+    {
+        SaveFx f;
+        f.params.step(0);
+        CHECK(f.bank.load_overrides() == 0);
+        CHECK_FALSE(f.by("p_a").overridden());
     }
 }
 

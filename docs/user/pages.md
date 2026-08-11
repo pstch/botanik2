@@ -125,9 +125,10 @@ parameter, so it is safe to quote.
 `ENTER` commits, `Ctrl+C` or `ESC` cancels, and the usual editing keys apply
 (`Ctrl+A`/`Ctrl+E`, `Ctrl+U`, `Ctrl+B`/`Ctrl+F`, `BACKSPACE`, `Ctrl+D`, and the
 `Ctrl+K`/`Ctrl+W`/`Ctrl+Y` cut and paste). A
-rejected value appends `[invalid]` and leaves you in the editor. One that was
-accepted but could not be stored shows `NOT SAVED - value is live but storage
-refused it`: in effect now, gone after a reboot.
+rejected value appends `[invalid]` and leaves you in the editor. An accepted one
+shows `UNSAVED - live now; \`params save\` from the shell keeps it`: in effect
+immediately, gone after a reboot until it is saved. That is true of every
+parameter edit, here or at the prompt - see @ref user_params.
 
 **Keys**
 
@@ -170,7 +171,7 @@ channel, or `computed`) and **Quality**:
 |---|---|
 | `SPACE`, `LEFT` / `RIGHT` | next / previous group view |
 
-This page never writes - use `set` or `override` from the shell.
+This page never writes - use `params set` or `overrides set` from the shell.
 
 ## TASKS
 
@@ -248,7 +249,7 @@ Shared by ALARMS, PARAMS, MONITOR and TASKS.
 `Alt+W` copies what is highlighted - the name on PARAMS, MONITOR and TASKS, the
 code on ALARMS - and the mode line says `copied <cell>` for a few seconds so you
 can tell the key landed. `Ctrl+Y` at the shell prompt pastes it, which is the
-short way to turn a row you are looking at into a `get` / `set` / `override`.
+short way to turn a row you are looking at into a `get` / `params set` / `overrides set`.
 
 `^` and `v` marks on the table's top and bottom rules show when rows are hidden
 above or below.

@@ -125,18 +125,14 @@ namespace Botanik { namespace Vars {
      *  register on the Modbus TCP slave, hand-assigned and NOT derived from its
      *  position: an external master's map is a contract, so inserting a
      *  parameter must not renumber the ones after it. The site test asserts no
-     *  two rows share a register.
-     *
-     *  @p flags adds to the F_BOUNDED every band-carrying parameter has: today
-     *  F_STAGED, for a row whose durable copy waits for its group's commit. */
+     *  two rows share a register. */
     constexpr Variable P(const char* name, VarType type, double def, double lo, double hi,
                          uint8_t digits, const char* unit, uint16_t reg,
-                         const char* desc, const char* notes, uint8_t flags = 0) {
+                         const char* desc, const char* notes) {
         return Variable{ num(type, def), name, unit, desc, notes,
                          Payload(num(type, lo), num(type, hi)),
                          { XP_NONE, type, 0, 0, reg, 1, 1.0f, 0.0f }, 0, 0, nullptr,
-                         type, ROLE_PARAM, SCOPE_P, digits,
-                         (uint8_t)(F_BOUNDED | flags), {} };
+                         type, ROLE_PARAM, SCOPE_P, digits, F_BOUNDED, {} };
     }
 
     /** @brief An enumerated **parameter**: a small code the operator reads and
@@ -155,12 +151,11 @@ namespace Botanik { namespace Vars {
      *  @warning The codes are what sits in the store and in an external master's
      *  register, so a converter may gain labels but must never renumber them. */
     constexpr Variable PE(const char* name, uint64_t def, const char* (*str)(uint64_t),
-                          uint16_t reg, const char* desc, const char* notes,
-                          uint8_t flags = 0) {
+                          uint16_t reg, const char* desc, const char* notes) {
         return Variable{ Scalar::U(def), name, "", desc, notes,
                          Payload(Scalar::U(0), Scalar::U(0)),
                          { XP_NONE, T_ENUM, 0, 0, reg, 1, 1.0f, 0.0f }, 0, 0, str,
-                         T_ENUM, ROLE_PARAM, SCOPE_P, 0, flags, {} };
+                         T_ENUM, ROLE_PARAM, SCOPE_P, 0, 0, {} };
     }
 
     /** @brief A text **parameter**: its own factory, since bounds mean nothing

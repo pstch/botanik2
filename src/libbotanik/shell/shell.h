@@ -216,11 +216,10 @@ namespace Botanik { namespace Shell {
         void _cmd_ntpsync(const char* args, uint16_t alen);
         void _cmd_list(const char* args, uint16_t alen);
         void _cmd_get(const char* args, uint16_t alen);
-        void _cmd_set(const char* args, uint16_t alen);
-        void _cmd_override(const char* args, uint16_t alen);
+        void _cmd_params(const char* args, uint16_t alen);
+        void _cmd_overrides(const char* args, uint16_t alen);
         void _cmd_control(const char* args, uint16_t alen);
         void _cmd_save(const char* args, uint16_t alen);
-        void _cmd_console(const char* args, uint16_t alen);
         /** @brief Report control state, naming every hold still in force. */
         void _report_control(Vars::Bank* io);
 

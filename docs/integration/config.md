@@ -280,26 +280,17 @@ They are staged behind `term_serial`, unlike `serial_console_baud`: the three
 describe ONE physical terminal, and applying them one edit at a time walks the
 screen through geometries that match nothing on the wire.
 
-All four rows - the three above plus `serial_console_baud` - are `F_STAGED`, so
-a `set` edits the live value and writes nothing. A commit APPLIES them and opens
-a probation; `console confirm` is the only thing that makes them durable, and a
-timeout, a `console revert` or a power cut all leave flash holding the last
-confirmed set. They can break the very channel used to fix them, and the
-firmware has no handshake to check them with, so the operator's ability to read
-the prompt and type the answer is the check. See `CONSOLE_PROBATION_MS` below
-and @ref user_console.
-
-@note Getting the SIZE wrong is survivable on its own: the screen mangles but
-input is untouched, so the rows can be typed back blind. It is the RATE that
-leaves nothing to type into. The bands (`EDITOR_MIN_COLS`..`TERMINAL_MAX_COLS`,
-12..`TERMINAL_MAX_ROWS`) still bound what a commit may ask for.
+Nothing special guards them, and nothing needs to: like every parameter, an edit
+is live when it is set and durable when it is saved, so a console nobody can read
+was never written and a power cycle brings the last saved one back. The bands
+(`EDITOR_MIN_COLS`..`TERMINAL_MAX_COLS`, 12..`TERMINAL_MAX_ROWS`) bound what a
+commit may ask for. See @ref user_console.
 
 | Macro | Default | |
 |---|---|---|
 | `TERMINAL_TYPE` | 1 | factory default for `term_type`. 0 = VT100, 1 = VT102, 2 = Minitel 1B, 3 = Minitel 2. A plain integer, because this header is included everywhere and must not depend on the console |
 | `CONSOLE_COLS` / `CONSOLE_ROWS` | 80 / 24 | factory defaults for `term_cols` / `term_rows` |
 | `TERMINAL_MAX_COLS` / `_ROWS` | 132 / 32 | largest terminal supported. They size the screen back-buffer (two cell grids, so 2 x their product in RAM) and clamp both the construction geometry and anything the `term_` rows ask for |
-| `CONSOLE_PROBATION_MS` | 60000 | how long a committed console configuration has to be confirmed before it reverts. **0 disables probation**, applying and persisting a commit at once. 60 s because changing the rate means physically reconnecting a terminal at the new speed |
 | `CONSOLE_PAGES_MAX` | 10 | pages the Console multiplexes, at the Alt+`<digit>` ceiling. The full page set is 8, and registration past the cap is refused **silently**, so the headroom is what lets a site splice its own page in |
 
 ### Terminal input decoding

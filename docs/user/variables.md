@@ -11,7 +11,7 @@ What differs is what a variable is *for*:
 | input | comes from the field; goes invalid if the driver stops refreshing it, or if the reading leaves its declared band |
 | output | drives the field; drops to its safe state when control is withdrawn |
 | computed | worked out by the control programs; never expires |
-| parameter | editable and persisted (see @ref user_params) |
+| parameter | editable, and saved when you say so (see @ref user_params) |
 
 An input is invalidated two ways, and the second one matters more than it sounds: a
 reading can be perfectly fresh and still be nonsense. A dead 4-20 mA loop reads full
@@ -58,7 +58,7 @@ means nothing is forced.
 Three annotations on a `list` row matter:
 
 - `(P)`, `(MI)`, `(RO)`, ... - what kind of row it is. Every row carries it:
-  which one you are looking at is what decides whether `set` or `override`
+  which one you are looking at is what decides whether `params set` or `overrides set`
   applies.
 - `OVERRIDDEN` - someone has forced it by hand; the number is not the live one.
 - `(default: nothing has written it)` - no driver has ever published this variable,
@@ -91,12 +91,13 @@ a sensor to exercise the logic watching it, freeze a computed value, or drive an
 actuator by hand.
 
 ```
-botanik> override temp_zone1 35.0       # force a value
-botanik> override temp_zone1            # hold it at whatever it reads now
-botanik> override temp_zone1 35.0 invalid   # force the value AND make it read as dead
-botanik> override temp_zone1 off        # release it
-botanik> override list                  # list everything currently forced
-botanik> override clear                 # release everything (`off` also works)
+botanik> overrides set temp_zone1 35.0     # force a value
+botanik> overrides set temp_zone1          # hold it at whatever it reads now
+botanik> overrides set temp_zone1 35.0 invalid  # force it AND make it read as dead
+botanik> overrides set temp_zone1 off      # release it
+botanik> overrides                         # list everything currently forced
+botanik> overrides clear                   # release everything
+botanik> overrides save                    # ...make them outlive this session
 ```
 
 A forced value reads as **good** unless you say `invalid`, the bare form included: a
@@ -114,28 +115,33 @@ control programs act on it. That is the point, and it is also the risk.
 the override snaps straight back to the live reading, with no gap and nothing to
 restore.
 
-**It survives a reboot.** Each override is persisted under its own storage key,
-separate from any parameter setting underneath it, so clearing one leaves the other
-alone. This is the opposite of what you might expect, and it is the safer of the two:
-an override explains behaviour nothing else accounts for, and after a reboot nobody
-remembers setting it. So the firmware announces restored overrides as a **critical**
-at boot, `override list` says they survive a reboot, and `override clear` clears the
-lot - the stored copy included, so nothing comes back.
+**It does NOT survive a reboot unless you save it.** A forced value lives as long
+as the unit does and no longer, which is what a maintenance tool should do: an
+actuator somebody drove by hand must not come back driven after a power cycle.
+`overrides save` says otherwise - for the dead sensor you have to work around
+until the replacement arrives - and writes each override under its own storage
+key, separate from any parameter setting underneath it, so clearing one leaves
+the other alone.
 
-@warning **That includes overrides on outputs.** One restored at boot is *driving the
-actuator* from that moment. Every restored override is announced as a **critical** on
-the `BOOT` topic naming the row, and an output's says so in as many words - that
-announcement is the only thing standing between a forgotten override and a surprise.
-`override list` before you walk away.
+`overrides clear` releases the lot, stored copies included, so nothing comes
+back. Unlike *setting* one, that reaches flash at once: releasing is unambiguous,
+and an override that outlived its own release would be the worst of both.
+
+@warning **A saved override on an output is driving the actuator from the moment
+it is restored.** Every restored override is announced as a **critical** on the
+`BOOT` topic naming the row, and an output's says so in as many words - that
+announcement is the only thing between a forgotten override and a surprise. Check
+`overrides` before you walk away, and think twice before saving one on an output
+at all.
 
 **It can force the reading's quality too.** A trailing `valid` / `invalid` says what
 the forced value reads as, so "force this to 20 C" and "make this read as a dead
 sensor" are both expressible. MONITOR reports the second as
-`OVERRIDDEN (forced invalid)` and `override list` flags it as `(reading as invalid)`.
+`OVERRIDDEN (forced invalid)` and `overrides` flags it as `(reading as invalid)`.
 The forced value is still what a reader gets, so this is not the same as simulating
 the timeout fallback.
 
-Unlike `set`, an override is checked only against the variable's *type*, not its
+Unlike `params set`, an override is checked only against the variable's *type*, not its
 declared plausibility band - so you can push a reading past what the site considers
 possible, which is usually the whole reason for forcing it.
 

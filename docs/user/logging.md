@@ -45,7 +45,7 @@ sys_log_level = debug
 ...
 Range ....................... : debug|info|notice|warning|error|critical
 
-botanik> set sys_log_level warning      # quieten everything below warnings
+botanik> params set sys_log_level warning      # quieten everything below warnings
 ```
 
 It reads and writes as a **word**, and `get` lists the whole vocabulary on its
@@ -53,9 +53,9 @@ It reads and writes as a **word**, and `get` lists the whole vocabulary on its
 those words is refused rather than stored - there is no rounding to a nearby
 level, because a level is not a quantity.
 
-It is an ordinary parameter otherwise, so it persists, and the PARAMS page and a
-Modbus master reach the same setting. `BOTANIK_LOG_MIN_LEVEL` is the factory
-value.
+It is an ordinary parameter otherwise: the PARAMS page and a Modbus master reach
+the same setting, and like every parameter it is live at once and durable only
+after `params save`. `BOTANIK_LOG_MIN_LEVEL` is the factory value.
 
 @note Over Modbus it is the level's own **code** that travels - 1 debug, 2 info,
 4 notice, 8 warning, 16 error, 32 critical. Those codes are also what sits in

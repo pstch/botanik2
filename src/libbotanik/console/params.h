@@ -21,21 +21,18 @@
  *  nothing on the wire - a 40-column Minitel briefly driven as 80-column VT102
  *  is a garbled repaint per edit. Staged, the swap lands in one.
  *
- *  @section term_probation Why nothing here reaches flash on a `set`
+ *  @section term_recovery Getting it wrong
  *
- *  Every row below is `F_STAGED`, and so is `serial_console_baud`: these are the
- *  settings that can break the very channel used to fix them, so a commit
- *  APPLIES them and starts a probation instead of making them durable. The
- *  operator then types `console confirm` from the far end, and being able to
- *  type it is the proof the firmware cannot get any other way - there is no
- *  resize handshake and no rate negotiation to ask the terminal what it really
- *  is. Anything else - a wrong answer, a silence, a power cut - leaves flash
- *  holding the last CONFIRMED set and the previous settings come back.
+ *  Nothing here can be verified from this end: there is no resize handshake and
+ *  no rate negotiation, so a wrong answer is visible only to whoever is in front
+ *  of the terminal. What makes that survivable is the rule the whole table
+ *  follows - an edit is LIVE when it is set and DURABLE when it is saved - so a
+ *  console nobody can read was never written, and a power cycle brings the last
+ *  saved one back. There is nothing special about these rows.
  *
- *  Getting the SIZE wrong is survivable without any of this: the screen mangles
- *  but input is untouched, so the rows can be typed back blind. It is the RATE
- *  that cannot be, and the four commit as one because a terminal swap is
- *  usually both. @see Config::CONSOLE_PROBATION_MS
+ *  Getting the SIZE wrong is milder still: the screen mangles but input is
+ *  untouched, so the rows can be typed back blind. It is the RATE that leaves
+ *  nothing to type into, and the power cycle is what answers it.
  *
  *  Registers 960-963, inside the library's 900-999 reserve: clear of the mb_
  *  rows below them and of the alarms at its top.
@@ -56,25 +53,20 @@
  *  pulled `Botanik::Vars` in; each row carries its own trailing comma, so an
  *  empty group vanishes cleanly. */
 #define BOTANIK_CONSOLE_PARAM_VARS                                             \
-    /* term_: BotanikFirmware reads these by name, so the library declares them.\
-       All F_STAGED - see @ref term_probation. */                              \
+    /* term_: BotanikFirmware reads these by name, so the library declares them */ \
     ::Botanik::Vars::P("term_serial", ::Botanik::Vars::T_U32,                  \
         1, 0, 9999, 0, "", 960,                                                \
-        "bump to apply staged term_ edits", "",                                \
-        ::Botanik::Vars::F_STAGED),                                            \
+        "bump to apply staged term_ edits", ""),                               \
     ::Botanik::Vars::P("term_type", ::Botanik::Vars::T_U8,                     \
         BOTANIK_TERMINAL_TYPE, 0, 3, 0, "", 961,                               \
         "which terminal is on the console",                                    \
-        "0=VT100 1=VT102 2=Minitel 1B 3=Minitel 2",                            \
-        ::Botanik::Vars::F_STAGED),                                            \
+        "0=VT100 1=VT102 2=Minitel 1B 3=Minitel 2"),                           \
     ::Botanik::Vars::P("term_cols", ::Botanik::Vars::T_U16,                    \
         BOTANIK_CONSOLE_COLS, BOTANIK_EDITOR_MIN_COLS,                         \
         BOTANIK_TERMINAL_MAX_COLS, 0, "col", 962,                              \
-        "console width, in columns", "the screen buffer bounds the maximum",   \
-        ::Botanik::Vars::F_STAGED),                                            \
+        "console width, in columns", "the screen buffer bounds the maximum"),  \
     ::Botanik::Vars::P("term_rows", ::Botanik::Vars::T_U16,                    \
         BOTANIK_CONSOLE_ROWS, 12, BOTANIK_TERMINAL_MAX_ROWS, 0, "row", 963,    \
-        "console height, in rows", "the screen buffer bounds the maximum",     \
-        ::Botanik::Vars::F_STAGED),
+        "console height, in rows", "the screen buffer bounds the maximum"),
 
 #endif // CONSOLE_PARAMS_H

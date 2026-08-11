@@ -69,9 +69,9 @@ valve or a fan by hand:
 
 ```
 botanik> control inhibit
-botanik> override irr_tray1 1        # open tray 1's valve
-botanik> override irr_tray1 0        # close it
-botanik> override clear              # hand everything back
+botanik> overrides set irr_tray1 1   # open tray 1's valve
+botanik> overrides set irr_tray1 0   # close it
+botanik> overrides clear             # hand everything back
 botanik> control enable
 ```
 
@@ -86,7 +86,7 @@ programs, and those are exactly what you just stopped. Release the overrides bef
 
 Overrides survive a reboot, and an output's is no exception - a restored one is
 driving the actuator from the moment the firmware comes up. The firmware announces
-each restored override as a **critical** naming the row, but `override clear` before
+each restored override as a **critical** naming the row, but `overrides clear` before
 you leave is the habit worth having. See @ref user_variables.
 
 `control enable` releases the **operator's** hold and nothing else, then reports what

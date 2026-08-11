@@ -369,18 +369,15 @@ namespace Botanik { namespace Vars {
     }
 
     SetResult Bank::set(Var h, Scalar v) {
-        const SetResult r = set_deferred(h, v);
-        if (r != SET_OK) return r;
-        return persist(h);
-    }
-
-    SetResult Bank::set_deferred(Var h, Scalar v) {
         if (check(h, v) != SET_OK) return SET_INVALID;
         const Variable* d = h.meta();
         Value* slot = editable_slot(_tables, d);
         if (slot == nullptr) return SET_INVALID;
-        slot->v    = v;
-        slot->qual = Q_GOOD;
+        slot->v     = v;
+        slot->qual  = Q_GOOD;
+        // Live now, durable when somebody saves. See the header: it is the one
+        // rule that makes a setting able to break its own console recoverable.
+        slot->vflags = (uint8_t)(slot->vflags | VF_UNSAVED);
         return SET_OK;
     }
 
@@ -388,7 +385,45 @@ namespace Botanik { namespace Vars {
         const Variable* d = h.meta();
         Value* slot = editable_slot(_tables, d);
         if (slot == nullptr) return SET_INVALID;
-        return _persist_param(h, *d, *slot);
+        const SetResult r = _persist_param(h, *d, *slot);
+        // Only a real write clears the mark: a store that refused still owes
+        // this row, and `params` must go on saying so.
+        if (r == SET_OK) slot->vflags = (uint8_t)(slot->vflags & ~VF_UNSAVED);
+        return r;
+    }
+
+    uint16_t Bank::save_params() {
+        uint16_t written = 0;
+        for (uint16_t i = 0; i < _tables.count; i++) {
+            if ((_tables.val[i].vflags & VF_UNSAVED) == 0) continue;
+            if (persist(var(i)) == SET_OK) written++;
+        }
+        return written;
+    }
+
+    uint16_t Bank::unsaved_params() const {
+        uint16_t n = 0;
+        for (uint16_t i = 0; i < _tables.count; i++)
+            if ((_tables.val[i].vflags & VF_UNSAVED) != 0) n++;
+        return n;
+    }
+
+    uint16_t Bank::save_overrides() {
+        uint16_t written = 0;
+        for (uint16_t i = 0; i < _tables.count; i++) {
+            if ((_tables.val[i].vflags & VF_OVR_UNSAVED) == 0) continue;
+            _persist_override(var(i));
+            _tables.val[i].vflags = (uint8_t)(_tables.val[i].vflags & ~VF_OVR_UNSAVED);
+            written++;
+        }
+        return written;
+    }
+
+    uint16_t Bank::unsaved_overrides() const {
+        uint16_t n = 0;
+        for (uint16_t i = 0; i < _tables.count; i++)
+            if ((_tables.val[i].vflags & VF_OVR_UNSAVED) != 0) n++;
+        return n;
     }
 
     SetResult Bank::set(Var h, const char* text) {
@@ -412,12 +447,11 @@ namespace Botanik { namespace Vars {
             slot.qual = Q_GOOD;
         }
 
-        // A staged row is live now and durable later: its group's commit calls
-        // persist() once the new setting has proved itself. SET_OK because the
-        // EDIT took - SET_NOT_PERSISTED is a store that refused, which is a
-        // fault, and this is the row doing what it was declared to do.
-        if ((d->flags & F_STAGED) != 0) return SET_OK;
-        return _persist_param(h, *d, slot);
+        // Live now, durable when saved - see the header. SET_OK because the EDIT
+        // took: SET_NOT_PERSISTED means a store REFUSED a write, which is a
+        // fault, and no write was attempted here.
+        slot.vflags = (uint8_t)(slot.vflags | VF_UNSAVED);
+        return SET_OK;
     }
 
     SetResult Bank::_persist_param(Var h, const Variable& d, Value& slot) {
@@ -452,13 +486,25 @@ namespace Botanik { namespace Vars {
     void Bank::override_set(Var h, Scalar v, bool valid) {
         h.override_set(v, valid);
         (void)_sync_override_mute(_row_of(h));
-        _persist_override(h);
+        _mark_override_unsaved(h);
     }
 
     void Bank::override_freeze(Var h) {
         h.override_freeze();
         (void)_sync_override_mute(_row_of(h));
-        _persist_override(h);
+        _mark_override_unsaved(h);
+    }
+
+    void Bank::_mark_override_unsaved(Var h) {
+        // A forced value does NOT reach flash on its own. An override is a
+        // maintenance tool - a sensor held, an actuator driven by hand - and one
+        // that resurrects itself at the next boot is the thing a safe state
+        // exists to prevent; the system's health hold already erases them for
+        // that reason. So it lives for as long as the unit does, and outlives it
+        // only if somebody says `overrides save`.
+        const uint16_t row = _row_of(h);
+        if (row == VAR_NONE) return;
+        _tables.val[row].vflags = (uint8_t)(_tables.val[row].vflags | VF_OVR_UNSAVED);
     }
 
     bool Bank::_sync_override_mute(uint16_t i) {
@@ -475,10 +521,14 @@ namespace Botanik { namespace Vars {
 
     void Bank::override_clear(Var h) {
         h.override_clear();
-        // Forget the stored copy too, or the override comes back at the next
-        // boot.
-        if (_store != nullptr && _row_of(h) != VAR_NONE)
-            (void)_store->clear_override(*h.meta());
+        const uint16_t row = _row_of(h);
+        if (row == VAR_NONE) return;
+        _tables.val[row].vflags = (uint8_t)(_tables.val[row].vflags & ~VF_OVR_UNSAVED);
+        // Erased NOW, not on the next `overrides save`, and that asymmetry with
+        // setting one is deliberate: releasing is unambiguous, and an override
+        // that survived its own release to come back at the next boot is the
+        // hazard the whole arrangement exists to avoid.
+        if (_store != nullptr) (void)_store->clear_override(*h.meta());
     }
 
     uint16_t Bank::_row_of(Var h) const {
@@ -552,6 +602,7 @@ namespace Botanik { namespace Vars {
         for (uint16_t i = 0; i < _tables.count; i++) {
             if (!_tables.val[i].ovr_on) continue;
             _tables.val[i].ovr_on = false;
+            _tables.val[i].vflags = (uint8_t)(_tables.val[i].vflags & ~VF_OVR_UNSAVED);
             if (_store != nullptr) (void)_store->clear_override(_tables.var[i]);
             // The field owes the programs' demand again; a release never written
             // out would leave the actuator where the maintainer left it.

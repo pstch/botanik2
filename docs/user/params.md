@@ -1,8 +1,8 @@
 # Parameters {#user_params}
 
 A parameter is just a variable with the parameter role: editable, range-checked, and
-saved. Everything else about it - name, type, unit, description - works exactly as in
-@ref user_variables. The PARAMS page and the `set` command are the two ways to reach
+saved when you say so. Everything else about it - name, type, unit, description - works exactly as in
+@ref user_variables. The PARAMS page and the `params set` command are the two ways to reach
 one, and both call them parameters; nothing in the firmware calls them "settings".
 
 ## Editing one
@@ -11,23 +11,32 @@ Two equivalent routes:
 
 - **PARAMS page** - select, `ENTER`, type, `ENTER`. The panel shows the minimum,
   maximum and description before you commit. See @ref user_pages.
-- **`set` from the shell** - `set ntp_poll_sec 1800`.
+- **`params set` from the shell** - `params set ntp_poll_sec 1800`, then `params save`.
 
 Either way the value is parsed, checked against the parameter's declared band, and
-written to persistent storage. Three outcomes:
+applied - but **not written**. Two outcomes:
 
 | Result | Meaning |
 |---|---|
-| `<name> = <value>` | done, and saved |
-| `set: invalid value for <name>` | rejected: wrong format or out of range. Nothing changed |
-| `<name> = <value>  (NOT SAVED: storage refused it)` | **applied but not saved.** The value is live now and will be lost on reboot |
+| `<name> = <value>  (unsaved)` | live now, and gone at the next reboot until you save |
+| `params: invalid value for <name>` | rejected: wrong format or out of range. Nothing changed |
 
-That third case is a storage fault, not a bad value - it also raises the `FLASH_FLT`
-alarm. See @ref user_alarms.
+**An edit is live when you set it and durable when you save it.** `params save`
+writes everything pending; `params` with no argument lists what is still owed.
+That one rule covers the whole table, and it is what makes a bad setting
+recoverable: a value that breaks the console it was typed on was never written,
+so a power cycle brings the last saved one back.
 
-`set` only works on parameters. Pointing it at a sensor or an output is refused with
-a hint to use `override` instead: writing those would simply be overwritten on the
-next scan.
+@warning It also means unsaved work is losable. Nothing writes on your behalf -
+not a reboot, not `reset`, not `exit`. Check `params` before you walk away.
+
+A save can itself fail, which is a storage fault rather than a bad value: the row
+keeps its `(unsaved)` mark so `params` goes on reporting the debt, and the
+`FLASH_FLT` alarm is raised. See @ref user_alarms.
+
+`params set` only works on parameters. Pointing it at a sensor or an output is
+refused with a hint to use `overrides set` instead: writing those would simply be
+overwritten on the next scan.
 
 Storage is one key per parameter, named after it, so adding, removing or reordering
 parameters never invalidates the others.
@@ -39,19 +48,20 @@ serial** - a parameter named `<group>_serial`, so it files under its own group l
 every other row in it. The component that consumes a group re-reads all of it, and
 restarts, when that serial changes.
 
-@warning Editing a parameter does **not** apply it. The value is saved immediately,
-but the component keeps running on what it read last. You must bump the group's
-serial to make it take effect.
+@warning Editing a parameter does **not** apply it. The component keeps running on
+what it read last, so you must bump the group's serial to make it take effect -
+and then `params save` if you want it to survive a reboot.
 
-So a change is always two steps: edit, then commit.
+So a change is edit, commit, and save.
 
 ```
-botanik> set net_dhcp 0
-botanik> set net_ip 192.168.1.40
-botanik> set net_mask 255.255.255.0
-botanik> set net_gw 192.168.1.1
-botanik> set net_dns1 192.168.1.1
-botanik> set net_serial 2           # <- apply the whole group
+botanik> params set net_dhcp 0
+botanik> params set net_ip 192.168.1.40
+botanik> params set net_mask 255.255.255.0
+botanik> params set net_gw 192.168.1.1
+botanik> params set net_dns1 192.168.1.1
+botanik> params set net_serial 2           # <- apply the whole group
+botanik> params save                       # <- ...and keep it
 ```
 
 Any new value will do, as long as it differs from the current one; incrementing is

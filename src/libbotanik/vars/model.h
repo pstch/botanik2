@@ -155,20 +155,7 @@ namespace Botanik { namespace Vars {
          *  Saved on a cadence and on the way down, never on the write: a
          *  totalizer moves every beat, and a flash write per beat would wear the
          *  part out in days. @see Bank::save_retained() */
-        F_RETAIN = 1u << 4,
-        /** @brief This parameter's durable copy waits for its group's commit.
-         *
-         *  `set()` edits the live value and reports SET_OK as usual, but writes
-         *  nothing; whoever owns the group calls persist() once the staged rows
-         *  have been applied AND proved good.
-         *
-         *  For the settings that can break the very channel used to fix them -
-         *  the console's rate, make and size. Their commit puts the new values
-         *  on probation, and flash must go on holding the last CONFIRMED set for
-         *  as long as that runs, or a power cut inside the probation window
-         *  makes the bad configuration permanent - which is the one thing
-         *  probation exists to prevent. @see Config::CONSOLE_PROBATION_MS */
-        F_STAGED = 1u << 5
+        F_RETAIN = 1u << 4
     };
 
     /** @brief Per-slot state bits, as opposed to the row's declared behaviour.
@@ -188,7 +175,17 @@ namespace Botanik { namespace Vars {
          *  field: CONTROL_DISABLED. The override is NOT erased, so leaving that
          *  mode restores it. ROLE_OUTPUT only, and maintained by the Bank alone.
          *  @see Bank::set_control_mode() */
-        VF_OVR_MUTED   = 1u << 2
+        VF_OVR_MUTED   = 1u << 2,
+        /** @brief This parameter has been edited and not yet written to flash.
+         *
+         *  Set by set(), cleared by persist(). What `params save` walks and what
+         *  `params` reports, so "edits are pending" is never a thing the
+         *  operator has to remember rather than read. */
+        VF_UNSAVED     = 1u << 3,
+        /** @brief The same for this row's override. Separate, because the
+         *  override and the setting underneath it are separate facts with
+         *  separate storage keys: saving one must not quietly save the other. */
+        VF_OVR_UNSAVED = 1u << 4
     };
 
     /** @brief What the firmware may drive, strictest first. The order is
@@ -558,6 +555,13 @@ namespace Botanik { namespace Vars {
 
         /** @brief True while this variable is forced. */
         bool overridden() const { return _v->ovr_on; }
+
+        /** @brief This parameter has been edited and not yet written to flash.
+         *  @see Bank::save_params() */
+        bool unsaved() const { return (_v->vflags & VF_UNSAVED) != 0; }
+        /** @brief This row's override has not yet been written to flash.
+         *  @see Bank::save_overrides() */
+        bool override_unsaved() const { return (_v->vflags & VF_OVR_UNSAVED) != 0; }
 
         /** @} */
 
@@ -1099,20 +1103,39 @@ namespace Botanik { namespace Vars {
          *  T_STR is refused: its text lives in the pool, not the slot. */
         SetResult set(Var h, Scalar v);
 
-        /** @brief Apply @p v now and leave the flash write to the caller.
-         *
-         *  Storage is synchronous, so a caller committing many rows at once must
-         *  pace the writes or stall the beat (one Modbus request can cover 61
-         *  parameters). The value is live immediately; only the durable copy is
-         *  deferred.
-         *
-         *  @warning Pair every SET_OK with a persist(), or the setting is
-         *  silently lost at the next reboot. */
-        SetResult set_deferred(Var h, Scalar v);
-
-        /** @brief Write @p h's current value to the store. The other half of
-         *  set_deferred(); harmless on a row that is already durable. */
+        /** @brief Write @p h's current value to the store, clearing VF_UNSAVED.
+         *  Harmless on a row that is already durable. */
         SetResult persist(Var h);
+
+        /** @name Making edits durable
+         *
+         *  Nothing an operator changes reaches flash on its own. An edit is LIVE
+         *  at once and DURABLE when it is saved, and the two are separate acts
+         *  (`params set` then `params save`).
+         *
+         *  That is what makes every misconfiguration recoverable by the same
+         *  move: a setting that can break the console it was typed on - the
+         *  rate, the make, the size - was never written, so a power cycle brings
+         *  the last saved one back. No per-setting timer, no confirmation
+         *  protocol, one rule for the whole table.
+         *
+         *  @warning The cost is a state that can lose work: edits sit unsaved
+         *  until somebody says otherwise. `unsaved_params()` is what the shell
+         *  reports so that state is never silent.
+         *  @{ */
+
+        /** @brief Persist every parameter edited since the last save.
+         *  @return rows written. */
+        uint16_t save_params();
+        /** @brief Persist every override set since the last save.
+         *  @return rows written. */
+        uint16_t save_overrides();
+        /** @brief Parameters edited but not yet written. */
+        uint16_t unsaved_params() const;
+        /** @brief Overrides set but not yet written. */
+        uint16_t unsaved_overrides() const;
+
+        /** @} */
 
         /** @brief Force @p h to @p text until override_clear(). T_STR is refused
          *  (a hostname is configuration, not a field signal); everything else,
@@ -1164,6 +1187,8 @@ namespace Botanik { namespace Vars {
         uint16_t _row_of(Var h) const;
         /** @brief Write @p h's override through to the store. */
         void _persist_override(Var h);
+        /** @brief Mark @p h's override as owing a write, for save_overrides(). */
+        void _mark_override_unsaved(Var h);
         /** @brief Write an edited parameter through to the store, and say so
          *  loudly when the store refuses. Shared by both set() overloads. */
         SetResult _persist_param(Var h, const Variable& d, Value& slot);

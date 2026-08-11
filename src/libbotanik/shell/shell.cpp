@@ -102,12 +102,11 @@ namespace Botanik { namespace Shell {
                                                      &CommandShell::_cmd_modbus   },
             { "list",       "[<prefix>] list variables",      &CommandShell::_cmd_list       },
             { "get",        "<name>  read a variable",        &CommandShell::_cmd_get        },
-            { "set",        "<name> <value>  edit a parameter", &CommandShell::_cmd_set       },
-            { "override",   "list|clear|<name> [off|<value>] [valid|invalid]", &CommandShell::_cmd_override },
+            { "params",     "[set <name> <value>|save]  edit parameters", &CommandShell::_cmd_params },
+            { "overrides",  "[set <name> [off|<value>] [valid|invalid]|clear|save]",
+                                                     &CommandShell::_cmd_overrides },
             { "control",    "[enable|inhibit|disable] drive the field", &CommandShell::_cmd_control },
-            { "save",       "flush retained values to flash", &CommandShell::_cmd_save      },
-            { "console",    "[confirm|revert] keep or undo console settings",
-                                                     &CommandShell::_cmd_console  },
+            { "save",       "write every pending change to flash", &CommandShell::_cmd_save },
             { "version",    "firmware version",               &CommandShell::_cmd_version    },
             { "features",   "which subsystems are built in",  &CommandShell::_cmd_features   },
             { "breakpoint", "trap into an attached debugger", &CommandShell::_cmd_breakpoint },
@@ -724,23 +723,56 @@ namespace Botanik { namespace Shell {
         else        _emitf(out, sizeof(out), "  %u variable(s)", n);
     }
 
-    void CommandShell::_cmd_set(const char* args, uint16_t alen) {
+    void CommandShell::_cmd_params(const char* args, uint16_t alen) {
         Vars::Bank* io = _bank();
-        if (io == nullptr) { _println("set: no variables"); return; }
+        if (io == nullptr) { _println("params: no variables"); return; }
+        char out[128];
+
+        uint16_t ws = 0;
+        const char* sub = arg_next(args, alen, ws);
+
+        // Bare `params`: what is edited and not yet written. This is the ONLY
+        // thing that says so, and an edit costs nothing until it is saved, so a
+        // silent pending state is how an afternoon's tuning gets lost to a power
+        // blip. Names them, because "3 unsaved" is not a diagnosis.
+        if (sub == nullptr) {
+            const uint16_t n = io->unsaved_params();
+            if (n == 0) { _println("params: nothing unsaved"); return; }
+            for (uint16_t i = 0; i < io->count(); i++) {
+                Vars::Var h = io->var(i);
+                if (!h.unsaved()) continue;
+                char val[48];
+                _emitf(out, sizeof(out), "  %-24s %s", h.meta()->name,
+                       Vars::var_format(*io, h, val, sizeof(val)));
+            }
+            _emitf(out, sizeof(out), "%u unsaved (`params save` to write)", n);
+            return;
+        }
+
+        if (arg_eq(sub, ws, "save")) {
+            const uint16_t n = io->save_params();
+            if (n == 0) _println("params: nothing to save");
+            else _emitf(out, sizeof(out), "params: %u written", (unsigned)n);
+            return;
+        }
+
+        if (!arg_eq(sub, ws, "set")) {
+            _println("usage: params [set <parameter> <value>|save]"); return;
+        }
+
         uint16_t wn; const char* nm = arg_next(args, alen, wn);
         uint16_t wv; const char* v  = arg_next(args, alen, wv);
         if (nm == nullptr || v == nullptr) {
-            _println("usage: set <parameter> <value>"); return;
+            _println("usage: params set <parameter> <value>"); return;
         }
-        char out[128];
         const Vars::VarRef r = io->find(nm, wn);
-        if (r.index == Vars::VAR_NONE) { _println("set: unknown variable"); return; }
+        if (r.index == Vars::VAR_NONE) { _println("params: unknown variable"); return; }
         Vars::Var p = io->var(r);
-        // Point at `override` rather than failing flatly: the next scan would
-        // put a value written here straight back.
+        // Point at `overrides set` rather than failing flatly: the next scan
+        // would put a value written here straight back.
         if (p.role() != Vars::ROLE_PARAM) {
             _emitf(out, sizeof(out),
-                   "set: %s is not a parameter (override %s <value> to force it)",
+                   "params: %s is not a parameter (overrides set %s <value> forces it)",
                    p.meta()->name, p.meta()->name);
             return;
         }
@@ -749,60 +781,76 @@ namespace Botanik { namespace Shell {
         uint16_t vc = std::min(wv, (uint16_t)(sizeof(val) - 1));
         memcpy(val, v, vc); val[vc] = '\0';
 
-        switch (io->set(p, val)) {
-            case Vars::SET_OK:
-                _emitf(out, sizeof(out), "%s = %s", p.meta()->name, val);
-                break;
-            case Vars::SET_NOT_PERSISTED:
-                // Live, but it dies at the next reboot: say which of the two
-                // failed, the fixes are different.
-                _emitf(out, sizeof(out), "%s = %s  (NOT SAVED: storage refused it)",
-                       p.meta()->name, val);
-                break;
-            default:
-                _emitf(out, sizeof(out), "set: invalid value for %s",
-                       p.meta()->name);
-                break;
+        if (io->set(p, val) != Vars::SET_OK) {
+            _emitf(out, sizeof(out), "params: invalid value for %s", p.meta()->name);
+            return;
         }
+        // "unsaved" on the confirmation of every edit, not just once a session:
+        // the value is LIVE now and gone at the next reboot, and telling the two
+        // apart is the operator's whole job here.
+        _emitf(out, sizeof(out), "%s = %s  (unsaved)", p.meta()->name, val);
     }
 
-    void CommandShell::_cmd_override(const char* args, uint16_t alen) {
+    void CommandShell::_cmd_overrides(const char* args, uint16_t alen) {
         Vars::Bank* io = _bank();
-        if (io == nullptr) { _println("override: no variables"); return; }
+        if (io == nullptr) { _println("overrides: no variables"); return; }
 
         char out[128];
-        uint16_t wn = 0;
-        const char* nm = arg_next(args, alen, wn);
+        uint16_t ws = 0;
+        const char* sub = arg_next(args, alen, ws);
 
-        // `override list` (or a bare `override`): what is forced right now. An
-        // override is persisted and outlives the session that set it, so it
-        // must be one command away.
-        if (nm == nullptr || arg_eq(nm, wn, "list")) {
+        // Bare `overrides` (or `overrides list`): what is forced right now, and
+        // what of it would not survive a reboot. An override drives the plant by
+        // hand, so both halves have to be one command away.
+        if (sub == nullptr || arg_eq(sub, ws, "list")) {
             char val[48];
             uint16_t n = 0;
             for (uint16_t i = 0; i < io->count(); i++) {
                 Vars::Var h = io->var(i);
                 if (!h.overridden()) continue;
                 const char* s = Vars::var_format(*io, h, val, sizeof(val));
-                _emitf(out, sizeof(out), "  %-20s %-12s %s",
-                       h.meta()->name, s, h.valid() ? "" : "(reading as invalid)");
+                _emitf(out, sizeof(out), "  %-20s %-12s %s%s",
+                       h.meta()->name, s, h.valid() ? "" : "(reading as invalid) ",
+                       h.override_unsaved() ? "(unsaved)" : "");
                 n++;
             }
-            if (n == 0) _println("override: none active");
-            else _emitf(out, sizeof(out), "%u override(s) active (`override clear` to clear)" , n);
+            if (n == 0) { _println("overrides: none active"); return; }
+            const uint16_t u = io->unsaved_overrides();
+            _emitf(out, sizeof(out),
+                   "%u active, %u unsaved (`overrides clear` / `overrides save`)",
+                   n, u);
             return;
         }
 
-        // "override clear" releases the lot; "off" is an accepted synonym,
-        // since that is what `override <name> off` says.
-        if (arg_eq(nm, wn, "clear") || arg_eq(nm, wn, "off")) {
-            _emitf(out, sizeof(out), "override: cleared %u",
-                   io->clear_overrides());
+        // Releases the lot. Unlike setting one, this reaches the store at once:
+        // an override that survived its own release to come back at the next
+        // boot is the hazard the safe state exists to prevent.
+        if (arg_eq(sub, ws, "clear")) {
+            _emitf(out, sizeof(out), "overrides: cleared %u", io->clear_overrides());
             return;
         }
 
+        if (arg_eq(sub, ws, "save")) {
+            const uint16_t n = io->save_overrides();
+            if (n == 0) { _println("overrides: nothing to save"); return; }
+            // CRITICAL, not a reply: this is the moment a hand-driven plant
+            // becomes something that outlives the reboot, and the boot that
+            // restores it says so just as loudly.
+            _emitf(out, sizeof(out), "overrides: %u written - they now survive a reboot",
+                   (unsigned)n);
+            return;
+        }
+
+        if (!arg_eq(sub, ws, "set")) {
+            _println("usage: overrides [set <name> [off|<value>] [valid|invalid]|clear|save]");
+            return;
+        }
+
+        uint16_t wn = 0;
+        const char* nm = arg_next(args, alen, wn);
+        if (nm == nullptr) { _println("usage: overrides set <name> [<value>]"); return; }
         const Vars::VarRef r = io->find(nm, wn);
-        if (r.index == Vars::VAR_NONE) { _println("override: unknown variable"); return; }
+        if (r.index == Vars::VAR_NONE) { _println("overrides: unknown variable"); return; }
         Vars::Var h = io->var(r);
 
         uint16_t wa = 0;
@@ -816,7 +864,7 @@ namespace Botanik { namespace Shell {
             _emitf(out, sizeof(out), "%s: override off", h.meta()->name);
             return;
         }
-        // "on" is optional sugar: "override x 20" and "override x on 20" are
+        // "on" is optional sugar: `overrides set x 20` and `... x on 20` are
         // the same thing, and a bare name freezes.
         if (a != nullptr && arg_eq(a, wa, "on")) a = arg_next(args, alen, wa);
 
@@ -840,7 +888,7 @@ namespace Botanik { namespace Shell {
             // variable's current quality. Through the bank, not the handle.
             io->override_set(h, h.raw(), valid);
             const char* s = Vars::var_format(*io, h, val, sizeof(val));
-            _emitf(out, sizeof(out), "%s: frozen at %s%s", h.meta()->name, s,
+            _emitf(out, sizeof(out), "%s: frozen at %s%s  (unsaved)", h.meta()->name, s,
                    h.valid() ? "" : " (reading as invalid)");
             return;
         }
@@ -856,12 +904,12 @@ namespace Botanik { namespace Shell {
         (void)take_validity(t, wt);
 
         if (io->override_set(h, text, valid) != Vars::SET_OK) {
-            _emitf(out, sizeof(out), "override: invalid value for %s",
+            _emitf(out, sizeof(out), "overrides: invalid value for %s",
                    h.meta()->name);
             return;
         }
         const char* s = Vars::var_format(*io, h, val, sizeof(val));
-        _emitf(out, sizeof(out), "%s: forced to %s%s", h.meta()->name, s,
+        _emitf(out, sizeof(out), "%s: forced to %s%s  (unsaved)", h.meta()->name, s,
                valid ? "" : " (reading as invalid)");
     }
 
@@ -919,68 +967,25 @@ namespace Botanik { namespace Shell {
 
     void CommandShell::_cmd_save(const char* args, uint16_t alen) {
         (void)args; (void)alen;
-        Vars::Params* p = _params();
-        if (p == nullptr) { _println("save: no parameters"); return; }
-        // Parameters are written the moment they are set (bar the staged console
-        // rows, which `console confirm` writes), so there is nothing of theirs
-        // pending: what this flushes is the RETAINED rows, whose whole point is
-        // that they are written on a cadence rather than per change. Say which,
-        // or "save" reads as "my `set` did not take".
-        char out[96];
-        const uint16_t n = p->save_retained(HAL::Clock::uptime_ms());
-        if (n == 0) { _println("save: no retained values"); return; }
-        _emitf(out, sizeof(out), "save: %u retained value(s) written", (unsigned)n);
-    }
-
-    void CommandShell::_cmd_console(const char* args, uint16_t alen) {
-        ConsoleConfig* cfg = _sys != nullptr ? _sys->console_cfg : nullptr;
-        if (cfg == nullptr) { _println("console: no console configuration"); return; }
-
-        uint16_t wlen = 0;
-        const char* w = arg_next(args, alen, wlen);
+        Vars::Bank*   io = _bank();
+        Vars::Params* p  = _params();
+        if (io == nullptr || p == nullptr) { _println("save: no variables"); return; }
+        // Everything pending, in one word. Three different kinds of state -
+        // edited settings, forced values, and counters that ARE their own
+        // history - but one moment when you want them all on flash, which is
+        // just before the power goes. `params save` / `overrides save` stay for
+        // when you mean only one of them.
         char out[128];
-
-        if (w == nullptr) {
-            if (!cfg->on_probation()) {
-                _println("console: settings confirmed, nothing pending");
-                return;
-            }
-            // Seconds LEFT, not the deadline: the operator is watching a clock
-            // that started when they committed, not this unit's uptime.
-            const uint64_t now  = HAL::Clock::uptime_ms();
-            const uint64_t left = cfg->probation_until_ms > now
-                                ? cfg->probation_until_ms - now : 0;
-            _emitf(out, sizeof(out), "console: ON PROBATION, %lu s left",
-                   (unsigned long)(left / 1000u));
-            _println("`console confirm` keeps them, `console revert` puts the old ones back");
-            return;
-        }
-
-        if (arg_eq(w, wlen, "confirm")) {
-            // Not an error worth a usage line: the operator did the right thing
-            // and was beaten to it by the timeout, or never needed to.
-            if (!cfg->on_probation()) {
-                _println("console: nothing to confirm (already saved, or already reverted)");
-                return;
-            }
-            cfg->confirm = true;
-            _println("console: confirmed; saving these settings");
-            return;
-        }
-        if (arg_eq(w, wlen, "revert")) {
-            if (!cfg->on_probation()) {
-                _println("console: nothing pending to revert");
-                return;
-            }
-            cfg->revert = true;
-            _println("console: reverting to the previous settings");
-            return;
-        }
-        _println("usage: console [confirm|revert]");
+        const uint16_t np = io->save_params();
+        const uint16_t no = io->save_overrides();
+        const uint16_t nr = p->save_retained(HAL::Clock::uptime_ms());
+        if (np == 0 && no == 0 && nr == 0) { _println("save: nothing pending"); return; }
+        _emitf(out, sizeof(out),
+               "save: %u parameter(s), %u override(s), %u retained value(s)",
+               (unsigned)np, (unsigned)no, (unsigned)nr);
     }
 
 #if !BOTANIK_FEATURE_NETWORK
-
     void CommandShell::_cmd_net(const char*, uint16_t) {
         _println("net: networking disabled");
     }

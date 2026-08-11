@@ -77,9 +77,6 @@ namespace Botanik {
         _sys_ctx.tasks     = &_tasks;
         _sys_ctx.vars      = &_io;
         _sys_ctx.params    = &_params;
-#if BOTANIK_FEATURE_CONSOLE
-        _sys_ctx.console_cfg = &_console_cfg;
-#endif
 #if BOTANIK_FEATURE_NETWORK
         _sys_ctx.network = &_net.network();
 #endif
@@ -193,9 +190,8 @@ namespace Botanik {
         // Likewise the console, and here rather than on the first beat because
         // nothing has been drawn yet: it establishes its screen on its first
         // step(), so picking the stored settings up now costs one repaint
-        // instead of two. No probation - what is in the store was confirmed
-        // before it got there, so there is nobody to ask and nothing to undo.
-        _apply_console_config(/*allow_probation=*/false);
+        // instead of two.
+        _apply_console_config(/*announce=*/false);
 #endif
 
         _scheduler.setup(HAL::Clock::uptime_ms(), _hw_watchdog_ms);
@@ -401,32 +397,6 @@ namespace Botanik {
     }
 
 #if BOTANIK_FEATURE_CONSOLE
-    namespace {
-        /** @brief The console rows, in one place: the persist walks them and the
-         *  restore writes them, and the two must never disagree about which
-         *  rows the console's configuration IS. */
-        const char* const CONSOLE_ROWS[] = {
-            "serial_console_baud", "term_type", "term_cols", "term_rows",
-            "term_serial",
-        };
-    }  // namespace
-
-    void BotanikFirmware::_console_restore_rows(const ConsoleSettings& s) {
-        // set_deferred, not set: these rows are F_STAGED, and putting a withdrawn
-        // setting back must not be the thing that makes one durable.
-        //
-        // Only the revert calls this. A COMMIT must not: the rows already hold
-        // what it is applying, and writing them back from the applied values
-        // would erase a staged edit the operator has not committed yet - a
-        // pending `term_cols` would vanish the moment a baud change committed.
-        (void)_io.set_deferred(_io.var(_io.find("serial_console_baud")),
-                               Vars::Scalar::U(s.baud));
-        (void)_io.set_deferred(_io.var(_io.find("term_type")), Vars::Scalar::U(s.type));
-        (void)_io.set_deferred(_io.var(_io.find("term_cols")), Vars::Scalar::U(s.cols));
-        (void)_io.set_deferred(_io.var(_io.find("term_rows")), Vars::Scalar::U(s.rows));
-        (void)_io.set_deferred(_io.var(_io.find("term_serial")), Vars::Scalar::U(s.serial));
-    }
-
     void BotanikFirmware::_console_apply(const ConsoleSettings& s) {
         if (s.baud != _console_baud && s.baud != 0) {
             // Both together: the wire and the budget the renderer paces to.
@@ -450,62 +420,19 @@ namespace Botanik {
         _term_serial  = s.serial;
     }
 
-    void BotanikFirmware::_console_persist() {
-        for (const char* name : CONSOLE_ROWS) {
-            const Vars::VarRef r = _io.find(name);
-            if (r.index != Vars::VAR_NONE) (void)_io.persist(_io.var(r));
-        }
-    }
-
-    void BotanikFirmware::_console_resolve_probation() {
-        if (_console_cfg.confirm) {
-            _console_cfg = ConsoleConfig();          // off probation, flags cleared
-            _console_persist();
-            _logger.notice(Logs::BOOT, "console settings confirmed and saved");
-            return;
-        }
-        const bool withdrawn = _console_cfg.revert;
-        if (!withdrawn && HAL::Clock::uptime_ms() < _console_cfg.probation_until_ms) return;
-
-        const ConsoleSettings back = _console_prev;
-        _console_cfg = ConsoleConfig();
-        // The rows as well as the device: a row left holding the withdrawn value
-        // would commit it again the next time anything bumped the serial.
-        _console_restore_rows(back);
-        _console_apply(back);
-        // CRITICAL, not a notice: the operator is either watching a screen that
-        // just changed under them, or not watching at all because the settings
-        // were wrong - and in the second case this line is the record of what
-        // happened, read later over the monitor port.
-        _logger.critical(Logs::BOOT,
-            "console settings %s\nback to %lu baud, %ux%u, terminal type %u",
-            withdrawn ? "withdrawn" : "NOT confirmed in time",
-            (unsigned long)back.baud, (unsigned)back.cols, (unsigned)back.rows,
-            (unsigned)back.type);
-    }
-
-    void BotanikFirmware::_apply_console_config(bool allow_probation) {
-        // A probation in flight is resolved before anything new is looked at:
-        // one console change at a time, or a second commit would overwrite the
-        // stash that is the only way back from the first.
-        if (_console_cfg.on_probation()) { _console_resolve_probation(); return; }
-
+    void BotanikFirmware::_apply_console_config(bool announce) {
         const uint32_t baud = (uint32_t)Vars::get_int(&_io, "serial_console_baud",
                                                       (int32_t)_console_baud);
         // A group with no rows answers 0, which is also the "never applied"
         // seed - so a build whose site left the splice out simply never
-        // reconfigures, and keeps the geometry it was constructed at.
+        // reconfigures, and keeps the settings it was constructed at.
         const uint32_t serial = Vars::group_serial(&_io, "term");
         const bool want_term = (serial != 0 && serial != _term_serial);
         const bool want_baud = (baud != 0 && baud != _console_baud);
         if (!want_term && !want_baud) return;
 
-        // What to put back. The APPLIED values, not the rows': the rows already
-        // hold the candidate, which is the thing that may have to be withdrawn.
-        _console_prev = { _console_baud, _term_serial, _console_cols,
-                          _console_rows, _console_type };
-
-        ConsoleSettings want = _console_prev;
+        ConsoleSettings want = { _console_baud, _term_serial, _console_cols,
+                                 _console_rows, _console_type };
         want.baud = baud;
         if (want_term) {
             want.serial = serial;
@@ -515,19 +442,19 @@ namespace Botanik {
         }
         _console_apply(want);
 
-        if (!allow_probation) return;   // bring-up: the store already agrees
-        if (Config::CONSOLE_PROBATION_MS == 0) { _console_persist(); return; }
-
-        _console_cfg.probation_until_ms =
-            HAL::Clock::uptime_ms() + Config::CONSOLE_PROBATION_MS;
-        // The prompt IS the mechanism: an operator who can read this and type
-        // the answer has proved the link works in both directions, which is the
-        // one thing the firmware cannot check for itself.
-        _logger.critical(Logs::BOOT,
+        // Silent at bring-up: applying what the store already holds is not a
+        // change anyone needs telling about, and it is the one call that always
+        // has something to do (nothing has been applied yet).
+        if (!announce) return;
+        // Applied, not saved - like every other edit. That is the whole recovery
+        // story for a console nobody can read any more: it never reached flash,
+        // so a power cycle brings the last saved settings back. Said out loud,
+        // because this is the one change that can take the screen with it.
+        _logger.notice(Logs::BOOT,
             "console now %lu baud, %ux%u, terminal type %u\n"
-            "type `console confirm` within %lu s or it reverts",
+            "`params save` to keep it; a power cycle undoes it",
             (unsigned long)want.baud, (unsigned)want.cols, (unsigned)want.rows,
-            (unsigned)want.type, (unsigned long)(Config::CONSOLE_PROBATION_MS / 1000u));
+            (unsigned)want.type);
     }
 #endif
 

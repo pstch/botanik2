@@ -28,9 +28,9 @@ pages lay themselves out for.
 All three apply together, on a bump of `term_serial`:
 
 ```
-botanik> set term_type 2       # Minitel 1B
-botanik> set term_cols 40
-botanik> set term_serial 2     # ...and now apply the lot
+botanik> params set term_type 2       # Minitel 1B
+botanik> params set term_cols 40
+botanik> params set term_serial 2     # ...and now apply the lot
 ```
 
 Staged, because the three describe one physical terminal: applied one edit at a
@@ -38,45 +38,34 @@ time the screen would pass through sizes that match nothing on the wire. On the
 two Minitel types the firmware emits the PRO2 setup sequences as part of the
 switch, exactly as it does at start-up.
 
-### Confirming, because the firmware cannot check
+### Getting it wrong
 
 Nothing here can be verified from this end: there is no resize handshake and no
 rate negotiation, so a wrong answer is only visible to the person in front of the
-terminal. That is what the confirmation is for. A commit **applies** the new
-settings and starts a 60-second probation, and only `console confirm` makes them
-durable:
+terminal. What makes that survivable is the rule the whole variable table
+follows - **an edit is live when you set it and durable when you save it** - so a
+console nobody can read was never written to flash, and a power cycle brings the
+last saved one back.
 
 ```
-botanik> set serial_console_baud 9600
-botanik> set term_serial 3
+botanik> params set serial_console_baud 9600
+botanik> params set term_serial 3
 BOOT: console now 9600 baud, 80x24, terminal type 1
-      type `console confirm` within 60 s or it reverts
+      `params save` to keep it; a power cycle undoes it
 
-... reconnect the terminal at 9600 ...
+... reconnect the terminal at 9600. If that works:
 
-botanik> console confirm
-console: confirmed; saving these settings
+botanik> params save
 ```
 
-Being able to read that prompt and type the answer is itself the proof the link
-works in both directions. Anything else puts the previous settings back:
+So there is nothing special to remember for the console. If the new settings are
+readable, `params save`. If they are not, pull the power: the unit comes back on
+whatever was last saved.
 
-| | |
-|---|---|
-| `console` | how long is left, when a probation is running |
-| `console confirm` | keep these settings, and write them to flash |
-| `console revert` | put the previous ones back now, without waiting |
-| *(silence)* | after 60 s, the same revert |
-| *(power cut)* | the settings never reached flash, so the unit boots on the last confirmed ones |
-
-The rate is the reason for the 60 seconds: changing it means physically
-reconnecting a terminal at the new speed. `console confirm` covers the size and
-the make in the same breath, because a terminal swap is usually all three.
-
-@note Getting the **size** wrong is survivable without any of this. The screen
-mangles, but input is untouched, so `set term_cols 80` and a `term_serial` bump
-typed blind will still land. It is the **rate** that leaves nothing to type into,
-and that is the failure probation exists for.
+@note Getting the **size** wrong is milder still. The screen mangles, but input
+is untouched, so `params set term_cols 80` and a `term_serial` bump typed blind
+will land even on a screen you cannot read. It is the **rate** that leaves
+nothing to type into, and the power cycle is what answers that one.
 
 There is a **second** serial port, the monitor port, which carries a plain-text log
 stream and no UI. See @ref user_logging.
