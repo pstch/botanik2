@@ -171,6 +171,11 @@ namespace Botanik {
 
         Logs::Logger                   _logger;
         Scheduler::LoopScheduler       _scheduler;
+        /** @brief The beat's task table: what runs, how often, and in which
+         *  phase. Filled by _register_tasks() during setup(), frozen after, and
+         *  owned by the scheduler - the thing that paces the cycle is the thing
+         *  that runs it. */
+        Tasks::Registry&               _tasks;
         Vars::Bank                       _io;          ///< the site's variables
         Vars::KvParamStore             _param_store; ///< one storage key per parameter
         Vars::Params                   _params;      ///< the editable view of the variables
@@ -182,9 +187,6 @@ namespace Botanik {
          *  an operator's `control disable` is not something the loop can
          *  silently talk over. */
         bool                           _health_fault = false;
-        /** @brief The beat's task table: what runs, how often, and in which
-         *  phase. Filled by _register_tasks() during setup(); frozen after. */
-        Tasks::Registry            _tasks;
         Health::HealthMonitor          _health;
         SystemContext                  _sys_ctx;     ///< Filled in the ctor body
 #if BOTANIK_FEATURE_LOGS_MONITOR
@@ -276,21 +278,14 @@ namespace Botanik {
             // One 64-bit "now" for every Component stepped this beat.
             uint64_t now_ms = HAL::Clock::uptime_ms();
 
-            // This order IS the data flow; it must not become configurable.
-            _tasks.run_phase(Tasks::PHASE_INPUT,   now_ms);
-            _tasks.run_phase(Tasks::PHASE_CONFIG,  now_ms);
-            _tasks.run_phase(Tasks::PHASE_SERVICE, now_ms);
-            _tasks.run_phase(Tasks::PHASE_CONTROL, now_ms);
-            _tasks.run_phase(Tasks::PHASE_OUTPUT,  now_ms);
-            _tasks.run_phase(Tasks::PHASE_PRESENT, now_ms);
+            _scheduler.run_beat(now_ms);
 
-            // Kick while healthy (HealthMonitor decides that). Withholding the
-            // kick chooses to let the hardware watchdog reset us, so the field
+            // The verdict is HealthMonitor's, the watchdog is the scheduler's.
+            // A withheld kick chooses to let the hardware reset us, so the field
             // drops to its safe state FIRST: the reset gives no such guarantee,
             // and the gap before the reboot is exactly when an actuator must
             // not be left energised.
-            if (_health.watchdog_ok()) HAL::Watchdog::kick();
-            else                       _io.set_health_hold(true);
+            if (!_scheduler.kick(_health.watchdog_ok())) _io.set_health_hold(true);
             return true;
         }
 

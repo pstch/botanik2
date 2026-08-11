@@ -307,3 +307,28 @@ namespace Botanik { namespace Scheduler {
 #endif
 
 } }
+
+namespace Botanik { namespace Scheduler {
+
+    void LoopScheduler::setup(uint64_t now_ms, uint32_t watchdog_ms) {
+        _tasks.setup(now_ms);
+        HAL::Watchdog::start(watchdog_ms);
+    }
+
+    void LoopScheduler::run_beat(uint64_t now_ms) {
+        // This order IS the data flow; it must not become configurable.
+        _tasks.run_phase(Tasks::PHASE_INPUT,   now_ms);
+        _tasks.run_phase(Tasks::PHASE_CONFIG,  now_ms);
+        _tasks.run_phase(Tasks::PHASE_SERVICE, now_ms);
+        _tasks.run_phase(Tasks::PHASE_CONTROL, now_ms);
+        _tasks.run_phase(Tasks::PHASE_OUTPUT,  now_ms);
+        _tasks.run_phase(Tasks::PHASE_PRESENT, now_ms);
+    }
+
+    bool LoopScheduler::kick(bool healthy) {
+        if (!healthy) return false;
+        HAL::Watchdog::kick();
+        return true;
+    }
+
+}}  // namespace Botanik::Scheduler

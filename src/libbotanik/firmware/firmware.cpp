@@ -21,6 +21,7 @@ namespace Botanik {
         : _site(site),
           _logger(),
           _scheduler(Config::TASK_PERIOD_MS, &_logger),
+          _tasks(_scheduler.tasks()),
           _io(site.vars),
           // Params come from local storage.
           _param_store(),
@@ -179,14 +180,14 @@ namespace Botanik {
         // above (and after on_setup(), for a site's own): this is what runs each
         // component's announce() and HealthMonitor's POST. It also keeps the
         // parameter load, tens of ms of flash, out of the first beat.
-        _tasks.setup(HAL::Clock::uptime_ms());
+
 
         // First moment the stored UART rates exist, so the boot lines below go
         // out at the configured rate. Everything above them is at the
         // compile-time default: the port must be open before the store is read.
         _apply_serial_config();
 
-        HAL::Watchdog::start(_hw_watchdog_ms);
+        _scheduler.setup(HAL::Clock::uptime_ms(), _hw_watchdog_ms);
 
         // Bring-up is done: release the system's hold on control. It starts held
         // (Bank's default), so nothing between power-on and here can energise an

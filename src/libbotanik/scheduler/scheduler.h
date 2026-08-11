@@ -10,7 +10,8 @@
 
 #include "libbotanik/config/scheduler.h"  // Config::LOOP_* / TASK_* / GROUP_*
 
-#include "libbotanik/hal/platform.h"    // HAL::Clock::sleep_ms / uptime_us
+#include "libbotanik/hal/platform.h"   // HAL::Clock::sleep_ms / uptime_us
+#include "libbotanik/tasks/tasks.h"    // Tasks::Registry / Phase
 #include "libbotanik/utils/filters.h"   // Utils::ExpMovingAverage / WindowedMax
 
 // ASAN puts locals on a fake stack, which stack-usage measurement cannot see.
@@ -155,6 +156,11 @@ namespace Botanik { namespace Scheduler {
 
         /** @} */
 
+    protected:
+        /** @brief What runs in the beat. Owned here: the thing that paces the
+         *  cycle is the thing that runs it. */
+        Tasks::Registry   _tasks;
+
     public:
         /** @name Lifecycle
          *  @{ */
@@ -243,6 +249,40 @@ namespace Botanik { namespace Scheduler {
         /** @brief Stable metrics snapshot for external consumers (e.g. status
          *  bar). */
         SchedulerContext* context() { return &_context; }
+
+        /** @name The scan cycle
+         *
+         *  The scheduler paces the beat AND runs it: it owns the task table, the
+         *  one-time init pass and the watchdog. What runs is registered here;
+         *  when it runs is this class's own business.
+         *  @{ */
+
+        /** @brief The task table every unit of work registers with. */
+        Tasks::Registry&       tasks()       { return _tasks; }
+        const Tasks::Registry& tasks() const { return _tasks; }
+
+        /** @brief Run every registered one-time init, then arm the watchdog at
+         *  @p watchdog_ms. Last thing before the loop starts.
+         *
+         *  @warning Call it once the log sinks exist: this is what runs each
+         *  component's announce() and the HealthMonitor's POST. */
+        void setup(uint64_t now_ms, uint32_t watchdog_ms);
+
+        /** @brief Run one beat: every phase, in the order that IS the data flow.
+         *  Not configurable, and not a list a caller assembles. */
+        void run_beat(uint64_t now_ms);
+
+        /** @brief Kick the watchdog while @p healthy; returns false when the
+         *  kick was WITHHELD.
+         *
+         *  Withholding chooses to let the hardware reset us, so the caller drops
+         *  the field to its safe state first: the reset gives no such guarantee,
+         *  and the gap before the reboot is exactly when an actuator must not be
+         *  left energised. The verdict stays the caller's - the scheduler owns
+         *  the watchdog, not the judgement. */
+        bool kick(bool healthy);
+
+        /** @} */
 
         /** @} */
 
