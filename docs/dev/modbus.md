@@ -95,13 +95,7 @@ what actually takes a field bus down.
 
 ## The master, end to end
 
-```
- vars table ─▶ Planner ─▶ blocks ─▶ RtuClient ─▶ codec ─▶ framing ─▶ wire
-                  ▲                    │
-              DeviceTable              ▼
-             (ceilings,            image.h ─▶ vars table
-              alignment)
-```
+@image html modbus-master.drawio.svg "The master, end to end. The planner is bounded by the device table, and what comes back off the wire lands in the same variable table the plan was built from."
 
 **Planning** (`plan.h`) groups the site's `XP_MODBUS` rows into read and write
 **blocks**, one per contiguous run on one unit with one function code. It is

@@ -42,21 +42,7 @@ class Logger {
 }
 \enduml
 
-```
- log entry (topic T)
-        │
-        ▼
- ┌───────────────────────────┐   refill() tops
- │ global + topic[T] buckets │◀── both per period
- └───────────────────────────┘
-        │ take 1 from BOTH?
-    ┌───┴───────┐
-   yes          no (either empty)
-    │            │
-    ▼            ▼
- push_entry()   drop + count
- fan-out        (periodic CRITICAL suppressed report)
-```
+@image html logbucket.drawio.svg "Both buckets must have a token. One bucket alone would either rate-limit the whole log by its noisiest topic, or not bound the total at all."
 
 ## Sinks
 
@@ -113,26 +99,7 @@ edge-triggered (first event instant, then a per-category holdoff) and classed
 
 ## Pipeline
 
-```
- firmware code (info/warning/...)
-                            │
-                            ▼
-         Logger  (global + per-topic buckets;
-                  pass → push_entry, empty → drop + count)
-                            │ fan-out (push_entry)
-     ┌──────────┬───────────┼───────────┬──────────┐
-     ▼          ▼           ▼           ▼          ▼
-  Monitor    ShellPage   LogsPage   HomePage   MqttLogWriter
- (LogWriter)    └──────────┬─────────────┘          │
-     │                     ▼                        ▼
-     │         page LogWriter drain (per tick):   MqttClient
-     │           active page     → paints to screen
-     │           background page → banks into Scrollback
-     ▼                     ▼
- BufferedSerial      BufferedSerial
- monitor UART        console UART
- (push→FIFO→drain)   (active page paints)
-```
+@image html logflow.drawio.svg "One entry reaches every registered writer. The three pages are ticked whether or not they are on screen, which is what lets a background page bank the entry instead of losing it."
 
 ## Format
 

@@ -52,23 +52,7 @@ Under `src/libbotanik/`:
 
 `setup()` is non-virtual and runs in this order:
 
-```
-set_assert_logger      route assert failures to the log
-io.init()              seed every variable with its declared default
-begin UARTs            console, monitor
-register core sinks    monitor writer, shell, logs, home-page tail; TX-drop watches
-set_diagnostics        let the shell reach the live logger and alarm model
-register_commands()    ─┐
-register_pages()        ├─ site hooks
-setup_terminal()        │
-switch_to(0)           ─┘
-boot banner
-MQTT sinks + register_telemetry()
-on_setup()             ← site post-wiring
-tasks.setup()          ← every task's one-time init: announce(), POST, param load
-Watchdog::start()
-io.set_health_hold(false)  ← the field is ours from here, and not before
-```
+@image html bringup.drawio.svg "Bring-up, in order. The two highlighted steps are the point of it: every sink exists before anything announces itself, and the field is not ours until the last line."
 
 The last two are the point of the ordering: control authority starts **disabled**,
 so nothing part-way through bring-up - a half-wired component, a faulting site hook -

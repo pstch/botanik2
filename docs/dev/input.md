@@ -73,34 +73,7 @@ routes events to the active one. See @ref dev_pages.
 
 ## Dispatch flow
 
-```
- hardware serial port
-        │ raw bytes
-        ▼
- BufferedSerial  (RX ring 256 B | TX ring 4 KB)
-        │ drained in step()
-        ▼
- InputParser.parse()  →  InputEvent
-        ├───────────────────────────┐
-        ▼                           ▼
- CONTENT (printable run)     COMMAND (key + repeat count)
-        │                           │
-        │                           ▼
-        │                  Console intercepts (consumed):
-        │                  Ctrl+L, HOME, Alt+1..8,
-        │                  TAB / Ctrl+PgUp/PgDn, Ctrl+C
-        │                           │ remaining
-        ▼                           ▼
- handle_text_batch()        handle_command(cmd, count)
-        └─────────────┬─────────────┘
-                      ▼  dispatched to the active page:
-   ┌───────────┬──────┴─────┬────────────┐
-   ▼           ▼            ▼            ▼
- ShellPage   LogsPage   AlarmsPage    HomePage ...
-   │ ShellPage
-   ▼
- InputEditor (TextEditor):  CONTENT → insert,  COMMAND → move/delete
-```
+@image html input.drawio.svg "The console's intercepts sit on the COMMAND leg only: a printable run can never be swallowed by a page switch."
 
 ## Console-level intercepts
 

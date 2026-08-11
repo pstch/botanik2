@@ -38,21 +38,9 @@ It is wiring/sanity validation, not a hardware diagnostic.
 POST is the HealthMonitor's one-time task init, run from `tasks.setup()` near the end
 of `setup()` - after every sink is registered, and before the first beat:
 
-```
-setup(): UARTs, core sinks, register_pages()
-   │
-   ▼
-setup(): terminal, boot banner, on_setup()
-   │
-   ▼
-setup(): tasks.setup()  ──▶  each task's one-time init:
-   │                         announce(), POST, the parameter load
-   ▼
-setup(): arm HW watchdog, enable control
-   │
-   ▼
-loop() beat 1
-```
+@image html bringup.drawio.svg "POST runs from tasks.setup(), the highlighted step: after every sink exists, and still before the first beat."
+
+The same bring-up order is walked through in @ref dev_architecture.
 
 Two constraints pin it there. Every log sink - including the ones a site registers in
 `on_setup()` - must already exist, or the verdict goes nowhere. And it must be out of

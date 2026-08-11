@@ -33,13 +33,7 @@ doesn't try to "catch up" with a burst of back-to-back ticks), counts them in
 `SchedulerContext::overruns`, and logs an aggregated `"scheduler overrun: skipped
 N beat(s)"` warning at most once per `SCHEDULER_XRUN_LOG_MS`.
 
-```
- grid:   │────────│────────│────────│────────│   period = TASK_PERIOD_MS
-         t0       t1       t2       t3       t4
- work:   ▓▓▓▓               ▓▓▓▓▓▓▓▓▓▓▓▓▓▓
-         tick t0            tick t1  └ ran past t2,t3 ┘
-                            overruns += 2, anchor jumps to t4
-```
+@image html overrun.drawio.svg "A beat whose work runs long. The loop misses t2 and t3; the anchor jumps straight to t4 rather than firing three ticks back to back."
 
 ## Metrics
 
@@ -48,13 +42,7 @@ knows the loop's timing - keeping four metric families (CPU load, loop time,
 jitter, stack usage), each exposed raw, smoothed (EMA), and as a recent windowed
 peak, plus a plain **ticks-per-second** rate.
 
-```
- tick (release) ───▶ ...work runs... ───▶ tick (next release)
-        │                                     │
-        │ on release:                         │ at the next tick:
-        ├─ tick lateness ───▶ jitter          ├─ work duration ─▶ loop time
-        └─ period − slept ──▶ CPU load        └─ stack high-water ─▶ stack use
-```
+@image html metrics.drawio.svg "Where each family is sampled. Two come off the release, two off the next tick - so a full set costs one beat."
 
 - **CPU load** - the *duty cycle*: the active fraction of each period,
   `(period − slept)/period`. It counts the work, the loop/scheduler overhead, and

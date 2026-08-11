@@ -14,13 +14,7 @@ The design keeps all three in ONE place. Renderers know nothing about the wire.
 
 The terminal owns a **cell back-buffer** and does the diffing once, for everyone.
 
-```
-renderers ──draw (move_to/write_chars/set_inverted/scroll_region)──▶  FRONT grid
-                                                                         │
-Console::step() ── present() ── diff FRONT vs BACK ── minimal paced ANSI ─▶ wire
-                                     │
-                                     └── copy emitted cells ──▶ BACK grid
-```
+@image html present.drawio.svg "The renderers only ever reach FRONT. present() is the single place that compares it against BACK and pays for the difference in wire bytes."
 
 - **FRONT** = the desired screen. It is **retained**, not per-frame: it holds
   whatever was last drawn there and is only overwritten where a renderer draws
