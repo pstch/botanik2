@@ -306,3 +306,74 @@ TEST_CASE("task timer: dt saturates instead of truncating past 32 bits") {
 }
 
 }  // namespace task_timer
+
+// The registered form: a component supplies its own name, rate and phase, and a
+// file-local handler that casts the owner back. Both forms coexist until the
+// last legacy registration is gone (design/scan-cycle-rework.md, step 1).
+namespace registered {
+
+using namespace Botanik;
+using namespace Botanik::Tasks;
+
+namespace {
+    struct Spy : public Component {
+        uint32_t setups = 0, inputs = 0, presents = 0, programs = 0;
+        uint32_t last_dt = 0;
+        uint16_t last_missed = 0;
+        Spy() : Component(nullptr, "spy") {}
+    };
+
+    void spy_setup  (Component* c, const Tick&)   { static_cast<Spy*>(c)->setups++; }
+    void spy_input  (Component* c, const Tick& t) {
+        Spy* s = static_cast<Spy*>(c);
+        s->inputs++; s->last_dt = t.dt_ms; s->last_missed = t.missed;
+    }
+    void spy_present(Component* c, const Tick&)   { static_cast<Spy*>(c)->presents++; }
+    void spy_program(Component* c, const Tick&)   { static_cast<Spy*>(c)->programs++; }
+}
+
+TEST_CASE("registry: a component's own registrations run in their phases") {
+    Spy s;
+    Registry r;
+    REQUIRE(r.add(s, &spy_input,   "spy_in",  GROUP_FAST, PHASE_INPUT));
+    REQUIRE(r.add(s, &spy_present, "spy_out", GROUP_FAST, PHASE_PRESENT));
+    CHECK(r.overflow() == 0);
+
+    r.run_phase(PHASE_INPUT, 0);
+    CHECK(s.inputs == 1);
+    CHECK(s.presents == 0);          // its own phase, and no other
+    r.run_phase(PHASE_PRESENT, 0);
+    CHECK(s.presents == 1);
+
+    // dt is the task's, so a handler that integrates never assumes its period.
+    r.run_phase(PHASE_INPUT, 50);
+    CHECK(s.inputs == 2);
+    CHECK(s.last_dt == 50);
+}
+
+TEST_CASE("registry: a setup handler runs once, and never in the beat") {
+    Spy s;
+    Registry r;
+    REQUIRE(r.add_setup(s, &spy_setup, "spy"));
+    REQUIRE(r.add(s, &spy_input, "spy_in", GROUP_FAST, PHASE_INPUT));
+
+    for (uint8_t p = 0; p < PHASE_COUNT; p++) r.run_phase((Phase)p, 0);
+    CHECK(s.setups == 0);            // not dispatched by any phase
+
+    r.setup(0);
+    CHECK(s.setups == 1);
+}
+
+TEST_CASE("registry: a program takes no phase - it is PHASE_CONTROL or nothing") {
+    Spy s;
+    Registry r;
+    REQUIRE(r.add_program(s, &spy_program, "prog", GROUP_SLOW));
+
+    r.run_phase(PHASE_INPUT, 0);
+    CHECK(s.programs == 0);
+    r.run_phase(PHASE_CONTROL, 0);
+    CHECK(s.programs == 1);
+    CHECK(r.task(0).is_program);
+}
+
+}  // namespace registered

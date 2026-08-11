@@ -28,7 +28,24 @@
 #include "libbotanik/tasks/phase.h"         // Tasks::Phase
 #include "libbotanik/tasks/task_timer.h"    // Tasks::TaskTimer
 
+// Forward-declared, never included: the registry stores a Component* and hands
+// it back to the handler without ever dereferencing it, so `tasks/` stays below
+// `core/` and free of every subsystem it drives.
+namespace Botanik { class Component; }
+
 namespace Botanik { namespace Tasks {
+
+    /** @brief What a handler is told about the activation it is running in.
+     *
+     *  The rate lives on the TASK, so the task is the only thing that knows how
+     *  long it has actually been - a handler that integrates over time must read
+     *  @c dt_ms rather than assume its nominal period. @c missed is what
+     *  TaskTimer dropped on the way here (activations are never caught up). */
+    struct Tick {
+        uint64_t now_ms = 0;
+        uint32_t dt_ms  = 0;
+        uint16_t missed = 0;
+    };
 
     /** @brief Rate classes. A task names one instead of carrying a raw period,
      *  so a rate is retuned in one place for everything that shares it. */
@@ -95,6 +112,19 @@ namespace Botanik { namespace Tasks {
          *  Optional: null for a task with nothing to set up. */
         void      (*setup)(void* self, uint64_t now_ms) = nullptr;
         void*       self     = nullptr;
+
+        /** @name The registered form (see add())
+         *
+         *  A component registers its own work: it supplies the name, the rate
+         *  group and the phase, and a file-local handler that casts @c owner
+         *  back to its own type. Both forms coexist until the last legacy
+         *  registration is gone. @{ */
+        Component* owner   = nullptr;
+        void     (*handler)(Component* owner, const Tick& tick) = nullptr;
+        /** @brief A control program: PHASE_CONTROL by construction, and gated by
+         *  control authority. */
+        bool       is_program = false;
+        /** @} */
         TaskTimer   timer;                ///< period from the group, own offset
         TaskCost    cost;
     };
@@ -118,6 +148,11 @@ namespace Botanik { namespace Tasks {
          *  noticed by its absence. */
         uint8_t  _overflow = 0;
 
+        /** @brief Claim a slot and fill the part both add() forms share, so the
+         *  offset rule cannot drift between them. Null when the table is full
+         *  (counted in overflow()). */
+        Task* _claim(const char* name, GroupId group, Phase phase);
+
         /** @} */
 
     public:
@@ -136,6 +171,25 @@ namespace Botanik { namespace Tasks {
         bool add(const char* name, GroupId group, Phase phase,
                  void (*run)(void* self, uint64_t now_ms), void* self,
                  void (*setup)(void* self, uint64_t now_ms) = nullptr);
+
+        /** @brief Register one piece of @p owner's work: @p handler, at @p
+         *  group's rate, in @p phase.
+         *
+         *  The component states the phase and the rate itself, beside the code
+         *  they refer to; what the caller adds is WHICH INSTANCE this is, since
+         *  the same class is constructed more than once. */
+        bool add(Component& owner, void (*handler)(Component*, const Tick&),
+                 const char* name, GroupId group, Phase phase);
+
+        /** @brief Register one-time init for @p owner, run by setup() before the
+         *  loop starts, in registration order. Never dispatched in the beat. */
+        bool add_setup(Component& owner, void (*handler)(Component*, const Tick&),
+                       const char* name);
+
+        /** @brief Register a control program. No phase: a program runs in
+         *  PHASE_CONTROL or not at all. */
+        bool add_program(Component& owner, void (*handler)(Component*, const Tick&),
+                         const char* name, GroupId group);
 
         /** @brief Register a Component in phase @p P: its hook for that phase
          *  per activation, setup() once.
