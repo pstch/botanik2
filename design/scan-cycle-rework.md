@@ -181,22 +181,35 @@ period the four groups cannot express, so **no fifth rate group is needed**.
 It also empties step 5 of the migration - the program registration path still
 needs building, but no existing program exercises it.
 
-#### Two loose ends in deleting `sys_supply_hz`
+#### Deleting `sys_supply_hz`
 
-It is not an internal value. `vars.h:451` declares it `SV(..., reg 501)`, so:
+It is not an internal value: `vars.h:451` declares it `SV(..., reg 501)`, so
+**register 501 leaves the published map**. SV names and scaling are an external
+contract (MQTT telemetry and the Modbus TCP slave), so a master polling 501 stops
+getting an answer. Registers are hand-assigned precisely so inserting a row never
+renumbers the others - deleting one is the other direction, and wants to be a
+deliberate note to whoever owns the SCADA side.
 
-- **Register 501 leaves the published map.** SV names and scaling are an
-  external contract (MQTT telemetry and the Modbus TCP slave), so a master
-  polling 501 stops getting an answer. Registers are hand-assigned precisely so
-  inserting a row never renumbers the others - deleting one is the other
-  direction, and wants to be a deliberate note to whoever owns the SCADA side.
-- **The "Supply Hz" home field is orphaned** (`vars.h:544`). Point it at
-  `grid_Hz`, or the name resolves to the inert sink and `test_site_names.cpp`
-  fails the gate - which is the intended behaviour, not a surprise.
+The **"Supply Hz" home field** (`vars.h:544`) points at `grid_Hz` instead. Left
+alone it would resolve to the inert sink and `test_site_names.cpp` would fail the
+gate, which is the mechanism working rather than a surprise.
 
-#### And one question it raises
+## Whoever writes a row judges it
 
-If the master judges plausibility as it commits, what is left for
-`Bank::reject_implausible()`, which sweeps every row at `GROUP_BACKGROUND` for
-exactly that? Either it becomes the fallback for rows no master writes (local
-I/O, computed values), or it goes. Decide when the master change lands.
+`Bank::reject_implausible()` goes, and with it its `GROUP_BACKGROUND` task in the
+INPUT phase. It swept every row for values outside their declared band; that
+belongs to whatever commits the value, which is the only thing that knows a write
+just happened.
+
+A row nobody writes needs no sweep either: it sits at `Q_NO_DATA`, which is 0 on
+purpose so a zero-initialised `Value` reads as "nothing has written this" and
+never as good data. Invalid-because-unwritten is already the default, not
+something to detect.
+
+`F_BOUNDED` keeps its meaning - it tells the writer whether the band is a real
+one - and the band itself stays on the row, since the writer reads it there.
+
+**`expire_stale()` stays.** Staleness is a different question from plausibility:
+it is about a row that WAS written and stopped, which no writer can notice by
+definition, because the thing that would have noticed is the write that did not
+happen.
