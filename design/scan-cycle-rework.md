@@ -213,3 +213,29 @@ one - and the band itself stays on the row, since the writer reads it there.
 it is about a row that WAS written and stopped, which no writer can notice by
 definition, because the thing that would have noticed is the write that did not
 happen.
+
+### Considered and rejected: expiring from the master instead
+
+The symmetry is tempting - the master notices a device that stops answering, so
+let it expire that device's rows and delete the sweep. It does not hold, because
+a row goes stale in cases where there is no failure event to hang it on:
+
+- **A starved block.** `_pick()` has an explicit "starved" tier precisely because
+  a block can miss its period under bus contention. The device answers everything
+  it is asked; these rows are simply not being asked for.
+- **A row the planner never placed.** `rows_unscanned()` exists and is a bring-up
+  critical, so this is a real state. Nothing ever fails for those rows because
+  nothing ever asks.
+- **The master not running at all** - compiled out, or its own task starved. That
+  makes a safety property depend on the health of the thing it is watching.
+
+There is also a granularity mismatch: `timeout_ms` is per ROW, a device failure
+is per DEVICE, and a block spans rows that may declare different timeouts.
+
+And it saves almost nothing. `expire_stale` is `GROUP_BACKGROUND`, so it is ~260
+rows twice a second - about 500 row-visits per second, each a role check and an
+integer compare. (The 25,900/s figure in the older scheduler notes predates the
+move off `GROUP_FAST`.)
+
+So: an independent check traded for a dependent one, to save something
+unmeasurable. Keep the sweep.
