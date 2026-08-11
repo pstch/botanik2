@@ -160,24 +160,25 @@ of the beat.
 - **Programs move onto the four rate groups.** A program registers a group like
   any other unit and loses its free `period_ms`.
 
-### The one place that decision bites
+### Both reference programs go away
 
-`gh_mlb41` declares two programs, and only one of them has a group:
+`gh_mlb41` declares two programs, and neither survives the rework:
 
-| program | declared | nearest group |
+| program | was | becomes |
 |---|---|---|
-| `supply_watch` | 100 ms | `GROUP_SLOW` (100 ms) - exact |
-| `supply_report` | 1000 ms | `GROUP_BACKGROUND` (500 ms) - **2x faster than declared** |
+| `supply_watch` | 100 ms; debounce + lockout over the supply, writes the quality flag | folded into the writer of the values it watches |
+| `supply_report` | 1000 ms; deadbands `grid_Hz` into `sys_supply_hz` | folded into the writer of the value it reports |
 
-Nothing runs at 1000 ms. Three ways out, and this wants settling before step 5:
+Which settles the rate question by removing it: nothing is left asking for a
+period the four groups cannot express, so **no fifth rate group is needed**.
+`GROUP_BACKGROUND` stays at 500 ms and keeps its argument (`expire_stale`).
 
-1. **Add a fifth group** (1000 ms) for reporting-rate work. Costs one enum entry
-   and one config value, and every declared period keeps its meaning.
-2. **Let `supply_report` run at 500 ms.** It reports rather than drives, so twice
-   the rate is probably harmless - but it is a behaviour change, and the site
-   asked for 1000.
-3. **Retune `GROUP_BACKGROUND` to 1000 ms.** Rejected: it also carries
-   `expire_stale`, whose 500 ms is argued for on its own terms.
+It also removes the only two programs the site has, so step 5 of the migration
+has nothing left to migrate - the program registration path still needs
+building, but no existing program exercises it.
 
-Option 1 unless told otherwise: it is the only one where "the site declared a
-rate and got it" stays true.
+@todo Nail down what "the writer" is concretely before building this: the
+component that produces the SOURCE rows (`grid_Hz` comes off the field bus, and
+generic Modbus code cannot compute a site's derived values), or whatever
+registers as the PROVIDER of the derived output. The two put the deadband in
+very different places.
