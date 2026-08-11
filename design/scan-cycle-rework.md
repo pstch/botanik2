@@ -153,12 +153,31 @@ of the beat.
 6. `Component` loses the six phase hooks, the timer and the per-beat verdict.
 7. Tests.
 
-## Open
+## Decided
 
-- **Phase name.** It is `PHASE_CONTROL` today (renamed from `PHASE_EXECUTE` in
-  `7626017`). The model above calls it the process phase - confirm whether that
-  is a rename or a slip.
-- **Program rates.** Programs carry an arbitrary `period_ms` today (a site sets
-  100 ms, 1000 ms). Registering by GROUP would quantise that to the four rate
-  classes. Either programs keep a free period, or the site's periods move onto
-  groups - decide before step 5.
+- **The process phase IS `PHASE_CONTROL`.** No rename; "process phase" above is
+  just prose for the phase that already exists.
+- **Programs move onto the four rate groups.** A program registers a group like
+  any other unit and loses its free `period_ms`.
+
+### The one place that decision bites
+
+`gh_mlb41` declares two programs, and only one of them has a group:
+
+| program | declared | nearest group |
+|---|---|---|
+| `supply_watch` | 100 ms | `GROUP_SLOW` (100 ms) - exact |
+| `supply_report` | 1000 ms | `GROUP_BACKGROUND` (500 ms) - **2x faster than declared** |
+
+Nothing runs at 1000 ms. Three ways out, and this wants settling before step 5:
+
+1. **Add a fifth group** (1000 ms) for reporting-rate work. Costs one enum entry
+   and one config value, and every declared period keeps its meaning.
+2. **Let `supply_report` run at 500 ms.** It reports rather than drives, so twice
+   the rate is probably harmless - but it is a behaviour change, and the site
+   asked for 1000.
+3. **Retune `GROUP_BACKGROUND` to 1000 ms.** Rejected: it also carries
+   `expire_stale`, whose 500 ms is argued for on its own terms.
+
+Option 1 unless told otherwise: it is the only one where "the site declared a
+rate and got it" stays true.
