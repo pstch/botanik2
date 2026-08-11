@@ -1230,6 +1230,85 @@ TEST_CASE("override: every release path also forgets the stored copy") {
     }
 }
 
+// F_STAGED - a parameter live now, durable only when its group commits.
+
+namespace {
+    const Variable STAGED[] = {
+        P("p_staged", T_U16, 10, 0, 1000, 0, "", 20, "", "", F_STAGED),
+        P("p_plain",  T_U16, 10, 0, 1000, 0, "", 21, "", ""),
+    };
+
+    struct StagedFx {
+        Value    vals[2]{};
+        uint16_t index[2]{};
+        Bank         bank;
+        KvParamStore store;
+        Params       params;
+        StagedFx() : params(&bank, &store, nullptr) {
+            VarTables t = {};
+            t.var = STAGED; t.val = vals; t.count = 2; t.index = index;
+            bank = Bank(t);
+            bank.init();
+            params = Params(&bank, &store, nullptr);
+        }
+        Var by(const char* n) { return bank.var(bank.find(n)); }
+    };
+}
+
+TEST_CASE("staged: the edit is live at once and durable only on a persist") {
+    StoreEnv env("/tmp/botanik_test_staged");
+    {
+        StagedFx f;
+        // SET_OK, not SET_NOT_PERSISTED: the edit took, and the row is doing
+        // what it was declared to do. NOT_PERSISTED is a store that refused.
+        CHECK(f.bank.set(f.by("p_staged"), "300") == SET_OK);
+        CHECK(f.bank.set(f.by("p_plain"),  "400") == SET_OK);
+        INFO("both are live immediately - staging is about flash, not about RAM");
+        CHECK(f.by("p_staged").i() == 300);
+        CHECK(f.by("p_plain").i()  == 400);
+    }
+    {   // down and back: only the unstaged row was ever written
+        StagedFx f;
+        f.params.step(0);
+        CHECK(f.by("p_staged").i() == 10);      // back to its factory default
+        CHECK(f.by("p_plain").i()  == 400);
+    }
+}
+
+TEST_CASE("staged: persist() is what makes it durable, and nothing else is") {
+    StoreEnv env("/tmp/botanik_test_staged2");
+    {
+        StagedFx f;
+        REQUIRE(f.bank.set(f.by("p_staged"), "300") == SET_OK);
+        CHECK(f.bank.persist(f.by("p_staged")) == SET_OK);
+    }
+    {
+        StagedFx f;
+        f.params.step(0);
+        CHECK(f.by("p_staged").i() == 300);
+    }
+}
+
+TEST_CASE("staged: a withdrawn edit leaves nothing behind to come back") {
+    // The probation revert path in miniature: put the old value back in RAM and
+    // never persist, so what was in flash all along is what boots.
+    StoreEnv env("/tmp/botanik_test_staged3");
+    {
+        StagedFx f;
+        REQUIRE(f.bank.set(f.by("p_staged"), "300") == SET_OK);
+        REQUIRE(f.bank.persist(f.by("p_staged")) == SET_OK);   // a confirmed 300
+        REQUIRE(f.bank.set(f.by("p_staged"), "900") == SET_OK);  // ...then a bad edit
+        // Withdrawn: restore the applied value, persist nothing.
+        CHECK(f.bank.set_deferred(f.by("p_staged"), Scalar::U(300)) == SET_OK);
+    }
+    {
+        StagedFx f;
+        f.params.step(0);
+        INFO("the confirmed value, not the withdrawn one");
+        CHECK(f.by("p_staged").i() == 300);
+    }
+}
+
 // PE() - a parameter whose labels ARE its bound.
 
 namespace {

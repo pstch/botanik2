@@ -37,6 +37,31 @@ namespace Botanik { namespace Modbus    {  class RtuClient;         } }
 
 namespace Botanik {
 
+    /** @brief The console configuration's probation state: what a committed
+     *  rate/make/size change is waiting for, and the operator's verdict on it.
+     *
+     *  Defined here rather than behind a forward declaration like the other
+     *  contexts, because it depends on nothing at all - and because it is the
+     *  MEETING POINT of two halves that must not see each other. The firmware
+     *  owns the apply/revert; the shell's `console` command owns the verdict;
+     *  `shell/` cannot include `firmware/` and should not learn how to.
+     *
+     *  Both verdict flags are consumed and cleared by the firmware on the CONFIG
+     *  phase, so they are a one-beat handoff, not state. Main-loop only, no ISR:
+     *  no barriers (@ref dev_concurrency). */
+    struct ConsoleConfig {
+        /** @brief Uptime ms the probation expires at; 0 when none is running,
+         *  which is also what says a commit may be accepted. */
+        uint64_t probation_until_ms = 0;
+        /** @brief Operator confirms: make the applied settings durable. */
+        bool     confirm = false;
+        /** @brief Operator withdraws: put the previous settings back now,
+         *  without waiting the window out. */
+        bool     revert  = false;
+
+        bool on_probation() const { return probation_until_ms != 0; }
+    };
+
     /** @brief Aggregate of subsystem context structs and pointers to the
      *  optional network components; used by reporting commands and metric pages.
      *  Every member may be null when its subsystem is absent at runtime.
@@ -61,6 +86,10 @@ namespace Botanik {
          *  the BLOCK - the boot load, and the retained-value save cadence that
          *  the `save` command restarts. Non-const for that reason. */
         Vars::Params*                  params    = nullptr;
+
+        /** @brief Probation on a committed console configuration. Null in a
+         *  build with no console, where nothing can commit one. */
+        ConsoleConfig*                 console_cfg = nullptr;
 
 
 #if BOTANIK_FEATURE_NETWORK

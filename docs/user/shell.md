@@ -151,11 +151,17 @@ two units on the same firmware **version** can still differ here. See
 | Command | Does |
 |---|---|
 | `ntpsync` | force an NTP resync now |
+| `console [confirm\|revert]` | keep or undo a committed console configuration |
 | `save` | write the retained values to flash now |
 | `clear` | wipe the shell scrollback |
 | `breakpoint` | trap into an attached debugger |
 | `reset` | reboot the controller |
 | `exit` | quit (simulator) / reboot (hardware) |
+
+`console` answers for the settings that can break the terminal you are reading
+it on - the rate, the make and the size. Committing one applies it and starts a
+probation rather than saving it, so `console confirm` is what keeps it and
+silence is what undoes it. See @ref user_console.
 
 `reset` and `exit` both drop every output to its safe state and clear the screen
 before leaving - a reboot on its own gives no such guarantee. See @ref user_control.

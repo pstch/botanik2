@@ -155,7 +155,20 @@ namespace Botanik { namespace Vars {
          *  Saved on a cadence and on the way down, never on the write: a
          *  totalizer moves every beat, and a flash write per beat would wear the
          *  part out in days. @see Bank::save_retained() */
-        F_RETAIN = 1u << 4
+        F_RETAIN = 1u << 4,
+        /** @brief This parameter's durable copy waits for its group's commit.
+         *
+         *  `set()` edits the live value and reports SET_OK as usual, but writes
+         *  nothing; whoever owns the group calls persist() once the staged rows
+         *  have been applied AND proved good.
+         *
+         *  For the settings that can break the very channel used to fix them -
+         *  the console's rate, make and size. Their commit puts the new values
+         *  on probation, and flash must go on holding the last CONFIRMED set for
+         *  as long as that runs, or a power cut inside the probation window
+         *  makes the bad configuration permanent - which is the one thing
+         *  probation exists to prevent. @see Config::CONSOLE_PROBATION_MS */
+        F_STAGED = 1u << 5
     };
 
     /** @brief Per-slot state bits, as opposed to the row's declared behaviour.

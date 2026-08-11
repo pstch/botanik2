@@ -412,6 +412,11 @@ namespace Botanik { namespace Vars {
             slot.qual = Q_GOOD;
         }
 
+        // A staged row is live now and durable later: its group's commit calls
+        // persist() once the new setting has proved itself. SET_OK because the
+        // EDIT took - SET_NOT_PERSISTED is a store that refused, which is a
+        // fault, and this is the row doing what it was declared to do.
+        if ((d->flags & F_STAGED) != 0) return SET_OK;
         return _persist_param(h, *d, slot);
     }
 

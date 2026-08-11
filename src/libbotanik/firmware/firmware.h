@@ -159,6 +159,7 @@ namespace Botanik {
          *  loaded them. */
         uint16_t                      _console_cols = Config::CONSOLE_COLS;
         uint16_t                      _console_rows = Config::CONSOLE_ROWS;
+        uint8_t                       _console_type = Config::TERMINAL_TYPE;
         static_assert(Config::CONSOLE_COLS <= Config::TERMINAL_MAX_COLS &&
                       Config::CONSOLE_ROWS <= Config::TERMINAL_MAX_ROWS,
                       "console geometry exceeds the screen back-buffer");
@@ -167,6 +168,23 @@ namespace Botanik {
          *  valid serial (the row's default is 1), so the first pass always
          *  applies - which is what picks the stored geometry up at bring-up. */
         uint32_t                      _term_serial = 0;
+
+        /** @brief The console settings that were running before the commit now
+         *  on probation - everything _console_revert() has to put back.
+         *
+         *  It holds the APPLIED values, not the rows': the rows hold the
+         *  candidate, which is the thing being withdrawn. */
+        struct ConsoleSettings {
+            uint32_t baud;
+            uint32_t serial;
+            uint16_t cols;
+            uint16_t rows;
+            uint8_t  type;
+        };
+        ConsoleSettings               _console_prev = {};
+        /** @brief Probation state, shared with the shell's `console` command
+         *  through SystemContext (core/context.h says why it lives there). */
+        ConsoleConfig                 _console_cfg;
 #endif
 
         /** @} */
@@ -467,41 +485,58 @@ namespace Botanik {
          *  cost, and an unnamed row is not a diagnosis. */
         void _register_tasks();
 
-        /** @brief Re-apply either UART rate when its parameter has moved.
+        /** @brief Re-apply the MONITOR rate when its parameter has moved.
          *  Registered as the "serial_cfg" task, so it runs on the CONFIG phase.
          *
-         *  Edge-triggered against what is actually running, so the steady case
-         *  is two integer compares and no device call. `begin()` on an
-         *  already-open port is a reconfigure, not a reopen. Not gated on a
-         *  commit serial like the network group: a baud rate is one number,
-         *  coherent on its own.
+         *  Edge-triggered against what is actually running, so the steady case is
+         *  one integer compare and no device call. `begin()` on an already-open
+         *  port is a reconfigure, not a reopen.
          *
-         *  @warning Retuning the console drops the terminal on the other end
-         *  mid-sentence: it is at the old rate. Inherent, and the parameter's
-         *  own notes say so. The confirming log line lands at the NEW rate, so
-         *  it is the first thing read after reconnecting. */
+         *  The monitor's rate applies the moment it moves, with no commit and no
+         *  probation, and the CONSOLE's does neither - see
+         *  _apply_console_config(). The asymmetry is the whole point: the monitor
+         *  is a one-way log stream, so getting its rate wrong costs the log and
+         *  nothing else. There is nothing to confirm over a port that cannot be
+         *  typed into. */
         void _apply_serial_config();
 
 #if BOTANIK_FEATURE_CONSOLE
-        /** @brief Apply the `term_` group: which terminal is on the console wire
-         *  and how big it is. Registered as the "console_cfg" task.
+        /** @brief Apply the console's configuration - its rate, its make and its
+         *  size - and run the probation that decides whether it sticks.
+         *  Registered as the "console_cfg" task.
          *
-         *  Gated on the group's commit serial, unlike the baud above, and for a
-         *  reason the baud does not have: these three rows describe ONE physical
-         *  terminal, so applying them one edit at a time walks the screen through
-         *  sizes that match nothing on the wire. Staged, a make-and-size swap is
-         *  a single repaint.
+         *  @p allow_probation is false for the one call in setup(): what is in
+         *  the store was confirmed before it got there, so applying it at
+         *  bring-up is not a change anyone has to vouch for.
+         *
+         *  The `term_` rows are gated on their commit serial, which the baud does
+         *  not need: those three describe ONE physical terminal, so applying them
+         *  an edit at a time walks the screen through sizes that match nothing on
+         *  the wire. Either a commit or a baud move opens probation, and the four
+         *  are stashed and restored together - a terminal swap is usually both.
          *
          *  The firmware drives this rather than the Console watching the bank
          *  itself: the Console holds no SystemContext and has no route to a
          *  variable, which is deliberate (a terminal is for drawing). So the
-         *  reader that has the bank pushes, exactly as it does for the baud.
+         *  reader that has the bank pushes, and holds the probation.
          *
-         *  @warning A geometry the terminal does not actually have is a garbled
-         *  screen that survives a reboot - there is no resize handshake to
-         *  discover the truth and correct it. The rows' declared bands are the
-         *  whole guard. */
-        void _apply_console_config();
+         *  @see Config::CONSOLE_PROBATION_MS for why the settings do not reach
+         *  flash until they are confirmed. */
+        void _apply_console_config(bool allow_probation = true);
+
+        /** @brief Put the console device on @p s and record it as what is
+         *  running. Shared by the commit and the revert, so what is applied and
+         *  what is restored cannot come to differ. */
+        void _console_apply(const ConsoleSettings& s);
+        /** @brief Put the console's ROWS back on @p s. The revert's alone: a
+         *  commit's rows already hold what it is applying, and writing them back
+         *  would erase a staged edit nobody has committed yet. */
+        void _console_restore_rows(const ConsoleSettings& s);
+        /** @brief Decide a probation in flight: confirm, withdraw, or time out. */
+        void _console_resolve_probation();
+        /** @brief Make the applied console settings durable - the ONLY thing
+         *  that does, since every one of these rows is F_STAGED. */
+        void _console_persist();
 #endif
 
 #if BOTANIK_FEATURE_LOGGING

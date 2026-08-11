@@ -103,7 +103,7 @@ in the tail hole rather than buying four bytes of padding.
 | `str` | `const char* (*)(uint64_t)` | `T_ENUM` renderer, null for a plain number |
 | `type`, `role`, `scope` | enums | |
 | `digits` | `uint8_t` | `T_F32` display decimals |
-| `flags` | `uint8_t` | `F_INVERT`, `F_BOUNDED`, `F_RDONLY` |
+| `flags` | `uint8_t` | `F_INVERT`, `F_BOUNDED`, `F_RDONLY`, `F_RETAIN`, `F_STAGED` |
 
 `Binding::wire` is the type **on the wire**, deliberately distinct from the variable's
 own `type`: for an `AI`/`AO` row the driver computes `value = wire * scale + offset`,
@@ -113,6 +113,13 @@ so control logic never sees raw counts.
 the second half of input validity. `timeout_ms` catches a reading nothing refreshed;
 `F_BOUNDED` catches one that is perfectly fresh and still nonsense - a dead 4-20 mA
 loop reads full scale forever, and no timeout will ever notice.
+
+@note `F_STAGED` on a parameter makes `set()` edit the live value and write
+nothing: the row is live at once and durable only when whoever owns its group
+calls `persist()`. For the settings that can break the channel used to fix them -
+the console's rate, make and size - where a commit has to be able to be undone,
+and flash must go on holding the last CONFIRMED set while the new one is proving
+itself. @ref user_console has the operator's half.
 
 ### Analog calibration
 

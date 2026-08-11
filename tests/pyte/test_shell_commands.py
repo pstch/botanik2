@@ -173,3 +173,53 @@ def test_tasks(spawn):
 
     _run(term, b"tasks nosuchtask")
     assert term.wait_for("no task named"), "an unknown task name said otherwise"
+
+
+def test_console_probation_confirm(spawn):
+    """A committed console configuration is applied but not kept until confirmed.
+
+    The settings that can break the channel used to fix them (rate, make, size)
+    apply on a `term_serial` commit and then wait. Only `console confirm` makes
+    them durable - see Config::CONSOLE_PROBATION_MS. Driven end to end because
+    the whole mechanism is the round trip: the prompt has to reach a screen and
+    the answer has to come back off it.
+    """
+    term = shell(spawn, quiet_logs=True)
+    _run(term, b"console")
+    assert term.wait_for("nothing pending"), "a fresh boot was already on probation"
+
+    # 60 cols is narrower than the harness's 80, so the screen visibly reflows;
+    # it stays inside term_cols' band, so the commit is a legal one.
+    _run(term, b"set term_cols 60")
+    _run(term, b"set term_serial 2")
+    assert term.wait_for(("console confirm", "reverts")), \
+        "the commit did not ask to be confirmed"
+
+    _run(term, b"console")
+    assert term.wait_for("ON PROBATION"), "the commit did not open a probation"
+
+    _run(term, b"console confirm")
+    assert term.wait_for("confirmed"), "confirm was not taken"
+    _run(term, b"console")
+    assert term.wait_for("nothing pending"), "confirm did not close the probation"
+
+
+def test_console_probation_revert(spawn):
+    """Withdrawing a commit puts the previous settings back, rows included.
+
+    The timeout runs the identical restore; what differs is only who triggers
+    it, and a 60-second window is not worth 6000 beats to watch expire.
+    """
+    term = shell(spawn, quiet_logs=True)
+    _run(term, b"set term_cols 60")
+    _run(term, b"set term_serial 2")
+    assert term.wait_for("console confirm"), "the commit did not open a probation"
+
+    _run(term, b"console revert")
+    assert term.wait_for("reverting"), "revert was not taken"
+
+    # The ROW goes back too, not just the device: leaving 60 in the row would
+    # re-commit it the next time anything bumped the serial.
+    _run(term, b"get term_cols")
+    assert term.wait_for(("term_cols = 80", "console width")), \
+        "revert left the row holding the withdrawn value"

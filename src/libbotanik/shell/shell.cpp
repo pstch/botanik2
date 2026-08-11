@@ -106,6 +106,8 @@ namespace Botanik { namespace Shell {
             { "override",   "list|clear|<name> [off|<value>] [valid|invalid]", &CommandShell::_cmd_override },
             { "control",    "[enable|inhibit|disable] drive the field", &CommandShell::_cmd_control },
             { "save",       "flush retained values to flash", &CommandShell::_cmd_save      },
+            { "console",    "[confirm|revert] keep or undo console settings",
+                                                     &CommandShell::_cmd_console  },
             { "version",    "firmware version",               &CommandShell::_cmd_version    },
             { "features",   "which subsystems are built in",  &CommandShell::_cmd_features   },
             { "breakpoint", "trap into an attached debugger", &CommandShell::_cmd_breakpoint },
@@ -919,14 +921,62 @@ namespace Botanik { namespace Shell {
         (void)args; (void)alen;
         Vars::Params* p = _params();
         if (p == nullptr) { _println("save: no parameters"); return; }
-        // Parameters are written the moment they are set, so there is nothing
-        // of theirs pending: what this flushes is the RETAINED rows, whose
-        // whole point is that they are written on a cadence rather than per
-        // change. Say which, or "save" reads as "my `set` did not take".
+        // Parameters are written the moment they are set (bar the staged console
+        // rows, which `console confirm` writes), so there is nothing of theirs
+        // pending: what this flushes is the RETAINED rows, whose whole point is
+        // that they are written on a cadence rather than per change. Say which,
+        // or "save" reads as "my `set` did not take".
         char out[96];
         const uint16_t n = p->save_retained(HAL::Clock::uptime_ms());
         if (n == 0) { _println("save: no retained values"); return; }
         _emitf(out, sizeof(out), "save: %u retained value(s) written", (unsigned)n);
+    }
+
+    void CommandShell::_cmd_console(const char* args, uint16_t alen) {
+        ConsoleConfig* cfg = _sys != nullptr ? _sys->console_cfg : nullptr;
+        if (cfg == nullptr) { _println("console: no console configuration"); return; }
+
+        uint16_t wlen = 0;
+        const char* w = arg_next(args, alen, wlen);
+        char out[128];
+
+        if (w == nullptr) {
+            if (!cfg->on_probation()) {
+                _println("console: settings confirmed, nothing pending");
+                return;
+            }
+            // Seconds LEFT, not the deadline: the operator is watching a clock
+            // that started when they committed, not this unit's uptime.
+            const uint64_t now  = HAL::Clock::uptime_ms();
+            const uint64_t left = cfg->probation_until_ms > now
+                                ? cfg->probation_until_ms - now : 0;
+            _emitf(out, sizeof(out), "console: ON PROBATION, %lu s left",
+                   (unsigned long)(left / 1000u));
+            _println("`console confirm` keeps them, `console revert` puts the old ones back");
+            return;
+        }
+
+        if (arg_eq(w, wlen, "confirm")) {
+            // Not an error worth a usage line: the operator did the right thing
+            // and was beaten to it by the timeout, or never needed to.
+            if (!cfg->on_probation()) {
+                _println("console: nothing to confirm (already saved, or already reverted)");
+                return;
+            }
+            cfg->confirm = true;
+            _println("console: confirmed; saving these settings");
+            return;
+        }
+        if (arg_eq(w, wlen, "revert")) {
+            if (!cfg->on_probation()) {
+                _println("console: nothing pending to revert");
+                return;
+            }
+            cfg->revert = true;
+            _println("console: reverting to the previous settings");
+            return;
+        }
+        _println("usage: console [confirm|revert]");
     }
 
 #if !BOTANIK_FEATURE_NETWORK

@@ -159,8 +159,16 @@ namespace Botanik { namespace Pages {
 
     void ShellPage::push(const Logs::LogEntry* entry) {
         // Only show logs received while active; background entries are dropped
-        // (the full log lives in LogsPage). "logs off" drops them too.
-        if (!_active || !_logs_enabled) return;
+        // (the full log lives in LogsPage).
+        if (!_active) return;
+        // "logs off" silences the running COMMENTARY, not an emergency: a
+        // critical clears every other floor in the system and this is a floor
+        // like the rest. It is also load-bearing for anything whose prompt is a
+        // log line - the console probation asks to be confirmed exactly once,
+        // and an operator with the interleave off would otherwise watch their
+        // settings revert with nothing ever having said why.
+        if (!_logs_enabled &&
+            (entry == nullptr || entry->level != Logs::LOG_CRITICAL)) return;
         Logs::BufferedLogWriter::push(entry);
     }
 

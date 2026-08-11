@@ -38,11 +38,45 @@ time the screen would pass through sizes that match nothing on the wire. On the
 two Minitel types the firmware emits the PRO2 setup sequences as part of the
 switch, exactly as it does at start-up.
 
-@warning The firmware has no way to discover it got this wrong. A size the
-terminal does not have is a garbled screen, and it is **persisted**, so it comes
-back that way after a reboot. Same hazard as `serial_console_baud`, which can
-leave you unable to read the console at all. The monitor port still carries the
-log stream if you do lock yourself out.
+### Confirming, because the firmware cannot check
+
+Nothing here can be verified from this end: there is no resize handshake and no
+rate negotiation, so a wrong answer is only visible to the person in front of the
+terminal. That is what the confirmation is for. A commit **applies** the new
+settings and starts a 60-second probation, and only `console confirm` makes them
+durable:
+
+```
+botanik> set serial_console_baud 9600
+botanik> set term_serial 3
+BOOT: console now 9600 baud, 80x24, terminal type 1
+      type `console confirm` within 60 s or it reverts
+
+... reconnect the terminal at 9600 ...
+
+botanik> console confirm
+console: confirmed; saving these settings
+```
+
+Being able to read that prompt and type the answer is itself the proof the link
+works in both directions. Anything else puts the previous settings back:
+
+| | |
+|---|---|
+| `console` | how long is left, when a probation is running |
+| `console confirm` | keep these settings, and write them to flash |
+| `console revert` | put the previous ones back now, without waiting |
+| *(silence)* | after 60 s, the same revert |
+| *(power cut)* | the settings never reached flash, so the unit boots on the last confirmed ones |
+
+The rate is the reason for the 60 seconds: changing it means physically
+reconnecting a terminal at the new speed. `console confirm` covers the size and
+the make in the same breath, because a terminal swap is usually all three.
+
+@note Getting the **size** wrong is survivable without any of this. The screen
+mangles, but input is untouched, so `set term_cols 80` and a `term_serial` bump
+typed blind will still land. It is the **rate** that leaves nothing to type into,
+and that is the failure probation exists for.
 
 There is a **second** serial port, the monitor port, which carries a plain-text log
 stream and no UI. See @ref user_logging.
