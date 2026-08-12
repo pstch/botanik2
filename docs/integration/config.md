@@ -97,7 +97,7 @@ the `features` command expands `BOTANIK_FEATURE_LIST`, so neither can fall out o
 step.
 
 A built unit reports its own set through the shell's `features` command
-(@ref user_shell), which is how you tell a compiled-out subsystem from a broken one
+(@ref user_console), which is how you tell a compiled-out subsystem from a broken one
 without going back to the build that produced the binary.
 
 @note Keep the `foreach(_feat ...)` list in `CMakeLists.txt` in step with this table.
@@ -193,7 +193,7 @@ The sections below follow the header's own order.
 
 | Macro | Default | |
 |---|---|---|
-| `LOG_MIN_LEVEL` | 2 (info) | the initial `loglevel`. SIMULATOR builds force it to 1 (debug) from `CMakeLists.txt`, so the sim never shows this default |
+| `LOG_MIN_LEVEL` | 2 (info) | the master log floor. SIMULATOR builds force it to 1 (debug) from `CMakeLists.txt`, so the sim never shows this default |
 | `LOG_MESSAGE_LEN` | 256 | the raw message, before formatting |
 | `LOG_FORMATTED_LEN` | 320 | the formatted line. A `static_assert` keeps it at least `LOG_MESSAGE_LEN + 64`, so a full-length message does not lose its tail to the timestamp/level/topic prefix |
 | `LOG_WRITERS_MAX` | 8 | |

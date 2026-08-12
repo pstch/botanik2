@@ -7,8 +7,8 @@ keep in step.
 
 Two consequences worth having:
 
-- an alarm is readable and forcible by name like any other variable - `get
-  alarm_dc_ups`, or `override alarm_dc_ups 1` to exercise whatever watches it;
+- an alarm is readable and forcible by name like any other variable - `vars get
+  alarm_dc_ups`, or `overrides set alarm_dc_ups 1` to exercise whatever watches it;
 - the ALARMS page shows that variable name beside the code, so what you see on screen
   is what you type at the prompt (the `alarm_` prefix is stripped on screen).
 
@@ -41,7 +41,9 @@ Acknowledged is driven by you.
 On the ALARMS page, select the row and press `a`. From the shell,
 `alarms ack <code>` or `alarms ack all`. Either spelling of the condition works -
 the short code the alarm bar shows (`SYS_RST`) or the variable name `alarms list`
-shows (`alarm_system_reset`).
+shows (`alarm_system_reset`), and `alarms get <code|name>` answers with the one
+condition in detail: whether it is active, for how long, its dwell policy and its
+remediation note.
 
 Acknowledging means "seen", not "fixed". It:
 
@@ -72,8 +74,8 @@ Every unit has these regardless of site, raised from the firmware's own health:
 | `FLASH_FLT` | `alarm_flash_error` | a write to persistent storage failed | **sticky until reboot** |
 
 `FLASH_FLT` is the one to act on: parameters will not survive a reboot until it is
-resolved. It is the same fault behind `set`'s `(NOT SAVED: storage refused it)` and
-the PARAMS page's `NOT SAVED` warning - one problem seen from three places.
+resolved. It is the same fault behind `params save`'s `NOT saved: storage refused it`
+and the PARAMS page's `NOT SAVED` footer - one problem seen from three places.
 
 The `cpu:` and `stk:` figures in the status bar are the same measurements the
 `CPU_LOAD` and `STACK` alarms watch, and `stats` shows their recent and peak values.

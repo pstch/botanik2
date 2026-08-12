@@ -3,7 +3,7 @@
 Whether the firmware may drive the field at all is **control authority**, and it
 has three modes. Everything that touches the outputs goes through it.
 
-| Mode | The programs | The outputs | An `override` on an output |
+| Mode | The programs | The outputs | An override on an output |
 |---|---|---|---|
 | `enable` | run | driven normally | drives |
 | `inhibit` | stopped | at their safe state | **still drives** |
@@ -42,7 +42,7 @@ way past.
 botanik> control                 # report
 control: enabled
 botanik> control inhibit
-control: INHIBITED - outputs at their safe state, scan stopped; `override` still drives them by hand
+control: INHIBITED - outputs at their safe state, scan stopped; `overrides set` still drives them by hand
 botanik> control disable
 control: DISABLED - outputs at their safe state, scan stopped, output overrides ignored (kept, not cleared)
 botanik> control enable
@@ -63,15 +63,15 @@ exactly what the safe state exists to prevent.
 ### Driving an actuator by hand
 
 Inhibiting control does **not** take the outputs away from you - it takes them away
-from the control programs. `override` still reaches them, and with the scan stopped
+from the control programs. `overrides set` still reaches them, and with the scan stopped
 there is nothing left to fight it, so the two commands together are how you command a
 valve or a fan by hand:
 
 ```
 botanik> control inhibit
-botanik> override irr_tray1 1        # open tray 1's valve
-botanik> override irr_tray1 0        # close it
-botanik> override clear              # hand everything back
+botanik> overrides set irr_tray1 1     # open tray 1's valve
+botanik> overrides set irr_tray1 0     # close it
+botanik> overrides clear               # hand everything back
 botanik> control enable
 ```
 
@@ -84,10 +84,12 @@ opposite guarantee: that nothing moves, including you.
 programs, and those are exactly what you just stopped. Release the overrides before
 `control enable`, or the programs come back to find their outputs already held.
 
-Overrides survive a reboot, and an output's is no exception - a restored one is
-driving the actuator from the moment the firmware comes up. The firmware announces
-each restored override as a **critical** naming the row, but `override clear` before
-you leave is the habit worth having. See @ref user_variables.
+A **saved** override survives a reboot, and an output's is no exception - a restored
+one is driving the actuator from the moment the firmware comes up. An override you
+never saved dies with the session, which is the safer default; either way the
+firmware announces each restored one as a **critical** naming the row, and
+`overrides clear` before you leave is the habit worth having. See
+@ref user_variables.
 
 `control enable` releases the **operator's** hold and nothing else, then reports what
 is left. So a `control enable` that changes nothing reads as a health fault rather
@@ -131,8 +133,10 @@ the one outcome the safe state exists to prevent. So a health fault will take a
 hand-driven valve off you, and keep it off across a reboot; the operator's own
 `control disable` only mutes it.
 
-`reset` and `exit` also drop the outputs to safe state before leaving, because the
-reboot itself gives no guarantee about what the outputs do on the way through.
+`reset`, `reboot` and `exit` all drop the outputs to their safe state before
+leaving, because the restart itself gives no guarantee about what the outputs do on
+the way through. `reboot` then simply stops kicking the watchdog and lets it reset
+the unit - the same path an unattended unit takes when it wedges.
 
 ## Reading a boot
 

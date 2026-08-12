@@ -1,29 +1,85 @@
 /**
 @page manual User manual
 
-@brief Operating a running unit over its serial terminal.
+@brief Operating a running unit
 
-Everything an operator does with a deployed Botanik unit happens over the console
-serial port: reading the field, tuning parameters, acknowledging alarms, and taking
-control by hand. This part assumes nothing about the greenhouse - the pages and
-commands are the same on every site, only the variables differ.
+The operator usually interacts with a deployed Botanik unit using the built-in console HMI,
+which allows monitoring the field, tuning parameters, acknowledging alarms and taking manual control.
 
-**Start here:**
+This part assumes nothing site-specific, and only describes the library-provided HMI: while this interface
+may be extended by site-specific code, this manual only describes the generic user interface.
 
-- @subpage user_console - the terminal, the screen layout, and the keys that work
-  everywhere.
-- @subpage user_pages - the eight pages: what each shows and how to drive it.
-- @subpage user_shell - the command prompt and every built-in command.
+In addition to the built-in HMI, the operator may use the ModBus TCP server to change the configuration or
+monitor status variables. There is also a dedicated "monitor" interface, on a second serial port, that
+is only used to print debugging logs, and both status and logs may be published to an MQTT broker.
 
-**Concepts worth knowing:**
+@section manual_concepts Important concepts
 
-- @subpage user_variables - what a variable is, how to read one, and how to
-  **override** it for maintenance.
-- @subpage user_params - parameters: editing them, persistence, and the four
-  groups the library's own components read.
-- @subpage user_alarms - the alarm lifecycle, acknowledgement, and the platform
-  alarms every unit has.
-- @subpage user_logging - log levels and topics, and the out-of-band monitor port.
-- @subpage user_control - control authority, the safe state, and what a boot tells
-  you.
+@subsection manual_variables Variables
+
+Botanik uses a "variable table", that is used to represent values that the firmware and operator interact with.
+Variables are used for a lot of different things : parameters, analogic/digital input/output,  relay coils, alarms,
+computed/status values. Depending on their scope & type, variables may specify a default value, a "quality", a
+"plausability range", a ModBus mapping, a "safe state", and other useful information.
+
+See @subpage user_variables for more information.
+
+@subsection manual_alarms Alarms
+
+An alarm is a variable too: a boolean row carrying the dwell policy that decides how long its condition
+must hold before it is announced. They surface on the alarm bar, on the ALARMS page, in the log and over
+MQTT, and are acknowledged from either the page or the shell.
+
+See @subpage user_alarms for more information.
+
+@subsection manual_logging Logging
+
+Botanik provides a logging framework that may use multiple log writers and that supports per-writer custom
+formatters. This framework is used to publish log entries to the console, to the dedicated monitor port and
+to the MQTT broker. It also supports both global and per-topic rate-limiting.
+
+See @subpage user_logging for more information.
+
+@subsection manual_control Control authority
+
+Botanik allows disabling the control authority (bringing outputs to a safe state), setting overrides for
+values (both for input and output variables), modifying the configuration and persisting the changes made to it.
+This can be used for monitoring and for maintenance operations that may require forcing a state or disabling the
+control programs to support manual operation.
+
+See @subpage user_control for more information.
+
+@section manual_ui User interface
+
+@subsection manual_console Serial console
+
+ - **Port** : console UART (OPTA: `PG_14` / `PG_9`)
+ - **Baudrate** :  `4800` by default
+ - **Framing** : `8N1`
+ - **Terminal** : `VT100`, `VT102` (default), `MINITEL_1B` or `MINITEL_2`
+
+Botanik provides a serial console that supports low-bandwidth operation and provides multiple console pages :
+
+ - a home page, that shows a banner, the log tail and some status values
+ - a shell page used to send commands to the unit
+ - a logs page used to monitor the system state
+ - an alarms page used to monitor/acknowledge the system alarms
+ - a parameters page used to show and edit the unit's configuration
+ - a monitor page used to display input/output/computed/status variables
+ - a tasks page used to show the system's tasks and the per-task timing information
+ - a notes page used to store text notes for per-deployment important information
+
+ See @subpage user_console for more information.
+
+@subsection manual_monitor Serial monitor
+
+ - **Port** : monitor UART (OPTA: **USB CDC**)
+ - **Baudrate** :  `115200` by default
+ - **Framing** : `8N1`
+ - **Content** : plain formatted log lines, one per entry
+ - **Input** : discarded
+
+In addition to the serial console, there is a secondary serial interface that is only used to print logs.
+
+See @subpage user_monitor for more information.
 */

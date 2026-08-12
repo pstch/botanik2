@@ -5,7 +5,7 @@ page implements the @ref Botanik::Pages::Page interface; the console holds up to
 them, routes input to the active one (see @ref dev_input), and ticks all of them each
 loop.
 
-What each shipped page shows and how an operator drives it is in @ref user_pages;
+What each shipped page shows and how an operator drives it is in @ref user_console;
 this page is the framework behind them.
 
 ## Screen contract

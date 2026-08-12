@@ -40,7 +40,7 @@ Under `src/libbotanik/`:
 | `logs/` | `Logger`, its rate limiter, and the `LogWriter` sinks | @ref dev_logging |
 | `console/` | the VT device, the screen back-buffer, input parsing, the line editor | @ref dev_screen |
 | `pages/` | the full-screen views behind one `Page` interface | @ref dev_pages |
-| `shell/` | `CommandShell`: submission, built-ins, history, kill-ring | @ref user_shell |
+| `shell/` | `CommandShell`: submission, built-ins, history, kill-ring | @ref user_console |
 | `network/` | the optional network / NTP / MQTT clients | @ref dev_network |
 | `sun/` | solar-position tracking, standalone | - |
 | `utils/` | `BufferedSerial`, metric filters, time and text helpers, the assert | - |

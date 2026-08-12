@@ -36,15 +36,11 @@ is logged and delivered to every sink. The base library provides up to five sink
 
 ## Choosing how much
 
-Two filters in series. `loglevel` is the **master floor** - below it nothing is
-emitted at all, to any sink:
-
-```
-botanik> loglevel            # report the current threshold
-loglevel: debug
-(master floor; each page filters further)
-botanik> loglevel warning    # quieten everything below warnings
-```
+Two filters in series. The **master floor** comes first - below it nothing is
+emitted at all, to any sink. It is fixed at build time
+(`BOTANIK_LOG_MIN_LEVEL`); there is no command that moves it on a running unit,
+so what a unit records is a property of the firmware in it rather than of who
+was last at the terminal.
 
 The default is `debug`, so the LOGS page can be the complete record. Each page
 then applies its **own** floor on top:
@@ -55,13 +51,15 @@ then applies its **own** floor on top:
 | SHELL | `info` and up | you are already working here, so keep the running commentary |
 | LOGS | everything, `debug` included | this page is the record |
 
-A page floor can only ever be *more* restrictive: `loglevel warning` quietens
-every page, but `loglevel debug` does **not** make debug lines appear on HOME.
+A page floor can only ever be *more* restrictive: raising the master floor
+quietens every page, but lowering it does **not** make debug lines appear on HOME.
 Criticals clear every floor. To silence only the SHELL page's interleaved log
 entirely, use `logs off`.
 
 A site can move any of the three (`BOTANIK_HOME_LOG_MIN_LEVEL`,
-`BOTANIK_SHELL_LOG_MIN_LEVEL`, `BOTANIK_LOGS_LOG_MIN_LEVEL`).
+`BOTANIK_SHELL_LOG_MIN_LEVEL`, `BOTANIK_LOGS_LOG_MIN_LEVEL`), and the master floor
+itself is `BOTANIK_LOG_MIN_LEVEL`. All four are build-time: there is no command that
+moves a floor on a running unit.
 
 ## Long entries
 
@@ -107,7 +105,7 @@ carry it. It never competes with the UI for the console's byte budget, so it doe
 drop lines the way a busy screen can.
 
 On hardware, plug in a USB cable and open the CDC device at 115200. Everything the
-logger emits appears there, at whatever `loglevel` is set.
+logger emits appears there. See @ref user_monitor.
 
 @note On the simulator the monitor stream goes to **stderr** and suppresses itself
 when that is a terminal, so it cannot garble the UI on the same screen. Redirect it
