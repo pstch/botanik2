@@ -218,7 +218,10 @@ predicate against the shell reply is the fiddly part.
    cannot have it from one call.
 5. Programs register; `Scan::Driver` and `scan/` deleted; authority edges move.
 6. `Component` loses the six phase hooks, the timer and the per-beat verdict.
-7. Tests.
+7. Control authority drops to one mode, and programs become stoppable one at a
+   time (see below). Needs 5: both halves of it stand on the program
+   registration and the declared output provider.
+8. Tests.
 
 ## Decided
 
@@ -247,6 +250,67 @@ period the four groups cannot express, so **no fifth rate group is needed**.
 
 It also empties step 5 of the migration - the program registration path still
 needs building, but no existing program exercises it.
+
+## One control mode, and programs you can stop (step 7)
+
+`Vars::ControlMode`'s middle value goes. Control authority becomes a yes/no, and
+the job `CONTROL_INHIBITED` did - stop the programs deciding, leave an override
+able to move an actuator - is done per PROGRAM instead of to the whole plant.
+
+| was | becomes |
+|---|---|
+| `control enable` | unchanged |
+| `control inhibit` | `programs disable all` |
+| `control disable` | unchanged: every output safe, scan stopped, output overrides MUTED |
+
+The two-source rule survives intact: the operator's standing choice and the
+system's hold are still independent and the stricter still wins, so an operator's
+`control disable` outlives a health fault and a recovered firmware never talks
+over the operator. With two states that is a conjunction rather than a minimum,
+so `ControlMode` itself goes - `Bank` carries two bools and `control_enabled()`
+is `!_op_disabled && !_health_hold`. `control` keeps reporting BOTH, because an
+`enable` that changes nothing must still read as a health fault.
+
+### `programs enable|disable <name>|all`
+
+A disabled program does not run, and **the rows it provides drop to their safe
+state - but an override still drives them.** That is exactly what inhibit meant,
+scoped to one program: `def` / `Q_SAFE` / `VF_FIELD_DIRTY`, and NO
+`VF_OVR_MUTED`. Muting stays `control disable`'s alone, which is what keeps the
+two commands saying different things.
+
+**Which rows: the declared provider, not the writer stamp.** A program's outputs
+come from its provider registration (see The two kinds), not from
+`Bank::writer_of()`. The stamp is latched by an actual write, so it only knows
+about rows the program has already driven - and a program disabled before its
+first activation would leave its actuators exactly where they were, which is the
+one case where dropping to safe matters most. A declared provider is exact and
+exists from bring-up. This is the second job that registration does for us, after
+turning `VF_TWO_WRITERS` into a refused registration.
+
+**Durable once saved.** The disable is live and marked unsaved on the edge;
+`programs save` commits it, under its own storage key per program. Same two-step
+as a parameter and an override, and for the same reason: a program stopped to
+work on a valve should stay stopped across the power cycle that work needs, while
+one stopped for ten minutes to chase a fault should not outlive the session.
+
+**Re-enabling is the returning edge that already exists** - reseed the timer,
+`resume()`, first-scan raised. Nothing special: the rows it provides sit at safe
+until it writes them again, which is its first activation back.
+
+### `site_control` is not a program
+
+The site's `on_control()` hook stays gated by `control_enabled()` and nothing
+else. It is the site's own code rather than a registered unit with a name, so
+**`programs disable all` does not stop it** - a site that wants its control law
+stoppable writes it as a program. Worth saying out loud, because "I disabled
+every program and the plant is still being driven" is otherwise a puzzle.
+
+### Nothing exercises it either
+
+Both reference programs are already gone (above), so `programs` ships against an
+empty list on `gh_mlb41` exactly as the registration path does. Whatever pins one
+has to pin the other.
 
 #### Deleting `sys_supply_hz`
 
