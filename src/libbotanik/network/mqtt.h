@@ -24,6 +24,8 @@
 // Alarms::Publisher (alarm transport)
 #include "libbotanik/alarms/publisher.h"
 
+namespace Botanik { namespace Tasks { struct Tick; class Registry; } }
+
 namespace Botanik { namespace Network {
 
     /** @brief Encode an MQTT "remaining length" varint (1..4 bytes, 7 data
@@ -43,6 +45,13 @@ namespace Botanik { namespace Network {
      *  transport (Alarms::Publisher), so HealthMonitor's notifier publishes
      *  through it. */
     class MqttClient : public Component, public Alarms::Publisher {
+    public:
+        void register_tasks(Tasks::Registry& r) override;
+    private:
+        /** @brief Registration handler: a static MEMBER, so the cast reaches the
+         *  protected hook without a friend and stays beside the class. */
+        static void _service_task(Component* c, const Tasks::Tick& t);
+
         /** @name State
          *  @{ */
         enum State : uint8_t {

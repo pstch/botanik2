@@ -16,6 +16,7 @@
  *  - NetworkStack  - resolver + network handler + (NTP) + (MQTT + telemetry).
  */
 
+#include "libbotanik/tasks/tasks.h"
 #include <cstdint>                          // uint8_t/uint32_t
 
 #include "libbotanik/config/identity.h"   // Config::SITE_NAME / FIRMWARE_VERSION / MQTT_TOPIC_PREFIX
@@ -214,20 +215,29 @@ namespace Botanik {
 #endif
         }
 
-        /** @brief Advance every enabled service for this beat.
+        /** @brief Hand each enabled service its own registration, in the order
+         *  this used to step them.
          *
-         *  Not a Component itself - it owns several - so it takes the phase and
-         *  hands it down, and each child runs the hook it implements. */
-        void step(uint64_t now_ms, Tasks::Phase phase) {
-            _network.step(now_ms, phase);
+         *  Not a Component - it owns several - so it has no tasks of its own.
+         *  Nothing steps anything now: each child is a registry entry with its
+         *  own rate and its own row on the TASKS page. */
+        void register_tasks(Tasks::Registry& r) {
+            _network.register_tasks(r);
 #if BOTANIK_FEATURE_NTP
-            _ntp.step(now_ms, phase);
+            _ntp.register_tasks(r);
 #endif
 #if BOTANIK_FEATURE_MQTT
-            _mqtt.step(now_ms, phase);
-            _telemetry.step(now_ms);   // not a Component: no phase to give it
+            _mqtt.register_tasks(r);
+            // MqttSender is not a Component: it has no lifecycle to register, so
+            // it keeps the plain-function form until it grows one.
+            r.add("telemetry", Tasks::GROUP_FAST, Tasks::PHASE_SERVICE,
+                  [](void* s, uint64_t now) {
+                      static_cast<Network::MqttSender*>(s)->step(now);
+                  },
+                  &_telemetry);
 #endif
         }
+
     };
 #endif
 

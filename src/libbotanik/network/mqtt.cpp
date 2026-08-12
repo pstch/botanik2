@@ -7,6 +7,7 @@
  * gated on NetworkHandler::is_up() before a connect.
  */
 
+#include "libbotanik/tasks/tasks.h"   // Tasks::Registry / Tick / GroupId
 #include "libbotanik/network/mqtt.h"    // MqttClient
 
 #include <cstring>                      // strlen / memcpy
@@ -260,3 +261,16 @@ namespace Botanik { namespace Network {
     }
 
 }}
+
+namespace Botanik { namespace Network {
+
+    void MqttClient::_service_task(Component* c, const Tasks::Tick& t) {
+        static_cast<MqttClient*>(c)->on_service(t.now_ms);
+    }
+
+    void MqttClient::register_tasks(Tasks::Registry& r) {
+        r.add(*this, &MqttClient::_service_task, "mqtt", Tasks::GROUP_FAST,
+              Tasks::PHASE_SERVICE);
+    }
+
+}}  // namespace Botanik::Network

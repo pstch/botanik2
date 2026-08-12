@@ -8,6 +8,7 @@
  * Gated on NetworkHandler::is_up().
  */
 
+#include "libbotanik/tasks/tasks.h"   // Tasks::Registry / Tick / GroupId
 #include "libbotanik/network/ntp.h"     // NtpClient
 
 #include "libbotanik/hal/platform.h"    // HAL::Clock::set_wall_ms
@@ -196,3 +197,16 @@ namespace Botanik { namespace Network {
     }
 
 }}
+
+namespace Botanik { namespace Network {
+
+    void NtpClient::_service_task(Component* c, const Tasks::Tick& t) {
+        static_cast<NtpClient*>(c)->on_service(t.now_ms);
+    }
+
+    void NtpClient::register_tasks(Tasks::Registry& r) {
+        r.add(*this, &NtpClient::_service_task, "ntp", Tasks::GROUP_FAST,
+              Tasks::PHASE_SERVICE);
+    }
+
+}}  // namespace Botanik::Network

@@ -8,6 +8,7 @@
  * next step.
  */
 
+#include "libbotanik/tasks/tasks.h"   // Tasks::Registry / Tick / GroupId
 #include "libbotanik/network/network.h" // NetworkHandler
 
 #include <cstring>                      // memset / strncpy
@@ -110,3 +111,16 @@ namespace Botanik { namespace Network {
     }
 
 }}
+
+namespace Botanik { namespace Network {
+
+    void NetworkHandler::_service_task(Component* c, const Tasks::Tick& t) {
+        static_cast<NetworkHandler*>(c)->on_service(t.now_ms);
+    }
+
+    void NetworkHandler::register_tasks(Tasks::Registry& r) {
+        r.add(*this, &NetworkHandler::_service_task, "net", Tasks::GROUP_FAST,
+              Tasks::PHASE_SERVICE);
+    }
+
+}}  // namespace Botanik::Network

@@ -20,6 +20,8 @@
 #include "libbotanik/network/resolver.h"    // Network::NameResolver
 #include "libbotanik/vars/params.h"         // Vars::Bank / get_str
 
+namespace Botanik { namespace Tasks { struct Tick; class Registry; } }
+
 namespace Botanik { namespace Network {
 
     /** @brief Convert an SNTP reply's transmit timestamp (bytes 40..47,
@@ -44,6 +46,13 @@ namespace Botanik { namespace Network {
      *  Restarts on a config change; falls back to the second server and backs
      *  off on failure. */
     class NtpClient : public Component {
+    public:
+        void register_tasks(Tasks::Registry& r) override;
+    private:
+        /** @brief Registration handler: a static MEMBER, so the cast reaches the
+         *  protected hook without a friend and stays beside the class. */
+        static void _service_task(Component* c, const Tasks::Tick& t);
+
         /** @name State
          *  @{ */
         enum State : uint8_t {

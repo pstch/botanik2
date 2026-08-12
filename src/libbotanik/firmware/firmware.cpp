@@ -275,7 +275,7 @@ namespace Botanik {
             [](void* s, uint64_t) { static_cast<BotanikFirmware*>(s)->_latch_control(); },
             this);
 #if BOTANIK_FEATURE_NETWORK
-        _tasks.add_component<PHASE_SERVICE>("net", GROUP_FAST, _net);
+        _net.register_tasks(_tasks);   // network, ntp, mqtt, telemetry
 #endif
 #if BOTANIK_FEATURE_MODBUS_TCP_SERVER
         // The flash half of a master's write, paced: storage is synchronous and

@@ -19,6 +19,8 @@
 #include "libbotanik/network/resolver.h"    // Network::NameResolver
 #include "libbotanik/vars/params.h"         // Vars::Bank / get_str
 
+namespace Botanik { namespace Tasks { struct Tick; class Registry; } }
+
 namespace Botanik { namespace Network {
 
     /** @brief Owns the link (via HAL::Net bring-up); is_up() is authoritative.
@@ -26,6 +28,13 @@ namespace Botanik { namespace Network {
      *  restarting on a config change. Clears the NameResolver cache on
      *  reconfiguration / link loss. */
     class NetworkHandler : public Component {
+    public:
+        void register_tasks(Tasks::Registry& r) override;
+    private:
+        /** @brief Registration handler: a static MEMBER, so the cast reaches the
+         *  protected hook without a friend and stays beside the class. */
+        static void _service_task(Component* c, const Tasks::Tick& t);
+
         /** @name State
          *  @{ */
 
