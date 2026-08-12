@@ -199,22 +199,6 @@ namespace Botanik {
         Network::MqttLogWriter&  mqtt_log()  { return _mqtt_log; }
 #endif
 
-        /** @brief One-time init for every enabled service, mirroring step().
-         *
-         *  The stack is a bundle, not a Component, so the registry can only set
-         *  up the bundle; without this its members would init lazily inside the
-         *  first beat. */
-        void setup(uint64_t now_ms) {
-            _network.setup(now_ms);
-#if BOTANIK_FEATURE_NTP
-            _ntp.setup(now_ms);
-#endif
-#if BOTANIK_FEATURE_MQTT
-            _mqtt.setup(now_ms);
-            // _telemetry is not a Component - no setup, nothing to announce.
-#endif
-        }
-
         /** @brief Hand each enabled service its own registration, in the order
          *  this used to step them.
          *

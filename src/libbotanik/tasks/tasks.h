@@ -35,6 +35,13 @@ namespace Botanik { class Component; }
 
 namespace Botanik { namespace Tasks {
 
+    /** @brief Run @p self's Component::setup() - the one-time init behind every
+     *  registration.
+     *
+     *  Defined in core/component.cpp, not here: `tasks/` only forward-declares
+     *  Component and must not acquire `core/` to call one method on it. */
+    void component_setup(void* self, uint64_t now_ms);
+
     /** @brief What a handler is told about the activation it is running in.
      *
      *  The rate lives on the TASK, so the task is the only thing that knows how
@@ -177,7 +184,11 @@ namespace Botanik { namespace Tasks {
          *
          *  The component states the phase and the rate itself, beside the code
          *  they refer to; what the caller adds is WHICH INSTANCE this is, since
-         *  the same class is constructed more than once. */
+         *  the same class is constructed more than once.
+         *
+         *  Registering also gets @p owner set up: setup() runs its on_setup()
+         *  and announce() before the loop starts, once however many phases it
+         *  registered in. */
         bool add(Component& owner, void (*handler)(Component*, const Tick&),
                  const char* name, GroupId group, Phase phase);
 

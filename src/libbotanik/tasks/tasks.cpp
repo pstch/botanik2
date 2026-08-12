@@ -85,6 +85,16 @@ namespace Botanik { namespace Tasks {
         if (t == nullptr) return false;
         t->owner   = &owner;
         t->handler = handler;
+        // The same one-time init add_component() gives the legacy form: a
+        // registration is what runs a component's on_setup() and announce().
+        // Without it a self-registering component runs its per-beat work having
+        // never been set up - which is how HealthMonitor's POST, and with it the
+        // binding of every platform-health alarm, silently stopped happening.
+        // Not for a setup registration (PHASE_COUNT): that one names its own.
+        if (phase != PHASE_COUNT) {
+            t->self  = &owner;
+            t->setup = &component_setup;
+        }
         return true;
     }
 
