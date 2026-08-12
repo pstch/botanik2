@@ -147,6 +147,15 @@ Learned the hard way while landing steps 1-3, and both cost a round trip.
 fail the build and does not fail a test - the work simply never runs. Neither
 `make` nor the 499-case suite noticed three components failing to register.
 
+**A registration is also a SETUP.** Step 3 moved five components onto the owner
+form of `add()`, which - unlike `add_component<P>()` - carried no one-time init,
+so nothing ran their `setup()`. The loud one was `HealthMonitor`: its
+`on_setup()` is `_bind_alarms()` + POST, so all six platform-health alarms sat
+at `VAR_NONE` and were never raised again, silently, for two commits. The owner
+form now attaches `Tasks::component_setup` itself. Check the boot log, not just
+`tasks <name>`: a task that runs having never been set up looks perfectly
+registered.
+
 **Ask the shell, never the TASKS page.** `tasks <name>` answers "no task named"
 or prints the detail, and that is decisive. The TASKS page is a NAME-SORTED
 scrolling table, so a scroll that stops short reads exactly like an absent task -
@@ -186,8 +195,27 @@ predicate against the shell reply is the fiddly part.
    hook it calls is protected and a member reaches it without a friend.
    `MqttSender` kept the plain-function form: it is not a Component, and giving
    it a lifecycle purely to register it would be backwards.
-4. `Console` / `MonitorLogWriter` absorb their serial; drop `BufferedSerial`'s
-   Component base.
+4. ~~`Console` / `MonitorLogWriter` absorb their serial; drop `BufferedSerial`'s
+   Component base.~~ **Done.** `console_rx` / `console_tx` / `monitor_rx` /
+   `monitor_tx` are gone; `Console` registers `console_in` (INPUT, fast),
+   `console` (PRESENT, slow) and `console_tx` (PRESENT, fast), and
+   `SerialLogWriter` registers `monitor_log` alone. `BufferedSerial` lost its
+   Component base and its logger/name constructor arguments with it.
+
+   Two things fell out that were not in the plan. **Splitting the draw from the
+   flush moves the TX ceiling off the render**: `present()` tops the ring up to
+   `TX_COLD_TARGET_MS` however often it runs, so what has to stay under that
+   depth is the FLUSH rate, and the draw is now free at any rate the eye allows
+   (the `static_assert` in console.cpp says so). And **input is routed every
+   beat instead of every 100 ms**, since `_pump_input()` moved into
+   `console_in`; it is guarded on `screen_ready()`, because the first draw
+   resets both grids and would wipe anything a page had painted on the way past.
+
+   The one thing this cost: `register_tasks()` is a single call, so
+   `console_in` lands where the call sits and is now the LAST input task rather
+   than the first. Nothing else reads the console's bytes, so the ordering buys
+   nothing either way - but a component wanting a specific slot in TWO phases
+   cannot have it from one call.
 5. Programs register; `Scan::Driver` and `scan/` deleted; authority edges move.
 6. `Component` loses the six phase hooks, the timer and the per-beat verdict.
 7. Tests.

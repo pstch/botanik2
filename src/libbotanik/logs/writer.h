@@ -15,8 +15,11 @@
 
 #include "libbotanik/config/logging.h"    // Config::LOG_*
 
+#include "libbotanik/core/component.h"  // Component
 #include "libbotanik/logs/entry.h"      // Logs::LogEntry
 #include "libbotanik/utils/serial.h"    // Utils::BufferedSerial
+
+namespace Botanik { namespace Tasks { struct Tick; } }
 
 namespace Botanik { namespace Logs {
 
@@ -148,9 +151,24 @@ namespace Botanik { namespace Logs {
 
     /** @brief BufferedLogWriter writing formatted entries (`...message\n`) to a
      *  BufferedSerial port, respecting the TX buffer's available capacity per
-     *  drain(). Also a Component: step(now_ms) drains the queue into the port's
-     *  TX ring (the port is flushed to hardware separately). */
+     *  drain().
+     *
+     *  Also a Component, and the one that OWNS the wire: its single task takes
+     *  the port's bytes in, drains the queue into the TX ring, and pushes the
+     *  ring out. Nothing consumes what the port receives - the read only keeps
+     *  the device's FIFO moving - so there is nothing to split across the beat
+     *  and no reason for the port to be a task of its own. */
     class SerialLogWriter : public BufferedLogWriter, public Botanik::Component {
+    public:
+        /** @brief One task: the whole port, in PHASE_PRESENT. Named after the
+         *  writer, so the TASKS row and the boot line say the same thing. */
+        void register_tasks(Tasks::Registry& r) override;
+
+    private:
+        /** @brief The registration handler. A static MEMBER, so the cast has
+         *  access to the protected hook and stays beside the class. */
+        static void _present_task(Component* c, const Tasks::Tick& t);
+
     protected:
         using BufferedSerial = Utils::BufferedSerial;
 
@@ -190,8 +208,9 @@ namespace Botanik { namespace Logs {
         /** @name Stepping
          *  @{ */
 
-        /** @brief Drain queued entries into the serial's TX ring (driven by
-         *  Component::step; @p now_ms unused). */
+        /** @brief The whole port for this beat: bytes in, the queue drained into
+         *  the TX ring, the ring out (@p now_ms unused). Same order the two
+         *  half-tasks ran in, now that there is nothing in between them. */
         void on_present(uint64_t now_ms) override;
 
         /** @} */

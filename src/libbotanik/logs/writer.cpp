@@ -12,6 +12,7 @@
 #include <cstring>                      // memcpy
 
 #include "libbotanik/logs/format.h"     // Logs::format_log_entry
+#include "libbotanik/tasks/tasks.h"     // Tasks::Registry / Tick / GroupId
 #include "libbotanik/utils/serial.h"    // Utils::BufferedSerial::available / is_output_tty
 
 
@@ -91,7 +92,21 @@ namespace Botanik { namespace Logs {
     // main loop.
     void SerialLogWriter::on_present(uint64_t now_ms) {
         (void)now_ms;
+        // Bytes in first, as they were when this was monitor_rx at the top of
+        // the beat: nothing reads them, the read only keeps the device's FIFO
+        // moving. Then the queue into the ring, then the ring onto the wire.
+        _serial->receive();
         drain();
+        _serial->transmit();
+    }
+
+    void SerialLogWriter::_present_task(Component* c, const Tasks::Tick& t) {
+        static_cast<SerialLogWriter*>(c)->on_present(t.now_ms);
+    }
+
+    void SerialLogWriter::register_tasks(Tasks::Registry& r) {
+        r.add(*this, &SerialLogWriter::_present_task, name(), Tasks::GROUP_FAST,
+              Tasks::PHASE_PRESENT);
     }
 
     // Channel implementation

@@ -26,6 +26,7 @@
 
 namespace Botanik { namespace Alarms { class AlarmController; } }
 namespace Botanik { namespace Scheduler { struct SchedulerContext; } }
+namespace Botanik { namespace Tasks { struct Tick; } }
 // Held by pointer only, every call on one in console.cpp: forward-declared so
 // pages/ does not land in everything that draws.
 namespace Botanik { namespace Pages { class Page; } }
@@ -41,6 +42,11 @@ namespace Botanik { namespace Terminal {
         /** @name Device
          *  @{ */
 
+        /** @brief The console UART, borrowed. This console is what pumps it:
+         *  the bytes in are the first half of taking input and the bytes out
+         *  the last half of putting a frame on the wire, so both belong to this
+         *  component's own tasks rather than to two of the port's. */
+        BufferedSerial&     _serial;
         /** @brief The VT device this console paints through. */
         AnsiTerminal        _term;
         /** @brief The cut buffer every editor and table on this console shares.
@@ -97,6 +103,12 @@ namespace Botanik { namespace Terminal {
                 const Alarms::AlarmController* alarms = nullptr,
                 Logs::Logger* logger = nullptr,
                 Ansi::TerminalType type = Ansi::CONFIGURED_TERMINAL);
+
+        /** @brief Three points in the beat, not one: the bytes in and the input
+         *  they carry (INPUT), the frame drawn (PRESENT), and the frame plus the
+         *  ring pushed out (PRESENT, every beat - see the flush note in
+         *  console.cpp). */
+        void register_tasks(Tasks::Registry& r) override;
 
         /** @brief The VT device: renderers (pages, editor, bars) paint through
          *  this reference. */
@@ -168,13 +180,33 @@ namespace Botanik { namespace Terminal {
 
         /** @} */
 
-    protected:
-        /** @brief Process input and update the display, once per beat (driven by
-         *  Component::step with the cycle timestamp). */
-        void on_present(uint64_t now_ms) override;
-
     private:
-        /** @name Internals
+        /** @name Registration handlers
+         *
+         *  Static MEMBERS: they reach the private methods below without a friend
+         *  declaration, and each cast sits on one line beside what it casts to.
+         *  @{ */
+
+        static void _input_task(Component* c, const Tasks::Tick& t);
+        static void _draw_task(Component* c, const Tasks::Tick& t);
+        static void _flush_task(Component* c, const Tasks::Tick& t);
+
+        /** @}
+         *  @name The three points in the beat
+         *  @{ */
+
+        /** @brief Take the wire's bytes in and route what they decode to
+         *  (PHASE_INPUT). */
+        void _take_input();
+        /** @brief Repaint the chrome and tick every page (PHASE_PRESENT). Draws
+         *  into the terminal's FRONT grid; nothing reaches the wire here. */
+        void _draw(uint64_t now_ms);
+        /** @brief Reconcile FRONT to the wire and push the ring out
+         *  (PHASE_PRESENT, after _draw). */
+        void _flush();
+
+        /** @}
+         *  @name Internals
          *  @{ */
 
         /** @brief Drain up to INPUT_EVENTS_PER_TICK parsed events into the active

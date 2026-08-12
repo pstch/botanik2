@@ -56,8 +56,7 @@ paid when the loop was a fixed call sequence.
 
 | Task | Phase | Group | Binding constraint | Cut |
 |---|---|---|---|---|
-| `console_rx` | input | fast | 4800 baud fills the 255-byte ring in 585 ms; echo latency | - |
-| `monitor_rx` | input | fast | 115200 fills the ring in **24 ms** | - |
+| `console_in` | input | fast | 4800 baud fills the 255-byte ring in 585 ms; echo latency | - |
 | `expire_stale` | input | background | timeouts are 3x a poll group's period, so 3 - 180 s | 50x |
 | `params` | config | slow | human edit latency | 10x |
 | `health` | service | slow | alarm dwell (`on_s`/`off_s`) is in seconds | 10x |
@@ -66,15 +65,21 @@ paid when the loop was a fixed call sequence.
 | `scan` | execute | fast | must **divide** the fastest control program (100 ms) | - |
 | `site` | execute | fast | the site's own per-beat hook | - |
 | `logger` | present | fast | queue drain against the boot burst; eviction risk | - |
-| `console` | present | main | 4800 baud = 4.4 bytes/beat; echo perception | 5x |
-| `monitor_log` | present | fast | log queue drain | - |
-| `console_tx` / `monitor_tx` | present | fast | keep the UART fed | - |
+| `console` | present | slow | 4800 baud = 4.4 bytes/beat; echo perception | 10x |
+| `monitor_log` | present | fast | log queue drain, and the port either way | - |
+| `console_tx` | present | fast | reconcile the frame, keep the UART fed | - |
 | *Modbus commit / collect* | input / output | fast | ring fills in 146 ms @19200, **24 ms** @115200 | - |
 
-The two wins are `expire_stale` (50x) and the console render (5x, and the most
+The two wins are `expire_stale` (50x) and the console render (10x, and the most
 expensive item per invocation). `scan`, `logger`, the serial pumps and the
 watchdog kick stay on the beat deliberately: the scan's not-due path is two
 comparisons per program, and the others are safety- or latency-critical.
+
+The port pumps are no longer rows of their own. `BufferedSerial` is a ring buffer
+and a port, not a `Component`: `console_in` and `console_tx` are the `Console`'s
+own tasks and take the bytes in and out at the ends of the beat, and
+`monitor_log` is the whole monitor port in one, since nothing reads what it
+receives.
 
 The watchdog kick is not in the table. It stays inline at the very bottom of
 `loop()`, after every phase, because it must reflect that this beat completed -
@@ -90,16 +95,18 @@ TX_COLD_TARGET_MS)` - 128 ms of wire time, 61 bytes at 4800 baud. So it tops the
 ring back up to a fixed latency target however often it runs: period-independent,
 and slowing the render does **not** cut throughput.
 
-What it does impose is a ceiling: **the render period must stay well under
-`TX_COLD_TARGET_MS`**, or the ring drains empty between renders and the wire
-idles. 50 ms against 128 ms leaves 2.5x of margin; anything past ~64 ms starts
-eating it.
+What it does impose is a ceiling, and splitting the draw from the flush is what
+moved it off the render: **the period that must stay well under
+`TX_COLD_TARGET_MS` is the FLUSH's**, since that is what calls `present()`. It is
+`console_tx`, at the beat, against 128 ms. The draw only fills the FRONT grid,
+so it is free to be as slow as the eye allows.
 
 **`LOG_ROWS_PER_TICK` is genuinely per-tick**, and it is the one quantity that
-does scale with the render rate: 2 rows per tick is 200 rows/s at 10 ms and
-40 rows/s at 50 ms. Not binding at 4800 baud, where the wire ceiling is ~4.4
-lines/s and 40 stays 9x clear of it - but it becomes the limit on a site that
-runs a fast console link, and it wants rescaling there.
+does scale with the DRAW rate: 2 rows per tick is 200 rows/s at 10 ms and
+20 rows/s at the 100 ms the draw actually runs at. Not binding at 4800 baud,
+where the wire ceiling is ~4.4 lines/s and 20 stays 4.5x clear of it - but it
+becomes the limit on a site that runs a fast console link, and it wants
+rescaling there.
 
 **Periods must be integer multiples of the beat.** A 100 ms task on a 30 ms beat
 fires at 120 ms. Harmless while the beat is 10 ms and every period above divides

@@ -16,9 +16,7 @@ namespace Botanik { namespace Utils {
     // Lifecycle
     // ------------------------------------------------------------------------
 
-    BufferedSerial::BufferedSerial(HAL::Serial::Raw* serial, Logs::Logger* logger,
-                                   const char* name) :
-        Component(logger, name), _serial(serial) {
+    BufferedSerial::BufferedSerial(HAL::Serial::Raw* serial) : _serial(serial) {
         memset(_rx_buf, 0, sizeof(_rx_buf));
         memset(_tx_buf, 0, sizeof(_tx_buf));
     }
@@ -118,10 +116,5 @@ namespace Botanik { namespace Utils {
         }
         return sent;
     }
-
-    // The two halves belong at opposite ends of the beat: bytes in before
-    // anything reads them, bytes out after the render has produced them.
-    void BufferedSerial::on_input(uint64_t now_ms) { (void)now_ms; receive(); }
-    void BufferedSerial::on_present(uint64_t now_ms) { (void)now_ms; transmit(); }
 
 }}

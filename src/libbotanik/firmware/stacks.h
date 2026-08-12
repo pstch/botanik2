@@ -71,12 +71,13 @@ namespace Botanik {
 
     public:
         MonitorStack(Logs::Logger* logger = nullptr)
-            : _serial(HAL::Serial::get(HAL::Serial::MONITOR), logger, "MonitorSerial"),
-              _writer(_serial, /*drop_if_tty=*/true, logger, "MonitorWriter") {}
+            : _serial(HAL::Serial::get(HAL::Serial::MONITOR)),
+              _writer(_serial, /*drop_if_tty=*/true, logger, "monitor_log") {}
 
         Utils::BufferedSerial& serial() { return _serial; }
         Logs::SerialLogWriter& writer() { return _writer; }
-        // Both halves are Components stepped directly by the firmware loop.
+        // The port is not a task: the writer owns the wire and pumps it in its
+        // own. serial() is still handed out for the logger's TX-drop watch.
     };
 #endif
 
@@ -113,7 +114,7 @@ namespace Botanik {
                      Logs::Logger* logger,
                      const Scheduler::SchedulerContext* sched = nullptr,
                      const SystemContext* sys = nullptr)
-            : _serial(HAL::Serial::get(HAL::Serial::CONSOLE), logger, "ConsoleSerial"),
+            : _serial(HAL::Serial::get(HAL::Serial::CONSOLE)),
               // Leading commas from here down: an optional page can drop out
               // without stranding a separator.
               _terminal(_serial, cols, rows, timestamp_ms, baud,

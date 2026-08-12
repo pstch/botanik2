@@ -12,7 +12,6 @@
 
 #include "libbotanik/config/serial.h"     // Config::SERIAL_* / *_BAUD
 
-#include "libbotanik/core/component.h"  // Component
 #include "libbotanik/hal/platform.h"    // HAL::Serial
 #include "libbotanik/utils/byte_sink.h" // Utils::ByteSink
 
@@ -31,8 +30,13 @@ namespace Botanik { namespace Utils {
      *   - TX:  write() fills,   transmit() drains.
      *
      *  Every method runs on the main loop, the ring is NOT ISR-safe.
-     *  Producer and consumer being the same thread, no barrier is needed. */
-    class BufferedSerial : public Botanik::Component, public ByteSink {
+     *  Producer and consumer being the same thread, no barrier is needed.
+     *
+     *  **Not a Component.** It is a ring buffer and a port, with no lifecycle
+     *  and nothing to announce; receive() and transmit() are called by whoever
+     *  owns the wire (Console, SerialLogWriter) from that owner's own tasks,
+     *  because the pump and the thing that fills it are the same beat's work. */
+    class BufferedSerial : public ByteSink {
     private:
 
         /** @name State
@@ -71,8 +75,7 @@ namespace Botanik { namespace Utils {
         /** @name Lifecycle
          *  @{ */
 
-        BufferedSerial(HAL::Serial::Raw* serial, Logs::Logger* logger = nullptr,
-                       const char* name = "BufferedSerial");
+        explicit BufferedSerial(HAL::Serial::Raw* serial);
 
         /** @brief True if the bound port's output is an interactive terminal
          *  (always false on hardware UARTs). */
@@ -128,19 +131,14 @@ namespace Botanik { namespace Utils {
          *  @name Hardware I/O
          *  @{ */
 
-        /** @brief Drain the hardware UART FIFO into the RX ring. */
+        /** @brief Drain the hardware UART FIFO into the RX ring. Main-loop only
+         *  (not ISR-safe); the owner calls it at the top of the beat. */
         uint16_t receive();
-        /** @brief Flush the TX ring to the hardware UART FIFO. */
+        /** @brief Flush the TX ring to the hardware UART FIFO. The owner calls
+         *  it at the bottom of the beat, once the frame exists. */
         uint16_t transmit();
 
         /** @} */
-
-    protected:
-        /** @brief Take the wire's bytes into the RX ring (PHASE_INPUT).
-         *  Main-loop only (not ISR-safe). */
-        void on_input(uint64_t now_ms) override;
-        /** @brief Push the TX ring out at the link's pace (PHASE_PRESENT). */
-        void on_present(uint64_t now_ms) override;
     };
 
 }}

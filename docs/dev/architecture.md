@@ -89,11 +89,13 @@ flow, written out as code because it must not become configurable, and its
 
 Every task gets the same fresh 64-bit `now_ms`. The order is load-bearing:
 
-- **RX at the top, TX at the bottom.** `BufferedSerial` is ONE `Component`
-  registered in two phases: `on_input()` takes the bytes in, `on_present()` puts
-  them out. Two tasks, so each half keeps its own cost on the TASKS page, but one
-  object and one lifecycle. Stepping the whole pump at both ends would cost an
-  extra read per beat and split the console's baud-paced TX across the render.
+- **RX at the top, TX at the bottom.** The rule survives, but as two methods on
+  the component that owns the wire rather than as tasks of the port's own:
+  `BufferedSerial` is a ring buffer and a port, not a `Component`. `Console`
+  takes its bytes in and routes them in `console_in` (input), and puts the frame
+  and the ring out in `console_tx` (present); `SerialLogWriter` does the whole
+  monitor port in one task, since nothing consumes what it receives. The pump and
+  the thing that fills it are the same beat's work.
 - **Inputs age out before anything reads**, so one beat is coherent - every task sees
   the same instant. `expire_stale()` catches a reading nothing refreshed;
   `reject_implausible()` catches one that is fresh and still nonsense (a dead 4-20 mA

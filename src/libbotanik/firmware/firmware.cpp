@@ -219,11 +219,6 @@ namespace Botanik {
         using namespace Tasks;
 
         // --- INPUT: fresh bytes and fresh field, before anything reads ---
-#if BOTANIK_FEATURE_CONSOLE
-        // One Component registered at both ends of the beat: RX here, TX after
-        // the render. Two tasks, so each half keeps its own cost on TASKS.
-        _tasks.add_component<PHASE_INPUT>("console_rx", GROUP_FAST, _console.serial());
-#endif
 #if BOTANIK_FEATURE_MODBUS_RTU_CLIENT
         // The field bus commits its readings ahead of expire_stale, which must
         // judge the freshest image and not the one from before this beat's
@@ -235,9 +230,6 @@ namespace Botanik {
         // written this beat is what they run on this beat. add_component, so the
         // map is built in Registry::setup() rather than inside the first beat.
         _tasks.add_component<PHASE_INPUT>("modbus_tcp_rx", GROUP_FAST, _modbus_tcp);
-#endif
-#if BOTANIK_FEATURE_LOGS_MONITOR
-        _tasks.add_component<PHASE_INPUT>("monitor_rx", GROUP_FAST, _monitor.serial());
 #endif
         // A full linear scan of the variable table, resolving timeouts measured
         // in seconds.
@@ -337,18 +329,13 @@ namespace Botanik {
             &_logger);
 #endif
 #if BOTANIK_FEATURE_CONSOLE
-        // The Console is the Component, not the stack around it: the stack's
-        // serial pump is registered separately, at its own phases.
-        _tasks.add_component<PHASE_PRESENT>("console", GROUP_SLOW, _console.terminal());
+        // Three tasks, and the port's two are not among them: console_in at the
+        // top of the beat, then the draw and the flush here. After the logger,
+        // so a line logged this beat is in the pages before they are drawn.
+        _console.terminal().register_tasks(_tasks);
 #endif
 #if BOTANIK_FEATURE_LOGS_MONITOR
-        _tasks.add_component<PHASE_PRESENT>("monitor_log", GROUP_FAST, _monitor.writer());
-#endif
-#if BOTANIK_FEATURE_CONSOLE
-        _tasks.add_component<PHASE_PRESENT>("console_tx", GROUP_FAST, _console.serial());
-#endif
-#if BOTANIK_FEATURE_LOGS_MONITOR
-        _tasks.add_component<PHASE_PRESENT>("monitor_tx", GROUP_FAST, _monitor.serial());
+        _monitor.writer().register_tasks(_tasks);
 #endif
 
         if (_tasks.overflow() != 0)

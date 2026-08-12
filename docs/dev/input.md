@@ -14,16 +14,22 @@ with a 256-byte RX ring buffer and a 4 KB TX ring buffer. All serial I/O goes
 through it; it never blocks - a full TX ring drops the tail rather than stalling
 the loop.
 
+It is not a `Component` and has no task of its own: the `Console` owns the wire
+and pumps it, `receive()` at the top of the beat and `transmit()` at the bottom,
+from its own two tasks.
+
 ### AnsiTerminal + Console
 
 Two layers. @ref Botanik::Terminal::AnsiTerminal is the VT **device**: it owns the
 `BufferedSerial` connection, tracks the cursor/attribute/geometry state, and emits ANSI
 escape sequences. @ref Botanik::Terminal::Console composes one (exposed via
-@ref Botanik::Terminal::Console::terminal "terminal()") and is the **coordinator**: each
-@ref Botanik::Terminal::Console::step "step()" bootstraps the display on the first call,
-refreshes the row-0 status bar when due and the TX ring has room, dispatches one
-@ref Botanik::Terminal::InputEvent from the parser, and **ticks every page** (not just
-the active one) so each can drain its queued log entries (see @ref dev_logging).
+@ref Botanik::Terminal::Console::terminal "terminal()") and is the **coordinator**. It
+registers three tasks rather than one, at two rates: `console_in` takes the wire's
+bytes in and dispatches @ref Botanik::Terminal::InputEvent "InputEvent"s from the
+parser every beat; `console` bootstraps the display on its first run, refreshes the
+row-0 status bar and **ticks every page** (not just the active one) so each can drain
+its queued log entries (see @ref dev_logging); `console_tx` reconciles the frame to
+the wire and pushes the ring out, again every beat.
 
 \startuml "the console layer: Console (a Component) composes the AnsiTerminal device, owns the two bars, and holds the page array"
 class Component

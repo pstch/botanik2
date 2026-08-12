@@ -13,18 +13,18 @@
 #include "libbotanik/config/terminal.h"   // Config::SCREEN_* / EDITOR_* / SHELL_* / PAGE_*
 
 #include "libbotanik/hal/platform.h"    // HAL::System::shutdown
+#include "libbotanik/tasks/tasks.h"     // Tasks::Registry / Tick / GroupId
 
 namespace Botanik { namespace Terminal {
 
-    // The render rate against the TX pacing. present() tops the ring back up to
-    // TX_COLD_TARGET_MS of wire time however often it runs, so a slower render
-    // costs no throughput until the ring drains empty between two of them and
-    // the wire idles. The render is GROUP_SLOW (firmware/firmware.h): 100 ms
-    // against a 128 ms depth leaves ~28 ms of wire in hand, and that is the whole
-    // margin. Raise TX_COLD_TARGET_MS before slowing the render further.
-    static_assert(Config::GROUP_SLOW_MS < Config::TX_COLD_TARGET_MS,
-                  "the console's group period must stay under TX_COLD_TARGET_MS, "
-                  "or the TX ring drains between renders and the link idles");
+    // present() tops the ring back up to TX_COLD_TARGET_MS of wire time however
+    // often it runs, so what has to stay under that depth is the FLUSH rate, not
+    // the DRAW rate: the wire only idles if the ring drains empty between two
+    // flushes. Splitting the two is what buys the draw its freedom - it is
+    // GROUP_SLOW against a GROUP_FAST flush, and could be slower still.
+    static_assert(Config::GROUP_FAST_MS < Config::TX_COLD_TARGET_MS,
+                  "the console's flush period must stay under TX_COLD_TARGET_MS, "
+                  "or the TX ring drains between flushes and the link idles");
 
     // Lifecycle
 
@@ -34,6 +34,7 @@ namespace Botanik { namespace Terminal {
                      const Alarms::AlarmController* alarms,
                      Logs::Logger* logger, Ansi::TerminalType type) :
         Component(logger, "Console"),
+        _serial(serial),
         _term(serial, cols, rows, baud, type),
         _parser(serial, timestamp_ms),
         _alarms(alarms),
@@ -44,7 +45,45 @@ namespace Botanik { namespace Terminal {
         _reserved_bottom = (_alarms != nullptr) ? 1 : 0;
     }
 
-    void Console::on_present(uint64_t now_ms) {
+    // The beat
+    // ------------------------------------------------------------------------
+
+    void Console::_input_task(Component* c, const Tasks::Tick&) {
+        static_cast<Console*>(c)->_take_input();
+    }
+    void Console::_draw_task(Component* c, const Tasks::Tick& t) {
+        static_cast<Console*>(c)->_draw(t.now_ms);
+    }
+    void Console::_flush_task(Component* c, const Tasks::Tick&) {
+        static_cast<Console*>(c)->_flush();
+    }
+
+    void Console::register_tasks(Tasks::Registry& r) {
+        // The port's own two tasks are gone: the console pumps the wire it
+        // owns, at the two ends of the beat it was already working at.
+        r.add(*this, &Console::_input_task, "console_in", Tasks::GROUP_FAST,
+              Tasks::PHASE_INPUT);
+        r.add(*this, &Console::_draw_task,  "console",    Tasks::GROUP_SLOW,
+              Tasks::PHASE_PRESENT);
+        r.add(*this, &Console::_flush_task, "console_tx", Tasks::GROUP_FAST,
+              Tasks::PHASE_PRESENT);
+    }
+
+    void Console::_take_input() {
+        _serial.receive();
+        // Nothing is routed before the screen exists. _draw() below clears it
+        // and resets both grids on its first run, so anything a page painted on
+        // the way past would be wiped with nothing left to repaint it. The bytes
+        // wait in the ring; at 4800 baud it takes 585 ms to fill.
+        if (_term.screen_ready()) _pump_input();
+    }
+
+    void Console::_flush() {
+        _term.present();
+        _serial.transmit();
+    }
+
+    void Console::_draw(uint64_t now_ms) {
         // Establish the screen on the first step (not in setup_*()) so the clear
         // lands after the handshake setup_*() queued (establish_screen(), not
         // clear_screen, so it keeps the queued handshake bytes).
@@ -61,9 +100,6 @@ namespace Botanik { namespace Terminal {
             }
         }
         _status_bar.step(now_ms);
-        // Drain buffered input into the active page (terminal-level intercepts
-        // like Ctrl-L and page switches are consumed first).
-        _pump_input();
         // Tick every page, not just the active one: each is its own LogWriter and
         // must drain into its scrollback every step so a later focus() replays an
         // up-to-date tail. Inactive pages don't render (gated on their active flag).
@@ -71,8 +107,6 @@ namespace Botanik { namespace Terminal {
             if (_pages[i] != nullptr) _pages[i]->tick(i == _page_index);
         // Last: top up the bottom alarm bar over whatever the active page drew.
         _alarm_bar.step();
-        // Reconcile the frame: diff the FRONT grid to the wire, paced.
-        _term.present();
     }
 
     void Console::_pump_input() {
