@@ -17,8 +17,9 @@
  *    any of them runs)
  *  - @c dt_ms is the REAL time since this program last ran, so a timer keeps
  *    correct time even when the scan was late
- *  - nothing runs at all while control authority is withheld, and reset() is
- *    called on the way down so no program resumes on stale state
+ *  - nothing runs at all while control authority is withheld, and the first
+ *    activation after it returns says so (@c c.first_scan), which is where a
+ *    program drops whatever the outage made stale
  */
 
 #include <cstdint>      // uint16_t/uint32_t
@@ -61,14 +62,6 @@ class SupplyWatch : public Plc::Program {
 public:
     SupplyWatch() : Program("supply_watch", Tasks::GROUP_SLOW) {}
 
-    /** @brief Both blocks are a claim about the supply over TIME, and the scan
-     *  stopping means we stopped watching it. Start the debounce again rather
-     *  than resuming a dwell that was counting an outage we did not see. */
-    void reset() override {
-        _bad_for.reset();
-        _lockout.reset();
-    }
-
 protected:
     void bind(Vars::Bank& io) override {
         _ln     = io.find("grid_LN_V");
@@ -80,6 +73,14 @@ protected:
     }
 
     void run(Plc::Context& c) override {
+        // Both blocks are a claim about the supply over TIME, and not being
+        // called means we stopped watching it. Start the debounce again rather
+        // than resuming a dwell that was counting an outage we did not see.
+        if (c.first_scan) {
+            _bad_for.reset();
+            _lockout.reset();
+        }
+
         // A meter that has stopped answering reads as its default (0 V), which
         // is out of band and therefore unhealthy - the fallback does the right
         // thing here without the program testing valid() at all.

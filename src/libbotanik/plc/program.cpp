@@ -1,7 +1,7 @@
 /**
  * @file program.cpp
- * @brief Program's registration, and the two control-authority edges that used
- *        to live in the scan driver, which is gone.
+ * @brief Program's registration, plus the two reports the scan driver used to
+ *        make about the table as a whole.
  */
 
 #include "libbotanik/plc/program.h"     // Plc::Program
@@ -20,15 +20,6 @@ namespace Botanik { namespace Plc {
         // No phase to name: a program runs in PHASE_CONTROL or not at all, and
         // add_program() marks the entry so the authority gate can find it.
         r.add_program(*this, &Program::_run_task, name(), _group);
-    }
-
-    void apply_control_edge(Program* const* programs, uint8_t count, bool granted) {
-        if (programs == nullptr) return;
-        for (uint8_t i = 0; i < count; i++) {
-            if (programs[i] == nullptr) continue;
-            if (granted) programs[i]->resume();
-            else         programs[i]->reset();
-        }
     }
 
     uint32_t worst_lateness(Program* const* programs, uint8_t count,

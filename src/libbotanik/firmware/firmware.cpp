@@ -404,33 +404,23 @@ namespace Botanik {
         _apply_control_authority();
     }
 
-#if !BOTANIK_FEATURE_PLC_SCAN
     void BotanikFirmware::_apply_control_authority() {
-        // No programs to gate, but the gate itself still has to track authority:
-        // a site's on_control() reads control_enabled() directly.
-        _scheduler.set_control_enabled(_io.control_enabled(), HAL::Clock::uptime_ms());
-    }
-#else
-    void BotanikFirmware::_apply_control_authority() {
-        const bool on = _io.control_enabled();
-        if (on != _programs_enabled) {
-            _programs_enabled = on;
-            // The two halves of the edge. The programs' own - reset() on the way
-            // down, resume() on the way back - and the registry's, which is the
-            // gate plus the timer reseed only it can do (see
-            // Registry::set_programs_enabled). Both, or a program comes back
-            // holding an hour of dt.
-            Plc::apply_control_edge(_site.programs, _site.program_count, on);
-            _scheduler.set_control_enabled(on, HAL::Clock::uptime_ms());
-        }
+        // The whole edge, in one call: the gate, and on the way back up the
+        // timer reseed and the first-scan flag. Idempotent, so there is no edge
+        // to track here.
+        _scheduler.set_control_enabled(_io.control_enabled(),
+                                       HAL::Clock::uptime_ms());
+#if BOTANIK_FEATURE_PLC_SCAN
         _publish_lateness();
         // Edge-triggered and named once: two programs driving one output is a
         // design defect, true on every beat from here.
         (void)Plc::report_writer_conflicts(_io, _site.programs,
                                            _site.program_count, &_logger,
                                            _conflicts_said);
+#endif
     }
 
+#if BOTANIK_FEATURE_PLC_SCAN
     void BotanikFirmware::_publish_lateness() {
         const Plc::Program* worst = nullptr;
         const uint32_t late = Plc::worst_lateness(_site.programs,

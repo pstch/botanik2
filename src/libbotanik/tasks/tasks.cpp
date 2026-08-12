@@ -128,16 +128,22 @@ namespace Botanik { namespace Tasks {
     void Registry::set_programs_enabled(bool enabled, uint64_t now_ms) {
         if (enabled == _programs_enabled) return;
         _programs_enabled = enabled;
+        // Withdrawal is the gate and nothing else: a program that is not called
+        // cannot act on what it remembers, and nothing outside it reads that.
+        // What has gone stale is dropped on the way back IN, where the program
+        // is looking at a fresh image rather than the one the edge happened on.
         if (!enabled) return;
 
-        // Coming back up: the timers, which are ours and not the programs'.
-        // reseed() is "treat this as having just run", so the next activation is
-        // a full period away rather than immediate and reports its nominal
-        // period rather than the outage. A task that has never run is left
-        // alone - its first activation is due immediately by design, which is
-        // also the bring-up case.
-        for (uint8_t i = 0; i < _count; i++)
-            if (_tasks[i].is_program) _tasks[i].timer.reseed(now_ms);
+        for (uint8_t i = 0; i < _count; i++) {
+            if (!_tasks[i].is_program) continue;
+            // reseed() is "treat this as having just run", so the next
+            // activation is a full period away rather than immediate, and
+            // reports its nominal period rather than the outage. A task that
+            // has never run is left alone - its first activation is due
+            // immediately by design, which is also the bring-up case.
+            _tasks[i].timer.reseed(now_ms);
+            _tasks[i].first_activation = true;
+        }
     }
 
     void Registry::run_phase(Phase phase, uint64_t now_ms) {
@@ -158,10 +164,14 @@ namespace Botanik { namespace Tasks {
             if (t.handler != nullptr) {
                 Tick tick;
                 tick.now_ms = now_ms; tick.dt_ms = dt; tick.missed = missed;
+                tick.first  = t.first_activation;
                 t.handler(t.owner, tick);
             } else {
                 t.run(t.self, now_ms);
             }
+            // Cleared after the run: the flag describes the activation that just
+            // happened, so a handler reads it for its own run and no other.
+            t.first_activation = false;
             t.cost.record((uint32_t)(HAL::Clock::uptime_us() - t0), missed);
         }
     }

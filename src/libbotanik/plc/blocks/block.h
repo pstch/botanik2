@@ -10,7 +10,7 @@
  * @section blk_contract The contract
  *
  * Every FUNCTION_BLOCK provides `reset()`: back to a cold block, as if it had
- * just been constructed. `Plc::apply_control_edge()` calls `Plc::Program::reset()` on every
+ * just been constructed. A program calls it on the blocks it chooses on a first
  * control-authority withdrawal, and a program's reset is the sum of its blocks',
  * so a block without one is state that survives an outage it should not have.
  * That is why this is enforced rather than documented.

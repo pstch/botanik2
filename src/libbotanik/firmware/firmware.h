@@ -184,10 +184,6 @@ namespace Botanik {
          *  turn a program index back into a program NAME.
          *  @{ */
 
-        /** @brief Whether the programs were running on the previous beat. Edge
-         *  tracking only; the authority itself lives in the Bank. Starts false,
-         *  because control starts withheld. */
-        bool                 _programs_enabled = false;
         /** @brief The conflict count already reported, so a defect that is true
          *  on every beat is named once, not every 10 ms.
          *  @see Vars::Bank::claim_writer() */

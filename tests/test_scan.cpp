@@ -23,14 +23,13 @@ namespace {
 /** @brief What the firmware does with a program table, in one place: hand
  *  each program the bank and its slot, register it, then per beat carry the
  *  Bank's verdict to BOTH halves of the authority edge and dispatch
- *  PHASE_CONTROL. Both halves are the shipping ones - Plc::apply_control_edge
- *  and Registry::set_programs_enabled - so this drives the real code. */
+ *  PHASE_CONTROL through Registry::set_programs_enabled, which is the shipping
+ *  call, so this drives the real code. */
 struct Cycle {
     Botanik::Tasks::Registry      reg;
     Botanik::Plc::Program* const* progs;
     uint8_t                       n;
     Botanik::Vars::Bank*          io;
-    bool                          enabled = false;
 
     Cycle(Botanik::Plc::Program* const* p, uint8_t count,
           Botanik::Vars::Bank* bank)
@@ -46,12 +45,9 @@ struct Cycle {
     }
 
     void step(uint64_t t) {
-        const bool on = io->control_enabled();
-        if (on != enabled) {
-            enabled = on;
-            Botanik::Plc::apply_control_edge(progs, n, on);
-            reg.set_programs_enabled(on, t);
-        }
+        // Idempotent, and the whole edge: the gate, plus on the way back up the
+        // timer reseed and the first-scan flag.
+        reg.set_programs_enabled(io->control_enabled(), t);
         reg.run_phase(Botanik::Tasks::PHASE_CONTROL, t);
         // ...and what the firmware does after the phase: publish the worst
         // lateness onto the alarm row, whose own dwell decides whether it
@@ -102,15 +98,14 @@ namespace {
     public:
         std::vector<Rec> runs_seen;
         int              binds  = 0;
-        int              resets = 0;
+        int              firsts = 0;   ///< activations that said first_scan
 
         Recorder(const char* name, Botanik::Tasks::GroupId g) : Program(name, g) {}
-
-        void reset() override { resets++; }
 
     protected:
         void bind(Botanik::Vars::Bank& io) override { (void)io; binds++; }
         void run(Context& c) override {
+            if (c.first_scan) firsts++;
             runs_seen.push_back({ c.dt_ms, c.missed, c.now_ms });
         }
     };
@@ -218,23 +213,30 @@ TEST_CASE("scan: programs are inhibited while control is withheld") {
     for (uint64_t t = 0; t <= 500; t += 10) d.step(t);
 
     CHECK(fast.runs_seen.empty());             // nothing drives the field
-    // Nothing was ever driving, so there is nothing stale to drop either.
-    CHECK(fast.resets == 0);
+    // ...so there is no activation to have said anything about a first scan.
+    CHECK(fast.firsts == 0);
 }
 
-TEST_CASE("scan: control being withdrawn resets the programs, once") {
+TEST_CASE("scan: a control outage makes the next activation a first scan, once") {
     Recorder fast("fast", GROUP_SLOW);
     Program* const progs[] = { &fast };
     Live f;
     Cycle d(progs, 1, &f.io);
     d.step(0);
-    REQUIRE(fast.resets == 0);
+    REQUIRE(fast.firsts == 1);               // bring-up is one
 
     f.io.set_control_mode(Botanik::Vars::CONTROL_DISABLED);
     for (uint64_t t = 10; t <= 500; t += 10) d.step(t);
+    INFO("nothing ran, so nothing was told anything");
+    CHECK(fast.firsts == 1);
 
-    // On the withdrawal edge only: the process moves without us from here, and what a program remembered is stale.
-    CHECK(fast.resets == 1);
+    // Back: the process moved without us, so what the program remembered is
+    // stale - and the flag on its next activation is where it drops it. Once,
+    // not on every activation from here.
+    f.io.set_control_mode(Botanik::Vars::CONTROL_ENABLED);
+    for (uint64_t t = 510; t <= 1000; t += 10) d.step(t);
+    CHECK(fast.firsts == 2);
+    CHECK(fast.runs_seen.size() > 3);        // and it is running normally again
 }
 
 TEST_CASE("scan: control returning does not hand a program the whole outage") {
@@ -353,17 +355,12 @@ protected:
     void run(Plc::Context& c) override { c.io.set(_out, c.io.value(_in) + _add); }
 };
 
-/** @brief Records the lifecycle edges and what the first-scan flag said. */
+/** @brief Records what the first-scan flag said on every activation. */
 class Lifecycle : public Plc::Program {
 public:
-    int  resumes = 0;
-    int  resets  = 0;
     std::vector<bool> firsts;
 
     Lifecycle(const char* name, Botanik::Tasks::GroupId g) : Program(name, g) {}
-
-    void reset() override  { resets++; }
-    void resume() override { resumes++; Program::resume(); }
 
 protected:
     void run(Plc::Context& c) override { firsts.push_back(c.first_scan); }
@@ -592,12 +589,10 @@ TEST_CASE("scan: control coming back is a first scan again") {
 
     f.bank.set_control_mode(CONTROL_DISABLED);
     for (uint64_t t = 20; t <= 5000; t += 10) d.step(t);
-    CHECK(p.resets == 1);                    // the withdrawal edge, once
     CHECK(p.firsts.size() == 2);             // nothing ran while stopped
 
     f.bank.set_control_mode(CONTROL_ENABLED);
     d.step(5010);                            // the reseed beat: nothing runs yet
-    CHECK(p.resumes == 2);                   // bring-up, then this return
     CHECK(p.firsts.size() == 2);
 
     d.step(5020);
@@ -610,8 +605,11 @@ TEST_CASE("scan: control coming back is a first scan again") {
     CHECK_FALSE(p.firsts[3]);
 }
 
-TEST_CASE("scan: bring-up is itself a resume, and reset is not called for it") {
-    // Control starts withheld, granted before the first beat, so the return edge fires at bring-up too.
+TEST_CASE("scan: bring-up is a first scan, and needs no special case to be one") {
+    // Control starts withheld and is granted before the first beat, so bring-up
+    // takes the return edge. It needs nothing of its own: a task's first
+    // activation EVER is a first scan too, because a program knows no more about
+    // the plant at bring-up than it does after an outage.
     Live f;
     Lifecycle p("p", Botanik::Tasks::GROUP_FAST);
     Plc::Program* const progs[] = { &p };
@@ -619,9 +617,8 @@ TEST_CASE("scan: bring-up is itself a resume, and reset is not called for it") {
 
     d.step(0);
 
-    CHECK(p.resumes == 1);
-    INFO("nothing was ever driving, so nothing has gone stale");
-    CHECK(p.resets == 0);
+    REQUIRE(p.firsts.size() == 1);
+    CHECK(p.firsts[0]);
 }
 
 TEST_CASE("scan: table order is execution order") {

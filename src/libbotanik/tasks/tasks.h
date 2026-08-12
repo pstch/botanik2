@@ -52,6 +52,15 @@ namespace Botanik { namespace Tasks {
         uint64_t now_ms = 0;
         uint32_t dt_ms  = 0;
         uint16_t missed = 0;
+        /** @brief This is the task's FIRST activation since it last had nothing
+         *  to go on: at bring-up, and - for a program - on the beat control
+         *  authority came back.
+         *
+         *  IEC 61131-3's first-scan flag, generalised. A handler that ramps,
+         *  latches or compares against "last time" has no last time here, so it
+         *  must ask rather than read whatever a member was initialised with, and
+         *  it is where anything gone stale gets dropped. */
+        bool     first  = false;
     };
 
     /** @brief Rate classes. A task names one instead of carrying a raw period,
@@ -131,6 +140,10 @@ namespace Botanik { namespace Tasks {
         /** @brief A control program: PHASE_CONTROL by construction, and gated by
          *  control authority. */
         bool       is_program = false;
+        /** @brief Whether the next activation is a first scan (Tick::first).
+         *  True at registration - nothing has run yet - and raised again on a
+         *  program when control authority returns. */
+        bool       first_activation = true;
         /** @} */
         TaskTimer   timer;                ///< period from the group, own offset
         TaskCost    cost;
@@ -253,18 +266,21 @@ namespace Botanik { namespace Tasks {
          *  set_programs_enabled(). */
         void run_phase(Phase phase, uint64_t now_ms);
 
-        /** @brief Open or close the gate on every program entry.
+        /** @brief Grant or withdraw control authority: the whole edge, in one
+         *  call.
          *
-         *  The registry's half of a control-authority edge. On the way back UP
-         *  it also **reseeds every program's timer**, which nothing else can do:
-         *  the timer lives on the task, not on the program. Without it the first
-         *  activation back reports the whole outage as its `dt` - a Ton holding
-         *  5 s handed an hour of it fires the instant control returns, which is
-         *  the one thing a withdrawal exists to prevent.
+         *  Withdrawing shuts the gate, and that is all it needs to do - a
+         *  program that is not called cannot act on what it remembers, and
+         *  nothing outside a program reads its state.
          *
-         *  The other half - reset() and resume() on the programs themselves - is
-         *  Plc::apply_control_edge(): both are Plc::Program's, and this class
-         *  knows only Component.
+         *  Granting opens it and, on every program entry, **reseeds the timer
+         *  and raises Tick::first**. The reseed is why this is the registry's
+         *  job: the timer is the TASK's. Without it the first activation back
+         *  reports the whole outage as its `dt`, and a Ton holding 5 s handed an
+         *  hour of it fires the instant control returns - the one thing a
+         *  withdrawal exists to prevent. `first` is the other half: it tells the
+         *  program that the plant moved without it, so whatever it remembered
+         *  describes a plant that no longer exists.
          *
          *  Idempotent: only an actual change of state does anything. */
         void set_programs_enabled(bool enabled, uint64_t now_ms);

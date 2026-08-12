@@ -15,27 +15,39 @@
  * so a program carries no timer of its own and gets a row on the TASKS page like
  * anything else.
  *
- * Four hooks, in lifecycle order:
+ * Two hooks, in lifecycle order:
  *
  * | Hook | When | For |
  * |---|---|---|
  * | `bind(io)` | once, at bring-up | names into VarRefs, so `run()` never searches the table |
  * | `run(c)` | each activation | read, apply blocks, drive |
- * | `reset()` | control authority withdrawn | drop what has gone stale |
- * | `resume()` | control authority returned | look at the plant before driving it |
  *
- * @section plc_program_bind reset, and resume
+ * @section plc_program_bind The first scan
  *
- * While control is withdrawn the process moves without us, so reset() drops
- * what has gone stale. Opt-in, and not "clear everything": a dwell timer is
- * stale, a totalizer holding the day's litres is a record.
+ * There is no `reset()` and no `resume()`. While control is withdrawn the
+ * program is simply not called, and nothing outside it reads what it remembers -
+ * so there is nothing to do on the way down. On the way back up
+ * `Context::first_scan` is raised, and **that is where a program drops what has
+ * gone stale and looks at the plant before commanding it**:
  *
- * resume() is the counterpart on the way back up: the chance to LOOK at the
- * plant before commanding it, so a program estimating a valve position by
- * timing its strokes re-datums here. It also raises `Context::first_scan`.
+ * @code
+ * void run(Plc::Context& c) override {
+ *     if (c.first_scan) { _bad_for.reset(); _lockout.reset(); }
+ *     ...
+ * }
+ * @endcode
  *
- * Bring-up runs resume() too (control starts withheld and is granted before the
- * first beat). reset() is NOT called there: nothing was ever driving.
+ * Opt-in, and not "clear everything": a dwell timer is stale, a totalizer
+ * holding the day's litres is a record.
+ *
+ * Doing it here rather than on the edge is not only fewer hooks, it is better
+ * placed. The registry reseeds the timer on the way back, so the program does
+ * NOT run on the beat authority returned - it waits its full period. A hook on
+ * that edge would look at an image its own next `run()` never sees.
+ *
+ * Bring-up is the same event and needs no special case: a task's first
+ * activation ever is a first scan too, because a program knows no more about the
+ * plant at bring-up than after an outage.
  */
 
 #include <cstdint>                      // uint16_t/uint32_t/uint64_t
@@ -54,11 +66,14 @@ namespace Botanik { namespace Plc {
         uint32_t dt_ms;    ///< REAL ms since this program last ran; drives every timed block
         uint16_t missed;   ///< activations dropped since the last run; 0 normally
         /** @brief The program's FIRST activation since it last had nothing to
-         *  go on: at bring-up, or on the beat control came back.
+         *  go on: at bring-up, or on the first activation after control came
+         *  back. Straight off Tasks::Tick::first.
          *
-         *  IEC 61131-3's first-scan flag. A law that ramps, latches or compares
-         *  against "last time" has no last time here, so it must ask rather
-         *  than read a member's initial value. */
+         *  IEC 61131-3's first-scan flag, and the ONLY control-authority signal
+         *  a program gets. A law that ramps, latches or compares against "last
+         *  time" has no last time here, so it must ask rather than read a
+         *  member's initial value - and anything gone stale is dropped under
+         *  it. @see plc_program_bind */
         bool     first_scan;
         /** @brief The variables it reads and drives - the narrowed view, not
          *  the Bank: a program has no business editing a parameter, forcing an
@@ -87,10 +102,10 @@ namespace Botanik { namespace Plc {
      *         _out = io.find("sys_supply_lockout");
      *     }
      *     void run(Plc::Context& c) override {
+     *         if (c.first_scan) { _bad_for.reset(); _lockout.reset(); }
      *         const bool bad = !Plc::in_range(c.io.value(_ln), 200.0f, 260.0f);
      *         c.io.set(_out, _lockout(_bad_for(bad, 5000, c.dt_ms), !bad));
      *     }
-     *     void reset() override { _bad_for.reset(); _lockout.reset(); }
      * };
      * @endcode
      */
@@ -112,10 +127,6 @@ namespace Botanik { namespace Plc {
          *  worst yet. */
         uint32_t    _late_ms     = 0;
         uint32_t    _late_max_ms = 0;
-        /** @brief Whether the next activation is a first scan. Starts true, so
-         *  bring-up is a first scan without anything having to say so. */
-        bool        _first_scan  = true;
-
         /** @} */
 
     public:
@@ -161,17 +172,6 @@ namespace Botanik { namespace Plc {
         uint32_t late_ms() const     { return _late_ms; }
         uint32_t late_max_ms() const { return _late_max_ms; }
 
-        /** @brief Drop state a control withdrawal has made stale; default,
-         *  nothing is (@ref plc_program_bind). Public because it is
-         *  apply_control_edge()'s to call, on an edge the program cannot see. */
-        virtual void reset() {}
-
-        /** @brief Control authority has come back; the next activation will
-         *  drive the field again. Default: raise the first-scan flag and
-         *  nothing else (@ref plc_program_bind). Public for the same reason
-         *  reset() is: the edge is not the program's to notice. */
-        virtual void resume() { _first_scan = true; }
-
         /** @} */
 
     protected:
@@ -214,27 +214,10 @@ namespace Botanik { namespace Plc {
             _late_ms = (t.dt_ms > p) ? (t.dt_ms - p) : 0;
             if (_late_ms > _late_max_ms) _late_max_ms = _late_ms;
 
-            Context c = { t.now_ms, t.dt_ms, t.missed, _first_scan, Io(*_io, _slot) };
+            Context c = { t.now_ms, t.dt_ms, t.missed, t.first, Io(*_io, _slot) };
             run(c);
-            // Cleared after the run: the flag describes the activation that
-            // just happened.
-            _first_scan = false;
         }
     };
-
-    /** @brief Apply a control-authority edge to a borrowed program table.
-     *
-     *  The two behaviours that used to live in the scan driver, and the reason
-     *  this is a function rather than something the registry does: both are
-     *  Plc::Program's, and `tasks/` knows only Component. The registry's own
-     *  half of the edge - the gate, and reseeding each program's TIMER, which it
-     *  owns - is Registry::set_programs_enabled().
-     *
-     *  @param granted false on withdrawal: reset() every program, because from
-     *  here the process moves without us and what a program remembered is
-     *  stale. True on return: resume(), so a program may LOOK at the plant
-     *  before commanding it again, and the first-scan flag is raised. */
-    void apply_control_edge(Program* const* programs, uint8_t count, bool granted);
 
     /** @brief The worst lateness across @p programs, and who owned it (null
      *  when nothing was late). The alarm row says a program is missing its

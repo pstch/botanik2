@@ -84,36 +84,37 @@ which they already are, without making them *contemporaneous*.
 phases around it must **not** be gated with it: withholding control writes safe
 states into the image, and something still has to carry them outward.
 
-Both edges reach the programs, and each takes **two halves** because the state
-is split: the programs own what they remember, the registry owns their timers.
-`BotanikFirmware::_apply_control_authority()` calls both, from the
-`control_latch` task in SERVICE - before CONTROL, so a withdrawal takes effect on
-the beat it is decided rather than the next one.
+**Only the return edge does anything**, and it is one call:
+`Tasks::Registry::set_programs_enabled()`, made from the `control_latch` task in
+SERVICE - before CONTROL, so a withdrawal takes effect on the beat it is decided
+rather than the next one.
 
-| Edge | Plc::apply_control_edge() | Tasks::Registry::set_programs_enabled() | Why |
-|---|---|---|---|
-| withdrawn | `reset()` on every program, once | shuts the gate | from here the process moves without us, so what a program remembered about the field is stale |
-| returned | `resume()` on every program | opens the gate, and **reseeds every program's timer** | a `Ton` holding 5 s handed an hour of `dt` fires the instant control returns - the one thing a withdrawal exists to prevent. `resume()` is the other half: the clock is fixed, and now a program may LOOK at the plant before commanding it |
+| Edge | What happens | Why |
+|---|---|---|
+| withdrawn | the gate shuts, and nothing else | a program that is not called cannot act on what it remembers, and nothing outside it reads that |
+| returned | the gate opens, every program's **timer is reseeded**, and `Tick::first` is raised on each | a `Ton` holding 5 s handed an hour of `dt` fires the instant control returns - the one thing a withdrawal exists to prevent. The flag is the other half: it says the process moved without us, which `dt` alone cannot express |
 
-Two calls rather than one because of the layering: `tasks/` knows only
-`Component`, so it cannot call `reset()` on a `Plc::Program`; and the timer is
-the TASK's, so a program cannot reseed its own. Miss either and a program comes
-back holding the whole outage.
+There is no `reset()` and no `resume()` on a program: `Context::first_scan` is
+the whole signal, and the program drops whatever it judges stale under it. That
+is not merely equivalent to a hook on the withdrawal edge - it is better placed.
+The reseed means the program does **not** run on the beat authority returned, so
+an edge hook would look at an image its own next `run()` never sees.
 
-`reset()` is opt-in per program and deliberately not "clear everything": a dwell
-timer is stale, but a totalizer holding the litres delivered today is a record.
+Clearing under the flag is opt-in per program and deliberately not "clear
+everything": a dwell timer is stale, but a totalizer holding the litres delivered
+today is a record.
 
-`resume()` also raises `Context::first_scan` - IEC 61131-3's first-scan flag. A
-law that ramps, latches or compares against "last time" has no last time on the
-first scan, and reading one gives it whatever a member was initialised with. It
-is true at bring-up and true again after a withdrawal, because those are the same
-situation: the process moved without us, so the previous activation describes a
-plant that no longer exists.
+`Context::first_scan` is IEC 61131-3's first-scan flag. A law that ramps, latches
+or compares against "last time" has no last time on the first scan, and reading
+one gives it whatever a member was initialised with. It is true at bring-up and
+true again after a withdrawal, because those are the same situation: the process
+moved without us, so the previous activation describes a plant that no longer
+exists.
 
-Bring-up fires the return edge too (control starts withheld and is granted before
-the first beat), so `resume()` runs there - correctly, since a program knows no
-more about the plant at bring-up than after an outage. `reset()` does not, because
-nothing was ever driving.
+Bring-up therefore needs no special case at all - which is the argument for the
+flag over a pair of hooks. Control starts withheld and is granted before the
+first beat, so bring-up takes the return edge; and a task's first activation ever
+raises `first` anyway, so the two arrive at the same place by two routes.
 
 ## Where the gate lives
 

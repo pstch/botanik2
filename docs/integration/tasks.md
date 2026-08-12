@@ -16,17 +16,14 @@ public:
 
     virtual void bind(Vars::Bank& io) {}    // bring-up: names -> VarRefs, once
     virtual void run(Context& c) = 0;       // one activation
-    virtual void reset() {}                 // control withdrawn: drop stale state
-    virtual void resume() {}                // control returned: re-datum
 };
 ```
 
-`reset()` and `resume()` are the two control-authority edges, and they are not
-the same event. On withdrawal the process moves without us, so what a program
-REMEMBERED is stale - a filter's history, a position estimate. On return the
-timers are reseeded so the first activation reports its nominal period rather
-than the whole outage. A totaliser keeps its total across both; that is the
-distinction the pair exists to express.
+Two hooks, and no control-authority hooks at all. While control is withdrawn a
+program is simply **not called**, and nothing outside it reads what it remembers,
+so there is nothing to do on the way down. On the way back up `c.first_scan` is
+raised, and that is where a program drops what has gone stale - see *When
+programs run* below.
 
 The site's table is an array of **pointers**, so it stays const and
 flash-resident even though the programs it names live in RAM:
@@ -93,7 +90,6 @@ public:
         c.io.var(_locked).set(_lockout.q());
     }
 
-    void reset() override { _bad_for.reset(); _lockout.reset(); }
 };
 ```
 
@@ -194,16 +190,34 @@ control is withdrawn the scan is inhibited entirely and outputs sit at their saf
 state - see @ref user_control for the operator's view and @ref dev_architecture for
 where in the loop this sits.
 
-Both edges of that gate reach the programs:
+Only the RETURN edge reaches the programs, and it does two things:
 
-- **Withdrawn.** The driver calls `reset()` on every program, once, on the edge.
-  From that moment the process moves without us - a vent creeps shut, a tank
-  drains, a room cools - so anything a program remembered about the field is
-  stale. Override `reset()` to drop what has gone stale; it is deliberately not
-  "clear everything", because a dwell timer is stale but a totalizer holding the
-  litres delivered today is a *record*, and zeroing it would be data loss.
-- **Returned.** Every program's timer is reseeded, so its first activation back
-  reports its nominal period rather than the whole outage. A `Ton` holding 5 s
-  handed an hour of `dt` fires the instant control returns, which is the one thing
-  a withdrawal exists to prevent. `dt` alone cannot express "the process moved
-  while you were not looking" - that is what `reset()` is for.
+- **The timer is reseeded**, so the first activation back reports its nominal
+  period rather than the whole outage. A `Ton` holding 5 s handed an hour of `dt`
+  fires the instant control returns, which is the one thing a withdrawal exists
+  to prevent. (It also means a program does *not* run on the beat authority came
+  back - it waits its full period.)
+- **`c.first_scan` is raised on that activation.** `dt` alone cannot express "the
+  process moved while you were not looking": a vent creeps shut, a tank drains, a
+  room cools, so anything the program remembered about the field is stale. Drop
+  it under the flag:
+
+```cpp
+void run(Plc::Context& c) override {
+    if (c.first_scan) { _bad_for.reset(); _lockout.reset(); }
+    ...
+}
+```
+
+  Deliberately opt-in rather than "clear everything": a dwell timer is stale, but
+  a totalizer holding the litres delivered today is a *record*, and zeroing it
+  would be data loss.
+
+Nothing happens on the withdrawal edge, because nothing needs to. Clearing at the
+return is not merely equivalent, it is better placed: the program is looking at a
+freshly refreshed image, where a hook on the edge would see the one beat the edge
+happened on and never the image its own next `run()` gets.
+
+Bring-up needs no special case either. A task's first activation ever is a first
+scan too - a program knows no more about the plant at bring-up than after an
+outage.

@@ -222,19 +222,30 @@ predicate against the shell reply is the fiddly part.
    program has its own TASKS row, its own cost and its own `missed` count, none
    of which it had while one `scan` task stood for all of them.
 
-   **The authority edge is TWO calls, not one, and the layering is why.**
-   `tasks/` knows only `Component`, so it cannot call `reset()` on a
-   `Plc::Program`; and the timer is the TASK's, so a program cannot reseed its
-   own. So `Plc::apply_control_edge()` does reset/resume and
-   `Registry::set_programs_enabled()` does the gate plus the reseed, and
-   `BotanikFirmware::_apply_control_authority()` calls both from
-   `control_latch` (SERVICE, so a withdrawal lands on the beat it is decided).
-   Miss either half and a program comes back holding the whole outage.
+   **`reset()` and `resume()` are gone, and the authority edge is one call.**
+   The first cut split the edge in two - `Plc::apply_control_edge()` for
+   reset/resume, `Registry::set_programs_enabled()` for the gate and the reseed -
+   to keep `tasks/` ignorant of `Plc`. That was over-thought, and the tell was
+   having to document "miss either half and a program comes back holding the
+   whole outage": a hazard invented along with the split.
 
-   The plan said LoopScheduler would own the program list, the gate and the
-   edges. It owns the gate (forwarded to the registry, which holds the entries);
-   the edges could not follow without dragging `plc/` and `vars/` under
-   `scheduler/`.
+   Withdrawal needs to do nothing at all. A program that is not called cannot
+   act on what it remembers, and nothing outside a program reads its state - so
+   there is nothing to clear on the way down. What is left is the RETURN, which
+   raises `Tasks::Tick::first` (a generic flag on every task: "your first
+   activation since you last had nothing to go on") and reseeds the timer. It
+   reaches a program as `Context::first_scan`, which already existed, and that is
+   where the program drops what the outage made stale.
+
+   Better placed as well as smaller: the reseed means a program does NOT run on
+   the beat authority returned, so a hook on that edge would look at an image its
+   own next `run()` never sees. And bring-up stops being a special case - a
+   task's first activation ever raises `first` anyway, so "bring-up runs resume()
+   but not reset()" simply dissolves. The docs already argued the two were the
+   same situation while the code had two hooks treating them differently.
+
+   `tasks/` therefore still knows only `Component`, and LoopScheduler owns the
+   gate as planned (forwarded to the registry, which holds the entries).
 
    Three things changed shape rather than moving:
 
