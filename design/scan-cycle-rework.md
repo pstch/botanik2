@@ -139,14 +139,53 @@ of the beat.
   ms of flash).
 - Order within a phase is registration order.
 
+## Verifying a registration
+
+Learned the hard way while landing steps 1-3, and both cost a round trip.
+
+**A missing registration is invisible.** A refused or skipped `add()` does not
+fail the build and does not fail a test - the work simply never runs. Neither
+`make` nor the 499-case suite noticed three components failing to register.
+
+**Ask the shell, never the TASKS page.** `tasks <name>` answers "no task named"
+or prints the detail, and that is decisive. The TASKS page is a NAME-SORTED
+scrolling table, so a scroll that stops short reads exactly like an absent task -
+which is what sent one correct commit to the bin before the shell said otherwise.
+
+```
+botanik> tasks ntp        # "no task named ntp", or its detail
+```
+
+**Build BOTH targets.** `stacks.h` naming `Tasks::Registry` in a method body with
+only a forward declaration in scope compiled cleanly under the simulator's
+include order and failed on the OPTA one. The sim build alone would have shipped
+it.
+
+**Still owed: a test that pins the expected task set.** It is the only thing that
+would turn a silent non-registration into a failure, and every remaining step
+adds more registrations to get wrong. Write it against `tasks <name>`, not the
+page. One attempt is in the history and did not pass first time - the wait
+predicate against the shell reply is the fiddly part.
+
 ## Migration order
 
-1. `Tick`, the registry on `{owner, handler}` entries, `add()` / `add_setup()` /
-   `add_program()`. Old path kept alive so nothing else moves.
-2. `LoopScheduler` takes the registry, the setup pass and the watchdog.
-3. Components register themselves, innermost first (the ones currently stepped by
-   another: `AlarmController`, `NtpClient`, `MqttClient`, `NetworkHandler`).
-   Delete the hand-stepping as each lands.
+1. ~~`Tick`, the registry on `{owner, handler}` entries, `add()` /
+   `add_setup()` / `add_program()`.~~ **Done** (`d3eb36a`). The old path is still
+   alive beside it.
+2. ~~`LoopScheduler` takes the registry, the setup pass and the watchdog.~~
+   **Done** (`ea31d73`). `kick(healthy)` returns false when it WITHHELD the kick,
+   so the health verdict and the safe-state latch stay with the firmware.
+3. ~~Components register themselves, innermost first.~~ **Done** (`142b159`,
+   `8890074`): `AlarmController` out of `HealthMonitor`, and `NetworkHandler` /
+   `NtpClient` / `MqttClient` out of `NetworkStack::step()`, which is now
+   `register_tasks()`. Nothing steps anything.
+
+   The shape that worked, and to reuse: `register_tasks()` **public** on the
+   class (a public base is not enough - the override inherits the access of the
+   section it is declared in), and the handler a **static MEMBER**, since the
+   hook it calls is protected and a member reaches it without a friend.
+   `MqttSender` kept the plain-function form: it is not a Component, and giving
+   it a lifecycle purely to register it would be backwards.
 4. `Console` / `MonitorLogWriter` absorb their serial; drop `BufferedSerial`'s
    Component base.
 5. Programs register; `Scan::Driver` and `scan/` deleted; authority edges move.
