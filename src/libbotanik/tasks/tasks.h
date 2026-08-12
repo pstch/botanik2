@@ -28,10 +28,19 @@
 #include "libbotanik/tasks/phase.h"         // Tasks::Phase
 #include "libbotanik/tasks/task_timer.h"    // Tasks::TaskTimer
 
-// Forward-declared, never included: the registry stores a Component* and hands
-// it back to the handler without ever dereferencing it, so `tasks/` stays below
-// `core/` and free of every subsystem it drives.
+// Forward-declared, never included. `Component` is not domain knowledge here: it
+// is the TYPE OF THE ERASED SELF-POINTER, the one type every registered object
+// shares, which is what makes an (owner, handler) pair checkable at the
+// registration site. The registry never dereferences it - that is why
+// component_setup() below is defined over in core/component.cpp - so `tasks/`
+// stays below `core/` and free of every subsystem it drives.
+//
+// `Plc::Program` is named for one reason only: to keep add_program() honest
+// about what it registers. Nothing is ever called on one - a "program" is a
+// property of the ENTRY (no phase to name, gated by authority, reseeded on
+// return), not a thing the registry talks to.
 namespace Botanik { class Component; }
+namespace Botanik { namespace Plc { class Program; } }
 
 namespace Botanik { namespace Tasks {
 
@@ -217,8 +226,14 @@ namespace Botanik { namespace Tasks {
                        const char* name);
 
         /** @brief Register a control program. No phase: a program runs in
-         *  PHASE_CONTROL or not at all. */
-        bool add_program(Component& owner, void (*handler)(Component*, const Tick&),
+         *  PHASE_CONTROL or not at all, and it is gated by control authority.
+         *
+         *  Takes a Plc::Program rather than a Component so the second kind of
+         *  entry is a compile-time fact rather than a comment: a component that
+         *  is not a program cannot be registered as one and quietly acquire the
+         *  gate. The registry still calls nothing on it. */
+        bool add_program(Plc::Program& program,
+                         void (*handler)(Component*, const Tick&),
                          const char* name, GroupId group);
 
         /** @brief Register a Component in phase @p P: its hook for that phase

@@ -7,6 +7,9 @@
 #include "libbotanik/tasks/tasks.h" // Registry / Task
 
 #include "libbotanik/hal/platform.h"    // HAL::Clock::uptime_us
+// The complete Program, and ONLY so add_program() can convert one to the
+// Component& it registers as. Nothing here calls a Program method.
+#include "libbotanik/plc/program.h"     // Plc::Program
 
 namespace Botanik { namespace Tasks {
 
@@ -105,10 +108,10 @@ namespace Botanik { namespace Tasks {
         return add(owner, handler, name, GROUP_FAST, PHASE_COUNT);
     }
 
-    bool Registry::add_program(Component& owner,
+    bool Registry::add_program(Plc::Program& program,
                                void (*handler)(Component*, const Tick&),
                                const char* name, GroupId group) {
-        if (!add(owner, handler, name, group, PHASE_CONTROL)) return false;
+        if (!add(program, handler, name, group, PHASE_CONTROL)) return false;
         _tasks[_count - 1].is_program = true;
         return true;
     }

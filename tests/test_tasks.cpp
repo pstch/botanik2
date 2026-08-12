@@ -10,6 +10,7 @@
 #include <vector>                       // std::vector
 #include "libbotanik/core/component.h"  // Component
 #include "libbotanik/tasks/tasks.h" // Tasks::Registry
+#include "libbotanik/plc/program.h"   // Plc::Program - what add_program() takes
 #include "doctest.h"
 #include "libbotanik/tasks/task_timer.h"    // Tasks::TaskTimer
 
@@ -316,11 +317,19 @@ using namespace Botanik;
 using namespace Botanik::Tasks;
 
 namespace {
-    struct Spy : public Component {
+    /** @brief Derives Plc::Program rather than Component, because add_program()
+     *  takes one: registering a plain component as a program is now a compile
+     *  error, which is the whole point of the signature. A Program IS a
+     *  Component, so the ordinary add() cases below are unaffected. */
+    struct Spy : public Botanik::Plc::Program {
         uint32_t setups = 0, inputs = 0, presents = 0, programs = 0;
         uint32_t last_dt = 0;
         uint16_t last_missed = 0;
-        Spy() : Component(nullptr, "spy") {}
+        Spy() : Program("spy", GROUP_SLOW) {}
+    protected:
+        // Never reached: these cases dispatch through the spy_* handlers below,
+        // and a Program with no bank returns before run() anyway.
+        void run(Botanik::Plc::Context&) override {}
     };
 
     void spy_setup  (Component* c, const Tick&)   { static_cast<Spy*>(c)->setups++; }
