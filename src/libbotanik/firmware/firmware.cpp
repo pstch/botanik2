@@ -11,6 +11,25 @@
 
 namespace Botanik {
 
+    // Task handlers for the objects this class registers but does not own the
+    // type of. Named and file-local, beside nothing else: a handler has to be
+    // greppable, breakpoint-able and visible in a stack trace, which a lambda
+    // buried in the registration list is not. This class's OWN tasks go through
+    // _task_hook<> instead. @see design/scan-cycle-rework.md
+    namespace {
+        void bank_expire_stale(void* s, uint64_t now_ms) {
+            static_cast<Vars::Bank*>(s)->expire_stale(now_ms);
+        }
+        void bank_reject_implausible(void* s, uint64_t) {
+            (void)static_cast<Vars::Bank*>(s)->reject_implausible();
+        }
+#if BOTANIK_FEATURE_LOGGING
+        void logger_refill(void* s, uint64_t) {
+            static_cast<Logs::Logger*>(s)->refill();
+        }
+#endif
+    }
+
     // Construction
     // ------------------------------------------------------------------------
 
@@ -203,6 +222,23 @@ namespace Botanik {
 #endif
     }
 
+#if BOTANIK_FEATURE_MONITOR_PAGE
+#if BOTANIK_FEATURE_PLC_SCAN
+    const char* BotanikFirmware::_program_name_of(const void* ctx, uint8_t writer) {
+        const BotanikFirmware* f = static_cast<const BotanikFirmware*>(ctx);
+        if (writer >= f->_site.program_count) return nullptr;
+        const Plc::Program* p = f->_site.programs[writer];
+        return (p != nullptr) ? p->name() : nullptr;
+    }
+#endif
+#if BOTANIK_FEATURE_MODBUS_RTU_CLIENT
+    const char* BotanikFirmware::_device_name_of(const void* ctx, uint8_t unit) {
+        return Modbus::device_tag(
+            static_cast<const Modbus::DeviceTable*>(ctx), unit);
+    }
+#endif
+#endif
+
     void BotanikFirmware::_resolve_site_refs() {
         if (_site.home_refs != nullptr && _site.home_fields != nullptr)
             for (uint8_t i = 0; i < _site.home_field_count; i++)
@@ -236,17 +272,15 @@ namespace Botanik {
         // A full linear scan of the variable table, resolving timeouts measured
         // in seconds.
         _tasks.add("expire_stale", GROUP_BACKGROUND, PHASE_INPUT,
-            [](void* s, uint64_t now) { static_cast<Vars::Bank*>(s)->expire_stale(now); },
-            &_io);
+                   &bank_expire_stale, &_io);
         // Beside it: a reading can be fresh and still be nonsense. A dead
         // 4-20 mA loop reads full scale, which no timeout catches - the
         // declared plausibility band does.
         _tasks.add("reject_implausible", GROUP_BACKGROUND, PHASE_INPUT,
-            [](void* s, uint64_t) { (void)static_cast<Vars::Bank*>(s)->reject_implausible(); },
-            &_io);
+                   &bank_reject_implausible, &_io);
 
         _tasks.add("site_input", GROUP_FAST, PHASE_INPUT,
-                   &_site_hook<&BotanikFirmware::on_input>, this);
+                   &_task_hook<&BotanikFirmware::on_input>, this);
 
         // --- CONFIG: the image every config-driven component reads below ---
         _tasks.add_component<PHASE_CONFIG>("params", GROUP_SLOW, _params);
@@ -254,20 +288,17 @@ namespace Botanik {
         // the params component, so an edit committed this beat is applied this
         // beat rather than the next.
         _tasks.add("serial_cfg", GROUP_SLOW, PHASE_CONFIG,
-            [](void* s, uint64_t) {
-                static_cast<BotanikFirmware*>(s)->_apply_serial_config();
-            }, this);
+                   &_task_hook<&BotanikFirmware::_apply_serial_config>, this);
 
         _tasks.add("site_config", GROUP_FAST, PHASE_CONFIG,
-                   &_site_hook<&BotanikFirmware::on_config>, this);
+                   &_task_hook<&BotanikFirmware::on_config>, this);
 
         // --- SERVICE: supervision and the background state machines ---
         // Health before the logger drains, so an alarm START/END lands this
         // beat, and before CONTROL, so a fault inhibits this beat's programs.
         _health.register_tasks(_tasks);   // health, then the alarm model
         _tasks.add("control_latch", GROUP_FAST, PHASE_SERVICE,
-            [](void* s, uint64_t) { static_cast<BotanikFirmware*>(s)->_latch_control(); },
-            this);
+                   &_task_hook<&BotanikFirmware::_latch_control>, this);
 #if BOTANIK_FEATURE_NETWORK
         _net.register_tasks(_tasks);   // network, ntp, mqtt, telemetry
 #endif
@@ -281,7 +312,7 @@ namespace Botanik {
 #endif
 
         _tasks.add("site_service", GROUP_FAST, PHASE_SERVICE,
-                   &_site_hook<&BotanikFirmware::on_service>, this);
+                   &_task_hook<&BotanikFirmware::on_service>, this);
 
         // --- CONTROL: the control programs ---
 #if BOTANIK_FEATURE_PLC_SCAN
@@ -305,11 +336,7 @@ namespace Botanik {
         // on_control()), so the programs and this are the whole list: a third
         // place that drives the field must gate itself here.
         _tasks.add("site_control", GROUP_FAST, PHASE_CONTROL,
-            [](void* s, uint64_t now) {
-                BotanikFirmware* f = static_cast<BotanikFirmware*>(s);
-                if (f->io().control_enabled()) f->on_control(now);
-            },
-            this);
+                   &_task_hook<&BotanikFirmware::_run_site_control>, this);
 
         // --- OUTPUT: hand what the programs drove to the field ---
 #if BOTANIK_FEATURE_MODBUS_RTU_CLIENT
@@ -321,13 +348,13 @@ namespace Botanik {
 #endif
 
         _tasks.add("site_output", GROUP_FAST, PHASE_OUTPUT,
-                   &_site_hook<&BotanikFirmware::on_output>, this);
+                   &_task_hook<&BotanikFirmware::on_output>, this);
 
         // --- PRESENT: report what just happened ---
         // First in the phase, so anything it logs is drained by the logger below
         // in the SAME beat rather than waiting for the next one.
         _tasks.add("site_present", GROUP_FAST, PHASE_PRESENT,
-                   &_site_hook<&BotanikFirmware::on_present>, this);
+                   &_task_hook<&BotanikFirmware::on_present>, this);
 #if BOTANIK_FEATURE_MODBUS_TCP_SERVER
         // The answer goes out off the image the scan just produced: one beat of
         // latency on a read, against a poll measured in seconds, and no request
@@ -336,8 +363,7 @@ namespace Botanik {
 #endif
 #if BOTANIK_FEATURE_LOGGING
         _tasks.add("logger", GROUP_FAST, PHASE_PRESENT,
-            [](void* s, uint64_t) { static_cast<Logs::Logger*>(s)->refill(); },
-            &_logger);
+                   &logger_refill, &_logger);
 #endif
 #if BOTANIK_FEATURE_CONSOLE
         // Three tasks, and the port's two are not among them: console_in at the
@@ -357,7 +383,8 @@ namespace Botanik {
     // Per-beat internals
     // ------------------------------------------------------------------------
 
-    void BotanikFirmware::_apply_serial_config() {
+    void BotanikFirmware::_apply_serial_config(uint64_t now_ms) {
+        (void)now_ms;
 #if BOTANIK_FEATURE_CONSOLE
         const uint32_t con = (uint32_t)Vars::get_int(&_io, "serial_console_baud",
                                                      (int32_t)_console_baud);
@@ -381,7 +408,15 @@ namespace Botanik {
 #endif
     }
 
-    void BotanikFirmware::_latch_control() {
+    void BotanikFirmware::_run_site_control(uint64_t now_ms) {
+        // The gate is per DISPATCH POINT, not per write (see on_control()), so
+        // the programs and this are the whole list: a third place that drives
+        // the field must gate itself here.
+        if (_io.control_enabled()) on_control(now_ms);
+    }
+
+    void BotanikFirmware::_latch_control(uint64_t now_ms) {
+        (void)now_ms;
         if (!_health.watchdog_ok()) {
             if (!_health_fault) {
                 _health_fault = true;
@@ -462,24 +497,12 @@ namespace Botanik {
 #if BOTANIK_FEATURE_PLC_SCAN
         // Only this class holds both the page and the site's program table, so
         // the join is made here rather than by widening either of them.
-        _monitor_page.set_writer_names(
-            [](const void* ctx, uint8_t w) -> const char* {
-                const BotanikFirmware* f = static_cast<const BotanikFirmware*>(ctx);
-                if (w >= f->_site.program_count) return nullptr;
-                const Plc::Program* p = f->_site.programs[w];
-                return (p != nullptr) ? p->name() : nullptr;
-            },
-            this);
+        _monitor_page.set_writer_names(&_program_name_of, this);
 #endif
 #if BOTANIK_FEATURE_MODBUS_RTU_CLIENT
         // ...and the plant's name for a unit id, from the same place the
         // field-bus log lines get it.
-        _monitor_page.set_device_names(
-            [](const void* ctx, uint8_t unit) -> const char* {
-                return Modbus::device_tag(
-                    static_cast<const Modbus::DeviceTable*>(ctx), unit);
-            },
-            _site.devices);
+        _monitor_page.set_device_names(&_device_name_of, _site.devices);
 #endif
 #endif
 #if BOTANIK_FEATURE_TASKS_PAGE

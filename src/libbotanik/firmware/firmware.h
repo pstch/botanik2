@@ -450,15 +450,33 @@ namespace Botanik {
         /** @} */
 
     private:
-        /** @brief Dispatcher for an ungated site hook, so the five that need no
-         *  gate are a name each rather than five copies of the same cast. The
-         *  hook is a template argument for the same reason the phase is one on
-         *  Registry::add_component: Task::run is a plain function pointer and a
-         *  capturing lambda will not convert to one. */
+        /** @brief The one dispatcher for every task this class owns, so each is
+         *  a NAME rather than another copy of the same cast.
+         *
+         *  The method is a template argument for the same reason the phase is
+         *  one on Registry::add_component: Task::run is a plain function pointer
+         *  and a capturing lambda will not convert to one. A named wrapper is
+         *  also the point - it is greppable, it takes a breakpoint, and it shows
+         *  up in a stack trace, none of which a lambda in the registration list
+         *  does. @see design/scan-cycle-rework.md */
         template <void (BotanikFirmware::*Hook)(uint64_t)>
-        static void _site_hook(void* self, uint64_t now_ms) {
+        static void _task_hook(void* self, uint64_t now_ms) {
             (static_cast<BotanikFirmware*>(self)->*Hook)(now_ms);
         }
+
+#if BOTANIK_FEATURE_MONITOR_PAGE
+#if BOTANIK_FEATURE_PLC_SCAN
+        /** @brief A writer index back to the program's name, for MONITOR's
+         *  "computed (prog_a)" column. Named, like every other callback handed
+         *  out as a bare function pointer. */
+        static const char* _program_name_of(const void* ctx, uint8_t writer);
+#endif
+#if BOTANIK_FEATURE_MODBUS_RTU_CLIENT
+        /** @brief A unit id back to the plant's own tag for it, from the same
+         *  device table the field-bus log lines read. */
+        static const char* _device_name_of(const void* ctx, uint8_t unit);
+#endif
+#endif
 
         /** @brief Resolve every name the site's tables declare into the ref
          *  arrays they carry alongside. The alarm table binds itself when the
@@ -489,7 +507,7 @@ namespace Botanik {
          *  mid-sentence: it is at the old rate. Inherent, and the parameter's
          *  own notes say so. The confirming log line lands at the NEW rate, so
          *  it is the first thing read after reconnecting. */
-        void _apply_serial_config();
+        void _apply_serial_config(uint64_t now_ms = 0);
 
         /** @brief Track the health verdict against control authority. Registered
          *  as the "control_latch" task.
@@ -502,7 +520,13 @@ namespace Botanik {
          *  Health holds its OWN inhibit, so recovering releases only that one:
          *  an operator's `control disable` stays in force across a fault that
          *  came and went. */
-        void _latch_control();
+        void _latch_control(uint64_t now_ms);
+
+        /** @brief The site's own control law, under the control-authority gate.
+         *  Registered as the "site_control" task - the one site hook that is
+         *  gated, and the second of the two dispatch points that drive the
+         *  field (@ref dev_scan). */
+        void _run_site_control(uint64_t now_ms);
 
         /** @brief Carry the Bank's verdict to the programs: the gate, and both
          *  edges. Called from _latch_control(), so it runs in PHASE_SERVICE -
