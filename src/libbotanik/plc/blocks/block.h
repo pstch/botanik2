@@ -10,7 +10,7 @@
  * @section blk_contract The contract
  *
  * Every FUNCTION_BLOCK provides `reset()`: back to a cold block, as if it had
- * just been constructed. `Scan::Driver` calls `Plc::Program::reset()` on every
+ * just been constructed. `Plc::apply_control_edge()` calls `Plc::Program::reset()` on every
  * control-authority withdrawal, and a program's reset is the sum of its blocks',
  * so a block without one is state that survives an outage it should not have.
  * That is why this is enforced rather than documented.
@@ -71,7 +71,7 @@ namespace Botanik { namespace Plc {
     static_assert(::std::is_base_of< ::Botanik::Plc::Block, T >::value,        \
                   #T " must derive from Plc::Block");                          \
     static_assert(::Botanik::Plc::detail::has_reset< T >::value,               \
-                  #T " must provide reset(): the scan driver resets every "    \
+                  #T " must provide reset(): a control withdrawal resets every " \
                   "program, and a program's reset is the sum of its blocks'"); \
     static_assert(!::std::is_polymorphic< T >::value,                          \
                   #T " must not be polymorphic: a vptr on every block instance")

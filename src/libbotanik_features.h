@@ -168,7 +168,7 @@
 
 // --- PLC -----------------------------------------------------------------
 
-/** @brief The scan cycle: `Scan::Driver` running the site's control programs at
+/** @brief The scan cycle: the site's control programs, registered and run at
  *  their declared rates. Off does NOT remove control authority - the Bank's
  *  enable/disable latch has consumers of its own (the `control` command, the
  *  health withdrawal) that outlive the scan. */

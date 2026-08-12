@@ -216,7 +216,45 @@ predicate against the shell reply is the fiddly part.
    than the first. Nothing else reads the console's bytes, so the ordering buys
    nothing either way - but a component wanting a specific slot in TWO phases
    cannot have it from one call.
-5. Programs register; `Scan::Driver` and `scan/` deleted; authority edges move.
+5. ~~Programs register; `Scan::Driver` and `scan/` deleted; authority edges
+   move.~~ **Done.** `Plc::Program` takes a rate GROUP instead of a period and
+   registers itself with `add_program()`; `scan/` is gone as a directory. Each
+   program has its own TASKS row, its own cost and its own `missed` count, none
+   of which it had while one `scan` task stood for all of them.
+
+   **The authority edge is TWO calls, not one, and the layering is why.**
+   `tasks/` knows only `Component`, so it cannot call `reset()` on a
+   `Plc::Program`; and the timer is the TASK's, so a program cannot reseed its
+   own. So `Plc::apply_control_edge()` does reset/resume and
+   `Registry::set_programs_enabled()` does the gate plus the reseed, and
+   `BotanikFirmware::_apply_control_authority()` calls both from
+   `control_latch` (SERVICE, so a withdrawal lands on the beat it is decided).
+   Miss either half and a program comes back holding the whole outage.
+
+   The plan said LoopScheduler would own the program list, the gate and the
+   edges. It owns the gate (forwarded to the registry, which holds the entries);
+   the edges could not follow without dragging `plc/` and `vars/` under
+   `scheduler/`.
+
+   Three things changed shape rather than moving:
+
+   - **`SCAN_LATE` kept its alarm row.** The plan said it "falls out of the
+     task's own `missed` count", but 997 is a published register and `missed` on
+     a page is a diagnostic, not an annunciation. What stopped being special is
+     the COMPUTATION: `Plc::worst_lateness()` over the site's table, published
+     by the firmware. `SCAN_STAGGER_MS` did go - the registry's derived offset
+     already spreads a group, so there was nothing left for it to do.
+   - **There is no period-0 program any more.** A rate group always has a
+     nominal period (GROUP_FAST's is one beat), so an every-beat program is
+     late when the BEAT is late, where a period-0 one could never be late at
+     all. Fair, and it overlaps CPU_XRUN.
+   - **The return beat never runs a program.** It used to for a period-0 one,
+     which `due()` reports due regardless of the reseed. Now every program waits
+     its group period, which is what the reseed was always for.
+
+   Writer-conflict reporting became `Plc::report_writer_conflicts()` rather than
+   a firmware private, so it stays testable while it lasts - the declared
+   provider is due to replace it.
 6. `Component` loses the six phase hooks, the timer and the per-beat verdict.
 7. Control authority drops to one mode, and programs become stoppable one at a
    time (see below). Needs 5: both halves of it stand on the program

@@ -32,7 +32,6 @@
 #include "libbotanik/pages/tasks_page.h"        // TasksPage
 #include "libbotanik/plc/blocks/blocks.h"       // the stateful POU vocabulary
 #include "libbotanik/plc/functions/functions.h" // the stateless POU vocabulary
-#include "libbotanik/scan/scan.h"               // Scan::Driver
 #include "libbotanik/scheduler/scheduler.h"     // LoopScheduler + SchedulerContext
 #include "libbotanik/tasks/task_timer.h"    // TaskTimer
 #include "libbotanik/shell/shell.h"             // CommandShell + ShellCommand (the site's command table)

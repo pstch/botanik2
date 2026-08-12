@@ -104,7 +104,7 @@ namespace Botanik { namespace Plc {
     };
 
     /** @name Family checks
-     *  @see block.h - every block is reset by the scan driver.
+     *  @see block.h - every block is reset on a control withdrawal.
      *  @{ */
     BOTANIK_PLC_BLOCK(Ewma);
     BOTANIK_PLC_BLOCK(MedianOf3);

@@ -60,7 +60,7 @@ the build log. Guard every feature flag a site pins.
 | `LOGS_PUBLISH` | off | `LOGGING`, `MQTT` | `MqttLogWriter` - log entries to the broker |
 | `ALARMS_PUBLISH` | off | `LOGGING`, `MQTT` | `MqttAlarmNotifier` - alarm transitions to the broker |
 | `LOGS_MONITOR` | off | `LOGGING` | the secondary MONITOR UART and its log sink |
-| `PLC_SCAN` | **on** | - | `Scan::Driver`. Off does *not* remove control authority: the Bank's enable/disable latch has consumers of its own |
+| `PLC_SCAN` | **on** | - | the control programs and their registration. Off does *not* remove control authority: the Bank's enable/disable latch has consumers of its own |
 | `PLC_BLK_BASE` | off | - | the base blocks: timers, logic, analog, meter, pid, actuator |
 | `PLC_BLK_FILTERS` | off | - | the filter blocks: `Ewma`, `MedianOf3`, `MovingAverage`. Distinct from `utils/filters.h`, the scheduler's metric filter |
 | `MODBUS_TCP_SERVER` | off | `NETWORK`, `PLC_SCAN` | the Modbus TCP slave: the framing, the register map over the variable table, and the server. Stepped every beat, and it splices four `mb_` parameters into the library's rows. On for `gh_mlb41` |
@@ -156,7 +156,6 @@ The sections below follow the header's own order.
 | `GROUP_SLOW_MS` | 100 | dwell, config, and the console render. `TX_COLD_TARGET_MS` must stay above it |
 | `GROUP_BACKGROUND_MS` | 500 | |
 | `MAX_TASKS` | 24 | registry capacity, base tasks plus the site's |
-| `SCAN_STAGGER_MS` | = `TASK_PERIOD_MS` | spreads the scan's control programs over beats by table index, so they do not pile onto one |
 | `HW_WATCHDOG_MS` | 10000 | hardware watchdog timeout, clamped to what the IWDG can express |
 
 ### Performance metrics

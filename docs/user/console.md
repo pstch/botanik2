@@ -160,14 +160,13 @@ Stack ....................... : 2%       (high 1.2 kB)
 botanik> _
  ALARMS :
 ```
-
-A `botanik>` prompt for inspecting and poking the running firmware. Type a line,
-press `ENTER`. An empty line is ignored; an unknown one answers
-`Unknown command: …`. Output scrolls above the prompt, and log lines are interleaved
-with it as they arrive - `logs off` quiets them while you work, `logs on` brings
-them back.
+The shell provides a prompt for inspecting, monitoring and interacting with the
+running firmware. The shell page supports scrolling, multi-line editing and 
+interleaves log lines with the shell's output.
 
 #### Keyboard shortcuts
+
+Standard emacs-like shortcuts.
 
 | Key                                         | Action                                                               |
 |---------------------------------------------|----------------------------------------------------------------------|
@@ -194,14 +193,12 @@ them back.
  
 #### Shell commands
 
-Commands are **noun then verb**: the noun is what you are working on, the verb is
-what you are doing to it. `help` lists them all, built-ins first, then any commands
-the site adds. A noun on its own does something sensible - `params` lists, `tasks`
-reports the beat's totals - so `help` is rarely the fastest way to find your way.
+Commands are generally **noun then verb**: 
+ - the noun is what you are working on
+ - the verb is what you are doing to it. 
 
-Two of the nouns keep **editing and saving apart**: `params set` and `overrides set`
-apply immediately and are live on the plant, and only `params save` / `overrides
-save` make them survive a reboot. See @ref user_variables.
+`help` lists all commands. The site-specific code may register additional commands
+or override built-in commands with their own code.
 
 ##### System control
 
@@ -215,10 +212,8 @@ save` make them survive a reboot. See @ref user_variables.
 | `reset`                                        | reset the unit now                    |
 | `exit`                                         | quit (simulator) / reboot (hardware)  |
 
-`reset` cuts the loop off where it stands. `reboot` leaves it running and simply
-stops kicking the watchdog, which is the same path an unattended unit takes when it
-wedges - so it is the one to use when you want to exercise that path on purpose. Both
-drop the outputs to their safe state first.
+  - `reset` cuts the loop off where it stands and may leave outputs in a non-safe state
+  - `reboot` leaves the loop running, but disables control and stops kicking the watchdog
 
 ##### System status
 
@@ -240,21 +235,25 @@ drop the outputs to their safe state first.
 | `params list [<prefix>]`                       | list parameters                       |
 | `params get <name>`                            | get a parameter                       |
 | `params set <name> <value>`                    | set a parameter (live, unsaved)       |
-| `params save [<name>]`                         | commit a parameter to flash           |
+| `params clear <name>\|all`                     | reset parameters to their default     |
+| `params save <name>\|all`                      | persist a parameter, or all of them   |
 | `overrides list`                               | list overrides                        |
 | `overrides get <name>`                         | get an override                       |
 | `overrides set <name> [<value>] [invalid]`     | set an override                       |
-| `overrides clear [<name>]`                     | release one override, or all of them  |
-| `overrides save [<name>]`                      | commit an override to flash           |
+| `overrides clear <name>\|all`                  | release one override, or all of them  |
+| `overrides save <name>\|all`                   | persist an override, or all of them   |
 | `alarms list [<prefix>]`                       | list active alarms                    |
 | `alarms get <code\|name>`                      | get an alarm                          |
 | `alarms ack <code\|name\|all>`                 | acknowledge an alarm                  |
 | `vars list [<prefix>]`                         | list variables                        |
 | `vars get <name>`                              | read a variable                       |
+| `programs list [<prefix>]`                     | list programs                         |
+| `programs enable <name>\|all`                  | enable a program, or all of them      |
+| `programs disable <name>\|all`                 | disable a program, or all of them     |
+| `programs save <name>\|all`                    | persist to flash disabled programs    |
 
-Every listing takes a name prefix, and variables are named by domain (`grid_`,
-`irr_`, `cli_`), so a prefix is the subsystem view: `vars list irr_` is the
-irrigation rows and nothing else.
+Every listing takes a name prefix, and variables are conventionally named by domain (ex.
+`grid_`, `irr_`, `cli_`), so using name prefixes allow to view items "per subsystem".
 
 ##### Console
 

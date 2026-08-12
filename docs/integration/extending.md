@@ -11,7 +11,7 @@ a set of protected virtual hooks.
 | `register_telemetry()` | `FEATURE_MQTT` | in `setup()`, after the MQTT sinks are wired | publishes the descriptor's status groups |
 | `on_setup()` | always | once, near the end of `setup()` - **before** `tasks.setup()`, the watchdog and control being enabled | nothing |
 | `on_input()` / `on_config()` / `on_service()` / `on_output()` / `on_present()` | always | one task each (`site_input`, ...) at the end of that phase | nothing |
-| `on_control(now_ms)` | control authority | the `site_control` task, beside the scan driver | nothing |
+| `on_control(now_ms)` | control authority | the `site_control` task, beside the control programs | nothing |
 
 Most sites override none of them. The reference site overrides none.
 
@@ -68,7 +68,7 @@ the data flow matches the work:
 | `on_input(now)` | after the field commit and the expiry sweep | a driver poll; readings are in and coherent |
 | `on_config(now)` | after the parameter commit | re-reading configuration the rest of the beat will use |
 | `on_service(now)` | beside health and the network | a site's own background state machine |
-| `on_control(now)` | beside the scan driver, **gated** | the site's own control law |
+| `on_control(now)` | beside the control programs, **gated** | the site's own control law |
 | `on_output(now)` | after the programs, before the field write | shaping what goes out |
 | `on_present(now)` | with the beat's decisions made | telemetry, counters, reporting |
 

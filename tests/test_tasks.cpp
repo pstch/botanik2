@@ -368,12 +368,63 @@ TEST_CASE("registry: a program takes no phase - it is PHASE_CONTROL or nothing")
     Spy s;
     Registry r;
     REQUIRE(r.add_program(s, &spy_program, "prog", GROUP_SLOW));
+    r.set_programs_enabled(true, 0);
 
     r.run_phase(PHASE_INPUT, 0);
     CHECK(s.programs == 0);
     r.run_phase(PHASE_CONTROL, 0);
     CHECK(s.programs == 1);
     CHECK(r.task(0).is_program);
+}
+
+TEST_CASE("registry: a program does not run until control authority is granted") {
+    Spy s;
+    Registry r;
+    REQUIRE(r.add_program(s, &spy_program, "prog", GROUP_SLOW));
+    REQUIRE(r.add(s, &spy_input, "spy_in", GROUP_FAST, PHASE_INPUT));
+
+    INFO("the gate starts SHUT: control authority starts withheld, so nothing "
+         "can drive the field on the way through bring-up");
+    CHECK_FALSE(r.programs_enabled());
+    r.run_phase(PHASE_CONTROL, 0);
+    CHECK(s.programs == 0);
+
+    // ...and it gates programs ONLY. A withdrawal writes safe states into the
+    // image, and the phases around CONTROL still have to carry them outward.
+    r.run_phase(PHASE_INPUT, 0);
+    CHECK(s.inputs == 1);
+
+    r.set_programs_enabled(true, 0);
+    r.run_phase(PHASE_CONTROL, 0);
+    CHECK(s.programs == 1);
+}
+
+TEST_CASE("registry: control returning reseeds a program's timer, not the beat's") {
+    Spy s;
+    Registry r;
+    REQUIRE(r.add_program(s, &spy_program, "prog", GROUP_SLOW));
+    REQUIRE(r.add(s, &spy_input, "spy_in", GROUP_SLOW, PHASE_INPUT));
+    r.set_programs_enabled(true, 0);
+    r.run_phase(PHASE_CONTROL, 0);
+    r.run_phase(PHASE_INPUT, 0);
+    REQUIRE(s.programs == 1);
+    REQUIRE(s.inputs == 1);
+
+    // A long outage, then control back. The reseed is what stops the first
+    // activation reporting the whole outage as its dt.
+    r.set_programs_enabled(false, 10);
+    r.set_programs_enabled(true, 60000);
+
+    r.run_phase(PHASE_CONTROL, 60000);
+    CHECK(s.programs == 1);              // the reseed beat: not due yet
+    r.run_phase(PHASE_CONTROL, 60100);
+    CHECK(s.programs == 2);
+    CHECK(s.last_dt == 100);             // its nominal period, not 60 s
+
+    INFO("an ordinary task's timer is untouched by a control edge");
+    r.run_phase(PHASE_INPUT, 60000);
+    CHECK(s.inputs == 2);
+    CHECK(s.last_dt == 60000);
 }
 
 }  // namespace registered

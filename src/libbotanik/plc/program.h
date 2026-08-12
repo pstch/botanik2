@@ -9,9 +9,11 @@
  * variable bank, applies its blocks, and writes demands back. It is the only
  * one of the three that knows the field exists.
  *
- * A program is a Component: the driver calls step(), Component does the
- * due/late/dropped arithmetic, and on_param_changed() and healthy() come with
- * it.
+ * A program is a Component, and it REGISTERS ITSELF: one entry in the task
+ * registry, in PHASE_CONTROL, at the rate group it names. The registry does the
+ * due/late/dropped arithmetic every task gets, and hands it back in the Tick -
+ * so a program carries no timer of its own and gets a row on the TASKS page like
+ * anything else.
  *
  * Four hooks, in lifecycle order:
  *
@@ -39,8 +41,7 @@
 #include <cstdint>                      // uint16_t/uint32_t/uint64_t
 
 #include "libbotanik/core/component.h"  // Component
-#include "libbotanik/hal/platform.h"    // HAL::Clock::uptime_us - per-program cost
-#include "libbotanik/tasks/tasks.h"     // Tasks::TaskCost - the same accounting a task gets
+#include "libbotanik/tasks/tasks.h"     // Tasks::Registry / Tick / GroupId
 #include "libbotanik/plc/io.h"           // Plc::Io - the narrowed view a program gets
 #include "libbotanik/vars/model.h"      // Vars::Bank / VarRef
 
@@ -78,7 +79,7 @@ namespace Botanik { namespace Plc {
      *     Plc::Sr      _lockout;
      *     Vars::VarRef _ln = { Vars::VAR_NONE }, _out = { Vars::VAR_NONE };
      * public:
-     *     SupplyWatch() : Program("supply_watch", 100) {}
+     *     SupplyWatch() : Program("supply_watch", Tasks::GROUP_SLOW) {}
      *
      * protected:
      *     void bind(Vars::Bank& io) override {
@@ -99,21 +100,20 @@ namespace Botanik { namespace Plc {
          *  @{ */
 
         /** @brief Borrowed; the firmware owns it. Held rather than passed in
-         *  because Component::step() takes only a timestamp. */
+         *  because the registry's handler takes only a Tick. */
         Vars::Bank* _io = nullptr;
+        /** @brief The rate this program named. Its task carries the timer; this
+         *  is kept only to measure lateness against the nominal period. */
+        Tasks::GroupId _group = Tasks::GROUP_FAST;
         /** @brief This program's index in the site's table, stamped onto every
-         *  row it writes. The driver assigns it; WRITER_NONE until then. */
+         *  row it writes. The firmware assigns it; WRITER_NONE until then. */
         uint8_t     _slot = Vars::WRITER_NONE;
-        /** @brief What this program costs. The scan is ONE task, so without
-         *  this every program is a single row on the TASKS page. */
-        Tasks::TaskCost _cost;
         /** @brief How far past its nominal period this activation was, and the
-         *  worst yet. Zero for a period-0 program: due every beat, so it has no
-         *  nominal to be late against. */
+         *  worst yet. */
         uint32_t    _late_ms     = 0;
         uint32_t    _late_max_ms = 0;
         /** @brief Whether the next activation is a first scan. Starts true, so
-         *  bring-up is a first scan without the driver having to say so. */
+         *  bring-up is a first scan without anything having to say so. */
         bool        _first_scan  = true;
 
         /** @} */
@@ -122,48 +122,54 @@ namespace Botanik { namespace Plc {
         /** @name Lifecycle
          *  @{ */
 
-        /** @brief @p name for the boot announce and diagnostics; @p period_ms
-         *  is the run interval, 0 meaning every beat. Both are borrowed
-         *  constants. */
-        Program(const char* name, uint32_t period_ms)
-            : Component(nullptr, name) {
-            set_period(period_ms);
-        }
+        /** @brief @p name for the boot announce, the TASKS row and diagnostics;
+         *  @p group is the rate it runs at. The name is a borrowed constant.
+         *
+         *  A group, not a period: a program is scheduled like everything else
+         *  in the beat, so retuning a rate class retunes it too. */
+        Program(const char* name, Tasks::GroupId group)
+            : Component(nullptr, name), _group(group) {}
 
-        /** @brief Hand the program the field it drives, before it is stepped.
-         *  The driver does this for the whole site table. */
+        /** @brief Hand the program the field it drives, before it registers.
+         *  The firmware does this for the whole site table. */
         void attach(Vars::Bank& io, Logs::Logger* logger = nullptr) {
             _io = &io;
             if (logger != nullptr) _logger = logger;
         }
 
         /** @brief Tell the program which slot of the site's table it occupies.
-         *  The DRIVER's to call: two programs claiming one index would silently
-         *  share an author. */
+         *  The FIRMWARE's to call: two programs claiming one index would
+         *  silently share an author. */
         void set_slot(uint8_t slot) { _slot = slot; }
         uint8_t slot() const        { return _slot; }
 
+        /** @brief The rate group this program named. */
+        Tasks::GroupId group() const { return _group; }
+
+        /** @brief One entry, PHASE_CONTROL by construction and gated by control
+         *  authority. Registering is also what runs bind(), through
+         *  Component::setup(). */
+        void register_tasks(Tasks::Registry& r) override;
+
         /** @} */
         /** @name Accounting
-         *  Per PROGRAM, because the scan is one task.
          *  @{ */
 
-        /** @brief Duration of the last run, the peak, the mean and the count. */
-        const Tasks::TaskCost& cost() const { return _cost; }
         /** @brief Milliseconds past its nominal period on the last activation,
-         *  and the worst so far. Always 0 for a period-0 program. */
+         *  and the worst so far. Always 0 for a GROUP_FAST program: due every
+         *  beat, so it has no slack to be late in. */
         uint32_t late_ms() const     { return _late_ms; }
         uint32_t late_max_ms() const { return _late_max_ms; }
 
         /** @brief Drop state a control withdrawal has made stale; default,
-         *  nothing is (@ref plc_program_bind). Public because it is the
-         *  DRIVER's to call, on an edge the program cannot see. */
+         *  nothing is (@ref plc_program_bind). Public because it is
+         *  apply_control_edge()'s to call, on an edge the program cannot see. */
         virtual void reset() {}
 
         /** @brief Control authority has come back; the next activation will
          *  drive the field again. Default: raise the first-scan flag and
          *  nothing else (@ref plc_program_bind). Public for the same reason
-         *  reset() is: the edge is the driver's. */
+         *  reset() is: the edge is not the program's to notice. */
         virtual void resume() { _first_scan = true; }
 
         /** @} */
@@ -189,28 +195,65 @@ namespace Botanik { namespace Plc {
             if (_io != nullptr) bind(*_io);
         }
 
-        /** @brief Component's per-activation hook: build the Context from the
-         *  timer's own reading of how late this activation is, then run. */
-        void on_control(uint64_t now_ms) override {
+        /** @} */
+
+    private:
+        /** @brief The registration handler. A static MEMBER, so the cast has
+         *  access to the private activation below and stays beside the class. */
+        static void _run_task(Component* c, const Tasks::Tick& t);
+
+        /** @brief One activation, off the Tick the registry measured. The
+         *  registry already timed it into the task's own TaskCost, so there is
+         *  nothing to account for here beyond the lateness. */
+        void _activate(const Tasks::Tick& t) {
             if (_io == nullptr) return;
 
             // Against the program's OWN period, not the beat: 40 ms late is
             // fine for a 1 s program and not for a 100 ms one.
-            const uint32_t p = period_ms();
-            _late_ms = (p != 0 && dt_ms() > p) ? (dt_ms() - p) : 0;
+            const uint32_t p = Tasks::group_period_ms(_group);
+            _late_ms = (t.dt_ms > p) ? (t.dt_ms - p) : 0;
             if (_late_ms > _late_max_ms) _late_max_ms = _late_ms;
 
-            Context c = { now_ms, dt_ms(), missed(), _first_scan, Io(*_io, _slot) };
-            const uint64_t t0 = HAL::Clock::uptime_us();
+            Context c = { t.now_ms, t.dt_ms, t.missed, _first_scan, Io(*_io, _slot) };
             run(c);
-            _cost.record((uint32_t)(HAL::Clock::uptime_us() - t0), missed());
             // Cleared after the run: the flag describes the activation that
             // just happened.
             _first_scan = false;
         }
-
-        /** @} */
     };
+
+    /** @brief Apply a control-authority edge to a borrowed program table.
+     *
+     *  The two behaviours that used to live in the scan driver, and the reason
+     *  this is a function rather than something the registry does: both are
+     *  Plc::Program's, and `tasks/` knows only Component. The registry's own
+     *  half of the edge - the gate, and reseeding each program's TIMER, which it
+     *  owns - is Registry::set_programs_enabled().
+     *
+     *  @param granted false on withdrawal: reset() every program, because from
+     *  here the process moves without us and what a program remembered is
+     *  stale. True on return: resume(), so a program may LOOK at the plant
+     *  before commanding it again, and the first-scan flag is raised. */
+    void apply_control_edge(Program* const* programs, uint8_t count, bool granted);
+
+    /** @brief The worst lateness across @p programs, and who owned it (null
+     *  when nothing was late). The alarm row says a program is missing its
+     *  period; this says how badly and by whom. */
+    uint32_t worst_lateness(Program* const* programs, uint8_t count,
+                            const Program** worst);
+
+    /** @brief Name a row that has acquired a second author, once per new
+     *  conflict.
+     *
+     *  The bank COUNTS them (Vars::Bank::claim_writer) but cannot name them: a
+     *  writer is an index, and only the program table turns one back into a
+     *  name. @p said carries the count already reported, so a defect that is
+     *  true on every beat from here is logged once rather than every 10 ms.
+     *
+     *  @return whether it logged. */
+    bool report_writer_conflicts(Vars::Bank& io, Program* const* programs,
+                                 uint8_t count, Logs::Logger* logger,
+                                 uint16_t& said);
 
     /**
      * @brief One statically-allocated @p T, safe to name from a header.

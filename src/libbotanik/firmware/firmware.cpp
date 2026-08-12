@@ -15,8 +15,8 @@ namespace Botanik {
     // ------------------------------------------------------------------------
 
     // The initialiser list follows declaration order exactly (-Wreorder): _io
-    // must be alive before _params and _scan take its address, and _health
-    // before _modbus_tcp and _console take its alarm model.
+    // must be alive before _params takes its address, and _health before
+    // _modbus_tcp and _console take its alarm model.
     BotanikFirmware::BotanikFirmware(const SiteDescriptor& site)
         : _site(site),
           _logger(),
@@ -26,9 +26,6 @@ namespace Botanik {
           // Params come from local storage.
           _param_store(),
           _params(&_io, &_param_store, &_logger),
-#if BOTANIK_FEATURE_PLC_SCAN
-          _scan(site.programs, site.program_count, &_io, &_logger),
-#endif
           // The alarm model scans the variable table for SCOPE_A rows;
           // platform-health alarms are appended and driven locally.
           _health(&_logger, _scheduler.context(), &_io)
@@ -210,6 +207,11 @@ namespace Botanik {
         if (_site.home_refs != nullptr && _site.home_fields != nullptr)
             for (uint8_t i = 0; i < _site.home_field_count; i++)
                 _site.home_refs[i] = _io.find(_site.home_fields[i].name);
+#if BOTANIK_FEATURE_PLC_SCAN
+        // By name, once, like every other library consumer. A site that omitted
+        // the library splice resolves to the sink and the POST names the row.
+        _scan_late_alarm = _io.find("alarm_scan_late");
+#endif
     }
 
     // The task table
@@ -282,17 +284,26 @@ namespace Botanik {
                    &_site_hook<&BotanikFirmware::on_service>, this);
 
         // --- CONTROL: the control programs ---
-        // Unconditional: the driver holds the Bank and inhibits the programs
-        // itself while control is withheld, so it announces at boot (when
-        // control is withheld by definition) and its non-driving work runs
-        // DURING a withdrawal rather than being skipped with it.
 #if BOTANIK_FEATURE_PLC_SCAN
-        _tasks.add_component<PHASE_CONTROL>("scan", GROUP_FAST, _scan);
+        // One task each, so a program has its own rate, its own row on the
+        // TASKS page and its own cost - none of which it had while a driver
+        // stepped the lot inside one "scan" task. add_program() marks the entry
+        // so the registry's authority gate can find it.
+        for (uint8_t i = 0; i < _site.program_count; i++) {
+            Plc::Program* p = _site.programs[i];
+            if (p == nullptr) continue;
+            p->attach(_io, &_logger);
+            // Its index in the site's table, which is what every row it writes
+            // is stamped with. Here rather than in the program, because a
+            // program cannot know where the site put it.
+            p->set_slot(i);
+            p->register_tasks(_tasks);
+        }
 #endif
-        // The site's own control law, under the same gate the scan driver
-        // applies to the programs. The gate is per DISPATCH POINT, not per write
-        // (see on_control()), so the scan driver and this are the whole list: a
-        // third place that drives the field must gate itself here.
+        // The site's own control law, under the same gate the registry applies
+        // to the programs. The gate is per DISPATCH POINT, not per write (see
+        // on_control()), so the programs and this are the whole list: a third
+        // place that drives the field must gate itself here.
         _tasks.add("site_control", GROUP_FAST, PHASE_CONTROL,
             [](void* s, uint64_t now) {
                 BotanikFirmware* f = static_cast<BotanikFirmware*>(s);
@@ -390,7 +401,48 @@ namespace Botanik {
                     ? "control enabled, scan resuming"
                     : "control still disabled by the operator");
         }
+        _apply_control_authority();
     }
+
+#if !BOTANIK_FEATURE_PLC_SCAN
+    void BotanikFirmware::_apply_control_authority() {
+        // No programs to gate, but the gate itself still has to track authority:
+        // a site's on_control() reads control_enabled() directly.
+        _scheduler.set_control_enabled(_io.control_enabled(), HAL::Clock::uptime_ms());
+    }
+#else
+    void BotanikFirmware::_apply_control_authority() {
+        const bool on = _io.control_enabled();
+        if (on != _programs_enabled) {
+            _programs_enabled = on;
+            // The two halves of the edge. The programs' own - reset() on the way
+            // down, resume() on the way back - and the registry's, which is the
+            // gate plus the timer reseed only it can do (see
+            // Registry::set_programs_enabled). Both, or a program comes back
+            // holding an hour of dt.
+            Plc::apply_control_edge(_site.programs, _site.program_count, on);
+            _scheduler.set_control_enabled(on, HAL::Clock::uptime_ms());
+        }
+        _publish_lateness();
+        // Edge-triggered and named once: two programs driving one output is a
+        // design defect, true on every beat from here.
+        (void)Plc::report_writer_conflicts(_io, _site.programs,
+                                           _site.program_count, &_logger,
+                                           _conflicts_said);
+    }
+
+    void BotanikFirmware::_publish_lateness() {
+        const Plc::Program* worst = nullptr;
+        const uint32_t late = Plc::worst_lateness(_site.programs,
+                                                  _site.program_count, &worst);
+        _scan_worst = worst;
+        _scan_late_ms = late;
+        // Written every beat, like any other alarm input: the dwell in the row's
+        // own policy is what turns a burst into an alarm, not this.
+        _io.var(_scan_late_alarm).set(late > Config::SCAN_LATE_MS);
+    }
+
+#endif
 
     // Site customization hooks (defaults)
     // ------------------------------------------------------------------------
@@ -418,15 +470,16 @@ namespace Botanik {
 #if BOTANIK_FEATURE_MONITOR_PAGE
         _console.terminal().add_page(&_monitor_page);
 #if BOTANIK_FEATURE_PLC_SCAN
-        // Only this class holds both the page and the scan driver, so the join
-        // is made here rather than by widening either of them.
+        // Only this class holds both the page and the site's program table, so
+        // the join is made here rather than by widening either of them.
         _monitor_page.set_writer_names(
             [](const void* ctx, uint8_t w) -> const char* {
-                const Scan::Driver* d = static_cast<const Scan::Driver*>(ctx);
-                const Plc::Program* p = d->program(w);
+                const BotanikFirmware* f = static_cast<const BotanikFirmware*>(ctx);
+                if (w >= f->_site.program_count) return nullptr;
+                const Plc::Program* p = f->_site.programs[w];
                 return (p != nullptr) ? p->name() : nullptr;
             },
-            &_scan);
+            this);
 #endif
 #if BOTANIK_FEATURE_MODBUS_RTU_CLIENT
         // ...and the plant's name for a unit id, from the same place the

@@ -1,8 +1,10 @@
 # Control programs {#int_tasks}
 
 Control logic lives in the **scan cycle**: a table of programs, each with a
-declared rate, run by `Scan::Driver` once per beat between the input refresh and
-the output write.
+declared rate, run in PHASE_CONTROL between the input refresh and the output
+write. There is no driver stepping them - **a program registers itself with the
+task registry** like everything else in the beat, so it gets its own rate, its
+own row on the TASKS page and its own cost sample.
 
 A program is a `Plc::Program` subclass. It holds its function blocks and its
 resolved variable references as members, and overrides one method:
@@ -10,7 +12,7 @@ resolved variable references as members, and overrides one method:
 ```cpp
 class Program {
 public:
-    Program(const char* name, uint32_t period_ms);   // 0 = every beat
+    Program(const char* name, Tasks::GroupId group);  // a RATE GROUP, not a period
 
     virtual void bind(Vars::Bank& io) {}    // bring-up: names -> VarRefs, once
     virtual void run(Context& c) = 0;       // one activation
@@ -36,8 +38,10 @@ Plc::Program* const g_programs[] = {
 };
 ```
 
-There is no parallel array to keep in step with it: each program carries its own
-scheduling state.
+There is no parallel array to keep in step with it. **Table order is execution
+order**: the firmware registers them in table order and the registry dispatches a
+phase in registration order, so a law that computes a setpoint and a law that acts
+on it complete in one beat when written that way round.
 
 ## What a program gets
 
@@ -73,7 +77,7 @@ class SupplyWatch : public Plc::Program {
     Vars::VarRef _ln = { Vars::VAR_NONE }, _locked = { Vars::VAR_NONE };
 
 public:
-    SupplyWatch() : Program("supply_watch", 100) {}
+    SupplyWatch() : Program("supply_watch", Tasks::GROUP_SLOW) {}   // 100 ms
 
     void bind(Vars::Bank& io) override {
         _ln     = io.find("grid_LN_V");
@@ -92,6 +96,11 @@ public:
     void reset() override { _bad_for.reset(); _lockout.reset(); }
 };
 ```
+
+The rate is one of the four groups (@ref dev_tasks), not a number of its own: a
+program is scheduled like everything else in the beat, so retuning a rate class
+retunes every program on it. Pick the group whose period the process time constant
+can live with.
 
 Note what it does **not** do: no clock reads, no direct I/O, no knowledge of Modbus.
 It reads variables, applies blocks, and drives variables. Three idioms worth copying:
@@ -123,8 +132,9 @@ function is a single expression in a header, and a block needs a `.cpp`.** If it
 has to remember something it is a block; if it does not, it is a function, and it
 is `constexpr` so the compiler folds it into the caller.
 
-`scan/` is not in that table on purpose. It is the *cycle* - which program is due,
-how late, and running it - not the vocabulary programs are written in.
+There is no fourth entry for the *cycle* - which program is due, how late, and
+running it. That is `Tasks::Registry`, the same table the whole beat is dispatched
+from, and it is not part of the vocabulary programs are written in.
 
 ### PLC functions
 

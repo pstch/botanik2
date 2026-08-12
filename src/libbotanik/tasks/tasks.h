@@ -155,6 +155,12 @@ namespace Botanik { namespace Tasks {
          *  noticed by its absence. */
         uint8_t  _overflow = 0;
 
+        /** @brief Whether the program entries may run. Starts false: control
+         *  authority starts withheld, so nothing can drive the field on the way
+         *  through bring-up. A plain bool, deliberately - `tasks/` must not
+         *  acquire Vars to ask who decided it. */
+        bool     _programs_enabled = false;
+
         /** @brief Claim a slot and fill the part both add() forms share, so the
          *  offset rule cannot drift between them. Null when the table is full
          *  (counted in overflow()). */
@@ -241,8 +247,30 @@ namespace Botanik { namespace Tasks {
         void setup(uint64_t now_ms);
 
         /** @brief Run every task in @p phase whose group has come due, in
-         *  registration order, timing each one into its TaskCost. */
+         *  registration order, timing each one into its TaskCost.
+         *
+         *  A PROGRAM entry additionally needs control authority; see
+         *  set_programs_enabled(). */
         void run_phase(Phase phase, uint64_t now_ms);
+
+        /** @brief Open or close the gate on every program entry.
+         *
+         *  The registry's half of a control-authority edge. On the way back UP
+         *  it also **reseeds every program's timer**, which nothing else can do:
+         *  the timer lives on the task, not on the program. Without it the first
+         *  activation back reports the whole outage as its `dt` - a Ton holding
+         *  5 s handed an hour of it fires the instant control returns, which is
+         *  the one thing a withdrawal exists to prevent.
+         *
+         *  The other half - reset() and resume() on the programs themselves - is
+         *  Plc::apply_control_edge(): both are Plc::Program's, and this class
+         *  knows only Component.
+         *
+         *  Idempotent: only an actual change of state does anything. */
+        void set_programs_enabled(bool enabled, uint64_t now_ms);
+
+        /** @brief Whether program entries are currently allowed to run. */
+        bool programs_enabled() const { return _programs_enabled; }
 
         /** @} */
 

@@ -148,7 +148,7 @@ namespace Botanik { namespace Plc {
         void home();
 
         /** @brief Cold: coils dropped, position forgotten, so the next command
-         *  datums. home() under the name the scan driver calls on a control
+         *  datums. home() under the name a control withdrawal calls on
          *  withdrawal, which is exactly what invalidates the estimate. */
         void reset() { home(); }
 
@@ -160,7 +160,7 @@ namespace Botanik { namespace Plc {
     };
 
     /** @name Family checks
-     *  @see block.h - every block is reset by the scan driver.
+     *  @see block.h - every block is reset on a control withdrawal.
      *  @{ */
     BOTANIK_PLC_BLOCK(Actuator);
     /** @} */

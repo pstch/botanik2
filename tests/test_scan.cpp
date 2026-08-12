@@ -8,7 +8,7 @@
 #include <cstddef>                  // size_t
 #include <cstdint>                  // uint8_t/uint64_t
 #include <vector>                   // std::vector
-#include "libbotanik/scan/scan.h"   // Scan::Driver
+#include "libbotanik/tasks/tasks.h"  // Tasks::Registry - what runs the programs now
 #include "doctest.h"
 #include <cstdio>                   // snprintf - the test log sink
 #include <string>
@@ -17,6 +17,67 @@
 #include "libbotanik/plc/io.h"
 #include BOTANIK_SITE_HEADER
 #include "libbotanik/core/component.h"  // Component
+
+namespace {
+
+/** @brief What the firmware does with a program table, in one place: hand
+ *  each program the bank and its slot, register it, then per beat carry the
+ *  Bank's verdict to BOTH halves of the authority edge and dispatch
+ *  PHASE_CONTROL. Both halves are the shipping ones - Plc::apply_control_edge
+ *  and Registry::set_programs_enabled - so this drives the real code. */
+struct Cycle {
+    Botanik::Tasks::Registry      reg;
+    Botanik::Plc::Program* const* progs;
+    uint8_t                       n;
+    Botanik::Vars::Bank*          io;
+    bool                          enabled = false;
+
+    Cycle(Botanik::Plc::Program* const* p, uint8_t count,
+          Botanik::Vars::Bank* bank)
+        : progs(p), n(count), io(bank) {
+        for (uint8_t i = 0; i < n; i++) {
+            if (progs == nullptr || progs[i] == nullptr) continue;
+            progs[i]->attach(*bank);
+            progs[i]->set_slot(i);
+            progs[i]->register_tasks(reg);
+        }
+        reg.setup(0);          // bind(), off the beat, as bring-up does
+        _late_alarm = bank->find("alarm_scan_late");
+    }
+
+    void step(uint64_t t) {
+        const bool on = io->control_enabled();
+        if (on != enabled) {
+            enabled = on;
+            Botanik::Plc::apply_control_edge(progs, n, on);
+            reg.set_programs_enabled(on, t);
+        }
+        reg.run_phase(Botanik::Tasks::PHASE_CONTROL, t);
+        // ...and what the firmware does after the phase: publish the worst
+        // lateness onto the alarm row, whose own dwell decides whether it
+        // ever annunciates.
+        _late = Botanik::Plc::worst_lateness(progs, n, &_worst);
+        io->var(_late_alarm).set(_late > Botanik::Config::SCAN_LATE_MS);
+    }
+
+    /** @brief The worst-late program on the last beat, and who owned it. */
+    uint32_t late_ms() const     { return _late; }
+    const Botanik::Plc::Program* worst() const { return _worst; }
+
+    /** @brief A writer index back to its program, the lookup the firmware hands
+     *  MONITOR (BotanikFirmware::register_pages). Bounds-checked, so a row no
+     *  program has written names nobody rather than naming program 0. */
+    const Botanik::Plc::Program* program(uint8_t w) const {
+        return (progs != nullptr && w < n) ? progs[w] : nullptr;
+    }
+
+private:
+    Botanik::Vars::VarRef        _late_alarm = { Botanik::Vars::VAR_NONE };
+    uint32_t                     _late  = 0;
+    const Botanik::Plc::Program* _worst = nullptr;
+};
+
+}  // namespace
 
 // --------------------------------------------------------------------------
 // scan
@@ -28,7 +89,9 @@ using Botanik::Vars::Bank;
 using Botanik::Plc::Program;
 using Botanik::Plc::Context;
 
-using namespace Botanik::Scan;
+using Botanik::Tasks::GROUP_FAST;
+using Botanik::Tasks::GROUP_SLOW;
+using Botanik::Tasks::GROUP_BACKGROUND;
 
 namespace {
     struct Rec { uint32_t dt; uint16_t missed; uint64_t now; };
@@ -41,7 +104,7 @@ namespace {
         int              binds  = 0;
         int              resets = 0;
 
-        Recorder(const char* name, uint32_t period_ms) : Program(name, period_ms) {}
+        Recorder(const char* name, Botanik::Tasks::GroupId g) : Program(name, g) {}
 
         void reset() override { resets++; }
 
@@ -60,24 +123,25 @@ namespace {
 }
 
 TEST_CASE("scan: each program runs at its own rate") {
-    Recorder fast("fast", 100), slow("slow", 1000);
+    Recorder fast("fast", GROUP_SLOW), slow("slow", GROUP_BACKGROUND);
     Program* const progs[] = { &fast, &slow };
     Live f;
-    Driver d(progs, 2, &f.io);
+    Cycle d(progs, 2, &f.io);
     for (uint64_t t = 0; t <= 2000; t += 10) d.step(t);
 
-    // ~20 fast runs per 2 s, ~2 slow; assert the ratio, not exact counts.
+    // ~20 runs of a 100 ms program per 2 s against ~4 of a 500 ms one;
+    // assert the ratio, not exact counts.
     CHECK(fast.runs_seen.size() >= 19);
     CHECK(fast.runs_seen.size() <= 21);
-    CHECK(slow.runs_seen.size() >= 2);
-    CHECK(slow.runs_seen.size() <= 3);
+    CHECK(slow.runs_seen.size() >= 4);
+    CHECK(slow.runs_seen.size() <= 5);
 }
 
 TEST_CASE("scan: dt_ms is the nominal period when on time") {
-    Recorder fast("fast", 100);
+    Recorder fast("fast", GROUP_SLOW);
     Program* const progs[] = { &fast };
     Live f;
-    Driver d(progs, 1, &f.io);
+    Cycle d(progs, 1, &f.io);
     for (uint64_t t = 0; t <= 1000; t += 10) d.step(t);
     REQUIRE(fast.runs_seen.size() >= 3);
     for (size_t i = 1; i < fast.runs_seen.size(); i++)
@@ -85,10 +149,10 @@ TEST_CASE("scan: dt_ms is the nominal period when on time") {
 }
 
 TEST_CASE("scan: a late program runs once and reports the real elapsed time") {
-    Recorder fast("fast", 100);
+    Recorder fast("fast", GROUP_SLOW);
     Program* const progs[] = { &fast };
     Live f;
-    Driver d(progs, 1, &f.io);
+    Cycle d(progs, 1, &f.io);
     d.step(0);        // first run seeds
     fast.runs_seen.clear();
 
@@ -101,11 +165,13 @@ TEST_CASE("scan: a late program runs once and reports the real elapsed time") {
 }
 
 TEST_CASE("scan: bind runs once, before the first activation") {
-    Recorder p("p", 0);
+    Recorder p("p", GROUP_FAST);
     Program* const progs[] = { &p };
     Live f;
-    Driver d(progs, 1, &f.io);
-    CHECK(p.binds == 0);
+    Cycle d(progs, 1, &f.io);   // ctor registers, then runs the setup pass
+    INFO("registering is what binds: off the beat, before the watchdog is armed");
+    CHECK(p.binds == 1);
+    CHECK(p.runs_seen.empty());                // and nothing has run yet
     for (uint64_t t = 0; t < 50; t += 10) d.step(t);
     CHECK(p.binds == 1);                       // once, not once per beat
     CHECK(p.runs_seen.size() == 5);
@@ -113,10 +179,10 @@ TEST_CASE("scan: bind runs once, before the first activation") {
 
 TEST_CASE("scan: same-period programs are spread across beats, not piled up") {
     // Without the stagger, two same-rate programs would share every beat forever.
-    Recorder a("a", 100), b("b", 100);
+    Recorder a("a", GROUP_SLOW), b("b", GROUP_SLOW);
     Program* const progs[] = { &a, &b };
     Live f;
-    Driver d(progs, 2, &f.io);
+    Cycle d(progs, 2, &f.io);
     for (uint64_t t = 0; t <= 1000; t += 10) d.step(t);
 
     // Both ran at their declared rate...
@@ -134,10 +200,10 @@ TEST_CASE("scan: same-period programs are spread across beats, not piled up") {
 
 TEST_CASE("scan: an every-beat program is left alone by the stagger") {
     // period 0 has no interval to shift inside; it must keep running every beat.
-    Recorder slow("slow", 100), every("every", 0);
+    Recorder slow("slow", GROUP_SLOW), every("every", GROUP_FAST);
     Program* const progs[] = { &slow, &every };
     Live f;
-    Driver d(progs, 2, &f.io);
+    Cycle d(progs, 2, &f.io);
     for (uint64_t t = 0; t < 50; t += 10) d.step(t);
 
     CHECK(every.runs_seen.size() == 5);
@@ -145,10 +211,10 @@ TEST_CASE("scan: an every-beat program is left alone by the stagger") {
 }
 
 TEST_CASE("scan: programs are inhibited while control is withheld") {
-    Recorder fast("fast", 100);
+    Recorder fast("fast", GROUP_SLOW);
     Program* const progs[] = { &fast };
     Bank io;                                   // starts held by the system
-    Driver d(progs, 1, &io);
+    Cycle d(progs, 1, &io);
     for (uint64_t t = 0; t <= 500; t += 10) d.step(t);
 
     CHECK(fast.runs_seen.empty());             // nothing drives the field
@@ -157,14 +223,14 @@ TEST_CASE("scan: programs are inhibited while control is withheld") {
 }
 
 TEST_CASE("scan: control being withdrawn resets the programs, once") {
-    Recorder fast("fast", 100);
+    Recorder fast("fast", GROUP_SLOW);
     Program* const progs[] = { &fast };
     Live f;
-    Driver d(progs, 1, &f.io);
+    Cycle d(progs, 1, &f.io);
     d.step(0);
     REQUIRE(fast.resets == 0);
 
-    f.io.set_control_mode(Botanik::Vars::CONTROL_INHIBITED);
+    f.io.set_control_mode(Botanik::Vars::CONTROL_DISABLED);
     for (uint64_t t = 10; t <= 500; t += 10) d.step(t);
 
     // On the withdrawal edge only: the process moves without us from here, and what a program remembered is stale.
@@ -172,14 +238,14 @@ TEST_CASE("scan: control being withdrawn resets the programs, once") {
 }
 
 TEST_CASE("scan: control returning does not hand a program the whole outage") {
-    Recorder fast("fast", 100);
+    Recorder fast("fast", GROUP_SLOW);
     Program* const progs[] = { &fast };
     Live f;
-    Driver d(progs, 1, &f.io);
+    Cycle d(progs, 1, &f.io);
     d.step(0);                                // one activation, seeds the timer
     fast.runs_seen.clear();
 
-    f.io.set_control_mode(Botanik::Vars::CONTROL_INHIBITED);
+    f.io.set_control_mode(Botanik::Vars::CONTROL_DISABLED);
     for (uint64_t t = 10; t <= 60000; t += 10) d.step(t);
     REQUIRE(fast.runs_seen.empty());          // inhibited throughout
 
@@ -196,12 +262,12 @@ TEST_CASE("scan: control returning does not hand a program the whole outage") {
 
 TEST_CASE("scan: a null table or a null program is inert") {
     Live f;
-    Driver none(nullptr, 0, &f.io);
+    Cycle none(nullptr, 0, &f.io);
     none.step(0);                       // must not fault
 
-    Recorder p("p", 0);
+    Recorder p("p", GROUP_FAST);
     Program* const holey[] = { nullptr, &p };
-    Driver d(holey, 2, &f.io);
+    Cycle d(holey, 2, &f.io);
     d.step(0);
     CHECK(p.runs_seen.size() == 1);     // the live one still runs
 }
@@ -255,7 +321,8 @@ class Drives : public Plc::Program {
     VarRef      _r = { VAR_NONE };
     const char* _row;
 public:
-    Drives(const char* name, const char* row) : Program(name, 0), _row(row) {}
+    Drives(const char* name, const char* row, Botanik::Tasks::GroupId g = Botanik::Tasks::GROUP_FAST)
+        : Program(name, g), _row(row) {}
 protected:
     void bind(Bank& io) override { _r = io.find(_row); }
     void run(Plc::Context& c) override { c.io.set(_r, 1.0f); }
@@ -266,7 +333,7 @@ class Ordered : public Plc::Program {
     std::vector<std::string>* _log;
 public:
     Ordered(const char* name, std::vector<std::string>* log)
-        : Program(name, 0), _log(log) {}
+        : Program(name, Botanik::Tasks::GROUP_FAST), _log(log) {}
 protected:
     void run(Plc::Context&) override { _log->push_back(name()); }
 };
@@ -280,7 +347,7 @@ class Relay : public Plc::Program {
     float       _add;
 public:
     Relay(const char* name, const char* from, const char* to, float add)
-        : Program(name, 0), _from(from), _to(to), _add(add) {}
+        : Program(name, Botanik::Tasks::GROUP_FAST), _from(from), _to(to), _add(add) {}
 protected:
     void bind(Bank& io) override { _in = io.find(_from); _out = io.find(_to); }
     void run(Plc::Context& c) override { c.io.set(_out, c.io.value(_in) + _add); }
@@ -293,7 +360,7 @@ public:
     int  resets  = 0;
     std::vector<bool> firsts;
 
-    Lifecycle(const char* name, uint32_t period_ms) : Program(name, period_ms) {}
+    Lifecycle(const char* name, Botanik::Tasks::GroupId g) : Program(name, g) {}
 
     void reset() override  { resets++; }
     void resume() override { resumes++; Program::resume(); }
@@ -421,7 +488,8 @@ TEST_CASE("plc io: a second program on one row is counted, and the write stands"
 }
 
 TEST_CASE("scan: two programs on one row is named once, not every beat") {
-    // Only the driver can turn a writer index back into a program name.
+    // The bank counts a second author but cannot NAME one: a writer is an
+    // index, and only the program table turns it back into a name.
     Live f;
     Logs::Logger logger;
     Criticals sink;
@@ -430,9 +498,13 @@ TEST_CASE("scan: two programs on one row is named once, not every beat") {
     Drives a("prog_a", "cli_temp_ext1");
     Drives b("prog_b", "cli_temp_ext1");
     Plc::Program* const progs[] = { &a, &b };
-    Scan::Driver d(progs, 2, &f.bank, &logger);
+    Cycle d(progs, 2, &f.bank);
 
-    for (uint64_t t = 0; t <= 500; t += 10) d.step(t);
+    uint16_t said = 0;
+    for (uint64_t t = 0; t <= 500; t += 10) {
+        d.step(t);
+        Plc::report_writer_conflicts(f.bank, progs, 2, &logger, said);
+    }
 
     INFO("last critical: " << std::string(sink.last));
     CHECK(f.bank.writer_conflicts() >= 1);
@@ -445,10 +517,9 @@ TEST_CASE("scan: two programs on one row is named once, not every beat") {
 TEST_CASE("scan: a program starved of beats is late, and named") {
     // Lateness is against the PROGRAM's own period; not stepping the driver is what an overrunning beat looks like.
     Live f;
-    Drives slow("prog_slow", "cli_temp_ext1");
-    slow.set_period(100);
+    Drives slow("prog_slow", "cli_temp_ext1", Botanik::Tasks::GROUP_SLOW);
     Plc::Program* const progs[] = { &slow };
-    Scan::Driver d(progs, 1, &f.bank);
+    Cycle d(progs, 1, &f.bank);
     const VarRef late = f.ref("alarm_scan_late");
 
     d.step(0);                       // seeds the timer
@@ -470,26 +541,31 @@ TEST_CASE("scan: a program starved of beats is late, and named") {
     CHECK(slow.late_max_ms() == 900);
 }
 
-TEST_CASE("scan: an every-beat program is never reported late") {
-    // Period 0 has no nominal to be late against, so it must not alarm just because the beat slipped.
+TEST_CASE("scan: an every-beat program is late only when the beat itself is") {
+    // A rate GROUP always has a nominal period - GROUP_FAST's is one beat - so
+    // unlike the old period-0 case there is something to be late against. On
+    // time that is exactly zero; a stalled loop is genuinely late, and says so.
     Live f;
     Drives every("prog_every", "cli_temp_ext1");
     Plc::Program* const progs[] = { &every };
-    Scan::Driver d(progs, 1, &f.bank);
+    Cycle d(progs, 1, &f.bank);
 
-    d.step(0);
-    d.step(5000);                    // an enormous gap
-
+    for (uint64_t t = 0; t <= 200; t += 10) d.step(t);
     CHECK(every.late_ms() == 0);
     CHECK(d.late_ms() == 0);
     CHECK_FALSE(f.bank.var(f.ref("alarm_scan_late")).b());
+
+    d.step(5200);                    // the whole beat stalled for 5 s
+    CHECK(d.late_ms() > Botanik::Config::SCAN_LATE_MS);
+    INFO("the row is driven; SCAN_LATE's own dwell decides if it annunciates");
+    CHECK(f.bank.var(f.ref("alarm_scan_late")).b());
 }
 
 TEST_CASE("scan: the first activation says so, and only the first") {
     Live f;
-    Lifecycle p("p", 0);
+    Lifecycle p("p", Botanik::Tasks::GROUP_FAST);
     Plc::Program* const progs[] = { &p };
-    Scan::Driver d(progs, 1, &f.bank);
+    Cycle d(progs, 1, &f.bank);
 
     for (uint64_t t = 0; t < 50; t += 10) d.step(t);
 
@@ -504,9 +580,9 @@ TEST_CASE("scan: the first activation says so, and only the first") {
 TEST_CASE("scan: control coming back is a first scan again") {
     // The process moved without us: the previous activation describes a plant that no longer exists.
     Live f;
-    Lifecycle p("p", 0);
+    Lifecycle p("p", Botanik::Tasks::GROUP_FAST);
     Plc::Program* const progs[] = { &p };
-    Scan::Driver d(progs, 1, &f.bank);
+    Cycle d(progs, 1, &f.bank);
 
     d.step(0);
     d.step(10);
@@ -514,20 +590,22 @@ TEST_CASE("scan: control coming back is a first scan again") {
     REQUIRE(p.firsts[0]);
     REQUIRE_FALSE(p.firsts[1]);
 
-    f.bank.set_control_mode(CONTROL_INHIBITED);
+    f.bank.set_control_mode(CONTROL_DISABLED);
     for (uint64_t t = 20; t <= 5000; t += 10) d.step(t);
     CHECK(p.resets == 1);                    // the withdrawal edge, once
     CHECK(p.firsts.size() == 2);             // nothing ran while stopped
 
     f.bank.set_control_mode(CONTROL_ENABLED);
-    d.step(5010);
-
+    d.step(5010);                            // the reseed beat: nothing runs yet
     CHECK(p.resumes == 2);                   // bring-up, then this return
-    REQUIRE(p.firsts.size() == 3);
-    INFO("the run after control returns starts from nothing");
-    CHECK(p.firsts[2]);
+    CHECK(p.firsts.size() == 2);
 
     d.step(5020);
+    REQUIRE(p.firsts.size() == 3);
+    INFO("the first run after control returns starts from nothing");
+    CHECK(p.firsts[2]);
+
+    d.step(5030);
     REQUIRE(p.firsts.size() == 4);
     CHECK_FALSE(p.firsts[3]);
 }
@@ -535,9 +613,9 @@ TEST_CASE("scan: control coming back is a first scan again") {
 TEST_CASE("scan: bring-up is itself a resume, and reset is not called for it") {
     // Control starts withheld, granted before the first beat, so the return edge fires at bring-up too.
     Live f;
-    Lifecycle p("p", 0);
+    Lifecycle p("p", Botanik::Tasks::GROUP_FAST);
     Plc::Program* const progs[] = { &p };
-    Scan::Driver d(progs, 1, &f.bank);
+    Cycle d(progs, 1, &f.bank);
 
     d.step(0);
 
@@ -554,7 +632,7 @@ TEST_CASE("scan: table order is execution order") {
     Ordered b("alpha", &ran);
     Ordered c("mike",  &ran);
     Plc::Program* const progs[] = { &a, &b, &c };
-    Scan::Driver d(progs, 3, &f.bank);
+    Cycle d(progs, 3, &f.bank);
 
     d.step(0);
 
@@ -578,7 +656,7 @@ TEST_CASE("scan: a later program sees what an earlier one wrote this beat") {
 
     SUBCASE("in order, the whole chain completes in one beat") {
         Plc::Program* const progs[] = { &first, &second };
-        Scan::Driver d(progs, 2, &f.bank);
+        Cycle d(progs, 2, &f.bank);
         d.step(0);
 
         CHECK(f.bank.var(mid).value() == doctest::Approx(11.0f));
@@ -588,7 +666,7 @@ TEST_CASE("scan: a later program sees what an earlier one wrote this beat") {
 
     SUBCASE("out of order, the chain takes a beat per link") {
         Plc::Program* const progs[] = { &second, &first };
-        Scan::Driver d(progs, 2, &f.bank);
+        Cycle d(progs, 2, &f.bank);
         d.step(0);
 
         // second ran first, on the value mid held BEFORE first wrote it.
@@ -602,12 +680,13 @@ TEST_CASE("scan: a later program sees what an earlier one wrote this beat") {
 }
 
 TEST_CASE("scan: a computed row can be traced back to the program that wrote it") {
-    // What MONITOR's Mapping shows as "computed (prog_a)": writer_of() + driver name lookup.
+    // What MONITOR's Mapping shows as "computed (prog_a)": writer_of() plus
+    // the site table's own name lookup.
     Live f;
     Drives a("prog_a", "cli_temp_ext1");
     Drives b("prog_b", "cli_temp_ext2");
     Plc::Program* const progs[] = { &a, &b };
-    Scan::Driver d(progs, 2, &f.bank);
+    Cycle d(progs, 2, &f.bank);
 
     d.step(0);
 

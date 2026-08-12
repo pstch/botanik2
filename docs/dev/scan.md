@@ -11,7 +11,9 @@ avoid.
 
 **Rate** is how often it runs - its group. **Phase** is where in the beat it sits.
 Neither derives from the other: `expire_stale` is background-rate and
-input-phase; a control program is whatever rate and always execute-phase.
+input-phase; a control program is whatever rate and always execute-phase. A
+program names a rate GROUP like anything else in the beat - it has no private
+period, so retuning a rate class retunes it too.
 
 Rate is a tuning knob. Phase is a correctness property - it encodes the data flow,
 and getting it wrong corrupts a cycle rather than just costing CPU. So the phase
@@ -37,7 +39,7 @@ group has come due (@ref dev_scheduler). The sandwich is **read, execute, write*
 and it holds on every beat regardless of which programs happen to be due: whatever
 is due runs between this beat's input phase and this beat's output phase.
 
-The dashed box is the control-authority gate - the scan driver and
+The dashed box is the control-authority gate - the program entries and
 `site_control`, but not the ungated site hooks; *Where the gate lives* below is
 the whole rule.
 Note also that `modbus_tcp_wr` sits in SERVICE although it is registered beside
@@ -52,7 +54,9 @@ re-renders in place. Every diagram under `images/` works this way; see
 ## What a program is guaranteed
 
 - **Table order is execution order.** The programs run in the order the site
-  declared them - not alphabetically, not by period, not by construction order.
+  declared them - not alphabetically, not by rate, not by construction order.
+  They register in table order, and within a phase the registry dispatches in
+  registration order, so the site's array IS the order.
   So a law that computes a setpoint and a law that acts on it complete in *one*
   beat when written in that order, and take a beat per link when written the
   other way. That is a contract sites rely on, so `test_plc_io.cpp` pins it both
@@ -80,12 +84,21 @@ which they already are, without making them *contemporaneous*.
 phases around it must **not** be gated with it: withholding control writes safe
 states into the image, and something still has to carry them outward.
 
-Both edges reach the programs (`Scan::Driver::on_control`):
+Both edges reach the programs, and each takes **two halves** because the state
+is split: the programs own what they remember, the registry owns their timers.
+`BotanikFirmware::_apply_control_authority()` calls both, from the
+`control_latch` task in SERVICE - before CONTROL, so a withdrawal takes effect on
+the beat it is decided rather than the next one.
 
-| Edge | What the driver does | Why |
-|---|---|---|
-| withdrawn | `reset()` on every program, once | from here the process moves without us, so what a program remembered about the field is stale |
-| returned | reseeds every program's timer, then calls `resume()` | a `Ton` holding 5 s handed an hour of `dt` fires the instant control returns - the one thing a withdrawal exists to prevent. `resume()` is the other half: the clock is fixed, and now a program may LOOK at the plant before commanding it |
+| Edge | Plc::apply_control_edge() | Tasks::Registry::set_programs_enabled() | Why |
+|---|---|---|---|
+| withdrawn | `reset()` on every program, once | shuts the gate | from here the process moves without us, so what a program remembered about the field is stale |
+| returned | `resume()` on every program | opens the gate, and **reseeds every program's timer** | a `Ton` holding 5 s handed an hour of `dt` fires the instant control returns - the one thing a withdrawal exists to prevent. `resume()` is the other half: the clock is fixed, and now a program may LOOK at the plant before commanding it |
+
+Two calls rather than one because of the layering: `tasks/` knows only
+`Component`, so it cannot call `reset()` on a `Plc::Program`; and the timer is
+the TASK's, so a program cannot reseed its own. Miss either and a program comes
+back holding the whole outage.
 
 `reset()` is opt-in per program and deliberately not "clear everything": a dwell
 timer is stale, but a totalizer holding the litres delivered today is a record.
@@ -113,7 +126,7 @@ So the gate sits wherever a writer is *dispatched*, and there are exactly two:
 
 | Dispatch point | Hook | Gated |
 |---|---|---|
-| `Scan::Driver::on_control` | each `Plc::Program::run` | yes |
+| `Tasks::Registry::run_phase` on a program entry | each `Plc::Program::run` | yes |
 | the `site_control` task | `BotanikFirmware::on_control` | yes |
 | the other five `site_*` tasks | `on_input` / `on_config` / `on_service` / `on_output` / `on_present` | **no** - by design |
 

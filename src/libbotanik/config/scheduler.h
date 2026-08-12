@@ -74,17 +74,6 @@ namespace Botanik { namespace Config {
 #endif
     BOTANIK_CFG(uint8_t, MAX_TASKS);
 
-    /** @brief Phase step between control programs, applied by table index, so
-     *  the scan's own programs spread over beats the way the registry's tasks
-     *  do. Program @e i is offset by `i * this` (wrapped into its period).
-     *
-     *  Set to 0 to disable and have every program stay phase-locked to boot -
-     *  the escape hatch for a site whose programs must share a beat. */
-#ifndef BOTANIK_SCAN_STAGGER_MS
-#  define BOTANIK_SCAN_STAGGER_MS BOTANIK_TASK_PERIOD_MS
-#endif
-    BOTANIK_CFG(uint32_t, SCAN_STAGGER_MS);
-
     /** @brief How far past its own period a control program may run before
      *  SCAN_LATE is raised, in ms.
      *

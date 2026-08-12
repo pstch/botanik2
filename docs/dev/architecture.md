@@ -32,7 +32,6 @@ Under `src/libbotanik/`:
 | `firmware/` | the composition root: `BotanikFirmware`, and the feature-gated stacks in `stacks.h` | this page |
 | `scheduler/` | `LoopScheduler`, the fixed-period driver and its self-instrumentation, plus the `Tasks::Registry` the beat is dispatched from and its per-task cost sampling | @ref dev_scheduler |
 | `vars/` | the variable model: descriptors, value slots, `Bank`, parameters | @ref dev_vars |
-| `scan/` | `Scan::Driver`: which control program is due, and running it | @ref int_tasks |
 | `plc/` | the POU library the programs are written in: `functions/` (stateless) and `blocks/` (stateful) | @ref int_tasks |
 | `modbus/` | the field bus and the plant network: shared vocabulary in `wire.h`/`response.h`, `rtu/` and `tcp/` for the framing and all four corners | @ref dev_modbus |
 | `alarms/` | `AlarmController`, one condition per site-declared alarm, plus the platform set | @ref dev_health |
@@ -77,7 +76,7 @@ now_ms = uptime_ms()            one 64-bit "now" for every task this beat
 run_phase(PHASE_INPUT)          console/monitor RX; expire_stale, reject_implausible
 run_phase(PHASE_CONFIG)         params: the config image everything below reads
 run_phase(PHASE_SERVICE)        health, the control latch, network / NTP / MQTT
-run_phase(PHASE_CONTROL)        the scan - the control programs, and on_control()
+run_phase(PHASE_CONTROL)        the control programs, and on_control()
 run_phase(PHASE_OUTPUT)         the field write
 run_phase(PHASE_PRESENT)        logger refill, console render, the two TX halves
 watchdog kick                   only while healthy
@@ -102,9 +101,10 @@ Every task gets the same fresh 64-bit `now_ms`. The order is load-bearing:
   loop reads full scale, which no timeout notices). Field drivers slot in here.
 - **Health before the logger drains**, so an alarm transition is logged in the same
   beat it happens, and before EXECUTE, so a fault inhibits *this* beat's programs.
-- **The scan runs only while control is enabled**, and withdrawing control is a
-  *latch* rather than a per-beat sweep - @ref dev_scan has the rule and its two
-  independent inhibits.
+- **The programs run only while control is enabled** - the registry gates its
+  program entries and nothing else - and withdrawing control is a *latch* rather
+  than a per-beat sweep: @ref dev_scan has the rule and its two independent
+  inhibits.
 - **The watchdog kick is withheld deliberately** when unhealthy, and the outputs are
   dropped to safe state first. The reset itself gives no such guarantee, and the gap
   between the last kick and the reboot is exactly when an actuator must not be left

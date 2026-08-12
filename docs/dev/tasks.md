@@ -23,7 +23,7 @@ automatically.
 
 | Group | Period | For |
 |---|---|---|
-| `fast` | `TASK_PERIOD_MS` (10 ms) | the field bus, the serial pumps, the log drain, the scan driver |
+| `fast` | `TASK_PERIOD_MS` (10 ms) | the field bus, the serial pumps, the log drain |
 | `main` | 50 ms | the operator-facing rate: the console render |
 | `slow` | 100 ms | dwell and config: health, parameters |
 | `background` | 500 ms | housekeeping measured in seconds: the expiry sweep |
@@ -62,7 +62,7 @@ paid when the loop was a fixed call sequence.
 | `health` | service | slow | alarm dwell (`on_s`/`off_s`) is in seconds | 10x |
 | `control_latch` | service | fast | must see a health fault before the programs run | - |
 | `net` | service | fast | MQTT keepalive 60 s, telemetry 30 s; TCP drain | - |
-| `scan` | execute | fast | must **divide** the fastest control program (100 ms) | - |
+| each control program | execute | its own | the process time constant it acts on | - |
 | `site` | execute | fast | the site's own per-beat hook | - |
 | `logger` | present | fast | queue drain against the boot burst; eviction risk | - |
 | `console` | present | slow | 4800 baud = 4.4 bytes/beat; echo perception | 10x |
@@ -71,9 +71,12 @@ paid when the loop was a fixed call sequence.
 | *Modbus commit / collect* | input / output | fast | ring fills in 146 ms @19200, **24 ms** @115200 | - |
 
 The two wins are `expire_stale` (50x) and the console render (10x, and the most
-expensive item per invocation). `scan`, `logger`, the serial pumps and the
-watchdog kick stay on the beat deliberately: the scan's not-due path is two
-comparisons per program, and the others are safety- or latency-critical.
+expensive item per invocation). `logger`, the serial pumps and the watchdog kick
+stay on the beat deliberately: they are safety- or latency-critical.
+
+A control program is a row here like any other. It names a rate GROUP rather than
+a private period, so it is spread by the same derived offset and reported by the
+same per-task cost - there is no longer one `scan` row standing for all of them.
 
 The port pumps are no longer rows of their own. `BufferedSerial` is a ring buffer
 and a port, not a `Component`: `console_in` and `console_tx` are the `Console`'s
@@ -144,12 +147,9 @@ Retune nothing here; retune the group's period and the spread follows. The first
 beat is the one unavoidable pile-up: a task's first activation is what runs its
 `setup()`, so nothing can be deferred past it.
 
-The control programs get the same treatment, but derived rather than declared:
-`Scan::Driver::setup()` offsets task *i* by `i * SCAN_STAGGER_MS` (one beat by
-default), wrapped into that task's own period. A site writes nothing, and adding
-a program re-spreads the table. An every-beat program (`period_ms` 0) is left
-alone - it has no interval to shift inside. `SCAN_STAGGER_MS = 0` disables it
-outright, for a site whose programs must share a beat.
+The control programs get exactly this treatment and no other: they are registry
+entries, so `Registry::add()` spreads them across their group like everything
+else. There is no separate scan stagger any more, and nothing for a site to set.
 
 ## Lowering the beat
 

@@ -125,10 +125,30 @@ namespace Botanik { namespace Tasks {
         return true;
     }
 
+    void Registry::set_programs_enabled(bool enabled, uint64_t now_ms) {
+        if (enabled == _programs_enabled) return;
+        _programs_enabled = enabled;
+        if (!enabled) return;
+
+        // Coming back up: the timers, which are ours and not the programs'.
+        // reseed() is "treat this as having just run", so the next activation is
+        // a full period away rather than immediate and reports its nominal
+        // period rather than the outage. A task that has never run is left
+        // alone - its first activation is due immediately by design, which is
+        // also the bring-up case.
+        for (uint8_t i = 0; i < _count; i++)
+            if (_tasks[i].is_program) _tasks[i].timer.reseed(now_ms);
+    }
+
     void Registry::run_phase(Phase phase, uint64_t now_ms) {
         for (uint8_t i = 0; i < _count; i++) {
             Task& t = _tasks[i];
             if (t.phase != phase) continue;
+            // Control authority, and the ONLY thing it gates. The phases around
+            // this one must not be gated with it: withholding control writes
+            // safe states into the image, and something still has to carry them
+            // out to the field.
+            if (t.is_program && !_programs_enabled) continue;
 
             uint32_t dt = 0; uint16_t missed = 0;
             if (!t.timer.due(now_ms, group_period_ms(t.group), dt, missed)) continue;

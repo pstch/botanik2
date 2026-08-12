@@ -9,7 +9,7 @@
  * functions.h). Two consequences the whole family obeys: every timed block
  * takes @c dt_ms rather than reading a clock, so it is testable without one;
  * and every block provides reset(), which block.h enforces at compile time
- * because the scan driver resets each program on a control-authority
+ * because a control-authority withdrawal resets each program on that
  * withdrawal.
  */
 

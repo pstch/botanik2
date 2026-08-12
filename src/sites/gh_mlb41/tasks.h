@@ -59,7 +59,7 @@ class SupplyWatch : public Plc::Program {
     /** @} */
 
 public:
-    SupplyWatch() : Program("supply_watch", 100) {}
+    SupplyWatch() : Program("supply_watch", Tasks::GROUP_SLOW) {}
 
     /** @brief Both blocks are a claim about the supply over TIME, and the scan
      *  stopping means we stopped watching it. Start the debounce again rather
@@ -124,7 +124,7 @@ class SupplyReport : public Plc::Program {
     /** @} */
 
 public:
-    SupplyReport() : Program("supply_report", 1000) {}
+    SupplyReport() : Program("supply_report", Tasks::GROUP_BACKGROUND) {}
 
 protected:
     void bind(Vars::Bank& io) override {

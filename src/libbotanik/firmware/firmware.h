@@ -63,9 +63,6 @@
 #include "libbotanik/vars/model.h"          // Vars::Bank / VarTables
 #include "libbotanik/vars/params.h"         // Vars::Params / KvParamStore
 
-#if BOTANIK_FEATURE_PLC_SCAN
-#include "libbotanik/scan/scan.h"           // Scan::Driver
-#endif
 #if BOTANIK_FEATURE_CONSOLE
 #include "libbotanik/console/console.h"     // Terminal::Console
 #endif
@@ -180,7 +177,30 @@ namespace Botanik {
         Vars::KvParamStore             _param_store; ///< one storage key per parameter
         Vars::Params                   _params;      ///< the editable view of the variables
 #if BOTANIK_FEATURE_PLC_SCAN
-        Scan::Driver                   _scan;        ///< the control programs
+        /** @name The control programs
+         *
+         *  They are registry entries now, so what is left here is what only
+         *  this class can do: apply the authority edge to the site's table, and
+         *  turn a program index back into a program NAME.
+         *  @{ */
+
+        /** @brief Whether the programs were running on the previous beat. Edge
+         *  tracking only; the authority itself lives in the Bank. Starts false,
+         *  because control starts withheld. */
+        bool                 _programs_enabled = false;
+        /** @brief The conflict count already reported, so a defect that is true
+         *  on every beat is named once, not every 10 ms.
+         *  @see Vars::Bank::claim_writer() */
+        uint16_t             _conflicts_said = 0;
+        /** @brief The row carrying "a program is missing its period", resolved
+         *  once at bring-up like every other name the library reads. */
+        Vars::VarRef         _scan_late_alarm = { Vars::VAR_NONE };
+        /** @brief The worst lateness on the last beat, and who owned it.
+         *  Borrowed from the site's table, so it lives as long as this does. */
+        uint32_t             _scan_late_ms = 0;
+        const Plc::Program*  _scan_worst   = nullptr;
+
+        /** @} */
 #endif
         /** @brief Whether the last beat saw a health fault. Edge tracking only:
          *  the control state itself lives in the Bank (control_enabled()), so
@@ -487,6 +507,16 @@ namespace Botanik {
          *  an operator's `control disable` stays in force across a fault that
          *  came and went. */
         void _latch_control();
+
+        /** @brief Carry the Bank's verdict to the programs: the gate, and both
+         *  edges. Called from _latch_control(), so it runs in PHASE_SERVICE -
+         *  before PHASE_CONTROL, which is what makes a withdrawal take effect on
+         *  the beat it is decided rather than the next one. */
+        void _apply_control_authority();
+#if BOTANIK_FEATURE_PLC_SCAN
+        /** @brief Find the worst-late program and drive the SCAN_LATE row. */
+        void _publish_lateness();
+#endif
     };
 
 }  // namespace Botanik
