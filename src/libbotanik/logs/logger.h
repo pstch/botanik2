@@ -78,7 +78,7 @@ namespace Botanik { namespace Logs {
         uint8_t         _watched_tx_count       = 0;
 
         /** @brief Minimum level a non-critical entry must reach to be forwarded
-         *  (set by the `loglevel` command). Defaults from Config::LOG_MIN_LEVEL
+         *  (no console command moves it). Defaults from Config::LOG_MIN_LEVEL
          *  (LOG_DEBUG on the simulator, LOG_INFO on hardware); LOG_CRITICAL is
          *  the max, so it never filters. */
         Logs::LogLevel _min_level = (Logs::LogLevel)Config::LOG_MIN_LEVEL;

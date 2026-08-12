@@ -175,7 +175,19 @@ namespace Botanik { namespace Vars {
          *  field: CONTROL_DISABLED. The override is NOT erased, so leaving that
          *  mode restores it. ROLE_OUTPUT only, and maintained by the Bank alone.
          *  @see Bank::set_control_mode() */
-        VF_OVR_MUTED   = 1u << 2
+        VF_OVR_MUTED   = 1u << 2,
+        /** @brief This parameter's edit is live but not durable.
+         *
+         *  Editing and committing are two steps: set() applies the value now,
+         *  save() writes it to flash. The bit is what lets a display mark the
+         *  row and `params save` with no name find every row still owed a
+         *  write. Cleared by save(), and by a load that overwrites the edit.
+         *  @see Bank::set() @see Bank::save() */
+        VF_PARAM_UNSAVED = 1u << 3,
+        /** @brief The same, for this row's override: forced now, but it will
+         *  not survive a reboot until `overrides save`.
+         *  @see Bank::override_set() @see Bank::save_override() */
+        VF_OVR_UNSAVED   = 1u << 4
     };
 
     /** @brief What the firmware may drive, strictest first. The order is
@@ -604,6 +616,19 @@ namespace Botanik { namespace Vars {
 
         /** @} */
 
+        /** @name Durability
+         *
+         *  Whether the live value has reached flash. Read-only here: both bits
+         *  are the Bank's to set and clear, since only it holds the store.
+         *  @{ */
+
+        /** @brief This parameter has been edited but not saved. */
+        bool param_unsaved() const { return (_v->vflags & VF_PARAM_UNSAVED) != 0; }
+        /** @brief This override is in force but not saved. */
+        bool override_unsaved() const { return (_v->vflags & VF_OVR_UNSAVED) != 0; }
+
+        /** @} */
+
         const Variable* meta() const { return _d; }
         const char*     name() const { return _d->name; }
         const char*     unit() const { return _d->unit; }
@@ -613,10 +638,10 @@ namespace Botanik { namespace Vars {
     private:
         /** @name Override mutation - Bank's, not yours
          *
-         *  @warning Private, and load-bearing. An override is PERSISTED, so
-         *  each of these has a storage side only the Bank can reach: a set that
-         *  skipped the store would vanish at the next boot, and a clear that
-         *  skipped it would come BACK at the next boot.
+         *  @warning Private, and load-bearing. An override can be MADE DURABLE,
+         *  so each of these has a storage side only the Bank can reach: a set
+         *  that skipped the unsaved mark could never be committed, and a clear
+         *  that skipped the store would come BACK at the next boot.
          *  @{ */
         friend class Bank;
 
@@ -717,9 +742,9 @@ namespace Botanik { namespace Vars {
      *  and telling the operator their input was invalid when the storage
      *  refused it sends them to fix the wrong thing. */
     enum SetResult : uint8_t {
-        SET_OK,             ///< applied and persisted
+        SET_OK,             ///< applied (set), or written out (save)
         SET_INVALID,        ///< rejected - malformed, out of range, read-only
-        SET_NOT_PERSISTED   ///< applied in RAM, but storage refused it
+        SET_NOT_PERSISTED   ///< live in RAM, but storage refused the write
     };
 
     /** @brief Where a variable's value survives a reboot: a parameter's setting,
@@ -1060,12 +1085,19 @@ namespace Botanik { namespace Vars {
         /** @name Writing
          *
          *  Two different things. set() edits a PARAMETER: validated against its
-         *  declared band and persisted. override() forces ANY variable:
-         *  volatile, and range-checked against the type only, so a reading can
-         *  be pushed past its band to exercise the alarm watching for it.
+         *  declared band. override() forces ANY variable, range-checked against
+         *  the type only, so a reading can be pushed past its band to exercise
+         *  the alarm watching for it.
+         *
+         *  **Neither writes to flash.** Applying and committing are separate
+         *  steps: a value is live the moment it is written, and stays live for
+         *  as long as the unit runs, but only save() / save_override() make it
+         *  survive a reboot. That is what lets a setting be tried on the plant
+         *  and walked back by a power cycle - and it is why an unsaved row is
+         *  marked (Var::param_unsaved()) rather than left looking committed.
          *  @{ */
 
-        /** @brief Apply @p text to parameter @p h and persist it. Rejects a
+        /** @brief Apply @p text to parameter @p h, live but unsaved. Rejects a
          *  non-parameter (SET_INVALID): writing a sensor or an output here would
          *  be overwritten by the next scan, which is what override() is for. */
         SetResult set(Var h, const char* text);
@@ -1086,20 +1118,31 @@ namespace Botanik { namespace Vars {
          *  T_STR is refused: its text lives in the pool, not the slot. */
         SetResult set(Var h, Scalar v);
 
-        /** @brief Apply @p v now and leave the flash write to the caller.
+        /** @brief Apply @p v now WITHOUT marking the row unsaved.
          *
-         *  Storage is synchronous, so a caller committing many rows at once must
-         *  pace the writes or stall the beat (one Modbus request can cover 61
-         *  parameters). The value is live immediately; only the durable copy is
-         *  deferred.
+         *  For a writer that commits the flash side itself and paces it: storage
+         *  is synchronous, and one Modbus request can cover 61 parameters, so
+         *  the slave queues its own writes rather than stalling the beat. The
+         *  unsaved mark is deliberately not set - the row is not waiting for an
+         *  operator to type `params save`, it is already in a queue.
          *
-         *  @warning Pair every SET_OK with a persist(), or the setting is
-         *  silently lost at the next reboot. */
+         *  @warning Pair every SET_OK with a save(), or the setting is silently
+         *  lost at the next reboot. */
         SetResult set_deferred(Var h, Scalar v);
 
-        /** @brief Write @p h's current value to the store. The other half of
-         *  set_deferred(); harmless on a row that is already durable. */
-        SetResult persist(Var h);
+        /** @brief Commit @p h's current value to the store and clear its unsaved
+         *  mark. Harmless on a row that is already durable.
+         *  @return SET_OK, or SET_NOT_PERSISTED when the store refused. */
+        SetResult save(Var h);
+
+        /** @brief Commit every parameter still marked unsaved.
+         *  @return how many were written; @p refused, when given, takes the
+         *  count the store rejected. */
+        uint16_t save_params(uint16_t* refused = nullptr);
+
+        /** @brief Parameters edited but not yet saved - what `params save` with
+         *  no name would write, and what a display marks. */
+        uint16_t unsaved_count() const;
 
         /** @brief Force @p h to @p text until override_clear(). T_STR is refused
          *  (a hostname is configuration, not a field signal); everything else,
@@ -1109,14 +1152,24 @@ namespace Botanik { namespace Vars {
         SetResult override_set(Var h, const char* text, bool valid = true);
 
         /** @brief The same, with the value already typed. Forcing only the
-         *  QUALITY is `override_set(h, h.raw(), false)`, which persists like any
-         *  other override. */
+         *  QUALITY is `override_set(h, h.raw(), false)`, which is unsaved like
+         *  any other override. */
         void override_set(Var h, Scalar v, bool valid = true);
 
         /** @brief Force @p h to whatever it reads right now, keeping its current
          *  validity - for pinning a signal while you work on what depends on
-         *  it. Persists, like any other override. */
+         *  it. Unsaved, like any other override. */
         void override_freeze(Var h);
+
+        /** @brief Commit @p h's override so it survives a reboot.
+         *  @return SET_INVALID when nothing is forced on @p h, SET_NOT_PERSISTED
+         *  when the store refused, SET_OK otherwise. */
+        SetResult save_override(Var h);
+
+        /** @brief Commit every override still marked unsaved.
+         *  @return how many were written; @p refused takes the count the store
+         *  rejected. */
+        uint16_t save_overrides(uint16_t* refused = nullptr);
         /** @brief Release @p h's override, and forget the stored copy. Always go
          *  through the bank rather than Var::override_clear(), which cannot
          *  reach the store and would leave one to come back at the next boot. */
@@ -1149,8 +1202,11 @@ namespace Botanik { namespace Vars {
 
         /** @brief @p h's row index, or VAR_NONE when it points at the sink. */
         uint16_t _row_of(Var h) const;
-        /** @brief Write @p h's override through to the store. */
-        void _persist_override(Var h);
+        /** @brief Write @p h's override through to the store; false when it
+         *  refused (already logged) or there is no store. */
+        bool _persist_override(Var h);
+        /** @brief Mark @p h's override live-but-unsaved. */
+        void _mark_override_unsaved(Var h);
         /** @brief Write an edited parameter through to the store, and say so
          *  loudly when the store refuses. Shared by both set() overloads. */
         SetResult _persist_param(Var h, const Variable& d, Value& slot);

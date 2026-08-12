@@ -16,13 +16,15 @@
 #include "libbotanik/vars/params.h"         // Vars::Params
 
 namespace Botanik {
-    // loglevel command (set_diagnostics)
+    // logs command (set_diagnostics)
     namespace Logs    { class Logger;     }
-    // alarm list/ack command (set_diagnostics)
+    // alarms list/get/ack (set_diagnostics)
     namespace Alarms  { class AlarmController; }
+    // reboot command (set_diagnostics): withholds the watchdog kick
+    namespace Health  { class HealthMonitor; }
     // ntpsync command (set_ntp); null when the NTP feature is off
     namespace Network { class NtpClient;  }
-    // get / set / override commands: the variables come from SystemContext.
+    // params / overrides / vars: the variables come from SystemContext.
 }
 
 namespace Botanik { namespace Shell {
@@ -85,11 +87,12 @@ namespace Botanik { namespace Shell {
         size_t                  _command_count = 0;
         /** opaque ctx for each site callback */
         void*                   _command_ctx   = nullptr;
-        /** @brief Mutable diagnostics targets for the loglevel / alarm
+        /** @brief Mutable diagnostics targets for the logs / alarms / reboot
          *  commands; null until set_diagnostics() wires them (commands then
          *  report "unavailable"). */
         Logs::Logger*           _logger        = nullptr;
-        Alarms::AlarmController*     _alarm_model   = nullptr;
+        Alarms::AlarmController* _alarm_model  = nullptr;
+        Health::HealthMonitor*  _health        = nullptr;
         /** @brief NTP client for the `ntpsync` command; null until set_ntp()
          *  wires it (off when the NTP feature is absent). */
         Network::NtpClient*     _ntp_client           = nullptr;
@@ -127,10 +130,12 @@ namespace Botanik { namespace Shell {
          *  reset). A zero-length command is ignored. */
         void run(const char* cmd, uint16_t len);
 
-        /** @brief Wire the mutable diagnostics targets the loglevel / alarm-ack
-         *  commands act on (the firmware passes its logger and alarm model). */
-        void set_diagnostics(Logs::Logger* logger, Alarms::AlarmController* alarms) {
-            _logger = logger; _alarm_model = alarms;
+        /** @brief Wire the mutable diagnostics targets the logs / alarms / reboot
+         *  commands act on (the firmware passes its logger, alarm model and
+         *  health monitor). */
+        void set_diagnostics(Logs::Logger* logger, Alarms::AlarmController* alarms,
+                             Health::HealthMonitor* health = nullptr) {
+            _logger = logger; _alarm_model = alarms; _health = health;
         }
 
         /** @brief Wire the NTP client `ntpsync` resyncs. Null when the NTP
@@ -193,14 +198,21 @@ namespace Botanik { namespace Shell {
         void _load_browse();
 
         /** @name Built-in command handlers
+         *
          *  Each takes the (already leading-space-trimmed) argument slice after
-         *  the command word; handlers that take no args ignore it.
+         *  the command word; handlers that take no args ignore it. The ones
+         *  that work on a table (`params`, `overrides`, `alarms`, `vars`,
+         *  `tasks`) are NOUNS: they parse their own verb, so the top-level
+         *  table stays one row per subject rather than one per verb.
          *  @{ */
         void _cmd_help(const char* args, uint16_t alen);
         void _cmd_clear(const char* args, uint16_t alen);
         void _cmd_logs(const char* args, uint16_t alen);
         void _cmd_breakpoint(const char* args, uint16_t alen);
         void _cmd_reset(const char* args, uint16_t alen);
+        /** @brief Drop control authority, then stop kicking the watchdog and let
+         *  it reset the unit - the unattended reset path, by hand. */
+        void _cmd_reboot(const char* args, uint16_t alen);
         void _cmd_exit(const char* args, uint16_t alen);
         void _cmd_stats(const char* args, uint16_t alen);
         /** @brief The beat's totals, or one task: where `stats`' unattributed
@@ -217,19 +229,61 @@ namespace Botanik { namespace Shell {
         #endif
         void _cmd_net(const char* args, uint16_t alen);
         void _cmd_ntpsync(const char* args, uint16_t alen);
-        void _cmd_loglevel(const char* args, uint16_t alen);
-        void _cmd_list(const char* args, uint16_t alen);
-        void _cmd_get(const char* args, uint16_t alen);
-        void _cmd_set(const char* args, uint16_t alen);
-        void _cmd_override(const char* args, uint16_t alen);
+        /** @brief `params list|get|set|save` - the editable rows. */
+        void _cmd_params(const char* args, uint16_t alen);
+        /** @brief `overrides list|get|set|clear|save` - the forced rows. */
+        void _cmd_overrides(const char* args, uint16_t alen);
+        /** @brief `vars list|get` - every row, whatever its scope. */
+        void _cmd_vars(const char* args, uint16_t alen);
         void _cmd_control(const char* args, uint16_t alen);
+
+        /** @name Editing verbs
+         *
+         *  Editing and committing are two commands because they are two
+         *  decisions: a value is live the moment it is set, and durable only
+         *  once saved. @see Vars::Bank::set()
+         *  @{ */
+        /** @brief `params set <name> <value>`. @p nm / @p wn are the name word;
+         *  @p args / @p alen carry the value and are consumed here. */
+        void _params_set(const char* nm, uint16_t wn,
+                         const char* args, uint16_t alen);
+        /** @brief `params save [<name>]` - one row, or every unsaved one. */
+        void _params_save(const char* nm, uint16_t wn);
+        /** @brief `overrides save [<name>]` - the same, for overrides. */
+        void _overrides_save(const char* nm, uint16_t wn);
+        /** @} */
+
+        /** @name Shared verb bodies
+         *
+         *  `params get` and `vars get` are the same detail view over a
+         *  different admission rule, and both list forms are one filtered walk.
+         *  Written once, so a row reads the same whichever noun showed it.
+         *  @{ */
+        /** @brief List rows matching @p prefix (null = all), @p params_only
+         *  restricting the walk to the parameter block. @p noun names the
+         *  command in the empty-result line. */
+        void _list_vars(const char* noun, const char* prefix, uint16_t plen,
+                        bool params_only);
+        /** @brief The detail view for one row. */
+        void _show_var(const char* noun, const char* name, uint16_t nlen,
+                       bool params_only);
+        /** @} */
         /** @brief Report control state, naming every hold still in force. */
         void _report_control(Vars::Bank* io);
 
-        /** @brief `tasks <name>`: one task's schedule and its cost samples.
+        /** @brief `tasks get <name>`: one task's schedule and its cost samples.
          *  @p name is the word slice from the command line, not NUL-terminated. */
         void _task_detail(const Tasks::Registry& reg, const char* name,
                           uint16_t nlen);
+
+        /** @brief `tasks list [<prefix>]`: one line per registered task.
+         *
+         *  Paced like any other listing, and prefix-filterable, because the
+         *  whole table over a 4800-baud console is an index of the TASKS page
+         *  rather than an answer. A bare `tasks` still reports the beat's
+         *  totals, which is the question a listing cannot answer. */
+        void _tasks_list(const Tasks::Registry& reg, const char* prefix,
+                         uint16_t plen);
 
         /** @brief Shared tail of reset / exit: drop the field to its safe state
          *  and wipe the screen, since the loop will not run again. */

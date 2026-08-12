@@ -21,10 +21,13 @@
  * detail panel tracks it. ENTER opens an inline edit on the bottom prompt line:
  * a static " name = " label and a single-line TextEditor (anchored to the
  * bottom row) render the value, seeded with the row's current text. ENTER
- * commits (parse + validate through Params::set, which persists it; applying a
- * config group still means bumping that group's commit serial by hand);
- * ESC/Ctrl+C cancels. An invalid value is rejected and flagged, leaving edit
- * mode open.
+ * commits (parse + validate through Params::set); ESC/Ctrl+C cancels. An
+ * invalid value is rejected and flagged, leaving edit mode open.
+ *
+ * An applied value is LIVE but not durable: the row shows a trailing '*', the
+ * prompt row counts what is outstanding, and ^O (Params::save_all) writes them
+ * all. Applying a config GROUP is still a separate act - bump that group's
+ * commit serial by hand.
  */
 
 #include <cstdint>                          // uint8_t/uint16_t/uint64_t
@@ -89,7 +92,8 @@ namespace Botanik { namespace Pages {
         bool                _dirty    = true;    ///< table needs a redraw
         uint64_t            _last_refresh_ms = 0; ///< last cadence rebuild
 
-        /** @name Edit sub-state (bottom-row inline editor) @{ */
+        /** @name Edit sub-state (bottom-row inline editor)
+         *  @{ */
         /** buffers the editor borrows; declared before it */
         Terminal::EditorBuffers<Config::SHELL_INPUT_LEN,
                                 Config::EDITOR_MAX_ROWS> _editor_bufs;
@@ -97,9 +101,9 @@ namespace Botanik { namespace Pages {
         bool                _editing    = false;
         uint16_t _edit_index = 0;   ///< the parameter being edited
         bool                _edit_error = false;      ///< last commit rejected
-        /** last commit applied but did not reach storage (shown on the prompt
-         *  row, since the value itself is live and the row will show it) */
-        bool                _not_persisted = false;
+        /** last ^O save was refused by storage (shown on the prompt row; the
+         *  values themselves stay live and stay marked unsaved) */
+        bool                _save_failed = false;
         /** @} */
         /** @} */
 
@@ -225,7 +229,8 @@ namespace Botanik { namespace Pages {
             return (pt > DATA_TOP) ? (uint16_t)(pt - DATA_TOP) : 0;
         }
 
-        /** @name ScrollTablePage geometry @{ */
+        /** @name ScrollTablePage geometry
+         *  @{ */
         uint16_t _data_top()  const override { return DATA_TOP; }
         uint16_t _window()    const override { return _visible_rows(); }
         uint16_t _row_count() const override { return _visible_count(); }
@@ -294,6 +299,9 @@ namespace Botanik { namespace Pages {
         void _draw_label();
 
         void _draw_prompt_row();
+
+        /** @brief ^O: commit every unsaved parameter. */
+        void _save_all();
 
         void _draw_error_marker();
 

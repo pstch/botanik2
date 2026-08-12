@@ -299,7 +299,7 @@ namespace Botanik { namespace Modbus {
             // A refusal here is the STORE saying no, which is not a rejected
             // edit: the value is already live, and the fault raised its own
             // alarm on the way out.
-            (void)_io->persist(_io->var(r));
+            (void)_io->save(_io->var(r));
             done++;
         }
         return done;

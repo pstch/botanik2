@@ -22,7 +22,7 @@ namespace Botanik { namespace Config {
      *  @{ */
 
     /** @brief Minimum level the LOGGER forwards at all - the master floor, and
-     *  what the `loglevel` command moves. DEBUG, so the LOGS page can show
+     *  the master floor, build-time only. DEBUG, so the LOGS page can show
      *  everything; each page sink then applies its own floor on top (below).
      *  Cheap to leave open: every debug() call site is a one-shot boot line. */
 #ifndef BOTANIK_LOG_MIN_LEVEL

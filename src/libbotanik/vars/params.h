@@ -75,10 +75,30 @@ namespace Botanik { namespace Vars {
                                      char* buf, size_t cap) const;
         /** @} */
 
-        /** @brief Apply an edited value, as display text, then persist it. */
+        /** @name Editing
+         *
+         *  Two steps, deliberately: set() is live, save() is durable. @see
+         *  Bank::set()
+         *  @{ */
+
+        /** @brief Apply an edited value, as display text. Live, not saved. */
         SetResult set(Var p, const char* text) {
             return _io != nullptr ? _io->set(p, text) : SET_INVALID;
         }
+        /** @brief Commit one edited parameter to flash. */
+        SetResult save(Var p) {
+            return _io != nullptr ? _io->save(p) : SET_INVALID;
+        }
+        /** @brief Commit every parameter still unsaved. @return how many. */
+        uint16_t save_all(uint16_t* refused = nullptr) {
+            return _io != nullptr ? _io->save_params(refused) : 0;
+        }
+        /** @brief How many edits are live but not yet committed. */
+        uint16_t unsaved() const {
+            return _io != nullptr ? _io->unsaved_count() : 0;
+        }
+
+        /** @} */
 
     protected:
         /** @brief Load every parameter from the store. */

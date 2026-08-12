@@ -81,10 +81,11 @@ namespace Botanik { namespace Pages {
             _shell.set_commands(table, count, ctx);
         }
 
-        /** @brief Wire diagnostics targets (logger, alarm model) for the
-         *  loglevel / alarm-ack commands. */
-        void set_diagnostics(Logs::Logger* logger, Alarms::AlarmController* alarms) {
-            _shell.set_diagnostics(logger, alarms);
+        /** @brief Wire diagnostics targets (logger, alarm model, health
+         *  monitor) for the logs / alarms / reboot commands. */
+        void set_diagnostics(Logs::Logger* logger, Alarms::AlarmController* alarms,
+                             Health::HealthMonitor* health = nullptr) {
+            _shell.set_diagnostics(logger, alarms, health);
         }
 
         /** @brief Wire the NTP client the `ntpsync` command resyncs. */

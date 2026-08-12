@@ -16,6 +16,20 @@ namespace Botanik { namespace Pages {
         if (_mode_command(cmd)) return;             // LEFT/RIGHT pick the group
         if (_nav_command(cmd)) { _dirty = true; return; }
         if (cmd == Command::ENTER && _visible_count() > 0) { _start_edit(); _dirty = true; }
+        // ^O writes, as on the NOTES page: the same key means the same thing on
+        // both pages that hold unsaved work.
+        if (cmd == Command::CTRL_O) _save_all();
+    }
+
+    // Every unsaved row at once, not the selected one: editing several settings
+    // and committing them together is the normal shape of a tuning session, and
+    // a per-row save would make "did I save that one?" a question.
+    void ParamsPage::_save_all() {
+        uint16_t refused = 0;
+        (void)_params->save_all(&refused);
+        _save_failed = (refused != 0);
+        _dirty = true;              // the '*' markers clear with the same repaint
+        _draw_prompt_row();
     }
 
     void ParamsPage::handle_text(char c) {
@@ -138,6 +152,16 @@ namespace Botanik { namespace Pages {
         // the pool and a T_ENUM's in flash, so neither writes into val, and
         // reading val would show the previous row's text.
         const char* v = _params->format(k, val, sizeof(val));
+        // A trailing '*' on an edited-but-unsaved value: one column, and it is
+        // the only thing distinguishing a setting that survives a reboot from
+        // one that does not. Copied into val first, since format() may have
+        // returned flash or pool text that must not be written through.
+        if (p.param_unsaved()) {
+            if (v != val) { strncpy(val, v, sizeof(val) - 2); val[sizeof(val) - 2] = 0; }
+            const size_t n = strlen(val);
+            if (n < sizeof(val) - 1) { val[n] = '*'; val[n + 1] = 0; }
+            v = val;
+        }
         // 0 is "no register": a parameter the slave does not publish, which is
         // a blank cell rather than a register an external master could quote.
         if (d.bind.reg != 0) snprintf(reg, sizeof(reg), "%u", (unsigned)d.bind.reg);
@@ -244,10 +268,16 @@ namespace Botanik { namespace Pages {
         }
         _terminal.set_cursor_visible(false);
         // No key legend: UP/DOWN/ENTER/ESC are not worth a permanent row. Only
-        // what an operator cannot infer stays - that a value just set did not
-        // reach storage.
-        const char* hint = _not_persisted
-            ? " NOT SAVED - value is live but storage refused it" : "";
+        // what an operator cannot infer stays - that edits are live but not yet
+        // durable, and that a save was refused.
+        char hint[64];
+        const uint16_t pending = _params->unsaved();
+        if (_save_failed)
+            snprintf(hint, sizeof(hint), " NOT SAVED - storage refused it");
+        else if (pending != 0)
+            snprintf(hint, sizeof(hint), " %u unsaved (*) - ^O to save", (unsigned)pending);
+        else
+            hint[0] = '\0';
         _draw_line(row, hint, (uint16_t)strlen(hint));
     }
 
@@ -306,15 +336,14 @@ namespace Botanik { namespace Pages {
         memcpy(line, _editor.buffer(), n);
         line[n] = 0;
         const Vars::SetResult r = _params->set(_params->param(_edit_index), line);
-        if (r == Vars::SET_INVALID) {
+        if (r != Vars::SET_OK) {
             _edit_error = true;   // stay in edit, flag it
             _draw_error_marker();
             return;
         }
-        // Applied. SET_NOT_PERSISTED means live but not surviving a reboot:
-        // leave the editor anyway, since the input was not wrong (the critical
-        // log carries the failure).
-        _not_persisted = (r == Vars::SET_NOT_PERSISTED);
+        // Applied, and live - but not durable until ^O. The row's '*' and the
+        // prompt row both say so, so leaving the editor loses nothing.
+        _save_failed = false;
         _editing = false;
         _dirty = true;            // value diff repaints the table row next tick
         _draw_prompt_row();

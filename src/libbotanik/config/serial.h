@@ -24,8 +24,8 @@ namespace Botanik { namespace Config {
     /** @brief The FACTORY DEFAULT for the `serial_console_baud` parameter.
      *
      *  The live value is the parameter, so a swapped terminal needs no firmware
-     *  build: `set serial_console_baud 9600` retunes the UART and the per-render
-     *  TX budget together on the next beat. This default is what a site pins for
+     *  build: `params set serial_console_baud 9600` retunes the UART and the
+     *  per-render TX budget together on the next beat. This default is what a site pins for
      *  its hardware, and what a wiped store comes back at. */
 #ifndef BOTANIK_CONSOLE_BAUD
 #  define BOTANIK_CONSOLE_BAUD 4800

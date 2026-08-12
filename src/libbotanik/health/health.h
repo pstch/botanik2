@@ -64,6 +64,8 @@ namespace Botanik { namespace Health {
         uint64_t _xrun_until_ms    = 0;
         /** cached verdict (see watchdog_ok()) */
         bool     _watchdog_ok      = true;
+        /** latched by request_reboot(); never cleared */
+        bool     _reboot_requested = false;
         bool     _post_ok          = false;
         // BOTANIK_NO_LOAD_ALARMS: hold the CPU_* load alarms cleared for
         // deterministic screen goldens (sim/test only; reads 0 on OPTA).
@@ -118,6 +120,22 @@ namespace Botanik { namespace Health {
         /** @brief Whether the HW watchdog should be kicked this beat (see
          *  file header). */
         bool                watchdog_ok() const { return _watchdog_ok; }
+
+        /** @brief Reboot by letting the watchdog expire (the shell's `reboot`).
+         *
+         *  A latch, not a request that can be reconsidered: from here the kick
+         *  is withheld every beat until the hardware resets the unit. The gap
+         *  between the last kick and the reset is exactly the window where an
+         *  actuator must not be left energised, which is why the caller drops
+         *  control authority FIRST and this only stops the kicking.
+         *
+         *  Deliberately not a HAL::System::reset(): the reset path an
+         *  unattended unit takes when it wedges is the one worth exercising by
+         *  hand, and it leaves the loop running (logs flush, the screen
+         *  repaints) right up to the reset. */
+        void request_reboot() { _reboot_requested = true; _watchdog_ok = false; }
+        /** @brief Whether a reboot is pending - the kick is being withheld. */
+        bool reboot_requested() const { return _reboot_requested; }
         /** @brief Healthy while the watchdog verdict holds and POST passed. */
         bool                healthy() const override { return _watchdog_ok && _post_ok; }
         /** @} */
@@ -256,10 +274,10 @@ namespace Botanik { namespace Health {
         }
 
         /** @brief Watchdog verdict: the loop is alive, so constant while
-         *  stepping (see the file header). The seam stays for the day something
-         *  else justifies letting the watchdog fire. */
+         *  stepping (see the file header) - unless a reboot was asked for, which
+         *  is the one case where letting the watchdog fire IS the intent. */
         void _update_watchdog(uint64_t /*now*/) {
-            _watchdog_ok = true;
+            _watchdog_ok = !_reboot_requested;
         }
     };
 

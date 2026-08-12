@@ -193,6 +193,9 @@ namespace Botanik { namespace Vars {
             uint16_t cap = 0;
             char* text = text_at(var(i), &cap);
             (void)_store->load(_tables.var[i], _tables.val[i], text, cap);
+            // Whatever the row now holds came from the store (or is the seeded
+            // default), so nothing is owed a write.
+            _tables.val[i].vflags = (uint8_t)(_tables.val[i].vflags & ~VF_PARAM_UNSAVED);
         }
     }
 
@@ -360,7 +363,10 @@ namespace Botanik { namespace Vars {
     SetResult Bank::set(Var h, Scalar v) {
         const SetResult r = set_deferred(h, v);
         if (r != SET_OK) return r;
-        return persist(h);
+        // Live now, durable when the operator says so.
+        Value* slot = editable_slot(_tables, h.meta());
+        slot->vflags = (uint8_t)(slot->vflags | VF_PARAM_UNSAVED);
+        return SET_OK;
     }
 
     SetResult Bank::set_deferred(Var h, Scalar v) {
@@ -373,11 +379,32 @@ namespace Botanik { namespace Vars {
         return SET_OK;
     }
 
-    SetResult Bank::persist(Var h) {
+    SetResult Bank::save(Var h) {
         const Variable* d = h.meta();
         Value* slot = editable_slot(_tables, d);
         if (slot == nullptr) return SET_INVALID;
-        return _persist_param(h, *d, *slot);
+        const SetResult r = _persist_param(h, *d, *slot);
+        // Only a write that landed clears the mark: a refused row stays owed,
+        // so the next `params save` tries it again.
+        if (r == SET_OK) slot->vflags = (uint8_t)(slot->vflags & ~VF_PARAM_UNSAVED);
+        return r;
+    }
+
+    uint16_t Bank::save_params(uint16_t* refused) {
+        uint16_t saved = 0, bad = 0;
+        for (uint16_t i = 0; i < _tables.count; i++) {
+            if ((_tables.val[i].vflags & VF_PARAM_UNSAVED) == 0) continue;
+            if (save(var(i)) == SET_OK) saved++; else bad++;
+        }
+        if (refused != nullptr) *refused = bad;
+        return saved;
+    }
+
+    uint16_t Bank::unsaved_count() const {
+        uint16_t n = 0;
+        for (uint16_t i = 0; i < _tables.count; i++)
+            if ((_tables.val[i].vflags & VF_PARAM_UNSAVED) != 0) n++;
+        return n;
     }
 
     SetResult Bank::set(Var h, const char* text) {
@@ -401,7 +428,8 @@ namespace Botanik { namespace Vars {
             slot.qual = Q_GOOD;
         }
 
-        return _persist_param(h, *d, slot);
+        slot.vflags = (uint8_t)(slot.vflags | VF_PARAM_UNSAVED);
+        return SET_OK;
     }
 
     SetResult Bank::_persist_param(Var h, const Variable& d, Value& slot) {
@@ -436,13 +464,37 @@ namespace Botanik { namespace Vars {
     void Bank::override_set(Var h, Scalar v, bool valid) {
         h.override_set(v, valid);
         (void)_sync_override_mute(_row_of(h));
-        _persist_override(h);
+        _mark_override_unsaved(h);
     }
 
     void Bank::override_freeze(Var h) {
         h.override_freeze();
         (void)_sync_override_mute(_row_of(h));
-        _persist_override(h);
+        _mark_override_unsaved(h);
+    }
+
+    SetResult Bank::save_override(Var h) {
+        const uint16_t row = _row_of(h);
+        if (row == VAR_NONE || !_tables.val[row].ovr_on) return SET_INVALID;
+        if (!_persist_override(h)) return SET_NOT_PERSISTED;
+        _tables.val[row].vflags = (uint8_t)(_tables.val[row].vflags & ~VF_OVR_UNSAVED);
+        return SET_OK;
+    }
+
+    uint16_t Bank::save_overrides(uint16_t* refused) {
+        uint16_t saved = 0, bad = 0;
+        for (uint16_t i = 0; i < _tables.count; i++) {
+            if ((_tables.val[i].vflags & VF_OVR_UNSAVED) == 0) continue;
+            if (save_override(var(i)) == SET_OK) saved++; else bad++;
+        }
+        if (refused != nullptr) *refused = bad;
+        return saved;
+    }
+
+    void Bank::_mark_override_unsaved(Var h) {
+        const uint16_t row = _row_of(h);
+        if (row == VAR_NONE) return;
+        _tables.val[row].vflags = (uint8_t)(_tables.val[row].vflags | VF_OVR_UNSAVED);
     }
 
     bool Bank::_sync_override_mute(uint16_t i) {
@@ -459,10 +511,13 @@ namespace Botanik { namespace Vars {
 
     void Bank::override_clear(Var h) {
         h.override_clear();
+        const uint16_t row = _row_of(h);
+        if (row == VAR_NONE) return;
+        _tables.val[row].vflags = (uint8_t)(_tables.val[row].vflags & ~VF_OVR_UNSAVED);
         // Forget the stored copy too, or the override comes back at the next
-        // boot.
-        if (_store != nullptr && _row_of(h) != VAR_NONE)
-            (void)_store->clear_override(*h.meta());
+        // boot. Unconditional: an override cleared before it was ever saved may
+        // still have an older durable copy underneath it.
+        if (_store != nullptr) (void)_store->clear_override(*h.meta());
     }
 
     uint16_t Bank::_row_of(Var h) const {
@@ -471,12 +526,16 @@ namespace Botanik { namespace Vars {
         return (uint16_t)(d - _tables.var);
     }
 
-    void Bank::_persist_override(Var h) {
+    bool Bank::_persist_override(Var h) {
         const uint16_t row = _row_of(h);
-        if (_store == nullptr || row == VAR_NONE) return;
+        if (_store == nullptr || row == VAR_NONE) return false;
         const Variable* d = h.meta();
-        if (!_store->save_override(*d, _tables.val[row]) && _logger != nullptr)
-            _logger->critical(Logs::STORAGE, "override not persisted\n'%s'", d->name);
+        if (!_store->save_override(*d, _tables.val[row])) {
+            if (_logger != nullptr)
+                _logger->critical(Logs::STORAGE, "override not persisted\n'%s'", d->name);
+            return false;
+        }
+        return true;
     }
 
     uint16_t Bank::load_overrides() {
@@ -486,6 +545,8 @@ namespace Botanik { namespace Vars {
             const Variable& d = _tables.var[i];
             if (!_store->load_override(d, _tables.val[i])) continue;
             _tables.val[i].ovr_on = true;
+            // It came OUT of the store, so it is durable by definition.
+            _tables.val[i].vflags = (uint8_t)(_tables.val[i].vflags & ~VF_OVR_UNSAVED);
             // Restored while the system still holds control, i.e. with the mode
             // at CONTROL_DISABLED, so this is exactly the window the mute covers:
             // an output override must not reach the field until control does.
@@ -536,6 +597,7 @@ namespace Botanik { namespace Vars {
         for (uint16_t i = 0; i < _tables.count; i++) {
             if (!_tables.val[i].ovr_on) continue;
             _tables.val[i].ovr_on = false;
+            _tables.val[i].vflags = (uint8_t)(_tables.val[i].vflags & ~VF_OVR_UNSAVED);
             if (_store != nullptr) (void)_store->clear_override(_tables.var[i]);
             // The field owes the programs' demand again; a release never written
             // out would leave the actuator where the maintainer left it.

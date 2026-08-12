@@ -1,9 +1,10 @@
 """Shell built-ins, driven through the real console - nothing else covers dispatch.
 
-`set` edits a parameter; `override` is the other half, forcing any variable for
-maintenance.
+The commands are noun-verb: `params` edits the persisted settings, `overrides`
+forces any variable for maintenance, `vars` reads the whole table. Editing and
+committing are separate verbs (`set` then `save`), which is what these assert.
 
-Own sim per test: `set` and `override` both write, and a persisted override would
+Own sim per test: the write commands all leave state, and a saved override would
 outlive the test.
 """
 
@@ -18,58 +19,75 @@ def _run(term, line):
 def test_get_and_set(spawn):
     term = shell(spawn, quiet_logs=True)
     _run(term, b"help")
-    assert term.wait_for(("read a variable", "list variables", "edit a parameter")), \
-        "help did not list get/list/set"
+    assert term.wait_for(("params", "overrides", "vars", "alarms")), \
+        "help did not list the table commands"
 
-    _run(term, b"get ntp_srv1")
-    assert term.wait_for("ntp_srv1"), "get <name> found nothing"
+    _run(term, b"vars get ntp_srv1")
+    assert term.wait_for("ntp_srv1"), "vars get <name> found nothing"
 
-    _run(term, b"set ntp_poll_sec 900")
-    assert term.wait_for("ntp_poll_sec = 900"), "set did not apply"
-    _run(term, b"get ntp_poll_sec")
-    assert term.wait_for("900"), "set did not round-trip through get"
+    _run(term, b"params set ntp_poll_sec 900")
+    assert term.wait_for("ntp_poll_sec = 900"), "params set did not apply"
+    # Applied is not saved: the reply has to say so, since nothing else does.
+    assert term.wait_for("unsaved"), "params set did not flag the edit as unsaved"
+    _run(term, b"params get ntp_poll_sec")
+    assert term.wait_for("900"), "params set did not round-trip through get"
 
-    _run(term, b"set nosuchthing 1")
-    assert term.wait_for("unknown variable"), "unknown name not reported"
+    _run(term, b"params set nosuchthing 1")
+    assert term.wait_for("unknown parameter"), "unknown name not reported"
 
 
-def test_set_refuses_a_non_parameter(spawn):
+def test_params_save_commits_the_edit(spawn):
+    """The second half of an edit: live is not durable until `params save`."""
     term = shell(spawn, quiet_logs=True)
-    _run(term, b"set grid_L1_V 10")
-    assert term.wait_for("not a parameter"), "set accepted a sensor"
-    assert term.wait_for("override"), "set did not point at override"
+    _run(term, b"params set ntp_poll_sec 900")
+    assert term.wait_for("unsaved"), "the edit did not report as unsaved"
+
+    _run(term, b"params save ntp_poll_sec")
+    assert term.wait_for("ntp_poll_sec saved"), "params save did not commit the row"
+
+    # Nothing left owed, and the command says so rather than silently doing
+    # nothing - "did that work?" is the question a silent reply leaves.
+    _run(term, b"params save")
+    assert term.wait_for("nothing to save"), "params save did not report an empty commit"
+
+
+def test_params_set_refuses_a_non_parameter(spawn):
+    term = shell(spawn, quiet_logs=True)
+    _run(term, b"params set grid_L1_V 10")
+    assert term.wait_for("not a parameter"), "params set accepted a sensor"
+    assert term.wait_for("overrides set"), "params set did not point at overrides"
 
 
 def test_override(spawn):
     term = shell(spawn, quiet_logs=True)
-    _run(term, b"override list")
+    _run(term, b"overrides list")
     assert term.wait_for("none active"), "fresh boot reported an override"
 
-    _run(term, b"override grid_L1_V 123.5")
-    assert term.wait_for("forced to"), "override did not take"
+    _run(term, b"overrides set grid_L1_V 123.5")
+    assert term.wait_for("forced to"), "overrides set did not take"
     # Both halves on rows of their own: what it is held at, and what it reads
     # underneath - "has the sensor come back?" is the question behind releasing
     # an override.
-    _run(term, b"get grid_L1_V")
+    _run(term, b"vars get grid_L1_V")
     assert term.wait_for(("Override value", "123.5", "Raw value")), \
-        "get did not show the override over the live reading"
+        "vars get did not show the override over the live reading"
 
-    _run(term, b"override list")
-    assert term.wait_for("override(s) active"), "override list missing"
+    _run(term, b"overrides list")
+    assert term.wait_for("override(s) active"), "overrides list missing"
 
     # Forcing a variable to read as a dead sensor is a separate job from forcing
     # its value, and both have to be sayable.
-    _run(term, b"override grid_L2_V 99 invalid")
+    _run(term, b"overrides set grid_L2_V 99 invalid")
     assert term.wait_for("reading as invalid"), "validity was not honoured"
 
-    _run(term, b"override grid_L1_V off")
-    assert term.wait_for("override off"), "override was not released"
+    _run(term, b"overrides clear grid_L1_V")
+    assert term.wait_for("override cleared"), "override was not released"
 
-    # `override clear` releases the rest without walking the list, which is how a
-    # maintainer hands the machine back.
-    _run(term, b"override clear")
-    assert term.wait_for("cleared"), "override clear did not report"
-    _run(term, b"override list")
+    # `overrides clear` releases the rest without walking the list, which is how
+    # a maintainer hands the machine back.
+    _run(term, b"overrides clear")
+    assert term.wait_for("cleared"), "overrides clear did not report"
+    _run(term, b"overrides list")
     assert term.wait_for("none active"), "override still listed after clear"
 
 
@@ -108,14 +126,14 @@ def test_control_inhibit_leaves_an_actuator_commandable(spawn):
     _run(term, b"control inhibit")
     assert term.wait_for("by hand"), "control inhibit did not mention overrides"
 
-    _run(term, b"override cli_screen 1")
+    _run(term, b"overrides set cli_screen 1")
     assert term.wait_for("forced to"), "an output could not be forced by hand"
-    _run(term, b"get cli_screen")
+    _run(term, b"vars get cli_screen")
     assert term.wait_screen("Override value"), "the forced output did not stick"
 
     _run(term, b"control disable")
     assert term.wait_for("ignored"), "control disable did not say overrides are ignored"
-    _run(term, b"get cli_screen")
+    _run(term, b"vars get cli_screen")
     assert term.wait_screen("Override value"), \
         "disable cleared the override instead of muting it"
 
@@ -123,14 +141,14 @@ def test_control_inhibit_leaves_an_actuator_commandable(spawn):
 def test_list_filters_by_prefix(spawn):
     """Variables are named by domain, so a prefix is the subsystem view."""
     term = shell(spawn, quiet_logs=True)
-    _run(term, b"list grid_L1_")
+    _run(term, b"vars list grid_L1_")
     assert term.wait_for("grid_L1_V"), "prefix list missed a matching variable"
 
-    _run(term, b"list zzz_nothing")
+    _run(term, b"vars list zzz_nothing")
     assert term.wait_for("nothing matches"), "a prefix matching nothing said otherwise"
 
-    _run(term, b"get")                           # `get` is strictly one variable
-    assert term.wait_for("usage: get"), "bare get did not show usage"
+    _run(term, b"vars get")                      # `get` is strictly one variable
+    assert term.wait_for("usage: vars get"), "bare vars get did not show usage"
 
 
 def test_features(spawn):
@@ -167,9 +185,13 @@ def test_tasks(spawn):
     assert term.wait_for(("Registered", "Missed", "Peaks add to", "TASKS page")), \
         "tasks did not render the beat summary"
 
-    _run(term, b"tasks expire_stale")
+    _run(term, b"tasks get expire_stale")
     assert term.wait_for(("input (bkgnd", "Activations", "missed", "Cost")), \
-        "tasks <name> did not detail the task"
+        "tasks get <name> did not detail the task"
 
-    _run(term, b"tasks nosuchtask")
+    _run(term, b"tasks get nosuchtask")
     assert term.wait_for("no task named"), "an unknown task name said otherwise"
+
+    # A listing exists too, prefix-filtered, for finding the name to detail.
+    _run(term, b"tasks list site_")
+    assert term.wait_for(("site_", "task(s)")), "tasks list did not filter by prefix"

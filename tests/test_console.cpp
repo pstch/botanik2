@@ -1456,30 +1456,47 @@ namespace {
 
 }
 
-TEST_CASE("shell override: a bare name forces a GOOD reading, and `clear` releases all") {
-    // A bare `override` must force a GOOD reading, not carry through whatever
-    // quality the row had - only the word `invalid` asks for a dead sensor.
+TEST_CASE("shell overrides: a bare name forces a GOOD reading, and `clear` releases all") {
+    // A bare `overrides set` must force a GOOD reading, not carry through
+    // whatever quality the row had - only `invalid` asks for a dead sensor.
     CmdFixture f;
     REQUIRE_FALSE(f.bank.var("ext_temp").valid());   // nothing has published it
 
-    f.run("override ext_temp");
+    f.run("overrides set ext_temp");
     CHECK(f.bank.var("ext_temp").valid());
-    f.run("override ext_temp invalid");
+    f.run("overrides set ext_temp invalid");
     CHECK_FALSE(f.bank.var("ext_temp").valid());
 
-    f.run("override setpoint 5");
+    f.run("overrides set setpoint 5");
     REQUIRE(f.bank.override_count() == 2);
-    f.run("override clear");
+    // Live, and said to be unsaved: the two are different facts now.
+    CHECK(f.writer.has("unsaved"));
+    f.run("overrides list");
+    CHECK(f.writer.has("2 override(s) active, 2 unsaved"));
+    f.run("overrides clear");
     CHECK(f.writer.has("cleared 2"));
     CHECK(f.bank.override_count() == 0);
 }
 
-TEST_CASE("shell get: the detail view, and what it adds when a row is forced") {
+TEST_CASE("shell overrides: one row can be released by name") {
+    CmdFixture f;
+    f.run("overrides set ext_temp 5");
+    f.run("overrides set setpoint 5");
+    REQUIRE(f.bank.override_count() == 2);
+    f.run("overrides clear ext_temp");
+    CHECK(f.writer.has("ext_temp: override cleared"));
+    CHECK(f.bank.override_count() == 1);
+    // The older spelling still reads naturally next to a value.
+    f.run("overrides set setpoint off");
+    CHECK(f.bank.override_count() == 0);
+}
+
+TEST_CASE("shell vars get: the detail view, and what it adds when a row is forced") {
     CmdFixture f;
     f.bank.var("ext_temp").publish(Vars::Scalar::F(21.0f), 1000);
 
-    f.run("get ext_temp");
-    MESSAGE("get ext_temp ->\n" << f.writer.text);
+    f.run("vars get ext_temp");
+    MESSAGE("vars get ext_temp ->\n" << f.writer.text);
     CHECK(f.writer.has("ext_temp = 21.0"));
     CHECK(f.writer.has(": MI"));                  // what kind of row...
     CHECK(f.writer.has("(input, direct)"));       // ...spelled out
@@ -1492,16 +1509,16 @@ TEST_CASE("shell get: the detail view, and what it adds when a row is forced") {
     CHECK(f.writer.has("Override value .............. : -"));   // nothing forced
 
     // Forced: both values kept apart, each with its own validity.
-    f.run("override ext_temp 35");
-    f.run("get ext_temp");
-    MESSAGE("get ext_temp (forced) ->\n" << f.writer.text);
+    f.run("overrides set ext_temp 35");
+    f.run("vars get ext_temp");
+    MESSAGE("vars get ext_temp (forced) ->\n" << f.writer.text);
     CHECK(f.writer.has("Raw value ................... : 21.0 C   (valid)"));
-    CHECK(f.writer.has("Override value .............. : 35.0 C   (valid)"));
+    CHECK(f.writer.has("Override value .............. : 35.0 C   (valid, unsaved)"));
 
     // ...and forcing the QUALITY shows on the value it belongs to.
-    f.run("override ext_temp 35 invalid");
-    f.run("get ext_temp");
-    CHECK(f.writer.has("Override value .............. : 35.0 C   (invalid)"));
+    f.run("overrides set ext_temp 35 invalid");
+    f.run("vars get ext_temp");
+    CHECK(f.writer.has("Override value .............. : 35.0 C   (invalid, unsaved)"));
 }
 
 }  // namespace shell

@@ -94,7 +94,8 @@ namespace Botanik { namespace Logs {
      *
      *  LOG_CONT_PREFIX sits under the TOPIC column, not under the message:
      *  store_wrapped() takes one prefix per entry while the message column is
-     *  topic-dependent, and widening it would cut the continuation budget. */
+     *  topic-dependent, and widening it would cut the continuation budget.
+     *  @{ */
     static constexpr const char* CONT_PREFIX     = "> ";
     static constexpr const char* LOG_CONT_PREFIX = "                        > ";
     /** @} */
