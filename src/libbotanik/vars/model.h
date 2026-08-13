@@ -1161,6 +1161,32 @@ namespace Botanik { namespace Vars {
          *  no name would write, and what a display marks. */
         uint16_t unsaved_count() const;
 
+        /** @brief Overrides in force but not yet saved - what `overrides save`
+         *  with no name would write. The counterpart of unsaved_count(), and
+         *  separate for the same reason the two flags are: an override and the
+         *  setting under it are separate facts with separate storage keys. */
+        uint16_t unsaved_override_count() const;
+
+        /** @name Making edits durable
+         *
+         *  Nothing an operator changes reaches flash on its own. An edit is LIVE
+         *  at once and DURABLE when it is saved, and the two are separate acts
+         *  (`params set` then `params save`).
+         *
+         *  That is what makes every misconfiguration recoverable by the same
+         *  move: a setting that can break the console it was typed on - the
+         *  rate, the make, the size - was never written, so a power cycle brings
+         *  the last saved one back. No per-setting timer, no confirmation
+         *  protocol, one rule for the whole table.
+         *
+         *  @warning The cost is a state that can lose work: edits sit unsaved
+         *  until somebody says otherwise. `unsaved_params()` is what the shell
+         *  reports so that state is never silent.
+         *  @{ */
+
+
+        /** @} */
+
         /** @brief Force @p h to @p text until override_clear(). T_STR is refused
          *  (a hostname is configuration, not a field signal); everything else,
          *  ROLE_OUTPUT included, is fair game whatever control authority says -

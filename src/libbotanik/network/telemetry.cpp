@@ -13,6 +13,7 @@
 #include "libbotanik/hal/platform.h"        // HAL::Clock::uptime_ms
 #include "libbotanik/scheduler/scheduler.h" // Scheduler::SchedulerContext
 #include "libbotanik/utils/text.h"          // Utils::format_float / format_int
+#include "libbotanik/vars/params.h"         // Vars::get_int - the mqtt_ cadence rows
 
 namespace Botanik { namespace Network {
 
@@ -69,8 +70,23 @@ namespace Botanik { namespace Network {
                 _emit("system", f.name, payload);
     }
 
+    uint32_t MqttSender::_period_ms() const {
+        // Read live off the bank rather than cached on the mqtt_ commit serial:
+        // this is a cadence and a flag, neither of which has anything to
+        // re-initialise when it moves, and the sender is already holding the
+        // bank to publish from. A change lands on the next sweep boundary.
+        const int32_t sec = Vars::get_int(_io, "mqtt_tlm_sec",
+                                (int32_t)(Config::MQTT_TELEMETRY_PERIOD_MS / 1000u));
+        return sec > 0 ? (uint32_t)sec * 1000u : 0u;
+    }
+
+    bool MqttSender::_retain() const {
+        return Vars::get_int(_io, "mqtt_retain",
+                             Config::MQTT_TELEMETRY_RETAIN ? 1 : 0) != 0;
+    }
+
     void MqttSender::on_service(uint64_t now_ms) {
-        const uint32_t period = Config::MQTT_TELEMETRY_PERIOD_MS;
+        const uint32_t period = _period_ms();
         if (period == 0) return;                       // telemetry disabled
         if (_mqtt == nullptr || !_mqtt->connected()) {
             _cursor = SWEEP_IDLE;                      // a sweep cannot outlive the link
@@ -131,7 +147,7 @@ namespace Botanik { namespace Network {
         if (n <= 0 || (size_t)n >= sizeof(topic)) return;
         // Best-effort: a publish that can't be sent now is dropped (the next
         // cycle re-sends the current value).
-        _mqtt->publish(topic, payload, Config::MQTT_TELEMETRY_RETAIN);
+        _mqtt->publish(topic, payload, _retain());
     }
 
 }}

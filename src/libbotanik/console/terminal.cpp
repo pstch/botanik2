@@ -37,6 +37,30 @@ namespace Botanik { namespace Terminal {
         for (uint16_t r = 0; r < GRID_ROWS; r++) _row_prio[r] = PRIO_STRUCT;
     }
 
+    bool AnsiTerminal::reconfigure(Ansi::TerminalType type, uint16_t cols, uint16_t rows) {
+        // Same clamp as the constructor's, so what the two accept cannot drift.
+        const uint16_t c = cols ? (cols < GRID_COLS ? cols : GRID_COLS) : 1;
+        const uint16_t r = rows ? (rows < GRID_ROWS ? rows : GRID_ROWS) : 1;
+        if (c == _cols && r == _rows && type == _type) return false;
+        const bool retyped = (type != _type);
+        _type = type;
+        _cols = c;
+        _rows = r;
+        // Priorities are per row and the page declares its own in focus(), which
+        // the caller's repaint runs; reset them so rows the old layout claimed do
+        // not keep a class the new one never gave them.
+        for (uint16_t i = 0; i < GRID_ROWS; i++) _row_prio[i] = PRIO_STRUCT;
+        // The handshake is a property of the make, so a swapped make needs it
+        // again - and it must precede the clear below, exactly as at bring-up.
+        if (retyped) setup_terminal();
+        // _idx() is _cols-relative, so every cell in both grids has just changed
+        // meaning. establish_screen() blanks the pair and puts the wire in the
+        // state that matches, which is the only honest thing to do with contents
+        // that now address the wrong columns.
+        establish_screen();
+        return true;
+    }
+
     void AnsiTerminal::set_row_priority(uint16_t top, uint16_t bottom, RowPriority prio) {
         for (uint16_t r = top; r <= bottom && r < GRID_ROWS; r++)
             _row_prio[r] = (uint8_t)prio;

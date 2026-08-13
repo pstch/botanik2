@@ -666,6 +666,62 @@ TEST_CASE("modbus fault: a refused write backs the block off, not the device") {
     CHECK(m.client.refusals() > 0);
 }
 
+
+TEST_CASE("modbus tuning: rtu_retries decides when a device counts as dead") {
+    // The point of the rtu_ group: a knob whose right value is a property of the
+    // cable run, moved without a build. Read live off the bound row, so this
+    // takes effect on the next miss with nothing to re-initialise.
+    LiveBus m;
+    const uint16_t w = m.write_block();
+    REQUIRE(w != RtuClient::NO_BLOCK);
+    const uint8_t peer = m.client.plan().block(w).peer;
+    Var retries = m.bank.var(m.bank.find("rtu_retries"));
+    REQUIRE(retries.meta()->name != nullptr);       // the library spliced the row
+    REQUIRE(retries.i() == Config::MODBUS_RETRIES); // ...at its factory value
+
+    // Patience raised well past what the run below will spend.
+    REQUIRE(m.bank.set(retries, "5") != SET_INVALID);
+
+    m.bus.set_fault(m.client.peer_unit(peer), Sim::FieldBus::FAULT_ABSENT);
+    m.client.reassert_outputs(peer);
+    REQUIRE(m.until([&] { return m.client.peer_misses(peer) >= 3; }));
+    INFO("3 misses, 5 retries allowed");
+    CHECK_FALSE(m.client.peer_dead(peer));
+    CHECK(m.client.dead_count() == 0);
+
+    SUBCASE("and lowering it declares the same device dead on the spot") {
+        // No new miss needed: the threshold is read where it is used, so the
+        // misses already counted are enough the moment the bar drops under them.
+        REQUIRE(m.bank.set(retries, "1") != SET_INVALID);
+        CHECK(m.client.peer_dead(peer));
+        // dead_count() is a PUBLISHED snapshot, refreshed when a transaction
+        // resolves rather than per beat, so it catches up on the next miss and
+        // not on the edit. Two different things, deliberately.
+        CHECK(m.until([&] { return m.client.dead_count() == 1; }));
+    }
+}
+
+TEST_CASE("modbus tuning: an absent rtu_ row leaves the Config default in force") {
+    // A site without the library splice must behave exactly as it did before the
+    // rows existed - _tune() falls back to the constant they default from.
+    LiveBus m;
+    const uint16_t w = m.write_block();
+    REQUIRE(w != RtuClient::NO_BLOCK);
+    const uint8_t peer = m.client.plan().block(w).peer;
+
+    // The row resolves here, so simulate its absence the only honest way: an
+    // override forcing it INVALID, which is what _tune() checks for.
+    Var retries = m.bank.var(m.bank.find("rtu_retries"));
+    m.bank.override_set(retries, retries.raw(), /*valid=*/false);
+    REQUIRE_FALSE(retries.valid());
+
+    m.bus.set_fault(m.client.peer_unit(peer), Sim::FieldBus::FAULT_ABSENT);
+    m.client.reassert_outputs(peer);
+    REQUIRE(m.until([&] { return m.client.peer_dead(peer); }));
+    INFO("dead at the Config threshold, not at a zero read off an invalid row");
+    CHECK(m.client.peer_misses(peer) > Config::MODBUS_RETRIES);
+}
+
 #endif // BOTANIK_FEATURE_MODBUS_RTU_SERVER && TARGET_SIMULATOR
 
 #endif // BOTANIK_FEATURE_MODBUS_RTU_CLIENT

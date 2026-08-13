@@ -68,9 +68,14 @@ namespace Botanik { namespace Config {
     BOTANIK_CFG(uint32_t, GROUP_BACKGROUND_MS);
 
     /** @brief Capacity of the scheduler's task table. Fixed, no allocation;
-     *  registrations past it are refused and counted, never silently dropped. */
+     *  registrations past it are refused and counted, never silently dropped.
+     *
+     *  The full gh_mlb41 profile registers 31, and a SITE registers its own
+     *  components and programs on top of that (BotanikFirmware::on_setup), so
+     *  the headroom is the point rather than slack. 80 bytes a slot: 48 costs
+     *  3840 bytes of the M7's RAM, against the ~1.3 KB the old 32 saved. */
 #ifndef BOTANIK_MAX_TASKS
-#  define BOTANIK_MAX_TASKS 32
+#  define BOTANIK_MAX_TASKS 48
 #endif
     BOTANIK_CFG(uint8_t, MAX_TASKS);
 

@@ -169,6 +169,56 @@ TEST_CASE("parse: a literal too big for the type is a range error, not a maximum
     CHECK(out.u == 12345u);
 }
 
+namespace {
+    /** @brief A deliberately GAPPED converter: the codes are not a run, which is
+     *  the whole reason an enum cannot be expressed as a band. */
+    const char* colour(uint64_t v) {
+        switch (v) {
+            case 1:  return "red";
+            case 4:  return "green";
+            case 16: return "blue";
+            default: return nullptr;
+        }
+    }
+}
+
+TEST_CASE("parse: a labelled enum answers to its words") {
+    Scalar out;
+    CHECK(parse_scalar(T_ENUM, "green", &out, &colour) == PARSE_OK);
+    CHECK(out.u == 4u);
+
+    SUBCASE("surrounding space is trimmed, trailing junk is not a match") {
+        CHECK(parse_scalar(T_ENUM, "  blue  ", &out, &colour) == PARSE_OK);
+        CHECK(out.u == 16u);
+        CHECK(parse_scalar(T_ENUM, "bluey", &out, &colour) != PARSE_OK);
+        // A prefix of a label is not that label, or "re" would set red.
+        CHECK(parse_scalar(T_ENUM, "re", &out, &colour) != PARSE_OK);
+    }
+
+    SUBCASE("a number still parses - it is what the store and Modbus write") {
+        CHECK(parse_scalar(T_ENUM, "16", &out, &colour) == PARSE_OK);
+        CHECK(out.u == 16u);
+    }
+
+    SUBCASE("but a number the converter cannot name is a range error") {
+        // The point of the whole exercise: 3 sits inside the type's range and
+        // between two valid codes, so nothing but membership rejects it.
+        CHECK(parse_scalar(T_ENUM, "3", &out, &colour) == PARSE_RANGE);
+        CHECK(parse_scalar(T_ENUM, "0", &out, &colour) == PARSE_RANGE);
+    }
+
+    SUBCASE("an unknown word is malformed, not a silent zero") {
+        CHECK(parse_scalar(T_ENUM, "mauve", &out, &colour) == PARSE_MALFORMED);
+    }
+
+    SUBCASE("with no converter it is a plain small unsigned") {
+        // T_ENUM without labels keeps the old behaviour: nothing to check
+        // membership against, so the type's own range is the only bound.
+        CHECK(parse_scalar(T_ENUM, "3", &out) == PARSE_OK);
+        CHECK(parse_scalar(T_ENUM, "300", &out) == PARSE_RANGE);
+    }
+}
+
 }  // namespace scalar
 
 // --------------------------------------------------------------------------
@@ -1228,6 +1278,212 @@ TEST_CASE("override: every release path also forgets the stored copy") {
     }
 }
 
+// Saving - an edit is LIVE when it is set and DURABLE when it is saved.
+
+namespace {
+    const Variable SAVED[] = {
+        P("p_a", T_U16, 10, 0, 1000, 0, "", 20, "", ""),
+        P("p_b", T_U16, 10, 0, 1000, 0, "", 21, "", ""),
+    };
+
+    struct SaveFx {
+        Value    vals[2]{};
+        uint16_t index[2]{};
+        Bank         bank;
+        KvParamStore store;
+        Params       params;
+        SaveFx() : params(&bank, &store, nullptr) {
+            VarTables t = {};
+            t.var = SAVED; t.val = vals; t.count = 2; t.index = index;
+            bank = Bank(t);
+            bank.init();
+            params = Params(&bank, &store, nullptr);
+        }
+        Var by(const char* n) { return bank.var(bank.find(n)); }
+    };
+}
+
+TEST_CASE("save: an edit is live at once and forgotten unless it is saved") {
+    StoreEnv env("/tmp/botanik_test_save1");
+    {
+        SaveFx f;
+        // SET_OK, not SET_NOT_PERSISTED: the EDIT took. NOT_PERSISTED means a
+        // store refused a write, which is a fault; no write was attempted.
+        CHECK(f.bank.set(f.by("p_a"), "300") == SET_OK);
+        INFO("live immediately - staging is about flash, not about RAM");
+        CHECK(f.by("p_a").i() == 300);
+        CHECK(f.by("p_a").param_unsaved());
+        CHECK(f.bank.unsaved_count() == 1);
+    }
+    {   // down and back
+        SaveFx f;
+        f.params.step(0);
+        CHECK(f.by("p_a").i() == 10);           // the factory default
+    }
+}
+
+TEST_CASE("save: save_params writes what is pending, and only that") {
+    StoreEnv env("/tmp/botanik_test_save2");
+    {
+        SaveFx f;
+        REQUIRE(f.bank.set(f.by("p_a"), "300") == SET_OK);
+        REQUIRE(f.bank.set(f.by("p_b"), "400") == SET_OK);
+        CHECK(f.bank.save_params() == 2);
+        INFO("saving clears the mark, so a second save has nothing to do");
+        CHECK(f.bank.unsaved_count() == 0);
+        CHECK(f.bank.save_params() == 0);
+        CHECK_FALSE(f.by("p_a").param_unsaved());
+    }
+    {
+        SaveFx f;
+        f.params.step(0);
+        CHECK(f.by("p_a").i() == 300);
+        CHECK(f.by("p_b").i() == 400);
+    }
+}
+
+TEST_CASE("save: a boot load is not an unsaved edit") {
+    // load_params() writes the slot directly. If it went through set() every
+    // boot would come up owing flash a copy of what it just read from flash.
+    StoreEnv env("/tmp/botanik_test_save3");
+    {
+        SaveFx f;
+        REQUIRE(f.bank.set(f.by("p_a"), "300") == SET_OK);
+        REQUIRE(f.bank.save_params() == 1);
+    }
+    {
+        SaveFx f;
+        f.params.step(0);
+        REQUIRE(f.by("p_a").i() == 300);
+        CHECK(f.bank.unsaved_count() == 0);
+        CHECK_FALSE(f.by("p_a").param_unsaved());
+    }
+}
+
+TEST_CASE("save: an override is live for this session and no longer") {
+    StoreEnv env("/tmp/botanik_test_save4");
+    {
+        SaveFx f;
+        REQUIRE(f.bank.override_set(f.by("p_a"), "77") == SET_OK);
+        CHECK(f.by("p_a").overridden());
+        CHECK(f.by("p_a").override_unsaved());
+        CHECK(f.bank.unsaved_override_count() == 1);
+    }
+    {   // an actuator driven by hand must not resurrect itself at the next boot
+        SaveFx f;
+        f.params.step(0);
+        (void)f.bank.load_overrides();
+        CHECK_FALSE(f.by("p_a").overridden());
+    }
+}
+
+TEST_CASE("save: an override that IS saved comes back, and clearing it kills it") {
+    StoreEnv env("/tmp/botanik_test_save5");
+    {
+        SaveFx f;
+        REQUIRE(f.bank.override_set(f.by("p_a"), "77") == SET_OK);
+        CHECK(f.bank.save_overrides() == 1);
+        CHECK(f.bank.unsaved_override_count() == 0);
+    }
+    {
+        SaveFx f;
+        f.params.step(0);
+        REQUIRE(f.bank.load_overrides() == 1);
+        REQUIRE(f.by("p_a").overridden());
+        // Releasing reaches the store at ONCE, unlike setting: an override that
+        // survived its own release would come back at the next boot, which is
+        // the hazard the safe state exists to prevent.
+        f.bank.override_clear(f.by("p_a"));
+    }
+    {
+        SaveFx f;
+        f.params.step(0);
+        CHECK(f.bank.load_overrides() == 0);
+        CHECK_FALSE(f.by("p_a").overridden());
+    }
+}
+
+// PE() - a parameter whose labels ARE its bound.
+
+namespace {
+    const char* mode_label(uint64_t v) {
+        switch (v) {
+            case 1:  return "off";
+            case 4:  return "auto";
+            case 16: return "manual";
+            default: return nullptr;
+        }
+    }
+
+    const Variable ENUMS[] = {
+        PE("p_mode", 4, &mode_label, 10, "operating mode", ""),
+    };
+
+    struct EnumFx {
+        Value    vals[1]{};
+        uint16_t index[1]{};
+        Bank     bank;
+        EnumFx() {
+            VarTables t = {};
+            t.var = ENUMS; t.val = vals; t.count = 1; t.index = index;
+            bank = Bank(t);
+            bank.init();
+        }
+        Var row() { return bank.var(bank.find("p_mode")); }
+        const char* shown() {
+            static char buf[32];
+            return var_format(bank, row(), buf, sizeof(buf));
+        }
+    };
+}
+
+TEST_CASE("enum param: it reads and writes as a word, and refuses a non-member") {
+    StoreEnv env("/tmp/botanik_test_enum");
+    EnumFx f;
+
+    INFO("the default renders as its label, not as 4");
+    CHECK(std::strcmp(f.shown(), "auto") == 0);
+
+    SUBCASE("a label sets it") {
+        CHECK(f.bank.set(f.row(), "manual") != SET_INVALID);
+        CHECK(f.row().i() == 16);
+        CHECK(std::strcmp(f.shown(), "manual") == 0);
+    }
+
+    SUBCASE("so does the code, which is what the store and a master write") {
+        CHECK(f.bank.set(f.row(), "1") != SET_INVALID);
+        CHECK(std::strcmp(f.shown(), "off") == 0);
+    }
+
+    SUBCASE("a code with no label is refused") {
+        // No band is declared, so nothing but membership stands between this
+        // and a stored value that renders as a bare number forever after.
+        CHECK(f.bank.set(f.row(), "3") == SET_INVALID);
+        CHECK(f.bank.set(f.row(), "0") == SET_INVALID);
+        CHECK(std::strcmp(f.shown(), "auto") == 0);      // unmoved
+    }
+
+    SUBCASE("an unknown word is refused") {
+        CHECK(f.bank.set(f.row(), "banana") == SET_INVALID);
+        CHECK(std::strcmp(f.shown(), "auto") == 0);
+    }
+
+    SUBCASE("the typed overload cannot get around the check") {
+        // set(Var, Scalar) never goes near a parser, so it needs the rule too.
+        CHECK(f.bank.set(f.row(), Scalar::U(3)) == SET_INVALID);
+        CHECK(f.bank.set(f.row(), Scalar::U(16)) != SET_INVALID);
+    }
+
+    SUBCASE("nor can an override, which skips the BAND but not the labels") {
+        // An override may push a reading past what is plausible; there is no
+        // equivalent freedom here, because a code outside the labels has no
+        // meaning to render or to act on.
+        CHECK(f.bank.override_set(f.row(), "3") == SET_INVALID);
+        CHECK(f.bank.override_set(f.row(), "manual") == SET_OK);
+        CHECK(std::strcmp(f.shown(), "manual") == 0);
+    }
+}
+
 }  // namespace params
 
 // --------------------------------------------------------------------------
@@ -1414,6 +1670,92 @@ TEST_CASE("retain: with no store at all, nothing pretends to persist") {
     a.init();
     CHECK(a.save_retained() == 0);
     CHECK(a.load_retained() == 0);
+}
+
+// The cadence is `sys_retain_sec` where the row exists and the Config default
+// where it does not; 0 turns it off. Params owns it, so these drive Params.
+namespace cadence {
+
+// Needs a ROLE_PARAM run for the cadence row plus a retained row to write. The
+// parameters come first, as everywhere else.
+const Variable g_cad[] = {
+    P ("sys_retain_sec", T_U32, 2, 0, 86400, 0, "sec", 974, "cadence", ""),
+    GR("total_litres",   T_U32, Scalar::U(0), 0, "L", "litres", ""),
+};
+const uint16_t CAD_COUNT = (uint16_t)(sizeof(g_cad) / sizeof(g_cad[0]));
+Value    g_cad_vals[CAD_COUNT];
+uint16_t g_cad_index[CAD_COUNT];
+
+VarTables cad_tables() {
+    VarTables t;
+    t.var   = g_cad;
+    t.val   = g_cad_vals;
+    t.count = CAD_COUNT;
+    t.index = g_cad_index;
+    t.pool  = nullptr;
+    t.pool_bytes = 0;
+    return t;
+}
+
+}  // namespace cadence
+
+TEST_CASE("retain: the cadence is the sys_retain_sec parameter") {
+    MemStore store;
+    VarTables t = cadence::cad_tables();
+    Bank a(t);
+    a.init();
+    Params p(&a, &store, nullptr);
+
+    a.var(a.find("total_litres")).set_i(1);
+
+    // The first step writes (nothing written yet); the 2 s band then holds off.
+    p.step(1000);
+    const uint32_t after_first = store.saves;
+    CHECK(after_first > 0);
+    p.step(2000);                                  // 1 s in: inside the band
+    CHECK(store.saves == after_first);
+    p.step(3001);                                  // past 2 s: due again
+    CHECK(store.saves > after_first);
+
+    SUBCASE("0 turns the cadence off entirely") {
+        REQUIRE(a.set(a.var(a.find("sys_retain_sec")), "0") != SET_INVALID);
+        const uint32_t before = store.saves;
+        for (uint64_t ms = 4000; ms < 400000; ms += 10000) p.step(ms);
+        INFO("no amount of elapsed time may trigger a write once it is off");
+        CHECK(store.saves == before);
+
+        // ...which is what makes the explicit save the whole mechanism there.
+        p.save_retained(500000);
+        CHECK(store.saves > before);
+    }
+
+    SUBCASE("an explicit save restarts the interval") {
+        p.step(10000);                             // due: writes, stamps 10 s
+        const uint32_t before = store.saves;
+        p.save_retained(11000);
+        CHECK(store.saves == before + 1);
+        // Without the restart this step is 2 s past the 10 s stamp and writes a
+        // second time for nothing - a flash erase the operator did not ask for.
+        p.step(12000);
+        CHECK(store.saves == before + 1);
+    }
+}
+
+TEST_CASE("retain: with no sys_retain_sec row the cadence is the Config default") {
+    MemStore store;
+    VarTables t = tables();          // the plain table: no parameters at all
+    Bank a(t);
+    a.init();
+    Params p(&a, &store, nullptr);
+    a.var(a.find("total_litres")).set_i(1);
+
+    p.step(1);
+    const uint32_t after_first = store.saves;
+    CHECK(after_first > 0);
+    p.step(Config::RETAIN_SAVE_MS - 1);
+    CHECK(store.saves == after_first);
+    p.step((uint64_t)Config::RETAIN_SAVE_MS + 2);
+    CHECK(store.saves > after_first);
 }
 
 }  // namespace retain

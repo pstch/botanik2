@@ -112,12 +112,35 @@ namespace Botanik { namespace Vars {
          *  access to the protected hook and stays beside the class. */
         static void _config_task(Component* c, const Tasks::Tick& t);
 
+    public:
+        /** @brief Write every retained row out NOW, whatever the cadence, and
+         *  restart the interval from this moment.
+         *
+         *  What the shell's `save` command calls. The cadence bounds how much
+         *  counting an unexpected power cut can cost; this is for when the cut
+         *  is not unexpected - before pulling a fuse, after a commissioning run,
+         *  or as the whole mechanism on a unit running `sys_retain_sec 0`.
+         *
+         *  @return rows written; 0 when there are none or there is no store. */
+        uint16_t save_retained(uint64_t now_ms) {
+            if (_io == nullptr) return 0;
+            _last_retain_ms = now_ms;
+            return _io->save_retained();
+        }
+
     protected:
         /** @brief Load every parameter from the store. */
         void on_setup(uint64_t now_ms) override;
         /** @brief Write the retained rows out, at most once per
-         *  Config::RETAIN_SAVE_MS. Nothing else per beat. */
+         *  `sys_retain_sec` (Config::RETAIN_SAVE_MS is its default). Nothing
+         *  else per beat. */
         void on_config(uint64_t now_ms) override;
+
+    private:
+        /** @brief The retain cadence in ms: `sys_retain_sec` if the row is
+         *  there, else Config::RETAIN_SAVE_MS. 0 means "only on the way down,
+         *  and on `save`". */
+        uint32_t _retain_ms() const;
     };
 
     /** @name Read parameters by name (null-safe)

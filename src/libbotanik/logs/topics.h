@@ -26,6 +26,28 @@ namespace Botanik { namespace Logs {
         LOG_CRITICAL = 32,
     };
 
+    /** @brief A level's lowercase word, or NULL for anything that is not one.
+     *
+     *  The T_ENUM converter behind the `sys_log_level` parameter (declared with
+     *  PE() in library_vars.h), so it is what the operator both reads and types.
+     *  NULL is load-bearing there: it is how the variable model knows 3 is not a
+     *  level, since these are bit values and not a run.
+     *
+     *  Beside the enum rather than in logs/format.h with the display helpers: a
+     *  site's variable table pulls this in, and that table has no business
+     *  seeing the line formatter. */
+    inline const char* log_level_label(uint64_t v) {
+        switch (v) {
+            case LOG_DEBUG:    return "debug";
+            case LOG_INFO:     return "info";
+            case LOG_NOTICE:   return "notice";
+            case LOG_WARNING:  return "warning";
+            case LOG_ERROR:    return "error";
+            case LOG_CRITICAL: return "critical";
+            default:           return nullptr;
+        }
+    }
+
     // Listed in ascending value order; the enum must stay dense from 0, since
     // LOG_TOPIC_COUNT bounds the logger's per-topic bucket array.
     /** @brief Log topic / category. */

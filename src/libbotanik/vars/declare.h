@@ -135,6 +135,29 @@ namespace Botanik { namespace Vars {
                          type, ROLE_PARAM, SCOPE_P, digits, F_BOUNDED, {} };
     }
 
+    /** @brief An enumerated **parameter**: a small code the operator reads and
+     *  writes as a WORD.
+     *
+     *  @p str is the converter, and it is the row's whole vocabulary: it renders
+     *  a code as its label (`get` and the PARAMS page), it parses a label back
+     *  (`set <row> warning`), and a code it answers null for is REFUSED. So the
+     *  labels are the bound, and there is no band to declare - which is the
+     *  point, since a set of codes is not an interval and a min/max would admit
+     *  every gap between them.
+     *
+     *  Use it wherever a number would need its meaning written in the notes for
+     *  an operator to act on it; P() with a band stays right for a real quantity.
+     *
+     *  @warning The codes are what sits in the store and in an external master's
+     *  register, so a converter may gain labels but must never renumber them. */
+    constexpr Variable PE(const char* name, uint64_t def, const char* (*str)(uint64_t),
+                          uint16_t reg, const char* desc, const char* notes) {
+        return Variable{ Scalar::U(def), name, "", desc, notes,
+                         Payload(Scalar::U(0), Scalar::U(0)),
+                         { XP_NONE, T_ENUM, 0, 0, reg, 1, 1.0f, 0.0f }, 0, 0, str,
+                         T_ENUM, ROLE_PARAM, SCOPE_P, 0, 0, {} };
+    }
+
     /** @brief A text **parameter**: its own factory, since bounds mean nothing
      *  for a string and a pool slot nothing for a number.
      *

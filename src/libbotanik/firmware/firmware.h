@@ -191,14 +191,33 @@ namespace Botanik {
         uint32_t                      _hw_watchdog_ms = Config::HW_WATCHDOG_MS;
 
 #if BOTANIK_FEATURE_CONSOLE
-        /** @brief Terminal geometry, fixed at construction (the AnsiTerminal
-         *  takes it by value and has no resize). From the config: it is a
-         *  property of the installation, not of the target. */
+        /** @brief What the console is built at, and what the `term_` group then
+         *  moves it to. These are the CONSTRUCTION values - the Config defaults,
+         *  since the parameter store cannot be read before the port is open -
+         *  and _apply_console_config() applies the stored ones once setup() has
+         *  loaded them. */
         uint16_t                      _console_cols = Config::CONSOLE_COLS;
         uint16_t                      _console_rows = Config::CONSOLE_ROWS;
+        uint8_t                       _console_type = Config::TERMINAL_TYPE;
         static_assert(Config::CONSOLE_COLS <= Config::TERMINAL_MAX_COLS &&
                       Config::CONSOLE_ROWS <= Config::TERMINAL_MAX_ROWS,
                       "console geometry exceeds the screen back-buffer");
+        /** @brief Last `term_serial` applied, so the CONFIG task reconfigures on
+         *  the COMMIT and not on each of the three edits behind it. 0 is not a
+         *  valid serial (the row's default is 1), so the first pass always
+         *  applies - which is what picks the stored geometry up at bring-up. */
+        uint32_t                      _term_serial = 0;
+
+        /** @brief One console configuration, as a unit. Applied by
+         *  _console_apply(); the four move together because a terminal swap is
+         *  usually all of them. */
+        struct ConsoleSettings {
+            uint32_t baud;
+            uint32_t serial;
+            uint16_t cols;
+            uint16_t rows;
+            uint8_t  type;
+        };
 #endif
 
         /** @} */
@@ -453,6 +472,15 @@ namespace Botanik {
          *  the hatch for library-level code that genuinely fits none of those. */
         virtual void on_loop(uint64_t now_ms) { (void)now_ms; }
 
+        /** @name Config appliers, as task handlers
+         *
+         *  _apply_console_config() and _apply_log_config() carry arguments the
+         *  registry knows nothing about, so each gets a one-line wrapper of the
+         *  shape _hook<> dispatches. @{ */
+        void _console_cfg(uint64_t now_ms) { (void)now_ms; _apply_console_config(); }
+        void _log_cfg(uint64_t now_ms)     { (void)now_ms; _apply_log_config(); }
+        /** @} */
+
         /** @brief Site post-wiring: where a site registers its OWN components
          *  and control programs, and wires up anything else it needs.
          *
@@ -563,20 +591,63 @@ namespace Botanik {
          *  cost, and an unnamed row is not a diagnosis. */
         void _register_tasks();
 
-        /** @brief Re-apply either UART rate when its parameter has moved.
+        /** @brief Re-apply the MONITOR rate when its parameter has moved.
          *  Registered as the "serial_cfg" task, so it runs on the CONFIG phase.
          *
-         *  Edge-triggered against what is actually running, so the steady case
-         *  is two integer compares and no device call. `begin()` on an
-         *  already-open port is a reconfigure, not a reopen. Not gated on a
-         *  commit serial like the network group: a baud rate is one number,
-         *  coherent on its own.
+         *  Edge-triggered against what is actually running, so the steady case is
+         *  one integer compare and no device call. `begin()` on an already-open
+         *  port is a reconfigure, not a reopen.
          *
-         *  @warning Retuning the console drops the terminal on the other end
-         *  mid-sentence: it is at the old rate. Inherent, and the parameter's
-         *  own notes say so. The confirming log line lands at the NEW rate, so
-         *  it is the first thing read after reconnecting. */
+         *  The monitor's rate applies the moment it moves, where the CONSOLE's
+         *  waits for the `term_` commit - see _apply_console_config(). The
+         *  asymmetry is the point: the monitor is a one-way log stream, so
+         *  getting its rate wrong costs the log and nothing else.
+         *
+         *  Takes the beat's now_ms like every task handler, and ignores it. */
         void _apply_serial_config(uint64_t now_ms = 0);
+
+#if BOTANIK_FEATURE_CONSOLE
+        /** @brief Apply the console's configuration - its rate, its make and its
+         *  size. Registered as the "console_cfg" task.
+         *
+         *  The `term_` rows are gated on their commit serial, which the baud does
+         *  not need: those three describe ONE physical terminal, so applying them
+         *  an edit at a time walks the screen through sizes that match nothing on
+         *  the wire. Either a commit or a baud move applies the lot.
+         *
+         *  @p announce is false for the one call in setup(): applying what the
+         *  store already holds is not a change worth a line, and it is the call
+         *  that always has something to do.
+         *
+         *  Nothing here is made durable, exactly like every other edit - which is
+         *  the whole recovery story for a console nobody can read: it never
+         *  reached flash, so a power cycle brings the last saved one back.
+         *
+         *  The firmware drives this rather than the Console watching the bank
+         *  itself: the Console holds no SystemContext and has no route to a
+         *  variable, which is deliberate (a terminal is for drawing). So the
+         *  reader that has the bank pushes. */
+        void _apply_console_config(bool announce = true);
+
+        /** @brief Put the console device on @p s and record it as what is
+         *  running. */
+        void _console_apply(const ConsoleSettings& s);
+#endif
+
+#if BOTANIK_FEATURE_LOGGING
+        /** @brief Apply `sys_log_level` to the live logger. Registered as the
+         *  "log_cfg" task.
+         *
+         *  The logger keeps its own copy of the floor (it is read on every
+         *  _emit(), before any formatting), so unlike the other sys_ rows this
+         *  one needs pushing. Edge-triggered against what is running, so the
+         *  steady case is a read and a compare.
+         *
+         *  This is the ONLY thing that moves the logger's floor, so a level set
+         *  from the shell, the PARAMS page or a Modbus master all arrive the
+         *  same way: through the parameter, and then through here. */
+        void _apply_log_config();
+#endif
 
         /** @brief Track the health verdict against control authority. Registered
          *  as the "control_latch" task.

@@ -333,7 +333,13 @@ namespace Botanik { namespace Vars {
         SetResult parse_for(const Variable& d, const char* text, bool bounded,
                             Scalar* out) {
             const NumBand band = num_band(d);
-            if (parse_scalar(d.type, text, out) != PARSE_OK) return SET_INVALID;
+            // d.str goes in so a labelled enum answers to its own words, and so
+            // a code it cannot name is refused. That refusal is NOT the band and
+            // so is not gated on `bounded`: an override may push a reading past
+            // what is plausible, but there is no such thing as an enum value
+            // outside its labels - it would render as a bare number and mean
+            // nothing to anything reading it.
+            if (parse_scalar(d.type, text, out, d.str) != PARSE_OK) return SET_INVALID;
             if (bounded && (d.flags & F_BOUNDED) != 0 &&
                 !in_range(d.type, *out, band.min, band.max)) return SET_INVALID;
             return SET_OK;
@@ -358,6 +364,11 @@ namespace Botanik { namespace Vars {
         // write; the text overload is the only way in.
         if (d->type == T_STR) return SET_INVALID;
         if (editable_slot(_tables, d) == nullptr) return SET_INVALID;
+        // Same rule the text path gets through parse_for(): a labelled enum's
+        // codes are its labels, and this overload never goes near a parser, so
+        // the check has to be here too or a typed write is the way around it.
+        if (d->type == T_ENUM && d->str != nullptr && d->str(v.u) == nullptr)
+            return SET_INVALID;
         const NumBand band = num_band(*d);
         if ((d->flags & F_BOUNDED) != 0 && !in_range(d->type, v, band.min, band.max))
             return SET_INVALID;
@@ -378,8 +389,11 @@ namespace Botanik { namespace Vars {
         const Variable* d = h.meta();
         Value* slot = editable_slot(_tables, d);
         if (slot == nullptr) return SET_INVALID;
-        slot->v    = v;
-        slot->qual = Q_GOOD;
+        slot->v     = v;
+        slot->qual  = Q_GOOD;
+        // Live now, durable when somebody saves. See the header: it is the one
+        // rule that makes a setting able to break its own console recoverable.
+        slot->vflags = (uint8_t)(slot->vflags | VF_PARAM_UNSAVED);
         return SET_OK;
     }
 
@@ -402,6 +416,13 @@ namespace Botanik { namespace Vars {
         }
         if (refused != nullptr) *refused = bad;
         return saved;
+    }
+
+    uint16_t Bank::unsaved_override_count() const {
+        uint16_t n = 0;
+        for (uint16_t i = 0; i < _tables.count; i++)
+            if ((_tables.val[i].vflags & VF_OVR_UNSAVED) != 0) n++;
+        return n;
     }
 
     uint16_t Bank::unsaved_count() const {

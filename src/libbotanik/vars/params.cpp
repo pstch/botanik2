@@ -169,14 +169,27 @@ namespace Botanik { namespace Vars {
                             (unsigned)r);
     }
 
+    uint32_t Params::_retain_ms() const {
+        // Read live rather than cached on a commit serial: it is one lookup on
+        // the slow group, and a cadence has nothing to re-initialise when it
+        // moves - the next due time is computed from it on the spot.
+        const int32_t sec = get_int(_io, "sys_retain_sec",
+                                    (int32_t)(Config::RETAIN_SAVE_MS / 1000u));
+        return sec > 0 ? (uint32_t)sec * 1000u : 0u;
+    }
+
     void Params::on_config(uint64_t now_ms) {
-        if (_io == nullptr || Config::RETAIN_SAVE_MS == 0) return;
+        if (_io == nullptr) return;
+        const uint32_t every = _retain_ms();
+        // 0 turns the cadence off: the way down and the `save` command are then
+        // the whole mechanism, which is the right trade for a unit whose flash
+        // is precious and whose stops are all deliberate.
+        if (every == 0) return;
         // A cadence, not a write-through: a flash erase per beat would wear the
         // part out in days. The loss is bounded at one interval of counting on
         // an unexpected power cut; a deliberate stop loses nothing, the shutdown
         // path calling save_retained() itself.
-        if (_last_retain_ms != 0 &&
-            (now_ms - _last_retain_ms) < Config::RETAIN_SAVE_MS) return;
+        if (_last_retain_ms != 0 && (now_ms - _last_retain_ms) < every) return;
         _last_retain_ms = now_ms;
         (void)_io->save_retained();
     }

@@ -169,11 +169,16 @@ The sections below follow the header's own order.
 
 ### Health and alarms
 
+The three thresholds are **runtime parameters** (`sys_cpu_load_pct`,
+`sys_jitter_pct`, `sys_stack_pct`), read live each beat: what counts as too much
+load is a property of the installation, and the number worth moving is the one a
+unit is nuisance-alarming on. The macros are their factory values.
+
 | Macro | Default | |
 |---|---|---|
-| `ALARM_CPU_LOAD_PCT` | 50 | `CPU_LOAD` alarm threshold |
-| `ALARM_CPU_JITTER_PCT` | 50 | `CPU_JITT` alarm threshold. Equal to the load one today, but they threshold different quantities |
-| `ALARM_STACK_PCT` | 80 | `STACK` alarm threshold |
+| `ALARM_CPU_LOAD_PCT` | 50 | factory default for `sys_cpu_load_pct`; the `CPU_LOAD` threshold |
+| `ALARM_CPU_JITTER_PCT` | 50 | factory default for `sys_jitter_pct`. Equal to the load one today, but they threshold different quantities, so they stay two knobs |
+| `ALARM_STACK_PCT` | 80 | factory default for `sys_stack_pct`; the `STACK` threshold |
 | `ALARM_EVENT_HOLD_MS` | 300000 | how long an event-style alarm stays active |
 | `HEALTH_RESET_WINDOW_MS` | 300000 | how long after boot `SYS_RST` stays asserted |
 | `ALARM_NOTIFIERS_MAX` | 4 | |
@@ -185,14 +190,15 @@ The sections below follow the header's own order.
 | Macro | Default | |
 |---|---|---|
 | `HOME_FIELDS_MAX` | 22 | home fields (3 columns x 8, minus the uptime cells) |
-| `VAR_GROUPS_MAX` | 16 | distinct variable groups a site may have. A group is a name prefix, so this bounds how many domains one table spans; past it `var_group()` answers `?` |
+| `VAR_GROUPS_MAX` | 24 | distinct variable groups a site may have. A group is a name prefix, so this bounds how many domains one table spans; past it `var_group()` answers `?`. The pool covers the WHOLE table, so the library's eight config groups (`serial`, `net`, `ntp`, `mqtt`, `geo`, `mb`, `term`, `sys`) count against it - `gh_mlb41` reaches 15 |
 | `VAR_GROUP_NAME_LEN` | 16 | bytes one interned group name may take, NUL included |
+| `RETAIN_SAVE_MS` | 300000 | factory default for `sys_retain_sec` (in SECONDS there): how often the `F_RETAIN` rows are written to flash. A wear-versus-loss dial. 0 leaves only the save on the way down and the `save` command |
 
 ### Logging
 
 | Macro | Default | |
 |---|---|---|
-| `LOG_MIN_LEVEL` | 2 (info) | the master log floor. SIMULATOR builds force it to 1 (debug) from `CMakeLists.txt`, so the sim never shows this default |
+| `LOG_MIN_LEVEL` | 2 (info) | factory default for `sys_log_level`, which IS the master floor. A `T_ENUM` row (declared with `PE()`), so it is read and written as a word and a code with no label is refused outright. SIMULATOR builds force this to 1 (debug) from `CMakeLists.txt`, so the sim never shows this default |
 | `LOG_MESSAGE_LEN` | 256 | the raw message, before formatting |
 | `LOG_FORMATTED_LEN` | 320 | the formatted line. A `static_assert` keeps it at least `LOG_MESSAGE_LEN + 64`, so a full-length message does not lose its tail to the timestamp/level/topic prefix |
 | `LOG_WRITERS_MAX` | 8 | |
@@ -249,9 +255,9 @@ Broker host, port and keepalive are runtime parameters (`mqtt_host`, `mqtt_port`
 | `MQTT_TOPIC_LEN` | 96 | topic buffer shared by all three publishers, so a long `MQTT_TOPIC_PREFIX` truncates the same way everywhere |
 | `MQTT_PAYLOAD_LEN` | 64 | caps a published telemetry value's formatted width |
 | `MQTT_RX_PER_STEP` | 8 | socket reads drained per activation, the RX-side twin of `MQTT_TELEMETRY_PER_STEP` |
-| `MQTT_TELEMETRY_PERIOD_MS` | 30000 | 0 disables telemetry |
+| `MQTT_TELEMETRY_PERIOD_MS` | 30000 | factory default for `mqtt_tlm_sec` (in SECONDS there); 0 disables telemetry |
 | `MQTT_TELEMETRY_PER_STEP` | 8 | fields published per step, so one cycle cannot eat a beat |
-| `MQTT_TELEMETRY_RETAIN` | 1 | @warning an invalid reading is skipped rather than published, and there is no last will, so the broker keeps serving the last good value of a dead sensor. Turn it off where "current" must be distinguishable from "last seen" |
+| `MQTT_TELEMETRY_RETAIN` | 1 | factory default for `mqtt_retain`. @warning an invalid reading is skipped rather than published, and there is no last will, so the broker keeps serving the last good value of a dead sensor. Turn it off where "current" must be distinguishable from "last seen" |
 | `MQTT_TELEMETRY_TOPIC` / `MQTT_LOG_TOPIC` / `MQTT_ALARM_TOPIC` | `"status"` / `"logs"` / `"alarms"` | the path schema under `MQTT_TOPIC_PREFIX`. Changing one moves every subscriber |
 | `MQTT_LOG_MIN_LEVEL` | 1 (debug) | the MQTT sink's own threshold; DEBUG, so the broker carries everything the logger does |
 
@@ -263,11 +269,27 @@ Broker host, port and keepalive are runtime parameters (`mqtt_host`, `mqtt_port`
 
 ### Terminal and console
 
+Which terminal is on the wire and how big it is are **runtime parameters**
+(`term_type`, `term_cols`, `term_rows`), so swapping a VT102 for a Minitel, or
+an 80x24 for a 132x32, needs no firmware build. The three below are their
+factory values: what the console is CONSTRUCTED at, since the parameter store
+cannot be read before the port is open, and what a wiped store comes back to.
+
+They are staged behind `term_serial`, unlike `serial_console_baud`: the three
+describe ONE physical terminal, and applying them one edit at a time walks the
+screen through geometries that match nothing on the wire.
+
+Nothing special guards them, and nothing needs to: like every parameter, an edit
+is live when it is set and durable when it is saved, so a console nobody can read
+was never written and a power cycle brings the last saved one back. The bands
+(`EDITOR_MIN_COLS`..`TERMINAL_MAX_COLS`, 12..`TERMINAL_MAX_ROWS`) bound what a
+commit may ask for. See @ref user_console.
+
 | Macro | Default | |
 |---|---|---|
-| `TERMINAL_TYPE` | 1 | 0 = VT100, 1 = VT102, 2 = Minitel 1B, 3 = Minitel 2. A plain integer, because this header is included everywhere and must not depend on the console |
-| `CONSOLE_COLS` / `CONSOLE_ROWS` | 80 / 24 | geometry of the terminal on the wire. Fixed at construction, bounded by the two below |
-| `TERMINAL_MAX_COLS` / `_ROWS` | 132 / 32 | largest terminal supported. They size the screen back-buffer (two cell grids, so 2 x their product in RAM) and clamp `CONSOLE_COLS` / `_ROWS` |
+| `TERMINAL_TYPE` | 1 | factory default for `term_type`. 0 = VT100, 1 = VT102, 2 = Minitel 1B, 3 = Minitel 2. A plain integer, because this header is included everywhere and must not depend on the console |
+| `CONSOLE_COLS` / `CONSOLE_ROWS` | 80 / 24 | factory defaults for `term_cols` / `term_rows` |
+| `TERMINAL_MAX_COLS` / `_ROWS` | 132 / 32 | largest terminal supported. They size the screen back-buffer (two cell grids, so 2 x their product in RAM) and clamp both the construction geometry and anything the `term_` rows ask for |
 | `CONSOLE_PAGES_MAX` | 10 | pages the Console multiplexes, at the Alt+`<digit>` ceiling. The full page set is 8, and registration past the cap is refused **silently**, so the headroom is what lets a site splice its own page in |
 
 ### Terminal input decoding
@@ -340,19 +362,35 @@ The line, and what the master does when a device stops answering. The bus
 arithmetic these sit on is worked out in `docs/design/modbus-budget.md`; what
 happens under fault is `docs/design/modbus-resilience.md`.
 
+Six are **runtime parameters** (the `rtu_` group): `rtu_timeout_ms`,
+`rtu_retries`, `rtu_backoff_ms`, `rtu_backoff_max_ms`, `rtu_write_min_ms` and
+`rtu_rewrite_ms`. Those are the ones an INSTALLATION varies - a cable run, a
+device mix, a slave-side failsafe somebody else configured - and each is read
+where it is used, so a change lands on the next transaction and the group needs
+no commit serial. The macros below are their factory values.
+
+The rest stay constants, and `modbus/rtu/params.h` says why: anything sizing an
+array cannot move at all, `MODBUS_GAP_MS` is the protocol's own 3.5-character
+silence (and `DeviceModel::min_gap_ms` already overrides it per model), and
+`MODBUS_BAUD` / `_TURNAROUND_MS` / `_BLOCK_STAGGER_MS` feed `Plan::plan()`,
+which runs once at bring-up. The last three were considered and **decided
+against**: the line rate is settled when the segment is wired, and re-planning a
+running bus to change it costs a reboot's worth of disruption for something a
+reboot already does.
+
 | Macro | Default | |
 |---|---|---|
 | `MODBUS_BAUD` | 19200 | carries the reference plant at about a fifth of the bus and survives long cable runs. 38400 is the first step up |
 | `MODBUS_TURNAROUND_MS` | 10 | what the PLANNER costs a transaction with, not a timeout. It dominates everything and the link speed does not touch it, so measure it rather than trusting it |
-| `MODBUS_TIMEOUT_MS` | 300 | how long a slave has to answer. A device slower than this is indistinguishable from a dead one unless its model says otherwise (`DeviceModel::timeout_ms`) |
-| `MODBUS_RETRIES` | 1 | misses before a device is backed off |
+| `MODBUS_TIMEOUT_MS` | 300 | factory default for `rtu_timeout_ms`: how long a slave has to answer. A device slower than this is indistinguishable from a dead one unless its model says otherwise (`DeviceModel::timeout_ms`) |
+| `MODBUS_RETRIES` | 1 | factory default for `rtu_retries`: misses before a device is backed off |
 | `MODBUS_RETRY_DELAY_MS` | 500 | caps how long the retry waits. Without it a read's retry comes round on its own poll period, so declaring a device dead cost two of them: 2 s on the 1 s rung but two **minutes** on the 60 s one |
-| `MODBUS_BACKOFF_MS` | 1000 | first probe interval after a device is declared down, doubling |
-| `MODBUS_BACKOFF_MAX_MS` | 60000 | the ceiling on that. Affordable only because a probe can no longer pre-empt live traffic |
+| `MODBUS_BACKOFF_MS` | 1000 | factory default for `rtu_backoff_ms`: first probe interval after a device is declared down, doubling |
+| `MODBUS_BACKOFF_MAX_MS` | 60000 | factory default for `rtu_backoff_max_ms`: the ceiling on that. Affordable only because a probe can no longer pre-empt live traffic |
 | `MODBUS_PROBE_SPACING_MS` | 1500 | live traffic owed between two unanswered transactions. With the timeout it fixes the share of the bus devices that are not answering can take, at `timeout/(timeout + spacing)` = 17 %, **independent of how many are down**. Measured in time and not in transactions: a probe costs a full timeout and a live two-register read costs 22 ms, so "one per four transactions" would be 77 % of the bus |
-| `MODBUS_WRITE_MIN_MS` | 200 | shortest interval between two writes to one block, so a chattering demand cannot monopolise the bus |
+| `MODBUS_WRITE_MIN_MS` | 200 | factory default for `rtu_write_min_ms`: shortest interval between two writes to one block, so a chattering demand cannot monopolise the bus |
 | `MODBUS_WRITE_DEADLINE_MS` | 500 | how long a demand that has moved may sit behind reads. A **denominator**, not a throttle: every block is ranked on how far it is through the lateness it is allowed, and this is a write's share of that, so shorter means higher priority against the read rungs and not a faster retry. The one value here with a plant consequence rather than a bus one |
-| `MODBUS_REWRITE_MS` | 5000 | unconditional re-drive: it re-drives a slave that rebooted, and is the keepalive that slave's own failsafe timer watches for. **Configure that failsafe** - it is the only mechanism that still works when the master is the thing that failed |
+| `MODBUS_REWRITE_MS` | 5000 | factory default for `rtu_rewrite_ms`: unconditional re-drive: it re-drives a slave that rebooted, and is the keepalive that slave's own failsafe timer watches for. **Configure that failsafe** - it is the only mechanism that still works when the master is the thing that failed |
 | `MODBUS_REFUSAL_MAX_MS` | 60000 | ceiling on a refused write block's own backoff. Per block and not per device: an exception says the register map is wrong, not that the box is gone, so its reads keep their rates |
 | `MODBUS_GAP_MS` | 3 | inter-frame silence, raised per device by `DeviceModel::min_gap_ms` |
 

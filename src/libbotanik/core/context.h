@@ -13,6 +13,7 @@
 namespace Botanik { namespace Scheduler { struct SchedulerContext;  } }
 namespace Botanik { namespace Tasks     {  class Registry;          } }
 namespace Botanik { namespace Vars      {  class Bank;              } }
+namespace Botanik { namespace Vars      {  class Params;            } }
 
 
 #if BOTANIK_FEATURE_NETWORK
@@ -54,6 +55,12 @@ namespace Botanik {
          *  it. Consumers reach it here, so there is one wiring point rather than
          *  one per consumer. */
         Vars::Bank*                    vars      = nullptr;
+
+        /** @brief The parameter surface over those variables. The bank above is
+         *  what reads and writes a row; this owns the things that are true of
+         *  the BLOCK - the boot load, and the retained-value save cadence that
+         *  the `save` command restarts. Non-const for that reason. */
+        Vars::Params*                  params    = nullptr;
 
 
 #if BOTANIK_FEATURE_NETWORK

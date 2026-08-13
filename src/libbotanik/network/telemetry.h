@@ -104,6 +104,13 @@ namespace Botanik { namespace Network {
         void _publish_scalars();
         /** @brief Whether a sweep is mid-flight. Derived, not stored. */
         bool _sweeping() const { return _cursor != SWEEP_IDLE; }
+        /** @brief The live publish cadence in ms, from `mqtt_tlm_sec`
+         *  (Config::MQTT_TELEMETRY_PERIOD_MS is its factory default). 0
+         *  disables telemetry. */
+        uint32_t _period_ms() const;
+        /** @brief Whether to publish retained, from `mqtt_retain`. Read per
+         *  publish - one indexed load against a socket write. */
+        bool _retain() const;
         /** @brief Build the field topic ("<prefix>/<root>[/<group>]/<name>") and
          *  publish @p payload (best-effort). */
         void _emit(const char* group, const char* name, const char* payload);

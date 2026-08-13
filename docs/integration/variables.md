@@ -21,7 +21,7 @@ The role is what drives behaviour:
 | `ROLE_INPUT` | goes invalid once `timeout_ms` passes with no refresh |
 | `ROLE_OUTPUT` | driven to `def` when control authority is withdrawn |
 | `ROLE_COMPUTED` | never expires, never swept |
-| `ROLE_PARAM` | persisted, editable, always valid |
+| `ROLE_PARAM` | editable and persistable, always valid |
 
 The scope drives nothing. It is what a table **filters and iterates on** ("every
 alarm", "every relay"), and it is declared rather than reconstructed from the other
@@ -31,7 +31,7 @@ to agree.
 | Scope | Row |
 |---|---|
 | `A` | alarm: the boolean an `AlarmCondition` reads |
-| `P` | parameter: persisted, editable |
+| `P` | parameter: editable, saved on demand. Written `P` (numeric, banded), `PS` (text) or `PE` (enumerated - its labels are its bound) |
 | `G` | computed value, HMI only - rename it freely |
 | `SV` | status value, **published** over MQTT and the Modbus TCP slave, so its name is an external contract |
 | `MI` / `MO` | direct input / output: the register maps 1:1, no conversion |
@@ -55,6 +55,8 @@ const Variable g_vars[] = {
     P ("ntp_poll_sec", T_U32, 3600, 10, 86400, 0, "sec", 10,
                      "NTP poll interval, in seconds", ""),
     PS("ntp_srv1",   DEF_NTP_SRV1, STR_CAP, STR_HOST, 11, "NTP server 1", ""),
+    PE("sys_log_level", 1, &Logs::log_level_label, 973,
+                     "lowest level the logger forwards", ""),
     MI("grid_L1_V",  T_F32, 5, 3, 0, 2, SF(0.0f), SF(500.0f), SF(0.0f), 5000, 1,
                      "V", "L1 phase voltage", ""),
     A ("alarm_too_hot", "TOO_HOT", 2, 2, 0, 0, 10,
@@ -68,6 +70,15 @@ Every factory ends with `desc` and `notes`, and `notes` is never optional: `""` 
 "nothing more to add" in the same shape as a real note. `SU`/`SI`/`SF`/`SB` build the
 typed `Scalar` - a bare literal cannot, since the union takes `uint64`/`int64`/`float`/
 `const char*` equally well, and `Scalar(int)` is deleted so the error names itself.
+
+@note **`PE()` has no band**, and that is the point. Its converter is the row's
+whole vocabulary: it renders a code as a word, parses a word back (`params set
+sys_log_level warning`), and a code it cannot name is REFUSED - by `set`, by the
+typed overload, and by `override`, which skips a band but not this. A set of
+codes is not an interval, so a `min`/`max` would admit every gap between them.
+`get` prints the accepted words on its `Range` line, so the vocabulary is never
+only in the notes. The codes are what reach the store and an external master, so
+a converter may gain labels but must never renumber them.
 
 @note **`def` does three jobs**, which is why every factory takes one: an input's
 substitute when the reading is invalid, an output's **safe state** when control is
@@ -92,7 +103,7 @@ in the tail hole rather than buying four bytes of padding.
 | `str` | `const char* (*)(uint64_t)` | `T_ENUM` renderer, null for a plain number |
 | `type`, `role`, `scope` | enums | |
 | `digits` | `uint8_t` | `T_F32` display decimals |
-| `flags` | `uint8_t` | `F_INVERT`, `F_BOUNDED`, `F_RDONLY` |
+| `flags` | `uint8_t` | `F_INVERT`, `F_BOUNDED`, `F_RDONLY`, `F_RETAIN` |
 
 `Binding::wire` is the type **on the wire**, deliberately distinct from the variable's
 own `type`: for an `AI`/`AO` row the driver computes `value = wire * scale + offset`,
@@ -238,17 +249,18 @@ An invalid variable reads as its declared `def`.
 what consumers reach through `SystemContext::vars` rather than being handed their own
 pointer. Two distinct writes:
 
-- `set()` edits a **parameter**: validated against its declared band and persisted.
-  Anything else returns `SET_INVALID` - writing a sensor or an output would just be
-  overwritten by the next scan.
+- `set()` edits a **parameter**: validated against its declared band and applied,
+  but NOT written - `persist()` / `save_params()` do that. Anything else returns
+  `SET_INVALID`; writing a sensor or an output would just be overwritten by the
+  next scan.
 - `override_set(h, ...)` / `override_freeze(h)` / `override_clear(h)` **force any
   variable**: range-checked against the type only, so a reading can be pushed past its
   plausibility band to exercise the alarm watching for it.
 
 @warning Go through the **bank**, never `Var`. Every override mutator has a storage
-side - each override is persisted under its own `ovr.<name>` key - that only the bank
-can reach, and reaching past it produced exactly the two bugs you would expect: a
-forced quality that did not persist, and a released override that came back at the
+side - `save_overrides()` writes each under its own `ovr.<name>` key, and releasing
+one erases that key immediately - which only the bank can reach. Reaching past it
+produced exactly the bug you would expect: a released override that came back at the
 next boot. That is why `Var`'s copies are private with `Bank` as the only friend.
 
 Overrides are applied inside `Var::raw()` / `valid()` - the single point every reader

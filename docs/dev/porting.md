@@ -59,7 +59,7 @@ against the @ref reference "reference site" and work through:
 3. **The watchdog actually bites.** Withhold a kick deliberately and confirm the unit
    resets. A watchdog that never fires is worse than none.
 4. **Settings survive a reboot** - `set` something, reboot, `get` it back. A
-   `FLASH_FLT` alarm or `(NOT SAVED: storage refused it)` points at `Storage`.
+   `FLASH_FLT` alarm, or a `params save` that leaves rows still marked unsaved, points at `Storage`.
 5. **The pyte screen suite passes**, if the target can be driven over a PTY - it
    asserts the rendered screen byte for byte and will catch a terminal or timing
    difference nothing else notices.

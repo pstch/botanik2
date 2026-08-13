@@ -51,9 +51,18 @@
  */
 
 #include "libbotanik/alarms/platform.h" // BOTANIK_PLATFORM_ALARM_VARS
+#include "libbotanik/config/alarms.h"   // the sys_ health-threshold defaults
+#include "libbotanik/config/logging.h"  // BOTANIK_LOG_MIN_LEVEL - sys_log_level's default
 #include "libbotanik/config/net.h"      // the net_/ntp_/mqtt_ row defaults
 #include "libbotanik/config/serial.h"   // BOTANIK_CONSOLE_BAUD / MONITOR_BAUD
 #include "libbotanik/config/sun.h"      // the geo_ row defaults
+#include "libbotanik/config/vars.h"     // BOTANIK_RETAIN_SAVE_MS - sys_retain_sec's default
+#include "libbotanik/logs/topics.h"     // Logs::log_level_label - sys_log_level's converter
+#if BOTANIK_FEATURE_CONSOLE
+#include "libbotanik/console/params.h"  // BOTANIK_CONSOLE_PARAM_VARS - the term_ rows
+#else
+#  define BOTANIK_CONSOLE_PARAM_VARS
+#endif
 #if BOTANIK_FEATURE_MODBUS_TCP_SERVER
 #include "libbotanik/modbus/tcp/params.h" // BOTANIK_MODBUS_TCP_PARAM_VARS
 #else
@@ -61,12 +70,14 @@
 #endif
 #if BOTANIK_FEATURE_MODBUS_RTU_CLIENT
 #include "libbotanik/modbus/rtu/alarms.h" // BOTANIK_MODBUS_RTU_ALARM_VARS / _STATUS_VARS
+#include "libbotanik/modbus/rtu/params.h" // BOTANIK_MODBUS_RTU_PARAM_VARS
 #else
 // The rows exist only where the field bus does, but the GROUPS below are
 // spliced unconditionally - so an absent subsystem contributes nothing rather
 // than failing to expand.
 #  define BOTANIK_MODBUS_RTU_ALARM_VARS
 #  define BOTANIK_MODBUS_RTU_STATUS_VARS
+#  define BOTANIK_MODBUS_RTU_PARAM_VARS
 #endif
 #if BOTANIK_FEATURE_PLC_SCAN
 #include "libbotanik/plc/alarms.h"       // BOTANIK_PLC_SCAN_ALARM_VARS
@@ -115,24 +126,27 @@
 
 /** @brief Parameters the library reads.
  *
- *  The two UART rates are operator-editable, so a swapped terminal needs no
- *  firmware build. `Config::CONSOLE_BAUD` / `MONITOR_BAUD` hold the DEFAULT, so
- *  a wiped store comes back at the rate the hardware ships with.
+ *  What the library reads by name, the library declares. The two UART rates and
+ *  the `term_` geometry are operator-editable, so a swapped terminal - a
+ *  different rate, a different size, a different make - needs no firmware build.
+ *  The `Config::` values behind them hold the DEFAULT, so a wiped store comes
+ *  back at what the hardware ships with.
  *
- *  @warning The band must stay to rates the UARTs can really be driven at: a
- *  parameter's declared bounds are the whole validation a `set` gets, so a
- *  number no divisor can hit lands as the nearest the driver manages.
+ *  @warning A parameter's declared bounds are the whole validation a `set` gets,
+ *  so a band must stay to what the hardware can really do: a UART rate no
+ *  divisor can hit lands as the nearest the driver manages, and a geometry the
+ *  terminal does not have is simply a garbled screen that survives a reboot.
  *
  *  LAST in the aggregate below, and that is load-bearing: see @ref lib_order.
  *
  *  //                   name                 type  def   min  max   dgt unit reg description
  *  // ::Botanik::Vars::P("sys_watchdog_ms", ::Botanik::Vars::T_U32,
- *  //                    10000, 100, 60000, 0, "ms", 950, "HW watchdog", ""), */
+ *  //                    10000, 100, 60000, 0, "ms", 975, "HW watchdog", ""), */
 #define BOTANIK_LIBRARY_PARAM_VARS                                             \
     ::Botanik::Vars::P("serial_console_baud", ::Botanik::Vars::T_U32,          \
         BOTANIK_CONSOLE_BAUD, 1200, 921600, 0, "Bd", 900,                      \
         "console UART rate",                                                   \
-        "retunes the wire AND the render budget; reconnect at the new rate"),  \
+        "reconnect at the new rate; unsaved, so a power cycle undoes it"),     \
     ::Botanik::Vars::P("serial_monitor_baud", ::Botanik::Vars::T_U32,          \
         BOTANIK_MONITOR_BAUD, 1200, 921600, 0, "Bd", 901,                      \
         "monitor UART rate",                                                   \
@@ -194,6 +208,13 @@
     ::Botanik::Vars::P("mqtt_ka_sec", ::Botanik::Vars::T_U16,                  \
         BOTANIK_MQTT_KA_SEC, 10, 1800, 0, "sec", 934,                          \
         "MQTT keep-alive interval", "also the dead-broker detection"),         \
+    ::Botanik::Vars::P("mqtt_tlm_sec", ::Botanik::Vars::T_U32,                 \
+        (BOTANIK_MQTT_TELEMETRY_PERIOD_MS / 1000), 0, 86400, 0, "sec", 935,    \
+        "telemetry publish cadence", "0 stops publishing telemetry"),          \
+    ::Botanik::Vars::P("mqtt_retain", ::Botanik::Vars::T_BOOL,                 \
+        BOTANIK_MQTT_TELEMETRY_RETAIN, 0, 1, 0, "", 936,                       \
+        "publish telemetry retained",                                          \
+        "on, the broker keeps serving a dead sensor's last good value"),       \
     /* geo_: SunPositionTracker reads these by name */                         \
     ::Botanik::Vars::P("geo_serial", ::Botanik::Vars::T_U32,                   \
         1, 0, 9999, 0, "", 940,                                                \
@@ -204,7 +225,30 @@
     ::Botanik::Vars::P("geo_lon_deg", ::Botanik::Vars::T_F32,                  \
         BOTANIK_GEO_LON_DEG, -180.0, 180.0, 2, "deg", 942,                     \
         "geographical longitude, in degrees", "per site location"),  \
-    BOTANIK_MODBUS_TCP_PARAM_VARS
+    BOTANIK_MODBUS_TCP_PARAM_VARS                                              \
+    BOTANIK_CONSOLE_PARAM_VARS                                                 \
+    /* sys_: the platform's own runtime policy. NO commit serial, unlike every  \
+       group above it: each row is read where it is used, either live on the    \
+       beat that needs it or on the edge of a change, and none of them has a    \
+       peer to reconnect or a half-applied state to avoid. */                   \
+    ::Botanik::Vars::P("sys_cpu_load_pct", ::Botanik::Vars::T_U8,              \
+        BOTANIK_ALARM_CPU_LOAD_PCT, 1, 100, 0, "%", 970,                       \
+        "CPU_LOAD alarm threshold", "percent of the task period"),             \
+    ::Botanik::Vars::P("sys_jitter_pct", ::Botanik::Vars::T_U8,                \
+        BOTANIK_ALARM_CPU_JITTER_PCT, 1, 100, 0, "%", 971,                     \
+        "CPU_JITT alarm threshold", "percent of the task period"),             \
+    ::Botanik::Vars::P("sys_stack_pct", ::Botanik::Vars::T_U8,                 \
+        BOTANIK_ALARM_STACK_PCT, 1, 100, 0, "%", 972,                          \
+        "STACK alarm threshold", "percent of the stack in use"),               \
+    ::Botanik::Vars::PE("sys_log_level", BOTANIK_LOG_MIN_LEVEL,                \
+        &::Botanik::Logs::log_level_label, 973,                                \
+        "lowest level the logger forwards",                                    \
+        "the floor for EVERY sink; each page filters further"),                \
+    ::Botanik::Vars::P("sys_retain_sec", ::Botanik::Vars::T_U32,               \
+        (BOTANIK_RETAIN_SAVE_MS / 1000), 0, 86400, 0, "sec", 974,              \
+        "how often retained values reach flash",                               \
+        "0 leaves only `save` and the way down; wear vs loss"),                \
+    BOTANIK_MODBUS_RTU_PARAM_VARS
 
 /** @brief Pool bytes the library's own text parameters need: eight rows (net_ip,
  *  net_mask, net_gw, net_dns1, net_dns2, ntp_srv1, ntp_srv2, mqtt_host), each

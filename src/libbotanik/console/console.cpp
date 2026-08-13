@@ -83,21 +83,33 @@ namespace Botanik { namespace Terminal {
         _serial.transmit();
     }
 
+    void Console::_repaint_frame() {
+        // Chrome first, then the page: if a paced frame only gets partway, the
+        // frame lands before what it frames.
+        _status_bar.draw_row();
+        _alarm_bar.mark_dirty();      // the clear wiped the alarm-bar row
+        _alarm_bar.step();
+        if (_pages_len > 0 && _pages[_page_index] != nullptr) {
+            _reset_content_priority();
+            _pages[_page_index]->focus();
+        }
+    }
+
+    bool Console::reconfigure(Ansi::TerminalType type, uint16_t cols, uint16_t rows) {
+        if (!_term.reconfigure(type, cols, rows)) return false;
+        // The device blanked the screen; the frame on it is ours to put back,
+        // and focus() is what re-lays the page out at the new size.
+        _repaint_frame();
+        return true;
+    }
+
     void Console::_draw(uint64_t now_ms) {
         // Establish the screen on the first step (not in setup_*()) so the clear
         // lands after the handshake setup_*() queued (establish_screen(), not
         // clear_screen, so it keeps the queued handshake bytes).
         if (!_term.screen_ready()) {
             _term.establish_screen();
-            // Chrome first, then the page: if a paced frame only gets partway,
-            // the frame lands before what it frames.
-            _status_bar.draw_row();
-            _alarm_bar.mark_dirty();      // the clear wiped the alarm-bar row
-            _alarm_bar.step();
-            if (_pages_len > 0 && _pages[_page_index] != nullptr) {
-                _reset_content_priority();
-                _pages[_page_index]->focus();
-            }
+            _repaint_frame();
         }
         _status_bar.step(now_ms);
         // Tick every page, not just the active one: each is its own LogWriter and

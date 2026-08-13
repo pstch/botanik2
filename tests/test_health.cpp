@@ -86,6 +86,61 @@ TEST_CASE("health: the stack alarm follows the high-water fraction") {
     CHECK(f.alarm("alarm_stack"));
 }
 
+TEST_CASE("health: the thresholds are parameters, live, not compile-time constants") {
+    // What counts as too much load is a property of the installation, and the
+    // number an operator wants to move is the one a unit nuisance-alarms on.
+    Fixture f;
+    Health::HealthMonitor h(&f.log, &f.sched, &f.bank);
+
+    // Sit exactly at the factory threshold: quiet by the "at does not fire" rule.
+    f.sched.cpu_loop_us_recent =
+        (uint32_t)((uint64_t)PERIOD_US * Config::ALARM_CPU_LOAD_PCT / 100u);
+    h.step(SETTLED);
+    REQUIRE_FALSE(f.alarm("alarm_cpu_load"));
+
+    SUBCASE("tightening it raises the alarm on an unchanged load") {
+        REQUIRE(f.bank.set(f.bank.var(f.bank.find("sys_cpu_load_pct")), "10")
+                != Vars::SET_INVALID);
+        h.step(SETTLED);
+        CHECK(f.alarm("alarm_cpu_load"));
+
+        INFO("...and relaxing it again clears it, with nothing to re-initialise");
+        REQUIRE(f.bank.set(f.bank.var(f.bank.find("sys_cpu_load_pct")), "99")
+                != Vars::SET_INVALID);
+        h.step(SETTLED);
+        CHECK_FALSE(f.alarm("alarm_cpu_load"));
+    }
+
+    SUBCASE("each threshold is its own knob") {
+        // Load and jitter agree at the factory value but threshold different
+        // quantities, so moving one must not move the other.
+        f.sched.cpu_jitter_us_recent =
+            (uint32_t)((uint64_t)PERIOD_US * Config::ALARM_CPU_JITTER_PCT / 100u);
+        REQUIRE(f.bank.set(f.bank.var(f.bank.find("sys_cpu_load_pct")), "10")
+                != Vars::SET_INVALID);
+        h.step(SETTLED);
+        CHECK(f.alarm("alarm_cpu_load"));
+        CHECK_FALSE(f.alarm("alarm_cpu_jitter"));
+    }
+
+    SUBCASE("the stack threshold moves the same way") {
+        f.sched.stack_usage = 0.5f;
+        h.step(SETTLED);
+        REQUIRE_FALSE(f.alarm("alarm_stack"));    // under the factory 80%
+        REQUIRE(f.bank.set(f.bank.var(f.bank.find("sys_stack_pct")), "40")
+                != Vars::SET_INVALID);
+        h.step(SETTLED);
+        CHECK(f.alarm("alarm_stack"));
+    }
+
+    SUBCASE("an override on the threshold row reaches it like any other reader") {
+        f.bank.override_set(f.bank.var(f.bank.find("sys_cpu_load_pct")),
+                            Vars::Scalar::U(10), true);
+        h.step(SETTLED);
+        CHECK(f.alarm("alarm_cpu_load"));
+    }
+}
+
 TEST_CASE("health: an overrun holds CPU_XRUN up long after the beat that caused it") {
     // Latched for ALARM_EVENT_HOLD_MS, not pulsed - a one-beat blip isn't annunciation.
     Fixture f;
