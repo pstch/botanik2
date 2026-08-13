@@ -52,7 +52,7 @@ struct Cycle {
         // ...and what the firmware does after the phase: publish the worst
         // lateness onto the alarm row, whose own dwell decides whether it
         // ever annunciates.
-        _late = Botanik::Plc::worst_lateness(progs, n, &_worst);
+        _late = Botanik::Plc::worst_lateness(reg, &_worst);
         io->var(_late_alarm).set(_late > Botanik::Config::SCAN_LATE_MS);
     }
 
@@ -500,7 +500,7 @@ TEST_CASE("scan: two programs on one row is named once, not every beat") {
     uint16_t said = 0;
     for (uint64_t t = 0; t <= 500; t += 10) {
         d.step(t);
-        Plc::report_writer_conflicts(f.bank, progs, 2, &logger, said);
+        Plc::report_writer_conflicts(f.bank, d.reg, &logger, said);
     }
 
     INFO("last critical: " << std::string(sink.last));

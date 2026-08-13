@@ -393,7 +393,7 @@ TEST_CASE("registry: a program takes no phase - it is PHASE_CONTROL or nothing")
     CHECK(s.programs == 0);
     r.run_phase(PHASE_CONTROL, 0);
     CHECK(s.programs == 1);
-    CHECK(r.task(0).is_program);
+    CHECK(r.task(0).program != nullptr);
 }
 
 TEST_CASE("registry: a program does not run until control authority is granted") {

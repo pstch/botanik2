@@ -141,7 +141,6 @@ const Botanik::SiteDescriptor g_site = {
     g_commands,      g_command_count,                    // site shell commands
     g_home_fields,   g_home_field_count,  Store::home_refs,  // home-screen readings
     SITE_VAR_TABLES,                                     // variables + values + string pool
-    g_programs,      g_program_count,                    // control programs
 #if BOTANIK_FEATURE_MODBUS_RTU_CLIENT
     &g_device_table,                                     // what each unit answers
 #endif
@@ -162,11 +161,37 @@ const Botanik::SiteDescriptor g_site = {
  * libbotanik/firmware/firmware.h for the extension model.
  */
 class GreenhouseMLB41 final : public Botanik::BotanikFirmware {
+
+    /** @name Control programs
+     *
+     *  Plain members, in execution order: registering is what puts them in the
+     *  beat, so there is no table of pointers and nothing to keep in step with
+     *  one. Being members, there is exactly one of each by construction - which
+     *  a header-declared static could not promise (a namespace-scope `static` is
+     *  internal linkage, so every including TU would get its own).
+     *  @{ */
+
+    Site::SupplyWatch  _supply_watch;
+    Site::SupplyReport _supply_report;
+
+    /** @} */
+
 public:
     /** @brief Hand the base this site's descriptor. */
     GreenhouseMLB41()
         : Botanik::BotanikFirmware(Site::g_site)
     {}
+
+protected:
+    /** @brief Register what this site adds to the beat. Order here is execution
+     *  order within PHASE_CONTROL, so a law that computes a setpoint goes before
+     *  the law that acts on it. */
+    void on_setup() override {
+        _supply_watch.attach(io(), &logger());
+        _supply_watch.register_tasks(scheduler().tasks());
+        _supply_report.attach(io(), &logger());
+        _supply_report.register_tasks(scheduler().tasks());
+    }
 };
 
 // The simulated field. Body compiles only under TARGET_SIMULATOR, and is

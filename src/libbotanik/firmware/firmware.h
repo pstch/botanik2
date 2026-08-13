@@ -108,12 +108,6 @@ namespace Botanik {
          *  (No default member initialisers here: in C++11 an NSDMI would stop
          *  SiteDescriptor being an aggregate, and every site brace-inits it.) */
         Vars::VarTables               vars;
-        /** @brief Control programs, in execution order. The array is const
-         *  (flash) and the programs it points at are site-owned statics; each
-         *  carries its own scheduling state, so there is no parallel array to
-         *  keep the same length as this one. */
-        Plc::Program* const*          programs;
-        uint8_t                       program_count;
 #if BOTANIK_FEATURE_MODBUS_RTU_CLIENT
         /** @brief What each unit on the field bus will answer: its request
          *  ceiling and address alignment. Null plans every unit as

@@ -164,12 +164,16 @@ TEST_CASE("site: nothing the site touches fails to resolve") {
 #ifdef TARGET_SIMULATOR
     Site::simulate(f.bank, 1000);
 #endif
-    // step() = setup() (binds names) + one activation, the driver's own contract.
-    for (uint8_t t = 0; t < site().program_count; t++) {
-        Plc::Program* p = site().programs[t];
-        REQUIRE(p != nullptr);
+    // The site's programs are members of its firmware class now, so there is no
+    // table to walk: they are named here instead. A new program must be added
+    // to this list, which is the price of dropping the table - and the check it
+    // buys is that no program names a row vars.h does not declare.
+    Site::SupplyWatch  supply_watch;
+    Site::SupplyReport supply_report;
+    Plc::Program* const site_programs[] = { &supply_watch, &supply_report };
+    for (Plc::Program* p : site_programs) {
         p->attach(f.bank);
-        p->step(1000);
+        p->step(1000);      // setup() binds the names, then one activation
     }
 
     INFO("a non-zero count means a table or a control program names a variable "

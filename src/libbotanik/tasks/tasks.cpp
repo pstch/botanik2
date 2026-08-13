@@ -109,7 +109,7 @@ namespace Botanik { namespace Tasks {
                                void (*handler)(Component*, const Tick&),
                                const char* name, GroupId group) {
         if (!add(program, handler, name, group, PHASE_CONTROL)) return false;
-        _tasks[_count - 1].is_program = true;
+        _tasks[_count - 1].program = &program;
         return true;
     }
 
@@ -123,7 +123,7 @@ namespace Botanik { namespace Tasks {
         if (!enabled) return;
 
         for (uint8_t i = 0; i < _count; i++) {
-            if (!_tasks[i].is_program) continue;
+            if (_tasks[i].program == nullptr) continue;
             // reseed() is "treat this as having just run", so the next
             // activation is a full period away rather than immediate, and
             // reports its nominal period rather than the outage. A task that
@@ -142,7 +142,7 @@ namespace Botanik { namespace Tasks {
             // this one must not be gated with it: withholding control writes
             // safe states into the image, and something still has to carry them
             // out to the field.
-            if (t.is_program && !_programs_enabled) continue;
+            if (t.program != nullptr && !_programs_enabled) continue;
 
             uint32_t dt = 0; uint16_t missed = 0;
             if (!t.timer.due(now_ms, group_period_ms(t.group), dt, missed)) continue;
@@ -163,6 +163,22 @@ namespace Botanik { namespace Tasks {
             t.first_activation = false;
             t.cost.record((uint32_t)(HAL::Clock::uptime_us() - t0), missed);
         }
+    }
+
+    Plc::Program* Registry::program(uint8_t i) const {
+        uint8_t n = 0;
+        for (uint8_t k = 0; k < _count; k++) {
+            if (_tasks[k].program == nullptr) continue;
+            if (n == i) return _tasks[k].program;
+            n++;
+        }
+        return nullptr;
+    }
+
+    uint8_t Registry::program_count() const {
+        uint8_t n = 0;
+        for (uint8_t k = 0; k < _count; k++) if (_tasks[k].program != nullptr) n++;
+        return n;
     }
 
 }}  // namespace Botanik::Tasks

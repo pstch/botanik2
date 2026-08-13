@@ -222,8 +222,7 @@ namespace Botanik { namespace Plc {
     /** @brief The worst lateness across @p programs, and who owned it (null
      *  when nothing was late). The alarm row says a program is missing its
      *  period; this says how badly and by whom. */
-    uint32_t worst_lateness(Program* const* programs, uint8_t count,
-                            const Program** worst);
+    uint32_t worst_lateness(const Tasks::Registry& r, const Program** worst);
 
     /** @brief Name a row that has acquired a second author, once per new
      *  conflict.
@@ -234,31 +233,9 @@ namespace Botanik { namespace Plc {
      *  true on every beat from here is logged once rather than every 10 ms.
      *
      *  @return whether it logged. */
-    bool report_writer_conflicts(Vars::Bank& io, Program* const* programs,
-                                 uint8_t count, Logs::Logger* logger,
-                                 uint16_t& said);
+    bool report_writer_conflicts(Vars::Bank& io, const Tasks::Registry& r,
+                                 Logs::Logger* logger, uint16_t& said);
 
-    /**
-     * @brief One statically-allocated @p T, safe to name from a header.
-     *
-     * A program is mutable state declared in a header several TUs include, so a
-     * plain definition would be a duplicate symbol. A class template's static
-     * member has vague linkage: emitted per TU, folded by the linker. It lives
-     * here so a site never reproduces the trick:
-     *
-     * @code
-     * Plc::Program* const g_programs[] = {
-     *     &Plc::Instance<SupplyWatch>::obj,
-     *     &Plc::Instance<SupplyReport>::obj,
-     * };
-     * @endcode
-     *
-     * @tparam Tag distinguishes two instances of the same program class (two
-     *  irrigation zones running the same logic). Default: the only one.
-     */
-    template <typename T, typename Tag = void>
-    struct Instance { static T obj; };
-    template <typename T, typename Tag> T Instance<T, Tag>::obj;
 
 }}  // namespace Botanik::Plc
 

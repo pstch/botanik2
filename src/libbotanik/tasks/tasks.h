@@ -150,9 +150,14 @@ namespace Botanik { namespace Tasks {
          *  its own type. @{ */
         Component* owner   = nullptr;
         void     (*handler)(Component* owner, const Tick& tick) = nullptr;
-        /** @brief A control program: PHASE_CONTROL by construction, and gated by
-         *  control authority. */
-        bool       is_program = false;
+        /** @brief Non-null iff this entry is a control PROGRAM: PHASE_CONTROL
+         *  by construction, and gated by control authority.
+         *
+         *  The same object as @c owner, kept as its own type because the
+         *  registry IS the program list - a site declares its programs as
+         *  members and registers them, so there is no table of pointers
+         *  anywhere else to walk. */
+        Plc::Program* program = nullptr;
         /** @brief Whether the next activation is a first scan (Tick::first).
          *  True at registration - nothing has run yet - and raised again on a
          *  program when control authority returns. */
@@ -284,6 +289,13 @@ namespace Botanik { namespace Tasks {
          *  @{ */
 
         uint8_t     count() const { return _count; }
+
+        /** @brief The @p i'th registered PROGRAM, or null past the last. The
+         *  registry is where they live, so lateness and writer-naming walk this
+         *  rather than a site-side table. */
+        Plc::Program* program(uint8_t i) const;
+        /** @brief How many programs are registered. */
+        uint8_t       program_count() const;
         const Task& task(uint8_t i) const { return _tasks[i < _count ? i : 0]; }
         uint8_t     overflow() const { return _overflow; }
 

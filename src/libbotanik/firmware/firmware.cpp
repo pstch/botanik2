@@ -219,8 +219,7 @@ namespace Botanik {
 #if BOTANIK_FEATURE_PLC_SCAN
     const char* BotanikFirmware::_program_name_of(const void* ctx, uint8_t writer) {
         const BotanikFirmware* f = static_cast<const BotanikFirmware*>(ctx);
-        if (writer >= f->_site.program_count) return nullptr;
-        const Plc::Program* p = f->_site.programs[writer];
+        const Plc::Program* p = f->_tasks.program(writer);
         return (p != nullptr) ? p->name() : nullptr;
     }
 #endif
@@ -318,22 +317,6 @@ namespace Botanik {
 
 
         // --- CONTROL: the control programs ---
-#if BOTANIK_FEATURE_PLC_SCAN
-        // One task each, so a program has its own rate, its own row on the
-        // TASKS page and its own cost - none of which it had while a driver
-        // stepped the lot inside one "scan" task. add_program() marks the entry
-        // so the registry's authority gate can find it.
-        for (uint8_t i = 0; i < _site.program_count; i++) {
-            Plc::Program* p = _site.programs[i];
-            if (p == nullptr) continue;
-            p->attach(_io, &_logger);
-            // Its index in the site's table, which is what every row it writes
-            // is stamped with. Here rather than in the program, because a
-            // program cannot know where the site put it.
-            p->set_slot(i);
-            p->register_tasks(_tasks);
-        }
-#endif
         // The site's own control law, under the same gate the registry applies
         // to the programs. The gate is per DISPATCH POINT, not per write (see
         // on_control()), so the programs and this are the whole list: a third
@@ -410,17 +393,14 @@ namespace Botanik {
         _publish_lateness();
         // Edge-triggered and named once: two programs driving one output is a
         // design defect, true on every beat from here.
-        (void)Plc::report_writer_conflicts(_io, _site.programs,
-                                           _site.program_count, &_logger,
-                                           _conflicts_said);
+        (void)Plc::report_writer_conflicts(_io, _tasks, &_logger, _conflicts_said);
 #endif
     }
 
 #if BOTANIK_FEATURE_PLC_SCAN
     void BotanikFirmware::_publish_lateness() {
         const Plc::Program* worst = nullptr;
-        const uint32_t late = Plc::worst_lateness(_site.programs,
-                                                  _site.program_count, &worst);
+        const uint32_t late = Plc::worst_lateness(_tasks, &worst);
         _scan_worst = worst;
         _scan_late_ms = late;
         // Written every beat, like any other alarm input: the dwell in the row's

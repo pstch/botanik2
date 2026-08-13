@@ -22,15 +22,14 @@ namespace Botanik { namespace Plc {
         r.add_program(*this, &Program::_run_task, name(), _group);
     }
 
-    uint32_t worst_lateness(Program* const* programs, uint8_t count,
-                            const Program** worst) {
+    uint32_t worst_lateness(const Tasks::Registry& r, const Program** worst) {
         // The worst offender, not a count: the question after "is the scan
         // keeping up" is always "which one".
         uint32_t late = 0;
         if (worst != nullptr) *worst = nullptr;
-        if (programs == nullptr) return 0;
+        const uint8_t count = r.program_count();
         for (uint8_t i = 0; i < count; i++) {
-            const Program* p = programs[i];
+            const Program* p = r.program(i);
             if (p == nullptr || p->late_ms() <= late) continue;
             late = p->late_ms();
             if (worst != nullptr) *worst = p;
@@ -38,17 +37,16 @@ namespace Botanik { namespace Plc {
         return late;
     }
 
-    bool report_writer_conflicts(Vars::Bank& io, Program* const* programs,
-                                 uint8_t count, Logs::Logger* logger,
-                                 uint16_t& said) {
+    bool report_writer_conflicts(Vars::Bank& io, const Tasks::Registry& reg,
+                                 Logs::Logger* logger, uint16_t& said) {
         const uint16_t n = io.writer_conflicts();
         if (n == said || logger == nullptr) return false;
 
         const Vars::VarRef r = io.first_conflict();
         const Vars::Var    v = io.var(r);
         const uint8_t      w = io.writer_of(r);
-        const char* other = (programs != nullptr && w < count &&
-                             programs[w] != nullptr) ? programs[w]->name() : "?";
+        const Program* by = reg.program(w);
+        const char* other = (by != nullptr) ? by->name() : "?";
         // Count first: both names are variable-width (a row name runs to 23
         // characters), so either leading would overrun the line.
         logger->critical(Logs::STATUS,

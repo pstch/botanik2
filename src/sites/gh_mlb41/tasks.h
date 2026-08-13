@@ -142,17 +142,6 @@ protected:
     // dangerous in the meantime.
 };
 
-/** @brief The site's control programs, in execution order.
- *
- *  Pointers, so the table itself stays const and flash-resident even though what
- *  it points at is RAM. Plc::Instance holds the one static of each. */
-Plc::Program* const g_programs[] = {
-    &Plc::Instance<SupplyWatch>::obj,
-    &Plc::Instance<SupplyReport>::obj,
-};
-const uint8_t g_program_count =
-    (uint8_t)(sizeof(g_programs) / sizeof(g_programs[0]));
-
 }  // namespace Site
 
 #endif // SITE_TASKS_H
