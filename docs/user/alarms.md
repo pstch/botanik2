@@ -74,7 +74,7 @@ Every unit has these regardless of site, raised from the firmware's own health:
 | `FLASH_FLT` | `alarm_flash_error` | a write to persistent storage failed | **sticky until reboot** |
 
 `FLASH_FLT` is the one to act on: parameters will not survive a reboot until it is
-resolved. It is the same fault behind `params save`'s `NOT saved: storage refused it`
+resolved. It is the same fault behind a refused `params save`'s `NOT saved: storage refused it`
 and the PARAMS page's `NOT SAVED` footer - one problem seen from three places.
 
 The `cpu:` and `stk:` figures in the status bar are the same measurements the

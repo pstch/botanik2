@@ -55,7 +55,7 @@ level, because a level is not a quantity.
 
 It is an ordinary parameter otherwise: the PARAMS page and a Modbus master reach
 the same setting, and like every parameter it is live at once and durable only
-after `params save`. `BOTANIK_LOG_MIN_LEVEL` is the factory value.
+after `params save sys_log_level`. `BOTANIK_LOG_MIN_LEVEL` is the factory value.
 
 @note Over Modbus it is the level's own **code** that travels - 1 debug, 2 info,
 4 notice, 8 warning, 16 error, 32 critical. Those codes are also what sits in
