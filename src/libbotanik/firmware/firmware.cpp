@@ -256,20 +256,14 @@ namespace Botanik {
         // The two rates that are config for the firmware ITSELF. After the
         // params component, so an edit committed this beat is applied this beat
         // rather than the next.
-        r.add(*this, &_hook<&BotanikFirmware::_apply_serial_config>,
-              "serial_cfg",    GROUP_SLOW, PHASE_CONFIG);
+        r.add(*this, &_hook<&BotanikFirmware::_apply_firmware_config>,
+              "firmware_cfg",  GROUP_SLOW, PHASE_CONFIG);
 #if BOTANIK_FEATURE_CONSOLE
         // The terminal the console draws on, after the rates: one commit can
         // move both, and a repaint belongs at the rate it will actually go out
         // at rather than the one it was queued at.
         r.add(*this, &_hook<&BotanikFirmware::_console_cfg>,
               "console_cfg",   GROUP_SLOW, PHASE_CONFIG);
-#endif
-#if BOTANIK_FEATURE_LOGGING
-        // The one sys_ row with a consumer that keeps its own copy. The rest are
-        // read live where they are used, which needs no task at all.
-        r.add(*this, &_hook<&BotanikFirmware::_log_cfg>,
-              "log_cfg",       GROUP_SLOW, PHASE_CONFIG);
 #endif
         r.add(*this, &_hook<&BotanikFirmware::on_config>,
               "site_config",   GROUP_FAST, PHASE_CONFIG);

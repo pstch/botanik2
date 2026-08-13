@@ -473,12 +473,29 @@ namespace Botanik {
         virtual void on_loop(uint64_t now_ms) { (void)now_ms; }
 
         /** @name Config appliers, as task handlers
+         *  @{ */
+
+        /** @brief The firmware's own scalar config: the monitor's rate and the
+         *  log level. ONE task, because they are one job - pushing a parameter
+         *  into a subsystem that cannot reach the bank itself. The logger is the
+         *  clearest case: `vars/` includes `logs/logger.h` (the Bank reports a
+         *  refused write through it), so the Logger cannot read `sys_log_level`
+         *  without inverting that, and something has to push it.
          *
-         *  _apply_console_config() and _apply_log_config() carry arguments the
-         *  registry knows nothing about, so each gets a one-line wrapper of the
-         *  shape _hook<> dispatches. @{ */
+         *  The console does NOT belong here and keeps its own row: applying it
+         *  can repaint the whole screen, which is worth being able to attribute.
+         *  These two are a get_int() and a compare each. */
+        void _apply_firmware_config(uint64_t now_ms) {
+            _apply_serial_config(now_ms);
+#if BOTANIK_FEATURE_LOGGING
+            _apply_log_config();
+#endif
+        }
+
+        /** @brief _apply_console_config() carries an argument the registry
+         *  knows nothing about, so it gets a wrapper of the shape _hook<>
+         *  dispatches. */
         void _console_cfg(uint64_t now_ms) { (void)now_ms; _apply_console_config(); }
-        void _log_cfg(uint64_t now_ms)     { (void)now_ms; _apply_log_config(); }
         /** @} */
 
         /** @brief Site post-wiring: where a site registers its OWN components
