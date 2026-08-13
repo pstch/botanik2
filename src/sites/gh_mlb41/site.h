@@ -192,8 +192,8 @@ protected:
      *  order within PHASE_CONTROL, so a law that computes a setpoint goes before
      *  the law that acts on it. */
     void on_setup() override {
-        _supply_watch.register_tasks(scheduler().tasks());
-        _supply_report.register_tasks(scheduler().tasks());
+        _supply_watch.register_tasks(tasks());
+        _supply_report.register_tasks(tasks());
     }
 };
 

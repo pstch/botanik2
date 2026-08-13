@@ -302,6 +302,10 @@ namespace Botanik {
 
         /** @brief The task table, for the TASKS page and the `stats` command. */
         const Tasks::Registry& tasks() const { return _tasks; }
+        /** @brief The table a site registers its own components and programs
+         *  with, from on_setup(). Non-const: registering mutates it, and this
+         *  is the one moment it is meant to. */
+        Tasks::Registry&       tasks()       { return _tasks; }
 
         /** @brief One main-loop iteration. tick() gates a beat and republishes
          *  the display "now" (`SchedulerContext::timestamp_ms`) the render path
@@ -451,12 +455,12 @@ namespace Botanik {
          *  registered and every log sink exists, and still **before the setup
          *  pass** - so a component registered here is a task-table entry like
          *  any other: set up in the same sweep, dispatched by the same loop, and
-         *  named on the TASKS page. Register through `scheduler().tasks()`:
+         *  named on the TASKS page. Register through `tasks()`:
          *
          *  @code
          *  void on_setup() override {
-         *      _my_pump.register_tasks(scheduler().tasks());   // a Component
-         *      _my_law.register_tasks(scheduler().tasks());    // a Plc::Program
+         *      _my_pump.register_tasks(tasks());   // a Component
+         *      _my_law.register_tasks(tasks());    // a Plc::Program
          *  }
          *  @endcode
          *
