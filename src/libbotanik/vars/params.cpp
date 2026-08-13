@@ -3,6 +3,7 @@
  * @brief Parameter persistence, editing and by-name reads.
  */
 
+#include "libbotanik/tasks/tasks.h"   // Tasks::Registry / Tick / GroupId
 #include "libbotanik/vars/params.h" // Params / KvParamStore
 
 #include <cstdio>                   // snprintf
@@ -267,6 +268,19 @@ namespace Botanik { namespace Vars {
         memcpy(key, group, n);
         memcpy(key + n, "_serial", 8);           // copies the NUL too
         return (uint32_t)get_int(io, key, 0);
+    }
+
+}}  // namespace Botanik::Vars
+
+namespace Botanik { namespace Vars {
+
+    void Params::_config_task(Component* c, const Tasks::Tick& t) {
+        static_cast<Params*>(c)->on_config(t.now_ms);
+    }
+
+    void Params::register_tasks(Tasks::Registry& r) {
+        r.add(*this, &Params::_config_task, "params",
+              Tasks::GROUP_SLOW, Tasks::PHASE_CONFIG);
     }
 
 }}  // namespace Botanik::Vars

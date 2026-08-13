@@ -6,7 +6,11 @@
  * subset of rows by hand.
  */
 
-#include "libbotanik/vars/model.h"  // Bank / Var / Variable
+#include "libbotanik/vars/model.h"
+
+                            // Bank / Var / Variable
+
+#include "libbotanik/tasks/tasks.h"   // Tasks::Registry / Tick / GroupId
 
 #include <cstring>                  // strcmp / strncmp
 
@@ -612,6 +616,30 @@ namespace Botanik { namespace Vars {
         uint16_t n = 0;
         for (uint16_t i = 0; i < _tables.count; i++) if (_tables.val[i].ovr_on) n++;
         return n;
+    }
+
+}}  // namespace Botanik::Vars
+
+namespace Botanik { namespace Vars {
+
+    void Bank::_expire_task(Component* c, const Tasks::Tick& t) {
+        static_cast<Bank*>(c)->expire_stale(t.now_ms);
+    }
+
+    void Bank::_reject_task(Component* c, const Tasks::Tick&) {
+        (void)static_cast<Bank*>(c)->reject_implausible();
+    }
+
+    void Bank::register_tasks(Tasks::Registry& r) {
+        // A full linear scan of the variable table, resolving timeouts measured
+        // in seconds - which is why it is GROUP_BACKGROUND and not the beat.
+        r.add(*this, &Bank::_expire_task, "expire_stale",
+              Tasks::GROUP_BACKGROUND, Tasks::PHASE_INPUT);
+        // Beside it: a reading can be fresh and still be nonsense. A dead
+        // 4-20 mA loop reads full scale, which no timeout catches - the
+        // declared plausibility band does.
+        r.add(*this, &Bank::_reject_task, "reject_implausible",
+              Tasks::GROUP_BACKGROUND, Tasks::PHASE_INPUT);
     }
 
 }}  // namespace Botanik::Vars

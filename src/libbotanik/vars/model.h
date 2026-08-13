@@ -36,9 +36,12 @@
 
 #include <cstdint>                  // uint8_t/uint16_t/int64_t
 
+#include "libbotanik/core/component.h"  // Component - the Bank registers its own sweeps
 #include "libbotanik/vars/scalar.h" // Vars::Scalar / VarType
 
 namespace Botanik { namespace Logs { class Logger; } }
+
+namespace Botanik { namespace Tasks { struct Tick; } }
 
 namespace Botanik { namespace Vars {
 
@@ -797,7 +800,22 @@ namespace Botanik { namespace Vars {
      * a real row, so a typo could drive an actual relay. The sink absorbs reads
      * and writes harmlessly, so a mistake shows up as a signal that never moves.
      */
-    class Bank {
+    class Bank : public Botanik::Component {
+    public:
+        /** @brief The two sweeps this class owns, both GROUP_BACKGROUND in
+         *  PHASE_INPUT: a row must age out BEFORE anything reads it, so one beat
+         *  is coherent. Registered by the bank rather than by the composition
+         *  root, like every other component's work. */
+        void register_tasks(Tasks::Registry& r) override;
+
+    private:
+        /** @name Registration handlers
+         *  Static MEMBERS: each cast sits on one line beside what it calls.
+         *  @{ */
+        static void _expire_task(Component* c, const Tasks::Tick& t);
+        static void _reject_task(Component* c, const Tasks::Tick& t);
+        /** @} */
+
         VarTables   _tables;
         /** @name Parameter block
          *
@@ -818,9 +836,6 @@ namespace Botanik { namespace Vars {
          *  a reset we have decided to take. Starts SET - outputs are not ours to
          *  move until bring-up says so. */
         bool          _health_hold = true;
-        /** @brief For the one thing the bank must not swallow: a write the
-         *  store refused (see set()). May be null. */
-        Logs::Logger* _logger = nullptr;
         /** @brief How many name lookups have found nothing since construction.
          *  A typo resolves to the sink and reads zero forever, so counting the
          *  misses is what makes it visible: non-zero after bring-up means a
@@ -848,8 +863,8 @@ namespace Botanik { namespace Vars {
         /** VarTables has no member initializers (so a site's descriptor stays in
          *  flash); the `()` is required, or an unbound bank starts on
          *  indeterminate pointers that init() then walks. */
-        Bank() : _tables() {}
-        explicit Bank(const VarTables& t) : _tables(t) {
+        Bank() : Component(nullptr, "vars"), _tables() {}
+        explicit Bank(const VarTables& t) : Component(nullptr, "vars"), _tables(t) {
             _find_param_block();
             // Built here, not in init(): the table is const, and a find() before
             // init() (a site test, a fixture) then gets the fast path too.
@@ -857,7 +872,9 @@ namespace Botanik { namespace Vars {
         }
 
         /** @brief Bind the parameter store and the log a refused write goes to.
-         *  Wired once at bring-up, before load_params(). */
+         *  Wired once at bring-up, before load_params(). The logger is
+         *  Component's own - the one thing the bank must not swallow is a write
+         *  the store refused (see set()), and it may be null. */
         void set_store(VarStore* s, Logs::Logger* logger = nullptr) {
             _store = s; _logger = logger;
         }

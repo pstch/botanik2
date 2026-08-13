@@ -69,6 +69,8 @@
 // consumer of this header would pay for them.
 namespace Botanik { namespace Alarms { class AlarmController; } }
 
+namespace Botanik { namespace Tasks { struct Tick; } }
+
 namespace Botanik { namespace Modbus {
 
     /** @brief What the shell and the status UI read back. Borrowed by
@@ -195,6 +197,20 @@ namespace Botanik { namespace Modbus {
         /** @brief Whether writes are accepted at all right now (`mb_write_enable`). */
         bool writable() const  { return _writable; }
 
+        /** @} */
+
+    public:
+        /** @brief Three tasks: decode a master's writes at PHASE_INPUT, drain
+         *  the persist queue at PHASE_SERVICE, answer at PHASE_PRESENT. One
+         *  entry each, so each is separately attributable. */
+        void register_tasks(Tasks::Registry& r) override;
+
+    private:
+        /** @name Registration handlers
+         *  Static MEMBERS: the hooks they call are protected. @{ */
+        static void _input_task(Component* c, const Tasks::Tick& t);
+        static void _service_task(Component* c, const Tasks::Tick& t);
+        static void _present_task(Component* c, const Tasks::Tick& t);
         /** @} */
 
     protected:

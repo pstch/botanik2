@@ -124,15 +124,18 @@ TEST_CASE("tasks: setup() runs before any beat, exactly once") {
     struct Spy : public Botanik::Component {
         uint32_t setups = 0, steps = 0;
         Spy() : Component(nullptr, "spy") {}
-    protected:
         void on_setup(uint64_t) override { setups++; }
-        void on_input(uint64_t) override { steps++; }
-        void on_present(uint64_t) override { steps++; }   // b is registered here
+        void bump() { steps++; }
+    };
+    struct H {
+        static void run(Botanik::Component* c, const Tick&) {
+            static_cast<Spy*>(c)->bump();
+        }
     };
     Spy a, b;
     Registry r;
-    r.add_component<PHASE_INPUT>("a", GROUP_FAST, a);
-    r.add_component<PHASE_PRESENT>("b", GROUP_SLOW, b);
+    r.add(a, &H::run, "a", GROUP_FAST, PHASE_INPUT);
+    r.add(b, &H::run, "b", GROUP_SLOW, PHASE_PRESENT);
 
     r.setup(0);
     CHECK(a.setups == 1);
@@ -140,7 +143,7 @@ TEST_CASE("tasks: setup() runs before any beat, exactly once") {
     CHECK(a.steps == 0);          // init, not a beat
     CHECK(b.steps == 0);
 
-    r.run_phase(PHASE_INPUT, 0);   // lazy path in step() must not run it a second time
+    r.run_phase(PHASE_INPUT, 0);   // and the setup pass does not run twice
     r.run_phase(PHASE_PRESENT, 0);
     CHECK(a.setups == 1);
     CHECK(b.setups == 1);

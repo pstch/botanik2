@@ -6,6 +6,7 @@
  * firmware: `recv` returning 0 is would-block and not a close, a partial `send`
  * resumes on the next beat, and nothing waits for a peer.
  */
+#include "libbotanik/tasks/tasks.h"   // Tasks::Registry / Tick / GroupId
 #include "libbotanik/modbus/tcp/slave.h" // TcpSlave - implemented here
 
 #include <cstring>                    // memmove - shifting a consumed frame out of the RX buffer
@@ -455,3 +456,33 @@ namespace Botanik { namespace Modbus {
 }}  // namespace Botanik::Modbus
 
 #endif // BOTANIK_FEATURE_MODBUS_TCP_SERVER
+
+namespace Botanik { namespace Modbus {
+
+    void TcpSlave::_input_task(Component* c, const Tasks::Tick& t) {
+        static_cast<TcpSlave*>(c)->on_input(t.now_ms);
+    }
+
+    void TcpSlave::_service_task(Component* c, const Tasks::Tick& t) {
+        static_cast<TcpSlave*>(c)->on_service(t.now_ms);
+    }
+
+    void TcpSlave::_present_task(Component* c, const Tasks::Tick& t) {
+        static_cast<TcpSlave*>(c)->on_present(t.now_ms);
+    }
+
+    void TcpSlave::register_tasks(Tasks::Registry& r) {
+        // A master's write lands at INPUT, before the programs run, so a
+        // setpoint written this beat is what they run on this beat.
+        r.add(*this, &TcpSlave::_input_task,   "modbus_tcp_rx",
+              Tasks::GROUP_FAST, Tasks::PHASE_INPUT);
+        // The flash half of that write, paced: a side effect of the request,
+        // not part of answering it.
+        r.add(*this, &TcpSlave::_service_task, "modbus_tcp_wr",
+              Tasks::GROUP_FAST, Tasks::PHASE_SERVICE);
+        // The answer goes out off the image the scan just produced.
+        r.add(*this, &TcpSlave::_present_task, "modbus_tcp_tx",
+              Tasks::GROUP_FAST, Tasks::PHASE_PRESENT);
+    }
+
+}}  // namespace Botanik::Modbus

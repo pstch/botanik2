@@ -18,6 +18,8 @@
 #include "libbotanik/core/component.h"  // Component
 #include "libbotanik/vars/model.h"      // Vars::Bank / VarStore / SetResult
 
+namespace Botanik { namespace Tasks { struct Tick; } }
+
 namespace Botanik { namespace Vars {
 
     /** @brief A VarStore over HAL::Storage: one key per parameter, named for
@@ -99,6 +101,16 @@ namespace Botanik { namespace Vars {
         }
 
         /** @} */
+
+    public:
+        /** @brief One task, PHASE_CONFIG: the parameter image everything below
+         *  it in the beat reads its config from. */
+        void register_tasks(Tasks::Registry& r) override;
+
+    private:
+        /** @brief The registration handler. A static MEMBER, so the cast has
+         *  access to the protected hook and stays beside the class. */
+        static void _config_task(Component* c, const Tasks::Tick& t);
 
     protected:
         /** @brief Load every parameter from the store. */

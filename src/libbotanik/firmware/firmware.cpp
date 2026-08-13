@@ -11,25 +11,6 @@
 
 namespace Botanik {
 
-    // Task handlers for the objects this class registers but does not own the
-    // type of. Named and file-local, beside nothing else: a handler has to be
-    // greppable, breakpoint-able and visible in a stack trace, which a lambda
-    // buried in the registration list is not. This class's OWN tasks go through
-    // _task_hook<> instead. @see design/scan-cycle-rework.md
-    namespace {
-        void bank_expire_stale(void* s, uint64_t now_ms) {
-            static_cast<Vars::Bank*>(s)->expire_stale(now_ms);
-        }
-        void bank_reject_implausible(void* s, uint64_t) {
-            (void)static_cast<Vars::Bank*>(s)->reject_implausible();
-        }
-#if BOTANIK_FEATURE_LOGGING
-        void logger_refill(void* s, uint64_t) {
-            static_cast<Logs::Logger*>(s)->refill();
-        }
-#endif
-    }
-
     // Construction
     // ------------------------------------------------------------------------
 
@@ -257,33 +238,27 @@ namespace Botanik {
         using namespace Tasks;
 
         // --- INPUT: fresh bytes and fresh field, before anything reads ---
+        // Both field-bus components span the beat, and each registers every
+        // phase it acts in at once: the RTU master takes the field in at INPUT
+        // and issues at OUTPUT, the TCP slave decodes at INPUT, persists at
+        // SERVICE and answers at PRESENT. First, so their INPUT halves commit
+        // ahead of the bank's expiry sweep below.
 #if BOTANIK_FEATURE_MODBUS_RTU_CLIENT
-        // The field bus commits its readings ahead of expire_stale, which must
-        // judge the freshest image and not the one from before this beat's
-        // answers.
-        _tasks.add_component<PHASE_INPUT>("modbus_rtu_rx", GROUP_FAST, _modbus_rtu);
+        _modbus_rtu.register_tasks(_tasks);
 #endif
 #if BOTANIK_FEATURE_MODBUS_TCP_SERVER
-        // A master's write lands HERE, before the programs run, so a setpoint
-        // written this beat is what they run on this beat. add_component, so the
-        // map is built in Registry::setup() rather than inside the first beat.
-        _tasks.add_component<PHASE_INPUT>("modbus_tcp_rx", GROUP_FAST, _modbus_tcp);
+        _modbus_tcp.register_tasks(_tasks);
 #endif
-        // A full linear scan of the variable table, resolving timeouts measured
-        // in seconds.
-        _tasks.add("expire_stale", GROUP_BACKGROUND, PHASE_INPUT,
-                   &bank_expire_stale, &_io);
-        // Beside it: a reading can be fresh and still be nonsense. A dead
-        // 4-20 mA loop reads full scale, which no timeout catches - the
-        // declared plausibility band does.
-        _tasks.add("reject_implausible", GROUP_BACKGROUND, PHASE_INPUT,
-                   &bank_reject_implausible, &_io);
+        // The bank's own two sweeps: age a row out, and reject one that is
+        // fresh and still nonsense. Both before anything reads, so one beat is
+        // coherent.
+        _io.register_tasks(_tasks);
 
         _tasks.add("site_input", GROUP_FAST, PHASE_INPUT,
                    &_task_hook<&BotanikFirmware::on_input>, this);
 
         // --- CONFIG: the image every config-driven component reads below ---
-        _tasks.add_component<PHASE_CONFIG>("params", GROUP_SLOW, _params);
+        _params.register_tasks(_tasks);
         // ...and the two rates that are config for the firmware ITSELF. After
         // the params component, so an edit committed this beat is applied this
         // beat rather than the next.
@@ -301,14 +276,6 @@ namespace Botanik {
                    &_task_hook<&BotanikFirmware::_latch_control>, this);
 #if BOTANIK_FEATURE_NETWORK
         _net.register_tasks(_tasks);   // network, ntp, mqtt, telemetry
-#endif
-#if BOTANIK_FEATURE_MODBUS_TCP_SERVER
-        // The flash half of a master's write, paced: storage is synchronous and
-        // one request can cover 61 parameters, so commits are queued where they
-        // are decoded and made durable a couple per beat here. SERVICE, not
-        // PRESENT: a side effect of the request, not part of answering it - the
-        // answer itself goes out in PRESENT below.
-        _tasks.add_component<PHASE_SERVICE>("modbus_tcp_wr", GROUP_FAST, _modbus_tcp);
 #endif
 
         _tasks.add("site_service", GROUP_FAST, PHASE_SERVICE,
@@ -339,14 +306,6 @@ namespace Botanik {
                    &_task_hook<&BotanikFirmware::_run_site_control>, this);
 
         // --- OUTPUT: hand what the programs drove to the field ---
-#if BOTANIK_FEATURE_MODBUS_RTU_CLIENT
-        // The same component as modbus_rtu_rx above, registered again for its
-        // other half: on_output() issues the next request. setup() runs once
-        // whichever registration reaches it first, so the port bring-up and the
-        // bus planning stay off the first beat.
-        _tasks.add_component<PHASE_OUTPUT>("modbus_rtu_tx", GROUP_FAST, _modbus_rtu);
-#endif
-
         _tasks.add("site_output", GROUP_FAST, PHASE_OUTPUT,
                    &_task_hook<&BotanikFirmware::on_output>, this);
 
@@ -355,15 +314,8 @@ namespace Botanik {
         // in the SAME beat rather than waiting for the next one.
         _tasks.add("site_present", GROUP_FAST, PHASE_PRESENT,
                    &_task_hook<&BotanikFirmware::on_present>, this);
-#if BOTANIK_FEATURE_MODBUS_TCP_SERVER
-        // The answer goes out off the image the scan just produced: one beat of
-        // latency on a read, against a poll measured in seconds, and no request
-        // ever answered from a half-updated image.
-        _tasks.add_component<PHASE_PRESENT>("modbus_tcp_tx", GROUP_FAST, _modbus_tcp);
-#endif
 #if BOTANIK_FEATURE_LOGGING
-        _tasks.add("logger", GROUP_FAST, PHASE_PRESENT,
-                   &logger_refill, &_logger);
+        _logger.register_tasks(_tasks);
 #endif
 #if BOTANIK_FEATURE_CONSOLE
         // Three tasks, and the port's two are not among them: console_in at the

@@ -126,8 +126,7 @@ namespace Botanik { namespace Tasks {
      *
      *  The dispatch is a plain function pointer plus a `self`, not a Component*,
      *  so this stays free of every subsystem it drives - including Vars, which
-     *  must not become a dependency here. add_component() wraps the common
-     *  case. */
+     *  must not become a dependency here. */
     struct Task {
         const char* name     = nullptr;   ///< shown in the TASKS table
         GroupId     group    = GROUP_FAST;
@@ -235,22 +234,6 @@ namespace Botanik { namespace Tasks {
         bool add_program(Plc::Program& program,
                          void (*handler)(Component*, const Tick&),
                          const char* name, GroupId group);
-
-        /** @brief Register a Component in phase @p P: its hook for that phase
-         *  per activation, setup() once.
-         *
-         *  The phase is a TEMPLATE argument because the dispatcher is a plain
-         *  function pointer with no captures, and it has to carry the phase into
-         *  Component::step(). A component spanning phases is registered once per
-         *  phase, under its own name, so each half keeps its own TaskCost and
-         *  stays attributable on the TASKS page. */
-        template <Phase P, typename C>
-        bool add_component(const char* name, GroupId group, C& c) {
-            return add(name, group, P,
-                       [](void* s, uint64_t now) { static_cast<C*>(s)->step(now, P); },
-                       &c,
-                       [](void* s, uint64_t now) { static_cast<C*>(s)->setup(now); });
-        }
 
         /** @} */
 

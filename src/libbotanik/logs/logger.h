@@ -21,6 +21,8 @@
 #include "libbotanik/logs/entry.h"      // Logs::LogEntry
 #include "libbotanik/logs/writer.h"     // Logs::LogWriter
 
+namespace Botanik { namespace Tasks { struct Tick; } }
+
 namespace Botanik { namespace Logs {
 
     /** @brief State of a single token bucket in the rate limiter. */
@@ -43,7 +45,17 @@ namespace Botanik { namespace Logs {
      *         limiter, then fans surviving entries out to the registered
      *         writers. */
     class Logger : public Botanik::Component {
+    public:
+        /** @brief One task: refill the rate-limiter buckets and drain the
+         *  sinks, in PHASE_PRESENT. First in that phase, so a line logged this
+         *  beat reaches the pages before they are drawn. */
+        void register_tasks(Tasks::Registry& r) override;
+
     private:
+        /** @brief The registration handler. A static MEMBER, so the cast stays
+         *  beside the class it casts to. */
+        static void _present_task(Component* c, const Tasks::Tick& t);
+
 
         /** @name Rate-limiter
          *  @brief Token buckets and their refill anchors. Burst sizes and

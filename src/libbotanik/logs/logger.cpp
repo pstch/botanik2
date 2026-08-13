@@ -7,7 +7,11 @@
  * plus one per topic. The per-topic filter applies BEFORE the global one, so a
  * message suppressed by its topic bucket does not drain the global one.
  */
-#include "libbotanik/logs/logger.h"     // Logger
+#include "libbotanik/logs/logger.h"
+
+                                // Logger
+
+#include "libbotanik/tasks/tasks.h"   // Tasks::Registry / Tick / GroupId
 
 #include <algorithm>                    // std::min
 #include <cstdio>                       // vsnprintf
@@ -225,3 +229,16 @@ namespace Botanik { namespace Logs {
     }
 
 }}
+
+namespace Botanik { namespace Logs {
+
+    void Logger::_present_task(Component* c, const Tasks::Tick&) {
+        static_cast<Logger*>(c)->refill();
+    }
+
+    void Logger::register_tasks(Tasks::Registry& r) {
+        r.add(*this, &Logger::_present_task, "logger",
+              Tasks::GROUP_FAST, Tasks::PHASE_PRESENT);
+    }
+
+}}  // namespace Botanik::Logs

@@ -98,6 +98,8 @@
 
 namespace Botanik { namespace Vars { class Bank; } }
 
+namespace Botanik { namespace Tasks { struct Tick; } }
+
 namespace Botanik { namespace Modbus {
 
     /**
@@ -291,6 +293,19 @@ namespace Botanik { namespace Modbus {
          */
         void reassert_outputs(uint8_t peer);
 
+        /** @} */
+
+    public:
+        /** @brief Two tasks, at opposite ends of the beat: take the field in at
+         *  PHASE_INPUT, issue the next request at PHASE_OUTPUT. Two entries, so
+         *  each half keeps its own cost on the TASKS page. */
+        void register_tasks(Tasks::Registry& r) override;
+
+    private:
+        /** @name Registration handlers
+         *  Static MEMBERS: the hooks they call are protected. @{ */
+        static void _input_task(Component* c, const Tasks::Tick& t);
+        static void _output_task(Component* c, const Tasks::Tick& t);
         /** @} */
 
     protected:
