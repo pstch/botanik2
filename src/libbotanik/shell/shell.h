@@ -229,8 +229,10 @@ namespace Botanik { namespace Shell {
         #endif
         void _cmd_net(const char* args, uint16_t alen);
         void _cmd_ntpsync(const char* args, uint16_t alen);
-        /** @brief `params list|get|set|save` - the editable rows. */
+        /** @brief `params list|get|set|clear|save` - the editable rows. */
         void _cmd_params(const char* args, uint16_t alen);
+        /** @brief `programs list|enable|disable|save` - the control programs. */
+        void _cmd_programs(const char* args, uint16_t alen);
         /** @brief `overrides list|get|set|clear|save` - the forced rows. */
         void _cmd_overrides(const char* args, uint16_t alen);
         /** @brief `vars list|get` - every row, whatever its scope. */
@@ -247,10 +249,27 @@ namespace Botanik { namespace Shell {
          *  @p args / @p alen carry the value and are consumed here. */
         void _params_set(const char* nm, uint16_t wn,
                          const char* args, uint16_t alen);
-        /** @brief `params save [<name>]` - one row, or every unsaved one. */
+        /** @brief `params save <name>|all` - one row, or every unsaved one. */
         void _params_save(const char* nm, uint16_t wn);
-        /** @brief `overrides save [<name>]` - the same, for overrides. */
+        /** @brief `params clear <name>|all` - back to the factory default. */
+        void _params_clear(const char* nm, uint16_t wn);
+        /** @brief `overrides save <name>|all` - the same, for overrides. */
         void _overrides_save(const char* nm, uint16_t wn);
+        /** @brief `overrides list` - what is forced right now. */
+        void _overrides_list();
+        /** @brief `overrides clear <name>|all` - release one, or the lot. */
+        void _overrides_clear(const char* nm, uint16_t wn);
+        /** @brief `overrides set <name> [<value>] [valid|invalid]`. @p args /
+         *  @p alen carry the value and the quality word and are consumed. */
+        void _overrides_set(const char* nm, uint16_t wn,
+                            const char* args, uint16_t alen);
+        /** @brief Report @p h's override after a write, with what it reads as
+         *  and how to make it durable. */
+        void _override_reply(Vars::Var h, const char* verb);
+        /** @brief `programs enable|disable <name>|all`. @p on is which. */
+        void _programs_gate(const char* nm, uint16_t wn, bool on);
+        /** @brief `programs save <name>|all`. */
+        void _programs_save(const char* nm, uint16_t wn);
         /** @} */
 
         /** @name Shared verb bodies
@@ -259,6 +278,12 @@ namespace Botanik { namespace Shell {
          *  different admission rule, and both list forms are one filtered walk.
          *  Written once, so a row reads the same whichever noun showed it.
          *  @{ */
+        /** @brief Resolve @p nm to a row, printing "<noun>: unknown variable"
+         *  when it names none. The lookup every table verb starts with, so the
+         *  message cannot drift between them.
+         *  @return its ref, or one whose index is Vars::VAR_NONE. */
+        Vars::VarRef _resolve(const char* noun, const char* nm, uint16_t wn);
+
         /** @brief List rows matching @p prefix (null = all), @p params_only
          *  restricting the walk to the parameter block. @p noun names the
          *  command in the empty-result line. */
@@ -321,6 +346,8 @@ namespace Botanik { namespace Shell {
         /** @brief The variables, from the injected SystemContext (null when the
          *  firmware wired none). One lookup point for the variable commands. */
         Vars::Bank* _bank() const { return _sys != nullptr ? _sys->vars : nullptr; }
+        /** @brief The task table, or null. Non-const: `programs` writes to it. */
+        Tasks::Registry* _registry() const { return _sys != nullptr ? _sys->tasks : nullptr; }
         /** @brief Handle an unrecognised command (echoes "Unknown command:
          *  ..."). */
         void _unknown(const char* cmd, uint16_t len);

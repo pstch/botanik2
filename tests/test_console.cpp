@@ -1520,7 +1520,7 @@ namespace {
 
 }
 
-TEST_CASE("shell overrides: a bare name forces a GOOD reading, and `clear` releases all") {
+TEST_CASE("shell overrides: a bare name forces a GOOD reading, and `clear all` releases them") {
     // A bare `overrides set` must force a GOOD reading, not carry through
     // whatever quality the row had - only `invalid` asks for a dead sensor.
     CmdFixture f;
@@ -1537,7 +1537,13 @@ TEST_CASE("shell overrides: a bare name forces a GOOD reading, and `clear` relea
     CHECK(f.writer.has("unsaved"));
     f.run("overrides list");
     CHECK(f.writer.has("2 override(s) active, 2 unsaved"));
+    // Only `all` releases the lot: a bare verb is a usage error, since it is
+    // too easy to type when one row was meant.
     f.run("overrides clear");
+    CHECK(f.writer.has("usage:"));
+    CHECK(f.bank.override_count() == 2);
+
+    f.run("overrides clear all");
     CHECK(f.writer.has("cleared 2"));
     CHECK(f.bank.override_count() == 0);
 }

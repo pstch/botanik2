@@ -1,0 +1,597 @@
+/**
+ * @file shell_status.cpp
+ * @brief What the unit is REPORTING: the beat's metrics and per-task costs, the
+ *        build identity, and the network / field-bus state.
+ */
+#include "libbotanik/shell/shell.h"         // CommandShell
+#include "libbotanik/shell/args.h"          // arg_next / arg_eq / arg_is_all
+
+#include <algorithm>                        // std::min
+#include <cstdio>                           // snprintf
+#include <cstring>                          // strlen / strncmp / memcpy
+
+#include "libbotanik/config/identity.h"     // Config::SITE_NAME / FIRMWARE_VERSION
+#include "libbotanik/config/modbus.h"       // Config::MODBUS_*
+#include "libbotanik/config/net.h"          // Config::NET_* / DNS_* / NTP_* / MQTT_*
+#include "libbotanik/config/scheduler.h"    // Config::TASK_PERIOD_MS
+#include "libbotanik_features.h"            // BOTANIK_FEATURE_LIST - `features`
+
+#include "libbotanik/hal/platform.h"        // HAL::Stack / hardware_description
+#include "libbotanik/modbus/rtu/client.h"   // Modbus::RtuClient / Planner
+#include "libbotanik/modbus/tcp/slave.h"    // Modbus::TcpSlave / SlaveContext
+#include "libbotanik/network/mqtt.h"        // Network::MqttClient
+#include "libbotanik/network/network.h"     // Network::NetworkHandler
+#include "libbotanik/network/ntp.h"         // Network::NtpClient
+#include "libbotanik/scheduler/scheduler.h" // Scheduler::SchedulerContext
+#include "libbotanik/tasks/tasks.h"         // Tasks::Registry - `tasks`
+#include "libbotanik/utils/text.h"          // Utils::format_age / format_float / format_size
+
+// Build-time git short hash: a generated header on the CMake builds, "unknown"
+// on the Arduino .ino deploy (no CMake, so the header isn't generated).
+#if defined(__has_include) && __has_include("botanik_gitversion.h")
+#  include "botanik_gitversion.h"           // BOTANIK_GIT_HASH
+#endif
+#ifndef BOTANIK_GIT_HASH
+#  define BOTANIK_GIT_HASH "unknown"
+#endif
+
+namespace Botanik { namespace Shell {
+
+    void CommandShell::_cmd_stats(const char*, uint16_t) {
+        // Emits several lines; scrollback drains them at LOG_ROWS_PER_TICK.
+        Scheduler::SchedulerContext* ctx = _sys != nullptr ? _sys->scheduler : nullptr;
+        if (ctx == nullptr) { _println("stats: no scheduler context"); return; }
+
+        char out[Config::LOG_FORMATTED_LEN];
+        char val[24], detail[64];
+        char fa[12], fb[12];
+
+        snprintf(val,    sizeof(val),    "%lus",
+            (unsigned long)(HAL::Clock::uptime_ms() / 1000));
+        snprintf(detail, sizeof(detail), "%lu ticks, %lu overruns",
+            (unsigned long)ctx->tick_count, (unsigned long)ctx->overruns);
+        _emitf(out, sizeof(out), "%-29s : %-8s (%s)",
+            "Uptime ......................", val, detail);
+
+        snprintf(val,    sizeof(val),    "%s%%",
+            Utils::format_float(fa, sizeof(fa), ctx->cpu_load_ema * 100.0f, 1));
+        snprintf(detail, sizeof(detail), "recent %sms, peak %sms",
+            Utils::format_float(fa, sizeof(fa), ctx->cpu_loop_us_recent / 1000.0, 2),
+            Utils::format_float(fb, sizeof(fb), ctx->cpu_loop_us_max / 1000.0, 2));
+        _emitf(out, sizeof(out), "%-29s : %-8s (%s)",
+            "CPU load ....................", val, detail);
+
+        snprintf(val,    sizeof(val),    "%s%%",
+            Utils::format_float(fa, sizeof(fa), ctx->cpu_jitter_ema * 100.0f, 1));
+        snprintf(detail, sizeof(detail), "recent %sms, peak %sms",
+            Utils::format_float(fa, sizeof(fa), ctx->cpu_jitter_us_recent / 1000.0, 2),
+            Utils::format_float(fb, sizeof(fb), ctx->cpu_jitter_us_max / 1000.0, 2));
+        _emitf(out, sizeof(out), "%-29s : %-8s (%s)",
+            "CPU jitter ..................", val, detail);
+
+        snprintf(val,    sizeof(val),    "%s%%",
+            Utils::format_float(fa, sizeof(fa), ctx->stack_usage * 100.0f, 1));
+        snprintf(detail, sizeof(detail), "%s free, %s total",
+            Utils::format_size(fa, sizeof(fa), ctx->stack_bytes_free),
+            Utils::format_size(fb, sizeof(fb), ctx->stack_depth));
+        _emitf(out, sizeof(out), "%-29s : %-8s (%s)",
+            "Stack usage .................", val, detail);
+
+        snprintf(detail, sizeof(detail), "%lu TX dropped, %lu RX overruns",
+            (unsigned long)_terminal.serial().tx_dropped(),
+            (unsigned long)_terminal.serial().rx_overrun());
+        _emitf(out, sizeof(out), "%-29s : %s",
+            "Console serial ..............", detail);
+    }
+
+    void CommandShell::_cmd_tasks(const char* args, uint16_t alen) {
+        const Tasks::Registry* reg = (_sys != nullptr) ? _sys->tasks : nullptr;
+        if (reg == nullptr) { _println("tasks: no task registry"); return; }
+
+        char out[Config::LOG_FORMATTED_LEN];
+        uint16_t wlen = 0;
+        const char* verb = arg_next(args, alen, wlen);
+        uint16_t wa = 0;
+        const char* a = arg_next(args, alen, wa);
+
+        if (verb != nullptr) {
+            if (arg_eq(verb, wlen, "list")) { _tasks_list(*reg, a, wa); return; }
+            if (arg_eq(verb, wlen, "get")) {
+                if (a == nullptr) { _println("usage: tasks get <name>"); return; }
+                _task_detail(*reg, a, wa);
+                return;
+            }
+            _println("usage: tasks [list [<prefix>] | get <name>]");
+            return;
+        }
+
+        // The beat as a whole, in `stats`' shape - NOT a listing: 22 rows over
+        // a 4800-baud console spend the byte budget on an index of the TASKS
+        // page. Only what no per-task row can say: the totals, and which task
+        // to go and look at.
+        uint64_t runs = 0, peaks_us = 0, missed = 0;
+        uint8_t  missed_tasks = 0;
+        const Tasks::Task* worst   = nullptr;   // most missed activations
+        const Tasks::Task* busiest = nullptr;   // dearest mean run
+        for (uint8_t i = 0; i < reg->count(); i++) {
+            const Tasks::Task& t = reg->task(i);
+            runs     += t.cost.runs;
+            peaks_us += t.cost.us_max;
+            missed   += t.cost.missed;
+            if (t.cost.missed != 0) {
+                missed_tasks++;
+                if (worst == nullptr || t.cost.missed > worst->cost.missed) worst = &t;
+            }
+            if (busiest == nullptr || t.cost.us_mean() > busiest->cost.us_mean())
+                busiest = &t;
+        }
+
+        char val[24], detail[80], n1[24], n2[24];
+
+        snprintf(val, sizeof(val), "%u", (unsigned)reg->count());
+        snprintf(detail, sizeof(detail), "%u refused, %u slots",
+                 (unsigned)reg->overflow(), (unsigned)Config::MAX_TASKS);
+        _emitf(out, sizeof(out), "%-29s : %-8s (%s)",
+               "Registered ..................", val, detail);
+
+        // The rate classes, since a task's period is its group's. Names then
+        // periods, both slash-joined: the pairwise form ("fast 10, main 50")
+        // is three characters too wide for an 80-column line.
+        snprintf(val, sizeof(val), "%lums", (unsigned long)Config::TASK_PERIOD_MS);
+        int w = 0;
+        for (uint8_t g = 0; g < Tasks::GROUP_COUNT && w >= 0 && w < (int)sizeof(detail); g++)
+            w += snprintf(detail + w, sizeof(detail) - (size_t)w, "%s%s",
+                          (g == 0) ? "" : "/", Tasks::group_name((Tasks::GroupId)g));
+        for (uint8_t g = 0; g < Tasks::GROUP_COUNT && w >= 0 && w < (int)sizeof(detail); g++)
+            w += snprintf(detail + w, sizeof(detail) - (size_t)w, "%s%lu",
+                          (g == 0) ? " " : "/",
+                          (unsigned long)Tasks::group_period_ms((Tasks::GroupId)g));
+        _emitf(out, sizeof(out), "%-29s : %-8s (%s ms)",
+               "Beat ........................", val, detail);
+
+        // Missed is the headline: a dropped activation is never caught up
+        // (Tasks::TaskTimer), so this is the only record of a rate not kept.
+        _emitf(out, sizeof(out), "%-29s : %-8s (across %u task(s))",
+               "Activations .................",
+               Utils::format_int(n1, sizeof(n1), (long long)runs),
+               (unsigned)reg->count());
+
+        if (missed == 0)
+            snprintf(detail, sizeof(detail), "every task kept its rate");
+        else
+            snprintf(detail, sizeof(detail), "%u task(s), worst %s with %s",
+                     (unsigned)missed_tasks,
+                     (worst != nullptr && worst->name != nullptr) ? worst->name : "?",
+                     Utils::format_int(n2, sizeof(n2),
+                         (long long)(worst != nullptr ? worst->cost.missed : 0)));
+        _emitf(out, sizeof(out), "%-29s : %-8s (%s)",
+               "Missed ......................",
+               Utils::format_int(n1, sizeof(n1), (long long)missed), detail);
+
+        // Every task at its own worst, all due together: the beat that never
+        // happened. Exceeding the beat period is normal, not an overrun.
+        snprintf(val, sizeof(val), "%sus",
+                 Utils::format_int(n1, sizeof(n1), (long long)peaks_us));
+        _emitf(out, sizeof(out), "%-29s : %-8s (%s)",
+               "Peaks add to ................", val,
+               "every task at its worst, one beat");
+
+        // One name to go and look at, since the table is the TASKS page's.
+        if (busiest != nullptr && busiest->cost.runs != 0) {
+            const uint32_t period = Tasks::group_period_ms(busiest->group);
+            char fa[12];
+            snprintf(val, sizeof(val), "%luus",
+                     (unsigned long)busiest->cost.us_mean());
+            if (period != 0)
+                snprintf(detail, sizeof(detail), "%s mean, %s %% of its own period",
+                         (busiest->name != nullptr) ? busiest->name : "?",
+                         Utils::format_float(fa, sizeof(fa),
+                             (double)busiest->cost.us_mean() / (double)(period * 10u), 1));
+            else
+                snprintf(detail, sizeof(detail), "%s mean, every beat",
+                         (busiest->name != nullptr) ? busiest->name : "?");
+            _emitf(out, sizeof(out), "%-29s : %-8s (%s)",
+                   "Costliest task ..............", val, detail);
+        }
+
+        _println("per-task figures: the TASKS page, or `tasks <name>`");
+    }
+
+    // Same columns as the TASKS page, minus the ones that need a panel: what it
+    // is called, how often it is meant to run, and the two numbers that say
+    // whether it does (mean cost, missed activations).
+    void CommandShell::_tasks_list(const Tasks::Registry& reg, const char* prefix,
+                                   uint16_t plen) {
+        char out[Config::LOG_FORMATTED_LEN];
+        uint16_t n = 0;
+        for (uint8_t i = 0; i < reg.count(); i++) {
+            const Tasks::Task& t = reg.task(i);
+            if (t.name == nullptr) continue;
+            if (prefix != nullptr && strncmp(t.name, prefix, plen) != 0) continue;
+            _emitf(out, sizeof(out), "  %-22s %-5s %-8s %5lums %6luus %5lu",
+                   t.name, Tasks::group_name(t.group), Tasks::phase_name(t.phase),
+                   (unsigned long)Tasks::group_period_ms(t.group),
+                   (unsigned long)t.cost.us_mean(),
+                   (unsigned long)t.cost.missed);
+            n++;
+        }
+        if (n == 0) { _println("tasks: nothing matches"); return; }
+        _emitf(out, sizeof(out), "  %u task(s)  (name group phase every mean missed)", n);
+    }
+
+    void CommandShell::_task_detail(const Tasks::Registry& reg,
+                                    const char* name, uint16_t nlen) {
+        for (uint8_t i = 0; i < reg.count(); i++) {
+            const Tasks::Task& t = reg.task(i);
+            if (t.name == nullptr || !arg_eq(name, nlen, t.name)) continue;
+
+            char val[64], fa[12];
+            const uint32_t period = Tasks::group_period_ms(t.group);
+
+            snprintf(val, sizeof(val), "%s (%s, every %lu ms)",
+                     Tasks::phase_name(t.phase), Tasks::group_name(t.group),
+                     (unsigned long)period);
+            _line("Runs in ..............", val);
+
+            // last_run_ms() is meaningless until the first activation, so a task
+            // that has never run says so rather than reporting the uptime.
+            // Missed rides here because it only means anything against the run
+            // count.
+            if (t.timer.runs() == 0) snprintf(val, sizeof(val), "none yet");
+            else snprintf(val, sizeof(val), "%lu run, %lu missed, last %lu ms ago",
+                          (unsigned long)t.timer.runs(),
+                          (unsigned long)t.cost.missed,
+                          (unsigned long)(HAL::Clock::uptime_ms() - t.timer.last_run_ms()));
+            _line("Activations ..........", val);
+
+            snprintf(val, sizeof(val), "last %lu us, mean %lu us, peak %lu us",
+                     (unsigned long)t.cost.us_last,
+                     (unsigned long)t.cost.us_mean(),
+                     (unsigned long)t.cost.us_max);
+            _line("Cost .................", val);
+
+            // Against its OWN period, not the beat: a 500 ms task costing 200 us
+            // is idle, and measuring it against 10 ms would say otherwise.
+            if (t.cost.runs != 0 && period != 0) {
+                // us_mean/period_ms is already per-mille - the us/ms ratio does
+                // the scaling - so this stays a 32-bit divide.
+                snprintf(val, sizeof(val), "%s %% of its own period",
+                         Utils::format_float(fa, sizeof(fa),
+                             (double)t.cost.us_mean() / (double)(period * 10u), 2));
+                _line("Duty .................", val);
+            }
+            return;
+        }
+        char out[Config::LOG_FORMATTED_LEN];
+        _emitf(out, sizeof(out), "tasks: no task named %.*s", (int)nlen, name);
+    }
+
+    void CommandShell::_cmd_version(const char*, uint16_t) {
+        char out[Config::LOG_FORMATTED_LEN];
+        _emitf(out, sizeof(out), "Botanik %s (%s) site %s on %s",
+               Config::FIRMWARE_VERSION, BOTANIK_GIT_HASH,
+               Config::SITE_NAME, HAL::hardware_description());
+    }
+    void CommandShell::_cmd_features(const char*, uint16_t) {
+        // Compile-time flags, so there is no argument form and nothing to set.
+        // An absent subsystem is otherwise indistinguishable from a broken one.
+        // Expanded from BOTANIK_FEATURE_LIST rather than a second roster, so a
+        // flag added to the header is reported here. Names carry the macro
+        // spelling and are lower-cased for display below.
+#define BOTANIK_FEAT_ROW(f) { #f, BOTANIK_FEATURE_##f != 0 },
+        static const struct { const char* name; bool on; } FEATURES[] = {
+            BOTANIK_FEATURE_LIST(BOTANIK_FEAT_ROW)
+        };
+#undef BOTANIK_FEAT_ROW
+
+        // Partitioned rather than one line per flag: every line costs the same
+        // 4800-baud budget. Wrapped rather than truncated, since two dozen
+        // names do not fit 80 columns and a clipped flag reads as absent.
+        // 72 = the conventional 80 columns minus the label; the shell has no
+        // terminal handle to measure. Wrapping short is harmless, long clips.
+        static const size_t WRAP_W = 72;
+        char out[Config::LOG_FORMATTED_LEN];
+        for (uint8_t pass = 0; pass < 2; pass++) {
+            const bool want = (pass == 0);
+            char list[96];
+            size_t n = 0;
+            bool first_line = true, any = false;
+            list[0] = '\0';
+
+            for (const auto& f : FEATURES) {
+                if (f.on != want) continue;
+                any = true;
+                const size_t len = strlen(f.name);
+                // Flush before overflowing, so a name is never split.
+                if (n != 0 && n + 1 + len > WRAP_W) {
+                    _emitf(out, sizeof(out), "%-3s %s %s",
+                           first_line ? (want ? "on" : "off") : "",
+                           first_line ? ":" : " ", list);
+                    first_line = false;
+                    n = 0; list[0] = '\0';
+                }
+                if (n != 0) list[n++] = ' ';
+                for (size_t i = 0; i < len && n < sizeof(list) - 1; i++) {
+                    const char c = f.name[i];
+                    list[n++] = (c >= 'A' && c <= 'Z') ? (char)(c + 32) : c;
+                }
+                list[n] = '\0';
+            }
+            if (n != 0 || !any)
+                _emitf(out, sizeof(out), "%-3s %s %s",
+                       first_line ? (want ? "on" : "off") : "",
+                       first_line ? ":" : " ", any ? list : "(none)");
+        }
+    }
+
+#if !BOTANIK_FEATURE_NETWORK
+
+    void CommandShell::_cmd_net(const char*, uint16_t) {
+        _println("net: networking disabled");
+    }
+#else
+    void CommandShell::_cmd_net(const char*, uint16_t) {
+        if (_sys == nullptr) { _println("net: networking disabled"); return; }
+        const SystemContext&           ctx = *_sys;
+        const Network::NetworkHandler* net = ctx.network;
+        // Link never came up (config absent / offline).
+        if (net == nullptr) { _println("net: networking disabled"); return; }
+#if BOTANIK_FEATURE_NTP
+        const Network::NtpClient*       ntp = ctx.ntp;
+#else
+        const Network::NtpClient*       ntp = nullptr;    // _NTP off: not built
+#endif
+#if BOTANIK_FEATURE_MQTT
+        const Network::MqttClient*      mqt = ctx.mqtt;
+#else
+        const Network::MqttClient*      mqt = nullptr;    // _MQTT off: not built
+#endif
+        // Dotted-leader "label .... : value" lines. Sized for a pair of host
+        // strings (DNS / NTP servers); the scrollback soft-wraps if a long pair
+        // overruns 80 cols.
+        char val[2 * Config::HOST_STR_LEN + 8];
+
+        // One address at a time into a shared scratch: sequential use only.
+        char ipbuf[16];
+        auto ip4 = [&](const HAL::Network::Ip4& a) -> const char* {
+            return HAL::Network::ip4_to_str(a, ipbuf, sizeof(ipbuf));
+        };
+
+        // --- Link --------------------------------------------------------
+        const char* mode = Vars::get_int(_bank(), "net_dhcp") ? "DHCP" : "static";
+        snprintf(val, sizeof(val), "%s  (%s)", net->status_str(), mode);
+        _line("Network ..............", val);
+
+        // The active link parameters (DHCP lease or static config, whichever is
+        // live), read back from the HAL so a DHCP-assigned value shows too.
+        HAL::Network::Ip4 a4;
+        _line("IP address ...........", net->ip(&a4) ? ip4(a4) : "-");
+        _line("Netmask ..............",
+             HAL::Network::link_netmask(&a4) ? ip4(a4) : "-");
+        _line("Gateway ..............",
+             HAL::Network::link_gateway(&a4) ? ip4(a4) : "-");
+        {
+            HAL::Network::Ip4 d0, d1;
+            bool h0 = HAL::Network::link_dns(0, &d0);
+            bool h1 = HAL::Network::link_dns(1, &d1);
+            if (h0 && h1) {
+                char first[16];
+                snprintf(val, sizeof(val), "%s  %s",
+                         HAL::Network::ip4_to_str(d0, first, sizeof(first)), ip4(d1));
+            } else {
+                snprintf(val, sizeof(val), "%s", h0 ? ip4(d0) : "-");
+            }
+            _line("DNS ..................", val);
+        }
+
+        // --- NTP ---------------------------------------------------------
+        if (ntp != nullptr) {
+            if (ntp->synced())
+                snprintf(val, sizeof(val), "%s  (offset %+ld ms)",
+                         ntp->status_str(), (long)ntp->offset_ms());
+            else
+                snprintf(val, sizeof(val), "%s", ntp->status_str());
+            _line("NTP ..................", val);
+            const char* s1 = Vars::get_str(_bank(), "ntp_srv1");
+            if (s1[0]) {
+                // Configured hostname, then the resolved IP:port once known.
+                Network::ResolvedAddr sa = ntp->server_addr();
+                bool resolved = (sa.b[0] | sa.b[1] | sa.b[2] | sa.b[3]) != 0;
+                if (resolved)
+                    snprintf(val, sizeof(val), "%s  %s:%u", s1,
+                             ip4(sa), (unsigned)ntp->server_port());
+                else
+                    snprintf(val, sizeof(val), "%s", s1);
+                _line("NTP server ...........", val);
+            }
+        } else {
+            _line("NTP ..................", "disabled");
+        }
+
+        // --- MQTT --------------------------------------------------------
+        if (mqt != nullptr) {
+            uint64_t lp = mqt->last_publish_ms();
+            if (lp != 0) {
+                char ageb[12];
+                uint32_t age_s = (uint32_t)((HAL::Clock::uptime_ms() - lp) / 1000);
+                snprintf(val, sizeof(val), "%s  (pub %s)", mqt->status_str(),
+                         Utils::format_age(ageb, sizeof(ageb), age_s, true));
+            } else {
+                snprintf(val, sizeof(val), "%s  (no pub yet)", mqt->status_str());
+            }
+            _line("MQTT .................", val);
+            const char* brk = Vars::get_str(_bank(), "mqtt_host");
+            if (brk[0]) {
+                // Configured hostname, then the resolved IP:port once connected.
+                if (mqt->connected()) {
+                    Network::ResolvedAddr pa = mqt->peer_addr();
+                    snprintf(val, sizeof(val), "%s  %s:%u", brk,
+                             ip4(pa), (unsigned)mqt->peer_port());
+                } else {
+                    snprintf(val, sizeof(val), "%s", brk);
+                }
+                _line("MQTT broker ..........", val);
+            }
+        } else {
+            _line("MQTT .................", "disabled");
+        }
+    }
+#endif  // BOTANIK_FEATURE_NETWORK
+
+// modbus - the field bus and the SCADA-facing server
+// ---------------------------------------------------------------------------
+
+#if BOTANIK_FEATURE_MODBUS_RTU_CLIENT
+    /** @brief The roll-call: one line per unit. The plant's tag first (an
+     *  operator knows the box by its designation, not its unit id), then how
+     *  much of the scan it accounts for, then the fastest period any of its
+     *  blocks sits on, which bounds how quickly a fault on it is noticed. */
+    void CommandShell::_modbus_devices(const Modbus::RtuClient& rtu) {
+        char val[96];
+        const Modbus::Planner& plan = rtu.plan();
+        for (uint8_t i = 0; i < rtu.peer_count(); ++i) {
+            const uint8_t unit = rtu.peer_unit(i);
+
+            uint16_t blocks = 0, rows = 0;
+            uint32_t fastest = 0;
+            for (uint16_t b = 0; b < plan.block_count(); ++b) {
+                const Modbus::Block& blk = plan.block(b);
+                if (blk.device != unit) continue;
+                blocks++;
+                rows = (uint16_t)(rows + blk.row_count);
+                if (blk.period_ms != 0 && (fastest == 0 || blk.period_ms < fastest))
+                    fastest = blk.period_ms;
+            }
+
+            const char* tag = Modbus::device_tag(rtu.devices(), unit);
+            char rate[16];
+            if (fastest == 0) snprintf(rate, sizeof(rate), "%s", "on demand");
+            else if (fastest >= 1000) snprintf(rate, sizeof(rate), "%us", (unsigned)(fastest / 1000u));
+            else snprintf(rate, sizeof(rate), "%ums", (unsigned)fastest);
+
+            // The state last: the column an eye runs down for the one that is
+            // not "ok".
+            char state[16];
+            if (!rtu.peer_dead(i)) snprintf(state, sizeof(state), "%s", "ok");
+            else snprintf(state, sizeof(state), "DEAD x%u", (unsigned)rtu.peer_misses(i));
+
+            snprintf(val, sizeof(val), "  %-18s dev %-3u %2u blk %3u row %-9s %s",
+                     (tag != nullptr && tag[0] != '\0') ? tag : "-",
+                     (unsigned)unit, (unsigned)blocks, (unsigned)rows, rate, state);
+            _println(val);
+        }
+    }
+#endif
+
+#if !BOTANIK_FEATURE_MODBUS_RTU_CLIENT && !BOTANIK_FEATURE_MODBUS_TCP_SERVER
+    void CommandShell::_cmd_modbus(const char*, uint16_t) {
+        _println("modbus: not built in");
+    }
+#else
+    void CommandShell::_cmd_modbus(const char* args, uint16_t alen) {
+        if (_sys == nullptr) { _println("modbus: no context"); return; }
+        char val[96];
+
+        // `modbus devices` is the roll-call; a bare `modbus` is the plan and
+        // the state. Matched on its first letter, like the other sub-commands.
+        uint16_t wn = 0;
+        const char* sub = arg_next(args, alen, wn);
+        const bool want_devices = (sub != nullptr && wn > 0 && sub[0] == 'd');
+
+#if BOTANIK_FEATURE_MODBUS_RTU_CLIENT
+        const Modbus::RtuClient* rtu = _sys->modbus_rtu;
+        if (rtu == nullptr) {
+            _println("RTU master (the field bus) .. not wired");
+        } else {
+            const Modbus::Planner& plan = rtu->plan();
+
+            // Duty is the scheduled figure, not the wire one: it answers "is
+            // there room for another sensor".
+            _println("RTU master (the field bus)");
+
+            snprintf(val, sizeof(val), "%u rows -> %u blocks on %u device(s)",
+                     (unsigned)plan.row_count(), (unsigned)plan.block_count(),
+                     (unsigned)plan.device_count());
+            _line("  Plan ...............", val);
+
+            snprintf(val, sizeof(val), "%s, %u baud, %u.%u%% of the bus",
+                     rtu->status_str(), (unsigned)Config::MODBUS_BAUD,
+                     (unsigned)(plan.duty_ppm() / 10000u),
+                     (unsigned)((plan.duty_ppm() / 1000u) % 10u));
+            _line("  State ..............", val);
+
+            snprintf(val, sizeof(val), "%lu sent, %lu faults, %lu refused, %lu short tx, %lu late B",
+                     (unsigned long)rtu->txns(), (unsigned long)rtu->faults(),
+                     (unsigned long)rtu->refusals(), (unsigned long)rtu->tx_short(),
+                     (unsigned long)rtu->stale_rx());
+            _line("  Transactions .......", val);
+
+            // The framer has always kept these apart because they point at
+            // different physical faults, and until now nothing read them: a bus
+            // failing on CRC is a cable, a terminator or the wrong baud; one
+            // failing on clean timeouts is power or addressing; and bytes out of
+            // turn are a second master or a duplicate address.
+            const Modbus::RtuFramer& fr = rtu->framer();
+            snprintf(val, sizeof(val), "%lu crc, %lu bad frame, %lu timeout, %lu stray B",
+                     (unsigned long)fr.crc_errors(), (unsigned long)fr.bad_frames(),
+                     (unsigned long)fr.timeouts(), (unsigned long)fr.stray_bytes());
+            _line("  Line ...............", val);
+
+            // Unplanned rows are signals that will never be scanned: a critical
+            // at bring-up, repeated here rather than only in a log.
+            if (plan.rows_dropped() != 0 || plan.rows_unscanned() != 0) {
+                snprintf(val, sizeof(val), "%u unplanned, %u never scanned",
+                         (unsigned)plan.rows_dropped(),
+                         (unsigned)plan.rows_unscanned());
+                _line("  Rows dropped .......", val);
+            }
+
+            if (rtu->safe_state_pending())
+                _println("  (safe state owed to the field)");
+
+            // Twenty devices do not fail at once. Said here as well as in the
+            // alarm, because this is the screen an engineer is already looking
+            // at when they ask which cabinet to walk to.
+            if (rtu->peer_count() != 0 && rtu->dead_count() == rtu->peer_count())
+                _println("  (the whole segment is quiet: trunk, termination, "
+                         "this unit's transceiver, or a second master)");
+
+            // Counts only: twenty units is a screenful that would push the plan
+            // and the state off the top. WHICH ones is `modbus devices`.
+            if (!want_devices) {
+                snprintf(val, sizeof(val), "  %u device(s), %u not answering"
+                                           "%s",
+                         (unsigned)rtu->peer_count(), (unsigned)rtu->dead_count(),
+                         rtu->dead_count() != 0 ? "  (modbus devices)" : "");
+                _println(val);
+            } else {
+                _modbus_devices(*rtu);
+            }
+        }
+#endif
+
+#if BOTANIK_FEATURE_MODBUS_TCP_SERVER
+        const Modbus::TcpSlave* tcp = _sys->modbus_tcp;
+        if (tcp == nullptr) {
+            _println("TCP slave (the SCADA side) . not wired");
+        } else {
+            const Modbus::SlaveContext c = tcp->context();
+            _println("TCP slave (the SCADA side)");
+
+            if (c.listening)
+                snprintf(val, sizeof(val), "listening on %u, %u row(s), %u client(s)",
+                         (unsigned)c.port, (unsigned)c.rows, (unsigned)c.clients);
+            else
+                snprintf(val, sizeof(val), "NOT LISTENING (port %u)", (unsigned)c.port);
+            _line("  State ..............", val);
+
+            snprintf(val, sizeof(val), "%lu served, %lu refused, %lu writes, %lu rejects",
+                     (unsigned long)c.requests, (unsigned long)c.exceptions,
+                     (unsigned long)c.writes, (unsigned long)c.rejects);
+            _line("  Requests ...........", val);
+        }
+#endif
+    }
+#endif
+
+}}  // namespace Botanik::Shell

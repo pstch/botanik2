@@ -47,7 +47,7 @@ def test_params_save_commits_the_edit(spawn):
 
     # Nothing left owed, and the command says so rather than silently doing
     # nothing - "did that work?" is the question a silent reply leaves.
-    _run(term, b"params save")
+    _run(term, b"params save all")
     assert term.wait_for("nothing to save"), "params save did not report an empty commit"
 
 
@@ -85,7 +85,7 @@ def test_override(spawn):
 
     # `overrides clear` releases the rest without walking the list, which is how
     # a maintainer hands the machine back.
-    _run(term, b"overrides clear")
+    _run(term, b"overrides clear all")
     assert term.wait_for("cleared"), "overrides clear did not report"
     _run(term, b"overrides list")
     assert term.wait_for("none active"), "override still listed after clear"
@@ -195,3 +195,66 @@ def test_tasks(spawn):
     # A listing exists too, prefix-filtered, for finding the name to detail.
     _run(term, b"tasks list site_")
     assert term.wait_for(("site_", "task(s)")), "tasks list did not filter by prefix"
+
+
+def test_params_clear_reverts_to_the_default(spawn):
+    """`params clear` is the way back: live value AND stored copy."""
+    term = shell(spawn, quiet_logs=True)
+    _run(term, b"params set ntp_poll_sec 900")
+    assert term.wait_for("ntp_poll_sec = 900"), "params set did not apply"
+    _run(term, b"params save ntp_poll_sec")
+    assert term.wait_for("ntp_poll_sec saved"), "params save did not commit"
+
+    _run(term, b"params clear ntp_poll_sec")
+    assert term.wait_for("cleared to its default"), "params clear did not report"
+
+    _run(term, b"params get ntp_poll_sec")
+    assert term.wait_for("3600"), \
+        "params clear did not put the factory default back (BOTANIK_NTP_POLL_SEC)"
+
+    # The mark went with the value: nothing is owed to storage after a clear.
+    _run(term, b"params save all")
+    assert term.wait_for("nothing to save"), "params clear left the row marked unsaved"
+
+    _run(term, b"params clear nosuchthing")
+    assert term.wait_for("unknown parameter"), "unknown name not reported"
+
+
+def test_programs_list_and_gate(spawn):
+    """A program can be taken out of the scan by hand, and says so until saved."""
+    term = shell(spawn, quiet_logs=True)
+    _run(term, b"programs list")
+    assert term.wait_for("program(s)"), "programs list printed no roll-call"
+    assert term.wait_for("enabled"), "programs list did not show a state column"
+
+    _run(term, b"programs disable nosuchprogram")
+    assert term.wait_for("unknown program"), "unknown program not reported"
+
+
+def test_programs_disable_is_live_then_saved(spawn):
+    term = shell(spawn, quiet_logs=True)
+    # Take the first program out by name, whatever the site calls it.
+    _run(term, b"programs disable all")
+    assert term.wait_for("disabled"), "programs disable all did not report"
+    assert term.wait_for("unsaved"), "disable did not flag the change as unsaved"
+
+    _run(term, b"programs list")
+    assert term.wait_for("DISABLED"), "programs list did not show the new state"
+
+    _run(term, b"programs save all")
+    assert term.wait_for("saved"), "programs save did not commit"
+
+    _run(term, b"programs save all")
+    assert term.wait_for("nothing to save"), "programs save did not report an empty commit"
+
+    _run(term, b"programs enable all")
+    assert term.wait_for("enabled"), "programs enable did not report"
+
+
+def test_a_bare_verb_never_means_all(spawn):
+    """Applying to every row is only ever spelled `all`: a bare verb is a typo."""
+    term = shell(spawn, quiet_logs=True)
+    for line in (b"params save", b"params clear", b"overrides save",
+                 b"overrides clear", b"programs save", b"programs disable"):
+        _run(term, line)
+        assert term.wait_for("usage:"), f"{line!r} did not refuse a missing target"
