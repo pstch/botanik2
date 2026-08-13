@@ -165,6 +165,10 @@ namespace Botanik { namespace Tasks {
 
             const uint64_t t0 = HAL::Clock::uptime_us();
             if (t.handler != nullptr) {
+                // Config first, so a group committed this beat is applied
+                // before the hook that reads it. Once per beat per owner, however
+                // many phases it registered in.
+                component_poll_config(t.owner, now_ms);
                 Tick tick;
                 tick.now_ms = now_ms; tick.dt_ms = dt; tick.missed = missed;
                 tick.first  = t.first_activation;

@@ -147,6 +147,29 @@ Learned the hard way while landing steps 1-3, and both cost a round trip.
 fail the build and does not fail a test - the work simply never runs. Neither
 `make` nor the 499-case suite noticed three components failing to register.
 
+**A registration replaces the WHOLE of step(), not just the hook.** This is the
+one that cost the most, and it bit twice, because `Component::step()` did four
+things around the phase hook and a handler calls the hook alone.
+
+- *setup()* - `on_setup()` + `announce()`. Missing it left `HealthMonitor`'s POST
+  and `_bind_alarms()` unrun, so all six platform-health alarms sat at
+  `VAR_NONE`, silently, for two commits.
+- *the config-serial watch* - `param_serial()` / `on_param_changed()`. Missing it
+  left every config-driven component unable to reconfigure. `NetworkHandler`
+  starts in `NET_IDLE` and reaches `_begin_setup()` only from
+  `on_param_changed()`, so **the network never came up at all** from step 3
+  until this was found. NTP and MQTT with it.
+
+Both are on the registry now (`component_setup`, `component_poll_config`). The
+lesson for the rest of the rework: when a component stops being stepped, walk
+`step()` line by line and ask who does each line now.
+
+**And a failing test is evidence, not noise.** `pyte:test_page_behaviour` failed
+from step 3 onward and got written off as a sandbox networking limitation
+through several commits. It was the bug, saying so the whole time. `git worktree
+add <dir> <commit-before>` and run it there - two minutes, and it settles
+"environment or regression" for good.
+
 **A registration is also a SETUP.** Step 3 moved five components onto the owner
 form of `add()`, which - unlike `add_component<P>()` - carried no one-time init,
 so nothing ran their `setup()`. The loud one was `HealthMonitor`: its

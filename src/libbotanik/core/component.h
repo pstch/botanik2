@@ -163,6 +163,31 @@ namespace Botanik {
          *  Default: none. @see design/scan-cycle-rework.md */
         virtual void register_tasks(Tasks::Registry&) {}
 
+        /** @brief Poll the watched config serial and dispatch on_param_changed()
+         *  when it has moved.
+         *
+         *  Once per BEAT, not per task: a component registered in three phases
+         *  must not re-read its group three times, and `_beat_ms` is the same
+         *  guard step() uses, so the two ways in agree.
+         *
+         *  The registry calls this before every handler. It has to: a
+         *  registration dispatches the phase hook DIRECTLY, so nothing that
+         *  step() used to do around that hook happens by itself. That is how
+         *  every config-driven component silently stopped reconfiguring - the
+         *  network handler sat in NET_IDLE forever waiting for a callback
+         *  nothing made. */
+        void poll_config(uint64_t now_ms) {
+            if (now_ms == _beat_ms) return;
+            _beat_ms = now_ms;
+            const uint32_t serial = param_serial();
+            // _applied_serial starts at 0, so an unset block (serial 0) never
+            // fires at boot; a config later cleared back to 0 does, being a real
+            // reconfiguration.
+            if (serial == _applied_serial) return;
+            _applied_serial = serial;
+            on_param_changed(now_ms);
+        }
+
         /** @brief Advance through a WHOLE beat: every phase hook, in phase order.
          *
          *  For a component the task table does not own - one stepped by another

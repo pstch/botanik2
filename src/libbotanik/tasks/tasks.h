@@ -51,6 +51,14 @@ namespace Botanik { namespace Tasks {
      *  Component and must not acquire `core/` to call one method on it. */
     void component_setup(void* self, uint64_t now_ms);
 
+    /** @brief Let @p c re-read its watched config group and reconfigure if it
+     *  moved (Component::poll_config). Also defined in core/component.cpp.
+     *
+     *  Called before every handler, because a registration dispatches the phase
+     *  hook directly: whatever step() used to do around that hook is this
+     *  class's job now, or it does not happen at all. */
+    void component_poll_config(Component* c, uint64_t now_ms);
+
     /** @brief What a handler is told about the activation it is running in.
      *
      *  The rate lives on the TASK, so the task is the only thing that knows how
