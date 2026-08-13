@@ -44,15 +44,18 @@
 
 namespace Botanik { namespace Pages {
 
-    /** @brief Full-screen status display base (see file header). */
-    template<typename OutputData>
+    /** @brief Full-screen status display base (see file header).
+     *
+     *  Not a template. It used to take the site's data struct as a parameter,
+     *  but it never dereferenced one: the pointer was stored and handed back
+     *  through data(), so the whole template existed to give a subclass a typed
+     *  accessor. A subclass can hold its own typed pointer, which is one member
+     *  in the one place that knows the type. */
     class StatusPage : public MetricPage {
     protected:
         /** @name State
          *  @{ */
 
-        /** @brief Typed site data struct (may be null). */
-        const OutputData* _data;
         /** @brief The subsystem handles the system band renders from. Injected,
          *  not read back off the console. */
         const SystemContext* _sys;
@@ -243,15 +246,14 @@ namespace Botanik { namespace Pages {
 
         /** @brief Typed site data for derived rendering (may be
          *  null). */
-        const OutputData* data() const { return _data; }
 
         /** @} */
 
     public:
         /** @brief Bind to a terminal, the subsystem handles the system band
          *  reads, and the site data struct. */
-        StatusPage(Console& console, const SystemContext* sys, const OutputData* data)
-            : MetricPage(console), _data(data), _sys(sys) {
+        StatusPage(Console& console, const SystemContext* sys)
+            : MetricPage(console), _sys(sys) {
             // wall clock + uptime tick per second
             _hot_ms = Config::PAGE_HOT_MS;
         }

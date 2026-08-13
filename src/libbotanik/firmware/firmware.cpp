@@ -245,29 +245,50 @@ namespace Botanik {
     // The task table
     // ------------------------------------------------------------------------
 
+    // One named static per method (see OwnTasks). Each reaches the enclosing
+    // firmware through the nested class's reference to it.
+    void BotanikFirmware::OwnTasks::_site_input(Component* c, const Tasks::Tick& t) {
+        static_cast<OwnTasks*>(c)->_fw.on_input(t.now_ms);
+    }
+    void BotanikFirmware::OwnTasks::_site_config(Component* c, const Tasks::Tick& t) {
+        static_cast<OwnTasks*>(c)->_fw.on_config(t.now_ms);
+    }
+    void BotanikFirmware::OwnTasks::_control_latch(Component* c, const Tasks::Tick& t) {
+        static_cast<OwnTasks*>(c)->_fw._latch_control(t.now_ms);
+    }
+    void BotanikFirmware::OwnTasks::_site_service(Component* c, const Tasks::Tick& t) {
+        static_cast<OwnTasks*>(c)->_fw.on_service(t.now_ms);
+    }
+    void BotanikFirmware::OwnTasks::_site_control(Component* c, const Tasks::Tick& t) {
+        static_cast<OwnTasks*>(c)->_fw._run_site_control(t.now_ms);
+    }
+    void BotanikFirmware::OwnTasks::_site_output(Component* c, const Tasks::Tick& t) {
+        static_cast<OwnTasks*>(c)->_fw.on_output(t.now_ms);
+    }
+    void BotanikFirmware::OwnTasks::_site_present(Component* c, const Tasks::Tick& t) {
+        static_cast<OwnTasks*>(c)->_fw.on_present(t.now_ms);
+    }
+
     // The firmware's own eight rows: two bits of housekeeping and the six site
     // hooks. Each names its phase and rate here, beside the others, so the beat
     // still reads top to bottom in _register_tasks() below.
     void BotanikFirmware::OwnTasks::register_tasks(Tasks::Registry& r) {
         using namespace Tasks;
-        r.add(*this, &_hook<&BotanikFirmware::on_input>,
+        r.add(*this, &_site_input,
               "site_input",    GROUP_FAST, PHASE_INPUT);
-        // The two rates that are config for the firmware ITSELF. After the
-        // params component, so an edit committed this beat is applied this beat
-        // rather than the next.
-        r.add(*this, &_hook<&BotanikFirmware::on_config>,
+        r.add(*this, &_site_config,
               "site_config",   GROUP_FAST, PHASE_CONFIG);
-        r.add(*this, &_hook<&BotanikFirmware::_latch_control>,
+        r.add(*this, &_control_latch,
               "control_latch", GROUP_FAST, PHASE_SERVICE);
-        r.add(*this, &_hook<&BotanikFirmware::on_service>,
+        r.add(*this, &_site_service,
               "site_service",  GROUP_FAST, PHASE_SERVICE);
         // The site's own control law, under the same gate the registry applies
         // to the programs.
-        r.add(*this, &_hook<&BotanikFirmware::_run_site_control>,
+        r.add(*this, &_site_control,
               "site_control",  GROUP_FAST, PHASE_CONTROL);
-        r.add(*this, &_hook<&BotanikFirmware::on_output>,
+        r.add(*this, &_site_output,
               "site_output",   GROUP_FAST, PHASE_OUTPUT);
-        r.add(*this, &_hook<&BotanikFirmware::on_present>,
+        r.add(*this, &_site_present,
               "site_present",  GROUP_FAST, PHASE_PRESENT);
     }
 

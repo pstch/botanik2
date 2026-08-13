@@ -45,34 +45,22 @@ namespace Botanik { namespace Plc {
         ~Block() = default;
     };
 
-    namespace detail {
-        /** @brief Whether `T` has a callable `reset()`. The C++11 detection
-         *  idiom: the first overload survives substitution only when the
-         *  expression is well formed. */
-        template <class T>
-        struct has_reset {
-            template <class U>
-            static char probe(decltype(static_cast<void>(
-                                  static_cast<U*>(nullptr)->reset()), 0));
-            template <class U>
-            static long probe(...);
-            static const bool value = sizeof(probe<T>(0)) == sizeof(char);
-        };
-    }  // namespace detail
-
 }}  // namespace Botanik::Plc
 
 /** @brief Assert that @p T is a well-formed function block. Place it at
  *  namespace scope directly after the class.
  *
- *  Three claims: it is in the family, it can be reset, and it costs no vptr
- *  (@ref blk_novirtual). */
+ *  Two claims: it is in the family, and it costs no vptr (@ref blk_novirtual).
+ *
+ *  It used to claim a third - that T has a callable reset() - through a C++11
+ *  detection idiom. That went with the template: a block whose reset is a no-op
+ *  is a legitimate block (a stateless one has nothing to drop), so the check
+ *  was asserting a convention rather than a requirement. What actually needs
+ *  reset() is a program that CALLS it, and that is a compile error at the call
+ *  site, where it names the block that is missing one. */
 #define BOTANIK_PLC_BLOCK(T)                                                   \
     static_assert(::std::is_base_of< ::Botanik::Plc::Block, T >::value,        \
                   #T " must derive from Plc::Block");                          \
-    static_assert(::Botanik::Plc::detail::has_reset< T >::value,               \
-                  #T " must provide reset(): a control withdrawal resets every " \
-                  "program, and a program's reset is the sum of its blocks'"); \
     static_assert(!::std::is_polymorphic< T >::value,                          \
                   #T " must not be polymorphic: a vptr on every block instance")
 

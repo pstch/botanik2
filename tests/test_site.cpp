@@ -509,10 +509,7 @@ namespace sizes {
 
 // Concrete instantiations matching what the simulator builds (botanik_sim/main.cpp).
 using HomePage_t   = Botanik::Pages::HomePage;
-// StatusPage's template parameter is what a site subclass draws; nothing
-// here has one, so it's sized on a stand-in.
-struct StatusPayloadStandIn { uint32_t whatever; };
-using StatusPage_t = Botanik::Pages::StatusPage<StatusPayloadStandIn>;
+using StatusPage_t = Botanik::Pages::StatusPage;
 
 // Guards a type against runaway growth; the failure message names the type
 // and both numbers.

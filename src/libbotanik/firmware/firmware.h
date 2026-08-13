@@ -146,21 +146,23 @@ namespace Botanik {
             void register_tasks(Tasks::Registry& r) override;
 
         private:
-            /** @brief Generates the named handler a registration needs, one per
-             *  method, so each row is a NAME rather than another copy of the
-             *  same cast.
+            /** @name The handlers
              *
-             *  A pointer-to-member will not convert to the plain function
-             *  pointer the table stores, so every dispatched method needs a free
-             *  function in front of it. The method is a TEMPLATE argument so the
-             *  compiler writes those eight wrappers instead of us, and the call
-             *  site still reads `_hook<&BotanikFirmware::on_input>` - named by
-             *  what it calls, greppable, breakpoint-able, and visible in a stack
-             *  trace. None of which a lambda in a registration list is. */
-            template <void (BotanikFirmware::*Method)(uint64_t)>
-            static void _hook(Component* c, const Tasks::Tick& t) {
-                (static_cast<OwnTasks*>(c)->_fw.*Method)(t.now_ms);
-            }
+             *  One named static per method, written out. `Task::handler` is a
+             *  plain function pointer and a pointer-to-member will not convert
+             *  to one, so every dispatched method needs a free function in
+             *  front of it - and eight short ones say it plainly where a
+             *  template said it once and obscurely. Each is greppable, takes a
+             *  breakpoint, and names itself in a stack trace.
+             *  @{ */
+            static void _site_input  (Component* c, const Tasks::Tick& t);
+            static void _site_config (Component* c, const Tasks::Tick& t);
+            static void _control_latch(Component* c, const Tasks::Tick& t);
+            static void _site_service(Component* c, const Tasks::Tick& t);
+            static void _site_control(Component* c, const Tasks::Tick& t);
+            static void _site_output (Component* c, const Tasks::Tick& t);
+            static void _site_present(Component* c, const Tasks::Tick& t);
+            /** @} */
         };
 
         /** @name Configuration
