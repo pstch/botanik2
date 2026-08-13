@@ -38,7 +38,7 @@ struct Master {
     Bank      bank;
     RtuClient client;
 
-    Master() : bank(Site::g_site.vars), client(&bank, nullptr, Site::g_site.devices) {
+    Master() : bank(Site::g_site.vars), client(Botanik::SetupContext(), &bank, Site::g_site.devices) {
         bank.init();
         bank.set_health_hold(false);
         bank.set_control_mode(CONTROL_ENABLED);
@@ -304,7 +304,7 @@ struct LiveBus {
     uint64_t      t = 0;
 
     explicit LiveBus(const DeviceTable* devs = Site::g_site.devices)
-        : bank(Site::g_site.vars), client(&bank, nullptr, devs) {
+        : bank(Site::g_site.vars), client(Botanik::SetupContext(), &bank, devs) {
         bank.init();
         // Both halves: the system's hold defaults to held, so the operator's
         // mode alone leaves the effective mode DISABLED.

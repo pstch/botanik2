@@ -162,7 +162,7 @@ namespace Botanik { namespace Logs {
     public:
         /** @brief One task: the whole port, in PHASE_PRESENT. Named after the
          *  writer, so the TASKS row and the boot line say the same thing. */
-        void register_tasks(Tasks::Registry& r) override;
+        void register_tasks() override;
 
     private:
         /** @brief The registration handler. A static MEMBER, so the cast has
@@ -191,8 +191,9 @@ namespace Botanik { namespace Logs {
         /** @brief Bind the writer to @p serial. @p drop_if_tty self-suppresses
          *  on an interactive terminal (see @c _suppressed). @p logger / @p name
          *  feed the Component base; a null logger stays silent. */
-        SerialLogWriter(BufferedSerial& serial, bool drop_if_tty = false,
-                        Logger* logger = nullptr, const char* name = "SerialLogWriter");
+        SerialLogWriter(const SetupContext& ctx, BufferedSerial& serial,
+                        bool drop_if_tty = false,
+                        const char* name = "SerialLogWriter");
 
         /** @} */
 

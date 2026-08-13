@@ -41,7 +41,7 @@ namespace {
 TEST_CASE("NetworkHandler: sim path comes up on net config and idles when it is cleared") {
     botanik_test::ParamFixture fx;
     NameResolver resolver;
-    NetworkHandler net(&fx.bank(), nullptr, &resolver);
+    NetworkHandler net(Botanik::SetupContext(), &fx.bank(), &resolver);
     CHECK_FALSE(net.is_up());
 
     // link_status() returns LINK_UP immediately in sim, so one step() promotes SETUP to RUNNING.
@@ -63,8 +63,8 @@ TEST_CASE("NetworkHandler: sim path comes up on net config and idles when it is 
 TEST_CASE("MqttClient: never reports connected to a dead broker, publish gated on connection") {
     botanik_test::ParamFixture fx;
     NameResolver resolver;
-    NetworkHandler net(&fx.bank(), nullptr, &resolver);
-    MqttClient mqtt(&fx.bank(), nullptr, &resolver, &net);
+    NetworkHandler net(Botanik::SetupContext(), &fx.bank(), &resolver);
+    MqttClient mqtt(Botanik::SetupContext(), &fx.bank(), &resolver, &net);
 
     CHECK_FALSE(mqtt.connected());
     CHECK_FALSE(mqtt.publish("botanik/alarms/X", "ON"));
@@ -89,13 +89,13 @@ TEST_CASE("MqttClient: never reports connected to a dead broker, publish gated o
 TEST_CASE("NtpClient: stepped as a Component (announces once), query is non-blocking") {
     botanik_test::ParamFixture fx;
     NameResolver resolver;
-    NetworkHandler net(&fx.bank(), nullptr, &resolver);
+    NetworkHandler net(Botanik::SetupContext(), &fx.bank(), &resolver);
     RecordingWriter w;
     Logs::Logger log;
     log.set_min_level(Logs::LOG_DEBUG);
     log.add_writer(&w);
 
-    NtpClient ts(&fx.bank(), &log, &resolver, &net);
+    NtpClient ts(Botanik::SetupContext(nullptr, &log), &fx.bank(), &resolver, &net);
 
     // Bring the (sim) link up so the time sync can proceed past the link gate.
     fx.set_num("net_serial", 1); fx.set_num("net_dhcp", 1); fx.publish();

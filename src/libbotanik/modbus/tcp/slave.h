@@ -168,7 +168,7 @@ namespace Botanik { namespace Modbus {
         /** @} */
 
     public:
-        TcpSlave(Vars::Bank* io, Logs::Logger* logger = nullptr,
+        TcpSlave(const SetupContext& ctx, Vars::Bank* io,
                   Alarms::AlarmController* alarms = nullptr);
 
         /** @brief Give the port back.
@@ -203,7 +203,7 @@ namespace Botanik { namespace Modbus {
         /** @brief Three tasks: decode a master's writes at PHASE_INPUT, drain
          *  the persist queue at PHASE_SERVICE, answer at PHASE_PRESENT. One
          *  entry each, so each is separately attributable. */
-        void register_tasks(Tasks::Registry& r) override;
+        void register_tasks() override;
 
     private:
         /** @name Registration handlers

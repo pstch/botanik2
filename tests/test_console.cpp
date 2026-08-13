@@ -479,7 +479,7 @@ namespace {
         Terminal::TextEditor  editor;
 
         explicit EditorBytes(uint32_t baud = 4000000u)
-            : console(wire.serial, 80, 24, &now, baud),
+            : console(Botanik::SetupContext(), wire.serial, 80, 24, &now, baud),
               editor(&console, bufs.storage()) {
             console.terminal().establish_screen();
             editor.reset();
@@ -1302,7 +1302,7 @@ namespace {
         Shell::CommandShell            shell;
 
         ShellFixture()
-            : console(wire.serial, 80, 24, &now, 115200),
+            : console(Botanik::SetupContext(), wire.serial, 80, 24, &now, 115200),
               editor(&console, bufs.storage()),
               shell(console.terminal(), editor, writer) {
             editor.reset();
@@ -1503,7 +1503,7 @@ namespace {
         Shell::CommandShell            shell;
 
         CmdFixture()
-            : console(wire.serial, 80, 24, &now, 115200),
+            : console(Botanik::SetupContext(), wire.serial, 80, 24, &now, 115200),
               editor(&console, bufs.storage()),
               shell(console.terminal(), editor, writer, &ctx) {
             editor.reset();

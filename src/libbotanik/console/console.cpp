@@ -29,13 +29,13 @@ namespace Botanik { namespace Terminal {
 
     // Lifecycle
 
-    Console::Console(Utils::BufferedSerial& serial, uint16_t cols, uint16_t rows,
+    Console::Console(const SetupContext& ctx, Utils::BufferedSerial& serial,
+                     uint16_t cols, uint16_t rows,
                      const uint64_t* timestamp_ms, uint32_t baud,
                      const Scheduler::SchedulerContext* sched,
                      const Alarms::AlarmController* alarms,
-                     Logs::Logger* logger, Ansi::TerminalType type,
-                     const Vars::Bank* cfg) :
-        Component(logger, "Console"),
+                     Ansi::TerminalType type, const Vars::Bank* cfg) :
+        Component(ctx, "Console"),
         _serial(serial),
         _term(serial, cols, rows, baud, type),
         _parser(serial, timestamp_ms),
@@ -65,19 +65,19 @@ namespace Botanik { namespace Terminal {
         static_cast<Console*>(c)->_flush();
     }
 
-    void Console::register_tasks(Tasks::Registry& r) {
+    void Console::register_tasks() {
         // Its own settings first: the `term_` group and the baud describe this
         // object and nothing else, so this is what reads them. CONFIG, so a
         // commit lands before the beat's draw rather than halfway through it.
-        r.add(*this, &Console::_config_task, "console_cfg", Tasks::GROUP_SLOW,
+        _tasks->add(*this, &Console::_config_task, "console_cfg", Tasks::GROUP_SLOW,
               Tasks::PHASE_CONFIG);
         // The port's own two tasks are gone: the console pumps the wire it
         // owns, at the two ends of the beat it was already working at.
-        r.add(*this, &Console::_input_task, "console_in", Tasks::GROUP_FAST,
+        _tasks->add(*this, &Console::_input_task, "console_in", Tasks::GROUP_FAST,
               Tasks::PHASE_INPUT);
-        r.add(*this, &Console::_draw_task,  "console",    Tasks::GROUP_SLOW,
+        _tasks->add(*this, &Console::_draw_task,  "console",    Tasks::GROUP_SLOW,
               Tasks::PHASE_PRESENT);
-        r.add(*this, &Console::_flush_task, "console_tx", Tasks::GROUP_FAST,
+        _tasks->add(*this, &Console::_flush_task, "console_tx", Tasks::GROUP_FAST,
               Tasks::PHASE_PRESENT);
     }
 

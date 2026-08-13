@@ -500,7 +500,7 @@ struct Pair {
     TcpMaster master;
     uint64_t  now = 1000;
 
-    Pair() : bank(Site::g_site.vars), slave(&bank), master() {
+    Pair() : bank(Site::g_site.vars), slave(Botanik::SetupContext(), &bank), master(Botanik::SetupContext()) {
         bank.init();
         slave.setup(now);
         master.setup(now);

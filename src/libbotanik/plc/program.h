@@ -145,9 +145,9 @@ namespace Botanik { namespace Plc {
          *  class: the base is fully constructed before any derived member, so
          *  io() and logger() are alive by the time these run. A program with no
          *  field to drive is not a state worth having. */
-        Program(const char* name, Tasks::GroupId group, Vars::Bank& io,
-                Logs::Logger* logger = nullptr)
-            : Component(logger, name), _io(&io), _group(group) {}
+        Program(const SetupContext& ctx, const char* name, Tasks::GroupId group,
+                Vars::Bank& io)
+            : Component(ctx, name), _io(&io), _group(group) {}
 
         /** @brief Which slot of the registry's program list this occupies -
          *  the writer id stamped onto every row it drives.
@@ -162,7 +162,7 @@ namespace Botanik { namespace Plc {
         /** @brief One entry, PHASE_CONTROL by construction and gated by control
          *  authority. Registering is also what runs bind(), through
          *  Component::setup(). */
-        void register_tasks(Tasks::Registry& r) override;
+        void register_tasks() override;
 
         /** @} */
         /** @name Accounting

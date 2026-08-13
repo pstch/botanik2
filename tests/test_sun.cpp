@@ -133,7 +133,7 @@ TEST_CASE("SunPositionTracker: computes elevation from geo config") {
     fx.set_num("geo_lon_deg", (float)deg(LON));
     fx.publish();
 
-    SunPositionTracker sun(&fx.bank());
+    SunPositionTracker sun(Botanik::SetupContext(), &fx.bank());
     CHECK_FALSE(sun.ready());                 // nothing computed before the first step
 
     uint64_t now = HAL::Clock::uptime_ms();
@@ -151,7 +151,7 @@ TEST_CASE("SunPositionTracker: throttles recomputation between cadence ticks") {
     fx.set_num("geo_lon_deg", (float)deg(LON));
     fx.publish();
 
-    SunPositionTracker sun(&fx.bank());
+    SunPositionTracker sun(Botanik::SetupContext(), &fx.bank());
     uint64_t t0 = HAL::Clock::uptime_ms();
     sun.step(t0);
     REQUIRE(sun.ready());
@@ -172,7 +172,7 @@ TEST_CASE("SunPositionTracker: recomputes for a new location when geo.serial cha
     fx.set_num("geo_lon_deg", 2.3522f);
     fx.publish();
 
-    SunPositionTracker sun(&fx.bank());
+    SunPositionTracker sun(Botanik::SetupContext(), &fx.bank());
     sun.step(HAL::Clock::uptime_ms());
     REQUIRE(sun.ready());
     double paris_elev = sun.elevation();
@@ -192,7 +192,7 @@ TEST_CASE("SunPositionTracker: recomputes for a new location when geo.serial cha
 
 TEST_CASE("SunPositionTracker: stays idle with no geo config") {
     botanik_test::ParamFixture fx;          // conf all zero -> geo.serial 0
-    SunPositionTracker sun(&fx.bank());
+    SunPositionTracker sun(Botanik::SetupContext(), &fx.bank());
     sun.step(HAL::Clock::uptime_ms());
     CHECK_FALSE(sun.ready());
 }

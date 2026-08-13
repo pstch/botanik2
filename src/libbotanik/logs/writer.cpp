@@ -78,9 +78,9 @@ namespace Botanik { namespace Logs {
     // Lifecycle
     // ------------------------------------------------------------------------
 
-    SerialLogWriter::SerialLogWriter(BufferedSerial& serial, bool drop_if_tty,
-                                     Logger* logger, const char* name) :
-        Component(logger, name),
+    SerialLogWriter::SerialLogWriter(const SetupContext& ctx, BufferedSerial& serial,
+                                     bool drop_if_tty, const char* name) :
+        Component(ctx, name),
         _serial(&serial), _suppressed(drop_if_tty && serial.is_output_tty()) {}
 
     void SerialLogWriter::push(const Logs::LogEntry* entry) {
@@ -104,8 +104,8 @@ namespace Botanik { namespace Logs {
         static_cast<SerialLogWriter*>(c)->on_present(t.now_ms);
     }
 
-    void SerialLogWriter::register_tasks(Tasks::Registry& r) {
-        r.add(*this, &SerialLogWriter::_present_task, name(), Tasks::GROUP_FAST,
+    void SerialLogWriter::register_tasks() {
+        _tasks->add(*this, &SerialLogWriter::_present_task, name(), Tasks::GROUP_FAST,
               Tasks::PHASE_PRESENT);
     }
 

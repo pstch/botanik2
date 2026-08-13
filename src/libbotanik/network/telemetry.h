@@ -39,7 +39,7 @@ namespace Botanik { namespace Network {
     class MqttSender : public Botanik::Component {
     public:
         /** @brief One task, PHASE_SERVICE: publish what is due this beat. */
-        void register_tasks(Tasks::Registry& r) override;
+        void register_tasks() override;
 
     private:
         /** @brief The registration handler. A static MEMBER, so the cast has
@@ -80,8 +80,9 @@ namespace Botanik { namespace Network {
     public:
         /** @brief @p mqtt is the transport, @p sys the live status read by the
          *  base fields, @p prefix the topic root segment before the field. */
-        MqttSender(MqttClient* mqtt, const SystemContext* sys, const char* prefix)
-            : Component(nullptr, "telemetry"),
+        MqttSender(const SetupContext& ctx, MqttClient* mqtt,
+                   const SystemContext* sys, const char* prefix)
+            : Component(ctx, "telemetry"),
               _mqtt(mqtt), _prefix(prefix), _sys(sys) {}
 
         /** @brief Register the variable table to publish from. It must outlive

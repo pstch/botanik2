@@ -60,8 +60,8 @@ class SupplyWatch : public Plc::Program {
     /** @} */
 
 public:
-    SupplyWatch(Vars::Bank& io, Logs::Logger* log = nullptr)
-        : Program("supply_watch", Tasks::GROUP_SLOW, io, log) {}
+    SupplyWatch(const SetupContext& ctx, Vars::Bank& io)
+        : Program(ctx, "supply_watch", Tasks::GROUP_SLOW, io) {}
 
 protected:
     void bind(Vars::Bank& io) override {
@@ -126,8 +126,8 @@ class SupplyReport : public Plc::Program {
     /** @} */
 
 public:
-    SupplyReport(Vars::Bank& io, Logs::Logger* log = nullptr)
-        : Program("supply_report", Tasks::GROUP_BACKGROUND, io, log) {}
+    SupplyReport(const SetupContext& ctx, Vars::Bank& io)
+        : Program(ctx, "supply_report", Tasks::GROUP_BACKGROUND, io) {}
 
 protected:
     void bind(Vars::Bank& io) override {

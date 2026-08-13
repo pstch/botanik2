@@ -49,7 +49,7 @@ namespace Botanik { namespace Logs {
         /** @brief One task: refill the rate-limiter buckets and drain the
          *  sinks, in PHASE_PRESENT. First in that phase, so a line logged this
          *  beat reaches the pages before they are drawn. */
-        void register_tasks(Tasks::Registry& r) override;
+        void register_tasks() override;
 
     private:
         /** @brief The registration handler. A static MEMBER, so the cast stays
@@ -107,7 +107,9 @@ namespace Botanik { namespace Logs {
 
         /** @brief Construct a Logger with empty writer list and full rate-limit
          *  buckets */
-        Logger();
+        /** @brief @p tasks is the table its own refill task registers in; null
+         *  leaves it unregistered, which is what a test wants. */
+        explicit Logger(Tasks::Registry* tasks = nullptr);
 
         /** @} */
 

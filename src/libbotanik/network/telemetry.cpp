@@ -158,8 +158,8 @@ namespace Botanik { namespace Network {
         static_cast<MqttSender*>(c)->on_service(t.now_ms);
     }
 
-    void MqttSender::register_tasks(Tasks::Registry& r) {
-        r.add(*this, &MqttSender::_service_task, "telemetry",
+    void MqttSender::register_tasks() {
+        _tasks->add(*this, &MqttSender::_service_task, "telemetry",
               Tasks::GROUP_FAST, Tasks::PHASE_SERVICE);
     }
 

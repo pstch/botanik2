@@ -15,12 +15,12 @@ namespace Botanik { namespace Health {
         static_cast<HealthMonitor*>(c)->on_service(t.now_ms);
     }
 
-    void HealthMonitor::register_tasks(Tasks::Registry& r) {
-        r.add(*this, &HealthMonitor::_service_task, "health", Tasks::GROUP_SLOW,
+    void HealthMonitor::register_tasks() {
+        _tasks->add(*this, &HealthMonitor::_service_task, "health", Tasks::GROUP_SLOW,
               Tasks::PHASE_SERVICE);
         // Then the model, which this used to step inside its own task: same
         // order, but with a rate and a TASKS row of its own.
-        _model.register_tasks(r);
+        _model.register_tasks();
     }
 
 }}  // namespace Botanik::Health

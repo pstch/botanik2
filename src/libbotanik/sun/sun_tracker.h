@@ -59,7 +59,7 @@ namespace Botanik { namespace Sun {
         bool     _computed;    ///< Position successfully acquired.
 
     public:
-        SunPositionTracker(const Vars::Bank* cfg, Logs::Logger* logger = nullptr);
+        SunPositionTracker(const SetupContext& ctx, const Vars::Bank* cfg);
 
         /** @brief Sun's elevation angle above the horizon (radians; negative below).
          *  @note Zero until the first computation (see ready()). */

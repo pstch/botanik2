@@ -54,9 +54,9 @@ namespace Botanik { namespace Vars {
     public:
         /** @brief Binds @p store to @p io: the bank reads and writes variables
          *  (set() included), so it is what holds the store. */
-        Params(Bank* io, VarStore* store, Logs::Logger* logger)
-            : Component(logger, "Params"), _io(io) {
-            if (_io != nullptr) _io->set_store(store, logger);
+        Params(const SetupContext& ctx, Bank* io, VarStore* store)
+            : Component(ctx, "Params"), _io(io) {
+            if (_io != nullptr) _io->set_store(store, ctx.logger);
         }
 
         /** @name Access
@@ -105,7 +105,7 @@ namespace Botanik { namespace Vars {
     public:
         /** @brief One task, PHASE_CONFIG: the parameter image everything below
          *  it in the beat reads its config from. */
-        void register_tasks(Tasks::Registry& r) override;
+        void register_tasks() override;
 
     private:
         /** @brief The registration handler. A static MEMBER, so the cast has

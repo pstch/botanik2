@@ -22,9 +22,9 @@ namespace Botanik { namespace Modbus {
     using namespace Vars;
     namespace Net = HAL::Network;
 
-    TcpSlave::TcpSlave(Bank* io, Logs::Logger* logger,
+    TcpSlave::TcpSlave(const SetupContext& ctx, Bank* io,
                          Alarms::AlarmController* alarms)
-        : Component(logger, "ModbusTCP"), _io(io), _alarms(alarms), _map(io) {}
+        : Component(ctx, "ModbusTCP"), _io(io), _alarms(alarms), _map(io) {}
 
     SlaveContext TcpSlave::context() const {
         SlaveContext c = _ctx;
@@ -471,17 +471,17 @@ namespace Botanik { namespace Modbus {
         static_cast<TcpSlave*>(c)->on_present(t.now_ms);
     }
 
-    void TcpSlave::register_tasks(Tasks::Registry& r) {
+    void TcpSlave::register_tasks() {
         // A master's write lands at INPUT, before the programs run, so a
         // setpoint written this beat is what they run on this beat.
-        r.add(*this, &TcpSlave::_input_task,   "modbus_tcp_rx",
+        _tasks->add(*this, &TcpSlave::_input_task,   "modbus_tcp_rx",
               Tasks::GROUP_FAST, Tasks::PHASE_INPUT);
         // The flash half of that write, paced: a side effect of the request,
         // not part of answering it.
-        r.add(*this, &TcpSlave::_service_task, "modbus_tcp_wr",
+        _tasks->add(*this, &TcpSlave::_service_task, "modbus_tcp_wr",
               Tasks::GROUP_FAST, Tasks::PHASE_SERVICE);
         // The answer goes out off the image the scan just produced.
-        r.add(*this, &TcpSlave::_present_task, "modbus_tcp_tx",
+        _tasks->add(*this, &TcpSlave::_present_task, "modbus_tcp_tx",
               Tasks::GROUP_FAST, Tasks::PHASE_PRESENT);
     }
 

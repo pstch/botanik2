@@ -180,11 +180,12 @@ public:
     /** @brief Hand the base this site's descriptor. */
     GreenhouseMLB41()
         : Botanik::BotanikFirmware(Site::g_site),
-          // The base is fully constructed before any derived member, so io()
-          // and logger() are already alive here: a program is handed the field
-          // it drives at construction rather than through a later attach().
-          _supply_watch(io(), &logger()),
-          _supply_report(io(), &logger())
+          // The base is fully constructed before any derived member, so
+          // setup_context() and io() are already alive here: a program is
+          // handed the table it registers in and the field it drives at
+          // construction, rather than through a later attach().
+          _supply_watch(setup_context(), io()),
+          _supply_report(setup_context(), io())
     {}
 
 protected:
@@ -192,8 +193,8 @@ protected:
      *  order within PHASE_CONTROL, so a law that computes a setpoint goes before
      *  the law that acts on it. */
     void on_setup() override {
-        _supply_watch.register_tasks(tasks());
-        _supply_report.register_tasks(tasks());
+        _supply_watch.register_tasks();
+        _supply_report.register_tasks();
     }
 };
 

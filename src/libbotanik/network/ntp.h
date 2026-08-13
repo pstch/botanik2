@@ -47,7 +47,7 @@ namespace Botanik { namespace Network {
      *  off on failure. */
     class NtpClient : public Component {
     public:
-        void register_tasks(Tasks::Registry& r) override;
+        void register_tasks() override;
     private:
         /** @brief Registration handler: a static MEMBER, so the cast reaches the
          *  protected hook without a friend and stays beside the class. */
@@ -87,7 +87,7 @@ namespace Botanik { namespace Network {
         /** @} */
 
     public:
-        NtpClient(const Vars::Bank* cfg, Logs::Logger* logger = nullptr,
+        NtpClient(const SetupContext& ctx, const Vars::Bank* cfg,
                   NameResolver* resolver = nullptr,
                   const NetworkHandler* net = nullptr);
 

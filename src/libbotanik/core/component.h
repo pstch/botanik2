@@ -31,6 +31,7 @@
 
 #include <cstdint>                              // uint16_t/uint32_t/uint64_t/UINT64_MAX
 
+#include "libbotanik/core/setup.h"          // SetupContext
 #include "libbotanik/tasks/phase.h"         // Tasks::Phase
 #include "libbotanik/tasks/task_timer.h"    // Tasks::TaskTimer
 
@@ -96,6 +97,10 @@ namespace Botanik {
         /** @name Wiring (accessible to the derived component)
          *  @{ */
 
+        /** @brief The table this component registers in. Borrowed, and the
+         *  reason register_tasks() takes no argument: there is one table, and a
+         *  component was told which at construction. */
+        Tasks::Registry* _tasks;
         Logs::Logger* _logger;            ///< announce + derived logging (may be null)
         const char*   _name;              ///< announce label
         bool          _started = false;   ///< first-step latch (setup + announce)
@@ -106,8 +111,10 @@ namespace Botanik {
         /** @name Lifecycle
          *  @{ */
 
-        Component(Logs::Logger* logger, const char* name)
-            : _logger(logger), _name(name) {}
+        /** @brief Built with the table it will register in and the log it
+         *  speaks through. @see SetupContext */
+        Component(const SetupContext& ctx, const char* name)
+            : _tasks(ctx.tasks), _logger(ctx.logger), _name(name) {}
         virtual ~Component() {}
 
         /** @brief The announce label, for anything naming this component to a
@@ -158,10 +165,12 @@ namespace Botanik {
         /** @brief Whether setup() has run. */
         bool started() const { return _started; }
 
-        /** @brief Hand the registry this component's tasks: one per point in the
-         *  beat it acts at, each with its own name, rate group and phase.
-         *  Default: none. @see design/scan-cycle-rework.md */
-        virtual void register_tasks(Tasks::Registry&) {}
+        /** @brief Put this component's work in the beat: one entry per point
+         *  it acts at, each with its own name, rate group and phase.
+         *
+         *  No argument - the table came with the SetupContext. Default: none.
+         *  @see design/scan-cycle-rework.md */
+        virtual void register_tasks() {}
 
         /** @brief Poll the watched config serial and dispatch on_param_changed()
          *  when it has moved.

@@ -21,9 +21,9 @@ namespace Botanik { namespace Network {
     // NetworkHandler
     // ------------------------------------------------------------------------
 
-    NetworkHandler::NetworkHandler(const Vars::Bank* cfg, Logs::Logger* logger,
+    NetworkHandler::NetworkHandler(const SetupContext& ctx, const Vars::Bank* cfg,
                                    NameResolver* resolver)
-        : Component(logger, "NetworkHandler"), _cfg(cfg),
+        : Component(ctx, "NetworkHandler"), _cfg(cfg),
           _state(NET_IDLE), _since_ms(0), _resolver(resolver) {}
 
     uint32_t NetworkHandler::param_serial() const {
@@ -118,8 +118,8 @@ namespace Botanik { namespace Network {
         static_cast<NetworkHandler*>(c)->on_service(t.now_ms);
     }
 
-    void NetworkHandler::register_tasks(Tasks::Registry& r) {
-        r.add(*this, &NetworkHandler::_service_task, "net", Tasks::GROUP_FAST,
+    void NetworkHandler::register_tasks() {
+        _tasks->add(*this, &NetworkHandler::_service_task, "net", Tasks::GROUP_FAST,
               Tasks::PHASE_SERVICE);
     }
 

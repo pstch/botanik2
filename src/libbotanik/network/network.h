@@ -29,7 +29,7 @@ namespace Botanik { namespace Network {
      *  reconfiguration / link loss. */
     class NetworkHandler : public Component {
     public:
-        void register_tasks(Tasks::Registry& r) override;
+        void register_tasks() override;
     private:
         /** @brief Registration handler: a static MEMBER, so the cast reaches the
          *  protected hook without a friend and stays beside the class. */
@@ -66,7 +66,7 @@ namespace Botanik { namespace Network {
 
         /** @brief @p resolver (optional) cache is cleared on reconfiguration or
          *  link loss. */
-        NetworkHandler(const Vars::Bank* cfg, Logs::Logger* logger = nullptr,
+        NetworkHandler(const SetupContext& ctx, const Vars::Bank* cfg,
                        NameResolver* resolver = nullptr);
 
         /** @brief True once the link is up with an address. */

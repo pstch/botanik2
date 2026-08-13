@@ -96,7 +96,7 @@ namespace {
 
 TEST_CASE("alarm: ack marks an active condition, ignores inactive / unknown") {
     AlarmBank f(TABLE, 2);
-    Alarms::AlarmController m(&f.bank, nullptr);
+    Alarms::AlarmController m(Botanik::SetupContext(), &f.bank);
     step_bits(f.bank, m, 0x1, 1000);                              // raise A (bit 0)
     CHECK(m.active_count() == 1);
     CHECK(m.condition(0).user_ack == false);
@@ -111,7 +111,7 @@ TEST_CASE("alarm: ack marks an active condition, ignores inactive / unknown") {
 
 TEST_CASE("alarm: ack clears on the next ON edge (a fresh episode is unacknowledged)") {
     AlarmBank f(TABLE, 2);
-    Alarms::AlarmController m(&f.bank, nullptr);
+    Alarms::AlarmController m(Botanik::SetupContext(), &f.bank);
     step_bits(f.bank, m, 0x1, 1000);
     m.ack("aaa");
     CHECK(m.condition(0).user_ack == true);
@@ -122,14 +122,14 @@ TEST_CASE("alarm: ack clears on the next ON edge (a fresh episode is unacknowled
 
 TEST_CASE("alarm: ack_all acknowledges every active condition and counts them") {
     AlarmBank f(TABLE, 2);
-    Alarms::AlarmController m(&f.bank, nullptr);
+    Alarms::AlarmController m(Botanik::SetupContext(), &f.bank);
     step_bits(f.bank, m, 0x3, 1000);                              // both active
     CHECK(m.ack_all() == 2);
     CHECK(m.condition(0).user_ack == true);
     CHECK(m.condition(1).user_ack == true);
 
     AlarmBank f2(TABLE, 2);
-    Alarms::AlarmController m2(&f2.bank, nullptr);
+    Alarms::AlarmController m2(Botanik::SetupContext(), &f2.bank);
     step_bits(f2.bank, m2, 0x2, 1000);                             // only B active
     CHECK(m2.ack_all() == 1);
     CHECK(m2.condition(1).user_ack == true);
@@ -137,7 +137,7 @@ TEST_CASE("alarm: ack_all acknowledges every active condition and counts them") 
 
 TEST_CASE("alarm: min_on_s holds a condition active after the raw bit clears") {
     AlarmBank f(MIN_ON_TABLE, 1);
-    Alarms::AlarmController m(&f.bank, nullptr);
+    Alarms::AlarmController m(Botanik::SetupContext(), &f.bank);
     step_bits(f.bank, m, 0x1, 1000);                              // raise (seeds the 5 s min-on hold)
     CHECK(m.condition(0).active == true);
     step_bits(f.bank, m, 0x0, 2000);                              // raw clears 1 s in: still held
@@ -151,7 +151,7 @@ TEST_CASE("alarm: min_on_s holds a condition active after the raw bit clears") {
 TEST_CASE("alarm: forcing a condition on and then off clears it") {
     // A forced alarm must clear, or the next real one is invisible under it.
     AlarmBank f(MIN_ON_TABLE, 1);           // min_on_s = 5, the sticky case
-    Alarms::AlarmController m(&f.bank, nullptr);
+    Alarms::AlarmController m(Botanik::SetupContext(), &f.bank);
     Vars::Var v = f.bank.var(m.condition(0).ref);
 
     m.step(0);
@@ -170,7 +170,7 @@ TEST_CASE("alarm: forcing a condition on and then off clears it") {
 TEST_CASE("alarm: releasing an override clears a condition it was holding on") {
     // `override x off`: the row snaps back to the live (unwritten) value, false.
     AlarmBank f(NORMAL_TABLE, 1);
-    Alarms::AlarmController m(&f.bank, nullptr);
+    Alarms::AlarmController m(Botanik::SetupContext(), &f.bank);
     Vars::Var v = f.bank.var(m.condition(0).ref);
 
     m.step(0);
@@ -187,7 +187,7 @@ TEST_CASE("alarm: releasing an override clears a condition it was holding on") {
 TEST_CASE("alarm: a forced alarm comes down when the force does") {
     // A forced alarm must not inherit hold_on_s's 5-minute latch.
     AlarmBank f(HOLD_ON_TABLE, 1);
-    Alarms::AlarmController m(&f.bank, nullptr);
+    Alarms::AlarmController m(Botanik::SetupContext(), &f.bank);
     Vars::Var v = f.bank.var(m.condition(0).ref);
 
     m.step(0);
@@ -205,7 +205,7 @@ TEST_CASE("alarm: a forced alarm comes down when the force does") {
 TEST_CASE("alarm: hold_on_s still latches a condition nobody is forcing") {
     // hold_on_s must still latch a real signal that clears immediately.
     AlarmBank f(HOLD_ON_TABLE, 1);
-    Alarms::AlarmController m(&f.bank, nullptr);
+    Alarms::AlarmController m(Botanik::SetupContext(), &f.bank);
 
     step_bits(f.bank, m, 0x1, 1000);      // a real assertion, not an override
     REQUIRE(m.condition(0).active == true);
@@ -226,7 +226,7 @@ TEST_CASE("alarm: an END with no matching START is logged as a FLAP") {
     TopicRecorder rec;
     logger.add_writer(&rec);
     AlarmBank f(FLAP_TABLE, 1);
-    Alarms::AlarmController m(&f.bank, &logger);
+    Alarms::AlarmController m(Botanik::SetupContext(nullptr, &logger), &f.bank);
 
     // A blip shorter than the 2 s START dwell: clears before any START is logged.
     step_bits(f.bank, m, 0x1, 1000);                             // on (dwell 0 < on_s 2 s)
@@ -243,7 +243,7 @@ TEST_CASE("alarm: a normal episode logs START then END (not FLAP)") {
     TopicRecorder rec;
     logger.add_writer(&rec);
     AlarmBank f(NORMAL_TABLE, 1);
-    Alarms::AlarmController m(&f.bank, &logger);
+    Alarms::AlarmController m(Botanik::SetupContext(nullptr, &logger), &f.bank);
 
     step_bits(f.bank, m, 0x1, 1000);                             // on, START logged immediately
     logger.refill();
@@ -265,7 +265,7 @@ TEST_CASE("alarm reader: model reads each condition's variable") {
     Vars::Bank& io = f.bank;
 
     Logs::Logger logger;
-    Alarms::AlarmController m(&io, &logger);
+    Alarms::AlarmController m(Botanik::SetupContext(nullptr, &logger), &io);
 
     m.step(1000);
     CHECK(m.condition(0).active == false);
@@ -330,9 +330,9 @@ namespace {
         // @p rows: a short screen overflows the 4-alarm set so UP/DOWN actually scroll.
         explicit RenderFixture(uint16_t rows = 24)
             // Very high baud so the cooperative TX floor never throttles a paint.
-            : console(wire.serial, 80, rows, &now, 4000000u),
+            : console(Botanik::SetupContext(), wire.serial, 80, rows, &now, 4000000u),
               bank(make_tables(TABLE, vals, 4)),
-              model(&bank, nullptr),
+              model(Botanik::SetupContext(), &bank),
               page(console, &model) {
         }
 
@@ -571,7 +571,7 @@ TEST_CASE("AlarmController: a transition fans out to every registered notifier")
     t.var = TABLE; t.val = vals; t.count = 1;
     Vars::Bank bank(t);
     bank.init();
-    AlarmController m(&bank, nullptr);
+    AlarmController m(Botanik::SetupContext(), &bank);
     CountingNotifier a, b;
     CHECK(m.add_notifier(&a));
     CHECK(m.add_notifier(&b));

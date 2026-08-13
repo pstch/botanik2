@@ -806,7 +806,7 @@ namespace Botanik { namespace Vars {
          *  PHASE_INPUT: a row must age out BEFORE anything reads it, so one beat
          *  is coherent. Registered by the bank rather than by the composition
          *  root, like every other component's work. */
-        void register_tasks(Tasks::Registry& r) override;
+        void register_tasks() override;
 
     private:
         /** @name Registration handlers
@@ -863,8 +863,12 @@ namespace Botanik { namespace Vars {
         /** VarTables has no member initializers (so a site's descriptor stays in
          *  flash); the `()` is required, or an unbound bank starts on
          *  indeterminate pointers that init() then walks. */
-        Bank() : Component(nullptr, "vars"), _tables() {}
-        explicit Bank(const VarTables& t) : Component(nullptr, "vars"), _tables(t) {
+        Bank() : Component(SetupContext(), "vars"), _tables() {}
+        /** @brief With the table it registers its sweeps in. Default-empty for
+         *  a fixture that never registers. */
+        Bank(const SetupContext& ctx) : Component(ctx, "vars"), _tables() {}
+        explicit Bank(const VarTables& t, const SetupContext& ctx = SetupContext())
+            : Component(ctx, "vars"), _tables(t) {
             _find_param_block();
             // Built here, not in init(): the table is const, and a find() before
             // init() (a site test, a fixture) then gets the fast path too.

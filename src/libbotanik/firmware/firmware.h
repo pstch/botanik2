@@ -140,10 +140,10 @@ namespace Botanik {
             BotanikFirmware& _fw;
 
         public:
-            explicit OwnTasks(BotanikFirmware& fw)
-                : Component(nullptr, "firmware"), _fw(fw) {}
+            OwnTasks(const SetupContext& ctx, BotanikFirmware& fw)
+                : Component(ctx, "firmware"), _fw(fw) {}
 
-            void register_tasks(Tasks::Registry& r) override;
+            void register_tasks() override;
 
         private:
             /** @name The handlers
@@ -203,6 +203,9 @@ namespace Botanik {
         Tasks::Registry                _tasks;
         Logs::Logger                   _logger;
         Scheduler::LoopScheduler       _scheduler;
+        /** @brief What every Component below is built with: the table to
+         *  register in and the log to speak through. @see SetupContext */
+        SetupContext                   _setup;
         Vars::Bank                       _io;          ///< the site's variables
         Vars::KvParamStore             _param_store; ///< one storage key per parameter
         Vars::Params                   _params;      ///< the editable view of the variables
@@ -306,6 +309,12 @@ namespace Botanik {
          *  with, from on_setup(). Non-const: registering mutates it, and this
          *  is the one moment it is meant to. */
         Tasks::Registry&       tasks()       { return _tasks; }
+
+        /** @brief What a site constructs its own components and programs with:
+         *  the table they register in and the log they speak through. Named
+         *  setup_context() rather than setup(), which is the bring-up entry
+         *  point. @see SetupContext */
+        const SetupContext&    setup_context() const { return _setup; }
 
         /** @brief One main-loop iteration. tick() gates a beat and republishes
          *  the display "now" (`SchedulerContext::timestamp_ms`) the render path
@@ -459,8 +468,8 @@ namespace Botanik {
          *
          *  @code
          *  void on_setup() override {
-         *      _my_pump.register_tasks(tasks());   // a Component
-         *      _my_law.register_tasks(tasks());    // a Plc::Program
+         *      _my_pump.register_tasks();   // a Component
+         *      _my_law.register_tasks();    // a Plc::Program
          *  }
          *  @endcode
          *

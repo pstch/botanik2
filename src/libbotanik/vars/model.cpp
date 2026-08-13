@@ -651,15 +651,15 @@ namespace Botanik { namespace Vars {
         (void)static_cast<Bank*>(c)->reject_implausible();
     }
 
-    void Bank::register_tasks(Tasks::Registry& r) {
+    void Bank::register_tasks() {
         // A full linear scan of the variable table, resolving timeouts measured
         // in seconds - which is why it is GROUP_BACKGROUND and not the beat.
-        r.add(*this, &Bank::_expire_task, "expire_stale",
+        _tasks->add(*this, &Bank::_expire_task, "expire_stale",
               Tasks::GROUP_BACKGROUND, Tasks::PHASE_INPUT);
         // Beside it: a reading can be fresh and still be nonsense. A dead
         // 4-20 mA loop reads full scale, which no timeout catches - the
         // declared plausibility band does.
-        r.add(*this, &Bank::_reject_task, "reject_implausible",
+        _tasks->add(*this, &Bank::_reject_task, "reject_implausible",
               Tasks::GROUP_BACKGROUND, Tasks::PHASE_INPUT);
     }
 

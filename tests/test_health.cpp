@@ -43,7 +43,7 @@ namespace {
 
 TEST_CASE("health: SYS_RST is asserted for the reset window and then clears") {
     Fixture f;
-    Health::HealthMonitor h(&f.log, &f.sched, &f.bank);
+    Health::HealthMonitor h(Botanik::SetupContext(nullptr, &f.log), &f.sched, &f.bank);
 
     h.step(1000);                                   // early in the window
     CHECK(f.alarm("alarm_system_reset"));
@@ -54,7 +54,7 @@ TEST_CASE("health: SYS_RST is asserted for the reset window and then clears") {
 TEST_CASE("health: CPU load and jitter are judged against the beat, not a constant") {
     // Integer-scaled (no float): at threshold must NOT fire, one us past must.
     Fixture f;
-    Health::HealthMonitor h(&f.log, &f.sched, &f.bank);
+    Health::HealthMonitor h(Botanik::SetupContext(nullptr, &f.log), &f.sched, &f.bank);
 
     const uint32_t at = (uint32_t)((uint64_t)PERIOD_US * Config::ALARM_CPU_LOAD_PCT / 100u);
     f.sched.cpu_loop_us_recent = at;
@@ -75,7 +75,7 @@ TEST_CASE("health: CPU load and jitter are judged against the beat, not a consta
 
 TEST_CASE("health: the stack alarm follows the high-water fraction") {
     Fixture f;
-    Health::HealthMonitor h(&f.log, &f.sched, &f.bank);
+    Health::HealthMonitor h(Botanik::SetupContext(nullptr, &f.log), &f.sched, &f.bank);
 
     f.sched.stack_usage = (float)Config::ALARM_STACK_PCT / 100.0f - 0.01f;
     h.step(SETTLED);
@@ -90,7 +90,7 @@ TEST_CASE("health: the thresholds are parameters, live, not compile-time constan
     // What counts as too much load is a property of the installation, and the
     // number an operator wants to move is the one a unit nuisance-alarms on.
     Fixture f;
-    Health::HealthMonitor h(&f.log, &f.sched, &f.bank);
+    Health::HealthMonitor h(Botanik::SetupContext(nullptr, &f.log), &f.sched, &f.bank);
 
     // Sit exactly at the factory threshold: quiet by the "at does not fire" rule.
     f.sched.cpu_loop_us_recent =
@@ -144,7 +144,7 @@ TEST_CASE("health: the thresholds are parameters, live, not compile-time constan
 TEST_CASE("health: an overrun holds CPU_XRUN up long after the beat that caused it") {
     // Latched for ALARM_EVENT_HOLD_MS, not pulsed - a one-beat blip isn't annunciation.
     Fixture f;
-    Health::HealthMonitor h(&f.log, &f.sched, &f.bank);
+    Health::HealthMonitor h(Botanik::SetupContext(nullptr, &f.log), &f.sched, &f.bank);
 
     h.step(SETTLED);
     CHECK_FALSE(f.alarm("alarm_cpu_xrun"));
@@ -164,7 +164,7 @@ TEST_CASE("health: an overrun holds CPU_XRUN up long after the beat that caused 
 TEST_CASE("health: POST fails when the alarm table declares more than the model drives") {
     // BOTANIK_ASSERT compiles to nothing without DEBUG (every OPTA build); POST must catch this too.
     Fixture f;
-    Health::HealthMonitor h(&f.log, &f.sched, &f.bank);
+    Health::HealthMonitor h(Botanik::SetupContext(nullptr, &f.log), &f.sched, &f.bank);
     h.setup(0);                                     // runs POST
     CHECK(h.healthy());
     CHECK(f.bank.var(f.bank.find("alarm_system_reset")).meta() != nullptr);
@@ -174,7 +174,7 @@ TEST_CASE("health: POST fails when the alarm table declares more than the model 
 TEST_CASE("health: with no scheduler context the load alarms stay quiet") {
     // Must not invent a fault from a null scheduler pointer; SYS_RST/FLASH_FLT still work.
     Fixture f;
-    Health::HealthMonitor h(&f.log, nullptr, &f.bank);
+    Health::HealthMonitor h(Botanik::SetupContext(nullptr, &f.log), nullptr, &f.bank);
     h.step(SETTLED);
     CHECK_FALSE(f.alarm("alarm_cpu_load"));
     CHECK_FALSE(f.alarm("alarm_cpu_jitter"));

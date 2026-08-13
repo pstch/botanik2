@@ -891,13 +891,13 @@ namespace {
         Bank         bank;
         KvParamStore store;
         Params       params;
-        Fx() : params(&bank, &store, nullptr) {
+        Fx() : params(Botanik::SetupContext(), &bank, &store) {
             VarTables t = {};
             t.var = PARAMS; t.val = vals; t.count = 5; t.index = index;
             t.pool = pool; t.pool_bytes = CAP;
             bank = Bank(t);
             bank.init();
-            params = Params(&bank, &store, nullptr);
+            params = Params(Botanik::SetupContext(), &bank, &store);
         }
         Var by(const char* n) { return bank.var(bank.find(n)); }
     };
@@ -1295,12 +1295,12 @@ namespace {
         Bank         bank;
         KvParamStore store;
         Params       params;
-        SaveFx() : params(&bank, &store, nullptr) {
+        SaveFx() : params(Botanik::SetupContext(), &bank, &store) {
             VarTables t = {};
             t.var = SAVED; t.val = vals; t.count = 2; t.index = index;
             bank = Bank(t);
             bank.init();
-            params = Params(&bank, &store, nullptr);
+            params = Params(Botanik::SetupContext(), &bank, &store);
         }
         Var by(const char* n) { return bank.var(bank.find(n)); }
     };
@@ -1319,24 +1319,24 @@ namespace {
     struct LogFx {
         Value             vals[1]{};
         uint16_t          index[1]{};
+        Botanik::Tasks::Registry reg;
         Botanik::Logs::Logger logger;
         Bank              bank;
         Params            params;
-        LogFx() : params(&bank, nullptr, &logger) {
+        LogFx() : params(Botanik::SetupContext(reg, &logger), &bank, nullptr) {
             VarTables t = {};
             t.var = LOGCFG; t.val = vals; t.count = 1; t.index = index;
             bank = Bank(t);
             bank.init();
-            params = Params(&bank, nullptr, &logger);
+            params = Params(Botanik::SetupContext(reg, &logger), &bank, nullptr);
         }
         Var row() { return bank.var(bank.find("sys_log_level")); }
 
         /** @brief One CONFIG activation, through the registry, exactly as the
          *  beat does it. */
         void step(uint64_t now_ms) {
-            Botanik::Tasks::Registry r;
-            params.register_tasks(r);
-            r.run_phase(Botanik::Tasks::PHASE_CONFIG, now_ms);
+            params.register_tasks();
+            reg.run_phase(Botanik::Tasks::PHASE_CONFIG, now_ms);
         }
     };
 }
@@ -1763,7 +1763,7 @@ TEST_CASE("retain: the cadence is the sys_retain_sec parameter") {
     VarTables t = cadence::cad_tables();
     Bank a(t);
     a.init();
-    Params p(&a, &store, nullptr);
+    Params p(Botanik::SetupContext(), &a, &store);
 
     a.var(a.find("total_litres")).set_i(1);
 
@@ -1805,7 +1805,7 @@ TEST_CASE("retain: with no sys_retain_sec row the cadence is the Config default"
     VarTables t = tables();          // the plain table: no parameters at all
     Bank a(t);
     a.init();
-    Params p(&a, &store, nullptr);
+    Params p(Botanik::SetupContext(), &a, &store);
     a.var(a.find("total_litres")).set_i(1);
 
     p.step(1);

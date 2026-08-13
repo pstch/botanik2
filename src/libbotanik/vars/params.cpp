@@ -294,8 +294,8 @@ namespace Botanik { namespace Vars {
         static_cast<Params*>(c)->on_config(t.now_ms);
     }
 
-    void Params::register_tasks(Tasks::Registry& r) {
-        r.add(*this, &Params::_config_task, "params",
+    void Params::register_tasks() {
+        _tasks->add(*this, &Params::_config_task, "params",
               Tasks::GROUP_SLOW, Tasks::PHASE_CONFIG);
     }
 

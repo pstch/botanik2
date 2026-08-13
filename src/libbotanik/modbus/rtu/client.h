@@ -241,9 +241,9 @@ namespace Botanik { namespace Modbus {
 
         /** @param devices what each unit on the segment will answer; null plans
          *  every unit as generic_model(). Borrowed and flash-resident. */
-        RtuClient(Vars::Bank* io, Logs::Logger* logger = nullptr,
+        RtuClient(const SetupContext& ctx, Vars::Bank* io,
                   const DeviceTable* devices = nullptr)
-            : Component(logger, "ModbusRTU"), _io(io), _devices(devices) {}
+            : Component(ctx, "ModbusRTU"), _io(io), _devices(devices) {}
 
         /** @name Status
          *  @{ */
@@ -319,7 +319,7 @@ namespace Botanik { namespace Modbus {
         /** @brief Two tasks, at opposite ends of the beat: take the field in at
          *  PHASE_INPUT, issue the next request at PHASE_OUTPUT. Two entries, so
          *  each half keeps its own cost on the TASKS page. */
-        void register_tasks(Tasks::Registry& r) override;
+        void register_tasks() override;
 
     private:
         /** @name Registration handlers

@@ -15,9 +15,9 @@
 
 namespace Botanik { namespace Network {
 
-    NtpClient::NtpClient(const Vars::Bank* cfg, Logs::Logger* logger,
+    NtpClient::NtpClient(const SetupContext& ctx, const Vars::Bank* cfg,
                          NameResolver* resolver, const NetworkHandler* net)
-        : Component(logger, "NtpClient"), _cfg(cfg),
+        : Component(ctx, "NtpClient"), _cfg(cfg),
           _state(TIME_IDLE), _since_ms(0), _resolver(resolver), _net(net), _server_idx(0),
           _udp(-1), _offset_ms(0), _sync_held(false) {
         _server_addr = HAL::Network::Ip4();   // 0.0.0.0 until resolved
@@ -204,8 +204,8 @@ namespace Botanik { namespace Network {
         static_cast<NtpClient*>(c)->on_service(t.now_ms);
     }
 
-    void NtpClient::register_tasks(Tasks::Registry& r) {
-        r.add(*this, &NtpClient::_service_task, "ntp", Tasks::GROUP_FAST,
+    void NtpClient::register_tasks() {
+        _tasks->add(*this, &NtpClient::_service_task, "ntp", Tasks::GROUP_FAST,
               Tasks::PHASE_SERVICE);
     }
 

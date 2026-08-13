@@ -27,7 +27,7 @@ namespace {
      *  Everything in the table is a Component now, so even a test that only
      *  cares about ORDER needs one. */
     struct Noted : public Botanik::Component {
-        explicit Noted(const char* n) : Component(nullptr, n) {}
+        explicit Noted(const char* n) : Component(Botanik::SetupContext(), n) {}
         void ran() { g_log.push_back(name()); }
     };
     void note(Botanik::Component* c, const Tick&) { static_cast<Noted*>(c)->ran(); }
@@ -130,7 +130,7 @@ TEST_CASE("tasks: a null dispatch is refused rather than called") {
 TEST_CASE("tasks: setup() runs before any beat, exactly once") {
     struct Spy : public Botanik::Component {
         uint32_t setups = 0, steps = 0;
-        Spy() : Component(nullptr, "spy") {}
+        Spy() : Component(Botanik::SetupContext(), "spy") {}
         void on_setup(uint64_t) override { setups++; }
         void bump() { steps++; }
     };
@@ -162,7 +162,7 @@ TEST_CASE("tasks: setup() runs before any beat, exactly once") {
 TEST_CASE("tasks: a component the registry never set up still self-inits") {
     struct Spy : public Botanik::Component {
         uint32_t setups = 0;
-        Spy() : Component(nullptr, "spy") {}
+        Spy() : Component(Botanik::SetupContext(), "spy") {}
     protected:
         void on_setup(uint64_t) override { setups++; }
     };
@@ -335,7 +335,7 @@ namespace {
         uint32_t setups = 0, inputs = 0, presents = 0, programs = 0;
         uint32_t last_dt = 0;
         uint16_t last_missed = 0;
-        Spy() : Program("spy", GROUP_SLOW, _bank) {}
+        Spy() : Program(Botanik::SetupContext(), "spy", GROUP_SLOW, _bank) {}
         Botanik::Vars::Bank _bank;   // a program needs a field; this one is inert
     protected:
         // Never reached: these cases dispatch through the spy_* handlers below,

@@ -18,9 +18,9 @@
 
 namespace Botanik { namespace Network {
 
-    MqttClient::MqttClient(const Vars::Bank* cfg, Logs::Logger* logger,
+    MqttClient::MqttClient(const SetupContext& ctx, const Vars::Bank* cfg,
                            NameResolver* resolver, const NetworkHandler* net)
-        : Component(logger, "MqttClient"), _cfg(cfg),
+        : Component(ctx, "MqttClient"), _cfg(cfg),
           _state(MQTT_IDLE), _since_ms(0), _last_ping_ms(0), _last_pong_ms(0),
           _connack(), _connack_len(0), _last_pub_ms(0),
           _resolver(resolver), _net(net), _sock(-1) {
@@ -268,8 +268,8 @@ namespace Botanik { namespace Network {
         static_cast<MqttClient*>(c)->on_service(t.now_ms);
     }
 
-    void MqttClient::register_tasks(Tasks::Registry& r) {
-        r.add(*this, &MqttClient::_service_task, "mqtt", Tasks::GROUP_FAST,
+    void MqttClient::register_tasks() {
+        _tasks->add(*this, &MqttClient::_service_task, "mqtt", Tasks::GROUP_FAST,
               Tasks::PHASE_SERVICE);
     }
 

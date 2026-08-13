@@ -136,7 +136,7 @@ int main(int argc, char** argv) {
     // map. Off for the screen tests ($BOTANIK_NO_MBCHECK), since it MUTATES a
     // parameter and its traffic reaches the log tail a golden captures.
     const bool mbcheck_on = HAL::Env::u32("BOTANIK_NO_MBCHECK", 0) == 0;
-    Sim::ModbusCheck modbus_check(&greenhouse.io(), &greenhouse.logger());
+    Sim::ModbusCheck modbus_check(greenhouse.setup_context(), &greenhouse.io(), &greenhouse.logger());
 #endif
 
 

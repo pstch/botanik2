@@ -205,7 +205,7 @@ namespace Botanik { namespace Alarms {
      */
     class AlarmController : public Botanik::Component {
     public:
-        void register_tasks(Tasks::Registry& r) override;
+        void register_tasks() override;
     private:
         /** @brief The registration handler. A static MEMBER, so the cast has
          *  access to the protected hook and stays beside the class it casts to. */
@@ -242,8 +242,8 @@ namespace Botanik { namespace Alarms {
         /** @brief Build the condition table by scanning @p io for SCOPE_A rows.
          *  A site's own and the library's platform-health ones alike are rows
          *  of that one table (@see alarms/platform.h): one scan, one order. */
-        AlarmController(const Vars::Bank* io, Logs::Logger* logger)
-            : Component(logger, "AlarmController"),
+        AlarmController(const SetupContext& ctx, const Vars::Bank* io)
+            : Component(ctx, "AlarmController"),
               _count(0), _declared(0), _io(io), _notifier_count(0),
               _last_now(0), _first_step(true), _active_count(0) {
 

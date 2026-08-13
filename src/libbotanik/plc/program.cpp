@@ -16,10 +16,10 @@ namespace Botanik { namespace Plc {
         static_cast<Program*>(c)->_activate(t);
     }
 
-    void Program::register_tasks(Tasks::Registry& r) {
+    void Program::register_tasks() {
         // No phase to name: a program runs in PHASE_CONTROL or not at all, and
         // add_program() marks the entry so the authority gate can find it.
-        r.add_program(*this, &Program::_run_task, name(), _group);
+        _tasks->add_program(*this, &Program::_run_task, name(), _group);
     }
 
     uint32_t worst_lateness(const Tasks::Registry& r, const Program** worst) {

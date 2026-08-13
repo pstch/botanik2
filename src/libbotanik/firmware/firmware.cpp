@@ -19,39 +19,40 @@ namespace Botanik {
     // _modbus_tcp and _console take its alarm model.
     BotanikFirmware::BotanikFirmware(const SiteDescriptor& site)
         : _site(site),
-          _logger(),
+          _logger(&_tasks),
           _scheduler(_tasks, Config::TASK_PERIOD_MS, &_logger),
-          _io(site.vars),
+          _setup(_tasks, &_logger),
+          _io(site.vars, _setup),
           // Params come from local storage.
           _param_store(),
-          _params(&_io, &_param_store, &_logger),
-          _own_tasks(*this),
+          _params(_setup, &_io, &_param_store),
+          _own_tasks(_setup, *this),
           // The alarm model scans the variable table for SCOPE_A rows;
           // platform-health alarms are appended and driven locally.
-          _health(&_logger, _scheduler.context(), &_io)
+          _health(_setup, _scheduler.context(), &_io)
           , _sys_ctx()   // fields wired in the body, once addresses are known
 #if BOTANIK_FEATURE_LOGS_MONITOR
-          , _monitor(&_logger, &_io)
+          , _monitor(_setup, &_io)
 #endif
 #if BOTANIK_FEATURE_NETWORK
           // Network reads its config from the variable bank by name;
           // telemetry publishes the live _sys_ctx (read later).
-          , _net(&_io, &_logger, &_sys_ctx)
+          , _net(_setup, &_io, &_sys_ctx)
 #endif
 #if BOTANIK_FEATURE_MODBUS_RTU_CLIENT
-          , _modbus_rtu(&_io, &_logger, site.devices)
+          , _modbus_rtu(_setup, &_io, site.devices)
 #endif
 #if BOTANIK_FEATURE_MODBUS_TCP_SERVER
           // The alarm model is the ack block's target; it is HealthMonitor's,
           // and this member is declared after it so the reference is live.
-          , _modbus_tcp(&_io, &_logger, &_health.alarm_model())
+          , _modbus_tcp(_setup, &_io, &_health.alarm_model())
 #endif
 #if BOTANIK_FEATURE_CONSOLE
           // The console borrows _sys_ctx (declared above, still empty here) by
           // pointer and reads it once the body below has filled it in.
           , _console(Config::CONSOLE_COLS, Config::CONSOLE_ROWS,
                      &_scheduler.context()->timestamp_ms, _console_baud,
-                     &_health.alarm_model(), &_logger,
+                     &_health.alarm_model(), _setup,
                      _scheduler.context(), &_sys_ctx, &_io)
           // Base-owned pages, built from the descriptor + the live bank.
 #if BOTANIK_FEATURE_HOME_PAGE
@@ -271,23 +272,23 @@ namespace Botanik {
     // The firmware's own eight rows: two bits of housekeeping and the six site
     // hooks. Each names its phase and rate here, beside the others, so the beat
     // still reads top to bottom in _register_tasks() below.
-    void BotanikFirmware::OwnTasks::register_tasks(Tasks::Registry& r) {
+    void BotanikFirmware::OwnTasks::register_tasks() {
         using namespace Tasks;
-        r.add(*this, &_site_input,
+        _tasks->add(*this, &_site_input,
               "site_input",    GROUP_FAST, PHASE_INPUT);
-        r.add(*this, &_site_config,
+        _tasks->add(*this, &_site_config,
               "site_config",   GROUP_FAST, PHASE_CONFIG);
-        r.add(*this, &_control_latch,
+        _tasks->add(*this, &_control_latch,
               "control_latch", GROUP_FAST, PHASE_SERVICE);
-        r.add(*this, &_site_service,
+        _tasks->add(*this, &_site_service,
               "site_service",  GROUP_FAST, PHASE_SERVICE);
         // The site's own control law, under the same gate the registry applies
         // to the programs.
-        r.add(*this, &_site_control,
+        _tasks->add(*this, &_site_control,
               "site_control",  GROUP_FAST, PHASE_CONTROL);
-        r.add(*this, &_site_output,
+        _tasks->add(*this, &_site_output,
               "site_output",   GROUP_FAST, PHASE_OUTPUT);
-        r.add(*this, &_site_present,
+        _tasks->add(*this, &_site_present,
               "site_present",  GROUP_FAST, PHASE_PRESENT);
     }
 
@@ -298,7 +299,7 @@ namespace Botanik {
         // within a phase is execution order, so they land ahead of everything
         // registered below - which is where the site hooks belong: a site's
         // per-phase work runs before the library's own for that phase.
-        _own_tasks.register_tasks(_tasks);
+        _own_tasks.register_tasks();
 
         // --- INPUT: fresh bytes and fresh field, before anything reads ---
         // Both field-bus components span the beat, and each registers every
@@ -307,20 +308,20 @@ namespace Botanik {
         // SERVICE and answers at PRESENT. First, so their INPUT halves commit
         // ahead of the bank's expiry sweep below.
 #if BOTANIK_FEATURE_MODBUS_RTU_CLIENT
-        _modbus_rtu.register_tasks(_tasks);
+        _modbus_rtu.register_tasks();
 #endif
 #if BOTANIK_FEATURE_MODBUS_TCP_SERVER
-        _modbus_tcp.register_tasks(_tasks);
+        _modbus_tcp.register_tasks();
 #endif
         // The bank's own two sweeps: age a row out, and reject one that is
         // fresh and still nonsense. Both before anything reads, so one beat is
         // coherent.
-        _io.register_tasks(_tasks);
+        _io.register_tasks();
 
 
 
         // --- CONFIG: the image every config-driven component reads below ---
-        _params.register_tasks(_tasks);
+        _params.register_tasks();
 
 
 
@@ -328,10 +329,10 @@ namespace Botanik {
         // --- SERVICE: supervision and the background state machines ---
         // Health before the logger drains, so an alarm START/END lands this
         // beat, and before CONTROL, so a fault inhibits this beat's programs.
-        _health.register_tasks(_tasks);   // health, then the alarm model
+        _health.register_tasks();   // health, then the alarm model
 
 #if BOTANIK_FEATURE_NETWORK
-        _net.register_tasks(_tasks);   // network, ntp, mqtt, telemetry
+        _net.register_tasks();   // network, ntp, mqtt, telemetry
 #endif
 
 
@@ -351,16 +352,16 @@ namespace Botanik {
         // in the SAME beat rather than waiting for the next one.
 
 #if BOTANIK_FEATURE_LOGGING
-        _logger.register_tasks(_tasks);
+        _logger.register_tasks();
 #endif
 #if BOTANIK_FEATURE_CONSOLE
         // Three tasks, and the port's two are not among them: console_in at the
         // top of the beat, then the draw and the flush here. After the logger,
         // so a line logged this beat is in the pages before they are drawn.
-        _console.terminal().register_tasks(_tasks);
+        _console.terminal().register_tasks();
 #endif
 #if BOTANIK_FEATURE_LOGS_MONITOR
-        _monitor.register_tasks(_tasks);
+        _monitor.register_tasks();
 #endif
 
         if (_tasks.overflow() != 0)

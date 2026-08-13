@@ -34,7 +34,10 @@ namespace Botanik { namespace Logs {
     // Lifecycle
     // ------------------------------------------------------------------------
 
-    Logger::Logger() : Component(this, "Logger") {
+    // Its own logger, and the one Component built from a context it makes
+    // itself: nothing else exists this early.
+    Logger::Logger(Tasks::Registry* tasks)
+        : Component(SetupContext(tasks, this), "Logger") {
         // one sample: all three anchors share it
         uint32_t now = HAL::Clock::current_ms();
         _perTopic_fillTime_ms   = now;
@@ -236,8 +239,8 @@ namespace Botanik { namespace Logs {
         static_cast<Logger*>(c)->refill();
     }
 
-    void Logger::register_tasks(Tasks::Registry& r) {
-        r.add(*this, &Logger::_present_task, "logger",
+    void Logger::register_tasks() {
+        _tasks->add(*this, &Logger::_present_task, "logger",
               Tasks::GROUP_FAST, Tasks::PHASE_PRESENT);
     }
 

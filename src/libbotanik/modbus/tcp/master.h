@@ -99,9 +99,9 @@ namespace Botanik { namespace Modbus {
         /** @param name what it calls itself in the log. The simulator's own
          *  master passes a name saying so, or its lines read as firmware talking
          *  to a real peer. */
-        TcpMaster(Logs::Logger* logger = nullptr,
+        TcpMaster(const SetupContext& ctx,
                   const char* name = "ModbusTCPMaster")
-            : Component(logger, name), _name(name) {}
+            : Component(ctx, name), _name(name) {}
 
         /** @name Connection
          *  @{ */

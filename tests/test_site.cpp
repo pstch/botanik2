@@ -118,7 +118,7 @@ TEST_CASE("site: the alarm model finds every alarm row, in table order") {
     SiteBank f;
     Logs::Logger logger;
     // One scan: site alarms and library platform-health rows are all SCOPE_A rows.
-    Alarms::AlarmController m(&f.bank, &logger);
+    Alarms::AlarmController m(Botanik::SetupContext(), &f.bank);
     uint8_t slot = 0;
     for (uint16_t i = 0; i < f.bank.count(); i++) {
         const Vars::Variable& d = *f.bank.var(i).meta();
@@ -155,7 +155,7 @@ TEST_CASE("site: nothing the site touches fails to resolve") {
         (void)f.bank.find(site().home_fields[i].name);
 
     Logs::Logger logger;
-    Alarms::AlarmController m(&f.bank, &logger);
+    Alarms::AlarmController m(Botanik::SetupContext(), &f.bank);
     (void)m;
 
     // Var::set() isn't gated (authority is enforced where a writer is
@@ -168,8 +168,8 @@ TEST_CASE("site: nothing the site touches fails to resolve") {
     // table to walk: they are named here instead. A new program must be added
     // to this list, which is the price of dropping the table - and the check it
     // buys is that no program names a row vars.h does not declare.
-    Site::SupplyWatch  supply_watch(f.bank);
-    Site::SupplyReport supply_report(f.bank);
+    Site::SupplyWatch  supply_watch(Botanik::SetupContext(), f.bank);
+    Site::SupplyReport supply_report(Botanik::SetupContext(), f.bank);
     Plc::Program* const site_programs[] = { &supply_watch, &supply_report };
     for (Plc::Program* p : site_programs)
         p->step(1000);      // setup() binds the names, then one activation
@@ -194,7 +194,7 @@ TEST_CASE("site: the standalone components resolve their config names too") {
     // once (geo_lat_deg vs geo_latitude), parking the site on a flat 12-hour equator.
     SiteBank f;
     Logs::Logger logger;
-    Sun::SunPositionTracker sun(&f.bank, &logger);
+    Sun::SunPositionTracker sun(Botanik::SetupContext(nullptr, &logger), &f.bank);
 
     // geo_serial defaults non-zero (skips the "not configured" early-out); host clock is real.
     sun.step(1000);

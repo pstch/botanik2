@@ -121,11 +121,11 @@ namespace Botanik { namespace Terminal {
          *  floor. @p alarms, when non-null, feeds the always-visible bottom alarm
          *  bar and reserves the bottom screen row for it (the content area shrinks
          *  by one row); null leaves the full screen to pages. */
-        Console(Utils::BufferedSerial& serial, uint16_t cols, uint16_t rows,
+        Console(const SetupContext& ctx, Utils::BufferedSerial& serial,
+                uint16_t cols, uint16_t rows,
                 const uint64_t* timestamp_ms, uint32_t baud,
                 const Scheduler::SchedulerContext* sched = nullptr,
                 const Alarms::AlarmController* alarms = nullptr,
-                Logs::Logger* logger = nullptr,
                 Ansi::TerminalType type = Ansi::CONFIGURED_TERMINAL,
                 const Vars::Bank* cfg = nullptr);
 
@@ -133,7 +133,7 @@ namespace Botanik { namespace Terminal {
          *  bytes in and the input they carry (INPUT), the frame drawn (PRESENT),
          *  and the frame plus the ring pushed out (PRESENT, every beat - see the
          *  flush note in console.cpp). */
-        void register_tasks(Tasks::Registry& r) override;
+        void register_tasks() override;
 
         /** @brief The VT device: renderers (pages, editor, bars) paint through
          *  this reference. */

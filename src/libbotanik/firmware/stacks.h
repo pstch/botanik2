@@ -83,11 +83,12 @@ namespace Botanik {
             uint32_t               _baud = Config::MONITOR_BAUD;
 
         public:
-            Rate(Utils::BufferedSerial& port, const Vars::Bank* cfg)
-                : Component(nullptr, "monitor"), _port(port), _cfg(cfg) {}
+            Rate(const SetupContext& ctx, Utils::BufferedSerial& port,
+                 const Vars::Bank* cfg)
+                : Component(ctx, "monitor"), _port(port), _cfg(cfg) {}
 
-            void register_tasks(Tasks::Registry& r) override {
-                r.add(*this, &Rate::_task, "monitor_cfg",
+            void register_tasks() override {
+                _tasks->add(*this, &Rate::_task, "monitor_cfg",
                       Tasks::GROUP_SLOW, Tasks::PHASE_CONFIG);
             }
 
@@ -113,19 +114,19 @@ namespace Botanik {
         Rate _rate;
 
     public:
-        MonitorStack(Logs::Logger* logger = nullptr, const Vars::Bank* cfg = nullptr)
+        MonitorStack(const SetupContext& ctx, const Vars::Bank* cfg = nullptr)
             : _serial(HAL::Serial::get(HAL::Serial::MONITOR)),
-              _writer(_serial, /*drop_if_tty=*/true, logger, "monitor_log"),
-              _rate(_serial, cfg) {}
+              _writer(ctx, _serial, /*drop_if_tty=*/true, "monitor_log"),
+              _rate(ctx, _serial, cfg) {}
 
         Utils::BufferedSerial& serial() { return _serial; }
         Logs::SerialLogWriter& writer() { return _writer; }
 
         /** @brief The writer's drain, then the port's own rate. The port itself
          *  is not a task: the writer owns the wire and pumps it in its own. */
-        void register_tasks(Tasks::Registry& r) {
-            _writer.register_tasks(r);
-            _rate.register_tasks(r);
+        void register_tasks() {
+            _writer.register_tasks();
+            _rate.register_tasks();
         }
 
         /** @brief Apply the stored rate before the loop, so the boot lines go
@@ -164,7 +165,7 @@ namespace Botanik {
          *  @param logger the sink the pages announce through. */
         ConsoleStack(uint16_t cols, uint16_t rows, const uint64_t* timestamp_ms,
                      uint32_t baud, Alarms::AlarmController* alarms,
-                     Logs::Logger* logger,
+                     const SetupContext& ctx,
                      const Scheduler::SchedulerContext* sched = nullptr,
                      const SystemContext* sys = nullptr,
                      const Vars::Bank* cfg = nullptr)
@@ -173,9 +174,8 @@ namespace Botanik {
               // without stranding a separator.
               // The console reads the `term_` group and its own baud out of
               // the bank: those rows describe nothing but it.
-              _terminal(_serial, cols, rows, timestamp_ms, baud,
-                        sched, alarms, logger, Terminal::Ansi::CONFIGURED_TERMINAL,
-                        cfg)
+              _terminal(ctx, _serial, cols, rows, timestamp_ms, baud,
+                        sched, alarms, Terminal::Ansi::CONFIGURED_TERMINAL, cfg)
 #if BOTANIK_FEATURE_SHELL_PAGE
             , _shell(_terminal, sys)
 #endif
@@ -186,7 +186,7 @@ namespace Botanik {
             , _alarms(_terminal, alarms)
 #endif
 #if BOTANIK_FEATURE_NOTES_PAGE
-            , _notes(_terminal, logger)
+            , _notes(_terminal, ctx.logger)
 #endif
         {}
 
@@ -231,16 +231,16 @@ namespace Botanik {
         /** @param cfg the parameter model the handlers read their config from;
          *  @param logger the shared logger; @param sys the live status the MQTT
          *  telemetry base fields read (stored, read per-beat). */
-        NetworkStack(const Vars::Bank* cfg, Logs::Logger* logger,
+        NetworkStack(const SetupContext& ctx, const Vars::Bank* cfg,
                      const SystemContext* sys)
-            : _resolver(logger),
-              _network(cfg, logger, &_resolver)
+            : _resolver(ctx.logger),
+              _network(ctx, cfg, &_resolver)
 #if BOTANIK_FEATURE_NTP
-            , _ntp(cfg, logger, &_resolver, &_network)
+            , _ntp(ctx, cfg, &_resolver, &_network)
 #endif
 #if BOTANIK_FEATURE_MQTT
-            , _mqtt(cfg, logger, &_resolver, &_network)
-            , _telemetry(&_mqtt, sys, Config::MQTT_TOPIC_PREFIX)
+            , _mqtt(ctx, cfg, &_resolver, &_network)
+            , _telemetry(ctx, &_mqtt, sys, Config::MQTT_TOPIC_PREFIX)
 #endif
         { (void)sys; }
 
@@ -263,14 +263,14 @@ namespace Botanik {
          *  Not a Component - it owns several - so it has no tasks of its own.
          *  Nothing steps anything now: each child is a registry entry with its
          *  own rate and its own row on the TASKS page. */
-        void register_tasks(Tasks::Registry& r) {
-            _network.register_tasks(r);
+        void register_tasks() {
+            _network.register_tasks();
 #if BOTANIK_FEATURE_NTP
-            _ntp.register_tasks(r);
+            _ntp.register_tasks();
 #endif
 #if BOTANIK_FEATURE_MQTT
-            _mqtt.register_tasks(r);
-            _telemetry.register_tasks(r);
+            _mqtt.register_tasks();
+            _telemetry.register_tasks();
 #endif
         }
 

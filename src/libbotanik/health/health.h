@@ -41,7 +41,7 @@ namespace Botanik { namespace Health {
         /** @brief This monitor, then the alarm model - the order they ran in
          *  when this stepped it directly. Nothing steps anything now: both are
          *  registry entries, so both are attributable and both have a rate. */
-        void register_tasks(Tasks::Registry& r) override;
+        void register_tasks() override;
     private:
         /** @brief The registration handler. A static MEMBER, so the cast has
          *  access to the protected hook and stays beside the class. */
@@ -111,14 +111,14 @@ namespace Botanik { namespace Health {
         /** @brief Build the notifier + model. The model finds every alarm by
          *  scanning @p io for SCOPE_A rows, so there is no alarm table to
          *  pass. */
-        HealthMonitor(Logs::Logger* logger,
+        HealthMonitor(const SetupContext& ctx,
                       const Scheduler::SchedulerContext* sched,
                       const Vars::Bank* io = nullptr)
-            : Component(logger, "HealthMonitor"),
+            : Component(ctx, "HealthMonitor"),
 #if BOTANIK_FEATURE_ALARMS_PUBLISH
               _notifier(Config::MQTT_TOPIC_PREFIX),
 #endif
-              _model(io, logger), _sched(sched), _io(io) {
+              _model(ctx, io), _sched(sched), _io(io) {
 #if BOTANIK_FEATURE_ALARMS_PUBLISH
             _model.add_notifier(&_notifier);   // the built-in MQTT sink
 #endif

@@ -681,13 +681,13 @@ namespace Botanik { namespace Modbus {
         static_cast<RtuClient*>(c)->on_output(t.now_ms);
     }
 
-    void RtuClient::register_tasks(Tasks::Registry& r) {
+    void RtuClient::register_tasks() {
         // The field bus commits its readings ahead of the bank's expiry sweep,
         // which must judge the freshest image and not the one from before this
         // beat's answers.
-        r.add(*this, &RtuClient::_input_task,  "modbus_rtu_rx",
+        _tasks->add(*this, &RtuClient::_input_task,  "modbus_rtu_rx",
               Tasks::GROUP_FAST, Tasks::PHASE_INPUT);
-        r.add(*this, &RtuClient::_output_task, "modbus_rtu_tx",
+        _tasks->add(*this, &RtuClient::_output_task, "modbus_rtu_tx",
               Tasks::GROUP_FAST, Tasks::PHASE_OUTPUT);
     }
 
