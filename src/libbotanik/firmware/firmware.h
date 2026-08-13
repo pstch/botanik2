@@ -342,6 +342,10 @@ namespace Botanik {
 
             _scheduler.run_beat(now_ms);
 
+            // The escape hatch, after the whole beat and before the kick that
+            // vouches for it. Empty by default.
+            on_loop(now_ms);
+
             // The verdict is HealthMonitor's, the watchdog is the scheduler's.
             // A withheld kick chooses to let the hardware reset us, so the field
             // drops to its safe state FIRST: the reset gives no such guarantee,
@@ -435,8 +439,41 @@ namespace Botanik {
         virtual void register_telemetry();
 #endif
 
-        /** @brief Site post-wiring, run once near the end of setup(). Default:
-         *  nothing. */
+        /** @brief Per-beat site work that is neither a Component nor a Program.
+         *
+         *  Runs once per BEAT (inside the tick gate, so never per loop()
+         *  iteration), after every phase and before the watchdog kick that
+         *  vouches for the beat. Default: nothing.
+         *
+         *  **Most sites should never need this.** Work in the beat belongs in
+         *  the table: as a Component or a Program registered in on_setup(), or
+         *  as one of the six per-phase hooks. Anything here is outside the
+         *  table, so it has no phase, no rate, no cost sample and no row on the
+         *  TASKS page - if it turns out to be slow, nothing will say so. It is
+         *  the hatch for library-level code that genuinely fits none of those. */
+        virtual void on_loop(uint64_t now_ms) { (void)now_ms; }
+
+        /** @brief Site post-wiring: where a site registers its OWN components
+         *  and control programs, and wires up anything else it needs.
+         *
+         *  Run once near the end of setup(), after every library component has
+         *  registered and every log sink exists, and still **before the setup
+         *  pass** - so a component registered here is a task-table entry like
+         *  any other: set up in the same sweep, dispatched by the same loop, and
+         *  named on the TASKS page. Register through `scheduler().tasks()`:
+         *
+         *  @code
+         *  void on_setup() override {
+         *      _my_pump.register_tasks(scheduler().tasks());   // a Component
+         *      _my_law.register_tasks(scheduler().tasks());    // a Plc::Program
+         *  }
+         *  @endcode
+         *
+         *  This is the extension point for work the six per-phase hooks cannot
+         *  express: a subsystem with state of its own, several rates, or more
+         *  than one point in the beat.
+         *
+         *  Default: nothing. */
         virtual void on_setup() {}
 
         /** @name Per-phase hooks

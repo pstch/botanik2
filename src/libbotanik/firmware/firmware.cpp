@@ -172,7 +172,10 @@ namespace Botanik {
         register_telemetry();   // site telemetry fields (base set always on)
 #endif
 
-        on_setup();   // site post-wiring (extra sinks / components)
+        // The site's own components and programs register here, on top of the
+        // library's - still ahead of the setup pass below, so they are set up
+        // in the same sweep as everything else.
+        on_setup();
 
         // Every registered task's one-time init. It must come after every sink
         // above (and after on_setup(), for a site's own): this is what runs each
