@@ -21,8 +21,8 @@ already-written log records, so a gap stays a gap.
 @ref Botanik::Logs::Logger applies a **dual token-bucket** limiter before fan-out: one
 global bucket plus one per topic. An entry must take a token from *both* to pass,
 otherwise it is dropped and counted. @ref Botanik::Logs::Logger::refill "refill()" -
-the Logger's registered task, deliberately not called `step()`, which would have
-hidden `Component::step()` - tops the buckets up once per beat; on a slower decoupled
+the Logger's registered task, named so it cannot hide `Component::step()` - tops the
+buckets up once per beat; on a slower decoupled
 cadence the Logger emits a per-topic `CRITICAL` summary of how many entries each
 bucket suppressed - classed
 `CRITICAL` so the report survives the storm it describes (see

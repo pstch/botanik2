@@ -113,22 +113,22 @@ Every task gets the same fresh 64-bit `now_ms`. The order is load-bearing:
 ## Components and contexts
 
 **`Component`** (`core/component.h`) is the mixin every subsystem derives. It
-gives each a one-shot BOOT/DEBUG announce on its first `step()`, so a subsystem
-missing from the loop is obvious in the log rather than silently inert, an
-optional per-component rate, and a watched config serial.
+gives each a one-shot BOOT/DEBUG announce on its first `setup()`, so a subsystem
+missing from the loop is obvious in the log rather than silently inert, and a
+watched config serial.
 
 It has **one hook per phase** - `on_input()` ... `on_present()` - and a component
 overrides the one whose place in the data flow matches its work. Most override
-exactly one. A component that genuinely spans the beat overrides several and is
-registered once per phase (`add_component<PHASE_INPUT>(...)`): the field-bus
-master commits answers at INPUT and issues the next request at OUTPUT, and the
-TCP slave decodes at INPUT, persists at SERVICE and answers at PRESENT.
+exactly one. A component that genuinely spans the beat overrides several and
+registers once per phase from its `register_tasks()`: the field-bus master
+commits answers at INPUT and issues the next request at OUTPUT, and the TCP slave
+decodes at INPUT, persists at SERVICE and answers at PRESENT.
 
-`step()` is non-virtual and fixes the order - due check, first-step `setup()` and
-`announce()`, `on_param_changed()` on a serial change, then the phase hook. The
-lifecycle is per BEAT, not per phase: a component registered twice would
-otherwise consume its activation at the first phase and sit out the second, so
-the first dispatch of a beat decides and the rest reuse the verdict.
+A component has **no rate of its own**. How often work runs is its TASK's rate
+group, and the elapsed time is `Tasks::Tick::dt_ms`. `Tasks::Registry::run_phase()`
+gives each entry `poll_config()` then the handler; `Component::step()` is the same
+body for a component the table does not own (one stepped by its owner, or by a
+test) and carries no due check.
 
 **`SystemContext`** (`core/context.h`) is a borrowed-pointer aggregate the read-only
 paths share, so the UI takes one handle instead of a pointer per subsystem:

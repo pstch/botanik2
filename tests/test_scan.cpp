@@ -721,12 +721,11 @@ namespace component {
 using Botanik::Component;
 
 namespace {
-    /** A component that records every beat it actually ran on. */
+    /** Records the beats it ran on and the phases it saw, in order. */
     class Spy : public Component {
     public:
-        std::vector<uint64_t> ran;
-        std::vector<uint32_t> dts;
-        std::vector<uint16_t> misses;
+        std::vector<uint64_t>            ran;      // beats on_service() saw
+        std::vector<Botanik::Tasks::Phase> phases; // every hook, in call order
         uint32_t setups = 0;
         uint32_t serial = 0;
         uint32_t reconfigs = 0;
@@ -735,82 +734,78 @@ namespace {
 
     protected:
         void on_setup(uint64_t) override { setups++; }
+        void on_input(uint64_t)   override { phases.push_back(Botanik::Tasks::PHASE_INPUT); }
+        void on_config(uint64_t)  override { phases.push_back(Botanik::Tasks::PHASE_CONFIG); }
         void on_service(uint64_t now_ms) override {
+            phases.push_back(Botanik::Tasks::PHASE_SERVICE);
             ran.push_back(now_ms);
-            dts.push_back(dt_ms());
-            misses.push_back(missed());
         }
+        void on_control(uint64_t) override { phases.push_back(Botanik::Tasks::PHASE_CONTROL); }
+        void on_output(uint64_t)  override { phases.push_back(Botanik::Tasks::PHASE_OUTPUT); }
+        void on_present(uint64_t) override { phases.push_back(Botanik::Tasks::PHASE_PRESENT); }
         uint32_t param_serial() const override { return serial; }
         void on_param_changed(uint64_t) override { reconfigs++; }
     };
 }
 
-TEST_CASE("component: a period makes it sit out the beats in between") {
+// The rate is the TASK's, not the component's: a stepped component runs every
+// time it is stepped. The due/late/dropped rule is tested against the real
+// TaskTimer in test_tasks.cpp.
+TEST_CASE("component: a stepped component runs on every beat") {
     Spy s;
-    s.set_period(50);
-    for (uint64_t t = 0; t <= 200; t += 10) s.step(t);
+    for (uint64_t t = 0; t <= 200; t += 50) s.step(t);
 
-    // t=0 (first step is always due), then 50/100/150/200.
     REQUIRE(s.ran.size() == 5);
     CHECK(s.ran[0] == 0);
-    CHECK(s.ran[1] == 50);
     CHECK(s.ran[4] == 200);
 }
 
-TEST_CASE("component: on_setup() still runs on the first beat, whatever the period") {
+TEST_CASE("component: setup() runs once, before the first hook") {
     Spy s;
-    s.set_period(1000);          // far longer than the run below
     for (uint64_t t = 0; t < 100; t += 10) s.step(t);
 
-    CHECK(s.setups == 1);        // ran, despite never coming due again
-    CHECK(s.ran.size() == 1);
+    CHECK(s.setups == 1);
+    CHECK(s.ran.size() == 10);
 }
 
-TEST_CASE("component: dt_ms is the real gap, not the beat") {
+TEST_CASE("component: step() dispatches every phase hook in beat order") {
+    using namespace Botanik::Tasks;
     Spy s;
-    s.set_period(50);
-    for (uint64_t t = 0; t <= 150; t += 10) s.step(t);
-
-    REQUIRE(s.dts.size() >= 3);
-    CHECK(s.dts[0] == 50);       // first run reports the nominal period
-    CHECK(s.dts[1] == 50);       // then the real gap, which here matches
-    CHECK(s.dts[2] == 50);
-}
-
-TEST_CASE("component: a stalled loop reports the real gap and the dropped beats") {
-    Spy s;
-    s.set_period(50);
     s.step(0);
-    s.ran.clear(); s.dts.clear(); s.misses.clear();
 
-    s.step(500);                 // a 500 ms stall on a 50 ms period
-
-    REQUIRE(s.ran.size() == 1);  // ran ONCE, no catch-up burst
-    CHECK(s.dts[0] == 500);      // the real elapsed time
-    CHECK(s.misses[0] == 9);
+    const std::vector<Phase> want = { PHASE_INPUT, PHASE_CONFIG, PHASE_SERVICE,
+                                      PHASE_CONTROL, PHASE_OUTPUT, PHASE_PRESENT };
+    CHECK(s.phases == want);
 }
 
-TEST_CASE("component: a sat-out beat does not poll the config serial either") {
+TEST_CASE("component: a phase step runs only that hook") {
+    using namespace Botanik::Tasks;
     Spy s;
-    s.set_period(100);
+    s.step(0, PHASE_OUTPUT);
+
+    const std::vector<Phase> want = { PHASE_OUTPUT };
+    CHECK(s.phases == want);
+}
+
+TEST_CASE("component: the config serial is polled once per beat, not per phase") {
+    Spy s;
     s.step(0);
     CHECK(s.reconfigs == 0);     // serial 0 at boot is not a change
 
-    s.serial = 7;                // config commits between activations
-    s.step(10);
-    s.step(20);
-    CHECK(s.reconfigs == 0);     // not due, so not noticed yet
+    s.serial = 7;
+    s.step(10);                  // six hooks, one reconfigure
+    CHECK(s.reconfigs == 1);
 
-    s.step(100);
-    CHECK(s.reconfigs == 1);     // picked up on the next activation
+    s.step(20);                  // unchanged since, so nothing more
+    CHECK(s.reconfigs == 1);
 }
 
-TEST_CASE("component: period 0 and an unset period behave identically") {
-    Spy a, b;
-    b.set_period(0);
-    for (uint64_t t = 0; t < 100; t += 10) { a.step(t); b.step(t); }
-    CHECK(a.ran == b.ran);
-    CHECK(a.dts == b.dts);
+TEST_CASE("component: two steps in the same millisecond are two beats") {
+    Spy s;
+    s.step(0);
+    s.serial = 7;
+    s.step(0);                   // clock has not moved, but this IS a fresh beat
+    CHECK(s.reconfigs == 1);
 }
 
 }  // namespace component
