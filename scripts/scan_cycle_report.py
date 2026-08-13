@@ -10,6 +10,7 @@ Everything factual here is quoted from the tree; the header stamps the commit it
 was generated from, so a stale report is visible rather than merely wrong.
 """
 
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -87,18 +88,25 @@ def styles():
 S = styles()
 
 
+def mono(t):
+    """`code` -> a Courier span, so inline names read as names everywhere."""
+    return re.sub(r"`([^`]+)`",
+                  r"<font face='Courier' size='8.6'>\1</font>", t)
+
+
 def para(t, st="body"):
-    return Paragraph(t, S[st])
+    return Paragraph(mono(t), S[st])
 
 
 def bullets(items):
-    return [Paragraph(f"&bull;&nbsp;&nbsp;{t}", S["bullet"]) for t in items]
+    return [Paragraph(mono(f"&bull;&nbsp;&nbsp;{t}"), S["bullet"])
+            for t in items]
 
 
 def code(text, source=None):
     out = [Preformatted(text.strip("\n"), S["code"])]
     if source:
-        out.append(Paragraph(source, S["caption"]))
+        out.append(Paragraph(mono(source), S["caption"]))
     return KeepTogether(out)
 
 
@@ -109,9 +117,12 @@ def table(rows, widths, head=True):
         for cell in row:
             if isinstance(cell, str):
                 st = "cellb" if (head and i == 0) else "cell"
-                if cell.startswith("`") and cell.endswith("`"):
+                if cell.startswith("`") and cell.endswith("`") \
+                        and cell.count("`") == 2:
                     cell, st = cell[1:-1], "cellc"
-                cells.append(Paragraph(cell, S[st]))
+                    cells.append(Paragraph(cell, S[st]))
+                else:
+                    cells.append(Paragraph(mono(cell), S[st]))
             else:
                 cells.append(cell)
         data.append(cells)
@@ -132,8 +143,8 @@ def table(rows, widths, head=True):
 
 
 def callout(title, body_paras):
-    inner = [Paragraph(title, S["notehead"])]
-    inner += [Paragraph(b, S["note"]) for b in body_paras]
+    inner = [Paragraph(mono(title), S["notehead"])]
+    inner += [Paragraph(mono(b), S["note"]) for b in body_paras]
     t = Table([[inner]], colWidths=[BODY_W], hAlign="LEFT")
     t.setStyle(TableStyle([
         ("BACKGROUND", (0, 0), (-1, -1), WARNBG),
@@ -151,12 +162,13 @@ def callout(title, body_paras):
 # --------------------------------------------------------------------------
 
 PHASES = [
-    ("INPUT", ["modbus_rtu_rx", "modbus_tcp_rx", "expire_stale", "console_in"]),
-    ("CONFIG", ["params", "serial_cfg"]),
-    ("SERVICE", ["health", "alarms", "control_latch", "net / ntp / mqtt"]),
-    ("CONTROL", ["supply_watch", "supply_report", "site_control"]),
-    ("OUTPUT", ["modbus_rtu_tx"]),
-    ("PRESENT", ["logger", "console", "console_tx"]),
+    ("INPUT", ["site_input", "modbus_rtu_rx", "modbus_tcp_rx", "expire_stale",
+               "console_in"]),
+    ("CONFIG", ["serial_cfg", "console_cfg", "log_cfg", "params"]),
+    ("SERVICE", ["control_latch", "health", "alarms", "net / ntp / mqtt"]),
+    ("CONTROL", ["site_control", "supply_watch", "supply_report"]),
+    ("OUTPUT", ["site_output", "modbus_rtu_tx"]),
+    ("PRESENT", ["site_present", "logger", "console", "console_tx"]),
 ]
 
 
@@ -171,7 +183,7 @@ class Beat(Flowable):
     def __init__(self, width):
         Flowable.__init__(self)
         self.width = width
-        self.height = 62 * mm
+        self.height = 44 * mm
 
     def draw(self):
         c = self.canv
@@ -344,17 +356,25 @@ def story():
         "redraws. Programs, components and setup handlers are all rows in it."))
     f.append(code("""
 struct Task {
-    const char* name;                                  // the TASKS row
-    GroupId     group;                                 // how often
-    Phase       phase;                                 // where in the beat
-    Component*  owner;                                 // the erased self
-    void      (*handler)(Component*, const Tick&);     // the call
-    bool        is_program;                            // control-gated
-    bool        first_activation;                      // -> Tick::first
-    TaskTimer   timer;                                 // due / late / dropped
-    TaskCost    cost;                                  // what it costs
+    const char*  name;                                 // the TASKS row
+    GroupId      group;                                // how often
+    Phase        phase;                                // where in the beat
+    Component*   owner;                                // the erased self
+    void       (*handler)(Component*, const Tick&);    // the call
+    bool         is_program;                           // control-gated
+    bool         first_activation;                     // -> Tick::first
+    TaskTimer    timer;                                // due / late / dropped
+    TaskCost     cost;                                 // what it costs
 };
-""", "src/libbotanik/tasks/tasks.h (the component form; see §6)"))
+""", "src/libbotanik/tasks/tasks.h - 80 bytes, 48 slots, 31 used by the full profile"))
+
+    f.append(para(
+        "<b>One dispatch shape, and that is the point.</b> Every entry is an "
+        "owning Component plus a named handler taking a Tick - there is no "
+        "second form and no second calling convention, so the dispatch loop has "
+        "nothing to branch on and a row cannot be half-set-up. A thing that "
+        "wants work in the beat is a Component; if it is not one, it wraps "
+        "itself in one."))
 
     f.append(para(
         "Dispatch is <b>phase-major</b>: for each phase in order, walk the table "
@@ -384,8 +404,6 @@ struct Task {
         "a group already has and places each new one a beat further along, "
         "wrapped into the group's period. A site writes nothing, and adding a "
         "task re-spreads its group."))
-
-    f.append(PageBreak())
 
     # -- 3. registering ---------------------------------------------------
     f.append(para("3. How a component registers", "h1"))
@@ -483,10 +501,50 @@ void Console::register_tasks(Tasks::Registry& r) {
          "does each line now. And check the boot log, not just the task list - a "
          "task that runs having never been set up looks perfectly registered."]))
 
-    f.append(PageBreak())
-
     # -- 5. control authority + programs ----------------------------------
-    f.append(para("5. Control authority", "h1"))
+    f.append(para("5. How components reach each other", "h1"))
+    f.append(para(
+        "Almost never directly. Two shared objects carry nearly all of it, and "
+        "both are handed over by <b>constructor injection</b> - a consumer is "
+        "given a pointer at construction and reads it later, so there is no "
+        "two-phase wiring step and nothing has to be re-fetched per beat."))
+    f.append(table([
+        ["What", "Carries", "Who reads it"],
+        ["`Vars::Bank`", "the one model everything the firmware exposes goes "
+                         "through: a meter reading, a relay coil, a computed "
+                         "value, a parameter. <b>Components do not call each "
+                         "other - they read and write named rows.</b> The field "
+                         "bus commits a reading; a program reads it and drives "
+                         "an output; the bus carries that out. None of the three "
+                         "knows the others exist",
+         "everything"],
+        ["`SystemContext`", "an aggregate of borrowed pointers to the "
+                            "per-subsystem STATUS: scheduler metrics, the task "
+                            "registry, the bank, the parameters, network / NTP / "
+                            "MQTT, both Modbus ends. Every member may be null "
+                            "when its subsystem is compiled out. It "
+                            "forward-declares them all, so including it costs "
+                            "nothing",
+         "the reporting surfaces: the shell, the status page, MQTT telemetry"],
+    ], [30 * mm, BODY_W - 74 * mm, 44 * mm]))
+    f.append(Spacer(1, 5))
+    f.append(para(
+        "The direction matters: <font face='Courier' size='9'>SystemContext</font> "
+        "is <b>not</b> reachable through the console, and the console holds no "
+        "context. A terminal is for drawing, and a command interpreter over the "
+        "variable model should not need one to find a variable. Likewise the "
+        "status bar takes the narrower thing it actually displays - a "
+        "<font face='Courier' size='9'>SchedulerContext*</font> - rather than "
+        "the whole aggregate."))
+    f.append(para(
+        "What is left after that is a handful of deliberate direct references, "
+        "each one a thing the bank cannot express: the health monitor owns the "
+        "alarm model, log writers are registered on the logger, and the MQTT "
+        "publisher is handed to the alarm notifier. Those are <i>wiring</i>, "
+        "done once in <font face='Courier' size='9'>on_setup()</font>, not "
+        "per-beat traffic."))
+
+    f.append(para("6. Control authority", "h1"))
     f.append(para(
         "Whether the firmware may drive the field is decided by the variable "
         "bank, and it gates <b>program entries and nothing else</b>. The phases "
@@ -525,7 +583,7 @@ void Registry::set_programs_enabled(bool enabled, uint64_t now_ms);
         "after an outage."))
 
     # -- 6. a site's programs --------------------------------------------
-    f.append(para("6. A site's own programs", "h1"))
+    f.append(para("7. A site's own programs", "h1"))
     f.append(para(
         "A control program is a <font face='Courier' size='9'>Plc::Program</font> "
         "subclass. It holds its function blocks and its resolved variable "
@@ -574,6 +632,37 @@ Plc::Program* const g_programs[] = {
 };
 """, "src/sites/gh_mlb41/tasks.h - the site declares programs, the base registers them"))
 
+    f.append(para("Registering them, and anything else the site owns", "h2"))
+    f.append(para(
+        "A site's programs come off its <font face='Courier' size='9'>"
+        "SiteDescriptor</font> table and the base registers them for it. "
+        "Anything else - a subsystem with state of its own, several rates, or "
+        "more than one point in the beat - the site registers itself, in "
+        "<font face='Courier' size='9'>on_setup()</font>:"))
+    f.append(code("""
+class GreenhouseMLB41 : public BotanikFirmware {
+    MyPumpBank  _pumps;          // a Component of the site's own
+    MyVentLaw   _vent;           // a Plc::Program not in the descriptor table
+
+protected:
+    void on_setup() override {
+        _pumps.register_tasks(scheduler().tasks());
+        _vent.attach(io());
+        _vent.register_tasks(scheduler().tasks());
+    }
+};
+""", "on_setup() runs before the setup pass, so both are set up with everything else"))
+    f.append(para(
+        "There is nothing special about either: both become ordinary rows, "
+        "dispatched by the same loop, set up in the same sweep, and named on the "
+        "TASKS page. The six per-phase hooks "
+        "(<font face='Courier' size='9'>on_input()</font> ... "
+        "<font face='Courier' size='9'>on_present()</font>) remain for one-off "
+        "per-beat work, and <font face='Courier' size='9'>on_loop()</font> is an "
+        "escape hatch for what fits neither - but anything registered outside "
+        "the table has no phase, no rate and no cost sample, so if it is slow, "
+        "nothing will say so."))
+
     f.append(para("What the scaffolding guarantees", "h2"))
     f += bullets([
         "<b>Table order is execution order.</b> The firmware registers programs "
@@ -598,7 +687,7 @@ Plc::Program* const g_programs[] = {
         "I/O, no knowledge of Modbus, and no name lookup once it is running. It "
         "reads variables, applies blocks, and drives variables."))
 
-    f.append(para("7. Verifying a registration", "h1"))
+    f.append(para("8. Verifying a registration", "h1"))
     f.append(para(
         "Ask the shell, never the TASKS page. "
         "<font face='Courier' size='9'>tasks get &lt;name&gt;</font> answers "
