@@ -137,12 +137,15 @@ namespace Botanik { namespace Tasks {
         void      (*setup)(void* self, uint64_t now_ms) = nullptr;
         void*       self     = nullptr;
 
-        /** @name The registered form (see add())
+        /** @name The component form (see add())
          *
          *  A component registers its own work: it supplies the name, the rate
-         *  group and the phase, and a file-local handler that casts @c owner
-         *  back to its own type. Both forms coexist until the last legacy
-         *  registration is gone. @{ */
+         *  group and the phase, and a named handler that casts @c owner back to
+         *  its own type. Nearly everything is this.
+         *
+         *  The plain (run, self) pair above is the other kind, and it is not
+         *  legacy - it is for work whose owner is NOT a Component: the
+         *  composition root's own hooks, and MqttSender. @{ */
         Component* owner   = nullptr;
         void     (*handler)(Component* owner, const Tick& tick) = nullptr;
         /** @brief A control program: PHASE_CONTROL by construction, and gated by
@@ -194,7 +197,12 @@ namespace Botanik { namespace Tasks {
          *  @{ */
 
         /**
-         * @brief Register @p name to run @p run at @p group's rate, in @p phase.
+         * @brief Register @p name to run @p run at @p group's rate, in @p phase,
+         *        for an owner that is not a Component.
+         *
+         * The composition root's own hooks and MqttSender, and that is meant to
+         * be the whole list - anything with a subsystem lifecycle registers
+         * through the Component form below and gets its setup() run for free.
          *
          * The offset keeping this task off the same beat as its group-mates is
          * derived: each new member of a group is placed one beat further along,

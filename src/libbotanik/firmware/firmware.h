@@ -450,15 +450,24 @@ namespace Botanik {
         /** @} */
 
     private:
-        /** @brief The one dispatcher for every task this class owns, so each is
-         *  a NAME rather than another copy of the same cast.
+        /** @brief Generates the named static wrapper a registration needs, one
+         *  per method, so each of this class's tasks is a NAME rather than
+         *  another copy of the same cast.
          *
-         *  The method is a template argument for the same reason the phase is
-         *  one on Registry::add_component: Task::run is a plain function pointer
-         *  and a capturing lambda will not convert to one. A named wrapper is
-         *  also the point - it is greppable, it takes a breakpoint, and it shows
-         *  up in a stack trace, none of which a lambda in the registration list
-         *  does. @see design/scan-cycle-rework.md */
+         *  `Task::run` is a plain function pointer and a pointer-to-member will
+         *  not convert to one, so every method dispatched from the table needs a
+         *  free function in front of it. The method is a TEMPLATE argument so
+         *  the compiler writes those eight wrappers instead of us, and the call
+         *  site still reads `_task_hook<&BotanikFirmware::on_input>` - named by
+         *  what it calls, greppable, breakpoint-able, and visible in a stack
+         *  trace. None of which a lambda in the registration list is.
+         *
+         *  This exists because the composition root is deliberately NOT a
+         *  Component: it has no announce, no config serial and no healthy(), and
+         *  its own `setup()` is the bring-up entry point rather than a
+         *  lifecycle hook. A component registers through
+         *  Registry::add(Component&, ...) and needs none of this.
+         *  @see design/scan-cycle-rework.md */
         template <void (BotanikFirmware::*Hook)(uint64_t)>
         static void _task_hook(void* self, uint64_t now_ms) {
             (static_cast<BotanikFirmware*>(self)->*Hook)(now_ms);
