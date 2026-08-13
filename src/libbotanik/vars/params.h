@@ -112,6 +112,19 @@ namespace Botanik { namespace Vars {
          *  access to the protected hook and stays beside the class. */
         static void _config_task(Component* c, const Tasks::Tick& t);
 
+        /** @brief Push `sys_log_level` into the logger.
+         *
+         *  Here because this is the one object already holding BOTH the bank and
+         *  a logger, so it costs no dependency at all - `vars/` depends on
+         *  `logs/` already, since the Bank reports a refused write through one.
+         *
+         *  The logger cannot read it for itself: that would mean `logs/`
+         *  depending back on `vars/`, and the lowest-level service in the tree
+         *  would stop building without the variable model. `set_min_level()` is
+         *  the indirection, and applying a parameter to the thing that cannot
+         *  read it is the same job as loading them and pacing their writes. */
+        void _apply_log_level();
+
     public:
         /** @brief Write every retained row out NOW, whatever the cadence, and
          *  restart the interval from this moment.

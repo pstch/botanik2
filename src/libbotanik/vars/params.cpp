@@ -11,6 +11,8 @@
 
 #include "libbotanik/hal/storage.h" // HAL::Storage::set/get/remove
 #include "libbotanik/logs/logger.h" // Logs::Logger
+#include "libbotanik/logs/topics.h" // Logs::log_level_label
+#include "libbotanik/config/logging.h" // Config::LOG_MIN_LEVEL
 #include "libbotanik/vars/access.h" // Vars::var_format / text_at
 
 namespace Botanik { namespace Vars {
@@ -180,6 +182,7 @@ namespace Botanik { namespace Vars {
 
     void Params::on_config(uint64_t now_ms) {
         if (_io == nullptr) return;
+        _apply_log_level();
         const uint32_t every = _retain_ms();
         // 0 turns the cadence off: the way down and the `save` command are then
         // the whole mechanism, which is the right trade for a unit whose flash
@@ -294,6 +297,24 @@ namespace Botanik { namespace Vars {
     void Params::register_tasks(Tasks::Registry& r) {
         r.add(*this, &Params::_config_task, "params",
               Tasks::GROUP_SLOW, Tasks::PHASE_CONFIG);
+    }
+
+}}  // namespace Botanik::Vars
+
+namespace Botanik { namespace Vars {
+
+    void Params::_apply_log_level() {
+        if (_logger == nullptr) return;
+        const int32_t want = get_int(_io, "sys_log_level",
+                                     (int32_t)Config::LOG_MIN_LEVEL);
+        // No coercion needed: the row is a T_ENUM over log_level_label(), so the
+        // model refused anything that is not a level long before it reached the
+        // slot. The one value that arrives unvetted is the Config fallback
+        // above, from a build whose site left the row out - hence a guard rather
+        // than a bare cast.
+        if (Logs::log_level_label((uint64_t)want) == nullptr) return;
+        const Logs::LogLevel lvl = (Logs::LogLevel)want;
+        if (lvl != _logger->min_level()) _logger->set_min_level(lvl);
     }
 
 }}  // namespace Botanik::Vars

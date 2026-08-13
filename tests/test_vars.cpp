@@ -8,6 +8,9 @@
 #include <cstdint>                  // int64_t/uint64_t
 #include "libbotanik/utils/text.h"  // Utils::compare_str
 #include "libbotanik/vars/scalar.h" // Vars::Scalar + format/parse
+#include "libbotanik/logs/logger.h"   // Logs::Logger - the log-level push
+#include "libbotanik/logs/topics.h"   // Logs::LOG_* / log_level_label
+#include "libbotanik/tasks/tasks.h"    // Tasks::Registry - drive one CONFIG pass
 #include "doctest.h"
 #include "libbotanik/vars/declare.h"
 #include "libbotanik/vars/model.h"  // Vars::Bank / Var / VarRef
@@ -1301,6 +1304,62 @@ namespace {
         }
         Var by(const char* n) { return bank.var(bank.find(n)); }
     };
+}
+
+namespace {
+    // sys_log_level is the one parameter its consumer cannot read for itself:
+    // vars/ depends on logs/ (the Bank reports a refused write through a
+    // Logger), so a Logger reading the bank would close that into a cycle.
+    // Params pushes it instead - it is the one object already holding both.
+    const Variable LOGCFG[] = {
+        ::Botanik::Vars::PE("sys_log_level", (uint64_t)Botanik::Logs::LOG_INFO,
+            &Botanik::Logs::log_level_label, 973, "floor", ""),
+    };
+
+    struct LogFx {
+        Value             vals[1]{};
+        uint16_t          index[1]{};
+        Botanik::Logs::Logger logger;
+        Bank              bank;
+        Params            params;
+        LogFx() : params(&bank, nullptr, &logger) {
+            VarTables t = {};
+            t.var = LOGCFG; t.val = vals; t.count = 1; t.index = index;
+            bank = Bank(t);
+            bank.init();
+            params = Params(&bank, nullptr, &logger);
+        }
+        Var row() { return bank.var(bank.find("sys_log_level")); }
+
+        /** @brief One CONFIG activation, through the registry, exactly as the
+         *  beat does it. */
+        void step(uint64_t now_ms) {
+            Botanik::Tasks::Registry r;
+            params.register_tasks(r);
+            r.run_phase(Botanik::Tasks::PHASE_CONFIG, now_ms);
+        }
+    };
+}
+
+TEST_CASE("params: the log level reaches the logger, which cannot read it itself") {
+    LogFx f;
+    // Seeded from the row's own default on the first config pass.
+    f.step(0);
+    CHECK(f.logger.min_level() == Botanik::Logs::LOG_INFO);
+
+    REQUIRE(f.bank.set(f.row(), "critical") == SET_OK);
+    INFO("the edit is live in the bank at once, but the logger keeps its own copy");
+    CHECK(f.logger.min_level() == Botanik::Logs::LOG_INFO);
+
+    f.step(10);
+    INFO("...which the CONFIG pass pushes, because _emit() tests the floor "
+         "before any formatting and must not do a name lookup per line");
+    CHECK(f.logger.min_level() == Botanik::Logs::LOG_CRITICAL);
+
+    // ...and back down again: it tracks the parameter, not a one-way latch.
+    REQUIRE(f.bank.set(f.row(), "debug") == SET_OK);
+    f.step(20);
+    CHECK(f.logger.min_level() == Botanik::Logs::LOG_DEBUG);
 }
 
 TEST_CASE("save: an edit is live at once and forgotten unless it is saved") {

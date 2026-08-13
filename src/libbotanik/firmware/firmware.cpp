@@ -256,8 +256,6 @@ namespace Botanik {
         // The two rates that are config for the firmware ITSELF. After the
         // params component, so an edit committed this beat is applied this beat
         // rather than the next.
-        r.add(*this, &_hook<&BotanikFirmware::_apply_core_config>,
-              "core_cfg",  GROUP_SLOW, PHASE_CONFIG);
         r.add(*this, &_hook<&BotanikFirmware::on_config>,
               "site_config",   GROUP_FAST, PHASE_CONFIG);
         r.add(*this, &_hook<&BotanikFirmware::_latch_control>,
@@ -370,20 +368,6 @@ namespace Botanik {
     // Per-beat internals
     // ------------------------------------------------------------------------
 
-#if BOTANIK_FEATURE_LOGGING
-    void BotanikFirmware::_apply_log_config() {
-        const int32_t want = Vars::get_int(&_io, "sys_log_level",
-                                           (int32_t)Config::LOG_MIN_LEVEL);
-        // No coercion here, and none needed: the row is a T_ENUM over
-        // log_level_label(), so the model refused anything that is not a level
-        // long before it could reach the slot. The one value that arrives
-        // unvetted is the Config fallback above, from a build whose site left
-        // the row out - hence a guard rather than a bare cast.
-        if (Logs::log_level_label((uint64_t)want) == nullptr) return;
-        const Logs::LogLevel lvl = (Logs::LogLevel)want;
-        if (lvl != _logger.min_level()) _logger.set_min_level(lvl);
-    }
-#endif
 
     void BotanikFirmware::_run_site_control(uint64_t now_ms) {
         // The gate is per DISPATCH POINT, not per write (see on_control()), so

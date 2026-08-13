@@ -448,29 +448,6 @@ namespace Botanik {
         /** @name Config appliers, as task handlers
          *  @{ */
 
-        /** @brief The one setting whose consumer cannot read it for itself.
-         *
-         *  Everything else that is configurable is now applied by whoever owns
-         *  it: the console reads the `term_` group and its own baud, the monitor
-         *  its rate, each network client its group. The log LEVEL cannot follow
-         *  them, and the reason is structural: `vars/` depends on `logs/` (the
-         *  Bank reports a refused write through a Logger), so a Logger that read
-         *  `sys_log_level` for itself would close that into a cycle - and
-         *  `_emit()` tests the floor before any formatting, so it wants a cached
-         *  copy rather than a name lookup per line anyway.
-         *
-         *  So it is pushed, by the one object holding both the bank and the
-         *  logger. `Logger::set_min_level()` IS the indirection; all this
-         *  decides is who calls it. */
-        void _apply_core_config(uint64_t now_ms) {
-            (void)now_ms;
-#if BOTANIK_FEATURE_LOGGING
-            _apply_log_config();
-#endif
-        }
-
-        /** @} */
-
         /** @brief Site post-wiring: where a site registers its OWN components
          *  and control programs, and wires up anything else it needs.
          *
@@ -582,20 +559,6 @@ namespace Botanik {
         void _register_tasks();
 
 
-#if BOTANIK_FEATURE_LOGGING
-        /** @brief Apply `sys_log_level` to the live logger. Registered as the
-         *  "log_cfg" task.
-         *
-         *  The logger keeps its own copy of the floor (it is read on every
-         *  _emit(), before any formatting), so unlike the other sys_ rows this
-         *  one needs pushing. Edge-triggered against what is running, so the
-         *  steady case is a read and a compare.
-         *
-         *  This is the ONLY thing that moves the logger's floor, so a level set
-         *  from the shell, the PARAMS page or a Modbus master all arrive the
-         *  same way: through the parameter, and then through here. */
-        void _apply_log_config();
-#endif
 
         /** @brief Track the health verdict against control authority. Registered
          *  as the "control_latch" task.
