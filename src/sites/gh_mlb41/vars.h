@@ -560,44 +560,32 @@ static_assert(sizeof(g_home_fields) / sizeof(g_home_fields[0]) <= Config::HOME_F
 
 /** @name Value store (RAM, parallel to the table)
  *
- *  Header-only through one trick: a namespace-scope array would be a DEFINITION
- *  in every including TU and the link would break on the second. C++11's
- *  equivalent of C++17 `inline` is a class template's static member, which has
- *  vague linkage. Its address is still a constant expression, so SITE_VAR_TABLES
- *  below stays constant-initialised into flash.
+ *  DECLARED here, DEFINED in vars.cpp. A namespace-scope array defined in a
+ *  header is a definition in every including TU and the link breaks on the
+ *  second; `extern` plus one definition is the plain answer, and unlike a class
+ *  template's static member it needs no template parameter existing purely to
+ *  make the class a template. The addresses are still constant expressions, so
+ *  SITE_VAR_TABLES below stays constant-initialised into flash.
  *  @{ */
 
-/** @brief The site's mutable state. @c Tag is unused: the template exists only
- *  for vague linkage, and @c Store is the one instantiation. */
-template <typename Tag>
-struct SiteStore {
-    /** @brief One slot per row of g_vars, addressed the same way. */
-    static Value  values[VAR_TOTAL];
-    /** @brief T_STR live text: one STR_CAP slot per text parameter, addressed by
-     *  the row's TextSlot offset. */
-    static char   pool[STR_POOL_BYTES];
-    /** @brief Scratch for the bank's name index: one row number per row, sorted
-     *  by name at construction so find() is a binary search. */
-    static uint16_t name_index[VAR_TOTAL];
-    /** @brief Where the home fields' names resolve to, filled at bring-up
-     *  (BotanikFirmware::setup). VAR_NONE until then, which reads as the inert
-     *  sink rather than as row 0. */
-    static VarRef home_refs[HOME_FIELDS];
-};
-
-template <typename Tag> Value  SiteStore<Tag>::values[VAR_TOTAL] = {};
-template <typename Tag> char   SiteStore<Tag>::pool[STR_POOL_BYTES] = {};
-template <typename Tag> uint16_t SiteStore<Tag>::name_index[VAR_TOTAL] = {};
-template <typename Tag> VarRef SiteStore<Tag>::home_refs[HOME_FIELDS] = {};
-
-/** @brief The one instantiation. Everything addresses the store through this. */
-using Store = SiteStore<void>;
+/** @brief One slot per row of g_vars, addressed the same way. */
+extern Value    values[VAR_TOTAL];
+/** @brief T_STR live text: one STR_CAP slot per text parameter, addressed by
+ *  the row's TextSlot offset. */
+extern char     pool[STR_POOL_BYTES];
+/** @brief Scratch for the bank's name index: one row number per row, sorted by
+ *  name at construction so find() is a binary search. */
+extern uint16_t name_index[VAR_TOTAL];
+/** @brief Where the home fields' names resolve to, filled at bring-up
+ *  (BotanikFirmware::setup). VAR_NONE until then, which reads as the inert sink
+ *  rather than as row 0. */
+extern VarRef   home_refs[HOME_FIELDS];
 
 /** @} */
 
 #define SITE_VAR_TABLES { \
-    g_vars, Site::Store::values, VAR_TOTAL, \
-    Site::Store::pool, STR_POOL_BYTES, Site::Store::name_index }
+    g_vars, Site::values, VAR_TOTAL, \
+    Site::pool, STR_POOL_BYTES, Site::name_index }
 
 // A short pool would let one text parameter's slot overlap its neighbour.
 static_assert(STR_POOL_BYTES >= 8 * STR_CAP, "the string pool is too small");

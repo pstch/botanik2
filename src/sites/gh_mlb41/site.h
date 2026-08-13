@@ -139,7 +139,7 @@ const Botanik::Modbus::DeviceTable g_device_table = {
 const Botanik::SiteDescriptor g_site = {
     Botanik::Config::SITE_NAME,
     g_commands,      g_command_count,                    // site shell commands
-    g_home_fields,   g_home_field_count,  Store::home_refs,  // home-screen readings
+    g_home_fields,   g_home_field_count,  home_refs,       // home-screen readings
     SITE_VAR_TABLES,                                     // variables + values + string pool
 #if BOTANIK_FEATURE_MODBUS_RTU_CLIENT
     &g_device_table,                                     // what each unit answers
