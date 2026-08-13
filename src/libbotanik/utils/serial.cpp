@@ -23,6 +23,10 @@ namespace Botanik { namespace Utils {
 
     bool BufferedSerial::is_output_tty() const { return HAL::Serial::is_output_tty(_serial); }
 
+    void BufferedSerial::begin(uint32_t baud) {
+        if (_serial != nullptr) _serial->begin(baud);
+    }
+
     // Status & capacity
     // ------------------------------------------------------------------------
 

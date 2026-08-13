@@ -81,6 +81,11 @@ namespace Botanik { namespace Utils {
          *  (always false on hardware UARTs). */
         bool is_output_tty() const;
 
+        /** @brief Re-open the bound port at @p baud. A reconfigure, not a
+         *  reopen: the rings keep whatever they hold. Here because the owner of
+         *  a port is what knows its rate has moved - see Terminal::Console. */
+        void begin(uint32_t baud);
+
         /** @}
          *  @name Status & capacity
          *  @{ */

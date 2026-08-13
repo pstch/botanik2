@@ -13,6 +13,7 @@
 #include "libbotanik/config/terminal.h"   // Config::SCREEN_* / EDITOR_* / SHELL_* / PAGE_*
 
 #include "libbotanik/hal/platform.h"    // HAL::System::shutdown
+#include "libbotanik/vars/params.h"    // Vars::get_int / group_serial
 #include "libbotanik/tasks/tasks.h"     // Tasks::Registry / Tick / GroupId
 
 namespace Botanik { namespace Terminal {
@@ -32,11 +33,14 @@ namespace Botanik { namespace Terminal {
                      const uint64_t* timestamp_ms, uint32_t baud,
                      const Scheduler::SchedulerContext* sched,
                      const Alarms::AlarmController* alarms,
-                     Logs::Logger* logger, Ansi::TerminalType type) :
+                     Logs::Logger* logger, Ansi::TerminalType type,
+                     const Vars::Bank* cfg) :
         Component(logger, "Console"),
         _serial(serial),
         _term(serial, cols, rows, baud, type),
         _parser(serial, timestamp_ms),
+        _cfg(cfg), _baud(baud), _cols(cols), _rows_cfg(rows),
+        _type((uint8_t)type),
         _alarms(alarms),
         _status_bar(*this, sched),
         _alarm_bar(*this)
@@ -48,6 +52,9 @@ namespace Botanik { namespace Terminal {
     // The beat
     // ------------------------------------------------------------------------
 
+    void Console::_config_task(Component* c, const Tasks::Tick&) {
+        static_cast<Console*>(c)->_apply_config();
+    }
     void Console::_input_task(Component* c, const Tasks::Tick&) {
         static_cast<Console*>(c)->_take_input();
     }
@@ -59,6 +66,11 @@ namespace Botanik { namespace Terminal {
     }
 
     void Console::register_tasks(Tasks::Registry& r) {
+        // Its own settings first: the `term_` group and the baud describe this
+        // object and nothing else, so this is what reads them. CONFIG, so a
+        // commit lands before the beat's draw rather than halfway through it.
+        r.add(*this, &Console::_config_task, "console_cfg", Tasks::GROUP_SLOW,
+              Tasks::PHASE_CONFIG);
         // The port's own two tasks are gone: the console pumps the wire it
         // owns, at the two ends of the beat it was already working at.
         r.add(*this, &Console::_input_task, "console_in", Tasks::GROUP_FAST,
@@ -67,6 +79,52 @@ namespace Botanik { namespace Terminal {
               Tasks::PHASE_PRESENT);
         r.add(*this, &Console::_flush_task, "console_tx", Tasks::GROUP_FAST,
               Tasks::PHASE_PRESENT);
+    }
+
+    void Console::_apply_config(bool announce) {
+        if (_cfg == nullptr) return;
+        const uint32_t baud = (uint32_t)Vars::get_int(_cfg, "serial_console_baud",
+                                                      (int32_t)_baud);
+        // A group with no rows answers 0, which is also the "never applied"
+        // seed - so a build whose site left the splice out simply never
+        // reconfigures, and keeps what it was constructed at.
+        const uint32_t serial = Vars::group_serial(_cfg, "term");
+        const bool want_term = (serial != 0 && serial != _term_serial);
+        const bool want_baud = (baud != 0 && baud != _baud);
+        if (!want_term && !want_baud) return;
+
+        if (want_baud) {
+            // Both together: the wire and the budget the renderer paces to.
+            // Either alone leaves the renderer pacing for a rate it is not on.
+            _serial.begin(baud);
+            _term.set_baud(baud);
+            _baud = baud;
+        }
+        if (want_term) {
+            const uint8_t  type = (uint8_t)Vars::get_int(_cfg, "term_type", (int32_t)_type);
+            const uint16_t cols = (uint16_t)Vars::get_int(_cfg, "term_cols", (int32_t)_cols);
+            const uint16_t rows = (uint16_t)Vars::get_int(_cfg, "term_rows", (int32_t)_rows_cfg);
+            // The row's band is 0..3, but a band is only the guard on the way IN
+            // and a corrupt store reaches this by another road; an out-of-range
+            // make would index a handshake switch with no case for it.
+            const Ansi::TerminalType t =
+                type <= (uint8_t)Ansi::TerminalType::MINITEL_2
+                    ? (Ansi::TerminalType)type : Ansi::CONFIGURED_TERMINAL;
+            (void)reconfigure(t, cols, rows);
+            _type = type; _cols = cols; _rows_cfg = rows;
+            _term_serial = serial;
+        }
+
+        if (!announce || _logger == nullptr) return;
+        // Applied, not saved - like every other edit. That is the whole recovery
+        // story for a console nobody can read any more: it never reached flash,
+        // so a power cycle brings the last saved settings back. Said out loud,
+        // because this is the one change that can take the screen with it.
+        _logger->notice(Logs::BOOT,
+            "console now %lu baud, %ux%u, terminal type %u\n"
+            "`params save` to keep it; a power cycle undoes it",
+            (unsigned long)_baud, (unsigned)_cols, (unsigned)_rows_cfg,
+            (unsigned)_type);
     }
 
     void Console::_take_input() {

@@ -27,6 +27,7 @@
 namespace Botanik { namespace Alarms { class AlarmController; } }
 namespace Botanik { namespace Scheduler { struct SchedulerContext; } }
 namespace Botanik { namespace Tasks { struct Tick; } }
+namespace Botanik { namespace Vars  { class Bank;   } }
 // Held by pointer only, every call on one in console.cpp: forward-declared so
 // pages/ does not land in everything that draws.
 namespace Botanik { namespace Pages { class Page; } }
@@ -68,6 +69,29 @@ namespace Botanik { namespace Terminal {
         uint8_t             _page_index = 0;
 
         /** @}
+         *  @name Its own configuration
+         *
+         *  The console reads the `term_` group and its baud rate ITSELF: it is a
+         *  Component, and those rows describe nothing but this object. What is
+         *  held here is what has been APPLIED, so the config task acts on an
+         *  edge rather than reconfiguring every beat.
+         *  @{ */
+
+        /** @brief Where the settings live; null leaves the console at whatever
+         *  it was constructed with, which is what a site that omitted the
+         *  library splice gets. */
+        const Vars::Bank*   _cfg = nullptr;
+        uint32_t            _baud;
+        uint16_t            _cols;
+        uint16_t            _rows_cfg;
+        uint8_t             _type;
+        /** @brief Last `term_serial` applied, so a swap lands on the COMMIT and
+         *  not on each of the three edits behind it. 0 is not a valid serial
+         *  (the row's default is 1), so the first pass always applies - which is
+         *  what picks the stored geometry up at bring-up. */
+        uint32_t            _term_serial = 0;
+
+        /** @}
          *  @name External references
          *  @{ */
 
@@ -102,12 +126,13 @@ namespace Botanik { namespace Terminal {
                 const Scheduler::SchedulerContext* sched = nullptr,
                 const Alarms::AlarmController* alarms = nullptr,
                 Logs::Logger* logger = nullptr,
-                Ansi::TerminalType type = Ansi::CONFIGURED_TERMINAL);
+                Ansi::TerminalType type = Ansi::CONFIGURED_TERMINAL,
+                const Vars::Bank* cfg = nullptr);
 
-        /** @brief Three points in the beat, not one: the bytes in and the input
-         *  they carry (INPUT), the frame drawn (PRESENT), and the frame plus the
-         *  ring pushed out (PRESENT, every beat - see the flush note in
-         *  console.cpp). */
+        /** @brief Four points in the beat: its own configuration (CONFIG), the
+         *  bytes in and the input they carry (INPUT), the frame drawn (PRESENT),
+         *  and the frame plus the ring pushed out (PRESENT, every beat - see the
+         *  flush note in console.cpp). */
         void register_tasks(Tasks::Registry& r) override;
 
         /** @brief The VT device: renderers (pages, editor, bars) paint through
@@ -123,6 +148,14 @@ namespace Botanik { namespace Terminal {
         /** @brief Emit the terminal's setup handshake (forwarded to the
          *  device); call once before the first render. */
         void setup_terminal() { _term.setup_terminal(); }
+
+        /** @brief Apply whatever the store holds, without announcing it.
+         *
+         *  For bring-up, where the boot lines must go out at the CONFIGURED
+         *  rate rather than the compile-time one, and where "applying what was
+         *  already saved" is not news. Every later pass is the console_cfg task
+         *  and does announce. */
+        void apply_stored_config() { _apply_config(/*announce=*/false); }
 
         /** @brief Re-declare which terminal is on the wire and how big it is,
          *  and put the frame back on the screen it just blanked.
@@ -198,6 +231,7 @@ namespace Botanik { namespace Terminal {
          *  declaration, and each cast sits on one line beside what it casts to.
          *  @{ */
 
+        static void _config_task(Component* c, const Tasks::Tick& t);
         static void _input_task(Component* c, const Tasks::Tick& t);
         static void _draw_task(Component* c, const Tasks::Tick& t);
         static void _flush_task(Component* c, const Tasks::Tick& t);
@@ -205,6 +239,14 @@ namespace Botanik { namespace Terminal {
         /** @}
          *  @name The three points in the beat
          *  @{ */
+
+        /** @brief Re-read the `term_` group and the console's baud, and apply
+         *  them if either moved (PHASE_CONFIG).
+         *
+         *  @p announce false at bring-up: applying what the store already holds
+         *  is not a change anyone needs telling about, and it is the one pass
+         *  that always has something to do. */
+        void _apply_config(bool announce = true);
 
         /** @brief Take the wire's bytes in and route what they decode to
          *  (PHASE_INPUT). */

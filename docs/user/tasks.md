@@ -100,8 +100,9 @@ binary.
 
 | Task | Rate | Does |
 |---|---|---|
-| `firmware_cfg` | slow | apply the monitor's baud rate and the log level |
-| `console_cfg` | slow | apply the console's rate, make and size (the `term_` group) |
+| `core_cfg` | slow | apply the log level - the one setting whose consumer cannot read it for itself |
+| `console_cfg` | slow | the console's own: its rate, make and size (the `term_` group) |
+| `monitor_cfg` | slow | the monitor port's own rate |
 | `params` | slow | the parameter image, and the paced write of retained values |
 | `site_config` | fast | the site's own config hook |
 

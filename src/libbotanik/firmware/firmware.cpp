@@ -32,7 +32,7 @@ namespace Botanik {
           _health(&_logger, _scheduler.context(), &_io)
           , _sys_ctx()   // fields wired in the body, once addresses are known
 #if BOTANIK_FEATURE_LOGS_MONITOR
-          , _monitor(&_logger)
+          , _monitor(&_logger, &_io)
 #endif
 #if BOTANIK_FEATURE_NETWORK
           // Network reads its config from the variable bank by name;
@@ -50,10 +50,10 @@ namespace Botanik {
 #if BOTANIK_FEATURE_CONSOLE
           // The console borrows _sys_ctx (declared above, still empty here) by
           // pointer and reads it once the body below has filled it in.
-          , _console(_console_cols, _console_rows,
+          , _console(Config::CONSOLE_COLS, Config::CONSOLE_ROWS,
                      &_scheduler.context()->timestamp_ms, _console_baud,
                      &_health.alarm_model(), &_logger,
-                     _scheduler.context(), &_sys_ctx)
+                     _scheduler.context(), &_sys_ctx, &_io)
           // Base-owned pages, built from the descriptor + the live bank.
 #if BOTANIK_FEATURE_HOME_PAGE
           , _home_page(_console.terminal(), _site.home_fields,
@@ -187,13 +187,13 @@ namespace Botanik {
         // First moment the stored UART rates exist, so the boot lines below go
         // out at the configured rate. Everything above them is at the
         // compile-time default: the port must be open before the store is read.
-        _apply_serial_config();
 #if BOTANIK_FEATURE_CONSOLE
         // Likewise the console, and here rather than on the first beat because
         // nothing has been drawn yet: it establishes its screen on its first
         // step(), so picking the stored settings up now costs one repaint
         // instead of two.
-        _apply_console_config(/*announce=*/false);
+        _console.terminal().apply_stored_config();
+        _monitor.apply_stored_config();
 #endif
 
         _scheduler.setup(HAL::Clock::uptime_ms(), _hw_watchdog_ms);
@@ -256,15 +256,8 @@ namespace Botanik {
         // The two rates that are config for the firmware ITSELF. After the
         // params component, so an edit committed this beat is applied this beat
         // rather than the next.
-        r.add(*this, &_hook<&BotanikFirmware::_apply_firmware_config>,
-              "firmware_cfg",  GROUP_SLOW, PHASE_CONFIG);
-#if BOTANIK_FEATURE_CONSOLE
-        // The terminal the console draws on, after the rates: one commit can
-        // move both, and a repaint belongs at the rate it will actually go out
-        // at rather than the one it was queued at.
-        r.add(*this, &_hook<&BotanikFirmware::_console_cfg>,
-              "console_cfg",   GROUP_SLOW, PHASE_CONFIG);
-#endif
+        r.add(*this, &_hook<&BotanikFirmware::_apply_core_config>,
+              "core_cfg",  GROUP_SLOW, PHASE_CONFIG);
         r.add(*this, &_hook<&BotanikFirmware::on_config>,
               "site_config",   GROUP_FAST, PHASE_CONFIG);
         r.add(*this, &_hook<&BotanikFirmware::_latch_control>,
@@ -366,7 +359,7 @@ namespace Botanik {
         _console.terminal().register_tasks(_tasks);
 #endif
 #if BOTANIK_FEATURE_LOGS_MONITOR
-        _monitor.writer().register_tasks(_tasks);
+        _monitor.register_tasks(_tasks);
 #endif
 
         if (_tasks.overflow() != 0)
@@ -376,81 +369,6 @@ namespace Botanik {
 
     // Per-beat internals
     // ------------------------------------------------------------------------
-
-    void BotanikFirmware::_apply_serial_config(uint64_t now_ms) {
-        (void)now_ms;
-#if BOTANIK_FEATURE_LOGS_MONITOR
-        const uint32_t mon = (uint32_t)Vars::get_int(&_io, "serial_monitor_baud",
-                                                     (int32_t)_monitor_baud);
-        if (mon != _monitor_baud && mon != 0) {
-            _monitor_baud = mon;
-            HAL::Serial::get(HAL::Serial::MONITOR)->begin(mon);
-            _logger.notice(Logs::BOOT, "monitor now %lu baud", (unsigned long)mon);
-        }
-#endif
-    }
-
-#if BOTANIK_FEATURE_CONSOLE
-    void BotanikFirmware::_console_apply(const ConsoleSettings& s) {
-        if (s.baud != _console_baud && s.baud != 0) {
-            // Both together: the wire and the budget the renderer paces to.
-            // Either alone leaves the renderer pacing for a rate it is not on.
-            HAL::Serial::get(HAL::Serial::CONSOLE)->begin(s.baud);
-            _console.terminal().terminal().set_baud(s.baud);
-        }
-        // The row's band is 0..3, but a band is only the guard on the way IN and
-        // a corrupt store reaches this by another road; an out-of-range make
-        // would index a handshake switch with no case for it.
-        const Terminal::Ansi::TerminalType type =
-            s.type <= (uint8_t)Terminal::Ansi::TerminalType::MINITEL_2
-                ? (Terminal::Ansi::TerminalType)s.type
-                : Terminal::Ansi::CONFIGURED_TERMINAL;
-        (void)_console.terminal().reconfigure(type, s.cols, s.rows);
-
-        _console_baud = s.baud;
-        _console_type = s.type;
-        _console_cols = s.cols;
-        _console_rows = s.rows;
-        _term_serial  = s.serial;
-    }
-
-    void BotanikFirmware::_apply_console_config(bool announce) {
-        const uint32_t baud = (uint32_t)Vars::get_int(&_io, "serial_console_baud",
-                                                      (int32_t)_console_baud);
-        // A group with no rows answers 0, which is also the "never applied"
-        // seed - so a build whose site left the splice out simply never
-        // reconfigures, and keeps the settings it was constructed at.
-        const uint32_t serial = Vars::group_serial(&_io, "term");
-        const bool want_term = (serial != 0 && serial != _term_serial);
-        const bool want_baud = (baud != 0 && baud != _console_baud);
-        if (!want_term && !want_baud) return;
-
-        ConsoleSettings want = { _console_baud, _term_serial, _console_cols,
-                                 _console_rows, _console_type };
-        want.baud = baud;
-        if (want_term) {
-            want.serial = serial;
-            want.type = (uint8_t)Vars::get_int(&_io, "term_type", (int32_t)_console_type);
-            want.cols = (uint16_t)Vars::get_int(&_io, "term_cols", (int32_t)_console_cols);
-            want.rows = (uint16_t)Vars::get_int(&_io, "term_rows", (int32_t)_console_rows);
-        }
-        _console_apply(want);
-
-        // Silent at bring-up: applying what the store already holds is not a
-        // change anyone needs telling about, and it is the one call that always
-        // has something to do (nothing has been applied yet).
-        if (!announce) return;
-        // Applied, not saved - like every other edit. That is the whole recovery
-        // story for a console nobody can read any more: it never reached flash,
-        // so a power cycle brings the last saved settings back. Said out loud,
-        // because this is the one change that can take the screen with it.
-        _logger.notice(Logs::BOOT,
-            "console now %lu baud, %ux%u, terminal type %u\n"
-            "`params save` to keep it; a power cycle undoes it",
-            (unsigned long)want.baud, (unsigned)want.cols, (unsigned)want.rows,
-            (unsigned)want.type);
-    }
-#endif
 
 #if BOTANIK_FEATURE_LOGGING
     void BotanikFirmware::_apply_log_config() {

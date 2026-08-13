@@ -69,15 +69,68 @@ namespace Botanik {
         Utils::BufferedSerial _serial;
         Logs::SerialLogWriter _writer;
 
+        /** @brief The monitor's own rate, as a Component so it registers like
+         *  everything else.
+         *
+         *  Beside the writer rather than on it, and the reason is layering:
+         *  `vars/` depends on `logs/` (the Bank reports a refused write through
+         *  a Logger), so giving a log writer a Bank would close that into a
+         *  cycle and `logs/` would stop building without `vars/`. This class is
+         *  in `firmware/`, which already depends on both. */
+        class Rate : public Component {
+            Utils::BufferedSerial& _port;
+            const Vars::Bank*      _cfg;
+            uint32_t               _baud = Config::MONITOR_BAUD;
+
+        public:
+            Rate(Utils::BufferedSerial& port, const Vars::Bank* cfg)
+                : Component(nullptr, "monitor"), _port(port), _cfg(cfg) {}
+
+            void register_tasks(Tasks::Registry& r) override {
+                r.add(*this, &Rate::_task, "monitor_cfg",
+                      Tasks::GROUP_SLOW, Tasks::PHASE_CONFIG);
+            }
+
+            /** @brief Edge-triggered, so the steady case is one integer compare
+             *  and no device call. Applies the moment it moves, where the
+             *  CONSOLE's waits for the `term_` commit: the monitor is a one-way
+             *  log stream, so getting its rate wrong costs the log and nothing
+             *  else. */
+            void apply() {
+                if (_cfg == nullptr) return;
+                const uint32_t want = (uint32_t)Vars::get_int(
+                    _cfg, "serial_monitor_baud", (int32_t)_baud);
+                if (want == _baud || want == 0) return;
+                _baud = want;
+                _port.begin(want);
+            }
+
+        private:
+            static void _task(Component* c, const Tasks::Tick&) {
+                static_cast<Rate*>(c)->apply();
+            }
+        };
+        Rate _rate;
+
     public:
-        MonitorStack(Logs::Logger* logger = nullptr)
+        MonitorStack(Logs::Logger* logger = nullptr, const Vars::Bank* cfg = nullptr)
             : _serial(HAL::Serial::get(HAL::Serial::MONITOR)),
-              _writer(_serial, /*drop_if_tty=*/true, logger, "monitor_log") {}
+              _writer(_serial, /*drop_if_tty=*/true, logger, "monitor_log"),
+              _rate(_serial, cfg) {}
 
         Utils::BufferedSerial& serial() { return _serial; }
         Logs::SerialLogWriter& writer() { return _writer; }
-        // The port is not a task: the writer owns the wire and pumps it in its
-        // own. serial() is still handed out for the logger's TX-drop watch.
+
+        /** @brief The writer's drain, then the port's own rate. The port itself
+         *  is not a task: the writer owns the wire and pumps it in its own. */
+        void register_tasks(Tasks::Registry& r) {
+            _writer.register_tasks(r);
+            _rate.register_tasks(r);
+        }
+
+        /** @brief Apply the stored rate before the loop, so the boot lines go
+         *  out at it. */
+        void apply_stored_config() { _rate.apply(); }
     };
 #endif
 
@@ -113,12 +166,16 @@ namespace Botanik {
                      uint32_t baud, Alarms::AlarmController* alarms,
                      Logs::Logger* logger,
                      const Scheduler::SchedulerContext* sched = nullptr,
-                     const SystemContext* sys = nullptr)
+                     const SystemContext* sys = nullptr,
+                     const Vars::Bank* cfg = nullptr)
             : _serial(HAL::Serial::get(HAL::Serial::CONSOLE)),
               // Leading commas from here down: an optional page can drop out
               // without stranding a separator.
+              // The console reads the `term_` group and its own baud out of
+              // the bank: those rows describe nothing but it.
               _terminal(_serial, cols, rows, timestamp_ms, baud,
-                        sched, alarms, logger)
+                        sched, alarms, logger, Terminal::Ansi::CONFIGURED_TERMINAL,
+                        cfg)
 #if BOTANIK_FEATURE_SHELL_PAGE
             , _shell(_terminal, sys)
 #endif
