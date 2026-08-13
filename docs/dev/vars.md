@@ -110,7 +110,7 @@ volatile by design: a power cycle clears every force, so power-cycling is a reli
 way back to normal operation. That holds here for any override nobody committed. A
 SAVED one is the deviation, taken deliberately for the case IEC has no answer to - a
 bypass that must hold across the power cut - and it is mitigated by the boot CRITICAL
-naming the row and by `overrides clear` clearing the lot, stored copies included.
+naming the row and by `overrides clear all` clearing the lot, stored copies included.
 Anyone arriving with PLC habits should be told which of the two they are looking at,
 which is what the `(unsaved)` marker is for.
 

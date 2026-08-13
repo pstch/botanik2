@@ -51,15 +51,15 @@ last saved one back.
 botanik> params set serial_console_baud 9600
 botanik> params set term_serial 3
 BOOT: console now 9600 baud, 80x24, terminal type 1
-      `params save` to keep it; a power cycle undoes it
+      `params save all` to keep it; a power cycle undoes it
 
 ... reconnect the terminal at 9600. If that works:
 
-botanik> params save
+botanik> params save all
 ```
 
 So there is nothing special to remember for the console. If the new settings are
-readable, `params save`. If they are not, pull the power: the unit comes back on
+readable, `params save all`. If they are not, pull the power: the unit comes back on
 whatever was last saved.
 
 @note Getting the **size** wrong is milder still. The screen mangles, but input

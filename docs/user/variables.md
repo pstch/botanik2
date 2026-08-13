@@ -127,7 +127,7 @@ botanik> overrides save                 # everything still unsaved
 ```
 
 `overrides list` shows what is forced and how much of it is unsaved. Releasing one
-(`overrides clear`) forgets the stored copy in the same breath, so nothing comes
+(`overrides clear <name>|all`) forgets the stored copy in the same breath, so nothing comes
 back at the next boot.
 
 @warning **A saved override on an output is driving the actuator from the moment the
@@ -164,7 +164,7 @@ both call them parameters; nothing in the firmware calls them "settings".
 ### Editing one
 
 Editing and saving are **two steps**, deliberately. `params set` applies the value
-immediately - the plant is running on it from that moment - but only `params save`
+immediately - the plant is running on it from that moment - but only `params save <name>|all`
 makes it survive a reboot. So a setting can be tried on the real process and walked
 back by a power cycle, and a tuning session can be committed once at the end rather
 than a row at a time.
@@ -181,7 +181,7 @@ cli_sp_day saved
 | `<name> = <value>  (unsaved: ...)` | applied and live, not yet durable |
 | `params: invalid value for <name>` | rejected: wrong format or out of range. Nothing changed |
 | `<name> saved` | written to storage; it survives a reboot |
-| `<name> NOT saved: storage refused it` | **a storage fault**, not a bad value. The value stays live and stays owed, so the next `params save` tries again |
+| `<name> NOT saved: storage refused it` | **a storage fault**, not a bad value. The value stays live and stays owed, so the next `params save all` tries again |
 
 That last case also raises the `FLASH_FLT` alarm. See @ref user_alarms.
 
@@ -190,10 +190,12 @@ the value picks up a `*` and the footer counts what is unsaved - then `^O` to wr
 every unsaved row at once. The panel shows the minimum, maximum and description
 before you commit.
 
-`params save` with no name commits everything outstanding:
+`params save all` commits everything outstanding at once - the whole set is
+only ever spelled `all`, so a bare `params save` is a usage error rather than a
+commit you did not mean:
 
 ```
-botanik> params save
+botanik> params save all
 params: 3 saved
 ```
 

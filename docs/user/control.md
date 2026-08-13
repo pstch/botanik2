@@ -88,7 +88,7 @@ A **saved** override survives a reboot, and an output's is no exception - a rest
 one is driving the actuator from the moment the firmware comes up. An override you
 never saved dies with the session, which is the safer default; either way the
 firmware announces each restored one as a **critical** naming the row, and
-`overrides clear` before you leave is the habit worth having. See
+`overrides clear all` before you leave is the habit worth having. See
 @ref user_variables.
 
 `control enable` releases the **operator's** hold and nothing else, then reports what

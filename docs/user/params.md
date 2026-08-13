@@ -96,7 +96,7 @@ describe one physical terminal.
 
 @warning This group can take the screen with it - a wrong size or make leaves a
 console you cannot read. It is deliberately recoverable: the change was applied
-and not written, so power-cycling before you `params save` brings back the last
+and not written, so power-cycling before you `params save all` brings back the last
 saved settings.
 
 ### Network (`net_`, `ntp_`, `mqtt_`)
