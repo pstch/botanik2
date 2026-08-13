@@ -57,12 +57,9 @@ namespace Site {
 using namespace Botanik;
 using namespace Botanik::Vars;
 
-/** @brief Text-parameter capacity, including the NUL. */
+/** @brief Text-parameter capacity, including the NUL. The pool those slots come
+ *  out of is the bank's (Config::STR_POOL_BYTES), not this site's. */
 static const uint16_t STR_CAP = 64;
-/** @brief Room for every text parameter in the table. This site declares none of
- *  its own, so it is exactly what the library's rows need; adding one adds
- *  `+ n * STR_CAP` here. */
-static const uint16_t STR_POOL_BYTES = BOTANIK_LIBRARY_STR_BYTES;
 
 
 /** @name Analog calibration - the two-point span and the believable band
@@ -138,19 +135,24 @@ const uint8_t g_analog_cal_count =
  *  policy the AlarmController runs it on, found by scanning for SCOPE_A.
  *
  *  Plain `const`, so each including TU gets its own copy. */
-const Variable g_vars[] = {
-
-/** @name The library's own rows
+/** @name The site's rows, in three segments
  *
- *  The bank holds one contiguous table, so everything libbotanik declares is
- *  spliced in through this single define. It goes FIRST and ends with its
- *  parameters, so they abut the site's below and the ROLE_PARAM run stays
- *  contiguous. See library_vars.h.
+ *  Three arrays rather than one, handed to the bank by
+ *  GreenhouseMLB41::register_vars() in the order below. They are ONE table once
+ *  registered - a flat index space the library's own rows start - so the split
+ *  costs nothing and buys a file you can read a section of.
+ *
+ *  The order is not free at one point: PARAMETERS FIRST. The library's
+ *  parameters are already at the front of the block and `Bank` needs the
+ *  ROLE_PARAM run contiguous, so anything registered between them and this
+ *  site's would break it. `Bank::freeze()` checks that and names the row.
+ *
+ *  Plain `const`, so each including TU gets its own copy.
  *  @{ */
 
-    BOTANIK_LIBRARY_VARS
 
-/** @} */
+/** @brief The editable rows. FIRST, and that is load-bearing. */
+const Variable params[] = {
 
 /** @name Parameters - persisted and editable; the PARAMS page and `set` write these
  *
@@ -318,10 +320,55 @@ const Variable g_vars[] = {
     P("pwr_genBat_max",       T_F32,  30.0,    10.0,   48.0,    1,  "V",    426, "highest believable gen. battery volts",  "over this: a dead sensor"),
     P("pwr_genBat_avg_ms",    T_U16,  1000,    10,     10000,   0,  "ms",   427, "rolling average for the Gen. battery",   "per divider setup"),
 
-    // The net_ / ntp_ / mqtt_ / geo_ parameters are the LIBRARY's rows, spliced
-    // in above by BOTANIK_LIBRARY_VARS. This site pins their values in config.h.
+    // The net_ / ntp_ / mqtt_ / geo_ parameters are the LIBRARY's own
+    // rows, registered ahead of these. This site pins their values in config.h.
 
 /** @} */
+};
+const uint16_t PARAMS_COUNT =
+    (uint16_t)(sizeof(params) / sizeof(params[0]));
+
+
+/** @brief The alarm rows. Each IS its condition - the boolean plus the
+ *  policy AlarmController runs it on, which it finds by scanning for
+ *  SCOPE_A in registration order. */
+const Variable alarms[] = {
+
+/** @name Alarms - each row IS its condition: the boolean plus the announce policy
+ *  @{ */
+
+    //name                       code        on off rec dly mn reg  description                        remediation
+    A("alarm_ac_grid",           "AC_GRID",  2, 2, 0, 0, 10, 800, "grid AC out-of-spec/offline",     "check mains breaker / utility feed"),
+    A("alarm_dc_ps1",            "DC_PS1",   2, 2, 0, 0, 0,  801, "DC PS1 volts too low",            ""),
+    A("alarm_gen",               "GEN_FLT",  1, 2, 0, 0, 10, 802, "generator failed to start",       "inspect generator + start battery"),
+    A("alarm_ac_local",          "AC_LOCAL", 2, 2, 0, 0, 0,  803, "local AC out of spec or offline", ""),
+    A("alarm_dc_ps2",            "DC_PS2",   2, 2, 0, 0, 10, 804, "DC PS2 volts too low",            ""),
+    A("alarm_dc_ups",            "DC_UPS",   1, 2, 0, 0, 10, 805, "DC UPS on battery",               "restore mains; check UPS battery"),
+    A("alarm_dc_local",          "DC_LOCAL", 2, 2, 0, 0, 0,  806, "local DC volts too low",          ""),
+    A("alarm_generator_battery", "GEN_BATT", 5, 5, 0, 0, 0,  807, "gen. start battery low",          ""),
+    A("alarm_net_fault",         "NET_FLT",  5, 5, 0, 0, 10, 809, "network error",                   ""),
+    A("alarm_ntp_timeout",       "NTP_TIM",  5, 5, 0, 0, 10, 810, "NTP sync timeout",                ""),
+    A("alarm_actuator_fault",    "ACT_FLT",  2, 2, 0, 0, 0,  811, "actuator failure",                ""),
+    A("alarm_sensor_fault",      "SNS_FLT",  2, 2, 0, 0, 0,  812, "sensor fault",                    ""),
+    A("alarm_too_hot",           "TOO_HOT",  3, 3, 0, 0, 15, 813, "inside temperature too high",     "increase ventilation / open windows"),
+    A("alarm_too_cold",          "TOO_COLD", 3, 3, 0, 0, 15, 814, "inside temperature too low",      ""),
+    A("alarm_too_humid",         "TOO_HUM",  3, 3, 0, 0, 15, 815, "relative humidity too high",      ""),
+    A("alarm_tmp_str",           "TMP_STR",  5, 5, 0, 0, 0,  816, "temp. stratification too high",   ""),
+    A("alarm_water_leak",        "WTR_LK",   1, 2, 0, 0, 0,  817, "leak in irrigation circuit",      "shut irrigation valve, inspect circuit"),
+    A("alarm_water_pressure",    "WTR_BAR",  2, 2, 0, 0, 0,  818, "water pressure too low",          ""),
+    A("alarm_water_clog",        "WTR_CLOG", 3, 3, 0, 0, 0,  819, "failing to drain a tray",         ""),
+    A("alarm_io_drop",           "IO_DROP",  2, 2, 0, 0, 0,  820, "logical I/O drops",               ""),
+    A("alarm_log_flood",         "LOG_FLD",  2, 2, 0, 0, 0,  821, "logs flooding",                   ""),
+    A("alarm_weather_storm",     "WH_STORM", 2, 5, 0, 0, 15, 822, "current storm conditions",        "close roof windows, secure screens"),
+/** @} */
+};
+const uint16_t ALARMS_COUNT =
+    (uint16_t)(sizeof(alarms) / sizeof(alarms[0]));
+
+
+/** @brief Everything else: what is read from the field, what is computed
+ *  from it, what is published, and what is driven. */
+const Variable io_rows[] = {
 
 /** @name Sensor inputs - read from the field, invalid past their timeout
  *  @{ */
@@ -412,34 +459,6 @@ const Variable g_vars[] = {
 
 /** @} */
 
-/** @name Alarms - each row IS its condition: the boolean plus the announce policy
- *  @{ */
-
-    //name                       code        on off rec dly mn reg  description                        remediation
-    A("alarm_ac_grid",           "AC_GRID",  2, 2, 0, 0, 10, 800, "grid AC out-of-spec/offline",     "check mains breaker / utility feed"),
-    A("alarm_dc_ps1",            "DC_PS1",   2, 2, 0, 0, 0,  801, "DC PS1 volts too low",            ""),
-    A("alarm_gen",               "GEN_FLT",  1, 2, 0, 0, 10, 802, "generator failed to start",       "inspect generator + start battery"),
-    A("alarm_ac_local",          "AC_LOCAL", 2, 2, 0, 0, 0,  803, "local AC out of spec or offline", ""),
-    A("alarm_dc_ps2",            "DC_PS2",   2, 2, 0, 0, 10, 804, "DC PS2 volts too low",            ""),
-    A("alarm_dc_ups",            "DC_UPS",   1, 2, 0, 0, 10, 805, "DC UPS on battery",               "restore mains; check UPS battery"),
-    A("alarm_dc_local",          "DC_LOCAL", 2, 2, 0, 0, 0,  806, "local DC volts too low",          ""),
-    A("alarm_generator_battery", "GEN_BATT", 5, 5, 0, 0, 0,  807, "gen. start battery low",          ""),
-    A("alarm_net_fault",         "NET_FLT",  5, 5, 0, 0, 10, 809, "network error",                   ""),
-    A("alarm_ntp_timeout",       "NTP_TIM",  5, 5, 0, 0, 10, 810, "NTP sync timeout",                ""),
-    A("alarm_actuator_fault",    "ACT_FLT",  2, 2, 0, 0, 0,  811, "actuator failure",                ""),
-    A("alarm_sensor_fault",      "SNS_FLT",  2, 2, 0, 0, 0,  812, "sensor fault",                    ""),
-    A("alarm_too_hot",           "TOO_HOT",  3, 3, 0, 0, 15, 813, "inside temperature too high",     "increase ventilation / open windows"),
-    A("alarm_too_cold",          "TOO_COLD", 3, 3, 0, 0, 15, 814, "inside temperature too low",      ""),
-    A("alarm_too_humid",         "TOO_HUM",  3, 3, 0, 0, 15, 815, "relative humidity too high",      ""),
-    A("alarm_tmp_str",           "TMP_STR",  5, 5, 0, 0, 0,  816, "temp. stratification too high",   ""),
-    A("alarm_water_leak",        "WTR_LK",   1, 2, 0, 0, 0,  817, "leak in irrigation circuit",      "shut irrigation valve, inspect circuit"),
-    A("alarm_water_pressure",    "WTR_BAR",  2, 2, 0, 0, 0,  818, "water pressure too low",          ""),
-    A("alarm_water_clog",        "WTR_CLOG", 3, 3, 0, 0, 0,  819, "failing to drain a tray",         ""),
-    A("alarm_io_drop",           "IO_DROP",  2, 2, 0, 0, 0,  820, "logical I/O drops",               ""),
-    A("alarm_log_flood",         "LOG_FLD",  2, 2, 0, 0, 0,  821, "logs flooding",                   ""),
-    A("alarm_weather_storm",     "WH_STORM", 2, 5, 0, 0, 15, 822, "current storm conditions",        "close roof windows, secure screens"),
-/** @} */
-
 /** @name Status values - published over MQTT and the Modbus TCP slave
  *
  *  Hand-assigned from a range of their own, so the parameter block above can
@@ -500,15 +519,12 @@ const Variable g_vars[] = {
     AO("cli_intr2",     &CAL_INTRACTOR,  16, 6, 1, 1, T_U16, 0.0f, 2,    "",  "intractor 2 speed", "shares intractor 1's calibration"),
 
 /** @} */
-
 };
+const uint16_t IO_ROWS_COUNT =
+    (uint16_t)(sizeof(io_rows) / sizeof(io_rows[0]));
 
-const uint16_t g_var_count = (uint16_t)(sizeof(g_vars) / sizeof(g_vars[0]));
 
-
-/** @brief How many rows the table has, derived from the table itself.
- *  Everything else addresses a row by NAME: see Bank::find(). */
-constexpr uint16_t VAR_TOTAL = (uint16_t)(sizeof(g_vars) / sizeof(g_vars[0]));
+/** @} */
 
 /** @name Home screen - the one table no rule derives
  *
@@ -558,37 +574,15 @@ static const uint16_t HOME_FIELDS = sizeof(g_home_fields) / sizeof(g_home_fields
 static_assert(sizeof(g_home_fields) / sizeof(g_home_fields[0]) <= Config::HOME_FIELDS_MAX,
               "too many home fields: the HomePage would silently drop the tail");
 
-/** @name Value store (RAM, parallel to the table)
- *
- *  DECLARED here, DEFINED in vars.cpp. A namespace-scope array defined in a
- *  header is a definition in every including TU and the link breaks on the
- *  second; `extern` plus one definition is the plain answer, and unlike a class
- *  template's static member it needs no template parameter existing purely to
- *  make the class a template. The addresses are still constant expressions, so
- *  SITE_VAR_TABLES below stays constant-initialised into flash.
- *  @{ */
-
-/** @brief One slot per row of g_vars, addressed the same way. */
-extern Value    values[VAR_TOTAL];
-/** @brief T_STR live text: one STR_CAP slot per text parameter, addressed by
- *  the row's TextSlot offset. */
-extern char     pool[STR_POOL_BYTES];
-/** @brief Scratch for the bank's name index: one row number per row, sorted by
- *  name at construction so find() is a binary search. */
-extern uint16_t name_index[VAR_TOTAL];
 /** @brief Where the home fields' names resolve to, filled at bring-up
  *  (BotanikFirmware::setup). VAR_NONE until then, which reads as the inert sink
- *  rather than as row 0. */
-extern VarRef   home_refs[HOME_FIELDS];
-
-/** @} */
-
-#define SITE_VAR_TABLES { \
-    g_vars, Site::values, VAR_TOTAL, \
-    Site::pool, STR_POOL_BYTES, Site::name_index }
-
-// A short pool would let one text parameter's slot overlap its neighbour.
-static_assert(STR_POOL_BYTES >= 8 * STR_CAP, "the string pool is too small");
+ *  rather than as row 0. DECLARED here, DEFINED in vars.cpp: a namespace-scope
+ *  array defined in a header is a definition in every including TU.
+ *
+ *  The last array this site owns. The value store, the string pool and the name
+ *  index sat beside it until the bank started owning its own storage - sized
+ *  once by Config::VAR_MAX, rather than by every site counting its own rows. */
+extern VarRef home_refs[HOME_FIELDS];
 
 }  // namespace Site
 

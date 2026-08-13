@@ -17,6 +17,7 @@
 #include <cstdio>                       // vsnprintf
 
 #include "libbotanik/hal/platform.h"    // HAL::Clock::current_ms
+#include "libbotanik/utils/assert.h"   // BOTANIK_ASSERT - a refused registration
 
 namespace Botanik { namespace Logs {
 
@@ -54,6 +55,10 @@ namespace Botanik { namespace Logs {
         (void)writer;
         return false;               // nothing to fan out to
 #else
+        // A sink that never registered swallows everything it was meant to
+        // carry, and the log is where a refusal would otherwise be reported.
+        BOTANIK_ASSERT(writer != nullptr);
+        BOTANIK_ASSERT(_writerCount < Config::LOG_WRITERS_MAX);
         if (writer == nullptr || _writerCount >= Config::LOG_WRITERS_MAX) return false;
         for (uint8_t i = 0; i < _writerCount; i++) if (_writers[i] == writer) return true;
         _writers[_writerCount++] = writer;

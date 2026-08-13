@@ -60,8 +60,9 @@
 #include "libbotanik/utils/assert.h"        // set_assert_logger
 #include "libbotanik/utils/serial.h"        // Utils::BufferedSerial
 #include "libbotanik/vars/access.h"         // Vars::HomeVar
-#include "libbotanik/vars/model.h"          // Vars::Bank / VarTables
+#include "libbotanik/vars/model.h"          // Vars::Bank
 #include "libbotanik/vars/params.h"         // Vars::Params / KvParamStore
+#include "libbotanik/vars/vars.h"          // Vars::register_library_vars
 
 #if BOTANIK_FEATURE_CONSOLE
 #include "libbotanik/console/console.h"     // Terminal::Console
@@ -103,11 +104,6 @@ namespace Botanik {
          *  Site-owned and must hold @c home_field_count entries. Parallel to
          *  the table above so the labels stay in flash. */
         Vars::VarRef*                 home_refs;
-        /** @brief Field IO: the variable tables bound to their value stores.
-         *  A site with no variables passes a default-constructed VarTables.
-         *  (No default member initialisers here: in C++11 an NSDMI would stop
-         *  SiteDescriptor being an aggregate, and every site brace-inits it.) */
-        Vars::VarTables               vars;
 #if BOTANIK_FEATURE_MODBUS_RTU_CLIENT
         /** @brief What each unit on the field bus will answer: its request
          *  ceiling and address alignment. Null plans every unit as
@@ -344,6 +340,24 @@ namespace Botanik {
          *  last when BOTANIK_FEATURE_NOTES_PAGE is on. A site override can
          *  reorder them or splice in its own (e.g. re-add a STATUS page by
          *  subclassing Pages::StatusPage and add_page()-ing it here). */
+        /** @brief Hand the bank the site's variable rows, one call per segment.
+         *
+         *  Called at the very top of setup(), after the library has registered
+         *  its own rows and before anything resolves a name. A site splits its
+         *  table however it likes - parameters, alarms, I/O is the natural cut -
+         *  with ONE rule: the PARAMETERS come first, because the library's are
+         *  already at the front of the block and the run has to stay contiguous.
+         *  `Bank::freeze()` checks it and names the row that broke it.
+         *
+         *  @code
+         *  void register_vars() override {
+         *      io().register_vars(Site::params, Site::PARAM_COUNT);
+         *      io().register_vars(Site::alarms, Site::ALARM_COUNT);
+         *      io().register_vars(Site::io_rows, Site::IO_COUNT);
+         *  }
+         *  @endcode */
+        virtual void register_vars() {}
+
         virtual void register_pages();
 
 #if BOTANIK_FEATURE_SHELL_PAGE

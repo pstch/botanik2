@@ -17,6 +17,7 @@
 #include BOTANIK_SITE_HEADER
 #include "libbotanik/modbus/tcp/master.h"   // not in modbus.h's aggregate
 #include "libbotanik/modbus/tcp/slave.h"
+#include "site_bank.h"       // TestSite::build - the site's rows in a bank
 
 // --------------------------------------------------------------------------
 // modbus_tcp_pdu
@@ -251,15 +252,14 @@ namespace {
 struct Served {
     Bank bank;
     Map  map;
-    Served() : bank(Site::g_site.vars), map(&bank) {
-        bank.init();
+    Served() : map(&bank) {
+        TestSite::build(bank);
         map.build();
     }
     /** @brief The first writable row, and the address a master reaches it at. */
     bool first_writable(uint16_t* addr, uint16_t* row) {
-        const VarTables& t = Site::g_site.vars;
-        for (uint16_t i = 0; i < t.count; ++i) {
-            const Variable& d = t.var[i];
+        for (uint16_t i = 0; i < bank.count(); ++i) {
+            const Variable& d = bank.desc(i);
             // Map::writable() is file-local; restated here: a numeric, writable parameter.
             if (!Map::published(d) || d.role != ROLE_PARAM) continue;
             if ((d.flags & F_RDONLY) != 0) continue;
@@ -500,8 +500,8 @@ struct Pair {
     TcpMaster master;
     uint64_t  now = 1000;
 
-    Pair() : bank(Site::g_site.vars), slave(Botanik::SetupContext(), &bank), master(Botanik::SetupContext()) {
-        bank.init();
+    Pair() : slave(Botanik::SetupContext(), &bank), master(Botanik::SetupContext()) {
+        TestSite::build(bank);
         slave.setup(now);
         master.setup(now);
     }
@@ -525,10 +525,9 @@ struct Pair {
 
     /** @brief Lowest published row's address; the sparse map starts well above zero. */
     uint16_t first_addr() const {
-        const VarTables& t = Site::g_site.vars;
         uint16_t best = 0xFFFF;
-        for (uint16_t i = 0; i < t.count; ++i) {
-            const Variable& d = t.var[i];
+        for (uint16_t i = 0; i < bank.count(); ++i) {
+            const Variable& d = bank.desc(i);
             if (!Map::published(d) || d.type == T_BOOL) continue;
             if (d.bind.reg < best) best = d.bind.reg;
         }

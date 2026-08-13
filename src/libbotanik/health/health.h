@@ -24,7 +24,6 @@
 
 #include "libbotanik/alarms/alarms.h"       // Alarms::AlarmController
 #include "libbotanik/alarms/notifier.h"     // Alarms::MqttAlarmNotifier
-#include "libbotanik/alarms/platform.h"
 #include "libbotanik/alarms/publisher.h"    // Alarms::Publisher
 #include "libbotanik/hal/storage.h"         // HAL::Storage::fault_count
 #include "libbotanik/logs/logger.h"         // Logs::Logger::has_writers
@@ -227,6 +226,30 @@ namespace Botanik { namespace Health {
                          (unsigned)_model.declared_count(),
                          (unsigned)_model.count());
                 _post_fail("alarm table overruns the model", detail);
+            }
+            // Rows that never made it into the bank. A refused registration is
+            // the failure mode registration BUYS: with one static table "too
+            // many variables" could not happen, and now it can. Every name in
+            // the lost segment resolves to the sink, so the subsystem that owns
+            // them looks present and does nothing.
+            if (_io != nullptr && _io->refused_count() != 0) {
+                ok = false;
+                char detail[80];
+                snprintf(detail, sizeof(detail),
+                         "%u rows refused: raise VAR_MAX (or VAR_SEGMENTS)",
+                         (unsigned)_io->refused_count());
+                _post_fail("the variable table did not fit", detail);
+            }
+            // Parameters outside the contiguous block: the segments were
+            // registered in the wrong order, and the PARAMS page addresses the
+            // block 0-based, so what it shows is not what was declared.
+            if (_io != nullptr && _io->param_stray_count() != 0) {
+                ok = false;
+                char detail[80];
+                snprintf(detail, sizeof(detail),
+                         "%u params outside the block: register params first",
+                         (unsigned)_io->param_stray_count());
+                _post_fail("the parameter block is not contiguous", detail);
             }
             _post_ok = ok;
             if (_logger) {

@@ -259,12 +259,8 @@ namespace {
         uint16_t index[V_COUNT]{};
         Bank     bank;
         Fixture() {
-            VarTables t = {};
-            t.var = VARS; t.val = values; t.count = V_COUNT;
-            t.pool = pool; t.pool_bytes = sizeof(pool);
-            t.index = index;
-            bank = Bank(t);
-            bank.init();
+            bank.register_vars(VARS, V_COUNT);
+            bank.freeze();
         }
     };
 }
@@ -434,9 +430,8 @@ TEST_CASE("model: a bad index resolves to an inert sink, never a clamp") {
 }
 
 TEST_CASE("model: an empty table is safe to index and sweep") {
-    VarTables t = {};
-    Bank b(t);
-    b.init();
+    Bank b;
+    b.freeze();
     CHECK(b.count() == 0);
     CHECK(b.var((uint16_t)0).value() == doctest::Approx(0.0f));
     b.var((uint16_t)0).set(50.0f);             // absorbed
@@ -750,22 +745,20 @@ TEST_CASE("set: holds a parameter to its declared band") {
 // ---- String pool: a row that does not fit must not land on another ----------
 
 TEST_CASE("pool: a row that does not fit gets no slot, not row 0's") {
-    // Two 32-byte slots in a 40-byte pool: the second must not fall back to
-    // offset 0, or every writer would overwrite the FIRST row's slot.
+    // Two slots of two thirds of the pool each: the second must not fall back
+    // to offset 0, or every writer would overwrite the FIRST row's slot. Sized
+    // off the config rather than a literal, since the pool is the bank's now.
+    const uint16_t BIG = (uint16_t)(Botanik::Config::STR_POOL_BYTES * 2 / 3);
     const Variable V[] = {
-        PS("a", "first", 32, STR_NONE, 1, "", ""),
-        PS("b", "second", 32, STR_NONE, 2, "", ""),
+        PS("a", "first", BIG, STR_NONE, 1, "", ""),
+        PS("b", "second", BIG, STR_NONE, 2, "", ""),
     };
-    Value vals[2]{};
-    char  pool[40]{};
-    VarTables t = {};
-    t.var = V; t.val = vals; t.count = 2;
-    t.pool = pool; t.pool_bytes = sizeof(pool);
-    Bank bank(t);
-    bank.init();
+    Bank bank;
+    bank.register_vars(V, 2);
+    bank.freeze();
 
     CHECK(bank.pool_overflow() == 1);
-    CHECK(vals[1].str_off == STR_NO_SLOT);
+    CHECK(bank.var((uint16_t)1).str_off() == STR_NO_SLOT);
     // The row that did fit still reads its own default, unclobbered.
     CHECK(bank.text_at(bank.var((uint16_t)0)) != nullptr);
     CHECK(std::strcmp(bank.text_at(bank.var((uint16_t)0)), "first") == 0);
@@ -776,16 +769,14 @@ TEST_CASE("pool: a row that does not fit gets no slot, not row 0's") {
 }
 
 TEST_CASE("pool: a pool smaller than a single slot writes nothing") {
-    // Out-of-bounds: offset 0 + a 32-byte capacity into 8 bytes. ASan is what
-    // makes this test worth having.
-    const Variable V[] = { PS("a", "aaaaaaaaaaaaaaaaaaaaaaaaaaaa", 32, STR_NONE, 1, "", "") };
-    Value vals[1]{};
-    char  pool[8]{};
-    VarTables t = {};
-    t.var = V; t.val = vals; t.count = 1;
-    t.pool = pool; t.pool_bytes = sizeof(pool);
-    Bank bank(t);
-    bank.init();
+    // Out-of-bounds: one slot wider than the whole pool, so offset 0 plus the
+    // capacity runs off the end. ASan is what makes this test worth having.
+    const Variable V[] = { PS("a", "aaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                              (uint16_t)(Botanik::Config::STR_POOL_BYTES + 8),
+                              STR_NONE, 1, "", "") };
+    Bank bank;
+    bank.register_vars(V, 1);
+    bank.freeze();
 
     CHECK(bank.pool_overflow() == 1);
     CHECK(bank.text_at(bank.var((uint16_t)0)) == nullptr);
@@ -892,11 +883,8 @@ namespace {
         KvParamStore store;
         Params       params;
         Fx() : params(Botanik::SetupContext(), &bank, &store) {
-            VarTables t = {};
-            t.var = PARAMS; t.val = vals; t.count = 5; t.index = index;
-            t.pool = pool; t.pool_bytes = CAP;
-            bank = Bank(t);
-            bank.init();
+            bank.register_vars(PARAMS, 5);
+            bank.freeze();
             params = Params(Botanik::SetupContext(), &bank, &store);
         }
         Var by(const char* n) { return bank.var(bank.find(n)); }
@@ -1042,11 +1030,9 @@ namespace {
         Bank         bank;
         KvParamStore store;
         OvrFx() {
-            VarTables t = {};
-            t.var = OVR_VARS; t.val = vals; t.count = 4; t.index = index;
-            bank = Bank(t);
+            bank.register_vars(OVR_VARS, 4);
             bank.set_store(&store, nullptr);
-            bank.init();
+            bank.freeze();
             bank.set_health_hold(false);   // so an output is drivable
             bank.load_overrides();
         }
@@ -1069,13 +1055,11 @@ TEST_CASE("override: an output restored at boot is muted until control returns")
         // Fresh RAM, same store, and the hold NOT released - as at bring-up.
         Value    vals[4]{};
         uint16_t index[4]{};
-        VarTables t = {};
-        t.var = OVR_VARS; t.val = vals; t.count = 4; t.index = index;
         Bank bank;
         KvParamStore store;
-        bank = Bank(t);
+        bank.register_vars(OVR_VARS, 4);
         bank.set_store(&store, nullptr);
-        bank.init();
+        bank.freeze();
         REQUIRE(bank.control_mode() == CONTROL_DISABLED);   // the system holds it
         bank.load_overrides();
 
@@ -1296,10 +1280,8 @@ namespace {
         KvParamStore store;
         Params       params;
         SaveFx() : params(Botanik::SetupContext(), &bank, &store) {
-            VarTables t = {};
-            t.var = SAVED; t.val = vals; t.count = 2; t.index = index;
-            bank = Bank(t);
-            bank.init();
+            bank.register_vars(SAVED, 2);
+            bank.freeze();
             params = Params(Botanik::SetupContext(), &bank, &store);
         }
         Var by(const char* n) { return bank.var(bank.find(n)); }
@@ -1324,10 +1306,8 @@ namespace {
         Bank              bank;
         Params            params;
         LogFx() : params(Botanik::SetupContext(reg, &logger), &bank, nullptr) {
-            VarTables t = {};
-            t.var = LOGCFG; t.val = vals; t.count = 1; t.index = index;
-            bank = Bank(t);
-            bank.init();
+            bank.register_vars(LOGCFG, 1);
+            bank.freeze();
             params = Params(Botanik::SetupContext(reg, &logger), &bank, nullptr);
         }
         Var row() { return bank.var(bank.find("sys_log_level")); }
@@ -1483,10 +1463,8 @@ namespace {
         uint16_t index[1]{};
         Bank     bank;
         EnumFx() {
-            VarTables t = {};
-            t.var = ENUMS; t.val = vals; t.count = 1; t.index = index;
-            bank = Bank(t);
-            bank.init();
+            bank.register_vars(ENUMS, 1);
+            bank.freeze();
         }
         Var row() { return bank.var(bank.find("p_mode")); }
         const char* shown() {
@@ -1614,15 +1592,11 @@ const uint16_t COUNT = (uint16_t)(sizeof(g_rows) / sizeof(g_rows[0]));
 Value    g_vals[COUNT];
 uint16_t g_index[COUNT];
 
-VarTables tables() {
-    VarTables t;
-    t.var   = g_rows;
-    t.val   = g_vals;
-    t.count = COUNT;
-    t.index = g_index;
-    t.pool  = nullptr;
-    t.pool_bytes = 0;
-    return t;
+// A bank over g_rows, frozen and ready. Cheap to make one per case, which is
+// the point: each gets its own value slots.
+void build(Bank& b) {
+    b.register_vars(g_rows, COUNT);
+    b.freeze();
 }
 
 }  // namespace
@@ -1647,9 +1621,8 @@ TEST_CASE("retain: a total survives the reboot, a plain computed row does not") 
     MemStore store;
 
     {
-        VarTables t = tables();
-        Bank a(t);
-        a.init();
+        Bank a;
+        build(a);
         a.set_store(&store);
 
         a.var(a.find("total_litres")).set_i(4321);
@@ -1657,9 +1630,8 @@ TEST_CASE("retain: a total survives the reboot, a plain computed row does not") 
         CHECK(a.save_retained() >= 1);
     }
 
-    VarTables t2 = tables();   // down and back: a fresh bank over the same store
-    Bank b(t2);
-    b.init();
+    Bank b;   // down and back: a fresh bank over the same store
+    build(b);
     b.set_store(&store);
 
     CHECK(b.var(b.find("total_litres")).i() == 0);   // nothing restored yet
@@ -1677,9 +1649,8 @@ TEST_CASE("retain: a restored total reads as good, not as no-data") {
     MemStore store;
     store.retained["total_litres"] = 777;
 
-    VarTables t = tables();
-    Bank b(t);
-    b.init();
+    Bank b;
+    build(b);
     b.set_store(&store);
     REQUIRE(b.var(b.find("total_litres")).live_quality() == Q_NO_DATA);
 
@@ -1692,9 +1663,8 @@ TEST_CASE("retain: a restored total reads as good, not as no-data") {
 TEST_CASE("retain: what is saved is what the program computed, not a force") {
     // Forcing a totalizer to exercise an alarm must not corrupt the plant's history.
     MemStore store;
-    VarTables t = tables();
-    Bank a(t);
-    a.init();
+    Bank a;
+    build(a);
     a.set_store(&store);
 
     const VarRef r = a.find("total_litres");
@@ -1712,9 +1682,8 @@ TEST_CASE("retain: a store that refuses is not silently believed") {
     MemStore store;
     store.refuse = true;
 
-    VarTables t = tables();
-    Bank a(t);
-    a.init();
+    Bank a;
+    build(a);
     a.set_store(&store);
     a.var(a.find("total_litres")).set_i(7);
 
@@ -1724,9 +1693,8 @@ TEST_CASE("retain: a store that refuses is not silently believed") {
 }
 
 TEST_CASE("retain: with no store at all, nothing pretends to persist") {
-    VarTables t = tables();
-    Bank a(t);
-    a.init();
+    Bank a;
+    build(a);
     CHECK(a.save_retained() == 0);
     CHECK(a.load_retained() == 0);
 }
@@ -1745,24 +1713,17 @@ const uint16_t CAD_COUNT = (uint16_t)(sizeof(g_cad) / sizeof(g_cad[0]));
 Value    g_cad_vals[CAD_COUNT];
 uint16_t g_cad_index[CAD_COUNT];
 
-VarTables cad_tables() {
-    VarTables t;
-    t.var   = g_cad;
-    t.val   = g_cad_vals;
-    t.count = CAD_COUNT;
-    t.index = g_cad_index;
-    t.pool  = nullptr;
-    t.pool_bytes = 0;
-    return t;
+void build(Bank& b) {
+    b.register_vars(g_cad, CAD_COUNT);
+    b.freeze();
 }
 
 }  // namespace cadence
 
 TEST_CASE("retain: the cadence is the sys_retain_sec parameter") {
     MemStore store;
-    VarTables t = cadence::cad_tables();
-    Bank a(t);
-    a.init();
+    Bank a;
+    cadence::build(a);
     Params p(Botanik::SetupContext(), &a, &store);
 
     a.var(a.find("total_litres")).set_i(1);
@@ -1802,9 +1763,8 @@ TEST_CASE("retain: the cadence is the sys_retain_sec parameter") {
 
 TEST_CASE("retain: with no sys_retain_sec row the cadence is the Config default") {
     MemStore store;
-    VarTables t = tables();          // the plain table: no parameters at all
-    Bank a(t);
-    a.init();
+    Bank a;          // the plain table: no parameters at all
+    build(a);
     Params p(Botanik::SetupContext(), &a, &store);
     a.var(a.find("total_litres")).set_i(1);
 

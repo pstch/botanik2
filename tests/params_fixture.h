@@ -21,7 +21,7 @@
 #include <cstring>                      // strncpy
 
 #include "libbotanik/vars/declare.h"    // the P/PS factories the fixture table is written in
-#include "libbotanik/vars/model.h"      // Vars::VarTables / Value
+#include "libbotanik/vars/model.h"      // Vars::Bank / Value
 #include "libbotanik/vars/params.h"     // Vars::Params / KvParamStore
 
 namespace botanik_test {
@@ -64,11 +64,8 @@ namespace botanik_test {
             using namespace Botanik::Vars;
             uint16_t n = 0;
             const Variable* v = table(&n);
-            VarTables t = {};
-            t.var = v; t.val = _vals; t.count = n;
-            t.pool = _pool; t.pool_bytes = (uint16_t)sizeof(_pool);
-            _bank = Bank(t);
-            _bank.init();
+            _bank.register_vars(v, n);
+            _bank.freeze();
         }
 
         /** @brief What the components under test are handed. */

@@ -15,6 +15,7 @@
 #include "libbotanik/hal/platform.h"    // HAL::System::shutdown
 #include "libbotanik/vars/params.h"    // Vars::get_int / group_serial
 #include "libbotanik/tasks/tasks.h"     // Tasks::Registry / Tick / GroupId
+#include "libbotanik/utils/assert.h"   // BOTANIK_ASSERT - a refused registration
 
 namespace Botanik { namespace Terminal {
 
@@ -272,6 +273,10 @@ namespace Botanik { namespace Terminal {
     }
 
     int8_t Console::add_page(Pages::Page* page) {
+        // A page that did not register is simply not in the tab order, which
+        // reads as a build without that feature.
+        BOTANIK_ASSERT(page != nullptr);
+        BOTANIK_ASSERT(_pages_len < MAX_PAGES);
         if (page == nullptr || _pages_len >= MAX_PAGES) return -1;
         _pages[_pages_len] = page;
         return (int8_t)(_pages_len++);

@@ -13,6 +13,7 @@
 #include "libbotanik/vars/model.h"           // Vars::Bank
 #include "recording_writer.h"                // RecordingWriter
 #include "sites/gh_mlb41/site.h"             // the site table carries the platform alarm rows
+#include "site_bank.h"       // TestSite::build - the site's rows in a bank
 
 namespace health {
 
@@ -27,8 +28,8 @@ namespace {
         RecordingWriter             writer;
         Scheduler::SchedulerContext sched;
 
-        Fixture() : vals(nullptr), bank(Site::g_site.vars) {
-            bank.init();
+        Fixture() : vals(nullptr) {
+            TestSite::build(bank);
             log.add_writer(&writer);
         }
 

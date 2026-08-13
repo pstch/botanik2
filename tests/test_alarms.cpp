@@ -67,15 +67,10 @@ namespace {
 
     /** @brief A bank over one of the tables above - what the model scans. */
     struct AlarmBank {
-        Vars::Value      vals[4];
-        Vars::Bank       bank;
-        AlarmBank(const Vars::Variable* v, uint16_t n) : vals(), bank(make(v, vals, n)) {
-            bank.init();
-        }
-        static Vars::VarTables make(const Vars::Variable* v, Vars::Value* val, uint16_t n) {
-            Vars::VarTables t = {};
-            t.var = v; t.val = val; t.count = n;
-            return t;
+        Vars::Bank bank;
+        AlarmBank(const Vars::Variable* v, uint16_t n) {
+            bank.register_vars(v, n);
+            bank.freeze();
         }
     };
 
@@ -97,6 +92,7 @@ namespace {
 TEST_CASE("alarm: ack marks an active condition, ignores inactive / unknown") {
     AlarmBank f(TABLE, 2);
     Alarms::AlarmController m(Botanik::SetupContext(), &f.bank);
+    m.setup(0);   // the scan is on_setup(): the rows exist now
     step_bits(f.bank, m, 0x1, 1000);                              // raise A (bit 0)
     CHECK(m.active_count() == 1);
     CHECK(m.condition(0).user_ack == false);
@@ -112,6 +108,7 @@ TEST_CASE("alarm: ack marks an active condition, ignores inactive / unknown") {
 TEST_CASE("alarm: ack clears on the next ON edge (a fresh episode is unacknowledged)") {
     AlarmBank f(TABLE, 2);
     Alarms::AlarmController m(Botanik::SetupContext(), &f.bank);
+    m.setup(0);   // the scan is on_setup(): the rows exist now
     step_bits(f.bank, m, 0x1, 1000);
     m.ack("aaa");
     CHECK(m.condition(0).user_ack == true);
@@ -123,6 +120,7 @@ TEST_CASE("alarm: ack clears on the next ON edge (a fresh episode is unacknowled
 TEST_CASE("alarm: ack_all acknowledges every active condition and counts them") {
     AlarmBank f(TABLE, 2);
     Alarms::AlarmController m(Botanik::SetupContext(), &f.bank);
+    m.setup(0);   // the scan is on_setup(): the rows exist now
     step_bits(f.bank, m, 0x3, 1000);                              // both active
     CHECK(m.ack_all() == 2);
     CHECK(m.condition(0).user_ack == true);
@@ -130,6 +128,7 @@ TEST_CASE("alarm: ack_all acknowledges every active condition and counts them") 
 
     AlarmBank f2(TABLE, 2);
     Alarms::AlarmController m2(Botanik::SetupContext(), &f2.bank);
+    m2.setup(0);   // the scan is on_setup(): the rows exist now
     step_bits(f2.bank, m2, 0x2, 1000);                             // only B active
     CHECK(m2.ack_all() == 1);
     CHECK(m2.condition(1).user_ack == true);
@@ -138,6 +137,7 @@ TEST_CASE("alarm: ack_all acknowledges every active condition and counts them") 
 TEST_CASE("alarm: min_on_s holds a condition active after the raw bit clears") {
     AlarmBank f(MIN_ON_TABLE, 1);
     Alarms::AlarmController m(Botanik::SetupContext(), &f.bank);
+    m.setup(0);   // the scan is on_setup(): the rows exist now
     step_bits(f.bank, m, 0x1, 1000);                              // raise (seeds the 5 s min-on hold)
     CHECK(m.condition(0).active == true);
     step_bits(f.bank, m, 0x0, 2000);                              // raw clears 1 s in: still held
@@ -152,6 +152,7 @@ TEST_CASE("alarm: forcing a condition on and then off clears it") {
     // A forced alarm must clear, or the next real one is invisible under it.
     AlarmBank f(MIN_ON_TABLE, 1);           // min_on_s = 5, the sticky case
     Alarms::AlarmController m(Botanik::SetupContext(), &f.bank);
+    m.setup(0);   // the scan is on_setup(): the rows exist now
     Vars::Var v = f.bank.var(m.condition(0).ref);
 
     m.step(0);
@@ -171,6 +172,7 @@ TEST_CASE("alarm: releasing an override clears a condition it was holding on") {
     // `override x off`: the row snaps back to the live (unwritten) value, false.
     AlarmBank f(NORMAL_TABLE, 1);
     Alarms::AlarmController m(Botanik::SetupContext(), &f.bank);
+    m.setup(0);   // the scan is on_setup(): the rows exist now
     Vars::Var v = f.bank.var(m.condition(0).ref);
 
     m.step(0);
@@ -188,6 +190,7 @@ TEST_CASE("alarm: a forced alarm comes down when the force does") {
     // A forced alarm must not inherit hold_on_s's 5-minute latch.
     AlarmBank f(HOLD_ON_TABLE, 1);
     Alarms::AlarmController m(Botanik::SetupContext(), &f.bank);
+    m.setup(0);   // the scan is on_setup(): the rows exist now
     Vars::Var v = f.bank.var(m.condition(0).ref);
 
     m.step(0);
@@ -206,6 +209,7 @@ TEST_CASE("alarm: hold_on_s still latches a condition nobody is forcing") {
     // hold_on_s must still latch a real signal that clears immediately.
     AlarmBank f(HOLD_ON_TABLE, 1);
     Alarms::AlarmController m(Botanik::SetupContext(), &f.bank);
+    m.setup(0);   // the scan is on_setup(): the rows exist now
 
     step_bits(f.bank, m, 0x1, 1000);      // a real assertion, not an override
     REQUIRE(m.condition(0).active == true);
@@ -227,6 +231,7 @@ TEST_CASE("alarm: an END with no matching START is logged as a FLAP") {
     logger.add_writer(&rec);
     AlarmBank f(FLAP_TABLE, 1);
     Alarms::AlarmController m(Botanik::SetupContext(nullptr, &logger), &f.bank);
+    m.setup(0);   // the scan is on_setup(): the rows exist now
 
     // A blip shorter than the 2 s START dwell: clears before any START is logged.
     step_bits(f.bank, m, 0x1, 1000);                             // on (dwell 0 < on_s 2 s)
@@ -244,6 +249,7 @@ TEST_CASE("alarm: a normal episode logs START then END (not FLAP)") {
     logger.add_writer(&rec);
     AlarmBank f(NORMAL_TABLE, 1);
     Alarms::AlarmController m(Botanik::SetupContext(nullptr, &logger), &f.bank);
+    m.setup(0);   // the scan is on_setup(): the rows exist now
 
     step_bits(f.bank, m, 0x1, 1000);                             // on, START logged immediately
     logger.refill();
@@ -266,6 +272,7 @@ TEST_CASE("alarm reader: model reads each condition's variable") {
 
     Logs::Logger logger;
     Alarms::AlarmController m(Botanik::SetupContext(nullptr, &logger), &io);
+    m.setup(0);   // the scan is on_setup(): the rows exist now
 
     m.step(1000);
     CHECK(m.condition(0).active == false);
@@ -310,19 +317,11 @@ namespace {
         Vars::A("ddd", "DDD", -1, -1, -1, 0, 0, 803, "alarm D", ""),
     };
 
-    /** @brief Bind a row table to a value store, as a site's descriptor does. */
-    inline Vars::VarTables make_tables(const Vars::Variable* v, Vars::Value* val, uint16_t n) {
-        Vars::VarTables t = {};
-        t.var = v; t.val = val; t.count = n;
-        return t;
-    }
-
     // AnsiTerminal + AlarmController over a pipe; drains TX into a captured string.
     struct RenderFixture {
         botanik_test::PipeSerial wire;
         uint64_t               now = 0;
         Terminal::Console      console;
-        Vars::Value            vals[4]{};
         Vars::Bank             bank;
         Alarms::AlarmController     model;
         Pages::AlarmsPage      page;
@@ -331,9 +330,13 @@ namespace {
         explicit RenderFixture(uint16_t rows = 24)
             // Very high baud so the cooperative TX floor never throttles a paint.
             : console(Botanik::SetupContext(), wire.serial, 80, rows, &now, 4000000u),
-              bank(make_tables(TABLE, vals, 4)),
               model(Botanik::SetupContext(), &bank),
               page(console, &model) {
+            bank.register_vars(TABLE, 4);
+            bank.freeze();
+            // The scan is on_setup() now, and the model was built before the
+            // rows existed - so it has to run after the freeze above.
+            model.setup(0);
         }
 
         // Drain TX to the pipe and return whatever has accumulated since last call.
@@ -566,12 +569,11 @@ namespace {
 TEST_CASE("AlarmController: a transition fans out to every registered notifier") {
     // announce ON/OFF at once (on_s = off_s = 0).
     const Vars::Variable TABLE[] = { Vars::A("x", "X", 0, 0, 0, 0, 0, 800, "", "") };
-    Vars::Value vals[1]{};
-    Vars::VarTables t = {};
-    t.var = TABLE; t.val = vals; t.count = 1;
-    Vars::Bank bank(t);
-    bank.init();
+    Vars::Bank bank;
+    bank.register_vars(TABLE, 1);
+    bank.freeze();
     AlarmController m(Botanik::SetupContext(), &bank);
+    m.setup(0);   // the scan is on_setup(): the rows exist now
     CountingNotifier a, b;
     CHECK(m.add_notifier(&a));
     CHECK(m.add_notifier(&b));

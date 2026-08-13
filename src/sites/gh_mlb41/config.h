@@ -47,6 +47,21 @@
 #  define BOTANIK_GEO_LON_DEG   1.32
 #endif
 
+/** @brief How many rows the bank must hold: 269 of this site's plus the
+ *  library's own (56 on this profile). The bank's value store and name index
+ *  are sized off this, so trimming it to what is declared is what stops a
+ *  512-row default costing 6 KB of RAM nobody uses. Headroom for a few rows;
+ *  past it, registration is refused and POST says so. */
+#ifndef BOTANIK_VAR_MAX
+#  define BOTANIK_VAR_MAX 352
+#endif
+
+/** @brief String pool: this site declares no text rows of its own, so it is
+ *  exactly what the library's eight need (Vars::LIBRARY_STR_BYTES). */
+#ifndef BOTANIK_STR_POOL_BYTES
+#  define BOTANIK_STR_POOL_BYTES 512
+#endif
+
 #if !defined(BOTANIK_FEATURE_CONSOLE) || BOTANIK_FEATURE_CONSOLE
 #  if !defined(BOTANIK_FEATURE_LOGGING) || BOTANIK_FEATURE_LOGGING
 #    ifndef BOTANIK_FEATURE_LOGS_PAGE

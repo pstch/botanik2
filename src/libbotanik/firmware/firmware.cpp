@@ -22,7 +22,7 @@ namespace Botanik {
           _logger(),
           _scheduler(_tasks, Config::TASK_PERIOD_MS, &_logger),
           _setup(_tasks, &_logger),
-          _io(site.vars, _setup),
+          _io(_setup),
           // Params come from local storage.
           _param_store(),
           _params(_setup, &_io, &_param_store),
@@ -97,9 +97,15 @@ namespace Botanik {
     void BotanikFirmware::setup() {
         // route BOTANIK_ASSERT failures to the log
         set_assert_logger(&_logger);
-        // Seed every variable with its declared default, so a value read before
-        // any driver has spoken is the default rather than zero.
-        _io.init();
+        // The rows, before anything else in bring-up: the library's first, so
+        // its parameters sit at the front of the parameter block, then the
+        // site's segments. freeze() lays out the string pool, seeds every slot
+        // from its declared default (so a value read before any driver has
+        // spoken is the default rather than zero), builds the name index and
+        // checks the parameter run.
+        Vars::register_library_vars(_io);
+        register_vars();
+        _io.freeze();
         // Where a site's names become indices, once, so no renderer pays for
         // the lookup per frame. A name with no row lands on the sink and is
         // counted by the bank, which the site test asserts is zero.

@@ -239,24 +239,31 @@ namespace Botanik { namespace Alarms {
         /** @} */
 
     public:
-        /** @brief Build the condition table by scanning @p io for SCOPE_A rows.
-         *  A site's own and the library's platform-health ones alike are rows
-         *  of that one table (@see alarms/platform.h): one scan, one order. */
+        /** @brief Bind the bank the conditions are scanned out of.
+         *
+         *  The scan itself is in on_setup(), NOT here: rows reach the bank by
+         *  registration now, so at construction there is nothing to scan. */
         AlarmController(const SetupContext& ctx, const Vars::Bank* io)
             : Component(ctx, "AlarmController"),
               _count(0), _declared(0), _io(io), _notifier_count(0),
               _last_now(0), _first_step(true), _active_count(0) {
-
             std::memset(_conditions, 0, sizeof(_conditions));
+        }
 
+        /** @brief Build the condition table by scanning the bank for SCOPE_A
+         *  rows. A site's own and the library's platform-health ones alike are
+         *  rows of that one table: one scan, one order, so condition *i* reads
+         *  row *i*. */
+        void on_setup(uint64_t now_ms) override {
+            (void)now_ms;
             uint8_t  n     = 0;
             uint16_t found = 0;   // SCOPE_A rows in the table, slots or not
-            if (io != nullptr) {
+            if (_io != nullptr) {
                 // Runs to the END of the table rather than stopping at the last
                 // slot: `n` saturates at ALARM_SLOTS, so only `found` can tell a
                 // table that filled the slots exactly from one that lost a tail.
-                for (uint16_t i = 0; i < io->count(); i++) {
-                    const Vars::Variable& d = *io->var(i).meta();
+                for (uint16_t i = 0; i < _io->count(); i++) {
+                    const Vars::Variable& d = *_io->var(i).meta();
                     if (d.scope != Vars::SCOPE_A) continue;
                     found++;
                     if (n >= Config::ALARM_SLOTS) continue;   // no slot left
@@ -281,6 +288,9 @@ namespace Botanik { namespace Alarms {
         /** @brief Register a transition sink; false if failed.
          *  @note May fail if @p n is null, already registered, or the list is full. */
         bool add_notifier(AlarmNotifier* n) {
+            // A notifier that did not register means transitions reach nobody:
+            // the alarm still raises, and no one is told.
+            BOTANIK_ASSERT(n == nullptr || _notifier_count < Config::ALARM_NOTIFIERS_MAX);
             if (n == nullptr || _notifier_count >= Config::ALARM_NOTIFIERS_MAX) return false;
             for (uint8_t i = 0; i < _notifier_count; i++) if (_notifiers[i] == n) return false;
             _notifiers[_notifier_count++] = n;

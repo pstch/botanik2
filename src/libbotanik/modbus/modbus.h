@@ -35,7 +35,6 @@
 
 #include "libbotanik/modbus/response.h"
 
-#include "libbotanik/modbus/rtu/alarms.h"
 #include "libbotanik/modbus/rtu/client.h"
 #include "libbotanik/modbus/rtu/codec.h"
 #include "libbotanik/modbus/rtu/device.h"
@@ -46,7 +45,6 @@
 
 #include "libbotanik/modbus/tcp/map.h"
 #include "libbotanik/modbus/tcp/master.h"
-#include "libbotanik/modbus/tcp/params.h"
 #include "libbotanik/modbus/tcp/pdu.h"
 #include "libbotanik/modbus/tcp/slave.h"
 

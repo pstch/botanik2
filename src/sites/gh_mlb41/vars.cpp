@@ -1,20 +1,19 @@
 /**
  * @file vars.cpp
- * @brief The site's value store: the one definition of the RAM that sits
- *        parallel to the (const, flash-resident) variable table in vars.h.
+ * @brief The one array this site still owns: where its home fields resolve to.
  *
- * Four arrays and nothing else. They are declared `extern` in the header
- * because a namespace-scope array defined there would be a definition in every
- * including TU, and vars.h reaches ~9 of them.
+ * `extern` in the header because a namespace-scope array defined there would be
+ * a definition in every including TU, and vars.h reaches ~9 of them.
+ *
+ * The value store, the string pool and the name index used to be here too. They
+ * are the bank's now - sized once by Config::VAR_MAX, rather than by every site
+ * counting its own rows.
  */
 
 #include "vars.h"
 
 namespace Site {
 
-Value    values[VAR_TOTAL]     = {};
-char     pool[STR_POOL_BYTES]  = {};
-uint16_t name_index[VAR_TOTAL] = {};
-VarRef   home_refs[HOME_FIELDS] = {};
+VarRef home_refs[HOME_FIELDS] = {};
 
 }  // namespace Site

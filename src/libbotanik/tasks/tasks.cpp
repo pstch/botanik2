@@ -10,6 +10,7 @@
 // The complete Program, and ONLY so add_program() can convert one to the
 // Component& it registers as. Nothing here calls a Program method.
 #include "libbotanik/plc/program.h"     // Plc::Program
+#include "libbotanik/utils/assert.h"   // BOTANIK_ASSERT - a refused registration
 
 namespace Botanik { namespace Tasks {
 
@@ -68,6 +69,11 @@ namespace Botanik { namespace Tasks {
 
     Task* Registry::_claim(const char* name, GroupId group, Phase phase) {
         if (_count >= Config::MAX_TASKS) {
+            // A refused registration is INVISIBLE: it fails no build and no
+            // unit test, the work simply never runs. The counter and `tasks`
+            // report it on hardware; this is what stops a sim or a test run
+            // walking past it. @see Config::MAX_TASKS
+            BOTANIK_ASSERT(!"task table full: raise MAX_TASKS");
             if (_overflow < 0xFF) _overflow++;
             return nullptr;
         }
@@ -90,7 +96,11 @@ namespace Botanik { namespace Tasks {
 
     bool Registry::add(Component& owner, void (*handler)(Component*, const Tick&),
                        const char* name, GroupId group, Phase phase) {
-        if (handler == nullptr) { if (_overflow < 0xFF) _overflow++; return false; }
+        if (handler == nullptr) {
+            BOTANIK_ASSERT(!"a task registered with no handler");
+            if (_overflow < 0xFF) _overflow++;
+            return false;
+        }
         Task* t = _claim(name, group, phase);
         if (t == nullptr) return false;
         t->owner   = &owner;

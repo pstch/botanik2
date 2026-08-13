@@ -17,6 +17,7 @@
 #include "libbotanik/plc/io.h"
 #include BOTANIK_SITE_HEADER
 #include "libbotanik/core/component.h"  // Component
+#include "site_bank.h"       // TestSite::build - the site's rows in a bank
 
 namespace {
 
@@ -295,8 +296,8 @@ namespace {
 struct Live {
     Botanik::Tasks::Registry reg;   ///< what the case's programs register in
     Bank bank;
-    Live() : bank(Site::g_site.vars) {
-        bank.init();
+    Live() {
+        TestSite::build(bank);
         bank.set_health_hold(false);
         bank.set_control_mode(CONTROL_ENABLED);
     }
@@ -426,10 +427,9 @@ TEST_CASE("plc io: a write lands on the row and is owed to the field") {
 
     // A relay coil: a ROLE_OUTPUT, so the write has to be carried outward.
     VarRef out = { VAR_NONE };
-    const VarTables& t = Site::g_site.vars;
-    for (uint16_t i = 0; i < t.count; ++i) {
-        if (t.var[i].role == ROLE_OUTPUT && t.var[i].type == T_BOOL) {
-            out = f.ref(t.var[i].name);
+    for (uint16_t i = 0; i < f.bank.count(); ++i) {
+        if (f.bank.desc(i).role == ROLE_OUTPUT && f.bank.desc(i).type == T_BOOL) {
+            out = f.ref(f.bank.desc(i).name);
             break;
         }
     }

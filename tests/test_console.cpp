@@ -1507,10 +1507,8 @@ namespace {
               editor(&console, bufs.storage()),
               shell(console.terminal(), editor, writer, &ctx) {
             editor.reset();
-            Vars::VarTables t = {};
-            t.var = CMD_VARS; t.val = values; t.count = 2; t.index = index;
-            bank = Vars::Bank(t);
-            bank.init();
+            bank.register_vars(CMD_VARS, 2);
+            bank.freeze();
             ctx.vars = &bank;
         }
 

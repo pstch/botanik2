@@ -13,11 +13,26 @@
 #include "libbotanik_site.h"
 #include "libbotanik.h"
 #include BOTANIK_SITE_HEADER
+#include "site_bank.h"       // TestSite::build - the site's rows in a bank
 #if BOTANIK_FEATURE_MODBUS_RTU_SERVER && defined(TARGET_SIMULATOR)
 #include <unistd.h>                     // read - draining the peer end between cases
 #include "botanik_sim/fieldbus.h"       // Sim::FieldBus - the devices, and their faults
 #include "libbotanik/hal/simulator.h"   // HAL::Serial::fieldbus_peer_fd
+
 #endif
+
+namespace {
+    /** @brief One frozen bank over the site's rows, shared by every case below
+     *  that only READS descriptors: the site's table used to be reachable as a
+     *  plain value and is a registered bank now. Static because the rows are
+     *  flash either way, and building it once keeps the cases cheap. */
+    const Botanik::Vars::Bank& site_bank() {
+        static Botanik::Vars::Bank b;
+        static bool once = (TestSite::build(b), true);
+        (void)once;
+        return b;
+    }
+}
 
 // --------------------------------------------------------------------------
 // modbus_client
@@ -31,6 +46,7 @@ using namespace Botanik;
 using namespace Botanik::Vars;
 using namespace Botanik::Modbus;
 
+
 namespace {
 
 /** @brief A client over the site's real tables, brought up at t = 0. */
@@ -38,8 +54,8 @@ struct Master {
     Bank      bank;
     RtuClient client;
 
-    Master() : bank(Site::g_site.vars), client(Botanik::SetupContext(), &bank, Site::g_site.devices) {
-        bank.init();
+    Master() : client(Botanik::SetupContext(), &bank, Site::g_site.devices) {
+        TestSite::build(bank);
         bank.set_health_hold(false);
         bank.set_control_mode(CONTROL_ENABLED);
         client.setup(0);
@@ -53,9 +69,8 @@ struct Master {
     }
     /** @brief Dirties every output row so the write blocks compete for the bus. */
     void dirty_all_writes() {
-        const VarTables& t = Site::g_site.vars;
-        for (uint16_t i = 0; i < t.count; ++i) {
-            const Variable& d = t.var[i];
+        for (uint16_t i = 0; i < bank.count(); ++i) {
+            const Variable& d = bank.desc(i);
             if (d.bind.transport != XP_MODBUS || d.role != ROLE_OUTPUT) continue;
             Var h = bank.var(i);
             bank.override_set(h, (d.type == T_BOOL) ? from_bool(T_BOOL, true)
@@ -165,9 +180,8 @@ TEST_CASE("modbus client: the urgency is spent once the safe state is out") {
     REQUIRE(m.client.safe_state_pending());
 
     // Pretend the sweep ran: nothing is owed to the field.
-    const VarTables& t = Site::g_site.vars;
-    for (uint16_t i = 0; i < t.count; ++i)
-        if (t.var[i].bind.transport == XP_MODBUS && t.var[i].role == ROLE_OUTPUT)
+    for (uint16_t i = 0; i < m.bank.count(); ++i)
+        if (m.bank.desc(i).bind.transport == XP_MODBUS && m.bank.desc(i).role == ROLE_OUTPUT)
             m.bank.var(i).clear_field_dirty();
 
     (void)m.client.next_block(30);
@@ -257,8 +271,8 @@ TEST_CASE("modbus client: duty counts the beat a transaction is quantised to") {
 
 TEST_CASE("modbus client: a short frame on a quick device is charged a whole beat") {
     // Where wire and scheduled duty diverge; the reference site can't show it (MODBUS_TURNAROUND_MS is already a beat), so this uses a fast link.
-    Bank bank(Site::g_site.vars);
-    bank.init();
+    Bank bank;
+    TestSite::build(bank);
     Planner p;
     p.plan(bank, 115200, 1);          // 1 ms turnaround, fast link
 
@@ -304,8 +318,8 @@ struct LiveBus {
     uint64_t      t = 0;
 
     explicit LiveBus(const DeviceTable* devs = Site::g_site.devices)
-        : bank(Site::g_site.vars), client(Botanik::SetupContext(), &bank, devs) {
-        bank.init();
+        : client(Botanik::SetupContext(), &bank, devs) {
+        TestSite::build(bank);
         // Both halves: the system's hold defaults to held, so the operator's
         // mode alone leaves the effective mode DISABLED.
         bank.set_health_hold(false);
@@ -760,9 +774,9 @@ TEST_CASE("modbus device: an undescribed unit gets the protocol's own limits") {
 
 TEST_CASE("modbus device: the site describes every unit its table addresses") {
     // Rows with no model plan as generic, not an error - but here means hardware was added without one.
-    const VarTables& t = Site::g_site.vars;
-    for (uint16_t i = 0; i < t.count; ++i) {
-        const Variable& d = t.var[i];
+    const Bank& io = site_bank();
+    for (uint16_t i = 0; i < io.count(); ++i) {
+        const Variable& d = io.desc(i);
         if (d.bind.transport != XP_MODBUS || d.bind.device == 0) continue;
         INFO("unit " << (int)d.bind.device << " carries '"
                      << std::string(d.name) << "' but has no model");
@@ -785,8 +799,8 @@ TEST_CASE("modbus device: the site names every unit it addresses") {
 TEST_CASE("modbus device: a board without FC15/FC16 is driven a point at a time") {
     // write_multiple must be read, not merely carried: a device without FC15/FC16
     // must never be sent them (exception 01); the planner chooses the wire form.
-    Bank bank(Site::g_site.vars);
-    bank.init();
+    Bank bank;
+    TestSite::build(bank);
 
     // Relay board 31: once as it is, once as a model without multi-write; only the model differs.
     DeviceModel single = relay_board("single", 8);
@@ -828,10 +842,9 @@ TEST_CASE("modbus device: a wide write no device will take is dropped, not half 
     };
     static Vars::Value VALS[1];
     static uint16_t    IDX[1];
-    Vars::VarTables t = {};
-    t.var = ROWS; t.val = VALS; t.count = 1; t.index = IDX;
-    Bank bank(t);
-    bank.init();
+    Bank bank;
+    bank.register_vars(ROWS, 1);
+    bank.freeze();
 
     DeviceModel narrow = meter("narrow", 80, 1);
     narrow.write_multiple = false;              // FC05/FC06 only
@@ -880,10 +893,10 @@ TEST_CASE("modbus device: the Waveshare boards are what their manuals say") {
 
 TEST_CASE("modbus device: the AI board's channels are read where they live") {
     // Channel readings are INPUT registers 3x0000-3x0007 (fc 0x04); the board's holding registers start at 4x1000, so fc 0x03 lands on nothing (exception 02).
-    const VarTables& t = Site::g_site.vars;
     uint16_t seen = 0;
-    for (uint16_t i = 0; i < t.count; ++i) {
-        const Variable& d = t.var[i];
+    const Bank& io = site_bank();
+    for (uint16_t i = 0; i < io.count(); ++i) {
+        const Variable& d = io.desc(i);
         if (d.bind.transport != XP_MODBUS || d.bind.device != 11) continue;
         seen++;
         INFO("'" << std::string(d.name) << "' reads unit 11 with fc " << (int)d.bind.fc);
@@ -893,8 +906,8 @@ TEST_CASE("modbus device: the AI board's channels are read where they live") {
 }
 
 TEST_CASE("modbus device: no coil block covers more relays than the board has") {
-    Bank bank(Site::g_site.vars);
-    bank.init();
+    Bank bank;
+    TestSite::build(bank);
     Planner p;
     p.plan(bank, 38400, 10, Site::g_site.devices);
 
@@ -922,8 +935,8 @@ TEST_CASE("modbus device: the SDM630's own limits are what the manual says") {
 
 TEST_CASE("modbus device: no planned read block exceeds its device's ceiling") {
     // An over-long request draws an exception, not a short read, which reads as a bad cable on the bus.
-    Bank bank(Site::g_site.vars);
-    bank.init();
+    Bank bank;
+    TestSite::build(bank);
     Planner p;
     p.plan(bank, 38400, 10, Site::g_site.devices);
     REQUIRE(p.block_count() > 0);
@@ -942,8 +955,8 @@ TEST_CASE("modbus device: no planned read block exceeds its device's ceiling") {
 TEST_CASE("modbus device: the site's own plan loses nothing to its constraints") {
     // Alignment padding can push a block past its ceiling and drop it - signals
     // never scanned. Both counters are bring-up criticals; the site must trip neither.
-    Bank bank(Site::g_site.vars);
-    bank.init();
+    Bank bank;
+    TestSite::build(bank);
     Planner p;
     p.plan(bank, 38400, 10, Site::g_site.devices);
 
@@ -955,8 +968,8 @@ TEST_CASE("modbus device: the site's own plan loses nothing to its constraints")
 }
 
 TEST_CASE("modbus device: a planned read is aligned the way its device demands") {
-    Bank bank(Site::g_site.vars);
-    bank.init();
+    Bank bank;
+    TestSite::build(bank);
     Planner p;
     p.plan(bank, 38400, 10, Site::g_site.devices);
 
@@ -972,8 +985,8 @@ TEST_CASE("modbus device: a planned read is aligned the way its device demands")
 
 TEST_CASE("modbus device: a tight ceiling cuts a run into more blocks") {
     // The planner must actually READ max_regs, not merely carry it.
-    Bank bank(Site::g_site.vars);
-    bank.init();
+    Bank bank;
+    TestSite::build(bank);
 
     const DeviceModel loose  = meter("loose",  0, 2);
     const DeviceModel strict = meter("strict", 4, 2);
@@ -1002,8 +1015,8 @@ TEST_CASE("modbus device: a tight ceiling cuts a run into more blocks") {
 
 TEST_CASE("modbus device: an odd row is widened, not sent to be refused") {
     // A device storing pairs answers exception 02 mid-pair; the planner grows the request to the boundary instead.
-    Bank bank(Site::g_site.vars);
-    bank.init();
+    Bank bank;
+    TestSite::build(bank);
 
     const DeviceModel pairs = meter("pairs", 80, 2);
     const Device rows[] = { { 11, &pairs, "pairs" } };   // the AI board, 1-register rows
@@ -1046,8 +1059,8 @@ namespace {
 struct Bus {
     Bank    bank;
     Planner plan;
-    Bus() : bank(Site::g_site.vars) {
-        bank.init();
+    Bus() {
+        TestSite::build(bank);
         bank.set_health_hold(false);
         bank.set_control_mode(CONTROL_ENABLED);
         plan.plan(bank, 38400, 10);
@@ -1313,10 +1326,10 @@ TEST_CASE("modbus image: a bounded direct row is judged at commit, not at a swee
 TEST_CASE("modbus plan: an input that could never go stale is refused a place") {
     // expire_stale() skips timeout_ms == 0 and nothing else invalidates such a row,
     // so planning it would leave a forever-good reading from before the device died.
-    const VarTables& t = Site::g_site.vars;
     uint16_t offenders = 0;
-    for (uint16_t i = 0; i < t.count; ++i) {
-        const Variable& d = t.var[i];
+    const Bank& io = site_bank();
+    for (uint16_t i = 0; i < io.count(); ++i) {
+        const Variable& d = io.desc(i);
         if (d.bind.transport == XP_MODBUS && d.role == ROLE_INPUT &&
             is_read(d.bind.fc) && d.timeout_ms == 0) offenders++;
     }

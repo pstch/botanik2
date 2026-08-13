@@ -36,6 +36,7 @@
 
 #include <cstdint>                  // uint8_t/uint16_t/int64_t
 
+#include "libbotanik/config/vars.h"  // Config::VAR_MAX / VAR_SEGMENTS / STR_POOL_BYTES
 #include "libbotanik/core/component.h"  // Component - the Bank registers its own sweeps
 #include "libbotanik/vars/scalar.h" // Vars::Scalar / VarType
 
@@ -715,30 +716,6 @@ namespace Botanik { namespace Vars {
     /** @name Table
      *  @{ */
 
-    /** @brief The site's variable table, its value store and its string pool.
-     *
-     *  Every pointer is borrowed; a site declares them as statics (descriptors
-     *  const, values mutable).
-     *
-     *  No default member initialisers: in C++11 an NSDMI stops this being an
-     *  aggregate, which forces a runtime constructor call at the site's
-     *  descriptor and drags the whole (otherwise const) SiteDescriptor out of
-     *  flash into .data. */
-    struct VarTables {
-        const Variable* var;
-        Value*          val;
-        uint16_t        count;
-        char*           pool;         ///< T_STR live text
-        uint16_t        pool_bytes;
-        /** @brief Scratch for the name index: @c count row numbers, which
-         *  Bank's constructor sorts by name (see Bank::find()). Borrowed and
-         *  exactly sized, like the value store.
-         *
-         *  Optional: a null one leaves find() walking the table, which is what a
-         *  small test fixture wants and what a real site must not ship. */
-        uint16_t*       index;
-    };
-
     /** @brief What a write attempt did.
      *
      *  A failed PERSIST is not a rejected EDIT: the value is live either way,
@@ -816,8 +793,48 @@ namespace Botanik { namespace Vars {
         static void _reject_task(Component* c, const Tasks::Tick& t);
         /** @} */
 
-        VarTables   _tables;
-        /** @name Parameter block
+        /** @name The rows
+         *
+         *  Borrowed, never owned: each segment is somebody's flash-resident
+         *  array, handed over by register_vars(). One flat index space runs
+         *  across all of them in registration order, so a VarRef stays a bare
+         *  row number and nothing outside here knows there are segments at all.
+         *  @{ */
+
+        const Variable* _seg[Config::VAR_SEGMENTS];
+        /** @brief First global row number of each segment; ascending. */
+        uint16_t        _seg_base[Config::VAR_SEGMENTS];
+        uint16_t        _seg_len[Config::VAR_SEGMENTS];
+        uint8_t         _segments = 0;
+        uint16_t        _count    = 0;    ///< rows across every segment
+        /** @brief Rows a register_vars() call had no room for. Non-zero means
+         *  Config::VAR_MAX is too small for this site, and the rows that missed
+         *  out are simply absent - every name in them resolves to the sink. */
+        uint16_t        _refused  = 0;
+        /** @brief ROLE_PARAM rows that landed outside the contiguous block,
+         *  which means the segments were registered in the wrong order. Each is
+         *  named as a critical at freeze(); the POST fails on the count. */
+        uint16_t        _param_stray = 0;
+
+        /** @}
+         *  @name The bank's own storage
+         *
+         *  One value slot per row, the name index beside it, and the string
+         *  pool - all sized by config rather than by the site, which is why a
+         *  site declares no arrays at all.
+         *  @{ */
+
+        /** @brief Mutable so var() and pool() stay const, which is the property
+         *  they already had when these were borrowed pointers: `const Bank&`
+         *  gates the BANK's API - set(), save(), the overrides, control
+         *  authority - and never was a promise that the process image cannot be
+         *  driven through a Var handle. */
+        mutable Value _values[Config::VAR_MAX];
+        mutable char  _pool[Config::STR_POOL_BYTES];
+        uint16_t      _index[Config::VAR_MAX];
+
+        /** @}
+         *  @name Parameter block
          *
          *  The ROLE_PARAM rows MUST be one contiguous run: that is what lets the
          *  parameter pages address them with a dense 0-based index and one add.
@@ -846,8 +863,8 @@ namespace Botanik { namespace Vars {
          *  @see claim_writer() */
         uint16_t _conflicts   = 0;
         VarRef   _conflict_row = { VAR_NONE };
-        /** @brief Whether VarTables::index holds a usable sorted mapping. False
-         *  when the site supplied no scratch, and find() then walks the table.
+        /** @brief Whether the name index holds a usable sorted mapping. False
+         *  until freeze(), and find() then walks the rows.
          *  @see _build_index() */
         bool          _indexed = false;
         /** @name String pool
@@ -860,20 +877,48 @@ namespace Botanik { namespace Vars {
         uint16_t      _pool_overflow = 0;
         /** @} */
     public:
-        /** VarTables has no member initializers (so a site's descriptor stays in
-         *  flash); the `()` is required, or an unbound bank starts on
-         *  indeterminate pointers that init() then walks. */
-        Bank() : Component(SetupContext(), "vars"), _tables() {}
-        /** @brief With the table it registers its sweeps in. Default-empty for
-         *  a fixture that never registers. */
-        Bank(const SetupContext& ctx) : Component(ctx, "vars"), _tables() {}
-        explicit Bank(const VarTables& t, const SetupContext& ctx = SetupContext())
-            : Component(ctx, "vars"), _tables(t) {
-            _find_param_block();
-            // Built here, not in init(): the table is const, and a find() before
-            // init() (a site test, a fixture) then gets the fast path too.
-            _build_index();
-        }
+        /** @brief An EMPTY bank. Rows arrive through register_vars(), and
+         *  freeze() is what makes them addressable.
+         *
+         *  One constructor, where there were three: a bank no longer takes its
+         *  table, so there is nothing to overload on. */
+        Bank(const SetupContext& ctx = SetupContext()) : Component(ctx, "vars") {}
+
+        /** @name Registration
+         *  @{ */
+
+        /** @brief Add a segment of rows, in flash, borrowed for the bank's
+         *  lifetime.
+         *
+         *  Call it once per group a caller wants to keep separate - the library
+         *  registers its own rows this way, and a site typically splits its
+         *  table into parameters, alarms and I/O. Rows land in the flat index
+         *  space in the order the calls happen, so REGISTRATION ORDER IS TABLE
+         *  ORDER: the same rule the task registry follows.
+         *
+         *  @return false if the segment did not fit (Config::VAR_MAX or
+         *  Config::VAR_SEGMENTS), in which case NONE of it was added and
+         *  refused_count() records the rows lost. */
+        bool register_vars(const Variable* rows, uint16_t count);
+
+        /** @brief Close registration: lay out the string pool, seed every slot
+         *  from its default, build the name index and locate the parameter
+         *  block.
+         *
+         *  Nothing may resolve a name before this, and nothing may register
+         *  after it. It replaces the old constructor-time index build plus a
+         *  separate init(). */
+        void freeze();
+
+        /** @brief Rows dropped for want of room. Zero on a healthy site; the
+         *  POST fails otherwise. */
+        uint16_t refused_count() const { return _refused; }
+
+        /** @brief Parameters left outside the parameter block by a bad
+         *  registration order. Zero on a healthy site. @see freeze() */
+        uint16_t param_stray_count() const { return _param_stray; }
+
+        /** @} */
 
         /** @brief Bind the parameter store and the log a refused write goes to.
          *  Wired once at bring-up, before load_params(). The logger is
@@ -930,13 +975,25 @@ namespace Botanik { namespace Vars {
 
         /** @} */
 
-        const VarTables& tables() const { return _tables; }
-        char*            pool() const   { return _tables.pool; }
-        uint16_t         count() const  { return _tables.count; }
+        char*            pool() const   { return _pool; }
+        uint16_t         count() const  { return _count; }
+
+        /** @brief The descriptor for row @p i, which the caller has already
+         *  bounds-checked.
+         *
+         *  The one place the segments are visible. Segments are few and their
+         *  bases ascend, so this walks down from the last: one compare for the
+         *  common two-segment case, and none at all for a single-segment
+         *  fixture. */
+        const Variable& desc(uint16_t i) const {
+            uint8_t s = (uint8_t)(_segments - 1);
+            while (s > 0 && i < _seg_base[s]) --s;
+            return _seg[s][i - _seg_base[s]];
+        }
 
         /** @brief Resolve an index. Never fails; a bad one lands on the sink. */
         Var var(uint16_t i) const {
-            if (i < _tables.count) return Var(&_tables.var[i], &_tables.val[i]);
+            if (i < _count) return Var(&desc(i), &_values[i]);
             _sink_v = Value();          // fresh: a sink never accumulates state
             return Var(&_sink_d, &_sink_v);
         }
@@ -965,7 +1022,7 @@ namespace Botanik { namespace Vars {
          *  resolves to the sink, so a caller may skip the check - at the cost
          *  of a silent miss, which is what unresolved_count() surfaces.
          *
-         *  A binary search over the mapping VarTables::index carries, so a
+         *  A binary search over the mapping _index carries, so a
          *  lookup is ~8 comparisons rather than the whole table. See
          *  _build_index(). */
         VarRef find(const char* name) const;
@@ -1016,8 +1073,8 @@ namespace Botanik { namespace Vars {
 
         /** @} */
 
-        /** @brief Whether the name index is in use. False means the site gave
-         *  VarTables no index scratch and every find() is a full scan. */
+        /** @brief Whether the name index is in use. False before freeze(), and
+         *  every find() is then a full scan. */
         bool name_index_built() const { return _indexed; }
 
         /** @brief Pool bytes the text rows actually claimed, and how many rows
@@ -1233,7 +1290,7 @@ namespace Botanik { namespace Vars {
         /** @} */
 
     private:
-        /** @brief Sort VarTables::index into name order, once, at construction.
+        /** @brief Sort _index into name order, once, at freeze().
          *  The descriptor table is const and never grows, so there is nothing to
          *  keep in step. A no-op (leaving _indexed false) when the site supplied
          *  no scratch array. */
@@ -1249,6 +1306,14 @@ namespace Botanik { namespace Vars {
 
         /** @brief @p h's row index, or VAR_NONE when it points at the sink. */
         uint16_t _row_of(Var h) const;
+        /** @brief The same, from the descriptor: which row this address IS.
+         *  VAR_NONE for the sink, or for a descriptor belonging to another
+         *  bank. @see _row_of(Var) */
+        uint16_t _row_of(const Variable* d) const;
+        /** @brief The value slot behind an editable row, or null when the row is
+         *  not one this bank may write (not a parameter, read-only, or not
+         *  ours). The one admission check set() and check() share. */
+        Value* _editable_slot(const Variable* d) const;
         /** @brief Write @p h's override through to the store; false when it
          *  refused (already logged) or there is no store. */
         bool _persist_override(Var h);

@@ -57,6 +57,42 @@ namespace Botanik { namespace Config {
 #endif
     BOTANIK_CFG(size_t, VAR_GROUP_NAME_LEN);
 
+    /** @brief The most rows a Bank can hold, across every registered segment.
+     *
+     *  This sizes the bank's OWN storage - the value slot per row, and the name
+     *  index beside it - which is why a site declares neither. The descriptors
+     *  themselves stay in the caller's flash, so the cost here is 34 bytes a
+     *  row and not 114.
+     *
+     *  A site pins it to what it actually declares. Too small is not silent: the
+     *  rows past the ceiling are REFUSED at registration, `refused_count()` says
+     *  how many, and the POST fails naming the first. @see Vars::Bank::register_vars */
+#ifndef BOTANIK_VAR_MAX
+#  define BOTANIK_VAR_MAX 512
+#endif
+    BOTANIK_CFG(uint16_t, VAR_MAX);
+
+    /** @brief How many separate row segments a Bank accepts.
+     *
+     *  One per `register_vars()` call: the library's own, plus however many a
+     *  site chooses to split its table into. Three or four is the natural
+     *  number (parameters, alarms, the I/O rows), and the ceiling exists only so
+     *  the segment table is a fixed array. */
+#ifndef BOTANIK_VAR_SEGMENTS
+#  define BOTANIK_VAR_SEGMENTS 8
+#endif
+    BOTANIK_CFG(uint8_t, VAR_SEGMENTS);
+
+    /** @brief Bytes of string pool the bank carries for its T_STR rows.
+     *
+     *  `Bank::init()` lays the slots out in registration order; a row that finds
+     *  no room gets STR_NO_SLOT and reads empty. The library's own text rows
+     *  need Vars::LIBRARY_STR_BYTES of this. */
+#ifndef BOTANIK_STR_POOL_BYTES
+#  define BOTANIK_STR_POOL_BYTES 1024
+#endif
+    BOTANIK_CFG(uint16_t, STR_POOL_BYTES);
+
     /** @brief How often the F_RETAIN rows are written to storage, in ms. 0
      *  turns the cadence off, leaving only the save on the way down.
      *

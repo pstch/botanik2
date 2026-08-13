@@ -140,7 +140,6 @@ const Botanik::SiteDescriptor g_site = {
     Botanik::Config::SITE_NAME,
     g_commands,      g_command_count,                    // site shell commands
     g_home_fields,   g_home_field_count,  home_refs,       // home-screen readings
-    SITE_VAR_TABLES,                                     // variables + values + string pool
 #if BOTANIK_FEATURE_MODBUS_RTU_CLIENT
     &g_device_table,                                     // what each unit answers
 #endif
@@ -192,6 +191,15 @@ protected:
     /** @brief Register what this site adds to the beat. Order here is execution
      *  order within PHASE_CONTROL, so a law that computes a setpoint goes before
      *  the law that acts on it. */
+    /** @brief Hand the bank this site's rows. Parameters FIRST: the library's
+     *  are already at the front of the parameter block and the ROLE_PARAM run
+     *  has to stay contiguous. The rest is readability. */
+    void register_vars() override {
+        io().register_vars(Site::params,  Site::PARAMS_COUNT);
+        io().register_vars(Site::alarms,  Site::ALARMS_COUNT);
+        io().register_vars(Site::io_rows, Site::IO_ROWS_COUNT);
+    }
+
     void on_setup() override {
         _supply_watch.register_tasks();
         _supply_report.register_tasks();

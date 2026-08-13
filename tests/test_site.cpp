@@ -16,6 +16,7 @@
 #endif
 #include <string>   // doctest streams a const char* as a pointer
 #include <cstddef>              // size_t / offsetof
+#include "site_bank.h"       // TestSite::build - the site's rows in a bank
 
 // --------------------------------------------------------------------------
 // site_names
@@ -32,7 +33,7 @@ namespace {
      *  it - not the firmware (drags in UART/terminal). */
     struct SiteBank {
         Vars::Bank bank;
-        SiteBank() : bank(Site::g_site.vars) { bank.init(); }
+        SiteBank() { TestSite::build(bank); }
     };
 
     const Botanik::SiteDescriptor& site() { return Site::g_site; }
@@ -43,7 +44,7 @@ TEST_CASE("site: the name index is built, and resolves every row") {
     // Missing the index array still resolves (by walking the table), hiding
     // the cost silently - assert it here.
     SiteBank f;
-    INFO("the site's VarTables needs an `index` array of VAR_TOTAL uint16_t");
+    INFO("the bank builds its name index at freeze()");
     CHECK(f.bank.name_index_built());
 
     // ...and the search has to land on the same rows the scan did.
@@ -119,6 +120,7 @@ TEST_CASE("site: the alarm model finds every alarm row, in table order") {
     Logs::Logger logger;
     // One scan: site alarms and library platform-health rows are all SCOPE_A rows.
     Alarms::AlarmController m(Botanik::SetupContext(), &f.bank);
+    m.setup(0);   // the scan is on_setup(): the rows exist now
     uint8_t slot = 0;
     for (uint16_t i = 0; i < f.bank.count(); i++) {
         const Vars::Variable& d = *f.bank.var(i).meta();
@@ -156,6 +158,7 @@ TEST_CASE("site: nothing the site touches fails to resolve") {
 
     Logs::Logger logger;
     Alarms::AlarmController m(Botanik::SetupContext(), &f.bank);
+    m.setup(0);   // the scan is on_setup(): the rows exist now
     (void)m;
 
     // Var::set() isn't gated (authority is enforced where a writer is
@@ -231,7 +234,7 @@ TEST_CASE("site: no row reads the payload arm it did not set") {
             CHECK(Vars::text_slot(d).cap != 0);
             // Bank::init() lays the slot out; an overflow leaves offset 0, no room.
             CHECK((uint32_t)f.bank.var(i).str_off() + Vars::text_slot(d).cap
-                      <= f.bank.tables().pool_bytes);
+                      <= Botanik::Config::STR_POOL_BYTES);
             // A band is meaningless here; must read as unset, not pool halves as Scalars.
             CHECK(Vars::num_band(d).min.u == 0);
             CHECK(Vars::num_band(d).max.u == 0);
@@ -314,7 +317,7 @@ TEST_CASE("site: every register sits in its scope's block") {
         CHECK(in_block(d));
         if (d.scope == Vars::SCOPE_A) alarms++;
     }
-    // Platform alarms come in via BOTANIK_LIBRARY_VARS; a dropped splice passes silently.
+    // Platform alarms are the library's own rows; a missed registration passes silently.
     CHECK(alarms >= 6);
 }
 
@@ -413,7 +416,15 @@ using namespace Botanik::Vars;
 
 namespace {
 
-const VarTables& tables() { return Site::g_site.vars; }
+// One frozen bank over the site's rows, built the way the firmware builds it.
+// Static: the descriptors are flash and the slots are the bank's, so every case
+// can read the same one.
+const Bank& tables() {
+    static Bank b;
+    static bool once = (TestSite::build(b), true);
+    (void)once;
+    return b;
+}
 
 bool on_the_bus(const Variable& d) {
     return d.bind.transport == XP_MODBUS;
@@ -431,13 +442,13 @@ std::string nm(const Variable& d) { return std::string(d.name); }
 }  // namespace
 
 TEST_CASE("site bindings: no two field-bus rows overlap on a device") {
-    const VarTables& t = tables();
+    const Bank& t = tables();
 
-    for (uint16_t i = 0; i < t.count; ++i) {
-        const Variable& a = t.var[i];
+    for (uint16_t i = 0; i < t.count(); ++i) {
+        const Variable& a = t.desc(i);
         if (!on_the_bus(a)) continue;
-        for (uint16_t j = (uint16_t)(i + 1); j < t.count; ++j) {
-            const Variable& b = t.var[j];
+        for (uint16_t j = (uint16_t)(i + 1); j < t.count(); ++j) {
+            const Variable& b = t.desc(j);
             if (!on_the_bus(b)) continue;
             // Same device and address space: bit/register function codes are numbered apart.
             if (a.bind.device != b.bind.device) continue;
@@ -455,10 +466,10 @@ TEST_CASE("site bindings: no two field-bus rows overlap on a device") {
 }
 
 TEST_CASE("site bindings: a row's span matches the width its wire type needs") {
-    const VarTables& t = tables();
+    const Bank& t = tables();
 
-    for (uint16_t i = 0; i < t.count; ++i) {
-        const Variable& d = t.var[i];
+    for (uint16_t i = 0; i < t.count(); ++i) {
+        const Variable& d = t.desc(i);
         if (!on_the_bus(d)) continue;
         if (Modbus::is_bit(d.bind.fc)) {
             INFO("'" << nm(d) << "' is a bit row spanning " << d.bind.regs);
@@ -476,10 +487,10 @@ TEST_CASE("site bindings: a row's span matches the width its wire type needs") {
 TEST_CASE("site bindings: every field-bus input can go stale") {
     // expire_stale() skips timeout_ms==0; a row on a dead device with no
     // failed-read invalidation would hold GOOD forever.
-    const VarTables& t = tables();
+    const Bank& t = tables();
 
-    for (uint16_t i = 0; i < t.count; ++i) {
-        const Variable& d = t.var[i];
+    for (uint16_t i = 0; i < t.count(); ++i) {
+        const Variable& d = t.desc(i);
         if (!on_the_bus(d) || d.role != ROLE_INPUT) continue;
         INFO("'" << nm(d) << "' is a field-bus input with no timeout");
         CHECK(d.timeout_ms > 0);
@@ -489,10 +500,10 @@ TEST_CASE("site bindings: every field-bus input can go stale") {
 TEST_CASE("site bindings: no read block can exceed a device's own request limit") {
     // The SDM630 refuses more than 40 parameters (80 registers) with an
     // exception; checks the site stays inside MODBUS_MAX_REGS_PER_BLOCK.
-    const VarTables& t = tables();
+    const Bank& t = tables();
 
-    for (uint16_t i = 0; i < t.count; ++i) {
-        const Variable& d = t.var[i];
+    for (uint16_t i = 0; i < t.count(); ++i) {
+        const Variable& d = t.desc(i);
         if (!on_the_bus(d) || Modbus::is_bit(d.bind.fc)) continue;
         INFO("'" << nm(d) << "' spans " << d.bind.regs << " registers");
         CHECK(d.bind.regs <= Config::MODBUS_MAX_REGS_PER_BLOCK);
