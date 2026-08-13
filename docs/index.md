@@ -1,5 +1,4 @@
-/**
-@mainpage Botanik
+# Botanik
 
 @brief @c libbotanik - greenhouse-control firmware for the Arduino OPTA PLC
        (STM32H747, Cortex-M7).
@@ -26,4 +25,3 @@ This documentation is in three parts, by who you are:
   you change them.
 
 The full API surface is in the **Namespaces** and **Classes** tabs.
-*/

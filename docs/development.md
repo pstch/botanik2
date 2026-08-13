@@ -1,5 +1,4 @@
-/**
-@page development Developer manual
+# Developer manual {#development}
 
 @brief Working on @c libbotanik itself - the mechanisms, and why they are the way
        they are.
@@ -11,7 +10,7 @@ The order below is the dependency order: every page depends only on the ones abo
 it, which is the same layering the @ref dev_metrics matrix enforces. Read
 **Orientation** once before your first change, then the section you are touching.
 
-@section dev_orientation Orientation
+## Orientation {#dev_orientation}
 
 - @subpage dev_architecture - the layers, the subsystem map, and the per-tick loop
   order. Start here.
@@ -19,7 +18,7 @@ it, which is the same layering the @ref dev_metrics matrix enforces. Read
   there is no `std::atomic`.
 - @subpage dev_build - the two build targets, the build options, and the gate.
 
-@section dev_beat The beat
+## The beat {#dev_beat}
 
 - @subpage dev_scheduler - the fixed-period driver, overrun handling, and the
   self-instrumented metrics: when the beat happens.
@@ -28,7 +27,7 @@ it, which is the same layering the @ref dev_metrics matrix enforces. Read
 - @subpage dev_scan - the control programs: what one is guaranteed to see, and
   the control-authority gate.
 
-@section dev_data The model and the field
+## The model and the field {#dev_data}
 
 - @subpage dev_vars - the variable model: descriptors, value slots, the sink, and
   where overrides are applied. Everything else reads and writes through this.
@@ -36,7 +35,7 @@ it, which is the same layering the @ref dev_metrics matrix enforces. Read
   planning, framing, and the register map.
 - @subpage dev_network - the optional config-driven network stack.
 
-@section dev_console The console
+## The console {#dev_console}
 
 The console has the most non-obvious machinery in the tree, because it drives a
 4800-baud link and every byte is budgeted.
@@ -48,7 +47,7 @@ The console has the most non-obvious machinery in the tree, because it drives a
 - @subpage dev_editor - **editor reconciliation.** The one renderer that still
   reasons about the screen itself, and why it earns the exception.
 
-@section dev_supervision Supervision and platform
+## Supervision and platform {#dev_supervision}
 
 - @subpage dev_logging - a log entry from call site through rate limiting to every
   sink.
@@ -57,7 +56,7 @@ The console has the most non-obvious machinery in the tree, because it drives a
 - @subpage dev_porting - what a third target needs: one new HAL implementation.
 - @subpage testing - the test suites in detail.
 
-@section dev_metrics The shape of the tree
+## The shape of the tree {#dev_metrics}
 
 Regenerated on every docs build by `scripts/code_charts.py`, broken down by the
 folder under `src/`. The first sizes each area; the second shows where recent work
@@ -76,7 +75,7 @@ has gone.
 </div>
 @endhtmlonly
 
-@subsection dev_metrics_coupling Which way the dependencies point
+### Which way the dependencies point {#dev_metrics_coupling}
 
 Every cross-module `#include`, with the modules on both axes ordered bottom-of-stack
 to top (`scripts/coupling_matrix.py`). A cell **left of the diagonal** is a module
@@ -110,4 +109,3 @@ an allocation on a path that does not want one.
 Run `python3 scripts/coupling_matrix.py --text` for the current state; it prints the
 exact files behind any upward edge. A NEW red cell is a layering regression, and
 wants either a fix or a line here saying why it earns its place.
-*/

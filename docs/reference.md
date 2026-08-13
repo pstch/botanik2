@@ -1,5 +1,4 @@
-/**
-@page reference Reference site
+# Reference site {#reference}
 
 @brief `gh_mlb41` - the complete worked site every example is drawn from.
 
@@ -12,4 +11,3 @@ Copy it to start a new deployment.
 
 - @subpage md_src_2sites_2gh__mlb41_2README - the directory: its files, the variable
   model, and how the firmware binds to it.
-*/

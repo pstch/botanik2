@@ -1,5 +1,4 @@
-/**
-@page integration Integration manual
+# Integration manual {#integration}
 
 @brief Building a controller of your own on @c libbotanik.
 
@@ -24,4 +23,3 @@ the simulated field are hand-written.
   per-beat logic.
 - @subpage int_config - the compile-time config and feature flags.
 - @subpage reference - `gh_mlb41`, the reference site every example is drawn from.
-*/

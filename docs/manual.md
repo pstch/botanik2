@@ -1,5 +1,4 @@
-/**
-@page manual User manual
+# User manual {#manual}
 
 @brief Operating a running unit
 
@@ -13,9 +12,9 @@ In addition to the built-in HMI, the operator may use the ModBus TCP server to c
 monitor status variables. There is also a dedicated "monitor" interface, on a second serial port, that
 is only used to print debugging logs, and both status and logs may be published to an MQTT broker.
 
-@section manual_concepts Important concepts
+## Important concepts {#manual_concepts}
 
-@subsection manual_variables Variables
+### Variables {#manual_variables}
 
 Botanik uses a "variable table", that is used to represent values that the firmware and operator interact with.
 Variables are used for a lot of different things : parameters, analogic/digital input/output,  relay coils, alarms,
@@ -24,7 +23,7 @@ computed/status values. Depending on their scope & type, variables may specify a
 
 See @subpage user_variables for more information.
 
-@subsection manual_params Parameters
+### Parameters {#manual_params}
 
 A parameter is a variable you may edit: the unit's settings, from the console's own baud rate to the
 field bus's timeouts and the thresholds the platform alarms fire on. An edit is **live when you set it and
@@ -34,7 +33,7 @@ groups, applied together when the group's `_serial` row is bumped.
 
 See @subpage user_params for the library-provided parameters and the two-step edit.
 
-@subsection manual_alarms Alarms
+### Alarms {#manual_alarms}
 
 An alarm is a variable too: a boolean row carrying the dwell policy that decides how long its condition
 must hold before it is announced. They surface on the alarm bar, on the ALARMS page, in the log and over
@@ -42,7 +41,7 @@ MQTT, and are acknowledged from either the page or the shell.
 
 See @subpage user_alarms for more information.
 
-@subsection manual_logging Logging
+### Logging {#manual_logging}
 
 Botanik provides a logging framework that may use multiple log writers and that supports per-writer custom
 formatters. This framework is used to publish log entries to the console, to the dedicated monitor port and
@@ -50,7 +49,7 @@ to the MQTT broker. It also supports both global and per-topic rate-limiting.
 
 See @subpage user_logging for more information.
 
-@subsection manual_tasks Tasks
+### Tasks {#manual_tasks}
 
 Everything the firmware does in a beat is a task: a name, a rate, a place in the beat, and one piece of work.
 They are listed on the TASKS page and by the `tasks` command, which is where "what is this unit spending its
@@ -58,7 +57,7 @@ time on" and "is anything failing to keep up" are answered.
 
 See @subpage user_tasks for the library-provided tasks and how to read the list.
 
-@subsection manual_control Control authority
+### Control authority {#manual_control}
 
 Botanik allows disabling the control authority (bringing outputs to a safe state), setting overrides for
 values (both for input and output variables), modifying the configuration and persisting the changes made to it.
@@ -67,9 +66,9 @@ control programs to support manual operation.
 
 See @subpage user_control for more information.
 
-@section manual_ui User interface
+## User interface {#manual_ui}
 
-@subsection manual_console Serial console
+### Serial console {#manual_console}
 
  - **Port** : console UART (OPTA: `PG_14` / `PG_9`)
  - **Baudrate** :  `4800` by default
@@ -89,7 +88,7 @@ Botanik provides a serial console that supports low-bandwidth operation and prov
 
  See @subpage user_console for more information.
 
-@subsection manual_monitor Serial monitor
+### Serial monitor {#manual_monitor}
 
  - **Port** : monitor UART (OPTA: **USB CDC**)
  - **Baudrate** :  `115200` by default
@@ -100,4 +99,3 @@ Botanik provides a serial console that supports low-bandwidth operation and prov
 In addition to the serial console, there is a secondary serial interface that is only used to print logs.
 
 See @subpage user_monitor for more information.
-*/

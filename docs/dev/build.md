@@ -122,10 +122,16 @@ and then runs Doxygen. Warnings land in `docs/doxygen/doxygen-warnings.log`.
 
 @note Doxygen's `INPUT` is `src tests docs` with `*.md` in `FILE_PATTERNS`, so **every
 markdown file under those trees becomes a page**, whether or not anything links to it.
-A new page in `docs/` must be `@subpage`d from its part's hub (`manual.dox`,
-`integration.dox`, `development.dox`) or it floats unparented in the tree. Give it an
+A new page in `docs/` must be `@subpage`d from its part's hub (`manual.md`,
+`integration.md`, `development.md`) or it floats unparented in the tree. Give it an
 explicit `{#anchor}` on its title so cross-references stay readable and survive a
 rename.
+
+Every narrative page is markdown - there are no `.dox` files. `# Title {#id}` is what
+`@page id Title` used to be, `##` / `###` replace `@section` / `@subsection` (each
+still taking a `{#id}`), and every other Doxygen command works unchanged inside a
+markdown file. `docs/index.md` is the mainpage by way of `USE_MDFILE_AS_MAINPAGE`
+rather than an `@mainpage` command.
 
 ### Diagrams
 

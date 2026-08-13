@@ -19,12 +19,17 @@ CREATE_SUBDIRS         = NO
 #---------------------------------------------------------------------------
 # Input
 #---------------------------------------------------------------------------
-# The docs landing is the dedicated Botanik mainpage (docs/index.dox); README.md
-# is the GitHub front page and is intentionally left out of the API docs.
+# The docs landing is the dedicated Botanik mainpage (docs/index.md), named by
+# USE_MDFILE_AS_MAINPAGE below; README.md is the GitHub front page and is
+# intentionally left out of the API docs.
 INPUT                  = src \
                          tests \
                          docs
-FILE_PATTERNS          = *.h *.cpp *.c *.md *.dox
+FILE_PATTERNS          = *.h *.cpp *.c *.md
+# Every narrative page is markdown - one syntax, and one that renders in an
+# editor and on GitHub. This is what makes docs/index.md the mainpage rather
+# than a page named "index"; the rest carry an explicit {#anchor} on their title.
+USE_MDFILE_AS_MAINPAGE = docs/index.md
 RECURSIVE              = YES
 IMAGE_PATH             = images
 
