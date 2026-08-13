@@ -494,6 +494,8 @@ cost, its run count, and what share of its own period it uses.
 
 The shell answers the same questions without leaving the prompt: `tasks` for the
 beat's totals, `tasks list` for this table, `tasks get <name>` for one task's panel.
+What each library-provided task does, and what its phase and rate mean, is
+@ref user_tasks.
 
 ### Notes page
 

@@ -50,6 +50,14 @@ to the MQTT broker. It also supports both global and per-topic rate-limiting.
 
 See @subpage user_logging for more information.
 
+@subsection manual_tasks Tasks
+
+Everything the firmware does in a beat is a task: a name, a rate, a place in the beat, and one piece of work.
+They are listed on the TASKS page and by the `tasks` command, which is where "what is this unit spending its
+time on" and "is anything failing to keep up" are answered.
+
+See @subpage user_tasks for the library-provided tasks and how to read the list.
+
 @subsection manual_control Control authority
 
 Botanik allows disabling the control authority (bringing outputs to a safe state), setting overrides for
