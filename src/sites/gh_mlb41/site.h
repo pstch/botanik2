@@ -179,7 +179,12 @@ class GreenhouseMLB41 final : public Botanik::BotanikFirmware {
 public:
     /** @brief Hand the base this site's descriptor. */
     GreenhouseMLB41()
-        : Botanik::BotanikFirmware(Site::g_site)
+        : Botanik::BotanikFirmware(Site::g_site),
+          // The base is fully constructed before any derived member, so io()
+          // and logger() are already alive here: a program is handed the field
+          // it drives at construction rather than through a later attach().
+          _supply_watch(io(), &logger()),
+          _supply_report(io(), &logger())
     {}
 
 protected:
@@ -187,9 +192,7 @@ protected:
      *  order within PHASE_CONTROL, so a law that computes a setpoint goes before
      *  the law that acts on it. */
     void on_setup() override {
-        _supply_watch.attach(io(), &logger());
         _supply_watch.register_tasks(scheduler().tasks());
-        _supply_report.attach(io(), &logger());
         _supply_report.register_tasks(scheduler().tasks());
     }
 };

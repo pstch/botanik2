@@ -108,8 +108,14 @@ namespace Botanik { namespace Tasks {
     bool Registry::add_program(Plc::Program& program,
                                void (*handler)(Component*, const Tick&),
                                const char* name, GroupId group) {
+        // The slot BEFORE the entry exists, so it is the index this program
+        // will have in program(): the registry is the list, so a program's
+        // position in it IS the writer id every row it drives is stamped with.
+        // Nothing else can assign it now that no site table survives.
+        const uint8_t slot = program_count();
         if (!add(program, handler, name, group, PHASE_CONTROL)) return false;
         _tasks[_count - 1].program = &program;
+        program.set_slot(slot);
         return true;
     }
 

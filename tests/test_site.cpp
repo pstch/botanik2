@@ -168,13 +168,11 @@ TEST_CASE("site: nothing the site touches fails to resolve") {
     // table to walk: they are named here instead. A new program must be added
     // to this list, which is the price of dropping the table - and the check it
     // buys is that no program names a row vars.h does not declare.
-    Site::SupplyWatch  supply_watch;
-    Site::SupplyReport supply_report;
+    Site::SupplyWatch  supply_watch(f.bank);
+    Site::SupplyReport supply_report(f.bank);
     Plc::Program* const site_programs[] = { &supply_watch, &supply_report };
-    for (Plc::Program* p : site_programs) {
-        p->attach(f.bank);
+    for (Plc::Program* p : site_programs)
         p->step(1000);      // setup() binds the names, then one activation
-    }
 
     INFO("a non-zero count means a table or a control program names a variable "
          "that is not in vars.h; the bank logs which one");

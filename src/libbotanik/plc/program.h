@@ -114,8 +114,8 @@ namespace Botanik { namespace Plc {
         /** @name Wiring
          *  @{ */
 
-        /** @brief Borrowed; the firmware owns it. Held rather than passed in
-         *  because the registry's handler takes only a Tick. */
+        /** @brief Borrowed; the firmware owns it. Held rather than passed per
+         *  activation because the registry's handler takes only a Tick. */
         Vars::Bank* _io = nullptr;
         /** @brief The rate this program named. Its task carries the timer; this
          *  is kept only to measure lateness against the nominal period. */
@@ -134,23 +134,25 @@ namespace Botanik { namespace Plc {
          *  @{ */
 
         /** @brief @p name for the boot announce, the TASKS row and diagnostics;
-         *  @p group is the rate it runs at. The name is a borrowed constant.
+         *  @p group is the rate it runs at, and @p io is the field it drives.
+         *  The name is a borrowed constant.
          *
          *  A group, not a period: a program is scheduled like everything else
-         *  in the beat, so retuning a rate class retunes it too. */
-        Program(const char* name, Tasks::GroupId group)
-            : Component(nullptr, name), _group(group) {}
+         *  in the beat, so retuning a rate class retunes it too.
+         *
+         *  The bank comes in HERE rather than through a later attach(), and a
+         *  site can do that because its programs are members of its firmware
+         *  class: the base is fully constructed before any derived member, so
+         *  io() and logger() are alive by the time these run. A program with no
+         *  field to drive is not a state worth having. */
+        Program(const char* name, Tasks::GroupId group, Vars::Bank& io,
+                Logs::Logger* logger = nullptr)
+            : Component(logger, name), _io(&io), _group(group) {}
 
-        /** @brief Hand the program the field it drives, before it registers.
-         *  The firmware does this for the whole site table. */
-        void attach(Vars::Bank& io, Logs::Logger* logger = nullptr) {
-            _io = &io;
-            if (logger != nullptr) _logger = logger;
-        }
-
-        /** @brief Tell the program which slot of the site's table it occupies.
-         *  The FIRMWARE's to call: two programs claiming one index would
-         *  silently share an author. */
+        /** @brief Which slot of the registry's program list this occupies -
+         *  the writer id stamped onto every row it drives.
+         *  Registry::add_program()'s to set: two programs claiming one index
+         *  would silently share an author. */
         void set_slot(uint8_t slot) { _slot = slot; }
         uint8_t slot() const        { return _slot; }
 

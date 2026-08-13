@@ -335,7 +335,8 @@ namespace {
         uint32_t setups = 0, inputs = 0, presents = 0, programs = 0;
         uint32_t last_dt = 0;
         uint16_t last_missed = 0;
-        Spy() : Program("spy", GROUP_SLOW) {}
+        Spy() : Program("spy", GROUP_SLOW, _bank) {}
+        Botanik::Vars::Bank _bank;   // a program needs a field; this one is inert
     protected:
         // Never reached: these cases dispatch through the spy_* handlers below,
         // and a Program with no bank returns before run() anyway.

@@ -36,7 +36,6 @@ struct Cycle {
         : progs(p), n(count), io(bank) {
         for (uint8_t i = 0; i < n; i++) {
             if (progs == nullptr || progs[i] == nullptr) continue;
-            progs[i]->attach(*bank);
             progs[i]->set_slot(i);
             progs[i]->register_tasks(reg);
         }
@@ -100,7 +99,8 @@ namespace {
         int              binds  = 0;
         int              firsts = 0;   ///< activations that said first_scan
 
-        Recorder(const char* name, Botanik::Tasks::GroupId g) : Program(name, g) {}
+        Recorder(const char* name, Botanik::Tasks::GroupId g, Bank& io)
+            : Program(name, g, io) {}
 
     protected:
         void bind(Botanik::Vars::Bank& io) override { (void)io; binds++; }
@@ -118,9 +118,9 @@ namespace {
 }
 
 TEST_CASE("scan: each program runs at its own rate") {
-    Recorder fast("fast", GROUP_SLOW), slow("slow", GROUP_BACKGROUND);
-    Program* const progs[] = { &fast, &slow };
     Live f;
+    Recorder fast("fast", GROUP_SLOW, f.io), slow("slow", GROUP_BACKGROUND, f.io);
+    Program* const progs[] = { &fast, &slow };
     Cycle d(progs, 2, &f.io);
     for (uint64_t t = 0; t <= 2000; t += 10) d.step(t);
 
@@ -133,9 +133,9 @@ TEST_CASE("scan: each program runs at its own rate") {
 }
 
 TEST_CASE("scan: dt_ms is the nominal period when on time") {
-    Recorder fast("fast", GROUP_SLOW);
-    Program* const progs[] = { &fast };
     Live f;
+    Recorder fast("fast", GROUP_SLOW, f.io);
+    Program* const progs[] = { &fast };
     Cycle d(progs, 1, &f.io);
     for (uint64_t t = 0; t <= 1000; t += 10) d.step(t);
     REQUIRE(fast.runs_seen.size() >= 3);
@@ -144,9 +144,9 @@ TEST_CASE("scan: dt_ms is the nominal period when on time") {
 }
 
 TEST_CASE("scan: a late program runs once and reports the real elapsed time") {
-    Recorder fast("fast", GROUP_SLOW);
-    Program* const progs[] = { &fast };
     Live f;
+    Recorder fast("fast", GROUP_SLOW, f.io);
+    Program* const progs[] = { &fast };
     Cycle d(progs, 1, &f.io);
     d.step(0);        // first run seeds
     fast.runs_seen.clear();
@@ -160,9 +160,9 @@ TEST_CASE("scan: a late program runs once and reports the real elapsed time") {
 }
 
 TEST_CASE("scan: bind runs once, before the first activation") {
-    Recorder p("p", GROUP_FAST);
-    Program* const progs[] = { &p };
     Live f;
+    Recorder p("p", GROUP_FAST, f.io);
+    Program* const progs[] = { &p };
     Cycle d(progs, 1, &f.io);   // ctor registers, then runs the setup pass
     INFO("registering is what binds: off the beat, before the watchdog is armed");
     CHECK(p.binds == 1);
@@ -174,9 +174,9 @@ TEST_CASE("scan: bind runs once, before the first activation") {
 
 TEST_CASE("scan: same-period programs are spread across beats, not piled up") {
     // Without the stagger, two same-rate programs would share every beat forever.
-    Recorder a("a", GROUP_SLOW), b("b", GROUP_SLOW);
-    Program* const progs[] = { &a, &b };
     Live f;
+    Recorder a("a", GROUP_SLOW, f.io), b("b", GROUP_SLOW, f.io);
+    Program* const progs[] = { &a, &b };
     Cycle d(progs, 2, &f.io);
     for (uint64_t t = 0; t <= 1000; t += 10) d.step(t);
 
@@ -195,9 +195,9 @@ TEST_CASE("scan: same-period programs are spread across beats, not piled up") {
 
 TEST_CASE("scan: an every-beat program is left alone by the stagger") {
     // period 0 has no interval to shift inside; it must keep running every beat.
-    Recorder slow("slow", GROUP_SLOW), every("every", GROUP_FAST);
-    Program* const progs[] = { &slow, &every };
     Live f;
+    Recorder slow("slow", GROUP_SLOW, f.io), every("every", GROUP_FAST, f.io);
+    Program* const progs[] = { &slow, &every };
     Cycle d(progs, 2, &f.io);
     for (uint64_t t = 0; t < 50; t += 10) d.step(t);
 
@@ -206,9 +206,9 @@ TEST_CASE("scan: an every-beat program is left alone by the stagger") {
 }
 
 TEST_CASE("scan: programs are inhibited while control is withheld") {
-    Recorder fast("fast", GROUP_SLOW);
-    Program* const progs[] = { &fast };
     Bank io;                                   // starts held by the system
+    Recorder fast("fast", GROUP_SLOW, io);
+    Program* const progs[] = { &fast };
     Cycle d(progs, 1, &io);
     for (uint64_t t = 0; t <= 500; t += 10) d.step(t);
 
@@ -218,9 +218,9 @@ TEST_CASE("scan: programs are inhibited while control is withheld") {
 }
 
 TEST_CASE("scan: a control outage makes the next activation a first scan, once") {
-    Recorder fast("fast", GROUP_SLOW);
-    Program* const progs[] = { &fast };
     Live f;
+    Recorder fast("fast", GROUP_SLOW, f.io);
+    Program* const progs[] = { &fast };
     Cycle d(progs, 1, &f.io);
     d.step(0);
     REQUIRE(fast.firsts == 1);               // bring-up is one
@@ -240,9 +240,9 @@ TEST_CASE("scan: a control outage makes the next activation a first scan, once")
 }
 
 TEST_CASE("scan: control returning does not hand a program the whole outage") {
-    Recorder fast("fast", GROUP_SLOW);
-    Program* const progs[] = { &fast };
     Live f;
+    Recorder fast("fast", GROUP_SLOW, f.io);
+    Program* const progs[] = { &fast };
     Cycle d(progs, 1, &f.io);
     d.step(0);                                // one activation, seeds the timer
     fast.runs_seen.clear();
@@ -267,7 +267,7 @@ TEST_CASE("scan: a null table or a null program is inert") {
     Cycle none(nullptr, 0, &f.io);
     none.step(0);                       // must not fault
 
-    Recorder p("p", GROUP_FAST);
+    Recorder p("p", GROUP_FAST, f.io);
     Program* const holey[] = { nullptr, &p };
     Cycle d(holey, 2, &f.io);
     d.step(0);
@@ -323,8 +323,9 @@ class Drives : public Plc::Program {
     VarRef      _r = { VAR_NONE };
     const char* _row;
 public:
-    Drives(const char* name, const char* row, Botanik::Tasks::GroupId g = Botanik::Tasks::GROUP_FAST)
-        : Program(name, g), _row(row) {}
+    Drives(const char* name, const char* row, Botanik::Vars::Bank& io,
+           Botanik::Tasks::GroupId g = Botanik::Tasks::GROUP_FAST)
+        : Program(name, g, io), _row(row) {}
 protected:
     void bind(Bank& io) override { _r = io.find(_row); }
     void run(Plc::Context& c) override { c.io.set(_r, 1.0f); }
@@ -334,8 +335,8 @@ protected:
 class Ordered : public Plc::Program {
     std::vector<std::string>* _log;
 public:
-    Ordered(const char* name, std::vector<std::string>* log)
-        : Program(name, Botanik::Tasks::GROUP_FAST), _log(log) {}
+    Ordered(const char* name, std::vector<std::string>* log, Bank& io)
+        : Program(name, Botanik::Tasks::GROUP_FAST, io), _log(log) {}
 protected:
     void run(Plc::Context&) override { _log->push_back(name()); }
 };
@@ -348,8 +349,8 @@ class Relay : public Plc::Program {
     const char* _to;
     float       _add;
 public:
-    Relay(const char* name, const char* from, const char* to, float add)
-        : Program(name, Botanik::Tasks::GROUP_FAST), _from(from), _to(to), _add(add) {}
+    Relay(const char* name, const char* from, const char* to, float add, Bank& io)
+        : Program(name, Botanik::Tasks::GROUP_FAST, io), _from(from), _to(to), _add(add) {}
 protected:
     void bind(Bank& io) override { _in = io.find(_from); _out = io.find(_to); }
     void run(Plc::Context& c) override { c.io.set(_out, c.io.value(_in) + _add); }
@@ -360,7 +361,8 @@ class Lifecycle : public Plc::Program {
 public:
     std::vector<bool> firsts;
 
-    Lifecycle(const char* name, Botanik::Tasks::GroupId g) : Program(name, g) {}
+    Lifecycle(const char* name, Botanik::Tasks::GroupId g, Botanik::Vars::Bank& io)
+        : Program(name, g, io) {}
 
 protected:
     void run(Plc::Context& c) override { firsts.push_back(c.first_scan); }
@@ -492,8 +494,8 @@ TEST_CASE("scan: two programs on one row is named once, not every beat") {
     Criticals sink;
     logger.add_writer(&sink);
 
-    Drives a("prog_a", "cli_temp_ext1");
-    Drives b("prog_b", "cli_temp_ext1");
+    Drives a("prog_a", "cli_temp_ext1", f.bank);
+    Drives b("prog_b", "cli_temp_ext1", f.bank);
     Plc::Program* const progs[] = { &a, &b };
     Cycle d(progs, 2, &f.bank);
 
@@ -514,7 +516,7 @@ TEST_CASE("scan: two programs on one row is named once, not every beat") {
 TEST_CASE("scan: a program starved of beats is late, and named") {
     // Lateness is against the PROGRAM's own period; not stepping the driver is what an overrunning beat looks like.
     Live f;
-    Drives slow("prog_slow", "cli_temp_ext1", Botanik::Tasks::GROUP_SLOW);
+    Drives slow("prog_slow", "cli_temp_ext1", f.bank, Botanik::Tasks::GROUP_SLOW);
     Plc::Program* const progs[] = { &slow };
     Cycle d(progs, 1, &f.bank);
     const VarRef late = f.ref("alarm_scan_late");
@@ -543,7 +545,7 @@ TEST_CASE("scan: an every-beat program is late only when the beat itself is") {
     // unlike the old period-0 case there is something to be late against. On
     // time that is exactly zero; a stalled loop is genuinely late, and says so.
     Live f;
-    Drives every("prog_every", "cli_temp_ext1");
+    Drives every("prog_every", "cli_temp_ext1", f.bank);
     Plc::Program* const progs[] = { &every };
     Cycle d(progs, 1, &f.bank);
 
@@ -560,7 +562,7 @@ TEST_CASE("scan: an every-beat program is late only when the beat itself is") {
 
 TEST_CASE("scan: the first activation says so, and only the first") {
     Live f;
-    Lifecycle p("p", Botanik::Tasks::GROUP_FAST);
+    Lifecycle p("p", Botanik::Tasks::GROUP_FAST, f.bank);
     Plc::Program* const progs[] = { &p };
     Cycle d(progs, 1, &f.bank);
 
@@ -577,7 +579,7 @@ TEST_CASE("scan: the first activation says so, and only the first") {
 TEST_CASE("scan: control coming back is a first scan again") {
     // The process moved without us: the previous activation describes a plant that no longer exists.
     Live f;
-    Lifecycle p("p", Botanik::Tasks::GROUP_FAST);
+    Lifecycle p("p", Botanik::Tasks::GROUP_FAST, f.bank);
     Plc::Program* const progs[] = { &p };
     Cycle d(progs, 1, &f.bank);
 
@@ -611,7 +613,7 @@ TEST_CASE("scan: bring-up is a first scan, and needs no special case to be one")
     // activation EVER is a first scan too, because a program knows no more about
     // the plant at bring-up than it does after an outage.
     Live f;
-    Lifecycle p("p", Botanik::Tasks::GROUP_FAST);
+    Lifecycle p("p", Botanik::Tasks::GROUP_FAST, f.bank);
     Plc::Program* const progs[] = { &p };
     Cycle d(progs, 1, &f.bank);
 
@@ -625,9 +627,9 @@ TEST_CASE("scan: table order is execution order") {
     // A site orders its programs on purpose (a setpoint law before the acting law) - as written.
     Live f;
     std::vector<std::string> ran;
-    Ordered a("zulu",  &ran);
-    Ordered b("alpha", &ran);
-    Ordered c("mike",  &ran);
+    Ordered a("zulu", &ran, f.bank);
+    Ordered b("alpha", &ran, f.bank);
+    Ordered c("mike", &ran, f.bank);
     Plc::Program* const progs[] = { &a, &b, &c };
     Cycle d(progs, 3, &f.bank);
 
@@ -648,8 +650,8 @@ TEST_CASE("scan: a later program sees what an earlier one wrote this beat") {
     const VarRef dst = f.ref("cli_temp_ext3");
     f.bank.var(src).publish(from_f32(T_F32, 10.0f), 0);
 
-    Relay first("first",  "cli_temp_ext1", "cli_temp_ext2", 1.0f);
-    Relay second("second", "cli_temp_ext2", "cli_temp_ext3", 1.0f);
+    Relay first("first", "cli_temp_ext1", "cli_temp_ext2", 1.0f, f.bank);
+    Relay second("second", "cli_temp_ext2", "cli_temp_ext3", 1.0f, f.bank);
 
     SUBCASE("in order, the whole chain completes in one beat") {
         Plc::Program* const progs[] = { &first, &second };
@@ -680,8 +682,8 @@ TEST_CASE("scan: a computed row can be traced back to the program that wrote it"
     // What MONITOR's Mapping shows as "computed (prog_a)": writer_of() plus
     // the site table's own name lookup.
     Live f;
-    Drives a("prog_a", "cli_temp_ext1");
-    Drives b("prog_b", "cli_temp_ext2");
+    Drives a("prog_a", "cli_temp_ext1", f.bank);
+    Drives b("prog_b", "cli_temp_ext2", f.bank);
     Plc::Program* const progs[] = { &a, &b };
     Cycle d(progs, 2, &f.bank);
 
