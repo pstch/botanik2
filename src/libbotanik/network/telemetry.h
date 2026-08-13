@@ -17,6 +17,7 @@
  * retries; nothing is queued.
  */
 
+#include "libbotanik/core/component.h"  // Component
 #include <cstdint>                      // uint16_t/uint64_t
 
 #include "libbotanik/config/identity.h"   // Config::SITE_NAME / FIRMWARE_VERSION / MQTT_TOPIC_PREFIX
@@ -26,6 +27,8 @@
 #include "libbotanik/network/mqtt.h"    // Network::MqttClient
 #include "libbotanik/vars/access.h"     // Vars::var_published / var_format
 
+namespace Botanik { namespace Tasks { struct Tick; } }
+
 namespace Botanik { namespace Network {
 
     // Vars::var_published / var_group (what goes out, and under what) live in
@@ -33,7 +36,16 @@ namespace Botanik { namespace Network {
     // without the MqttSender.
 
     /** @brief Periodic MQTT telemetry publisher (see file header). */
-    class MqttSender {
+    class MqttSender : public Botanik::Component {
+    public:
+        /** @brief One task, PHASE_SERVICE: publish what is due this beat. */
+        void register_tasks(Tasks::Registry& r) override;
+
+    private:
+        /** @brief The registration handler. A static MEMBER, so the cast has
+         *  access to the protected hook and stays beside the class. */
+        static void _service_task(Component* c, const Tasks::Tick& t);
+
         /** @name State
          *  @{ */
 
@@ -69,7 +81,8 @@ namespace Botanik { namespace Network {
         /** @brief @p mqtt is the transport, @p sys the live status read by the
          *  base fields, @p prefix the topic root segment before the field. */
         MqttSender(MqttClient* mqtt, const SystemContext* sys, const char* prefix)
-            : _mqtt(mqtt), _prefix(prefix), _sys(sys) {}
+            : Component(nullptr, "telemetry"),
+              _mqtt(mqtt), _prefix(prefix), _sys(sys) {}
 
         /** @brief Register the variable table to publish from. It must outlive
          *  the firmware; null clears. Every published row goes out under
@@ -81,7 +94,7 @@ namespace Botanik { namespace Network {
          *  Config::MQTT_TELEMETRY_PERIOD_MS has elapsed and the link is
          *  connected. No-op when telemetry is disabled (period 0) or the period
          *  has not elapsed. */
-        void step(uint64_t now_ms);
+        void on_service(uint64_t now_ms) override;
 
     private:
         /** @brief Publish the library base fields under "system". */

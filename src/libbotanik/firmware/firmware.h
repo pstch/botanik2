@@ -127,6 +127,48 @@ namespace Botanik {
      *  order, and exposes each for a site subclass to build on. */
     class BotanikFirmware {
 
+        /** @brief The firmware's OWN per-beat work, as a Component - the two
+         *  bits of housekeeping it does for itself, plus the six site hooks.
+         *
+         *  A component, because the registry takes nothing else: every entry in
+         *  the table is (Component* owner, handler taking a Tick), and that
+         *  uniformity is the point. A nested class rather than making
+         *  BotanikFirmware itself one, because the composition root already uses
+         *  `setup()`, `on_setup()` and `_logger` for different things, and it
+         *  wants none of announce / healthy() / a config serial. Nested, so it
+         *  reaches the enclosing class's hooks without a friend declaration.
+         *
+         *  It is the ONLY thing in the tree registering work it does not own.
+         *  Everything else - the bank, the logger, the parameters, both Modbus
+         *  ends, the console, the network services, every control program -
+         *  registers its own. */
+        class OwnTasks : public Component {
+            BotanikFirmware& _fw;
+
+        public:
+            explicit OwnTasks(BotanikFirmware& fw)
+                : Component(nullptr, "firmware"), _fw(fw) {}
+
+            void register_tasks(Tasks::Registry& r) override;
+
+        private:
+            /** @brief Generates the named handler a registration needs, one per
+             *  method, so each row is a NAME rather than another copy of the
+             *  same cast.
+             *
+             *  A pointer-to-member will not convert to the plain function
+             *  pointer the table stores, so every dispatched method needs a free
+             *  function in front of it. The method is a TEMPLATE argument so the
+             *  compiler writes those eight wrappers instead of us, and the call
+             *  site still reads `_hook<&BotanikFirmware::on_input>` - named by
+             *  what it calls, greppable, breakpoint-able, and visible in a stack
+             *  trace. None of which a lambda in a registration list is. */
+            template <void (BotanikFirmware::*Method)(uint64_t)>
+            static void _hook(Component* c, const Tasks::Tick& t) {
+                (static_cast<OwnTasks*>(c)->_fw.*Method)(t.now_ms);
+            }
+        };
+
         /** @name Configuration
          *  @{ */
 
@@ -198,6 +240,10 @@ namespace Botanik {
 
         /** @} */
 #endif
+        /** @brief The firmware's own rows in the task table (see OwnTasks).
+         *  Declared here so it is constructed with everything else; it only
+         *  stores a reference, so the order does not matter. */
+        OwnTasks                       _own_tasks;
         /** @brief Whether the last beat saw a health fault. Edge tracking only:
          *  the control state itself lives in the Bank (control_enabled()), so
          *  an operator's `control disable` is not something the loop can
@@ -450,29 +496,6 @@ namespace Botanik {
         /** @} */
 
     private:
-        /** @brief Generates the named static wrapper a registration needs, one
-         *  per method, so each of this class's tasks is a NAME rather than
-         *  another copy of the same cast.
-         *
-         *  `Task::run` is a plain function pointer and a pointer-to-member will
-         *  not convert to one, so every method dispatched from the table needs a
-         *  free function in front of it. The method is a TEMPLATE argument so
-         *  the compiler writes those eight wrappers instead of us, and the call
-         *  site still reads `_task_hook<&BotanikFirmware::on_input>` - named by
-         *  what it calls, greppable, breakpoint-able, and visible in a stack
-         *  trace. None of which a lambda in the registration list is.
-         *
-         *  This exists because the composition root is deliberately NOT a
-         *  Component: it has no announce, no config serial and no healthy(), and
-         *  its own `setup()` is the bring-up entry point rather than a
-         *  lifecycle hook. A component registers through
-         *  Registry::add(Component&, ...) and needs none of this.
-         *  @see design/scan-cycle-rework.md */
-        template <void (BotanikFirmware::*Hook)(uint64_t)>
-        static void _task_hook(void* self, uint64_t now_ms) {
-            (static_cast<BotanikFirmware*>(self)->*Hook)(now_ms);
-        }
-
 #if BOTANIK_FEATURE_MONITOR_PAGE
 #if BOTANIK_FEATURE_PLC_SCAN
         /** @brief A writer index back to the program's name, for MONITOR's

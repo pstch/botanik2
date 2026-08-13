@@ -23,17 +23,24 @@ using namespace Botanik::Tasks;
 namespace {
     std::vector<std::string> g_log;
 
-    void note(void* self, uint64_t) { g_log.push_back((const char*)self); }
+    /** @brief The smallest possible component: its only work is to say it ran.
+     *  Everything in the table is a Component now, so even a test that only
+     *  cares about ORDER needs one. */
+    struct Noted : public Botanik::Component {
+        explicit Noted(const char* n) : Component(nullptr, n) {}
+        void ran() { g_log.push_back(name()); }
+    };
+    void note(Botanik::Component* c, const Tick&) { static_cast<Noted*>(c)->ran(); }
 
-    char A[] = "a", B[] = "b", C[] = "c";  // distinct storage: `self` identifies the task
+    Noted A("a"), B("b"), C("c");   // distinct owners: the name identifies the task
 }
 
 TEST_CASE("tasks: a phase runs only its own members, in registration order") {
     g_log.clear();
     Registry r;
-    r.add("in",  GROUP_FAST, PHASE_INPUT,   &note, A);
-    r.add("out", GROUP_FAST, PHASE_OUTPUT,  &note, B);
-    r.add("in2", GROUP_FAST, PHASE_INPUT,   &note, C);
+    r.add(A, &note, "in", GROUP_FAST, PHASE_INPUT);
+    r.add(B, &note, "out", GROUP_FAST, PHASE_OUTPUT);
+    r.add(C, &note, "in2", GROUP_FAST, PHASE_INPUT);
 
     r.run_phase(PHASE_INPUT, 0);
     REQUIRE(g_log.size() == 2);
@@ -48,9 +55,9 @@ TEST_CASE("tasks: a phase runs only its own members, in registration order") {
 TEST_CASE("tasks: a group's period is what decides due-ness") {
     g_log.clear();
     Registry r;
-    r.add("fast", GROUP_FAST,       PHASE_SERVICE, &note, A);
-    r.add("slow", GROUP_SLOW,       PHASE_SERVICE, &note, B);
-    r.add("bkg",  GROUP_BACKGROUND, PHASE_SERVICE, &note, C);
+    r.add(A, &note, "fast", GROUP_FAST, PHASE_SERVICE);
+    r.add(B, &note, "slow", GROUP_SLOW, PHASE_SERVICE);
+    r.add(C, &note, "bkg", GROUP_BACKGROUND, PHASE_SERVICE);
 
     for (uint64_t t = 0; t <= 1000; t += 10) r.run_phase(PHASE_SERVICE, t);
 
@@ -70,7 +77,7 @@ TEST_CASE("tasks: a group's period is what decides due-ness") {
 TEST_CASE("tasks: each run is costed, and the mean is not the peak") {
     g_log.clear();
     Registry r;
-    r.add("x", GROUP_FAST, PHASE_SERVICE, &note, A);
+    r.add(A, &note, "x", GROUP_FAST, PHASE_SERVICE);
 
     for (uint64_t t = 0; t < 50; t += 10) r.run_phase(PHASE_SERVICE, t);
 
@@ -86,7 +93,7 @@ TEST_CASE("tasks: each run is costed, and the mean is not the peak") {
 TEST_CASE("tasks: dropped activations are counted, not caught up") {
     g_log.clear();
     Registry r;
-    r.add("x", GROUP_FAST, PHASE_SERVICE, &note, A);
+    r.add(A, &note, "x", GROUP_FAST, PHASE_SERVICE);
 
     const uint64_t p = group_period_ms(GROUP_FAST);
     r.run_phase(PHASE_SERVICE, 0);              // first activation
@@ -105,16 +112,16 @@ TEST_CASE("tasks: dropped activations are counted, not caught up") {
 TEST_CASE("tasks: a full table refuses and counts, it does not drop silently") {
     Registry r;
     for (uint16_t i = 0; i < Botanik::Config::MAX_TASKS; i++)
-        CHECK(r.add("t", GROUP_FAST, PHASE_SERVICE, &note, A));
+        CHECK(r.add(A, &note, "t", GROUP_FAST, PHASE_SERVICE));
 
     CHECK(r.count() == Botanik::Config::MAX_TASKS);
-    CHECK_FALSE(r.add("one too many", GROUP_FAST, PHASE_SERVICE, &note, A));
+    CHECK_FALSE(r.add(A, &note, "one too many", GROUP_FAST, PHASE_SERVICE));
     CHECK(r.overflow() == 1);
 }
 
 TEST_CASE("tasks: a null dispatch is refused rather than called") {
     Registry r;
-    CHECK_FALSE(r.add("nop", GROUP_FAST, PHASE_SERVICE, nullptr, nullptr));
+    CHECK_FALSE(r.add(A, nullptr, "nop", GROUP_FAST, PHASE_SERVICE));
     CHECK(r.count() == 0);
     r.run_phase(PHASE_SERVICE, 0);   // must not fault
 }
@@ -168,12 +175,12 @@ TEST_CASE("tasks: a component the registry never set up still self-inits") {
     CHECK(s.setups == 1);
 }
 
-TEST_CASE("tasks: setup() skips a task with no setup, and does not fault") {
+TEST_CASE("tasks: setup() is not run(), and a component with nothing to do is fine") {
     g_log.clear();
     Registry r;
-    r.add("plain", GROUP_FAST, PHASE_SERVICE, &note, A);   // no setup fn
+    r.add(A, &note, "plain", GROUP_FAST, PHASE_SERVICE);
     r.setup(0);
-    CHECK(g_log.empty());          // setup is not run(); nothing was dispatched
+    CHECK(g_log.empty());          // the setup pass dispatches no handler
     r.run_phase(PHASE_SERVICE, 0);
     CHECK(g_log.size() == 1);
 }

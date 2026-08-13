@@ -29,8 +29,8 @@ namespace Botanik { namespace Tasks {
     /** @brief Declared in tasks.h, defined here: this is the one TU below
      *  `core/` that has Component complete. setup() is idempotent, so a
      *  component registered in several phases still sets up once. */
-    void component_setup(void* self, uint64_t now_ms) {
-        static_cast<Component*>(self)->setup(now_ms);
+    void component_setup(Component* c, uint64_t now_ms) {
+        c->setup(now_ms);
     }
 
     void component_poll_config(Component* c, uint64_t now_ms) {

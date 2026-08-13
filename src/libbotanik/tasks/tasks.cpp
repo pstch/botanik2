@@ -46,10 +46,17 @@ namespace Botanik { namespace Tasks {
     }
 
     void Registry::setup(uint64_t now_ms) {
+        // Phase-major, like run_phase(), so init obeys the same data-flow order
+        // the beat does. setup() is idempotent, so a component registered in
+        // three phases still sets up once - and a registration is what runs it:
+        // without this a self-registering component would run its per-beat work
+        // having never been set up, which is how HealthMonitor's POST, and with
+        // it the binding of every platform-health alarm, silently stopped
+        // happening.
         for (uint8_t p = 0; p < PHASE_COUNT; p++)
             for (uint8_t i = 0; i < _count; i++)
-                if (_tasks[i].phase == (Phase)p && _tasks[i].setup != nullptr)
-                    _tasks[i].setup(_tasks[i].self, now_ms);
+                if (_tasks[i].phase == (Phase)p)
+                    component_setup(_tasks[i].owner, now_ms);
 
         // Registered setup handlers, in registration order: bring-up ordering is
         // a property of the registry rather than of the composition root.
@@ -88,16 +95,6 @@ namespace Botanik { namespace Tasks {
         if (t == nullptr) return false;
         t->owner   = &owner;
         t->handler = handler;
-        // A registration is what runs a component's on_setup() and
-        // announce().
-        // Without it a self-registering component runs its per-beat work having
-        // never been set up - which is how HealthMonitor's POST, and with it the
-        // binding of every platform-health alarm, silently stopped happening.
-        // Not for a setup registration (PHASE_COUNT): that one names its own.
-        if (phase != PHASE_COUNT) {
-            t->self  = &owner;
-            t->setup = &component_setup;
-        }
         return true;
     }
 
@@ -113,18 +110,6 @@ namespace Botanik { namespace Tasks {
                                const char* name, GroupId group) {
         if (!add(program, handler, name, group, PHASE_CONTROL)) return false;
         _tasks[_count - 1].is_program = true;
-        return true;
-    }
-
-    bool Registry::add(const char* name, GroupId group, Phase phase,
-                       void (*run)(void* self, uint64_t now_ms), void* self,
-                       void (*setup)(void* self, uint64_t now_ms)) {
-        if (run == nullptr) { if (_overflow < 0xFF) _overflow++; return false; }
-        Task* t = _claim(name, group, phase);
-        if (t == nullptr) return false;
-        t->run   = run;
-        t->setup = setup;
-        t->self  = self;
         return true;
     }
 
@@ -163,19 +148,16 @@ namespace Botanik { namespace Tasks {
             if (!t.timer.due(now_ms, group_period_ms(t.group), dt, missed)) continue;
             t.timer.ran(now_ms);
 
+            // Config first, so a group committed this beat is applied before
+            // the hook that reads it. Once per beat per owner, however many
+            // phases it registered in.
+            component_poll_config(t.owner, now_ms);
+
             const uint64_t t0 = HAL::Clock::uptime_us();
-            if (t.handler != nullptr) {
-                // Config first, so a group committed this beat is applied
-                // before the hook that reads it. Once per beat per owner, however
-                // many phases it registered in.
-                component_poll_config(t.owner, now_ms);
-                Tick tick;
-                tick.now_ms = now_ms; tick.dt_ms = dt; tick.missed = missed;
-                tick.first  = t.first_activation;
-                t.handler(t.owner, tick);
-            } else {
-                t.run(t.self, now_ms);
-            }
+            Tick tick;
+            tick.now_ms = now_ms; tick.dt_ms = dt; tick.missed = missed;
+            tick.first  = t.first_activation;
+            t.handler(t.owner, tick);
             // Cleared after the run: the flag describes the activation that just
             // happened, so a handler reads it for its own run and no other.
             t.first_activation = false;

@@ -44,12 +44,12 @@ namespace Botanik { namespace Plc { class Program; } }
 
 namespace Botanik { namespace Tasks {
 
-    /** @brief Run @p self's Component::setup() - the one-time init behind every
+    /** @brief Run @p c's Component::setup() - the one-time init behind every
      *  registration.
      *
      *  Defined in core/component.cpp, not here: `tasks/` only forward-declares
      *  Component and must not acquire `core/` to call one method on it. */
-    void component_setup(void* self, uint64_t now_ms);
+    void component_setup(Component* c, uint64_t now_ms);
 
     /** @brief Let @p c re-read its watched config group and reconfigure if it
      *  moved (Component::poll_config). Also defined in core/component.cpp.
@@ -132,28 +132,22 @@ namespace Botanik { namespace Tasks {
     /** @brief One scheduled unit: a name, a rate, a slot in the beat, and the
      *  call that advances it.
      *
-     *  The dispatch is a plain function pointer plus a `self`, not a Component*,
-     *  so this stays free of every subsystem it drives - including Vars, which
-     *  must not become a dependency here. */
+     *  ONE dispatch shape, and that is the point: every entry is an owning
+     *  Component plus a named handler taking a Tick. There is no second form and
+     *  no second calling convention, so run_phase() has nothing to branch on and
+     *  a row cannot be half-set-up. A thing that wants work in the beat is a
+     *  Component; if it is not one, it wraps itself in one (see
+     *  BotanikFirmware::OwnTasks). */
     struct Task {
         const char* name     = nullptr;   ///< shown in the TASKS table
         GroupId     group    = GROUP_FAST;
         Phase       phase    = PHASE_SERVICE;
-        void      (*run)(void* self, uint64_t now_ms) = nullptr;
-        /** @brief One-time init, run by Registry::setup() before the loop starts.
-         *  Optional: null for a task with nothing to set up. */
-        void      (*setup)(void* self, uint64_t now_ms) = nullptr;
-        void*       self     = nullptr;
 
-        /** @name The component form (see add())
+        /** @name The dispatch
          *
          *  A component registers its own work: it supplies the name, the rate
          *  group and the phase, and a named handler that casts @c owner back to
-         *  its own type. Nearly everything is this.
-         *
-         *  The plain (run, self) pair above is the other kind, and it is not
-         *  legacy - it is for work whose owner is NOT a Component: the
-         *  composition root's own hooks, and MqttSender. @{ */
+         *  its own type. @{ */
         Component* owner   = nullptr;
         void     (*handler)(Component* owner, const Tick& tick) = nullptr;
         /** @brief A control program: PHASE_CONTROL by construction, and gated by
@@ -203,24 +197,6 @@ namespace Botanik { namespace Tasks {
     public:
         /** @name Registration
          *  @{ */
-
-        /**
-         * @brief Register @p name to run @p run at @p group's rate, in @p phase,
-         *        for an owner that is not a Component.
-         *
-         * The composition root's own hooks and MqttSender, and that is meant to
-         * be the whole list - anything with a subsystem lifecycle registers
-         * through the Component form below and gets its setup() run for free.
-         *
-         * The offset keeping this task off the same beat as its group-mates is
-         * derived: each new member of a group is placed one beat further along,
-         * wrapped into the group's period (@ref timer_offset).
-         *
-         * @return false if the table is full (counted in overflow()).
-         */
-        bool add(const char* name, GroupId group, Phase phase,
-                 void (*run)(void* self, uint64_t now_ms), void* self,
-                 void (*setup)(void* self, uint64_t now_ms) = nullptr);
 
         /** @brief Register one piece of @p owner's work: @p handler, at @p
          *  group's rate, in @p phase.

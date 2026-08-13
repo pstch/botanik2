@@ -3,6 +3,7 @@
  * @file telemetry.cpp
  * @brief MqttTelemetry implementation - the base field set + the publish cycle.
  */
+#include "libbotanik/tasks/tasks.h"   // Tasks::Registry / Tick / GroupId
 #include "libbotanik/network/telemetry.h"   // MqttSender
 
 #include <cstddef>                          // offsetof / size_t
@@ -68,7 +69,7 @@ namespace Botanik { namespace Network {
                 _emit("system", f.name, payload);
     }
 
-    void MqttSender::step(uint64_t now_ms) {
+    void MqttSender::on_service(uint64_t now_ms) {
         const uint32_t period = Config::MQTT_TELEMETRY_PERIOD_MS;
         if (period == 0) return;                       // telemetry disabled
         if (_mqtt == nullptr || !_mqtt->connected()) {
@@ -134,3 +135,16 @@ namespace Botanik { namespace Network {
     }
 
 }}
+
+namespace Botanik { namespace Network {
+
+    void MqttSender::_service_task(Component* c, const Tasks::Tick& t) {
+        static_cast<MqttSender*>(c)->on_service(t.now_ms);
+    }
+
+    void MqttSender::register_tasks(Tasks::Registry& r) {
+        r.add(*this, &MqttSender::_service_task, "telemetry",
+              Tasks::GROUP_FAST, Tasks::PHASE_SERVICE);
+    }
+
+}}  // namespace Botanik::Network

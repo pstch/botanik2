@@ -213,23 +213,9 @@ namespace Botanik {
 #endif
 #if BOTANIK_FEATURE_MQTT
             _mqtt.register_tasks(r);
-            // MqttSender is not a Component: it has no lifecycle to register, so
-            // it keeps the plain-function form until it grows one. Named, not a
-            // lambda, like every other handler.
-            r.add("telemetry", Tasks::GROUP_FAST, Tasks::PHASE_SERVICE,
-                  &_telemetry_task, &_telemetry);
+            _telemetry.register_tasks(r);
 #endif
         }
-
-    private:
-#if BOTANIK_FEATURE_MQTT
-        /** @brief The telemetry handler. A static MEMBER rather than a
-         *  file-local static, because this is a header: an anonymous namespace
-         *  here would give every including TU its own copy. */
-        static void _telemetry_task(void* s, uint64_t now_ms) {
-            static_cast<Network::MqttSender*>(s)->step(now_ms);
-        }
-#endif
 
     };
 #endif

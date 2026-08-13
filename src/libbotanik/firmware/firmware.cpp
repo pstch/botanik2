@@ -26,6 +26,7 @@ namespace Botanik {
           // Params come from local storage.
           _param_store(),
           _params(&_io, &_param_store, &_logger),
+          _own_tasks(*this),
           // The alarm model scans the variable table for SCOPE_A rows;
           // platform-health alarms are appended and driven locally.
           _health(&_logger, _scheduler.context(), &_io)
@@ -234,8 +235,42 @@ namespace Botanik {
     // The task table
     // ------------------------------------------------------------------------
 
+    // The firmware's own eight rows: two bits of housekeeping and the six site
+    // hooks. Each names its phase and rate here, beside the others, so the beat
+    // still reads top to bottom in _register_tasks() below.
+    void BotanikFirmware::OwnTasks::register_tasks(Tasks::Registry& r) {
+        using namespace Tasks;
+        r.add(*this, &_hook<&BotanikFirmware::on_input>,
+              "site_input",    GROUP_FAST, PHASE_INPUT);
+        // The two rates that are config for the firmware ITSELF. After the
+        // params component, so an edit committed this beat is applied this beat
+        // rather than the next.
+        r.add(*this, &_hook<&BotanikFirmware::_apply_serial_config>,
+              "serial_cfg",    GROUP_SLOW, PHASE_CONFIG);
+        r.add(*this, &_hook<&BotanikFirmware::on_config>,
+              "site_config",   GROUP_FAST, PHASE_CONFIG);
+        r.add(*this, &_hook<&BotanikFirmware::_latch_control>,
+              "control_latch", GROUP_FAST, PHASE_SERVICE);
+        r.add(*this, &_hook<&BotanikFirmware::on_service>,
+              "site_service",  GROUP_FAST, PHASE_SERVICE);
+        // The site's own control law, under the same gate the registry applies
+        // to the programs.
+        r.add(*this, &_hook<&BotanikFirmware::_run_site_control>,
+              "site_control",  GROUP_FAST, PHASE_CONTROL);
+        r.add(*this, &_hook<&BotanikFirmware::on_output>,
+              "site_output",   GROUP_FAST, PHASE_OUTPUT);
+        r.add(*this, &_hook<&BotanikFirmware::on_present>,
+              "site_present",  GROUP_FAST, PHASE_PRESENT);
+    }
+
     void BotanikFirmware::_register_tasks() {
         using namespace Tasks;
+
+        // This firmware's own rows, in every phase at once. Registration order
+        // within a phase is execution order, so they land ahead of everything
+        // registered below - which is where the site hooks belong: a site's
+        // per-phase work runs before the library's own for that phase.
+        _own_tasks.register_tasks(_tasks);
 
         // --- INPUT: fresh bytes and fresh field, before anything reads ---
         // Both field-bus components span the beat, and each registers every
@@ -254,32 +289,27 @@ namespace Botanik {
         // coherent.
         _io.register_tasks(_tasks);
 
-        _tasks.add("site_input", GROUP_FAST, PHASE_INPUT,
-                   &_task_hook<&BotanikFirmware::on_input>, this);
+
 
         // --- CONFIG: the image every config-driven component reads below ---
         _params.register_tasks(_tasks);
         // ...and the two rates that are config for the firmware ITSELF. After
         // the params component, so an edit committed this beat is applied this
         // beat rather than the next.
-        _tasks.add("serial_cfg", GROUP_SLOW, PHASE_CONFIG,
-                   &_task_hook<&BotanikFirmware::_apply_serial_config>, this);
 
-        _tasks.add("site_config", GROUP_FAST, PHASE_CONFIG,
-                   &_task_hook<&BotanikFirmware::on_config>, this);
+
+
 
         // --- SERVICE: supervision and the background state machines ---
         // Health before the logger drains, so an alarm START/END lands this
         // beat, and before CONTROL, so a fault inhibits this beat's programs.
         _health.register_tasks(_tasks);   // health, then the alarm model
-        _tasks.add("control_latch", GROUP_FAST, PHASE_SERVICE,
-                   &_task_hook<&BotanikFirmware::_latch_control>, this);
+
 #if BOTANIK_FEATURE_NETWORK
         _net.register_tasks(_tasks);   // network, ntp, mqtt, telemetry
 #endif
 
-        _tasks.add("site_service", GROUP_FAST, PHASE_SERVICE,
-                   &_task_hook<&BotanikFirmware::on_service>, this);
+
 
         // --- CONTROL: the control programs ---
 #if BOTANIK_FEATURE_PLC_SCAN
@@ -302,18 +332,15 @@ namespace Botanik {
         // to the programs. The gate is per DISPATCH POINT, not per write (see
         // on_control()), so the programs and this are the whole list: a third
         // place that drives the field must gate itself here.
-        _tasks.add("site_control", GROUP_FAST, PHASE_CONTROL,
-                   &_task_hook<&BotanikFirmware::_run_site_control>, this);
+
 
         // --- OUTPUT: hand what the programs drove to the field ---
-        _tasks.add("site_output", GROUP_FAST, PHASE_OUTPUT,
-                   &_task_hook<&BotanikFirmware::on_output>, this);
+
 
         // --- PRESENT: report what just happened ---
         // First in the phase, so anything it logs is drained by the logger below
         // in the SAME beat rather than waiting for the next one.
-        _tasks.add("site_present", GROUP_FAST, PHASE_PRESENT,
-                   &_task_hook<&BotanikFirmware::on_present>, this);
+
 #if BOTANIK_FEATURE_LOGGING
         _logger.register_tasks(_tasks);
 #endif
