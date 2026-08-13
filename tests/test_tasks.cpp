@@ -357,7 +357,10 @@ namespace {
         s->inputs++; s->last_dt = t.dt_ms; s->last_missed = t.missed;
     }
     void spy_present(Component* c, const Tick&)   { static_cast<Spy*>(c)->presents++; }
-    void spy_program(Component* c, const Tick&)   { static_cast<Spy*>(c)->programs++; }
+    void spy_program(Component* c, const Tick& t) {
+        Spy* s = static_cast<Spy*>(c);
+        s->programs++; s->last_dt = t.dt_ms; s->last_missed = t.missed;
+    }
 }
 
 TEST_CASE("registry: a component's own registrations run in their phases") {
@@ -453,6 +456,65 @@ TEST_CASE("registry: control returning reseeds a program's timer, not the beat's
     r.run_phase(PHASE_INPUT, 60000);
     CHECK(s.inputs == 2);
     CHECK(s.last_dt == 60000);
+}
+
+TEST_CASE("registry: a program's own gate is independent of control authority") {
+    Spy s;
+    Registry r;
+    REQUIRE(r.add_program(s, &spy_program, "prog", GROUP_SLOW));
+    r.set_programs_enabled(true, 0);
+    r.run_phase(PHASE_CONTROL, 0);
+    REQUIRE(s.programs == 1);
+
+    const int16_t i = r.find_program("prog");
+    REQUIRE(i == 0);
+    CHECK(r.program_enabled(0));
+    CHECK_FALSE(r.program_unsaved(0));       // nothing edited yet
+
+    // Taken out by hand, with control authority still granted.
+    REQUIRE(r.set_program_enabled(0, false, 100));
+    CHECK_FALSE(r.program_enabled(0));
+    CHECK(r.program_unsaved(0));             // live, not yet durable
+    r.run_phase(PHASE_CONTROL, 200);
+    CHECK(s.programs == 1);                  // did not run
+
+    INFO("the stricter of the two gates wins, so an authority edge does not "
+         "put a program the operator disabled back into the scan");
+    r.set_programs_enabled(false, 300);
+    r.set_programs_enabled(true, 400);
+    r.run_phase(PHASE_CONTROL, 500);
+    CHECK(s.programs == 1);
+
+    // ...and back in by hand, which reseeds like the authority edge does.
+    REQUIRE(r.set_program_enabled(0, true, 500));
+    r.run_phase(PHASE_CONTROL, 500);
+    CHECK(s.programs == 1);                  // the reseed beat: not due yet
+    r.run_phase(PHASE_CONTROL, 600);
+    CHECK(s.programs == 2);
+    CHECK(s.last_dt == 100);                 // nominal period, not the outage
+}
+
+TEST_CASE("registry: find_program answers on the registered name, or -1") {
+    Spy a, b;
+    Registry r;
+    REQUIRE(r.add_program(a, &spy_program, "irrigate", GROUP_SLOW));
+    REQUIRE(r.add_program(b, &spy_program, "vent",     GROUP_SLOW));
+
+    CHECK(r.find_program("irrigate") == 0);
+    CHECK(r.find_program("vent")     == 1);
+    CHECK(r.find_program("nope")     < 0);
+    // A length-bounded word, as the shell passes it: a prefix is not a match.
+    CHECK(r.find_program("vented", 4) == 1);
+    CHECK(r.find_program("ven",    3) < 0);
+}
+
+TEST_CASE("registry: setting a gate to what it already is is not a new edit") {
+    Spy s;
+    Registry r;
+    REQUIRE(r.add_program(s, &spy_program, "prog", GROUP_SLOW));
+    REQUIRE(r.set_program_enabled(0, true, 0));   // already enabled
+    CHECK_FALSE(r.program_unsaved(0));
+    CHECK_FALSE(r.set_program_enabled(9, false, 0));  // past the last program
 }
 
 }  // namespace registered

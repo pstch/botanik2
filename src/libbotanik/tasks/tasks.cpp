@@ -6,7 +6,10 @@
 
 #include "libbotanik/tasks/tasks.h" // Registry / Task
 
+#include <cstring>                      // strcmp / strncmp - program lookup by name
+
 #include "libbotanik/hal/platform.h"    // HAL::Clock::uptime_us
+#include "libbotanik/hal/storage.h"     // HAL::Storage - the per-program enable flag
 // The complete Program, and ONLY so add_program() can convert one to the
 // Component& it registers as. Nothing here calls a Program method.
 #include "libbotanik/plc/program.h"     // Plc::Program
@@ -65,6 +68,11 @@ namespace Botanik { namespace Tasks {
         for (uint8_t i = 0; i < _count; i++)
             if (_tasks[i].phase == PHASE_COUNT && _tasks[i].handler != nullptr)
                 _tasks[i].handler(_tasks[i].owner, tick);
+
+        // A program the operator took out stays out across a power cycle. Read
+        // AFTER the handlers: control authority is still withheld here, so
+        // nothing runs on the answer before the first beat.
+        load_programs();
     }
 
     Task* Registry::_claim(const char* name, GroupId group, Phase phase) {
@@ -158,7 +166,9 @@ namespace Botanik { namespace Tasks {
             // this one must not be gated with it: withholding control writes
             // safe states into the image, and something still has to carry them
             // out to the field.
-            if (t.program != nullptr && !_programs_enabled) continue;
+            // Two independent gates, and the stricter wins: the system's control
+            // authority, and the operator's own choice for this one program.
+            if (t.program != nullptr && (!_programs_enabled || !t.enabled)) continue;
 
             uint32_t dt = 0; uint16_t missed = 0;
             if (!t.timer.due(now_ms, group_period_ms(t.group), dt, missed)) continue;
@@ -181,20 +191,115 @@ namespace Botanik { namespace Tasks {
         }
     }
 
-    Plc::Program* Registry::program(uint8_t i) const {
+    int16_t Registry::_program_slot(uint8_t i) const {
         uint8_t n = 0;
         for (uint8_t k = 0; k < _count; k++) {
             if (_tasks[k].program == nullptr) continue;
-            if (n == i) return _tasks[k].program;
+            if (n == i) return (int16_t)k;
             n++;
         }
-        return nullptr;
+        return -1;
+    }
+
+    Plc::Program* Registry::program(uint8_t i) const {
+        const int16_t k = _program_slot(i);
+        return (k < 0) ? nullptr : _tasks[k].program;
     }
 
     uint8_t Registry::program_count() const {
         uint8_t n = 0;
         for (uint8_t k = 0; k < _count; k++) if (_tasks[k].program != nullptr) n++;
         return n;
+    }
+
+    // Per-program enable
+    // ------------------------------------------------------------------------
+
+    namespace {
+        /** "prog.<name>", one key per program: no layout to version, like the
+         *  parameter and override keys. */
+        void _prog_key(const char* name, char* buf, size_t cap) {
+            size_t w = 0;
+            for (const char* p = "prog."; *p != '\0' && w + 1 < cap; p++) buf[w++] = *p;
+            for (; *name != '\0' && w + 1 < cap; name++) buf[w++] = *name;
+            buf[w] = '\0';
+        }
+    }
+
+    int16_t Registry::find_program(const char* name, uint16_t len) const {
+        if (name == nullptr) return -1;
+        const uint8_t n = program_count();
+        for (uint8_t i = 0; i < n; i++) {
+            const char* nm = _tasks[_program_slot(i)].name;
+            if (nm == nullptr) continue;
+            if (len == 0) { if (strcmp(nm, name) == 0) return (int16_t)i; }
+            else if (strncmp(nm, name, len) == 0 && nm[len] == '\0') return (int16_t)i;
+        }
+        return -1;
+    }
+
+    bool Registry::program_enabled(uint8_t i) const {
+        const int16_t k = _program_slot(i);
+        return (k < 0) ? false : _tasks[k].enabled;
+    }
+
+    bool Registry::program_unsaved(uint8_t i) const {
+        const int16_t k = _program_slot(i);
+        return (k < 0) ? false : _tasks[k].enable_unsaved;
+    }
+
+    bool Registry::set_program_enabled(uint8_t i, bool on, uint64_t now_ms) {
+        const int16_t k = _program_slot(i);
+        if (k < 0) return false;
+        Task& t = _tasks[k];
+        if (t.enabled == on) return true;      // idempotent, and not a new edit
+        t.enabled        = on;
+        t.enable_unsaved = true;
+        // The reseed control authority does, for the same reason: without it the
+        // first activation back reports the whole outage as its dt, and a dwell
+        // timer handed an hour of it fires the instant the program returns.
+        if (on) { t.timer.reseed(now_ms); t.first_activation = true; }
+        return true;
+    }
+
+    bool Registry::save_program(uint8_t i) {
+        const int16_t k = _program_slot(i);
+        if (k < 0 || _tasks[k].name == nullptr) return false;
+        Task& t = _tasks[k];
+        char key[40];
+        _prog_key(t.name, key, sizeof(key));
+        const uint8_t byte = t.enabled ? 1u : 0u;
+        if (!HAL::Storage::set(key, &byte, 1)) return false;
+        t.enable_unsaved = false;              // cleared only on a write that landed
+        return true;
+    }
+
+    uint8_t Registry::save_programs(uint8_t* refused) {
+        uint8_t saved = 0, bad = 0;
+        const uint8_t n = program_count();
+        for (uint8_t i = 0; i < n; i++) {
+            if (!program_unsaved(i)) continue;
+            if (save_program(i)) saved++;
+            else if (bad < 0xFF)  bad++;
+        }
+        if (refused != nullptr) *refused = bad;
+        return saved;
+    }
+
+    void Registry::load_programs() {
+        const uint8_t n = program_count();
+        for (uint8_t i = 0; i < n; i++) {
+            Task& t = _tasks[_program_slot(i)];
+            if (t.name == nullptr) continue;
+            char key[40];
+            _prog_key(t.name, key, sizeof(key));
+            uint8_t byte = 0; size_t got = 0;
+            // Nothing stored is the normal case: a program runs unless it was
+            // deliberately taken out.
+            if (!HAL::Storage::get(key, &byte, 1, &got) || got != 1) continue;
+            t.enabled        = (byte != 0);
+            t.enable_unsaved = false;
+        }
     }
 
 }}  // namespace Botanik::Tasks

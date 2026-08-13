@@ -48,7 +48,7 @@ namespace Botanik {
         /** @brief The task table, with the per-task cost samples: the
          *  attribution the beat's CPU figure lacks, and what `tasks` reports.
          *  Const, because the registry is frozen once the loop starts. */
-        const Tasks::Registry*         tasks     = nullptr;
+        Tasks::Registry*               tasks     = nullptr;
 
         /** @brief The variables - THE object to get, set and override anything
          *  the firmware exposes. Non-const: `set` and `override` write through

@@ -162,6 +162,13 @@ namespace Botanik { namespace Tasks {
          *  True at registration - nothing has run yet - and raised again on a
          *  program when control authority returns. */
         bool       first_activation = true;
+        /** @brief Whether this PROGRAM may run. The operator's standing choice,
+         *  independent of control authority - the stricter of the two wins.
+         *  Ignored on a non-program entry. */
+        bool       enabled = true;
+        /** @brief `enabled` differs from the stored copy. Setting and saving are
+         *  two steps, as they are for a parameter. */
+        bool       enable_unsaved = false;
         /** @} */
         TaskTimer   timer;                ///< period from the group, own offset
         TaskCost    cost;
@@ -196,6 +203,11 @@ namespace Botanik { namespace Tasks {
          *  offset rule cannot drift between them. Null when the table is full
          *  (counted in overflow()). */
         Task* _claim(const char* name, GroupId group, Phase phase);
+
+        /** @brief Table index of the @p i'th PROGRAM entry, or -1. The one
+         *  place program numbering is derived, so program(), the enable flags
+         *  and the writer id cannot disagree about which is which. */
+        int16_t _program_slot(uint8_t i) const;
 
         /** @} */
 
@@ -282,6 +294,39 @@ namespace Botanik { namespace Tasks {
 
         /** @brief Whether program entries are currently allowed to run. */
         bool programs_enabled() const { return _programs_enabled; }
+
+        /** @} */
+
+        /** @name Per-program enable
+         *
+         *  A SECOND gate, beside control authority, and the stricter wins: an
+         *  operator who disabled one program keeps it disabled across a health
+         *  fault, and authority returning does not re-enable it.
+         *
+         *  Live but not durable until saved, like a parameter - so a program
+         *  taken out to work on the plant comes back on the next power cycle
+         *  unless that was meant to last. @{ */
+
+        /** @brief Program index of @p name (the name it registered under), or
+         *  -1. @p len 0 means NUL-terminated. */
+        int16_t find_program(const char* name, uint16_t len = 0) const;
+        /** @brief Whether the @p i'th program's own gate is open. */
+        bool    program_enabled(uint8_t i) const;
+        /** @brief Whether that flag has yet to reach storage. */
+        bool    program_unsaved(uint8_t i) const;
+
+        /** @brief Open or shut the @p i'th program's gate. Re-opening reseeds
+         *  its timer and raises Tick::first, for the reason
+         *  set_programs_enabled() does. @return false past the last program. */
+        bool    set_program_enabled(uint8_t i, bool on, uint64_t now_ms);
+
+        /** @brief Persist the @p i'th program's flag. */
+        bool    save_program(uint8_t i);
+        /** @brief Persist every unsaved flag. @return how many were written;
+         *  @p refused counts those storage would not take. */
+        uint8_t save_programs(uint8_t* refused = nullptr);
+        /** @brief Read every program's stored flag. Called by setup(). */
+        void    load_programs();
 
         /** @} */
 
