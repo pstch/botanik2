@@ -100,29 +100,41 @@ def test_monitor_group_modes(spawn):
     assert term.wait_screen("[all]"), "BACKSPACE did not reset to the all-groups view"
 
 
-# The six per-phase site hooks are registered as tasks of their own, so a slow one
-# is attributable on the TASKS page rather than hidden inside the base. They are
-# also what the task table is most likely to overflow on, and MAX_TASKS refusals
-# are counted and logged rather than fatal - so a hook that never registered
-# would simply never run, silently.
-def test_every_site_hook_is_registered(spawn):
-    term = goto(boot(spawn), keys.ALT_7)
-    want = {"site_input", "site_config", "site_service",
-            "site_control", "site_output", "site_present"}
-    seen = set()
+def test_the_task_table_is_complete(spawn):
+    """The count is the check, and the shell is where to ask it.
 
-    def scan():
-        for row in term.view():
-            seen.update(w for w in want if w in row)
-        return want <= seen
+    A registration that does not happen is invisible: it fails no build and no
+    unit test, the work simply never runs. Twice in this tree that cost a
+    subsystem silently - the platform alarms, then the whole network. What
+    catches it is that the total moves.
 
-    # The table is taller than the screen and sorted by name, so the hooks are
-    # spread through it: scan what is visible, scroll, repeat.
-    for _ in range(40):
-        if term.until(scan, max_beats=200):
-            break
-        term.send(keys.DOWN)
-    assert want <= seen, "not registered (MAX_TASKS overflow?): %s" % sorted(want - seen)
+    Asked through the shell rather than read off the TASKS page on purpose: the
+    page is a name-sorted scrolling table, so a scroll that stops short reads
+    exactly like an absent task. `tasks` answers in one line and cannot be
+    misread that way.
+    """
+    term = shell(spawn, quiet_logs=True)
+    term.send(b"tasks" + keys.ENTER)
+
+    # Every library task a full build registers. Raise it deliberately when
+    # adding one; a DROP is the bug this exists to catch.
+    assert term.wait_for("Registered .................. : 23"), \
+        "the task table changed size - a registration was added or silently lost"
+    assert term.wait_for("0 refused"), "a registration was refused: MAX_TASKS"
+
+
+def test_a_named_task_answers_for_itself(spawn):
+    """`tasks get <name>` is the decisive per-task check (design/scan-cycle-rework.md).
+
+    One from each phase, so a whole phase going missing is caught by name and
+    not only by the count above.
+    """
+    term = shell(spawn, quiet_logs=True)
+    for name, phase in (("console_in", "input"), ("params", "config"),
+                        ("health", "service"), ("supply_watch", "control"),
+                        ("modbus_rtu_tx", "output"), ("console_tx", "present")):
+        term.send(b"tasks get " + name.encode() + keys.ENTER)
+        assert term.wait_for(phase), "no task named %s in %s" % (name, phase)
 
 
 def _group(term):

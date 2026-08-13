@@ -42,10 +42,33 @@ namespace Botanik { namespace Health {
          *  when this stepped it directly. Nothing steps anything now: both are
          *  registry entries, so both are attributable and both have a rate. */
         void register_tasks() override;
+
+        /** @brief Bind the variable bank this drives its alarms into. */
+        void set_bank(const Vars::Bank* io) { _io = io; }
     private:
         /** @brief The registration handler. A static MEMBER, so the cast has
          *  access to the protected hook and stays beside the class. */
         static void _service_task(Component* c, const Tasks::Tick& t);
+        static void _latch_task(Component* c, const Tasks::Tick& t);
+
+        /** @brief Carry this beat's verdict to control authority, and the
+         *  authority to the programs.
+         *
+         *  Here rather than in the composition root because everything it needs
+         *  is already here: the verdict is this class's, the hold is on the
+         *  Bank it already writes alarms into, and the gate is on the registry
+         *  every Component is built with. It also raises SCAN_LATE, which is a
+         *  platform alarm like the six others this binds. */
+        void _latch_control(uint64_t now_ms);
+        /** @brief Whether the last beat saw a fault. Edge tracking only: the
+         *  control state lives in the Bank, so an operator's `control disable`
+         *  is not something this can silently talk over. */
+        bool _health_fault = false;
+        /** @brief Conflicts already reported, so a defect true on every beat is
+         *  named once. @see Vars::Bank::claim_writer */
+        uint16_t _conflicts_said = 0;
+        /** @brief The row carrying "a program is missing its period". */
+        Vars::VarRef _scan_late = { Vars::VAR_NONE };
 
         /** @name State
          *  @{ */

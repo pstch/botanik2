@@ -121,50 +121,6 @@ namespace Botanik {
      *  order, and exposes each for a site subclass to build on. */
     class BotanikFirmware {
 
-        /** @brief The firmware's OWN per-beat work, as a Component - the two
-         *  bits of housekeeping it does for itself, plus the six site hooks.
-         *
-         *  A component, because the registry takes nothing else: every entry in
-         *  the table is (Component* owner, handler taking a Tick), and that
-         *  uniformity is the point. A nested class rather than making
-         *  BotanikFirmware itself one, because the composition root already uses
-         *  `setup()`, `on_setup()` and `_logger` for different things, and it
-         *  wants none of announce / healthy() / a config serial. Nested, so it
-         *  reaches the enclosing class's hooks without a friend declaration.
-         *
-         *  It is the ONLY thing in the tree registering work it does not own.
-         *  Everything else - the bank, the logger, the parameters, both Modbus
-         *  ends, the console, the network services, every control program -
-         *  registers its own. */
-        class OwnTasks : public Component {
-            BotanikFirmware& _fw;
-
-        public:
-            OwnTasks(const SetupContext& ctx, BotanikFirmware& fw)
-                : Component(ctx, "firmware"), _fw(fw) {}
-
-            void register_tasks() override;
-
-        private:
-            /** @name The handlers
-             *
-             *  One named static per method, written out. `Task::handler` is a
-             *  plain function pointer and a pointer-to-member will not convert
-             *  to one, so every dispatched method needs a free function in
-             *  front of it - and eight short ones say it plainly where a
-             *  template said it once and obscurely. Each is greppable, takes a
-             *  breakpoint, and names itself in a stack trace.
-             *  @{ */
-            static void _site_input  (Component* c, const Tasks::Tick& t);
-            static void _site_config (Component* c, const Tasks::Tick& t);
-            static void _control_latch(Component* c, const Tasks::Tick& t);
-            static void _site_service(Component* c, const Tasks::Tick& t);
-            static void _site_control(Component* c, const Tasks::Tick& t);
-            static void _site_output (Component* c, const Tasks::Tick& t);
-            static void _site_present(Component* c, const Tasks::Tick& t);
-            /** @} */
-        };
-
         /** @name Configuration
          *  @{ */
 
@@ -209,37 +165,6 @@ namespace Botanik {
         Vars::Bank                       _io;          ///< the site's variables
         Vars::KvParamStore             _param_store; ///< one storage key per parameter
         Vars::Params                   _params;      ///< the editable view of the variables
-#if BOTANIK_FEATURE_PLC_SCAN
-        /** @name The control programs
-         *
-         *  They are registry entries now, so what is left here is what only
-         *  this class can do: apply the authority edge to the site's table, and
-         *  turn a program index back into a program NAME.
-         *  @{ */
-
-        /** @brief The conflict count already reported, so a defect that is true
-         *  on every beat is named once, not every 10 ms.
-         *  @see Vars::Bank::claim_writer() */
-        uint16_t             _conflicts_said = 0;
-        /** @brief The row carrying "a program is missing its period", resolved
-         *  once at bring-up like every other name the library reads. */
-        Vars::VarRef         _scan_late_alarm = { Vars::VAR_NONE };
-        /** @brief The worst lateness on the last beat, and who owned it.
-         *  Borrowed from the site's table, so it lives as long as this does. */
-        uint32_t             _scan_late_ms = 0;
-        const Plc::Program*  _scan_worst   = nullptr;
-
-        /** @} */
-#endif
-        /** @brief The firmware's own rows in the task table (see OwnTasks).
-         *  Declared here so it is constructed with everything else; it only
-         *  stores a reference, so the order does not matter. */
-        OwnTasks                       _own_tasks;
-        /** @brief Whether the last beat saw a health fault. Edge tracking only:
-         *  the control state itself lives in the Bank (control_enabled()), so
-         *  an operator's `control disable` is not something the loop can
-         *  silently talk over. */
-        bool                           _health_fault = false;
         Health::HealthMonitor          _health;
         SystemContext                  _sys_ctx;     ///< Filled in the ctor body
 #if BOTANIK_FEATURE_LOGS_MONITOR
@@ -480,59 +405,6 @@ namespace Botanik {
          *  Default: nothing. */
         virtual void on_setup() {}
 
-        /** @name Per-phase hooks
-         *
-         *  One hook per phase of the beat, each registered as a task of its own
-         *  ("site_input", "site_config", ...) so a slow one is attributable on
-         *  the TASKS page rather than hiding inside the base. Default: nothing.
-         *
-         *  Pick the hook by where the work belongs in the DATA FLOW, the same
-         *  rule the phases themselves follow (@ref dev_tasks): read in
-         *  on_input(), settle configuration in on_config(), run background state
-         *  machines in on_service(), decide in on_control(), hand demands to the
-         *  field in on_output(), report in on_present().
-         *
-         *  **Only on_control() is gated by control authority.** The other five
-         *  run whatever the mode, so bookkeeping, derived values and telemetry
-         *  stay correct while the plant is stopped - which is what makes a
-         *  stopped plant diagnosable. Anything that DRIVES the field belongs in
-         *  on_control(), or it keeps driving through a health fault.
-         *  @{ */
-
-        /** @brief After the field commit, the serial RX and the expiry sweep, so
-         *  this beat's readings are in and coherent. */
-        virtual void on_input(uint64_t now_ms) { (void)now_ms; }
-
-        /** @brief After the parameter commit, so a value read here is the one
-         *  everything below will use this beat. */
-        virtual void on_config(uint64_t now_ms) { (void)now_ms; }
-
-        /** @brief Beside health and the network: a site's own background state
-         *  machine, stepped once per beat. */
-        virtual void on_service(uint64_t now_ms) { (void)now_ms; }
-
-        /** @brief The site's control law, run ONLY while control authority is
-         *  enabled, beside the scan driver.
-         *
-         *  Authority is enforced per dispatch point rather than per write -
-         *  `Vars::Var` is two pointers passed by value and has no route to the
-         *  latch - so the gate has to be here. A third place that drives the
-         *  field must gate itself the same way.
-         *
-         *  Carries no scheduling state, so nothing is reset on the way down or
-         *  reseeded on the way back up; a site needing those wants a
-         *  `Plc::Program`. */
-        virtual void on_control(uint64_t now_ms) { (void)now_ms; }
-
-        /** @brief After the programs have driven their demands and before the
-         *  field write, for a site that has to shape what goes out. */
-        virtual void on_output(uint64_t now_ms) { (void)now_ms; }
-
-        /** @brief With the beat's decisions made: telemetry, counters, anything
-         *  that reports rather than decides. */
-        virtual void on_present(uint64_t now_ms) { (void)now_ms; }
-
-        /** @} */
 
         /** @} */
 
@@ -569,34 +441,8 @@ namespace Botanik {
 
 
 
-        /** @brief Track the health verdict against control authority. Registered
-         *  as the "control_latch" task.
-         *
-         *  Withdrawing control is a LATCH, not a per-beat sweep: sweeping
-         *  outputs after the scan would flicker, since the next beat's programs
-         *  re-drive the same demands. A fault takes control away and the outputs
-         *  stay safe until health recovers.
-         *
-         *  Health holds its OWN inhibit, so recovering releases only that one:
-         *  an operator's `control disable` stays in force across a fault that
-         *  came and went. */
-        void _latch_control(uint64_t now_ms);
 
-        /** @brief The site's own control law, under the control-authority gate.
-         *  Registered as the "site_control" task - the one site hook that is
-         *  gated, and the second of the two dispatch points that drive the
-         *  field (@ref dev_scan). */
-        void _run_site_control(uint64_t now_ms);
 
-        /** @brief Carry the Bank's verdict to the programs: the gate, and both
-         *  edges. Called from _latch_control(), so it runs in PHASE_SERVICE -
-         *  before PHASE_CONTROL, which is what makes a withdrawal take effect on
-         *  the beat it is decided rather than the next one. */
-        void _apply_control_authority();
-#if BOTANIK_FEATURE_PLC_SCAN
-        /** @brief Find the worst-late program and drive the SCAN_LATE row. */
-        void _publish_lateness();
-#endif
     };
 
 }  // namespace Botanik

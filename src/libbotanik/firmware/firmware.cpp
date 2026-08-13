@@ -19,14 +19,13 @@ namespace Botanik {
     // _modbus_tcp and _console take its alarm model.
     BotanikFirmware::BotanikFirmware(const SiteDescriptor& site)
         : _site(site),
-          _logger(&_tasks),
+          _logger(),
           _scheduler(_tasks, Config::TASK_PERIOD_MS, &_logger),
           _setup(_tasks, &_logger),
           _io(site.vars, _setup),
           // Params come from local storage.
           _param_store(),
           _params(_setup, &_io, &_param_store),
-          _own_tasks(_setup, *this),
           // The alarm model scans the variable table for SCOPE_A rows;
           // platform-health alarms are appended and driven locally.
           _health(_setup, _scheduler.context(), &_io)
@@ -235,72 +234,16 @@ namespace Botanik {
         if (_site.home_refs != nullptr && _site.home_fields != nullptr)
             for (uint8_t i = 0; i < _site.home_field_count; i++)
                 _site.home_refs[i] = _io.find(_site.home_fields[i].name);
-#if BOTANIK_FEATURE_PLC_SCAN
-        // By name, once, like every other library consumer. A site that omitted
-        // the library splice resolves to the sink and the POST names the row.
-        _scan_late_alarm = _io.find("alarm_scan_late");
-#endif
     }
 
     // The task table
     // ------------------------------------------------------------------------
 
-    // One named static per method (see OwnTasks). Each reaches the enclosing
-    // firmware through the nested class's reference to it.
-    void BotanikFirmware::OwnTasks::_site_input(Component* c, const Tasks::Tick& t) {
-        static_cast<OwnTasks*>(c)->_fw.on_input(t.now_ms);
-    }
-    void BotanikFirmware::OwnTasks::_site_config(Component* c, const Tasks::Tick& t) {
-        static_cast<OwnTasks*>(c)->_fw.on_config(t.now_ms);
-    }
-    void BotanikFirmware::OwnTasks::_control_latch(Component* c, const Tasks::Tick& t) {
-        static_cast<OwnTasks*>(c)->_fw._latch_control(t.now_ms);
-    }
-    void BotanikFirmware::OwnTasks::_site_service(Component* c, const Tasks::Tick& t) {
-        static_cast<OwnTasks*>(c)->_fw.on_service(t.now_ms);
-    }
-    void BotanikFirmware::OwnTasks::_site_control(Component* c, const Tasks::Tick& t) {
-        static_cast<OwnTasks*>(c)->_fw._run_site_control(t.now_ms);
-    }
-    void BotanikFirmware::OwnTasks::_site_output(Component* c, const Tasks::Tick& t) {
-        static_cast<OwnTasks*>(c)->_fw.on_output(t.now_ms);
-    }
-    void BotanikFirmware::OwnTasks::_site_present(Component* c, const Tasks::Tick& t) {
-        static_cast<OwnTasks*>(c)->_fw.on_present(t.now_ms);
-    }
-
     // The firmware's own eight rows: two bits of housekeeping and the six site
     // hooks. Each names its phase and rate here, beside the others, so the beat
     // still reads top to bottom in _register_tasks() below.
-    void BotanikFirmware::OwnTasks::register_tasks() {
-        using namespace Tasks;
-        _tasks->add(*this, &_site_input,
-              "site_input",    GROUP_FAST, PHASE_INPUT);
-        _tasks->add(*this, &_site_config,
-              "site_config",   GROUP_FAST, PHASE_CONFIG);
-        _tasks->add(*this, &_control_latch,
-              "control_latch", GROUP_FAST, PHASE_SERVICE);
-        _tasks->add(*this, &_site_service,
-              "site_service",  GROUP_FAST, PHASE_SERVICE);
-        // The site's own control law, under the same gate the registry applies
-        // to the programs.
-        _tasks->add(*this, &_site_control,
-              "site_control",  GROUP_FAST, PHASE_CONTROL);
-        _tasks->add(*this, &_site_output,
-              "site_output",   GROUP_FAST, PHASE_OUTPUT);
-        _tasks->add(*this, &_site_present,
-              "site_present",  GROUP_FAST, PHASE_PRESENT);
-    }
-
     void BotanikFirmware::_register_tasks() {
         using namespace Tasks;
-
-        // This firmware's own rows, in every phase at once. Registration order
-        // within a phase is execution order, so they land ahead of everything
-        // registered below - which is where the site hooks belong: a site's
-        // per-phase work runs before the library's own for that phase.
-        _own_tasks.register_tasks();
-
         // --- INPUT: fresh bytes and fresh field, before anything reads ---
         // Both field-bus components span the beat, and each registers every
         // phase it acts in at once: the RTU master takes the field in at INPUT
@@ -352,7 +295,8 @@ namespace Botanik {
         // in the SAME beat rather than waiting for the next one.
 
 #if BOTANIK_FEATURE_LOGGING
-        _logger.register_tasks();
+        // No task for the logger: its buckets refill from elapsed time at the
+        // moment they are read (Logger::_emit).
 #endif
 #if BOTANIK_FEATURE_CONSOLE
         // Three tasks, and the port's two are not among them: console_in at the
@@ -372,64 +316,6 @@ namespace Botanik {
     // Per-beat internals
     // ------------------------------------------------------------------------
 
-
-    void BotanikFirmware::_run_site_control(uint64_t now_ms) {
-        // The gate is per DISPATCH POINT, not per write (see on_control()), so
-        // the programs and this are the whole list: a third place that drives
-        // the field must gate itself here.
-        if (_io.control_enabled()) on_control(now_ms);
-    }
-
-    void BotanikFirmware::_latch_control(uint64_t now_ms) {
-        (void)now_ms;
-        if (!_health.watchdog_ok()) {
-            if (!_health_fault) {
-                _health_fault = true;
-                _io.set_health_hold(true);
-                _logger.critical(Logs::HEALTH,
-                    "control disabled\n"
-                    "outputs at their safe state, scan inhibited");
-            }
-        } else if (_health_fault) {
-            _health_fault = false;
-            _io.set_health_hold(false);
-            // Lead hoisted out of the ternary: the format string stays a
-            // literal the printf attribute can check, and both outcomes grep
-            // as "health recovered".
-            _logger.warning(Logs::HEALTH, "health recovered\n%s",
-                _io.control_enabled()
-                    ? "control enabled, scan resuming"
-                    : "control still disabled by the operator");
-        }
-        _apply_control_authority();
-    }
-
-    void BotanikFirmware::_apply_control_authority() {
-        // The whole edge, in one call: the gate, and on the way back up the
-        // timer reseed and the first-scan flag. Idempotent, so there is no edge
-        // to track here.
-        _scheduler.set_control_enabled(_io.control_enabled(),
-                                       HAL::Clock::uptime_ms());
-#if BOTANIK_FEATURE_PLC_SCAN
-        _publish_lateness();
-        // Edge-triggered and named once: two programs driving one output is a
-        // design defect, true on every beat from here.
-        (void)Plc::report_writer_conflicts(_io, _tasks, &_logger, _conflicts_said);
-#endif
-    }
-
-#if BOTANIK_FEATURE_PLC_SCAN
-    void BotanikFirmware::_publish_lateness() {
-        const Plc::Program* worst = nullptr;
-        const uint32_t late = Plc::worst_lateness(_tasks, &worst);
-        _scan_worst = worst;
-        _scan_late_ms = late;
-        // Written every beat, like any other alarm input: the dwell in the row's
-        // own policy is what turns a burst into an alarm, not this.
-        _io.var(_scan_late_alarm).set(late > Config::SCAN_LATE_MS);
-    }
-
-#endif
 
     // Site customization hooks (defaults)
     // ------------------------------------------------------------------------

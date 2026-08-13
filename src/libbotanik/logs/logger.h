@@ -44,17 +44,13 @@ namespace Botanik { namespace Logs {
      *  @brief Rate-limited logging front-end: applies the dual token-bucket
      *         limiter, then fans surviving entries out to the registered
      *         writers. */
-    class Logger : public Botanik::Component {
-    public:
-        /** @brief One task: refill the rate-limiter buckets and drain the
-         *  sinks, in PHASE_PRESENT. First in that phase, so a line logged this
-         *  beat reaches the pages before they are drawn. */
-        void register_tasks() override;
-
-    private:
-        /** @brief The registration handler. A static MEMBER, so the cast stays
-         *  beside the class it casts to. */
-        static void _present_task(Component* c, const Tasks::Tick& t);
+    /** @note NOT a Component, deliberately. It would have to be constructed
+     *  with the table it registers in, and it passes ITSELF as its own logger -
+     *  a self-reference nothing else in the tree needs. It also sits below
+     *  everything: `vars/` reports a refused write through one. So the firmware
+     *  registers its refill (BotanikFirmware::OwnTasks), as it does for anything
+     *  else that is not a Component. */
+    class Logger {
 
 
         /** @name Rate-limiter
@@ -69,6 +65,9 @@ namespace Botanik { namespace Logs {
          *  topics to NONE. */
         LogBucket_t     _perTopic_buckets[Logs::LOG_TOPIC_COUNT];
         uint32_t        _suppress_reportTime_ms = 0;   ///< suppressed-report cadence anchor
+        /** @brief Re-entrancy guard for refill(): its suppression and loss
+         *  reports LOG, and _emit() refills, so the recursion is real. */
+        bool            _refilling = false;
 
         /** @} */
 
@@ -107,9 +106,7 @@ namespace Botanik { namespace Logs {
 
         /** @brief Construct a Logger with empty writer list and full rate-limit
          *  buckets */
-        /** @brief @p tasks is the table its own refill task registers in; null
-         *  leaves it unregistered, which is what a test wants. */
-        explicit Logger(Tasks::Registry* tasks = nullptr);
+        Logger();
 
         /** @} */
 
@@ -152,7 +149,7 @@ namespace Botanik { namespace Logs {
         void refill();
         /** @brief Healthy while at least one writer is registered (a writerless
          *  logger silently swallows everything). */
-        bool healthy() const override { return has_writers(); }
+        bool healthy() const { return has_writers(); }
         /** @brief Forward @p entry to all registered writers after rate-limit
          *  checks */
         void push_entry(const Logs::LogEntry& entry);

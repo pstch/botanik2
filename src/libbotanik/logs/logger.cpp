@@ -34,10 +34,7 @@ namespace Botanik { namespace Logs {
     // Lifecycle
     // ------------------------------------------------------------------------
 
-    // Its own logger, and the one Component built from a context it makes
-    // itself: nothing else exists this early.
-    Logger::Logger(Tasks::Registry* tasks)
-        : Component(SetupContext(tasks, this), "Logger") {
+    Logger::Logger() {
         // one sample: all three anchors share it
         uint32_t now = HAL::Clock::current_ms();
         _perTopic_fillTime_ms   = now;
@@ -71,6 +68,10 @@ namespace Botanik { namespace Logs {
 #if !BOTANIK_FEATURE_LOGGING
         return;                     // no buckets to refill, nothing suppressed
 #else
+        // _report_* below log, and logging refills: without this the first
+        // suppression report recurses.
+        if (_refilling) return;
+        _refilling = true;
         uint32_t now_ms         = HAL::Clock::current_ms();
 
         // refill the global bucket
@@ -111,6 +112,7 @@ namespace Botanik { namespace Logs {
         if (_watched_tx_count > 0)
             _report_loss(_tx_loss, tx_total, Config::LOG_TX_DROP_REPORT_PERIOD_MS,
                          now_ms, "serial bytes dropped (TX full)");
+        _refilling = false;
 #endif
     }
 
@@ -225,6 +227,10 @@ namespace Botanik { namespace Logs {
         (void)level; (void)topic; (void)fmt; (void)ap;
         return;
 #else
+        // Before the buckets are read, not on a beat: a token bucket adds for
+        // the time ELAPSED, so this is where it is exact. Re-entrant-safe (the
+        // loss reports it emits come back through here).
+        refill();
         Logs::LogEntry entry = {};
         _build_entry(entry, level, topic, HAL::Clock::current_ms(), fmt, ap);
         push_entry(entry);
@@ -234,14 +240,5 @@ namespace Botanik { namespace Logs {
 }}
 
 namespace Botanik { namespace Logs {
-
-    void Logger::_present_task(Component* c, const Tasks::Tick&) {
-        static_cast<Logger*>(c)->refill();
-    }
-
-    void Logger::register_tasks() {
-        _tasks->add(*this, &Logger::_present_task, "logger",
-              Tasks::GROUP_FAST, Tasks::PHASE_PRESENT);
-    }
 
 }}  // namespace Botanik::Logs
