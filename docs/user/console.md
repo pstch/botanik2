@@ -415,7 +415,8 @@ The lifecycle behind the columns is in @ref user_alarms.
 
 Reading and editing the unit's settings. Select a row and the panel gives its
 minimum, maximum, default, description and notes - what you need *before* committing
-to a value.
+to a value. What each library-provided parameter means, and the two-step edit behind
+the `*` marks, is @ref user_params.
 
 `ENTER` opens an inline editor on the bottom row; type, `ENTER` again to apply, `ESC`
 to abandon. An applied value is live immediately and marked with a trailing `*`,

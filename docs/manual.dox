@@ -24,6 +24,16 @@ computed/status values. Depending on their scope & type, variables may specify a
 
 See @subpage user_variables for more information.
 
+@subsection manual_params Parameters
+
+A parameter is a variable you may edit: the unit's settings, from the console's own baud rate to the
+field bus's timeouts and the thresholds the platform alarms fire on. An edit is **live when you set it and
+durable when you save it**, which is what makes a setting that breaks its own console recoverable - it never
+reached flash, so a power cycle brings the last saved one back. Settings that configure a subsystem come in
+groups, applied together when the group's `_serial` row is bumped.
+
+See @subpage user_params for the library-provided parameters and the two-step edit.
+
 @subsection manual_alarms Alarms
 
 An alarm is a variable too: a boolean row carrying the dwell policy that decides how long its condition
