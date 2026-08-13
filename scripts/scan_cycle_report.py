@@ -162,13 +162,14 @@ def callout(title, body_paras):
 # --------------------------------------------------------------------------
 
 PHASES = [
-    ("INPUT", ["site_input", "modbus_rtu_rx", "modbus_tcp_rx", "expire_stale",
-               "console_in"]),
-    ("CONFIG", ["console_cfg", "monitor_cfg", "params", "site_config"]),
-    ("SERVICE", ["control_latch", "health", "alarms", "net / ntp / mqtt"]),
-    ("CONTROL", ["site_control", "supply_watch", "supply_report"]),
-    ("OUTPUT", ["site_output", "modbus_rtu_tx"]),
-    ("PRESENT", ["site_present", "logger", "console", "console_tx"]),
+    ("INPUT", ["modbus_rtu_rx", "modbus_tcp_rx", "console_in",
+               "expire_stale", "reject_implaus."]),
+    ("CONFIG", ["console_cfg", "monitor_cfg", "params"]),
+    ("SERVICE", ["control_latch", "health", "alarms", "net / ntp / mqtt",
+                 "telemetry", "modbus_tcp_wr"]),
+    ("CONTROL", ["supply_watch", "supply_report"]),
+    ("OUTPUT", ["modbus_rtu_tx"]),
+    ("PRESENT", ["console", "console_tx", "monitor_log", "modbus_tcp_tx"]),
 ]
 
 
@@ -366,7 +367,7 @@ struct Task {
     TaskTimer    timer;                                // due / late / dropped
     TaskCost     cost;                                 // what it costs
 };
-""", "src/libbotanik/tasks/tasks.h - 80 bytes, 48 slots, 30 used by the full profile"))
+""", "src/libbotanik/tasks/tasks.h - 80 bytes, 48 slots, 23 used by the full profile"))
 
     f.append(para(
         "<b>One dispatch shape, and that is the point.</b> Every entry is an "
@@ -415,8 +416,9 @@ struct Task {
         "once."))
     f.append(code("""
 // console.h  - public, because an override inherits the access of the
-//              section it is declared in
-void register_tasks(Tasks::Registry& r) override;
+//              section it is declared in. No argument: a Component was
+//              built with a SetupContext, so it already knows its table.
+void register_tasks() override;
 
 // console.cpp - the handlers, beside the methods they call
 void Console::_input_task(Component* c, const Tasks::Tick&) {
@@ -429,10 +431,10 @@ void Console::_flush_task(Component* c, const Tasks::Tick&) {
     static_cast<Console*>(c)->_flush();
 }
 
-void Console::register_tasks(Tasks::Registry& r) {
-    r.add(*this, &Console::_input_task, "console_in", GROUP_FAST, PHASE_INPUT);
-    r.add(*this, &Console::_draw_task,  "console",    GROUP_SLOW, PHASE_PRESENT);
-    r.add(*this, &Console::_flush_task, "console_tx", GROUP_FAST, PHASE_PRESENT);
+void Console::register_tasks() {
+    _tasks->add(*this, &Console::_input_task, "console_in", GROUP_FAST, PHASE_INPUT);
+    _tasks->add(*this, &Console::_draw_task,  "console",    GROUP_SLOW, PHASE_PRESENT);
+    _tasks->add(*this, &Console::_flush_task, "console_tx", GROUP_FAST, PHASE_PRESENT);
 }
 """, "src/libbotanik/console/console.cpp - one component, three tasks, two rates"))
 
@@ -462,12 +464,35 @@ void Console::register_tasks(Tasks::Registry& r) {
         "the component named it again by which hook it overrode, and nothing "
         "checked the two agreed."))
 
+    f.append(para("What is not a component", "h2"))
+    f.append(para(
+        "Being in the beat is not a promotion, and the two things that look "
+        "most like they should be are not. "
+        "<font face='Courier' size='9'>Logs::Logger</font> "
+        "has a token bucket to refill, which sounds exactly like a task - but a "
+        "token bucket adds for the time <i>elapsed</i>, so it wants a timestamp "
+        "and not a cadence. Refilling from the emit path makes it exact rather "
+        "than up to a beat stale, costs no row, and removes a layering problem "
+        "besides: a component is constructed with a logger, and the logger cannot "
+        "be constructed with itself."))
+    f.append(para(
+        "The other is <font face='Courier' size='9'>BotanikFirmware</font> "
+        "itself, which owns the table and is not in it. It briefly held an "
+        "adapter whose whole job was to be a Component so the composition root "
+        "could register two stragglers; both turned out to belong to owners that "
+        "were already components, and the adapter went with them. A composition "
+        "root that needs a row in its own table is describing work it has not "
+        "found an owner for yet."))
+    f.append(para(
+        "The general form: <b>register work that must happen whether or not "
+        "anyone asks</b>. Work that already has a caller does not need a beat."))
+
     f.append(para("4. A registration is more than the hook", "h1"))
     f.append(para(
         "Registering is also what gets a component <b>set up</b> and what keeps "
         "its <b>configuration</b> current. Both are the registry's job, because "
         "a handler dispatches one method and nothing else."))
-    f.append(table([
+    f.append(KeepTogether([para("&nbsp;", "caption"), table([
         ["Before the loop", "Every beat"],
         ["<font face='Courier' size='9'>setup()</font> runs "
          "<font face='Courier' size='9'>on_setup()</font> then "
@@ -480,7 +505,7 @@ void Console::register_tasks(Tasks::Registry& r) {
          "<font face='Courier' size='9'>on_param_changed()</font> when it has "
          "moved. Once per beat per owner, before the hook that reads the "
          "config."],
-    ], [BODY_W / 2, BODY_W / 2]))
+    ], [BODY_W / 2, BODY_W / 2])]))
     f.append(Spacer(1, 6))
     f.append(callout(
         "Learned the hard way, twice",
@@ -504,12 +529,20 @@ void Console::register_tasks(Tasks::Registry& r) {
     # -- 5. control authority + programs ----------------------------------
     f.append(para("5. How components reach each other", "h1"))
     f.append(para(
-        "Almost never directly. Two shared objects carry nearly all of it, and "
-        "both are handed over by <b>constructor injection</b> - a consumer is "
+        "Almost never directly. Three shared objects carry nearly all of it, and "
+        "each is handed over by <b>constructor injection</b> - a consumer is "
         "given a pointer at construction and reads it later, so there is no "
         "two-phase wiring step and nothing has to be re-fetched per beat."))
     f.append(table([
         ["What", "Carries", "Who reads it"],
+        ["`SetupContext`", "the table to register in and the log to speak "
+                           "through - the two things every component needs "
+                           "before it can do anything. Passed by reference to "
+                           "the <font face='Courier' size='9'>Component</font> "
+                           "constructor and kept, which is what lets "
+                           "<font face='Courier' size='9'>register_tasks()</font> "
+                           "take no argument at all",
+         "every component, at construction"],
         ["`Vars::Bank`", "the one model everything the firmware exposes goes "
                          "through: a meter reading, a relay coil, a computed "
                          "value, a parameter. <b>Components do not call each "
@@ -528,6 +561,22 @@ void Console::register_tasks(Tasks::Registry& r) {
          "the reporting surfaces: the shell, the status page, MQTT telemetry"],
     ], [30 * mm, BODY_W - 74 * mm, 44 * mm]))
     f.append(Spacer(1, 5))
+    f.append(para(
+        "<b>Why two contexts and not one.</b> They are read at different times, "
+        "and one of them cannot be read early. "
+        "<font face='Courier' size='9'>SystemContext</font> is filled in the "
+        "firmware constructor's <i>body</i>, after every member exists, so a "
+        "component reading it at construction would find it empty; "
+        "<font face='Courier' size='9'>SetupContext</font> is built before "
+        "anything else and handed down. The split also says something true: "
+        "what a component is <i>built with</i> is not what it <i>reports on</i>."))
+    f.append(para(
+        "<font face='Courier' size='9'>SetupContext</font> deliberately does not "
+        "carry the bank, and the first reason is fatal on its own - "
+        "<font face='Courier' size='9'>Vars::Bank</font> is itself a Component, "
+        "so a context carrying a bank could not construct one. The second is that "
+        "a signature should still say whether something touches the field. Most "
+        "components do not."))
     f.append(para(
         "The direction matters: <font face='Courier' size='9'>SystemContext</font> "
         "is <b>not</b> reachable through the console, and the console holds no "
@@ -554,6 +603,14 @@ void Console::register_tasks(Tasks::Registry& r) {
     f.append(code("""
 void Registry::set_programs_enabled(bool enabled, uint64_t now_ms);
 """, "src/libbotanik/tasks/tasks.h - the whole edge, in one idempotent call"))
+    f.append(para(
+        "Calling it is one SERVICE task, <font face='Courier' size='9'>"
+        "control_latch</font>, owned by the health monitor - which is where it "
+        "belongs rather than in the composition root: the verdict is the health "
+        "monitor's, the authority it reads sits in the bank it already writes "
+        "alarms into, and the gate is on the registry every component is built "
+        "with. It runs at the fast rate, before the phase it gates, so control "
+        "is withdrawn on the beat the fault is seen and not the one after."))
     f.append(table([
         ["Edge", "What happens", "Why"],
         ["withdrawn", "the gate shuts, and nothing else",
@@ -605,8 +662,8 @@ class SupplyWatch : public Plc::Program {
     Vars::VarRef _ln = { Vars::VAR_NONE }, _locked = { Vars::VAR_NONE };
 
 public:
-    SupplyWatch(Vars::Bank& io, Logs::Logger* log = nullptr)
-        : Program("supply_watch", Tasks::GROUP_SLOW, io, log) {}
+    SupplyWatch(const SetupContext& ctx, Vars::Bank& io)
+        : Program(ctx, "supply_watch", Tasks::GROUP_SLOW, io) {}
 
 protected:
     void bind(Vars::Bank& io) override {
@@ -643,14 +700,17 @@ class GreenhouseMLB41 final : public BotanikFirmware {
 public:
     GreenhouseMLB41()
         : BotanikFirmware(Site::g_site),
-          _supply_watch(io(), &logger()),      // the field it drives
-          _supply_report(io(), &logger()) {}
+          // the base is fully built before any derived member, so both
+          // of these are already alive
+          _supply_watch (setup_context(), io()),   // register in / drive
+          _supply_report(setup_context(), io()),
+          _pumps        (setup_context()) {}
 
 protected:
     void on_setup() override {
-        _supply_watch.register_tasks(scheduler().tasks());
-        _supply_report.register_tasks(scheduler().tasks());
-        _pumps.register_tasks(scheduler().tasks());
+        _supply_watch.register_tasks();
+        _supply_report.register_tasks();
+        _pumps.register_tasks();
     }
 };
 """, "src/sites/gh_mlb41/site.h - registration order IS execution order in CONTROL"))
@@ -659,6 +719,15 @@ protected:
         "is set up in the same sweep as the library's own. A Component and a "
         "Program register identically; the only difference is that a program's "
         "entry is the one the authority gate can shut."))
+    f.append(para(
+        "<b>There are no per-phase site hooks</b>, and removing them is what made "
+        "this the only way in. Six of them existed - one per phase, each "
+        "registered as a task named <font face='Courier' size='9'>site_input</font> "
+        "and so on - and they were worse than they looked: a site got exactly one "
+        "row per phase whatever it put in them, so two unrelated jobs shared a "
+        "name, a rate group and a cost sample, and the TASKS page could not "
+        "attribute either. A named component of the site's own has none of those "
+        "problems and needs no library-side support at all."))
 
     f.append(para("What the scaffolding guarantees", "h2"))
     f += bullets([
