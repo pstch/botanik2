@@ -164,7 +164,7 @@ def callout(title, body_paras):
 PHASES = [
     ("INPUT", ["site_input", "modbus_rtu_rx", "modbus_tcp_rx", "expire_stale",
                "console_in"]),
-    ("CONFIG", ["serial_cfg", "console_cfg", "log_cfg", "params"]),
+    ("CONFIG", ["console_cfg", "monitor_cfg", "params", "site_config"]),
     ("SERVICE", ["control_latch", "health", "alarms", "net / ntp / mqtt"]),
     ("CONTROL", ["site_control", "supply_watch", "supply_report"]),
     ("OUTPUT", ["site_output", "modbus_rtu_tx"]),
@@ -361,12 +361,12 @@ struct Task {
     Phase        phase;                                // where in the beat
     Component*   owner;                                // the erased self
     void       (*handler)(Component*, const Tick&);    // the call
-    bool         is_program;                           // control-gated
+    Plc::Program* program;                             // non-null = a program
     bool         first_activation;                     // -> Tick::first
     TaskTimer    timer;                                // due / late / dropped
     TaskCost     cost;                                 // what it costs
 };
-""", "src/libbotanik/tasks/tasks.h - 80 bytes, 48 slots, 31 used by the full profile"))
+""", "src/libbotanik/tasks/tasks.h - 80 bytes, 48 slots, 30 used by the full profile"))
 
     f.append(para(
         "<b>One dispatch shape, and that is the point.</b> Every entry is an "
@@ -605,7 +605,8 @@ class SupplyWatch : public Plc::Program {
     Vars::VarRef _ln = { Vars::VAR_NONE }, _locked = { Vars::VAR_NONE };
 
 public:
-    SupplyWatch() : Program("supply_watch", Tasks::GROUP_SLOW) {}
+    SupplyWatch(Vars::Bank& io, Logs::Logger* log = nullptr)
+        : Program("supply_watch", Tasks::GROUP_SLOW, io, log) {}
 
 protected:
     void bind(Vars::Bank& io) override {
@@ -624,52 +625,49 @@ protected:
     }
 };
 
-// The site's table: pointers, so it stays const and flash-resident even
-// though what it points at is RAM. Order IS execution order.
-Plc::Program* const g_programs[] = {
-    &Plc::Instance<SupplyWatch>::obj,
-    &Plc::Instance<SupplyReport>::obj,
-};
-""", "src/sites/gh_mlb41/tasks.h - the site declares programs, the base registers them"))
+""", "src/sites/gh_mlb41/tasks.h - blocks and refs as members, two methods overridden"))
 
     f.append(para("Registering them, and anything else the site owns", "h2"))
     f.append(para(
-        "A site's programs come off its <font face='Courier' size='9'>"
-        "SiteDescriptor</font> table and the base registers them for it. "
-        "Anything else - a subsystem with state of its own, several rates, or "
-        "more than one point in the beat - the site registers itself, in "
-        "<font face='Courier' size='9'>on_setup()</font>:"))
+        "<b>A program is a member of the site's firmware class</b>, and registering "
+        "is what puts it in the beat. There is no table of program pointers "
+        "anywhere: being a member is what makes there be exactly one of it, "
+        "and the base is fully constructed before any derived member, so the "
+        "bank and the logger are alive in the initialiser list."))
     f.append(code("""
-class GreenhouseMLB41 : public BotanikFirmware {
-    MyPumpBank  _pumps;          // a Component of the site's own
-    MyVentLaw   _vent;           // a Plc::Program not in the descriptor table
+class GreenhouseMLB41 final : public BotanikFirmware {
+    SupplyWatch  _supply_watch;      // a Plc::Program
+    SupplyReport _supply_report;
+    MyPumpBank   _pumps;             // ...or a Component of the site's own
+
+public:
+    GreenhouseMLB41()
+        : BotanikFirmware(Site::g_site),
+          _supply_watch(io(), &logger()),      // the field it drives
+          _supply_report(io(), &logger()) {}
 
 protected:
     void on_setup() override {
+        _supply_watch.register_tasks(scheduler().tasks());
+        _supply_report.register_tasks(scheduler().tasks());
         _pumps.register_tasks(scheduler().tasks());
-        _vent.attach(io());
-        _vent.register_tasks(scheduler().tasks());
     }
 };
-""", "on_setup() runs before the setup pass, so both are set up with everything else"))
+""", "src/sites/gh_mlb41/site.h - registration order IS execution order in CONTROL"))
     f.append(para(
-        "There is nothing special about either: both become ordinary rows, "
-        "dispatched by the same loop, set up in the same sweep, and named on the "
-        "TASKS page. The six per-phase hooks "
-        "(<font face='Courier' size='9'>on_input()</font> ... "
-        "<font face='Courier' size='9'>on_present()</font>) remain for one-off "
-        "per-beat work, and <font face='Courier' size='9'>on_loop()</font> is an "
-        "escape hatch for what fits neither - but anything registered outside "
-        "the table has no phase, no rate and no cost sample, so if it is slow, "
-        "nothing will say so."))
+        "on_setup() runs before the setup pass, so everything registered there "
+        "is set up in the same sweep as the library's own. A Component and a "
+        "Program register identically; the only difference is that a program's "
+        "entry is the one the authority gate can shut."))
 
     f.append(para("What the scaffolding guarantees", "h2"))
     f += bullets([
-        "<b>Table order is execution order.</b> The firmware registers programs "
-        "in table order and a phase dispatches in registration order, so a law "
-        "that computes a setpoint and a law that acts on it complete in one beat "
-        "when written that way round, and take a beat per link written the other "
-        "way.",
+        "<b>Registration order is execution order.</b> A phase dispatches in the "
+        "order things registered, so a law that computes a setpoint and a law "
+        "that acts on it complete in one beat when registered that way round, "
+        "and take a beat per link registered the other way. There is no table "
+        "to keep in step with it - the order they are registered in IS the "
+        "order.",
         "<b>The image is coherent within a beat.</b> Inputs refresh once, before "
         "any program runs, so every program in a beat sees the same instant. "
         "There are no per-program snapshots: programs run sequentially in one "
