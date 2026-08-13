@@ -78,6 +78,19 @@ namespace Botanik { namespace Scheduler {
         // last ms, so a period under 2 ms would be all spin.
         static_assert(Config::TASK_PERIOD_MS >= 2, "TASK_PERIOD_MS must be >= 2 (sleep/spin split)");
 
+        /** @brief The table this paces, BORROWED.
+         *
+         *  Owned by the composition root, not here, and the ordering is what
+         *  forces it: the table must exist before the Logger, because a
+         *  Component is constructed with the registry it will register in - and
+         *  this class is constructed with the Logger. Owning it here made that
+         *  cycle unbreakable.
+         *
+         *  It also reads truer. This class decides WHEN the beat happens; the
+         *  table decides WHAT runs in it (@ref dev_tasks), and `tasks/` sits
+         *  below `scheduler/` and references none of it. */
+        Tasks::Registry&  _tasks;
+
         /** @brief Target loop period (ms). */
         uint32_t        _period_ms     = Config::TASK_PERIOD_MS;
         uint64_t        _next_tick_ms  = 0;   ///< uptime anchor of the next tick
@@ -157,9 +170,6 @@ namespace Botanik { namespace Scheduler {
         /** @} */
 
     protected:
-        /** @brief What runs in the beat. Owned here: the thing that paces the
-         *  cycle is the thing that runs it. */
-        Tasks::Registry   _tasks;
 
     public:
         /** @name Lifecycle
@@ -169,7 +179,9 @@ namespace Botanik { namespace Scheduler {
          *  @param period_ms Target loop period (ms).
          *  @param logger    Optional logger for startup and periodic load
          *                   reports. */
-        LoopScheduler(uint32_t period_ms = Config::TASK_PERIOD_MS, Logs::Logger* logger = nullptr);
+        LoopScheduler(Tasks::Registry& tasks,
+                      uint32_t period_ms = Config::TASK_PERIOD_MS,
+                      Logs::Logger* logger = nullptr);
 
         /** @} */
 

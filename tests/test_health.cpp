@@ -185,7 +185,8 @@ TEST_CASE("health: with no scheduler context the load alarms stay quiet") {
 // the loop driver the thresholds above are read from
 
 TEST_CASE("scheduler: a beat is released once per period, and counted") {
-    Scheduler::LoopScheduler s(10);
+    Tasks::Registry reg;                 // borrowed: the driver no longer owns it
+    Scheduler::LoopScheduler s(reg, 10);
     Scheduler::SchedulerContext* ctx = s.context();
     const uint32_t before = ctx->tick_count;
 
@@ -200,7 +201,8 @@ TEST_CASE("scheduler: a beat is released once per period, and counted") {
 
 TEST_CASE("scheduler: a beat missed wholesale is counted as an overrun") {
     // Feeds the CPU_XRUN alarm above; sleeping past periods mimics a long flash write.
-    Scheduler::LoopScheduler s(10);
+    Tasks::Registry reg;                 // borrowed: the driver no longer owns it
+    Scheduler::LoopScheduler s(reg, 10);
     Scheduler::SchedulerContext* ctx = s.context();
     for (int i = 0; i < 100000; i++) if (s.tick()) break;      // land on a beat
     const uint32_t before = ctx->overruns;

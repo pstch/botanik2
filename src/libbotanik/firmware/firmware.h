@@ -196,13 +196,13 @@ namespace Botanik {
          *  stacks (firmware/stacks.h); the firmware owns the shared singletons and
          *  injects them into the stacks by pointer. @{ */
 
+        /** @brief What runs in the beat. Declared FIRST, before the logger and
+         *  the scheduler, because both are constructed with it: a Component is
+         *  built with the registry it will register in, and the Logger is a
+         *  Component. The scheduler borrows it. */
+        Tasks::Registry                _tasks;
         Logs::Logger                   _logger;
         Scheduler::LoopScheduler       _scheduler;
-        /** @brief The beat's task table: what runs, how often, and in which
-         *  phase. Filled by _register_tasks() during setup(), frozen after, and
-         *  owned by the scheduler - the thing that paces the cycle is the thing
-         *  that runs it. */
-        Tasks::Registry&               _tasks;
         Vars::Bank                       _io;          ///< the site's variables
         Vars::KvParamStore             _param_store; ///< one storage key per parameter
         Vars::Params                   _params;      ///< the editable view of the variables

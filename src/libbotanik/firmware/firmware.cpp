@@ -20,8 +20,7 @@ namespace Botanik {
     BotanikFirmware::BotanikFirmware(const SiteDescriptor& site)
         : _site(site),
           _logger(),
-          _scheduler(Config::TASK_PERIOD_MS, &_logger),
-          _tasks(_scheduler.tasks()),
+          _scheduler(_tasks, Config::TASK_PERIOD_MS, &_logger),
           _io(site.vars),
           // Params come from local storage.
           _param_store(),

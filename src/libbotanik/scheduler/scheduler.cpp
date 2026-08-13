@@ -59,8 +59,9 @@ namespace Botanik { namespace Scheduler {
     // Lifecycle
     // ------------------------------------------------------------------------
 
-    LoopScheduler::LoopScheduler(uint32_t period_ms, Logs::Logger* logger)
-        : _period_ms(period_ms), _logger(logger) {
+    LoopScheduler::LoopScheduler(Tasks::Registry& tasks, uint32_t period_ms,
+                                 Logs::Logger* logger)
+        : _tasks(tasks), _period_ms(period_ms), _logger(logger) {
         _stack_base  = HAL::Stack::base();
         _stack_depth = HAL::Stack::depth();
 
