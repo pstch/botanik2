@@ -1521,6 +1521,33 @@ TEST_CASE("enum param: it reads and writes as a word, and refuses a non-member")
     }
 }
 
+TEST_CASE("params: clear puts a row back to its default, live and in storage") {
+    StoreEnv env("/tmp/botanik_test_clear");
+    EnumFx f;
+    KvParamStore store;
+    f.bank.set_store(&store);
+
+    Var p = f.row();
+    REQUIRE(f.bank.set(p, "manual") != SET_INVALID);
+    REQUIRE(f.bank.save(p) == SET_OK);
+    REQUIRE(p.i() == 16);
+
+    CHECK(f.bank.clear_param(p) == SET_OK);
+    CHECK(p.i() == 4);                          // back to the declared default
+    CHECK_FALSE(p.param_unsaved());             // and nothing left owed
+
+    // The stored copy goes with the live one, or the next boot would undo it.
+    Value fresh{};
+    CHECK_FALSE(store.load(*p.meta(), fresh, nullptr, 0));
+}
+
+TEST_CASE("params: clear refuses a row that is not an editable parameter") {
+    StoreEnv env("/tmp/botanik_test_clear2");
+    EnumFx f;
+    // The inert sink a bad index resolves to is not a parameter.
+    CHECK(f.bank.clear_param(f.bank.var(999)) == SET_INVALID);
+}
+
 }  // namespace params
 
 // --------------------------------------------------------------------------
@@ -1565,6 +1592,11 @@ struct MemStore : public VarStore {
     }
     bool clear_override(const Variable& d) override {
         overrides.erase(d.name);
+        return true;
+    }
+    bool clear(const Variable& d) override {
+        if (refuse) return false;
+        params.erase(d.name);
         return true;
     }
     bool load_retained(const Variable& d, Value& v) override {

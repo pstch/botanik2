@@ -127,6 +127,12 @@ namespace Botanik { namespace Vars {
         return HAL::Storage::remove(key);
     }
 
+    bool KvParamStore::clear(const Variable& d) {
+        // A parameter's key is its bare name (see save()).
+        if (d.name == nullptr) return false;
+        return HAL::Storage::remove(d.name);
+    }
+
     bool KvParamStore::load_retained(const Variable& d, Value& v) {
         char key[HAL::Storage::KEY_MAX];
         if (!prefixed_key(d, "ret.", key, sizeof(key))) return false;

@@ -442,6 +442,29 @@ namespace Botanik { namespace Vars {
         return SET_OK;
     }
 
+    SetResult Bank::clear_param(Var h) {
+        const Variable* d = h.meta();
+        Value* slot = _editable_slot(d);
+        if (slot == nullptr) return SET_INVALID;
+
+        slot->v    = d->def;
+        slot->qual = Q_GOOD;                  // a parameter always has a value
+        uint16_t cap = 0;
+        char* text = text_at(h, &cap);
+        if (text != nullptr) copy_bounded(text, cap, d->def.s);
+        slot->vflags = (uint8_t)(slot->vflags & ~VF_PARAM_UNSAVED);
+
+        // The stored copy goes with the live one: left behind, it would put the
+        // old value back at the next boot, which is not "back to default".
+        if (_store == nullptr) return SET_NOT_PERSISTED;
+        if (!_store->clear(*d)) {
+            if (_logger != nullptr)
+                _logger->critical(Logs::STORAGE, "param not cleared\n'%s'", d->name);
+            return SET_NOT_PERSISTED;
+        }
+        return SET_OK;
+    }
+
     SetResult Bank::save(Var h) {
         const Variable* d = h.meta();
         Value* slot = _editable_slot(d);

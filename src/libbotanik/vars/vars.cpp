@@ -199,7 +199,7 @@ namespace Botanik { namespace Vars {
         BOTANIK_MQTT_KA_SEC, 10, 1800, 0, "sec", 934,
         "MQTT keep-alive interval", "also the dead-broker detection"),
     P("mqtt_tlm_sec", T_U32,
-        (BOTANIK_MQTT_TELEMETRY_PERIOD_MS / 1000), 0, 86400, 0, "sec", 935,
+        (BOTANIK_MQTT_TELEMETRY_PERIOD_MS / 1000.0), 0, 86400, 0, "sec", 935,
         "telemetry publish cadence", "0 stops publishing telemetry"),
     P("mqtt_retain", T_BOOL,
         BOTANIK_MQTT_TELEMETRY_RETAIN, 0, 1, 0, "", 936,
@@ -291,7 +291,7 @@ namespace Botanik { namespace Vars {
         "lowest level the logger forwards",
         "the floor for EVERY sink; each page filters further"),
     P("sys_retain_sec", T_U32,
-        (BOTANIK_RETAIN_SAVE_MS / 1000), 0, 86400, 0, "sec", 974,
+        (BOTANIK_RETAIN_SAVE_MS / 1000.0), 0, 86400, 0, "sec", 974,
         "how often retained values reach flash",
         "0 leaves only `save` and the way down; wear vs loss"),
 

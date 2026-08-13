@@ -37,6 +37,7 @@ namespace Botanik { namespace Vars {
         bool load_retained(const Variable& d, Value& v) override;
         bool save_retained(const Variable& d, const Value& v) override;
         bool clear_override(const Variable& d) override;
+        bool clear(const Variable& d) override;
     };
 
     /**
