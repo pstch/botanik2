@@ -272,7 +272,15 @@ elseif(BOTANIK_TARGET STREQUAL "OPTA")
         -mcpu=cortex-m7 -mthumb -mfpu=fpv5-d16 -mfloat-abi=softfp
         # libmbed.a is built -fno-rtti; without matching it we get
         # undefined "typeinfo for ..." at link.
-        -fno-rtti)
+        -fno-rtti
+        # We never throw, and there is no handler to throw to: an exception
+        # escaping the beat would unwind past the watchdog kick with the field
+        # left energised. Also drops the unwind tables our code carried for it.
+        -fno-exceptions
+        # One cooperative loop, so a function-local static needs no lock. Drops
+        # __cxa_guard_acquire/release, which on Mbed takes an RTOS lock, from
+        # per-beat paths like HAL::Serial::get().
+        -fno-threadsafe-statics)
 
     target_compile_definitions(botanik PUBLIC 
         ARM_MATH_CM7
