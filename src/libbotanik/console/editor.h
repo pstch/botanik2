@@ -143,6 +143,11 @@ namespace Botanik { namespace Terminal {
          *  was not has no glyphs to splice, however well its slice matches. */
         uint16_t _pre_view_top    = 0;
         uint16_t _pre_view_height = 0;
+        /** @brief Screen rows the editor has glyphs on, counted from _origin.
+         *  What the text SHRANK past is not otherwise anybody's: the per-row walk
+         *  only visits rows the new layout has, and the tail IL/DL only runs when
+         *  there is a tail to slide. */
+        uint16_t _screen_used = 0;
         /** @brief Which edge the editor is pinned to. */
         Anchor   _anchor = Anchor::BOTTOM;
 
@@ -554,6 +559,16 @@ namespace Botanik { namespace Terminal {
             uint16_t e = (uint16_t)(_view_top + _view_height());
             return e > _layout.count ? _layout.count : e;
         }
+
+        /** @brief Screen rows the text occupies right now. */
+        uint16_t _rows_used() const { return (uint16_t)(_visible_end() - _view_top); }
+
+        /** @brief Blank the rows the text has just shrunk past, and record what it
+         *  occupies now. One DL for the lot rather than a row of blanks each: a
+         *  region kill takes as many rows as it likes for the same escape.
+         *  @note Bottom-anchored the band slides instead (_shrink_editor), which
+         *  puts those rows below the screen, so the clamp leaves nothing to do. */
+        void _trim_screen();
 
         /** @brief Whether layout row @p i of the PRE-edit layout was on screen,
          *  i.e. whether the physical row still shows its glyphs. */

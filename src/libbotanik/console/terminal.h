@@ -97,6 +97,11 @@ namespace Botanik { namespace Terminal {
         bool     _draw_inv = false;
         /** @brief Desired cursor visibility (only the shell editor asks for on). */
         bool     _want_cursor_visible = false;
+        /** @brief Transient suppression of a wanted cursor, kept apart from the
+         *  wish above so releasing it needs nothing put back. Raised while a
+         *  region is up: the highlight already says where the edit point is, and
+         *  a cursor blinking inside it only competes with it. */
+        bool     _cursor_inhibited = false;
         /** @brief Where a visible cursor parks once present() has reconciled the
          *  screen. Set only by set_cursor_pos(), i.e. by the renderer that owns
          *  the cursor - NOT by move_to, or the last renderer to paint in the tick
@@ -282,6 +287,12 @@ namespace Botanik { namespace Terminal {
         void set_inverted(bool enable);
         void set_auto_wrap(bool enable);
         void set_cursor_visible(bool show);
+
+        /** @brief Hold a wanted cursor off the screen without clearing the wish
+         *  for it, so whoever raised it does not have to know whether the page
+         *  wanted a cursor in the first place. What the editor raises while a
+         *  region is up. */
+        void set_cursor_inhibited(bool hold) { _cursor_inhibited = hold; }
 
         /** @brief Re-derive the per-render TX budget for a link now running at
          *  @p baud.

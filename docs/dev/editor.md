@@ -88,6 +88,12 @@ contiguous edit changes the screen in a very constrained way, which it exploits:
      the pushed-off character into the next row;
    - a row whose old glyphs are unrelated to the wanted content is full-painted
      (`_new_row`) - byte-optimal when a cheap splice wouldn't be.
+5. **Trim what the text shrank past** (`_trim_screen`). Steps 3 and 4 only reach
+   rows the NEW layout has: an IL/DL needs a tail to slide, and a cut taking the
+   last rows of the text has none below it. `_screen_used` records how many
+   screen rows carry glyphs, and a shrink blanks the difference with one
+   `clear_rows()` however many rows it is. Bottom-anchored this finds nothing to
+   do, since `_shrink_editor()` has already slid the band down over them.
 
 ## Why it earns the exception
 
@@ -189,6 +195,13 @@ motion is the only thing that moves the region's far end, and nothing else on th
 repaints anything) and the end of `_reconcile()` (after `_grow_editor()`/`_shrink_editor()`
 have done their `scroll_region()`, so the screen matches `_layout` on return - the invariant
 the next `_snapshot_pre()` assumes).
+
+**A live region holds the hardware cursor off the screen.** `_record_painted()` raises
+`AnsiTerminal::set_cursor_inhibited()` with the mark, so the terminal keeps the page's wish
+for a cursor and suppresses it while the highlight is up: the far end of the region already
+says where the edit point is, and a cursor blinking on that cell only hides it. The inhibit
+is a second flag rather than a call to `set_cursor_visible()` so releasing the mark puts
+nothing back - the editor never has to know whether the page wanted a cursor at all.
 
 **The mark is transient**: `insert_characters()` and `remove_characters()` drop it, as do
 `_reset_state()` and `commit_loaded()`. A mark that survived edits would need shifting by

@@ -553,9 +553,10 @@ namespace Botanik { namespace Terminal {
     }
 
     void AnsiTerminal::_park_cursor() {
-        if (_want_cursor_visible != _hw_cursor_visible &&
-            Ansi::set_cursor_visible(_serial, _want_cursor_visible))
-            _hw_cursor_visible = _want_cursor_visible;
+        // The wish, less whatever is holding it off (a live region).
+        const bool want = _want_cursor_visible && !_cursor_inhibited;
+        if (want != _hw_cursor_visible && Ansi::set_cursor_visible(_serial, want))
+            _hw_cursor_visible = want;
         // A visible cursor belongs at the edit point of whoever asked for it (only
         // the shell editor does) - that is where its last move_to left the draw
         // cursor. With no such owner, idle it in the bottom-right corner so it sits

@@ -850,6 +850,44 @@ TEST_CASE("editor bytes: extending a region costs a cell, not a window") {
     CHECK(f.flush().empty());   // and it converged
 }
 
+// A cut that takes the LAST rows of a note leaves screen rows the new layout
+// never walks: the tail IL/DL only slides an absorbed tail, and there is none
+// below the last row. They must be blanked, and for one escape.
+TEST_CASE("editor bytes: a cut that shortens the note blanks the rows it left") {
+    EditorBytes f;
+    f.as_viewport(12);
+    f.fill_rows(8);
+    f.editor.set_mark();
+    f.editor.move_to_start();
+    f.flush();
+
+    CHECK(f.editor.kill_region());
+    size_t cost = f.flush().size();
+    CHECK(cost > 0);
+    CHECK(cost <= 60);          // a DL over the seven vacated rows, not seven repaints
+    CHECK(f.editor.buffer_len() == 0);
+    CHECK(f.flush().empty());   // and the screen converged on one empty row
+}
+
+// The region is the edit point drawn: a cursor blinking inside the highlight
+// hides the cell it sits on and says nothing the far end does not.
+TEST_CASE("editor: a live region holds the cursor off the screen") {
+    EditorBytes f;
+    f.as_viewport(8);
+    f.console.terminal().set_cursor_visible(true);
+    f.type("valve three sticks");
+    f.flush();
+
+    f.editor.set_mark();
+    for (int i = 0; i < 6; i++) f.editor.move_left();
+    INFO("DECTCEM reset while the region is up");
+    CHECK(f.flush().find("\x1b[?25l") != std::string::npos);
+
+    f.editor.clear_mark();
+    INFO("...and back, without the page having to ask for it again");
+    CHECK(f.flush().find("\x1b[?25h") != std::string::npos);
+}
+
 // With no mark, _sync_region() must return without touching a cell: an ordinary
 // edit costs the same as if there were no region at all.
 TEST_CASE("editor bytes: no mark means the region pass is not there") {
