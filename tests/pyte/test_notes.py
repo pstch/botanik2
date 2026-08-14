@@ -132,6 +132,66 @@ def test_notes_region_kill_and_yank(spawn):
         "^W after an edit cut the stale region instead of a word"
 
 
+def test_notes_deleting_it_all_leaves_no_rows_behind(spawn):
+    """Backspacing a two-line note away takes the second row with it.
+
+    Bottom-anchored, the band slides down and pushes the vacated row off the
+    screen; top-anchored nothing moves, so the row has to be blanked.
+    """
+    term = notes(spawn)
+    _type_lines(term, ["valve three sticks", "pump B runs hot"])
+
+    for _ in range(len("valve three sticks") + len("pump B runs hot") + 1):
+        term.send(keys.BACKSPACE)
+    assert term.wait_screen("pump B runs hot", present=False), "the text never left"
+    assert term.wait_for("0/2047 bytes"), "the note is not empty"
+    assert term.screen.display[2].strip() == "", \
+        "the second row kept its gutter: %r" % term.screen.display[2]
+    assert term.screen.display[1].rstrip() == ">", \
+        "the first row is not a bare gutter: %r" % term.screen.display[1]
+
+
+def test_notes_region_kill_over_several_rows(spawn):
+    """A region that spans rows: what it took must leave the SCREEN too.
+
+    The reconcile slides an absorbed tail with one DL, and a cut reaching the end
+    of the note has no tail below it to slide.
+    """
+    term = notes(spawn)
+    _type_lines(term, ["valve three sticks", "pump B runs hot"])
+
+    # Anchor at the end, walk to the start of the note: both rows are in.
+    term.send(keys.CTRL_SPACE)
+    term.send(keys.UP + keys.CTRL_A)
+    term.send(keys.CTRL_W)
+    assert term.wait_screen("pump B runs hot", present=False), "^W did not cut the region"
+    assert term.screen.display[2].strip() == "", \
+        "the row the cut emptied still shows: %r" % term.screen.display[2]
+
+    term.send(keys.CTRL_Y)
+    assert term.wait_screen("pump B runs hot"), "^Y did not put both rows back"
+    assert term.screen.display[1].rstrip() == "> valve three sticks", \
+        "the yank did not restore the first row"
+
+
+def test_notes_region_hides_the_cursor(spawn):
+    """While a region is up the highlight is the edit point; a cursor blinking
+    inside it only competes with it."""
+    term = notes(spawn)
+    _type_lines(term, ["valve three sticks"])
+    assert term.until(lambda: not term.screen.cursor.hidden), \
+        "the NOTES page should show a cursor"
+
+    term.send(keys.CTRL_SPACE)
+    term.send(keys.CTRL_A)
+    assert term.until(lambda: term.screen.cursor.hidden), \
+        "the cursor stayed on top of the region"
+
+    term.send(keys.CTRL_G)                       # release the mark
+    assert term.until(lambda: not term.screen.cursor.hidden), \
+        "releasing the region did not bring the cursor back"
+
+
 def test_notes_survives_a_reboot(spawn, tmp_path):
     """The note is persisted - the whole point of it over a scratch buffer."""
     store = tmp_path / "notes_store"

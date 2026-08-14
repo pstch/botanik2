@@ -112,6 +112,18 @@ namespace Botanik { namespace Terminal {
         return last < bottom ? last : bottom;
     }
 
+    void TextEditor::_trim_screen() {
+        uint16_t used = _rows_used();
+        if (used < _screen_used) {
+            uint16_t top = (uint16_t)(_origin + used);
+            uint16_t bot = (uint16_t)(_origin + _screen_used - 1);
+            uint16_t max = _view_bottom_hw();
+            if (bot > max) bot = max;
+            if (top <= bot) _terminal->clear_rows(top, bot);
+        }
+        _screen_used = used;
+    }
+
     bool TextEditor::_follow_cursor() {
         // Bottom-anchored, _grow_editor scrolls the whole content band so the
         // prompt stays put; scrolling a window over the text too would double up.
@@ -149,6 +161,7 @@ namespace Botanik { namespace Terminal {
         uint16_t stop  = (uint16_t)(first + n);
         if (stop > _layout.count) stop = _layout.count;
         for (uint16_t i = first; i < stop; i++) _new_row(i);
+        _screen_used = _rows_used();     // the band moved as a unit, text and all
         return true;
     }
 
@@ -169,6 +182,7 @@ namespace Botanik { namespace Terminal {
         _painted_active = false;
         _layout.rows[0]   = {0, 0, false};
         _layout.count = 1;
+        _screen_used  = 1;      // both callers leave one prompt row drawn
     }
 
     void TextEditor::reset() {
@@ -212,6 +226,9 @@ namespace Botanik { namespace Terminal {
         // Record the region as painted, or a _sync_region() behind us (the
         // long-jump branch of _follow_cursor() calls both) repaints the lot.
         _record_painted();
+        // The caller blanked the band, so what is drawn is what we just wrote:
+        // record it rather than trim it.
+        _screen_used = _rows_used();
         _place_cursor(_map_cursor_pos(_pos));
     }
 
@@ -514,6 +531,10 @@ namespace Botanik { namespace Terminal {
         _painted_active = _mark_set;
         _painted_from = _painted_to = 0;
         region(_painted_from, _painted_to);
+        // A region IS the edit point, drawn: a cursor blinking inside the
+        // highlight says nothing the far end of it does not, and hides the cell
+        // it sits on while it blinks.
+        _terminal->set_cursor_inhibited(_mark_set);
     }
 
     void TextEditor::_sync_region() {
@@ -678,6 +699,11 @@ namespace Botanik { namespace Terminal {
         // The edit may have pushed the cursor out of the window (a wrap onto a
         // row below it, or a delete that pulled the text up past the top).
         _follow_cursor();
+
+        // Rows the text no longer reaches. The IL/DL above only slides an
+        // absorbed tail, and a delete that takes the LAST rows has none, so
+        // without this their glyphs stay on a screen the layout has left.
+        _trim_screen();
 
         // Last, so the screen matches _layout on return - the invariant the next
         // _snapshot_pre() assumes. Earlier, and _grow_editor()/_shrink_editor()'s
