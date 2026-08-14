@@ -3,18 +3,13 @@
 
 /**
  * @file params_fixture.h
- * @brief A small variable bank carrying the config parameters the library
- *        components read (net / NTP / MQTT / geo), for the tests that drive
- *        those components.
+ * @brief A small bank of the config parameters the library components read
+ *        (net / NTP / MQTT / geo). Lookup is BY NAME, so only the names must
+ *        match - not the layout, and not the site's whole table.
  *
- * The components look their values up BY NAME, so this only has to declare the
- * same names - not the same layout, and not the site's whole table.
- *
- * @warning That makes the SPELLING load-bearing and unchecked: a name that does
- * not match what the component reads resolves to the inert sink and reads 0, so
- * a test asserting the component did nothing passes without ever reaching the
- * code under test. The names below are the library's own - keep them in step
- * with `library_vars.h`.
+ * @warning The SPELLING is load-bearing and unchecked: a name the component does
+ * not read resolves to the inert sink and reads 0, so a test asserting it did
+ * nothing passes without reaching the code. Keep in step with `library_vars.h`.
  */
 
 #include <cstdint>                      // uint16_t

@@ -1053,8 +1053,6 @@ TEST_CASE("override: an output restored at boot is muted until control returns")
     }
     {
         // Fresh RAM, same store, and the hold NOT released - as at bring-up.
-        Value    vals[4]{};
-        uint16_t index[4]{};
         Bank bank;
         KvParamStore store;
         bank.register_vars(OVR_VARS, 4);
@@ -1621,11 +1619,7 @@ const Variable g_rows[] = {
 };
 const uint16_t COUNT = (uint16_t)(sizeof(g_rows) / sizeof(g_rows[0]));
 
-Value    g_vals[COUNT];
-uint16_t g_index[COUNT];
-
-// A bank over g_rows, frozen and ready. Cheap to make one per case, which is
-// the point: each gets its own value slots.
+// A bank over g_rows, frozen. Cheap per case, which is the point: own slots.
 void build(Bank& b) {
     b.register_vars(g_rows, COUNT);
     b.freeze();

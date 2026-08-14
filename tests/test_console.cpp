@@ -406,10 +406,8 @@ TEST_CASE("reconfigure: a new geometry takes, and blanks what addressed the old 
     CHECK(f.term.cols() == 40);
     CHECK(f.term.rows_total() == 12);
 
-    // Every cell's meaning moved with _cols, so nothing may survive into the
-    // new screen: both grids are blank and agree, so the frame has no CONTENT
-    // to emit. (It still parks the idle cursor, whose corner just moved, so
-    // this is not an empty string.)
+    // Every cell's meaning moved with _cols, so nothing survives: both grids are
+    // blank and agree, leaving no CONTENT to emit (the idle cursor still parks).
     f.capture();
     const std::string first = f.present();
     INFO("emitted after the resize: " << first);
@@ -738,9 +736,8 @@ TEST_CASE("editor bytes: a wide slide is still one escape") {
 
 // Top-anchored viewport (the NOTES geometry)
 // ----------------------------------------------------------------------------
-// Text taller than the window, and the window moves. Two failure modes cost a
-// screen each: a scrolled-in row spliced against glyphs it never had, and a
-// scroll repainting the whole band instead of just the rows it uncovered.
+// Two failure modes cost a screen each: a scrolled-in row spliced against glyphs
+// it never had, and a scroll repainting the band instead of the uncovered rows.
 
 // Typing into the middle of an 8-row window over 20 rows of text must still
 // cost a splice, not a repaint of the smaller hole it is shown through.
@@ -1558,6 +1555,7 @@ namespace {
         Vars::Value                    values[2]{};
         uint16_t                       index[2]{};
         Vars::Bank                     bank;
+        Tasks::Registry                reg;
         // Declared before shell: its address must be valid in shell's init list.
         SystemContext                  ctx{};
         Shell::CommandShell            shell;
@@ -1570,6 +1568,7 @@ namespace {
             bank.register_vars(CMD_VARS, 2);
             bank.freeze();
             ctx.vars = &bank;
+            ctx.tasks = &reg;   // empty, but `programs` checks for it before usage
         }
 
         void run(const char* cmd) {
@@ -1651,6 +1650,74 @@ TEST_CASE("shell vars get: the detail view, and what it adds when a row is force
     CHECK(f.writer.has("Override value ... : 35.0 C   (invalid, unsaved)"));
 }
 
+TEST_CASE("shell help: a summary of groups, not a command list") {
+    CmdFixture f;
+    f.run("help");
+    CHECK(f.writer.has("Main commands"));
+    CHECK(f.writer.has("Topics"));
+    CHECK(f.writer.has("system"));
+    CHECK(f.writer.has("tables"));
+    // Neither a group's commands nor their verbs belong in the summary.
+    CHECK_FALSE(f.writer.has("the editable settings"));
+    CHECK_FALSE(f.writer.has("set <name> <value>"));
+
+    f.run("help tables");                        // ... marks a verb-taking command
+    CHECK(f.writer.has("params ..."));
+    CHECK(f.writer.has("overrides ..."));
+    CHECK(f.writer.has("vars ..."));
+
+    f.run("help nope");
+    CHECK(f.writer.has("no topic"));
+    CHECK(f.writer.has("Topics"));
+}
+
+TEST_CASE("shell usage: a noun answers for itself, bare or with `help`") {
+    CmdFixture f;
+    static const char* const NOUN[] = {
+        "overrides", "params",  "programs", "vars", "alarms",
+        "tasks",     "modbus",  "logs",     "control",
+    };
+    static const char* const WANT[] = {
+        "overrides clear <name>|all", "params clear <name>|all",
+        "programs disable <name>|all", "vars get <name>",
+        "alarms ack <code|name|all>", "tasks get <name>",
+        "modbus devices", "logs status", "control inhibit",
+    };
+    for (size_t i = 0; i < sizeof(NOUN) / sizeof(NOUN[0]); ++i) {
+        char line[32];
+        f.run(NOUN[i]);
+        INFO("bare " << NOUN[i]);
+        CHECK(f.writer.has("usage:"));
+        CHECK(f.writer.has(WANT[i]));
+        std::snprintf(line, sizeof(line), "%s help", NOUN[i]);
+        f.run(line);
+        INFO(line);
+        CHECK(f.writer.has("usage:"));
+        CHECK(f.writer.has(WANT[i]));
+    }
+}
+
+TEST_CASE("shell usage: a bare verb never means `all`") {
+    CmdFixture f;                                // a bare verb is a typo, not "all"
+    static const char* const LINE[] = {
+        "params save", "params clear", "overrides save",
+        "overrides clear", "programs save", "programs disable",
+    };
+    for (size_t i = 0; i < sizeof(LINE) / sizeof(LINE[0]); ++i) {
+        f.run(LINE[i]);
+        INFO("line: " << std::string(LINE[i]) << " -> " << f.writer.text);
+        CHECK(f.writer.has("usage:"));
+    }
+}
+
+TEST_CASE("shell features: both partitions render") {
+    CmdFixture f;                                // absent reads as broken otherwise
+    f.run("features");
+    CHECK(f.writer.has("console"));
+    CHECK(f.writer.has("on"));
+    CHECK(f.writer.has("off"));
+}
+
 }  // namespace shell
 
 // --------------------------------------------------------------------------
@@ -1663,12 +1730,9 @@ using namespace Botanik;
 
 namespace {
 
-    /** @brief A Console over the site's real bank, registered in a real task
-     *  table - the shape BotanikFirmware builds, minus the pages.
-     *
-     *  The site's own rows, not a hand-written fixture: `term_cols` / `term_rows`
-     *  / `term_serial` are the library's OWN parameters, and the point of the
-     *  cases below is that the console and the table agree about them. */
+    /** @brief A Console over the site's real bank in a real task table - what
+     *  BotanikFirmware builds, minus the pages. The site's own rows, since the
+     *  point below is that the console and the table agree about `term_*`. */
     struct ConfigFixture {
         botanik_test::PipeSerial wire;
         uint64_t             now = 0;
@@ -1707,19 +1771,15 @@ namespace {
 TEST_CASE("console: the stored geometry lands once the parameters are loaded") {
     ConfigFixture f;
 
-    // Bring-up, in BotanikFirmware::setup()'s order: the console applies what
-    // the bank holds BEFORE the parameter load, which is one of the one-time
-    // inits Tasks::Registry::setup() runs afterwards. All it can see here are
-    // the table's defaults.
+    // In setup()'s order the console applies what the bank holds BEFORE the
+    // parameter load, so all it sees here are the table's defaults.
     f.console.apply_stored_config();
     REQUIRE(f.console.terminal().cols() == Config::CONSOLE_COLS);
     const uint32_t committed = f.serial();
 
-    // Now the load lands: the saved geometry appears in the bank, and the
-    // commit serial comes back UNCHANGED - it was saved with the rest. That is
-    // the trap: a console that recorded the serial as applied above would never
-    // look again, and a geometry saved on the last run would never reach the
-    // screen.
+    // The load lands and the commit serial comes back UNCHANGED, having been
+    // saved with the rest. The trap: a console that recorded the serial as
+    // applied above would never look again, and the geometry never reach the screen.
     REQUIRE(f.set("term_cols", "100") == Vars::SET_OK);
     REQUIRE(f.set("term_rows", "30") == Vars::SET_OK);
     REQUIRE(f.serial() == committed);

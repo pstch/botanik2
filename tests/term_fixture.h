@@ -5,10 +5,8 @@
  * @file term_fixture.h
  * @brief PipeSerial - a BufferedSerial whose wire is a pipe the test can read.
  *
- * Every screen-level fixture needs the same plumbing: a HAL::Serial::Raw bound
- * to a non-blocking pipe, a BufferedSerial over it, and a way to drain the TX
- * ring into a string. This is that plumbing only; a fixture holds one and adds
- * whatever it builds on top.
+ * The plumbing every screen-level fixture needs, and only that: a Raw on a
+ * non-blocking pipe, a BufferedSerial over it, and a TX drain into a string.
  */
 
 #include <fcntl.h>                          // fcntl / O_NONBLOCK
@@ -42,10 +40,8 @@ namespace botanik_test {
         PipeSerial& operator=(const PipeSerial&) = delete;
 
         /** @brief Push the TX ring to the pipe and return what accumulated.
-         *
-         *  BufferedSerial hands the driver a bounded slice per call, so the 64
-         *  calls pay off the per-activation cap: one call would leave a long
-         *  frame half-written and the test would assert on a fragment. */
+         *  64 calls, because BufferedSerial hands the driver a bounded slice
+         *  each and one call would leave a long frame half-written. */
         std::string capture() {
             std::string out;
             char buf[8192];

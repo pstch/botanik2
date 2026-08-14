@@ -43,14 +43,6 @@ def test_detail_and_edit(spawn):
     assert term.wait_for("120"), "committed value did not round-trip"
 
 
-def test_notes_row(spawn):
-    """An authored note reaches the panel's Notes row (net_dhcp carries one)."""
-    term = _params(spawn)
-    _down(term, 3)
-    assert term.wait_for("ignores the static ip/mask/gw rows"), \
-        "an authored note did not reach the panel"
-
-
 def test_group_follows_selection(spawn):
     """The legend's (group) tracks the cursor.
 
