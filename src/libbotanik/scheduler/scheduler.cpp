@@ -314,6 +314,7 @@ namespace Botanik { namespace Scheduler {
     void LoopScheduler::setup(uint64_t now_ms, uint32_t watchdog_ms) {
         _tasks.setup(now_ms);
         HAL::Watchdog::start(watchdog_ms);
+        _context.watchdog_ms = watchdog_ms;
     }
 
     void LoopScheduler::run_beat(uint64_t now_ms) {
@@ -327,8 +328,13 @@ namespace Botanik { namespace Scheduler {
     }
 
     bool LoopScheduler::kick(bool healthy) {
-        if (!healthy) return false;
+        _context.watchdog_kicking = healthy;
+        if (!healthy) {
+            if (_context.watchdog_withheld != 0xFFFFFFFFu) _context.watchdog_withheld++;
+            return false;
+        }
         HAL::Watchdog::kick();
+        _context.watchdog_kick_ms = HAL::Clock::uptime_ms();
         return true;
     }
 

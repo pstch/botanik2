@@ -49,65 +49,89 @@ namespace Botanik { namespace Shell {
     // row per verb - `params set` and `params save` are the same subject, and
     // splitting them put the two halves of one job in different places.
     const CommandShell::Builtin* CommandShell::_builtins(uint8_t& count) {
+        // The group each command is filed under; `help <group>` lists one.
+        // Same partition as docs/user/console.md, so neither has to be read
+        // twice to find a command.
+        static const char* const G_SYS = "system";
+        static const char* const G_STA = "status";
+        static const char* const G_TAB = "tables";
+        static const char* const G_CON = "console";
+
         static const Builtin TABLE[] = {
-            // System control
-            { "logs",       "[on|off]  live log output",       nullptr,
+            { "logs",       "live log output on the shell page",
+                            "logs on | off | status",                      G_SYS,
                                                                &CommandShell::_cmd_logs       },
-            { "control",    "[enable|inhibit|disable] drive the field", nullptr,
+            { "control",    "whether the firmware may drive the field",
+                            "control enable | inhibit | disable | status",  G_SYS,
                                                                &CommandShell::_cmd_control    },
-            { "ntpsync",    "force an NTP resync now",         nullptr,
+            { "ntpsync",    "force an NTP resync now",         nullptr,     G_SYS,
                                                                &CommandShell::_cmd_ntpsync    },
-            { "breakpoint", "trap into an attached debugger",  nullptr,
+            { "breakpoint", "trap into an attached debugger",  nullptr,     G_SYS,
                                                                &CommandShell::_cmd_breakpoint },
-            { "reboot",     "stop kicking the watchdog and let it reset the unit", nullptr,
+            { "reboot",     "stop kicking the watchdog and let it reset the unit",
+                                                               nullptr,     G_SYS,
                                                                &CommandShell::_cmd_reboot     },
-            { "reset",      "reset the unit now",              nullptr,
+            { "reset",      "reset the unit now",              nullptr,     G_SYS,
                                                                &CommandShell::_cmd_reset      },
-            { "exit",       "quit (sim) / reboot (hw)",        nullptr,
+            { "exit",       "quit (sim) / reboot (hw)",        nullptr,     G_SYS,
                                                                &CommandShell::_cmd_exit       },
-            // System status
-            { "stats",      "scheduler / system metrics",      nullptr,
+
+            { "stats",      "scheduler / system metrics",      nullptr,     G_STA,
                                                                &CommandShell::_cmd_stats      },
-            { "net",        "network / NTP / MQTT status",     nullptr,
+            { "net",        "network / NTP / MQTT status",     nullptr,     G_STA,
                                                                &CommandShell::_cmd_net        },
-            { "modbus",     "field bus plan and state; `modbus devices` for the roll-call",
-                                                               nullptr,
+            { "modbus",     "the field bus: plan, state and devices",
+                            "modbus stats | devices",                       G_STA,
                                                                &CommandShell::_cmd_modbus     },
             { "tasks",      "what the beat spends its time on",
-                            "tasks stats | list [<prefix>] | get <name>",
+                            "tasks stats | list [<prefix>] | get <name>",    G_STA,
                                                                &CommandShell::_cmd_tasks      },
-            { "version",    "firmware version",                nullptr,
+            { "version",    "firmware version",                nullptr,     G_STA,
                                                                &CommandShell::_cmd_version    },
-            { "features",   "which subsystems are built in",   nullptr,
+            { "features",   "which subsystems are built in",   nullptr,     G_STA,
                                                                &CommandShell::_cmd_features   },
-            // The tables. Only the subject here - the verbs are one `<noun>
-            // help` away, so this stays one readable screen.
+
+            // Only the subject here - the verbs are one `<noun> help` away, so
+            // this stays one readable screen.
             { "params",     "the editable settings",
                             "params list [<prefix>] | get <name> | set <name> <value>\n"
-                            "params clear <name>|all | save <name>|all",
+                            "params clear <name>|all | save <name>|all",     G_TAB,
                                                                &CommandShell::_cmd_params     },
             { "overrides",  "force any variable by hand",
                             "overrides list | get <name> | set <name> [<value>] [valid|invalid]\n"
-                            "overrides clear <name>|all | save <name>|all",
+                            "overrides clear <name>|all | save <name>|all",  G_TAB,
                                                                &CommandShell::_cmd_overrides  },
             { "programs",   "the control programs in the scan",
                             "programs list [<prefix>] | enable <name>|all\n"
-                            "programs disable <name>|all | save <name>|all",
+                            "programs disable <name>|all | save <name>|all", G_TAB,
                                                                &CommandShell::_cmd_programs   },
             { "alarms",     "the alarm table, and acknowledging",
                             "alarms list [<prefix>] | get <code|name> | ack <code|name|all>",
+                                                                            G_TAB,
                                                                &CommandShell::_cmd_alarms     },
             { "vars",       "read any variable, whatever its scope",
-                            "vars list [<prefix>] | get <name>",
+                            "vars list [<prefix>] | get <name>",             G_TAB,
                                                                &CommandShell::_cmd_vars       },
-            // The console itself
-            { "help",       "list commands",                   nullptr,
+
+            { "help",       "list commands",                   nullptr,     G_CON,
                                                                &CommandShell::_cmd_help       },
-            { "clear",      "clear the screen",                nullptr,
+            { "clear",      "clear the screen",                nullptr,     G_CON,
                                                                &CommandShell::_cmd_clear      },
         };
         count = (uint8_t)(sizeof(TABLE) / sizeof(TABLE[0]));
         return TABLE;
+    }
+
+    const CommandShell::HelpGroup* CommandShell::_help_groups(uint8_t& count) {
+        static const HelpGroup G[] = {
+            { "system",  "driving the unit, and the ways out of it" },
+            { "status",  "what the unit is doing right now" },
+            { "tables",  "settings, overrides, programs, alarms, variables" },
+            { "console", "the console itself" },
+            { "site",    "commands this installation added" },
+        };
+        count = (uint8_t)(sizeof(G) / sizeof(G[0]));
+        return G;
     }
 
     void CommandShell::_verb_usage(const char* noun) {
@@ -185,18 +209,57 @@ namespace Botanik { namespace Shell {
         _emitf(out, sizeof(out), "%-22s : %s", label, val);
     }
 
-    void CommandShell::_cmd_help(const char*, uint16_t) {
-        // Generated from the tables, so help cannot drift from the command set.
-        // %-10s is a minimum width, not a cap (a long name pushes help right).
+    void CommandShell::_cmd_help(const char* args, uint16_t alen) {
         char out[Config::LOG_FORMATTED_LEN];
-        uint8_t bcount; const Builtin* B = _builtins(bcount);
-        for (uint8_t i = 0; i < bcount; i++)
-            _emitf(out, sizeof(out), "  %-10s %s", B[i].name, B[i].help);
-        for (size_t i = 0; i < _command_count; i++) {
-            const ShellCommand& c = _commands[i];
-            if (c.name == nullptr) continue;
-            _emitf(out, sizeof(out), "  %-10s %s", c.name, c.help ? c.help : "");
+        uint16_t wlen; const char* key = arg_next(args, alen, wlen);
+
+        if (key != nullptr) {
+            if (_help_group(key, wlen)) return;
+            _emitf(out, sizeof(out), "help: no group '%.*s'", (int)wlen, key);
         }
+
+        // The summary only. Listing every command here ran past a 25-row screen
+        // once the tables grew verbs of their own, and a help that scrolls off
+        // is not a help.
+        uint8_t gcount; const HelpGroup* G = _help_groups(gcount);
+        for (uint8_t i = 0; i < gcount; i++) {
+            // The site group is only real when a site registered something.
+            if (_command_count == 0 && strcmp(G[i].key, "site") == 0) continue;
+            _emitf(out, sizeof(out), "  %-10s %s", G[i].key, G[i].help);
+        }
+        _println("`help <group>` lists a group; `<command> help` its verbs");
+    }
+
+    bool CommandShell::_help_group(const char* key, uint16_t klen) {
+        char out[Config::LOG_FORMATTED_LEN];
+        char nm[24];
+
+        if (arg_eq(key, klen, "site")) {
+            if (_command_count == 0) return false;
+            for (size_t i = 0; i < _command_count; i++) {
+                const ShellCommand& c = _commands[i];
+                if (c.name == nullptr) continue;
+                _emitf(out, sizeof(out), "  %-14s %s", c.name, c.help ? c.help : "");
+            }
+            return true;
+        }
+
+        uint8_t gcount; const HelpGroup* G = _help_groups(gcount);
+        bool known = false;
+        for (uint8_t i = 0; i < gcount; i++)
+            if (arg_eq(key, klen, G[i].key)) { known = true; break; }
+        if (!known) return false;
+
+        uint8_t bcount; const Builtin* B = _builtins(bcount);
+        for (uint8_t i = 0; i < bcount; i++) {
+            if (B[i].group == nullptr || !arg_eq(key, klen, B[i].group)) continue;
+            // "..." marks a command that wants a verb after it - exactly the
+            // ones a bare call answers with usage, so the mark and the
+            // behaviour cannot disagree.
+            snprintf(nm, sizeof(nm), "%s%s", B[i].name, B[i].usage ? " ..." : "");
+            _emitf(out, sizeof(out), "  %-14s %s", nm, B[i].help);
+        }
+        return true;
     }
 
     void CommandShell::_cmd_clear(const char*, uint16_t) { _output.clear(); }

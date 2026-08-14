@@ -72,6 +72,32 @@ namespace Botanik { namespace Shell {
             Utils::format_size(fb, sizeof(fb), ctx->stack_depth));
         _field("Stack usage", val, detail);
 
+        // The reset the loop can choose to take. A withheld kick is otherwise
+        // invisible until the unit reboots and cannot say why.
+        if (ctx->watchdog_ms == 0) {
+            _field("Watchdog", "not armed", nullptr);
+        } else {
+            snprintf(val, sizeof(val), "%lums", (unsigned long)ctx->watchdog_ms);
+            // How long since the kick that went out: the distance to the reset
+            // the loop would otherwise take, which is the number to look at
+            // when the beat is late.
+            const uint64_t now = HAL::Clock::uptime_ms();
+            const unsigned long since =
+                (ctx->watchdog_kick_ms == 0 || now < ctx->watchdog_kick_ms)
+                    ? 0ul : (unsigned long)(now - ctx->watchdog_kick_ms);
+            if (ctx->watchdog_kick_ms == 0)
+                snprintf(detail, sizeof(detail), "never kicked");
+            else if (!ctx->watchdog_kicking)
+                snprintf(detail, sizeof(detail),
+                         "WITHHELD, last kick %lums ago", since);
+            else if (ctx->watchdog_withheld == 0)
+                snprintf(detail, sizeof(detail), "last kick %lums ago", since);
+            else
+                snprintf(detail, sizeof(detail), "last kick %lums ago, %lu withheld",
+                         since, (unsigned long)ctx->watchdog_withheld);
+            _field("Watchdog", val, detail);
+        }
+
         snprintf(detail, sizeof(detail), "%lu TX dropped, %lu RX overruns",
             (unsigned long)_terminal.serial().tx_dropped(),
             (unsigned long)_terminal.serial().rx_overrun());
@@ -472,11 +498,12 @@ namespace Botanik { namespace Shell {
         if (_sys == nullptr) { _println("modbus: no context"); return; }
         char val[96];
 
-        // `modbus devices` is the roll-call; a bare `modbus` is the plan and
-        // the state. Matched on its first letter, like the other sub-commands.
+        // `modbus devices` is the roll-call, `modbus stats` the plan and the
+        // state. A bare `modbus` is answered upstream, in _dispatch().
         uint16_t wn = 0;
         const char* sub = arg_next(args, alen, wn);
-        const bool want_devices = (sub != nullptr && wn > 0 && sub[0] == 'd');
+        const bool want_devices = arg_eq(sub, wn, "devices");
+        if (!want_devices && !arg_eq(sub, wn, "stats")) { _verb_usage("modbus"); return; }
 
 #if BOTANIK_FEATURE_MODBUS_RTU_CLIENT
         const Modbus::RtuClient* rtu = _sys->modbus_rtu;

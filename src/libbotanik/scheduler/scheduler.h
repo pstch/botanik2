@@ -59,6 +59,26 @@ namespace Botanik { namespace Scheduler {
 
         /** @brief Loop "now" (uptime ms), republished by tick() when the work window opens. */
         uint64_t timestamp_ms    = 0;
+
+        /** @name Watchdog
+         *
+         *  What the loop is doing about the reset it can choose to take. Kept
+         *  here because it is the SCHEDULER that owns the watchdog, and because
+         *  a withheld kick is otherwise invisible until the unit reboots.
+         *  @{ */
+        /** @brief Armed timeout in ms; 0 before setup() arms it. */
+        uint32_t watchdog_ms      = 0;
+        /** @brief Whether the last kick went out. False means the loop has
+         *  decided to let the hardware reset the unit. */
+        bool     watchdog_kicking = true;
+        /** @brief Kicks withheld since boot. Non-zero after a recovery says the
+         *  unit came within a timeout of resetting itself. */
+        uint32_t watchdog_withheld = 0;
+        /** @brief Uptime of the last kick that WENT OUT, in ms; 0 before the
+         *  first. Read against the clock, so how close the unit is to its own
+         *  reset is a subtraction rather than a guess. */
+        uint64_t watchdog_kick_ms = 0;
+        /** @} */
     };
 
     /** @class LoopScheduler

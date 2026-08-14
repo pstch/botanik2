@@ -18,9 +18,9 @@ def _run(term, line):
 
 def test_get_and_set(spawn):
     term = shell(spawn, quiet_logs=True)
-    _run(term, b"help")
+    _run(term, b"help tables")
     assert term.wait_for(("params", "overrides", "vars", "alarms")), \
-        "help did not list the table commands"
+        "help tables did not list the table commands"
 
     _run(term, b"vars get ntp_srv1")
     assert term.wait_for("ntp_srv1"), "vars get <name> found nothing"
@@ -101,14 +101,14 @@ def test_control(spawn):
     apart on one screen.
     """
     term = shell(spawn, quiet_logs=True)
-    _run(term, b"control")                       # bring-up hands control over
+    _run(term, b"control status")                # bring-up hands control over
     assert term.wait_for("control: enabled"), "control not enabled after boot"
 
     for mode, reported in (("inhibit", "inhibited"),
                            ("disable", "disabled"),
                            ("enable",  "enabled")):
         _run(term, b"control " + mode.encode())
-        _run(term, b"control")
+        _run(term, b"control status")
         assert term.wait_screen("control: " + reported), \
             "control %s did not stick (wanted %r on screen)" % (mode, reported)
 
@@ -260,16 +260,26 @@ def test_a_bare_verb_never_means_all(spawn):
         assert term.wait_for("usage:"), f"{line!r} did not refuse a missing target"
 
 
-def test_help_lists_nouns_without_their_verbs(spawn):
-    """`help` is an index, not a manual: one line per subject, verbs elsewhere."""
+def test_help_is_a_summary_of_groups(spawn):
+    """`help` names the GROUPS only - the command list ran past a 25-row screen
+    once the tables grew verbs of their own."""
     term = shell(spawn, quiet_logs=True)
     _run(term, b"help")
-    assert term.wait_for(("params", "overrides", "programs", "vars")), \
-        "help did not list the table subjects"
-    # The verb list belongs to `<noun> help`. If it leaked back into `help` the
-    # screen goes back to wrapping, which is what this guards.
+    assert term.wait_for(("system", "status", "tables", "console")), \
+        "help did not name the groups"
+    # Neither the commands nor their verbs belong in the summary.
+    assert not term.wait_for("the editable settings"), \
+        "help listed a group's commands instead of summarising"
     assert not term.wait_for("set <name> <value>"), \
-        "help printed a verb list instead of the one-line subject"
+        "help printed a verb list"
+
+    _run(term, b"help tables")
+    assert term.wait_for(("params ...", "overrides ...", "vars ...")), \
+        "help <group> did not list the group, marked for their verbs"
+
+    _run(term, b"help nope")
+    assert term.wait_for(("no group", "system")), \
+        "an unknown group did not say so and fall back to the summary"
 
 
 def test_a_noun_answers_its_own_usage(spawn):
@@ -280,7 +290,10 @@ def test_a_noun_answers_its_own_usage(spawn):
                          (b"programs",  "programs disable <name>|all"),
                          (b"vars",      "vars list [<prefix>]"),
                          (b"alarms",    "ack <code|name|all>"),
-                         (b"tasks",     "tasks stats")):
+                         (b"tasks",     "tasks stats"),
+                         (b"modbus",    "modbus stats | devices"),
+                         (b"logs",      "logs on | off | status"),
+                         (b"control",   "control enable | inhibit | disable")):
         _run(term, noun)
         assert term.wait_for(("usage:", marker)), f"bare {noun!r} did not print its usage"
         _run(term, noun + b" help")
@@ -296,3 +309,12 @@ def test_report_rows_never_wrap(spawn):
         for row in term.screen.display:
             # The wrap continuation marker the shell page emits mid-output.
             assert not row.startswith("> "), f"{cmd!r} wrapped a row: {row!r}"
+
+
+def test_stats_reports_the_watchdog(spawn):
+    """A withheld kick is invisible until the unit reboots, so the loop's
+    distance from its own reset belongs in `stats`."""
+    term = shell(spawn, quiet_logs=True)
+    _run(term, b"stats")
+    assert term.wait_for(("Watchdog", "last kick")), \
+        "stats did not report the watchdog"

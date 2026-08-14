@@ -20,7 +20,7 @@ namespace Botanik { namespace Shell {
 
     void CommandShell::_cmd_logs(const char* args, uint16_t alen) {
         uint16_t wlen; const char* w = arg_next(args, alen, wlen);
-        if (w == nullptr)
+        if (arg_eq(w, wlen, "status"))
             _println(_output.logs_enabled() ? "logs: output enabled"
                                             : "logs: output disabled");
         else if (arg_eq(w, wlen, "on")) {
@@ -29,7 +29,7 @@ namespace Botanik { namespace Shell {
         else if (arg_eq(w, wlen, "off")) {
             _output.set_logs_enabled(false); _println("logs: output disabled");
         }
-        else _println("usage: logs [on|off]");
+        else _verb_usage("logs");
     }
 
     void CommandShell::_cmd_breakpoint(const char*, uint16_t) { HAL::Debug::breakpoint(); }
@@ -88,7 +88,7 @@ namespace Botanik { namespace Shell {
         uint16_t w = 0;
         const char* a = arg_next(args, alen, w);
 
-        if (a == nullptr) { _report_control(io); return; }
+        if (arg_eq(a, w, "status")) { _report_control(io); return; }
 
         if (arg_eq(a, w, "enable")) {
             io->set_control_mode(Vars::CONTROL_ENABLED);
@@ -110,7 +110,7 @@ namespace Botanik { namespace Shell {
                      "stopped, output overrides ignored (kept, not cleared)");
             return;
         }
-        _println("usage: control [enable|inhibit|disable]");
+        _verb_usage("control");
     }
 
     // The operator's choice and the system's hold are reported separately: a

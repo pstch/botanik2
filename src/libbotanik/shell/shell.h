@@ -190,12 +190,26 @@ namespace Botanik { namespace Shell {
          *  _dispatch() answers a bare `<noun>` or `<noun> help` with @c usage
          *  rather than calling the handler: one screen of commands, and the
          *  detail one word away. A command with no verbs leaves it null and
-         *  behaves as it always did. */
+         *  behaves as it always did.
+         *
+         *  @c group is the key of the HelpGroup the command belongs to, which
+         *  is what `help <group>` filters on. Carried per row rather than as a
+         *  span, so reordering the table cannot put a row in the wrong group. */
         struct Builtin { const char* name; const char* help; const char* usage;
+                         const char* group;
                          void (CommandShell::*fn)(const char* args, uint16_t alen); };
         /** @brief The built-in table - single source for both dispatch and
          *  `help`, so help text can't drift from the command set. */
         static const Builtin* _builtins(uint8_t& count);
+
+        /** @brief One help group: the word `help <group>` takes, and the line
+         *  the bare `help` summary shows for it. */
+        struct HelpGroup { const char* key; const char* help; };
+        /** @brief The groups, in the order `help` lists them. */
+        static const HelpGroup* _help_groups(uint8_t& count);
+        /** @brief List the commands in @p key. @return false if no group
+         *  matches, so the caller can say so and print the summary. */
+        bool _help_group(const char* key, uint16_t klen);
 
         /** @brief Print @p noun's usage line, looked up in the built-in table so
          *  the text has ONE home: `help`, a bare noun and a mistyped verb all

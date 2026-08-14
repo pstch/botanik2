@@ -254,9 +254,22 @@ Commands are generally **noun then verb**:
  - the noun is what you are working on
  - the verb is what you are doing to it. 
 
-`help` lists all commands, one line per subject - it is an index, not a manual. A
-command that takes a **verb** shows only its name there; its verbs are one word
-away, from either a bare `<noun>` or `<noun> help`:
+`help` names the **groups** below and nothing else - the full list outgrew a
+25-row screen once the tables grew verbs of their own. `help <group>` lists one
+group; a command that takes a verb is marked `...` there, and answers its own
+usage from either a bare call or `<command> help`:
+
+```
+botanik> help
+  system     driving the unit, and the ways out of it
+  status     what the unit is doing right now
+  tables     settings, overrides, programs, alarms, variables
+  console    the console itself
+`help <group>` lists a group; `<command> help` its verbs
+```
+
+A command that takes arguments **always** answers a bare call with its usage;
+only a qualified one does anything:
 
 ```
 botanik> overrides
@@ -271,8 +284,8 @@ commands with their own code.
 
 | Command                                        | Action                                |
 |------------------------------------------------|---------------------------------------|
-| `logs [on\|off]`                               | show/hide logs on the shell page      |
-| `control [enable\|inhibit\|disable]`           | disable or inhibit the control logic  |
+| `logs on\|off\|status`                          | show/hide logs on the shell page      |
+| `control enable\|inhibit\|disable\|status`       | disable or inhibit the control logic  |
 | `ntpsync`                                      | request an immediate NTP sync         |
 | `breakpoint`                                   | trap into an attached debugger        |
 | `reboot`                                       | drop control, then let the watchdog reset the unit |
@@ -288,7 +301,8 @@ commands with their own code.
 |------------------------------------------------|---------------------------------------|
 | `stats`                                        | show system statistics                |
 | `net`                                          | show network, MQTT & NTP state        |
-| `modbus`                                       | show ModBus status                    |
+| `modbus stats`                                 | show ModBus status                    |
+| `modbus devices`                               | the device roll-call                  |
 | `tasks stats`                                  | the beat's totals                     |
 | `tasks list [<prefix>]`                        | list tasks                            |
 | `tasks get <name>`                             | show task state                       |
@@ -326,7 +340,8 @@ Every listing takes a name prefix, and variables are conventionally named by dom
 
 | Command                                        | Action                                |
 |------------------------------------------------|---------------------------------------|
-| `help`                                         | list every command, with its usage    |
+| `help`                                         | the group summary                     |
+| `help <group>`                                 | the commands in one group             |
 | `clear`                                        | clear the shell page's output         |
 
 ##### Site commands
