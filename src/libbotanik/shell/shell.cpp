@@ -49,111 +49,255 @@ namespace Botanik { namespace Shell {
     // row per verb - `params set` and `params save` are the same subject, and
     // splitting them put the two halves of one job in different places.
     const CommandShell::Builtin* CommandShell::_builtins(uint8_t& count) {
-        // The group each command is filed under; `help <group>` lists one.
-        // Same partition as docs/user/console.md, so neither has to be read
-        // twice to find a command.
+        // The topic each command is filed under; `help <topic>` lists one. Same
+        // partition as docs/user/console.md. `main` is the shortcut list the
+        // help page opens with - a command may be in both.
         static const char* const G_SYS = "system";
         static const char* const G_STA = "status";
         static const char* const G_TAB = "tables";
-        static const char* const G_CON = "console";
 
         static const Builtin TABLE[] = {
-            { "logs",       "live log output on the shell page",
-                            "logs on | off | status",                      G_SYS,
-                                                               &CommandShell::_cmd_logs       },
-            { "control",    "whether the firmware may drive the field",
-                            "control enable | inhibit | disable | status",  G_SYS,
-                                                               &CommandShell::_cmd_control    },
-            { "ntpsync",    "force an NTP resync now",         nullptr,     G_SYS,
-                                                               &CommandShell::_cmd_ntpsync    },
-            { "breakpoint", "trap into an attached debugger",  nullptr,     G_SYS,
-                                                               &CommandShell::_cmd_breakpoint },
-            { "reboot",     "stop kicking the watchdog and let it reset the unit",
-                                                               nullptr,     G_SYS,
-                                                               &CommandShell::_cmd_reboot     },
-            { "reset",      "reset the unit now",              nullptr,     G_SYS,
-                                                               &CommandShell::_cmd_reset      },
-            { "exit",       "quit (sim) / reboot (hw)",        nullptr,     G_SYS,
-                                                               &CommandShell::_cmd_exit       },
-
-            { "stats",      "scheduler / system metrics",      nullptr,     G_STA,
-                                                               &CommandShell::_cmd_stats      },
-            { "net",        "network / NTP / MQTT status",     nullptr,     G_STA,
-                                                               &CommandShell::_cmd_net        },
-            { "modbus",     "the field bus: plan, state and devices",
-                            "modbus stats | devices",                       G_STA,
-                                                               &CommandShell::_cmd_modbus     },
-            { "tasks",      "what the beat spends its time on",
-                            "tasks stats | list [<prefix>] | get <name>",    G_STA,
-                                                               &CommandShell::_cmd_tasks      },
-            { "version",    "firmware version",                nullptr,     G_STA,
-                                                               &CommandShell::_cmd_version    },
-            { "features",   "which subsystems are built in",   nullptr,     G_STA,
-                                                               &CommandShell::_cmd_features   },
-
-            // Only the subject here - the verbs are one `<noun> help` away, so
-            // this stays one readable screen.
-            { "params",     "the editable settings",
-                            "params list [<prefix>] | get <name> | set <name> <value>\n"
-                            "params clear <name>|all | save <name>|all",     G_TAB,
-                                                               &CommandShell::_cmd_params     },
-            { "overrides",  "force any variable by hand",
-                            "overrides list | get <name> | set <name> [<value>] [valid|invalid]\n"
-                            "overrides clear <name>|all | save <name>|all",  G_TAB,
-                                                               &CommandShell::_cmd_overrides  },
-            { "programs",   "the control programs in the scan",
-                            "programs list [<prefix>] | enable <name>|all\n"
-                            "programs disable <name>|all | save <name>|all", G_TAB,
-                                                               &CommandShell::_cmd_programs   },
-            { "alarms",     "the alarm table, and acknowledging",
-                            "alarms list [<prefix>] | get <code|name> | ack <code|name|all>",
-                                                                            G_TAB,
-                                                               &CommandShell::_cmd_alarms     },
-            { "vars",       "read any variable, whatever its scope",
-                            "vars list [<prefix>] | get <name>",             G_TAB,
-                                                               &CommandShell::_cmd_vars       },
-
-            { "help",       "list commands",                   nullptr,     G_CON,
+            // name        args                     help
+            //             verbs (one spelling per line)          topic  main
+            { "help",      "[<topic>]", "this help page, or a topic's help page",
+                           nullptr,                               G_SYS, true,
                                                                &CommandShell::_cmd_help       },
-            { "clear",      "clear the screen",                nullptr,     G_CON,
+            { "breakpoint", nullptr,    "break into an attached debugger",
+                           nullptr,                               G_SYS, true,
+                                                               &CommandShell::_cmd_breakpoint },
+            { "version",   nullptr,     "show code version",
+                           nullptr,                               G_STA, true,
+                                                               &CommandShell::_cmd_version    },
+            { "reboot",    nullptr,     "soft reboot (watchdog resets us)",
+                           nullptr,                               G_SYS, true,
+                                                               &CommandShell::_cmd_reboot     },
+            { "reset",     nullptr,     "immediate reset",
+                           nullptr,                               G_SYS, true,
+                                                               &CommandShell::_cmd_reset      },
+            { "clear",     nullptr,     "clear the screen",
+                           nullptr,                               G_SYS, true,
                                                                &CommandShell::_cmd_clear      },
+            { "exit",      nullptr,     "exit the simulator (reboot on hardware)",
+                           nullptr,                               G_SYS, true,
+                                                               &CommandShell::_cmd_exit       },
+            { "logs",      "on|off",    "show logs in the shell",
+                           "on\noff\nstatus",                     G_SYS, true,
+                                                               &CommandShell::_cmd_logs       },
+            { "control",   "enable|inhibit|disable",
+                                        "whether the firmware may drive the field",
+                           "enable\ninhibit\ndisable\nstatus",     G_SYS, true,
+                                                               &CommandShell::_cmd_control    },
+
+            { "ntpsync",   nullptr,     "force an NTP resync now",
+                           nullptr,                               G_SYS, false,
+                                                               &CommandShell::_cmd_ntpsync    },
+            { "stats",     nullptr,     "scheduler, stack and watchdog metrics",
+                           nullptr,                               G_STA, false,
+                                                               &CommandShell::_cmd_stats      },
+            { "net",       nullptr,     "network / NTP / MQTT status",
+                           nullptr,                               G_STA, false,
+                                                               &CommandShell::_cmd_net        },
+            { "features",  nullptr,     "which subsystems are built in",
+                           nullptr,                               G_STA, false,
+                                                               &CommandShell::_cmd_features   },
+            { "modbus",    "...",       "the field bus: plan, state and devices",
+                           "stats\ndevices",                      G_STA, false,
+                                                               &CommandShell::_cmd_modbus     },
+            { "tasks",     "...",       "what the beat spends its time on",
+                           "stats\nlist [<prefix>]\nget <name>",   G_STA, false,
+                                                               &CommandShell::_cmd_tasks      },
+
+            { "params",    "...",       "the editable settings",
+                           "list [<prefix>]\n"
+                           "get <name>\n"
+                           "set <name> <value>\n"
+                           "clear <name>|all\n"
+                           "save <name>|all",                     G_TAB, false,
+                                                               &CommandShell::_cmd_params     },
+            { "overrides", "...",       "force any variable by hand",
+                           "list\n"
+                           "get <name>\n"
+                           "set <name> [<value>] [valid|invalid]\n"
+                           "clear <name>|all\n"
+                           "save <name>|all",                     G_TAB, false,
+                                                               &CommandShell::_cmd_overrides  },
+            { "programs",  "...",       "the control programs in the scan",
+                           "list [<prefix>]\n"
+                           "enable <name>|all\n"
+                           "disable <name>|all\n"
+                           "save <name>|all",                     G_TAB, false,
+                                                               &CommandShell::_cmd_programs   },
+            { "alarms",    "...",       "the alarm table, and acknowledging",
+                           "list [<prefix>]\n"
+                           "get <code|name>\n"
+                           "ack <code|name|all>",                 G_TAB, false,
+                                                               &CommandShell::_cmd_alarms     },
+            { "vars",      "...",       "read any variable, whatever its scope",
+                           "list [<prefix>]\n"
+                           "get <name>",                          G_TAB, false,
+                                                               &CommandShell::_cmd_vars       },
         };
         count = (uint8_t)(sizeof(TABLE) / sizeof(TABLE[0]));
         return TABLE;
     }
 
+    void CommandShell::_verb_usage(const char* noun) {
+        uint8_t n; const Builtin* B = _builtins(n);
+        const Builtin* b = nullptr;
+        for (uint8_t i = 0; i < n; i++)
+            if (strcmp(B[i].name, noun) == 0) { b = &B[i]; break; }
+        if (b == nullptr || b->verbs == nullptr) return;
+
+        // One verb per line, each spelled out in full with the command in front:
+        // a reader copies a line rather than assembling one from a bar-separated
+        // run, and nothing wraps however many verbs a command grows.
+        char out[Config::LOG_FORMATTED_LEN];
+        const char* v = b->verbs;
+        bool first = true;
+        while (*v != '\0') {
+            size_t k = 0;
+            while (v[k] != '\0' && v[k] != '\n') k++;
+            _emitf(out, sizeof(out), "%s%s %.*s",
+                   first ? "usage: " : "       ", b->name, (int)k, v);
+            first = false;
+            v += k;
+            if (*v == '\n') v++;
+        }
+    }
+
+    // Help page
+    // ------------------------------------------------------------------------
+
     const CommandShell::HelpGroup* CommandShell::_help_groups(uint8_t& count) {
         static const HelpGroup G[] = {
             { "system",  "driving the unit, and the ways out of it" },
             { "status",  "what the unit is doing right now" },
-            { "tables",  "settings, overrides, programs, alarms, variables" },
-            { "console", "the console itself" },
+            { "tables",  "params, overrides, programs, alarms, vars" },
             { "site",    "commands this installation added" },
         };
         count = (uint8_t)(sizeof(G) / sizeof(G[0]));
         return G;
     }
 
-    void CommandShell::_verb_usage(const char* noun) {
-        uint8_t n; const Builtin* B = _builtins(n);
-        const char* u = nullptr;
-        for (uint8_t i = 0; i < n; i++)
-            if (B[i].usage != nullptr && strcmp(B[i].name, noun) == 0) { u = B[i].usage; break; }
-        if (u == nullptr) return;
+    // A blank line: write() of nothing emits nothing, so it takes a space.
+    void CommandShell::_blank() { _output.write(" ", 1); }
 
-        // Newline-separated in the table, one write() each: a long verb list
-        // stacks instead of wrapping into the "> " continuation, which loses the
-        // shape that makes it scannable.
+    void CommandShell::_rule(const char* title) {
         char out[Config::LOG_FORMATTED_LEN];
-        bool first = true;
-        while (*u != '\0') {
-            size_t k = 0;
-            while (u[k] != '\0' && u[k] != '\n') k++;
-            _emitf(out, sizeof(out), "%s%.*s", first ? "usage: " : "       ", (int)k, u);
-            first = false;
-            u += k;
-            if (*u == '\n') u++;
+        const size_t cols = _terminal.cols() ? _terminal.cols() : 80;
+        size_t n = 0;
+        const char* lead = "-- ";
+        while (*lead != '\0' && n + 1 < sizeof(out)) out[n++] = *lead++;
+        while (*title != '\0' && n + 1 < sizeof(out) && n < cols) out[n++] = *title++;
+        if (n + 1 < sizeof(out) && n < cols) out[n++] = ' ';
+        while (n < cols && n + 1 < sizeof(out)) out[n++] = '-';
+        _output.write(out, (uint16_t)n);
+    }
+
+    void CommandShell::_help_row(const char* left, size_t lw, const char* right) {
+        char out[Config::LOG_FORMATTED_LEN];
+        const size_t cols = _terminal.cols() ? _terminal.cols() : 80;
+        const size_t head = 2 + lw + 3;             // indent, column, " : "
+        if (cols <= head) { _emitf(out, sizeof(out), "  %s", left); return; }
+        _emitf(out, sizeof(out), "  %-*s : %.*s",
+               (int)lw, left, (int)(cols - head), right);
+    }
+
+    size_t CommandShell::_row_width(const char* key, uint16_t klen) const {
+        uint8_t n; const Builtin* B = _builtins(n);
+        size_t w = 0;
+        char lab[40];
+        for (uint8_t i = 0; i < n; i++) {
+            const bool want = (key == nullptr) ? B[i].main
+                                               : arg_eq(key, klen, B[i].group);
+            if (!want) continue;
+            const size_t l = _label(B[i], lab, sizeof(lab));
+            if (l > w) w = l;
         }
+        return w;
+    }
+
+    void CommandShell::_cmd_help(const char* args, uint16_t alen) {
+        char out[Config::LOG_FORMATTED_LEN];
+        uint16_t wlen; const char* key = arg_next(args, alen, wlen);
+
+        if (key != nullptr) {
+            if (_help_group(key, wlen)) return;
+            _emitf(out, sizeof(out), "help: no topic '%.*s'", (int)wlen, key);
+        }
+
+        // The shortcut list, then the topics. Listing every command here ran
+        // past a 25-row screen once the tables grew verbs of their own.
+        char lab[40];
+        uint8_t gcount; const HelpGroup* G = _help_groups(gcount);
+        // One column for both sections: the topics line up under the commands.
+        size_t lw = _row_width(nullptr, 0);
+        for (uint8_t i = 0; i < gcount; i++) {
+            if (_command_count == 0 && strcmp(G[i].key, "site") == 0) continue;
+            const size_t l = strlen(G[i].key);
+            if (l > lw) lw = l;
+        }
+        uint8_t n; const Builtin* B = _builtins(n);
+        _rule("Main commands");
+        for (uint8_t i = 0; i < n; i++) {
+            if (!B[i].main) continue;
+            _label(B[i], lab, sizeof(lab));
+            _help_row(lab, lw, B[i].help);
+        }
+
+        _blank();
+        _rule("Topics");
+        for (uint8_t i = 0; i < gcount; i++) {
+            if (_command_count == 0 && strcmp(G[i].key, "site") == 0) continue;
+            _help_row(G[i].key, lw, G[i].help);
+        }
+    }
+
+    bool CommandShell::_help_group(const char* key, uint16_t klen) {
+        char out[Config::LOG_FORMATTED_LEN];
+        char lab[40];
+
+        if (arg_eq(key, klen, "site")) {
+            if (_command_count == 0) return false;
+            size_t lw = 0;
+            for (size_t i = 0; i < _command_count; i++)
+                if (_commands[i].name != nullptr) {
+                    const size_t l = strlen(_commands[i].name);
+                    if (l > lw) lw = l;
+                }
+            _rule("Site commands");
+            for (size_t i = 0; i < _command_count; i++) {
+                const ShellCommand& c = _commands[i];
+                if (c.name == nullptr) continue;
+                _help_row(c.name, lw, c.help ? c.help : "");
+            }
+            return true;
+        }
+
+        uint8_t gcount; const HelpGroup* G = _help_groups(gcount);
+        const HelpGroup* g = nullptr;
+        for (uint8_t i = 0; i < gcount; i++)
+            if (arg_eq(key, klen, G[i].key)) { g = &G[i]; break; }
+        if (g == nullptr) return false;
+
+        (void)out;
+        const size_t lw = _row_width(key, klen);
+        uint8_t n; const Builtin* B = _builtins(n);
+        _rule(g->key);
+        for (uint8_t i = 0; i < n; i++) {
+            if (B[i].group == nullptr || !arg_eq(key, klen, B[i].group)) continue;
+            _label(B[i], lab, sizeof(lab));
+            _help_row(lab, lw, B[i].help);
+        }
+        _println("`<command> help` spells out a command's verbs");
+        return true;
+    }
+
+    // "name args", the left column of every listing row.
+    size_t CommandShell::_label(const Builtin& b, char* buf, size_t cap) {
+        const int n = snprintf(buf, cap, "%s%s%s", b.name,
+                               b.args ? " " : "", b.args ? b.args : "");
+        return (n < 0) ? 0 : (size_t)n;
     }
 
     void CommandShell::_dispatch(const char* cmd, uint16_t len) {
@@ -180,7 +324,7 @@ namespace Botanik { namespace Shell {
             // A NOUN answers its own usage, so the detail is one word from the
             // command rather than a screenful in `help`. Peeked, not consumed:
             // the handler still gets the whole argument slice.
-            if (B[i].usage != nullptr) {
+            if (B[i].verbs != nullptr) {
                 const char* peek = args; uint16_t plen = alen, vlen;
                 const char* verb = arg_next(peek, plen, vlen);
                 if (verb == nullptr || arg_eq(verb, vlen, "help")) {
@@ -207,59 +351,6 @@ namespace Botanik { namespace Shell {
     void CommandShell::_line(const char* label, const char* val) {
         char out[2 * Config::HOST_STR_LEN + 32];
         _emitf(out, sizeof(out), "%-22s : %s", label, val);
-    }
-
-    void CommandShell::_cmd_help(const char* args, uint16_t alen) {
-        char out[Config::LOG_FORMATTED_LEN];
-        uint16_t wlen; const char* key = arg_next(args, alen, wlen);
-
-        if (key != nullptr) {
-            if (_help_group(key, wlen)) return;
-            _emitf(out, sizeof(out), "help: no group '%.*s'", (int)wlen, key);
-        }
-
-        // The summary only. Listing every command here ran past a 25-row screen
-        // once the tables grew verbs of their own, and a help that scrolls off
-        // is not a help.
-        uint8_t gcount; const HelpGroup* G = _help_groups(gcount);
-        for (uint8_t i = 0; i < gcount; i++) {
-            // The site group is only real when a site registered something.
-            if (_command_count == 0 && strcmp(G[i].key, "site") == 0) continue;
-            _emitf(out, sizeof(out), "  %-10s %s", G[i].key, G[i].help);
-        }
-        _println("`help <group>` lists a group; `<command> help` its verbs");
-    }
-
-    bool CommandShell::_help_group(const char* key, uint16_t klen) {
-        char out[Config::LOG_FORMATTED_LEN];
-        char nm[24];
-
-        if (arg_eq(key, klen, "site")) {
-            if (_command_count == 0) return false;
-            for (size_t i = 0; i < _command_count; i++) {
-                const ShellCommand& c = _commands[i];
-                if (c.name == nullptr) continue;
-                _emitf(out, sizeof(out), "  %-14s %s", c.name, c.help ? c.help : "");
-            }
-            return true;
-        }
-
-        uint8_t gcount; const HelpGroup* G = _help_groups(gcount);
-        bool known = false;
-        for (uint8_t i = 0; i < gcount; i++)
-            if (arg_eq(key, klen, G[i].key)) { known = true; break; }
-        if (!known) return false;
-
-        uint8_t bcount; const Builtin* B = _builtins(bcount);
-        for (uint8_t i = 0; i < bcount; i++) {
-            if (B[i].group == nullptr || !arg_eq(key, klen, B[i].group)) continue;
-            // "..." marks a command that wants a verb after it - exactly the
-            // ones a bare call answers with usage, so the mark and the
-            // behaviour cannot disagree.
-            snprintf(nm, sizeof(nm), "%s%s", B[i].name, B[i].usage ? " ..." : "");
-            _emitf(out, sizeof(out), "  %-14s %s", nm, B[i].help);
-        }
-        return true;
     }
 
     void CommandShell::_cmd_clear(const char*, uint16_t) { _output.clear(); }

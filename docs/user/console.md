@@ -254,28 +254,39 @@ Commands are generally **noun then verb**:
  - the noun is what you are working on
  - the verb is what you are doing to it. 
 
-`help` names the **groups** below and nothing else - the full list outgrew a
-25-row screen once the tables grew verbs of their own. `help <group>` lists one
-group; a command that takes a verb is marked `...` there, and answers its own
-usage from either a bare call or `<command> help`:
+`help` opens with the **main commands** - the ones with no verbs behind them -
+and then names the **topics**. The full list outgrew a 25-row screen once the
+tables grew verbs of their own, so the detail is one word away: `help <topic>`
+lists a topic, and `<command> help` spells out a command's verbs.
 
 ```
 botanik> help
-  system     driving the unit, and the ways out of it
-  status     what the unit is doing right now
-  tables     settings, overrides, programs, alarms, variables
-  console    the console itself
-`help <group>` lists a group; `<command> help` its verbs
+-- Main commands ---------------------------------------------------------------
+  help [<topic>]                 : this help page, or a topic's help page
+  breakpoint                     : break into an attached debugger
+  ...
+  control enable|inhibit|disable : whether the firmware may drive the field
+
+-- Topics ----------------------------------------------------------------------
+  system                         : driving the unit, and the ways out of it
+  status                         : what the unit is doing right now
+  tables                         : params, overrides, programs, alarms, vars
 ```
 
-A command that takes arguments **always** answers a bare call with its usage;
-only a qualified one does anything:
+A command that takes a verb is marked `...` in a topic listing, and answers a
+bare call with its usage - one verb per line, so a line can be copied rather
+than assembled:
 
 ```
 botanik> overrides
-usage: overrides list | get <name> | set <name> [<value>] [valid|invalid]
-       overrides clear <name>|all | save <name>|all
+usage: overrides list
+       overrides get <name>
+       overrides set <name> [<value>] [valid|invalid]
+       overrides clear <name>|all
+       overrides save <name>|all
 ```
+
+Nothing happens on a bare call: only a qualified command acts.
 
 The site-specific code may register additional commands or override built-in
 commands with their own code.

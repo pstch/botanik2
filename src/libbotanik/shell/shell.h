@@ -195,21 +195,45 @@ namespace Botanik { namespace Shell {
          *  @c group is the key of the HelpGroup the command belongs to, which
          *  is what `help <group>` filters on. Carried per row rather than as a
          *  span, so reordering the table cannot put a row in the wrong group. */
-        struct Builtin { const char* name; const char* help; const char* usage;
-                         const char* group;
-                         void (CommandShell::*fn)(const char* args, uint16_t alen); };
+        struct Builtin {
+            const char* name;
+            /** @brief Compact argument spelling for a one-line listing; null
+             *  when the command takes none. */
+            const char* args;
+            const char* help;      ///< the one line a listing shows
+            /** @brief The verbs, one spelling per line. Null for a command
+             *  with none - and its presence is what makes a bare call answer
+             *  usage instead of acting. */
+            const char* verbs;
+            const char* group;     ///< topic key, for `help <topic>`
+            bool        main;      ///< also listed under "Main commands"
+            void (CommandShell::*fn)(const char* args, uint16_t alen);
+        };
         /** @brief The built-in table - single source for both dispatch and
          *  `help`, so help text can't drift from the command set. */
         static const Builtin* _builtins(uint8_t& count);
 
-        /** @brief One help group: the word `help <group>` takes, and the line
-         *  the bare `help` summary shows for it. */
+        /** @brief One help topic: the word `help <topic>` takes, and the line
+         *  the bare `help` page shows for it. */
         struct HelpGroup { const char* key; const char* help; };
-        /** @brief The groups, in the order `help` lists them. */
+        /** @brief The topics, in the order `help` lists them. */
         static const HelpGroup* _help_groups(uint8_t& count);
-        /** @brief List the commands in @p key. @return false if no group
-         *  matches, so the caller can say so and print the summary. */
+        /** @brief List the commands in topic @p key. @return false if no topic
+         *  matches, so the caller can say so and print the help page. */
         bool _help_group(const char* key, uint16_t klen);
+
+        /** @brief A blank separator line. */
+        void _blank();
+        /** @brief A section rule: "-- Title ------...", out to the screen. */
+        void _rule(const char* title);
+        /** @brief One "  left : right" row, @p lw wide in the left column and
+         *  cut to the screen. */
+        void _help_row(const char* left, size_t lw, const char* right);
+        /** @brief Widest "name args" across the commands in topic @p key
+         *  (null = the main list), so a section's colons line up. */
+        size_t _row_width(const char* key, uint16_t klen) const;
+        /** @brief "name args" into @p buf; the left column of a listing row. */
+        static size_t _label(const Builtin& b, char* buf, size_t cap);
 
         /** @brief Print @p noun's usage line, looked up in the built-in table so
          *  the text has ONE home: `help`, a bare noun and a mistyped verb all

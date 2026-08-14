@@ -265,8 +265,8 @@ def test_help_is_a_summary_of_groups(spawn):
     once the tables grew verbs of their own."""
     term = shell(spawn, quiet_logs=True)
     _run(term, b"help")
-    assert term.wait_for(("system", "status", "tables", "console")), \
-        "help did not name the groups"
+    assert term.wait_for(("Main commands", "Topics", "system", "status", "tables")), \
+        "help did not show the main commands and the topics"
     # Neither the commands nor their verbs belong in the summary.
     assert not term.wait_for("the editable settings"), \
         "help listed a group's commands instead of summarising"
@@ -275,11 +275,11 @@ def test_help_is_a_summary_of_groups(spawn):
 
     _run(term, b"help tables")
     assert term.wait_for(("params ...", "overrides ...", "vars ...")), \
-        "help <group> did not list the group, marked for their verbs"
+        "help <topic> did not list the topic, marked for their verbs"
 
     _run(term, b"help nope")
-    assert term.wait_for(("no group", "system")), \
-        "an unknown group did not say so and fall back to the summary"
+    assert term.wait_for(("no topic", "Topics")), \
+        "an unknown topic did not say so and fall back to the help page"
 
 
 def test_a_noun_answers_its_own_usage(spawn):
@@ -288,12 +288,12 @@ def test_a_noun_answers_its_own_usage(spawn):
     for noun, marker in ((b"overrides", "overrides clear <name>|all"),
                          (b"params",    "params clear <name>|all"),
                          (b"programs",  "programs disable <name>|all"),
-                         (b"vars",      "vars list [<prefix>]"),
-                         (b"alarms",    "ack <code|name|all>"),
-                         (b"tasks",     "tasks stats"),
-                         (b"modbus",    "modbus stats | devices"),
-                         (b"logs",      "logs on | off | status"),
-                         (b"control",   "control enable | inhibit | disable")):
+                         (b"vars",      "vars get <name>"),
+                         (b"alarms",    "alarms ack <code|name|all>"),
+                         (b"tasks",     "tasks get <name>"),
+                         (b"modbus",    "modbus devices"),
+                         (b"logs",      "logs status"),
+                         (b"control",   "control inhibit")):
         _run(term, noun)
         assert term.wait_for(("usage:", marker)), f"bare {noun!r} did not print its usage"
         _run(term, noun + b" help")
