@@ -318,3 +318,17 @@ def test_stats_reports_the_watchdog(spawn):
     _run(term, b"stats")
     assert term.wait_for(("Watchdog", "last kick")), \
         "stats did not report the watchdog"
+
+
+def test_log_writes_an_operator_entry(spawn):
+    """The shift's own note, beside what the firmware recorded itself."""
+    term = shell(spawn)
+    _run(term, b"log notice valve 3 serviced")
+    assert term.wait_for(("USER", "valve 3 serviced")), \
+        "log did not write the entry on its own topic"
+
+    # A level is required: a bare `log` must not swallow the text as one.
+    _run(term, b"log")
+    assert term.wait_for("usage:"), "bare log did not print its usage"
+    _run(term, b"log nosuchlevel hello")
+    assert term.wait_for("usage:"), "an unknown level was not refused"

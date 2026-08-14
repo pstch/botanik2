@@ -106,17 +106,16 @@ namespace Botanik { namespace Logs {
         // writers, and TX-full drops across the watched serials. Edge-triggered
         // with a per-category holdoff, and emitted as criticals so the writers
         // never drop the report itself.
-        uint32_t sink_total = 0;
         for (uint8_t i = 0; i < _writerCount; i++)
-            sink_total += _writers[i]->loss_count();
-        _report_loss(_sink_loss, sink_total, Config::LOG_SINK_DROP_REPORT_PERIOD_MS,
-                     now_ms, "log entries dropped at sink");
+            _report_loss(_sink_loss[i], _writers[i]->loss_count(),
+                         Config::LOG_SINK_DROP_REPORT_PERIOD_MS, now_ms,
+                         "log entries dropped at sink", _writers[i]->sink_name());
         uint32_t tx_total = 0;
         for (uint8_t i = 0; i < _watched_tx_count; i++)
             tx_total += _watched_tx[i]->tx_dropped();
         if (_watched_tx_count > 0)
             _report_loss(_tx_loss, tx_total, Config::LOG_TX_DROP_REPORT_PERIOD_MS,
-                         now_ms, "serial bytes dropped (TX full)");
+                         now_ms, "serial bytes dropped (TX full)", nullptr);
         _refilling = false;
 #endif
     }
@@ -202,12 +201,13 @@ namespace Botanik { namespace Logs {
     }
 
     void Logger::_report_loss(LossReporter_t& rep, uint32_t total, uint32_t interval_ms,
-                              uint32_t now_ms, const char* what) {
+                              uint32_t now_ms, const char* what, const char* who) {
         if (total <= rep.reported_count) return;   // nothing new
         if (rep.reported && (now_ms - rep.last_report_ms) < interval_ms)
             return;   // holdoff
-        _emit_critical(LogTopic::NONE, now_ms, "%u %s",
-                       (unsigned)(total - rep.reported_count), what);
+        unsigned delta = (unsigned)(total - rep.reported_count);
+        if (who != nullptr) _emit_critical(LogTopic::NONE, now_ms, "%s: %u %s", who, delta, what);
+        else                _emit_critical(LogTopic::NONE, now_ms, "%u %s", delta, what);
         rep.reported_count = total;
         rep.last_report_ms = now_ms;
         rep.reported       = true;

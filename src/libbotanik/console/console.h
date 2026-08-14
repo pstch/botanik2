@@ -149,6 +149,15 @@ namespace Botanik { namespace Terminal {
          *  device); call once before the first render. */
         void setup_terminal() { _term.setup_terminal(); }
 
+        /** @brief Apply whatever the store holds, without announcing it.
+         *
+         *  @warning Call it AFTER the parameter load, which is one of the
+         *  one-time inits Tasks::Registry::setup() runs. Called before, it reads
+         *  the table's DEFAULTS and records their commit serial as applied - and
+         *  since a load restores that serial unchanged, the group would never
+         *  edge again and the stored geometry would never reach the screen. */
+        void apply_stored_config();
+
         /** @brief Re-declare which terminal is on the wire and how big it is,
          *  and put the frame back on the screen it just blanked.
          *
@@ -224,11 +233,7 @@ namespace Botanik { namespace Terminal {
          *  @{ */
 
         static void _config_task(Component* c, const Tasks::Tick& t);
-        /** @brief The `console_adopt` setup handler: apply what the store holds
-         *  without announcing it. Bring-up, so "applying what was already saved"
-         *  is not news, and the boot lines below it go out at the configured
-         *  rate rather than the compile-time one. */
-        static void _adopt_task(Component* c, const Tasks::Tick& t);
+
         static void _input_task(Component* c, const Tasks::Tick& t);
         static void _draw_task(Component* c, const Tasks::Tick& t);
         static void _flush_task(Component* c, const Tasks::Tick& t);

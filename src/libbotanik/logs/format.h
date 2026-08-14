@@ -28,7 +28,7 @@ namespace Botanik { namespace Logs {
         default:                    return "[?]";
     } }
 
-    /** @brief Per-topic strings, indexed by LogTopic (dense 0..STORAGE):
+    /** @brief Per-topic strings, indexed by LogTopic (dense 0..USER):
      *  { display label, lowercase MQTT segment }. One table, so the two can no
      *  longer drift apart. */
     static const char* const TOPIC_NAMES[Logs::LOG_TOPIC_COUNT][2] = {
@@ -44,6 +44,7 @@ namespace Botanik { namespace Logs {
         { "ALARM_FLAP",  "alarm_flap"  },
         { "HEALTH",      "health"      },
         { "STORAGE",     "storage"     },
+        { "USER",        "user"        },
     };
 
     /** @brief Format a log topic into its actual name. */

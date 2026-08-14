@@ -65,11 +65,12 @@ namespace Botanik { namespace Logs {
         ALARM_FLAP = 9,    // cleared without ever logging a START (too fast to dwell)
         HEALTH = 10,       // HealthMonitor (POST verdict, etc.)
         STORAGE = 11,      // persistence; its own topic, not a boot problem
+        USER = 12,         // written by an operator, through the `log` command
     };
 
-    /** @brief Number of defined topics (the enum is dense 0..STORAGE). Bounds
-     *  the logger's per-tick scan loops and sizes the per-topic bucket array. */
-    static constexpr uint8_t LOG_TOPIC_COUNT = STORAGE + 1;
+    /** @brief Number of defined topics (the enum is dense 0..USER). Bounds the
+     *  logger's per-tick scan loops and sizes the per-topic bucket array. */
+    static constexpr uint8_t LOG_TOPIC_COUNT = USER + 1;
 
     // The wire format and every bucket-loop counter are uint8_t.
     static_assert(LOG_TOPIC_COUNT <= 255, "LOG_TOPIC_COUNT exceeds the range of LogTopic");

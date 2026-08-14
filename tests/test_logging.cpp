@@ -108,6 +108,28 @@ TEST_CASE("logger: sink-drop report is edge-triggered, critical, held off") {
     CHECK(w.pushes == base + 1);
 }
 
+TEST_CASE("logger: each sink is reported by name, on its own holdoff") {
+    struct NamedWriter : RecordingWriter {
+        const char* sink_name() const override { return "MONITOR"; }
+    };
+    Logs::Logger logger;
+    NamedWriter     named;
+    RecordingWriter anon;      // never named itself: the report says only how many
+    logger.add_writer(&named);
+    logger.add_writer(&anon);
+
+    named.loss = 3;
+    logger.refill();
+    CHECK(named.saw("MONITOR: 3 log entries dropped at sink"));
+
+    // The other sink's first loss reports instantly despite the report just
+    // made: a shared holdoff would have swallowed it until the period elapsed.
+    anon.loss = 5;
+    logger.refill();
+    CHECK(named.saw("5 log entries dropped at sink"));
+    CHECK_FALSE(named.saw("MONITOR: 5"));
+}
+
 // Token-bucket mechanics (direct)
 
 TEST_CASE("bucket: _try_bucket consumes a token, then suppresses") {

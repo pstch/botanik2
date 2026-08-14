@@ -13,7 +13,7 @@
 
 namespace Botanik { namespace Network {
 
-    MqttLogWriter::MqttLogWriter(Logs::LogLevel min_level) {
+    MqttLogWriter::MqttLogWriter(Logs::LogLevel min_level) : LogWriter("MQTT") {
         set_min_level(min_level);
     }
 

@@ -202,10 +202,10 @@ unit is nuisance-alarming on. The macros are their factory values.
 | `LOG_MESSAGE_LEN` | 256 | the raw message, before formatting |
 | `LOG_FORMATTED_LEN` | 320 | the formatted line. A `static_assert` keeps it at least `LOG_MESSAGE_LEN + 64`, so a full-length message does not lose its tail to the timestamp/level/topic prefix |
 | `LOG_WRITERS_MAX` | 8 | |
-| `LOG_QUEUE_SIZE` | 32 | per writer, and the dominant RAM line in a logging build: roughly `LOG_QUEUE_SIZE * (LOG_MESSAGE_LEN + 16)` per writer, times the five the full page set registers. Keep it above the ~20-entry boot burst. `static_assert`ed <= 255 (the ring index is `uint8_t`) |
+| `LOG_QUEUE_SIZE` | 64 | per writer, and the dominant RAM line in a logging build: roughly `LOG_QUEUE_SIZE * (LOG_MESSAGE_LEN + 16)` per writer, times the five the full page set registers. Keep it above the ~20-entry boot burst. `static_assert`ed <= 255 (the ring index is `uint8_t`) |
 | `LOG_QUEUE_CRITICAL_RESERVE` | 4 | |
 | `LOG_GLOBAL_BUCKET_BURST` / `_PERIOD_MS` | 32 / 1000 | sized to absorb the boot burst |
-| `LOG_PERTOPIC_BUCKET_BURST` / `_PERIOD_MS` | 20 / 5000 | |
+| `LOG_PERTOPIC_BUCKET_BURST` / `_PERIOD_MS` | 32 / 5000 | |
 | `LOG_SUPPRESS_REPORT_PERIOD_MS` | 10000 | |
 | `LOG_SINK_DROP_REPORT_PERIOD_MS` | 5000 | |
 | `LOG_TX_DROP_REPORT_PERIOD_MS` | 10000 | |

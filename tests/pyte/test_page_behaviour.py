@@ -118,7 +118,7 @@ def test_the_task_table_is_complete(spawn):
 
     # Every library task a full build registers. Raise it deliberately when
     # adding one; a DROP is the bug this exists to catch.
-    assert term.wait_for("Registered ....... : 24"), \
+    assert term.wait_for("Registered ....... : 23"), \
         "the task table changed size - a registration was added or silently lost"
     assert term.wait_for("0 refused"), "a registration was refused: MAX_TASKS"
 
@@ -130,7 +130,7 @@ def test_a_named_task_answers_for_itself(spawn):
     not only by the count above.
     """
     term = shell(spawn, quiet_logs=True)
-    for name, phase in (("console_in", "input"), ("params", "config"),
+    for name, phase in (("console_rx", "input"), ("params", "config"),
                         ("health", "service"), ("supply_watch", "control"),
                         ("modbus_rtu_tx", "output"), ("console_tx", "present")):
         term.send(b"tasks get " + name.encode() + keys.ENTER)

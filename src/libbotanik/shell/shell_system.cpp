@@ -8,11 +8,13 @@
 
 #include <algorithm>                        // std::min
 #include <cstdio>                           // snprintf
+#include <algorithm>                        // std::min
 #include <cstring>                          // strlen / strncmp / memcpy
 
 #include "libbotanik/hal/platform.h"        // HAL::System / Debug
 #include "libbotanik/health/health.h"       // Health::HealthMonitor - `reboot`
-#include "libbotanik/logs/logger.h"         // Logs::Logger::set_min_level
+#include "libbotanik/config/logging.h"      // Config::LOG_MESSAGE_LEN
+#include "libbotanik/logs/logger.h"         // Logs::Logger - `log` and set_min_level
 #include "libbotanik/network/ntp.h"         // Network::NtpClient - `ntpsync`
 #include "libbotanik/vars/model.h"          // Vars::Bank - control authority
 
@@ -80,6 +82,30 @@ namespace Botanik { namespace Shell {
     void CommandShell::_cmd_exit(const char*, uint16_t) {
         _leave_running();
         HAL::System::shutdown();   // sim: exit(0); OPTA: reboots
+    }
+
+    // An operator's own entry, on its own topic: what the shift wants recorded
+    // beside what the firmware recorded itself, and it reaches every sink the
+    // firmware's own lines do - the LOGS page, the serial mirror, MQTT.
+    void CommandShell::_cmd_log(const char* args, uint16_t alen) {
+        uint16_t wl; const char* lvl = arg_next(args, alen, wl);
+        while (alen > 0 && *args == ' ') { args++; alen--; }   // the rest is the text
+        if (lvl == nullptr || alen == 0) { _verb_usage("log"); return; }
+        if (_logger == nullptr) { _println("log: no logger"); return; }
+
+        // Bounded and NUL-terminated: the text is a slice of the command line,
+        // and the logger takes a C string.
+        char text[Config::LOG_MESSAGE_LEN];
+        const uint16_t n = std::min(alen, (uint16_t)(sizeof(text) - 1));
+        memcpy(text, args, n); text[n] = '\0';
+
+        if      (arg_eq(lvl, wl, "debug"))    _logger->debug   (Logs::USER, "%s", text);
+        else if (arg_eq(lvl, wl, "info"))     _logger->info    (Logs::USER, "%s", text);
+        else if (arg_eq(lvl, wl, "notice"))   _logger->notice  (Logs::USER, "%s", text);
+        else if (arg_eq(lvl, wl, "warning"))  _logger->warning (Logs::USER, "%s", text);
+        else if (arg_eq(lvl, wl, "error"))    _logger->error   (Logs::USER, "%s", text);
+        else if (arg_eq(lvl, wl, "critical")) _logger->critical(Logs::USER, "%s", text);
+        else { _verb_usage("log"); return; }
     }
 
     void CommandShell::_cmd_control(const char* args, uint16_t alen) {

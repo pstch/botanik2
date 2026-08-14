@@ -83,6 +83,14 @@ namespace Botanik { namespace Shell {
             { "logs",      "on|off",    "show logs in the shell",
                            "on\noff\nstatus",                     G_SYS, true,
                                                                &CommandShell::_cmd_logs       },
+            { "log",       "<level> <text>", "write an entry of your own to the log",
+                           "debug <text>\n"
+                           "info <text>\n"
+                           "notice <text>\n"
+                           "warning <text>\n"
+                           "error <text>\n"
+                           "critical <text>",                     G_SYS, false,
+                                                               &CommandShell::_cmd_log        },
             { "control",   "enable|inhibit|disable",
                                         "whether the firmware may drive the field",
                            "enable\ninhibit\ndisable\nstatus",     G_SYS, true,

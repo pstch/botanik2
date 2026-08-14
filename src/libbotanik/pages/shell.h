@@ -112,6 +112,8 @@ namespace Botanik { namespace Pages {
         /** @name BufferedLogWriter + ShellWriter interface
          *  @{ */
 
+        /** @brief The page's own name, so a loss report says which sink. */
+        const char* sink_name() const override { return name(); }
         // One implementation serves both base interfaces.
         void   push(const Logs::LogEntry* entry) override;
         size_t write(const char* buf, size_t len) override;

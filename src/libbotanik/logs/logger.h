@@ -82,7 +82,12 @@ namespace Botanik { namespace Logs {
         /** @name Loss reporting
          *  @{ */
 
-        LossReporter_t  _sink_loss;   ///< entries dropped at the sinks
+        /** @brief One reporter per writer slot, parallel to _writers: a summed
+         *  count could say how many entries were lost but never WHICH sink lost
+         *  them, and the sinks differ (MONITOR is a wire, the pages are
+         *  screens). Each holds its own holdoff, so a storming sink cannot mask
+         *  a quiet one's first drop. */
+        LossReporter_t  _sink_loss[Config::LOG_WRITERS_MAX];
         LossReporter_t  _tx_loss;     ///< watched serial TX-full drops
         /** @brief Serials whose TX-full drops we report (console + monitor). */
         Utils::BufferedSerial* _watched_tx[2]  = { nullptr, nullptr };
@@ -190,9 +195,11 @@ namespace Botanik { namespace Logs {
         /** @brief Edge-triggered loss report: emit a critical "<delta> <what>"
          *  entry when @p total has grown and the holdoff elapsed (or on the
          *  first loss). Pushed straight to the writers (bypassing the rate
-         *  limiter), as LOG_CRITICAL so the writers never drop it. */
+         *  limiter), as LOG_CRITICAL so the writers never drop it.
+         *  @param who names the source ("<who>: <delta> <what>"); null omits it,
+         *  which is what an unnamed sink and the TX report both give. */
         void _report_loss(LossReporter_t& rep, uint32_t total, uint32_t interval_ms,
-                          uint32_t now_ms, const char* what);
+                          uint32_t now_ms, const char* what, const char* who);
         /** @brief Build a timestamped entry from a printf-style message and
          *  forward it to push_entry(). */
         void _emit(Logs::LogLevel level, Logs::LogTopic topic, const char* fmt,

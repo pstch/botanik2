@@ -39,7 +39,37 @@ namespace Botanik { namespace Logs {
 
         /** @} */
 
+        /** @name Identity
+         *  @{ */
+
+        /** @brief What this sink is called in a loss report, or null for a sink
+         *  that never named itself (the report then says only how many). */
+        const char* _sink_name;
+
+        /** @} */
+
     public:
+        /** @name Lifecycle
+         *  @{ */
+
+        /** @brief @p name is what the logger's loss report calls this sink;
+         *  null leaves it unnamed. */
+        explicit LogWriter(const char* name = nullptr) : _sink_name(name) {}
+
+        /** @} */
+
+        /** @name Identity
+         *  @{ */
+
+        /** @brief The name a loss report uses. NOT `name()`: a sink is also a
+         *  Component or a Page in every case that has one, and both already
+         *  spell that `name()` - one more would be ambiguous at every call. A
+         *  sink holding a name of its own overrides this rather than storing it
+         *  twice. */
+        virtual const char* sink_name() const { return _sink_name; }
+
+        /** @} */
+
         /** @name Queue interface
          *  @{ */
 
@@ -114,6 +144,15 @@ namespace Botanik { namespace Logs {
         /** @} */
 
     public:
+        /** @name Lifecycle
+         *  @{ */
+
+        /** @brief @p name is the sink's name in a loss report (@see
+         *  LogWriter::sink_name). */
+        explicit BufferedLogWriter(const char* name = nullptr) : LogWriter(name) {}
+
+        /** @} */
+
         /** @name Queue interface
          *  @{ */
 
@@ -190,10 +229,16 @@ namespace Botanik { namespace Logs {
 
         /** @brief Bind the writer to @p serial. @p drop_if_tty self-suppresses
          *  on an interactive terminal (see @c _suppressed). @p logger / @p name
-         *  feed the Component base; a null logger stays silent. */
+         *  feed the Component base; a null logger stays silent.
+         *  @param sink what a loss report calls this writer, which is NOT @p
+         *  name: that one is the task's, spelled lowercase_snake beside every
+         *  other task, while this is the operator's label for a wire (MONITOR),
+         *  spelled like the page sinks it appears next to. Null takes @p name.
+         */
         SerialLogWriter(const SetupContext& ctx, BufferedSerial& serial,
                         bool drop_if_tty = false,
-                        const char* name = "SerialLogWriter");
+                        const char* name = "SerialLogWriter",
+                        const char* sink = nullptr);
 
         /** @} */
 

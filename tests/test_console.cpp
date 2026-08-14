@@ -1720,10 +1720,10 @@ TEST_CASE("console: the stored geometry lands once the parameters are loaded") {
     REQUIRE(f.set("term_rows", "30") == Vars::SET_OK);
     REQUIRE(f.serial() == committed);
 
-    // Registry::setup() runs the `console_adopt` handler AFTER every
-    // component_setup() - which is where the load happens - so the console
-    // adopts what the store turned out to hold without any beat running.
+    // Bring-up order: the load is part of Registry::setup(), and the console
+    // adopts AFTER it.
     f.reg.setup(f.now);
+    f.console.apply_stored_config();
     CHECK(f.console.terminal().cols() == 100);
     CHECK(f.console.terminal().rows_total() == 30);
     // No alarm model wired, so no reserved bottom row: pages get the lot.
@@ -1732,7 +1732,8 @@ TEST_CASE("console: the stored geometry lands once the parameters are loaded") {
 
 TEST_CASE("console: a `term_` edit stages until the group's commit serial moves") {
     ConfigFixture f;
-    f.reg.setup(f.now);               // the bring-up adoption, above
+    f.reg.setup(f.now);
+    f.console.apply_stored_config();  // the bring-up adoption, above
     REQUIRE(f.console.terminal().cols() == Config::CONSOLE_COLS);
 
     // The three rows describe ONE terminal, so an edit waits for the commit

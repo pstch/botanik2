@@ -188,10 +188,14 @@ namespace Botanik {
         // component's announce() and HealthMonitor's POST. It also keeps the
         // parameter load, tens of ms of flash, out of the first beat.
 
-        // The console and the monitor adopt the stored settings from their own
-        // registered setup handlers, which run inside this call and after the
-        // parameter load - so the boot lines below go out at the configured rate.
         _scheduler.setup(HAL::Clock::uptime_ms(), _hw_watchdog_ms);
+
+        // AFTER the line above, which is what loads the parameters: what the
+        // console and the monitor adopt here is the store, not the defaults.
+#if BOTANIK_FEATURE_CONSOLE
+        _console.terminal().apply_stored_config();
+        _monitor.apply_stored_config();
+#endif
 
         // Bring-up is done: release the system's hold on control. It starts held
         // (Bank's default), so nothing between power-on and here can energise an
@@ -295,7 +299,7 @@ namespace Botanik {
         // moment they are read (Logger::_emit).
 #endif
 #if BOTANIK_FEATURE_CONSOLE
-        // Three tasks, and the port's two are not among them: console_in at the
+        // Three tasks, and the port's two are not among them: console_rx at the
         // top of the beat, then the draw and the flush here. After the logger,
         // so a line logged this beat is in the pages before they are drawn.
         _console.terminal().register_tasks();

@@ -97,7 +97,7 @@ namespace Botanik { namespace Config {
      *  build, but keep it above the boot burst (~20 entries in the first beat)
      *  or the announces are what gets dropped. */
 #ifndef BOTANIK_LOG_QUEUE_SIZE
-#  define BOTANIK_LOG_QUEUE_SIZE 32
+#  define BOTANIK_LOG_QUEUE_SIZE 64
 #endif
     BOTANIK_CFG(size_t, LOG_QUEUE_SIZE);
 

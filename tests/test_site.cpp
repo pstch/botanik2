@@ -560,8 +560,8 @@ TEST_CASE("sizeof: pages") {
 TEST_CASE("sizeof: logging & serial") {
     REPORT_SIZE(Botanik::Logs::LogEntry,             1024);
     REPORT_SIZE(Botanik::Logs::Logger,               1024);
-    REPORT_SIZE(Botanik::Logs::BufferedLogWriter,   16384);
-    REPORT_SIZE(Botanik::Logs::SerialLogWriter,     16384);
+    REPORT_SIZE(Botanik::Logs::BufferedLogWriter,   32768);
+    REPORT_SIZE(Botanik::Logs::SerialLogWriter,     32768);
     REPORT_SIZE(Botanik::Utils::BufferedSerial,      8192);
 }
 

@@ -71,6 +71,8 @@ namespace Botanik { namespace Pages {
         /** @name BufferedLogWriter interface
          *  @{ */
 
+        /** @brief The page's own name, so a loss report says which sink. */
+        const char* sink_name() const override { return name(); }
         size_t write(const char* buf, size_t len) override;
 
         /** @} */

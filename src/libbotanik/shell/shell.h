@@ -258,6 +258,8 @@ namespace Botanik { namespace Shell {
         void _cmd_help(const char* args, uint16_t alen);
         void _cmd_clear(const char* args, uint16_t alen);
         void _cmd_logs(const char* args, uint16_t alen);
+        /** @brief `log <level> <text>` - an operator's own entry, LogTopic::USER. */
+        void _cmd_log(const char* args, uint16_t alen);
         void _cmd_breakpoint(const char* args, uint16_t alen);
         void _cmd_reset(const char* args, uint16_t alen);
         /** @brief Drop control authority, then stop kicking the watchdog and let

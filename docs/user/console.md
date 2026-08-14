@@ -296,6 +296,7 @@ commands with their own code.
 | Command                                        | Action                                |
 |------------------------------------------------|---------------------------------------|
 | `logs on\|off\|status`                          | show/hide logs on the shell page      |
+| `log <level> <text>`                           | write an entry of your own to the log  |
 | `control enable\|inhibit\|disable\|status`       | disable or inhibit the control logic  |
 | `ntpsync`                                      | request an immediate NTP sync         |
 | `breakpoint`                                   | trap into an attached debugger        |

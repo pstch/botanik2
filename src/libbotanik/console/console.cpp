@@ -53,9 +53,7 @@ namespace Botanik { namespace Terminal {
     // The beat
     // ------------------------------------------------------------------------
 
-    void Console::_adopt_task(Component* c, const Tasks::Tick&) {
-        static_cast<Console*>(c)->_apply_config(/*announce=*/false);
-    }
+    void Console::apply_stored_config() { _apply_config(/*announce=*/false); }
 
     void Console::_config_task(Component* c, const Tasks::Tick&) {
         static_cast<Console*>(c)->_apply_config();
@@ -78,15 +76,10 @@ namespace Botanik { namespace Terminal {
               Tasks::PHASE_CONFIG);
         // The port's own two tasks are gone: the console pumps the wire it
         // owns, at the two ends of the beat it was already working at.
-        _tasks->add(*this, &Console::_input_task, "console_in", Tasks::GROUP_FAST,
+        _tasks->add(*this, &Console::_input_task, "console_rx", Tasks::GROUP_FAST,
               Tasks::PHASE_INPUT);
         _tasks->add(*this, &Console::_draw_task,  "console",    Tasks::GROUP_SLOW,
               Tasks::PHASE_PRESENT);
-        // Adopt the stored geometry once the parameters are in. Registry::setup()
-        // runs the setup handlers AFTER every component_setup(), and it is one of
-        // those that loads the store - so this is the first moment the bank holds
-        // what was saved rather than the table's defaults.
-        _tasks->add_setup(*this, &Console::_adopt_task, "console_adopt");
         _tasks->add(*this, &Console::_flush_task, "console_tx", Tasks::GROUP_FAST,
               Tasks::PHASE_PRESENT);
     }
