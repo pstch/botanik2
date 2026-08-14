@@ -1682,15 +1682,15 @@ TEST_CASE("console: the stored geometry lands once the parameters are loaded") {
     // the trap: a console that recorded the serial as applied above would never
     // look again, and a geometry saved on the last run would never reach the
     // screen.
-    REQUIRE(f.set("term_cols", "60") == Vars::SET_OK);
-    REQUIRE(f.set("term_rows", "20") == Vars::SET_OK);
+    REQUIRE(f.set("term_cols", "100") == Vars::SET_OK);
+    REQUIRE(f.set("term_rows", "30") == Vars::SET_OK);
     REQUIRE(f.serial() == committed);
 
     f.beats(4);
-    CHECK(f.console.terminal().cols() == 60);
-    CHECK(f.console.terminal().rows_total() == 20);
+    CHECK(f.console.terminal().cols() == 100);
+    CHECK(f.console.terminal().rows_total() == 30);
     // No alarm model wired, so no reserved bottom row: pages get the lot.
-    CHECK(f.console.rows() == 20);
+    CHECK(f.console.rows() == 30);
 }
 
 TEST_CASE("console: a `term_` edit stages until the group's commit serial moves") {
@@ -1701,7 +1701,7 @@ TEST_CASE("console: a `term_` edit stages until the group's commit serial moves"
 
     // The three rows describe ONE terminal, so an edit waits for the commit
     // rather than walking the screen through geometries that match nothing.
-    REQUIRE(f.set("term_cols", "60") == Vars::SET_OK);
+    REQUIRE(f.set("term_cols", "100") == Vars::SET_OK);
     f.beats(4);
     CHECK(f.console.terminal().cols() == Config::CONSOLE_COLS);
 
@@ -1709,7 +1709,7 @@ TEST_CASE("console: a `term_` edit stages until the group's commit serial moves"
     snprintf(bumped, sizeof(bumped), "%u", (unsigned)(f.serial() + 1u));
     REQUIRE(f.set("term_serial", bumped) == Vars::SET_OK);
     f.beats(4);
-    CHECK(f.console.terminal().cols() == 60);
+    CHECK(f.console.terminal().cols() == 100);
 }
 
 }  // namespace console_config

@@ -254,9 +254,8 @@ namespace Botanik { namespace Vars {
     // screen mangles but input is untouched, so the rows can be typed back
     // blind.
     //
-    // term_cols is banded at EDITOR_MIN_COLS, the width the editor's layout
-    // static_asserts already assume; term_rows at 12, because the deepest layout
-    // offset in the tree is the ALARMS page's rows() - 8.
+    // Both banded at SCREEN_MIN_*: the tables are laid out for 80x25 and a
+    // smaller screen loses cells rather than reflowing.
     P("term_serial", T_U32,
         1, 0, 9999, 0, "", 960,
         "bump to apply staged term_ edits", ""),
@@ -265,11 +264,12 @@ namespace Botanik { namespace Vars {
         "which terminal is on the console",
         "0=VT100 1=VT102 2=Minitel 1B 3=Minitel 2"),
     P("term_cols", T_U16,
-        BOTANIK_CONSOLE_COLS, BOTANIK_EDITOR_MIN_COLS,
+        BOTANIK_CONSOLE_COLS, BOTANIK_SCREEN_MIN_COLS,
         BOTANIK_TERMINAL_MAX_COLS, 0, "col", 962,
         "console width, in columns", "the screen buffer bounds the maximum"),
     P("term_rows", T_U16,
-        BOTANIK_CONSOLE_ROWS, 12, BOTANIK_TERMINAL_MAX_ROWS, 0, "row", 963,
+        BOTANIK_CONSOLE_ROWS, BOTANIK_SCREEN_MIN_ROWS,
+        BOTANIK_TERMINAL_MAX_ROWS, 0, "row", 963,
         "console height, in rows", "the screen buffer bounds the maximum"),
 #endif
 

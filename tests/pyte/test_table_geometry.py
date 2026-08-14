@@ -59,7 +59,7 @@ def _assert_fits(term, key, label, cols):
 
 
 def test_the_tables_follow_the_terminal_width(spawn):
-    """Widened, the columns take the new width; narrowed, they still fit."""
+    """Widened, the columns take the new width; back at the floor, they still fit."""
     term = shell(spawn, quiet_logs=True, screen=(110, 24))
 
     for key, label in TABLES:
@@ -69,6 +69,7 @@ def test_the_tables_follow_the_terminal_width(spawn):
     for key, label in TABLES:
         _assert_fits(term, key, label, 100)
 
-    _resize(term, 56, 3)
+    # 80x25 is the floor (Config::SCREEN_MIN_*), so "narrowed" means back to it.
+    _resize(term, 80, 3)
     for key, label in TABLES:
-        _assert_fits(term, key, label, 56)
+        _assert_fits(term, key, label, 80)

@@ -43,34 +43,36 @@ def test_a_saved_geometry_comes_back_at_the_next_boot(spawn, tmp_path):
     back up is an edge, and the console has to adopt the stored rows itself."""
     store = tmp_path / "geometry_store"
 
-    term = shell(spawn, quiet_logs=True, store=store)
+    # The emulator is bigger than the sim boots, so a widen past the 80x25
+    # floor is visible at all.
+    term = shell(spawn, quiet_logs=True, store=store, screen=(110, 34))
     term.until(lambda: _geometry(term)[1] is not None)
     width, alarm_row = _geometry(term)
-    assert alarm_row == 23, "the sim should boot at the configured 24 rows"
+    assert alarm_row == 24, "the sim should boot at the configured 25 rows"
 
-    _cmd(term, "params set term_cols 50", "term_cols = 50")
-    _cmd(term, "params set term_rows 16", "term_rows = 16")
+    _cmd(term, "params set term_cols 100", "term_cols = 100")
+    _cmd(term, "params set term_rows 30", "term_rows = 30")
     _cmd(term, "params save term_cols", "term_cols saved")
     _cmd(term, "params save term_rows", "term_rows saved")
 
-    again = boot(spawn, store=store)                 # a second sim, same store
-    _wait_geometry(again, (width - 30, 15),           # 30 columns and 8 rows less
+    again = boot(spawn, store=store, screen=(110, 34))   # a second sim, same store
+    _wait_geometry(again, (width + 20, 29),           # 20 columns and 5 rows more
                    "the saved geometry did not come back at the next boot")
 
 
 def test_the_group_applies_on_its_commit_serial(spawn):
     """An edit STAGES: the three rows describe one terminal, and applying them
     one at a time walks the screen through geometries that match nothing."""
-    term = shell(spawn, quiet_logs=True)
+    term = shell(spawn, quiet_logs=True, screen=(110, 34))
     term.until(lambda: _geometry(term)[1] is not None)
     width, alarm_row = _geometry(term)
 
-    _cmd(term, "params set term_cols 50", "term_cols = 50")
-    _cmd(term, "params set term_rows 16", "term_rows = 16")
+    _cmd(term, "params set term_cols 100", "term_cols = 100")
+    _cmd(term, "params set term_rows 30", "term_rows = 30")
     term.run(60)
     assert _geometry(term) == (width, alarm_row), \
         "a staged `term_` edit resized the screen before the commit"
 
     _cmd(term, "params set term_serial 2", "term_serial = 2")
-    _wait_geometry(term, (width - 30, 15),
+    _wait_geometry(term, (width + 20, 29),
                    "the commit serial did not apply the staged geometry")

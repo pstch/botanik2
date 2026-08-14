@@ -36,22 +36,42 @@ namespace Botanik { namespace Config {
 #endif
     BOTANIK_CFG(uint8_t, TERMINAL_TYPE);
 
+    /** @brief The smallest screen the UI is laid out for. The tables were
+     *  designed around 80x25 and a narrower or shorter one loses columns and
+     *  rows rather than reflowing, so it is a floor rather than a preference:
+     *  the `term_` parameters are banded at it and the console clamps to it.
+     *
+     *  NOT the deepest structural requirement - the ALARMS page's rows() - 8 is
+     *  satisfied by about 11 rows. This is what the tables READ well at. */
+#ifndef BOTANIK_SCREEN_MIN_COLS
+#  define BOTANIK_SCREEN_MIN_COLS 80
+#endif
+    BOTANIK_CFG(uint16_t, SCREEN_MIN_COLS);
+#ifndef BOTANIK_SCREEN_MIN_ROWS
+#  define BOTANIK_SCREEN_MIN_ROWS 25
+#endif
+    BOTANIK_CFG(uint16_t, SCREEN_MIN_ROWS);
+
     /** @brief Geometry of the terminal actually on the console wire. Bounded
-     *  by TERMINAL_MAX_COLS / _ROWS, which size the screen back-buffer. */
+     *  below by SCREEN_MIN_* and above by TERMINAL_MAX_*, which size the screen
+     *  back-buffer. */
 #ifndef BOTANIK_CONSOLE_COLS
 #  define BOTANIK_CONSOLE_COLS 80
 #endif
     BOTANIK_CFG(uint16_t, CONSOLE_COLS);
 #ifndef BOTANIK_CONSOLE_ROWS
-#  define BOTANIK_CONSOLE_ROWS 24
+#  define BOTANIK_CONSOLE_ROWS 25
 #endif
     BOTANIK_CFG(uint16_t, CONSOLE_ROWS);
+
+    static_assert(CONSOLE_COLS >= SCREEN_MIN_COLS && CONSOLE_ROWS >= SCREEN_MIN_ROWS,
+                  "CONSOLE_COLS/ROWS below the minimum the pages lay out for");
 
     /** @brief Largest terminal the UI supports. Sizes the screen back-buffer
      *  (two cell grids of COLS x ROWS bytes), clamps the console geometry at
      *  construction, and bounds full-width fills so a bogus column count cannot
      *  drive an unbounded paint. 132x32 is a wide VT with room to spare over the
-     *  80x24 the pages lay out for. */
+     *  80x25 the pages lay out for. */
 #ifndef BOTANIK_TERMINAL_MAX_COLS
 #  define BOTANIK_TERMINAL_MAX_COLS 132
 #endif
@@ -60,6 +80,10 @@ namespace Botanik { namespace Config {
 #  define BOTANIK_TERMINAL_MAX_ROWS 32
 #endif
     BOTANIK_CFG(uint16_t, TERMINAL_MAX_ROWS);
+
+    static_assert(TERMINAL_MAX_COLS >= SCREEN_MIN_COLS &&
+                  TERMINAL_MAX_ROWS >= SCREEN_MIN_ROWS,
+                  "the screen buffer cannot hold the minimum screen");
 
     /** @brief Pages the Console multiplexes over. Registration past it is
      *  refused SILENTLY (add_page() returns -1 and register_pages() ignores it),

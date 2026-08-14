@@ -118,8 +118,13 @@ namespace Botanik { namespace Terminal {
         }
         if (want_term) {
             const uint8_t  type = (uint8_t)Vars::get_int(_cfg, "term_type", (int32_t)_type);
-            const uint16_t cols = (uint16_t)Vars::get_int(_cfg, "term_cols", (int32_t)_cols);
-            const uint16_t rows = (uint16_t)Vars::get_int(_cfg, "term_rows", (int32_t)_rows_cfg);
+            uint16_t cols = (uint16_t)Vars::get_int(_cfg, "term_cols", (int32_t)_cols);
+            uint16_t rows = (uint16_t)Vars::get_int(_cfg, "term_rows", (int32_t)_rows_cfg);
+            // The parameter band guards the way IN; a corrupt store reaches this
+            // by another road, and below the minimum the tables lose cells
+            // rather than reflowing.
+            if (cols < Config::SCREEN_MIN_COLS) cols = Config::SCREEN_MIN_COLS;
+            if (rows < Config::SCREEN_MIN_ROWS) rows = Config::SCREEN_MIN_ROWS;
             // The row's band is 0..3, but a band is only the guard on the way IN
             // and a corrupt store reaches this by another road; an out-of-range
             // make would index a handshake switch with no case for it.
