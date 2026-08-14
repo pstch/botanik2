@@ -137,7 +137,7 @@ namespace Botanik { namespace Pages {
     uint8_t ParamsPage::_columns(Col* out) const {
         out[C_NAME]     = Col{ "PARAMETER", NAME_W     };
         out[C_TYPE]     = Col{ "TYPE",      TYPE_W     };
-        out[C_VALUE]    = Col{ "VALUE",     _value_w() };
+        out[C_VALUE]    = Col{ "VALUE",     0          };   // flex: the base fits it
         out[C_UNIT]     = Col{ "UNIT",      UNIT_W     };
         out[C_REGISTER] = Col{ "REGISTER",  REGISTER_W };
         return 5;

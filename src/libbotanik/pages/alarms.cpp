@@ -20,7 +20,7 @@ namespace Botanik { namespace Pages {
         // No DESCRIPTION column: the name IS the variable, and the sentence
         // explaining it goes in the panel, where the whole of it fits.
         out[C_CODE]  = Col{ "CODE",       CODE_W  };
-        out[C_NAME]  = Col{ "VARIABLE",   _name_w() };
+        out[C_NAME]  = Col{ "VARIABLE",   0       };   // flex: the base fits it
         out[C_STATE] = Col{ "ON",         STATE_W };
         out[C_OVR]   = Col{ "OVR",        OVR_W };
         out[C_EVENT] = Col{ "LAST EVENT", EVENT_W };

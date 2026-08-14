@@ -172,23 +172,61 @@ namespace Botanik { namespace Pages {
         _terminal.clear_to_eol();
     }
 
-    uint16_t ScrollTablePage::_cell_col(uint8_t i) const {
+    uint8_t ScrollTablePage::_fit_columns(Col* out) const {
+        const uint8_t n = _columns(out);
+        if (n == 0) return 0;
+        // What the cells may span: the display less both margins and the
+        // closing rule. _build_row() lays out exactly that.
+        const uint16_t cols = _terminal.cols();
+        const uint16_t room = (cols > (uint16_t)(2 * MARGIN + 1))
+                            ? (uint16_t)(cols - 2 * MARGIN - 1) : 0;
+
+        const uint8_t f = (_flex_col() < n) ? _flex_col() : 0;
+        uint16_t used = _cell_pitch(0);               // the flex cell's own borders
+        for (uint8_t i = 0; i < n; i++)
+            if (i != f) used = (uint16_t)(used + _cell_pitch(out[i].width));
+        uint16_t w = (room > used) ? (uint16_t)(room - used) : 0;
+        out[f].width = (w < FLEX_MIN) ? FLEX_MIN : w;
+
+        // Still too wide: the fixed columns alone overrun the display. Shave the
+        // widest until the row fits, rather than letting the terminal clip it
+        // mid-cell and lose the closing rule.
+        used = 0;
+        for (uint8_t i = 0; i < n; i++) used = (uint16_t)(used + _cell_pitch(out[i].width));
+        while (used > room) {
+            uint8_t big = 0;
+            for (uint8_t i = 1; i < n; i++) if (out[i].width > out[big].width) big = i;
+            if (out[big].width <= MIN_COL_W) break;   // nothing left to give
+            out[big].width--;
+            used--;
+        }
+        return n;
+    }
+
+    void ScrollTablePage::_cell_span(uint8_t i, uint16_t& start, uint16_t& end) const {
         Col cols[MAX_COLS];
-        uint8_t n = _columns(cols);
-        uint16_t c = (uint16_t)(MARGIN + 2);          // margin + "| "
-        for (uint8_t j = 0; j < i && j < n; j++) c = (uint16_t)(c + _cell_pitch(cols[j].width));
-        return c;
+        uint8_t n = _fit_columns(cols);
+        start = (uint16_t)(MARGIN + 2);               // margin + "| "
+        for (uint8_t j = 0; j < i && j < n; j++)
+            start = (uint16_t)(start + _cell_pitch(cols[j].width));
+        end = (uint16_t)(start + (i < n ? cols[i].width : 0));
+    }
+
+    uint16_t ScrollTablePage::_cell_col(uint8_t i) const {
+        uint16_t start = 0, end = 0;
+        _cell_span(i, start, end);
+        return start;
     }
 
     uint16_t ScrollTablePage::_cell_end(uint8_t i) const {
-        Col cols[MAX_COLS];
-        uint8_t n = _columns(cols);
-        return (uint16_t)(_cell_col(i) + (i < n ? cols[i].width : 0));
+        uint16_t start = 0, end = 0;
+        _cell_span(i, start, end);
+        return end;
     }
 
     uint16_t ScrollTablePage::_build_row(char* out, size_t cap, const char* const* cells) const {
         Col cols[MAX_COLS];
-        uint8_t n = _columns(cols);
+        uint8_t n = _fit_columns(cols);
         const bool pad = _pad_cells();
         uint16_t w = 0;
         for (uint16_t i = 0; i < MARGIN && w < cap - 1; i++) out[w++] = ' ';
@@ -207,7 +245,7 @@ namespace Botanik { namespace Pages {
 
     void ScrollTablePage::_draw_header(uint16_t row) {
         Col cols[MAX_COLS];
-        uint8_t n = _columns(cols);
+        uint8_t n = _fit_columns(cols);
         const char* heads[MAX_COLS];
         for (uint8_t i = 0; i < n; i++) heads[i] = cols[i].head;
         char line[Config::TABLE_LINE_LEN];
@@ -216,7 +254,7 @@ namespace Botanik { namespace Pages {
 
     void ScrollTablePage::_draw_rule(uint16_t row, char cap, char join) {
         Col cols[MAX_COLS];
-        uint8_t n = _columns(cols);
+        uint8_t n = _fit_columns(cols);
         char line[Config::TABLE_LINE_LEN];
         uint16_t w = 0;
         for (uint16_t i = 0; i < MARGIN && w < sizeof(line) - 1; i++) line[w++] = ' ';
@@ -229,14 +267,6 @@ namespace Botanik { namespace Pages {
             if (w < sizeof(line) - 1) line[w++] = (c + 1 == n) ? cap : join;
         }
         _draw_line(row, line, w);
-    }
-
-    uint16_t ScrollTablePage::_flex_width(uint16_t used, uint16_t cap) const {
-        uint16_t cols = _terminal.cols();
-        uint16_t w = (cols > used) ? (uint16_t)(cols - used) : 8;
-        if (w < 8)   w = 8;
-        if (w > cap) w = cap;
-        return w;
     }
 
     void ScrollTablePage::_draw_separator(uint16_t row) {

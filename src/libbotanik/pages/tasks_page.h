@@ -58,7 +58,6 @@ namespace Botanik { namespace Pages {
         static constexpr uint16_t HEADER_ROW = 2;
         static constexpr uint16_t RULE_ROW   = 3;
         static constexpr uint16_t DATA_TOP   = 4;    // first task row
-        static constexpr uint16_t NAME_CAP   = 24;   // task-name column cap (flex)
         static constexpr uint16_t GROUP_W    = 5;    // "bkgnd"
         // Wide enough for its own heading: _build_row truncates a head to the
         // column width, so a narrower column would silently drop the unit.
@@ -158,12 +157,10 @@ namespace Botanik { namespace Pages {
             return (pt > DATA_TOP) ? (uint16_t)(pt - DATA_TOP) : 0;
         }
 
-        /** @brief Flexible TASK width: the display minus the four fixed columns
-         *  and every border. The name is what a reader scans, so it gets the
-         *  slack rather than the numbers. */
-        uint16_t _name_w() const;
-
         uint8_t _columns(Col* out) const override;
+        /** @brief TASK stretches: the name is what a reader scans, so it gets
+         *  the display's slack rather than the numbers. */
+        uint8_t _flex_col() const override { return C_NAME; }
 
         /** @brief One of the task's counters, or "-" before the first run: 0
          *  would conflate "never ran" with "ran in under a microsecond", and

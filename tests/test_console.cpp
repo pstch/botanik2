@@ -19,6 +19,7 @@
 #include "libbotanik/console/editor.h"  // Terminal::TextEditor
 #include "libbotanik/console/parser.h"  // Terminal::InputParser
 #include "libbotanik/pages/line_buffer.h"   // Pages::LineBuffer
+#include "libbotanik/pages/scroll_table.h"  // Pages::ScrollTablePage
 #include "libbotanik/pages/scrollback.h"    // Pages::Scrollback
 #include "libbotanik/shell/shell.h" // Shell::CommandShell
 #include "libbotanik/tasks/tasks.h"         // Tasks::Registry - the beat the console registers in
@@ -1712,3 +1713,90 @@ TEST_CASE("console: a `term_` edit stages until the group's commit serial moves"
 }
 
 }  // namespace console_config
+
+// --------------------------------------------------------------------------
+// scroll_table
+// --------------------------------------------------------------------------
+
+namespace scroll_table {
+
+using namespace Botanik;
+
+namespace {
+    /** @brief A table page that is only geometry: three columns, no data. */
+    struct FitPage : public Pages::ScrollTablePage {
+        explicit FitPage(Terminal::Console& c) : ScrollTablePage(c) {}
+
+        // Page contract: nothing here draws.
+        const char* name() const override { return "FIT"; }
+        void handle_text(char) override {}
+        void handle_command(Command, uint16_t) override {}
+        void deactivate() override {}
+        void focus() override {}
+        void tick(bool) override {}
+
+        uint16_t _data_top()  const override { return 4; }
+        uint16_t _window()    const override { return 8; }
+        uint16_t _row_count() const override { return 0; }
+
+        uint8_t _columns(Col* out) const override {
+            out[0] = Col{ "A",    4  };
+            out[1] = Col{ "FLEX", 0  };          // the base fits it
+            out[2] = Col{ "C",    10 };
+            return 3;
+        }
+        uint8_t _flex_col() const override { return 1; }
+
+        /** @brief What a drawn row measures. */
+        uint16_t row_width() const {
+            char line[Config::TABLE_LINE_LEN];
+            const char* cells[3] = {"", "", ""};
+            return _build_row(line, sizeof line, cells);
+        }
+        uint16_t width_of(uint8_t i) const {
+            return (uint16_t)(_cell_end(i) - _cell_col(i));
+        }
+    };
+}
+
+// The column widths are the display's, read at draw time: a resize is a
+// re-layout, and nothing the page cached from the geometry it was built at.
+TEST_CASE("scroll table: a resize re-lays the columns out, both ways") {
+    botanik_test::PipeSerial wire;
+    uint64_t now = 0;
+    Terminal::Console console(Botanik::SetupContext(), wire.serial, 80, 24, &now, 4000000u);
+    FitPage page(console);
+
+    // MARGIN each side, so the table ends where _draw_separator() does.
+    REQUIRE(page.row_width() == 78);
+    const uint16_t flex80 = page.width_of(1);
+
+    INFO("widened: the slack goes to the flexible column, the fixed ones stay");
+    REQUIRE(console.reconfigure(console.terminal().terminal_type(), 120, 24));
+    CHECK(page.row_width()  == 118);
+    CHECK(page.width_of(1)  == (uint16_t)(flex80 + 40));
+    CHECK(page.width_of(0)  == 4);
+    CHECK(page.width_of(2)  == 10);
+
+    INFO("narrowed past what the fixed columns cost: the widest are shaved so"
+         " the row still fits, rather than being clipped mid-cell");
+    REQUIRE(console.reconfigure(console.terminal().terminal_type(), 30, 24));
+    CHECK(page.row_width() == 28);
+    CHECK(page.width_of(2) < 10);
+    CHECK(page.width_of(0) == 4);       // narrowest cell: nothing to take
+}
+
+// A screen too small for even the shaved row must not wrap the arithmetic.
+TEST_CASE("scroll table: a display narrower than the columns clamps, not wraps") {
+    botanik_test::PipeSerial wire;
+    uint64_t now = 0;
+    Terminal::Console console(Botanik::SetupContext(), wire.serial, 80, 24, &now, 4000000u);
+    FitPage page(console);
+
+    REQUIRE(console.reconfigure(console.terminal().terminal_type(), 8, 24));
+    CHECK(page.row_width() > 0);
+    CHECK(page.row_width() < Config::TABLE_LINE_LEN);
+    CHECK(page.width_of(1) >= 3);       // MIN_COL_W: nothing is shaved away
+}
+
+}  // namespace scroll_table

@@ -260,10 +260,10 @@ namespace Botanik { namespace Pages {
         /** @}
          *  @name Column model
          *
-         *  A subclass declares its columns once (heading + content width, flex
-         *  already resolved); the base builds the row, the header and the rule
-         *  from that, and derives the screen column each cell's contents start
-         *  at, so the two cannot drift.
+         *  A subclass declares its columns once (heading + content width); the
+         *  base FITS them to the display, builds the row, the header and the
+         *  rule from the result, and derives the screen column each cell's
+         *  contents start at, so the three cannot drift.
          *  @{ */
 
         /** @brief One table column: its heading and its CONTENT width (the
@@ -277,13 +277,31 @@ namespace Botanik { namespace Pages {
         /** @brief Blank columns each side of the table. */
         static constexpr uint16_t MARGIN   = 2;
 
-        /** @brief Fill @p out with this table's columns (flex widths resolved
-         *  against the current display) and return how many. */
+        /** @brief Narrowest a column may be shaved to on a short display. */
+        static constexpr uint16_t MIN_COL_W  = 3;
+        /** @brief Narrowest the flexible column is stretched to. */
+        static constexpr uint16_t FLEX_MIN   = 8;
+
+        /** @brief Fill @p out with this table's columns and return how many.
+         *  The flexible one's width is the base's to fill: declare it 0. */
         virtual uint8_t _columns(Col* out) const = 0;
+
+        /** @brief Which column absorbs the display's slack - and gives it back
+         *  when the screen is too narrow for the fixed ones. */
+        virtual uint8_t _flex_col() const { return 0; }
+
+        /** @brief _columns(), fitted to the display: the flexible column takes
+         *  whatever the fixed ones leave, and a row still too wide is shaved
+         *  widest-cell-first until it fits.
+         *
+         *  The table therefore spans between equal margins, ending where
+         *  _draw_separator() does, at whatever width the terminal was last
+         *  reconfigured to - the one place any of that is decided. */
+        uint8_t _fit_columns(Col* out) const;
 
         /** @brief Whether a cell carries a pad column after its contents, so a
          *  row reads "| a | b |" rather than "| a| b". The alarms grid packs its
-         *  cells (the width goes to its flexible column); the other two pad. It
+         *  cells (the width goes to its flexible column); the others pad. It
          *  sets the cell pitch every derived column position falls out of. */
         virtual bool _pad_cells() const { return true; }
 
@@ -292,6 +310,9 @@ namespace Botanik { namespace Pages {
         uint16_t _cell_pitch(uint16_t width) const {
             return (uint16_t)(width + (_pad_cells() ? 3 : 2));
         }
+
+        /** @brief Column @p i's contents on screen: [@p start, @p end). */
+        void _cell_span(uint8_t i, uint16_t& start, uint16_t& end) const;
 
         /** @brief Screen column where column @p i's CONTENTS start - what a
          *  selection cursor or an in-cell badge inverts from. */
@@ -312,10 +333,6 @@ namespace Botanik { namespace Pages {
          *  below the window. @p join is the inner column mark - the alarms grid
          *  passes @p cap for it too, so every mark carries the scroll arrow. */
         void _draw_rule(uint16_t row, char cap, char join = '+');
-
-        /** @brief Flexible column width: the display minus @p used, floored at
-         *  8 and capped at @p cap. */
-        uint16_t _flex_width(uint16_t used, uint16_t cap) const;
 
         /** @brief A full-width dashed separator, for a page that puts a detail
          *  panel under its table. */

@@ -87,13 +87,6 @@ namespace Botanik { namespace Pages {
          *  transition's timestamp, "YY/MM/DD HH:MM").
          *  @{ */
         static constexpr uint16_t CODE_W     = 9;   // short display code
-        /** @brief The VARIABLE column is the flexible one: it absorbs what the
-         *  fixed columns leave, so the table spans the display. */
-        uint16_t _name_w() const {
-            return _flex_width((uint16_t)(2 * MARGIN + (CODE_W + 2) + 2
-                                          + (STATE_W + 2) + (OVR_W + 2)
-                                          + (EVENT_W + 2) + 1), 60);
-        }
         static constexpr uint16_t STATE_W    = 3;   // "ON" badge / "ON" header
         /** @brief The override marker: what the row is being HELD at, in the
          *  state column's own ON/OFF vocabulary (that is what the state column
@@ -114,10 +107,13 @@ namespace Botanik { namespace Pages {
         /** @} */
 
         /** @brief The alarms grid packs its cells (no trailing pad): the width
-         *  it saves goes to the flexible VARIABLE column (_name_w()). */
+         *  it saves goes to the flexible VARIABLE column. */
         bool _pad_cells() const override { return false; }
 
         uint8_t _columns(Col* out) const override;
+        /** @brief VARIABLE stretches: it absorbs what the fixed columns leave,
+         *  so the table spans the display. */
+        uint8_t _flex_col() const override { return C_NAME; }
 
         /** @brief Right edge of the selection highlight: one short of the
          *  VARIABLE cell's contents (see the column note above). */

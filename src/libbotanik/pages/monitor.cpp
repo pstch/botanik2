@@ -87,16 +87,10 @@ namespace Botanik { namespace Pages {
         return t;
     }
 
-    uint16_t MonitorPage::_value_w() const {
-        return _flex_width((uint16_t)(2 * MARGIN + 2 + SCOPE_W + 3 + NAME_W + 3
-                                      + 3 + UNIT_W + 3 + OVR_W + 2),
-                           (uint16_t)(VAL_CAP - 1));
-    }
-
     uint8_t MonitorPage::_columns(Col* out) const {
         out[C_SCOPE] = Col{ "SCOPE",    SCOPE_W    };
         out[C_NAME]  = Col{ "VARIABLE", NAME_W     };
-        out[C_VALUE] = Col{ "VALUE",    _value_w() };
+        out[C_VALUE] = Col{ "VALUE",    0          };   // flex: the base fits it
         out[C_UNIT]  = Col{ "UNIT",     UNIT_W     };
         // A forced reading is indistinguishable from a real one in the VALUE
         // column - that is the whole hazard of an override - so the table

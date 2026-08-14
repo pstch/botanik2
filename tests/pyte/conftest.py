@@ -45,7 +45,7 @@ def pytest_addoption(parser):
 class Term:
     """A running botanik_sim plus a pyte screen fed from its PTY."""
 
-    def __init__(self, binary, watch=(), store=None):
+    def __init__(self, binary, watch=(), store=None, screen=None):
         env = dict(os.environ)
         self._ctl_w = None
         self._raw = b""                       # undecoded tail, for the ack split
@@ -77,7 +77,10 @@ class Term:
 
         # latin-1, not pyte.ByteStream: its UTF-8 decoder can resync-drop a byte
         # and a lost ESC leaves a literal "[2;1H" on the screen.
-        self.screen = pyte.Screen(COLS, ROWS)
+        # `screen` widens the emulator for a test that resizes the console past
+        # the sim's own boot geometry; the firmware still draws to term_cols.
+        cols, rows = screen if screen is not None else (COLS, ROWS)
+        self.screen = pyte.Screen(cols, rows)
         self.stream = pyte.Stream(self.screen)
 
         # Markers latched as they go by, so wait_for() can answer for a line that

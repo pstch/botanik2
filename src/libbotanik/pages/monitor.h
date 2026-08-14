@@ -218,12 +218,9 @@ namespace Botanik { namespace Pages {
         const char* _selected_cell() const override;
         /** @} */
 
-        /** @brief Flexible VALUE width for the 4-column row (group | name | value
-         *  | unit): the display minus the three fixed columns and every border,
-         *  floored at 8 and capped at VAL_CAP-1. */
-        uint16_t _value_w() const;
-
         uint8_t _columns(Col* out) const override;
+        /** @brief VALUE stretches: it is the cell whose contents vary. */
+        uint8_t _flex_col() const override { return C_VALUE; }
 
         /** @brief The reference for variable @p r; @p ok is false when @p r is
          *  past the end. */

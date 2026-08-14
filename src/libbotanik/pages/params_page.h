@@ -240,14 +240,9 @@ namespace Botanik { namespace Pages {
         // Table rendering (5 columns: name | type | value | register | unit)
         // --------------------------------------------------------------------
 
-        /** @brief Flexible VALUE width: the display minus the four fixed columns
-         *  and every border, floored at 8 and capped at VAL_CAP-1. */
-        uint16_t _value_w() const {
-            return _flex_width((uint16_t)(MARGIN + 2 + NAME_W + 3 + TYPE_W + 3 + 3
-                                          + REGISTER_W + 3 + UNIT_W + 2), (uint16_t)(VAL_CAP - 1));
-        }
-
         uint8_t _columns(Col* out) const override;
+        /** @brief VALUE stretches: it is the cell whose contents vary. */
+        uint8_t _flex_col() const override { return C_VALUE; }
 
         void _draw_row(uint16_t idx, uint16_t row, bool selected);
 

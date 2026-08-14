@@ -63,14 +63,8 @@ namespace Botanik { namespace Pages {
              ? (uint16_t)(last - PANEL_H) : DATA_TOP;
     }
 
-    uint16_t TasksPage::_name_w() const {
-        return _flex_width((uint16_t)(2 * MARGIN + 2 + 3 + GROUP_W + 3
-                                      + PERIOD_W + 3 + PHASE_W + 3
-                                      + MEAN_W + 3 + MISSED_W + 2), NAME_CAP);
-    }
-
     uint8_t TasksPage::_columns(Col* out) const {
-        out[C_NAME]   = Col{ "TASK",      _name_w() };
+        out[C_NAME]   = Col{ "TASK",      0         };   // flex: the base fits it
         out[C_GROUP]  = Col{ "GROUP",     GROUP_W   };
         out[C_PERIOD] = Col{ "EVERY ms",  PERIOD_W  };
         out[C_PHASE]  = Col{ "PHASE",     PHASE_W   };
