@@ -51,39 +51,85 @@ namespace Botanik { namespace Shell {
     const CommandShell::Builtin* CommandShell::_builtins(uint8_t& count) {
         static const Builtin TABLE[] = {
             // System control
-            { "logs",       "[on|off]  live log output",       &CommandShell::_cmd_logs       },
-            { "control",    "[enable|inhibit|disable] drive the field", &CommandShell::_cmd_control },
-            { "ntpsync",    "force an NTP resync now",         &CommandShell::_cmd_ntpsync    },
-            { "breakpoint", "trap into an attached debugger",  &CommandShell::_cmd_breakpoint },
-            { "reboot",     "stop kicking the watchdog and let it reset the unit",
+            { "logs",       "[on|off]  live log output",       nullptr,
+                                                               &CommandShell::_cmd_logs       },
+            { "control",    "[enable|inhibit|disable] drive the field", nullptr,
+                                                               &CommandShell::_cmd_control    },
+            { "ntpsync",    "force an NTP resync now",         nullptr,
+                                                               &CommandShell::_cmd_ntpsync    },
+            { "breakpoint", "trap into an attached debugger",  nullptr,
+                                                               &CommandShell::_cmd_breakpoint },
+            { "reboot",     "stop kicking the watchdog and let it reset the unit", nullptr,
                                                                &CommandShell::_cmd_reboot     },
-            { "reset",      "reset the unit now",              &CommandShell::_cmd_reset      },
-            { "exit",       "quit (sim) / reboot (hw)",        &CommandShell::_cmd_exit       },
+            { "reset",      "reset the unit now",              nullptr,
+                                                               &CommandShell::_cmd_reset      },
+            { "exit",       "quit (sim) / reboot (hw)",        nullptr,
+                                                               &CommandShell::_cmd_exit       },
             // System status
-            { "stats",      "scheduler / system metrics",      &CommandShell::_cmd_stats      },
-            { "net",        "network / NTP / MQTT status",     &CommandShell::_cmd_net        },
+            { "stats",      "scheduler / system metrics",      nullptr,
+                                                               &CommandShell::_cmd_stats      },
+            { "net",        "network / NTP / MQTT status",     nullptr,
+                                                               &CommandShell::_cmd_net        },
             { "modbus",     "field bus plan and state; `modbus devices` for the roll-call",
+                                                               nullptr,
                                                                &CommandShell::_cmd_modbus     },
-            { "tasks",      "list [<prefix>] | get <name>; bare: the beat's totals",
+            { "tasks",      "what the beat spends its time on",
+                            "tasks stats | list [<prefix>] | get <name>",
                                                                &CommandShell::_cmd_tasks      },
-            { "version",    "firmware version",                &CommandShell::_cmd_version    },
-            { "features",   "which subsystems are built in",   &CommandShell::_cmd_features   },
-            // The tables
-            { "params",     "list [<prefix>] | get <name> | set <name> <value> | clear <name>|all | save <name>|all",
+            { "version",    "firmware version",                nullptr,
+                                                               &CommandShell::_cmd_version    },
+            { "features",   "which subsystems are built in",   nullptr,
+                                                               &CommandShell::_cmd_features   },
+            // The tables. Only the subject here - the verbs are one `<noun>
+            // help` away, so this stays one readable screen.
+            { "params",     "the editable settings",
+                            "params list [<prefix>] | get <name> | set <name> <value>\n"
+                            "params clear <name>|all | save <name>|all",
                                                                &CommandShell::_cmd_params     },
-            { "overrides",  "list | get <name> | set <name> [<value>] [invalid] | clear <name>|all | save <name>|all",
+            { "overrides",  "force any variable by hand",
+                            "overrides list | get <name> | set <name> [<value>] [valid|invalid]\n"
+                            "overrides clear <name>|all | save <name>|all",
                                                                &CommandShell::_cmd_overrides  },
-            { "programs",   "list [<prefix>] | enable <name>|all | disable <name>|all | save <name>|all",
+            { "programs",   "the control programs in the scan",
+                            "programs list [<prefix>] | enable <name>|all\n"
+                            "programs disable <name>|all | save <name>|all",
                                                                &CommandShell::_cmd_programs   },
-            { "alarms",     "list [<prefix>] | get <name> | ack <code|name|all>",
+            { "alarms",     "the alarm table, and acknowledging",
+                            "alarms list [<prefix>] | get <code|name> | ack <code|name|all>",
                                                                &CommandShell::_cmd_alarms     },
-            { "vars",       "list [<prefix>] | get <name>",    &CommandShell::_cmd_vars       },
+            { "vars",       "read any variable, whatever its scope",
+                            "vars list [<prefix>] | get <name>",
+                                                               &CommandShell::_cmd_vars       },
             // The console itself
-            { "help",       "list commands",                   &CommandShell::_cmd_help       },
-            { "clear",      "clear the screen",                &CommandShell::_cmd_clear      },
+            { "help",       "list commands",                   nullptr,
+                                                               &CommandShell::_cmd_help       },
+            { "clear",      "clear the screen",                nullptr,
+                                                               &CommandShell::_cmd_clear      },
         };
         count = (uint8_t)(sizeof(TABLE) / sizeof(TABLE[0]));
         return TABLE;
+    }
+
+    void CommandShell::_verb_usage(const char* noun) {
+        uint8_t n; const Builtin* B = _builtins(n);
+        const char* u = nullptr;
+        for (uint8_t i = 0; i < n; i++)
+            if (B[i].usage != nullptr && strcmp(B[i].name, noun) == 0) { u = B[i].usage; break; }
+        if (u == nullptr) return;
+
+        // Newline-separated in the table, one write() each: a long verb list
+        // stacks instead of wrapping into the "> " continuation, which loses the
+        // shape that makes it scannable.
+        char out[Config::LOG_FORMATTED_LEN];
+        bool first = true;
+        while (*u != '\0') {
+            size_t k = 0;
+            while (u[k] != '\0' && u[k] != '\n') k++;
+            _emitf(out, sizeof(out), "%s%.*s", first ? "usage: " : "       ", (int)k, u);
+            first = false;
+            u += k;
+            if (*u == '\n') u++;
+        }
     }
 
     void CommandShell::_dispatch(const char* cmd, uint16_t len) {
@@ -105,10 +151,20 @@ namespace Botanik { namespace Shell {
             }
         }
         uint8_t bcount; const Builtin* B = _builtins(bcount);
-        for (uint8_t i = 0; i < bcount; i++)
-            if (arg_eq(name, wlen, B[i].name)) {
-                (this->*B[i].fn)(args, alen); return;
+        for (uint8_t i = 0; i < bcount; i++) {
+            if (!arg_eq(name, wlen, B[i].name)) continue;
+            // A NOUN answers its own usage, so the detail is one word from the
+            // command rather than a screenful in `help`. Peeked, not consumed:
+            // the handler still gets the whole argument slice.
+            if (B[i].usage != nullptr) {
+                const char* peek = args; uint16_t plen = alen, vlen;
+                const char* verb = arg_next(peek, plen, vlen);
+                if (verb == nullptr || arg_eq(verb, vlen, "help")) {
+                    _verb_usage(B[i].name); return;
+                }
             }
+            (this->*B[i].fn)(args, alen); return;
+        }
 
         _unknown(cmd, len);
     }

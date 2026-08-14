@@ -42,7 +42,6 @@ namespace Botanik { namespace Shell {
         Scheduler::SchedulerContext* ctx = _sys != nullptr ? _sys->scheduler : nullptr;
         if (ctx == nullptr) { _println("stats: no scheduler context"); return; }
 
-        char out[Config::LOG_FORMATTED_LEN];
         char val[24], detail[64];
         char fa[12], fb[12];
 
@@ -50,71 +49,62 @@ namespace Botanik { namespace Shell {
             (unsigned long)(HAL::Clock::uptime_ms() / 1000));
         snprintf(detail, sizeof(detail), "%lu ticks, %lu overruns",
             (unsigned long)ctx->tick_count, (unsigned long)ctx->overruns);
-        _emitf(out, sizeof(out), "%-29s : %-8s (%s)",
-            "Uptime ......................", val, detail);
+        _field("Uptime", val, detail);
 
         snprintf(val,    sizeof(val),    "%s%%",
             Utils::format_float(fa, sizeof(fa), ctx->cpu_load_ema * 100.0f, 1));
         snprintf(detail, sizeof(detail), "recent %sms, peak %sms",
             Utils::format_float(fa, sizeof(fa), ctx->cpu_loop_us_recent / 1000.0, 2),
             Utils::format_float(fb, sizeof(fb), ctx->cpu_loop_us_max / 1000.0, 2));
-        _emitf(out, sizeof(out), "%-29s : %-8s (%s)",
-            "CPU load ....................", val, detail);
+        _field("CPU load", val, detail);
 
         snprintf(val,    sizeof(val),    "%s%%",
             Utils::format_float(fa, sizeof(fa), ctx->cpu_jitter_ema * 100.0f, 1));
         snprintf(detail, sizeof(detail), "recent %sms, peak %sms",
             Utils::format_float(fa, sizeof(fa), ctx->cpu_jitter_us_recent / 1000.0, 2),
             Utils::format_float(fb, sizeof(fb), ctx->cpu_jitter_us_max / 1000.0, 2));
-        _emitf(out, sizeof(out), "%-29s : %-8s (%s)",
-            "CPU jitter ..................", val, detail);
+        _field("CPU jitter", val, detail);
 
         snprintf(val,    sizeof(val),    "%s%%",
             Utils::format_float(fa, sizeof(fa), ctx->stack_usage * 100.0f, 1));
         snprintf(detail, sizeof(detail), "%s free, %s total",
             Utils::format_size(fa, sizeof(fa), ctx->stack_bytes_free),
             Utils::format_size(fb, sizeof(fb), ctx->stack_depth));
-        _emitf(out, sizeof(out), "%-29s : %-8s (%s)",
-            "Stack usage .................", val, detail);
+        _field("Stack usage", val, detail);
 
         snprintf(detail, sizeof(detail), "%lu TX dropped, %lu RX overruns",
             (unsigned long)_terminal.serial().tx_dropped(),
             (unsigned long)_terminal.serial().rx_overrun());
-        _emitf(out, sizeof(out), "%-29s : %s",
-            "Console serial ..............", detail);
+        _field("Console serial", detail, nullptr);
     }
 
     void CommandShell::_cmd_tasks(const char* args, uint16_t alen) {
         const Tasks::Registry* reg = (_sys != nullptr) ? _sys->tasks : nullptr;
         if (reg == nullptr) { _println("tasks: no task registry"); return; }
 
-        char out[Config::LOG_FORMATTED_LEN];
-        uint16_t wlen = 0;
-        const char* verb = arg_next(args, alen, wlen);
-        uint16_t wa = 0;
-        const char* a = arg_next(args, alen, wa);
+        uint16_t wlen; const char* verb = arg_next(args, alen, wlen);
+        uint16_t wa;   const char* a    = arg_next(args, alen, wa);
 
-        if (verb != nullptr) {
-            if (arg_eq(verb, wlen, "list")) { _tasks_list(*reg, a, wa); return; }
-            if (arg_eq(verb, wlen, "get")) {
-                if (a == nullptr) { _println("usage: tasks get <name>"); return; }
-                _task_detail(*reg, a, wa);
-                return;
-            }
-            _println("usage: tasks [list [<prefix>] | get <name>]");
+        if (arg_eq(verb, wlen, "stats")) { _tasks_stats(*reg); return; }
+        if (arg_eq(verb, wlen, "list"))  { _tasks_list(*reg, a, wa); return; }
+        if (arg_eq(verb, wlen, "get")) {
+            if (a == nullptr) { _println("usage: tasks get <name>"); return; }
+            _task_detail(*reg, a, wa);
             return;
         }
+        _verb_usage("tasks");
+    }
 
-        // The beat as a whole, in `stats`' shape - NOT a listing: 22 rows over
-        // a 4800-baud console spend the byte budget on an index of the TASKS
-        // page. Only what no per-task row can say: the totals, and which task
-        // to go and look at.
+    // The beat as a whole, in `stats`' shape - NOT a listing: 22 rows over a
+    // 4800-baud console spend the byte budget on an index of the TASKS page.
+    // Only what no per-task row can say: the totals, and which task to look at.
+    void CommandShell::_tasks_stats(const Tasks::Registry& reg) {
         uint64_t runs = 0, peaks_us = 0, missed = 0;
         uint8_t  missed_tasks = 0;
         const Tasks::Task* worst   = nullptr;   // most missed activations
         const Tasks::Task* busiest = nullptr;   // dearest mean run
-        for (uint8_t i = 0; i < reg->count(); i++) {
-            const Tasks::Task& t = reg->task(i);
+        for (uint8_t i = 0; i < reg.count(); i++) {
+            const Tasks::Task& t = reg.task(i);
             runs     += t.cost.runs;
             peaks_us += t.cost.us_max;
             missed   += t.cost.missed;
@@ -128,15 +118,14 @@ namespace Botanik { namespace Shell {
 
         char val[24], detail[80], n1[24], n2[24];
 
-        snprintf(val, sizeof(val), "%u", (unsigned)reg->count());
+        snprintf(val, sizeof(val), "%u", (unsigned)reg.count());
         snprintf(detail, sizeof(detail), "%u refused, %u slots",
-                 (unsigned)reg->overflow(), (unsigned)Config::MAX_TASKS);
-        _emitf(out, sizeof(out), "%-29s : %-8s (%s)",
-               "Registered ..................", val, detail);
+                 (unsigned)reg.overflow(), (unsigned)Config::MAX_TASKS);
+        _field("Registered", val, detail);
 
         // The rate classes, since a task's period is its group's. Names then
-        // periods, both slash-joined: the pairwise form ("fast 10, main 50")
-        // is three characters too wide for an 80-column line.
+        // periods, both slash-joined: the pairwise form ("fast 10, main 50") is
+        // wider still, and _field() cuts whatever does not fit.
         snprintf(val, sizeof(val), "%lums", (unsigned long)Config::TASK_PERIOD_MS);
         int w = 0;
         for (uint8_t g = 0; g < Tasks::GROUP_COUNT && w >= 0 && w < (int)sizeof(detail); g++)
@@ -146,15 +135,13 @@ namespace Botanik { namespace Shell {
             w += snprintf(detail + w, sizeof(detail) - (size_t)w, "%s%lu",
                           (g == 0) ? " " : "/",
                           (unsigned long)Tasks::group_period_ms((Tasks::GroupId)g));
-        _emitf(out, sizeof(out), "%-29s : %-8s (%s ms)",
-               "Beat ........................", val, detail);
+        _field("Beat", val, detail);
 
         // Missed is the headline: a dropped activation is never caught up
         // (Tasks::TaskTimer), so this is the only record of a rate not kept.
-        _emitf(out, sizeof(out), "%-29s : %-8s (across %u task(s))",
-               "Activations .................",
-               Utils::format_int(n1, sizeof(n1), (long long)runs),
-               (unsigned)reg->count());
+        snprintf(detail, sizeof(detail), "across %u task(s)", (unsigned)reg.count());
+        _field("Activations",
+               Utils::format_int(n1, sizeof(n1), (long long)runs), detail);
 
         if (missed == 0)
             snprintf(detail, sizeof(detail), "every task kept its rate");
@@ -164,17 +151,14 @@ namespace Botanik { namespace Shell {
                      (worst != nullptr && worst->name != nullptr) ? worst->name : "?",
                      Utils::format_int(n2, sizeof(n2),
                          (long long)(worst != nullptr ? worst->cost.missed : 0)));
-        _emitf(out, sizeof(out), "%-29s : %-8s (%s)",
-               "Missed ......................",
+        _field("Missed",
                Utils::format_int(n1, sizeof(n1), (long long)missed), detail);
 
         // Every task at its own worst, all due together: the beat that never
         // happened. Exceeding the beat period is normal, not an overrun.
         snprintf(val, sizeof(val), "%sus",
                  Utils::format_int(n1, sizeof(n1), (long long)peaks_us));
-        _emitf(out, sizeof(out), "%-29s : %-8s (%s)",
-               "Peaks add to ................", val,
-               "every task at its worst, one beat");
+        _field("Peaks add to", val, "every task at its worst, one beat");
 
         // One name to go and look at, since the table is the TASKS page's.
         if (busiest != nullptr && busiest->cost.runs != 0) {
@@ -183,23 +167,19 @@ namespace Botanik { namespace Shell {
             snprintf(val, sizeof(val), "%luus",
                      (unsigned long)busiest->cost.us_mean());
             if (period != 0)
-                snprintf(detail, sizeof(detail), "%s mean, %s %% of its own period",
+                snprintf(detail, sizeof(detail), "%s mean, %s %% of period",
                          (busiest->name != nullptr) ? busiest->name : "?",
                          Utils::format_float(fa, sizeof(fa),
                              (double)busiest->cost.us_mean() / (double)(period * 10u), 1));
             else
                 snprintf(detail, sizeof(detail), "%s mean, every beat",
                          (busiest->name != nullptr) ? busiest->name : "?");
-            _emitf(out, sizeof(out), "%-29s : %-8s (%s)",
-                   "Costliest task ..............", val, detail);
+            _field("Costliest task", val, detail);
         }
 
-        _println("per-task figures: the TASKS page, or `tasks <name>`");
+        _println("per-task figures: the TASKS page, or `tasks get <name>`");
     }
 
-    // Same columns as the TASKS page, minus the ones that need a panel: what it
-    // is called, how often it is meant to run, and the two numbers that say
-    // whether it does (mean cost, missed activations).
     void CommandShell::_tasks_list(const Tasks::Registry& reg, const char* prefix,
                                    uint16_t plen) {
         char out[Config::LOG_FORMATTED_LEN];

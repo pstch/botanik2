@@ -129,11 +129,24 @@ namespace Botanik { namespace Shell {
         while (n + 1 < sizeof(lead)) lead[n++] = '.';
         lead[n] = 0;
 
+        // The detail is cut to what is left of the line rather than allowed to
+        // wrap: these reports are read as a column of labels, and one wrapped
+        // row breaks the column for every row under it. A task or variable name
+        // is site-defined and unbounded, so the width has to be measured here
+        // rather than assumed when the format string was written.
         char out[Config::LOG_FORMATTED_LEN];
-        if (detail != nullptr && detail[0] != 0)
-            _emitf(out, sizeof(out), "%s : %-8s (%s)", lead, value, detail);
-        else
+        if (detail == nullptr || detail[0] == 0) {
             _emitf(out, sizeof(out), "%s : %s", lead, value);
+            return;
+        }
+        size_t vlen = 0;
+        while (value[vlen] != 0) vlen++;
+        if (vlen < 8) vlen = 8;                       // the %-8s floor
+        const size_t cols = _terminal.cols() ? _terminal.cols() : 80;
+        const size_t head = LEADER_W + 3 + vlen + 3;  // lead, " : ", value, " ()"
+        if (cols <= head) { _emitf(out, sizeof(out), "%s : %-8s", lead, value); return; }
+        _emitf(out, sizeof(out), "%s : %-8s (%.*s)", lead, value,
+               (int)(cols - head), detail);
     }
 
     // Quality rides on the value row rather than one of its own: a value and
@@ -227,7 +240,7 @@ namespace Botanik { namespace Shell {
         uint16_t wv; const char* verb = arg_next(args, alen, wv);
         uint16_t wa; const char* a    = arg_next(args, alen, wa);
 
-        if (verb == nullptr || arg_eq(verb, wv, "list")) {
+        if (arg_eq(verb, wv, "list")) {
             _list_vars("vars", a, wa, /*params_only=*/false);
             return;
         }
@@ -235,7 +248,7 @@ namespace Botanik { namespace Shell {
             _show_var("vars", a, wa, /*params_only=*/false);
             return;
         }
-        _println("usage: vars list [<prefix>] | vars get <name>");
+        _verb_usage("vars");
     }
 
     void CommandShell::_cmd_params(const char* args, uint16_t alen) {
@@ -244,7 +257,7 @@ namespace Botanik { namespace Shell {
         uint16_t wv; const char* verb = arg_next(args, alen, wv);
         uint16_t wn; const char* nm   = arg_next(args, alen, wn);
 
-        if (verb == nullptr || arg_eq(verb, wv, "list")) {
+        if (arg_eq(verb, wv, "list")) {
             _list_vars("params", nm, wn, /*params_only=*/true);
             // The one thing a listing must not hide: an edit nobody committed.
             if (io != nullptr) {
@@ -263,8 +276,7 @@ namespace Botanik { namespace Shell {
         if (arg_eq(verb, wv, "save"))  { _params_save(nm, wn);  return; }
         if (arg_eq(verb, wv, "clear")) { _params_clear(nm, wn); return; }
 
-        _println("usage: params list [<prefix>] | get <name> | set <name> <value> "
-                 "| clear <name>|all | save <name>|all");
+        _verb_usage("params");
     }
 
     // Back to the factory default, live and durably - the stored copy goes too,
@@ -407,7 +419,7 @@ namespace Botanik { namespace Shell {
         if (_bank() == nullptr) { _println("overrides: no variables"); return; }
 
         uint16_t wv; const char* verb = arg_next(args, alen, wv);
-        if (verb == nullptr || arg_eq(verb, wv, "list")) { _overrides_list(); return; }
+        if (arg_eq(verb, wv, "list")) { _overrides_list(); return; }
 
         uint16_t wn; const char* nm = arg_next(args, alen, wn);
         if (arg_eq(verb, wv, "get"))   { _show_var("overrides", nm, wn, false); return; }
@@ -415,8 +427,7 @@ namespace Botanik { namespace Shell {
         if (arg_eq(verb, wv, "clear")) { _overrides_clear(nm, wn); return; }
         if (arg_eq(verb, wv, "set"))   { _overrides_set(nm, wn, args, alen); return; }
 
-        _println("usage: overrides list | get <name> | set <name> [<value>] "
-                 "[valid|invalid] | clear <name>|all | save <name>|all");
+        _verb_usage("overrides");
     }
 
     // An override outlives the session that set it once saved, so what is forced

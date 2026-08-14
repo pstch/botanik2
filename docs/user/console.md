@@ -254,8 +254,18 @@ Commands are generally **noun then verb**:
  - the noun is what you are working on
  - the verb is what you are doing to it. 
 
-`help` lists all commands. The site-specific code may register additional commands
-or override built-in commands with their own code.
+`help` lists all commands, one line per subject - it is an index, not a manual. A
+command that takes a **verb** shows only its name there; its verbs are one word
+away, from either a bare `<noun>` or `<noun> help`:
+
+```
+botanik> overrides
+usage: overrides list | get <name> | set <name> [<value>] [valid|invalid]
+       overrides clear <name>|all | save <name>|all
+```
+
+The site-specific code may register additional commands or override built-in
+commands with their own code.
 
 ##### System control
 
@@ -279,7 +289,7 @@ or override built-in commands with their own code.
 | `stats`                                        | show system statistics                |
 | `net`                                          | show network, MQTT & NTP state        |
 | `modbus`                                       | show ModBus status                    |
-| `tasks`                                        | the beat's totals                     |
+| `tasks stats`                                  | the beat's totals                     |
 | `tasks list [<prefix>]`                        | list tasks                            |
 | `tasks get <name>`                             | show task state                       |
 | `version`                                      | show the firmware version             |
@@ -492,7 +502,7 @@ run at the rate it declared, and a missed activation is never caught up - so thi
 the only record that it happened. The panel adds the selected task's last and peak
 cost, its run count, and what share of its own period it uses.
 
-The shell answers the same questions without leaving the prompt: `tasks` for the
+The shell answers the same questions without leaving the prompt: `tasks stats` for the
 beat's totals, `tasks list` for this table, `tasks get <name>` for one task's panel.
 What each library-provided task does, and what its phase and rate mean, is
 @ref user_tasks.

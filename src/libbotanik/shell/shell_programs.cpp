@@ -28,7 +28,7 @@ namespace Botanik { namespace Shell {
         uint16_t wv; const char* verb = arg_next(args, alen, wv);
         uint16_t wn; const char* nm   = arg_next(args, alen, wn);
 
-        if (verb == nullptr || arg_eq(verb, wv, "list")) {
+        if (arg_eq(verb, wv, "list")) {
             const uint8_t n = reg->program_count();
             uint8_t shown = 0, off = 0, unsaved = 0;
             for (uint8_t i = 0; i < n; i++) {
@@ -56,8 +56,7 @@ namespace Botanik { namespace Shell {
         if (arg_eq(verb, wv, "disable")) { _programs_gate(nm, wn, false); return; }
         if (arg_eq(verb, wv, "save"))    { _programs_save(nm, wn);        return; }
 
-        _println("usage: programs list [<prefix>] | enable <name>|all "
-                 "| disable <name>|all | save <name>|all");
+        _verb_usage("programs");
     }
 
     void CommandShell::_programs_gate(const char* nm, uint16_t wn, bool on) {

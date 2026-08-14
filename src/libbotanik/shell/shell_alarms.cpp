@@ -104,8 +104,7 @@ namespace Botanik { namespace Shell {
             return;
         }
 
-        // Default: the count summary.
-        _emitf(out, sizeof(out), "alarms: %u active", m->active_count());
+        _verb_usage("alarms");
     }
 
 }}  // namespace Botanik::Shell

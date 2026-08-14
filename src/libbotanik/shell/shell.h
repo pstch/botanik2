@@ -182,13 +182,25 @@ namespace Botanik { namespace Shell {
          *  handler. */
         void _dispatch(const char* cmd, uint16_t len);
 
-        /** @brief One built-in: name, one-line help, handler taking the
-         *  args. */
-        struct Builtin { const char* name; const char* help;
+        /** @brief One built-in: name, the one line `help` prints, the full verb
+         *  list, and the handler.
+         *
+         *  A non-null @c usage marks a NOUN - a command whose work is spelled by
+         *  a verb after it. `help` then prints only @c help for it, and
+         *  _dispatch() answers a bare `<noun>` or `<noun> help` with @c usage
+         *  rather than calling the handler: one screen of commands, and the
+         *  detail one word away. A command with no verbs leaves it null and
+         *  behaves as it always did. */
+        struct Builtin { const char* name; const char* help; const char* usage;
                          void (CommandShell::*fn)(const char* args, uint16_t alen); };
         /** @brief The built-in table - single source for both dispatch and
          *  `help`, so help text can't drift from the command set. */
         static const Builtin* _builtins(uint8_t& count);
+
+        /** @brief Print @p noun's usage line, looked up in the built-in table so
+         *  the text has ONE home: `help`, a bare noun and a mistyped verb all
+         *  reach the same string. */
+        void _verb_usage(const char* noun);
 
         /** @brief Append a submitted line to the history ring (skips a
          *  consecutive duplicate) and ends any in-progress browsing. */
@@ -307,6 +319,8 @@ namespace Botanik { namespace Shell {
          *  whole table over a 4800-baud console is an index of the TASKS page
          *  rather than an answer. A bare `tasks` still reports the beat's
          *  totals, which is the question a listing cannot answer. */
+        /** @brief `tasks stats`: the beat's totals, in `stats`' shape. */
+        void _tasks_stats(const Tasks::Registry& reg);
         void _tasks_list(const Tasks::Registry& reg, const char* prefix,
                          uint16_t plen);
 
@@ -324,9 +338,11 @@ namespace Botanik { namespace Shell {
          *  Laid out like `stats`: a dotted leader to a fixed column, the value,
          *  then the detail in parentheses.
          *  @{ */
-        /** @brief Where the leader ends and " : " begins. 29 is the width
-         *  `stats` writes into its own labels, so the two line up on screen. */
-        static const size_t LEADER_W = 29;
+        /** @brief Where the leader ends and " : " begins. 18 fits the longest
+         *  label in the tree ("Costliest task", 14) with three dots to spare;
+         *  the eleven columns that used to be dots go to the detail, which is
+         *  what was being cut to fit an 80-column line. */
+        static const size_t LEADER_W = 18;
         /** @brief One "Label ....... : value (detail)" row. @p detail may be
          *  null or empty, which drops the parentheses. */
         void _field(const char* label, const char* value, const char* detail);

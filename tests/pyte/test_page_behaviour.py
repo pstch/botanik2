@@ -110,15 +110,15 @@ def test_the_task_table_is_complete(spawn):
 
     Asked through the shell rather than read off the TASKS page on purpose: the
     page is a name-sorted scrolling table, so a scroll that stops short reads
-    exactly like an absent task. `tasks` answers in one line and cannot be
+    exactly like an absent task. `tasks stats` answers in one line and cannot be
     misread that way.
     """
     term = shell(spawn, quiet_logs=True)
-    term.send(b"tasks" + keys.ENTER)
+    term.send(b"tasks stats" + keys.ENTER)
 
     # Every library task a full build registers. Raise it deliberately when
     # adding one; a DROP is the bug this exists to catch.
-    assert term.wait_for("Registered .................. : 23"), \
+    assert term.wait_for("Registered ....... : 23"), \
         "the task table changed size - a registration was added or silently lost"
     assert term.wait_for("0 refused"), "a registration was refused: MAX_TASKS"
 

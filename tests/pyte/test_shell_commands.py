@@ -178,7 +178,7 @@ def test_tasks(spawn):
     dispatch order, and the missed count it reports.
     """
     term = shell(spawn, quiet_logs=True)
-    _run(term, b"tasks")
+    _run(term, b"tasks stats")
     # The four markers belong to the summary and to no per-task row, which is
     # what asserts this is not a listing. The table's absence cannot be checked
     # directly: it would have scrolled off a 24-row screen either way.
@@ -258,3 +258,41 @@ def test_a_bare_verb_never_means_all(spawn):
                  b"overrides clear", b"programs save", b"programs disable"):
         _run(term, line)
         assert term.wait_for("usage:"), f"{line!r} did not refuse a missing target"
+
+
+def test_help_lists_nouns_without_their_verbs(spawn):
+    """`help` is an index, not a manual: one line per subject, verbs elsewhere."""
+    term = shell(spawn, quiet_logs=True)
+    _run(term, b"help")
+    assert term.wait_for(("params", "overrides", "programs", "vars")), \
+        "help did not list the table subjects"
+    # The verb list belongs to `<noun> help`. If it leaked back into `help` the
+    # screen goes back to wrapping, which is what this guards.
+    assert not term.wait_for("set <name> <value>"), \
+        "help printed a verb list instead of the one-line subject"
+
+
+def test_a_noun_answers_its_own_usage(spawn):
+    """Bare, or with `help`: same answer, so the detail is one word away."""
+    term = shell(spawn, quiet_logs=True)
+    for noun, marker in ((b"overrides", "overrides clear <name>|all"),
+                         (b"params",    "params clear <name>|all"),
+                         (b"programs",  "programs disable <name>|all"),
+                         (b"vars",      "vars list [<prefix>]"),
+                         (b"alarms",    "ack <code|name|all>"),
+                         (b"tasks",     "tasks stats")):
+        _run(term, noun)
+        assert term.wait_for(("usage:", marker)), f"bare {noun!r} did not print its usage"
+        _run(term, noun + b" help")
+        assert term.wait_for(("usage:", marker)), f"{noun!r} help did not print its usage"
+
+
+def test_report_rows_never_wrap(spawn):
+    """A wrapped row breaks the label column for every row under it."""
+    term = shell(spawn, quiet_logs=True)
+    for cmd in (b"tasks stats", b"stats"):
+        _run(term, cmd)
+        term.wait_for("botanik>")
+        for row in term.screen.display:
+            # The wrap continuation marker the shell page emits mid-output.
+            assert not row.startswith("> "), f"{cmd!r} wrapped a row: {row!r}"
