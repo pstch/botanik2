@@ -90,6 +90,10 @@ namespace Botanik { namespace Terminal {
          *  (the row's default is 1), so the first pass always applies - which is
          *  what picks the stored geometry up at bring-up. */
         uint32_t            _term_serial = 0;
+        /** @brief The next config pass is still bring-up: apply what the store
+         *  turned out to hold, and say nothing about it. Set by
+         *  apply_stored_config(), which runs BEFORE the parameter load. */
+        bool                _adopt_stored = false;
 
         /** @}
          *  @name External references
@@ -154,8 +158,12 @@ namespace Botanik { namespace Terminal {
          *  For bring-up, where the boot lines must go out at the CONFIGURED
          *  rate rather than the compile-time one, and where "applying what was
          *  already saved" is not news. Every later pass is the console_cfg task
-         *  and does announce. */
-        void apply_stored_config() { _apply_config(/*announce=*/false); }
+         *  and does announce.
+         *
+         *  @note The parameter load is part of Tasks::Registry::setup(), which
+         *  BotanikFirmware runs AFTER this call, so what the bank holds here is
+         *  still the table's defaults. See the definition. */
+        void apply_stored_config();
 
         /** @brief Re-declare which terminal is on the wire and how big it is,
          *  and put the frame back on the screen it just blanked.

@@ -30,6 +30,10 @@ namespace Botanik { namespace Terminal {
 
     StatusBar::StatusBar(Console& console, const Scheduler::SchedulerContext* sched)
         : _console(console), _terminal(console.terminal()), _sched(sched) {
+        claim_row();
+    }
+
+    void StatusBar::claim_row() {
         // Row 0 frames the page, so it lands before it. Ranking it above the page
         // starves nothing: the clock and metrics rebuild once a second, tens of
         // bytes against a budget of thousands.

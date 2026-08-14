@@ -21,7 +21,10 @@
 #include "libbotanik/pages/line_buffer.h"   // Pages::LineBuffer
 #include "libbotanik/pages/scrollback.h"    // Pages::Scrollback
 #include "libbotanik/shell/shell.h" // Shell::CommandShell
+#include "libbotanik/tasks/tasks.h"         // Tasks::Registry - the beat the console registers in
 #include "libbotanik/vars/declare.h"
+#include "libbotanik/vars/params.h"         // Vars::get_int
+#include "site_bank.h"                      // TestSite::build - the site's rows in a bank
 
 // --------------------------------------------------------------------------
 // terminal_present
@@ -1576,19 +1579,118 @@ TEST_CASE("shell vars get: the detail view, and what it adds when a row is force
     CHECK(f.writer.has("21.0 C   (valid)"));
     CHECK(f.writer.has("-40.0 .. 85.0"));         // the declared band
     CHECK(f.writer.has("Modbus dev 5"));          // where it comes from
-    CHECK(f.writer.has("Override value .............. : -"));   // nothing forced
+    CHECK(f.writer.has("Override value ... : -"));   // nothing forced
 
     // Forced: both values kept apart, each with its own validity.
     f.run("overrides set ext_temp 35");
     f.run("vars get ext_temp");
     MESSAGE("vars get ext_temp (forced) ->\n" << f.writer.text);
-    CHECK(f.writer.has("Raw value ................... : 21.0 C   (valid)"));
-    CHECK(f.writer.has("Override value .............. : 35.0 C   (valid, unsaved)"));
+    CHECK(f.writer.has("Raw value ........ : 21.0 C   (valid)"));
+    CHECK(f.writer.has("Override value ... : 35.0 C   (valid, unsaved)"));
 
     // ...and forcing the QUALITY shows on the value it belongs to.
     f.run("overrides set ext_temp 35 invalid");
     f.run("vars get ext_temp");
-    CHECK(f.writer.has("Override value .............. : 35.0 C   (invalid, unsaved)"));
+    CHECK(f.writer.has("Override value ... : 35.0 C   (invalid, unsaved)"));
 }
 
 }  // namespace shell
+
+// --------------------------------------------------------------------------
+// console_config
+// --------------------------------------------------------------------------
+
+namespace console_config {
+
+using namespace Botanik;
+
+namespace {
+
+    /** @brief A Console over the site's real bank, registered in a real task
+     *  table - the shape BotanikFirmware builds, minus the pages.
+     *
+     *  The site's own rows, not a hand-written fixture: `term_cols` / `term_rows`
+     *  / `term_serial` are the library's OWN parameters, and the point of the
+     *  cases below is that the console and the table agree about them. */
+    struct ConfigFixture {
+        botanik_test::PipeSerial wire;
+        uint64_t             now = 0;
+        Vars::Bank           bank;
+        Tasks::Registry      reg;
+        Terminal::Console    console;
+
+        ConfigFixture()
+            : console(Botanik::SetupContext(reg), wire.serial, Config::CONSOLE_COLS,
+                      Config::CONSOLE_ROWS, &now, 115200, nullptr, nullptr,
+                      Terminal::Ansi::CONFIGURED_TERMINAL, &bank) {
+            TestSite::build(bank);
+            console.register_tasks();
+        }
+
+        /** @brief Run @p n beats of PHASE_CONFIG, the phase the console's
+         *  `console_cfg` task sits in. Whole GROUP_SLOW periods, so its rate
+         *  group comes due. */
+        void beats(int n) {
+            for (int i = 0; i < n; i++) {
+                now += Config::GROUP_SLOW_MS;
+                reg.run_phase(Tasks::PHASE_CONFIG, now);
+            }
+        }
+
+        Vars::SetResult set(const char* name, const char* value) {
+            return bank.set(bank.var(name), value);
+        }
+        uint32_t serial() const {
+            return (uint32_t)Vars::get_int(&bank, "term_serial", 0);
+        }
+    };
+
+}  // namespace
+
+TEST_CASE("console: the stored geometry lands once the parameters are loaded") {
+    ConfigFixture f;
+
+    // Bring-up, in BotanikFirmware::setup()'s order: the console applies what
+    // the bank holds BEFORE the parameter load, which is one of the one-time
+    // inits Tasks::Registry::setup() runs afterwards. All it can see here are
+    // the table's defaults.
+    f.console.apply_stored_config();
+    REQUIRE(f.console.terminal().cols() == Config::CONSOLE_COLS);
+    const uint32_t committed = f.serial();
+
+    // Now the load lands: the saved geometry appears in the bank, and the
+    // commit serial comes back UNCHANGED - it was saved with the rest. That is
+    // the trap: a console that recorded the serial as applied above would never
+    // look again, and a geometry saved on the last run would never reach the
+    // screen.
+    REQUIRE(f.set("term_cols", "60") == Vars::SET_OK);
+    REQUIRE(f.set("term_rows", "20") == Vars::SET_OK);
+    REQUIRE(f.serial() == committed);
+
+    f.beats(4);
+    CHECK(f.console.terminal().cols() == 60);
+    CHECK(f.console.terminal().rows_total() == 20);
+    // No alarm model wired, so no reserved bottom row: pages get the lot.
+    CHECK(f.console.rows() == 20);
+}
+
+TEST_CASE("console: a `term_` edit stages until the group's commit serial moves") {
+    ConfigFixture f;
+    f.console.apply_stored_config();
+    f.beats(4);                       // the bring-up adoption pass, above
+    REQUIRE(f.console.terminal().cols() == Config::CONSOLE_COLS);
+
+    // The three rows describe ONE terminal, so an edit waits for the commit
+    // rather than walking the screen through geometries that match nothing.
+    REQUIRE(f.set("term_cols", "60") == Vars::SET_OK);
+    f.beats(4);
+    CHECK(f.console.terminal().cols() == Config::CONSOLE_COLS);
+
+    char bumped[8];
+    snprintf(bumped, sizeof(bumped), "%u", (unsigned)(f.serial() + 1u));
+    REQUIRE(f.set("term_serial", bumped) == Vars::SET_OK);
+    f.beats(4);
+    CHECK(f.console.terminal().cols() == 60);
+}
+
+}  // namespace console_config

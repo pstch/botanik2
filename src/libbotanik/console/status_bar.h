@@ -66,6 +66,11 @@ namespace Botanik { namespace Terminal {
         /** @brief Full rebuild of the whole row (first paint, Ctrl-L redraw). */
         void draw_row();
 
+        /** @brief (Re-)declare row 0 as chrome. The constructor does it once;
+         *  a reconfigure() resets every row's class, so the frame's repaint
+         *  has to say it again. */
+        void claim_row();
+
         /** @brief Repaint the whole tab strip, used by switch_to(): the active
          *  tab's width changes on a switch, shifting every tab after it, so the
          *  strip is redrawn as a unit and the shrink residue cleared. */

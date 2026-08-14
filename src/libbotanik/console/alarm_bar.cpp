@@ -16,6 +16,10 @@ namespace Botanik { namespace Terminal {
 
     AlarmBar::AlarmBar(Console& console)
         : _console(console), _terminal(console.terminal()) {
+        claim_row();
+    }
+
+    void AlarmBar::claim_row() {
         _terminal.set_row_priority(_row(), PRIO_CHROME);
     }
 

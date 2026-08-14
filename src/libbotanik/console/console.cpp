@@ -82,8 +82,23 @@ namespace Botanik { namespace Terminal {
               Tasks::PHASE_PRESENT);
     }
 
+    void Console::apply_stored_config() {
+        _apply_config(/*announce=*/false);
+        // The parameter load runs AFTER this (it is one of the one-time inits
+        // Tasks::Registry::setup() does), so the pass above read the table's
+        // DEFAULTS. Its serial must not stand: a load restores the group's
+        // commit serial UNCHANGED, so a console holding it as applied would
+        // never look again and the stored geometry would never reach the screen.
+        _term_serial  = 0;
+        _adopt_stored = true;
+    }
+
     void Console::_apply_config(bool announce) {
         if (_cfg == nullptr) return;
+        // Adopting the store is bring-up, not news - and the announce below says
+        // "a power cycle undoes it", which is the opposite of true for a setting
+        // that CAME from a power cycle.
+        if (_adopt_stored) { _adopt_stored = false; announce = false; }
         const uint32_t baud = (uint32_t)Vars::get_int(_cfg, "serial_console_baud",
                                                       (int32_t)_baud);
         // A group with no rows answers 0, which is also the "never applied"
@@ -143,6 +158,12 @@ namespace Botanik { namespace Terminal {
     }
 
     void Console::_repaint_frame() {
+        // A reconfigure() hands every row back as plain structure (and moves the
+        // alarm bar's row besides), so the two bars re-declare their class here
+        // rather than only in their constructors - otherwise a resize demotes the
+        // chrome for good and a tight budget paints it after the page it frames.
+        _status_bar.claim_row();
+        _alarm_bar.claim_row();
         // Chrome first, then the page: if a paced frame only gets partway, the
         // frame lands before what it frames.
         _status_bar.draw_row();

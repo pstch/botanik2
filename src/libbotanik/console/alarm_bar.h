@@ -52,6 +52,11 @@ namespace Botanik { namespace Terminal {
         /** @brief Flag a repaint (after a full-screen clear or page switch) */
         void mark_dirty() { _dirty = true; }
 
+        /** @brief (Re-)declare the bar's row as chrome. The constructor does it
+         *  once; a reconfigure() both MOVES the row and resets every row's
+         *  class, so the frame's repaint has to say it again. */
+        void claim_row();
+
         /** @} */
 
     private:
