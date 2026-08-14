@@ -171,7 +171,9 @@ namespace Botanik { namespace Pages {
             d.unit ? d.unit : "", reg
         };
         uint16_t n = _build_row(line, sizeof(line), cells);
-        _draw_selected_line(row, line, n, _cell_col(C_NAME), _cell_end(C_NAME),
+        uint16_t name_l = 0, name_r = 0;
+        _cell_span(C_NAME, name_l, name_r);      // one fit, both ends
+        _draw_selected_line(row, line, n, name_l, name_r,
                             selected);
     }
 

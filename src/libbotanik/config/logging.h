@@ -126,7 +126,7 @@ namespace Botanik { namespace Config {
 
     /** @brief Maximum burst size per individual topic */
 #ifndef BOTANIK_LOG_PERTOPIC_BUCKET_BURST
-#  define BOTANIK_LOG_PERTOPIC_BUCKET_BURST 20
+#  define BOTANIK_LOG_PERTOPIC_BUCKET_BURST 32
 #endif
     BOTANIK_CFG(uint16_t, LOG_PERTOPIC_BUCKET_BURST);
 

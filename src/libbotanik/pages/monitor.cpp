@@ -157,7 +157,9 @@ namespace Botanik { namespace Pages {
     void MonitorPage::_draw_row(uint16_t r, uint16_t row, bool selected) {
         char line[LINE_CAP];
         uint16_t n = _row_text(r, line, sizeof(line));
-        _draw_selected_line(row, line, n, _cell_col(C_NAME), _cell_end(C_NAME),
+        uint16_t name_l = 0, name_r = 0;
+        _cell_span(C_NAME, name_l, name_r);      // one fit, both ends
+        _draw_selected_line(row, line, n, name_l, name_r,
                             selected);
     }
 

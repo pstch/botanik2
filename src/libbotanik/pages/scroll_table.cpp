@@ -190,9 +190,10 @@ namespace Botanik { namespace Pages {
 
         // Still too wide: the fixed columns alone overrun the display. Shave the
         // widest until the row fits, rather than letting the terminal clip it
-        // mid-cell and lose the closing rule.
-        used = 0;
-        for (uint8_t i = 0; i < n; i++) used = (uint16_t)(used + _cell_pitch(out[i].width));
+        // mid-cell and lose the closing rule. `used` already holds every other
+        // cell's pitch, and pitch is width plus a constant, so the flex cell's
+        // width is all that is left to add.
+        used = (uint16_t)(used + out[f].width);
         while (used > room) {
             uint8_t big = 0;
             for (uint8_t i = 1; i < n; i++) if (out[i].width > out[big].width) big = i;

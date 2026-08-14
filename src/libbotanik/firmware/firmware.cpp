@@ -188,19 +188,9 @@ namespace Botanik {
         // component's announce() and HealthMonitor's POST. It also keeps the
         // parameter load, tens of ms of flash, out of the first beat.
 
-
-        // First moment the stored UART rates exist, so the boot lines below go
-        // out at the configured rate. Everything above them is at the
-        // compile-time default: the port must be open before the store is read.
-#if BOTANIK_FEATURE_CONSOLE
-        // Likewise the console, and here rather than on the first beat because
-        // nothing has been drawn yet: it establishes its screen on its first
-        // step(), so picking the stored settings up now costs one repaint
-        // instead of two.
-        _console.terminal().apply_stored_config();
-        _monitor.apply_stored_config();
-#endif
-
+        // The console and the monitor adopt the stored settings from their own
+        // registered setup handlers, which run inside this call and after the
+        // parameter load - so the boot lines below go out at the configured rate.
         _scheduler.setup(HAL::Clock::uptime_ms(), _hw_watchdog_ms);
 
         // Bring-up is done: release the system's hold on control. It starts held

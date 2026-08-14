@@ -120,8 +120,8 @@ namespace Botanik { namespace Pages {
         _draw_rule(_brule_row(), bot, bot);
     }
 
-    void AlarmsPage::_write_name_cell(const char* line, bool selected) {
-        const uint16_t l = _cell_col(C_NAME), r = _name_cell_r();
+    void AlarmsPage::_write_name_cell(const char* line, bool selected,
+                                      uint16_t l, uint16_t r) {
         _terminal.write_chars(line, l);            // margin + CODE cell + "| "
         if (selected) _terminal.set_inverted(true);
         _terminal.write_chars(line + l, (uint16_t)(r - l));
@@ -149,10 +149,14 @@ namespace Botanik { namespace Pages {
                                  c.name() ? c.name() : "?", state, forced, ev };
         char     line[Config::TABLE_LINE_LEN];
         uint16_t n = _build_row(line, sizeof(line), cells);
-        const uint16_t name_r = _name_cell_r(), badge = _cell_col(C_STATE);
+        // One fit for both cells the row needs, rather than one per end.
+        uint16_t name_l = 0, name_end = 0, badge = 0, state_end = 0;
+        _cell_span(C_NAME,  name_l, name_end);
+        _cell_span(C_STATE, badge,  state_end);
+        const uint16_t name_r = (uint16_t)(name_end - 1);
         _terminal.move_to({row, 0});
         _terminal.set_inverted(false);
-        _write_name_cell(line, selected);
+        _write_name_cell(line, selected, name_l, name_r);
         if (c.active && !c.user_ack && n > (uint16_t)(badge + 2)) {
             // "ON" leads the STATE cell: split so only it inverts.
             _terminal.write_chars(line + name_r, (uint16_t)(badge - name_r));

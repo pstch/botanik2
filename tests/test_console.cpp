@@ -1707,11 +1707,7 @@ namespace {
 TEST_CASE("console: the stored geometry lands once the parameters are loaded") {
     ConfigFixture f;
 
-    // Bring-up, in BotanikFirmware::setup()'s order: the console applies what
-    // the bank holds BEFORE the parameter load, which is one of the one-time
-    // inits Tasks::Registry::setup() runs afterwards. All it can see here are
-    // the table's defaults.
-    f.console.apply_stored_config();
+    // Bring-up has not run: the console is still at its construction geometry.
     REQUIRE(f.console.terminal().cols() == Config::CONSOLE_COLS);
     const uint32_t committed = f.serial();
 
@@ -1724,7 +1720,10 @@ TEST_CASE("console: the stored geometry lands once the parameters are loaded") {
     REQUIRE(f.set("term_rows", "30") == Vars::SET_OK);
     REQUIRE(f.serial() == committed);
 
-    f.beats(4);
+    // Registry::setup() runs the `console_adopt` handler AFTER every
+    // component_setup() - which is where the load happens - so the console
+    // adopts what the store turned out to hold without any beat running.
+    f.reg.setup(f.now);
     CHECK(f.console.terminal().cols() == 100);
     CHECK(f.console.terminal().rows_total() == 30);
     // No alarm model wired, so no reserved bottom row: pages get the lot.
@@ -1733,8 +1732,7 @@ TEST_CASE("console: the stored geometry lands once the parameters are loaded") {
 
 TEST_CASE("console: a `term_` edit stages until the group's commit serial moves") {
     ConfigFixture f;
-    f.console.apply_stored_config();
-    f.beats(4);                       // the bring-up adoption pass, above
+    f.reg.setup(f.now);               // the bring-up adoption, above
     REQUIRE(f.console.terminal().cols() == Config::CONSOLE_COLS);
 
     // The three rows describe ONE terminal, so an edit waits for the commit

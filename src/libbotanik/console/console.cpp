@@ -53,6 +53,10 @@ namespace Botanik { namespace Terminal {
     // The beat
     // ------------------------------------------------------------------------
 
+    void Console::_adopt_task(Component* c, const Tasks::Tick&) {
+        static_cast<Console*>(c)->_apply_config(/*announce=*/false);
+    }
+
     void Console::_config_task(Component* c, const Tasks::Tick&) {
         static_cast<Console*>(c)->_apply_config();
     }
@@ -78,27 +82,17 @@ namespace Botanik { namespace Terminal {
               Tasks::PHASE_INPUT);
         _tasks->add(*this, &Console::_draw_task,  "console",    Tasks::GROUP_SLOW,
               Tasks::PHASE_PRESENT);
+        // Adopt the stored geometry once the parameters are in. Registry::setup()
+        // runs the setup handlers AFTER every component_setup(), and it is one of
+        // those that loads the store - so this is the first moment the bank holds
+        // what was saved rather than the table's defaults.
+        _tasks->add_setup(*this, &Console::_adopt_task, "console_adopt");
         _tasks->add(*this, &Console::_flush_task, "console_tx", Tasks::GROUP_FAST,
               Tasks::PHASE_PRESENT);
     }
 
-    void Console::apply_stored_config() {
-        _apply_config(/*announce=*/false);
-        // The parameter load runs AFTER this (it is one of the one-time inits
-        // Tasks::Registry::setup() does), so the pass above read the table's
-        // DEFAULTS. Its serial must not stand: a load restores the group's
-        // commit serial UNCHANGED, so a console holding it as applied would
-        // never look again and the stored geometry would never reach the screen.
-        _term_serial  = 0;
-        _adopt_stored = true;
-    }
-
     void Console::_apply_config(bool announce) {
         if (_cfg == nullptr) return;
-        // Adopting the store is bring-up, not news - and the announce below says
-        // "a power cycle undoes it", which is the opposite of true for a setting
-        // that CAME from a power cycle.
-        if (_adopt_stored) { _adopt_stored = false; announce = false; }
         const uint32_t baud = (uint32_t)Vars::get_int(_cfg, "serial_console_baud",
                                                       (int32_t)_baud);
         // A group with no rows answers 0, which is also the "never applied"
@@ -132,7 +126,12 @@ namespace Botanik { namespace Terminal {
                 type <= (uint8_t)Ansi::TerminalType::MINITEL_2
                     ? (Ansi::TerminalType)type : Ansi::CONFIGURED_TERMINAL;
             (void)reconfigure(t, cols, rows);
-            _type = type; _cols = cols; _rows_cfg = rows;
+            // Read the geometry BACK: the device clamps to its own buffer, and
+            // storing what we asked for would leave this object - and the
+            // announce below - claiming a size the screen never got.
+            _type = type;
+            _cols     = _term.cols();
+            _rows_cfg = _term.rows_total();
             _term_serial = serial;
         }
 

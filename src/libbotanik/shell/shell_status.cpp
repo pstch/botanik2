@@ -237,7 +237,7 @@ namespace Botanik { namespace Shell {
             snprintf(val, sizeof(val), "%s (%s, every %lu ms)",
                      Tasks::phase_name(t.phase), Tasks::group_name(t.group),
                      (unsigned long)period);
-            _line("Runs in ..............", val);
+            _line("Runs in", val);
 
             // last_run_ms() is meaningless until the first activation, so a task
             // that has never run says so rather than reporting the uptime.
@@ -248,13 +248,13 @@ namespace Botanik { namespace Shell {
                           (unsigned long)t.timer.runs(),
                           (unsigned long)t.cost.missed,
                           (unsigned long)(HAL::Clock::uptime_ms() - t.timer.last_run_ms()));
-            _line("Activations ..........", val);
+            _line("Activations", val);
 
             snprintf(val, sizeof(val), "last %lu us, mean %lu us, peak %lu us",
                      (unsigned long)t.cost.us_last,
                      (unsigned long)t.cost.us_mean(),
                      (unsigned long)t.cost.us_max);
-            _line("Cost .................", val);
+            _line("Cost", val);
 
             // Against its OWN period, not the beat: a 500 ms task costing 200 us
             // is idle, and measuring it against 10 ms would say otherwise.
@@ -264,7 +264,7 @@ namespace Botanik { namespace Shell {
                 snprintf(val, sizeof(val), "%s %% of its own period",
                          Utils::format_float(fa, sizeof(fa),
                              (double)t.cost.us_mean() / (double)(period * 10u), 2));
-                _line("Duty .................", val);
+                _line("Duty", val);
             }
             return;
         }
@@ -366,15 +366,15 @@ namespace Botanik { namespace Shell {
         // --- Link --------------------------------------------------------
         const char* mode = Vars::get_int(_bank(), "net_dhcp") ? "DHCP" : "static";
         snprintf(val, sizeof(val), "%s  (%s)", net->status_str(), mode);
-        _line("Network ..............", val);
+        _line("Network", val);
 
         // The active link parameters (DHCP lease or static config, whichever is
         // live), read back from the HAL so a DHCP-assigned value shows too.
         HAL::Network::Ip4 a4;
-        _line("IP address ...........", net->ip(&a4) ? ip4(a4) : "-");
-        _line("Netmask ..............",
+        _line("IP address", net->ip(&a4) ? ip4(a4) : "-");
+        _line("Netmask",
              HAL::Network::link_netmask(&a4) ? ip4(a4) : "-");
-        _line("Gateway ..............",
+        _line("Gateway",
              HAL::Network::link_gateway(&a4) ? ip4(a4) : "-");
         {
             HAL::Network::Ip4 d0, d1;
@@ -387,7 +387,7 @@ namespace Botanik { namespace Shell {
             } else {
                 snprintf(val, sizeof(val), "%s", h0 ? ip4(d0) : "-");
             }
-            _line("DNS ..................", val);
+            _line("DNS", val);
         }
 
         // --- NTP ---------------------------------------------------------
@@ -397,7 +397,7 @@ namespace Botanik { namespace Shell {
                          ntp->status_str(), (long)ntp->offset_ms());
             else
                 snprintf(val, sizeof(val), "%s", ntp->status_str());
-            _line("NTP ..................", val);
+            _line("NTP", val);
             const char* s1 = Vars::get_str(_bank(), "ntp_srv1");
             if (s1[0]) {
                 // Configured hostname, then the resolved IP:port once known.
@@ -408,10 +408,10 @@ namespace Botanik { namespace Shell {
                              ip4(sa), (unsigned)ntp->server_port());
                 else
                     snprintf(val, sizeof(val), "%s", s1);
-                _line("NTP server ...........", val);
+                _line("NTP server", val);
             }
         } else {
-            _line("NTP ..................", "disabled");
+            _line("NTP", "disabled");
         }
 
         // --- MQTT --------------------------------------------------------
@@ -425,7 +425,7 @@ namespace Botanik { namespace Shell {
             } else {
                 snprintf(val, sizeof(val), "%s  (no pub yet)", mqt->status_str());
             }
-            _line("MQTT .................", val);
+            _line("MQTT", val);
             const char* brk = Vars::get_str(_bank(), "mqtt_host");
             if (brk[0]) {
                 // Configured hostname, then the resolved IP:port once connected.
@@ -436,10 +436,10 @@ namespace Botanik { namespace Shell {
                 } else {
                     snprintf(val, sizeof(val), "%s", brk);
                 }
-                _line("MQTT broker ..........", val);
+                _line("MQTT broker", val);
             }
         } else {
-            _line("MQTT .................", "disabled");
+            _line("MQTT", "disabled");
         }
     }
 #endif  // BOTANIK_FEATURE_NETWORK
@@ -519,19 +519,19 @@ namespace Botanik { namespace Shell {
             snprintf(val, sizeof(val), "%u rows -> %u blocks on %u device(s)",
                      (unsigned)plan.row_count(), (unsigned)plan.block_count(),
                      (unsigned)plan.device_count());
-            _line("  Plan ...............", val);
+            _line("  Plan", val);
 
             snprintf(val, sizeof(val), "%s, %u baud, %u.%u%% of the bus",
                      rtu->status_str(), (unsigned)Config::MODBUS_BAUD,
                      (unsigned)(plan.duty_ppm() / 10000u),
                      (unsigned)((plan.duty_ppm() / 1000u) % 10u));
-            _line("  State ..............", val);
+            _line("  State", val);
 
             snprintf(val, sizeof(val), "%lu sent, %lu faults, %lu refused, %lu short tx, %lu late B",
                      (unsigned long)rtu->txns(), (unsigned long)rtu->faults(),
                      (unsigned long)rtu->refusals(), (unsigned long)rtu->tx_short(),
                      (unsigned long)rtu->stale_rx());
-            _line("  Transactions .......", val);
+            _line("  Transactions", val);
 
             // The framer has always kept these apart because they point at
             // different physical faults, and until now nothing read them: a bus
@@ -542,7 +542,7 @@ namespace Botanik { namespace Shell {
             snprintf(val, sizeof(val), "%lu crc, %lu bad frame, %lu timeout, %lu stray B",
                      (unsigned long)fr.crc_errors(), (unsigned long)fr.bad_frames(),
                      (unsigned long)fr.timeouts(), (unsigned long)fr.stray_bytes());
-            _line("  Line ...............", val);
+            _line("  Line", val);
 
             // Unplanned rows are signals that will never be scanned: a critical
             // at bring-up, repeated here rather than only in a log.
@@ -550,7 +550,7 @@ namespace Botanik { namespace Shell {
                 snprintf(val, sizeof(val), "%u unplanned, %u never scanned",
                          (unsigned)plan.rows_dropped(),
                          (unsigned)plan.rows_unscanned());
-                _line("  Rows dropped .......", val);
+                _line("  Rows dropped", val);
             }
 
             if (rtu->safe_state_pending())
@@ -590,12 +590,12 @@ namespace Botanik { namespace Shell {
                          (unsigned)c.port, (unsigned)c.rows, (unsigned)c.clients);
             else
                 snprintf(val, sizeof(val), "NOT LISTENING (port %u)", (unsigned)c.port);
-            _line("  State ..............", val);
+            _line("  State", val);
 
             snprintf(val, sizeof(val), "%lu served, %lu refused, %lu writes, %lu rejects",
                      (unsigned long)c.requests, (unsigned long)c.exceptions,
                      (unsigned long)c.writes, (unsigned long)c.rejects);
-            _line("  Requests ...........", val);
+            _line("  Requests", val);
         }
 #endif
     }

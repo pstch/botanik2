@@ -6,6 +6,7 @@
 
 #include "libbotanik/tasks/tasks.h" // Registry / Task
 
+#include <cstdio>                        // snprintf - the storage key
 #include <cstring>                      // strcmp / strncmp - program lookup by name
 
 #include "libbotanik/hal/platform.h"    // HAL::Clock::uptime_us
@@ -130,9 +131,10 @@ namespace Botanik { namespace Tasks {
         // will have in program(): the registry is the list, so a program's
         // position in it IS the writer id every row it drives is stamped with.
         // Nothing else can assign it now that no site table survives.
-        const uint8_t slot = program_count();
+        const uint8_t slot = _prog_count;
         if (!add(program, handler, name, group, PHASE_CONTROL)) return false;
         _tasks[_count - 1].program = &program;
+        _prog[_prog_count++] = (uint8_t)(_count - 1);
         program.set_slot(slot);
         return true;
     }
@@ -191,46 +193,37 @@ namespace Botanik { namespace Tasks {
         }
     }
 
-    int16_t Registry::_program_slot(uint8_t i) const {
-        uint8_t n = 0;
-        for (uint8_t k = 0; k < _count; k++) {
-            if (_tasks[k].program == nullptr) continue;
-            if (n == i) return (int16_t)k;
-            n++;
-        }
-        return -1;
+    Task* Registry::_program_task(uint8_t i) {
+        return (i < _prog_count) ? &_tasks[_prog[i]] : nullptr;
+    }
+    const Task* Registry::_program_task(uint8_t i) const {
+        return (i < _prog_count) ? &_tasks[_prog[i]] : nullptr;
     }
 
     Plc::Program* Registry::program(uint8_t i) const {
-        const int16_t k = _program_slot(i);
-        return (k < 0) ? nullptr : _tasks[k].program;
+        const Task* t = _program_task(i);
+        return (t == nullptr) ? nullptr : t->program;
     }
 
-    uint8_t Registry::program_count() const {
-        uint8_t n = 0;
-        for (uint8_t k = 0; k < _count; k++) if (_tasks[k].program != nullptr) n++;
-        return n;
-    }
+    uint8_t Registry::program_count() const { return _prog_count; }
 
     // Per-program enable
     // ------------------------------------------------------------------------
 
     namespace {
         /** "prog.<name>", one key per program: no layout to version, like the
-         *  parameter and override keys. */
-        void _prog_key(const char* name, char* buf, size_t cap) {
-            size_t w = 0;
-            for (const char* p = "prog."; *p != '\0' && w + 1 < cap; p++) buf[w++] = *p;
-            for (; *name != '\0' && w + 1 < cap; name++) buf[w++] = *name;
-            buf[w] = '\0';
+         *  parameter and override keys. False when the name would not fit -
+         *  a truncated key would collide with another program's. */
+        bool _prog_key(const char* name, char* buf, size_t cap) {
+            const int n = snprintf(buf, cap, "prog.%s", name);
+            return n > 0 && (size_t)n < cap;
         }
     }
 
     int16_t Registry::find_program(const char* name, uint16_t len) const {
         if (name == nullptr) return -1;
-        const uint8_t n = program_count();
-        for (uint8_t i = 0; i < n; i++) {
-            const char* nm = _tasks[_program_slot(i)].name;
+        for (uint8_t i = 0; i < _prog_count; i++) {
+            const char* nm = _tasks[_prog[i]].name;
             if (nm == nullptr) continue;
             if (len == 0) { if (strcmp(nm, name) == 0) return (int16_t)i; }
             else if (strncmp(nm, name, len) == 0 && nm[len] == '\0') return (int16_t)i;
@@ -239,19 +232,19 @@ namespace Botanik { namespace Tasks {
     }
 
     bool Registry::program_enabled(uint8_t i) const {
-        const int16_t k = _program_slot(i);
-        return (k < 0) ? false : _tasks[k].enabled;
+        const Task* t = _program_task(i);
+        return (t != nullptr) && t->enabled;
     }
 
     bool Registry::program_unsaved(uint8_t i) const {
-        const int16_t k = _program_slot(i);
-        return (k < 0) ? false : _tasks[k].enable_unsaved;
+        const Task* t = _program_task(i);
+        return (t != nullptr) && t->enable_unsaved;
     }
 
     bool Registry::set_program_enabled(uint8_t i, bool on, uint64_t now_ms) {
-        const int16_t k = _program_slot(i);
-        if (k < 0) return false;
-        Task& t = _tasks[k];
+        Task* tp = _program_task(i);
+        if (tp == nullptr) return false;
+        Task& t = *tp;
         if (t.enabled == on) return true;      // idempotent, and not a new edit
         t.enabled        = on;
         t.enable_unsaved = true;
@@ -263,11 +256,11 @@ namespace Botanik { namespace Tasks {
     }
 
     bool Registry::save_program(uint8_t i) {
-        const int16_t k = _program_slot(i);
-        if (k < 0 || _tasks[k].name == nullptr) return false;
-        Task& t = _tasks[k];
-        char key[40];
-        _prog_key(t.name, key, sizeof(key));
+        Task* tp = _program_task(i);
+        if (tp == nullptr || tp->name == nullptr) return false;
+        Task& t = *tp;
+        char key[HAL::Storage::KEY_MAX];
+        if (!_prog_key(t.name, key, sizeof(key))) return false;
         const uint8_t byte = t.enabled ? 1u : 0u;
         if (!HAL::Storage::set(key, &byte, 1)) return false;
         t.enable_unsaved = false;              // cleared only on a write that landed
@@ -276,8 +269,7 @@ namespace Botanik { namespace Tasks {
 
     uint8_t Registry::save_programs(uint8_t* refused) {
         uint8_t saved = 0, bad = 0;
-        const uint8_t n = program_count();
-        for (uint8_t i = 0; i < n; i++) {
+        for (uint8_t i = 0; i < _prog_count; i++) {
             if (!program_unsaved(i)) continue;
             if (save_program(i)) saved++;
             else if (bad < 0xFF)  bad++;
@@ -287,12 +279,11 @@ namespace Botanik { namespace Tasks {
     }
 
     void Registry::load_programs() {
-        const uint8_t n = program_count();
-        for (uint8_t i = 0; i < n; i++) {
-            Task& t = _tasks[_program_slot(i)];
+        for (uint8_t i = 0; i < _prog_count; i++) {
+            Task& t = _tasks[_prog[i]];
             if (t.name == nullptr) continue;
-            char key[40];
-            _prog_key(t.name, key, sizeof(key));
+            char key[HAL::Storage::KEY_MAX];
+            if (!_prog_key(t.name, key, sizeof(key))) continue;
             uint8_t byte = 0; size_t got = 0;
             // Nothing stored is the normal case: a program runs unless it was
             // deliberately taken out.

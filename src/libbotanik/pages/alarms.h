@@ -100,8 +100,7 @@ namespace Botanik { namespace Pages {
         /** @brief Column order. The selection cursor inverts the VARIABLE cell:
          *  it is the row's identity, and what Alt+W copies and `get` /
          *  `override` want typed at them. The highlight stops one column short
-         *  of the cell's right edge (_name_cell_r()), leaving a plain gap before
-         *  the border. The STATE cell's reverse-video "ON" badge is split out of
+         *  of the cell's right edge, leaving a plain gap before the border. The STATE cell's reverse-video "ON" badge is split out of
          *  the row write, so there is no flicker-prone overdraw. */
         enum { C_CODE = 0, C_NAME, C_STATE, C_OVR, C_EVENT };
         /** @} */
@@ -114,10 +113,6 @@ namespace Botanik { namespace Pages {
         /** @brief VARIABLE stretches: it absorbs what the fixed columns leave,
          *  so the table spans the display. */
         uint8_t _flex_col() const override { return C_NAME; }
-
-        /** @brief Right edge of the selection highlight: one short of the
-         *  VARIABLE cell's contents (see the column note above). */
-        uint16_t _name_cell_r() const { return (uint16_t)(_cell_end(C_NAME) - 1); }
 
         /** @brief Format the last-event cell: edge_ms as "YY/MM/DD HH:MM", or
          *  empty if it never fired (ON vs OFF is shown by the ON column). */
@@ -188,9 +183,10 @@ namespace Botanik { namespace Pages {
         /** @} */
 
         /** @brief Write @p line up to and including the VARIABLE cell, inverting
-         *  that cell for the selection cursor. Leaves the cursor at
-         *  _name_cell_r(). */
-        void _write_name_cell(const char* line, bool selected);
+         *  [@p l, @p r) for the selection cursor. The caller fits the columns
+         *  once and passes both edges, rather than each end refitting. */
+        void _write_name_cell(const char* line, bool selected,
+                              uint16_t l, uint16_t r);
 
         /** @brief Draw a full data row (CODE/VARIABLE/ON/OVR/LAST EVENT). Only
          *  the VARIABLE cell inverts for the selection cursor; the state cell

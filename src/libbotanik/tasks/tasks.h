@@ -204,10 +204,16 @@ namespace Botanik { namespace Tasks {
          *  (counted in overflow()). */
         Task* _claim(const char* name, GroupId group, Phase phase);
 
-        /** @brief Table index of the @p i'th PROGRAM entry, or -1. The one
-         *  place program numbering is derived, so program(), the enable flags
-         *  and the writer id cannot disagree about which is which. */
-        int16_t _program_slot(uint8_t i) const;
+        /** @brief Table index of each PROGRAM entry, in registration order.
+         *  Filled by add_program(), which is where the dense program index is
+         *  assigned - so program(), the enable flags and the writer id all read
+         *  one numbering rather than each re-deriving it. */
+        uint8_t  _prog[Config::MAX_TASKS];
+        uint8_t  _prog_count = 0;
+
+        /** @brief The @p i'th program's entry, or null past the last. */
+        Task*       _program_task(uint8_t i);
+        const Task* _program_task(uint8_t i) const;
 
         /** @} */
 

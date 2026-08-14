@@ -118,7 +118,7 @@ def test_the_task_table_is_complete(spawn):
 
     # Every library task a full build registers. Raise it deliberately when
     # adding one; a DROP is the bug this exists to catch.
-    assert term.wait_for("Registered ....... : 23"), \
+    assert term.wait_for("Registered ....... : 24"), \
         "the task table changed size - a registration was added or silently lost"
     assert term.wait_for("0 refused"), "a registration was refused: MAX_TASKS"
 
