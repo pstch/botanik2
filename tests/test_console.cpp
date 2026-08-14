@@ -537,6 +537,24 @@ namespace {
 }
 
 // The common case: appending must stay one glyph plus the cursor park.
+TEST_CASE("editor: a top-anchored viewport claims only its edit point as input") {
+    // PRIO_INPUT outranks PRIO_CHROME, so a full-screen editor claiming its
+    // whole viewport put the NOTES text on the wire ahead of the bars framing
+    // it - the one page whose frame arrived last.
+    EditorBytes f;
+    f.as_viewport(10);                      // rows 1..10, the NOTES geometry
+    f.fill_rows(4);
+
+    const Terminal::AnsiTerminal& t = f.console.terminal();
+    CHECK(t.row_priority(0) == Terminal::PRIO_CHROME);   // the status bar still outranks
+
+    uint16_t input_rows = 0;
+    for (uint16_t r = 1; r <= 10; r++)
+        if (t.row_priority(r) == Terminal::PRIO_INPUT) input_rows++;
+    INFO("the edit point is one row; the rest of the note is structure");
+    CHECK(input_rows == 1);
+}
+
 TEST_CASE("editor bytes: appending a char costs about a char") {
     EditorBytes f;
     f.type("hello");

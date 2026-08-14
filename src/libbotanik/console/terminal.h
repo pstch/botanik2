@@ -299,6 +299,11 @@ namespace Botanik { namespace Terminal {
          *  the Console resets the content band on a page switch, and the incoming
          *  page declares its own in focus(). Default PRIO_STRUCT. */
         void set_row_priority(uint16_t top, uint16_t bottom, RowPriority prio);
+        /** @brief What class @p row is in. For a caller checking the frame
+         *  still outranks what it frames. */
+        RowPriority row_priority(uint16_t row) const {
+            return (row < GRID_ROWS) ? (RowPriority)_row_prio[row] : PRIO_STRUCT;
+        }
         void set_row_priority(uint16_t row, RowPriority prio) {
             set_row_priority(row, row, prio);
         }

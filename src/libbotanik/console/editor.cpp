@@ -331,11 +331,20 @@ namespace Botanik { namespace Terminal {
 
         if (_anchor == Anchor::TOP) {
             // The viewport is fixed and the editor owns all of it: claim exactly
-            // that. Releasing the whole band would demote a row the page keeps
-            // for itself (a status line under the editor) every keystroke.
+            // that, and no more. Releasing the whole band would demote a row the
+            // page keeps for itself (a status line under the editor) every
+            // keystroke.
             uint16_t view_bottom = _view_bottom_hw();
             if (_origin > view_bottom) return;
-            _terminal->set_row_priority(_origin, view_bottom, PRIO_INPUT);
+            // Only the EDIT POINT is input, not the whole note. Claiming the
+            // viewport meant a full-screen editor outranked PRIO_CHROME, so on
+            // the NOTES page the text went out ahead of the bars framing it -
+            // the one page where the frame arrived last. The re-declaration is
+            // what releases the row the cursor was on, so nothing is tracked.
+            _terminal->set_row_priority(_origin, view_bottom, PRIO_STRUCT);
+            const uint16_t cur = _map_cursor_pos(_pos).row;
+            if (cur >= _origin && cur <= view_bottom)
+                _terminal->set_row_priority(cur, PRIO_INPUT);
             return;
         }
 
