@@ -332,3 +332,15 @@ def test_log_writes_an_operator_entry(spawn):
     assert term.wait_for("usage:"), "bare log did not print its usage"
     _run(term, b"log nosuchlevel hello")
     assert term.wait_for("usage:"), "an unknown level was not refused"
+
+
+def test_reboot_announces_itself_in_the_log(spawn):
+    """The reply IS the log entry: a unit that reset is worth accounting for,
+    and CRITICAL reaches the screen even with `logs off`."""
+    term = shell(spawn, quiet_logs=True)
+    _run(term, b"reboot")
+    assert term.wait_for(("HEALTH", "reboot requested", "kick withheld")), \
+        "reboot did not log its own announcement"
+    # One acknowledgement, not two: the printed line would say it again.
+    assert not term.wait_for("resetting shortly"), \
+        "reboot printed a line beside the log entry"

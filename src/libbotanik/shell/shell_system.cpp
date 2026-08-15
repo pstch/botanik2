@@ -15,6 +15,7 @@
 #include "libbotanik/health/health.h"       // Health::HealthMonitor - `reboot`
 #include "libbotanik/config/logging.h"      // Config::LOG_MESSAGE_LEN
 #include "libbotanik/logs/logger.h"         // Logs::Logger - `log` and set_min_level
+#include "libbotanik/scheduler/scheduler.h" // Scheduler::SchedulerContext - the armed window
 #include "libbotanik/network/ntp.h"         // Network::NtpClient - `ntpsync`
 #include "libbotanik/vars/model.h"          // Vars::Bank - control authority
 
@@ -74,9 +75,29 @@ namespace Botanik { namespace Shell {
             (void)io->save_retained();
         }
         _health->request_reboot();
-        // The loop keeps running until the watchdog fires, so unlike `reset`
-        // this line reaches the screen and the log sinks.
-        _println("reboot: outputs safe, watchdog kick withheld - resetting shortly");
+
+        // LOGGED rather than printed: a unit that reset is worth accounting for
+        // afterwards, and the log is what the serial mirror and MQTT carry off
+        // the unit. The loop keeps running until the watchdog fires - unlike
+        // `reset`, which never returns - so there is time to drain it.
+        //
+        // CRITICAL does both jobs: the rate limiter cannot drop it on the way
+        // out, and ShellPage lets a critical through the `logs off` gate - so
+        // this IS the reply, on screen either way, and a printed line beside it
+        // would only say the same thing twice.
+        const Scheduler::SchedulerContext* sc =
+            (_sys != nullptr) ? _sys->scheduler : nullptr;
+        if (_logger != nullptr) {
+            if (sc != nullptr && sc->watchdog_ms != 0)
+                _logger->critical(Logs::HEALTH,
+                                  "reboot requested from the console\n"
+                                  "outputs safe, kick withheld: resets within %lu ms",
+                                  (unsigned long)sc->watchdog_ms);
+            else
+                _logger->critical(Logs::HEALTH,
+                                  "reboot requested from the console\n"
+                                  "outputs safe, kick withheld: resets when the watchdog expires");
+        }
     }
 
     void CommandShell::_cmd_exit(const char*, uint16_t) {
