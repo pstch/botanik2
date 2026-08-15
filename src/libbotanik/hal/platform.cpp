@@ -829,11 +829,20 @@ namespace Botanik { namespace HAL {
     void* _wd_thread(void*) {
         for (;;) {
             poll();
-            // A quarter of the window, so a lapse is caught well inside it
-            // without spinning. Bounded either way: a 0 timeout means stopped,
-            // and poll() returns at once.
+            // The nap is REAL time; the window is measured on the uptime clock.
+            // Under the manual clock those are different domains - virtual time
+            // moves a beat at a time and can cross a whole window in microseconds
+            // of wall clock - so poll briskly and cheaply there rather than
+            // sleeping a fraction of a window that is not passing in real time
+            // at all. Free-running, a quarter of the window catches a lapse well
+            // inside it without spinning.
             const uint32_t t = _wd_timeout_ms();
-            usleep((t == 0 ? 100u : (t < 40u ? 10u : t / 4u)) * 1000u);
+            uint32_t nap_ms;
+            if      (_manual_clock()) nap_ms = 2;
+            else if (t == 0)          nap_ms = 100;   // stopped; just idle
+            else if (t < 40u)         nap_ms = 10;
+            else                      nap_ms = t / 4u;
+            usleep(nap_ms * 1000u);
         }
         return nullptr;
     }

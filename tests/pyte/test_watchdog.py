@@ -1,8 +1,15 @@
 """The watchdog actually resets a unit that stops kicking it.
 
 Off in every other pyte file (the clock is manual, so a case that stops running
-beats would look wedged); this one turns it on with a short window and asserts
-the thing it exists for.
+beats would look wedged); this one turns it on and asserts the thing it exists
+for, at the window the firmware actually ships.
+
+**Two clock domains, and that is the point.** The window is measured on the
+uptime clock, which is VIRTUAL here - it advances a beat at a time, driven over
+the control pipe. Only the servicing thread's poll cadence is wall clock. So the
+firmware's whole 10 s window costs about a second of real time, and a change
+that made the watchdog wait real seconds would stall this test for the full
+window instead of finishing in beats.
 """
 import keys
 from helpers import shell
@@ -19,18 +26,16 @@ def _uptime(term):
 
 
 def test_a_unit_that_stops_kicking_is_reset(spawn):
-    # 300 ms of window: `reboot` drops control and withholds the kick, and the
-    # servicing thread notices from OUTSIDE the loop it is watching.
-    term = shell(spawn, quiet_logs=True, watchdog=300)
+    term = shell(spawn, quiet_logs=True, watchdog=True)
     term.until(lambda: _uptime(term) is not None)
     term.run(200)
     before = _uptime(term)
     assert before is not None and before > 0, "the clock never advanced"
 
+    # `reboot` drops control and withholds the kick; the servicing thread
+    # notices from OUTSIDE the loop it is watching.
     term.send(b"reboot" + keys.ENTER)
-    # Past the window, in beats: the elapsed check reads the same virtual clock
-    # the beats drive.
-    term.run(200)
+    term.run(1100)                    # past Config::HW_WATCHDOG_MS, in beats
 
     assert term.until(lambda: (_uptime(term) or 99999) < before), \
         "the unit kept running after the kick was withheld\n%s" % term.snapshot()

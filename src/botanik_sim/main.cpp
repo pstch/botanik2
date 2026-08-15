@@ -82,10 +82,7 @@ int main(int argc, char** argv) {
     std::signal(SIGPIPE, SIG_IGN);                // NOLINT(bugprone-signal-handler)
 
     BotanikSite greenhouse;
-    // Overridable so a test can prove the watchdog trips without waiting the
-    // full window; the default is the firmware's own.
-    greenhouse.set_hw_watchdog_ms(
-        Botanik::HAL::Env::u32("BOTANIK_WATCHDOG_MS", Config::HW_WATCHDOG_MS));
+    greenhouse.set_hw_watchdog_ms(Config::HW_WATCHDOG_MS);
 
     greenhouse.setup();
 

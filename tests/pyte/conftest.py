@@ -57,9 +57,7 @@ class Term:
         # Off by default: the clock is manual here, so a case that stops running
         # beats would look wedged and be re-executed under its own PTY. The one
         # case that asserts the watchdog WORKS passes watchdog=True.
-        env["BOTANIK_WATCHDOG"] = "0" if watchdog is False else "1"
-        if watchdog not in (True, False):
-            env["BOTANIK_WATCHDOG_MS"] = str(watchdog)   # a shorter window
+        env["BOTANIK_WATCHDOG"] = "1" if watchdog else "0"
         if store is not None:
             # Private config store, or the sims share ~/.botanik_config with each
             # other and with the developer's own (test_params commits an edit).
