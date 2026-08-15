@@ -299,8 +299,8 @@ namespace Botanik { namespace Terminal {
          *
          *  The budget and the wire must agree: pacing for a rate the wire no
          *  longer runs at either crawls or overflows the ring into a torn write.
-         *  Whoever retunes the UART calls this too (BotanikFirmware does, from
-         *  `serial_console_baud`). */
+         *  Whoever retunes the UART calls this too (Console does, from
+         *  `console_baud`). */
         void set_baud(uint32_t baud) {
             _tx_cold_depth = depth_for_baud(baud, Config::TX_COLD_TARGET_MS);
         }

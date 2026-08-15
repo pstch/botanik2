@@ -69,7 +69,7 @@ namespace Botanik { namespace Terminal {
     }
 
     void Console::register_tasks() {
-        // Its own settings first: the `term_` group and the baud describe this
+        // Its own settings first: the `console_` group and the baud describe this
         // object and nothing else, so this is what reads them. CONFIG, so a
         // commit lands before the beat's draw rather than halfway through it.
         _tasks->add(*this, &Console::_config_task, "console_cfg", Tasks::GROUP_SLOW,
@@ -86,27 +86,31 @@ namespace Botanik { namespace Terminal {
 
     void Console::_apply_config(bool announce) {
         if (_cfg == nullptr) return;
-        const uint32_t baud = (uint32_t)Vars::get_int(_cfg, "serial_console_baud",
-                                                      (int32_t)_baud);
         // A group with no rows answers 0, which is also the "never applied"
         // seed - so a build whose site left the splice out simply never
         // reconfigures, and keeps what it was constructed at.
-        const uint32_t serial = Vars::group_serial(_cfg, "term");
-        const bool want_term = (serial != 0 && serial != _term_serial);
-        const bool want_baud = (baud != 0 && baud != _baud);
-        if (!want_term && !want_baud) return;
+        const uint32_t serial = Vars::group_serial(_cfg, "console");
+        const bool want_cfg = (serial != 0 && serial != _cfg_serial);
+        if (!want_cfg) return;
 
-        if (want_baud) {
-            // Both together: the wire and the budget the renderer paces to.
-            // Either alone leaves the renderer pacing for a rate it is not on.
-            _serial.begin(baud);
-            _term.set_baud(baud);
-            _baud = baud;
+        {
+            // The rate rides the group's commit like the make and the size: all
+            // four describe one physical terminal, and applying them one at a
+            // time asks whoever is watching to reconnect once per row.
+            const uint32_t baud = (uint32_t)Vars::get_int(_cfg, "console_baud",
+                                                          (int32_t)_baud);
+            if (baud != 0 && baud != _baud) {
+                // Wire and budget together: either alone leaves the renderer
+                // pacing for a rate it is not on.
+                _serial.begin(baud);
+                _term.set_baud(baud);
+                _baud = baud;
+            }
         }
-        if (want_term) {
-            const uint8_t  type = (uint8_t)Vars::get_int(_cfg, "term_type", (int32_t)_type);
-            uint16_t cols = (uint16_t)Vars::get_int(_cfg, "term_cols", (int32_t)_cols);
-            uint16_t rows = (uint16_t)Vars::get_int(_cfg, "term_rows", (int32_t)_rows_cfg);
+        {
+            const uint8_t  type = (uint8_t)Vars::get_int(_cfg, "console_type", (int32_t)_type);
+            uint16_t cols = (uint16_t)Vars::get_int(_cfg, "console_cols", (int32_t)_cols);
+            uint16_t rows = (uint16_t)Vars::get_int(_cfg, "console_rows", (int32_t)_rows_cfg);
             // The parameter band guards the way IN; a corrupt store reaches this
             // by another road, and below the minimum the tables lose cells
             // rather than reflowing.
@@ -125,7 +129,7 @@ namespace Botanik { namespace Terminal {
             _type = type;
             _cols     = _term.cols();
             _rows_cfg = _term.rows_total();
-            _term_serial = serial;
+            _cfg_serial = serial;
         }
 
         if (!announce || _logger == nullptr) return;

@@ -22,7 +22,7 @@
 #include "libbotanik/config/modbus.h"   // the mb_ / rtu_ defaults
 #include "libbotanik/config/serial.h"   // BOTANIK_CONSOLE_BAUD / MONITOR_BAUD
 #include "libbotanik/config/sun.h"      // the geo_ row defaults
-#include "libbotanik/config/terminal.h" // the term_ row defaults and bands
+#include "libbotanik/config/terminal.h" // the console_ row defaults and bands
 #include "libbotanik/config/vars.h"     // BOTANIK_RETAIN_SAVE_MS - sys_retain_sec's default
 #include "libbotanik/logs/topics.h"     // Logs::log_level_label - sys_log_level's converter
 #include "libbotanik/vars/declare.h"    // the A/P/PS/PE/SV factories
@@ -133,11 +133,7 @@ namespace Botanik { namespace Vars {
     // band must stay to what the hardware can really do: a UART rate no divisor
     // can hit lands as the nearest the driver manages.
 
-    P("serial_console_baud", T_U32,
-        BOTANIK_CONSOLE_BAUD, 1200, 921600, 0, "Bd", 900,
-        "console UART rate",
-        "reconnect at the new rate; unsaved, so a power cycle undoes it"),
-    P("serial_monitor_baud", T_U32,
+    P("monitor_baud", T_U32,
         BOTANIK_MONITOR_BAUD, 1200, 921600, 0, "Bd", 901,
         "monitor UART rate",
         "log-only port; ignored on the OPTA, whose MONITOR is USB CDC"),
@@ -146,21 +142,21 @@ namespace Botanik { namespace Vars {
         1, 0, 9999, 0, "", 910,
         "bump to apply staged net_ edits", ""),
     P("net_dhcp", T_BOOL,
-        BOTANIK_NET_DHCP, 0, 1, 0, "", 911,
+        0, 0, 1, 0, "", 911,
         "enable DHCP IP configuration", "ignores the static ip/mask/gw rows"),
-    PS("net_ip", BOTANIK_NET_IP,
+    PS("net_ip", "192.168.1.10",
         BOTANIK_HOST_STR_LEN, STR_IPV4, 912,
         "static IP address", ""),
-    PS("net_mask", BOTANIK_NET_MASK,
+    PS("net_mask", "255.255.255.0",
         BOTANIK_HOST_STR_LEN, STR_IPV4, 913,
         "static IP netmask", ""),
-    PS("net_gw", BOTANIK_NET_GW,
+    PS("net_gw", "192.168.1.1",
         BOTANIK_HOST_STR_LEN, STR_IPV4, 914,
         "static IP gateway", ""),
-    PS("net_dns1", BOTANIK_NET_DNS1,
+    PS("net_dns1", "8.8.8.8",
         BOTANIK_HOST_STR_LEN, STR_IPV4, 915,
         "static DNS resolver 1", ""),
-    PS("net_dns2", BOTANIK_NET_DNS2,
+    PS("net_dns2", "4.4.4.4",
         BOTANIK_HOST_STR_LEN, STR_IPV4_OPT, 916,
         "static DNS resolver 2", "empty = use dns1 alone"),
     /* ntp_: NtpClient reads these by name */
@@ -168,18 +164,18 @@ namespace Botanik { namespace Vars {
         1, 0, 9999, 0, "", 920,
         "bump to apply staged ntp_ edits", ""),
     P("ntp_enable", T_BOOL,
-        BOTANIK_NTP_ENABLE, 0, 1, 0, "", 921,
+        1, 0, 1, 0, "", 921,
         "enable NTP clock sync", ""),
     P("ntp_poll_sec", T_U32,
-        BOTANIK_NTP_POLL_SEC, 10, 86400, 0, "sec", 922,
+        3600, 10, 86400, 0, "sec", 922,
         "NTP poll interval, in seconds", ""),
     P("ntp_port", T_U16,
-        BOTANIK_NTP_PORT, 1, 65535, 0, "", 923,
+        123, 1, 65535, 0, "", 923,
         "NTP server port", "standard is 123"),
-    PS("ntp_srv1", BOTANIK_NTP_SRV1,
+    PS("ntp_srv1", "pool.ntp.org",
         BOTANIK_HOST_STR_LEN, STR_HOST, 924,
         "NTP server 1", ""),
-    PS("ntp_srv2", BOTANIK_NTP_SRV2,
+    PS("ntp_srv2", "",
         BOTANIK_HOST_STR_LEN, STR_HOST_OPT, 925,
         "NTP server 2", "empty = no fallback"),
     /* mqtt_: MqttClient reads these by name */
@@ -187,16 +183,16 @@ namespace Botanik { namespace Vars {
         1, 0, 9999, 0, "", 930,
         "bump to apply staged mqtt_ edits", ""),
     P("mqtt_enable", T_BOOL,
-        BOTANIK_MQTT_ENABLE, 0, 1, 0, "", 931,
+        1, 0, 1, 0, "", 931,
         "enable MQTT", ""),
-    PS("mqtt_host", BOTANIK_MQTT_HOST,
+    PS("mqtt_host", "192.168.1.11",
         BOTANIK_HOST_STR_LEN, STR_HOST, 932,
         "MQTT broker host", ""),
     P("mqtt_port", T_U16,
-        BOTANIK_MQTT_PORT, 1, 65535, 0, "", 933,
+        1883, 1, 65535, 0, "", 933,
         "MQTT broker port", "standard is 1883"),
     P("mqtt_ka_sec", T_U16,
-        BOTANIK_MQTT_KA_SEC, 10, 1800, 0, "sec", 934,
+        20, 10, 1800, 0, "sec", 934,
         "MQTT keep-alive interval", "also the dead-broker detection"),
     P("mqtt_tlm_sec", T_U32,
         (BOTANIK_MQTT_TELEMETRY_PERIOD_MS / 1000.0), 0, 86400, 0, "sec", 935,
@@ -210,10 +206,10 @@ namespace Botanik { namespace Vars {
         1, 0, 9999, 0, "", 940,
         "bump to apply staged geo_ edits", ""),
     P("geo_lat_deg", T_F32,
-        BOTANIK_GEO_LAT_DEG, -90.0, 90.0, 2, "deg", 941,
+        0.0, -90.0, 90.0, 2, "deg", 941,
         "geographical latitude, in degrees", "per site location"),
     P("geo_lon_deg", T_F32,
-        BOTANIK_GEO_LON_DEG, -180.0, 180.0, 2, "deg", 942,
+        0.0, -180.0, 180.0, 2, "deg", 942,
         "geographical longitude, in degrees", "per site location"),
 
 
@@ -238,8 +234,8 @@ namespace Botanik { namespace Vars {
 #endif
 
 #if BOTANIK_FEATURE_CONSOLE
-    /* term_: BotanikFirmware reads these by name, so the library declares them */
-    // term_: which terminal is on the wire and how big it is used to be three
+    /* console_: BotanikFirmware reads these by name, so the library declares them */
+    // console_: which terminal is on the wire and how big it is used to be three
     // compile-time constants, so swapping a VT102 for a Minitel - or 80x24 for
     // 132x32 - was a firmware build.
     //
@@ -256,18 +252,28 @@ namespace Botanik { namespace Vars {
     //
     // Both banded at SCREEN_MIN_*: the tables are laid out for 80x25 and a
     // smaller screen loses cells rather than reflowing.
-    P("term_serial", T_U32,
+    //
+    // The RATE is in this group for the same reason as the rest: it describes
+    // the same physical terminal, and it is the one row whose mistake leaves
+    // nothing to type into. Staging it with the make and the size means one
+    // reconnection rather than one per row. Its register stays 900, where an
+    // external master already found it.
+    P("console_serial", T_U32,
         1, 0, 9999, 0, "", 960,
-        "bump to apply staged term_ edits", ""),
-    P("term_type", T_U8,
+        "bump to apply staged console_ edits", ""),
+    P("console_baud", T_U32,
+        BOTANIK_CONSOLE_BAUD, 1200, 921600, 0, "Bd", 900,
+        "console UART rate",
+        "reconnect at the new rate; unsaved, so a power cycle undoes it"),
+    P("console_type", T_U8,
         BOTANIK_TERMINAL_TYPE, 0, 3, 0, "", 961,
         "which terminal is on the console",
         "0=VT100 1=VT102 2=Minitel 1B 3=Minitel 2"),
-    P("term_cols", T_U16,
+    P("console_cols", T_U16,
         BOTANIK_CONSOLE_COLS, BOTANIK_SCREEN_MIN_COLS,
         BOTANIK_TERMINAL_MAX_COLS, 0, "col", 962,
         "console width, in columns", "the screen buffer bounds the maximum"),
-    P("term_rows", T_U16,
+    P("console_rows", T_U16,
         BOTANIK_CONSOLE_ROWS, BOTANIK_SCREEN_MIN_ROWS,
         BOTANIK_TERMINAL_MAX_ROWS, 0, "row", 963,
         "console height, in rows", "the screen buffer bounds the maximum"),

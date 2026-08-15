@@ -19,12 +19,13 @@
  * scalars default from Config; the harness overrides them through a set_*()
  * modifier before setup() (set_hw_watchdog_ms()).
  *
- * Both UART rates are PARAMETERS, not compile-time constants:
- * `serial_console_baud` and `serial_monitor_baud` (library_vars.h), defaulting
- * from Config::CONSOLE_BAUD / MONITOR_BAUD. _apply_serial_config() re-applies
- * either on change from the CONFIG phase, retuning the UART and - for the
- * console - AnsiTerminal's per-render TX budget in the same breath: a renderer
- * pacing for a rate the wire does not run at is worse than not retuning at all.
+ * Both UART rates are PARAMETERS, not compile-time constants: `console_baud` and
+ * `monitor_baud`, defaulting from Config::CONSOLE_BAUD / MONITOR_BAUD. Each is
+ * re-applied from the CONFIG phase - the monitor's on change, the console's on
+ * the `console_` commit it shares with the make and the size - retuning the UART
+ * and, for the console, AnsiTerminal's per-render TX budget in the same breath:
+ * a renderer pacing for a rate the wire does not run at is worse than not
+ * retuning at all.
  *
  * BOTANIK_FEATURE_CONSOLE (default on) gates the interactive ANSI UI
  * (AnsiTerminal, the built-in pages, the console UART, the register_*() hooks);

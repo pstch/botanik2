@@ -71,7 +71,7 @@ namespace Botanik { namespace Terminal {
         /** @}
          *  @name Its own configuration
          *
-         *  The console reads the `term_` group and its baud rate ITSELF: it is a
+         *  The console reads the `console_` group and its baud rate ITSELF: it is a
          *  Component, and those rows describe nothing but this object. What is
          *  held here is what has been APPLIED, so the config task acts on an
          *  edge rather than reconfiguring every beat.
@@ -85,11 +85,11 @@ namespace Botanik { namespace Terminal {
         uint16_t            _cols;
         uint16_t            _rows_cfg;
         uint8_t             _type;
-        /** @brief Last `term_serial` applied, so a swap lands on the COMMIT and
+        /** @brief Last `console_serial` applied, so a swap lands on the COMMIT and
          *  not on each of the three edits behind it. 0 is not a valid serial
          *  (the row's default is 1), so the first pass always applies - which is
          *  what picks the stored geometry up at bring-up. */
-        uint32_t            _term_serial = 0;
+        uint32_t            _cfg_serial = 0;
 
         /** @}
          *  @name External references
@@ -161,7 +161,7 @@ namespace Botanik { namespace Terminal {
         /** @brief Re-declare which terminal is on the wire and how big it is,
          *  and put the frame back on the screen it just blanked.
          *
-         *  What the `term_` parameter group commits to (console/params.h);
+         *  What the `console_` parameter group commits to;
          *  BotanikFirmware drives it from PHASE_CONFIG. Everything that lays
          *  itself out reads rows() / cols() at render, so the repaint here IS the
          *  reflow - there is no geometry cached in a page to update.
@@ -242,7 +242,7 @@ namespace Botanik { namespace Terminal {
          *  @name The three points in the beat
          *  @{ */
 
-        /** @brief Re-read the `term_` group and the console's baud, and apply
+        /** @brief Re-read the `console_` group and the console's baud, and apply
          *  them if either moved (PHASE_CONFIG).
          *
          *  @p announce false at bring-up: applying what the store already holds

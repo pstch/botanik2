@@ -270,14 +270,14 @@ Broker host, port and keepalive are runtime parameters (`mqtt_host`, `mqtt_port`
 ### Terminal and console
 
 Which terminal is on the wire and how big it is are **runtime parameters**
-(`term_type`, `term_cols`, `term_rows`), so swapping a VT102 for a Minitel, or
-an 80x24 for a 132x32, needs no firmware build. The three below are their
-factory values: what the console is CONSTRUCTED at, since the parameter store
+(`console_baud`, `console_type`, `console_cols`, `console_rows`), so swapping a
+VT102 for a Minitel, or an 80x24 for a 132x32, needs no firmware build. The
+macros below are their factory values: what the console is CONSTRUCTED at, since the parameter store
 cannot be read before the port is open, and what a wiped store comes back to.
 
-They are staged behind `term_serial`, unlike `serial_console_baud`: the three
-describe ONE physical terminal, and applying them one edit at a time walks the
-screen through geometries that match nothing on the wire.
+They are staged behind `console_serial`, all four of them: they describe ONE
+physical terminal, and applying them one edit at a time walks the screen through
+rates and geometries that match nothing on the wire.
 
 Nothing special guards them, and nothing needs to: like every parameter, an edit
 is live when it is set and durable when it is saved, so a console nobody can read
@@ -287,9 +287,9 @@ commit may ask for. See @ref user_console.
 
 | Macro | Default | |
 |---|---|---|
-| `TERMINAL_TYPE` | 1 | factory default for `term_type`. 0 = VT100, 1 = VT102, 2 = Minitel 1B, 3 = Minitel 2. A plain integer, because this header is included everywhere and must not depend on the console |
-| `CONSOLE_COLS` / `CONSOLE_ROWS` | 80 / 24 | factory defaults for `term_cols` / `term_rows` |
-| `TERMINAL_MAX_COLS` / `_ROWS` | 132 / 32 | largest terminal supported. They size the screen back-buffer (two cell grids, so 2 x their product in RAM) and clamp both the construction geometry and anything the `term_` rows ask for |
+| `TERMINAL_TYPE` | 1 | factory default for `console_type`. 0 = VT100, 1 = VT102, 2 = Minitel 1B, 3 = Minitel 2. A plain integer, because this header is included everywhere and must not depend on the console |
+| `CONSOLE_COLS` / `CONSOLE_ROWS` | 80 / 25 | factory defaults for `console_cols` / `console_rows` |
+| `TERMINAL_MAX_COLS` / `_ROWS` | 132 / 32 | largest terminal supported. They size the screen back-buffer (two cell grids, so 2 x their product in RAM) and clamp both the construction geometry and anything the `console_` rows ask for |
 | `CONSOLE_PAGES_MAX` | 10 | pages the Console multiplexes, at the Alt+`<digit>` ceiling. The full page set is 8, and registration past the cap is refused **silently**, so the headroom is what lets a site splice its own page in |
 
 ### Terminal input decoding

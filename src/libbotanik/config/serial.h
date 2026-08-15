@@ -21,18 +21,19 @@ namespace Botanik { namespace Config {
      *  console wire is further down, under Terminal and console.
      *  @{ */
 
-    /** @brief The FACTORY DEFAULT for the `serial_console_baud` parameter.
+    /** @brief The FACTORY DEFAULT for the `console_baud` parameter.
      *
      *  The live value is the parameter, so a swapped terminal needs no firmware
-     *  build: `params set serial_console_baud 9600` retunes the UART and the
-     *  per-render TX budget together on the next beat. This default is what a site pins for
-     *  its hardware, and what a wiped store comes back at. */
+     *  build: `params set console_baud 9600` and a `console_serial` bump retune the
+     *  UART and the per-render TX budget together, with the make and the size
+     *  the same edit staged. This default is what a site pins for its hardware,
+     *  and what a wiped store comes back at. */
 #ifndef BOTANIK_CONSOLE_BAUD
 #  define BOTANIK_CONSOLE_BAUD 4800
 #endif
     BOTANIK_CFG(uint32_t, CONSOLE_BAUD);
 
-    /** @brief The factory default for the `serial_monitor_baud` parameter.
+    /** @brief The factory default for the `monitor_baud` parameter.
      *  @note Effective on the simulator, which throttles its write to it. The
      *        OPTA's MONITOR endpoint is USB CDC and has no line rate, so
      *        begin() there ignores it. */

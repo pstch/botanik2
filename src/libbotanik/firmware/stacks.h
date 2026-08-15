@@ -94,13 +94,13 @@ namespace Botanik {
 
             /** @brief Edge-triggered, so the steady case is one integer compare
              *  and no device call. Applies the moment it moves, where the
-             *  CONSOLE's waits for the `term_` commit: the monitor is a one-way
+             *  CONSOLE's waits for the `console_` commit: the monitor is a one-way
              *  log stream, so getting its rate wrong costs the log and nothing
              *  else. */
             void apply() {
                 if (_cfg == nullptr) return;
                 const uint32_t want = (uint32_t)Vars::get_int(
-                    _cfg, "serial_monitor_baud", (int32_t)_baud);
+                    _cfg, "monitor_baud", (int32_t)_baud);
                 if (want == _baud || want == 0) return;
                 _baud = want;
                 _port.begin(want);
@@ -172,7 +172,7 @@ namespace Botanik {
             : _serial(HAL::Serial::get(HAL::Serial::CONSOLE)),
               // Leading commas from here down: an optional page can drop out
               // without stranding a separator.
-              // The console reads the `term_` group and its own baud out of
+              // The console reads the `console_` group and its own baud out of
               // the bank: those rows describe nothing but it.
               _terminal(ctx, _serial, cols, rows, timestamp_ms, baud,
                         sched, alarms, Terminal::Ansi::CONFIGURED_TERMINAL, cfg)

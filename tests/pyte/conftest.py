@@ -82,7 +82,7 @@ class Term:
         # latin-1, not pyte.ByteStream: its UTF-8 decoder can resync-drop a byte
         # and a lost ESC leaves a literal "[2;1H" on the screen.
         # `screen` widens the emulator for a test that resizes the console past
-        # the sim's own boot geometry; the firmware still draws to term_cols.
+        # the sim's own boot geometry; the firmware still draws to console_cols.
         cols, rows = screen if screen is not None else (COLS, ROWS)
         self.screen = pyte.Screen(cols, rows)
         self.stream = pyte.Stream(self.screen)
