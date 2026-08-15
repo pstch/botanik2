@@ -4,13 +4,10 @@
 
 /**
  * @file console.h
- * @brief Console - the multiplexed page display driven over an AnsiTerminal.
- *
- * The high-level half of the console: it composes an AnsiTerminal device
- * (terminal.h), routes input events to the active page, owns the row-0 status
- * bar and the bottom alarm bar, reserves the content area, and drives the
- * per-tick step() order. Renderers reach the device through terminal();
- * content-area geometry (rows()) and the alarm model (alarms()) live here.
+ * @brief Console - the multiplexed page display driven over an AnsiTerminal:
+ *        routes input to the active page, owns the row-0 status bar and the
+ *        bottom alarm bar, reserves the content area, drives step().
+ * @note Renderers reach the device through terminal(). See docs/dev/pages.md.
  */
 
 #include <cstdint>
@@ -71,10 +68,9 @@ namespace Botanik { namespace Terminal {
         /** @}
          *  @name Its own configuration
          *
-         *  The console reads the `term_` group and its baud rate ITSELF: it is a
-         *  Component, and those rows describe nothing but this object. What is
-         *  held here is what has been APPLIED, so the config task acts on an
-         *  edge rather than reconfiguring every beat.
+         *  The console reads the `term_` group and its baud ITSELF - those rows
+         *  describe nothing but this object. What is held here is what has been
+         *  APPLIED, so the config task acts on an edge.
          *  @{ */
 
         /** @brief Where the settings live; null leaves the console at whatever
@@ -150,23 +146,17 @@ namespace Botanik { namespace Terminal {
         void setup_terminal() { _term.setup_terminal(); }
 
         /** @brief Apply whatever the store holds, without announcing it.
-         *
-         *  @warning Call it AFTER the parameter load, which is one of the
-         *  one-time inits Tasks::Registry::setup() runs. Called before, it reads
-         *  the table's DEFAULTS and records their commit serial as applied - and
-         *  since a load restores that serial unchanged, the group would never
-         *  edge again and the stored geometry would never reach the screen. */
+         *  @warning AFTER the parameter load. Called before, it records the
+         *  DEFAULTS' commit serial as applied, and since a load restores that
+         *  serial unchanged the group would never edge again. */
         void apply_stored_config();
 
         /** @brief Re-declare which terminal is on the wire and how big it is,
-         *  and put the frame back on the screen it just blanked.
-         *
-         *  What the `term_` parameter group commits to (console/params.h);
-         *  BotanikFirmware drives it from PHASE_CONFIG. Everything that lays
-         *  itself out reads rows() / cols() at render, so the repaint here IS the
-         *  reflow - there is no geometry cached in a page to update.
-         *
-         *  @return true when something moved. A no-op call emits nothing. */
+         *  and put the frame back on the screen it just blanked. What the
+         *  `term_` group commits to, driven from PHASE_CONFIG.
+         *  @note Everything reads rows()/cols() at render, so this repaint IS
+         *  the reflow - no page caches geometry.
+         *  @return true when something moved; a no-op call emits nothing. */
         bool reconfigure(Ansi::TerminalType type, uint16_t cols, uint16_t rows);
 
         /** @}
@@ -227,10 +217,8 @@ namespace Botanik { namespace Terminal {
 
     private:
         /** @name Registration handlers
-         *
-         *  Static MEMBERS: they reach the private methods below without a friend
-         *  declaration, and each cast sits on one line beside what it casts to.
-         *  @{ */
+         *  Static MEMBERS, so they reach the private methods below without a
+         *  friend declaration. @{ */
 
         static void _config_task(Component* c, const Tasks::Tick& t);
 
@@ -244,10 +232,8 @@ namespace Botanik { namespace Terminal {
 
         /** @brief Re-read the `term_` group and the console's baud, and apply
          *  them if either moved (PHASE_CONFIG).
-         *
-         *  @p announce false at bring-up: applying what the store already holds
-         *  is not a change anyone needs telling about, and it is the one pass
-         *  that always has something to do. */
+         *  @param announce false at bring-up: applying what the store already
+         *         holds is not a change anyone needs telling about. */
         void _apply_config(bool announce = true);
 
         /** @brief Take the wire's bytes in and route what they decode to

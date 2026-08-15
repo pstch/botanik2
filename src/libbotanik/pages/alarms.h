@@ -16,13 +16,9 @@
  *   row N-2          footer legend: reverse-video mode badge + counts, SPACE hint
  *   row N-1          blank row below the legend
  *
- * Rows are ordered active-first then by most-recent onset; the "all" filter is
- * the exception, keeping definition (table) order so rows never reorder as
- * alarms toggle. The rules cap their column marks with '^' / 'v' when rows are
- * hidden above / below the window. SPACE cycles the filter (recent -> all ->
- * active -> unmasked); UP/DOWN and PAGE_UP/DOWN move the selection cursor,
- * ENTER jumps back to the top, `a` acknowledges the selected condition. The set
- * is re-collected on the value cadence.
+ * @note Rows are ordered active-first then by most-recent onset. The "all"
+ *       filter is the exception, keeping TABLE order so rows never reorder as
+ *       alarms toggle.
  */
 
 #include <cstdint>
@@ -97,11 +93,11 @@ namespace Botanik { namespace Pages {
         static constexpr uint16_t HEADER_ROW = 2;
         static constexpr uint16_t RULE_ROW   = 3;
         static constexpr uint16_t DATA_TOP   = 4;
-        /** @brief Column order. The selection cursor inverts the VARIABLE cell:
-         *  it is the row's identity, and what Alt+W copies and `get` /
-         *  `override` want typed at them. The highlight stops one column short
-         *  of the cell's right edge, leaving a plain gap before the border. The STATE cell's reverse-video "ON" badge is split out of
-         *  the row write, so there is no flicker-prone overdraw. */
+        /** @brief Column order. The selection cursor inverts the VARIABLE cell -
+         *  the row's identity, and what Alt+W copies - stopping one column short
+         *  of the cell's right edge.
+         *  @note The STATE cell's "ON" badge is split out of the row write, so
+         *  there is no flicker-prone overdraw. */
         enum { C_CODE = 0, C_NAME, C_STATE, C_OVR, C_EVENT };
         /** @} */
 
@@ -152,10 +148,9 @@ namespace Botanik { namespace Pages {
         void _collect();
 
         /** @name Window geometry
-         *  Bottom-anchored on the content area. From the bottom up: free row,
-         *  legend, blank, Acknowledged, Remediation, Description, blank, bottom
-         *  rule, then the data band up to the top rule. The rules carry the
-         *  scroll arrows (see _draw_rules()).
+         *  Bottom-anchored. From the bottom up: free row, legend, blank,
+         *  Acknowledged, Remediation, Description, blank, bottom rule, then the
+         *  data band up to the top rule.
          *  @{ */
         // free row below at rows()-1
         uint16_t _legend_row()  const { return (uint16_t)(_console.rows() - 2); }

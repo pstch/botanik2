@@ -4,17 +4,14 @@
 
 /**
  * @file scroll_table.h
- * @brief ScrollTablePage - shared scroll-band + selection-cursor machinery for
+ * @brief ScrollTablePage - shared scroll-band and selection-cursor machinery for
  *        the bordered table pages (ALARMS / MONITOR / CONFIG).
  *
- * Owns the window offset (_top) and the selection cursor (_selected). A subclass
- * supplies only the band geometry (_data_top / _window) and the row count;
- * clamping, follow-scroll, the DL/IL band shift and the bordered-table chrome
- * are shared. Each page keeps its own row builder (their column sets differ).
- *
- * Moving the cursor past a window edge scrolls the band through
- * AnsiTerminal::scroll_region(), so only the revealed rows repaint (@ref
- * dev_screen).
+ * A subclass supplies only the band geometry and the row count; clamping,
+ * follow-scroll, the DL/IL band shift and the chrome are shared. Each page
+ * keeps its own row builder.
+ * @note Moving the cursor past a window edge scrolls the band, so only the
+ *       revealed rows repaint (@ref dev_screen).
  */
 
 #include <cstdint>
@@ -69,11 +66,9 @@ namespace Botanik { namespace Pages {
         /** @brief Rows in the set the cursor moves over. */
         virtual uint16_t _row_count() const = 0;
 
-        /** @brief The selected row's KEY CELL - the one the cursor inverts -
-         *  for the Alt+W copy, or null when this table has nothing worth
-         *  copying (the default, and Alt+W then does nothing). Taken from the
-         *  MODEL, not scraped off the rendered line, which is padded and
-         *  column-truncated. */
+        /** @brief The selected row's KEY CELL for the Alt+W copy, or null when
+         *  this table has nothing worth copying. Taken from the MODEL, not the
+         *  rendered line, which is padded and column-truncated. */
         virtual const char* _selected_cell() const { return nullptr; }
 
         /** @} */
@@ -126,10 +121,9 @@ namespace Botanik { namespace Pages {
         /** @}
          *  @name View modes
          *
-         *  A small ordered set of named views, one active at a time (the alarms
-         *  filter, the monitor's variable groups). SPACE and RIGHT step forward,
-         *  LEFT steps back; NOT Shift+SPACE, which a terminal sends as the same
-         *  0x20 as SPACE.
+         *  An ordered set of named views, one active at a time. SPACE and RIGHT
+         *  step forward, LEFT back - NOT Shift+SPACE, which a terminal sends as
+         *  the same 0x20 as SPACE.
          *  @{ */
 
         /** @brief Active view. Always < _mode_count() (or 0 when there are none). */
@@ -151,21 +145,18 @@ namespace Botanik { namespace Pages {
 
         /** @brief Step the view by @p dir, wrapping, and reset the cursor to the
          *  top of the new set.
-         *
-         *  Deliberately does NOT blank the band first: the footer row is
-         *  PRIO_CHROME, so the badge reaches the wire a tick ahead of the rows.
-         *  Clearing would queue a band scroll, which present() emits before the
-         *  diff and outside its pacing: 320 bytes in the first frame against 106.
-         *  Pinned by test_alarms_render.cpp. */
+         *  @warning Does NOT blank the band first. Clearing would queue a band
+         *  scroll, which present() emits before the diff and outside its pacing:
+         *  320 bytes in the first frame against 106. Pinned by
+         *  test_alarms_render.cpp. */
         void _cycle_mode(int dir);
 
         /** @name Mode-line layout
          *  Fixed columns, so the fields sit in the same place on every table and
-         *  every redraw. The three view fields ("prev < [cur] > next") are
-         *  CENTRED in equal slots, so a neighbour's name changing length does not
-         *  move the badge. ML_SLOT_W is 11 because the widest field any table
-         *  produces is "> unmasked" / "[unmasked]" at 10. An overrunning field is
-         *  not clipped, it just pushes the ones after it right.
+         *  redraw. The three view fields are CENTRED in equal slots, so a
+         *  neighbour's name changing length does not move the badge. ML_SLOT_W is
+         *  11: the widest field any table produces is "[unmasked]" at 10. An
+         *  overrunning field pushes the ones after it right rather than clipping.
          *  @{ */
         static constexpr uint16_t ML_SLOT_W = 11;   // each view field's slot
         static constexpr uint16_t ML_PREV   = 2;    // previous view
@@ -197,23 +188,17 @@ namespace Botanik { namespace Pages {
 
         /** @brief Draw the view's legend line: the neighbouring views either side
          *  of a reverse-video badge naming the active one, how much of the set is
-         *  on screen, and @p detail.
-         *
-         *  A @p group (passed only in an "all" view, where the badge cannot say
-         *  which group the cursor is in) replaces the forward neighbour.
-         *
-         *  The badge is the only acknowledgement of the keypress, since the rows
-         *  arrive over the following ticks under the byte budget. Painted in ONE
-         *  pass with the badge split out, not normal-then-inverted, which would
-         *  flicker. Pair it with _claim_mode_row(). */
+         *  on screen, and @p detail. A @p group replaces the forward neighbour,
+         *  passed only in an "all" view.
+         *  @note Painted in ONE pass with the badge split out; normal-then-
+         *  inverted would flicker. The badge is the only acknowledgement of the
+         *  keypress, the rows arriving over the following ticks. */
         void _draw_mode_line(uint16_t row, const char* group, const char* detail);
 
         /** @brief Declare @p row as this table's mode line: PRIO_CHROME, so
          *  present() puts it on the wire ahead of the table rows.
-         *
-         *  Call it from focus(), not around a draw: a priority is a standing
-         *  property, and the Console hands the content band back as plain
-         *  structure on every page switch. */
+         *  @note From focus(), not around a draw: a priority is a standing
+         *  property, and the Console resets the band on every page switch. */
         void _claim_mode_row(uint16_t row) {
             _terminal.set_row_priority(row, Terminal::PRIO_CHROME);
         }

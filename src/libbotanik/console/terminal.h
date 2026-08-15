@@ -4,21 +4,12 @@
 
 /**
  * @file terminal.h
- * @brief AnsiTerminal - a compositing screen over a VT device.
- *
- * The low-level half of the console. Renderers (pages, editor, bars) draw
- * immediate-mode through the usual ops (move_to / write_chars / set_inverted /
- * scroll_region ...), which paint into an in-memory FRONT cell grid. Once a tick
- * the Console calls present(): it diffs FRONT against BACK (the wire), emits the
- * minimal ANSI to reconcile them under that tick's byte budget, and copies the
- * emitted cells into BACK. Renderers keep no shadow of their own - redrawing an
- * unchanged cell costs nothing.
- *
- * The back-buffer is load-bearing, not an optimization: it is what makes "redraw
- * everything each tick, let the diff pare it" affordable over the serial link.
- * Pages must NOT track their own dirty regions or diff by hand. The one measured
- * exception is the line editor, which reconciles its own rows (@ref dev_editor).
- * See @ref dev_screen.
+ * @brief AnsiTerminal - a compositing screen over a VT device. Renderers draw
+ *        immediate-mode into a FRONT cell grid; once a tick present() diffs it
+ *        against BACK (the wire) and emits the minimal ANSI under a byte budget.
+ * @warning Pages must NOT track their own dirty regions or diff by hand -
+ *          redrawing an unchanged cell already costs nothing. The one measured
+ *          exception is the line editor (@ref dev_editor). See @ref dev_screen.
  */
 
 #include <cstdint>
@@ -30,11 +21,8 @@
 
 namespace Botanik { namespace Terminal {
 
-    /** @brief How urgently a row's changes want the wire, when a tick's byte
-     *  budget cannot carry all of them. Lower goes first.
-     *
-     *  present() walks rows in this order, so an exhausted budget drops the least
-     *  important rows rather than whatever sat lowest. No queue: a row that
+    /** @brief How urgently a row's changes want the wire when a tick's byte
+     *  budget cannot carry all of them; lower goes first. No queue: a row that
      *  misses a tick still differs from the back-buffer on the next one. */
     enum RowPriority : uint8_t {
         PRIO_INPUT  = 0,  /**< Keystroke echo and the edit point: must feel instant. */
@@ -71,11 +59,9 @@ namespace Botanik { namespace Terminal {
 
         /** @}
          *  @name Screen back-buffer
-         *  Two cell grids, indexed [row*_cols + col]. A cell is a 7-bit glyph in
-         *  the low bits with CELL_INV (reverse video) in the high bit; a blank is
-         *  ' '. _front is what renderers have drawn (the desired screen); _back is
-         *  what present() has put on the wire. Sized for the largest supported
-         *  terminal; _cols/_rows are clamped to it at construction.
+         *  Two grids indexed [row*_cols + col]. A cell is a 7-bit glyph with
+         *  CELL_INV in the high bit. _front is what renderers drew, _back what
+         *  present() put on the wire. Sized for the largest supported terminal.
          *  @{ */
         static constexpr uint16_t GRID_COLS  = Config::TERMINAL_MAX_COLS;
         static constexpr uint16_t GRID_ROWS  = Config::TERMINAL_MAX_ROWS;
@@ -144,11 +130,10 @@ namespace Botanik { namespace Terminal {
          *  @name Pacing
          *  @{ */
 
-        /** @brief Per-tick emit budget floor in bytes, derived from the link baud;
-         *  present() emits at most this many bytes above what is already queued
-         *  in the ring, so the felt latency target holds across links and the
-         *  ring never overflows into a dropped (torn) write. Moves only through
-         *  set_baud(), which is what keeps it agreeing with the wire. */
+        /** @brief Per-tick emit budget floor in bytes, derived from the link
+         *  baud: present() emits at most this many above what the ring already
+         *  holds, so the ring never overflows into a torn write. Moves only
+         *  through set_baud(), which keeps it agreeing with the wire. */
         uint16_t            _tx_cold_depth = 0;
 
         /** @brief Ring headroom the budget floor always leaves free, so a single
@@ -239,23 +224,13 @@ namespace Botanik { namespace Terminal {
         /** @brief Which terminal is on the wire. */
         Ansi::TerminalType terminal_type() const { return _type; }
 
-        /** @brief Re-declare what is on the console wire: its make and its size.
-         *
-         *  The device half of the `term_` parameter group (console/params.h).
-         *  Both grids are sized for the largest supported terminal and every
-         *  renderer reads cols() / rows() live, so a resize is a re-clamp plus a
-         *  repaint - there is nothing to reallocate and no layout cached anywhere
-         *  to invalidate. @p cols / @p rows are clamped to the grid exactly as
-         *  the constructor clamps them, so a band that got past the parameter
-         *  cannot get past this.
-         *
-         *  Blanks the screen and re-emits the setup handshake when the type
-         *  moved. It does NOT repaint: the caller owns the frame, so the Console
-         *  redraws its chrome and re-focuses the page (which is also what
-         *  re-declares the per-row priorities for the new height).
-         *
-         *  @return true when something actually moved, i.e. the caller owes a
-         *  repaint. A no-op call costs nothing and emits nothing. */
+        /** @brief Re-declare what is on the console wire: its make and its size,
+         *  the device half of the `term_` group. A resize is a re-clamp plus a
+         *  repaint - nothing to reallocate, no layout cached. @p cols / @p rows
+         *  are clamped exactly as the constructor clamps them.
+         *  @note Blanks the screen and re-emits the setup handshake when the type
+         *  moved, but does NOT repaint: the caller owns the frame.
+         *  @return true when something moved, i.e. the caller owes a repaint. */
         bool reconfigure(Ansi::TerminalType type, uint16_t cols, uint16_t rows);
 
         /** @}
@@ -278,10 +253,9 @@ namespace Botanik { namespace Terminal {
          *  @{ */
 
         /** @brief Stamp characters at the draw cursor into the FRONT grid; @p
-         *  insert shifts the row's existing cells right first. Both are grid-only
-         *  - present()'s shift detection decides what that costs on the wire.
-         *  @return @p len (a grid stamp never drops - pacing happens in
-         *  present()). */
+         *  insert shifts the row's existing cells right first. Grid-only -
+         *  present()'s shift detection decides what it costs on the wire.
+         *  @return @p len; a grid stamp never drops. */
         uint16_t write_chars(const char *buf, uint16_t len, bool insert = false);
 
         void set_inverted(bool enable);
@@ -294,13 +268,10 @@ namespace Botanik { namespace Terminal {
          *  region is up. */
         void set_cursor_inhibited(bool hold) { _cursor_inhibited = hold; }
 
-        /** @brief Re-derive the per-render TX budget for a link now running at
-         *  @p baud.
-         *
-         *  The budget and the wire must agree: pacing for a rate the wire no
-         *  longer runs at either crawls or overflows the ring into a torn write.
-         *  Whoever retunes the UART calls this too (BotanikFirmware does, from
-         *  `serial_console_baud`). */
+        /** @brief Re-derive the per-render TX budget for a link now at @p baud.
+         *  @warning Whoever retunes the UART must call this too: pacing for a
+         *  rate the wire no longer runs at either crawls or overflows the ring
+         *  into a torn write. */
         void set_baud(uint32_t baud) {
             _tx_cold_depth = depth_for_baud(baud, Config::TX_COLD_TARGET_MS);
         }

@@ -87,10 +87,8 @@ namespace Botanik { namespace Terminal {
      */
     class TextEditor {
 
-        /**
-         * @name State
-         * @{
-         */
+        /** @name State
+         *  @{ */
 
         Console*      _console;        /**< Owning console (content-area rows()). */
         AnsiTerminal* _terminal;       /**< VT device (cached _console->terminal()). */
@@ -121,17 +119,15 @@ namespace Botanik { namespace Terminal {
         uint16_t _pre_view_top    = 0;
         uint16_t _pre_view_height = 0;
         /** @brief Screen rows the editor has glyphs on, counted from _origin.
-         *  What the text SHRANK past is not otherwise anybody's: the per-row walk
-         *  only visits rows the new layout has, and the tail IL/DL only runs when
-         *  there is a tail to slide. */
+         *  Nothing else tracks what the text SHRANK past: the per-row walk only
+         *  visits rows the new layout has. */
         uint16_t _screen_used = 0;
         /** @brief Which edge the editor is pinned to. */
         Anchor   _anchor = Anchor::BOTTOM;
 
-        /** @brief Column vertical motion aims for, as an offset into the row's
-         *  content. Walking down through a short line and out the other side
-         *  returns to the column you started in, rather than sticking to the
-         *  short line's end. Any horizontal motion or edit drops it. */
+        /** @brief Column vertical motion aims for, so walking down through a
+         *  short line and out the other side returns to the column you started
+         *  in. Any horizontal motion or edit drops it. */
         uint16_t _goal_col   = 0;
         bool     _goal_valid = false;
 
@@ -141,9 +137,8 @@ namespace Botanik { namespace Terminal {
         uint16_t _mark     = 0;
         bool     _mark_set = false;
         /** @brief What the screen currently shows highlighted, so _sync_region()
-         *  can return without touching a cell when it is already right - which is
-         *  every call with no mark, so ordinary editing costs what it always
-         *  did. */
+         *  returns without touching a cell when it is already right - every call
+         *  with no mark. */
         uint16_t _painted_from = 0, _painted_to = 0;
         bool     _painted_active = false;
 
@@ -171,10 +166,8 @@ namespace Botanik { namespace Terminal {
          *  caller-owned buffers in @p store (which must outlive it). */
         TextEditor(Console* console, const EditorStorage& store);
 
-        /**
-         * @name Prompts
-         * @{
-         */
+        /** @name Prompts
+         *  @{ */
 
         /** @brief Set the PS1/PS2/PS3 prompt (first row / soft-wrap / after a
          *  hard `\\n`). */
@@ -190,10 +183,8 @@ namespace Botanik { namespace Terminal {
 
         /** @} */
 
-        /**
-         * @name Lifecycle
-         * @{
-         */
+        /** @name Lifecycle
+         *  @{ */
 
         /** @brief Clear all state and redraw an empty prompt at the bottom
          *  row */
@@ -214,19 +205,17 @@ namespace Botanik { namespace Terminal {
 
         /** @} */
 
-        /**
-         * @name Geometry
-         * @{
-         */
+        /** @name Geometry
+         *  @{ */
 
         /** @brief Hardware cursor position one past the last buffer
          *  character */
         CursorPos end_pos() const { return _map_cursor_pos(_len); }
 
-        /** @brief Home the terminal cursor at the edit point and declare it as
-         *  the visible cursor's home. Pages that draw around the editor call this
-         *  once they are done, so present() parks there and not wherever the last
-         *  bar painted. */
+        /** @brief Home the terminal cursor at the edit point and declare it the
+         *  visible cursor's home. A page drawing around the editor calls this
+         *  when done, so present() parks there rather than where the last bar
+         *  painted. */
         void place_cursor() { _place_cursor(_map_cursor_pos(_pos)); }
 
         /** @brief Number of screen rows occupied by the editor right now */
@@ -241,10 +230,9 @@ namespace Botanik { namespace Terminal {
         /** @brief Which edge the editor is pinned to (default BOTTOM). */
         void set_anchor(Anchor a) { _anchor = a; }
 
-        /** @brief Screen rows the editor may paint into, starting at the
-         *  origin. 0 (the default) means everything down to the content bottom;
-         *  a page that keeps a row of its own below the editor passes the
-         *  smaller count. Text taller than this scrolls under the viewport. */
+        /** @brief Screen rows the editor may paint into, from the origin. 0 (the
+         *  default) is everything down to the content bottom. Text taller than
+         *  this scrolls under the viewport. */
         void set_view_rows(uint16_t n) { _view_rows = n; }
 
         /** @brief Reserve `col` columns at the left for a caller-drawn label;
@@ -259,10 +247,8 @@ namespace Botanik { namespace Terminal {
 
         /** @} */
 
-        /**
-         * @name Editing
-         * @{
-         */
+        /** @name Editing
+         *  @{ */
 
         /** @brief Insert `len` bytes at the current cursor position. */
         void insert_characters(const char* buf, uint16_t len);
@@ -376,10 +362,8 @@ namespace Botanik { namespace Terminal {
 
         /** @} */
 
-        /**
-         * @name Bulk content
-         * @{
-         */
+        /** @name Bulk content
+         *  @{ */
 
         /** @brief Writable buffer to read stored text straight into, and how
          *  many bytes of it are usable. Pair with commit_loaded() - it saves a
@@ -406,10 +390,8 @@ namespace Botanik { namespace Terminal {
 
         /** @} */
 
-        /**
-         * @name Buffer access
-         * @{
-         */
+        /** @name Buffer access
+         *  @{ */
 
         /** @brief Editor buffer bytes. */
         const char* buffer() const     { return _buf; }
@@ -422,10 +404,8 @@ namespace Botanik { namespace Terminal {
         /** @} */
 
     private:
-        /**
-         * @name Helpers
-         * @{
-         */
+        /** @name Helpers
+         *  @{ */
 
         /** @brief Store one prompt class's bytes, clamped to the buffer. */
         void _set_ps(RowPrompt p, const char* buf, uint16_t len) {
