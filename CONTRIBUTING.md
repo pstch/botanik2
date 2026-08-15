@@ -43,7 +43,42 @@ The `#endif` comment uses exactly one space before `//`.
 
 ### Documentation
 
-**Headers** - all public members carry Doxygen-style doc comments:
+> **Comments say what the code cannot: units, ownership, sentinels, wire facts,
+> hardware quirks, invariants. Everything else - rationale, alternatives
+> considered, history, architecture - goes to `docs/dev/`, or is deleted.**
+
+Test: if a comment would still be true after the function was rewritten a
+different way, it is rationale. It does not belong next to the code.
+
+Prefer readable code to code that needs a comment. Extracting a well-named
+function or local beats explaining a block.
+
+#### Headers
+
+Every public member carries a Doxygen comment. Keep it to budget:
+
+| | Budget |
+|---|---|
+| `@brief` | 1 line, 2 if needed. **Hard cap 3.** |
+| `@note` | at most one, <= 2 lines, for a caveat that changes how you call it |
+| Whole doc block on one entity | **<= 6 lines** |
+| `@param` / `@return` | **only** for a non-obvious unit, range, ownership, sentinel or error value - never to restate the name |
+| `@code` examples | **not in headers** - put them in `docs/dev/` or a test |
+| `@section` | **not in headers** - that is a doc, by definition |
+| `@file` block | `@file` + one-line `@brief`, plus at most one `@note` linking its doc |
+| Data members | one-line trailing `///<`, or nothing |
+| `@name` groups | keep (flat, per scope) - but no prose inside the group |
+| `#include` annotations | omit (`#include <cstdint> // uint16_t/uint32_t`) |
+
+**Per-file budget: comment lines <= 25% of code lines.**
+
+```cpp
+/** @brief Write to the TX ring.
+ *  @return bytes accepted; short of @p len when the ring is full. */
+uint16_t write(const char* buf, uint16_t len);
+```
+
+Not this - three tags that say only what the signature already says:
 
 ```cpp
 /**
@@ -52,22 +87,43 @@ The `#endif` comment uses exactly one space before `//`.
  * @param len  Number of bytes to write.
  * @return Number of bytes actually written.
  */
-uint16_t write(const char* buf, uint16_t len);
 ```
 
-Use `/** @brief ... */` for one-liners and `@param` / `@return` / `@note` when
-the signature alone is insufficient. Group related members with `@name` / `@{`
-/ `@}` Doxygen groups.
+#### Implementations
 
-**Implementations** - inline comments explain *why*, not *what*. A comment that
-just restates the code adds no value and should be omitted. Reserve comments for
-non-obvious invariants, hardware quirks, or algorithmic intent:
+Comment only non-obvious invariants, hardware or protocol quirks, workarounds
+(with the reason), and algorithmic intent that is not legible from the code. No
+comment that restates the line below it, and no section banners
+(`// ---- helpers ----`).
+
+**Per-file budget: comment lines <= 15% of code lines.**
 
 ```cpp
 // ICH via SM4: write 'pressure' chars in insert mode, opening a gap that
 // pushes the existing on-screen row content right; overflow falls off the edge.
 _terminal->write_chars(&_buf[pos], pressure, /*insert=*/true);
 ```
+
+#### Tests
+
+The test name is the documentation. No comment header above a `TEST_CASE`, no
+prose narrating the steps, no comment restating a `CHECK`. Comment only a
+non-obvious magic constant or a genuine gotcha - why *this* byte sequence, why
+*this* timing.
+
+Prefer a shared fixture over repeating (and re-explaining) setup:
+`tests/site_bank.h`, `tests/params_fixture.h`, `tests/term_fixture.h`,
+`tests/recording_writer.h`.
+
+#### Prose style
+
+Applies to comments, docs and commit messages alike: no "not X but Y"
+constructions - state the fact; no history in code, `git log` has it; no
+restating a rule three ways for emphasis; no em-dashes (use ` - `, a colon, or
+parentheses).
+
+`scripts/comment_budget.py` reports the ratios and flags files over budget; it
+runs as part of `make check-full`.
 
 ---
 
