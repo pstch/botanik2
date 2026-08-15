@@ -70,7 +70,10 @@ Every public member carries a Doxygen comment. Keep it to budget:
 | `@name` groups | keep (flat, per scope) - but no prose inside the group |
 | `#include` annotations | omit (`#include <cstdint> // uint16_t/uint32_t`) |
 
-**Per-file budget: comment lines <= 25% of code lines.**
+**Per-file budget: prose lines <= 50% of code lines.** Higher than the 15% for
+implementations because every public entity carries a `@brief`: a
+declaration-dense API header has a floor near 40% with no prose at all. Doxygen
+scaffolding (`@name`, `@{`, `@}`) is not counted.
 
 ```cpp
 /** @brief Write to the TX ring.
@@ -96,7 +99,7 @@ Comment only non-obvious invariants, hardware or protocol quirks, workarounds
 comment that restates the line below it, and no section banners
 (`// ---- helpers ----`).
 
-**Per-file budget: comment lines <= 15% of code lines.**
+**Per-file budget: prose lines <= 15% of code lines.**
 
 ```cpp
 // ICH via SM4: write 'pressure' chars in insert mode, opening a gap that

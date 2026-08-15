@@ -163,8 +163,10 @@ explaining unreadable code.
 - Tests: the test name is the documentation. No header comment above a `TEST_CASE`.
 - Prose: no "not X but Y" constructions, no history (`git log` has it), no em-dashes.
 
-Budgets, enforced by `scripts/comment_budget.py` in `make check-full`: comment lines
-<= **25%** of code lines in a header, <= **15%** in a `.cpp` or a test.
+Budgets, enforced by `scripts/comment_budget.py` in `make check-full`: prose lines
+<= **50%** of code lines in a header, <= **15%** in a `.cpp` or a test. Headers get
+more room because every public entity carries a `@brief`; `@name`/`@{`/`@}`
+scaffolding is not counted.
 
 ## Architecture
 

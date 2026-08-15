@@ -10,9 +10,20 @@ import re
 import sys
 from pathlib import Path
 
-BUDGETS = (("header", 0.25), ("impl", 0.15), ("test", 0.15))
+# Headers get more room than implementations: every public entity carries a
+# @brief, so a declaration-dense API header has a floor around 0.4 with no prose
+# at all. 0.15 is for code, where a comment is the exception.
+BUDGETS = (("header", 0.50), ("impl", 0.15), ("test", 0.15))
 ROOTS = ("src/libbotanik", "src/sites", "src/botanik_sim", "src/botanik_fw", "tests")
 MIN_CODE = 20  # below this a ratio is noise, not a signal
+
+# Doxygen scaffolding and include guards are structure, not prose. The budget
+# measures what someone has to READ, and @name groups are a required convention.
+STRUCTURAL = re.compile(
+    r"^(/\*+|\*+/?|//+|\s)*"
+    r"(@[{}]|@name\b.*|@file\b.*|@\}\s*@name\b.*|@brief|@\{)?"
+    r"(/?\*+/?|\s)*$"
+)
 
 
 def kind(path):
@@ -22,7 +33,7 @@ def kind(path):
 
 
 def count(path):
-    """Return (comment, code). Blank lines count as neither."""
+    """Return (prose, code). Blanks and Doxygen scaffolding count as neither."""
     comment = code = 0
     in_block = False
     for raw in path.read_text(errors="replace").splitlines():
@@ -30,7 +41,7 @@ def count(path):
         if not line:
             continue
         if in_block:
-            comment += 1
+            comment += 0 if STRUCTURAL.match(line) else 1
             if "*/" in line:
                 in_block = False
                 # code trailing the close still counts as code
@@ -38,9 +49,9 @@ def count(path):
                     code += 1
             continue
         if line.startswith("//"):
-            comment += 1
+            comment += 0 if STRUCTURAL.match(line) else 1
         elif line.startswith("/*"):
-            comment += 1
+            comment += 0 if STRUCTURAL.match(line) else 1
             in_block = "*/" not in line
         elif "//" in line or "/*" in line:
             code += 1  # trailing comment: the line is code
@@ -59,7 +70,8 @@ def main():
     args = ap.parse_args()
 
     root = Path(__file__).resolve().parent.parent
-    roots = [Path(p) for p in args.paths] if args.paths else [root / r for r in ROOTS]
+    roots = ([Path(p).resolve() for p in args.paths] if args.paths
+             else [root / r for r in ROOTS])
 
     rows = []
     for base in roots:

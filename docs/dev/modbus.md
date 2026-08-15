@@ -138,6 +138,13 @@ invalidates the rows it covered (`Q_REFUSED`) rather than leaving the last good
 value in place at `Q_GOOD` - a row declared with no timeout would otherwise never
 be caught up with at all.
 
+The scan never touches the wire. A sweep of this plant is hundreds of
+milliseconds - tens of beats - so cycle-boundary I/O is out of reach: the bus
+runs on its own clock and maintains a **process image** the cycle reads.
+`Vars::Bank` already is that image and `XP_MODBUS` already marks the rows the
+driver owns, so `image.h` builds nothing - it only moves values in two
+directions.
+
 ## The RS-485 echo
 
 The OPTA drives DE from `USART3_DE` and holds RE low, so the master **hears its
@@ -154,11 +161,38 @@ frame from a healthy device.
 
 ## The TCP slave
 
-`tcp/map.h` is the register map over the variable table, and its header is the
-reference: the declared `reg` is a **row number**, each Modbus table derives its
-own address from it (`2 * reg` for the wide tables, `reg` for the bit tables),
-gaps read as zeros rather than faulting, and quality rides on the discrete
-inputs because Modbus has no quality bit.
+`tcp/map.h` is the register map over the variable table. The declared `reg` is a
+**row number**, not an address: one register is 16 bits, most rows are wider, and
+the declared numbers are dense, so a row cannot span `reg` and `reg+1` without
+landing on its neighbour. Each Modbus table derives its own address from the same
+number:
+
+| Table | FC | Address | Holds |
+|---|---|---|---|
+| Holding registers | 03, 06, 16 | `2 * reg` | the value, 2 registers, high word first |
+| Input registers | 04 | `2 * reg` | the same, read-only alias |
+| Discrete inputs | 02 | `reg` | the row's `valid()` |
+| Coils | 01, 05, 15 | `reg` | boolean rows; writable only if the row is a parameter |
+
+`2 * reg` is injective, so the site test's guarantee that no two rows share a
+register carries over to the addresses without further checking.
+
+**Gaps read, they do not fault.** The map is sparse - every number nobody
+assigned, plus the odd register of a row needing only one. A read overlapping a
+gap returns zeros there, and only a request landing entirely outside the mapped
+span is refused; a read starting or ending mid-row gets that row's corresponding
+half, so a master polling a round block need not know where the rows begin. A
+WRITE is the opposite: it must cover a row completely, or half a 32-bit value
+would be committed as a whole one. FC06 is the exception - it addresses half a
+row, so the addressed half is spliced into what the row already holds and the
+whole row is validated and committed as a pair write would be, because writing
+one setpoint is the commonest thing a SCADA does.
+
+**Quality is a discrete input.** Modbus has no quality bit, so an invalid reading
+would be indistinguishable from a real zero. An invalid row publishes its
+declared substitute (`def`, what every other consumer sees through `Var::raw()`)
+and reads 0 at discrete input `reg`. One FC02 block gives a master the quality of
+everything it just read.
 
 Registers are **hand-assigned per row**, so inserting a parameter never
 renumbers the map an external master holds. What the number itself says is the
