@@ -1,5 +1,3 @@
-// comment-budget: exempt silicon behaviour the code cannot show - RS-485 DE
-// guard times, CR1 write protection, termios drain semantics.
 /** @file platform.cpp
  *  @brief The cold half of the HAL: everything the per-beat path does not call,
  *         under the same `#ifdef TARGET_OPTA / #else` split as hal/net.cpp.
