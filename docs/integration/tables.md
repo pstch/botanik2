@@ -154,6 +154,38 @@ library expected to find - today, every platform-health alarm. POST reports each
 missing row by name, the bank counts and logs every unresolved lookup, and
 `tests/test_site_names.cpp` fails before either.
 
+## Redeclaring a library row
+
+A site's table may restate any row the library declared. `Bank::freeze()` keeps the
+**last** declaration of a name and drops the earlier row from the table completely,
+so the site's version is simply the row from then on:
+
+```cpp
+// in the site's params[], which registers after the library's rows
+PS("ntp_srv1", "0.fr.pool.ntp.org", Config::HOST_STR_LEN, STR_HOST, 924,
+   "NTP server 1", ""),
+```
+
+This is how a site pins a library row's factory value, and it is not limited to the
+value: the band, unit, digits, description and remediation text are the site's to
+set, because the declaration is the whole row. There is nothing to add on the
+library side - any row is overridable without anyone having anticipated it.
+
+Two rules:
+
+- **Keep `reg` as the library assigned it.** It is the same row to an external
+  master, and moving it renumbers a map somebody holds.
+- **Do not change `role` or `scope`.** A parameter must stay a parameter, or the
+  contiguous `ROLE_PARAM` run the PARAMS page indexes into breaks - `freeze()`
+  reports that as a stray parameter and POST fails on the count.
+
+The shadowed row is *removed*, not marked: nothing that walks the table sees two
+rows, so the register-uniqueness and name-resolution checks need no special case.
+The cost is that a duplicate name is now legal, where it used to be impossible: two
+rows that collide by accident quietly become one. Every shadow is therefore logged by
+name at freeze, on the `BOOT` topic - check that log on a site that means to redeclare
+nothing, which is the reference site's position.
+
 ## Shell commands
 
 ```cpp

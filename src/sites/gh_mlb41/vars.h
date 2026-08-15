@@ -344,8 +344,12 @@ const Variable params[] = {
     P("pwr_genBat_max",       T_F32,  30.0,    10.0,   48.0,    1,  "V",    426, "highest believable gen. battery volts",  "over this: a dead sensor"),
     P("pwr_genBat_avg_ms",    T_U16,  1000,    10,     10000,   0,  "ms",   427, "rolling average for the Gen. battery",   "per divider setup"),
 
-    // The net_ / ntp_ / mqtt_ / geo_ parameters are the LIBRARY's own
-    // rows, registered ahead of these. This site pins their values in config.h.
+    // The net_ / ntp_ / mqtt_ / geo_ parameters are the LIBRARY's own rows,
+    // registered ahead of these. This site takes their factory values as they
+    // come: restating one here would shadow it (Bank::freeze() keeps the LAST
+    // declaration of a name), which is how a site pins one that does not suit.
+
+/** @} */
 
 /** @} */
 };

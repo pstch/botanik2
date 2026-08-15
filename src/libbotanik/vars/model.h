@@ -365,6 +365,21 @@ namespace Botanik { namespace Vars {
         mutable char  _pool[Config::STR_POOL_BYTES];
         uint16_t      _index[Config::VAR_MAX];
 
+        /** @brief Logical row -> the segment row it reads, built at freeze().
+         *  Identity unless a name was REDECLARED: a site may restate a library
+         *  row to change any of its attributes, and the later declaration wins.
+         *  The shadowed row is compacted out here rather than flagged, so every
+         *  reader - find(), the pages, telemetry, the alarm scan, the register
+         *  map - simply never sees it, with no skip test to add and none to
+         *  forget. @see _resolve_shadows() */
+        uint16_t      _row[Config::VAR_MAX];
+        /** @brief Rows dropped as redeclared. Kept because it is what tells
+         *  _row_of() whether the logical and physical spaces have parted; each
+         *  one is also NAMED at freeze(), since a duplicate name used to be
+         *  impossible and is now a feature, so an accidental collision would
+         *  otherwise delete a row in silence. */
+        uint16_t      _shadowed = 0;
+
         /** @}
          *  @name Parameter block
          *  The ROLE_PARAM rows MUST be one contiguous run, which is what lets
@@ -485,14 +500,10 @@ namespace Botanik { namespace Vars {
         char*            pool() const   { return _pool; }
         uint16_t         count() const  { return _count; }
 
-        /** @brief The descriptor for row @p i, already bounds-checked by the
-         *  caller. The one place segments are visible; their bases ascend, so
-         *  walking down from the last costs one compare in the usual case. */
-        const Variable& desc(uint16_t i) const {
-            uint8_t s = (uint8_t)(_segments - 1);
-            while (s > 0 && i < _seg_base[s]) --s;
-            return _seg[s][i - _seg_base[s]];
-        }
+        /** @brief The descriptor for LOGICAL row @p i, already bounds-checked by
+         *  the caller. One hop through the redeclaration map, then the segment
+         *  walk. */
+        const Variable& desc(uint16_t i) const { return _desc_phys(_row[i]); }
 
         /** @brief Resolve an index. Never fails; a bad one lands on the sink. */
         Var var(uint16_t i) const {
@@ -738,6 +749,21 @@ namespace Botanik { namespace Vars {
         /** @} */
 
     private:
+        /** @brief The descriptor at PHYSICAL row @p p, i.e. before the
+         *  redeclaration map. The one place segments are visible; their bases
+         *  ascend, so walking down from the last costs one compare in the usual
+         *  case. */
+        const Variable& _desc_phys(uint16_t p) const {
+            uint8_t s = (uint8_t)(_segments - 1);
+            while (s > 0 && p < _seg_base[s]) --s;
+            return _seg[s][p - _seg_base[s]];
+        }
+
+        /** @brief Build _row, dropping every row a later one redeclares. Runs
+         *  FIRST in freeze(), before init() seeds a slot for a row that is about
+         *  to disappear. @see _row */
+        void _resolve_shadows();
+
         /** @brief Sort _index into name order, once, at freeze(). The table is
          *  const and never grows, so nothing invalidates it. A no-op (leaving
          *  _indexed false) when the site supplied no scratch array. */
