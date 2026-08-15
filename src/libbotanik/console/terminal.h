@@ -21,12 +21,12 @@
  * See @ref dev_screen.
  */
 
-#include <cstdint>                      // uint8_t/uint16_t/uint64_t
+#include <cstdint>
 
-#include "libbotanik/config/terminal.h"   // Config::SCREEN_* / EDITOR_* / SHELL_* / PAGE_*
+#include "libbotanik/config/terminal.h"
 
-#include "libbotanik/console/ansi.h"    // Terminal::Ansi
-#include "libbotanik/utils/serial.h"    // Utils::BufferedSerial
+#include "libbotanik/console/ansi.h"
+#include "libbotanik/utils/serial.h"
 
 namespace Botanik { namespace Terminal {
 

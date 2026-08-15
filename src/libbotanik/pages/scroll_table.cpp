@@ -4,10 +4,10 @@
  */
 #include "libbotanik/pages/scroll_table.h"
 
-#include <cstdio>                           // snprintf
+#include <cstdio>
 
-#include "libbotanik/console/kill_ring.h"   // Terminal::kill_ring
-#include "libbotanik/hal/platform.h"        // HAL::Clock::uptime_ms
+#include "libbotanik/console/kill_ring.h"
+#include "libbotanik/hal/platform.h"
 
 namespace Botanik { namespace Pages {
 

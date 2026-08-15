@@ -2,13 +2,9 @@
 #define LIBBOTANIK_CONFIG_NET_H
 
 /** @file net.h
- *  @brief The transport, name resolution, NTP and MQTT.
- *
- *  One concern of the library's configuration. Every value defaults from
- *  an #ifndef-guarded BOTANIK_* macro a site may override; see
- *  libbotanik_config.h, which aggregates these and holds the rules. */
+ *  @brief The transport, name resolution, NTP and MQTT. */
 
-#include "libbotanik/config/base.h"       // the BOTANIK_FEATURE_* gates
+#include "libbotanik/config/base.h"
 
 // Defined and undefined per file, not in base.h: see base.h.
 #define BOTANIK_CFG(type, name) static constexpr type name = BOTANIK_##name

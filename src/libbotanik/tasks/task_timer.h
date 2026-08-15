@@ -32,7 +32,7 @@
  * cannot express just rounds up to the next beat).
  */
 
-#include <cstdint>  // uint16_t/uint32_t/uint64_t
+#include <cstdint>
 
 namespace Botanik { namespace Tasks {
 

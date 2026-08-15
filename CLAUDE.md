@@ -142,6 +142,32 @@ The pyte suite drives `botanik_sim`, which a plain `make` builds, so `make test`
 `test` target cannot be given dependencies. A screen test that finds the sim
 missing fails loudly rather than skipping, which CTest would report as `Passed`.
 
+## Comments and prose
+
+Full rules in `CONTRIBUTING.md` § Documentation. The governing one:
+
+> **Comments say what the code cannot: units, ownership, sentinels, wire facts,
+> hardware quirks, invariants. Everything else - rationale, alternatives considered,
+> history, architecture - goes to `docs/dev/`, or is deleted.**
+
+If a comment would still be true after the function was rewritten a different way, it
+is rationale and does not belong next to the code. Prefer readable code over a comment
+explaining unreadable code.
+
+- `@brief` is 1-2 lines (hard cap 3); a whole doc block is <= 6 lines; at most one
+  `@note`. No `@code` and no `@section` in a header - those go to `docs/dev/`.
+- `@param`/`@return` only for a non-obvious unit, range, ownership or sentinel. Never
+  to restate the parameter name.
+- Implementations: non-obvious invariants, quirks and workarounds only. No banners, no
+  comment restating the next line.
+- Tests: the test name is the documentation. No header comment above a `TEST_CASE`.
+- Prose: no "not X but Y" constructions, no history (`git log` has it), no em-dashes.
+
+Budgets, enforced by `scripts/comment_budget.py` in `make check-full`: prose lines
+<= **50%** of code lines in a header, <= **15%** in a `.cpp` or a test. Headers get
+more room because every public entity carries a `@brief`; `@name`/`@{`/`@}`
+scaffolding is not counted.
+
 ## Architecture
 
 Everything is non-blocking: every stateful object exposes a `step()`/`loop()` doing a

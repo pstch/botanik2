@@ -8,9 +8,9 @@
  *        shell layers.
  */
 
-#include <cstddef>  // size_t
-#include <cstdint>  // uint8_t/uint16_t/uint32_t
-#include <cstring>  // strcmp
+#include <cstddef>
+#include <cstdint>
+#include <cstring>
 
 namespace Botanik { namespace Utils {
 

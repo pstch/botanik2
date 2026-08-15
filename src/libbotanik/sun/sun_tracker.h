@@ -8,12 +8,12 @@
  *
  */
 
-#include <cstdint>                      // uint32_t/uint64_t
+#include <cstdint>
 
-#include "libbotanik/config/base.h"       // the BOTANIK_FEATURE_* gates
+#include "libbotanik/config/base.h"
 
-#include "libbotanik/core/component.h"  // Component
-#include "libbotanik/vars/params.h"     // Vars::Bank / get_f32
+#include "libbotanik/core/component.h"
+#include "libbotanik/vars/params.h"
 
 #if BOTANIK_FEATURE_SUN_TRACKER
 

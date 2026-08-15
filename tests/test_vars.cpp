@@ -5,28 +5,26 @@
  * Each section is its own namespace so fixtures and helpers cannot collide.
  */
 
-#include <cstdint>                  // int64_t/uint64_t
-#include "libbotanik/utils/text.h"  // Utils::compare_str
-#include "libbotanik/vars/scalar.h" // Vars::Scalar + format/parse
-#include "libbotanik/logs/logger.h"   // Logs::Logger - the log-level push
-#include "libbotanik/logs/topics.h"   // Logs::LOG_* / log_level_label
-#include "libbotanik/tasks/tasks.h"    // Tasks::Registry - drive one CONFIG pass
+#include <cstdint>
+#include "libbotanik/utils/text.h"
+#include "libbotanik/vars/scalar.h"
+#include "libbotanik/logs/logger.h"
+#include "libbotanik/logs/topics.h"
+#include "libbotanik/tasks/tasks.h"
 #include "doctest.h"
 #include "libbotanik/vars/declare.h"
-#include "libbotanik/vars/model.h"  // Vars::Bank / Var / VarRef
-#include <cstdio>                       // snprintf
-#include <cstdlib>                      // setenv / unsetenv
-#include <unistd.h>                     // unlink
-#include "libbotanik/hal/storage.h"     // HAL::Storage
-#include "libbotanik/vars/access.h"     // Vars::var_format
-#include "libbotanik/vars/params.h"     // Vars::Params / KvParamStore
+#include "libbotanik/vars/model.h"
+#include <cstdio>
+#include <cstdlib>
+#include <unistd.h>
+#include "libbotanik/hal/storage.h"
+#include "libbotanik/vars/access.h"
+#include "libbotanik/vars/params.h"
 #include <cstring>
 #include <map>
 #include <string>
 
-// --------------------------------------------------------------------------
 // scalar
-// --------------------------------------------------------------------------
 
 namespace scalar {
 
@@ -224,9 +222,7 @@ TEST_CASE("parse: a labelled enum answers to its words") {
 
 }  // namespace scalar
 
-// --------------------------------------------------------------------------
 // model
-// --------------------------------------------------------------------------
 
 namespace model {
 
@@ -449,9 +445,7 @@ TEST_CASE("model: parameters are a dense block addressable by index") {
     CHECK(Utils::compare_str(f.bank.param(9).name(), "<none>"));
 }
 
-// ---------------------------------------------------------------------------
 // Overrides: the maintenance shadow over a variable's live value.
-// ---------------------------------------------------------------------------
 
 TEST_CASE("override: shadows the live value, and clearing snaps straight back") {
     Fixture f;
@@ -842,9 +836,7 @@ TEST_CASE("plausibility: an unbounded row is left alone") {
 
 }  // namespace model
 
-// --------------------------------------------------------------------------
 // params
-// --------------------------------------------------------------------------
 
 namespace params {
 
@@ -1550,9 +1542,7 @@ TEST_CASE("params: clear refuses a row that is not an editable parameter") {
 
 }  // namespace params
 
-// --------------------------------------------------------------------------
 // retain
-// --------------------------------------------------------------------------
 
 namespace retain {
 

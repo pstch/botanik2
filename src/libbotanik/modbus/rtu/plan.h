@@ -24,8 +24,8 @@
 #include <cstdint>
 
 #include "libbotanik/config/modbus.h"
-#include "libbotanik/config/scheduler.h"  // Config::GROUP_FAST_MS - the beat a transaction is quantised to
-#include "libbotanik/modbus/rtu/device.h"   // DeviceModel - what each unit will answer
+#include "libbotanik/config/scheduler.h"
+#include "libbotanik/modbus/rtu/device.h"
 #include "libbotanik/modbus/wire.h"
 
 #if BOTANIK_FEATURE_MODBUS_RTU_CLIENT

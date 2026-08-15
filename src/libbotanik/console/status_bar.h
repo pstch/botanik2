@@ -13,8 +13,8 @@
  * that actually changed, so the bar keeps no diff cache.
  */
 
-#include <cstddef>  // size_t
-#include <cstdint>  // uint16_t/uint64_t
+#include <cstddef>
+#include <cstdint>
 
 namespace Botanik { namespace Scheduler { struct SchedulerContext; } }
 

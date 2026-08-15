@@ -22,15 +22,15 @@
  * framing differs.
  */
 
-#include <cstddef>                    // size_t - frame lengths
-#include <cstdint>                    // uint8_t/uint16_t/uint64_t - the wire and the clock
+#include <cstddef>
+#include <cstdint>
 
-#include "libbotanik/config/modbus.h" // Config::MODBUS_TCP_* - port, timeouts
+#include "libbotanik/config/modbus.h"
 
-#include "libbotanik/core/component.h" // Component - the per-beat lifecycle
-#include "libbotanik/hal/net.h"       // HAL::Network - the socket
-#include "libbotanik/modbus/tcp/pdu.h" // the MBAP framing this speaks
-#include "libbotanik/modbus/wire.h"   // Expect / Response / Error - shared with RTU
+#include "libbotanik/core/component.h"
+#include "libbotanik/hal/net.h"
+#include "libbotanik/modbus/tcp/pdu.h"
+#include "libbotanik/modbus/wire.h"
 
 #if BOTANIK_FEATURE_MODBUS_TCP_CLIENT
 

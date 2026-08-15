@@ -6,14 +6,14 @@
  *        against the pre-edit layout (`_pre`): one IL/DL for the row-count
  *        change, then a forward per-row splice walk from the edit row.
  */
-#include "libbotanik/console/editor.h"  // TextEditor
+#include "libbotanik/console/editor.h"
 
-#include <cctype>                       // isalnum
-#include <cstdint>                      // uint16_t/int32_t
-#include <cstring>                      // memcpy / memmove
+#include <cctype>
+#include <cstdint>
+#include <cstring>
 
-#include "libbotanik/console/console.h"   // Console::rows / terminal
-#include "libbotanik/console/kill_ring.h" // KillRing
+#include "libbotanik/console/console.h"
+#include "libbotanik/console/kill_ring.h"
 
 
 namespace Botanik { namespace Terminal {
@@ -48,7 +48,6 @@ namespace Botanik { namespace Terminal {
     }
 
     // layout scanning
-    // ------------------------------------------------------------------------
 
     RowView TextEditor::_scan_row(uint16_t pos, uint16_t cap) const {
         uint16_t len = 0;
@@ -100,7 +99,6 @@ namespace Botanik { namespace Terminal {
     }
 
     // viewport
-    // ------------------------------------------------------------------------
 
     uint16_t TextEditor::_view_bottom_hw() const {
         uint16_t rows = _console->rows();
@@ -166,7 +164,6 @@ namespace Botanik { namespace Terminal {
     }
 
     // lifecycle
-    // ------------------------------------------------------------------------
 
     void TextEditor::_reset_state() {
         _len = _pos = 0;
@@ -212,7 +209,6 @@ namespace Botanik { namespace Terminal {
     }
 
     // redraw
-    // ------------------------------------------------------------------------
 
     void TextEditor::redraw() {
         _place_rows();          // a page switch handed the band back; reclaim it
@@ -233,7 +229,6 @@ namespace Botanik { namespace Terminal {
     }
 
     // editing
-    // ------------------------------------------------------------------------
 
     void TextEditor::insert_characters(const char* buf, uint16_t len) {
         // One byte is reserved for the NUL, so usable content is _buf_cap-1.
@@ -340,7 +335,6 @@ namespace Botanik { namespace Terminal {
     }
 
     // grow/shrink helpers
-    // ------------------------------------------------------------------------
 
     void TextEditor::_place_rows() {
         uint16_t rows = _console->rows();
@@ -415,7 +409,6 @@ namespace Botanik { namespace Terminal {
     }
 
     // reconciliation helpers
-    // ------------------------------------------------------------------------
 
     int32_t TextEditor::_edit_row_amount(uint16_t span_start, uint16_t span_len,
                                          bool is_insert, const RowView& post_row,
@@ -712,7 +705,6 @@ namespace Botanik { namespace Terminal {
     }
 
     // cursor motion
-    // ------------------------------------------------------------------------
 
     void TextEditor::move_left() {
         if (_pos == 0) return;

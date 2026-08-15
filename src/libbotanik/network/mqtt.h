@@ -15,12 +15,12 @@
  * id is Config::SITE_NAME.
  */
 
-#include <cstdint>                          // uint8_t/uint16_t/uint64_t
+#include <cstdint>
 
-#include "libbotanik/hal/net.h"             // HAL::Network::TcpSocket
-#include "libbotanik/network/network.h"     // Network::NetworkHandler
-#include "libbotanik/network/resolver.h"    // Network::NameResolver
-#include "libbotanik/vars/params.h"         // Vars::Bank / get_str
+#include "libbotanik/hal/net.h"
+#include "libbotanik/network/network.h"
+#include "libbotanik/network/resolver.h"
+#include "libbotanik/vars/params.h"
 // Alarms::Publisher (alarm transport)
 #include "libbotanik/alarms/publisher.h"
 

@@ -28,7 +28,7 @@
  * BOTANIK_PLC_BLOCK() carries the interface, as three static_asserts per block.
  */
 
-#include <type_traits>   // std::is_base_of / std::is_polymorphic
+#include <type_traits>
 
 namespace Botanik { namespace Plc {
 

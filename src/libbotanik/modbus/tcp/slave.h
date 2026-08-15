@@ -52,15 +52,15 @@
  * blocking.
  */
 
-#include <cstdint>                    // uint8_t/uint16_t/uint64_t - buffers, counters, timestamps
+#include <cstdint>
 
-#include "libbotanik/config/modbus.h" // Config::MODBUS_* - port, slots, timeouts
+#include "libbotanik/config/modbus.h"
 
-#include "libbotanik/core/component.h" // Component - the config-driven lifecycle
-#include "libbotanik/hal/net.h"       // HAL::Network - listener and connection sockets
-#include "libbotanik/modbus/tcp/map.h"    // Modbus::Map - what an address means
-#include "libbotanik/modbus/tcp/pdu.h"    // Modbus::Request / TCP_ADU_MAX - framing
-#include "libbotanik/vars/model.h"    // Vars::Bank - the process image being served
+#include "libbotanik/core/component.h"
+#include "libbotanik/hal/net.h"
+#include "libbotanik/modbus/tcp/map.h"
+#include "libbotanik/modbus/tcp/pdu.h"
+#include "libbotanik/vars/model.h"
 
 #if BOTANIK_FEATURE_MODBUS_TCP_SERVER
 

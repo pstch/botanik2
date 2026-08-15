@@ -5,78 +5,52 @@
  * @file tasks.h
  * @brief The task table: rate groups, beat phases, and the registry that
  *        dispatches them.
- *
- * Two independent attributes, and conflating them is the mistake to avoid.
- * **Group** is how often a task runs. **Phase** is where in the beat it sits.
- * Neither derives from the other: the field-bus client is fast-rate and split
- * across two phases, the expiry sweep is background-rate and input-phase.
- *
- * Rate is a tuning knob; phase is a correctness property, because it encodes the
- * data flow (@ref dev_scan). So a group must never imply an order, or retuning a
- * rate would silently reorder the cycle - which is why dispatch is phase-major
- * and the group only answers "is it due".
- *
- * There is deliberately no priority: preemption does not exist here (one
- * cooperative loop, every step runs to completion), and the only other reading
- * would be load-shedding, which must not shed a control program automatically.
+ * @note GROUP is how often a task runs, PHASE where in the beat it sits, and
+ *       neither derives from the other. Rate is a tuning knob; phase is a
+ *       correctness property, so dispatch is phase-major and the group only
+ *       answers "is it due". No priority: see docs/dev/tasks.md.
  */
 
-#include <cstdint>                              // uint8_t/uint32_t/uint64_t
+#include <cstdint>
 
-#include "libbotanik/config/scheduler.h"  // Config::LOOP_* / TASK_* / GROUP_*
+#include "libbotanik/config/scheduler.h"
 
-#include "libbotanik/tasks/phase.h"         // Tasks::Phase
-#include "libbotanik/tasks/task_timer.h"    // Tasks::TaskTimer
+#include "libbotanik/tasks/phase.h"
+#include "libbotanik/tasks/task_timer.h"
 
-// Forward-declared, never included. `Component` is not domain knowledge here: it
-// is the TYPE OF THE ERASED SELF-POINTER, the one type every registered object
-// shares, which is what makes an (owner, handler) pair checkable at the
-// registration site. The registry never dereferences it - that is why
-// component_setup() below is defined over in core/component.cpp - so `tasks/`
-// stays below `core/` and free of every subsystem it drives.
-//
-// `Plc::Program` is named for one reason only: to keep add_program() honest
-// about what it registers. Nothing is ever called on one - a "program" is a
-// property of the ENTRY (no phase to name, gated by authority, reseeded on
-// return), not a thing the registry talks to.
+// Forward-declared, never included. `Component` is the TYPE OF THE ERASED
+// SELF-POINTER, which is what makes an (owner, handler) pair checkable at the
+// registration site; the registry never dereferences it, so `tasks/` stays below
+// `core/`. `Plc::Program` is named only to keep add_program() honest about what
+// it registers.
 namespace Botanik { class Component; }
 namespace Botanik { namespace Plc { class Program; } }
 
 namespace Botanik { namespace Tasks {
 
-    /** @brief Run @p c's Component::setup() - the one-time init behind every
-     *  registration.
-     *
-     *  Defined in core/component.cpp, not here: `tasks/` only forward-declares
-     *  Component and must not acquire `core/` to call one method on it. */
+    /** @brief Run @p c's Component::setup(), the one-time init behind every
+     *  registration. Defined in core/component.cpp: `tasks/` must not acquire
+     *  `core/` to call one method on it. */
     void component_setup(Component* c, uint64_t now_ms);
 
     /** @brief Let @p c re-read its watched config group and reconfigure if it
-     *  moved (Component::poll_config). Also defined in core/component.cpp.
-     *
-     *  Called before every handler, because a registration dispatches the phase
-     *  hook directly: whatever step() used to do around that hook is this
-     *  class's job now, or it does not happen at all. */
+     *  moved. Called before every handler: a registration dispatches the phase
+     *  hook directly, so anything around it is this class's job. */
     void component_poll_config(Component* c, uint64_t now_ms);
 
     /** @brief What a handler is told about the activation it is running in.
-     *
-     *  The rate lives on the TASK, so the task is the only thing that knows how
-     *  long it has actually been - a handler that integrates over time must read
-     *  @c dt_ms rather than assume its nominal period. @c missed is what
-     *  TaskTimer dropped on the way here (activations are never caught up). */
+     *  @note A handler that integrates over time must read @c dt_ms rather than
+     *  assume its nominal period. @c missed is what TaskTimer dropped on the way
+     *  here; activations are never caught up. */
     struct Tick {
         uint64_t now_ms = 0;
         uint32_t dt_ms  = 0;
         uint16_t missed = 0;
-        /** @brief This is the task's FIRST activation since it last had nothing
-         *  to go on: at bring-up, and - for a program - on the beat control
-         *  authority came back.
-         *
-         *  IEC 61131-3's first-scan flag, generalised. A handler that ramps,
-         *  latches or compares against "last time" has no last time here, so it
-         *  must ask rather than read whatever a member was initialised with, and
-         *  it is where anything gone stale gets dropped. */
+        /** @brief The task's FIRST activation since it last had nothing to go
+         *  on: at bring-up, and for a program on the beat control authority came
+         *  back. IEC 61131-3's first-scan flag, generalised - a handler that
+         *  ramps or latches has no "last time" here, and this is where anything
+         *  gone stale gets dropped. */
         bool     first  = false;
     };
 
@@ -96,14 +70,10 @@ namespace Botanik { namespace Tasks {
     /** @brief Display name of @p g ("fast", "slow"...). */
     const char* group_name(GroupId g);
 
-    /** @brief What one task costs, for the TASKS page and the stats command.
-     *
-     *  Per TASK, not per group: "the slow group cost 3 ms" does not say which of
-     *  its members to look at.
-     *
-     *  It also carries what the task did NOT run: TaskTimer drops a late task's
-     *  missed activations rather than catching them up, and this count is the
-     *  only trace that it happened. */
+    /** @brief What one task costs, for the TASKS page and the stats command. Per
+     *  TASK, not per group.
+     *  @note Also carries what the task did NOT run: a dropped activation is
+     *  never caught up, so this count is the only trace it happened. */
     struct TaskCost {
         uint32_t us_last  = 0;   ///< duration of the most recent run
         uint32_t us_max   = 0;   ///< all-time peak (diagnostic only)
@@ -131,32 +101,22 @@ namespace Botanik { namespace Tasks {
 
     /** @brief One scheduled unit: a name, a rate, a slot in the beat, and the
      *  call that advances it.
-     *
-     *  ONE dispatch shape, and that is the point: every entry is an owning
-     *  Component plus a named handler taking a Tick. There is no second form and
-     *  no second calling convention, so run_phase() has nothing to branch on and
-     *  a row cannot be half-set-up. A thing that wants work in the beat is a
-     *  Component; if it is not one, it wraps itself in one (see
-     *  BotanikFirmware::OwnTasks). */
+     *  @note ONE dispatch shape - an owning Component plus a named handler
+     *  taking a Tick - so run_phase() has nothing to branch on. Anything wanting
+     *  work in the beat is a Component, or wraps itself in one. */
     struct Task {
         const char* name     = nullptr;   ///< shown in the TASKS table
         GroupId     group    = GROUP_FAST;
         Phase       phase    = PHASE_SERVICE;
 
         /** @name The dispatch
-         *
-         *  A component registers its own work: it supplies the name, the rate
-         *  group and the phase, and a named handler that casts @c owner back to
-         *  its own type. @{ */
+         *  A component supplies the name, rate group, phase and a named handler
+         *  that casts @c owner back to its own type. @{ */
         Component* owner   = nullptr;
         void     (*handler)(Component* owner, const Tick& tick) = nullptr;
-        /** @brief Non-null iff this entry is a control PROGRAM: PHASE_CONTROL
-         *  by construction, and gated by control authority.
-         *
-         *  The same object as @c owner, kept as its own type because the
-         *  registry IS the program list - a site declares its programs as
-         *  members and registers them, so there is no table of pointers
-         *  anywhere else to walk. */
+        /** @brief Non-null iff this entry is a control PROGRAM: PHASE_CONTROL by
+         *  construction, gated by control authority. The same object as
+         *  @c owner, typed, because the registry IS the program list. */
         Plc::Program* program = nullptr;
         /** @brief Whether the next activation is a first scan (Tick::first).
          *  True at registration - nothing has run yet - and raised again on a
@@ -177,10 +137,8 @@ namespace Botanik { namespace Tasks {
     /** @class Registry
      *  @brief The task table: registration, phase-major dispatch, and the
      *         per-task numbers the HMI reads back.
-     *
-     *  Fixed capacity, no allocation. Registration happens during bring-up and
-     *  the table is frozen once the loop starts, which is what lets the TASKS
-     *  page hold a stable row order across redraws. */
+     *  @note Fixed capacity, no allocation. Frozen once the loop starts, which
+     *  is what lets the TASKS page hold a stable row order. */
     class Registry {
 
         /** @name State
@@ -222,15 +180,10 @@ namespace Botanik { namespace Tasks {
          *  @{ */
 
         /** @brief Register one piece of @p owner's work: @p handler, at @p
-         *  group's rate, in @p phase.
-         *
-         *  The component states the phase and the rate itself, beside the code
-         *  they refer to; what the caller adds is WHICH INSTANCE this is, since
-         *  the same class is constructed more than once.
-         *
-         *  Registering also gets @p owner set up: setup() runs its on_setup()
-         *  and announce() before the loop starts, once however many phases it
-         *  registered in. */
+         *  group's rate, in @p phase. The component states phase and rate itself;
+         *  the caller adds WHICH INSTANCE this is.
+         *  @note Registering also sets @p owner up: on_setup() and announce() run
+         *  once, however many phases it registered in. */
         bool add(Component& owner, void (*handler)(Component*, const Tick&),
                  const char* name, GroupId group, Phase phase);
 
@@ -239,13 +192,10 @@ namespace Botanik { namespace Tasks {
         bool add_setup(Component& owner, void (*handler)(Component*, const Tick&),
                        const char* name);
 
-        /** @brief Register a control program. No phase: a program runs in
-         *  PHASE_CONTROL or not at all, and it is gated by control authority.
-         *
-         *  Takes a Plc::Program rather than a Component so the second kind of
-         *  entry is a compile-time fact rather than a comment: a component that
-         *  is not a program cannot be registered as one and quietly acquire the
-         *  gate. The registry still calls nothing on it. */
+        /** @brief Register a control program. No phase: it runs in PHASE_CONTROL
+         *  or not at all, gated by control authority.
+         *  @note Takes a Plc::Program, not a Component, so a non-program cannot
+         *  be registered as one and quietly acquire the gate. */
         bool add_program(Plc::Program& program,
                          void (*handler)(Component*, const Tick&),
                          const char* name, GroupId group);
@@ -257,45 +207,25 @@ namespace Botanik { namespace Tasks {
 
         /**
          * @brief Run every registered task's one-time init, phase-major, before
-         *        the loop starts.
-         *
-         * Explicit, not lazy on a component's first step(): the parameter load
-         * alone is tens of milliseconds of flash inside a 10 ms budget, which
-         * would read as a boot overrun.
-         *
-         * Phase-major, like run_phase(), so init obeys the same data-flow order
-         * the beat does - parameters are loaded before anything reads config.
-         *
+         *        the loop starts. Explicit rather than lazy: the parameter load
+         *        alone would read as a boot overrun inside a 10 ms budget.
          * @warning Call this LATE in BotanikFirmware::setup(), after the log
-         * sinks are registered: it is what runs each component's announce(), and
-         * HealthMonitor's POST logs its verdict from here.
+         *          sinks exist: it runs each component's announce(), and
+         *          HealthMonitor's POST logs its verdict from here.
          */
         void setup(uint64_t now_ms);
 
         /** @brief Run every task in @p phase whose group has come due, in
-         *  registration order, timing each one into its TaskCost.
-         *
-         *  A PROGRAM entry additionally needs control authority; see
-         *  set_programs_enabled(). */
+         *  registration order, timing each into its TaskCost. A PROGRAM entry
+         *  additionally needs control authority. */
         void run_phase(Phase phase, uint64_t now_ms);
 
         /** @brief Grant or withdraw control authority: the whole edge, in one
-         *  call.
-         *
-         *  Withdrawing shuts the gate, and that is all it needs to do - a
-         *  program that is not called cannot act on what it remembers, and
-         *  nothing outside a program reads its state.
-         *
-         *  Granting opens it and, on every program entry, **reseeds the timer
-         *  and raises Tick::first**. The reseed is why this is the registry's
-         *  job: the timer is the TASK's. Without it the first activation back
-         *  reports the whole outage as its `dt`, and a Ton holding 5 s handed an
-         *  hour of it fires the instant control returns - the one thing a
-         *  withdrawal exists to prevent. `first` is the other half: it tells the
-         *  program that the plant moved without it, so whatever it remembered
-         *  describes a plant that no longer exists.
-         *
-         *  Idempotent: only an actual change of state does anything. */
+         *  idempotent call. Withdrawing shuts the gate and does nothing else.
+         *  @note Granting also RESEEDS each program's timer and raises
+         *  Tick::first. Without the reseed the first activation back reports the
+         *  whole outage as its dt, and a Ton holding 5 s handed an hour of it
+         *  fires instantly - the one thing a withdrawal exists to prevent. */
         void set_programs_enabled(bool enabled, uint64_t now_ms);
 
         /** @brief Whether program entries are currently allowed to run. */
@@ -304,14 +234,9 @@ namespace Botanik { namespace Tasks {
         /** @} */
 
         /** @name Per-program enable
-         *
-         *  A SECOND gate, beside control authority, and the stricter wins: an
-         *  operator who disabled one program keeps it disabled across a health
-         *  fault, and authority returning does not re-enable it.
-         *
-         *  Live but not durable until saved, like a parameter - so a program
-         *  taken out to work on the plant comes back on the next power cycle
-         *  unless that was meant to last. @{ */
+         *  A SECOND gate beside control authority, and the stricter wins: an
+         *  operator's disable survives a health fault, and authority returning
+         *  does not undo it. Live but not durable until saved. @{ */
 
         /** @brief Program index of @p name (the name it registered under), or
          *  -1. @p len 0 means NUL-terminated. */

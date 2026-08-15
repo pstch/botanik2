@@ -7,8 +7,8 @@
  * otherwise header-only alarm types, and it needs the complete AlarmSink.
  */
 
-#include "libbotanik/tasks/tasks.h"   // Tasks::Registry / Tick / GroupId
-#include "libbotanik/alarms/alarms.h"   // AlarmController / AlarmCondition
+#include "libbotanik/tasks/tasks.h"
+#include "libbotanik/alarms/alarms.h"
 
 namespace Botanik { namespace Alarms {
 

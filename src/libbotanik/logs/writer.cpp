@@ -7,19 +7,18 @@
  * a partial write resumes without re-formatting. SerialLogWriter caps each
  * write at the TX buffer's available space so it never blocks the main loop.
  */
-#include "libbotanik/logs/writer.h"     // BufferedLogWriter / SerialLogWriter
+#include "libbotanik/logs/writer.h"
 
-#include <cstring>                      // memcpy
+#include <cstring>
 
-#include "libbotanik/logs/format.h"     // Logs::format_log_entry
-#include "libbotanik/tasks/tasks.h"     // Tasks::Registry / Tick / GroupId
-#include "libbotanik/utils/serial.h"    // Utils::BufferedSerial::available / is_output_tty
+#include "libbotanik/logs/format.h"
+#include "libbotanik/tasks/tasks.h"
+#include "libbotanik/utils/serial.h"
 
 
 namespace Botanik { namespace Logs {
 
     // Queue interface
-    // ------------------------------------------------------------------------
 
     void BufferedLogWriter::push(const Logs::LogEntry* entry) {
         // Sink-local floor, before the queue and before the drop counters: an
@@ -60,7 +59,6 @@ namespace Botanik { namespace Logs {
     }
 
     // Internals
-    // ------------------------------------------------------------------------
 
     // Drain one message; return whether it was fully sent.
     bool BufferedLogWriter::_drain_message() {
@@ -76,7 +74,6 @@ namespace Botanik { namespace Logs {
     }
 
     // Lifecycle
-    // ------------------------------------------------------------------------
 
     SerialLogWriter::SerialLogWriter(const SetupContext& ctx, BufferedSerial& serial,
                                      bool drop_if_tty, const char* name,
@@ -111,7 +108,6 @@ namespace Botanik { namespace Logs {
     }
 
     // Channel implementation
-    // ------------------------------------------------------------------------
 
     size_t BufferedLogWriter::format(const Logs::LogEntry* entry, char* buf, size_t len) {
         return format_log_entry(entry, buf, len);

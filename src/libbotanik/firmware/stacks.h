@@ -17,45 +17,45 @@
  */
 
 #include "libbotanik/tasks/tasks.h"
-#include <cstdint>                          // uint8_t/uint32_t
+#include <cstdint>
 
-#include "libbotanik/config/identity.h"   // Config::SITE_NAME / FIRMWARE_VERSION / MQTT_TOPIC_PREFIX
+#include "libbotanik/config/identity.h"
 
-#include "libbotanik/alarms/alarms.h"       // Alarms::AlarmController
-#include "libbotanik/logs/logger.h"         // Logs::Logger
-#include "libbotanik/logs/writer.h"         // Logs::SerialLogWriter
-#include "libbotanik/utils/serial.h"        // Utils::BufferedSerial
-#include "libbotanik/vars/model.h"          // Vars::Bank
+#include "libbotanik/alarms/alarms.h"
+#include "libbotanik/logs/logger.h"
+#include "libbotanik/logs/writer.h"
+#include "libbotanik/utils/serial.h"
+#include "libbotanik/vars/model.h"
 
 #if BOTANIK_FEATURE_CONSOLE
-#include "libbotanik/console/console.h"     // Terminal::Console
+#include "libbotanik/console/console.h"
 #endif
 #if BOTANIK_FEATURE_SHELL_PAGE
-#include "libbotanik/pages/shell.h"         // Pages::ShellPage
+#include "libbotanik/pages/shell.h"
 #endif
 #if BOTANIK_FEATURE_LOGS_PAGE
-#include "libbotanik/pages/logs.h"          // Pages::LogsPage
+#include "libbotanik/pages/logs.h"
 #endif
 #if BOTANIK_FEATURE_ALARMS_PAGE
-#include "libbotanik/pages/alarms.h"        // Pages::AlarmsPage
+#include "libbotanik/pages/alarms.h"
 #endif
 #if BOTANIK_FEATURE_NOTES_PAGE
-#include "libbotanik/pages/notes.h"         // Pages::NotesPage
+#include "libbotanik/pages/notes.h"
 #endif
 
 #if BOTANIK_FEATURE_NETWORK
-#include "libbotanik/network/network.h"     // Network::NetworkHandler
-#include "libbotanik/network/resolver.h"    // Network::NameResolver
+#include "libbotanik/network/network.h"
+#include "libbotanik/network/resolver.h"
 #endif
 #if BOTANIK_FEATURE_NTP
-#include "libbotanik/network/ntp.h"         // Network::NtpClient
+#include "libbotanik/network/ntp.h"
 #endif
 #if BOTANIK_FEATURE_LOGS_PUBLISH
-#include "libbotanik/network/mqtt_log.h"    // Network::MqttLogWriter
+#include "libbotanik/network/mqtt_log.h"
 #endif
 #if BOTANIK_FEATURE_MQTT
-#include "libbotanik/network/mqtt.h"        // Network::MqttClient
-#include "libbotanik/network/telemetry.h"   // Network::MqttSender
+#include "libbotanik/network/mqtt.h"
+#include "libbotanik/network/telemetry.h"
 #endif
 
 namespace Botanik {

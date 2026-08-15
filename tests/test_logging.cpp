@@ -5,18 +5,18 @@
  * Two sections, each in its own namespace to avoid fixture collisions.
  */
 
-#include <algorithm>                // std::find
-#include <cstdint>                  // UINT16_MAX / uint32_t
-#include <string>                   // std::string
-#include <vector>                   // std::vector
+#include <algorithm>
+#include <cstdint>
+#include <string>
+#include <vector>
 
-#include "libbotanik/logs/format.h" // Logs::fold_newlines
-#include "libbotanik/logs/logger.h" // Logs::Logger
+#include "libbotanik/logs/format.h"
+#include "libbotanik/logs/logger.h"
 #include "doctest.h"
-#include "recording_writer.h"       // RecordingWriter
-#include <cstddef>                  // size_t
-#include <cstring>                  // memcpy / strlen
-#include "libbotanik/logs/writer.h" // Logs::BufferedLogWriter
+#include "recording_writer.h"
+#include <cstddef>
+#include <cstring>
+#include "libbotanik/logs/writer.h"
 
 // logger
 

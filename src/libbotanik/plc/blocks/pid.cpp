@@ -3,12 +3,12 @@
  * @brief The PID regulator.
  */
 
-#include "libbotanik/plc/blocks/pid.h"      // Pid
+#include "libbotanik/plc/blocks/pid.h"
 
-#include "libbotanik/config/base.h"       // the BOTANIK_FEATURE_* gates
+#include "libbotanik/config/base.h"
 
-#include "libbotanik/plc/functions/math.h"  // Plc::limit
-#include "libbotanik/plc/functions/time.h"  // Plc::seconds
+#include "libbotanik/plc/functions/math.h"
+#include "libbotanik/plc/functions/time.h"
 #if BOTANIK_FEATURE_PLC_BLK_BASE
 
 namespace Botanik { namespace Plc {

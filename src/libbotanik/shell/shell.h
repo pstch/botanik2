@@ -6,14 +6,14 @@
 #ifndef SHELL_SHELL_H
 #define SHELL_SHELL_H
 
-#include <cstddef>                          // size_t
-#include <cstdint>                          // uint8_t/uint16_t/int16_t
+#include <cstddef>
+#include <cstdint>
 
-#include "libbotanik/console/editor.h"      // Terminal::TextEditor
-#include "libbotanik/console/terminal.h"    // AnsiTerminal
-#include "libbotanik/core/context.h"        // SystemContext
-#include "libbotanik/vars/access.h"         // Vars::Bank / var_group
-#include "libbotanik/vars/params.h"         // Vars::Params
+#include "libbotanik/console/editor.h"
+#include "libbotanik/console/terminal.h"
+#include "libbotanik/core/context.h"
+#include "libbotanik/vars/access.h"
+#include "libbotanik/vars/params.h"
 
 namespace Botanik {
     // logs command (set_diagnostics)

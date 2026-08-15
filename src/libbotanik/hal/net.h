@@ -13,9 +13,9 @@
  * interface handle.
  */
 
-#include <cstddef>  // size_t
-#include <cstdint>  // uint8_t/uint16_t/uint32_t
-#include <cstdio>   // snprintf
+#include <cstddef>
+#include <cstdint>
+#include <cstdio>
 
 namespace Botanik { namespace HAL { namespace Network {
 

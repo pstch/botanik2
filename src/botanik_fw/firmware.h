@@ -11,7 +11,7 @@
  */
 
 // Site selected at configure time (-DBOTANIK_SITE).
-#include "libbotanik_site.h"    // resolves BOTANIK_SITE -> BOTANIK_SITE_HEADER
+#include "libbotanik_site.h"
 #include BOTANIK_SITE_HEADER    // BotanikSite
 
 namespace Botanik { namespace Firmware {

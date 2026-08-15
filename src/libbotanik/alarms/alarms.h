@@ -17,15 +17,15 @@
  * Conditions are built by scanning the variable table for SCOPE_A rows.
  */
 
-#include <cstdint>                          // uint8_t/uint32_t/uint64_t
-#include <cstring>                          // std::memset / std::strcmp / strlen
+#include <cstdint>
+#include <cstring>
 
-#include "libbotanik/config/alarms.h"     // Config::ALARM_* / HEALTH_*
+#include "libbotanik/config/alarms.h"
 
-#include "libbotanik/core/component.h"      // Component
-#include "libbotanik/logs/logger.h"         // Logger
-#include "libbotanik/utils/assert.h"        // BOTANIK_ASSERT
-#include "libbotanik/vars/model.h"          // Vars::VarRef / Bank / alarm_spec
+#include "libbotanik/core/component.h"
+#include "libbotanik/logs/logger.h"
+#include "libbotanik/utils/assert.h"
+#include "libbotanik/vars/model.h"
 
 namespace Botanik { namespace Tasks { struct Tick; } }
 

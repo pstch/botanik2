@@ -6,13 +6,13 @@
  * @file scheduler.h
  * @brief Non-blocking fixed-period loop driver with perf monitoring. */
 
-#include <cstdint>                      // uint8_t/uint64_t/uintptr_t
+#include <cstdint>
 
-#include "libbotanik/config/scheduler.h"  // Config::LOOP_* / TASK_* / GROUP_*
+#include "libbotanik/config/scheduler.h"
 
-#include "libbotanik/hal/platform.h"   // HAL::Clock::sleep_ms / uptime_us
-#include "libbotanik/tasks/tasks.h"    // Tasks::Registry / Phase
-#include "libbotanik/utils/filters.h"   // Utils::ExpMovingAverage / WindowedMax
+#include "libbotanik/hal/platform.h"
+#include "libbotanik/tasks/tasks.h"
+#include "libbotanik/utils/filters.h"
 
 // ASAN puts locals on a fake stack, which stack-usage measurement cannot see.
 // BOTANIK_NO_ASAN annotates the paint/scan code so it works against the real
@@ -62,9 +62,9 @@ namespace Botanik { namespace Scheduler {
 
         /** @name Watchdog
          *
-         *  What the loop is doing about the reset it can choose to take. Kept
-         *  here because it is the SCHEDULER that owns the watchdog, and because
-         *  a withheld kick is otherwise invisible until the unit reboots.
+         *  What the loop is doing about the reset it can choose to take. Here
+         *  because the SCHEDULER owns the watchdog, and a withheld kick is
+         *  otherwise invisible until the unit reboots.
          *  @{ */
         /** @brief Armed timeout in ms; 0 before setup() arms it. */
         uint32_t watchdog_ms      = 0;
@@ -98,17 +98,11 @@ namespace Botanik { namespace Scheduler {
         // last ms, so a period under 2 ms would be all spin.
         static_assert(Config::TASK_PERIOD_MS >= 2, "TASK_PERIOD_MS must be >= 2 (sleep/spin split)");
 
-        /** @brief The table this paces, BORROWED.
-         *
-         *  Owned by the composition root, not here, and the ordering is what
-         *  forces it: the table must exist before the Logger, because a
-         *  Component is constructed with the registry it will register in - and
-         *  this class is constructed with the Logger. Owning it here made that
-         *  cycle unbreakable.
-         *
-         *  It also reads truer. This class decides WHEN the beat happens; the
-         *  table decides WHAT runs in it (@ref dev_tasks), and `tasks/` sits
-         *  below `scheduler/` and references none of it. */
+        /** @brief The table this paces, BORROWED - owned by the composition
+         *  root, because a Component is constructed with the registry it will
+         *  register in, and this class is constructed with the Logger.
+         *  @note This class decides WHEN the beat happens; the table decides
+         *  WHAT runs in it (@ref dev_tasks). */
         Tasks::Registry&  _tasks;
 
         /** @brief Target loop period (ms). */
@@ -209,20 +203,14 @@ namespace Botanik { namespace Scheduler {
          *  @{ */
 
         /**
-         * @brief Non-blocking check: is it time to run the beat?
-         *
-         * Each call closes the previous beat's work window (work duration +
-         * stack scan) and accumulates slept time for the CPU duty cycle. On a
-         * release it republishes the loop "now", records jitter and duty cycle,
-         * opens the next work window, and paints the free stack.
-         *
+         * @brief Non-blocking check: is it time to run the beat? Each call closes
+         *        the previous beat's work window and accumulates slept time; a
+         *        release republishes "now", records jitter and duty cycle, and
+         *        paints the free stack.
          * @warning always_inline + BOTANIK_NO_ASAN: it must fold into the
-         * caller's frame so the stack paint it ends with captures the loop
-         * body's SP (and a real-stack &sp_marker, not an ASAN fake-stack one),
-         * not a separate tick() frame's. That is why the body lives here and
-         * the cold helpers stay out of line - only the hot path that reaches
-         * the paint needs inlining.
-         *
+         *          caller's frame so the closing stack paint captures the LOOP
+         *          body's SP, not a separate tick() frame's. Hence the body here
+         *          and the cold helpers out of line.
          * @return true exactly ONCE per period when it is time to execute.
          */
         BOTANIK_NO_ASAN inline __attribute__((always_inline)) bool tick() {
@@ -285,8 +273,7 @@ namespace Botanik { namespace Scheduler {
         /** @name The scan cycle
          *
          *  The scheduler paces the beat AND runs it: it owns the task table, the
-         *  one-time init pass and the watchdog. What runs is registered here;
-         *  when it runs is this class's own business.
+         *  one-time init pass and the watchdog.
          *  @{ */
 
         /** @brief The task table every unit of work registers with. */

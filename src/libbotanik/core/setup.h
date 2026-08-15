@@ -25,7 +25,7 @@
  *  when it does.
  */
 
-#include <cstdint>   // uint64_t
+#include <cstdint>
 
 // Forward-declared, never included: this is a bag of two borrowed pointers and
 // has no business acquiring either subsystem.

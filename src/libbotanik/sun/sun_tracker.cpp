@@ -8,15 +8,15 @@
  * (noon-anchored), so the Julian-date arithmetic and the noon-anchored transit
  * fall out directly.
  */
-#include "libbotanik/sun/sun_tracker.h" // SunPositionTracker / solar_elevation
+#include "libbotanik/sun/sun_tracker.h"
 
-#include <cmath>                        // sin/cos/asin/fabs/sqrt
-#include <cstdint>                      // uint32_t/uint64_t
+#include <cmath>
+#include <cstdint>
 
-#include "libbotanik/config/sun.h"        // Config::SUN_RECOMPUTE_MS
+#include "libbotanik/config/sun.h"
 
-#include "libbotanik/hal/platform.h"    // HAL::Clock::wall_ms
-#include "libbotanik/utils/time.h"      // Utils::unix_ms_from_uptime_ms
+#include "libbotanik/hal/platform.h"
+#include "libbotanik/utils/time.h"
 
 #if BOTANIK_FEATURE_SUN_TRACKER
 
@@ -26,10 +26,8 @@ namespace Botanik { namespace Sun {
     using Botanik::Utils::unix_ms_from_uptime_ms;
 
     // Solar math
-    // ========================================================================
 
     // Constants
-    // ------------------------------------------------------------------------
 
     // Our own PI: M_PI is not guaranteed under strict C++11 (no
     // _USE_MATH_DEFINES), and the Arduino/Mbed core #defines PI as a macro on
@@ -47,7 +45,6 @@ namespace Botanik { namespace Sun {
     static const double MS_PER_DAY   = 86400000.0;
 
     // Helpers
-    // ------------------------------------------------------------------------
 
     // Sun's ecliptic longitude (degrees) for a count of days @p t since J2000,
     // also returning the solar mean anomaly @p M_deg (its sines feed the
@@ -84,7 +81,6 @@ namespace Botanik { namespace Sun {
     }
 
     // Solar position
-    // ------------------------------------------------------------------------
 
     SolarPosition solar_position(uint64_t now_ms, double lat_deg, double lon_deg) {
         double jd_now = (double)unix_ms_from_uptime_ms(now_ms) / MS_PER_DAY + JD_UNIX;
@@ -144,7 +140,6 @@ namespace Botanik { namespace Sun {
     }
 
     // SunPositionTracker
-    // ========================================================================
 
     // Wall-clock sanity floor (ms since the UNIX epoch, ~2020-09): below this
     // the RTC is unset (no NTP yet) and the date-dependent solar math is

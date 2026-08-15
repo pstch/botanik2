@@ -3,13 +3,13 @@
  * @brief Type-driven render, parse and validate for a Scalar.
  */
 
-#include "libbotanik/vars/scalar.h" // Scalar + the read/write/render/parse
+#include "libbotanik/vars/scalar.h"
 
-#include <cerrno>                   // errno
-#include <cstdlib>                  // strtoll / strtoull / strtod
-#include <cstring>                  // strlen
+#include <cerrno>
+#include <cstdlib>
+#include <cstring>
 
-#include "libbotanik/utils/text.h"  // Utils::format_float / format_int
+#include "libbotanik/utils/text.h"
 
 namespace Botanik { namespace Vars {
 

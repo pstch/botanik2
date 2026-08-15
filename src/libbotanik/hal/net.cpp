@@ -9,23 +9,23 @@
  *        TARGET_SIMULATOR split is legal here: this file is part of the HAL.
  */
 
-#include "libbotanik/hal/net.h"             // HAL::Network
+#include "libbotanik/hal/net.h"
 
-#include "libbotanik/config/net.h"        // Config::NET_* / DNS_* / NTP_* / MQTT_*
+#include "libbotanik/config/net.h"
 
-#include "libbotanik/hal/platform.h"        // HAL::Clock::uptime_ms
+#include "libbotanik/hal/platform.h"
 
 #ifdef TARGET_OPTA
 // ---- OPTA backend (Mbed) ----
 
-#include <cstring>                          // memcpy / memset / strlen
+#include <cstring>
 
 // Mbed netsocket - resolved from the installed mbed_opta core, not this tree.
-#include "netsocket/EthernetInterface.h"    // EthernetInterface
-#include "netsocket/NetworkInterface.h"     // NetworkInterface
-#include "netsocket/SocketAddress.h"        // SocketAddress
-#include "netsocket/TCPSocket.h"            // TCPSocket
-#include "netsocket/UDPSocket.h"            // UDPSocket
+#include "netsocket/EthernetInterface.h"
+#include "netsocket/NetworkInterface.h"
+#include "netsocket/SocketAddress.h"
+#include "netsocket/TCPSocket.h"
+#include "netsocket/UDPSocket.h"
 
 namespace Botanik { namespace HAL { namespace Network {
 
@@ -257,14 +257,14 @@ namespace Botanik { namespace HAL { namespace Network {
 // the OPTA gethostbyname_async poll model rather than blocking in getaddrinfo.
 // No NTP/MQTT wire knowledge here; that stays in the responder and in network/.
 
-#include <cerrno>                           // errno / EAGAIN / EINPROGRESS
-#include <cstring>                          // memcpy / memset / strcmp / strlen
+#include <cerrno>
+#include <cstring>
 
 // POSIX sockets - the simulator backend talks to a real in-process peer.
-#include <fcntl.h>                          // fcntl / O_NONBLOCK
-#include <netinet/in.h>                     // sockaddr_in / htons / ntohs
-#include <sys/socket.h>                     // socket / connect / send / recvfrom / setsockopt
-#include <unistd.h>                         // close
+#include <fcntl.h>
+#include <netinet/in.h>
+#include <sys/socket.h>
+#include <unistd.h>
 
 namespace Botanik { namespace HAL { namespace Network {
 

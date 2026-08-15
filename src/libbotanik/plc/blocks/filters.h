@@ -4,30 +4,24 @@
 /**
  * @file filters.h
  * @brief Smoothing a process value: exponential average, median-of-3, boxcar.
- *
- * Not utils/filters.h, which is the scheduler's metric instrumentation - fed
- * once per beat with a precomputed alpha, asymmetric on purpose. These take a
- * time constant in seconds and the scan's dt, so the wall-clock response holds
- * whatever rate the program runs at, and stays right when a scan comes late.
+ * @note Not utils/filters.h, which is the scheduler's metric instrumentation.
+ *       These take a time constant in seconds and the scan's dt, so the
+ *       wall-clock response holds whatever rate the program runs at.
  */
 
-#include <cstdint>              // uint8_t/uint32_t
+#include <cstdint>
 
-#include "libbotanik/config/base.h"       // the BOTANIK_FEATURE_* gates
-#include "libbotanik/plc/blocks/block.h"  // Plc::Block / BOTANIK_PLC_BLOCK
+#include "libbotanik/config/base.h"
+#include "libbotanik/plc/blocks/block.h"
 #if BOTANIK_FEATURE_PLC_BLK_FILTERS
 
 namespace Botanik { namespace Plc {
 
     /**
-     * @brief Exponentially weighted moving average: the first-order lag a noisy
-     * reading wants before a threshold or a controller sees it.
-     *
-     * @p tau_s is the 63% response time, and the per-scan blend derives from it
-     * and the actual dt - so a 30 s filter is a 30 s filter at 1 Hz or 10 Hz.
-     * The first sample is adopted whole rather than blended up from zero: a
-     * filter creeping from 0 to 21 C spends its warm-up reporting a frost that
-     * is not there.
+     * @brief Exponentially weighted moving average: a first-order lag ahead of a
+     *        threshold or a controller. @p tau_s is the 63% response time.
+     * @note The first sample is adopted whole rather than blended up from zero:
+     *       a filter creeping from 0 to 21 C reports a frost that is not there.
      */
     class Ewma : public Block {
 
@@ -46,10 +40,7 @@ namespace Botanik { namespace Plc {
 
     /**
      * @brief Median of the last three samples: kills a single-sample spike
-     * outright, where an average only dilutes it.
-     *
-     * For a reading that is clean except for the occasional garbage conversion.
-     * Two samples of lag; often used ahead of an Ewma rather than instead of it.
+     *        outright, where an average only dilutes it. Two samples of lag.
      */
     class MedianOf3 : public Block {
 
@@ -64,13 +55,11 @@ namespace Botanik { namespace Plc {
     };
 
     /**
-     * @brief Boxcar average of the last @p N samples: flat response, and unlike
-     * an Ewma it forgets a bad sample completely after N of them.
-     *
-     * Sample-counted, not time-counted - the window is N scans, which is N
-     * periods only while the program keeps its rate. Prefer Ewma when the
-     * wall-clock response is what matters. A template because N sizes the
-     * storage, so this is the one block that lives entirely in the header.
+     * @brief Boxcar average of the last N samples: flat response, and it forgets
+     *        a bad sample completely after N of them.
+     * @note Sample-counted, not time-counted: the window is N scans, which is N
+     *       periods only while the program keeps its rate. Prefer Ewma when the
+     *       wall-clock response is what matters.
      */
     template <uint8_t N>
     class MovingAverage : public Block {
@@ -104,7 +93,6 @@ namespace Botanik { namespace Plc {
     };
 
     /** @name Family checks
-     *  @see block.h - every block is reset on a control withdrawal.
      *  @{ */
     BOTANIK_PLC_BLOCK(Ewma);
     BOTANIK_PLC_BLOCK(MedianOf3);

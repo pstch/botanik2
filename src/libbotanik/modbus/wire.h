@@ -20,7 +20,7 @@
  * very same code the master builds them with.
  */
 
-#include <cstddef>                  // size_t - pointer-offset arithmetic in reg_at
+#include <cstddef>
 #include <cstdint>
 
 namespace Botanik { namespace Modbus {

@@ -13,12 +13,12 @@
  * a completed row stays as a cache entry for later resolve() calls.
  */
 
-#include <cstdint>                  // uint8_t/uint32_t/uint64_t
+#include <cstdint>
 
-#include "libbotanik/config/net.h"        // Config::NET_* / DNS_* / NTP_* / MQTT_*
+#include "libbotanik/config/net.h"
 
-#include "libbotanik/hal/net.h"     // HAL::Network::dns_begin / dns_poll / Ip4
-#include "libbotanik/logs/logger.h" // Logs::Logger
+#include "libbotanik/hal/net.h"
+#include "libbotanik/logs/logger.h"
 
 namespace Botanik { namespace Network {
 

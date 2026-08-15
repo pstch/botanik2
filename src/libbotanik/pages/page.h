@@ -8,9 +8,9 @@
  *        implements.
  */
 
-#include <cstdint>                      // uint16_t
+#include <cstdint>
 
-#include "libbotanik/console/parser.h"  // Terminal::InputEvent / Command
+#include "libbotanik/console/parser.h"
 
 namespace Botanik { namespace Pages {
     /** @brief Abstract interface for a terminal page (occupies the full

@@ -3,11 +3,11 @@
  * @brief Ton / Tof / Tp.
  */
 
-#include "libbotanik/plc/blocks/timers.h"   // Ton / Tof / Tp
+#include "libbotanik/plc/blocks/timers.h"
 
-#include "libbotanik/config/base.h"       // the BOTANIK_FEATURE_* gates
+#include "libbotanik/config/base.h"
 
-#include "libbotanik/plc/functions/time.h"  // Plc::accumulate
+#include "libbotanik/plc/functions/time.h"
 #if BOTANIK_FEATURE_PLC_BLK_BASE
 
 namespace Botanik { namespace Plc {

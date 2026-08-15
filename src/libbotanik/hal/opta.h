@@ -12,16 +12,16 @@
  */
 
 // assert() - HAL sits below the logger, so it can't use BOTANIK_ASSERT
-#include <cassert>      // assert
-#include <chrono>       // std::chrono
-#include <cstdint>      // uint8_t/uint64_t/uintptr_t
-#include <type_traits>  // std::is_empty
+#include <cassert>
+#include <chrono>
+#include <cstdint>
+#include <type_traits>
 
 // CMSIS only - resolved from the installed mbed_opta core, not this tree. NOT
 // mbed.h: what must be inline here (__DSB, __DMB, ARM_MPU_OrderedMemcpy,
 // SCB_*DCache_by_Addr, __BKPT, CoreDebug) is all CMSIS, and the two pieces of
 // Mbed C++ the HAL needs live in platform.cpp - see its file header.
-#include "stm32h7xx.h"  // __DSB / __DMB / ARM_MPU_OrderedMemcpy / SCB_*DCache_by_Addr
+#include "stm32h7xx.h"
 
 
 namespace Botanik { namespace HAL {

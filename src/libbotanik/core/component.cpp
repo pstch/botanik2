@@ -8,11 +8,11 @@
  * topic are pulled in.
  */
 
-#include "libbotanik/core/component.h"  // Component
+#include "libbotanik/core/component.h"
 
-#include "libbotanik/logs/logger.h"     // Logs::Logger
-#include "libbotanik/logs/topics.h"     // Logs::BOOT / LOG_DEBUG
-#include "libbotanik/tasks/tasks.h"     // Tasks::component_setup
+#include "libbotanik/logs/logger.h"
+#include "libbotanik/logs/topics.h"
+#include "libbotanik/tasks/tasks.h"
 
 namespace Botanik {
 

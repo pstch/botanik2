@@ -21,21 +21,21 @@
 
 #ifdef TARGET_SIMULATOR
 
-#include <cstdint>                      // uint8_t/uint32_t/uint64_t
-#include <cstdio>                       // fprintf(stderr)
-#include <cstring>                      // memcpy / memset
-#include <ctime>                        // time()
+#include <cstdint>
+#include <cstdio>
+#include <cstring>
+#include <ctime>
 
 // POSIX - the mock responder is a real in-process socket peer, not a stub.
-#include <fcntl.h>                      // fcntl / O_NONBLOCK
-#include <netinet/in.h>                 // sockaddr_in / htons
-#include <sys/socket.h>                 // socket / bind / recvfrom / sendto
-#include <unistd.h>                     // close
+#include <fcntl.h>
+#include <netinet/in.h>
+#include <sys/socket.h>
+#include <unistd.h>
 
-#include "libbotanik/config/scheduler.h"  // Config::LOOP_* / TASK_* / GROUP_*
+#include "libbotanik/config/scheduler.h"
 
-#include "libbotanik/hal/net.h"         // HAL::Network::NTP_MOCK_PORT / MQTT_MOCK_PORT
-#include "libbotanik/hal/platform.h"    // HAL::System::on_reset
+#include "libbotanik/hal/net.h"
+#include "libbotanik/hal/platform.h"
 
 namespace Botanik { namespace Network {
 

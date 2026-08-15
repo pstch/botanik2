@@ -2,23 +2,19 @@
 /**
  * @file editor.h
  * @brief Byte-efficient multi-row line editor for low-bandwidth serial
- *        terminals.
- *
- * Three prompt classes start a row: PS1 (first row), PS2 (after a soft wrap),
- * PS3 (after a hard `\\n`). Auto-wrap is off - the editor owns wrapping. Each
- * edit mutates the buffer, rebuilds the row layout (`_layout`), and reconciles
- * it against the pre-edit layout (`_pre`) so only the minimal terminal ops are
- * emitted.
+ *        terminals. Auto-wrap is off - the editor owns wrapping.
+ * @note Each edit mutates the buffer, rebuilds the row layout (`_layout`) and
+ *       reconciles it against the pre-edit one (`_pre`). See docs/dev/editor.md.
  */
 #ifndef CONSOLE_EDITOR_H
 #define CONSOLE_EDITOR_H
 
-#include <cstdint>                          // uint8_t/uint16_t/int32_t
-#include <cstring>                          // memcpy
+#include <cstdint>
+#include <cstring>
 
-#include "libbotanik/config/terminal.h"   // Config::SCREEN_* / EDITOR_* / SHELL_* / PAGE_*
+#include "libbotanik/config/terminal.h"
 
-#include "libbotanik/console/terminal.h"    // AnsiTerminal / CursorPos
+#include "libbotanik/console/terminal.h"
 
 
 namespace Botanik { namespace Terminal {
@@ -52,21 +48,15 @@ namespace Botanik { namespace Terminal {
     };
 
     /** @brief A laid-out view of the buffer: the row slices plus their count.
-     *  Used for both `_layout` (current/target) and `_pre` (pre-edit).
-     *
-     *  @note `rows` is BORROWED - the two views point at distinct owner-supplied
-     *  arrays (see EditorStorage). Copying a TextView by value would alias them,
-     *  hence `_snapshot_pre()` rather than assignment. */
+     *  @note `rows` is BORROWED, and the two views point at distinct arrays.
+     *  Copying by value would alias them, hence `_snapshot_pre()`. */
     struct TextView {
         RowView* rows  = nullptr; /**< Borrowed row array (see EditorStorage). */
         uint16_t count = 0;       /**< Rows laid out right now. */
     };
 
     /** @brief The buffers a TextEditor works over, owned by whoever built it.
-     *
-     *  External so each editor is sized for its job: a shell prompt wants a few
-     *  hundred bytes, a full-screen notes editor kilobytes, and neither pays for
-     *  the other. */
+     *  External so each editor is sized for its job. */
     struct EditorStorage {
         char*    buf;      /**< Text buffer, `buf_cap` bytes (one reserved for NUL). */
         uint16_t buf_cap;
@@ -75,13 +65,8 @@ namespace Botanik { namespace Terminal {
         uint16_t max_rows;
     };
 
-    /** @brief Inline storage for a TextEditor, sized at compile time.
-     *
-     *  Declare one next to (and BEFORE) the editor it feeds:
-     *  @code
-     *  EditorBuffers<Config::SHELL_INPUT_LEN, Config::EDITOR_MAX_ROWS> _bufs;
-     *  TextEditor _editor{&console, _bufs.storage()};
-     *  @endcode */
+    /** @brief Inline storage for a TextEditor, sized at compile time. Declare
+     *  one next to, and BEFORE, the editor it feeds. */
     template <uint16_t BUF, uint16_t ROWS>
     struct EditorBuffers {
         char    buf[BUF];
@@ -94,19 +79,11 @@ namespace Botanik { namespace Terminal {
 
     /**
      * @class TextEditor
-     * @brief Multi-row line editor.
-     *
-     * insert/remove mutate the buffer, rebuild the row layout, then reconcile
-     * the screen by diffing `_pre` against `_layout`: one IL/DL for the
-     * row-count change, then a forward per-row splice walk from the edit row.
-     *
-     * @note Layout is capped at the owner's row array. At >= `EDITOR_MIN_COLS`
-     * the buffer always fits by soft-wrap (static_asserts in config), so the cap
-     * is only reachable through hard `\n` breaks; an insert that would cross it
-     * is refused, since rows past the cap are text nobody can reach.
-     *
-     * @note Text taller than the viewport is not a special case: the window
-     * scrolls over it (see Anchor and set_view_rows()).
+     * @brief Multi-row line editor. An edit reconciles the screen by diffing
+     *        `_pre` against `_layout`: one IL/DL for the row-count change, then
+     *        a forward per-row splice walk from the edit row.
+     * @note Layout is capped at the owner's row array, reachable only through
+     *       hard `\n` breaks; an insert that would cross it is refused.
      */
     class TextEditor {
 
@@ -323,17 +300,16 @@ namespace Botanik { namespace Terminal {
         /**
          * @name Kill and yank
          *
-         * The three cut/paste keys, over the console-wide kill ring
-         * (console/kill_ring.h), so what is cut here yanks wherever the operator
-         * goes next. A kill takes only what the ring can hold and leaves the rest
-         * in the buffer, so a yank restores exactly what went. Each returns false
-         * when there was nothing to do.
+         * Over the console-wide kill ring, so what is cut here yanks wherever
+         * the operator goes next. A kill takes only what the ring can hold and
+         * leaves the rest in the buffer. Each returns false when there was
+         * nothing to do.
          * @{
          */
 
         /** @brief Cut from the cursor to the end of the logical line (Ctrl-K).
-         *  On the newline itself, cuts the newline - which is how a line is
-         *  closed up onto the one before it. */
+         *  On the newline itself, cuts it, closing the line up onto the one
+         *  before. */
         bool kill_to_line_end();
 
         /** @brief Cut the word before the cursor (Ctrl-W), whitespace between
@@ -348,11 +324,10 @@ namespace Botanik { namespace Terminal {
         /**
          * @name Mark and region
          *
-         * Ctrl-Space drops a mark; the region is the span between it and the
-         * cursor, drawn reverse-video, and Ctrl-W / Alt-W act on it instead of
-         * on a word. The mark is TRANSIENT: any edit drops it, so one can never
-         * need shifting by an insert or clamping by a delete. See @ref
-         * dev_editor.
+         * Ctrl-Space drops a mark; the region is the span to the cursor, drawn
+         * reverse-video, and Ctrl-W / Alt-W act on it instead of on a word. The
+         * mark is TRANSIENT - any edit drops it - so it never needs shifting or
+         * clamping. See @ref dev_editor.
          * @{
          */
 
@@ -519,9 +494,8 @@ namespace Botanik { namespace Terminal {
         /**
          * @name Viewport
          *
-         * The window of layout rows currently on screen. A bottom-anchored
-         * editor is the degenerate case (`_view_top` 0, height running to the
-         * content bottom), so these subsume a bare `_origin + i` and a clip
+         * The window of layout rows on screen. A bottom-anchored editor is the
+         * degenerate case, so these subsume a bare `_origin + i` and a clip
          * against `_console->rows()`.
          * @{
          */
@@ -611,13 +585,11 @@ namespace Botanik { namespace Terminal {
         bool _kill_span(uint16_t from, uint16_t to);
 
         /** @brief Write layout row @p i's content at the cursor, as up to three
-         *  pen runs so the part inside the region comes out reverse-video.
-         *  Always leaves the pen plain, so the caller's clear_to_eol() does not
-         *  stamp an inverted bar out to the margin.
-         *
-         *  An EMPTY region (mark just dropped, cursor not moved) paints one
-         *  inverted cell at the mark, since a zero-width highlight would leave
-         *  Ctrl-Space with nothing to show for itself. */
+         *  pen runs so the region comes out reverse-video. Always leaves the pen
+         *  plain, so the caller's clear_to_eol() does not stamp an inverted bar
+         *  to the margin.
+         *  @note An EMPTY region paints one inverted cell at the mark, or
+         *  Ctrl-Space would have nothing to show for itself. */
         void _write_row_content(uint16_t i);
 
         /** @brief Bring the highlight on screen into line with the region.

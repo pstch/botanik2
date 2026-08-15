@@ -11,13 +11,13 @@
  * (formats entries and writes them to a BufferedSerial port).
  */
 
-#include <cstdint>                      // uint8_t/uint32_t/uint64_t
+#include <cstdint>
 
-#include "libbotanik/config/logging.h"    // Config::LOG_*
+#include "libbotanik/config/logging.h"
 
-#include "libbotanik/core/component.h"  // Component
-#include "libbotanik/logs/entry.h"      // Logs::LogEntry
-#include "libbotanik/utils/serial.h"    // Utils::BufferedSerial
+#include "libbotanik/core/component.h"
+#include "libbotanik/logs/entry.h"
+#include "libbotanik/utils/serial.h"
 
 namespace Botanik { namespace Tasks { struct Tick; } }
 

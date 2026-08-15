@@ -4,11 +4,11 @@
  *        make about the table as a whole.
  */
 
-#include "libbotanik/plc/program.h"     // Plc::Program
+#include "libbotanik/plc/program.h"
 
-#include "libbotanik/logs/logger.h"     // Logs::Logger - naming a conflicting row
-#include "libbotanik/logs/topics.h"     // Logs::STATUS
-#include "libbotanik/tasks/tasks.h"     // Tasks::Registry / Tick / GroupId
+#include "libbotanik/logs/logger.h"
+#include "libbotanik/logs/topics.h"
+#include "libbotanik/tasks/tasks.h"
 
 namespace Botanik { namespace Plc {
 

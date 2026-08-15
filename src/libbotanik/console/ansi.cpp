@@ -8,17 +8,16 @@
  * so an escape is never split mid-sequence. Callers may retry on a later redraw.
  */
 
-#include <cstddef>                  // size_t
-#include <cstdint>                  // uint8_t/uint16_t
-#include <cstring>                  // strlen
+#include <cstddef>
+#include <cstdint>
+#include <cstring>
 
-#include "libbotanik/utils/text.h"  // Utils::format_int
+#include "libbotanik/utils/text.h"
 #include "libbotanik/console/ansi.h"
 
 namespace Botanik { namespace Terminal { namespace Ansi {
 
     // Generic utilities
-    // ------------------------------------------------------------------------
 
     // worst-case max X3.64 sequence length
     constexpr uint16_t ANSI_MAX_SEQ = 16;
@@ -47,7 +46,6 @@ namespace Botanik { namespace Terminal { namespace Ansi {
     }
 
     // State management
-    // ------------------------------------------------------------------------
 
     bool set_insert_mode(ByteSink& _serial, bool active) {
         // SM4/RM4 are the same length, so one instantiation covers both.
@@ -80,7 +78,6 @@ namespace Botanik { namespace Terminal { namespace Ansi {
     }
 
     // Cursor movement
-    // ------------------------------------------------------------------------
 
     bool goto_absolute(ByteSink& _serial, const CursorPos& cursor) {
         if (!can_emit(_serial)) return false;
@@ -122,7 +119,6 @@ namespace Botanik { namespace Terminal { namespace Ansi {
     }
 
     // Content edition
-    // ------------------------------------------------------------------------
 
     bool insert_rows(ByteSink& _serial, uint16_t count) {
         return _csi_count(_serial, IL, count);
@@ -137,7 +133,6 @@ namespace Botanik { namespace Terminal { namespace Ansi {
     }
 
     // Content clearing
-    // ------------------------------------------------------------------------
 
     bool clear_screen(ByteSink& _serial) {
         if (!can_emit(_serial)) return false;

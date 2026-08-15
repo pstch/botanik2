@@ -1,11 +1,11 @@
 #ifndef BOTANIK_TESTS_RECORDING_WRITER_H
 #define BOTANIK_TESTS_RECORDING_WRITER_H
 
-#include <cstdint>                  // uint32_t
-#include <cstring>                  // memcpy
-#include <string>                   // std::string
+#include <cstdint>
+#include <cstring>
+#include <string>
 
-#include "libbotanik/logs/logger.h" // Logs::LogWriter
+#include "libbotanik/logs/logger.h"
 
 namespace Botanik {
 

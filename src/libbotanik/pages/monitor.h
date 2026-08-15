@@ -29,17 +29,17 @@
  * so the page keeps no paint cache.
  */
 
-#include <cstdint>                          // uint8_t/uint16_t/uint64_t
-#include <cstring>                          // strcmp / strncpy
+#include <cstdint>
+#include <cstring>
 
-#include "libbotanik/config/terminal.h"   // Config::SCREEN_* / EDITOR_* / SHELL_* / PAGE_*
+#include "libbotanik/config/terminal.h"
 
-#include "libbotanik/console/console.h"     // Console::rows / terminal
-#include "libbotanik/console/terminal.h"    // AnsiTerminal
-#include "libbotanik/hal/platform.h"        // HAL::Clock::uptime_ms
-#include "libbotanik/pages/page.h"          // Pages::Page
-#include "libbotanik/pages/scroll_table.h"  // Pages::ScrollTablePage
-#include "libbotanik/vars/access.h"         // Vars::var_published / var_group / var_format
+#include "libbotanik/console/console.h"
+#include "libbotanik/console/terminal.h"
+#include "libbotanik/hal/platform.h"
+#include "libbotanik/pages/page.h"
+#include "libbotanik/pages/scroll_table.h"
+#include "libbotanik/vars/access.h"
 
 namespace Botanik { namespace Pages {
 
@@ -169,7 +169,6 @@ namespace Botanik { namespace Pages {
 
     private:
         // Model
-        // --------------------------------------------------------------------
 
         /** @name Group modes
          *  Mode 0 shows every group; modes 1..N show one each. The groups are
@@ -227,7 +226,6 @@ namespace Botanik { namespace Pages {
         Vars::VarRef _ref_at(uint16_t r, bool& ok) const;
 
         // Rendering
-        // --------------------------------------------------------------------
 
         /** @brief Copy @p s into @p out unless it already IS @p out (var_format
          *  returns flash / pool text for an enum or a string). */

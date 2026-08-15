@@ -13,13 +13,13 @@
  * withdrawal.
  */
 
-#include "libbotanik/plc/blocks/actuator.h" // Actuator
-#include "libbotanik/plc/blocks/analog.h"   // Hysteresis / Hysteresis3 / Ramp / Deadband
-#include "libbotanik/plc/blocks/filters.h"  // Ewma / MedianOf3 / MovingAverage
-#include "libbotanik/plc/blocks/logic.h"    // RTrig / FTrig / Sr / Rs / Interlock
-#include "libbotanik/plc/blocks/meter.h"    // Integral / Derivative
-#include "libbotanik/plc/blocks/pid.h"      // Pid / PidTuning
-#include "libbotanik/plc/blocks/timers.h"   // Ton / Tof / Tp
+#include "libbotanik/plc/blocks/actuator.h"
+#include "libbotanik/plc/blocks/analog.h"
+#include "libbotanik/plc/blocks/filters.h"
+#include "libbotanik/plc/blocks/logic.h"
+#include "libbotanik/plc/blocks/meter.h"
+#include "libbotanik/plc/blocks/pid.h"
+#include "libbotanik/plc/blocks/timers.h"
 #include "libbotanik/plc/functions/functions.h"
 
 #endif // PLC_BLOCKS_BLOCKS_H

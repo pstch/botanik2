@@ -2,13 +2,9 @@
 #define LIBBOTANIK_CONFIG_SCHEDULER_H
 
 /** @file scheduler.h
- *  @brief The beat: its period, its budgets and its metrics.
- *
- *  One concern of the library's configuration. Every value defaults from
- *  an #ifndef-guarded BOTANIK_* macro a site may override; see
- *  libbotanik_config.h, which aggregates these and holds the rules. */
+ *  @brief The beat: its period, its budgets and its metrics. */
 
-#include "libbotanik/config/base.h"       // the BOTANIK_FEATURE_* gates
+#include "libbotanik/config/base.h"
 
 // Defined and undefined per file, not in base.h: see base.h.
 #define BOTANIK_CFG(type, name) static constexpr type name = BOTANIK_##name
@@ -17,9 +13,8 @@ namespace Botanik { namespace Config {
 
     /** @name Scheduling
      *
-     *  The beat, the rate classes tasks are grouped into, and the watchdog that
-     *  outlives them. A task's RATE is one of the groups below; its PHASE is its
-     *  place in the data flow and is written out in code, not configured.
+     *  The beat, the rate classes, and the watchdog that outlives them. A task's
+     *  RATE is a group below; its PHASE is written out in code, not configured.
      *  @{ */
 
     /** @brief Main task execution period (ms), i.e. the loop rate everything
@@ -29,23 +24,17 @@ namespace Botanik { namespace Config {
 #endif
     BOTANIK_CFG(uint32_t, TASK_PERIOD_MS);
 
-    /** @brief Every beat: the field bus, the log drain, the serial pumps.
-     *
-     *  This and the three below are the scheduler's rate classes. A task names
-     *  one instead of carrying a raw period, so a rate is retuned in one place
-     *  for everything that shares it. Each must be an integer multiple of
-     *  TASK_PERIOD_MS. See docs/dev/scheduler.md for what sets each one. */
+    /** @brief Every beat: the field bus, the log drain, the serial pumps. This
+     *  and the three below are the rate classes; each must be an integer
+     *  multiple of TASK_PERIOD_MS. See docs/dev/scheduler.md. */
 #ifndef BOTANIK_GROUP_FAST_MS
 #  define BOTANIK_GROUP_FAST_MS BOTANIK_TASK_PERIOD_MS
 #endif
     BOTANIK_CFG(uint32_t, GROUP_FAST_MS);
 
     /** @brief The operator-facing rate.
-     *
-     *  @note Has NO members: the console render runs in GROUP_SLOW. Kept because
-     *  a rate between "every beat" and "dwell" is the obvious home for the next
-     *  interactive thing, but tuning it affects nothing today - check tasks.h
-     *  first. */
+     *  @note Has NO members today - the console render runs in GROUP_SLOW - so
+     *  tuning it affects nothing. Check tasks.h first. */
 #ifndef BOTANIK_GROUP_MAIN_MS
 #  define BOTANIK_GROUP_MAIN_MS 50
 #endif
@@ -69,24 +58,17 @@ namespace Botanik { namespace Config {
 
     /** @brief Capacity of the scheduler's task table. Fixed, no allocation;
      *  registrations past it are refused and counted, never silently dropped.
-     *
-     *  The full gh_mlb41 profile registers 31, and a SITE registers its own
-     *  components and programs on top of that (BotanikFirmware::on_setup), so
-     *  the headroom is the point rather than slack. 80 bytes a slot: 48 costs
-     *  3840 bytes of the M7's RAM, against the ~1.3 KB the old 32 saved. */
+     *  @note gh_mlb41 registers 31 and a site adds its own on top, so the
+     *  headroom is the point. 80 bytes a slot. */
 #ifndef BOTANIK_MAX_TASKS
 #  define BOTANIK_MAX_TASKS 48
 #endif
     BOTANIK_CFG(uint8_t, MAX_TASKS);
 
     /** @brief How far past its own period a control program may run before
-     *  SCAN_LATE is raised, in ms.
-     *
-     *  Measured against the PROGRAM's period, not the beat, so one number serves
-     *  every rate. Two beats' worth: one late activation is the stagger or a
-     *  flash write, two in a row is the cycle running out of room. The alarm's
-     *  own dwell stops a burst becoming an annunciation; this is only the
-     *  threshold. */
+     *  SCAN_LATE is raised, in ms. Measured against the PROGRAM's period, so one
+     *  number serves every rate. Two beats' worth: one late activation is the
+     *  stagger, two in a row is the cycle running out of room. */
 #ifndef BOTANIK_SCAN_LATE_MS
 #  define BOTANIK_SCAN_LATE_MS (BOTANIK_TASK_PERIOD_MS * 2)
 #endif
@@ -102,9 +84,9 @@ namespace Botanik { namespace Config {
 
     /** @name Performance metrics
      *
-     *  How the scheduler's self-instrumentation is smoothed before the health
-     *  thresholds below read it. Window and buckets give the "recent peak";
-     *  the EMA pairs give the displayed value.
+     *  How the self-instrumentation is smoothed before the health thresholds
+     *  read it: window and buckets give the recent peak, the EMA pairs the
+     *  displayed value.
      *  @{ */
 
     /** @brief Sliding window for the "recent peak" CPU/stack metrics, and the
@@ -120,13 +102,10 @@ namespace Botanik { namespace Config {
 #endif
     BOTANIK_CFG(uint32_t, LOAD_METRIC_BUCKETS);
 
-    /** @brief CPU-load EMA time constants (ms), attack then decay.
-     *
-     *  Asymmetric on purpose: a load metric feeding an alarm threshold must
-     *  rise at once and fall slowly, so a spike cannot be smoothed away before
-     *  ALARM_CPU_LOAD_PCT sees it. Utils::ema_alpha() collapses any constant at
-     *  or below TASK_PERIOD_MS to 1.0 (instant), which is what an attack of 0
-     *  asks for; a larger value is a real time constant. */
+    /** @brief CPU-load EMA time constants (ms), attack then decay. Asymmetric on
+     *  purpose: a metric feeding an alarm threshold must rise at once and fall
+     *  slowly, or a spike is smoothed away before ALARM_CPU_LOAD_PCT sees it.
+     *  @note ema_alpha() collapses any constant <= TASK_PERIOD_MS to instant. */
 #ifndef BOTANIK_CPU_LOAD_EMA_ATTACK_MS
 #  define BOTANIK_CPU_LOAD_EMA_ATTACK_MS 0
 #endif

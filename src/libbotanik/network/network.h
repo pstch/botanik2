@@ -12,12 +12,12 @@
  * is authoritative. (The NTP client lives in network/ntp.h.)
  */
 
-#include <cstdint>                          // uint8_t/uint32_t/uint64_t
+#include <cstdint>
 
-#include "libbotanik/core/component.h"      // Component
-#include "libbotanik/hal/net.h"             // HAL::Network::Ip4 / link_ip
-#include "libbotanik/network/resolver.h"    // Network::NameResolver
-#include "libbotanik/vars/params.h"         // Vars::Bank / get_str
+#include "libbotanik/core/component.h"
+#include "libbotanik/hal/net.h"
+#include "libbotanik/network/resolver.h"
+#include "libbotanik/vars/params.h"
 
 namespace Botanik { namespace Tasks { struct Tick; class Registry; } }
 

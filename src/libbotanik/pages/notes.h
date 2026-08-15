@@ -7,20 +7,20 @@
  *        persisted to flash under its own storage key.
  */
 
-#include <cstdint>                          // uint16_t
+#include <cstdint>
 
-#include "libbotanik/config/simulator.h"  // Config::STORE_MAX_BYTES
-#include "libbotanik/config/terminal.h"   // Config::SCREEN_* / EDITOR_* / SHELL_* / PAGE_*
-#include "libbotanik_features.h"            // BOTANIK_FEATURE_NOTES_PAGE
+#include "libbotanik/config/simulator.h"
+#include "libbotanik/config/terminal.h"
+#include "libbotanik_features.h"
 
 #if BOTANIK_FEATURE_NOTES_PAGE
 
-#include "libbotanik/console/console.h"     // Console::rows / terminal
-#include "libbotanik/console/editor.h"      // Terminal::TextEditor / EditorBuffers
-#include "libbotanik/console/terminal.h"    // AnsiTerminal
-#include "libbotanik/hal/storage.h"         // HAL::Storage::get / set
-#include "libbotanik/logs/logger.h"         // Logs::Logger
-#include "libbotanik/pages/page.h"          // Pages::Page
+#include "libbotanik/console/console.h"
+#include "libbotanik/console/editor.h"
+#include "libbotanik/console/terminal.h"
+#include "libbotanik/hal/storage.h"
+#include "libbotanik/logs/logger.h"
+#include "libbotanik/pages/page.h"
 
 namespace Botanik { namespace Pages {
 

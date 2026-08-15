@@ -22,12 +22,12 @@
 
 #if BOTANIK_FEATURE_MODBUS_RTU_SERVER && defined(TARGET_SIMULATOR)
 
-#include <unistd.h>                       // read / write - the peer end of the pair
+#include <unistd.h>
 
-#include "libbotanik/hal/simulator.h"     // fieldbus_peer_fd
-#include <cstring>                        // memcpy - staging a device answer
-#include "libbotanik/modbus/rtu/slave.h"  // Modbus::RtuSlave
-#include "libbotanik/vars/model.h"        // Vars::Bank - where the simulated values are
+#include "libbotanik/hal/simulator.h"
+#include <cstring>
+#include "libbotanik/modbus/rtu/slave.h"
+#include "libbotanik/vars/model.h"
 
 namespace Botanik { namespace Sim {
 

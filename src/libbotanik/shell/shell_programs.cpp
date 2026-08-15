@@ -7,14 +7,14 @@
  * and the stricter wins - so `programs enable` on a unit whose control is
  * inhibited changes nothing visible, which is what `control` is for reporting.
  */
-#include "libbotanik/shell/shell.h"         // CommandShell
-#include "libbotanik/shell/args.h"          // arg_next / arg_eq / arg_is_all
+#include "libbotanik/shell/shell.h"
+#include "libbotanik/shell/args.h"
 
-#include <cstring>                          // strncmp - the prefix filter
+#include <cstring>
 
-#include "libbotanik/hal/platform.h"        // HAL::Clock::uptime_ms - the reseed
-#include "libbotanik/plc/program.h"         // Plc::Program::name
-#include "libbotanik/tasks/tasks.h"         // Tasks::Registry
+#include "libbotanik/hal/platform.h"
+#include "libbotanik/plc/program.h"
+#include "libbotanik/tasks/tasks.h"
 
 namespace Botanik { namespace Shell {
 

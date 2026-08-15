@@ -4,13 +4,13 @@
  * @brief AlarmBar implementation - bottom-row unmasked-alarm strip.
  */
 
-#include <cstdint>                          // uint8_t/uint16_t/uint64_t
-#include <cstring>                          // strlen
+#include <cstdint>
+#include <cstring>
 
-#include "libbotanik/alarms/alarms.h"       // Alarms::AlarmController
-#include "libbotanik/console/console.h"     // Console::alarms
-#include "libbotanik/console/terminal.h"    // AnsiTerminal
-#include "libbotanik/console/alarm_bar.h"   // AlarmBar
+#include "libbotanik/alarms/alarms.h"
+#include "libbotanik/console/console.h"
+#include "libbotanik/console/terminal.h"
+#include "libbotanik/console/alarm_bar.h"
 
 namespace Botanik { namespace Terminal {
 

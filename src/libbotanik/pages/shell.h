@@ -8,14 +8,14 @@
  *        live log output.
  */
 
-#include "libbotanik/config/terminal.h"   // Config::SCREEN_* / EDITOR_* / SHELL_* / PAGE_*
+#include "libbotanik/config/terminal.h"
 
-#include "libbotanik/console/console.h"     // Console::rows / terminal
-#include "libbotanik/console/editor.h"      // Terminal::TextEditor
-#include "libbotanik/logs/writer.h"         // Logs::BufferedLogWriter
-#include "libbotanik/pages/page.h"          // Pages::Page
-#include "libbotanik/pages/scrollback.h"    // Pages::ShellScrollback
-#include "libbotanik/shell/shell.h"         // Shell::CommandShell
+#include "libbotanik/console/console.h"
+#include "libbotanik/console/editor.h"
+#include "libbotanik/logs/writer.h"
+#include "libbotanik/pages/page.h"
+#include "libbotanik/pages/scrollback.h"
+#include "libbotanik/shell/shell.h"
 
 namespace Botanik { namespace Pages {
 

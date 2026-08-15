@@ -4,17 +4,17 @@
  *        dispatch (see tasks.h).
  */
 
-#include "libbotanik/tasks/tasks.h" // Registry / Task
+#include "libbotanik/tasks/tasks.h"
 
-#include <cstdio>                        // snprintf - the storage key
+#include <cstdio>
 
-#include "libbotanik/hal/platform.h"    // HAL::Clock::uptime_us
-#include "libbotanik/hal/storage.h"     // HAL::Storage - the per-program enable flag
+#include "libbotanik/hal/platform.h"
+#include "libbotanik/hal/storage.h"
 // The complete Program, and ONLY so add_program() can convert one to the
 // Component& it registers as. Nothing here calls a Program method.
-#include "libbotanik/plc/program.h"     // Plc::Program
-#include "libbotanik/utils/assert.h"   // BOTANIK_ASSERT - a refused registration
-#include "libbotanik/utils/text.h"     // Utils::equals_bounded - program lookup by name
+#include "libbotanik/plc/program.h"
+#include "libbotanik/utils/assert.h"
+#include "libbotanik/utils/text.h"
 
 namespace Botanik { namespace Tasks {
 
@@ -208,7 +208,6 @@ namespace Botanik { namespace Tasks {
     uint8_t Registry::program_count() const { return _prog_count; }
 
     // Per-program enable
-    // ------------------------------------------------------------------------
 
     namespace {
         /** "prog.<name>", one key per program: no layout to version, like the

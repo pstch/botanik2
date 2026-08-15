@@ -7,12 +7,11 @@
  * the hot path, and the frame the scheduler's stack painting is measured
  * against.
  */
-#include "libbotanik/firmware/firmware.h"   // BotanikFirmware - implemented here
+#include "libbotanik/firmware/firmware.h"
 
 namespace Botanik {
 
     // Construction
-    // ------------------------------------------------------------------------
 
     // The initialiser list follows declaration order exactly (-Wreorder): _io
     // must be alive before _params takes its address, and _health before
@@ -92,7 +91,6 @@ namespace Botanik {
     }
 
     // Bring-up
-    // ------------------------------------------------------------------------
 
     void BotanikFirmware::setup() {
         // route BOTANIK_ASSERT failures to the log
@@ -237,7 +235,6 @@ namespace Botanik {
     }
 
     // The task table
-    // ------------------------------------------------------------------------
 
     // The firmware's own eight rows: two bits of housekeeping and the six site
     // hooks. Each names its phase and rate here, beside the others, so the beat
@@ -314,11 +311,9 @@ namespace Botanik {
     }
 
     // Per-beat internals
-    // ------------------------------------------------------------------------
 
 
     // Site customization hooks (defaults)
-    // ------------------------------------------------------------------------
 
 #if BOTANIK_FEATURE_CONSOLE
     void BotanikFirmware::register_pages() {

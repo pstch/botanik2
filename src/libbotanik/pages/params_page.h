@@ -30,20 +30,20 @@
  * commit serial by hand.
  */
 
-#include <cstdint>                          // uint8_t/uint16_t/uint64_t
-#include <cstdio>                           // snprintf
-#include <cstring>                          // memcpy / strchr / strcmp / strlen
+#include <cstdint>
+#include <cstdio>
+#include <cstring>
 
-#include "libbotanik/config/terminal.h"   // Config::SCREEN_* / EDITOR_* / SHELL_* / PAGE_*
-#include "libbotanik/config/vars.h"       // Config::VAR_* / STR_*
+#include "libbotanik/config/terminal.h"
+#include "libbotanik/config/vars.h"
 
-#include "libbotanik/console/console.h"     // Console::rows / terminal
-#include "libbotanik/console/editor.h"      // Terminal::TextEditor
-#include "libbotanik/console/terminal.h"    // AnsiTerminal
-#include "libbotanik/pages/page.h"          // Pages::Page
-#include "libbotanik/pages/scroll_table.h"  // Pages::ScrollTablePage
-#include "libbotanik/vars/access.h"         // Vars::VAR_GROUPS_MAX / var_group
-#include "libbotanik/vars/params.h"         // Vars::Params
+#include "libbotanik/console/console.h"
+#include "libbotanik/console/editor.h"
+#include "libbotanik/console/terminal.h"
+#include "libbotanik/pages/page.h"
+#include "libbotanik/pages/scroll_table.h"
+#include "libbotanik/vars/access.h"
+#include "libbotanik/vars/params.h"
 
 namespace Botanik { namespace Pages {
 
@@ -238,7 +238,6 @@ namespace Botanik { namespace Pages {
         /** @} */
 
         // Table rendering (5 columns: name | type | value | register | unit)
-        // --------------------------------------------------------------------
 
         uint8_t _columns(Col* out) const override;
         /** @brief VALUE stretches: it is the cell whose contents vary. */
@@ -249,7 +248,6 @@ namespace Botanik { namespace Pages {
         void _draw_structure();
 
         // Detail panel (selected parameter's min/max/description/notes)
-        // --------------------------------------------------------------------
 
         /** @brief The config group a parameter belongs to: the prefix of its
          *  name, which is also the name of the group's commit serial. */
@@ -283,7 +281,6 @@ namespace Botanik { namespace Pages {
         void _draw_panel();
 
         // Bottom prompt row: inline edit field or hint
-        // --------------------------------------------------------------------
 
         /** @brief " name = " static label for the parameter being edited. */
         uint16_t _edit_label(char* buf, size_t cap) const {
@@ -303,7 +300,6 @@ namespace Botanik { namespace Pages {
         void _clear_error();
 
         // Edit sub-state
-        // --------------------------------------------------------------------
 
         void _start_edit();
 

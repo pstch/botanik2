@@ -5,17 +5,17 @@
  * Sections, each in its own namespace to avoid fixture collisions.
  */
 
-#include <cstdlib>                      // setenv / unsetenv
-#include <cstring>                      // strcmp / strlen
-#include <limits>                       // std::numeric_limits
-#include "libbotanik/hal/platform.h"    // HAL::Env::u32 / u8
-#include "libbotanik/utils/text.h"      // Utils::format_* / parse_uint / compare_str
+#include <cstdlib>
+#include <cstring>
+#include <limits>
+#include "libbotanik/hal/platform.h"
+#include "libbotanik/utils/text.h"
 #include "doctest.h"
-#include <cstdint>                  // int64_t/uint64_t
-#include "libbotanik/utils/time.h"  // Utils::CalendarTime + the uptime/wall conversions
-#include <unistd.h>                     // pipe / read / write
-#include "libbotanik_config.h"          // Config::SERIAL_RX_BUF / TX_BUF
-#include "libbotanik/utils/serial.h"    // Utils::BufferedSerial
+#include <cstdint>
+#include "libbotanik/utils/time.h"
+#include <unistd.h>
+#include "libbotanik_config.h"
+#include "libbotanik/utils/serial.h"
 
 // text
 

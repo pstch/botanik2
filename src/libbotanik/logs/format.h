@@ -8,12 +8,12 @@
  *        line.
  */
 
-#include <algorithm>                // std::min
-#include <cstdint>                  // uint64_t
-#include <cstdio>                   // snprintf
+#include <algorithm>
+#include <cstdint>
+#include <cstdio>
 
-#include "libbotanik/logs/entry.h"  // Logs::LogEntry
-#include "libbotanik/utils/time.h"  // Utils::format_ms_timestamp
+#include "libbotanik/logs/entry.h"
+#include "libbotanik/utils/time.h"
 
 namespace Botanik { namespace Logs {
 

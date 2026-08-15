@@ -12,11 +12,11 @@
  * Addressed by INDEX into the bank, never by an offset into a flat byte image.
  */
 
-#include <cstddef>                      // size_t
-#include <cstdint>                      // uint16_t/uint32_t
+#include <cstddef>
+#include <cstdint>
 
-#include "libbotanik/core/component.h"  // Component
-#include "libbotanik/vars/model.h"      // Vars::Bank / VarStore / SetResult
+#include "libbotanik/core/component.h"
+#include "libbotanik/vars/model.h"
 
 namespace Botanik { namespace Tasks { struct Tick; } }
 

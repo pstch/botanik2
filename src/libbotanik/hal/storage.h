@@ -29,8 +29,8 @@
  * prepends Mbed's partition prefix. Values are the parameter's raw bytes.
  */
 
-#include <cstddef>  // size_t
-#include <cstdint>  // uint32_t
+#include <cstddef>
+#include <cstdint>
 
 namespace Botanik { namespace HAL { namespace Storage {
 

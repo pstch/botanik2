@@ -4,25 +4,24 @@
  * @brief CommandShell: the built-in table, dispatch, output helpers and command
  *        history. One file per noun group beside it (shell_system.cpp, ...).
  */
-#include "libbotanik/shell/shell.h"         // CommandShell
-#include "libbotanik/shell/args.h"          // arg_next / arg_eq
+#include "libbotanik/shell/shell.h"
+#include "libbotanik/shell/args.h"
 
-#include <algorithm>                        // std::min
-#include <cstdarg>                          // va_list / va_start / va_end
-#include <cstdio>                           // vsnprintf
-#include <cstring>                          // strlen / strncmp / memcpy / memcmp
+#include <algorithm>
+#include <cstdarg>
+#include <cstdio>
+#include <cstring>
 
-#include "libbotanik/config/terminal.h"     // Config::SHELL_* - the history ring
+#include "libbotanik/config/terminal.h"
 
-#include "libbotanik/config/logging.h"      // Config::LOG_FORMATTED_LEN
-#include "libbotanik/config/net.h"          // Config::HOST_STR_LEN
+#include "libbotanik/config/logging.h"
+#include "libbotanik/config/net.h"
 
 namespace Botanik { namespace Shell {
 
 
 
     // Lifecycle
-    // ------------------------------------------------------------------------
 
     CommandShell::CommandShell(Terminal::AnsiTerminal& terminal,
                                Terminal::TextEditor&   editor,
@@ -32,7 +31,6 @@ namespace Botanik { namespace Shell {
     {}
 
     // Command execution
-    // ------------------------------------------------------------------------
 
     void CommandShell::run(const char* cmd, uint16_t len) {
         if (len == 0) return;
@@ -41,7 +39,6 @@ namespace Botanik { namespace Shell {
     }
 
     // Internals
-    // ------------------------------------------------------------------------
 
     // The table is grouped the way `help` prints it and the way the manual
     // documents it: what the unit is DOING, what it is REPORTING, then the
@@ -174,7 +171,6 @@ namespace Botanik { namespace Shell {
     }
 
     // Help page
-    // ------------------------------------------------------------------------
 
     const CommandShell::HelpGroup* CommandShell::_help_groups(uint8_t& count) {
         static const HelpGroup G[] = {
@@ -376,7 +372,6 @@ namespace Botanik { namespace Shell {
     }
 
     // History
-    // ------------------------------------------------------------------------
 
     void CommandShell::_history_add(const char* cmd, uint16_t len) {
         if (len > Config::SHELL_HISTORY_ENTRY) len = Config::SHELL_HISTORY_ENTRY;

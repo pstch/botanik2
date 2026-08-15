@@ -9,9 +9,9 @@
  * because framing was never in doubt.
  */
 #include "libbotanik/modbus/tcp/pdu.h"
-#include "libbotanik/modbus/response.h"   // match_response - shared with the other transport    // the vocabulary and the three encoders implemented here
+#include "libbotanik/modbus/response.h"
 
-#include <cstring>                    // memcpy - copying a read payload into the response
+#include <cstring>
 
 #if BOTANIK_FEATURE_MODBUS_TCP_SERVER || BOTANIK_FEATURE_MODBUS_TCP_CLIENT
 
@@ -157,7 +157,6 @@ namespace Botanik { namespace Modbus {
     }
 
     // The master's half
-    // ------------------------------------------------------------------------
 
     size_t encode_read_request(uint8_t* buf, size_t cap, const Mbap& m,
                                uint8_t fc, uint16_t addr, uint16_t qty) {

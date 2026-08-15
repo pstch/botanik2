@@ -15,19 +15,19 @@
  * going. Control-side fault escalation belongs to the scan cycle, not here.
  */
 
-#include <cstdint>                          // uint8_t/int16_t/uint64_t
-#include <cstdio>                           // snprintf - the POST detail line
+#include <cstdint>
+#include <cstdio>
 
-#include "libbotanik/config/alarms.h"     // Config::ALARM_* / HEALTH_*
-#include "libbotanik/config/identity.h"   // Config::SITE_NAME / FIRMWARE_VERSION / MQTT_TOPIC_PREFIX
-#include "libbotanik/config/scheduler.h"  // Config::LOOP_* / TASK_* / GROUP_*
+#include "libbotanik/config/alarms.h"
+#include "libbotanik/config/identity.h"
+#include "libbotanik/config/scheduler.h"
 
-#include "libbotanik/alarms/alarms.h"       // Alarms::AlarmController
-#include "libbotanik/alarms/notifier.h"     // Alarms::MqttAlarmNotifier
-#include "libbotanik/alarms/publisher.h"    // Alarms::Publisher
-#include "libbotanik/hal/storage.h"         // HAL::Storage::fault_count
-#include "libbotanik/logs/logger.h"         // Logs::Logger::has_writers
-#include "libbotanik/scheduler/scheduler.h" // Scheduler::SchedulerContext
+#include "libbotanik/alarms/alarms.h"
+#include "libbotanik/alarms/notifier.h"
+#include "libbotanik/alarms/publisher.h"
+#include "libbotanik/hal/storage.h"
+#include "libbotanik/logs/logger.h"
+#include "libbotanik/scheduler/scheduler.h"
 
 namespace Botanik { namespace Tasks { struct Tick; } }
 

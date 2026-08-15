@@ -7,9 +7,9 @@
  * than in utils/. The OPTA build has no environment and always yields the
  * fallback.
  */
-#include "libbotanik/hal/platform.h"    // HAL::Env::u32 / u8
+#include "libbotanik/hal/platform.h"
 
-#include "libbotanik/utils/text.h"      // Utils::parse_uint
+#include "libbotanik/utils/text.h"
 
 #ifdef TARGET_SIMULATOR
 #  include <cstdlib>                    // getenv

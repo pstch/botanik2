@@ -16,15 +16,15 @@
  * logger does; see Config::MQTT_LOG_MIN_LEVEL.
  */
 
-#include <cstddef>                      // size_t
+#include <cstddef>
 
-#include "libbotanik/config/identity.h"   // Config::SITE_NAME / FIRMWARE_VERSION / MQTT_TOPIC_PREFIX
-#include "libbotanik/config/net.h"        // Config::NET_* / DNS_* / NTP_* / MQTT_*
+#include "libbotanik/config/identity.h"
+#include "libbotanik/config/net.h"
 
-#include "libbotanik/config/logging.h"    // Config::LOG_MESSAGE_LEN
-#include "libbotanik/logs/topics.h"     // Logs::LogLevel / LogTopic
-#include "libbotanik/logs/writer.h"     // Logs::LogWriter
-#include "libbotanik/network/mqtt.h"    // Network::MqttClient
+#include "libbotanik/config/logging.h"
+#include "libbotanik/logs/topics.h"
+#include "libbotanik/logs/writer.h"
+#include "libbotanik/network/mqtt.h"
 
 namespace Botanik { namespace Network {
 

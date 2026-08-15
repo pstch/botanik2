@@ -3,10 +3,10 @@
  * @brief HealthMonitor's registration: its own task, then the alarm model's.
  */
 
-#include "libbotanik/health/health.h"     // Health::HealthMonitor
+#include "libbotanik/health/health.h"
 
-#include "libbotanik/plc/program.h"   // Plc::worst_lateness / report_writer_conflicts
-#include "libbotanik/tasks/tasks.h"       // Tasks::Registry / Tick / GroupId
+#include "libbotanik/plc/program.h"
+#include "libbotanik/tasks/tasks.h"
 
 namespace Botanik { namespace Health {
 

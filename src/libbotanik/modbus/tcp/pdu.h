@@ -26,12 +26,12 @@
  * That is why decode() reports four outcomes rather than a bool.
  */
 
-#include <cstddef>                    // size_t - buffer capacities and frame lengths
-#include <cstdint>                    // uint8_t/uint16_t - the wire is bytes and 16-bit words
+#include <cstddef>
+#include <cstdint>
 
-#include "libbotanik/config/base.h"   // BOTANIK_FEATURE_MODBUS_* - the gate this header sits behind
+#include "libbotanik/config/base.h"
 
-#include "libbotanik/modbus/wire.h"   // Fc / Exception / the frame arithmetic both transports share
+#include "libbotanik/modbus/wire.h"
 
 #if BOTANIK_FEATURE_MODBUS_TCP_SERVER || BOTANIK_FEATURE_MODBUS_TCP_CLIENT
 

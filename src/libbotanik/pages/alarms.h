@@ -25,18 +25,18 @@
  * is re-collected on the value cadence.
  */
 
-#include <cstdint>                          // uint8_t/uint16_t/uint64_t
+#include <cstdint>
 
-#include "libbotanik/config/alarms.h"     // Config::ALARM_* / HEALTH_*
-#include "libbotanik/config/terminal.h"   // Config::SCREEN_* / EDITOR_* / SHELL_* / PAGE_*
+#include "libbotanik/config/alarms.h"
+#include "libbotanik/config/terminal.h"
 
-#include "libbotanik/alarms/alarms.h"       // Alarms::AlarmController / AlarmCondition
-#include "libbotanik/console/console.h"     // Console::rows / terminal
-#include "libbotanik/console/terminal.h"    // AnsiTerminal
-#include "libbotanik/hal/platform.h"        // HAL::Clock::uptime_ms
-#include "libbotanik/pages/page.h"          // Pages::Page
-#include "libbotanik/pages/scroll_table.h"  // Pages::ScrollTablePage
-#include "libbotanik/utils/time.h"          // Utils::cal_time_ms
+#include "libbotanik/alarms/alarms.h"
+#include "libbotanik/console/console.h"
+#include "libbotanik/console/terminal.h"
+#include "libbotanik/hal/platform.h"
+#include "libbotanik/pages/page.h"
+#include "libbotanik/pages/scroll_table.h"
+#include "libbotanik/utils/time.h"
 
 namespace Botanik { namespace Pages {
 

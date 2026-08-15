@@ -17,12 +17,12 @@
  * with `library_vars.h`.
  */
 
-#include <cstdint>                      // uint16_t
-#include <cstring>                      // strncpy
+#include <cstdint>
+#include <cstring>
 
-#include "libbotanik/vars/declare.h"    // the P/PS factories the fixture table is written in
-#include "libbotanik/vars/model.h"      // Vars::Bank / Value
-#include "libbotanik/vars/params.h"     // Vars::Params / KvParamStore
+#include "libbotanik/vars/declare.h"
+#include "libbotanik/vars/model.h"
+#include "libbotanik/vars/params.h"
 
 namespace botanik_test {
 

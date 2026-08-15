@@ -11,7 +11,7 @@
  * is a single constexpr expression in a header, a block needs a .cpp.
  */
 
-#include "libbotanik/plc/functions/math.h"   // limit / in_range / deadzone / scale / lerp / sel
-#include "libbotanik/plc/functions/time.h"   // seconds / accumulate / countdown
+#include "libbotanik/plc/functions/math.h"
+#include "libbotanik/plc/functions/time.h"
 
 #endif // PLC_FUNCTIONS_FUNCTIONS_H

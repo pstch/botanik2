@@ -22,9 +22,9 @@
  *    program drops whatever the outage made stale
  */
 
-#include <cstdint>      // uint16_t/uint32_t
+#include <cstdint>
 
-#include "libbotanik.h" // Plc::Program + the block/function vocabulary
+#include "libbotanik.h"
 
 #include "vars.h"
 

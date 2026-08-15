@@ -4,17 +4,16 @@
  * @brief BufferedSerial implementation - pumps the RX/TX rings to and from
  *        HAL::Serial::Raw without blocking the main loop.
  */
-#include "libbotanik/utils/serial.h"    // BufferedSerial
+#include "libbotanik/utils/serial.h"
 
-#include <cstdint>                      // UINT32_MAX and the fixed-width ring counters
-#include <cstring>                      // memset
+#include <cstdint>
+#include <cstring>
 
-#include "libbotanik/config/serial.h"     // Config::SERIAL_* / *_BAUD
+#include "libbotanik/config/serial.h"
 
 namespace Botanik { namespace Utils {
 
     // Lifecycle
-    // ------------------------------------------------------------------------
 
     BufferedSerial::BufferedSerial(HAL::Serial::Raw* serial) : _serial(serial) {
         memset(_rx_buf, 0, sizeof(_rx_buf));
@@ -28,7 +27,6 @@ namespace Botanik { namespace Utils {
     }
 
     // Status & capacity
-    // ------------------------------------------------------------------------
 
     uint16_t BufferedSerial::available() const {
         return (_rx_head - _rx_tail) & (RX_BUF_SIZE - 1);
@@ -43,7 +41,6 @@ namespace Botanik { namespace Utils {
     bool BufferedSerial::tx_empty() const { return _tx_head == _tx_tail; }
 
     // Application I/O
-    // ------------------------------------------------------------------------
 
     uint16_t BufferedSerial::write(const char* buf, uint16_t len) {
         uint16_t pos = 0;
@@ -82,7 +79,6 @@ namespace Botanik { namespace Utils {
     }
 
     // Hardware I/O
-    // ------------------------------------------------------------------------
 
     uint16_t BufferedSerial::receive() {
         uint16_t rcvd = 0;

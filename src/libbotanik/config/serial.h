@@ -2,13 +2,9 @@
 #define LIBBOTANIK_CONFIG_SERIAL_H
 
 /** @file serial.h
- *  @brief The two UARTs and their ring buffers.
- *
- *  One concern of the library's configuration. Every value defaults from
- *  an #ifndef-guarded BOTANIK_* macro a site may override; see
- *  libbotanik_config.h, which aggregates these and holds the rules. */
+ *  @brief The two UARTs and their ring buffers. */
 
-#include "libbotanik/config/base.h"       // the BOTANIK_FEATURE_* gates
+#include "libbotanik/config/base.h"
 
 // Defined and undefined per file, not in base.h: see base.h.
 #define BOTANIK_CFG(type, name) static constexpr type name = BOTANIK_##name

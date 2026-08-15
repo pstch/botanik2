@@ -8,12 +8,12 @@
  *        (printable text plus X3.64 CSI, Alt, and function-key sequences).
  */
 
-#include <cstdint>                      // uint8_t/uint16_t/uint64_t
+#include <cstdint>
 
-#include "libbotanik/config/terminal.h"   // Config::SCREEN_* / EDITOR_* / SHELL_* / PAGE_*
+#include "libbotanik/config/terminal.h"
 
-#include "libbotanik/console/ansi.h"    // Terminal::Ansi::is_minitel
-#include "libbotanik/utils/serial.h"    // Utils::BufferedSerial
+#include "libbotanik/console/ansi.h"
+#include "libbotanik/utils/serial.h"
 
 namespace Botanik { namespace Terminal {
 

@@ -3,15 +3,15 @@
 
 /**
  * @file logic.h
- * @brief Edges, latches, and the interlock built on them.
- *
- * Untimed: none of these takes a dt, because none of them measures time.
+ * @brief Edges, latches, and the interlock built on them. Untimed: none of
+ *        these takes a dt.
+ * @note IEC 61131-3: R_TRIG, F_TRIG, SR, RS. Interlock is ours.
  */
 
-#include <cstdint>              // uint8_t
+#include <cstdint>
 
-#include "libbotanik/config/base.h"       // the BOTANIK_FEATURE_* gates
-#include "libbotanik/plc/blocks/block.h"  // Plc::Block / BOTANIK_PLC_BLOCK
+#include "libbotanik/config/base.h"
+#include "libbotanik/plc/blocks/block.h"
 #if BOTANIK_FEATURE_PLC_BLK_BASE
 
 namespace Botanik { namespace Plc {
@@ -19,7 +19,7 @@ namespace Botanik { namespace Plc {
     /** @name Edges
      *  @{ */
 
-    /** @brief Rising edge: true for the one scan where the input went false to
+    /** @brief IEC R_TRIG: true for the one scan where the input went false to
      *  true. */
     class RTrig : public Block {
         bool _prev = false;
@@ -28,10 +28,10 @@ namespace Botanik { namespace Plc {
         void reset() { _prev = false; }
     };
 
-    /** @brief Falling edge. */
+    /** @brief Falling edge (IEC F_TRIG). */
     class FTrig : public Block {
-        // Assumes the input starts low, matching RTrig: neither fires on the
-        // first scan merely because of where the input happens to sit.
+        // Starts low like RTrig: neither fires on the first scan merely because
+        // of where the input happens to sit.
         bool _prev = false;
     public:
         bool operator()(bool in);
@@ -42,7 +42,7 @@ namespace Botanik { namespace Plc {
      *  @name Latches
      *  @{ */
 
-    /** @brief Set-dominant latch: set wins when both inputs are true. */
+    /** @brief IEC SR: set-dominant latch, set wins when both inputs are true. */
     class Sr : public Block {
         bool _q = false;
     public:
@@ -51,7 +51,7 @@ namespace Botanik { namespace Plc {
         void reset() { _q = false; }
     };
 
-    /** @brief Reset-dominant latch: reset wins when both inputs are true. The
+    /** @brief IEC RS: reset-dominant latch, reset wins when both are true. The
      *  safer default for anything an interlock can stop. */
     class Rs : public Block {
         bool _q = false;
@@ -66,24 +66,14 @@ namespace Botanik { namespace Plc {
      *  @{ */
 
     /**
-     * @brief Four permissives in, one permit out, with first-out annunciation.
-     *
-     * Every input is a PERMISSIVE - true means satisfied - and the permit holds
-     * only while all four are. Three rules make it an interlock rather than an
-     * `and`:
-     *
-     *  - **It latches.** A condition that trips and recovers on its own must
-     *    still be seen and cleared by hand. A latching interlock also starts
-     *    WITHOUT the permit, so nothing arms itself after a power cycle.
-     *    `Interlock(false)` opts out and just follows the inputs.
-     *  - **The acknowledge is an edge**, so a reset wired true (a stuck button,
-     *    a forgotten override) cannot silently clear every future trip.
-     *  - **It remembers which input went first**, held until the acknowledge:
-     *    the rest usually fall over as a consequence, so first_out() is what
-     *    lets a log line say why rather than just "interlocked".
-     *
-     * Four inputs, no more: pass @c true for an unused one, chain two blocks
-     * for more.
+     * @brief Four permissives in (true = satisfied), one permit out, with
+     *        first-out annunciation. Pass @c true for an unused input.
+     * @note Three things make it an interlock rather than an `and`: it latches
+     *       and starts WITHOUT the permit, so nothing arms itself after a power
+     *       cycle (`Interlock(false)` opts out); the acknowledge is an EDGE, so a
+     *       reset wired true cannot silently clear every future trip; and it
+     *       remembers which input went first, since the rest usually fall over
+     *       as a consequence.
      */
     class Interlock : public Block {
 
@@ -100,8 +90,8 @@ namespace Botanik { namespace Plc {
 
         /** @brief Unnamed inputs; first_out_name() then reports "1".."4". */
         explicit Interlock(bool latching = true);
-        /** @brief Named inputs, for the log line. The names are borrowed and
-         *  must outlive the block - string literals, in practice. */
+        /** @brief @p n0..@p n3 are borrowed and must outlive the block - string
+         *  literals, in practice. */
         Interlock(const char* n0, const char* n1, const char* n2,
                   const char* n3, bool latching = true);
 
@@ -113,7 +103,6 @@ namespace Botanik { namespace Plc {
                         bool reset = false);
 
         bool permit() const { return _permit; }
-        /** @brief The complement of permit(), for readability at the call site. */
         bool tripped() const { return !_permit; }
         /** @brief Index 0..3 of the input that dropped first, or NONE. */
         uint8_t first_out() const { return _first; }
@@ -129,7 +118,6 @@ namespace Botanik { namespace Plc {
     /** @} */
 
     /** @name Family checks
-     *  @see block.h - every block is reset on a control withdrawal.
      *  @{ */
     BOTANIK_PLC_BLOCK(RTrig);
     BOTANIK_PLC_BLOCK(FTrig);

@@ -5,17 +5,15 @@
  * Each section is its own namespace, isolating fixtures and helpers.
  */
 
-#include "libbotanik/plc/functions/functions.h" // the stateless POU vocabulary
+#include "libbotanik/plc/functions/functions.h"
 #include "doctest.h"
-#include <string>   // std::string
+#include <string>
 #include "libbotanik/plc/blocks/blocks.h"
-#include "libbotanik/utils/filters.h"   // Utils::ExpMovingAverage / WindowedMax
-#include "libbotanik/plc/blocks/pid.h"  // Plc::Pid / PidTuning
-#include "libbotanik/plc/blocks/actuator.h" // Plc::Actuator / ActuatorConfig
+#include "libbotanik/utils/filters.h"
+#include "libbotanik/plc/blocks/pid.h"
+#include "libbotanik/plc/blocks/actuator.h"
 
-// --------------------------------------------------------------------------
 // functions
-// --------------------------------------------------------------------------
 
 namespace functions {
 
@@ -72,9 +70,7 @@ TEST_CASE("countdown stops at zero rather than wrapping") {
 
 }  // namespace functions
 
-// --------------------------------------------------------------------------
 // blocks
-// --------------------------------------------------------------------------
 
 namespace blocks {
 
@@ -321,9 +317,7 @@ TEST_CASE("Derivative: divides by the time really elapsed, not the window") {
 
 }  // namespace blocks
 
-// --------------------------------------------------------------------------
 // filters
-// --------------------------------------------------------------------------
 
 namespace filters {
 
@@ -333,7 +327,6 @@ using Botanik::Utils::WindowedMax;
 using doctest::Approx;
 
 // ema_alpha
-// ----------------------------------------------------------------------------
 
 TEST_CASE("ema_alpha: alpha is the sample-period / tau ratio") {
     CHECK(ema_alpha(100, 10) == Approx(0.1f));
@@ -348,7 +341,6 @@ TEST_CASE("ema_alpha: tau at or below one sample period collapses to 1.0") {
 }
 
 // ExpMovingAverage
-// ----------------------------------------------------------------------------
 
 TEST_CASE("ExpMovingAverage: asymmetric attack/decay rises fast, holds on falls") {
     ExpMovingAverage ema;
@@ -362,7 +354,6 @@ TEST_CASE("ExpMovingAverage: asymmetric attack/decay rises fast, holds on falls"
 }
 
 // WindowedMax
-// ----------------------------------------------------------------------------
 
 TEST_CASE("WindowedMax: reports the max of the samples in the window") {
     WindowedMax<4> w;
@@ -413,9 +404,7 @@ TEST_CASE("WindowedMax: a window shorter than K still works (span floored to 1)"
 
 }  // namespace filters
 
-// --------------------------------------------------------------------------
 // pid
-// --------------------------------------------------------------------------
 
 namespace pid {
 
@@ -620,9 +609,7 @@ TEST_CASE("Pid: a zero dt scan is harmless") {
 
 }  // namespace pid
 
-// --------------------------------------------------------------------------
 // actuator
-// --------------------------------------------------------------------------
 
 namespace actuator {
 

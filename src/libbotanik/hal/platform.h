@@ -17,7 +17,7 @@
  * platform-specific calls directly.
  */
 
-#include <cstdint>                          // uint8_t/uint32_t/uint64_t/uintptr_t
+#include <cstdint>
 
 // The one place TARGET_OPTA is allowed to pick a backend: both headers define
 // the same HAL::Clock/Memory/Stack/Debug/System/Watchdog surface declared below.

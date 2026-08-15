@@ -17,15 +17,15 @@
  * retries; nothing is queued.
  */
 
-#include "libbotanik/core/component.h"  // Component
-#include <cstdint>                      // uint16_t/uint64_t
+#include "libbotanik/core/component.h"
+#include <cstdint>
 
-#include "libbotanik/config/identity.h"   // Config::SITE_NAME / FIRMWARE_VERSION / MQTT_TOPIC_PREFIX
-#include "libbotanik/config/net.h"        // Config::NET_* / DNS_* / NTP_* / MQTT_*
+#include "libbotanik/config/identity.h"
+#include "libbotanik/config/net.h"
 
-#include "libbotanik/core/context.h"    // SystemContext
-#include "libbotanik/network/mqtt.h"    // Network::MqttClient
-#include "libbotanik/vars/access.h"     // Vars::var_published / var_format
+#include "libbotanik/core/context.h"
+#include "libbotanik/network/mqtt.h"
+#include "libbotanik/vars/access.h"
 
 namespace Botanik { namespace Tasks { struct Tick; } }
 

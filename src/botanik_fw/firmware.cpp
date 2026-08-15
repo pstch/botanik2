@@ -4,7 +4,7 @@
  * @brief Constructs the OPTA firmware singleton (see firmware.h).
  */
 
-#include "botanik_fw/firmware.h"    // the setup()/loop() entry points implemented here
+#include "botanik_fw/firmware.h"
 
 namespace Botanik { namespace Firmware {
 

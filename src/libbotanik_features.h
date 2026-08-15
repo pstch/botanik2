@@ -26,7 +26,6 @@
  */
 
 // The flag roster
-// ===========================================================================
 
 /** @brief Every flag, for anything that needs to enumerate them. */
 #define BOTANIK_FEATURE_LIST(X) \
@@ -56,7 +55,6 @@
     X(MODBUS_RTU_SERVER)
 
 // Defaults
-// ===========================================================================
 // Minimal core, opt in: a build that sets nothing gets a console with a home
 // screen and a shell, logging, and the scan cycle. Everything else - the other
 // pages, the network, the field bus, the block library - is something a site
@@ -218,7 +216,6 @@
 #endif
 
 // Dependency rules
-// ===========================================================================
 // A contradiction is a build error, not a silent no-op: the alternative is a
 // binary quietly missing what was requested.
 

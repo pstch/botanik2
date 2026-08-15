@@ -5,22 +5,20 @@
  * Each section is its own namespace, isolating fixtures and helpers.
  */
 
-#include <cstdint>              // uint16_t
-#include <cstring>              // strcmp
-#include "libbotanik_site.h"    // resolves BOTANIK_SITE -> BOTANIK_SITE_HEADER
-#include "libbotanik.h"         // Vars::Bank::find / unresolved_count
+#include <cstdint>
+#include <cstring>
+#include "libbotanik_site.h"
+#include "libbotanik.h"
 #include "doctest.h"
 #include BOTANIK_SITE_HEADER
 #if BOTANIK_FEATURE_SUN_TRACKER
 #  include "libbotanik/sun/sun_tracker.h"
 #endif
-#include <string>   // doctest streams a const char* as a pointer
-#include <cstddef>              // size_t / offsetof
-#include "site_bank.h"       // TestSite::build - the site's rows in a bank
+#include <string>
+#include <cstddef>
+#include "site_bank.h"
 
-// --------------------------------------------------------------------------
 // site_names
-// --------------------------------------------------------------------------
 
 namespace site_names {
 
@@ -405,9 +403,7 @@ TEST_CASE("analog: a tunable falls back to its constant when the parameter is ab
 
 }  // namespace site_names
 
-// --------------------------------------------------------------------------
 // site_bindings
-// --------------------------------------------------------------------------
 
 namespace site_bindings {
 
@@ -512,9 +508,7 @@ TEST_CASE("site bindings: no read block can exceed a device's own request limit"
 
 }  // namespace site_bindings
 
-// --------------------------------------------------------------------------
 // sizes
-// --------------------------------------------------------------------------
 
 namespace sizes {
 

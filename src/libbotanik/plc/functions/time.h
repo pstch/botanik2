@@ -12,7 +12,7 @@
  * VAR_IN_OUT).
  */
 
-#include <cstdint>  // uint32_t
+#include <cstdint>
 
 namespace Botanik { namespace Plc {
 

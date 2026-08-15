@@ -14,8 +14,8 @@
  *  a different order would be testing a table no firmware ever builds.
  */
 
-#include "libbotanik/vars/model.h"      // Vars::Bank
-#include "libbotanik/vars/vars.h"       // Vars::register_library_vars
+#include "libbotanik/vars/model.h"
+#include "libbotanik/vars/vars.h"
 
 #include BOTANIK_SITE_HEADER            // Site::params / alarms / io_rows
 

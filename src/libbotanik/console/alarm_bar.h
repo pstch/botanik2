@@ -13,7 +13,7 @@
  * change-highlighting: the set is visible as a whole.
  */
 
-#include <cstdint>  // uint16_t/uint64_t
+#include <cstdint>
 
 namespace Botanik { namespace Alarms { class AlarmController; } }
 

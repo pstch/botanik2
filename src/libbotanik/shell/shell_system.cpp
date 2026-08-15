@@ -3,21 +3,21 @@
  * @brief What the unit is DOING: log output, control authority, and the ways
  *        out (reset, reboot, exit).
  */
-#include "libbotanik/shell/shell.h"         // CommandShell
-#include "libbotanik/shell/args.h"          // arg_next / arg_eq / arg_is_all
+#include "libbotanik/shell/shell.h"
+#include "libbotanik/shell/args.h"
 
-#include <algorithm>                        // std::min
-#include <cstdio>                           // snprintf
-#include <algorithm>                        // std::min
-#include <cstring>                          // strlen / strncmp / memcpy
+#include <algorithm>
+#include <cstdio>
+#include <algorithm>
+#include <cstring>
 
-#include "libbotanik/hal/platform.h"        // HAL::System / Debug
-#include "libbotanik/health/health.h"       // Health::HealthMonitor - `reboot`
-#include "libbotanik/config/logging.h"      // Config::LOG_MESSAGE_LEN
-#include "libbotanik/logs/logger.h"         // Logs::Logger - `log` and set_min_level
-#include "libbotanik/scheduler/scheduler.h" // Scheduler::SchedulerContext - the armed window
-#include "libbotanik/network/ntp.h"         // Network::NtpClient - `ntpsync`
-#include "libbotanik/vars/model.h"          // Vars::Bank - control authority
+#include "libbotanik/hal/platform.h"
+#include "libbotanik/health/health.h"
+#include "libbotanik/config/logging.h"
+#include "libbotanik/logs/logger.h"
+#include "libbotanik/scheduler/scheduler.h"
+#include "libbotanik/network/ntp.h"
+#include "libbotanik/vars/model.h"
 
 namespace Botanik { namespace Shell {
 

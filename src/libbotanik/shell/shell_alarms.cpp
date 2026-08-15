@@ -2,15 +2,15 @@
  * @file shell_alarms.cpp
  * @brief `alarms`: the condition table, one condition, and acknowledging.
  */
-#include "libbotanik/shell/shell.h"         // CommandShell
-#include "libbotanik/shell/args.h"          // arg_next / arg_eq / arg_is_all
+#include "libbotanik/shell/shell.h"
+#include "libbotanik/shell/args.h"
 
-#include <algorithm>                        // std::min
-#include <cstdio>                           // snprintf
-#include <cstring>                          // strlen / strncmp / memcpy
+#include <algorithm>
+#include <cstdio>
+#include <cstring>
 
-#include "libbotanik/alarms/alarms.h"       // Alarms::AlarmController
-#include "libbotanik/utils/text.h"          // Utils::format_age
+#include "libbotanik/alarms/alarms.h"
+#include "libbotanik/utils/text.h"
 
 namespace Botanik { namespace Shell {
 

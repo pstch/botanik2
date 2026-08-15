@@ -25,9 +25,9 @@
  * for one in the library tree); CMake points BOTANIK_SITE_HEADER at this file.
  */
 
-#include <cstdint>      // uint8_t/uint16_t
+#include <cstdint>
 
-#include "libbotanik.h" // BotanikFirmware, SiteDescriptor, ShellCommand, Scan::Task
+#include "libbotanik.h"
 
 // Site-internal includes are RELATIVE on purpose, and must stay that way. A
 // site can live outside this tree (-DBOTANIK_SITE_DIR), with no include
@@ -147,9 +147,7 @@ const Botanik::SiteDescriptor g_site = {
 
 }  // namespace Site
 
-// ===========================================================================
 // GreenhouseMLB41 - the gh_mlb41 site firmware (derives BotanikFirmware)
-// ===========================================================================
 
 /**
  * @brief The gh_mlb41 greenhouse firmware.
@@ -208,7 +206,7 @@ protected:
 
 // The simulated field. Body compiles only under TARGET_SIMULATOR, and is
 // included after the variable tables it animates.
-#include "sim.h"        // Site::simulate
+#include "sim.h"
 
 /** @brief The firmware type the harness instantiates for this site. */
 using BotanikSite = GreenhouseMLB41;

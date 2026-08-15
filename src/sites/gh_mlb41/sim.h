@@ -17,11 +17,11 @@
 
 #ifdef TARGET_SIMULATOR
 
-#include <cstdint>      // uint32_t/uint64_t
-#include <cstdio>       // snprintf - the sensor names are patterned
-#include <random>       // std::mt19937 + distributions
+#include <cstdint>
+#include <cstdio>
+#include <random>
 
-#include "libbotanik.h" // Vars::Bank
+#include "libbotanik.h"
 
 
 namespace Site {
@@ -273,9 +273,7 @@ inline void publish_alarms(Vars::Bank& io, uint32_t now_ms) {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Entry point
-// ---------------------------------------------------------------------------
 
 /**
  * @brief Stand in for the field: publish meter readings, drive the coils, and

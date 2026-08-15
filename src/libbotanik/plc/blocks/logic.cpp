@@ -3,9 +3,9 @@
  * @brief Edges, latches, interlock.
  */
 
-#include "libbotanik/plc/blocks/logic.h"    // RTrig / FTrig / Sr / Rs / Interlock
+#include "libbotanik/plc/blocks/logic.h"
 
-#include "libbotanik/config/base.h"       // the BOTANIK_FEATURE_* gates
+#include "libbotanik/config/base.h"
 #if BOTANIK_FEATURE_PLC_BLK_BASE
 
 namespace Botanik { namespace Plc {

@@ -25,17 +25,17 @@
  *        the one concern header it belongs to. Adding a CONCERN is a new file
  *        here and a row in docs/integration/config.md. */
 
-#include "libbotanik/config/base.h"       // the BOTANIK_FEATURE_* gates
+#include "libbotanik/config/base.h"
 
-#include "libbotanik/config/alarms.h"     // Config::ALARM_* / HEALTH_*
-#include "libbotanik/config/identity.h"   // Config::SITE_NAME / FIRMWARE_VERSION / MQTT_TOPIC_PREFIX
-#include "libbotanik/config/logging.h"    // Config::LOG_*
-#include "libbotanik/config/modbus.h"     // Config::MODBUS_* - both transports
-#include "libbotanik/config/net.h"        // Config::NET_* / DNS_* / NTP_* / MQTT_*
-#include "libbotanik/config/scheduler.h"  // Config::LOOP_* / TASK_* / GROUP_*
-#include "libbotanik/config/serial.h"     // Config::SERIAL_* / *_BAUD
-#include "libbotanik/config/simulator.h"  // Config::STORE_MAX_BYTES
-#include "libbotanik/config/sun.h"        // Config::SUN_*
-#include "libbotanik/config/terminal.h"   // Config::SCREEN_* / EDITOR_* / SHELL_* / PAGE_*
-#include "libbotanik/config/vars.h"       // Config::VAR_* / STR_*
+#include "libbotanik/config/alarms.h"
+#include "libbotanik/config/identity.h"
+#include "libbotanik/config/logging.h"
+#include "libbotanik/config/modbus.h"
+#include "libbotanik/config/net.h"
+#include "libbotanik/config/scheduler.h"
+#include "libbotanik/config/serial.h"
+#include "libbotanik/config/simulator.h"
+#include "libbotanik/config/sun.h"
+#include "libbotanik/config/terminal.h"
+#include "libbotanik/config/vars.h"
 #endif // LIBBOTANIK_CONFIG_H

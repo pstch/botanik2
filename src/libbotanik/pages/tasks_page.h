@@ -31,17 +31,17 @@
  * (Tasks::TaskTimer).
  */
 
-#include <cstdint>                          // uint8_t/uint32_t/uint64_t
+#include <cstdint>
 
-#include "libbotanik/config/scheduler.h"  // Config::LOOP_* / TASK_* / GROUP_*
-#include "libbotanik/config/terminal.h"   // Config::SCREEN_* / EDITOR_* / SHELL_* / PAGE_*
+#include "libbotanik/config/scheduler.h"
+#include "libbotanik/config/terminal.h"
 
-#include "libbotanik/console/console.h"     // Console::rows / terminal
-#include "libbotanik/console/terminal.h"    // AnsiTerminal
-#include "libbotanik/pages/page.h"          // Pages::Page
-#include "libbotanik/pages/scroll_table.h"  // Pages::ScrollTablePage
-#include "libbotanik/tasks/tasks.h"     // Tasks::Registry / Task / TaskCost
-#include "libbotanik/utils/text.h"          // Utils::format_int / format_float
+#include "libbotanik/console/console.h"
+#include "libbotanik/console/terminal.h"
+#include "libbotanik/pages/page.h"
+#include "libbotanik/pages/scroll_table.h"
+#include "libbotanik/tasks/tasks.h"
+#include "libbotanik/utils/text.h"
 
 namespace Botanik { namespace Pages {
 

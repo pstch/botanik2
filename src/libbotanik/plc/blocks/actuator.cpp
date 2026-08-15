@@ -3,12 +3,12 @@
  * @brief The two-position actuator state machine.
  */
 
-#include "libbotanik/plc/blocks/actuator.h" // Actuator
+#include "libbotanik/plc/blocks/actuator.h"
 
-#include "libbotanik/config/base.h"       // the BOTANIK_FEATURE_* gates
+#include "libbotanik/config/base.h"
 
-#include "libbotanik/plc/functions/math.h"  // Plc::limit
-#include "libbotanik/plc/functions/time.h"  // Plc::countdown
+#include "libbotanik/plc/functions/math.h"
+#include "libbotanik/plc/functions/time.h"
 #if BOTANIK_FEATURE_PLC_BLK_BASE
 
 namespace Botanik { namespace Plc {

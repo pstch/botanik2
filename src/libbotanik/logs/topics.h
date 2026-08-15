@@ -10,9 +10,9 @@
  * already-written log records, so a rename moves the label and never the value.
  */
 
-#include <cstdint>              // uint8_t
+#include <cstdint>
 
-#include "libbotanik/config/logging.h"    // Config::LOG_*
+#include "libbotanik/config/logging.h"
 
 namespace Botanik { namespace Logs {
 

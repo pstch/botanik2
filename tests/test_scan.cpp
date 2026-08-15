@@ -5,19 +5,19 @@
  * Each section is its own namespace, isolating fixtures and helpers.
  */
 
-#include <cstddef>                  // size_t
-#include <cstdint>                  // uint8_t/uint64_t
-#include <vector>                   // std::vector
-#include "libbotanik/tasks/tasks.h"  // Tasks::Registry - what runs the programs now
+#include <cstddef>
+#include <cstdint>
+#include <vector>
+#include "libbotanik/tasks/tasks.h"
 #include "doctest.h"
-#include <cstdio>                   // snprintf - the test log sink
+#include <cstdio>
 #include <string>
 #include "libbotanik_site.h"
 #include "libbotanik.h"
 #include "libbotanik/plc/io.h"
 #include BOTANIK_SITE_HEADER
-#include "libbotanik/core/component.h"  // Component
-#include "site_bank.h"       // TestSite::build - the site's rows in a bank
+#include "libbotanik/core/component.h"
+#include "site_bank.h"
 
 namespace {
 
@@ -75,9 +75,7 @@ private:
 
 }  // namespace
 
-// --------------------------------------------------------------------------
 // scan
-// --------------------------------------------------------------------------
 
 namespace scan {
 
@@ -280,9 +278,7 @@ TEST_CASE("scan: a null table or a null program is inert") {
 
 }  // namespace scan
 
-// --------------------------------------------------------------------------
 // plc_io
-// --------------------------------------------------------------------------
 
 namespace plc_io {
 
@@ -712,9 +708,7 @@ TEST_CASE("scan: a computed row can be traced back to the program that wrote it"
 
 }  // namespace plc_io
 
-// --------------------------------------------------------------------------
 // component
-// --------------------------------------------------------------------------
 
 namespace component {
 

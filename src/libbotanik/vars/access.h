@@ -11,14 +11,14 @@
  * home-screen row, which is the one thing no rule derives.
  */
 
-#include <cstddef>                      // size_t
-#include <cstdint>                      // uint8_t
-#include <cstring>                      // strchr / strcmp / strlen / memcpy
+#include <cstddef>
+#include <cstdint>
+#include <cstring>
 
-#include "libbotanik/config/vars.h"       // Config::VAR_* / STR_*
+#include "libbotanik/config/vars.h"
 
-#include "libbotanik/vars/declare.h"    // Vars::scope_label
-#include "libbotanik/vars/model.h"      // Vars::Bank / Var / VarRef
+#include "libbotanik/vars/declare.h"
+#include "libbotanik/vars/model.h"
 
 namespace Botanik { namespace Vars {
 
