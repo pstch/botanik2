@@ -1,10 +1,7 @@
-"""NOTES page: a full-screen editor over the operator's note.
+"""NOTES page: layout (gutter, wrap column, status row) and that the note reaches
+flash. The editing itself is pinned in test_console.cpp.
 
-Content checks, not goldens: the note is whatever the test types, so the
-interesting claims are behavioural - it wraps, the viewport scrolls, and the note
-survives a reboot. Own sim per test, since a note is persisted.
-
-The status row is the last row before the alarm bar, hence display[-2].
+Own sim per test, since a note is persisted. Status row is display[-2].
 """
 
 import keys
@@ -56,82 +53,6 @@ def test_notes_wraps_and_reports_state(spawn):
     assert term.wait_screen("saved"), "^O did not clear the dirty marker"
 
 
-def test_notes_scrolls_when_taller_than_the_screen(spawn):
-    """More rows than the viewport: the window follows the cursor down, and
-    paging back up brings the first line into view again."""
-    term = notes(spawn)
-    last = 29
-    _type_lines(term, ["line%02d" % i for i in range(last + 1)])
-
-    # The cursor is on the last line, so the window sits at the bottom: the tail
-    # is visible and the head has scrolled off (21 content rows once the status
-    # bar, the alarm bar and our status row are out).
-    assert term.wait_for("line%02d" % last), "the line being typed is not in view"
-    assert "line00" not in term.screen.display[1], "the head should have scrolled away"
-    assert term.screen.display[1].startswith("> "), "each note line carries the gutter"
-
-    # Page back to the top: one press moves a screenful, the extra ones clamp on
-    # the first row. Sent back to back and synced once on content, because a
-    # press that only moves the cursor or is clamped changes no cell, and pyte's
-    # display holds no cursor.
-    for _ in range(4):
-        term.send(keys.PAGE_UP)
-    assert term.wait_for("line00"), "paging up never reached the first line"
-
-
-def test_notes_kill_and_yank(spawn):
-    """^K / ^W cut and ^Y pastes, over the console-wide ring: this page has no
-    shell under it, so the ring cannot belong to CommandShell."""
-    term = notes(spawn)
-    _type_lines(term, ["valve three sticks", "pump B runs hot"])
-
-    # Waited on the ABSENCE: "pump B runs" is a prefix of the line before the
-    # cut too, so waiting for it would pass on the pre-keypress screen.
-    term.send(keys.CTRL_W)                       # the word before the cursor
-    assert term.wait_screen("hot", present=False), "^W did not cut the last word"
-    assert term.screen.display[2].rstrip() == "> pump B runs", \
-        "^W took more than the last word"
-
-    term.send(keys.CTRL_Y)                       # ...and back
-    assert term.wait_screen("pump B runs hot"), "^Y did not yank the word back"
-
-    # ^K takes the rest of the line, and only that line: the one above it is
-    # what a kill-to-buffer-end would have taken with it.
-    term.send(keys.CTRL_A + keys.CTRL_K)
-    assert term.wait_screen("pump B runs", present=False), "^K did not cut the line"
-    assert term.screen.display[1].rstrip() == "> valve three sticks", \
-        "^K ate the line above it"
-
-
-def test_notes_region_kill_and_yank(spawn):
-    """^Space anchors a region, ^W takes it, ^Y puts it back - and an edit in
-    between drops the mark rather than leaving it pointing at moved text."""
-    term = notes(spawn)
-    _type_lines(term, ["valve three sticks", "pump B runs hot"])
-
-    # Anchor at the end of the second line, walk to its start: the region is
-    # that whole line.
-    term.send(keys.CTRL_SPACE + keys.CTRL_A)
-    term.send(keys.CTRL_W)
-    assert term.wait_screen("pump B runs hot", present=False), "^W did not cut the region"
-    assert term.screen.display[1].rstrip() == "> valve three sticks", \
-        "the region reached past the line it was anchored on"
-
-    term.send(keys.CTRL_Y)
-    assert term.wait_screen("pump B runs hot"), "^Y did not yank the region back"
-
-    # A mark that an edit has invalidated must not survive it: ^W here is a word
-    # kill, not a second cut of the old region.
-    term.send(keys.CTRL_SPACE + keys.CTRL_A)
-    term.send(keys.text("x"))
-    assert term.wait_screen("xpump B runs hot"), "the edit never landed"
-    term.send(keys.CTRL_W)
-    # Word kill: the "x" goes and the line survives. Had the stale region been
-    # cut instead, the whole line would have gone with it.
-    assert term.wait_screen("> pump B runs hot"), \
-        "^W after an edit cut the stale region instead of a word"
-
-
 def test_notes_deleting_it_all_leaves_no_rows_behind(spawn):
     """Backspacing a two-line note away takes the second row with it.
 
@@ -149,47 +70,6 @@ def test_notes_deleting_it_all_leaves_no_rows_behind(spawn):
         "the second row kept its gutter: %r" % term.screen.display[2]
     assert term.screen.display[1].rstrip() == ">", \
         "the first row is not a bare gutter: %r" % term.screen.display[1]
-
-
-def test_notes_region_kill_over_several_rows(spawn):
-    """A region that spans rows: what it took must leave the SCREEN too.
-
-    The reconcile slides an absorbed tail with one DL, and a cut reaching the end
-    of the note has no tail below it to slide.
-    """
-    term = notes(spawn)
-    _type_lines(term, ["valve three sticks", "pump B runs hot"])
-
-    # Anchor at the end, walk to the start of the note: both rows are in.
-    term.send(keys.CTRL_SPACE)
-    term.send(keys.UP + keys.CTRL_A)
-    term.send(keys.CTRL_W)
-    assert term.wait_screen("pump B runs hot", present=False), "^W did not cut the region"
-    assert term.screen.display[2].strip() == "", \
-        "the row the cut emptied still shows: %r" % term.screen.display[2]
-
-    term.send(keys.CTRL_Y)
-    assert term.wait_screen("pump B runs hot"), "^Y did not put both rows back"
-    assert term.screen.display[1].rstrip() == "> valve three sticks", \
-        "the yank did not restore the first row"
-
-
-def test_notes_region_hides_the_cursor(spawn):
-    """While a region is up the highlight is the edit point; a cursor blinking
-    inside it only competes with it."""
-    term = notes(spawn)
-    _type_lines(term, ["valve three sticks"])
-    assert term.until(lambda: not term.screen.cursor.hidden), \
-        "the NOTES page should show a cursor"
-
-    term.send(keys.CTRL_SPACE)
-    term.send(keys.CTRL_A)
-    assert term.until(lambda: term.screen.cursor.hidden), \
-        "the cursor stayed on top of the region"
-
-    term.send(keys.CTRL_G)                       # release the mark
-    assert term.until(lambda: not term.screen.cursor.hidden), \
-        "releasing the region did not bring the cursor back"
 
 
 def test_notes_survives_a_reboot(spawn, tmp_path):

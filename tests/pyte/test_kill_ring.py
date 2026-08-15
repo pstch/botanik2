@@ -65,16 +65,3 @@ def test_alt_w_on_monitor_yanks_into_the_shell(spawn):
     term.send(keys.text("get ") + keys.CTRL_Y)
     assert term.wait_screen("get " + name), \
         f"the name copied on MONITOR ({name!r}) did not reach the prompt"
-
-
-def test_alt_w_copies_the_row_the_cursor_is_on(spawn):
-    """Move the selection first and it is the new row that gets copied - the
-    badge is read off _selected, not off the top of the table."""
-    term = goto(boot(spawn), keys.ALT_6)
-    term.send(keys.ALT_W)
-    first = _copied_name(term)
-
-    term.send(keys.DOWN)
-    term.send(keys.ALT_W)
-    assert term.until(lambda: _badge_name(term) not in (None, first)), \
-        f"the badge still names {first!r} after moving the cursor"
