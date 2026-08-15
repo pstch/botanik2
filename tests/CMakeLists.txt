@@ -100,20 +100,6 @@ if(TARGET clang-tidy)
     add_dependencies(check-full clang-tidy)
 endif()
 
-# Comment budgets from CONTRIBUTING.md. A sweep, not a gate: prose does not break
-# at runtime. Reports only until the tree is under budget; then it gets --strict.
-find_package(Python3 COMPONENTS Interpreter QUIET)
-if(Python3_Interpreter_FOUND)
-    add_custom_target(comment-budget
-        COMMAND ${Python3_EXECUTABLE}
-                ${CMAKE_SOURCE_DIR}/scripts/comment_budget.py
-        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-        COMMENT "Comment budgets (CONTRIBUTING.md)"
-        VERBATIM
-    )
-    add_dependencies(check-full comment-budget)
-endif()
-
 # pyte screen-assertion tests (Python) - host-only, joined to the same CTest
 # ============================================================================
 # These drive botanik_sim over a PTY and assert its rendered screen (see

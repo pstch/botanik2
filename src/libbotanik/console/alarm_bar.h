@@ -4,13 +4,10 @@
 
 /**
  * @file alarm_bar.h
- * @brief AlarmBar - the terminal-owned bottom-row alarm strip.
- *
- * A reverse-video bar on the physical last row (reserved when an alarm model is
- * wired), showing " ALARMS : " then the unmasked, un-ack'd alarm codes in
- * normal video so they read as a set. Owned by Console, repainted from step()
- * only when that set changes or the row was wiped (mark_dirty()). No
- * change-highlighting: the set is visible as a whole.
+ * @brief AlarmBar - the terminal-owned bottom-row strip: " ALARMS : " then the
+ *        unmasked, un-ack'd codes in normal video, so they read as a set.
+ * @note Repainted only when that set changes or the row was wiped. No
+ *       change-highlighting: the set is visible as a whole.
  */
 
 #include <cstdint>

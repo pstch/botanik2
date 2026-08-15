@@ -1,8 +1,6 @@
 #ifndef VARS_MODEL_H
 #define VARS_MODEL_H
 
-// comment-budget: exempt ~80 public declarations, each a distinct semantic
-// contract (fallback rule, override shadowing, dirty-on-move, sink-not-clamp).
 /**
  * @file model.h
  * @brief The RAM half of the variable model: the value slot, the handle over

@@ -26,121 +26,90 @@ cmake -B build -DBOTANIK_TARGET=OPTA
 make -C build
 ```
 
-The repo ships a `.envrc` that exports `MAKEFLAGS=-j4` and `CTEST_PARALLEL_LEVEL`
-(so a bare `ctest` runs cases concurrently - serial it is ~14 s, parallel ~6 s),
-so `make` builds in
-parallel by default once [direnv](https://direnv.net) loads it (`direnv allow`).
-Without direnv, either `export MAKEFLAGS=-j4` in your shell or pass `-j` per build
-(`make -C build -j$(nproc)`); a bare `make` is otherwise single-threaded.
+The repo ships a `.envrc` exporting `MAKEFLAGS=-j4` and `CTEST_PARALLEL_LEVEL`, so
+`make` builds in parallel and a bare `ctest` runs cases concurrently (~6 s against ~14 s)
+once [direnv](https://direnv.net) loads it. Without direnv, export `MAKEFLAGS` yourself or
+pass `-j` per build. `ccache` is used automatically when installed, so a clean rebuild
+after `rm -rf build` replays cached objects in seconds.
 
-`ccache` is used automatically as a compiler cache when it's installed (a no-op
-otherwise), so a clean rebuild after `rm -rf build` replays cached objects in a
-couple of seconds instead of recompiling.
-
-OPTA builds use `arm-none-eabi-gcc/g++` and the Arduino Mbed OPTA core, which
-arduino-cli installs under `~/.arduino15`:
+OPTA builds use `arm-none-eabi-gcc/g++` and the Arduino Mbed OPTA core:
 
 ```bash
 arduino-cli core install arduino:mbed_opta
 ```
 
-The CMake OPTA build auto-discovers the highest installed version there; override
-with `-DMBED_CORE_ROOT=/path/to/packages/arduino/hardware/mbed_opta/<version>` or
-the `ARDUINO_DATA_DIR` env var. (The build no longer uses the vendored `includes/`
-tree.)
+CMake auto-discovers the highest version installed under `~/.arduino15`; override with
+`-DMBED_CORE_ROOT=...` or the `ARDUINO_DATA_DIR` env var.
 
-**Build type & sanitizers.** Builds default to `DEBUG` (`-O0 -g3`, profiler-friendly).
-Sanitizers default **OFF** on every build type: instrumentation was the single
-largest cost in this tree (ASan+UBSan more than doubles compile CPU, and UBSan is
-72% of that), and it landed hardest on the test TUs, which are ~70% of all compile
-time. They moved to `make check-full`, which builds an instrumented tree of its own
-under `build/asan/` and runs the suite there - the same periodic-sweep treatment
-clang-tidy already gets. Instrument a whole tree with
-`-DBOTANIK_SANITIZE=address+undefined` (OFF | address | undefined | address+undefined).
-For an optimized build pass `-DCMAKE_BUILD_TYPE=RELEASE` (`-O3` + LTO, `NDEBUG`,
-stripped).
+**Build type & sanitizers.** Builds default to `DEBUG` (`-O0 -g3`). Sanitizers default
+**OFF** on every build type - instrumentation is the single largest cost in this tree, and
+it lands hardest on the test TUs, which are ~70% of all compile time. They live in
+`make check-full`, which builds its own instrumented tree under `build/asan/`. Instrument
+a whole tree with `-DBOTANIK_SANITIZE=address+undefined`
+(OFF | address | undefined | address+undefined); `-DCMAKE_BUILD_TYPE=RELEASE` gives `-O3`
++ LTO, `NDEBUG`, stripped.
 
 **Warnings are errors** on the library's own sources (`BOTANIK_WERROR`, default ON;
-`-DBOTANIK_WERROR=OFF` for a WIP tree). It is PRIVATE to `botanik`, so the sketch
-and the test suite keep `-Wall -Wextra` without `-Werror`. This replaced
-`botanik_strict`, a second EXCLUDE_FROM_ALL copy of the whole library compiled
-purely for its diagnostics, which cost 63 duplicate TU compiles on every gate run. The `scheduler.cpp` hot path is compiled with
-`-Wdouble-promotion` to keep the per-beat metric math single-precision (no double FPU
-on the M4).
+`-DBOTANIK_WERROR=OFF` for a WIP tree). PRIVATE to `botanik`, so the sketch and the test
+suite keep `-Wall -Wextra` without `-Werror`. The `scheduler.cpp` hot path adds
+`-Wdouble-promotion`, keeping the per-beat metric math single-precision (no double FPU on
+the M4).
 
 ## Tests & checks
 
-Host-only, SIMULATOR build. There are two suites, both wired into CTest:
+Host-only, SIMULATOR build. Two suites, both wired into CTest:
 
-- **doctest** C++ unit tests in `tests/` (vendored single header `tests/vendor/doctest.h`),
-  registered TWICE: one unlabelled entry running the whole binary, which is what the
-  gate uses, and one `unit`-labelled entry per `TEST_CASE` so an IDE or `ctest -R`
-  can address a single case (`-tc=<name>` does the same from the CLI).
-- **pyte** Python screen-assertion tests in `tests/pyte/` that drive `botanik_sim` over a
-  PTY and assert its rendered ANSI screen against golden captures. Registered only when
-  `pytest`+`pyte` are importable; they run against this tree's own `botanik_sim`.
-  Regenerate goldens with `make -C build pytest-update` (review the diff;
-  never part of the gate).
+- **doctest** unit tests in `tests/` (vendored `tests/vendor/doctest.h`), registered
+  TWICE: one unlabelled entry running the whole binary (what the gate uses), and one
+  `unit`-labelled entry per `TEST_CASE` so an IDE or `ctest -R` can address one case.
+- **pyte** screen tests in `tests/pyte/`, driving `botanik_sim` over a PTY and asserting
+  its rendered ANSI against golden captures. Registered only when `pytest`+`pyte` import.
+  Regenerate goldens with `make -C build pytest-update` - review the diff; never in the gate.
 
 ```bash
-make -C build check                  # the one-shot pre-push gate (see below)
-make -C build check-full             # the whole gate under ASan+UBSan (build/asan/)
+make -C build check                  # the pre-push gate
+make -C build check-full             # the periodic sweep: clang-tidy, then the gate under ASan+UBSan
 make -C build botanik_tests          # just build the doctest binary
 ./build/tests/botanik_tests          # run it directly (doctest CLI)
-./build/tests/botanik_tests -s       # ...show every passing check + the struct-size table
-./build/tests/botanik_tests -tc=<name>   # run a single test case
+./build/tests/botanik_tests -s       # ...every passing check + the struct-size table
+./build/tests/botanik_tests -tc=<name>              # one test case
 ctest --test-dir build --output-on-failure          # all CTest entries
 ctest --test-dir build -R pyte --output-on-failure  # just the pyte suite
 ```
 
-`make check-full` is the periodic SWEEP, and runs in this order: clang-tidy over
-`src/` first (so a finding stops it before it pays for an instrumented rebuild),
-then the whole `check` gate again in `build/asan/` under ASan+UBSan. It drives
-that tree's own `check` target rather than a second list of commands, so the two
-cannot drift. Both halves are instrumented, screen tests included: the pyte
-entries drive that tree's own sim, so a fault in the rendering path is caught
-under the sanitizers like any other.
+**`make check`** fails on the first problem: the library compiles `-Werror`, so building
+the suite at all fails on a warning in a library source; then the doctest + pyte suites
+via `ctest -LE unit`. The gate excludes the per-case entries because the aggregate entry
+covers the same cases in one process (~0.6 s against ~14 s, all of it process startup),
+and one process is also what catches a case corrupting state for the ones after it.
 
-`make check` is the pre-push gate; it fails on the first problem:
-- the **warning gate**, which is no longer a separate target: the library compiles
-  `-Werror` (see above), so building the suite at all fails on any warning in a
-  library source.
-- the **doctest + pyte** suites via `ctest -LE unit`: one entry running the whole
-  doctest binary, plus one per pyte test file. The binary is ALSO registered
-  per-`TEST_CASE` under the `unit` label, so `ctest -R <case>` and an IDE's test
-  panel can still address one case - the gate just excludes them, since the
-  aggregate entry covers the same cases in one process (~0.6 s against ~14 s,
-  all of it process startup paid once per case). One process is also what catches a
-  case corrupting state for the ones after it. A bare `ctest` runs both.
-  On a doctest failure the gate (`tests/gate.cmake`) re-runs the per-case
-  entries by itself, so each failing case is named as its own CTest result -
-  paid only when something is broken. If that re-run comes back all-green, the
-  fault is INTERFERENCE between cases, not a flake: reproduce it with
-  `./build/tests/botanik_tests`, which is the one-process configuration.
+On a doctest failure the gate (`tests/gate.cmake`) re-runs the per-case entries itself, so
+each failing case is named - paid only when something is broken. **If that re-run comes
+back all-green the fault is INTERFERENCE between cases, not a flake**: reproduce it with
+`./build/tests/botanik_tests`, the one-process configuration.
 
-**clang-tidy is not in `check`, but it IS the first half of `check-full`** -
-attached as a dependency, so a finding stops the sweep before it pays for an
-instrumented rebuild. It stays out of the everyday gate because it re-lints on
-any touched header, which is too slow to pay per edit.
+**`make check-full`** runs clang-tidy over `src/` first, so a finding stops it before it
+pays for an instrumented rebuild, then the whole `check` gate again in `build/asan/`. It
+drives that tree's own `check` target, so the two cannot drift. Both halves are
+instrumented, screen tests included.
+
+**clang-tidy is not in `check`** - it re-lints on any touched header, too slow to pay per
+edit - but it IS the first half of `check-full`.
 
 ```bash
-make -C build clang-tidy       # incremental: one stamp per TU under build/clang-tidy/,
-                               # so only sources whose text or included headers changed
-                               # are re-analyzed (Makefile generator only)
+make -C build clang-tidy       # incremental: one stamp per TU under build/clang-tidy/
 rm -rf build/clang-tidy && make -C build clang-tidy   # the whole tree, ignoring stamps
 ```
 
-It runs the `bugprone-*` checks from `.clang-tidy` with findings promoted to
-errors, and exists only when `clang-tidy` was found at configure time AND the
-generator is Make (the stamps' header tracking is the Makefile generator's own
-dependency scanner). Re-configuring, or editing `.clang-tidy`, invalidates every
-stamp: the lint depends on the exact compile flags and check set, not only on the
-source text.
+It runs the `bugprone-*` checks from `.clang-tidy` with findings promoted to errors, and
+exists only when clang-tidy was found at configure time AND the generator is Make (the
+stamps' header tracking is the Makefile generator's own dependency scanner).
+Re-configuring, or editing `.clang-tidy`, invalidates every stamp.
 
-The pyte suite drives `botanik_sim`, which a plain `make` builds, so `make test` /
-`ctest` then have it - CTest itself never builds anything, and CMake's built-in
-`test` target cannot be given dependencies. A screen test that finds the sim
-missing fails loudly rather than skipping, which CTest would report as `Passed`.
+The pyte suite drives `botanik_sim`, which a plain `make` builds - CTest itself never
+builds anything, and CMake's built-in `test` target cannot be given dependencies. A screen
+test that finds the sim missing fails loudly rather than skipping, which CTest would
+report as `Passed`.
 
 ## Comments and prose
 
@@ -163,85 +132,70 @@ explaining unreadable code.
 - Tests: the test name is the documentation. No header comment above a `TEST_CASE`.
 - Prose: no "not X but Y" constructions, no history (`git log` has it), no em-dashes.
 
-Budgets, enforced by `scripts/comment_budget.py` in `make check-full`: prose lines
-<= **50%** of code lines in a header, <= **15%** in a `.cpp` or a test. Headers get
-more room because every public entity carries a `@brief`; `@name`/`@{`/`@}`
-scaffolding is not counted.
+Rough budgets for review, not a gate: prose lines <= **50%** of code lines in a header,
+<= **15%** in a `.cpp` or a test. Headers get more room because every public entity
+carries a `@brief`; `@name`/`@{`/`@}` scaffolding does not count. `vars/model.h` and
+`hal/platform.cpp` sit above budget legitimately - see `CONTRIBUTING.md`.
 
 ## Architecture
 
-Everything is non-blocking: every stateful object exposes a `step()`/`loop()` doing a
+**Everything is non-blocking.** Every stateful object exposes a `step()`/`loop()` doing a
 small bounded amount of work and returning immediately; the main loop calls them in a
-fixed order (blocking would stall the RTOS and trip the watchdog on the OPTA). Code
-reaches the platform only through HAL, never raw `<time.h>` or platform APIs.
+fixed order. Blocking stalls the RTOS and trips the watchdog on the OPTA.
 
-The library subsystems under `src/libbotanik/`:
+**Code reaches the platform only through HAL** - never raw `<time.h>` or platform APIs.
+`TARGET_OPTA` appears only under `hal/`; shared code never branches on it
+(`TARGET_SIMULATOR` may, for dev-only scaffolding).
 
-**HAL (`hal/`)** - `platform.h` defines the unified interface, grouped into nested namespaces by concern: `Clock` (`current_ms()`, `uptime_ms()`, `wall_ms()`, `sleep_ms()`), `Memory` (`dsb()`, `dmb()`, `ordered_copy/move/read()`, `cache_clean/invalidate()`), `Stack` (`base/depth/high()`), `Debug` (`breakpoint()`, `under_debugger()`), `System` (`reset()`, `shutdown()`), `Watchdog` (`start/kick/stop()`; the sim services it from a thread of its OWN, since a watchdog polled by the loop it watches cannot notice that loop wedging - `BOTANIK_WATCHDOG=0` inhibits it for a test process), `Serial` (`Raw`, `Port`, `get()`), `Env` (`u32()`/`u8()`), `Storage` (`set/get/remove()` key-value persistence, `hal/storage.{h,cpp}`; Mbed KVStore on OPTA - a TDBStore on the external QSPI NOR - and a single `key=hex` file on the sim, capped by `Config::STORE_MAX_BYTES`), and `Network` (the transport, in `hal/net.{h,cpp}`). `hardware_description()` stays at the `HAL::` top level. `simulator.h` implements it with `std::chrono` and Linux serial I/O; `opta.h` implements it for Mbed OS. **Each backend header carries only what must be inline** - the per-beat clocks, the memory barriers, the templates, and the types a caller holds by value (`Serial::Raw`, `Serial::Port`); everything cold lives in `hal/platform.cpp` behind the same `#ifdef TARGET_OPTA / #else` split `hal/net.cpp` and `hal/storage.cpp` use. That is what keeps `<termios.h>`, `<pthread.h>`, `<sys/ioctl.h>` and friends out of the ~30 translation units that only wanted `uptime_ms()`. `mbed.h` still sits in `opta.h`, because OPTA's hot path needs it inline (`mbed::LowPowerClock`, the CMSIS `__DSB`/`ARM_MPU_OrderedMemcpy` intrinsics). All other code uses HAL exclusively - never raw `<time.h>` or platform-specific calls. The network transport (`hal/net.{h,cpp}`: link, DNS, UDP, TCP) is `HAL::Network`, mirroring the library's `Botanik::Network` components; the simulator backend uses real BSD sockets. `TARGET_OPTA` appears only under `hal/`; shared code never branches on it (`TARGET_SIMULATOR` may, for dev-only scaffolding).
+Subsystems under `src/libbotanik/`. Each row's doc is the reference; the header is the API.
 
-**Scheduler (`scheduler/`)** - `LoopScheduler` is the non-blocking fixed-period loop driver: it releases one tick per period, handles overruns, and self-instruments per-beat (CPU duty cycle `(period - slept)/period`, scheduling jitter, work duration, and stack high-water via stack painting), publishing the metrics into a `SchedulerContext` surfaced in the status bar and the `stats` shell command.
+| Directory | What it is | Detail |
+|---|---|---|
+| `hal/` | `platform.h` is the unified interface, in nested namespaces by concern: `Clock`, `Memory`, `Stack`, `Debug`, `System`, `Watchdog`, `Serial`, `Env`, `Storage`, `Network`. `simulator.h` / `opta.h` are the backends; each carries only what must be INLINE, everything cold living in `platform.cpp` | `porting.md` |
+| `scheduler/` | `LoopScheduler`, the fixed-period loop driver: releases one tick per period, handles overruns, self-instruments per beat (CPU duty, jitter, work duration, stack high-water) into a `SchedulerContext` | `scheduler.md` |
+| `tasks/` | The task table and `TaskTimer`. `LoopScheduler` decides WHEN the beat happens, `Tasks::Registry` decides WHAT runs in it. Sits BELOW `core/` | `tasks.md` |
+| `core/` | The BOTTOM of the stack: `Component` (one hook per phase, `register_tasks()`) and `SystemContext` (a borrowed-pointer aggregate, constructor-injected into its consumers, NOT reachable through the console) | `architecture.md` |
+| `firmware/` | `BotanikFirmware`, the Template-Method base owning every generic component and the non-overridable per-tick order. Sites customize only through the protected hooks | `architecture.md` |
+| `vars/` | The one model everything the firmware exposes goes through, along three independent fields: `VarType`, `Transport`, `VarRole`, plus `VarScope` for what a table filters on. `Bank` is the one object that gets, sets and overrides | `vars.md` |
+| `plc/` | The POU vocabulary, split as IEC 61131-3 splits it: `functions/` has no state, `blocks/` has state. A function is a single expression in a header; a block needs a `.cpp` | `scan.md` |
+| `modbus/` | Four corners in one tree: `rtu/` is the RS-485 field bus, `tcp/` the plant network, each with both ends. `wire.h` and `response.h` are what they share | `modbus.md` |
+| `console/` | Two layers: `AnsiTerminal` is the VT device owning a screen back-buffer, `Console` the multiplexed page display. `TextEditor` is the byte-efficient editing state machine | `screen.md`, `editor.md`, `input.md` |
+| `pages/` | Full-screen views behind a common `Page` interface, all base-owned and site-independent | `pages.md` |
+| `shell/` | `CommandShell`: commands are **noun then verb**, a noun parsing its own verb. Depends on the terminal device, not on `Console` or `pages/` | `pages.md` |
+| `logs/` | `Logger` with a dual-bucket token-bucket rate limiter before its `LogWriter`s. `LOG_CRITICAL` is undroppable | `logging.md` |
+| `alarms/` | There is no site alarm table: an alarm is a `SCOPE_A` row in the variable table carrying both its boolean and its dwell policy. `AlarmController` scans the bank in table order | `health.md` |
+| `health/` | `HealthMonitor` owns the `AlarmController`, raises the platform-health alarms from scheduler metrics, runs the POST, and produces the watchdog verdict | `health.md` |
+| `network/` | `NetworkHandler` / `NameResolver` / `NtpClient` / `MqttClient`, all non-blocking. The sim backend is hermetic - it emulates DNS/NTP/MQTT in-process | `network.md` |
+| `sun/` | `SunPositionTracker` over the NOAA solar-position math. Standalone: a site owns the instance | - |
+| `utils/` | `BufferedSerial` (256-byte RX ring, 4096-byte TX; not a Component and pumped by whoever owns the wire), metric filters, uptime, text helpers, the firmware assert | `concurrency.md` |
 
-**Tasks (`tasks/`, `Botanik::Tasks`)** - the task table and its timing primitive, kept apart from the scheduler because they are a different thing: `LoopScheduler` decides *when the beat happens*, `Tasks::Registry` decides *what runs in it*. `task_timer.h` is `TaskTimer`, the due/late/dropped rule (it depends on nothing but `<cstdint>`); `phase.h` is `Phase` alone, its own header because `core/` needs to name a phase without acquiring the Registry; `tasks.h` is `Registry` / `Task` / `TaskCost` / `GroupId`. `tasks/` sits BELOW `core/` in the layering - `Component` names a `Phase` to dispatch one, so a scheduling *policy* dependency there would put the bottom of the stack on top of it. `scheduler/` references none of these symbols.
+### Rules that are not in a header
 
-**Firmware base (`firmware/firmware.h`)** - `BotanikFirmware` is the Template-Method base that constructs and owns every generic component, fixes the non-overridable per-tick `loop()` order, and exposes a reference to each component. The beat is not a list of calls but a **phase-major dispatch** over a task table (`tasks/tasks.h`, registered once in `_register_tasks()`): `tick -> PHASE_INPUT -> PHASE_CONFIG -> PHASE_SERVICE -> PHASE_CONTROL -> PHASE_OUTPUT -> PHASE_PRESENT -> watchdog kick`. A task's *phase* is its place in the data flow (written out as code, not configurable); its *rate* is its group (`GROUP_FAST`/`_MAIN`/`_SLOW`/`_BACKGROUND`), so retuning a rate never silently reorders the cycle. `_tasks.setup()` runs each task's one-time init (component `announce()`, the HealthMonitor's POST, the parameter load) at the END of `setup()` - after every sink exists, and out of the first beat where the flash reads read as an overrun. Sites customize only through protected hooks: `register_pages()`, `register_commands()`, `register_telemetry()`, `on_setup()`, and one hook per phase - `on_input()` / `on_config()` / `on_service()` / `on_control()` / `on_output()` / `on_present()`, each registered as its own task (`site_input`, ...) so a slow one is attributable on the TASKS page. **Only `on_control()` is gated by control authority**; the other five run in every mode, which is what keeps a stopped plant diagnosable (see the Site section). The optional subsystem groups are bundled into feature-gated stacks (`firmware/stacks.h`: `MonitorStack` / `ConsoleStack` / `NetworkStack`).
-
-**Control authority** - whether the firmware may drive the field is three modes, `Vars::ControlMode`: `CONTROL_ENABLED` (normal), `CONTROL_INHIBITED` (every `ROLE_OUTPUT` at its declared safe state and the scan stopped, but an override still drives) and `CONTROL_DISABLED` (the same, and an output's override is **muted** too). Two INDEPENDENT sources decide which is in force and the STRICTER wins: the operator's standing choice (`set_control_mode()`, the console's `control enable|inhibit|disable`) and the system's hold (`set_health_hold()` - bring-up, a health fault, a pending reset). `control_mode()` is the effective one and `control_enabled()` asks whether it is `CONTROL_ENABLED`. That is why they are two fields and not one: an operator who typed `control disable` stays disabled across a health fault that comes and goes, and equally the console cannot talk over the firmware's own judgement that it must not drive; `control` reports both, so an `enable` that changes nothing reads as a health fault rather than a broken command.
-
-INHIBITED is what taking the plant by hand means: with the programs stopped, an override is the only thing left that can command an actuator. DISABLED stops even that - but **muted is not erased**. `VF_OVR_MUTED` on the row is what `Var::raw()`/`valid()` read, so the field sees the safe state while the forced value waits, and leaving the mode restores it with nothing to re-enter; crossing that edge either way marks the row `VF_FIELD_DIRTY`, because both directions change what the field is owed. The one destructive path is the SYSTEM's hold, which erases every output override, stored copy included - the operator is present and a fault is not, and an actuator held energised by hand through a fault, or resurrected by the next boot, is what the safe state exists to prevent. Outputs only in every mode: muting a forced sensor would erase the diagnosis it was forced to get.
-
-It starts held by the system, so nothing between power-on and the end of `setup()` can energise an actuator on the way past. The hold is raised again on a health fault, and before the loop stops kicking the watchdog (a deliberate reset gives no guarantee about the outputs, and that gap is exactly when one must not be left energised); the shell's `reset` / `exit` do the same. A latch, not a per-beat sweep - sweeping after the scan would flicker, since the next beat's tasks re-drive the same demands.
-
-**Component / context (`core/`)** - `core/` is the BOTTOM of the stack, and holds only that: `component.h` (`Component`, the mixin base giving each subsystem a one-shot BOOT/DEBUG announce, a watched config serial, and **one hook per phase** - `on_input()` ... `on_present()`. A component has **no rate of its own**: how often work runs is its TASK's rate group, and the elapsed time is `Tasks::Tick::dt_ms`. Most subsystems override one; the RTU master and the TCP slave span the beat and override several. **`register_tasks(Tasks::Registry&)` is how every component's work reaches the beat**: it hands over its own tasks, naming each one's phase and rate itself, with a named static-member handler per task, and registering is also what runs its `setup()`. A component spanning phases registers them all from one call. There is no `add_component<PHASE>` and no lambda left in the composition root; the only registrations NOT of this form are the ones whose owner is not a Component - the composition root's own six site hooks plus `serial_cfg`/`control_latch` (through the `_task_hook<&Method>` wrapper generator), and `MqttSender`) and `context.h` (`SystemContext`). The composition root lives in `firmware/`, deliberately not here - the two used to share a directory, which made every "X derives Component" edge read as the bottom of the stack depending on the top, and fused the whole library into one dependency cycle.
-
-`SystemContext` is a borrowed-pointer aggregate: the per-subsystem status contexts (scheduler, network, NTP, MQTT) plus `vars`, the `Vars::Bank`. It forward-declares every member, so including it costs nothing. **It is constructor-injected into the consumers that read it** - `CommandShell`, `StatusPage`, `MqttSender` - and is NOT reachable through the console: a terminal is for drawing, and a command interpreter over the variable model should not need one to find a variable. `StatusBar` takes the narrower thing it actually displays, a `Scheduler::SchedulerContext*`. Consumers are passed a pointer to the firmware's own aggregate and read it later, so there is no two-phase `set_context()` wiring step.
-
-**Analog calibration** - an `AI`/`AO` row points at a shared `const AnalogCal`: six `Tunable`s - the two-point span (`raw_min`/`raw_max` in wire units, `eng_min`/`eng_max` in engineering units) plus a separate plausibility band (`min`/`max`). Each field is independently a firmware constant or a parameter, so a divider can be re-trimmed from the PARAMS page without a build. `scale`/`offset` are never stored: `Vars::analog_values(bank, cal)` resolves the six and derives them, so a recalibration lands the moment the parameter commits. A block may be shared by several rows, which also shares their parameters - correct only when two readings must agree by construction. Anything DISPLAYING a band goes through `var_band()`, not `num_band()`, or an analog row shows the firmware defaults while the operator edits the real ones.
-
-**Library rows (`library_vars.h`)** - a site's `g_vars[]` is not only the site's. The library declares rows of its own (alarms it raises, status it publishes, parameters it reads), and the bank holds ONE contiguous descriptor array, so they live in the site's table: `BOTANIK_LIBRARY_VARS` is the single splice point, placed FIRST in `g_vars[]` with no trailing comma (every row carries its own, so an empty group vanishes). Four groups - `_ALARM_`/`_STATUS_`/`_GLOBAL_`/`_PARAM_VARS` - each a concatenation of whatever subsystem headers contribute; two are empty today, and filling one is an edit to `library.h` alone. **Two ordering rules, both from the contiguous `ROLE_PARAM` run**: the block goes first, and its parameters go last within it, so they abut the site's (which are conventionally first). Registers 900-999 are reserved for the library's rows. Omitting the splice still builds and boots - POST names each missing row, and `test_site_names.cpp` fails first.
-
-**The rule is: whatever the library reads by name, the library declares.** `_PARAM_VARS` carries **30 rows unconditionally** - the two UART rates; the `net_`/`ntp_`/`mqtt_`/`geo_` blocks that `NetworkHandler`, `NtpClient`, `MqttClient` and `SunPositionTracker` read out of the bank (including each group's `<group>_serial` commit row, which `Vars::group_serial()` resolves by name); and the five `sys_` rows of platform policy (the three health thresholds, `sys_log_level`, `sys_retain_sec`). Three feature-gated groups splice in on top: four `mb_` with `MODBUS_TCP_SERVER` (`modbus/tcp/params.h`), four `term_` with `CONSOLE` (`console/params.h`), six `rtu_` with `MODBUS_RTU_CLIENT` (`modbus/rtu/params.h`) - **44 on the full `gh_mlb41` profile**. A feature-gated group is a concatenation like any other, so the count moves with the build. Registers run 900-989, alarms 990-999.
-
-Two shapes of group, and the difference is whether anything has to be RE-INITIALISED when a value moves. `net_`/`ntp_`/`mqtt_`/`geo_`/`mb_`/`term_` carry a `<group>_serial` commit row, because a peer has to be reconnected or a screen re-established and a half-applied group is incoherent (a static IP block without its mask; a width without its height). `sys_` and `rtu_` carry none: every row is read where it is used, on the beat that needs it, so a change lands on the next read with nothing to restart. Those used to be the site's, which made generic library code depend on a site's spelling with nothing to check it - and it had already drifted once (`tests/test_site_names.cpp` records the tracker reading `geo_lat_deg` against a fixture declaring `geo_latitude`). Their factory values are site-tunable by **REDECLARING the row**: a site restates it in its own table and `Bank::freeze()` keeps the LAST declaration of a name, compacting the earlier row out of the table entirely (`Bank::_resolve_shadows()` / `_row`). That replaced 17 `BOTANIK_NET_*`/`NTP_*`/`MQTT_*`/`GEO_*` macros in `config/net.h` / `config/sun.h`: a macro could only override what the library had written an `#ifndef` block for, and only the `def`, whereas a redeclaration is the whole row - band, unit, digits, description, register. **Keep `reg` as the library assigned it**, since it is the same row to an external master. A shadowed row is GONE rather than flagged, so every reader (`find()`, the pages, telemetry, the alarm scan, the register map) is unchanged and the register-uniqueness test still passes unaided; the cost is that a name collision is now legal, so each one is LOGGED by name at freeze - that log line is the only thing standing between an accidental collision and a row that silently vanished. `BOTANIK_LIBRARY_STR_BYTES` is how much string pool the library's text rows need, so a site sizes `STR_POOL_BYTES` as that plus its own rather than counting them by hand.
-
-**Variables (`vars/`)** - the one model everything the firmware exposes goes through: a Modbus meter reading, a relay coil, a computed global, a configuration parameter. They differ along three independent *fields*, never types: `VarType` (what the value is - `T_BOOL`/`T_U16`/`T_F32`/`T_ENUM`/`T_STR`...), `Transport` (how it reaches the field: `XP_NONE`/`XP_LOCAL`/`XP_MODBUS`), and `VarRole` (what it is FOR, which drives behaviour: `ROLE_INPUT` expires past its timeout, `ROLE_OUTPUT` drops to safe on a fault, `ROLE_COMPUTED` never expires, `ROLE_PARAM` is editable and saved on demand). A fourth field, `VarScope`, is the *declared* kind of row (`A`/`P`/`G`/`SV`/`MI`/`AI`/`DI`/`MO`/`AO`/`DO`/`RO`) - not behaviour, but what a table filters and iterates on, and what used to be reconstructed from the other three at every display site. Files:
-
-- `scalar.h/.cpp` - `Scalar`, the 8-byte union every value, bound and default lives in, plus the type-driven read/write/render/parse (`as_f32`/`from_i64`/`format_scalar`/`parse_scalar`/`validate_str`). `constexpr` constructors keep the site's tables constant-initialised straight into flash.
-- `declare.h` - `Tunable` (`K(v)` a constant, `R("param", fallback)` an operator-editable parameter) and one `constexpr` factory per `VarScope`, and what a site's table is written in: `A` (alarm), `P`/`PS` (parameter, numeric/text - `P` takes plain numbers and builds the `Scalar` from the row's own type), `G` (computed, HMI-only), `SV` (status value, published), `MI`/`AI`/`DI` (inputs: direct 1:1, calibrated, digital), `MO`/`AO`/`DO`/`RO` (outputs: direct, scaled, digital, relay). Each takes ONLY the arguments its scope can use, so a relay with a plausibility band or an alarm with a register does not compile. Local I/O is not a separate scope - a local row is one whose Modbus device address is 0, and the factory derives `transport` from it so the two cannot disagree. Single-return bodies, so the table stays constant-initialised into flash.
-- `descriptor.h` - the CONST half: the fields a row is declared along (`Transport`/`VarRole`/`VarScope`/`Quality`/`VarFlags`/`ControlMode`), the payload structs, and `Variable` itself. Split out of `model.h`, which included it, so neither file carries the other's weight; a consumer still includes only `model.h`.
-- `model.h/.cpp` - `Variable` (the const descriptor, flash-resident, 80 bytes on the M7 - 104 on a 64-bit host, where the pointers are wider; its band and its string-pool slot share a `Payload` union discriminated by `type == T_STR`, reached only through `num_band()`/`text_slot()` so a numeric row can never be read as a pool offset) and `Value` (the parallel RAM slot, pinned at 32 bytes); `Var`, the one non-owning (descriptor, slot) handle, made on the fly and passed by value; `VarRef`, a bare index; `VarTables` + `Bank`, the table plus its value store and string pool. Everything outside the bank addresses a row by NAME - `Bank::find()` resolves it, once at bring-up for the declarative tables - so there is no enum of indices to keep in step with the table. A bad index, and a name matching no row, resolve to an inert **sink** rather than clamping onto a real row; a failed lookup is counted (`unresolved_count()`) and logged, and the site test asserts the count is zero. `find()` binary-searches a boot-time mapping: `VarTables::index` is `count` row numbers, borrowed and exactly sized like the value store (a site declares `SiteStore::name_index[VAR_TOTAL]`), which the `Bank(VarTables)` constructor sorts by name - the table is const and never grows, so there is nothing to invalidate. A null index array leaves find() walking the table, which `name_index_built()` reports and the site test fails on. The ROLE_PARAM block is located by scanning the roles rather than written into the descriptor. `Bank::init()` seeds defaults (including laying out the string-pool slots; a row that finds no room gets `STR_NO_SLOT`, and `text_at()` is the only route to a row's text so nothing can write through a slot it never got), `expire_stale()` invalidates timed-out inputs - which KEEP their last reading rather than falling back to `def`, because a sensor that answered a moment ago still knows what the plant was doing, while `Q_NO_DATA`, `Q_SAFE` and `Q_IMPLAUSIBLE` do fall back (nothing to keep, a deliberate safe state, and a number that was rejected for being wrong) - `reject_implausible()` invalidates a reading that has left its declared band or gone non-finite - which is what `F_BOUNDED` on an input was declared FOR, since a dead 4-20 mA loop reads full scale and no timeout catches that - and `disable_control()` / `enable_control()` gate driving the field. The `def` field does three jobs: an input's substitute when invalid, an output's safe state, and a parameter's factory value. Two timing fields, not one: `timeout_ms` is how long a reading may be BELIEVED and `poll_ms` how often to ASK for it (0 derives the poll from the timeout, as it always did). They were one number, which meant a slower poll could only be bought by accepting a longer staleness window. **`set()` marks a `ROLE_OUTPUT` dirty only when the demand actually MOVED** - a control law re-states its whole demand every activation, and dirtying on each one left every output permanently owed to the field, which starved the READS on the bus behind them.
-
-  **Bank is the one object that gets, sets and overrides variables**, and it is what `SystemContext::vars` exposes - consumers reach it there rather than each being handed its own pointer. Two distinct writes: `set()` edits a **parameter** (validated against its declared band, `SET_INVALID` for anything else - writing a sensor or an output would just be overwritten by the next scan); `override_set()` **forces any variable** (range-checked against the type only, so you can push a reading past its plausibility band to exercise the alarm watching for it). **Neither reaches flash**: applying and committing are separate steps, `set()`/`override_set()` mark the slot (`VF_PARAM_UNSAVED` / `VF_OVR_UNSAVED`) and `save()` / `save_override()` write it out, clearing the mark only on a write that landed - so a refused row stays owed and the next `save_params()` retries it. That is what lets a setting be tried on the plant and walked back by a power cycle, and it is why `set_deferred()` still exists as the mark-free form: the Modbus slave commits its own writes through a persist queue, so its rows are not waiting for an operator. A refused write raises the flash-fault alarm as before.
-
-  **Overrides** (`Value::ovr` / `ovr_on` / `ovr_valid`) are a maintenance tool: force a sensor, freeze a computed value, drive an actuator by hand. Applied in `Var::raw()`/`valid()` - the one place every reader goes through - so an override reaches control logic, console, telemetry and alarms alike. It *shadows* rather than replaces: the driver keeps publishing underneath, so clearing snaps back to live with nothing to restore. `ovr_valid` is separate so "force this to 20 C" and "make this read as a dead sensor" are both expressible. **Durable only once saved**, under their own `ovr.<name>` storage key so the override and the parameter setting beneath it are separate facts and clearing one leaves the other. A new override is live and marked unsaved: forcing a signal to chase a fault is the common case and should not outlive the session, while one left in place on purpose (a failed sensor bypassed until the spare arrives) is what `overrides save` is for. Restored by `Bank::load_overrides()` after `load_params()` - EVERY role, `ROLE_OUTPUT` included, so an override means one thing whatever row it is on - and each restore is announced as a CRITICAL naming the row (an output's says so explicitly, since it is driving the plant from that moment). Releasing one (`override_clear()`, `clear_overrides()`, a health withdrawal) wipes the stored copy in the same breath, so nothing comes back. `Var`'s override mutators are **private to `Bank`**: every one of them has a storage side only the bank can reach, and a caller reaching past it produced exactly the two bugs you would expect - a forced quality that could never be committed, and a released override that came back at the next boot. `ovr_valid` is settable from the console (`overrides set <name> [<value>] [valid|invalid]`); it forces the QUALITY, and the forced value is still what `raw()` returns, so it is not the same as simulating the timeout fallback. Control authority and overrides are complementary rather than ranked: `override_set()` never refuses an output on control grounds (one forced under `CONTROL_DISABLED` is stored and muted, then lands when control returns - staging a hand-drive is a real workflow), `CONTROL_INHIBITED` leaves output overrides driving so an actuator can be worked by hand with the programs stopped, `CONTROL_DISABLED` mutes them reversibly, and only the SYSTEM's hold erases them.
-- `params.h/.cpp` - a parameter is just a `ROLE_PARAM` variable. Its Modbus TCP slave register is hand-assigned per row (in the otherwise-unused `Binding::reg`), so inserting one never renumbers the map an external master holds; status values share that register space. A text parameter's pool slot is NOT declared - `Bank::init()` lays the slots out in table order and records the offset in the `Value`, so the one number a site used to get wrong (and silently overlap two settings with) is derived. `Params` is the editable view over that (contiguous) block: dense 0-based indexing for the PARAMS page and the shell, the boot load, and `set()` returning `SET_OK`/`SET_INVALID`/`SET_NOT_PERSISTED` (a refused *persist* is not a rejected *edit*). `KvParamStore` is one `HAL::Storage` key per parameter, named after it, plus one `ovr.<name>` key per persisted override - no layout to version. Config-driven components read by name (`Vars::get_int/get_f32/get_str`) and re-apply their group when its commit serial (`group_serial(io, "net")`) bumps.
-- `access.h` - the rules that used to be site tables: `var_group()` (a variable's group is the prefix of its name, up to the first `_`, interned) and `var_published()` (on the MONITOR page and in MQTT telemetry iff it is neither a parameter nor an alarm - the two kinds with a page of their own). Naming a variable is what files it; there is no group table to add it to and none to forget. Plus `HomeVar` (a home-screen label + a name - the one row no rule derives) and `var_format()`.
-
-**Scan cycle** - there is no scan driver and no `scan/` directory: **a control program registers itself with `Tasks::Registry` like everything else in the beat**, one entry each, PHASE_CONTROL by construction (`add_program()`, which marks the entry so the authority gate can find it). A program names a rate GROUP rather than a private period, so it is spread by the same derived offset and reported by the same per-task cost as any other row - and it has a row of its own on the TASKS page, which it never had while one `scan` task stood for all of them. Registration order is the site's table order, and within a phase the registry dispatches in registration order, so table order is still execution order. Inputs refresh once per beat so every program in a beat sees the same instant; a program due late runs **once** (missed activations are dropped, not caught up), so `Plc::Context::dt_ms` is the ACTUAL elapsed time since that program last ran, never the nominal period. **A program has no control-authority hooks - no `reset()`, no `resume()`.** Withdrawal shuts the gate and does nothing else: a program that is not called cannot act on what it remembers, and nothing outside it reads that. Beside that system-wide gate each program has one of **its own** - the operator's, set by `programs enable|disable`, persisted under a `prog.<name>` key and reloaded by `Registry::setup()` - and the stricter of the two wins, so authority returning never puts back a program somebody took out. `Tasks::Registry::set_programs_enabled()` is the whole system-side edge in one idempotent call, and on the way back up it reseeds each program's timer (the timer is the TASK's, so a program could not do it) and raises `Tasks::Tick::first`, which reaches the program as `Plc::Context::first_scan`. **That flag is where a program drops what the outage made stale**, opt-in per block - a dwell timer is stale, a totalizer holding the day's litres is a record. Clearing there rather than on the edge is also better placed: the reseed means the program does not run on the beat authority returned, so an edge hook would see an image its own next `run()` never gets. Bring-up needs no special case, since a task's first activation ever is a first scan too. `BotanikFirmware::_apply_control_authority()` makes the call from the `control_latch` task in PHASE_SERVICE - before CONTROL, so a withdrawal takes effect on the beat it is decided.
-
-**PLC library (`plc/`)** - the POU vocabulary control programs are written in, split the way IEC 61131-3 splits it. `functions/` holds what has no state: `math.h` (`limit` `in_range` `deadzone` `scale` `lerp` `sel`) and `time.h` (`seconds` `accumulate` `countdown`), all `constexpr` and header-only. `program.h` is the third POU, `Plc::Program`: the base a site's control programs derive from, holding their blocks and their resolved `VarRef`s as members, with just two hooks, `bind()` (resolve names once at bring-up - programs were the last consumer still walking the table by strcmp every scan) and `run()`. `blocks/` holds what has state, one header+source per family plus `blocks.h` pulling in the lot: `timers.h` (`Ton`/`Tof`/`Tp`), `logic.h` (`RTrig`/`FTrig`, `Sr`/`Rs`, `Interlock` - four permissives, latching, with first-out annunciation), `analog.h` (`Hysteresis`, `Hysteresis3` - three bands with a hold on each edge -, `Ramp`, `Deadband`), `filters.h` (`Ewma` with a time constant in seconds, `MedianOf3`, `MovingAverage<N>`), `meter.h` (`Integral` a rate into a quantity, accumulated in double so it does not stop counting once large; `Derivative` a quantity back into a rate, over a window), `pid.h` (`Pid` + `PidTuning`: derivative on the measurement, conditional-integration anti-windup, integral clamped to the output span) and `actuator.h` (`Actuator`: an open/close coil pair driven to a fractional position by timing the strokes, five states, seating overruns that re-datum the estimate, `UNKNOWN` until one has). The split is mechanical, not a judgement call: **a function is a single expression in a header, a block needs a `.cpp`.** Every timed block takes `dt_ms` rather than reading a clock, so they are testable without one.
-
-**Modbus (`modbus/`)** - the field bus and the plant network, four corners in one tree. `wire.h` is the shared vocabulary (function codes, exceptions, quantity ceilings, frame arithmetic - header-only `constexpr`, no state and no idea which transport carries it) and `response.h` is the shared answer-check: **the two transports differ about FRAMING and not about what is inside a frame**, so a rule added to one used to reach only one of them. Written in BODY bytes they are the same function. `rtu/` is the RS-485 field bus and `tcp/` the plant network, each with both ends: `RtuClient` (`MODBUS_RTU_CLIENT`) is the bus master polling the field, `RtuSlave` (`MODBUS_RTU_SERVER`) the device model that answers, `TcpSlave` (`MODBUS_TCP_SERVER`) the SCADA-facing server over the register map, `TcpMaster` (`MODBUS_TCP_CLIENT`) this unit polling another. The class names use the wire documentation's older master/slave spelling and the flags the newer client/server one; **read the flag as the authority**.
-
-The master is a planner plus a scheduler, and neither invents anything. `plan.h` groups the site's `XP_MODBUS` rows into read/write **blocks**, honouring each device's ceiling and alignment and counting what it had to drop (`rows_dropped()` / `rows_unscanned()`, both criticals at bring-up, both asserted at zero for `gh_mlb41`); `image.h` moves registers to and from the `Bank`; `client.h` decides which block goes next through a single-pass scoring pass - safe-state first, then a starved block, then a write, then a read - so a change of priority is a number and not a reordering. `device.h` is the **device table**: a `DeviceModel` per part number (register ceiling, coil count, address and quantity alignment, multi-write support, minimum gap) and a `Device` per unit binding one to an address and to the plant's own tag, which is what makes a log line say `dev 34 (SRR/TDC/RO-4)` instead of sending an engineer to a spreadsheet. A unit nobody described plans against the protocol's own limits rather than acquiring invented ones. `framing.h` handles the RTU frame and the RS-485 **echo** (hardware DE with RE held low means the master hears itself; the skip is counted, and `HAL::Serial::fieldbus_echoes()` says whether this backend does it at all). `tcp/map.h` is the register map over the bank - hand-assigned registers per row, so inserting one never renumbers what an external master holds - with a persist queue so a burst of writes does not become a flash storm. Config is `config/modbus.h`. The simulator stands the far end up for real: `botanik_sim/fieldbus.h` builds an `RtuSlave` per unit the site addresses and carries actual framed bytes over a socketpair, so the master runs its true state machine against devices that turn around, answer exceptions, and can be absent.
-
-**Console UI (`console/`)** - two layers. Which terminal is on the wire is `Config::TERMINAL_TYPE` (`Terminal::Ansi::TerminalType`: VT100 / VT102 / MINITEL_1B / MINITEL_2), a site config default passed to the `Console` constructor - a property of the installation, not something a harness selects. It picks the one-time setup handshake `setup_terminal()` emits (the Minitels get their PRO2 sequences) and is what any terminal-specific behaviour branches on (`Ansi::is_minitel()`). `AnsiTerminal` is the VT **device** and owns a screen back-buffer: renderers draw immediate-mode through the usual ops (`move_to` / `write_chars` / `set_inverted` / `scroll_region` ...), which paint into an in-memory FRONT cell grid rather than the wire. Once per tick `present()` diffs FRONT against BACK (what is on the wire), emits the minimal ANSI to reconcile them - paced under a per-tick byte budget derived from the link baud - and copies the emitted cells into BACK. Renderers therefore keep no "what did I draw" shadow: redrawing an unchanged cell costs nothing. It also spots a row that merely slid sideways and sends one insert/DCH instead of rewriting the tail, and visits rows by priority class (`RowPriority`) so an exhausted budget drops the least important rows rather than whatever sat lowest. See `docs/dev/screen.md`; the line editor is the one deliberate exception (`docs/dev/editor.md`). `Console` composes an `AnsiTerminal` (exposed via `terminal()`) and drives the multiplexed page display: it routes input to the active page, owns the row-0 status bar and the bottom alarm bar, reserves the content area (`rows()`), and runs the per-tick `step()`. Renderers (pages, editor, bars) hold a `Console&` and paint through its `terminal()`. It is **only** that: it holds no `SystemContext` and has no `context()` accessor, so nothing can use the terminal as a way to reach the rest of the firmware. `InputParser` decodes raw byte streams into `InputEvent`s (handles X3.64 CSI, Alt, and function-key escape sequences). `TextEditor` is the byte-efficient multi-row editing state machine both the shell prompt and the NOTES page drive. Its geometry is two settings, not two classes: `Anchor::BOTTOM` pins the last row to the content bottom and scrolls the band as the text grows (the shell), `Anchor::TOP` fixes the origin and scrolls a viewport over text taller than the screen (NOTES). Buffer and row array are supplied by the owner (`EditorBuffers<BUF,ROWS>`), so each instance is sized for its job. Cut and paste (Ctrl-K / Ctrl-W / Ctrl-Y) are the editor's, over `Console::kill_ring()` - ONE buffer for the whole console rather than one per instance (and owned by the `Console`, not a global: same single clipboard, nothing reaching past its owner to get at it), because the point of a clipboard on a terminal with no mouse is to carry text between the places that hold it: a line cut at the shell prompt yanks into NOTES, and `Alt+W` on a table page (`ScrollTablePage::_selected_cell()`) puts the selected row's name in the same ring, which is the short way from a row you are looking at to a `get`/`set` about it. A kill takes only what the ring can hold and leaves the remainder in the buffer, so a yank restores exactly what went. Ctrl-Space anchors a **mark** and Ctrl-W / Alt-W then act on the region between it and the cursor rather than on a word; the highlight is painted by re-stamping the visible rows and letting the terminal's per-cell diff (a cell carries its own `CELL_INV`) reduce that to the cells whose attribute flipped, never by teaching `_splice_row()` about it. The mark is **transient** - any edit drops it - so there is no offset to shift or clamp, and a region can never drift off the text it pointed at. The layer minimizes escape bytes emitted (low-bandwidth serial link).
-
-**Pages (`pages/`)** - Full-screen views behind a common `Page` interface; `Console` routes input to the active page and calls its render method on demand. All are base-owned and site-independent. Core pages: `HomePage` (landing screen: logo, firmware identity, uptime, a live log-tail band, and up to 22 declarative site "home fields" - label + variable - laid out in three columns of 8, the first two cells of column 1 going to the uptime readout and a spacer), `Shell`, `Logs`, `AlarmsPage` (scrollable alarm-condition table, filter modes recent/all/active/unmasked, selection cursor + `a` to ack; a panel below the table shows the selected alarm's remediation note and ack time), `ParamsPage` (parameter table with name/type/value/default/unit columns over `Vars::Params`; a detail panel below the table shows the selected parameter's minimum/maximum/description/group, and ENTER opens an inline bottom-row value editor. An applied value is live but not durable: the row carries a trailing `*`, the prompt row counts what is outstanding, and `^O` writes them all - the same key the NOTES page uses, since both hold unsaved work), `MonitorPage` (scrollable, read-only table of every published variable - scope/name/value/unit/override columns + a description/notes/source/quality detail panel - read straight off the `Bank`, grouped by name prefix, with one view mode per group; the same set MQTT telemetry publishes), `TasksPage` (read-only table of the scheduler's registered tasks - task/group/every-ms/phase/mean-us/missed - off the per-task `Tasks::TaskCost` samples, sorted by name, with a panel giving the selected task's last and peak samples, run and missed counts, and share of its own period; it exists because `stats` reports the beat's CPU with no attribution. MISSED holds the column the peak used to: the peak is a diagnostic that never decays, while a dropped activation says the task did not run at the rate it declared - and since `TaskTimer` never catches one up, `TaskCost::missed` is the only record it happened). `StatusPage` (a two-column system health grid, templated on a site data struct) is a kept building block but **not** in the default tab order - a site re-adds it by subclassing it and overriding `register_pages()`. `NotesPage` (behind `BOTANIK_FEATURE_NOTES_PAGE`: a full-screen `TextEditor` over the operator's free-text note, top-anchored with a scrolling viewport and a status row; persisted under its own `HAL::Storage` key, `^O` to write, flushed on leaving the page). Building blocks: `MetricPage` (metric display base; repaints fields whole and keeps a value cache only to drive the watch-style change highlight, which the terminal's diff cannot infer), `Scrollback<L>` (incremental-redraw circular buffer, bounded per beat) over `LineBuffer<L,N>` (fixed-capacity circular storage with soft-wrap). Every non-template page splits `.h`/`.cpp` like the rest of the tree; `scrollback.h`, `line_buffer.h` and `status.h` stay header-only because they are templates. A page takes its model by constructor injection - `MonitorPage(Console&, const Vars::Bank*)`, `ParamsPage(Console&, Vars::Params*)`, `AlarmsPage(Console&, AlarmController*)`, `StatusPage(Console&, const SystemContext*, const OutputData*)` - never by reaching back through the console.
-
-**Shell (`shell/`)** - `CommandShell` handles command submission, built-in dispatch and command history (up/down recall). Cut and paste are NOT its business: they belong to `TextEditor` over the console-wide kill ring, which is what gave the NOTES page a Ctrl-K it could not otherwise have had. Commands are **noun then verb**, and a noun parses its own verb, so the top-level table is one row per subject rather than one per verb (`params set` and `params save` are two halves of one job and belong in one place). System control: `logs [on|off]`, `control [enable|inhibit|disable]` (whether the firmware may drive the field at all), `ntpsync`, `breakpoint`, `reboot` (drop control, then withhold the watchdog kick and let it reset the unit - the path an unattended unit takes when it wedges, by hand; needs the `HealthMonitor`, wired through `set_diagnostics()`), `reset` (reset now), `exit`. System status: `stats` (uptime included), `net`, `modbus`, `version`, `features` (which `BOTANIK_FEATURE_*` subsystems this binary was built with, partitioned on/off - an absent subsystem is otherwise indistinguishable from a broken one over the terminal), `tasks stats` (the beat's totals in `stats`' shape - registered/refused, the rate groups, total activations and total MISSED ones, what the peaks add to, and the costliest task; `tasks list [<prefix>]` for the table, `tasks get <name>` for one task in detail). The tables: `params list|get|set|clear|save`, `overrides list|get|set|clear|save`, `programs list|enable|disable|save`, `alarms list|get|ack`, `vars list|get` (browse and read ANY row; variables are named by domain, so `vars list pwr_` is the subsystem view). Plus `help` and `clear`. **`help` is a PAGE, not a list**: a `Main commands` section (the verb-less commands, `Builtin::main`) then a `Topics` section naming `system`/`status`/`tables` (plus `site` when a site registered commands), because the full list outgrew a 25-row screen. `help <topic>` lists one, marking with `...` every command that takes a verb; `<command> help` spells the verbs out one per line, each with the command in front so a line can be copied. `Builtin` carries `args` (the compact spelling a listing shows) and `verbs` (one spelling per line) - and a non-null `verbs` is what makes a bare call answer usage instead of acting. Any command taking arguments answers a bare call with its usage - `modbus stats`, `logs status` and `control status` are the reports their bare form used to give (the `usage` field on `Builtin`, which `_dispatch()` intercepts before the handler). A usage string is newline-separated so a long verb list stacks rather than wrapping. Report rows go through `_field()`, whose dotted leader is 18 wide and which CUTS the detail to `terminal().cols()` - a site's task and variable names are unbounded, so the width has to be measured rather than assumed. A verb acting on the whole set REQUIRES the literal `all` (`params save all`); a bare verb is a usage error, since it is too easy to type when one row was meant. **`set` applies, `save` commits** - the two-step edit the bank models, and the reply says `(unsaved)` because nothing else on screen would. `overrides set` takes a bare name (hold at the current value), an optional value, and a trailing `valid`/`invalid`; `overrides clear [<name>|all]` releases one or the lot (`overrides set <name> off` is the older spelling, kept). `params clear` puts a row back to its FACTORY default and drops the stored copy with it, or the next boot would undo it. `loglevel` is gone with the restructure, and so are the flat `list`/`get`/`set`/`override`. The `SystemContext` it reads them from is **constructor-injected**, and its output goes through the `ShellWriter` interface - so `shell/` depends on the terminal device it renders on (`AnsiTerminal`, `TextEditor`) but not on `Console` or on `pages/`, and it builds and tests without either. Sites extend it with a registered `ShellCommand[]` table. The implementation is one file per noun group - `shell.cpp` (dispatch, output helpers, `help`, `clear`, history), `shell_system.cpp`, `shell_status.cpp`, `shell_vars.cpp`, `shell_alarms.cpp`, `shell_programs.cpp` - over the shared word-splitting in `shell/args.h`.
-
-**Logging (`logs/`)** - `Logger` uses a dual-bucket token-bucket rate limiter (one global bucket, one per topic) before forwarding to registered `LogWriter`s. `LOG_CRITICAL` entries are undroppable (they evict the oldest queued entry instead of being dropped), and silent-loss categories (sink drops, TX-full truncation, rate-limiter suppressions) are reported edge-triggered as criticals. Writers include `BufferedLogWriter`, `SerialLogWriter`, and (behind `BOTANIK_FEATURE_LOGS_PUBLISH`) `MqttLogWriter`, which publishes each entry to the broker under `<MQTT_TOPIC_PREFIX>/<MQTT_LOG_TOPIC>/<level>/<topic>`. Log levels and topics are the `LogLevel` / `LogTopic` enums in `logs/topics.h`. Topics: `NONE`, `MODBUS` (the field bus - was `SHARED_IO`, which nothing outside `modbus/` ever raised; the shorter label buys three columns of message width and the VALUE stayed 1), `BOOT`, `NETWORK`, `TIME`, `STATUS`, `ASSERT`, the alarm transitions `ALARM_BEG`/`ALARM_END`/`ALARM_FLAP`, `HEALTH`, `STORAGE`, and `USER` (the operator's own entries, written by the shell's `log <level> <text>`). The enum must stay dense from 0 (`LOG_TOPIC_COUNT` bounds the per-topic bucket array), and the numbering is deliberately not compacted - it is what sits in already-written log records, so a rename moves the label and never the value.
-
-**Alarms (`alarms/`)** - there is no site alarm table: an alarm is a `SCOPE_A` row in the variable table, declared with `A(name, code, on_s, off_s, recent_s, hold_s, reg, desc, notes)` (`reg` its Modbus TCP slave register, a site's alarms in 800-899 and the library's at 990-999), carrying both the boolean that raises it and the policy it runs on (in the `Payload` union's alarm arm, which fits the 16 bytes a band already costs). **`on_s`/`off_s` decide what is ANNOUNCED (the log line and the notifier fan-out; neither touches `active`), `hold_s` decides what is ACTIVE** - it keeps the condition up that long past the last raw true, re-armed while the bit is up, which is the one anti-flicker (it folds a chattering signal into one episode, so one acknowledgement). `recent_s` is neither, and is the one `int32` in the arm: it is the ALARMS page's RECENT window, in days rather than seconds of dwell. A momentary "event" alarm needs no in-source latch - `HealthMonitor` writes a one-beat pulse (`CPU_XRUN`) and the row's own `hold_s` holds it, which is why `health` and `alarms` must stay in the same rate group. `AlarmController` builds its working `AlarmCondition[]` by scanning the bank for those rows in table order, so condition *i* reads row *i* and there is no second order to keep in step. A condition reads its variable, full stop - there is no local override and no `set_local()`; forcing an alarm by hand means overriding its row. There is **no aggregate bitset**: `step()` reads each condition's variable, advances dwell, and raises ALARM-topic log lines and notifier callbacks on thresholds. `index_of(code|name)` answers to either spelling without a scan: codes through a mapping the constructor sorts, names through the bank's index and then the conditions' refs (which ascend, since they were scanned in table order). `MqttAlarmNotifier` formats alarm transitions as MQTT topics/payloads (`alarms/publisher.h` is the transport interface). The generic platform-health alarms (SYS_RST, CPU load, jitter, stack, overrun, flash fault) are **rows of that same table**, reaching it through `BOTANIK_LIBRARY_VARS` (see below). No second table, no merge, no reserved index range - and `HealthMonitor` is an ordinary consumer of the bank, binding the six names once at bring-up and writing the boolean.
-
-**Health (`health/`)** - `HealthMonitor` owns the `AlarmController` and an `MqttAlarmNotifier`, raises the platform-health alarms (`alarms/platform.h`) from the scheduler metrics and the storage fault count by writing their variables - six named `VarRef`s bound by name at bring-up, no enum and no index table -, runs a power-on self-test (POST: the platform alarm codes must resolve, the logger must have writers), and produces the watchdog verdict. That verdict is now simply "the loop is alive": with no coprocessor link to lose, nothing else justifies letting the hardware watchdog fire, and control-side fault escalation belongs to the scan cycle.
-
-**Network (`network/`)** - Wired into `BotanikFirmware` behind `BOTANIK_FEATURE_NETWORK` / `_NTP` / `_MQTT` (default off; on for `gh_mlb41`). Functional on OPTA; on the simulator the `hal/net.cpp` backend is hermetic - it emulates DNS/NTP/MQTT in-process (a name resolves to a fixed mock peer after a short async delay, NTP queries get a canned reply, MQTT connects) so the handlers run their real state machines against a deterministic, offline peer with no host network I/O. `NetworkHandler` brings up the network device and hands it to `NameResolver` (non-blocking DNS over Mbed's async resolver, poll-style API + cache); `NtpClient` runs NTP through the resolver; `MqttClient` is a minimal non-blocking MQTT 3.1.1 publisher; `MqttLogWriter` (`mqtt_log.{h,cpp}`, behind `BOTANIK_FEATURE_LOGS_PUBLISH`) is a `LogWriter` that publishes log entries through it (best-effort, own min level).
-
-**Sun tracking (`sun/`, gated by `BOTANIK_FEATURE_SUN_TRACKER`)** - in the `Botanik::Sun` namespace, all in `sun/sun_tracker.{h,cpp}`: `Sun::SunPositionTracker` is a config-driven `Component` tracking the sun's current elevation angle above the horizon for the site location, on top of `solar_elevation()`, the NOAA solar-position math (uptime-ms domain, angle in radians). Standalone (not instantiated by `BotanikFirmware`); **off** by default in `libbotanik_features.h`, since a site that wants it owns the instance. `gh_mlb41` turns it on - not because the reference greenhouse tracks the sun, but because the suites compile the selected site, and with the flag off the `sun/` sources and their two test files compile to nothing while still looking like coverage.
-
-**Utils (`utils/`)** - `BufferedSerial` wraps UART with a 256-byte RX ring buffer and 4096-byte TX buffer (usable depth size-1: 255 / 4095). The ring is single-producer/single-consumer but main-loop-only (no serial ISR), so it carries no memory barriers. It is **not a Component** and has no task: it is a ring buffer and a port, pumped by whoever owns the wire (`Console`, `SerialLogWriter`) from that owner's own tasks, because the pump and the thing that fills it are the same beat's work. `filters.h` holds reusable EMA / windowed-max metric filters; `time.h` provides uptime tracking on top of HAL; `text.h` the `format_float`/`format_age` helpers and `compare_bounded()` (the one name-versus-typed-word order, shared by the bank's index, the task registry and the shell's `arg_eq`); `assert.h` the firmware-only assert.
-
+- **Control authority** is three modes (`Vars::ControlMode`) decided by two INDEPENDENT
+  sources - the operator's standing choice and the system's hold - and the STRICTER wins.
+  `CONTROL_DISABLED` *mutes* an output override reversibly; only the SYSTEM's hold ERASES
+  one. It starts held, so nothing before the end of `setup()` can energise an actuator.
+  See `scan.md`.
+- **The scan cycle has no driver.** A control program registers itself with
+  `Tasks::Registry` like everything else, PHASE_CONTROL by construction (`add_program()`).
+  A program due late runs ONCE - missed activations are dropped, never caught up - so
+  `dt_ms` is always the ACTUAL elapsed time. `first_scan` is where a program drops what
+  the outage made stale. See `scan.md`.
+- **Library rows.** The library declares rows of its own into the site's one contiguous
+  table through `BOTANIK_LIBRARY_VARS`, placed FIRST in `g_vars[]`. Two ordering rules,
+  both from the contiguous `ROLE_PARAM` run: the block goes first, and its parameters go
+  last within it. Registers 900-999 are the library's. **Whatever the library reads by
+  name, the library declares.** A site tunes one by REDECLARING it: `Bank::freeze()`
+  keeps the LAST declaration of a name and compacts the earlier row out of the table, so
+  the whole row is the site's and no `BOTANIK_*` macro is needed per overridable field.
+  Keep `reg` as the library assigned it. See `vars.md`.
+- **Analog calibration.** An `AI`/`AO` row points at a shared `const AnalogCal` of six
+  `Tunable`s; `scale`/`offset` are never stored but derived, so a recalibration lands the
+  moment the parameter commits. Anything DISPLAYING a band goes through `var_band()`, not
+  `num_band()`. See `vars.md`.
+- **Naming files a variable.** `var_group()` is the prefix of a name up to the first `_`;
+  `var_published()` is true iff a row is neither a parameter nor an alarm. There is no
+  group table to add a variable to and none to forget.
 
 ### Key compile-time defines
 
@@ -277,43 +231,53 @@ Gate with the preprocessor `#if BOTANIK_FEATURE_<X>` (it must drop member declar
 
 ## Site-specific code (greenhouse targets)
 
-`libbotanik` is generic and site-independent. Code specific to one physical greenhouse (its variable table, its alarm table, its control programs, and the mock data that animates them in the simulator) is a **site**, code-named per greenhouse. The reference site is `gh_mlb41`.
+`libbotanik` is generic and site-independent. Code specific to one physical greenhouse -
+its variable table, its control programs, and the mock data animating them in the
+simulator - is a **site**. The reference site is `gh_mlb41`; treat it plus
+`BotanikFirmware` as canonical.
 
 Three layers, generic to specific:
 
-| Layer | Holds | Examples |
-|---|---|---|
-| `libbotanik` | generic, site- and target-independent machinery, plus the `BotanikFirmware` base that owns the generic components, exposes a reference to each on the instance, and drives the per-tick `loop()` | `Vars::Bank`, `Tasks::Registry`, `Console`, `AlarmController`, `BotanikFirmware` |
-| site (`gh_mlb41`) | single source of truth for one greenhouse: the variable table (`vars.h` - parameters, alarms, IO, the analog calibration blocks and the `HomeVar[]` home fields), and in `site.h` the `ShellCommand[]`, the `Scan::Task[]` the `SiteDescriptor` bundling them, the `simulate()` field animation, and a thin `GreenhouseMLB41` class deriving `BotanikFirmware` (no pages, no hook overrides) | `gh_mlb41` |
-| target / entry point | thin: selects one site and runs it | `botanik_sim` harness, `botanik_fw` OPTA entry point |
+| Layer | Holds |
+|---|---|
+| `libbotanik` | generic machinery plus `BotanikFirmware`, which owns the generic components and drives the per-tick `loop()` |
+| site (`gh_mlb41`) | the single source of truth for one greenhouse: its variable table, its programs, its shell commands, its simulated field |
+| target | thin: selects one site and runs it (`botanik_sim`, `botanik_fw`) |
 
-**Composition.** Components are split by layer and chained by inheritance (not an ideal composition model, but a structured start):
+`GreenhouseMLB41 : BotanikFirmware` is a thin binding passing a `SiteDescriptor` to the
+base constructor. The base owns every page and wires each table generically. `setup()`
+and `loop()` are non-virtual; a site customizes through `register_pages()` (tab order,
+page 0 = boot page), `register_commands()`, `register_telemetry()`, `on_setup()`, and the
+six per-phase hooks (only `on_control()` is gated). The site is chosen at configure time
+with `-DBOTANIK_SITE=<name>`.
 
-- `BotanikFirmware` constructs the generic components (logger, scheduler, variable bank, parameter store, health/alarm model, terminal, core pages) and exposes a reference to each on the instance.
-- `GreenhouseMLB41 : BotanikFirmware` is a thin binding: it passes a `SiteDescriptor` (name + the shell-command / status-group / home-field / alarm / variable / task tables) to the base constructor. The base owns every page and wires each table generically; the site declares no page members and overrides no hooks (a site needing custom per-beat logic or an extra page would override a phase hook / `register_pages()`).
-- A site component is often a static site-defined table registered on a base-owned generic component: `AlarmController` scans the variable table for `SCOPE_A` rows, a `ShellCommand[]` table registers on the shell page via `set_commands()`, and each `Plc::Program` in the site's table registers itself with `Tasks::Registry`.
-- Lifecycle is fixed by the base: `setup()` and `loop()` are non-virtual, and a site hooks in through `on_setup()` and the per-phase hooks.
+The site's six files - `vars.h` (generated: every variable in one table, the calibration
+blocks, the home fields, the RAM value store), `site.h`, `tasks.h` (the control programs),
+`sim.h` (whole body `#ifdef TARGET_SIMULATOR`), `config.h`, `vars.cpp`.
 
-Rules:
+### Rules
 
-- **One variable table per site, shared by simulator and hardware.** A site's `vars.h` table is used verbatim by both the OPTA firmware and the simulator. Never fork it per target; evolve the table and its `simulate()` animator together, in the site.
-- **The simulator is a generic harness.** It calls the selected site's `Site::simulate()` from the main loop each beat, computing the plant into the same rows a Modbus driver fills on hardware. For the rows that ARE on the bus it does not stop there: `FieldBus` copies those values into a simulated `RtuSlave` per unit and the master reads them back through real framing over a socketpair, so the sim exercises the driver rather than standing in for it. The site code is identical either way.
-- **The site stays portable.** Site code must cross-compile for the OPTA, which does not define `TARGET_SIMULATOR` - so simulator-only code (the `simulate()` animator) drops out through its `#ifdef TARGET_SIMULATOR` guard. Keep such code guarded rather than in the portable path. Site files include `libbotanik.h` directly; the `botanik.h` relocation shim is gone. (The Arduino library `.zip` and the vendored-sketch tree are gone too - CMake builds the flashable `botanik_opta.bin` itself; see `CMakeLists.txt`.)
-- **Generic components address variables by name, not offset or index.** Each alarm names the boolean carrying it, and each status group / home field names the variables it shows; the firmware resolves those names once at bring-up into parallel `VarRef` arrays. There is no byte layout to satisfy and no index written down twice, so inserting a row shifts nothing. A name that matches no row resolves to the inert sink rather than aliasing a real one, and `tests/test_site_names.cpp` fails the gate if any does. The one trap: a `VarRef` in a `const` table is zero, and zero is a real row - never read a resolved index back out of the flash table it was declared in.
-- **Config is one file per concern.** `libbotanik_config.h` is now only the AGGREGATE: the values live in `libbotanik/config/<concern>.h` (identity, serial, scheduler, alarms, vars, logging, modbus, net, sun, terminal, simulator), and a module includes the one it reads. It was a single 1,056-line header included by 57 files, so editing the MQTT keep-alive rebuilt 84% of the tree. `config/base.h` is the common preamble every concern header pulls first - it reads the site's `config.h` BEFORE any default, which is the whole ordering contract. `BOTANIK_CFG` is defined and undefined per concern header rather than in `base.h`, because `base.h` is include-guarded and a second include would not restore a macro an earlier header had undefined. A constraint spanning two concerns (`MQTT_TX_BUF` vs `LOG_MESSAGE_LEN`, `STORE_MAX_BYTES` vs `NOTES_LEN`) is asserted at the consumer that makes it exist, not in either config header.
-- **Config is site-overridable.** Every config value defaults from an `#ifndef`-guarded `BOTANIK_<NAME>` macro. A site may ship `sites/<name>/config.h` that `#define`s any of them; CMake includes it via `BOTANIK_SITE_CONFIG`, defined PUBLIC on the `botanik` library so the override is build-wide (libbotanik's own TUs and every consumer see the same value - anything narrower is an ABI mismatch). A site pins a **feature flag** with an `#ifndef` guard, making precedence command line > site > header default: a `-D` is already defined when the site config is read, so an unguarded `#define` would redefine it and quietly win.
+- **One variable table per site, shared by simulator and hardware.** Never fork it per
+  target; evolve the table and its `simulate()` animator together, in the site.
+- **The simulator is a generic harness**, calling `Site::simulate()` each beat into the
+  same rows a Modbus driver fills on hardware. For rows on the bus, `FieldBus` carries
+  them through a simulated `RtuSlave` over a socketpair, so the sim exercises the driver
+  rather than standing in for it.
+- **The site stays portable.** It must cross-compile for the OPTA, which does not define
+  `TARGET_SIMULATOR`, so simulator-only code stays behind that guard.
+- **Generic components address variables by NAME**, resolved once at bring-up into
+  parallel `VarRef` arrays. A name matching no row resolves to the inert sink, and
+  `tests/test_site_names.cpp` fails the gate if any does. **The one trap:** a `VarRef` in
+  a `const` table is zero, and zero is a real row - never read a resolved index back out
+  of the flash table it was declared in.
+- **Config is one file per concern.** `libbotanik_config.h` is only the AGGREGATE; values
+  live in `libbotanik/config/<concern>.h` and a module includes the one it reads.
+  `config/base.h` is the preamble every concern header pulls first, and it reads the
+  site's `config.h` BEFORE any default - that ordering is the whole contract. A constraint
+  spanning two concerns is asserted at the consumer that makes it exist, not in either
+  config header.
+- **Config is site-overridable.** Every value defaults from an `#ifndef`-guarded
+  `BOTANIK_<NAME>`; a site may `#define` it in `sites/<name>/config.h`, which CMake
+  includes PUBLIC so the override is build-wide. A site pins a **feature flag** with an
+  `#ifndef` guard, making precedence command line > site > header default.
 - New site-level work goes in the site, not in `libbotanik` and not in a target's `main`.
-
-**Current state.** The `gh_mlb41` site lives in `src/sites/gh_mlb41/`, the `BotanikFirmware` base in `src/libbotanik/firmware/firmware.h`, and `GreenhouseMLB41` derives it. The site files split generated from hand-written:
-
-| File | Origin | Holds |
-|---|---|---|
-| `vars.h` | generated | everything declarative: every variable in one table (parameters, alarms, sensor inputs, computed values, status values, actuator outputs), the analog calibration blocks, the home-screen readings, and the RAM value store + string pool behind them |
-| `site.h` | hand-written | the shell commands, the `SiteDescriptor` bundling every table, and the `GreenhouseMLB41` binding |
-| `tasks.h` | hand-written | the control programs (code, not schema) |
-| `sim.h` | hand-written | the simulated field; whole body `#ifdef TARGET_SIMULATOR` |
-| `config.h` | hand-written | build-wide config overrides, kept separate so CMake includes it before the library defaults |
-
-Six files. `alarms.h`, `descriptor.h`, `commands.h`, `status.h` and `botanik.h` are gone: an alarm is a `SCOPE_A` row, a group is a name prefix, the descriptor and commands are in `site.h`, and the site includes `libbotanik.h` directly. `vars.cpp` is back and is four array definitions: the value store was briefly header-only through a class template's static member (C++11's `inline`), which cost a `template <typename Tag>` whose only job was to make the class a template. An `extern` declaration plus one definition says the same thing without it, and CMake already globs a site's `*.cpp` for both targets.
-
-A site does **not** override `setup()`/`loop()`; it customizes through the protected Template-Method hooks: `register_pages()` (tab order, page 0 = boot page), `register_commands()`, `register_telemetry()`, `on_setup()` (post-wiring), and the six per-phase hooks (`on_input()` ... `on_present()`, only `on_control()` gated). See the worked extension example in `firmware/firmware.h`. Both targets run the same site; the site is chosen at configure time with `-DBOTANIK_SITE=<name>` (default `gh_mlb41`): CMake globs `src/sites/<name>/` and points `BOTANIK_SITE_HEADER` at its `site.h`, which exposes `BotanikSite`, so the harnesses never name the site. Treat `src/sites/gh_mlb41/` + `BotanikFirmware` as canonical.

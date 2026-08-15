@@ -4,16 +4,10 @@
 
 /**
  * @file monitor.h
- * @brief MonitorPage - scrollable table of the site's status variables.
+ * @brief MonitorPage - scrollable read-only table of every variable except the
+ *        two kinds with a page of their own, grouped by name prefix.
  *
- * The read-only sibling of the PARAMS page: every variable except the two kinds
- * that have a page of their own (parameters, alarms), live off the variable
- * table, one row per variable, grouped by the prefix of its name. Nothing is
- * declared per site - naming a variable is what files it - so the page has no
- * per-variable code and no table to fall out of step with.
- *
- * Layout (row 0 is the terminal status bar, the bottom row the alarm bar); the
- * same bordered shape as the other tables:
+ * Layout (row 0 is the status bar, the bottom row the alarm bar):
  *   row 1            blank top margin
  *   row 2            header  (| SCOPE | VARIABLE | VALUE | UNIT | OVERRIDE |)
  *   row 3            top rule (corners cap to '^' when rows are hidden above)
@@ -22,11 +16,8 @@
  *   rows N-7..N-3    detail panel: Description / Notes / Mapping / Quality
  *   row N-2          legend: [group] badge + position + hint, blank each side
  *
- * UP/DOWN move a selection cursor (the selected variable's NAME is drawn
- * inverted), auto-scrolling the window when the cursor would leave it;
- * PAGE_UP/DOWN move half a window, HOME/END jump to the ends. Redrawn
- * immediate-mode each tick and pared by the terminal's diff (@ref dev_screen),
- * so the page keeps no paint cache.
+ * @note Nothing is declared per site - naming a variable is what files it - so
+ *       there is no per-variable code and no table to fall out of step with.
  */
 
 #include <cstdint>
@@ -75,8 +66,8 @@ namespace Botanik { namespace Pages {
         /** @name State
          *  @{ */
         /** @brief Distinct groups discovered from the published rows' names,
-         *  interned so the mode labels can keep pointing at them. Built once,
-         *  lazily: the table does not change after boot. */
+         *  interned so the mode labels can keep pointing at them. Built once:
+         *  the table does not change after boot. */
         mutable const char* _group_name[Vars::VAR_GROUPS_MAX] = {};
         mutable uint8_t     _group_n = 0;
         mutable bool        _groups_built = false;

@@ -125,19 +125,14 @@ constructions - state the fact; no history in code, `git log` has it; no
 restating a rule three ways for emphasis; no em-dashes (use ` - `, a colon, or
 parentheses).
 
-`scripts/comment_budget.py` reports the ratios and flags files over budget; it
-runs as part of `make check-full`.
+The budgets are a guide for review, not a gate - nothing measures them
+automatically. `cloc` gives the ratio for a file or a tree when you want a number.
 
 A file that is almost entirely public API surface, or notes on silicon the code
-cannot show, may opt out with a line near the top:
-
-```cpp
-// comment-budget: exempt ~80 public declarations, each a distinct contract
-```
-
-The reason is required and `--exempt` lists them. Two files carry one today
-(`vars/model.h`, `hal/platform.cpp`); reach for it only when trimming would mean
-deleting a contract, not when the prose is merely long.
+cannot show, will sit above budget legitimately: `vars/model.h` is ~80 public
+declarations each carrying a distinct contract, and `hal/platform.cpp` documents
+RS-485 DE guard times and CR1 write protection. Trimming those further means
+deleting a contract rather than prose. That is the exception, not the licence.
 
 ---
 

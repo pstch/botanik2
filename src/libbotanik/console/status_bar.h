@@ -4,13 +4,10 @@
 
 /**
  * @file status_bar.h
- * @brief StatusBar - the terminal-owned row-0 chrome.
- *
- * Three fields on the reverse-video top row: page tabs (left), a centred
- * HH:MM:SS clock, and a right-aligned "cpu:nnn% stk:nnn%" metrics field.
- * Owned by Console. The clock and metrics rebuild on their own cadence and
- * repaint their whole field; the terminal's back-buffer diff emits only the cells
- * that actually changed, so the bar keeps no diff cache.
+ * @brief StatusBar - the terminal-owned row-0 chrome: page tabs, a centred
+ *        HH:MM:SS clock, and a right-aligned "cpu:nnn% stk:nnn%" field.
+ * @note Fields repaint whole on their own cadence; the terminal's diff pares
+ *       that to the changed cells, so the bar keeps no diff cache.
  */
 
 #include <cstddef>
@@ -82,10 +79,10 @@ namespace Botanik { namespace Terminal {
         /** @name Tab strip
          *  @{ */
 
-        /** @brief Draw the compact tab strip (leading blank + one "N"/"N:NAME"
-         *  tab per page, single-space separated) starting at the current cursor
-         *  (row 0). Caller has forced the reverse-video background. @return the
-         *  column just past the strip. */
+        /** @brief Draw the compact tab strip at the current cursor: a leading
+         *  blank then one "N"/"N:NAME" tab per page, space-separated. The caller
+         *  has forced the reverse-video background.
+         *  @return the column just past the strip. */
         uint16_t draw_tab_strip();
 
         /** @} */
