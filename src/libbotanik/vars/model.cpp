@@ -12,10 +12,10 @@
 
 #include "libbotanik/tasks/tasks.h"   // Tasks::Registry / Tick / GroupId
 
-#include <cstring>                  // strcmp / strncmp
 
 #include "libbotanik/logs/logger.h" // Logs::Logger
 #include "libbotanik/utils/assert.h"   // BOTANIK_ASSERT - a refused registration
+#include "libbotanik/utils/text.h"     // Utils::compare_bounded - the name order
 
 namespace Botanik { namespace Vars {
 
@@ -29,23 +29,6 @@ namespace Botanik { namespace Vars {
     Value Bank::_sink_v = {};
 
     namespace {
-        /** @brief Three-way compare of row name @p n against the key @p key,
-         *  bounded to @p len characters when @p len is non-zero (a shell word
-         *  has no NUL of its own).
-         *
-         *  Both arms give the same order (with the first @p len characters
-         *  equal, a longer row name sorts after the key), so one sorted mapping
-         *  serves both find() overloads. A nameless row sorts after everything
-         *  and matches nothing. */
-        int cmp_name(const char* n, const char* key, uint16_t len) {
-            if (n == nullptr)   return (key == nullptr) ? 0 : 1;
-            if (key == nullptr) return -1;
-            if (len == 0) return strcmp(n, key);
-            const int c = strncmp(n, key, len);
-            if (c != 0) return c;
-            return (n[len] == 0) ? 0 : 1;
-        }
-
         /** @brief Copy @p src into @p dst, always NUL-terminating. */
         void copy_bounded(char* dst, uint16_t cap, const char* src) {
             if (dst == nullptr || cap == 0) return;
@@ -172,7 +155,7 @@ namespace Botanik { namespace Vars {
     }
 
     bool Bank::_order_before(uint16_t a, uint16_t b) const {
-        const int c = cmp_name(desc(a).name, desc(b).name, 0);
+        const int c = Utils::compare_bounded(desc(a).name, desc(b).name, 0);
         return (c != 0) ? (c < 0) : (a < b);
     }
 
@@ -201,7 +184,7 @@ namespace Botanik { namespace Vars {
     uint16_t Bank::_lookup(const char* name, uint16_t len) const {
         if (!_indexed) {
             for (uint16_t i = 0; i < _count; i++)
-                if (cmp_name(desc(i).name, name, len) == 0) return i;
+                if (Utils::compare_bounded(desc(i).name, name, len) == 0) return i;
             return VAR_NONE;
         }
         // Lower bound, then one equality check: with ties ordered by row number,
@@ -209,14 +192,14 @@ namespace Botanik { namespace Vars {
         uint16_t lo = 0, hi = _count;
         while (lo < hi) {
             const uint16_t mid = (uint16_t)(lo + (hi - lo) / 2);
-            if (cmp_name(desc(_index[mid]).name, name, len) < 0)
+            if (Utils::compare_bounded(desc(_index[mid]).name, name, len) < 0)
                 lo = (uint16_t)(mid + 1);
             else
                 hi = mid;
         }
         if (lo >= _count) return VAR_NONE;
         const uint16_t row = _index[lo];
-        return (cmp_name(desc(row).name, name, len) == 0) ? row : VAR_NONE;
+        return (Utils::compare_bounded(desc(row).name, name, len) == 0) ? row : VAR_NONE;
     }
 
     VarRef Bank::find(const char* name) const {

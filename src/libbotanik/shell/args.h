@@ -11,6 +11,8 @@
 
 #include <cstdint>                          // uint16_t
 
+#include "libbotanik/utils/text.h"          // Utils::equals_bounded
+
 namespace Botanik { namespace Shell {
 
     /** @brief Next whitespace-delimited word from [@p args, @p args+alen),
@@ -26,11 +28,13 @@ namespace Botanik { namespace Shell {
     }
 
     /** @brief True if word [@p w, @p w+wlen) equals the NUL-terminated literal
-     *  @p lit. */
+     *  @p lit. The terminator check that makes a prefix not a match is
+     *  Utils::equals_bounded's, shared with the bank and the task registry.
+     *
+     *  @p w null answers false for any real literal: arg_next() yields either a
+     *  word of non-zero length or nothing at all. */
     inline bool arg_eq(const char* w, uint16_t wlen, const char* lit) {
-        for (uint16_t i = 0; i < wlen; i++)
-            if (lit[i] == '\0' || w[i] != lit[i]) return false;
-        return lit[wlen] == '\0';
+        return w != nullptr && Utils::equals_bounded(lit, w, wlen);
     }
 
     /** @brief True for the word naming the whole set: the literal `all`, and

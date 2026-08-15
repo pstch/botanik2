@@ -15,6 +15,10 @@ moves, IL/DL, the line editor's reconciliation) that a source diff cannot.
   rather than host seconds: the same run gives the same screen whatever else the
   box is doing, and a failure costs the beats instead of waiting 15 s to see
   whether more output was coming.
+- **The watchdog is off.** The clock is manual, so a case that stops running
+  beats looks wedged; an armed watchdog would re-exec the sim under its own PTY.
+  `test_watchdog.py` is the exception - it passes `watchdog=<ms>` to arm it with
+  a short window and assert the reset actually happens.
 - **Never a higher baud.** Console baud is compile-time
   (`Config::CONSOLE_BAUD`, 4800) and the terminal derives its per-render byte
   budget from it, so raising the wire speed alone would leave the renderer pacing

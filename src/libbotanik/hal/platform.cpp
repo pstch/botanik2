@@ -808,12 +808,53 @@ namespace Botanik { namespace HAL {
     volatile uint32_t& _wd_timeout_ms()   { static volatile uint32_t t = 0; return t; }
     volatile uint64_t& _wd_last_kick_ms() { static volatile uint64_t k = 0; return k; }
 
+    void poll();
+
+    /** @brief Whether this process arms the watchdog at all.
+     *
+     *  `BOTANIK_WATCHDOG=0` inhibits it. A running sim wants the real thing -
+     *  the point is that a wedged loop resets the unit - but a test process does
+     *  not: the doctest binary builds schedulers it never kicks, and a pyte case
+     *  that paused the sim would be re-executed underneath its own PTY. Read
+     *  once: the answer cannot change within a process. */
+    bool _wd_enabled() {
+        static const bool on = (Env::u8("BOTANIK_WATCHDOG", 1) != 0);
+        return on;
+    }
+
+    /** @brief The servicing thread. Its own, NOT the main loop's: a watchdog
+     *  polled by the loop it is watching cannot notice that loop wedging, which
+     *  is the whole failure it exists for. Detached and never joined - it dies
+     *  with the process, or with the execve System::reset() does. */
+    void* _wd_thread(void*) {
+        for (;;) {
+            poll();
+            // A quarter of the window, so a lapse is caught well inside it
+            // without spinning. Bounded either way: a 0 timeout means stopped,
+            // and poll() returns at once.
+            const uint32_t t = _wd_timeout_ms();
+            usleep((t == 0 ? 100u : (t < 40u ? 10u : t / 4u)) * 1000u);
+        }
+        return nullptr;
+    }
+
     void start(uint32_t timeout_ms) {
+        if (!_wd_enabled()) return;
         // seed kick before timeout, so a poll seeing the new timeout can't see a
         // stale kick
         _wd_last_kick_ms() = Clock::uptime_ms();
         Memory::dsb();
         _wd_timeout_ms() = timeout_ms;
+
+        // One thread per process, however often the watchdog is re-armed.
+        static bool started = false;
+        if (started) return;
+        started = true;
+        pthread_t th;
+        if (pthread_create(&th, nullptr, &_wd_thread, nullptr) == 0)
+            pthread_detach(th);
+        else
+            _wd_timeout_ms() = 0;   // nothing will service it; do not pretend
     }
 
     void stop() { _wd_timeout_ms() = 0; }

@@ -10,6 +10,7 @@
 #include <cmath>    // llround
 #include <cstddef>  // size_t
 #include <cstdint>  // uint8_t/uint32_t/uint64_t
+#include <cstring>  // strcmp / strncmp
 #include <cstdio>   // snprintf
 
 namespace Botanik { namespace Utils {
@@ -60,6 +61,18 @@ namespace Botanik { namespace Utils {
 
         if (negative) rev[r++] = '-';
         return _emit_reversed(buf, cap, rev, r);
+    }
+
+    int compare_bounded(const char* s, const char* key, uint16_t len) {
+        if (s == nullptr)   return (key == nullptr) ? 0 : 1;
+        if (key == nullptr) return -1;
+        if (len == 0) return strcmp(s, key);
+        const int c = strncmp(s, key, len);
+        if (c != 0) return c;
+        // Equal over the first `len`: a longer stored name sorts AFTER the key,
+        // which is what makes a prefix not a match and keeps both arms of the
+        // order the same.
+        return (s[len] == 0) ? 0 : 1;
     }
 
     const char* format_int(char* buf, size_t cap, long long value) {

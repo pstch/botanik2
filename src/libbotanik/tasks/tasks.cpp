@@ -7,7 +7,6 @@
 #include "libbotanik/tasks/tasks.h" // Registry / Task
 
 #include <cstdio>                        // snprintf - the storage key
-#include <cstring>                      // strcmp / strncmp - program lookup by name
 
 #include "libbotanik/hal/platform.h"    // HAL::Clock::uptime_us
 #include "libbotanik/hal/storage.h"     // HAL::Storage - the per-program enable flag
@@ -15,6 +14,7 @@
 // Component& it registers as. Nothing here calls a Program method.
 #include "libbotanik/plc/program.h"     // Plc::Program
 #include "libbotanik/utils/assert.h"   // BOTANIK_ASSERT - a refused registration
+#include "libbotanik/utils/text.h"     // Utils::equals_bounded - program lookup by name
 
 namespace Botanik { namespace Tasks {
 
@@ -224,9 +224,7 @@ namespace Botanik { namespace Tasks {
         if (name == nullptr) return -1;
         for (uint8_t i = 0; i < _prog_count; i++) {
             const char* nm = _tasks[_prog[i]].name;
-            if (nm == nullptr) continue;
-            if (len == 0) { if (strcmp(nm, name) == 0) return (int16_t)i; }
-            else if (strncmp(nm, name, len) == 0 && nm[len] == '\0') return (int16_t)i;
+            if (Utils::equals_bounded(nm, name, len)) return (int16_t)i;
         }
         return -1;
     }

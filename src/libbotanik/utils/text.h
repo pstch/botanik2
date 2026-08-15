@@ -23,6 +23,22 @@ namespace Botanik { namespace Utils {
         return a != nullptr && b != nullptr && std::strcmp(a, b) == 0;
     }
 
+    /** @brief Order NUL-terminated @p s against the word [@p key, @p key+len);
+     *  @p len 0 means @p key is NUL-terminated too. strcmp's sign convention; a
+     *  null @p s sorts after everything and matches nothing.
+     *
+     *  One rule, three users: the variable bank's sorted name index, the task
+     *  registry's program lookup, and the shell matching an argument. All three
+     *  ask "is this stored name the word in front of me", where the word is a
+     *  slice of a command line with no terminator of its own - and all three had
+     *  their own copy of the terminator check that makes a prefix not a match. */
+    int compare_bounded(const char* s, const char* key, uint16_t len);
+
+    /** @brief The equality form of compare_bounded(). */
+    inline bool equals_bounded(const char* s, const char* key, uint16_t len) {
+        return compare_bounded(s, key, len) == 0;
+    }
+
     /** @}
      *  @name Line wrapping
      *  @{ */

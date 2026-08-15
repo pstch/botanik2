@@ -45,7 +45,7 @@ def pytest_addoption(parser):
 class Term:
     """A running botanik_sim plus a pyte screen fed from its PTY."""
 
-    def __init__(self, binary, watch=(), store=None, screen=None):
+    def __init__(self, binary, watch=(), store=None, screen=None, watchdog=False):
         env = dict(os.environ)
         self._ctl_w = None
         self._raw = b""                       # undecoded tail, for the ack split
@@ -54,6 +54,12 @@ class Term:
         env["BOTANIK_NO_RT"] = "1"            # ...and the pinning itself: ctest runs sims in parallel
         env["BOTANIK_NO_LOAD_ALARMS"] = "1"   # CPU_* fire on host timing, moving the alarm bar
         env["BOTANIK_NO_MBCHECK"] = "1"       # its traffic moves the log tail a golden pins
+        # Off by default: the clock is manual here, so a case that stops running
+        # beats would look wedged and be re-executed under its own PTY. The one
+        # case that asserts the watchdog WORKS passes watchdog=True.
+        env["BOTANIK_WATCHDOG"] = "0" if watchdog is False else "1"
+        if watchdog not in (True, False):
+            env["BOTANIK_WATCHDOG_MS"] = str(watchdog)   # a shorter window
         if store is not None:
             # Private config store, or the sims share ~/.botanik_config with each
             # other and with the developer's own (test_params commits an edit).

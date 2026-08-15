@@ -399,6 +399,9 @@ reboot already does.
 `STORE_MAX_BYTES` 16384, the cap on the key-value store file, guarded by
 `TARGET_SIMULATOR`. The host-side knobs are environment variables, not build
 settings: `BOTANIK_SIM_CPU`, `BOTANIK_SIM_CLOCK` (see `tests/pyte/README.md`).
+`BOTANIK_WATCHDOG=0` inhibits the watchdog for a test process, and
+`BOTANIK_WATCHDOG_MS` shortens its window; both default to the firmware's own
+behaviour, so a running sim resets itself exactly as the hardware would.
 
 @note These per-parameter `#ifndef` guards cannot be collapsed into a helper macro:
 the C++11 preprocessor has no way to conditionally define a macro whose name it
