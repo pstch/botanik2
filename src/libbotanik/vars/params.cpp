@@ -318,9 +318,25 @@ namespace Botanik { namespace Vars {
         // slot. The one value that arrives unvetted is the Config fallback
         // above, from a build whose site left the row out - hence a guard rather
         // than a bare cast.
-        if (Logs::log_level_label((uint64_t)want) == nullptr) return;
-        const Logs::LogLevel lvl = (Logs::LogLevel)want;
-        if (lvl != _logger->min_level()) _logger->set_min_level(lvl);
+        if (Logs::log_level_label((uint64_t)want) != nullptr) {
+            const Logs::LogLevel lvl = (Logs::LogLevel)want;
+            if (lvl != _logger->min_level()) _logger->set_min_level(lvl);
+        }
+
+        // Then each sink's own floor, from the row that sink names. Here rather
+        // than at the sinks because a page cannot reach the bank and should not
+        // learn how: the writer says which row it follows, this resolves it.
+        // Live, with no commit serial - a level takes effect on the next entry
+        // and there is nothing to re-initialise, so staging it would only make
+        // an operator bump a serial to be heard.
+        for (uint8_t i = 0; i < _logger->writer_count(); i++) {
+            Logs::LogWriter* w = _logger->writer(i);
+            if (w == nullptr || w->level_param() == nullptr) continue;
+            const int32_t f = get_int(_io, w->level_param(), -1);
+            if (f < 0 || Logs::log_level_label((uint64_t)f) == nullptr) continue;
+            const Logs::LogLevel want_lvl = (Logs::LogLevel)f;
+            if (want_lvl != w->min_level()) w->set_min_level(want_lvl);
+        }
     }
 
 }}  // namespace Botanik::Vars

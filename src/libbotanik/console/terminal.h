@@ -269,9 +269,9 @@ namespace Botanik { namespace Terminal {
         void set_cursor_inhibited(bool hold) { _cursor_inhibited = hold; }
 
         /** @brief Re-derive the per-render TX budget for a link now at @p baud.
-         *  @warning Whoever retunes the UART must call this too: pacing for a
-         *  rate the wire no longer runs at either crawls or overflows the ring
-         *  into a torn write. */
+         *  @warning Whoever retunes the UART must call this too (Console does,
+         *  from `console_baud`): pacing for a rate the wire no longer runs at
+         *  either crawls or overflows the ring into a torn write. */
         void set_baud(uint32_t baud) {
             _tx_cold_depth = depth_for_baud(baud, Config::TX_COLD_TARGET_MS);
         }

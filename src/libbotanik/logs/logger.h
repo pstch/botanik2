@@ -125,6 +125,19 @@ namespace Botanik { namespace Logs {
          *  check). */
         bool has_writers() const { return _writerCount > 0; }
 
+        /** @name The registered sinks
+         *
+         *  Read-only access to the list, for the config pass that applies each
+         *  sink's floor from the parameter it names (Vars::Params). The logger
+         *  itself never reads a parameter - it cannot see the bank - so this is
+         *  the seam between the two.
+         *  @{ */
+        uint8_t    writer_count() const { return _writerCount; }
+        LogWriter* writer(uint8_t i) const {
+            return (i < _writerCount) ? _writers[i] : nullptr;
+        }
+        /** @} */
+
         /** @brief Set the minimum forwarded level (criticals always pass); see
          *  @c _min_level. */
         void set_min_level(Logs::LogLevel lvl) { _min_level = lvl; }

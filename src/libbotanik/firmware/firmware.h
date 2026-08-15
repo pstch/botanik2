@@ -11,10 +11,10 @@
  * A site is DATA: it fills a SiteDescriptor and derives a thin
  * `GreenhouseXXX : BotanikFirmware`, customizing only through register_*(),
  * on_setup() and the six per-phase hooks. See docs/integration.
- * @note Both UART rates are PARAMETERS, not compile-time constants;
- *       _apply_serial_config() retunes the UART and the render TX budget
- *       together, a renderer pacing for the wrong rate being worse than not
- *       retuning at all.
+ * @note Both UART rates are PARAMETERS, not compile-time constants
+ *       (`console_baud`, `monitor_baud`); _apply_serial_config() retunes the
+ *       UART and the render TX budget together, a renderer pacing for the wrong
+ *       rate being worse than not retuning at all.
  */
 
 #include <cstdint>

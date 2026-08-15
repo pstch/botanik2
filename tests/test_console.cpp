@@ -1640,8 +1640,8 @@ namespace {
     /** @brief A Console over the site's real bank, registered in a real task
      *  table - the shape BotanikFirmware builds, minus the pages.
      *
-     *  The site's own rows, not a hand-written fixture: `term_cols` / `term_rows`
-     *  / `term_serial` are the library's OWN parameters, and the point of the
+     *  The site's own rows, not a hand-written fixture: `console_cols` / `console_rows`
+     *  / `console_serial` are the library's OWN parameters, and the point of the
      *  cases below is that the console and the table agree about them. */
     struct ConfigFixture {
         botanik_test::PipeSerial wire;
@@ -1672,7 +1672,7 @@ namespace {
             return bank.set(bank.var(name), value);
         }
         uint32_t serial() const {
-            return (uint32_t)Vars::get_int(&bank, "term_serial", 0);
+            return (uint32_t)Vars::get_int(&bank, "console_serial", 0);
         }
     };
 
@@ -1690,8 +1690,8 @@ TEST_CASE("console: the stored geometry lands once the parameters are loaded") {
     // the trap: a console that recorded the serial as applied above would never
     // look again, and a geometry saved on the last run would never reach the
     // screen.
-    REQUIRE(f.set("term_cols", "100") == Vars::SET_OK);
-    REQUIRE(f.set("term_rows", "30") == Vars::SET_OK);
+    REQUIRE(f.set("console_cols", "100") == Vars::SET_OK);
+    REQUIRE(f.set("console_rows", "30") == Vars::SET_OK);
     REQUIRE(f.serial() == committed);
 
     // Bring-up order: the load is part of Registry::setup(), and the console
@@ -1712,13 +1712,13 @@ TEST_CASE("console: a `term_` edit stages until the group's commit serial moves"
 
     // The three rows describe ONE terminal, so an edit waits for the commit
     // rather than walking the screen through geometries that match nothing.
-    REQUIRE(f.set("term_cols", "100") == Vars::SET_OK);
+    REQUIRE(f.set("console_cols", "100") == Vars::SET_OK);
     f.beats(4);
     CHECK(f.console.terminal().cols() == Config::CONSOLE_COLS);
 
     char bumped[8];
     snprintf(bumped, sizeof(bumped), "%u", (unsigned)(f.serial() + 1u));
-    REQUIRE(f.set("term_serial", bumped) == Vars::SET_OK);
+    REQUIRE(f.set("console_serial", bumped) == Vars::SET_OK);
     f.beats(4);
     CHECK(f.console.terminal().cols() == 100);
 }

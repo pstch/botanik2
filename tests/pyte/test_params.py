@@ -4,7 +4,7 @@ Own sim per test: an edit here commits to the parameter store.
 
 Cursor arithmetic below counts rows in the ROLE_PARAM block, which the library's
 parameters open (its own go last within its block, which places them first):
-  0 serial_console_baud  1 serial_monitor_baud
+  0 monitor_baud  1 monitor_level
   2 net_serial  3 net_dhcp  4 net_ip  5 net_mask  6 net_gw  7 net_dns1  8 net_dns2
   9 ntp_serial  10 ntp_enable  11 ntp_poll_sec
 """
@@ -59,7 +59,7 @@ def test_group_follows_selection(spawn):
     shows whichever group came last in the table.
     """
     term = _params(spawn)
-    assert term.wait_for("(serial)"), "first row is a library serial_* parameter"
+    assert term.wait_for("(monitor)"), "first row is the library's monitor_baud"
     _down(term, 2)
     assert term.wait_for("(net)"), "group did not follow the cursor into net_*"
     _down(term, 7)

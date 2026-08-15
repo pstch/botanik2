@@ -1,4 +1,4 @@
-"""The console's own geometry: `term_cols` / `term_rows` reach the screen.
+"""The console's own geometry: `console_cols` / `console_rows` reach the screen.
 
 The `term_` rows are the library's own parameters and describe the terminal on
 the wire, so what has to be asserted is the size of what is DRAWN, not the line
@@ -38,7 +38,7 @@ def _cmd(term, text, reply):
 
 
 def test_a_saved_geometry_comes_back_at_the_next_boot(spawn, tmp_path):
-    """The `term_` group is applied on its COMMIT SERIAL, which a save stores
+    """The `console_` group is applied on its COMMIT SERIAL, which a save stores
     along with the rest and a load restores unchanged - so nothing on the way
     back up is an edge, and the console has to adopt the stored rows itself."""
     store = tmp_path / "geometry_store"
@@ -50,10 +50,10 @@ def test_a_saved_geometry_comes_back_at_the_next_boot(spawn, tmp_path):
     width, alarm_row = _geometry(term)
     assert alarm_row == 24, "the sim should boot at the configured 25 rows"
 
-    _cmd(term, "params set term_cols 100", "term_cols = 100")
-    _cmd(term, "params set term_rows 30", "term_rows = 30")
-    _cmd(term, "params save term_cols", "term_cols saved")
-    _cmd(term, "params save term_rows", "term_rows saved")
+    _cmd(term, "params set console_cols 100", "console_cols = 100")
+    _cmd(term, "params set console_rows 30", "console_rows = 30")
+    _cmd(term, "params save console_cols", "console_cols saved")
+    _cmd(term, "params save console_rows", "console_rows saved")
 
     again = boot(spawn, store=store, screen=(110, 34))   # a second sim, same store
     _wait_geometry(again, (width + 20, 29),           # 20 columns and 5 rows more
@@ -67,12 +67,12 @@ def test_the_group_applies_on_its_commit_serial(spawn):
     term.until(lambda: _geometry(term)[1] is not None)
     width, alarm_row = _geometry(term)
 
-    _cmd(term, "params set term_cols 100", "term_cols = 100")
-    _cmd(term, "params set term_rows 30", "term_rows = 30")
+    _cmd(term, "params set console_cols 100", "console_cols = 100")
+    _cmd(term, "params set console_rows 30", "console_rows = 30")
     term.run(60)
     assert _geometry(term) == (width, alarm_row), \
         "a staged `term_` edit resized the screen before the commit"
 
-    _cmd(term, "params set term_serial 2", "term_serial = 2")
+    _cmd(term, "params set console_serial 2", "console_serial = 2")
     _wait_geometry(term, (width + 20, 29),
                    "the commit serial did not apply the staged geometry")

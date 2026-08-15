@@ -1,6 +1,6 @@
 """The scrolling tables lay their columns out for the terminal they are on.
 
-The `term_` group is the only thing that moves the geometry at runtime, so the
+The `console_` group is the only thing that moves the geometry at runtime, so the
 resize goes through it and what is asserted is what the TABLE draws: every
 bordered row spans the display between equal margins, and none overruns it.
 
@@ -33,8 +33,8 @@ def _cmd(term, text, reply):
 def _resize(term, cols, serial):
     """Set the width and commit it; the group applies on its serial."""
     goto(term, keys.ALT_2)
-    _cmd(term, "params set term_cols %d" % cols, "term_cols = %d" % cols)
-    _cmd(term, "params set term_serial %d" % serial, "term_serial = %d" % serial)
+    _cmd(term, "params set console_cols %d" % cols, "console_cols = %d" % cols)
+    _cmd(term, "params set console_serial %d" % serial, "console_serial = %d" % serial)
 
 
 def _assert_fits(term, key, label, cols):

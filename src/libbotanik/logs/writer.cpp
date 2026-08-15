@@ -77,8 +77,9 @@ namespace Botanik { namespace Logs {
 
     SerialLogWriter::SerialLogWriter(const SetupContext& ctx, BufferedSerial& serial,
                                      bool drop_if_tty, const char* name,
-                                     const char* sink) :
-        BufferedLogWriter(sink != nullptr ? sink : name), Component(ctx, name),
+                                     const char* sink, const char* level_param) :
+        BufferedLogWriter(sink != nullptr ? sink : name, level_param),
+        Component(ctx, name),
         _serial(&serial), _suppressed(drop_if_tty && serial.is_output_tty()) {}
 
     void SerialLogWriter::push(const Logs::LogEntry* entry) {
