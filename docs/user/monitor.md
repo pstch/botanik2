@@ -7,7 +7,7 @@ something is listening.
 | | |
 |---|---|
 | **Port** | monitor UART (OPTA: **USB CDC**) |
-| **Baudrate** | `115200` by default |
+| **Baudrate** | the `monitor_baud` parameter, `115200` by default |
 | **Framing** | `8N1` |
 | **Content** | plain formatted log lines, one per entry |
 | **Input** | discarded |
@@ -34,6 +34,10 @@ cat /dev/ttyACM0 | tee botanik-$(date +%F).log     # keep the transcript
 On the OPTA the monitor is the USB CDC port, so plugging the unit into a laptop is
 all the wiring it needs. Nothing is sent back: input is read and discarded, so a
 stray keypress in the terminal cannot reach the firmware.
+
+@note On the simulator the stream goes to **stderr**, and suppresses itself when
+that is a terminal so it cannot garble the UI on the same screen. Redirect it to
+see it: `./botanik_sim 2> sim.log`.
 
 ## What it prints
 
@@ -63,5 +67,5 @@ topic that floods is still suppressed here, and the suppression is still reporte
 
 @note The monitor sink is a build-time feature (`LOGS_MONITOR`). `features` says
 whether this binary has it, and `stats` reports the port's configured rate. The rate
-itself is the `serial_monitor_baud` parameter: changing it retunes the port, so
+itself is the `monitor_baud` parameter: changing it retunes the port, so
 reconnect at the new speed.

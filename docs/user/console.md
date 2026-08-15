@@ -6,11 +6,13 @@ The console is the unit's operator interface: a full-screen ANSI terminal on the
 ## Connecting
 
  - **Port** : console UART (OPTA: `PG_14` / `PG_9`)
- - **Baudrate** : the `serial_console_baud` parameter, `4800` by default
+ - **Baudrate** : the `console_baud` parameter, `4800` by default
  - **Framing** : `8N1`
- - **Terminal** : the `term_type` parameter - `VT100`, `VT102` (default),
+ - **Terminal** : the `console_type` parameter - `VT100`, `VT102` (default),
    `MINITEL_1B` or `MINITEL_2`
- - **Size** : the `term_cols` / `term_rows` parameters, `80x24` by default
+ - **Size** : the `console_cols` / `console_rows` parameters, `80x25` by default, and
+   `80x25` is also the **minimum** - the pages lay out for it, so a smaller screen
+   is refused rather than reflowed
 
 Since we want to support old terminals such as the Minitel, the default baudrate is
 very slow, and the firmware is written so that it is usable on such a low baudrate:
@@ -25,16 +27,18 @@ VT102 for a Minitel, or an 80x24 for a 132x32, needs no firmware build. Nothing
 is negotiated - there is no resize handshake, so what you declare is what the
 pages lay themselves out for.
 
-All three apply together, on a bump of `term_serial`:
+All four apply together, on a bump of `console_serial`:
 
 ```
-botanik> params set term_type 2       # Minitel 1B
-botanik> params set term_cols 40
-botanik> params set term_serial 2     # ...and now apply the lot
+botanik> params set console_baud 1200
+botanik> params set console_type 2       # Minitel 1B
+botanik> params set console_cols 40
+botanik> params set console_serial 2     # ...and now apply the lot
 ```
 
-Staged, because the three describe one physical terminal: applied one edit at a
-time the screen would pass through sizes that match nothing on the wire. On the
+Staged, because the four describe one physical terminal: applied one edit at a
+time the screen would pass through rates and geometries that match nothing on
+the wire, and you would reconnect once per row. On the
 two Minitel types the firmware emits the PRO2 setup sequences as part of the
 switch, exactly as it does at start-up.
 
@@ -48,8 +52,8 @@ console nobody can read was never written to flash, and a power cycle brings the
 last saved one back.
 
 ```
-botanik> params set serial_console_baud 9600
-botanik> params set term_serial 3
+botanik> params set console_baud 9600
+botanik> params set console_serial 3
 BOOT: console now 9600 baud, 80x24, terminal type 1
       `params save all` to keep it; a power cycle undoes it
 
@@ -63,7 +67,7 @@ readable, `params save all`. If they are not, pull the power: the unit comes bac
 whatever was last saved.
 
 @note Getting the **size** wrong is milder still. The screen mangles, but input
-is untouched, so `params set term_cols 80` and a `term_serial` bump typed blind
+is untouched, so `params set console_cols 80` and a `console_serial` bump typed blind
 will land even on a screen you cannot read. It is the **rate** that leaves
 nothing to type into, and the power cycle is what answers that one.
 
@@ -228,7 +232,7 @@ Standard emacs-like shortcuts.
 | Key                                         | Action                                                               |
 |---------------------------------------------|----------------------------------------------------------------------|
 | `ENTER`                                     | execute the editor's input command                                   |
-| `Alt+ENTER`, `Shift+ENTER`                  | insert a literal newline                                             |
+| `Shift+ENTER`                               | insert a literal newline                                             |
 | `UP` / `Ctrl+P`,                            | previous command from history                                        |
 | `DOWN` / `Ctrl+N`                           | next command from history                                            |
 | `LEFT` / `Ctrl+B`                           | move to the previous character                                       |
@@ -304,8 +308,15 @@ commands with their own code.
 | `reset`                                        | reset the unit now                    |
 | `exit`                                         | quit (simulator) / reboot (hardware)  |
 
-  - `reset` cuts the loop off where it stands and may leave outputs in a non-safe state
-  - `reboot` leaves the loop running, but disables control and stops kicking the watchdog
+Both drop control first, so the outputs are at their safe state and the retained
+values are written before the unit goes down. They differ in what happens next:
+
+  - `reset` resets immediately, so nothing more is logged or painted
+  - `reboot` leaves the loop running and withholds the watchdog kick, so the log
+    and the screen keep up until the watchdog fires - the same path an unattended
+    unit takes when it wedges
+
+Neither writes an unsaved parameter or override on your behalf (@ref user_params).
 
 ##### System status
 
@@ -426,6 +437,8 @@ acknowledged.
 `all` is the one to reach for when you want to know what this unit *can* tell you.
 The lifecycle behind the columns is in @ref user_alarms.
 
+See @ref user_alarms for more information.
+
 ### Parameters page
 
 ```
@@ -433,8 +446,8 @@ The lifecycle behind the columns is in @ref user_alarms.
 
   | PARAMETER                | TYPE | VALUE                 | UNIT  | REGISTER |
   +--------------------------+------+-----------------------+-------+----------+
-  | serial_console_baud      | u32  | 4800                  | Bd    | 900      |
-  | serial_monitor_baud      | u32  | 115200                | Bd    | 901      |
+  | console_baud      | u32  | 4800                  | Bd    | 900      |
+  | monitor_baud      | u32  | 115200                | Bd    | 901      |
   | net_serial               | u32  | 1                     |       | 910      |
   | net_dhcp                 | bool | 0                     |       | 911      |
   | net_ip                   | str  | 192.168.1.40*         |       | 912      |

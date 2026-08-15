@@ -45,24 +45,24 @@ change nothing.
 ## Reading the list
 
 ```
-botanik> tasks
-Registered .................. : 30       (0 refused, 48 slots)
-Beat ........................ : 10ms     (fast/main/slow/bkgnd 10/50/100/500 ms)
-Activations ................. : 2070     (across 30 task(s))
-Missed ...................... : 0        (every task kept its rate)
+botanik> tasks stats
+Registered ....... : 23       (0 refused, 48 slots)
+Beat ............. : 10ms     (fast/main/slow/bkgnd 10/50/100/500)
+Activations ...... : 11287    (across 23 task(s))
+Missed ........... : 0        (every task kept its rate)
 ```
 
 ```
 botanik> tasks get supply_watch
-Runs in .............. : control (slow, every 100 ms)
-Activations .......... : 105 run, 0 missed, last 0 ms ago
-Cost ................. : last 0 us, mean 0 us, peak 0 us
-Duty ................. : 0.00 % of its own period
+Runs in                : control (slow, every 100 ms)
+Activations            : 105 run, 0 missed, last 40 ms ago
+Cost                   : last 0 us, mean 0 us, peak 0 us
+Duty                   : 0.00 % of its own period
 ```
 
 | Command | Does |
 |---|---|
-| `tasks` | the totals: how many are registered, how many refused, activations, missed |
+| `tasks stats` | the totals: how many are registered, how many refused, activations, missed |
 | `tasks list [<prefix>]` | the table, optionally filtered by name |
 | `tasks get <name>` | one task in detail |
 
@@ -81,29 +81,28 @@ the beat at all, and is reported as a critical at boot.
 
 ## The library's tasks
 
-Thirty on a full build. Anything gated on a feature is simply absent when that
-feature is compiled out - `features` from the shell says which are in this
-binary.
+Twenty-one on a full build, plus one per control program the site declares.
+Anything gated on a feature is simply absent when that feature is compiled out -
+`features` from the shell says which are in this binary, and `tasks list` is
+always the authoritative answer for the unit in front of you.
 
 ### Input
 
 | Task | Rate | Does |
 |---|---|---|
-| `site_input` | fast | the site's own input hook |
+| `console_rx` | fast | take the console's bytes in and route what they decode to |
 | `modbus_rtu_rx` | fast | parse and commit whatever the field bus answered, before anything reads it |
 | `modbus_tcp_rx` | fast | accept, decode and apply a SCADA master's writes, before the programs run |
 | `expire_stale` | bkgnd | invalidate readings older than their declared timeout |
 | `reject_implausible` | bkgnd | invalidate a reading that is fresh and still outside its declared band - a dead 4-20 mA loop reads full scale, which no timeout catches |
-| `console_in` | fast | take the console's bytes in and route what they decode to |
 
 ### Config
 
 | Task | Rate | Does |
 |---|---|---|
-| `console_cfg` | slow | the console's own: its rate, make and size (the `term_` group) |
+| `console_cfg` | slow | the console's own: its rate, make and size (the `console_` group) |
 | `monitor_cfg` | slow | the monitor port's own rate |
 | `params` | slow | the parameter image, the paced write of retained values, and the log level - the one setting whose consumer cannot read it for itself |
-| `site_config` | fast | the site's own config hook |
 
 ### Service
 
@@ -115,7 +114,6 @@ binary.
 | `net` `ntp` `mqtt` | fast | the network, clock-sync and broker state machines |
 | `telemetry` | fast | publish what is due to the broker |
 | `modbus_tcp_wr` | fast | make a master's writes durable, a couple per beat, so a burst is not a flash storm |
-| `site_service` | fast | the site's own service hook |
 
 ### Control
 
@@ -123,28 +121,21 @@ binary.
 do not: withdrawing control writes safe states into the image, and something
 still has to carry those out to the field. See @ref user_control.
 
-| Task | Rate | Does |
-|---|---|---|
-| `site_control` | fast | the site's own control law |
-| *each control program* | its own | one control program per row, at the rate it declared |
-
-On the reference site those are `supply_watch` (slow) and `supply_report`
-(bkgnd). A site's own will differ; that is the point of the list.
+There is no library task here. The rows are the site's control programs, one
+each, at the rate each declared - on the reference site, `supply_watch` (slow)
+and `supply_report` (bkgnd). Yours will differ, which is the point of the list.
 
 ### Output
 
 | Task | Rate | Does |
 |---|---|---|
 | `modbus_rtu_tx` | fast | issue the next field-bus request, so a demand decided this beat reaches the wire |
-| `site_output` | fast | the site's own output hook |
 
 ### Present
 
 | Task | Rate | Does |
 |---|---|---|
-| `site_present` | fast | the site's own present hook |
 | `modbus_tcp_tx` | fast | answer a SCADA master, off the image the scan just produced |
-| `logger` | fast | refill the rate-limiter and drain the log to its sinks |
 | `console` | slow | draw the screen |
 | `console_tx` | fast | reconcile the frame to the wire and keep the UART fed |
 | `monitor_log` | fast | the monitor port: its bytes in, the log queue out |

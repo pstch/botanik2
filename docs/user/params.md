@@ -27,21 +27,28 @@ flash and clears the mark. Nothing writes on your behalf - not a reboot, not
 That is what makes a bad setting recoverable. A value that breaks the console it
 was typed on was never written, so a power cycle brings the last saved one back.
 The cost is that unsaved work is losable, which is why the reply says `(unsaved)`,
-why the PARAMS page marks the row with a trailing `*`, and why bare `params`
-reports what is still owed:
+why the PARAMS page marks the row with a trailing `*`, and why `params list` ends
+with a count of what is still owed:
 
 | Command | Does |
 |---|---|
-| `params` | list what is edited but not yet written |
-| `params list [<prefix>]` | list parameters, optionally by group |
+| `params list [<prefix>]` | list parameters, optionally by group, then what is unsaved |
 | `params get <name>` | one parameter in detail: band, default, description, notes |
 | `params set <name> <value>` | edit it - live at once, not written |
-| `params save [<name>]` | write one row, or every row still owed |
+| `params save <name>\|all` | write one row, or every row still owed |
+| `params clear <name>\|all` | back to the factory default, dropping the saved copy |
+
+A verb acting on the whole set requires the literal `all`: a bare `params save` is
+a usage error rather than a commit you did not mean.
+
+`params clear` is the way back out of a setting whose effect you cannot undo by
+typing - it restores the firmware's own default **and** forgets what was saved, so
+the next boot does not put it back.
 
 A save can fail, which is a storage fault rather than a bad value: the row keeps
-its mark so `params` goes on reporting the debt, and `FLASH_FLT` is raised
-(@ref user_alarms). `params set` only works on parameters - pointing it at a
-sensor or an output is refused with a hint to use `overrides set` instead, since
+its mark so the unsaved count goes on reporting the debt, and `FLASH_FLT` is
+raised (@ref user_alarms). `params set` only works on parameters - pointing it at
+a sensor or an output is refused with a hint to use `overrides set` instead, since
 the next scan would overwrite it anyway (@ref user_control).
 
 The PARAMS page is the same model with a panel: select a row, read its band and
@@ -63,11 +70,11 @@ botanik> params set net_ip 192.168.1.40
 botanik> params set net_mask 255.255.255.0
 botanik> params set net_gw 192.168.1.1
 botanik> params set net_serial 2        # <- apply the whole group, at once
-botanik> params save                    # <- ...and keep it
+botanik> params save all                # <- ...and keep it
 ```
 
 The value itself means nothing; only *changing* it does. The groups that work
-this way are `net_`, `ntp_`, `mqtt_`, `geo_`, `term_` and `mb_`.
+this way are `net_`, `ntp_`, `mqtt_`, `geo_`, `console_` and `mb_`.
 
 ## The library's parameters
 
@@ -75,29 +82,31 @@ Registers 900-999 are reserved for these, so a site's own rows never collide.
 Anything gated on a feature is absent - not zero - when that feature is compiled
 out; `features` from the shell says which are in this binary.
 
-### Serial ports
+### Console (`console_`)
+
+Everything about the terminal on the console port: how fast it runs, what it is,
+and how big. All four apply on `console_serial`, because they describe one
+physical terminal - changing the rate on its own, then the size, would ask
+whoever is watching to reconnect twice.
 
 | Name | Unit | What |
 |---|---|---|
-| `serial_console_baud` | Bd | console UART rate. Retunes the wire *and* the render budget; you will have to reconnect at the new rate |
-| `serial_monitor_baud` | Bd | monitor UART rate. Log-only port; ignored on the OPTA, whose MONITOR is USB CDC |
+| `console_serial` | | bump to apply staged `console_` edits |
+| `console_baud` | Bd | console UART rate. Retunes the wire *and* the render budget; you will have to reconnect at the new rate |
+| `console_type` | | which terminal is on the console: `VT100`, `VT102`, `MINITEL_1B`, `MINITEL_2` |
+| `console_cols` | col | console width |
+| `console_rows` | row | console height |
 
-### Terminal (`term_`, with the console)
+@warning This group can take the screen with it - a wrong rate, size or make
+leaves a console you cannot read. It is deliberately recoverable: the change was
+applied and not written, so power-cycling before you `params save all` brings
+back the last saved settings.
 
-What the console draws on. Applied on `term_serial`, because the three of them
-describe one physical terminal.
+### Monitor port
 
 | Name | Unit | What |
 |---|---|---|
-| `term_serial` | | bump to apply staged `term_` edits |
-| `term_type` | | which terminal is on the console: `VT100`, `VT102`, `MINITEL_1B`, `MINITEL_2` |
-| `term_cols` | col | console width |
-| `term_rows` | row | console height |
-
-@warning This group can take the screen with it - a wrong size or make leaves a
-console you cannot read. It is deliberately recoverable: the change was applied
-and not written, so power-cycling before you `params save all` brings back the last
-saved settings.
+| `monitor_baud` | Bd | monitor UART rate. Log-only port, applied on its own the moment it is set; ignored on the OPTA, whose MONITOR is USB CDC |
 
 ### Network (`net_`, `ntp_`, `mqtt_`)
 

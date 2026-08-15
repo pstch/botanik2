@@ -32,7 +32,21 @@ is logged and delivered to every sink. The base library provides up to five sink
 
 **Topics** say which part of the firmware spoke: `BOOT`, `NETWORK`, `TIME`,
 `STATUS`, `HEALTH`, `STORAGE`, `MODBUS`, `ASSERT`, and the alarm transitions
-`ALARM_BEG`, `ALARM_END`, `ALARM_FLAP`.
+`ALARM_BEG`, `ALARM_END`, `ALARM_FLAP`. One topic is yours: `USER`.
+
+## Writing your own entry
+
+`log <level> <text>` puts a line of your own in the record, on the `USER` topic,
+through every sink the firmware's own entries go to:
+
+```
+botanik> log notice replaced zone 2 sensor, trim pending
+```
+
+It is the way to leave the *why* beside the evidence - the log already shows what
+the plant did, and this is where you say what you did to it. For anything that
+should outlive the log's circular buffer, use the NOTES page instead
+(@ref user_console).
 
 ## Choosing how much
 
@@ -75,10 +89,10 @@ A page floor can only ever be *more* restrictive: raising the master floor to
 debug lines appear on HOME. Criticals clear every floor. To silence only the
 SHELL page's interleaved log entirely, use `logs off`.
 
-A site can move any of the three (`BOTANIK_HOME_LOG_MIN_LEVEL`,
-`BOTANIK_SHELL_LOG_MIN_LEVEL`, `BOTANIK_LOGS_LOG_MIN_LEVEL`), and the master floor
-itself is `BOTANIK_LOG_MIN_LEVEL`. All four are build-time: there is no command that
-moves a floor on a running unit.
+The three page floors are build-time (`BOTANIK_HOME_LOG_MIN_LEVEL`,
+`BOTANIK_SHELL_LOG_MIN_LEVEL`, `BOTANIK_LOGS_LOG_MIN_LEVEL`), so a site pins them
+and no command moves them. The master floor is the one you can move on a running
+unit, because it is a parameter.
 
 ## Long entries
 
@@ -107,25 +121,10 @@ the message is telling you that something is *missing* from what you are reading
 Criticals themselves are never dropped: if the queue is full a critical evicts the
 oldest entry rather than being discarded.
 
-## The monitor port
+## Where it comes out
 
-The unit has a second serial port carrying the log and nothing else.
-
-| | |
-|---|---|
-| Port | monitor (OPTA: **USB CDC**) |
-| Speed | `Config::MONITOR_BAUD`, **115200** by default |
-| Content | plain formatted log lines, one per entry |
-| Input | none - it is output-only |
-
-This is the port to use when the console UI is in the way, when you want to capture
-a session to a file, or when you need the log faster than the slow console link can
-carry it. It never competes with the UI for the console's byte budget, so it does not
-drop lines the way a busy screen can.
-
-On hardware, plug in a USB cable and open the CDC device at 115200. Everything the
-logger emits appears there, at whatever `sys_log_level` is set to.
-
-@note On the simulator the monitor stream goes to **stderr** and suppresses itself
-when that is a terminal, so it cannot garble the UI on the same screen. Redirect it
-to see it: `./botanik_sim 2> sim.log`.
+Every sink gets the same entries, filtered only by the floors above. The console
+pages are the ones you read while working; the **monitor port** is the one to reach
+for when the UI is in the way, when you want to capture a session to a file, or
+when you need the log faster than the slow console link can carry it. See
+@ref user_monitor.
