@@ -247,7 +247,7 @@ namespace {
         MI("no_timeout",  T_F32, 5, 3, 18, 2, SF(0.0f), SF(100.0f), SF(1.5f), 0, 1,
                           "C", "", ""),
         RO("valve",       31, 0, true, false, "drain valve", ""),
-        A("alarm_hot",    "HOT", 2, 2, 0, 0, 0, 800, "over temperature", ""),
+        A("alarm_hot",    "HOT", 2, 2, 0, 0, 800, "over temperature", ""),
         G ("setpoint",    T_F32, SF(18.0f), 1, "C", "target temp", ""),
         P("ntp_poll_s",   T_U16, 64, 0, 3600, 0, "s", 1, "NTP poll interval", ""),
         PS("ntp_server1", "ntp.example.org", 32, STR_HOST, 2, "primary NTP server", ""),

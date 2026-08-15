@@ -142,24 +142,40 @@ TEST_CASE("health: the thresholds are parameters, live, not compile-time constan
     }
 }
 
-TEST_CASE("health: an overrun holds CPU_XRUN up long after the beat that caused it") {
-    // Latched for ALARM_EVENT_HOLD_MS, not pulsed - a one-beat blip isn't annunciation.
+TEST_CASE("health: an overrun pulses CPU_XRUN, and the row's own hold_s latches it") {
+    // Overruns are a COUNTER, so health writes a one-beat pulse on each tick and
+    // the 300 s latch is the CPU_XRUN row's hold_s, applied by the model like
+    // any other row. Both halves are asserted here: the pulse alone would be a
+    // blip nobody sees, and the hold alone would never be armed.
+    static const uint64_t HOLD_MS = 300u * 1000u;   // the CPU_XRUN row's hold_s
     Fixture f;
     Health::HealthMonitor h(Botanik::SetupContext(nullptr, &f.log), &f.sched, &f.bank);
+    Alarms::AlarmController& m = h.alarm_model();
+    m.setup(0);
+    const int xr = m.index_of("CPU_XRUN");
+    REQUIRE(xr >= 0);
 
     h.step(SETTLED);
-    CHECK_FALSE(f.alarm("alarm_cpu_xrun"));
+    m.step(SETTLED);
+    CHECK_FALSE(m.condition((uint8_t)xr).active);
 
     f.sched.overruns = 1;                           // one skipped beat, ever
     h.step(SETTLED);
-    CHECK(f.alarm("alarm_cpu_xrun"));
+    m.step(SETTLED);
+    CHECK(f.alarm("alarm_cpu_xrun"));               // the raw pulse
+    CHECK(m.condition((uint8_t)xr).active);
 
-    // Still up mid-hold, though nothing has overrun since.
-    h.step(SETTLED + Config::ALARM_EVENT_HOLD_MS - 1000);
-    CHECK(f.alarm("alarm_cpu_xrun"));
-
-    h.step(SETTLED + Config::ALARM_EVENT_HOLD_MS + 1000);
+    // The pulse is over on the very next beat; the model keeps it up regardless.
+    h.step(SETTLED + 1000);
+    m.step(SETTLED + 1000);
     CHECK_FALSE(f.alarm("alarm_cpu_xrun"));
+    CHECK(m.condition((uint8_t)xr).active);
+
+    m.step(SETTLED + HOLD_MS - 1000);               // still inside the hold
+    CHECK(m.condition((uint8_t)xr).active);
+
+    m.step(SETTLED + HOLD_MS + 2000);               // past it
+    CHECK_FALSE(m.condition((uint8_t)xr).active);
 }
 
 TEST_CASE("health: POST fails when the alarm table declares more than the model drives") {

@@ -83,19 +83,18 @@ There is no alarm table. An alarm is a **row in the variable table**, declared w
 `A()`, carrying both the boolean that raises it and the policy the model runs it on:
 
 ```cpp
-//name              code        on off recent hold  minOn reg  description                    remediation
-A("alarm_ac_grid",  "AC_GRID",  2, 2,  0,     0,    10,   800, "Grid AC out-of-spec/offline", "check mains breaker"),
-A("alarm_too_hot",  "TOO_HOT",  3, 3,  0,     0,    15,   813, "Inside temperature too high", "increase ventilation"),
+//name              code        on off recent hold reg  description                    remediation
+A("alarm_ac_grid",  "AC_GRID",  2, 2,  0,     10,  800, "Grid AC out-of-spec/offline", "check mains breaker"),
+A("alarm_too_hot",  "TOO_HOT",  3, 3,  0,     15,  813, "Inside temperature too high", "increase ventilation"),
 ```
 
 | Argument | Meaning |
 |---|---|
 | `name` | the variable; a control program drives it, the model reads it |
 | `code` | short display code, max 8 chars - the ALARMS table's first column and the alarm bar |
-| `on_s` / `off_s` | dwell before a START / END is announced; `-1` never announces that edge |
+| `on_s` / `off_s` | dwell before a START / END is announced; `-1` never announces that edge. They gate the log line and the notifier fan-out ONLY - neither touches whether the alarm is active |
 | `recent_s` | RECENT filter window (0 = the default week, `<0` = never expires) |
-| `hold_on_s` | hold ON this long after the raw bit clears |
-| `min_on_s` | minimum ON time from onset |
+| `hold_s` | keep the alarm ACTIVE this long past the last raw true, re-armed while the bit is up. The anti-flicker: it folds a chattering signal into one episode, and keeps a pulse too short to see up long enough to be acknowledged |
 | `reg` | its register on the Modbus TCP slave, where it is published as a read-only coil. Hand-assigned like a parameter's and in the same space, but in a block of its own: a site's alarms in 800..899, the library's at the top of its 900..999 reserve |
 | `desc` | shown in the ALARMS table |
 | `notes` | the remediation line, shown under the table when the alarm is selected. Write it - it is the one place to say something specific to the real installation |

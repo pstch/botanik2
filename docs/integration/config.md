@@ -179,7 +179,6 @@ unit is nuisance-alarming on. The macros are their factory values.
 | `ALARM_CPU_LOAD_PCT` | 50 | factory default for `sys_cpu_load_pct`; the `CPU_LOAD` threshold |
 | `ALARM_CPU_JITTER_PCT` | 50 | factory default for `sys_jitter_pct`. Equal to the load one today, but they threshold different quantities, so they stay two knobs |
 | `ALARM_STACK_PCT` | 80 | factory default for `sys_stack_pct`; the `STACK` threshold |
-| `ALARM_EVENT_HOLD_MS` | 300000 | how long an event-style alarm stays active |
 | `HEALTH_RESET_WINDOW_MS` | 300000 | how long after boot `SYS_RST` stays asserted |
 | `ALARM_NOTIFIERS_MAX` | 4 | |
 | `ALARM_RECENT_S` | 604800 | RECENT window a cleared alarm stays listed for (a row's own `recent_s` wins) |

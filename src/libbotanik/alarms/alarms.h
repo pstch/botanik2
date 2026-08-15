@@ -87,11 +87,9 @@ namespace Botanik { namespace Alarms {
         int16_t off_s()     const { return _spec().off_s; }
         /** @brief How long the event stays "recent" (0: the default window,
          *  <0: forever). */
-        int16_t recent_s()  const { return _spec().recent_s; }
-        /** @brief Hold ON this long after the raw input clears (0: none). */
-        int16_t hold_on_s() const { return _spec().hold_on_s; }
-        /** @brief Minimum ON time from onset (0: no latch). */
-        int16_t min_on_s()  const { return _spec().min_on_s; }
+        int32_t recent_s()  const { return _spec().recent_s; }
+        /** @brief Stay active this long past the last raw true (0: none). */
+        int16_t hold_s()    const { return _spec().hold_s; }
 
         /** @} */
 
@@ -108,19 +106,18 @@ namespace Botanik { namespace Alarms {
         uint64_t    edge_ms;        ///< time since last transition
         uint64_t    started_ms;     ///< time since last ON transition
 
-        uint32_t    hold_on_rem_ms; ///< countdown from OFF edge ; 0 = elapsed
-        uint32_t    min_on_rem_ms;  ///< countdown from ON edge ; 0 = elapsed
+        uint32_t    hold_rem_ms;    ///< countdown past the last raw true; 0 = elapsed
 
         /** @} */
 
-        /** @brief Advance one activation: drain the countdowns, stamp any edge,
+        /** @brief Advance one activation: drain the hold, stamp any edge,
          *  recompute the active state and announce a transition whose dwell
          *  threshold has elapsed.
          *
          *  @p forced says the row is being held by an operator override. A
-         *  forced condition follows the force immediately: the hold-on and
-         *  minimum-on latches are for smoothing a real signal that flaps, and a
-         *  hand-held row does not flap. */
+         *  forced condition follows the force immediately: the hold is for
+         *  smoothing a real signal that flaps, and a hand-held row does not
+         *  flap. */
         void step(bool raw_on, bool forced, uint32_t dt, uint64_t now,
                   const AlarmSink& sink);
 
@@ -130,7 +127,7 @@ namespace Botanik { namespace Alarms {
          *  because such a slot has no variable to raise it. */
         Vars::AlarmSpec _spec() const {
             return (var != nullptr) ? Vars::alarm_spec(*var)
-                                    : Vars::AlarmSpec{nullptr, 0, 0, 0, 0, 0};
+                                    : Vars::AlarmSpec{nullptr, 0, 0, 0, 0};
         }
 
         /** @brief The ON event is due: unannounced, enabled (on_s >= 0), and

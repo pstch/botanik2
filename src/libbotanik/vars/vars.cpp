@@ -43,26 +43,36 @@ namespace Botanik { namespace Vars {
     // site and platform conditions together, in registration order.
     //
     // HealthMonitor drives these the way anything drives a variable: it resolves
-    // the names once at bring-up and writes the boolean. Dwell columns are
-    // A()'s - on_s, off_s, recent_s, hold_on_s, min_on_s (-1 disables an
-    // announce, 0 takes the default) - then the Modbus register. 990-995 is the
-    // TOP of the 900-999 reserve, so a status row added later still grows upward
-    // from 900 without meeting them.
+    // the names once at bring-up and writes the boolean. Columns are A()'s -
+    // on_s, off_s (-1 disables that announce), recent_s, hold_s - then the
+    // Modbus register. 990-995 is the TOP of the 900-999 reserve, so a status
+    // row added later still grows upward from 900 without meeting them.
+    //
+    // recent_s is how long a CLEARED alarm stays in the ALARMS page's RECENT
+    // view, and these pick from three tiers rather than taking the default:
+    //   30 days  evidence about the unit's integrity, asked about long after
+    //            the fact (did it reboot? did it run out of stack? did a write
+    //            fail?). Losing that history is how an intermittent fault gets
+    //            diagnosed twice.
+    //    7 days  (0, the Config default) intermittent faults you read as a
+    //            pattern over a week: a segment that drops nightly.
+    //     1 day  frequent, individually low-signal timing blips. A week of
+    //            these buries everything else in the view.
 
-    A("alarm_system_reset", "SYS_RST", -1, 0, 0, 0, 0,        990,
+    A("alarm_system_reset", "SYS_RST", -1, 0, 30*24*3600, 0,  990,
         "unit reset recently", ""),
-    A("alarm_cpu_xrun", "CPU_XRUN", 0, -1, 0, 0, 0,           991,
+    A("alarm_cpu_xrun", "CPU_XRUN", 0, -1, 24*3600, 300,      991,
         "scheduler overrun (skipped beat)", ""),
-    A("alarm_cpu_load", "CPU_LOAD", 5, 5, 0, 300, 0,          992,
+    A("alarm_cpu_load", "CPU_LOAD", 5, 5, 24*3600, 300,       992,
         "CPU load over threshold", ""),
-    A("alarm_stack", "STACK", 5, 5, 0, 300, 0,                993,
+    A("alarm_stack", "STACK", 5, 5, 30*24*3600, 300,          993,
         "stack usage over threshold", ""),
-    A("alarm_cpu_jitter", "CPU_JITT", 5, 5, 0, 300, 0,        994,
+    A("alarm_cpu_jitter", "CPU_JITT", 5, 5, 24*3600, 300,     994,
         "CPU jitter over threshold", ""),
     /* Sticky: a store that refused a write does not heal by itself, and the
        consequence (parameters silently reverting at the next reboot) is
        invisible until it is far too late to connect cause and effect. */
-    A("alarm_flash_error", "FLASH_FLT", 0, -1, 0, 0, 0,       995,
+    A("alarm_flash_error", "FLASH_FLT", 0, -1, 30*24*3600, 0, 995,
         "persistent storage write failed",
         "parameters will not survive a reboot; check the KV region"),
 
@@ -78,10 +88,10 @@ namespace Botanik { namespace Vars {
     // talking over it. A babbling unit makes the distinction matter - its bytes
     // corrupt whichever transaction is in flight, so the miss is charged to
     // whoever was being polled and every healthy device is faulted in turn.
-    A("alarm_fieldbus", "BUS_DEAD", 0, 5, 0, 0, 0, 996,
+    A("alarm_fieldbus", "BUS_DEAD", 0, 5, 0, 0, 996,
         "a field device is not answering",
         "check the RS-485 wiring, termination and the device's own power"),
-    A("alarm_fieldbus_line", "BUS_LINE", 0, 5, 0, 0, 0, 998,
+    A("alarm_fieldbus_line", "BUS_LINE", 0, 5, 0, 0, 998,
         "the whole segment has gone quiet",
         "the trunk, the termination, this unit's transceiver, or a second "
         "master - not twenty devices that failed at once"),
@@ -92,7 +102,7 @@ namespace Botanik { namespace Vars {
     // beat, this says a PROGRAM ran later than the period it asked for. on_s 5
     // because lateness comes in bursts (a flash write, a DNS retry); off_s 30,
     // because "it caught up once" is not evidence the cycle has room again.
-    A("alarm_scan_late", "SCAN_LATE", 5, 30, 0, 0, 0, 997,
+    A("alarm_scan_late", "SCAN_LATE", 5, 30, 0, 0, 997,
         "a control program is missing its period",
         "check the TASKS page and the per-program cost; something is "
         "overrunning or the site asks for more than the beat holds"),

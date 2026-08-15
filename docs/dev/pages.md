@@ -177,8 +177,7 @@ class AlarmCondition {
   on_s : int32 - ON dwell before announce (-1 off)
   off_s : int32 - OFF dwell before announce (-1 off)
   recent_s : int32 - "recent" window (0 = a week, <0 forever)
-  hold_on_s : int32 - hold ON after raw clears
-  min_on_s : int32 - minimum ON latch from onset
+  hold_s : int16 - stay active past the last raw true
   --
   ref : VarRef - the boolean variable carrying the condition
   local_raw : bool - locally asserted, OR'd with ref

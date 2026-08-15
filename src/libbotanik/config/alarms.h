@@ -24,7 +24,7 @@ namespace Botanik { namespace Config {
     /** @brief Platform-health alarm thresholds: CPU_LOAD / CPU_JITT fire when
      *  the rolling-peak load / jitter exceeds this percent of the task period;
      *  STACK fires above this percent stack usage. Per-alarm latch is in the
-     *  site table (hold_on_s).
+     *  table (hold_s).
      *
      *  The load and jitter thresholds agree at 50% today but threshold
      *  different quantities (duty cycle vs scheduling lateness), so they stay
@@ -41,15 +41,6 @@ namespace Botanik { namespace Config {
 #  define BOTANIK_ALARM_STACK_PCT 80
 #endif
     BOTANIK_CFG(uint8_t, ALARM_STACK_PCT);
-
-    /** @brief How long a momentary-event alarm (CPU_XRUN) stays held
-     *  active after its counter ticks. HealthMonitor latches this in source (a
-     *  proper held state, not a one-beat pulse), independent of the table's
-     *  hold_on_s. */
-#ifndef BOTANIK_ALARM_EVENT_HOLD_MS
-#  define BOTANIK_ALARM_EVENT_HOLD_MS 300000
-#endif
-    BOTANIK_CFG(uint32_t, ALARM_EVENT_HOLD_MS);
 
     /** @brief How long after boot the SYS_RST alarm stays asserted, i.e. the
      *  window in which "this unit has recently reset" is still news. Read by
@@ -68,7 +59,7 @@ namespace Botanik { namespace Config {
 
     /** @brief How long a cleared alarm stays in the ALARMS page's RECENT view
      *  (s). A condition's own recent_s overrides it (0 = this default, < 0 =
-     *  never expires). */
+     *  never expires); the platform alarms in vars.cpp all set their own. */
 #ifndef BOTANIK_ALARM_RECENT_S
 #  define BOTANIK_ALARM_RECENT_S (7 * 24 * 3600)
 #endif
