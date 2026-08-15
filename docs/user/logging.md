@@ -76,23 +76,32 @@ after `params save sys_log_level`. `BOTANIK_LOG_MIN_LEVEL` is the factory value.
 already-written log records, so they never get renumbered.
 
 That factory value is `debug`, so the LOGS page can be the complete record. Each
-page then applies its **own** floor on top:
+**sink** then applies its own floor on top, and each of those is a parameter too:
 
-| Page | Shows | Why |
-|---|---|---|
-| HOME | `notice` and up | a landing screen you glance at - only what is worth looking up for |
-| SHELL | `info` and up | you are already working here, so keep the running commentary |
-| LOGS | everything, `debug` included | this page is the record |
+| Sink | Parameter | Factory | Why |
+|---|---|---|---|
+| HOME | `console_home_level` | `notice` | a landing screen you glance at - only what is worth looking up for |
+| SHELL | `console_shell_level` | `info` | you are already working here, so keep the running commentary |
+| LOGS | `console_logs_level` | `debug` | this page is the record |
+| monitor port | `monitor_level` | `debug` | the port exists to be the full record (@ref user_monitor) |
+| MQTT | `mqtt_level` | `debug` | every entry costs a publish, so this is the floor to raise first |
 
-A page floor can only ever be *more* restrictive: raising the master floor to
-`warning` quietens every page, but lowering it to `debug` does **not** make
+A sink floor can only ever be *more* restrictive: raising the master floor to
+`warning` quietens every sink, but lowering it to `debug` does **not** make
 debug lines appear on HOME. Criticals clear every floor. To silence only the
-SHELL page's interleaved log entirely, use `logs off`.
+SHELL page's interleaved log entirely, use `logs off`, which is a different
+thing from moving its floor - it is not saved and not a setting.
 
-The three page floors are build-time (`BOTANIK_HOME_LOG_MIN_LEVEL`,
-`BOTANIK_SHELL_LOG_MIN_LEVEL`, `BOTANIK_LOGS_LOG_MIN_LEVEL`), so a site pins them
-and no command moves them. The master floor is the one you can move on a running
-unit, because it is a parameter.
+All six take effect on the next entry, with no group serial to bump:
+
+```
+botanik> params set mqtt_level warning   # stop paying to publish the chatter
+botanik> params save mqtt_level          # ...and keep it that way
+```
+
+The `BOTANIK_*_LOG_MIN_LEVEL` macros are now only the factory values behind
+these rows - what a site pins for its hardware, and what a wiped store comes
+back at.
 
 ## Long entries
 

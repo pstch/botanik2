@@ -137,6 +137,12 @@ namespace Botanik { namespace Vars {
         BOTANIK_MONITOR_BAUD, 1200, 921600, 0, "Bd", 901,
         "monitor UART rate",
         "log-only port; ignored on the OPTA, whose MONITOR is USB CDC"),
+#if BOTANIK_FEATURE_LOGS_MONITOR
+    PE("monitor_level", BOTANIK_MONITOR_LOG_MIN_LEVEL,
+        &Logs::log_level_label, 905,
+        "lowest level the monitor port carries",
+        "open by default: this port exists to be the full record"),
+#endif
     /* net_: NetworkHandler reads these by name, so the library declares them */
     P("net_serial", T_U32,
         1, 0, 9999, 0, "", 910,
@@ -201,6 +207,12 @@ namespace Botanik { namespace Vars {
         BOTANIK_MQTT_TELEMETRY_RETAIN, 0, 1, 0, "", 936,
         "publish telemetry retained",
         "on, the broker keeps serving a dead sensor's last good value"),
+#if BOTANIK_FEATURE_LOGS_PUBLISH
+    PE("mqtt_level", BOTANIK_MQTT_LOG_MIN_LEVEL,
+        &Logs::log_level_label, 937,
+        "lowest level published to the broker",
+        "every entry costs a publish, so this is the floor to raise first"),
+#endif
     /* geo_: SunPositionTracker reads these by name */
     P("geo_serial", T_U32,
         1, 0, 9999, 0, "", 940,
@@ -277,6 +289,28 @@ namespace Botanik { namespace Vars {
         BOTANIK_CONSOLE_ROWS, BOTANIK_SCREEN_MIN_ROWS,
         BOTANIK_TERMINAL_MAX_ROWS, 0, "row", 963,
         "console height, in rows", "the screen buffer bounds the maximum"),
+    /* The per-page log floors. In this group because they are the console's,
+       but NOT staged behind console_serial like the four above: a level is read
+       when the next entry arrives and re-initialises nothing, so it lands the
+       moment it is set. @see Vars::Params::_apply_log_level */
+#if BOTANIK_FEATURE_HOME_PAGE
+    PE("console_home_level", BOTANIK_HOME_LOG_MIN_LEVEL,
+        &Logs::log_level_label, 964,
+        "lowest level HOME's log tail shows",
+        "a landing screen: only what is worth looking up for"),
+#endif
+#if BOTANIK_FEATURE_SHELL_PAGE
+    PE("console_shell_level", BOTANIK_SHELL_LOG_MIN_LEVEL,
+        &Logs::log_level_label, 965,
+        "lowest level the SHELL page interleaves",
+        "`logs off` silences it entirely without moving this"),
+#endif
+#if BOTANIK_FEATURE_LOGS_PAGE
+    PE("console_logs_level", BOTANIK_LOGS_LOG_MIN_LEVEL,
+        &Logs::log_level_label, 966,
+        "lowest level the LOGS page keeps",
+        "this page is the record; raising it loses the record"),
+#endif
 #endif
 
     /* sys_: the platform's own runtime policy. NO commit serial, unlike every

@@ -46,6 +46,16 @@ namespace Botanik { namespace Logs {
          *  that never named itself (the report then says only how many). */
         const char* _sink_name;
 
+        /** @brief The parameter this sink takes its floor from, or null for a
+         *  sink whose floor is fixed at construction.
+         *
+         *  The NAME, not the value: a writer cannot reach the variable bank and
+         *  has no business holding a pointer into it. Vars::Params resolves it
+         *  and calls set_min_level(), which is the same pass that already
+         *  applies the logger's own floor - so one place decides how much this
+         *  unit logs, and every sink follows a row an operator can edit. */
+        const char* _level_param;
+
         /** @} */
 
     public:
@@ -53,8 +63,11 @@ namespace Botanik { namespace Logs {
          *  @{ */
 
         /** @brief @p name is what the logger's loss report calls this sink;
-         *  null leaves it unnamed. */
-        explicit LogWriter(const char* name = nullptr) : _sink_name(name) {}
+         *  null leaves it unnamed. @p level_param names the parameter its floor
+         *  follows, or null to keep whatever set_min_level() was last given. */
+        explicit LogWriter(const char* name = nullptr,
+                           const char* level_param = nullptr)
+            : _sink_name(name), _level_param(level_param) {}
 
         /** @} */
 
@@ -67,6 +80,9 @@ namespace Botanik { namespace Logs {
          *  sink holding a name of its own overrides this rather than storing it
          *  twice. */
         virtual const char* sink_name() const { return _sink_name; }
+
+        /** @brief The parameter this sink's floor follows, or null. */
+        const char* level_param() const { return _level_param; }
 
         /** @} */
 
@@ -149,7 +165,9 @@ namespace Botanik { namespace Logs {
 
         /** @brief @p name is the sink's name in a loss report (@see
          *  LogWriter::sink_name). */
-        explicit BufferedLogWriter(const char* name = nullptr) : LogWriter(name) {}
+        explicit BufferedLogWriter(const char* name = nullptr,
+                                   const char* level_param = nullptr)
+            : LogWriter(name, level_param) {}
 
         /** @} */
 
@@ -238,7 +256,8 @@ namespace Botanik { namespace Logs {
         SerialLogWriter(const SetupContext& ctx, BufferedSerial& serial,
                         bool drop_if_tty = false,
                         const char* name = "SerialLogWriter",
-                        const char* sink = nullptr);
+                        const char* sink = nullptr,
+                        const char* level_param = nullptr);
 
         /** @} */
 

@@ -40,8 +40,8 @@ namespace Botanik { namespace Config {
      *
      *  The intern pool covers the WHOLE table, parameters and alarms included -
      *  not just the published rows - so the library's own config groups count
-     *  against it. There are eight of those today (serial, net, ntp, mqtt, geo,
-     *  mb, term, sys), which is most of the reason this is not 8: `gh_mlb41`
+     *  against it. There are eight of those today (monitor, net, ntp, mqtt, geo,
+     *  mb, console, sys), which is most of the reason this is not 8: `gh_mlb41`
      *  reaches 15 with seven groups of its own. Cheap to raise - one pool of
      *  VAR_GROUP_NAME_LEN bytes per slot, plus a pointer in two pages. */
 #ifndef BOTANIK_VAR_GROUPS_MAX

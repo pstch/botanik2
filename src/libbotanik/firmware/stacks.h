@@ -116,7 +116,8 @@ namespace Botanik {
     public:
         MonitorStack(const SetupContext& ctx, const Vars::Bank* cfg = nullptr)
             : _serial(HAL::Serial::get(HAL::Serial::MONITOR)),
-              _writer(ctx, _serial, /*drop_if_tty=*/true, "monitor_log", "MONITOR"),
+              _writer(ctx, _serial, /*drop_if_tty=*/true, "monitor_log", "MONITOR",
+                      "monitor_level"),
               _rate(ctx, _serial, cfg) {}
 
         Utils::BufferedSerial& serial() { return _serial; }

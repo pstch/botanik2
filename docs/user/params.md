@@ -96,8 +96,15 @@ whoever is watching to reconnect twice.
 | `console_type` | | which terminal is on the console: `VT100`, `VT102`, `MINITEL_1B`, `MINITEL_2` |
 | `console_cols` | col | console width |
 | `console_rows` | row | console height |
+| `console_home_level` | | lowest level HOME's log tail shows |
+| `console_shell_level` | | lowest level the SHELL page interleaves |
+| `console_logs_level` | | lowest level the LOGS page keeps |
 
-@warning This group can take the screen with it - a wrong rate, size or make
+The three `_level` rows are the exception in this group: they are **not** staged
+behind `console_serial`. A level is read when the next entry arrives and
+re-initialises nothing, so it lands the moment it is set. See @ref user_logging.
+
+@warning The first four can take the screen with it - a wrong rate, size or make
 leaves a console you cannot read. It is deliberately recoverable: the change was
 applied and not written, so power-cycling before you `params save all` brings
 back the last saved settings.
@@ -106,7 +113,11 @@ back the last saved settings.
 
 | Name | Unit | What |
 |---|---|---|
-| `monitor_baud` | Bd | monitor UART rate. Log-only port, applied on its own the moment it is set; ignored on the OPTA, whose MONITOR is USB CDC |
+| `monitor_baud` | Bd | monitor UART rate. Log-only port; ignored on the OPTA, whose MONITOR is USB CDC |
+| `monitor_level` | | lowest level the port carries. Open by default: this port exists to be the full record |
+
+No `monitor_serial`: the two have nothing to be coherent about, so each applies
+where it is read - the rate restarts the port, the level lands on the next entry.
 
 ### Network (`net_`, `ntp_`, `mqtt_`)
 
@@ -127,6 +138,7 @@ back the last saved settings.
 | `mqtt_ka_sec` | sec | keep-alive interval |
 | `mqtt_tlm_sec` | sec | telemetry publish cadence; 0 stops publishing telemetry |
 | `mqtt_retain` | | publish telemetry retained |
+| `mqtt_level` | | lowest log level published to the broker. Every entry costs a publish, so this is the floor to raise first |
 
 ### Modbus TCP slave (`mb_`)
 
@@ -168,7 +180,7 @@ Applied live - there is no `sys_serial`, because each of these stands alone.
 | `sys_cpu_load_pct` | % | `CPU_LOAD` alarm threshold |
 | `sys_jitter_pct` | % | `CPU_JITT` alarm threshold |
 | `sys_stack_pct` | % | `STACK` alarm threshold |
-| `sys_log_level` | | lowest level the logger forwards: `debug`, `info`, `notice`, `warning`, `error`, `critical`. The master floor - see @ref user_logging |
+| `sys_log_level` | | lowest level the logger forwards: `debug`, `info`, `notice`, `warning`, `error`, `critical`. The **master** floor, under which no sink sees anything - each sink then has a floor of its own (@ref user_logging) |
 | `sys_retain_sec` | sec | how often retained values reach flash. 0 leaves only an explicit save; the trade is flash wear against how much counting a power cut can cost |
 
 `sys_log_level` is an **enumerated** parameter: it is read and written as a word,

@@ -33,9 +33,13 @@ namespace Botanik { namespace Config {
 #endif
     BOTANIK_CFG(uint8_t, LOG_MIN_LEVEL);
 
-    /** @name Per-page sink floors
+    /** @name Per-sink floors
      *
-     *  What each console page shows, on top of LOG_MIN_LEVEL. A sink floor can
+     *  What each sink shows, on top of LOG_MIN_LEVEL. These are the FACTORY
+     *  values: each is behind a parameter an operator can move
+     *  (console_home_level, console_shell_level, console_logs_level,
+     *  monitor_level, mqtt_level), so what a unit shows where is a property of
+     *  the installation rather than of the build. A sink floor can
      *  only ever be MORE restrictive: an entry the logger dropped never reaches
      *  a sink to be admitted. LOG_CRITICAL is the enum maximum, so a critical
      *  clears every floor.
@@ -61,6 +65,13 @@ namespace Botanik { namespace Config {
 #  define BOTANIK_LOGS_LOG_MIN_LEVEL 1   /* Logs::LOG_DEBUG */
 #endif
     BOTANIK_CFG(uint8_t, LOGS_LOG_MIN_LEVEL);
+
+    /** @brief The monitor port. Open, like the LOGS page: the port carries the
+     *  log and nothing else, and it is where a session is captured whole. */
+#ifndef BOTANIK_MONITOR_LOG_MIN_LEVEL
+#  define BOTANIK_MONITOR_LOG_MIN_LEVEL 1   /* Logs::LOG_DEBUG */
+#endif
+    BOTANIK_CFG(uint8_t, MONITOR_LOG_MIN_LEVEL);
 
     /** @} */
 

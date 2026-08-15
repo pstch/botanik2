@@ -344,3 +344,29 @@ def test_reboot_announces_itself_in_the_log(spawn):
     # One acknowledgement, not two: the printed line would say it again.
     assert not term.wait_for("resetting shortly"), \
         "reboot printed a line beside the log entry"
+
+
+def test_sink_log_floor_is_a_live_parameter(spawn):
+    """A sink's floor is a parameter, and it lands on the next entry.
+
+    The SHELL page's own floor, moved from the SHELL page - which is what makes
+    this worth a test: there is no serial to bump, so a `params set` must reach
+    the writer through the CONFIG pass before the next `log` command is
+    formatted.
+    """
+    # Logs ON: `logs off` would silence this sink whatever its floor says, which
+    # is the other half of the point - the two are different mechanisms.
+    term = shell(spawn)
+    _run(term, b"params set console_shell_level error")
+    assert term.wait_for("console_shell_level = error"), "the floor did not take"
+
+    # Below the floor: the entry is forwarded by the logger and refused by this
+    # sink, so it must not reach the screen. Asserted on the RENDERED entry
+    # ("USER: ...") rather than the marker alone - the shell echoes the command
+    # that produced it, so the bare word is on screen either way.
+    _run(term, b"log info below-the-floor")
+    _run(term, b"log error above-the-floor")
+    assert term.wait_for("USER: above-the-floor"), "an entry at the floor was dropped"
+    # The one above arrived after it, so the one below has had its chance.
+    assert term.wait_screen("USER: below-the-floor", present=False), \
+        "an entry below the sink's floor was shown anyway"
