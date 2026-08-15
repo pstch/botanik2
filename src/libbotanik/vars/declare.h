@@ -94,11 +94,22 @@ namespace Botanik { namespace Vars {
      *
      *  @p code is the short display code (max 9: AlarmsPage::CODE_W) the first
      *  column and the alarm bar show; identity still belongs to @p name.
-     *  @p on_s / @p off_s are the dwell before a START / END is announced, -1
-     *  to never announce that edge. @p recent_s is the RECENT filter window
-     *  (0 = the default week, <0 = never expires). @p hold_on_s holds the
-     *  alarm ON that long after the raw bit clears, and @p min_on_s is the
-     *  minimum ON time from onset - both anti-flicker, in seconds.
+     *
+     *  Two of the timings decide what is SAID and one decides what is TRUE:
+     *
+     *      on_s / off_s   dwell before a START / END is announced, -1 to never
+     *                     announce that edge. They gate the log line and the
+     *                     notifier fan-out only; neither touches `active`.
+     *      hold_s         keep the condition ACTIVE this long past the last
+     *                     raw true, re-armed on every beat the bit is up. This
+     *                     is the anti-flicker: it bridges a chattering signal
+     *                     into one episode (so one acknowledgement), and it
+     *                     keeps a pulse too short to see on screen long enough
+     *                     to be seen. 0 = follow the raw bit exactly.
+     *
+     *  @p recent_s is neither: it is how long a CLEARED alarm stays in the
+     *  ALARMS page's RECENT view (0 = Config::ALARM_RECENT_S, <0 = forever).
+     *  Days, not seconds of dwell, which is why it is the one int32 here.
      *
      *  @p reg is its register on the Modbus TCP slave, hand-assigned like a
      *  parameter's and in the same space, but in a block of its own (a site's
@@ -109,11 +120,11 @@ namespace Botanik { namespace Vars {
      *  Carries no band and no unit: it is raised by a control program and read
      *  by the alarm model. */
     constexpr Variable A(const char* name, const char* code,
-                         int16_t on_s, int16_t off_s, int16_t recent_s,
-                         int16_t hold_on_s, int16_t min_on_s, uint16_t reg,
+                         int16_t on_s, int16_t off_s, int32_t recent_s,
+                         int16_t hold_s, uint16_t reg,
                          const char* desc, const char* notes) {
         return Variable{ Scalar::B(false), name, "", desc, notes,
-                         Payload(code, on_s, off_s, recent_s, hold_on_s, min_on_s),
+                         Payload(code, on_s, off_s, recent_s, hold_s),
                          { XP_NONE, T_BOOL, 0, 0, reg, 1, 1.0f, 0.0f }, 0, 0, nullptr,
                          T_BOOL, ROLE_COMPUTED, SCOPE_A, 0, 0, {} };
     }

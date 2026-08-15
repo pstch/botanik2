@@ -82,8 +82,6 @@ namespace Botanik { namespace Health {
 
         /** last overrun count seen (edge detect) */
         uint32_t _xrun_last        = 0;
-        /** CPU_XRUN held active until this uptime */
-        uint64_t _xrun_until_ms    = 0;
         /** cached verdict (see watchdog_ok()) */
         bool     _watchdog_ok      = true;
         /** latched by request_reboot(); never cleared */
@@ -319,8 +317,8 @@ namespace Botanik { namespace Health {
 
         /** @brief Raise/clear the platform alarms from the scheduler metrics.
          *  SYS_RST holds for HEALTH_RESET_WINDOW_MS; CPU_LOAD / CPU_JITT /
-         *  STACK are level-driven; CPU_XRUN held for a window after an
-         *  overrun. */
+         *  STACK are level-driven; CPU_XRUN is a one-beat PULSE the table's
+         *  own hold_s latches (see below). */
         void _assert_platform_alarms(uint64_t now) {
             _raise(_a_reset, now < Config::HEALTH_RESET_WINDOW_MS);
             // Sticky by construction: the counter only ever rises, so a refused
@@ -341,21 +339,14 @@ namespace Botanik { namespace Health {
                     > (uint64_t)period_us * _pct(_p_jitter_pct, Config::ALARM_CPU_JITTER_PCT));
             _raise(_a_stack,
                 _sched->stack_usage * 100.0f > (float)_pct(_p_stack_pct, Config::ALARM_STACK_PCT));
-            if (load) _held_event(_a_xrun, _sched->overruns, _xrun_last,
-                                  _xrun_until_ms, now);
-            else      _raise(_a_xrun, false);
-        }
-
-        /** @brief Hold a momentary "event" alarm active for ALARM_EVENT_HOLD_MS
-         *  after its @p counter ticks (latched in the source, not via the
-         *  table's hold_on_s). */
-        void _held_event(Vars::VarRef r, uint32_t counter, uint32_t& last,
-                         uint64_t& until_ms, uint64_t now) {
-            if (counter != last) {
-                last = counter;
-                until_ms = now + Config::ALARM_EVENT_HOLD_MS;
-            }
-            _raise(r, now < until_ms);
+            // A counter, not a level: pulse the row for the one beat the count
+            // moved and let the CPU_XRUN row's own hold_s do the latching, like
+            // every other alarm. Safe because `health` and `alarms` share a rate
+            // group and a phase (GROUP_SLOW / PHASE_SERVICE), so the pulse is
+            // always sampled - keep them together or it is missed.
+            const bool xrun = load && _sched->overruns != _xrun_last;
+            _xrun_last = _sched->overruns;
+            _raise(_a_xrun, xrun);
         }
 
         /** @brief Watchdog verdict: the loop is alive, so constant while

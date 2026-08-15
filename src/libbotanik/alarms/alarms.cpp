@@ -14,18 +14,15 @@ namespace Botanik { namespace Alarms {
 
     void AlarmCondition::step(bool raw_on, bool forced, uint32_t dt, uint64_t now,
                               const AlarmSink& sink) {
-        // 1. Drain the latch countdowns & refresh the hold-on delay
-        const int16_t hold_s = hold_on_s();
-        hold_on_rem_ms = drain_ms(hold_on_rem_ms, dt);
-        min_on_rem_ms  = drain_ms(min_on_rem_ms, dt);
-        if (raw_on && hold_s > 0 && !forced)
-            hold_on_rem_ms = (uint32_t)hold_s * 1000u;
+        // 1. Drain the hold, then re-arm it for as long as the raw bit is up.
+        //    A FORCED condition follows the force immediately: the hold exists
+        //    to smooth a real signal that flaps, and a hand-held row does not.
+        const int16_t hold = hold_s();
+        hold_rem_ms = drain_ms(hold_rem_ms, dt);
+        if (forced)                      hold_rem_ms = 0;
+        else if (raw_on && hold > 0)     hold_rem_ms = (uint32_t)hold * 1000u;
 
-        // A FORCED condition follows the force immediately: the latches exist to
-        // smooth a real signal that flaps, and a hand-held row does not flap.
-        if (forced) { hold_on_rem_ms = 0; min_on_rem_ms = 0; }
-
-        const bool on = raw_on || hold_on_rem_ms > 0 || min_on_rem_ms > 0;
+        const bool on = raw_on || hold_rem_ms > 0;
 
         // 2. On a transition, stamp the edge and reset the per-episode bookkeeping.
         if (on != active) {
@@ -35,9 +32,6 @@ namespace Botanik { namespace Alarms {
                 on_sent  = false;
                 user_ack   = false;         // a fresh episode is unacknowledged
                 started_ms = now;           // onset, for start-time ordering
-                const int16_t min_s = min_on_s();
-                if (min_s > 0 && !forced)
-                    min_on_rem_ms = (uint32_t)min_s * 1000u;
             }
         }
         active = on;

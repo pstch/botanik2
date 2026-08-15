@@ -35,12 +35,6 @@ namespace Botanik { namespace Config {
  *  store comes back as.
  *  @{ */
 
-#ifndef BOTANIK_GEO_LAT_DEG
-#  define BOTANIK_GEO_LAT_DEG   0.0
-#endif
-#ifndef BOTANIK_GEO_LON_DEG
-#  define BOTANIK_GEO_LON_DEG   0.0
-#endif
 
 /** @} */
 

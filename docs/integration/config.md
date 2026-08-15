@@ -125,6 +125,13 @@ breath. The NTP port (`network/ntp.h`), the storage key length
 (`HAL::Storage::KEY_MAX`), the log continuation indents (`logs/format.h`) and the
 simulator's stack-painting constants (`scheduler/scheduler.cpp`) all live that way.
 
+**The factory value of a library variable does not belong here either.** A site
+pins one by redeclaring the row (@ref int_tables), not by defining a macro. The
+`net_` / `ntp_` / `mqtt_` / `geo_` defaults used to be 17 `BOTANIK_*` macros in
+`config/net.h` and `config/sun.h` and are now gone: a macro could only override
+what the library had written an `#ifndef` block for, and only the default, while
+a redeclaration is the whole row and needs nothing on the library side.
+
 The sections below follow the header's own order.
 
 ## Config reference
@@ -179,7 +186,6 @@ unit is nuisance-alarming on. The macros are their factory values.
 | `ALARM_CPU_LOAD_PCT` | 50 | factory default for `sys_cpu_load_pct`; the `CPU_LOAD` threshold |
 | `ALARM_CPU_JITTER_PCT` | 50 | factory default for `sys_jitter_pct`. Equal to the load one today, but they threshold different quantities, so they stay two knobs |
 | `ALARM_STACK_PCT` | 80 | factory default for `sys_stack_pct`; the `STACK` threshold |
-| `ALARM_EVENT_HOLD_MS` | 300000 | how long an event-style alarm stays active |
 | `HEALTH_RESET_WINDOW_MS` | 300000 | how long after boot `SYS_RST` stays asserted |
 | `ALARM_NOTIFIERS_MAX` | 4 | |
 | `ALARM_RECENT_S` | 604800 | RECENT window a cleared alarm stays listed for (a row's own `recent_s` wins) |
@@ -270,14 +276,14 @@ Broker host, port and keepalive are runtime parameters (`mqtt_host`, `mqtt_port`
 ### Terminal and console
 
 Which terminal is on the wire and how big it is are **runtime parameters**
-(`term_type`, `term_cols`, `term_rows`), so swapping a VT102 for a Minitel, or
-an 80x24 for a 132x32, needs no firmware build. The three below are their
-factory values: what the console is CONSTRUCTED at, since the parameter store
+(`console_baud`, `console_type`, `console_cols`, `console_rows`), so swapping a
+VT102 for a Minitel, or an 80x24 for a 132x32, needs no firmware build. The
+macros below are their factory values: what the console is CONSTRUCTED at, since the parameter store
 cannot be read before the port is open, and what a wiped store comes back to.
 
-They are staged behind `term_serial`, unlike `serial_console_baud`: the three
-describe ONE physical terminal, and applying them one edit at a time walks the
-screen through geometries that match nothing on the wire.
+They are staged behind `console_serial`, all four of them: they describe ONE
+physical terminal, and applying them one edit at a time walks the screen through
+rates and geometries that match nothing on the wire.
 
 Nothing special guards them, and nothing needs to: like every parameter, an edit
 is live when it is set and durable when it is saved, so a console nobody can read
@@ -287,9 +293,9 @@ commit may ask for. See @ref user_console.
 
 | Macro | Default | |
 |---|---|---|
-| `TERMINAL_TYPE` | 1 | factory default for `term_type`. 0 = VT100, 1 = VT102, 2 = Minitel 1B, 3 = Minitel 2. A plain integer, because this header is included everywhere and must not depend on the console |
-| `CONSOLE_COLS` / `CONSOLE_ROWS` | 80 / 24 | factory defaults for `term_cols` / `term_rows` |
-| `TERMINAL_MAX_COLS` / `_ROWS` | 132 / 32 | largest terminal supported. They size the screen back-buffer (two cell grids, so 2 x their product in RAM) and clamp both the construction geometry and anything the `term_` rows ask for |
+| `TERMINAL_TYPE` | 1 | factory default for `console_type`. 0 = VT100, 1 = VT102, 2 = Minitel 1B, 3 = Minitel 2. A plain integer, because this header is included everywhere and must not depend on the console |
+| `CONSOLE_COLS` / `CONSOLE_ROWS` | 80 / 25 | factory defaults for `console_cols` / `console_rows` |
+| `TERMINAL_MAX_COLS` / `_ROWS` | 132 / 32 | largest terminal supported. They size the screen back-buffer (two cell grids, so 2 x their product in RAM) and clamp both the construction geometry and anything the `console_` rows ask for |
 | `CONSOLE_PAGES_MAX` | 10 | pages the Console multiplexes, at the Alt+`<digit>` ceiling. The full page set is 8, and registration past the cap is refused **silently**, so the headroom is what lets a site splice its own page in |
 
 ### Terminal input decoding

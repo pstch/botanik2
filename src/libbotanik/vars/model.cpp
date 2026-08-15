@@ -13,6 +13,7 @@
 #include "libbotanik/tasks/tasks.h"
 
 
+#include <cstring>
 #include "libbotanik/logs/logger.h"
 #include "libbotanik/utils/assert.h"
 #include "libbotanik/utils/text.h"
@@ -62,11 +63,55 @@ namespace Botanik { namespace Vars {
         _seg_base[_segments] = _count;
         _seg_len[_segments]  = count;
         _segments++;
+        // Identity HERE, not at freeze(): desc() goes through _row from the
+        // moment a row exists, and a bank that is read before it is frozen (or
+        // never frozen at all, as several tests do) would otherwise index the
+        // segments through uninitialised memory.
+        for (uint16_t i = _count; i < _count + count; i++) _row[i] = i;
         _count = (uint16_t)(_count + count);
         return true;
     }
 
+    void Bank::_resolve_shadows() {
+        // _row is still identity from register_vars(), so desc() reads
+        // physically here and the sort below can use the ordinary accessors.
+        _build_index();       // by name, so a redeclared pair lands adjacent
+
+        uint16_t i = 0;
+        while (i < _count) {
+            uint16_t j = (uint16_t)(i + 1);
+            while (j < _count &&
+                   std::strcmp(desc(_index[i]).name, desc(_index[j]).name) == 0) j++;
+            if (j > i + 1) {
+                // LAST wins: segments register library-then-site, so the site's
+                // restatement is the one that survives.
+                uint16_t win = _index[i];
+                for (uint16_t k = (uint16_t)(i + 1); k < j; k++)
+                    if (_index[k] > win) win = _index[k];
+                for (uint16_t k = i; k < j; k++) {
+                    if (_index[k] == win) continue;
+                    _row[_index[k]] = VAR_NONE;         // tombstone
+                    _shadowed++;
+                    if (_logger != nullptr)
+                        _logger->notice(Logs::BOOT, "var '%s' redeclared",
+                                        desc(win).name);
+                }
+            }
+            i = j;
+        }
+        if (_shadowed == 0) return;
+
+        // Compact in place: k never outruns p, so this cannot clobber.
+        uint16_t k = 0;
+        for (uint16_t p = 0; p < _count; p++)
+            if (_row[p] != VAR_NONE) _row[k++] = p;
+        _count = k;
+    }
+
     void Bank::freeze() {
+        // BEFORE init(): a shadowed row must not be given a pool slot or a value
+        // slot it will never be read through.
+        _resolve_shadows();
         init();               // pool layout, then every slot from its default
         _find_param_block();
         _build_index();
@@ -599,8 +644,21 @@ namespace Botanik { namespace Vars {
     // caller is on a cold path (a persist, a parameter edit).
     uint16_t Bank::_row_of(const Variable* d) const {
         for (uint8_t s = 0; s < _segments; ++s) {
-            if (d >= _seg[s] && d < _seg[s] + _seg_len[s])
-                return (uint16_t)(_seg_base[s] + (uint16_t)(d - _seg[s]));
+            if (d < _seg[s] || d >= _seg[s] + _seg_len[s]) continue;
+            const uint16_t p = (uint16_t)(_seg_base[s] + (uint16_t)(d - _seg[s]));
+            // The segments give a PHYSICAL row; _values is indexed logically, so
+            // a redeclaration earlier in the table shifts the two apart. _row
+            // ascends, so the logical row is a binary search away - and a miss
+            // means this descriptor IS the shadowed one, which is no longer a
+            // row of this bank.
+            if (_shadowed == 0) return p;
+            uint16_t lo = 0, hi = _count;
+            while (lo < hi) {
+                const uint16_t mid = (uint16_t)(lo + (hi - lo) / 2);
+                if (_row[mid] < p) lo = (uint16_t)(mid + 1);
+                else               hi = mid;
+            }
+            return (lo < _count && _row[lo] == p) ? lo : VAR_NONE;
         }
         return VAR_NONE;   // the sink, or a descriptor from another bank
     }

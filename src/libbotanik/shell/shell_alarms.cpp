@@ -95,9 +95,11 @@ namespace Botanik { namespace Shell {
                 _field("Active for", Utils::format_age(age, sizeof(age), secs, false), nullptr);
             }
             _field("Acknowledged", c.user_ack ? "yes" : "no", nullptr);
-            // The dwell policy, since an alarm that "should" be up and is not is
-            // usually still inside its on-delay.
-            snprintf(det, sizeof(det), "%ds on, %ds off", (int)c.on_s(), (int)c.off_s());
+            // The policy, since an alarm that "should" be up and is not is
+            // usually inside its on-delay, and one that should be down is
+            // usually inside its hold.
+            snprintf(det, sizeof(det), "%ds on, %ds off, %ds hold",
+                     (int)c.on_s(), (int)c.off_s(), (int)c.hold_s());
             _field("Dwell", det, nullptr);
             if (c.desc()  && c.desc()[0])  _field("Description", c.desc(),  nullptr);
             if (c.notes() && c.notes()[0]) _field("Remediation", c.notes(), nullptr);

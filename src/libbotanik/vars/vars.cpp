@@ -42,26 +42,36 @@ namespace Botanik { namespace Vars {
     // site and platform conditions together, in registration order.
     //
     // HealthMonitor drives these the way anything drives a variable: it resolves
-    // the names once at bring-up and writes the boolean. Dwell columns are
-    // A()'s - on_s, off_s, recent_s, hold_on_s, min_on_s (-1 disables an
-    // announce, 0 takes the default) - then the Modbus register. 990-995 is the
-    // TOP of the 900-999 reserve, so a status row added later still grows upward
-    // from 900 without meeting them.
+    // the names once at bring-up and writes the boolean. Columns are A()'s -
+    // on_s, off_s (-1 disables that announce), recent_s, hold_s - then the
+    // Modbus register. 990-995 is the TOP of the 900-999 reserve, so a status
+    // row added later still grows upward from 900 without meeting them.
+    //
+    // recent_s is how long a CLEARED alarm stays in the ALARMS page's RECENT
+    // view, and these pick from three tiers rather than taking the default:
+    //   30 days  evidence about the unit's integrity, asked about long after
+    //            the fact (did it reboot? did it run out of stack? did a write
+    //            fail?). Losing that history is how an intermittent fault gets
+    //            diagnosed twice.
+    //    7 days  (0, the Config default) intermittent faults you read as a
+    //            pattern over a week: a segment that drops nightly.
+    //     1 day  frequent, individually low-signal timing blips. A week of
+    //            these buries everything else in the view.
 
-    A("alarm_system_reset", "SYS_RST", -1, 0, 0, 0, 0,        990,
+    A("alarm_system_reset", "SYS_RST", -1, 0, 30*24*3600, 0,  990,
         "unit reset recently", ""),
-    A("alarm_cpu_xrun", "CPU_XRUN", 0, -1, 0, 0, 0,           991,
+    A("alarm_cpu_xrun", "CPU_XRUN", 0, -1, 24*3600, 300,      991,
         "scheduler overrun (skipped beat)", ""),
-    A("alarm_cpu_load", "CPU_LOAD", 5, 5, 0, 300, 0,          992,
+    A("alarm_cpu_load", "CPU_LOAD", 5, 5, 24*3600, 300,       992,
         "CPU load over threshold", ""),
-    A("alarm_stack", "STACK", 5, 5, 0, 300, 0,                993,
+    A("alarm_stack", "STACK", 5, 5, 30*24*3600, 300,          993,
         "stack usage over threshold", ""),
-    A("alarm_cpu_jitter", "CPU_JITT", 5, 5, 0, 300, 0,        994,
+    A("alarm_cpu_jitter", "CPU_JITT", 5, 5, 24*3600, 300,     994,
         "CPU jitter over threshold", ""),
     /* Sticky: a store that refused a write does not heal by itself, and the
        consequence (parameters silently reverting at the next reboot) is
        invisible until it is far too late to connect cause and effect. */
-    A("alarm_flash_error", "FLASH_FLT", 0, -1, 0, 0, 0,       995,
+    A("alarm_flash_error", "FLASH_FLT", 0, -1, 30*24*3600, 0, 995,
         "persistent storage write failed",
         "parameters will not survive a reboot; check the KV region"),
 
@@ -77,10 +87,10 @@ namespace Botanik { namespace Vars {
     // talking over it. A babbling unit makes the distinction matter - its bytes
     // corrupt whichever transaction is in flight, so the miss is charged to
     // whoever was being polled and every healthy device is faulted in turn.
-    A("alarm_fieldbus", "BUS_DEAD", 0, 5, 0, 0, 0, 996,
+    A("alarm_fieldbus", "BUS_DEAD", 0, 5, 0, 0, 996,
         "a field device is not answering",
         "check the RS-485 wiring, termination and the device's own power"),
-    A("alarm_fieldbus_line", "BUS_LINE", 0, 5, 0, 0, 0, 998,
+    A("alarm_fieldbus_line", "BUS_LINE", 0, 5, 0, 0, 998,
         "the whole segment has gone quiet",
         "the trunk, the termination, this unit's transceiver, or a second "
         "master - not twenty devices that failed at once"),
@@ -91,7 +101,7 @@ namespace Botanik { namespace Vars {
     // beat, this says a PROGRAM ran later than the period it asked for. on_s 5
     // because lateness comes in bursts (a flash write, a DNS retry); off_s 30,
     // because "it caught up once" is not evidence the cycle has room again.
-    A("alarm_scan_late", "SCAN_LATE", 5, 30, 0, 0, 0, 997,
+    A("alarm_scan_late", "SCAN_LATE", 5, 30, 0, 0, 997,
         "a control program is missing its period",
         "check the TASKS page and the per-program cost; something is "
         "overrunning or the site asks for more than the beat holds"),
@@ -122,9 +132,10 @@ namespace Botanik { namespace Vars {
 #endif
 
     // Parameters - LAST, and that is load-bearing (@see lib_order)
-    // What the library reads by name, the library declares. The Config:: values
-    // behind the defaults hold what a wiped store comes back at, and stay
-    // site-tunable as BOTANIK_* macros.
+    // What the library reads by name, the library declares. The defaults here
+    // are what a wiped store comes back at; a site that wants different ones
+    // REDECLARES the row in its own table (freeze() keeps the last declaration
+    // of a name), so there is no BOTANIK_* macro per overridable field.
     //
     // A parameter's declared bounds are the WHOLE validation a `set` gets, so a
     // band must stay to what the hardware can really do: a UART rate no divisor
@@ -143,21 +154,21 @@ namespace Botanik { namespace Vars {
         1, 0, 9999, 0, "", 910,
         "bump to apply staged net_ edits", ""),
     P("net_dhcp", T_BOOL,
-        BOTANIK_NET_DHCP, 0, 1, 0, "", 911,
+        0, 0, 1, 0, "", 911,
         "enable DHCP IP configuration", "ignores the static ip/mask/gw rows"),
-    PS("net_ip", BOTANIK_NET_IP,
+    PS("net_ip", "192.168.1.10",
         BOTANIK_HOST_STR_LEN, STR_IPV4, 912,
         "static IP address", ""),
-    PS("net_mask", BOTANIK_NET_MASK,
+    PS("net_mask", "255.255.255.0",
         BOTANIK_HOST_STR_LEN, STR_IPV4, 913,
         "static IP netmask", ""),
-    PS("net_gw", BOTANIK_NET_GW,
+    PS("net_gw", "192.168.1.1",
         BOTANIK_HOST_STR_LEN, STR_IPV4, 914,
         "static IP gateway", ""),
-    PS("net_dns1", BOTANIK_NET_DNS1,
+    PS("net_dns1", "8.8.8.8",
         BOTANIK_HOST_STR_LEN, STR_IPV4, 915,
         "static DNS resolver 1", ""),
-    PS("net_dns2", BOTANIK_NET_DNS2,
+    PS("net_dns2", "4.4.4.4",
         BOTANIK_HOST_STR_LEN, STR_IPV4_OPT, 916,
         "static DNS resolver 2", "empty = use dns1 alone"),
     /* ntp_: NtpClient reads these by name */
@@ -165,18 +176,18 @@ namespace Botanik { namespace Vars {
         1, 0, 9999, 0, "", 920,
         "bump to apply staged ntp_ edits", ""),
     P("ntp_enable", T_BOOL,
-        BOTANIK_NTP_ENABLE, 0, 1, 0, "", 921,
+        1, 0, 1, 0, "", 921,
         "enable NTP clock sync", ""),
     P("ntp_poll_sec", T_U32,
-        BOTANIK_NTP_POLL_SEC, 10, 86400, 0, "sec", 922,
+        3600, 10, 86400, 0, "sec", 922,
         "NTP poll interval, in seconds", ""),
     P("ntp_port", T_U16,
-        BOTANIK_NTP_PORT, 1, 65535, 0, "", 923,
+        123, 1, 65535, 0, "", 923,
         "NTP server port", "standard is 123"),
-    PS("ntp_srv1", BOTANIK_NTP_SRV1,
+    PS("ntp_srv1", "pool.ntp.org",
         BOTANIK_HOST_STR_LEN, STR_HOST, 924,
         "NTP server 1", ""),
-    PS("ntp_srv2", BOTANIK_NTP_SRV2,
+    PS("ntp_srv2", "",
         BOTANIK_HOST_STR_LEN, STR_HOST_OPT, 925,
         "NTP server 2", "empty = no fallback"),
     /* mqtt_: MqttClient reads these by name */
@@ -184,16 +195,16 @@ namespace Botanik { namespace Vars {
         1, 0, 9999, 0, "", 930,
         "bump to apply staged mqtt_ edits", ""),
     P("mqtt_enable", T_BOOL,
-        BOTANIK_MQTT_ENABLE, 0, 1, 0, "", 931,
+        1, 0, 1, 0, "", 931,
         "enable MQTT", ""),
-    PS("mqtt_host", BOTANIK_MQTT_HOST,
+    PS("mqtt_host", "192.168.1.11",
         BOTANIK_HOST_STR_LEN, STR_HOST, 932,
         "MQTT broker host", ""),
     P("mqtt_port", T_U16,
-        BOTANIK_MQTT_PORT, 1, 65535, 0, "", 933,
+        1883, 1, 65535, 0, "", 933,
         "MQTT broker port", "standard is 1883"),
     P("mqtt_ka_sec", T_U16,
-        BOTANIK_MQTT_KA_SEC, 10, 1800, 0, "sec", 934,
+        20, 10, 1800, 0, "sec", 934,
         "MQTT keep-alive interval", "also the dead-broker detection"),
     P("mqtt_tlm_sec", T_U32,
         (BOTANIK_MQTT_TELEMETRY_PERIOD_MS / 1000.0), 0, 86400, 0, "sec", 935,
@@ -207,10 +218,10 @@ namespace Botanik { namespace Vars {
         1, 0, 9999, 0, "", 940,
         "bump to apply staged geo_ edits", ""),
     P("geo_lat_deg", T_F32,
-        BOTANIK_GEO_LAT_DEG, -90.0, 90.0, 2, "deg", 941,
+        0.0, -90.0, 90.0, 2, "deg", 941,
         "geographical latitude, in degrees", "per site location"),
     P("geo_lon_deg", T_F32,
-        BOTANIK_GEO_LON_DEG, -180.0, 180.0, 2, "deg", 942,
+        0.0, -180.0, 180.0, 2, "deg", 942,
         "geographical longitude, in degrees", "per site location"),
 
 

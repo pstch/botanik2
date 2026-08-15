@@ -148,6 +148,30 @@ const uint8_t g_analog_cal_count =
  *  site's would break it. `Bank::freeze()` checks that and names the row.
  *
  *  Plain `const`, so each including TU gets its own copy.
+ *
+ *  ## Column legend
+ *
+ *  Each group carries a header comment naming its factory's arguments in order.
+ *  The abbreviations, spelled out once here:
+ *
+ *      dev       Modbus unit address on the RS485 bus (0 would be a local channel)
+ *      fc        Modbus function code the master puts on the wire (4 read, 5/6 write)
+ *      reg       on a field row: the register ADDRESS on the device (see the
+ *                @warning at the top); on P/SV/A: its Modbus TCP *slave* register
+ *      ch        the analog module's channel, which is also its register
+ *      coil      coil number on the relay module
+ *      n         how many 16-bit registers the value spans (2 for an f32)
+ *      type      the row's own type; `wire` the raw type before calibration
+ *      min/max   the declared band: on a parameter the range an edit must land
+ *                in, on an input the plausibility band a reading is rejected for
+ *      fallback  what an input reads once it is invalid
+ *      safe      where an output is driven when control is withdrawn
+ *      invert    active-low wiring: the logical value is the coil's NOT
+ *      timeout   ms a reading may be believed; past it the row goes invalid
+ *      poll      ms between reads (absent = derived from the timeout)
+ *      dgt       decimal places shown on the HMI
+ *      unit      engineering unit, shown beside the value
+ *      notes     free text under the value; on a field row, the published map entry
  *  @{ */
 
 
@@ -320,8 +344,12 @@ const Variable params[] = {
     P("pwr_genBat_max",       T_F32,  30.0,    10.0,   48.0,    1,  "V",    426, "highest believable gen. battery volts",  "over this: a dead sensor"),
     P("pwr_genBat_avg_ms",    T_U16,  1000,    10,     10000,   0,  "ms",   427, "rolling average for the Gen. battery",   "per divider setup"),
 
-    // The net_ / ntp_ / mqtt_ / geo_ parameters are the LIBRARY's own
-    // rows, registered ahead of these. This site pins their values in config.h.
+    // The net_ / ntp_ / mqtt_ / geo_ parameters are the LIBRARY's own rows,
+    // registered ahead of these. This site takes their factory values as they
+    // come: restating one here would shadow it (Bank::freeze() keeps the LAST
+    // declaration of a name), which is how a site pins one that does not suit.
+
+/** @} */
 
 /** @} */
 };
@@ -335,31 +363,47 @@ const uint16_t PARAMS_COUNT =
 const Variable alarms[] = {
 
 /** @name Alarms - each row IS its condition: the boolean plus the announce policy
+ *
+ *  The four policy columns, all in SECONDS:
+ *
+ *      onDwell   how long the bit must stay up before a START is announced
+ *      offDwell  how long it must stay down before an END is announced
+ *                (either one -1 to never announce that edge)
+ *      recent    how long a CLEARED alarm stays in the RECENT view
+ *                (0 = the Config default week, <0 = never expires)
+ *      hold      keep the alarm ACTIVE this long past the last raw true. The
+ *                anti-flicker: it folds a chattering signal into one episode,
+ *                and keeps a short pulse up long enough to be seen and acked.
+ *
+ *  The dwells decide what is SAID, `hold` decides what is TRUE. `reg` is the
+ *  read-only coil an external master reads it at, this site's alarms taking
+ *  800-899. `remediation` is what the AlarmsPage panel shows once the row is
+ *  selected.
  *  @{ */
 
-    //name                       code        on off rec dly mn reg  description                        remediation
-    A("alarm_ac_grid",           "AC_GRID",  2, 2, 0, 0, 10, 800, "grid AC out-of-spec/offline",     "check mains breaker / utility feed"),
-    A("alarm_dc_ps1",            "DC_PS1",   2, 2, 0, 0, 0,  801, "DC PS1 volts too low",            ""),
-    A("alarm_gen",               "GEN_FLT",  1, 2, 0, 0, 10, 802, "generator failed to start",       "inspect generator + start battery"),
-    A("alarm_ac_local",          "AC_LOCAL", 2, 2, 0, 0, 0,  803, "local AC out of spec or offline", ""),
-    A("alarm_dc_ps2",            "DC_PS2",   2, 2, 0, 0, 10, 804, "DC PS2 volts too low",            ""),
-    A("alarm_dc_ups",            "DC_UPS",   1, 2, 0, 0, 10, 805, "DC UPS on battery",               "restore mains; check UPS battery"),
-    A("alarm_dc_local",          "DC_LOCAL", 2, 2, 0, 0, 0,  806, "local DC volts too low",          ""),
-    A("alarm_generator_battery", "GEN_BATT", 5, 5, 0, 0, 0,  807, "gen. start battery low",          ""),
-    A("alarm_net_fault",         "NET_FLT",  5, 5, 0, 0, 10, 809, "network error",                   ""),
-    A("alarm_ntp_timeout",       "NTP_TIM",  5, 5, 0, 0, 10, 810, "NTP sync timeout",                ""),
-    A("alarm_actuator_fault",    "ACT_FLT",  2, 2, 0, 0, 0,  811, "actuator failure",                ""),
-    A("alarm_sensor_fault",      "SNS_FLT",  2, 2, 0, 0, 0,  812, "sensor fault",                    ""),
-    A("alarm_too_hot",           "TOO_HOT",  3, 3, 0, 0, 15, 813, "inside temperature too high",     "increase ventilation / open windows"),
-    A("alarm_too_cold",          "TOO_COLD", 3, 3, 0, 0, 15, 814, "inside temperature too low",      ""),
-    A("alarm_too_humid",         "TOO_HUM",  3, 3, 0, 0, 15, 815, "relative humidity too high",      ""),
-    A("alarm_tmp_str",           "TMP_STR",  5, 5, 0, 0, 0,  816, "temp. stratification too high",   ""),
-    A("alarm_water_leak",        "WTR_LK",   1, 2, 0, 0, 0,  817, "leak in irrigation circuit",      "shut irrigation valve, inspect circuit"),
-    A("alarm_water_pressure",    "WTR_BAR",  2, 2, 0, 0, 0,  818, "water pressure too low",          ""),
-    A("alarm_water_clog",        "WTR_CLOG", 3, 3, 0, 0, 0,  819, "failing to drain a tray",         ""),
-    A("alarm_io_drop",           "IO_DROP",  2, 2, 0, 0, 0,  820, "logical I/O drops",               ""),
-    A("alarm_log_flood",         "LOG_FLD",  2, 2, 0, 0, 0,  821, "logs flooding",                   ""),
-    A("alarm_weather_storm",     "WH_STORM", 2, 5, 0, 0, 15, 822, "current storm conditions",        "close roof windows, secure screens"),
+    //name                       code        onDwell offDwell recent hold reg  description                        remediation
+    A("alarm_ac_grid",           "AC_GRID",  2,      2,       0,     10,  800, "grid AC out-of-spec/offline",     "check mains breaker / utility feed"),
+    A("alarm_dc_ps1",            "DC_PS1",   2,      2,       0,     0,   801, "DC PS1 volts too low",            ""),
+    A("alarm_gen",               "GEN_FLT",  1,      2,       0,     10,  802, "generator failed to start",       "inspect generator + start battery"),
+    A("alarm_ac_local",          "AC_LOCAL", 2,      2,       0,     0,   803, "local AC out of spec or offline", ""),
+    A("alarm_dc_ps2",            "DC_PS2",   2,      2,       0,     10,  804, "DC PS2 volts too low",            ""),
+    A("alarm_dc_ups",            "DC_UPS",   1,      2,       0,     10,  805, "DC UPS on battery",               "restore mains; check UPS battery"),
+    A("alarm_dc_local",          "DC_LOCAL", 2,      2,       0,     0,   806, "local DC volts too low",          ""),
+    A("alarm_generator_battery", "GEN_BATT", 5,      5,       0,     0,   807, "gen. start battery low",          ""),
+    A("alarm_net_fault",         "NET_FLT",  5,      5,       0,     10,  809, "network error",                   ""),
+    A("alarm_ntp_timeout",       "NTP_TIM",  5,      5,       0,     10,  810, "NTP sync timeout",                ""),
+    A("alarm_actuator_fault",    "ACT_FLT",  2,      2,       0,     0,   811, "actuator failure",                ""),
+    A("alarm_sensor_fault",      "SNS_FLT",  2,      2,       0,     0,   812, "sensor fault",                    ""),
+    A("alarm_too_hot",           "TOO_HOT",  3,      3,       0,     15,  813, "inside temperature too high",     "increase ventilation / open windows"),
+    A("alarm_too_cold",          "TOO_COLD", 3,      3,       0,     15,  814, "inside temperature too low",      ""),
+    A("alarm_too_humid",         "TOO_HUM",  3,      3,       0,     15,  815, "relative humidity too high",      ""),
+    A("alarm_tmp_str",           "TMP_STR",  5,      5,       0,     0,   816, "temp. stratification too high",   ""),
+    A("alarm_water_leak",        "WTR_LK",   1,      2,       0,     0,   817, "leak in irrigation circuit",      "shut irrigation valve, inspect circuit"),
+    A("alarm_water_pressure",    "WTR_BAR",  2,      2,       0,     0,   818, "water pressure too low",          ""),
+    A("alarm_water_clog",        "WTR_CLOG", 3,      3,       0,     0,   819, "failing to drain a tray",         ""),
+    A("alarm_io_drop",           "IO_DROP",  2,      2,       0,     0,   820, "logical I/O drops",               ""),
+    A("alarm_log_flood",         "LOG_FLD",  2,      2,       0,     0,   821, "logs flooding",                   ""),
+    A("alarm_weather_storm",     "WH_STORM", 2,      5,       0,     15,  822, "current storm conditions",        "close roof windows, secure screens"),
 /** @} */
 };
 const uint16_t ALARMS_COUNT =
@@ -371,9 +415,14 @@ const uint16_t ALARMS_COUNT =
 const Variable io_rows[] = {
 
 /** @name Sensor inputs - read from the field, invalid past their timeout
+ *
+ *  `plausMin`/`plausMax` are the plausibility band, generous on purpose: they
+ *  are there to catch a dead meter reporting a rail, not to police the process.
+ *  `poll` is optional and comes last - a row that omits it derives its poll
+ *  period from its timeout.
  *  @{ */
 
-    // name              type   dev fc reg  n  min                max               fallback  timeout dgt unit     description                           notes
+    // name              type   dev fc reg  n  plausMin           plausMax          fallback  timeout dgt unit     description                           notes                poll
     MI("grid_L1_V",       T_F32, 5, 4,   0, 2, SF(0.0f),          SF(500.0f),       SF(0.0f), 15000,  1, "V",     "L1 phase voltage",                   "SDM630 p1 30001", 10000),
     MI("grid_L2_V",       T_F32, 5, 4,   2, 2, SF(0.0f),          SF(500.0f),       SF(0.0f), 15000,  1, "V",     "L2 phase voltage",                   "SDM630 p2 30003", 10000),
     MI("grid_L3_V",       T_F32, 5, 4,   4, 2, SF(0.0f),          SF(500.0f),       SF(0.0f), 15000,  1, "V",     "L3 phase voltage",                   "SDM630 p3 30005", 10000),
@@ -449,6 +498,8 @@ const Variable io_rows[] = {
  // TDC/AI-1 - calibrated 0-10 V / 4-20 mA channels. The wire unit is the module's
  // (mV, uA); the calibration block turns it into the engineering one, and every
  // field of it is a parameter, so a channel is re-trimmed from PARAMS.
+ // `ch` is the module's channel, which is also its register. There is no
+ // plausibility band on the row: it is the calibration block's min/max.
 
     // name              calibration        dev fc ch n  wire   fallback  timeout dgt unit   description                notes
     AI("pwr_genBat_V",   &CAL_PWR_GEN_BAT,  11, 4, 0, 1, T_U16, SF(0.0f), 5000,   1,  "V",   "generator start battery", ""),
@@ -514,9 +565,9 @@ const Variable io_rows[] = {
  // TDC/AO-1 - 0-10 V drives. The conversion runs the other way (engineering value
  // to raw count), and the safe state is a stopped drive.
 
-    // name             calibration      dev fc ch n  wire   safe digits unit description          notes
-    AO("cli_intr1",     &CAL_INTRACTOR,  16, 6, 0, 1, T_U16, 0.0f, 2,    "",  "intractor 1 speed", "0-1 of full speed"),
-    AO("cli_intr2",     &CAL_INTRACTOR,  16, 6, 1, 1, T_U16, 0.0f, 2,    "",  "intractor 2 speed", "shares intractor 1's calibration"),
+    // name             calibration      dev fc ch n  wire   safe  dgt  unit description          notes
+    AO("cli_intr1",     &CAL_INTRACTOR,  16, 6, 0, 1, T_U16, 0.0f, 2,   "",  "intractor 1 speed", "0-1 of full speed"),
+    AO("cli_intr2",     &CAL_INTRACTOR,  16, 6, 1, 1, T_U16, 0.0f, 2,   "",  "intractor 2 speed", "shares intractor 1's calibration"),
 
 /** @} */
 };

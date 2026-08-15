@@ -243,7 +243,7 @@ namespace {
         MI("no_timeout",  T_F32, 5, 3, 18, 2, SF(0.0f), SF(100.0f), SF(1.5f), 0, 1,
                           "C", "", ""),
         RO("valve",       31, 0, true, false, "drain valve", ""),
-        A("alarm_hot",    "HOT", 2, 2, 0, 0, 0, 800, "over temperature", ""),
+        A("alarm_hot",    "HOT", 2, 2, 0, 0, 800, "over temperature", ""),
         G ("setpoint",    T_F32, SF(18.0f), 1, "C", "target temp", ""),
         P("ntp_poll_s",   T_U16, 64, 0, 3600, 0, "s", 1, "NTP poll interval", ""),
         PS("ntp_server1", "ntp.example.org", 32, STR_HOST, 2, "primary NTP server", ""),
@@ -1800,3 +1800,95 @@ TEST_CASE("retain: with no sys_retain_sec row the cadence is the Config default"
 }
 
 }  // namespace retain
+
+// --------------------------------------------------------------------------
+// redeclaration - a later segment restating a name shadows the earlier row
+// --------------------------------------------------------------------------
+
+namespace redeclare {
+
+using namespace Botanik;
+
+namespace {
+    // Stands in for the library's rows: registered FIRST.
+    const Vars::Variable LIB[] = {
+        Vars::A("alarm_x", "AX", 0, 0, 0, 0, 990, "alarm x", ""),
+        Vars::P("ntp_poll_sec", Vars::T_U32, 3600, 10, 86400, 0, "sec", 922,
+                "NTP poll interval", ""),
+        Vars::P("sys_after", Vars::T_U16, 50, 1, 100, 0, "%", 923,
+                "a row AFTER the redeclared one", ""),
+    };
+    // Stands in for a site's: registered SECOND, restating one library name
+    // with a different default, band and description.
+    const Vars::Variable SITE[] = {
+        Vars::P("ntp_poll_sec", Vars::T_U32, 1800, 60, 7200, 0, "sec", 922,
+                "site NTP poll interval", "tightened band"),
+        Vars::P("site_only", Vars::T_U16, 7, 0, 9, 0, "", 700, "site row", ""),
+    };
+}
+
+TEST_CASE("redeclare: a later row replaces the earlier one, which leaves the table") {
+    Vars::Bank bank;
+    bank.register_vars(LIB, 3);
+    bank.register_vars(SITE, 2);
+    bank.freeze();
+
+    CHECK(bank.count() == 4);                 // 5 declared, 1 shadowed out
+
+    // The name resolves to the SITE row: its default, band and text, not the
+    // library's. Anything less and the redeclaration would be cosmetic.
+    const Vars::Var v = bank.var(bank.find("ntp_poll_sec"));
+    REQUIRE(v.meta() != nullptr);
+    CHECK(std::string(v.meta()->desc) == "site NTP poll interval");
+    CHECK(v.meta()->def.u == 1800u);
+    CHECK(v.value() == 1800.0f);              // init() seeded from the winner
+
+    // The shadowed row is GONE, not merely unindexed: nothing that walks the
+    // table - a page, telemetry, the register map - can reach it.
+    uint16_t seen = 0;
+    for (uint16_t i = 0; i < bank.count(); i++)
+        if (std::string(bank.var(i).meta()->name) == "ntp_poll_sec") seen++;
+    CHECK(seen == 1);
+}
+
+TEST_CASE("redeclare: the rows after the shadow still resolve and still take a set") {
+    // The compaction shifts every later row down one. This is what broke when
+    // _row was left uninitialised: the names still resolved, but through the
+    // wrong slot.
+    Vars::Bank bank;
+    bank.register_vars(LIB, 3);
+    bank.register_vars(SITE, 2);
+    bank.freeze();
+
+    const Vars::VarRef r = bank.find("sys_after");
+    REQUIRE(r.index != Vars::VAR_NONE);
+    CHECK(std::string(bank.var(r).meta()->name) == "sys_after");
+    REQUIRE(bank.set(bank.var(r), "10") != Vars::SET_INVALID);
+    INFO("a set on a row past the shadow must be what the next read sees");
+    CHECK(Vars::get_int(&bank, "sys_after", 0) == 10);
+}
+
+TEST_CASE("redeclare: the parameter block stays one contiguous run") {
+    // A shadowed parameter is removed from the MIDDLE of the library's run, so
+    // the run has to close up rather than leave a hole the dense 0-based
+    // PARAMS indexing would fall into.
+    Vars::Bank bank;
+    bank.register_vars(LIB, 3);
+    bank.register_vars(SITE, 2);
+    bank.freeze();
+
+    CHECK(bank.param_stray_count() == 0);
+    CHECK(bank.param_count() == 3);           // ntp_poll_sec, sys_after, site_only
+    for (uint16_t k = 0; k < bank.param_count(); k++)
+        CHECK(bank.param(k).meta()->role == Vars::ROLE_PARAM);
+}
+
+TEST_CASE("redeclare: an untouched table is left exactly as declared") {
+    Vars::Bank bank;
+    bank.register_vars(LIB, 3);
+    bank.freeze();
+    CHECK(bank.count() == 3);
+    CHECK(Vars::get_int(&bank, "ntp_poll_sec", 0) == 3600);
+}
+
+}  // namespace redeclare

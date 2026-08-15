@@ -38,29 +38,25 @@ namespace {
         m.step(now);
     }
 
-    // A SCOPE_A row: A(name, code, on_s, off_s, recent_s, hold_on_s,
-    // min_on_s, reg, desc, notes).
+    // A SCOPE_A row: A(name, code, on_s, off_s, recent_s, hold_s, reg,
+    // desc, notes).
 
     // Two unmasked, unlatched conditions (announce disabled) at bits 0 and 1.
     const Vars::Variable TABLE[] = {
-        Vars::A("aaa", "AAA", -1, -1, 0, 0, 0, 800, "alarm A", ""),
-        Vars::A("bbb", "BBB", -1, -1, 0, 0, 0, 801, "alarm B", ""),
+        Vars::A("aaa", "AAA", -1, -1, 0, 0, 800, "alarm A", ""),
+        Vars::A("bbb", "BBB", -1, -1, 0, 0, 801, "alarm B", ""),
     };
-    // hold_on_s=300 (announce disabled), like platform STACK/CPU_LOAD/CPU_JITT.
-    const Vars::Variable HOLD_ON_TABLE[] = {
-        Vars::A("hld", "HLD", 5, 5, 0, 300, 0, 805, "hold on", ""),
-    };
-
-    const Vars::Variable MIN_ON_TABLE[] = {
-        Vars::A("min", "MIN", -1, -1, 0, 0, 5, 802, "min on", ""),
+    // hold_s=300, like platform STACK/CPU_LOAD/CPU_JITT/CPU_XRUN.
+    const Vars::Variable HOLD_TABLE[] = {
+        Vars::A("hld", "HLD", 5, 5, 0, 300, 805, "hold on", ""),
     };
     // START after a 2 s dwell, END at once (off_s 0); a shorter blip -> FLAP.
     const Vars::Variable FLAP_TABLE[] = {
-        Vars::A("flp", "FLP", 2, 0, 0, 0, 0, 803, "flap", ""),
+        Vars::A("flp", "FLP", 2, 0, 0, 0, 803, "flap", ""),
     };
     // on_s 0 so the START is announced at once.
     const Vars::Variable NORMAL_TABLE[] = {
-        Vars::A("nrm", "NRM", 0, 0, 0, 0, 0, 804, "normal", ""),
+        Vars::A("nrm", "NRM", 0, 0, 0, 0, 804, "normal", ""),
     };
 
     /** @brief A bank over one of the tables above - what the model scans. */
@@ -132,40 +128,6 @@ TEST_CASE("alarm: ack_all acknowledges every active condition and counts them") 
     CHECK(m2.condition(1).user_ack == true);
 }
 
-TEST_CASE("alarm: min_on_s holds a condition active after the raw bit clears") {
-    AlarmBank f(MIN_ON_TABLE, 1);
-    Alarms::AlarmController m(Botanik::SetupContext(), &f.bank);
-    m.setup(0);   // the scan is on_setup(): the rows exist now
-    step_bits(f.bank, m, 0x1, 1000);                              // raise (seeds the 5 s min-on hold)
-    CHECK(m.condition(0).active == true);
-    step_bits(f.bank, m, 0x0, 2000);                              // raw clears 1 s in: still held
-    CHECK(m.condition(0).active == true);
-    step_bits(f.bank, m, 0x0, 5500);                              // 4.5 s in: still within the 5 s hold
-    CHECK(m.condition(0).active == true);
-    step_bits(f.bank, m, 0x0, 6500);                              // 5.5 s in: hold elapsed, now clears
-    CHECK(m.condition(0).active == false);
-}
-
-TEST_CASE("alarm: forcing a condition on and then off clears it") {
-    // A forced alarm must clear, or the next real one is invisible under it.
-    AlarmBank f(MIN_ON_TABLE, 1);           // min_on_s = 5, the sticky case
-    Alarms::AlarmController m(Botanik::SetupContext(), &f.bank);
-    m.setup(0);   // the scan is on_setup(): the rows exist now
-    Vars::Var v = f.bank.var(m.condition(0).ref);
-
-    m.step(0);
-    f.bank.override_set(v, Vars::from_bool(Vars::T_BOOL, true), true);
-    m.step(1000);
-    REQUIRE(m.condition(0).active == true);
-
-    // Forced false while still overridden, as `override x 0` does.
-    f.bank.override_set(v, Vars::from_bool(Vars::T_BOOL, false), true);
-    m.step(2000);
-    INFO("the minimum-on hold does not outlive a force either");
-    CHECK(m.condition(0).active == false);
-    CHECK(m.active_count() == 0);
-}
-
 TEST_CASE("alarm: releasing an override clears a condition it was holding on") {
     // `override x off`: the row snaps back to the live (unwritten) value, false.
     AlarmBank f(NORMAL_TABLE, 1);
@@ -185,8 +147,9 @@ TEST_CASE("alarm: releasing an override clears a condition it was holding on") {
 }
 
 TEST_CASE("alarm: a forced alarm comes down when the force does") {
-    // A forced alarm must not inherit hold_on_s's 5-minute latch.
-    AlarmBank f(HOLD_ON_TABLE, 1);
+    // A forced alarm must not inherit hold_s's 5-minute latch, or the next real
+    // one is invisible under it.
+    AlarmBank f(HOLD_TABLE, 1);
     Alarms::AlarmController m(Botanik::SetupContext(), &f.bank);
     m.setup(0);   // the scan is on_setup(): the rows exist now
     Vars::Var v = f.bank.var(m.condition(0).ref);
@@ -203,9 +166,9 @@ TEST_CASE("alarm: a forced alarm comes down when the force does") {
     CHECK(m.active_count() == 0);
 }
 
-TEST_CASE("alarm: hold_on_s still latches a condition nobody is forcing") {
-    // hold_on_s must still latch a real signal that clears immediately.
-    AlarmBank f(HOLD_ON_TABLE, 1);
+TEST_CASE("alarm: hold_s still latches a condition nobody is forcing") {
+    // hold_s must still latch a real signal that clears immediately.
+    AlarmBank f(HOLD_TABLE, 1);
     Alarms::AlarmController m(Botanik::SetupContext(), &f.bank);
     m.setup(0);   // the scan is on_setup(): the rows exist now
 
@@ -261,9 +224,9 @@ TEST_CASE("alarm: a normal episode logs START then END (not FLAP)") {
 TEST_CASE("alarm reader: model reads each condition's variable") {
     // The row IS the condition: condition i reads variable i, nothing to sync.
     const Vars::Variable VARS[] = {
-        Vars::A("alarm_a", "AAA", -1, -1, 0, 0, 0, 805, "a", ""),
-        Vars::A("alarm_b", "BBB", -1, -1, 0, 0, 0, 806, "b", ""),
-        Vars::A("alarm_c", "CCC", -1, -1, 0, 0, 0, 807, "c", ""),
+        Vars::A("alarm_a", "AAA", -1, -1, 0, 0, 805, "a", ""),
+        Vars::A("alarm_b", "BBB", -1, -1, 0, 0, 806, "b", ""),
+        Vars::A("alarm_c", "CCC", -1, -1, 0, 0, 807, "c", ""),
     };
     AlarmBank f(VARS, 3);
     Vars::Bank& io = f.bank;
@@ -307,10 +270,10 @@ namespace {
 
     // Four always-recent alarms (recent_s<0 never expires), logging/notify off.
     const Vars::Variable TABLE[] = {
-        Vars::A("aaa", "AAA", -1, -1, -1, 0, 0, 800, "alarm A", ""),
-        Vars::A("bbb", "BBB", -1, -1, -1, 0, 0, 801, "alarm B", ""),
-        Vars::A("ccc", "CCC", -1, -1, -1, 0, 0, 802, "alarm C", ""),
-        Vars::A("ddd", "DDD", -1, -1, -1, 0, 0, 803, "alarm D", ""),
+        Vars::A("aaa", "AAA", -1, -1, -1, 0, 800, "alarm A", ""),
+        Vars::A("bbb", "BBB", -1, -1, -1, 0, 801, "alarm B", ""),
+        Vars::A("ccc", "CCC", -1, -1, -1, 0, 802, "alarm C", ""),
+        Vars::A("ddd", "DDD", -1, -1, -1, 0, 803, "alarm D", ""),
     };
 
     // AnsiTerminal + AlarmController over a pipe; drains TX into a captured string.
@@ -530,7 +493,7 @@ TEST_CASE("MqttAlarmNotifier: notify_on/off build the topic + payload and forwar
     // The condition borrows its row (no text copy), so this needs a real
     // SCOPE_A descriptor.
     static const Botanik::Vars::Variable ROW =
-        Botanik::Vars::A("NET_FLT", "NET_FLT", 0, 0, 0, 0, 0, 990, "", "");
+        Botanik::Vars::A("NET_FLT", "NET_FLT", 0, 0, 0, 0, 990, "", "");
     AlarmCondition c = {};
     c.var = &ROW;
 
@@ -562,7 +525,7 @@ namespace {
 
 TEST_CASE("AlarmController: a transition fans out to every registered notifier") {
     // announce ON/OFF at once (on_s = off_s = 0).
-    const Vars::Variable TABLE[] = { Vars::A("x", "X", 0, 0, 0, 0, 0, 800, "", "") };
+    const Vars::Variable TABLE[] = { Vars::A("x", "X", 0, 0, 0, 0, 800, "", "") };
     Vars::Bank bank;
     bank.register_vars(TABLE, 1);
     bank.freeze();

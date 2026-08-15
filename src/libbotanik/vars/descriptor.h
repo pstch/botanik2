@@ -172,17 +172,19 @@ namespace Botanik { namespace Vars {
         StrKind  kind;   ///< edit validation
     };
 
-    /** @brief An alarm row's announce policy: display code plus the dwell
-     *  thresholds AlarmController runs it on. Seconds as int16 to keep the arm
-     *  inside the 16 bytes NumBand already costs; nine hours of dwell is past
-     *  any plausible setting. */
+    /** @brief An alarm row's announce policy: display code plus the thresholds
+     *  AlarmController runs it on.
+     *
+     *  The dwells are int16 seconds to keep the arm inside the 16 bytes NumBand
+     *  already costs, and nine hours of dwell is past any plausible setting.
+     *  @c recent_s is NOT a dwell - it is a retention window measured in days,
+     *  so it gets the int32 the freed slot pays for. */
     struct AlarmSpec {
         const char* code;         ///< short display code (max 9: AlarmsPage::CODE_W)
         int16_t     on_s;         ///< time ON before announcing (-1: off)
         int16_t     off_s;        ///< time OFF before announcing (-1: off)
-        int16_t     recent_s;     ///< RECENT window (0: default, <0: forever)
-        int16_t     hold_on_s;  ///< hold ON this long after the raw clears
-        int16_t     min_on_s;     ///< minimum ON time from onset
+        int32_t     recent_s;     ///< RECENT window (0: default, <0: forever)
+        int16_t     hold_s;       ///< keep active this long past the last raw true
     };
 
     /** @brief A number a row declares: a fixed value, or the parameter holding
@@ -228,9 +230,9 @@ namespace Botanik { namespace Vars {
         constexpr Payload() : num{Scalar(), Scalar()} {}
         constexpr Payload(Scalar lo, Scalar hi) : num{lo, hi} {}
         constexpr Payload(uint16_t cap, StrKind kind) : text{cap, kind} {}
-        constexpr Payload(const char* code, int16_t on_s, int16_t off_s, int16_t recent_s,
-                          int16_t hold_on_s, int16_t min_on_s)
-            : alarm{code, on_s, off_s, recent_s, hold_on_s, min_on_s} {}
+        constexpr Payload(const char* code, int16_t on_s, int16_t off_s,
+                          int32_t recent_s, int16_t hold_s)
+            : alarm{code, on_s, off_s, recent_s, hold_s} {}
         constexpr Payload(const AnalogCal* c) : cal(c) {}
     };
 
@@ -297,7 +299,7 @@ namespace Botanik { namespace Vars {
     /** @brief @p d's alarm policy; a null code for anything but SCOPE_A. */
     constexpr AlarmSpec alarm_spec(const Variable& d) {
         return (payload_arm(d) == PAY_ALARM) ? d.pay.alarm
-                                             : AlarmSpec{nullptr, 0, 0, 0, 0, 0};
+                                             : AlarmSpec{nullptr, 0, 0, 0, 0};
     }
 
     /** @brief Is @p v a believable reading for @p d? Non-finite first (a NaN is

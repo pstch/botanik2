@@ -1,49 +1,70 @@
 # Alarms {#user_alarms}
 
-An alarm **is a variable**. It is a boolean row in the same table as everything else
-(@ref user_variables), declared with the alarm scope, and what makes it an alarm is
-the dwell policy it carries alongside the boolean. There is no separate alarm list to
-keep in step.
-
-Two consequences worth having:
-
-- an alarm is readable and forcible by name like any other variable - `vars get
-  alarm_dc_ups`, or `overrides set alarm_dc_ups 1` to exercise whatever watches it;
-- the ALARMS page shows that variable name beside the code, so what you see on screen
-  is what you type at the prompt (the `alarm_` prefix is stripped on screen).
-
-Each alarm has a short **code** for the eye, a description, a **remediation note**,
-and the dwell policy that decides how long the condition must hold before it counts.
-
-Where they surface:
+An alarm is a PLC variable, which means it's registered as a boolean in the variables 
+table with the ALARM scope, represented as boolean. An alarm is registered with :
+ - a **short code** for the alarm bar (also used as MQTT sub-topic)
+ - a **description** along with a **remediation note**
+ - a **register index** for the built-in ModBus TCP slave
+ - a duration (`onDwell`) the bit must hold before the alarm's START event is announced/published
+   (`<0`: never announced) 
+ - a duration (`offDwell`) the bit must stay clear before the alarm's END event is announced/published
+   (`<0`: never announced) 
+ - a duration (`recent`) the alarm stays in the "recent" view of the alarms table
+   (`<0`: never expires)
+ - a duration (`hold`) the alarm stays ACTIVE past the last true reading
+   (`0`: follow the bit exactly)
+ 
+Alarms will surface in :
 
 - the **alarm bar** on the bottom row - active and unacknowledged only;
 - the **ALARMS page** - the full table, with history and remediation;
 - the **log** - one line on the `ALARM_BEG` / `ALARM_END` topic per transition;
 - **MQTT**, where telemetry is enabled.
 
-## Lifecycle
+
+(not implemented yet) Some critical alarms may also trigger the alarm beeper and the warning light.
+
+## Alarm state
 
 An alarm has two independent states: whether it is **active**, and whether it has
-been **acknowledged**.
+been **acknowledged**. Active is driven by the plant, acknowledged is driven by you.
 
-Active is driven by the plant, through the dwell policy: a condition must hold for
-its ON dwell before the alarm is announced, and clear for its OFF dwell before it is
-announced as gone. Some conditions also hold on for a minimum time from onset, or
-for a delay after the raw signal clears, so a flapping input does not produce a
-flapping alarm. A condition that toggles too fast to satisfy its dwell is logged
-once as `ALARM_FLAP`.
+Two of the durations decide what is *announced*, and one decides what is *active*:
 
-Acknowledged is driven by you.
+- `onDwell` and `offDwell` gate the log line and the published event, nothing else.
+  A condition that comes and goes faster than its `onDwell` never announces a START,
+  and its END is logged once as `ALARM_FLAP` instead of a START/END pair.
+- `hold` gates the alarm itself. It keeps the condition active that long past the
+  last true reading, re-armed for as long as the bit stays up. This is what stops a
+  chattering input producing a chattering alarm, and what keeps a signal too brief
+  to notice on screen up long enough to be seen and acknowledged. While it holds,
+  the episode does not end, so the alarm keeps one acknowledgement rather than
+  demanding a fresh one each time the bit twitches.
+
+`recent` is neither: it is how long a *cleared* alarm keeps showing in the ALARMS
+page's `recent` view.
+
+## Overriding
+
+There is no separate way to force an alarm. A condition reads its variable, so
+overriding that variable is what forcing it means - `overrides set alarm_too_hot 1`
+from the shell, or the MONITOR page. The override reaches the alarm model by the
+same route it reaches control logic and telemetry, so a forced alarm logs,
+publishes and lands on the alarm bar exactly like a real one. The ALARMS page shows
+the row as forced `ON` or `OFF`, because a held alarm and a real one are otherwise
+indistinguishable.
+
+A forced condition follows the force immediately: `hold` does not apply to it,
+since the hold exists to smooth a signal that flaps and a hand-held row does not.
+Releasing the override drops the alarm on the next beat.
 
 ## Acknowledging
 
-On the ALARMS page, select the row and press `a`. From the shell,
-`alarms ack <code>` or `alarms ack all`. Either spelling of the condition works -
-the short code the alarm bar shows (`SYS_RST`) or the variable name `alarms list`
-shows (`alarm_system_reset`), and `alarms get <code|name>` answers with the one
-condition in detail: whether it is active, for how long, its dwell policy and its
-remediation note.
+On the ALARMS page, select the row and press `a`. From the shell, `alarms ack <code>`
+or `alarms ack all`. Either spelling of the condition works - the short code the
+alarm bar shows (`SYS_RST`) or the variable name `alarms list` shows
+(`alarm_system_reset`) - and `alarms get <code|name>` answers with the one condition
+in detail: whether it is active, for how long, its policy and its remediation note.
 
 Acknowledging means "seen", not "fixed". It:
 
@@ -60,29 +81,26 @@ onto the bar.
 The `unmasked` filter shows exactly what the alarm bar shows - active and not
 acknowledged.
 
-## Platform alarms
+## Library alarms
 
-Every unit has these regardless of site, raised from the firmware's own health:
+Every deployed unit has these regardless of site, raised from the firmware's own health monitor :
 
-| Code | Variable | Condition | Notes |
-|---|---|---|---|
-| `SYS_RST` | `alarm_system_reset` | the unit restarted in the last five minutes | expected after a deliberate reboot |
-| `CPU_LOAD` | `alarm_cpu_load` | loop CPU load over its threshold | check what is loading the loop - the TASKS page attributes it per task |
-| `CPU_JITT` | `alarm_cpu_jitter` | loop timing jitter over its threshold | |
-| `CPU_XRUN` | `alarm_cpu_xrun` | the scheduler skipped a beat | a beat's work ran past its deadline |
-| `STACK` | `alarm_stack` | stack usage over its threshold | |
-| `FLASH_FLT` | `alarm_flash_error` | a write to persistent storage failed | **sticky until reboot** |
+| Code                 | Variable                | Condition                                   | Remediation                                           |
+|----------------------|-------------------------|---------------------------------------------|-------------------------------------------------------|
+| `SYS_RST`            | `alarm_system_reset`    | the unit restarted in the last five minutes | (maintainer) troubleshoot intermittent reboots        |
+| `CPU_LOAD`           | `alarm_cpu_load`        | loop CPU load over its threshold            | (maintainer) troubleshoot task scheduling             |
+| `CPU_JITT`           | `alarm_cpu_jitter`      | loop timing jitter over its threshold       | (maintainer) checks TASKS to see is loading the loop  |
+| `CPU_XRUN`           | `alarm_cpu_xrun`        | the scheduler skipped a beat                | (maintainer) checks TASKS fo see is loading the loop  |
+| `STACK`              | `alarm_stack`           | stack usage over its threshold              | (maintainer) contact platform maintainer              |
+| `FLASH_FLT`          | `alarm_flash_error`     | a write to persistent storage failed        | (maintainer) replace faulty hardware                  |
 
-`FLASH_FLT` is the one to act on: parameters will not survive a reboot until it is
-resolved. It is the same fault behind a refused `params save`'s `NOT saved: storage refused it`
-and the PARAMS page's `NOT SAVED` footer - one problem seen from three places.
+The platform defined alarms should usually not trigger in a deployed unit, if they happen persistently, 
+the user shall reach out to the deployment's maintainer.
 
-The `cpu:` and `stk:` figures in the status bar are the same measurements the
-`CPU_LOAD` and `STACK` alarms watch, and `stats` shows their recent and peak values.
-
-## Remediation
-
-Each condition may carry a note saying what to actually do about it, shown in the
-`Remediation` line of the ALARMS detail panel. It comes from the site, so it is
-written in terms of the real installation - "check mains breaker / utility feed"
-rather than a generic message. Read it before acknowledging.
+How long each keeps showing in the `recent` view is set per alarm, by how long the
+event stays worth knowing about. `SYS_RST`, `STACK` and `FLASH_FLT` keep for 30 days:
+they are evidence about the unit itself, and are usually asked about well after the
+fact. `CPU_LOAD`, `CPU_JITT` and `CPU_XRUN` keep for a day, because they are frequent
+enough that a week of them would bury everything else in the view. The field bus and
+scan alarms take the 7-day default, which is the window an intermittent fault is
+read as a pattern over.
