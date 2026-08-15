@@ -8,11 +8,11 @@
  *        MoveDirection types shared across the terminal layer.
  */
 
-#include <cstdint>                      // uint8_t/uint16_t
+#include <cstdint>
 
-#include "libbotanik/config/terminal.h"   // Config::SCREEN_* / EDITOR_* / SHELL_* / PAGE_*
+#include "libbotanik/config/terminal.h"
 
-#include "libbotanik/utils/byte_sink.h" // Utils::ByteSink
+#include "libbotanik/utils/byte_sink.h"
 
 
 namespace Botanik { namespace Terminal { namespace Ansi {

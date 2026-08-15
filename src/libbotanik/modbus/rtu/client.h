@@ -92,7 +92,7 @@
 #include "libbotanik/modbus/rtu/framing.h"
 #include "libbotanik/modbus/rtu/image.h"
 #include "libbotanik/modbus/rtu/plan.h"
-#include "libbotanik/vars/model.h"       // Vars::VarRef - the alarm and status rows, bound by name
+#include "libbotanik/vars/model.h"
 
 #if BOTANIK_FEATURE_MODBUS_RTU_CLIENT
 

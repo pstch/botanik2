@@ -7,9 +7,9 @@
  * a signed is sign-extended, and the 64-bit types saturate.
  * @see map.h for what an address means.
  */
-#include "libbotanik/modbus/tcp/map.h"    // Map - implemented here
+#include "libbotanik/modbus/tcp/map.h"
 
-#include <cstring>                    // memcpy - moving float bits without aliasing
+#include <cstring>
 
 #if BOTANIK_FEATURE_MODBUS_TCP_SERVER
 

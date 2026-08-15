@@ -16,12 +16,12 @@
 
 #ifdef TARGET_SIMULATOR
 
-#include <atomic>       // std::atomic_thread_fence
-#include <cassert>      // assert (the no-alias check in ordered_copy)
-#include <chrono>       // std::chrono
-#include <cstdint>      // uint8_t/uint64_t/uintptr_t
-#include <cstring>      // std::memcpy
-#include <type_traits>  // std::is_empty
+#include <atomic>
+#include <cassert>
+#include <chrono>
+#include <cstdint>
+#include <cstring>
+#include <type_traits>
 
 namespace Botanik { namespace HAL {
 

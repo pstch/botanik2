@@ -13,11 +13,11 @@
 #include "libbotanik_site.h"
 #include "libbotanik.h"
 #include BOTANIK_SITE_HEADER
-#include "site_bank.h"       // TestSite::build - the site's rows in a bank
+#include "site_bank.h"
 #if BOTANIK_FEATURE_MODBUS_RTU_SERVER && defined(TARGET_SIMULATOR)
-#include <unistd.h>                     // read - draining the peer end between cases
-#include "botanik_sim/fieldbus.h"       // Sim::FieldBus - the devices, and their faults
-#include "libbotanik/hal/simulator.h"   // HAL::Serial::fieldbus_peer_fd
+#include <unistd.h>
+#include "botanik_sim/fieldbus.h"
+#include "libbotanik/hal/simulator.h"
 
 #endif
 
@@ -34,9 +34,7 @@ namespace {
     }
 }
 
-// --------------------------------------------------------------------------
 // modbus_client
-// --------------------------------------------------------------------------
 
 namespace modbus_client {
 
@@ -93,7 +91,6 @@ uint32_t shortest_read_period(const Planner& p) {
 }  // namespace
 
 // Ranking
-// ===========================================================================
 //
 // One clock: every block is ranked on how far it is through the lateness it is
 // allowed, in permille. These two pin that it cuts BOTH ways, which is the whole
@@ -190,7 +187,6 @@ TEST_CASE("modbus client: the urgency is spent once the safe state is out") {
 
 
 // Device health
-// ===========================================================================
 
 TEST_CASE("modbus client: a device that came back is owed its outputs again") {
     // A rebooted device returns to power-on defaults; nothing re-dirties it since the demand hasn't moved, so the plant sits wrong.
@@ -258,7 +254,6 @@ TEST_CASE("modbus client: re-asserting an output does not re-decide it") {
 }
 
 // Pacing
-// ===========================================================================
 
 TEST_CASE("modbus client: duty counts the beat a transaction is quantised to") {
     // A frame shorter than a beat still occupies the bus; idle time is unusable to the next sensor added.
@@ -297,9 +292,7 @@ TEST_CASE("modbus client: control returning spends the safe-state urgency") {
     CHECK_FALSE(m.client.safe_state_pending());
 }
 
-// --------------------------------------------------------------------------
 // The failure paths, against devices that really answer
-// --------------------------------------------------------------------------
 //
 // Sim::FieldBus stands a real RtuSlave up per unit the site addresses and
 // carries framed bytes over the socketpair, so these drive the master's own
@@ -742,9 +735,7 @@ TEST_CASE("modbus tuning: an absent rtu_ row leaves the Config default in force"
 
 }  // namespace modbus_client
 
-// --------------------------------------------------------------------------
 // modbus_device
-// --------------------------------------------------------------------------
 
 namespace modbus_device {
 
@@ -1041,9 +1032,7 @@ TEST_CASE("modbus device: an odd row is widened, not sent to be refused") {
 
 }  // namespace modbus_device
 
-// --------------------------------------------------------------------------
 // modbus_image
-// --------------------------------------------------------------------------
 
 namespace modbus_image {
 
@@ -1211,7 +1200,6 @@ TEST_CASE("modbus image: an AO row goes out through its calibration") {
 }
 
 // Saying so when a read fails
-// ===========================================================================
 
 TEST_CASE("modbus image: a refused read invalidates its rows, and says why") {
     Bus bus;

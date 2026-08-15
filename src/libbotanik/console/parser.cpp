@@ -4,9 +4,9 @@
  * @brief InputParser implementation - the byte-stream decode state machine that
  *        turns raw input into InputEvents.
  */
-#include <cstdint>                      // UINT16_MAX
+#include <cstdint>
 
-#include "libbotanik/console/parser.h"  // InputParser
+#include "libbotanik/console/parser.h"
 
 
 namespace Botanik { namespace Terminal {
@@ -17,14 +17,12 @@ namespace Botanik { namespace Terminal {
     }
 
     // Initialization
-    // ------------------------------------------------------------------------
 
     void InputParser::_reset_event() {
         _event = InputEvent();
     }
 
     // Chunkable command helpers
-    // ------------------------------------------------------------------------
 
     bool InputParser::_is_chunkable_trigger(uint8_t b) {
         return b == 0x04   // CTRL_D
@@ -53,7 +51,6 @@ namespace Botanik { namespace Terminal {
 
 
     // Text handling helpers
-    // ------------------------------------------------------------------------
 
     void InputParser::_store_text(uint8_t b) {
         if (_text_len == 0) _batch_start_ms = *_timestamp_ms;
@@ -77,7 +74,6 @@ namespace Botanik { namespace Terminal {
     }
 
     // Flush policy
-    // ------------------------------------------------------------------------
 
     // TODO: investigate whether we could use the same latency for input batches and coalesced commands
 
@@ -104,7 +100,6 @@ namespace Botanik { namespace Terminal {
     }
 
     // State handlers
-    // ------------------------------------------------------------------------
 
     InputParser::State InputParser::_set_command(Command c) {
         _event.command = c;
@@ -164,7 +159,6 @@ namespace Botanik { namespace Terminal {
     }
 
     // Mapping logic
-    // ------------------------------------------------------------------------
 
     Command InputParser::_map_control_char(const uint8_t b) {
         switch (b) {
@@ -257,7 +251,6 @@ namespace Botanik { namespace Terminal {
     }
 
     // Lifecycle
-    // ------------------------------------------------------------------------
 
     InputParser::InputParser(Utils::BufferedSerial& serial, const uint64_t* timestamp_ms)
         : _serial(serial), _timestamp_ms(timestamp_ms) {
@@ -267,7 +260,6 @@ namespace Botanik { namespace Terminal {
     }
 
     // Parsing
-    // ------------------------------------------------------------------------
 
     InputEvent& InputParser::parse() {
         _reset_event();

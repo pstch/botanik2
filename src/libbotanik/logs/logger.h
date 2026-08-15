@@ -12,14 +12,14 @@
  * helpers (info(), warning(), ...) to emit messages.
  */
 
-#include <cstdarg>                      // va_list
-#include <cstdint>                      // uint8_t/uint16_t/uint32_t
+#include <cstdarg>
+#include <cstdint>
 
-#include "libbotanik/config/logging.h"    // Config::LOG_*
+#include "libbotanik/config/logging.h"
 
-#include "libbotanik/core/component.h"  // Component
-#include "libbotanik/logs/entry.h"      // Logs::LogEntry
-#include "libbotanik/logs/writer.h"     // Logs::LogWriter
+#include "libbotanik/core/component.h"
+#include "libbotanik/logs/entry.h"
+#include "libbotanik/logs/writer.h"
 
 namespace Botanik { namespace Tasks { struct Tick; } }
 

@@ -8,24 +8,22 @@
 
 #include "doctest.h"
 #include "params_fixture.h"
-#include "recording_writer.h"               // RecordingWriter
-#include "libbotanik_config.h"              // Config::NET_*
-#include "libbotanik/hal/platform.h"        // HAL::Clock
-#include "libbotanik/logs/logger.h"         // Logs::Logger
-#include "libbotanik/network/mqtt.h"        // Network::MqttClient
-#include "libbotanik/network/network.h"     // Network::NetworkHandler
-#include "libbotanik/network/ntp.h"         // Network::NtpClient
-#include "libbotanik/network/resolver.h"    // Network::NameResolver
-#include <cstdint>                          // uint32_t/uint64_t
-#include "libbotanik/hal/net.h"         // HAL::Network
-#include <cstring>                          // memset / strcmp / strncpy / strstr
-#include <string>                           // std::string
-#include "libbotanik/logs/format.h"         // Logs::format_log_level_name / _topic_name
-#include "libbotanik/network/mqtt_log.h"    // Network::MqttLogWriter::build_topic
+#include "recording_writer.h"
+#include "libbotanik_config.h"
+#include "libbotanik/hal/platform.h"
+#include "libbotanik/logs/logger.h"
+#include "libbotanik/network/mqtt.h"
+#include "libbotanik/network/network.h"
+#include "libbotanik/network/ntp.h"
+#include "libbotanik/network/resolver.h"
+#include <cstdint>
+#include "libbotanik/hal/net.h"
+#include <cstring>
+#include <string>
+#include "libbotanik/logs/format.h"
+#include "libbotanik/network/mqtt_log.h"
 
-// --------------------------------------------------------------------------
 // network
-// --------------------------------------------------------------------------
 
 namespace network {
 
@@ -124,9 +122,7 @@ TEST_CASE("NtpClient: stepped as a Component (announces once), query is non-bloc
 
 }  // namespace network
 
-// --------------------------------------------------------------------------
 // resolver
-// --------------------------------------------------------------------------
 
 namespace resolver {
 
@@ -231,9 +227,7 @@ TEST_CASE("NameResolver: empty / null inputs fail cleanly") {
 
 }  // namespace resolver
 
-// --------------------------------------------------------------------------
 // hal_net
-// --------------------------------------------------------------------------
 
 namespace hal_net {
 
@@ -360,9 +354,7 @@ TEST_CASE("HAL::Network sim: a released port stops capturing connects") {
 
 }  // namespace hal_net
 
-// --------------------------------------------------------------------------
 // mqtt_log
-// --------------------------------------------------------------------------
 
 namespace mqtt_log {
 

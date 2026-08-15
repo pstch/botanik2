@@ -2,13 +2,13 @@
  * @file metric_page.cpp
  * @brief MetricPage implementation - the field/cell drawing helpers.
  */
-#include "libbotanik/pages/metric_page.h"   // MetricPage
+#include "libbotanik/pages/metric_page.h"
 
-#include <cstdio>                           // snprintf
-#include <cstring>                          // strlen / strncmp / memcpy
+#include <cstdio>
+#include <cstring>
 
-#include "libbotanik/hal/platform.h"        // HAL::Clock::uptime_ms
-#include "libbotanik/utils/assert.h"        // BOTANIK_ASSERT
+#include "libbotanik/hal/platform.h"
+#include "libbotanik/utils/assert.h"
 
 namespace Botanik { namespace Pages {
 

@@ -5,11 +5,11 @@
  *        "key=hex" record per line) emulating the KV store on the simulator. The
  *        TARGET_OPTA / TARGET_SIMULATOR split is legal here: this is the HAL.
  */
-#include "libbotanik/hal/storage.h"                 // HAL::Storage::set/get/remove
+#include "libbotanik/hal/storage.h"
 
-#include <cstring>                                  // memcpy / memcmp / strlen
+#include <cstring>
 
-#include "libbotanik/config/simulator.h"  // Config::STORE_MAX_BYTES
+#include "libbotanik/config/simulator.h"
 
 namespace Botanik { namespace HAL { namespace Storage {
 
@@ -46,8 +46,8 @@ namespace Botanik { namespace HAL { namespace Storage {
 // kv_set/kv_get/kv_remove resolve to the configured default kvstore, a TDBStore
 // over BlockDevice::get_default_instance() - the external QSPI NOR here. See
 // storage.h, including its @warning about where Mbed places the region.
-#include "kvstore_global_api/kvstore_global_api.h"  // kv_set / kv_get / kv_remove
-#include "platform/mbed_error.h"                    // MBED_ERROR_ITEM_NOT_FOUND
+#include "kvstore_global_api/kvstore_global_api.h"
+#include "platform/mbed_error.h"
 
 namespace Botanik { namespace HAL { namespace Storage {
 
@@ -106,9 +106,9 @@ namespace Botanik { namespace HAL { namespace Storage {
 // so arbitrary bytes survive a line-based text file. The whole store is small
 // (a handful of config parameters plus the operator's note), so each op
 // rewrites it in full.
-#include <cstdint>                                  // uint8_t/uint32_t
-#include <cstdio>                                   // FILE / fopen / fread / fwrite / remove
-#include <cstdlib>                                  // getenv
+#include <cstdint>
+#include <cstdio>
+#include <cstdlib>
 
 namespace Botanik { namespace HAL { namespace Storage {
 

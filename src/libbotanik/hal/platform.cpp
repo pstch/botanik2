@@ -13,21 +13,20 @@
  *  just to read the clock. This is the canonical statement of the split; the
  *  backend headers point here. */
 
-#include "libbotanik/hal/platform.h"    // the surface defined here
+#include "libbotanik/hal/platform.h"
 
 #ifdef TARGET_OPTA
 
 // OPTA backend
-// ===========================================================================
 
-#include <cstdint>                      // uint32_t/uint64_t/uintptr_t
-#include <ctime>                        // time / time_t / set_time
+#include <cstdint>
+#include <ctime>
 
 // mbed.h lives HERE and not in opta.h (see the file header): the backend header
 // carries only the CMSIS intrinsics it must inline, and the two pieces of Mbed
 // C++ the HAL needs (LowPowerClock, the Watchdog singleton) are defined below.
-#include "mbed.h"                       // mbed::LowPowerClock / mbed::Watchdog
-#include "USBSerial.h"                  // USBSerial (the MONITOR transport)
+#include "mbed.h"
+#include "USBSerial.h"
 
 // Arduino.h defines `Serial` as a macro (#define Serial _UART_USB_), and the HAL
 // has a namespace by that name - so everything below would be parsed as
@@ -407,23 +406,22 @@ namespace Botanik { namespace HAL {
 #else
 
 // Simulator (Linux/host) backend
-// ===========================================================================
 
-#include <atomic>       // std::atomic_thread_fence (via the header's inlines)
-#include <chrono>       // std::chrono
-#include <csignal>      // signal / SIGINT / SIGTERM / SIGSEGV / SIGTRAP
-#include <cstdint>      // uint8_t/uint64_t/uintptr_t
-#include <cstdlib>      // atexit / exit / getenv
-#include <cstring>      // strstr
+#include <atomic>
+#include <chrono>
+#include <csignal>
+#include <cstdint>
+#include <cstdlib>
+#include <cstring>
 
 #include <fcntl.h>
-#include <sys/socket.h> // socketpair - the field bus's two ends      // fcntl / O_NONBLOCK / O_APPEND
-#include <limits.h>     // PATH_MAX
-#include <pthread.h>    // pthread_getattr_np
-#include <stdio.h>      // perror / FILE
-#include <sys/ioctl.h>  // ioctl / FIONREAD / TIOCOUTQ
-#include <termios.h>    // termios / tcgetattr / tcsetattr
-#include <unistd.h>     // read/write/close/isatty/readlink/usleep/execve/_exit
+#include <sys/socket.h>
+#include <limits.h>
+#include <pthread.h>
+#include <stdio.h>
+#include <sys/ioctl.h>
+#include <termios.h>
+#include <unistd.h>
 
 extern char** environ;
 

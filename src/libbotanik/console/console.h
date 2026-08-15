@@ -13,16 +13,16 @@
  * content-area geometry (rows()) and the alarm model (alarms()) live here.
  */
 
-#include <cstdint>                          // int8_t/uint16_t/uint64_t
+#include <cstdint>
 
-#include "libbotanik/console/alarm_bar.h"   // AlarmBar
-#include "libbotanik/console/kill_ring.h"   // KillRing
-#include "libbotanik/console/parser.h"      // InputParser
-#include "libbotanik/console/status_bar.h"  // StatusBar
-#include "libbotanik/console/terminal.h"    // AnsiTerminal
-#include "libbotanik/core/component.h"      // Component
-#include "libbotanik/logs/logger.h"         // Logs::Logger
-#include "libbotanik/utils/serial.h"        // Utils::BufferedSerial
+#include "libbotanik/console/alarm_bar.h"
+#include "libbotanik/console/kill_ring.h"
+#include "libbotanik/console/parser.h"
+#include "libbotanik/console/status_bar.h"
+#include "libbotanik/console/terminal.h"
+#include "libbotanik/core/component.h"
+#include "libbotanik/logs/logger.h"
+#include "libbotanik/utils/serial.h"
 
 namespace Botanik { namespace Alarms { class AlarmController; } }
 namespace Botanik { namespace Scheduler { struct SchedulerContext; } }

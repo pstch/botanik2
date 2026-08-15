@@ -7,24 +7,24 @@
  * animates the site's variable tables through its simulated field (sim.h).
  */
 
-#include <csignal>                      // signal / SIGINT
+#include <csignal>
 
-#include "libbotanik.h"                 // the whole library: BotanikFirmware and everything it owns
+#include "libbotanik.h"
 
-#include "libbotanik/hal/platform.h"    // HAL::Env::u32
+#include "libbotanik/hal/platform.h"
 
 // Site selected at configure time (-DBOTANIK_SITE).
-#include "libbotanik_site.h"            // resolves BOTANIK_SITE -> BOTANIK_SITE_HEADER
+#include "libbotanik_site.h"
 #include BOTANIK_SITE_HEADER            // BotanikSite + Site::simulate
 
 #if BOTANIK_FEATURE_NETWORK
-#include "botanik_sim/fieldbus.h"       // the simulated RTU devices on the other end of the wire
-#include "botanik_sim/mbcheck.h"        // the Modbus TCP self-check (sim-only scaffolding)
-#include "botanik_sim/network.h"        // the in-process mock NTP/MQTT responder (loopback)
+#include "botanik_sim/fieldbus.h"
+#include "botanik_sim/mbcheck.h"
+#include "botanik_sim/network.h"
 #endif
 
 
-#include "botanik_sim/clockctl.h"       // the manual-clock driver (BOTANIK_SIM_CLOCK=manual)
+#include "botanik_sim/clockctl.h"
 
 // The scheduler's stack-usage scan paints the free stack, so it needs locals on
 // the real stack. ASan's use-after-return check relocates them to a heap "fake

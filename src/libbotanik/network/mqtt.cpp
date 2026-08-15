@@ -7,14 +7,14 @@
  * gated on NetworkHandler::is_up() before a connect.
  */
 
-#include "libbotanik/tasks/tasks.h"   // Tasks::Registry / Tick / GroupId
-#include "libbotanik/network/mqtt.h"    // MqttClient
+#include "libbotanik/tasks/tasks.h"
+#include "libbotanik/network/mqtt.h"
 
-#include <cstring>                      // strlen / memcpy
+#include <cstring>
 
-#include "libbotanik/config/identity.h"   // Config::SITE_NAME (the client id)
+#include "libbotanik/config/identity.h"
 
-#include "libbotanik/hal/platform.h"    // HAL::Clock::uptime_ms
+#include "libbotanik/hal/platform.h"
 
 namespace Botanik { namespace Network {
 

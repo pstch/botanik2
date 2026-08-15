@@ -9,9 +9,9 @@
  * @see @ref cpptests for the suite overview and how to run it.
  */
 #define DOCTEST_CONFIG_IMPLEMENT
-#include "doctest.h"    // DOCTEST_CONFIG_IMPLEMENT lives here
+#include "doctest.h"
 
-#include <cstdlib>      // setenv
+#include <cstdlib>
 
 int main(int argc, char** argv) {
     // The suite builds schedulers it never kicks, and an armed watchdog would

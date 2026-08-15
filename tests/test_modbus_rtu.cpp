@@ -12,9 +12,7 @@
 #include "libbotanik/modbus/modbus.h"
 #include "libbotanik/modbus/rtu/slave.h"
 
-// --------------------------------------------------------------------------
 // modbus_codec
-// --------------------------------------------------------------------------
 
 namespace modbus_codec {
 
@@ -64,7 +62,6 @@ void check_frame(const uint8_t* got, uint16_t got_len,
 }  // namespace
 
 // The checksum
-// ===========================================================================
 
 TEST_CASE("modbus crc: the spec's 02 07 example") {
     CHECK(crc16(SPEC_BODY, 2) == SPEC_CRC);
@@ -88,7 +85,6 @@ TEST_CASE("modbus crc: any single-bit flip changes it") {
 }
 
 // The frame arithmetic
-// ===========================================================================
 
 TEST_CASE("modbus wire: quantity ceilings and frame lengths are per function code") {
     CHECK(max_quantity(FC_READ_COILS) == 2000);
@@ -133,7 +129,6 @@ TEST_CASE("modbus wire: bit and read classification does not leak to unknown cod
 }
 
 // Building requests
-// ===========================================================================
 
 TEST_CASE("modbus codec: an FC03 request is eight bytes, big-endian, CRC low byte first") {
     uint8_t out[16];
@@ -192,7 +187,6 @@ TEST_CASE("modbus codec: a builder refuses rather than truncating or overrunning
 }
 
 // Parsing responses
-// ===========================================================================
 
 TEST_CASE("modbus codec: a read response yields its registers big-endian") {
     const Expect e = { 5, FC_READ_HOLDING, 0, 2, 0 };
@@ -331,7 +325,6 @@ TEST_CASE("modbus codec: an Expect we could not have sent sizes nothing") {
 }
 
 // Register pairs
-// ===========================================================================
 
 TEST_CASE("modbus codec: a register pair reads in either word order") {
     // 0x12345678 as two big-endian registers: 0x1234 then 0x5678.
@@ -360,9 +353,7 @@ TEST_CASE("modbus codec: u32 and f32 round-trip through to_regs in both word ord
 
 }  // namespace modbus_codec
 
-// --------------------------------------------------------------------------
 // modbus_framing
-// --------------------------------------------------------------------------
 
 namespace modbus_framing {
 
@@ -387,7 +378,6 @@ const uint32_t TIMEOUT_MS = 300;
 }  // namespace
 
 // The happy path
-// ===========================================================================
 
 TEST_CASE("modbus framing: a complete response fed in one chunk completes") {
     RtuFramer f;
@@ -430,7 +420,6 @@ TEST_CASE("modbus framing: an exception frame is five bytes and completes early"
 }
 
 // The ways it goes wrong
-// ===========================================================================
 
 TEST_CASE("modbus framing: a byte count disagreeing with the request is a frame error") {
     RtuFramer f;
@@ -530,7 +519,6 @@ TEST_CASE("modbus framing: disarm makes a late answer countable rather than conf
 }
 
 // The buffer
-// ===========================================================================
 
 TEST_CASE("modbus framing: a 125-register response fills the ADU buffer exactly") {
     uint8_t big[ADU_MAX];
@@ -589,7 +577,6 @@ TEST_CASE("modbus framing: counters survive a transaction and reset on demand") 
 
 
 // Our own transmission coming back
-// ===========================================================================
 // RE stays asserted for the port's life, so the receiver hears our own frame first
 // - exactly as long as what we sent, so the framer counts it off rather than recognising it.
 
@@ -687,9 +674,7 @@ TEST_CASE("modbus framing: armed with no echo, the answer is framed as it stands
 
 }  // namespace modbus_framing
 
-// --------------------------------------------------------------------------
 // modbus_rtu_slave
-// --------------------------------------------------------------------------
 
 namespace modbus_rtu_slave {
 
@@ -946,7 +931,6 @@ TEST_CASE("modbus rtu slave: a full-width register write round-trips") {
 
 
 // The spec's odder corners
-// ===========================================================================
 
 TEST_CASE("modbus rtu slave: a broadcast write is executed and not answered") {
     // Unit 0 addresses every device; answering would put several on the wire at once, but the write must still execute even though nothing answers.

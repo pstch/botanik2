@@ -3,7 +3,7 @@
  * @brief @see client.h
  */
 
-#include "libbotanik/tasks/tasks.h"   // Tasks::Registry / Tick / GroupId
+#include "libbotanik/tasks/tasks.h"
 #include "libbotanik/modbus/rtu/client.h"
 
 #if BOTANIK_FEATURE_MODBUS_RTU_CLIENT

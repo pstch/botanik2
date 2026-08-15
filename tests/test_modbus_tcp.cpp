@@ -15,13 +15,11 @@
 #include "libbotanik_site.h"
 #include "libbotanik.h"
 #include BOTANIK_SITE_HEADER
-#include "libbotanik/modbus/tcp/master.h"   // not in modbus.h's aggregate
+#include "libbotanik/modbus/tcp/master.h"
 #include "libbotanik/modbus/tcp/slave.h"
-#include "site_bank.h"       // TestSite::build - the site's rows in a bank
+#include "site_bank.h"
 
-// --------------------------------------------------------------------------
 // modbus_tcp_pdu
-// --------------------------------------------------------------------------
 
 namespace modbus_tcp_pdu {
 
@@ -189,7 +187,6 @@ TEST_CASE("modbus tcp pdu: an unsupported function code is refused with its own 
 }
 
 // Responses, from the master's side
-// ===========================================================================
 
 TEST_CASE("modbus tcp pdu: a response for another transaction is not our answer") {
     // The whole point of the transaction id: a late reply in flight with the next request must not match it.
@@ -235,9 +232,7 @@ TEST_CASE("modbus tcp pdu: an exception response is a result, not a parse failur
 
 }  // namespace modbus_tcp_pdu
 
-// --------------------------------------------------------------------------
 // modbus_map
-// --------------------------------------------------------------------------
 
 namespace modbus_map {
 
@@ -437,7 +432,6 @@ TEST_CASE("modbus map: rebuilding makes the queue durable rather than dropping i
 
 
 // FC06: one register of a two-register row
-// ===========================================================================
 
 TEST_CASE("modbus map: a single-register write keeps the half it did not address") {
     // The commonest SCADA write must not come back EX_ILLEGAL_ADDRESS when only the granularity, not the address, differs.
@@ -479,9 +473,7 @@ TEST_CASE("modbus map: a single-register write goes through the same band check"
 
 }  // namespace modbus_map
 
-// --------------------------------------------------------------------------
 // modbus_tcp_master
-// --------------------------------------------------------------------------
 
 namespace modbus_tcp_master {
 

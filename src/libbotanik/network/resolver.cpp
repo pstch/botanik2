@@ -8,12 +8,12 @@
  * gethostbyname_async on OPTA, an in-process emulated resolver on the sim).
  */
 
-#include "libbotanik/network/resolver.h"    // NameResolver
+#include "libbotanik/network/resolver.h"
 
-#include <cstring>                          // strncmp / strncpy
+#include <cstring>
 
-#include "libbotanik/hal/net.h"             // HAL::Network::dns_begin / dns_poll / dns_cancel
-#include "libbotanik/hal/platform.h"        // HAL::Clock::uptime_ms
+#include "libbotanik/hal/net.h"
+#include "libbotanik/hal/platform.h"
 
 namespace Botanik { namespace Network {
 

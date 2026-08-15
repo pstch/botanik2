@@ -20,10 +20,10 @@
  * In DEBUG builds announce() logs one BOOT line on first setup().
  */
 
-#include <cstdint>                              // uint32_t/uint64_t/UINT64_MAX
+#include <cstdint>
 
-#include "libbotanik/core/setup.h"          // SetupContext
-#include "libbotanik/tasks/phase.h"         // Tasks::Phase
+#include "libbotanik/core/setup.h"
+#include "libbotanik/tasks/phase.h"
 
 // Forward-declared, NOT included: keeps Component free of the Logger include so
 // Logger itself can derive it (the body of announce() lives in component.cpp).

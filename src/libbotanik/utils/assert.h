@@ -2,7 +2,7 @@
 #ifndef UTILS_ASSERT_H
 #define UTILS_ASSERT_H
 
-#include <cstdint>                      // uint16_t
+#include <cstdint>
 
 /** @file assert.h
  *  @brief BOTANIK_ASSERT - debug-only assertions that log, then trap or
@@ -61,7 +61,6 @@ namespace Botanik {
 }
 
 // BOTANIK_ASSERT macro
-// ===========================================================================
 
 #ifdef DEBUG
     #define BOTANIK_ASSERT(cond) \

@@ -4,11 +4,11 @@
  */
 #include "libbotanik/pages/monitor.h"
 
-#include <cstdio>                           // snprintf
-#include <cstring>                          // strlen / strcmp / memcpy
+#include <cstdio>
+#include <cstring>
 
-#include "libbotanik/hal/platform.h"        // HAL::Clock::uptime_ms
-#include "libbotanik/utils/text.h"        // Utils::format_age - how old a reading is
+#include "libbotanik/hal/platform.h"
+#include "libbotanik/utils/text.h"
 
 namespace Botanik { namespace Pages {
 

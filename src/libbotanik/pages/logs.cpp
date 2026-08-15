@@ -3,21 +3,20 @@
  * @file logs.cpp
  * @brief LogsPage implementation.
  */
-#include "libbotanik/pages/logs.h"      // LogsPage
+#include "libbotanik/pages/logs.h"
 
-#include <algorithm>                    // std::min
-#include <cstdio>                       // snprintf
-#include <cstring>                      // strlen
+#include <algorithm>
+#include <cstdio>
+#include <cstring>
 
-#include "libbotanik/config/base.h"       // the BOTANIK_FEATURE_* gates
+#include "libbotanik/config/base.h"
 
-#include "libbotanik/hal/platform.h"    // HAL::Clock::uptime_ms
-#include "libbotanik/logs/format.h"     // Logs::format_log_entry
+#include "libbotanik/hal/platform.h"
+#include "libbotanik/logs/format.h"
 
 namespace Botanik { namespace Pages {
 
     // Lifecycle
-    // ------------------------------------------------------------------------
 
     LogsPage::LogsPage(Terminal::Console& console) :
         _console(console), _terminal(console.terminal())
@@ -29,7 +28,6 @@ namespace Botanik { namespace Pages {
     }
 
     // Page interface
-    // ------------------------------------------------------------------------
 
     void LogsPage::handle_text(char c) {
         if (c == ' ') _emit_mark();   // SPACE: annotate the stream w/ a marker
@@ -98,7 +96,6 @@ namespace Botanik { namespace Pages {
     }
 
     // BufferedLogWriter interface
-    // ------------------------------------------------------------------------
 
     size_t LogsPage::write(const char* buf, size_t len) {
         // Store-only: bank the entry, mark pending when active for the paced
@@ -110,7 +107,6 @@ namespace Botanik { namespace Pages {
     }
 
     // Internals
-    // ------------------------------------------------------------------------
 
     void LogsPage::_emit_mark() {
         // Don't disturb the tail while a page-switch replay is still filling it.

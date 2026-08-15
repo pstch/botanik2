@@ -10,12 +10,12 @@
 
                             // Bank / Var / Variable
 
-#include "libbotanik/tasks/tasks.h"   // Tasks::Registry / Tick / GroupId
+#include "libbotanik/tasks/tasks.h"
 
 
-#include "libbotanik/logs/logger.h" // Logs::Logger
-#include "libbotanik/utils/assert.h"   // BOTANIK_ASSERT - a refused registration
-#include "libbotanik/utils/text.h"     // Utils::compare_bounded - the name order
+#include "libbotanik/logs/logger.h"
+#include "libbotanik/utils/assert.h"
+#include "libbotanik/utils/text.h"
 
 namespace Botanik { namespace Vars {
 
@@ -40,7 +40,6 @@ namespace Botanik { namespace Vars {
     }  // namespace
 
     // Registration
-    // ------------------------------------------------------------------------
 
     bool Bank::register_vars(const Variable* rows, uint16_t count) {
         if (rows == nullptr || count == 0) return true;   // nothing to add
@@ -357,7 +356,6 @@ namespace Botanik { namespace Vars {
     }
 
     // Writing
-    // ------------------------------------------------------------------------
 
     namespace {
         /** @brief Parse @p text as @p d's type into @p out, optionally holding

@@ -3,18 +3,18 @@
  * @brief The variable tables: `vars`, `params` and `overrides`, over the shared
  *        row-rendering helpers they all print through.
  */
-#include "libbotanik/shell/shell.h"         // CommandShell
-#include "libbotanik/shell/args.h"          // arg_next / arg_eq / arg_is_all
+#include "libbotanik/shell/shell.h"
+#include "libbotanik/shell/args.h"
 
-#include <algorithm>                        // std::min
-#include <cstdio>                           // snprintf
-#include <cstring>                          // strlen / strncmp / memcpy
+#include <algorithm>
+#include <cstdio>
+#include <cstring>
 
-#include "libbotanik/utils/text.h"          // Utils::format_age / format_float
-#include "libbotanik/vars/access.h"         // Vars::var_format / var_group
-#include "libbotanik/vars/params.h"         // Vars::Params
+#include "libbotanik/utils/text.h"
+#include "libbotanik/vars/access.h"
+#include "libbotanik/vars/params.h"
 
-#include "libbotanik/config/logging.h"      // Config::LOG_FORMATTED_LEN
+#include "libbotanik/config/logging.h"
 
 namespace Botanik { namespace Shell {
 

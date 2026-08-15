@@ -5,15 +5,15 @@
  * Two sections, each in its own namespace to avoid fixture collisions.
  */
 
-#include <cstdint>                      // uint8_t/uint32_t/uint64_t
-#include <string>                       // std::string
-#include <vector>                       // std::vector
-#include "libbotanik/core/component.h"  // Component
-#include "libbotanik/tasks/tasks.h" // Tasks::Registry
-#include "libbotanik/plc/program.h"   // Plc::Program - what add_program() takes
+#include <cstdint>
+#include <string>
+#include <vector>
+#include "libbotanik/core/component.h"
+#include "libbotanik/tasks/tasks.h"
+#include "libbotanik/plc/program.h"
 #include "doctest.h"
-#include "libbotanik/tasks/task_timer.h"    // Tasks::TaskTimer
-#include "libbotanik/utils/assert.h"      // ExpectedAsserts - refusals driven on purpose
+#include "libbotanik/tasks/task_timer.h"
+#include "libbotanik/utils/assert.h"
 
 // tasks
 

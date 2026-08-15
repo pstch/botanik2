@@ -3,28 +3,28 @@
  * @brief What the unit is REPORTING: the beat's metrics and per-task costs, the
  *        build identity, and the network / field-bus state.
  */
-#include "libbotanik/shell/shell.h"         // CommandShell
-#include "libbotanik/shell/args.h"          // arg_next / arg_eq / arg_is_all
+#include "libbotanik/shell/shell.h"
+#include "libbotanik/shell/args.h"
 
-#include <algorithm>                        // std::min
-#include <cstdio>                           // snprintf
-#include <cstring>                          // strlen / strncmp / memcpy
+#include <algorithm>
+#include <cstdio>
+#include <cstring>
 
-#include "libbotanik/config/identity.h"     // Config::SITE_NAME / FIRMWARE_VERSION
-#include "libbotanik/config/modbus.h"       // Config::MODBUS_*
-#include "libbotanik/config/net.h"          // Config::NET_* / DNS_* / NTP_* / MQTT_*
-#include "libbotanik/config/scheduler.h"    // Config::TASK_PERIOD_MS
-#include "libbotanik_features.h"            // BOTANIK_FEATURE_LIST - `features`
+#include "libbotanik/config/identity.h"
+#include "libbotanik/config/modbus.h"
+#include "libbotanik/config/net.h"
+#include "libbotanik/config/scheduler.h"
+#include "libbotanik_features.h"
 
-#include "libbotanik/hal/platform.h"        // HAL::Stack / hardware_description
-#include "libbotanik/modbus/rtu/client.h"   // Modbus::RtuClient / Planner
-#include "libbotanik/modbus/tcp/slave.h"    // Modbus::TcpSlave / SlaveContext
-#include "libbotanik/network/mqtt.h"        // Network::MqttClient
-#include "libbotanik/network/network.h"     // Network::NetworkHandler
-#include "libbotanik/network/ntp.h"         // Network::NtpClient
-#include "libbotanik/scheduler/scheduler.h" // Scheduler::SchedulerContext
-#include "libbotanik/tasks/tasks.h"         // Tasks::Registry - `tasks`
-#include "libbotanik/utils/text.h"          // Utils::format_age / format_float / format_size
+#include "libbotanik/hal/platform.h"
+#include "libbotanik/modbus/rtu/client.h"
+#include "libbotanik/modbus/tcp/slave.h"
+#include "libbotanik/network/mqtt.h"
+#include "libbotanik/network/network.h"
+#include "libbotanik/network/ntp.h"
+#include "libbotanik/scheduler/scheduler.h"
+#include "libbotanik/tasks/tasks.h"
+#include "libbotanik/utils/text.h"
 
 // Build-time git short hash: a generated header on the CMake builds, "unknown"
 // on the Arduino .ino deploy (no CMake, so the header isn't generated).
@@ -445,7 +445,6 @@ namespace Botanik { namespace Shell {
 #endif  // BOTANIK_FEATURE_NETWORK
 
 // modbus - the field bus and the SCADA-facing server
-// ---------------------------------------------------------------------------
 
 #if BOTANIK_FEATURE_MODBUS_RTU_CLIENT
     /** @brief The roll-call: one line per unit. The plant's tag first (an

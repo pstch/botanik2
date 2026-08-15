@@ -15,11 +15,10 @@
  *  macro an earlier config header had undefined. Each config header defines and
  *  undefines BOTANIK_CFG for itself. */
 
-#include <cstddef>                  // size_t
-#include <cstdint>                  // uint8_t/uint16_t/uint32_t
+#include <cstddef>
+#include <cstdint>
 
 // Site configuration
-// ===========================================================================
 
 // Vendored builds (the library copied into an Arduino PLC IDE sketch) get no -D
 // and no include path, so the vendoring step drops a generated
@@ -32,7 +31,7 @@
 #  endif
 #endif
 
-#include "libbotanik_site.h"        // resolves BOTANIK_SITE -> BOTANIK_SITE_CONFIG / _HEADER
+#include "libbotanik_site.h"
 
 // The site's config.h, pulled in before the defaults so a site can override any
 // of them build-wide. It is included with NONE of the library in scope, which is
@@ -43,8 +42,7 @@
 #endif
 
 // Feature flags
-// ===========================================================================
 
-#include "libbotanik_features.h"    // the BOTANIK_FEATURE_* defaults and BOTANIK_FEATURE_LIST
+#include "libbotanik_features.h"
 
 #endif // LIBBOTANIK_CONFIG_BASE_H

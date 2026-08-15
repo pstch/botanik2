@@ -4,18 +4,17 @@
  * @brief Time utility implementations - calendar/UNIX conversion and timestamp
  *        formatting.
  */
-#include "libbotanik/utils/time.h"      // CalendarTime + the uptime/wall conversions implemented here
+#include "libbotanik/utils/time.h"
 
-#include <cstddef>                      // size_t
-#include <cstdint>                      // int64_t/uint64_t
-#include <cstdio>                       // snprintf
+#include <cstddef>
+#include <cstdint>
+#include <cstdio>
 
-#include "libbotanik/hal/platform.h"    // HAL::Clock::uptime_ms / wall_ms
+#include "libbotanik/hal/platform.h"
 
 namespace Botanik { namespace Utils {
 
     // Calendar conversion & formatting
-    // ------------------------------------------------------------------------
 
     // Wall-clock epoch as UNIX ms at uptime 0. `wall_now - uptime_now` is
     // invariant while the RTC free-runs, so it is cached; an NTP sync STEPS the

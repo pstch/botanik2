@@ -5,28 +5,26 @@
  * Each section is its own namespace, isolating fixtures and helpers.
  */
 
-#include <cstddef>                      // size_t
-#include <vector>                       // std::vector
-#include "libbotanik/alarms/alarms.h"   // Alarms::AlarmController
-#include "libbotanik/alarms/notifier.h" // Alarms::MqttAlarmNotifier
-#include "libbotanik/logs/logger.h"     // Logs::Logger
-#include "libbotanik/vars/declare.h"    // the A() factory
+#include <cstddef>
+#include <vector>
+#include "libbotanik/alarms/alarms.h"
+#include "libbotanik/alarms/notifier.h"
+#include "libbotanik/logs/logger.h"
+#include "libbotanik/vars/declare.h"
 #include "doctest.h"
-#include "term_fixture.h"              // botanik_test::PipeSerial
-#include <cstdint>                          // uint8_t/uint16_t/uint64_t
-#include <fcntl.h>                          // fcntl / O_NONBLOCK
-#include <string>                           // std::string
-#include <unistd.h>                         // pipe / read / close
-#include "libbotanik/console/console.h"     // Console
-#include "libbotanik/console/terminal.h"    // AnsiTerminal::present
-#include "libbotanik/pages/alarms.h"        // Pages::AlarmsPage
-#include <cstring>                          // strcmp / strstr
-#include "libbotanik_config.h"              // Config::MQTT_TOPIC_PREFIX
-#include "libbotanik/alarms/publisher.h"    // Alarms::Publisher
+#include "term_fixture.h"
+#include <cstdint>
+#include <fcntl.h>
+#include <string>
+#include <unistd.h>
+#include "libbotanik/console/console.h"
+#include "libbotanik/console/terminal.h"
+#include "libbotanik/pages/alarms.h"
+#include <cstring>
+#include "libbotanik_config.h"
+#include "libbotanik/alarms/publisher.h"
 
-// --------------------------------------------------------------------------
 // alarms
-// --------------------------------------------------------------------------
 
 namespace alarms {
 
@@ -292,9 +290,7 @@ TEST_CASE("alarm reader: model reads each condition's variable") {
 
 }  // namespace alarms
 
-// --------------------------------------------------------------------------
 // alarms_render
-// --------------------------------------------------------------------------
 
 namespace alarms_render {
 
@@ -493,9 +489,7 @@ TEST_CASE("alarms render: a mode change shows the new mode before the rows") {
 
 }  // namespace alarms_render
 
-// --------------------------------------------------------------------------
 // notifier
-// --------------------------------------------------------------------------
 
 namespace notifier {
 

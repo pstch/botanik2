@@ -5,13 +5,13 @@
 
 #include "libbotanik/modbus/rtu/image.h"
 
-#include <cstring>                    // memcmp - a row's bytes against those sent
+#include <cstring>
 
 #if BOTANIK_FEATURE_MODBUS_RTU_CLIENT
 
 #include "libbotanik/modbus/rtu/codec.h"
 #include "libbotanik/vars/model.h"
-#include "libbotanik/vars/params.h"    // Vars::analog_values - an AI row's live calibration
+#include "libbotanik/vars/params.h"
 
 namespace Botanik { namespace Modbus {
 

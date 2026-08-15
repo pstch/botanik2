@@ -2,18 +2,17 @@
  * @file modbus/rtu/slave.cpp
  * @brief RtuSlave: framing a request without a length field, and answering it.
  */
-#include "libbotanik/modbus/rtu/slave.h" // RtuSlave - implemented here
+#include "libbotanik/modbus/rtu/slave.h"
 
-#include <cstring>                    // memmove/memcpy - the request buffer and the payload
+#include <cstring>
 
-#include "libbotanik/modbus/rtu/codec.h" // crc16 - the same one the master checks with
+#include "libbotanik/modbus/rtu/codec.h"
 
 #if BOTANIK_FEATURE_MODBUS_RTU_SERVER
 
 namespace Botanik { namespace Modbus {
 
     // The image
-    // ------------------------------------------------------------------------
 
     void RtuSlave::set_reg(uint16_t addr, uint16_t v) {
         if (addr < Config::MODBUS_SIM_REGS) _regs[addr] = v;
@@ -29,7 +28,6 @@ namespace Botanik { namespace Modbus {
     }
 
     // Framing
-    // ------------------------------------------------------------------------
 
     void RtuSlave::feed(const uint8_t* bytes, uint16_t n) {
         if (bytes == nullptr) return;
@@ -135,7 +133,6 @@ namespace Botanik { namespace Modbus {
     }
 
     // Answers
-    // ------------------------------------------------------------------------
 
     uint16_t RtuSlave::_except(uint8_t fc, Exception ex, uint8_t* out, uint16_t cap) {
         if (cap < exception_len()) return 0;

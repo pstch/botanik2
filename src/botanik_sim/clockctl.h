@@ -26,13 +26,13 @@
 
 #ifdef TARGET_SIMULATOR
 
-#include <cstdio>                       // snprintf
-#include <cstdlib>                      // atoi
-#include <cstring>                      // memmove
-#include <unistd.h>                     // read / write
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
+#include <unistd.h>
 
-#include "libbotanik/config/scheduler.h"  // Config::TASK_PERIOD_MS
-#include "libbotanik/hal/platform.h"      // HAL::Clock / HAL::Env
+#include "libbotanik/config/scheduler.h"
+#include "libbotanik/hal/platform.h"
 
 namespace Botanik { namespace Sim {
 

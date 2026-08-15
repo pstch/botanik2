@@ -21,12 +21,12 @@
  * would be load-shedding, which must not shed a control program automatically.
  */
 
-#include <cstdint>                              // uint8_t/uint32_t/uint64_t
+#include <cstdint>
 
-#include "libbotanik/config/scheduler.h"  // Config::LOOP_* / TASK_* / GROUP_*
+#include "libbotanik/config/scheduler.h"
 
-#include "libbotanik/tasks/phase.h"         // Tasks::Phase
-#include "libbotanik/tasks/task_timer.h"    // Tasks::TaskTimer
+#include "libbotanik/tasks/phase.h"
+#include "libbotanik/tasks/task_timer.h"
 
 // Forward-declared, never included. `Component` is not domain knowledge here: it
 // is the TYPE OF THE ERASED SELF-POINTER, the one type every registered object

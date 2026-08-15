@@ -33,51 +33,51 @@
  * reach any site-registered sink.
  */
 
-#include <cstdint>                          // uint8_t/uint32_t/uint64_t
+#include <cstdint>
 
-#include "libbotanik/config/identity.h"   // Config::SITE_NAME / FIRMWARE_VERSION / MQTT_TOPIC_PREFIX
-#include "libbotanik/config/scheduler.h"  // Config::LOOP_* / TASK_* / GROUP_*
-#include "libbotanik/config/serial.h"     // Config::SERIAL_* / *_BAUD
-#include "libbotanik/config/terminal.h"   // Config::SCREEN_* / EDITOR_* / SHELL_* / PAGE_*
+#include "libbotanik/config/identity.h"
+#include "libbotanik/config/scheduler.h"
+#include "libbotanik/config/serial.h"
+#include "libbotanik/config/terminal.h"
 
-#include "libbotanik/alarms/alarms.h"       // AlarmCondition
-#include "libbotanik/alarms/publisher.h"    // Alarms::Publisher
-#include "libbotanik/core/context.h"        // SystemContext
-#include "libbotanik/firmware/stacks.h"     // Monitor/Console/NetworkStack
-#include "libbotanik/health/health.h"       // Health::HealthMonitor
-#include "libbotanik/logs/logger.h"         // Logs::Logger
-#include "libbotanik/logs/topics.h"         // Logs::BOOT / HEALTH
+#include "libbotanik/alarms/alarms.h"
+#include "libbotanik/alarms/publisher.h"
+#include "libbotanik/core/context.h"
+#include "libbotanik/firmware/stacks.h"
+#include "libbotanik/health/health.h"
+#include "libbotanik/logs/logger.h"
+#include "libbotanik/logs/topics.h"
 #if BOTANIK_FEATURE_MODBUS_RTU_CLIENT
-#include "libbotanik/modbus/rtu/client.h"   // Modbus::RtuClient - the field-bus master
+#include "libbotanik/modbus/rtu/client.h"
 #endif
 #if BOTANIK_FEATURE_MODBUS_TCP_SERVER
-#include "libbotanik/modbus/tcp/slave.h"    // Modbus::TcpSlave - the SCADA-facing server
+#include "libbotanik/modbus/tcp/slave.h"
 #endif
-#include "libbotanik/plc/program.h"         // Plc::Program
-#include "libbotanik/scheduler/scheduler.h" // Scheduler::LoopScheduler
-#include "libbotanik/shell/shell.h"         // Shell::ShellCommand
-#include "libbotanik/tasks/tasks.h"         // Tasks::Registry / GroupId / Phase
-#include "libbotanik/utils/assert.h"        // set_assert_logger
-#include "libbotanik/utils/serial.h"        // Utils::BufferedSerial
-#include "libbotanik/vars/access.h"         // Vars::HomeVar
-#include "libbotanik/vars/model.h"          // Vars::Bank
-#include "libbotanik/vars/params.h"         // Vars::Params / KvParamStore
-#include "libbotanik/vars/vars.h"          // Vars::register_library_vars
+#include "libbotanik/plc/program.h"
+#include "libbotanik/scheduler/scheduler.h"
+#include "libbotanik/shell/shell.h"
+#include "libbotanik/tasks/tasks.h"
+#include "libbotanik/utils/assert.h"
+#include "libbotanik/utils/serial.h"
+#include "libbotanik/vars/access.h"
+#include "libbotanik/vars/model.h"
+#include "libbotanik/vars/params.h"
+#include "libbotanik/vars/vars.h"
 
 #if BOTANIK_FEATURE_CONSOLE
-#include "libbotanik/console/console.h"     // Terminal::Console
+#include "libbotanik/console/console.h"
 #endif
 #if BOTANIK_FEATURE_HOME_PAGE
-#include "libbotanik/pages/home.h"          // Pages::HomePage
+#include "libbotanik/pages/home.h"
 #endif
 #if BOTANIK_FEATURE_PARAMS_PAGE
-#include "libbotanik/pages/params_page.h"   // Pages::ParamsPage
+#include "libbotanik/pages/params_page.h"
 #endif
 #if BOTANIK_FEATURE_MONITOR_PAGE
-#include "libbotanik/pages/monitor.h"       // Pages::MonitorPage
+#include "libbotanik/pages/monitor.h"
 #endif
 #if BOTANIK_FEATURE_TASKS_PAGE
-#include "libbotanik/pages/tasks_page.h"    // Pages::TasksPage
+#include "libbotanik/pages/tasks_page.h"
 #endif
 
 namespace Botanik {

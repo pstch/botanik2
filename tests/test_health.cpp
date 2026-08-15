@@ -7,13 +7,13 @@
 
 #include "doctest.h"
 
-#include "libbotanik/health/health.h"        // Health::HealthMonitor
-#include "libbotanik/logs/logger.h"          // Logs::Logger
-#include "libbotanik/scheduler/scheduler.h"  // Scheduler::LoopScheduler / SchedulerContext
-#include "libbotanik/vars/model.h"           // Vars::Bank
-#include "recording_writer.h"                // RecordingWriter
-#include "sites/gh_mlb41/site.h"             // the site table carries the platform alarm rows
-#include "site_bank.h"       // TestSite::build - the site's rows in a bank
+#include "libbotanik/health/health.h"
+#include "libbotanik/logs/logger.h"
+#include "libbotanik/scheduler/scheduler.h"
+#include "libbotanik/vars/model.h"
+#include "recording_writer.h"
+#include "sites/gh_mlb41/site.h"
+#include "site_bank.h"
 
 namespace health {
 

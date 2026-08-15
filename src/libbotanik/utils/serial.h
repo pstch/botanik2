@@ -8,12 +8,12 @@
  *        over HAL::Serial::Raw.
  */
 
-#include <cstdint>                      // uint8_t/uint16_t/uint64_t
+#include <cstdint>
 
-#include "libbotanik/config/serial.h"     // Config::SERIAL_* / *_BAUD
+#include "libbotanik/config/serial.h"
 
-#include "libbotanik/hal/platform.h"    // HAL::Serial
-#include "libbotanik/utils/byte_sink.h" // Utils::ByteSink
+#include "libbotanik/hal/platform.h"
+#include "libbotanik/utils/byte_sink.h"
 
 namespace Botanik { namespace Utils {
 

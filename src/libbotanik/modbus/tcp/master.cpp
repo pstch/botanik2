@@ -6,11 +6,11 @@
  * resumes next beat, and a deadline is a comparison against a stamp rather than
  * a sleep.
  */
-#include "libbotanik/modbus/tcp/master.h" // TcpMaster - implemented here
+#include "libbotanik/modbus/tcp/master.h"
 
-#include <cstring>                    // memmove - shifting a consumed frame out of the buffer
+#include <cstring>
 
-#include "libbotanik/logs/logger.h"   // Logs::Logger - the connect and the give-ups
+#include "libbotanik/logs/logger.h"
 
 #if BOTANIK_FEATURE_MODBUS_TCP_CLIENT
 
@@ -39,7 +39,6 @@ namespace Botanik { namespace Modbus {
     }
 
     // Transactions
-    // ------------------------------------------------------------------------
 
     bool TcpMaster::_start(size_t len, const Expect& e) {
         if (len == 0) return false;                 // could not be framed
@@ -85,7 +84,6 @@ namespace Botanik { namespace Modbus {
     }
 
     // The beat
-    // ------------------------------------------------------------------------
 
     void TcpMaster::on_service(uint64_t now_ms) {
         _now_ms = now_ms;

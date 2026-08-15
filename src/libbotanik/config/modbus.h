@@ -14,9 +14,9 @@
  *  live beside the arithmetic that depends on them, in modbus/wire.h. Here is
  *  what a plant varies: line rate, deadlines, and how much the firmware holds. */
 
-#include <cstdint>                        // uint8_t/uint16_t/uint32_t
+#include <cstdint>
 
-#include "libbotanik/config/base.h"       // the BOTANIK_FEATURE_* gates
+#include "libbotanik/config/base.h"
 
 // Defined and undefined per file, not in base.h: see base.h.
 #define BOTANIK_CFG(type, name) static constexpr type name = BOTANIK_##name

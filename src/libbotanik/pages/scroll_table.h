@@ -17,13 +17,13 @@
  * dev_screen).
  */
 
-#include <cstdint>                          // uint8_t/uint16_t/int32_t
-#include <cstdio>                           // snprintf
-#include <cstring>                          // strlen / memcpy
+#include <cstdint>
+#include <cstdio>
+#include <cstring>
 
-#include "libbotanik/console/console.h"     // Console::rows / terminal / kill_ring
-#include "libbotanik/console/terminal.h"    // AnsiTerminal
-#include "libbotanik/pages/page.h"          // Pages::Page
+#include "libbotanik/console/console.h"
+#include "libbotanik/console/terminal.h"
+#include "libbotanik/pages/page.h"
 
 namespace Botanik { namespace Pages {
 

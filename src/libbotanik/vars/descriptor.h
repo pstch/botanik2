@@ -10,9 +10,9 @@
  * - the RAM value slot, the handle over the pair, and the Bank.
  */
 
-#include <cstdint>                  // uint8_t/uint16_t/int64_t
+#include <cstdint>
 
-#include "libbotanik/vars/scalar.h" // Vars::Scalar / VarType
+#include "libbotanik/vars/scalar.h"
 
 namespace Botanik { namespace Vars {
 

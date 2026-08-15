@@ -6,13 +6,13 @@
  * @file scheduler.h
  * @brief Non-blocking fixed-period loop driver with perf monitoring. */
 
-#include <cstdint>                      // uint8_t/uint64_t/uintptr_t
+#include <cstdint>
 
-#include "libbotanik/config/scheduler.h"  // Config::LOOP_* / TASK_* / GROUP_*
+#include "libbotanik/config/scheduler.h"
 
-#include "libbotanik/hal/platform.h"   // HAL::Clock::sleep_ms / uptime_us
-#include "libbotanik/tasks/tasks.h"    // Tasks::Registry / Phase
-#include "libbotanik/utils/filters.h"   // Utils::ExpMovingAverage / WindowedMax
+#include "libbotanik/hal/platform.h"
+#include "libbotanik/tasks/tasks.h"
+#include "libbotanik/utils/filters.h"
 
 // ASAN puts locals on a fake stack, which stack-usage measurement cannot see.
 // BOTANIK_NO_ASAN annotates the paint/scan code so it works against the real

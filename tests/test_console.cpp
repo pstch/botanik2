@@ -5,31 +5,29 @@
  * Each section is its own namespace so fixtures and helpers cannot collide.
  */
 
-#include <cstdint>                          // uint8_t/uint16_t
-#include <cstdio>                           // snprintf
-#include <cstring>                          // strlen / memcmp
-#include <fcntl.h>                          // fcntl / O_NONBLOCK
-#include <string>                           // std::string
-#include <unistd.h>                         // pipe / read / close
-#include "libbotanik/console/terminal.h"    // AnsiTerminal::present
-#include "libbotanik/utils/serial.h"        // Utils::BufferedSerial
+#include <cstdint>
+#include <cstdio>
+#include <cstring>
+#include <fcntl.h>
+#include <string>
+#include <unistd.h>
+#include "libbotanik/console/terminal.h"
+#include "libbotanik/utils/serial.h"
 #include "doctest.h"
-#include "term_fixture.h"                  // botanik_test::PipeSerial
-#include "libbotanik/console/console.h" // Console
-#include "libbotanik/console/editor.h"  // Terminal::TextEditor
-#include "libbotanik/console/parser.h"  // Terminal::InputParser
-#include "libbotanik/pages/line_buffer.h"   // Pages::LineBuffer
-#include "libbotanik/pages/scroll_table.h"  // Pages::ScrollTablePage
-#include "libbotanik/pages/scrollback.h"    // Pages::Scrollback
-#include "libbotanik/shell/shell.h" // Shell::CommandShell
-#include "libbotanik/tasks/tasks.h"         // Tasks::Registry - the beat the console registers in
+#include "term_fixture.h"
+#include "libbotanik/console/console.h"
+#include "libbotanik/console/editor.h"
+#include "libbotanik/console/parser.h"
+#include "libbotanik/pages/line_buffer.h"
+#include "libbotanik/pages/scroll_table.h"
+#include "libbotanik/pages/scrollback.h"
+#include "libbotanik/shell/shell.h"
+#include "libbotanik/tasks/tasks.h"
 #include "libbotanik/vars/declare.h"
-#include "libbotanik/vars/params.h"         // Vars::get_int
-#include "site_bank.h"                      // TestSite::build - the site's rows in a bank
+#include "libbotanik/vars/params.h"
+#include "site_bank.h"
 
-// --------------------------------------------------------------------------
 // terminal_present
-// --------------------------------------------------------------------------
 
 namespace terminal_present {
 
@@ -463,9 +461,7 @@ TEST_CASE("reconfigure: swapping the make re-emits its setup handshake") {
 
 }  // namespace terminal_present
 
-// --------------------------------------------------------------------------
 // editor_bytes
-// --------------------------------------------------------------------------
 
 namespace editor_bytes {
 
@@ -737,7 +733,6 @@ TEST_CASE("editor bytes: a wide slide is still one escape") {
 }
 
 // Top-anchored viewport (the NOTES geometry)
-// ----------------------------------------------------------------------------
 // Text taller than the window, and the window moves. Two failure modes cost a
 // screen each: a scrolled-in row spliced against glyphs it never had, and a
 // scroll repainting the whole band instead of just the rows it uncovered.
@@ -904,9 +899,7 @@ TEST_CASE("editor bytes: no mark means the region pass is not there") {
 
 }  // namespace editor_bytes
 
-// --------------------------------------------------------------------------
 // parser
-// --------------------------------------------------------------------------
 
 namespace parser {
 
@@ -941,7 +934,6 @@ namespace {
 }
 
 // Printable text
-// ----------------------------------------------------------------------------
 
 TEST_CASE("parser: printable bytes accumulate into one CONTENT batch") {
     ParserFixture f;
@@ -963,7 +955,6 @@ TEST_CASE("parser: a full batch flushes at ANSI_INPUT_BATCH_SIZE") {
 }
 
 // C0 control bytes
-// ----------------------------------------------------------------------------
 
 TEST_CASE("parser: control bytes decode to commands") {
     ParserFixture f;
@@ -985,7 +976,6 @@ TEST_CASE("parser: control bytes decode to commands") {
 }
 
 // CSI sequences
-// ----------------------------------------------------------------------------
 
 TEST_CASE("parser: CSI tilde keys, with and without a modifier param") {
     ParserFixture f;
@@ -1024,7 +1014,6 @@ TEST_CASE("parser: a long digit run saturates instead of wrapping") {
 }
 
 // Alt (ESC-prefixed) sequences
-// ----------------------------------------------------------------------------
 
 TEST_CASE("parser: a lone ESC resolves to ESC after the command timeout") {
     ParserFixture f;
@@ -1035,7 +1024,6 @@ TEST_CASE("parser: a lone ESC resolves to ESC after the command timeout") {
 }
 
 // Chunkable coalescing (held BACKSPACE / CTRL_D)
-// ----------------------------------------------------------------------------
 
 TEST_CASE("parser: repeated backspaces coalesce into one count-N command") {
     ParserFixture f;
@@ -1047,9 +1035,7 @@ TEST_CASE("parser: repeated backspaces coalesce into one count-N command") {
 
 }  // namespace parser
 
-// --------------------------------------------------------------------------
 // line_buffer
-// --------------------------------------------------------------------------
 
 namespace line_buffer {
 
@@ -1067,7 +1053,6 @@ namespace {
 }
 
 // store / line / count
-// ----------------------------------------------------------------------------
 
 TEST_CASE("LineBuffer: stores lines and reads them newest-first") {
     LineBuffer<8, 16> lb;
@@ -1113,7 +1098,6 @@ TEST_CASE("LineBuffer: wraps once full, evicting the oldest lines") {
 }
 
 // store_wrapped
-// ----------------------------------------------------------------------------
 
 TEST_CASE("store_wrapped: splits on embedded newlines, one entry per line") {
     LineBuffer<8, 16> lb;
@@ -1153,9 +1137,7 @@ TEST_CASE("store_wrapped: always stores at least one (possibly empty) line") {
 
 }  // namespace line_buffer
 
-// --------------------------------------------------------------------------
 // scrollback
-// --------------------------------------------------------------------------
 
 namespace scrollback {
 
@@ -1324,9 +1306,7 @@ TEST_CASE("scrollback: a buffer that fits the window cannot be scrolled") {
 
 }  // namespace scrollback
 
-// --------------------------------------------------------------------------
 // shell
-// --------------------------------------------------------------------------
 
 namespace shell {
 
@@ -1462,9 +1442,7 @@ TEST_CASE("kill ring: a kill longer than the ring leaves the overflow in place")
     CHECK(f.line() == big);
 }
 
-// ---------------------------------------------------------------------------
 // Mark and region (Ctrl-Space anchors, Ctrl-W / Alt-W act on the span).
-// ---------------------------------------------------------------------------
 
 TEST_CASE("region: Ctrl-W kills the span between the mark and the cursor") {
     ShellFixture f;
@@ -1534,9 +1512,7 @@ TEST_CASE("region: a span across a newline takes the newline with it") {
     CHECK(f.line() == "one\ntwo");
 }
 
-// ---------------------------------------------------------------------------
 // The variable commands, driven against a real bank so the output is real.
-// ---------------------------------------------------------------------------
 
 namespace {
 
@@ -1653,9 +1629,7 @@ TEST_CASE("shell vars get: the detail view, and what it adds when a row is force
 
 }  // namespace shell
 
-// --------------------------------------------------------------------------
 // console_config
-// --------------------------------------------------------------------------
 
 namespace console_config {
 
@@ -1751,9 +1725,7 @@ TEST_CASE("console: a `term_` edit stages until the group's commit serial moves"
 
 }  // namespace console_config
 
-// --------------------------------------------------------------------------
 // scroll_table
-// --------------------------------------------------------------------------
 
 namespace scroll_table {
 

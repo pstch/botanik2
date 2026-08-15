@@ -12,12 +12,12 @@
  * Instantiate behind a typedef.
  */
 
-#include <algorithm>                // std::min
-#include <cstddef>                  // size_t
-#include <cstdint>                  // uint16_t
-#include <cstring>                  // memcpy
+#include <algorithm>
+#include <cstddef>
+#include <cstdint>
+#include <cstring>
 
-#include "libbotanik/utils/text.h"  // Utils::scan_line_segment
+#include "libbotanik/utils/text.h"
 
 namespace Botanik { namespace Pages {
 

@@ -11,13 +11,13 @@
 
                                 // Logger
 
-#include "libbotanik/tasks/tasks.h"   // Tasks::Registry / Tick / GroupId
+#include "libbotanik/tasks/tasks.h"
 
-#include <algorithm>                    // std::min
-#include <cstdio>                       // vsnprintf
+#include <algorithm>
+#include <cstdio>
 
-#include "libbotanik/hal/platform.h"    // HAL::Clock::current_ms
-#include "libbotanik/utils/assert.h"   // BOTANIK_ASSERT - a refused registration
+#include "libbotanik/hal/platform.h"
+#include "libbotanik/utils/assert.h"
 
 namespace Botanik { namespace Logs {
 
@@ -33,7 +33,6 @@ namespace Botanik { namespace Logs {
                   "BOTANIK_LOG_MIN_LEVEL must be a valid Logs::LogLevel wire value");
 
     // Lifecycle
-    // ------------------------------------------------------------------------
 
     Logger::Logger() {
         // one sample: all three anchors share it
@@ -48,7 +47,6 @@ namespace Botanik { namespace Logs {
     }
 
     // Writer management
-    // ------------------------------------------------------------------------
 
     bool Logger::add_writer(LogWriter* writer) {
 #if !BOTANIK_FEATURE_LOGGING
@@ -67,7 +65,6 @@ namespace Botanik { namespace Logs {
     }
 
     // Dispatch
-    // ------------------------------------------------------------------------
 
     void Logger::refill() {
 #if !BOTANIK_FEATURE_LOGGING
@@ -141,7 +138,6 @@ namespace Botanik { namespace Logs {
     }
 
     // Level helpers
-    // ------------------------------------------------------------------------
 
     void Logger::debug(Logs::LogTopic topic, const char* fmt, ...) {
         va_list ap; va_start(ap, fmt); _emit(Logs::LOG_DEBUG, topic, fmt, ap); va_end(ap);
@@ -163,7 +159,6 @@ namespace Botanik { namespace Logs {
     }
 
     // Rate-limiting internals
-    // ------------------------------------------------------------------------
 
     bool Logger::_try_bucket(LogBucket_t* bucket) {
         if (bucket->state == 0) {

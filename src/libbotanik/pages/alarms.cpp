@@ -4,9 +4,9 @@
  */
 #include "libbotanik/pages/alarms.h"
 
-#include <cstdio>                           // snprintf
+#include <cstdio>
 
-#include "libbotanik/hal/platform.h"        // HAL::Clock::uptime_ms
+#include "libbotanik/hal/platform.h"
 
 namespace Botanik { namespace Pages {
 

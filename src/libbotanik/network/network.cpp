@@ -8,18 +8,16 @@
  * next step.
  */
 
-#include "libbotanik/tasks/tasks.h"   // Tasks::Registry / Tick / GroupId
-#include "libbotanik/network/network.h" // NetworkHandler
+#include "libbotanik/tasks/tasks.h"
+#include "libbotanik/network/network.h"
 
-#include <cstring>                      // memset / strncpy
+#include <cstring>
 
-#include "libbotanik/hal/net.h"         // HAL::Network::link_*
+#include "libbotanik/hal/net.h"
 
 namespace Botanik { namespace Network {
 
-    // ------------------------------------------------------------------------
     // NetworkHandler
-    // ------------------------------------------------------------------------
 
     NetworkHandler::NetworkHandler(const SetupContext& ctx, const Vars::Bank* cfg,
                                    NameResolver* resolver)

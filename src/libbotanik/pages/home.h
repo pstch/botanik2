@@ -17,18 +17,18 @@
  * render.
  */
 
-#include <cstdint>                          // uint8_t/uint16_t
+#include <cstdint>
 
-#include "libbotanik/config/identity.h"   // Config::SITE_NAME / FIRMWARE_VERSION / MQTT_TOPIC_PREFIX
-#include "libbotanik/config/terminal.h"   // Config::SCREEN_* / EDITOR_* / SHELL_* / PAGE_*
-#include "libbotanik/config/vars.h"       // Config::VAR_* / STR_*
+#include "libbotanik/config/identity.h"
+#include "libbotanik/config/terminal.h"
+#include "libbotanik/config/vars.h"
 
-#include "libbotanik/hal/platform.h"        // HAL::Clock::uptime_ms
-#include "libbotanik/logs/format.h"         // Logs::format_log_entry
-#include "libbotanik/logs/writer.h"         // Logs::BufferedLogWriter
-#include "libbotanik/pages/metric_page.h"   // Pages::MetricPage
-#include "libbotanik/pages/scrollback.h"    // Pages::HomeScrollback
-#include "libbotanik/vars/access.h"         // Vars::HomeVar / var_format
+#include "libbotanik/hal/platform.h"
+#include "libbotanik/logs/format.h"
+#include "libbotanik/logs/writer.h"
+#include "libbotanik/pages/metric_page.h"
+#include "libbotanik/pages/scrollback.h"
+#include "libbotanik/vars/access.h"
 
 // Build-stamped git short hash (generated header); "unknown" when absent
 // (Arduino .ino deploy doesn't run CMake).

@@ -7,7 +7,7 @@
  *        terminal UI reads. */
 
 // Include library configuration
-#include "libbotanik/config/base.h"       // the BOTANIK_FEATURE_* gates
+#include "libbotanik/config/base.h"
 
 // Forward-declare pointer types for context members
 namespace Botanik { namespace Scheduler { struct SchedulerContext;  } }

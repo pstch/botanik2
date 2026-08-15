@@ -25,9 +25,9 @@
 
 #include <cstdint>
 
-#include "libbotanik/config/modbus.h" // Config::MODBUS_SIM_* - the image sizes
+#include "libbotanik/config/modbus.h"
 
-#include "libbotanik/modbus/wire.h"   // the vocabulary, shared with every other corner
+#include "libbotanik/modbus/wire.h"
 
 #if BOTANIK_FEATURE_MODBUS_RTU_SERVER
 

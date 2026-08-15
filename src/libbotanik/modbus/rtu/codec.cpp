@@ -4,11 +4,11 @@
  */
 
 #include "libbotanik/modbus/rtu/codec.h"
-#include "libbotanik/modbus/response.h"   // match_response - shared with the other transport
+#include "libbotanik/modbus/response.h"
 
 #if BOTANIK_FEATURE_MODBUS_RTU_CLIENT || BOTANIK_FEATURE_MODBUS_RTU_SERVER
 
-#include <cstring>   // memcpy - the only sanctioned route between float and its bits
+#include <cstring>
 
 namespace Botanik { namespace Modbus {
 

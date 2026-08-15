@@ -6,14 +6,14 @@
  * firmware: `recv` returning 0 is would-block and not a close, a partial `send`
  * resumes on the next beat, and nothing waits for a peer.
  */
-#include "libbotanik/tasks/tasks.h"   // Tasks::Registry / Tick / GroupId
-#include "libbotanik/modbus/tcp/slave.h" // TcpSlave - implemented here
+#include "libbotanik/tasks/tasks.h"
+#include "libbotanik/modbus/tcp/slave.h"
 
-#include <cstring>                    // memmove - shifting a consumed frame out of the RX buffer
+#include <cstring>
 
-#include "libbotanik/alarms/alarms.h" // Alarms::AlarmController - the ack block's target
-#include "libbotanik/logs/logger.h"   // Logs::Logger - the bind, the drops and every commit
-#include "libbotanik/vars/params.h"   // Vars::get_int / group_serial - the `mb` config group
+#include "libbotanik/alarms/alarms.h"
+#include "libbotanik/logs/logger.h"
+#include "libbotanik/vars/params.h"
 
 #if BOTANIK_FEATURE_MODBUS_TCP_SERVER
 
@@ -37,7 +37,6 @@ namespace Botanik { namespace Modbus {
     }
 
     // Lifecycle
-    // ------------------------------------------------------------------------
 
     void TcpSlave::on_setup(uint64_t now_ms) {
         // Built once, here rather than on the first beat: a scan of the whole
@@ -103,7 +102,6 @@ namespace Botanik { namespace Modbus {
     }
 
     // The input half of the beat
-    // ------------------------------------------------------------------------
 
     void TcpSlave::on_input(uint64_t now_ms) {
         _retry_listener(now_ms);
@@ -250,7 +248,6 @@ namespace Botanik { namespace Modbus {
     }
 
     // The acknowledgement block
-    // ------------------------------------------------------------------------
 
     void TcpSlave::_bind_acks() {
         for (uint16_t i = 0; i < Config::MODBUS_TCP_MAX_ROWS; ++i) _ack_cond[i] = -1;
@@ -328,7 +325,6 @@ namespace Botanik { namespace Modbus {
     }
 
     // The present half of the beat
-    // ------------------------------------------------------------------------
 
     void TcpSlave::on_service(uint64_t now_ms) {
         (void)now_ms;
@@ -403,7 +399,6 @@ namespace Botanik { namespace Modbus {
     }
 
     // Housekeeping
-    // ------------------------------------------------------------------------
 
     void TcpSlave::_drop(Conn& c, const char* why) {
         if (c.sock < 0) return;

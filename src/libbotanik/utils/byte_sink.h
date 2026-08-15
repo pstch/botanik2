@@ -11,7 +11,7 @@
  * implementation. BufferedSerial is the implementer.
  */
 
-#include <cstdint>  // uint16_t
+#include <cstdint>
 
 namespace Botanik { namespace Utils {
 

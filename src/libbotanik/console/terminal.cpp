@@ -7,17 +7,17 @@
  * present() diffs FRONT against BACK (the wire) and emits the minimal, paced ANSI
  * to reconcile them. See terminal.h.
  */
-#include "libbotanik/console/terminal.h"    // AnsiTerminal
+#include "libbotanik/console/terminal.h"
 
-#include <algorithm>                        // std::min
-#include <cstdint>                          // uint8_t/uint16_t/uint32_t
-#include <cstring>                          // memcmp
+#include <algorithm>
+#include <cstdint>
+#include <cstring>
 
-#include "libbotanik/config/terminal.h"   // Config::SCREEN_* / EDITOR_* / SHELL_* / PAGE_*
+#include "libbotanik/config/terminal.h"
 
-#include "libbotanik/console/ansi.h"        // Terminal::Ansi
-#include "libbotanik/hal/platform.h"        // HAL::Env::u8
-#include "libbotanik/utils/serial.h"        // Utils::BufferedSerial::tx_capacity
+#include "libbotanik/console/ansi.h"
+#include "libbotanik/hal/platform.h"
+#include "libbotanik/utils/serial.h"
 
 
 namespace Botanik { namespace Terminal {
@@ -263,7 +263,6 @@ namespace Botanik { namespace Terminal {
     void AnsiTerminal::setup_terminal() { Ansi::terminal_setup(_serial, _type); }
 
     // present() - reconcile FRONT to the wire
-    // ------------------------------------------------------------------------
 
     bool AnsiTerminal::_go(const CursorPos& target) {
         if (target == _hw_pos && !_hw_at_eol) return true;

@@ -34,9 +34,9 @@
  * stop being readable.
  */
 
-#include <cmath>    // roundf
-#include <cstddef>  // size_t
-#include <cstdint>  // uint8_t/int64_t/uint64_t
+#include <cmath>
+#include <cstddef>
+#include <cstdint>
 
 namespace Botanik { namespace Vars {
 

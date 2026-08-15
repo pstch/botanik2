@@ -12,7 +12,7 @@
  * and does not use this.
  */
 
-#include <cstdint>  // uint16_t/uint32_t
+#include <cstdint>
 
 namespace Botanik { namespace Terminal { namespace Field {
 

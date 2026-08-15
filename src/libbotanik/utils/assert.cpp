@@ -1,10 +1,10 @@
-#include "libbotanik/utils/assert.h"    // assert_fail / set_assert_logger
+#include "libbotanik/utils/assert.h"
 
-#include <cstdint>                      // uint8_t/uint16_t
-#include <cstdlib>                      // abort
+#include <cstdint>
+#include <cstdlib>
 
-#include "libbotanik/hal/platform.h"    // HAL::Debug::breakpoint / under_debugger
-#include "libbotanik/logs/logger.h"     // Logs::Logger
+#include "libbotanik/hal/platform.h"
+#include "libbotanik/logs/logger.h"
 
 namespace Botanik {
 

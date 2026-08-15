@@ -7,9 +7,9 @@
  * owe it. The reference is the core's own arm_hal_random.c.
  */
 
-#include <cstdint>  // uint32_t
+#include <cstdint>
 
-#include "mbed.h"   // the Mbed OS hooks overridden here (resolved from the core)
+#include "mbed.h"
 
 extern "C" {
 

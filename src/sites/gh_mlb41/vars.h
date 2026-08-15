@@ -48,9 +48,9 @@
  * (10 Wh per count).
  */
 
-#include <cstdint>      // uint8_t/uint16_t
+#include <cstdint>
 
-#include "libbotanik.h" // the A/P/G/SV/MI/AI/DI/MO/AO/DO/RO factories, Vars::Bank
+#include "libbotanik.h"
 
 namespace Site {
 

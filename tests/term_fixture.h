@@ -11,14 +11,14 @@
  * whatever it builds on top.
  */
 
-#include <fcntl.h>                          // fcntl / O_NONBLOCK
-#include <unistd.h>                         // pipe / read / close
+#include <fcntl.h>
+#include <unistd.h>
 
-#include <string>                           // std::string
+#include <string>
 
-#include "doctest.h"                        // REQUIRE
-#include "libbotanik/hal/platform.h"        // HAL::Serial::Raw
-#include "libbotanik/utils/serial.h"        // Utils::BufferedSerial
+#include "doctest.h"
+#include "libbotanik/hal/platform.h"
+#include "libbotanik/utils/serial.h"
 
 namespace botanik_test {
 

@@ -18,28 +18,28 @@
  * alarm set is shown on the terminal-owned bottom bar, not here.
  */
 
-#include <cstdint>                          // uint16_t/uint32_t/uint64_t
-#include <cstdio>                           // snprintf
+#include <cstdint>
+#include <cstdio>
 
-#include "libbotanik/config/scheduler.h"  // Config::LOOP_* / TASK_* / GROUP_*
-#include "libbotanik/config/terminal.h"   // Config::SCREEN_* / EDITOR_* / SHELL_* / PAGE_*
-#include "libbotanik_features.h"            // BOTANIK_FEATURE_NETWORK / NTP / MQTT
+#include "libbotanik/config/scheduler.h"
+#include "libbotanik/config/terminal.h"
+#include "libbotanik_features.h"
 
-#include "libbotanik/core/context.h"        // SystemContext
-#include "libbotanik/hal/platform.h"        // HAL::Clock::uptime_ms / HAL::Stack
-#include "libbotanik/pages/metric_page.h"   // Pages::MetricPage
-#include "libbotanik/scheduler/scheduler.h" // Scheduler::SchedulerContext
-#include "libbotanik/utils/text.h"          // Utils::format_age / format_float / format_size
-#include "libbotanik/utils/time.h"          // Utils::cal_time_ms
+#include "libbotanik/core/context.h"
+#include "libbotanik/hal/platform.h"
+#include "libbotanik/pages/metric_page.h"
+#include "libbotanik/scheduler/scheduler.h"
+#include "libbotanik/utils/text.h"
+#include "libbotanik/utils/time.h"
 
 #if BOTANIK_FEATURE_NETWORK
-#include "libbotanik/network/network.h"     // Network::NetworkHandler::ip / status_str
+#include "libbotanik/network/network.h"
 #endif
 #if BOTANIK_FEATURE_NTP
-#include "libbotanik/network/ntp.h"         // Network::NtpClient::synced / offset_ms
+#include "libbotanik/network/ntp.h"
 #endif
 #if BOTANIK_FEATURE_MQTT
-#include "libbotanik/network/mqtt.h"        // Network::MqttClient::last_contact_ms
+#include "libbotanik/network/mqtt.h"
 #endif
 
 namespace Botanik { namespace Pages {

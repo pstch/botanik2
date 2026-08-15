@@ -8,11 +8,11 @@
  * Plain POD, sized by Config::LOG_MESSAGE_LEN; no wire contract to honour.
  */
 
-#include <cstdint>                  // uint16_t/uint64_t
+#include <cstdint>
 
-#include "libbotanik/config/logging.h"    // Config::LOG_*
+#include "libbotanik/config/logging.h"
 
-#include "libbotanik/logs/topics.h" // Logs::LogLevel / LogTopic
+#include "libbotanik/logs/topics.h"
 
 namespace Botanik { namespace Logs {
 

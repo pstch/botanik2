@@ -3,20 +3,20 @@
  * @file status_bar.cpp
  * @brief StatusBar implementation - row-0 tabs, clock, and metrics field.
  */
-#include "libbotanik/console/status_bar.h"  // StatusBar
+#include "libbotanik/console/status_bar.h"
 
-#include <algorithm>                        // std::min
-#include <cmath>                            // lroundf
-#include <cstdint>                          // uint8_t/uint16_t/uint64_t
-#include <cstdio>                           // snprintf
+#include <algorithm>
+#include <cmath>
+#include <cstdint>
+#include <cstdio>
 
-#include "libbotanik/config/terminal.h"   // Config::SCREEN_* / EDITOR_* / SHELL_* / PAGE_*
+#include "libbotanik/config/terminal.h"
 
-#include "libbotanik/console/console.h"     // Console::active_page / page_name / context
-#include "libbotanik/console/terminal.h"    // AnsiTerminal
-#include "libbotanik/hal/platform.h"        // HAL::Clock::uptime_ms
-#include "libbotanik/scheduler/scheduler.h" // Scheduler::SchedulerContext
-#include "libbotanik/utils/time.h"          // Utils::CalendarTime / cal_time_ms
+#include "libbotanik/console/console.h"
+#include "libbotanik/console/terminal.h"
+#include "libbotanik/hal/platform.h"
+#include "libbotanik/scheduler/scheduler.h"
+#include "libbotanik/utils/time.h"
 
 namespace Botanik { namespace Terminal {
 

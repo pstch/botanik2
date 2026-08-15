@@ -18,18 +18,18 @@
  * every time the simulator does.
  */
 
-#include <cstdarg>                    // va_list - the verdict formatter
+#include <cstdarg>
 #include <cstdint>
-#include <cstdio>                     // fprintf - a verdict the log sink cannot drop
+#include <cstdio>
 
 #include "libbotanik_config.h"
 
 #if BOTANIK_FEATURE_MODBUS_TCP_CLIENT
 
-#include "libbotanik/hal/net.h"           // mock_loopback_ip - where our own slave listens
-#include "libbotanik/logs/logger.h"       // the master logs; the VERDICT goes to stderr
-#include "libbotanik/modbus/tcp/master.h" // Modbus::TcpMaster
-#include "libbotanik/vars/model.h"        // Vars::Bank - to name the row under test
+#include "libbotanik/hal/net.h"
+#include "libbotanik/logs/logger.h"
+#include "libbotanik/modbus/tcp/master.h"
+#include "libbotanik/vars/model.h"
 
 namespace Botanik { namespace Sim {
 

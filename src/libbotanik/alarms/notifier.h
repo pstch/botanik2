@@ -10,12 +10,12 @@
  * table, and a consumer of AlarmController does not pull in the network config.
  */
 
-#include <cstdio>                           // snprintf
+#include <cstdio>
 
-#include "libbotanik/config/net.h"        // Config::MQTT_TOPIC_LEN / MQTT_ALARM_TOPIC
+#include "libbotanik/config/net.h"
 
-#include "libbotanik/alarms/alarms.h"       // Alarms::AlarmNotifier / AlarmCondition
-#include "libbotanik/alarms/publisher.h"    // Alarms::Publisher
+#include "libbotanik/alarms/alarms.h"
+#include "libbotanik/alarms/publisher.h"
 
 namespace Botanik { namespace Alarms {
 

@@ -13,12 +13,12 @@
 #ifndef CONSOLE_EDITOR_H
 #define CONSOLE_EDITOR_H
 
-#include <cstdint>                          // uint8_t/uint16_t/int32_t
-#include <cstring>                          // memcpy
+#include <cstdint>
+#include <cstring>
 
-#include "libbotanik/config/terminal.h"   // Config::SCREEN_* / EDITOR_* / SHELL_* / PAGE_*
+#include "libbotanik/config/terminal.h"
 
-#include "libbotanik/console/terminal.h"    // AnsiTerminal / CursorPos
+#include "libbotanik/console/terminal.h"
 
 
 namespace Botanik { namespace Terminal {

@@ -7,8 +7,8 @@
 
 #if BOTANIK_FEATURE_MODBUS_RTU_CLIENT
 
-#include "libbotanik/tasks/task_timer.h"   // Tasks::stagger_offset - one rule for spreading a set
-#include "libbotanik/vars/model.h"             // Vars::Bank / Variable - the table this reads
+#include "libbotanik/tasks/task_timer.h"
+#include "libbotanik/vars/model.h"
 
 namespace Botanik { namespace Modbus {
 

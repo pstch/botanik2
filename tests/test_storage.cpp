@@ -4,15 +4,15 @@
  *
  * Each case points $BOTANIK_CONFIG_STORE at a throwaway file, starting empty.
  */
-#include <cstdint>                  // uint8_t/uint32_t
-#include <cstdio>                   // snprintf
-#include <cstdlib>                  // setenv / unsetenv
-#include <cstring>                  // memcmp / strlen
-#include <unistd.h>                 // unlink
+#include <cstdint>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
+#include <unistd.h>
 
-#include "libbotanik_config.h"      // Config::STORE_MAX_BYTES
+#include "libbotanik_config.h"
 
-#include "libbotanik/hal/storage.h" // HAL::Storage
+#include "libbotanik/hal/storage.h"
 
 #include "doctest.h"
 

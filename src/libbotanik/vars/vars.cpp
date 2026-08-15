@@ -15,17 +15,17 @@
  */
 #include "libbotanik/vars/vars.h"
 
-#include "libbotanik/vars/model.h"    // Vars::Bank::register_vars
+#include "libbotanik/vars/model.h"
 
-#include "libbotanik/config/alarms.h"   // the sys_ health-threshold defaults
-#include "libbotanik/config/logging.h"  // BOTANIK_LOG_MIN_LEVEL - sys_log_level's default
-#include "libbotanik/config/modbus.h"   // the mb_ / rtu_ defaults
-#include "libbotanik/config/serial.h"   // BOTANIK_CONSOLE_BAUD / MONITOR_BAUD
-#include "libbotanik/config/sun.h"      // the geo_ row defaults
-#include "libbotanik/config/terminal.h" // the term_ row defaults and bands
-#include "libbotanik/config/vars.h"     // BOTANIK_RETAIN_SAVE_MS - sys_retain_sec's default
-#include "libbotanik/logs/topics.h"     // Logs::log_level_label - sys_log_level's converter
-#include "libbotanik/vars/declare.h"    // the A/P/PS/PE/SV factories
+#include "libbotanik/config/alarms.h"
+#include "libbotanik/config/logging.h"
+#include "libbotanik/config/modbus.h"
+#include "libbotanik/config/serial.h"
+#include "libbotanik/config/sun.h"
+#include "libbotanik/config/terminal.h"
+#include "libbotanik/config/vars.h"
+#include "libbotanik/logs/topics.h"
+#include "libbotanik/vars/declare.h"
 
 namespace Botanik { namespace Vars {
 
@@ -36,7 +36,6 @@ namespace Botanik { namespace Vars {
     /* The window is Config::HEALTH_RESET_WINDOW_MS; the text says "recently"
        rather than repeating a number that would drift from it. */
     // Alarms
-    // ------------------------------------------------------------------------
     // Ordinary SCOPE_A rows - the same A() factory a site writes its own with,
     // in the same table. There is no second alarm table, no merge and no
     // reserved index range: AlarmController scans the bank for SCOPE_A and finds
@@ -100,7 +99,6 @@ namespace Botanik { namespace Vars {
 
 #if BOTANIK_FEATURE_MODBUS_RTU_CLIENT
     // Status values
-    // ------------------------------------------------------------------------
     // Published, so a name here is an external contract (MQTT and the Modbus TCP
     // slave). sys_fieldbus_dead is a status value rather than a second alarm:
     // the alarm says whether the bus is healthy, this says how much of it is
@@ -124,7 +122,6 @@ namespace Botanik { namespace Vars {
 #endif
 
     // Parameters - LAST, and that is load-bearing (@see lib_order)
-    // ------------------------------------------------------------------------
     // What the library reads by name, the library declares. The Config:: values
     // behind the defaults hold what a wiped store comes back at, and stay
     // site-tunable as BOTANIK_* macros.

@@ -11,9 +11,9 @@
  * work duration, stack).
  */
 
-#include <cstdint>              // uint32_t
+#include <cstdint>
 
-#include "libbotanik/config/scheduler.h"  // Config::LOOP_* / TASK_* / GROUP_*
+#include "libbotanik/config/scheduler.h"
 
 namespace Botanik { namespace Utils {
 

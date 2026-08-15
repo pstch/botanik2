@@ -10,23 +10,23 @@
  */
 #include "libbotanik/scheduler/scheduler.h"
 
-#include <cstdio>   // fprintf - host-side notes go to stderr, not the log
+#include <cstdio>
 
-#include <cstddef>                          // size_t / ptrdiff_t
-#include <cstring>                          // memset
+#include <cstddef>
+#include <cstring>
 
-#include "libbotanik/config/scheduler.h"  // Config::LOOP_* / TASK_* / GROUP_*
+#include "libbotanik/config/scheduler.h"
 
-#include "libbotanik/hal/platform.h"        // HAL::Clock / Stack
-#include "libbotanik/logs/logger.h"         // Logs::Logger
-#include "libbotanik/logs/topics.h"         // Logs::STATUS
+#include "libbotanik/hal/platform.h"
+#include "libbotanik/logs/logger.h"
+#include "libbotanik/logs/topics.h"
 
 #ifdef TARGET_SIMULATOR
 // Host-only: pin the sim to a real-time policy so its beat is not at the mercy
 // of the desktop scheduler. No equivalent (or need) on the OPTA's RTOS.
-#include <cerrno>                           // errno
-#include <sched.h>                          // sched_setscheduler / SCHED_FIFO
-#include <sys/mman.h>                       // mlockall / MCL_CURRENT
+#include <cerrno>
+#include <sched.h>
+#include <sys/mman.h>
 #endif
 
 
@@ -57,7 +57,6 @@ namespace Botanik { namespace Scheduler {
     }
 
     // Lifecycle
-    // ------------------------------------------------------------------------
 
     LoopScheduler::LoopScheduler(Tasks::Registry& tasks, uint32_t period_ms,
                                  Logs::Logger* logger)
@@ -86,12 +85,10 @@ namespace Botanik { namespace Scheduler {
     }
 
     // Tick
-    // ------------------------------------------------------------------------
     // tick() is inline in the header (always_inline + BOTANIK_NO_ASAN, see its
     // @warning); the cold helpers below stay out of line.
 
     // Internals
-    // ------------------------------------------------------------------------
 
     void LoopScheduler::_skip_beats(uint64_t now) {
         _missed_this_beat = 0;
@@ -264,7 +261,6 @@ namespace Botanik { namespace Scheduler {
     }
 
     // Simulator utilities (memlock, CPU-pinning and SCHED_FIFO)
-    // ------------------------------------------------------------------------
 
     // BOTANIK_NO_RT_WARNING gates the best-effort failure warnings: which
     // privileges a constrained host (CI/sandbox) denies varies, so the warnings

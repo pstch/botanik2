@@ -7,16 +7,15 @@
  */
 #include "libbotanik/utils/text.h"
 
-#include <cmath>    // llround
-#include <cstddef>  // size_t
-#include <cstdint>  // uint8_t/uint32_t/uint64_t
-#include <cstring>  // strcmp / strncmp
-#include <cstdio>   // snprintf
+#include <cmath>
+#include <cstddef>
+#include <cstdint>
+#include <cstring>
+#include <cstdio>
 
 namespace Botanik { namespace Utils {
 
     // Number formatting
-    // ------------------------------------------------------------------------
 
     // Emit the `r` chars of `rev` (held low-to-high) into `out` un-reversed,
     // honoring `cap`; out is NUL-terminated.
@@ -112,7 +111,6 @@ namespace Botanik { namespace Utils {
     }
 
     // Duration formatting
-    // ------------------------------------------------------------------------
 
     const char* format_age(char* buf, size_t cap, uint32_t secs, bool ago, bool floor_min) {
         unsigned v = secs;

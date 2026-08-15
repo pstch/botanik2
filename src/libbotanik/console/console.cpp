@@ -3,19 +3,19 @@
  * @file console.cpp
  * @brief Console implementation - page multiplexing, bars, input routing, step().
  */
-#include "libbotanik/console/console.h" // Console
+#include "libbotanik/console/console.h"
 
-#include "libbotanik/pages/page.h"      // Pages::Page - complete type for the calls below
+#include "libbotanik/pages/page.h"
 
-#include <cstdint>                      // int8_t/uint16_t/uint64_t
+#include <cstdint>
 
-#include "libbotanik/config/scheduler.h"  // Config::LOOP_* / TASK_* / GROUP_*
-#include "libbotanik/config/terminal.h"   // Config::SCREEN_* / EDITOR_* / SHELL_* / PAGE_*
+#include "libbotanik/config/scheduler.h"
+#include "libbotanik/config/terminal.h"
 
-#include "libbotanik/hal/platform.h"    // HAL::System::shutdown
-#include "libbotanik/vars/params.h"    // Vars::get_int / group_serial
-#include "libbotanik/tasks/tasks.h"     // Tasks::Registry / Tick / GroupId
-#include "libbotanik/utils/assert.h"   // BOTANIK_ASSERT - a refused registration
+#include "libbotanik/hal/platform.h"
+#include "libbotanik/vars/params.h"
+#include "libbotanik/tasks/tasks.h"
+#include "libbotanik/utils/assert.h"
 
 namespace Botanik { namespace Terminal {
 
@@ -51,7 +51,6 @@ namespace Botanik { namespace Terminal {
     }
 
     // The beat
-    // ------------------------------------------------------------------------
 
     void Console::apply_stored_config() { _apply_config(/*announce=*/false); }
 

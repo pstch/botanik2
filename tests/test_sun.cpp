@@ -5,12 +5,12 @@
  * Two sections, each in its own namespace to avoid fixture collisions.
  */
 
-#include <cmath>                        // std::abs
-#include <cstdint>                      // uint64_t
-#include "libbotanik/sun/sun_tracker.h" // Sun::solar_elevation + SolarPosition
-#include "libbotanik/utils/time.h"      // Utils
+#include <cmath>
+#include <cstdint>
+#include "libbotanik/sun/sun_tracker.h"
+#include "libbotanik/utils/time.h"
 #include "doctest.h"
-#include "libbotanik/hal/platform.h"    // HAL::Clock::set_wall_ms
+#include "libbotanik/hal/platform.h"
 #include "params_fixture.h"
 
 // sun

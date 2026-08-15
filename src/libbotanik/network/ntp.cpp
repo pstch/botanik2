@@ -8,10 +8,10 @@
  * Gated on NetworkHandler::is_up().
  */
 
-#include "libbotanik/tasks/tasks.h"   // Tasks::Registry / Tick / GroupId
-#include "libbotanik/network/ntp.h"     // NtpClient
+#include "libbotanik/tasks/tasks.h"
+#include "libbotanik/network/ntp.h"
 
-#include "libbotanik/hal/platform.h"    // HAL::Clock::set_wall_ms
+#include "libbotanik/hal/platform.h"
 
 namespace Botanik { namespace Network {
 

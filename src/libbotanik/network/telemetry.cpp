@@ -3,17 +3,17 @@
  * @file telemetry.cpp
  * @brief MqttTelemetry implementation - the base field set + the publish cycle.
  */
-#include "libbotanik/tasks/tasks.h"   // Tasks::Registry / Tick / GroupId
-#include "libbotanik/network/telemetry.h"   // MqttSender
+#include "libbotanik/tasks/tasks.h"
+#include "libbotanik/network/telemetry.h"
 
-#include <cstddef>                          // offsetof / size_t
-#include <cstdio>                           // snprintf
-#include <cstring>                          // memcpy
+#include <cstddef>
+#include <cstdio>
+#include <cstring>
 
-#include "libbotanik/hal/platform.h"        // HAL::Clock::uptime_ms
-#include "libbotanik/scheduler/scheduler.h" // Scheduler::SchedulerContext
-#include "libbotanik/utils/text.h"          // Utils::format_float / format_int
-#include "libbotanik/vars/params.h"         // Vars::get_int - the mqtt_ cadence rows
+#include "libbotanik/hal/platform.h"
+#include "libbotanik/scheduler/scheduler.h"
+#include "libbotanik/utils/text.h"
+#include "libbotanik/vars/params.h"
 
 namespace Botanik { namespace Network {
 

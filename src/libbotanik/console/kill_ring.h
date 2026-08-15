@@ -13,9 +13,9 @@
  * a yank restores exactly what the kill removed.
  */
 
-#include <cstdint>                        // uint16_t
+#include <cstdint>
 
-#include "libbotanik/config/terminal.h"   // Config::KILL_RING_SIZE
+#include "libbotanik/config/terminal.h"
 
 namespace Botanik { namespace Terminal {
 

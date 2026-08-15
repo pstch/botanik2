@@ -30,9 +30,9 @@
  * table filters on are spelled the same way, and rows stay one line wide.
  */
 
-#include <cstdint>                  // uint8_t/uint16_t/int64_t
+#include <cstdint>
 
-#include "libbotanik/vars/model.h"  // Vars::Variable / Tunable / AnalogCal
+#include "libbotanik/vars/model.h"
 
 namespace Botanik { namespace Vars {
 

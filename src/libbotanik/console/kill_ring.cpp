@@ -3,9 +3,9 @@
  * @file kill_ring.cpp
  * @brief KillRing - the console's one clipboard.
  */
-#include "libbotanik/console/kill_ring.h"  // KillRing
+#include "libbotanik/console/kill_ring.h"
 
-#include <cstring>                         // memcpy
+#include <cstring>
 
 namespace Botanik { namespace Terminal {
 

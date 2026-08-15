@@ -40,9 +40,9 @@
  * block its scope belongs to.
  */
 
-#include <cstdint>                      // uint16_t
+#include <cstdint>
 
-#include "libbotanik/config/net.h"      // BOTANIK_HOST_STR_LEN - the text rows' width
+#include "libbotanik/config/net.h"
 
 namespace Botanik { namespace Vars {
 

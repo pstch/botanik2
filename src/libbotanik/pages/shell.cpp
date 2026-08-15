@@ -3,20 +3,19 @@
  * @file shell.cpp
  * @brief ShellPage implementation.
  */
-#include "libbotanik/pages/shell.h" // ShellPage
+#include "libbotanik/pages/shell.h"
 
-#include <algorithm>                // std::min
-#include <cstring>                  // memcpy / strlen
+#include <algorithm>
+#include <cstring>
 
-#include "libbotanik/config/terminal.h"   // Config::SCREEN_* / EDITOR_* / SHELL_* / PAGE_*
+#include "libbotanik/config/terminal.h"
 
-#include "libbotanik/logs/format.h" // Logs::format_log_entry
-#include "libbotanik/utils/text.h"  // Utils::scan_line_segment
+#include "libbotanik/logs/format.h"
+#include "libbotanik/utils/text.h"
 
 namespace Botanik { namespace Pages {
 
     // Lifecycle
-    // ------------------------------------------------------------------------
 
     ShellPage::ShellPage(Terminal::Console& console, const SystemContext* sys) :
         _console(console),
@@ -30,7 +29,6 @@ namespace Botanik { namespace Pages {
     }
 
     // Page interface
-    // ------------------------------------------------------------------------
 
     void ShellPage::handle_text(char c) {
         _follow_tail();
@@ -155,7 +153,6 @@ namespace Botanik { namespace Pages {
     }
 
     // BufferedLogWriter + ShellWriter interface
-    // ------------------------------------------------------------------------
 
     void ShellPage::push(const Logs::LogEntry* entry) {
         // Only show logs received while active; background entries are dropped
@@ -211,7 +208,6 @@ namespace Botanik { namespace Pages {
     }
 
     // Internals
-    // ------------------------------------------------------------------------
 
     void ShellPage::_setup_editor() {
         uint16_t editor_row = (uint16_t)(_console.rows() - 1);

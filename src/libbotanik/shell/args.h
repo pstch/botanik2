@@ -9,9 +9,9 @@
  * one costs no buffer.
  */
 
-#include <cstdint>                          // uint16_t
+#include <cstdint>
 
-#include "libbotanik/utils/text.h"          // Utils::equals_bounded
+#include "libbotanik/utils/text.h"
 
 namespace Botanik { namespace Shell {
 
