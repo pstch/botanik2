@@ -2,11 +2,7 @@
 #define LIBBOTANIK_CONFIG_LOGGING_H
 
 /** @file logging.h
- *  @brief The logger's queues, rate limits and formatting widths.
- *
- *  One concern of the library's configuration. Every value defaults from
- *  an #ifndef-guarded BOTANIK_* macro a site may override; see
- *  libbotanik_config.h, which aggregates these and holds the rules. */
+ *  @brief The logger's queues, rate limits and formatting widths. */
 
 #include "libbotanik/config/base.h"
 

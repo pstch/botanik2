@@ -3,11 +3,7 @@
 
 /** @file terminal.h
  *  @brief Everything the operator sees: the screen, its input decoding,
- *  the per-tick paint budgets, and the pages that render through them.
- *
- *  One concern of the library's configuration. Every value defaults from
- *  an #ifndef-guarded BOTANIK_* macro a site may override; see
- *  libbotanik_config.h, which aggregates these and holds the rules. */
+ *  the per-tick paint budgets, and the pages that render through them. */
 
 #include "libbotanik/config/base.h"
 
@@ -18,31 +14,26 @@ namespace Botanik { namespace Config {
 
     /** @name Terminal and console
      *
-     *  What is physically on the console wire, and how much of it the UI may
-     *  use. There is no resize handshake: what is declared here is what the
-     *  pages lay themselves out for.
+     *  What is on the console wire and how much of it the UI may use. There is
+     *  no resize handshake: what is declared here is what the pages lay out for.
      *  @{ */
 
     /** @brief Which terminal is wired to the console UART - a property of the
-     *  installation, so a site declares it. Selects the one-time setup
-     *  handshake, and is what terminal-specific behaviour branches on.
-     *
-     *  A plain integer because this header is included by everything and must
-     *  not depend on the console: it is the numeric form of
-     *  Terminal::Ansi::TerminalType, which static_asserts the two agree.
-     *    0 = VT100, 1 = VT102, 2 = Minitel 1B, 3 = Minitel 2 */
+     *  installation, so a site declares it. Selects the setup handshake and is
+     *  what terminal-specific behaviour branches on.
+     *  @note A plain integer so this header need not depend on the console; the
+     *  numeric form of Ansi::TerminalType, static_asserted to agree.
+     *  0 = VT100, 1 = VT102, 2 = Minitel 1B, 3 = Minitel 2 */
 #ifndef BOTANIK_TERMINAL_TYPE
 #  define BOTANIK_TERMINAL_TYPE 1
 #endif
     BOTANIK_CFG(uint8_t, TERMINAL_TYPE);
 
-    /** @brief The smallest screen the UI is laid out for. The tables were
-     *  designed around 80x25 and a narrower or shorter one loses columns and
-     *  rows rather than reflowing, so it is a floor rather than a preference:
-     *  the `term_` parameters are banded at it and the console clamps to it.
-     *
-     *  NOT the deepest structural requirement - the ALARMS page's rows() - 8 is
-     *  satisfied by about 11 rows. This is what the tables READ well at. */
+    /** @brief The smallest screen the UI is laid out for. Nothing reflows, so
+     *  this is a floor: the `term_` parameters are banded at it and the console
+     *  clamps to it.
+     *  @note What the tables READ well at, not the structural minimum - the
+     *  ALARMS page's rows() - 8 is satisfied by about 11 rows. */
 #ifndef BOTANIK_SCREEN_MIN_COLS
 #  define BOTANIK_SCREEN_MIN_COLS 80
 #endif
@@ -68,10 +59,9 @@ namespace Botanik { namespace Config {
                   "CONSOLE_COLS/ROWS below the minimum the pages lay out for");
 
     /** @brief Largest terminal the UI supports. Sizes the screen back-buffer
-     *  (two cell grids of COLS x ROWS bytes), clamps the console geometry at
-     *  construction, and bounds full-width fills so a bogus column count cannot
-     *  drive an unbounded paint. 132x32 is a wide VT with room to spare over the
-     *  80x25 the pages lay out for. */
+     *  (two COLS x ROWS cell grids), clamps the console geometry, and bounds
+     *  full-width fills so a bogus column count cannot drive an unbounded
+     *  paint. */
 #ifndef BOTANIK_TERMINAL_MAX_COLS
 #  define BOTANIK_TERMINAL_MAX_COLS 132
 #endif
@@ -86,12 +76,9 @@ namespace Botanik { namespace Config {
                   "the screen buffer cannot hold the minimum screen");
 
     /** @brief Pages the Console multiplexes over. Registration past it is
-     *  refused SILENTLY (add_page() returns -1 and register_pages() ignores it),
-     *  so the tab order simply stops gaining pages. Cannot exceed 10: a page is
-     *  also reachable by Alt+<digit>, and there are ten digits.
-     *
-     *  The full page set is 8, so the default sits at the ceiling to leave room
-     *  for a site splicing in its own page (the StatusPage extension). */
+     *  refused SILENTLY, so the tab order simply stops gaining pages.
+     *  @note Cannot exceed 10: a page is also reachable by Alt+<digit>. The full
+     *  set is 8, leaving room for a site's own. */
 #ifndef BOTANIK_CONSOLE_PAGES_MAX
 #  define BOTANIK_CONSOLE_PAGES_MAX 10
 #endif
@@ -141,9 +128,8 @@ namespace Botanik { namespace Config {
 
     /** @name Page refresh cadences
      *
-     *  All time-based, so a refresh rate is independent of the tick interval.
-     *  Three classes: what changes every second, what changes slowly, and the
-     *  TASKS table's smoothed costs in between.
+     *  Time-based, so a refresh rate is independent of the tick interval: what
+     *  changes every second, what changes slowly, and TASKS in between.
      *  @{ */
 
     /** @brief Refresh interval (ms) for a page's hot fields, and for the status
@@ -166,11 +152,9 @@ namespace Botanik { namespace Config {
 #endif
     BOTANIK_CFG(uint32_t, PAGE_TASKS_MS);
 
-    /** @brief Buffer one rendered table row is assembled in, before the
-     *  terminal clips it to the screen width. Shared by every scrolling table
-     *  (PARAMS, MONITOR, TASKS, ALARMS) and the ScrollTable framework under
-     *  them: wide enough for a full-width row plus the escapes and separators
-     *  the cells carry. */
+    /** @brief Buffer one rendered table row is assembled in, before the terminal
+     *  clips it to the screen width. Shared by every scrolling table: wide
+     *  enough for a full-width row plus its escapes and separators. */
 #ifndef BOTANIK_TABLE_LINE_LEN
 #  define BOTANIK_TABLE_LINE_LEN 200
 #endif
@@ -180,18 +164,15 @@ namespace Botanik { namespace Config {
 
     /** @name TX pacing
      *
-     *  Serial TX is one FIFO with no jumping ahead, so bulk producers may only
-     *  progress while the buffer is shallow, keeping the interactive path
-     *  responsive. A depth floor gates that; per-tick caps bound the burst once
-     *  open. See docs/ for the full model.
+     *  Serial TX is one FIFO with no jumping ahead, so bulk producers progress
+     *  only while the buffer is shallow. A depth floor gates that; per-tick caps
+     *  bound the burst. See docs/dev/screen.md.
      *  @{ */
 
     /** @brief Single paint depth floor, in ms of wire time at CONSOLE_BAUD.
-     *
-     *  Must stay above GROUP_SLOW_MS (console.cpp static_asserts it): the render
-     *  runs on that group, so a lower floor lets the wire drain empty between
-     *  paints. 128 against a 100 ms group is a thin margin and nothing measures
-     *  an underrun, so raise this rather than lower it. */
+     *  @warning Must stay above GROUP_SLOW_MS (static_asserted): the render runs
+     *  on that group, so a lower floor lets the wire drain empty between paints.
+     *  Nothing measures an underrun, so raise rather than lower it. */
 #ifndef BOTANIK_TX_COLD_TARGET_MS
 #  define BOTANIK_TX_COLD_TARGET_MS 128
 #endif
@@ -267,9 +248,8 @@ namespace Botanik { namespace Config {
     BOTANIK_CFG(uint16_t, HOME_SCROLLBACK_LINES);
 
     /** @brief Maximum length of a single retained scrollback line (bytes).
-     *  @note Shared by every scrollback / log buffer (Shell, Logs, Home), so the
-     *        cost is this times the three line counts above. Distinct from the
-     *        log-message sizes: this is what a page STORES, not what the logger
+     *  @note Shared by Shell, Logs and Home, so the cost is this times the three
+     *        line counts above. What a page STORES, not what the logger
      *        formats. */
 #ifndef BOTANIK_SCROLLBACK_LINE_LEN
 #  define BOTANIK_SCROLLBACK_LINE_LEN 256
@@ -288,10 +268,9 @@ namespace Botanik { namespace Config {
     BOTANIK_CFG(uint16_t, EDITOR_MAX_ROWS);
 
     /** @brief Size of the kill ring (bytes).
-     *  @note One buffer for the whole console, not one per editor: a cut on the
-     *        shell prompt yanks into NOTES, and Alt+W on a table copies into
-     *        both. A kill longer than this is truncated to what fits and the
-     *        rest is LEFT IN PLACE, so a yank always restores what went. */
+     *  @note One buffer for the whole console, so a cut at the shell prompt
+     *        yanks into NOTES. A longer kill takes only what fits and LEAVES the
+     *        rest, so a yank always restores exactly what went. */
 #ifndef BOTANIK_KILL_RING_SIZE
 #  define BOTANIK_KILL_RING_SIZE 256
 #endif
@@ -303,11 +282,10 @@ namespace Botanik { namespace Config {
 #endif
     BOTANIK_CFG(uint16_t, EDITOR_PROMPT_MAX);
 
-    /** @brief Narrowest terminal width the TextEditor can support.
-     *  @note We need to keep some additional margin because the actual width
-     *        is reduced by the row prefixes (PS1/PS2/PS3).
+    /** @brief Narrowest terminal width the TextEditor can support, with margin
+     *  for the row prefixes (PS1/PS2/PS3).
      *  @note Read only by the two layout static_asserts, which is why it lives
-     *        here beside the lengths they relate rather than in the editor. */
+     *        beside the lengths they relate. */
 #ifndef BOTANIK_EDITOR_MIN_COLS
 #  define BOTANIK_EDITOR_MIN_COLS 32
 #endif

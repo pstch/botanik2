@@ -2,11 +2,7 @@
 #define LIBBOTANIK_CONFIG_IDENTITY_H
 
 /** @file identity.h
- *  @brief Project identity: what this build calls itself.
- *
- *  One concern of the library's configuration. Every value defaults from
- *  an #ifndef-guarded BOTANIK_* macro a site may override; see
- *  libbotanik_config.h, which aggregates these and holds the rules. */
+ *  @brief Project identity: what this build calls itself. */
 
 #include "libbotanik/config/base.h"
 
