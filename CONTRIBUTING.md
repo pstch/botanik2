@@ -128,6 +128,17 @@ parentheses).
 `scripts/comment_budget.py` reports the ratios and flags files over budget; it
 runs as part of `make check-full`.
 
+A file that is almost entirely public API surface, or notes on silicon the code
+cannot show, may opt out with a line near the top:
+
+```cpp
+// comment-budget: exempt ~80 public declarations, each a distinct contract
+```
+
+The reason is required and `--exempt` lists them. Two files carry one today
+(`vars/model.h`, `hal/platform.cpp`); reach for it only when trimming would mean
+deleting a contract, not when the prose is merely long.
+
 ---
 
 ## Non-blocking design

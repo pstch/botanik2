@@ -1,17 +1,11 @@
+// comment-budget: exempt silicon behaviour the code cannot show - RS-485 DE
+// guard times, CR1 write protection, termios drain semantics.
 /** @file platform.cpp
- *  @brief The cold half of the HAL: everything the per-beat path does not call.
- *
- *  hal/platform.h declares the whole surface and picks a backend header for the
- *  parts that must be inline (the clocks, the barriers, the templates, and the
- *  types a caller holds by value). Everything else is defined here, under the
- *  same `#ifdef TARGET_OPTA / #else` split hal/net.cpp and hal/storage.cpp use.
- *
- *  This is the ONLY place the platform's own headers are allowed in:
- *  <termios.h>, <pthread.h>, <sys/ioctl.h> and friends on the host, mbed.h on
- *  the OPTA. The backend headers are reached by ~30 translation units, and
- *  mbed.h alone preprocesses to 97,696 lines - none of them want that in scope
- *  just to read the clock. This is the canonical statement of the split; the
- *  backend headers point here. */
+ *  @brief The cold half of the HAL: everything the per-beat path does not call,
+ *         under the same `#ifdef TARGET_OPTA / #else` split as hal/net.cpp.
+ *  @note The ONLY place the platform's own headers are allowed in - <termios.h>,
+ *        <pthread.h> on the host, mbed.h on the OPTA. The backend headers are
+ *        reached by ~30 TUs and mbed.h alone preprocesses to 97,696 lines. */
 
 #include "libbotanik/hal/platform.h"
 
@@ -168,34 +162,20 @@ namespace Botanik { namespace HAL {
 
     /** @name RS-485 field bus
      *
-     *  The only endpoint that is a BUS. Two constraints follow, both hidden here
-     *  so nothing above this file learns what RS-485 is:
+     *  The only endpoint that is a BUS, and the two constraints stay hidden here:
+     *  only one device may drive the pair at a time (drop DE early and the last
+     *  byte truncates, late and we are still driving when the slave answers), and
+     *  a UART's software buffer going empty is not the shift register going empty.
      *
-     *  - **Only one device may drive the pair at a time.** DE switches the
-     *    transceiver's driver on, RE its receiver (active low). Drop DE early
-     *    and the last byte is truncated on the wire; drop it late and we are
-     *    still driving when the slave answers.
-     *  - **We cannot see when our own frame has left.** A UART's software buffer
-     *    going empty is not the shift register going empty; up to two characters
-     *    are still in flight.
-     *
-     *  PB_14 is USART3's own RTS/DE pin, so the handover is the peripheral's:
-     *  alternate function plus CR3.DEM, and the silicon asserts DE a guard time
-     *  before the start bit and drops it a guard time after the last stop bit -
-     *  timing a 10 ms beat could not reproduce.
-     *
-     *  RE is held asserted, so we hear our own transmission come back, exactly as
-     *  long as what we wrote: that is what fieldbus_echoes() reports and what
-     *  lets the master count the echo off rather than recognise it. Gating RE
-     *  around transmission instead is a real option (separate pins), and
-     *  fieldbus_echoes() is the one line that would change with it.
+     *  PB_14 is USART3's own RTS/DE pin, so the handover is the peripheral's -
+     *  alternate function plus CR3.DEM, the silicon asserting DE a guard time
+     *  before the start bit and dropping it a guard time after the last stop bit.
+     *  RE is held asserted, so we hear our own transmission come back exactly as
+     *  long as what we wrote: that is what fieldbus_echoes() reports.
      *  @{ */
 
-    /** @brief The RS-485 transceiver on USART3.
-     *
-     *  Pins are Mbed's, not the Arduino variant's: TX PB_10, RX PB_11, DE PB_14,
-     *  RE PB_13. HAL is pure Mbed by rule, so pins_arduino.h is not in scope
-     *  here even though it names the same four. */
+    /** @brief The RS-485 transceiver on USART3. Pins are Mbed's, not the Arduino
+     *  variant's: TX PB_10, RX PB_11, DE PB_14, RE PB_13. */
     class Rs485Raw : public Raw {
 
         /** @name State
@@ -262,23 +242,15 @@ namespace Botanik { namespace HAL {
         uint16_t availableForWrite() override { return _port.writable() ? 1 : 0; }
 
         /** @brief Whether everything written has finished leaving the wire.
-         *  Computed, not observed (there is no TX-complete interrupt): the
-         *  character-time arithmetic write() accumulates per byte.
-         *
-         *  Gates the START of the next frame, so a frame goes out whole or not
-         *  at all. NOT a gate on listening: the master listens from the moment
-         *  the frame is queued, since a quick slave can answer in the same
-         *  beat. */
+         *  Computed, not observed - there is no TX-complete interrupt - from the
+         *  character-time arithmetic write() accumulates.
+         *  @note Gates the START of the next frame, not listening: the master
+         *  listens from the moment the frame is queued. */
         bool tx_idle() const { return Clock::uptime_us() >= _tx_done_us; }
 
-        /** @brief Throw away whatever is sitting in the receive path.
-         *
-         *  Called at bring-up and immediately before each frame goes out - never
-         *  between the frame leaving and the answer arriving, which would discard
-         *  the reply of any device quick enough to answer inside the beat.
-         *  Bounded (no unbounded drain inside a beat); two full frames is more
-         *  than a turnaround can have delivered.
-         *
+        /** @brief Throw away whatever is sitting in the receive path. Called at
+         *  bring-up and immediately before each frame goes out, NEVER between
+         *  the frame leaving and the answer arriving. Bounded at two full frames.
          *  @return how many bytes were discarded, so the caller can report a
          *  device that answered after its turn had passed. */
         uint16_t flush_input() {
@@ -293,12 +265,9 @@ namespace Botanik { namespace HAL {
 
     private:
         /** @brief Put PB_14 into its USART3_DE alternate function and switch the
-         *  peripheral's Driver Enable mode on.
-         *
-         *  Mbed configures TX and RX and nothing else, so the alternate function
-         *  is ours to set. The guard-time fields live in CR1, which is
-         *  write-protected while the USART is enabled, hence the disable /
-         *  modify / restore dance. */
+         *  peripheral's Driver Enable mode on. Mbed configures TX and RX only.
+         *  @note The guard-time fields live in CR1, write-protected while the
+         *  USART is enabled - hence the disable / modify / restore dance. */
         void _driver_enable() {
             pin_function(PB_14, STM_PIN_DATA(STM_MODE_AF_PP, GPIO_NOPULL,
                                              GPIO_AF7_USART3));
@@ -426,10 +395,7 @@ namespace Botanik { namespace HAL {
 extern char** environ;
 
 /** @name Console teardown
- *
- *  HAL-internal: nothing outside this file calls them, which is why they moved
- *  out of the backend header along with <termios.h> and <csignal>.
- *  @{ */
+ *  HAL-internal; nothing outside this file calls them. @{ */
 
 namespace {
 

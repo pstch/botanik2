@@ -226,34 +226,25 @@ RtuClient::Slot RtuClient::_slot_of(const Block& b) const {
 
 uint16_t RtuClient::_pick(uint64_t now_ms) const {
     // ONE clock for every block: how far it is through the lateness it is
-    // allowed, in permille. Highest wins, ties to the lowest index.
+    // allowed, in permille. Highest wins, ties to the lowest index. Reads and
+    // writes differ in how their due time and deadline are DERIVED (_slot_of),
+    // never in how they are compared, so a write's urgency grows like a read's
+    // and starvation is unreachable. Urgency past 1000 is the starvation floor.
     //
-    // There is no tier ladder any more. Reads and writes differ in how their due
-    // time and deadline are DERIVED (see _slot_of), never in how they are
-    // compared, and that is what removes the two asymmetries the ladder had.
-    // Writes used to sit at a fixed rank with no escalation, so any starved read
-    // outranked them for as long as it stayed starved and output delivery simply
-    // stopped; now a write's urgency grows exactly like a read's and starvation
-    // is unreachable rather than patched. And the per-block starvation floor is
-    // no longer a jump between tiers, just the point where urgency passes 1000.
-    //
-    // Relative and not absolute, for the reason the floor was per-block: ranked
-    // by milliseconds the fast rungs hold the bus for ever, since they re-arm
-    // constantly while a slow block's lateness only creeps up. In permille
-    // 900 ms late on a 1 s rung is 900 and 800 ms late on a 10 s rung is 80 (the
-    // fast block still wins), but a 10 s block 5 s late is 500 and beats a 1 s
-    // block 400 ms late.
+    // Relative, not absolute: ranked by milliseconds the fast rungs would hold
+    // the bus for ever, re-arming constantly while a slow block's lateness only
+    // creeps. In permille 900 ms late on a 1 s rung is 900 and 800 ms on a 10 s
+    // rung is 80 (fast still wins), but a 10 s block 5 s late is 500 and beats a
+    // 1 s block 400 ms late.
 
     // The one absolute pre-empt, ahead of the scale rather than on it: a scale
-    // has no top, so a sufficiently late block could otherwise climb into any
-    // rank reserved for this. Withholding control marked every output dirty
-    // precisely so a transaction carries the safe state out, and it does not
-    // wait for the ordinary write interval either.
+    // has no top, so a sufficiently late block could otherwise climb into it.
+    // Withholding control marked every output dirty precisely so a transaction
+    // carries the safe state out, and it does not wait for the write interval.
     // At most ONE device that is not answering may be offered the bus, and only
-    // when the gate is open. Computed once: it is a property of the beat, not of
-    // the block. A probe is otherwise enormously late against its own period and
-    // would win every comparison it entered, which is how the least valuable and
-    // most expensive transaction on the bus came to be scheduled first.
+    // when the gate is open. Computed once: a property of the beat, not of the
+    // block. A probe is otherwise enormously late against its own period and
+    // would win every comparison it entered.
     const uint8_t suspect = _next_suspect(now_ms);
 
     if (_urgent) {
@@ -299,12 +290,10 @@ void RtuClient::_track_control(uint64_t now_ms) {
     // The falling edge, and only that: an operator who leaves control disabled
     // must not keep the bus at emergency priority for the rest of the day.
     if (_control_was && !on) _urgent = true;
-    // And the rising edge spends it, whatever the sweep below would have said.
-    // With control back the programs drive the outputs again from the next beat
-    // (control returning), so nothing is owed an EMERGENCY delivery any more
-    // - the safe values still in the image go out at ordinary write priority.
-    // Without this the flag's lifetime depends on the sweep finding nothing,
-    // which a block that cannot go out makes impossible.
+    // The rising edge spends it, whatever the sweep below would say: with
+    // control back the programs drive the outputs from the next beat, so nothing
+    // is owed an EMERGENCY delivery. Otherwise the flag's lifetime depends on
+    // the sweep finding nothing, which a block that cannot go out prevents.
     if (!_control_was && on) _urgent = false;
     _control_was = on;
 
@@ -315,11 +304,9 @@ void RtuClient::_track_control(uint64_t now_ms) {
         const Block& b = _plan.block(i);
         if (is_read(b.fc)) continue;
         // Only a block that could ACTUALLY go out holds the urgency. One on a
-        // backed-off device is dirty and stays dirty, because _pick() will never
-        // offer it the bus - so without this the sweep always finds it, and one
-        // dead output device pins every live device's writes at safe-state
-        // priority (above starved reads, and exempt from MODBUS_WRITE_MIN_MS)
-        // for the rest of the boot.
+        // backed-off device stays dirty because _pick() never offers it the bus,
+        // so without this one dead output device pins every live device's writes
+        // at safe-state priority for the rest of the boot.
         if (!_due(b, now_ms)) continue;
         if (block_dirty(*_io, _plan, b)) return;
     }
@@ -347,13 +334,11 @@ bool RtuClient::_build(uint16_t block, uint64_t now_ms) {
     const uint16_t n = collect_write(*_io, _plan, b, payload, (uint16_t)sizeof payload);
     if (n == 0) return false;
 
-    // Four write codes, and the block already says which one: the planner picks
-    // the single form for a device whose model has no FC15/FC16, and caps those
-    // blocks at one point so the form can always carry them.
-    //
-    // A single write echoes its VALUE rather than a count, so the expectation
-    // has to carry it - that echo is the only confirmation the point actually
-    // moved, on exactly the devices that cannot be driven any other way.
+    // Four write codes, and the block already says which: the planner picks the
+    // single form for a device whose model has no FC15/FC16 and caps those
+    // blocks at one point. A single write echoes its VALUE rather than a count,
+    // so the expectation carries it - that echo is the only confirmation the
+    // point moved, on exactly the devices that cannot be driven another way.
     switch (b.fc) {
     case FC_WRITE_COIL:
         _expect.value = bit_at(payload, 0) ? 0xFF00u : 0x0000u;
@@ -450,13 +435,11 @@ void RtuClient::on_output(uint64_t now_ms) {
         return;
     }
 
-    // Clear the receive path BEFORE the frame goes out. on_input() only
-    // listens while MB_RX, so anything arriving during the gap or while the bus
-    // was idle is still in the UART ring, and arm() below resets the FRAMER, not
-    // the port. A device answering after its timeout would otherwise be read as
-    // the head of the NEXT transaction - taken for the echo skip or for the
-    // response, misaligning both. Here rather than after _send(): the echo of
-    // our own frame has not been transmitted yet, so this cannot eat it.
+    // Clear the receive path BEFORE the frame goes out: on_input() only listens
+    // while MB_RX, so anything from the gap is still in the UART ring and arm()
+    // resets the FRAMER, not the port. A device answering after its timeout
+    // would otherwise be read as the head of the NEXT transaction. Here rather
+    // than after _send(), where it would eat our own echo.
     _stale_rx += HAL::Serial::fieldbus_flush_input();
 
     if (!_send()) {

@@ -25,11 +25,22 @@ STRUCTURAL = re.compile(
     r"(/?\*+/?|\s)*$"
 )
 
+# A file may opt out with a top-of-file `comment-budget: exempt <reason>`. For
+# the handful that are almost entirely public API surface or silicon notes,
+# where the contract IS the content. Reasons are listed by --exempt.
+EXEMPT = re.compile(r"comment-budget:\s*exempt\s+(.+)")
+
 
 def kind(path):
     if "tests/" in path.as_posix():
         return "test"
     return "header" if path.suffix in (".h", ".hpp") else "impl"
+
+
+def exemption(path):
+    """The file's declared exemption reason, or None."""
+    m = EXEMPT.search(path.read_text(errors="replace")[:4096])
+    return m.group(1).strip() if m else None
 
 
 def count(path):
@@ -67,13 +78,14 @@ def main():
     ap.add_argument("paths", nargs="*", default=None)
     ap.add_argument("--strict", action="store_true", help="exit 1 on any breach")
     ap.add_argument("--top", type=int, default=15, help="worst N to list")
+    ap.add_argument("--exempt", action="store_true", help="list exempted files")
     args = ap.parse_args()
 
     root = Path(__file__).resolve().parent.parent
     roots = ([Path(p).resolve() for p in args.paths] if args.paths
              else [root / r for r in ROOTS])
 
-    rows = []
+    rows, exempt = [], []
     for base in roots:
         files = [base] if base.is_file() else sorted(
             f for ext in ("*.h", "*.hpp", "*.cpp") for f in base.rglob(ext)
@@ -84,11 +96,21 @@ def main():
             comment, code = count(f)
             if code < MIN_CODE:
                 continue
+            why = exemption(f)
+            if why:
+                exempt.append((f.relative_to(root), comment, code, why))
+                continue
             rows.append((kind(f), f.relative_to(root), comment, code))
 
     limits = dict(BUDGETS)
     over = [r for r in rows if r[2] > r[3] * limits[r[0]]]
     over.sort(key=lambda r: r[2] / r[3], reverse=True)
+
+    if args.exempt and exempt:
+        print(f"exempt ({len(exempt)}):\n")
+        for path, comment, code, why in sorted(exempt):
+            print(f"  {comment/code:5.2f}  {path}\n         {why}")
+        print()
 
     if over:
         print(f"over budget ({len(over)} of {len(rows)} files):\n")
@@ -112,6 +134,8 @@ def main():
     tc = sum(r[2] for r in rows)
     tn = sum(r[3] for r in rows)
     print(f"{'TOTAL':10} {tc:9d} {tn:9d} {tc/tn:7.2f}")
+    if exempt:
+        print(f"({len(exempt)} exempt, --exempt to list)")
 
     return 1 if (args.strict and (fail or over)) else 0
 
