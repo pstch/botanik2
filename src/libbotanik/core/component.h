@@ -6,18 +6,11 @@
  * @file component.h
  * @brief Component - uniform lifecycle base for the long-lived main objects.
  *
- * Work reaches the beat by REGISTRATION: register_tasks() hands Tasks::Registry
- * one entry per point the component acts at, each naming its own phase and rate
- * group; registering also runs setup(). The registry calls poll_config() before
- * every handler, and the handler dispatches the phase hook. Subsystems customize
- * through the protected hooks; healthy() is a liveness query (default true).
- *
- * @section component_rate Rate
- *
- * A component has no rate of its own: how often work runs belongs to its TASK,
- * and the elapsed time is Tasks::Tick::dt_ms.
- *
- * In DEBUG builds announce() logs one BOOT line on first setup().
+ * Work reaches the beat by REGISTRATION: register_tasks() hands the registry one
+ * entry per point the component acts at, each naming its own phase and rate
+ * group, and registering also runs setup().
+ * @note A component has no rate of its own: that belongs to its TASK, and the
+ *       elapsed time is Tasks::Tick::dt_ms. See docs/dev/tasks.md.
  */
 
 #include <cstdint>
@@ -84,16 +77,10 @@ namespace Botanik {
         const char* name() const { return _name; }
 
         /** @brief Run this component's one-time init: on_setup() then
-         *  announce().
-         *
-         *  **Idempotent**: the task registry calls it for every registered task
-         *  during BotanikFirmware::setup(), and step() calls it for a component
-         *  the registry does not own (one stepped by another component, e.g. the
-         *  network stack's children).
-         *
-         *  @note Only call it once the log sinks are registered. announce(), and
-         *  anything setup() logs (HealthMonitor's POST), goes nowhere before
-         *  that. */
+         *  announce(). IDEMPOTENT - the registry calls it per registered task,
+         *  and step() calls it for a component the registry does not own.
+         *  @note Only once the log sinks are registered: announce(), and
+         *  anything setup() logs, goes nowhere before that. */
         void setup(uint64_t now_ms) {
             if (_started) return;
             _started = true;
@@ -103,26 +90,17 @@ namespace Botanik {
         /** @brief Whether setup() has run. */
         bool started() const { return _started; }
 
-        /** @brief Put this component's work in the beat: one entry per point
-         *  it acts at, each with its own name, rate group and phase.
-         *
-         *  No argument - the table came with the SetupContext. Default: none.
-         *  @see design/scan-cycle-rework.md */
+        /** @brief Put this component's work in the beat: one entry per point it
+         *  acts at, each with its own name, rate group and phase. No argument -
+         *  the table came with the SetupContext. Default: none. */
         virtual void register_tasks() {}
 
         /** @brief Poll the watched config serial and dispatch on_param_changed()
-         *  when it has moved.
-         *
-         *  Once per BEAT, not per task: a component registered in three phases
-         *  must not re-read its group three times, and `_beat_ms` is the same
-         *  guard step() uses, so the two ways in agree.
-         *
-         *  The registry calls this before every handler. It has to: a
-         *  registration dispatches the phase hook DIRECTLY, so nothing that
-         *  step() used to do around that hook happens by itself. That is how
-         *  every config-driven component silently stopped reconfiguring - the
-         *  network handler sat in NET_IDLE forever waiting for a callback
-         *  nothing made. */
+         *  when it has moved. Once per BEAT, not per task: a component
+         *  registered in three phases must not re-read its group three times.
+         *  @warning The registry MUST call this before every handler - a
+         *  registration dispatches the phase hook directly, so anything around
+         *  it has to be done here or it does not happen. */
         void poll_config(uint64_t now_ms) {
             if (now_ms == _beat_ms) return;
             _beat_ms = now_ms;
@@ -136,14 +114,10 @@ namespace Botanik {
         }
 
         /** @brief Run @p phase's hook with the lifecycle the registry gives a
-         *  registered task: setup(), poll_config(), then the hook.
-         *
-         *  For a component the task table does not own - one stepped by its
-         *  owner (the network stack's children, the sim's Modbus check) or by a
-         *  test. No due check: the rate belongs to the task.
-         *
-         *  Keep equal to Tasks::Registry::run_phase()'s per-task body; when the
-         *  two drifted, every config-driven component stopped reconfiguring. */
+         *  registered task: setup(), poll_config(), then the hook. For a
+         *  component the task table does not own. No due check: the rate belongs
+         *  to the task.
+         *  @warning Keep equal to Registry::run_phase()'s per-task body. */
         void step(uint64_t now_ms, Tasks::Phase phase) {
             setup(now_ms);          // idempotent: a no-op once we are set up
             poll_config(now_ms);
@@ -158,11 +132,9 @@ namespace Botanik {
             }
         }
 
-        /** @brief Step every phase hook for @p now_ms, in beat order.
-         *
-         *  Resets the beat guard first: each call is a fresh beat by definition,
-         *  and without that two steps inside one millisecond would take the
-         *  second for the same beat and never fire on_param_changed(). */
+        /** @brief Step every phase hook for @p now_ms, in beat order. Resets the
+         *  beat guard first: each call is a fresh beat by definition, or two
+         *  steps inside one millisecond would never fire on_param_changed(). */
         void step(uint64_t now_ms) {
             _beat_ms = UINT64_MAX;
             for (uint8_t p = 0; p < (uint8_t)Tasks::PHASE_COUNT; p++)
@@ -187,13 +159,10 @@ namespace Botanik {
         virtual void on_setup(uint64_t now_ms) { (void)now_ms; }
         /** @name Per-phase work
          *
-         *  One hook per phase of the beat; override the one whose place in the
-         *  DATA FLOW matches the work (@ref dev_tasks). A component that spans
-         *  phases overrides several - the serial pumps read at PHASE_INPUT and
-         *  write at PHASE_PRESENT - and is registered once per phase, so each
-         *  half is separately attributable on the TASKS page.
-         *
-         *  Default: nothing.
+         *  One hook per phase; override the one whose place in the DATA FLOW
+         *  matches the work (@ref dev_tasks). A component spanning phases
+         *  overrides several and registers once per phase, so each half is
+         *  separately attributable on the TASKS page. Default: nothing.
          *  @{ */
         virtual void on_input(uint64_t now_ms)   { (void)now_ms; }
         virtual void on_config(uint64_t now_ms)  { (void)now_ms; }

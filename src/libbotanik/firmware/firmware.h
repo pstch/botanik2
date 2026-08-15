@@ -4,33 +4,17 @@
 
 /**
  * @file firmware.h
- * @brief BotanikFirmware - the generic firmware base.
+ * @brief BotanikFirmware - the generic firmware base: owns every long-lived
+ *        generic component and the per-tick loop() order, exposing an accessor
+ *        for each.
  *
- * Owns every long-lived generic component (serials, logger, scheduler, variable
- * bank, scan driver, health/alarm model, terminal, core pages) and the per-tick
- * loop() order, and exposes a reference accessor for each. A site is DATA: it
- * fills a SiteDescriptor and derives a thin `GreenhouseXXX : BotanikFirmware`
- * that passes it to the base ctor, customizing only through the register_*() /
- * on_setup() plus one hook per phase (on_input ... on_present). See
- * docs/integration and CLAUDE.md
- * ("Site-specific code").
- *
- * Target-independent: the site's tables are borrowed site statics. Tunable
- * scalars default from Config; the harness overrides them through a set_*()
- * modifier before setup() (set_hw_watchdog_ms()).
- *
- * Both UART rates are PARAMETERS, not compile-time constants:
- * `serial_console_baud` and `serial_monitor_baud` (library_vars.h), defaulting
- * from Config::CONSOLE_BAUD / MONITOR_BAUD. _apply_serial_config() re-applies
- * either on change from the CONFIG phase, retuning the UART and - for the
- * console - AnsiTerminal's per-render TX budget in the same breath: a renderer
- * pacing for a rate the wire does not run at is worse than not retuning at all.
- *
- * BOTANIK_FEATURE_CONSOLE (default on) gates the interactive ANSI UI
- * (AnsiTerminal, the built-in pages, the console UART, the register_*() hooks);
- * BOTANIK_FEATURE_LOGS_MONITOR (default on) the secondary MONITOR UART and its
- * SerialLogWriter. Independent: a headless build turns both off, and logs still
- * reach any site-registered sink.
+ * A site is DATA: it fills a SiteDescriptor and derives a thin
+ * `GreenhouseXXX : BotanikFirmware`, customizing only through register_*(),
+ * on_setup() and the six per-phase hooks. See docs/integration.
+ * @note Both UART rates are PARAMETERS, not compile-time constants;
+ *       _apply_serial_config() retunes the UART and the render TX budget
+ *       together, a renderer pacing for the wrong rate being worse than not
+ *       retuning at all.
  */
 
 #include <cstdint>
@@ -84,15 +68,10 @@ namespace Botanik {
 
     /**
      * @brief The declarative description of a site: its name plus its tables.
-     * The firmware base owns every page and wires each table generically, so a
-     * site is data, not code.
-     *
-     * Alarms are NOT a table here: each is a SCOPE_A row in @c vars carrying its
-     * code and dwell policy, and the AlarmController scans for them. Parameters
-     * are likewise the ROLE_PARAM rows within @c vars.
-     *
-     * Any table may be null / count 0. Every pointer is borrowed and must outlive
-     * the firmware (site statics).
+     * @note Alarms are NOT a table here - each is a SCOPE_A row in @c vars, and
+     *       parameters are the ROLE_PARAM rows within it.
+     * @note Any table may be null / count 0. Every pointer is borrowed and must
+     *       outlive the firmware.
      */
     struct SiteDescriptor {
         const char*                   name;                ///< == Config::SITE_NAME
@@ -121,11 +100,8 @@ namespace Botanik {
          *  @{ */
 
         /** @name Applied UART rates
-         *
          *  What the two ports are actually running at, so
-         *  _apply_serial_config() reconfigures only on the edge. Seeded from the
-         *  same Config defaults the parameters carry.
-         *  @{ */
+         *  _apply_serial_config() reconfigures only on the edge. @{ */
         uint32_t                      _console_baud  = Config::CONSOLE_BAUD;
         uint32_t                      _monitor_baud  = Config::MONITOR_BAUD;
         /** @} */
@@ -215,13 +191,10 @@ namespace Botanik {
 
         virtual ~BotanikFirmware() {}
 
-        /** @brief Bring-up in a fixed, non-overridable order: begin the UARTs,
-         *  register the core sinks, register the pages (register_pages()),
-         *  select the terminal type, show the banner, run every registered
-         *  task's one-time init (Registry::setup(), which takes POST and the
-         *  parameter load), arm the watchdog. None of it runs on a beat: by the
-         *  first tick every component is up. A site customizes via the hooks,
-         *  never setup(). */
+        /** @brief Bring-up in a fixed, non-overridable order: UARTs, core sinks,
+         *  register_pages(), terminal type, banner, Registry::setup() (POST and
+         *  the parameter load), watchdog. None of it runs on a beat. A site
+         *  customizes via the hooks, never setup(). */
         void setup();
 
         /** @brief The task table, for the TASKS page and the `stats` command. */
@@ -237,25 +210,15 @@ namespace Botanik {
          *  point. @see SetupContext */
         const SetupContext&    setup_context() const { return _setup; }
 
-        /** @brief One main-loop iteration. tick() gates a beat and republishes
-         *  the display "now" (`SchedulerContext::timestamp_ms`) the render path
-         *  shares.
-         *
-         *  The beat is phase-major: each phase runs the tasks registered to it
-         *  whose group has come due (_register_tasks()). The PHASE order below
-         *  is load-bearing and stays written out as code; a task's RATE is a
-         *  property of the task, so retuning one can never reorder the cycle.
-         *
-         *  Non-virtual, so the order can't be overridden; a site adds per-beat
-         *  work through the per-phase hooks, each its own "site_*" task.
-         *
-         *  Inline, unlike the rest of the bring-up: it is the hot path, and the
-         *  scheduler's tick() paints the stack below its caller's frame, so this
-         *  is the frame the high-water measurement is taken against.
-         *
-         *  @return whether a beat actually ran. A harness interleaving work of
-         *  its own must key it off this: tick() busy-waits the tail of every
-         *  period, so per-ITERATION work runs tens of times a beat. */
+        /** @brief One main-loop iteration. Phase-major: each phase runs the
+         *  tasks registered to it whose group has come due. The PHASE order is
+         *  load-bearing and stays written out as code; a task's RATE is its own
+         *  property, so retuning one can never reorder the cycle.
+         *  @note Non-virtual, and inline because the scheduler's tick() paints
+         *  the stack below its caller's frame - this is the frame the high-water
+         *  mark is taken against.
+         *  @return whether a beat actually ran. A harness interleaving its own
+         *  work must key off this: tick() busy-waits the tail of every period. */
         bool loop() {
             if (!_scheduler.tick()) return false;   // driver: gates the beat, produces the clock
 
@@ -340,34 +303,20 @@ namespace Botanik {
          *  last when BOTANIK_FEATURE_NOTES_PAGE is on. A site override can
          *  reorder them or splice in its own (e.g. re-add a STATUS page by
          *  subclassing Pages::StatusPage and add_page()-ing it here). */
-        /** @brief Hand the bank the site's variable rows, one call per segment.
-         *
-         *  Called at the very top of setup(), after the library has registered
-         *  its own rows and before anything resolves a name. A site splits its
-         *  table however it likes - parameters, alarms, I/O is the natural cut -
-         *  with ONE rule: the PARAMETERS come first, because the library's are
-         *  already at the front of the block and the run has to stay contiguous.
-         *  `Bank::freeze()` checks it and names the row that broke it.
-         *
-         *  @code
-         *  void register_vars() override {
-         *      io().register_vars(Site::params, Site::PARAM_COUNT);
-         *      io().register_vars(Site::alarms, Site::ALARM_COUNT);
-         *      io().register_vars(Site::io_rows, Site::IO_COUNT);
-         *  }
-         *  @endcode */
+        /** @brief Hand the bank the site's variable rows, one call per segment,
+         *  at the top of setup(). A site splits its table however it likes, with
+         *  ONE rule: the PARAMETERS come first, the library's being already at
+         *  the front of a run that has to stay contiguous. Bank::freeze() checks
+         *  it and names the row that broke it. */
         virtual void register_vars() {}
 
         virtual void register_pages();
 
 #if BOTANIK_FEATURE_SHELL_PAGE
-        /** @brief Register the site's shell command table (tried BEFORE the
-         *  built-ins, so the table can shadow one - avoid reusing exit/reset).
-         *  Default: the descriptor's commands, reading the live variable bank
-         *  as their ctx.
-         *
-         *  Gated on SHELL_PAGE, not CONSOLE: ShellPage owns the CommandShell, so
-         *  without the page there is nothing to register commands on. */
+        /** @brief Register the site's shell command table, tried BEFORE the
+         *  built-ins, so it can shadow one - avoid reusing exit/reset.
+         *  @note Gated on SHELL_PAGE, not CONSOLE: ShellPage owns the
+         *  CommandShell, so without it there is nothing to register on. */
         virtual void register_commands();
 #endif
 #endif
@@ -380,43 +329,22 @@ namespace Botanik {
 #endif
 
         /** @brief Per-beat site work that is neither a Component nor a Program.
-         *
-         *  Runs once per BEAT (inside the tick gate, so never per loop()
-         *  iteration), after every phase and before the watchdog kick that
-         *  vouches for the beat. Default: nothing.
-         *
-         *  **Most sites should never need this.** Work in the beat belongs in
-         *  the table: as a Component or a Program registered in on_setup(), or
-         *  as one of the six per-phase hooks. Anything here is outside the
-         *  table, so it has no phase, no rate, no cost sample and no row on the
-         *  TASKS page - if it turns out to be slow, nothing will say so. It is
-         *  the hatch for library-level code that genuinely fits none of those. */
+         *  Runs after every phase, before the watchdog kick. Default: nothing.
+         *  @warning Most sites should never need this. Anything here is OUTSIDE
+         *  the task table: no phase, no rate, no cost sample and no TASKS row,
+         *  so if it turns out to be slow nothing will say so. */
         virtual void on_loop(uint64_t now_ms) { (void)now_ms; }
 
         /** @name Config appliers, as task handlers
          *  @{ */
 
-        /** @brief Site post-wiring: where a site registers its OWN components
-         *  and control programs, and wires up anything else it needs.
-         *
-         *  Run once near the end of setup(), after every library component has
-         *  registered and every log sink exists, and still **before the setup
-         *  pass** - so a component registered here is a task-table entry like
-         *  any other: set up in the same sweep, dispatched by the same loop, and
-         *  named on the TASKS page. Register through `tasks()`:
-         *
-         *  @code
-         *  void on_setup() override {
-         *      _my_pump.register_tasks();   // a Component
-         *      _my_law.register_tasks();    // a Plc::Program
-         *  }
-         *  @endcode
-         *
-         *  This is the extension point for work the six per-phase hooks cannot
-         *  express: a subsystem with state of its own, several rates, or more
-         *  than one point in the beat.
-         *
-         *  Default: nothing. */
+        /** @brief Site post-wiring: where a site registers its OWN components and
+         *  control programs. Run near the end of setup(), after every library
+         *  component has registered and before the setup pass, so anything
+         *  registered here is a task-table entry like any other.
+         *  @note The extension point for work the six per-phase hooks cannot
+         *  express: state of its own, several rates, or more than one point in
+         *  the beat. Default: nothing. */
         virtual void on_setup() {}
 
 
@@ -443,14 +371,10 @@ namespace Botanik {
         void _resolve_site_refs();
 
         /** @brief Build the task table: what runs, at which rate, in which phase.
-         *
-         *  Registration order is the order within a phase, and the phase order
-         *  is the data flow (@ref dev_scan), so this reads top to bottom as the
-         *  beat does. The RATE of anything here is a tuning knob (its group);
-         *  the PHASE is not, because it encodes what must happen before what.
-         *
-         *  Every entry is named: the TASKS page and `stats` report per-task
-         *  cost, and an unnamed row is not a diagnosis. */
+         *  Registration order is the order within a phase, and the phase order is
+         *  the data flow (@ref dev_scan), so this reads as the beat does.
+         *  @note The RATE of anything here is a tuning knob; the PHASE is not.
+         *  Every entry is named - an unnamed row is not a diagnosis. */
         void _register_tasks();
 
 
