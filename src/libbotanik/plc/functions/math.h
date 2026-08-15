@@ -3,13 +3,11 @@
 
 /**
  * @file math.h
- * @brief The arithmetic a control program keeps rewriting: limit, rescale,
- *        select, deadzone, range test.
- *
- * IEC 61131-3 FUNCTIONs: no state, no dt, same inputs always the same output.
- * `constexpr` and header-only on purpose: a function is a single expression in
- * a header, a block needs a .cpp, and that is the whole rule separating this
- * directory from blocks/.
+ * @brief Stateless control arithmetic: limit, rescale, select, deadzone, range.
+ * @note IEC 61131-3 FUNCTIONs: no state, no dt, same inputs always the same
+ *       output. LIMIT and SEL are the standard ones; the rest are ours.
+ * @note A function is a single expression in a header; a block needs a .cpp.
+ *       That rule is what separates this directory from blocks/.
  */
 
 namespace Botanik { namespace Plc {
@@ -17,24 +15,19 @@ namespace Botanik { namespace Plc {
     /** @name Limiting
      *  @{ */
 
-    /** @brief @p v held inside [@p lo, @p hi]. IEC's LIMIT, in std::clamp
+    /** @brief @p v held inside [@p lo, @p hi]. IEC LIMIT, in std::clamp
      *  argument order. */
     constexpr float limit(float v, float lo, float hi) {
         return (v < lo) ? lo : ((v > hi) ? hi : v);
     }
 
-    /** @brief Whether @p v is within [@p lo, @p hi], inclusive: the
-     *  plausibility test said once. */
+    /** @brief Whether @p v is within [@p lo, @p hi], inclusive. */
     constexpr bool in_range(float v, float lo, float hi) {
         return (v >= lo) && (v <= hi);
     }
 
-    /** @brief Zero inside +/- @p band, and outside it the EXCURSION beyond the
-     *  band rather than the raw value: continuous, so leaving the band does not
-     *  step from 0 to `band` and kick whatever acts on it.
-     *
-     *  The stateless cousin of the Deadband block, which suppresses reports of
-     *  small moves rather than ignoring a small error. */
+    /** @brief Zero inside +/- @p band; outside it the EXCURSION beyond the band,
+     *  not the raw value, so leaving the band does not step from 0 to @p band. */
     constexpr float deadzone(float v, float band) {
         return (v > band) ? (v - band) : ((v < -band) ? (v + band) : 0.0f);
     }
@@ -43,14 +36,11 @@ namespace Botanik { namespace Plc {
      *  @name Scaling
      *  @{ */
 
-    /** @brief Rescale @p v from [@p in_lo, @p in_hi] onto [@p out_lo,
-     *  @p out_hi], linearly and without clamping. A degenerate input span reads
-     *  as @p out_lo rather than dividing by zero - a misconfigured span must
-     *  give a dull answer, not an infinity that reaches an output.
-     *
-     *  @note Not for analog rows, which carry an AnalogCal whose six Tunables
-     *   can each be a parameter. This is for a program's own rescaling, e.g. a
-     *   0..1 demand onto a 20..80% stroke. */
+    /** @brief Rescale @p v from [@p in_lo, @p in_hi] onto [@p out_lo, @p out_hi],
+     *  linearly, unclamped. A degenerate input span reads as @p out_lo rather
+     *  than dividing by zero: a misconfigured span must not reach an output as
+     *  an infinity.
+     *  @note For a program's own rescaling. Analog rows carry an AnalogCal. */
     constexpr float scale(float v, float in_lo, float in_hi,
                           float out_lo, float out_hi) {
         return (in_hi == in_lo)
@@ -58,8 +48,8 @@ namespace Botanik { namespace Plc {
                    : out_lo + (v - in_lo) * (out_hi - out_lo) / (in_hi - in_lo);
     }
 
-    /** @brief Linear interpolation: @p a at @p t = 0, @p b at @p t = 1.
-     *  Not clamped - @p t outside [0, 1] extrapolates. */
+    /** @brief @p a at @p t = 0, @p b at @p t = 1. Unclamped: @p t outside
+     *  [0, 1] extrapolates. */
     constexpr float lerp(float a, float b, float t) {
         return a + (b - a) * t;
     }
@@ -68,7 +58,7 @@ namespace Botanik { namespace Plc {
      *  @name Selection
      *  @{ */
 
-    /** @brief IEC's SEL: @p in1 when @p g, else @p in0. Reads as data flow
+    /** @brief IEC SEL: @p in1 when @p g, else @p in0. Reads as data flow
      *  rather than a branch: `sel(night, day_sp, night_sp)`. */
     constexpr float sel(bool g, float in0, float in1) {
         return g ? in1 : in0;

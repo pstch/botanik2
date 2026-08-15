@@ -4,31 +4,28 @@
 /**
  * @file pid.h
  * @brief The PID regulator and its tuning.
+ * @note IEC 61131-3: PID.
  */
 
-#include <cstdint>              // uint32_t
+#include <cstdint>
 
-#include "libbotanik/config/base.h"       // the BOTANIK_FEATURE_* gates
-#include "libbotanik/plc/blocks/block.h"  // Plc::Block / BOTANIK_PLC_BLOCK
+#include "libbotanik/config/base.h"
+#include "libbotanik/plc/blocks/block.h"
 #if BOTANIK_FEATURE_PLC_BLK_BASE
 
 namespace Botanik { namespace Plc {
 
     /**
-     * @brief What a Pid is tuned with: gains, output span, action.
-     *
-     * Data, not state: typically rebuilt each scan from parameters, so a loop is
-     * retunable from the PARAMS page while the block keeps its history. Gains
-     * are the parallel form - @c kp is output units per unit of error, @c ki per
-     * (error x second), @c kd per (error / second).
-     *
-     * @note constexpr with defaults: `PidTuning(2.0f)` is pure P,
-     *  `PidTuning(2.0f, 0.05f)` is PI.
+     * @brief What a Pid is tuned with. Data, not state: typically rebuilt each
+     *        scan from parameters, so a loop retunes from the PARAMS page while
+     *        the block keeps its history.
+     * @note Parallel form. constexpr with defaults: `PidTuning(2.0f)` is pure P,
+     *       `PidTuning(2.0f, 0.05f)` is PI.
      */
     struct PidTuning {
-        float kp;         ///< proportional gain
-        float ki;         ///< integral gain, per second
-        float kd;         ///< derivative gain, seconds
+        float kp;         ///< proportional gain, output units per unit of error
+        float ki;         ///< integral gain, per (error x second)
+        float kd;         ///< derivative gain, per (error / second)
         float out_min;    ///< output floor
         float out_max;    ///< output ceiling
         float d_tau_s;    ///< derivative lowpass time constant; 0 = unfiltered
@@ -43,25 +40,12 @@ namespace Botanik { namespace Plc {
     };
 
     /**
-     * @brief PID regulator: holds a reading at a setpoint by driving a
-     * continuous output.
-     *
-     * Three departures from the textbook sum:
-     *
-     *  - **Derivative on the measurement, not the error**, so a setpoint typed
-     *    at the console does not slam the output to a limit for one scan;
-     *    optionally lowpassed (@c d_tau_s), since differentiating a noisy sensor
-     *    amplifies exactly the noise.
-     *  - **Conditional integration**: frozen while it would push further into a
-     *    limit the output is already against, so a loop that spent the night on
-     *    its ceiling comes off it when the error changes sign. No
-     *    back-calculation gain to tune.
-     *  - **The integral is clamped to the output span** - a term larger than any
-     *    output the actuator can produce is time the loop must spend undoing it.
-     *
-     * Direct-acting by default (output rises as the reading falls: heating,
-     * filling). @c reverse flips the error and the derivative together; swapping
-     * the two arguments instead would silently differentiate the setpoint.
+     * @brief PID regulator: holds a reading at a setpoint. Direct-acting by
+     *        default (output rises as the reading falls: heating, filling).
+     * @note Three departures from the textbook sum, all affecting tuning:
+     *       derivative on the measurement rather than the error (a typed setpoint
+     *       does not slam the output); conditional integration, so no
+     *       back-calculation gain to tune; integral clamped to the output span.
      */
     class Pid : public Block {
 
@@ -89,27 +73,18 @@ namespace Botanik { namespace Plc {
         float operator()(float sp, float pv, const PidTuning& t, uint32_t dt_ms);
 
         float value() const { return _out; }
-        /** @brief Last error, sign-corrected for the action: positive means the
-         *  loop is asking for more output. */
+        /** @brief Sign-corrected for the action: positive means the loop is
+         *  asking for more output. */
         float error() const { return _error; }
-        /** @brief The integral term, in output units - the number to watch when
-         *  a loop misbehaves. */
+        /** @brief In output units - the number to watch when a loop misbehaves. */
         float integral() const { return _integral; }
-        /** @brief Whether the last output hit a limit. */
         bool saturated() const { return _sat; }
 
-        /** @brief Force the output to @p out and make the integral carry it.
-         *
-         *  For handing a loop back from manual: line the manual output up with
-         *  what the loop should produce, preset it, and the first automatic
-         *  scan starts from there rather than from zero. The proportional term
-         *  still lands on top, so match the setpoint before transferring if the
-         *  bump has to be nil. Also re-seeds the derivative, so the jump does
-         *  not read as a rate of change.
-         *
+        /** @brief Force the output to @p out and make the integral carry it, for
+         *  handing a loop back from manual. Also re-seeds the derivative.
          *  @note Meaningless with @c ki at 0: a loop with no integral action
-         *  carries no integral, so the next scan clears it. Preset a PI loop, or
-         *  add the bias where it belongs. */
+         *  carries none, so the next scan clears it. The proportional term still
+         *  lands on top, so match the setpoint first for a bumpless transfer. */
         void preset(float out);
 
         /** @brief Back to a cold loop: no integral, no derivative history. */
@@ -119,7 +94,6 @@ namespace Botanik { namespace Plc {
     };
 
     /** @name Family checks
-     *  @see block.h - every block is reset on a control withdrawal.
      *  @{ */
     BOTANIK_PLC_BLOCK(Pid);
     /** @} */

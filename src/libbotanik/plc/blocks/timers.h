@@ -4,22 +4,22 @@
 /**
  * @file timers.h
  * @brief The three PLC timers: on-delay, off-delay, pulse.
- *
- * Each takes @p dt_ms (Plc::Context::dt_ms), the real elapsed time since the
- * program last ran, rather than reading a clock: one that ran late must not lose
- * the time it was late by.
+ * @note IEC 61131-3: TON, TOF, TP.
+ * @note Each takes @p dt_ms (Plc::Context::dt_ms), the REAL elapsed time since
+ *       the program last ran, never a clock: one that ran late must not lose
+ *       the time it was late by.
  */
 
-#include <cstdint>              // uint32_t
+#include <cstdint>
 
-#include "libbotanik/config/base.h"       // the BOTANIK_FEATURE_* gates
-#include "libbotanik/plc/blocks/block.h"  // Plc::Block / BOTANIK_PLC_BLOCK
+#include "libbotanik/config/base.h"
+#include "libbotanik/plc/blocks/block.h"
 #if BOTANIK_FEATURE_PLC_BLK_BASE
 
 namespace Botanik { namespace Plc {
 
-    /** @brief On-delay: true once @p in has held true for @p delay_ms, false the
-     *  moment it drops. Debounce, dwell, "has been wet for 30 s". */
+    /** @brief IEC TON, on-delay: true once @p in has held true for @p delay_ms,
+     *  false the moment it drops. Debounce, dwell, "has been wet for 30 s". */
     class Ton : public Block {
         uint32_t _elapsed = 0;
         bool     _q       = false;
@@ -31,8 +31,8 @@ namespace Botanik { namespace Plc {
         void reset() { _elapsed = 0; _q = false; }
     };
 
-    /** @brief Off-delay: follows @p in up, holds true for @p delay_ms after it
-     *  drops. Minimum run time, fan overrun. */
+    /** @brief IEC TOF, off-delay: follows @p in up, holds true for @p delay_ms
+     *  after it drops. Minimum run time, fan overrun. */
     class Tof : public Block {
         uint32_t _elapsed = 0;
         bool     _q       = false;
@@ -43,8 +43,8 @@ namespace Botanik { namespace Plc {
         void reset() { _elapsed = 0; _q = false; }
     };
 
-    /** @brief Pulse: a rising @p in starts a fixed @p width_ms pulse, which runs
-     *  to completion whatever the input does next. */
+    /** @brief IEC TP, pulse: a rising @p in starts a fixed @p width_ms pulse,
+     *  which runs to completion whatever the input does next. */
     class Tp : public Block {
         uint32_t _elapsed = 0;
         bool     _q       = false;
@@ -57,7 +57,6 @@ namespace Botanik { namespace Plc {
     };
 
     /** @name Family checks
-     *  @see block.h - every block is reset on a control withdrawal.
      *  @{ */
     BOTANIK_PLC_BLOCK(Ton);
     BOTANIK_PLC_BLOCK(Tof);
