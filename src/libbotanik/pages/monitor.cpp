@@ -143,7 +143,7 @@ namespace Botanik { namespace Pages {
             // deciding on: whether the reading underneath has come back.
             _adopt(val, sizeof(val), _live_text(h, val, sizeof(val)));
             _flag_value(h, val, sizeof(val));
-            if (h.override_stored().present()) {
+            if (h.override().present()) {
                 _adopt(ovr, sizeof(ovr), Vars::var_format(*_io, h, ovr, sizeof(ovr)));
                 // A force can itself be "read as a dead sensor"; say so, or the
                 // column claims a number the row is not actually reporting.
@@ -181,7 +181,7 @@ namespace Botanik { namespace Pages {
     void MonitorPage::_flag_value(Vars::Var h, char* buf, size_t cap) {
         // [O] forced, [I] the reading underneath is not good, [OI] both: two
         // independent facts, so two independent letters.
-        const bool o = h.override_stored().present();
+        const bool o = h.override().present();
         const bool i = !h.live().good();
         if (!o && !i) return;
         char tag[6] = "[";
@@ -261,7 +261,7 @@ namespace Botanik { namespace Pages {
                                         Vars::quality_str(h.live().q));
             // A force carries its own quality (ovr_valid), so an overridden
             // row says both: the force, and what the row underneath reports.
-            if (h.override_stored().present() && n < sizeof(qual))
+            if (h.override().present() && n < sizeof(qual))
                 n += (size_t)snprintf(qual + n, sizeof(qual) - n, ", forced %s",
                                       h.valid() ? "valid" : "invalid");
 

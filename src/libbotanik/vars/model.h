@@ -93,26 +93,18 @@ namespace Botanik { namespace Vars {
         /** @brief What the row would read with nothing forced. */
         Value live() const { return Value{ _under(), _d, _v->qual }; }
 
-        /** @brief The force as RECORDED, in effect or muted. What a DISPLAY
-         *  asks: a muted override is still there and still worth showing. */
-        Value override_stored() const {
+        /** @brief The force, or Q_NONE when there is none. Recorded, not
+         *  necessarily driving: CONTROL_DISABLED MUTES an override without
+         *  erasing it, and a muted one is still there and still worth showing. */
+        Value override() const {
             if (!_v->ovr_on) return Value{ _d->def, _d, Q_NONE };
             return Value{ _v->ovr, _d, _v->ovr_valid ? Q_GOOD : Q_FORCED_BAD };
         }
 
-        /** @brief ...and only while it is actually driving. CONTROL_DISABLED
-         *  MUTES an override without erasing it, so the row reads live and the
-         *  force waits. What value() combines. */
-        Value override() const {
-            return _forced() ? override_stored() : Value{ _d->def, _d, Q_NONE };
-        }
-
-        /** @brief The value in force: the override when there is one, else
-         *  live. The one place an override is applied. */
-        Value value() const {
-            const Value o = override();
-            return o.present() ? o : live();
-        }
+        /** @brief The value in force: the override when one is DRIVING, else
+         *  live. The one place an override is applied, and the only place the
+         *  mute is consulted - nothing outside has to know about it. */
+        Value value() const { return _forced() ? override() : live(); }
 
         /** @name Shortcuts
          *  value() in one type. A digital reads 0/1, so no consumer branches.

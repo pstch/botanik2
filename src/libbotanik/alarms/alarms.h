@@ -368,7 +368,7 @@ namespace Botanik { namespace Alarms {
         bool forced(uint8_t i, bool* on = nullptr) const {
             if (_io == nullptr || i >= _count) return false;
             const Vars::Var v = _io->var(_conditions[i].ref);
-            if (!v.override_stored().present()) return false;
+            if (!v.override().present()) return false;
             if (on != nullptr) *on = v.b();
             return true;
         }
@@ -409,7 +409,7 @@ namespace Botanik { namespace Alarms {
             AlarmSink sink{_logger, _notifiers, _notifier_count};
             for (uint8_t i = 0; i < _count; i++) {
                 AlarmCondition& c = _conditions[i];
-                c.step(_raw(i), _io != nullptr && _io->var(c.ref).override_stored().present(),
+                c.step(_raw(i), _io != nullptr && _io->var(c.ref).override().present(),
                        dt, now, sink);
                 if (c.active) _active_count++;
             }

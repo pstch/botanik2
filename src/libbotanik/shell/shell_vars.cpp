@@ -29,7 +29,7 @@ namespace Botanik { namespace Shell {
         _emitf(out, sizeof(out), "  %-20s %-12s %-4s (%s)%s%s%s", h.meta()->name, s,
                (u && u[0]) ? u : "",
                Vars::var_scope(*h.meta()),
-               h.override_stored().present() ? " OVERRIDDEN" : "",
+               h.override().present() ? " OVERRIDDEN" : "",
                h.param_unsaved() ? " UNSAVED" : "",
                h.valid() ? "" : " (default: nothing has written it)");
     }
@@ -92,7 +92,7 @@ namespace Botanik { namespace Shell {
         _value_field("Raw value", *io, h, h.live(), Vars::quality_str(h.live().q), u);
         // The override's quality is a person's choice, not a diagnosis: a yes
         // or a no.
-        const Vars::Value ovr = h.override_stored();
+        const Vars::Value ovr = h.override();
         if (ovr.present()) {
             char q[32];
             snprintf(q, sizeof(q), "%s%s", ovr.good() ? "valid" : "invalid",
@@ -504,7 +504,7 @@ namespace Botanik { namespace Shell {
         uint16_t n = 0, unsaved = 0;
         for (uint16_t i = 0; i < io->count(); i++) {
             Vars::Var h = io->var(i);
-            if (!h.override_stored().present()) continue;
+            if (!h.override().present()) continue;
             if (h.override_unsaved()) unsaved++;
             _emitf(out, sizeof(out), "  %-20s %-12s %s%s", h.meta()->name,
                    Vars::var_format(*io, h, val, sizeof(val)),
