@@ -70,19 +70,31 @@ namespace Botanik { namespace Network {
                 _emit("system", f.name, payload);
     }
 
+    void MqttSender::on_setup(uint64_t now_ms) {
+        (void)now_ms;
+        if (_io == nullptr) return;
+        _r_period = _io->find("mqtt_tlm_sec");
+        _r_retain = _io->find("mqtt_retain");
+    }
+
     uint32_t MqttSender::_period_ms() const {
-        // Read live off the bank rather than cached on the mqtt_ commit serial:
-        // this is a cadence and a flag, neither of which has anything to
-        // re-initialise when it moves, and the sender is already holding the
-        // bank to publish from. A change lands on the next sweep boundary.
-        const int32_t sec = Vars::get_int(_io, "mqtt_tlm_sec",
-                                (int32_t)(Config::MQTT_TELEMETRY_PERIOD_MS / 1000u));
+        // Read live, not cached on the mqtt_ commit serial: this is a cadence
+        // and a flag, neither of which has anything to re-initialise when it
+        // moves, so a change lands on the next sweep boundary. What is resolved
+        // once is the INDEX - by name this is a binary search over the whole
+        // table, and it runs before every early-out in on_service().
+        const int32_t dflt = (int32_t)(Config::MQTT_TELEMETRY_PERIOD_MS / 1000u);
+        const int32_t sec = (_io != nullptr && _r_period.index != Vars::VAR_NONE)
+                                ? (int32_t)_io->var(_r_period).i() : dflt;
         return sec > 0 ? (uint32_t)sec * 1000u : 0u;
     }
 
     bool MqttSender::_retain() const {
-        return Vars::get_int(_io, "mqtt_retain",
-                             Config::MQTT_TELEMETRY_RETAIN ? 1 : 0) != 0;
+        // Once per PUBLISHED ROW, so the name lookup this used to do was the
+        // most repeated one in the beat.
+        if (_io == nullptr || _r_retain.index == Vars::VAR_NONE)
+            return Config::MQTT_TELEMETRY_RETAIN;
+        return _io->var(_r_retain).b();
     }
 
     void MqttSender::on_service(uint64_t now_ms) {

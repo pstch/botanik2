@@ -97,6 +97,11 @@ namespace Botanik { namespace Network {
          *  has not elapsed. */
         void on_service(uint64_t now_ms) override;
 
+        /** @brief Resolve the two cadence rows. Here rather than at
+         *  set_variables(): bring-up freezes the bank, then registers the
+         *  table, then runs this - so the index exists and is final. */
+        void on_setup(uint64_t now_ms) override;
+
     private:
         /** @brief Publish the library base fields under "system". */
         void _publish_base(const SystemContext* sys);
@@ -109,9 +114,18 @@ namespace Botanik { namespace Network {
          *  (Config::MQTT_TELEMETRY_PERIOD_MS is its factory default). 0
          *  disables telemetry. */
         uint32_t _period_ms() const;
-        /** @brief Whether to publish retained, from `mqtt_retain`. Read per
-         *  publish - one indexed load against a socket write. */
+        /** @brief Whether to publish retained, from `mqtt_retain`. */
         bool _retain() const;
+
+        /** @name The two cadence rows, resolved once
+         *  Still read LIVE - a change lands on the next sweep, with nothing to
+         *  re-initialise. What is cached is the INDEX, not the value: by name
+         *  these cost a binary search over the whole table, and _retain() is
+         *  asked once per published row. VAR_NONE falls back to Config.
+         *  @{ */
+        Vars::VarRef _r_period = { Vars::VAR_NONE };
+        Vars::VarRef _r_retain = { Vars::VAR_NONE };
+        /** @} */
         /** @brief Build the field topic ("<prefix>/<root>[/<group>]/<name>") and
          *  publish @p payload (best-effort). */
         void _emit(const char* group, const char* name, const char* payload);
