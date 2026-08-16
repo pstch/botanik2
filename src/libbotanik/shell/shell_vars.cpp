@@ -182,7 +182,7 @@ namespace Botanik { namespace Shell {
     // reason to print it: the number says nothing about what it is for.
     const char* CommandShell::_default_phrase(uint8_t role) {
         switch ((Vars::VarRole)role) {
-            case Vars::ROLE_PARAM:  return "factory value; `params clear` restores it";
+            case Vars::ROLE_PARAM:  return "factory value; `params reset` restores it";
             case Vars::ROLE_OUTPUT: return "safe state, driven when control is withdrawn";
             case Vars::ROLE_INPUT:  return "substituted while the reading is invalid";
             default:                return "value before anything computes it";
@@ -299,46 +299,87 @@ namespace Botanik { namespace Shell {
         if (arg_eq(verb, wv, "set"))   { _params_set(nm, wn, args, alen); return; }
         if (arg_eq(verb, wv, "save"))  { _params_save(nm, wn);  return; }
         if (arg_eq(verb, wv, "clear")) { _params_clear(nm, wn); return; }
+        if (arg_eq(verb, wv, "reset")) { _params_reset(nm, wn); return; }
 
         _verb_usage("params");
     }
 
     // Back to the factory default, live and durably - the stored copy goes too,
-    // or the next boot would undo it.
-    void CommandShell::_params_clear(const char* nm, uint16_t wn) {
+    // or the next boot would undo it. `clear` is the lighter one below.
+    void CommandShell::_params_reset(const char* nm, uint16_t wn) {
         Vars::Bank* io = _bank();
         char out[128];
         if (io == nullptr) { _println("params: no variables"); return; }
 
-        if (nm == nullptr) { _println("usage: params clear <name>|all"); return; }
+        if (nm == nullptr) { _println("usage: params reset <name>|all"); return; }
 
         if (arg_is_all(nm, wn)) {
             uint16_t done = 0, refused = 0;
             for (uint16_t k = 0; k < io->param_count(); k++) {
-                switch (io->clear_param(io->param(k))) {
+                switch (io->param_reset(io->param(k))) {
                     case Vars::SET_OK:             done++;    break;
                     case Vars::SET_NOT_PERSISTED:  refused++; break;
                     default: break;                // read-only rows are not errors
                 }
             }
             if (refused != 0)
-                _emitf(out, sizeof(out), "params: %u cleared, %u REFUSED by storage",
+                _emitf(out, sizeof(out), "params: %u reset, %u REFUSED by storage",
                        done, refused);
             else
-                _emitf(out, sizeof(out), "params: %u cleared", done);
+                _emitf(out, sizeof(out), "params: %u reset to default", done);
             return;
         }
 
         const Vars::VarRef r = io->find(nm, wn);
         if (r.index == Vars::VAR_NONE) { _println("params: unknown parameter"); return; }
         Vars::Var p = io->var(r);
-        switch (io->clear_param(p)) {
+        switch (io->param_reset(p)) {
             case Vars::SET_OK:
-                _emitf(out, sizeof(out), "%s cleared to its default", p.meta()->name);
+                _emitf(out, sizeof(out), "%s reset to its default", p.meta()->name);
                 break;
             case Vars::SET_NOT_PERSISTED:
                 _emitf(out, sizeof(out),
                        "%s reset, but storage kept the saved copy", p.meta()->name);
+                break;
+            default:
+                _emitf(out, sizeof(out), "params: %s is not an editable parameter",
+                       p.meta()->name);
+                break;
+        }
+    }
+
+    // Walk back an edit that was never committed: the row goes to what a reboot
+    // would give it and the stored copy is left alone. `params reset` is the
+    // destructive one - this is the undo.
+    void CommandShell::_params_clear(const char* nm, uint16_t wn) {
+        Vars::Bank* io = _bank();
+        char out[128];
+        if (io == nullptr) { _println("params: no variables"); return; }
+        if (nm == nullptr) { _println("usage: params clear <name>|all"); return; }
+
+        if (arg_is_all(nm, wn)) {
+            uint16_t done = 0;
+            for (uint16_t k = 0; k < io->param_count(); k++) {
+                const Vars::Var p = io->param(k);
+                // Count what actually had something outstanding, not every row
+                // walked: "142 cleared" after editing one is a lie.
+                if (!p.param_unsaved()) continue;
+                if (io->param_clear(p) == Vars::SET_OK) done++;
+            }
+            _emitf(out, sizeof(out), "params: %u unsaved edit%s forgotten",
+                   done, done == 1 ? "" : "s");
+            return;
+        }
+
+        const Vars::VarRef r = io->find(nm, wn);
+        if (r.index == Vars::VAR_NONE) { _println("params: unknown parameter"); return; }
+        Vars::Var p = io->var(r);
+        const bool had = p.param_unsaved();
+        switch (io->param_clear(p)) {
+            case Vars::SET_OK:
+                _emitf(out, sizeof(out), had ? "%s back to its saved value"
+                                             : "%s had no unsaved edit",
+                       p.meta()->name);
                 break;
             default:
                 _emitf(out, sizeof(out), "params: %s is not an editable parameter",

@@ -339,7 +339,8 @@ Neither writes an unsaved parameter or override on your behalf (@ref user_params
 | `params list [<prefix>]`                       | list parameters                       |
 | `params get <name>`                            | get a parameter                       |
 | `params set <name> <value>`                    | set a parameter (live, unsaved)       |
-| `params clear <name>\|all`                     | reset parameters to their default     |
+| `params clear <name>\|all`                     | forget unsaved parameter edits        |
+| `params reset <name>\|all`                     | parameters back to their default      |
 | `params save <name>\|all`                      | persist a parameter, or all of them   |
 | `overrides list`                               | list overrides                        |
 | `overrides get <name>`                         | get an override                       |

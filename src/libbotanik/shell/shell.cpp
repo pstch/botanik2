@@ -116,7 +116,8 @@ namespace Botanik { namespace Shell {
                            "list [<prefix>]\n"
                            "get <name>\n"
                            "set <name> <value>\n"
-                           "clear <name>|all\n"
+                           "clear <name>|all     forget unsaved edits\n"
+                           "reset <name>|all     back to the factory default\n"
                            "save <name>|all",                     G_TAB, false,
                                                                &CommandShell::_cmd_params     },
             { "overrides", "...",       "force any variable by hand",

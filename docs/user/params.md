@@ -36,13 +36,20 @@ with a count of what is still owed:
 | `params get <name>` | one parameter in detail: band, default, description, notes |
 | `params set <name> <value>` | edit it - live at once, not written |
 | `params save <name>\|all` | write one row, or every row still owed |
-| `params clear <name>\|all` | back to the factory default, dropping the saved copy |
+| `params clear <name>\|all` | forget an unsaved edit; the saved value comes back |
+| `params reset <name>\|all` | back to the factory default, dropping the saved copy |
 
 A verb acting on the whole set requires the literal `all`: a bare `params save` is
 a usage error rather than a commit you did not mean.
 
-`params clear` is the way back out of a setting whose effect you cannot undo by
-typing - it restores the firmware's own default **and** forgets what was saved, so
+Two different ways back, and the difference costs a setting if you pick the wrong
+one. `params clear` walks back an edit you have **not** committed: the row returns
+to the value a reboot would give it - the saved one, or the factory default when
+nothing was ever saved - and what is in storage is left alone. On a row with
+nothing outstanding it does nothing and says so.
+
+`params reset` is the heavier one, for a setting whose effect you cannot undo by
+typing: it restores the firmware's own default **and** forgets what was saved, so
 the next boot does not put it back.
 
 A save can fail, which is a storage fault rather than a bad value: the row keeps

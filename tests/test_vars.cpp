@@ -1511,7 +1511,7 @@ TEST_CASE("enum param: it reads and writes as a word, and refuses a non-member")
     }
 }
 
-TEST_CASE("params: clear puts a row back to its default, live and in storage") {
+TEST_CASE("params: reset puts a row back to its default, live and in storage") {
     StoreEnv env("/tmp/botanik_test_clear");
     EnumFx f;
     KvParamStore store;
@@ -1522,7 +1522,7 @@ TEST_CASE("params: clear puts a row back to its default, live and in storage") {
     REQUIRE(f.bank.save(p) == SET_OK);
     REQUIRE(p.i() == 16);
 
-    CHECK(f.bank.clear_param(p) == SET_OK);
+    CHECK(f.bank.param_reset(p) == SET_OK);
     CHECK(p.i() == 4);                          // back to the declared default
     CHECK_FALSE(p.param_unsaved());             // and nothing left owed
 
@@ -1531,11 +1531,60 @@ TEST_CASE("params: clear puts a row back to its default, live and in storage") {
     CHECK_FALSE(store.load(*p.meta(), fresh, nullptr, 0));
 }
 
-TEST_CASE("params: clear refuses a row that is not an editable parameter") {
+TEST_CASE("params: clear forgets the unsaved edit and keeps the saved one") {
+    // The pair that must not be confused: `clear` walks back what was never
+    // committed, `reset` throws the committed value away too.
+    StoreEnv env("/tmp/botanik_test_pclear");
+    EnumFx f;
+    KvParamStore store;
+    f.bank.set_store(&store);
+
+    Var p = f.row();
+    REQUIRE(f.bank.set(p, "manual") != SET_INVALID);
+    REQUIRE(f.bank.save(p) == SET_OK);          // 16 is now the SAVED value
+    REQUIRE(f.bank.set(p, "auto") != SET_INVALID);
+    REQUIRE(p.param_unsaved());
+
+    CHECK(f.bank.param_clear(p) == SET_OK);
+    CHECK(p.i() == 16);                         // the saved value, NOT the default
+    CHECK_FALSE(p.param_unsaved());
+
+    // ...and the stored copy is untouched, which is the whole difference.
+    Value fresh{};
+    CHECK(store.load(*p.meta(), fresh, nullptr, 0));
+}
+
+TEST_CASE("params: clear on a settled row is a no-op, not an error") {
+    StoreEnv env("/tmp/botanik_test_pclear2");
+    EnumFx f;
+    KvParamStore store;
+    f.bank.set_store(&store);
+    Var p = f.row();
+    const int64_t before = p.i();
+    CHECK(f.bank.param_clear(p) == SET_OK);
+    CHECK(p.i() == before);
+}
+
+TEST_CASE("params: clear with nothing ever saved falls back to the default") {
+    // No stored copy to return to, so what a reboot would give it IS the
+    // factory value - and the row must not be left holding the edit.
+    StoreEnv env("/tmp/botanik_test_pclear3");
+    EnumFx f;
+    KvParamStore store;
+    f.bank.set_store(&store);
+    Var p = f.row();
+    REQUIRE(f.bank.set(p, "manual") != SET_INVALID);
+    REQUIRE(p.param_unsaved());
+    CHECK(f.bank.param_clear(p) == SET_OK);
+    CHECK(p.i() == 4);                          // the declared default
+    CHECK_FALSE(p.param_unsaved());
+}
+
+TEST_CASE("params: reset refuses a row that is not an editable parameter") {
     StoreEnv env("/tmp/botanik_test_clear2");
     EnumFx f;
     // The inert sink a bad index resolves to is not a parameter.
-    CHECK(f.bank.clear_param(f.bank.var(999)) == SET_INVALID);
+    CHECK(f.bank.param_reset(f.bank.var(999)) == SET_INVALID);
 }
 
 }  // namespace params

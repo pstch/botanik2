@@ -468,7 +468,29 @@ namespace Botanik { namespace Vars {
         return SET_OK;
     }
 
-    SetResult Bank::clear_param(Var h) {
+    SetResult Bank::param_clear(Var h) {
+        const Variable* d = h.meta();
+        Value* slot = _editable_slot(d);
+        if (slot == nullptr) return SET_INVALID;
+        // Nothing owed, nothing to forget. Not an error: `clear` on a settled
+        // row is the no-op an operator expects, not a complaint.
+        if ((slot->vflags & VF_PARAM_UNSAVED) == 0) return SET_OK;
+
+        uint16_t cap = 0;
+        char* text = text_at(h, &cap);
+        // Exactly what a reboot would give it: the stored copy, or the factory
+        // default when nothing was ever saved. The stored copy is NOT touched -
+        // that is the whole difference from param_reset().
+        if (_store == nullptr || !_store->load(*d, *slot, text, cap)) {
+            slot->v = d->def;
+            if (text != nullptr) copy_bounded(text, cap, d->def.s);
+        }
+        slot->qual   = Q_GOOD;                // a parameter always has a value
+        slot->vflags = (uint8_t)(slot->vflags & ~VF_PARAM_UNSAVED);
+        return SET_OK;
+    }
+
+    SetResult Bank::param_reset(Var h) {
         const Variable* d = h.meta();
         Value* slot = _editable_slot(d);
         if (slot == nullptr) return SET_INVALID;

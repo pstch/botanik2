@@ -620,7 +620,17 @@ namespace Botanik { namespace Vars {
          *  returns and the stored copy is dropped, so a reboot cannot undo it.
          *  @return SET_OK; SET_INVALID on a non-parameter; SET_NOT_PERSISTED
          *  when the store kept it (the live value is still reset). */
-        SetResult clear_param(Var h);
+        SetResult param_reset(Var h);
+
+        /** @brief Forget @p h's UNSAVED edit: the row goes back to exactly what
+         *  a reboot would give it - the stored copy, or the factory default if
+         *  nothing was ever saved - and the unsaved mark clears.
+         *
+         *  The stored copy is left alone, which is the whole difference from
+         *  param_reset(): `clear` walks back an edit you have not committed,
+         *  `reset` throws away the committed one too. A row with nothing
+         *  outstanding is SET_OK and untouched. */
+        SetResult param_clear(Var h);
 
         /** @brief Commit every parameter still marked unsaved.
          *  @return how many were written; @p refused, when given, takes the
