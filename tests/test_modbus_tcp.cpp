@@ -254,7 +254,7 @@ struct Served {
     /** @brief The first writable row, and the address a master reaches it at. */
     bool first_writable(uint16_t* addr, uint16_t* row) {
         for (uint16_t i = 0; i < bank.count(); ++i) {
-            const Variable& d = bank.desc(i);
+            const Descriptor& d = bank.desc(i);
             // Map::writable() is file-local; restated here: a numeric, writable parameter.
             if (!Map::published(d) || d.role != ROLE_PARAM) continue;
             if ((d.flags & F_RDONLY) != 0) continue;
@@ -278,7 +278,7 @@ void put_row(uint8_t* p, uint32_t v) {
  *  "current minus one" often falls outside them. */
 bool other_value(Bank& bank, uint16_t row, uint32_t* out) {
     Var v = bank.var(row);
-    const Variable& d = *v.meta();
+    const Descriptor& d = *v.meta();
     INFO("row '" << std::string(d.name) << "'");
     // var_band(), not num_band(): limits can be parameters; num_band() would give firmware defaults.
     const NumBand b = var_band(&bank, d);
@@ -519,7 +519,7 @@ struct Pair {
     uint16_t first_addr() const {
         uint16_t best = 0xFFFF;
         for (uint16_t i = 0; i < bank.count(); ++i) {
-            const Variable& d = bank.desc(i);
+            const Descriptor& d = bank.desc(i);
             if (!Map::published(d) || d.type == T_BOOL) continue;
             if (d.bind.reg < best) best = d.bind.reg;
         }

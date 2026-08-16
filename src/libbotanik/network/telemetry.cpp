@@ -124,7 +124,7 @@ namespace Botanik { namespace Network {
         for (; _cursor < _io->count(); ++_cursor) {
             if (budget != 0 && sent >= budget) return;   // resume next beat
             Vars::Var h = _io->var(_cursor);
-            const Vars::Variable& d = *h.meta();
+            const Vars::Descriptor& d = *h.meta();
             if (d.name == nullptr || !Vars::var_published(d)) continue;
             // Publish only what has actually been read: a default value on the
             // broker is indistinguishable from a measurement, and a subscriber

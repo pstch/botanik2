@@ -51,7 +51,7 @@ namespace Botanik { namespace Pages {
         if (_groups_built || _io == nullptr) return;
         _groups_built = true;
         for (uint16_t i = 0; i < _io->count() && _group_n < Vars::VAR_GROUPS_MAX; i++) {
-            const Vars::Variable& d = *_io->var(i).meta();
+            const Vars::Descriptor& d = *_io->var(i).meta();
             if (!Vars::var_published(d)) continue;
             const char* g = Vars::var_group(d);
             bool seen = false;
@@ -68,7 +68,7 @@ namespace Botanik { namespace Pages {
     }
 
     bool MonitorPage::_in_mode(uint16_t i) const {
-        const Vars::Variable& d = *_io->var(i).meta();
+        const Vars::Descriptor& d = *_io->var(i).meta();
         if (!Vars::var_published(d)) return false;
         if (_mode == 0) return true;
         // Both sides come out of group_intern(), so one pointer per distinct
@@ -132,7 +132,7 @@ namespace Botanik { namespace Pages {
         const char* nm = "", *un = "", *sc = "";
         if (_io != nullptr) {
             Vars::Var h = _io->var(ref);
-            const Vars::Variable* m = h.meta();
+            const Vars::Descriptor* m = h.meta();
             if (m->name != nullptr) nm = m->name;
             if (m->unit != nullptr) un = m->unit;
             // Scope, not the group: the group is the VIEW, so a group column
@@ -170,7 +170,7 @@ namespace Botanik { namespace Pages {
     }
 
     const char* MonitorPage::_live_text(Vars::Var h, char* buf, size_t cap) const {
-        const Vars::Variable* d = h.meta();
+        const Vars::Descriptor* d = h.meta();
         if (d->type == Vars::T_STR) {
             const char* t = _io->text_at(h);
             return (t != nullptr) ? t : "";

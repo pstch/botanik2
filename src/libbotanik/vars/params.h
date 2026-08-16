@@ -25,15 +25,15 @@ namespace Botanik { namespace Vars {
      *  parameter cannot invalidate the others: there is no layout to version. */
     class KvParamStore : public VarStore {
     public:
-        bool load(const Variable& d, Value& v, char* text, uint16_t cap) override;
-        bool save(const Variable& d, const Value& v,
+        bool load(const Descriptor& d, Slot& v, char* text, uint16_t cap) override;
+        bool save(const Descriptor& d, const Slot& v,
                   const char* text, uint16_t cap) override;
-        bool load_override(const Variable& d, Value& v) override;
-        bool save_override(const Variable& d, const Value& v) override;
-        bool load_retained(const Variable& d, Value& v) override;
-        bool save_retained(const Variable& d, const Value& v) override;
-        bool clear_override(const Variable& d) override;
-        bool clear(const Variable& d) override;
+        bool load_override(const Descriptor& d, Slot& v) override;
+        bool save_override(const Descriptor& d, const Slot& v) override;
+        bool load_retained(const Descriptor& d, Slot& v) override;
+        bool save_retained(const Descriptor& d, const Slot& v) override;
+        bool clear_override(const Descriptor& d) override;
+        bool clear(const Descriptor& d) override;
     };
 
     /**
@@ -53,7 +53,7 @@ namespace Botanik { namespace Vars {
 
     /** @brief Render @p d's declared default or bound. Not the live value -
      *  a T_STR keeps that in the pool, so it renders empty here. */
-    const char* format_declared(const Variable& d, Scalar v, char* buf, size_t cap);
+    const char* format_declared(const Descriptor& d, Scalar v, char* buf, size_t cap);
 
     /** @} */
 
@@ -125,7 +125,7 @@ namespace Botanik { namespace Vars {
      *  @warning Everything that DISPLAYS a band must come through here: reading
      *  num_band() directly shows an analog row the firmware defaults rather than
      *  the parameters the operator just edited. */
-    NumBand var_band(const Bank* io, const Variable& d);
+    NumBand var_band(const Bank* io, const Descriptor& d);
 
     /** @} */
 

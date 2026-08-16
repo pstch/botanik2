@@ -8,7 +8,7 @@
 
 #include "libbotanik/vars/model.h"
 
-                            // Bank / Var / Variable
+                            // Bank / Var / Descriptor
 
 #include "libbotanik/tasks/tasks.h"
 
@@ -21,13 +21,13 @@
 namespace Botanik { namespace Vars {
 
     // Named so a bad index is obvious in a log or a debugger.
-    const Variable Bank::_sink_d = {
+    const Descriptor Bank::_sink_d = {
         Scalar::U(0), "<none>", "", "", "",
         Payload(),
         { XP_NONE, T_U8, 0, 0, 0, 0, 1.0f, 0.0f },
         0, 0, nullptr, T_U8, ROLE_COMPUTED, SCOPE_G, 0, 0, {}
     };
-    Value Bank::_sink_v = {};
+    Slot Bank::_sink_v = {};
 
     namespace {
         /** @brief Copy @p src into @p dst, always NUL-terminating. */
@@ -42,7 +42,7 @@ namespace Botanik { namespace Vars {
 
     // Registration
 
-    bool Bank::register_vars(const Variable* rows, uint16_t count) {
+    bool Bank::register_vars(const Descriptor* rows, uint16_t count) {
         if (rows == nullptr || count == 0) return true;   // nothing to add
         // All or nothing: a half-added segment would leave the rows past the
         // ceiling silently absent while the ones before them worked, which is
@@ -138,39 +138,39 @@ namespace Botanik { namespace Vars {
         _pool_used = 0;
         for (uint16_t i = 0; i < _count; i++) {
             const uint16_t cap = text_slot(desc(i)).cap;
-            if (cap == 0) { _values[i].str_off = 0; continue; }
+            if (cap == 0) { _slots[i].str_off = 0; continue; }
             if ((uint32_t)_pool_used + cap > Config::STR_POOL_BYTES) {
                 // Out of pool. STR_NO_SLOT, not 0: offset 0 is the first text
                 // row's slot, so an overflowed row parked there would share its
                 // bytes. text_at() refuses on the sentinel, so the row reads
                 // empty and every write bounces.
-                _values[i].str_off = STR_NO_SLOT;
+                _slots[i].str_off = STR_NO_SLOT;
                 _pool_overflow++;
                 continue;
             }
-            _values[i].str_off = _pool_used;
+            _slots[i].str_off = _pool_used;
             _pool_used = (uint16_t)(_pool_used + cap);
         }
 
         for (uint16_t i = 0; i < _count; i++) {
-            const Variable& d = desc(i);
-            _values[i].v        = d.def;
-            _values[i].stamp_ms = 0;
+            const Descriptor& d = desc(i);
+            _slots[i].v        = d.def;
+            _slots[i].stamp_ms = 0;
             // Overrides are a live-session tool; a fresh table has none.
-            _values[i].ovr_on   = false;
+            _slots[i].ovr_on   = false;
             // A parameter always HAS a value (its factory default until the
             // store loads one), so it starts good. Everything else starts with
             // nothing written, so a default is never shown as a measurement.
-            _values[i].qual     = (d.role == ROLE_PARAM) ? Q_GOOD : Q_NO_DATA;
+            _slots[i].qual     = (d.role == ROLE_PARAM) ? Q_GOOD : Q_NO_DATA;
             // Nothing demanded yet, so nothing is owed to the field: an output
             // starts at its safe state and the driver's first unconditional
             // rewrite is what puts it there.
-            _values[i].vflags   = 0;
+            _slots[i].vflags   = 0;
             // Explicit, not left to zero fill: zero is program 0, not "none".
-            _values[i].writer   = WRITER_NONE;
+            _slots[i].writer   = WRITER_NONE;
 
             uint16_t cap = 0;
-            char* text = text_at(Var(&d, &_values[i]), &cap);
+            char* text = text_at(Var(&d, &_slots[i]), &cap);
             if (text != nullptr) copy_bounded(text, cap, d.def.s);
         }
     }
@@ -273,10 +273,10 @@ namespace Botanik { namespace Vars {
             // that init() already seeded.
             uint16_t cap = 0;
             char* text = text_at(var(i), &cap);
-            (void)_store->load(desc(i), _values[i], text, cap);
+            (void)_store->load(desc(i), _slots[i], text, cap);
             // Whatever the row now holds came from the store (or is the seeded
             // default), so nothing is owed a write.
-            _values[i].vflags = (uint8_t)(_values[i].vflags & ~VF_PARAM_UNSAVED);
+            _slots[i].vflags = (uint8_t)(_slots[i].vflags & ~VF_PARAM_UNSAVED);
         }
     }
 
@@ -306,7 +306,7 @@ namespace Botanik { namespace Vars {
 
         for (uint16_t i = 0; i < _count; i++) {
             if (desc(i).role != ROLE_OUTPUT) continue;
-            Value& v = _values[i];
+            Slot& v = _slots[i];
 
             if (erase_overrides && v.ovr_on) {
                 // Wipe the stored copy too: overrides persist, so clearing only
@@ -334,15 +334,15 @@ namespace Botanik { namespace Vars {
 
     void Bank::expire_stale(uint64_t now_ms) {
         for (uint16_t i = 0; i < _count; i++) {
-            const Variable& d = desc(i);
+            const Descriptor& d = desc(i);
             if (d.role != ROLE_INPUT || d.timeout_ms == 0) continue;
-            if (_values[i].qual == Q_GOOD &&
-                (now_ms - _values[i].stamp_ms) > d.timeout_ms)
-                _values[i].qual = Q_STALE;
+            if (_slots[i].qual == Q_GOOD &&
+                (now_ms - _slots[i].stamp_ms) > d.timeout_ms)
+                _slots[i].qual = Q_STALE;
         }
     }
 
-    bool value_implausible(const Variable& d, const Scalar& v) {
+    bool value_implausible(const Descriptor& d, const Scalar& v) {
         if (type_real(d.type)) {
             const float f = v.f;
             if (!(f == f) || f > 3.402823466e+38f || f < -3.402823466e+38f)
@@ -357,7 +357,7 @@ namespace Botanik { namespace Vars {
 
     bool Bank::claim_writer(VarRef r, uint8_t who) {
         if (r.index >= _count || who == WRITER_NONE) return true;
-        uint8_t& held = _values[r.index].writer;
+        uint8_t& held = _slots[r.index].writer;
         if (held == who) return true;               // the usual case, every beat
         if (held == WRITER_NONE) { held = who; return true; }
 
@@ -367,7 +367,7 @@ namespace Botanik { namespace Vars {
         //
         // Counted ONCE PER ROW, not per collision: both programs keep writing
         // every beat, so a per-collision count would rise forever.
-        uint8_t& vf = _values[r.index].vflags;
+        uint8_t& vf = _slots[r.index].vflags;
         if ((vf & VF_TWO_WRITERS) == 0) {
             vf = (uint8_t)(vf | VF_TWO_WRITERS);
             _conflicts++;
@@ -380,21 +380,21 @@ namespace Botanik { namespace Vars {
     }
 
     uint8_t Bank::writer_of(VarRef r) const {
-        return (r.index < _count) ? _values[r.index].writer
+        return (r.index < _count) ? _slots[r.index].writer
                                            : WRITER_NONE;
     }
 
     uint16_t Bank::reject_implausible() {
         uint16_t n = 0;
         for (uint16_t i = 0; i < _count; i++) {
-            const Variable& d = desc(i);
-            if (d.role != ROLE_INPUT || _values[i].qual != Q_GOOD) continue;
+            const Descriptor& d = desc(i);
+            if (d.role != ROLE_INPUT || _slots[i].qual != Q_GOOD) continue;
             // An override pushes a reading past its band on purpose, to
             // exercise what watches for it.
-            if (_values[i].ovr_on) continue;
+            if (_slots[i].ovr_on) continue;
 
-            if (!value_implausible(d, _values[i].v)) continue;
-            _values[i].qual = Q_IMPLAUSIBLE;
+            if (!value_implausible(d, _slots[i].v)) continue;
+            _slots[i].qual = Q_IMPLAUSIBLE;
             n++;
         }
         return n;
@@ -406,7 +406,7 @@ namespace Botanik { namespace Vars {
         /** @brief Parse @p text as @p d's type into @p out, optionally holding
          *  it to the declared band. Shared by set() and override_set(), which
          *  differ only in whether the band applies. */
-        SetResult parse_for(const Variable& d, const char* text, bool bounded,
+        SetResult parse_for(const Descriptor& d, const char* text, bool bounded,
                             Scalar* out) {
             const NumBand band = num_band(d);
             // d.str goes in so a labelled enum answers to its own words, and so
@@ -430,7 +430,7 @@ namespace Botanik { namespace Vars {
     }  // namespace
 
     SetResult Bank::check(Var h, Scalar v) const {
-        const Variable* d = h.meta();
+        const Descriptor* d = h.meta();
         // A T_STR's live text is in the pool, so there is no typed form of it to
         // write; the text overload is the only way in.
         if (d->type == T_STR) return SET_INVALID;
@@ -450,15 +450,15 @@ namespace Botanik { namespace Vars {
         const SetResult r = set_deferred(h, v);
         if (r != SET_OK) return r;
         // Live now, durable when the operator says so.
-        Value* slot = _editable_slot(h.meta());
+        Slot* slot = _editable_slot(h.meta());
         slot->vflags = (uint8_t)(slot->vflags | VF_PARAM_UNSAVED);
         return SET_OK;
     }
 
     SetResult Bank::set_deferred(Var h, Scalar v) {
         if (check(h, v) != SET_OK) return SET_INVALID;
-        const Variable* d = h.meta();
-        Value* slot = _editable_slot(d);
+        const Descriptor* d = h.meta();
+        Slot* slot = _editable_slot(d);
         if (slot == nullptr) return SET_INVALID;
         slot->v     = v;
         slot->qual  = Q_GOOD;
@@ -469,8 +469,8 @@ namespace Botanik { namespace Vars {
     }
 
     SetResult Bank::param_clear(Var h) {
-        const Variable* d = h.meta();
-        Value* slot = _editable_slot(d);
+        const Descriptor* d = h.meta();
+        Slot* slot = _editable_slot(d);
         if (slot == nullptr) return SET_INVALID;
         // Nothing owed, nothing to forget. Not an error: `clear` on a settled
         // row is the no-op an operator expects, not a complaint.
@@ -491,8 +491,8 @@ namespace Botanik { namespace Vars {
     }
 
     SetResult Bank::param_reset(Var h) {
-        const Variable* d = h.meta();
-        Value* slot = _editable_slot(d);
+        const Descriptor* d = h.meta();
+        Slot* slot = _editable_slot(d);
         if (slot == nullptr) return SET_INVALID;
 
         slot->v    = d->def;
@@ -514,8 +514,8 @@ namespace Botanik { namespace Vars {
     }
 
     SetResult Bank::save(Var h) {
-        const Variable* d = h.meta();
-        Value* slot = _editable_slot(d);
+        const Descriptor* d = h.meta();
+        Slot* slot = _editable_slot(d);
         if (slot == nullptr) return SET_INVALID;
         const SetResult r = _persist_param(h, *d, *slot);
         // Only a write that landed clears the mark: a refused row stays owed,
@@ -527,7 +527,7 @@ namespace Botanik { namespace Vars {
     uint16_t Bank::save_params(uint16_t* refused) {
         uint16_t saved = 0, bad = 0;
         for (uint16_t i = 0; i < _count; i++) {
-            if ((_values[i].vflags & VF_PARAM_UNSAVED) == 0) continue;
+            if ((_slots[i].vflags & VF_PARAM_UNSAVED) == 0) continue;
             if (save(var(i)) == SET_OK) saved++; else bad++;
         }
         if (refused != nullptr) *refused = bad;
@@ -537,23 +537,23 @@ namespace Botanik { namespace Vars {
     uint16_t Bank::unsaved_override_count() const {
         uint16_t n = 0;
         for (uint16_t i = 0; i < _count; i++)
-            if ((_values[i].vflags & VF_OVR_UNSAVED) != 0) n++;
+            if ((_slots[i].vflags & VF_OVR_UNSAVED) != 0) n++;
         return n;
     }
 
     uint16_t Bank::unsaved_count() const {
         uint16_t n = 0;
         for (uint16_t i = 0; i < _count; i++)
-            if ((_values[i].vflags & VF_PARAM_UNSAVED) != 0) n++;
+            if ((_slots[i].vflags & VF_PARAM_UNSAVED) != 0) n++;
         return n;
     }
 
     SetResult Bank::set(Var h, const char* text) {
-        const Variable* d = h.meta();
+        const Descriptor* d = h.meta();
         if (text == nullptr) return SET_INVALID;
-        Value* slotp = _editable_slot(d);
+        Slot* slotp = _editable_slot(d);
         if (slotp == nullptr) return SET_INVALID;
-        Value& slot = *slotp;
+        Slot& slot = *slotp;
 
         if (d->type == T_STR) {
             uint16_t cap = 0;
@@ -573,7 +573,7 @@ namespace Botanik { namespace Vars {
         return SET_OK;
     }
 
-    SetResult Bank::_persist_param(Var h, const Variable& d, Value& slot) {
+    SetResult Bank::_persist_param(Var h, const Descriptor& d, Slot& slot) {
         if (_store == nullptr) return SET_NOT_PERSISTED;
         uint16_t save_cap = 0;
         char* save_text = text_at(h, &save_cap);
@@ -588,7 +588,7 @@ namespace Botanik { namespace Vars {
     }
 
     SetResult Bank::override_set(Var h, const char* text, bool valid) {
-        const Variable* d = h.meta();
+        const Descriptor* d = h.meta();
         // A T_STR's live text lives in the pool, not the slot, so there is
         // nothing for an override to shadow.
         if (text == nullptr || d->type == T_STR) return SET_INVALID;
@@ -616,16 +616,16 @@ namespace Botanik { namespace Vars {
 
     SetResult Bank::save_override(Var h) {
         const uint16_t row = _row_of(h);
-        if (row == VAR_NONE || !_values[row].ovr_on) return SET_INVALID;
+        if (row == VAR_NONE || !_slots[row].ovr_on) return SET_INVALID;
         if (!_persist_override(h)) return SET_NOT_PERSISTED;
-        _values[row].vflags = (uint8_t)(_values[row].vflags & ~VF_OVR_UNSAVED);
+        _slots[row].vflags = (uint8_t)(_slots[row].vflags & ~VF_OVR_UNSAVED);
         return SET_OK;
     }
 
     uint16_t Bank::save_overrides(uint16_t* refused) {
         uint16_t saved = 0, bad = 0;
         for (uint16_t i = 0; i < _count; i++) {
-            if ((_values[i].vflags & VF_OVR_UNSAVED) == 0) continue;
+            if ((_slots[i].vflags & VF_OVR_UNSAVED) == 0) continue;
             if (save_override(var(i)) == SET_OK) saved++; else bad++;
         }
         if (refused != nullptr) *refused = bad;
@@ -635,14 +635,14 @@ namespace Botanik { namespace Vars {
     void Bank::_mark_override_unsaved(Var h) {
         const uint16_t row = _row_of(h);
         if (row == VAR_NONE) return;
-        _values[row].vflags = (uint8_t)(_values[row].vflags | VF_OVR_UNSAVED);
+        _slots[row].vflags = (uint8_t)(_slots[row].vflags | VF_OVR_UNSAVED);
     }
 
     bool Bank::_sync_override_mute(uint16_t i) {
         // VAR_NONE lands here as an out-of-range index, so a sink handle is a
         // no-op rather than a special case at each caller.
         if (i >= _count || desc(i).role != ROLE_OUTPUT) return false;
-        Value& v = _values[i];
+        Slot& v = _slots[i];
         const uint8_t before = v.vflags;
         v.vflags = (control_mode() == CONTROL_DISABLED)
                      ? (uint8_t)(before | VF_OVR_MUTED)
@@ -654,7 +654,7 @@ namespace Botanik { namespace Vars {
         h.override_clear();
         const uint16_t row = _row_of(h);
         if (row == VAR_NONE) return;
-        _values[row].vflags = (uint8_t)(_values[row].vflags & ~VF_OVR_UNSAVED);
+        _slots[row].vflags = (uint8_t)(_slots[row].vflags & ~VF_OVR_UNSAVED);
         // Forget the stored copy too, or the override comes back at the next
         // boot. Unconditional: an override cleared before it was ever saved may
         // still have an older durable copy underneath it.
@@ -664,11 +664,11 @@ namespace Botanik { namespace Vars {
     // Which row a descriptor IS, recovered from its address. The segments are
     // disjoint arrays, so this asks each in turn; there are a handful, and every
     // caller is on a cold path (a persist, a parameter edit).
-    uint16_t Bank::_row_of(const Variable* d) const {
+    uint16_t Bank::_row_of(const Descriptor* d) const {
         for (uint8_t s = 0; s < _segments; ++s) {
             if (d < _seg[s] || d >= _seg[s] + _seg_len[s]) continue;
             const uint16_t p = (uint16_t)(_seg_base[s] + (uint16_t)(d - _seg[s]));
-            // The segments give a PHYSICAL row; _values is indexed logically, so
+            // The segments give a PHYSICAL row; _slots is indexed logically, so
             // a redeclaration earlier in the table shifts the two apart. _row
             // ascends, so the logical row is a binary search away - and a miss
             // means this descriptor IS the shadowed one, which is no longer a
@@ -689,17 +689,17 @@ namespace Botanik { namespace Vars {
 
     // The slot behind an EDITABLE row: a parameter of this bank's, not read-only.
     // Anything else is not a thing set() may write.
-    Value* Bank::_editable_slot(const Variable* d) const {
+    Slot* Bank::_editable_slot(const Descriptor* d) const {
         if (d->role != ROLE_PARAM || (d->flags & F_RDONLY) != 0) return nullptr;
         const uint16_t row = _row_of(d);
-        return (row == VAR_NONE) ? nullptr : &_values[row];
+        return (row == VAR_NONE) ? nullptr : &_slots[row];
     }
 
     bool Bank::_persist_override(Var h) {
         const uint16_t row = _row_of(h);
         if (_store == nullptr || row == VAR_NONE) return false;
-        const Variable* d = h.meta();
-        if (!_store->save_override(*d, _values[row])) {
+        const Descriptor* d = h.meta();
+        if (!_store->save_override(*d, _slots[row])) {
             if (_logger != nullptr)
                 _logger->critical(Logs::STORAGE, "override not persisted\n'%s'", d->name);
             return false;
@@ -711,16 +711,16 @@ namespace Botanik { namespace Vars {
         if (_store == nullptr) return 0;
         uint16_t n = 0;
         for (uint16_t i = 0; i < _count; i++) {
-            const Variable& d = desc(i);
-            if (!_store->load_override(d, _values[i])) continue;
-            _values[i].ovr_on = true;
+            const Descriptor& d = desc(i);
+            if (!_store->load_override(d, _slots[i])) continue;
+            _slots[i].ovr_on = true;
             // It came OUT of the store, so it is durable by definition.
-            _values[i].vflags = (uint8_t)(_values[i].vflags & ~VF_OVR_UNSAVED);
+            _slots[i].vflags = (uint8_t)(_slots[i].vflags & ~VF_OVR_UNSAVED);
             // Restored while the system still holds control, i.e. with the mode
             // at CONTROL_DISABLED, so this is exactly the window the mute covers:
             // an output override must not reach the field until control does.
             (void)_sync_override_mute(i);
-            if (d.role == ROLE_OUTPUT) _values[i].vflags |= VF_FIELD_DIRTY;
+            if (d.role == ROLE_OUTPUT) _slots[i].vflags |= VF_FIELD_DIRTY;
             n++;
             // CRITICAL, not a warning: an override explains behaviour nothing
             // else accounts for, and after a reboot nobody remembers setting it.
@@ -734,13 +734,13 @@ namespace Botanik { namespace Vars {
         if (_store == nullptr) return 0;
         uint16_t n = 0;
         for (uint16_t i = 0; i < _count; i++) {
-            const Variable& d = desc(i);
+            const Descriptor& d = desc(i);
             if (!retainable(d)) continue;
-            if (!_store->load_retained(d, _values[i])) continue;
+            if (!_store->load_retained(d, _slots[i])) continue;
             // Q_GOOD, because it is: the value a totalizer carried when the unit
             // went down is what to carry on from. Q_NO_DATA would send every
             // reader to the default this restore exists to avoid.
-            _values[i].qual = Q_GOOD;
+            _slots[i].qual = Q_GOOD;
             n++;
         }
         return n;
@@ -750,13 +750,13 @@ namespace Botanik { namespace Vars {
         if (_store == nullptr) return 0;
         uint16_t n = 0;
         for (uint16_t i = 0; i < _count; i++) {
-            const Variable& d = desc(i);
+            const Descriptor& d = desc(i);
             if (!retainable(d)) continue;
             // The LIVE value, never the override: a totalizer forced to 1000 to
             // test an alarm must not enter the plant's history.
             // A refused write is already counted by HAL::Storage, which is what
             // alarm_flash_error watches.
-            if (_store->save_retained(d, _values[i])) n++;
+            if (_store->save_retained(d, _slots[i])) n++;
         }
         return n;
     }
@@ -764,14 +764,14 @@ namespace Botanik { namespace Vars {
     uint16_t Bank::clear_overrides() {
         uint16_t n = 0;
         for (uint16_t i = 0; i < _count; i++) {
-            if (!_values[i].ovr_on) continue;
-            _values[i].ovr_on = false;
-            _values[i].vflags = (uint8_t)(_values[i].vflags & ~VF_OVR_UNSAVED);
+            if (!_slots[i].ovr_on) continue;
+            _slots[i].ovr_on = false;
+            _slots[i].vflags = (uint8_t)(_slots[i].vflags & ~VF_OVR_UNSAVED);
             if (_store != nullptr) (void)_store->clear_override(desc(i));
             // The field owes the programs' demand again; a release never written
             // out would leave the actuator where the maintainer left it.
             if (desc(i).role == ROLE_OUTPUT)
-                _values[i].vflags |= VF_FIELD_DIRTY;
+                _slots[i].vflags |= VF_FIELD_DIRTY;
             n++;
         }
         return n;
@@ -779,7 +779,7 @@ namespace Botanik { namespace Vars {
 
     uint16_t Bank::override_count() const {
         uint16_t n = 0;
-        for (uint16_t i = 0; i < _count; i++) if (_values[i].ovr_on) n++;
+        for (uint16_t i = 0; i < _count; i++) if (_slots[i].ovr_on) n++;
         return n;
     }
 

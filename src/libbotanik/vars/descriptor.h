@@ -61,7 +61,7 @@ namespace Botanik { namespace Vars {
     /** @brief WHY a value reads as it does, written by whichever path
      *  invalidated the row - a diagnosis, not a guess made at display time.
      *
-     *  @warning Q_NO_DATA is 0 deliberately: a zero-initialised Value (every
+     *  @warning Q_NO_DATA is 0 deliberately: a zero-initialised Slot (every
      *  site's store, and the sink) must read as "nothing wrote this". */
     enum Quality : uint8_t {
         Q_NO_DATA = 0,   ///< nothing has ever written it; reads its declared default
@@ -104,7 +104,7 @@ namespace Botanik { namespace Vars {
 
     /** @brief Per-slot state bits, as opposed to the row's declared behaviour.
      *
-     *  One byte carved out of Value's spare three, so the slot stays 32 bytes. */
+     *  One byte carved out of Slot's spare three, so the slot stays 32 bytes. */
     enum ValueFlags : uint8_t {
         /** @brief This output's demand has moved and has not reached the field.
          *  Cleared by the driver once a transaction has carried it. */
@@ -166,7 +166,7 @@ namespace Botanik { namespace Vars {
 
     /** @brief What a T_STR row DECLARES about its pool slot: its size and what
      *  a new value is checked against - not where it sits, which Bank::init()
-     *  derives into the Value. */
+     *  derives into the Slot. */
     struct TextSlot {
         uint16_t cap;    ///< capacity including the NUL; 0 = no slot
         StrKind  kind;   ///< edit validation
@@ -243,7 +243,7 @@ namespace Botanik { namespace Vars {
      *  Ahead of it, the padding costs 8 more.
      *
      *  Built through the declare.h factories, not brace-initialised. */
-    struct Variable {
+    struct Descriptor {
         Scalar      def;        ///< invalid-read fallback / safe state / factory value
         const char* name;       ///< symbolic name; the telemetry leaf; the storage key
         const char* unit;       ///< "C", "%", "" for none
@@ -275,7 +275,7 @@ namespace Botanik { namespace Vars {
 
     /** @brief Which arm @p d's payload holds. Alarm first: it is a T_BOOL, so
      *  the type alone would say "band". */
-    constexpr PayloadArm payload_arm(const Variable& d) {
+    constexpr PayloadArm payload_arm(const Descriptor& d) {
         return (d.scope == SCOPE_A)  ? PAY_ALARM
              : (d.scope == SCOPE_AI ||
                 d.scope == SCOPE_AO) ? PAY_ANALOG
@@ -283,21 +283,21 @@ namespace Botanik { namespace Vars {
     }
 
     /** @brief @p d's numeric band; unset unless the row actually has one. */
-    constexpr NumBand num_band(const Variable& d) {
+    constexpr NumBand num_band(const Descriptor& d) {
         return (payload_arm(d) == PAY_NUM) ? d.pay.num : NumBand{Scalar(), Scalar()};
     }
     /** @brief @p d's declared pool slot; capacity 0 for a non-text row, which
      *  every writer already treats as "no slot". */
-    constexpr TextSlot text_slot(const Variable& d) {
+    constexpr TextSlot text_slot(const Descriptor& d) {
         return (payload_arm(d) == PAY_TEXT) ? d.pay.text : TextSlot{0, STR_NONE};
     }
     /** @brief @p d's calibration block; null for anything but SCOPE_AI/AO.
      *  Resolving its live numbers needs the bank - Vars::analog_values(). */
-    constexpr const AnalogCal* analog_cal(const Variable& d) {
+    constexpr const AnalogCal* analog_cal(const Descriptor& d) {
         return (payload_arm(d) == PAY_ANALOG) ? d.pay.cal : nullptr;
     }
     /** @brief @p d's alarm policy; a null code for anything but SCOPE_A. */
-    constexpr AlarmSpec alarm_spec(const Variable& d) {
+    constexpr AlarmSpec alarm_spec(const Descriptor& d) {
         return (payload_arm(d) == PAY_ALARM) ? d.pay.alarm
                                              : AlarmSpec{nullptr, 0, 0, 0, 0};
     }
@@ -310,7 +310,7 @@ namespace Botanik { namespace Vars {
      *  so num_band() reads unset and would reject everything; their driver does
      *  it. One predicate, because the table sweep and the field-bus driver must
      *  agree about it. */
-    bool value_implausible(const Variable& d, const Scalar& v);
+    bool value_implausible(const Descriptor& d, const Scalar& v);
 
     /** @} */
 

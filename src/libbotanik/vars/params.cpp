@@ -51,7 +51,7 @@ namespace Botanik { namespace Vars {
          *
          *  A row may carry a setting, an override and a retained total at once,
          *  so each lives behind a prefix no identifier can spell. */
-        bool prefixed_key(const Variable& d, const char* prefix,
+        bool prefixed_key(const Descriptor& d, const char* prefix,
                           char* out, size_t cap) {
             if (d.name == nullptr) return false;
             const int n = snprintf(out, cap, "%s%s", prefix, d.name);
@@ -59,7 +59,7 @@ namespace Botanik { namespace Vars {
         }
     }  // namespace
 
-    bool KvParamStore::load(const Variable& d, Value& v, char* text, uint16_t cap) {
+    bool KvParamStore::load(const Descriptor& d, Slot& v, char* text, uint16_t cap) {
         if (d.type == T_STR) {
             if (text == nullptr || cap == 0) return false;
             size_t n = 0;
@@ -79,7 +79,7 @@ namespace Botanik { namespace Vars {
         return true;
     }
 
-    bool KvParamStore::save(const Variable& d, const Value& v,
+    bool KvParamStore::save(const Descriptor& d, const Slot& v,
                             const char* text, uint16_t cap) {
         if (d.type == T_STR) {
             if (text == nullptr || cap == 0) return false;
@@ -91,12 +91,12 @@ namespace Botanik { namespace Vars {
         return HAL::Storage::set(d.name, &raw, w);
     }
 
-    bool KvParamStore::load_override(const Variable& d, Value& v) {
+    bool KvParamStore::load_override(const Descriptor& d, Slot& v) {
         char key[HAL::Storage::KEY_MAX];
         if (!prefixed_key(d, "ovr.", key, sizeof(key))) return false;
         const uint8_t w = type_width(d.type);
         if (w == 0) return false;
-        // Value bytes then the validity byte: an override records BOTH what the
+        // Slot bytes then the validity byte: an override records BOTH what the
         // variable reads and whether it reads as good data.
         uint8_t buf[sizeof(uint64_t) + 1] = {};
         size_t n = 0;
@@ -109,7 +109,7 @@ namespace Botanik { namespace Vars {
         return true;
     }
 
-    bool KvParamStore::save_override(const Variable& d, const Value& v) {
+    bool KvParamStore::save_override(const Descriptor& d, const Slot& v) {
         char key[HAL::Storage::KEY_MAX];
         if (!prefixed_key(d, "ovr.", key, sizeof(key))) return false;
         const uint8_t w = type_width(d.type);
@@ -121,19 +121,19 @@ namespace Botanik { namespace Vars {
         return HAL::Storage::set(key, buf, (size_t)w + 1);
     }
 
-    bool KvParamStore::clear_override(const Variable& d) {
+    bool KvParamStore::clear_override(const Descriptor& d) {
         char key[HAL::Storage::KEY_MAX];
         if (!prefixed_key(d, "ovr.", key, sizeof(key))) return false;
         return HAL::Storage::remove(key);
     }
 
-    bool KvParamStore::clear(const Variable& d) {
+    bool KvParamStore::clear(const Descriptor& d) {
         // A parameter's key is its bare name (see save()).
         if (d.name == nullptr) return false;
         return HAL::Storage::remove(d.name);
     }
 
-    bool KvParamStore::load_retained(const Variable& d, Value& v) {
+    bool KvParamStore::load_retained(const Descriptor& d, Slot& v) {
         char key[HAL::Storage::KEY_MAX];
         if (!prefixed_key(d, "ret.", key, sizeof(key))) return false;
         const uint8_t w = type_width(d.type);
@@ -146,7 +146,7 @@ namespace Botanik { namespace Vars {
         return true;
     }
 
-    bool KvParamStore::save_retained(const Variable& d, const Value& v) {
+    bool KvParamStore::save_retained(const Descriptor& d, const Slot& v) {
         char key[HAL::Storage::KEY_MAX];
         if (!prefixed_key(d, "ret.", key, sizeof(key))) return false;
         const uint8_t w = type_width(d.type);
@@ -168,7 +168,7 @@ namespace Botanik { namespace Vars {
     }
 
 
-    const char* format_declared(const Variable& d, Scalar v,
+    const char* format_declared(const Descriptor& d, Scalar v,
                                 char* buf, size_t cap) {
         if (d.type == T_STR) return "";
         return format_scalar(d.type, v, d.digits, d.str, buf, cap);
@@ -223,7 +223,7 @@ namespace Botanik { namespace Vars {
         return v;
     }
 
-    NumBand var_band(const Bank* io, const Variable& d) {
+    NumBand var_band(const Bank* io, const Descriptor& d) {
         const AnalogCal* c = analog_cal(d);
         if (c == nullptr) return num_band(d);
         const AnalogValues v = analog_values(io, c);

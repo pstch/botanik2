@@ -251,12 +251,12 @@ namespace Botanik { namespace Pages {
 
         /** @brief The config group a parameter belongs to: the prefix of its
          *  name, which is also the name of the group's commit serial. */
-        static const char* _group_of(const Vars::Variable& d);
+        static const char* _group_of(const Vars::Descriptor& d);
 
         /** @brief Format a bound, in the parameter's OWN type - so a real
          *  parameter's band shows its decimals instead of being truncated to
          *  whole numbers. "-" when there is no declared band. */
-        const char* _fmt_bound(char* buf, size_t cap, const Vars::Variable& d,
+        const char* _fmt_bound(char* buf, size_t cap, const Vars::Descriptor& d,
                                Vars::Scalar v) const {
             if (d.type == Vars::T_STR || (d.flags & Vars::F_BOUNDED) == 0) {
                 snprintf(buf, cap, "-"); return buf;
@@ -270,7 +270,7 @@ namespace Botanik { namespace Pages {
          *  text rather than in the Scalar, so it is taken straight; everything
          *  else goes through the row's own type and digits. */
         const char* _fmt_default(char* buf, size_t cap,
-                                 const Vars::Variable& d) const {
+                                 const Vars::Descriptor& d) const {
             if (d.type == Vars::T_STR) return d.def.s ? d.def.s : "";
             return Vars::format_declared(d, d.def, buf, cap);
         }

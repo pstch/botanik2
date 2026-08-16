@@ -146,7 +146,7 @@ namespace Botanik { namespace Pages {
     void ParamsPage::_draw_row(uint16_t idx, uint16_t row, bool selected) {
         const uint16_t k = _param_at(idx);
         Vars::Var p = _params->param(k);
-        const Vars::Variable& d = *p.meta();
+        const Vars::Descriptor& d = *p.meta();
         char val[VAL_CAP], reg[8], line[LINE_CAP];
         // Use what format() RETURNS, not the buffer: a T_STR's live text is in
         // the pool and a T_ENUM's in flash, so neither writes into val, and
@@ -183,7 +183,7 @@ namespace Botanik { namespace Pages {
         _draw_rule(RULE_ROW, '+');
     }
 
-    const char* ParamsPage::_group_of(const Vars::Variable& d) {
+    const char* ParamsPage::_group_of(const Vars::Descriptor& d) {
         const char* u = strchr(d.name, '_');
         if (u == nullptr) return d.name;          // the serial itself
         char g[Config::VAR_GROUP_NAME_LEN];
@@ -213,7 +213,7 @@ namespace Botanik { namespace Pages {
             return;
         }
         Vars::Var p = _params->param(_param_at(_selected));
-        const Vars::Variable& d = *p.meta();
+        const Vars::Descriptor& d = *p.meta();
         char b[24];
         char b2[24];
         // Through var_band(), not num_band(): an analog row's band can live in

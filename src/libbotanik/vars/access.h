@@ -61,7 +61,7 @@ namespace Botanik { namespace Vars {
     /** @brief @p d's group: its name up to the first underscore. A name with no
      *  underscore is its own group, which is what a config group's commit serial
      *  is (`net`, `ntp`). */
-    inline const char* var_group(const Variable& d) {
+    inline const char* var_group(const Descriptor& d) {
         if (d.name == nullptr) return "?";
         const char* u = strchr(d.name, '_');
         if (u == nullptr) return group_intern(d.name);
@@ -77,7 +77,7 @@ namespace Botanik { namespace Vars {
      *  Everything except the two kinds of row that have a page of their own: a
      *  parameter is the PARAMS page's, an alarm is the ALARMS page's. Tested by
      *  scope, so a new row is published by default. */
-    inline bool var_published(const Variable& d) {
+    inline bool var_published(const Descriptor& d) {
         return d.scope != SCOPE_P && d.scope != SCOPE_A;
     }
 
@@ -88,7 +88,7 @@ namespace Botanik { namespace Vars {
      *  the two kinds this one includes. The register is the site's to assign; a
      *  row of one of these scopes with reg 0 is a table defect the site test
      *  fails on, not a row that quietly does not publish. */
-    inline bool var_mapped(const Variable& d) {
+    inline bool var_mapped(const Descriptor& d) {
         return d.scope == SCOPE_P || d.scope == SCOPE_SV || d.scope == SCOPE_A;
     }
 
@@ -96,12 +96,12 @@ namespace Botanik { namespace Vars {
 
     /** @brief What kind of row this is, as a short column label: the declared
      *  scope, never reconstructed from (transport, role, type). */
-    inline const char* var_scope(const Variable& d) { return scope_label(d.scope); }
+    inline const char* var_scope(const Descriptor& d) { return scope_label(d.scope); }
 
     /** @brief Render @p h's current value into @p buf. Returns the text - an
      *  enum's static string, a T_STR's pool text, or @p buf. */
     inline const char* var_format(const Bank& io, Var h, char* buf, size_t cap) {
-        const Variable* d = h.meta();
+        const Descriptor* d = h.meta();
         if (d->type == T_STR) {
             const char* t = io.text_at(h);
             return (t != nullptr) ? t : "";

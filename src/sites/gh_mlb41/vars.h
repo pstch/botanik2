@@ -176,7 +176,7 @@ const uint8_t g_analog_cal_count =
 
 
 /** @brief The editable rows. FIRST, and that is load-bearing. */
-const Variable params[] = {
+const Descriptor params[] = {
 
 /** @name Parameters - persisted and editable; the PARAMS page and `set` write these
  *
@@ -360,7 +360,7 @@ const uint16_t PARAMS_COUNT =
 /** @brief The alarm rows. Each IS its condition - the boolean plus the
  *  policy AlarmController runs it on, which it finds by scanning for
  *  SCOPE_A in registration order. */
-const Variable alarms[] = {
+const Descriptor alarms[] = {
 
 /** @name Alarms - each row IS its condition: the boolean plus the announce policy
  *
@@ -412,7 +412,7 @@ const uint16_t ALARMS_COUNT =
 
 /** @brief Everything else: what is read from the field, what is computed
  *  from it, what is published, and what is driven. */
-const Variable io_rows[] = {
+const Descriptor io_rows[] = {
 
 /** @name Sensor inputs - read from the field, invalid past their timeout
  *

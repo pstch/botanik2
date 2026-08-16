@@ -58,7 +58,7 @@ struct MockAlarm { const char* name; bool on; };
  *  A hook rather than a direct call because this file is SITE code and must
  *  cross-compile for the OPTA: the harness reaches into the site, never the
  *  other way. */
-typedef void (*FieldSink)(void* ctx, const Vars::Variable& d, float v);
+typedef void (*FieldSink)(void* ctx, const Vars::Descriptor& d, float v);
 inline FieldSink& field_sink() { static FieldSink fn = nullptr; return fn; }
 inline void*&     field_ctx()  { static void* ctx = nullptr; return ctx; }
 
@@ -66,7 +66,7 @@ inline void*&     field_ctx()  { static void* ctx = nullptr; return ctx; }
  *  one step, through the handle rather than the value array. */
 inline void put(Vars::Bank& io, const char* id, float v, uint32_t now_ms) {
     Vars::Var h = io.var(id);
-    const Vars::Variable& d = *h.meta();
+    const Vars::Descriptor& d = *h.meta();
 
     // A row on the FIELD BUS is not ours to write: we are the physical quantity,
     // so it goes into the device's register image and the MASTER fills the row

@@ -53,7 +53,7 @@ namespace {
      *  INPUT declaring none is refused outright in _collect(), because a row
      *  expire_stale() skips can never be invalidated by anything. This is the
      *  fallback for the other roles. */
-    uint8_t rung_of(const Vars::Variable& d) {
+    uint8_t rung_of(const Vars::Descriptor& d) {
         if (!is_read(d.bind.fc)) return 0;
         // poll_ms and timeout_ms are two facts: how often to spend the bus, and
         // how long a reading may be believed. A row stating the first gets it
@@ -63,7 +63,7 @@ namespace {
         return (uint8_t)ladder_of(period_of(d.timeout_ms));
     }
 
-    Key key_of(const Vars::Variable& d, const DeviceTable* t) {
+    Key key_of(const Vars::Descriptor& d, const DeviceTable* t) {
         Key k;
         k.device = d.bind.device;
         k.fc     = block_fc(d.bind.fc, model_of(t, d.bind.device));
@@ -83,7 +83,7 @@ namespace {
 
     /** @brief One past a row's last register. A row may span two (a 32-bit
      *  value), and a declared span of 0 still occupies its own register. */
-    uint16_t row_end(const Vars::Variable& d) {
+    uint16_t row_end(const Vars::Descriptor& d) {
         return (uint16_t)(d.bind.reg + (d.bind.regs ? d.bind.regs : 1));
     }
 
@@ -135,7 +135,7 @@ void Planner::plan(const Vars::Bank& io, uint32_t baud, uint32_t turnaround_ms,
 
 void Planner::_collect(const Vars::Bank& io) {
     for (uint16_t i = 0; i < io.count(); ++i) {
-        const Vars::Variable* d = io.var(i).meta();
+        const Vars::Descriptor* d = io.var(i).meta();
         if (d->bind.transport != Vars::XP_MODBUS) continue;
         // A row whose code we cannot issue is not a row we can plan. Counted
         // with the overflow: to an operator both mean a row that is not scanned.
@@ -179,7 +179,7 @@ void Planner::_cut(const Vars::Bank& io) {
             return;
         }
 
-        const Vars::Variable& first = *io.var(_rows[i]).meta();
+        const Vars::Descriptor& first = *io.var(_rows[i]).meta();
         const Key k = key_of(first, _devices);
         const DeviceModel& m = model_of(_devices, k.device);
         const uint16_t cap = span_cap(k.fc, m);
@@ -198,7 +198,7 @@ void Planner::_cut(const Vars::Bank& io) {
         uint16_t end = row_end(first);
         uint16_t j   = i + 1;
         while (j < _row_count) {
-            const Vars::Variable& d = *io.var(_rows[j]).meta();
+            const Vars::Descriptor& d = *io.var(_rows[j]).meta();
             const Key kj = key_of(d, _devices);
             if (kj.device != k.device || kj.fc != k.fc || kj.rung != k.rung) break;
 

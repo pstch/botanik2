@@ -53,7 +53,7 @@ namespace Botanik { namespace Shell {
             _emitf(out, sizeof(out), "%s: unknown variable", noun); return;
         }
         const Vars::Var h = io->var(r);
-        const Vars::Variable* d = h.meta();
+        const Vars::Descriptor* d = h.meta();
         // `params get` answers about parameters only: pointing at the noun that
         // does own the row beats "unknown", which would send someone looking
         // for a typo that is not there.
@@ -167,7 +167,7 @@ namespace Botanik { namespace Shell {
     void CommandShell::_value_field(const char* label, const Vars::Bank& io,
                                     Vars::Var h, Vars::Scalar v,
                                     const char* quality, const char* unit) {
-        const Vars::Variable* d = h.meta();
+        const Vars::Descriptor* d = h.meta();
         char num[48], cell[64];
         // A T_STR keeps its live text in the pool, not the slot, so the Scalar
         // is not where its value is; var_format() is the only reader that knows.
@@ -178,7 +178,7 @@ namespace Botanik { namespace Shell {
         _field(label, cell, quality);
     }
 
-    // `def` does three jobs (@see Variable::def), and which one is the whole
+    // `def` does three jobs (@see Descriptor::def), and which one is the whole
     // reason to print it: the number says nothing about what it is for.
     const char* CommandShell::_default_phrase(uint8_t role) {
         switch ((Vars::VarRole)role) {
@@ -211,7 +211,7 @@ namespace Botanik { namespace Shell {
     // A parameter, unless the site marked it read-only; everything else is
     // driven by something and would be overwritten on the next scan.
     bool CommandShell::_writable(Vars::Var h) {
-        const Vars::Variable* d = h.meta();
+        const Vars::Descriptor* d = h.meta();
         return d->role == Vars::ROLE_PARAM && (d->flags & Vars::F_RDONLY) == 0;
     }
 

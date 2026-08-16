@@ -42,27 +42,27 @@ namespace {
     // desc, notes).
 
     // Two unmasked, unlatched conditions (announce disabled) at bits 0 and 1.
-    const Vars::Variable TABLE[] = {
+    const Vars::Descriptor TABLE[] = {
         Vars::A("aaa", "AAA", -1, -1, 0, 0, 800, "alarm A", ""),
         Vars::A("bbb", "BBB", -1, -1, 0, 0, 801, "alarm B", ""),
     };
     // hold_s=300, like platform STACK/CPU_LOAD/CPU_JITT/CPU_XRUN.
-    const Vars::Variable HOLD_TABLE[] = {
+    const Vars::Descriptor HOLD_TABLE[] = {
         Vars::A("hld", "HLD", 5, 5, 0, 300, 805, "hold on", ""),
     };
     // START after a 2 s dwell, END at once (off_s 0); a shorter blip -> FLAP.
-    const Vars::Variable FLAP_TABLE[] = {
+    const Vars::Descriptor FLAP_TABLE[] = {
         Vars::A("flp", "FLP", 2, 0, 0, 0, 803, "flap", ""),
     };
     // on_s 0 so the START is announced at once.
-    const Vars::Variable NORMAL_TABLE[] = {
+    const Vars::Descriptor NORMAL_TABLE[] = {
         Vars::A("nrm", "NRM", 0, 0, 0, 0, 804, "normal", ""),
     };
 
     /** @brief A bank over one of the tables above - what the model scans. */
     struct AlarmBank {
         Vars::Bank bank;
-        AlarmBank(const Vars::Variable* v, uint16_t n) {
+        AlarmBank(const Vars::Descriptor* v, uint16_t n) {
             bank.register_vars(v, n);
             bank.freeze();
         }
@@ -223,7 +223,7 @@ TEST_CASE("alarm: a normal episode logs START then END (not FLAP)") {
 
 TEST_CASE("alarm reader: model reads each condition's variable") {
     // The row IS the condition: condition i reads variable i, nothing to sync.
-    const Vars::Variable VARS[] = {
+    const Vars::Descriptor VARS[] = {
         Vars::A("alarm_a", "AAA", -1, -1, 0, 0, 805, "a", ""),
         Vars::A("alarm_b", "BBB", -1, -1, 0, 0, 806, "b", ""),
         Vars::A("alarm_c", "CCC", -1, -1, 0, 0, 807, "c", ""),
@@ -269,7 +269,7 @@ namespace {
     }
 
     // Four always-recent alarms (recent_s<0 never expires), logging/notify off.
-    const Vars::Variable TABLE[] = {
+    const Vars::Descriptor TABLE[] = {
         Vars::A("aaa", "AAA", -1, -1, -1, 0, 800, "alarm A", ""),
         Vars::A("bbb", "BBB", -1, -1, -1, 0, 801, "alarm B", ""),
         Vars::A("ccc", "CCC", -1, -1, -1, 0, 802, "alarm C", ""),
@@ -492,7 +492,7 @@ TEST_CASE("MqttAlarmNotifier: notify_on/off build the topic + payload and forwar
 
     // The condition borrows its row (no text copy), so this needs a real
     // SCOPE_A descriptor.
-    static const Botanik::Vars::Variable ROW =
+    static const Botanik::Vars::Descriptor ROW =
         Botanik::Vars::A("NET_FLT", "NET_FLT", 0, 0, 0, 0, 990, "", "");
     AlarmCondition c = {};
     c.var = &ROW;
@@ -525,7 +525,7 @@ namespace {
 
 TEST_CASE("AlarmController: a transition fans out to every registered notifier") {
     // announce ON/OFF at once (on_s = off_s = 0).
-    const Vars::Variable TABLE[] = { Vars::A("x", "X", 0, 0, 0, 0, 800, "", "") };
+    const Vars::Descriptor TABLE[] = { Vars::A("x", "X", 0, 0, 0, 0, 800, "", "") };
     Vars::Bank bank;
     bank.register_vars(TABLE, 1);
     bank.freeze();

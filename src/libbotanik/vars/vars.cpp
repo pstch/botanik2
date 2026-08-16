@@ -31,7 +31,7 @@ namespace Botanik { namespace Vars {
 
     namespace {
 
-    const Variable library_vars[] = {
+    const Descriptor library_vars[] = {
 
     /* The window is Config::HEALTH_RESET_WINDOW_MS; the text says "recently"
        rather than repeating a number that would drift from it. */

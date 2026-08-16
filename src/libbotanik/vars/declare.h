@@ -13,7 +13,7 @@
  *
  * @section declare_flash constexpr and the single return
  *
- * These build the site's `const Variable g_vars[]`, which must be
+ * These build the site's `const Descriptor g_vars[]`, which must be
  * constant-initialised straight into flash: a runtime call in that initialiser
  * would drag ~20 KB of table into `.data` behind a startup loop. A C++11
  * constexpr body must be a SINGLE return statement, so each one below is
@@ -119,11 +119,11 @@ namespace Botanik { namespace Vars {
      *
      *  Carries no band and no unit: it is raised by a control program and read
      *  by the alarm model. */
-    constexpr Variable A(const char* name, const char* code,
+    constexpr Descriptor A(const char* name, const char* code,
                          int16_t on_s, int16_t off_s, int32_t recent_s,
                          int16_t hold_s, uint16_t reg,
                          const char* desc, const char* notes) {
-        return Variable{ Scalar::B(false), name, "", desc, notes,
+        return Descriptor{ Scalar::B(false), name, "", desc, notes,
                          Payload(code, on_s, off_s, recent_s, hold_s),
                          { XP_NONE, T_BOOL, 0, 0, reg, 1, 1.0f, 0.0f }, 0, 0, nullptr,
                          T_BOOL, ROLE_COMPUTED, SCOPE_A, 0, 0, {} };
@@ -137,10 +137,10 @@ namespace Botanik { namespace Vars {
      *  position: an external master's map is a contract, so inserting a
      *  parameter must not renumber the ones after it. The site test asserts no
      *  two rows share a register. */
-    constexpr Variable P(const char* name, VarType type, double def, double lo, double hi,
+    constexpr Descriptor P(const char* name, VarType type, double def, double lo, double hi,
                          uint8_t digits, const char* unit, uint16_t reg,
                          const char* desc, const char* notes) {
-        return Variable{ num(type, def), name, unit, desc, notes,
+        return Descriptor{ num(type, def), name, unit, desc, notes,
                          Payload(num(type, lo), num(type, hi)),
                          { XP_NONE, type, 0, 0, reg, 1, 1.0f, 0.0f }, 0, 0, nullptr,
                          type, ROLE_PARAM, SCOPE_P, digits, F_BOUNDED, {} };
@@ -161,9 +161,9 @@ namespace Botanik { namespace Vars {
      *
      *  @warning The codes are what sits in the store and in an external master's
      *  register, so a converter may gain labels but must never renumber them. */
-    constexpr Variable PE(const char* name, uint64_t def, const char* (*str)(uint64_t),
+    constexpr Descriptor PE(const char* name, uint64_t def, const char* (*str)(uint64_t),
                           uint16_t reg, const char* desc, const char* notes) {
-        return Variable{ Scalar::U(def), name, "", desc, notes,
+        return Descriptor{ Scalar::U(def), name, "", desc, notes,
                          Payload(Scalar::U(0), Scalar::U(0)),
                          { XP_NONE, T_ENUM, 0, 0, reg, 1, 1.0f, 0.0f }, 0, 0, str,
                          T_ENUM, ROLE_PARAM, SCOPE_P, 0, 0, {} };
@@ -175,9 +175,9 @@ namespace Botanik { namespace Vars {
      *  @p cap is the slot size including the NUL; WHERE the slot sits is not
      *  declared, Bank::init() lays them out in table order. @p kind is what a
      *  new value is validated against. */
-    constexpr Variable PS(const char* name, const char* def, uint16_t cap, StrKind kind,
+    constexpr Descriptor PS(const char* name, const char* def, uint16_t cap, StrKind kind,
                           uint16_t reg, const char* desc, const char* notes) {
-        return Variable{ Scalar::S(def), name, "", desc, notes, Payload(cap, kind),
+        return Descriptor{ Scalar::S(def), name, "", desc, notes, Payload(cap, kind),
                          { XP_NONE, T_STR, 0, 0, reg, 1, 1.0f, 0.0f }, 0, 0, nullptr,
                          T_STR, ROLE_PARAM, SCOPE_P, 0, 0, {} };
     }
@@ -185,9 +185,9 @@ namespace Botanik { namespace Vars {
     /** @brief A **computed** value: derived by a control program, shown on the
      *  HMI and nowhere else. Rename it freely - nothing outside the firmware
      *  knows its name. Use SV() instead the moment it is published. */
-    constexpr Variable G(const char* name, VarType type, Scalar def, uint8_t digits,
+    constexpr Descriptor G(const char* name, VarType type, Scalar def, uint8_t digits,
                          const char* unit, const char* desc, const char* notes) {
-        return Variable{ def, name, unit, desc, notes,
+        return Descriptor{ def, name, unit, desc, notes,
                          Payload(Scalar::U(0), Scalar::U(0)),
                          { XP_NONE, type, 0, 0, 0, 0, 1.0f, 0.0f }, 0, 0, nullptr,
                          type, ROLE_COMPUTED, SCOPE_G, digits, 0, {} };
@@ -202,10 +202,10 @@ namespace Botanik { namespace Vars {
      *
      *  Costs one storage key and a write every Config::RETAIN_SAVE_MS, so it is
      *  for values worth that, not for every computed row. */
-    constexpr Variable GR(const char* name, VarType type, Scalar def,
+    constexpr Descriptor GR(const char* name, VarType type, Scalar def,
                           uint8_t digits, const char* unit, const char* desc,
                           const char* notes) {
-        return Variable{ def, name, unit, desc, notes,
+        return Descriptor{ def, name, unit, desc, notes,
                          Payload(Scalar::U(0), Scalar::U(0)),
                          { XP_NONE, type, 0, 0, 0, 0, 1.0f, 0.0f }, 0, 0, nullptr,
                          type, ROLE_COMPUTED, SCOPE_G, digits, F_RETAIN, {} };
@@ -218,10 +218,10 @@ namespace Botanik { namespace Vars {
      *  @p reg is its register on that slave, hand-assigned for the same reason a
      *  parameter's is (@see P). Parameters and status values share one register
      *  space, and the site test asserts no two rows claim the same one. */
-    constexpr Variable SV(const char* name, VarType type, double def, uint8_t digits,
+    constexpr Descriptor SV(const char* name, VarType type, double def, uint8_t digits,
                           const char* unit, uint16_t reg,
                           const char* desc, const char* notes) {
-        return Variable{ num(type, def), name, unit, desc, notes,
+        return Descriptor{ num(type, def), name, unit, desc, notes,
                          Payload(Scalar::U(0), Scalar::U(0)),
                          { XP_NONE, type, 0, 0, reg, 1, 1.0f, 0.0f }, 0, 0, nullptr,
                          type, ROLE_COMPUTED, SCOPE_SV, digits, 0, {} };
@@ -233,12 +233,12 @@ namespace Botanik { namespace Vars {
      *  the process. A read older than @p timeout_ms marks the row invalid, and
      *  @p def is what it reads then: safety-relevant, so it is spelled per row
      *  rather than assumed to be zero. */
-    constexpr Variable MI(const char* name, VarType type, uint8_t device, uint8_t fc,
+    constexpr Descriptor MI(const char* name, VarType type, uint8_t device, uint8_t fc,
                           uint16_t reg, uint16_t regs, Scalar lo, Scalar hi, Scalar def,
                           uint32_t timeout_ms, uint8_t digits, const char* unit,
                           const char* desc, const char* notes,
                           uint16_t poll_ms = 0, bool word_swap = false) {
-        return Variable{ def, name, unit, desc, notes, Payload(lo, hi),
+        return Descriptor{ def, name, unit, desc, notes, Payload(lo, hi),
                          { xp_of(device), type, device, fc, reg, regs, 1.0f, 0.0f },
                          timeout_ms, poll_ms, nullptr,
                          type, ROLE_INPUT, SCOPE_MI, digits,
@@ -253,12 +253,12 @@ namespace Botanik { namespace Vars {
      *  constant or a parameter, and it may be SHARED with any other channel
      *  calibrated identically. No scale/offset argument: both are derived from
      *  the endpoints. */
-    constexpr Variable AI(const char* name, const AnalogCal* cal, uint8_t device,
+    constexpr Descriptor AI(const char* name, const AnalogCal* cal, uint8_t device,
                           uint8_t fc, uint16_t reg, uint16_t regs, VarType wire,
                           Scalar def, uint32_t timeout_ms, uint8_t digits,
                           const char* unit, const char* desc, const char* notes,
                           uint16_t poll_ms = 0, bool word_swap = false) {
-        return Variable{ def, name, unit, desc, notes, Payload(cal),
+        return Descriptor{ def, name, unit, desc, notes, Payload(cal),
                          { xp_of(device), wire, device, fc, reg, regs, 1.0f, 0.0f },
                          timeout_ms, poll_ms, nullptr,
                          T_F32, ROLE_INPUT, SCOPE_AI, digits,
@@ -268,11 +268,11 @@ namespace Botanik { namespace Vars {
     /** @brief A **digital input**: one bit. @p invert folds active-low wiring in
      *  here, so the control programs above read true = asserted. Device 0 = a
      *  local input bit. */
-    constexpr Variable DI(const char* name, uint8_t device, uint8_t fc, uint16_t reg,
+    constexpr Descriptor DI(const char* name, uint8_t device, uint8_t fc, uint16_t reg,
                           bool def, uint32_t timeout_ms, bool invert,
                           const char* desc, const char* notes,
                           uint16_t poll_ms = 0) {
-        return Variable{ Scalar::B(def), name, "", desc, notes,
+        return Descriptor{ Scalar::B(def), name, "", desc, notes,
                          Payload(Scalar::B(false), Scalar::B(true)),
                          { xp_of(device), T_BOOL, device, fc, reg, 1, 1.0f, 0.0f },
                          timeout_ms, poll_ms, nullptr,
@@ -282,11 +282,11 @@ namespace Botanik { namespace Vars {
     /** @brief A **direct output**: written 1:1 to the register. @p safe is where
      *  it is driven when control is withdrawn, which is the whole reason an
      *  output declares a default. */
-    constexpr Variable MO(const char* name, VarType type, uint8_t device, uint8_t fc,
+    constexpr Descriptor MO(const char* name, VarType type, uint8_t device, uint8_t fc,
                           uint16_t reg, uint16_t regs, Scalar safe, uint8_t digits,
                           const char* unit, const char* desc, const char* notes,
                           bool word_swap = false) {
-        return Variable{ safe, name, unit, desc, notes,
+        return Descriptor{ safe, name, unit, desc, notes,
                          Payload(Scalar::U(0), Scalar::U(0)),
                          { xp_of(device), type, device, fc, reg, regs, 1.0f, 0.0f }, 0, 0, nullptr,
                          type, ROLE_OUTPUT, SCOPE_MO, digits,
@@ -297,12 +297,12 @@ namespace Botanik { namespace Vars {
      *  count on the way out, through the same two-point calibration. Device 0 =
      *  a local expansion channel. @p safe is where it is driven when control is
      *  withdrawn. */
-    constexpr Variable AO(const char* name, const AnalogCal* cal, uint8_t device,
+    constexpr Descriptor AO(const char* name, const AnalogCal* cal, uint8_t device,
                           uint8_t fc, uint16_t reg, uint16_t regs, VarType wire,
                           float safe, uint8_t digits, const char* unit,
                           const char* desc, const char* notes,
                           bool word_swap = false) {
-        return Variable{ Scalar::F(safe), name, unit, desc, notes, Payload(cal),
+        return Descriptor{ Scalar::F(safe), name, unit, desc, notes, Payload(cal),
                          { xp_of(device), wire, device, fc, reg, regs, 1.0f, 0.0f },
                          0, 0, nullptr,
                          T_F32, ROLE_OUTPUT, SCOPE_AO, digits,
@@ -312,9 +312,9 @@ namespace Botanik { namespace Vars {
     /** @brief A **digital output**: a logic-level bit on an expansion channel
      *  (device 0) or over the bus. See RO() for a relay coil - different
      *  hardware, different channel space. */
-    constexpr Variable DO(const char* name, uint8_t device, uint8_t fc, uint16_t reg,
+    constexpr Descriptor DO(const char* name, uint8_t device, uint8_t fc, uint16_t reg,
                           bool safe, bool invert, const char* desc, const char* notes) {
-        return Variable{ Scalar::B(safe), name, "", desc, notes,
+        return Descriptor{ Scalar::B(safe), name, "", desc, notes,
                          Payload(Scalar::B(false), Scalar::B(true)),
                          { xp_of(device), T_BOOL, device, fc, reg, 1, 1.0f, 0.0f }, 0, 0, nullptr,
                          T_BOOL, ROLE_OUTPUT, SCOPE_DO, 0,
@@ -331,9 +331,9 @@ namespace Botanik { namespace Vars {
      *  the valve is open when the coil is off, which is active-low wiring.
      *  Declaring @p safe true without @p invert describes a valve that shuts the
      *  moment the firmware stops driving it. */
-    constexpr Variable RO(const char* name, uint8_t device, uint16_t coil, bool safe,
+    constexpr Descriptor RO(const char* name, uint8_t device, uint16_t coil, bool safe,
                           bool invert, const char* desc, const char* notes) {
-        return Variable{ Scalar::B(safe), name, "", desc, notes,
+        return Descriptor{ Scalar::B(safe), name, "", desc, notes,
                          Payload(Scalar::B(false), Scalar::B(true)),
                          { xp_of(device), T_BOOL, device, 5, coil, 1, 1.0f, 0.0f }, 0, 0, nullptr,
                          T_BOOL, ROLE_OUTPUT, SCOPE_RO, 0,

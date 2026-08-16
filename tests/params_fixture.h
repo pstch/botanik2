@@ -31,9 +31,9 @@ namespace botanik_test {
         #define FX_F32(nm) \
             Botanik::Vars::P(nm, Botanik::Vars::T_F32, 0, -180, 180, 4, "deg", 0, "", "")
 
-        static const Botanik::Vars::Variable* table(uint16_t* n) {
+        static const Botanik::Vars::Descriptor* table(uint16_t* n) {
             using namespace Botanik::Vars;
-            static const Variable v[] = {
+            static const Descriptor v[] = {
                 FX_NUM("net_serial", T_U32, 0), FX_NUM("net_dhcp", T_BOOL, 1), FX_STR("net_ip", 0),
                 FX_NUM("ntp_serial", T_U32, 0), FX_NUM("ntp_enable", T_BOOL, 1),
                 FX_NUM("ntp_poll_sec", T_U16, 64), FX_STR("ntp_srv1", CAP),
@@ -50,7 +50,7 @@ namespace botanik_test {
         #undef FX_STR
         #undef FX_F32
 
-        Botanik::Vars::Value _vals[14]{};
+        Botanik::Vars::Slot _vals[14]{};
         char                 _pool[3 * CAP]{};
         Botanik::Vars::Bank  _bank;
 
@@ -58,7 +58,7 @@ namespace botanik_test {
         ParamFixture() {
             using namespace Botanik::Vars;
             uint16_t n = 0;
-            const Variable* v = table(&n);
+            const Descriptor* v = table(&n);
             _bank.register_vars(v, n);
             _bank.freeze();
         }

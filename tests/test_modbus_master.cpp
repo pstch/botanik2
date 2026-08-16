@@ -66,7 +66,7 @@ struct Master {
     /** @brief Dirties every output row so the write blocks compete for the bus. */
     void dirty_all_writes() {
         for (uint16_t i = 0; i < bank.count(); ++i) {
-            const Variable& d = bank.desc(i);
+            const Descriptor& d = bank.desc(i);
             if (d.bind.transport != XP_MODBUS || d.role != ROLE_OUTPUT) continue;
             Var h = bank.var(i);
             bank.override_set(h, (d.type == T_BOOL) ? from_bool(T_BOOL, true)
@@ -737,7 +737,7 @@ TEST_CASE("modbus device: the site describes every unit its table addresses") {
     // Rows with no model plan as generic, not an error - but here means hardware was added without one.
     const Bank& io = site_bank();
     for (uint16_t i = 0; i < io.count(); ++i) {
-        const Variable& d = io.desc(i);
+        const Descriptor& d = io.desc(i);
         if (d.bind.transport != XP_MODBUS || d.bind.device == 0) continue;
         INFO("unit " << (int)d.bind.device << " carries '"
                      << std::string(d.name) << "' but has no model");
@@ -797,7 +797,7 @@ TEST_CASE("modbus device: a wide write no device will take is dropped, not half 
     // The merge loop admits a block's first row unconditionally and skips read
     // alignment on writes; FC06 (device without FC16, span_cap 1) sends a
     // 32-bit setpoint's HIGH WORD ALONE. gh_mlb41 has none yet - latent until mapped.
-    static const Vars::Variable ROWS[] = {
+    static const Vars::Descriptor ROWS[] = {
         Vars::MO("wide_setpoint", Vars::T_U32, /*device*/7, FC_WRITE_REGISTERS,
                  /*reg*/100, /*regs*/2, Vars::Scalar::U(0), 0, "", "32-bit setpoint", ""),
     };
@@ -855,7 +855,7 @@ TEST_CASE("modbus device: the AI board's channels are read where they live") {
     uint16_t seen = 0;
     const Bank& io = site_bank();
     for (uint16_t i = 0; i < io.count(); ++i) {
-        const Variable& d = io.desc(i);
+        const Descriptor& d = io.desc(i);
         if (d.bind.transport != XP_MODBUS || d.bind.device != 11) continue;
         seen++;
         INFO("'" << std::string(d.name) << "' reads unit 11 with fc " << (int)d.bind.fc);
@@ -1110,10 +1110,10 @@ TEST_CASE("modbus image: an active-low coil is inverted on the way out") {
     if (b == nullptr) return;   // no coil block on this site
 
     // Find a row that declares F_INVERT, if the site has one.
-    const Variable* inv = nullptr;
+    const Descriptor* inv = nullptr;
     uint16_t inv_off = 0;
     for (uint16_t k = 0; k < b->row_count; ++k) {
-        const Variable* d = bus.bank.var(bus.plan.row((uint16_t)(b->first_row + k))).meta();
+        const Descriptor* d = bus.bank.var(bus.plan.row((uint16_t)(b->first_row + k))).meta();
         if (d->flags & F_INVERT) { inv = d; inv_off = (uint16_t)(d->bind.reg - b->reg); break; }
     }
     if (inv == nullptr) return;   // nothing to check on this site
@@ -1143,7 +1143,7 @@ TEST_CASE("modbus image: an AO row goes out through its calibration") {
     if (k == 0xFFFF) return;                    // no calibrated output here
 
     Var h = bus.row(*b, k);
-    const Variable& d = *h.meta();
+    const Descriptor& d = *h.meta();
     const AnalogCal* cal = analog_cal(d);
     REQUIRE(cal != nullptr);
 
@@ -1285,7 +1285,7 @@ TEST_CASE("modbus plan: an input that could never go stale is refused a place") 
     uint16_t offenders = 0;
     const Bank& io = site_bank();
     for (uint16_t i = 0; i < io.count(); ++i) {
-        const Variable& d = io.desc(i);
+        const Descriptor& d = io.desc(i);
         if (d.bind.transport == XP_MODBUS && d.role == ROLE_INPUT &&
             is_read(d.bind.fc) && d.timeout_ms == 0) offenders++;
     }

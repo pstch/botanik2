@@ -128,7 +128,7 @@ namespace Botanik { namespace Sim {
             // would otherwise be counted once per row.
             uint8_t seen[32] = {};
             for (uint16_t i = 0; i < io->count(); i++) {
-                const Vars::Variable& d = *io->var(i).meta();
+                const Vars::Descriptor& d = *io->var(i).meta();
                 if (d.bind.transport != Vars::XP_MODBUS || d.bind.device == 0) continue;
                 const uint8_t u = d.bind.device;
                 if ((seen[u >> 3] & (uint8_t)(1u << (u & 7))) != 0) continue;
@@ -163,7 +163,7 @@ namespace Botanik { namespace Sim {
          * @param d the row's descriptor, for its device / fc / reg binding
          * @param v the physical quantity, in the row's own engineering units
          */
-        void set_physical(const Vars::Variable& d, float v) {
+        void set_physical(const Vars::Descriptor& d, float v) {
             if (d.bind.transport != Vars::XP_MODBUS) return;
             Modbus::RtuSlave* dev = _find(d.bind.device);
             if (dev == nullptr) return;

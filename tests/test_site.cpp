@@ -64,7 +64,7 @@ TEST_CASE("site: every published variable lands in a sensible group") {
     uint16_t published = 0, groups = 0;
     const char* seen[Vars::VAR_GROUPS_MAX] = {};
     for (uint16_t i = 0; i < f.bank.count(); i++) {
-        const Vars::Variable& d = *f.bank.var(i).meta();
+        const Vars::Descriptor& d = *f.bank.var(i).meta();
         if (!Vars::var_published(d)) continue;
         published++;
         const char* g = Vars::var_group(d);
@@ -98,7 +98,7 @@ TEST_CASE("site: every alarm declares a code and a policy") {
     SiteBank f;
     uint16_t alarms = 0;
     for (uint16_t i = 0; i < f.bank.count(); i++) {
-        const Vars::Variable& d = *f.bank.var(i).meta();
+        const Vars::Descriptor& d = *f.bank.var(i).meta();
         if (d.scope != Vars::SCOPE_A) continue;
         alarms++;
         const Vars::AlarmSpec sp = Vars::alarm_spec(d);
@@ -121,7 +121,7 @@ TEST_CASE("site: the alarm model finds every alarm row, in table order") {
     m.setup(0);   // the scan is on_setup(): the rows exist now
     uint8_t slot = 0;
     for (uint16_t i = 0; i < f.bank.count(); i++) {
-        const Vars::Variable& d = *f.bank.var(i).meta();
+        const Vars::Descriptor& d = *f.bank.var(i).meta();
         if (d.scope != Vars::SCOPE_A) continue;
         INFO("alarm '" << d.name << "' should be condition " << (int)slot);
         CHECK(m.condition(slot).ref.index == i);          // the row IS the condition
@@ -225,7 +225,7 @@ TEST_CASE("site: no row reads the payload arm it did not set") {
     SiteBank f;
     uint16_t text_rows = 0;
     for (uint16_t i = 0; i < f.bank.count(); i++) {
-        const Vars::Variable& d = *f.bank.var(i).meta();
+        const Vars::Descriptor& d = *f.bank.var(i).meta();
         INFO("row " << i << " '" << d.name << "'");
         if (d.type == Vars::T_STR) {
             text_rows++;
@@ -249,11 +249,11 @@ TEST_CASE("site: no two text parameters share pool bytes") {
     // until settings start overwriting each other.
     SiteBank f;
     for (uint16_t i = 0; i < f.bank.count(); i++) {
-        const Vars::Variable& a = *f.bank.var(i).meta();
+        const Vars::Descriptor& a = *f.bank.var(i).meta();
         if (a.type != Vars::T_STR) continue;
         const uint16_t ao = f.bank.var(i).str_off(), ac = Vars::text_slot(a).cap;
         for (uint16_t j = (uint16_t)(i + 1); j < f.bank.count(); j++) {
-            const Vars::Variable& b = *f.bank.var(j).meta();
+            const Vars::Descriptor& b = *f.bank.var(j).meta();
             if (b.type != Vars::T_STR) continue;
             const uint16_t bo = f.bank.var(j).str_off(), bc = Vars::text_slot(b).cap;
             INFO("'" << a.name << "' [" << ao << "," << ao + ac << ") overlaps '"
@@ -268,11 +268,11 @@ TEST_CASE("site: no two text parameters share pool bytes") {
 namespace {
     /** @brief Does this row publish a Modbus TCP register? Delegates to
      *  vars/access.h. */
-    bool mapped(const Vars::Variable& d) { return Vars::var_mapped(d); }
+    bool mapped(const Vars::Descriptor& d) { return Vars::var_mapped(d); }
     /** @brief Whether @p d's register sits in its scope's block: site rows
      *  below 900, library's above; alarms 800-899 (library's at the top).
      *  See @ref dev_modbus. */
-    bool in_block(const Vars::Variable& d) {
+    bool in_block(const Vars::Descriptor& d) {
         const uint16_t r = d.bind.reg;
         return (d.scope == Vars::SCOPE_A) ? ((r >= 800 && r <= 899) ||
                                              (r >= 990 && r <= 999))
@@ -287,13 +287,13 @@ TEST_CASE("site: no two rows claim the same Modbus register") {
     SiteBank f;
     uint16_t checked = 0;
     for (uint16_t i = 0; i < f.bank.count(); i++) {
-        const Vars::Variable& a = *f.bank.var(i).meta();
+        const Vars::Descriptor& a = *f.bank.var(i).meta();
         if (!mapped(a)) continue;
         INFO("'" << a.name << "' has no register");
         CHECK(a.bind.reg != 0);
         checked++;
         for (uint16_t j = (uint16_t)(i + 1); j < f.bank.count(); j++) {
-            const Vars::Variable& b = *f.bank.var(j).meta();
+            const Vars::Descriptor& b = *f.bank.var(j).meta();
             if (!mapped(b)) continue;
             INFO("'" << a.name << "' and '" << b.name << "' both claim register "
                      << a.bind.reg);
@@ -308,7 +308,7 @@ TEST_CASE("site: every register sits in its scope's block") {
     SiteBank f;
     uint16_t alarms = 0;
     for (uint16_t i = 0; i < f.bank.count(); i++) {
-        const Vars::Variable& d = *f.bank.var(i).meta();
+        const Vars::Descriptor& d = *f.bank.var(i).meta();
         if (!mapped(d)) continue;
         INFO("'" << d.name << "' holds register " << d.bind.reg
                  << ", outside the block for its scope");
@@ -422,18 +422,18 @@ const Bank& tables() {
     return b;
 }
 
-bool on_the_bus(const Variable& d) {
+bool on_the_bus(const Descriptor& d) {
     return d.bind.transport == XP_MODBUS;
 }
 
 /** @brief Registers, or coils, that @p d occupies: [reg, reg + regs). */
-uint32_t span_end(const Variable& d) {
+uint32_t span_end(const Descriptor& d) {
     const uint16_t n = d.bind.regs != 0 ? d.bind.regs : 1;
     return (uint32_t)d.bind.reg + n;
 }
 
 /** @brief doctest stringifies const char* as an address; route through std::string. */
-std::string nm(const Variable& d) { return std::string(d.name); }
+std::string nm(const Descriptor& d) { return std::string(d.name); }
 
 }  // namespace
 
@@ -441,10 +441,10 @@ TEST_CASE("site bindings: no two field-bus rows overlap on a device") {
     const Bank& t = tables();
 
     for (uint16_t i = 0; i < t.count(); ++i) {
-        const Variable& a = t.desc(i);
+        const Descriptor& a = t.desc(i);
         if (!on_the_bus(a)) continue;
         for (uint16_t j = (uint16_t)(i + 1); j < t.count(); ++j) {
-            const Variable& b = t.desc(j);
+            const Descriptor& b = t.desc(j);
             if (!on_the_bus(b)) continue;
             // Same device and address space: bit/register function codes are numbered apart.
             if (a.bind.device != b.bind.device) continue;
@@ -465,7 +465,7 @@ TEST_CASE("site bindings: a row's span matches the width its wire type needs") {
     const Bank& t = tables();
 
     for (uint16_t i = 0; i < t.count(); ++i) {
-        const Variable& d = t.desc(i);
+        const Descriptor& d = t.desc(i);
         if (!on_the_bus(d)) continue;
         if (Modbus::is_bit(d.bind.fc)) {
             INFO("'" << nm(d) << "' is a bit row spanning " << d.bind.regs);
@@ -486,7 +486,7 @@ TEST_CASE("site bindings: every field-bus input can go stale") {
     const Bank& t = tables();
 
     for (uint16_t i = 0; i < t.count(); ++i) {
-        const Variable& d = t.desc(i);
+        const Descriptor& d = t.desc(i);
         if (!on_the_bus(d) || d.role != ROLE_INPUT) continue;
         INFO("'" << nm(d) << "' is a field-bus input with no timeout");
         CHECK(d.timeout_ms > 0);
@@ -499,7 +499,7 @@ TEST_CASE("site bindings: no read block can exceed a device's own request limit"
     const Bank& t = tables();
 
     for (uint16_t i = 0; i < t.count(); ++i) {
-        const Variable& d = t.desc(i);
+        const Descriptor& d = t.desc(i);
         if (!on_the_bus(d) || Modbus::is_bit(d.bind.fc)) continue;
         INFO("'" << nm(d) << "' spans " << d.bind.regs << " registers");
         CHECK(d.bind.regs <= Config::MODBUS_MAX_REGS_PER_BLOCK);
@@ -561,8 +561,8 @@ TEST_CASE("sizeof: logging & serial") {
 
 TEST_CASE("sizeof: the site's variable table and value store") {
     // Parameters, status, actuators and alarms are rows of one table; descriptors are flash.
-    REPORT_SIZE(Botanik::Vars::Variable, 128);
-    REPORT_SIZE(Botanik::Vars::Value, 32);
+    REPORT_SIZE(Botanik::Vars::Descriptor, 128);
+    REPORT_SIZE(Botanik::Vars::Slot, 32);
 }
 
 }  // namespace sizes

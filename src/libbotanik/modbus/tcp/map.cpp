@@ -25,8 +25,8 @@ namespace Botanik { namespace Modbus {
         /** @brief What a map with no bank hands back: an inert row, so a caller
          *  that ignores count() reads zeros rather than dereferencing null. The
          *  bank has its own sink for the same reason. */
-        const Variable g_sink_d = {};
-        Value          g_sink_v = {};
+        const Descriptor g_sink_d = {};
+        Slot          g_sink_v = {};
 
         /** @brief 32-bit saturation for the types that do not fit. Truncation
          *  would read as a plausible small number; a rail reads as "at least
@@ -50,14 +50,14 @@ namespace Botanik { namespace Modbus {
         /** @brief Whether a master may write this row at all. Not the same
          *  question as whether a VALUE is acceptable - that one is the bank's,
          *  and Bank::check() answers it. */
-        bool writable(const Variable& d) {
+        bool writable(const Descriptor& d) {
             return d.role == ROLE_PARAM && (d.flags & F_RDONLY) == 0 &&
                    d.type != T_STR;
         }
 
     }  // namespace
 
-    bool Map::published(const Variable& d) {
+    bool Map::published(const Descriptor& d) {
         // WHICH KINDS of row carry a register is a rule about the table, so it
         // lives in vars/access.h. Such a row with no register is a table defect
         // the site test fails on, and this simply does not serve it.
@@ -75,7 +75,7 @@ namespace Botanik { namespace Modbus {
         if (_io == nullptr) return;
 
         for (uint16_t i = 0; i < _io->count(); i++) {
-            const Variable& d = *_io->var(i).meta();
+            const Descriptor& d = *_io->var(i).meta();
             if (!published(d)) continue;
             if (_count >= Config::MODBUS_TCP_MAX_ROWS) { _overflow++; continue; }
             // Insertion sort by register: a couple of hundred rows, once at
@@ -129,7 +129,7 @@ namespace Botanik { namespace Modbus {
     }
 
     uint32_t Map::to_wire(const Var& v) {
-        const Variable* d = v.meta();
+        const Descriptor* d = v.meta();
         return (d == nullptr) ? 0u : wire_of(d->type, v.raw());
     }
 
@@ -336,7 +336,7 @@ namespace Botanik { namespace Modbus {
 
         bool found = false;
         Var v = row_at(addr, &found);
-        const Variable& d = *v.meta();
+        const Descriptor& d = *v.meta();
         // A coil is a BOOLEAN parameter. An alarm publishes as a coil too, and is
         // read-only: acknowledging one is a different block entirely.
         if (!found || !writable(d) || d.type != T_BOOL) return EX_ILLEGAL_ADDRESS;

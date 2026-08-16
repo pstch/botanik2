@@ -106,7 +106,7 @@ namespace Botanik { namespace Modbus {
 
         /** @brief Whether a row publishes at all: a parameter, a status value or
          *  an alarm, carrying a non-zero register. */
-        static bool published(const Vars::Variable& d);
+        static bool published(const Vars::Descriptor& d);
 
     private:
         /** @brief Queue row @p r for a flash write. False when the queue is full,

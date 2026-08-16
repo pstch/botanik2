@@ -22,7 +22,7 @@ using namespace Botanik;
 namespace {
     /** @brief Bank over the site's real table, plus the scheduler context the monitor reads. */
     struct Fixture {
-        Vars::Value*                vals;
+        Vars::Slot*                vals;
         Vars::Bank                  bank;
         Logs::Logger                log;
         RecordingWriter             writer;

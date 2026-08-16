@@ -1514,7 +1514,7 @@ TEST_CASE("region: a span across a newline takes the newline with it") {
 
 namespace {
 
-    const Vars::Variable CMD_VARS[] = {
+    const Vars::Descriptor CMD_VARS[] = {
         MI("ext_temp", T_F32, 5, 3, 18, 2, SF(-40.0f), SF(85.0f), SF(20.5f), 0, 1,
                        "C", "outside", ""),
         G ("setpoint", T_F32, SF(18.0f), 1, "C", "target temp", ""),
@@ -1529,7 +1529,7 @@ namespace {
                                 Config::EDITOR_MAX_ROWS> bufs;
         Terminal::TextEditor           editor;
         CapturingWriter                writer;
-        Vars::Value                    values[2]{};
+        Vars::Slot                    values[2]{};
         uint16_t                       index[2]{};
         Vars::Bank                     bank;
         Tasks::Registry                reg;

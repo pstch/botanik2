@@ -115,7 +115,7 @@ int main(int argc, char** argv) {
     // The animator's readings go into the DEVICES from here, not into the bank
     // rows - so a row shows what the bus delivered, at the rate it delivered it.
     Site::field_ctx()  = &fieldbus;
-    Site::field_sink() = [](void* ctx, const Vars::Variable& d, float v) {
+    Site::field_sink() = [](void* ctx, const Vars::Descriptor& d, float v) {
         static_cast<Sim::FieldBus*>(ctx)->set_physical(d, v);
     };
     if (fieldbus.dropped() != 0) {

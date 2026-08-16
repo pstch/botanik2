@@ -28,7 +28,7 @@ namespace Botanik { namespace Vars {
      *  live. @c ovr_valid is separate so "force to 20 C" and "read as a dead
      *  sensor" are both expressible.
      *  @warning Both halves are PERSISTED - hence the CRITICAL on each restore. */
-    struct Value {
+    struct Slot {
         Scalar   v;
         Scalar   ovr;        ///< forced value, while ovr_on
         uint64_t stamp_ms;   ///< uptime ms of the last good update
@@ -54,7 +54,7 @@ namespace Botanik { namespace Vars {
     static const uint8_t WRITER_NONE = 0xFFu;
     // Every field here costs RAM on every row of every site, so the size is
     // pinned rather than left to drift.
-    static_assert(sizeof(Value) == 32, "Value must stay 32 bytes (RAM per variable)");
+    static_assert(sizeof(Slot) == 32, "Slot must stay 32 bytes (RAM per variable)");
 
     /** @brief A reference to any variable: a bare index into the one table.
      *
@@ -80,10 +80,10 @@ namespace Botanik { namespace Vars {
     /** @brief The one handle: a non-owning (descriptor, value slot) pair, made
      *  on the fly and passed by value. */
     class Var {
-        const Variable* _d;
-        Value*          _v;
+        const Descriptor* _d;
+        Slot*          _v;
     public:
-        Var(const Variable* d, Value* v) : _d(d), _v(v) {}
+        Var(const Descriptor* d, Slot* v) : _d(d), _v(v) {}
 
         /** @name Read
          *  An invalid variable reads its declared default. The override is
@@ -111,7 +111,7 @@ namespace Botanik { namespace Vars {
         /** @} */
 
         /** @name Override (maintenance)
-         *  See Value's override note. Writes keep landing in the underlying
+         *  See Slot's override note. Writes keep landing in the underlying
          *  slot while one is in force, so clearing it resumes the live value.
          *  @{ */
 
@@ -174,7 +174,7 @@ namespace Botanik { namespace Vars {
 
         /** @} */
 
-        const Variable* meta() const { return _d; }
+        const Descriptor* meta() const { return _d; }
         const char*     name() const { return _d->name; }
         const char*     unit() const { return _d->unit; }
         VarType         type() const { return _d->type; }
@@ -254,30 +254,30 @@ namespace Botanik { namespace Vars {
         /** @brief Load @p d's stored value into @p v, or into @p text for a
          *  T_STR. @p text / @p cap is the row's slot, already bounded by the bank.
          *  @return false when the key is absent, which is normal. */
-        virtual bool load(const Variable& d, Value& v, char* text, uint16_t cap) = 0;
+        virtual bool load(const Descriptor& d, Slot& v, char* text, uint16_t cap) = 0;
         /** @brief Persist @p d's current value. */
-        virtual bool save(const Variable& d, const Value& v,
+        virtual bool save(const Descriptor& d, const Slot& v,
                           const char* text, uint16_t cap) = 0;
 
         /** @brief Load @p d's stored OVERRIDE into @p v (value + the validity it
          *  reads as). @return false when none is stored, which is the normal
          *  case. */
-        virtual bool load_override(const Variable& d, Value& v) = 0;
+        virtual bool load_override(const Descriptor& d, Slot& v) = 0;
         /** @brief Persist @p d's current override. */
-        virtual bool save_override(const Variable& d, const Value& v) = 0;
+        virtual bool save_override(const Descriptor& d, const Slot& v) = 0;
         /** @brief Forget @p d's stored override, on every release, so a cleared
          *  one cannot come back at the next boot. */
-        virtual bool clear_override(const Variable& d) = 0;
+        virtual bool clear_override(const Descriptor& d) = 0;
 
         /** @brief Drop @p d's stored value, so it reads its factory default
          *  again after a reboot. @return false when storage refused. */
-        virtual bool clear(const Variable& d) = 0;
+        virtual bool clear(const Descriptor& d) = 0;
 
         /** @brief Load @p d's RETAINED value (F_RETAIN); false when none is
          *  stored. Its own key, like an override: a row can have both. */
-        virtual bool load_retained(const Variable& d, Value& v) = 0;
+        virtual bool load_retained(const Descriptor& d, Slot& v) = 0;
         /** @brief Persist @p d's current value as its retained one. */
-        virtual bool save_retained(const Variable& d, const Value& v) = 0;
+        virtual bool save_retained(const Descriptor& d, const Slot& v) = 0;
     };
 
     /** @brief What everything is handed to reach the variables.
@@ -335,7 +335,7 @@ namespace Botanik { namespace Vars {
          *  so a VarRef stays a bare row number and nothing outside knows there
          *  are segments. @{ */
 
-        const Variable* _seg[Config::VAR_SEGMENTS];
+        const Descriptor* _seg[Config::VAR_SEGMENTS];
         /** @brief First global row number of each segment; ascending. */
         uint16_t        _seg_base[Config::VAR_SEGMENTS];
         uint16_t        _seg_len[Config::VAR_SEGMENTS];
@@ -356,7 +356,7 @@ namespace Botanik { namespace Vars {
 
         /** @brief Mutable so var() and pool() stay const: `const Bank&` gates the
          *  BANK's API, not what a Var may drive. */
-        mutable Value _values[Config::VAR_MAX];
+        mutable Slot _slots[Config::VAR_MAX];
         mutable char  _pool[Config::STR_POOL_BYTES];
         uint16_t      _index[Config::VAR_MAX];
 
@@ -424,7 +424,7 @@ namespace Botanik { namespace Vars {
         /** @brief Add a segment of flash rows, borrowed for the bank's lifetime.
          *  Rows land in call order, so REGISTRATION ORDER IS TABLE ORDER.
          *  @return false if it did not fit, in which case NONE of it was added. */
-        bool register_vars(const Variable* rows, uint16_t count);
+        bool register_vars(const Descriptor* rows, uint16_t count);
 
         /** @brief Close registration: lay out the string pool, seed the slots,
          *  build the name index, locate the parameter block. Nothing may resolve
@@ -472,7 +472,7 @@ namespace Botanik { namespace Vars {
          *  A parameter already persists, an input is overwritten by the next
          *  scan, and restoring an output would energise a contactor before
          *  anything looked at the plant. */
-        static bool retainable(const Variable& d) {
+        static bool retainable(const Descriptor& d) {
             return (d.flags & F_RETAIN) != 0 && d.role == ROLE_COMPUTED;
         }
 
@@ -499,12 +499,12 @@ namespace Botanik { namespace Vars {
 
         /** @brief The descriptor for LOGICAL row @p i, already bounds-checked.
          *  One hop through the redeclaration map, then the segment walk. */
-        const Variable& desc(uint16_t i) const { return _desc_phys(_row[i]); }
+        const Descriptor& desc(uint16_t i) const { return _desc_phys(_row[i]); }
 
         /** @brief Resolve an index. Never fails; a bad one lands on the sink. */
         Var var(uint16_t i) const {
-            if (i < _count) return Var(&desc(i), &_values[i]);
-            _sink_v = Value();          // fresh: a sink never accumulates state
+            if (i < _count) return Var(&desc(i), &_slots[i]);
+            _sink_v = Slot();          // fresh: a sink never accumulates state
             return Var(&_sink_d, &_sink_v);
         }
         Var var(VarRef r) const { return var(r.index); }
@@ -715,7 +715,7 @@ namespace Botanik { namespace Vars {
         /** @brief The descriptor at PHYSICAL row @p p, before the redeclaration
          *  map. The one place segments are visible; their bases ascend, so
          *  walking down from the last costs one compare in the usual case. */
-        const Variable& _desc_phys(uint16_t p) const {
+        const Descriptor& _desc_phys(uint16_t p) const {
             uint8_t s = (uint8_t)(_segments - 1);
             while (s > 0 && p < _seg_base[s]) --s;
             return _seg[s][p - _seg_base[s]];
@@ -754,10 +754,10 @@ namespace Botanik { namespace Vars {
         uint16_t _row_of(Var h) const;
         /** @brief The same from the descriptor: which row this address IS.
          *  VAR_NONE for the sink or another bank's row. */
-        uint16_t _row_of(const Variable* d) const;
+        uint16_t _row_of(const Descriptor* d) const;
         /** @brief The value slot behind an editable row, or null. The one
          *  admission check set() and check() share. */
-        Value* _editable_slot(const Variable* d) const;
+        Slot* _editable_slot(const Descriptor* d) const;
         /** @brief Write @p h's override through to the store; false when it
          *  refused (already logged) or there is no store. */
         bool _persist_override(Var h);
@@ -765,7 +765,7 @@ namespace Botanik { namespace Vars {
         void _mark_override_unsaved(Var h);
         /** @brief Write an edited parameter through to the store, loudly when it
          *  refuses. Shared by both set() overloads. */
-        SetResult _persist_param(Var h, const Variable& d, Value& slot);
+        SetResult _persist_param(Var h, const Descriptor& d, Slot& slot);
 
         /** @brief The one output sweep both control edges run. @p before tells a
          *  transition from a re-assertion; @p erase_overrides is the system's
@@ -782,8 +782,8 @@ namespace Botanik { namespace Vars {
 
         /** @brief The inert sink a bad index resolves to. Reset on every such
          *  access: scratch, never shared state. */
-        static const Variable _sink_d;
-        static Value          _sink_v;
+        static const Descriptor _sink_d;
+        static Slot          _sink_v;
     };
 
     /** @} */

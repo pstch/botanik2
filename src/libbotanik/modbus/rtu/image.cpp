@@ -19,14 +19,14 @@ namespace {
 
     /** @brief Where a row sits inside its block's payload, counted in registers
      *  or in bits according to the block's function code. */
-    uint16_t offset_of(const Vars::Variable& d, const Block& b) {
+    uint16_t offset_of(const Vars::Descriptor& d, const Block& b) {
         return (uint16_t)(d.bind.reg - b.reg);
     }
 
     /** @brief Whether a row's wire value spans a register pair. */
-    bool is_pair(const Vars::Variable& d) { return d.bind.regs == 2; }
+    bool is_pair(const Vars::Descriptor& d) { return d.bind.regs == 2; }
 
-    RegOrder order_of(const Vars::Variable& d) {
+    RegOrder order_of(const Vars::Descriptor& d) {
         return (d.flags & Vars::F_WORD_SWAP) ? REG_LO_FIRST : REG_HI_FIRST;
     }
 
@@ -35,7 +35,7 @@ namespace {
      *  Everything analog becomes a float here because that is what the
      *  calibration works in; a direct row keeps its own type and goes through
      *  the integer path instead. */
-    float wire_f32(const Vars::Variable& d, const uint8_t* payload, uint16_t off) {
+    float wire_f32(const Vars::Descriptor& d, const uint8_t* payload, uint16_t off) {
         const uint8_t* at = payload + (size_t)off * 2u;
         if (is_pair(d)) {
             if (d.bind.wire == Vars::T_F32) return f32_from_regs(at, order_of(d));
@@ -52,14 +52,14 @@ namespace {
      *
      *  raw(), not the live value: an override on an actuator has to reach the
      *  wire, or `control disable` leaves nothing able to move one. */
-    bool row_bit(const Vars::Variable& d, Vars::Var h) {
+    bool row_bit(const Vars::Descriptor& d, Vars::Var h) {
         const bool on = h.b();
         return (d.flags & Vars::F_INVERT) ? !on : on;
     }
 
     /** @brief A row's demand as the wire wants it: an AO's through its
      *  calibration, everything else's as it stands. */
-    float wire_value(const Vars::Bank& io, const Vars::Variable& d, Vars::Var h) {
+    float wire_value(const Vars::Bank& io, const Vars::Descriptor& d, Vars::Var h) {
         if (d.scope != Vars::SCOPE_AO) return h.value();
         const Vars::AnalogCal* cal = Vars::analog_cal(d);
         return (cal == nullptr) ? h.value()
@@ -71,7 +71,7 @@ namespace {
      *  An AO's integer comes from its calibrated float, the only place the
      *  calibration exists; every other row's comes from the row itself, since
      *  routing a large u32 or i32 through a float would round it. */
-    void row_regs(const Vars::Bank& io, const Vars::Variable& d, Vars::Var h,
+    void row_regs(const Vars::Bank& io, const Vars::Descriptor& d, Vars::Var h,
                   uint8_t* at) {
         // A float on the wire goes out as one, calibrated or not.
         if (is_pair(d) && d.bind.wire == Vars::T_F32) {
@@ -89,7 +89,7 @@ namespace {
     }
 
     /** @brief Commit one digital row out of a packed-bit payload. */
-    void commit_bit(Vars::Var h, const Vars::Variable& d, const Block& b,
+    void commit_bit(Vars::Var h, const Vars::Descriptor& d, const Block& b,
                     const uint8_t* payload, uint64_t now_ms) {
         bool on = bit_at(payload, offset_of(d, b));
         // The one place active-low wiring is folded in, so everything above
@@ -99,7 +99,7 @@ namespace {
     }
 
     /** @brief Commit one analog row: convert, then judge. */
-    bool commit_analog(Vars::Bank& io, Vars::Var h, const Vars::Variable& d,
+    bool commit_analog(Vars::Bank& io, Vars::Var h, const Vars::Descriptor& d,
                        const Block& b, const uint8_t* payload, uint64_t now_ms) {
         const Vars::AnalogCal* cal = Vars::analog_cal(d);
         if (cal == nullptr) return false;
@@ -117,7 +117,7 @@ namespace {
     }
 
     /** @brief The register, mapped 1:1 onto the row's type. */
-    Vars::Scalar decode_direct(const Vars::Variable& d, const Block& b,
+    Vars::Scalar decode_direct(const Vars::Descriptor& d, const Block& b,
                                const uint8_t* payload) {
         const uint16_t off = offset_of(d, b);
         const uint8_t* at  = payload + (size_t)off * 2u;
@@ -138,7 +138,7 @@ namespace {
     /** @brief Commit one direct row: decode, then judge - the same order a
      *  calibrated row goes through, and for the same reason.
      *  @see commit_read() in image.h */
-    bool commit_direct(Vars::Var h, const Vars::Variable& d, const Block& b,
+    bool commit_direct(Vars::Var h, const Vars::Descriptor& d, const Block& b,
                        const uint8_t* payload, uint64_t now_ms) {
         const Vars::Scalar v = decode_direct(d, b, payload);
         if (Vars::value_implausible(d, v)) {
@@ -170,7 +170,7 @@ uint16_t commit_read(Vars::Bank& io, const Planner& p, const Block& b,
     for (uint16_t k = 0; k < b.row_count; ++k) {
         const uint16_t idx = p.row((uint16_t)(b.first_row + k));
         Vars::Var h = io.var(idx);
-        const Vars::Variable& d = *h.meta();
+        const Vars::Descriptor& d = *h.meta();
         const uint16_t off = offset_of(d, b);
 
         // A row outside the payload the slave actually sent. Cannot happen for a
@@ -219,7 +219,7 @@ uint16_t collect_write(const Vars::Bank& io, const Planner& p, const Block& b,
     for (uint16_t k = 0; k < b.row_count; ++k) {
         const uint16_t idx = p.row((uint16_t)(b.first_row + k));
         Vars::Var h = io.var(idx);
-        const Vars::Variable& d = *h.meta();
+        const Vars::Descriptor& d = *h.meta();
         const uint16_t off = offset_of(d, b);
 
         if (is_bit(b.fc)) {
@@ -236,7 +236,7 @@ void clear_dirty(Vars::Bank& io, const Planner& p, const Block& b,
     for (uint16_t k = 0; k < b.row_count; ++k) {
         const uint16_t idx = p.row((uint16_t)(b.first_row + k));
         Vars::Var h = io.var(idx);
-        const Vars::Variable& d = *h.meta();
+        const Vars::Descriptor& d = *h.meta();
         const uint16_t off = offset_of(d, b);
 
         // No payload to compare against: the caller could not say what went out,

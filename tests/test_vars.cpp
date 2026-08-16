@@ -1,6 +1,6 @@
 /**
  * @file test_vars.cpp
- * @brief The variable model: Scalar, Variable/Value/Bank, parameters and retention.
+ * @brief The variable model: Scalar, Descriptor/Slot/Bank, parameters and retention.
  *
  * Each section is its own namespace so fixtures and helpers cannot collide.
  */
@@ -237,7 +237,7 @@ namespace {
 
     // One table, every scope - the shape a site has. Each row's factory takes
     // only the fields its scope can use.
-    const Variable VARS[] = {
+    const Descriptor VARS[] = {
         MI("ext_temp",    T_F32, 5, 3, 18, 2, SF(-40.0f), SF(85.0f), SF(20.5f), 5000, 1,
                           "C", "outside", ""),
         MI("no_timeout",  T_F32, 5, 3, 18, 2, SF(0.0f), SF(100.0f), SF(1.5f), 0, 1,
@@ -250,7 +250,7 @@ namespace {
     };
 
     struct Fixture {
-        Value    values[V_COUNT]{};
+        Slot    values[V_COUNT]{};
         char     pool[64]{};
         uint16_t index[V_COUNT]{};
         Bank     bank;
@@ -743,7 +743,7 @@ TEST_CASE("pool: a row that does not fit gets no slot, not row 0's") {
     // to offset 0, or every writer would overwrite the FIRST row's slot. Sized
     // off the config rather than a literal, since the pool is the bank's now.
     const uint16_t BIG = (uint16_t)(Botanik::Config::STR_POOL_BYTES * 2 / 3);
-    const Variable V[] = {
+    const Descriptor V[] = {
         PS("a", "first", BIG, STR_NONE, 1, "", ""),
         PS("b", "second", BIG, STR_NONE, 2, "", ""),
     };
@@ -765,7 +765,7 @@ TEST_CASE("pool: a row that does not fit gets no slot, not row 0's") {
 TEST_CASE("pool: a pool smaller than a single slot writes nothing") {
     // Out-of-bounds: one slot wider than the whole pool, so offset 0 plus the
     // capacity runs off the end. ASan is what makes this test worth having.
-    const Variable V[] = { PS("a", "aaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    const Descriptor V[] = { PS("a", "aaaaaaaaaaaaaaaaaaaaaaaaaaaa",
                               (uint16_t)(Botanik::Config::STR_POOL_BYTES + 8),
                               STR_NONE, 1, "", "") };
     Bank bank;
@@ -846,7 +846,7 @@ using namespace Botanik::Vars;
 namespace {
     const uint16_t CAP = 32;
 
-    const Variable PARAMS[] = {
+    const Descriptor PARAMS[] = {
         //name      type    default   min    max   dgt unit   reg
         P("p_bool", T_BOOL, 1,        0,     1,    0,  "",    1, "", ""),
         P("p_u16",  T_U16,  64,       0,     3600, 0,  "",    2, "", ""),
@@ -868,7 +868,7 @@ namespace {
     };
 
     struct Fx {
-        Value        vals[5]{};
+        Slot        vals[5]{};
         char         pool[CAP]{};
         uint16_t     index[5]{};
         Bank         bank;
@@ -1006,7 +1006,7 @@ TEST_CASE("params: find only matches parameters, not any variable") {
 
 namespace {
     // One row per role, so the output exclusion is testable.
-    const Variable OVR_VARS[] = {
+    const Descriptor OVR_VARS[] = {
         MI("sensor", T_F32, 5, 3, 0, 2, SF(-50.0f), SF(150.0f), SF(1.5f), 5000, 1,
                      "C", "a reading", ""),
         G ("derived", T_F32, SF(0.0f), 1, "", "a computed value", ""),
@@ -1016,7 +1016,7 @@ namespace {
 
     /** @brief A bank over OVR_VARS, rebuilt to simulate a reboot: same store, fresh RAM. */
     struct OvrFx {
-        Value        vals[4]{};
+        Slot        vals[4]{};
         uint16_t     index[4]{};
         Bank         bank;
         KvParamStore store;
@@ -1257,13 +1257,13 @@ TEST_CASE("override: every release path also forgets the stored copy") {
 // Saving - an edit is LIVE when it is set and DURABLE when it is saved.
 
 namespace {
-    const Variable SAVED[] = {
+    const Descriptor SAVED[] = {
         P("p_a", T_U16, 10, 0, 1000, 0, "", 20, "", ""),
         P("p_b", T_U16, 10, 0, 1000, 0, "", 21, "", ""),
     };
 
     struct SaveFx {
-        Value    vals[2]{};
+        Slot    vals[2]{};
         uint16_t index[2]{};
         Bank         bank;
         KvParamStore store;
@@ -1281,13 +1281,13 @@ namespace {
     // vars/ depends on logs/ (the Bank reports a refused write through a
     // Logger), so a Logger reading the bank would close that into a cycle.
     // Params pushes it instead - it is the one object already holding both.
-    const Variable LOGCFG[] = {
+    const Descriptor LOGCFG[] = {
         ::Botanik::Vars::PE("sys_log_level", (uint64_t)Botanik::Logs::LOG_INFO,
             &Botanik::Logs::log_level_label, 973, "floor", ""),
     };
 
     struct LogFx {
-        Value             vals[1]{};
+        Slot             vals[1]{};
         uint16_t          index[1]{};
         Botanik::Tasks::Registry reg;
         Botanik::Logs::Logger logger;
@@ -1441,12 +1441,12 @@ namespace {
         }
     }
 
-    const Variable ENUMS[] = {
+    const Descriptor ENUMS[] = {
         PE("p_mode", 4, &mode_label, 10, "operating mode", ""),
     };
 
     struct EnumFx {
-        Value    vals[1]{};
+        Slot    vals[1]{};
         uint16_t index[1]{};
         Bank     bank;
         EnumFx() {
@@ -1524,7 +1524,7 @@ TEST_CASE("params: reset puts a row back to its default, live and in storage") {
     CHECK_FALSE(p.param_unsaved());             // and nothing left owed
 
     // The stored copy goes with the live one, or the next boot would undo it.
-    Value fresh{};
+    Slot fresh{};
     CHECK_FALSE(store.load(*p.meta(), fresh, nullptr, 0));
 }
 
@@ -1547,7 +1547,7 @@ TEST_CASE("params: clear forgets the unsaved edit and keeps the saved one") {
     CHECK_FALSE(p.param_unsaved());
 
     // ...and the stored copy is untouched, which is the whole difference.
-    Value fresh{};
+    Slot fresh{};
     CHECK(store.load(*p.meta(), fresh, nullptr, 0));
 }
 
@@ -1602,44 +1602,44 @@ struct MemStore : public VarStore {
     int saves = 0;                       ///< retained writes attempted
     bool refuse = false;                 ///< make the "storage said no" path testable
 
-    bool load(const Variable& d, Value& v, char*, uint16_t) override {
+    bool load(const Descriptor& d, Slot& v, char*, uint16_t) override {
         auto it = params.find(d.name);
         if (it == params.end()) return false;
         v.v = Scalar::U(it->second);
         return true;
     }
-    bool save(const Variable& d, const Value& v, const char*, uint16_t) override {
+    bool save(const Descriptor& d, const Slot& v, const char*, uint16_t) override {
         params[d.name] = v.v.u;
         return true;
     }
-    bool load_override(const Variable& d, Value& v) override {
+    bool load_override(const Descriptor& d, Slot& v) override {
         auto it = overrides.find(d.name);
         if (it == overrides.end()) return false;
         v.ovr = Scalar::U(it->second);
         v.ovr_valid = ovr_valid[d.name];
         return true;
     }
-    bool save_override(const Variable& d, const Value& v) override {
+    bool save_override(const Descriptor& d, const Slot& v) override {
         overrides[d.name] = v.ovr.u;
         ovr_valid[d.name] = v.ovr_valid;
         return true;
     }
-    bool clear_override(const Variable& d) override {
+    bool clear_override(const Descriptor& d) override {
         overrides.erase(d.name);
         return true;
     }
-    bool clear(const Variable& d) override {
+    bool clear(const Descriptor& d) override {
         if (refuse) return false;
         params.erase(d.name);
         return true;
     }
-    bool load_retained(const Variable& d, Value& v) override {
+    bool load_retained(const Descriptor& d, Slot& v) override {
         auto it = retained.find(d.name);
         if (it == retained.end()) return false;
         v.v = Scalar::U(it->second);
         return true;
     }
-    bool save_retained(const Variable& d, const Value& v) override {
+    bool save_retained(const Descriptor& d, const Slot& v) override {
         saves++;
         if (refuse) return false;
         retained[d.name] = v.v.u;
@@ -1648,7 +1648,7 @@ struct MemStore : public VarStore {
 };
 
 // One of each interesting kind: the retained rows carry F_RETAIN, the plain one does not.
-const Variable g_rows[] = {
+const Descriptor g_rows[] = {
     GR("total_litres", T_U32, Scalar::U(0), 0, "L", "litres delivered", ""),
     G ("plain_count",  T_U32, Scalar::U(0), 0, "",  "not retained",     ""),
     GR("total_hours",  T_F32, Scalar::F(0.0f), 1, "h", "hours run",     ""),
@@ -1666,11 +1666,11 @@ void build(Bank& b) {
 TEST_CASE("retain: only a computed row carrying F_RETAIN is retained") {
     // One predicate, so load/save cannot disagree: restoring an OUTPUT from
     // flash would energise a contactor before anything looked at the plant.
-    const Variable computed = G("c", T_U32, Scalar::U(0), 0, "", "", "");
+    const Descriptor computed = G("c", T_U32, Scalar::U(0), 0, "", "", "");
     CHECK_FALSE(Bank::retainable(computed));      // no flag
 
     for (uint8_t role = 0; role < 4; ++role) {
-        Variable v = computed;
+        Descriptor v = computed;
         v.flags = (uint8_t)(v.flags | F_RETAIN);
         v.role  = (VarRole)role;
         const bool want = (v.role == ROLE_COMPUTED);
@@ -1767,12 +1767,12 @@ namespace cadence {
 
 // Needs a ROLE_PARAM run for the cadence row plus a retained row to write. The
 // parameters come first, as everywhere else.
-const Variable g_cad[] = {
+const Descriptor g_cad[] = {
     P ("sys_retain_sec", T_U32, 2, 0, 86400, 0, "sec", 974, "cadence", ""),
     GR("total_litres",   T_U32, Scalar::U(0), 0, "L", "litres", ""),
 };
 const uint16_t CAD_COUNT = (uint16_t)(sizeof(g_cad) / sizeof(g_cad[0]));
-Value    g_cad_vals[CAD_COUNT];
+Slot    g_cad_vals[CAD_COUNT];
 uint16_t g_cad_index[CAD_COUNT];
 
 void build(Bank& b) {
@@ -1851,7 +1851,7 @@ using namespace Botanik;
 
 namespace {
     // Stands in for the library's rows: registered FIRST.
-    const Vars::Variable LIB[] = {
+    const Vars::Descriptor LIB[] = {
         Vars::A("alarm_x", "AX", 0, 0, 0, 0, 990, "alarm x", ""),
         Vars::P("ntp_poll_sec", Vars::T_U32, 3600, 10, 86400, 0, "sec", 922,
                 "NTP poll interval", ""),
@@ -1860,7 +1860,7 @@ namespace {
     };
     // Stands in for a site's: registered SECOND, restating one library name
     // with a different default, band and description.
-    const Vars::Variable SITE[] = {
+    const Vars::Descriptor SITE[] = {
         Vars::P("ntp_poll_sec", Vars::T_U32, 1800, 60, 7200, 0, "sec", 922,
                 "site NTP poll interval", "tightened band"),
         Vars::P("site_only", Vars::T_U16, 7, 0, 9, 0, "", 700, "site row", ""),

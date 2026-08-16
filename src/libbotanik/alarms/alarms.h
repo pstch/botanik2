@@ -61,7 +61,7 @@ namespace Botanik { namespace Alarms {
 
         /** @brief The `SCOPE_A` descriptor this condition is built from; null on
          *  an unfilled slot. Flash-resident and const. */
-        const Vars::Variable* var;
+        const Vars::Descriptor* var;
         Vars::VarRef ref;           ///< the same row, as an index into the bank
 
         /** @} */
@@ -260,7 +260,7 @@ namespace Botanik { namespace Alarms {
                 // slot: `n` saturates at ALARM_SLOTS, so only `found` can tell a
                 // table that filled the slots exactly from one that lost a tail.
                 for (uint16_t i = 0; i < _io->count(); i++) {
-                    const Vars::Variable& d = *_io->var(i).meta();
+                    const Vars::Descriptor& d = *_io->var(i).meta();
                     if (d.scope != Vars::SCOPE_A) continue;
                     found++;
                     if (n >= Config::ALARM_SLOTS) continue;   // no slot left
