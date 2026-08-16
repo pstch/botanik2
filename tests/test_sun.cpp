@@ -142,6 +142,46 @@ TEST_CASE("SunPositionTracker: computes elevation from geo config") {
     CHECK(sun.elevation() == doctest::Approx(solar_position(now, deg(LAT), deg(LON)).elevation));
 }
 
+TEST_CASE("SunPositionTracker: a half-edited location is not a location") {
+    // The geo_ group carries a commit serial because a latitude belonging to one
+    // place and a longitude to another is a position nowhere on earth. Editing
+    // one row without bumping the serial must not reach the solar math.
+    //
+    // Compared against solar_position() at the SAME instant, not against the
+    // earlier reading: the elevation moves with time as well as with place, and
+    // only one of those is under test.
+    botanik_test::ParamFixture fx;
+    const int32_t LAT = 488566000;   // Paris
+    const int32_t LON =  23522000;
+    const double  SYD = -33.8688;    // Sydney's latitude, a hemisphere away
+    fx.set_num("geo_serial", 1);
+    fx.set_num("geo_lat_deg", (float)deg(LAT));
+    fx.set_num("geo_lon_deg", (float)deg(LON));
+    fx.publish();
+
+    SunPositionTracker sun(Botanik::SetupContext(), &fx.bank());
+    const uint64_t t0 = HAL::Clock::uptime_ms();
+    sun.step(t0);
+    REQUIRE(sun.ready());
+
+    // Half an edit: the latitude moves to Sydney, the serial does not.
+    fx.set_num("geo_lat_deg", (float)SYD);
+    fx.publish();
+    const uint64_t t1 = t0 + 120000;             // past the recompute cadence
+    sun.step(t1);
+    INFO("uncommitted, so it is still where it was told to be");
+    CHECK(sun.elevation() ==
+          doctest::Approx(solar_position(t1, deg(LAT), deg(LON)).elevation));
+
+    // Commit, and the pair lands together.
+    fx.set_num("geo_serial", 2);
+    fx.publish();
+    const uint64_t t2 = t0 + 240000;
+    sun.step(t2);
+    CHECK(sun.elevation() ==
+          doctest::Approx(solar_position(t2, SYD, deg(LON)).elevation));
+}
+
 TEST_CASE("SunPositionTracker: throttles recomputation between cadence ticks") {
     botanik_test::ParamFixture fx;
     const int32_t LAT = 488566000;   // Paris

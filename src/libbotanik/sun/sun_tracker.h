@@ -57,6 +57,16 @@ namespace Botanik { namespace Sun {
         SolarPosition _pos;    ///< Cached solar position (see ready()).
         uint64_t _next_ms;     ///< Timestamp the next scheduled recompute.
         bool     _computed;    ///< Position successfully acquired.
+        /** @name The committed location
+         *  Taken on the `geo_` commit, not read per recompute. The group HAS a
+         *  commit serial because a half-applied one is incoherent - a latitude
+         *  belonging to one place and a longitude to another is a position
+         *  nowhere on earth. Reading them live would step around exactly the
+         *  guarantee the serial exists to give.
+         *  @{ */
+        float    _lat = 0.0f;
+        float    _lon = 0.0f;
+        /** @} */
 
     public:
         SunPositionTracker(const SetupContext& ctx, const Vars::Bank* cfg);

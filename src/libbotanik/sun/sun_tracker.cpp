@@ -156,6 +156,10 @@ namespace Botanik { namespace Sun {
 
     void SunPositionTracker::on_param_changed(uint64_t now_ms) {
         (void)now_ms;
+        // Take the pair TOGETHER, on the commit: that is what makes it one
+        // location rather than two independently edited numbers.
+        _lat = Vars::get_f32(_cfg, "geo_lat_deg");
+        _lon = Vars::get_f32(_cfg, "geo_lon_deg");
         // New location: drop the old computation; on_service recomputes once the
         // clock is valid.
         _computed = false;
@@ -170,9 +174,7 @@ namespace Botanik { namespace Sun {
         // first valid beat / after a geo change, both signalled by !_computed).
         if (_computed && now_ms < _next_ms) return;
 
-        double lat = (double)Vars::get_f32(_cfg, "geo_lat_deg");
-        double lon = (double)Vars::get_f32(_cfg, "geo_lon_deg");
-        _pos      = solar_position(now_ms, lat, lon);
+        _pos      = solar_position(now_ms, (double)_lat, (double)_lon);
         _computed = true;
         _next_ms  = now_ms + Config::SUN_RECOMPUTE_MS;
     }
