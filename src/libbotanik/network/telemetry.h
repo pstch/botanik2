@@ -97,10 +97,10 @@ namespace Botanik { namespace Network {
          *  has not elapsed. */
         void on_service(uint64_t now_ms) override;
 
-        /** @brief Resolve the two cadence rows. Here rather than at
-         *  set_variables(): bring-up freezes the bank, then registers the
-         *  table, then runs this - so the index exists and is final. */
-        void on_setup(uint64_t now_ms) override;
+        /** @brief The mqtt_ commit serial these rows belong to. */
+        uint32_t param_serial() const override;
+        /** @brief Take the cadence and the retain flag on that commit. */
+        void on_param_changed(uint64_t now_ms) override;
 
     private:
         /** @brief Publish the library base fields under "system". */
@@ -110,21 +110,13 @@ namespace Botanik { namespace Network {
         void _publish_scalars();
         /** @brief Whether a sweep is mid-flight. Derived, not stored. */
         bool _sweeping() const { return _cursor != SWEEP_IDLE; }
-        /** @brief The live publish cadence in ms, from `mqtt_tlm_sec`
-         *  (Config::MQTT_TELEMETRY_PERIOD_MS is its factory default). 0
-         *  disables telemetry. */
-        uint32_t _period_ms() const;
-        /** @brief Whether to publish retained, from `mqtt_retain`. */
-        bool _retain() const;
-
-        /** @name The two cadence rows, resolved once
-         *  Still read LIVE - a change lands on the next sweep, with nothing to
-         *  re-initialise. What is cached is the INDEX, not the value: by name
-         *  these cost a binary search over the whole table, and _retain() is
-         *  asked once per published row. VAR_NONE falls back to Config.
+        /** @name Taken on the mqtt_ commit
+         *  Not read live: these belong to a group that commits as one, so
+         *  landing the cadence ahead of the host and port it was staged with
+         *  would defeat the serial.
          *  @{ */
-        Vars::VarRef _r_period = { Vars::VAR_NONE };
-        Vars::VarRef _r_retain = { Vars::VAR_NONE };
+        uint32_t _period_ms_v = Config::MQTT_TELEMETRY_PERIOD_MS;
+        bool     _retain_v    = Config::MQTT_TELEMETRY_RETAIN;
         /** @} */
         /** @brief Build the field topic ("<prefix>/<root>[/<group>]/<name>") and
          *  publish @p payload (best-effort). */

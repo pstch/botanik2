@@ -70,35 +70,23 @@ namespace Botanik { namespace Network {
                 _emit("system", f.name, payload);
     }
 
-    void MqttSender::on_setup(uint64_t now_ms) {
+    uint32_t MqttSender::param_serial() const {
+        return Vars::group_serial(_io, "mqtt");
+    }
+
+    void MqttSender::on_param_changed(uint64_t now_ms) {
         (void)now_ms;
-        if (_io == nullptr) return;
-        _r_period = _io->find("mqtt_tlm_sec");
-        _r_retain = _io->find("mqtt_retain");
+        const int32_t sec = Vars::get_int(_io, "mqtt_tlm_sec",
+                                (int32_t)(Config::MQTT_TELEMETRY_PERIOD_MS / 1000u));
+        _period_ms_v = sec > 0 ? (uint32_t)sec * 1000u : 0u;
+        _retain_v    = Vars::get_int(_io, "mqtt_retain",
+                                     Config::MQTT_TELEMETRY_RETAIN ? 1 : 0) != 0;
     }
 
-    uint32_t MqttSender::_period_ms() const {
-        // Read live, not cached on the mqtt_ commit serial: this is a cadence
-        // and a flag, neither of which has anything to re-initialise when it
-        // moves, so a change lands on the next sweep boundary. What is resolved
-        // once is the INDEX - by name this is a binary search over the whole
-        // table, and it runs before every early-out in on_service().
-        const int32_t dflt = (int32_t)(Config::MQTT_TELEMETRY_PERIOD_MS / 1000u);
-        const int32_t sec = (_io != nullptr && _r_period.index != Vars::VAR_NONE)
-                                ? (int32_t)_io->var(_r_period).i() : dflt;
-        return sec > 0 ? (uint32_t)sec * 1000u : 0u;
-    }
 
-    bool MqttSender::_retain() const {
-        // Once per PUBLISHED ROW, so the name lookup this used to do was the
-        // most repeated one in the beat.
-        if (_io == nullptr || _r_retain.index == Vars::VAR_NONE)
-            return Config::MQTT_TELEMETRY_RETAIN;
-        return _io->var(_r_retain).b();
-    }
 
     void MqttSender::on_service(uint64_t now_ms) {
-        const uint32_t period = _period_ms();
+        const uint32_t period = _period_ms_v;
         if (period == 0) return;                       // telemetry disabled
         if (_mqtt == nullptr || !_mqtt->connected()) {
             _cursor = SWEEP_IDLE;                      // a sweep cannot outlive the link
@@ -159,7 +147,7 @@ namespace Botanik { namespace Network {
         if (n <= 0 || (size_t)n >= sizeof(topic)) return;
         // Best-effort: a publish that can't be sent now is dropped (the next
         // cycle re-sends the current value).
-        _mqtt->publish(topic, payload, _retain());
+        _mqtt->publish(topic, payload, _retain_v);
     }
 
 }}
