@@ -196,7 +196,7 @@ namespace Botanik { namespace Vars {
     float get_f32(const Bank* io, const char* name, float dflt) {
         Var h(nullptr, nullptr);
         if (!lookup(io, name, &h)) return dflt;
-        return h.value();
+        return h.as_f32();
     }
 
     const char* get_str(const Bank* io, const char* name) {

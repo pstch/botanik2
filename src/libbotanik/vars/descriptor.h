@@ -70,6 +70,9 @@ namespace Botanik { namespace Vars {
         Q_IMPLAUSIBLE,   ///< answering with nonsense: outside its band, or non-finite
         Q_SAFE,          ///< an output dropped to its declared safe state
         Q_REFUSED,       ///< the device answered, and declined: it has no such register
+        /** @brief An operator forced this row to read bad, to exercise whatever
+         *  watches for it. A choice, not a diagnosis. */
+        Q_FORCED_BAD,
         /** @brief No such LAYER: the override of an unforced row, the wire of a
          *  row with no bus binding. Appended, never 0 - that slot is
          *  Q_NO_DATA's, so a zeroed Slot reads as "nothing wrote this". */
@@ -85,6 +88,7 @@ namespace Botanik { namespace Vars {
             case Q_IMPLAUSIBLE: return "invalid: outside its band";
             case Q_SAFE:        return "invalid: dropped to its safe state";
             case Q_REFUSED:     return "invalid: the device refused the read";
+            case Q_FORCED_BAD:  return "invalid: forced";
             case Q_NONE:        return "not present";
             default:            return "invalid";
         }

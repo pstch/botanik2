@@ -106,7 +106,7 @@ namespace Botanik { namespace Vars {
             const char* t = io.text_at(h);
             return (t != nullptr) ? t : "";
         }
-        return format_scalar(d->type, h.raw(), d->digits, d->str, buf, cap);
+        return format_scalar(d->type, h.value().v, d->digits, d->str, buf, cap);
     }
     inline const char* var_format(const Bank& io, VarRef r, char* buf, size_t cap) {
         return var_format(io, io.var(r), buf, cap);

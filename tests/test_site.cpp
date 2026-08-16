@@ -185,7 +185,7 @@ TEST_CASE("site: nothing the site touches fails to resolve") {
         if (h.meta()->type == Vars::T_STR) continue;   // lives in the pool
         INFO("parameter '" << h.meta()->name << "' was written by a control "
              "program or the simulated field");
-        CHECK(h.raw().u == h.meta()->def.u);
+        CHECK(h.value().v.u == h.meta()->def.u);
     }
 }
 

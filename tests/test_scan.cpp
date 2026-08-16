@@ -471,7 +471,7 @@ TEST_CASE("plc io: a second program on one row is counted, and the write stands"
 
     INFO("the write is not refused - that would strand the plant wherever the "
          "losing program had got to");
-    CHECK(f.bank.var(r).value() == doctest::Approx(20.0f));
+    CHECK(f.bank.var(r).as_f32() == doctest::Approx(20.0f));
 
     // Both keep writing every beat, taking the row from each other; the count settles at one.
     for (int i = 0; i < 50; ++i) { one.set(r, 10.0f); two.set(r, 20.0f); }
@@ -662,9 +662,9 @@ TEST_CASE("scan: a later program sees what an earlier one wrote this beat") {
         Cycle d(progs, 2, &f.bank, f.reg);
         d.step(0);
 
-        CHECK(f.bank.var(mid).value() == doctest::Approx(11.0f));
+        CHECK(f.bank.var(mid).as_f32() == doctest::Approx(11.0f));
         INFO("second read what first had just written");
-        CHECK(f.bank.var(dst).value() == doctest::Approx(12.0f));
+        CHECK(f.bank.var(dst).as_f32() == doctest::Approx(12.0f));
     }
 
     SUBCASE("out of order, the chain takes a beat per link") {
@@ -673,12 +673,12 @@ TEST_CASE("scan: a later program sees what an earlier one wrote this beat") {
         d.step(0);
 
         // second ran first, on the value mid held BEFORE first wrote it.
-        CHECK(f.bank.var(mid).value() == doctest::Approx(11.0f));
+        CHECK(f.bank.var(mid).as_f32() == doctest::Approx(11.0f));
         INFO("the far end is a beat behind, which is what mis-ordering costs");
-        CHECK(f.bank.var(dst).value() != doctest::Approx(12.0f));
+        CHECK(f.bank.var(dst).as_f32() != doctest::Approx(12.0f));
 
         d.step(10);
-        CHECK(f.bank.var(dst).value() == doctest::Approx(12.0f));
+        CHECK(f.bank.var(dst).as_f32() == doctest::Approx(12.0f));
     }
 }
 

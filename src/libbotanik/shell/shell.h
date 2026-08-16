@@ -392,7 +392,7 @@ namespace Botanik { namespace Shell {
         /** @brief A value row: @p v rendered with @p unit, and @p quality as the
          *  detail. @p h supplies the type and, for a T_STR, the pool text. */
         void _value_field(const char* label, const Vars::Bank& io, Vars::Var h,
-                          Vars::Scalar v, const char* quality, const char* unit);
+                          Vars::Value val, const char* quality, const char* unit);
         /** @brief What a VarScope abbreviation means, for the detail column. */
         static const char* _scope_phrase(uint8_t scope);
         /** @brief What `def` is FOR on a row of this role - it does three

@@ -228,9 +228,9 @@ inline void drive_coils(Vars::Bank& io, uint32_t now_ms) {
  */
 inline void publish_alarms(Vars::Bank& io, uint32_t now_ms) {
     // Real causes, read back through the variable tables.
-    const float ln  = io.var("grid_LN_V").value();
-    const float pf  = io.var("grid_total_PF").value();
-    const float hz  = io.var("grid_Hz").value();
+    const float ln  = io.var("grid_LN_V").as_f32();
+    const float pf  = io.var("grid_total_PF").as_f32();
+    const float hz  = io.var("grid_Hz").as_f32();
 
     // No sensor mapped for these yet: a slow random walk stands in, so the
     // alarms page and its dwell/ack machinery still have something to show.

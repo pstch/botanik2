@@ -29,7 +29,7 @@ namespace Botanik { namespace Shell {
         _emitf(out, sizeof(out), "  %-20s %-12s %-4s (%s)%s%s%s", h.meta()->name, s,
                (u && u[0]) ? u : "",
                Vars::var_scope(*h.meta()),
-               h.overridden() ? " OVERRIDDEN" : "",
+               h.override_stored().present() ? " OVERRIDDEN" : "",
                h.param_unsaved() ? " UNSAVED" : "",
                h.valid() ? "" : " (default: nothing has written it)");
     }
@@ -89,14 +89,15 @@ namespace Botanik { namespace Shell {
         // publishing underneath), so "held at what" and "would read what if
         // released" are different questions. The raw row says WHY it is
         // invalid, not just that it is.
-        _value_field("Raw value", *io, h, h.live(), Vars::quality_str(h.live_quality()), u);
+        _value_field("Raw value", *io, h, h.live(), Vars::quality_str(h.live().q), u);
         // The override's quality is a person's choice, not a diagnosis: a yes
         // or a no.
-        if (h.overridden()) {
+        const Vars::Value ovr = h.override_stored();
+        if (ovr.present()) {
             char q[32];
-            snprintf(q, sizeof(q), "%s%s", h.valid() ? "valid" : "invalid",
+            snprintf(q, sizeof(q), "%s%s", ovr.good() ? "valid" : "invalid",
                      h.override_unsaved() ? ", unsaved" : "");
-            _value_field("Override value", *io, h, h.raw(), q, u);
+            _value_field("Override value", *io, h, ovr, q, u);
         } else {
             _field("Override value", "-", nullptr);
         }
@@ -165,7 +166,7 @@ namespace Botanik { namespace Shell {
     // Quality rides on the value row rather than one of its own: a value and
     // whether it is good are one fact, and there are two values.
     void CommandShell::_value_field(const char* label, const Vars::Bank& io,
-                                    Vars::Var h, Vars::Scalar v,
+                                    Vars::Var h, Vars::Value val,
                                     const char* quality, const char* unit) {
         const Vars::Descriptor* d = h.meta();
         char num[48], cell[64];
@@ -173,7 +174,7 @@ namespace Botanik { namespace Shell {
         // is not where its value is; var_format() is the only reader that knows.
         const char* text = (d->type == Vars::T_STR)
             ? Vars::var_format(io, h, num, sizeof(num))
-            : Vars::format_scalar(d->type, v, d->digits, d->str, num, sizeof(num));
+            : Vars::format_scalar(d->type, val.v, d->digits, d->str, num, sizeof(num));
         snprintf(cell, sizeof(cell), "%s%s%s", text, unit[0] ? " " : "", unit);
         _field(label, cell, quality);
     }
@@ -503,7 +504,7 @@ namespace Botanik { namespace Shell {
         uint16_t n = 0, unsaved = 0;
         for (uint16_t i = 0; i < io->count(); i++) {
             Vars::Var h = io->var(i);
-            if (!h.overridden()) continue;
+            if (!h.override_stored().present()) continue;
             if (h.override_unsaved()) unsaved++;
             _emitf(out, sizeof(out), "  %-20s %-12s %s%s", h.meta()->name,
                    Vars::var_format(*io, h, val, sizeof(val)),
@@ -568,7 +569,7 @@ namespace Botanik { namespace Shell {
         if (a == nullptr) {
             // No value: hold it where it is, with the quality asked for rather
             // than the one it happens to have.
-            io->override_set(h, h.raw(), valid);
+            io->override_set(h, h.value().v, valid);
             _override_reply(h, "frozen at");
             return;
         }

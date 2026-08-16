@@ -284,14 +284,14 @@ bool other_value(Bank& bank, uint16_t row, uint32_t* out) {
     const NumBand b = var_band(&bank, d);
     const float lo = as_f32(d.type, b.min);
     const float hi = as_f32(d.type, b.max);
-    const float now = as_f32(d.type, v.live());
+    const float now = as_f32(d.type, v.live().v);
 
     const float probe[5] = { lo, hi, (lo + hi) * 0.5f, now + 1.0f, now - 1.0f };
     for (int i = 0; i < 5; ++i) {
         const Scalar cand = from_f32(d.type, probe[i]);
         if (bank.check(v, cand) != SET_OK) continue;
         const uint32_t w = Map::wire_of(d.type, cand);
-        if (w == Map::wire_of(d.type, v.live())) continue;
+        if (w == Map::wire_of(d.type, v.live().v)) continue;
         *out = w;
         return true;
     }
@@ -319,7 +319,7 @@ TEST_CASE("modbus map: a bulk write is applied at once and persisted a few per b
     CHECK(committed == 1);
 
     // Live straight away, which is what the master and control programs care about.
-    CHECK(Map::wire_of(s.bank.var(row).type(), s.bank.var(row).live()) == after);
+    CHECK(Map::wire_of(s.bank.var(row).type(), s.bank.var(row).live().v) == after);
 
     // ...and the flash write is owed, not done.
     CHECK(s.map.pending_persists() == 1);
@@ -336,7 +336,7 @@ TEST_CASE("modbus map: the drain is bounded, however much is queued") {
     // Queue writes to the same row, alternating two accepted values so each is a real change.
     uint32_t a = 0;
     REQUIRE(other_value(s.bank, row, &a));
-    const uint32_t b0 = Map::wire_of(s.bank.var(row).type(), s.bank.var(row).live());
+    const uint32_t b0 = Map::wire_of(s.bank.var(row).type(), s.bank.var(row).live().v);
     uint16_t queued = 0;
     for (uint16_t k = 0; k < 6; ++k) {
         uint8_t data[4];
@@ -363,7 +363,7 @@ TEST_CASE("modbus map: a write with nowhere to queue is refused whole") {
     // Fill the queue, alternating between two accepted values.
     uint32_t a = 0;
     REQUIRE(other_value(s.bank, row, &a));
-    const uint32_t b0 = Map::wire_of(s.bank.var(row).type(), s.bank.var(row).live());
+    const uint32_t b0 = Map::wire_of(s.bank.var(row).type(), s.bank.var(row).live().v);
     for (uint16_t k = 0; k < Config::MODBUS_PERSIST_QUEUE + 4; ++k) {
         const uint32_t w = (k % 2 == 0) ? a : b0;
         uint8_t data[4];
@@ -371,7 +371,7 @@ TEST_CASE("modbus map: a write with nowhere to queue is refused whole") {
         if (s.map.write_registers(addr, 2, data, nullptr) == EX_SLAVE_BUSY) {
             CHECK(s.map.persist_room() == 0);
             // And the value did NOT move: the refusal is whole.
-            CHECK(Map::wire_of(s.bank.var(row).type(), s.bank.var(row).live()) != w);
+            CHECK(Map::wire_of(s.bank.var(row).type(), s.bank.var(row).live().v) != w);
             return;
         }
     }
@@ -386,7 +386,7 @@ TEST_CASE("modbus map: a no-op write costs no flash at all") {
     REQUIRE(s.first_writable(&addr, &row));
 
     uint8_t data[4];
-    put_row(data, Map::wire_of(s.bank.var(row).type(), s.bank.var(row).live()));
+    put_row(data, Map::wire_of(s.bank.var(row).type(), s.bank.var(row).live().v));
 
     uint16_t committed = 1;
     CHECK(s.map.write_registers(addr, 2, data, &committed) == EX_NONE);
@@ -425,7 +425,7 @@ TEST_CASE("modbus map: rebuilding makes the queue durable rather than dropping i
     // Drained, so nothing is owed...
     CHECK(s.map.pending_persists() == 0);
     // ...and the value promised to the master is still in the bank.
-    CHECK(Map::wire_of(s.bank.var(row).type(), s.bank.var(row).live()) == w);
+    CHECK(Map::wire_of(s.bank.var(row).type(), s.bank.var(row).live().v) == w);
     // The map itself is intact after the rebuild.
     CHECK(s.map.count() > 0);
 }
@@ -450,7 +450,7 @@ TEST_CASE("modbus map: a single-register write keeps the half it did not address
     REQUIRE(s.map.write_register(addr, hi, &committed) == EX_NONE);
     REQUIRE(s.map.write_register((uint16_t)(addr + 1), lo, &committed) == EX_NONE);
 
-    CHECK(Map::wire_of(s.bank.var(row).type(), s.bank.var(row).live()) == want);
+    CHECK(Map::wire_of(s.bank.var(row).type(), s.bank.var(row).live().v) == want);
 }
 
 TEST_CASE("modbus map: a single-register write goes through the same band check") {
@@ -463,10 +463,10 @@ TEST_CASE("modbus map: a single-register write goes through the same band check"
     if (s.bank.check(s.bank.var(row), wild) == SET_OK) return;
 
     const uint32_t before =
-        Map::wire_of(s.bank.var(row).type(), s.bank.var(row).live());
+        Map::wire_of(s.bank.var(row).type(), s.bank.var(row).live().v);
     CHECK(s.map.write_register(addr, 0x7F7Fu) == EX_ILLEGAL_VALUE);
     INFO("a refused half must leave the row where it was");
-    CHECK(Map::wire_of(s.bank.var(row).type(), s.bank.var(row).live()) == before);
+    CHECK(Map::wire_of(s.bank.var(row).type(), s.bank.var(row).live().v) == before);
 }
 
 #endif // BOTANIK_FEATURE_MODBUS_TCP_SERVER

@@ -39,7 +39,7 @@ namespace Botanik { namespace Plc {
          *  @{ */
 
         /** @brief As a float; a digital reads 0 or 1. */
-        float   value(Vars::VarRef r) const { return _bank->var(r).value(); }
+        float   value(Vars::VarRef r) const { return _bank->var(r).as_f32(); }
         bool    on(Vars::VarRef r)    const { return _bank->var(r).b(); }
         int64_t whole(Vars::VarRef r) const { return _bank->var(r).i(); }
         /** @brief Whether the reading can be believed. */

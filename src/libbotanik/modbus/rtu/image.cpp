@@ -60,10 +60,10 @@ namespace {
     /** @brief A row's demand as the wire wants it: an AO's through its
      *  calibration, everything else's as it stands. */
     float wire_value(const Vars::Bank& io, const Vars::Descriptor& d, Vars::Var h) {
-        if (d.scope != Vars::SCOPE_AO) return h.value();
+        if (d.scope != Vars::SCOPE_AO) return h.as_f32();
         const Vars::AnalogCal* cal = Vars::analog_cal(d);
-        return (cal == nullptr) ? h.value()
-                                : Vars::analog_values(&io, cal).to_raw(h.value());
+        return (cal == nullptr) ? h.as_f32()
+                                : Vars::analog_values(&io, cal).to_raw(h.as_f32());
     }
 
     /** @brief One register row's demand, big-endian into @p at.

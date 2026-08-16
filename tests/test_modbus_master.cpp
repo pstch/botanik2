@@ -234,14 +234,14 @@ TEST_CASE("modbus client: re-asserting an output does not re-decide it") {
     Var h = m.bank.var(m.client.plan().row(w->first_row));
     m.bank.override_set(h, (h.meta()->type == T_BOOL) ? from_bool(T_BOOL, true)
                                                       : from_f32(h.meta()->type, 42.0f));
-    const Scalar before = h.raw();
+    const Scalar before = h.value().v;
     h.clear_field_dirty();
 
     m.client.reassert_outputs(w->peer);
 
     CHECK(h.field_dirty());
     INFO("'" << std::string(h.name()) << "' kept what it was demanding");
-    CHECK(h.raw().u == before.u);
+    CHECK(h.value().v.u == before.u);
 }
 
 // Pacing
@@ -581,15 +581,15 @@ TEST_CASE("modbus line: one device quiet is not the same fault as all of them") 
     // One device down: the bus is faulty, the segment is not.
     m.bus.set_fault(m.client.peer_unit(0), Sim::FieldBus::FAULT_ABSENT);
     REQUIRE(m.until([&] { return m.client.dead_count() == 1; }, 4000));
-    CHECK(as_bool(Vars::T_BOOL, m.bank.var(dead_ref).raw()));
+    CHECK(as_bool(Vars::T_BOOL, m.bank.var(dead_ref).value().v));
     INFO("1 of " << (unsigned)units << " devices quiet");
-    CHECK_FALSE(as_bool(Vars::T_BOOL, m.bank.var(line_ref).raw()));
+    CHECK_FALSE(as_bool(Vars::T_BOOL, m.bank.var(line_ref).value().v));
 
     // The whole segment: same boolean, different fault, different engineer.
     for (uint8_t p = 1; p < units; ++p)
         m.bus.set_fault(m.client.peer_unit(p), Sim::FieldBus::FAULT_ABSENT);
     REQUIRE(m.until([&] { return m.client.dead_count() == units; }, 20000));
-    CHECK(as_bool(Vars::T_BOOL, m.bank.var(line_ref).raw()));
+    CHECK(as_bool(Vars::T_BOOL, m.bank.var(line_ref).value().v));
 }
 
 TEST_CASE("modbus fault: a dead output device does not pin the safe-state urgency") {
@@ -689,7 +689,7 @@ TEST_CASE("modbus tuning: an absent rtu_ row leaves the Config default in force"
     // The row resolves here, so simulate its absence the only honest way: an
     // override forcing it INVALID, which is what _tune() checks for.
     Var retries = m.bank.var(m.bank.find("rtu_retries"));
-    m.bank.override_set(retries, retries.raw(), /*valid=*/false);
+    m.bank.override_set(retries, retries.value().v, /*valid=*/false);
     REQUIRE_FALSE(retries.valid());
 
     m.bus.set_fault(m.client.peer_unit(peer), Sim::FieldBus::FAULT_ABSENT);
@@ -1186,14 +1186,14 @@ TEST_CASE("modbus image: a refused read invalidates its rows, and says why") {
     r.fc   = b->fc;
     r.ex   = EX_NONE;
     REQUIRE(commit_read(bus.bank, bus.plan, *b, r, 1000) > 0);
-    REQUIRE(bus.row(*b, 0).live_valid());
+    REQUIRE(bus.row(*b, 0).live().good());
 
     // The device answers, and declines.
     invalidate_block(bus.bank, bus.plan, *b, Q_REFUSED);
 
-    CHECK_FALSE(bus.row(*b, 0).live_valid());
+    CHECK_FALSE(bus.row(*b, 0).live().good());
     INFO("a refusal is a register map that does not match the device");
-    CHECK(bus.row(*b, 0).live_quality() == Q_REFUSED);
+    CHECK(bus.row(*b, 0).live().q == Q_REFUSED);
     CHECK(std::string(quality_str(Q_REFUSED)) != std::string(quality_str(Q_STALE)));
 }
 
@@ -1213,7 +1213,7 @@ TEST_CASE("modbus image: a row the payload never reached is not left reading goo
     r.len  = (uint16_t)(b->regs * 2u);
     r.unit = b->device; r.fc = b->fc; r.ex = EX_NONE;
     REQUIRE(commit_read(bus.bank, bus.plan, *b, r, 1000) > 0);
-    REQUIRE(bus.row(*b, b->row_count - 1).live_valid());
+    REQUIRE(bus.row(*b, b->row_count - 1).live().good());
 
     // Now a short answer: only the first two registers arrive.
     r.len = 4;
@@ -1221,8 +1221,8 @@ TEST_CASE("modbus image: a row the payload never reached is not left reading goo
 
     Var last = bus.row(*b, (uint16_t)(b->row_count - 1));
     INFO("'" << std::string(last.meta()->name) << "' was past the end of the payload");
-    CHECK_FALSE(last.live_valid());
-    CHECK(last.live_quality() == Q_NO_DATA);
+    CHECK_FALSE(last.live().good());
+    CHECK(last.live().q == Q_NO_DATA);
 }
 
 TEST_CASE("modbus image: a bounded direct row is judged at commit, not at a sweep") {
@@ -1261,22 +1261,22 @@ TEST_CASE("modbus image: a bounded direct row is judged at commit, not at a swee
     // In band, so it lands - which also pins the encoding for what follows.
     Put::f32(payload, (uint16_t)sizeof payload, 20.0f);
     REQUIRE(commit_read(bus.bank, bus.plan, *b, r, 1000) > 0);
-    REQUIRE(temp.live_valid());
-    REQUIRE(temp.live().f == doctest::Approx(20.0f));
+    REQUIRE(temp.live().good());
+    REQUIRE(temp.live().v.f == doctest::Approx(20.0f));
 
     // A reading no thermometer produced. The band is -40..80.
     Put::f32(payload, (uint16_t)sizeof payload, -3000.0f);
     commit_read(bus.bank, bus.plan, *b, r, 2000);
 
     INFO("out of band at commit, with no reject_implausible() in between");
-    CHECK_FALSE(temp.live_valid());
-    CHECK(temp.live_quality() == Q_IMPLAUSIBLE);
+    CHECK_FALSE(temp.live().good());
+    CHECK(temp.live().q == Q_IMPLAUSIBLE);
 
     // A NaN is refused too, without being reported as a band failure.
     const float nan_v = 0.0f / (float)(1.0 - 1.0);
     Put::f32(payload, (uint16_t)sizeof payload, nan_v);
     commit_read(bus.bank, bus.plan, *b, r, 3000);
-    CHECK(temp.live_quality() == Q_IMPLAUSIBLE);
+    CHECK(temp.live().q == Q_IMPLAUSIBLE);
 }
 
 TEST_CASE("modbus plan: an input that could never go stale is refused a place") {

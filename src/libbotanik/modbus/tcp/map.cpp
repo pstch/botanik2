@@ -130,7 +130,7 @@ namespace Botanik { namespace Modbus {
 
     uint32_t Map::to_wire(const Var& v) {
         const Descriptor* d = v.meta();
-        return (d == nullptr) ? 0u : wire_of(d->type, v.raw());
+        return (d == nullptr) ? 0u : wire_of(d->type, v.value().v);
     }
 
     uint32_t Map::wire_of(VarType type, Scalar s) {
@@ -252,7 +252,7 @@ namespace Botanik { namespace Modbus {
             const uint32_t w = word_at(data, i);
             if (_io->check(v, from_wire(v.type(), w)) != SET_OK)
                 return EX_ILLEGAL_VALUE;
-            if (w != wire_of(v.type(), v.live())) changing++;
+            if (w != wire_of(v.type(), v.live().v)) changing++;
         }
 
         // Every changed row owes a flash write, and those are paced across
@@ -268,7 +268,7 @@ namespace Botanik { namespace Modbus {
             // Against live(), not raw(): raw() is an override's forced value,
             // and a master writing that same number would skip the commit while
             // the parameter underneath stayed where it was.
-            if (w == wire_of(v.type(), v.live())) continue;   // no commit, no wear
+            if (w == wire_of(v.type(), v.live().v)) continue;   // no commit, no wear
             // Live immediately, with the durable copy queued for
             // drain_persists(). Cannot fail on validity: the pass above checked
             // every row.
@@ -317,7 +317,7 @@ namespace Botanik { namespace Modbus {
         // Splice into what the row already holds, so the half the master did not
         // address survives. Against live(), not raw(): raw() would be an
         // override's forced value, and the parameter underneath is being edited.
-        const uint32_t cur = wire_of(v.type(), v.live());
+        const uint32_t cur = wire_of(v.type(), v.live().v);
         const uint32_t w = ((addr % 2) == 0)
                                ? (uint32_t)(((uint32_t)value << 16) | (cur & 0xFFFFu))
                                : (uint32_t)((cur & 0xFFFF0000u) | (uint32_t)value);
@@ -340,7 +340,7 @@ namespace Botanik { namespace Modbus {
         // A coil is a BOOLEAN parameter. An alarm publishes as a coil too, and is
         // read-only: acknowledging one is a different block entirely.
         if (!found || !writable(d) || d.type != T_BOOL) return EX_ILLEGAL_ADDRESS;
-        if (as_bool(d.type, v.live()) == on) return EX_NONE;   // no-op, as above
+        if (as_bool(d.type, v.live().v) == on) return EX_NONE;   // no-op, as above
         if (persist_room() == 0) return EX_SLAVE_BUSY;
         if (_io->set(v, Scalar::B(on)) == SET_INVALID) return EX_ILLEGAL_VALUE;
         const int k = _find(addr);

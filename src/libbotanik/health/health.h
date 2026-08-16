@@ -291,7 +291,7 @@ namespace Botanik { namespace Health {
             if (_io == nullptr || r.index == Vars::VAR_NONE) return dflt;
             const Vars::Var h = _io->var(r);
             if (!h.valid()) return dflt;
-            const float v = h.value();
+            const float v = h.as_f32();
             return (v >= 1.0f && v <= 100.0f) ? (uint8_t)v : dflt;
         }
 

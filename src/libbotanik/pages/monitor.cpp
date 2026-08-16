@@ -143,7 +143,7 @@ namespace Botanik { namespace Pages {
             // deciding on: whether the reading underneath has come back.
             _adopt(val, sizeof(val), _live_text(h, val, sizeof(val)));
             _flag_value(h, val, sizeof(val));
-            if (h.overridden()) {
+            if (h.override_stored().present()) {
                 _adopt(ovr, sizeof(ovr), Vars::var_format(*_io, h, ovr, sizeof(ovr)));
                 // A force can itself be "read as a dead sensor"; say so, or the
                 // column claims a number the row is not actually reporting.
@@ -175,14 +175,14 @@ namespace Botanik { namespace Pages {
             const char* t = _io->text_at(h);
             return (t != nullptr) ? t : "";
         }
-        return Vars::format_scalar(d->type, h.live(), d->digits, d->str, buf, cap);
+        return Vars::format_scalar(d->type, h.live().v, d->digits, d->str, buf, cap);
     }
 
     void MonitorPage::_flag_value(Vars::Var h, char* buf, size_t cap) {
         // [O] forced, [I] the reading underneath is not good, [OI] both: two
         // independent facts, so two independent letters.
-        const bool o = h.overridden();
-        const bool i = !h.live_valid();
+        const bool o = h.override_stored().present();
+        const bool i = !h.live().good();
         if (!o && !i) return;
         char tag[6] = "[";
         size_t n = 1;
@@ -258,10 +258,10 @@ namespace Botanik { namespace Pages {
         char qual[80];
         if (have) {
             size_t n = (size_t)snprintf(qual, sizeof(qual), "%s",
-                                        Vars::quality_str(h.live_quality()));
+                                        Vars::quality_str(h.live().q));
             // A force carries its own quality (ovr_valid), so an overridden
             // row says both: the force, and what the row underneath reports.
-            if (h.overridden() && n < sizeof(qual))
+            if (h.override_stored().present() && n < sizeof(qual))
                 n += (size_t)snprintf(qual + n, sizeof(qual) - n, ", forced %s",
                                       h.valid() ? "valid" : "invalid");
 

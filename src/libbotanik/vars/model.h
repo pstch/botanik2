@@ -86,23 +86,42 @@ namespace Botanik { namespace Vars {
         Var(const Descriptor* d, Slot* v) : _d(d), _v(v) {}
 
         /** @name Read
-         *  An invalid variable reads its declared default. The override is
-         *  applied HERE, the one place every reader goes through. @{ */
-        /** @brief What this row reads, override applied. @see _under() */
-        Scalar   raw()   const { return _forced() ? _v->ovr : _under(); }
-        /** @brief As a float; a digital reads 0/1, so no consumer branches on
-         *  the type. */
-        float    value() const { return as_f32(_d->type, raw()); }
-        bool     b()     const { return as_bool(_d->type, raw()); }
-        int64_t  i()     const { return as_i64(_d->type, raw()); }
-        bool     valid() const { return _forced() ? _v->ovr_valid : live_valid(); }
-        /** @name Under the override
-         *  What the row would read with nothing forced, and its real quality.
-         *  Diagnostics only - control logic reads raw()/valid(). @{ */
-        Scalar   live()       const { return _under(); }
-        bool     live_valid() const { return _v->qual == Q_GOOD; }
-        /** @brief ...and WHY. An override does not change it. */
-        Quality  live_quality() const { return _v->qual; }
+         *  Three layers and their resolution, each a Value - so a number and
+         *  its quality are fetched together and cannot disagree. An invalid row
+         *  reads its declared default. @{ */
+
+        /** @brief What the row would read with nothing forced. */
+        Value live() const { return Value{ _under(), _d, _v->qual }; }
+
+        /** @brief The force as RECORDED, in effect or muted. What a DISPLAY
+         *  asks: a muted override is still there and still worth showing. */
+        Value override_stored() const {
+            if (!_v->ovr_on) return Value{ _d->def, _d, Q_NONE };
+            return Value{ _v->ovr, _d, _v->ovr_valid ? Q_GOOD : Q_FORCED_BAD };
+        }
+
+        /** @brief ...and only while it is actually driving. CONTROL_DISABLED
+         *  MUTES an override without erasing it, so the row reads live and the
+         *  force waits. What value() combines. */
+        Value override() const {
+            return _forced() ? override_stored() : Value{ _d->def, _d, Q_NONE };
+        }
+
+        /** @brief The value in force: the override when there is one, else
+         *  live. The one place an override is applied. */
+        Value value() const {
+            const Value o = override();
+            return o.present() ? o : live();
+        }
+
+        /** @name Shortcuts
+         *  value() in one type. A digital reads 0/1, so no consumer branches.
+         *  @{ */
+        float    as_f32() const { return value().as_f32(); }
+        bool     b()      const { return value().as_bool(); }
+        int64_t  i()      const { return value().as_i64(); }
+        bool     valid()  const { return value().good(); }
+        /** @} */
         /** @} */
         /** @brief Where this row's text sits in the pool (T_STR only; 0
          *  otherwise, and text_slot().cap is 0 there so nothing writes). */
@@ -114,9 +133,6 @@ namespace Botanik { namespace Vars {
          *  See Slot's override note. Writes keep landing in the underlying
          *  slot while one is in force, so clearing it resumes the live value.
          *  @{ */
-
-        /** @brief True while this variable is forced. */
-        bool overridden() const { return _v->ovr_on; }
 
         /** @} */
 
@@ -193,7 +209,7 @@ namespace Botanik { namespace Vars {
             _v->ovr = v; _v->ovr_valid = valid; _v->ovr_on = true; _touch_field();
         }
         /** @brief Freeze at whatever it reads right now, keeping its quality. */
-        void override_freeze() { override_set(raw(), valid()); }
+        void override_freeze() { const Value c = value(); override_set(c.v, c.good()); }
         /** @brief Release the override; the live value takes over. Marks the
          *  field dirty, or the actuator would stay where it was left. */
         void override_clear() { _v->ovr_on = false; _touch_field(); }
@@ -675,7 +691,7 @@ namespace Botanik { namespace Vars {
         SetResult override_set(Var h, const char* text, bool valid = true);
 
         /** @brief The same, with the value already typed. Forcing only the
-         *  QUALITY is `override_set(h, h.raw(), false)`, which is unsaved like
+         *  QUALITY is `override_set(h, h.value().v, false)`, which is unsaved like
          *  any other override. */
         void override_set(Var h, Scalar v, bool valid = true);
 
