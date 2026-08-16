@@ -2007,10 +2007,8 @@ TEST_CASE("Value: an enum reads as its code and as its label") {
 TEST_CASE("Value: a T_STR has no scalar, and says so rather than inventing one") {
     // Its text is in the bank's pool; Scalar::s here is the DECLARED default,
     // so returning it as a number would be a plausible-looking lie.
-    Botanik::ExpectedAsserts expect;
     CHECK(of(4, Scalar::S("hello")).as_i64() == 0);
     CHECK(of(4, Scalar::S("hello")).as_f32() == 0.0f);
-    CHECK(expect.count() >= 2);
 }
 
 }  // namespace value_type

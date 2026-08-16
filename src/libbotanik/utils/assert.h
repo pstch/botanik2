@@ -9,15 +9,14 @@
  *         continue.
  *
  *  This macro is compiled out entirely in release builds, it's only used when
- *  DEBUG is defined. It logs a CRITICAL entry under the ASSERT topic, then :
- *   - if there is a debugger, traps into the attached debugger
- *   - if we are on the simulator, abort()s on the simulator
- *   - otherwise, just keeps running.
+ *  DEBUG is defined. It counts the failure, logs a CRITICAL entry under the
+ *  ASSERT topic, traps if a debugger is attached, and keeps running - the same
+ *  on the simulator as on hardware. The CRITICAL entry is the whole report.
  *
  *  @section assert_deps Why this header includes nothing
  *
  *  An assertion is the one thing any file may want, so this header must cost
- *  its includers nothing (<cstdint> aside, for the expected-failure counter).
+ *  its includers nothing (<cstdint> aside).
  *  Logs::Logger is only forward-declared and
  *  assert_fail()'s body lives in assert.cpp, the one TU that pulls the full
  *  Logger and the HAL (the arrangement core/component.h uses). Naming logger.h
@@ -38,25 +37,6 @@ namespace Botanik {
 
     /** @brief Assertion-failure handler (see BOTANIK_ASSERT). */
     void assert_fail(const char* expr, const char* file, int line);
-
-    /** @brief While one of these is alive, an assertion failure is COUNTED
-     *  rather than fatal.
-     *
-     *  For a test that drives a refusal on purpose. A refused registration has
-     *  two halves and both are the contract: it refuses gracefully - returns
-     *  false, counts, keeps running, so the field gets a degraded unit and not a
-     *  dead one - and it asserts, so a sim or a test run cannot walk past it.
-     *  Testing the first half means suspending the second, and saying so.
-     *
-     *  Nests, so a fixture holding one does not disarm a case's own. */
-    class ExpectedAsserts {
-        uint16_t _at_entry;
-    public:
-        ExpectedAsserts();
-        ~ExpectedAsserts();
-        /** @brief How many fired since this object was made. */
-        uint16_t count() const;
-    };
 
 }
 

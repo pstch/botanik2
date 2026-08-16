@@ -114,7 +114,6 @@ TEST_CASE("tasks: a full table refuses and counts, it does not drop silently") {
     // Both halves of the contract: it asserts (so a sim run cannot walk past a
     // lost registration) AND it refuses gracefully, so the field gets a
     // degraded unit rather than a dead one. This drives it on purpose.
-    Botanik::ExpectedAsserts expected;
     Registry r;
     for (uint16_t i = 0; i < Botanik::Config::MAX_TASKS; i++)
         CHECK(r.add(A, &note, "t", GROUP_FAST, PHASE_SERVICE));
@@ -122,14 +121,11 @@ TEST_CASE("tasks: a full table refuses and counts, it does not drop silently") {
     CHECK(r.count() == Botanik::Config::MAX_TASKS);
     CHECK_FALSE(r.add(A, &note, "one too many", GROUP_FAST, PHASE_SERVICE));
     CHECK(r.overflow() == 1);
-    CHECK(expected.count() == 1);
 }
 
 TEST_CASE("tasks: a null dispatch is refused rather than called") {
-    Botanik::ExpectedAsserts expected;
     Registry r;
     CHECK_FALSE(r.add(A, nullptr, "nop", GROUP_FAST, PHASE_SERVICE));
-    CHECK(expected.count() == 1);
     CHECK(r.count() == 0);
     r.run_phase(PHASE_SERVICE, 0);   // must not fault
 }

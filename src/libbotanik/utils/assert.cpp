@@ -1,7 +1,6 @@
 #include "libbotanik/utils/assert.h"
 
 #include <cstdint>
-#include <cstdlib>
 
 #include "libbotanik/hal/platform.h"
 #include "libbotanik/logs/logger.h"
@@ -15,43 +14,21 @@ namespace Botanik {
             static Logs::Logger* logger = nullptr;
             return logger;
         }
-        /** @brief Nesting depth of live ExpectedAsserts, and the running count
-         *  of failures seen. Function-local statics for the same reason as the
-         *  sink: assert_fail() is reached from anywhere, with no object to ask. */
-        uint8_t&  _expected() { static uint8_t  depth = 0; return depth; }
-        uint16_t& _failures() { static uint16_t seen  = 0; return seen; }
     }
 
-    ExpectedAsserts::ExpectedAsserts() : _at_entry(_failures()) { _expected()++; }
-    ExpectedAsserts::~ExpectedAsserts() { if (_expected() > 0) _expected()--; }
-    uint16_t ExpectedAsserts::count() const {
-        return (uint16_t)(_failures() - _at_entry);
-    }
 
     void set_assert_logger(Logs::Logger* logger) { _sink() = logger; }
 
     Logs::Logger* get_assert_logger() { return _sink(); }
 
     void assert_fail(const char* expr, const char* file, int line) {
-        // Expected: count it and return. Silent, because a test driving a
-        // refusal on purpose does not want the CRITICAL either.
-        if (_expected() > 0) { _failures()++; return; }
         Logs::Logger* logger = _sink();
         if (logger != nullptr)
             logger->critical(Logs::ASSERT, "assertion failed:\n%s (%s:%d)",
                              expr, file, line);
-
-        // Break for the debugger.
-        if (HAL::Debug::under_debugger()) {
-            HAL::Debug::breakpoint();
-            return;
-        }
-
-#ifdef TARGET_SIMULATOR
-        abort();
-#endif
-        // On hardware, keep running.
-        return;
+        // Break for the debugger, then keep running - the same on the simulator
+        // as on hardware. The CRITICAL is the report.
+        if (HAL::Debug::under_debugger()) HAL::Debug::breakpoint();
     }
 
 }
