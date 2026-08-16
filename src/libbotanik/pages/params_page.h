@@ -21,11 +21,11 @@
  * detail panel tracks it. ENTER opens an inline edit on the bottom prompt line:
  * a static " name = " label and a single-line TextEditor (anchored to the
  * bottom row) render the value, seeded with the row's current text. ENTER
- * commits (parse + validate through Params::set); ESC/Ctrl+C cancels. An
+ * commits (parse + validate through Bank::set); ESC/Ctrl+C cancels. An
  * invalid value is rejected and flagged, leaving edit mode open.
  *
  * An applied value is LIVE but not durable: the row shows a trailing '*', the
- * prompt row counts what is outstanding, and ^O (Params::save_all) writes them
+ * prompt row counts what is outstanding, and ^O (Bank::save_params) writes them
  * all. Applying a config GROUP is still a separate act - bump that group's
  * commit serial by hand.
  */
@@ -88,7 +88,7 @@ namespace Botanik { namespace Pages {
 
         /** @name State
          *  @{ */
-        Vars::Params* _params;
+        Vars::Bank* _params;
         bool                _dirty    = true;    ///< table needs a redraw
         uint64_t            _last_refresh_ms = 0; ///< last cadence rebuild
 
@@ -110,7 +110,7 @@ namespace Botanik { namespace Pages {
     public:
         /** @brief @p console owns the content geometry; @p config is the backend
          *  the table reads/writes (may be null -> empty table). */
-        ParamsPage(Console& console, Vars::Params* config)
+        ParamsPage(Console& console, Vars::Bank* config)
             : ScrollTablePage(console), _params(config),
               _editor(&console, _editor_bufs.storage()) {}
 
@@ -142,7 +142,7 @@ namespace Botanik { namespace Pages {
         /** @} */
 
     private:
-        uint16_t _param_count() const { return _params != nullptr ? _params->count() : 0; }
+        uint16_t _param_count() const { return _params != nullptr ? _params->param_count() : 0; }
 
         /** @name Group modes
          *  A parameter's group IS its name prefix (`net_`, `ntp_`, `mqtt_`) -
@@ -261,7 +261,7 @@ namespace Botanik { namespace Pages {
             if (d.type == Vars::T_STR || (d.flags & Vars::F_BOUNDED) == 0) {
                 snprintf(buf, cap, "-"); return buf;
             }
-            const char* t = _params->format_scalar_of(d, v, buf, cap);
+            const char* t = Vars::format_declared(d, v, buf, cap);
             if (t != buf) { strncpy(buf, t, cap - 1); buf[cap - 1] = 0; }
             return buf;
         }
@@ -272,7 +272,7 @@ namespace Botanik { namespace Pages {
         const char* _fmt_default(char* buf, size_t cap,
                                  const Vars::Variable& d) const {
             if (d.type == Vars::T_STR) return d.def.s ? d.def.s : "";
-            return _params->format_scalar_of(d, d.def, buf, cap);
+            return Vars::format_declared(d, d.def, buf, cap);
         }
 
 

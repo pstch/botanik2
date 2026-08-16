@@ -50,7 +50,7 @@ namespace Botanik { namespace Logs {
          *  sink whose floor is fixed at construction.
          *
          *  The NAME, not the value: a writer cannot reach the variable bank and
-         *  has no business holding a pointer into it. Vars::Params resolves it
+         *  has no business holding a pointer into it. Vars::Bank resolves it
          *  and calls set_min_level(), which is the same pass that already
          *  applies the logger's own floor - so one place decides how much this
          *  unit logs, and every sink follows a row an operator can edit. */

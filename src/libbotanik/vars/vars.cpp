@@ -300,7 +300,7 @@ namespace Botanik { namespace Vars {
     /* The per-page log floors. In this group because they are the console's,
        but NOT staged behind console_serial like the four above: a level is read
        when the next entry arrives and re-initialises nothing, so it lands the
-       moment it is set. @see Vars::Params::_apply_log_level */
+       moment it is set. @see Vars::Bank::_apply_log_level */
 #if BOTANIK_FEATURE_HOME_PAGE
     PE("console_home_level", BOTANIK_HOME_LOG_MIN_LEVEL,
         &Logs::log_level_label, 964,

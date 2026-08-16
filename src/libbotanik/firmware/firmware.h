@@ -136,7 +136,6 @@ namespace Botanik {
         SetupContext                   _setup;
         Vars::Bank                       _io;          ///< the site's variables
         Vars::KvParamStore             _param_store; ///< one storage key per parameter
-        Vars::Params                   _params;      ///< the editable view of the variables
         Health::HealthMonitor          _health;
         SystemContext                  _sys_ctx;     ///< Filled in the ctor body
 #if BOTANIK_FEATURE_LOGS_MONITOR
@@ -283,7 +282,6 @@ namespace Botanik {
         Modbus::TcpSlave&               modbus_tcp()      { return _modbus_tcp; }
 #endif
         Health::HealthMonitor&          health()          { return _health; }
-        Vars::Params&                     params()          { return _params; }
 #if BOTANIK_FEATURE_CONSOLE
         Terminal::Console&              terminal()        { return _console.terminal(); }
 #endif

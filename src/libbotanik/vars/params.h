@@ -3,22 +3,18 @@
 
 /**
  * @file params.h
- * @brief Parameters: the persisted, editable variables.
+ * @brief The store behind the parameters, and the helpers that read them.
  *
  * A parameter is a variable with ROLE_PARAM, min/max as edit bounds, and a name
- * that doubles as its storage key. What lives here is the two behaviours other
- * variables do not have: it persists, and a user can edit it.
- *
- * Addressed by INDEX into the bank, never by an offset into a flat byte image.
+ * that doubles as its storage key. The Bank owns the block and the store; what
+ * is left here is KvParamStore and the by-name readers config-driven components
+ * source their values through.
  */
 
 #include <cstddef>
 #include <cstdint>
 
-#include "libbotanik/core/component.h"
 #include "libbotanik/vars/model.h"
-
-namespace Botanik { namespace Tasks { struct Tick; } }
 
 namespace Botanik { namespace Vars {
 
@@ -47,115 +43,19 @@ namespace Botanik { namespace Vars {
      * store, runs the boot load, and gives the PARAMS page and the shell a dense
      * 0-based index over just the parameters.
      */
-    class Params : public Component {
-        Bank* _io;
-        /** @brief When the retained rows were last written out; 0 until the
-         *  first save. @see Config::RETAIN_SAVE_MS */
-        uint64_t _last_retain_ms = 0;
-    public:
-        /** @brief Binds @p store to @p io: the bank reads and writes variables
-         *  (set() included), so it is what holds the store. */
-        Params(const SetupContext& ctx, Bank* io, VarStore* store)
-            : Component(ctx, "Params"), _io(io) {
-            if (_io != nullptr) _io->set_store(store, ctx.logger);
-        }
+    /** @name Parameter helpers
+     *  Free functions: the parameter block is the bank's, and these need no
+     *  state of their own.
+     *  @{ */
 
-        /** @name Access
-         *  @{ */
-        /** @brief The bank behind this view - what resolves a calibration's
-         *  parameter names. May be null. */
-        const Bank* bank() const { return _io; }
-        uint16_t count() const { return _io != nullptr ? _io->param_count() : 0; }
-        /** @brief The @p k-th parameter, 0-based over the block. */
-        Var      param(uint16_t k) const { return _io->param(k); }
-        /** @brief Find a parameter by name; VAR_NONE when absent or not a
-         *  parameter. */
-        VarRef   find(const char* name, uint16_t len) const;
-        /** @brief Render parameter @p k's current value. */
-        const char* format(uint16_t k, char* buf, size_t cap) const;
-        /** @brief Render @p d's declared default / bound, for the detail panel. */
-        const char* format_scalar_of(const Variable& d, Scalar v,
-                                     char* buf, size_t cap) const;
-        /** @} */
+    /** @brief Find a PARAMETER by name; VAR_NONE when absent or not one. */
+    VarRef param_find(const Bank* io, const char* name, uint16_t len);
 
-        /** @name Editing
-         *
-         *  Two steps, deliberately: set() is live, save() is durable. @see
-         *  Bank::set()
-         *  @{ */
+    /** @brief Render @p d's declared default or bound. Not the live value -
+     *  a T_STR keeps that in the pool, so it renders empty here. */
+    const char* format_declared(const Variable& d, Scalar v, char* buf, size_t cap);
 
-        /** @brief Apply an edited value, as display text. Live, not saved. */
-        SetResult set(Var p, const char* text) {
-            return _io != nullptr ? _io->set(p, text) : SET_INVALID;
-        }
-        /** @brief Commit one edited parameter to flash. */
-        SetResult save(Var p) {
-            return _io != nullptr ? _io->save(p) : SET_INVALID;
-        }
-        /** @brief Commit every parameter still unsaved. @return how many. */
-        uint16_t save_all(uint16_t* refused = nullptr) {
-            return _io != nullptr ? _io->save_params(refused) : 0;
-        }
-        /** @brief How many edits are live but not yet committed. */
-        uint16_t unsaved() const {
-            return _io != nullptr ? _io->unsaved_count() : 0;
-        }
-
-        /** @} */
-
-    public:
-        /** @brief One task, PHASE_CONFIG: the parameter image everything below
-         *  it in the beat reads its config from. */
-        void register_tasks() override;
-
-    private:
-        /** @brief The registration handler. A static MEMBER, so the cast has
-         *  access to the protected hook and stays beside the class. */
-        static void _config_task(Component* c, const Tasks::Tick& t);
-
-        /** @brief Push `sys_log_level` into the logger.
-         *
-         *  Here because this is the one object already holding BOTH the bank and
-         *  a logger, so it costs no dependency at all - `vars/` depends on
-         *  `logs/` already, since the Bank reports a refused write through one.
-         *
-         *  The logger cannot read it for itself: that would mean `logs/`
-         *  depending back on `vars/`, and the lowest-level service in the tree
-         *  would stop building without the variable model. `set_min_level()` is
-         *  the indirection, and applying a parameter to the thing that cannot
-         *  read it is the same job as loading them and pacing their writes. */
-        void _apply_log_level();
-
-    public:
-        /** @brief Write every retained row out NOW, whatever the cadence, and
-         *  restart the interval from this moment.
-         *
-         *  What the shell's `save` command calls. The cadence bounds how much
-         *  counting an unexpected power cut can cost; this is for when the cut
-         *  is not unexpected - before pulling a fuse, after a commissioning run,
-         *  or as the whole mechanism on a unit running `sys_retain_sec 0`.
-         *
-         *  @return rows written; 0 when there are none or there is no store. */
-        uint16_t save_retained(uint64_t now_ms) {
-            if (_io == nullptr) return 0;
-            _last_retain_ms = now_ms;
-            return _io->save_retained();
-        }
-
-    protected:
-        /** @brief Load every parameter from the store. */
-        void on_setup(uint64_t now_ms) override;
-        /** @brief Write the retained rows out, at most once per
-         *  `sys_retain_sec` (Config::RETAIN_SAVE_MS is its default). Nothing
-         *  else per beat. */
-        void on_config(uint64_t now_ms) override;
-
-    private:
-        /** @brief The retain cadence in ms: `sys_retain_sec` if the row is
-         *  there, else Config::RETAIN_SAVE_MS. 0 means "only on the way down,
-         *  and on `save`". */
-        uint32_t _retain_ms() const;
-    };
+    /** @} */
 
     /** @name Read parameters by name (null-safe)
      *

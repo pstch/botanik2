@@ -795,7 +795,78 @@ namespace Botanik { namespace Vars {
         (void)static_cast<Bank*>(c)->reject_implausible();
     }
 
+    void Bank::on_setup(uint64_t /*now_ms*/) {
+        load_params();
+        // After the parameters, so a restored override shadows the setting
+        // rather than being loaded over.
+        const uint16_t n = load_overrides();
+        if (n != 0 && _logger != nullptr)
+            _logger->critical(Logs::BOOT,
+                              "%u override(s) restored from storage\n"
+                              "the field is not being read or driven normally",
+                              (unsigned)n);
+        // Retained totals last: untouched by either step above.
+        const uint16_t r = load_retained();
+        if (r != 0 && _logger != nullptr)
+            _logger->notice(Logs::BOOT, "%u retained value(s) restored",
+                            (unsigned)r);
+    }
+
+    uint32_t Bank::_retain_ms() const {
+        const VarRef r = find("sys_retain_sec");
+        const int32_t sec = (r.index != VAR_NONE)
+                                ? (int32_t)var(r).i()
+                                : (int32_t)(Config::RETAIN_SAVE_MS / 1000u);
+        return sec > 0 ? (uint32_t)sec * 1000u : 0u;
+    }
+
+    void Bank::_apply_log_level() {
+        if (_logger == nullptr) return;
+        const VarRef r = find("sys_log_level");
+        const int32_t want = (r.index != VAR_NONE) ? (int32_t)var(r).i()
+                                                   : (int32_t)Config::LOG_MIN_LEVEL;
+        // The row is a T_ENUM over log_level_label(), so only the Config
+        // fallback arrives unvetted - hence the guard rather than a bare cast.
+        if (Logs::log_level_label((uint64_t)want) != nullptr) {
+            const Logs::LogLevel lvl = (Logs::LogLevel)want;
+            if (lvl != _logger->min_level()) _logger->set_min_level(lvl);
+        }
+        // Then each sink's floor, from the row that sink names: a page cannot
+        // reach the bank and should not learn how. Live, no commit serial - a
+        // level takes effect on the next entry.
+        for (uint8_t i = 0; i < _logger->writer_count(); i++) {
+            Logs::LogWriter* w = _logger->writer(i);
+            if (w == nullptr || w->level_param() == nullptr) continue;
+            const VarRef fr = find(w->level_param());
+            if (fr.index == VAR_NONE) continue;
+            const int32_t f = (int32_t)var(fr).i();
+            if (f < 0 || Logs::log_level_label((uint64_t)f) == nullptr) continue;
+            const Logs::LogLevel want_lvl = (Logs::LogLevel)f;
+            if (want_lvl != w->min_level()) w->set_min_level(want_lvl);
+        }
+    }
+
+    void Bank::on_config(uint64_t now_ms) {
+        _apply_log_level();
+        const uint32_t every = _retain_ms();
+        // 0 turns the cadence off: the way down and `save` are then the whole
+        // mechanism.
+        if (every == 0) return;
+        // A cadence, not a write-through: a flash erase per beat wears the part
+        // out in days.
+        if (_last_retain_ms != 0 && (now_ms - _last_retain_ms) < every) return;
+        _last_retain_ms = now_ms;
+        (void)save_retained();
+    }
+
+    void Bank::_config_task(Component* c, const Tasks::Tick& t) {
+        static_cast<Bank*>(c)->on_config(t.now_ms);
+    }
+
     void Bank::register_tasks() {
+        // The parameter image everything below reads its config from.
+        _tasks->add(*this, &Bank::_config_task, "params",
+              Tasks::GROUP_SLOW, Tasks::PHASE_CONFIG);
         // A full linear scan of the variable table, resolving timeouts measured
         // in seconds - which is why it is GROUP_BACKGROUND and not the beat.
         _tasks->add(*this, &Bank::_expire_task, "expire_stale",

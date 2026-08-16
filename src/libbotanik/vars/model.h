@@ -311,11 +311,21 @@ namespace Botanik { namespace Vars {
          *  is coherent. */
         void register_tasks() override;
 
+    protected:
+        /** @brief Load the stored image: parameters, overrides, retained. */
+        void on_setup(uint64_t now_ms) override;
+        /** @brief Write the retained rows out, at most once per
+         *  `sys_retain_sec`. */
+        void on_config(uint64_t now_ms) override;
+
+    public:
+
     private:
         /** @name Registration handlers
          *  Static MEMBERS: each cast sits on one line beside what it calls.
          *  @{ */
         static void _expire_task(Component* c, const Tasks::Tick& t);
+        static void _config_task(Component* c, const Tasks::Tick& t);
         static void _reject_task(Component* c, const Tasks::Tick& t);
         /** @} */
 
@@ -358,6 +368,7 @@ namespace Botanik { namespace Vars {
          *  map - simply never sees it, with no skip test to add and none to
          *  forget. @see _resolve_shadows() */
         uint16_t      _row[Config::VAR_MAX];
+        uint64_t      _last_retain_ms = 0;   ///< last retained write; 0 = none
         /** @brief Rows dropped as redeclared. Kept because it is what tells
          *  _row_of() whether the logical and physical spaces have parted; each
          *  one is also NAMED at freeze(), since a duplicate name used to be
@@ -472,6 +483,14 @@ namespace Botanik { namespace Vars {
          *  way down - never per write, which would be a flash erase per beat.
          *  @return how many were written. */
         uint16_t save_retained();
+
+        /** @brief Write the retained rows NOW and restart the interval. The
+         *  cadence bounds what an unexpected cut costs; this is for a stop that
+         *  is not unexpected. */
+        uint16_t save_retained(uint64_t now_ms) {
+            _last_retain_ms = now_ms;
+            return save_retained();
+        }
 
         /** @} */
 
@@ -701,6 +720,19 @@ namespace Botanik { namespace Vars {
             while (s > 0 && p < _seg_base[s]) --s;
             return _seg[s][p - _seg_base[s]];
         }
+
+        /** @brief Retain cadence in ms from `sys_retain_sec`; 0 = only on the
+         *  way down and on `save`. */
+        uint32_t _retain_ms() const;
+
+        /** @brief Push `sys_log_level` into the logger, and each sink's floor
+         *  from the row it names. Here because this is the object already
+         *  holding both the rows and a logger - `vars/` depends on `logs/`
+         *  already, since a refused write is reported through one. The logger
+         *  cannot read it for itself: that would make `logs/` depend back on
+         *  `vars/`, and the lowest service in the tree would stop building
+         *  without the variable model. */
+        void _apply_log_level();
 
         /** @brief Build _row, dropping every row a later one redeclares. Runs
          *  FIRST in freeze(), before init() seeds a slot for a row about to

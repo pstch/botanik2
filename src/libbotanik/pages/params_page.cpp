@@ -26,7 +26,7 @@ namespace Botanik { namespace Pages {
     // a per-row save would make "did I save that one?" a question.
     void ParamsPage::_save_all() {
         uint16_t refused = 0;
-        (void)_params->save_all(&refused);
+        (void)_params->save_params(&refused);
         _save_failed = (refused != 0);
         _dirty = true;              // the '*' markers clear with the same repaint
         _draw_prompt_row();
@@ -151,7 +151,7 @@ namespace Botanik { namespace Pages {
         // Use what format() RETURNS, not the buffer: a T_STR's live text is in
         // the pool and a T_ENUM's in flash, so neither writes into val, and
         // reading val would show the previous row's text.
-        const char* v = _params->format(k, val, sizeof(val));
+        const char* v = Vars::var_format(*_params, _params->param(k), val, sizeof(val));
         // A trailing '*' on an edited-but-unsaved value: one column, and it is
         // the only thing distinguishing a setting that survives a reboot from
         // one that does not. Copied into val first, since format() may have
@@ -220,7 +220,7 @@ namespace Botanik { namespace Pages {
         // parameters, and showing the firmware defaults while the operator
         // edits the real ones is the worst of both.
         const Vars::NumBand band =
-            Vars::var_band(_params != nullptr ? _params->bank() : nullptr, d);
+            Vars::var_band(_params != nullptr ? _params : nullptr, d);
         // Minimum / Maximum / Default share one row: three facts about the row
         // already selected, and every panel row costs a table row.
         //
@@ -273,7 +273,7 @@ namespace Botanik { namespace Pages {
         // what an operator cannot infer stays - that edits are live but not yet
         // durable, and that a save was refused.
         char hint[64];
-        const uint16_t pending = _params->unsaved();
+        const uint16_t pending = _params->unsaved_count();
         if (_save_failed)
             snprintf(hint, sizeof(hint), " NOT SAVED - storage refused it");
         else if (pending != 0)
@@ -314,7 +314,7 @@ namespace Botanik { namespace Pages {
         _draw_label();
 
         char val[80];
-        const char* fv = _params->format(_edit_index, val, sizeof(val));
+        const char* fv = Vars::var_format(*_params, _params->param(_edit_index), val, sizeof(val));
         const int n = (int)strlen(fv);
         if (fv != val) { strncpy(val, fv, sizeof(val) - 1); val[sizeof(val) - 1] = 0; }
         if (n > 0) _editor.insert_characters(val, (uint16_t)n);

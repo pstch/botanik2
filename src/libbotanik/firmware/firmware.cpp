@@ -13,18 +13,16 @@ namespace Botanik {
 
     // Construction
 
-    // The initialiser list follows declaration order exactly (-Wreorder): _io
-    // must be alive before _params takes its address, and _health before
-    // _modbus_tcp and _console take its alarm model.
+    // The initialiser list follows declaration order exactly (-Wreorder):
+    // _health before _modbus_tcp and _console take its alarm model.
     BotanikFirmware::BotanikFirmware(const SiteDescriptor& site)
         : _site(site),
           _logger(),
           _scheduler(_tasks, Config::TASK_PERIOD_MS, &_logger),
           _setup(_tasks, &_logger),
           _io(_setup),
-          // Params come from local storage.
+          // Parameters come from local storage; the bank owns the store.
           _param_store(),
-          _params(_setup, &_io, &_param_store),
           // The alarm model scans the variable table for SCOPE_A rows;
           // platform-health alarms are appended and driven locally.
           _health(_setup, _scheduler.context(), &_io)
@@ -58,7 +56,7 @@ namespace Botanik {
                        _site.home_field_count, &_io, _site.home_refs)
 #endif
 #if BOTANIK_FEATURE_PARAMS_PAGE
-          , _params_page(_console.terminal(), &_params)
+          , _params_page(_console.terminal(), &_io)
 #endif
 #if BOTANIK_FEATURE_MONITOR_PAGE
           , _monitor_page(_console.terminal(), &_io)
@@ -72,7 +70,6 @@ namespace Botanik {
         _sys_ctx.scheduler = _scheduler.context();
         _sys_ctx.tasks     = &_tasks;
         _sys_ctx.vars      = &_io;
-        _sys_ctx.params    = &_params;
 #if BOTANIK_FEATURE_NETWORK
         _sys_ctx.network = &_net.network();
 #endif
@@ -104,6 +101,9 @@ namespace Botanik {
         Vars::register_library_vars(_io);
         register_vars();
         _io.freeze();
+        // The bank holds the store: it is what reads and writes variables, and
+        // Bank::on_setup() loads the image from it in the setup pass below.
+        _io.set_store(&_param_store, &_logger);
         // Where a site's names become indices, once, so no renderer pays for
         // the lookup per frame. A name with no row lands on the sink and is
         // counted by the bank, which the site test asserts is zero.
@@ -260,8 +260,6 @@ namespace Botanik {
 
 
 
-        // --- CONFIG: the image every config-driven component reads below ---
-        _params.register_tasks();
 
 
 

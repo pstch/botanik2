@@ -155,68 +155,21 @@ namespace Botanik { namespace Vars {
         return HAL::Storage::set(key, &raw, w);
     }
 
-    // ---- Params --------------------------------------------------------------
 
-    void Params::on_setup(uint64_t /*now_ms*/) {
-        if (_io == nullptr) return;
-        _io->load_params();
-        // After the parameters, so a restored override shadows the setting
-        // rather than being loaded over.
-        const uint16_t n = _io->load_overrides();
-        if (n != 0 && _logger != nullptr)
-            _logger->critical(Logs::BOOT,
-                              "%u override(s) restored from storage\n"
-                              "the field is not being read or driven normally",
-                              (unsigned)n);
 
-        // Retained totals last: computed rows, untouched by either step above,
-        // and a forced totalizer still reads as forced.
-        const uint16_t r = _io->load_retained();
-        if (r != 0 && _logger != nullptr)
-            _logger->notice(Logs::BOOT, "%u retained value(s) restored",
-                            (unsigned)r);
-    }
 
-    uint32_t Params::_retain_ms() const {
-        // Read live rather than cached on a commit serial: it is one lookup on
-        // the slow group, and a cadence has nothing to re-initialise when it
-        // moves - the next due time is computed from it on the spot.
-        const int32_t sec = get_int(_io, "sys_retain_sec",
-                                    (int32_t)(Config::RETAIN_SAVE_MS / 1000u));
-        return sec > 0 ? (uint32_t)sec * 1000u : 0u;
-    }
 
-    void Params::on_config(uint64_t now_ms) {
-        if (_io == nullptr) return;
-        _apply_log_level();
-        const uint32_t every = _retain_ms();
-        // 0 turns the cadence off: the way down and the `save` command are then
-        // the whole mechanism, which is the right trade for a unit whose flash
-        // is precious and whose stops are all deliberate.
-        if (every == 0) return;
-        // A cadence, not a write-through: a flash erase per beat would wear the
-        // part out in days. The loss is bounded at one interval of counting on
-        // an unexpected power cut; a deliberate stop loses nothing, the shutdown
-        // path calling save_retained() itself.
-        if (_last_retain_ms != 0 && (now_ms - _last_retain_ms) < every) return;
-        _last_retain_ms = now_ms;
-        (void)_io->save_retained();
-    }
-
-    VarRef Params::find(const char* name, uint16_t len) const {
+    VarRef param_find(const Bank* io, const char* name, uint16_t len) {
         VarRef r = { VAR_NONE };
-        if (_io == nullptr) return r;
-        r = _io->find(name, len);
-        if (r.index != VAR_NONE && _io->var(r).role() != ROLE_PARAM) r.index = VAR_NONE;
+        if (io == nullptr) return r;
+        r = io->find(name, len);
+        if (r.index != VAR_NONE && io->var(r).role() != ROLE_PARAM) r.index = VAR_NONE;
         return r;
     }
 
-    const char* Params::format(uint16_t k, char* buf, size_t cap) const {
-        return var_format(*_io, param(k), buf, cap);
-    }
 
-    const char* Params::format_scalar_of(const Variable& d, Scalar v,
-                                         char* buf, size_t cap) const {
+    const char* format_declared(const Variable& d, Scalar v,
+                                char* buf, size_t cap) {
         if (d.type == T_STR) return "";
         return format_scalar(d.type, v, d.digits, d.str, buf, cap);
     }
@@ -296,47 +249,11 @@ namespace Botanik { namespace Vars {
 
 namespace Botanik { namespace Vars {
 
-    void Params::_config_task(Component* c, const Tasks::Tick& t) {
-        static_cast<Params*>(c)->on_config(t.now_ms);
-    }
 
-    void Params::register_tasks() {
-        _tasks->add(*this, &Params::_config_task, "params",
-              Tasks::GROUP_SLOW, Tasks::PHASE_CONFIG);
-    }
 
 }}  // namespace Botanik::Vars
 
 namespace Botanik { namespace Vars {
 
-    void Params::_apply_log_level() {
-        if (_logger == nullptr) return;
-        const int32_t want = get_int(_io, "sys_log_level",
-                                     (int32_t)Config::LOG_MIN_LEVEL);
-        // No coercion needed: the row is a T_ENUM over log_level_label(), so the
-        // model refused anything that is not a level long before it reached the
-        // slot. The one value that arrives unvetted is the Config fallback
-        // above, from a build whose site left the row out - hence a guard rather
-        // than a bare cast.
-        if (Logs::log_level_label((uint64_t)want) != nullptr) {
-            const Logs::LogLevel lvl = (Logs::LogLevel)want;
-            if (lvl != _logger->min_level()) _logger->set_min_level(lvl);
-        }
-
-        // Then each sink's own floor, from the row that sink names. Here rather
-        // than at the sinks because a page cannot reach the bank and should not
-        // learn how: the writer says which row it follows, this resolves it.
-        // Live, with no commit serial - a level takes effect on the next entry
-        // and there is nothing to re-initialise, so staging it would only make
-        // an operator bump a serial to be heard.
-        for (uint8_t i = 0; i < _logger->writer_count(); i++) {
-            Logs::LogWriter* w = _logger->writer(i);
-            if (w == nullptr || w->level_param() == nullptr) continue;
-            const int32_t f = get_int(_io, w->level_param(), -1);
-            if (f < 0 || Logs::log_level_label((uint64_t)f) == nullptr) continue;
-            const Logs::LogLevel want_lvl = (Logs::LogLevel)f;
-            if (want_lvl != w->min_level()) w->set_min_level(want_lvl);
-        }
-    }
 
 }}  // namespace Botanik::Vars

@@ -128,7 +128,7 @@ namespace Botanik { namespace Logs {
         /** @name The registered sinks
          *
          *  Read-only access to the list, for the config pass that applies each
-         *  sink's floor from the parameter it names (Vars::Params). The logger
+         *  sink's floor from the parameter it names (Vars::Bank). The logger
          *  itself never reads a parameter - it cannot see the bank - so this is
          *  the seam between the two.
          *  @{ */

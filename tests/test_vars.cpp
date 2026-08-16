@@ -873,11 +873,10 @@ namespace {
         uint16_t     index[5]{};
         Bank         bank;
         KvParamStore store;
-        Params       params;
-        Fx() : params(Botanik::SetupContext(), &bank, &store) {
+        Fx() {
             bank.register_vars(PARAMS, 5);
             bank.freeze();
-            params = Params(Botanik::SetupContext(), &bank, &store);
+            bank.set_store(&store);
         }
         Var by(const char* n) { return bank.var(bank.find(n)); }
     };
@@ -896,19 +895,19 @@ TEST_CASE("params: an edit applies, saves, and survives a reload") {
     StoreEnv env;
     {
         Fx f;
-        CHECK(f.params.set(f.by("p_u16"), "120") == SET_OK);
-        CHECK(f.params.set(f.by("p_i32"), "-4200") == SET_OK);
-        CHECK(f.params.set(f.by("p_f32"), "-12.25") == SET_OK);
-        CHECK(f.params.set(f.by("p_bool"), "0") == SET_OK);
-        CHECK(f.params.set(f.by("p_str"), "ntp.example.org") == SET_OK);
+        CHECK(f.bank.set(f.by("p_u16"), "120") == SET_OK);
+        CHECK(f.bank.set(f.by("p_i32"), "-4200") == SET_OK);
+        CHECK(f.bank.set(f.by("p_f32"), "-12.25") == SET_OK);
+        CHECK(f.bank.set(f.by("p_bool"), "0") == SET_OK);
+        CHECK(f.bank.set(f.by("p_str"), "ntp.example.org") == SET_OK);
         // Live but not durable until this: five rows owed, five written.
-        CHECK(f.params.unsaved() == 5);
-        CHECK(f.params.save_all() == 5);
-        CHECK(f.params.unsaved() == 0);
+        CHECK(f.bank.unsaved_count() == 5);
+        CHECK(f.bank.save_params() == 5);
+        CHECK(f.bank.unsaved_count() == 0);
     }
     {   // a fresh bank, loading from the same store
         Fx f;
-        f.params.step(0);           // first step runs setup(): the boot load
+        f.bank.setup(0);           // first step runs setup(): the boot load
         CHECK(f.by("p_u16").i() == 120);
         CHECK(f.by("p_i32").i() == -4200);          // sign survives the narrow width
         CHECK(f.by("p_f32").value() == doctest::Approx(-12.25f));
@@ -920,7 +919,7 @@ TEST_CASE("params: an edit applies, saves, and survives a reload") {
 TEST_CASE("params: a missing key keeps the declared default") {
     StoreEnv env;
     Fx f;
-    f.params.step(0);
+    f.bank.setup(0);
     CHECK(f.by("p_u16").i() == 64);
     CHECK(Utils::compare_str(get_str(&f.bank, "p_str"), "pool.ntp.org"));
 }
@@ -930,10 +929,10 @@ TEST_CASE("params: stored values keep the type's NARROW width") {
     // encoding and HAL::Storage::get starts rejecting them.
     StoreEnv env;
     Fx f;
-    CHECK(f.params.set(f.by("p_u16"), "300") == SET_OK);
-    CHECK(f.params.set(f.by("p_bool"), "0") == SET_OK);
-    CHECK(f.params.set(f.by("p_f32"), "1.5") == SET_OK);
-    CHECK(f.params.save_all() == 3);
+    CHECK(f.bank.set(f.by("p_u16"), "300") == SET_OK);
+    CHECK(f.bank.set(f.by("p_bool"), "0") == SET_OK);
+    CHECK(f.bank.set(f.by("p_f32"), "1.5") == SET_OK);
+    CHECK(f.bank.save_params() == 3);
     uint8_t buf[16]; size_t n = 0;
     REQUIRE(HAL::Storage::get("p_u16", buf, sizeof(buf), &n));
     CHECK(n == 2);
@@ -946,23 +945,23 @@ TEST_CASE("params: stored values keep the type's NARROW width") {
 TEST_CASE("params: edits are bounds-checked in the parameter's own type") {
     StoreEnv env;
     Fx f;
-    CHECK(f.params.set(f.by("p_u16"), "3601") == SET_INVALID);
+    CHECK(f.bank.set(f.by("p_u16"), "3601") == SET_INVALID);
     CHECK(f.by("p_u16").i() == 64);                 // unchanged
-    CHECK(f.params.set(f.by("p_i32"), "-6000") == SET_INVALID);
+    CHECK(f.bank.set(f.by("p_i32"), "-6000") == SET_INVALID);
     // A fractional bound is a real bound now: 90.5 is out, 89.5 is in.
-    CHECK(f.params.set(f.by("p_f32"), "90.5") == SET_INVALID);
-    CHECK(f.params.set(f.by("p_f32"), "89.5") == SET_OK);
+    CHECK(f.bank.set(f.by("p_f32"), "90.5") == SET_INVALID);
+    CHECK(f.bank.set(f.by("p_f32"), "89.5") == SET_OK);
     // ...and junk is junk.
-    CHECK(f.params.set(f.by("p_u16"), "12abc") == SET_INVALID);
+    CHECK(f.bank.set(f.by("p_u16"), "12abc") == SET_INVALID);
 }
 
 TEST_CASE("params: a string edit is validated by its declared kind") {
     StoreEnv env;
     Fx f;
-    CHECK(f.params.set(f.by("p_str"), "ntp.example.org") == SET_OK);
-    CHECK(f.params.set(f.by("p_str"), "bad host") == SET_INVALID);
+    CHECK(f.bank.set(f.by("p_str"), "ntp.example.org") == SET_OK);
+    CHECK(f.bank.set(f.by("p_str"), "bad host") == SET_INVALID);
     // Must fit the slot including the NUL.
-    CHECK(f.params.set(f.by("p_str"), "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa") == SET_INVALID);
+    CHECK(f.bank.set(f.by("p_str"), "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa") == SET_INVALID);
     CHECK(Utils::compare_str(get_str(&f.bank, "p_str"), "ntp.example.org"));
 }
 
@@ -972,14 +971,14 @@ TEST_CASE("params: a refused save leaves the value live and still owed") {
     // row the store refused stays marked, so the next save tries it again.
     StoreEnv env("/nonexistent-dir-botanik-test/store");
     Fx f;
-    CHECK(f.params.set(f.by("p_u16"), "120") == SET_OK);
+    CHECK(f.bank.set(f.by("p_u16"), "120") == SET_OK);
     CHECK(f.by("p_u16").i() == 120);
-    CHECK(f.params.save(f.by("p_u16")) == SET_NOT_PERSISTED);
+    CHECK(f.bank.save(f.by("p_u16")) == SET_NOT_PERSISTED);
     CHECK(f.by("p_u16").param_unsaved());
     uint16_t refused = 0;
-    CHECK(f.params.save_all(&refused) == 0);
+    CHECK(f.bank.save_params(&refused) == 0);
     CHECK(refused == 1);
-    CHECK(f.params.set(f.by("p_u16"), "99999") == SET_INVALID);   // still invalid
+    CHECK(f.bank.set(f.by("p_u16"), "99999") == SET_INVALID);   // still invalid
 }
 
 TEST_CASE("params: by-name reads are null-safe and type-aware") {
@@ -999,8 +998,8 @@ TEST_CASE("params: by-name reads are null-safe and type-aware") {
 TEST_CASE("params: find only matches parameters, not any variable") {
     StoreEnv env;
     Fx f;
-    CHECK(f.params.find("p_u16", 5).index != VAR_NONE);
-    CHECK(f.params.find("nope", 4).index == VAR_NONE);
+    CHECK(Vars::param_find(&f.bank, "p_u16", 5).index != VAR_NONE);
+    CHECK(Vars::param_find(&f.bank, "nope", 4).index == VAR_NONE);
 }
 
 // ---- Persistent overrides ---------------------------------------------------
@@ -1268,11 +1267,10 @@ namespace {
         uint16_t index[2]{};
         Bank         bank;
         KvParamStore store;
-        Params       params;
-        SaveFx() : params(Botanik::SetupContext(), &bank, &store) {
+        SaveFx() {
             bank.register_vars(SAVED, 2);
             bank.freeze();
-            params = Params(Botanik::SetupContext(), &bank, &store);
+            bank.set_store(&store);
         }
         Var by(const char* n) { return bank.var(bank.find(n)); }
     };
@@ -1294,18 +1292,17 @@ namespace {
         Botanik::Tasks::Registry reg;
         Botanik::Logs::Logger logger;
         Bank              bank;
-        Params            params;
-        LogFx() : params(Botanik::SetupContext(reg, &logger), &bank, nullptr) {
+        LogFx() : bank(Botanik::SetupContext(reg, &logger)) {
             bank.register_vars(LOGCFG, 1);
             bank.freeze();
-            params = Params(Botanik::SetupContext(reg, &logger), &bank, nullptr);
+            bank.set_store(nullptr, &logger);
         }
         Var row() { return bank.var(bank.find("sys_log_level")); }
 
         /** @brief One CONFIG activation, through the registry, exactly as the
          *  beat does it. */
         void step(uint64_t now_ms) {
-            params.register_tasks();
+            bank.register_tasks();
             reg.run_phase(Botanik::Tasks::PHASE_CONFIG, now_ms);
         }
     };
@@ -1346,7 +1343,7 @@ TEST_CASE("save: an edit is live at once and forgotten unless it is saved") {
     }
     {   // down and back
         SaveFx f;
-        f.params.step(0);
+        f.bank.setup(0);
         CHECK(f.by("p_a").i() == 10);           // the factory default
     }
 }
@@ -1365,7 +1362,7 @@ TEST_CASE("save: save_params writes what is pending, and only that") {
     }
     {
         SaveFx f;
-        f.params.step(0);
+        f.bank.setup(0);
         CHECK(f.by("p_a").i() == 300);
         CHECK(f.by("p_b").i() == 400);
     }
@@ -1382,7 +1379,7 @@ TEST_CASE("save: a boot load is not an unsaved edit") {
     }
     {
         SaveFx f;
-        f.params.step(0);
+        f.bank.setup(0);
         REQUIRE(f.by("p_a").i() == 300);
         CHECK(f.bank.unsaved_count() == 0);
         CHECK_FALSE(f.by("p_a").param_unsaved());
@@ -1400,7 +1397,7 @@ TEST_CASE("save: an override is live for this session and no longer") {
     }
     {   // an actuator driven by hand must not resurrect itself at the next boot
         SaveFx f;
-        f.params.step(0);
+        f.bank.setup(0);
         (void)f.bank.load_overrides();
         CHECK_FALSE(f.by("p_a").overridden());
     }
@@ -1416,7 +1413,7 @@ TEST_CASE("save: an override that IS saved comes back, and clearing it kills it"
     }
     {
         SaveFx f;
-        f.params.step(0);
+        f.bank.setup(0);
         REQUIRE(f.bank.load_overrides() == 1);
         REQUIRE(f.by("p_a").overridden());
         // Releasing reaches the store at ONCE, unlike setting: an override that
@@ -1426,7 +1423,7 @@ TEST_CASE("save: an override that IS saved comes back, and clearing it kills it"
     }
     {
         SaveFx f;
-        f.params.step(0);
+        f.bank.setup(0);
         CHECK(f.bank.load_overrides() == 0);
         CHECK_FALSE(f.by("p_a").overridden());
     }
@@ -1789,39 +1786,39 @@ TEST_CASE("retain: the cadence is the sys_retain_sec parameter") {
     MemStore store;
     Bank a;
     cadence::build(a);
-    Params p(Botanik::SetupContext(), &a, &store);
+    a.set_store(&store);
 
     a.var(a.find("total_litres")).set_i(1);
 
     // The first step writes (nothing written yet); the 2 s band then holds off.
-    p.step(1000);
+    a.step(1000);
     const uint32_t after_first = store.saves;
     CHECK(after_first > 0);
-    p.step(2000);                                  // 1 s in: inside the band
+    a.step(2000);                                  // 1 s in: inside the band
     CHECK(store.saves == after_first);
-    p.step(3001);                                  // past 2 s: due again
+    a.step(3001);                                  // past 2 s: due again
     CHECK(store.saves > after_first);
 
     SUBCASE("0 turns the cadence off entirely") {
         REQUIRE(a.set(a.var(a.find("sys_retain_sec")), "0") != SET_INVALID);
         const uint32_t before = store.saves;
-        for (uint64_t ms = 4000; ms < 400000; ms += 10000) p.step(ms);
+        for (uint64_t ms = 4000; ms < 400000; ms += 10000) a.step(ms);
         INFO("no amount of elapsed time may trigger a write once it is off");
         CHECK(store.saves == before);
 
         // ...which is what makes the explicit save the whole mechanism there.
-        p.save_retained(500000);
+        a.save_retained(500000);
         CHECK(store.saves > before);
     }
 
     SUBCASE("an explicit save restarts the interval") {
-        p.step(10000);                             // due: writes, stamps 10 s
+        a.step(10000);                             // due: writes, stamps 10 s
         const uint32_t before = store.saves;
-        p.save_retained(11000);
+        a.save_retained(11000);
         CHECK(store.saves == before + 1);
         // Without the restart this step is 2 s past the 10 s stamp and writes a
         // second time for nothing - a flash erase the operator did not ask for.
-        p.step(12000);
+        a.step(12000);
         CHECK(store.saves == before + 1);
     }
 }
@@ -1830,15 +1827,15 @@ TEST_CASE("retain: with no sys_retain_sec row the cadence is the Config default"
     MemStore store;
     Bank a;          // the plain table: no parameters at all
     build(a);
-    Params p(Botanik::SetupContext(), &a, &store);
+    a.set_store(&store);
     a.var(a.find("total_litres")).set_i(1);
 
-    p.step(1);
+    a.step(1);
     const uint32_t after_first = store.saves;
     CHECK(after_first > 0);
-    p.step(Config::RETAIN_SAVE_MS - 1);
+    a.step(Config::RETAIN_SAVE_MS - 1);
     CHECK(store.saves == after_first);
-    p.step((uint64_t)Config::RETAIN_SAVE_MS + 2);
+    a.step((uint64_t)Config::RETAIN_SAVE_MS + 2);
     CHECK(store.saves > after_first);
 }
 
