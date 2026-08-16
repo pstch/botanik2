@@ -1,8 +1,10 @@
-# Reworking the variable accessors {#dev_vars_accessors}
+# Reworking the variable accessors
 
-A staged plan. The end state is one vocabulary for reading a variable - four
-layers, one return type - and a `Bank` whose method names say which concept they
-belong to. @ref dev_vars is how the model works today.
+A plan, not a description. Nothing here is built yet.
+
+The end state is one vocabulary for reading a variable - four layers, one return
+type - and a `Bank` whose method names say which concept they belong to.
+`docs/dev/vars.md` is how the model works today.
 
 ## Why
 

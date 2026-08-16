@@ -31,8 +31,6 @@ it, which is the same layering the @ref dev_metrics matrix enforces. Read
 
 - @subpage dev_vars - the variable model: descriptors, value slots, the sink, and
   where overrides are applied. Everything else reads and writes through this.
-- @subpage dev_vars_accessors - the staged rework of the read API: four layers,
-  one return type, and the order that keeps `raw()` from changing meaning quietly.
 - @subpage dev_modbus - the field bus and the plant network: what the bus costs,
   planning, framing, and the register map.
 - @subpage dev_network - the optional config-driven network stack.
