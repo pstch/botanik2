@@ -283,7 +283,27 @@ namespace Botanik { namespace Vars {
     /** @brief What everything is handed to reach the variables.
      *  @note A bad index - VAR_NONE included - resolves to an inert sink, never
      *  CLAMPING: clamping would alias it onto a real row, so a typo could drive
-     *  an actual relay. */
+     *  an actual relay.
+     *
+     *  ## Naming
+     *
+     *  Three shapes, and which one a new method takes is not a matter of taste:
+     *
+     *  - `<noun>_<verb>` for a FAMILY of operations on one concept, so the
+     *    family sorts together and reads the way the shell says it:
+     *    `override_set` / `override_clear` / `override_freeze` /
+     *    `override_count`, matching `overrides set` / `overrides clear`.
+     *  - `set_<property>` for a single property with no family behind it:
+     *    `set_store`, `set_control_mode`, `set_health_hold`. Turning these
+     *    around would give `health_hold_set`, which is why they are not the
+     *    same shape as the group above.
+     *  - `<thing>_count()` for a tally, always, and never `num_` or `n_`:
+     *    `param_count`, `override_count`, `unsaved_count`, `refused_count`,
+     *    `unresolved_count`, `param_stray_count`.
+     *
+     *  `set()` alone means EDIT A PARAMETER. Anything that writes a row by
+     *  another route says so in its name (`override_set`, `publish` on Var), so
+     *  that a caller cannot reach for `set` and get a different rule. */
     class Bank : public Botanik::Component {
     public:
         /** @brief The two sweeps this class owns, both GROUP_BACKGROUND in
@@ -520,9 +540,8 @@ namespace Botanik { namespace Vars {
          *  every find() is then a full scan. */
         bool name_index_built() const { return _indexed; }
 
-        /** @brief Pool bytes claimed, and rows that found none left. The second
-         *  must be zero: such a row reads empty and refuses every write. */
-        uint16_t pool_used() const     { return _pool_used; }
+        /** @brief Rows that found no pool left. Must be zero: such a row reads
+         *  empty and refuses every write. */
         uint16_t pool_overflow() const { return _pool_overflow; }
 
         /** @name Control authority
@@ -593,11 +612,6 @@ namespace Botanik { namespace Vars {
          *  row's DISPLAY rounding, storing 0.083 as 0.08. T_STR is refused. */
         SetResult set(Var h, Scalar v);
 
-        /** @brief Apply @p v WITHOUT marking the row unsaved, for a writer that
-         *  paces the flash side itself (the Modbus persist queue).
-         *  @warning Pair every SET_OK with a save(), or the setting is lost. */
-        SetResult set_deferred(Var h, Scalar v);
-
         /** @brief Commit @p h's value and clear its unsaved mark; harmless on a
          *  durable row. @return SET_OK, or SET_NOT_PERSISTED. */
         SetResult save(Var h);
@@ -662,6 +676,13 @@ namespace Botanik { namespace Vars {
         /** @} */
 
     private:
+        /** @brief Apply @p v WITHOUT marking the row unsaved. PRIVATE: set() is
+         *  its only caller. It was public for a writer pacing the flash side
+         *  itself, but the Modbus persist queue never took it up, and a public
+         *  set() that skips the unsaved mark is a way to lose a setting.
+         *  @warning Pair every SET_OK with a save(), or the setting is lost. */
+        SetResult set_deferred(Var h, Scalar v);
+
         /** @brief The descriptor at PHYSICAL row @p p, before the redeclaration
          *  map. The one place segments are visible; their bases ascend, so
          *  walking down from the last costs one compare in the usual case. */
