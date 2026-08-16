@@ -100,6 +100,19 @@ namespace Botanik { namespace Shell {
         } else {
             _field("Override value", "-", nullptr);
         }
+        // The third value, and a different fact from either: what the row falls
+        // back TO, which is not what it reads now and not what is forced on it.
+        {
+            char num[48], cell[64];
+            // Not var_format(): that reads the LIVE text out of the pool, and a
+            // T_STR's default is the flash literal the row was declared with.
+            const char* text = (d->type == Vars::T_STR)
+                ? (d->def.s != nullptr ? d->def.s : "")
+                : Vars::format_scalar(d->type, d->def, d->digits, d->str,
+                                      num, sizeof(num));
+            snprintf(cell, sizeof(cell), "%s%s%s", text, u[0] ? " " : "", u);
+            _field("Default", cell, _default_phrase(d->role));
+        }
 
         // The declared band, live: an analog row's comes from its calibration
         // parameters, so var_band() rather than the flash constants.
@@ -163,6 +176,17 @@ namespace Botanik { namespace Shell {
             : Vars::format_scalar(d->type, v, d->digits, d->str, num, sizeof(num));
         snprintf(cell, sizeof(cell), "%s%s%s", text, unit[0] ? " " : "", unit);
         _field(label, cell, quality);
+    }
+
+    // `def` does three jobs (@see Variable::def), and which one is the whole
+    // reason to print it: the number says nothing about what it is for.
+    const char* CommandShell::_default_phrase(uint8_t role) {
+        switch ((Vars::VarRole)role) {
+            case Vars::ROLE_PARAM:  return "factory value; `params clear` restores it";
+            case Vars::ROLE_OUTPUT: return "safe state, driven when control is withdrawn";
+            case Vars::ROLE_INPUT:  return "substituted while the reading is invalid";
+            default:                return "value before anything computes it";
+        }
     }
 
     // What a scope abbreviation means, for the detail column: the table shows

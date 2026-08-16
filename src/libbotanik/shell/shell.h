@@ -392,6 +392,9 @@ namespace Botanik { namespace Shell {
                           Vars::Scalar v, const char* quality, const char* unit);
         /** @brief What a VarScope abbreviation means, for the detail column. */
         static const char* _scope_phrase(uint8_t scope);
+        /** @brief What `def` is FOR on a row of this role - it does three
+         *  different jobs, and the number alone does not say which. */
+        static const char* _default_phrase(uint8_t role);
         /** @brief Whether `set` will take @p h. */
         static bool _writable(Vars::Var h);
         /** @brief Where a value physically comes from, into @p buf. */

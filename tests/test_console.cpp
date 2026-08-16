@@ -1613,6 +1613,11 @@ TEST_CASE("shell vars get: the detail view, and what it adds when a row is force
     CHECK(f.writer.has("-40.0 .. 85.0"));         // the declared band
     CHECK(f.writer.has("Modbus dev 5"));          // where it comes from
     CHECK(f.writer.has("Override value ... : -"));   // nothing forced
+    // The THIRD value: what the row falls back to, which is neither what it
+    // reads now nor what is forced on it. The detail says which of def's three
+    // jobs this row uses it for - the number alone does not.
+    CHECK(f.writer.has("Default"));
+    CHECK(f.writer.has("substituted while the reading is invalid"));
 
     // Forced: both values kept apart, each with its own validity.
     f.run("overrides set ext_temp 35");
@@ -1625,6 +1630,12 @@ TEST_CASE("shell vars get: the detail view, and what it adds when a row is force
     f.run("overrides set ext_temp 35 invalid");
     f.run("vars get ext_temp");
     CHECK(f.writer.has("Override value ... : 35.0 C   (invalid, unsaved)"));
+    // All four on screen at once, and all four different: 35 forced over a
+    // live 21, falling back to 20.5. Reading any one of them for another is
+    // the mistake this view exists to prevent.
+    CHECK(f.writer.has("ext_temp = 35.0"));          // actual, override applied
+    CHECK(f.writer.has("Raw value ........ : 21.0 C"));
+    CHECK(f.writer.has("Default .......... : 20.5 C"));
 }
 
 TEST_CASE("shell help: a summary of groups, not a command list") {
