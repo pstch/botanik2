@@ -94,10 +94,10 @@ namespace Botanik { namespace Logs {
         if (report_amount > 0) {
             _suppress_reportTime_ms += report_amount * Config::LOG_SUPPRESS_REPORT_PERIOD_MS;
             // global
-            _report_suppressed(&_global_bucket, LogTopic::NONE, now_ms);
+            _report_suppressed(&_global_bucket, LogTopic::NONE, now_ms, true);
             // skip NONE (slot 0)
             for (uint8_t i = 1; i < Logs::LOG_TOPIC_COUNT; ++i)
-                _report_suppressed(&_perTopic_buckets[i], (LogTopic)i, now_ms);
+                _report_suppressed(&_perTopic_buckets[i], (LogTopic)i, now_ms, false);
         }
         // Data actually lost, not just rate-limited: sink drops summed across
         // writers, and TX-full drops across the watched serials. Edge-triggered
@@ -188,10 +188,11 @@ namespace Botanik { namespace Logs {
     }
 
     void Logger::_report_suppressed(LogBucket_t* bucket, Logs::LogTopic topic,
-                                    uint32_t timestamp_ms) {
+                                    uint32_t timestamp_ms, bool global) {
         if (bucket->suppressed == 0) return;
-        _emit_critical(topic, timestamp_ms, "%u msgs suppressed",
-                       (unsigned)bucket->suppressed);
+        _emit_critical(topic, timestamp_ms, "%u msgs suppressed (%s limit)",
+                       (unsigned)bucket->suppressed,
+                       global ? "global" : "topic");
         bucket->suppressed = 0;
     }
 

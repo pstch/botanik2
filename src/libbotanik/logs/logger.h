@@ -202,9 +202,11 @@ namespace Botanik { namespace Logs {
         void _emit_critical(Logs::LogTopic topic, uint32_t timestamp_ms,
                             const char* fmt, ...);
         /** @brief Emit a synthetic warning if @p bucket has suppressed
-         *  entries. */
+         *  entries. @p global says WHICH limiter did it - the message has to
+         *  say so, since the topic column cannot: the global bucket reports
+         *  under NONE and NONE is also a real topic with a bucket of its own. */
         void _report_suppressed(LogBucket_t* bucket, Logs::LogTopic topic,
-                                uint32_t timestamp_ms);
+                                uint32_t timestamp_ms, bool global);
         /** @brief Edge-triggered loss report: emit a critical "<delta> <what>"
          *  entry when @p total has grown and the holdoff elapsed (or on the
          *  first loss). Pushed straight to the writers (bypassing the rate

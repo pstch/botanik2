@@ -174,12 +174,25 @@ TEST_CASE("bucket: _report_suppressed emits a critical summary and clears the ta
     lg.add_writer(&w);
     Logs::LogBucket_t b;
     b.suppressed = 5;
-    lg._report_suppressed(&b, Logs::MODBUS, 1234);
+    lg._report_suppressed(&b, Logs::MODBUS, 1234, /*global=*/false);
     CHECK(w.pushes == 1);
     CHECK(w.last_level == Logs::LOG_CRITICAL);   // critical so the writer can't drop it
     CHECK(std::string(w.last_msg).find("5") != std::string::npos);
     CHECK(std::string(w.last_msg).find("suppressed") != std::string::npos);
+    // WHICH limiter dropped them: the topic column cannot say, because the
+    // global bucket reports under NONE and NONE is a real topic too.
+    CHECK(std::string(w.last_msg).find("topic limit") != std::string::npos);
     CHECK(b.suppressed == 0);                     // drained after reporting
+}
+
+TEST_CASE("bucket: the global limiter's summary says so, not just the topic's") {
+    TestLogger lg;
+    RecordingWriter w;
+    lg.add_writer(&w);
+    Logs::LogBucket_t b;
+    b.suppressed = 5;
+    lg._report_suppressed(&b, Logs::NONE, 1234, /*global=*/true);
+    CHECK(std::string(w.last_msg).find("global limit") != std::string::npos);
 }
 
 TEST_CASE("bucket: _report_suppressed with nothing suppressed emits nothing") {
@@ -187,7 +200,7 @@ TEST_CASE("bucket: _report_suppressed with nothing suppressed emits nothing") {
     RecordingWriter w;
     lg.add_writer(&w);
     Logs::LogBucket_t b;                          // suppressed == 0
-    lg._report_suppressed(&b, Logs::MODBUS, 1);
+    lg._report_suppressed(&b, Logs::MODBUS, 1, /*global=*/false);
     CHECK(w.pushes == 0);
 }
 
