@@ -342,6 +342,60 @@ namespace Botanik { namespace Vars {
         }
     }
 
+    namespace {
+        /** @brief Clamp to a signed range, NaN to 0. */
+        int64_t clamp_i(double x, int64_t lo, int64_t hi) {
+            if (!(x == x)) return 0;
+            if (x <= (double)lo) return lo;
+            if (x >= (double)hi) return hi;
+            return (int64_t)x;
+        }
+        uint64_t clamp_u(double x, uint64_t hi) {
+            if (!(x == x) || x <= 0.0) return 0;
+            if (x >= (double)hi) return hi;
+            return (uint64_t)x;
+        }
+        bool is_str(const Descriptor* d) {
+            // A T_STR keeps its text in the pool, so there is no number here.
+            const bool str = (d != nullptr && d->type == T_STR);
+            BOTANIK_ASSERT(!str || !"a T_STR has no scalar value; use Bank::text()");
+            return str;
+        }
+    }  // namespace
+
+    int64_t Value::as_i64() const {
+        if (d == nullptr || is_str(d)) return 0;
+        if (type_real(d->type))   return clamp_i((double)v.f, INT64_MIN, INT64_MAX);
+        if (type_signed(d->type)) return v.i;
+        return (v.u > (uint64_t)INT64_MAX) ? INT64_MAX : (int64_t)v.u;
+    }
+
+    uint64_t Value::as_u64() const {
+        if (d == nullptr || is_str(d)) return 0;
+        if (type_real(d->type))   return clamp_u((double)v.f, UINT64_MAX);
+        if (type_signed(d->type)) return (v.i < 0) ? 0u : (uint64_t)v.i;
+        return v.u;
+    }
+
+    float Value::as_f32() const {
+        if (d == nullptr || is_str(d)) return 0.0f;
+        return Vars::as_f32(d->type, v);
+    }
+
+    bool Value::as_bool() const { return as_i64() != 0; }
+
+    int8_t  Value::as_i8()  const { return (int8_t) clamp_i((double)as_i64(), INT8_MIN,  INT8_MAX); }
+    int16_t Value::as_i16() const { return (int16_t)clamp_i((double)as_i64(), INT16_MIN, INT16_MAX); }
+    int32_t Value::as_i32() const { return (int32_t)clamp_i((double)as_i64(), INT32_MIN, INT32_MAX); }
+    uint8_t  Value::as_u8()  const { return (uint8_t) clamp_u((double)as_u64(), UINT8_MAX); }
+    uint16_t Value::as_u16() const { return (uint16_t)clamp_u((double)as_u64(), UINT16_MAX); }
+    uint32_t Value::as_u32() const { return (uint32_t)clamp_u((double)as_u64(), UINT32_MAX); }
+
+    const char* Value::label() const {
+        if (d == nullptr || d->type != T_ENUM || d->str == nullptr) return nullptr;
+        return d->str(as_u64());
+    }
+
     bool value_implausible(const Descriptor& d, const Scalar& v) {
         if (type_real(d.type)) {
             const float f = v.f;

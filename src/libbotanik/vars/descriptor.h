@@ -69,7 +69,11 @@ namespace Botanik { namespace Vars {
         Q_STALE,         ///< it was live and stopped: no good read within its timeout
         Q_IMPLAUSIBLE,   ///< answering with nonsense: outside its band, or non-finite
         Q_SAFE,          ///< an output dropped to its declared safe state
-        Q_REFUSED        ///< the device answered, and declined: it has no such register
+        Q_REFUSED,       ///< the device answered, and declined: it has no such register
+        /** @brief No such LAYER: the override of an unforced row, the wire of a
+         *  row with no bus binding. Appended, never 0 - that slot is
+         *  Q_NO_DATA's, so a zeroed Slot reads as "nothing wrote this". */
+        Q_NONE
     };
 
     /** @brief @p q as a phrase for an operator: "valid", or invalid and why. */
@@ -81,6 +85,7 @@ namespace Botanik { namespace Vars {
             case Q_IMPLAUSIBLE: return "invalid: outside its band";
             case Q_SAFE:        return "invalid: dropped to its safe state";
             case Q_REFUSED:     return "invalid: the device refused the read";
+            case Q_NONE:        return "not present";
             default:            return "invalid";
         }
     }
@@ -311,6 +316,54 @@ namespace Botanik { namespace Vars {
      *  it. One predicate, because the table sweep and the field-bus driver must
      *  agree about it. */
     bool value_implausible(const Descriptor& d, const Scalar& v);
+
+    /** @} */
+
+    /** @name The read result
+     *  @{ */
+
+    /** @brief One layer of a variable: the number, what it is, and whether it
+     *  is any good. Every read accessor returns this, so a value and its
+     *  quality are fetched in one expression and cannot drift apart.
+     *
+     *  `q == Q_NONE` means the layer does not exist. That rides the quality
+     *  check a caller must make anyway, rather than adding a second one.
+     *
+     *  @c v is always the best number available for @c q: a bad reading already
+     *  carries the descriptor's `def`, so it never has to be inspected first. */
+    struct Value {
+        Scalar            v;
+        const Descriptor* d;
+        Quality           q;
+
+        bool present() const { return q != Q_NONE; }
+        bool good()    const { return q == Q_GOOD; }
+
+        /** @brief The row's type - what @c v actually is. */
+        VarType type() const { return (d != nullptr) ? d->type : T_U8; }
+
+        /** @name Conversions
+         *  All SATURATING: 300 read as a u8 is 255, not 44. A wrapped value is
+         *  indistinguishable from a real reading; a pinned one is obviously at
+         *  the rail. T_STR is refused - its text is in the bank's pool, not
+         *  here.
+         *  @{ */
+        float    as_f32() const;
+        bool     as_bool() const;
+        int64_t  as_i64() const;
+        uint64_t as_u64() const;
+        int8_t   as_i8()  const;
+        int16_t  as_i16() const;
+        int32_t  as_i32() const;
+        uint8_t  as_u8()  const;
+        uint16_t as_u16() const;
+        uint32_t as_u32() const;
+        /** @} */
+
+        /** @brief A T_ENUM's label, or null: not an enum, or a code the
+         *  converter does not know. That null IS the range check `set` uses. */
+        const char* label() const;
+    };
 
     /** @} */
 

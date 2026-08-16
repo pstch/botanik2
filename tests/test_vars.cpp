@@ -12,6 +12,7 @@
 #include "libbotanik/logs/topics.h"
 #include "libbotanik/tasks/tasks.h"
 #include "doctest.h"
+#include "libbotanik/utils/assert.h"
 #include "libbotanik/vars/declare.h"
 #include "libbotanik/vars/model.h"
 #include <cstdio>
@@ -1932,3 +1933,84 @@ TEST_CASE("redeclare: an untouched table is left exactly as declared") {
 }
 
 }  // namespace redeclare
+
+// --------------------------------------------------------------------------
+// the read result: Value (scalar + descriptor + quality)
+// --------------------------------------------------------------------------
+
+namespace value_type {
+
+using namespace Botanik;
+using namespace Botanik::Vars;
+
+namespace {
+    const char* mode_label(uint64_t c) {
+        switch (c) { case 0: return "off"; case 1: return "auto"; default: return nullptr; }
+    }
+    const Descriptor ROWS[] = {
+        G ("g_u16",  T_U16, Scalar::U(0),   0, "", "a u16", ""),
+        G ("g_i32",  T_I32, Scalar::I(0),   0, "", "an i32", ""),
+        G ("g_f32",  T_F32, Scalar::F(0),   2, "", "an f32", ""),
+        PE("p_mode", 0, &mode_label, 700, "a mode", ""),
+        PS("p_text", "hello", 16, STR_NONE, 701, "some text", ""),
+    };
+    Value of(uint16_t i, Scalar s, Quality q = Q_GOOD) { return Value{ s, &ROWS[i], q }; }
+}
+
+TEST_CASE("Value: conversions saturate rather than wrap") {
+    // A wrapped value is indistinguishable from a real reading; a pinned one is
+    // obviously at the rail.
+    CHECK(of(0, Scalar::U(300)).as_u8()  == 255);
+    CHECK(of(0, Scalar::U(300)).as_u16() == 300);
+    CHECK(of(1, Scalar::I(-5)).as_i8()   == -5);
+    CHECK(of(1, Scalar::I(-40000)).as_i16() == INT16_MIN);
+    CHECK(of(1, Scalar::I(70000)).as_i16()  == INT16_MAX);
+
+    // ...and across the signed/unsigned edge, which is where wrapping hurts.
+    CHECK(of(1, Scalar::I(-1)).as_u64() == 0u);
+    CHECK(of(1, Scalar::I(-1)).as_u8()  == 0u);
+}
+
+TEST_CASE("Value: a float converts by value, not by bit pattern") {
+    CHECK(of(2, Scalar::F(12.75f)).as_f32() == doctest::Approx(12.75f));
+    CHECK(of(2, Scalar::F(12.75f)).as_i32() == 12);      // truncates
+    CHECK(of(2, Scalar::F(-3.5f)).as_i32()  == -3);
+    CHECK(of(2, Scalar::F(-3.5f)).as_u32() == 0u);       // clamped, not wrapped
+    CHECK(of(2, Scalar::F(1e30f)).as_i32() == INT32_MAX);
+    INFO("a NaN is in no range, so it reads 0 rather than something arbitrary");
+    CHECK(of(2, Scalar::F(0.0f / 0.0f)).as_i32() == 0);
+}
+
+TEST_CASE("Value: Q_NONE says the layer is absent, and is never the zero slot") {
+    // Q_NO_DATA holds 0 so a zeroed Slot reads as "nothing wrote this".
+    CHECK((int)Q_NO_DATA == 0);
+    CHECK((int)Q_NONE != 0);
+
+    const Value absent = of(0, Scalar::U(0), Q_NONE);
+    CHECK_FALSE(absent.present());
+    CHECK_FALSE(absent.good());
+    const Value bad = of(0, Scalar::U(7), Q_STALE);
+    CHECK(bad.present());        // the layer exists...
+    CHECK_FALSE(bad.good());     // ...it is just not trustworthy
+    CHECK(bad.as_u16() == 7);    // and still carries the best number available
+}
+
+TEST_CASE("Value: an enum reads as its code and as its label") {
+    CHECK(of(3, Scalar::U(1)).as_u32() == 1u);
+    CHECK(std::string(of(3, Scalar::U(1)).label()) == "auto");
+    CHECK(of(3, Scalar::U(0)).label() != nullptr);
+    INFO("a code the converter does not know is the range check `set` uses");
+    CHECK(of(3, Scalar::U(9)).label() == nullptr);
+    CHECK(of(0, Scalar::U(1)).label() == nullptr);   // not an enum at all
+}
+
+TEST_CASE("Value: a T_STR has no scalar, and says so rather than inventing one") {
+    // Its text is in the bank's pool; Scalar::s here is the DECLARED default,
+    // so returning it as a number would be a plausible-looking lie.
+    Botanik::ExpectedAsserts expect;
+    CHECK(of(4, Scalar::S("hello")).as_i64() == 0);
+    CHECK(of(4, Scalar::S("hello")).as_f32() == 0.0f);
+    CHECK(expect.count() >= 2);
+}
+
+}  // namespace value_type
