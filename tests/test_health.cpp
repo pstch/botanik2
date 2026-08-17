@@ -151,7 +151,7 @@ TEST_CASE("health: an overrun pulses CPU_XRUN, and the row's own hold_s latches 
     Fixture f;
     Health::HealthMonitor h(Botanik::SetupContext(nullptr, &f.log), &f.sched, &f.bank);
     Alarms::AlarmController& m = h.alarm_model();
-    m.setup(0);
+    h.setup(0);          // binds the alarm source, then sets the model up
     const int xr = m.index_of("CPU_XRUN");
     REQUIRE(xr >= 0);
 

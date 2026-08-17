@@ -11,6 +11,7 @@
  */
 
 #include <cstdint>
+#include "libbotanik/alarms/source.h"
 
 #include "libbotanik/vars/scalar.h"
 
@@ -181,20 +182,12 @@ namespace Botanik { namespace Vars {
         StrKind  kind;   ///< edit validation
     };
 
-    /** @brief An alarm row's announce policy: display code plus the thresholds
-     *  AlarmController runs it on.
-     *
-     *  The dwells are int16 seconds to keep the arm inside the 16 bytes NumBand
-     *  already costs, and nine hours of dwell is past any plausible setting.
-     *  @c recent_s is NOT a dwell - it is a retention window measured in days,
-     *  so it gets the int32 the freed slot pays for. */
-    struct AlarmSpec {
-        const char* code;         ///< short display code (max 9: AlarmsPage::CODE_W)
-        int16_t     on_s;         ///< time ON before announcing (-1: off)
-        int16_t     off_s;        ///< time OFF before announcing (-1: off)
-        int32_t     recent_s;     ///< RECENT window (0: default, <0: forever)
-        int16_t     hold_s;       ///< keep active this long past the last raw true
-    };
+    /** @brief An alarm's announce policy. Defined in `alarms/spec.h` because it
+     *  is an ALARM concept that a row happens to carry: a build with no variable
+     *  model still has alarms, and they still have a dwell.
+     *  @see Alarms::AlarmSpec */
+    using Alarms::AlarmSpec;
+
 
     /** @brief A number a row declares: a fixed value, or the parameter holding
      *  it - which is what lets a calibration be re-trimmed from the PARAMS page

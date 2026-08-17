@@ -59,10 +59,10 @@ namespace Botanik { namespace Alarms {
         /** @name The row
          *  @{ */
 
-        /** @brief The `SCOPE_A` descriptor this condition is built from; null on
-         *  an unfilled slot. Flash-resident and const. */
-        const Vars::Descriptor* var;
-        Vars::VarRef ref;           ///< the same row, as an index into the bank
+        /** @brief Where this condition comes from; null on an unfilled slot.
+         *  Borrowed, and outlives the controller. */
+        const AlarmSourceTable* src;
+        uint16_t idx;               ///< this condition's index in @c src
 
         /** @} */
 
@@ -71,15 +71,13 @@ namespace Botanik { namespace Alarms {
          *  @{ */
 
         /** @brief Short display code, max 9 (AlarmsPage::CODE_W). */
-        const char* code() const {
-            return (var != nullptr) ? Vars::alarm_spec(*var).code : nullptr;
-        }
-        /** @brief The variable carrying this condition, by name. */
-        const char* name()  const { return (var != nullptr) ? var->name  : nullptr; }
+        const char* code() const { return _spec().code; }
+        /** @brief What carries this condition, by name. */
+        const char* name()  const { return (src != nullptr) ? src->name(idx)  : nullptr; }
         /** @brief Human-readable description. */
-        const char* desc()  const { return (var != nullptr) ? var->desc  : nullptr; }
+        const char* desc()  const { return (src != nullptr) ? src->desc(idx)  : nullptr; }
         /** @brief Remediation instructions. */
-        const char* notes() const { return (var != nullptr) ? var->notes : nullptr; }
+        const char* notes() const { return (src != nullptr) ? src->notes(idx) : nullptr; }
 
         /** @brief Time ON before announcing (-1: never announce). */
         int16_t on_s()      const { return _spec().on_s; }
@@ -125,9 +123,9 @@ namespace Botanik { namespace Alarms {
         /** @brief The announce policy off the row; all-zero on an empty slot,
          *  which reads as "announce immediately, no latch" and never fires
          *  because such a slot has no variable to raise it. */
-        Vars::AlarmSpec _spec() const {
-            return (var != nullptr) ? Vars::alarm_spec(*var)
-                                    : Vars::AlarmSpec{nullptr, 0, 0, 0, 0};
+        AlarmSpec _spec() const {
+            return (src != nullptr) ? src->spec(idx)
+                                    : AlarmSpec{nullptr, 0, 0, 0, 0};
         }
 
         /** @brief The ON event is due: unannounced, enabled (on_s >= 0), and
@@ -222,9 +220,9 @@ namespace Botanik { namespace Alarms {
          *  constructor. Names need no mapping of their own: they go through the
          *  bank's index to a row, and the refs are already sorted. */
         uint8_t         _by_code[Config::ALARM_SLOTS];
-        /** the variable table the condition refs resolve against (null -> every
-         *  condition reads false, which is what an unbound model is) */
-        const Vars::Bank* _io;
+        /** where the conditions come from (null -> every condition reads false,
+         *  which is what an unbound model is) */
+        const AlarmSourceTable* _src;
         /** registered transition sinks (fan-out, mirrors Logger's writers) */
         AlarmNotifier*  _notifiers[Config::ALARM_NOTIFIERS_MAX];
         uint8_t         _notifier_count; // entries used in _notifiers
@@ -236,42 +234,36 @@ namespace Botanik { namespace Alarms {
         /** @} */
 
     public:
-        /** @brief Bind the bank the conditions are scanned out of.
+        /** @brief Bind where the conditions come from.
          *
-         *  The scan itself is in on_setup(), NOT here: rows reach the bank by
-         *  registration now, so at construction there is nothing to scan. */
-        AlarmController(const SetupContext& ctx, const Vars::Bank* io)
+         *  The scan itself is in on_setup(), NOT here: a bank-backed source has
+         *  nothing to offer until the table is frozen. */
+        AlarmController(const SetupContext& ctx, const AlarmSourceTable* src)
             : Component(ctx, "AlarmController"),
-              _count(0), _declared(0), _io(io), _notifier_count(0),
+              _count(0), _declared(0), _src(src), _notifier_count(0),
               _last_now(0), _first_step(true), _active_count(0) {
             std::memset(_conditions, 0, sizeof(_conditions));
         }
 
-        /** @brief Build the condition table by scanning the bank for SCOPE_A
-         *  rows. A site's own and the library's platform-health ones alike are
-         *  rows of that one table: one scan, one order, so condition *i* reads
-         *  row *i*. */
+        /** @brief Point this controller at @p src. Before on_setup(), which is
+         *  what reads it: an owner with no variable table declares a
+         *  StaticAlarmTable and hands it over here. */
+        void set_source(const AlarmSourceTable* src) { _src = src; }
+
+        /** @brief Take one slot per alarm the source declares, in its order, so
+         *  condition *i* reads source entry *i*. */
         void on_setup(uint64_t now_ms) override {
             (void)now_ms;
             uint8_t  n     = 0;
-            uint16_t found = 0;   // SCOPE_A rows in the table, slots or not
-            if (_io != nullptr) {
-                // Runs to the END of the table rather than stopping at the last
-                // slot: `n` saturates at ALARM_SLOTS, so only `found` can tell a
-                // table that filled the slots exactly from one that lost a tail.
-                for (uint16_t i = 0; i < _io->count(); i++) {
-                    const Vars::Descriptor& d = *_io->var(i).meta();
-                    if (d.scope != Vars::SCOPE_A) continue;
-                    found++;
-                    if (n >= Config::ALARM_SLOTS) continue;   // no slot left
-                    AlarmCondition& c = _conditions[n];
-                    c.var       = &d;
-                    c.ref.index = i;
-                    n++;
-                }
-                // More alarms than slots loses the tail silently.
-                BOTANIK_ASSERT(found <= Config::ALARM_SLOTS);
+            uint16_t found = (_src != nullptr) ? _src->count() : 0;
+            for (uint16_t i = 0; i < found && n < Config::ALARM_SLOTS; i++) {
+                AlarmCondition& c = _conditions[n];
+                c.src = _src;
+                c.idx = i;
+                n++;
             }
+            // More alarms than slots loses the tail silently.
+            BOTANIK_ASSERT(found <= Config::ALARM_SLOTS);
             _count    = n;
             _declared = found;
             for (uint8_t i = 0; i < _count; i++)     // boot state: settled OFF
@@ -366,10 +358,9 @@ namespace Botanik { namespace Alarms {
          *  @return false when the row is live; on true, @p on says what it is
          *  held at. */
         bool forced(uint8_t i, bool* on = nullptr) const {
-            if (_io == nullptr || i >= _count) return false;
-            const Vars::Var v = _io->var(_conditions[i].ref);
-            if (!v.override().present()) return false;
-            if (on != nullptr) *on = v.b();
+            if (_src == nullptr || i >= _count) return false;
+            if (!_src->forced(i)) return false;
+            if (on != nullptr) *on = _src->raw(i);
             return true;
         }
 
@@ -387,10 +378,10 @@ namespace Botanik { namespace Alarms {
             if (key == nullptr) return -1;
             const int by_code = _find_code(key);
             if (by_code >= 0) return by_code;
-            if (_io == nullptr) return -1;
+            if (_src == nullptr) return -1;
             // The length-bounded find(), deliberately: this is operator input,
             // so a miss is a typo and must not count as an unresolved name.
-            return _find_ref(_io->find(key, (uint16_t)strlen(key)));
+            return (int)_src->find(key, (uint16_t)strlen(key));
         }
 
         /** @} */
@@ -409,8 +400,7 @@ namespace Botanik { namespace Alarms {
             AlarmSink sink{_logger, _notifiers, _notifier_count};
             for (uint8_t i = 0; i < _count; i++) {
                 AlarmCondition& c = _conditions[i];
-                c.step(_raw(i), _io != nullptr && _io->var(c.ref).override().present(),
-                       dt, now, sink);
+                c.step(_raw(i), _src != nullptr && _src->forced(i), dt, now, sink);
                 if (c.active) _active_count++;
             }
         }
@@ -458,27 +448,11 @@ namespace Botanik { namespace Alarms {
             return (_code_cmp(_conditions[i].code(), key) == 0) ? (int)i : -1;
         }
 
-        /** @brief Condition reading row @p r, or -1. The conditions were built by
-         *  scanning the table in order, so their refs ascend: a binary search,
-         *  with nothing to build. */
-        int _find_ref(Vars::VarRef r) const {
-            if (r.index == Vars::VAR_NONE) return -1;
-            uint8_t lo = 0, hi = _count;
-            while (lo < hi) {
-                const uint8_t mid = (uint8_t)(lo + (hi - lo) / 2);
-                if (_conditions[mid].ref.index < r.index) lo = (uint8_t)(mid + 1);
-                else                                      hi = mid;
-            }
-            return (lo < _count && _conditions[lo].ref.index == r.index)
-                     ? (int)lo : -1;
-        }
-
-        /** @brief Condition @p i's variable, as a boolean. An override on that
-         *  variable is what "force this alarm" means, and it arrives here
-         *  through Var::raw() like everywhere else. */
+        /** @brief Condition @p i's raw input. Forcing it is the source's
+         *  business: with a variable table that is an override on the row, and
+         *  it arrives here already applied. */
         bool _raw(uint8_t i) const {
-            if (_io == nullptr) return false;
-            return _io->var(_conditions[i].ref).b();
+            return (_src != nullptr) && _src->raw(i);
         }
     };
 

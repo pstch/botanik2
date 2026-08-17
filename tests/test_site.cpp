@@ -117,14 +117,16 @@ TEST_CASE("site: the alarm model finds every alarm row, in table order") {
     SiteBank f;
     Logs::Logger logger;
     // One scan: site alarms and library platform-health rows are all SCOPE_A rows.
-    Alarms::AlarmController m(Botanik::SetupContext(), &f.bank);
+    Vars::BankAlarms rows;
+    rows.bind(&f.bank);
+    Alarms::AlarmController m(Botanik::SetupContext(), &rows);
     m.setup(0);   // the scan is on_setup(): the rows exist now
     uint8_t slot = 0;
     for (uint16_t i = 0; i < f.bank.count(); i++) {
         const Vars::Descriptor& d = *f.bank.var(i).meta();
         if (d.scope != Vars::SCOPE_A) continue;
         INFO("alarm '" << d.name << "' should be condition " << (int)slot);
-        CHECK(m.condition(slot).ref.index == i);          // the row IS the condition
+        CHECK(rows.row(slot).index == i);                 // the row IS the condition
         CHECK(Utils::compare_str(m.condition(slot).name(), d.name));
         slot++;
     }
@@ -155,7 +157,9 @@ TEST_CASE("site: nothing the site touches fails to resolve") {
         (void)f.bank.find(site().home_fields[i].name);
 
     Logs::Logger logger;
-    Alarms::AlarmController m(Botanik::SetupContext(), &f.bank);
+    Vars::BankAlarms rows;
+    rows.bind(&f.bank);
+    Alarms::AlarmController m(Botanik::SetupContext(), &rows);
     m.setup(0);   // the scan is on_setup(): the rows exist now
     (void)m;
 

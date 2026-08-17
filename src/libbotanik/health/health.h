@@ -16,6 +16,7 @@
  */
 
 #include <cstdint>
+#include "libbotanik/vars/alarm_rows.h"
 #include <cstdio>
 
 #include "libbotanik/config/alarms.h"
@@ -74,6 +75,11 @@ namespace Botanik { namespace Health {
 #if BOTANIK_FEATURE_ALARMS_PUBLISH
         Alarms::MqttAlarmNotifier          _notifier; ///< MQTT transition sink
 #endif
+#if BOTANIK_FEATURE_VARS
+        /** @brief The site's SCOPE_A rows as an alarm source. Declared BEFORE
+         *  _model, which is constructed with its address. */
+        Vars::BankAlarms                        _alarm_rows;
+#endif
         Alarms::AlarmController                 _model;
         /** perf metrics (may be null) */
         const Scheduler::SchedulerContext* _sched;
@@ -128,9 +134,10 @@ namespace Botanik { namespace Health {
         /** @} */
 
     public:
-        /** @brief Build the notifier + model. The model finds every alarm by
-         *  scanning @p io for SCOPE_A rows, so there is no alarm table to
-         *  pass. */
+        /** @brief Build the notifier + model. With a variable table every alarm
+         *  is a SCOPE_A row in it, so there is no alarm table to pass; without
+         *  one the owner hands the model a StaticAlarmTable through
+         *  alarm_model().set_source(). */
         HealthMonitor(const SetupContext& ctx,
                       const Scheduler::SchedulerContext* sched,
                       const Vars::Bank* io = nullptr)
@@ -138,7 +145,12 @@ namespace Botanik { namespace Health {
 #if BOTANIK_FEATURE_ALARMS_PUBLISH
               _notifier(Config::MQTT_TOPIC_PREFIX),
 #endif
-              _model(ctx, io), _sched(sched), _io(io) {
+#if BOTANIK_FEATURE_VARS
+              _model(ctx, &_alarm_rows),
+#else
+              _model(ctx, nullptr),
+#endif
+              _sched(sched), _io(io) {
 #if BOTANIK_FEATURE_ALARMS_PUBLISH
             _model.add_notifier(&_notifier);   // the built-in MQTT sink
 #endif
@@ -182,7 +194,15 @@ namespace Botanik { namespace Health {
     protected:
         /** @brief POST runs once on the first step() (sinks now registered). */
         void on_setup(uint64_t now) override {
-            (void)now;
+#if BOTANIK_FEATURE_VARS
+            _alarm_rows.bind(_io);
+#endif
+            // The model's setup takes a slot per alarm the source declares, so
+            // it cannot run before the bind above. Driven from here rather than
+            // left to registration order, which would make it an ordering trap
+            // nothing checks. setup() is idempotent, so the registry's own call
+            // is a no-op.
+            _model.setup(now);
             _bind_alarms();
             _post();
         }

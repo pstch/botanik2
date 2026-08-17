@@ -8,6 +8,7 @@
 #include <cstddef>
 #include <vector>
 #include "libbotanik/alarms/alarms.h"
+#include "libbotanik/vars/alarm_rows.h"
 #include "libbotanik/alarms/notifier.h"
 #include "libbotanik/logs/logger.h"
 #include "libbotanik/vars/declare.h"
@@ -32,9 +33,10 @@ using namespace Botanik;
 
 namespace {
     // Sets condition i's variable to bit i, then steps: an alarm is its row.
-    void step_bits(Vars::Bank& io, Alarms::AlarmController& m, uint64_t bits, uint64_t now) {
+    void step_bits(Vars::Bank& io, Vars::BankAlarms& rows, Alarms::AlarmController& m,
+                   uint64_t bits, uint64_t now) {
         for (uint8_t i = 0; i < m.count(); i++)
-            io.var(m.condition(i).ref).set(((bits >> i) & 1u) != 0);
+            io.var(rows.row(i)).set(((bits >> i) & 1u) != 0);
         m.step(now);
     }
 
@@ -61,10 +63,14 @@ namespace {
 
     /** @brief A bank over one of the tables above - what the model scans. */
     struct AlarmBank {
-        Vars::Bank bank;
+        Vars::Bank       bank;
+        /** @brief The SCOPE_A rows as an alarm source - what the controller
+         *  reads now, in place of the bank itself. */
+        Vars::BankAlarms rows;
         AlarmBank(const Vars::Descriptor* v, uint16_t n) {
             bank.register_vars(v, n);
             bank.freeze();
+            rows.bind(&bank);
         }
     };
 
@@ -85,9 +91,9 @@ namespace {
 
 TEST_CASE("alarm: ack marks an active condition, ignores inactive / unknown") {
     AlarmBank f(TABLE, 2);
-    Alarms::AlarmController m(Botanik::SetupContext(), &f.bank);
+    Alarms::AlarmController m(Botanik::SetupContext(), &f.rows);
     m.setup(0);   // the scan is on_setup(): the rows exist now
-    step_bits(f.bank, m, 0x1, 1000);                              // raise A (bit 0)
+    step_bits(f.bank, f.rows, m, 0x1, 1000);                              // raise A (bit 0)
     CHECK(m.active_count() == 1);
     CHECK(m.condition(0).user_ack == false);
     CHECK(m.ack("aaa") == true);
@@ -101,29 +107,29 @@ TEST_CASE("alarm: ack marks an active condition, ignores inactive / unknown") {
 
 TEST_CASE("alarm: ack clears on the next ON edge (a fresh episode is unacknowledged)") {
     AlarmBank f(TABLE, 2);
-    Alarms::AlarmController m(Botanik::SetupContext(), &f.bank);
+    Alarms::AlarmController m(Botanik::SetupContext(), &f.rows);
     m.setup(0);   // the scan is on_setup(): the rows exist now
-    step_bits(f.bank, m, 0x1, 1000);
+    step_bits(f.bank, f.rows, m, 0x1, 1000);
     m.ack("aaa");
     CHECK(m.condition(0).user_ack == true);
-    step_bits(f.bank, m, 0x0, 2000);                              // A clears
-    step_bits(f.bank, m, 0x1, 3000);                              // A re-fires
+    step_bits(f.bank, f.rows, m, 0x0, 2000);                              // A clears
+    step_bits(f.bank, f.rows, m, 0x1, 3000);                              // A re-fires
     CHECK(m.condition(0).user_ack == false);    // reset on the ON edge
 }
 
 TEST_CASE("alarm: ack_all acknowledges every active condition and counts them") {
     AlarmBank f(TABLE, 2);
-    Alarms::AlarmController m(Botanik::SetupContext(), &f.bank);
+    Alarms::AlarmController m(Botanik::SetupContext(), &f.rows);
     m.setup(0);   // the scan is on_setup(): the rows exist now
-    step_bits(f.bank, m, 0x3, 1000);                              // both active
+    step_bits(f.bank, f.rows, m, 0x3, 1000);                              // both active
     CHECK(m.ack_all() == 2);
     CHECK(m.condition(0).user_ack == true);
     CHECK(m.condition(1).user_ack == true);
 
     AlarmBank f2(TABLE, 2);
-    Alarms::AlarmController m2(Botanik::SetupContext(), &f2.bank);
+    Alarms::AlarmController m2(Botanik::SetupContext(), &f2.rows);
     m2.setup(0);   // the scan is on_setup(): the rows exist now
-    step_bits(f2.bank, m2, 0x2, 1000);                             // only B active
+    step_bits(f2.bank, f2.rows, m2, 0x2, 1000);                             // only B active
     CHECK(m2.ack_all() == 1);
     CHECK(m2.condition(1).user_ack == true);
 }
@@ -131,9 +137,9 @@ TEST_CASE("alarm: ack_all acknowledges every active condition and counts them") 
 TEST_CASE("alarm: releasing an override clears a condition it was holding on") {
     // `override x off`: the row snaps back to the live (unwritten) value, false.
     AlarmBank f(NORMAL_TABLE, 1);
-    Alarms::AlarmController m(Botanik::SetupContext(), &f.bank);
+    Alarms::AlarmController m(Botanik::SetupContext(), &f.rows);
     m.setup(0);   // the scan is on_setup(): the rows exist now
-    Vars::Var v = f.bank.var(m.condition(0).ref);
+    Vars::Var v = f.bank.var(f.rows.row(0));
 
     m.step(0);
     f.bank.override_set(v, Vars::from_bool(Vars::T_BOOL, true), true);
@@ -150,9 +156,9 @@ TEST_CASE("alarm: a forced alarm comes down when the force does") {
     // A forced alarm must not inherit hold_s's 5-minute latch, or the next real
     // one is invisible under it.
     AlarmBank f(HOLD_TABLE, 1);
-    Alarms::AlarmController m(Botanik::SetupContext(), &f.bank);
+    Alarms::AlarmController m(Botanik::SetupContext(), &f.rows);
     m.setup(0);   // the scan is on_setup(): the rows exist now
-    Vars::Var v = f.bank.var(m.condition(0).ref);
+    Vars::Var v = f.bank.var(f.rows.row(0));
 
     m.step(0);
     f.bank.override_set(v, Vars::from_bool(Vars::T_BOOL, true), true);
@@ -169,20 +175,20 @@ TEST_CASE("alarm: a forced alarm comes down when the force does") {
 TEST_CASE("alarm: hold_s still latches a condition nobody is forcing") {
     // hold_s must still latch a real signal that clears immediately.
     AlarmBank f(HOLD_TABLE, 1);
-    Alarms::AlarmController m(Botanik::SetupContext(), &f.bank);
+    Alarms::AlarmController m(Botanik::SetupContext(), &f.rows);
     m.setup(0);   // the scan is on_setup(): the rows exist now
 
-    step_bits(f.bank, m, 0x1, 1000);      // a real assertion, not an override
+    step_bits(f.bank, f.rows, m, 0x1, 1000);      // a real assertion, not an override
     REQUIRE(m.condition(0).active == true);
 
-    step_bits(f.bank, m, 0x0, 2000);      // and it clears at once
+    step_bits(f.bank, f.rows, m, 0x0, 2000);      // and it clears at once
     INFO("held for the declared 300 s, so somebody gets to see it");
     CHECK(m.condition(0).active == true);
 
-    step_bits(f.bank, m, 0x0, 200000);
+    step_bits(f.bank, f.rows, m, 0x0, 200000);
     CHECK(m.condition(0).active == true);
 
-    step_bits(f.bank, m, 0x0, 310000);
+    step_bits(f.bank, f.rows, m, 0x0, 310000);
     CHECK(m.condition(0).active == false);
 }
 
@@ -191,14 +197,14 @@ TEST_CASE("alarm: an END with no matching START is logged as a FLAP") {
     TopicRecorder rec;
     logger.add_writer(&rec);
     AlarmBank f(FLAP_TABLE, 1);
-    Alarms::AlarmController m(Botanik::SetupContext(nullptr, &logger), &f.bank);
+    Alarms::AlarmController m(Botanik::SetupContext(nullptr, &logger), &f.rows);
     m.setup(0);   // the scan is on_setup(): the rows exist now
 
     // A blip shorter than the 2 s START dwell: clears before any START is logged.
-    step_bits(f.bank, m, 0x1, 1000);                             // on (dwell 0 < on_s 2 s)
+    step_bits(f.bank, f.rows, m, 0x1, 1000);                             // on (dwell 0 < on_s 2 s)
     logger.refill();
     CHECK(rec.has(Logs::ALARM_BEG) == false);   // too brief to announce a start
-    step_bits(f.bank, m, 0x0, 1500);                             // off -> END with no START = FLAP
+    step_bits(f.bank, f.rows, m, 0x0, 1500);                             // off -> END with no START = FLAP
     logger.refill();
     CHECK(rec.has(Logs::ALARM_FLAP) == true);
     CHECK(rec.has(Logs::ALARM_END) == false);
@@ -209,13 +215,13 @@ TEST_CASE("alarm: a normal episode logs START then END (not FLAP)") {
     TopicRecorder rec;
     logger.add_writer(&rec);
     AlarmBank f(NORMAL_TABLE, 1);
-    Alarms::AlarmController m(Botanik::SetupContext(nullptr, &logger), &f.bank);
+    Alarms::AlarmController m(Botanik::SetupContext(nullptr, &logger), &f.rows);
     m.setup(0);   // the scan is on_setup(): the rows exist now
 
-    step_bits(f.bank, m, 0x1, 1000);                             // on, START logged immediately
+    step_bits(f.bank, f.rows, m, 0x1, 1000);                             // on, START logged immediately
     logger.refill();
     CHECK(rec.has(Logs::ALARM_BEG) == true);
-    step_bits(f.bank, m, 0x0, 2000);                             // off -> END (START was logged)
+    step_bits(f.bank, f.rows, m, 0x0, 2000);                             // off -> END (START was logged)
     logger.refill();
     CHECK(rec.has(Logs::ALARM_END) == true);
     CHECK(rec.has(Logs::ALARM_FLAP) == false);
@@ -232,7 +238,7 @@ TEST_CASE("alarm reader: model reads each condition's variable") {
     Vars::Bank& io = f.bank;
 
     Logs::Logger logger;
-    Alarms::AlarmController m(Botanik::SetupContext(nullptr, &logger), &io);
+    Alarms::AlarmController m(Botanik::SetupContext(nullptr, &logger), &f.rows);
     m.setup(0);   // the scan is on_setup(): the rows exist now
 
     m.step(1000);
@@ -262,9 +268,10 @@ using Command = Terminal::InputEvent::Command;
 
 namespace {
     // As above: bit i drives condition i's variable, then step.
-    void step_bits(Vars::Bank& io, Alarms::AlarmController& m, uint64_t bits, uint64_t now) {
+    void step_bits(Vars::Bank& io, Vars::BankAlarms& rows, Alarms::AlarmController& m,
+                   uint64_t bits, uint64_t now) {
         for (uint8_t i = 0; i < m.count(); i++)
-            io.var(m.condition(i).ref).set(((bits >> i) & 1u) != 0);
+            io.var(rows.row(i)).set(((bits >> i) & 1u) != 0);
         m.step(now);
     }
 
@@ -282,6 +289,9 @@ namespace {
         uint64_t               now = 0;
         Terminal::Console      console;
         Vars::Bank             bank;
+        /** @brief The SCOPE_A rows as an alarm source, bound after the freeze
+         *  below. NOT `rows` - the ctor's screen-height parameter is. */
+        Vars::BankAlarms       alarm_rows;
         Alarms::AlarmController     model;
         Pages::AlarmsPage      page;
 
@@ -289,7 +299,7 @@ namespace {
         explicit RenderFixture(uint16_t rows = 24)
             // Very high baud so the cooperative TX floor never throttles a paint.
             : console(Botanik::SetupContext(), wire.serial, &now),
-              model(Botanik::SetupContext(), &bank),
+              model(Botanik::SetupContext(), &alarm_rows),
               page(console, &model) {
             // Geometry and rate are the bank's job in production; a fixture
             // with no bank sets them through the same path.
@@ -297,8 +307,9 @@ namespace {
             console.terminal().set_baud(4000000u);
             bank.register_vars(TABLE, 4);
             bank.freeze();
-            // The scan is on_setup() now, and the model was built before the
-            // rows existed - so it has to run after the freeze above.
+            // The scan is on_setup() now, and the source had nothing to offer
+            // before the freeze above - so both run after it, in this order.
+            alarm_rows.bind(&bank);
             model.setup(0);
         }
 
@@ -343,7 +354,7 @@ TEST_CASE("alarms render: unchanged repaint skips the structural rows") {
 
 // Raise all four alarms so the table has data rows, then drive changes.
 static void raise_all(RenderFixture& f) {
-    step_bits(f.bank, f.model, 0xF, 1000);     // bits 0..3 active
+    step_bits(f.bank, f.alarm_rows, f.model, 0xF, 1000);     // bits 0..3 active
     f.page.focus();
     f.paint();                   // initial full paint; discard
 }
@@ -352,7 +363,7 @@ static void raise_all(RenderFixture& f) {
 // the wire.
 TEST_CASE("alarms render: a same-alarm state change patches its cells, skips the rest") {
     RenderFixture f;
-    step_bits(f.bank, f.model, 0x3, 1000);                     // AAA + BBB active; row0=AAA (sel), row1=BBB
+    step_bits(f.bank, f.alarm_rows, f.model, 0x3, 1000);                     // AAA + BBB active; row0=AAA (sel), row1=BBB
     f.page.focus();
     f.paint();                                   // initial full paint; discard
 
@@ -381,11 +392,11 @@ TEST_CASE("alarms render: unchanged data repaint emits nothing") {
 // A newly-raised alarm reorders the list, so the diff resends the whole row.
 TEST_CASE("alarms render: identity change redraws the row in full") {
     RenderFixture f;
-    step_bits(f.bank, f.model, 0x1, 1000);             // only AAA
+    step_bits(f.bank, f.alarm_rows, f.model, 0x1, 1000);             // only AAA
     f.page.focus();
     f.paint();
 
-    step_bits(f.bank, f.model, 0x3, 2000);             // BBB now active too -> sorts in, reorders
+    step_bits(f.bank, f.alarm_rows, f.model, 0x3, 2000);             // BBB now active too -> sorts in, reorders
     f.page.handle_command(Command::ENTER, 1);
     std::string out = f.paint();
     CHECK(out.find("BBB") != std::string::npos);   // a full row carried the new CODE
@@ -395,7 +406,7 @@ TEST_CASE("alarms render: identity change redraws the row in full") {
 // only the old/new row's cells - highlight costs cells, not full rows.
 TEST_CASE("alarms render: a selection move repaints both VARIABLE cells, nothing else") {
     RenderFixture f;                             // 24 rows: all four fit, so no scroll
-    step_bits(f.bank, f.model, 0xF, 1000);                     // aaa..ddd active; row0=aaa selected
+    step_bits(f.bank, f.alarm_rows, f.model, 0xF, 1000);                     // aaa..ddd active; row0=aaa selected
     f.page.focus();
     f.paint();                                   // initial paint; discard
 
@@ -416,7 +427,7 @@ TEST_CASE("alarms render: a selection move repaints both VARIABLE cells, nothing
 // overflows the 4 alarms; scrolling past the bottom brings CCC into view.
 TEST_CASE("alarms render: DOWN moves the selection and scrolls it into view") {
     RenderFixture f(13);
-    step_bits(f.bank, f.model, 0xF, 1000);
+    step_bits(f.bank, f.alarm_rows, f.model, 0xF, 1000);
     f.page.focus();
     std::string full = f.paint();
     REQUIRE(full.find("AAA") != std::string::npos);   // window top
@@ -434,7 +445,7 @@ TEST_CASE("alarms render: DOWN moves the selection and scrolls it into view") {
 // "reconciled?" check demotes it before it is ever drawn.
 TEST_CASE("alarms render: a mode change shows the new mode before the rows") {
     RenderFixture f(13);                          // short screen: rows overflow
-    step_bits(f.bank, f.model, 0xF, 1000);
+    step_bits(f.bank, f.alarm_rows, f.model, 0xF, 1000);
     f.page.focus();
     f.paint();                                    // settle the initial paint
 
@@ -467,9 +478,10 @@ using namespace Botanik;
 using namespace Botanik::Alarms;
 
 namespace {
-    void step_bits(Vars::Bank& io, AlarmController& m, uint64_t bits, uint64_t now) {
+    void step_bits(Vars::Bank& io, Vars::BankAlarms& rows, AlarmController& m,
+                   uint64_t bits, uint64_t now) {
         for (uint8_t i = 0; i < m.count(); i++)
-            io.var(m.condition(i).ref).set(((bits >> i) & 1u) != 0);
+            io.var(rows.row(i)).set(((bits >> i) & 1u) != 0);
         m.step(now);
     }
 
@@ -494,12 +506,17 @@ TEST_CASE("MqttAlarmNotifier: notify_on/off build the topic + payload and forwar
     MqttAlarmNotifier n("botanik/greenhouse");
     n.set_publisher(&pub);
 
-    // The condition borrows its row (no text copy), so this needs a real
-    // SCOPE_A descriptor.
-    static const Botanik::Vars::Descriptor ROW =
-        Botanik::Vars::A("NET_FLT", "NET_FLT", 0, 0, 0, 0, 990, "", "");
+    // The condition borrows its metadata from the source, so this needs a real
+    // one - and a notifier has no business knowing which kind it is, so the
+    // table-free source is what stands in here.
+    static const bool RAW = true;
+    static const Alarms::StaticAlarm ONE = {
+        "NET_FLT", "", "", { "NET_FLT", 0, 0, 0, 0 }, &RAW
+    };
+    static const Alarms::StaticAlarmTable TAB(&ONE, 1);
     AlarmCondition c = {};
-    c.var = &ROW;
+    c.src = &TAB;
+    c.idx = 0;
 
     n.notify_on(c);
     CHECK(pub.calls == 1);
@@ -533,7 +550,9 @@ TEST_CASE("AlarmController: a transition fans out to every registered notifier")
     Vars::Bank bank;
     bank.register_vars(TABLE, 1);
     bank.freeze();
-    AlarmController m(Botanik::SetupContext(), &bank);
+    Vars::BankAlarms rows;
+    rows.bind(&bank);
+    AlarmController m(Botanik::SetupContext(), &rows);
     m.setup(0);   // the scan is on_setup(): the rows exist now
     CountingNotifier a, b;
     CHECK(m.add_notifier(&a));
@@ -541,16 +560,16 @@ TEST_CASE("AlarmController: a transition fans out to every registered notifier")
     CHECK(m.has_notifiers());
     CHECK(m.add_notifier(&a) == false);   // no double-register
 
-    step_bits(bank, m, 0x1, 1000);                    // ON -> both notified
+    step_bits(bank, rows, m, 0x1, 1000);                    // ON -> both notified
     CHECK(a.on == 1);
     CHECK(b.on == 1);
-    step_bits(bank, m, 0x0, 2000);                    // clean OFF -> both notified
+    step_bits(bank, rows, m, 0x0, 2000);                    // clean OFF -> both notified
     CHECK(a.off == 1);
     CHECK(b.off == 1);
 
     // Drop one; the remaining notifier still fires, the removed one does not.
     CHECK(m.remove_notifier(&a));
-    step_bits(bank, m, 0x1, 3000);
+    step_bits(bank, rows, m, 0x1, 3000);
     CHECK(a.on == 1);                     // unchanged after removal
     CHECK(b.on == 2);
 }
