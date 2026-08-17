@@ -9,6 +9,8 @@
  * Work reaches the beat by REGISTRATION: register_tasks() hands the registry one
  * entry per point the component acts at, each naming its own phase and rate
  * group, and registering also runs setup().
+ * @note A component does not fetch its own configuration: it is HANDED one
+ *       through set_config(). See vars/bindings.h.
  * @note A component has no rate of its own: that belongs to its TASK, and the
  *       elapsed time is Tasks::Tick::dt_ms. See docs/dev/tasks.md.
  */
@@ -29,26 +31,7 @@ namespace Botanik {
 
     /** @brief Uniform setup/config/health lifecycle base (see file header). */
     class Component {
-        /** @name Config-serial dispatch
-         *  @{ */
-
-        /** @brief Last serial acted on (0 = none yet, matches an unset config
-         *  block, so a never-configured block never triggers a change). */
-        uint32_t      _applied_serial = 0;
-
-        /** @brief Beat poll_config() last ran for, so a component registered in
-         *  several phases re-reads its group once per beat. UINT64_MAX = none
-         *  yet, a value uptime_ms() cannot reach. */
-        uint64_t      _beat_ms = UINT64_MAX;
-
-        /** @} */
-
     protected:
-        /** @brief Group serial poll_config() last acted on. A hook asking "is my
-         *  group configured?" reads this rather than paying the name scan
-         *  again. */
-        uint32_t applied_serial() const { return _applied_serial; }
-
         /** @name Wiring (accessible to the derived component)
          *  @{ */
 
@@ -95,32 +78,12 @@ namespace Botanik {
          *  the table came with the SetupContext. Default: none. */
         virtual void register_tasks() {}
 
-        /** @brief Poll the watched config serial and dispatch on_param_changed()
-         *  when it has moved. Once per BEAT, not per task: a component
-         *  registered in three phases must not re-read its group three times.
-         *  @warning The registry MUST call this before every handler - a
-         *  registration dispatches the phase hook directly, so anything around
-         *  it has to be done here or it does not happen. */
-        void poll_config(uint64_t now_ms) {
-            if (now_ms == _beat_ms) return;
-            _beat_ms = now_ms;
-            const uint32_t serial = param_serial();
-            // _applied_serial starts at 0, so an unset block (serial 0) never
-            // fires at boot; a config later cleared back to 0 does, being a real
-            // reconfiguration.
-            if (serial == _applied_serial) return;
-            _applied_serial = serial;
-            on_param_changed(now_ms);
-        }
-
         /** @brief Run @p phase's hook with the lifecycle the registry gives a
-         *  registered task: setup(), poll_config(), then the hook. For a
-         *  component the task table does not own. No due check: the rate belongs
-         *  to the task.
+         *  registered task: setup(), then the hook. For a component the task
+         *  table does not own. No due check: the rate belongs to the task.
          *  @warning Keep equal to Registry::run_phase()'s per-task body. */
         void step(uint64_t now_ms, Tasks::Phase phase) {
             setup(now_ms);          // idempotent: a no-op once we are set up
-            poll_config(now_ms);
             switch (phase) {
                 case Tasks::PHASE_INPUT:   on_input(now_ms);   break;
                 case Tasks::PHASE_CONFIG:  on_config(now_ms);  break;
@@ -132,11 +95,8 @@ namespace Botanik {
             }
         }
 
-        /** @brief Step every phase hook for @p now_ms, in beat order. Resets the
-         *  beat guard first: each call is a fresh beat by definition, or two
-         *  steps inside one millisecond would never fire on_param_changed(). */
+        /** @brief Step every phase hook for @p now_ms, in beat order. */
         void step(uint64_t now_ms) {
-            _beat_ms = UINT64_MAX;
             for (uint8_t p = 0; p < (uint8_t)Tasks::PHASE_COUNT; p++)
                 step(now_ms, (Tasks::Phase)p);
         }
@@ -171,13 +131,6 @@ namespace Botanik {
         virtual void on_output(uint64_t now_ms)  { (void)now_ms; }
         virtual void on_present(uint64_t now_ms) { (void)now_ms; }
         /** @} */
-        /** @brief Serial of the watched config block (0 = none / not
-         *  config-driven). Default: 0. */
-        virtual uint32_t param_serial() const { return 0; }
-        /** @brief Reset / latch the new config on a watched-serial change.
-         *  Default: nothing. */
-        virtual void on_param_changed(uint64_t now_ms) { (void)now_ms; }
-
         /** @} */
     };
 

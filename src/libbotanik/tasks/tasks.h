@@ -33,11 +33,6 @@ namespace Botanik { namespace Tasks {
      *  `core/` to call one method on it. */
     void component_setup(Component* c, uint64_t now_ms);
 
-    /** @brief Let @p c re-read its watched config group and reconfigure if it
-     *  moved. Called before every handler: a registration dispatches the phase
-     *  hook directly, so anything around it is this class's job. */
-    void component_poll_config(Component* c, uint64_t now_ms);
-
     /** @brief What a handler is told about the activation it is running in.
      *  @note A handler that integrates over time must read @c dt_ms rather than
      *  assume its nominal period. @c missed is what TaskTimer dropped on the way

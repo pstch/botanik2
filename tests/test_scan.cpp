@@ -723,8 +723,6 @@ namespace {
         std::vector<uint64_t>            ran;      // beats on_service() saw
         std::vector<Botanik::Tasks::Phase> phases; // every hook, in call order
         uint32_t setups = 0;
-        uint32_t serial = 0;
-        uint32_t reconfigs = 0;
 
         Spy() : Component(Botanik::SetupContext(), "spy") {}
 
@@ -739,8 +737,6 @@ namespace {
         void on_control(uint64_t) override { phases.push_back(Botanik::Tasks::PHASE_CONTROL); }
         void on_output(uint64_t)  override { phases.push_back(Botanik::Tasks::PHASE_OUTPUT); }
         void on_present(uint64_t) override { phases.push_back(Botanik::Tasks::PHASE_PRESENT); }
-        uint32_t param_serial() const override { return serial; }
-        void on_param_changed(uint64_t) override { reconfigs++; }
     };
 }
 
@@ -781,27 +777,6 @@ TEST_CASE("component: a phase step runs only that hook") {
 
     const std::vector<Phase> want = { PHASE_OUTPUT };
     CHECK(s.phases == want);
-}
-
-TEST_CASE("component: the config serial is polled once per beat, not per phase") {
-    Spy s;
-    s.step(0);
-    CHECK(s.reconfigs == 0);     // serial 0 at boot is not a change
-
-    s.serial = 7;
-    s.step(10);                  // six hooks, one reconfigure
-    CHECK(s.reconfigs == 1);
-
-    s.step(20);                  // unchanged since, so nothing more
-    CHECK(s.reconfigs == 1);
-}
-
-TEST_CASE("component: two steps in the same millisecond are two beats") {
-    Spy s;
-    s.step(0);
-    s.serial = 7;
-    s.step(0);                   // clock has not moved, but this IS a fresh beat
-    CHECK(s.reconfigs == 1);
 }
 
 }  // namespace component

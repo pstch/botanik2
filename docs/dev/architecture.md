@@ -127,9 +127,13 @@ decodes at INPUT, persists at SERVICE and answers at PRESENT.
 
 A component has **no rate of its own**. How often work runs is its TASK's rate
 group, and the elapsed time is `Tasks::Tick::dt_ms`. `Tasks::Registry::run_phase()`
-gives each entry `poll_config()` then the handler; `Component::step()` is the same
-body for a component the table does not own (one stepped by its owner, or by a
-test) and carries no due check.
+runs each due entry's handler; `Component::step()` is the same body for a
+component the table does not own (one stepped by its owner, or by a test) and
+carries no due check.
+
+A component does not fetch its own configuration either. It is HANDED one through
+`set_config()`, by `Vars::ConfigBinder` at PHASE_CONFIG when there is a variable
+table, and by whoever owns it when there is not.
 
 **`SystemContext`** (`core/context.h`) is a borrowed-pointer aggregate the read-only
 paths share, so the UI takes one handle instead of a pointer per subsystem:

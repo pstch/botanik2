@@ -77,7 +77,7 @@ namespace Botanik { namespace Network {
         }
         switch (_state) {
             case NET_IDLE:
-                // wait for a config to arrive (handled in on_param_changed)
+                // wait for a config to arrive (handled above, on _pending)
                 break;
 
             case NET_SETUP:

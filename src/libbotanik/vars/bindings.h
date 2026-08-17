@@ -21,7 +21,8 @@ namespace Botanik { namespace Tasks { struct Tick; } }
 namespace Botanik { namespace Terminal { class Console; } }
 namespace Botanik { namespace Sun { class SunPositionTracker; } }
 namespace Botanik { class MonitorStack; }
-namespace Botanik { namespace Network { class NetworkHandler; class NtpClient; class MqttClient; } }
+namespace Botanik { namespace Network { class NetworkHandler; class NtpClient; class MqttClient; class MqttSender; } }
+namespace Botanik { namespace Modbus { class TcpSlave; } }
 
 namespace Botanik { namespace Vars {
 
@@ -93,6 +94,8 @@ namespace Botanik { namespace Vars {
     void bind_network(ConfigBinder& binder, Network::NetworkHandler& net);
     void bind_ntp(ConfigBinder& binder, Network::NtpClient& ntp);
     void bind_mqtt(ConfigBinder& binder, Network::MqttClient& mqtt);
+    void bind_telemetry(ConfigBinder& binder, Network::MqttSender& tlm);
+    void bind_modbus_tcp(ConfigBinder& binder, Modbus::TcpSlave& slave);
 
     /** @} */
 

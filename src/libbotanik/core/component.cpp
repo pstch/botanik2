@@ -33,8 +33,4 @@ namespace Botanik { namespace Tasks {
         c->setup(now_ms);
     }
 
-    void component_poll_config(Component* c, uint64_t now_ms) {
-        c->poll_config(now_ms);
-    }
-
 }}

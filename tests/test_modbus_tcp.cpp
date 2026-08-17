@@ -17,6 +17,7 @@
 #include BOTANIK_SITE_HEADER
 #include "libbotanik/modbus/tcp/master.h"
 #include "libbotanik/modbus/tcp/slave.h"
+#include "libbotanik/vars/bindings.h"
 #include "site_bank.h"
 
 // modbus_tcp_pdu
@@ -490,12 +491,18 @@ struct Pair {
     Bank      bank;
     TcpSlave  slave;
     TcpMaster master;
+    Vars::ConfigBinder binder;
     uint64_t  now = 1000;
 
-    Pair() : slave(Botanik::SetupContext(), &bank), master(Botanik::SetupContext()) {
+    Pair() : slave(Botanik::SetupContext(), &bank), master(Botanik::SetupContext()),
+             binder(Botanik::SetupContext(), &bank) {
         TestSite::build(bank);
         slave.setup(now);
         master.setup(now);
+        // The listener opens on a config, not at setup: the `mb` group is what
+        // says whether this slave answers and on which port.
+        Vars::bind_modbus_tcp(binder, slave);
+        binder.apply_all();
     }
 
     /** @brief One beat of both ends, in the order the firmware runs them. */

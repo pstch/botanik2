@@ -28,6 +28,10 @@
 #endif
 #if BOTANIK_FEATURE_MQTT
 #include "libbotanik/network/mqtt.h"
+#include "libbotanik/network/telemetry.h"
+#endif
+#if BOTANIK_FEATURE_MODBUS_TCP_SERVER
+#include "libbotanik/modbus/tcp/slave.h"
 #endif
 #if BOTANIK_FEATURE_SUN_TRACKER
 #include "libbotanik/sun/sun_tracker.h"
@@ -162,6 +166,37 @@ namespace Botanik { namespace Vars {
 
     void bind_mqtt(ConfigBinder& binder, Network::MqttClient& mqtt) {
         binder.add("mqtt", &mqtt, &apply_mqtt);
+    }
+#endif
+
+#if BOTANIK_FEATURE_MQTT
+    /** @brief The telemetry half of the `mqtt_` group. Same serial as the
+     *  client's: one commit, two structs. */
+    static void apply_telemetry(void* target, const Bank& io, bool) {
+        Network::TelemetryConfig cfg;
+        const int32_t sec = (int32_t)io.var("mqtt_tlm_sec").i();
+        cfg.period_ms = sec > 0 ? (uint32_t)sec * 1000u : 0u;
+        cfg.retain    = io.var("mqtt_retain").b();
+        static_cast<Network::MqttSender*>(target)->set_config(cfg);
+    }
+
+    void bind_telemetry(ConfigBinder& binder, Network::MqttSender& tlm) {
+        binder.add("mqtt", &tlm, &apply_telemetry);
+    }
+#endif
+
+#if BOTANIK_FEATURE_MODBUS_TCP_SERVER
+    /** @brief The `mb` group. */
+    static void apply_modbus_tcp(void* target, const Bank& io, bool) {
+        Modbus::TcpSlaveConfig cfg;
+        cfg.enabled  = io.var("mb_enable").b();
+        cfg.writable = io.var("mb_write_enable").b();
+        cfg.port     = io.var("mb_port").value().as_u16();
+        static_cast<Modbus::TcpSlave*>(target)->set_config(cfg);
+    }
+
+    void bind_modbus_tcp(ConfigBinder& binder, Modbus::TcpSlave& slave) {
+        binder.add("mb", &slave, &apply_modbus_tcp);
     }
 #endif
 

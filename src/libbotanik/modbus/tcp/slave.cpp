@@ -39,6 +39,7 @@ namespace Botanik { namespace Modbus {
     // Lifecycle
 
     void TcpSlave::on_setup(uint64_t now_ms) {
+        (void)now_ms;
         // Built once, here rather than on the first beat: a scan of the whole
         // variable table does not belong in a beat.
         _map.build();
@@ -47,22 +48,14 @@ namespace Botanik { namespace Modbus {
             _logger->critical(Logs::MODBUS,
                               "map full: %u rows unpublished",
                               (unsigned)_map.overflow());
-        _apply_config(now_ms);
     }
 
-    uint32_t TcpSlave::param_serial() const { return group_serial(_io, "mb"); }
-
-    void TcpSlave::on_param_changed(uint64_t now_ms) { _apply_config(now_ms); }
-
-    void TcpSlave::_apply_config(uint64_t now_ms) {
-        const bool     want_on   = get_int(_io, "mb_enable", 1) != 0;
-        const uint16_t want_port = (uint16_t)get_int(_io, "mb_port",
-                                                    Config::MODBUS_TCP_PORT);
-        _writable = get_int(_io, "mb_write_enable", 1) != 0;
-
-        (void)now_ms;
-        _enabled = want_on;
-        if (!want_on) { _bind_failed = false; _close_listener(); return; }
+    void TcpSlave::set_config(const TcpSlaveConfig& cfg) {
+        _cfg = cfg;
+        _writable = cfg.writable;
+        _enabled  = cfg.enabled;
+        if (!cfg.enabled) { _bind_failed = false; _close_listener(); return; }
+        const uint16_t want_port = cfg.port;
         // A port change means the socket has to move, and the connections on the
         // old one are conversations about a service that is no longer there.
         if (_listener >= 0 && want_port != _port) _close_listener();

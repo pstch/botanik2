@@ -31,6 +31,13 @@ namespace Botanik { namespace Tasks { struct Tick; } }
 
 namespace Botanik { namespace Network {
 
+    /** @brief How often the base fields go to the broker, and whether it keeps
+     *  them. period_ms 0 disables telemetry outright. */
+    struct TelemetryConfig {
+        uint32_t period_ms = 60000;
+        bool     retain    = true;
+    };
+
     // Vars::var_published / var_group (what goes out, and under what) live in
     // vars/access.h, so non-network consumers (the MONITOR page) read them
     // without the MqttSender.
@@ -80,6 +87,9 @@ namespace Botanik { namespace Network {
     public:
         /** @brief @p mqtt is the transport, @p sys the live status read by the
          *  base fields, @p prefix the topic root segment before the field. */
+        /** @brief Adopt @p cfg; the next sweep runs at it. */
+        void set_config(const TelemetryConfig& cfg);
+
         MqttSender(const SetupContext& ctx, MqttClient* mqtt,
                    const SystemContext* sys, const char* prefix)
             : Component(ctx, "telemetry"),
@@ -98,9 +108,9 @@ namespace Botanik { namespace Network {
         void on_service(uint64_t now_ms) override;
 
         /** @brief The mqtt_ commit serial these rows belong to. */
-        uint32_t param_serial() const override;
+
         /** @brief Take the cadence and the retain flag on that commit. */
-        void on_param_changed(uint64_t now_ms) override;
+
 
     private:
         /** @brief Publish the library base fields under "system". */
@@ -115,8 +125,7 @@ namespace Botanik { namespace Network {
          *  landing the cadence ahead of the host and port it was staged with
          *  would defeat the serial.
          *  @{ */
-        uint32_t _period_ms_v = Config::MQTT_TELEMETRY_PERIOD_MS;
-        bool     _retain_v    = Config::MQTT_TELEMETRY_RETAIN;
+        TelemetryConfig _cfg;
         /** @} */
         /** @brief Build the field topic ("<prefix>/<root>[/<group>]/<name>") and
          *  publish @p payload (best-effort). */

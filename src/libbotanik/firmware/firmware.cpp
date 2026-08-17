@@ -82,6 +82,10 @@ namespace Botanik {
 #endif
 #if BOTANIK_FEATURE_MQTT
         Vars::bind_mqtt(_binder, _net.mqtt());
+        Vars::bind_telemetry(_binder, _net.telemetry());
+#endif
+#if BOTANIK_FEATURE_MODBUS_TCP_SERVER
+        Vars::bind_modbus_tcp(_binder, _modbus_tcp);
 #endif
 
         // Wire the status aggregate now every subsystem address is fixed.

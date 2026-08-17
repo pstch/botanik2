@@ -73,6 +73,14 @@ namespace Botanik { namespace Tasks { struct Tick; } }
 
 namespace Botanik { namespace Modbus {
 
+    /** @brief The `mb` group: whether the slave answers at all, on which port,
+     *  and whether a master may write. */
+    struct TcpSlaveConfig {
+        bool     enabled  = true;
+        bool     writable = true;
+        uint16_t port     = 502;
+    };
+
     /** @brief What the shell and the status UI read back. Borrowed by
      *  SystemContext, the SchedulerContext pattern: the server publishes, the
      *  consumers read, and nobody hands anybody a setter. */
@@ -154,6 +162,9 @@ namespace Botanik { namespace Modbus {
          *  choosing. */
         int16_t       _ack_cond[Config::MODBUS_TCP_MAX_ROWS];
         /** @brief Whether the `mb` config says the slave should be up at all. */
+        /** @brief The `mb` group in force. Only `enabled`/`port` move the
+         *  socket; `writable` is read per request. */
+        TcpSlaveConfig _cfg;
         bool          _enabled = false;
         /** @brief The port could not be bound. Kept so the failure is retried
          *  and reported once rather than every attempt. */
@@ -178,6 +189,9 @@ namespace Botanik { namespace Modbus {
          *  stay bound for the life of the process, so a later test could not use
          *  the port and the sim could not restart cleanly. */
         ~TcpSlave() override { _close_listener(); }
+
+        /** @brief Adopt @p cfg: rebind if the port moved, close if disabled. */
+        void set_config(const TcpSlaveConfig& cfg);
 
         /** @name Readback
          *  @{ */
@@ -228,13 +242,11 @@ namespace Botanik { namespace Modbus {
         /** @brief Answer (PHASE_PRESENT), off the image the scan just
          *  produced, so no request is served from a half-updated one. */
         void     on_present(uint64_t now_ms) override;
-        uint32_t param_serial() const override;
-        void     on_param_changed(uint64_t now_ms) override;
 
     private:
         /** @name Internals
          *  @{ */
-        void _apply_config(uint64_t now_ms);   ///< read the `mb` group, rebind if needed
+
         void _open_listener();
         void _close_listener();
         void _accept(uint64_t now_ms);

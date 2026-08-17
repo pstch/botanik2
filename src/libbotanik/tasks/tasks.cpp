@@ -176,11 +176,6 @@ namespace Botanik { namespace Tasks {
             if (!t.timer.due(now_ms, group_period_ms(t.group), dt, missed)) continue;
             t.timer.ran(now_ms);
 
-            // Config first, so a group committed this beat is applied before
-            // the hook that reads it. Once per beat per owner, however many
-            // phases it registered in.
-            component_poll_config(t.owner, now_ms);
-
             const uint64_t t0 = HAL::Clock::uptime_us();
             Tick tick;
             tick.now_ms = now_ms; tick.dt_ms = dt; tick.missed = missed;

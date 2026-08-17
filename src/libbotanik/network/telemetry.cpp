@@ -70,23 +70,11 @@ namespace Botanik { namespace Network {
                 _emit("system", f.name, payload);
     }
 
-    uint32_t MqttSender::param_serial() const {
-        return Vars::group_serial(_io, "mqtt");
-    }
-
-    void MqttSender::on_param_changed(uint64_t now_ms) {
-        (void)now_ms;
-        const int32_t sec = Vars::get_int(_io, "mqtt_tlm_sec",
-                                (int32_t)(Config::MQTT_TELEMETRY_PERIOD_MS / 1000u));
-        _period_ms_v = sec > 0 ? (uint32_t)sec * 1000u : 0u;
-        _retain_v    = Vars::get_int(_io, "mqtt_retain",
-                                     Config::MQTT_TELEMETRY_RETAIN ? 1 : 0) != 0;
-    }
-
+    void MqttSender::set_config(const TelemetryConfig& cfg) { _cfg = cfg; }
 
 
     void MqttSender::on_service(uint64_t now_ms) {
-        const uint32_t period = _period_ms_v;
+        const uint32_t period = _cfg.period_ms;
         if (period == 0) return;                       // telemetry disabled
         if (_mqtt == nullptr || !_mqtt->connected()) {
             _cursor = SWEEP_IDLE;                      // a sweep cannot outlive the link
@@ -147,7 +135,7 @@ namespace Botanik { namespace Network {
         if (n <= 0 || (size_t)n >= sizeof(topic)) return;
         // Best-effort: a publish that can't be sent now is dropped (the next
         // cycle re-sends the current value).
-        _mqtt->publish(topic, payload, _retain_v);
+        _mqtt->publish(topic, payload, _cfg.retain);
     }
 
 }}
