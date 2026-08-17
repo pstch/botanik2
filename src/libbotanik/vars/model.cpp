@@ -17,6 +17,7 @@
 #include "libbotanik/logs/logger.h"
 #include "libbotanik/utils/assert.h"
 #include "libbotanik/utils/text.h"
+#include "libbotanik/vars/params.h"   // analog_values - the calibration is parameters
 
 namespace Botanik { namespace Vars {
 
@@ -108,6 +109,45 @@ namespace Botanik { namespace Vars {
         _count = k;
     }
 
+    Value Bank::wire(VarRef r) const {
+        if (r.index >= _count) return Value{ Scalar(), &_sink_d, T_U8, Q_NONE };
+        const Descriptor& d = descriptor(r.index);
+        Slot& s = _slots[r.index];
+        // No binding, no wire: a parameter or a computed row has none.
+        if (d.bind.transport == XP_NONE) return Value{ Scalar(), &d, d.type, Q_NONE };
+        // 1:1, so the wire IS the value - nothing is stored twice.
+        if (s.wire_off == WIRE_NONE) return Value{ s.v, &d, d.type, s.qual };
+        // An OUTPUT is scaled on the way out, and nothing ever publishes a
+        // count inward for it: its wire value is what WOULD be sent.
+        if (d.role == ROLE_OUTPUT) {
+            const AnalogValues a = analog_values(this, analog_cal(d));
+            return Value{ from_f32(d.bind.wire, a.to_raw(var(r).as_f32())),
+                          &d, d.bind.wire, s.qual };
+        }
+        return Value{ _wire[s.wire_off], &d, d.bind.wire, s.qual };
+    }
+
+    void Bank::publish_wire(VarRef r, Scalar raw, uint64_t now_ms) {
+        if (r.index >= _count) return;
+        const Descriptor& d = descriptor(r.index);
+        Slot& s = _slots[r.index];
+        const AnalogCal* c = analog_cal(d);
+        if (c == nullptr) {                       // 1:1: the count IS the value
+            var(r).publish(raw, now_ms);
+            return;
+        }
+        if (s.wire_off != WIRE_NONE) _wire[s.wire_off] = raw;
+
+        const AnalogValues a = analog_values(this, c);
+        const float eng = a.to_eng(as_f32(d.bind.wire, raw));
+        s.v        = from_f32(d.type, eng);
+        s.stamp_ms = now_ms;
+        // The band lives in the calibration's parameters, which is why this is
+        // the model's job and not a sweep's: a dead 4-20 mA loop reads full
+        // scale, and no timeout catches that.
+        s.qual = a.plausible(eng) ? Q_GOOD : Q_IMPLAUSIBLE;
+    }
+
     void Bank::_resolve_cals() {
         for (uint16_t i = 0; i < _count; i++) {
             const AnalogCal* c = analog_cal(descriptor(i));
@@ -175,6 +215,27 @@ namespace Botanik { namespace Vars {
             }
             _slots[i].str_off = _pool_used;
             _pool_used = (uint16_t)(_pool_used + cap);
+        }
+
+        // A wire slot for every row that scales: the rest read their own value
+        // as the wire, so they need no storage.
+        _wire_count = 0;
+        for (uint16_t i = 0; i < _count; i++) {
+            if (analog_cal(descriptor(i)) == nullptr) {
+                _slots[i].wire_off = WIRE_NONE;
+                continue;
+            }
+            if (_wire_count >= Config::ANALOG_ROWS_MAX) {
+                BOTANIK_ASSERT(!"more analog rows than ANALOG_ROWS_MAX");
+                if (_logger != nullptr)
+                    _logger->critical(Logs::BOOT,
+                                      "analog rows past %u: raise ANALOG_ROWS_MAX",
+                                      (unsigned)Config::ANALOG_ROWS_MAX);
+                _slots[i].wire_off = WIRE_NONE;
+                continue;
+            }
+            _slots[i].wire_off = _wire_count;
+            _wire[_wire_count++] = Scalar();
         }
 
         for (uint16_t i = 0; i < _count; i++) {
@@ -390,21 +451,21 @@ namespace Botanik { namespace Vars {
 
     int64_t Value::as_i64() const {
         if (d == nullptr || is_str(d)) return 0;
-        if (type_real(d->type))   return clamp_i((double)v.f, INT64_MIN, INT64_MAX);
-        if (type_signed(d->type)) return v.i;
+        if (type_real(t))   return clamp_i((double)v.f, INT64_MIN, INT64_MAX);
+        if (type_signed(t)) return v.i;
         return (v.u > (uint64_t)INT64_MAX) ? INT64_MAX : (int64_t)v.u;
     }
 
     uint64_t Value::as_u64() const {
         if (d == nullptr || is_str(d)) return 0;
-        if (type_real(d->type))   return clamp_u((double)v.f, UINT64_MAX);
-        if (type_signed(d->type)) return (v.i < 0) ? 0u : (uint64_t)v.i;
+        if (type_real(t))   return clamp_u((double)v.f, UINT64_MAX);
+        if (type_signed(t)) return (v.i < 0) ? 0u : (uint64_t)v.i;
         return v.u;
     }
 
     float Value::as_f32() const {
         if (d == nullptr || is_str(d)) return 0.0f;
-        return Vars::as_f32(d->type, v);
+        return Vars::as_f32(t, v);
     }
 
     bool Value::as_bool() const { return as_i64() != 0; }
@@ -417,7 +478,7 @@ namespace Botanik { namespace Vars {
     uint32_t Value::as_u32() const { return (uint32_t)clamp_u((double)as_u64(), UINT32_MAX); }
 
     const char* Value::label() const {
-        if (d == nullptr || d->type != T_ENUM || d->str == nullptr) return nullptr;
+        if (d == nullptr || t != T_ENUM || d->str == nullptr) return nullptr;
         return d->str(as_u64());
     }
 
@@ -461,22 +522,6 @@ namespace Botanik { namespace Vars {
     uint8_t Bank::writer_of(VarRef r) const {
         return (r.index < _count) ? _slots[r.index].writer
                                            : WRITER_NONE;
-    }
-
-    uint16_t Bank::reject_implausible() {
-        uint16_t n = 0;
-        for (uint16_t i = 0; i < _count; i++) {
-            const Descriptor& d = descriptor(i);
-            if (d.role != ROLE_INPUT || _slots[i].qual != Q_GOOD) continue;
-            // An override pushes a reading past its band on purpose, to
-            // exercise what watches for it.
-            if (_slots[i].ovr_on) continue;
-
-            if (!value_implausible(d, _slots[i].v)) continue;
-            _slots[i].qual = Q_IMPLAUSIBLE;
-            n++;
-        }
-        return n;
     }
 
     // Writing
@@ -870,9 +915,6 @@ namespace Botanik { namespace Vars {
         static_cast<Bank*>(c)->expire_stale(t.now_ms);
     }
 
-    void Bank::_reject_task(Component* c, const Tasks::Tick&) {
-        (void)static_cast<Bank*>(c)->reject_implausible();
-    }
 
     void Bank::on_setup(uint64_t /*now_ms*/) {
         load_params();
@@ -949,11 +991,6 @@ namespace Botanik { namespace Vars {
         // A full linear scan of the variable table, resolving timeouts measured
         // in seconds - which is why it is GROUP_BACKGROUND and not the beat.
         _tasks->add(*this, &Bank::_expire_task, "expire_stale",
-              Tasks::GROUP_BACKGROUND, Tasks::PHASE_INPUT);
-        // Beside it: a reading can be fresh and still be nonsense. A dead
-        // 4-20 mA loop reads full scale, which no timeout catches - the
-        // declared plausibility band does.
-        _tasks->add(*this, &Bank::_reject_task, "reject_implausible",
               Tasks::GROUP_BACKGROUND, Tasks::PHASE_INPUT);
     }
 

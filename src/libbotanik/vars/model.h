@@ -46,12 +46,18 @@ namespace Botanik { namespace Vars {
          *  WRITER_NONE until one does. Catches TWO programs driving one output,
          *  which otherwise shows only as an actuator chattering at beat rate. */
         uint8_t  writer;
-        uint8_t  _rsv[1];
+        /** @brief Index into the bank's wire array for an AI/AO row, WIRE_NONE
+         *  otherwise. Carved out of the spare byte, so the slot stays 32. */
+        uint8_t  wire_off;
     };
 
     /** @brief No program has claimed this row. Not 0, which is a real program
      *  index - the same trap VAR_NONE exists to avoid. */
     static const uint8_t WRITER_NONE = 0xFFu;
+
+    /** @brief This row has no wire value of its own: its value IS what the wire
+     *  carries, or it has no binding at all. */
+    static const uint8_t WIRE_NONE = 0xFFu;
     // Every field here costs RAM on every row of every site, so the size is
     // pinned rather than left to drift.
     static_assert(sizeof(Slot) == 32, "Slot must stay 32 bytes (RAM per variable)");
@@ -91,14 +97,14 @@ namespace Botanik { namespace Vars {
          *  reads its declared default. @{ */
 
         /** @brief What the row would read with nothing forced. */
-        Value live() const { return Value{ _under(), _d, _v->qual }; }
+        Value live() const { return Value{ _under(), _d, _d->type, _v->qual }; }
 
         /** @brief The force, or Q_NONE when there is none. Recorded, not
          *  necessarily driving: CONTROL_DISABLED MUTES an override without
          *  erasing it, and a muted one is still there and still worth showing. */
         Value override() const {
-            if (!_v->ovr_on) return Value{ _d->def, _d, Q_NONE };
-            return Value{ _v->ovr, _d, _v->ovr_valid ? Q_GOOD : Q_FORCED_BAD };
+            if (!_v->ovr_on) return Value{ _d->def, _d, _d->type, Q_NONE };
+            return Value{ _v->ovr, _d, _d->type, _v->ovr_valid ? Q_GOOD : Q_FORCED_BAD };
         }
 
         /** @brief The value in force: the override when one is DRIVING, else
@@ -135,19 +141,22 @@ namespace Botanik { namespace Vars {
         void set(float v)     { _drive(from_f32 (_d->type, v)); }
         void set_i(int64_t v) { _drive(from_i64 (_d->type, v)); }
 
-        /** @brief What a DRIVER calls: value, timestamp and validity in one
-         *  step, so the staleness clock cannot be forgotten. Does NOT mark the
-         *  field dirty - this is a reading coming IN. */
+        /** @brief What a DRIVER calls for a 1:1 row: value, timestamp and
+         *  validity in one step, so the staleness clock cannot be forgotten.
+         *  Judges the declared band here, where the reading arrives - a fresh
+         *  value can still be nonsense, and a dead loop reading full scale is
+         *  what no timeout catches. Does NOT mark the field dirty: this is a
+         *  reading coming IN. @see Bank::publish_wire() for a scaled row. */
         void publish(Scalar v, uint64_t now_ms) {
-            _v->v = v; _v->stamp_ms = now_ms; _v->qual = Q_GOOD;
+            _v->v = v; _v->stamp_ms = now_ms;
+            _v->qual = value_implausible(*_d, v) ? Q_IMPLAUSIBLE : Q_GOOD;
         }
         /** @brief The quantity, without claiming anything MEASURED it. For a
          *  simulated field: stamping Q_GOOD would keep the row good for ever and
          *  no timeout could catch a device going quiet. */
         void set_physical(Scalar v) { _v->v = v; }
         /** @brief Mark the reading bad, and say why. For a driver rejecting a
-         *  well-formed but unbelievable value - an analog reading outside a band
-         *  Bank::reject_implausible() cannot judge, it living in the params. */
+         *  well-formed but unbelievable value publish() cannot judge. */
         void invalidate(Quality q) { _v->qual = q; }
         /** @brief Drop to the declared safe state (what a fault does). */
         void safe() { _v->qual = Q_SAFE; _touch_field(); }
@@ -336,7 +345,6 @@ namespace Botanik { namespace Vars {
          *  @{ */
         static void _expire_task(Component* c, const Tasks::Tick& t);
         static void _config_task(Component* c, const Tasks::Tick& t);
-        static void _reject_task(Component* c, const Tasks::Tick& t);
         /** @} */
 
         /** @name The rows
@@ -384,6 +392,12 @@ namespace Botanik { namespace Vars {
          *  Cached as INDICES, not values: the index is fixed once the table is
          *  frozen, while the value must stay live so a recalibration lands the
          *  moment the parameter commits. Nothing to invalidate. */
+        /** @brief The count on the wire for each AI/AO row, indexed by the
+         *  slot's wire_off. Only those rows need one: every other row's wire
+         *  value IS its value. */
+        Scalar        _wire[Config::ANALOG_ROWS_MAX];
+        uint8_t       _wire_count = 0;
+
         struct CalRefs { const AnalogCal* block; VarRef ref[6]; };
         CalRefs       _cal[Config::ANALOG_BLOCKS_MAX];
         uint8_t       _cal_count = 0;
@@ -551,6 +565,20 @@ namespace Botanik { namespace Vars {
 
         /** @brief Name lookups that found nothing. Zero on a correctly wired
          *  site; the test suite asserts it. */
+        /** @brief What a DRIVER hands over for an analog row: the count off the
+         *  wire. The model applies the calibration, judges the plausibility
+         *  band, keeps the count for wire() and stores the engineering value
+         *  for live(). A row with no calibration is 1:1, and this is then the
+         *  same as publish_live(). */
+        void publish_wire(VarRef r, Scalar raw, uint64_t now_ms);
+
+        /** @brief The count on the wire, before any scaling. Q_NONE for a row
+         *  with no binding at all - a parameter has no wire. For a 1:1 row the
+         *  wire IS the value. For an analog INPUT it is what arrived; for an
+         *  analog OUTPUT, what would be sent - nothing publishes a count
+         *  inward for one. */
+        Value wire(VarRef r) const;
+
         /** @brief The six rows @p c's tunables name, or null when the block is
          *  unknown (a table past ANALOG_BLOCKS_MAX, or a bank never frozen).
          *  A fixed tunable has VAR_NONE. */
@@ -633,13 +661,6 @@ namespace Botanik { namespace Vars {
          *  their declared timeout. A timeout of 0 never expires, for a value a
          *  driver publishes only on change. */
         void expire_stale(uint64_t now_ms);
-
-        /** @brief Invalidate any ROLE_INPUT outside its declared band, and any
-         *  T_F32 gone non-finite (checked separately: a NaN trips no band). What
-         *  F_BOUNDED is FOR: a shorted 4-20 mA loop reads full scale, which no
-         *  timeout catches. Analog rows are skipped, their band being editable.
-         *  @return how many readings this pass rejected. */
-        uint16_t reject_implausible();
 
         /** @name Writing
          *  set() edits a PARAMETER against its declared band; override() forces

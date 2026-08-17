@@ -57,13 +57,10 @@ namespace {
         return (d.flags & Vars::F_INVERT) ? !on : on;
     }
 
-    /** @brief A row's demand as the wire wants it: an AO's through its
-     *  calibration, everything else's as it stands. */
-    float wire_value(const Vars::Bank& io, const Vars::Descriptor& d, Vars::Var h) {
-        if (d.scope != Vars::SCOPE_AO) return h.as_f32();
-        const Vars::AnalogCal* cal = Vars::analog_cal(d);
-        return (cal == nullptr) ? h.as_f32()
-                                : Vars::analog_values(&io, cal).to_raw(h.as_f32());
+    /** @brief A row's demand as the wire wants it. The model does the scaling:
+     *  wire() on an output is what WOULD be sent. */
+    float wire_value(const Vars::Bank& io, Vars::VarRef r) {
+        return io.wire(r).as_f32();
     }
 
     /** @brief One register row's demand, big-endian into @p at.
@@ -71,18 +68,18 @@ namespace {
      *  An AO's integer comes from its calibrated float, the only place the
      *  calibration exists; every other row's comes from the row itself, since
      *  routing a large u32 or i32 through a float would round it. */
-    void row_regs(const Vars::Bank& io, const Vars::Descriptor& d, Vars::Var h,
-                  uint8_t* at) {
+    void row_regs(const Vars::Bank& io, Vars::VarRef r,
+                  const Vars::Descriptor& d, Vars::Var h, uint8_t* at) {
         // A float on the wire goes out as one, calibrated or not.
         if (is_pair(d) && d.bind.wire == Vars::T_F32) {
-            f32_to_regs(wire_value(io, d, h), order_of(d), at);
+            f32_to_regs(wire_value(io, r), order_of(d), at);
             return;
         }
         // Through int64 rather than straight to unsigned: a negative float
         // converted to uint32_t is undefined, and a calibration that has been
         // mis-trimmed can produce one.
         const int64_t v = (d.scope == Vars::SCOPE_AO)
-                              ? (int64_t)wire_value(io, d, h)
+                              ? (int64_t)wire_value(io, r)
                               : h.i();
         if (is_pair(d)) u32_to_regs((uint32_t)v, order_of(d), at);
         else            wr16(at, (uint16_t)v);
@@ -98,22 +95,14 @@ namespace {
         h.publish(Vars::from_bool(d.type, on), now_ms);
     }
 
-    /** @brief Commit one analog row: convert, then judge. */
-    bool commit_analog(Vars::Bank& io, Vars::Var h, const Vars::Descriptor& d,
+    /** @brief Hand one analog row's WIRE COUNT to the model, which scales it
+     *  and judges the band - both live in the calibration's parameters. */
+    bool commit_analog(Vars::Bank& io, Vars::VarRef r, const Vars::Descriptor& d,
                        const Block& b, const uint8_t* payload, uint64_t now_ms) {
-        const Vars::AnalogCal* cal = Vars::analog_cal(d);
-        if (cal == nullptr) return false;
-        const Vars::AnalogValues v = Vars::analog_values(&io, cal);
-        const float eng = v.to_eng(wire_f32(d, payload, offset_of(d, b)));
-        if (!v.plausible(eng)) {
-            // Well-formed and not believable: publishing it would hand a control
-            // program a rail voltage as a measurement. The quality says WHY, so
-            // an operator can tell a dead sensor from a quiet one.
-            h.invalidate(Vars::Q_IMPLAUSIBLE);
-            return false;
-        }
-        h.publish(Vars::from_f32(d.type, eng), now_ms);
-        return true;
+        if (Vars::analog_cal(d) == nullptr) return false;
+        const float raw = wire_f32(d, payload, offset_of(d, b));
+        io.publish_wire(r, Vars::from_f32(d.bind.wire, raw), now_ms);
+        return io.var(r).valid();
     }
 
     /** @brief The register, mapped 1:1 onto the row's type. */
@@ -190,7 +179,7 @@ uint16_t commit_read(Vars::Bank& io, const Planner& p, const Block& b,
         }
 
         if (d.scope == Vars::SCOPE_AI) {
-            if (commit_analog(io, h, d, b, r.data, now_ms)) good++;
+            if (commit_analog(io, Vars::VarRef{idx}, d, b, r.data, now_ms)) good++;
         } else {
             if (commit_direct(h, d, b, r.data, now_ms)) good++;
         }
@@ -226,7 +215,7 @@ uint16_t collect_write(const Vars::Bank& io, const Planner& p, const Block& b,
             if (row_bit(d, h)) put_bit(out, off, true);
             continue;
         }
-        row_regs(io, d, h, out + (size_t)off * 2u);
+        row_regs(io, Vars::VarRef{idx}, d, h, out + (size_t)off * 2u);
     }
     return need;
 }
@@ -252,7 +241,7 @@ void clear_dirty(Vars::Bank& io, const Planner& p, const Block& b,
             const uint16_t w  = is_pair(d) ? 4u : 2u;
             if ((uint32_t)at + w <= sent_len) {
                 uint8_t now[4];
-                row_regs(io, d, h, now);
+                row_regs(io, Vars::VarRef{idx}, d, h, now);
                 carried = memcmp(now, sent + at, w) == 0;
             }
         }

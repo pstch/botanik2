@@ -291,8 +291,7 @@ TEST_CASE("model: invalid records WHY, not just that") {
     CHECK(h.live().q == Q_STALE);
 
     h.publish(Scalar::F(999.0f), 2000);            // band is -40..85
-    CHECK(f.bank.reject_implausible() == 1);
-    CHECK(h.live().q == Q_IMPLAUSIBLE);
+    CHECK(h.live().q == Q_IMPLAUSIBLE);            // judged as it arrives
 
     f.bank.set_health_hold(false);   // a 4th: safe-state, not a fault
     Var out = f.bank.var(V_VALVE);
@@ -787,11 +786,9 @@ TEST_CASE("plausibility: a reading outside its declared band goes invalid") {
     Var h = f.bank.var(V_EXT_TEMP);          // band -40..85, def 20.5
 
     h.publish(Scalar::F(20.0f), 1000);
-    CHECK(f.bank.reject_implausible() == 0);
     CHECK(h.valid());
 
     h.publish(Scalar::F(500.0f), 2000);      // fresh, well-formed, impossible
-    CHECK(f.bank.reject_implausible() == 1);
     CHECK_FALSE(h.valid());
     CHECK(h.as_f32() == doctest::Approx(20.5f));   // falls back to `def`
 }
@@ -803,11 +800,9 @@ TEST_CASE("plausibility: a non-finite reading is a failed read") {
     const float nan = 0.0f / 0.0f, inf = 1.0f / 0.0f;
 
     h.publish(Scalar::F(nan), 1000);
-    CHECK(f.bank.reject_implausible() == 1);
     CHECK_FALSE(h.valid());
 
     h.publish(Scalar::F(inf), 2000);
-    CHECK(f.bank.reject_implausible() == 1);
     CHECK_FALSE(h.valid());
 }
 
@@ -819,7 +814,7 @@ TEST_CASE("plausibility: an override is exempt") {
     h.publish(Scalar::F(20.0f), 1000);
     f.bank.override_set(h, Scalar::F(9999.0f));
 
-    CHECK(f.bank.reject_implausible() == 0);
+    // The force never goes through publish(), so nothing judges it.
     CHECK(h.valid());
     CHECK(h.as_f32() == doctest::Approx(9999.0f));
 }
@@ -831,8 +826,8 @@ TEST_CASE("plausibility: an unbounded row is left alone") {
     Var g = f.bank.var(V_SETPOINT);          // ROLE_COMPUTED: not an input
     g.set(1e6f);
     h.publish(Scalar::F(50.0f), 1000);
-    CHECK(f.bank.reject_implausible() == 0);
-    CHECK(g.valid());                        // computed rows are never swept
+    CHECK(h.valid());
+    CHECK(g.valid());                        // a computed row has no band to trip
 }
 
 }  // namespace model
@@ -1954,7 +1949,9 @@ namespace {
         PE("p_mode", 0, &mode_label, 700, "a mode", ""),
         PS("p_text", "hello", 16, STR_NONE, 701, "some text", ""),
     };
-    Value of(uint16_t i, Scalar s, Quality q = Q_GOOD) { return Value{ s, &ROWS[i], q }; }
+    Value of(uint16_t i, Scalar s, Quality q = Q_GOOD) {
+        return Value{ s, &ROWS[i], ROWS[i].type, q };
+    }
 }
 
 TEST_CASE("Value: conversions saturate rather than wrap") {

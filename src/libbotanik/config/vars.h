@@ -91,6 +91,14 @@ namespace Botanik { namespace Config {
 #endif
     BOTANIK_CFG(uint8_t, ANALOG_BLOCKS_MAX);
 
+    /** @brief Rows that carry a WIRE value beside their engineering one - the
+     *  AI/AO rows (gh_mlb41: 7). Every other row's wire value IS its value, so
+     *  it costs nothing. 0xFF is the "none" index, so 255 is the ceiling. */
+#ifndef BOTANIK_ANALOG_ROWS_MAX
+#  define BOTANIK_ANALOG_ROWS_MAX 32
+#endif
+    BOTANIK_CFG(uint8_t, ANALOG_ROWS_MAX);
+
     /** @} */
 
 } }

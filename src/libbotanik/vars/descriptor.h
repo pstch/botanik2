@@ -338,13 +338,17 @@ namespace Botanik { namespace Vars {
     struct Value {
         Scalar            v;
         const Descriptor* d;
+        /** @brief What @c v actually is. USUALLY the row's type, but a wire
+         *  reading is in the WIRE type - a u16 count feeding an f32 row. Held
+         *  rather than derived from @c d, or that count would be read back as
+         *  the bit pattern of a float. */
+        VarType           t;
         Quality           q;
 
         bool present() const { return q != Q_NONE; }
         bool good()    const { return q == Q_GOOD; }
 
-        /** @brief The row's type - what @c v actually is. */
-        VarType type() const { return (d != nullptr) ? d->type : T_U8; }
+        VarType type() const { return t; }
 
         /** @name Conversions
          *  All SATURATING: 300 read as a u8 is 255, not 44. A wrapped value is
