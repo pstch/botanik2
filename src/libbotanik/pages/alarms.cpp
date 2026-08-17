@@ -3,6 +3,9 @@
  * @brief AlarmsPage implementation - the condition table and its detail panel.
  */
 #include "libbotanik/pages/alarms.h"
+#include "libbotanik_features.h"
+
+#if BOTANIK_FEATURE_ALARMS_PAGE
 
 #include <cstdio>
 
@@ -243,3 +246,5 @@ namespace Botanik { namespace Pages {
             _draw_data_row((uint16_t)(DATA_TOP + vi), (uint16_t)(_top + vi));
     }
 }}
+
+#endif // BOTANIK_FEATURE_ALARMS_PAGE

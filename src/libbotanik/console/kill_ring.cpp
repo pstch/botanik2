@@ -4,6 +4,9 @@
  * @brief KillRing - the console's one clipboard.
  */
 #include "libbotanik/console/kill_ring.h"
+#include "libbotanik_features.h"
+
+#if BOTANIK_FEATURE_CONSOLE
 
 #include <cstring>
 
@@ -18,3 +21,5 @@ namespace Botanik { namespace Terminal {
     }
 
 }}
+
+#endif // BOTANIK_FEATURE_CONSOLE

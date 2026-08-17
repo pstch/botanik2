@@ -107,8 +107,6 @@ namespace Botanik {
          *  via set_hw_watchdog_ms() before setup(). */
         uint32_t                      _hw_watchdog_ms = Config::HW_WATCHDOG_MS;
 
-#if BOTANIK_FEATURE_CONSOLE
-#endif
 
         /** @} */
 
@@ -291,6 +289,15 @@ namespace Botanik {
          *  bring-up and cycle order can never be skipped or misordered.
          *  @{ */
 
+#if BOTANIK_FEATURE_VARS
+        /** @brief Hand the bank the site's variable rows, one call per segment,
+         *  at the top of setup(). A site splits its table however it likes, with
+         *  ONE rule: the PARAMETERS come first, the library's being already at
+         *  the front of a run that has to stay contiguous. Bank::freeze() checks
+         *  it and names the row that broke it. */
+        virtual void register_vars() {}
+#endif
+
 #if BOTANIK_FEATURE_CONSOLE
         /** @brief Register the pages in tab order (page 0 = boot page); the
          *  add_page() call order IS the tab order. Default: the full set -
@@ -298,13 +305,6 @@ namespace Botanik {
          *  last when BOTANIK_FEATURE_NOTES_PAGE is on. A site override can
          *  reorder them or splice in its own (e.g. re-add a STATUS page by
          *  subclassing Pages::StatusPage and add_page()-ing it here). */
-        /** @brief Hand the bank the site's variable rows, one call per segment,
-         *  at the top of setup(). A site splits its table however it likes, with
-         *  ONE rule: the PARAMETERS come first, the library's being already at
-         *  the front of a run that has to stay contiguous. Bank::freeze() checks
-         *  it and names the row that broke it. */
-        virtual void register_vars() {}
-
         virtual void register_pages();
 
 #if BOTANIK_FEATURE_SHELL_PAGE

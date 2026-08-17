@@ -9,6 +9,9 @@
  */
 
 #include <cstddef>
+#include "libbotanik_features.h"
+
+#if BOTANIK_FEATURE_CONSOLE
 #include <cstdint>
 #include <cstring>
 
@@ -146,3 +149,5 @@ namespace Botanik { namespace Terminal { namespace Ansi {
     }
 
 }}}
+
+#endif // BOTANIK_FEATURE_CONSOLE

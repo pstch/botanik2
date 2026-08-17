@@ -5,6 +5,9 @@
  *        turns raw input into InputEvents.
  */
 #include <cstdint>
+#include "libbotanik_features.h"
+
+#if BOTANIK_FEATURE_CONSOLE
 
 #include "libbotanik/console/parser.h"
 
@@ -334,3 +337,5 @@ namespace Botanik { namespace Terminal {
     }
 
 }}
+
+#endif // BOTANIK_FEATURE_CONSOLE

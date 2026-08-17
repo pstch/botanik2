@@ -8,6 +8,9 @@
  */
 
 #include "libbotanik/tasks/tasks.h"
+#include "libbotanik_features.h"
+
+#if BOTANIK_FEATURE_VARS
 #include "libbotanik/alarms/alarms.h"
 
 namespace Botanik { namespace Alarms {
@@ -77,3 +80,5 @@ namespace Botanik { namespace Alarms {
     }
 
 }}  // namespace Botanik::Alarms
+
+#endif // BOTANIK_FEATURE_VARS

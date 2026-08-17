@@ -4,6 +4,9 @@
  * @brief StatusBar implementation - row-0 tabs, clock, and metrics field.
  */
 #include "libbotanik/console/status_bar.h"
+#include "libbotanik_features.h"
+
+#if BOTANIK_FEATURE_CONSOLE
 
 #include <algorithm>
 #include <cmath>
@@ -174,3 +177,5 @@ namespace Botanik { namespace Terminal {
     }
 
 }}
+
+#endif // BOTANIK_FEATURE_CONSOLE

@@ -4,6 +4,9 @@
  * @brief MqttLogWriter - publish log entries to the MQTT broker.
  */
 #include "libbotanik/network/mqtt_log.h"
+#include "libbotanik_features.h"
+
+#if BOTANIK_FEATURE_LOGS_PUBLISH
 
 #include <algorithm>
 #include <cstdio>
@@ -75,3 +78,5 @@ namespace Botanik { namespace Network {
     }
 
 }}
+
+#endif // BOTANIK_FEATURE_LOGS_PUBLISH

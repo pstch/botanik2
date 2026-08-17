@@ -9,6 +9,9 @@
  */
 
 #include "libbotanik/tasks/tasks.h"
+#include "libbotanik_features.h"
+
+#if BOTANIK_FEATURE_NTP
 #include "libbotanik/network/ntp.h"
 
 #include "libbotanik/hal/platform.h"
@@ -210,3 +213,5 @@ namespace Botanik { namespace Network {
     }
 
 }}  // namespace Botanik::Network
+
+#endif // BOTANIK_FEATURE_NTP

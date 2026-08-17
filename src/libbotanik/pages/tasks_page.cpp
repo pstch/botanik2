@@ -3,6 +3,9 @@
  * @brief TasksPage implementation - the scheduler task-cost table.
  */
 #include "libbotanik/pages/tasks_page.h"
+#include "libbotanik_features.h"
+
+#if BOTANIK_FEATURE_TASKS_PAGE
 
 #include <cstdio>
 #include <cstring>
@@ -155,3 +158,5 @@ namespace Botanik { namespace Pages {
         _blank_line((uint16_t)(r + 5));
     }
 }}
+
+#endif // BOTANIK_FEATURE_TASKS_PAGE

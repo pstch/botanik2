@@ -5,6 +5,9 @@
  */
 
 #include "libbotanik/plc/program.h"
+#include "libbotanik_features.h"
+
+#if BOTANIK_FEATURE_PLC
 
 #include "libbotanik/logs/logger.h"
 #include "libbotanik/logs/topics.h"
@@ -59,3 +62,5 @@ namespace Botanik { namespace Plc {
     }
 
 }}  // namespace Botanik::Plc
+
+#endif // BOTANIK_FEATURE_PLC

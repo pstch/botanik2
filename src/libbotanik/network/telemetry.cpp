@@ -4,6 +4,9 @@
  * @brief MqttTelemetry implementation - the base field set + the publish cycle.
  */
 #include "libbotanik/tasks/tasks.h"
+#include "libbotanik_features.h"
+
+#if BOTANIK_FEATURE_MQTT
 #include "libbotanik/network/telemetry.h"
 
 #include <cstddef>
@@ -152,3 +155,5 @@ namespace Botanik { namespace Network {
     }
 
 }}  // namespace Botanik::Network
+
+#endif // BOTANIK_FEATURE_MQTT

@@ -3,6 +3,9 @@
  * @brief NotesPage implementation - the full-screen note editor.
  */
 #include "libbotanik/pages/notes.h"
+#include "libbotanik_features.h"
+
+#if BOTANIK_FEATURE_NOTES_PAGE
 
 #include <cstdio>
 #include <cstring>
@@ -135,3 +138,5 @@ namespace Botanik { namespace Pages {
         _terminal.set_inverted(false);
     }
 }}
+
+#endif // BOTANIK_FEATURE_NOTES_PAGE

@@ -120,6 +120,7 @@ namespace Botanik {
         // from its declared default (so a value read before any driver has
         // spoken is the default rather than zero), builds the name index and
         // checks the parameter run.
+#if BOTANIK_FEATURE_VARS
         Vars::register_library_vars(_io);
         register_vars();
         _io.freeze();
@@ -130,6 +131,7 @@ namespace Botanik {
         // the lookup per frame. A name with no row lands on the sink and is
         // counted by the bank, which the site test asserts is zero.
         _resolve_site_refs();
+#endif
 
         // What runs on the beat, in which phase, and how often.
         _register_tasks();

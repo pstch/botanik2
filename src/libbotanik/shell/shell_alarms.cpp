@@ -3,6 +3,9 @@
  * @brief `alarms`: the condition table, one condition, and acknowledging.
  */
 #include "libbotanik/shell/shell.h"
+#include "libbotanik_features.h"
+
+#if BOTANIK_FEATURE_SHELL_PAGE
 #include "libbotanik/shell/args.h"
 
 #include <algorithm>
@@ -110,3 +113,5 @@ namespace Botanik { namespace Shell {
     }
 
 }}  // namespace Botanik::Shell
+
+#endif // BOTANIK_FEATURE_SHELL_PAGE

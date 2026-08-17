@@ -3,6 +3,9 @@
  * @brief ScrollTablePage implementation - the scrolling table frame.
  */
 #include "libbotanik/pages/scroll_table.h"
+#include "libbotanik_features.h"
+
+#if BOTANIK_FEATURE_CONSOLE
 
 #include <cstdio>
 
@@ -287,3 +290,5 @@ namespace Botanik { namespace Pages {
         _draw_line(row, buf, (n < 0) ? 0 : (uint16_t)n);
     }
 }}
+
+#endif // BOTANIK_FEATURE_CONSOLE

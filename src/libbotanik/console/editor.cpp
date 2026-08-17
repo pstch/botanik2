@@ -7,6 +7,9 @@
  *        change, then a forward per-row splice walk from the edit row.
  */
 #include "libbotanik/console/editor.h"
+#include "libbotanik_features.h"
+
+#if BOTANIK_FEATURE_CONSOLE
 
 #include <cctype>
 #include <cstdint>
@@ -901,3 +904,5 @@ namespace Botanik { namespace Terminal {
     }
 
 }}
+
+#endif // BOTANIK_FEATURE_CONSOLE

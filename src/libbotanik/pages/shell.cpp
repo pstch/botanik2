@@ -4,6 +4,9 @@
  * @brief ShellPage implementation.
  */
 #include "libbotanik/pages/shell.h"
+#include "libbotanik_features.h"
+
+#if BOTANIK_FEATURE_SHELL_PAGE
 
 #include <algorithm>
 #include <cstring>
@@ -334,3 +337,5 @@ namespace Botanik { namespace Pages {
     }
 
 }}
+
+#endif // BOTANIK_FEATURE_SHELL_PAGE

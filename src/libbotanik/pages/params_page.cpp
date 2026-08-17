@@ -3,6 +3,9 @@
  * @brief ParamsPage implementation - the table, the detail panel, the inline editor.
  */
 #include "libbotanik/pages/params_page.h"
+#include "libbotanik_features.h"
+
+#if BOTANIK_FEATURE_PARAMS_PAGE
 
 #include <cstdio>
 #include <cstring>
@@ -392,3 +395,5 @@ namespace Botanik { namespace Pages {
         }
     }
 }}
+
+#endif // BOTANIK_FEATURE_PARAMS_PAGE

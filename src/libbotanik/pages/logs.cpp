@@ -4,6 +4,9 @@
  * @brief LogsPage implementation.
  */
 #include "libbotanik/pages/logs.h"
+#include "libbotanik_features.h"
+
+#if BOTANIK_FEATURE_LOGS_PAGE
 
 #include <algorithm>
 #include <cstdio>
@@ -124,3 +127,5 @@ namespace Botanik { namespace Pages {
     }
 
 }}
+
+#endif // BOTANIK_FEATURE_LOGS_PAGE

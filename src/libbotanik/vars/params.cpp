@@ -4,6 +4,9 @@
  */
 
 #include "libbotanik/tasks/tasks.h"
+#include "libbotanik_features.h"
+
+#if BOTANIK_FEATURE_VARS
 #include "libbotanik/vars/params.h"
 
 #include <cstdio>
@@ -271,3 +274,5 @@ namespace Botanik { namespace Vars {
 
 
 }}  // namespace Botanik::Vars
+
+#endif // BOTANIK_FEATURE_VARS

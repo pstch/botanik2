@@ -150,11 +150,11 @@ namespace Botanik { namespace Vars {
     // band must stay to what the hardware can really do: a UART rate no divisor
     // can hit lands as the nearest the driver manages.
 
+#if BOTANIK_FEATURE_LOGS_MONITOR
     P("monitor_baud", T_U32,
         MonitorConfig().baud, 1200, 921600, 0, "Bd", 901,
         "monitor UART rate",
         "log-only port; ignored on the OPTA, whose MONITOR is USB CDC"),
-#if BOTANIK_FEATURE_LOGS_MONITOR
     PE("monitor_level", Logs::LOG_DEBUG,
         &Logs::log_level_label, 905,
         "lowest level the monitor port carries",

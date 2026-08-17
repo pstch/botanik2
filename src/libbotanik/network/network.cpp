@@ -9,6 +9,9 @@
  */
 
 #include "libbotanik/tasks/tasks.h"
+#include "libbotanik_features.h"
+
+#if BOTANIK_FEATURE_NETWORK
 #include "libbotanik/network/network.h"
 
 #include <cstring>
@@ -125,3 +128,5 @@ namespace Botanik { namespace Network {
     }
 
 }}  // namespace Botanik::Network
+
+#endif // BOTANIK_FEATURE_NETWORK

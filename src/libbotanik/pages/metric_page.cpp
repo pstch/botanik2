@@ -3,6 +3,9 @@
  * @brief MetricPage implementation - the field/cell drawing helpers.
  */
 #include "libbotanik/pages/metric_page.h"
+#include "libbotanik_features.h"
+
+#if BOTANIK_FEATURE_CONSOLE
 
 #include <cstdio>
 #include <cstring>
@@ -76,3 +79,5 @@ namespace Botanik { namespace Pages {
         }
     }
 }}
+
+#endif // BOTANIK_FEATURE_CONSOLE

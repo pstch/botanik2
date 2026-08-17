@@ -3,6 +3,9 @@
  * @brief HomePage implementation - identity, uptime, home fields, log tail.
  */
 #include "libbotanik/pages/home.h"
+#include "libbotanik_features.h"
+
+#if BOTANIK_FEATURE_HOME_PAGE
 
 #include <cstdio>
 #include <cstring>
@@ -196,3 +199,5 @@ namespace Botanik { namespace Pages {
         return len;
     }
 }}
+
+#endif // BOTANIK_FEATURE_HOME_PAGE

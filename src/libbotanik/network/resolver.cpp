@@ -9,6 +9,9 @@
  */
 
 #include "libbotanik/network/resolver.h"
+#include "libbotanik_features.h"
+
+#if BOTANIK_FEATURE_NETWORK
 
 #include <cstring>
 
@@ -142,3 +145,5 @@ namespace Botanik { namespace Network {
     }
 
 }}
+
+#endif // BOTANIK_FEATURE_NETWORK

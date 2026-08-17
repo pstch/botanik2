@@ -8,6 +8,9 @@
  */
 
 #include "libbotanik/tasks/tasks.h"
+#include "libbotanik_features.h"
+
+#if BOTANIK_FEATURE_MQTT
 #include "libbotanik/network/mqtt.h"
 
 #include <cstring>
@@ -273,3 +276,5 @@ namespace Botanik { namespace Network {
     }
 
 }}  // namespace Botanik::Network
+
+#endif // BOTANIK_FEATURE_MQTT

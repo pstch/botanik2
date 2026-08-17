@@ -3,6 +3,9 @@
  * @brief MonitorPage implementation - the published-variable table.
  */
 #include "libbotanik/pages/monitor.h"
+#include "libbotanik_features.h"
+
+#if BOTANIK_FEATURE_MONITOR_PAGE
 
 #include <cstdio>
 #include <cstring>
@@ -301,3 +304,5 @@ namespace Botanik { namespace Pages {
         _blank_line((uint16_t)(_footer_row() + 1));   // blank below the legend
     }
 }}
+
+#endif // BOTANIK_FEATURE_MONITOR_PAGE

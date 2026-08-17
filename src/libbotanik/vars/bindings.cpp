@@ -83,6 +83,7 @@ namespace Botanik { namespace Vars {
 
     // The readers
 
+#if BOTANIK_FEATURE_NETWORK
     /** @brief A row's text into a fixed field, always NUL-terminated. A config
      *  struct OWNS its strings: the pool a row's text lives in belongs to the
      *  bank, and a build with no bank has neither. */
@@ -92,6 +93,7 @@ namespace Botanik { namespace Vars {
         for (; i + 1 < cap && src[i] != '\0'; i++) dst[i] = src[i];
         dst[i] = '\0';
     }
+#endif
 
 #if BOTANIK_FEATURE_CONSOLE
     /** @brief The `console_` group. The band guards the way IN; a corrupt store

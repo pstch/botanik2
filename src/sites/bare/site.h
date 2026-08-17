@@ -1,0 +1,54 @@
+#ifndef SITE_H
+#define SITE_H
+
+/**
+ * @file site.h
+ * @brief HAND-WRITTEN - the bare site: a name, and nothing else.
+ *
+ * The minimum a site can be. It declares no variables, no programs, no commands
+ * and no simulated field, which is the point: what builds here is libbotanik
+ * with every optional feature compiled out, so the seam that makes them optional
+ * is exercised by something rather than asserted by a comment.
+ *
+ * Same surface as any other site, so a harness never names it: `BotanikSite` and
+ * `Site::simulate()`.
+ */
+
+#include <cstdint>
+
+#include "libbotanik.h"
+
+namespace Site {
+
+/** @brief No commands, no home fields, no devices. Field order matches
+ *  Botanik::SiteDescriptor. */
+const Botanik::SiteDescriptor g_site = {
+    Botanik::Config::SITE_NAME,
+    nullptr, 0,                      // site shell commands
+#if BOTANIK_FEATURE_VARS
+    nullptr, 0, nullptr,             // home-screen readings
+#endif
+#if BOTANIK_FEATURE_MODBUS_RTU_CLIENT
+    nullptr,                         // what each unit answers
+#endif
+};
+
+#if defined(TARGET_SIMULATOR) && BOTANIK_FEATURE_VARS
+/** @brief No field to animate: this site declares no rows. */
+inline void simulate(Botanik::Vars::Bank& io, uint32_t now_ms) {
+    (void)io; (void)now_ms;
+}
+#endif
+
+}  // namespace Site
+
+/** @brief A site that adds nothing to the base. */
+class BareSite final : public Botanik::BotanikFirmware {
+public:
+    BareSite() : Botanik::BotanikFirmware(Site::g_site) {}
+};
+
+/** @brief The firmware type the harness instantiates for this site. */
+using BotanikSite = BareSite;
+
+#endif // SITE_H

@@ -4,6 +4,9 @@
  * @brief Console implementation - page multiplexing, bars, input routing, step().
  */
 #include "libbotanik/console/console.h"
+#include "libbotanik_features.h"
+
+#if BOTANIK_FEATURE_CONSOLE
 
 #include "libbotanik/pages/page.h"
 
@@ -317,3 +320,5 @@ namespace Botanik { namespace Terminal {
     }
 
 }}
+
+#endif // BOTANIK_FEATURE_CONSOLE
