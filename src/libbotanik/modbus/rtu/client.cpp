@@ -652,8 +652,6 @@ const char* RtuClient::status_str() const {
 
 }}  // namespace Botanik::Modbus
 
-#endif // BOTANIK_FEATURE_MODBUS_RTU_CLIENT
-
 namespace Botanik { namespace Modbus {
 
     void RtuClient::_input_task(Component* c, const Tasks::Tick& t) {
@@ -675,3 +673,5 @@ namespace Botanik { namespace Modbus {
     }
 
 }}  // namespace Botanik::Modbus
+
+#endif // BOTANIK_FEATURE_MODBUS_RTU_CLIENT

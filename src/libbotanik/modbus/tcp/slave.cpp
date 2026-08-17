@@ -443,8 +443,6 @@ namespace Botanik { namespace Modbus {
 
 }}  // namespace Botanik::Modbus
 
-#endif // BOTANIK_FEATURE_MODBUS_TCP_SERVER
-
 namespace Botanik { namespace Modbus {
 
     void TcpSlave::_input_task(Component* c, const Tasks::Tick& t) {
@@ -474,3 +472,5 @@ namespace Botanik { namespace Modbus {
     }
 
 }}  // namespace Botanik::Modbus
+
+#endif // BOTANIK_FEATURE_MODBUS_TCP_SERVER
