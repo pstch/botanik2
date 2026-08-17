@@ -161,7 +161,8 @@ namespace Botanik { namespace Sim {
          * interval visible on screen.
          *
          * @param d the row's descriptor, for its device / fc / reg binding
-         * @param v the physical quantity, in the row's own engineering units
+         * @param v the physical quantity, in the row's own engineering units;
+         *          a calibrated row's transducer turns it into a count here
          */
         void set_physical(const Vars::Descriptor& d, float v) {
             if (d.bind.transport != Vars::XP_MODBUS) return;
@@ -173,6 +174,13 @@ namespace Botanik { namespace Sim {
                 dev->set_coil(d.bind.reg, v != 0.0f);
                 return;
             }
+            // A CALIBRATED row is reported by its transducer as a COUNT, not in
+            // engineering units - that is what the device would actually send,
+            // and it is what makes the master's scaling the thing under test.
+            const Vars::AnalogCal* cal = Vars::analog_cal(d);
+            if (cal != nullptr)
+                v = Vars::analog_values(_io, cal).to_raw(v);
+
             // The wire carries what the row says: a REAL spans two registers,
             // high word first, and anything narrower is one.
             if (d.bind.wire == Vars::T_F32) {

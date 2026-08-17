@@ -124,6 +124,32 @@ inline void publish_meters(Vars::Bank& io, uint32_t now_ms) {
 }
 
 /**
+ * @brief The calibrated channels on TDC/AI-1: the four voltage dividers and the
+ * output flow loop.
+ *
+ * These are the only rows in the table that SCALE, so animating them is what
+ * puts the calibration under test every run: the quantity goes in here in
+ * engineering units, the simulated transducer reports it as a count, and the
+ * master has to scale it back. A row reading its own animated value is the
+ * whole round trip.
+ */
+inline void publish_analog(Vars::Bank& io, uint32_t now_ms) {
+    const float t = (float)now_ms / 1000.0f;
+    static float ripple = 0.0f;
+    ripple = drift(ripple, 0.3f, -1.0f, 1.0f, 0.03f);
+
+    // Both supplies sit near 24 V, the bands being 20..30.
+    put(io, "pwr_dc1_V",     24.0f + 0.8f * ripple, now_ms);
+    put(io, "pwr_dc2_V",     24.1f - 0.6f * ripple, now_ms);
+    // The UPS battery floats a little higher; the generator start battery rests
+    // lower and is the one worth watching.
+    put(io, "pwr_upsBat_V",  26.8f + 0.3f * ripple, now_ms);
+    put(io, "pwr_genBat_V",  25.4f + 0.5f * ripple, now_ms);
+    // Output flow: quiet most of the time, with a slow swell (band 0..50 L/min).
+    put(io, "irr_out_Lpm",   12.0f + 8.0f * sinf(t / 53.0f), now_ms);
+}
+
+/**
  * @brief The twelve Temp/RH sensors: exterior, crawlspace, low and high.
  *
  * Animated because the rows exist: without this the field bus answers zeroed
@@ -282,6 +308,7 @@ inline void publish_alarms(Vars::Bank& io, uint32_t now_ms) {
 inline void simulate(Vars::Bank& io, uint32_t now_ms) {
     publish_meters(io, now_ms);
     publish_climate(io, now_ms);
+    publish_analog(io, now_ms);
     drive_coils(io, now_ms);
     publish_alarms(io, now_ms);
 }
