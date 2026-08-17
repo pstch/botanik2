@@ -46,12 +46,14 @@ namespace Botanik { namespace Shell {
     void CommandShell::_leave_running() {
         // The system's hold, not the operator's: the firmware is deciding to
         // stop running, not someone turning control off.
+#if BOTANIK_FEATURE_VARS
         if (Vars::Bank* io = _bank()) {
             io->set_health_hold(true);
             // A deliberate stop loses no counting: the retain cadence bounds
             // what a power cut costs, a planned stop should cost nothing.
             (void)io->save_retained();
         }
+#endif
         // Wipe the screen (flushed straight to the wire) before leaving: the
         // main loop won't run again to drain the TX ring.
         _terminal.clear_screen_now();
@@ -73,10 +75,12 @@ namespace Botanik { namespace Shell {
             _println("reboot: health monitor unavailable (`reset` resets now)");
             return;
         }
+#if BOTANIK_FEATURE_VARS
         if (Vars::Bank* io = _bank()) {
             io->set_health_hold(true);
             (void)io->save_retained();
         }
+#endif
         _health->request_reboot();
 
         // LOGGED rather than printed: a unit that reset is worth accounting for
@@ -132,6 +136,7 @@ namespace Botanik { namespace Shell {
         else { _verb_usage("log"); return; }
     }
 
+#if BOTANIK_FEATURE_VARS
     void CommandShell::_cmd_control(const char* args, uint16_t alen) {
         Vars::Bank* io = _bank();
         if (io == nullptr) { _println("control: no variables"); return; }
@@ -184,11 +189,15 @@ namespace Botanik { namespace Shell {
                Vars::Bank::control_mode_name(op));
     }
 
+#endif // BOTANIK_FEATURE_VARS
+
+#if BOTANIK_FEATURE_NTP
     void CommandShell::_cmd_ntpsync(const char*, uint16_t) {
         if (_ntp_client == nullptr) { _println("ntpsync: NTP unavailable"); return; }
         _ntp_client->resync();
         _println("ntpsync: NTP resync requested");
     }
+#endif
 
 }}  // namespace Botanik::Shell
 

@@ -77,12 +77,14 @@ namespace Botanik {
         const char*                   name;                ///< == Config::SITE_NAME
         const Shell::ShellCommand*    commands;            ///< site shell commands
         uint8_t                       command_count;
-        const Vars::HomeVar* home_fields;         ///< home-screen readings
+#if BOTANIK_FEATURE_VARS
+        const Vars::HomeVar*          home_fields;         ///< home-screen readings
         uint8_t                       home_field_count;
         /** @brief Where the home fields' names resolve to, filled at bring-up.
          *  Site-owned and must hold @c home_field_count entries. Parallel to
          *  the table above so the labels stay in flash. */
         Vars::VarRef*                 home_refs;
+#endif
 #if BOTANIK_FEATURE_MODBUS_RTU_CLIENT
         /** @brief What each unit on the field bus will answer: its request
          *  ceiling and address alignment. Null plans every unit as

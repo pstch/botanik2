@@ -6,7 +6,7 @@
 #include "libbotanik/shell/shell.h"
 #include "libbotanik_features.h"
 
-#if BOTANIK_FEATURE_SHELL_PAGE
+#if BOTANIK_FEATURE_SHELL_PAGE && BOTANIK_FEATURE_VARS
 #include "libbotanik/shell/args.h"
 
 #include <algorithm>
@@ -137,34 +137,6 @@ namespace Botanik { namespace Shell {
 
     // The leader is built rather than written into each label, so the column
     // cannot drift one row at a time.
-    void CommandShell::_field(const char* label, const char* value,
-                              const char* detail) {
-        char lead[LEADER_W + 1];
-        size_t n = 0;
-        while (label[n] != 0 && n + 1 < sizeof(lead)) { lead[n] = label[n]; n++; }
-        if (n + 1 < sizeof(lead)) lead[n++] = ' ';
-        while (n + 1 < sizeof(lead)) lead[n++] = '.';
-        lead[n] = 0;
-
-        // The detail is cut to what is left of the line rather than allowed to
-        // wrap: these reports are read as a column of labels, and one wrapped
-        // row breaks the column for every row under it. A task or variable name
-        // is site-defined and unbounded, so the width has to be measured here
-        // rather than assumed when the format string was written.
-        char out[Config::LOG_FORMATTED_LEN];
-        if (detail == nullptr || detail[0] == 0) {
-            _emitf(out, sizeof(out), "%s : %s", lead, value);
-            return;
-        }
-        size_t vlen = 0;
-        while (value[vlen] != 0) vlen++;
-        if (vlen < 8) vlen = 8;                       // the %-8s floor
-        const size_t cols = _terminal.cols() ? _terminal.cols() : 80;
-        const size_t head = LEADER_W + 3 + vlen + 3;  // lead, " : ", value, " ()"
-        if (cols <= head) { _emitf(out, sizeof(out), "%s : %-8s", lead, value); return; }
-        _emitf(out, sizeof(out), "%s : %-8s (%.*s)", lead, value,
-               (int)(cols - head), detail);
-    }
 
     // Quality rides on the value row rather than one of its own: a value and
     // whether it is good are one fact, and there are two values.
@@ -645,4 +617,4 @@ namespace Botanik { namespace Shell {
 
 }}  // namespace Botanik::Shell
 
-#endif // BOTANIK_FEATURE_SHELL_PAGE
+#endif // BOTANIK_FEATURE_SHELL_PAGE && BOTANIK_FEATURE_VARS

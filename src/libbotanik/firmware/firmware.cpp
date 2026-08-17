@@ -74,12 +74,14 @@ namespace Botanik {
     {
         // Bind each component's config to the rows behind it, now every one of
         // them exists. Pushed at PHASE_CONFIG, and once at bring-up.
+#if BOTANIK_FEATURE_VARS
 #if BOTANIK_FEATURE_CONSOLE
         Vars::bind_console(_binder, _console.terminal());
 #endif
 #if BOTANIK_FEATURE_LOGS_MONITOR
         Vars::bind_monitor(_binder, _monitor);
 #endif
+#endif  // BOTANIK_FEATURE_VARS
 #if BOTANIK_FEATURE_NETWORK
         Vars::bind_network(_binder, _net.network());
 #endif
@@ -399,8 +401,13 @@ namespace Botanik {
 
 #if BOTANIK_FEATURE_SHELL_PAGE
     void BotanikFirmware::register_commands() {
+        // The site's commands get the bank as their context, when there is one.
+#if BOTANIK_FEATURE_VARS
         _console.shell().set_commands(_site.commands, _site.command_count,
                                       (void*)&_io);
+#else
+        _console.shell().set_commands(_site.commands, _site.command_count, nullptr);
+#endif
     }
 #endif
 #endif  // BOTANIK_FEATURE_CONSOLE

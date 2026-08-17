@@ -91,14 +91,18 @@ namespace Botanik { namespace Shell {
                            "error <text>\n"
                            "critical <text>",                     G_SYS, false,
                                                                &CommandShell::_cmd_log        },
+#if BOTANIK_FEATURE_VARS
             { "control",   "enable|inhibit|disable",
                                         "whether the firmware may drive the field",
                            "enable\ninhibit\ndisable\nstatus",     G_SYS, true,
                                                                &CommandShell::_cmd_control    },
 
+#endif
+#if BOTANIK_FEATURE_NTP
             { "ntpsync",   nullptr,     "force an NTP resync now",
                            nullptr,                               G_SYS, false,
                                                                &CommandShell::_cmd_ntpsync    },
+#endif
             { "stats",     nullptr,     "scheduler, stack and watchdog metrics",
                            nullptr,                               G_STA, false,
                                                                &CommandShell::_cmd_stats      },
@@ -115,6 +119,7 @@ namespace Botanik { namespace Shell {
                            "stats\nlist [<prefix>]\nget <name>",   G_STA, false,
                                                                &CommandShell::_cmd_tasks      },
 
+#if BOTANIK_FEATURE_VARS
             { "params",    "...",       "the editable settings",
                            "list [<prefix>]\n"
                            "get <name>\n"
@@ -130,21 +135,26 @@ namespace Botanik { namespace Shell {
                            "clear <name>|all\n"
                            "save <name>|all",                     G_TAB, false,
                                                                &CommandShell::_cmd_overrides  },
+#endif
+#if BOTANIK_FEATURE_PLC
             { "programs",  "...",       "the control programs in the scan",
                            "list [<prefix>]\n"
                            "enable <name>|all\n"
                            "disable <name>|all\n"
                            "save <name>|all",                     G_TAB, false,
                                                                &CommandShell::_cmd_programs   },
+#endif
             { "alarms",    "...",       "the alarm table, and acknowledging",
                            "list [<prefix>]\n"
                            "get <code|name>\n"
                            "ack <code|name|all>",                 G_TAB, false,
                                                                &CommandShell::_cmd_alarms     },
+#if BOTANIK_FEATURE_VARS
             { "vars",      "...",       "read any variable, whatever its scope",
                            "list [<prefix>]\n"
                            "get <name>",                          G_TAB, false,
                                                                &CommandShell::_cmd_vars       },
+#endif
         };
         count = (uint8_t)(sizeof(TABLE) / sizeof(TABLE[0]));
         return TABLE;
@@ -429,6 +439,37 @@ namespace Botanik { namespace Shell {
         if (_hist_browse < 0) return;   // not browsing
         _hist_browse--;                 // 0 -> -1 restores the draft
         _load_browse();
+    }
+
+    // The leader is built rather than written into each label, so the column
+    // cannot drift one row at a time.
+    void CommandShell::_field(const char* label, const char* value,
+                              const char* detail) {
+        char lead[LEADER_W + 1];
+        size_t n = 0;
+        while (label[n] != 0 && n + 1 < sizeof(lead)) { lead[n] = label[n]; n++; }
+        if (n + 1 < sizeof(lead)) lead[n++] = ' ';
+        while (n + 1 < sizeof(lead)) lead[n++] = '.';
+        lead[n] = 0;
+
+        // The detail is cut to what is left of the line rather than allowed to
+        // wrap: these reports are read as a column of labels, and one wrapped
+        // row breaks the column for every row under it. A task or variable name
+        // is site-defined and unbounded, so the width has to be measured here
+        // rather than assumed when the format string was written.
+        char out[Config::LOG_FORMATTED_LEN];
+        if (detail == nullptr || detail[0] == 0) {
+            _emitf(out, sizeof(out), "%s : %s", lead, value);
+            return;
+        }
+        size_t vlen = 0;
+        while (value[vlen] != 0) vlen++;
+        if (vlen < 8) vlen = 8;                       // the %-8s floor
+        const size_t cols = _terminal.cols() ? _terminal.cols() : 80;
+        const size_t head = LEADER_W + 3 + vlen + 3;  // lead, " : ", value, " ()"
+        if (cols <= head) { _emitf(out, sizeof(out), "%s : %-8s", lead, value); return; }
+        _emitf(out, sizeof(out), "%s : %-8s (%.*s)", lead, value,
+               (int)(cols - head), detail);
     }
 
 }}
