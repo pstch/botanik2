@@ -125,12 +125,14 @@ namespace Botanik {
         /** @brief What every Component below is built with: the table to
          *  register in and the log to speak through. @see SetupContext */
         SetupContext                   _setup;
+#if BOTANIK_FEATURE_VARS
         Vars::Bank                       _io;          ///< the site's variables
         Vars::KvParamStore             _param_store; ///< one storage key per parameter
         /** @brief The one bridge from the table to a component's own config
          *  struct. Bindings are added in the ctor body, once every component
          *  exists. @see vars/bindings.h */
         Vars::ConfigBinder             _binder;
+#endif
         Health::HealthMonitor          _health;
         SystemContext                  _sys_ctx;     ///< Filled in the ctor body
 #if BOTANIK_FEATURE_LOGS_MONITOR
@@ -230,7 +232,11 @@ namespace Botanik {
             // drops to its safe state FIRST: the reset gives no such guarantee,
             // and the gap before the reboot is exactly when an actuator must
             // not be left energised.
-            if (!_scheduler.kick(_health.watchdog_ok())) _io.set_health_hold(true);
+            if (!_scheduler.kick(_health.watchdog_ok())) {
+#if BOTANIK_FEATURE_VARS
+                _io.set_health_hold(true);
+#endif
+            }
             return true;
         }
 
@@ -257,8 +263,10 @@ namespace Botanik {
         Scheduler::LoopScheduler&       scheduler()       { return _scheduler; }
         /** @brief The site's variable tables bound to their value stores: what
          *  everything - programs, console, telemetry - reads and writes. */
+#if BOTANIK_FEATURE_VARS
         const Vars::Bank&                 io() const { return _io; }
         Vars::Bank&                       io()       { return _io; }
+#endif
 #if BOTANIK_FEATURE_NETWORK
         Network::NetworkHandler&        network()         { return _net.network(); }
         Network::NameResolver&          resolver()        { return _net.resolver(); }

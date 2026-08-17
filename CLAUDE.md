@@ -68,7 +68,8 @@ Host-only, SIMULATOR build. Two suites, both wired into CTest:
 
 ```bash
 make -C build check                  # the pre-push gate
-make -C build check-full             # the periodic sweep: clang-tidy, then the gate under ASan+UBSan
+make -C build check-full             # the periodic sweep: clang-tidy, bare profile, then the gate under ASan+UBSan
+make -C build check-bare             # just the bare profile: every optional feature off
 make -C build botanik_tests          # just build the doctest binary
 ./build/tests/botanik_tests          # run it directly (doctest CLI)
 ./build/tests/botanik_tests -s       # ...every passing check + the struct-size table
@@ -92,6 +93,12 @@ back all-green the fault is INTERFERENCE between cases, not a flake**: reproduce
 pays for an instrumented rebuild, then the whole `check` gate again in `build/asan/`. It
 drives that tree's own `check` target, so the two cannot drift. Both halves are
 instrumented, screen tests included.
+
+**`make check-bare`** compiles `sites/bare` - every optional feature off - into
+`build/bare/`. Compile-only and `botanik_sim` rather than the suite, because the
+tests are written against a site that HAS a variable table. It exists because an
+OFF path nothing builds rots silently: three had already rotted when it was
+added. Part of `check-full`.
 
 **clang-tidy is not in `check`** - it re-lints on any touched header, too slow to pay per
 edit - but it IS the first half of `check-full`.

@@ -49,7 +49,9 @@ namespace Botanik { namespace Health {
         /** @brief The registration handler. A static MEMBER, so the cast has
          *  access to the protected hook and stays beside the class. */
         static void _service_task(Component* c, const Tasks::Tick& t);
+#if BOTANIK_FEATURE_VARS
         static void _latch_task(Component* c, const Tasks::Tick& t);
+#endif
 
         /** @brief Carry this beat's verdict to control authority, and the
          *  authority to the programs.
@@ -59,7 +61,9 @@ namespace Botanik { namespace Health {
          *  Bank it already writes alarms into, and the gate is on the registry
          *  every Component is built with. It also raises SCAN_LATE, which is a
          *  platform alarm like the six others this binds. */
+#if BOTANIK_FEATURE_VARS
         void _latch_control(uint64_t now_ms);
+#endif
         /** @brief Whether the last beat saw a fault. Edge tracking only: the
          *  control state lives in the Bank, so an operator's `control disable`
          *  is not something this can silently talk over. */
@@ -97,22 +101,32 @@ namespace Botanik { namespace Health {
         // deterministic screen goldens (sim/test only; reads 0 on OPTA).
         bool     _no_load_alarms   = HAL::Env::u8("BOTANIK_NO_LOAD_ALARMS", 0) != 0;
 
-        /** @name The alarms this class raises
-         *
-         *  A named reference each, bound once in on_setup() rather than looked
-         *  up per beat. No enum and no index table: the row is found by the name
-         *  written beside it in _bind_alarms(), and a name matching no row is
-         *  counted by the bank, logged, and failed by POST.
-         *  @{ */
-        Vars::VarRef _a_reset  = { Vars::VAR_NONE };
-        Vars::VarRef _a_xrun   = { Vars::VAR_NONE };
-        Vars::VarRef _a_load   = { Vars::VAR_NONE };
-        Vars::VarRef _a_stack  = { Vars::VAR_NONE };
-        Vars::VarRef _a_jitter = { Vars::VAR_NONE };
-        Vars::VarRef _a_flash  = { Vars::VAR_NONE };
+    public:
+        /** @brief The alarms this class raises, in the order PLATFORM_NAMES
+         *  spells them. An index rather than a name at the call site, because
+         *  the two builds keep the boolean in different places. */
+        enum PlatAlarm {
+            PA_RESET = 0, PA_XRUN, PA_LOAD, PA_STACK, PA_JITTER, PA_FLASH,
+            PA_COUNT
+        };
+    private:
+        /** @brief The row each one is, by name. A name matching no row is
+         *  counted by the bank, logged, and failed by POST. */
+        static const char* const PLATFORM_NAMES[PA_COUNT];
+
+#if BOTANIK_FEATURE_VARS
+        /** @brief Bound once in on_setup() rather than looked up per beat. */
+        Vars::VarRef _a[PA_COUNT];
+#else
+        /** @brief Where the six live with no table to hold them, and the source
+         *  that lets the model read them. Per-instance because the source
+         *  borrows pointers INTO this object. */
+        bool                     _a_state[PA_COUNT] = { false, false, false, false, false, false };
+        Alarms::StaticAlarm      _a_rows[PA_COUNT];
+        Alarms::StaticAlarmTable _alarm_rows;
+#endif
         /** @brief Cleared by _bind() when a name resolves to nothing. */
         bool         _bound_ok = true;
-        /** @} */
 
         /** @name The thresholds those alarms fire at
          *
@@ -128,9 +142,14 @@ namespace Botanik { namespace Health {
          *  moves. Bound beside the alarms they threshold, and unbound they read
          *  the bank's inert sink, so _pct() falls back to the Config value.
          *  @{ */
+#if BOTANIK_FEATURE_VARS
         Vars::VarRef _p_load_pct   = { Vars::VAR_NONE };
         Vars::VarRef _p_jitter_pct = { Vars::VAR_NONE };
         Vars::VarRef _p_stack_pct  = { Vars::VAR_NONE };
+#else
+        // No rows to point at; _pct() ignores these and answers the default.
+        static const int _p_load_pct = 0, _p_jitter_pct = 0, _p_stack_pct = 0;
+#endif
         /** @} */
 
     public:
@@ -287,12 +306,8 @@ namespace Botanik { namespace Health {
          *  them, so this list IS the list: no second copy to drift from. */
         void _bind_alarms() {
             _bound_ok = true;
-            _a_reset  = _bind("alarm_system_reset");
-            _a_xrun   = _bind("alarm_cpu_xrun");
-            _a_load   = _bind("alarm_cpu_load");
-            _a_stack  = _bind("alarm_stack");
-            _a_jitter = _bind("alarm_cpu_jitter");
-            _a_flash  = _bind("alarm_flash_error");
+#if BOTANIK_FEATURE_VARS
+            for (uint8_t i = 0; i < PA_COUNT; i++) _a[i] = _bind(PLATFORM_NAMES[i]);
             // The thresholds go through find() directly, not _bind(): a missing
             // one falls back to its Config default and the monitor still works,
             // where a missing ALARM row means a fault that can never be raised.
@@ -303,8 +318,10 @@ namespace Botanik { namespace Health {
                 _p_jitter_pct = _io->find("sys_jitter_pct");
                 _p_stack_pct  = _io->find("sys_stack_pct");
             }
+#endif
         }
 
+#if BOTANIK_FEATURE_VARS
         /** @brief A threshold's live percent: the parameter, or @p dflt when the
          *  row is absent or reads invalid. */
         uint8_t _pct(Vars::VarRef r, uint8_t dflt) const {
@@ -314,6 +331,10 @@ namespace Botanik { namespace Health {
             const float v = h.as_f32();
             return (v >= 1.0f && v <= 100.0f) ? (uint8_t)v : dflt;
         }
+#else
+        /** @brief No parameter to read: the build-time value IS the threshold. */
+        uint8_t _pct(int, uint8_t dflt) const { return dflt; }
+#endif
 
         /** @brief Resolve @p name, reporting a miss for POST. A site that left
          *  BOTANIK_PLATFORM_ALARM_VARS out of its table lands here six times,
@@ -331,8 +352,12 @@ namespace Botanik { namespace Health {
         /** @brief Raise or clear @p r. Writing the variable IS raising the
          *  alarm: the model reads the same row on its next step. An unbound one
          *  lands on the bank's inert sink, so this needs no guard. */
-        void _raise(Vars::VarRef r, bool on) {
-            if (_io != nullptr) _io->var(r).set(on);
+        void _raise(PlatAlarm a, bool on) {
+#if BOTANIK_FEATURE_VARS
+            if (_io != nullptr) _io->var(_a[a]).set(on);
+#else
+            _a_state[a] = on;
+#endif
         }
 
         /** @brief Raise/clear the platform alarms from the scheduler metrics.
@@ -340,24 +365,24 @@ namespace Botanik { namespace Health {
          *  STACK are level-driven; CPU_XRUN is a one-beat PULSE the table's
          *  own hold_s latches (see below). */
         void _assert_platform_alarms(uint64_t now) {
-            _raise(_a_reset, now < Config::HEALTH_RESET_WINDOW_MS);
+            _raise(PA_RESET, now < Config::HEALTH_RESET_WINDOW_MS);
             // Sticky by construction: the counter only ever rises, so a refused
             // write holds the alarm up until a reboot. A store that will not
             // take writes does not recover on its own.
-            _raise(_a_flash, HAL::Storage::fault_count() > 0);
+            _raise(PA_FLASH, HAL::Storage::fault_count() > 0);
             if (_sched == nullptr) return;
             const uint32_t period_us = Config::TASK_PERIOD_MS * 1000u;
             // Under BOTANIK_NO_LOAD_ALARMS hold the CPU_* load alarms cleared
             // so the active set is stable for screen goldens (SYS_RST / STACK
             // unaffected).
             const bool load = !_no_load_alarms;
-            _raise(_a_load, load &&
+            _raise(PA_LOAD, load &&
                 (uint64_t)_sched->cpu_loop_us_recent * 100u
                     > (uint64_t)period_us * _pct(_p_load_pct, Config::ALARM_CPU_LOAD_PCT));
-            _raise(_a_jitter, load &&
+            _raise(PA_JITTER, load &&
                 (uint64_t)_sched->cpu_jitter_us_recent * 100u
                     > (uint64_t)period_us * _pct(_p_jitter_pct, Config::ALARM_CPU_JITTER_PCT));
-            _raise(_a_stack,
+            _raise(PA_STACK,
                 _sched->stack_usage * 100.0f > (float)_pct(_p_stack_pct, Config::ALARM_STACK_PCT));
             // A counter, not a level: pulse the row for the one beat the count
             // moved and let the CPU_XRUN row's own hold_s do the latching, like
@@ -366,7 +391,7 @@ namespace Botanik { namespace Health {
             // always sampled - keep them together or it is missed.
             const bool xrun = load && _sched->overruns != _xrun_last;
             _xrun_last = _sched->overruns;
-            _raise(_a_xrun, xrun);
+            _raise(PA_XRUN, xrun);
         }
 
         /** @brief Watchdog verdict: the loop is alive, so constant while

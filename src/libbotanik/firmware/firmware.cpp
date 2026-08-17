@@ -20,13 +20,19 @@ namespace Botanik {
           _logger(),
           _scheduler(_tasks, Config::TASK_PERIOD_MS, &_logger),
           _setup(_tasks, &_logger),
+#if BOTANIK_FEATURE_VARS
           _io(_setup),
           // Parameters come from local storage; the bank owns the store.
           _param_store(),
           _binder(_setup, &_io),
+#endif
           // The alarm model scans the variable table for SCOPE_A rows;
           // platform-health alarms are appended and driven locally.
+#if BOTANIK_FEATURE_VARS
           _health(_setup, _scheduler.context(), &_io)
+#else
+          _health(_setup, _scheduler.context())
+#endif
           , _sys_ctx()   // fields wired in the body, once addresses are known
 #if BOTANIK_FEATURE_LOGS_MONITOR
           , _monitor(_setup)
@@ -91,7 +97,9 @@ namespace Botanik {
         // Wire the status aggregate now every subsystem address is fixed.
         _sys_ctx.scheduler = _scheduler.context();
         _sys_ctx.tasks     = &_tasks;
+#if BOTANIK_FEATURE_VARS
         _sys_ctx.vars      = &_io;
+#endif
 #if BOTANIK_FEATURE_NETWORK
         _sys_ctx.network = &_net.network();
 #endif
@@ -214,14 +222,18 @@ namespace Botanik {
 
         _scheduler.setup(HAL::Clock::uptime_ms(), _hw_watchdog_ms);
 
-        // AFTER the line above, which is what loads the parameters: what the
-        // console and the monitor adopt here is the store, not the defaults.
+        // AFTER the line above, which is what loads the parameters: what each
+        // component is handed here is the store, not the defaults.
+#if BOTANIK_FEATURE_VARS
         _binder.apply_all();
+#endif
 
         // Bring-up is done: release the system's hold on control. It starts held
         // (Bank's default), so nothing between power-on and here can energise an
         // actuator on the way past.
+#if BOTANIK_FEATURE_VARS
         _io.set_health_hold(false);
+#endif
 
         // One line per UART so neither overflows 80 cols and each gates with its
         // feature (console/monitor dropped when their UART is absent).
@@ -252,11 +264,13 @@ namespace Botanik {
 #endif
 #endif
 
+#if BOTANIK_FEATURE_VARS
     void BotanikFirmware::_resolve_site_refs() {
         if (_site.home_refs != nullptr && _site.home_fields != nullptr)
             for (uint8_t i = 0; i < _site.home_field_count; i++)
                 _site.home_refs[i] = _io.find(_site.home_fields[i].name);
     }
+#endif
 
     // The task table
 
@@ -280,10 +294,12 @@ namespace Botanik {
         // The bank's own two sweeps: age a row out, and reject one that is
         // fresh and still nonsense. Both before anything reads, so one beat is
         // coherent.
+#if BOTANIK_FEATURE_VARS
         _io.register_tasks();
 
         // --- CONFIG: a commit reaches its component ---
         _binder.register_tasks();
+#endif
 
 
 

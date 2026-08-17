@@ -81,6 +81,25 @@ add_custom_target(check
     VERBATIM
 )
 
+# `make check-bare` compiles the OTHER end of the feature profile: sites/bare,
+# every optional flag off. Compile-only and site-specific, so it builds
+# botanik_sim rather than the suite - the tests are written against a site that
+# HAS a variable table.
+#
+# It exists because an OFF path nothing builds rots silently. When it was added,
+# three already had: two modbus .cpp files closed their feature guard before the
+# end of the file, and register_vars() was gated on CONSOLE rather than VARS.
+add_custom_target(check-bare
+    COMMAND ${CMAKE_COMMAND} -G ${CMAKE_GENERATOR} -S ${CMAKE_SOURCE_DIR}
+            -B ${CMAKE_BINARY_DIR}/bare -DBOTANIK_TARGET=SIMULATOR
+            -DBOTANIK_SITE=bare
+    COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR}/bare
+            --target botanik_sim --parallel ${_nproc}
+    USES_TERMINAL
+    COMMENT "Sweep: libbotanik with every optional feature off (build/bare/)"
+    VERBATIM
+)
+
 # `make check-full` is the periodic SWEEP: clang-tidy, then the whole gate again
 # under ASan+UBSan in a tree of its own under build/asan/. Too slow to pay per
 # edit; run it before a push that touches memory handling. It drives the
@@ -100,6 +119,9 @@ add_custom_target(check-full
 if(TARGET clang-tidy)
     add_dependencies(check-full clang-tidy)
 endif()
+# The bare profile is part of the sweep: cheap next to an instrumented rebuild,
+# and it is the only thing that compiles a feature's OFF path.
+add_dependencies(check-full check-bare)
 
 # pyte screen-assertion tests (Python) - host-only, joined to the same CTest
 # ============================================================================

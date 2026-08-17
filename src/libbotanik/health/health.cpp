@@ -10,16 +10,31 @@
 
 namespace Botanik { namespace Health {
 
+    /** @brief One name per PlatAlarm, in enum order. Nothing else names them,
+     *  so this list IS the list: no second copy to drift from. */
+    const char* const HealthMonitor::PLATFORM_NAMES[HealthMonitor::PA_COUNT] = {
+        "alarm_system_reset",
+        "alarm_cpu_xrun",
+        "alarm_cpu_load",
+        "alarm_stack",
+        "alarm_cpu_jitter",
+        "alarm_flash_error",
+    };
+
     /** @brief The registry hands back the owner it was given; the cast is
      *  confined to this line, beside the method it calls. */
     void HealthMonitor::_service_task(Component* c, const Tasks::Tick& t) {
         static_cast<HealthMonitor*>(c)->on_service(t.now_ms);
     }
 
+#if BOTANIK_FEATURE_VARS
     void HealthMonitor::_latch_task(Component* c, const Tasks::Tick& t) {
         static_cast<HealthMonitor*>(c)->_latch_control(t.now_ms);
     }
 
+    // Control authority is the Bank's latch, so there is none to carry without
+    // one. A build with no variable model has a watchdog verdict and alarms,
+    // and nothing to withdraw authority FROM.
     void HealthMonitor::_latch_control(uint64_t now_ms) {
         Vars::Bank* io = const_cast<Vars::Bank*>(_io);
         if (io == nullptr) return;
@@ -61,14 +76,17 @@ namespace Botanik { namespace Health {
         (void)Plc::report_writer_conflicts(*io, *_tasks, _logger, _conflicts_said);
 #endif
     }
+#endif // BOTANIK_FEATURE_VARS
 
     void HealthMonitor::register_tasks() {
         _tasks->add(*this, &HealthMonitor::_service_task, "health", Tasks::GROUP_SLOW,
               Tasks::PHASE_SERVICE);
+#if BOTANIK_FEATURE_VARS
         // Every beat, and BEFORE the programs: a fault must inhibit this beat's
         // control, not the next one.
         _tasks->add(*this, &HealthMonitor::_latch_task, "control_latch",
                     Tasks::GROUP_FAST, Tasks::PHASE_SERVICE);
+#endif
         // Then the model, which this used to step inside its own task: same
         // order, but with a rate and a TASKS row of its own.
         _model.register_tasks();
