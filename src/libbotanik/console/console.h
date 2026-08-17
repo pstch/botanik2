@@ -151,6 +151,9 @@ namespace Botanik { namespace Terminal {
          *         there is no change to report and no sink to report it to. */
         void set_config(const ConsoleConfig& cfg, bool announce = true);
 
+        /** @brief The rate the wire is running at, as last applied. */
+        uint32_t baud() const { return _baud; }
+
         /** @brief Re-declare which terminal is on the wire and how big it is,
          *  and put the frame back on the screen it just blanked. What the
          *  `console_` group commits to, driven from PHASE_CONFIG.

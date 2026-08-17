@@ -61,6 +61,13 @@
 namespace Botanik {
 
 #if BOTANIK_FEATURE_LOGS_MONITOR
+    /** @brief The MONITOR port's line rate. Unstaged, where the console's waits
+     *  for the `console_` commit: this is a one-way log stream, so getting the
+     *  rate wrong costs the log and nothing else. */
+    struct MonitorConfig {
+        uint32_t baud = 115200;
+    };
+
     /** @brief The MONITOR diagnostic path: a dedicated UART and the
      *  SerialLogWriter that drains the logger onto it. Independent of the
      *  console (a headless build can still keep it). */
@@ -69,70 +76,32 @@ namespace Botanik {
         Utils::BufferedSerial _serial;
         Logs::SerialLogWriter _writer;
 
-        /** @brief The monitor's own rate, as a Component so it registers like
-         *  everything else.
-         *
-         *  Beside the writer rather than on it, and the reason is layering:
-         *  `vars/` depends on `logs/` (the Bank reports a refused write through
-         *  a Logger), so giving a log writer a Bank would close that into a
-         *  cycle and `logs/` would stop building without `vars/`. This class is
-         *  in `firmware/`, which already depends on both. */
-        class Rate : public Component {
-            Utils::BufferedSerial& _port;
-            const Vars::Bank*      _io;
-            uint32_t               _baud = Config::MONITOR_BAUD;
-
-        public:
-            Rate(const SetupContext& ctx, Utils::BufferedSerial& port,
-                 const Vars::Bank* cfg)
-                : Component(ctx, "monitor"), _port(port), _io(cfg) {}
-
-            void register_tasks() override {
-                _tasks->add(*this, &Rate::_task, "monitor_cfg",
-                      Tasks::GROUP_SLOW, Tasks::PHASE_CONFIG);
-            }
-
-            /** @brief Edge-triggered, so the steady case is one integer compare
-             *  and no device call. Applies the moment it moves, where the
-             *  CONSOLE's waits for the `console_` commit: the monitor is a one-way
-             *  log stream, so getting its rate wrong costs the log and nothing
-             *  else. */
-            void apply() {
-                if (_io == nullptr) return;
-                const uint32_t want = (uint32_t)Vars::get_int(
-                    _io, "monitor_baud", (int32_t)_baud);
-                if (want == _baud || want == 0) return;
-                _baud = want;
-                _port.begin(want);
-            }
-
-        private:
-            static void _task(Component* c, const Tasks::Tick&) {
-                static_cast<Rate*>(c)->apply();
-            }
-        };
-        Rate _rate;
+        /** @brief The rate in force. 0 until something sets one, so the first
+         *  push always reaches the device. */
+        uint32_t              _baud = 0;
 
     public:
-        MonitorStack(const SetupContext& ctx, const Vars::Bank* cfg = nullptr)
+        explicit MonitorStack(const SetupContext& ctx)
             : _serial(HAL::Serial::get(HAL::Serial::MONITOR)),
               _writer(ctx, _serial, /*drop_if_tty=*/true, "monitor_log", "MONITOR",
-                      "monitor_level"),
-              _rate(ctx, _serial, cfg) {}
+                      "monitor_level") {}
 
         Utils::BufferedSerial& serial() { return _serial; }
         Logs::SerialLogWriter& writer() { return _writer; }
+        /** @brief The rate the port is running at, as last applied. */
+        uint32_t baud() const { return _baud; }
 
-        /** @brief The writer's drain, then the port's own rate. The port itself
-         *  is not a task: the writer owns the wire and pumps it in its own. */
-        void register_tasks() {
-            _writer.register_tasks();
-            _rate.register_tasks();
+        /** @brief Edge-triggered, so the steady case is one integer compare and
+         *  no device call. */
+        void set_config(const MonitorConfig& cfg) {
+            if (cfg.baud == 0 || cfg.baud == _baud) return;
+            _baud = cfg.baud;
+            _serial.begin(cfg.baud);
         }
 
-        /** @brief Apply the stored rate before the loop, so the boot lines go
-         *  out at it. */
-        void apply_stored_config() { _rate.apply(); }
+        /** @brief The writer's drain. The port itself is not a task: the writer
+         *  owns the wire and pumps it in its own. */
+        void register_tasks() { _writer.register_tasks(); }
     };
 #endif
 

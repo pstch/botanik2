@@ -62,9 +62,10 @@ def test_the_task_table_is_complete(spawn):
 
     # Every library task a full build registers. Move it deliberately when the
     # set changes; an unexplained DROP is the bug this exists to catch. Last
-    # moved when reject_implausible went: the band check happens where a reading
-    # arrives now, so the sweep had nothing left to do.
-    assert term.wait_for("Registered ....... : 22"), \
+    # moved when the config binder arrived: console_cfg and monitor_cfg were two
+    # components reading their own rows, and are now one `config` task pushing
+    # every component its config struct.
+    assert term.wait_for("Registered ....... : 21"), \
         "the task table changed size - a registration was added or silently lost"
     assert term.wait_for("0 refused"), "a registration was refused: MAX_TASKS"
 

@@ -17,6 +17,12 @@
 #if BOTANIK_FEATURE_CONSOLE
 #include "libbotanik/console/console.h"
 #endif
+#if BOTANIK_FEATURE_LOGS_MONITOR
+#include "libbotanik/firmware/stacks.h"
+#endif
+#if BOTANIK_FEATURE_SUN_TRACKER
+#include "libbotanik/sun/sun_tracker.h"
+#endif
 
 namespace Botanik { namespace Vars {
 
@@ -49,6 +55,9 @@ namespace Botanik { namespace Vars {
             // An unstaged binding re-reads every beat; set_config() is required
             // to be a no-op when nothing moved, so the cost is the read.
             const uint32_t serial = (b.serial != nullptr) ? group_serial(_io, b.serial) : 0;
+            // A group with no rows answers 0: this site does not configure that
+            // component, so it keeps its struct defaults and is never pushed.
+            if (b.serial != nullptr && serial == 0) continue;
             if (b.ever && b.serial != nullptr && serial == b.applied) continue;
             b.applied = serial;
             // Announcing is for a CHANGE, and the first push is not one: it
@@ -80,6 +89,35 @@ namespace Botanik { namespace Vars {
 
     void bind_console(ConfigBinder& binder, Terminal::Console& console) {
         binder.add("console", &console, &apply_console);
+    }
+#endif
+
+#if BOTANIK_FEATURE_LOGS_MONITOR
+    /** @brief `monitor_baud`, unstaged: one row, and a wrong rate costs the log
+     *  and nothing else. */
+    static void apply_monitor(void* target, const Bank& io, bool) {
+        MonitorConfig cfg;
+        cfg.baud = io.var("monitor_baud").value().as_u32();
+        static_cast<MonitorStack*>(target)->set_config(cfg);
+    }
+
+    void bind_monitor(ConfigBinder& binder, MonitorStack& monitor) {
+        binder.add(nullptr, &monitor, &apply_monitor);
+    }
+#endif
+
+#if BOTANIK_FEATURE_SUN_TRACKER
+    /** @brief The `geo_` group. The pair is taken TOGETHER, on the commit: that
+     *  is what makes it one location rather than two edited numbers. */
+    static void apply_geo(void* target, const Bank& io, bool) {
+        Sun::GeoConfig geo;
+        geo.lat_deg = io.var("geo_lat_deg").as_f32();
+        geo.lon_deg = io.var("geo_lon_deg").as_f32();
+        static_cast<Sun::SunPositionTracker*>(target)->set_config(geo);
+    }
+
+    void bind_sun(ConfigBinder& binder, Sun::SunPositionTracker& sun) {
+        binder.add("geo", &sun, &apply_geo);
     }
 #endif
 

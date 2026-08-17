@@ -19,6 +19,8 @@
 
 namespace Botanik { namespace Tasks { struct Tick; } }
 namespace Botanik { namespace Terminal { class Console; } }
+namespace Botanik { namespace Sun { class SunPositionTracker; } }
+namespace Botanik { class MonitorStack; }
 
 namespace Botanik { namespace Vars {
 
@@ -67,8 +69,10 @@ namespace Botanik { namespace Vars {
         void register_tasks() override;
 
         /** @brief Push every binding whose group has moved, and every binding
-         *  that has never been pushed. @warning AFTER the parameter load, or the
-         *  defaults land and the stored image never does. */
+         *  that has never been pushed. A group with no rows is never pushed at
+         *  all: that component is one this site does not configure.
+         *  @warning AFTER the parameter load, or the defaults land and the
+         *  stored image never does. */
         void apply_all();
 
         /** @} */
@@ -83,6 +87,8 @@ namespace Botanik { namespace Vars {
      *  @{ */
 
     void bind_console(ConfigBinder& binder, Terminal::Console& console);
+    void bind_sun(ConfigBinder& binder, Sun::SunPositionTracker& sun);
+    void bind_monitor(ConfigBinder& binder, MonitorStack& monitor);
 
     /** @} */
 

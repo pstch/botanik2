@@ -195,13 +195,17 @@ TEST_CASE("site: the standalone components resolve their config names too") {
     // once (geo_lat_deg vs geo_latitude), parking the site on a flat 12-hour equator.
     SiteBank f;
     Logs::Logger logger;
-    Sun::SunPositionTracker sun(Botanik::SetupContext(nullptr, &logger), &f.bank);
+    Sun::SunPositionTracker sun(Botanik::SetupContext(nullptr, &logger));
+    Vars::ConfigBinder binder(Botanik::SetupContext(nullptr, &logger), &f.bank);
+    Vars::bind_sun(binder, sun);
 
-    // geo_serial defaults non-zero (skips the "not configured" early-out); host clock is real.
+    // geo_serial defaults non-zero (a group with no rows is never pushed at
+    // all); host clock is real.
+    binder.apply_all();
     sun.step(1000);
     REQUIRE(sun.ready());          // it actually computed, rather than returning early
 
-    INFO("SunPositionTracker names a config variable that is not in vars.h");
+    INFO("the geo binding names a config variable that is not in vars.h");
     CHECK(f.bank.unresolved_count() == 0);
 }
 #endif

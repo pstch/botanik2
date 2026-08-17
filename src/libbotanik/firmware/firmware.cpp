@@ -29,7 +29,7 @@ namespace Botanik {
           _health(_setup, _scheduler.context(), &_io)
           , _sys_ctx()   // fields wired in the body, once addresses are known
 #if BOTANIK_FEATURE_LOGS_MONITOR
-          , _monitor(_setup, &_io)
+          , _monitor(_setup)
 #endif
 #if BOTANIK_FEATURE_NETWORK
           // Network reads its config from the variable bank by name;
@@ -70,6 +70,9 @@ namespace Botanik {
         // them exists. Pushed at PHASE_CONFIG, and once at bring-up.
 #if BOTANIK_FEATURE_CONSOLE
         Vars::bind_console(_binder, _console.terminal());
+#endif
+#if BOTANIK_FEATURE_LOGS_MONITOR
+        Vars::bind_monitor(_binder, _monitor);
 #endif
 
         // Wire the status aggregate now every subsystem address is fixed.
@@ -118,11 +121,13 @@ namespace Botanik {
         // What runs on the beat, in which phase, and how often.
         _register_tasks();
 
+        // The factory rate, so the boot lines have a wire before the store is
+        // read. The binder retunes both ports once the parameters land.
 #if BOTANIK_FEATURE_CONSOLE
-        HAL::Serial::get(HAL::Serial::CONSOLE)->begin(_console_baud);
+        HAL::Serial::get(HAL::Serial::CONSOLE)->begin(Terminal::ConsoleConfig().baud);
 #endif
 #if BOTANIK_FEATURE_LOGS_MONITOR
-        HAL::Serial::get(HAL::Serial::MONITOR)->begin(_monitor_baud);
+        HAL::Serial::get(HAL::Serial::MONITOR)->begin(MonitorConfig().baud);
 #endif
 
         // Core sinks: monitor + (with the UI) shell/logs pages, plus a TX-drop
@@ -197,9 +202,6 @@ namespace Botanik {
         // AFTER the line above, which is what loads the parameters: what the
         // console and the monitor adopt here is the store, not the defaults.
         _binder.apply_all();
-#if BOTANIK_FEATURE_LOGS_MONITOR
-        _monitor.apply_stored_config();
-#endif
 
         // Bring-up is done: release the system's hold on control. It starts held
         // (Bank's default), so nothing between power-on and here can energise an
@@ -211,10 +213,11 @@ namespace Botanik {
         _logger.debug(Logs::BOOT, "boot complete\nHW watchdog %lu ms",
                       (unsigned long)_hw_watchdog_ms);
 #if BOTANIK_FEATURE_CONSOLE
-        _logger.debug(Logs::BOOT, "console %lu baud", (unsigned long)_console_baud);
+        _logger.debug(Logs::BOOT, "console %lu baud",
+                      (unsigned long)_console.terminal().baud());
 #endif
 #if BOTANIK_FEATURE_LOGS_MONITOR
-        _logger.debug(Logs::BOOT, "monitor %lu baud", (unsigned long)_monitor_baud);
+        _logger.debug(Logs::BOOT, "monitor %lu baud", (unsigned long)_monitor.baud());
 #endif
     }
 

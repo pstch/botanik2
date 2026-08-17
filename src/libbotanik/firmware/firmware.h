@@ -12,9 +12,8 @@
  * `GreenhouseXXX : BotanikFirmware`, customizing only through register_*(),
  * on_setup() and the six per-phase hooks. See docs/integration.
  * @note Both UART rates are PARAMETERS, not compile-time constants
- *       (`console_baud`, `monitor_baud`); _apply_serial_config() retunes the
- *       UART and the render TX budget together, a renderer pacing for the wrong
- *       rate being worse than not retuning at all.
+ *       (`console_baud`, `monitor_baud`), and reach their port through
+ *       ConfigBinder like every other setting.
  */
 
 #include <cstdint>
@@ -99,13 +98,6 @@ namespace Botanik {
 
         /** @name Configuration
          *  @{ */
-
-        /** @name Applied UART rates
-         *  What the two ports are actually running at, so
-         *  _apply_serial_config() reconfigures only on the edge. @{ */
-        uint32_t                      _console_baud  = Config::CONSOLE_BAUD;
-        uint32_t                      _monitor_baud  = Config::MONITOR_BAUD;
-        /** @} */
 
         /** @brief The site's declarative tables + name (borrowed; site statics
          *  outlive the firmware). Drives page/command/telemetry/config wiring. */

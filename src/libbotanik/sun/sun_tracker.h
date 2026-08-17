@@ -49,27 +49,32 @@ namespace Botanik { namespace Sun {
      *  @name Stateful sun position tracker
      *  @{ */
 
+    /** @brief Where on earth this site is. Degrees, positive north and east.
+     *  Both together or neither: a latitude belonging to one place and a
+     *  longitude to another is a position nowhere on earth. */
+    struct GeoConfig {
+        float lat_deg = 0.0f;
+        float lon_deg = 0.0f;
+    };
+
     /** @brief Tracks the sun's elevation for the geo-configured location:
      *         current angle, the day's peak, the angle-to-peak ratio, and
      *         whether the sun is rising or falling. */
     class SunPositionTracker : public Component {
-        const Vars::Bank* _io;   ///< config source (may be null in tests). Read by name.
         SolarPosition _pos;    ///< Cached solar position (see ready()).
         uint64_t _next_ms;     ///< Timestamp the next scheduled recompute.
         bool     _computed;    ///< Position successfully acquired.
-        /** @name The committed location
-         *  Taken on the `geo_` commit, not read per recompute. The group HAS a
-         *  commit serial because a half-applied one is incoherent - a latitude
-         *  belonging to one place and a longitude to another is a position
-         *  nowhere on earth. Reading them live would step around exactly the
-         *  guarantee the serial exists to give.
-         *  @{ */
-        float    _lat = 0.0f;
-        float    _lon = 0.0f;
-        /** @} */
+        /** @brief The location in force, and whether anyone has given one. An
+         *  unlocated tracker computes nothing: 0,0 is a real place. */
+        GeoConfig _geo;
+        bool      _located = false;
 
     public:
-        SunPositionTracker(const SetupContext& ctx, const Vars::Bank* cfg);
+        explicit SunPositionTracker(const SetupContext& ctx);
+
+        /** @brief Adopt @p geo and drop the old computation; on_service()
+         *  recomputes once the wall clock is valid. */
+        void set_config(const GeoConfig& geo);
 
         /** @brief Sun's elevation angle above the horizon (radians; negative below).
          *  @note Zero until the first computation (see ready()). */
@@ -99,14 +104,6 @@ namespace Botanik { namespace Sun {
         bool ready() const { return _computed; }
 
     protected:
-        /** @brief Get the serial number of the geographical configuration.
-         * @implements Component
-          */
-        uint32_t param_serial() const override;
-
-        /** @brief Invalidate the current position on a location change. */
-        void on_param_changed(uint64_t now_ms) override;
-
         /** @brief Recompute the solar position after a delay has elapsed. */
         void on_service(uint64_t now_ms) override;
     };

@@ -146,27 +146,18 @@ namespace Botanik { namespace Sun {
     // meaningless, so we wait.
     static const uint64_t WALL_CLOCK_VALID_MS = 1600000000000ull;
 
-    SunPositionTracker::SunPositionTracker(const SetupContext& ctx, const Vars::Bank* cfg)
-        : Component(ctx, "SunPositionTracker"), _io(cfg),
+    SunPositionTracker::SunPositionTracker(const SetupContext& ctx)
+        : Component(ctx, "SunPositionTracker"),
           _pos(), _next_ms(0), _computed(false) {}
 
-    uint32_t SunPositionTracker::param_serial() const {
-        return Vars::group_serial(_io, "geo");
-    }
-
-    void SunPositionTracker::on_param_changed(uint64_t now_ms) {
-        (void)now_ms;
-        // Take the pair TOGETHER, on the commit: that is what makes it one
-        // location rather than two independently edited numbers.
-        _lat = Vars::get_f32(_io, "geo_lat_deg");
-        _lon = Vars::get_f32(_io, "geo_lon_deg");
-        // New location: drop the old computation; on_service recomputes once the
-        // clock is valid.
+    void SunPositionTracker::set_config(const GeoConfig& geo) {
+        _geo = geo;
+        _located = true;
         _computed = false;
     }
 
     void SunPositionTracker::on_service(uint64_t now_ms) {
-        if (applied_serial() == 0) return;   // geo not configured
+        if (!_located) return;
         // wait for a real (NTP) time before the date-dependent solar math
         if (HAL::Clock::wall_ms() < WALL_CLOCK_VALID_MS) return;
 
@@ -174,7 +165,7 @@ namespace Botanik { namespace Sun {
         // first valid beat / after a geo change, both signalled by !_computed).
         if (_computed && now_ms < _next_ms) return;
 
-        _pos      = solar_position(now_ms, (double)_lat, (double)_lon);
+        _pos      = solar_position(now_ms, (double)_geo.lat_deg, (double)_geo.lon_deg);
         _computed = true;
         _next_ms  = now_ms + Config::SUN_RECOMPUTE_MS;
     }
