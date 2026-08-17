@@ -11,7 +11,6 @@
 
 #include "libbotanik/core/component.h"
 #include "libbotanik/tasks/tasks.h"
-#include "libbotanik/plc/io.h"
 #include "libbotanik/vars/model.h"
 
 namespace Botanik { namespace Plc {
@@ -22,7 +21,9 @@ namespace Botanik { namespace Plc {
         uint32_t dt_ms;      ///< REAL ms since this program last ran, never the nominal period
         uint16_t missed;     ///< activations dropped since the last run; 0 normally
         bool     first_scan; ///< first activation at bring-up, or after control returned
-        Io       io;         ///< narrowed bank view: read and drive only
+        /** @brief The variables. Writes go through drive(), which claims the row
+         *  for whoever the dispatcher's window names. */
+        Vars::Bank& bank;
     };
 
     /**
@@ -110,8 +111,12 @@ namespace Botanik { namespace Plc {
             _late_ms = (t.dt_ms > p) ? (t.dt_ms - p) : 0;
             if (_late_ms > _late_max_ms) _late_max_ms = _late_ms;
 
-            Context c = { t.now_ms, t.dt_ms, t.missed, t.first, Io(*_io, _slot) };
+            Context c = { t.now_ms, t.dt_ms, t.missed, t.first, *_io };
+            // The window, not the program, says who is writing: a program cannot
+            // name itself, and a write outside an activation claims nothing.
+            _io->begin_writer(_slot);
             run(c);
+            _io->end_writer();
         }
     };
 

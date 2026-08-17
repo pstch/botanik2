@@ -55,12 +55,6 @@ namespace Botanik {
          *  one per consumer. */
         Vars::Bank*                    vars      = nullptr;
 
-        /** @brief The parameter surface over those variables. The bank above is
-         *  what reads and writes a row; this owns the things that are true of
-         *  the BLOCK - the boot load, and the retained-value save cadence that
-         *  the `save` command restarts. Non-const for that reason. */
-
-
 #if BOTANIK_FEATURE_NETWORK
         const Network::NetworkHandler* network   = nullptr; ///< IP config handler
 #endif

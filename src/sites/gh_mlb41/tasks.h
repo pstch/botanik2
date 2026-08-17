@@ -85,7 +85,7 @@ protected:
         // A meter that has stopped answering reads as its default (0 V), which
         // is out of band and therefore unhealthy - the fallback does the right
         // thing here without the program testing valid() at all.
-        const bool unhealthy = !Plc::in_range(c.io.value(_ln), 200.0f, 260.0f);
+        const bool unhealthy = !Plc::in_range(c.bank.var(_ln).as_f32(), 200.0f, 260.0f);
 
         // Reset-dominant: recovery wins, so the lockout cannot stick once the
         // supply is good again.
@@ -94,10 +94,10 @@ protected:
         // Publish the decision as an internal, so the console, the shell and
         // telemetry can all see WHY the windows are held - a coil reading 0
         // does not distinguish "not commanded" from "locked out".
-        c.io.set(_locked, _lockout.q());
+        c.bank.drive(_locked, _lockout.q());
 
         if (_lockout.q()) {
-            for (const Vars::VarRef& w : _win) c.io.set(w, false);
+            for (const Vars::VarRef& w : _win) c.bank.drive(w, false);
         }
     }
 
@@ -136,7 +136,7 @@ protected:
     }
 
     void run(Plc::Context& c) override {
-        c.io.set(_out, _hz(c.io.value(_raw), 0.05f));
+        c.bank.drive(_out, _hz(c.bank.var(_raw).as_f32(), 0.05f));
     }
 
     // No reset(): the deadband holds the last REPORTED reading, and a stale

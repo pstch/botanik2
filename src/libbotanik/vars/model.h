@@ -387,6 +387,7 @@ namespace Botanik { namespace Vars {
          *  forget. @see _resolve_shadows() */
         uint16_t      _row[Config::VAR_MAX];
         uint64_t      _last_retain_ms = 0;   ///< last retained write; 0 = none
+        uint8_t       _writer_now = WRITER_NONE;  ///< whose activation is open
 
         /** @brief One AnalogCal block and the rows its six tunables name.
          *  Cached as INDICES, not values: the index is fixed once the table is
@@ -591,13 +592,37 @@ namespace Botanik { namespace Vars {
         uint16_t unresolved_count() const { return _unresolved; }
 
         /** @name Write attribution
-         *  Who among the control programs drives a row, recorded on the way
-         *  through Plc::Io. @{ */
+         *  Who among the control programs drives a row, recorded by drive()
+         *  from whoever the dispatcher's window names. @{ */
 
         /** @brief Record @p who as the writer of @p r; false when it already
          *  belonged to another. First claim wins, and the write still goes
          *  through: refusing it would leave the plant where the loser left it. */
         bool claim_writer(VarRef r, uint8_t who);
+
+        /** @name Writer window
+         *
+         *  Whose writes count as theirs. The DISPATCHER opens the window around
+         *  one program's activation and closes it after, so a program cannot
+         *  name itself and a write outside any activation claims nothing.
+         *
+         *  Ambient state, and safe only because the beat is synchronous and
+         *  single-threaded: under preemption this would need to move onto the
+         *  writer.
+         *  @{ */
+        void begin_writer(uint8_t who) { _writer_now = who; }
+        void end_writer()              { _writer_now = WRITER_NONE; }
+        /** @} */
+
+        /** @name Driving
+         *  What a control PROGRAM calls: claim the row for whoever the window
+         *  names, then write. Distinct from param_set(), which edits a
+         *  parameter against its band.
+         *  @{ */
+        void drive(VarRef r, bool v)      { claim_writer(r, _writer_now); var(r).set(v); }
+        void drive(VarRef r, float v)     { claim_writer(r, _writer_now); var(r).set(v); }
+        void drive_i(VarRef r, int64_t v) { claim_writer(r, _writer_now); var(r).set_i(v); }
+        /** @} */
 
         /** @brief The program that claimed @p r, or WRITER_NONE. */
         uint8_t writer_of(VarRef r) const;

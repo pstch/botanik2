@@ -14,7 +14,6 @@
 #include <string>
 #include "libbotanik_site.h"
 #include "libbotanik.h"
-#include "libbotanik/plc/io.h"
 #include BOTANIK_SITE_HEADER
 #include "libbotanik/core/component.h"
 #include "site_bank.h"
@@ -284,7 +283,6 @@ namespace plc_io {
 
 using namespace Botanik;
 using namespace Botanik::Vars;
-using Botanik::Plc::Io;
 
 namespace {
 
@@ -330,7 +328,7 @@ public:
         : Program(ctx, name, g, io), _row(row) {}
 protected:
     void bind(Bank& io) override { _r = io.find(_row); }
-    void run(Plc::Context& c) override { c.io.set(_r, 1.0f); }
+    void run(Plc::Context& c) override { c.bank.drive(_r, 1.0f); }
 };
 
 /** @brief Appends its name to a shared log when it runs, so a case can check order. */
@@ -357,7 +355,9 @@ public:
         : Program(ctx, name, Botanik::Tasks::GROUP_FAST, io), _from(from), _to(to), _add(add) {}
 protected:
     void bind(Bank& io) override { _in = io.find(_from); _out = io.find(_to); }
-    void run(Plc::Context& c) override { c.io.set(_out, c.io.value(_in) + _add); }
+    void run(Plc::Context& c) override {
+        c.bank.drive(_out, c.bank.var(_in).as_f32() + _add);
+    }
 };
 
 /** @brief Records what the first-scan flag said on every activation. */
@@ -375,51 +375,43 @@ protected:
 
 }  // namespace
 
-TEST_CASE("plc io: it stays small enough to pass by value") {
-    // Built per activation: a pointer plus the writer byte, one word on the M7.
-    CHECK(sizeof(Io) <= 2 * sizeof(void*));
-}
-
 TEST_CASE("plc io: a program reads what the operator forced, not what the wire said") {
     // The point of applying an override in Var::raw(): a forced reading must reach control logic.
     Live f;
-    Io io(f.bank);
     const VarRef r = f.ref("cli_temp_ext1");
     REQUIRE(f.bank.var(r).meta()->name != nullptr);
 
     f.bank.var(r).publish(from_f32(T_F32, 20.0f), 1000);
-    CHECK(io.value(r) == doctest::Approx(20.0f));
-    CHECK(io.valid(r));
+    CHECK(f.bank.var(r).as_f32() == doctest::Approx(20.0f));
+    CHECK(f.bank.var(r).valid());
 
     f.bank.override_set(f.bank.var(r), from_f32(T_F32, 55.0f), true);
     INFO("the program must see the forced value");
-    CHECK(io.value(r) == doctest::Approx(55.0f));
+    CHECK(f.bank.var(r).as_f32() == doctest::Approx(55.0f));
 
     // ...and "force this to read as a dead sensor" is expressible too.
     f.bank.override_set(f.bank.var(r), from_f32(T_F32, 55.0f), false);
-    CHECK_FALSE(io.valid(r));
+    CHECK_FALSE(f.bank.var(r).valid());
 
     f.bank.override_clear(f.bank.var(r));
-    CHECK(io.value(r) == doctest::Approx(20.0f));
+    CHECK(f.bank.var(r).as_f32() == doctest::Approx(20.0f));
 }
 
 TEST_CASE("plc io: an invalid row reads as its declared default") {
     // So logic that doesn't care about quality still gets a sane number, not the slot's leftover.
     Live f;
-    Io io(f.bank);
     const VarRef r = f.ref("cli_temp_ext1");
 
     // Q_REFUSED, not Q_STALE: a stale row keeps its last reading, and this
     // row was never published - Q_STALE would pass only by coincidence.
     f.bank.var(r).publish(from_f32(T_F32, 33.0f), 1000);
     f.bank.var(r).invalidate(Q_REFUSED);
-    CHECK_FALSE(io.valid(r));
-    CHECK(io.value(r) == doctest::Approx(f.bank.var(r).meta()->def.f));
+    CHECK_FALSE(f.bank.var(r).valid());
+    CHECK(f.bank.var(r).as_f32() == doctest::Approx(f.bank.var(r).meta()->def.f));
 }
 
 TEST_CASE("plc io: a write lands on the row and is owed to the field") {
     Live f;
-    Io io(f.bank);
 
     // A relay coil: a ROLE_OUTPUT, so the write has to be carried outward.
     VarRef out = { VAR_NONE };
@@ -432,40 +424,44 @@ TEST_CASE("plc io: a write lands on the row and is owed to the field") {
     REQUIRE(out.index != VAR_NONE);
 
     f.bank.var(out).clear_field_dirty();
-    io.set(out, true);
+    f.bank.drive(out, true);
 
     INFO("'" << std::string(f.bank.var(out).name()) << "'");
-    CHECK(io.on(out));
+    CHECK(f.bank.var(out).b());
     CHECK(f.bank.var(out).field_dirty());
 
-    io.set(out, false);
-    CHECK_FALSE(io.on(out));
+    f.bank.drive(out, false);
+    CHECK_FALSE(f.bank.var(out).b());
 }
 
 TEST_CASE("plc io: a row remembers which program drives it") {
     Live f;
-    Io one(f.bank, 3);
     const VarRef r = f.ref("cli_temp_ext1");
 
     CHECK(f.bank.writer_of(r) == WRITER_NONE);
-    one.set(r, 1.0f);
+    f.bank.begin_writer(3);
+    f.bank.drive(r, 1.0f);
     CHECK(f.bank.writer_of(r) == 3);
 
     // The same program writing again every beat is the ordinary case and must stay silent.
-    for (int i = 0; i < 10; ++i) one.set(r, 2.0f);
+    for (int i = 0; i < 10; ++i) f.bank.drive(r, 2.0f);
+    f.bank.end_writer();
     CHECK(f.bank.writer_conflicts() == 0);
 }
 
 TEST_CASE("plc io: a second program on one row is counted, and the write stands") {
     // Two authors is a site design defect: the row gets whichever ran last, chattering at the scan rate.
     Live f;
-    Io one(f.bank, 1), two(f.bank, 2);
     const VarRef r = f.ref("cli_temp_ext1");
 
-    one.set(r, 10.0f);
+    f.bank.begin_writer(1);
+    f.bank.drive(r, 10.0f);
+    f.bank.end_writer();
     REQUIRE(f.bank.writer_conflicts() == 0);
 
-    two.set(r, 20.0f);
+    f.bank.begin_writer(2);
+    f.bank.drive(r, 20.0f);
+    f.bank.end_writer();
     CHECK(f.bank.writer_conflicts() == 1);
     CHECK(f.bank.first_conflict().index == r.index);
 
@@ -474,19 +470,25 @@ TEST_CASE("plc io: a second program on one row is counted, and the write stands"
     CHECK(f.bank.var(r).as_f32() == doctest::Approx(20.0f));
 
     // Both keep writing every beat, taking the row from each other; the count settles at one.
-    for (int i = 0; i < 50; ++i) { one.set(r, 10.0f); two.set(r, 20.0f); }
+    for (int i = 0; i < 50; ++i) {
+        f.bank.begin_writer(1); f.bank.drive(r, 10.0f);
+        f.bank.begin_writer(2); f.bank.drive(r, 20.0f);
+    }
+    f.bank.end_writer();
     CHECK(f.bank.writer_conflicts() == 1);
 
     // A THIRD author is the same bad row; it still reports whoever wrote it last.
-    Io three(f.bank, 3);
-    three.set(r, 30.0f);
+    f.bank.begin_writer(3);
+    f.bank.drive(r, 30.0f);
+    f.bank.end_writer();
     CHECK(f.bank.writer_conflicts() == 1);
     CHECK(f.bank.writer_of(r) == 3);
 
     // A DIFFERENT row with two authors is a second defect, and counts.
     const VarRef r2 = f.ref("cli_temp_ext2");
-    one.set(r2, 1.0f);
-    two.set(r2, 2.0f);
+    f.bank.begin_writer(1); f.bank.drive(r2, 1.0f);
+    f.bank.begin_writer(2); f.bank.drive(r2, 2.0f);
+    f.bank.end_writer();
     CHECK(f.bank.writer_conflicts() == 2);
 }
 

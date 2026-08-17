@@ -20,9 +20,8 @@
  *  It deliberately does NOT carry the variable bank. Two reasons, and the first
  *  is fatal on its own: Vars::Bank is itself a Component, so a context carrying
  *  a Bank could not construct one. The second is that a signature should still
- *  say whether something touches the field - most components do not, and
- *  Plc::Io exists to give a control program a view narrower than the Bank even
- *  when it does.
+ *  say whether something touches the field - most components do not, and a
+ *  control program is handed the bank through its Plc::Context when it does.
  */
 
 #include <cstdint>
