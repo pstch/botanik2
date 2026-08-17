@@ -34,7 +34,7 @@ namespace Botanik {
 #if BOTANIK_FEATURE_NETWORK
           // Network reads its config from the variable bank by name;
           // telemetry publishes the live _sys_ctx (read later).
-          , _net(_setup, &_io, &_sys_ctx)
+          , _net(_setup, &_sys_ctx)
 #endif
 #if BOTANIK_FEATURE_MODBUS_RTU_CLIENT
           , _modbus_rtu(_setup, &_io, site.devices)
@@ -73,6 +73,15 @@ namespace Botanik {
 #endif
 #if BOTANIK_FEATURE_LOGS_MONITOR
         Vars::bind_monitor(_binder, _monitor);
+#endif
+#if BOTANIK_FEATURE_NETWORK
+        Vars::bind_network(_binder, _net.network());
+#endif
+#if BOTANIK_FEATURE_NTP
+        Vars::bind_ntp(_binder, _net.ntp());
+#endif
+#if BOTANIK_FEATURE_MQTT
+        Vars::bind_mqtt(_binder, _net.mqtt());
 #endif
 
         // Wire the status aggregate now every subsystem address is fixed.

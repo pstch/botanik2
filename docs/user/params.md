@@ -131,6 +131,7 @@ where it is read - the rate restarts the port, the level lands on the next entry
 | Name | Unit | What |
 |---|---|---|
 | `net_serial` | | bump to apply staged `net_` edits |
+| `net_enable` | | bring the network up |
 | `net_dhcp` | | enable DHCP IP configuration |
 | `net_ip` `net_mask` `net_gw` | | static address, netmask, gateway |
 | `net_dns1` `net_dns2` | | static DNS resolvers |

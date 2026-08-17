@@ -450,6 +450,7 @@ See @ref user_alarms for more information.
   | console_baud      | u32  | 4800                  | Bd    | 900      |
   | monitor_baud      | u32  | 115200                | Bd    | 901      |
   | net_serial               | u32  | 1                     |       | 910      |
+  | net_enable               | bool | 1                     |       | 917      |
   | net_dhcp                 | bool | 0                     |       | 911      |
   | net_ip                   | str  | 192.168.1.40*         |       | 912      |
   | net_mask                 | str  | 255.255.255.0         |       | 913      |

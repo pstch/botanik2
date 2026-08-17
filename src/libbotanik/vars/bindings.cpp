@@ -20,6 +20,15 @@
 #if BOTANIK_FEATURE_LOGS_MONITOR
 #include "libbotanik/firmware/stacks.h"
 #endif
+#if BOTANIK_FEATURE_NETWORK
+#include "libbotanik/network/network.h"
+#endif
+#if BOTANIK_FEATURE_NTP
+#include "libbotanik/network/ntp.h"
+#endif
+#if BOTANIK_FEATURE_MQTT
+#include "libbotanik/network/mqtt.h"
+#endif
 #if BOTANIK_FEATURE_SUN_TRACKER
 #include "libbotanik/sun/sun_tracker.h"
 #endif
@@ -70,6 +79,16 @@ namespace Botanik { namespace Vars {
 
     // The readers
 
+    /** @brief A row's text into a fixed field, always NUL-terminated. A config
+     *  struct OWNS its strings: the pool a row's text lives in belongs to the
+     *  bank, and a build with no bank has neither. */
+    static void copy_str(char* dst, size_t cap, const char* src) {
+        if (src == nullptr) { dst[0] = '\0'; return; }
+        size_t i = 0;
+        for (; i + 1 < cap && src[i] != '\0'; i++) dst[i] = src[i];
+        dst[i] = '\0';
+    }
+
 #if BOTANIK_FEATURE_CONSOLE
     /** @brief The `console_` group. The band guards the way IN; a corrupt store
      *  reaches set_config() by another road, so the make is re-checked here
@@ -89,6 +108,60 @@ namespace Botanik { namespace Vars {
 
     void bind_console(ConfigBinder& binder, Terminal::Console& console) {
         binder.add("console", &console, &apply_console);
+    }
+#endif
+
+#if BOTANIK_FEATURE_NETWORK
+    /** @brief The `net_` group. Staged: an address, a mask and a gateway from
+     *  three different networks is not a link anyone can bring up. */
+    static void apply_network(void* target, const Bank& io, bool) {
+        Network::NetworkConfig cfg;
+        cfg.enabled = io.var("net_enable").b();
+        cfg.dhcp    = io.var("net_dhcp").b();
+        copy_str(cfg.ip,   sizeof(cfg.ip),   io.text(io.var("net_ip")));
+        copy_str(cfg.mask, sizeof(cfg.mask), io.text(io.var("net_mask")));
+        copy_str(cfg.gw,   sizeof(cfg.gw),   io.text(io.var("net_gw")));
+        copy_str(cfg.dns1, sizeof(cfg.dns1), io.text(io.var("net_dns1")));
+        copy_str(cfg.dns2, sizeof(cfg.dns2), io.text(io.var("net_dns2")));
+        static_cast<Network::NetworkHandler*>(target)->set_config(cfg);
+    }
+
+    void bind_network(ConfigBinder& binder, Network::NetworkHandler& net) {
+        binder.add("net", &net, &apply_network);
+    }
+#endif
+
+#if BOTANIK_FEATURE_NTP
+    /** @brief The `ntp_` group. */
+    static void apply_ntp(void* target, const Bank& io, bool) {
+        Network::NtpConfig cfg;
+        cfg.enabled  = io.var("ntp_enable").b();
+        cfg.port     = io.var("ntp_port").value().as_u16();
+        cfg.poll_sec = io.var("ntp_poll_sec").value().as_u32();
+        copy_str(cfg.srv1, sizeof(cfg.srv1), io.text(io.var("ntp_srv1")));
+        copy_str(cfg.srv2, sizeof(cfg.srv2), io.text(io.var("ntp_srv2")));
+        static_cast<Network::NtpClient*>(target)->set_config(cfg);
+    }
+
+    void bind_ntp(ConfigBinder& binder, Network::NtpClient& ntp) {
+        binder.add("ntp", &ntp, &apply_ntp);
+    }
+#endif
+
+#if BOTANIK_FEATURE_MQTT
+    /** @brief The `mqtt_` group. Shared with the telemetry sender, which binds
+     *  the same serial to its own struct. */
+    static void apply_mqtt(void* target, const Bank& io, bool) {
+        Network::MqttConfig cfg;
+        cfg.enabled = io.var("mqtt_enable").b();
+        cfg.port    = io.var("mqtt_port").value().as_u16();
+        cfg.ka_sec  = io.var("mqtt_ka_sec").value().as_u16();
+        copy_str(cfg.host, sizeof(cfg.host), io.text(io.var("mqtt_host")));
+        static_cast<Network::MqttClient*>(target)->set_config(cfg);
+    }
+
+    void bind_mqtt(ConfigBinder& binder, Network::MqttClient& mqtt) {
+        binder.add("mqtt", &mqtt, &apply_mqtt);
     }
 #endif
 

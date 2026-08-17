@@ -26,19 +26,24 @@ namespace botanik_test {
 
         #define FX_NUM(nm, t, dflt) \
             Botanik::Vars::P(nm, t, dflt, 0, 1000000000, 0, "", 0, "", "")
-        #define FX_STR(nm, slot) \
-            Botanik::Vars::PS(nm, "", CAP, Botanik::Vars::STR_NONE, slot, "", "")
+        #define FX_STR(nm, reg) \
+            Botanik::Vars::PS(nm, "", CAP, Botanik::Vars::STR_NONE, reg, "", "")
         #define FX_F32(nm) \
             Botanik::Vars::P(nm, Botanik::Vars::T_F32, 0, -180, 180, 4, "deg", 0, "", "")
 
         static const Botanik::Vars::Descriptor* table(uint16_t* n) {
             using namespace Botanik::Vars;
             static const Descriptor v[] = {
-                FX_NUM("net_serial", T_U32, 0), FX_NUM("net_dhcp", T_BOOL, 1), FX_STR("net_ip", 0),
+                FX_NUM("net_serial", T_U32, 0), FX_NUM("net_enable", T_BOOL, 0),
+                FX_NUM("net_dhcp", T_BOOL, 1),
+                FX_STR("net_ip", 1), FX_STR("net_mask", 2), FX_STR("net_gw", 3),
+                FX_STR("net_dns1", 4), FX_STR("net_dns2", 5),
                 FX_NUM("ntp_serial", T_U32, 0), FX_NUM("ntp_enable", T_BOOL, 1),
-                FX_NUM("ntp_poll_sec", T_U16, 64), FX_STR("ntp_srv1", CAP),
+                FX_NUM("ntp_port", T_U16, 123), FX_NUM("ntp_poll_sec", T_U16, 64),
+                FX_STR("ntp_srv1", 6), FX_STR("ntp_srv2", 7),
                 FX_NUM("mqtt_serial", T_U32, 0), FX_NUM("mqtt_enable", T_BOOL, 1),
-                FX_NUM("mqtt_port", T_U16, 1883), FX_STR("mqtt_host", 2 * CAP),
+                FX_NUM("mqtt_port", T_U16, 1883), FX_NUM("mqtt_ka_sec", T_U16, 60),
+                FX_STR("mqtt_host", 8),
                 // A miss here reads 0, which silently puts the site on the
                 // equator. See the @warning above.
                 FX_NUM("geo_serial", T_U32, 0), FX_F32("geo_lat_deg"), FX_F32("geo_lon_deg"),
@@ -50,8 +55,6 @@ namespace botanik_test {
         #undef FX_STR
         #undef FX_F32
 
-        Botanik::Vars::Slot _vals[14]{};
-        char                 _pool[3 * CAP]{};
         Botanik::Vars::Bank  _bank;
 
     public:

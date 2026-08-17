@@ -28,6 +28,16 @@ namespace Botanik { namespace Tasks { struct Tick; class Registry; } }
 
 namespace Botanik { namespace Network {
 
+    /** @brief The broker a MqttClient talks to. keepalive is also the
+     *  dead-broker detection: a wedged peer leaves the socket open and answers
+     *  nothing, and this is what notices. */
+    struct MqttConfig {
+        bool     enabled = true;
+        uint16_t port    = 1883;
+        uint16_t ka_sec  = 60;
+        char     host[BOTANIK_HOST_STR_LEN] = {0};
+    };
+
     /** @brief Encode an MQTT "remaining length" varint (1..4 bytes, 7 data
      *  bits each) into @p p; returns the number of bytes written. */
     inline int encode_remlen(uint8_t* p, uint32_t len) {
@@ -64,7 +74,10 @@ namespace Botanik { namespace Network {
             MQTT_ERROR,       ///< failed; backing off before a retry
         };
         /** @brief Config source (may be null in tests). */
-        const Vars::Bank* _io;
+        /** @brief The broker in force, and whether a fresh one is waiting for
+         *  the next SERVICE beat (set_config() has no clock). */
+        MqttConfig    _cfg;
+        bool          _pending = false;
         State                 _state;
         /// when this state was entered (timeouts)
         uint64_t              _since_ms;
@@ -86,7 +99,10 @@ namespace Botanik { namespace Network {
         /** @} */
 
     public:
-        MqttClient(const SetupContext& ctx, const Vars::Bank* cfg,
+        /** @brief Adopt @p cfg: drop the socket and reconnect, or idle. */
+        void set_config(const MqttConfig& cfg);
+
+        MqttClient(const SetupContext& ctx,
                    NameResolver* resolver = nullptr, const NetworkHandler* net = nullptr);
 
         /** @brief True when connected and ready to publish. */
@@ -116,8 +132,6 @@ namespace Botanik { namespace Network {
         }
 
     protected:
-        uint32_t param_serial() const override;
-        void on_param_changed(uint64_t now_ms) override;
         void on_service(uint64_t now_ms) override;
 
     private:

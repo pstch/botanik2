@@ -23,6 +23,19 @@ namespace Botanik { namespace Tasks { struct Tick; class Registry; } }
 
 namespace Botanik { namespace Network {
 
+    /** @brief The link a NetworkHandler brings up. DHCP with the rest empty is
+     *  the factory default: the address comes from the network. A static build
+     *  clears dhcp and fills at least ip, mask and gw. */
+    struct NetworkConfig {
+        bool enabled  = true;
+        bool dhcp     = true;
+        char ip[16]   = {0};
+        char mask[16] = {0};
+        char gw[16]   = {0};
+        char dns1[16] = {0};
+        char dns2[16] = {0};
+    };
+
     /** @brief Owns the link (via HAL::Net bring-up); is_up() is authoritative.
      *  Drives the link state machine from the `net` parameter group,
      *  restarting on a config change. Clears the NameResolver cache on
@@ -38,11 +51,10 @@ namespace Botanik { namespace Network {
         /** @name State
          *  @{ */
 
-        /** @brief Bring-up state. on_param_changed() resets to SETUP (or IDLE
-         *  if no usable config); on_service() drives SETUP -> RUNNING; ERROR backs
-         *  off. */
+        /** @brief Bring-up state. set_config() resets to SETUP (or IDLE when
+         *  disabled); on_service() drives SETUP -> RUNNING; ERROR backs off. */
         enum State : uint8_t {
-            /// no usable config (serial 0); nothing to bring up
+            /// no config yet, or net_enable off; nothing to bring up
             NET_IDLE = 0,
             NET_SETUP,      ///< link_configure called; waiting for LINK_UP
             NET_RUNNING,    ///< link up with an address; resolver cache valid
@@ -50,8 +62,10 @@ namespace Botanik { namespace Network {
             NET_ERROR,
         };
 
-        /** @brief Config source (may be null in tests). */
-        const Vars::Bank* _io;
+        /** @brief The link in force, and whether a fresh one is waiting for the
+         *  next SERVICE beat to be brought up (set_config() has no clock). */
+        NetworkConfig _cfg;
+        bool          _pending = false;
         State         _state;
         /// when this state was entered (for timeouts)
         uint64_t      _since_ms;
@@ -65,9 +79,12 @@ namespace Botanik { namespace Network {
          *  @{ */
 
         /** @brief @p resolver (optional) cache is cleared on reconfiguration or
-         *  link loss. */
-        NetworkHandler(const SetupContext& ctx, const Vars::Bank* cfg,
-                       NameResolver* resolver = nullptr);
+         *  link loss. Idle until set_config(). */
+        NetworkHandler(const SetupContext& ctx, NameResolver* resolver = nullptr);
+
+        /** @brief Adopt @p cfg and re-bring-up. The link goes down and back
+         *  from the next SERVICE beat, which is where the clock is. */
+        void set_config(const NetworkConfig& cfg);
 
         /** @brief True once the link is up with an address. */
         bool is_up() const { return _state == NET_RUNNING; }
@@ -89,8 +106,6 @@ namespace Botanik { namespace Network {
     protected:
         /** @name Component hooks
          *  @{ */
-        uint32_t param_serial() const override;
-        void on_param_changed(uint64_t now_ms) override;
         void on_service(uint64_t now_ms) override;
         /** @} */
 

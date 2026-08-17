@@ -193,18 +193,17 @@ namespace Botanik {
 #endif
 
     public:
-        /** @param cfg the parameter model the handlers read their config from;
-         *  @param logger the shared logger; @param sys the live status the MQTT
-         *  telemetry base fields read (stored, read per-beat). */
-        NetworkStack(const SetupContext& ctx, const Vars::Bank* cfg,
-                     const SystemContext* sys)
+        /** @param sys the live status the MQTT telemetry base fields read
+         *  (stored, read per-beat). Every handler's own config arrives through
+         *  ConfigBinder. */
+        NetworkStack(const SetupContext& ctx, const SystemContext* sys)
             : _resolver(ctx.logger),
-              _network(ctx, cfg, &_resolver)
+              _network(ctx, &_resolver)
 #if BOTANIK_FEATURE_NTP
-            , _ntp(ctx, cfg, &_resolver, &_network)
+            , _ntp(ctx, &_resolver, &_network)
 #endif
 #if BOTANIK_FEATURE_MQTT
-            , _mqtt(ctx, cfg, &_resolver, &_network)
+            , _mqtt(ctx, &_resolver, &_network)
             , _telemetry(ctx, &_mqtt, sys, Config::MQTT_TOPIC_PREFIX)
 #endif
         { (void)sys; }

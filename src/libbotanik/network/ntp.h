@@ -24,6 +24,16 @@ namespace Botanik { namespace Tasks { struct Tick; class Registry; } }
 
 namespace Botanik { namespace Network {
 
+    /** @brief What NtpClient syncs against. Empty servers mean nothing to sync
+     *  to, so the client stays idle whatever `enable` says. */
+    struct NtpConfig {
+        bool     enabled  = true;
+        uint16_t port     = 123;
+        uint32_t poll_sec = 3600;
+        char     srv1[BOTANIK_HOST_STR_LEN] = {0};
+        char     srv2[BOTANIK_HOST_STR_LEN] = {0};
+    };
+
     /** @brief Convert an SNTP reply's transmit timestamp (bytes 40..47,
      *  big-endian: 32-bit seconds since 1900 + 32-bit fraction) to UNIX
      *  milliseconds. Returns 0 if the timestamp is unset or pre-1970. */
@@ -64,7 +74,10 @@ namespace Botanik { namespace Network {
             TIME_ERROR,      ///< failed; backing off before a retry
         };
         /** @brief Config source (may be null in tests). */
-        const Vars::Bank* _io;
+        /** @brief The servers and cadence in force, and whether a fresh set is
+         *  waiting for the next SERVICE beat (set_config() has no clock). */
+        NtpConfig     _cfg;
+        bool          _pending = false;
         State                 _state;
         /// when this state was entered (timeouts)
         uint64_t              _since_ms;
@@ -87,7 +100,11 @@ namespace Botanik { namespace Network {
         /** @} */
 
     public:
-        NtpClient(const SetupContext& ctx, const Vars::Bank* cfg,
+        /** @brief Adopt @p cfg: drop any in-flight query and restart from the
+         *  primary server, or idle. */
+        void set_config(const NtpConfig& cfg);
+
+        NtpClient(const SetupContext& ctx,
                   NameResolver* resolver = nullptr,
                   const NetworkHandler* net = nullptr);
 
@@ -114,8 +131,6 @@ namespace Botanik { namespace Network {
         void resync();
 
     protected:
-        uint32_t param_serial() const override;
-        void on_param_changed(uint64_t now_ms) override;
         void on_service(uint64_t now_ms) override;
 
     private:

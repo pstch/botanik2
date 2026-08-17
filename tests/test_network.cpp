@@ -14,6 +14,7 @@
 #include "libbotanik/logs/logger.h"
 #include "libbotanik/network/mqtt.h"
 #include "libbotanik/network/network.h"
+#include "libbotanik/vars/bindings.h"
 #include "libbotanik/network/ntp.h"
 #include "libbotanik/network/resolver.h"
 #include <cstdint>
@@ -39,19 +40,26 @@ namespace {
 TEST_CASE("NetworkHandler: sim path comes up on net config and idles when it is cleared") {
     botanik_test::ParamFixture fx;
     NameResolver resolver;
-    NetworkHandler net(Botanik::SetupContext(), &fx.bank(), &resolver);
+    NetworkHandler net(Botanik::SetupContext(), &resolver);
+    Vars::ConfigBinder binder(Botanik::SetupContext(), &fx.bank());
+    Vars::bind_network(binder, net);
     CHECK_FALSE(net.is_up());
 
     // link_status() returns LINK_UP immediately in sim, so one step() promotes SETUP to RUNNING.
     fx.set_num("net_serial", 1);
+    fx.set_num("net_enable", 1);   // the fixture starts every row at zero
     fx.set_num("net_dhcp", 1);
     fx.publish();
+    binder.apply_all();
     net.step(HAL::Clock::uptime_ms());
     CHECK(net.is_up());
 
-    // Serial back to 0 (config removed): back to idle.
-    fx.set_num("net_serial", 0);
+    // net_enable off: back to idle. Staged like the rest of the group, so the
+    // serial has to move for it to land.
+    fx.set_num("net_enable", 0);
+    fx.set_num("net_serial", 2);
     fx.publish();
+    binder.apply_all();
     net.step(HAL::Clock::uptime_ms());
     CHECK_FALSE(net.is_up());
 }
@@ -61,13 +69,18 @@ TEST_CASE("NetworkHandler: sim path comes up on net config and idles when it is 
 TEST_CASE("MqttClient: never reports connected to a dead broker, publish gated on connection") {
     botanik_test::ParamFixture fx;
     NameResolver resolver;
-    NetworkHandler net(Botanik::SetupContext(), &fx.bank(), &resolver);
-    MqttClient mqtt(Botanik::SetupContext(), &fx.bank(), &resolver, &net);
+    NetworkHandler net(Botanik::SetupContext(), &resolver);
+    MqttClient mqtt(Botanik::SetupContext(), &resolver, &net);
+    Vars::ConfigBinder binder(Botanik::SetupContext(), &fx.bank());
+    Vars::bind_network(binder, net);
+    Vars::bind_mqtt(binder, mqtt);
 
     CHECK_FALSE(mqtt.connected());
     CHECK_FALSE(mqtt.publish("botanik/alarms/X", "ON"));
 
-    fx.set_num("net_serial", 1); fx.set_num("net_dhcp", 1); fx.publish();
+    fx.set_num("net_serial", 1); fx.set_num("net_enable", 1);
+    fx.set_num("net_dhcp", 1); fx.publish();
+    binder.apply_all();
     net.step(HAL::Clock::uptime_ms());                 // sim link up
 
     fx.set_num("mqtt_serial", 1);
@@ -75,6 +88,7 @@ TEST_CASE("MqttClient: never reports connected to a dead broker, publish gated o
     // Off-host: the hermetic sim refuses non-loopback, so the connect never completes.
     fx.set_str("mqtt_host", "192.0.2.1");
     fx.publish();
+    binder.apply_all();
     for (int i = 0; i < 5; ++i) mqtt.step(HAL::Clock::uptime_ms());
 
     CHECK_FALSE(mqtt.connected());              // off-host: refused, never connects
@@ -87,16 +101,21 @@ TEST_CASE("MqttClient: never reports connected to a dead broker, publish gated o
 TEST_CASE("NtpClient: stepped as a Component (announces once), query is non-blocking") {
     botanik_test::ParamFixture fx;
     NameResolver resolver;
-    NetworkHandler net(Botanik::SetupContext(), &fx.bank(), &resolver);
+    NetworkHandler net(Botanik::SetupContext(), &resolver);
     RecordingWriter w;
     Logs::Logger log;
     log.set_min_level(Logs::LOG_DEBUG);
     log.add_writer(&w);
 
-    NtpClient ts(Botanik::SetupContext(nullptr, &log), &fx.bank(), &resolver, &net);
+    NtpClient ts(Botanik::SetupContext(nullptr, &log), &resolver, &net);
+    Vars::ConfigBinder binder(Botanik::SetupContext(), &fx.bank());
+    Vars::bind_network(binder, net);
+    Vars::bind_ntp(binder, ts);
 
     // Bring the (sim) link up so the time sync can proceed past the link gate.
-    fx.set_num("net_serial", 1); fx.set_num("net_dhcp", 1); fx.publish();
+    fx.set_num("net_serial", 1); fx.set_num("net_enable", 1);
+    fx.set_num("net_dhcp", 1); fx.publish();
+    binder.apply_all();
     net.step(HAL::Clock::uptime_ms());
 
     fx.set_num("ntp_serial", 1);
@@ -104,6 +123,7 @@ TEST_CASE("NtpClient: stepped as a Component (announces once), query is non-bloc
     // Off-host: the hermetic sim refuses the send, so the query stays non-blocking with no sync.
     fx.set_str("ntp_srv1", "192.0.2.1");
     fx.publish();
+    binder.apply_all();
 
     for (int i = 0; i < 5; ++i) ts.step(HAL::Clock::uptime_ms());   // must not fault or block
 
