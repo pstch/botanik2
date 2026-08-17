@@ -3,7 +3,8 @@
 #define LIBBOTANIK_CORE_CONTEXT_H
 
 /** @file context.h
- *  @brief SystemContext - one aggregate of the per-subsystem status contexts the
+ *  @brief The handoff bundles: ProgramContext for one activation, and
+ *  SystemContext - one aggregate of the per-subsystem status contexts the
  *        terminal UI reads. */
 
 // Include library configuration
@@ -40,6 +41,21 @@ namespace Botanik {
      *  optional network components; used by reporting commands and metric pages.
      *  Every member may be null when its subsystem is absent at runtime.
      * @warning Consumers should be gated under the matching `#if BOTANIK_FEATURE_*`. */
+    /** @brief What a control program is handed each activation.
+     *
+     *  Built fresh per run, unlike the two wiring contexts around it: @c dt_ms
+     *  and @c missed are THIS program's, so two programs in one beat see
+     *  different values and no shared instance could hold them. */
+    struct ProgramContext {
+        uint64_t now_ms;     ///< beat timestamp, same for every program this beat
+        uint32_t dt_ms;      ///< REAL ms since THIS program last ran, never the nominal period
+        uint16_t missed;     ///< activations dropped since the last run; 0 normally
+        bool     first_scan; ///< first activation at bring-up, or after control returned
+        /** @brief The variables. Writes go through drive(), which claims the row
+         *  for whoever the dispatcher's window names. */
+        Vars::Bank& bank;
+    };
+
     struct SystemContext {
 
         Scheduler::SchedulerContext*   scheduler = nullptr; ///< Performance snapshots

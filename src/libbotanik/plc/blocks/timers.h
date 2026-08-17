@@ -5,7 +5,7 @@
  * @file timers.h
  * @brief The three PLC timers: on-delay, off-delay, pulse.
  * @note IEC 61131-3: TON, TOF, TP.
- * @note Each takes @p dt_ms (Plc::Context::dt_ms), the REAL elapsed time since
+ * @note Each takes @p dt_ms (ProgramContext::dt_ms), the REAL elapsed time since
  *       the program last ran, never a clock: one that ran late must not lose
  *       the time it was late by.
  */

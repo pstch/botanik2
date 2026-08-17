@@ -10,21 +10,11 @@
 #include <cstdint>
 
 #include "libbotanik/core/component.h"
+#include "libbotanik/core/context.h"   // ProgramContext
 #include "libbotanik/tasks/tasks.h"
 #include "libbotanik/vars/model.h"
 
 namespace Botanik { namespace Plc {
-
-    /** @brief What a program is handed each activation. */
-    struct Context {
-        uint64_t now_ms;     ///< beat timestamp, same for every program this beat
-        uint32_t dt_ms;      ///< REAL ms since this program last ran, never the nominal period
-        uint16_t missed;     ///< activations dropped since the last run; 0 normally
-        bool     first_scan; ///< first activation at bring-up, or after control returned
-        /** @brief The variables. Writes go through drive(), which claims the row
-         *  for whoever the dispatcher's window names. */
-        Vars::Bank& bank;
-    };
 
     /**
      * @brief Base for a site's control programs: blocks as members, run()
@@ -84,7 +74,7 @@ namespace Botanik { namespace Plc {
         virtual void bind(Vars::Bank& io) { (void)io; }
 
         /** @brief One activation. The only required override. */
-        virtual void run(Context& c) = 0;
+        virtual void run(ProgramContext& c) = 0;
 
         /** @} */
         /** @name Component plumbing
@@ -111,7 +101,7 @@ namespace Botanik { namespace Plc {
             _late_ms = (t.dt_ms > p) ? (t.dt_ms - p) : 0;
             if (_late_ms > _late_max_ms) _late_max_ms = _late_ms;
 
-            Context c = { t.now_ms, t.dt_ms, t.missed, t.first, *_io };
+            ProgramContext c = { t.now_ms, t.dt_ms, t.missed, t.first, *_io };
             // The window, not the program, says who is writing: a program cannot
             // name itself, and a write outside an activation claims nothing.
             _io->begin_writer(_slot);

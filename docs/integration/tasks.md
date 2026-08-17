@@ -81,13 +81,13 @@ public:
         _locked = io.find("sys_supply_lockout");
     }
 
-    void run(Plc::Context& c) override {
-        const bool unhealthy = !Plc::in_range(c.io.var(_ln).value(), 200.0f, 260.0f);
+    void run(ProgramContext& c) override {
+        const bool unhealthy = !Plc::in_range(c.bank.var(_ln).as_f32(), 200.0f, 260.0f);
 
         // reset-dominant: recovery wins, so the lockout cannot stick
         _lockout(_bad_for(unhealthy, 5000, c.dt_ms), !unhealthy);
 
-        c.io.var(_locked).set(_lockout.q());
+        c.bank.drive(_locked, _lockout.q());
     }
 
 };
@@ -203,7 +203,7 @@ Only the RETURN edge reaches the programs, and it does two things:
   it under the flag:
 
 ```cpp
-void run(Plc::Context& c) override {
+void run(ProgramContext& c) override {
     if (c.first_scan) { _bad_for.reset(); _lockout.reset(); }
     ...
 }

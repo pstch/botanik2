@@ -109,7 +109,7 @@ in the tail hole rather than buying four bytes of padding.
 own `type`: for an `AI`/`AO` row the driver computes `value = wire * scale + offset`,
 so control logic never sees raw counts.
 
-@note `F_BOUNDED` on an input is what `Bank::reject_implausible()` acts on, and it is
+@note `F_BOUNDED` on an input is what `publish()` judges a reading against, and it is
 the second half of input validity. `timeout_ms` catches a reading nothing refreshed;
 `F_BOUNDED` catches one that is perfectly fresh and still nonsense - a dead 4-20 mA
 loop reads full scale forever, and no timeout will ever notice.
@@ -239,9 +239,9 @@ made on the fly and passed by value.
 |---|---|
 | Read | `raw()`, `value()`, `b()`, `i()`, `valid()`, `stamp()` |
 | Write | `set(bool)`, `set(float)`, `set_i(int64_t)` |
-| Publish | `publish(Scalar, now_ms)` - value, stamp and validity in one step; what a driver calls |
+| Publish | `publish(Scalar, now_ms)` for a 1:1 row; `Bank::publish_wire(ref, raw, now_ms)` for a scaled one, which the model converts and judges |
 | Safe state | `safe()` |
-| Override | `overridden()` to read it. The **mutators are private to `Bank`** |
+| Override | `override()` to read it - `Q_NONE` when there is none. The **mutators are private to `Bank`** |
 
 An invalid variable reads as its declared `def`.
 

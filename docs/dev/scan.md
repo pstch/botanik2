@@ -69,9 +69,10 @@ re-renders in place. Every diagram under `images/` works this way; see
   catch-up runs would land exactly when the system is already behind.
 - **Staleness is explicit, not inferred.** A row past its timeout goes invalid
   (`Bank::expire_stale()`), so logic reads quality rather than guessing from the
-  value. A row whose reading has left its declared band goes invalid too
-  (`reject_implausible()`) - a dead 4-20 mA loop reads full scale, and no timeout
-  catches that.
+  value. A row whose reading has left its declared band goes invalid too, judged
+  as it arrives (`publish()`, or `Bank::publish_wire()` for a scaled row, whose
+  band is in the calibration's parameters) - a dead 4-20 mA loop reads full
+  scale, and no timeout catches that.
 
 Rows carry independent ages, and nothing pretends otherwise: each has its own
 `stamp_ms` and `valid`. Snapshotting the image into a per-cycle shadow would

@@ -21,7 +21,7 @@
  *  is fatal on its own: Vars::Bank is itself a Component, so a context carrying
  *  a Bank could not construct one. The second is that a signature should still
  *  say whether something touches the field - most components do not, and a
- *  control program is handed the bank through its Plc::Context when it does.
+ *  control program is handed the bank through its ProgramContext when it does.
  */
 
 #include <cstdint>

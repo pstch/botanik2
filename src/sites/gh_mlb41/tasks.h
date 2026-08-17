@@ -73,7 +73,7 @@ protected:
         _win[3] = io.find("cli_window4_opn");
     }
 
-    void run(Plc::Context& c) override {
+    void run(ProgramContext& c) override {
         // Both blocks are a claim about the supply over TIME, and not being
         // called means we stopped watching it. Start the debounce again rather
         // than resuming a dwell that was counting an outage we did not see.
@@ -135,7 +135,7 @@ protected:
         _raw = io.find("grid_Hz");
     }
 
-    void run(Plc::Context& c) override {
+    void run(ProgramContext& c) override {
         c.bank.drive(_out, _hz(c.bank.var(_raw).as_f32(), 0.05f));
     }
 

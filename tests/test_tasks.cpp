@@ -344,7 +344,7 @@ namespace {
     protected:
         // Never reached: these cases dispatch through the spy_* handlers below,
         // and a Program with no bank returns before run() anyway.
-        void run(Botanik::Plc::Context&) override {}
+        void run(Botanik::ProgramContext&) override {}
     };
 
     void spy_setup  (Component* c, const Tick&)   { static_cast<Spy*>(c)->setups++; }

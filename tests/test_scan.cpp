@@ -80,7 +80,7 @@ namespace scan {
 
 using Botanik::Vars::Bank;
 using Botanik::Plc::Program;
-using Botanik::Plc::Context;
+using Botanik::ProgramContext;
 
 using Botanik::Tasks::GROUP_FAST;
 using Botanik::Tasks::GROUP_SLOW;
@@ -103,7 +103,7 @@ namespace {
 
     protected:
         void bind(Botanik::Vars::Bank& io) override { (void)io; binds++; }
-        void run(Context& c) override {
+        void run(ProgramContext& c) override {
             if (c.first_scan) firsts++;
             runs_seen.push_back({ c.dt_ms, c.missed, c.now_ms });
         }
@@ -328,7 +328,7 @@ public:
         : Program(ctx, name, g, io), _row(row) {}
 protected:
     void bind(Bank& io) override { _r = io.find(_row); }
-    void run(Plc::Context& c) override { c.bank.drive(_r, 1.0f); }
+    void run(ProgramContext& c) override { c.bank.drive(_r, 1.0f); }
 };
 
 /** @brief Appends its name to a shared log when it runs, so a case can check order. */
@@ -339,7 +339,7 @@ public:
             const Botanik::SetupContext& ctx)
         : Program(ctx, name, Botanik::Tasks::GROUP_FAST, io), _log(log) {}
 protected:
-    void run(Plc::Context&) override { _log->push_back(name()); }
+    void run(ProgramContext&) override { _log->push_back(name()); }
 };
 
 /** @brief Reads one row and writes another, showing whether the second saw
@@ -355,7 +355,7 @@ public:
         : Program(ctx, name, Botanik::Tasks::GROUP_FAST, io), _from(from), _to(to), _add(add) {}
 protected:
     void bind(Bank& io) override { _in = io.find(_from); _out = io.find(_to); }
-    void run(Plc::Context& c) override {
+    void run(ProgramContext& c) override {
         c.bank.drive(_out, c.bank.var(_in).as_f32() + _add);
     }
 };
@@ -370,7 +370,7 @@ public:
         : Program(ctx, name, g, io) {}
 
 protected:
-    void run(Plc::Context& c) override { firsts.push_back(c.first_scan); }
+    void run(ProgramContext& c) override { firsts.push_back(c.first_scan); }
 };
 
 }  // namespace

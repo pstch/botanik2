@@ -73,7 +73,7 @@ of calls any more but a **phase-major dispatch** over a task table
 ```
 tick()                          gate the beat; republish the render clock
 now_ms = uptime_ms()            one 64-bit "now" for every task this beat
-run_phase(PHASE_INPUT)          console/monitor RX; expire_stale, reject_implausible
+run_phase(PHASE_INPUT)          console/monitor RX; expire_stale
 run_phase(PHASE_CONFIG)         params: the config image everything below reads
 run_phase(PHASE_SERVICE)        health, the control latch, network / NTP / MQTT
 run_phase(PHASE_CONTROL)        the control programs, and on_control()
@@ -96,9 +96,10 @@ Every task gets the same fresh 64-bit `now_ms`. The order is load-bearing:
   monitor port in one task, since nothing consumes what it receives. The pump and
   the thing that fills it are the same beat's work.
 - **Inputs age out before anything reads**, so one beat is coherent - every task sees
-  the same instant. `expire_stale()` catches a reading nothing refreshed;
-  `reject_implausible()` catches one that is fresh and still nonsense (a dead 4-20 mA
-  loop reads full scale, which no timeout notices). Field drivers slot in here.
+  the same instant. `expire_stale()` catches a reading nothing refreshed; one that
+  is fresh and still nonsense (a dead 4-20 mA loop reads full scale, which no
+  timeout notices) is caught where it ARRIVES, by publish() and publish_wire().
+  Field drivers slot in here.
 - **Health before the logger drains**, so an alarm transition is logged in the same
   beat it happens, and before EXECUTE, so a fault inhibits *this* beat's programs.
 - **The programs run only while control is enabled** - the registry gates its
