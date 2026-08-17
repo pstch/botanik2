@@ -94,7 +94,6 @@ always the authoritative answer for the unit in front of you.
 | `modbus_rtu_rx` | fast | parse and commit whatever the field bus answered, before anything reads it |
 | `modbus_tcp_rx` | fast | accept, decode and apply a SCADA master's writes, before the programs run |
 | `expire_stale` | bkgnd | invalidate readings older than their declared timeout |
-| `reject_implausible` | bkgnd | invalidate a reading that is fresh and still outside its declared band - a dead 4-20 mA loop reads full scale, which no timeout catches |
 
 ### Config
 
