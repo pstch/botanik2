@@ -16,6 +16,7 @@
 #include "doctest.h"
 #include "term_fixture.h"
 #include "libbotanik/console/console.h"
+#include "libbotanik/vars/bindings.h"
 #include "libbotanik/console/editor.h"
 #include "libbotanik/console/parser.h"
 #include "libbotanik/pages/line_buffer.h"
@@ -43,8 +44,13 @@ namespace {
         // budget from throttling (budget = baud * TX_COLD_TARGET_MS / 10000).
         explicit TermFixture(uint16_t cols = 20, uint16_t rows = 10,
                              uint32_t baud = 4000000u)
-            : term(wire.serial, cols, rows, baud) {
-            term.establish_screen();                // blank both grids
+            : term(wire.serial) {
+            // What the console does from the bank at CONFIG; here by hand,
+            // because a bare terminal has no bank behind it. Rate FIRST:
+            // reconfigure() establishes the screen, and that repaint has to be
+            // paced at the budget the case is testing.
+            term.set_baud(baud);
+            term.reconfigure(Terminal::Ansi::CONFIGURED_TERMINAL, cols, rows);
             capture();                              // discard the bring-up bytes
         }
 
@@ -477,8 +483,12 @@ namespace {
         Terminal::TextEditor  editor;
 
         explicit EditorBytes(uint32_t baud = 4000000u)
-            : console(Botanik::SetupContext(), wire.serial, 80, 24, &now, baud),
+            : console(Botanik::SetupContext(), wire.serial, &now),
               editor(&console, bufs.storage()) {
+            // Geometry and rate are the bank's job in production; a fixture
+            // with no bank sets them through the same path.
+            console.reconfigure(Terminal::Ansi::CONFIGURED_TERMINAL, 80, 24);
+            console.terminal().set_baud(baud);
             console.terminal().establish_screen();
             editor.reset();
             flush();                 // discard bring-up + the initial prompt
@@ -1154,8 +1164,9 @@ namespace {
         Pages::Scrollback<16>   view;   // enough to scroll through, few enough to wrap
 
         // High baud: these cases assert what a scroll paints, not how it is paced.
-        ScrollFixture() : term(wire.serial, 20, 10, 4000000u) {
-            term.establish_screen();                // blank both grids
+        ScrollFixture() : term(wire.serial) {
+            term.set_baud(4000000u);
+            term.reconfigure(Terminal::Ansi::CONFIGURED_TERMINAL, 20, 10);
             capture();                              // discard the bring-up bytes
         }
 
@@ -1340,9 +1351,11 @@ namespace {
         Shell::CommandShell            shell;
 
         ShellFixture()
-            : console(Botanik::SetupContext(), wire.serial, 80, 24, &now, 115200),
+            : console(Botanik::SetupContext(), wire.serial, &now),
               editor(&console, bufs.storage()),
               shell(console.terminal(), editor, writer) {
+            console.reconfigure(Terminal::Ansi::CONFIGURED_TERMINAL, 80, 24);
+            console.terminal().set_baud(115200);
             editor.reset();
         }
 
@@ -1538,9 +1551,11 @@ namespace {
         Shell::CommandShell            shell;
 
         CmdFixture()
-            : console(Botanik::SetupContext(), wire.serial, 80, 24, &now, 115200),
+            : console(Botanik::SetupContext(), wire.serial, &now),
               editor(&console, bufs.storage()),
               shell(console.terminal(), editor, writer, &ctx) {
+            console.reconfigure(Terminal::Ansi::CONFIGURED_TERMINAL, 80, 24);
+            console.terminal().set_baud(115200);
             editor.reset();
             bank.register_vars(CMD_VARS, 2);
             bank.freeze();
@@ -1725,18 +1740,20 @@ namespace {
         Vars::Bank           bank;
         Tasks::Registry      reg;
         Terminal::Console    console;
+        Vars::ConfigBinder   binder;
 
         ConfigFixture()
-            : console(Botanik::SetupContext(reg), wire.serial, Config::CONSOLE_COLS,
-                      Config::CONSOLE_ROWS, &now, 115200, nullptr, nullptr,
-                      Terminal::Ansi::CONFIGURED_TERMINAL, &bank) {
+            : console(Botanik::SetupContext(reg), wire.serial, &now),
+              binder(Botanik::SetupContext(reg), &bank) {
             TestSite::build(bank);
+            Vars::bind_console(binder, console);
             console.register_tasks();
+            binder.register_tasks();
         }
 
-        /** @brief Run @p n beats of PHASE_CONFIG, the phase the console's
-         *  `console_cfg` task sits in. Whole GROUP_SLOW periods, so its rate
-         *  group comes due. */
+        /** @brief Run @p n beats of PHASE_CONFIG, the phase the binder's
+         *  `config` task sits in. Whole GROUP_SLOW periods, so its rate group
+         *  comes due. */
         void beats(int n) {
             for (int i = 0; i < n; i++) {
                 now += Config::GROUP_SLOW_MS;
@@ -1757,8 +1774,10 @@ namespace {
 TEST_CASE("console: the stored geometry lands once the parameters are loaded") {
     ConfigFixture f;
 
-    // Bring-up has not run: the console is still at its construction geometry.
-    REQUIRE(f.console.terminal().cols() == Config::CONSOLE_COLS);
+    // Bring-up has not run, and geometry comes from the bank alone: until it
+    // does, the terminal is the one usable cell it was constructed as.
+    REQUIRE(f.console.terminal().cols() == 1);
+    REQUIRE(f.console.terminal().rows_total() == 1);
     const uint32_t committed = f.serial();
 
     // Now the load lands: the saved geometry appears in the bank, and the
@@ -1773,7 +1792,7 @@ TEST_CASE("console: the stored geometry lands once the parameters are loaded") {
     // Bring-up order: the load is part of Registry::setup(), and the console
     // adopts AFTER it.
     f.reg.setup(f.now);
-    f.console.apply_stored_config();
+    f.binder.apply_all();
     CHECK(f.console.terminal().cols() == 100);
     CHECK(f.console.terminal().rows_total() == 30);
     // No alarm model wired, so no reserved bottom row: pages get the lot.
@@ -1783,14 +1802,14 @@ TEST_CASE("console: the stored geometry lands once the parameters are loaded") {
 TEST_CASE("console: a `term_` edit stages until the group's commit serial moves") {
     ConfigFixture f;
     f.reg.setup(f.now);
-    f.console.apply_stored_config();  // the bring-up adoption, above
-    REQUIRE(f.console.terminal().cols() == Config::CONSOLE_COLS);
+    f.binder.apply_all();             // the bring-up adoption, above
+    REQUIRE(f.console.terminal().cols() == Terminal::ConsoleConfig().cols);
 
     // The three rows describe ONE terminal, so an edit waits for the commit
     // rather than walking the screen through geometries that match nothing.
     REQUIRE(f.set("console_cols", "100") == Vars::SET_OK);
     f.beats(4);
-    CHECK(f.console.terminal().cols() == Config::CONSOLE_COLS);
+    CHECK(f.console.terminal().cols() == Terminal::ConsoleConfig().cols);
 
     char bumped[8];
     snprintf(bumped, sizeof(bumped), "%u", (unsigned)(f.serial() + 1u));
@@ -1849,7 +1868,9 @@ namespace {
 TEST_CASE("scroll table: a resize re-lays the columns out, both ways") {
     botanik_test::PipeSerial wire;
     uint64_t now = 0;
-    Terminal::Console console(Botanik::SetupContext(), wire.serial, 80, 24, &now, 4000000u);
+    Terminal::Console console(Botanik::SetupContext(), wire.serial, &now);
+    console.reconfigure(Terminal::Ansi::CONFIGURED_TERMINAL, 80, 24);
+    console.terminal().set_baud(4000000u);
     FitPage page(console);
 
     // MARGIN each side, so the table ends where _draw_separator() does.
@@ -1875,7 +1896,9 @@ TEST_CASE("scroll table: a resize re-lays the columns out, both ways") {
 TEST_CASE("scroll table: a display narrower than the columns clamps, not wraps") {
     botanik_test::PipeSerial wire;
     uint64_t now = 0;
-    Terminal::Console console(Botanik::SetupContext(), wire.serial, 80, 24, &now, 4000000u);
+    Terminal::Console console(Botanik::SetupContext(), wire.serial, &now);
+    console.reconfigure(Terminal::Ansi::CONFIGURED_TERMINAL, 80, 24);
+    console.terminal().set_baud(4000000u);
     FitPage page(console);
 
     REQUIRE(console.reconfigure(console.terminal().terminal_type(), 8, 24));

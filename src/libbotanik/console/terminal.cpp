@@ -24,15 +24,13 @@ namespace Botanik { namespace Terminal {
 
     // Lifecycle
 
-    AnsiTerminal::AnsiTerminal(Utils::BufferedSerial& serial, uint16_t cols,
-                               uint16_t rows, uint32_t baud,
-                               Ansi::TerminalType type) :
+    AnsiTerminal::AnsiTerminal(Utils::BufferedSerial& serial) :
         _serial(serial),
-        _cols(cols ? (cols < GRID_COLS ? cols : GRID_COLS) : 1),
-        _rows(rows ? (rows < GRID_ROWS ? rows : GRID_ROWS) : 1),
-        _type(type)
+        _cols(1),
+        _rows(1),
+        _type(Ansi::CONFIGURED_TERMINAL)
     {
-        _tx_cold_depth = depth_for_baud(baud, Config::TX_COLD_TARGET_MS);
+        _tx_cold_depth = depth_for_baud(Config::CONSOLE_BAUD, Config::TX_COLD_TARGET_MS);
         for (uint16_t i = 0; i < GRID_CELLS; i++) { _front[i] = CELL_BLANK; _back[i] = CELL_BLANK; }
         for (uint16_t r = 0; r < GRID_ROWS; r++) _row_prio[r] = PRIO_STRUCT;
     }

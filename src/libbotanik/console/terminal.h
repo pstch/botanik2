@@ -214,8 +214,11 @@ namespace Botanik { namespace Terminal {
         /** @brief @p type is which terminal is on the wire; it selects the
          *  setup handshake setup_terminal() emits and is what any
          *  terminal-specific behaviour branches on. */
-        AnsiTerminal(BufferedSerial& serial, uint16_t cols, uint16_t rows, uint32_t baud,
-                     Ansi::TerminalType type = Ansi::CONFIGURED_TERMINAL);
+        /** @brief The wire, and nothing else. Geometry, rate and make are
+         *  CONFIGURATION: they come from the bank through reconfigure() and
+         *  set_baud() at PHASE_CONFIG, which is after the table is frozen and
+         *  before the first render. Until then this is one usable cell. */
+        explicit AnsiTerminal(BufferedSerial& serial);
 
         /** @brief Emit the declared terminal's one-time setup handshake. Call
          *  once before the first render. */

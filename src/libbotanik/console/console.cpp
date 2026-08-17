@@ -13,7 +13,6 @@
 #include "libbotanik/config/terminal.h"
 
 #include "libbotanik/hal/platform.h"
-#include "libbotanik/vars/params.h"
 #include "libbotanik/tasks/tasks.h"
 #include "libbotanik/utils/assert.h"
 
@@ -31,17 +30,15 @@ namespace Botanik { namespace Terminal {
     // Lifecycle
 
     Console::Console(const SetupContext& ctx, Utils::BufferedSerial& serial,
-                     uint16_t cols, uint16_t rows,
-                     const uint64_t* timestamp_ms, uint32_t baud,
+                     const uint64_t* timestamp_ms,
                      const Scheduler::SchedulerContext* sched,
-                     const Alarms::AlarmController* alarms,
-                     Ansi::TerminalType type, const Vars::Bank* cfg) :
+                     const Alarms::AlarmController* alarms) :
         Component(ctx, "Console"),
         _serial(serial),
-        _term(serial, cols, rows, baud, type),
+        _term(serial),
         _parser(serial, timestamp_ms),
-        _io(cfg), _baud(baud), _cols(cols), _rows_cfg(rows),
-        _type((uint8_t)type),
+        _baud(0), _cols(0), _rows_cfg(0),
+        _type((uint8_t)ConsoleConfig().type),
         _alarms(alarms),
         _status_bar(*this, sched),
         _alarm_bar(*this)
@@ -52,11 +49,6 @@ namespace Botanik { namespace Terminal {
 
     // The beat
 
-    void Console::apply_stored_config() { _apply_config(/*announce=*/false); }
-
-    void Console::_config_task(Component* c, const Tasks::Tick&) {
-        static_cast<Console*>(c)->_apply_config();
-    }
     void Console::_input_task(Component* c, const Tasks::Tick&) {
         static_cast<Console*>(c)->_take_input();
     }
@@ -68,11 +60,6 @@ namespace Botanik { namespace Terminal {
     }
 
     void Console::register_tasks() {
-        // Its own settings first: the `console_` group and the baud describe this
-        // object and nothing else, so this is what reads them. CONFIG, so a
-        // commit lands before the beat's draw rather than halfway through it.
-        _tasks->add(*this, &Console::_config_task, "console_cfg", Tasks::GROUP_SLOW,
-              Tasks::PHASE_CONFIG);
         // The port's own two tasks are gone: the console pumps the wire it
         // owns, at the two ends of the beat it was already working at.
         _tasks->add(*this, &Console::_input_task, "console_rx", Tasks::GROUP_FAST,
@@ -83,54 +70,31 @@ namespace Botanik { namespace Terminal {
               Tasks::PHASE_PRESENT);
     }
 
-    void Console::_apply_config(bool announce) {
-        if (_io == nullptr) return;
-        // A group with no rows answers 0, which is also the "never applied"
-        // seed - so a build whose site left the splice out simply never
-        // reconfigures, and keeps what it was constructed at.
-        const uint32_t serial = Vars::group_serial(_io, "console");
-        const bool want_cfg = (serial != 0 && serial != _cfg_serial);
-        if (!want_cfg) return;
-
-        {
-            // The rate rides the group's commit like the make and the size: all
-            // four describe one physical terminal, and applying them one at a
-            // time asks whoever is watching to reconnect once per row.
-            const uint32_t baud = _io->var("console_baud").value().as_u32();
-            if (baud != 0 && baud != _baud) {
-                // Wire and budget together: either alone leaves the renderer
-                // pacing for a rate it is not on.
-                _serial.begin(baud);
-                _term.set_baud(baud);
-                _baud = baud;
-            }
+    void Console::set_config(const ConsoleConfig& cfg, bool announce) {
+        bool moved = false;
+        if (cfg.baud != 0 && cfg.baud != _baud) {
+            // Wire and budget together: either alone leaves the renderer pacing
+            // for a rate it is not on.
+            _serial.begin(cfg.baud);
+            _term.set_baud(cfg.baud);
+            _baud = cfg.baud;
+            moved = true;
         }
-        {
-            const uint8_t type = _io->var("console_type").value().as_u8();
-            uint16_t cols = _io->var("console_cols").value().as_u16();
-            uint16_t rows = _io->var("console_rows").value().as_u16();
-            // The parameter band guards the way IN; a corrupt store reaches this
-            // by another road, and below the minimum the tables lose cells
-            // rather than reflowing.
-            if (cols < Config::SCREEN_MIN_COLS) cols = Config::SCREEN_MIN_COLS;
-            if (rows < Config::SCREEN_MIN_ROWS) rows = Config::SCREEN_MIN_ROWS;
-            // The row's band is 0..3, but a band is only the guard on the way IN
-            // and a corrupt store reaches this by another road; an out-of-range
-            // make would index a handshake switch with no case for it.
-            const Ansi::TerminalType t =
-                type <= (uint8_t)Ansi::TerminalType::MINITEL_2
-                    ? (Ansi::TerminalType)type : Ansi::CONFIGURED_TERMINAL;
-            (void)reconfigure(t, cols, rows);
-            // Read the geometry BACK: the device clamps to its own buffer, and
-            // storing what we asked for would leave this object - and the
-            // announce below - claiming a size the screen never got.
-            _type = type;
-            _cols     = _term.cols();
-            _rows_cfg = _term.rows_total();
-            _cfg_serial = serial;
-        }
+        // Below the minimum the tables lose cells rather than reflowing, and a
+        // config reaching here has not necessarily been through a parameter
+        // band - a corrupt store, or an integrator with no bank at all.
+        uint16_t cols = cfg.cols < Config::SCREEN_MIN_COLS ? Config::SCREEN_MIN_COLS : cfg.cols;
+        uint16_t rows = cfg.rows < Config::SCREEN_MIN_ROWS ? Config::SCREEN_MIN_ROWS : cfg.rows;
+        const bool reshaped = reconfigure(cfg.type, cols, rows);
+        moved = moved || reshaped;
+        // Read the geometry BACK: the device clamps to its own buffer, and
+        // storing what we asked for would leave this object - and the announce
+        // below - claiming a size the screen never got.
+        _type     = (uint8_t)cfg.type;
+        _cols     = _term.cols();
+        _rows_cfg = _term.rows_total();
 
-        if (!announce || _logger == nullptr) return;
+        if (!moved || !announce || _logger == nullptr) return;
         // Applied, not saved - like every other edit. That is the whole recovery
         // story for a console nobody can read any more: it never reached flash,
         // so a power cycle brings the last saved settings back. Said out loud,

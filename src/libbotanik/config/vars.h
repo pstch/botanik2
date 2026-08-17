@@ -25,6 +25,14 @@ namespace Botanik { namespace Config {
 #endif
     BOTANIK_CFG(uint8_t, HOME_FIELDS_MAX);
 
+    /** @brief Components ConfigBinder can carry bindings for. One entry per
+     *  configurable component, library and site together; past it a binding is
+     *  dropped and that component keeps its constructed defaults. */
+#ifndef BOTANIK_CONFIG_BINDINGS_MAX
+#  define BOTANIK_CONFIG_BINDINGS_MAX 16
+#endif
+    BOTANIK_CFG(uint8_t, CONFIG_BINDINGS_MAX);
+
     /** @brief Distinct variable groups a site may have - a group being a name's
      *  prefix up to the first '_' (vars/access.h). Past it, var_group() answers
      *  "?" and the MONITOR / PARAMS view modes stop gaining rows.

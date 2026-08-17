@@ -23,6 +23,7 @@ namespace Botanik {
           _io(_setup),
           // Parameters come from local storage; the bank owns the store.
           _param_store(),
+          _binder(_setup, &_io),
           // The alarm model scans the variable table for SCOPE_A rows;
           // platform-health alarms are appended and driven locally.
           _health(_setup, _scheduler.context(), &_io)
@@ -46,10 +47,9 @@ namespace Botanik {
 #if BOTANIK_FEATURE_CONSOLE
           // The console borrows _sys_ctx (declared above, still empty here) by
           // pointer and reads it once the body below has filled it in.
-          , _console(Config::CONSOLE_COLS, Config::CONSOLE_ROWS,
-                     &_scheduler.context()->timestamp_ms, _console_baud,
+          , _console(&_scheduler.context()->timestamp_ms,
                      &_health.alarm_model(), _setup,
-                     _scheduler.context(), &_sys_ctx, &_io)
+                     _scheduler.context(), &_sys_ctx)
           // Base-owned pages, built from the descriptor + the live bank.
 #if BOTANIK_FEATURE_HOME_PAGE
           , _home_page(_console.terminal(), _site.home_fields,
@@ -66,6 +66,12 @@ namespace Botanik {
 #endif
 #endif
     {
+        // Bind each component's config to the rows behind it, now every one of
+        // them exists. Pushed at PHASE_CONFIG, and once at bring-up.
+#if BOTANIK_FEATURE_CONSOLE
+        Vars::bind_console(_binder, _console.terminal());
+#endif
+
         // Wire the status aggregate now every subsystem address is fixed.
         _sys_ctx.scheduler = _scheduler.context();
         _sys_ctx.tasks     = &_tasks;
@@ -190,8 +196,8 @@ namespace Botanik {
 
         // AFTER the line above, which is what loads the parameters: what the
         // console and the monitor adopt here is the store, not the defaults.
-#if BOTANIK_FEATURE_CONSOLE
-        _console.terminal().apply_stored_config();
+        _binder.apply_all();
+#if BOTANIK_FEATURE_LOGS_MONITOR
         _monitor.apply_stored_config();
 #endif
 
@@ -257,6 +263,9 @@ namespace Botanik {
         // fresh and still nonsense. Both before anything reads, so one beat is
         // coherent.
         _io.register_tasks();
+
+        // --- CONFIG: a commit reaches its component ---
+        _binder.register_tasks();
 
 
 

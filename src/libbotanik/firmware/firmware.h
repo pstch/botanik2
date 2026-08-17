@@ -44,6 +44,7 @@
 #include "libbotanik/utils/assert.h"
 #include "libbotanik/utils/serial.h"
 #include "libbotanik/vars/access.h"
+#include "libbotanik/vars/bindings.h"
 #include "libbotanik/vars/model.h"
 #include "libbotanik/vars/params.h"
 #include "libbotanik/vars/vars.h"
@@ -136,6 +137,10 @@ namespace Botanik {
         SetupContext                   _setup;
         Vars::Bank                       _io;          ///< the site's variables
         Vars::KvParamStore             _param_store; ///< one storage key per parameter
+        /** @brief The one bridge from the table to a component's own config
+         *  struct. Bindings are added in the ctor body, once every component
+         *  exists. @see vars/bindings.h */
+        Vars::ConfigBinder             _binder;
         Health::HealthMonitor          _health;
         SystemContext                  _sys_ctx;     ///< Filled in the ctor body
 #if BOTANIK_FEATURE_LOGS_MONITOR

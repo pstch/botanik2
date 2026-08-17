@@ -24,12 +24,23 @@
 namespace Botanik { namespace Alarms { class AlarmController; } }
 namespace Botanik { namespace Scheduler { struct SchedulerContext; } }
 namespace Botanik { namespace Tasks { struct Tick; } }
-namespace Botanik { namespace Vars  { class Bank;   } }
 // Held by pointer only, every call on one in console.cpp: forward-declared so
 // pages/ does not land in everything that draws.
 namespace Botanik { namespace Pages { class Page; } }
 
 namespace Botanik { namespace Terminal {
+
+    /** @brief The one physical terminal a Console drives.
+     *
+     *  These initializers ARE the factory defaults: they are what a build with
+     *  no variable model runs at, and what the `console_` rows declare as their
+     *  own defaults. There is no config macro behind them. */
+    struct ConsoleConfig {
+        uint32_t           baud = 4800;
+        Ansi::TerminalType type = Ansi::TerminalType::VT102;
+        uint16_t           cols = 80;
+        uint16_t           rows = 24;
+    };
 
     /** @class Console
      *  @brief Multiplexed page display over an AnsiTerminal (see file header). */
@@ -68,24 +79,16 @@ namespace Botanik { namespace Terminal {
         /** @}
          *  @name Its own configuration
          *
-         *  The console reads the `console_` group and its baud ITSELF - those
-         *  rows describe nothing but this object. What is held here is what has
-         *  been APPLIED, so the config task acts on an edge.
+         *  What has been APPLIED, read back from the device rather than from
+         *  what was asked for: the terminal clamps to its own buffer. Whoever
+         *  owns this console pushes a ConsoleConfig; the console never looks the
+         *  settings up.
          *  @{ */
 
-        /** @brief Where the settings live; null leaves the console at whatever
-         *  it was constructed with, which is what a site that omitted the
-         *  library splice gets. */
-        const Vars::Bank*   _io = nullptr;
         uint32_t            _baud;
         uint16_t            _cols;
         uint16_t            _rows_cfg;
         uint8_t             _type;
-        /** @brief Last `console_serial` applied, so a swap lands on the COMMIT and
-         *  not on each of the three edits behind it. 0 is not a valid serial
-         *  (the row's default is 1), so the first pass always applies - which is
-         *  what picks the stored geometry up at bring-up. */
-        uint32_t            _cfg_serial = 0;
 
         /** @}
          *  @name External references
@@ -113,22 +116,18 @@ namespace Botanik { namespace Terminal {
         /** @name Lifecycle
          *  @{ */
 
-        /** @brief Initialize the console. @p baud sizes the device's TX depth
-         *  floor. @p alarms, when non-null, feeds the always-visible bottom alarm
-         *  bar and reserves the bottom screen row for it (the content area shrinks
-         *  by one row); null leaves the full screen to pages. */
+        /** @brief The wire and the clock. Geometry, rate and make are NOT
+         *  arguments: they arrive through set_config(). Until they do this is
+         *  one usable cell, which is what a console nobody has configured is. */
         Console(const SetupContext& ctx, Utils::BufferedSerial& serial,
-                uint16_t cols, uint16_t rows,
-                const uint64_t* timestamp_ms, uint32_t baud,
+                const uint64_t* timestamp_ms,
                 const Scheduler::SchedulerContext* sched = nullptr,
-                const Alarms::AlarmController* alarms = nullptr,
-                Ansi::TerminalType type = Ansi::CONFIGURED_TERMINAL,
-                const Vars::Bank* cfg = nullptr);
+                const Alarms::AlarmController* alarms = nullptr);
 
-        /** @brief Four points in the beat: its own configuration (CONFIG), the
-         *  bytes in and the input they carry (INPUT), the frame drawn (PRESENT),
-         *  and the frame plus the ring pushed out (PRESENT, every beat - see the
-         *  flush note in console.cpp). */
+        /** @brief Three points in the beat: the bytes in and the input they
+         *  carry (INPUT), the frame drawn (PRESENT), and the frame plus the ring
+         *  pushed out (PRESENT, every beat - see the flush note in
+         *  console.cpp). */
         void register_tasks() override;
 
         /** @brief The VT device: renderers (pages, editor, bars) paint through
@@ -145,11 +144,12 @@ namespace Botanik { namespace Terminal {
          *  device); call once before the first render. */
         void setup_terminal() { _term.setup_terminal(); }
 
-        /** @brief Apply whatever the store holds, without announcing it.
-         *  @warning AFTER the parameter load. Called before, it records the
-         *  DEFAULTS' commit serial as applied, and since a load restores that
-         *  serial unchanged the group would never edge again. */
-        void apply_stored_config();
+        /** @brief Adopt @p cfg: retune the wire and the TX budget together,
+         *  then re-declare the screen. Safe to call with the config already in
+         *  force - nothing moves and nothing is emitted.
+         *  @param announce log the change at NOTICE; off for bring-up, when
+         *         there is no change to report and no sink to report it to. */
+        void set_config(const ConsoleConfig& cfg, bool announce = true);
 
         /** @brief Re-declare which terminal is on the wire and how big it is,
          *  and put the frame back on the screen it just blanked. What the
@@ -220,8 +220,6 @@ namespace Botanik { namespace Terminal {
          *  Static MEMBERS, so they reach the private methods below without a
          *  friend declaration. @{ */
 
-        static void _config_task(Component* c, const Tasks::Tick& t);
-
         static void _input_task(Component* c, const Tasks::Tick& t);
         static void _draw_task(Component* c, const Tasks::Tick& t);
         static void _flush_task(Component* c, const Tasks::Tick& t);
@@ -229,12 +227,6 @@ namespace Botanik { namespace Terminal {
         /** @}
          *  @name The three points in the beat
          *  @{ */
-
-        /** @brief Re-read the `console_` group and the console's baud, and apply
-         *  them if either moved (PHASE_CONFIG).
-         *  @param announce false at bring-up: applying what the store already
-         *         holds is not a change anyone needs telling about. */
-        void _apply_config(bool announce = true);
 
         /** @brief Take the wire's bytes in and route what they decode to
          *  (PHASE_INPUT). */

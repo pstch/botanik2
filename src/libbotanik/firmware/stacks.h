@@ -160,23 +160,18 @@ namespace Botanik {
 #endif
 
     public:
-        /** @param cols/rows terminal geometry; @param timestamp_ms the shared
-         *  display clock; @param baud sizes the TX depth floor;
-         *  @param alarms feeds the bottom alarm bar (also the AlarmsPage source);
-         *  @param logger the sink the pages announce through. */
-        ConsoleStack(uint16_t cols, uint16_t rows, const uint64_t* timestamp_ms,
-                     uint32_t baud, Alarms::AlarmController* alarms,
+        /** @param timestamp_ms the shared display clock;
+         *  @param alarms feeds the bottom alarm bar (also the AlarmsPage source). */
+        ConsoleStack(const uint64_t* timestamp_ms, Alarms::AlarmController* alarms,
                      const SetupContext& ctx,
                      const Scheduler::SchedulerContext* sched = nullptr,
-                     const SystemContext* sys = nullptr,
-                     const Vars::Bank* cfg = nullptr)
+                     const SystemContext* sys = nullptr)
             : _serial(HAL::Serial::get(HAL::Serial::CONSOLE)),
               // Leading commas from here down: an optional page can drop out
               // without stranding a separator.
-              // The console reads the `console_` group and its own baud out of
-              // the bank: those rows describe nothing but it.
-              _terminal(ctx, _serial, cols, rows, timestamp_ms, baud,
-                        sched, alarms, Terminal::Ansi::CONFIGURED_TERMINAL, cfg)
+              // Geometry, rate and make arrive through set_config(); with a
+              // bank present that is Vars::bind_console()'s job.
+              _terminal(ctx, _serial, timestamp_ms, sched, alarms)
 #if BOTANIK_FEATURE_SHELL_PAGE
             , _shell(_terminal, sys)
 #endif

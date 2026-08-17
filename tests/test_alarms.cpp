@@ -288,9 +288,13 @@ namespace {
         // @p rows: a short screen overflows the 4-alarm set so UP/DOWN actually scroll.
         explicit RenderFixture(uint16_t rows = 24)
             // Very high baud so the cooperative TX floor never throttles a paint.
-            : console(Botanik::SetupContext(), wire.serial, 80, rows, &now, 4000000u),
+            : console(Botanik::SetupContext(), wire.serial, &now),
               model(Botanik::SetupContext(), &bank),
               page(console, &model) {
+            // Geometry and rate are the bank's job in production; a fixture
+            // with no bank sets them through the same path.
+            console.reconfigure(Terminal::Ansi::CONFIGURED_TERMINAL, 80, rows);
+            console.terminal().set_baud(4000000u);
             bank.register_vars(TABLE, 4);
             bank.freeze();
             // The scan is on_setup() now, and the model was built before the
