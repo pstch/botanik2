@@ -63,7 +63,7 @@ namespace Botanik { namespace Vars {
         _seg_base[_segments] = _count;
         _seg_len[_segments]  = count;
         _segments++;
-        // Identity HERE, not at freeze(): desc() goes through _row from the
+        // Identity HERE, not at freeze(): descriptor() goes through _row from the
         // moment a row exists, and a bank that is read before it is frozen (or
         // never frozen at all, as several tests do) would otherwise index the
         // segments through uninitialised memory.
@@ -73,7 +73,7 @@ namespace Botanik { namespace Vars {
     }
 
     void Bank::_resolve_shadows() {
-        // _row is still identity from register_vars(), so desc() reads
+        // _row is still identity from register_vars(), so descriptor() reads
         // physically here and the sort below can use the ordinary accessors.
         _build_index();       // by name, so a redeclared pair lands adjacent
 
@@ -81,7 +81,7 @@ namespace Botanik { namespace Vars {
         while (i < _count) {
             uint16_t j = (uint16_t)(i + 1);
             while (j < _count &&
-                   std::strcmp(desc(_index[i]).name, desc(_index[j]).name) == 0) j++;
+                   std::strcmp(descriptor(_index[i]).name, descriptor(_index[j]).name) == 0) j++;
             if (j > i + 1) {
                 // LAST wins: segments register library-then-site, so the site's
                 // restatement is the one that survives.
@@ -94,7 +94,7 @@ namespace Botanik { namespace Vars {
                     _shadowed++;
                     if (_logger != nullptr)
                         _logger->notice(Logs::BOOT, "var '%s' redeclared",
-                                        desc(win).name);
+                                        descriptor(win).name);
                 }
             }
             i = j;
@@ -121,13 +121,13 @@ namespace Botanik { namespace Vars {
         // with a test to catch it afterwards. Naming the row is the whole point:
         // "parameters are not contiguous" sends nobody anywhere.
         for (uint16_t i = (uint16_t)(_param_first + _param_count); i < _count; i++) {
-            if (desc(i).role != ROLE_PARAM) continue;
+            if (descriptor(i).role != ROLE_PARAM) continue;
             BOTANIK_ASSERT(!"a parameter outside the parameter block");
             if (_logger != nullptr)
                 _logger->critical(Logs::BOOT,
                                   "param '%s' is outside the parameter block\n"
                                   "register the parameter segment first",
-                                  desc(i).name);
+                                  descriptor(i).name);
             _param_stray++;
         }
     }
@@ -137,12 +137,12 @@ namespace Botanik { namespace Vars {
         // never declared.
         _pool_used = 0;
         for (uint16_t i = 0; i < _count; i++) {
-            const uint16_t cap = text_slot(desc(i)).cap;
+            const uint16_t cap = text_slot(descriptor(i)).cap;
             if (cap == 0) { _slots[i].str_off = 0; continue; }
             if ((uint32_t)_pool_used + cap > Config::STR_POOL_BYTES) {
                 // Out of pool. STR_NO_SLOT, not 0: offset 0 is the first text
                 // row's slot, so an overflowed row parked there would share its
-                // bytes. text_at() refuses on the sentinel, so the row reads
+                // bytes. text() refuses on the sentinel, so the row reads
                 // empty and every write bounces.
                 _slots[i].str_off = STR_NO_SLOT;
                 _pool_overflow++;
@@ -153,7 +153,7 @@ namespace Botanik { namespace Vars {
         }
 
         for (uint16_t i = 0; i < _count; i++) {
-            const Descriptor& d = desc(i);
+            const Descriptor& d = descriptor(i);
             _slots[i].v        = d.def;
             _slots[i].stamp_ms = 0;
             // Overrides are a live-session tool; a fresh table has none.
@@ -170,8 +170,8 @@ namespace Botanik { namespace Vars {
             _slots[i].writer   = WRITER_NONE;
 
             uint16_t cap = 0;
-            char* text = text_at(Var(&d, &_slots[i]), &cap);
-            if (text != nullptr) copy_bounded(text, cap, d.def.s);
+            char* txt = text(Var(&d, &_slots[i]), &cap);
+            if (txt != nullptr) copy_bounded(txt, cap, d.def.s);
         }
     }
 
@@ -179,14 +179,14 @@ namespace Botanik { namespace Vars {
         _param_first = 0;
         _param_count = 0;
         for (uint16_t i = 0; i < _count; i++) {
-            if (desc(i).role != ROLE_PARAM) continue;
+            if (descriptor(i).role != ROLE_PARAM) continue;
             _param_first = i;
-            while (i < _count && desc(i).role == ROLE_PARAM) { _param_count++; i++; }
+            while (i < _count && descriptor(i).role == ROLE_PARAM) { _param_count++; i++; }
             return;
         }
     }
 
-    char* Bank::text_at(Var h, uint16_t* cap_out) const {
+    char* Bank::text(Var h, uint16_t* cap_out) const {
         if (cap_out != nullptr) *cap_out = 0;
         const uint16_t cap = text_slot(*h.meta()).cap;
         const uint16_t off = h.str_off();
@@ -199,7 +199,7 @@ namespace Botanik { namespace Vars {
     }
 
     bool Bank::_order_before(uint16_t a, uint16_t b) const {
-        const int c = Utils::compare_bounded(desc(a).name, desc(b).name, 0);
+        const int c = Utils::compare_bounded(descriptor(a).name, descriptor(b).name, 0);
         return (c != 0) ? (c < 0) : (a < b);
     }
 
@@ -228,7 +228,7 @@ namespace Botanik { namespace Vars {
     uint16_t Bank::_lookup(const char* name, uint16_t len) const {
         if (!_indexed) {
             for (uint16_t i = 0; i < _count; i++)
-                if (Utils::compare_bounded(desc(i).name, name, len) == 0) return i;
+                if (Utils::compare_bounded(descriptor(i).name, name, len) == 0) return i;
             return VAR_NONE;
         }
         // Lower bound, then one equality check: with ties ordered by row number,
@@ -236,14 +236,14 @@ namespace Botanik { namespace Vars {
         uint16_t lo = 0, hi = _count;
         while (lo < hi) {
             const uint16_t mid = (uint16_t)(lo + (hi - lo) / 2);
-            if (Utils::compare_bounded(desc(_index[mid]).name, name, len) < 0)
+            if (Utils::compare_bounded(descriptor(_index[mid]).name, name, len) < 0)
                 lo = (uint16_t)(mid + 1);
             else
                 hi = mid;
         }
         if (lo >= _count) return VAR_NONE;
         const uint16_t row = _index[lo];
-        return (Utils::compare_bounded(desc(row).name, name, len) == 0) ? row : VAR_NONE;
+        return (Utils::compare_bounded(descriptor(row).name, name, len) == 0) ? row : VAR_NONE;
     }
 
     VarRef Bank::find(const char* name) const {
@@ -272,8 +272,8 @@ namespace Botanik { namespace Vars {
             // A missing key is normal: the parameter keeps the declared default
             // that init() already seeded.
             uint16_t cap = 0;
-            char* text = text_at(var(i), &cap);
-            (void)_store->load(desc(i), _slots[i], text, cap);
+            char* txt = text(var(i), &cap);
+            (void)_store->load(descriptor(i), _slots[i], txt, cap);
             // Whatever the row now holds came from the store (or is the seeded
             // default), so nothing is owed a write.
             _slots[i].vflags = (uint8_t)(_slots[i].vflags & ~VF_PARAM_UNSAVED);
@@ -305,14 +305,14 @@ namespace Botanik { namespace Vars {
         const bool to_safe = (before == CONTROL_ENABLED && now != CONTROL_ENABLED);
 
         for (uint16_t i = 0; i < _count; i++) {
-            if (desc(i).role != ROLE_OUTPUT) continue;
+            if (descriptor(i).role != ROLE_OUTPUT) continue;
             Slot& v = _slots[i];
 
             if (erase_overrides && v.ovr_on) {
                 // Wipe the stored copy too: overrides persist, so clearing only
                 // RAM hands the actuator back to whoever forced it at the next
                 // boot.
-                if (_store != nullptr) (void)_store->clear_override(desc(i));
+                if (_store != nullptr) (void)_store->clear_override(descriptor(i));
                 v.ovr_on  = false;
                 v.vflags |= VF_FIELD_DIRTY;
             }
@@ -334,7 +334,7 @@ namespace Botanik { namespace Vars {
 
     void Bank::expire_stale(uint64_t now_ms) {
         for (uint16_t i = 0; i < _count; i++) {
-            const Descriptor& d = desc(i);
+            const Descriptor& d = descriptor(i);
             if (d.role != ROLE_INPUT || d.timeout_ms == 0) continue;
             if (_slots[i].qual == Q_GOOD &&
                 (now_ms - _slots[i].stamp_ms) > d.timeout_ms)
@@ -441,7 +441,7 @@ namespace Botanik { namespace Vars {
     uint16_t Bank::reject_implausible() {
         uint16_t n = 0;
         for (uint16_t i = 0; i < _count; i++) {
-            const Descriptor& d = desc(i);
+            const Descriptor& d = descriptor(i);
             if (d.role != ROLE_INPUT || _slots[i].qual != Q_GOOD) continue;
             // An override pushes a reading past its band on purpose, to
             // exercise what watches for it.
@@ -483,7 +483,7 @@ namespace Botanik { namespace Vars {
          *  check rejects a handle on the sink, which is the only alternative. */
     }  // namespace
 
-    SetResult Bank::check(Var h, Scalar v) const {
+    SetResult Bank::param_check(Var h, Scalar v) const {
         const Descriptor* d = h.meta();
         // A T_STR's live text is in the pool, so there is no typed form of it to
         // write; the text overload is the only way in.
@@ -500,7 +500,7 @@ namespace Botanik { namespace Vars {
         return SET_OK;
     }
 
-    SetResult Bank::set(Var h, Scalar v) {
+    SetResult Bank::param_set(Var h, Scalar v) {
         const SetResult r = set_deferred(h, v);
         if (r != SET_OK) return r;
         // Live now, durable when the operator says so.
@@ -510,7 +510,7 @@ namespace Botanik { namespace Vars {
     }
 
     SetResult Bank::set_deferred(Var h, Scalar v) {
-        if (check(h, v) != SET_OK) return SET_INVALID;
+        if (param_check(h, v) != SET_OK) return SET_INVALID;
         const Descriptor* d = h.meta();
         Slot* slot = _editable_slot(d);
         if (slot == nullptr) return SET_INVALID;
@@ -531,13 +531,13 @@ namespace Botanik { namespace Vars {
         if ((slot->vflags & VF_PARAM_UNSAVED) == 0) return SET_OK;
 
         uint16_t cap = 0;
-        char* text = text_at(h, &cap);
+        char* txt = text(h, &cap);
         // Exactly what a reboot would give it: the stored copy, or the factory
         // default when nothing was ever saved. The stored copy is NOT touched -
         // that is the whole difference from param_reset().
-        if (_store == nullptr || !_store->load(*d, *slot, text, cap)) {
+        if (_store == nullptr || !_store->load(*d, *slot, txt, cap)) {
             slot->v = d->def;
-            if (text != nullptr) copy_bounded(text, cap, d->def.s);
+            if (txt != nullptr) copy_bounded(txt, cap, d->def.s);
         }
         slot->qual   = Q_GOOD;                // a parameter always has a value
         slot->vflags = (uint8_t)(slot->vflags & ~VF_PARAM_UNSAVED);
@@ -552,8 +552,8 @@ namespace Botanik { namespace Vars {
         slot->v    = d->def;
         slot->qual = Q_GOOD;                  // a parameter always has a value
         uint16_t cap = 0;
-        char* text = text_at(h, &cap);
-        if (text != nullptr) copy_bounded(text, cap, d->def.s);
+        char* txt = text(h, &cap);
+        if (txt != nullptr) copy_bounded(txt, cap, d->def.s);
         slot->vflags = (uint8_t)(slot->vflags & ~VF_PARAM_UNSAVED);
 
         // The stored copy goes with the live one: left behind, it would put the
@@ -567,7 +567,7 @@ namespace Botanik { namespace Vars {
         return SET_OK;
     }
 
-    SetResult Bank::save(Var h) {
+    SetResult Bank::param_save(Var h) {
         const Descriptor* d = h.meta();
         Slot* slot = _editable_slot(d);
         if (slot == nullptr) return SET_INVALID;
@@ -582,7 +582,7 @@ namespace Botanik { namespace Vars {
         uint16_t saved = 0, bad = 0;
         for (uint16_t i = 0; i < _count; i++) {
             if ((_slots[i].vflags & VF_PARAM_UNSAVED) == 0) continue;
-            if (save(var(i)) == SET_OK) saved++; else bad++;
+            if (param_save(var(i)) == SET_OK) saved++; else bad++;
         }
         if (refused != nullptr) *refused = bad;
         return saved;
@@ -602,7 +602,7 @@ namespace Botanik { namespace Vars {
         return n;
     }
 
-    SetResult Bank::set(Var h, const char* text) {
+    SetResult Bank::param_set(Var h, const char* text) {
         const Descriptor* d = h.meta();
         if (text == nullptr) return SET_INVALID;
         Slot* slotp = _editable_slot(d);
@@ -611,7 +611,7 @@ namespace Botanik { namespace Vars {
 
         if (d->type == T_STR) {
             uint16_t cap = 0;
-            char* dst = text_at(h, &cap);
+            char* dst = this->text(h, &cap);
             if (dst == nullptr) return SET_INVALID;
             if (!validate_str(text_slot(*d).kind, text, cap)) return SET_INVALID;
             copy_bounded(dst, cap, text);
@@ -630,7 +630,7 @@ namespace Botanik { namespace Vars {
     SetResult Bank::_persist_param(Var h, const Descriptor& d, Slot& slot) {
         if (_store == nullptr) return SET_NOT_PERSISTED;
         uint16_t save_cap = 0;
-        char* save_text = text_at(h, &save_cap);
+        char* save_text = text(h, &save_cap);
         if (!_store->save(d, slot, save_text, save_cap)) {
             // Loud: the value is live, so nothing looks wrong until the reboot
             // that quietly reverts it.
@@ -695,7 +695,7 @@ namespace Botanik { namespace Vars {
     bool Bank::_sync_override_mute(uint16_t i) {
         // VAR_NONE lands here as an out-of-range index, so a sink handle is a
         // no-op rather than a special case at each caller.
-        if (i >= _count || desc(i).role != ROLE_OUTPUT) return false;
+        if (i >= _count || descriptor(i).role != ROLE_OUTPUT) return false;
         Slot& v = _slots[i];
         const uint8_t before = v.vflags;
         v.vflags = (control_mode() == CONTROL_DISABLED)
@@ -765,7 +765,7 @@ namespace Botanik { namespace Vars {
         if (_store == nullptr) return 0;
         uint16_t n = 0;
         for (uint16_t i = 0; i < _count; i++) {
-            const Descriptor& d = desc(i);
+            const Descriptor& d = descriptor(i);
             if (!_store->load_override(d, _slots[i])) continue;
             _slots[i].ovr_on = true;
             // It came OUT of the store, so it is durable by definition.
@@ -788,7 +788,7 @@ namespace Botanik { namespace Vars {
         if (_store == nullptr) return 0;
         uint16_t n = 0;
         for (uint16_t i = 0; i < _count; i++) {
-            const Descriptor& d = desc(i);
+            const Descriptor& d = descriptor(i);
             if (!retainable(d)) continue;
             if (!_store->load_retained(d, _slots[i])) continue;
             // Q_GOOD, because it is: the value a totalizer carried when the unit
@@ -804,7 +804,7 @@ namespace Botanik { namespace Vars {
         if (_store == nullptr) return 0;
         uint16_t n = 0;
         for (uint16_t i = 0; i < _count; i++) {
-            const Descriptor& d = desc(i);
+            const Descriptor& d = descriptor(i);
             if (!retainable(d)) continue;
             // The LIVE value, never the override: a totalizer forced to 1000 to
             // test an alarm must not enter the plant's history.
@@ -821,10 +821,10 @@ namespace Botanik { namespace Vars {
             if (!_slots[i].ovr_on) continue;
             _slots[i].ovr_on = false;
             _slots[i].vflags = (uint8_t)(_slots[i].vflags & ~VF_OVR_UNSAVED);
-            if (_store != nullptr) (void)_store->clear_override(desc(i));
+            if (_store != nullptr) (void)_store->clear_override(descriptor(i));
             // The field owes the programs' demand again; a release never written
             // out would leave the actuator where the maintainer left it.
-            if (desc(i).role == ROLE_OUTPUT)
+            if (descriptor(i).role == ROLE_OUTPUT)
                 _slots[i].vflags |= VF_FIELD_DIRTY;
             n++;
         }

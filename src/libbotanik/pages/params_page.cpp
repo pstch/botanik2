@@ -79,7 +79,7 @@ namespace Botanik { namespace Pages {
         _group_n = 0;
         for (uint16_t i = 0; i < _param_count() && _group_n < GROUPS_MAX; i++) {
             // Interned by _group_of(), so the pointer outlives the call.
-            const char* g = _group_of(*_params->param(i).meta());
+            const char* g = _group_of(*_params->param_at(i).meta());
             bool seen = false;
             for (uint8_t k = 0; k < _group_n; k++)
                 if (strcmp(_group_name[k], g) == 0) { seen = true; break; }
@@ -145,13 +145,13 @@ namespace Botanik { namespace Pages {
 
     void ParamsPage::_draw_row(uint16_t idx, uint16_t row, bool selected) {
         const uint16_t k = _param_at(idx);
-        Vars::Var p = _params->param(k);
+        Vars::Var p = _params->param_at(k);
         const Vars::Descriptor& d = *p.meta();
         char val[VAL_CAP], reg[8], line[LINE_CAP];
         // Use what format() RETURNS, not the buffer: a T_STR's live text is in
         // the pool and a T_ENUM's in flash, so neither writes into val, and
         // reading val would show the previous row's text.
-        const char* v = Vars::var_format(*_params, _params->param(k), val, sizeof(val));
+        const char* v = Vars::var_format(*_params, _params->param_at(k), val, sizeof(val));
         // A trailing '*' on an edited-but-unsaved value: one column, and it is
         // the only thing distinguishing a setting that survives a reboot from
         // one that does not. Copied into val first, since format() may have
@@ -199,7 +199,7 @@ namespace Botanik { namespace Pages {
 
     const char* ParamsPage::_selected_cell() const {
         if (_params == nullptr || _selected >= _visible_count()) return nullptr;
-        return _params->param(_param_at(_selected)).meta()->name;
+        return _params->param_at(_param_at(_selected)).meta()->name;
     }
 
     void ParamsPage::_draw_panel() {
@@ -212,7 +212,7 @@ namespace Botanik { namespace Pages {
             _draw_mode_line(_mode_row(), nullptr, nullptr);
             return;
         }
-        Vars::Var p = _params->param(_param_at(_selected));
+        Vars::Var p = _params->param_at(_param_at(_selected));
         const Vars::Descriptor& d = *p.meta();
         char b[24];
         char b2[24];
@@ -314,7 +314,7 @@ namespace Botanik { namespace Pages {
         _draw_label();
 
         char val[80];
-        const char* fv = Vars::var_format(*_params, _params->param(_edit_index), val, sizeof(val));
+        const char* fv = Vars::var_format(*_params, _params->param_at(_edit_index), val, sizeof(val));
         const int n = (int)strlen(fv);
         if (fv != val) { strncpy(val, fv, sizeof(val) - 1); val[sizeof(val) - 1] = 0; }
         if (n > 0) _editor.insert_characters(val, (uint16_t)n);
@@ -337,7 +337,7 @@ namespace Botanik { namespace Pages {
         if (n > (uint16_t)(sizeof(line) - 1)) n = (uint16_t)(sizeof(line) - 1);
         memcpy(line, _editor.buffer(), n);
         line[n] = 0;
-        const Vars::SetResult r = _params->set(_params->param(_edit_index), line);
+        const Vars::SetResult r = _params->param_set(_params->param_at(_edit_index), line);
         if (r != Vars::SET_OK) {
             _edit_error = true;   // stay in edit, flag it
             _draw_error_marker();

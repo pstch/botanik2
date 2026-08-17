@@ -203,7 +203,7 @@ namespace Botanik { namespace Vars {
         Var h(nullptr, nullptr);
         if (!lookup(io, name, &h)) return "";
         if (h.meta()->type != T_STR || io->pool() == nullptr) return "";
-        const char* t = io->text_at(h);
+        const char* t = io->text(h);
         return (t != nullptr) ? t : "";
     }
 

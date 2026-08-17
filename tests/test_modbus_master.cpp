@@ -66,7 +66,7 @@ struct Master {
     /** @brief Dirties every output row so the write blocks compete for the bus. */
     void dirty_all_writes() {
         for (uint16_t i = 0; i < bank.count(); ++i) {
-            const Descriptor& d = bank.desc(i);
+            const Descriptor& d = bank.descriptor(i);
             if (d.bind.transport != XP_MODBUS || d.role != ROLE_OUTPUT) continue;
             Var h = bank.var(i);
             bank.override_set(h, (d.type == T_BOOL) ? from_bool(T_BOOL, true)
@@ -169,7 +169,7 @@ TEST_CASE("modbus client: the urgency is spent once the safe state is out") {
 
     // Pretend the sweep ran: nothing is owed to the field.
     for (uint16_t i = 0; i < m.bank.count(); ++i)
-        if (m.bank.desc(i).bind.transport == XP_MODBUS && m.bank.desc(i).role == ROLE_OUTPUT)
+        if (m.bank.descriptor(i).bind.transport == XP_MODBUS && m.bank.descriptor(i).role == ROLE_OUTPUT)
             m.bank.var(i).clear_field_dirty();
 
     (void)m.client.next_block(30);
@@ -657,7 +657,7 @@ TEST_CASE("modbus tuning: rtu_retries decides when a device counts as dead") {
     REQUIRE(retries.i() == Config::MODBUS_RETRIES); // ...at its factory value
 
     // Patience raised well past what the run below will spend.
-    REQUIRE(m.bank.set(retries, "5") != SET_INVALID);
+    REQUIRE(m.bank.param_set(retries, "5") != SET_INVALID);
 
     m.bus.set_fault(m.client.peer_unit(peer), Sim::FieldBus::FAULT_ABSENT);
     m.client.reassert_outputs(peer);
@@ -669,7 +669,7 @@ TEST_CASE("modbus tuning: rtu_retries decides when a device counts as dead") {
     SUBCASE("and lowering it declares the same device dead on the spot") {
         // No new miss needed: the threshold is read where it is used, so the
         // misses already counted are enough the moment the bar drops under them.
-        REQUIRE(m.bank.set(retries, "1") != SET_INVALID);
+        REQUIRE(m.bank.param_set(retries, "1") != SET_INVALID);
         CHECK(m.client.peer_dead(peer));
         // dead_count() is a PUBLISHED snapshot, refreshed when a transaction
         // resolves rather than per beat, so it catches up on the next miss and
@@ -737,7 +737,7 @@ TEST_CASE("modbus device: the site describes every unit its table addresses") {
     // Rows with no model plan as generic, not an error - but here means hardware was added without one.
     const Bank& io = site_bank();
     for (uint16_t i = 0; i < io.count(); ++i) {
-        const Descriptor& d = io.desc(i);
+        const Descriptor& d = io.descriptor(i);
         if (d.bind.transport != XP_MODBUS || d.bind.device == 0) continue;
         INFO("unit " << (int)d.bind.device << " carries '"
                      << std::string(d.name) << "' but has no model");
@@ -855,7 +855,7 @@ TEST_CASE("modbus device: the AI board's channels are read where they live") {
     uint16_t seen = 0;
     const Bank& io = site_bank();
     for (uint16_t i = 0; i < io.count(); ++i) {
-        const Descriptor& d = io.desc(i);
+        const Descriptor& d = io.descriptor(i);
         if (d.bind.transport != XP_MODBUS || d.bind.device != 11) continue;
         seen++;
         INFO("'" << std::string(d.name) << "' reads unit 11 with fc " << (int)d.bind.fc);
@@ -1285,7 +1285,7 @@ TEST_CASE("modbus plan: an input that could never go stale is refused a place") 
     uint16_t offenders = 0;
     const Bank& io = site_bank();
     for (uint16_t i = 0; i < io.count(); ++i) {
-        const Descriptor& d = io.desc(i);
+        const Descriptor& d = io.descriptor(i);
         if (d.bind.transport == XP_MODBUS && d.role == ROLE_INPUT &&
             is_read(d.bind.fc) && d.timeout_ms == 0) offenders++;
     }

@@ -79,7 +79,7 @@ namespace botanik_test {
             // The bank is the only thing that hands out a pool pointer, and it
             // is the only thing that can prove the pointer is inside the pool.
             uint16_t cap = 0;
-            char* dst = _bank.text_at(_bank.var(r), &cap);
+            char* dst = _bank.text(_bank.var(r), &cap);
             if (dst == nullptr) return;
             std::strncpy(dst, text, cap - 1);
             dst[cap - 1] = 0;

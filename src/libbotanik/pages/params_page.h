@@ -179,7 +179,7 @@ namespace Botanik { namespace Pages {
         /** @brief True when parameter @p k belongs to the active view. */
         bool _in_mode(uint16_t k) const {
             if (_mode == 0) return true;
-            return strcmp(_group_of(*_params->param(k).meta()), _mode_label(_mode)) == 0;
+            return strcmp(_group_of(*_params->param_at(k).meta()), _mode_label(_mode)) == 0;
         }
 
         /** @brief Map a visible row to its parameter index (VAR_NONE-ish: the
@@ -284,7 +284,7 @@ namespace Botanik { namespace Pages {
 
         /** @brief " name = " static label for the parameter being edited. */
         uint16_t _edit_label(char* buf, size_t cap) const {
-            int n = snprintf(buf, cap, " %s = ", _params->param(_edit_index).meta()->name);
+            int n = snprintf(buf, cap, " %s = ", _params->param_at(_edit_index).meta()->name);
             return (n < 0) ? 0 : (uint16_t)n;
         }
 

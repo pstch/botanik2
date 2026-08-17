@@ -185,6 +185,8 @@ namespace Botanik { namespace Vars {
         const Descriptor* meta() const { return _d; }
         const char*     name() const { return _d->name; }
         const char*     unit() const { return _d->unit; }
+        const char*     description() const { return _d->desc; }
+        const char*     notes()       const { return _d->notes; }
         VarType         type() const { return _d->type; }
         VarRole         role() const { return _d->role; }
 
@@ -507,11 +509,11 @@ namespace Botanik { namespace Vars {
 
         /** @brief The descriptor for LOGICAL row @p i, already bounds-checked.
          *  One hop through the redeclaration map, then the segment walk. */
-        const Descriptor& desc(uint16_t i) const { return _desc_phys(_row[i]); }
+        const Descriptor& descriptor(uint16_t i) const { return _desc_phys(_row[i]); }
 
         /** @brief Resolve an index. Never fails; a bad one lands on the sink. */
         Var var(uint16_t i) const {
-            if (i < _count) return Var(&desc(i), &_slots[i]);
+            if (i < _count) return Var(&descriptor(i), &_slots[i]);
             _sink_v = Slot();          // fresh: a sink never accumulates state
             return Var(&_sink_d, &_sink_v);
         }
@@ -521,7 +523,7 @@ namespace Botanik { namespace Vars {
         Var var(const char* name) const { return var(find(name)); }
 
         /** @brief Parameter @p k, 0-based over the ROLE_PARAM block. */
-        Var      param(uint16_t k) const { return var((uint16_t)(_param_first + k)); }
+        Var      param_at(uint16_t k) const { return var((uint16_t)(_param_first + k)); }
         uint16_t param_count() const     { return _param_count; }
         /** @brief Table index of the first ROLE_PARAM row (0 when there are
          *  none). */
@@ -530,7 +532,7 @@ namespace Botanik { namespace Vars {
         /** @brief Where @p h's text lives in the pool, or null. The ONLY route to
          *  a row's text: the declared capacity is in flash and says nothing about
          *  whether the row got a slot. @p cap_out takes the usable capacity. */
-        char* text_at(Var h, uint16_t* cap_out = nullptr) const;
+        char* text(Var h, uint16_t* cap_out = nullptr) const;
 
         /** @brief Find a variable by name; VAR_NONE when absent, which resolves to
          *  the sink. Binary search over _index. */
@@ -629,19 +631,19 @@ namespace Botanik { namespace Vars {
 
         /** @brief Apply @p text to parameter @p h, live but unsaved. A
          *  non-parameter is SET_INVALID - use override() for those. */
-        SetResult set(Var h, const char* text);
+        SetResult param_set(Var h, const char* text);
 
         /** @brief Whether @p v WOULD be accepted, writing nothing. For a caller
          *  committing several rows as one unit (a multi-register write). */
-        SetResult check(Var h, Scalar v) const;
+        SetResult param_check(Var h, Scalar v) const;
 
         /** @brief The same, value already typed. Going via text would apply the
          *  row's DISPLAY rounding, storing 0.083 as 0.08. T_STR is refused. */
-        SetResult set(Var h, Scalar v);
+        SetResult param_set(Var h, Scalar v);
 
         /** @brief Commit @p h's value and clear its unsaved mark; harmless on a
          *  durable row. @return SET_OK, or SET_NOT_PERSISTED. */
-        SetResult save(Var h);
+        SetResult param_save(Var h);
 
         /** @brief Put @p h back to its factory default, live and durably: `def`
          *  returns and the stored copy is dropped, so a reboot cannot undo it.

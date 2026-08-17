@@ -317,7 +317,7 @@ namespace Botanik { namespace Shell {
         if (arg_is_all(nm, wn)) {
             uint16_t done = 0, refused = 0;
             for (uint16_t k = 0; k < io->param_count(); k++) {
-                switch (io->param_reset(io->param(k))) {
+                switch (io->param_reset(io->param_at(k))) {
                     case Vars::SET_OK:             done++;    break;
                     case Vars::SET_NOT_PERSISTED:  refused++; break;
                     default: break;                // read-only rows are not errors
@@ -361,7 +361,7 @@ namespace Botanik { namespace Shell {
         if (arg_is_all(nm, wn)) {
             uint16_t done = 0;
             for (uint16_t k = 0; k < io->param_count(); k++) {
-                const Vars::Var p = io->param(k);
+                const Vars::Var p = io->param_at(k);
                 // Count what actually had something outstanding, not every row
                 // walked: "142 cleared" after editing one is a lie.
                 if (!p.param_unsaved()) continue;
@@ -418,7 +418,7 @@ namespace Botanik { namespace Shell {
         uint16_t vc = std::min(wv, (uint16_t)(sizeof(val) - 1));
         memcpy(val, v, vc); val[vc] = '\0';
 
-        if (io->set(p, val) != Vars::SET_OK) {
+        if (io->param_set(p, val) != Vars::SET_OK) {
             _emitf(out, sizeof(out), "params: invalid value for %s", p.meta()->name);
             return;
         }
@@ -452,7 +452,7 @@ namespace Botanik { namespace Shell {
             _emitf(out, sizeof(out), "params: %s is not a parameter", p.meta()->name);
             return;
         }
-        switch (io->save(p)) {
+        switch (io->param_save(p)) {
             case Vars::SET_OK:
                 _emitf(out, sizeof(out), "%s saved", p.meta()->name);
                 break;

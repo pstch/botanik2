@@ -424,8 +424,8 @@ TEST_CASE("plc io: a write lands on the row and is owed to the field") {
     // A relay coil: a ROLE_OUTPUT, so the write has to be carried outward.
     VarRef out = { VAR_NONE };
     for (uint16_t i = 0; i < f.bank.count(); ++i) {
-        if (f.bank.desc(i).role == ROLE_OUTPUT && f.bank.desc(i).type == T_BOOL) {
-            out = f.ref(f.bank.desc(i).name);
+        if (f.bank.descriptor(i).role == ROLE_OUTPUT && f.bank.descriptor(i).type == T_BOOL) {
+            out = f.ref(f.bank.descriptor(i).name);
             break;
         }
     }

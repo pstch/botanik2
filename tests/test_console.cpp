@@ -1745,7 +1745,7 @@ namespace {
         }
 
         Vars::SetResult set(const char* name, const char* value) {
-            return bank.set(bank.var(name), value);
+            return bank.param_set(bank.var(name), value);
         }
         uint32_t serial() const {
             return (uint32_t)Vars::get_int(&bank, "console_serial", 0);

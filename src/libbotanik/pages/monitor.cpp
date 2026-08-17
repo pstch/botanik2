@@ -172,7 +172,7 @@ namespace Botanik { namespace Pages {
     const char* MonitorPage::_live_text(Vars::Var h, char* buf, size_t cap) const {
         const Vars::Descriptor* d = h.meta();
         if (d->type == Vars::T_STR) {
-            const char* t = _io->text_at(h);
+            const char* t = _io->text(h);
             return (t != nullptr) ? t : "";
         }
         return Vars::format_scalar(d->type, h.live().v, d->digits, d->str, buf, cap);
@@ -243,8 +243,8 @@ namespace Botanik { namespace Pages {
         Vars::VarRef ref = _ref_at(_selected, ok);
         const bool have = ok && _io != nullptr;
         Vars::Var h = have ? _io->var(ref) : Vars::Var(nullptr, nullptr);
-        _panel_field((uint16_t)(br + 2), "Description", have ? h.meta()->desc : nullptr);
-        _panel_field((uint16_t)(br + 3), "Notes",       have ? h.meta()->notes : nullptr);
+        _panel_field((uint16_t)(br + 2), "Description", have ? h.description() : nullptr);
+        _panel_field((uint16_t)(br + 3), "Notes",       have ? h.notes() : nullptr);
         // "Mapping", not "Source": for an OUTPUT nothing comes FROM the row,
         // it goes there. The field names which point on which device the row
         // is mapped to, in either direction.

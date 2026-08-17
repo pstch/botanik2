@@ -100,13 +100,13 @@ TEST_CASE("health: the thresholds are parameters, live, not compile-time constan
     REQUIRE_FALSE(f.alarm("alarm_cpu_load"));
 
     SUBCASE("tightening it raises the alarm on an unchanged load") {
-        REQUIRE(f.bank.set(f.bank.var(f.bank.find("sys_cpu_load_pct")), "10")
+        REQUIRE(f.bank.param_set(f.bank.var(f.bank.find("sys_cpu_load_pct")), "10")
                 != Vars::SET_INVALID);
         h.step(SETTLED);
         CHECK(f.alarm("alarm_cpu_load"));
 
         INFO("...and relaxing it again clears it, with nothing to re-initialise");
-        REQUIRE(f.bank.set(f.bank.var(f.bank.find("sys_cpu_load_pct")), "99")
+        REQUIRE(f.bank.param_set(f.bank.var(f.bank.find("sys_cpu_load_pct")), "99")
                 != Vars::SET_INVALID);
         h.step(SETTLED);
         CHECK_FALSE(f.alarm("alarm_cpu_load"));
@@ -117,7 +117,7 @@ TEST_CASE("health: the thresholds are parameters, live, not compile-time constan
         // quantities, so moving one must not move the other.
         f.sched.cpu_jitter_us_recent =
             (uint32_t)((uint64_t)PERIOD_US * Config::ALARM_CPU_JITTER_PCT / 100u);
-        REQUIRE(f.bank.set(f.bank.var(f.bank.find("sys_cpu_load_pct")), "10")
+        REQUIRE(f.bank.param_set(f.bank.var(f.bank.find("sys_cpu_load_pct")), "10")
                 != Vars::SET_INVALID);
         h.step(SETTLED);
         CHECK(f.alarm("alarm_cpu_load"));
@@ -128,7 +128,7 @@ TEST_CASE("health: the thresholds are parameters, live, not compile-time constan
         f.sched.stack_usage = 0.5f;
         h.step(SETTLED);
         REQUIRE_FALSE(f.alarm("alarm_stack"));    // under the factory 80%
-        REQUIRE(f.bank.set(f.bank.var(f.bank.find("sys_stack_pct")), "40")
+        REQUIRE(f.bank.param_set(f.bank.var(f.bank.find("sys_stack_pct")), "40")
                 != Vars::SET_INVALID);
         h.step(SETTLED);
         CHECK(f.alarm("alarm_stack"));

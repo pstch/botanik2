@@ -250,7 +250,7 @@ namespace Botanik { namespace Modbus {
             // a value question.
             if (!found || !writable(*v.meta())) return EX_ILLEGAL_ADDRESS;
             const uint32_t w = word_at(data, i);
-            if (_io->check(v, from_wire(v.type(), w)) != SET_OK)
+            if (_io->param_check(v, from_wire(v.type(), w)) != SET_OK)
                 return EX_ILLEGAL_VALUE;
             if (w != wire_of(v.type(), v.live().v)) changing++;
         }
@@ -272,7 +272,7 @@ namespace Botanik { namespace Modbus {
             // Live immediately, with the durable copy queued for
             // drain_persists(). Cannot fail on validity: the pass above checked
             // every row.
-            (void)_io->set(v, from_wire(v.type(), w));
+            (void)_io->param_set(v, from_wire(v.type(), w));
             (void)_queue_persist(_rows[k]);
             if (committed != nullptr) (*committed)++;
         }
@@ -299,7 +299,7 @@ namespace Botanik { namespace Modbus {
             // A refusal here is the STORE saying no, which is not a rejected
             // edit: the value is already live, and the fault raised its own
             // alarm on the way out.
-            (void)_io->save(_io->var(r));
+            (void)_io->param_save(_io->var(r));
             done++;
         }
         return done;
@@ -342,7 +342,7 @@ namespace Botanik { namespace Modbus {
         if (!found || !writable(d) || d.type != T_BOOL) return EX_ILLEGAL_ADDRESS;
         if (as_bool(d.type, v.live().v) == on) return EX_NONE;   // no-op, as above
         if (persist_room() == 0) return EX_SLAVE_BUSY;
-        if (_io->set(v, Scalar::B(on)) == SET_INVALID) return EX_ILLEGAL_VALUE;
+        if (_io->param_set(v, Scalar::B(on)) == SET_INVALID) return EX_ILLEGAL_VALUE;
         const int k = _find(addr);
         if (k >= 0) (void)_queue_persist(_rows[k]);
         if (committed != nullptr) (*committed)++;

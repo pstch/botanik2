@@ -181,7 +181,7 @@ TEST_CASE("site: nothing the site touches fails to resolve") {
 
     // Bank::set() is the operator's path alone; catches a write at a stale index - zero is a real row.
     for (uint16_t k = 0; k < f.bank.param_count(); k++) {
-        const Vars::Var h = f.bank.param(k);
+        const Vars::Var h = f.bank.param_at(k);
         if (h.meta()->type == Vars::T_STR) continue;   // lives in the pool
         INFO("parameter '" << h.meta()->name << "' was written by a control "
              "program or the simulated field");
@@ -216,7 +216,7 @@ TEST_CASE("site: the parameters are one contiguous block") {
     CHECK(total == f.bank.param_count());
     CHECK(f.bank.param_count() > 0);
     for (uint16_t k = 0; k < f.bank.param_count(); k++)
-        CHECK(f.bank.param(k).meta()->role == Vars::ROLE_PARAM);
+        CHECK(f.bank.param_at(k).meta()->role == Vars::ROLE_PARAM);
 }
 
 TEST_CASE("site: no row reads the payload arm it did not set") {
@@ -441,10 +441,10 @@ TEST_CASE("site bindings: no two field-bus rows overlap on a device") {
     const Bank& t = tables();
 
     for (uint16_t i = 0; i < t.count(); ++i) {
-        const Descriptor& a = t.desc(i);
+        const Descriptor& a = t.descriptor(i);
         if (!on_the_bus(a)) continue;
         for (uint16_t j = (uint16_t)(i + 1); j < t.count(); ++j) {
-            const Descriptor& b = t.desc(j);
+            const Descriptor& b = t.descriptor(j);
             if (!on_the_bus(b)) continue;
             // Same device and address space: bit/register function codes are numbered apart.
             if (a.bind.device != b.bind.device) continue;
@@ -465,7 +465,7 @@ TEST_CASE("site bindings: a row's span matches the width its wire type needs") {
     const Bank& t = tables();
 
     for (uint16_t i = 0; i < t.count(); ++i) {
-        const Descriptor& d = t.desc(i);
+        const Descriptor& d = t.descriptor(i);
         if (!on_the_bus(d)) continue;
         if (Modbus::is_bit(d.bind.fc)) {
             INFO("'" << nm(d) << "' is a bit row spanning " << d.bind.regs);
@@ -486,7 +486,7 @@ TEST_CASE("site bindings: every field-bus input can go stale") {
     const Bank& t = tables();
 
     for (uint16_t i = 0; i < t.count(); ++i) {
-        const Descriptor& d = t.desc(i);
+        const Descriptor& d = t.descriptor(i);
         if (!on_the_bus(d) || d.role != ROLE_INPUT) continue;
         INFO("'" << nm(d) << "' is a field-bus input with no timeout");
         CHECK(d.timeout_ms > 0);
@@ -499,7 +499,7 @@ TEST_CASE("site bindings: no read block can exceed a device's own request limit"
     const Bank& t = tables();
 
     for (uint16_t i = 0; i < t.count(); ++i) {
-        const Descriptor& d = t.desc(i);
+        const Descriptor& d = t.descriptor(i);
         if (!on_the_bus(d) || Modbus::is_bit(d.bind.fc)) continue;
         INFO("'" << nm(d) << "' spans " << d.bind.regs << " registers");
         CHECK(d.bind.regs <= Config::MODBUS_MAX_REGS_PER_BLOCK);

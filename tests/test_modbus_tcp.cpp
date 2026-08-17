@@ -254,7 +254,7 @@ struct Served {
     /** @brief The first writable row, and the address a master reaches it at. */
     bool first_writable(uint16_t* addr, uint16_t* row) {
         for (uint16_t i = 0; i < bank.count(); ++i) {
-            const Descriptor& d = bank.desc(i);
+            const Descriptor& d = bank.descriptor(i);
             // Map::writable() is file-local; restated here: a numeric, writable parameter.
             if (!Map::published(d) || d.role != ROLE_PARAM) continue;
             if ((d.flags & F_RDONLY) != 0) continue;
@@ -289,7 +289,7 @@ bool other_value(Bank& bank, uint16_t row, uint32_t* out) {
     const float probe[5] = { lo, hi, (lo + hi) * 0.5f, now + 1.0f, now - 1.0f };
     for (int i = 0; i < 5; ++i) {
         const Scalar cand = from_f32(d.type, probe[i]);
-        if (bank.check(v, cand) != SET_OK) continue;
+        if (bank.param_check(v, cand) != SET_OK) continue;
         const uint32_t w = Map::wire_of(d.type, cand);
         if (w == Map::wire_of(d.type, v.live().v)) continue;
         *out = w;
@@ -460,7 +460,7 @@ TEST_CASE("modbus map: a single-register write goes through the same band check"
 
     // A value the band should reject: both halves at 0x7FFF gives a large float and integer alike; if the row accepts it, nothing to test.
     const Scalar wild = Map::from_wire(s.bank.var(row).type(), 0x7F7FFFFFu);
-    if (s.bank.check(s.bank.var(row), wild) == SET_OK) return;
+    if (s.bank.param_check(s.bank.var(row), wild) == SET_OK) return;
 
     const uint32_t before =
         Map::wire_of(s.bank.var(row).type(), s.bank.var(row).live().v);
@@ -519,7 +519,7 @@ struct Pair {
     uint16_t first_addr() const {
         uint16_t best = 0xFFFF;
         for (uint16_t i = 0; i < bank.count(); ++i) {
-            const Descriptor& d = bank.desc(i);
+            const Descriptor& d = bank.descriptor(i);
             if (!Map::published(d) || d.type == T_BOOL) continue;
             if (d.bind.reg < best) best = d.bind.reg;
         }

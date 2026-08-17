@@ -440,10 +440,10 @@ TEST_CASE("model: an empty table is safe to index and sweep") {
 TEST_CASE("model: parameters are a dense block addressable by index") {
     Fixture f;
     CHECK(f.bank.param_count() == 2);
-    CHECK(Utils::compare_str(f.bank.param(0).name(), "ntp_poll_s"));
-    CHECK(Utils::compare_str(f.bank.param(1).name(), "ntp_server1"));
+    CHECK(Utils::compare_str(f.bank.param_at(0).name(), "ntp_poll_s"));
+    CHECK(Utils::compare_str(f.bank.param_at(1).name(), "ntp_server1"));
     // Past the block resolves to the sink rather than to a neighbouring row.
-    CHECK(Utils::compare_str(f.bank.param(9).name(), "<none>"));
+    CHECK(Utils::compare_str(f.bank.param_at(9).name(), "<none>"));
 }
 
 // Overrides: the maintenance shadow over a variable's live value.
@@ -718,22 +718,22 @@ TEST_CASE("set: refuses anything that is not a parameter") {
     Fixture f;
     // set() is the EDIT half only: it applies and marks the row, and reports OK
     // whether or not a store is even bound. Committing is save()'s job.
-    CHECK(f.bank.set(f.bank.var(V_NTP_POLL), "120") == SET_OK);
+    CHECK(f.bank.param_set(f.bank.var(V_NTP_POLL), "120") == SET_OK);
     CHECK(f.bank.var(V_NTP_POLL).i() == 120);
     CHECK(f.bank.var(V_NTP_POLL).param_unsaved());
     CHECK(f.bank.unsaved_count() == 1);
     // No store bound: the commit is what fails, not the edit.
-    CHECK(f.bank.save(f.bank.var(V_NTP_POLL)) == SET_NOT_PERSISTED);
+    CHECK(f.bank.param_save(f.bank.var(V_NTP_POLL)) == SET_NOT_PERSISTED);
     CHECK(f.bank.var(V_NTP_POLL).param_unsaved());   // still owed
 
-    CHECK(f.bank.set(f.bank.var(V_EXT_TEMP), "20") == SET_INVALID);   // input
-    CHECK(f.bank.set(f.bank.var(V_VALVE), "1")     == SET_INVALID);   // output
-    CHECK(f.bank.set(f.bank.var(V_SETPOINT), "20") == SET_INVALID);   // internal
+    CHECK(f.bank.param_set(f.bank.var(V_EXT_TEMP), "20") == SET_INVALID);   // input
+    CHECK(f.bank.param_set(f.bank.var(V_VALVE), "1")     == SET_INVALID);   // output
+    CHECK(f.bank.param_set(f.bank.var(V_SETPOINT), "20") == SET_INVALID);   // internal
 }
 
 TEST_CASE("set: holds a parameter to its declared band") {
     Fixture f;
-    CHECK(f.bank.set(f.bank.var(V_NTP_POLL), "3601") == SET_INVALID);  // max 3600
+    CHECK(f.bank.param_set(f.bank.var(V_NTP_POLL), "3601") == SET_INVALID);  // max 3600
     CHECK(f.bank.var(V_NTP_POLL).i() == 64);                           // untouched
 }
 
@@ -755,12 +755,12 @@ TEST_CASE("pool: a row that does not fit gets no slot, not row 0's") {
     CHECK(bank.pool_overflow() == 1);
     CHECK(bank.var((uint16_t)1).str_off() == STR_NO_SLOT);
     // The row that did fit still reads its own default, unclobbered.
-    CHECK(bank.text_at(bank.var((uint16_t)0)) != nullptr);
-    CHECK(std::strcmp(bank.text_at(bank.var((uint16_t)0)), "first") == 0);
+    CHECK(bank.text(bank.var((uint16_t)0)) != nullptr);
+    CHECK(std::strcmp(bank.text(bank.var((uint16_t)0)), "first") == 0);
     // The row that did not gets no pointer at all, so nothing can write it.
-    CHECK(bank.text_at(bank.var((uint16_t)1)) == nullptr);
-    CHECK(bank.set(bank.var((uint16_t)1), "anything") == SET_INVALID);
-    CHECK(std::strcmp(bank.text_at(bank.var((uint16_t)0)), "first") == 0);
+    CHECK(bank.text(bank.var((uint16_t)1)) == nullptr);
+    CHECK(bank.param_set(bank.var((uint16_t)1), "anything") == SET_INVALID);
+    CHECK(std::strcmp(bank.text(bank.var((uint16_t)0)), "first") == 0);
 }
 
 TEST_CASE("pool: a pool smaller than a single slot writes nothing") {
@@ -774,8 +774,8 @@ TEST_CASE("pool: a pool smaller than a single slot writes nothing") {
     bank.freeze();
 
     CHECK(bank.pool_overflow() == 1);
-    CHECK(bank.text_at(bank.var((uint16_t)0)) == nullptr);
-    CHECK(bank.set(bank.var((uint16_t)0), "x") == SET_INVALID);
+    CHECK(bank.text(bank.var((uint16_t)0)) == nullptr);
+    CHECK(bank.param_set(bank.var((uint16_t)0), "x") == SET_INVALID);
 }
 
 // ---- Implausible readings --------------------------------------------------
@@ -896,11 +896,11 @@ TEST_CASE("params: an edit applies, saves, and survives a reload") {
     StoreEnv env;
     {
         Fx f;
-        CHECK(f.bank.set(f.by("p_u16"), "120") == SET_OK);
-        CHECK(f.bank.set(f.by("p_i32"), "-4200") == SET_OK);
-        CHECK(f.bank.set(f.by("p_f32"), "-12.25") == SET_OK);
-        CHECK(f.bank.set(f.by("p_bool"), "0") == SET_OK);
-        CHECK(f.bank.set(f.by("p_str"), "ntp.example.org") == SET_OK);
+        CHECK(f.bank.param_set(f.by("p_u16"), "120") == SET_OK);
+        CHECK(f.bank.param_set(f.by("p_i32"), "-4200") == SET_OK);
+        CHECK(f.bank.param_set(f.by("p_f32"), "-12.25") == SET_OK);
+        CHECK(f.bank.param_set(f.by("p_bool"), "0") == SET_OK);
+        CHECK(f.bank.param_set(f.by("p_str"), "ntp.example.org") == SET_OK);
         // Live but not durable until this: five rows owed, five written.
         CHECK(f.bank.unsaved_count() == 5);
         CHECK(f.bank.save_params() == 5);
@@ -930,9 +930,9 @@ TEST_CASE("params: stored values keep the type's NARROW width") {
     // encoding and HAL::Storage::get starts rejecting them.
     StoreEnv env;
     Fx f;
-    CHECK(f.bank.set(f.by("p_u16"), "300") == SET_OK);
-    CHECK(f.bank.set(f.by("p_bool"), "0") == SET_OK);
-    CHECK(f.bank.set(f.by("p_f32"), "1.5") == SET_OK);
+    CHECK(f.bank.param_set(f.by("p_u16"), "300") == SET_OK);
+    CHECK(f.bank.param_set(f.by("p_bool"), "0") == SET_OK);
+    CHECK(f.bank.param_set(f.by("p_f32"), "1.5") == SET_OK);
     CHECK(f.bank.save_params() == 3);
     uint8_t buf[16]; size_t n = 0;
     REQUIRE(HAL::Storage::get("p_u16", buf, sizeof(buf), &n));
@@ -946,23 +946,23 @@ TEST_CASE("params: stored values keep the type's NARROW width") {
 TEST_CASE("params: edits are bounds-checked in the parameter's own type") {
     StoreEnv env;
     Fx f;
-    CHECK(f.bank.set(f.by("p_u16"), "3601") == SET_INVALID);
+    CHECK(f.bank.param_set(f.by("p_u16"), "3601") == SET_INVALID);
     CHECK(f.by("p_u16").i() == 64);                 // unchanged
-    CHECK(f.bank.set(f.by("p_i32"), "-6000") == SET_INVALID);
+    CHECK(f.bank.param_set(f.by("p_i32"), "-6000") == SET_INVALID);
     // A fractional bound is a real bound now: 90.5 is out, 89.5 is in.
-    CHECK(f.bank.set(f.by("p_f32"), "90.5") == SET_INVALID);
-    CHECK(f.bank.set(f.by("p_f32"), "89.5") == SET_OK);
+    CHECK(f.bank.param_set(f.by("p_f32"), "90.5") == SET_INVALID);
+    CHECK(f.bank.param_set(f.by("p_f32"), "89.5") == SET_OK);
     // ...and junk is junk.
-    CHECK(f.bank.set(f.by("p_u16"), "12abc") == SET_INVALID);
+    CHECK(f.bank.param_set(f.by("p_u16"), "12abc") == SET_INVALID);
 }
 
 TEST_CASE("params: a string edit is validated by its declared kind") {
     StoreEnv env;
     Fx f;
-    CHECK(f.bank.set(f.by("p_str"), "ntp.example.org") == SET_OK);
-    CHECK(f.bank.set(f.by("p_str"), "bad host") == SET_INVALID);
+    CHECK(f.bank.param_set(f.by("p_str"), "ntp.example.org") == SET_OK);
+    CHECK(f.bank.param_set(f.by("p_str"), "bad host") == SET_INVALID);
     // Must fit the slot including the NUL.
-    CHECK(f.bank.set(f.by("p_str"), "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa") == SET_INVALID);
+    CHECK(f.bank.param_set(f.by("p_str"), "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa") == SET_INVALID);
     CHECK(Utils::compare_str(get_str(&f.bank, "p_str"), "ntp.example.org"));
 }
 
@@ -972,14 +972,14 @@ TEST_CASE("params: a refused save leaves the value live and still owed") {
     // row the store refused stays marked, so the next save tries it again.
     StoreEnv env("/nonexistent-dir-botanik-test/store");
     Fx f;
-    CHECK(f.bank.set(f.by("p_u16"), "120") == SET_OK);
+    CHECK(f.bank.param_set(f.by("p_u16"), "120") == SET_OK);
     CHECK(f.by("p_u16").i() == 120);
-    CHECK(f.bank.save(f.by("p_u16")) == SET_NOT_PERSISTED);
+    CHECK(f.bank.param_save(f.by("p_u16")) == SET_NOT_PERSISTED);
     CHECK(f.by("p_u16").param_unsaved());
     uint16_t refused = 0;
     CHECK(f.bank.save_params(&refused) == 0);
     CHECK(refused == 1);
-    CHECK(f.bank.set(f.by("p_u16"), "99999") == SET_INVALID);   // still invalid
+    CHECK(f.bank.param_set(f.by("p_u16"), "99999") == SET_INVALID);   // still invalid
 }
 
 TEST_CASE("params: by-name reads are null-safe and type-aware") {
@@ -1183,8 +1183,8 @@ TEST_CASE("override: a parameter override shadows without disturbing the setting
     StoreEnv env("/tmp/botanik_test_ovr_g");
     {
         OvrFx f;
-        REQUIRE(f.bank.set(f.bank.var("setting"), "100") == SET_OK);
-        REQUIRE(f.bank.save(f.bank.var("setting")) == SET_OK);
+        REQUIRE(f.bank.param_set(f.bank.var("setting"), "100") == SET_OK);
+        REQUIRE(f.bank.param_save(f.bank.var("setting")) == SET_OK);
         REQUIRE(f.bank.override_set(f.bank.var("setting"), "7") == SET_OK);
         REQUIRE(f.bank.save_override(f.bank.var("setting")) == SET_OK);
         CHECK(f.bank.var("setting").i() == 7);
@@ -1315,7 +1315,7 @@ TEST_CASE("params: the log level reaches the logger, which cannot read it itself
     f.step(0);
     CHECK(f.logger.min_level() == Botanik::Logs::LOG_INFO);
 
-    REQUIRE(f.bank.set(f.row(), "critical") == SET_OK);
+    REQUIRE(f.bank.param_set(f.row(), "critical") == SET_OK);
     INFO("the edit is live in the bank at once, but the logger keeps its own copy");
     CHECK(f.logger.min_level() == Botanik::Logs::LOG_INFO);
 
@@ -1325,7 +1325,7 @@ TEST_CASE("params: the log level reaches the logger, which cannot read it itself
     CHECK(f.logger.min_level() == Botanik::Logs::LOG_CRITICAL);
 
     // ...and back down again: it tracks the parameter, not a one-way latch.
-    REQUIRE(f.bank.set(f.row(), "debug") == SET_OK);
+    REQUIRE(f.bank.param_set(f.row(), "debug") == SET_OK);
     f.step(20);
     CHECK(f.logger.min_level() == Botanik::Logs::LOG_DEBUG);
 }
@@ -1336,7 +1336,7 @@ TEST_CASE("save: an edit is live at once and forgotten unless it is saved") {
         SaveFx f;
         // SET_OK, not SET_NOT_PERSISTED: the EDIT took. NOT_PERSISTED means a
         // store refused a write, which is a fault; no write was attempted.
-        CHECK(f.bank.set(f.by("p_a"), "300") == SET_OK);
+        CHECK(f.bank.param_set(f.by("p_a"), "300") == SET_OK);
         INFO("live immediately - staging is about flash, not about RAM");
         CHECK(f.by("p_a").i() == 300);
         CHECK(f.by("p_a").param_unsaved());
@@ -1353,8 +1353,8 @@ TEST_CASE("save: save_params writes what is pending, and only that") {
     StoreEnv env("/tmp/botanik_test_save2");
     {
         SaveFx f;
-        REQUIRE(f.bank.set(f.by("p_a"), "300") == SET_OK);
-        REQUIRE(f.bank.set(f.by("p_b"), "400") == SET_OK);
+        REQUIRE(f.bank.param_set(f.by("p_a"), "300") == SET_OK);
+        REQUIRE(f.bank.param_set(f.by("p_b"), "400") == SET_OK);
         CHECK(f.bank.save_params() == 2);
         INFO("saving clears the mark, so a second save has nothing to do");
         CHECK(f.bank.unsaved_count() == 0);
@@ -1375,7 +1375,7 @@ TEST_CASE("save: a boot load is not an unsaved edit") {
     StoreEnv env("/tmp/botanik_test_save3");
     {
         SaveFx f;
-        REQUIRE(f.bank.set(f.by("p_a"), "300") == SET_OK);
+        REQUIRE(f.bank.param_set(f.by("p_a"), "300") == SET_OK);
         REQUIRE(f.bank.save_params() == 1);
     }
     {
@@ -1470,33 +1470,33 @@ TEST_CASE("enum param: it reads and writes as a word, and refuses a non-member")
     CHECK(std::strcmp(f.shown(), "auto") == 0);
 
     SUBCASE("a label sets it") {
-        CHECK(f.bank.set(f.row(), "manual") != SET_INVALID);
+        CHECK(f.bank.param_set(f.row(), "manual") != SET_INVALID);
         CHECK(f.row().i() == 16);
         CHECK(std::strcmp(f.shown(), "manual") == 0);
     }
 
     SUBCASE("so does the code, which is what the store and a master write") {
-        CHECK(f.bank.set(f.row(), "1") != SET_INVALID);
+        CHECK(f.bank.param_set(f.row(), "1") != SET_INVALID);
         CHECK(std::strcmp(f.shown(), "off") == 0);
     }
 
     SUBCASE("a code with no label is refused") {
         // No band is declared, so nothing but membership stands between this
         // and a stored value that renders as a bare number forever after.
-        CHECK(f.bank.set(f.row(), "3") == SET_INVALID);
-        CHECK(f.bank.set(f.row(), "0") == SET_INVALID);
+        CHECK(f.bank.param_set(f.row(), "3") == SET_INVALID);
+        CHECK(f.bank.param_set(f.row(), "0") == SET_INVALID);
         CHECK(std::strcmp(f.shown(), "auto") == 0);      // unmoved
     }
 
     SUBCASE("an unknown word is refused") {
-        CHECK(f.bank.set(f.row(), "banana") == SET_INVALID);
+        CHECK(f.bank.param_set(f.row(), "banana") == SET_INVALID);
         CHECK(std::strcmp(f.shown(), "auto") == 0);
     }
 
     SUBCASE("the typed overload cannot get around the check") {
         // set(Var, Scalar) never goes near a parser, so it needs the rule too.
-        CHECK(f.bank.set(f.row(), Scalar::U(3)) == SET_INVALID);
-        CHECK(f.bank.set(f.row(), Scalar::U(16)) != SET_INVALID);
+        CHECK(f.bank.param_set(f.row(), Scalar::U(3)) == SET_INVALID);
+        CHECK(f.bank.param_set(f.row(), Scalar::U(16)) != SET_INVALID);
     }
 
     SUBCASE("nor can an override, which skips the BAND but not the labels") {
@@ -1516,8 +1516,8 @@ TEST_CASE("params: reset puts a row back to its default, live and in storage") {
     f.bank.set_store(&store);
 
     Var p = f.row();
-    REQUIRE(f.bank.set(p, "manual") != SET_INVALID);
-    REQUIRE(f.bank.save(p) == SET_OK);
+    REQUIRE(f.bank.param_set(p, "manual") != SET_INVALID);
+    REQUIRE(f.bank.param_save(p) == SET_OK);
     REQUIRE(p.i() == 16);
 
     CHECK(f.bank.param_reset(p) == SET_OK);
@@ -1538,9 +1538,9 @@ TEST_CASE("params: clear forgets the unsaved edit and keeps the saved one") {
     f.bank.set_store(&store);
 
     Var p = f.row();
-    REQUIRE(f.bank.set(p, "manual") != SET_INVALID);
-    REQUIRE(f.bank.save(p) == SET_OK);          // 16 is now the SAVED value
-    REQUIRE(f.bank.set(p, "auto") != SET_INVALID);
+    REQUIRE(f.bank.param_set(p, "manual") != SET_INVALID);
+    REQUIRE(f.bank.param_save(p) == SET_OK);          // 16 is now the SAVED value
+    REQUIRE(f.bank.param_set(p, "auto") != SET_INVALID);
     REQUIRE(p.param_unsaved());
 
     CHECK(f.bank.param_clear(p) == SET_OK);
@@ -1571,7 +1571,7 @@ TEST_CASE("params: clear with nothing ever saved falls back to the default") {
     KvParamStore store;
     f.bank.set_store(&store);
     Var p = f.row();
-    REQUIRE(f.bank.set(p, "manual") != SET_INVALID);
+    REQUIRE(f.bank.param_set(p, "manual") != SET_INVALID);
     REQUIRE(p.param_unsaved());
     CHECK(f.bank.param_clear(p) == SET_OK);
     CHECK(p.i() == 4);                          // the declared default
@@ -1801,7 +1801,7 @@ TEST_CASE("retain: the cadence is the sys_retain_sec parameter") {
     CHECK(store.saves > after_first);
 
     SUBCASE("0 turns the cadence off entirely") {
-        REQUIRE(a.set(a.var(a.find("sys_retain_sec")), "0") != SET_INVALID);
+        REQUIRE(a.param_set(a.var(a.find("sys_retain_sec")), "0") != SET_INVALID);
         const uint32_t before = store.saves;
         for (uint64_t ms = 4000; ms < 400000; ms += 10000) a.step(ms);
         INFO("no amount of elapsed time may trigger a write once it is off");
@@ -1880,7 +1880,7 @@ TEST_CASE("redeclare: a later row replaces the earlier one, which leaves the tab
     // library's. Anything less and the redeclaration would be cosmetic.
     const Vars::Var v = bank.var(bank.find("ntp_poll_sec"));
     REQUIRE(v.meta() != nullptr);
-    CHECK(std::string(v.meta()->desc) == "site NTP poll interval");
+    CHECK(std::string(v.description()) == "site NTP poll interval");
     CHECK(v.meta()->def.u == 1800u);
     CHECK(v.as_f32() == 1800.0f);              // init() seeded from the winner
 
@@ -1904,7 +1904,7 @@ TEST_CASE("redeclare: the rows after the shadow still resolve and still take a s
     const Vars::VarRef r = bank.find("sys_after");
     REQUIRE(r.index != Vars::VAR_NONE);
     CHECK(std::string(bank.var(r).meta()->name) == "sys_after");
-    REQUIRE(bank.set(bank.var(r), "10") != Vars::SET_INVALID);
+    REQUIRE(bank.param_set(bank.var(r), "10") != Vars::SET_INVALID);
     INFO("a set on a row past the shadow must be what the next read sees");
     CHECK(Vars::get_int(&bank, "sys_after", 0) == 10);
 }
@@ -1921,7 +1921,7 @@ TEST_CASE("redeclare: the parameter block stays one contiguous run") {
     CHECK(bank.param_stray_count() == 0);
     CHECK(bank.param_count() == 3);           // ntp_poll_sec, sys_after, site_only
     for (uint16_t k = 0; k < bank.param_count(); k++)
-        CHECK(bank.param(k).meta()->role == Vars::ROLE_PARAM);
+        CHECK(bank.param_at(k).meta()->role == Vars::ROLE_PARAM);
 }
 
 TEST_CASE("redeclare: an untouched table is left exactly as declared") {
