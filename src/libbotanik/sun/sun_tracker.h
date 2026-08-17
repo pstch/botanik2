@@ -53,7 +53,7 @@ namespace Botanik { namespace Sun {
      *         current angle, the day's peak, the angle-to-peak ratio, and
      *         whether the sun is rising or falling. */
     class SunPositionTracker : public Component {
-        const Vars::Bank* _cfg;   ///< config source (may be null in tests). Read by name.
+        const Vars::Bank* _io;   ///< config source (may be null in tests). Read by name.
         SolarPosition _pos;    ///< Cached solar position (see ready()).
         uint64_t _next_ms;     ///< Timestamp the next scheduled recompute.
         bool     _computed;    ///< Position successfully acquired.

@@ -76,7 +76,7 @@ namespace Botanik { namespace Terminal {
         /** @brief Where the settings live; null leaves the console at whatever
          *  it was constructed with, which is what a site that omitted the
          *  library splice gets. */
-        const Vars::Bank*   _cfg = nullptr;
+        const Vars::Bank*   _io = nullptr;
         uint32_t            _baud;
         uint16_t            _cols;
         uint16_t            _rows_cfg;

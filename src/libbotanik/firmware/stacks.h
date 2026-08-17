@@ -79,13 +79,13 @@ namespace Botanik {
          *  in `firmware/`, which already depends on both. */
         class Rate : public Component {
             Utils::BufferedSerial& _port;
-            const Vars::Bank*      _cfg;
+            const Vars::Bank*      _io;
             uint32_t               _baud = Config::MONITOR_BAUD;
 
         public:
             Rate(const SetupContext& ctx, Utils::BufferedSerial& port,
                  const Vars::Bank* cfg)
-                : Component(ctx, "monitor"), _port(port), _cfg(cfg) {}
+                : Component(ctx, "monitor"), _port(port), _io(cfg) {}
 
             void register_tasks() override {
                 _tasks->add(*this, &Rate::_task, "monitor_cfg",
@@ -98,9 +98,9 @@ namespace Botanik {
              *  log stream, so getting its rate wrong costs the log and nothing
              *  else. */
             void apply() {
-                if (_cfg == nullptr) return;
+                if (_io == nullptr) return;
                 const uint32_t want = (uint32_t)Vars::get_int(
-                    _cfg, "monitor_baud", (int32_t)_baud);
+                    _io, "monitor_baud", (int32_t)_baud);
                 if (want == _baud || want == 0) return;
                 _baud = want;
                 _port.begin(want);

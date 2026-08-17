@@ -17,19 +17,19 @@ namespace Botanik { namespace Network {
 
     NtpClient::NtpClient(const SetupContext& ctx, const Vars::Bank* cfg,
                          NameResolver* resolver, const NetworkHandler* net)
-        : Component(ctx, "NtpClient"), _cfg(cfg),
+        : Component(ctx, "NtpClient"), _io(cfg),
           _state(TIME_IDLE), _since_ms(0), _resolver(resolver), _net(net), _server_idx(0),
           _udp(-1), _offset_ms(0), _sync_held(false) {
         _server_addr = HAL::Network::Ip4();   // 0.0.0.0 until resolved
     }
 
     uint32_t NtpClient::param_serial() const {
-        return Vars::group_serial(_cfg, "ntp");
+        return Vars::group_serial(_io, "ntp");
     }
 
     uint16_t NtpClient::server_port() const {
         // ntp_port IS the setting (band starts at 1); no second default here.
-        return (uint16_t)Vars::get_int(_cfg, "ntp_port");
+        return (uint16_t)Vars::get_int(_io, "ntp_port");
     }
 
     const char* NtpClient::status_str() const {
@@ -48,7 +48,7 @@ namespace Botanik { namespace Network {
         // first server. A reconfig is a fresh start: the next sync is "initial".
         _server_idx = 0;
         _sync_held = false;
-        _state = Vars::get_int(_cfg, "ntp_enable") ? TIME_RESOLVE : TIME_IDLE;
+        _state = Vars::get_int(_io, "ntp_enable") ? TIME_RESOLVE : TIME_IDLE;
         _since_ms = now_ms;
     }
 
@@ -62,7 +62,7 @@ namespace Botanik { namespace Network {
     }
 
     void NtpClient::_next_server_or_error(uint64_t now_ms) {
-        if (_server_idx == 0 && Vars::get_str(_cfg, "ntp_srv2")[0] != '\0') {
+        if (_server_idx == 0 && Vars::get_str(_io, "ntp_srv2")[0] != '\0') {
             _server_idx = 1;              // try the secondary server
             _state = TIME_RESOLVE;
             _since_ms = now_ms;
@@ -80,14 +80,14 @@ namespace Botanik { namespace Network {
                 break;
 
             case TIME_RESOLVE: {
-                if (!Vars::get_int(_cfg, "ntp_enable")) {
+                if (!Vars::get_int(_io, "ntp_enable")) {
                     _state = TIME_IDLE; _sync_held = false; break;
                 }
                 // Needs a live link before sending; the NetworkHandler owns
                 // that state.
                 if (_net == nullptr || !_net->is_up()) break;
 
-                const char* server = Vars::get_str(_cfg, _server_idx == 0 ? "ntp_srv1" : "ntp_srv2");
+                const char* server = Vars::get_str(_io, _server_idx == 0 ? "ntp_srv1" : "ntp_srv2");
                 if (server[0] == '\0') { _next_server_or_error(now_ms); break; }
 
                 if (_resolver == nullptr) { _next_server_or_error(now_ms); break; }
@@ -123,7 +123,7 @@ namespace Botanik { namespace Network {
             case TIME_SYNCED: {
                 // ntp_poll_sec IS the setting; its band starts at 10, so there
                 // is no zero to substitute a second default for.
-                uint32_t poll_s = (uint32_t)Vars::get_int(_cfg, "ntp_poll_sec");
+                uint32_t poll_s = (uint32_t)Vars::get_int(_io, "ntp_poll_sec");
                 if (now_ms - _since_ms > (uint64_t)poll_s * 1000ull) {
                     _server_idx = 0;
                     _state = TIME_RESOLVE; _since_ms = now_ms;

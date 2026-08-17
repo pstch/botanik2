@@ -40,7 +40,7 @@ namespace Botanik { namespace Terminal {
         _serial(serial),
         _term(serial, cols, rows, baud, type),
         _parser(serial, timestamp_ms),
-        _cfg(cfg), _baud(baud), _cols(cols), _rows_cfg(rows),
+        _io(cfg), _baud(baud), _cols(cols), _rows_cfg(rows),
         _type((uint8_t)type),
         _alarms(alarms),
         _status_bar(*this, sched),
@@ -84,11 +84,11 @@ namespace Botanik { namespace Terminal {
     }
 
     void Console::_apply_config(bool announce) {
-        if (_cfg == nullptr) return;
+        if (_io == nullptr) return;
         // A group with no rows answers 0, which is also the "never applied"
         // seed - so a build whose site left the splice out simply never
         // reconfigures, and keeps what it was constructed at.
-        const uint32_t serial = Vars::group_serial(_cfg, "console");
+        const uint32_t serial = Vars::group_serial(_io, "console");
         const bool want_cfg = (serial != 0 && serial != _cfg_serial);
         if (!want_cfg) return;
 
@@ -96,8 +96,7 @@ namespace Botanik { namespace Terminal {
             // The rate rides the group's commit like the make and the size: all
             // four describe one physical terminal, and applying them one at a
             // time asks whoever is watching to reconnect once per row.
-            const uint32_t baud = (uint32_t)Vars::get_int(_cfg, "console_baud",
-                                                          (int32_t)_baud);
+            const uint32_t baud = _io->var("console_baud").value().as_u32();
             if (baud != 0 && baud != _baud) {
                 // Wire and budget together: either alone leaves the renderer
                 // pacing for a rate it is not on.
@@ -107,9 +106,9 @@ namespace Botanik { namespace Terminal {
             }
         }
         {
-            const uint8_t  type = (uint8_t)Vars::get_int(_cfg, "console_type", (int32_t)_type);
-            uint16_t cols = (uint16_t)Vars::get_int(_cfg, "console_cols", (int32_t)_cols);
-            uint16_t rows = (uint16_t)Vars::get_int(_cfg, "console_rows", (int32_t)_rows_cfg);
+            const uint8_t type = _io->var("console_type").value().as_u8();
+            uint16_t cols = _io->var("console_cols").value().as_u16();
+            uint16_t rows = _io->var("console_rows").value().as_u16();
             // The parameter band guards the way IN; a corrupt store reaches this
             // by another road, and below the minimum the tables lose cells
             // rather than reflowing.

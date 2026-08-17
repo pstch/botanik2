@@ -51,7 +51,7 @@ namespace Botanik { namespace Network {
         };
 
         /** @brief Config source (may be null in tests). */
-        const Vars::Bank* _cfg;
+        const Vars::Bank* _io;
         State         _state;
         /// when this state was entered (for timeouts)
         uint64_t      _since_ms;

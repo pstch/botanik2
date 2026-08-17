@@ -147,19 +147,19 @@ namespace Botanik { namespace Sun {
     static const uint64_t WALL_CLOCK_VALID_MS = 1600000000000ull;
 
     SunPositionTracker::SunPositionTracker(const SetupContext& ctx, const Vars::Bank* cfg)
-        : Component(ctx, "SunPositionTracker"), _cfg(cfg),
+        : Component(ctx, "SunPositionTracker"), _io(cfg),
           _pos(), _next_ms(0), _computed(false) {}
 
     uint32_t SunPositionTracker::param_serial() const {
-        return Vars::group_serial(_cfg, "geo");
+        return Vars::group_serial(_io, "geo");
     }
 
     void SunPositionTracker::on_param_changed(uint64_t now_ms) {
         (void)now_ms;
         // Take the pair TOGETHER, on the commit: that is what makes it one
         // location rather than two independently edited numbers.
-        _lat = Vars::get_f32(_cfg, "geo_lat_deg");
-        _lon = Vars::get_f32(_cfg, "geo_lon_deg");
+        _lat = Vars::get_f32(_io, "geo_lat_deg");
+        _lon = Vars::get_f32(_io, "geo_lon_deg");
         // New location: drop the old computation; on_service recomputes once the
         // clock is valid.
         _computed = false;

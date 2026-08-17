@@ -20,7 +20,7 @@ namespace Botanik { namespace Network {
 
     MqttClient::MqttClient(const SetupContext& ctx, const Vars::Bank* cfg,
                            NameResolver* resolver, const NetworkHandler* net)
-        : Component(ctx, "MqttClient"), _cfg(cfg),
+        : Component(ctx, "MqttClient"), _io(cfg),
           _state(MQTT_IDLE), _since_ms(0), _last_ping_ms(0), _last_pong_ms(0),
           _connack(), _connack_len(0), _last_pub_ms(0),
           _resolver(resolver), _net(net), _sock(-1) {
@@ -28,14 +28,14 @@ namespace Botanik { namespace Network {
     }
 
     uint32_t MqttClient::param_serial() const {
-        return Vars::group_serial(_cfg, "mqtt");
+        return Vars::group_serial(_io, "mqtt");
     }
 
     uint16_t MqttClient::peer_port() const {
         // The mqtt_port parameter IS the setting: its band starts at 1, so
         // there is no zero to substitute for. A fallback here would be a second
         // default, free to drift from the one on the PARAMS page.
-        return (uint16_t)Vars::get_int(_cfg, "mqtt_port");
+        return (uint16_t)Vars::get_int(_io, "mqtt_port");
     }
 
     const char* MqttClient::status_str() const {
@@ -62,7 +62,7 @@ namespace Botanik { namespace Network {
 
     void MqttClient::on_param_changed(uint64_t now_ms) {
         if (_sock >= 0) { HAL::Network::tcp_close(_sock); _sock = -1; }
-        _enter(Vars::get_int(_cfg, "mqtt_enable") ? MQTT_RESOLVE : MQTT_IDLE, now_ms);
+        _enter(Vars::get_int(_io, "mqtt_enable") ? MQTT_RESOLVE : MQTT_IDLE, now_ms);
     }
 
     void MqttClient::on_service(uint64_t now_ms) {
@@ -71,10 +71,10 @@ namespace Botanik { namespace Network {
                 break;
 
             case MQTT_RESOLVE: {
-                if (!Vars::get_int(_cfg, "mqtt_enable")) { _enter(MQTT_IDLE, now_ms); break; }
+                if (!Vars::get_int(_io, "mqtt_enable")) { _enter(MQTT_IDLE, now_ms); break; }
                 // Needs the link to be up before opening a TCP socket.
                 if (_net == nullptr || !_net->is_up()) break;
-                const char* broker = Vars::get_str(_cfg, "mqtt_host");
+                const char* broker = Vars::get_str(_io, "mqtt_host");
                 if (broker[0] == '\0') { _fail(now_ms); break; }
 
                 if (_resolver == nullptr) { _fail(now_ms); break; }
@@ -179,7 +179,7 @@ namespace Botanik { namespace Network {
         const char* cid = Config::SITE_NAME;
         uint16_t cid_len = (uint16_t)strlen(cid);
         // mqtt_ka_sec IS the setting (band starts at 10).
-        uint16_t keepalive = (uint16_t)Vars::get_int(_cfg, "mqtt_ka_sec");
+        uint16_t keepalive = (uint16_t)Vars::get_int(_io, "mqtt_ka_sec");
 
         uint8_t buf[Config::MQTT_TX_BUF];
         // variable header (10) + client-id (2-byte len prefix + cid_len)
@@ -239,7 +239,7 @@ namespace Botanik { namespace Network {
                 if (scratch[j] == 0xD0) { _last_pong_ms = now_ms; break; }
         }
 
-        const uint32_t ka_s = (uint32_t)Vars::get_int(_cfg, "mqtt_ka_sec");
+        const uint32_t ka_s = (uint32_t)Vars::get_int(_io, "mqtt_ka_sec");
         const uint64_t ka_ms = (uint64_t)ka_s * 1000ull;
 
         // A wedged broker, or a path that black-holes, leaves the socket open
