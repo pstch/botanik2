@@ -13,7 +13,7 @@
  * gone) is dropped, not queued - MQTT already owns the socket TX.
  *
  * The sink-local floor defaults to DEBUG, so the broker carries everything the
- * logger does; see Config::MQTT_LOG_MIN_LEVEL.
+ * logger does; `mqtt_level` is what an operator raises.
  */
 
 #include <cstddef>
@@ -51,10 +51,9 @@ namespace Botanik { namespace Network {
          *  @{ */
 
         /** @brief @p min_level seeds the base's sink-local floor (criticals
-         *  always pass); defaults from Config::MQTT_LOG_MIN_LEVEL. Adjust it
-         *  later with LogWriter::set_min_level(). */
-        explicit MqttLogWriter(Logs::LogLevel min_level =
-                                   (Logs::LogLevel)Config::MQTT_LOG_MIN_LEVEL);
+         *  always pass); the bank raises it from `mqtt_level` once the store is
+         *  read. */
+        explicit MqttLogWriter(Logs::LogLevel min_level = Logs::LOG_DEBUG);
         /** @brief Bind the transport (called once at firmware setup). */
         void set_publisher(MqttClient* mqtt) { _mqtt = mqtt; }
 

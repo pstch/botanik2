@@ -148,8 +148,6 @@ The sections below follow the header's own order.
 
 | Macro | Default | |
 |---|---|---|
-| `CONSOLE_BAUD` | 4800 | drives the UART **and** the terminal's per-render TX budget, which `AnsiTerminal` derives from it at construction. Compile-time only: a runtime setter could move one and not the other, so there isn't one |
-| `MONITOR_BAUD` | 115200 | effective on the simulator. The OPTA's MONITOR endpoint is USB CDC and has no line rate |
 | `SERIAL_RX_BUF` / `SERIAL_TX_BUF` | 256 / 4096 | the two rings, per port. Powers of two (`static_assert`ed); usable depth is size-1 |
 | `SERIAL_TX_PER_STEP` | 256 | bytes one `transmit()` may push, so a fast port (USB CDC) cannot eat a whole beat |
 
@@ -265,7 +263,6 @@ Broker host, port and keepalive are runtime parameters (`mqtt_host`, `mqtt_port`
 | `MQTT_TELEMETRY_PER_STEP` | 8 | fields published per step, so one cycle cannot eat a beat |
 | `MQTT_TELEMETRY_RETAIN` | 1 | factory default for `mqtt_retain`. @warning an invalid reading is skipped rather than published, and there is no last will, so the broker keeps serving the last good value of a dead sensor. Turn it off where "current" must be distinguishable from "last seen" |
 | `MQTT_TELEMETRY_TOPIC` / `MQTT_LOG_TOPIC` / `MQTT_ALARM_TOPIC` | `"status"` / `"logs"` / `"alarms"` | the path schema under `MQTT_TOPIC_PREFIX`. Changing one moves every subscriber |
-| `MQTT_LOG_MIN_LEVEL` | 1 (debug) | the MQTT sink's own threshold; DEBUG, so the broker carries everything the logger does |
 
 ### Sun position tracking
 
@@ -293,8 +290,6 @@ commit may ask for. See @ref user_console.
 
 | Macro | Default | |
 |---|---|---|
-| `TERMINAL_TYPE` | 1 | factory default for `console_type`. 0 = VT100, 1 = VT102, 2 = Minitel 1B, 3 = Minitel 2. A plain integer, because this header is included everywhere and must not depend on the console |
-| `CONSOLE_COLS` / `CONSOLE_ROWS` | 80 / 25 | factory defaults for `console_cols` / `console_rows` |
 | `TERMINAL_MAX_COLS` / `_ROWS` | 132 / 32 | largest terminal supported. They size the screen back-buffer (two cell grids, so 2 x their product in RAM) and clamp both the construction geometry and anything the `console_` rows ask for |
 | `CONSOLE_PAGES_MAX` | 10 | pages the Console multiplexes, at the Alt+`<digit>` ceiling. The full page set is 8, and registration past the cap is refused **silently**, so the headroom is what lets a site splice its own page in |
 

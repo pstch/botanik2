@@ -21,6 +21,28 @@
 
 namespace Botanik { namespace Terminal {
 
+    /** @brief The one physical terminal a Console drives.
+     *
+     *  These initializers ARE the factory defaults: what a build with no
+     *  variable model runs at, and what the `console_` rows declare as their
+     *  own. One number, in one place - there is no config macro behind them.
+     *  @note Beside AnsiTerminal rather than Console: every field is a property
+     *        of the DEVICE. Console only forwards them.
+     */
+    struct ConsoleConfig {
+        uint32_t           baud = 4800;
+        Ansi::TerminalType type = Ansi::TerminalType::VT102;
+        uint16_t           cols = 80;
+        uint16_t           rows = 24;
+    };
+
+    static_assert(ConsoleConfig().cols >= Config::SCREEN_MIN_COLS &&
+                  ConsoleConfig().rows >= Config::SCREEN_MIN_ROWS,
+                  "the default geometry is below the minimum the pages lay out for");
+    static_assert(ConsoleConfig().cols <= Config::TERMINAL_MAX_COLS &&
+                  ConsoleConfig().rows <= Config::TERMINAL_MAX_ROWS,
+                  "the default geometry does not fit the screen back-buffer");
+
     /** @brief How urgently a row's changes want the wire when a tick's byte
      *  budget cannot carry all of them; lower goes first. No queue: a row that
      *  misses a tick still differs from the back-buffer on the next one. */

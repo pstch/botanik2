@@ -77,7 +77,7 @@ namespace Botanik { namespace Logs {
      *
      *  format_log_entry() below emits `"%s %s %s%s %s"`, so the message starts
      *  at column `28 + strlen(topic)`, or 27 with no topic (the ":" is
-     *  skipped). At CONSOLE_COLS = 80 that leaves the first line 42 (ALARM_FLAP)
+     *  skipped). At an 80-column console that leaves the first line 42 (ALARM_FLAP)
      *  to 53 (no topic) columns, while a continuation row gets
      *  `80 - strlen(LOG_CONT_PREFIX)` = 54, WIDER than any first line. That is
      *  what makes lead-plus-detail work.
@@ -89,7 +89,7 @@ namespace Botanik { namespace Logs {
      *  on line 2, where no fold can split it. A variable-width "%s" goes on
      *  line 1 only if the fixed text around it leaves room for its worst case.
      *
-     *  There is no constant for the 40: CONSOLE_COLS is site-overridable, the
+     *  There is no constant for the 40: the console width is a parameter, the
      *  console is resizable at runtime, and nothing can consult a constant from
      *  inside a string literal.
      *

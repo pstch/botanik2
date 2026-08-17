@@ -62,7 +62,7 @@ extern "C" void botanik_sim_reexec(int) {   // NOLINT(bugprone-signal-handler)
 int main(int argc, char** argv) {
     using namespace Botanik;
 
-    // The console runs at Config::CONSOLE_BAUD (4800), so the sim exercises the
+    // The console runs at `console_baud` (4800 by default), so the sim exercises the
     // TX pacing at the rate the hardware sees. No runtime override: the terminal
     // derives its per-render byte budget from that constant at construction, so
     // a later change would speed the wire up without letting the renderer fill it.

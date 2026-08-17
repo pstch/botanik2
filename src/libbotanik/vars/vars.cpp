@@ -17,6 +17,15 @@
 
 #include "libbotanik/vars/model.h"
 
+// The factory default of a row that configures a component is that
+// component's own struct default: one number, next to what runs at it.
+#if BOTANIK_FEATURE_CONSOLE
+#include "libbotanik/console/terminal.h"
+#endif
+#if BOTANIK_FEATURE_LOGS_MONITOR
+#include "libbotanik/firmware/stacks.h"
+#endif
+
 #include "libbotanik/config/alarms.h"
 #include "libbotanik/config/logging.h"
 #include "libbotanik/config/modbus.h"
@@ -142,11 +151,11 @@ namespace Botanik { namespace Vars {
     // can hit lands as the nearest the driver manages.
 
     P("monitor_baud", T_U32,
-        BOTANIK_MONITOR_BAUD, 1200, 921600, 0, "Bd", 901,
+        MonitorConfig().baud, 1200, 921600, 0, "Bd", 901,
         "monitor UART rate",
         "log-only port; ignored on the OPTA, whose MONITOR is USB CDC"),
 #if BOTANIK_FEATURE_LOGS_MONITOR
-    PE("monitor_level", BOTANIK_MONITOR_LOG_MIN_LEVEL,
+    PE("monitor_level", Logs::LOG_DEBUG,
         &Logs::log_level_label, 905,
         "lowest level the monitor port carries",
         "open by default: this port exists to be the full record"),
@@ -220,7 +229,7 @@ namespace Botanik { namespace Vars {
         "publish telemetry retained",
         "on, the broker keeps serving a dead sensor's last good value"),
 #if BOTANIK_FEATURE_LOGS_PUBLISH
-    PE("mqtt_level", BOTANIK_MQTT_LOG_MIN_LEVEL,
+    PE("mqtt_level", Logs::LOG_DEBUG,
         &Logs::log_level_label, 937,
         "lowest level published to the broker",
         "every entry costs a publish, so this is the floor to raise first"),
@@ -286,19 +295,19 @@ namespace Botanik { namespace Vars {
         1, 0, 9999, 0, "", 960,
         "bump to apply staged console_ edits", ""),
     P("console_baud", T_U32,
-        BOTANIK_CONSOLE_BAUD, 1200, 921600, 0, "Bd", 900,
+        Terminal::ConsoleConfig().baud, 1200, 921600, 0, "Bd", 900,
         "console UART rate",
         "reconnect at the new rate; unsaved, so a power cycle undoes it"),
     P("console_type", T_U8,
-        BOTANIK_TERMINAL_TYPE, 0, 3, 0, "", 961,
+        (uint8_t)Terminal::ConsoleConfig().type, 0, 3, 0, "", 961,
         "which terminal is on the console",
         "0=VT100 1=VT102 2=Minitel 1B 3=Minitel 2"),
     P("console_cols", T_U16,
-        BOTANIK_CONSOLE_COLS, BOTANIK_SCREEN_MIN_COLS,
+        Terminal::ConsoleConfig().cols, BOTANIK_SCREEN_MIN_COLS,
         BOTANIK_TERMINAL_MAX_COLS, 0, "col", 962,
         "console width, in columns", "the screen buffer bounds the maximum"),
     P("console_rows", T_U16,
-        BOTANIK_CONSOLE_ROWS, BOTANIK_SCREEN_MIN_ROWS,
+        Terminal::ConsoleConfig().rows, BOTANIK_SCREEN_MIN_ROWS,
         BOTANIK_TERMINAL_MAX_ROWS, 0, "row", 963,
         "console height, in rows", "the screen buffer bounds the maximum"),
     /* The per-page log floors. In this group because they are the console's,
@@ -306,19 +315,19 @@ namespace Botanik { namespace Vars {
        when the next entry arrives and re-initialises nothing, so it lands the
        moment it is set. @see Vars::Bank::_apply_log_level */
 #if BOTANIK_FEATURE_HOME_PAGE
-    PE("console_home_level", BOTANIK_HOME_LOG_MIN_LEVEL,
+    PE("console_home_level", Logs::LOG_NOTICE,
         &Logs::log_level_label, 964,
         "lowest level HOME's log tail shows",
         "a landing screen: only what is worth looking up for"),
 #endif
 #if BOTANIK_FEATURE_SHELL_PAGE
-    PE("console_shell_level", BOTANIK_SHELL_LOG_MIN_LEVEL,
+    PE("console_shell_level", Logs::LOG_INFO,
         &Logs::log_level_label, 965,
         "lowest level the SHELL page interleaves",
         "`logs off` silences it entirely without moving this"),
 #endif
 #if BOTANIK_FEATURE_LOGS_PAGE
-    PE("console_logs_level", BOTANIK_LOGS_LOG_MIN_LEVEL,
+    PE("console_logs_level", Logs::LOG_DEBUG,
         &Logs::log_level_label, 966,
         "lowest level the LOGS page keeps",
         "this page is the record; raising it loses the record"),

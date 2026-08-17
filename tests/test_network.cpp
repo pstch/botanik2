@@ -439,9 +439,8 @@ TEST_CASE("mqtt log: no publisher wired is a safe no-op") {
 }
 
 // The broker is read off-site, so it must carry everything the logger lets through,
-// DEBUG included; a site that can't afford it raises MQTT_LOG_MIN_LEVEL itself.
+// DEBUG included; a site that can't afford it raises `mqtt_level` itself.
 TEST_CASE("mqtt log: the default sink floor passes DEBUG") {
-    CHECK((Logs::LogLevel)Config::MQTT_LOG_MIN_LEVEL == Logs::LOG_DEBUG);
     Network::MqttLogWriter sink;
     CHECK(sink.min_level() == Logs::LOG_DEBUG);
     // ...and the logger's own floor must not filter it first, or the sink floor answers a question nothing asks.

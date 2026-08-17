@@ -14,7 +14,6 @@
   Power      <HF>           Neutral A  <HF>           Skirt      <HF>
   Pwr factor <HF>           THD L-N    <HF>
 
-
     LOGS
 
 

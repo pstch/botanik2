@@ -293,7 +293,7 @@ namespace {
               page(console, &model) {
             // Geometry and rate are the bank's job in production; a fixture
             // with no bank sets them through the same path.
-            console.reconfigure(Terminal::Ansi::CONFIGURED_TERMINAL, 80, rows);
+            console.reconfigure(Terminal::ConsoleConfig().type, 80, rows);
             console.terminal().set_baud(4000000u);
             bank.register_vars(TABLE, 4);
             bank.freeze();

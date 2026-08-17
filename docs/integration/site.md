@@ -104,10 +104,9 @@ are fixed by the base and cannot be reordered or skipped - see @ref dev_architec
 for what that order is and why.
 
 Anything tunable before start-up is a modifier called ahead of `setup()`:
-`set_monitor_baud()`, `set_hw_watchdog_ms()`. The console baud is not one of them
-- it is `Config::CONSOLE_BAUD` throughout, because the terminal derives its
-per-render TX budget from it at construction and a later setter could only move
-one of the two.
+`set_hw_watchdog_ms()`. Neither UART rate is one of them: both are parameters
+(`console_baud`, `monitor_baud`), and `ConfigBinder` pushes each port its rate
+once the store is read.
 
 ## Selecting a site at build time
 

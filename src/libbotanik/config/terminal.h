@@ -18,17 +18,6 @@ namespace Botanik { namespace Config {
      *  no resize handshake: what is declared here is what the pages lay out for.
      *  @{ */
 
-    /** @brief Which terminal is wired to the console UART - a property of the
-     *  installation, so a site declares it. Selects the setup handshake and is
-     *  what terminal-specific behaviour branches on.
-     *  @note A plain integer so this header need not depend on the console; the
-     *  numeric form of Ansi::TerminalType, static_asserted to agree.
-     *  0 = VT100, 1 = VT102, 2 = Minitel 1B, 3 = Minitel 2 */
-#ifndef BOTANIK_TERMINAL_TYPE
-#  define BOTANIK_TERMINAL_TYPE 1
-#endif
-    BOTANIK_CFG(uint8_t, TERMINAL_TYPE);
-
     /** @brief The smallest screen the UI is laid out for. Nothing reflows, so
      *  this is a floor: the `term_` parameters are banded at it and the console
      *  clamps to it.
@@ -39,24 +28,13 @@ namespace Botanik { namespace Config {
 #endif
     BOTANIK_CFG(uint16_t, SCREEN_MIN_COLS);
 #ifndef BOTANIK_SCREEN_MIN_ROWS
-#  define BOTANIK_SCREEN_MIN_ROWS 25
+#  define BOTANIK_SCREEN_MIN_ROWS 24
 #endif
     BOTANIK_CFG(uint16_t, SCREEN_MIN_ROWS);
 
-    /** @brief Geometry of the terminal actually on the console wire. Bounded
-     *  below by SCREEN_MIN_* and above by TERMINAL_MAX_*, which size the screen
-     *  back-buffer. */
-#ifndef BOTANIK_CONSOLE_COLS
-#  define BOTANIK_CONSOLE_COLS 80
-#endif
-    BOTANIK_CFG(uint16_t, CONSOLE_COLS);
-#ifndef BOTANIK_CONSOLE_ROWS
-#  define BOTANIK_CONSOLE_ROWS 25
-#endif
-    BOTANIK_CFG(uint16_t, CONSOLE_ROWS);
-
-    static_assert(CONSOLE_COLS >= SCREEN_MIN_COLS && CONSOLE_ROWS >= SCREEN_MIN_ROWS,
-                  "CONSOLE_COLS/ROWS below the minimum the pages lay out for");
+    // The geometry the console actually runs at is Terminal::ConsoleConfig, not
+    // a macro: one number, next to the device, checked against these bounds in
+    // terminal.h.
 
     /** @brief Largest terminal the UI supports. Sizes the screen back-buffer
      *  (two COLS x ROWS cell grids), clamps the console geometry, and bounds
@@ -169,7 +147,7 @@ namespace Botanik { namespace Config {
      *  bound the burst. See docs/dev/screen.md.
      *  @{ */
 
-    /** @brief Single paint depth floor, in ms of wire time at CONSOLE_BAUD.
+    /** @brief Single paint depth floor, in ms of wire time at the console rate.
      *  @warning Must stay above GROUP_SLOW_MS (static_asserted): the render runs
      *  on that group, so a lower floor lets the wire drain empty between paints.
      *  Nothing measures an underrun, so raise rather than lower it. */

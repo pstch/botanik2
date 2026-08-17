@@ -113,12 +113,6 @@ namespace Botanik { namespace Terminal { namespace Ansi {
         MINITEL_2  = 3,  ///< Minitel 2, same PRO2 handshake
     };
 
-    /** @brief The terminal this build is wired to (Config::TERMINAL_TYPE).
-     *  @note Pinned to the numbering, since the config header cannot name this enum. */
-    static constexpr TerminalType CONFIGURED_TERMINAL = (TerminalType)Botanik::Config::TERMINAL_TYPE;
-    static_assert(Botanik::Config::TERMINAL_TYPE <= (uint8_t)TerminalType::MINITEL_2,
-                  "BOTANIK_TERMINAL_TYPE is not a TerminalType (0..3)");
-
     /** @brief True for the Minitel family.
      *  @note Enables the PRO2 handshake below, and prevents using BS as a cursor-left shortcut */
     constexpr bool is_minitel(TerminalType t) {

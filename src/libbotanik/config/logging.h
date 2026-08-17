@@ -29,47 +29,12 @@ namespace Botanik { namespace Config {
 #endif
     BOTANIK_CFG(uint8_t, LOG_MIN_LEVEL);
 
-    /** @name Per-sink floors
-     *
-     *  What each sink shows, on top of LOG_MIN_LEVEL. These are the FACTORY
-     *  values: each is behind a parameter an operator can move
-     *  (console_home_level, console_shell_level, console_logs_level,
-     *  monitor_level, mqtt_level), so what a unit shows where is a property of
-     *  the installation rather than of the build. A sink floor can
-     *  only ever be MORE restrictive: an entry the logger dropped never reaches
-     *  a sink to be admitted. LOG_CRITICAL is the enum maximum, so a critical
-     *  clears every floor.
-     *
-     *  HOME is a landing screen, so it carries only what is worth looking up
-     *  for; SHELL keeps the running commentary; LOGS is the record.
-     *  @{ */
-
-    /** @brief HOME page log band. */
-#ifndef BOTANIK_HOME_LOG_MIN_LEVEL
-#  define BOTANIK_HOME_LOG_MIN_LEVEL 4   /* Logs::LOG_NOTICE */
-#endif
-    BOTANIK_CFG(uint8_t, HOME_LOG_MIN_LEVEL);
-
-    /** @brief SHELL page log drain. */
-#ifndef BOTANIK_SHELL_LOG_MIN_LEVEL
-#  define BOTANIK_SHELL_LOG_MIN_LEVEL 2   /* Logs::LOG_INFO */
-#endif
-    BOTANIK_CFG(uint8_t, SHELL_LOG_MIN_LEVEL);
-
-    /** @brief LOGS page. Everything the logger forwarded. */
-#ifndef BOTANIK_LOGS_LOG_MIN_LEVEL
-#  define BOTANIK_LOGS_LOG_MIN_LEVEL 1   /* Logs::LOG_DEBUG */
-#endif
-    BOTANIK_CFG(uint8_t, LOGS_LOG_MIN_LEVEL);
-
-    /** @brief The monitor port. Open, like the LOGS page: the port carries the
-     *  log and nothing else, and it is where a session is captured whole. */
-#ifndef BOTANIK_MONITOR_LOG_MIN_LEVEL
-#  define BOTANIK_MONITOR_LOG_MIN_LEVEL 1   /* Logs::LOG_DEBUG */
-#endif
-    BOTANIK_CFG(uint8_t, MONITOR_LOG_MIN_LEVEL);
-
-    /** @} */
+    // What each sink shows on top of LOG_MIN_LEVEL is a PARAMETER, not a macro:
+    // console_home_level, console_shell_level, console_logs_level,
+    // monitor_level, mqtt_level. Each sink seeds its own floor where it is
+    // built, and the bank raises it from the row it names. A sink floor can only
+    // ever be MORE restrictive - an entry the logger dropped never reaches a
+    // sink to be admitted - and LOG_CRITICAL clears every floor.
 
     /** @brief Maximum length of a single log message, before formatting. */
 #ifndef BOTANIK_LOG_MESSAGE_LEN

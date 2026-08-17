@@ -222,21 +222,6 @@ namespace Botanik { namespace Config {
 #endif
     BOTANIK_CFG(const char*, MQTT_ALARM_TOPIC);
 
-    /** @brief Minimum level the MQTT log sink publishes (its own gate, on top of
-     *  the logger's).
-     *
-     *  DEBUG, i.e. everything the logger lets through: the broker is where a
-     *  unit's log is read from off-site, and the entries worth having there are
-     *  the ones nobody is at the console for. The console sinks keep their own
-     *  higher floors, so this does not make the screen noisier.
-     *
-     *  Raise it per site if a link is too thin: every entry is one QoS-0
-     *  PUBLISH, dropped rather than queued while the broker is away. Criticals
-     *  always pass. */
-#ifndef BOTANIK_MQTT_LOG_MIN_LEVEL
-#  define BOTANIK_MQTT_LOG_MIN_LEVEL 1   /* Logs::LOG_DEBUG */
-#endif
-    BOTANIK_CFG(uint8_t, MQTT_LOG_MIN_LEVEL);
 
     /** @} */
 
@@ -249,7 +234,7 @@ namespace Botanik { namespace Config {
  *  library_vars.h, and the live value lives in the variable table where an
  *  operator can edit and persist it. They sit here so a site pins what its
  *  installation ships with (in `sites/<name>/config.h`) without touching the
- *  table, exactly as BOTANIK_CONSOLE_BAUD does for the console rate.
+ *  table.
  *  @{ */
 
 

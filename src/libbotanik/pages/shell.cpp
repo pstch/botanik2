@@ -26,7 +26,7 @@ namespace Botanik { namespace Pages {
     {
         // You are working here, so keep the running commentary (INFO and up)
         // but not the one-shot DEBUG boot lines.
-        set_min_level((Logs::LogLevel)Config::SHELL_LOG_MIN_LEVEL);
+        set_min_level(Logs::LOG_INFO);
     }
 
     // Page interface

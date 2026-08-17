@@ -25,7 +25,7 @@ namespace Botanik { namespace Pages {
         // This page IS the record, so it takes whatever the logger forwarded -
         // DEBUG included. Raising the master floor (`sys_log_level`) still
         // quiets it.
-        set_min_level((Logs::LogLevel)Config::LOGS_LOG_MIN_LEVEL);
+        set_min_level(Logs::LOG_DEBUG);
     }
 
     // Page interface

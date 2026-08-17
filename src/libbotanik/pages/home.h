@@ -172,7 +172,7 @@ namespace Botanik { namespace Pages {
             // The band is a glance, not a record: NOTICE and up, so boot
             // chatter cannot push the one line worth seeing off the bottom.
             // The full stream is the LOGS page.
-            set_min_level((Logs::LogLevel)Config::HOME_LOG_MIN_LEVEL);
+            set_min_level(Logs::LOG_NOTICE);
         }
 
         const char* name() const override { return "HOME"; }

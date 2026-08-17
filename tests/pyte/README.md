@@ -31,7 +31,7 @@ adds nothing to a claim about a selection index and costs ~200 ms to make it.
   `test_watchdog.py` is the exception - it passes `watchdog=<ms>` to arm it with
   a short window and assert the reset actually happens.
 - **Never a higher baud.** Console baud is compile-time
-  (`Config::CONSOLE_BAUD`, 4800) and the terminal derives its per-render byte
+  (`console_baud`, 4800 by default) and the terminal derives its per-render byte
   budget from it, so raising the wire speed alone would leave the renderer pacing
   for 4800. Run more beats instead: every byte/event ratio then matches a real
   4800-baud run exactly.

@@ -50,7 +50,7 @@ namespace {
             // reconfigure() establishes the screen, and that repaint has to be
             // paced at the budget the case is testing.
             term.set_baud(baud);
-            term.reconfigure(Terminal::Ansi::CONFIGURED_TERMINAL, cols, rows);
+            term.reconfigure(Terminal::ConsoleConfig().type, cols, rows);
             capture();                              // discard the bring-up bytes
         }
 
@@ -487,7 +487,7 @@ namespace {
               editor(&console, bufs.storage()) {
             // Geometry and rate are the bank's job in production; a fixture
             // with no bank sets them through the same path.
-            console.reconfigure(Terminal::Ansi::CONFIGURED_TERMINAL, 80, 24);
+            console.reconfigure(Terminal::ConsoleConfig().type, 80, 24);
             console.terminal().set_baud(baud);
             console.terminal().establish_screen();
             editor.reset();
@@ -1166,7 +1166,7 @@ namespace {
         // High baud: these cases assert what a scroll paints, not how it is paced.
         ScrollFixture() : term(wire.serial) {
             term.set_baud(4000000u);
-            term.reconfigure(Terminal::Ansi::CONFIGURED_TERMINAL, 20, 10);
+            term.reconfigure(Terminal::ConsoleConfig().type, 20, 10);
             capture();                              // discard the bring-up bytes
         }
 
@@ -1354,7 +1354,7 @@ namespace {
             : console(Botanik::SetupContext(), wire.serial, &now),
               editor(&console, bufs.storage()),
               shell(console.terminal(), editor, writer) {
-            console.reconfigure(Terminal::Ansi::CONFIGURED_TERMINAL, 80, 24);
+            console.reconfigure(Terminal::ConsoleConfig().type, 80, 24);
             console.terminal().set_baud(115200);
             editor.reset();
         }
@@ -1554,7 +1554,7 @@ namespace {
             : console(Botanik::SetupContext(), wire.serial, &now),
               editor(&console, bufs.storage()),
               shell(console.terminal(), editor, writer, &ctx) {
-            console.reconfigure(Terminal::Ansi::CONFIGURED_TERMINAL, 80, 24);
+            console.reconfigure(Terminal::ConsoleConfig().type, 80, 24);
             console.terminal().set_baud(115200);
             editor.reset();
             bank.register_vars(CMD_VARS, 2);
@@ -1869,7 +1869,7 @@ TEST_CASE("scroll table: a resize re-lays the columns out, both ways") {
     botanik_test::PipeSerial wire;
     uint64_t now = 0;
     Terminal::Console console(Botanik::SetupContext(), wire.serial, &now);
-    console.reconfigure(Terminal::Ansi::CONFIGURED_TERMINAL, 80, 24);
+    console.reconfigure(Terminal::ConsoleConfig().type, 80, 24);
     console.terminal().set_baud(4000000u);
     FitPage page(console);
 
@@ -1897,7 +1897,7 @@ TEST_CASE("scroll table: a display narrower than the columns clamps, not wraps")
     botanik_test::PipeSerial wire;
     uint64_t now = 0;
     Terminal::Console console(Botanik::SetupContext(), wire.serial, &now);
-    console.reconfigure(Terminal::Ansi::CONFIGURED_TERMINAL, 80, 24);
+    console.reconfigure(Terminal::ConsoleConfig().type, 80, 24);
     console.terminal().set_baud(4000000u);
     FitPage page(console);
 

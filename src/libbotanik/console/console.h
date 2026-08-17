@@ -30,18 +30,6 @@ namespace Botanik { namespace Pages { class Page; } }
 
 namespace Botanik { namespace Terminal {
 
-    /** @brief The one physical terminal a Console drives.
-     *
-     *  These initializers ARE the factory defaults: they are what a build with
-     *  no variable model runs at, and what the `console_` rows declare as their
-     *  own defaults. There is no config macro behind them. */
-    struct ConsoleConfig {
-        uint32_t           baud = 4800;
-        Ansi::TerminalType type = Ansi::TerminalType::VT102;
-        uint16_t           cols = 80;
-        uint16_t           rows = 24;
-    };
-
     /** @class Console
      *  @brief Multiplexed page display over an AnsiTerminal (see file header). */
     class Console : public Botanik::Component {

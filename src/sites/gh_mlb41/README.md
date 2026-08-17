@@ -87,9 +87,10 @@ void loop() {
 
 Notes:
 
-- **Console baud** is `BOTANIK_CONSOLE_BAUD` (4800), compile-time only: the
-  terminal sizes its per-render TX budget from it at construction, so there is no
-  runtime setter to fall out of step with it.
+- **Console baud** is the `console_baud` parameter (4800 by default, from
+  `Terminal::ConsoleConfig`). It reaches the port through `ConfigBinder`, which
+  retunes the UART and the terminal's per-render TX budget in the same call, so
+  the two cannot fall out of step.
 - **No simulated field on hardware.** `sim.h` compiles to nothing without
   `TARGET_SIMULATOR`; the Modbus driver fills the same variables instead.
 - `src/botanik_fw/` is the canonical example of this wiring.

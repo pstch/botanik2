@@ -2,7 +2,7 @@
 
 The sim is the real firmware, speaking ANSI over its console serial at a
 throttled 4800 baud. It gets a PTY rather than a pipe (RawSerial's TIOCOUTQ only
-answers on a tty), and pyte replays the bytes into an 80x25 screen to assert on.
+answers on a tty), and pyte replays the bytes into an 80x24 screen to assert on.
 
 Time is the harness's, not the host's: the sim runs one beat per command over a
 control pipe (BOTANIK_SIM_CLOCK=manual), so every wait is bounded in BEATS and
@@ -23,7 +23,7 @@ import pytest
 from normalize import (normalize_lines, meaningful_lines, strip_noise,
                        drop_log_lines)
 
-COLS, ROWS = 80, 25                       # Config::CONSOLE_COLS/ROWS, the SCREEN_MIN_* floor
+COLS, ROWS = 80, 24                       # Terminal::ConsoleConfig, the SCREEN_MIN_* floor
 GOLDEN_DIR = Path(__file__).parent / "golden"
 
 # The sim advances one beat per command, so a wait is bounded in beats: the same
