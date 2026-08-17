@@ -108,6 +108,30 @@ namespace Botanik { namespace Vars {
         _count = k;
     }
 
+    void Bank::_resolve_cals() {
+        for (uint16_t i = 0; i < _count; i++) {
+            const AnalogCal* c = analog_cal(descriptor(i));
+            if (c == nullptr || analog_refs(c) != nullptr) continue;   // none, or seen
+            if (_cal_count >= Config::ANALOG_BLOCKS_MAX) {
+                // The tail would fall back to a name lookup per read, which is
+                // slow rather than wrong - but silently so.
+                BOTANIK_ASSERT(!"more AnalogCal blocks than ANALOG_BLOCKS_MAX");
+                if (_logger != nullptr)
+                    _logger->critical(Logs::BOOT,
+                                      "analog blocks past %u: raise ANALOG_BLOCKS_MAX",
+                                      (unsigned)Config::ANALOG_BLOCKS_MAX);
+                return;
+            }
+            CalRefs& e = _cal[_cal_count++];
+            e.block = c;
+            const Tunable* t[6] = { &c->raw_min, &c->raw_max, &c->eng_min,
+                                    &c->eng_max, &c->min,     &c->max };
+            for (uint8_t k = 0; k < 6; k++)
+                e.ref[k] = (t[k]->param != nullptr) ? find(t[k]->param)
+                                                    : VarRef{ VAR_NONE };
+        }
+    }
+
     void Bank::freeze() {
         // BEFORE init(): a shadowed row must not be given a pool slot or a value
         // slot it will never be read through.
@@ -115,6 +139,7 @@ namespace Botanik { namespace Vars {
         init();               // pool layout, then every slot from its default
         _find_param_block();
         _build_index();
+        _resolve_cals();      // needs the index: the tunables are found by name
         // The ROLE_PARAM rows must be ONE run - that is what lets the PARAMS
         // page and the shell address them 0-based. Registration order decides
         // it, so this is where it can be checked; it used to be a convention

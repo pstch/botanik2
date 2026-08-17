@@ -214,12 +214,26 @@ namespace Botanik { namespace Vars {
     AnalogValues analog_values(const Bank* io, const AnalogCal* c) {
         AnalogValues v = {};
         if (c == nullptr) return v;
-        v.raw_min = tunable(io, c->raw_min);
-        v.raw_max = tunable(io, c->raw_max);
-        v.eng_min = tunable(io, c->eng_min);
-        v.eng_max = tunable(io, c->eng_max);
-        v.min     = tunable(io, c->min);
-        v.max     = tunable(io, c->max);
+        // Through the indices the bank resolved at freeze() where it has them:
+        // by NAME this is six binary searches over the whole table, and it runs
+        // on every analog read and write. The VALUES are still read live, so a
+        // recalibration lands the moment the parameter commits.
+        const VarRef* r = (io != nullptr) ? io->analog_refs(c) : nullptr;
+        if (r == nullptr) {
+            v.raw_min = tunable(io, c->raw_min);
+            v.raw_max = tunable(io, c->raw_max);
+            v.eng_min = tunable(io, c->eng_min);
+            v.eng_max = tunable(io, c->eng_max);
+            v.min     = tunable(io, c->min);
+            v.max     = tunable(io, c->max);
+            return v;
+        }
+        const Tunable* t[6] = { &c->raw_min, &c->raw_max, &c->eng_min,
+                                &c->eng_max, &c->min,     &c->max };
+        float* out[6] = { &v.raw_min, &v.raw_max, &v.eng_min,
+                          &v.eng_max, &v.min,     &v.max };
+        for (uint8_t k = 0; k < 6; k++)
+            *out[k] = (r[k].index != VAR_NONE) ? io->var(r[k]).as_f32() : t[k]->k;
         return v;
     }
 

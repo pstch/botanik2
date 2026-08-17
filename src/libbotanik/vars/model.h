@@ -379,6 +379,14 @@ namespace Botanik { namespace Vars {
          *  forget. @see _resolve_shadows() */
         uint16_t      _row[Config::VAR_MAX];
         uint64_t      _last_retain_ms = 0;   ///< last retained write; 0 = none
+
+        /** @brief One AnalogCal block and the rows its six tunables name.
+         *  Cached as INDICES, not values: the index is fixed once the table is
+         *  frozen, while the value must stay live so a recalibration lands the
+         *  moment the parameter commits. Nothing to invalidate. */
+        struct CalRefs { const AnalogCal* block; VarRef ref[6]; };
+        CalRefs       _cal[Config::ANALOG_BLOCKS_MAX];
+        uint8_t       _cal_count = 0;
         /** @brief Rows dropped as redeclared. Kept because it is what tells
          *  _row_of() whether the logical and physical spaces have parted; each
          *  one is also NAMED at freeze(), since a duplicate name used to be
@@ -543,6 +551,15 @@ namespace Botanik { namespace Vars {
 
         /** @brief Name lookups that found nothing. Zero on a correctly wired
          *  site; the test suite asserts it. */
+        /** @brief The six rows @p c's tunables name, or null when the block is
+         *  unknown (a table past ANALOG_BLOCKS_MAX, or a bank never frozen).
+         *  A fixed tunable has VAR_NONE. */
+        const VarRef* analog_refs(const AnalogCal* c) const {
+            for (uint8_t k = 0; k < _cal_count; k++)
+                if (_cal[k].block == c) return _cal[k].ref;
+            return nullptr;
+        }
+
         uint16_t unresolved_count() const { return _unresolved; }
 
         /** @name Write attribution
@@ -730,6 +747,10 @@ namespace Botanik { namespace Vars {
             while (s > 0 && p < _seg_base[s]) --s;
             return _seg[s][p - _seg_base[s]];
         }
+
+        /** @brief Collect the distinct AnalogCal blocks and resolve each
+         *  tunable's row, once. */
+        void _resolve_cals();
 
         /** @brief Retain cadence in ms from `sys_retain_sec`; 0 = only on the
          *  way down and on `save`. */

@@ -82,6 +82,15 @@ namespace Botanik { namespace Config {
 #endif
     BOTANIK_CFG(uint32_t, RETAIN_SAVE_MS);
 
+    /** @brief Distinct AnalogCal blocks the bank caches tunable indices for.
+     *  Blocks are SHARED by pointer, so this counts blocks and not rows
+     *  (gh_mlb41: 6). A table with more loses the cache on the tail, which
+     *  BOTANIK_ASSERT catches - the same shape as ALARM_SLOTS. */
+#ifndef BOTANIK_ANALOG_BLOCKS_MAX
+#  define BOTANIK_ANALOG_BLOCKS_MAX 16
+#endif
+    BOTANIK_CFG(uint8_t, ANALOG_BLOCKS_MAX);
+
     /** @} */
 
 } }
