@@ -105,7 +105,7 @@ namespace Botanik { namespace Vars {
         "master - not twenty devices that failed at once"),
 #endif
 
-#if BOTANIK_FEATURE_PLC_SCAN
+#if BOTANIK_FEATURE_PLC
     // Not the same as the beat being late: CPU_XRUN says the scheduler missed a
     // beat, this says a PROGRAM ran later than the period it asked for. on_s 5
     // because lateness comes in bursts (a flash write, a DNS retry); off_s 30,

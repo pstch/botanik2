@@ -46,7 +46,8 @@
     X(LOGS_PUBLISH)       \
     X(ALARMS_PUBLISH)     \
     X(LOGS_MONITOR)       \
-    X(PLC_SCAN)           \
+    X(VARS)               \
+    X(PLC)                \
     X(PLC_BLK_BASE)       \
     X(PLC_BLK_FILTERS)    \
     X(MODBUS_TCP_SERVER)  \
@@ -164,14 +165,27 @@
 #  define BOTANIK_FEATURE_LOGS_MONITOR 0
 #endif
 
-// --- PLC -----------------------------------------------------------------
+// --- The process image and the PLC ----------------------------------------
 
-/** @brief The scan cycle: the site's control programs, registered and run at
- *  their declared rates. Off does NOT remove control authority - the Bank's
- *  enable/disable latch has consumers of its own (the `control` command, the
- *  health withdrawal) that outlive the scan. */
-#ifndef BOTANIK_FEATURE_PLC_SCAN
-#  define BOTANIK_FEATURE_PLC_SCAN 1
+/** @brief The variable model: the Bank, the site's table, overrides, the
+ *  parameter store, and every surface whose SUBJECT is that table - the
+ *  MONITOR / PARAMS pages, `shell_vars`, the Modbus register maps, telemetry.
+ *
+ *  Off leaves a library of parts: components still work, configured through
+ *  their own set_config() by whoever owns them rather than by a table.
+ *  @see vars/bindings.h */
+#ifndef BOTANIK_FEATURE_VARS
+#  define BOTANIK_FEATURE_VARS 1
+#endif
+
+/** @brief The PLC proper: control authority, the scan cycle, and the site's
+ *  control programs registered and run at their declared rates.
+ *
+ *  Requires VARS - a control program's inputs and outputs ARE table rows. Off
+ *  does not remove the Bank's enable/disable latch, which has consumers of its
+ *  own (the `control` command, the health withdrawal) that outlive the scan. */
+#ifndef BOTANIK_FEATURE_PLC
+#  define BOTANIK_FEATURE_PLC 1
 #endif
 
 /** @brief The base function blocks: timers, logic, analog, meter, pid,
@@ -273,14 +287,26 @@
 #if BOTANIK_FEATURE_MODBUS_TCP_SERVER && !BOTANIK_FEATURE_NETWORK
 #  error "BOTANIK_FEATURE_MODBUS_TCP_SERVER requires BOTANIK_FEATURE_NETWORK"
 #endif
-#if BOTANIK_FEATURE_MODBUS_TCP_SERVER && !BOTANIK_FEATURE_PLC_SCAN
-#  error "BOTANIK_FEATURE_MODBUS_TCP_SERVER requires BOTANIK_FEATURE_PLC_SCAN"
+#if BOTANIK_FEATURE_MODBUS_TCP_SERVER && !BOTANIK_FEATURE_VARS
+#  error "BOTANIK_FEATURE_MODBUS_TCP_SERVER requires BOTANIK_FEATURE_VARS"
 #endif
 #if BOTANIK_FEATURE_MODBUS_TCP_CLIENT && !BOTANIK_FEATURE_NETWORK
 #  error "BOTANIK_FEATURE_MODBUS_TCP_CLIENT requires BOTANIK_FEATURE_NETWORK"
 #endif
-#if BOTANIK_FEATURE_MODBUS_RTU_CLIENT && !BOTANIK_FEATURE_PLC_SCAN
-#  error "BOTANIK_FEATURE_MODBUS_RTU_CLIENT requires BOTANIK_FEATURE_PLC_SCAN"
+#if BOTANIK_FEATURE_MODBUS_RTU_CLIENT && !BOTANIK_FEATURE_VARS
+#  error "BOTANIK_FEATURE_MODBUS_RTU_CLIENT requires BOTANIK_FEATURE_VARS"
+#endif
+#if BOTANIK_FEATURE_PLC && !BOTANIK_FEATURE_VARS
+#  error "BOTANIK_FEATURE_PLC requires BOTANIK_FEATURE_VARS"
+#endif
+#if (BOTANIK_FEATURE_PLC_BLK_BASE || BOTANIK_FEATURE_PLC_BLK_FILTERS) && !BOTANIK_FEATURE_PLC
+#  error "BOTANIK_FEATURE_PLC_BLK_* requires BOTANIK_FEATURE_PLC"
+#endif
+#if BOTANIK_FEATURE_PARAMS_PAGE && !BOTANIK_FEATURE_VARS
+#  error "BOTANIK_FEATURE_PARAMS_PAGE requires BOTANIK_FEATURE_VARS"
+#endif
+#if BOTANIK_FEATURE_MONITOR_PAGE && !BOTANIK_FEATURE_VARS
+#  error "BOTANIK_FEATURE_MONITOR_PAGE requires BOTANIK_FEATURE_VARS"
 #endif
 // MODBUS_RTU_SERVER depends on nothing, deliberately: it is a device model over
 // a serial port and a register image, with no variable table and no scan behind

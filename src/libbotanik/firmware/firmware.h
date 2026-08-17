@@ -347,7 +347,7 @@ namespace Botanik {
 
     private:
 #if BOTANIK_FEATURE_MONITOR_PAGE
-#if BOTANIK_FEATURE_PLC_SCAN
+#if BOTANIK_FEATURE_PLC
         /** @brief A writer index back to the program's name, for MONITOR's
          *  "computed (prog_a)" column. Named, like every other callback handed
          *  out as a bare function pointer. */

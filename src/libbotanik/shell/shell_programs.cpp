@@ -18,7 +18,7 @@
 
 namespace Botanik { namespace Shell {
 
-#if BOTANIK_FEATURE_PLC_SCAN
+#if BOTANIK_FEATURE_PLC
 
     void CommandShell::_cmd_programs(const char* args, uint16_t alen) {
         Tasks::Registry* reg = _registry();
@@ -116,7 +116,7 @@ namespace Botanik { namespace Shell {
             _emitf(out, sizeof(out), "%s NOT saved: storage refused it", name);
     }
 
-#else   // !BOTANIK_FEATURE_PLC_SCAN
+#else   // !BOTANIK_FEATURE_PLC
 
     void CommandShell::_cmd_programs(const char*, uint16_t) {
         _println("programs: this build has no scan cycle");

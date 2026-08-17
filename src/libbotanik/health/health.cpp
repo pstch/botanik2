@@ -49,7 +49,7 @@ namespace Botanik { namespace Health {
         if (_tasks != nullptr)
             _tasks->set_programs_enabled(io->control_enabled(), now_ms);
 
-#if BOTANIK_FEATURE_PLC_SCAN
+#if BOTANIK_FEATURE_PLC
         if (_tasks == nullptr) return;
         // SCAN_LATE is a platform alarm like the six bound above: written every
         // beat, and the row's own dwell decides whether it annunciates.

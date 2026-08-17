@@ -60,12 +60,13 @@ the build log. Guard every feature flag a site pins.
 | `LOGS_PUBLISH` | off | `LOGGING`, `MQTT` | `MqttLogWriter` - log entries to the broker |
 | `ALARMS_PUBLISH` | off | `LOGGING`, `MQTT` | `MqttAlarmNotifier` - alarm transitions to the broker |
 | `LOGS_MONITOR` | off | `LOGGING` | the secondary MONITOR UART and its log sink |
-| `PLC_SCAN` | **on** | - | the control programs and their registration. Off does *not* remove control authority: the Bank's enable/disable latch has consumers of its own |
+| `VARS` | **on** | - | the variable model: the Bank, the site's table, overrides, the parameter store, and every surface whose subject IS that table. Off leaves a library of parts, each configured through its own `set_config()` |
+| `PLC` | **on** | `VARS` | control authority, the scan cycle, and the site's control programs. Off does *not* remove control authority: the Bank's enable/disable latch has consumers of its own |
 | `PLC_BLK_BASE` | off | - | the base blocks: timers, logic, analog, meter, pid, actuator |
 | `PLC_BLK_FILTERS` | off | - | the filter blocks: `Ewma`, `MedianOf3`, `MovingAverage`. Distinct from `utils/filters.h`, the scheduler's metric filter |
-| `MODBUS_TCP_SERVER` | off | `NETWORK`, `PLC_SCAN` | the Modbus TCP slave: the framing, the register map over the variable table, and the server. Stepped every beat, and it splices four `mb_` parameters into the library's rows. On for `gh_mlb41` |
+| `MODBUS_TCP_SERVER` | off | `NETWORK`, `VARS` | the Modbus TCP slave: the framing, the register map over the variable table, and the server. Stepped every beat, and it splices four `mb_` parameters into the library's rows. On for `gh_mlb41` |
 | `MODBUS_TCP_CLIENT` | off | `NETWORK` | a Modbus TCP **master**: this unit polling another device. The simulator points one at our own slave as a self-check - a real socket, the real map, the real `Bank::set()` - so the server is exercised end to end every run |
-| `MODBUS_RTU_CLIENT` | off | `PLC_SCAN` | the RS-485 field bus master. Plans the site's `XP_MODBUS` rows into blocks, honours each device's ceiling and alignment, and scans them at their declared rates. Stepped in `PHASE_INPUT`/`PHASE_OUTPUT`. On for `gh_mlb41` |
+| `MODBUS_RTU_CLIENT` | off | `VARS` | the RS-485 field bus master. Plans the site's `XP_MODBUS` rows into blocks, honours each device's ceiling and alignment, and scans them at their declared rates. Stepped in `PHASE_INPUT`/`PHASE_OUTPUT`. On for `gh_mlb41` |
 | `MODBUS_RTU_SERVER` | off | - | `RtuSlave`, the device model that answers: registers, coils, exceptions and CRC resync. It is what the simulator's `FieldBus` builds the far end of the wire from, one per unit the site addresses. On for `gh_mlb41` |
 
 (Each is spelled `BOTANIK_FEATURE_<NAME>`.)

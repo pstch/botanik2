@@ -117,8 +117,8 @@
 
 // --- Field bus: the RS-485 Modbus RTU master ------------------------------
 // This greenhouse IS a Modbus plant (vars.h has the device map, site.h what
-// each model answers). Guarded on PLC_SCAN, which the dependency rule requires.
-#if !defined(BOTANIK_FEATURE_PLC_SCAN) || BOTANIK_FEATURE_PLC_SCAN
+// each model answers). Guarded on PLC, which the dependency rule requires.
+#if !defined(BOTANIK_FEATURE_PLC) || BOTANIK_FEATURE_PLC
 #  ifndef BOTANIK_FEATURE_MODBUS_RTU_CLIENT
 #    define BOTANIK_FEATURE_MODBUS_RTU_CLIENT 1
 #  endif

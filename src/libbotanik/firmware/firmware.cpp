@@ -235,7 +235,7 @@ namespace Botanik {
     }
 
 #if BOTANIK_FEATURE_MONITOR_PAGE
-#if BOTANIK_FEATURE_PLC_SCAN
+#if BOTANIK_FEATURE_PLC
     const char* BotanikFirmware::_program_name_of(const void* ctx, uint8_t writer) {
         const BotanikFirmware* f = static_cast<const BotanikFirmware*>(ctx);
         const Plc::Program* p = f->_tasks.program(writer);
@@ -360,7 +360,7 @@ namespace Botanik {
 #endif
 #if BOTANIK_FEATURE_MONITOR_PAGE
         _console.terminal().add_page(&_monitor_page);
-#if BOTANIK_FEATURE_PLC_SCAN
+#if BOTANIK_FEATURE_PLC
         // Only this class holds both the page and the site's program table, so
         // the join is made here rather than by widening either of them.
         _monitor_page.set_writer_names(&_program_name_of, this);
