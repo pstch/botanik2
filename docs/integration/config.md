@@ -49,12 +49,12 @@ the build log. Guard every feature flag a site pins.
 | `NTP` | off | `NETWORK` | the NTP client |
 | `MQTT` | off | `NETWORK` | the MQTT client |
 | `SUN_TRACKER` | off | - | the solar-position tracker. Standalone - `BotanikFirmware` does not instantiate it, so a site that wants it owns the instance |
-| `HOME_PAGE` | = `CONSOLE` | `CONSOLE` | the HOME page and its log-tail sink |
+| `HOME_PAGE` | = `CONSOLE` | `CONSOLE`, `VARS` | the HOME page and its log-tail sink. Its fields are variable rows, hence `VARS` |
 | `SHELL_PAGE` | = `CONSOLE` | `CONSOLE` | the SHELL page **and the whole command interpreter** - `ShellPage` owns `Shell::CommandShell`, so this also gates `register_commands()` |
 | `LOGS_PAGE` | off | `CONSOLE`, `LOGGING` | the LOGS page and its sink |
-| `ALARMS_PAGE` | off | `CONSOLE` | the ALARMS page. The alarm *controller* is unconditional - the bottom alarm bar reads it either way |
-| `PARAMS_PAGE` | off | `CONSOLE` | the PARAMS page |
-| `MONITOR_PAGE` | off | `CONSOLE` | the MONITOR page. **Not** `LOGS_MONITOR`, which is a serial log sink |
+| `ALARMS_PAGE` | off | `CONSOLE` | the ALARMS page. The alarm *controller* is unconditional, and needs no variable table: it reads an `Alarms::AlarmSourceTable`, which is the site's `SCOPE_A` rows with `VARS` on and a flash array without |
+| `PARAMS_PAGE` | off | `CONSOLE`, `VARS` | the PARAMS page |
+| `MONITOR_PAGE` | off | `CONSOLE`, `VARS` | the MONITOR page. **Not** `LOGS_MONITOR`, which is a serial log sink |
 | `TASKS_PAGE` | off | `CONSOLE` | the TASKS page |
 | `NOTES_PAGE` | off | `CONSOLE` | the NOTES page. Costs `NOTES_LEN` bytes plus 2 x `NOTES_MAX_ROWS` row slots of RAM |
 | `LOGS_PUBLISH` | off | `LOGGING`, `MQTT` | `MqttLogWriter` - log entries to the broker |
@@ -62,14 +62,23 @@ the build log. Guard every feature flag a site pins.
 | `LOGS_MONITOR` | off | `LOGGING` | the secondary MONITOR UART and its log sink |
 | `VARS` | **on** | - | the variable model: the Bank, the site's table, overrides, the parameter store, and every surface whose subject IS that table. Off leaves a library of parts, each configured through its own `set_config()` |
 | `PLC` | **on** | `VARS` | control authority, the scan cycle, and the site's control programs. Off does *not* remove control authority: the Bank's enable/disable latch has consumers of its own |
-| `PLC_BLK_BASE` | off | - | the base blocks: timers, logic, analog, meter, pid, actuator |
-| `PLC_BLK_FILTERS` | off | - | the filter blocks: `Ewma`, `MedianOf3`, `MovingAverage`. Distinct from `utils/filters.h`, the scheduler's metric filter |
+| `PLC_BLK_BASE` | off | `PLC` | the base blocks: timers, logic, analog, meter, pid, actuator |
+| `PLC_BLK_FILTERS` | off | `PLC` | the filter blocks: `Ewma`, `MedianOf3`, `MovingAverage`. Distinct from `utils/filters.h`, the scheduler's metric filter |
 | `MODBUS_TCP_SERVER` | off | `NETWORK`, `VARS` | the Modbus TCP slave: the framing, the register map over the variable table, and the server. Stepped every beat, and it splices four `mb_` parameters into the library's rows. On for `gh_mlb41` |
 | `MODBUS_TCP_CLIENT` | off | `NETWORK` | a Modbus TCP **master**: this unit polling another device. The simulator points one at our own slave as a self-check - a real socket, the real map, the real `Bank::set()` - so the server is exercised end to end every run |
 | `MODBUS_RTU_CLIENT` | off | `VARS` | the RS-485 field bus master. Plans the site's `XP_MODBUS` rows into blocks, honours each device's ceiling and alignment, and scans them at their declared rates. Stepped in `PHASE_INPUT`/`PHASE_OUTPUT`. On for `gh_mlb41` |
 | `MODBUS_RTU_SERVER` | off | - | `RtuSlave`, the device model that answers: registers, coils, exceptions and CRC resync. It is what the simulator's `FieldBus` builds the far end of the wire from, one per unit the site addresses. On for `gh_mlb41` |
 
 (Each is spelled `BOTANIK_FEATURE_<NAME>`.)
+
+**An OFF path nothing builds rots.** `src/sites/bare` is the profile with every
+optional flag off, and `make check-bare` compiles it plus a middle profile
+(console + shell + logs + alarms, no variable model). Both are compile-only and
+build `botanik_sim` rather than the suite, because the tests are written against
+a site that HAS a table. `check-full` depends on it. When it was added, three
+OFF paths had already rotted: `modbus/rtu/client.cpp` and `modbus/tcp/slave.cpp`
+closed their guard before the end of the file, and `register_vars()` was gated on
+`CONSOLE` rather than `VARS`.
 
 The defaults are a **minimal core**: a build that sets nothing gets a console
 with a home screen and a shell, logging, and the scan cycle. Everything else is

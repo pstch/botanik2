@@ -163,14 +163,14 @@ Subsystems under `src/libbotanik/`. Each row's doc is the reference; the header 
 | `tasks/` | The task table and `TaskTimer`. `LoopScheduler` decides WHEN the beat happens, `Tasks::Registry` decides WHAT runs in it. Sits BELOW `core/` | `tasks.md` |
 | `core/` | The BOTTOM of the stack: `Component` (one hook per phase, `register_tasks()`) and `SystemContext` (a borrowed-pointer aggregate, constructor-injected into its consumers, NOT reachable through the console) | `architecture.md` |
 | `firmware/` | `BotanikFirmware`, the Template-Method base owning every generic component and the non-overridable per-tick order. Sites customize only through the protected hooks | `architecture.md` |
-| `vars/` | The one model everything the firmware exposes goes through, along three independent fields: `VarType`, `Transport`, `VarRole`, plus `VarScope` for what a table filters on. `Bank` is the one object that gets, sets and overrides | `vars.md` |
+| `vars/` | Gated by `BOTANIK_FEATURE_VARS`. The one model everything the firmware exposes goes through, along three independent fields: `VarType`, `Transport`, `VarRole`, plus `VarScope` for what a table filters on. `Bank` is the one object that gets, sets and overrides | `vars.md` |
 | `plc/` | The POU vocabulary, split as IEC 61131-3 splits it: `functions/` has no state, `blocks/` has state. A function is a single expression in a header; a block needs a `.cpp` | `scan.md` |
 | `modbus/` | Four corners in one tree: `rtu/` is the RS-485 field bus, `tcp/` the plant network, each with both ends. `wire.h` and `response.h` are what they share | `modbus.md` |
 | `console/` | Two layers: `AnsiTerminal` is the VT device owning a screen back-buffer, `Console` the multiplexed page display. `TextEditor` is the byte-efficient editing state machine | `screen.md`, `editor.md`, `input.md` |
 | `pages/` | Full-screen views behind a common `Page` interface, all base-owned and site-independent | `pages.md` |
 | `shell/` | `CommandShell`: commands are **noun then verb**, a noun parsing its own verb. Depends on the terminal device, not on `Console` or `pages/` | `pages.md` |
 | `logs/` | `Logger` with a dual-bucket token-bucket rate limiter before its `LogWriter`s. `LOG_CRITICAL` is undroppable | `logging.md` |
-| `alarms/` | There is no site alarm table: an alarm is a `SCOPE_A` row in the variable table carrying both its boolean and its dwell policy. `AlarmController` scans the bank in table order | `health.md` |
+| `alarms/` | `AlarmController` reads an `AlarmSourceTable`, never a bank. With `VARS` on that is `Vars::BankAlarms` over the site's `SCOPE_A` rows, each carrying both its boolean and its dwell policy; without it, `StaticAlarmTable` over a flash array. Not feature-gated: every build has alarms | `health.md` |
 | `health/` | `HealthMonitor` owns the `AlarmController`, raises the platform-health alarms from scheduler metrics, runs the POST, and produces the watchdog verdict | `health.md` |
 | `network/` | `NetworkHandler` / `NameResolver` / `NtpClient` / `MqttClient`, all non-blocking. The sim backend is hermetic - it emulates DNS/NTP/MQTT in-process | `network.md` |
 | `sun/` | `SunPositionTracker` over the NOAA solar-position math. Standalone: a site owns the instance | - |
@@ -220,7 +220,9 @@ Optional subsystems are gated at compile time by the 24 `BOTANIK_FEATURE_*` flag
 
 **One roster, two hand-edits.** `BOTANIK_FEATURE_LIST` (an X-macro in the header) is the single source of truth for which flags exist: the `features` shell command expands it, and CMake forwards `-D`s by matching the `BOTANIK_FEATURE_` prefix over its cache rather than from a list. Both used to be hand-maintained copies, and the CMake one *silently ignored* the `-D` of any flag missing from it - which is exactly what happened when NOTES was added. Adding a flag is now an `X()` entry plus an `#ifndef` default, and a row in `docs/integration/config.md`.
 
-**Defaults are a minimal core, opt in**: a build that sets nothing gets `CONSOLE` + `HOME_PAGE` + `SHELL_PAGE` + `LOGGING` + `PLC_SCAN`. Everything else is off. `src/sites/gh_mlb41/config.h` is the worked full profile, and because the test and pyte builds compile the selected site, it is also what keeps those suites exercising the whole surface.
+**Defaults are a minimal core, opt in**: a build that sets nothing gets `CONSOLE` + `HOME_PAGE` + `SHELL_PAGE` + `LOGGING` + `VARS` + `PLC`. Everything else is off. `src/sites/gh_mlb41/config.h` is the worked full profile, and because the test and pyte builds compile the selected site, it is also what keeps those suites exercising the whole surface.
+
+`src/sites/bare/config.h` is the OTHER end: every optional flag off, nothing declared, existing to be COMPILED rather than run. `make check-bare` builds it and a middle profile (console + shell, no variable model), because an OFF path nothing builds rots - three had already rotted when it was added.
 
 | Group | Flags | Notes |
 |---|---|---|
