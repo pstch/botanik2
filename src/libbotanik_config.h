@@ -32,6 +32,7 @@
 #include "libbotanik/config/logging.h"
 #include "libbotanik/config/modbus.h"
 #include "libbotanik/config/net.h"
+#include "libbotanik/config/notes.h"
 #include "libbotanik/config/scheduler.h"
 #include "libbotanik/config/serial.h"
 #include "libbotanik/config/simulator.h"

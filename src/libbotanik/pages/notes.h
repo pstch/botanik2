@@ -10,7 +10,7 @@
 #include <cstdint>
 
 #include "libbotanik/config/simulator.h"
-#include "libbotanik/config/terminal.h"
+#include "libbotanik/config/notes.h"
 #include "libbotanik_features.h"
 
 #if BOTANIK_FEATURE_NOTES_PAGE

@@ -16,31 +16,24 @@ namespace Botanik { namespace Tasks     {  class Registry;          } }
 namespace Botanik { namespace Vars      {  class Bank;              } }
 
 
-#if BOTANIK_FEATURE_NETWORK
 namespace Botanik { namespace Network   {  class NetworkHandler;    } }
-#endif
 
-#if BOTANIK_FEATURE_NTP
 namespace Botanik { namespace Network   {  class NtpClient;         } }
-#endif
 
-#if BOTANIK_FEATURE_MQTT
 namespace Botanik { namespace Network   {  class MqttClient;        } }
-#endif
 
-#if BOTANIK_FEATURE_MODBUS_TCP_SERVER
 namespace Botanik { namespace Modbus    {  class TcpSlave;          } }
-#endif
-#if BOTANIK_FEATURE_MODBUS_RTU_CLIENT
 namespace Botanik { namespace Modbus    {  class RtuClient;         } }
-#endif
 
 namespace Botanik {
 
     /** @brief Aggregate of subsystem context structs and pointers to the
      *  optional network components; used by reporting commands and metric pages.
      *  Every member may be null when its subsystem is absent at runtime.
-     * @warning Consumers should be gated under the matching `#if BOTANIK_FEATURE_*`. */
+     * @note Every pointer is declared whatever the build: a forward-declared
+ *  pointer costs nothing, and gating the FIELD would only move the `#if` to
+ *  each of its consumers, which already have one. An absent subsystem simply
+ *  leaves its pointer null. */
     /** @brief What a control program is handed each activation.
      *
      *  Built fresh per run, unlike the two wiring contexts around it: @c dt_ms
@@ -71,30 +64,20 @@ namespace Botanik {
          *  one per consumer. */
         Vars::Bank*                    vars      = nullptr;
 
-#if BOTANIK_FEATURE_NETWORK
         const Network::NetworkHandler* network   = nullptr; ///< IP config handler
-#endif
 
-#if BOTANIK_FEATURE_NTP
         const Network::NtpClient*      ntp       = nullptr; ///< SNTP client
-#endif
 
-#if BOTANIK_FEATURE_MQTT
         const Network::MqttClient*     mqtt      = nullptr; ///< MQTT client
-#endif
 
-#if BOTANIK_FEATURE_MODBUS_TCP_SERVER
         /** @brief The Modbus TCP slave. The component rather than a context
          *  struct, like the network handlers above: SlaveContext is computed on
          *  demand, so there is no long-lived struct to point at. */
         const Modbus::TcpSlave*        modbus_tcp = nullptr;
-#endif
 
-#if BOTANIK_FEATURE_MODBUS_RTU_CLIENT
         /** @brief The field-bus master. Its plan, its peers and its counters are
          *  the only view anyone has of what the RS-485 segment is doing. */
         const Modbus::RtuClient*       modbus_rtu = nullptr;
-#endif
 
     };
 

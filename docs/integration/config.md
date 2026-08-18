@@ -56,7 +56,7 @@ the build log. Guard every feature flag a site pins.
 | `PARAMS_PAGE` | off | `CONSOLE`, `VARS` | the PARAMS page |
 | `MONITOR_PAGE` | off | `CONSOLE`, `VARS` | the MONITOR page. **Not** `LOGS_MONITOR`, which is a serial log sink |
 | `TASKS_PAGE` | off | `CONSOLE` | the TASKS page |
-| `NOTES_PAGE` | off | `CONSOLE` | the NOTES page. Costs `NOTES_LEN` bytes plus 2 x `NOTES_MAX_ROWS` row slots of RAM |
+| `NOTES_PAGE` | off | `CONSOLE` | the NOTES page, with its own config concern (`config/notes.h`). Costs `NOTES_LEN` bytes plus 2 x `NOTES_MAX_ROWS` row slots of RAM |
 | `LOGS_PUBLISH` | off | `LOGGING`, `MQTT` | `MqttLogWriter` - log entries to the broker |
 | `ALARMS_PUBLISH` | off | `LOGGING`, `MQTT` | `MqttAlarmNotifier` - alarm transitions to the broker |
 | `LOGS_MONITOR` | off | `LOGGING` | the secondary MONITOR UART and its log sink |
@@ -357,6 +357,8 @@ does not model `TextEditor`'s `_indent` - safe today only because the one indent
 editor is also single-line.
 
 ### Operator notes
+
+`config/notes.h` - its own concern, like every other optional subsystem's.
 
 | Macro | Default | |
 |---|---|---|

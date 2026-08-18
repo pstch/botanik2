@@ -77,14 +77,15 @@ namespace Botanik {
         const char*                   name;                ///< == Config::SITE_NAME
         const Shell::ShellCommand*    commands;            ///< site shell commands
         uint8_t                       command_count;
-#if BOTANIK_FEATURE_VARS
-        const Vars::HomeVar*          home_fields;         ///< home-screen readings
+        /** @brief Home-screen readings, and where their names resolve to -
+         *  filled at bring-up, site-owned, @c home_field_count entries parallel
+         *  to the table so the labels stay in flash.
+         *  @note NOT gated on VARS, though only a VARS build reads them: a field
+         *  a flag can remove is a field every site's initialiser has to guard.
+         *  Three borrowed pointers of flash is the cheaper side of that trade. */
+        const Vars::HomeVar*          home_fields;
         uint8_t                       home_field_count;
-        /** @brief Where the home fields' names resolve to, filled at bring-up.
-         *  Site-owned and must hold @c home_field_count entries. Parallel to
-         *  the table above so the labels stay in flash. */
         Vars::VarRef*                 home_refs;
-#endif
 #if BOTANIK_FEATURE_MODBUS_RTU_CLIENT
         /** @brief What each unit on the field bus will answer: its request
          *  ceiling and address alignment. Null plans every unit as

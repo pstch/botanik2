@@ -278,27 +278,6 @@ namespace Botanik { namespace Config {
 
     /** @} */
 
-    /** @name Operator notes
-     *  @{ */
-
-    /** @brief Capacity of the NOTES buffer (bytes, NUL included) */
-#ifndef BOTANIK_NOTES_LEN
-#  define BOTANIK_NOTES_LEN 2048
-#endif
-    BOTANIK_CFG(uint16_t, NOTES_LEN);
-
-    /** @brief Rows the NOTES editor can lay out. Sized past what soft-wrap
-     *  needs (see the static_assert below), so only a note made of very short
-     *  hard-broken lines can reach it - and an insert that would is refused. */
-#ifndef BOTANIK_NOTES_MAX_ROWS
-#  define BOTANIK_NOTES_MAX_ROWS 128
-#endif
-    BOTANIK_CFG(uint16_t, NOTES_MAX_ROWS);
-
-    // Same bound as SHELL_INPUT_LEN above: a row carries a prompt, so its worst
-    // case is the narrowest screen minus the widest gutter.
-    static_assert(NOTES_MAX_ROWS * (EDITOR_MIN_COLS - EDITOR_PROMPT_MAX) >= NOTES_LEN,
-                  "NOTES_MAX_ROWS too small to lay out NOTES_LEN at EDITOR_MIN_COLS");
 
     /** @} */
 
