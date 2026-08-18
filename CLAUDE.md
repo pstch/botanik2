@@ -95,10 +95,15 @@ drives that tree's own `check` target, so the two cannot drift. Both halves are
 instrumented, screen tests included.
 
 **`make check-bare`** compiles `sites/bare` - every optional feature off - into
-`build/bare/`. Compile-only and `botanik_sim` rather than the suite, because the
-tests are written against a site that HAS a variable table. It exists because an
-OFF path nothing builds rots silently: three had already rotted when it was
-added. Part of `check-full`.
+`build-bare/`, and a middle profile (console + shell + logs + alarms, no
+variable model) into `build-bare-ui/`. Both are compile-only and build
+`botanik_sim` rather than the suite, because the tests are written against a
+site that HAS a variable table. The middle profile earns its place: the two
+extremes only compile the FILE-level guards, and an `#if VARS` inside a page or
+a shell command needs the console on and the table off.
+
+It exists because an OFF path nothing builds rots silently: three had already
+rotted when it was added. Part of `check-full`.
 
 **clang-tidy is not in `check`** - it re-lints on any touched header, too slow to pay per
 edit - but it IS the first half of `check-full`.

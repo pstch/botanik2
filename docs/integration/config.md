@@ -72,8 +72,9 @@ the build log. Guard every feature flag a site pins.
 (Each is spelled `BOTANIK_FEATURE_<NAME>`.)
 
 **An OFF path nothing builds rots.** `src/sites/bare` is the profile with every
-optional flag off, and `make check-bare` compiles it plus a middle profile
-(console + shell + logs + alarms, no variable model). Both are compile-only and
+optional flag off, and `make check-bare` compiles it into `build-bare/` plus a
+middle profile (console + shell + logs + alarms, no variable model) into
+`build-bare-ui/`. Both are compile-only and
 build `botanik_sim` rather than the suite, because the tests are written against
 a site that HAS a table. `check-full` depends on it. When it was added, three
 OFF paths had already rotted: `modbus/rtu/client.cpp` and `modbus/tcp/slave.cpp`

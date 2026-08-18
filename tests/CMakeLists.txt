@@ -91,24 +91,24 @@ add_custom_target(check
 # end of the file, and register_vars() was gated on CONSOLE rather than VARS.
 add_custom_target(check-bare
     COMMAND ${CMAKE_COMMAND} -G ${CMAKE_GENERATOR} -S ${CMAKE_SOURCE_DIR}
-            -B ${CMAKE_BINARY_DIR}/bare -DBOTANIK_TARGET=SIMULATOR
+            -B ${CMAKE_SOURCE_DIR}/build-bare -DBOTANIK_TARGET=SIMULATOR
             -DBOTANIK_SITE=bare
-    COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR}/bare
+    COMMAND ${CMAKE_COMMAND} --build ${CMAKE_SOURCE_DIR}/build-bare
             --target botanik_sim --parallel ${_nproc}
     # And the profile in between, which is the one a reusable-parts build
     # actually wants: a console and a shell, with no variable model behind them.
     # The two extremes alone would not compile the `#if VARS` inside a page or a
     # shell command, only the file-level guard around it.
     COMMAND ${CMAKE_COMMAND} -G ${CMAKE_GENERATOR} -S ${CMAKE_SOURCE_DIR}
-            -B ${CMAKE_BINARY_DIR}/bare-ui -DBOTANIK_TARGET=SIMULATOR
+            -B ${CMAKE_SOURCE_DIR}/build-bare-ui -DBOTANIK_TARGET=SIMULATOR
             -DBOTANIK_SITE=bare
             -DBOTANIK_FEATURE_CONSOLE=ON -DBOTANIK_FEATURE_LOGGING=ON
             -DBOTANIK_FEATURE_SHELL_PAGE=ON -DBOTANIK_FEATURE_LOGS_PAGE=ON
             -DBOTANIK_FEATURE_ALARMS_PAGE=ON -DBOTANIK_FEATURE_TASKS_PAGE=ON
-    COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR}/bare-ui
+    COMMAND ${CMAKE_COMMAND} --build ${CMAKE_SOURCE_DIR}/build-bare-ui
             --target botanik_sim --parallel ${_nproc}
     USES_TERMINAL
-    COMMENT "Sweep: libbotanik with every optional feature off (build/bare/)"
+    COMMENT "Sweep: libbotanik with every optional feature off (build-bare/)"
     VERBATIM
 )
 
