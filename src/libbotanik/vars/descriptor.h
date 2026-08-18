@@ -11,7 +11,7 @@
  */
 
 #include <cstdint>
-#include "libbotanik/alarms/source.h"
+#include "libbotanik/alarms/spec.h"
 
 #include "libbotanik/vars/scalar.h"
 

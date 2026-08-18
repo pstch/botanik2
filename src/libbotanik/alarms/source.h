@@ -3,7 +3,7 @@
 
 /**
  * @file alarms/source.h
- * @brief AlarmSpec and AlarmSourceTable - where an alarm comes from.
+ * @brief AlarmSourceTable - where an alarm comes from.
  *
  * AlarmController owns the dwell, the latch and the announce; it does not own
  * where the boolean lives. With a variable table that is a SCOPE_A row; without
@@ -19,18 +19,9 @@
 
 #include <cstdint>
 
-namespace Botanik { namespace Alarms {
+#include "libbotanik/alarms/spec.h"
 
-    /** @brief An alarm's announce policy: display code plus the thresholds.
-     *  @note Also the payload a SCOPE_A row carries, so it must stay a POD that
-     *  a constexpr union can hold. */
-    struct AlarmSpec {
-        const char* code;         ///< short display code (max 9: AlarmsPage::CODE_W)
-        int16_t     on_s;         ///< time ON before announcing (-1: off)
-        int16_t     off_s;        ///< time OFF before announcing (-1: off)
-        int32_t     recent_s;     ///< RECENT window (0: default, <0: forever)
-        int16_t     hold_s;       ///< keep active this long past the last raw true
-    };
+namespace Botanik { namespace Alarms {
 
     /** @brief The alarms a controller scans, and their raw inputs. */
     class AlarmSourceTable {

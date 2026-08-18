@@ -20,12 +20,12 @@
 #include <cstdint>
 #include <cstring>
 
+#include "libbotanik/alarms/source.h"
 #include "libbotanik/config/alarms.h"
 
 #include "libbotanik/core/component.h"
 #include "libbotanik/logs/logger.h"
 #include "libbotanik/utils/assert.h"
-#include "libbotanik/vars/model.h"
 
 namespace Botanik { namespace Tasks { struct Tick; } }
 

@@ -153,7 +153,7 @@ namespace Botanik {
 #if BOTANIK_FEATURE_NOTES_PAGE
             , _notes(_terminal, ctx.logger)
 #endif
-        {}
+        { (void)sys; }   // only ShellPage reads it
 
         Utils::BufferedSerial&  serial()   { return _serial; }
         Terminal::Console&      terminal() { return _terminal; }

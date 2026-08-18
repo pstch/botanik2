@@ -13,7 +13,6 @@
 #include "libbotanik/config/base.h"
 
 #include "libbotanik/core/component.h"
-#include "libbotanik/vars/params.h"
 
 #if BOTANIK_FEATURE_SUN_TRACKER
 

@@ -18,7 +18,6 @@
 #include "libbotanik/hal/net.h"
 #include "libbotanik/network/network.h"
 #include "libbotanik/network/resolver.h"
-#include "libbotanik/vars/params.h"
 
 namespace Botanik { namespace Tasks { struct Tick; class Registry; } }
 
