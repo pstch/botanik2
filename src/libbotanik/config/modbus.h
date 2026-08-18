@@ -27,13 +27,6 @@ namespace Botanik { namespace Config {
 #endif
     BOTANIK_CFG(uint16_t, MODBUS_TCP_MAX_ROWS);
 
-    /** @brief Port the slave listens on when the `mb_port` parameter is absent.
-     *  502 is the registered one; the simulator serves it at 10502, since a
-     *  process without CAP_NET_BIND_SERVICE cannot bind below 1024. */
-#ifndef BOTANIK_MODBUS_TCP_PORT
-#  define BOTANIK_MODBUS_TCP_PORT 502
-#endif
-    BOTANIK_CFG(uint16_t, MODBUS_TCP_PORT);
 
     /** @brief The unit id this slave answers as. It ACCEPTS any and echoes what
      *  it was sent, counting the mismatches: refusing unit 0 or 255 fails

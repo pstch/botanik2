@@ -170,13 +170,6 @@ namespace Botanik { namespace Config {
 #endif
     BOTANIK_CFG(uint8_t, MQTT_RX_PER_STEP);
 
-    /** @brief Period between MQTT telemetry publish cycles (ms).
-     *  @note 0 disables telemetry.
-     *  @note Each cycle publishes every registered field once. */
-#ifndef BOTANIK_MQTT_TELEMETRY_PERIOD_MS
-#  define BOTANIK_MQTT_TELEMETRY_PERIOD_MS 30000
-#endif
-    BOTANIK_CFG(uint32_t, MQTT_TELEMETRY_PERIOD_MS);
 
     /** @brief Topics published per activation while a telemetry sweep is in
      *  progress. 0 publishes the whole table in one go (the old behaviour).
@@ -190,17 +183,6 @@ namespace Botanik { namespace Config {
 #endif
     BOTANIK_CFG(uint16_t, MQTT_TELEMETRY_PER_STEP);
 
-    /** @brief Publish telemetry with the MQTT retain flag set, so a late
-     *  subscriber gets the last value of each field immediately.
-     *
-     *  @warning An invalid reading is skipped rather than published, and there
-     *  is no last will, so with retain on the broker keeps serving the last good
-     *  value of a sensor that has since died. Turn it off for an integration
-     *  that must be able to tell "current" from "last seen". */
-#ifndef BOTANIK_MQTT_TELEMETRY_RETAIN
-#  define BOTANIK_MQTT_TELEMETRY_RETAIN 1
-#endif
-    BOTANIK_CFG(bool, MQTT_TELEMETRY_RETAIN);
 
     /** @brief Topic segment between the prefix and the field name, for each of
      *  the three publishers. They are the path schema every subscriber and

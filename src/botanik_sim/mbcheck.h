@@ -93,7 +93,7 @@ namespace Botanik { namespace Sim {
                 }
                 _row_addr = (uint16_t)(v.meta()->bind.reg * 2);
                 _master.connect_to(HAL::Network::mock_loopback_ip(),
-                                   Config::MODBUS_TCP_PORT);
+                                   Modbus::TcpSlaveConfig().port);
                 _step = MC_READ1;
             }
 

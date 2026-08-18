@@ -96,7 +96,8 @@ add_custom_target(check-bare
     COMMAND ${CMAKE_COMMAND} --build ${CMAKE_SOURCE_DIR}/build-bare
             --target botanik_sim --parallel ${_nproc}
     # And the profile in between, which is the one a reusable-parts build
-    # actually wants: a console and a shell, with no variable model behind them.
+    # actually wants: a console, a shell and its log/task views, with no
+    # variable model and no alarm page behind them.
     # The two extremes alone would not compile the `#if VARS` inside a page or a
     # shell command, only the file-level guard around it.
     COMMAND ${CMAKE_COMMAND} -G ${CMAKE_GENERATOR} -S ${CMAKE_SOURCE_DIR}
@@ -104,7 +105,7 @@ add_custom_target(check-bare
             -DBOTANIK_SITE=bare
             -DBOTANIK_FEATURE_CONSOLE=ON -DBOTANIK_FEATURE_LOGGING=ON
             -DBOTANIK_FEATURE_SHELL_PAGE=ON -DBOTANIK_FEATURE_LOGS_PAGE=ON
-            -DBOTANIK_FEATURE_ALARMS_PAGE=ON -DBOTANIK_FEATURE_TASKS_PAGE=ON
+            -DBOTANIK_FEATURE_TASKS_PAGE=ON
     COMMAND ${CMAKE_COMMAND} --build ${CMAKE_SOURCE_DIR}/build-bare-ui
             --target botanik_sim --parallel ${_nproc}
     USES_TERMINAL

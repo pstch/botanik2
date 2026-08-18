@@ -301,7 +301,7 @@ TEST_CASE("HAL::Network sim: a listener accepts a connection and carries bytes")
     // What the Modbus TCP slave needs from the HAL end to end: bind, accept, a byte
     // each way. The sim binds this instance's own 127/8 address, so this runs
     // unchanged beside other test processes.
-    // NOT 502 (Config::MODBUS_TCP_PORT): a TcpSlave elsewhere may still hold it,
+    // NOT 502 (Modbus::TcpSlaveConfig().port): a TcpSlave elsewhere may still hold it,
     // and doctest cases share a process with no ordering. 503 is privileged too.
     const uint16_t PORT = 503;                  // privileged: the backend shifts it
     Network::TcpSocket srv = Network::tcp_listen(PORT);

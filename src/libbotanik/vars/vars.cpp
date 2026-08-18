@@ -25,6 +25,19 @@
 #if BOTANIK_FEATURE_LOGS_MONITOR
 #include "libbotanik/firmware/stacks.h"
 #endif
+#if BOTANIK_FEATURE_NETWORK
+#include "libbotanik/network/network.h"
+#endif
+#if BOTANIK_FEATURE_NTP
+#include "libbotanik/network/ntp.h"
+#endif
+#if BOTANIK_FEATURE_MQTT
+#include "libbotanik/network/mqtt.h"
+#include "libbotanik/network/telemetry.h"
+#endif
+#if BOTANIK_FEATURE_MODBUS_TCP_SERVER
+#include "libbotanik/modbus/tcp/slave.h"
+#endif
 
 #include "libbotanik/config/alarms.h"
 #include "libbotanik/config/logging.h"
@@ -160,12 +173,13 @@ namespace Botanik { namespace Vars {
         "lowest level the monitor port carries",
         "open by default: this port exists to be the full record"),
 #endif
+#if BOTANIK_FEATURE_NETWORK
     /* net_: NetworkHandler reads these by name, so the library declares them */
     P("net_serial", T_U32,
         1, 0, 9999, 0, "", 910,
         "bump to apply staged net_ edits", ""),
     P("net_enable", T_BOOL,
-        1, 0, 1, 0, "", 917,
+        Network::NetworkConfig().enabled, 0, 1, 0, "", 917,
         "bring the network up",
         "off takes the link down; the field bus is unaffected"),
     P("net_dhcp", T_BOOL,
@@ -186,6 +200,8 @@ namespace Botanik { namespace Vars {
     PS("net_dns2", "4.4.4.4",
         BOTANIK_HOST_STR_LEN, STR_IPV4_OPT, 916,
         "static DNS resolver 2", "empty = use dns1 alone"),
+#endif
+#if BOTANIK_FEATURE_NTP
     /* ntp_: NtpClient reads these by name */
     P("ntp_serial", T_U32,
         1, 0, 9999, 0, "", 920,
@@ -194,10 +210,10 @@ namespace Botanik { namespace Vars {
         1, 0, 1, 0, "", 921,
         "enable NTP clock sync", ""),
     P("ntp_poll_sec", T_U32,
-        3600, 10, 86400, 0, "sec", 922,
+        Network::NtpConfig().poll_sec, 10, 86400, 0, "sec", 922,
         "NTP poll interval, in seconds", ""),
     P("ntp_port", T_U16,
-        123, 1, 65535, 0, "", 923,
+        Network::NtpConfig().port, 1, 65535, 0, "", 923,
         "NTP server port", "standard is 123"),
     PS("ntp_srv1", "pool.ntp.org",
         BOTANIK_HOST_STR_LEN, STR_HOST, 924,
@@ -205,7 +221,9 @@ namespace Botanik { namespace Vars {
     PS("ntp_srv2", "",
         BOTANIK_HOST_STR_LEN, STR_HOST_OPT, 925,
         "NTP server 2", "empty = no fallback"),
-    /* mqtt_: MqttClient reads these by name */
+#endif
+#if BOTANIK_FEATURE_MQTT
+    /* mqtt_: MqttClient reads these by name; the last two are MqttSender's */
     P("mqtt_serial", T_U32,
         1, 0, 9999, 0, "", 930,
         "bump to apply staged mqtt_ edits", ""),
@@ -216,24 +234,26 @@ namespace Botanik { namespace Vars {
         BOTANIK_HOST_STR_LEN, STR_HOST, 932,
         "MQTT broker host", ""),
     P("mqtt_port", T_U16,
-        1883, 1, 65535, 0, "", 933,
+        Network::MqttConfig().port, 1, 65535, 0, "", 933,
         "MQTT broker port", "standard is 1883"),
     P("mqtt_ka_sec", T_U16,
-        20, 10, 1800, 0, "sec", 934,
+        Network::MqttConfig().ka_sec, 10, 1800, 0, "sec", 934,
         "MQTT keep-alive interval", "also the dead-broker detection"),
     P("mqtt_tlm_sec", T_U32,
-        (BOTANIK_MQTT_TELEMETRY_PERIOD_MS / 1000.0), 0, 86400, 0, "sec", 935,
+        (Network::TelemetryConfig().period_ms / 1000.0), 0, 86400, 0, "sec", 935,
         "telemetry publish cadence", "0 stops publishing telemetry"),
     P("mqtt_retain", T_BOOL,
-        BOTANIK_MQTT_TELEMETRY_RETAIN, 0, 1, 0, "", 936,
+        Network::TelemetryConfig().retain, 0, 1, 0, "", 936,
         "publish telemetry retained",
         "on, the broker keeps serving a dead sensor's last good value"),
+#endif
 #if BOTANIK_FEATURE_LOGS_PUBLISH
     PE("mqtt_level", Logs::LOG_DEBUG,
         &Logs::log_level_label, 937,
         "lowest level published to the broker",
         "every entry costs a publish, so this is the floor to raise first"),
 #endif
+#if BOTANIK_FEATURE_SUN_TRACKER
     /* geo_: SunPositionTracker reads these by name */
     P("geo_serial", T_U32,
         1, 0, 9999, 0, "", 940,
@@ -244,7 +264,7 @@ namespace Botanik { namespace Vars {
     P("geo_lon_deg", T_F32,
         0.0, -180.0, 180.0, 2, "deg", 942,
         "geographical longitude, in degrees", "per site location"),
-
+#endif
 
 #if BOTANIK_FEATURE_MODBUS_TCP_SERVER
     /* mb_: TcpSlave reads these by name, so the library declares them */
@@ -259,7 +279,7 @@ namespace Botanik { namespace Vars {
         1, 0, 1, 0, "", 951,
         "serve the Modbus TCP slave", ""),
     P("mb_port", T_U16,
-        BOTANIK_MODBUS_TCP_PORT, 1, 65535, 0, "", 952,
+        Modbus::TcpSlaveConfig().port, 1, 65535, 0, "", 952,
         "Modbus TCP slave port", "standard is 502"),
     P("mb_write_enable", T_BOOL,
         1, 0, 1, 0, "", 953,

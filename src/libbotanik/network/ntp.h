@@ -24,7 +24,9 @@ namespace Botanik { namespace Tasks { struct Tick; class Registry; } }
 namespace Botanik { namespace Network {
 
     /** @brief What NtpClient syncs against. Empty servers mean nothing to sync
-     *  to, so the client stays idle whatever `enable` says. */
+     *  to, so the client stays idle whatever `enable` says - which is what a
+     *  build with no configuration source should do rather than dial out to a
+     *  public pool nobody asked for. The `ntp_` rows carry a real default. */
     struct NtpConfig {
         bool     enabled  = true;
         uint16_t port     = 123;

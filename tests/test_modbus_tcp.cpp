@@ -534,7 +534,7 @@ struct Pair {
     }
 
     bool connect() {
-        master.connect_to(HAL::Network::mock_loopback_ip(), Config::MODBUS_TCP_PORT);
+        master.connect_to(HAL::Network::mock_loopback_ip(), Modbus::TcpSlaveConfig().port);
         TcpMaster* m = &master;
         return until([m] { return m->connected(); }, 5000);
     }

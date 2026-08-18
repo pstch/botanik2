@@ -371,10 +371,18 @@ namespace Botanik {
 #endif
 #endif
 
+#if BOTANIK_FEATURE_VARS
         /** @brief Resolve every name the site's tables declare into the ref
          *  arrays they carry alongside. The alarm table binds itself when the
          *  model copies it, so it is not repeated here. */
         void _resolve_site_refs();
+#else
+        /** @brief Hand every component its struct defaults. Only a build with no
+         *  variable table needs this: with one, ConfigBinder does it from the
+         *  rows, and a component nobody configures keeps what it was
+         *  CONSTRUCTED with. @see vars/bindings.h */
+        void _apply_default_config();
+#endif
 
         /** @brief Build the task table: what runs, at which rate, in which phase.
          *  Registration order is the order within a phase, and the phase order is

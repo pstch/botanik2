@@ -212,6 +212,17 @@ namespace Botanik {
         register_telemetry();   // site telemetry fields (base set always on)
 #endif
 
+#if !BOTANIK_FEATURE_VARS
+        // No table means no ConfigBinder, and a component that is never handed a
+        // config keeps the one it was CONSTRUCTED with - which for the console is
+        // a single usable cell, so the screen stays blank. The struct defaults
+        // are the factory profile, so pushing them here puts this build in the
+        // same state a variable build reaches with a wiped store.
+        //
+        // BEFORE on_setup(), so a site can still override any of it in its hook.
+        _apply_default_config();
+#endif
+
         // The site's own components and programs register here, on top of the
         // library's - still ahead of the setup pass below, so they are set up
         // in the same sweep as everything else.
@@ -264,6 +275,27 @@ namespace Botanik {
             static_cast<const Modbus::DeviceTable*>(ctx), unit);
     }
 #endif
+#endif
+
+#if !BOTANIK_FEATURE_VARS
+    void BotanikFirmware::_apply_default_config() {
+#if BOTANIK_FEATURE_CONSOLE
+        _console.terminal().set_config(Terminal::ConsoleConfig(), /*announce=*/false);
+#endif
+#if BOTANIK_FEATURE_LOGS_MONITOR
+        _monitor.set_config(MonitorConfig());
+#endif
+#if BOTANIK_FEATURE_NETWORK
+        _net.network().set_config(Network::NetworkConfig());
+#endif
+#if BOTANIK_FEATURE_NTP
+        _net.ntp().set_config(Network::NtpConfig());
+#endif
+#if BOTANIK_FEATURE_MQTT
+        _net.mqtt().set_config(Network::MqttConfig());
+        _net.telemetry().set_config(Network::TelemetryConfig());
+#endif
+    }
 #endif
 
 #if BOTANIK_FEATURE_VARS

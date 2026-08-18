@@ -29,11 +29,12 @@ namespace Botanik { namespace Network {
 
     /** @brief The broker a MqttClient talks to. keepalive is also the
      *  dead-broker detection: a wedged peer leaves the socket open and answers
-     *  nothing, and this is what notices. */
+     *  nothing, and this is what notices.
+     *  @note An empty host is inert, like NtpConfig's empty servers. */
     struct MqttConfig {
         bool     enabled = true;
         uint16_t port    = 1883;
-        uint16_t ka_sec  = 60;
+        uint16_t ka_sec  = 20;
         char     host[BOTANIK_HOST_STR_LEN] = {0};
     };
 

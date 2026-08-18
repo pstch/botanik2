@@ -7,7 +7,7 @@
  * @brief MqttSender - periodic publication of field values over MQTT.
  *
  * Publishes named values under "<prefix>/<root>/<group>/<field>" every
- * Config::MQTT_TELEMETRY_PERIOD_MS while the MqttClient is connected (root =
+ * TelemetryConfig::period_ms while the MqttClient is connected (root =
  * Config::MQTT_TELEMETRY_TOPIC, prefix supplied at construction). Each cycle
  * publishes the library base set (uptime, CPU load/jitter, stack, from the
  * SystemContext) under "system", then the variable table registered through
@@ -34,7 +34,7 @@ namespace Botanik { namespace Network {
     /** @brief How often the base fields go to the broker, and whether it keeps
      *  them. period_ms 0 disables telemetry outright. */
     struct TelemetryConfig {
-        uint32_t period_ms = 60000;
+        uint32_t period_ms = 30000;
         bool     retain    = true;
     };
 
@@ -102,7 +102,7 @@ namespace Botanik { namespace Network {
         void set_variables(const Vars::Bank* io) { _io = io; }
 
         /** @brief Publish every base + site field once
-         *  Config::MQTT_TELEMETRY_PERIOD_MS has elapsed and the link is
+         *  TelemetryConfig::period_ms has elapsed and the link is
          *  connected. No-op when telemetry is disabled (period 0) or the period
          *  has not elapsed. */
         void on_service(uint64_t now_ms) override;

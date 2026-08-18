@@ -22,9 +22,13 @@ namespace Botanik { namespace Tasks { struct Tick; class Registry; } }
 
 namespace Botanik { namespace Network {
 
-    /** @brief The link a NetworkHandler brings up. DHCP with the rest empty is
-     *  the factory default: the address comes from the network. A static build
-     *  clears dhcp and fills at least ip, mask and gw. */
+    /** @brief The link a NetworkHandler brings up.
+     *
+     *  @note These two deliberately disagree with the `net_` rows, which pair
+     *  dhcp=0 with a real static address. A build with NO configuration source
+     *  must not invent one, so the addresses stay empty and DHCP is the only
+     *  thing left that can work. Every other Config struct in the library
+     *  matches its rows exactly. */
     struct NetworkConfig {
         bool enabled  = true;
         bool dhcp     = true;
