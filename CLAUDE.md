@@ -238,6 +238,31 @@ A site's opt-in must yield to the command line, and `#ifndef` alone does not do 
 
 Gate with the preprocessor `#if BOTANIK_FEATURE_<X>` (it must drop member declarations and ctor-init entries; C++11 has no `if constexpr`). See `docs/integration/config.md`.
 
+**Four rules, in order of preference.** They exist because a guard is not free:
+every one is a line a reader steps over, and a wrongly placed one compiles fine
+in the profile you happen to build.
+
+1. **A `.cpp` guards its whole body**, with the flag its header uses, and the
+   `#endif` is the LAST line of the file. Anything after it is compiled against
+   a class the header just gated away. Two files got this wrong and neither had
+   ever built with its flag off; `check-bare` is what catches it now.
+2. **Prefer an inert shell to gating a declaration.** `Logs::Logger` with
+   `LOGGING` off keeps its type and guts `_emit()`: 3 guards inside `logger.cpp`,
+   and none of the ~19 headers holding a `Logger*` change. Declaration gating
+   propagates instead - the member, its ctor-init entry, its accessor, and every
+   call site.
+3. **Never gate a borrowed pointer or an aggregate field.** A forward-declared
+   pointer costs nothing to declare, so the `#if` only moves to each consumer -
+   which needs one anyway to dereference it. Gate the CODE, not the field.
+   `SiteDescriptor`'s tables and every `SystemContext` pointer follow this.
+4. **A site pins a flag with `#if !defined(X) || X`**, so the command line still
+   wins: precedence is command line > site > header default.
+
+`firmware/` holds about half of all the guards in the library, and that is the
+composition root doing its job - it is the one place that knows which optional
+subsystems exist. Concentration there is the goal; a guard appearing in a
+subsystem that could have used rule 2 or 3 is the smell.
+
 ## Site-specific code (greenhouse targets)
 
 `libbotanik` is generic and site-independent. Code specific to one physical greenhouse -
