@@ -20,7 +20,15 @@
  *  512-row default costing 6 KB of RAM nobody uses. Headroom for a few rows;
  *  past it, registration is refused and POST says so. */
 #ifndef BOTANIK_VAR_MAX
-#  define BOTANIK_VAR_MAX 352
+#  define BOTANIK_VAR_MAX 512
+#endif
+
+/** @brief The TCP map holds every PARAMETER, STATUS and ALARM row - 306 on this
+ *  profile, past the 256 default. Two bytes each, and a site that outgrows it
+ *  serves a SHORT map: the rows past the end answer nothing, which an
+ *  integrator reads as a device that does not have them. */
+#ifndef BOTANIK_MODBUS_TCP_MAX_ROWS
+#  define BOTANIK_MODBUS_TCP_MAX_ROWS 320
 #endif
 
 /** @brief String pool: this site declares no text rows of its own, so it is

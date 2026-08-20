@@ -1,0 +1,486 @@
+# programs.toml - the IEC 61131-3 CONFIGURATION for gh_mlb41.
+#
+# Which control programs exist, what rate class each is dispatched at, and which
+# table row every one of its variables is connected to. A Plc::Program is a
+# PROGRAM POU and takes no arguments, so this file is what joins its declared
+# interface to the global table.
+#
+# Sections, and what each promises:
+#
+#   in     VAR_INPUT           read-only; drive() on it does not compile
+#   out    VAR_OUTPUT          this program is the row's ONE producer
+#   inout  VAR_IN_OUT          read-modify-write, SHARED by declaration
+#
+# A member is `name = "row"`, or `name = ["row", ...]` for an array. The TYPE
+# comes from the table, so a member cannot disagree with the row it names.
+#
+# scripts/vars_gen.py turns this into generated/programs.gen.h: one Refs struct
+# per program, and the bind() body that resolves it. A program holds that struct
+# as `_v`. Edit here, re-run the generator, commit both.
+#
+# ORDER IS EXECUTION ORDER within the control phase, and these are in signal
+# order: conditioning, the day's shape, then the laws that read them.
+
+[[program]]
+name  = "ac_grid_watch"
+class = "AcGridWatch"
+task  = "SLOW"
+health = "prog_ac_grid_watch"
+[program.in]
+volts = "grid_LN_V"
+amps  = "grid_total_A"
+watts = "grid_total_W"
+hz    = "grid_Hz"
+lo_V  = "pwr_gridLo_V"
+hi_V  = "pwr_gridHi_V"
+lo_Hz = "pwr_gridLo_Hz"
+hi_Hz = "pwr_gridHi_Hz"
+[program.out]
+out_V  = "sys_grid_V"
+out_A  = "sys_grid_A"
+out_W  = "sys_grid_W"
+out_Hz = "sys_grid_Hz"
+ok     = "sys_grid_ok"
+fault  = "alarm_ac_grid"
+
+# The generator-backed side, downstream of the transfer switch. Same members as
+# the grid above, because AcSupply is bound from either by template.
+[[program]]
+name  = "ac_local_watch"
+class = "AcLocalWatch"
+task  = "SLOW"
+health = "prog_ac_local_watch"
+[program.in]
+volts = "ats_V"
+amps  = "ats_A"
+watts = "ats_W"
+hz    = "ats_Hz"
+lo_V  = "pwr_localLo_V"
+hi_V  = "pwr_localHi_V"
+lo_Hz = "pwr_localLo_Hz"
+hi_Hz = "pwr_localHi_Hz"
+# The grid's verdict, decided earlier in the same beat: what makes a dead local
+# supply a FAILED GENERATOR rather than a power cut nobody asked it to cover.
+grid_ok = "sys_grid_ok"
+start_s = "pwr_genStart_sec"
+[program.out]
+out_V  = "sys_local_V"
+out_A  = "sys_local_A"
+out_W  = "sys_local_W"
+out_Hz = "sys_local_Hz"
+ok     = "sys_local_ok"
+fault  = "alarm_ac_local"
+gen_fault = "alarm_gen"
+
+[[program]]
+name  = "dc_watch"
+class = "DcWatch"
+task  = "SLOW"
+health = "prog_dc_watch"
+[program.in]
+dc1     = "pwr_dc1_V"
+dc2     = "pwr_dc2_V"
+ups_bat = "pwr_upsBat_V"
+gen_bat = "pwr_genBat_V"
+# One rolling average per divider: the rail is judged on the AVERAGE, so a
+# single noisy sample cannot raise a supply fault.
+dc1_avg = "pwr_dc1_avg_ms"
+dc2_avg = "pwr_dc2_avg_ms"
+ups_avg = "pwr_upsBat_avg_ms"
+gen_avg = "pwr_genBat_avg_ms"
+dc1_lo  = "pwr_dc1Lo_V"
+dc2_lo  = "pwr_dc2Lo_V"
+ups_lo  = "pwr_upsBatLo_V"
+gen_lo  = "pwr_genBatLo_V"
+low_bat = "pwr_upsLowBat"
+[program.out]
+out_dc1 = "sys_dc1_V"
+out_dc2 = "sys_dc2_V"
+out_ups = "sys_upsBat_V"
+out_gen = "sys_genBat_V"
+ok      = "sys_dc_ok"
+lockout = "sys_supply_lockout"
+ps1_flt = "alarm_dc_ps1"
+ps2_flt = "alarm_dc_ps2"
+ups_flt = "alarm_dc_ups"
+gen_flt = "alarm_generator_battery"
+
+[[program]]
+name  = "temp_rh_zone"
+class = "TempRHZone"
+task  = "FAST"
+health = "prog_temp_rh_zone"
+
+[program.in]
+t_hi  = ["cli_temp_hi1",  "cli_temp_hi2",  "cli_temp_hi3"]
+h_hi  = ["cli_rh_hi1",    "cli_rh_hi2",    "cli_rh_hi3"]
+t_lo  = ["cli_temp_lo1",  "cli_temp_lo2",  "cli_temp_lo3"]
+h_lo  = ["cli_rh_lo1",    "cli_rh_lo2",    "cli_rh_lo3"]
+t_cs  = ["cli_temp_cs1",  "cli_temp_cs2",  "cli_temp_cs3"]
+h_cs  = ["cli_rh_cs1",    "cli_rh_cs2",    "cli_rh_cs3"]
+t_ext = ["cli_temp_ext1", "cli_temp_ext2", "cli_temp_ext3"]
+h_ext = ["cli_rh_ext1",   "cli_rh_ext2",   "cli_rh_ext3"]
+rot_limit = "cli_tooHumid_degC"
+
+[program.out]
+temp_hi = "cli_temp_hi"
+rh_hi   = "cli_rh_hi"
+temp_lo = "cli_temp_lo"
+rh_lo   = "cli_rh_lo"
+temp_cs = "cli_temp_cs"
+rh_cs   = "cli_rh_cs"
+temp_ext = "cli_temp_ext"
+rh_ext   = "cli_rh_ext"
+fault_hi  = "alarm_sns_ceiling"
+fault_lo  = "alarm_sns_floor"
+fault_cs  = "alarm_sns_crawlspace"
+fault_ext = "alarm_sns_exterior"
+dew_point = "cli_dewPoint_degC"
+dp_margin = "cli_dpMargin_degC"
+sat_press = "cli_satPress_kPa"
+vpd       = "cli_vpd_kPa"
+rot       = "alarm_rot"
+
+[[program]]
+name  = "strat"
+class = "StratSensor"
+task  = "FAST"
+health = "prog_strat"
+[program.in]
+ceiling = "cli_temp_hi"
+floor   = "cli_temp_lo"
+[program.out]
+strat = "cli_dTStrat_degC"
+
+# The interior conditions, watched. Empty run(): an alarm is an observation, and
+# an observation has to keep being made while the plant is parked - which is
+# exactly when someone is looking at the ALARMS page.
+[[program]]
+name  = "climate_watch"
+class = "ClimateWatch"
+task  = "SLOW"
+health = "prog_climate_watch"
+[program.in]
+temp      = "cli_temp_hi"
+rh        = "cli_rh_hi"
+strat     = "cli_dTStrat_degC"
+too_hot   = "cli_tooHot_degC"
+too_cold  = "cli_tooCold_degC"
+rh_cap    = "cli_rotRhCap"
+strat_hi  = "cli_dTStratHigh_degC"
+sns       = ["alarm_sns_ceiling", "alarm_sns_floor",
+             "alarm_sns_crawlspace", "alarm_sns_exterior"]
+[program.out]
+hot       = "alarm_too_hot"
+cold      = "alarm_too_cold"
+humid     = "alarm_too_humid"
+stratified = "alarm_strat"
+sensor    = "alarm_sensor_fault"
+
+[[program]]
+name  = "day_phase"
+class = "DayPhaseController"
+task  = "SLOW"
+health = "prog_day_phase"
+[program.in]
+inside        = "cli_temp_hi"
+cold_bank_trg = "cli_coldBankTrg_degC"
+heat_bank_trg = "cli_heatBankTrg_degC"
+# The five boundaries, each an offset in minutes from sunrise or from sunset.
+cold_bank_rise = "sol_coldBankRise_min"
+breeze_rise    = "sol_breezeRise_min"
+day_rise       = "sol_dayRise_min"
+heat_bank_set  = "sol_heatBankSet_min"
+night_set      = "sol_nightSet_min"
+[program.out]
+phase          = "cli_phase"
+prev_day_max   = "cli_prevDayMax_degC"
+prev_night_min = "cli_prevNightMin_degC"
+cold_arm       = "cli_coldBankArm"
+heat_arm       = "cli_heatBankArm"
+from_rise      = "sol_fromRise_min"
+from_set       = "sol_fromSet_min"
+
+[[program]]
+name  = "target_temp"
+class = "TargetTempController"
+task  = "SLOW"
+health = "prog_target_temp"
+[program.in]
+phase         = "cli_phase"
+cold_arm      = "cli_coldBankArm"
+heat_arm      = "cli_heatBankArm"
+cool_set      = "cli_coolSet_degC"
+cold_bank_ofs = "cli_coldBankOfs_degC"
+heat_bank_ofs = "cli_heatBankOfs_degC"
+[program.out]
+target = "cli_targetTemp_degC"
+
+[[program]]
+name  = "cooling"
+class = "CoolingController"
+task  = "FAST"
+health = "prog_cooling"
+# TWO interior levels, in order of preference: the ceiling is where heat
+# collects and where the target is set, but a law that can still see the floor
+# can still control. Only with both gone is there no interior temperature.
+[program.in]
+ceiling = "cli_temp_hi"
+floor   = "cli_temp_lo"
+target = "cli_targetTemp_degC"
+# What the intractors would actually deliver, and the two margins that decide
+# whether drawing it is worth anything. The crawlspace IS the intake path.
+intake      = "cli_temp_cs"
+temp_margin = "cli_ventTempMgn_degC"
+ground_dem  = "cli_groundHeatDem"
+kp     = "cli_coolKp"
+ti     = "cli_coolTi_sec"
+td     = "cli_coolTd_sec"
+[program.out]
+demand    = "cli_coolDem"
+intake_ok = "cli_intakeCoolOk"
+ground_ok = "cli_groundHeatOk"
+
+[[program]]
+name  = "destrat"
+class = "DestratController"
+task  = "SLOW"
+health = "prog_destrat"
+[program.in]
+strat = "cli_dTStrat_degC"
+low   = "cli_dTStratLow_degC"
+med   = "cli_dTStratMed_degC"
+high  = "cli_dTStratHigh_degC"
+hyst  = "cli_dTStratHyst_degC"
+[program.out]
+demand = "cli_stratDem"
+
+# One ladder over one signal. The comfort band and the rot guard are both read
+# off the dew-point margin, and splitting them made two programs that could
+# disagree about what the margin was on a beat where it moved.
+[[program]]
+name  = "humidity"
+class = "HumidityController"
+task  = "SLOW"
+health = "prog_humidity"
+[program.in]
+dp_margin   = "cli_dpMargin_degC"
+dehum_full  = "cli_dehumFull_degC"
+dehum_start = "cli_dehumStart_degC"
+humid_start = "cli_humidStart_degC"
+humid_full  = "cli_humidFull_degC"
+rot_limit   = "cli_tooHumid_degC"
+rot         = "alarm_rot"
+# The dryness gate: whether the air outside would dry the greenhouse at all.
+# Dew points, not humidities - a colder outside at the same RH is drier air.
+in_t        = "cli_temp_hi"
+in_rh       = "cli_rh_hi"
+ext_t       = "cli_temp_ext"
+ext_rh      = "cli_rh_ext"
+dry_margin  = "cli_ventDryMgn_degC"
+[program.out]
+demand   = "cli_humidDem"
+lockout  = "cli_rotLockout"
+vent_dem = "cli_rotVentDem"
+dry_ok   = "cli_intakeDryOk"
+
+[[program]]
+name  = "irrigation"
+class = "IrrigationController"
+task  = "SLOW"
+health = "prog_irrigation"
+
+[program.in]
+vpd           = "cli_vpd_kPa"
+outside_temp  = "cli_temp_ext"
+days   = ["irr_days_tray1","irr_days_tray2","irr_days_tray3","irr_days_tray4",
+          "irr_days_tray5","irr_days_tray6","irr_days_tray7","irr_days_tray8"]
+litres = ["irr_liters_tray1","irr_liters_tray2","irr_liters_tray3","irr_liters_tray4",
+          "irr_liters_tray5","irr_liters_tray6","irr_liters_tray7","irr_liters_tray8"]
+force_on = ["irr_forceOn_tray1","irr_forceOn_tray2","irr_forceOn_tray3","irr_forceOn_tray4",
+            "irr_forceOn_tray5","irr_forceOn_tray6","irr_forceOn_tray7","irr_forceOn_tray8"]
+force_off = ["irr_forceOff_tray1","irr_forceOff_tray2","irr_forceOff_tray3","irr_forceOff_tray4",
+             "irr_forceOff_tray5","irr_forceOff_tray6","irr_forceOff_tray7","irr_forceOff_tray8"]
+trays_per_day  = "irr_traysPerDay"
+dry_days       = "irr_dryEwmaDays"
+dry_lo         = "irr_dryLo_kPa"
+dry_hi         = "irr_dryHi_kPa"
+mod_min        = "irr_modMin"
+mod_gamma      = "irr_modGamma"
+split          = "irr_volFreqSplit"
+dawn_gate      = "irr_dawnGate_degC"
+force_now      = "irr_forceNow"
+max_fill_s     = "irr_maxFill_sec"
+drain_window_s = "irr_drainWindow_sec"
+flush_s        = "irr_flush_sec"
+qty_per_pulse  = "irr_input_qtyPerImp"
+out_flow       = "irr_out_Lpm"
+out_avg_ms     = "irr_out_avg_ms"
+leak_Lpm       = "irr_leak_Lpm"
+min_fill_Lpm   = "irr_minFill_Lpm"
+exp_drain      = "irr_expDrainFrac"
+drain_margin   = "irr_drainMargin"
+
+# Read to decide when a tray is due, stamped once its fill completes - and an
+# operator edits it to skip a watering or bring one forward. Shared by
+# declaration, so it records no single owner.
+[program.inout]
+last = ["irr_last_tray1","irr_last_tray2","irr_last_tray3","irr_last_tray4",
+        "irr_last_tray5","irr_last_tray6","irr_last_tray7","irr_last_tray8"]
+
+[program.out]
+tray_valve = ["irr_tray1","irr_tray2","irr_tray3","irr_tray4",
+              "irr_tray5","irr_tray6","irr_tray7","irr_tray8"]
+vpd_avg     = "irr_vpdAvg_kPa"
+mod         = "irr_mod"
+period      = "irr_period_days"
+volume      = "irr_volume_L"
+state       = "irr_state"
+active      = "irr_activeTray"
+served      = "irr_servedToday"
+delivered   = "irr_delivered_L"
+# TWO contactors on ONE manifold, always in the same state: there is one inlet
+# and one drain, each switched twice.
+inlet       = ["irr_input_ro1", "irr_input_ro2"]
+outlet      = ["irr_output_ro1", "irr_output_ro2"]
+fill_fault  = "alarm_irr_fill"
+out_flow_pub = "irr_outFlow_Lpm"
+in_flow      = "irr_inFlow_Lpm"
+in_total     = "irr_inTotal_L"
+out_total    = "irr_outTotal_L"
+drained     = "irr_drained_L"
+leak        = "alarm_water_leak"
+pressure    = "alarm_water_pressure"
+drain_fault = "alarm_water_clog"
+# The per-tray forms beside the "any" ones above: the any-form is what an
+# operator sees on the ribbon, and these are what says which tray to go and look
+# at once the cycle has moved on.
+fill_tray  = ["alarm_irr_fill_tray1","alarm_irr_fill_tray2","alarm_irr_fill_tray3",
+              "alarm_irr_fill_tray4","alarm_irr_fill_tray5","alarm_irr_fill_tray6",
+              "alarm_irr_fill_tray7","alarm_irr_fill_tray8"]
+drain_tray = ["alarm_irr_drain_tray1","alarm_irr_drain_tray2","alarm_irr_drain_tray3",
+              "alarm_irr_drain_tray4","alarm_irr_drain_tray5","alarm_irr_drain_tray6",
+              "alarm_irr_drain_tray7","alarm_irr_drain_tray8"]
+
+[[program]]
+name  = "screen"
+class = "ScreenController"
+task  = "SLOW"
+health = "prog_screen"
+[program.in]
+cool_dem     = "cli_coolDem"
+deploy_dem   = "cli_thermalScreenDem"
+night_degC   = "cli_screenNight_degC"
+inside       = "cli_temp_hi"
+phase        = "cli_phase"
+travel_s     = "cli_screenTravel_sec"
+travel_tmo_s = "cli_screenTmo_sec"
+[program.out]
+screen = "cli_screen"
+moving = "cli_screenMoving"
+
+[[program]]
+name  = "windows"
+class = "WindowsController"
+task  = "SLOW"
+health = "prog_windows"
+
+# The humidity demand is deliberately absent. Anti-dryness would ask the
+# windows shut, and the spec is explicit that cooling wins over it - "l'air sec
+# ne met pas les Hawortia en danger, mais la chaleur oui". With no cooling
+# demand the target is 0 and they are shut anyway, so absence IS the rule.
+[program.in]
+cool_dem    = "cli_coolDem"
+start_dem   = "cli_windowStartDem"
+full_dem    = "cli_windowFullDem"
+rain_mmph   = "cli_rain_mmph"
+wind_mps    = "cli_wind_mps"
+gust_mps    = "cli_windGust_mps"
+wind_shut   = "cli_windShut_mps"
+rain_hold_s = "cli_rainLockout_sec"
+travel_s    = "cli_windowTravel_sec"
+tmo_s       = "cli_windowTmo_sec"
+supply_lock = "sys_supply_lockout"
+
+[program.out]
+opn = ["cli_window1_opn","cli_window2_opn","cli_window3_opn","cli_window4_opn"]
+clo = ["cli_window1_clo","cli_window2_clo","cli_window3_clo","cli_window4_clo"]
+tgt = ["cli_window1_tgt","cli_window2_tgt","cli_window3_tgt","cli_window4_tgt"]
+pos = ["cli_window1_pos","cli_window2_pos","cli_window3_pos","cli_window4_pos"]
+rain_lock = "cli_rainLockout"
+wind_lock = "cli_windLockout"
+
+[[program]]
+name  = "weather_watch"
+class = "WeatherWatch"
+task  = "SLOW"
+health = "prog_weather_watch"
+[program.in]
+wind      = "cli_wind_mps"
+gust      = "cli_windGust_mps"
+rain      = "cli_rain_mmph"
+irrad     = "cli_irrad_Wpm2"
+rain_lock = "cli_rainLockout"
+wind_lock = "cli_windLockout"
+[program.out]
+station = "alarm_wx_station"
+storm   = "alarm_weather_storm"
+
+[[program]]
+name  = "intractors"
+class = "IntractorController"
+task  = "SLOW"
+health = "prog_intractors"
+
+# Three FLOORS, per the spec's fusion: whichever wants the most air gets it.
+# The humidity demand contributes its DEHUMIDIFY arm only - the other way it is
+# asking for the skirt, which is not this device.
+[program.in]
+cool_dem  = "cli_coolDem"
+rot_vent  = "cli_rotVentDem"
+humid_dem = "cli_humidDem"
+start_dem = "cli_intakeStartDem"
+full_dem  = "cli_intakeFullDem"
+# The three gates, each decided by the law that owns the reading behind it: a
+# demand whose gate is shut contributes nothing to the maximum.
+cool_ok   = "cli_intakeCoolOk"
+ground_ok = "cli_groundHeatOk"
+dry_ok    = "cli_intakeDryOk"
+[program.out]
+intr = ["cli_intr1","cli_intr2"]
+
+[[program]]
+name  = "fans"
+class = "FanController"
+task  = "SLOW"
+health = "prog_fans"
+[program.in]
+strat_dem     = "cli_stratDem"
+cool_dem      = "cli_coolDem"
+irr_state     = "irr_state"
+screen_moving = "cli_screenMoving"
+low_dem       = "cli_fanLowDem"
+med_dem       = "cli_fanMedDem"
+high_dem      = "cli_fanHighDem"
+[program.out]
+speed1 = ["cli_destrat1_speed1","cli_destrat2_speed1"]
+speed2 = ["cli_destrat1_speed2","cli_destrat2_speed2"]
+speed3 = ["cli_destrat1_speed3","cli_destrat2_speed3"]
+
+[[program]]
+name  = "skirt"
+class = "SkirtController"
+task  = "SLOW"
+health = "prog_skirt"
+[program.in]
+cool_dem   = "cli_coolDem"
+humid_dem  = "cli_humidDem"
+cool_start = "cli_skirtCoolDem"
+dry_min    = "cli_skirtDryMin_degC"
+dp_margin  = "cli_dpMargin_degC"
+rot_lock   = "cli_rotLockout"
+period_s   = "cli_skirtPeriod_sec"
+min_on_s   = "cli_skirtMinOn_sec"
+[program.out]
+valve = "cli_skirtValve"
+duty  = "cli_skirtDuty"

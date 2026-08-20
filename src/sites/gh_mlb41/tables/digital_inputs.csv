@@ -1,0 +1,10 @@
+# digital_inputs.csv - DI rows: one bit, device 0 meaning a local OPTA channel.
+# A local channel maps to an OPTA terminal: 0=I1/A0, 1=I2/A1, ... 7=I8/A7.
+# `isr` empty means the row is polled; rising/falling/both make it an edge
+# counter (HAL::Pulse). Interrupt-capable: all eight, plus BTN_USER - EXCEPT
+# that I1(A0) and I4(A3) share an EXTI line and cannot both carry one, so at
+# most seven at a time. The generator refuses that pair.
+#
+name         , dev, fc, reg, fallback, timeout, poll, invert, isr   , desc                                       , notes                                                                                                                  , feature
+irr_inPulse  , 0  , 2 , 1  , false   , 0      ,     , false , rising, inlet water meter pulse (interrupt-counted), "inlet volume meter, one pulse per irr_input_qtyPerImp litres. Channel 1 = terminal I2 = A1"                           ,
+pwr_upsLowBat, 0  , 2 , 0  , true    , 0      ,     , false ,       , UPS low battery contact                    , closed = the UPS is about to drop; holds every actuator. Fails ASSERTED: an unreadable terminal is not a healthy supply,

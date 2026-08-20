@@ -45,12 +45,6 @@ inline float drift(float v, float step, float lo, float hi, float p) {
 /// True with probability p - for rare discrete events (rain, bus dropouts).
 inline bool chance(float p) { return frand() < p; }
 
-/** @brief One mock alarm cause: the row it drives, and whether it is on right
- *  now. Named rather than positional - the animator drives only the conditions
- *  it has a story for and must leave every other alarm row alone, including the
- *  platform-health rows the firmware raises itself. */
-struct MockAlarm { const char* name; bool on; };
-
 /** @brief Where a bussed reading goes: into the DEVICE, not into the row. Set by
  *  the harness once the simulated field is up (botanik_sim's FieldBus); null on
  *  a build with no bus, where put() writes the row instead.
@@ -147,6 +141,35 @@ inline void publish_analog(Vars::Bank& io, uint32_t now_ms) {
     put(io, "pwr_genBat_V",  25.4f + 0.5f * ripple, now_ms);
     // Output flow: quiet most of the time, with a slow swell (band 0..50 L/min).
     put(io, "irr_out_Lpm",   12.0f + 8.0f * sinf(t / 53.0f), now_ms);
+
+    // The UPS low-battery contact, through the TERMINAL rather than the row:
+    // the local input scan is what publishes it on hardware, and driving the
+    // row directly here would step over the thing under test. Open, because
+    // the simulated plant is on mains - force the row to see the lockout.
+    HAL::DigitalIn::inject(0, false);
+}
+
+/** @brief The inlet water meter: a pulse train, and only while the inlet valve
+ *  is open. Through the CHANNEL, like the contact above - the counter is what
+ *  the irrigation cycle reads, and publishing litres here would step over it.
+ *
+ *  ~20 L/min at one pulse per litre, so a tray's dose arrives in the tens of
+ *  seconds a real fill takes.
+ */
+inline void pulse_inlet(const Vars::Bank& io, uint32_t now_ms) {
+    static uint32_t owed_ms = 0;
+    static uint32_t last_ms = 0;
+
+    const uint32_t dt = (now_ms > last_ms) ? (now_ms - last_ms) : 0;
+    last_ms = now_ms;
+    if (!io.var("irr_input_ro1").b()) { owed_ms = 0; return; }
+
+    // 3000 ms per litre is 20 L/min. Accumulated, so a slow beat still meters
+    // the water it was open for.
+    owed_ms += dt;
+    const uint32_t pulses = owed_ms / 3000u;
+    owed_ms -= pulses * 3000u;
+    if (pulses > 0) HAL::Pulse::inject(Site::pulse_inputs[0].channel, pulses);
 }
 
 /**
@@ -245,60 +268,6 @@ inline void drive_coils(Vars::Bank& io, uint32_t now_ms) {
     io.var("irr_output_ro1").set((active >= 4));
 }
 
-/**
- * @brief Raise and clear alarm conditions.
- *
- * Triggers read the same variables the console shows, so an alarm on screen
- * always has a visible cause in the monitor table. The climate conditions have
- * no instrumentation mapped yet and rest on a slow drift instead.
- */
-inline void publish_alarms(Vars::Bank& io, uint32_t now_ms) {
-    // Real causes, read back through the variable tables.
-    const float ln  = io.var("grid_LN_V").as_f32();
-    const float pf  = io.var("grid_total_PF").as_f32();
-    const float hz  = io.var("grid_Hz").as_f32();
-
-    // No sensor mapped for these yet: a slow random walk stands in, so the
-    // alarms page and its dwell/ack machinery still have something to show.
-    static float weather = 0.0f, plant = 0.0f;
-    weather = drift(weather, 0.30f, -1.0f, 1.0f, 0.03f) * 0.99f;
-    plant   = drift(plant,   0.30f, -1.0f, 1.0f, 0.03f) * 0.99f;
-
-    MockAlarm mock[] = {
-        { "alarm_ac_grid",   ln < 226.0f || ln > 234.0f },
-        { "alarm_ac_local",  hz < 49.9f  || hz > 50.1f  },
-        { "alarm_dc_ps1",    pf < 0.90f                 },
-        { "alarm_weather_storm", weather >  0.80f },
-        { "alarm_too_hot",       plant   >  0.85f },
-        { "alarm_too_cold",      plant   < -0.85f },
-        { "alarm_too_humid",     weather < -0.85f },
-    };
-    const uint8_t N = (uint8_t)(sizeof(mock) / sizeof(mock[0]));
-
-    // Settle window: keep alarms clear for the first stretch after boot, as a
-    // real plant masks process alarms until its sensors settle.
-    const uint32_t SETTLE_MS = 120000;   // 2 min
-
-    // Debounce: hold each cause ON for a minimum dwell so a signal hovering at
-    // its threshold cannot strobe the ribbon.
-    static uint32_t hold_ms[16] = {0};
-    static uint32_t prev_ms = 0;
-    const uint32_t dt = (prev_ms == 0) ? 0 : (now_ms - prev_ms);
-    prev_ms = now_ms;
-    const uint32_t MIN_HOLD_MS = 10000;   // ~10 s minimum visible dwell
-
-    for (uint8_t i = 0; i < N; i++) {
-        const bool on = mock[i].on && now_ms >= SETTLE_MS;
-        if (on)                     hold_ms[i] = MIN_HOLD_MS;
-        else if (hold_ms[i] > dt)   hold_ms[i] -= dt;
-        else                        hold_ms[i] = 0;
-        // By name, and only the rows above: an alarm this animator has no story
-        // for stays where it is. Clearing it every beat would fight the health
-        // monitor that owns the platform rows in the same table.
-        io.var(mock[i].name).set(on || hold_ms[i] > 0);
-    }
-}
-
 // Entry point
 
 /**
@@ -309,8 +278,8 @@ inline void simulate(Vars::Bank& io, uint32_t now_ms) {
     publish_meters(io, now_ms);
     publish_climate(io, now_ms);
     publish_analog(io, now_ms);
+    pulse_inlet(io, now_ms);
     drive_coils(io, now_ms);
-    publish_alarms(io, now_ms);
 }
 
 }  // namespace Site

@@ -11,7 +11,7 @@
  * the data lives in the tables it pulls in:
  *
  *   vars.h    GENERATED     every variable in one table, the analog calibration
- *                           blocks, the home-screen readings, the value store
+ *                           blocks, the field devices, the home-screen readings
  *   tasks.h   hand-written  the control programs
  *   sim.h     hand-written  the simulated field
  *
@@ -47,99 +47,13 @@ const uint8_t g_command_count = 0;
 /** @brief The whole handoff to the library: name + the site's tables. Field
  *  order matches Botanik::SiteDescriptor; any table may be null / count 0.
  *
- *  Alarms are not here (a SCOPE_A row in vars.h) and neither are the status
- *  groups (a variable's group is its name prefix). */
-/** @name Field devices - what each unit on the RS-485 segment will answer
- *
- *  Constraints, not signal maps: where each reading lives is the row's business
- *  (vars.h); this is what a request must look like for the device to answer at
- *  all. See modbus/rtu/device.h.
- *  @{ */
-
-#if BOTANIK_FEATURE_MODBUS_RTU_CLIENT
-
-/** @brief Eastron SDM630-Modbus V2. Manual V1.6B: 40 values (80 registers) per
- *  transaction, start address and count must both be even for a float, and
- *  holding registers take one parameter per message (so no multi-write). */
-const Botanik::Modbus::DeviceModel MDL_SDM630 =
-    Botanik::Modbus::meter("Eastron SDM630", 80, 2);
-
-/** @brief Lettel MCT1-140. Max quantity 100, every measurement a register-pair
- *  Float, so the same pair alignment applies. Nothing writes to it. */
-const Botanik::Modbus::DeviceModel MDL_MCT1_140 =
-    Botanik::Modbus::meter("Lettel MCT1-140", 100, 2);
-
-/** @brief Waveshare Modbus RTU Analog Input 8CH (25767), "Development Protocol".
- *
- *  The eight readings are INPUT registers at 3x0000..3x0007, read with 0x04;
- *  nothing sits at 4x0000, so reading them with 0x03 draws exception 02.
- *  Quantity is capped at the eight channels, one register each (no alignment). */
-const Botanik::Modbus::DeviceModel MDL_WS_AI8 =
-    Botanik::Modbus::io_board("Waveshare AI 8CH", 8);
-
-/** @brief Waveshare Modbus RTU Analog Output 8CH (26211). Speaks 03/06/10 - no
- *  0x04 and no coils. The eight outputs are HOLDING registers at
- *  4x0000..4x0007, read and written, so the multi-write is available. */
-const Botanik::Modbus::DeviceModel MDL_WS_AO8 =
-    Botanik::Modbus::io_board("Waveshare AO 8CH", 8);
-
-/** @brief Waveshare Modbus RTU Relay (D) (26517), "Development Protocol V2".
- *
- *  The eight relays are coils at 0x0000..0x0007, read with 0x01 and written with
- *  0x05 or 0x0F, so a block may cover at most those eight. (0x00FF is the
- *  all-relays broadcast and 0x0200/0x0400 the flash timers; none is a coil a row
- *  should name.) */
-const Botanik::Modbus::DeviceModel MDL_WS_RELAY =
-    Botanik::Modbus::relay_board("Waveshare Relay (D)", 8);
-
-/** @brief The temperature / humidity sensors: an f32 at 0 (temperature) and
- *  another at 2 (humidity), so four registers, pair-aligned and read-only.
- *
- *  @note FC04 is assumed, matching every other measurement on this bus. If these
- *  sensors answer only FC03 it shows as exception 02 on all twelve at once, and
- *  the fix is one character per row in vars.h. */
-const Botanik::Modbus::DeviceModel MDL_TEMP_RH =
-    Botanik::Modbus::meter("Temp/RH sensor", 4, 2);
-
-/** @brief Every unit on the segment, and what the plant calls it: the tag is
- *  data, so a log line can name the cabinet. */
-const Botanik::Modbus::Device g_devices[] = {
-    {  5, &MDL_SDM630,   "SRR/TAC/MTR-1" },
-    {  6, &MDL_MCT1_140, "SRR/TAC/MTR-2" },
-    { 11, &MDL_WS_AI8,   "SRR/TDC/AI-1" },
-    { 16, &MDL_WS_AO8,   "SRR/TDC/AO-1" },
-    { 31, &MDL_WS_RELAY, "SRR/TDC/RO-1" },
-    { 32, &MDL_WS_RELAY, "SRR/TDC/RO-2" },
-    { 33, &MDL_WS_RELAY, "SRR/TDC/RO-3" },
-    { 34, &MDL_WS_RELAY, "SRR/TDC/RO-4" },
-    { 41, &MDL_TEMP_RH,  "SRR/CLI/TRH-EXT-1" },
-    { 42, &MDL_TEMP_RH,  "SRR/CLI/TRH-EXT-2" },
-    { 43, &MDL_TEMP_RH,  "SRR/CLI/TRH-EXT-3" },
-    { 44, &MDL_TEMP_RH,  "SRR/CLI/TRH-CS-1" },
-    { 45, &MDL_TEMP_RH,  "SRR/CLI/TRH-CS-2" },
-    { 46, &MDL_TEMP_RH,  "SRR/CLI/TRH-CS-3" },
-    { 47, &MDL_TEMP_RH,  "SRR/CLI/TRH-LO-1" },
-    { 48, &MDL_TEMP_RH,  "SRR/CLI/TRH-LO-2" },
-    { 49, &MDL_TEMP_RH,  "SRR/CLI/TRH-LO-3" },
-    { 50, &MDL_TEMP_RH,  "SRR/CLI/TRH-HI-1" },
-    { 51, &MDL_TEMP_RH,  "SRR/CLI/TRH-HI-2" },
-    { 52, &MDL_TEMP_RH,  "SRR/CLI/TRH-HI-3" },
-};
-
-const Botanik::Modbus::DeviceTable g_device_table = {
-    g_devices, (uint8_t)(sizeof g_devices / sizeof g_devices[0])
-};
-
-#endif // BOTANIK_FEATURE_MODBUS_RTU_CLIENT
-
-/** @} */
-
-/** @brief Every table this greenhouse declares, in the one struct the firmware
- *  base takes: the site is data, and this is all of it. */
+ *  Alarms are not here (a SCOPE_A row in the variable table) and neither are the
+ *  status groups (a variable's group is its name prefix). The device table is
+ *  generated, from tables/devices.csv. */
 const Botanik::SiteDescriptor g_site = {
     Botanik::Config::SITE_NAME,
-    g_commands,      g_command_count,                    // site shell commands
-    g_home_fields,   g_home_field_count,  home_refs,       // home-screen readings
+    g_commands,     g_command_count,                     // site shell commands
+    g_home_fields,  g_home_field_count, home_refs,       // home-screen readings
 #if BOTANIK_FEATURE_MODBUS_RTU_CLIENT
     &g_device_table,                                     // what each unit answers
 #endif
@@ -153,11 +67,16 @@ const Botanik::SiteDescriptor g_site = {
  * @brief The gh_mlb41 greenhouse firmware.
  *
  * A thin binding of the generic base to this site's descriptor: it declares no
- * pages and overrides no hooks. A site needing custom per-beat logic or an extra
- * page overrides one of the base's phase hooks / register_pages() here; see
- * libbotanik/firmware/firmware.h for the extension model.
+ * pages, and overrides only register_vars() and on_setup(). A site needing an
+ * extra page or its own component overrides register_pages() / on_setup() here;
+ * see libbotanik/firmware/firmware.h for the extension model.
  */
 class GreenhouseMLB41 final : public Botanik::BotanikFirmware {
+
+    /** @brief Where the sun is. Site-owned, as the library leaves it: a
+     *  greenhouse has one location and the base has no opinion about it.
+     *  Declared FIRST, so it is alive when day_phase takes a reference. */
+    Botanik::Sun::SunPositionTracker _sun{setup_context()};
 
     /** @name Control programs
      *
@@ -168,8 +87,30 @@ class GreenhouseMLB41 final : public Botanik::BotanikFirmware {
      *  internal linkage, so every including TU would get its own).
      *  @{ */
 
-    Site::SupplyWatch  _supply_watch;
-    Site::SupplyReport _supply_report;
+    /** @name The control programs
+     *  Declared, constructed and registered in SIGNAL ORDER: conditioning,
+     *  then the day's phase, then the three ladders. Registration order is
+     *  execution order within a phase, so a law reading a value computed this
+     *  beat finds it already written. @see docs/dev/scan.md */
+
+    Site::AcGridWatch        _ac_grid;
+    Site::AcLocalWatch       _ac_local;
+    Site::DcWatch            _dc;
+    Site::TempRHZone         _zones;
+    Site::StratSensor        _strat;
+    Site::ClimateWatch       _climate_watch;
+    Site::DayPhaseController _day_phase;
+    Site::TargetTempController _target;
+    Site::CoolingController  _cooling;
+    Site::DestratController  _destrat;
+    Site::HumidityController _humidity;
+    Site::IrrigationController _irrigation;
+    Site::ScreenController   _screen;
+    Site::WindowsController  _windows;
+    Site::WeatherWatch       _weather_watch;
+    Site::IntractorController _intractors;
+    Site::FanController      _fans;
+    Site::SkirtController    _skirt;
 
     /** @} */
 
@@ -181,26 +122,67 @@ public:
           // setup_context() and io() are already alive here: a program is
           // handed the table it registers in and the field it drives at
           // construction, rather than through a later attach().
-          _supply_watch(setup_context(), io()),
-          _supply_report(setup_context(), io())
+          _ac_grid(setup_context(), io()),
+          _ac_local(setup_context(), io()),
+          _dc(setup_context(), io()),
+          _zones(setup_context(), io()),
+          _strat(setup_context(), io()),
+          _climate_watch(setup_context(), io()),
+          _day_phase(setup_context(), io(), _sun),
+          _target(setup_context(), io()),
+          _cooling(setup_context(), io()),
+          _destrat(setup_context(), io()),
+          _humidity(setup_context(), io()),
+          _irrigation(setup_context(), io()),
+          _screen(setup_context(), io()),
+          _windows(setup_context(), io()),
+          _weather_watch(setup_context(), io()),
+          _intractors(setup_context(), io()),
+          _fans(setup_context(), io()),
+          _skirt(setup_context(), io())
     {}
 
 protected:
     /** @brief Register what this site adds to the beat. Order here is execution
      *  order within PHASE_CONTROL, so a law that computes a setpoint goes before
      *  the law that acts on it. */
-    /** @brief Hand the bank this site's rows. Parameters FIRST: the library's
-     *  are already at the front of the parameter block and the ROLE_PARAM run
-     *  has to stay contiguous. The rest is readability. */
+    /** @brief Hand the bank this site's rows. The generated register_all()
+     *  holds the parameters-first ordering the ROLE_PARAM run depends on. */
     void register_vars() override {
-        io().register_vars(Site::params,  Site::PARAMS_COUNT);
-        io().register_vars(Site::alarms,  Site::ALARMS_COUNT);
-        io().register_vars(Site::io_rows, Site::IO_ROWS_COUNT);
+        Site::register_all(io());
     }
 
     void on_setup() override {
-        _supply_watch.register_tasks();
-        _supply_report.register_tasks();
+        // The geo pair reaches it on the commit, and again on every edit.
+        Botanik::Vars::bind_sun(config_binder(), _sun);
+        _sun.register_tasks();
+
+        // The edge-counted terminals, from the table the generator built out of
+        // the `isr` column: the channel a row declares and the channel the
+        // firmware attaches cannot part. Without this the counter never runs
+        // and the inlet meter reads nothing at all.
+        for (uint8_t i = 0; i < Site::pulse_input_count; i++)
+            Botanik::HAL::Pulse::attach(Site::pulse_inputs[i].channel,
+                                        Site::pulse_inputs[i].edge);
+
+        _ac_grid.register_tasks();
+        _ac_local.register_tasks();
+        _dc.register_tasks();
+        _zones.register_tasks();
+        _strat.register_tasks();
+        _climate_watch.register_tasks();
+        _day_phase.register_tasks();
+        _target.register_tasks();
+        _cooling.register_tasks();
+        _destrat.register_tasks();
+        _humidity.register_tasks();
+        _irrigation.register_tasks();
+        _screen.register_tasks();
+        _windows.register_tasks();
+        _weather_watch.register_tasks();
+        _intractors.register_tasks();
+        _fans.register_tasks();
+        _skirt.register_tasks();
     }
 };
 

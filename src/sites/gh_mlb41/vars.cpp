@@ -1,6 +1,7 @@
 /**
  * @file vars.cpp
- * @brief The one array this site still owns: where its home fields resolve to.
+ * @brief What the generated table needs the site to supply: where the home
+ *        fields resolve to.
  *
  * `extern` in the header because a namespace-scope array defined there would be
  * a definition in every including TU, and vars.h reaches ~9 of them.
