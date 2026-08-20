@@ -110,6 +110,19 @@ class CoolingController : public Plc::Program {
 
     Plc::Pid _pid;
 
+    /** @name The intake gates
+     *  Two comparisons of temperatures that CONVERGE - the house and the space
+     *  under it - so each carries a dead band. Without one a gate flips beat to
+     *  beat as the difference sits on its margin, and the intractors' whole
+     *  contribution appears and vanishes with it.
+     *  @{ */
+
+    Plc::Hysteresis _cool_gate;    ///< the intake is cooler by the margin
+    Plc::Hysteresis _ground_gate;  ///< ...or warmer by it
+    Plc::Hysteresis _ground_dem;   ///< and the ladder is asking for heat
+
+    /** @} */
+
     Refs::CoolingController _v;
 
 public:
@@ -169,7 +182,10 @@ protected:
  */
 class HumidityController : public Plc::Program {
 
-    Plc::Tof _lockout_for;   ///< the lockout's overrun past the condition
+    Plc::Tof _lockout_for;            ///< the lockout's overrun past the condition
+    /** @brief The dryness gate's dead band: two dew points that converge, so
+     *  the same treatment as the temperature gates next door. */
+    Plc::Hysteresis _dry_gate_band;
 
     Refs::HumidityController _v;
 

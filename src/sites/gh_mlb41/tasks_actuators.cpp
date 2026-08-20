@@ -57,6 +57,10 @@ void ScreenController::run(ProgramContext& c) {
     // each of two levels precisely so that it is not.
     const bool cool_ok = _v.cool_dem.valid();
     if (!cool_ok) degraded();
+
+    // No dead band on this one, and none is needed: the permission table above
+    // makes every phase ONE-DIRECTIONAL, so a demand sitting on the rung can
+    // move the fabric at most once per phase whatever it does afterwards.
     const bool cold = !cool_ok ||
                       _v.cool_dem.get() <= _v.deploy_dem.get();
     // The phase gives PERMISSION, the demand asks for the move - and nothing

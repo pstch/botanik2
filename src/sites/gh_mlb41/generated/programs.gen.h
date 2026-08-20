@@ -525,6 +525,7 @@ struct CoolingController {
     Vars::RefIn<float> target;
     Vars::RefIn<float> intake;
     Vars::RefIn<float> temp_margin;
+    Vars::RefIn<float> vent_hyst;
     Vars::RefIn<float> ground_dem;
     Vars::RefIn<float> win_start;
     Vars::RefIn<float> win_full;
@@ -642,6 +643,7 @@ struct HumidityController {
     Vars::RefIn<float> ext_t;
     Vars::RefIn<float> ext_rh;
     Vars::RefIn<float> dry_margin;
+    Vars::RefIn<float> vent_hyst;
 
     /** @} */
 
@@ -1485,6 +1487,7 @@ inline void CoolingController::bind(Vars::Bank& io, Plc::Program& owner) {
     target      = io.resolve_in<float>("cli_targetTemp_degC");
     intake      = io.resolve_in<float>("cli_temp_cs");
     temp_margin = io.resolve_in<float>("cli_ventTempMgn_degC");
+    vent_hyst   = io.resolve_in<float>("cli_ventHyst_degC");
     ground_dem  = io.resolve_in<float>("cli_groundHeatDem");
     win_start   = io.resolve_in<float>("cli_windowStartDem");
     win_full    = io.resolve_in<float>("cli_windowFullDem");
@@ -1541,6 +1544,7 @@ inline void HumidityController::bind(Vars::Bank& io, Plc::Program& owner) {
     ext_t       = io.resolve_in<float>("cli_temp_ext");
     ext_rh      = io.resolve_in<float>("cli_rh_ext");
     dry_margin  = io.resolve_in<float>("cli_ventDryMgn_degC");
+    vent_hyst   = io.resolve_in<float>("cli_ventHyst_degC");
     demand      = io.resolve_out<float>("cli_humidDem");
     lockout     = io.resolve_out<bool>("cli_rotLockout");
     vent_dem    = io.resolve_out<float>("cli_rotVentDem");

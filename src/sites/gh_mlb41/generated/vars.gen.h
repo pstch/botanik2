@@ -96,7 +96,7 @@ static_assert(g_analog_cal_count <= Config::ANALOG_ROWS_MAX,
  *  ROLE_PARAM run has to stay contiguous with the library's. */
 extern const Descriptor params[];
 const uint16_t PARAMS_COUNT = 0
-    + 163
+    + 164
     ;
 
 /** @brief Everything else, in file order. Alarms lead, so their table

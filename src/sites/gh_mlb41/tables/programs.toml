@@ -251,6 +251,7 @@ target = "cli_targetTemp_degC"
 # whether drawing it is worth anything. The crawlspace IS the intake path.
 intake      = "cli_temp_cs"
 temp_margin = "cli_ventTempMgn_degC"
+vent_hyst   = "cli_ventHyst_degC"
 ground_dem  = "cli_groundHeatDem"
 # The window staging, so the INTENDED opening is a row of its own: the windows
 # then apply the interlocks to a published demand rather than re-deriving it.
@@ -309,6 +310,7 @@ in_rh       = "cli_rh_hi"
 ext_t       = "cli_temp_ext"
 ext_rh      = "cli_rh_ext"
 dry_margin  = "cli_ventDryMgn_degC"
+vent_hyst   = "cli_ventHyst_degC"
 [program.out]
 demand   = "cli_humidDem"
 lockout  = "cli_rotLockout"

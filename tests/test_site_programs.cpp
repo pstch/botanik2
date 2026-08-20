@@ -570,6 +570,36 @@ TEST_CASE("screen: a cold night deploys it, and the traverse cuts the fans") {
     CHECK_FALSE(f.bank.get(moving));
 }
 
+TEST_CASE("cooling: an intake gate holds while the two temperatures converge") {
+    Live f;
+    Site::CoolingController cc(Botanik::SetupContext(f.reg), f.bank);
+    Plc::Program* const progs[] = { &cc };
+    Cycle d(progs, 1, &f.bank, f.reg);
+
+    Vars::RefIn<bool> gate = f.bank.resolve_in<bool>("cli_intakeCoolOk");
+    const float margin = f.bank.var(f.ref("cli_ventTempMgn_degC")).as_f32();
+    const float hyst   = f.bank.var(f.ref("cli_ventHyst_degC")).as_f32();
+
+    field(f, "cli_targetTemp_degC", 20.0f);
+    field(f, "cli_temp_hi", 25.0f);
+    field(f, "cli_temp_lo", 25.0f);
+    field(f, "cli_temp_cs", 25.0f - margin - 1.0f);
+    d.step(100);
+    REQUIRE(f.bank.get(gate));
+
+    INFO("the crawlspace warms to within the margin - the difference the gate "
+         "is made of goes to zero as the two spaces converge - and the gate "
+         "holds rather than flipping beat to beat");
+    field(f, "cli_temp_cs", 25.0f - margin + hyst * 0.5f);
+    for (uint32_t i = 0; i < 20; i++) d.step(200 + 100u * i);
+    CHECK(f.bank.get(gate));
+
+    INFO("...and it shuts once the difference is a whole band under the margin");
+    field(f, "cli_temp_cs", 25.0f - margin + hyst + 0.1f);
+    d.step(3000);
+    CHECK_FALSE(f.bank.get(gate));
+}
+
 TEST_CASE("screen: the phase gives permission, the demand only asks") {
     Live f;
     Site::ScreenController sc(Botanik::SetupContext(f.reg), f.bank);

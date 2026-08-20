@@ -14,6 +14,12 @@ namespace Site {
 
 using namespace Botanik;
 
+/** @brief How much of the demand the ground-heat rung gives back before it
+ *  lets go. In demand units, like the fans' own band: small, because the rung
+ *  only chooses a fan speed and the PID crossing it is already slow. */
+static const float GROUND_DEM_HYST = 0.02f;
+
+
 const float TargetTempController::TARGET_MIN = 14.0f;
 const float TargetTempController::TARGET_MAX = 27.0f;
 
@@ -155,18 +161,26 @@ void CoolingController::_intake_gates(ProgramContext& c, float inside,
     // gates are shut while the crawlspace probe is out, which costs a little
     // ventilation and cannot cost a plant: the windows and the fans are on
     // their own paths.
-    const bool intake_ok = _v.intake.valid();
+    const bool  intake_ok = _v.intake.valid();
     if (!intake_ok) degraded();
     const float intake = _v.intake.get();
     const float margin = _v.temp_margin.get();
+    const float hyst   = _v.vent_hyst.get();
 
-    _v.intake_ok.set(intake_ok && (inside - intake) >= margin);
+    // Each gate opens AT its margin and closes a band under it, so a difference
+    // sitting on the margin - which is what two converging temperatures do -
+    // holds the gate where it is instead of flipping it every beat.
+    _v.intake_ok.set(intake_ok &&
+                     _cool_gate(inside - intake, margin - hyst, margin));
+
     // The mirror, and the only place the negative half of the ladder does
     // anything: cold enough to be asking for heat, and ground warm enough to
-    // be worth pulling it out of.
-    _v.ground_ok.set(intake_ok &&
-                               demand <= _v.ground_dem.get() &&
-                               (intake - inside) >= margin);
+    // be worth pulling it out of. Both halves are banded - the demand is a PID
+    // output and it crosses a rung as slowly as it likes.
+    const float rung   = _v.ground_dem.get();
+    const bool  asking = _ground_dem(-demand, -rung, -rung + GROUND_DEM_HYST);
+    _v.ground_ok.set(intake_ok && asking &&
+                     _ground_gate(intake - inside, margin - hyst, margin));
 }
 
 // DestratController
@@ -254,7 +268,11 @@ void HumidityController::_dry_gate(ProgramContext& c) {
     }
     const float inside  = Plc::dew_point(_v.in_t.get(), _v.in_rh.get());
     const float outside = Plc::dew_point(_v.ext_t.get(), _v.ext_rh.get());
-    _v.dry_ok.set((inside - outside) >= _v.dry_margin.get());
+    const float margin  = _v.dry_margin.get();
+    const float hyst    = _v.vent_hyst.get();
+    // Banded, like the temperature gates: a morning where the two dew points
+    // meet would otherwise open and shut the intake every beat.
+    _v.dry_ok.set(_dry_gate_band(inside - outside, margin - hyst, margin));
 }
 
 void HumidityController::run(ProgramContext& c) {

@@ -96,6 +96,7 @@ const Descriptor params[] = {
     P("cli_coolTi_sec"      , T_F32 , 200.0  , 0.0   , 3600.0 , 0, "sec" , 106, "cooling PID integral time", "leave as set", true),
     P("cli_coolTd_sec"      , T_F32 , 0.0    , 0.0   , 10.0   , 0, "sec" , 107, "cooling PID derivative time", "leave at zero", true),
     P("cli_ventTempMgn_degC", T_F32 , 1.0    , 0.0   , 15.0   , 1, "degC", 108, "intake air must be this much cooler", "", true),
+    P("cli_ventHyst_degC"   , T_F32 , 0.5    , 0.0   , 5.0    , 1, "degC", 148, "how far a gate has to close before it opens", "the three intake gates are comparisons of two temperatures that converge; without a band they flip beat to beat", true),
     P("cli_skirtDryMin_degC", T_F32 , 4.0    , 0.0   , 10.0   , 1, "degC", 109, "air this dry lets the pad cool", "", true),
     P("cli_thermalScreenDem", T_F32 , -0.2   , -1.0  , 0.0    , 2, ""    , 110, "cooling effort that deploys the screen", "negative demand = heating", true),
     P("cli_groundHeatDem"   , T_F32 , -0.1   , -1.0  , 0.0    , 2, ""    , 111, "cooling effort that draws ground air", "negative demand = heating", true),
