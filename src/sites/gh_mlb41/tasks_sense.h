@@ -224,13 +224,14 @@ struct ZoneVote {
 class ZoneProbes {
 
     /** @name Blocks
-     *  Fixed-alpha, so the filter is time-invariant: the zone runs at one rate
-     *  and a constant blend keeps its response a property of the filter rather
-     *  than of whatever dt the last beat happened to have.
+     *  Filtered against dt, not against a fixed blend: a program due late runs
+     *  ONCE with the real elapsed time, so a filter carrying a constant alpha
+     *  silently changes its time constant the moment the scan slips. The tau is
+     *  the same for every zone (SENSOR_TAU_MS) and the block does the rest.
      *  @{ */
 
-    Utils::ExpMovingAverage _temp;
-    Utils::ExpMovingAverage _rh;
+    Plc::Ewma _temp;
+    Plc::Ewma _rh;
     Plc::Ton                _quorum_for;   ///< dwell before a lost probe is announced
     bool                    _temp_seeded = false;
     bool                    _rh_seeded   = false;
@@ -244,16 +245,17 @@ class ZoneProbes {
     Vars::RefOut<float> _temp_out;
     Vars::RefOut<float> _rh_out;
     Vars::RefOut<bool>  _fault;
+    float               _tau_s = 1.0f;
 
     /** @} */
 
 public:
     /** @brief Adopt this zone's three probes, the two conditioned rows they
      *  feed and its quorum alarm - all resolved by the program that owns them.
-     *  @p alpha is the blend factor; see Utils::ema_alpha(). */
+     *  @p tau_s is the filter's time constant, in seconds. */
     void attach(const Vars::RefIn<float>* t, const Vars::RefIn<float>* h,
                 Vars::RefOut<float> temp, Vars::RefOut<float> rh,
-                Vars::RefOut<bool> fault, float alpha);
+                Vars::RefOut<bool> fault, float tau_s);
 
     /** @brief Select, filter and publish. @return how many probes were used. */
     uint8_t step(uint32_t dt_ms);
@@ -263,7 +265,11 @@ public:
     /** @brief Whether this zone published a believable reading this beat. */
     bool valid() const { return _temp_out.valid(); }
 
-    void reset() { _quorum_for.reset(); _temp_seeded = _rh_seeded = false; }
+    void reset() {
+        _quorum_for.reset();
+        _temp.reset(); _rh.reset();
+        _temp_seeded = _rh_seeded = false;
+    }
 
 private:
     /** @brief The three readings of one quantity, reduced. Invalid probes do
@@ -271,9 +277,9 @@ private:
     static ZoneVote _select(const Vars::RefIn<float>* refs);
 
     /** @brief Filter and publish one quantity, or mark it unmeasured. */
-    static void _publish(Vars::RefOut<float> row,
-                         Utils::ExpMovingAverage& filter, const ZoneVote& v,
-                         bool& seeded, float lo, float hi);
+    static void _publish(Vars::RefOut<float> row, Plc::Ewma& filter,
+                         const ZoneVote& v, bool& seeded, float tau_s,
+                         uint32_t dt_ms, float lo, float hi);
 };
 
 /**

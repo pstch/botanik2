@@ -22,11 +22,6 @@ using namespace Botanik;
  *  is not fighting it. @see the spec's note on Ziegler-Nichols. */
 static const uint32_t SENSOR_TAU_MS = 30000;
 
-/** @brief How often a zone runs, and so the sample period its fixed blend
- *  factor is derived from. GROUP_FAST, stated here because ema_alpha() needs
- *  the period as a number rather than as a rate class. */
-static const uint32_t ZONE_PERIOD_MS = Config::TASK_PERIOD_MS;
-
 // AcSupply
 
 /** @name Publish deadbands
@@ -165,11 +160,10 @@ void DcWatch::observe(ProgramContext& c) {
 
 void ZoneProbes::attach(const Vars::RefIn<float>* t, const Vars::RefIn<float>* h,
                         Vars::RefOut<float> temp, Vars::RefOut<float> rh,
-                        Vars::RefOut<bool> fault, float alpha) {
+                        Vars::RefOut<bool> fault, float tau_s) {
     // Symmetric: a zone reading is one quantity, so rising and falling have no
     // reason to answer at different speeds.
-    _temp.configure(alpha, alpha);
-    _rh.configure(alpha, alpha);
+    _tau_s = tau_s;
 
     for (uint8_t i = 0; i < 3; i++) {
         _t[i] = t[i];
@@ -205,9 +199,9 @@ ZoneVote ZoneProbes::_select(const Vars::RefIn<float>* refs) {
     }
 }
 
-void ZoneProbes::_publish(Vars::RefOut<float> row,
-                          Utils::ExpMovingAverage& filter, const ZoneVote& v,
-                          bool& seeded, float lo, float hi) {
+void ZoneProbes::_publish(Vars::RefOut<float> row, Plc::Ewma& filter,
+                          const ZoneVote& v, bool& seeded, float tau_s,
+                          uint32_t dt_ms, float lo, float hi) {
     if (v.used == 0) {
         // Nothing believable left. The row keeps the last average this zone
         // could make and says it is not current: a reader that checks quality
@@ -220,12 +214,8 @@ void ZoneProbes::_publish(Vars::RefOut<float> row,
         else        row.invalidate();     // nothing has ever been measured here
         return;
     }
-    if (!seeded) {                      // start AT the reading, not at zero
-        filter.preset(v.value);
-        seeded = true;
-    }
-    filter.push(v.value);
-    row.set(Plc::limit(filter.value(), lo, hi));
+    seeded = true;                      // the block starts AT its first reading
+    row.set(Plc::limit(filter(v.value, tau_s, dt_ms), lo, hi));
 }
 
 uint8_t ZoneProbes::step(uint32_t dt_ms) {
@@ -241,8 +231,8 @@ uint8_t ZoneProbes::step(uint32_t dt_ms) {
     // every dew-point margin in the plant read zero.
     h.value *= 0.01f;
 
-    _publish(_temp_out, _temp, t, _temp_seeded, -100.0f, 200.0f);
-    _publish(_rh_out, _rh, h, _rh_seeded, 0.0f, 1.0f);
+    _publish(_temp_out, _temp, t, _temp_seeded, _tau_s, dt_ms, -100.0f, 200.0f);
+    _publish(_rh_out, _rh, h, _rh_seeded, _tau_s, dt_ms, 0.0f, 1.0f);
 
     // Two probes still select correctly, so the plant keeps running and the
     // operator is told to replace one before the second goes. The alarm is the
@@ -256,13 +246,13 @@ uint8_t ZoneProbes::step(uint32_t dt_ms) {
 
 void TempRHZone::bind(Vars::Bank& io) {
     _v.bind(io, *this);
-    const float alpha = Utils::ema_alpha(SENSOR_TAU_MS, ZONE_PERIOD_MS);
-    _ceiling.attach(_v.t_hi, _v.h_hi, _v.temp_hi, _v.rh_hi, _v.fault_hi, alpha);
-    _floor.attach(_v.t_lo, _v.h_lo, _v.temp_lo, _v.rh_lo, _v.fault_lo, alpha);
+    const float tau_s = 0.001f * (float)SENSOR_TAU_MS;
+    _ceiling.attach(_v.t_hi, _v.h_hi, _v.temp_hi, _v.rh_hi, _v.fault_hi, tau_s);
+    _floor.attach(_v.t_lo, _v.h_lo, _v.temp_lo, _v.rh_lo, _v.fault_lo, tau_s);
     _crawlspace.attach(_v.t_cs, _v.h_cs, _v.temp_cs, _v.rh_cs,
-                       _v.fault_cs, alpha);
+                       _v.fault_cs, tau_s);
     _exterior.attach(_v.t_ext, _v.h_ext, _v.temp_ext, _v.rh_ext,
-                     _v.fault_ext, alpha);
+                     _v.fault_ext, tau_s);
 }
 
 void TempRHZone::run(ProgramContext& c) {

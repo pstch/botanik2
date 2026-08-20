@@ -23,6 +23,7 @@ add_executable(botanik_tests
     test_sizes.cpp
     test_site.cpp
     test_site_programs.cpp
+    test_site_scenarios.cpp
     test_site_watches.cpp
     test_storage.cpp
     test_sun.cpp

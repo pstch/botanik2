@@ -44,9 +44,13 @@ void ScreenController::run(ProgramContext& c) {
         // before control was withdrawn.
         _seeded = false;
     }
-    if (inhibit_requested()) {
+    // The supply lockout is the same instruction as a safe request, and from
+    // the same kind of place: something above this law has decided the plant
+    // must stop drawing. Stage one of the arbitration, like rain on the roof.
+    if (inhibit_requested() || _v.supply_lock.get()) {
         // Safe is DEPLOYED. A greenhouse nobody is controlling loses heat
-        // through the roof all night, and the fabric is what stops it.
+        // through the roof all night, and the fabric is what stops it. Free,
+        // too: the coil is de-energised there.
         _command(true);
         if (_command_changed || _travelling.q()) parking();
         return;
@@ -220,7 +224,7 @@ void IntractorController::run(ProgramContext& c) {
     // demand below it simply does not reach it.
     float speed = _safe_speed();
 
-    if (!inhibit_requested()) {
+    if (!inhibit_requested() && !_v.supply_lock.get()) {
         const bool  cool_ok = _v.cool_dem.valid();
         const float cool    = _v.cool_dem.get();
         if (!cool_ok) degraded();
@@ -325,7 +329,7 @@ void FanController::run(ProgramContext& c) {
         _drive(0);
         return;
     }
-    if (inhibit_requested()) {
+    if (inhibit_requested() || _v.supply_lock.get()) {
         // Speed 1, not off, and the table's safe column says the same: still
         // air is itself a rot risk, so the fans are one of the few things that
         // keep working once everything else has stopped.
@@ -351,7 +355,7 @@ void SkirtController::run(ProgramContext& c) {
     // Wetting air that is already condensing is the one thing this valve must
     // never do, so the lockout is resolved before any demand - and before the
     // pulse phase, which starts again from shut.
-    if (inhibit_requested() || _v.rot_lock.get()) {
+    if (inhibit_requested() || _v.rot_lock.get() || _v.supply_lock.get()) {
         _valve.park();
         _valve.reset();
         _v.duty.set(0.0f);

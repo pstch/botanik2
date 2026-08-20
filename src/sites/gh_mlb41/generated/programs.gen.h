@@ -887,6 +887,7 @@ struct ScreenController {
     Vars::RefIn<uint8_t>  phase;
     Vars::RefIn<uint16_t> travel_s;
     Vars::RefIn<uint16_t> travel_tmo_s;
+    Vars::RefIn<bool>     supply_lock;
 
     /** @} */
 
@@ -901,7 +902,7 @@ struct ScreenController {
      *  indices: what the base sweeps for validity before each
      *  activation. Parameters are not here - an operator's number is
      *  always valid, and checking one would cost a walk to learn nothing. */
-    Vars::VarRef _watched[2];
+    Vars::VarRef _watched[3];
 
     /** @name Health
      *  Where this program's health is published. Written by a
@@ -1050,6 +1051,7 @@ struct IntractorController {
     Vars::RefIn<bool>  cool_ok;
     Vars::RefIn<bool>  ground_ok;
     Vars::RefIn<bool>  dry_ok;
+    Vars::RefIn<bool>  supply_lock;
 
     /** @} */
 
@@ -1063,7 +1065,7 @@ struct IntractorController {
      *  indices: what the base sweeps for validity before each
      *  activation. Parameters are not here - an operator's number is
      *  always valid, and checking one would cost a walk to learn nothing. */
-    Vars::VarRef _watched[6];
+    Vars::VarRef _watched[7];
 
     /** @name Health
      *  Where this program's health is published. Written by a
@@ -1103,6 +1105,7 @@ struct FanController {
     Vars::RefIn<float>   high_dem;
     Vars::RefIn<uint8_t> phase;
     Vars::RefIn<float>   breeze_dem;
+    Vars::RefIn<bool>    supply_lock;
 
     /** @} */
 
@@ -1119,7 +1122,7 @@ struct FanController {
      *  indices: what the base sweeps for validity before each
      *  activation. Parameters are not here - an operator's number is
      *  always valid, and checking one would cost a walk to learn nothing. */
-    Vars::VarRef _watched[5];
+    Vars::VarRef _watched[6];
 
     /** @name Health
      *  Where this program's health is published. Written by a
@@ -1158,6 +1161,7 @@ struct SkirtController {
     Vars::RefIn<bool>     rot_lock;
     Vars::RefIn<uint16_t> period_s;
     Vars::RefIn<uint16_t> min_on_s;
+    Vars::RefIn<bool>     supply_lock;
 
     /** @} */
 
@@ -1172,7 +1176,7 @@ struct SkirtController {
      *  indices: what the base sweeps for validity before each
      *  activation. Parameters are not here - an operator's number is
      *  always valid, and checking one would cost a walk to learn nothing. */
-    Vars::VarRef _watched[4];
+    Vars::VarRef _watched[5];
 
     /** @name Health
      *  Where this program's health is published. Written by a
@@ -1725,6 +1729,7 @@ inline void ScreenController::bind(Vars::Bank& io, Plc::Program& owner) {
     phase        = io.resolve_in<uint8_t>("cli_phase");
     travel_s     = io.resolve_in<uint16_t>("cli_screenTravel_sec");
     travel_tmo_s = io.resolve_in<uint16_t>("cli_screenTmo_sec");
+    supply_lock  = io.resolve_in<bool>("sys_supply_lockout");
     screen       = io.resolve_out<bool>("cli_screen");
     moving       = io.resolve_out<bool>("cli_screenMoving");
     health       = io.resolve_out<uint8_t>("prog_screen");
@@ -1734,7 +1739,8 @@ inline void ScreenController::bind(Vars::Bank& io, Plc::Program& owner) {
     // is DEGRADED whether or not the law thought to ask.
     _watched[0] = cool_dem.r;
     _watched[1] = phase.r;
-    owner.set_inputs(_watched, 2);
+    _watched[2] = supply_lock.r;
+    owner.set_inputs(_watched, 3);
     owner.set_health_row(health);
 }
 
@@ -1814,6 +1820,7 @@ inline void IntractorController::bind(Vars::Bank& io, Plc::Program& owner) {
     cool_ok      = io.resolve_in<bool>("cli_intakeCoolOk");
     ground_ok    = io.resolve_in<bool>("cli_groundHeatOk");
     dry_ok       = io.resolve_in<bool>("cli_intakeDryOk");
+    supply_lock  = io.resolve_in<bool>("sys_supply_lockout");
     intr[0]      = io.resolve_out<float>("cli_intr1");
     intr[1]      = io.resolve_out<float>("cli_intr2");
     health       = io.resolve_out<uint8_t>("prog_intractors");
@@ -1827,7 +1834,8 @@ inline void IntractorController::bind(Vars::Bank& io, Plc::Program& owner) {
     _watched[3] = cool_ok.r;
     _watched[4] = ground_ok.r;
     _watched[5] = dry_ok.r;
-    owner.set_inputs(_watched, 6);
+    _watched[6] = supply_lock.r;
+    owner.set_inputs(_watched, 7);
     owner.set_health_row(health);
 }
 
@@ -1841,6 +1849,7 @@ inline void FanController::bind(Vars::Bank& io, Plc::Program& owner) {
     high_dem      = io.resolve_in<float>("cli_fanHighDem");
     phase         = io.resolve_in<uint8_t>("cli_phase");
     breeze_dem    = io.resolve_in<float>("cli_breezeDem");
+    supply_lock   = io.resolve_in<bool>("sys_supply_lockout");
     speed1[0]     = io.resolve_out<bool>("cli_destrat1_speed1");
     speed1[1]     = io.resolve_out<bool>("cli_destrat2_speed1");
     speed2[0]     = io.resolve_out<bool>("cli_destrat1_speed2");
@@ -1858,22 +1867,24 @@ inline void FanController::bind(Vars::Bank& io, Plc::Program& owner) {
     _watched[2] = irr_state.r;
     _watched[3] = screen_moving.r;
     _watched[4] = phase.r;
-    owner.set_inputs(_watched, 5);
+    _watched[5] = supply_lock.r;
+    owner.set_inputs(_watched, 6);
     owner.set_health_row(health);
 }
 
 inline void SkirtController::bind(Vars::Bank& io, Plc::Program& owner) {
-    cool_dem   = io.resolve_in<float>("cli_coolDem");
-    humid_dem  = io.resolve_in<float>("cli_humidDem");
-    cool_start = io.resolve_in<float>("cli_skirtCoolDem");
-    dry_min    = io.resolve_in<float>("cli_skirtDryMin_degC");
-    dp_margin  = io.resolve_in<float>("cli_dpMargin_degC");
-    rot_lock   = io.resolve_in<bool>("cli_rotLockout");
-    period_s   = io.resolve_in<uint16_t>("cli_skirtPeriod_sec");
-    min_on_s   = io.resolve_in<uint16_t>("cli_skirtMinOn_sec");
-    valve      = io.resolve_out<bool>("cli_skirtValve");
-    duty       = io.resolve_out<float>("cli_skirtDuty");
-    health     = io.resolve_out<uint8_t>("prog_skirt");
+    cool_dem    = io.resolve_in<float>("cli_coolDem");
+    humid_dem   = io.resolve_in<float>("cli_humidDem");
+    cool_start  = io.resolve_in<float>("cli_skirtCoolDem");
+    dry_min     = io.resolve_in<float>("cli_skirtDryMin_degC");
+    dp_margin   = io.resolve_in<float>("cli_dpMargin_degC");
+    rot_lock    = io.resolve_in<bool>("cli_rotLockout");
+    period_s    = io.resolve_in<uint16_t>("cli_skirtPeriod_sec");
+    min_on_s    = io.resolve_in<uint16_t>("cli_skirtMinOn_sec");
+    supply_lock = io.resolve_in<bool>("sys_supply_lockout");
+    valve       = io.resolve_out<bool>("cli_skirtValve");
+    duty        = io.resolve_out<float>("cli_skirtDuty");
+    health      = io.resolve_out<uint8_t>("prog_skirt");
 
     // The readings this law is entitled to expect. The base walks them
     // before each activation, so an input that has stopped being believable
@@ -1882,7 +1893,8 @@ inline void SkirtController::bind(Vars::Bank& io, Plc::Program& owner) {
     _watched[1] = humid_dem.r;
     _watched[2] = dp_margin.r;
     _watched[3] = rot_lock.r;
-    owner.set_inputs(_watched, 4);
+    _watched[4] = supply_lock.r;
+    owner.set_inputs(_watched, 5);
     owner.set_health_row(health);
 }
 
