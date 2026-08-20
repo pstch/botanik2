@@ -191,6 +191,7 @@ cold_bank_rise = "sol_coldBankRise_min"
 breeze_rise    = "sol_breezeRise_min"
 day_rise       = "sol_dayRise_min"
 heat_bank_set  = "sol_heatBankSet_min"
+dusk_set       = "sol_duskSet_min"
 night_set      = "sol_nightSet_min"
 [program.out]
 phase          = "cli_phase"
@@ -233,6 +234,10 @@ target = "cli_targetTemp_degC"
 intake      = "cli_temp_cs"
 temp_margin = "cli_ventTempMgn_degC"
 ground_dem  = "cli_groundHeatDem"
+# The window staging, so the INTENDED opening is a row of its own: the windows
+# then apply the interlocks to a published demand rather than re-deriving it.
+win_start   = "cli_windowStartDem"
+win_full    = "cli_windowFullDem"
 kp     = "cli_coolKp"
 ti     = "cli_coolTi_sec"
 td     = "cli_coolTd_sec"
@@ -240,6 +245,7 @@ td     = "cli_coolTd_sec"
 demand    = "cli_coolDem"
 intake_ok = "cli_intakeCoolOk"
 ground_ok = "cli_groundHeatOk"
+window    = "cli_windowDem"
 
 [[program]]
 name  = "destrat"
@@ -252,6 +258,13 @@ low   = "cli_dTStratLow_degC"
 med   = "cli_dTStratMed_degC"
 high  = "cli_dTStratHigh_degC"
 hyst  = "cli_dTStratHyst_degC"
+# The FANS' own rungs: a band here has to land in the matching band there, and
+# the only way to be sure of that is to emit the number the fans compare
+# against. Retuning cli_fanMedDem for the cooling ladder used to demote
+# destratification speed 2 to speed 1 in silence.
+fan_low  = "cli_fanLowDem"
+fan_med  = "cli_fanMedDem"
+fan_high = "cli_fanHighDem"
 [program.out]
 demand = "cli_stratDem"
 
@@ -309,6 +322,12 @@ mod_min        = "irr_modMin"
 mod_gamma      = "irr_modGamma"
 split          = "irr_volFreqSplit"
 dawn_gate      = "irr_dawnGate_degC"
+# WHEN a cycle may start: end of night, or the first hours of the day. The spec
+# waters cold plants in the morning instead, never in the afternoon.
+phase          = "cli_phase"
+from_rise      = "sol_fromRise_min"
+day_rise       = "sol_dayRise_min"
+morning_win    = "irr_morningWin_min"
 force_now      = "irr_forceNow"
 max_fill_s     = "irr_maxFill_sec"
 drain_window_s = "irr_drainWindow_sec"
@@ -351,7 +370,7 @@ out_total    = "irr_outTotal_L"
 drained     = "irr_drained_L"
 leak        = "alarm_water_leak"
 pressure    = "alarm_water_pressure"
-drain_fault = "alarm_water_clog"
+drain_fault = "alarm_irr_drain"
 # The per-tray forms beside the "any" ones above: the any-form is what an
 # operator sees on the ribbon, and these are what says which tray to go and look
 # at once the cycle has moved on.
@@ -390,9 +409,9 @@ health = "prog_windows"
 # ne met pas les Hawortia en danger, mais la chaleur oui". With no cooling
 # demand the target is 0 and they are shut anyway, so absence IS the rule.
 [program.in]
-cool_dem    = "cli_coolDem"
-start_dem   = "cli_windowStartDem"
-full_dem    = "cli_windowFullDem"
+# The INTENDED opening, laddered by the cooling law that owns the demand. This
+# program's job is the interlocks and the rams, not the staging.
+window_dem  = "cli_windowDem"
 rain_mmph   = "cli_rain_mmph"
 wind_mps    = "cli_wind_mps"
 gust_mps    = "cli_windGust_mps"
@@ -439,6 +458,7 @@ health = "prog_intractors"
 cool_dem  = "cli_coolDem"
 rot_vent  = "cli_rotVentDem"
 humid_dem = "cli_humidDem"
+ground_speed = "cli_groundSpeed"
 start_dem = "cli_intakeStartDem"
 full_dem  = "cli_intakeFullDem"
 # The three gates, each decided by the law that owns the reading behind it: a

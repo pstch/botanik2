@@ -25,7 +25,7 @@ alarm_too_humid
 alarm_strat
 alarm_water_leak
 alarm_water_pressure
-alarm_water_clog
+alarm_irr_drain
 alarm_weather_storm
 alarm_sns_ceiling
 alarm_sns_floor

@@ -40,7 +40,7 @@ DayPhase DayPhaseController::_phase_at(const Vars::Bank& io, int16_t from_rise,
         return io.get(_v.cold_arm) ? PHASE_COLD_BANK : PHASE_NIGHT;
     if (from_rise < io.get(_v.day_rise))       return PHASE_DAWN_BREEZE;
     if (from_set  < io.get(_v.heat_bank_set))  return PHASE_DAY;
-    if (from_set  < 0)
+    if (from_set  < io.get(_v.dusk_set))
         return io.get(_v.heat_arm) ? PHASE_HEAT_BANK : PHASE_DAY;
     if (from_set  < io.get(_v.night_set))      return PHASE_DUSK_BREEZE;
     return PHASE_NIGHT;
@@ -115,8 +115,11 @@ void CoolingController::run(ProgramContext& c) {
         // No interior temperature at all. A PID handed a defaulted reading
         // would see 0 degC against the target and call for full HEAT - into a
         // greenhouse nobody can see. Say the demand is unknown instead, and let
-        // each actuator go to its own safe state.
+        // each actuator go to its own safe state. The window demand goes with
+        // it: an opening derived from a temperature nobody has is not an
+        // intention, and the windows have their own safe position.
         c.bank.var(_v.demand.r).invalidate(Vars::Q_NO_DATA);
+        c.bank.var(_v.window.r).invalidate(Vars::Q_NO_DATA);
         _pid.reset();          // the integral is about a plant we stopped seeing
         faulted();
         return;
@@ -144,6 +147,11 @@ void CoolingController::run(ProgramContext& c) {
     // warm floor air, and lower still the thermal screen).
     const float demand = _pid(c.bank.get(_v.target), inside, t, c.dt_ms);
     c.bank.drive(_v.demand, demand);
+    // Where the ladder wants the windows, published as the one INTENDED
+    // opening: the windows apply the interlocks to it, and an operator can see
+    // what was asked for beside where each ram actually is.
+    c.bank.drive(_v.window, Plc::ladder(demand, c.bank.get(_v.win_start),
+                                        c.bank.get(_v.win_full)));
     _intake_gates(c, inside, demand);
 }
 
@@ -185,21 +193,20 @@ void DestratController::run(ProgramContext& c) {
         return;
     }
 
-    const float gap  = c.bank.get(_v.strat);
-    const float hyst = c.bank.get(_v.hyst);
+    // Three fan speeds, so three rungs on one staircase, each engaging at its
+    // own gap and released by the common hysteresis. All three, not two with
+    // the middle one decided by a bare comparison: a speed change needs the gap
+    // to have really moved, whichever pair of speeds it is between.
+    const float edge[3] = { c.bank.get(_v.low), c.bank.get(_v.med),
+                            c.bank.get(_v.high) };
+    const uint8_t speed = _bands(c.bank.get(_v.strat), edge, c.bank.get(_v.hyst));
 
-    // Three fan speeds, so three bands with a common hysteresis: a speed change
-    // needs the gap to have really moved, or the fans step on measurement noise.
-    const Plc::Hysteresis3::Band b =
-        _bands(gap, c.bank.get(_v.low), c.bank.get(_v.high), hyst);
-
-    // The band is the speed; the demand the arbitration reads is that speed as
-    // a fraction, so the fans spread along it like every other actuator.
-    const float demand = (b == Plc::Hysteresis3::BAND_HIGH) ? 1.0f
-                       : (b == Plc::Hysteresis3::BAND_MID)
-                             ? ((gap >= c.bank.get(_v.med)) ? 0.66f : 0.33f)
-                             : 0.0f;
-    c.bank.drive(_v.demand, demand);
+    // The demand the arbitration reads is the FANS' OWN rung for that speed.
+    // Any other number would have to be translated twice, and the two ladders
+    // would drift apart the first time one of them was retuned.
+    const float rung[4] = { 0.0f, c.bank.get(_v.fan_low),
+                            c.bank.get(_v.fan_med), c.bank.get(_v.fan_high) };
+    c.bank.drive(_v.demand, rung[speed]);
 }
 
 // HumidityController

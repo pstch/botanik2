@@ -346,6 +346,7 @@ struct DayPhaseController {
     Vars::RefIn<int16_t> breeze_rise;
     Vars::RefIn<int16_t> day_rise;
     Vars::RefIn<int16_t> heat_bank_set;
+    Vars::RefIn<int16_t> dusk_set;
     Vars::RefIn<int16_t> night_set;
 
     /** @} */
@@ -441,6 +442,8 @@ struct CoolingController {
     Vars::RefIn<float> intake;
     Vars::RefIn<float> temp_margin;
     Vars::RefIn<float> ground_dem;
+    Vars::RefIn<float> win_start;
+    Vars::RefIn<float> win_full;
     Vars::RefIn<float> kp;
     Vars::RefIn<float> ti;
     Vars::RefIn<float> td;
@@ -452,6 +455,7 @@ struct CoolingController {
     Vars::RefOut<float> demand;
     Vars::RefOut<bool>  intake_ok;
     Vars::RefOut<bool>  ground_ok;
+    Vars::RefOut<float> window;
 
     /** @} */
 
@@ -489,6 +493,9 @@ struct DestratController {
     Vars::RefIn<float> med;
     Vars::RefIn<float> high;
     Vars::RefIn<float> hyst;
+    Vars::RefIn<float> fan_low;
+    Vars::RefIn<float> fan_med;
+    Vars::RefIn<float> fan_high;
 
     /** @} */
 
@@ -594,6 +601,10 @@ struct IrrigationController {
     Vars::RefIn<float>    mod_gamma;
     Vars::RefIn<float>    split;
     Vars::RefIn<float>    dawn_gate;
+    Vars::RefIn<uint8_t>  phase;
+    Vars::RefIn<int16_t>  from_rise;
+    Vars::RefIn<int16_t>  day_rise;
+    Vars::RefIn<uint16_t> morning_win;
     Vars::RefIn<bool>     force_now;
     Vars::RefIn<uint16_t> max_fill_s;
     Vars::RefIn<uint16_t> drain_window_s;
@@ -716,9 +727,7 @@ struct WindowsController {
 
     /** @name VAR_INPUT
      *  @{ */
-    Vars::RefIn<float>    cool_dem;
-    Vars::RefIn<float>    start_dem;
-    Vars::RefIn<float>    full_dem;
+    Vars::RefIn<float>    window_dem;
     Vars::RefIn<float>    rain_mmph;
     Vars::RefIn<float>    wind_mps;
     Vars::RefIn<float>    gust_mps;
@@ -818,6 +827,7 @@ struct IntractorController {
     Vars::RefIn<float> cool_dem;
     Vars::RefIn<float> rot_vent;
     Vars::RefIn<float> humid_dem;
+    Vars::RefIn<float> ground_speed;
     Vars::RefIn<float> start_dem;
     Vars::RefIn<float> full_dem;
     Vars::RefIn<bool>  cool_ok;
@@ -1106,6 +1116,7 @@ inline void DayPhaseController::bind(Vars::Bank& io, Plc::Program& owner) {
     breeze_rise    = io.resolve_in<int16_t>("sol_breezeRise_min");
     day_rise       = io.resolve_in<int16_t>("sol_dayRise_min");
     heat_bank_set  = io.resolve_in<int16_t>("sol_heatBankSet_min");
+    dusk_set       = io.resolve_in<int16_t>("sol_duskSet_min");
     night_set      = io.resolve_in<int16_t>("sol_nightSet_min");
     phase          = io.resolve_out<uint8_t>("cli_phase");
     prev_day_max   = io.resolve_out<float>("cli_prevDayMax_degC");
@@ -1137,24 +1148,30 @@ inline void CoolingController::bind(Vars::Bank& io, Plc::Program& owner) {
     intake      = io.resolve_in<float>("cli_temp_cs");
     temp_margin = io.resolve_in<float>("cli_ventTempMgn_degC");
     ground_dem  = io.resolve_in<float>("cli_groundHeatDem");
+    win_start   = io.resolve_in<float>("cli_windowStartDem");
+    win_full    = io.resolve_in<float>("cli_windowFullDem");
     kp          = io.resolve_in<float>("cli_coolKp");
     ti          = io.resolve_in<float>("cli_coolTi_sec");
     td          = io.resolve_in<float>("cli_coolTd_sec");
     demand      = io.resolve_out<float>("cli_coolDem");
     intake_ok   = io.resolve_out<bool>("cli_intakeCoolOk");
     ground_ok   = io.resolve_out<bool>("cli_groundHeatOk");
+    window      = io.resolve_out<float>("cli_windowDem");
     health      = io.resolve_out<uint8_t>("prog_cooling");
     owner.set_health_row(health);
 }
 
 inline void DestratController::bind(Vars::Bank& io, Plc::Program& owner) {
-    strat  = io.resolve_in<float>("cli_dTStrat_degC");
-    low    = io.resolve_in<float>("cli_dTStratLow_degC");
-    med    = io.resolve_in<float>("cli_dTStratMed_degC");
-    high   = io.resolve_in<float>("cli_dTStratHigh_degC");
-    hyst   = io.resolve_in<float>("cli_dTStratHyst_degC");
-    demand = io.resolve_out<float>("cli_stratDem");
-    health = io.resolve_out<uint8_t>("prog_destrat");
+    strat    = io.resolve_in<float>("cli_dTStrat_degC");
+    low      = io.resolve_in<float>("cli_dTStratLow_degC");
+    med      = io.resolve_in<float>("cli_dTStratMed_degC");
+    high     = io.resolve_in<float>("cli_dTStratHigh_degC");
+    hyst     = io.resolve_in<float>("cli_dTStratHyst_degC");
+    fan_low  = io.resolve_in<float>("cli_fanLowDem");
+    fan_med  = io.resolve_in<float>("cli_fanMedDem");
+    fan_high = io.resolve_in<float>("cli_fanHighDem");
+    demand   = io.resolve_out<float>("cli_stratDem");
+    health   = io.resolve_out<uint8_t>("prog_destrat");
     owner.set_health_row(health);
 }
 
@@ -1222,6 +1239,10 @@ inline void IrrigationController::bind(Vars::Bank& io, Plc::Program& owner) {
     mod_gamma      = io.resolve_in<float>("irr_modGamma");
     split          = io.resolve_in<float>("irr_volFreqSplit");
     dawn_gate      = io.resolve_in<float>("irr_dawnGate_degC");
+    phase          = io.resolve_in<uint8_t>("cli_phase");
+    from_rise      = io.resolve_in<int16_t>("sol_fromRise_min");
+    day_rise       = io.resolve_in<int16_t>("sol_dayRise_min");
+    morning_win    = io.resolve_in<uint16_t>("irr_morningWin_min");
     force_now      = io.resolve_in<bool>("irr_forceNow");
     max_fill_s     = io.resolve_in<uint16_t>("irr_maxFill_sec");
     drain_window_s = io.resolve_in<uint16_t>("irr_drainWindow_sec");
@@ -1261,7 +1282,7 @@ inline void IrrigationController::bind(Vars::Bank& io, Plc::Program& owner) {
     drained        = io.resolve_out<float>("irr_drained_L");
     leak           = io.resolve_out<bool>("alarm_water_leak");
     pressure       = io.resolve_out<bool>("alarm_water_pressure");
-    drain_fault    = io.resolve_out<bool>("alarm_water_clog");
+    drain_fault    = io.resolve_out<bool>("alarm_irr_drain");
     fill_tray[0]   = io.resolve_out<bool>("alarm_irr_fill_tray1");
     fill_tray[1]   = io.resolve_out<bool>("alarm_irr_fill_tray2");
     fill_tray[2]   = io.resolve_out<bool>("alarm_irr_fill_tray3");
@@ -1305,9 +1326,7 @@ inline void ScreenController::bind(Vars::Bank& io, Plc::Program& owner) {
 }
 
 inline void WindowsController::bind(Vars::Bank& io, Plc::Program& owner) {
-    cool_dem    = io.resolve_in<float>("cli_coolDem");
-    start_dem   = io.resolve_in<float>("cli_windowStartDem");
-    full_dem    = io.resolve_in<float>("cli_windowFullDem");
+    window_dem  = io.resolve_in<float>("cli_windowDem");
     rain_mmph   = io.resolve_in<float>("cli_rain_mmph");
     wind_mps    = io.resolve_in<float>("cli_wind_mps");
     gust_mps    = io.resolve_in<float>("cli_windGust_mps");
@@ -1352,17 +1371,18 @@ inline void WeatherWatch::bind(Vars::Bank& io, Plc::Program& owner) {
 }
 
 inline void IntractorController::bind(Vars::Bank& io, Plc::Program& owner) {
-    cool_dem  = io.resolve_in<float>("cli_coolDem");
-    rot_vent  = io.resolve_in<float>("cli_rotVentDem");
-    humid_dem = io.resolve_in<float>("cli_humidDem");
-    start_dem = io.resolve_in<float>("cli_intakeStartDem");
-    full_dem  = io.resolve_in<float>("cli_intakeFullDem");
-    cool_ok   = io.resolve_in<bool>("cli_intakeCoolOk");
-    ground_ok = io.resolve_in<bool>("cli_groundHeatOk");
-    dry_ok    = io.resolve_in<bool>("cli_intakeDryOk");
-    intr[0]   = io.resolve_out<float>("cli_intr1");
-    intr[1]   = io.resolve_out<float>("cli_intr2");
-    health    = io.resolve_out<uint8_t>("prog_intractors");
+    cool_dem     = io.resolve_in<float>("cli_coolDem");
+    rot_vent     = io.resolve_in<float>("cli_rotVentDem");
+    humid_dem    = io.resolve_in<float>("cli_humidDem");
+    ground_speed = io.resolve_in<float>("cli_groundSpeed");
+    start_dem    = io.resolve_in<float>("cli_intakeStartDem");
+    full_dem     = io.resolve_in<float>("cli_intakeFullDem");
+    cool_ok      = io.resolve_in<bool>("cli_intakeCoolOk");
+    ground_ok    = io.resolve_in<bool>("cli_groundHeatOk");
+    dry_ok       = io.resolve_in<bool>("cli_intakeDryOk");
+    intr[0]      = io.resolve_out<float>("cli_intr1");
+    intr[1]      = io.resolve_out<float>("cli_intr2");
+    health       = io.resolve_out<uint8_t>("prog_intractors");
     owner.set_health_row(health);
 }
 

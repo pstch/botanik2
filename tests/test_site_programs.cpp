@@ -29,6 +29,14 @@ using TestScan::Cycle;
 using TestScan::Live;
 
 namespace {
+
+/** @brief Put the plant in the end-of-night watering slot. A cycle may only
+ *  START in one of the two the spec allows, so every irrigation case has to
+ *  say which one it is in. */
+void slot(Live& f) {
+    f.bank.var(f.ref("cli_phase")).set_i((int64_t)Site::PHASE_DAWN_BREEZE);
+}
+
     /** @brief Publish one field-read row as if the bus had just answered it. */
     void field(Live& f, const char* row, float v, uint64_t at = 0) {
         f.bank.var(f.ref(row)).publish(from_f32(T_F32, v), at);
@@ -314,7 +322,28 @@ TEST_CASE("destrat: an unmeasured gap makes the demand unknown, not zero") {
     field(f, "cli_dTStrat_degC", 8.0f);
     d.step(100);
     REQUIRE(f.bank.var(dem).valid());
-    REQUIRE(f.bank.var(dem).as_f32() == doctest::Approx(1.0f));
+    INFO("the demand IS the fans' own top rung: any other number would need "
+         "translating twice, and the two ladders would drift apart");
+    REQUIRE(f.bank.var(dem).as_f32() ==
+            doctest::Approx(f.bank.var(f.ref("cli_fanHighDem")).as_f32()));
+
+    INFO("every rung engages AT its gap, not a hysteresis above it: the "
+         "parameter an operator sets is where the speed starts");
+    field(f, "cli_dTStrat_degC",
+          f.bank.var(f.ref("cli_dTStratLow_degC")).as_f32());
+    d.step(200);
+    CHECK(f.bank.var(dem).as_f32() ==
+          doctest::Approx(f.bank.var(f.ref("cli_fanLowDem")).as_f32()));
+
+    INFO("and coming back down costs the hysteresis: the rungs are contiguous "
+         "by default, since a speed's release edge is the one below it");
+    field(f, "cli_dTStrat_degC", 1.0f);
+    d.step(300);
+    CHECK(f.bank.var(dem).as_f32() ==
+          doctest::Approx(f.bank.var(f.ref("cli_fanLowDem")).as_f32()));
+    field(f, "cli_dTStrat_degC", -0.1f);
+    d.step(400);
+    CHECK(f.bank.var(dem).as_f32() == doctest::Approx(0.0f));
 
     INFO("this row's default is 0, which reads as 'no stratification' and would "
          "stop the fans on a dead probe");
@@ -457,6 +486,89 @@ TEST_CASE("screen: a cold night deploys it, and the traverse cuts the fans") {
     CHECK_FALSE(f.bank.get(moving));
 }
 
+TEST_CASE("screen: the phase gives permission, the demand only asks") {
+    Live f;
+    Site::ScreenController sc(Botanik::SetupContext(f.reg), f.bank);
+    Plc::Program* const progs[] = { &sc };
+    Cycle d(progs, 1, &f.bank, f.reg);
+
+    Vars::RefIn<bool> screen = f.bank.resolve_in<bool>("cli_screen");
+    const float deploy = f.bank.var(f.ref("cli_thermalScreenDem")).as_f32();
+
+    // The morning opens it: retracting is what the day half of the cycle is
+    // allowed to do, and a warm demand asks for it.
+    f.bank.var(f.ref("cli_phase")).set_i((int64_t)Site::PHASE_DAWN_BREEZE);
+    f.bank.var(f.ref("cli_temp_hi")).publish(from_f32(T_F32, 18.0f), 0);
+    f.bank.var(f.ref("cli_coolDem")).set(0.5f);
+    d.step(100);
+    REQUIRE_FALSE(f.bank.get(screen));
+
+    INFO("a cold hour at MIDDAY does not close the fabric against the sun, "
+         "however negative the demand goes");
+    f.bank.var(f.ref("cli_phase")).set_i((int64_t)Site::PHASE_DAY);
+    f.bank.var(f.ref("cli_temp_hi")).publish(from_f32(T_F32, 8.0f), 100);
+    f.bank.var(f.ref("cli_coolDem")).set(deploy - 0.5f);
+    d.step(200);
+    CHECK_FALSE(f.bank.get(screen));
+
+    INFO("the same demand at dusk deploys it: the day's direction is what "
+         "decides, and dusk is closing down");
+    f.bank.var(f.ref("cli_phase")).set_i((int64_t)Site::PHASE_DUSK_BREEZE);
+    d.step(300);
+    CHECK(f.bank.get(screen));
+
+    INFO("and a mild NIGHT does not open it again - retracting belongs to the "
+         "half of the day that opens up, so the heat it holds is kept");
+    f.bank.var(f.ref("cli_phase")).set_i((int64_t)Site::PHASE_NIGHT);
+    f.bank.var(f.ref("cli_temp_hi")).publish(from_f32(T_F32, 22.0f), 300);
+    f.bank.var(f.ref("cli_coolDem")).set(0.5f);
+    d.step(400);
+    CHECK(f.bank.get(screen));
+
+    INFO("the morning is what retracts it");
+    f.bank.var(f.ref("cli_phase")).set_i((int64_t)Site::PHASE_DAWN_BREEZE);
+    d.step(500);
+    CHECK_FALSE(f.bank.get(screen));
+}
+
+TEST_CASE("irrigation: the afternoon is not a watering slot") {
+    Live f;
+    Site::IrrigationController irr(Botanik::SetupContext(f.reg), f.bank);
+    Plc::Program* const progs[] = { &irr };
+    Cycle d(progs, 1, &f.bank, f.reg);
+
+    field(f, "cli_temp_ext", 25.0f);
+    f.bank.param_set(f.bank.var(f.ref("irr_forceOn_tray1")), true);
+    f.bank.param_set(f.bank.var(f.ref("irr_liters_tray1")), 5.0f);
+
+    // DAY, but hours past the morning window: a tray filled now is still wet
+    // when the stomata open.
+    const int16_t rise = (int16_t)(f.bank.var(f.ref("sol_dayRise_min")).i() +
+                                   f.bank.var(f.ref("irr_morningWin_min")).i() + 1);
+    f.bank.var(f.ref("cli_phase")).set_i((int64_t)Site::PHASE_DAY);
+    f.bank.var(f.ref("sol_fromRise_min")).set_i(rise);
+    d.step(1000);
+    CHECK(f.bank.var(f.ref("irr_state")).i() == Site::IRR_IDLE);
+
+    INFO("inside the morning window it goes");
+    f.bank.var(f.ref("sol_fromRise_min")).set_i((int64_t)(rise - 2));
+    d.step(2000);
+    CHECK(f.bank.var(f.ref("irr_state")).i() == Site::IRR_FILLING);
+
+    INFO("and a cold end of night waits for that window rather than watering "
+         "cold roots");
+    Live g;
+    Site::IrrigationController irr2(Botanik::SetupContext(g.reg), g.bank);
+    Plc::Program* const progs2[] = { &irr2 };
+    Cycle d2(progs2, 1, &g.bank, g.reg);
+    g.bank.param_set(g.bank.var(g.ref("irr_forceOn_tray1")), true);
+    field(g, "cli_temp_ext",
+          g.bank.var(g.ref("irr_dawnGate_degC")).as_f32() - 1.0f);
+    g.bank.var(g.ref("cli_phase")).set_i((int64_t)Site::PHASE_DAWN_BREEZE);
+    d2.step(1000);
+    CHECK(g.bank.var(g.ref("irr_state")).i() == Site::IRR_IDLE);
+}
+
 TEST_CASE("screen: a safe request DEPLOYS it, and it parks only once it is there") {
     Live f;
     Site::ScreenController sc(Botanik::SetupContext(f.reg), f.bank);
@@ -489,7 +601,7 @@ TEST_CASE("windows: exactly one ram is energised at a time") {
     Plc::Program* const progs[] = { &wc };
     Cycle d(progs, 1, &f.bank, f.reg);
 
-    f.bank.var(f.ref("cli_coolDem")).set(1.0f);
+    f.bank.var(f.ref("cli_windowDem")).set(1.0f);
 
     uint64_t t = 0;
     for (uint32_t i = 0; i < 800; i++) {
@@ -525,7 +637,7 @@ TEST_CASE("windows: rain shuts them, and the lockout outlives the shower") {
 
     Vars::RefIn<float> tgt = f.bank.resolve_in<float>("cli_window1_tgt");
     Vars::RefIn<bool>  rain_lock = f.bank.resolve_in<bool>("cli_rainLockout");
-    f.bank.var(f.ref("cli_coolDem")).set(1.0f);
+    f.bank.var(f.ref("cli_windowDem")).set(1.0f);
 
     uint64_t t = 0;
     for (uint32_t i = 0; i < 800; i++) d.step(t += 100);
@@ -556,7 +668,7 @@ TEST_CASE("windows: a gust shuts them, and the mean alone does not") {
 
     Vars::RefIn<bool> wind_lock = f.bank.resolve_in<bool>("cli_windLockout");
     const float shut = f.bank.var(f.ref("cli_windShut_mps")).as_f32();
-    f.bank.var(f.ref("cli_coolDem")).set(1.0f);
+    f.bank.var(f.ref("cli_windowDem")).set(1.0f);
 
     f.bank.var(f.ref("cli_wind_mps")).publish(from_f32(T_F32, shut - 1.0f), 0);
     d.step(100);
@@ -578,7 +690,7 @@ TEST_CASE("windows: an unmeasured sky shuts the roof rather than reading fine") 
 
     f.bank.var(f.ref("cli_rain_mmph")).invalidate(Q_NO_DATA);
     f.bank.var(f.ref("cli_wind_mps")).invalidate(Q_NO_DATA);
-    f.bank.var(f.ref("cli_coolDem")).set(1.0f);
+    f.bank.var(f.ref("cli_windowDem")).set(1.0f);
     d.step(100);
 
     CHECK(f.bank.get(f.bank.resolve_in<bool>("cli_rainLockout")));
@@ -593,7 +705,7 @@ TEST_CASE("windows: parking waits for the LAST ram to seat, not the first") {
     Plc::Program* const progs[] = { &wc };
     Cycle d(progs, 1, &f.bank, f.reg);
 
-    f.bank.var(f.ref("cli_coolDem")).set(1.0f);
+    f.bank.var(f.ref("cli_windowDem")).set(1.0f);
     uint64_t t = 0;
     for (uint32_t i = 0; i < 800; i++) d.step(t += 100);
     REQUIRE(f.bank.get(f.bank.resolve_in<float>("cli_window4_pos")) > 0.9f);
@@ -674,7 +786,10 @@ TEST_CASE("intractors: cooling only draws air that is worth drawing") {
     CHECK(f.bank.get(intr) == doctest::Approx(0.15f));
     f.bank.var(f.ref("cli_groundHeatOk")).set(true);
     d.step(400);
-    CHECK(f.bank.get(intr) == doctest::Approx(1.0f));
+    INFO("one rung, at the spec's low speed: pulling harder on a cold house "
+         "cools the ground rather than warming the house");
+    CHECK(f.bank.get(intr) ==
+          doctest::Approx(f.bank.var(f.ref("cli_groundSpeed")).as_f32()));
 }
 
 TEST_CASE("fans: one speed relay at a time, and a band change costs hysteresis") {
@@ -850,6 +965,7 @@ TEST_CASE("irrigation: a fill fault names the tray, not just the cycle") {
     REQUIRE(f.bank.param_set(f.bank.var(f.ref("irr_forceOn_tray2")), true) == SET_OK);
     REQUIRE(f.bank.param_set(f.bank.var(f.ref("irr_maxFill_sec")), 100.0f) == SET_OK);
     field(f, "cli_temp_ext", 30.0f);
+    slot(f);
 
     uint64_t t = 0;
     d.step(t += 1000);
@@ -895,10 +1011,12 @@ TEST_CASE("irrigation: the cycle fills to its dose, then drains, then idles") {
     REQUIRE(HAL::Pulse::attach(Site::pulse_inputs[0].channel,
                                Site::pulse_inputs[0].edge));
 
-    // Warm enough that the dawn gate is open, and tray 1 forced so the cycle
-    // starts without the calendar the due-check still wants.
+    // Warm enough that the dawn gate is open, in the end-of-night slot, and
+    // tray 1 forced so the cycle starts without the calendar the due-check
+    // still wants.
     f.bank.var(f.ref("cli_temp_ext")).publish(from_f32(T_F32, 20.0f), 0);
     f.bank.var(f.ref("cli_vpd_kPa")).publish(from_f32(T_F32, 1.5f), 0);
+    slot(f);
     f.bank.param_set(f.bank.var(f.ref("irr_forceOn_tray1")), true);
     f.bank.param_set(f.bank.var(f.ref("irr_liters_tray1")), 5.0f);
     f.bank.param_set(f.bank.var(f.ref("irr_input_qtyPerImp")), 1.0f);
@@ -948,6 +1066,7 @@ namespace {
 float drain_at(Live& f, Cycle& d, Site::IrrigationController& irr, float lpm,
                bool meter_live, Plc::Health* worst = nullptr) {
     f.bank.var(f.ref("cli_temp_ext")).publish(from_f32(T_F32, 20.0f), 0);
+    slot(f);
     f.bank.param_set(f.bank.var(f.ref("irr_forceOn_tray1")), true);
     f.bank.param_set(f.bank.var(f.ref("irr_liters_tray1")), 5.0f);
     f.bank.param_set(f.bank.var(f.ref("irr_input_qtyPerImp")), 1.0f);
@@ -1014,7 +1133,7 @@ TEST_CASE("irrigation: what comes back out is judged against what went in") {
     // margin allows to be missing.
     const float back = drain_at(f, d, irr, 5.0f, true);
     CHECK(back > 20.0f);
-    CHECK_FALSE(f.bank.var(f.ref("alarm_water_clog")).b());
+    CHECK_FALSE(f.bank.var(f.ref("alarm_irr_drain")).b());
     CHECK_FALSE(f.bank.var(f.ref("alarm_irr_drain_tray1")).b());
 }
 
@@ -1028,7 +1147,7 @@ TEST_CASE("irrigation: a tray that does not drain names itself") {
     // A trickle: half a litre back out of twenty.
     const float back = drain_at(f, d, irr, 0.1f, true);
     CHECK(back < 1.0f);
-    CHECK(f.bank.var(f.ref("alarm_water_clog")).b());
+    CHECK(f.bank.var(f.ref("alarm_irr_drain")).b());
     CHECK(f.bank.var(f.ref("alarm_irr_drain_tray1")).b());
     INFO("the OTHER trays are not accused");
     CHECK_FALSE(f.bank.var(f.ref("alarm_irr_drain_tray2")).b());
@@ -1046,7 +1165,7 @@ TEST_CASE("irrigation: a silent outlet meter gives no verdict, not a clog") {
     CHECK(back == 0.0f);
     INFO("nothing was measured, so nothing is blamed - the meter has an alarm "
          "of its own");
-    CHECK_FALSE(f.bank.var(f.ref("alarm_water_clog")).b());
+    CHECK_FALSE(f.bank.var(f.ref("alarm_irr_drain")).b());
     CHECK_FALSE(f.bank.var(f.ref("alarm_irr_drain_tray1")).b());
     INFO("but it does not pass in silence");
     CHECK(worst == Plc::Health::DEGRADED);
@@ -1060,6 +1179,7 @@ TEST_CASE("irrigation: a fill that never arrives raises, and still opens the dra
     HAL::Pulse::attach(Site::pulse_inputs[0].channel, Site::pulse_inputs[0].edge);
 
     f.bank.var(f.ref("cli_temp_ext")).publish(from_f32(T_F32, 20.0f), 0);
+    slot(f);
     f.bank.param_set(f.bank.var(f.ref("irr_forceOn_tray1")), true);
     f.bank.param_set(f.bank.var(f.ref("irr_liters_tray1")), 5.0f);
     // The shortest the band allows; a rejected edit would leave the default and

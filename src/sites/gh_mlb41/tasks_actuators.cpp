@@ -17,6 +17,17 @@ using namespace Botanik;
 
 // ScreenController
 
+bool ScreenController::_allows(DayPhase phase, bool deploy) {
+    // Deploying belongs to the half of the day that is closing down, retracting
+    // to the half that is opening up. An hour of cold at midday therefore never
+    // shuts the fabric against the sun, and a mild night never opens it and
+    // gives back the heat it was holding.
+    return deploy ? (phase == PHASE_NIGHT || phase == PHASE_DUSK_BREEZE ||
+                     phase == PHASE_HEAT_BANK)
+                  : (phase == PHASE_DAY || phase == PHASE_DAWN_BREEZE ||
+                     phase == PHASE_COLD_BANK);
+}
+
 void ScreenController::_command(Vars::Bank& io, bool deploy) {
     if (_seeded && deploy == _deployed) return;
     // Both ways: the fabric is in the fans' way whichever direction it travels.
@@ -56,9 +67,15 @@ void ScreenController::run(ProgramContext& c) {
                       c.bank.get(_v.cool_dem) <= c.bank.get(_v.deploy_dem);
     // The night rule is a floor under the demand one: the ladder is written
     // about the day, and a clear night loses heat with no demand to show it.
-    const bool night = ((DayPhase)c.bank.get(_v.phase) == PHASE_NIGHT) &&
+    const DayPhase phase = (DayPhase)c.bank.get(_v.phase);
+    const bool night = (phase == PHASE_NIGHT) &&
                        (c.bank.get(_v.inside) < c.bank.get(_v.night_degC));
-    _command(c.bank, cold || night);
+
+    // The phase gives PERMISSION, the demand asks for the move. A move the
+    // phase forbids leaves the fabric where it is, and the thermal need goes to
+    // the intractors pulling ground heat instead.
+    const bool want = cold || night;
+    if (_allows(phase, want)) _command(c.bank, want);
     if (_travel_ms > 0) parking();
 }
 
@@ -145,13 +162,11 @@ void WindowsController::run(ProgramContext& c) {
         _target = 0.0f;
     } else if (inhibit_requested()) {
         _target = SAFE_OPEN;
-    } else if (!c.bank.var(_v.cool_dem.r).valid()) {
+    } else if (!c.bank.var(_v.window_dem.r).valid()) {
         degraded();
         _target = SAFE_OPEN;
     } else {
-        _target = Plc::ladder(c.bank.get(_v.cool_dem),
-                              c.bank.get(_v.start_dem),
-                              c.bank.get(_v.full_dem));
+        _target = Plc::limit(c.bank.get(_v.window_dem), 0.0f, 1.0f);
     }
 
     const int8_t owner = _owner(_target, cfg);
@@ -213,7 +228,6 @@ void IntractorController::run(ProgramContext& c) {
         // gate turns the NEGATIVE half into a demand of its own, which is the
         // one thing that pulls stored ground heat up into the house.
         float worst = (cool_ok && c.bank.get(_v.cool_ok)) ? cool : 0.0f;
-        if (c.bank.get(_v.ground_ok) && -cool > worst) worst = -cool;
         // Ungated, and deliberately: rot is the collection, and the dew point
         // it is fighting is the one inside.
         if (c.bank.get(_v.rot_vent) > worst) worst = c.bank.get(_v.rot_vent);
@@ -222,6 +236,14 @@ void IntractorController::run(ProgramContext& c) {
         const float want = Plc::ladder(worst, c.bank.get(_v.start_dem),
                                        c.bank.get(_v.full_dem));
         if (want > speed) speed = want;
+
+        // Ground heat is ONE RUNG, not a ramp: the spec's negative half asks
+        // for low speed at -0.1 and says nothing about wanting more of it the
+        // colder it gets. Pulling harder on a cold house moves more air through
+        // the same ground, which cools the ground rather than warming the
+        // house. A floor like the others.
+        const float ground = c.bank.get(_v.ground_speed);
+        if (c.bank.get(_v.ground_ok) && ground > speed) speed = ground;
     }
 
     for (uint8_t i = 0; i < INTRACTORS; i++) c.bank.drive(_v.intr[i], speed);
@@ -255,17 +277,13 @@ float FanController::_demand(const Vars::Bank& io) const {
     return worst;
 }
 
-uint8_t FanController::_band(const Vars::Bank& io, float demand) const {
+uint8_t FanController::_band(const Vars::Bank& io, float demand) {
+    // Three rungs, each engaging at its own threshold and released a little
+    // under it, which is what keeps a demand sitting on an edge from stepping
+    // the relays. The block is the same one the destratification ladder uses.
     const float step[3] = { io.get(_v.low_dem), io.get(_v.med_dem),
                             io.get(_v.high_dem) };
-    uint8_t up = 0;
-    for (uint8_t i = 0; i < 3; i++)
-        if (demand >= step[i]) up = (uint8_t)(i + 1);
-    if (up > _speed) return up;
-    // Coming DOWN costs the hysteresis: the threshold that let this speed in is
-    // the one that has to be given back.
-    if (_speed > 0 && demand < step[_speed - 1] - FAN_DEM_HYST) return up;
-    return _speed;
+    return _steps(demand, step, FAN_DEM_HYST);
 }
 
 void FanController::_drive(Vars::Bank& io, uint8_t speed) {
@@ -279,8 +297,10 @@ void FanController::_drive(Vars::Bank& io, uint8_t speed) {
 void FanController::run(ProgramContext& c) {
     // MECHANICAL, so it is resolved before any demand and before the safe
     // state: the fabric is travelling through the air these blow into.
+    if (c.first_scan) _steps.reset();
     if (c.bank.get(_v.screen_moving)) {
         _speed = 0;
+        _steps.reset();
         _drive(c.bank, 0);
         return;
     }
@@ -289,6 +309,7 @@ void FanController::run(ProgramContext& c) {
         // air is itself a rot risk, so the fans are one of the few things that
         // keep working once everything else has stopped.
         _speed = 1;
+        _steps.preset(1);
         _drive(c.bank, 1);
         return;
     }

@@ -503,7 +503,7 @@ private:
  */
 class DestratController : public Plc::Program {
 
-    Plc::Hysteresis3 _bands;
+    Plc::Staircase<3> _bands;
 
     Refs::DestratController _v;
 
@@ -691,6 +691,11 @@ protected:
     void observe(ProgramContext& c) override;
 
 private:
+    /** @brief Whether a cycle may START now. Two slots: the end of the night,
+     *  and the first hours of the day for when the night was too cold to water
+     *  in. Never the afternoon - a tray filled then is still wet at dusk. */
+    bool _in_slot(const Vars::Bank& io) const;
+
     /** @brief The two supply faults the inlet meter can see: water moving with
      *  every valve shut, and water not arriving with the inlet open. */
     void _water_alarms(ProgramContext& c, float in_flow);
@@ -763,6 +768,11 @@ protected:
 private:
     /** @brief Command the screen, starting a traverse if that is a change. */
     void _command(Vars::Bank& io, bool deploy);
+
+    /** @brief Whether @p phase allows a move in that direction. The spec's
+     *  permission table: the day's direction decides what the fabric may do,
+     *  and the demand only decides whether it wants to. */
+    static bool _allows(DayPhase phase, bool deploy);
 };
 
 /**
@@ -877,9 +887,10 @@ private:
  */
 class FanController : public Plc::Program {
 
-    /** @brief 0 (off) to 3. Held across scans, because the band boundaries are
-     *  where the hysteresis is applied. */
+    /** @brief 0 (off) to 3, and the three rungs it is chosen on. Held across
+     *  scans: the hysteresis lives on the rungs. */
     uint8_t _speed = 0;
+    Plc::Staircase<3> _steps;
 
     Refs::FanController _v;
 
@@ -899,7 +910,7 @@ private:
     /** @brief The three demands, fused. */
     float _demand(const Vars::Bank& io) const;
     /** @brief The speed @p demand asks for, given the one in force. */
-    uint8_t _band(const Vars::Bank& io, float demand) const;
+    uint8_t _band(const Vars::Bank& io, float demand);
     /** @brief Energise exactly one speed relay, or none. */
     void _drive(Vars::Bank& io, uint8_t speed);
 };

@@ -234,6 +234,22 @@ void IrrigationController::observe(ProgramContext& c) {
     _water_alarms(c, in_flow);
 }
 
+bool IrrigationController::_in_slot(const Vars::Bank& io) const {
+    const DayPhase phase = (DayPhase)io.get(_v.phase);
+
+    // END OF NIGHT, and only when the plants are not cold: watering cold roots
+    // is what the gate exists to prevent, and the morning slot below is where
+    // that watering goes instead.
+    if (phase == PHASE_COLD_BANK || phase == PHASE_DAWN_BREEZE)
+        return io.get(_v.outside_temp) >= io.get(_v.dawn_gate);
+
+    // START OF THE DAY, for a window an operator sets: the tray has to drain
+    // and dry before the stomata open at dusk.
+    return phase == PHASE_DAY &&
+           io.get(_v.from_rise) <= (int16_t)(io.get(_v.day_rise) +
+                                             (int16_t)io.get(_v.morning_win));
+}
+
 void IrrigationController::_water_alarms(ProgramContext& c, float in_flow) {
     // Idle means every valve in the circuit is shut, so anything the inlet
     // meter counts is going somewhere nobody opened.
@@ -338,10 +354,10 @@ void IrrigationController::run(ProgramContext& c) {
             c.bank.drive(_v.delivered, 0.0f);
             if (_served >= c.bank.get(_v.trays_per_day) && !c.bank.get(_v.force_now))
                 break;                         // the surplus waits for tomorrow
-            // Cold before dawn means watering cold roots, so the end-of-night
-            // slot is skipped and the cycle waits for the morning.
-            if (!c.bank.get(_v.force_now) &&
-                c.bank.get(_v.outside_temp) < c.bank.get(_v.dawn_gate)) break;
+            // WHEN, before which tray: the climate decides the slot and the
+            // schedule decides the tray, and an operator forcing a cycle
+            // overrides both.
+            if (!c.bank.get(_v.force_now) && !_in_slot(c.bank)) break;
 
             const uint8_t next = _next_due(c.bank, mod, today);
             if (next == 0) break;
