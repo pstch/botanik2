@@ -1,10 +1,15 @@
 /**
- * @file vars/bindings.cpp
+ * @file firmware/bindings.cpp
  * @brief The binder's walk, and one reader per configurable component.
  *
  * The only place that includes both a component's header and the bank. A reader
  * is the whole coupling: delete this file and every component here still builds,
  * configured by whoever owns it.
+ *
+ * Under `firmware/` rather than beside its header: knowing every optional
+ * subsystem is the composition root's job, and reaching up into console/,
+ * network/ and modbus/ from `vars/` inverted the layer map. The interface
+ * (`vars/bindings.h`) stays where its callers expect it.
  */
 #include "libbotanik/vars/bindings.h"
 

@@ -245,7 +245,7 @@ single-register write of one octet is a half-formed address.
 The three hostname rows (`ntp_srv1`, `ntp_srv2`, `mqtt_host`) stay console-only:
 they genuinely need packed text, and they are the rows least worth reconfiguring
 from a master. They also stop carrying a default of their own - **an empty host
-falls back to the gateway**, resolved in `vars/bindings.cpp`, which is already
+falls back to the gateway**, resolved in `firmware/bindings.cpp`, which is already
 the one file that sees a component and the bank at the same time. On a plant
 network behind a 4G modem the router is the sensible default for both.
 

@@ -1,7 +1,12 @@
 /**
- * @file vars/vars.cpp
+ * @file firmware/vars_wiring.cpp
  * @brief The library's own variable rows: the includes their defaults read,
  *        and the registration. The rows themselves are generated.
+ *
+ * Under `firmware/` rather than in `vars/`: a row's factory default is its
+ * component's struct default, so this file has to see console/, network/ and
+ * modbus/ - which is the composition root's privilege, not the variable
+ * model's. @see firmware/bindings.cpp
  *
  * A row belongs here when the LIBRARY reads or raises it by name. It is
  * declared in the CSV tables under `vars/tables/` and generated into
