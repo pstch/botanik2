@@ -137,29 +137,42 @@ def _addressing(r, m, err):
 
 
 def emit(models, devices):
-    """The device table as C++, gated: without the client nothing reads it."""
+    """The device table as C++, gated: without the client nothing reads it.
+
+    @return (header lines, .cpp lines). The objects are DEFINED in the .cpp
+    because a `const` definition at namespace scope in a header has internal
+    linkage, giving every including TU its own copy - and the bank matches an
+    analog block by POINTER, so copies are not interchangeable.
+    """
     if not devices:
-        return []
-    out = [f"#if {GATE}", "",
+        return [], []
+    hdr = [f"#if {GATE}", "",
            "/** @name Field devices - what each unit on the segment answers",
            " *  @{ */", ""]
+    src = [f"#if {GATE}", ""]
     for m in models:
-        out += _doc(m["notes"] or m["desc"])
-        out += [f"const Modbus::DeviceModel MDL_{m['model']} =",
+        hdr += _doc(m["notes"] or m["desc"])
+        hdr.append(f"extern const Modbus::DeviceModel MDL_{m['model']};")
+        src += [f"const Modbus::DeviceModel MDL_{m['model']} =",
                 f"    Modbus::{m['shape']}({_args(m)});", ""]
-    out += ["/** @brief Every unit on the segment, and what the plant calls it:",
+    hdr += ["",
+            "/** @brief Every unit on the segment, and what the plant calls it:",
             " *  the tag is data, so a log line can name the cabinet. */",
-            "const Modbus::Device g_devices[] = {"]
+            "extern const Modbus::Device g_devices[];",
+            "extern const Modbus::DeviceTable g_device_table;",
+            "", "/** @} */", "", f"#endif  // {GATE}", ""]
+
+    src.append("const Modbus::Device g_devices[] = {")
     wu = max(len(d["unit"]) for d in devices)
     ref = ["&MDL_" + d["model"] + "," for d in devices]
     wm = max(len(m) for m in ref)
     for d, m in zip(devices, ref):
-        out.append(f'    {{ {d["unit"]:>{wu}}, {m:{wm}} "{d["tag"]}" }},')
-    out += ["};", "",
+        src.append(f'    {{ {d["unit"]:>{wu}}, {m:{wm}} "{d["tag"]}" }},')
+    src += ["};", "",
             "const Modbus::DeviceTable g_device_table = {",
             "    g_devices, (uint8_t)(sizeof(g_devices) / sizeof(g_devices[0]))",
-            "};", "", "/** @} */", "", f"#endif  // {GATE}", ""]
-    return out
+            "};", "", f"#endif  // {GATE}", ""]
+    return hdr, src
 
 
 def _args(m):

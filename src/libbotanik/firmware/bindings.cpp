@@ -16,6 +16,9 @@
 #include "libbotanik/vars/model.h"
 #include "libbotanik/vars/params.h"
 #include "libbotanik/tasks/tasks.h"
+#include "libbotanik/logs/logger.h"
+#include "libbotanik/logs/topics.h"
+#include "libbotanik/utils/assert.h"
 
 #include "libbotanik_features.h"
 
@@ -57,7 +60,19 @@ namespace Botanik { namespace Vars {
 
     void ConfigBinder::add(const char* serial, void* target,
                            void (*apply)(void*, const Bank&, bool)) {
-        if (_len >= Config::CONFIG_BINDINGS_MAX || target == nullptr || apply == nullptr) return;
+        if (target == nullptr || apply == nullptr) return;
+        if (_len >= Config::CONFIG_BINDINGS_MAX) {
+            // A dropped binding leaves its component on its CONSTRUCTED
+            // defaults while the rows it should have read sit in the table
+            // looking live - the parameter edits, and nothing moves.
+            BOTANIK_ASSERT(!"config bindings full: raise CONFIG_BINDINGS_MAX");
+            if (_logger != nullptr)
+                _logger->critical(Logs::BOOT,
+                                  "binding '%s' refused: raise CONFIG_BINDINGS_MAX (%u)",
+                                  (serial != nullptr) ? serial : "?",
+                                  (unsigned)Config::CONFIG_BINDINGS_MAX);
+            return;
+        }
         ConfigBinding& b = _tab[_len++];
         b.serial = serial;
         b.target = target;

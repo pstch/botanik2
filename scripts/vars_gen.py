@@ -160,8 +160,8 @@ def gate_runs(rows):
     return runs
 
 
-def array(name, rows, count_name):
-    """One `const Descriptor[]`, its gated runs, and its count."""
+def array_def(name, rows):
+    """One `const Descriptor[]` and its gated runs, for the .cpp."""
     out = [f"const Descriptor {name}[] = {{"]
     for gate, run in gate_runs(rows):
         if gate:
@@ -169,9 +169,27 @@ def array(name, rows, count_name):
         out += emit_rows(run)
         if gate:
             out.append("#endif")
-    out += ["};",
-            f"const uint16_t {count_name} = "
-            f"(uint16_t)(sizeof({name}) / sizeof({name}[0]));", ""]
+    out += ["};", ""]
+    return out
+
+
+def array_decl(name, rows, count_name):
+    """The declaration and the count, for the header.
+
+    A GATED SUM rather than sizeof(): the array is defined in another TU now, so
+    sizeof() is not available here - and a plain literal would go quietly wrong
+    the first time a row gained a feature gate. The sum tracks the same runs the
+    definition is built from, so the two cannot part.
+    """
+    out = [f"extern const Descriptor {name}[];",
+           f"const uint16_t {count_name} = 0"]
+    for gate, run in gate_runs(rows):
+        if gate:
+            out.append(f"#if {gate}")
+        out.append(f"    + {len(run)}")
+        if gate:
+            out.append("#endif")
+    out += ["    ;", ""]
     return out
 
 
@@ -233,6 +251,31 @@ def load(table_dir, setname=""):
     return out
 
 
+def library_rows_expr():
+    """Rows the library registers ahead of the site's, as a GATED SUM.
+
+    The site's generated header needs the number to check the whole table
+    against VAR_MAX, and LIBRARY_VARS_COUNT is not visible there - the library's
+    generated header is one .cpp's alone. A flat literal would be wrong for
+    every build that turns a subsystem off: the library's rows are gated per
+    feature, so it would reserve rows that are never registered and refuse a
+    table that fits. The same #if runs the definition is built from are
+    reproduced here instead.
+    """
+    tables = load(os.path.join(ROOT, "src", "libbotanik", "vars", "tables"),
+                  "libbotanik")
+    order = [f for f in FILES if f != "params.csv"] + ["params.csv"]
+    rows = [item for f in order for item in tables.get(f, [])]
+    out = []
+    for gate, run in gate_runs(rows):
+        if gate:
+            out.append(f"#if {gate}")
+        out.append(f"    + {len(run)}")
+        if gate:
+            out.append("#endif")
+    return out
+
+
 def var_max(site):
     """The site's BOTANIK_VAR_MAX, or None when it takes the default."""
     path = os.path.join(ROOT, "src", "sites", site, "config.h")
@@ -282,6 +325,20 @@ def banner(src, fname="vars.gen.h"):
 
 
 def gen_site(site):
+    """The site's tables as C++, split header / .cpp.
+
+    Everything with an ADDRESS is DEFINED in the .cpp. A `const` array at
+    namespace scope in a header has internal linkage, so each of the ~6 TUs
+    reaching vars.h got a private copy; LTO folded them on the OPTA, which is
+    why the size never showed. The bank matches an AnalogCal block by POINTER
+    and recovers a row index by pointer arithmetic into its segments, so two
+    copies of a table are two tables - and the divergence between a folded
+    target build and an unfolded host one is the worst way to learn that.
+
+    Counts, enums and the registration call stay in the header: an integral
+    constant has no address to disagree about.
+    @return (header text, .cpp text)
+    """
     table_dir = os.path.join(ROOT, "src", "sites", site, "tables")
     tables = load(table_dir, site)
     enums = load_enums(table_dir)
@@ -289,28 +346,50 @@ def gen_site(site):
     ENUMS = enums
     analog = tables.get("analog_inputs.csv", []) + tables.get("analog_outputs.csv", [])
 
-    out = ["#ifndef SITE_VARS_GEN_H", "#define SITE_VARS_GEN_H", ""]
-    out = banner(f"the CSV tables in src/sites/{site}/tables/") + out
-    out += ["#include <cstdint>", "", '#include "libbotanik.h"', "",
+    where = f"the CSV tables in src/sites/{site}/tables/"
+    hdr = banner(where) + ["#ifndef SITE_VARS_GEN_H", "#define SITE_VARS_GEN_H", "",
+                           "#include <cstdint>", "", '#include "libbotanik.h"', "",
+                           "namespace Site {", "", "using namespace Botanik;",
+                           "using namespace Botanik::Vars;", ""]
+
+    src = banner(where, "vars.gen.cpp")
+    src += ["// The definitions behind vars.gen.h. A separate TU because a `const`",
+            "// definition at namespace scope in a header has internal linkage, and",
+            "// the bank compares calibration blocks BY POINTER: one table per",
+            "// program, not one per translation unit.",
+            "//",
+            "// The include is relative on purpose - a site may live outside this",
+            "// tree, with no include directory of its own.", "",
+            '#include "vars.gen.h"', "",
             "namespace Site {", "", "using namespace Botanik;",
             "using namespace Botanik::Vars;", ""]
 
     # FIRST: a row takes the address of its converter, which is defined here.
-    out += emit_enums(enums)
+    hdr += emit_enums(enums)
 
     if analog:
-        out += ["/** @name Analog calibration - one block per row.",
+        hdr += ["/** @name Analog calibration - one block per row.",
                 " *  Two rows sharing a calibration name the same six parameters, which",
                 " *  resolve to the same rows: sharing is in the names, not in an object.",
                 " *  @{ */", ""]
+        hdr += [f"extern const AnalogCal {cal_name(r)};" for _, r in analog]
+        hdr += ["", "extern const AnalogCal* const g_analog_cals[];",
+                f"const uint8_t g_analog_cal_count = {len(analog)};", "",
+                "// One block per AI/AO row, so this count answers for both limits:",
+                "// the bank caches six tunable indices per block and a wire value",
+                "// per row. Past either it falls back to a name lookup per read -",
+                "// slow rather than wrong, and silently so at run time.",
+                "static_assert(g_analog_cal_count <= Config::ANALOG_BLOCKS_MAX,",
+                '              "more analog calibration blocks than ANALOG_BLOCKS_MAX");',
+                "static_assert(g_analog_cal_count <= Config::ANALOG_ROWS_MAX,",
+                '              "more AI/AO rows than ANALOG_ROWS_MAX");',
+                "", "/** @} */", ""]
         for _, r in analog:
             vals = ",\n    ".join(tunable(r[f]) for f in CAL_FIELDS)
-            out += [f"const AnalogCal {cal_name(r)} = {{", f"    {vals},", "};"]
-        out += ["", "const AnalogCal* const g_analog_cals[] = {"]
-        out += [f"    &{cal_name(r)}," for _, r in analog]
-        out += ["};", "const uint8_t g_analog_cal_count =",
-                "    (uint8_t)(sizeof(g_analog_cals) / sizeof(g_analog_cals[0]));",
-                "", "/** @} */", ""]
+            src += [f"const AnalogCal {cal_name(r)} = {{", f"    {vals},", "};"]
+        src += ["", "const AnalogCal* const g_analog_cals[] = {"]
+        src += [f"    &{cal_name(r)}," for _, r in analog]
+        src += ["};", ""]
 
     # A converter this table names that is NOT one of the generated ones: a
     # library vocabulary is `Logs::level_label`, and a site may still write
@@ -319,43 +398,68 @@ def gen_site(site):
                          if r.get("str") and "::" not in r["str"]
                          and r["str"] not in enums})
     if converters:
-        out += ["/** @brief Enum converters this table names and this file does",
+        hdr += ["/** @brief Enum converters this table names and this file does",
                 " *  not generate. The site defines them. */"]
-        out += [f"const char* {c}(uint64_t);" for c in converters] + [""]
+        hdr += [f"const char* {c}(uint64_t);" for c in converters] + [""]
 
-    out += ["/** @brief The editable rows. FIRST, and that is load-bearing: the",
+    params = tables.get("params.csv", [])
+    hdr += ["/** @brief The editable rows. FIRST, and that is load-bearing: the",
             " *  ROLE_PARAM run has to stay contiguous with the library's. */"]
-    out += array("params", tables.get("params.csv", []), "PARAMS_COUNT")
+    hdr += array_decl("params", params, "PARAMS_COUNT")
+    src += array_def("params", params)
 
     rest = [item for f in FILES if f != "params.csv" for item in tables.get(f, [])]
-    out += ["/** @brief Everything else, in file order. Alarms lead, so their table",
+    hdr += ["/** @brief Everything else, in file order. Alarms lead, so their table",
             " *  order - which is the order the ALARMS page lists them in - is the",
             " *  order alarms.csv gives them. */"]
-    out += array("rows", rest, "ROWS_COUNT")
+    hdr += array_decl("rows", rest, "ROWS_COUNT")
+    src += array_def("rows", rest)
+
+    # Against the EFFECTIVE ceiling, which is the one the bank is built with.
+    # vars_checks.capacity() checks this too, but only against a BOTANIK_VAR_MAX
+    # the site spells in its own config.h: it cannot see -DBOTANIK_VAR_MAX on the
+    # command line, and it is skipped entirely for a site that takes the default.
+    hdr += ["/** @brief Rows the library registers ahead of this site's, into the",
+            " *  same table. Gated the way the library's own table is: a build",
+            " *  with a subsystem off must not reserve rows it never",
+            " *  registers. */",
+            "const uint16_t LIBRARY_ROWS = 0"] + library_rows_expr() + ["    ;",
+            "",
+            "// register_vars() adds NONE of a segment that does not fit, so one row",
+            "// past the limit costs a whole table: an empty field-bus plan and a",
+            "// failing POST, in the field. Caught here instead.",
+            "static_assert(LIBRARY_ROWS + PARAMS_COUNT + ROWS_COUNT <= Config::VAR_MAX,",
+            '              "site table exceeds VAR_MAX - raise BOTANIK_VAR_MAX '
+            '(about 36 bytes of RAM per row)");',
+            ""]
 
     pulses = [r for _, r in tables.get("digital_inputs.csv", []) if r.get("isr")]
     if pulses:
-        out += ["/** @brief The local inputs counted by an interrupt rather than",
+        hdr += ["/** @brief The local inputs counted by an interrupt rather than",
                 " *  polled. Generated from the `isr` column, so the channel a row",
                 " *  declares and the channel the firmware attaches cannot part. */",
                 "struct PulseInput { const char* name; uint8_t channel; "
                 "HAL::Pulse::Edge edge; };",
-                "const PulseInput pulse_inputs[] = {"]
+                "extern const PulseInput pulse_inputs[];",
+                f"const uint8_t pulse_input_count = {len(pulses)};", ""]
+        src.append("const PulseInput pulse_inputs[] = {")
         for r in pulses:
-            out.append(f'    {{ {quote(r["name"])}, {r["reg"]}, '
+            src.append(f'    {{ {quote(r["name"])}, {r["reg"]}, '
                        f'HAL::Pulse::{vars_checks.EDGES[r["isr"]]} }},')
-        out += ["};", "const uint8_t pulse_input_count =",
-                "    (uint8_t)(sizeof(pulse_inputs) / sizeof(pulse_inputs[0]));", ""]
+        src += ["};", ""]
 
-    out += vars_devices.emit(*vars_devices.load(table_dir))
+    dev_hdr, dev_src = vars_devices.emit(*vars_devices.load(table_dir))
+    hdr += dev_hdr
+    src += dev_src
 
-    out += ["/** @brief Hand the bank this site's rows, parameters first. Generated so",
+    hdr += ["/** @brief Hand the bank this site's rows, parameters first. Generated so",
             " *  the ordering rule is held by the tool rather than by a comment. */",
             "inline void register_all(Vars::Bank& io) {",
             "    io.register_vars(params, PARAMS_COUNT);",
             "    io.register_vars(rows,   ROWS_COUNT);",
             "}", "", "}  // namespace Site", "", "#endif  // SITE_VARS_GEN_H"]
-    return "\n".join(out) + "\n"
+    src += ["}  // namespace Site"]
+    return "\n".join(hdr) + "\n", "\n".join(src) + "\n"
 
 
 def gen_library():
@@ -368,12 +472,17 @@ def gen_library():
 
     out = banner("the CSV tables in src/libbotanik/vars/tables/")
     out += ["#ifndef LIBBOTANIK_VARS_GEN_H", "#define LIBBOTANIK_VARS_GEN_H", "",
-            "// Included by vars/vars.cpp, AFTER the feature-gated includes its row",
-            "// defaults read. Not a standalone header.", "",
+            "// Included by firmware/vars_wiring.cpp, AFTER the feature-gated includes",
+            "// its row defaults read. Not a standalone header.", "",
             "namespace Botanik { namespace Vars {", ""]
     out += ["/** @brief The library's own rows. Its PARAMETERS come last, so a site's",
             " *  parameter segment abuts them. @see lib_order */"]
-    out += array("library_vars", rows, "LIBRARY_VARS_COUNT")
+    # Not split the way the site's table is: this is a FRAGMENT, included by
+    # exactly one .cpp after the headers its row defaults read, so there is only
+    # ever one copy and sizeof() still works.
+    out += array_def("library_vars", rows)
+    out += ["const uint16_t LIBRARY_VARS_COUNT =",
+            "    (uint16_t)(sizeof(library_vars) / sizeof(library_vars[0]));", ""]
     out += ["}}  // namespace Botanik::Vars", "", "#endif  // LIBBOTANIK_VARS_GEN_H"]
     return "\n".join(out) + "\n"
 
@@ -464,8 +573,10 @@ def main():
     print("  no problems")
 
     print("Generating:")
-    stale = put(os.path.join(ROOT, "src", "sites", a.site, "generated", "vars.gen.h"),
-                gen_site(a.site), a.check)
+    site_hdr, site_src = gen_site(a.site)
+    site_gen = os.path.join(ROOT, "src", "sites", a.site, "generated")
+    stale = put(os.path.join(site_gen, "vars.gen.h"), site_hdr, a.check)
+    stale |= put(os.path.join(site_gen, "vars.gen.cpp"), site_src, a.check)
     stale |= put(os.path.join(ROOT, "src", "libbotanik", "vars", "generated", "vars.gen.h"),
                  gen_library(), a.check)
     if progs:

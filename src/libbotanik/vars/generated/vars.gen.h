@@ -7,8 +7,8 @@
 #ifndef LIBBOTANIK_VARS_GEN_H
 #define LIBBOTANIK_VARS_GEN_H
 
-// Included by vars/vars.cpp, AFTER the feature-gated includes its row
-// defaults read. Not a standalone header.
+// Included by firmware/vars_wiring.cpp, AFTER the feature-gated includes
+// its row defaults read. Not a standalone header.
 
 namespace Botanik { namespace Vars {
 
@@ -118,7 +118,9 @@ const Descriptor library_vars[] = {
     P("rtu_rewrite_ms"    , T_U32, 5000 , 1000, 600000, 0, "ms", 985, "how often an output block is written anyway", "MATCH the slave's own failsafe timer; it is watching for this", true),
 #endif
 };
-const uint16_t LIBRARY_VARS_COUNT = (uint16_t)(sizeof(library_vars) / sizeof(library_vars[0]));
+
+const uint16_t LIBRARY_VARS_COUNT =
+    (uint16_t)(sizeof(library_vars) / sizeof(library_vars[0]));
 
 }}  // namespace Botanik::Vars
 

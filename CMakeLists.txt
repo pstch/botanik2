@@ -213,7 +213,10 @@ if(BOTANIK_TARGET STREQUAL "SIMULATOR")
 
     # The selected site compiles into the host application, not the library, so
     # it stays out of the OPTA `botanik` archive. Empty for a header-only site.
-    file(GLOB BOTANIK_SITE_SOURCES CONFIGURE_DEPENDS "${_site_dir}/*.cpp")
+    # generated/ too: the tables are DEFINED in vars.gen.cpp, so a glob that
+    # missed it would drop the whole variable table at link time.
+    file(GLOB BOTANIK_SITE_SOURCES CONFIGURE_DEPENDS
+         "${_site_dir}/*.cpp" "${_site_dir}/generated/*.cpp")
     add_executable(botanik_sim
         "src/botanik_sim/main.cpp"
         ${BOTANIK_SITE_SOURCES})
@@ -499,7 +502,10 @@ elseif(BOTANIK_TARGET STREQUAL "OPTA")
 
     # The selected site compiles into the firmware alongside the entry wiring.
     # Empty for a header-only site.
-    file(GLOB BOTANIK_SITE_SOURCES CONFIGURE_DEPENDS "${_site_dir}/*.cpp")
+    # generated/ too: the tables are DEFINED in vars.gen.cpp, so a glob that
+    # missed it would drop the whole variable table at link time.
+    file(GLOB BOTANIK_SITE_SOURCES CONFIGURE_DEPENDS
+         "${_site_dir}/*.cpp" "${_site_dir}/generated/*.cpp")
 
     # ------------------------------------------------------------------
     # botanik_opta - the flashable M7 image
