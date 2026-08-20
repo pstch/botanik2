@@ -208,7 +208,7 @@ namespace Botanik { namespace Network {
     }
 
     void NtpClient::register_tasks() {
-        _tasks->add(*this, &NtpClient::_service_task, "ntp", Tasks::GROUP_FAST,
+        _tasks->add(*this, &NtpClient::_service_task, "sys_ntp", Tasks::GROUP_FAST,
               Tasks::PHASE_SERVICE);
     }
 

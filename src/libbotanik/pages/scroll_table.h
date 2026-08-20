@@ -19,6 +19,7 @@
 #include <cstring>
 
 #include "libbotanik/console/console.h"
+#include "libbotanik/console/editor.h"
 #include "libbotanik/console/terminal.h"
 #include "libbotanik/pages/page.h"
 
@@ -109,7 +110,7 @@ namespace Botanik { namespace Pages {
         void _copy_selected_cell();
 
         /** @brief The Alt+W badge, or "" once it has expired. What
-         *  _draw_mode_line() shows in place of the page's own detail. */
+         *  _draw_legend() shows in place of the page's own detail. */
         const char* _copied_badge() const;
 
         /** @brief Move the cursor by @p dir (clamped to the set), auto-scrolling
@@ -121,9 +122,9 @@ namespace Botanik { namespace Pages {
         /** @}
          *  @name View modes
          *
-         *  An ordered set of named views, one active at a time. SPACE and RIGHT
-         *  step forward, LEFT back - NOT Shift+SPACE, which a terminal sends as
-         *  the same 0x20 as SPACE.
+         *  An ordered set of named views, one active at a time. RIGHT steps
+         *  forward, LEFT back. Not a typed key: every printable byte a table
+         *  page reads is the row filter's.
          *  @{ */
 
         /** @brief Active view. Always < _mode_count() (or 0 when there are none). */
@@ -151,24 +152,38 @@ namespace Botanik { namespace Pages {
          *  test_alarms_render.cpp. */
         void _cycle_mode(int dir);
 
-        /** @name Mode-line layout
+        /** @name Legend layout
          *  Fixed columns, so the fields sit in the same place on every table and
          *  redraw. The three view fields are CENTRED in equal slots, so a
          *  neighbour's name changing length does not move the badge. ML_SLOT_W is
          *  11: the widest field any table produces is "[unmasked]" at 10. An
-         *  overrunning field pushes the ones after it right rather than clipping.
+         *  overrunning field pushes the ones after it right rather than clipping,
+         *  which is why the filter sits BEFORE the detail: a long filter eats a
+         *  standing hint rather than the text being typed. The columns are set
+         *  so the fullest legend any table draws - the alarms one, filtered -
+         *  ends on column 80.
          *  @{ */
         static constexpr uint16_t ML_SLOT_W = 11;   // each view field's slot
-        static constexpr uint16_t ML_PREV   = 2;    // previous view
-        static constexpr uint16_t ML_BADGE  = 13;   // "[cur]"
-        static constexpr uint16_t ML_NEXT   = 24;   // "> next", or "(group)"
-        static constexpr uint16_t ML_POS    = 36;   // "first-last / total"
-        static constexpr uint16_t ML_DETAIL = 50;   // page-specific extra
+        static constexpr uint16_t ML_PREV   = 1;    // previous view
+        static constexpr uint16_t ML_BADGE  = 12;   // "[cur]"
+        static constexpr uint16_t ML_NEXT   = 23;   // "> next"
+        static constexpr uint16_t ML_POS    = 35;   // "first-last / total"
+        static constexpr uint16_t ML_FILTER = 48;   // "[/text]", while one is set
+        static constexpr uint16_t ML_DETAIL = 60;   // page-specific extra
         /** @} */
 
         /** @brief Pad @p buf out to column @p col. */
         static void _pad_to(char* buf, uint16_t& w, size_t cap, uint16_t col) {
             while (w < col && (size_t)(w + 1) < cap) buf[w++] = ' ';
+        }
+
+        /** @brief Pad to column @p col, or to one space past the text already
+         *  there - a field that overran its slot pushes the next one along
+         *  rather than running into it. */
+        static void _pad_gap(char* buf, uint16_t& w, size_t cap, uint16_t col) {
+            _pad_to(buf, w, cap, col);
+            if (w >= col && (size_t)(w + 1) < cap && w > 0 && buf[w - 1] != ' ')
+                buf[w++] = ' ';
         }
 
         /** @brief Write @p text centred in the @p slot_w-wide slot at @p col.
@@ -186,29 +201,89 @@ namespace Botanik { namespace Pages {
             return at;
         }
 
-        /** @brief Draw the view's legend line: the neighbouring views either side
-         *  of a reverse-video badge naming the active one, how much of the set is
-         *  on screen, and @p detail. A @p group replaces the forward neighbour,
-         *  passed only in an "all" view.
-         *  @note Painted in ONE pass with the badge split out; normal-then-
-         *  inverted would flicker. The badge is the only acknowledgement of the
-         *  keypress, the rows arriving over the following ticks. */
-        void _draw_mode_line(uint16_t row, const char* group, const char* detail);
+        /** @brief Draw the table's legend line: its views (only when it has
+         *  more than one), how much of the set is on screen, the live filter,
+         *  and @p detail - null for the standing hint, which an unfiltered
+         *  table shows in its place.
+         *  @note Painted in ONE pass with the reverse-video fields split out;
+         *  normal-then-inverted would flicker. A badge is the only immediate
+         *  acknowledgement of the keypress, the rows arriving over the
+         *  following ticks. */
+        void _draw_legend(uint16_t row, const char* detail);
 
-        /** @brief Declare @p row as this table's mode line: PRIO_CHROME, so
+        /** @brief Declare @p row as this table's legend row: PRIO_CHROME, so
          *  present() puts it on the wire ahead of the table rows.
          *  @note From focus(), not around a draw: a priority is a standing
          *  property, and the Console resets the band on every page switch. */
-        void _claim_mode_row(uint16_t row) {
+        void _claim_legend_row(uint16_t row) {
             _terminal.set_row_priority(row, Terminal::PRIO_CHROME);
         }
 
         /** @brief Handle the mode nav keys. @return true if @p cmd was one. */
         bool _mode_command(Command cmd);
 
-        /** @brief SPACE steps forward (it is a printable byte, so it arrives
-         *  through handle_text rather than as a command). */
-        bool _mode_text(char c);
+        /** @}
+         *  @name Row filter
+         *
+         *  A live substring the table narrows itself to. Typing appends to it,
+         *  BACKSPACE pops a character and ESC clears it - no field to open and
+         *  none to leave, so a search costs exactly the characters it is worth.
+         *  A page opts in by calling _filter_text() / _filter_command() from its
+         *  handlers and _filter_match() from its row predicate.
+         *  @{ */
+
+        /** @brief The filter text, NUL-terminated; empty matches every row. */
+        char    _filter[Config::TABLE_FILTER_LEN + 1] = {0};
+        uint8_t _filter_n = 0;
+        /** @brief Bumped on every change, so a page's row cache can hold WHICH
+         *  filter it counted rather than a flag something could forget to
+         *  clear. Never 0: that is every cache's "never built" value, and this
+         *  wraps. */
+        uint16_t _filter_gen = 1;
+
+        /** @brief Called after the filter changed, before the redraw: the page
+         *  re-collects whatever the new filter shows. */
+        virtual void _on_filter_changed() {}
+
+        /** @brief Whether @p s passes the filter (ASCII case-insensitive
+         *  substring). A null @p s matches only the empty filter. */
+        bool _filter_match(const char* s) const;
+
+        /** @brief Append a typed character. @return true if @p c was one this
+         *  filter takes, so the caller stops.
+         *  @note A SPACE on an EMPTY filter is dropped: no name holds one. */
+        bool _filter_text(char c);
+
+        /** @brief Handle the filter's editing keys (BACKSPACE, ESC).
+         *  @return true if @p cmd was one. */
+        bool _filter_command(Command cmd);
+
+        /** @brief Reset the band to the top of the narrowed set, bump the
+         *  generation and tell the page. */
+        void _filter_changed();
+
+        /** @}
+         *  @name Inline field
+         *
+         *  The editing keys a one-row field on a table page takes, in one place:
+         *  PARAMS edits a parameter's value, MONITOR an override. ENTER and ESC
+         *  are NOT here - what they commit to is the page's business.
+         *  @{ */
+
+        /** @brief What a key does to the field's text. */
+        enum EditKey : uint8_t {
+            EDIT_IGNORED = 0,   ///< not a field key; the page may keep it
+            EDIT_MOVED,         ///< cursor or mark motion, text unchanged
+            EDIT_CHANGED        ///< the text changed
+        };
+
+        /** @brief Classify @p cmd WITHOUT applying it, so a page can drop an
+         *  "invalid" marker before the edit that invalidates it repaints. */
+        static EditKey _edit_kind(Command cmd);
+
+        /** @brief Apply @p cmd to @p ed. @p count is the parser's coalesced
+         *  repeat, honoured by the chunkable keys. */
+        static void _edit_apply(Terminal::TextEditor& ed, Command cmd, uint16_t count);
 
         /** @}
          *  @name Bordered-table rendering

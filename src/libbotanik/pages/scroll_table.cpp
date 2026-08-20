@@ -11,6 +11,7 @@
 
 #include "libbotanik/console/kill_ring.h"
 #include "libbotanik/hal/platform.h"
+#include "libbotanik/utils/text.h"
 
 namespace Botanik { namespace Pages {
 
@@ -86,86 +87,170 @@ namespace Botanik { namespace Pages {
         _on_mode_changed();
     }
 
-    void ScrollTablePage::_draw_mode_line(uint16_t row, const char* group, const char* detail) {
-        // A fresh Alt+W borrows the detail slot. The page's own detail is a
-        // standing hint and comes back in a few seconds; the copy is news.
-        const char* badge = _copied_badge();
-        if (badge[0] != '\0') detail = badge;
-
-        const uint8_t n_modes = _mode_count();
-        const bool    in_all  = (group != nullptr && group[0] != '\0');
-        char left[Config::TABLE_LINE_LEN], field[32];
+    void ScrollTablePage::_draw_legend(uint16_t row, const char* detail) {
+        char buf[Config::TABLE_LINE_LEN], field[Config::TABLE_FILTER_LEN + 8];
         uint16_t w = 0;
         int n = 0;
+        // Where reverse video starts and stops: the view badge, the filter, or
+        // both - a table can carry either.
+        struct { uint16_t at, end; } inv[2];
+        uint8_t ninv = 0;
 
-        // Previous view. Omitted in an "all" view, which has no meaningful
-        // "back" - it is where back leads.
-        if (!in_all && n_modes > 1) {
+        const uint8_t n_modes = _mode_count();
+        if (n_modes > 1) {
             snprintf(field, sizeof(field), "%s <",
                      _mode_label((uint8_t)((_mode + n_modes - 1) % n_modes)));
-            _place_centered(left, w, sizeof(left), ML_PREV, ML_SLOT_W, field);
-        }
+            _place_centered(buf, w, sizeof(buf), ML_PREV, ML_SLOT_W, field);
 
-        snprintf(field, sizeof(field), "[%s]", _mode_name());
-        const uint16_t badge_at =
-            _place_centered(left, w, sizeof(left), ML_BADGE, ML_SLOT_W, field);
-        const uint16_t badge_end = w;
+            snprintf(field, sizeof(field), "[%s]", _mode_name());
+            const uint16_t at =
+                _place_centered(buf, w, sizeof(buf), ML_BADGE, ML_SLOT_W, field);
+            inv[ninv].at = at; inv[ninv].end = w; ninv++;
 
-        if (in_all) {
-            snprintf(field, sizeof(field), "(%s)", group);
-        } else if (n_modes > 1) {
             snprintf(field, sizeof(field), "> %s",
                      _mode_label((uint8_t)((_mode + 1) % n_modes)));
-        } else {
-            field[0] = '\0';
+            _place_centered(buf, w, sizeof(buf), ML_NEXT, ML_SLOT_W, field);
         }
-        if (field[0] != '\0')
-            _place_centered(left, w, sizeof(left), ML_NEXT, ML_SLOT_W, field);
 
         // How much of the set is on screen; every table shows it.
-        _pad_to(left, w, sizeof(left), ML_POS);
+        _pad_gap(buf, w, sizeof(buf), ML_POS);
         const uint16_t total = _row_count(), win = _window();
         const uint16_t last  = (uint16_t)(_top + (win < total ? win : total));
-        n = snprintf(left + w, sizeof(left) - w, "%u-%u / %u",
+        n = snprintf(buf + w, sizeof(buf) - w, "%u-%u / %u",
                      (unsigned)(total ? _top + 1 : 0), (unsigned)last,
                      (unsigned)total);
         if (n > 0) w = (uint16_t)(w + n);
 
+        // The filter itself, not a count of what it kept: what the table is
+        // showing and what was typed are then one thing, and cannot disagree.
+        if (_filter_n != 0) {
+            _pad_gap(buf, w, sizeof(buf), ML_FILTER);
+            const uint16_t at = w;
+            n = snprintf(buf + w, sizeof(buf) - w, "[/%s]", _filter);
+            if (n > 0) w = (uint16_t)(w + n);
+            inv[ninv].at = at; inv[ninv].end = w; ninv++;
+        }
+
+        // A fresh Alt+W borrows the detail slot. The page's own detail is a
+        // standing hint and comes back in a few seconds; the copy is news.
+        const char* copied = _copied_badge();
+        if (copied[0] != '\0') detail = copied;
+        // Nothing on screen says a table can be filtered at all, so the hint
+        // holds the slot until there IS a filter, or the page has something of
+        // its own to say.
+        else if ((detail == nullptr || detail[0] == '\0') && _filter_n == 0)
+            detail = "type to filter";
+
         if (detail != nullptr && detail[0] != '\0') {
-            _pad_to(left, w, sizeof(left), ML_DETAIL);
-            n = snprintf(left + w, sizeof(left) - w, "%s", detail);
+            _pad_gap(buf, w, sizeof(buf), ML_DETAIL);
+            n = snprintf(buf + w, sizeof(buf) - w, "%s", detail);
             if (n > 0) w = (uint16_t)(w + n);
         }
-        if (w > sizeof(left) - 1) w = (uint16_t)(sizeof(left) - 1);
+        if (w > sizeof(buf) - 1) w = (uint16_t)(sizeof(buf) - 1);
 
-        // One pass: plain up to the badge, inverted through it, plain after.
+        // One pass: plain, inverted through each badge, plain after.
         _terminal.move_to({row, 0});
         _terminal.set_inverted(false);
-        _terminal.write_chars(left, badge_at);
-        _terminal.set_inverted(true);
-        _terminal.write_chars(left + badge_at, (uint16_t)(badge_end - badge_at));
-        _terminal.set_inverted(false);
-        _terminal.write_chars(left + badge_end, (uint16_t)(w - badge_end));
+        uint16_t at = 0;
+        for (uint8_t i = 0; i < ninv; i++) {
+            _terminal.write_chars(buf + at, (uint16_t)(inv[i].at - at));
+            _terminal.set_inverted(true);
+            _terminal.write_chars(buf + inv[i].at, (uint16_t)(inv[i].end - inv[i].at));
+            _terminal.set_inverted(false);
+            at = inv[i].end;
+        }
+        _terminal.write_chars(buf + at, (uint16_t)(w - at));
         _terminal.clear_to_eol();
+    }
+
+    bool ScrollTablePage::_filter_match(const char* s) const {
+        if (_filter_n == 0) return true;
+        return Utils::contains_ci(s, _filter);
+    }
+
+    bool ScrollTablePage::_filter_text(char c) {
+        if (c < 0x20 || c == 0x7F) return false;
+        if (c == ' ' && _filter_n == 0) return true;   // no name holds one
+        if (_filter_n < Config::TABLE_FILTER_LEN) {
+            _filter[_filter_n++] = c;
+            _filter[_filter_n] = '\0';
+            _filter_changed();
+        }
+        return true;
+    }
+
+    bool ScrollTablePage::_filter_command(Command cmd) {
+        if (cmd == Command::BACKSPACE) {
+            if (_filter_n != 0) { _filter[--_filter_n] = '\0'; _filter_changed(); }
+            return true;
+        }
+        if (cmd == Command::ESC) {
+            if (_filter_n != 0) { _filter_n = 0; _filter[0] = '\0'; _filter_changed(); }
+            return true;
+        }
+        return false;
+    }
+
+    void ScrollTablePage::_filter_changed() {
+        // Back to the top: the row the cursor sat on is not the row that index
+        // names in the narrowed set.
+        _top      = 0;
+        _selected = 0;
+        if (++_filter_gen == 0) _filter_gen = 1;   // 0 is "never built"
+        _on_filter_changed();
     }
 
     bool ScrollTablePage::_mode_command(Command cmd) {
         if (_mode_count() <= 1) return false;
         if (cmd == Command::RIGHT) { _cycle_mode(+1); return true; }
         if (cmd == Command::LEFT)  { _cycle_mode(-1); return true; }
-        // Getting back to the whole set should not mean cycling through
-        // every group to reach it.
-        if (cmd == Command::BACKSPACE) {
-            if (_mode != 0) _cycle_mode(-(int)_mode);
-            return true;
-        }
         return false;
     }
 
-    bool ScrollTablePage::_mode_text(char c) {
-        if (c != ' ' || _mode_count() <= 1) return false;
-        _cycle_mode(+1);
-        return true;
+    ScrollTablePage::EditKey ScrollTablePage::_edit_kind(Command cmd) {
+        switch (cmd) {
+            case Command::BACKSPACE: case Command::DELETE: case Command::CTRL_D:
+            case Command::CTRL_U:    case Command::CTRL_K: case Command::CTRL_W:
+            case Command::CTRL_Y:
+                return EDIT_CHANGED;
+            case Command::LEFT:  case Command::CTRL_B:
+            case Command::RIGHT: case Command::CTRL_F:
+            case Command::HOME:  case Command::CTRL_A:
+            case Command::END:   case Command::CTRL_E:
+            case Command::CTRL_SPACE: case Command::CTRL_G: case Command::ALT_W:
+                return EDIT_MOVED;
+            default:
+                return EDIT_IGNORED;
+        }
+    }
+
+    void ScrollTablePage::_edit_apply(Terminal::TextEditor& ed, Command cmd,
+                                      uint16_t count) {
+        switch (cmd) {
+            case Command::BACKSPACE:  ed.backspace(count);            break;
+            case Command::DELETE:
+            case Command::CTRL_D:     ed.delete_forward(count);       break;
+            case Command::LEFT:
+            case Command::CTRL_B:     ed.move_left();                 break;
+            case Command::RIGHT:
+            case Command::CTRL_F:     ed.move_right();                break;
+            case Command::HOME:
+            case Command::CTRL_A:     ed.move_to_line_start();        break;
+            case Command::END:
+            case Command::CTRL_E:     ed.move_to_line_end();          break;
+            case Command::CTRL_U:
+                ed.move_to_line_start();
+                ed.delete_forward(ed.buffer_len());                   break;
+            // The same cut/paste as the shell prompt, over the same ring: Alt+W
+            // on the table puts a name in it, and this is where it lands.
+            case Command::CTRL_K:     ed.kill_to_line_end();          break;
+            case Command::CTRL_W:     ed.kill_region_or_word();       break;
+            case Command::CTRL_SPACE: ed.toggle_mark();               break;
+            case Command::CTRL_G:     ed.clear_mark();                break;
+            case Command::ALT_W:      ed.copy_region();               break;
+            case Command::CTRL_Y:     ed.yank();                      break;
+            default: break;
+        }
     }
 
     void ScrollTablePage::_draw_line(uint16_t row, const char* line, uint16_t n) {

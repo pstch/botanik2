@@ -10,7 +10,7 @@ A task has two independent attributes, and conflating them is the mistake to
 avoid.
 
 **Rate** is how often it runs - its group. **Phase** is where in the beat it sits.
-Neither derives from the other: `expire_stale` is background-rate and
+Neither derives from the other: `sys_expire_stale` is background-rate and
 input-phase; a control program is whatever rate and always execute-phase. A
 program names a rate GROUP like anything else in the beat - it has no private
 period, so retuning a rate class retunes it too.
@@ -42,7 +42,7 @@ is due runs between this beat's input phase and this beat's output phase.
 The dashed box is the control-authority gate - the program entries and
 `site_control`, but not the ungated site hooks; *Where the gate lives* below is
 the whole rule.
-Note also that `modbus_tcp_wr` sits in SERVICE although it is registered beside
+Note also that `sys_mbtcp_wr` sits in SERVICE although it is registered beside
 its TCP siblings much further down the function: a task declares its phase, so
 where its line falls in `_register_tasks()` says nothing about when it runs.
 

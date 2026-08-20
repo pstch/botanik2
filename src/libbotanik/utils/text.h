@@ -39,6 +39,10 @@ namespace Botanik { namespace Utils {
         return compare_bounded(s, key, len) == 0;
     }
 
+    /** @brief Whether @p hay contains @p needle, ASCII case folded. An empty
+     *  @p needle matches anything; a null @p hay matches nothing. */
+    bool contains_ci(const char* hay, const char* needle);
+
     /** @}
      *  @name Line wrapping
      *  @{ */

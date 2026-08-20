@@ -1031,6 +1031,19 @@ TEST_CASE("parser: a lone ESC resolves to ESC after the command timeout") {
     CHECK(f.parse().command == Command::ESC);
 }
 
+// 0x13 leads the Minitel separator sequences, so Ctrl+S can only be told from
+// one by what does NOT follow it - the same rule a lone ESC lives by.
+TEST_CASE("parser: a lone SEP byte resolves to Ctrl+S, a followed one to its key") {
+    ParserFixture f;
+    f.feed("\x13");
+    CHECK(f.parse().type == EventType::NONE);   // still waiting for the rest
+    f.now += Config::ANSI_CMD_TIMEOUT_MS;
+    CHECK(f.parse().command == Command::CTRL_S);
+
+    f.feed("\x13" "e");                          // Minitel CORRECTION
+    CHECK(f.parse().command == Command::BACKSPACE);
+}
+
 // Chunkable coalescing (held BACKSPACE / CTRL_D)
 
 TEST_CASE("parser: repeated backspaces coalesce into one count-N command") {

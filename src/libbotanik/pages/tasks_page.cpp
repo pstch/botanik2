@@ -11,10 +11,14 @@
 #include <cstring>
 
 #include "libbotanik/hal/platform.h"
+#include "libbotanik/plc/program.h"
 
 namespace Botanik { namespace Pages {
 
     void TasksPage::focus() {
+        // The filter badge acknowledges a keypress, so its row outranks the
+        // table (the Console resets the band on every page switch).
+        _claim_legend_row(_legend_row());
         _dirty = true;
         _clamp_selection();
         _follow_selection();
@@ -44,20 +48,32 @@ namespace Botanik { namespace Pages {
     }
 
     void TasksPage::_ensure_order() const {
-        const uint8_t n = (uint8_t)_count();
-        if (_order_n == n) return;               // already built for this table
-        for (uint8_t i = 0; i < n; i++) _order[i] = i;
-        for (uint8_t i = 1; i < n; i++) {
+        const uint8_t n = (uint8_t)_reg.count();
+        if (_order_of == n && _order_gen == _filter_gen) return;   // still current
+        _order_n = 0;
+        for (uint8_t i = 0; i < n; i++)
+            if (_filter_match(_reg.task(i).name)) _order[_order_n++] = i;
+        for (uint8_t i = 1; i < _order_n; i++) {
             const uint8_t v = _order[i];
-            const char* vn = _reg.task(v).name;
             uint8_t j = i;
-            while (j > 0 && std::strcmp(_name_of(_order[j - 1]), vn ? vn : "") > 0) {
+            while (j > 0 && _before(v, _order[j - 1])) {
                 _order[j] = _order[j - 1];
                 j--;
             }
             _order[j] = v;
         }
-        _order_n = n;
+        _order_of  = n;
+        _order_gen = _filter_gen;
+    }
+
+    bool TasksPage::_before(uint8_t a, uint8_t b) const {
+        // The site's programs first: they are what the plant does, and the
+        // library's beat is the same on every unit. Then by name within each
+        // block, which is how one row is found by eye.
+        const bool pa = _reg.task(a).program != nullptr;
+        const bool pb = _reg.task(b).program != nullptr;
+        if (pa != pb) return pa;
+        return std::strcmp(_name_of(a), _name_of(b)) < 0;
     }
 
     uint16_t TasksPage::_panel_top() const {
@@ -69,7 +85,7 @@ namespace Botanik { namespace Pages {
     uint8_t TasksPage::_columns(Col* out) const {
         out[C_NAME]   = Col{ "TASK",      0         };   // flex: the base fits it
         out[C_GROUP]  = Col{ "GROUP",     GROUP_W   };
-        out[C_PERIOD] = Col{ "EVERY ms",  PERIOD_W  };
+        out[C_HEALTH] = Col{ "HEALTH",    HEALTH_W  };
         out[C_PHASE]  = Col{ "PHASE",     PHASE_W   };
         out[C_MEAN]   = Col{ "MEAN us",   MEAN_W    };
         out[C_MISSED] = Col{ "MISSED",    MISSED_W  };
@@ -88,13 +104,19 @@ namespace Botanik { namespace Pages {
         return (g < Tasks::GROUP_COUNT) ? buf[g] : "";
     }
 
+    const char* TasksPage::_health_str(const Tasks::Task& t) {
+        // Blank, not "-": a task that is not a program has no verdict to give,
+        // which is a different thing from one whose verdict is unknown.
+        return (t.program != nullptr) ? Plc::health_name(t.program->health()) : "";
+    }
+
     void TasksPage::_draw_row(uint16_t idx, uint16_t row, bool selected) {
         const Tasks::Task& t = _row(idx);
         char mean[CELL_CAP], missed[CELL_CAP], line[LINE_CAP];
         const char* cells[6] = {
             t.name != nullptr ? t.name : "",
             Tasks::group_name(t.group),
-            _period_str(t.group),
+            _health_str(t),
             Tasks::phase_name(t.phase),
             _num(mean,   sizeof(mean),   t.cost.us_mean(), t.cost.runs),
             _num(missed, sizeof(missed), t.cost.missed,    t.cost.runs),
@@ -122,7 +144,9 @@ namespace Botanik { namespace Pages {
         _draw_separator(r);
         _blank_line((uint16_t)(r + 1));
         if (_count() == 0) {
-            for (uint16_t i = 2; i < PANEL_H; i++) _blank_line((uint16_t)(r + i));
+            for (uint16_t i = 2; i < PANEL_H; i++)
+                if ((uint16_t)(r + i) != _legend_row()) _blank_line((uint16_t)(r + i));
+            _draw_legend(_legend_row(), "no match");
             return;
         }
         const Tasks::Task& t = _row(_selected);
@@ -154,8 +178,12 @@ namespace Botanik { namespace Pages {
                       PANEL_COL2, "Peak us", peak_s);
         _panel_field2((uint16_t)(r + 3), "Runs", runs,
                       PANEL_COL2, "Missed", missed_s);
-        _panel_field((uint16_t)(r + 4), "Of period", duty_s);
-        _blank_line((uint16_t)(r + 5));
+        // The rate beside what the task spends of it: the two are read
+        // together, and a declared period earns a panel field rather than a
+        // column repeating one of four numbers down the table.
+        _panel_field2((uint16_t)(r + 4), "Of period", duty_s,
+                      PANEL_COL2, "Every ms", _period_str(t.group));
+        _draw_legend(_legend_row(), nullptr);
     }
 }}
 

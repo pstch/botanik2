@@ -104,7 +104,7 @@ One row per page, in the order they derive:
 | @ref Botanik::Pages::ScrollTablePage | Page | base for the scrollable tables |
 | @ref Botanik::Pages::AlarmsPage | ScrollTablePage | the alarm conditions |
 | @ref Botanik::Pages::ParamsPage | ScrollTablePage | the parameter block, and the only page that writes it |
-| @ref Botanik::Pages::MonitorPage | ScrollTablePage | every published variable, resolved from `VarRef`s at render time |
+| @ref Botanik::Pages::MonitorPage | ScrollTablePage | every published variable, resolved from `VarRef`s at render time; the one read-only table that also WRITES, through the override keys |
 | @ref Botanik::Pages::TasksPage | ScrollTablePage | the beat as a table, off the scheduler's `Tasks::TaskCost` samples |
 
 Three of those entries carry a decision worth knowing:
@@ -116,9 +116,24 @@ highlight - a question about the data, which the diff cannot answer (it knows
 which cells differ, not why).
 
 **`ScrollTablePage` owns the scroll offset, the selection cursor, the shared
-navigation keys and the `^`/`v` hidden-row marks**, and leaves the column layout
-and the detail panel to the subclass. That split is why four tables cost four
-column layouts rather than four scrollers.
+navigation keys, the row filter, the legend line and the `^`/`v` hidden-row
+marks**, and leaves the column layout and the detail panel to the subclass. That
+split is why four tables cost four column layouts rather than four scrollers.
+
+**Two pages open an inline field** - PARAMS on a parameter, MONITOR on an
+override - so the editing keys live in the base (`_edit_kind()` classifies,
+`_edit_apply()` applies) and only what `ENTER` commits to is per-page. The split
+is what lets the marker for a rejected value be dropped BEFORE the edit that
+moves the field's end.
+
+**The row filter is the base's, the predicate the page's.** The base holds the
+typed text, the keys that edit it (typing appends, `BACKSPACE` pops, `ESC`
+clears) and a GENERATION counter it bumps on every change; a page calls
+`_filter_match()` from its own row predicate and caches whatever that walk costs
+against `_filter_gen`. Nothing per-page decides what a filter IS, so the four
+tables cannot drift on it - only on which cell they match against (the variable,
+parameter, condition or task name). View MODES stay a separate axis: `AlarmsPage`
+is the one table with both, and the filter narrows whichever view is showing.
 
 **`NotesPage` drives the same PS1/PS2/PS3 gutter the shell does** - `"> "` on a
 row the operator started, `"  "` on a soft-wrapped tail - so a wrapped line reads

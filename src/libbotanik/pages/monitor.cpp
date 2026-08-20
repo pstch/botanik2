@@ -16,16 +16,38 @@
 namespace Botanik { namespace Pages {
 
     void MonitorPage::focus() {
-        // The footer carries the group badge, which acknowledges a keypress,
+        _editing = false;
+        // The footer carries the filter badge, which acknowledges a keypress,
         // so it must beat the table rows it sits under.
-        _claim_mode_row(_footer_row());
+        _claim_legend_row(_footer_row());
         _clamp_selection();
         _follow_selection();
         _dirty = true;
     }
 
+    void MonitorPage::handle_command(Command cmd, uint16_t count) {
+        if (_editing) { _handle_edit_command(cmd, count); return; }
+        // The override keys first: ^O opens the field, and the filter would
+        // otherwise never see them anyway.
+        if (cmd == Command::CTRL_O) { _start_edit();      return; }
+        if (cmd == Command::CTRL_R) { _clear_override();  return; }
+        if (cmd == Command::CTRL_S) { _save_override();   return; }
+        if (_filter_command(cmd)) return;       // BACKSPACE pops, ESC clears
+        if (_nav_command(cmd)) _dirty = true;   // redraw next tick, not the cadence
+    }
+
+    void MonitorPage::handle_text(char c) {
+        if (!_editing) { (void)_filter_text(c); return; }   // narrows the table
+        if (c < 0x20 || c == 0x7F) return;                  // printable only
+        if (_edit_error) _clear_error();
+        _editor.insert_characters(&c, 1);
+    }
+
     void MonitorPage::tick(bool active) {
         if (!active) return;
+        // While the field is open it owns the bottom row and is redrawn per
+        // keystroke; leave the table and panel as they were drawn.
+        if (_editing) return;
         // Rebuild on the value cadence, or immediately after a nav. The
         // terminal's diff decides what reaches the wire; this only stops the
         // page re-formatting every row every beat for nothing.
@@ -48,45 +70,22 @@ namespace Botanik { namespace Pages {
         }
         _draw_panel();
         _draw_footer();
+        _draw_prompt_row();
     }
 
-    void MonitorPage::_ensure_groups() const {
-        if (_groups_built || _io == nullptr) return;
-        _groups_built = true;
-        for (uint16_t i = 0; i < _io->count() && _group_n < Vars::VAR_GROUPS_MAX; i++) {
-            const Vars::Descriptor& d = *_io->var(i).meta();
-            if (!Vars::var_published(d)) continue;
-            const char* g = Vars::var_group(d);
-            bool seen = false;
-            for (uint8_t k = 0; k < _group_n; k++)
-                if (std::strcmp(_group_name[k], g) == 0) { seen = true; break; }
-            if (!seen) _group_name[_group_n++] = g;
-        }
-    }
-
-    const char* MonitorPage::_mode_label(uint8_t i) const {
-        _ensure_groups();
-        if (i == 0 || i > _group_n) return "all";
-        return _group_name[i - 1];
-    }
-
-    bool MonitorPage::_in_mode(uint16_t i) const {
+    bool MonitorPage::_visible(uint16_t i) const {
         const Vars::Descriptor& d = *_io->var(i).meta();
         if (!Vars::var_published(d)) return false;
-        if (_mode == 0) return true;
-        // Both sides come out of group_intern(), so one pointer per distinct
-        // group: identity IS equality here, and it costs a compare instead
-        // of a strcmp.
-        return Vars::var_group(d) == _mode_label(_mode);
+        return _filter_match(d.name);
     }
 
     uint16_t MonitorPage::_total() const {
         if (_io == nullptr) return 0;
-        if (_total_mode == _mode) return _total_n;
+        if (_total_gen == _filter_gen) return _total_n;
         uint16_t t = 0;
-        for (uint16_t i = 0; i < _io->count(); i++) if (_in_mode(i)) t++;
+        for (uint16_t i = 0; i < _io->count(); i++) if (_visible(i)) t++;
         _total_n = t;
-        _total_mode = _mode;
+        _total_gen = _filter_gen;
         return t;
     }
 
@@ -111,7 +110,7 @@ namespace Botanik { namespace Pages {
             uint16_t n = 0, i = 0;
             if (_memo_ok && r >= _memo_row) { n = _memo_row; i = _memo_idx; }
             for (; i < _io->count(); i++) {
-                if (!_in_mode(i)) continue;
+                if (!_visible(i)) continue;
                 if (n == r) {
                     ok = true;
                     _memo_row = r; _memo_idx = i; _memo_ok = true;
@@ -138,8 +137,8 @@ namespace Botanik { namespace Pages {
             const Vars::Descriptor* m = h.meta();
             if (m->name != nullptr) nm = m->name;
             if (m->unit != nullptr) un = m->unit;
-            // Scope, not the group: the group is the VIEW, so a group column
-            // would say the same thing on every row.
+            // Scope, not the group: the name already carries the group, in
+            // the column the filter matches against.
             sc = Vars::var_scope(*m);
             // The LIVE value, not the forced one - the OVERRIDE column shows
             // the force. Printing it in both hides what the operator is
@@ -292,16 +291,155 @@ namespace Botanik { namespace Pages {
     }
 
     void MonitorPage::_draw_footer() {
-        // Only in the "all" view: there the badge cannot say which group the
-        // cursor sits in, elsewhere it would just repeat the badge.
-        const char* grp = nullptr;
-        if (_mode == 0) {
-            bool ok = false;
-            const Vars::VarRef r = _ref_at(_selected, ok);
-            if (ok && _io != nullptr) grp = Vars::var_group(*_io->var(r).meta());
+        // What is owed to flash, on the page that takes overrides: an override
+        // is live the moment it commits and gone at the next boot until ^S.
+        char detail[24];
+        detail[0] = '\0';
+        const uint16_t unsaved = (_io != nullptr) ? _io->unsaved_override_count() : 0;
+        if (unsaved != 0)
+            snprintf(detail, sizeof(detail), "%u unsaved  ^S save", (unsigned)unsaved);
+        _draw_legend(_footer_row(), detail[0] != '\0' ? detail : nullptr);
+    }
+
+    // Overrides
+
+    void MonitorPage::_say(const char* text) {
+        snprintf(_said, sizeof(_said), "%s", text);
+        _said_until_ms = HAL::Clock::uptime_ms() + SAID_MS;
+        _dirty = true;
+    }
+
+    uint16_t MonitorPage::_edit_label(char* buf, size_t cap) const {
+        const char* nm = _io->var(_edit_ref).meta()->name;
+        int n = snprintf(buf, cap, " %s = ", nm != nullptr ? nm : "?");
+        return (n < 0) ? 0 : (uint16_t)n;
+    }
+
+    void MonitorPage::_draw_prompt_row() {
+        const uint16_t row = _prompt_row();
+        if (_editing) {
+            _terminal.set_inverted(false);
+            _terminal.move_to({row, 0});
+            _terminal.clear_to_eol();
+            char label[40];
+            const uint16_t lw = _edit_label(label, sizeof(label));
+            _terminal.write_chars(label, lw);
+            _editor.redraw();
+            if (_edit_error) _draw_error_marker();
+            _terminal.set_cursor_visible(true);
+            return;
         }
-        _draw_mode_line(_footer_row(), grp, nullptr);
-        _blank_line((uint16_t)(_footer_row() + 1));   // blank below the legend
+        _terminal.set_cursor_visible(false);
+        const char* say = (HAL::Clock::uptime_ms() < _said_until_ms) ? _said : "";
+        _draw_line(row, say, (uint16_t)std::strlen(say));
+    }
+
+    void MonitorPage::_draw_error_marker() {
+        _terminal.move_to(_editor.end_pos());
+        const char* e = "  [invalid]";
+        _terminal.write_chars(e, (uint16_t)std::strlen(e));
+        _editor.place_cursor();
+    }
+
+    void MonitorPage::_clear_error() {
+        _terminal.move_to(_editor.end_pos());
+        _terminal.clear_to_eol();
+        _edit_error = false;
+        _editor.place_cursor();
+    }
+
+    void MonitorPage::_start_edit() {
+        if (_io == nullptr) return;
+        bool ok = false;
+        const Vars::VarRef ref = _ref_at(_selected, ok);
+        if (!ok) return;
+        Vars::Var h = _io->var(ref);
+        // A T_STR's value lives in the text pool, which an override cannot
+        // hold: say so rather than opening a field whose every commit fails.
+        if (h.meta()->type == Vars::T_STR) { _say("a text row cannot be forced"); return; }
+        _edit_ref = ref;
+
+        char label[40];
+        const uint16_t lw = _edit_label(label, sizeof(label));
+        const char* empty = "";
+        _editor.set_ps1(empty, 0);
+        _editor.set_origin(_prompt_row());
+        _editor.set_indent(lw);
+        _editor.set_single_line(true);
+        _editor.reset();                 // clears the row, label included
+        _terminal.move_to({_prompt_row(), 0});
+        _terminal.write_chars(label, lw);
+
+        // Seeded with what the row reads NOW - a force usually starts from the
+        // reading it is replacing.
+        char val[OVR_INPUT_LEN];
+        const char* v = Vars::var_format(*_io, h, val, sizeof(val));
+        const uint16_t n = (uint16_t)std::strlen(v);
+        if (v != val) { std::strncpy(val, v, sizeof(val) - 1); val[sizeof(val) - 1] = 0; }
+        if (n > 0) _editor.insert_characters(val, n);
+        else       _editor.place_cursor();
+
+        _edit_error = false;
+        _editing = true;
+        _terminal.set_cursor_visible(true);
+    }
+
+    void MonitorPage::_cancel_edit() {
+        _editing = false;
+        _dirty = true;
+        _draw_prompt_row();              // hide the cursor, clear the field
+    }
+
+    void MonitorPage::_commit_edit() {
+        char line[OVR_INPUT_LEN];
+        uint16_t n = _editor.buffer_len();
+        if (n > (uint16_t)(sizeof(line) - 1)) n = (uint16_t)(sizeof(line) - 1);
+        std::memcpy(line, _editor.buffer(), n);
+        line[n] = 0;
+        if (_io->override_set(_io->var(_edit_ref), line) != Vars::SET_OK) {
+            _edit_error = true;          // stay in the field, flag it
+            _draw_error_marker();
+            return;
+        }
+        _editing = false;
+        _dirty = true;                   // the OVERRIDE column says the rest
+        _say("override set - ^S saves this row");
+        _draw_prompt_row();
+    }
+
+    void MonitorPage::_handle_edit_command(Command cmd, uint16_t count) {
+        if (cmd == Command::ENTER) { _commit_edit(); return; }
+        if (cmd == Command::ESC)   { _cancel_edit(); return; }
+        const EditKey k = _edit_kind(cmd);
+        if (k == EDIT_IGNORED) return;
+        if (k == EDIT_CHANGED && _edit_error) _clear_error();
+        _edit_apply(_editor, cmd, count);
+    }
+
+    void MonitorPage::_clear_override() {
+        if (_io == nullptr) return;
+        bool ok = false;
+        const Vars::VarRef ref = _ref_at(_selected, ok);
+        if (!ok) return;
+        Vars::Var h = _io->var(ref);
+        if (!h.override().present()) { _say("not overridden"); return; }
+        _io->override_clear(h);          // through the bank: it owns the store
+        _say("override released");
+    }
+
+    void MonitorPage::_save_override() {
+        if (_io == nullptr) return;
+        bool ok = false;
+        const Vars::VarRef ref = _ref_at(_selected, ok);
+        if (!ok) return;
+        // The row under the cursor, not every unsaved one: what is being
+        // committed to flash should be the row the operator is looking at.
+        switch (_io->save_override(_io->var(ref))) {
+            case Vars::SET_OK:            _say("override saved");                 break;
+            case Vars::SET_NOT_PERSISTED: _say("NOT saved - storage refused it"); break;
+            default:                      _say("nothing forced on this row");     break;
+        }
+        _dirty = true;      // the legend's unsaved count moved
     }
 }}
 

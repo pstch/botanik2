@@ -286,6 +286,12 @@ namespace Botanik { namespace Terminal {
                     if (_state == State::IN_ESC) {
                         _event.command = Command::ESC;
                         _event.type    = EventType::COMMAND;
+                    } else if (_state == State::IN_SEP) {
+                        // 0x13 alone is Ctrl+S; 0x13 + a letter is a Minitel
+                        // function key, so the key resolves the way a bare ESC
+                        // does - on the timeout, once no second byte came.
+                        _event.command = Command::CTRL_S;
+                        _event.type    = EventType::COMMAND;
                     }
                     _state = State::IDLE;
                 }

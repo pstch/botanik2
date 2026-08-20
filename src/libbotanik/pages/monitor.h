@@ -5,7 +5,7 @@
 /**
  * @file monitor.h
  * @brief MonitorPage - scrollable read-only table of every variable except the
- *        two kinds with a page of their own, grouped by name prefix.
+ *        two kinds with a page of their own, narrowed by a typed filter.
  *
  * Layout (row 0 is the status bar, the bottom row the alarm bar):
  *   row 1            blank top margin
@@ -14,7 +14,14 @@
  *   rows 4..N-3      one row per status variable (window into the full set)
  *   row N-8          bottom rule (corners cap to 'v' when hidden below)
  *   rows N-7..N-3    detail panel: Description / Notes / Mapping / Quality
- *   row N-2          legend: [group] badge + position + hint, blank each side
+ *   row N-2          legend: [filter] badge + position + hint
+ *   row N-1          the override field, or what the last override key did
+ *
+ * The one page that FORCES a row as well as showing it: `^O` opens an override
+ * field on the bottom row (ENTER commits, ESC abandons), `^R` releases the
+ * selected row's override and `^S` writes it to flash. All three act on the row
+ * under the cursor. An override is live the moment it commits and is lost at
+ * the next boot until saved.
  *
  * @note Nothing is declared per site - naming a variable is what files it - so
  *       there is no per-variable code and no table to fall out of step with.
@@ -26,6 +33,7 @@
 #include "libbotanik/config/terminal.h"
 
 #include "libbotanik/console/console.h"
+#include "libbotanik/console/editor.h"
 #include "libbotanik/console/terminal.h"
 #include "libbotanik/hal/platform.h"
 #include "libbotanik/pages/page.h"
@@ -39,6 +47,7 @@ namespace Botanik { namespace Pages {
     private:
         using AnsiTerminal = Terminal::AnsiTerminal;
         using Console      = Terminal::Console;
+        using InputEditor  = Terminal::TextEditor;
         using Command      = Terminal::InputEvent::Command;
 
         /** @name Layout
@@ -59,37 +68,39 @@ namespace Botanik { namespace Pages {
         // Description + Mapping + Quality + blank spacer, then the legend and its
         // own trailing blank (see _footer_row()).
         static constexpr uint16_t PANEL_H    = 7;
+        /** @brief Longest override the field accepts. A forced reading is a
+         *  number or an enum name; nothing typed here is a sentence. */
+        static constexpr uint16_t OVR_INPUT_LEN = 48;
+        /** @brief Row arrays the field lays out over. It is single-line, so one
+         *  row is all it ever uses; the spares cost 36 bytes. */
+        static constexpr uint16_t OVR_EDIT_ROWS = 4;
         /** @brief Column order, for the derived cell positions below. */
         enum { C_SCOPE = 0, C_NAME, C_VALUE, C_UNIT, C_OVR };
         /** @} */
 
         /** @name State
          *  @{ */
-        /** @brief Distinct groups discovered from the published rows' names,
-         *  interned so the mode labels can keep pointing at them. Built once:
-         *  the table does not change after boot. */
-        mutable const char* _group_name[Vars::VAR_GROUPS_MAX] = {};
-        mutable uint8_t     _group_n = 0;
-        mutable bool        _groups_built = false;
         /** @brief Sequential-scan memo for _ref_at(), and the cached row total.
          *
-         *  _ref_at() and _total() both walk the table applying _in_mode() (a
-         *  strcmp per row), and _ref_at() runs once per DRAWN row: a 12-row
-         *  window over a 259-row table is ~3100 comparisons a refresh. Rows are
-         *  drawn top to bottom, so remembering the last (row -> index) pair
-         *  turns the walk into a resume. Invalidated by _on_mode_changed(), the
-         *  only thing that moves the mapping - the table's rows and scopes are
-         *  fixed at build time. */
+         *  _ref_at() and _total() both walk the table applying _visible() (a
+         *  substring search per row), and _ref_at() runs once per DRAWN row: a
+         *  12-row window over a 259-row table is ~3100 searches a refresh. Rows
+         *  are drawn top to bottom, so remembering the last (row -> index) pair
+         *  turns the walk into a resume. Invalidated by _on_filter_changed(),
+         *  the only thing that moves the mapping - the table's rows and scopes
+         *  are fixed at build time. */
         mutable uint16_t    _memo_row  = 0;
         mutable uint16_t    _memo_idx  = 0;
         mutable bool        _memo_ok   = false;
         mutable uint16_t    _total_n   = 0;
-        /** @brief Which mode _total_n was counted for; 0xFF = none yet. Holding
-         *  the mode rather than a valid flag makes the invalidation structural:
-         *  a path that moves _mode without going through _on_mode_changed()
-         *  still cannot leave a stale count behind. */
-        mutable uint8_t     _total_mode = 0xFF;
-        const Vars::Bank*     _io;
+        /** @brief Which filter _total_n was counted for; 0 = none yet.
+         *  Holding the generation rather than a valid flag makes the
+         *  invalidation structural: a path that moves the filter without going
+         *  through _on_filter_changed() still cannot leave a stale count
+         *  behind. */
+        mutable uint16_t    _total_gen = 0;
+        /** @brief Not const: ^O / ^R / ^S write overrides through it. */
+        Vars::Bank*           _io;
         /** @brief How to turn a row's writer index into a program name, and the
          *  thing that knows. Null when the build has no scan. A function
          *  pointer rather than a `Scan::Driver*`, so the page depends on
@@ -109,12 +120,30 @@ namespace Botanik { namespace Pages {
         uint64_t            _last_refresh_ms = 0;
         /** @} */
 
+        /** @name Override field (^O)
+         *  @{ */
+        /** buffers the editor borrows; declared before it */
+        Terminal::EditorBuffers<OVR_INPUT_LEN, OVR_EDIT_ROWS> _editor_bufs;
+        InputEditor         _editor;
+        bool                _editing = false;
+        /** @brief The row being forced. Held as a REF, not a display row: the
+         *  filter can renumber the table under an open field. */
+        Vars::VarRef        _edit_ref = { Vars::VAR_NONE };
+        bool                _edit_error = false;   ///< last commit rejected
+        /** @brief What the last override key did, and when it stops being said.
+         *  The bottom row is otherwise blank, and ^R / ^S change nothing a
+         *  short table shows. */
+        char                _said[48] = {0};
+        uint64_t            _said_until_ms = 0;
+        /** @} */
+
     public:
         /** @brief @p console owns the content geometry; @p io is the variable
-         *  table this shows (null -> empty page). */
+         *  table this shows and forces (null -> empty page). */
         MonitorPage(Console& console,
-                    const Vars::Bank* io)
-            : ScrollTablePage(console), _io(io) {}
+                    Vars::Bank* io)
+            : ScrollTablePage(console), _io(io),
+              _editor(&console, _editor_bufs.storage()) {}
 
         /** @brief Teach the page to name the program that computes a row. Wired
          *  by the firmware, the only thing holding both the page and the scan
@@ -138,12 +167,14 @@ namespace Botanik { namespace Pages {
         /** @name Input
          *  @{ */
 
-        void handle_command(Command cmd, uint16_t = 1) override {
-            if (_mode_command(cmd)) return;         // LEFT/RIGHT pick the group
-            if (_nav_command(cmd)) _dirty = true;   // redraw next tick, not the cadence
-        }
+        void handle_command(Command cmd, uint16_t count = 1) override;
 
-        void handle_text(char c) override { (void)_mode_text(c); }   // SPACE: next group
+        void handle_text(char c) override;
+
+        bool handle_cancel() override {
+            if (_editing) { _cancel_edit(); return true; }   // Ctrl+C leaves the field
+            return false;
+        }
 
         /** @} */
 
@@ -161,26 +192,14 @@ namespace Botanik { namespace Pages {
     private:
         // Model
 
-        /** @name Group modes
-         *  Mode 0 shows every group; modes 1..N show one each. The groups are
-         *  the site's own (a variable's name prefix), surfaced as a view rather
-         *  than a second concept. SPACE / RIGHT step forward, LEFT back
-         *  (scroll_table.h).
-         *  @{ */
-        /** @brief Discover the distinct groups, in table order. */
-        void _ensure_groups() const;
-
-        uint8_t _mode_count() const override { _ensure_groups(); return (uint8_t)(_group_n + 1); }
-        const char* _mode_label(uint8_t i) const override;
-        void _on_mode_changed() override {
+        void _on_filter_changed() override {
             _dirty = true;
             _memo_ok = false;      // the row -> index mapping just moved
         }
-        /** @} */
 
-        /** @brief Whether row @p i is in the table at all, and in the active
-         *  view. Mode 0 is every published row; mode k is one group. */
-        bool _in_mode(uint16_t i) const;
+        /** @brief Whether row @p i is in the table at all, and past the filter:
+         *  every published row whose name holds the typed text. */
+        bool _visible(uint16_t i) const;
 
         uint16_t _total() const;
 
@@ -255,6 +274,36 @@ namespace Botanik { namespace Pages {
         void _draw_panel();
 
         void _draw_footer();
+
+        // Overrides
+
+        /** @brief Row the override field / its report sits on. */
+        uint16_t _prompt_row() const { return (uint16_t)(_console.rows() - 1); }
+
+        /** @brief How long the prompt row keeps what it was told to say (ms). */
+        static constexpr uint32_t SAID_MS = 4000;
+
+        /** @brief Say @p text on the prompt row for SAID_MS. */
+        void _say(const char* text);
+
+        /** @brief " name = " label the field is indented past. */
+        uint16_t _edit_label(char* buf, size_t cap) const;
+
+        void _draw_prompt_row();
+        void _draw_error_marker();
+        void _clear_error();
+
+        /** @brief ^O: open the field on the selected row, seeded with what the
+         *  row reads now. Refused on a T_STR row, which has no forced form. */
+        void _start_edit();
+        void _cancel_edit();
+        void _commit_edit();
+        void _handle_edit_command(Command cmd, uint16_t count);
+
+        /** @brief ^R: release the selected row's override. */
+        void _clear_override();
+        /** @brief ^S: write the selected row's override to flash. */
+        void _save_override();
 
         /** @brief Draw the static chrome (blank top margin + header); the rules and
          *  footer carry live state and are drawn separately each tick. */

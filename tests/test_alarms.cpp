@@ -345,7 +345,7 @@ TEST_CASE("alarms render: unchanged repaint skips the structural rows") {
     CHECK(first.size() > 0);                  // structural rows drawn once
     CHECK(first.find("VARIABLE") != std::string::npos);   // header was in the first paint
 
-    f.page.handle_command(Command::ENTER, 1); // request repaint
+    f.page.handle_command(Command::UP, 1);    // request repaint (already at row 0)
     std::string second = f.paint();
     CHECK(second.size() < first.size() / 2);  // only the footer, not the table
     CHECK(second.find("VARIABLE") == std::string::npos);  // header skipped
@@ -368,7 +368,7 @@ TEST_CASE("alarms render: a same-alarm state change patches its cells, skips the
     f.paint();                                   // initial full paint; discard
 
     CHECK(f.model.ack("bbb") == true);           // BBB (row1) active+unack -> active+ack
-    f.page.handle_command(Command::ENTER, 1);    // repaint, selection still at row0
+    f.page.handle_command(Command::UP, 1);       // repaint, selection still at row0
     std::string out = f.paint();
 
     CHECK(out.size()          > 0);                   // the changed cells were emitted
@@ -383,7 +383,7 @@ TEST_CASE("alarms render: a same-alarm state change patches its cells, skips the
 TEST_CASE("alarms render: unchanged data repaint emits nothing") {
     RenderFixture f;
     raise_all(f);
-    f.page.handle_command(Command::ENTER, 1);
+    f.page.handle_command(Command::UP, 1);
     std::string out = f.paint();
     CHECK(out.find("CCC") == std::string::npos);   // no data row re-emitted
     CHECK(out.find("----") == std::string::npos);  // no rule re-emitted
@@ -397,7 +397,7 @@ TEST_CASE("alarms render: identity change redraws the row in full") {
     f.paint();
 
     step_bits(f.bank, f.alarm_rows, f.model, 0x3, 2000);             // BBB now active too -> sorts in, reorders
-    f.page.handle_command(Command::ENTER, 1);
+    f.page.handle_command(Command::UP, 1);
     std::string out = f.paint();
     CHECK(out.find("BBB") != std::string::npos);   // a full row carried the new CODE
 }
@@ -440,16 +440,16 @@ TEST_CASE("alarms render: DOWN moves the selection and scrolls it into view") {
     CHECK(out.find("CCC") != std::string::npos);      // the cursor followed down into view
 }
 
-// SPACE's badge must reach the wire before the table rewrite it triggers;
-// the legend row must survive the tick it's raised in, or a naive
-// "reconciled?" check demotes it before it is ever drawn.
+// The badge must reach the wire before the table rewrite it triggers; the
+// legend row must survive the tick it's raised in, or a naive "reconciled?"
+// check demotes it before it is ever drawn.
 TEST_CASE("alarms render: a mode change shows the new mode before the rows") {
     RenderFixture f(13);                          // short screen: rows overflow
     step_bits(f.bank, f.alarm_rows, f.model, 0xF, 1000);
     f.page.focus();
     f.paint();                                    // settle the initial paint
 
-    f.page.handle_text(' ');                      // recent -> all
+    f.page.handle_command(Command::RIGHT, 1);     // recent -> all
     // One tick + one present: the badge should already be on the wire.
     f.page.tick(true);
     f.console.terminal().present();
@@ -463,6 +463,38 @@ TEST_CASE("alarms render: a mode change shows the new mode before the rows") {
     // And the page settles rather than churning on the raised row.
     f.paint();
     CHECK(f.paint().empty());
+}
+
+// The filter is the base's, so this covers every table's row filter; what is
+// per-page is only which cell it matches against.
+TEST_CASE("alarms render: a typed filter keeps the matching rows, ESC gives the rest back") {
+    RenderFixture f;
+    raise_all(f);
+
+    f.page.handle_text('b');
+    std::string out = f.paint();
+    CHECK(out.find("[/b]") != std::string::npos);   // the badge carries what was typed
+    CHECK(out.find("bbb")  != std::string::npos);   // the one match is drawn
+    CHECK(out.find("aaa")  == std::string::npos);   // and the rest are gone
+    CHECK(out.find("ddd")  == std::string::npos);
+
+    f.page.handle_command(Command::ESC, 1);
+    std::string back = f.paint();
+    CHECK(back.find("aaa") != std::string::npos);   // cleared: the whole set again
+    CHECK(back.find("ddd") != std::string::npos);
+}
+
+// 'a' used to ack; it is a filter character now, so the ack moved to a key that
+// cannot be typed.
+TEST_CASE("alarms render: ENTER acknowledges the selected condition") {
+    RenderFixture f;
+    raise_all(f);
+    REQUIRE(f.model.condition(0).active);
+    REQUIRE(f.model.condition(0).user_ack == false);
+
+    f.page.handle_command(Command::ENTER, 1);
+    CHECK(f.model.condition(0).user_ack == true);
+    CHECK(f.model.condition(1).user_ack == false);   // only the selected one
 }
 
 }  // namespace alarms_render

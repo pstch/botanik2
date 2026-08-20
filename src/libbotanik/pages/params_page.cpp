@@ -16,7 +16,7 @@ namespace Botanik { namespace Pages {
 
     void ParamsPage::handle_command(Command cmd, uint16_t count) {
         if (_editing) { _handle_edit_command(cmd, count); return; }
-        if (_mode_command(cmd)) return;             // LEFT/RIGHT pick the group
+        if (_filter_command(cmd)) { _dirty = true; return; }   // BACKSPACE pops, ESC clears
         if (_nav_command(cmd)) { _dirty = true; return; }
         if (cmd == Command::ENTER && _visible_count() > 0) { _start_edit(); _dirty = true; }
         // ^O writes, as on the NOTES page: the same key means the same thing on
@@ -36,17 +36,16 @@ namespace Botanik { namespace Pages {
     }
 
     void ParamsPage::handle_text(char c) {
-        if (!_editing && _mode_text(c)) return;     // SPACE: next group
-        if (!_editing) return;
+        if (!_editing) { if (_filter_text(c)) _dirty = true; return; }
         if (c < 0x20 || c == 0x7F) return;          // printable only
         if (_edit_error) _clear_error();
         _editor.insert_characters(&c, 1);
     }
 
     void ParamsPage::focus() {
-        // The group badge acknowledges a keypress, so its row outranks the
+        // The filter badge acknowledges a keypress, so its row outranks the
         // table (re-declared here: the Console resets the band on a switch).
-        _claim_mode_row(_mode_row());
+        _claim_legend_row(_legend_row());
         _editing = false;
         _dirty = true;
         if (_selected >= _visible_count()) _selected = 0;
@@ -76,52 +75,19 @@ namespace Botanik { namespace Pages {
         _draw_prompt_row();
     }
 
-    void ParamsPage::_ensure_groups() const {
-        if (_groups_ready) return;
-        _groups_ready = true;
-        _group_n = 0;
-        for (uint16_t i = 0; i < _param_count() && _group_n < GROUPS_MAX; i++) {
-            // Interned by _group_of(), so the pointer outlives the call.
-            const char* g = _group_of(*_params->param_at(i).meta());
-            bool seen = false;
-            for (uint8_t k = 0; k < _group_n; k++)
-                if (strcmp(_group_name[k], g) == 0) { seen = true; break; }
-            if (!seen) _group_name[_group_n++] = g;
-        }
-    }
-
-    const char* ParamsPage::_group_intern(const char* g) {
-        static char pool[GROUPS_MAX][Config::VAR_GROUP_NAME_LEN];
-        static uint8_t used = 0;
-        for (uint8_t i = 0; i < used; i++)
-            if (strcmp(pool[i], g) == 0) return pool[i];
-        if (used >= GROUPS_MAX) return "?";
-        char* dst = pool[used++];
-        size_t n = strlen(g);
-        if (n >= sizeof(pool[0])) n = sizeof(pool[0]) - 1;
-        memcpy(dst, g, n); dst[n] = 0;
-        return dst;
-    }
-
-    const char* ParamsPage::_mode_label(uint8_t i) const {
-        if (i == 0) return "all";
-        _ensure_groups();
-        return (i <= _group_n) ? _group_name[i - 1] : "all";
-    }
-
-    void ParamsPage::_on_mode_changed() {
+    void ParamsPage::_on_filter_changed() {
         _editing = false;
         _dirty = true;
-        _vis_ready = false;   // a different view shows a different count
+        _vis_ready = false;   // a narrower table holds a different count
     }
 
     uint16_t ParamsPage::_param_at(uint16_t row) const {
-        // In "all" the visible row IS the parameter index; the scan below
+        // Unfiltered, the visible row IS the parameter index; the scan below
         // would walk the whole table per drawn row to rediscover that.
-        if (_mode == 0) return (row < _param_count()) ? row : _param_count();
+        if (_filter_n == 0) return (row < _param_count()) ? row : _param_count();
         uint16_t seen = 0;
         for (uint16_t k = 0; k < _param_count(); k++) {
-            if (!_in_mode(k)) continue;
+            if (!_visible(k)) continue;
             if (seen == row) return k;
             seen++;
         }
@@ -131,7 +97,7 @@ namespace Botanik { namespace Pages {
     uint16_t ParamsPage::_visible_count() const {
         if (_vis_ready) return _vis_count;
         uint16_t n = 0;
-        for (uint16_t k = 0; k < _param_count(); k++) if (_in_mode(k)) n++;
+        for (uint16_t k = 0; k < _param_count(); k++) if (_visible(k)) n++;
         _vis_count = n;
         _vis_ready = true;
         return n;
@@ -186,20 +152,6 @@ namespace Botanik { namespace Pages {
         _draw_rule(RULE_ROW, '+');
     }
 
-    const char* ParamsPage::_group_of(const Vars::Descriptor& d) {
-        const char* u = strchr(d.name, '_');
-        if (u == nullptr) return d.name;          // the serial itself
-        char g[Config::VAR_GROUP_NAME_LEN];
-        size_t n = (size_t)(u - d.name);
-        if (n >= sizeof(g)) n = sizeof(g) - 1;
-        memcpy(g, d.name, n); g[n] = 0;
-        // Interned, NOT a pointer into a shared static: _draw_mode_line holds
-        // the selected row's group while it asks for the neighbouring view
-        // names, and that walks every parameter through here - a shared buffer
-        // would be overwritten mid-call.
-        return _group_intern(g);
-    }
-
     const char* ParamsPage::_selected_cell() const {
         if (_params == nullptr || _selected >= _visible_count()) return nullptr;
         return _params->param_at(_param_at(_selected)).meta()->name;
@@ -211,8 +163,8 @@ namespace Botanik { namespace Pages {
         _blank_line((uint16_t)(r + 1));     // breathe under the table
         if (_visible_count() == 0) {
             for (uint16_t i = 2; i < PANEL_H; i++)
-                if ((uint16_t)(r + i) != _mode_row()) _blank_line((uint16_t)(r + i));
-            _draw_mode_line(_mode_row(), nullptr, nullptr);
+                if ((uint16_t)(r + i) != _legend_row()) _blank_line((uint16_t)(r + i));
+            _draw_legend(_legend_row(), "no match");
             return;
         }
         Vars::Var p = _params->param_at(_param_at(_selected));
@@ -247,9 +199,7 @@ namespace Botanik { namespace Pages {
         _panel_field((uint16_t)(r + 3), "Description", d.desc);
         _panel_field((uint16_t)(r + 4), "Notes",       d.notes);
         _blank_line((uint16_t)(r + 5));                     // blank above the legend
-        // The group rides the legend line rather than costing a panel row, and
-        // only in the "all" view, where the badge cannot say it.
-        _draw_mode_line(_mode_row(), _mode == 0 ? _group_of(d) : nullptr, nullptr);
+        _draw_legend(_legend_row(), nullptr);
     }
 
     void ParamsPage::_draw_label() {
@@ -355,44 +305,14 @@ namespace Botanik { namespace Pages {
     }
 
     void ParamsPage::_handle_edit_command(Command cmd, uint16_t count) {
-        switch (cmd) {
-            case Command::ENTER:      _commit_edit();               break;
-            case Command::ESC:        _cancel_edit();               break;
-            case Command::BACKSPACE:
-                if (_edit_error) _clear_error();
-                _editor.backspace(count);                           break;
-            case Command::DELETE:
-            case Command::CTRL_D:
-                if (_edit_error) _clear_error();
-                _editor.delete_forward(count);                      break;
-            case Command::LEFT:  case Command::CTRL_B:
-                _editor.move_left();                                break;
-            case Command::RIGHT: case Command::CTRL_F:
-                _editor.move_right();                               break;
-            case Command::HOME:  case Command::CTRL_A:
-                _editor.move_to_line_start();                       break;
-            case Command::END:   case Command::CTRL_E:
-                _editor.move_to_line_end();                         break;
-            case Command::CTRL_U:
-                if (_edit_error) _clear_error();
-                _editor.move_to_line_start();
-                _editor.delete_forward(_editor.buffer_len());       break;
-            // Same cut/paste as the shell prompt, same ring: Alt+W on the table
-            // puts a name in it, and this is the field it gets pasted into.
-            case Command::CTRL_K:
-                if (_edit_error) _clear_error();
-                _editor.kill_to_line_end();                         break;
-            case Command::CTRL_W:
-                if (_edit_error) _clear_error();
-                _editor.kill_region_or_word();                      break;
-            case Command::CTRL_SPACE: _editor.toggle_mark();         break;
-            case Command::CTRL_G:  _editor.clear_mark();             break;
-            case Command::ALT_W:   _editor.copy_region();            break;
-            case Command::CTRL_Y:
-                if (_edit_error) _clear_error();
-                _editor.yank();                                     break;
-            default: break;
-        }
+        if (cmd == Command::ENTER) { _commit_edit(); return; }
+        if (cmd == Command::ESC)   { _cancel_edit(); return; }
+        const EditKey k = _edit_kind(cmd);
+        if (k == EDIT_IGNORED) return;
+        // Before the edit, not after: the marker is drawn from the field's END,
+        // which the edit is about to move.
+        if (k == EDIT_CHANGED && _edit_error) _clear_error();
+        _edit_apply(_editor, cmd, count);
     }
 }}
 

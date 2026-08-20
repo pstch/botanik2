@@ -13,11 +13,14 @@
  *   rows 4..N-5      data rows
  *   row N-4          bottom rule; corners cap to 'v' when more below
  *   row N-3          blank row above the legend
- *   row N-2          footer legend: reverse-video mode badge + counts, SPACE hint
+ *   row N-2          footer legend: reverse-video mode badge, counts, filter
  *   row N-1          blank row below the legend
  *
+ * Typing narrows the table to the conditions whose variable name holds what was
+ * typed; ENTER acknowledges the selected one.
+ *
  * @note Rows are ordered active-first then by most-recent onset. The "all"
- *       filter is the exception, keeping TABLE order so rows never reorder as
+ *       view is the exception, keeping TABLE order so rows never reorder as
  *       alarms toggle.
  */
 
@@ -46,11 +49,12 @@ namespace Botanik { namespace Pages {
         /** @name State
          *  @{ */
 
-        /** @brief Alarm source (may be null). Non-const: the `a` key acks the
+        /** @brief Alarm source (may be null). Non-const: ENTER acks the
          *  selected condition through it. */
         Alarms::AlarmController*       _model;
-        /** @brief A nav / mode / ack happened: redraw on the next tick rather
-         *  than waiting for the value cadence, so the keypress feels immediate. */
+        /** @brief A nav / view / filter / ack happened: redraw on the next tick
+         *  rather than waiting for the value cadence, so the keypress feels
+         *  immediate. */
         bool                      _dirty = true;
         /** @brief Uptime of the last cadence rebuild (see tick()). */
         uint64_t                  _last_refresh_ms = 0;
@@ -61,9 +65,10 @@ namespace Botanik { namespace Pages {
 
         /** @} */
 
-        /** @name Filter modes
+        /** @name Views
          *  The base's view-mode machinery (scroll_table.h): SPACE / RIGHT step
-         *  forward, LEFT steps back.
+         *  forward, LEFT steps back. Independent of the row filter, which
+         *  narrows whichever view is showing.
          *  @{ */
         static constexpr uint8_t MODE_RECENT   = 0;  // last event, within window
         static constexpr uint8_t MODE_ALL      = 1;  // every defined alarm
@@ -73,8 +78,10 @@ namespace Botanik { namespace Pages {
 
         uint8_t _mode_count() const override { return MODE_COUNT; }
         const char* _mode_label(uint8_t i) const override;
-        /** @brief A new filter shows a different set, so re-collect and repaint. */
+        /** @brief A new view shows a different set, so re-collect and repaint. */
         void _on_mode_changed() override { _collect(); _dirty = true; }
+        /** @brief Same, for the typed filter. */
+        void _on_filter_changed() override { _collect(); _dirty = true; }
         /** @} */
 
         /** @name Layout
@@ -115,8 +122,8 @@ namespace Botanik { namespace Pages {
         static void _fmt_event(char* buf, size_t cap, const Alarms::AlarmCondition& c);
 
 
-        /** @brief Draw the footer legend: reverse-video mode badge + counts on
-         *  the left, SPACE-cycles-mode hint on the right. */
+        /** @brief Draw the footer legend: the view badge and its neighbours, the
+         *  position, the filter, and how many conditions are active. */
         void _draw_footer(uint16_t row, uint8_t active);
 
         /** @brief Detail panel between the bottom rule and the legend, a blank
@@ -143,8 +150,8 @@ namespace Botanik { namespace Pages {
             return x.started_ms > y.started_ms;        // then most-recent onset
         }
 
-        /** @brief Fill _vis/_nvis with the indices shown in the current mode,
-         *  ordered active-first then by most-recent onset. */
+        /** @brief Fill _vis/_nvis with the indices the view and the filter both
+         *  keep, ordered active-first then by most-recent onset. */
         void _collect();
 
         /** @name Window geometry

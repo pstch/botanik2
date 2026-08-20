@@ -185,12 +185,12 @@ namespace Botanik { namespace Health {
 #endif
 
     void HealthMonitor::register_tasks() {
-        _tasks->add(*this, &HealthMonitor::_service_task, "health", Tasks::GROUP_SLOW,
+        _tasks->add(*this, &HealthMonitor::_service_task, "sys_health", Tasks::GROUP_SLOW,
               Tasks::PHASE_SERVICE);
 #if BOTANIK_FEATURE_VARS
         // Every beat, and BEFORE the programs: a fault must inhibit this beat's
         // control, not the next one.
-        _tasks->add(*this, &HealthMonitor::_latch_task, "control_latch",
+        _tasks->add(*this, &HealthMonitor::_latch_task, "sys_control_latch",
                     Tasks::GROUP_FAST, Tasks::PHASE_SERVICE);
 #endif
         // Then the model, which this used to step inside its own task: same

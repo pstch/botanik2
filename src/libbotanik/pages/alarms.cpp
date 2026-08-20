@@ -40,10 +40,8 @@ namespace Botanik { namespace Pages {
 
     void AlarmsPage::_draw_footer(uint16_t row, uint8_t active) {
         char detail[32];
-        snprintf(detail, sizeof(detail), "%u active   a:ack", (unsigned)active);
-        // No group: the alarms table's views ARE its modes, so the badge and
-        // its neighbours already say everything a group field would.
-        _draw_mode_line(row, nullptr, detail);
+        snprintf(detail, sizeof(detail), "%u active  ENTER acks", (unsigned)active);
+        _draw_legend(row, detail);
     }
 
     void AlarmsPage::_draw_notes() {
@@ -84,6 +82,7 @@ namespace Botanik { namespace Pages {
              i < _model->count() && _nvis < Config::ALARM_SLOTS; i++) {
             const Alarms::AlarmCondition& c = _model->condition(i);
             if (c.name() == nullptr) continue;             // undefined slot
+            if (!_filter_match(c.name())) continue;
             bool include;
             switch (_mode) {
                 case MODE_RECENT:   include = _is_recent(c, now);     break;
@@ -202,23 +201,25 @@ namespace Botanik { namespace Pages {
     }
 
     void AlarmsPage::handle_text(char c) {
-        // SPACE cycles the filter (base). The legend row outranks the table
+        // Typing narrows the table (base). The legend row outranks the table
         // rows (focus()), so the badge reaches the wire ahead of the repaint.
-        if (_mode_text(c)) return;
-        if (c == 'a' || c == 'A') _ack_selected();   // ack the selected condition
+        (void)_filter_text(c);
     }
 
     void AlarmsPage::handle_command(Command cmd, uint16_t) {
-        if (_mode_command(cmd)) return;              // LEFT/RIGHT change filter
+        // ENTER acks, not 'a': every table takes typing as its filter, so the
+        // one key that acts on a row has to be one that cannot be typed.
+        if (cmd == Command::ENTER) { _ack_selected(); return; }
+        if (_filter_command(cmd)) return;            // BACKSPACE pops, ESC clears
+        if (_mode_command(cmd)) return;              // LEFT/RIGHT change the view
         if (_nav_command(cmd)) { _dirty = true; return; }
-        if (cmd == Command::ENTER) { _top = 0; _selected = 0; _dirty = true; }  // jump to top
     }
 
     void AlarmsPage::focus() {
-        // The mode badge acknowledges a keypress, so its row must beat the
+        // The legend badges acknowledge a keypress, so their row must beat the
         // table rows. Must be declared here: the Console hands the content band
         // back as plain structure on every page switch.
-        _claim_mode_row(_legend_row());
+        _claim_legend_row(_legend_row());
         _dirty = true;   // draw the whole page fresh (the terminal diff pares it)
     }
 

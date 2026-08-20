@@ -796,6 +796,10 @@ namespace Botanik { namespace HAL {
         // InputEvents) rather than as signals. Restore handlers still fire on
         // exit.
         raw.c_lflag &= ~(ICANON | ECHO | ISIG);
+        // Clear software flow control too: 0x13 is Ctrl+S to the app (the
+        // MONITOR page's save key), and with IXON the tty layer eats it and
+        // stops the sim's output until an XON that never comes.
+        raw.c_iflag &= ~(IXON | IXOFF | IXANY);
         raw.c_cc[VMIN]  = 0;
         raw.c_cc[VTIME] = 0;
         tcsetattr(STDIN_FILENO, TCSAFLUSH, &raw);

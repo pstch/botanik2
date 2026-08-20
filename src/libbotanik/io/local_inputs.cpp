@@ -51,7 +51,7 @@ namespace Botanik { namespace Io {
     }
 
     void LocalInputs::register_tasks() {
-        _tasks->add(*this, &LocalInputs::_input_task, "local_in",
+        _tasks->add(*this, &LocalInputs::_input_task, "sys_local_in",
                     Tasks::GROUP_FAST, Tasks::PHASE_INPUT);
     }
 

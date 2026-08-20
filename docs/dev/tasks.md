@@ -56,21 +56,21 @@ paid when the loop was a fixed call sequence.
 
 | Task | Phase | Group | Binding constraint | Cut |
 |---|---|---|---|---|
-| `console_in` | input | fast | 4800 baud fills the 255-byte ring in 585 ms; echo latency | - |
-| `expire_stale` | input | background | timeouts are 3x a poll group's period, so 3 - 180 s | 50x |
-| `params` | config | slow | human edit latency | 10x |
-| `health` | service | slow | alarm dwell (`on_s`/`off_s`) is in seconds | 10x |
-| `control_latch` | service | fast | must see a health fault before the programs run | - |
-| `net` | service | fast | MQTT keepalive 60 s, telemetry 30 s; TCP drain | - |
+| `sys_console_rx` | input | fast | 4800 baud fills the 255-byte ring in 585 ms; echo latency | - |
+| `sys_expire_stale` | input | background | timeouts are 3x a poll group's period, so 3 - 180 s | 50x |
+| `sys_params` | config | slow | human edit latency | 10x |
+| `sys_health` | service | slow | alarm dwell (`on_s`/`off_s`) is in seconds | 10x |
+| `sys_control_latch` | service | fast | must see a health fault before the programs run | - |
+| `sys_net` | service | fast | MQTT keepalive 60 s, telemetry 30 s; TCP drain | - |
 | each control program | execute | its own | the process time constant it acts on | - |
 | `site` | execute | fast | the site's own per-beat hook | - |
 | `logger` | present | fast | queue drain against the boot burst; eviction risk | - |
-| `console` | present | slow | 4800 baud = 4.4 bytes/beat; echo perception | 10x |
-| `monitor_log` | present | fast | log queue drain, and the port either way | - |
-| `console_tx` | present | fast | reconcile the frame, keep the UART fed | - |
+| `sys_console` | present | slow | 4800 baud = 4.4 bytes/beat; echo perception | 10x |
+| `sys_monitor_log` | present | fast | log queue drain, and the port either way | - |
+| `sys_console_tx` | present | fast | reconcile the frame, keep the UART fed | - |
 | *Modbus commit / collect* | input / output | fast | ring fills in 146 ms @19200, **24 ms** @115200 | - |
 
-The two wins are `expire_stale` (50x) and the console render (10x, and the most
+The two wins are `sys_expire_stale` (50x) and the console render (10x, and the most
 expensive item per invocation). `logger`, the serial pumps and the watchdog kick
 stay on the beat deliberately: they are safety- or latency-critical.
 

@@ -65,11 +65,11 @@ namespace Botanik { namespace Terminal {
     void Console::register_tasks() {
         // The port's own two tasks are gone: the console pumps the wire it
         // owns, at the two ends of the beat it was already working at.
-        _tasks->add(*this, &Console::_input_task, "console_rx", Tasks::GROUP_FAST,
+        _tasks->add(*this, &Console::_input_task, "sys_console_rx", Tasks::GROUP_FAST,
               Tasks::PHASE_INPUT);
-        _tasks->add(*this, &Console::_draw_task,  "console",    Tasks::GROUP_SLOW,
+        _tasks->add(*this, &Console::_draw_task,  "sys_console",    Tasks::GROUP_SLOW,
               Tasks::PHASE_PRESENT);
-        _tasks->add(*this, &Console::_flush_task, "console_tx", Tasks::GROUP_FAST,
+        _tasks->add(*this, &Console::_flush_task, "sys_console_tx", Tasks::GROUP_FAST,
               Tasks::PHASE_PRESENT);
     }
 

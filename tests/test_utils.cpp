@@ -25,6 +25,7 @@ using Botanik::Utils::format_float;
 using Botanik::Utils::format_int;
 using Botanik::Utils::format_age;
 using Botanik::Utils::format_size;
+using Botanik::Utils::contains_ci;
 static const auto env_u8  = Botanik::HAL::Env::u8;   // HAL::Env: reading env is a platform call
 static const auto env_u32 = Botanik::HAL::Env::u32;
 
@@ -100,6 +101,22 @@ TEST_CASE("format_float: non-finite inputs render as tags") {
     CHECK(std::strcmp(format_float(b, sizeof(b),  nan, 2),  "nan") == 0);
     CHECK(std::strcmp(format_float(b, sizeof(b),  inf, 2),  "inf") == 0);
     CHECK(std::strcmp(format_float(b, sizeof(b), -inf, 2), "-inf") == 0);
+}
+
+TEST_CASE("contains_ci: case-folded substring, with the empty and null edges") {
+    CHECK(contains_ci("cli_temp_setpoint", "temp"));
+    CHECK(contains_ci("cli_temp_setpoint", "TEMP"));
+    CHECK(contains_ci("CLI_TEMP_SETPOINT", "temp"));
+    CHECK(contains_ci("cli_temp_setpoint", "cli_temp_setpoint"));
+    CHECK(contains_ci("cli_temp_setpoint", "t"));
+    CHECK_FALSE(contains_ci("cli_temp_setpoint", "tempo"));
+    CHECK_FALSE(contains_ci("cli_temp", "cli_temp_setpoint"));   // needle outruns the tail
+    CHECK_FALSE(contains_ci("", "a"));
+    // An empty needle is the unfiltered table: it keeps every row.
+    CHECK(contains_ci("anything", ""));
+    CHECK(contains_ci("", ""));
+    CHECK(contains_ci(nullptr, ""));
+    CHECK_FALSE(contains_ci(nullptr, "a"));
 }
 
 TEST_CASE("format_age: picks the largest sensible unit") {

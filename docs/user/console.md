@@ -163,15 +163,23 @@ tab strip is the map: the active page shows as `N:NAME`, the rest as bare digits
 | 3 | LOGS | the full scrolling log |
 | 4 | ALARMS | the alarm table, and acknowledging alarms |
 | 5 | PARAMS | reading and editing parameters |
-| 6 | MONITOR | every published variable |
+| 6 | MONITOR | every published variable, and forcing one |
 | 7 | TASKS | what the loop is spending its time on |
 | 8 | NOTES | free-text notes kept on the unit |
 
 The four table pages (ALARMS, PARAMS, MONITOR, TASKS) are driven the same way:
-`UP`/`DOWN` move the selection, `LEFT`/`RIGHT` change the view mode shown in the
-footer badge, `SPACE` steps to the next mode, and the panel below the table details
-the selected row. Whatever they are looking at, `Alt+W` copies the selected row's
-name.
+`UP`/`DOWN` move the selection, the panel below the table details the selected row,
+and `Alt+W` copies the selected row's name.
+
+**Typing filters the table.** Every printable character you type is appended to a
+row filter, and the table narrows to the rows whose name contains it (case does not
+matter). `BACKSPACE` takes a character back, `ESC` clears the filter and gives the
+whole table back. The footer badge shows the filter, so `[/cli_temp]` on the legend
+line is the whole explanation of why the table is short.
+
+A page that also has view MODES - only ALARMS today - keeps them on `LEFT` /
+`RIGHT`, with the active one in its own badge. The filter narrows whichever view is
+showing.
 
 ### Home page
 
@@ -416,19 +424,19 @@ What a line means - the timestamp, the level badge, the topic - is in
  Remediation  : check vent actuators and the zone 1 sensor
  Acknowledged : -
 
-  unmasked <  [recent]     > all    1-2 / 2       1 active   a:ack
+ unmasked <  [recent]     > all    1-2 / 2      [/cli]      1 active  ENTER acks
 
  ALARMS :
 ```
 
 The alarm table, and the only place an alarm can be acknowledged: select a row and
-press `a`. The panel below shows the selected alarm's description, its remediation
-note - written by the site, in terms of the real installation - and when it was
-acknowledged.
+press `ENTER`. The panel below shows the selected alarm's description, its
+remediation note - written by the site, in terms of the real installation - and when
+it was acknowledged.
 
-`LEFT` / `RIGHT` / `SPACE` change the filter, shown in the footer badge:
+`LEFT` / `RIGHT` change the view, shown in the footer badge:
 
-| Filter | Shows |
+| View | Shows |
 |---|---|
 | `unmasked` | exactly what the alarm bar shows: active and not acknowledged |
 | `recent` | anything that happened lately, cleared included |
@@ -436,6 +444,7 @@ acknowledged.
 | `all` | every alarm condition the unit has, whether it has ever fired or not |
 
 `all` is the one to reach for when you want to know what this unit *can* tell you.
+Typing narrows whichever of the four is showing, matching the variable name.
 The lifecycle behind the columns is in @ref user_alarms.
 
 See @ref user_alarms for more information.
@@ -460,7 +469,7 @@ See @ref user_alarms for more information.
  Description  : console UART rate
  Notes        : retunes the wire AND the render budget; reconnect at the new rat
 
-                [all]    (serial)   1-11 / 170   1 unsaved (*) - ^O to save
+                                  1-11 / 170   [/net]      1 unsaved (*) ^O saves
 
  ALARMS :
 ```
@@ -476,9 +485,10 @@ with the footer counting how many rows are in that state; **`^O` writes them all
 flash**. A value the parameter's band refuses is rejected in place, marked
 `[invalid]`, and the editor stays open.
 
-`LEFT` / `RIGHT` / `SPACE` filter by group, the badge showing which. The `REGISTER`
-column is the Modbus TCP register an external master would use for that row, blank
-where the row is not published.
+Type to narrow the table to the parameters you are tuning - `net` for the network
+block, `cli_temp` for one ladder's setpoints - and `ESC` to get the rest back. The
+`REGISTER` column is the Modbus TCP register an external master would use for that
+row, blank where the row is not published.
 
 ### Monitor page
 
@@ -499,50 +509,85 @@ where the row is not published.
  Mapping      : computed
  Quality      : valid, by no program
 
-                [all]      (sys)    1-10 / 107
+                                   1-10 / 107               type to filter
 
  ALARMS :
 ```
 
 Every published variable, read straight off the table: inputs, outputs, computed
-values and status values, grouped by name prefix. Read-only - this is the page for
-*looking*, and `overrides set` is how you write.
+values and status values. Read-only - this is the page for *looking*, and
+`overrides set` is how you write. With 200-odd rows, typing a filter is how you get
+to one: names are grouped by prefix, so `grid` is every meter reading and `cli_temp`
+every ceiling temperature.
 
 The panel gives the selected row's description, notes, where the value physically
 comes from (`Mapping`), and its quality - the last being the one that answers "is
 this number worth believing". The `OVERRIDE` column flags a row someone has forced by
-hand. `LEFT` / `RIGHT` / `SPACE` step through the groups.
+hand.
 
 The `v` in the table's bottom rule means there is more below; `^` means more above.
+
+**Forcing a row from the page.** Three keys, on the selected row:
+
+| Key | Does |
+|---|---|
+| `^O` | open the override field on the bottom row, seeded with what the row reads now. `ENTER` commits, `ESC` abandons; a value the row cannot take is marked `[invalid]` and the field stays open |
+| `^R` | release the override - the live reading takes over again |
+| `^S` | write that row's override to flash |
+
+All three act on the row under the cursor, `^S` included - a save commits the row you
+are looking at, not the page. A committed override is **live at once and lost at the
+next boot until `^S`**, and the legend counts how many rows are in that state
+(`2 unsaved  ^S save`). That split is deliberate, and @ref user_variables has the
+reasoning. `overrides set` / `clear` / `save` in the shell are the same three acts, by
+name rather than by cursor - and `overrides save all` is the only one of the six that
+takes the whole table at once.
+
+A text (`str`) row cannot be forced, and `^O` says so rather than opening a field.
+
+> `^S` is also XOFF. Terminal emulators that do software flow control (minicom and
+> `screen`, by default on some builds) swallow it and pause the display instead; turn
+> XON/XOFF off there, or save from the shell with `overrides save <name>`.
 
 ### Tasks page
 
 ```
  1 2 3 4 5 6 7:TASKS 8              00:00:32                  cpu:100% stk:  2%
 
-  | TASK                  | GROUP | EVERY ms | PHASE   | MEAN us  | MISSED   |
-  +-----------------------+-------+----------+---------+----------+----------+
-  | alarms                | slow  | 100      | service | 0        | 0        |
-  | console               | slow  | 100      | present | 0        | 0        |
-  | console_rx            | fast  | 10       | input   | 0        | 0        |
-  | expire_stale          | bkgnd | 500      | input   | 0        | 0        |
-  | modbus_rtu_rx         | fast  | 10       | input   | 0        | 0        |
+  | TASK                 | GROUP | HEALTH    | PHASE   | MEAN us  | MISSED   |
+  +----------------------+-------+-----------+---------+----------+----------+
+  | cooling              | fast  | HEALTHY   | control | 0        | 0        |
+  | day_phase            | slow  | DEGRADED  | control | 0        | 0        |
+  | windows              | slow  | HEALTHY   | control | 0        | 0        |
+  | sys_alarms           | slow  |           | service | 0        | 0        |
+  | sys_console          | slow  |           | present | 0        | 0        |
   ----------------------------------------------------------------------------
 
  Last us      : 0                     Peak us      : 0
  Runs         : 323                   Missed       : 0
- Of period    : 0.0 %
+ Of period    : 0.0 %                 Every ms     : 100
+                                   1-10 / 39                type to filter
 
  ALARMS :
 ```
 
 What the loop is spending its time on, one row per registered task. `stats` gives
-the beat's CPU with no attribution; this is the attribution.
+the beat's CPU with no attribution; this is the attribution. **The site's control
+programs come first**, then the library's own tasks, each block by name - and every
+library task is named `sys_`, so the two halves read apart at a glance. Typing
+narrows the table to one subsystem's rows.
 
-**MISSED** is the column to run an eye down. A task that missed activations did not
-run at the rate it declared, and a missed activation is never caught up - so this is
-the only record that it happened. The panel adds the selected task's last and peak
-cost, its run count, and what share of its own period it uses.
+**HEALTH** is a control program's own verdict on its last activation - `HEALTHY`,
+`DEGRADED` (an input went invalid, the outputs are still good), `FAULTED` (an output
+did not) or `INHIBITED` (control stopped, actuators parked, still reporting). It is
+blank on a row that is not a program, which is most of the table: a driver or a
+service task has no such verdict to give. `INHIBITED` is what a program reports once
+it has actually parked, which is the state @ref user_control is about.
+
+**MISSED** is the other column to run an eye down. A task that missed activations did
+not run at the rate it declared, and a missed activation is never caught up - so this
+is the only record that it happened. The panel adds the selected task's last and peak
+cost, its run count, its declared period, and what share of that period it uses.
 
 The shell answers the same questions without leaving the prompt: `tasks stats` for the
 beat's totals, `tasks list` for this table, `tasks get <name>` for one task's panel.

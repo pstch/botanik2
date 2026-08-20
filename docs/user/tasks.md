@@ -81,7 +81,10 @@ the beat at all, and is reported as a critical at boot.
 
 ## The library's tasks
 
-Twenty-one on a full build, plus one per control program the site declares.
+Twenty-one on a full build, plus one per control program the site declares. Every
+one is named `sys_`, so the table sorts the machinery apart from the site's own
+programs at a glance - and the field bus keeps `mbrtu` / `mbtcp` rather than
+spelling Modbus out in a column that has to fit.
 Anything gated on a feature is simply absent when that feature is compiled out -
 `features` from the shell says which are in this binary, and `tasks list` is
 always the authoritative answer for the unit in front of you.
@@ -90,29 +93,30 @@ always the authoritative answer for the unit in front of you.
 
 | Task | Rate | Does |
 |---|---|---|
-| `console_rx` | fast | take the console's bytes in and route what they decode to |
-| `modbus_rtu_rx` | fast | parse and commit whatever the field bus answered, before anything reads it |
-| `modbus_tcp_rx` | fast | accept, decode and apply a SCADA master's writes, before the programs run |
-| `expire_stale` | bkgnd | invalidate readings older than their declared timeout |
+| `sys_console_rx` | fast | take the console's bytes in and route what they decode to |
+| `sys_mbrtu_rx` | fast | parse and commit whatever the field bus answered, before anything reads it |
+| `sys_mbtcp_rx` | fast | accept, decode and apply a SCADA master's writes, before the programs run |
+| `sys_local_in` | fast | publish the controller's own input terminals, `F_INVERT` folded in |
+| `sys_expire_stale` | bkgnd | invalidate readings older than their declared timeout |
 
 ### Config
 
 | Task | Rate | Does |
 |---|---|---|
-| `console_cfg` | slow | the console's own: its rate, make and size (the `console_` group) |
-| `monitor_cfg` | slow | the monitor port's own rate |
-| `params` | slow | the parameter image, the paced write of retained values, and the log level - the one setting whose consumer cannot read it for itself |
+| `sys_config` | slow | hand every changed parameter group to the subsystem that reads it (the console's rate and size, the monitor port's, the network's) |
+| `sys_params` | slow | the parameter image, the paced write of retained values, and the log level - the one setting whose consumer cannot read it for itself |
 
 ### Service
 
 | Task | Rate | Does |
 |---|---|---|
-| `control_latch` | fast | carry the health verdict to control authority, and the authority edge to the programs |
-| `health` | slow | the platform alarms, and the watchdog verdict |
-| `alarms` | slow | advance every alarm's dwell and raise its transitions |
-| `net` `ntp` `mqtt` | fast | the network, clock-sync and broker state machines |
-| `telemetry` | fast | publish what is due to the broker |
-| `modbus_tcp_wr` | fast | make a master's writes durable, a couple per beat, so a burst is not a flash storm |
+| `sys_control_latch` | fast | carry the health verdict to control authority, and the authority edge to the programs |
+| `sys_health` | slow | the platform alarms, and the watchdog verdict |
+| `sys_alarms` | slow | advance every alarm's dwell and raise its transitions |
+| `sys_net` `sys_ntp` `sys_mqtt` | fast | the network, clock-sync and broker state machines |
+| `sys_telemetry` | fast | publish what is due to the broker |
+| `sys_mbtcp_wr` | fast | make a master's writes durable, a couple per beat, so a burst is not a flash storm |
+| `sys_sun` | slow | the sun's position for the site's coordinates, where a site instantiates the tracker |
 
 ### Control
 
@@ -128,16 +132,16 @@ and `supply_report` (bkgnd). Yours will differ, which is the point of the list.
 
 | Task | Rate | Does |
 |---|---|---|
-| `modbus_rtu_tx` | fast | issue the next field-bus request, so a demand decided this beat reaches the wire |
+| `sys_mbrtu_tx` | fast | issue the next field-bus request, so a demand decided this beat reaches the wire |
 
 ### Present
 
 | Task | Rate | Does |
 |---|---|---|
-| `modbus_tcp_tx` | fast | answer a SCADA master, off the image the scan just produced |
-| `console` | slow | draw the screen |
-| `console_tx` | fast | reconcile the frame to the wire and keep the UART fed |
-| `monitor_log` | fast | the monitor port: its bytes in, the log queue out |
+| `sys_mbtcp_tx` | fast | answer a SCADA master, off the image the scan just produced |
+| `sys_console` | slow | draw the screen |
+| `sys_console_tx` | fast | reconcile the frame to the wire and keep the UART fed |
+| `sys_monitor_log` | fast | the monitor port: its bytes in, the log queue out |
 
 The watchdog kick is not a task. It sits at the very bottom of the beat, after
 every phase, because it must mean *this beat completed* - and it is withheld when

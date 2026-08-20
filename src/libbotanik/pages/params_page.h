@@ -24,6 +24,9 @@
  * commits (parse + validate through Bank::set); ESC/Ctrl+C cancels. An
  * invalid value is rejected and flagged, leaving edit mode open.
  *
+ * Typing narrows the table to the parameters whose name holds what was typed
+ * (BACKSPACE pops a character, ESC clears); the legend badge shows the filter.
+ *
  * An applied value is LIVE but not durable: the row shows a trailing '*', the
  * prompt row counts what is outstanding, and ^O (Bank::save_params) writes them
  * all. Applying a config GROUP is still a separate act - bump that group's
@@ -35,7 +38,6 @@
 #include <cstring>
 
 #include "libbotanik/config/terminal.h"
-#include "libbotanik/config/vars.h"
 
 #include "libbotanik/console/console.h"
 #include "libbotanik/console/editor.h"
@@ -73,7 +75,7 @@ namespace Botanik { namespace Pages {
         static constexpr uint16_t LINE_CAP   = Config::TABLE_LINE_LEN;
         // Detail panel below the table: separator, blank spacer, Minimum /
         // Maximum / Default, Description, Notes, then the trailing spacer the
-        // [group] badge sits on (unit is a table column).
+        // [filter] badge sits on (unit is a table column).
         static constexpr uint16_t PANEL_H    = 7;
         /** @brief Column order; the selection cursor inverts C_NAME's cell.
          *
@@ -144,51 +146,25 @@ namespace Botanik { namespace Pages {
     private:
         uint16_t _param_count() const { return _params != nullptr ? _params->param_count() : 0; }
 
-        /** @name Group modes
-         *  A parameter's group IS its name prefix (`net_`, `ntp_`, `mqtt_`) -
-         *  the same prefix that names its commit serial - so the groups are
-         *  discovered from the table rather than declared twice. Mode 0 shows
-         *  every parameter; 1..N show one group each. SPACE / RIGHT step
-         *  forward, LEFT back (scroll_table.h).
+        /** @name Row filter
+         *  A typed substring of the parameter's name, which is how a tuning
+         *  session finds the handful of rows it is about: the name carries the
+         *  group (`net_`, `ntp_`, `mqtt_`), so a group is just the filter that
+         *  spells it. See scroll_table.h.
          *  @{ */
-        static constexpr uint8_t GROUPS_MAX = Vars::VAR_GROUPS_MAX;
+        void _on_filter_changed() override;
 
-        /** @brief Distinct group prefixes, in table order, discovered ONCE. The
-         *  table is fixed at build time, so the set cannot move; rebuilding it
-         *  inside _mode_label() (called per parameter by _in_mode(), itself
-         *  called per parameter by _visible_count()) would be a squared walk of
-         *  ~150 rows on every repaint. Mutable: a cache, not state. */
-        mutable const char* _group_name[GROUPS_MAX];
-        mutable uint8_t     _group_n      = 0;
-        mutable bool        _groups_ready = false;
-
-        void _ensure_groups() const;
-
-        /** @brief _group_of() returns a pointer to its own static scratch, so a
-         *  second call clobbers the first. Copy each distinct group once into a
-         *  table-lifetime store the mode labels can keep pointing at. */
-        static const char* _group_intern(const char* g);
-
-        uint8_t _mode_count() const override {
-            _ensure_groups();
-            return (uint8_t)(_group_n + 1);
-        }
-        const char* _mode_label(uint8_t i) const override;
-        void _on_mode_changed() override;
-
-        /** @brief True when parameter @p k belongs to the active view. */
-        bool _in_mode(uint16_t k) const {
-            if (_mode == 0) return true;
-            return strcmp(_group_of(*_params->param_at(k).meta()), _mode_label(_mode)) == 0;
+        /** @brief True when parameter @p k passes the filter. */
+        bool _visible(uint16_t k) const {
+            return _filter_match(_params->param_at(k).meta()->name);
         }
 
         /** @brief Map a visible row to its parameter index (VAR_NONE-ish: the
          *  count when out of range). */
         uint16_t _param_at(uint16_t row) const;
 
-        /** @brief Parameters the active view shows. Cached: a parameter's group
-         *  is its name prefix, so membership is fixed for the life of the build
-         *  and only a view change can move this. */
+        /** @brief Parameters the filter shows. Cached: the table is fixed for
+         *  the life of the build, so only a filter change can move this. */
         mutable uint16_t _vis_count = 0;
         mutable bool     _vis_ready = false;
         uint16_t _visible_count() const;
@@ -197,10 +173,10 @@ namespace Botanik { namespace Pages {
         /** @brief Row the bottom edit/hint prompt sits on (above the alarm bar). */
         uint16_t _prompt_row() const { return (uint16_t)(_console.rows() - 1); }
 
-        /** @brief The group badge sits on the panel's trailing spacer, one row
+        /** @brief The filter badge sits on the panel's trailing spacer, one row
          *  above the prompt - so an open editor, which owns the prompt row,
          *  never covers it. */
-        uint16_t _mode_row() const { return (uint16_t)(_panel_top() + PANEL_H - 1); }
+        uint16_t _legend_row() const { return (uint16_t)(_panel_top() + PANEL_H - 1); }
         /** @brief Columns the panel's second and third fields start at
          *  (Minimum | Maximum | Default).
          *
@@ -248,10 +224,6 @@ namespace Botanik { namespace Pages {
         void _draw_structure();
 
         // Detail panel (selected parameter's min/max/description/notes)
-
-        /** @brief The config group a parameter belongs to: the prefix of its
-         *  name, which is also the name of the group's commit serial. */
-        static const char* _group_of(const Vars::Descriptor& d);
 
         /** @brief Format a bound, in the parameter's OWN type - so a real
          *  parameter's band shows its decimals instead of being truncated to

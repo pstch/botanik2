@@ -55,7 +55,7 @@ Description ................. : zone 1 air temperature
 being held at, or `-` when nothing is forced. That pair answers the question behind
 releasing an override: has the sensor come back?
 
-The MONITOR page shows the same set on screen, grouped (@ref user_console).
+The MONITOR page shows the same set on screen, filtered by typing (@ref user_console).
 
 ### Why a reading is invalid
 
@@ -88,6 +88,11 @@ botanik> overrides save all                     # keep what is forced across a r
 ```
 
 A forced value reads as **good** unless you say `invalid`, the bare form included.
+
+The MONITOR page does the same three things on the row under the cursor, without
+naming it: `^O` forces, `^R` releases, `^S` saves that row (@ref user_console). The
+field it opens takes the value only - the `invalid` form stays a shell thing, as does
+`save all`.
 
 What to know before using one:
 

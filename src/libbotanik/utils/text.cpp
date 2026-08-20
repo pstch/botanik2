@@ -62,6 +62,11 @@ namespace Botanik { namespace Utils {
         return _emit_reversed(buf, cap, rev, r);
     }
 
+    // ASCII lowercase; anything else is left alone.
+    static inline char _fold(char c) {
+        return (c >= 'A' && c <= 'Z') ? (char)(c - 'A' + 'a') : c;
+    }
+
     int compare_bounded(const char* s, const char* key, uint16_t len) {
         if (s == nullptr)   return (key == nullptr) ? 0 : 1;
         if (key == nullptr) return -1;
@@ -72,6 +77,20 @@ namespace Botanik { namespace Utils {
         // which is what makes a prefix not a match and keeps both arms of the
         // order the same.
         return (s[len] == 0) ? 0 : 1;
+    }
+
+    bool contains_ci(const char* hay, const char* needle) {
+        if (needle == nullptr || needle[0] == '\0') return true;
+        if (hay == nullptr) return false;
+        // Folded here rather than through tolower(): a plain char is signed on
+        // ARM, and the table pages feed this every row of a repaint.
+        for (; *hay != '\0'; hay++) {
+            const char* h = hay;
+            const char* n = needle;
+            while (*n != '\0' && *h != '\0' && _fold(*h) == _fold(*n)) { h++; n++; }
+            if (*n == '\0') return true;
+        }
+        return false;
     }
 
     const char* format_int(char* buf, size_t cap, long long value) {

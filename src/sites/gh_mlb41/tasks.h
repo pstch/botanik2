@@ -98,7 +98,7 @@ public:
      *         after answering at least once
      *  @return whether the meter answered, so the caller can report itself
      *         degraded rather than publishing a verdict on nothing */
-    bool step(Vars::Bank& io, bool& fault);
+    bool step(bool& fault);
 
     void reset();
 };
@@ -204,7 +204,7 @@ private:
         Vars::RefIn<uint16_t> avg_ms;
     };
 
-    static bool _rail(Vars::Bank& io, const Rail& r, uint32_t dt_ms, bool& seen);
+    static bool _rail(const Rail& r, uint32_t dt_ms, bool& seen);
 };
 
 /** @brief What a three-probe selection came to: the reading, and how many
@@ -261,22 +261,22 @@ public:
                 Vars::RefOut<bool> fault, float alpha);
 
     /** @brief Select, filter and publish. @return how many probes were used. */
-    uint8_t step(Vars::Bank& io, uint32_t dt_ms);
+    uint8_t step(uint32_t dt_ms);
 
-    float temperature(const Vars::Bank& io) const { return io.get(_temp_out); }
-    float humidity(const Vars::Bank& io) const    { return io.get(_rh_out); }
+    float temperature() const { return _temp_out.get(); }
+    float humidity() const    { return _rh_out.get(); }
     /** @brief Whether this zone published a believable reading this beat. */
-    bool valid(const Vars::Bank& io) const { return io.var(_temp_out.r).valid(); }
+    bool valid() const { return _temp_out.valid(); }
 
     void reset() { _quorum_for.reset(); _temp_seeded = _rh_seeded = false; }
 
 private:
     /** @brief The three readings of one quantity, reduced. Invalid probes do
      *  not take part; the outlier of what is left is dropped. */
-    static ZoneVote _select(const Vars::Bank& io, const Vars::RefIn<float>* refs);
+    static ZoneVote _select(const Vars::RefIn<float>* refs);
 
     /** @brief Filter and publish one quantity, or mark it unmeasured. */
-    static void _publish(Vars::Bank& io, Vars::RefOut<float> row,
+    static void _publish(Vars::RefOut<float> row,
                          Utils::ExpMovingAverage& filter, const ZoneVote& v,
                          bool& seeded, float lo, float hi);
 };
@@ -571,18 +571,18 @@ class ValveController {
 
 public:
     /** @brief Take @p coil, and its declared safe state as the fail direction. */
-    void attach(const Vars::Bank& io, Vars::RefOut<bool> coil);
+    void attach(Vars::RefOut<bool> coil);
 
-    void set(Vars::Bank& io, bool open) { io.drive(_coil, open); }
+    void set(bool open) { _coil.set(open); }
     /** @brief Drive it where a dead controller would leave it. */
-    void park(Vars::Bank& io) { set(io, _fail_open); }
+    void park() { set(_fail_open); }
     bool fails_open() const { return _fail_open; }
 
     /** @brief Modulate: @p duty of @p period_ms, floored at @p min_on_ms -
      *  under which it stays shut, because a pulse that short does not lift the
      *  seat. @return the on-time fraction actually in force */
-    float modulate(Vars::Bank& io, float duty, uint32_t period_ms,
-                   uint32_t min_on_ms, uint32_t dt_ms);
+    float modulate(float duty, uint32_t period_ms, uint32_t min_on_ms,
+                   uint32_t dt_ms);
 
     void reset() { _phase_ms = 0; }
 };

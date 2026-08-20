@@ -673,9 +673,9 @@ namespace Botanik { namespace Modbus {
         // The field bus commits its readings ahead of the bank's expiry sweep,
         // which must judge the freshest image and not the one from before this
         // beat's answers.
-        _tasks->add(*this, &RtuClient::_input_task,  "modbus_rtu_rx",
+        _tasks->add(*this, &RtuClient::_input_task,  "sys_mbrtu_rx",
               Tasks::GROUP_FAST, Tasks::PHASE_INPUT);
-        _tasks->add(*this, &RtuClient::_output_task, "modbus_rtu_tx",
+        _tasks->add(*this, &RtuClient::_output_task, "sys_mbrtu_tx",
               Tasks::GROUP_FAST, Tasks::PHASE_OUTPUT);
     }
 

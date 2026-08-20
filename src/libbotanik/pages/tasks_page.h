@@ -12,16 +12,25 @@
  * Layout (row 0 is the terminal status bar, the bottom row the alarm bar), the
  * same bordered shape as PARAMS and MONITOR:
  *   row 1            blank top margin
- *   row 2            header (| TASK | GROUP | EVERY ms | PHASE | MEAN us | MISSED |)
+ *   row 2            header (| TASK | GROUP | HEALTH | PHASE | MEAN us | MISSED |)
  *   row 3            top rule
  *   rows 4..K        one row per registered task (windowed / scrollable)
  *   rows K..         detail panel for the selected task: its last and peak
  *                    sample, its run and missed counts, and the share of its own
  *                    period the mean takes
+ *   rows()-2         legend: position, filter, hint
  *
  * Read-only: UP/DOWN move a selection cursor and the panel tracks it. Rows are
- * sorted by name - the beat's own order is phase-major, and the PHASE column
- * still carries it, but finding one task by eye beats reading the cycle here.
+ * the site's control programs first, then the library's `sys_` tasks, each block
+ * by name - the beat's own order is phase-major, and the PHASE column still
+ * carries it, but finding one task by eye beats reading the cycle here.
+ * Typing narrows the table to the tasks whose name holds what was typed.
+ *
+ * HEALTH is a control program's own verdict on its last activation
+ * (Plc::Health), blank on an entry that is not a program - most of the table.
+ * It sits where the period used to, which the panel now carries: a rate is a
+ * declaration and does not move, while this is the column worth running an eye
+ * down beside MISSED.
  *
  * MEAN is microseconds measured by the registry around each dispatch, and says
  * whether a task is affordable. MISSED takes the column beside it rather than
@@ -59,15 +68,13 @@ namespace Botanik { namespace Pages {
         static constexpr uint16_t RULE_ROW   = 3;
         static constexpr uint16_t DATA_TOP   = 4;    // first task row
         static constexpr uint16_t GROUP_W    = 5;    // "bkgnd"
-        // Wide enough for its own heading: _build_row truncates a head to the
-        // column width, so a narrower column would silently drop the unit.
-        static constexpr uint16_t PERIOD_W   = 8;    // the group's period, ms
+        static constexpr uint16_t HEALTH_W   = 9;    // "INHIBITED"
         static constexpr uint16_t PHASE_W    = 7;    // "service"
         static constexpr uint16_t MEAN_W     = 8;    // mean us
         static constexpr uint16_t MISSED_W   = 8;    // dropped activations
         static constexpr uint16_t CELL_CAP   = 24;   // one formatted cell
         static constexpr uint16_t LINE_CAP   = Config::TABLE_LINE_LEN;
-        /** @brief Separator, spacer, three detail rows, trailing spacer. The
+        /** @brief Separator, spacer, three detail rows, then the legend. The
          *  panel carries five facts in those three rows (_panel_field2), rather
          *  than growing and taking two task rows off the table. */
         static constexpr uint16_t PANEL_H    = 6;
@@ -80,7 +87,7 @@ namespace Botanik { namespace Pages {
          *  the console's byte budget. */
         static constexpr uint32_t REFRESH_MS = Config::PAGE_TASKS_MS;
         /** @brief Column order; the selection cursor inverts C_NAME's cell. */
-        enum { C_NAME = 0, C_GROUP, C_PERIOD, C_PHASE, C_MEAN, C_MISSED };
+        enum { C_NAME = 0, C_GROUP, C_HEALTH, C_PHASE, C_MEAN, C_MISSED };
         /** @} */
 
         /** @name State
@@ -89,12 +96,17 @@ namespace Botanik { namespace Pages {
         const Tasks::Registry&   _reg;
         bool                         _dirty = true;
         uint64_t                     _last_refresh_ms = 0;
-        /** @brief Row order: task indices sorted by name. Registration order is
-         *  the beat's order, but PHASE already carries that and finding one task
-         *  by eye matters more here. Built once: the registry is frozen after
-         *  bring-up, so only a changed count invalidates it. */
+        /** @brief Row order: the tasks the filter keeps, programs first then by
+         *  name (_before()). Registration order is the beat's order, but PHASE
+         *  already carries that and finding one task by eye matters more here.
+         *  The registry is frozen after bring-up, so only a changed count or a
+         *  new filter rebuilds this. */
         mutable uint8_t              _order[Config::MAX_TASKS] = {};
         mutable uint8_t              _order_n = 0;
+        /** @brief What _order holds: the task count it was built from, and the
+         *  filter generation (0 = never built). */
+        mutable uint8_t              _order_of = 0;
+        mutable uint16_t             _order_gen = 0;
         /** @} */
 
     public:
@@ -108,10 +120,11 @@ namespace Botanik { namespace Pages {
         /** @name Input
          *  @{ */
         void handle_command(Command cmd, uint16_t count = 1) override {
+            if (_filter_command(cmd)) { _dirty = true; return; }
             if (_nav_command(cmd)) { _dirty = true; return; }
             (void)count;
         }
-        void handle_text(char /*c*/) override {}
+        void handle_text(char c) override { if (_filter_text(c)) _dirty = true; }
         bool handle_cancel() override { return false; }
         /** @} */
 
@@ -125,10 +138,15 @@ namespace Botanik { namespace Pages {
         /** @} */
 
     private:
-        uint16_t _count() const { return _reg.count(); }
+        /** @brief Tasks the filter keeps: the rows the cursor moves over. */
+        uint16_t _count() const { _ensure_order(); return _order_n; }
 
-        /** @brief Build the name-sorted index, once. Insertion sort: the table is
-         *  a couple of dozen entries and this runs at most once a boot. */
+        /** @brief Whether task @p a sorts before task @p b. */
+        bool _before(uint8_t a, uint8_t b) const;
+
+        /** @brief Build the sorted index of what the filter keeps.
+         *  Insertion sort: the table is a couple of dozen entries and this runs
+         *  once a boot, then once per filter keystroke. */
         void _ensure_order() const;
 
         const char* _name_of(uint8_t i) const {
@@ -141,6 +159,13 @@ namespace Botanik { namespace Pages {
             _ensure_order();
             return _reg.task(_order[r < _order_n ? r : 0]);
         }
+
+        /** @brief A different filter shows a different set. */
+        void _on_filter_changed() override { _dirty = true; }
+
+        /** @brief The legend sits on the panel's last row, as it does on the
+         *  other tables. */
+        uint16_t _legend_row() const { return (uint16_t)(_panel_top() + PANEL_H - 1); }
 
         /** @name ScrollTablePage geometry
          *  @{ */
@@ -174,6 +199,9 @@ namespace Botanik { namespace Pages {
          *  they are rendered once into a small cache rather than through an
          *  snprintf per row per refresh. */
         static const char* _period_str(Tasks::GroupId g);
+
+        /** @brief @p t's health as a word, or "" when it is not a program. */
+        static const char* _health_str(const Tasks::Task& t);
 
         void _draw_row(uint16_t idx, uint16_t row, bool selected);
 

@@ -138,6 +138,13 @@ namespace Botanik { namespace Config {
 #endif
     BOTANIK_CFG(uint16_t, TABLE_LINE_LEN);
 
+    /** @brief Longest row filter a table page accepts, NUL excluded. Sized to
+     *  the widest NAME column (24), so any name is typeable in full. */
+#ifndef BOTANIK_TABLE_FILTER_LEN
+#  define BOTANIK_TABLE_FILTER_LEN 24
+#endif
+    BOTANIK_CFG(uint8_t, TABLE_FILTER_LEN);
+
     /** @} */
 
     /** @name TX pacing

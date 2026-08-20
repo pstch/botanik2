@@ -18,6 +18,7 @@
 #include <cstddef>
 #include "site_bank.h"
 #include "sites/gh_mlb41/tasks.h"
+#include "libbotanik/modbus/rtu/plan.h"
 
 // site_names
 
@@ -76,7 +77,7 @@ TEST_CASE("site: every published variable lands in a sensible group") {
         for (uint16_t k = 0; k < groups; k++)
             if (std::strcmp(seen[k], g) == 0) { known = true; break; }
         if (!known) {
-            REQUIRE(groups < Vars::VAR_GROUPS_MAX);   // else the mode line truncates
+            REQUIRE(groups < Vars::VAR_GROUPS_MAX);   // else var_group() interns "?"
             seen[groups++] = g;
         }
     }
@@ -691,3 +692,22 @@ TEST_CASE("sizeof: the site's variable table and value store") {
 
 }  // namespace sizes
 
+
+#if BOTANIK_FEATURE_MODBUS_RTU_CLIENT
+TEST_CASE("TEMP: what the planner does with unit 21") {
+    site_names::SiteBank f;
+    Botanik::Modbus::Planner plan;
+    plan.plan(f.bank, 38400, 20, &Site::g_device_table);
+    MESSAGE("rows=" << plan.row_count() << " blocks=" << plan.block_count()
+            << " dropped=" << plan.rows_dropped() << " unscanned=" << plan.rows_unscanned());
+    for (uint16_t b = 0; b < plan.block_count(); b++) {
+        const Botanik::Modbus::Block& blk = plan.block(b);
+        if (blk.device != 21 && blk.device != 5 && blk.device != 41) continue;
+        MESSAGE("blk dev=" << (int)blk.device << " fc=" << (int)blk.fc
+                << " reg=" << blk.reg << " regs=" << blk.regs
+                << " rows=" << blk.row_count << " period=" << blk.period_ms);
+        for (uint16_t r = 0; r < blk.row_count; r++)
+            MESSAGE("   row " << std::string(f.bank.descriptor(plan.row(blk.first_row + r)).name));
+    }
+}
+#endif

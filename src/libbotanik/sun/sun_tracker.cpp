@@ -165,7 +165,7 @@ namespace Botanik { namespace Sun {
     }
 
     void SunPositionTracker::register_tasks() {
-        _tasks->add(*this, &SunPositionTracker::_service_task, "sun",
+        _tasks->add(*this, &SunPositionTracker::_service_task, "sys_sun",
                     Tasks::GROUP_SLOW, Tasks::PHASE_SERVICE);
     }
 
