@@ -30,6 +30,7 @@ namespace Botanik { namespace Pages {
         // The override keys first: ^O opens the field, and the filter would
         // otherwise never see them anyway.
         if (cmd == Command::CTRL_O) { _start_edit();      return; }
+        if (cmd == Command::CTRL_V) { _toggle_validity(); return; }
         if (cmd == Command::CTRL_R) { _clear_override();  return; }
         if (cmd == Command::CTRL_S) { _save_override();   return; }
         if (_filter_command(cmd)) return;       // BACKSPACE pops, ESC clears
@@ -414,6 +415,25 @@ namespace Botanik { namespace Pages {
         if (k == EDIT_IGNORED) return;
         if (k == EDIT_CHANGED && _edit_error) _clear_error();
         _edit_apply(_editor, cmd, count);
+    }
+
+    void MonitorPage::_toggle_validity() {
+        if (_io == nullptr) return;
+        bool ok = false;
+        const Vars::VarRef ref = _ref_at(_selected, ok);
+        if (!ok) return;
+        Vars::Var h = _io->var(ref);
+        if (h.meta()->type == Vars::T_STR) { _say("a text row cannot be forced"); return; }
+        // With nothing forced, the row is frozen where it stands and marked
+        // dead in one act: "make this sensor read failed" is the reason to
+        // reach for this at all, and it would otherwise be ^O then ^V.
+        const bool forced = h.override().present();
+        const bool valid  = forced ? h.valid() : true;
+        _io->override_set(h, h.value().v, !valid);
+        if (!forced)     _say("forced, and reading invalid");
+        else if (valid)  _say("override now reads invalid");
+        else             _say("override now reads valid");
+        _dirty = true;
     }
 
     void MonitorPage::_clear_override() {

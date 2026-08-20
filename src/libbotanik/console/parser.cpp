@@ -184,6 +184,7 @@ namespace Botanik { namespace Terminal {
             case 0x10: return Command::CTRL_P;
             case 0x12: return Command::CTRL_R;
             case 0x15: return Command::CTRL_U;
+            case 0x16: return Command::CTRL_V;
             case 0x17: return Command::CTRL_W;
             case 0x19: return Command::CTRL_Y;
             case 0x7F: return Command::BACKSPACE;

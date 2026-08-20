@@ -532,11 +532,13 @@ The `v` in the table's bottom rule means there is more below; `^` means more abo
 | Key | Does |
 |---|---|
 | `^O` | open the override field on the bottom row, seeded with what the row reads now. `ENTER` commits, `ESC` abandons; a value the row cannot take is marked `[invalid]` and the field stays open |
+| `^V` | flip the force between reading good and reading dead, leaving its value alone. On a row with nothing forced it freezes the current reading and marks it dead in one act - the fast way to make a sensor read failed |
 | `^R` | release the override - the live reading takes over again |
 | `^S` | write that row's override to flash |
 
-All three act on the row under the cursor, `^S` included - a save commits the row you
-are looking at, not the page. A committed override is **live at once and lost at the
+All four act on the row under the cursor, `^S` included - a save commits the row you
+are looking at, not the page. The `VALUE` column marks what it is showing: `[O]` a
+forced row, `[I]` one whose reading is not good, `[OI]` both. A committed override is **live at once and lost at the
 next boot until `^S`**, and the legend counts how many rows are in that state
 (`2 unsaved  ^S save`). That split is deliberate, and @ref user_variables has the
 reasoning. `overrides set` / `clear` / `save` in the shell are the same three acts, by

@@ -263,6 +263,47 @@ TEST_CASE("quality: a row losing its validity is announced once, not per beat") 
     INFO("the CHANGE is the event; a row that is invalid for an hour is one line");
     CHECK(said == 1);
     CHECK(f.writer.saw("cli_temp_hi1: invalid"));
+    INFO("and it is a WARNING: something the plant is controlled on has stopped "
+         "being measured, and an operator should not need debug on to see it");
+    CHECK(f.writer.last_level == Logs::LOG_WARNING);
+
+    INFO("...where coming back is the record closing, at DEBUG");
+    f.writer.all_msgs.clear();
+    f.bank.var(r).publish(Vars::from_f32(Vars::T_F32, 21.0f), t);
+    for (uint16_t i = 0; i < 40; i++) reg.run_phase(Botanik::Tasks::PHASE_SERVICE, t += 100);
+    CHECK(f.writer.saw("cli_temp_hi1: valid"));
+    CHECK(f.writer.last_level == Logs::LOG_DEBUG);
+}
+
+TEST_CASE("quality: bring-up is adopted in silence, not announced row by row") {
+    // Every field row goes valid as its device first answers, and every program
+    // leaves INHIBITED on its first activation. Announcing all of it is several
+    // hundred lines in one breath, which the rate limiter then sheds along with
+    // whatever else was being said.
+    Fixture f;
+    Botanik::Tasks::Registry reg;
+    Health::HealthMonitor h(Botanik::SetupContext(reg, &f.log), &f.sched, &f.bank);
+    h.register_tasks();
+    reg.setup(0);
+
+    const Vars::VarRef r = f.bank.find("cli_temp_hi1");
+    REQUIRE(r.index != Vars::VAR_NONE);
+
+    // Inside the quiet window: the table is swept, the row goes valid, and
+    // nothing is said about it.
+    uint64_t t = 0;
+    for (uint16_t i = 0; i < 40; i++) reg.run_phase(Botanik::Tasks::PHASE_SERVICE, t += 100);
+    f.bank.var(r).publish(Vars::from_f32(Vars::T_F32, 21.0f), t);
+    for (uint16_t i = 0; i < 40; i++) reg.run_phase(Botanik::Tasks::PHASE_SERVICE, t += 100);
+    REQUIRE(t < Config::HEALTH_QUIET_MS);
+    CHECK_FALSE(f.writer.saw("cli_temp_hi1"));
+
+    // ...and the row was ADOPTED rather than merely skipped, so the next change
+    // is the one that speaks.
+    t = (uint64_t)Config::HEALTH_QUIET_MS + 1000;
+    f.bank.var(r).invalidate(Vars::Q_NO_DATA);
+    for (uint16_t i = 0; i < 40; i++) reg.run_phase(Botanik::Tasks::PHASE_SERVICE, t += 100);
+    CHECK(f.writer.saw("cli_temp_hi1: invalid"));
 }
 
 namespace {

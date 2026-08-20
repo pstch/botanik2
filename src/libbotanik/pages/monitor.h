@@ -18,10 +18,10 @@
  *   row N-1          the override field, or what the last override key did
  *
  * The one page that FORCES a row as well as showing it: `^O` opens an override
- * field on the bottom row (ENTER commits, ESC abandons), `^R` releases the
- * selected row's override and `^S` writes it to flash. All three act on the row
- * under the cursor. An override is live the moment it commits and is lost at
- * the next boot until saved.
+ * field on the bottom row (ENTER commits, ESC abandons), `^V` toggles whether
+ * the force reads as a good value or a dead one, `^R` releases it and `^S`
+ * writes it to flash. All four act on the row under the cursor. An override is
+ * live the moment it commits and is lost at the next boot until saved.
  *
  * @note Nothing is declared per site - naming a variable is what files it - so
  *       there is no per-variable code and no table to fall out of step with.
@@ -299,6 +299,11 @@ namespace Botanik { namespace Pages {
         void _cancel_edit();
         void _commit_edit();
         void _handle_edit_command(Command cmd, uint16_t count);
+
+        /** @brief ^V: flip the forced value between reading good and reading
+         *  dead. With nothing forced it takes the current reading first, which
+         *  is the one-key way to make a sensor read failed. */
+        void _toggle_validity();
 
         /** @brief ^R: release the selected row's override. */
         void _clear_override();

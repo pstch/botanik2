@@ -66,11 +66,24 @@ namespace Botanik { namespace Plc {
             const uint8_t now = (uint8_t)p->health();
             io.drive(p->health_row(), now);
             if (now == p->_health_said) continue;
-            // DEBUG, and only on the CHANGE: a program reporting DEGRADED every
-            // beat for an hour is one line here and a flood anywhere else.
-            if (logger != nullptr)
-                logger->debug(Logs::PROGRAM, "%s: %s", p->name(),
-                              health_name(p->health()));
+            // Only on the CHANGE: a program reporting DEGRADED every beat for
+            // an hour is one line here and a flood anywhere else. A null logger
+            // adopts the verdict silently, which is what bring-up does with the
+            // first one every program publishes.
+            //
+            // WARNING on the way DOWN the severity axis: a law that has stopped
+            // being able to do its job is something an operator wants without
+            // turning debug on. Coming back up, and parking, are DEBUG - the
+            // record closing rather than opening.
+            if (logger != nullptr) {
+                const Health h = p->health();
+                if (h == Health::DEGRADED || h == Health::FAULTED)
+                    logger->warning(Logs::PROGRAM, "%s: %s", p->name(),
+                                    health_name(h));
+                else
+                    logger->debug(Logs::PROGRAM, "%s: %s", p->name(),
+                                  health_name(h));
+            }
             p->_health_said = now;
         }
     }

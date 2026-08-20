@@ -57,6 +57,7 @@ CTRL_R = b"\x12"             # MONITOR: release the selected row's override
 # so it resolves only once the command timeout passes with no second byte.
 CTRL_S = b"\x13"
 CTRL_U = b"\x15"             # clear input
+CTRL_V = b"\x16"             # MONITOR: flip the override between good and dead
 CTRL_W = b"\x17"             # cut the word before the cursor
 CTRL_Y = b"\x19"             # paste the kill ring back
 

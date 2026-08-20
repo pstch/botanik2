@@ -12,6 +12,7 @@
 #include <vector>
 #include "libbotanik/tasks/tasks.h"
 #include "doctest.h"
+#include "recording_writer.h"
 #include <cstdio>
 #include <string>
 #include "libbotanik_site.h"
@@ -236,6 +237,40 @@ using TestScan::Cycle;
 using TestScan::Live;
 using namespace Botanik;
 using namespace Botanik::Vars;
+
+TEST_CASE("health rows: a law that has stopped working is a WARNING") {
+    Live f;
+    Botanik::Logs::Logger log;
+    log.set_min_level(Botanik::Logs::LOG_DEBUG);
+    Botanik::RecordingWriter w;
+    log.add_writer(&w);
+
+    Site::CoolingController cooling(Botanik::SetupContext(f.reg), f.bank);
+    Plc::Program* const progs[] = { &cooling };
+    Cycle d(progs, 1, &f.bank, f.reg);
+
+    f.bank.var(f.ref("cli_temp_hi")).publish(from_f32(T_F32, 21.0f), 0);
+    f.bank.var(f.ref("cli_temp_cs")).publish(from_f32(T_F32, 18.0f), 0);
+    d.step(100);
+    Plc::publish_health(f.bank, f.reg, &log);
+    w.all_msgs.clear();
+
+    INFO("both interior levels gone: the law cannot produce a demand at all");
+    f.bank.var(f.ref("cli_temp_hi")).invalidate(Q_NO_DATA);
+    f.bank.var(f.ref("cli_temp_lo")).invalidate(Q_NO_DATA);
+    d.step(200);
+    Plc::publish_health(f.bank, f.reg, &log);
+    CHECK(w.saw("cooling: FAULTED"));
+    CHECK(w.last_level == Botanik::Logs::LOG_WARNING);
+
+    INFO("...and coming back is the record closing, at DEBUG");
+    w.all_msgs.clear();
+    f.bank.var(f.ref("cli_temp_hi")).publish(from_f32(T_F32, 21.0f), 200);
+    d.step(300);
+    Plc::publish_health(f.bank, f.reg, &log);
+    CHECK(w.saw("cooling: HEALTHY"));
+    CHECK(w.last_level == Botanik::Logs::LOG_DEBUG);
+}
 
 TEST_CASE("health rows: a program's verdict reaches its row, running or not") {
     Live f;

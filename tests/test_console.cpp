@@ -981,6 +981,8 @@ TEST_CASE("parser: control bytes decode to commands") {
     CHECK(f.parse().command == Command::CTRL_W);
     f.feed("\x19");                         // Ctrl+Y
     CHECK(f.parse().command == Command::CTRL_Y);
+    f.feed("\x16");                         // Ctrl+V
+    CHECK(f.parse().command == Command::CTRL_V);
 }
 
 // CSI sequences

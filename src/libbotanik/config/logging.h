@@ -66,19 +66,25 @@ namespace Botanik { namespace Config {
      *  The dominant RAM line in a logging build: one writer costs roughly
      *  LOG_QUEUE_SIZE * (LOG_MESSAGE_LEN + 16) + LOG_FORMATTED_LEN, and the full
      *  page set registers five. Lowering it is the first thing to try on a tight
-     *  build, but keep it above the boot burst (~20 entries in the first beat)
-     *  or the announces are what gets dropped. */
+     *  build, but keep it above the biggest STORM a run has: the boot roll-call
+     *  is a line per task, and a bus going down annunciates a row at a time.
+     *  A writer drains a few entries per beat, so the queue is what carries the
+     *  peak between two of them - at 64 the sink was dropping a dozen entries
+     *  every boot. Half again buys that headroom and stays inside the 32 KB a
+     *  writer is budgeted (tests/test_site.cpp): each slot carries a whole
+     *  LOG_MESSAGE_LEN, so this line is 26 KB per writer and there are five. */
 #ifndef BOTANIK_LOG_QUEUE_SIZE
-#  define BOTANIK_LOG_QUEUE_SIZE 64
+#  define BOTANIK_LOG_QUEUE_SIZE 96
 #endif
     BOTANIK_CFG(size_t, LOG_QUEUE_SIZE);
 
     // BufferedLogWriter indexes the ring with uint8_t.
     static_assert(LOG_QUEUE_SIZE <= 255, "LOG_QUEUE_SIZE exceeds the writer's uint8_t ring index");
 
-    /** @brief Log writer queue slots reserved for CRITICAL entries. */
+    /** @brief Log writer queue slots reserved for CRITICAL entries: the depth a
+     *  storm may not eat into, so the one line that had to survive it does. */
 #ifndef BOTANIK_LOG_QUEUE_CRITICAL_RESERVE
-#  define BOTANIK_LOG_QUEUE_CRITICAL_RESERVE 4
+#  define BOTANIK_LOG_QUEUE_CRITICAL_RESERVE 8
 #endif
     BOTANIK_CFG(size_t, LOG_QUEUE_CRITICAL_RESERVE);
 

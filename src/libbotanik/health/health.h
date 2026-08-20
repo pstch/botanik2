@@ -121,6 +121,12 @@ namespace Botanik { namespace Health {
          *  conditions. @see set_network */
         void _subsystem_alarms(Vars::Bank* io);
 
+        /** @brief Whether a change is still bring-up settling rather than news.
+         *  @see Config::HEALTH_QUIET_MS */
+        static bool _quiet(uint64_t now_ms) {
+            return now_ms < Config::HEALTH_QUIET_MS;
+        }
+
         /** @brief One bounded pass of the validity sweep.
          *
          *  A row going invalid is how a dead instrument announces itself, and
@@ -130,7 +136,7 @@ namespace Botanik { namespace Health {
          *
          *  A SLICE per beat, because the table runs to several hundred rows and
          *  this sits beside the control scan. */
-        void _quality_sweep();
+        void _quality_sweep(uint64_t now_ms);
 
         /** @brief One bit per row: was it valid last time this looked. */
         uint8_t  _was_valid[(Config::VAR_MAX + 7) / 8] = {};

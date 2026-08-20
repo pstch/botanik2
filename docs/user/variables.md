@@ -89,10 +89,10 @@ botanik> overrides save all                     # keep what is forced across a r
 
 A forced value reads as **good** unless you say `invalid`, the bare form included.
 
-The MONITOR page does the same three things on the row under the cursor, without
-naming it: `^O` forces, `^R` releases, `^S` saves that row (@ref user_console). The
-field it opens takes the value only - the `invalid` form stays a shell thing, as does
-`save all`.
+The MONITOR page does the same on the row under the cursor, without naming it: `^O`
+forces, `^V` flips it between reading good and reading dead, `^R` releases and `^S`
+saves that row (@ref user_console). The field `^O` opens takes the value alone -
+validity is `^V`'s, and `save all` stays a shell thing.
 
 What to know before using one:
 

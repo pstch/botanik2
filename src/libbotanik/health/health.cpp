@@ -132,7 +132,7 @@ namespace Botanik { namespace Health {
 #if BOTANIK_FEATURE_LOGGING
         // Before the PLC block below, and outside it: whether a reading is
         // believable has nothing to do with whether this build runs programs.
-        _quality_sweep();
+        _quality_sweep(now_ms);
 #endif
 
         _subsystem_alarms(io);
@@ -150,13 +150,13 @@ namespace Botanik { namespace Health {
         // Every program's own verdict onto its row, and the changes into the
         // log. Here rather than in each program's activation, because a program
         // that is NOT being activated is exactly when a reader wants the row.
-        Plc::publish_health(*io, *_tasks, _logger);
+        Plc::publish_health(*io, *_tasks, _quiet(now_ms) ? nullptr : _logger);
 #endif
     }
 #endif // BOTANIK_FEATURE_VARS
 
 #if BOTANIK_FEATURE_VARS && BOTANIK_FEATURE_LOGGING
-    void HealthMonitor::_quality_sweep() {
+    void HealthMonitor::_quality_sweep(uint64_t now_ms) {
         // Enough to cross a 500-row table in about a second at GROUP_SLOW: fast
         // enough that a reader watching a sensor die sees it, slow enough that
         // it is not a per-beat walk of the whole model.
@@ -176,10 +176,19 @@ namespace Botanik { namespace Health {
             const bool was  = (byte & bit) != 0;
             if (now == was) continue;
             byte = (uint8_t)(now ? (byte | bit) : (byte & ~bit));
-            if (!_quality_seeded || _logger == nullptr) continue;
+            // Bring-up is not news: every field row goes valid as its device
+            // first answers, and announcing all of it is a hundred lines in one
+            // breath. The bitmap is updated above either way, so a row adopted
+            // quietly still announces the NEXT change.
+            if (!_quality_seeded || _logger == nullptr || _quiet(now_ms)) continue;
             const char* name = io->var(i).name();
-            _logger->debug(Logs::QUALITY, "%s: %s", name != nullptr ? name : "?",
-                           now ? "valid" : "invalid");
+            if (now) _logger->debug(Logs::QUALITY, "%s: valid",
+                                    name != nullptr ? name : "?");
+            // A reading going away is a WARNING: something the plant was being
+            // controlled on has stopped being measured, and the recovery is
+            // just the record closing.
+            else _logger->warning(Logs::QUALITY, "%s: invalid",
+                                  name != nullptr ? name : "?");
         }
     }
 #endif

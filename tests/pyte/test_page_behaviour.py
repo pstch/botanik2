@@ -43,6 +43,14 @@ def test_monitor_forces_a_row_and_releases_it(spawn):
     assert term.wait_screen("33.5"), "the override did not reach the OVERRIDE column"
     assert term.wait_screen("1 unsaved"), "the legend did not count the unsaved override"
 
+    # ^V flips what the force READS as, without touching the value it holds.
+    term.send(keys.CTRL_V)
+    assert term.wait_screen("override now reads invalid"), "^V did not flip the validity"
+    assert term.wait_screen("forced invalid"), "the panel still calls the force good"
+    term.send(keys.CTRL_V)
+    assert term.wait_screen("override now reads valid"), "^V did not flip it back"
+    assert term.wait_screen("33.5"), "the flip moved the forced value"
+
     term.send(keys.CTRL_S)
     assert term.wait_screen("override saved"), "^S did not reach storage"
     assert term.wait_screen("1 unsaved", present=False), "the row is still owed to flash"
