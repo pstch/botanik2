@@ -23,12 +23,12 @@
 #  define BOTANIK_VAR_MAX 512
 #endif
 
-/** @brief The TCP map holds every PARAMETER, STATUS and ALARM row - 306 on this
+/** @brief The TCP map holds every PARAMETER, STATUS and ALARM row - 354 on this
  *  profile, past the 256 default. Two bytes each, and a site that outgrows it
  *  serves a SHORT map: the rows past the end answer nothing, which an
  *  integrator reads as a device that does not have them. */
 #ifndef BOTANIK_MODBUS_TCP_MAX_ROWS
-#  define BOTANIK_MODBUS_TCP_MAX_ROWS 320
+#  define BOTANIK_MODBUS_TCP_MAX_ROWS 384
 #endif
 
 /** @brief String pool: this site declares no text rows of its own, so it is
