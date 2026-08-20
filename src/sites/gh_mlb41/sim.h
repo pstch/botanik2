@@ -149,6 +149,41 @@ inline void publish_analog(Vars::Bank& io, uint32_t now_ms) {
     HAL::DigitalIn::inject(0, false);
 }
 
+/** @brief The weather station: wind with gusts, showers, and a diurnal
+ *  irradiance taken off the same wall clock the sun tracker reads.
+ *
+ *  Without it the four rows never answer, the sky reads as unmeasured, and the
+ *  roof is locked shut for ever - which is the interlock doing its job on a
+ *  field that was not there.
+ */
+inline void publish_weather(Vars::Bank& io, uint32_t now_ms) {
+    static float    wind    = 1.5f;
+    static uint32_t rain_ms = 0;
+    static uint32_t last_ms = 0;
+
+    const uint32_t dt = (now_ms > last_ms) ? (now_ms - last_ms) : 0;
+    last_ms = now_ms;
+
+    // Mostly under cli_windShut_mps, with gusts that occasionally are not: the
+    // lockout is meant to be exercised, not avoided.
+    wind = drift(wind, 0.4f, 0.2f, 4.0f, 0.05f);
+    put(io, "cli_wind_mps", wind, now_ms);
+    put(io, "cli_windGust_mps", wind * 1.5f, now_ms);
+
+    // Showers rather than a rain rate that wanders: a shower starts rarely and
+    // then lasts, which is what the lockout's overrun is written against.
+    if (rain_ms > dt)      rain_ms -= dt;
+    else if (rain_ms > 0)  rain_ms = 0;
+    else if (chance(0.0004f)) rain_ms = 180000;
+    put(io, "cli_rain_mmph", (rain_ms > 0) ? 4.0f : 0.0f, now_ms);
+
+    // A day is a day: the same UTC clock the sun tracker works from, so dawn
+    // on this row and PHASE_DAWN_BREEZE are the same morning.
+    const uint32_t sec = (uint32_t)((HAL::Clock::wall_ms() / 1000ull) % 86400ull);
+    const float noon = sinf(((float)sec / 86400.0f - 0.25f) * 6.2831853f);
+    put(io, "cli_irrad_Wpm2", (noon > 0.0f) ? 950.0f * noon : 0.0f, now_ms);
+}
+
 /** @brief The inlet water meter: a pulse train, and only while the inlet valve
  *  is open. Through the CHANNEL, like the contact above - the counter is what
  *  the irrigation cycle reads, and publishing litres here would step over it.
@@ -221,52 +256,6 @@ inline void publish_climate(Vars::Bank& io, uint32_t now_ms) {
     }
 }
 
-/**
- * @brief Drive the relay coils, so the climate and irrigation groups show
- * something moving.
- *
- * A caricature of a control law: the console reads these through the same
- * handles a real program writes them with.
- */
-inline void drive_coils(Vars::Bank& io, uint32_t now_ms) {
-    const float t = (float)now_ms / 1000.0f;
-
-    // Windows track a slow thermal cycle; open and close are interlocked, as
-    // the real drives are (energising both would fight the motor).
-    static float thermal = 0.0f;
-    thermal = drift(thermal, 0.3f, -1.0f, 1.0f, 0.05f) * 0.99f;
-    const bool opening = thermal > 0.35f;
-    const bool closing = thermal < -0.35f;
-
-    const char* const opn[] = { "cli_window1_opn", "cli_window2_opn",
-                             "cli_window3_opn", "cli_window4_opn" };
-    const char* const clo[] = { "cli_window1_clo", "cli_window2_clo",
-                             "cli_window3_clo", "cli_window4_clo" };
-    for (uint8_t i = 0; i < 4; i++) {
-        io.var(opn[i]).set(opening);
-        io.var(clo[i]).set(closing);
-    }
-
-    // Destratification fans step up with the thermal load.
-    const char* const fans[] = { "cli_destrat1_speed1", "cli_destrat1_speed2",
-                              "cli_destrat1_speed3" };
-    const int speed = (thermal > 0.6f) ? 3 : (thermal > 0.2f) ? 2 : (thermal > -0.2f) ? 1 : 0;
-    for (uint8_t i = 0; i < 3; i++) {
-        io.var(fans[i]).set((speed == (int)i + 1));
-    }
-
-    io.var("cli_screen").set(thermal < -0.5f);
-
-    // Irrigation walks the trays, one at a time, ~40 s each.
-    const char* const trays[] = { "irr_tray1", "irr_tray2", "irr_tray3", "irr_tray4",
-                               "irr_tray5", "irr_tray6", "irr_tray7", "irr_tray8" };
-    const int active = ((int)(t / 40.0f)) % 8;
-    for (uint8_t i = 0; i < 8; i++) {
-        io.var(trays[i]).set(((int)i == active));
-    }
-    io.var("irr_input_ro1").set((active < 4));
-    io.var("irr_output_ro1").set((active >= 4));
-}
 
 // Entry point
 
@@ -278,8 +267,8 @@ inline void simulate(Vars::Bank& io, uint32_t now_ms) {
     publish_meters(io, now_ms);
     publish_climate(io, now_ms);
     publish_analog(io, now_ms);
+    publish_weather(io, now_ms);
     pulse_inlet(io, now_ms);
-    drive_coils(io, now_ms);
 }
 
 }  // namespace Site
