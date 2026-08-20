@@ -44,6 +44,11 @@ namespace Botanik { namespace Modbus {
 
         Vars::Bank* _io;
         uint16_t _rows[Config::MODBUS_TCP_MAX_ROWS];  ///< bank indices, ascending by register
+        /** @brief What the slave above grants. Held here because every write
+         *  path in this class has to consult it, and passing it down four call
+         *  sites would be the same value four times. */
+        /** @brief Whether a master may write @p d at all. */
+        static bool _writable(const Vars::Descriptor& d);
         uint16_t _count;
         uint16_t _overflow;       ///< rows that did not fit; non-zero must be reported
         uint16_t _reg_lo, _reg_hi;  ///< span claimed, for the "outside the map" test; 0/0 if empty
@@ -171,7 +176,17 @@ namespace Botanik { namespace Modbus {
 
         /** @brief @p v's value as the 32-bit word its two registers carry -
          *  override-aware, since every other reader sees the forced value too. */
-        static uint32_t to_wire(const Vars::Var& v);
+        uint32_t to_wire(const Vars::Var& v) const;
+
+        /** @brief Whether @p d is a dotted quad, which this map DOES serve:
+         *  four octets are exactly the 32 bits a row already has. */
+        static bool ipv4_row(const Vars::Descriptor& d);
+        /** @brief A dotted quad as the value a register pair carries, big-endian
+         *  - 192.168.1.10 is 0xC0A8010A. 0 for anything that is not one, which
+         *  is also what an empty optional address reads as. */
+        static uint32_t ipv4_to_wire(const char* text);
+        /** @brief The reverse, into @p out. */
+        static void ipv4_from_wire(uint32_t v, char* out, size_t cap);
         /** @brief The same conversion on an explicit Scalar.
          *  @note The no-op write check runs it against Var::live(): comparing
          *  against an OVERRIDE would skip the commit whenever a forced row agreed,

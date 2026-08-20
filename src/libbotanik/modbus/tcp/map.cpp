@@ -9,6 +9,7 @@
  */
 #include "libbotanik/modbus/tcp/map.h"
 
+#include <cstdio>
 #include <cstring>
 
 #if BOTANIK_FEATURE_MODBUS_TCP_SERVER
@@ -40,6 +41,14 @@ namespace Botanik { namespace Modbus {
             return (uint32_t)(int32_t)v;
         }
 
+        /** @brief Whether this row is a dotted quad, which IS served: four
+         *  octets fit the 32 bits every row already has. A HOSTNAME does not,
+         *  which is the whole reason T_STR is otherwise refused here. */
+        bool is_ipv4(const Descriptor& d) {
+            return d.type == T_STR &&
+                   (d.pay.text.kind == STR_IPV4 || d.pay.text.kind == STR_IPV4_OPT);
+        }
+
         /** @brief The 32-bit value the register pair at offset @p i of a write
          *  payload carries. High word first, in the ONE place that says so. */
         uint32_t word_at(const uint8_t* data, uint16_t i) {
@@ -47,17 +56,58 @@ namespace Botanik { namespace Modbus {
                    | rd16(data + (size_t)i * 2 + 2);
         }
 
-        /** @brief Whether a master may write this row at all. Not the same
-         *  question as whether a VALUE is acceptable - that one is the bank's,
-         *  and Bank::check() answers it. */
-        bool writable(const Descriptor& d) {
-            return d.role == ROLE_PARAM && (d.flags & F_RDONLY) == 0 &&
-                   d.type != T_STR;
-        }
-
     }  // namespace
 
+    bool Map::_writable(const Descriptor& d) {
+        // Not the same question as whether a VALUE is acceptable - that one is
+        // the bank's, and Bank::check() answers it.
+        return var_writable(d) && (d.type != T_STR || is_ipv4(d));
+    }
+
+    bool Map::ipv4_row(const Descriptor& d) { return is_ipv4(d); }
+
+    uint32_t Map::ipv4_to_wire(const char* text) {
+        // Big-endian, the way an address is written and the way a register pair
+        // is read: 192.168.1.10 is 0xC0A8010A. An empty optional row is 0,
+        // which is what "unset" means for an address.
+        uint32_t out = 0;
+        if (text == nullptr) return 0;
+        uint16_t octet = 0, seen = 0;
+        for (const char* p = text; ; p++) {
+            if (*p >= '0' && *p <= '9') {
+                octet = (uint16_t)(octet * 10 + (*p - '0'));
+                if (octet > 255) return 0;
+            } else if (*p == '.' || *p == '\0') {
+                out = (out << 8) | (uint8_t)octet;
+                octet = 0;
+                if (++seen == 4) return (*p == '\0') ? out : 0u;
+                if (*p == '\0') return 0;      // fewer than four
+            } else {
+                return 0;
+            }
+        }
+    }
+
+    void Map::ipv4_from_wire(uint32_t v, char* out, size_t cap) {
+        if (out == nullptr || cap == 0) return;
+        (void)snprintf(out, cap, "%u.%u.%u.%u",
+                       (unsigned)((v >> 24) & 0xFF), (unsigned)((v >> 16) & 0xFF),
+                       (unsigned)((v >> 8) & 0xFF), (unsigned)(v & 0xFF));
+    }
+
     bool Map::published(const Descriptor& d) {
+        // A text row is not served at all. It carries a register like any other
+        // parameter - reserved, so the numbering stays stable if strings are
+        // ever packed onto the wire - but a 16-bit register cannot hold a
+        // hostname, and MAPPING it would answer 0 for ever while refusing every
+        // write. An integrator reading the point list would take that zero for
+        // a value; EX_ILLEGAL_ADDRESS says what is true. Set these over the
+        // console or the shell.
+        // A dotted quad is four bytes, and four bytes is what a row already
+        // has. A hostname is not, and MAPPING one would answer 0 for ever while
+        // refusing every write - which an integrator reading the point list
+        // would take for a value.
+        if (d.type == T_STR && !is_ipv4(d)) return false;
         // WHICH KINDS of row carry a register is a rule about the table, so it
         // lives in vars/access.h. Such a row with no register is a table defect
         // the site test fails on, and this simply does not serve it.
@@ -128,9 +178,12 @@ namespace Botanik { namespace Modbus {
         return (_reg_of(k) == reg) ? (int)k : -1;
     }
 
-    uint32_t Map::to_wire(const Var& v) {
+    uint32_t Map::to_wire(const Var& v) const {
         const Descriptor* d = v.meta();
-        return (d == nullptr) ? 0u : wire_of(d->type, v.value().v);
+        if (d == nullptr) return 0u;
+        if (is_ipv4(*d))
+            return (_io != nullptr) ? ipv4_to_wire(_io->text(v)) : 0u;
+        return wire_of(d->type, v.value().v);
     }
 
     uint32_t Map::wire_of(VarType type, Scalar s) {
@@ -248,8 +301,18 @@ namespace Botanik { namespace Modbus {
             // Two different refusals, and the difference matters to a master: an
             // address it may not write is a map question, a value out of band is
             // a value question.
-            if (!found || !writable(*v.meta())) return EX_ILLEGAL_ADDRESS;
+            if (!found || !_writable(*v.meta())) return EX_ILLEGAL_ADDRESS;
             const uint32_t w = word_at(data, i);
+            if (is_ipv4(*v.meta())) {
+                // Assembled, then validated by the same rule the console uses:
+                // param_check() knows what a dotted quad is, and four octets
+                // out of a register pair is only how it arrived.
+                char text[16];
+                ipv4_from_wire(w, text, sizeof text);
+                if (_io->param_check(v, text) != SET_OK) return EX_ILLEGAL_VALUE;
+                if (w != to_wire(v)) changing++;
+                continue;
+            }
             if (_io->param_check(v, from_wire(v.type(), w)) != SET_OK)
                 return EX_ILLEGAL_VALUE;
             if (w != wire_of(v.type(), v.live().v)) changing++;
@@ -265,6 +328,15 @@ namespace Botanik { namespace Modbus {
             if (k < 0) continue;                    // ruled out by the pass above
             Var v = _io->var(_rows[k]);
             const uint32_t w = word_at(data, i);
+            if (is_ipv4(*v.meta())) {
+                if (w == to_wire(v)) continue;                  // no commit, no wear
+                char text[16];
+                ipv4_from_wire(w, text, sizeof text);
+                (void)_io->param_set(v, text);
+                (void)_queue_persist(_rows[k]);
+                if (committed != nullptr) (*committed)++;
+                continue;
+            }
             // Against live(), not raw(): raw() is an override's forced value,
             // and a master writing that same number would skip the commit while
             // the parameter underneath stayed where it was.
@@ -272,7 +344,7 @@ namespace Botanik { namespace Modbus {
             // Live immediately, with the durable copy queued for
             // drain_persists(). Cannot fail on validity: the pass above checked
             // every row.
-            (void)_io->param_set(v, from_wire(v.type(), w));
+            (void)_io->param_set_scalar(v, from_wire(v.type(), w));
             (void)_queue_persist(_rows[k]);
             if (committed != nullptr) (*committed)++;
         }
@@ -312,7 +384,12 @@ namespace Botanik { namespace Modbus {
 
         bool found = false;
         const Var v = row_at((uint16_t)(addr / 2), &found);
-        if (!found || !writable(*v.meta())) return EX_ILLEGAL_ADDRESS;
+        if (!found || !_writable(*v.meta())) return EX_ILLEGAL_ADDRESS;
+        // An ADDRESS is written whole or not at all. Splicing half of one gives
+        // a valid dotted quad that nobody asked for - 192.168.1.10 with its top
+        // half replaced is a different machine on a different subnet, and it
+        // would be committed and persisted before the second half arrived.
+        if (is_ipv4(*v.meta())) return EX_ILLEGAL_ADDRESS;
 
         // Splice into what the row already holds, so the half the master did not
         // address survives. Against live(), not raw(): raw() would be an
@@ -339,10 +416,10 @@ namespace Botanik { namespace Modbus {
         const Descriptor& d = *v.meta();
         // A coil is a BOOLEAN parameter. An alarm publishes as a coil too, and is
         // read-only: acknowledging one is a different block entirely.
-        if (!found || !writable(d) || d.type != T_BOOL) return EX_ILLEGAL_ADDRESS;
+        if (!found || !_writable(d) || d.type != T_BOOL) return EX_ILLEGAL_ADDRESS;
         if (as_bool(d.type, v.live().v) == on) return EX_NONE;   // no-op, as above
         if (persist_room() == 0) return EX_SLAVE_BUSY;
-        if (_io->param_set(v, Scalar::B(on)) == SET_INVALID) return EX_ILLEGAL_VALUE;
+        if (_io->param_set_scalar(v, Scalar::B(on)) == SET_INVALID) return EX_ILLEGAL_VALUE;
         const int k = _find(addr);
         if (k >= 0) (void)_queue_persist(_rows[k]);
         if (committed != nullptr) (*committed)++;

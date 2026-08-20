@@ -50,6 +50,7 @@ void RtuClient::on_setup(uint64_t now_ms) {
     // Resolved once, by name, like every other consumer of the bank.
     _alarm_ref = _io->find("alarm_fieldbus");
     _line_ref  = _io->find("alarm_fieldbus_line");
+    _drop_ref  = _io->find("alarm_io_drop");
     _dead_ref  = _io->find("sys_fieldbus_dead");
     _crc_ref   = _io->find("sys_fieldbus_crc");
     _stray_ref = _io->find("sys_fieldbus_stray");
@@ -183,6 +184,12 @@ void RtuClient::_publish_health() {
     // segment. Guarded on _dead so a plan with no devices in it does not read as
     // a dead line.
     _io->var(_line_ref).set(_dead != 0 && _dead == _plan.device_count());
+
+    // A verdict from the PLAN, not from the wire, so it stands from bring-up
+    // and does not clear on its own: a row nobody scans is a signal that will
+    // never be read, and it looks exactly like a sensor that never answers.
+    _io->var(_drop_ref).set(_plan.rows_dropped() != 0 ||
+                            _plan.rows_unscanned() != 0);
 
     // The framer has always kept these apart because they point at different
     // physical faults; until now nothing read them. Saturating rather than

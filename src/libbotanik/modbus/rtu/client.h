@@ -186,6 +186,7 @@ namespace Botanik { namespace Modbus {
          *  bring-up. @see modbus/rtu/alarms.h */
         Vars::VarRef _alarm_ref;
         Vars::VarRef _line_ref;
+        Vars::VarRef _drop_ref;
         Vars::VarRef _dead_ref;
         Vars::VarRef _crc_ref;
         Vars::VarRef _stray_ref;
