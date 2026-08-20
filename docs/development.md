@@ -33,6 +33,8 @@ it, which is the same layering the @ref dev_metrics matrix enforces. Read
   where overrides are applied. Everything else reads and writes through this.
 - @subpage dev_modbus - the field bus and the plant network: what the bus costs,
   planning, framing, and the register map.
+- @subpage dev_io - the controller's own terminals, and why a program cannot
+  tell them from a remote register.
 - @subpage dev_network - the optional config-driven network stack.
 
 ## The console {#dev_console}

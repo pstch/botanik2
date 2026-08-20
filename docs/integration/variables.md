@@ -32,8 +32,8 @@ to agree.
 |---|---|
 | `A` | alarm: the boolean an `AlarmCondition` reads |
 | `P` | parameter: editable, saved on demand. Written `P` (numeric, banded), `PS` (text) or `PE` (enumerated - its labels are its bound) |
-| `G` | computed value, HMI only - rename it freely |
-| `SV` | status value, **published** over MQTT and the Modbus TCP slave, so its name is an external contract |
+| `G` | computed value, HMI only - rename it freely. `GR` is the same thing RETAINED: its value survives a reboot |
+| `SV` | status value, **published** over MQTT and the Modbus TCP slave, so its name is an external contract. `SVE` is one rendered through an enum converter, `SVR` one that is RETAINED - a water totalizer, hours run |
 | `MI` / `MO` | direct input / output: the register maps 1:1, no conversion |
 | `AI` / `AO` | analog input / output: a raw count via `scale`/`offset` |
 | `DI` / `DO` | digital input / output |
@@ -45,40 +45,50 @@ transport can never disagree.
 
 ## Declaring one
 
-Not by spelling the struct. Each scope has one `constexpr` factory in
-`vars/declare.h`, named after it, and it takes **only** the arguments that scope can
-use - which is what makes a relay with a plausibility band, or an alarm with a
-register, fail to compile:
+**In CSV, one file per row factory.** Each file's columns are exactly that
+factory's arguments, so a row that could not be spelled in C++ cannot be spelled
+here either - a relay with a plausibility band, or an alarm with a type, has
+nowhere to go.
+
+```
+# tables/params.csv
+scope, name         , type , def , min, max  , digits, unit, reg, access, desc
+P    , ntp_poll_sec , T_U32, 3600, 10 , 86400, 0     , sec , 922, RO    , NTP poll interval
+```
+
+`scripts/vars_gen.py` turns the tables into `generated/vars.gen.h`, which holds
+the same `constexpr` factory calls the tables used to be written as:
 
 ```cpp
-const Variable g_vars[] = {
-    P ("ntp_poll_sec", T_U32, 3600, 10, 86400, 0, "sec", 10,
-                     "NTP poll interval, in seconds", ""),
-    PS("ntp_srv1",   DEF_NTP_SRV1, STR_CAP, STR_HOST, 11, "NTP server 1", ""),
-    PE("sys_log_level", 1, &Logs::log_level_label, 973,
+const Descriptor params[] = {
+    P ("ntp_poll_sec", T_U32, 3600, 10, 86400, 0, "sec", 922, "NTP poll interval", "", false),
+    PE("sys_log_level", Logs::LOG_DEBUG, &Logs::level_label, 973,
                      "lowest level the logger forwards", ""),
-    MI("grid_L1_V",  T_F32, 5, 3, 0, 2, SF(0.0f), SF(500.0f), SF(0.0f), 5000, 1,
-                     "V", "L1 phase voltage", ""),
-    A ("alarm_too_hot", "TOO_HOT", 2, 2, 0, 0, 10,
-                     "Inside temperature too high", "check vents and shade"),
-    SV("sys_supply_hz", T_F32, 0, 2, "Hz", 501, "deadbanded supply frequency", ""),
-    RO("cli_window1_opn", 31, 0, false, false, "window 1 open", ""),
+    ...
 };
 ```
 
-Every factory ends with `desc` and `notes`, and `notes` is never optional: `""` says
-"nothing more to add" in the same shape as a real note. `SU`/`SI`/`SF`/`SB` build the
-typed `Scalar` - a bare literal cannot, since the union takes `uint64`/`int64`/`float`/
-`const char*` equally well, and `Scalar(int)` is deleted so the error names itself.
+So `vars/declare.h` is still the one definition of what a scope MEANS, and the
+flash placement is unchanged - what moved is who writes the call. See
+@ref int_tables_schema for every file, every column, and every rule the
+generator checks.
+
+@note Every factory ends with `desc` and `notes`, and `notes` is never optional:
+`""` says "nothing more to add" in the same shape as a real note. `SU`/`SI`/`SF`/
+`SB` build the typed `Scalar` - a bare literal cannot, since the union takes
+`uint64`/`int64`/`float`/`const char*` equally well, and `Scalar(int)` is deleted
+so the error names itself.
 
 @note **`PE()` has no band**, and that is the point. Its converter is the row's
 whole vocabulary: it renders a code as a word, parses a word back (`params set
 sys_log_level warning`), and a code it cannot name is REFUSED - by `set`, by the
 typed overload, and by `override`, which skips a band but not this. A set of
 codes is not an interval, so a `min`/`max` would admit every gap between them.
-`get` prints the accepted words on its `Range` line, so the vocabulary is never
-only in the notes. The codes are what reach the store and an external master, so
-a converter may gain labels but must never renumber them.
+A site declares its vocabularies in `tables/enums.csv` and the generator emits
+both the enum and the converter; the library's own (`Logs::level_label`,
+`Plc::health_label`) stay in their subsystems and a row names them there.
+The codes are what reach the store and an external master, so a vocabulary may
+gain labels but must never renumber them.
 
 @note **`def` does three jobs**, which is why every factory takes one: an input's
 substitute when the reading is invalid, an output's **safe state** when control is
@@ -86,9 +96,13 @@ withdrawn, and a parameter's factory value. A dead sensor reads as `def`, so cho
 a `def` outside the plausibility band means the control programs treat a dead sensor
 as a fault without testing `valid()` at all.
 
+@note A parameter also declares its **access**: `RW`, or `RO` for one an external
+master may read and never write. Empty means `RW`. It is a Modbus rule - the
+console is not levelled - and it is the only thing that sets `F_RDONLY`.
+
 ### The row
 
-`Vars::Variable` is a flash-resident aggregate, **72 bytes** on the M7. Field order is
+`Vars::Descriptor` is a flash-resident aggregate, **72 bytes** on the M7. Field order is
 load-bearing: `pay` is 8-aligned, so the 4-byte `str` pointer sits after it and lands
 in the tail hole rather than buying four bytes of padding.
 
@@ -120,16 +134,26 @@ An `AI` / `AO` row carries no numbers of its own. It points at a shared
 `const AnalogCal` of six **tunables**, each independently a firmware constant or a
 parameter an operator can edit:
 
+Six cells on the row declare it, each `parameter@fallback` or `=constant`:
+
+```
+# tables/analog_inputs.csv
+name     , dev, fc, reg, wire , unit, cal_raw_min                , cal_raw_max                , ...
+pwr_dc1_V, 11 , 4 , 2  , T_U16, V   , pwr_dc1_rawMin_mV@4000.0   , pwr_dc1_rawMax_mV@6000.0   , ...
+```
+
+and the generator emits the block, named after the row:
+
 ```cpp
 constexpr Tunable K(float v);                            // fixed in firmware
 constexpr Tunable R(const char* name, float fallback);   // read from a parameter
 
-const AnalogCal CAL_PWR_DC1 = {
+const AnalogCal CAL_pwr_dc1_V = {
     R("pwr_dc1_rawMin_mV", 4000.0f), R("pwr_dc1_rawMax_mV", 6000.0f),  // wire units
     R("pwr_dc1_engMin_V",    20.0f), R("pwr_dc1_engMax_V",    30.0f),  // engineering units
     R("pwr_dc1_min",         20.0f), R("pwr_dc1_max",         30.0f),  // plausibility band
 };
-AI("pwr_dc1", &CAL_PWR_DC1, 11, 3, chan, 1, T_U16, SF(0.0f), 5000, 1, "V", "PS1 bus", ""),
+AI("pwr_dc1_V", &CAL_pwr_dc1_V, 11, 4, 2, 1, T_U16, SF(0.0f), 5000, 1, "V", "DC PS1 bus voltage", ""),
 ```
 
 The endpoints and the band are separate pairs on purpose: the endpoints are where the
@@ -146,9 +170,11 @@ rather than dividing by zero.
 reads as that constant, so a mistyped name degrades to a sane number instead of zero
 (and the bank counts the miss, which the site test asserts never happens).
 
-@note A block may be **shared** by several rows. Sharing the block shares its
-parameters, so the rows can never be trimmed apart - right when two readings must
-agree by construction, wrong when they merely use the same part number.
+@note A calibration is **shared by being named**, not by being pointed at. One
+block is generated per row, and two rows naming the same six parameters resolve
+to the same numbers - so there is no third object to keep in step with them, and
+the sharing is visible in the table rather than in a pointer. The generated site
+report derives the groups from exactly that and lists each one's six roles.
 
 @warning Anything that DISPLAYS a band must use `var_band(bank, d)`, not
 `num_band(d)`. An analog row's band lives in its calibration, so `num_band()` would
@@ -160,7 +186,7 @@ changed.
 Read it through `num_band(d)` or `text_slot(d)`, which check the discriminant and
 return an unset band or a slot of capacity 0 off-variant. This matters more than it
 looks: `off` is *written through* (`copy_bounded(pool + off, ...)`), so a numeric row
-read as text would hand the pool an arbitrary offset. `tests/test_site_names.cpp`
+read as text would hand the pool an arbitrary offset. `tests/test_site.cpp`
 asserts no row's inactive arm is reachable, and that no two text slots overlap.
 
 Every factory body is a **single return statement**, which C++11 `constexpr` requires
@@ -173,22 +199,27 @@ and which is what keeps the whole table constant-initialised into flash rather t
 a typedef so a stray `int` cannot become a reference. `VAR_NONE` is `0xFFFF`,
 deliberately not 0, so a zero-initialised `VarRef` does not alias row 0.
 
-Nothing outside the bank writes an index down. The status groups, the home fields,
-the alarm conditions and the control programs all spell the variable's **name**, and
-`Bank::find()` resolves it - once, at bring-up for the declarative tables. There used
-to be a parallel `enum VarId` here, generated from the row order; keeping 249
-enumerators in step with 249 rows by hand bought nothing that a name does not, and
-its `static_assert` caught a changed *count* but never a re-ordering.
+Nothing outside the bank writes an index down. The home fields, the alarm rows and
+the control programs all spell the variable's **name**, and `Bank::find()`
+resolves it - once, at bring-up. A control program does not even spell it in C++:
+`tables/programs.toml` says which row each member connects to, and the generated
+`bind()` is what calls `resolve_in` / `resolve_out` / `resolve_inout`.
+
+Those return a `Ref<T, Dir>` rather than a bare `VarRef` - the row's C++ TYPE and
+its IEC 61131-3 declaration section, both compile-time. Driving a `VAR_INPUT`, or
+reading a `T_U16` row as a float, does not compile. The INDEX still resolves at
+bind time, because `freeze()` may have compacted a redeclared row out.
 
 @note A name that matches no row, and any bad index, resolves to an inert **sink** -
 not to a clamped row, which would drive a real relay. The bank counts every failed
 lookup (`unresolved_count()`) and logs the name, so a typo shows up in the test suite
 instead of reading as a dead variable forever.
 
-@note `find()` binary-searches a mapping the bank sorts once at construction, out of
-the `index` array a site hands it in its `VarTables` - `uint16_t name_index[VAR_TOTAL]`
-beside the value store. Forget it and every lookup walks the whole table;
-`tests/test_site_names.cpp` fails so nobody finds out the slow way.
+@note `find()` binary-searches a name index the bank builds in `freeze()`, once,
+after every set of rows has been registered. Before that it is a full scan, which
+is correct and is why `Bank::name_index_built()` exists: bring-up resolves
+hundreds of names, and doing it before the freeze would be the cost the index
+exists to avoid.
 
 @warning A `VarRef` sitting in a `const` table is zero, and **zero is a real row**.
 Resolve names into a mutable array at bring-up and read them there; never read a
@@ -196,39 +227,38 @@ resolved index back out of the flash table it was declared in.
 
 ## Binding the table
 
-Two arrays and one macro:
+The generator emits it. `register_all()` hands the bank the site's rows in the
+one order that matters, and the site's `register_vars()` is the one call:
 
 ```cpp
-// vars.cpp - defined exactly once, or a second TU including the site breaks the link
-Value g_var_values[VAR_TOTAL];
-char  g_str_pool[STR_POOL_BYTES];
+// generated/vars.gen.h
+inline void register_all(Vars::Bank& io) {
+    io.register_vars(params, PARAMS_COUNT);   // PARAMETERS FIRST
+    io.register_vars(rows,   ROWS_COUNT);
+}
 ```
 
 ```cpp
-#define SITE_VAR_TABLES { \
-    g_vars, Site::Store::values, VAR_TOTAL, \
-    Site::Store::pool, STR_POOL_BYTES, Site::Store::name_index }
+// site.h
+void register_vars() override { Site::register_all(io()); }
 ```
 
-`VarTables` is `{ var, val, count, pool, pool_bytes, index }`, and `VAR_TOTAL` is
-`sizeof(g_vars) / sizeof(g_vars[0])` - derived, so there is no second count to keep
-in step.
+The value store, the string pool and the name index are the **bank's**, sized once
+by `Config::VAR_MAX` rather than by every site counting its own rows. A site
+declares no arrays for them.
 
-@warning **Do not omit `index`.** It is the scratch `Bank`'s constructor sorts into
-a name -> row mapping, and it is what makes `find()` a binary search. A null one is
-legal and leaves every lookup walking the whole table - correct, but the cost the
-index exists to avoid, on the call every site table and every control program makes
-at bring-up. `Bank::name_index_built()` reports it and `tests/test_site.cpp` fails
-on it, so this is caught - but only if the site is in the suite.
+@warning **`ROLE_PARAM` rows must be one contiguous block**, and the two-array
+split above is what guarantees it: the library's parameters come last within its
+own set and the site's come first within the site's, so the two runs abut. The
+parameter pages address them with a dense 0-based index and one add - a parameter
+outside the run is unreachable: shown nowhere, editable nowhere, silently not
+persisted. `check-vars` enforces the ordering rather than a comment asking for it.
 
-@warning `SITE_VAR_TABLES` is a **macro, not a function**. Any function call in that
-initialiser would make the `SiteDescriptor` dynamically initialised and drag the
-whole thing out of flash into `.data`.
-
-@warning **`ROLE_PARAM` rows must be one contiguous block.** The parameter pages
-address them with a dense 0-based index and one add. Where the block sits does not
-matter - the bank locates it by scanning the roles - but a parameter outside the run
-is unreachable: shown nowhere, editable nowhere, silently not persisted.
+@note The site's rows are registered AFTER the library's and share one flat index
+space, so the two read as one table. A site may **restate** a library row by
+declaring the same name: `Bank::freeze()` keeps the last declaration and compacts
+the earlier one out, so the whole row is the site's. Keep the register the library
+assigned and keep the type - the library binds these by both.
 
 ## Reading and writing at runtime
 
@@ -274,13 +304,14 @@ alone).
 
 Each of these guards a **silent** truncation, so a site should keep all of them:
 
-```cpp
-static_assert(STR_POOL_BYTES >= 8 * STR_CAP, "the string pool is too small");
-```
+Most of what used to be a `static_assert` is now a generator check, and runs
+before the firmware is built rather than during it: no two rows share a name or a
+register, a default sits inside its own band, a text row has a pool slot, the
+parameters are one contiguous run, an edge-counted input is on a channel that can
+carry an interrupt. `python3 scripts/vars_gen.py` reports all of them at once,
+and `make check` runs it.
 
-Names are checked at test time rather than build time, in `tests/test_site_names.cpp`:
-every name in every table resolves, the parameters are one contiguous run, no two rows
-share a name, and running the control programs and the simulated field leaves
-`unresolved_count()` at zero and every parameter at its default.
-
-Two more belong with the tables they guard - see @ref int_tables.
+What is still checked at TEST time, in `tests/test_site.cpp`, is what only a
+running bank can answer: that every name every table and every control program
+reaches for resolves, that `unresolved_count()` is zero after the programs bind
+and the simulated field has run, and that no parameter was written by accident.

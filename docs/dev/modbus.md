@@ -105,7 +105,9 @@ table at all.
 **The device table** (`device.h`) is a `DeviceModel` per part number - register
 ceiling, coil count, address and quantity alignment, multi-write support,
 minimum gap - and a `Device` per unit binding a model to an address and to the
-plant's own **tag**. A unit nobody described plans against the protocol's own
+plant's own **tag**. A site declares both in CSV (@ref int_tables) and the
+generator emits them, so the checks can hold a row's address against the model
+it lands on. A unit nobody described plans against the protocol's own
 limits rather than acquiring invented ones: a model entry is only as good as the
 manual behind it.
 
@@ -202,8 +204,8 @@ block it falls in:
 |---|---|
 | 1-799 | site parameters and status values |
 | 800-899 | site alarms |
-| 900-989 | library parameters and status values |
-| 990-999 | library alarms (the platform alarms) |
+| 900-985 | library parameters and status values |
+| 986-999 | library alarms (the platform ones, and the three subsystem faults) |
 
 Uniqueness alone would let an alarm take 750 and read as a parameter to
 everyone downstream, so `test_site.cpp` asserts that every row sits in the block
@@ -214,6 +216,38 @@ Persisting is queued rather than synchronous: a master writing forty parameters
 in one transaction would otherwise be forty flash erases inside one beat. The
 queue drains a few per beat and answers `EX_SLAVE_BUSY` when it is already full,
 which is a slave saying "ask again" and not a rejection.
+
+## Text rows, and the IPv4 quad (planned)
+
+Modbus has no string type: only 16-bit registers and 1-bit coils. Text is carried
+by convention, and every vendor answers three questions differently - byte order
+inside a register, termination, and fixed against length-prefixed.
+
+Today a `T_STR` row is **reserved, not served**: `Map::published()` excludes it,
+so the slave answers `EX_ILLEGAL_ADDRESS` rather than the zero it used to return
+for ever. The register stays assigned so numbering does not shift. Text is set
+over the console or the shell.
+
+The numbers are why. All eight text rows are `BOTANIK_HOST_STR_LEN` = 64 bytes,
+so packed two bytes to a register they need 32 registers each - **256 in total**,
+against a library parameter block (900-985) that is 86 wide and already holds 53
+rows. Packed text does not fit without a new region.
+
+**Decided, not yet built:** the five `STR_IPV4` rows (`net_ip`, `net_mask`,
+`net_gw`, `net_dns1`, `net_dns2`) get a quad of **one register per octet**, four
+registers each, twenty in total. One octet per register rather than two packed
+into one is deliberate: a register then holds a plain 0-255 and there is no byte
+order for a tool to render backwards, which is the ambiguity that makes packed
+text an integration surprise. Validation stays exact - four octets, nothing to
+parse. The write must be FC16 across the whole quad and atomic, since a
+single-register write of one octet is a half-formed address.
+
+The three hostname rows (`ntp_srv1`, `ntp_srv2`, `mqtt_host`) stay console-only:
+they genuinely need packed text, and they are the rows least worth reconfiguring
+from a master. They also stop carrying a default of their own - **an empty host
+falls back to the gateway**, resolved in `vars/bindings.cpp`, which is already
+the one file that sees a component and the bank at the same time. On a plant
+network behind a 4G modem the router is the sensible default for both.
 
 ## The simulated field
 

@@ -6,14 +6,32 @@ a set of protected virtual hooks.
 
 | Hook | Gate | Called | Default |
 |---|---|---|---|
-| `register_commands()` | `FEATURE_CONSOLE` | in `setup()`, before `register_pages()` | registers the descriptor's command table with the live `Vars::Bank*` as `ctx` |
-| `register_pages()` | `FEATURE_CONSOLE` | in `setup()`, before the terminal handshake | registers home / shell / logs / alarms / params / monitor / tasks / notes, in that order (notes under `FEATURE_NOTES`) |
+| `register_vars()` | `FEATURE_VARS` | at the top of `setup()`, before anything reads the bank | nothing; a site calls the generated `Site::register_all()` |
+| `register_commands()` | `FEATURE_SHELL_PAGE` | in `setup()`, after the built-ins | registers the descriptor's command table with the live `Vars::Bank*` as `ctx` |
+| `register_pages()` | `FEATURE_CONSOLE` | in `setup()`, before the terminal handshake | registers home / shell / logs / alarms / params / monitor / tasks / notes, in that order, each under its own flag |
 | `register_telemetry()` | `FEATURE_MQTT` | in `setup()`, after the MQTT sinks are wired | publishes the descriptor's status groups |
-| `on_setup()` | always | once, near the end of `setup()` - **before** `tasks.setup()`, the watchdog and control being enabled | nothing |
-| `on_input()` / `on_config()` / `on_service()` / `on_output()` / `on_present()` | always | one task each (`site_input`, ...) at the end of that phase | nothing |
-| `on_control(now_ms)` | control authority | the `site_control` task, beside the control programs | nothing |
+| `on_setup()` | always | once, near the end of `setup()` - **before** the setup pass, the watchdog and control being enabled | nothing |
+| `on_loop(now_ms)` | always | after every phase, before the watchdog kick | nothing |
 
-Most sites override none of them. The reference site overrides none.
+Two of them are what a site normally writes: `register_vars()`, one line, and
+`on_setup()`, where its control programs register. The reference site overrides
+those two and nothing else.
+
+There is no per-phase hook on the firmware. Work that has to happen at a point in
+the beat is a `Component` (@ref dev_architecture) or a `Plc::Program`
+(@ref int_tasks), registered in `on_setup()` - so it gets a name, a rate group, a
+phase and a row on the TASKS page, which a hook on the base class would not.
+
+## Declaring the site's rows
+
+```cpp
+void register_vars() override { Site::register_all(io()); }
+```
+
+`register_all()` is generated from the CSV tables and holds the one ordering rule
+the bank checks: the parameters come first, the library's already at the front of
+a run that has to stay contiguous. Splitting the call up is allowed, getting that
+order wrong is not - `Bank::freeze()` names the row that broke it.
 
 ## Adding shell commands
 
@@ -58,49 +76,46 @@ registered by default. Re-add it by subclassing it and appending it here. To wri
 page from scratch, implement `Pages::Page` - see @ref dev_pages for the interface and
 the render contract.
 
-## Per-beat logic
+## Post-wiring
 
-There is one hook per phase of the beat, and you override the one whose place in
-the data flow matches the work:
+`on_setup()` runs once, after every library component is constructed and wired but
+**before** the setup pass, the hardware watchdog and control authority. That
+ordering is what makes it safe: nothing you do here can energise an actuator on the
+way past, and anything it registers is a task-table entry like any other.
 
-| Hook | Runs | For |
-|---|---|---|
-| `on_input(now)` | after the field commit and the expiry sweep | a driver poll; readings are in and coherent |
-| `on_config(now)` | after the parameter commit | re-reading configuration the rest of the beat will use |
-| `on_service(now)` | beside health and the network | a site's own background state machine |
-| `on_control(now)` | beside the control programs, **gated** | the site's own control law |
-| `on_output(now)` | after the programs, before the field write | shaping what goes out |
-| `on_present(now)` | with the beat's decisions made | telemetry, counters, reporting |
+It is where a site's control programs go in, and the call order **is** the
+execution order within `PHASE_CONTROL` - so a law computing a setpoint registers
+before the law acting on it:
 
 ```cpp
-void on_input(uint64_t now_ms) override {
-    _my_driver.step(now_ms);
+void on_setup() override {
+    _target.register_tasks();       // decides the setpoint
+    _cooling.register_tasks();      // reads it
+    _windows.register_tasks();      // carries it out
 }
 ```
 
-Each is registered as a task of its own (`site_input`, `site_config`, ...), so a
-slow one is attributable on the TASKS page instead of hiding inside the base.
+Site-owned components register the same way: a driver, a solar-position tracker,
+anything with state of its own. Each overrides the `Component` phase hook whose
+place in the data flow matches its work.
 
-**Only `on_control()` is gated by control authority.** The other five run in every
-mode, which is what keeps a stopped plant diagnosable - bookkeeping, derived
-values and telemetry stay correct while nothing is being driven. Anything that
-DRIVES the field must go in `on_control()`, or it keeps driving through a health
-fault.
+| Phase | Runs | For |
+|---|---|---|
+| `on_input(now)` | after the field commit and the expiry sweep | a driver poll; readings are in and coherent |
+| `on_config(now)` | after the parameter commit | re-reading configuration the rest of the beat will use |
+| `on_service(now)` | beside health and the network | a background state machine |
+| `on_control(now)` | beside the control programs, **gated** | a control law that is not a `Plc::Program` |
+| `on_output(now)` | after the programs, before the field write | shaping what goes out |
+| `on_present(now)` | with the beat's decisions made | telemetry, counters, reporting |
 
-@warning Every one of them must be **non-blocking and bounded**, like everything
-else in the loop. Blocking here stalls the RTOS and trips the hardware watchdog.
+**Only `PHASE_CONTROL` is gated by control authority.** The other five run in every
+mode, which is what keeps a stopped plant diagnosable - bookkeeping, derived values
+and telemetry stay correct while nothing is being driven. Anything that DRIVES the
+field must be in the control phase, or it keeps driving through a health fault.
 
-Control logic belongs in a `Plc::Program` instead (@ref int_tasks): programs get
-multi-rate scheduling, correct `dt_ms` handling, their variable names resolved once
-at bring-up, and are reset and reseeded across a control-authority edge. The hooks
-carry no scheduling state of their own.
+@warning Every hook must be **non-blocking and bounded**, like everything else in
+the loop. Blocking here stalls the RTOS and trips the hardware watchdog.
 
-## Post-wiring
-
-`on_setup()` runs once, after every component is constructed and wired but **before**
-the hardware watchdog is armed and before control authority is enabled. That ordering
-is what makes it safe: nothing you do here can energise an actuator on the way past.
-
-Use it to register extra log sinks, construct site-owned components, or seed state.
-Components a site owns outright - the solar-position tracker, for instance - are
-constructed as members and stepped from whichever phase hook fits.
+`on_loop()` is the escape hatch and the last resort: it runs outside the task
+table, so it has no phase, no rate, no cost sample and no TASKS row. A slow one is
+invisible.

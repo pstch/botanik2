@@ -174,7 +174,7 @@ number is already written down as `VarTables::count`. A site's is
 
 A null one leaves `find()` walking the table - which is what a two-row test fixture
 wants and what a real site must not ship, so `name_index_built()` reports it and
-`tests/test_site_names.cpp` fails on it.
+`tests/test_site.cpp` fails on it.
 
 Both `find()` overloads share the one mapping. The length-bounded form (a shell word
 has no NUL of its own) orders identically: with the first *len* characters equal, a

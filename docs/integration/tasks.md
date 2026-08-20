@@ -6,48 +6,111 @@ write. There is no driver stepping them - **a program registers itself with the
 task registry** like everything else in the beat, so it gets its own rate, its
 own row on the TASKS page and its own cost sample.
 
-A program is a `Plc::Program` subclass. It holds its function blocks and its
-resolved variable references as members, and overrides one method:
+A program is a `Plc::Program` subclass. It holds its function blocks as members,
+its variable references in a generated `Refs` struct, and overrides one method:
 
 ```cpp
 class Program {
 public:
-    Program(const char* name, Tasks::GroupId group);  // a RATE GROUP, not a period
+    Program(const SetupContext& ctx, const char* name, Tasks::GroupId group,
+            Vars::Bank& io);              // a RATE GROUP, not a period
 
-    virtual void bind(Vars::Bank& io) {}    // bring-up: names -> VarRefs, once
-    virtual void run(Context& c) = 0;       // one activation
+    virtual void bind(Vars::Bank& io) {}     // bring-up: names -> refs, once
+    virtual void run(ProgramContext& c) = 0; // one activation
+    virtual void observe(ProgramContext& c) {}   // report, in EVERY state
 };
 ```
 
-Two hooks, and no control-authority hooks at all. While control is withdrawn a
-program is simply **not called**, and nothing outside it reads what it remembers,
-so there is nothing to do on the way down. On the way back up `c.first_scan` is
-raised, and that is where a program drops what has gone stale - see *When
-programs run* below.
+`run()` is the control law. `observe()` is what the program SAYS - status values
+and alarm conditions - and it runs in every state, including while the plant is
+parked, which is exactly when someone is looking. A watch program has an empty
+`run()` and does all its work there.
 
-The site's table is an array of **pointers**, so it stays const and
-flash-resident even though the programs it names live in RAM:
+While control is withdrawn a program is **not called**, and nothing outside it
+reads what it remembers, so there is nothing to do on the way down. On the way
+back up `c.first_scan` is raised, and that is where a program drops what has gone
+stale - see *When programs run* below.
+
+## Declaring one
+
+A program's variables are not spelled in C++. `tables/programs.toml` connects its
+interface to the table, and `scripts/vars_gen.py` emits a `Refs` struct with one
+typed reference per member and the `bind()` that resolves them:
+
+```toml
+[[program]]
+name   = "strat"          # the instance, and its writer identity
+class  = "StratSensor"    # the C++ class in tasks.h
+task   = "FAST"           # the rate class it is dispatched at
+health = "prog_strat"     # optional: where its health is published
+
+[program.in]
+ceiling = "cli_temp_hi"
+floor   = "cli_temp_lo"
+
+[program.out]
+strat = "cli_dTStrat_degC"
+```
 
 ```cpp
-Plc::Program* const g_programs[] = {
-    &Programs::supply_watch,
-    &Programs::supply_report,
+class StratSensor : public Plc::Program {
+    Refs::StratSensor _v;
+public:
+    StratSensor(const SetupContext& ctx, Vars::Bank& io)
+        : Program(ctx, Refs::StratSensor::name(),
+                  Refs::StratSensor::group(), io) {}
+protected:
+    void bind(Vars::Bank& io) override { _v.bind(io, *this); }
+    void run(ProgramContext& c) override;
 };
 ```
 
-There is no parallel array to keep in step with it. **Table order is execution
-order**: the firmware registers them in table order and the registry dispatches a
-phase in registration order, so a law that computes a setpoint and a law that acts
-on it complete in one beat when written that way round.
+The name and the rate class come from the generated struct too, so neither can
+drift from the configuration.
+
+Three sections, and each promises something the compiler then holds you to:
+
+| Section | IEC 61131-3 | Rule |
+|---|---|---|
+| `in` | `VAR_INPUT` / `VAR_EXTERNAL CONSTANT` | read-only: `drive()` on it does not compile |
+| `out` | `VAR_OUTPUT` / `VAR_EXTERNAL` | this program is the row's ONE producer, claimed at bind time |
+| `inout` | `VAR_IN_OUT` | read-modify-write, SHARED by declaration |
+
+A member is `name = "row"`, or a list for an array (`days = ["irr_days_tray1", ...]`).
+The reference's TYPE comes from the row, so a member cannot disagree with what it
+names.
+
+@note **Declaring an output claims it**, inside the program's own writer window,
+so two programs producing one row is a BRING-UP failure rather than something
+noticed on whichever beat both first wrote - which for a row only a fault path
+drives could be months in. `check-vars` catches it earlier still, before the
+firmware is built.
+
+## Registering one
+
+Programs are members of the site's firmware class, constructed and registered in
+the same order:
+
+```cpp
+Site::StratSensor _strat;          // ...in EXECUTION order
+// ctor: _strat(setup_context(), io()),
+// on_setup(): _strat.register_tasks();
+```
+
+**Registration order is execution order** within `PHASE_CONTROL`, so a law that
+computes a setpoint and a law that acts on it complete in one beat when written
+that way round. `programs.toml` lists them in the same order, and it is the file
+to read for what that order IS.
 
 ## What a program gets
 
 ```cpp
-struct Context {
-    uint64_t    now_ms;   // beat timestamp; identical for every program this beat
-    uint32_t    dt_ms;    // ACTUAL ms since THIS program last ran
-    uint16_t    missed;   // activations dropped since the last run; normally 0
-    Vars::Bank& io;       // the variables to read and drive
+struct ProgramContext {
+    uint64_t    now_ms;     // beat timestamp; identical for every program this beat
+    uint32_t    dt_ms;      // ACTUAL ms since THIS program last ran
+    uint16_t    missed;     // activations dropped since the last run; normally 0
+    bool        first_scan; // first activation since control returned
+    Vars::Bank& bank;       // the variables to read and drive
 };
 ```
 
@@ -67,31 +130,49 @@ a stall silently loses the time it was late by. Always pass `c.dt_ms`.
 
 ## Writing one
 
+```toml
+[[program]]
+name  = "supply_watch"
+class = "SupplyWatch"
+task  = "SLOW"
+[program.in]
+ln = "grid_LN_V"
+[program.out]
+locked = "sys_supply_lockout"
+```
+
 ```cpp
 class SupplyWatch : public Plc::Program {
-    Plc::Ton     _bad_for;    // debounce
-    Plc::Sr      _lockout;
-    Vars::VarRef _ln = { Vars::VAR_NONE }, _locked = { Vars::VAR_NONE };
+    Plc::Ton _bad_for;    // debounce
+    Plc::Sr  _lockout;
+
+    Refs::SupplyWatch _v;
 
 public:
-    SupplyWatch() : Program("supply_watch", Tasks::GROUP_SLOW) {}   // 100 ms
+    SupplyWatch(const SetupContext& ctx, Vars::Bank& io)
+        : Program(ctx, Refs::SupplyWatch::name(),
+                  Refs::SupplyWatch::group(), io) {}   // SLOW: 100 ms
 
-    void bind(Vars::Bank& io) override {
-        _ln     = io.find("grid_LN_V");
-        _locked = io.find("sys_supply_lockout");
-    }
+protected:
+    void bind(Vars::Bank& io) override { _v.bind(io, *this); }
+    void run(ProgramContext& c) override { (void)c; }
 
-    void run(ProgramContext& c) override {
-        const bool unhealthy = !Plc::in_range(c.bank.var(_ln).as_f32(), 200.0f, 260.0f);
+    void observe(ProgramContext& c) override {
+        if (c.first_scan) { _bad_for.reset(); _lockout.reset(); }
+
+        const bool unhealthy = !Plc::in_range(c.bank.get(_v.ln), 200.0f, 260.0f);
 
         // reset-dominant: recovery wins, so the lockout cannot stick
         _lockout(_bad_for(unhealthy, 5000, c.dt_ms), !unhealthy);
 
-        c.bank.drive(_locked, _lockout.q());
+        c.bank.drive(_v.locked, _lockout.q());
     }
-
 };
 ```
+
+It commands nothing, so all of it is in `observe()` and `run()` is empty: the
+verdict has to keep being made while the plant is parked, and the actuator
+controllers read it as an interlock rather than this program driving their coils.
 
 The rate is one of the four groups (@ref dev_tasks), not a number of its own: a
 program is scheduled like everything else in the beat, so retuning a rate class
@@ -104,10 +185,12 @@ It reads variables, applies blocks, and drives variables. Three idioms worth cop
 - **Let the default do the work.** A meter that has stopped answering reads as its
   declared `def` (0 V here), which is outside the healthy band - so the program
   handles a dead sensor correctly without ever testing `valid()`.
-- **Resolve names in `bind()`, not in `run()`.** `Bank::find()` is a linear walk of
-  the whole variable table. Done once at bring-up it costs nothing; done per
-  activation it is the same search repeated forever to learn what the program
-  already knew.
+- **Reset a block on `first_scan`.** A timer or a latch is a claim about the
+  recent past, and not being called means the program stopped watching. Resuming
+  a dwell that was counting an outage nobody saw is worse than starting again.
+- **Say what you cannot see.** A reading whose row is invalid is not a small
+  error; report `degraded()`, or `faulted()` if the output goes with it, and let
+  each actuator substitute its OWN safe state.
 - **Publish the decision, not just the effect.** `sys_supply_lockout` exists so the
   console, shell and telemetry can see *why* the windows are held. A coil reading 0
   does not distinguish "not commanded" from "locked out".
@@ -190,6 +273,14 @@ control is withdrawn the scan is inhibited entirely and outputs sit at their saf
 state - see @ref user_control for the operator's view and @ref dev_architecture for
 where in the loop this sits.
 
+That gate is the coarse one, and it is the only thing that stops an activation.
+A `safe_request()` or an operator switching one program off is finer: the program
+is **still activated**, and both hooks still run. `run()` reads
+`inhibit_requested()` and drives to its fail position instead of to a demand,
+calling `parking()` while it is still travelling there; `observe()` carries on
+reporting, because a plant going into its safe state is exactly when someone is
+watching a status row.
+
 Only the RETURN edge reaches the programs, and it does two things:
 
 - **The timer is reseeded**, so the first activation back reports its nominal
@@ -203,7 +294,7 @@ Only the RETURN edge reaches the programs, and it does two things:
   it under the flag:
 
 ```cpp
-void run(ProgramContext& c) override {
+void observe(ProgramContext& c) override {
     if (c.first_scan) { _bad_for.reset(); _lockout.reset(); }
     ...
 }

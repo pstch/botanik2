@@ -79,6 +79,143 @@ Rows carry independent ages, and nothing pretends otherwise: each has its own
 restore "one instant" only in appearance - it would make the values *stable*,
 which they already are, without making them *contemporaneous*.
 
+## How a program declares its variables
+
+A program does not write its references down. They are declared in the site's
+`tables/programs.toml`, one entry per member, and `scripts/vars_gen.py` emits a
+`Refs` struct per program into `generated/programs.gen.h`: one typed reference
+per member, and the `bind()` body that resolves them all. The program holds that
+struct as `_v`, and its own `bind()` is the one call.
+
+```toml
+[program.in]
+ln = "grid_LN_V"
+[program.out]
+locked = "sys_supply_lockout"
+```
+
+```cpp
+Vars::RefIn<float>  ln;      // io.resolve_in<float>("grid_LN_V")
+Vars::RefOut<bool>  locked;  // io.resolve_out<bool>("sys_supply_lockout")
+```
+
+The reference carries two facts the compiler can then hold it to: the row's C++
+type, and which IEC 61131-3 declaration section the program reads it through.
+Both come from the table, so a member cannot disagree with the row it names, and
+a row carrying text is refused outright - its value lives in the bank's pool,
+where no typed reference reaches it.
+
+A `Plc::Program` is a PROGRAM POU and takes no arguments, so its relationship to
+the table is the configuration layer, not parameter passing. The standard splits
+that three ways and so does `Vars::Dir`:
+
+| `Dir` | 61131-3 | Meaning |
+|---|---|---|
+| `IN` | `VAR_INPUT`, `VAR_EXTERNAL CONSTANT` | the program may not write it; `drive()` does not compile |
+| `OUT` | `VAR_OUTPUT`, `VAR_EXTERNAL` | this program is the row's one producer |
+| `INOUT` | `VAR_IN_OUT` | read-modify-write, shared with other programs by declaration |
+
+Two things follow from the direction being a type rather than a convention.
+
+**A VAR_INPUT cannot be driven, and the error says so.** `drive()` static-asserts
+on `Dir::IN`. The value is checked against the row's type rather than converted,
+for the same reason `Scalar(int)` is deleted: `drive(a_u16_row, 3)` naming the
+mismatch beats a deduction conflict naming nothing.
+
+**Declaring an output claims it, at bind time.** A program's `bind()` runs
+inside its own writer window, so `resolve_out()` claims the row there and then.
+Two programs producing one row is therefore a *bring-up* failure that
+`report_writer_conflicts()` names at the first health service, rather than
+something noticed on whichever beat both first happened to write - which for a
+row only a fault path drives could be months in. `drive()` still claims on every
+write, cheaply (first claim wins, so it short-circuits), which covers a program
+that reaches a row without declaring it.
+
+**A shared row records no owner.** `resolve_inout()` marks the slot `VF_SHARED`,
+and `claim_writer()` then returns without recording anyone. That is what
+distinguishes a declared read-modify-write from the defect
+`report_writer_conflicts()` exists to catch - two programs fighting over one
+coil, which otherwise shows up only as an actuator chattering at beat rate.
+Naming an owner for a shared row would report whichever program happened to
+write last as *the* writer of a row that has none.
+
+Binding is still by name at run time: `Bank::freeze()` may compact a redeclared
+row out, so a reference fixed at compile time would be wrong by construction. A
+name that resolves to nothing - or to a row of another type, which is as much a
+wiring defect - lands on the inert sink and counts as unresolved, which
+`tests/test_site.cpp` fails the gate on.
+
+## Program health, and going safe
+
+Every program answers for itself with a `Plc::Health`:
+
+| | |
+|---|---|
+| `HEALTHY` | normal operation, every output valid |
+| `DEGRADED` | an input is invalid; the outputs are still good |
+| `FAULTED` | at least one output is invalid |
+| `INHIBITED` | control stopped and actuators parked; still reporting |
+
+The first three are a **severity run** and are ordered, so a supervisor takes the
+worst across the programs and one comparison answers "is anything going wrong".
+`health_is_severity()` says which values may be compared that way. `INHIBITED`
+is off that axis: control deliberately stopped is not a fault, and ranking it
+against one is meaningless.
+
+The name is for what STOPS. A program's control law stops and its actuators
+park, but it keeps reporting - `observe()` still runs, so status values and
+alarms are published throughout. That is the whole point: a plant going into
+its safe state is exactly when someone is watching, and a status row that froze
+at the moment of the request would be stale AND look live.
+
+Two causes reach it - a plant-wide safe request, and the operator switching one
+program off - and they inhibit the same things the same way, so the STATE is
+one value. Which one asked is `safe_requested()` / `disable_requested()`, not a
+second value every reader would have to treat alike.
+
+**Health is re-derived every activation**, so a fault that clears is not sticky.
+A program that never calls `degraded()` or `faulted()` is one whose `run()`
+cannot fail, and it reads healthy rather than unknown.
+
+### INHIBITED is reached, not commanded
+
+Parking is *work*. A valve has travel; a window has travel. So a request does not
+assign the state:
+
+1. `Registry::request_safe(true)` (or `request_disable()` on one program) raises
+   the ask.
+2. The program **keeps being activated** - one that is not run cannot close a
+   valve - but `run()` stops and `on_park()` is called in its place.
+3. `on_park()` returns whether it is THERE. It must terminate. `observe()` keeps
+   running throughout, so nothing stops being reported.
+4. `Registry::all_safe()` becomes true when every program has arrived.
+
+Only then does a supervisor act, and what it does next is the difference between
+the two commands: a **reboot** drops control, forces every output to its declared
+default and stops kicking the watchdog; a **halt** does the same but keeps kicking
+it and stops the `LoopScheduler` running the cycle instead.
+
+Dropping control the instant the operator asked would leave a half-travelled
+actuator wherever the request happened to catch it, which is the failure this
+protocol exists to prevent.
+
+One hook serves both requests, because where an actuator has to go is a property
+of the actuator and not of the reason: a tray valve fails open, an inlet valve
+fails shut, whichever asked. A program the operator had already switched off is
+therefore ALREADY where a reboot needs it, and the supervisor's wait means what
+it says with no second state to reconcile.
+
+### Where the work goes
+
+| hook | when | for |
+|---|---|---|
+| `run()` | only while controlling | the control law |
+| `on_park()` | while a request stands, in place of `run()` | driving actuators to their fail position |
+| `observe()` | **every activation, in every state** | status values, alarm conditions |
+
+An actuator moved from `observe()` would move while the program is inhibited,
+which is the one thing that state promises does not happen.
+
 ## Control authority, and its two edges
 
 `Vars::Bank::control_enabled()` gates the control phase and nothing else. The

@@ -70,6 +70,8 @@ Host-only, SIMULATOR build. Two suites, both wired into CTest:
 make -C build check                  # the pre-push gate
 make -C build check-full             # the periodic sweep: clang-tidy, bare profile, then the gate under ASan+UBSan
 make -C build check-bare             # just the bare profile: every optional feature off
+make -C build check-vars             # the CSV tables, and the generated C++ against them
+make -C build table-golden-update    # rewrite tests/data/*.txt after an intended table change
 make -C build botanik_tests          # just build the doctest binary
 ./build/tests/botanik_tests          # run it directly (doctest CLI)
 ./build/tests/botanik_tests -s       # ...every passing check + the struct-size table
@@ -78,7 +80,8 @@ ctest --test-dir build --output-on-failure          # all CTest entries
 ctest --test-dir build -R pyte --output-on-failure  # just the pyte suite
 ```
 
-**`make check`** fails on the first problem: the library compiles `-Werror`, so building
+**`make check`** fails on the first problem: `check-vars` validates the CSV tables and
+proves the committed C++ still matches them; the library compiles `-Werror`, so building
 the suite at all fails on a warning in a library source; then the doctest + pyte suites
 via `ctest -LE unit`. The gate excludes the per-case entries because the aggregate entry
 covers the same cases in one process (~0.6 s against ~14 s, all of it process startup),
@@ -170,6 +173,7 @@ Subsystems under `src/libbotanik/`. Each row's doc is the reference; the header 
 | `firmware/` | `BotanikFirmware`, the Template-Method base owning every generic component and the non-overridable per-tick order. Sites customize only through the protected hooks | `architecture.md` |
 | `vars/` | Gated by `BOTANIK_FEATURE_VARS`. The one model everything the firmware exposes goes through, along three independent fields: `VarType`, `Transport`, `VarRole`, plus `VarScope` for what a table filters on. `Bank` is the one object that gets, sets and overrides | `vars.md` |
 | `plc/` | The POU vocabulary, split as IEC 61131-3 splits it: `functions/` has no state, `blocks/` has state. A function is a single expression in a header; a block needs a `.cpp` | `scan.md` |
+| `io/` | `LocalInputs`, the controller's own input terminals: every `XP_LOCAL` DI row found by walking the table at bring-up, published at `PHASE_INPUT` with `F_INVERT` folded in. The field-bus mirror image, so a program reads a terminal by name | `io.md` |
 | `modbus/` | Four corners in one tree: `rtu/` is the RS-485 field bus, `tcp/` the plant network, each with both ends. `wire.h` and `response.h` are what they share | `modbus.md` |
 | `console/` | Two layers: `AnsiTerminal` is the VT device owning a screen back-buffer, `Console` the multiplexed page display. `TextEditor` is the byte-efficient editing state machine | `screen.md`, `editor.md`, `input.md` |
 | `pages/` | Full-screen views behind a common `Page` interface, all base-owned and site-independent | `pages.md` |
@@ -285,14 +289,31 @@ Three layers, generic to specific:
 
 `GreenhouseMLB41 : BotanikFirmware` is a thin binding passing a `SiteDescriptor` to the
 base constructor. The base owns every page and wires each table generically. `setup()`
-and `loop()` are non-virtual; a site customizes through `register_pages()` (tab order,
-page 0 = boot page), `register_commands()`, `register_telemetry()`, `on_setup()`, and the
-six per-phase hooks (only `on_control()` is gated). The site is chosen at configure time
+and `loop()` are non-virtual; a site customizes through `register_vars()`,
+`register_pages()` (tab order, page 0 = boot page), `register_commands()`,
+`register_telemetry()` and `on_setup()`, where its control programs and any
+components of its own register. There is no per-phase hook on the firmware: work
+at a point in the beat is a `Component` or a `Plc::Program`. The site is chosen at configure time
 with `-DBOTANIK_SITE=<name>`.
 
-The site's six files - `vars.h` (generated: every variable in one table, the calibration
-blocks, the home fields, the RAM value store), `site.h`, `tasks.h` (the control programs),
-`sim.h` (whole body `#ifdef TARGET_SIMULATOR`), `config.h`, `vars.cpp`.
+A site's rows are DECLARED IN CSV, under `tables/`, one file per row factory
+(`params.csv`, `alarms.csv`, `direct_inputs.csv`, `relay_outputs.csv`, ...), and
+generated into `generated/vars.gen.h` by `scripts/vars_gen.py`. The library
+declares its own rows the same way, in `src/libbotanik/vars/tables/`. A site's
+control programs are declared the same way in `tables/programs.toml` - which row
+each of a program's variables connects to - and generated into
+`generated/programs.gen.h` as one `Refs` struct per program, typed from the
+table, with its `bind()` body; the program holds it as `_v`. Its RS-485 field
+devices are declared in `tables/device_models.csv` + `tables/devices.csv` and
+generated into the same `vars.gen.h`. **The generated C++
+is committed, never built**: the tree has no Python build dependency, and
+`make check` runs `check-vars` to catch a table edited without regenerating.
+Edit the table, re-run the generator, commit both.
+
+The hand-written site files: `vars.h` (what the device map means, and the home
+fields), `site.h`, `tasks.h` / `tasks_*.cpp` (the control programs, one body
+file per stage: sense, climate, irrigation, actuators), `sim.h`
+(whole body `#ifdef TARGET_SIMULATOR`), `config.h`, `vars.cpp`.
 
 ### Rules
 
@@ -306,7 +327,7 @@ blocks, the home fields, the RAM value store), `site.h`, `tasks.h` (the control 
   `TARGET_SIMULATOR`, so simulator-only code stays behind that guard.
 - **Generic components address variables by NAME**, resolved once at bring-up into
   parallel `VarRef` arrays. A name matching no row resolves to the inert sink, and
-  `tests/test_site_names.cpp` fails the gate if any does. **The one trap:** a `VarRef` in
+  `tests/test_site.cpp` fails the gate if any does. **The one trap:** a `VarRef` in
   a `const` table is zero, and zero is a real row - never read a resolved index back out
   of the flash table it was declared in.
 - **Config is one file per concern.** `libbotanik_config.h` is only the AGGREGATE; values

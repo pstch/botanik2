@@ -1,155 +1,141 @@
 # Declaring a site {#int_site}
 
-A **site** is one directory. It is the single source of truth for one installation,
-used verbatim by both the simulator and the hardware build - never forked per
-target.
+A **site** is one directory. It is the single source of truth for one
+installation, used verbatim by both the simulator and the hardware build - never
+forked per target.
 
 ## The files
 
-| File | Origin | Holds |
+Three kinds, and which kind a file is decides how you change it.
+
+| File | Kind | Holds |
 |---|---|---|
-| `vars.h` | generated | everything declarative: every variable in one table, the analog calibration blocks, the home-screen readings, and the value store + string pool |
-| `tasks.h` | hand-written | the control programs |
-| `sim.h` | hand-written | the simulated field, for the simulator |
+| `tables/*.csv` | **declared** | every variable the site has, one file per row factory |
+| `tables/enums.csv` | declared | the vocabularies its enumerated rows are written over |
+| `tables/programs.toml` | declared | which control programs exist, and which row each of their variables connects to |
+| `generated/vars.gen.h` | **generated** | the `Descriptor` arrays, the calibration blocks, the enums and their converters |
+| `generated/programs.gen.h` | generated | one `Refs` struct per program, and its `bind()` |
 | `config.h` | hand-written | `#define BOTANIK_*` build-wide overrides |
-| `site.h` | hand-written | the shell commands, the `SiteDescriptor` bundling every table, the firmware binding and the uniform handle |
+| `vars.h` | hand-written | what the device map MEANS, and the home-screen captions |
+| `vars.cpp` | hand-written | the home-field reference array |
+| `tasks.h` / `tasks_*.cpp` | hand-written | the control programs - the one place a site expresses *behaviour*. One header, and a body file per stage of the flow: sense, climate, irrigation, actuators |
+| `site.h` | hand-written | the shell commands, the `SiteDescriptor`, and the firmware class |
+| `sim.h` | hand-written | the simulated field (whole body `#ifdef TARGET_SIMULATOR`) |
 
-The generated half is schema; the hand-written half is code. Four files are yours to
-write.
+**The generated C++ is committed and never built.** The tree has no Python build
+dependency, and an Arduino sketch path could not run a generator. Edit a table,
+re-run `scripts/vars_gen.py`, commit both - `make check` runs `check-vars`, which
+regenerates into memory and fails if the committed C++ differs.
 
-@note A site is **five files**: `vars.h` (everything declarative), `site.h` (the
-commands, the descriptor and the binding), `tasks.h` and `sim.h` (the behaviour), and
-`config.h`. Everything else that used to be its own file has folded in - the alarm
-table (an alarm is a `SCOPE_A` row), the status groups (a group is a name prefix), the
-home fields, the value store, the descriptor and the commands.
+@warning Intra-site includes are bare sibling names (`vars.h`, `tasks.h`,
+`generated/vars.gen.h`); the library is reached as `libbotanik.h`, which resolves
+against the build's include root. The sibling rule is load-bearing rather than
+style: the Arduino PLC IDE adds no include directory inside a sketch folder, so
+quoted-relative resolution is the only mechanism that works there for the site's
+own files.
 
-`config.h` stays separate, and the reason is ordering rather than content:
-`libbotanik_config.h` reads it before its own `#ifndef` defaults, with none of the
-library in scope. It can be folded into `site.h` behind a pass macro so the same file
-answers both questions, but a header that is deliberately enterable twice is a lot of
-machinery for five `#define`s.
+`config.h` stays separate from `site.h`, and the reason is ordering rather than
+content: `libbotanik_config.h` reads it before its own `#ifndef` defaults, with
+none of the library in scope.
 
-@warning Intra-site includes are bare sibling names (`vars.h`, `tasks.h`); the
-library is reached as `libbotanik.h`, which resolves against the build's include
-root. The sibling rule is load-bearing rather than style: the Arduino PLC IDE adds
-no include directory inside a sketch folder, so quoted-relative resolution is the
-only mechanism that works there for the site's own files.
+## What is declared, and what is written
+
+The line between the two halves is worth stating, because it is where most
+questions about this tree land.
+
+**Declared** is anything a rule can check: a row's type, band, register,
+transport, safe state, access level; which program produces which row; what an
+enum's codes are. All of it is CSV or TOML, all of it is checked before the
+firmware is built, and none of it is C++ you can get subtly wrong.
+
+**Written** is behaviour: what a law does with the numbers. `tasks_*.cpp` is the
+only file where a site decides anything.
 
 ## The binding
 
-`site.h` is the whole firmware class:
+`site.h` is the firmware class. The descriptor is what the site hands the
+library; everything else the base owns.
 
 ```cpp
 const Botanik::SiteDescriptor g_site = {
     Botanik::Config::SITE_NAME,
-    g_commands,    g_command_count,
-    g_home_fields, g_home_field_count, g_home_refs,
-    SITE_VAR_TABLES,
-    g_programs,    g_program_count,
+    g_commands,     g_command_count,                  // site shell commands
+    g_home_fields,  g_home_field_count,  home_refs,   // home-screen readings
+#if BOTANIK_FEATURE_MODBUS_RTU_CLIENT
+    &g_device_table,                                  // what each unit answers
+#endif
 };
-
-class GreenhouseXXX final : public Botanik::BotanikFirmware {
-public:
-    GreenhouseXXX() : Botanik::BotanikFirmware(Site::g_site) {}
-};
-
-#include "sim.h"
-
-using BotanikSite = GreenhouseXXX;
 ```
 
-It declares no members and overrides nothing. The base owns every page and wires
-every table generically. A site that needs custom per-beat logic or an extra page
-overrides a hook here - see @ref int_extending.
+Every pointer is **borrowed** and must outlive the firmware - site statics, not
+locals. Any table may be null with count 0.
 
-Every site exposes the same three names, so a harness never spells the site name:
+@note `SiteDescriptor` has no default member initialisers, deliberately. An NSDMI
+would stop it being a C++11 aggregate, and the descriptor would no longer
+constant-initialise into flash.
 
-| Name | From | Is |
-|---|---|---|
-| `BotanikSite` | `site.h` | the firmware type to instantiate |
-| `Site::simulate(Vars::Bank&, uint32_t now_ms)` | `sim.h` | the simulated field |
+The variable table is NOT in the descriptor: the site hands it over by overriding
+`register_vars()`, which calls the generated `register_all()`. That function holds
+the ordering rule the parameter block depends on, so no site has to remember it.
 
-`sim.h` is included **after** the variable tables it animates, and its whole body is
-`#ifdef TARGET_SIMULATOR` so it compiles to nothing on hardware. Keep
-simulator-only code inside that guard rather than in the portable path.
+```cpp
+class GreenhouseMLB41 final : public Botanik::BotanikFirmware {
+    // Plain members, in EXECUTION order: registering is what puts a program in
+    // the beat, so there is no table of pointers to keep in step with one.
+    Site::AcGridWatch        _ac_grid;
+    Site::TempRHZone         _zones;
+    // ...
+
+public:
+    GreenhouseMLB41()
+        : Botanik::BotanikFirmware(Site::g_site),
+          // The base is fully constructed before any derived member, so
+          // setup_context() and io() are already alive here.
+          _ac_grid(setup_context(), io()),
+          _zones(setup_context(), io())
+    {}
+
+protected:
+    void register_vars() override { Site::register_all(io()); }
+
+    void on_setup() override {
+        _ac_grid.register_tasks();
+        _zones.register_tasks();
+        // ...in the same order as the members above.
+    }
+};
+
+using BotanikSite = GreenhouseMLB41;   // what the harness instantiates
+```
+
+@note The program list appears three times - member, constructor init, and
+`register_tasks()` - and `programs.toml` already knows it. Generating the trio is
+an obvious next step and has not been taken; until it is, the three lists are
+kept in step by hand and by the site test that walks them.
 
 ## Running it
 
-A harness includes `BOTANIK_SITE_HEADER`, allocates a `BotanikSite`, and calls
-`setup()` then `loop()`:
+`botanik_sim` and `botanik_fw` are thin: each selects a site and runs it. The
+site is chosen at configure time.
 
-```cpp
-#include BOTANIK_SITE_HEADER
-
-BotanikSite firmware;
-
-int main() {
-    firmware.setup();
-    for (;;) firmware.loop();
-}
-```
-
-On hardware, allocate it as a **function-local static** so it is constructed after
-the platform's own init has brought up the UARTs, not before `main()`:
-
-```cpp
-static BotanikSite& firmware() { static BotanikSite fw; return fw; }
-
-void setup() { firmware().setup(); }
-void loop()  { firmware().loop();  }
-```
-
-`setup()` and `loop()` are non-virtual. The bring-up order and the per-tick cycle
-are fixed by the base and cannot be reordered or skipped - see @ref dev_architecture
-for what that order is and why.
-
-Anything tunable before start-up is a modifier called ahead of `setup()`:
-`set_hw_watchdog_ms()`. Neither UART rate is one of them: both are parameters
-(`console_baud`, `monitor_baud`), and `ConfigBinder` pushes each port its rate
-once the store is read.
-
-## Selecting a site at build time
-
-Two cache variables, checked in this order:
-
-| Variable | Selects |
-|---|---|
-| `BOTANIK_SITE_DIR` | any directory on disk - a site in your own project tree |
-| `BOTANIK_SITE` | a directory under `src/sites/` in the library tree (default `gh_mlb41`) |
-
-```sh
-cmake -B build -DBOTANIK_TARGET=SIMULATOR -DBOTANIK_SITE_DIR=/path/to/my_site
-make -C build botanik_sim
-```
-
-The directory must contain both `config.h` and `site.h`, or the configure step
-fails. CMake then defines two absolute paths on the `botanik` target:
-
-```cmake
-target_compile_definitions(botanik PUBLIC
-    BOTANIK_SITE_CONFIG="${_site_dir}/config.h"
-    BOTANIK_SITE_HEADER="${_site_dir}/site.h")
-```
-
-Nothing is added to the include path. That is deliberate: flat site filenames like
-`config.h` must not be able to shadow the platform's own headers.
-
-@warning Those defines are `PUBLIC` for a reason. **Any target that includes
-`libbotanik_config.h` must link `botanik`**, or it silently compiles against
-un-overridden defaults and mismatches the rest of the build.
-
-Without CMake, `#define BOTANIK_SITE <name>` resolves the pair relative to `src/`;
-with neither, the library compiles standalone against its own defaults. A vendored
-build can also just drop a `botanik_site_config.h` beside `libbotanik_config.h` and
-it is picked up automatically.
-
-## Building
-
-```sh
-cmake -B build -DBOTANIK_TARGET=SIMULATOR    # host simulator
-cmake -B build -DBOTANIK_TARGET=OPTA         # cross-compile for the OPTA
+```bash
+cmake -B build -DBOTANIK_TARGET=SIMULATOR -DBOTANIK_SITE=gh_mlb41
 make -C build
 ```
 
-See @ref dev_build for the build options, and @ref reference for a complete worked
-site.
+`-DBOTANIK_SITE=<name>` resolves to `src/sites/<name>/site.h` and compiles every
+`.cpp` beside it. `src/sites/bare` is the other end of the range: every optional
+feature off and nothing declared, existing to be COMPILED rather than run, so an
+OFF path cannot rot unnoticed (`make check-bare`).
+
+## The workflow
+
+1. edit a table under `tables/`
+2. `python3 scripts/vars_gen.py` - validates, then writes `generated/`
+3. write or change the law in the `tasks_*.cpp` its stage belongs to
+4. `make -C build check`
+
+Step 2 is where most mistakes are caught: a register collision, a program
+producing a row another already produces, a parameter no law reads, a default
+outside its own band, a diagram naming a program that is not there. See
+@ref int_tables_schema for every column and every rule.
