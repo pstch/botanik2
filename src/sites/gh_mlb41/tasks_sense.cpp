@@ -205,13 +205,15 @@ void ZoneProbes::_publish(Vars::RefOut<float> row,
                           Utils::ExpMovingAverage& filter, const ZoneVote& v,
                           bool& seeded, float lo, float hi) {
     if (v.used == 0) {
-        // Nothing believable left. Marking the row invalid is the whole action:
-        // Var::_under() falls back to the DECLARED DEFAULT for any quality that
-        // is not GOOD or STALE, so the row reads its default from here rather
-        // than holding a filtered number nothing is measuring. The filter keeps
-        // its state, and seeding is not re-armed - a probe coming back rejoins
-        // the average it left.
-        row.invalidate();
+        // Nothing believable left. The row keeps the last average this zone
+        // could make and says it is not current: a reader that checks quality
+        // knows not to act on it, and one that does not gets the temperature
+        // the greenhouse last had rather than 0 degC, which reads like a
+        // measurement of a freezing house. The filter keeps its state and
+        // seeding is not re-armed, so a probe coming back rejoins the average
+        // it left.
+        if (seeded) row.hold(Plc::limit(filter.value(), lo, hi));
+        else        row.invalidate();     // nothing has ever been measured here
         return;
     }
     if (!seeded) {                      // start AT the reading, not at zero
@@ -284,7 +286,9 @@ void TempRHZone::run(ProgramContext& c) {
     if (hi_ok && lo_ok)  _v.temp_in.set(0.5f * (t_hi + t_lo));
     else if (hi_ok)      _v.temp_in.set(t_hi);
     else if (lo_ok)      _v.temp_in.set(t_lo);
-    else                 _v.temp_in.invalidate();
+    // Both levels gone: the zones are holding their last readings, so the mean
+    // of them is still the best answer there is - held, like they are.
+    else                 _v.temp_in.hold(0.5f * (t_hi + t_lo));
 
     // Between the two interior levels the WORST case is kept, per the spec:
     // the smallest margin decides the condensation risk, and taking an average
@@ -312,7 +316,11 @@ void StratSensor::run(ProgramContext& c) {
     // it is a number about a place. Say so instead - and FAULTED, not degraded:
     // the distinction is whether the OUTPUT is still good, and here it is gone.
     if (!_v.ceiling.valid() || !_v.floor.valid()) {
-        _v.strat.invalidate();
+        // The levels hold their last readings, so their difference is still the
+        // last profile this law saw. Held, not dropped: the fans read the
+        // quality and go to their own floor, and a page reads a gap the plant
+        // actually had.
+        _v.strat.hold(fabsf(_v.ceiling.get() - _v.floor.get()));
         faulted();
         return;
     }

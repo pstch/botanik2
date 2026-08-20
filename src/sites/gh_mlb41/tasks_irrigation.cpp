@@ -116,7 +116,10 @@ void WaterMeters::observe(ProgramContext& c) {
         // A flow derived from a loop that has stopped answering is not a flow.
         // The TOTAL beside it keeps its value: a totalizer is a record of what
         // went past, and the instrument failing does not unmake it.
-        _v.out_flow_pub.invalidate();
+        // The last flow the loop reported, held: a totalizer beside it that
+        // stopped counting says the same thing, and zero would read as "no
+        // water is moving", which is what a leak detector must not be told.
+        _v.out_flow_pub.hold();
         degraded();
     }
     // Per SECOND into the totalizer, which is what the block counts in.
@@ -367,7 +370,7 @@ void IrrigationCycle::run(ProgramContext& c) {
     const float dose = (_tray > 0)
         ? (float)_v.litres[_tray - 1].get() * powf(mod, split) : 0.0f;
     if (can_dose) _v.volume.set(dose);
-    else          _v.volume.invalidate();
+    else          _v.volume.hold();
 
     switch (_state) {
         case IRR_IDLE: {

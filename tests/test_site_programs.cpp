@@ -157,7 +157,7 @@ TEST_CASE("zone: temperature survives losing every humidity probe") {
     CHECK_FALSE(f.bank.var(h_out.r).valid());
 }
 
-TEST_CASE("zone: with every probe gone the reading goes invalid, not stale-good") {
+TEST_CASE("zone: with every probe gone the reading is HELD, not defaulted") {
     Live f;
     Vars::RefIn<float> hi = f.bank.resolve_in<float>("cli_temp_hi");
     const VarRef p[3] = { f.ref("cli_temp_hi1"), f.ref("cli_temp_hi2"),
@@ -177,14 +177,29 @@ TEST_CASE("zone: with every probe gone the reading goes invalid, not stale-good"
 
     INFO("a law gating on quality must see that nothing is measuring this zone");
     CHECK_FALSE(f.bank.var(hi.r).valid());
+    CHECK(f.bank.var(hi.r).value().q == Q_HELD);
 
-    // And it reads its DECLARED DEFAULT, not the last filtered number: any
-    // quality but GOOD or STALE falls back, so a law that does not test
-    // validity still gets the value the row was declared to fail to.
-    INFO("and it reads the declared default rather than a stale filtered value");
-    CHECK(f.bank.get(hi) == doctest::Approx(
-              as_f32(T_F32, f.bank.descriptor(hi.r.index).def)));
-    CHECK(f.bank.get(hi) != doctest::Approx(21.0f));
+    // ...and the VALUE is the last average this zone could make. A reader that
+    // does not test quality gets the temperature the greenhouse last had rather
+    // than the declared default, which is 0 degC and reads like a measurement
+    // of a freezing house.
+    INFO("and it holds the last average rather than dropping to its default");
+    CHECK(f.bank.get(hi) == doctest::Approx(21.0f));
+}
+
+TEST_CASE("zone: a zone that has never been measured has nothing to hold") {
+    Live f;
+    Vars::RefIn<float> cs = f.bank.resolve_in<float>("cli_temp_cs");
+    Site::TempRHZone z(Botanik::SetupContext(f.reg), f.bank);
+    Plc::Program* const progs[] = { &z };
+    Cycle d(progs, 1, &f.bank, f.reg);
+
+    for (uint64_t t = 0; t <= 2000; t += 100) d.step(t);
+
+    INFO("holding would publish a filter that has never been seeded, which is "
+         "the declared default wearing a better label");
+    CHECK_FALSE(f.bank.var(cs.r).valid());
+    CHECK(f.bank.var(cs.r).value().q == Q_NO_DATA);
 }
 
 TEST_CASE("strat: the gap is unsigned, so an inverted profile still calls the fans") {
@@ -270,6 +285,34 @@ TEST_CASE("target: an aggressive offset is clamped to the safe band") {
 
     Vars::RefIn<float> target = f.bank.resolve_in<float>("cli_targetTemp_degC");
     CHECK(f.bank.get(target) == doctest::Approx(Site::TargetTempController::TARGET_MIN));
+}
+
+TEST_CASE("cooling: a demand it cannot make is HELD at the last one it could") {
+    Live f;
+    Site::CoolingController cc(Botanik::SetupContext(f.reg), f.bank);
+    Plc::Program* const progs[] = { &cc };
+    Cycle d(progs, 1, &f.bank, f.reg);
+
+    const VarRef dem = f.ref("cli_coolDem");
+    field(f, "cli_targetTemp_degC", 20.0f);
+    field(f, "cli_temp_hi", 30.0f);
+    field(f, "cli_temp_lo", 30.0f);
+    field(f, "cli_temp_cs", 18.0f);
+    for (uint32_t i = 0; i < 20; i++) d.step(100u * (i + 1));
+    const float was = f.bank.var(dem).as_f32();
+    REQUIRE(was > 0.0f);
+
+    f.bank.var(f.ref("cli_temp_hi")).invalidate(Q_NO_DATA);
+    f.bank.var(f.ref("cli_temp_lo")).invalidate(Q_NO_DATA);
+    d.step(3000);
+
+    INFO("every actuator reads the quality and goes to its own safe state, so "
+         "what the number says matters only to a reader that does not - and to "
+         "that reader, zero would mean nothing is wanted");
+    CHECK_FALSE(f.bank.var(dem).valid());
+    CHECK(f.bank.var(dem).value().q == Q_HELD);
+    CHECK(f.bank.var(dem).as_f32() == doctest::Approx(was));
+    CHECK(cc.health() == Plc::Health::FAULTED);
 }
 
 TEST_CASE("cooling: the floor carries it when the ceiling goes, and both gone is unknown") {

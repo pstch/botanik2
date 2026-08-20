@@ -88,9 +88,23 @@ namespace Botanik { namespace Vars {
          *  @return false if the band refused it. VAR_IN_OUT only: an edit is a
          *  read-modify-write of a row somebody else also writes. */
         bool edit(T v) const;
-        /** @brief Say the value is not knowable, rather than substituting a
-         *  default that reads like a measurement. VAR_INPUT does not compile. */
+        /** @brief Say the value is not knowable AND that there is nothing
+         *  behind it: the row falls back to its declared default. For a row
+         *  that has never had a value at all. VAR_INPUT does not compile. */
         void invalidate() const;
+
+        /** @brief Say the value is not current while KEEPING it: the best
+         *  answer this law has, marked not-believable.
+         *
+         *  What a law does when its inputs go: a reader that checks quality
+         *  learns the number is not to be acted on, and one that does not gets
+         *  the last real answer rather than a declared default - which reads
+         *  like a measurement of zero and is how a dead probe becomes a
+         *  greenhouse at 0 degC.
+         *  @{ */
+        void hold() const;
+        void hold(T v) const;
+        /** @} */
 
         /** @} */
     };

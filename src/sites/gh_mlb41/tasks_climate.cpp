@@ -78,8 +78,8 @@ void DayPhaseController::run(ProgramContext& c) {
         // announcing a night the plant is not in. Every boot passes through
         // here, for as long as NTP takes. The offsets ARE the sun, so they say
         // they are not known rather than holding yesterday's numbers.
-        _v.from_rise.invalidate();
-        _v.from_set.invalidate();
+        _v.from_rise.hold();
+        _v.from_set.hold();
         degraded();
     }
     if (_phase == PHASE_DAY && was != PHASE_DAY)     _day_max   = inside;
@@ -129,8 +129,12 @@ void CoolingController::run(ProgramContext& c) {
         // each actuator go to its own safe state. The window demand goes with
         // it: an opening derived from a temperature nobody has is not an
         // intention, and the windows have their own safe position.
-        _v.demand.invalidate();
-        _v.window.invalidate();
+        // HELD, not dropped: the last demand this law made is the best guess
+        // at what the plant needs, and every actuator reads the quality and
+        // goes to its own safe state anyway. A zero here would read as "nothing
+        // is wanted", which is a different and much more reassuring lie.
+        _v.demand.hold();
+        _v.window.hold();
         _pid.reset();      // the integral is about a plant we stopped seeing
         faulted();
         return;
@@ -196,7 +200,7 @@ void DestratController::run(ProgramContext& c) {
     // and stops the fans. Say the demand is unknown instead and let each
     // actuator decide what that means for it.
     if (!_v.strat.valid()) {
-        _v.demand.invalidate();
+        _v.demand.hold();
         // The bands are a claim about where the gap has recently been, and we
         // stopped seeing it.
         _bands.reset();
@@ -281,7 +285,7 @@ void HumidityController::run(ProgramContext& c) {
         // that means "saturated": published as a demand it would call for full
         // dehumidification on a reading nobody has. The rot guard in observe()
         // still ventilates - that one is a CHOICE, not a derivation.
-        _v.demand.invalidate();
+        _v.demand.hold();
         return;
     }
 

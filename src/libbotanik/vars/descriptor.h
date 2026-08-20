@@ -77,7 +77,16 @@ namespace Botanik { namespace Vars {
         /** @brief No such LAYER: the override of an unforced row, the wire of a
          *  row with no bus binding. Appended, never 0 - that slot is
          *  Q_NO_DATA's, so a zeroed Slot reads as "nothing wrote this". */
-        Q_NONE
+        Q_NONE,
+        /** @brief The last value a law could derive, KEPT, because its inputs
+         *  have stopped being believable.
+         *
+         *  Distinct from Q_STALE, which is the FIELD saying a device went
+         *  quiet: this one says the reading arrived and the law that turns it
+         *  into something no longer can. Both keep their value - the best
+         *  answer available beats a declared default, which reads like a
+         *  measurement of zero. */
+        Q_HELD
     };
 
     /** @brief @p q as a phrase for an operator: "valid", or invalid and why. */
@@ -91,6 +100,7 @@ namespace Botanik { namespace Vars {
             case Q_REFUSED:     return "invalid: the device refused the read";
             case Q_FORCED_BAD:  return "invalid: forced";
             case Q_NONE:        return "not present";
+            case Q_HELD:        return "invalid: held, its inputs are gone";
             default:            return "invalid";
         }
     }
