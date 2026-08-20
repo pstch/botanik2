@@ -28,6 +28,7 @@
 #include "libbotanik/core/context.h"
 #include "libbotanik/firmware/stacks.h"
 #include "libbotanik/health/health.h"
+#include "libbotanik/io/local_inputs.h"
 #include "libbotanik/logs/logger.h"
 #include "libbotanik/logs/topics.h"
 #if BOTANIK_FEATURE_MODBUS_RTU_CLIENT
@@ -144,6 +145,11 @@ namespace Botanik {
 #if BOTANIK_FEATURE_NETWORK
         NetworkStack                   _net;         ///< resolver/network/ntp/mqtt
 #endif
+#if BOTANIK_FEATURE_VARS
+        /** @brief The controller's own input terminals. Not gated on a field-bus
+         *  flag: local wiring is there whether or not the site has a bus. */
+        Io::LocalInputs                _local_in;
+#endif
 #if BOTANIK_FEATURE_MODBUS_RTU_CLIENT
         /** @brief The field-bus master. Stepped from two phases like the slave
          *  below, and for the mirror-image reason: it takes the field in before
@@ -224,6 +230,15 @@ namespace Botanik {
             // One 64-bit "now" for every Component stepped this beat.
             uint64_t now_ms = HAL::Clock::uptime_ms();
 
+            // HALTED: the plant has reached its safe state and the operator
+            // asked for the cycle to stop rather than for a reset. Nothing runs
+            // from here - not the console either - and the kick below still
+            // goes out, because the loop IS alive. Recovery is `reset`.
+            if (_health.halted()) {
+                (void)_scheduler.kick(true);
+                return true;
+            }
+
             _scheduler.run_beat(now_ms);
 
             // The escape hatch, after the whole beat and before the kick that
@@ -269,6 +284,10 @@ namespace Botanik {
 #if BOTANIK_FEATURE_VARS
         const Vars::Bank&                 io() const { return _io; }
         Vars::Bank&                       io()       { return _io; }
+        /** @brief Where a site binds a component of its OWN to the parameters
+         *  that configure it - Vars::bind_sun() for a site-owned tracker, say.
+         *  Bind in on_setup(): apply_all() runs after it. */
+        Vars::ConfigBinder&               config_binder() { return _binder; }
 #endif
 #if BOTANIK_FEATURE_NETWORK
         Network::NetworkHandler&        network()         { return _net.network(); }
@@ -348,9 +367,9 @@ namespace Botanik {
          *  control programs. Run near the end of setup(), after every library
          *  component has registered and before the setup pass, so anything
          *  registered here is a task-table entry like any other.
-         *  @note The extension point for work the six per-phase hooks cannot
-         *  express: state of its own, several rates, or more than one point in
-         *  the beat. Default: nothing. */
+         *  @note The one extension point for work in the beat: a Component or
+         *  a Program registered here gets a name, a rate and a TASKS row.
+         *  Default: nothing. */
         virtual void on_setup() {}
 
 

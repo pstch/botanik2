@@ -31,6 +31,7 @@
 #include "libbotanik/scheduler/scheduler.h"
 
 namespace Botanik { namespace Tasks { struct Tick; } }
+namespace Botanik { namespace Network { class NetworkHandler; class NtpClient; } }
 
 namespace Botanik { namespace Health {
 
@@ -45,6 +46,28 @@ namespace Botanik { namespace Health {
 
         /** @brief Bind the variable bank this drives its alarms into. */
         void set_bank(const Vars::Bank* io) { _io = io; }
+
+        /** @brief The two network components whose faults are platform alarms.
+         *  Borrowed, optional, and set by the composition root: this class
+         *  raises the row, and each component knows its own state.
+         *  @note Not a dependency of the monitor's own work - a build with no
+         *  network simply never sets them. */
+        void set_network(const Network::NetworkHandler* net) { _net = net; }
+        void set_ntp(const Network::NtpClient* ntp) { _ntp = ntp; }
+    public:
+        /** @brief How the unit is being taken out of service.
+         *
+         *  Both END the same way and DIFFER only in what happens once they get
+         *  there, because getting there is the part that matters: every program
+         *  drives its own actuators to their safe positions and says when it has
+         *  arrived. A window travels for fifteen seconds and they move one at a
+         *  time, so "stop now" and "stop safely" are a minute apart. */
+        enum class Stop : uint8_t {
+            NONE = 0,
+            REBOOT,   ///< ...then stop kicking, and let the watchdog reset us
+            HALT      ///< ...then stop the cycle, and keep kicking
+        };
+
     private:
         /** @brief The registration handler. A static MEMBER, so the cast has
          *  access to the protected hook and stays beside the class. */
@@ -74,6 +97,51 @@ namespace Botanik { namespace Health {
         /** @brief The row carrying "a program is missing its period". */
         Vars::VarRef _scan_late = { Vars::VAR_NONE };
 
+        /** @name Subsystem alarms
+         *
+         *  Platform conditions like the six above, but read off a component
+         *  rather than off the scheduler's metrics. Bound by name, and written
+         *  every beat - the row's own dwell decides what annunciates.
+         *  @{ */
+
+        Vars::VarRef _net_fault  = { Vars::VAR_NONE };
+        Vars::VarRef _ntp_late   = { Vars::VAR_NONE };
+        Vars::VarRef _log_flood  = { Vars::VAR_NONE };
+
+        const Network::NetworkHandler* _net = nullptr;
+        const Network::NtpClient*      _ntp = nullptr;
+        /** @brief The logger's drop count at the previous beat: a flood is that
+         *  number MOVING, not its size. */
+        uint32_t _dropped_seen = 0;
+
+        /** @} */
+
+#if BOTANIK_FEATURE_VARS && BOTANIK_FEATURE_LOGGING
+        /** @brief The three subsystem alarms, off the components that own the
+         *  conditions. @see set_network */
+        void _subsystem_alarms(Vars::Bank* io);
+
+        /** @brief One bounded pass of the validity sweep.
+         *
+         *  A row going invalid is how a dead instrument announces itself, and
+         *  only the rows carrying a timeout ALARM say so today. Swept rather
+         *  than hooked into the Bank: the model has no logger and should not
+         *  acquire one to say what a supervisor can see from outside.
+         *
+         *  A SLICE per beat, because the table runs to several hundred rows and
+         *  this sits beside the control scan. */
+        void _quality_sweep();
+
+        /** @brief One bit per row: was it valid last time this looked. */
+        uint8_t  _was_valid[(Config::VAR_MAX + 7) / 8] = {};
+        /** @brief Where the next slice starts. */
+        uint16_t _quality_at = 0;
+        /** @brief Whether a first full pass has been made. Until it has, the
+         *  bits say nothing and a change is not a change - otherwise bring-up
+         *  logs the whole table. */
+        bool     _quality_seeded = false;
+#endif
+
         /** @name State
          *  @{ */
 #if BOTANIK_FEATURE_ALARMS_PUBLISH
@@ -94,8 +162,15 @@ namespace Botanik { namespace Health {
         uint32_t _xrun_last        = 0;
         /** cached verdict (see watchdog_ok()) */
         bool     _watchdog_ok      = true;
-        /** latched by request_reboot(); never cleared */
-        bool     _reboot_requested = false;
+        /** latched by request_stop(); never cleared */
+        Stop     _stop             = Stop::NONE;
+        /** whether the parking it started has finished */
+        bool     _stopped          = false;
+        /** programs still parking, as last announced: the count is what an
+         *  operator watches, and it only moves a few times */
+        uint8_t  _stop_said        = 0xFF;
+        /** when the parking began, for the deadline. 0 is "not yet". */
+        uint64_t _stop_since       = 0;
         bool     _post_ok          = false;
         // BOTANIK_NO_LOAD_ALARMS: hold the CPU_* load alarms cleared for
         // deterministic screen goldens (sim/test only; reads 0 on OPTA).
@@ -191,21 +266,29 @@ namespace Botanik { namespace Health {
          *  file header). */
         bool                watchdog_ok() const { return _watchdog_ok; }
 
-        /** @brief Reboot by letting the watchdog expire (the shell's `reboot`).
-         *
-         *  A latch, not a request that can be reconsidered: from here the kick
-         *  is withheld every beat until the hardware resets the unit. The gap
-         *  between the last kick and the reset is exactly the window where an
-         *  actuator must not be left energised, which is why the caller drops
-         *  control authority FIRST and this only stops the kicking.
+        /** @brief Take the unit out of service. A LATCH, not a request that can
+         *  be reconsidered - there is no un-reboot - and the parking it starts
+         *  runs to completion first.
          *
          *  Deliberately not a HAL::System::reset(): the reset path an
          *  unattended unit takes when it wedges is the one worth exercising by
          *  hand, and it leaves the loop running (logs flush, the screen
          *  repaints) right up to the reset. */
-        void request_reboot() { _reboot_requested = true; _watchdog_ok = false; }
+        void request_stop(Stop what) {
+            if (_stop == Stop::NONE) _stop = what;
+        }
+        /** @brief Reboot once every program has parked (the shell's `reboot`). */
+        void request_reboot() { request_stop(Stop::REBOOT); }
         /** @brief Whether a reboot is pending - the kick is being withheld. */
-        bool reboot_requested() const { return _reboot_requested; }
+        bool reboot_requested() const { return _stop == Stop::REBOOT; }
+        Stop stop_requested() const { return _stop; }
+        /** @brief Whether the plant has ARRIVED at its safe state and the unit
+         *  is now acting on the request. Until then the programs are still
+         *  running, because parking is work. */
+        bool stopped() const { return _stopped; }
+        /** @brief Whether the beat should stop running. A halted unit keeps
+         *  kicking: the watchdog says the loop is alive, and it is. */
+        bool halted() const { return _stopped && _stop == Stop::HALT; }
         /** @brief Healthy while the watchdog verdict holds and POST passed. */
         bool                healthy() const override { return _watchdog_ok && _post_ok; }
         /** @} */
@@ -308,6 +391,14 @@ namespace Botanik { namespace Health {
             _bound_ok = true;
 #if BOTANIK_FEATURE_VARS
             for (uint8_t i = 0; i < PA_COUNT; i++) _a[i] = _bind(PLATFORM_NAMES[i]);
+            // Through find(), not _bind(): these rows are gated on their own
+            // feature, and a build without the network is not a build with a
+            // missing alarm row.
+            if (_io != nullptr) {
+                _net_fault = _io->find("alarm_net_fault");
+                _ntp_late  = _io->find("alarm_ntp_timeout");
+                _log_flood = _io->find("alarm_log_flood");
+            }
             // The thresholds go through find() directly, not _bind(): a missing
             // one falls back to its Config default and the monitor still works,
             // where a missing ALARM row means a fault that can never be raised.
@@ -398,7 +489,10 @@ namespace Botanik { namespace Health {
          *  stepping (see the file header) - unless a reboot was asked for, which
          *  is the one case where letting the watchdog fire IS the intent. */
         void _update_watchdog(uint64_t /*now*/) {
-            _watchdog_ok = !_reboot_requested;
+            // Only once the plant has ARRIVED. Withholding the kick while the
+            // windows are still travelling would reset the unit mid-stroke,
+            // which is the one thing the parking exists to avoid.
+            _watchdog_ok = !(_stopped && _stop == Stop::REBOOT);
         }
     };
 

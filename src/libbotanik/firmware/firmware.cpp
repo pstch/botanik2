@@ -42,6 +42,9 @@ namespace Botanik {
           // telemetry publishes the live _sys_ctx (read later).
           , _net(_setup, &_sys_ctx)
 #endif
+#if BOTANIK_FEATURE_VARS
+          , _local_in(_setup, _io)
+#endif
 #if BOTANIK_FEATURE_MODBUS_RTU_CLIENT
           , _modbus_rtu(_setup, &_io, site.devices)
 #endif
@@ -198,6 +201,14 @@ namespace Botanik {
         _logger.info(Logs::BOOT, "Botanik v%s\nRunning on : %s",
                      Config::FIRMWARE_VERSION, HAL::hardware_description());
 
+#if BOTANIK_FEATURE_NETWORK
+        // The monitor raises the row; each component knows its own state.
+        _health.set_network(&_net.network());
+#endif
+#if BOTANIK_FEATURE_NTP
+        _health.set_ntp(&_net.ntp());
+#endif
+
 #if BOTANIK_FEATURE_ALARMS_PUBLISH
         // Route alarm transitions out through the MQTT client (it is an
         // Alarms::Publisher).
@@ -319,6 +330,11 @@ namespace Botanik {
         // and issues at OUTPUT, the TCP slave decodes at INPUT, persists at
         // SERVICE and answers at PRESENT. First, so their INPUT halves commit
         // ahead of the bank's expiry sweep below.
+#if BOTANIK_FEATURE_VARS
+        // The controller's own terminals, before the bus: both fill rows the
+        // programs read this beat, and this one cannot fail or block.
+        _local_in.register_tasks();
+#endif
 #if BOTANIK_FEATURE_MODBUS_RTU_CLIENT
         _modbus_rtu.register_tasks();
 #endif

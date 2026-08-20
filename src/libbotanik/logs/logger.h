@@ -65,6 +65,9 @@ namespace Botanik { namespace Logs {
          *  topics to NONE. */
         LogBucket_t     _perTopic_buckets[Logs::LOG_TOPIC_COUNT];
         uint32_t        _suppress_reportTime_ms = 0;   ///< suppressed-report cadence anchor
+        /** @brief Entries the rate limiter has ever dropped. Monotonic, so a
+         *  supervisor can see a flood by the number MOVING. */
+        uint32_t        _dropped_total = 0;
         /** @brief Re-entrancy guard for refill(): its suppression and loss
          *  reports LOG, and _emit() refills, so the recursion is real. */
         bool            _refilling = false;
@@ -165,6 +168,9 @@ namespace Botanik { namespace Logs {
          *  here would hide the base one. It reads the clock itself and refills
          *  by elapsed time, so calling it less often fills more tokens. */
         void refill();
+        /** @brief Entries the rate limiter has dropped since boot. What
+         *  `alarm_log_flood` is raised from: a record with holes in it. */
+        uint32_t dropped_total() const { return _dropped_total; }
         /** @brief Healthy while at least one writer is registered (a writerless
          *  logger silently swallows everything). */
         bool healthy() const { return has_writers(); }

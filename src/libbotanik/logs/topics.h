@@ -36,7 +36,7 @@ namespace Botanik { namespace Logs {
      *  Beside the enum rather than in logs/format.h with the display helpers: a
      *  site's variable table pulls this in, and that table has no business
      *  seeing the line formatter. */
-    inline const char* log_level_label(uint64_t v) {
+    inline const char* level_label(uint64_t v) {
         switch (v) {
             case LOG_DEBUG:    return "debug";
             case LOG_INFO:     return "info";
@@ -66,11 +66,16 @@ namespace Botanik { namespace Logs {
         HEALTH = 10,       // HealthMonitor (POST verdict, etc.)
         STORAGE = 11,      // persistence; its own topic, not a boot problem
         USER = 12,         // written by an operator, through the `log` command
+        // The two observability topics. DEBUG-level and high-volume by nature,
+        // which is exactly why they are their own topics: a sink can carry the
+        // control logic's trace without carrying everything else at DEBUG.
+        PROGRAM = 13,      // a control program changed state
+        QUALITY = 14,      // a variable's validity changed
     };
 
     /** @brief Number of defined topics (the enum is dense 0..USER). Bounds the
      *  logger's per-tick scan loops and sizes the per-topic bucket array. */
-    static constexpr uint8_t LOG_TOPIC_COUNT = USER + 1;
+    static constexpr uint8_t LOG_TOPIC_COUNT = QUALITY + 1;
 
     // The wire format and every bucket-loop counter are uint8_t.
     static_assert(LOG_TOPIC_COUNT <= 255, "LOG_TOPIC_COUNT exceeds the range of LogTopic");

@@ -165,6 +165,10 @@ namespace Botanik { namespace Logs {
             // Saturate rather than wrap: the slow drain cadence lets a long
             // storm otherwise overflow the uint16_t suppressed count.
             if (bucket->suppressed != UINT16_MAX) bucket->suppressed++;
+            // Monotonic and never cleared, unlike the bucket's own count, which
+            // the suppression report zeroes: a supervisor watching for a flood
+            // needs a number that only grows.
+            _dropped_total++;
             return false;
         }
         else { bucket->state--; return true; }
