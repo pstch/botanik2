@@ -350,7 +350,7 @@ namespace Botanik { namespace Shell {
                        bool params_only);
         /** @} */
         /** @brief Report control state, naming every hold still in force. */
-        void _report_control(Vars::Bank* io);
+        void _report_control(Plc::ControlAuthority* auth);
 
         /** @brief `tasks get <name>`: one task's schedule and its cost samples.
          *  @p name is the word slice from the command line, not NUL-terminated. */

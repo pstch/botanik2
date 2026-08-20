@@ -5,6 +5,8 @@
 
 #include "libbotanik/health/health.h"
 
+#include "libbotanik/plc/authority.h"
+
 #include "libbotanik/plc/program.h"
 #include "libbotanik/tasks/tasks.h"
 
@@ -69,23 +71,26 @@ namespace Botanik { namespace Health {
     void HealthMonitor::_latch_control(uint64_t now_ms) {
         Vars::Bank* io = const_cast<Vars::Bank*>(_io);
         if (io == nullptr) return;
-
-        if (!watchdog_ok()) {
+        // A null authority is a harness with nothing to withdraw control FROM.
+        // Guarded per use rather than up front: the quality sweep, the alarms
+        // and the parking handshake below are none of them about who may drive
+        // the field, and skipping them here once cost five health cases.
+        if (_authority != nullptr && !watchdog_ok()) {
             if (!_health_fault) {
                 _health_fault = true;
-                io->set_health_hold(true);
+                _authority->set_health_hold(true);
                 if (_logger) _logger->critical(Logs::HEALTH,
                     "control disabled\n"
                     "outputs at their safe state, scan inhibited");
             }
-        } else if (_health_fault) {
+        } else if (_authority != nullptr && _health_fault) {
             _health_fault = false;
-            io->set_health_hold(false);
+            _authority->set_health_hold(false);
             // Lead hoisted out of the ternary: the format string stays a
             // literal the printf attribute can check, and both outcomes grep
             // as "health recovered".
             if (_logger) _logger->warning(Logs::HEALTH, "health recovered\n%s",
-                io->control_enabled()
+                _authority->control_enabled()
                     ? "control enabled, scan resuming"
                     : "control still disabled by the operator");
         }
@@ -111,7 +116,7 @@ namespace Botanik { namespace Health {
                 // Only now: the field goes to its declared safe state, the
                 // retained rows are written, and whichever of the two endings
                 // was asked for takes effect.
-                io->set_health_hold(true);
+                if (_authority != nullptr) _authority->set_health_hold(true);
                 (void)io->save_retained();
                 if (_logger) _logger->warning(Logs::HEALTH,
                     "%s: plant safe",
@@ -126,8 +131,8 @@ namespace Botanik { namespace Health {
 
         // The whole authority edge, in one idempotent call: the gate, and on
         // the way back up the timer reseed and the first-scan flag.
-        if (_tasks != nullptr)
-            _tasks->set_programs_enabled(io->control_enabled(), now_ms);
+        if (_tasks != nullptr && _authority != nullptr)
+            _tasks->set_programs_enabled(_authority->control_enabled(), now_ms);
 
 #if BOTANIK_FEATURE_LOGGING
         // Before the PLC block below, and outside it: whether a reading is

@@ -6,6 +6,7 @@
  */
 
 #include <string>
+#include "libbotanik/plc/authority.h"
 
 #include "doctest.h"
 
@@ -27,6 +28,7 @@ namespace {
     struct Fixture {
         Vars::Slot*                vals;
         Vars::Bank                  bank;
+        Botanik::Plc::ControlAuthority auth{bank};
         Logs::Logger                log;
         RecordingWriter             writer;
         Scheduler::SchedulerContext sched;
@@ -48,6 +50,7 @@ namespace {
 TEST_CASE("health: SYS_RST is asserted for the reset window and then clears") {
     Fixture f;
     Health::HealthMonitor h(Botanik::SetupContext(nullptr, &f.log), &f.sched, &f.bank);
+    h.set_authority(&f.auth);
 
     h.step(1000);                                   // early in the window
     CHECK(f.alarm("alarm_system_reset"));
@@ -59,6 +62,7 @@ TEST_CASE("health: CPU load and jitter are judged against the beat, not a consta
     // Integer-scaled (no float): at threshold must NOT fire, one us past must.
     Fixture f;
     Health::HealthMonitor h(Botanik::SetupContext(nullptr, &f.log), &f.sched, &f.bank);
+    h.set_authority(&f.auth);
 
     const uint32_t at = (uint32_t)((uint64_t)PERIOD_US * Config::ALARM_CPU_LOAD_PCT / 100u);
     f.sched.cpu_loop_us_recent = at;
@@ -80,6 +84,7 @@ TEST_CASE("health: CPU load and jitter are judged against the beat, not a consta
 TEST_CASE("health: the stack alarm follows the high-water fraction") {
     Fixture f;
     Health::HealthMonitor h(Botanik::SetupContext(nullptr, &f.log), &f.sched, &f.bank);
+    h.set_authority(&f.auth);
 
     f.sched.stack_usage = (float)Config::ALARM_STACK_PCT / 100.0f - 0.01f;
     h.step(SETTLED);
@@ -95,6 +100,7 @@ TEST_CASE("health: the thresholds are parameters, live, not compile-time constan
     // number an operator wants to move is the one a unit nuisance-alarms on.
     Fixture f;
     Health::HealthMonitor h(Botanik::SetupContext(nullptr, &f.log), &f.sched, &f.bank);
+    h.set_authority(&f.auth);
 
     // Sit exactly at the factory threshold: quiet by the "at does not fire" rule.
     f.sched.cpu_loop_us_recent =
@@ -153,6 +159,7 @@ TEST_CASE("health: an overrun pulses CPU_XRUN, and the row's own hold_s latches 
     static const uint64_t HOLD_MS = 300u * 1000u;   // the CPU_XRUN row's hold_s
     Fixture f;
     Health::HealthMonitor h(Botanik::SetupContext(nullptr, &f.log), &f.sched, &f.bank);
+    h.set_authority(&f.auth);
     Alarms::AlarmController& m = h.alarm_model();
     h.setup(0);          // binds the alarm source, then sets the model up
     const int xr = m.index_of("CPU_XRUN");
@@ -185,6 +192,7 @@ TEST_CASE("health: POST fails when the alarm table declares more than the model 
     // BOTANIK_ASSERT compiles to nothing without DEBUG (every OPTA build); POST must catch this too.
     Fixture f;
     Health::HealthMonitor h(Botanik::SetupContext(nullptr, &f.log), &f.sched, &f.bank);
+    h.set_authority(&f.auth);
     h.setup(0);                                     // runs POST
     CHECK(h.healthy());
     CHECK(f.bank.var(f.bank.find("alarm_system_reset")).meta() != nullptr);
@@ -195,6 +203,7 @@ TEST_CASE("health: with no scheduler context the load alarms stay quiet") {
     // Must not invent a fault from a null scheduler pointer; SYS_RST/FLASH_FLT still work.
     Fixture f;
     Health::HealthMonitor h(Botanik::SetupContext(nullptr, &f.log), nullptr, &f.bank);
+    h.set_authority(&f.auth);
     h.step(SETTLED);
     CHECK_FALSE(f.alarm("alarm_cpu_load"));
     CHECK_FALSE(f.alarm("alarm_cpu_jitter"));
@@ -239,6 +248,7 @@ TEST_CASE("quality: a row losing its validity is announced once, not per beat") 
     Fixture f;
     Botanik::Tasks::Registry reg;
     Health::HealthMonitor h(Botanik::SetupContext(reg, &f.log), &f.sched, &f.bank);
+    h.set_authority(&f.auth);
     h.register_tasks();
     reg.setup(0);
 
@@ -283,6 +293,7 @@ TEST_CASE("quality: bring-up is adopted in silence, not announced row by row") {
     Fixture f;
     Botanik::Tasks::Registry reg;
     Health::HealthMonitor h(Botanik::SetupContext(reg, &f.log), &f.sched, &f.bank);
+    h.set_authority(&f.auth);
     h.register_tasks();
     reg.setup(0);
 
@@ -341,12 +352,13 @@ TEST_CASE("stop: a reboot parks the plant BEFORE it stops kicking") {
     Fixture f;
     Botanik::Tasks::Registry reg;
     Health::HealthMonitor h(Botanik::SetupContext(reg, &f.log), &f.sched, &f.bank);
+    h.set_authority(&f.auth);
     SlowToPark slow(Botanik::SetupContext(reg, &f.log), f.bank, 50);
     slow.set_slot(0);
     slow.register_tasks();
     h.register_tasks();
     reg.setup(0);
-    f.bank.set_health_hold(false);
+    f.auth.set_health_hold(false);
 
     uint64_t t = SETTLED;
     beat(reg, h, t, 5);
@@ -364,20 +376,21 @@ TEST_CASE("stop: a reboot parks the plant BEFORE it stops kicking") {
     CHECK_FALSE(h.watchdog_ok());
     INFO("and the field is at its declared safe state before the reset window "
          "opens, not after it");
-    CHECK(f.bank.health_hold());
+    CHECK(f.auth.health_hold());
 }
 
 TEST_CASE("stop: a program that never parks does not hold the unit for ever") {
     Fixture f;
     Botanik::Tasks::Registry reg;
     Health::HealthMonitor h(Botanik::SetupContext(reg, &f.log), &f.sched, &f.bank);
+    h.set_authority(&f.auth);
     // Longer than the deadline: this one is never going to arrive.
     SlowToPark stuck(Botanik::SetupContext(reg, &f.log), f.bank, 0xFFFF);
     stuck.set_slot(0);
     stuck.register_tasks();
     h.register_tasks();
     reg.setup(0);
-    f.bank.set_health_hold(false);
+    f.auth.set_health_hold(false);
 
     uint64_t t = SETTLED;
     beat(reg, h, t, 5);
@@ -399,12 +412,13 @@ TEST_CASE("stop: a halt keeps kicking, because the loop IS alive") {
     Fixture f;
     Botanik::Tasks::Registry reg;
     Health::HealthMonitor h(Botanik::SetupContext(reg, &f.log), &f.sched, &f.bank);
+    h.set_authority(&f.auth);
     SlowToPark slow(Botanik::SetupContext(reg, &f.log), f.bank, 10);
     slow.set_slot(0);
     slow.register_tasks();
     h.register_tasks();
     reg.setup(0);
-    f.bank.set_health_hold(false);
+    f.auth.set_health_hold(false);
 
     uint64_t t = SETTLED;
     beat(reg, h, t, 5);
@@ -416,7 +430,7 @@ TEST_CASE("stop: a halt keeps kicking, because the loop IS alive") {
     INFO("the watchdog says the loop is alive, and it is - what stops is the "
          "beat, which the firmware skips while this holds");
     CHECK(h.watchdog_ok());
-    CHECK(f.bank.health_hold());
+    CHECK(f.auth.health_hold());
 }
 
 }  // namespace health

@@ -14,6 +14,7 @@
 namespace Botanik { namespace Scheduler { struct SchedulerContext;  } }
 namespace Botanik { namespace Tasks     {  class Registry;          } }
 namespace Botanik { namespace Vars      {  class Bank;              } }
+namespace Botanik { namespace Plc       {  class ControlAuthority;  } }
 
 
 namespace Botanik { namespace Network   {  class NetworkHandler;    } }
@@ -63,6 +64,11 @@ namespace Botanik {
          *  it. Consumers reach it here, so there is one wiring point rather than
          *  one per consumer. */
         Vars::Bank*                    vars      = nullptr;
+
+        /** @brief Who may drive the field, and why not. The bank ENACTS the
+         *  verdict; this is what decides it, and what a console command has to
+         *  reach to change it. */
+        Plc::ControlAuthority*         authority = nullptr;
 
         const Network::NetworkHandler* network   = nullptr; ///< IP config handler
 

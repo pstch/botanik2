@@ -191,7 +191,8 @@ Subsystems under `src/libbotanik/`. Each row's doc is the reference; the header 
   sources - the operator's standing choice and the system's hold - and the STRICTER wins.
   `CONTROL_DISABLED` *mutes* an output override reversibly; only the SYSTEM's hold ERASES
   one. It starts held, so nothing before the end of `setup()` can energise an actuator.
-  See `scan.md`.
+  `Plc::ControlAuthority` DECIDES and `Vars::Bank` ENACTS: the bank is handed a verdict
+  through `set_effective_control()` and never asks who decided it. See `scan.md`.
 - **The scan cycle has no driver.** A control program registers itself with
   `Tasks::Registry` like everything else, PHASE_CONTROL by construction (`add_program()`).
   A program due late runs ONCE - missed activations are dropped, never caught up - so

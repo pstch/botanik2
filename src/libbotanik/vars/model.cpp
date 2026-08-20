@@ -369,24 +369,14 @@ namespace Botanik { namespace Vars {
         }
     }
 
-    void Bank::set_control_mode(ControlMode mode) {
-        const ControlMode before = control_mode();
-        _op_mode = mode;
-        _apply_control(before, false);
-    }
-
-    void Bank::set_health_hold(bool held) {
-        const ControlMode before = control_mode();
-        const bool        was    = _health_hold;
-        _health_hold = held;
-        // The system RAISING its hold is the destructive edge, and only on the
-        // transition: the per-beat watchdog path re-asserts it for as long as
-        // the fault lasts, so re-erasing every beat would be wasted work.
-        _apply_control(before, held && !was);
+    void Bank::set_effective_control(ControlMode now, bool erase_overrides) {
+        const ControlMode before = _mode;
+        _mode = now;
+        _apply_control(before, erase_overrides);
     }
 
     void Bank::_apply_control(ControlMode before, bool erase_overrides) {
-        const ControlMode now = control_mode();
+        const ControlMode now = _mode;
         if (now == before && !erase_overrides) return;
 
         // Drop to safe on the way out of ENABLED only; a mode change between the
@@ -792,7 +782,7 @@ namespace Botanik { namespace Vars {
         if (i >= _count || descriptor(i).role != ROLE_OUTPUT) return false;
         Slot& v = _slots[i];
         const uint8_t before = v.vflags;
-        v.vflags = (control_mode() == CONTROL_DISABLED)
+        v.vflags = (_mode == CONTROL_DISABLED)
                      ? (uint8_t)(before | VF_OVR_MUTED)
                      : (uint8_t)(before & ~VF_OVR_MUTED);
         return v.vflags != before;

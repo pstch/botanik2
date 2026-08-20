@@ -32,6 +32,9 @@
 
 namespace Botanik { namespace Tasks { struct Tick; } }
 namespace Botanik { namespace Network { class NetworkHandler; class NtpClient; } }
+// Forward-declared, not included: health/ raises and releases the system hold,
+// and needs no more of plc/ than the type of the pointer it is handed.
+namespace Botanik { namespace Plc { class ControlAuthority; } }
 
 namespace Botanik { namespace Health {
 
@@ -46,6 +49,10 @@ namespace Botanik { namespace Health {
 
         /** @brief Bind the variable bank this drives its alarms into. */
         void set_bank(const Vars::Bank* io) { _io = io; }
+        /** @brief Who to raise and release the system hold on. Without
+         *  one the monitor still reports; it just cannot withdraw
+         *  authority. */
+        void set_authority(Plc::ControlAuthority* a) { _authority = a; }
 
         /** @brief The two network components whose faults are platform alarms.
          *  Borrowed, optional, and set by the composition root: this class
@@ -163,6 +170,7 @@ namespace Botanik { namespace Health {
         const Scheduler::SchedulerContext* _sched;
         /** the variable bank the alarm rows live in (may be null) */
         const Vars::Bank*                  _io;
+        Plc::ControlAuthority*             _authority = nullptr;
 
         /** last overrun count seen (edge detect) */
         uint32_t _xrun_last        = 0;

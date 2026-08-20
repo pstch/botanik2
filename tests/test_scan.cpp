@@ -8,6 +8,7 @@
  */
 
 #include <cstddef>
+#include "libbotanik/plc/authority.h"
 #include <cstdint>
 #include <vector>
 #include "libbotanik/tasks/tasks.h"
@@ -64,7 +65,8 @@ namespace {
     struct Live {
         Botanik::Tasks::Registry reg;   ///< what the case's programs register in
         Bank io;
-        Live() { io.set_health_hold(false); }
+        Botanik::Plc::ControlAuthority auth{io};
+        Live() { auth.set_health_hold(false); }
     };
 }
 
@@ -177,7 +179,7 @@ TEST_CASE("scan: a control outage makes the next activation a first scan, once")
     d.step(0);
     REQUIRE(fast.firsts == 1);               // bring-up is one
 
-    f.io.set_control_mode(Botanik::Vars::CONTROL_DISABLED);
+    f.auth.set_control_mode(Botanik::Vars::CONTROL_DISABLED);
     for (uint64_t t = 10; t <= 500; t += 10) d.step(t);
     INFO("nothing ran, so nothing was told anything");
     CHECK(fast.firsts == 1);
@@ -185,7 +187,7 @@ TEST_CASE("scan: a control outage makes the next activation a first scan, once")
     // Back: the process moved without us, so what the program remembered is
     // stale - and the flag on its next activation is where it drops it. Once,
     // not on every activation from here.
-    f.io.set_control_mode(Botanik::Vars::CONTROL_ENABLED);
+    f.auth.set_control_mode(Botanik::Vars::CONTROL_ENABLED);
     for (uint64_t t = 510; t <= 1000; t += 10) d.step(t);
     CHECK(fast.firsts == 2);
     CHECK(fast.runs_seen.size() > 3);        // and it is running normally again
@@ -199,11 +201,11 @@ TEST_CASE("scan: control returning does not hand a program the whole outage") {
     d.step(0);                                // one activation, seeds the timer
     fast.runs_seen.clear();
 
-    f.io.set_control_mode(Botanik::Vars::CONTROL_DISABLED);
+    f.auth.set_control_mode(Botanik::Vars::CONTROL_DISABLED);
     for (uint64_t t = 10; t <= 60000; t += 10) d.step(t);
     REQUIRE(fast.runs_seen.empty());          // inhibited throughout
 
-    f.io.set_control_mode(Botanik::Vars::CONTROL_ENABLED);
+    f.auth.set_control_mode(Botanik::Vars::CONTROL_ENABLED);
     d.step(60010);                            // the reseed beat: nothing runs yet
     d.step(60110);
 

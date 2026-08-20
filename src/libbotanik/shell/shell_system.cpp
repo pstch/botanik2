@@ -4,6 +4,8 @@
  *        out (reset, reboot, exit).
  */
 #include "libbotanik/shell/shell.h"
+
+#include "libbotanik/plc/authority.h"
 #include "libbotanik_features.h"
 
 #if BOTANIK_FEATURE_SHELL_PAGE
@@ -47,8 +49,9 @@ namespace Botanik { namespace Shell {
         // The system's hold, not the operator's: the firmware is deciding to
         // stop running, not someone turning control off.
 #if BOTANIK_FEATURE_VARS
+        if (_sys != nullptr && _sys->authority != nullptr)
+            _sys->authority->set_health_hold(true);
         if (Vars::Bank* io = _bank()) {
-            io->set_health_hold(true);
             // A deliberate stop loses no counting: the retain cadence bounds
             // what a power cut costs, a planned stop should cost nothing.
             (void)io->save_retained();
@@ -156,27 +159,29 @@ namespace Botanik { namespace Shell {
     void CommandShell::_cmd_control(const char* args, uint16_t alen) {
         Vars::Bank* io = _bank();
         if (io == nullptr) { _println("control: no variables"); return; }
+        Plc::ControlAuthority* auth = (_sys != nullptr) ? _sys->authority : nullptr;
+        if (auth == nullptr) { _println("control: no authority"); return; }
         uint16_t w = 0;
         const char* a = arg_next(args, alen, w);
 
-        if (arg_eq(a, w, "status")) { _report_control(io); return; }
+        if (arg_eq(a, w, "status")) { _report_control(auth); return; }
 
         if (arg_eq(a, w, "enable")) {
-            io->set_control_mode(Vars::CONTROL_ENABLED);
-            _report_control(io);           // ...which the system may still veto
+            auth->set_control_mode(Vars::CONTROL_ENABLED);
+            _report_control(auth);         // ...which the system may still veto
             return;
         }
         if (arg_eq(a, w, "inhibit")) {
             // The programs stop deciding, but `override` still reaches an
             // actuator - the whole reason to type this before working on the
             // plant.
-            io->set_control_mode(Vars::CONTROL_INHIBITED);
+            auth->set_control_mode(Vars::CONTROL_INHIBITED);
             _println("control: INHIBITED - outputs at their safe state, scan "
                      "stopped; `overrides set` still drives them by hand");
             return;
         }
         if (arg_eq(a, w, "disable")) {
-            io->set_control_mode(Vars::CONTROL_DISABLED);
+            auth->set_control_mode(Vars::CONTROL_DISABLED);
             _println("control: DISABLED - outputs at their safe state, scan "
                      "stopped, output overrides ignored (kept, not cleared)");
             return;
@@ -211,11 +216,11 @@ namespace Botanik { namespace Shell {
     // The operator's choice and the system's hold are reported separately: a
     // `control enable` that changes nothing must read as a health fault still in
     // force rather than a broken command.
-    void CommandShell::_report_control(Vars::Bank* io) {
-        const Vars::ControlMode eff = io->control_mode();
-        const Vars::ControlMode op  = io->operator_mode();
+    void CommandShell::_report_control(Plc::ControlAuthority* auth) {
+        const Vars::ControlMode eff = auth->control_mode();
+        const Vars::ControlMode op  = auth->operator_mode();
         char out[160];
-        if (!io->health_hold()) {
+        if (!auth->health_hold()) {
             _emitf(out, sizeof(out), "control: %s",
                    Vars::Bank::control_mode_name(eff));
             return;

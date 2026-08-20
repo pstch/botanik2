@@ -141,8 +141,15 @@ from the context; nothing gets its own pointer.
 | `override_set(...)` | force **any** variable: range-checked against the type only, marked unsaved |
 | `save(...)` / `save_override(...)` | write one row's value / force to the store, clearing its mark |
 | `save_params()` / `save_overrides()` | the same for every row still marked |
-| `set_control_mode()` / `set_health_hold()` / `control_mode()` | control authority |
+| `control_mode()` / `control_enabled()` | what authority is in force |
+| `set_effective_control()` | ENACT a verdict: mute, unmute, or drop to safe. `Plc::ControlAuthority`'s to call, nobody else's |
 | `clear_overrides()` | release the lot |
+
+The bank ENACTS control authority; it does not decide it. Who may drive the
+field is `Plc::ControlAuthority` - the operator's standing choice and the
+system's hold, stricter wins - which pushes the verdict down through
+`set_effective_control()`. The bank never asks who decided, the same way
+`Tasks::Registry` keeps its own plain gate flag.
 
 The two writes are deliberately different. `set()` refuses anything that is not a
 parameter with `SET_INVALID` - writing a sensor or an output would simply be
@@ -204,7 +211,7 @@ forced value waits; leaving the mode restores it with nothing to re-enter.
 Crossing that edge in either direction marks the row `VF_FIELD_DIRTY`, because
 both directions change what the field is owed.
 
-The one destructive path is the SYSTEM's hold (`set_health_hold(true)`), which
+The one destructive path is the SYSTEM's hold (`Plc::ControlAuthority::set_health_hold(true)`), which
 **erases** every output override, stored copy included. The two differ because
 the operator is present and a fault is not: an actuator held energised by hand
 through a fault, or resurrected by the next boot, is what the safe state exists

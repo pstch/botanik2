@@ -7,6 +7,7 @@
  */
 
 #include <cstdint>
+#include "libbotanik/plc/authority.h"
 #include <cstring>
 #include <string>
 #include "doctest.h"
@@ -48,12 +49,13 @@ namespace {
 /** @brief A client over the site's real tables, brought up at t = 0. */
 struct Master {
     Bank      bank;
+    Botanik::Plc::ControlAuthority auth{bank};
     RtuClient client;
 
     Master() : client(Botanik::SetupContext(), &bank, Site::g_site.devices) {
         TestSite::build(bank);
-        bank.set_health_hold(false);
-        bank.set_control_mode(CONTROL_ENABLED);
+        auth.set_health_hold(false);
+        auth.set_control_mode(CONTROL_ENABLED);
         client.setup(0);
     }
 
@@ -133,7 +135,7 @@ TEST_CASE("modbus client: withdrawing control puts the safe state ahead of every
     (void)m.client.next_block(10);
     REQUIRE_FALSE(m.client.safe_state_pending());
 
-    m.bank.set_health_hold(true);
+    m.auth.set_health_hold(true);
 
     // The very next beat, and well inside the ordinary write interval.
     const uint16_t pick = m.client.next_block(20);
@@ -152,7 +154,7 @@ TEST_CASE("modbus client: a safe state outranks even a starved read") {
     const uint64_t late = (uint64_t)period * 4u;
 
     // Same instant as above, but now a safe state is owed and outranks it.
-    m.bank.set_health_hold(true);
+    m.auth.set_health_hold(true);
     const uint16_t pick = m.client.next_block(late);
 
     REQUIRE(m.client.safe_state_pending());
@@ -163,7 +165,7 @@ TEST_CASE("modbus client: the urgency is spent once the safe state is out") {
     // Leaving control disabled must not keep the bus at emergency priority forever.
     Master m;
     (void)m.client.next_block(10);
-    m.bank.set_health_hold(true);
+    m.auth.set_health_hold(true);
     REQUIRE(m.client.next_block(20) != RtuClient::NO_BLOCK);
     REQUIRE(m.client.safe_state_pending());
 
@@ -258,6 +260,7 @@ TEST_CASE("modbus client: duty counts the beat a transaction is quantised to") {
 TEST_CASE("modbus client: a short frame on a quick device is charged a whole beat") {
     // Where wire and scheduled duty diverge; the reference site can't show it (MODBUS_TURNAROUND_MS is already a beat), so this uses a fast link.
     Bank bank;
+    Botanik::Plc::ControlAuthority auth{bank};
     TestSite::build(bank);
     Planner p;
     p.plan(bank, 115200, 1);          // 1 ms turnaround, fast link
@@ -273,11 +276,11 @@ TEST_CASE("modbus client: control returning spends the safe-state urgency") {
     Master m;
 
     (void)m.client.next_block(10);                       // control up: an edge to fall from
-    m.bank.set_control_mode(CONTROL_DISABLED);
+    m.auth.set_control_mode(CONTROL_DISABLED);
     (void)m.client.next_block(20);
     REQUIRE(m.client.safe_state_pending());
 
-    m.bank.set_control_mode(CONTROL_ENABLED);
+    m.auth.set_control_mode(CONTROL_ENABLED);
     (void)m.client.next_block(30);
     INFO("with control back the programs drive the outputs again");
     CHECK_FALSE(m.client.safe_state_pending());
@@ -297,6 +300,7 @@ namespace {
 /** @brief A master with the far end of the wire actually connected. */
 struct LiveBus {
     Bank          bank;
+    Botanik::Plc::ControlAuthority auth{bank};
     RtuClient     client;
     Sim::FieldBus bus;
     uint64_t      t = 0;
@@ -306,8 +310,8 @@ struct LiveBus {
         TestSite::build(bank);
         // Both halves: the system's hold defaults to held, so the operator's
         // mode alone leaves the effective mode DISABLED.
-        bank.set_health_hold(false);
-        bank.set_control_mode(CONTROL_ENABLED);
+        auth.set_health_hold(false);
+        auth.set_control_mode(CONTROL_ENABLED);
         // The socketpair is one per PROCESS, so a previous case's unread request
         // bytes are still in the peer's buffer and would be answered as if they
         // were ours. setup() drains the master's end; this drains the devices'.
@@ -629,7 +633,7 @@ TEST_CASE("modbus fault: a dead output device does not pin the safe-state urgenc
     m.client.reassert_outputs(peer);   // owe the block, so the misses come at the write interval
     REQUIRE(m.until([&] { return m.client.peer_dead(peer); }));
 
-    m.bank.set_control_mode(CONTROL_DISABLED);
+    m.auth.set_control_mode(CONTROL_DISABLED);
     m.beat();
     REQUIRE(m.client.safe_state_pending());
 
@@ -785,6 +789,7 @@ TEST_CASE("modbus device: a board without FC15/FC16 is driven a point at a time"
     // write_multiple must be read, not merely carried: a device without FC15/FC16
     // must never be sent them (exception 01); the planner chooses the wire form.
     Bank bank;
+    Botanik::Plc::ControlAuthority auth{bank};
     TestSite::build(bank);
 
     // Relay board 31: once as it is, once as a model without multi-write; only the model differs.
@@ -826,6 +831,7 @@ TEST_CASE("modbus device: a wide write no device will take is dropped, not half 
                  /*reg*/100, /*regs*/2, Vars::Scalar::U(0), 0, "", "32-bit setpoint", ""),
     };
     Bank bank;
+    Botanik::Plc::ControlAuthority auth{bank};
     bank.register_vars(ROWS, 1);
     bank.freeze();
 
@@ -890,6 +896,7 @@ TEST_CASE("modbus device: the AI board's channels are read where they live") {
 
 TEST_CASE("modbus device: no coil block covers more relays than the board has") {
     Bank bank;
+    Botanik::Plc::ControlAuthority auth{bank};
     TestSite::build(bank);
     Planner p;
     p.plan(bank, 38400, 10, Site::g_site.devices);
@@ -919,6 +926,7 @@ TEST_CASE("modbus device: the SDM630's own limits are what the manual says") {
 TEST_CASE("modbus device: no planned read block exceeds its device's ceiling") {
     // An over-long request draws an exception, not a short read, which reads as a bad cable on the bus.
     Bank bank;
+    Botanik::Plc::ControlAuthority auth{bank};
     TestSite::build(bank);
     Planner p;
     p.plan(bank, 38400, 10, Site::g_site.devices);
@@ -939,6 +947,7 @@ TEST_CASE("modbus device: the site's own plan loses nothing to its constraints")
     // Alignment padding can push a block past its ceiling and drop it - signals
     // never scanned. Both counters are bring-up criticals; the site must trip neither.
     Bank bank;
+    Botanik::Plc::ControlAuthority auth{bank};
     TestSite::build(bank);
     Planner p;
     p.plan(bank, 38400, 10, Site::g_site.devices);
@@ -952,6 +961,7 @@ TEST_CASE("modbus device: the site's own plan loses nothing to its constraints")
 
 TEST_CASE("modbus device: a planned read is aligned the way its device demands") {
     Bank bank;
+    Botanik::Plc::ControlAuthority auth{bank};
     TestSite::build(bank);
     Planner p;
     p.plan(bank, 38400, 10, Site::g_site.devices);
@@ -969,6 +979,7 @@ TEST_CASE("modbus device: a planned read is aligned the way its device demands")
 TEST_CASE("modbus device: a tight ceiling cuts a run into more blocks") {
     // The planner must actually READ max_regs, not merely carry it.
     Bank bank;
+    Botanik::Plc::ControlAuthority auth{bank};
     TestSite::build(bank);
 
     const DeviceModel loose  = meter("loose",  0, 2);
@@ -999,6 +1010,7 @@ TEST_CASE("modbus device: a tight ceiling cuts a run into more blocks") {
 TEST_CASE("modbus device: an odd row is widened, not sent to be refused") {
     // A device storing pairs answers exception 02 mid-pair; the planner grows the request to the boundary instead.
     Bank bank;
+    Botanik::Plc::ControlAuthority auth{bank};
     TestSite::build(bank);
 
     const DeviceModel pairs = meter("pairs", 80, 2);
@@ -1039,11 +1051,12 @@ namespace {
 /** @brief A bank over the site's real tables, plus a plan over it. */
 struct Bus {
     Bank    bank;
+    Botanik::Plc::ControlAuthority auth{bank};
     Planner plan;
     Bus() {
         TestSite::build(bank);
-        bank.set_health_hold(false);
-        bank.set_control_mode(CONTROL_ENABLED);
+        auth.set_health_hold(false);
+        auth.set_control_mode(CONTROL_ENABLED);
         plan.plan(bank, 38400, 10);
     }
     /** @brief First write block carrying registers or bits; both encode differently and need pinning. */

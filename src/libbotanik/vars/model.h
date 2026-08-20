@@ -416,12 +416,11 @@ namespace Botanik { namespace Vars {
         /** @brief Where ROLE_PARAM writes are persisted (null -> RAM only, and
          *  set() reports SET_NOT_PERSISTED). */
         VarStore*     _store  = nullptr;
-        /** @brief The operator's standing choice. Survives a health fault
-         *  coming and going, which is the point of keeping it separate. */
-        ControlMode   _op_mode = CONTROL_ENABLED;
-        /** @brief The system's hold: bring-up, a health fault, a reset we have
-         *  decided to take. Starts SET - outputs are not ours to move yet. */
-        bool          _health_hold = true;
+        /** @brief What is IN FORCE, pushed in by Plc::ControlAuthority - which
+         *  owns the two sources behind it. Starts DISABLED, for the same reason
+         *  the system's hold starts raised: outputs are not ours to move until
+         *  setup() has finished. */
+        ControlMode   _mode = CONTROL_DISABLED;
         /** @brief Name lookups that found nothing: non-zero after bring-up means
          *  something names a row that is not in vars.h. Mutable, being
          *  diagnostics behind a const find(). */
@@ -695,31 +694,19 @@ namespace Botanik { namespace Vars {
         uint16_t pool_overflow() const { return _pool_overflow; }
 
         /** @name Control authority
-         *  Two INDEPENDENT sources decide whether the field may be driven and the
-         *  STRICTER wins: the operator's standing choice and the system's hold.
-         *  Starts held by the system. See docs/dev/scan.md. @{ */
+         *  The bank ENACTS a verdict it is handed; it does not decide one. Who
+         *  decided, and why, is Plc::ControlAuthority's - which is also the only
+         *  caller of set_effective_control(). See docs/dev/scan.md. @{ */
 
-        /** @brief Set the OPERATOR's standing mode (the console's `control`). */
-        void set_control_mode(ControlMode mode);
+        /** @brief Take @p now as the mode in force: mute or unmute the output
+         *  overrides, and on the way out of ENABLED drop every output to its
+         *  safe state. @p erase_overrides additionally WIPES them, stored copy
+         *  included - the system's hold does that, the operator's disable does
+         *  not. Idempotent when nothing moved. */
+        void set_effective_control(ControlMode now, bool erase_overrides);
 
-        /** @brief The operator's standing choice, whatever the system is doing. */
-        ControlMode operator_mode() const { return _op_mode; }
-
-        /** @brief Raise or release the SYSTEM's hold: bring-up, a health fault, a
-         *  reset we have decided to take. Forces CONTROL_DISABLED.
-         *  @warning Unlike the operator's own disable this ERASES every output
-         *  override, stored copy included. */
-        void set_health_hold(bool held);
-
-        /** @brief Whether the system is holding control down, so the console can
-         *  say WHY a `control enable` did nothing. */
-        bool health_hold() const { return _health_hold; }
-
-        /** @brief What is actually in force: the stricter of the two sources. */
-        ControlMode control_mode() const {
-            return _health_hold ? CONTROL_DISABLED
-                                : _op_mode;
-        }
+        /** @brief What is actually in force. */
+        ControlMode control_mode() const { return _mode; }
 
         /** @brief Whether the field may be driven (the scan is gated on it). */
         bool control_enabled() const { return control_mode() == CONTROL_ENABLED; }
@@ -934,7 +921,7 @@ namespace Botanik { namespace Vars {
         /** @brief The one output sweep both control edges run. @p before tells a
          *  transition from a re-assertion; @p erase_overrides is the system's
          *  destructive edge. Outputs only. */
-        void _apply_control(ControlMode before, bool erase_overrides);
+        void _apply_control(ControlMode before, bool erase_overrides);   // set_effective_control()'s body
         /** @brief Bring row @p i's mute bit in step with the current mode; true
          *  when it moved. ROLE_OUTPUT only. The one owner of "an output's
          *  override reaches the field iff the mode is not CONTROL_DISABLED". */

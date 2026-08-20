@@ -6,6 +6,7 @@
  */
 
 #include <cstdint>
+#include "libbotanik/plc/authority.h"
 #include <string>
 
 #include "libbotanik/plc/program.h"
@@ -258,6 +259,7 @@ namespace {
         char     pool[64]{};
         uint16_t index[V_COUNT]{};
         Bank     bank;
+        Botanik::Plc::ControlAuthority auth{bank};
         Fixture() {
             bank.register_vars(VARS, V_COUNT);
             bank.freeze();
@@ -296,11 +298,11 @@ TEST_CASE("model: invalid records WHY, not just that") {
     h.publish(Scalar::F(999.0f), 2000);            // band is -40..85
     CHECK(h.live().q == Q_IMPLAUSIBLE);            // judged as it arrives
 
-    f.bank.set_health_hold(false);   // a 4th: safe-state, not a fault
+    f.auth.set_health_hold(false);   // a 4th: safe-state, not a fault
     Var out = f.bank.var(V_VALVE);
     out.set(true);
     CHECK(out.live().q == Q_GOOD);
-    f.bank.set_health_hold(true);
+    f.auth.set_health_hold(true);
     CHECK(out.live().q == Q_SAFE);
 
     // All four still read as invalid through the single bool.
@@ -374,13 +376,13 @@ TEST_CASE("model: timeout 0 never expires, and only inputs expire at all") {
 
 TEST_CASE("control: disabling takes outputs to safe and nothing else") {
     Fixture f;
-    f.bank.set_health_hold(false);
+    f.auth.set_health_hold(false);
     f.bank.var(V_VALVE).set(false);
     f.bank.var(V_ALARM_HOT).set(true);
     f.bank.var(V_SETPOINT).set(21.5f);
     f.bank.var(V_NTP_POLL).set_i(120);
 
-    f.bank.set_control_mode(CONTROL_INHIBITED);
+    f.auth.set_control_mode(CONTROL_INHIBITED);
 
     CHECK_FALSE(f.bank.control_enabled());
     CHECK_FALSE(f.bank.var(V_VALVE).valid());
@@ -430,11 +432,12 @@ TEST_CASE("model: a bad index resolves to an inert sink, never a clamp") {
 
 TEST_CASE("model: an empty table is safe to index and sweep") {
     Bank b;
+    Botanik::Plc::ControlAuthority auth{b};
     b.freeze();
     CHECK(b.count() == 0);
     CHECK(b.var((uint16_t)0).as_f32() == doctest::Approx(0.0f));
     b.var((uint16_t)0).set(50.0f);             // absorbed
-    b.set_control_mode(CONTROL_INHIBITED);                       // and sweeps cleanly
+    auth.set_control_mode(CONTROL_INHIBITED);                    // and sweeps cleanly
     b.expire_stale(1000);
     CHECK(b.find("anything").index == VAR_NONE);
 }
@@ -509,7 +512,7 @@ TEST_CASE("override: an expired input still reads its forced value") {
 
 TEST_CASE("control: the operator's inhibit keeps a forced output, the system's takes it") {
     Fixture f;
-    f.bank.set_health_hold(false);   // bring-up finished
+    f.auth.set_health_hold(false);   // bring-up finished
     REQUIRE(f.bank.control_enabled());
     Var h = f.bank.var(V_VALVE);
     h.set(true);
@@ -517,7 +520,7 @@ TEST_CASE("control: the operator's inhibit keeps a forced output, the system's t
 
     // `control disable` takes the plant by hand: an override is the only thing
     // left that can move an actuator, and must still be TAKEN in that state.
-    f.bank.set_control_mode(CONTROL_INHIBITED);
+    f.auth.set_control_mode(CONTROL_INHIBITED);
     CHECK(h.override().present());
     f.bank.override_clear(h);
     CHECK(f.bank.override_set(h, "1") == SET_OK);
@@ -525,14 +528,14 @@ TEST_CASE("control: the operator's inhibit keeps a forced output, the system's t
     // The system's hold must fire even with the operator's already in force,
     // or a "control already off" early exit lets a hand-held actuator ride
     // through a health fault.
-    f.bank.set_health_hold(true);
+    f.auth.set_health_hold(true);
     CHECK_FALSE(h.override().present());
     CHECK_FALSE(h.valid());
     CHECK(h.b() == true);      // reads its declared safe state (def = true here)
 
     Var in = f.bank.var(V_EXT_TEMP);   // an input's override is untouched either way
     f.bank.override_set(in, Scalar::F(5.0f));
-    f.bank.set_health_hold(true);
+    f.auth.set_health_hold(true);
     CHECK(in.override().present());
 }
 
@@ -541,27 +544,27 @@ TEST_CASE("control: starts disabled, and an output is forceable while it is") {
     // The system holds control until bring-up says it's ready; an override is
     // live immediately, not staged, so there is nothing to refuse.
     CHECK_FALSE(f.bank.control_enabled());
-    CHECK(f.bank.health_hold());
+    CHECK(f.auth.health_hold());
     CHECK(f.bank.override_set(f.bank.var(V_VALVE), "1") == SET_OK);
 }
 
 TEST_CASE("control: an operator disable survives a health fault coming and going") {
     Fixture f;
-    f.bank.set_health_hold(false);      // bring-up finished
+    f.auth.set_health_hold(false);      // bring-up finished
     CHECK(f.bank.control_enabled());
 
-    f.bank.set_control_mode(CONTROL_INHIBITED);   // someone at the console
+    f.auth.set_control_mode(CONTROL_INHIBITED);   // someone at the console
     CHECK_FALSE(f.bank.control_enabled());
 
     // Health releasing its own hold must not hand control back too.
-    f.bank.set_health_hold(true);
-    f.bank.set_health_hold(false);
+    f.auth.set_health_hold(true);
+    f.auth.set_health_hold(false);
     CHECK_FALSE(f.bank.control_enabled());
-    CHECK(f.bank.operator_mode() != CONTROL_ENABLED);
-    CHECK_FALSE(f.bank.health_hold());
+    CHECK(f.auth.operator_mode() != CONTROL_ENABLED);
+    CHECK_FALSE(f.auth.health_hold());
 
     // Only they can give it back.
-    f.bank.set_control_mode(CONTROL_ENABLED);
+    f.auth.set_control_mode(CONTROL_ENABLED);
     CHECK(f.bank.control_enabled());
 }
 
@@ -569,7 +572,7 @@ TEST_CASE("control: an operator disable survives a health fault coming and going
 // withheld modes drop the outputs to safe and stop the scan.
 TEST_CASE("control: inhibit keeps an output override, disable mutes it") {
     Fixture f;
-    f.bank.set_health_hold(false);
+    f.auth.set_health_hold(false);
     Var out = f.bank.var(V_VALVE);
     out.set(false);                                  // def (safe) is true here
     f.bank.override_set(out, Scalar::B(false));
@@ -577,20 +580,20 @@ TEST_CASE("control: inhibit keeps an output override, disable mutes it") {
     REQUIRE(out.b() == false);                       // the forced value drives
 
     // INHIBITED: programs stopped, but the hand still reaches the actuator.
-    f.bank.set_control_mode(CONTROL_INHIBITED);
+    f.auth.set_control_mode(CONTROL_INHIBITED);
     CHECK(f.bank.control_mode() == CONTROL_INHIBITED);
     CHECK(out.override().present());
     CHECK(out.b() == false);                         // still the forced value
 
     // DISABLED: the override is muted, so the row reads its safe state - but it
     // is KEPT, which is the whole difference from the system's withdrawal.
-    f.bank.set_control_mode(CONTROL_DISABLED);
+    f.auth.set_control_mode(CONTROL_DISABLED);
     CHECK(out.b() == true);                          // def, not the forced false
     CHECK_FALSE(out.valid());
     CHECK(out.override().present());                         // not erased
 
     // ...and it comes back on the way out, without being re-entered.
-    f.bank.set_control_mode(CONTROL_INHIBITED);
+    f.auth.set_control_mode(CONTROL_INHIBITED);
     CHECK(out.b() == false);
 }
 
@@ -599,15 +602,15 @@ TEST_CASE("control: inhibit keeps an output override, disable mutes it") {
 // the safe state put it.
 TEST_CASE("control: crossing the mute edge marks the output for the field") {
     Fixture f;
-    f.bank.set_health_hold(false);
+    f.auth.set_health_hold(false);
     Var out = f.bank.var(V_VALVE);
     f.bank.override_set(out, Scalar::B(false));
 
-    f.bank.set_control_mode(CONTROL_DISABLED);
+    f.auth.set_control_mode(CONTROL_DISABLED);
     CHECK(out.field_dirty());
     out.clear_field_dirty();
 
-    f.bank.set_control_mode(CONTROL_ENABLED);
+    f.auth.set_control_mode(CONTROL_ENABLED);
     CHECK(out.field_dirty());
 }
 
@@ -615,15 +618,15 @@ TEST_CASE("control: crossing the mute edge marks the output for the field") {
 // stored rather than refused - it simply does not reach the field yet.
 TEST_CASE("control: an override forced while disabled is kept, muted, and lands later") {
     Fixture f;
-    f.bank.set_health_hold(false);
-    f.bank.set_control_mode(CONTROL_DISABLED);
+    f.auth.set_health_hold(false);
+    f.auth.set_control_mode(CONTROL_DISABLED);
 
     Var out = f.bank.var(V_VALVE);
     CHECK(f.bank.override_set(out, "0") == SET_OK);   // the text overload reports
     CHECK(out.override().present());
     CHECK(out.b() == true);                          // muted: reads its safe state
 
-    f.bank.set_control_mode(CONTROL_ENABLED);
+    f.auth.set_control_mode(CONTROL_ENABLED);
     CHECK(out.b() == false);                         // now it drives
 }
 
@@ -631,21 +634,21 @@ TEST_CASE("control: an override forced while disabled is kept, muted, and lands 
 // one is what takes effect.
 TEST_CASE("control: the effective mode is the stricter of the two sources") {
     Fixture f;
-    f.bank.set_health_hold(false);
-    f.bank.set_control_mode(CONTROL_INHIBITED);
+    f.auth.set_health_hold(false);
+    f.auth.set_control_mode(CONTROL_INHIBITED);
     CHECK(f.bank.control_mode() == CONTROL_INHIBITED);
 
     // The system can only make it stricter, never looser...
-    f.bank.set_health_hold(true);
+    f.auth.set_health_hold(true);
     CHECK(f.bank.control_mode() == CONTROL_DISABLED);
-    CHECK(f.bank.operator_mode() == CONTROL_INHIBITED);   // ...and remembers
+    CHECK(f.auth.operator_mode() == CONTROL_INHIBITED);   // ...and remembers
 
-    f.bank.set_health_hold(false);
+    f.auth.set_health_hold(false);
     CHECK(f.bank.control_mode() == CONTROL_INHIBITED);
 
     // ...and an ENABLED operator under a system hold is still disabled.
-    f.bank.set_control_mode(CONTROL_ENABLED);
-    f.bank.set_health_hold(true);
+    f.auth.set_control_mode(CONTROL_ENABLED);
+    f.auth.set_health_hold(true);
     CHECK(f.bank.control_mode() == CONTROL_DISABLED);
 }
 
@@ -653,11 +656,11 @@ TEST_CASE("control: the effective mode is the stricter of the two sources") {
 // diagnosis the operator forced it to get.
 TEST_CASE("control: disable does not mute an input's override") {
     Fixture f;
-    f.bank.set_health_hold(false);
+    f.auth.set_health_hold(false);
     Var in = f.bank.var(V_EXT_TEMP);
     f.bank.override_set(in, Scalar::F(35.0f));
 
-    f.bank.set_control_mode(CONTROL_DISABLED);
+    f.auth.set_control_mode(CONTROL_DISABLED);
     CHECK(in.override().present());
     CHECK(in.as_f32() == doctest::Approx(35.0f));
     CHECK(in.valid());
@@ -665,23 +668,23 @@ TEST_CASE("control: disable does not mute an input's override") {
 
 TEST_CASE("control: an operator enable cannot override a health fault either") {
     Fixture f;
-    f.bank.set_health_hold(false);
-    f.bank.set_health_hold(true);     // health faulted
+    f.auth.set_health_hold(false);
+    f.auth.set_health_hold(true);     // health faulted
 
     // The console must not talk over the firmware's own judgement.
-    f.bank.set_control_mode(CONTROL_ENABLED);
+    f.auth.set_control_mode(CONTROL_ENABLED);
     CHECK_FALSE(f.bank.control_enabled());
-    CHECK(f.bank.health_hold());
+    CHECK(f.auth.health_hold());
 }
 
 TEST_CASE("control: a second hold arriving does not re-sweep") {
     Fixture f;
-    f.bank.set_health_hold(false);
+    f.auth.set_health_hold(false);
     Var in = f.bank.var(V_EXT_TEMP);
-    f.bank.set_control_mode(CONTROL_INHIBITED);
+    f.auth.set_control_mode(CONTROL_INHIBITED);
 
     f.bank.override_set(in, Scalar::F(5.0f));   // sweep already ran; survives piling on
-    f.bank.set_health_hold(true);
+    f.auth.set_health_hold(true);
     CHECK(in.override().present());
 }
 
@@ -751,6 +754,7 @@ TEST_CASE("pool: a row that does not fit gets no slot, not row 0's") {
         PS("b", "second", BIG, STR_NONE, 2, "", ""),
     };
     Bank bank;
+    Botanik::Plc::ControlAuthority auth{bank};
     bank.register_vars(V, 2);
     bank.freeze();
 
@@ -772,6 +776,7 @@ TEST_CASE("pool: a pool smaller than a single slot writes nothing") {
                               (uint16_t)(Botanik::Config::STR_POOL_BYTES + 8),
                               STR_NONE, 1, "", "") };
     Bank bank;
+    Botanik::Plc::ControlAuthority auth{bank};
     bank.register_vars(V, 1);
     bank.freeze();
 
@@ -871,6 +876,7 @@ namespace {
         char         pool[CAP]{};
         uint16_t     index[5]{};
         Bank         bank;
+        Botanik::Plc::ControlAuthority auth{bank};
         KvParamStore store;
         Fx() {
             bank.register_vars(PARAMS, 5);
@@ -1018,12 +1024,13 @@ namespace {
         Slot        vals[4]{};
         uint16_t     index[4]{};
         Bank         bank;
+        Botanik::Plc::ControlAuthority auth{bank};
         KvParamStore store;
         OvrFx() {
             bank.register_vars(OVR_VARS, 4);
             bank.set_store(&store, nullptr);
             bank.freeze();
-            bank.set_health_hold(false);   // so an output is drivable
+            auth.set_health_hold(false);   // so an output is drivable
             bank.load_overrides();
         }
     };
@@ -1044,6 +1051,7 @@ TEST_CASE("override: an output restored at boot is muted until control returns")
     {
         // Fresh RAM, same store, and the hold NOT released - as at bring-up.
         Bank bank;
+        Botanik::Plc::ControlAuthority auth{bank};
         KvParamStore store;
         bank.register_vars(OVR_VARS, 4);
         bank.set_store(&store, nullptr);
@@ -1054,7 +1062,7 @@ TEST_CASE("override: an output restored at boot is muted until control returns")
         CHECK(bank.var("coil").override().present());   // restored...
         CHECK(bank.var("coil").b() == false);   // ...but muted: reads its safe state
 
-        bank.set_health_hold(false);            // bring-up done
+        auth.set_health_hold(false);            // bring-up done
         CHECK(bank.var("coil").b() == true);    // and now it drives
     }
 }
@@ -1151,7 +1159,7 @@ TEST_CASE("override: an actuator override persists like any other") {
     // A health withdrawal takes it away, stored copy included, for good.
     {
         OvrFx f;
-        f.bank.set_health_hold(true);
+        f.auth.set_health_hold(true);
         CHECK_FALSE(f.bank.var("coil").override().present());
     }
     {
@@ -1168,7 +1176,7 @@ TEST_CASE("override: the system withdrawing control wipes the stored copy") {
         OvrFx f;
         REQUIRE(f.bank.override_set(f.bank.var("sensor"), "5") == SET_OK);
         REQUIRE(f.bank.save_override(f.bank.var("sensor")) == SET_OK);
-        f.bank.set_health_hold(true);
+        f.auth.set_health_hold(true);
         CHECK(f.bank.var("sensor").override().present());   // inputs: reading isn't driving
     }
     {
@@ -1265,6 +1273,7 @@ namespace {
         Slot    vals[2]{};
         uint16_t index[2]{};
         Bank         bank;
+        Botanik::Plc::ControlAuthority auth{bank};
         KvParamStore store;
         SaveFx() {
             bank.register_vars(SAVED, 2);
@@ -1291,6 +1300,7 @@ namespace {
         Botanik::Tasks::Registry reg;
         Botanik::Logs::Logger logger;
         Bank              bank;
+        Botanik::Plc::ControlAuthority auth{bank};
         LogFx() : bank(Botanik::SetupContext(reg, &logger)) {
             bank.register_vars(LOGCFG, 1);
             bank.freeze();
@@ -1448,6 +1458,7 @@ namespace {
         Slot    vals[1]{};
         uint16_t index[1]{};
         Bank     bank;
+        Botanik::Plc::ControlAuthority auth{bank};
         EnumFx() {
             bank.register_vars(ENUMS, 1);
             bank.freeze();
@@ -1683,6 +1694,7 @@ TEST_CASE("retain: a total survives the reboot, a plain computed row does not") 
 
     {
         Bank a;
+        Botanik::Plc::ControlAuthority auth{a};
         build(a);
         a.set_store(&store);
 
@@ -1711,6 +1723,7 @@ TEST_CASE("retain: a restored total reads as good, not as no-data") {
     store.retained["total_litres"] = 777;
 
     Bank b;
+    Botanik::Plc::ControlAuthority auth{b};
     build(b);
     b.set_store(&store);
     REQUIRE(b.var(b.find("total_litres")).live().q == Q_NO_DATA);
@@ -1725,6 +1738,7 @@ TEST_CASE("retain: what is saved is what the program computed, not a force") {
     // Forcing a totalizer to exercise an alarm must not corrupt the plant's history.
     MemStore store;
     Bank a;
+    Botanik::Plc::ControlAuthority auth{a};
     build(a);
     a.set_store(&store);
 
@@ -1744,6 +1758,7 @@ TEST_CASE("retain: a store that refuses is not silently believed") {
     store.refuse = true;
 
     Bank a;
+    Botanik::Plc::ControlAuthority auth{a};
     build(a);
     a.set_store(&store);
     a.var(a.find("total_litres")).set_i(7);
@@ -1755,6 +1770,7 @@ TEST_CASE("retain: a store that refuses is not silently believed") {
 
 TEST_CASE("retain: with no store at all, nothing pretends to persist") {
     Bank a;
+    Botanik::Plc::ControlAuthority auth{a};
     build(a);
     CHECK(a.save_retained() == 0);
     CHECK(a.load_retained() == 0);
@@ -1784,6 +1800,7 @@ void build(Bank& b) {
 TEST_CASE("retain: the cadence is the sys_retain_sec parameter") {
     MemStore store;
     Bank a;
+    Botanik::Plc::ControlAuthority auth{a};
     cadence::build(a);
     a.set_store(&store);
 
@@ -1868,6 +1885,7 @@ namespace {
 
 TEST_CASE("redeclare: a later row replaces the earlier one, which leaves the table") {
     Vars::Bank bank;
+    Botanik::Plc::ControlAuthority auth{bank};
     bank.register_vars(LIB, 3);
     bank.register_vars(SITE, 2);
     bank.freeze();
@@ -1895,6 +1913,7 @@ TEST_CASE("redeclare: the rows after the shadow still resolve and still take a s
     // _row was left uninitialised: the names still resolved, but through the
     // wrong slot.
     Vars::Bank bank;
+    Botanik::Plc::ControlAuthority auth{bank};
     bank.register_vars(LIB, 3);
     bank.register_vars(SITE, 2);
     bank.freeze();
@@ -1912,6 +1931,7 @@ TEST_CASE("redeclare: the parameter block stays one contiguous run") {
     // the run has to close up rather than leave a hole the dense 0-based
     // PARAMS indexing would fall into.
     Vars::Bank bank;
+    Botanik::Plc::ControlAuthority auth{bank};
     bank.register_vars(LIB, 3);
     bank.register_vars(SITE, 2);
     bank.freeze();
@@ -1924,6 +1944,7 @@ TEST_CASE("redeclare: the parameter block stays one contiguous run") {
 
 TEST_CASE("redeclare: an untouched table is left exactly as declared") {
     Vars::Bank bank;
+    Botanik::Plc::ControlAuthority auth{bank};
     bank.register_vars(LIB, 3);
     bank.freeze();
     CHECK(bank.count() == 3);

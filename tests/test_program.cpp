@@ -8,6 +8,7 @@
  */
 
 #include <cstddef>
+#include "libbotanik/plc/authority.h"
 #include <cstdint>
 #include <cstdio>
 #include <string>
@@ -385,11 +386,11 @@ TEST_CASE("scan: control coming back is a first scan again") {
     REQUIRE(p.firsts[0]);
     REQUIRE_FALSE(p.firsts[1]);
 
-    f.bank.set_control_mode(CONTROL_DISABLED);
+    f.auth.set_control_mode(CONTROL_DISABLED);
     for (uint64_t t = 20; t <= 5000; t += 10) d.step(t);
     CHECK(p.firsts.size() == 2);             // nothing ran while stopped
 
-    f.bank.set_control_mode(CONTROL_ENABLED);
+    f.auth.set_control_mode(CONTROL_ENABLED);
     d.step(5010);                            // the reseed beat: nothing runs yet
     CHECK(p.firsts.size() == 2);
 
@@ -588,13 +589,13 @@ TEST_CASE("health: SAFE before the first activation, and again when control goes
     // Withdrawal stops the activations. Health is the one thing a stopped
     // program must NOT keep reporting: the last beat's verdict would read as a
     // plant still under control.
-    f.bank.set_health_hold(true);
+    f.auth.set_health_hold(true);
     d.step(2000);
     CHECK(r.health() == Plc::Health::INHIBITED);
 
     // Re-enabling reseeds the timer, so the next activation is a full period
     // away rather than immediate: step until it has actually run again.
-    f.bank.set_health_hold(false);
+    f.auth.set_health_hold(false);
     for (uint64_t t = 3000; t <= 9000; t += 500) d.step(t);
     CHECK(r.health() == Plc::Health::HEALTHY);
 }

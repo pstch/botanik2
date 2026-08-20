@@ -8,6 +8,7 @@
  */
 
 #include <cstdint>
+#include "libbotanik/plc/authority.h"
 
 #include "libbotanik.h"
 #include "site_bank.h"
@@ -70,10 +71,11 @@ private:
 struct Live {
     Botanik::Tasks::Registry reg;   ///< what the case's programs register in
     Botanik::Vars::Bank      bank;
+    Botanik::Plc::ControlAuthority auth{bank};
     Live() {
         TestSite::build(bank);
-        bank.set_health_hold(false);
-        bank.set_control_mode(Botanik::Vars::CONTROL_ENABLED);
+        auth.set_health_hold(false);
+        auth.set_control_mode(Botanik::Vars::CONTROL_ENABLED);
     }
     Botanik::Vars::VarRef ref(const char* name) { return bank.find(name); }
 };
