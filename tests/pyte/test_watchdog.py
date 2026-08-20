@@ -32,10 +32,12 @@ def test_a_unit_that_stops_kicking_is_reset(spawn):
     before = _uptime(term)
     assert before is not None and before > 0, "the clock never advanced"
 
-    # `reboot` drops control and withholds the kick; the servicing thread
-    # notices from OUTSIDE the loop it is watching.
+    # `reboot` PARKS the plant first - every program drives its own actuators
+    # to their safe positions - and only then withholds the kick. So the beats
+    # here cover Config::STOP_PARK_MS as well as the watchdog window; the
+    # servicing thread notices from OUTSIDE the loop it is watching.
     term.send(b"reboot" + keys.ENTER)
-    term.run(1100)                    # past Config::HW_WATCHDOG_MS, in beats
+    term.run(10100)                   # STOP_PARK_MS + HW_WATCHDOG_MS, in beats
 
     assert term.until(lambda: (_uptime(term) or 99999) < before), \
         "the unit kept running after the kick was withheld\n%s" % term.snapshot()

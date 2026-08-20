@@ -9,10 +9,12 @@
 #include <cstdint>
 
 #include "doctest.h"
+#include "libbotanik.h"
 #include "libbotanik/vars/bindings.h"
 #include "libbotanik/vars/declare.h"
 #include "libbotanik/vars/model.h"
 #include "libbotanik/vars/params.h"
+#include "site_bank.h"
 
 namespace bindings {
 
@@ -122,6 +124,85 @@ TEST_CASE("binder: a binder with no bank pushes nothing") {
     binder.add("grp", &t, &apply_target);
     binder.apply_all();
     CHECK(t.pushes == 0);
+}
+
+
+TEST_CASE("library defaults: the CSV and the no-VARS fallback still agree") {
+    // The library's parameter defaults are LITERALS in params.csv, so the file
+    // reads as the declaration it is and the generated report shows numbers
+    // rather than `MonitorConfig().baud`. The C++ constant did not go away
+    // though: it is what the component uses when the row is absent, which is
+    // every build with VARS off. Two definitions of one value, and this is the
+    // seam between them - the one thing that would otherwise let a build with
+    // no variable model boot on a different figure from one with it.
+    Vars::Bank bank;
+    TestSite::build(bank);
+
+    struct Pair { const char* row; int64_t cpp; };
+    const Pair pairs[] = {
+        { "monitor_baud",     (int64_t)MonitorConfig().baud },
+        { "console_baud",     (int64_t)Terminal::ConsoleConfig().baud },
+        { "console_type",     (int64_t)(uint8_t)Terminal::ConsoleConfig().type },
+        { "console_cols",     (int64_t)Terminal::ConsoleConfig().cols },
+        { "console_rows",     (int64_t)Terminal::ConsoleConfig().rows },
+        { "net_enable",       (int64_t)Network::NetworkConfig().enabled },
+        { "ntp_poll_sec",     (int64_t)Network::NtpConfig().poll_sec },
+        { "ntp_port",         (int64_t)Network::NtpConfig().port },
+        { "mqtt_port",        (int64_t)Network::MqttConfig().port },
+        { "mqtt_ka_sec",      (int64_t)Network::MqttConfig().ka_sec },
+        { "mqtt_tlm_sec",     (int64_t)(Network::TelemetryConfig().period_ms / 1000) },
+        { "mqtt_retain",      (int64_t)Network::TelemetryConfig().retain },
+        { "mb_port",          (int64_t)Modbus::TcpSlaveConfig().port },
+        { "sys_cpu_load_pct", (int64_t)Config::ALARM_CPU_LOAD_PCT },
+        { "sys_jitter_pct",   (int64_t)Config::ALARM_CPU_JITTER_PCT },
+        { "sys_stack_pct",    (int64_t)Config::ALARM_STACK_PCT },
+        { "sys_retain_sec",   (int64_t)(Config::RETAIN_SAVE_MS / 1000) },
+        { "sys_log_level",    (int64_t)Config::LOG_MIN_LEVEL },
+        { "rtu_timeout_ms",   (int64_t)Config::MODBUS_TIMEOUT_MS },
+        { "rtu_retries",      (int64_t)Config::MODBUS_RETRIES },
+        { "rtu_backoff_ms",   (int64_t)Config::MODBUS_BACKOFF_MS },
+        { "rtu_backoff_max_ms", (int64_t)Config::MODBUS_BACKOFF_MAX_MS },
+        { "rtu_write_min_ms", (int64_t)Config::MODBUS_WRITE_MIN_MS },
+        { "rtu_rewrite_ms",   (int64_t)Config::MODBUS_REWRITE_MS },
+    };
+
+    for (const Pair& p : pairs) {
+        const Vars::VarRef r = bank.find(p.row);
+        INFO("row '" << p.row << "'");
+        REQUIRE(r.index != Vars::VAR_NONE);
+        const Vars::Descriptor* d = bank.var(r).meta();
+        CHECK(Vars::as_i64(d->type, d->def) == p.cpp);
+    }
+}
+
+TEST_CASE("library bands: an editable bound never exceeds what the buffer holds") {
+    // The console's band was `BOTANIK_TERMINAL_MAX_COLS` and is a literal now,
+    // so the CSV reads as the declaration it is. That constant still SIZES the
+    // terminal's grid, though, so the band has to stay inside it: a row whose
+    // maximum went past it would let an operator set a width the screen buffer
+    // cannot hold.
+    //
+    // Asserted as a DIRECTION, not an equality. A site narrowing the band by
+    // restating the row is the supported way to change it, and that must not
+    // fail here.
+    Vars::Bank bank;
+    TestSite::build(bank);
+
+    struct Band { const char* row; int64_t floor; int64_t ceiling; };
+    const Band bands[] = {
+        { "console_cols", Config::SCREEN_MIN_COLS, Config::TERMINAL_MAX_COLS },
+        { "console_rows", Config::SCREEN_MIN_ROWS, Config::TERMINAL_MAX_ROWS },
+    };
+
+    for (const Band& b : bands) {
+        const Vars::VarRef r = bank.find(b.row);
+        INFO("row '" << b.row << "'");
+        REQUIRE(r.index != Vars::VAR_NONE);
+        const Vars::Descriptor* d = bank.var(r).meta();
+        REQUIRE((d->flags & Vars::F_BOUNDED) != 0);
+        CHECK(Vars::as_i64(d->type, d->pay.num.min) >= b.floor);
+        CHECK(Vars::as_i64(d->type, d->pay.num.max) <= b.ceiling);
+    }
 }
 
 }  // namespace bindings

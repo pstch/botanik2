@@ -6,6 +6,9 @@
  */
 
 #include <cstdint>
+#include <string>
+
+#include "libbotanik/plc/program.h"
 #include "libbotanik/utils/text.h"
 #include "libbotanik/vars/scalar.h"
 #include "libbotanik/logs/logger.h"
@@ -1279,7 +1282,7 @@ namespace {
     // Params pushes it instead - it is the one object already holding both.
     const Descriptor LOGCFG[] = {
         ::Botanik::Vars::PE("sys_log_level", (uint64_t)Botanik::Logs::LOG_INFO,
-            &Botanik::Logs::log_level_label, 973, "floor", ""),
+            &Botanik::Logs::level_label, 973, "floor", ""),
     };
 
     struct LogFx {
@@ -1488,10 +1491,10 @@ TEST_CASE("enum param: it reads and writes as a word, and refuses a non-member")
         CHECK(std::strcmp(f.shown(), "auto") == 0);
     }
 
-    SUBCASE("the typed overload cannot get around the check") {
-        // set(Var, Scalar) never goes near a parser, so it needs the rule too.
-        CHECK(f.bank.param_set(f.row(), Scalar::U(3)) == SET_INVALID);
-        CHECK(f.bank.param_set(f.row(), Scalar::U(16)) != SET_INVALID);
+    SUBCASE("the raw overload cannot get around the check") {
+        // param_set_scalar() never goes near a parser, so it needs the rule too.
+        CHECK(f.bank.param_set_scalar(f.row(), Scalar::U(3)) == SET_INVALID);
+        CHECK(f.bank.param_set_scalar(f.row(), Scalar::U(16)) != SET_INVALID);
     }
 
     SUBCASE("nor can an override, which skips the BAND but not the labels") {
@@ -2008,5 +2011,40 @@ TEST_CASE("Value: a T_STR has no scalar, and says so rather than inventing one")
     CHECK(of(4, Scalar::S("hello")).as_f32() == 0.0f);
 }
 
+TEST_CASE("enum vocabularies: the library's two are what this document says") {
+    // `docs/integration/` and the site report transcribe these, because they
+    // are switch statements in a header rather than rows in a table and an
+    // integrator's point list has to be complete. This is the other end of that
+    // transcription: renumbering one breaks a TEST rather than quietly a
+    // document. Update LIBRARY_ENUMS in scripts/vars_report.py with it.
+    struct Pair { uint64_t code; const char* label; };
+
+    const Pair levels[] = {
+        { 1, "debug" }, { 2, "info" }, { 4, "notice" },
+        { 8, "warning" }, { 16, "error" }, { 32, "critical" },
+    };
+    for (const Pair& p : levels) {
+        INFO("log level " << p.code);
+        REQUIRE(Botanik::Logs::level_label(p.code) != nullptr);
+        CHECK(std::string(Botanik::Logs::level_label(p.code)) == p.label);
+    }
+    INFO("the gaps are load-bearing: these are BIT values, and a code that is "
+         "not one of them is refused rather than shown");
+    CHECK(Botanik::Logs::level_label(3) == nullptr);
+    CHECK(Botanik::Logs::level_label(0) == nullptr);
+
+    const Pair health[] = {
+        { 0, "HEALTHY" }, { 1, "DEGRADED" }, { 2, "FAULTED" }, { 3, "INHIBITED" },
+    };
+    for (const Pair& p : health) {
+        INFO("health " << p.code);
+        REQUIRE(Botanik::Plc::health_label(p.code) != nullptr);
+        CHECK(std::string(Botanik::Plc::health_label(p.code)) == p.label);
+    }
+    CHECK(Botanik::Plc::health_label(4) == nullptr);
+    INFO("the first three are an ordered severity run; the fourth is off it");
+    CHECK(Botanik::Plc::health_is_severity(Botanik::Plc::Health::FAULTED));
+    CHECK_FALSE(Botanik::Plc::health_is_severity(Botanik::Plc::Health::INHIBITED));
+}
+
 }  // namespace value_type
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           

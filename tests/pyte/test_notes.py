@@ -44,7 +44,13 @@ def test_notes_wraps_and_reports_state(spawn):
     # and that the gutter marks the row the operator started but not its tail.
     line = "the tank three valve sticks when it is cold, tap it before blaming the level sensor again"
     term.send(keys.text(line))
-    assert term.wait_screen(line[78:]), "the wrapped tail never reached the second row"
+    # On the COUNTER, not on the wrapped tail: the tail can be painted while the
+    # burst is still arriving, and the row assertions below would then read a
+    # half-typed screen.
+    assert term.wait_for("%d/2047 bytes" % len(line)), "not every byte of the burst arrived"
+    # ...and then on the PAINT: the counter is model state and moves first, so
+    # the row assertions below can otherwise read a screen still catching up.
+    assert term.wait_screen(line[:78]), "the first row never finished painting"
     assert term.screen.display[1].rstrip() == "> " + line[:78], "first row is not gutter + 78 columns"
     assert term.screen.display[2].rstrip() == "  " + line[78:], "wrapped tail is not gutter-blanked"
     assert term.wait_for("modified"), "edits did not mark the note dirty"

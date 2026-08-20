@@ -1,8 +1,10 @@
 /**
  * @file test_scan.cpp
- * @brief The scan cycle: the driver, its programs' IO binding, and Component announce.
+ * @brief The scan cycle driver, and Component announce.
  *
- * Each section is its own namespace, isolating fixtures and helpers.
+ * What a program itself promises is test_program.cpp; the site's laws are
+ * test_site_programs.cpp. Each section is its own namespace, isolating
+ * fixtures and helpers.
  */
 
 #include <cstddef>
@@ -16,67 +18,15 @@
 #include "libbotanik.h"
 #include BOTANIK_SITE_HEADER
 #include "libbotanik/core/component.h"
-#include "site_bank.h"
+#include "scan_fixture.h"
+#include "sites/gh_mlb41/tasks.h"
 
-namespace {
-
-/** @brief What the firmware does with a program table, in one place: hand
- *  each program the bank and its slot, register it, then per beat carry the
- *  Bank's verdict to BOTH halves of the authority edge and dispatch
- *  PHASE_CONTROL through Registry::set_programs_enabled, which is the shipping
- *  call, so this drives the real code. */
-struct Cycle {
-    Botanik::Tasks::Registry&     reg;
-    Botanik::Plc::Program* const* progs;
-    uint8_t                       n;
-    Botanik::Vars::Bank*          io;
-
-    Cycle(Botanik::Plc::Program* const* p, uint8_t count,
-          Botanik::Vars::Bank* bank, Botanik::Tasks::Registry& r)
-        : reg(r), progs(p), n(count), io(bank) {
-        for (uint8_t i = 0; i < n; i++) {
-            if (progs == nullptr || progs[i] == nullptr) continue;
-            progs[i]->set_slot(i);
-            progs[i]->register_tasks();
-        }
-        reg.setup(0);          // bind(), off the beat, as bring-up does
-        _late_alarm = bank->find("alarm_scan_late");
-    }
-
-    void step(uint64_t t) {
-        // Idempotent, and the whole edge: the gate, plus on the way back up the
-        // timer reseed and the first-scan flag.
-        reg.set_programs_enabled(io->control_enabled(), t);
-        reg.run_phase(Botanik::Tasks::PHASE_CONTROL, t);
-        // ...and what the firmware does after the phase: publish the worst
-        // lateness onto the alarm row, whose own dwell decides whether it
-        // ever annunciates.
-        _late = Botanik::Plc::worst_lateness(reg, &_worst);
-        io->var(_late_alarm).set(_late > Botanik::Config::SCAN_LATE_MS);
-    }
-
-    /** @brief The worst-late program on the last beat, and who owned it. */
-    uint32_t late_ms() const     { return _late; }
-    const Botanik::Plc::Program* worst() const { return _worst; }
-
-    /** @brief A writer index back to its program, the lookup the firmware hands
-     *  MONITOR (BotanikFirmware::register_pages). Bounds-checked, so a row no
-     *  program has written names nobody rather than naming program 0. */
-    const Botanik::Plc::Program* program(uint8_t w) const {
-        return (progs != nullptr && w < n) ? progs[w] : nullptr;
-    }
-
-private:
-    Botanik::Vars::VarRef        _late_alarm = { Botanik::Vars::VAR_NONE };
-    uint32_t                     _late  = 0;
-    const Botanik::Plc::Program* _worst = nullptr;
-};
-
-}  // namespace
 
 // scan
 
 namespace scan {
+
+using TestScan::Cycle;
 
 using Botanik::Vars::Bank;
 using Botanik::Plc::Program;
@@ -277,440 +227,71 @@ TEST_CASE("scan: a null table or a null program is inert") {
 
 }  // namespace scan
 
-// plc_io
 
-namespace plc_io {
+// component
 
+namespace health_rows {
+
+using TestScan::Cycle;
+using TestScan::Live;
 using namespace Botanik;
 using namespace Botanik::Vars;
 
-namespace {
-
-/** @brief A bank over the site's real tables, running. */
-struct Live {
-    Botanik::Tasks::Registry reg;   ///< what the case's programs register in
-    Bank bank;
-    Live() {
-        TestSite::build(bank);
-        bank.set_health_hold(false);
-        bank.set_control_mode(CONTROL_ENABLED);
-    }
-    VarRef ref(const char* name) { return bank.find(name); }
-};
-
-/** @brief A sink that counts criticals and keeps the last, so a test can
- *  check what the driver said and how often. */
-class Criticals : public Logs::LogWriter {
-public:
-    int  seen = 0;
-    char last[Config::LOG_MESSAGE_LEN] = {};
-
-    void push(const Logs::LogEntry* e) override {
-        if (e == nullptr || e->level != Logs::LOG_CRITICAL) return;
-        seen++;
-        std::snprintf(last, sizeof last, "%s", e->message);
-    }
-    void drain() override {}
-protected:
-    size_t write(const char*, size_t) override { return 0; }
-    size_t format(const Logs::LogEntry*, char*, size_t) override { return 0; }
-};
-
-/** @brief Drives one named row every beat; two on the same row is the
- *  design defect WP-3 exists to notice. */
-class Drives : public Plc::Program {
-    VarRef      _r = { VAR_NONE };
-    const char* _row;
-public:
-    Drives(const char* name, const char* row, Botanik::Vars::Bank& io,
-           const Botanik::SetupContext& ctx,
-           Botanik::Tasks::GroupId g = Botanik::Tasks::GROUP_FAST)
-        : Program(ctx, name, g, io), _row(row) {}
-protected:
-    void bind(Bank& io) override { _r = io.find(_row); }
-    void run(ProgramContext& c) override { c.bank.drive(_r, 1.0f); }
-};
-
-/** @brief Appends its name to a shared log when it runs, so a case can check order. */
-class Ordered : public Plc::Program {
-    std::vector<std::string>* _log;
-public:
-    Ordered(const char* name, std::vector<std::string>* log, Bank& io,
-            const Botanik::SetupContext& ctx)
-        : Program(ctx, name, Botanik::Tasks::GROUP_FAST, io), _log(log) {}
-protected:
-    void run(ProgramContext&) override { _log->push_back(name()); }
-};
-
-/** @brief Reads one row and writes another, showing whether the second saw
- *  the first's write IN THE SAME BEAT. */
-class Relay : public Plc::Program {
-    VarRef      _in = { VAR_NONE }, _out = { VAR_NONE };
-    const char* _from;
-    const char* _to;
-    float       _add;
-public:
-    Relay(const char* name, const char* from, const char* to, float add, Bank& io,
-          const Botanik::SetupContext& ctx)
-        : Program(ctx, name, Botanik::Tasks::GROUP_FAST, io), _from(from), _to(to), _add(add) {}
-protected:
-    void bind(Bank& io) override { _in = io.find(_from); _out = io.find(_to); }
-    void run(ProgramContext& c) override {
-        c.bank.drive(_out, c.bank.var(_in).as_f32() + _add);
-    }
-};
-
-/** @brief Records what the first-scan flag said on every activation. */
-class Lifecycle : public Plc::Program {
-public:
-    std::vector<bool> firsts;
-
-    Lifecycle(const char* name, Botanik::Tasks::GroupId g, Botanik::Vars::Bank& io,
-              const Botanik::SetupContext& ctx)
-        : Program(ctx, name, g, io) {}
-
-protected:
-    void run(ProgramContext& c) override { firsts.push_back(c.first_scan); }
-};
-
-}  // namespace
-
-TEST_CASE("plc io: a program reads what the operator forced, not what the wire said") {
-    // The point of applying an override in Var::raw(): a forced reading must reach control logic.
+TEST_CASE("health rows: a program's verdict reaches its row, running or not") {
     Live f;
-    const VarRef r = f.ref("cli_temp_ext1");
-    REQUIRE(f.bank.var(r).meta()->name != nullptr);
+    Site::CoolingController cooling(Botanik::SetupContext(f.reg), f.bank);
+    Plc::Program* const progs[] = { &cooling };
+    Cycle d(progs, 1, &f.bank, f.reg);
 
-    f.bank.var(r).publish(from_f32(T_F32, 20.0f), 1000);
-    CHECK(f.bank.var(r).as_f32() == doctest::Approx(20.0f));
-    CHECK(f.bank.var(r).valid());
+    Vars::RefIn<uint8_t> row = f.bank.resolve_in<uint8_t>("prog_cooling");
+    // An interior temperature it can actually see: with both levels gone the
+    // law reports FAULTED, which is a different case (test_site_programs.cpp).
+    // The crawlspace too - the intake gate reads it, and a law that cannot see
+    // one of its inputs reports DEGRADED, which is not the case under test.
+    f.bank.var(f.ref("cli_temp_hi")).publish(from_f32(T_F32, 21.0f), 0);
+    f.bank.var(f.ref("cli_temp_cs")).publish(from_f32(T_F32, 18.0f), 0);
 
-    f.bank.override_set(f.bank.var(r), from_f32(T_F32, 55.0f), true);
-    INFO("the program must see the forced value");
-    CHECK(f.bank.var(r).as_f32() == doctest::Approx(55.0f));
+    INFO("before the first activation a program is INHIBITED: reading HEALTHY "
+         "there would say the plant was in hand during bring-up");
+    Plc::publish_health(f.bank, f.reg, nullptr);
+    CHECK(f.bank.get(row) == (uint8_t)Plc::Health::INHIBITED);
 
-    // ...and "force this to read as a dead sensor" is expressible too.
-    f.bank.override_set(f.bank.var(r), from_f32(T_F32, 55.0f), false);
-    CHECK_FALSE(f.bank.var(r).valid());
+    d.step(100);
+    Plc::publish_health(f.bank, f.reg, nullptr);
+    CHECK(f.bank.get(row) == (uint8_t)Plc::Health::HEALTHY);
 
-    f.bank.override_clear(f.bank.var(r));
-    CHECK(f.bank.var(r).as_f32() == doctest::Approx(20.0f));
+    INFO("...and the row keeps up when the program is NOT being activated, "
+         "which is exactly when a reader wants it");
+    cooling.set_safe();
+    Plc::publish_health(f.bank, f.reg, nullptr);
+    CHECK(f.bank.get(row) == (uint8_t)Plc::Health::INHIBITED);
 }
 
-TEST_CASE("plc io: an invalid row reads as its declared default") {
-    // So logic that doesn't care about quality still gets a sane number, not the slot's leftover.
+TEST_CASE("health rows: the worst is on the SEVERITY axis, parked is counted") {
     Live f;
-    const VarRef r = f.ref("cli_temp_ext1");
-
-    // Q_REFUSED, not Q_STALE: a stale row keeps its last reading, and this
-    // row was never published - Q_STALE would pass only by coincidence.
-    f.bank.var(r).publish(from_f32(T_F32, 33.0f), 1000);
-    f.bank.var(r).invalidate(Q_REFUSED);
-    CHECK_FALSE(f.bank.var(r).valid());
-    CHECK(f.bank.var(r).as_f32() == doctest::Approx(f.bank.var(r).meta()->def.f));
-}
-
-TEST_CASE("plc io: a write lands on the row and is owed to the field") {
-    Live f;
-
-    // A relay coil: a ROLE_OUTPUT, so the write has to be carried outward.
-    VarRef out = { VAR_NONE };
-    for (uint16_t i = 0; i < f.bank.count(); ++i) {
-        if (f.bank.descriptor(i).role == ROLE_OUTPUT && f.bank.descriptor(i).type == T_BOOL) {
-            out = f.ref(f.bank.descriptor(i).name);
-            break;
-        }
-    }
-    REQUIRE(out.index != VAR_NONE);
-
-    f.bank.var(out).clear_field_dirty();
-    f.bank.drive(out, true);
-
-    INFO("'" << std::string(f.bank.var(out).name()) << "'");
-    CHECK(f.bank.var(out).b());
-    CHECK(f.bank.var(out).field_dirty());
-
-    f.bank.drive(out, false);
-    CHECK_FALSE(f.bank.var(out).b());
-}
-
-TEST_CASE("plc io: a row remembers which program drives it") {
-    Live f;
-    const VarRef r = f.ref("cli_temp_ext1");
-
-    CHECK(f.bank.writer_of(r) == WRITER_NONE);
-    f.bank.begin_writer(3);
-    f.bank.drive(r, 1.0f);
-    CHECK(f.bank.writer_of(r) == 3);
-
-    // The same program writing again every beat is the ordinary case and must stay silent.
-    for (int i = 0; i < 10; ++i) f.bank.drive(r, 2.0f);
-    f.bank.end_writer();
-    CHECK(f.bank.writer_conflicts() == 0);
-}
-
-TEST_CASE("plc io: a second program on one row is counted, and the write stands") {
-    // Two authors is a site design defect: the row gets whichever ran last, chattering at the scan rate.
-    Live f;
-    const VarRef r = f.ref("cli_temp_ext1");
-
-    f.bank.begin_writer(1);
-    f.bank.drive(r, 10.0f);
-    f.bank.end_writer();
-    REQUIRE(f.bank.writer_conflicts() == 0);
-
-    f.bank.begin_writer(2);
-    f.bank.drive(r, 20.0f);
-    f.bank.end_writer();
-    CHECK(f.bank.writer_conflicts() == 1);
-    CHECK(f.bank.first_conflict().index == r.index);
-
-    INFO("the write is not refused - that would strand the plant wherever the "
-         "losing program had got to");
-    CHECK(f.bank.var(r).as_f32() == doctest::Approx(20.0f));
-
-    // Both keep writing every beat, taking the row from each other; the count settles at one.
-    for (int i = 0; i < 50; ++i) {
-        f.bank.begin_writer(1); f.bank.drive(r, 10.0f);
-        f.bank.begin_writer(2); f.bank.drive(r, 20.0f);
-    }
-    f.bank.end_writer();
-    CHECK(f.bank.writer_conflicts() == 1);
-
-    // A THIRD author is the same bad row; it still reports whoever wrote it last.
-    f.bank.begin_writer(3);
-    f.bank.drive(r, 30.0f);
-    f.bank.end_writer();
-    CHECK(f.bank.writer_conflicts() == 1);
-    CHECK(f.bank.writer_of(r) == 3);
-
-    // A DIFFERENT row with two authors is a second defect, and counts.
-    const VarRef r2 = f.ref("cli_temp_ext2");
-    f.bank.begin_writer(1); f.bank.drive(r2, 1.0f);
-    f.bank.begin_writer(2); f.bank.drive(r2, 2.0f);
-    f.bank.end_writer();
-    CHECK(f.bank.writer_conflicts() == 2);
-}
-
-TEST_CASE("scan: two programs on one row is named once, not every beat") {
-    // The bank counts a second author but cannot NAME one: a writer is an
-    // index, and only the program table turns it back into a name.
-    Live f;
-    Logs::Logger logger;
-    Criticals sink;
-    logger.add_writer(&sink);
-
-    Drives a("prog_a", "cli_temp_ext1", f.bank, Botanik::SetupContext(f.reg));
-    Drives b("prog_b", "cli_temp_ext1", f.bank, Botanik::SetupContext(f.reg));
-    Plc::Program* const progs[] = { &a, &b };
+    Site::CoolingController cooling(Botanik::SetupContext(f.reg), f.bank);
+    Site::StratSensor       strat(Botanik::SetupContext(f.reg), f.bank);
+    Plc::Program* const progs[] = { &cooling, &strat };
     Cycle d(progs, 2, &f.bank, f.reg);
 
-    uint16_t said = 0;
-    for (uint64_t t = 0; t <= 500; t += 10) {
-        d.step(t);
-        Plc::report_writer_conflicts(f.bank, d.reg, &logger, said);
-    }
+    // A gap computed from a level nothing measures leaves strat's own output
+    // invalid, which is FAULTED rather than degraded.
+    f.bank.var(f.ref("cli_temp_hi")).invalidate(Q_NO_DATA);
+    d.step(100);
 
-    INFO("last critical: " << std::string(sink.last));
-    CHECK(f.bank.writer_conflicts() >= 1);
-    INFO("a defect that is true on every beat must not be said on every beat");
-    CHECK(sink.seen == 1);
-    CHECK(std::string(sink.last).find("cli_temp_ext1") != std::string::npos);
-    CHECK(std::string(sink.last).find("prog_") != std::string::npos);
+    uint8_t parked = 0;
+    CHECK(Plc::worst_health(f.reg, &parked) == Plc::Health::FAULTED);
+    CHECK(parked == 0);
+
+    INFO("a parked plant is not a degraded one, so INHIBITED is counted rather "
+         "than compared");
+    cooling.set_safe();
+    strat.set_safe();
+    CHECK(Plc::worst_health(f.reg, &parked) == Plc::Health::HEALTHY);
+    CHECK(parked == 2);
 }
 
-TEST_CASE("scan: a program starved of beats is late, and named") {
-    // Lateness is against the PROGRAM's own period; not stepping the driver is what an overrunning beat looks like.
-    Live f;
-    Drives slow("prog_slow", "cli_temp_ext1", f.bank, Botanik::SetupContext(f.reg), Botanik::Tasks::GROUP_SLOW);
-    Plc::Program* const progs[] = { &slow };
-    Cycle d(progs, 1, &f.bank, f.reg);
-    const VarRef late = f.ref("alarm_scan_late");
-
-    d.step(0);                       // seeds the timer
-    CHECK(d.late_ms() == 0);
-
-    d.step(1000);                    // 900 ms past its 100 ms period
-
-    CHECK(d.late_ms() == 900);
-    REQUIRE(d.worst() != nullptr);
-    CHECK(std::string(d.worst()->name()) == "prog_slow");
-    CHECK(slow.late_max_ms() == 900);
-    INFO("the row is driven; the alarm's own dwell decides if it annunciates");
-    CHECK(f.bank.var(late).b());
-
-    // Back on schedule, and the row clears - the peak is kept, since that's the number worth keeping.
-    d.step(1100);
-    CHECK(d.late_ms() == 0);
-    CHECK_FALSE(f.bank.var(late).b());
-    CHECK(slow.late_max_ms() == 900);
-}
-
-TEST_CASE("scan: an every-beat program is late only when the beat itself is") {
-    // A rate GROUP always has a nominal period - GROUP_FAST's is one beat - so
-    // unlike the old period-0 case there is something to be late against. On
-    // time that is exactly zero; a stalled loop is genuinely late, and says so.
-    Live f;
-    Drives every("prog_every", "cli_temp_ext1", f.bank, Botanik::SetupContext(f.reg));
-    Plc::Program* const progs[] = { &every };
-    Cycle d(progs, 1, &f.bank, f.reg);
-
-    for (uint64_t t = 0; t <= 200; t += 10) d.step(t);
-    CHECK(every.late_ms() == 0);
-    CHECK(d.late_ms() == 0);
-    CHECK_FALSE(f.bank.var(f.ref("alarm_scan_late")).b());
-
-    d.step(5200);                    // the whole beat stalled for 5 s
-    CHECK(d.late_ms() > Botanik::Config::SCAN_LATE_MS);
-    INFO("the row is driven; SCAN_LATE's own dwell decides if it annunciates");
-    CHECK(f.bank.var(f.ref("alarm_scan_late")).b());
-}
-
-TEST_CASE("scan: the first activation says so, and only the first") {
-    Live f;
-    Lifecycle p("p", Botanik::Tasks::GROUP_FAST, f.bank, Botanik::SetupContext(f.reg));
-    Plc::Program* const progs[] = { &p };
-    Cycle d(progs, 1, &f.bank, f.reg);
-
-    for (uint64_t t = 0; t < 50; t += 10) d.step(t);
-
-    REQUIRE(p.firsts.size() == 5);
-    CHECK(p.firsts[0]);
-    for (size_t i = 1; i < p.firsts.size(); ++i) {
-        INFO("activation " << i);
-        CHECK_FALSE(p.firsts[i]);
-    }
-}
-
-TEST_CASE("scan: control coming back is a first scan again") {
-    // The process moved without us: the previous activation describes a plant that no longer exists.
-    Live f;
-    Lifecycle p("p", Botanik::Tasks::GROUP_FAST, f.bank, Botanik::SetupContext(f.reg));
-    Plc::Program* const progs[] = { &p };
-    Cycle d(progs, 1, &f.bank, f.reg);
-
-    d.step(0);
-    d.step(10);
-    REQUIRE(p.firsts.size() == 2);
-    REQUIRE(p.firsts[0]);
-    REQUIRE_FALSE(p.firsts[1]);
-
-    f.bank.set_control_mode(CONTROL_DISABLED);
-    for (uint64_t t = 20; t <= 5000; t += 10) d.step(t);
-    CHECK(p.firsts.size() == 2);             // nothing ran while stopped
-
-    f.bank.set_control_mode(CONTROL_ENABLED);
-    d.step(5010);                            // the reseed beat: nothing runs yet
-    CHECK(p.firsts.size() == 2);
-
-    d.step(5020);
-    REQUIRE(p.firsts.size() == 3);
-    INFO("the first run after control returns starts from nothing");
-    CHECK(p.firsts[2]);
-
-    d.step(5030);
-    REQUIRE(p.firsts.size() == 4);
-    CHECK_FALSE(p.firsts[3]);
-}
-
-TEST_CASE("scan: bring-up is a first scan, and needs no special case to be one") {
-    // Control starts withheld and is granted before the first beat, so bring-up
-    // takes the return edge. It needs nothing of its own: a task's first
-    // activation EVER is a first scan too, because a program knows no more about
-    // the plant at bring-up than it does after an outage.
-    Live f;
-    Lifecycle p("p", Botanik::Tasks::GROUP_FAST, f.bank, Botanik::SetupContext(f.reg));
-    Plc::Program* const progs[] = { &p };
-    Cycle d(progs, 1, &f.bank, f.reg);
-
-    d.step(0);
-
-    REQUIRE(p.firsts.size() == 1);
-    CHECK(p.firsts[0]);
-}
-
-TEST_CASE("scan: table order is execution order") {
-    // A site orders its programs on purpose (a setpoint law before the acting law) - as written.
-    Live f;
-    std::vector<std::string> ran;
-    Ordered a("zulu", &ran, f.bank, Botanik::SetupContext(f.reg));
-    Ordered b("alpha", &ran, f.bank, Botanik::SetupContext(f.reg));
-    Ordered c("mike", &ran, f.bank, Botanik::SetupContext(f.reg));
-    Plc::Program* const progs[] = { &a, &b, &c };
-    Cycle d(progs, 3, &f.bank, f.reg);
-
-    d.step(0);
-
-    REQUIRE(ran.size() == 3);
-    INFO("declared zulu, alpha, mike - and that is the order, not sorted");
-    CHECK(ran[0] == "zulu");
-    CHECK(ran[1] == "alpha");
-    CHECK(ran[2] == "mike");
-}
-
-TEST_CASE("scan: a later program sees what an earlier one wrote this beat") {
-    // Why order is a contract: the image mutates between phases, so a chain spans exactly as many beats as the table says.
-    Live f;
-    const VarRef src = f.ref("cli_temp_ext1");
-    const VarRef mid = f.ref("cli_temp_ext2");
-    const VarRef dst = f.ref("cli_temp_ext3");
-    f.bank.var(src).publish(from_f32(T_F32, 10.0f), 0);
-
-    Relay first("first", "cli_temp_ext1", "cli_temp_ext2", 1.0f, f.bank, Botanik::SetupContext(f.reg));
-    Relay second("second", "cli_temp_ext2", "cli_temp_ext3", 1.0f, f.bank, Botanik::SetupContext(f.reg));
-
-    SUBCASE("in order, the whole chain completes in one beat") {
-        Plc::Program* const progs[] = { &first, &second };
-        Cycle d(progs, 2, &f.bank, f.reg);
-        d.step(0);
-
-        CHECK(f.bank.var(mid).as_f32() == doctest::Approx(11.0f));
-        INFO("second read what first had just written");
-        CHECK(f.bank.var(dst).as_f32() == doctest::Approx(12.0f));
-    }
-
-    SUBCASE("out of order, the chain takes a beat per link") {
-        Plc::Program* const progs[] = { &second, &first };
-        Cycle d(progs, 2, &f.bank, f.reg);
-        d.step(0);
-
-        // second ran first, on the value mid held BEFORE first wrote it.
-        CHECK(f.bank.var(mid).as_f32() == doctest::Approx(11.0f));
-        INFO("the far end is a beat behind, which is what mis-ordering costs");
-        CHECK(f.bank.var(dst).as_f32() != doctest::Approx(12.0f));
-
-        d.step(10);
-        CHECK(f.bank.var(dst).as_f32() == doctest::Approx(12.0f));
-    }
-}
-
-TEST_CASE("scan: a computed row can be traced back to the program that wrote it") {
-    // What MONITOR's Mapping shows as "computed (prog_a)": writer_of() plus
-    // the site table's own name lookup.
-    Live f;
-    Drives a("prog_a", "cli_temp_ext1", f.bank, Botanik::SetupContext(f.reg));
-    Drives b("prog_b", "cli_temp_ext2", f.bank, Botanik::SetupContext(f.reg));
-    Plc::Program* const progs[] = { &a, &b };
-    Cycle d(progs, 2, &f.bank, f.reg);
-
-    d.step(0);
-
-    const uint8_t w1 = f.bank.writer_of(f.ref("cli_temp_ext1"));
-    const uint8_t w2 = f.bank.writer_of(f.ref("cli_temp_ext2"));
-    REQUIRE(d.program(w1) != nullptr);
-    REQUIRE(d.program(w2) != nullptr);
-    CHECK(std::string(d.program(w1)->name()) == "prog_a");
-    CHECK(std::string(d.program(w2)->name()) == "prog_b");
-
-    // A row no program has written names nobody, rather than naming program 0.
-    const uint8_t none = f.bank.writer_of(f.ref("cli_temp_ext3"));
-    CHECK(none == WRITER_NONE);
-    CHECK(d.program(none) == nullptr);
-}
-
-}  // namespace plc_io
-
-// component
+}  // namespace health_rows
 
 namespace component {
 

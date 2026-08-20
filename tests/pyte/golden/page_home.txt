@@ -8,7 +8,7 @@
   Uptime     <UPTIME>  L1 V       <HF>           ATS V      <HF>
                             L2 V       <HF>           ATS A      <HF>
   Line V     <HF>           L3 V       <HF>           ATS Hz     <HF>
-  Line-line  <HF>           L1 A       <HF>           Supply Hz  <HF>
+  Line-line  <HF>           L1 A       <HF>           Grid Hz    <HF>
   Line Hz    <HF>           L2 A       <HF>           Lockout    <HF>
   Current    <HF>           L3 A       <HF>           Screen     <HF>
   Power      <HF>           Neutral A  <HF>           Skirt      <HF>
@@ -18,7 +18,7 @@
 
 
 
-<TS> [+] NETWORK: network up: 127.0.0.1
-<TS> [+] NETWORK: MQTT connected
-<TS> [+] TIME: NTP synced
+
+
+
  ALARMS :<BAR>

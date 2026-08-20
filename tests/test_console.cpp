@@ -1622,7 +1622,7 @@ TEST_CASE("shell vars get: the detail view, and what it adds when a row is force
     CHECK(f.writer.has(": MI"));                  // what kind of row...
     CHECK(f.writer.has("(input, direct)"));       // ...spelled out
     CHECK(f.writer.has("Group"));
-    CHECK(f.writer.has(": read-only"));           // and whether `set` takes it
+    CHECK(f.writer.has(": RO"));                  // and whether `set` takes it
     CHECK(f.writer.has("Raw value"));
     CHECK(f.writer.has("21.0 C   (valid)"));
     CHECK(f.writer.has("-40.0 .. 85.0"));         // the declared band

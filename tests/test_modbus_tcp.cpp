@@ -252,13 +252,13 @@ struct Served {
         TestSite::build(bank);
         map.build();
     }
-    /** @brief The first writable row, and the address a master reaches it at. */
+    /** @brief The first writable row, and the address a master reaches it at.
+     *  Through var_writable(), not a restatement of it: a helper that
+     *  disagreed would pick a row the map refuses and fail obscurely. */
     bool first_writable(uint16_t* addr, uint16_t* row) {
         for (uint16_t i = 0; i < bank.count(); ++i) {
             const Descriptor& d = bank.descriptor(i);
-            // Map::writable() is file-local; restated here: a numeric, writable parameter.
-            if (!Map::published(d) || d.role != ROLE_PARAM) continue;
-            if ((d.flags & F_RDONLY) != 0) continue;
+            if (!Map::published(d) || !Vars::var_writable(d)) continue;
             if (d.type == T_BOOL || d.type == T_STR) continue;
             *addr = (uint16_t)(d.bind.reg * 2);
             *row  = i;
@@ -300,6 +300,35 @@ bool other_value(Bank& bank, uint16_t row, uint32_t* out) {
 }
 
 }  // namespace
+
+TEST_CASE("modbus access: a read-only parameter is served and never written") {
+    // Its own two-row table rather than the site's: no shipped row is RO yet,
+    // and a descriptor is in flash - there is no writing F_RDONLY onto one at
+    // run time to find out what would happen.
+    using namespace Botanik::Vars;
+    static const Descriptor rows[] = {
+        P("t_rw", T_U16, 5, 0, 100, 0, "", 700, "writable", ""),
+        P("t_ro", T_U16, 5, 0, 100, 0, "", 701, "read-only", "", false),
+    };
+    Bank bank;
+    bank.register_vars(rows, 2);
+    bank.freeze();
+    Modbus::Map map(&bank);
+    map.build();
+
+    CHECK(var_writable(*bank.var("t_rw").meta()));
+    CHECK_FALSE(var_writable(*bank.var("t_ro").meta()));
+
+    // A row is TWO addresses wide, and a write covers whole rows.
+    uint8_t data[4] = { 0, 0, 0, 7 };
+    uint16_t committed = 0;
+    CHECK(map.write_registers(700 * 2, 2, data, &committed) == EX_NONE);
+
+    INFO("RO is the ROW's property, so no channel anywhere writes it - and it "
+         "is still SERVED, which is the whole difference from an unmapped row");
+    CHECK(map.write_registers(701 * 2, 2, data, &committed) == EX_ILLEGAL_ADDRESS);
+    CHECK(map.read_registers(701 * 2, 2, data, sizeof data) == EX_NONE);
+}
 
 TEST_CASE("modbus map: a bulk write is applied at once and persisted a few per beat") {
     // A changed row must not reach HAL::Storage inside the decoding beat - up to
@@ -585,3 +614,110 @@ TEST_CASE("modbus tcp master: a transaction always reaches a verdict") {
 #endif // BOTANIK_FEATURE_MODBUS_TCP_CLIENT && BOTANIK_FEATURE_MODBUS_TCP_SERVER
 
 }  // namespace modbus_tcp_master
+
+namespace text_and_enums {
+
+using namespace Botanik;
+using namespace Botanik::Vars;
+using namespace Botanik::Modbus;
+
+TEST_CASE("tcp map: a HOSTNAME is not served, and a dotted quad is") {
+    // A 16-bit register cannot hold a hostname. Mapping one would answer 0 for
+    // ever while refusing every write, and an integrator reading the point list
+    // would take that zero for a value. Four octets are a different case: they
+    // are exactly the 32 bits a row already has.
+    Bank bank;
+    TestSite::build(bank);
+    Modbus::Map map(&bank);
+    map.build();
+
+    const VarRef host = bank.find("mqtt_host");
+    REQUIRE(host.index != VAR_NONE);
+    REQUIRE(bank.var(host).type() == T_STR);
+    const uint16_t host_reg = bank.var(host).meta()->bind.reg;
+    INFO("it keeps its register - reserved, so numbering stays stable - but "
+         "nothing answers there");
+    CHECK(host_reg != 0);
+    bool found = false;
+    (void)map.row_at(host_reg, &found);
+    CHECK_FALSE(found);
+
+    const VarRef ip = bank.find("net_ip");
+    REQUIRE(ip.index != VAR_NONE);
+    const uint16_t ip_reg = bank.var(ip).meta()->bind.reg;
+    (void)map.row_at(ip_reg, &found);
+    CHECK(found);
+
+    INFO("big-endian, the way an address is written and the way a register "
+         "pair is read");
+    uint8_t out[4] = {};
+    REQUIRE(map.read_registers((uint16_t)(ip_reg * 2), 2, out, sizeof out) == EX_NONE);
+    const uint32_t got = ((uint32_t)out[0] << 24) | ((uint32_t)out[1] << 16) |
+                         ((uint32_t)out[2] << 8) | out[3];
+    CHECK(got == Modbus::Map::ipv4_to_wire(bank.text(bank.var(ip))));
+    CHECK(got == 0xC0A8010Au);                       // 192.168.1.10
+}
+
+TEST_CASE("tcp map: an address is written WHOLE, and validated as a quad") {
+    Bank bank;
+    TestSite::build(bank);
+    Modbus::Map map(&bank);
+    map.build();
+
+    const VarRef ip = bank.find("net_ip");
+    const uint16_t addr = (uint16_t)(bank.var(ip).meta()->bind.reg * 2);
+    uint16_t committed = 0;
+
+    uint8_t whole[4] = { 10, 0, 0, 7 };              // 10.0.0.7
+    CHECK(map.write_registers(addr, 2, whole, &committed) == EX_NONE);
+    CHECK(committed == 1);
+    CHECK(std::string(bank.text(bank.var(ip))) == "10.0.0.7");
+
+    INFO("half an address is a different machine on a different subnet, and it "
+         "would be committed and persisted before the other half arrived");
+    CHECK(map.write_register(addr, 0x0A00, &committed) == EX_ILLEGAL_ADDRESS);
+    CHECK(map.write_register((uint16_t)(addr + 1), 0x0007, &committed)
+          == EX_ILLEGAL_ADDRESS);
+    CHECK(std::string(bank.text(bank.var(ip))) == "10.0.0.7");
+
+    INFO("a no-op costs no flash");
+    committed = 0;
+    CHECK(map.write_registers(addr, 2, whole, &committed) == EX_NONE);
+    CHECK(committed == 0);
+
+    // Every 32-bit value IS four octets of 0..255, so a master cannot write a
+    // malformed address over this map - only a wrong one. Worth knowing: the
+    // validation below is the console's rule, and over registers it can only
+    // ever refuse an EMPTY optional address, never a syntax error.
+    INFO("0.0.0.0 is a valid quad, not a blank one - the console would take it "
+         "too");
+    uint8_t zero[4] = { 0, 0, 0, 0 };
+    committed = 0;
+    CHECK(map.write_registers(addr, 2, zero, &committed) == EX_NONE);
+    CHECK(committed == 1);
+    CHECK(std::string(bank.text(bank.var(ip))) == "0.0.0.0");
+}
+
+TEST_CASE("tcp map: an enum is one register carrying its code") {
+    // The CODE is the contract with an external master: a converter may gain
+    // labels, never renumber them.
+    Bank bank;
+    TestSite::build(bank);
+    Modbus::Map map(&bank);
+    map.build();
+
+    const VarRef lvl = bank.find("sys_log_level");
+    REQUIRE(lvl.index != VAR_NONE);
+    REQUIRE(bank.var(lvl).type() == T_ENUM);
+
+    bool found = false;
+    Var v = map.row_at(bank.var(lvl).meta()->bind.reg, &found);
+    REQUIRE(found);
+    CHECK(v.meta()->bind.reg == bank.var(lvl).meta()->bind.reg);
+
+    INFO("a code the converter does not know is refused, so the labels ARE the "
+         "range check");
+    CHECK(bank.param_set_scalar(v, Scalar::U(200)) == SET_INVALID);
+}
+
+}  // namespace text_and_enums

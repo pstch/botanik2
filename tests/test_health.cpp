@@ -5,9 +5,12 @@
  * Wrong thresholds mean a silent fault, or a false one on a healthy plant.
  */
 
+#include <string>
+
 #include "doctest.h"
 
 #include "libbotanik/health/health.h"
+#include "libbotanik/plc/program.h"
 #include "libbotanik/logs/logger.h"
 #include "libbotanik/scheduler/scheduler.h"
 #include "libbotanik/vars/model.h"
@@ -227,6 +230,152 @@ TEST_CASE("scheduler: a beat missed wholesale is counted as an overrun") {
     HAL::Clock::sleep_ms(55);                                  // ~5 periods gone
     for (int i = 0; i < 100000; i++) if (s.tick()) break;
     CHECK(ctx->overruns > before);
+}
+
+
+TEST_CASE("quality: a row losing its validity is announced once, not per beat") {
+    // A row going invalid is how a dead instrument announces itself, and only
+    // the rows carrying a timeout alarm say so otherwise.
+    Fixture f;
+    Botanik::Tasks::Registry reg;
+    Health::HealthMonitor h(Botanik::SetupContext(reg, &f.log), &f.sched, &f.bank);
+    h.register_tasks();
+    reg.setup(0);
+
+    // Enough beats to cross the whole table, so the sweep is seeded and the
+    // first pass has said nothing.
+    uint64_t t = SETTLED;
+    for (uint16_t i = 0; i < 40; i++) reg.run_phase(Botanik::Tasks::PHASE_SERVICE, t += 100);
+
+    const Vars::VarRef r = f.bank.find("cli_temp_hi1");
+    REQUIRE(r.index != Vars::VAR_NONE);
+    f.bank.var(r).publish(Vars::from_f32(Vars::T_F32, 21.0f), t);
+    for (uint16_t i = 0; i < 40; i++) reg.run_phase(Botanik::Tasks::PHASE_SERVICE, t += 100);
+    f.writer.all_msgs.clear();
+
+    f.bank.var(r).invalidate(Vars::Q_NO_DATA);
+    for (uint16_t i = 0; i < 40; i++) reg.run_phase(Botanik::Tasks::PHASE_SERVICE, t += 100);
+
+    int said = 0;
+    for (size_t at = f.writer.all_msgs.find("cli_temp_hi1");
+         at != std::string::npos;
+         at = f.writer.all_msgs.find("cli_temp_hi1", at + 1)) said++;
+    INFO("the CHANGE is the event; a row that is invalid for an hour is one line");
+    CHECK(said == 1);
+    CHECK(f.writer.saw("cli_temp_hi1: invalid"));
+}
+
+namespace {
+    /** @brief A program that takes @c travel activations to reach its safe
+     *  state, so a case can watch a supervisor wait for it. */
+    class SlowToPark : public Botanik::Plc::Program {
+    public:
+        uint16_t travel;
+        uint16_t parked_for = 0;
+
+        SlowToPark(const Botanik::SetupContext& ctx, Vars::Bank& io,
+                   uint16_t t, const char* name = "slow")
+            : Program(ctx, name, Botanik::Tasks::GROUP_FAST, io), travel(t) {}
+
+    protected:
+        void run(Botanik::ProgramContext&) override {
+            if (!inhibit_requested()) { parked_for = 0; return; }
+            if (parked_for < travel) { parked_for++; parking(); }
+        }
+    };
+
+    /** @brief Beat the registry the way the firmware does. */
+    void beat(Botanik::Tasks::Registry& reg, Health::HealthMonitor& h,
+              uint64_t& t, uint16_t n) {
+        for (uint16_t i = 0; i < n; i++) {
+            t += Config::TASK_PERIOD_MS;
+            reg.run_phase(Botanik::Tasks::PHASE_SERVICE, t);
+            reg.run_phase(Botanik::Tasks::PHASE_CONTROL, t);
+            h.step(t);
+        }
+    }
+}
+
+TEST_CASE("stop: a reboot parks the plant BEFORE it stops kicking") {
+    Fixture f;
+    Botanik::Tasks::Registry reg;
+    Health::HealthMonitor h(Botanik::SetupContext(reg, &f.log), &f.sched, &f.bank);
+    SlowToPark slow(Botanik::SetupContext(reg, &f.log), f.bank, 50);
+    slow.set_slot(0);
+    slow.register_tasks();
+    h.register_tasks();
+    reg.setup(0);
+    f.bank.set_health_hold(false);
+
+    uint64_t t = SETTLED;
+    beat(reg, h, t, 5);
+    REQUIRE(h.watchdog_ok());
+
+    h.request_reboot();
+    beat(reg, h, t, 10);
+    INFO("still travelling: withholding the kick now would reset the unit "
+         "mid-stroke, which is the one thing the parking exists to avoid");
+    CHECK(h.watchdog_ok());
+    CHECK_FALSE(h.stopped());
+
+    beat(reg, h, t, 60);
+    CHECK(h.stopped());
+    CHECK_FALSE(h.watchdog_ok());
+    INFO("and the field is at its declared safe state before the reset window "
+         "opens, not after it");
+    CHECK(f.bank.health_hold());
+}
+
+TEST_CASE("stop: a program that never parks does not hold the unit for ever") {
+    Fixture f;
+    Botanik::Tasks::Registry reg;
+    Health::HealthMonitor h(Botanik::SetupContext(reg, &f.log), &f.sched, &f.bank);
+    // Longer than the deadline: this one is never going to arrive.
+    SlowToPark stuck(Botanik::SetupContext(reg, &f.log), f.bank, 0xFFFF);
+    stuck.set_slot(0);
+    stuck.register_tasks();
+    h.register_tasks();
+    reg.setup(0);
+    f.bank.set_health_hold(false);
+
+    uint64_t t = SETTLED;
+    beat(reg, h, t, 5);
+    h.request_reboot();
+
+    const uint16_t deadline_beats =
+        (uint16_t)(Config::STOP_PARK_MS / Config::TASK_PERIOD_MS);
+    beat(reg, h, t, (uint16_t)(deadline_beats - 20));
+    CHECK_FALSE(h.stopped());
+
+    beat(reg, h, t, 40);
+    INFO("an operator who typed `reboot` is owed one");
+    CHECK(h.stopped());
+    CHECK_FALSE(h.watchdog_ok());
+    CHECK(f.writer.saw("never parked"));
+}
+
+TEST_CASE("stop: a halt keeps kicking, because the loop IS alive") {
+    Fixture f;
+    Botanik::Tasks::Registry reg;
+    Health::HealthMonitor h(Botanik::SetupContext(reg, &f.log), &f.sched, &f.bank);
+    SlowToPark slow(Botanik::SetupContext(reg, &f.log), f.bank, 10);
+    slow.set_slot(0);
+    slow.register_tasks();
+    h.register_tasks();
+    reg.setup(0);
+    f.bank.set_health_hold(false);
+
+    uint64_t t = SETTLED;
+    beat(reg, h, t, 5);
+    h.request_stop(Health::HealthMonitor::Stop::HALT);
+    beat(reg, h, t, 40);
+
+    CHECK(h.stopped());
+    CHECK(h.halted());
+    INFO("the watchdog says the loop is alive, and it is - what stops is the "
+         "beat, which the firmware skips while this holds");
+    CHECK(h.watchdog_ok());
+    CHECK(f.bank.health_hold());
 }
 
 }  // namespace health

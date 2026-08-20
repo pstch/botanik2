@@ -362,3 +362,36 @@ namespace {
 }  // namespace
 
 }  // namespace hal_memory
+
+namespace pulse {
+
+using namespace Botanik;
+
+TEST_CASE("pulse: a channel counts what it is given, with the instant of the read") {
+    REQUIRE(HAL::Pulse::attach(5, HAL::Pulse::EDGE_RISING));
+    const HAL::Pulse::Sample a = HAL::Pulse::sample(5);
+    HAL::Pulse::inject(5, 450);
+    const HAL::Pulse::Sample b = HAL::Pulse::sample(5);
+
+    CHECK(b.count - a.count == 450);
+    CHECK(b.at_ms >= a.at_ms);
+    INFO("an unattached channel reads zero rather than another channel's count");
+    CHECK(HAL::Pulse::sample(6).count == 0);
+}
+
+TEST_CASE("pulse: I1 and I4 cannot both count") {
+    // They share an interrupt line on the OPTA's part. Enforced on the host too,
+    // or a site that only ever runs in the simulator meets it on the bench.
+    REQUIRE(HAL::Pulse::attach(0, HAL::Pulse::EDGE_RISING));
+    CHECK_FALSE(HAL::Pulse::attach(3, HAL::Pulse::EDGE_RISING));
+    INFO("and any other channel is still free");
+    CHECK(HAL::Pulse::attach(4, HAL::Pulse::EDGE_RISING));
+}
+
+TEST_CASE("pulse: attaching twice is refused rather than silently re-armed") {
+    REQUIRE(HAL::Pulse::attach(7, HAL::Pulse::EDGE_FALLING));
+    CHECK_FALSE(HAL::Pulse::attach(7, HAL::Pulse::EDGE_RISING));
+    CHECK_FALSE(HAL::Pulse::attach(8, HAL::Pulse::EDGE_RISING));   // no such input
+}
+
+}  // namespace pulse

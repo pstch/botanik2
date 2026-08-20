@@ -60,12 +60,13 @@ def test_the_task_table_is_complete(spawn):
     term = shell(spawn, quiet_logs=True)
     term.send(b"tasks stats" + keys.ENTER)
 
-    # Every library task a full build registers. Move it deliberately when the
-    # set changes; an unexplained DROP is the bug this exists to catch. Last
-    # moved when the config binder arrived: console_cfg and monitor_cfg were two
-    # components reading their own rows, and are now one `config` task pushing
-    # every component its config struct.
-    assert term.wait_for("Registered ....... : 21"), \
+    # Every task a full build registers, the site's control programs included.
+    # Move it deliberately when the set changes; an unexplained DROP is the bug
+    # this exists to catch. Last moved when the three supply watches replaced
+    # supply_watch and supply_report, the local input scan arrived, and the
+    # rot guard was folded back into the humidity ladder, the two watch
+    # programs arrived, and the site took ownership of the sun tracker.
+    assert term.wait_for("Registered ....... : 39"), \
         "the task table changed size - a registration was added or silently lost"
     assert term.wait_for("0 refused"), "a registration was refused: MAX_TASKS"
 
@@ -78,7 +79,7 @@ def test_a_named_task_answers_for_itself(spawn):
     """
     term = shell(spawn, quiet_logs=True)
     for name, phase in (("console_rx", "input"), ("params", "config"),
-                        ("health", "service"), ("supply_watch", "control"),
+                        ("health", "service"), ("dc_watch", "control"),
                         ("modbus_rtu_tx", "output"), ("console_tx", "present")):
         term.send(b"tasks get " + name.encode() + keys.ENTER)
         assert term.wait_for(phase), "no task named %s in %s" % (name, phase)

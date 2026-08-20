@@ -42,7 +42,7 @@ _HOME_FIELDS = (
     ("L1 A", " A"), ("L2 A", " A"), ("L3 A", " A"),
     ("Neutral A", " A"), ("THD L-N", " %"),
     ("ATS V", " V"), ("ATS A", " A"), ("ATS W", " W"), ("ATS Hz", " Hz"),
-    ("Supply Hz", " Hz"), ("Lockout", ""), ("Screen", ""), ("Skirt", ""),
+    ("Grid Hz", " Hz"), ("Lockout", ""), ("Screen", ""), ("Skirt", ""),
 )
 
 

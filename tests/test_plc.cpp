@@ -8,6 +8,7 @@
 #include "libbotanik/plc/functions/functions.h"
 #include "doctest.h"
 #include <string>
+#include <cmath>
 #include "libbotanik/plc/blocks/blocks.h"
 #include "libbotanik/utils/filters.h"
 #include "libbotanik/plc/blocks/pid.h"
@@ -769,3 +770,236 @@ TEST_CASE("Actuator: a datum stroke cut short leaves the position unknown") {
 #endif
 
 }  // namespace actuator
+
+namespace psychro {
+
+using namespace Botanik::Plc;
+// Psychrometrics: what "how wet is it" means to a control law.
+
+TEST_CASE("psychro: saturated air has its dew point at its own temperature") {
+    for (float t = -10.0f; t <= 40.0f; t += 10.0f) {
+        CHECK(dew_point(t, 1.0f) == doctest::Approx(t).epsilon(0.001));
+        CHECK(dew_point_margin(t, 1.0f) == doctest::Approx(0.0f).epsilon(0.001));
+        CHECK(vapour_pressure_deficit(t, 1.0f) == doctest::Approx(0.0f).epsilon(0.001));
+    }
+}
+
+TEST_CASE("psychro: the dew point tracks published values") {
+    // Textbook pairs, to a tenth of a degree.
+    CHECK(dew_point(20.0f, 0.50f) == doctest::Approx(9.3f).epsilon(0.02));
+    CHECK(dew_point(30.0f, 0.60f) == doctest::Approx(21.4f).epsilon(0.02));
+    CHECK(dew_point(10.0f, 0.80f) == doctest::Approx(6.7f).epsilon(0.03));
+}
+
+TEST_CASE("psychro: drier air is a larger margin, and the margin never goes negative") {
+    float last = -1.0f;
+    for (float rh = 0.95f; rh >= 0.15f; rh -= 0.10f) {
+        const float m = dew_point_margin(20.0f, rh);
+        CHECK(m > last);
+        CHECK(m >= 0.0f);
+        last = m;
+    }
+}
+
+TEST_CASE("psychro: a sensor reading zero humidity does not produce a NaN") {
+    // ln(0) is undefined; RH_FLOOR is what keeps it out of every law downstream.
+    const float m = dew_point_margin(20.0f, 0.0f);
+    CHECK(std::isfinite(m));
+    CHECK(m == doctest::Approx(dew_point_margin(20.0f, RH_FLOOR)));
+    CHECK(std::isfinite(vapour_pressure_deficit(20.0f, 0.0f)));
+}
+
+TEST_CASE("psychro: the same margin is a bigger deficit when it is warm") {
+    // The spec's worked figures: ~0.4 kPa at 10 degC against ~1.0 kPa at 30 degC,
+    // for one 3 degC margin. This nonlinearity is why rot is set in degC and
+    // irrigation in kPa.
+    auto vpd_at = [](float t) {
+        // the RH that puts the dew point exactly 3 degC below t. The margin
+        // FALLS as humidity rises, so a margin still too wide means looking at
+        // wetter air.
+        float lo = 0.05f, hi = 1.0f;
+        for (int i = 0; i < 60; i++) {
+            const float mid = 0.5f * (lo + hi);
+            (dew_point_margin(t, mid) > 3.0f ? lo : hi) = mid;
+        }
+        return vapour_pressure_deficit(t, 0.5f * (lo + hi));
+    };
+    CHECK(vpd_at(10.0f) == doctest::Approx(0.4f).epsilon(0.2));
+    CHECK(vpd_at(30.0f) == doctest::Approx(1.0f).epsilon(0.2));
+    CHECK(vpd_at(30.0f) > 2.0f * vpd_at(10.0f));
+}
+
+}  // namespace psychro
+
+namespace ladders {
+
+using namespace Botanik::Plc;
+
+TEST_CASE("median3: the middle survives, a stuck probe never does") {
+    CHECK(median3(1.0f, 2.0f, 3.0f) == 2.0f);
+    CHECK(median3(3.0f, 1.0f, 2.0f) == 2.0f);
+    CHECK(median3(2.0f, 3.0f, 1.0f) == 2.0f);
+    INFO("a probe railed high or low is one of the two discarded");
+    CHECK(median3(-40.0f, 20.1f, 20.3f) == 20.1f);
+    CHECK(median3(999.0f, 20.1f, 20.3f) == 20.3f);
+    CHECK(median3(5.0f, 5.0f, 5.0f) == 5.0f);
+}
+
+TEST_CASE("ladder: a quantity becomes a demand between 0 and 1") {
+    CHECK(ladder(15.0f, 20.0f, 30.0f) == 0.0f);
+    CHECK(ladder(25.0f, 20.0f, 30.0f) == doctest::Approx(0.5f));
+    CHECK(ladder(35.0f, 20.0f, 30.0f) == 1.0f);
+    INFO("an inverted span fails toward acting, not toward doing nothing");
+    CHECK(ladder(50.0f, 30.0f, 20.0f) == 1.0f);
+    CHECK(ladder(10.0f, 30.0f, 20.0f) == 0.0f);
+}
+
+TEST_CASE("signed_ladder: a dead band, then a branch each way") {
+    // cooling: nothing between -0.5 and +0.5 degC of the target
+    const float nf = -5.0f, ns = -0.5f, ps = 0.5f, pf = 5.0f;
+    CHECK(signed_ladder(0.0f, nf, ns, ps, pf) == 0.0f);
+    CHECK(signed_ladder(0.4f, nf, ns, ps, pf) == 0.0f);
+    CHECK(signed_ladder(-0.4f, nf, ns, ps, pf) == 0.0f);
+
+    CHECK(signed_ladder(2.75f, nf, ns, ps, pf) == doctest::Approx(0.5f));
+    CHECK(signed_ladder(-2.75f, nf, ns, ps, pf) == doctest::Approx(-0.5f));
+    CHECK(signed_ladder(9.0f, nf, ns, ps, pf) == 1.0f);
+    CHECK(signed_ladder(-9.0f, nf, ns, ps, pf) == -1.0f);
+
+    INFO("and it is continuous across each edge of the band");
+    CHECK(signed_ladder(ps, nf, ns, ps, pf) == doctest::Approx(0.0f));
+    CHECK(signed_ladder(ns, nf, ns, ps, pf) == doctest::Approx(0.0f));
+}
+
+}  // namespace ladders
+
+namespace vote {
+
+using namespace Botanik::Plc;
+
+TEST_CASE("closest2_mean: the outlier goes, the agreeing pair is averaged") {
+    CHECK(closest2_mean(20.0f, 20.2f, 30.0f) == doctest::Approx(20.1f));
+    CHECK(closest2_mean(30.0f, 20.0f, 20.2f) == doctest::Approx(20.1f));
+    CHECK(closest2_mean(20.2f, 30.0f, 20.0f) == doctest::Approx(20.1f));
+
+    INFO("a probe railed either way is the one dropped");
+    CHECK(closest2_mean(-40.0f, 20.1f, 20.3f) == doctest::Approx(20.2f));
+    CHECK(closest2_mean(999.0f, 20.1f, 20.3f) == doctest::Approx(20.2f));
+
+    INFO("three that agree average to the middle");
+    CHECK(closest2_mean(5.0f, 5.0f, 5.0f) == doctest::Approx(5.0f));
+    CHECK(closest2_mean(19.0f, 20.0f, 21.0f) == doctest::Approx(19.5f));
+}
+
+TEST_CASE("closest2_mean: it keeps the second probe's information") {
+    // Against a plain median, which discards it. Two probes reading either side
+    // of the truth average back onto it; the median lands on whichever one.
+    const float truth = 20.0f;
+    const float got = closest2_mean(truth - 0.2f, truth + 0.2f, 40.0f);
+    CHECK(got == doctest::Approx(truth));
+    CHECK(median3(truth - 0.2f, truth + 0.2f, 40.0f) == doctest::Approx(truth + 0.2f));
+}
+
+}  // namespace vote
+
+namespace actuator_drift {
+
+using namespace Botanik::Plc;
+
+namespace {
+/** @brief Hold @p target for a fixed span, long enough for any single stroke
+ *  plus its seating overrun and the dead time after it.
+ *
+ *  Not "until it stops moving": moving() is false during the reversal dead time
+ *  too, so that test returns before the stroke has even started. */
+void settle_at(Actuator& act, float target, const ActuatorConfig& cfg,
+               int steps = 400) {
+    for (int i = 0; i < steps; i++) act.step(target, cfg, 50);
+}
+}  // namespace
+
+TEST_CASE("Actuator: partial moves accumulate drift, and a seat clears it") {
+    Actuator a;
+    const ActuatorConfig cfg(10000, 10000, 0.02f, 1000, 250, 500, /*redatum*/ 3.0f);
+
+    settle_at(a, 0.0f, cfg);                 // datum against the closed stop
+    REQUIRE(a.state() == Actuator::ST_CLOSED);
+    CHECK(a.drift() == doctest::Approx(0.0f).epsilon(0.05));
+
+    // Partial moves only: never to either end, so nothing re-datums.
+    settle_at(a, 0.5f, cfg);
+    const float after_one = a.drift();
+    CHECK(after_one > 0.4f);
+    settle_at(a, 0.3f, cfg);
+    CHECK(a.drift() > after_one);
+
+    INFO("a stroke that reaches the stop makes the estimate a fact again");
+    settle_at(a, 0.0f, cfg);
+    REQUIRE(a.state() == Actuator::ST_CLOSED);
+    CHECK(a.drift() == doctest::Approx(0.0f).epsilon(0.05));
+}
+
+TEST_CASE("Actuator: past the allowance it closes fully, then reopens to target") {
+    Actuator a;
+    const ActuatorConfig cfg(10000, 10000, 0.02f, 1000, 250, 500, /*redatum*/ 0.8f);
+
+    settle_at(a, 0.0f, cfg);
+    settle_at(a, 0.6f, cfg);                 // 0.6 of travel, under the allowance
+    REQUIRE_FALSE(a.redatum_due(cfg));
+    settle_at(a, 0.2f, cfg);                 // +0.4 -> past it
+    REQUIRE(a.redatum_due(cfg));
+
+    // The next partial move must detour to the seat first.
+    a.step(0.7f, cfg, 50);
+    CHECK(a.close_cmd());
+
+    // Watch the whole detour rather than sampling it: the close, the seat, and
+    // the reopen all fit inside one hold, so a check afterwards would only ever
+    // see the destination.
+    bool  seated = false;
+    float drift_at_seat = 1.0f;
+    for (int i = 0; i < 800; i++) {
+        a.step(0.7f, cfg, 50);
+        if (!seated && a.state() == Actuator::ST_CLOSED) {
+            seated = true;
+            drift_at_seat = a.drift();
+        }
+    }
+    INFO("it went to the closed stop on the way, which is the point");
+    CHECK(seated);
+    CHECK(drift_at_seat == doctest::Approx(0.0f).epsilon(0.05));
+
+    INFO("...and then out to where it was actually asked for");
+    CHECK(a.position() == doctest::Approx(0.7f).epsilon(0.1));
+    CHECK(a.state() == Actuator::ST_OPEN);
+}
+
+TEST_CASE("Actuator: a target AT an end needs no detour, it already re-datums") {
+    Actuator a;
+    const ActuatorConfig cfg(10000, 10000, 0.02f, 1000, 250, 500, 0.8f);
+    settle_at(a, 0.0f, cfg);
+    settle_at(a, 0.6f, cfg);
+    settle_at(a, 0.2f, cfg);
+    REQUIRE(a.redatum_due(cfg));
+
+    INFO("a full open seats on the far stop, which datums just as well");
+    a.step(1.0f, cfg, 50);
+    CHECK(a.open_cmd());
+    settle_at(a, 1.0f, cfg);
+    CHECK(a.state() == Actuator::ST_OPEN);
+    CHECK(a.drift() == doctest::Approx(0.0f).epsilon(0.05));
+}
+
+TEST_CASE("Actuator: the allowance can be switched off") {
+    Actuator a;
+    const ActuatorConfig cfg(10000, 10000, 0.02f, 1000, 250, 500, /*redatum*/ 0.0f);
+    settle_at(a, 0.0f, cfg);
+    for (int i = 0; i < 6; i++) settle_at(a, (i % 2) ? 0.7f : 0.3f, cfg);
+    CHECK(a.drift() > 2.0f);
+    CHECK_FALSE(a.redatum_due(cfg));
+    INFO("and it keeps taking the short way, never detouring");
+    a.step(0.5f, cfg, 50);
+    CHECK(a.close_cmd());
+}
+
+}  // namespace actuator_drift

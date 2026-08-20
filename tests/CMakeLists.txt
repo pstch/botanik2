@@ -18,10 +18,14 @@ add_executable(botanik_tests
     test_modbus_tcp.cpp
     test_network.cpp
     test_plc.cpp
+    test_program.cpp
     test_scan.cpp
     test_site.cpp
+    test_site_programs.cpp
+    test_site_watches.cpp
     test_storage.cpp
     test_sun.cpp
+    test_table_golden.cpp
     test_tasks.cpp
     test_utils.cpp
     test_vars.cpp
@@ -34,6 +38,20 @@ target_include_directories(botanik_tests PRIVATE
 )
 
 target_link_libraries(botanik_tests botanik)
+
+# Where the committed goldens live. Only test_table_golden.cpp reads them, so
+# this stays a test-target define rather than a project-wide one.
+target_compile_definitions(botanik_tests PRIVATE
+    BOTANIK_TEST_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/data")
+
+# Rewrite the table goldens from the tables as they stand. NEVER in the gate: a
+# golden that regenerates itself asserts nothing. Read the diff.
+add_custom_target(table-golden-update
+    COMMAND ${CMAKE_COMMAND} -E env BOTANIK_GOLDEN_UPDATE=1
+            $<TARGET_FILE:botanik_tests> "-tc=table golden:*"
+    DEPENDS botanik_tests
+    COMMENT "Rewriting tests/data/*.txt from the current tables")
+
 # test_sizes.cpp pins the selected site's payload via BOTANIK_SITE_HEADER, derived
 # from the PUBLIC BOTANIK_SITE define (libbotanik_site.h) inherited from botanik.
 
@@ -51,6 +69,43 @@ add_test(NAME doctest COMMAND botanik_tests)
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/vendor)
 include(doctest)
 doctest_discover_tests(botanik_tests PROPERTIES LABELS unit)
+
+# The generated variable tables, against the CSVs they come from. The output is
+# COMMITTED, not built - the tree has no Python build dependency and an Arduino
+# sketch path could not run a generator - so this is the drift check, the same
+# discipline the pyte goldens use.
+#
+# Conditional on Python at configure time, like clang-tidy and the pyte suite: a
+# tree without it still builds and still passes the gate, it just cannot notice
+# a CSV edited without regenerating.
+find_package(Python3 COMPONENTS Interpreter QUIET)
+if(Python3_Interpreter_FOUND)
+    add_custom_target(check-vars
+        # The checker first, against tables that are deliberately wrong. Nobody
+        # reviews 331 rows of generated C++ line by line, so a check that
+        # silently stopped biting would be worse than no check at all.
+        COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/scripts/test_vars_checks.py
+        COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/scripts/vars_gen.py --check
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+        COMMENT "Checking the variable tables and the generated C++")
+    set(BOTANIK_CHECK_VARS check-vars)
+
+    # The two documents the tables can produce. Not in the gate: they are
+    # deliverables, not assertions, and the PDF half needs reportlab.
+    add_custom_target(vars-report
+        COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/scripts/vars_report.py
+                --schema
+        COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/scripts/vars_report.py
+                --site ${BOTANIK_SITE}
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+        COMMENT "Variable reference (docs/integration) and the ${BOTANIK_SITE} report")
+else()
+    add_custom_target(check-vars
+        COMMAND ${CMAKE_COMMAND} -E echo
+                "python3 not found - the generated tables cannot be checked")
+    set(BOTANIK_CHECK_VARS "")
+    message(STATUS "python3 not found - `check` will not verify the generated tables")
+endif()
 
 # `make check` is the one-shot pre-push gate. Its DEPENDS build what the suite
 # needs (`make test`/`ctest` build nothing), then it runs the suite.
@@ -75,7 +130,7 @@ add_custom_target(check
     COMMAND ${CMAKE_COMMAND} -DCTEST=${CMAKE_CTEST_COMMAND}
             -DJOBS=${BOTANIK_CTEST_JOBS}
             -P ${CMAKE_CURRENT_SOURCE_DIR}/gate.cmake
-    DEPENDS botanik_tests
+    DEPENDS botanik_tests ${BOTANIK_CHECK_VARS}
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
     COMMENT "Pre-push gate: warning-clean build + unit tests"
     VERBATIM

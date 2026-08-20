@@ -1298,3 +1298,4 @@ TEST_CASE("modbus plan: an input that could never go stale is refused a place") 
 #endif // BOTANIK_FEATURE_MODBUS_RTU_CLIENT
 
 }  // namespace modbus_image
+

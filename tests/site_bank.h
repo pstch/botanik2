@@ -12,16 +12,16 @@
 #include "libbotanik/vars/model.h"
 #include "libbotanik/vars/vars.h"
 
-#include BOTANIK_SITE_HEADER            // Site::params / alarms / io_rows
+#include BOTANIK_SITE_HEADER            // Site::register_all()
 
 namespace TestSite {
 
-    /** @brief Register the library's rows then the site's, and freeze. */
+    /** @brief Register the library's rows then the site's, and freeze. The
+     *  site's order is register_all()'s, so a test cannot register a table no
+     *  firmware ever builds. */
     inline void build(Botanik::Vars::Bank& bank) {
         Botanik::Vars::register_library_vars(bank);
-        bank.register_vars(Site::params,  Site::PARAMS_COUNT);
-        bank.register_vars(Site::alarms,  Site::ALARMS_COUNT);
-        bank.register_vars(Site::io_rows, Site::IO_ROWS_COUNT);
+        Site::register_all(bank);
         bank.freeze();
     }
 
