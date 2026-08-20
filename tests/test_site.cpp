@@ -174,27 +174,30 @@ struct AllPrograms {
     Site::CoolingController    cooling;
     Site::DestratController    destrat;
     Site::HumidityController   humidity;
-    Site::IrrigationController irrigation;
+    Site::IrrigationModulation irr_mod;
+    Site::WaterMeters          irr_meters;
+    Site::IrrigationCycle      irrigation;
     Site::ScreenController     screen;
     Site::WindowsController    windows;
     Site::IntractorController  intractors;
     Site::FanController        fans;
     Site::SkirtController      skirt;
 
-    Botanik::Plc::Program* all[16];
+    Botanik::Plc::Program* all[18];
 
     AllPrograms(const Botanik::SetupContext& ctx, Vars::Bank& io)
         : sun(ctx),
           ac_grid(ctx, io), ac_local(ctx, io), dc(ctx, io), zones(ctx, io),
           strat(ctx, io), phase(ctx, io, sun), target(ctx, io), cooling(ctx, io),
-          destrat(ctx, io), humidity(ctx, io), irrigation(ctx, io), screen(ctx, io), windows(ctx, io),
+          destrat(ctx, io), humidity(ctx, io),
+          irr_mod(ctx, io), irr_meters(ctx, io), irrigation(ctx, io), screen(ctx, io), windows(ctx, io),
           intractors(ctx, io), fans(ctx, io), skirt(ctx, io) {
         Botanik::Plc::Program* const list[] = {
             &ac_grid, &ac_local, &dc, &zones, &strat, &phase, &target,
-            &cooling, &destrat, &humidity, &irrigation, &screen,
+            &cooling, &destrat, &humidity, &irr_mod, &irr_meters, &irrigation, &screen,
             &windows, &intractors, &fans, &skirt
         };
-        for (uint8_t i = 0; i < 16; i++) all[i] = list[i];
+        for (uint8_t i = 0; i < 18; i++) all[i] = list[i];
     }
 };
 

@@ -581,24 +581,113 @@ struct HumidityController {
     void bind(Vars::Bank& io, Plc::Program& owner);
 };
 
-/** @brief The rows `irrigation` connects to, one typed reference
- *  each. IrrigationController, dispatched SLOW. */
-struct IrrigationController {
+/** @brief The rows `irr_modulation` connects to, one typed reference
+ *  each. IrrigationModulation, dispatched SLOW. */
+struct IrrigationModulation {
 
     /** @name VAR_INPUT
      *  @{ */
     Vars::RefIn<float>    vpd;
-    Vars::RefIn<float>    outside_temp;
-    Vars::RefIn<uint8_t>  days[8];
-    Vars::RefIn<uint16_t> litres[8];
-    Vars::RefIn<bool>     force_on[8];
-    Vars::RefIn<bool>     force_off[8];
-    Vars::RefIn<uint16_t> trays_per_day;
     Vars::RefIn<uint16_t> dry_days;
     Vars::RefIn<float>    dry_lo;
     Vars::RefIn<float>    dry_hi;
     Vars::RefIn<float>    mod_min;
     Vars::RefIn<float>    mod_gamma;
+
+    /** @} */
+
+    /** @name VAR_OUTPUT
+     *  @{ */
+    Vars::RefOut<float> vpd_avg;
+    Vars::RefOut<float> mod;
+
+    /** @} */
+
+    /** @name Health
+     *  Where this program's health is published. Written by a
+     *  SUPERVISOR walking every program, not by the program: a
+     *  program that is not being activated is exactly when a
+     *  reader wants the row. @see Plc::publish_health()
+     *  @{ */
+    Vars::RefOut<uint8_t> health;
+
+    /** @} */
+
+    /** @brief The instance name and the rate class programs.toml
+     *  declares. The constructor takes them from here, so neither can
+     *  drift from the configuration. */
+    static const char* name() { return "irr_modulation"; }
+    static Tasks::GroupId group() { return Tasks::GROUP_SLOW; }
+
+    /** @brief Resolve every name. Runs inside the program's writer
+     *  window, so an output is CLAIMED here.
+     *  @param owner the program this belongs to: a declared health
+     *         row is handed to it here. */
+    void bind(Vars::Bank& io, Plc::Program& owner);
+};
+
+/** @brief The rows `irr_meters` connects to, one typed reference
+ *  each. WaterMeters, dispatched SLOW. */
+struct WaterMeters {
+
+    /** @name VAR_INPUT
+     *  @{ */
+    Vars::RefIn<float>    out_flow;
+    Vars::RefIn<uint16_t> out_avg_ms;
+    Vars::RefIn<float>    qty_per_pulse;
+    Vars::RefIn<float>    leak_Lpm;
+    Vars::RefIn<float>    min_fill_Lpm;
+    Vars::RefIn<uint8_t>  state;
+
+    /** @} */
+
+    /** @name VAR_OUTPUT
+     *  @{ */
+    Vars::RefOut<float> in_flow;
+    Vars::RefOut<float> in_total;
+    Vars::RefOut<float> out_flow_pub;
+    Vars::RefOut<float> out_total;
+    Vars::RefOut<bool>  leak;
+    Vars::RefOut<bool>  pressure;
+
+    /** @} */
+
+    /** @name Health
+     *  Where this program's health is published. Written by a
+     *  SUPERVISOR walking every program, not by the program: a
+     *  program that is not being activated is exactly when a
+     *  reader wants the row. @see Plc::publish_health()
+     *  @{ */
+    Vars::RefOut<uint8_t> health;
+
+    /** @} */
+
+    /** @brief The instance name and the rate class programs.toml
+     *  declares. The constructor takes them from here, so neither can
+     *  drift from the configuration. */
+    static const char* name() { return "irr_meters"; }
+    static Tasks::GroupId group() { return Tasks::GROUP_SLOW; }
+
+    /** @brief Resolve every name. Runs inside the program's writer
+     *  window, so an output is CLAIMED here.
+     *  @param owner the program this belongs to: a declared health
+     *         row is handed to it here. */
+    void bind(Vars::Bank& io, Plc::Program& owner);
+};
+
+/** @brief The rows `irrigation` connects to, one typed reference
+ *  each. IrrigationCycle, dispatched SLOW. */
+struct IrrigationCycle {
+
+    /** @name VAR_INPUT
+     *  @{ */
+    Vars::RefIn<float>    outside_temp;
+    Vars::RefIn<float>    mod;
+    Vars::RefIn<float>    in_total;
+    Vars::RefIn<float>    out_total;
+    Vars::RefIn<uint8_t>  days[8];
+    Vars::RefIn<uint16_t> litres[8];
+    Vars::RefIn<uint16_t> trays_per_day;
     Vars::RefIn<float>    split;
     Vars::RefIn<float>    dawn_gate;
     Vars::RefIn<uint8_t>  phase;
@@ -609,21 +698,15 @@ struct IrrigationController {
     Vars::RefIn<uint16_t> max_fill_s;
     Vars::RefIn<uint16_t> drain_window_s;
     Vars::RefIn<uint16_t> flush_s;
-    Vars::RefIn<float>    qty_per_pulse;
-    Vars::RefIn<float>    out_flow;
-    Vars::RefIn<uint16_t> out_avg_ms;
-    Vars::RefIn<float>    leak_Lpm;
-    Vars::RefIn<float>    min_fill_Lpm;
     Vars::RefIn<float>    exp_drain;
     Vars::RefIn<float>    drain_margin;
+    Vars::RefIn<float>    out_flow;
 
     /** @} */
 
     /** @name VAR_OUTPUT
      *  @{ */
     Vars::RefOut<bool>    tray_valve[8];
-    Vars::RefOut<float>   vpd_avg;
-    Vars::RefOut<float>   mod;
     Vars::RefOut<float>   period;
     Vars::RefOut<float>   volume;
     Vars::RefOut<uint8_t> state;
@@ -633,13 +716,7 @@ struct IrrigationController {
     Vars::RefOut<bool>    inlet[2];
     Vars::RefOut<bool>    outlet[2];
     Vars::RefOut<bool>    fill_fault;
-    Vars::RefOut<float>   out_flow_pub;
-    Vars::RefOut<float>   in_flow;
-    Vars::RefOut<float>   in_total;
-    Vars::RefOut<float>   out_total;
     Vars::RefOut<float>   drained;
-    Vars::RefOut<bool>    leak;
-    Vars::RefOut<bool>    pressure;
     Vars::RefOut<bool>    drain_fault;
     Vars::RefOut<bool>    fill_tray[8];
     Vars::RefOut<bool>    drain_tray[8];
@@ -649,6 +726,8 @@ struct IrrigationController {
     /** @name VAR_IN_OUT
      *  @{ */
     Vars::RefInOut<uint32_t> last[8];
+    Vars::RefInOut<bool>     force_on[8];
+    Vars::RefInOut<bool>     force_off[8];
 
     /** @} */
 
@@ -1196,9 +1275,41 @@ inline void HumidityController::bind(Vars::Bank& io, Plc::Program& owner) {
     owner.set_health_row(health);
 }
 
-inline void IrrigationController::bind(Vars::Bank& io, Plc::Program& owner) {
-    vpd            = io.resolve_in<float>("cli_vpd_kPa");
+inline void IrrigationModulation::bind(Vars::Bank& io, Plc::Program& owner) {
+    vpd       = io.resolve_in<float>("cli_vpd_kPa");
+    dry_days  = io.resolve_in<uint16_t>("irr_dryEwmaDays");
+    dry_lo    = io.resolve_in<float>("irr_dryLo_kPa");
+    dry_hi    = io.resolve_in<float>("irr_dryHi_kPa");
+    mod_min   = io.resolve_in<float>("irr_modMin");
+    mod_gamma = io.resolve_in<float>("irr_modGamma");
+    vpd_avg   = io.resolve_out<float>("irr_vpdAvg_kPa");
+    mod       = io.resolve_out<float>("irr_mod");
+    health    = io.resolve_out<uint8_t>("prog_irr_modulation");
+    owner.set_health_row(health);
+}
+
+inline void WaterMeters::bind(Vars::Bank& io, Plc::Program& owner) {
+    out_flow      = io.resolve_in<float>("irr_out_Lpm");
+    out_avg_ms    = io.resolve_in<uint16_t>("irr_out_avg_ms");
+    qty_per_pulse = io.resolve_in<float>("irr_input_qtyPerImp");
+    leak_Lpm      = io.resolve_in<float>("irr_leak_Lpm");
+    min_fill_Lpm  = io.resolve_in<float>("irr_minFill_Lpm");
+    state         = io.resolve_in<uint8_t>("irr_state");
+    in_flow       = io.resolve_out<float>("irr_inFlow_Lpm");
+    in_total      = io.resolve_out<float>("irr_inTotal_L");
+    out_flow_pub  = io.resolve_out<float>("irr_outFlow_Lpm");
+    out_total     = io.resolve_out<float>("irr_outTotal_L");
+    leak          = io.resolve_out<bool>("alarm_water_leak");
+    pressure      = io.resolve_out<bool>("alarm_water_pressure");
+    health        = io.resolve_out<uint8_t>("prog_irr_meters");
+    owner.set_health_row(health);
+}
+
+inline void IrrigationCycle::bind(Vars::Bank& io, Plc::Program& owner) {
     outside_temp   = io.resolve_in<float>("cli_temp_ext");
+    mod            = io.resolve_in<float>("irr_mod");
+    in_total       = io.resolve_in<float>("irr_inTotal_L");
+    out_total      = io.resolve_in<float>("irr_outTotal_L");
     days[0]        = io.resolve_in<uint8_t>("irr_days_tray1");
     days[1]        = io.resolve_in<uint8_t>("irr_days_tray2");
     days[2]        = io.resolve_in<uint8_t>("irr_days_tray3");
@@ -1215,28 +1326,7 @@ inline void IrrigationController::bind(Vars::Bank& io, Plc::Program& owner) {
     litres[5]      = io.resolve_in<uint16_t>("irr_liters_tray6");
     litres[6]      = io.resolve_in<uint16_t>("irr_liters_tray7");
     litres[7]      = io.resolve_in<uint16_t>("irr_liters_tray8");
-    force_on[0]    = io.resolve_in<bool>("irr_forceOn_tray1");
-    force_on[1]    = io.resolve_in<bool>("irr_forceOn_tray2");
-    force_on[2]    = io.resolve_in<bool>("irr_forceOn_tray3");
-    force_on[3]    = io.resolve_in<bool>("irr_forceOn_tray4");
-    force_on[4]    = io.resolve_in<bool>("irr_forceOn_tray5");
-    force_on[5]    = io.resolve_in<bool>("irr_forceOn_tray6");
-    force_on[6]    = io.resolve_in<bool>("irr_forceOn_tray7");
-    force_on[7]    = io.resolve_in<bool>("irr_forceOn_tray8");
-    force_off[0]   = io.resolve_in<bool>("irr_forceOff_tray1");
-    force_off[1]   = io.resolve_in<bool>("irr_forceOff_tray2");
-    force_off[2]   = io.resolve_in<bool>("irr_forceOff_tray3");
-    force_off[3]   = io.resolve_in<bool>("irr_forceOff_tray4");
-    force_off[4]   = io.resolve_in<bool>("irr_forceOff_tray5");
-    force_off[5]   = io.resolve_in<bool>("irr_forceOff_tray6");
-    force_off[6]   = io.resolve_in<bool>("irr_forceOff_tray7");
-    force_off[7]   = io.resolve_in<bool>("irr_forceOff_tray8");
     trays_per_day  = io.resolve_in<uint16_t>("irr_traysPerDay");
-    dry_days       = io.resolve_in<uint16_t>("irr_dryEwmaDays");
-    dry_lo         = io.resolve_in<float>("irr_dryLo_kPa");
-    dry_hi         = io.resolve_in<float>("irr_dryHi_kPa");
-    mod_min        = io.resolve_in<float>("irr_modMin");
-    mod_gamma      = io.resolve_in<float>("irr_modGamma");
     split          = io.resolve_in<float>("irr_volFreqSplit");
     dawn_gate      = io.resolve_in<float>("irr_dawnGate_degC");
     phase          = io.resolve_in<uint8_t>("cli_phase");
@@ -1247,13 +1337,9 @@ inline void IrrigationController::bind(Vars::Bank& io, Plc::Program& owner) {
     max_fill_s     = io.resolve_in<uint16_t>("irr_maxFill_sec");
     drain_window_s = io.resolve_in<uint16_t>("irr_drainWindow_sec");
     flush_s        = io.resolve_in<uint16_t>("irr_flush_sec");
-    qty_per_pulse  = io.resolve_in<float>("irr_input_qtyPerImp");
-    out_flow       = io.resolve_in<float>("irr_out_Lpm");
-    out_avg_ms     = io.resolve_in<uint16_t>("irr_out_avg_ms");
-    leak_Lpm       = io.resolve_in<float>("irr_leak_Lpm");
-    min_fill_Lpm   = io.resolve_in<float>("irr_minFill_Lpm");
     exp_drain      = io.resolve_in<float>("irr_expDrainFrac");
     drain_margin   = io.resolve_in<float>("irr_drainMargin");
+    out_flow       = io.resolve_in<float>("irr_outFlow_Lpm");
     tray_valve[0]  = io.resolve_out<bool>("irr_tray1");
     tray_valve[1]  = io.resolve_out<bool>("irr_tray2");
     tray_valve[2]  = io.resolve_out<bool>("irr_tray3");
@@ -1262,8 +1348,6 @@ inline void IrrigationController::bind(Vars::Bank& io, Plc::Program& owner) {
     tray_valve[5]  = io.resolve_out<bool>("irr_tray6");
     tray_valve[6]  = io.resolve_out<bool>("irr_tray7");
     tray_valve[7]  = io.resolve_out<bool>("irr_tray8");
-    vpd_avg        = io.resolve_out<float>("irr_vpdAvg_kPa");
-    mod            = io.resolve_out<float>("irr_mod");
     period         = io.resolve_out<float>("irr_period_days");
     volume         = io.resolve_out<float>("irr_volume_L");
     state          = io.resolve_out<uint8_t>("irr_state");
@@ -1275,13 +1359,7 @@ inline void IrrigationController::bind(Vars::Bank& io, Plc::Program& owner) {
     outlet[0]      = io.resolve_out<bool>("irr_output_ro1");
     outlet[1]      = io.resolve_out<bool>("irr_output_ro2");
     fill_fault     = io.resolve_out<bool>("alarm_irr_fill");
-    out_flow_pub   = io.resolve_out<float>("irr_outFlow_Lpm");
-    in_flow        = io.resolve_out<float>("irr_inFlow_Lpm");
-    in_total       = io.resolve_out<float>("irr_inTotal_L");
-    out_total      = io.resolve_out<float>("irr_outTotal_L");
     drained        = io.resolve_out<float>("irr_drained_L");
-    leak           = io.resolve_out<bool>("alarm_water_leak");
-    pressure       = io.resolve_out<bool>("alarm_water_pressure");
     drain_fault    = io.resolve_out<bool>("alarm_irr_drain");
     fill_tray[0]   = io.resolve_out<bool>("alarm_irr_fill_tray1");
     fill_tray[1]   = io.resolve_out<bool>("alarm_irr_fill_tray2");
@@ -1307,6 +1385,22 @@ inline void IrrigationController::bind(Vars::Bank& io, Plc::Program& owner) {
     last[5]        = io.resolve_inout<uint32_t>("irr_last_tray6");
     last[6]        = io.resolve_inout<uint32_t>("irr_last_tray7");
     last[7]        = io.resolve_inout<uint32_t>("irr_last_tray8");
+    force_on[0]    = io.resolve_inout<bool>("irr_forceOn_tray1");
+    force_on[1]    = io.resolve_inout<bool>("irr_forceOn_tray2");
+    force_on[2]    = io.resolve_inout<bool>("irr_forceOn_tray3");
+    force_on[3]    = io.resolve_inout<bool>("irr_forceOn_tray4");
+    force_on[4]    = io.resolve_inout<bool>("irr_forceOn_tray5");
+    force_on[5]    = io.resolve_inout<bool>("irr_forceOn_tray6");
+    force_on[6]    = io.resolve_inout<bool>("irr_forceOn_tray7");
+    force_on[7]    = io.resolve_inout<bool>("irr_forceOn_tray8");
+    force_off[0]   = io.resolve_inout<bool>("irr_forceOff_tray1");
+    force_off[1]   = io.resolve_inout<bool>("irr_forceOff_tray2");
+    force_off[2]   = io.resolve_inout<bool>("irr_forceOff_tray3");
+    force_off[3]   = io.resolve_inout<bool>("irr_forceOff_tray4");
+    force_off[4]   = io.resolve_inout<bool>("irr_forceOff_tray5");
+    force_off[5]   = io.resolve_inout<bool>("irr_forceOff_tray6");
+    force_off[6]   = io.resolve_inout<bool>("irr_forceOff_tray7");
+    force_off[7]   = io.resolve_inout<bool>("irr_forceOff_tray8");
     health         = io.resolve_out<uint8_t>("prog_irrigation");
     owner.set_health_row(health);
 }

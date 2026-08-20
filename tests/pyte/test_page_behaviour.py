@@ -65,8 +65,9 @@ def test_the_task_table_is_complete(spawn):
     # this exists to catch. Last moved when the three supply watches replaced
     # supply_watch and supply_report, the local input scan arrived, and the
     # rot guard was folded back into the humidity ladder, the two watch
-    # programs arrived, and the site took ownership of the sun tracker.
-    assert term.wait_for("Registered ....... : 39"), \
+    # programs arrived, the site took ownership of the sun tracker, and
+    # irrigation became three programs instead of one.
+    assert term.wait_for("Registered ....... : 41"), \
         "the task table changed size - a registration was added or silently lost"
     assert term.wait_for("0 refused"), "a registration was refused: MAX_TASKS"
 

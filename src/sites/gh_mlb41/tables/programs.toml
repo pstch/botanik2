@@ -297,29 +297,71 @@ lockout  = "cli_rotLockout"
 vent_dem = "cli_rotVentDem"
 dry_ok   = "cli_intakeDryOk"
 
+# The irrigation subsystem is three programs, along the seam the spec draws: a
+# ladder (how thirsty the air has been), an instrument (what the two meters
+# say), and the law that acts (which tray, and the valves).
+
+[[program]]
+name  = "irr_modulation"
+class = "IrrigationModulation"
+task  = "SLOW"
+health = "prog_irr_modulation"
+# The spec's irrigation "regulator": evaporation in, a modulation factor out.
+# It never touches a valve, and it keeps folding while the plant is parked -
+# an outage is not a dry spell.
+[program.in]
+vpd       = "cli_vpd_kPa"
+dry_days  = "irr_dryEwmaDays"
+dry_lo    = "irr_dryLo_kPa"
+dry_hi    = "irr_dryHi_kPa"
+mod_min   = "irr_modMin"
+mod_gamma = "irr_modGamma"
+[program.out]
+vpd_avg = "irr_vpdAvg_kPa"
+mod     = "irr_mod"
+
+[[program]]
+name  = "irr_meters"
+class = "WaterMeters"
+task  = "SLOW"
+health = "prog_irr_meters"
+# Both ends of the circuit, and the two supply faults they can see. Opposite
+# instruments: the inlet is a pulse train whose COUNTER is the measurement, the
+# outlet a 4-20 mA loop whose RATE is.
+[program.in]
+out_flow      = "irr_out_Lpm"
+out_avg_ms    = "irr_out_avg_ms"
+qty_per_pulse = "irr_input_qtyPerImp"
+leak_Lpm      = "irr_leak_Lpm"
+min_fill_Lpm  = "irr_minFill_Lpm"
+state         = "irr_state"
+[program.out]
+in_flow      = "irr_inFlow_Lpm"
+in_total     = "irr_inTotal_L"
+out_flow_pub = "irr_outFlow_Lpm"
+out_total    = "irr_outTotal_L"
+leak         = "alarm_water_leak"
+pressure     = "alarm_water_pressure"
+
 [[program]]
 name  = "irrigation"
-class = "IrrigationController"
+class = "IrrigationCycle"
 task  = "SLOW"
 health = "prog_irrigation"
 
 [program.in]
-vpd           = "cli_vpd_kPa"
 outside_temp  = "cli_temp_ext"
+# The other two programs' answers: how much water this weather is worth, and
+# what the meters have counted. Both are read as TOTALS and differenced, so
+# this law holds no meter state of its own.
+mod           = "irr_mod"
+in_total      = "irr_inTotal_L"
+out_total     = "irr_outTotal_L"
 days   = ["irr_days_tray1","irr_days_tray2","irr_days_tray3","irr_days_tray4",
           "irr_days_tray5","irr_days_tray6","irr_days_tray7","irr_days_tray8"]
 litres = ["irr_liters_tray1","irr_liters_tray2","irr_liters_tray3","irr_liters_tray4",
           "irr_liters_tray5","irr_liters_tray6","irr_liters_tray7","irr_liters_tray8"]
-force_on = ["irr_forceOn_tray1","irr_forceOn_tray2","irr_forceOn_tray3","irr_forceOn_tray4",
-            "irr_forceOn_tray5","irr_forceOn_tray6","irr_forceOn_tray7","irr_forceOn_tray8"]
-force_off = ["irr_forceOff_tray1","irr_forceOff_tray2","irr_forceOff_tray3","irr_forceOff_tray4",
-             "irr_forceOff_tray5","irr_forceOff_tray6","irr_forceOff_tray7","irr_forceOff_tray8"]
 trays_per_day  = "irr_traysPerDay"
-dry_days       = "irr_dryEwmaDays"
-dry_lo         = "irr_dryLo_kPa"
-dry_hi         = "irr_dryHi_kPa"
-mod_min        = "irr_modMin"
-mod_gamma      = "irr_modGamma"
 split          = "irr_volFreqSplit"
 dawn_gate      = "irr_dawnGate_degC"
 # WHEN a cycle may start: end of night, or the first hours of the day. The spec
@@ -332,13 +374,11 @@ force_now      = "irr_forceNow"
 max_fill_s     = "irr_maxFill_sec"
 drain_window_s = "irr_drainWindow_sec"
 flush_s        = "irr_flush_sec"
-qty_per_pulse  = "irr_input_qtyPerImp"
-out_flow       = "irr_out_Lpm"
-out_avg_ms     = "irr_out_avg_ms"
-leak_Lpm       = "irr_leak_Lpm"
-min_fill_Lpm   = "irr_minFill_Lpm"
 exp_drain      = "irr_expDrainFrac"
 drain_margin   = "irr_drainMargin"
+# For its QUALITY: a drain verdict needs the outlet meter to be answering, and
+# the totalizer beside it is a record that stays valid whatever the loop does.
+out_flow       = "irr_outFlow_Lpm"
 
 # Read to decide when a tray is due, stamped once its fill completes - and an
 # operator edits it to skip a watering or bring one forward. Shared by
@@ -346,12 +386,17 @@ drain_margin   = "irr_drainMargin"
 [program.inout]
 last = ["irr_last_tray1","irr_last_tray2","irr_last_tray3","irr_last_tray4",
         "irr_last_tray5","irr_last_tray6","irr_last_tray7","irr_last_tray8"]
+# The two forces are ONE-SHOT, per the spec: they force or skip the NEXT
+# watering of that tray, so the cycle clears them as it honours them. Read and
+# written, therefore, not read alone.
+force_on = ["irr_forceOn_tray1","irr_forceOn_tray2","irr_forceOn_tray3","irr_forceOn_tray4",
+            "irr_forceOn_tray5","irr_forceOn_tray6","irr_forceOn_tray7","irr_forceOn_tray8"]
+force_off = ["irr_forceOff_tray1","irr_forceOff_tray2","irr_forceOff_tray3","irr_forceOff_tray4",
+             "irr_forceOff_tray5","irr_forceOff_tray6","irr_forceOff_tray7","irr_forceOff_tray8"]
 
 [program.out]
 tray_valve = ["irr_tray1","irr_tray2","irr_tray3","irr_tray4",
               "irr_tray5","irr_tray6","irr_tray7","irr_tray8"]
-vpd_avg     = "irr_vpdAvg_kPa"
-mod         = "irr_mod"
 period      = "irr_period_days"
 volume      = "irr_volume_L"
 state       = "irr_state"
@@ -363,13 +408,7 @@ delivered   = "irr_delivered_L"
 inlet       = ["irr_input_ro1", "irr_input_ro2"]
 outlet      = ["irr_output_ro1", "irr_output_ro2"]
 fill_fault  = "alarm_irr_fill"
-out_flow_pub = "irr_outFlow_Lpm"
-in_flow      = "irr_inFlow_Lpm"
-in_total     = "irr_inTotal_L"
-out_total    = "irr_outTotal_L"
 drained     = "irr_drained_L"
-leak        = "alarm_water_leak"
-pressure    = "alarm_water_pressure"
 drain_fault = "alarm_irr_drain"
 # The per-tray forms beside the "any" ones above: the any-form is what an
 # operator sees on the ribbon, and these are what says which tray to go and look

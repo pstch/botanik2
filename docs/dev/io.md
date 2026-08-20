@@ -60,7 +60,7 @@ the collection.
 needed: the mirror image, at `PHASE_OUTPUT`.
 
 **Attaching the pulse counters.** `Site::pulse_inputs[]` is generated from the
-`isr` column and `IrrigationController` samples the channel directly, but
+`isr` column and `WaterMeters` samples the channel directly, but
 nothing calls `HAL::Pulse::attach()` outside the tests - so on hardware the
 counter never starts. It wants the site's table to reach the component, which
 `SiteDescriptor` does not carry yet.

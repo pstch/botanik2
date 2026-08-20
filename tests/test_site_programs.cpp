@@ -30,6 +30,13 @@ using TestScan::Live;
 
 namespace {
 
+/** @brief Summer, as the modulation ladder would report it: full watering. The
+ *  ladder is its own program now, so a cycle case states the factor rather than
+ *  driving the weather that would produce it. */
+void summer(Live& f) {
+    f.bank.var(f.ref("irr_mod")).set(1.0f);
+}
+
 /** @brief Put the plant in the end-of-night watering slot. A cycle may only
  *  START in one of the two the spec allows, so every irrigation case has to
  *  say which one it is in. */
@@ -531,11 +538,69 @@ TEST_CASE("screen: the phase gives permission, the demand only asks") {
     CHECK_FALSE(f.bank.get(screen));
 }
 
+TEST_CASE("irrigation: a force is spent on the watering it asked for") {
+    Live f;
+    Site::WaterMeters   meters(Botanik::SetupContext(f.reg), f.bank);
+    Site::IrrigationCycle irr(Botanik::SetupContext(f.reg), f.bank);
+    Plc::Program* const progs[] = { &meters, &irr };
+    Cycle d(progs, 2, &f.bank, f.reg);
+    summer(f);
+    slot(f);
+    field(f, "cli_temp_ext", 25.0f);
+    HAL::Pulse::attach(Site::pulse_inputs[0].channel, Site::pulse_inputs[0].edge);
+    f.bank.param_set(f.bank.var(f.ref("irr_liters_tray2")), 5.0f);
+    f.bank.param_set(f.bank.var(f.ref("irr_input_qtyPerImp")), 1.0f);
+    REQUIRE(f.bank.param_set(f.bank.var(f.ref("irr_forceOn_tray2")), true) == SET_OK);
+
+    uint64_t t = 0;
+    d.step(t += 1000);
+    REQUIRE(f.bank.var(f.ref("irr_activeTray")).i() == 2);
+
+    INFO("the force is cleared as the fill completes: left standing it would "
+         "ask for the same tray on every cycle for ever, and no other tray "
+         "would ever be reached");
+    HAL::Pulse::inject(Site::pulse_inputs[0].channel, 20);
+    d.step(t += 1000);
+    REQUIRE(f.bank.var(f.ref("irr_state")).i() == Site::IRR_DRAINING);
+    CHECK_FALSE(f.bank.var(f.ref("irr_forceOn_tray2")).b());
+
+    INFO("...and it is owed to flash, like every other schedule edit");
+    CHECK(f.bank.var(f.ref("irr_forceOn_tray2")).param_unsaved());
+}
+
+TEST_CASE("irrigation: a skip is spent too, and sends the tray to the back") {
+    Live f;
+    Site::WaterMeters   meters(Botanik::SetupContext(f.reg), f.bank);
+    Site::IrrigationCycle irr(Botanik::SetupContext(f.reg), f.bank);
+    Plc::Program* const progs[] = { &meters, &irr };
+    Cycle d(progs, 2, &f.bank, f.reg);
+    summer(f);
+    slot(f);
+    field(f, "cli_temp_ext", 25.0f);
+
+    // Every tray is due at bring-up - none has ever been served - so the one
+    // held back is the one the cycle would otherwise have taken first.
+    REQUIRE(f.bank.param_set(f.bank.var(f.ref("irr_forceOff_tray1")), true) == SET_OK);
+
+    d.step(1000);
+    INFO("tray 1 is passed over, and the next due tray goes instead");
+    CHECK(f.bank.var(f.ref("irr_activeTray")).i() == 2);
+
+    INFO("the skip is spent doing it, and the tray is stamped so it waits its "
+         "period rather than arriving again tomorrow with the flag gone");
+    CHECK_FALSE(f.bank.var(f.ref("irr_forceOff_tray1")).b());
+    CHECK(f.bank.var(f.ref("irr_last_tray1")).i() > 0);
+    CHECK(f.bank.var(f.ref("irr_last_tray1")).param_unsaved());
+}
+
 TEST_CASE("irrigation: the afternoon is not a watering slot") {
     Live f;
-    Site::IrrigationController irr(Botanik::SetupContext(f.reg), f.bank);
-    Plc::Program* const progs[] = { &irr };
-    Cycle d(progs, 1, &f.bank, f.reg);
+    Site::WaterMeters   meters(Botanik::SetupContext(f.reg), f.bank);
+    Site::IrrigationCycle irr(Botanik::SetupContext(f.reg), f.bank);
+    // The meters FIRST: the cycle judges a fill against what they publish.
+    Plc::Program* const progs[] = { &meters, &irr };
+    Cycle d(progs, 2, &f.bank, f.reg);
+    summer(f);
 
     field(f, "cli_temp_ext", 25.0f);
     f.bank.param_set(f.bank.var(f.ref("irr_forceOn_tray1")), true);
@@ -558,9 +623,11 @@ TEST_CASE("irrigation: the afternoon is not a watering slot") {
     INFO("and a cold end of night waits for that window rather than watering "
          "cold roots");
     Live g;
-    Site::IrrigationController irr2(Botanik::SetupContext(g.reg), g.bank);
-    Plc::Program* const progs2[] = { &irr2 };
-    Cycle d2(progs2, 1, &g.bank, g.reg);
+    Site::WaterMeters     meters2(Botanik::SetupContext(g.reg), g.bank);
+    Site::IrrigationCycle irr2(Botanik::SetupContext(g.reg), g.bank);
+    Plc::Program* const progs2[] = { &meters2, &irr2 };
+    Cycle d2(progs2, 2, &g.bank, g.reg);
+    summer(g);
     g.bank.param_set(g.bank.var(g.ref("irr_forceOn_tray1")), true);
     field(g, "cli_temp_ext",
           g.bank.var(g.ref("irr_dawnGate_degC")).as_f32() - 1.0f);
@@ -936,9 +1003,12 @@ TEST_CASE("skirt: damp air gates the cooling arm, and the rot lockout cuts both"
 
 TEST_CASE("valves: each parks where its own row says it fails, not all one way") {
     Live f;
-    Site::IrrigationController irr(Botanik::SetupContext(f.reg), f.bank);
-    Plc::Program* const progs[] = { &irr };
-    Cycle d(progs, 1, &f.bank, f.reg);
+    Site::WaterMeters   meters(Botanik::SetupContext(f.reg), f.bank);
+    Site::IrrigationCycle irr(Botanik::SetupContext(f.reg), f.bank);
+    // The meters FIRST: the cycle judges a fill against what they publish.
+    Plc::Program* const progs[] = { &meters, &irr };
+    Cycle d(progs, 2, &f.bank, f.reg);
+    summer(f);
 
     irr.request_safe(true);
     d.step(100);
@@ -952,9 +1022,12 @@ TEST_CASE("valves: each parks where its own row says it fails, not all one way")
 
 TEST_CASE("irrigation: a fill fault names the tray, not just the cycle") {
     Live f;
-    Site::IrrigationController irr(Botanik::SetupContext(f.reg), f.bank);
-    Plc::Program* const progs[] = { &irr };
-    Cycle d(progs, 1, &f.bank, f.reg);
+    Site::WaterMeters   meters(Botanik::SetupContext(f.reg), f.bank);
+    Site::IrrigationCycle irr(Botanik::SetupContext(f.reg), f.bank);
+    // The meters FIRST: the cycle judges a fill against what they publish.
+    Plc::Program* const progs[] = { &meters, &irr };
+    Cycle d(progs, 2, &f.bank, f.reg);
+    summer(f);
 
     // Tray 2 alone is due, and nothing will ever arrive to fill it.
     for (uint8_t i = 1; i <= 8; i++) {
@@ -1004,12 +1077,15 @@ TEST_CASE("irrigation: total water tracks the modulation whatever the split") {
 
 TEST_CASE("irrigation: the cycle fills to its dose, then drains, then idles") {
     Live f;
-    Site::IrrigationController irr(Botanik::SetupContext(f.reg), f.bank);
-    Plc::Program* const progs[] = { &irr };
-    Cycle d(progs, 1, &f.bank, f.reg);
+    Site::WaterMeters   meters(Botanik::SetupContext(f.reg), f.bank);
+    Site::IrrigationCycle irr(Botanik::SetupContext(f.reg), f.bank);
+    // The meters FIRST: the cycle judges a fill against what they publish.
+    Plc::Program* const progs[] = { &meters, &irr };
+    Cycle d(progs, 2, &f.bank, f.reg);
+    summer(f);
 
-    REQUIRE(HAL::Pulse::attach(Site::pulse_inputs[0].channel,
-                               Site::pulse_inputs[0].edge));
+    // Bare, not REQUIREd: a channel another case already attached answers false.
+    HAL::Pulse::attach(Site::pulse_inputs[0].channel, Site::pulse_inputs[0].edge);
 
     // Warm enough that the dawn gate is open, in the end-of-night slot, and
     // tray 1 forced so the cycle starts without the calendar the due-check
@@ -1063,8 +1139,10 @@ namespace {
 
 /** @brief Fill tray 1, then hold @p lpm on the outlet meter for the whole drain
  *  window. @return the litres the meter says came back. */
-float drain_at(Live& f, Cycle& d, Site::IrrigationController& irr, float lpm,
-               bool meter_live, Plc::Health* worst = nullptr) {
+float drain_at(Live& f, Cycle& d, Site::WaterMeters& meters,
+               Site::IrrigationCycle& irr, float lpm, bool meter_live,
+               Plc::Health* worst = nullptr) {
+    (void)irr;
     f.bank.var(f.ref("cli_temp_ext")).publish(from_f32(T_F32, 20.0f), 0);
     slot(f);
     f.bank.param_set(f.bank.var(f.ref("irr_forceOn_tray1")), true);
@@ -1085,8 +1163,10 @@ float drain_at(Live& f, Cycle& d, Site::IrrigationController& irr, float lpm,
             f.bank.var(f.ref("irr_out_Lpm")).publish(from_f32(T_F32, lpm), t);
         d.step(t += 1000);
         // Health is per ACTIVATION, so it has to be read inside the window: by
-        // the time the loop ends the cycle is flushing and healthy again.
-        if (worst != nullptr && irr.health() > *worst) *worst = irr.health();
+        // the time the loop ends the cycle is flushing and healthy again. The
+        // METERS are what report a silent instrument now - the cycle only
+        // declines to judge on one.
+        if (worst != nullptr && meters.health() > *worst) *worst = meters.health();
     }
     return f.bank.var(f.ref("irr_drained_L")).as_f32();
 }
@@ -1095,9 +1175,12 @@ float drain_at(Live& f, Cycle& d, Site::IrrigationController& irr, float lpm,
 
 TEST_CASE("irrigation: the two meters read as a counter and a rate") {
     Live f;
-    Site::IrrigationController irr(Botanik::SetupContext(f.reg), f.bank);
-    Plc::Program* const progs[] = { &irr };
-    Cycle d(progs, 1, &f.bank, f.reg);
+    Site::WaterMeters   meters(Botanik::SetupContext(f.reg), f.bank);
+    Site::IrrigationCycle irr(Botanik::SetupContext(f.reg), f.bank);
+    // The meters FIRST: the cycle judges a fill against what they publish.
+    Plc::Program* const progs[] = { &meters, &irr };
+    Cycle d(progs, 2, &f.bank, f.reg);
+    summer(f);
     HAL::Pulse::attach(Site::pulse_inputs[0].channel, Site::pulse_inputs[0].edge);
     f.bank.param_set(f.bank.var(f.ref("irr_input_qtyPerImp")), 1.0f);
 
@@ -1122,16 +1205,19 @@ TEST_CASE("irrigation: the two meters read as a counter and a rate") {
 
 TEST_CASE("irrigation: what comes back out is judged against what went in") {
     Live f;
-    Site::IrrigationController irr(Botanik::SetupContext(f.reg), f.bank);
-    Plc::Program* const progs[] = { &irr };
-    Cycle d(progs, 1, &f.bank, f.reg);
+    Site::WaterMeters   meters(Botanik::SetupContext(f.reg), f.bank);
+    Site::IrrigationCycle irr(Botanik::SetupContext(f.reg), f.bank);
+    // The meters FIRST: the cycle judges a fill against what they publish.
+    Plc::Program* const progs[] = { &meters, &irr };
+    Cycle d(progs, 2, &f.bank, f.reg);
+    summer(f);
     // Bare, not REQUIREd: a channel another case already attached answers
     // false, and this one only needs it counting.
     HAL::Pulse::attach(Site::pulse_inputs[0].channel, Site::pulse_inputs[0].edge);
 
     // 20 L went in; 5 L/min over the 300 s window is far more than the 30% the
     // margin allows to be missing.
-    const float back = drain_at(f, d, irr, 5.0f, true);
+    const float back = drain_at(f, d, meters, irr, 5.0f, true);
     CHECK(back > 20.0f);
     CHECK_FALSE(f.bank.var(f.ref("alarm_irr_drain")).b());
     CHECK_FALSE(f.bank.var(f.ref("alarm_irr_drain_tray1")).b());
@@ -1139,13 +1225,16 @@ TEST_CASE("irrigation: what comes back out is judged against what went in") {
 
 TEST_CASE("irrigation: a tray that does not drain names itself") {
     Live f;
-    Site::IrrigationController irr(Botanik::SetupContext(f.reg), f.bank);
-    Plc::Program* const progs[] = { &irr };
-    Cycle d(progs, 1, &f.bank, f.reg);
+    Site::WaterMeters   meters(Botanik::SetupContext(f.reg), f.bank);
+    Site::IrrigationCycle irr(Botanik::SetupContext(f.reg), f.bank);
+    // The meters FIRST: the cycle judges a fill against what they publish.
+    Plc::Program* const progs[] = { &meters, &irr };
+    Cycle d(progs, 2, &f.bank, f.reg);
+    summer(f);
     HAL::Pulse::attach(Site::pulse_inputs[0].channel, Site::pulse_inputs[0].edge);
 
     // A trickle: half a litre back out of twenty.
-    const float back = drain_at(f, d, irr, 0.1f, true);
+    const float back = drain_at(f, d, meters, irr, 0.1f, true);
     CHECK(back < 1.0f);
     CHECK(f.bank.var(f.ref("alarm_irr_drain")).b());
     CHECK(f.bank.var(f.ref("alarm_irr_drain_tray1")).b());
@@ -1155,13 +1244,16 @@ TEST_CASE("irrigation: a tray that does not drain names itself") {
 
 TEST_CASE("irrigation: a silent outlet meter gives no verdict, not a clog") {
     Live f;
-    Site::IrrigationController irr(Botanik::SetupContext(f.reg), f.bank);
-    Plc::Program* const progs[] = { &irr };
-    Cycle d(progs, 1, &f.bank, f.reg);
+    Site::WaterMeters   meters(Botanik::SetupContext(f.reg), f.bank);
+    Site::IrrigationCycle irr(Botanik::SetupContext(f.reg), f.bank);
+    // The meters FIRST: the cycle judges a fill against what they publish.
+    Plc::Program* const progs[] = { &meters, &irr };
+    Cycle d(progs, 2, &f.bank, f.reg);
+    summer(f);
     HAL::Pulse::attach(Site::pulse_inputs[0].channel, Site::pulse_inputs[0].edge);
 
     Plc::Health worst = Plc::Health::HEALTHY;
-    const float back = drain_at(f, d, irr, 0.0f, false, &worst);
+    const float back = drain_at(f, d, meters, irr, 0.0f, false, &worst);
     CHECK(back == 0.0f);
     INFO("nothing was measured, so nothing is blamed - the meter has an alarm "
          "of its own");
@@ -1173,9 +1265,12 @@ TEST_CASE("irrigation: a silent outlet meter gives no verdict, not a clog") {
 
 TEST_CASE("irrigation: a fill that never arrives raises, and still opens the drain") {
     Live f;
-    Site::IrrigationController irr(Botanik::SetupContext(f.reg), f.bank);
-    Plc::Program* const progs[] = { &irr };
-    Cycle d(progs, 1, &f.bank, f.reg);
+    Site::WaterMeters   meters(Botanik::SetupContext(f.reg), f.bank);
+    Site::IrrigationCycle irr(Botanik::SetupContext(f.reg), f.bank);
+    // The meters FIRST: the cycle judges a fill against what they publish.
+    Plc::Program* const progs[] = { &meters, &irr };
+    Cycle d(progs, 2, &f.bank, f.reg);
+    summer(f);
     HAL::Pulse::attach(Site::pulse_inputs[0].channel, Site::pulse_inputs[0].edge);
 
     f.bank.var(f.ref("cli_temp_ext")).publish(from_f32(T_F32, 20.0f), 0);

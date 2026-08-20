@@ -591,16 +591,101 @@ public:
 static const uint8_t IRR_TRAYS = 8;
 
 /**
- * @brief Irrigation: one tray at a time, filled to a dose and left to drain,
- *        with both dose and interval modulated by how thirsty the air is.
+ * @brief The irrigation ladder: how thirsty the air has been, as one factor.
+ *
+ * The spec's irrigation "regulator" - evaporation in, a modulation factor out.
+ * It commands nothing, so all of it is in observe() and it keeps folding while
+ * the plant is parked: an outage is not a dry spell, and a hole in the average
+ * would read as one for days afterwards.
+ */
+class IrrigationModulation : public Plc::Program {
+
+    /** @brief The dryness tracker. Deliberately slow: an hour's fold over
+     *  several days, so one dry afternoon cannot call for a watering. */
+    Utils::ExpMovingAverage _dryness;
+    bool                    _seeded = false;
+    uint64_t                _last_fold_ms = 0;
+
+    Refs::IrrigationModulation _v;
+
+public:
+    IrrigationModulation(const SetupContext& ctx, Vars::Bank& io)
+        : Program(ctx, Refs::IrrigationModulation::name(),
+                  Refs::IrrigationModulation::group(), io) {}
+
+    /** @brief How often the dryness average folds. Not a parameter: the filter
+     *  is written against this interval, and changing it silently rescales
+     *  `irr_dryEwmaDays`. */
+    static const uint64_t FOLD_MS;
+
+protected:
+    void bind(Vars::Bank& io) override { _v.bind(io, *this); }
+    void run(ProgramContext& c) override { (void)c; }
+    void observe(ProgramContext& c) override;
+
+private:
+    /** @brief Fold the VPD into the dryness average, at most once an hour.
+     *  @return the average now in force */
+    float _track_dryness(ProgramContext& c);
+};
+
+/**
+ * @brief Both water meters, and the two supply faults they can see.
+ *
+ * Opposite ends of the same circuit and opposite instruments: the inlet is a
+ * pulse train, so its COUNTER is the measurement and the rate is derived; the
+ * outlet is a 4-20 mA loop, so its RATE is the measurement and the counter is.
+ * An instrument, not a law - it drives no valve, and it reads while parked.
+ */
+class WaterMeters : public Plc::Program {
+
+    /** @name Blocks
+     *  @{ */
+
+    Plc::Ewma       _out_flow;   ///< the loop, averaged over irr_out_avg_ms
+    Plc::Deadband   _out_band;   ///< ...and how far it must move to be written
+    Plc::Derivative _in_rate;    ///< litres -> Lpm, over a window
+    Plc::Integral   _out_meter;  ///< Lpm -> litres
+
+    /** @} */
+
+    /** @brief Where the inlet counter stood when this run adopted it: the pulse
+     *  counter restarts at boot and the published total does not, so the total
+     *  is the retained value plus what has been counted since. */
+    float    _in_base_L      = 0.0f;
+    uint32_t _in_base_pulses = 0;
+
+    Refs::WaterMeters _v;
+
+public:
+    WaterMeters(const SetupContext& ctx, Vars::Bank& io)
+        : Program(ctx, Refs::WaterMeters::name(),
+                  Refs::WaterMeters::group(), io) {}
+
+protected:
+    void bind(Vars::Bank& io) override { _v.bind(io, *this); }
+    void run(ProgramContext& c) override { (void)c; }
+    void observe(ProgramContext& c) override;
+
+private:
+    /** @brief Water moving with every valve shut, and water not arriving with
+     *  the inlet open. Both are read off the inlet meter alone. */
+    void _supply_alarms(ProgramContext& c, float in_flow);
+};
+
+/**
+ * @brief Irrigation: one tray at a time, filled to a dose and left to drain.
  *
  * A cycle is long - a fill plus a drain window per tray - so only
  * `irr_traysPerDay` are served in a day and the surplus waits for tomorrow.
- * The summer settings a tray carries are its DRY-WEATHER ones; as the air gets
- * damper `irr_mod` scales them down, and the split decides whether that shows
- * up as smaller doses or rarer ones.
+ * The summer settings a tray carries are its DRY-WEATHER ones; `irr_mod` scales
+ * them down as the air gets damper, and the split decides whether that shows up
+ * as smaller doses or rarer ones.
+ *
+ * It holds no meter state: what went in and what came back out are both read
+ * as published TOTALS and differenced across the window that is being judged.
  */
-class IrrigationController : public Plc::Program {
+class IrrigationCycle : public Plc::Program {
 
     /** @name State
      *  @{ */
@@ -609,57 +694,20 @@ class IrrigationController : public Plc::Program {
     uint8_t  _tray        = 0;        ///< 1..IRR_TRAYS while serving, else 0
     uint8_t  _served      = 0;        ///< trays done since the day rolled
     uint32_t _in_state_ms = 0;
-    /** @brief Pulse count when the current fill began: the dose is the
-     *  DIFFERENCE, so a counter that has run since boot needs no reset. */
-    uint32_t _fill_start_pulses = 0;
-    /** @brief Litres back out of the tray since the drain window opened, and
-     *  the dose it is judged against. The dose is kept because the modulation
-     *  may move under a cycle that is already draining. */
-    float    _drained_L  = 0.0f;
+    /** @brief The two meters' totals when the window under judgement opened.
+     *  Litres are the DIFFERENCE, so a counter that has run since boot - or
+     *  since last year, retained - needs no reset. */
+    float    _fill_start_L  = 0.0f;
+    float    _drain_start_L = 0.0f;
+    /** @brief What the tray actually got, kept because the modulation may move
+     *  under a cycle that is already draining. */
     float    _dose_L     = 0.0f;
-    /** @brief When the hourly dryness fold last ran. */
-    uint64_t _last_fold_ms = 0;
     /** @brief The UNIX day `_served` is counted against; the tally rolls when
      *  the date does, so a cycle spanning midnight is not counted twice. */
     uint32_t _served_day = 0;
     bool     _forced       = false;   ///< this cycle came from irr_forceNow
 
     /** @} */
-    /** @name Blocks
-     *  @{ */
-
-    /** @brief The dryness tracker. Deliberately slow: an hour's fold over
-     *  several days, so one dry afternoon cannot call for a watering. */
-    Utils::ExpMovingAverage _dryness;
-    bool                    _dryness_seeded = false;
-
-    /** @brief The outlet meter, averaged over irr_out_avg_ms and published.
-     *  A turbine through a 4-20 mA loop is noisy at low flow, and it is the
-     *  average the drain verdict integrates. */
-    Plc::Ewma     _out_flow;
-    Plc::Deadband _out_band;
-
-    /** @name The two water meters, as counters and as rates
-     *
-     *  Opposite ends of the same plant and opposite instruments: the inlet is a
-     *  pulse train, so its COUNTER is the measurement and the rate is derived;
-     *  the outlet is a 4-20 mA loop, so its RATE is the measurement and the
-     *  counter is derived.
-     *  @{ */
-
-    Plc::Derivative _in_rate;    ///< litres -> Lpm, over a window
-    Plc::Integral   _out_meter;  ///< Lpm -> litres
-
-    /** @brief Where the inlet counter stood when this run adopted it: the pulse
-     *  counter restarts at boot and the published total does not, so the total
-     *  is the retained value plus what has been counted since. */
-    float    _in_base_L      = 0.0f;
-    uint32_t _in_base_pulses = 0;
-
-    /** @} */
-
-    /** @} */
-
     /** @name Valves
      *  The cycle's ten, each failing where its row declares. Held so a parked
      *  cycle leaves the plant where a dead controller would.
@@ -673,22 +721,16 @@ class IrrigationController : public Plc::Program {
 
     /** @} */
 
-    Refs::IrrigationController _v;
+    Refs::IrrigationCycle _v;
 
 public:
-    IrrigationController(const SetupContext& ctx, Vars::Bank& io)
-        : Program(ctx, Refs::IrrigationController::name(),
-                  Refs::IrrigationController::group(), io) {}
-
-    /** @brief How often the dryness average folds. Not a parameter: the filter
-     *  is written against this interval, and changing it silently rescales
-     *  `irr_dryEwmaDays`. */
-    static const uint64_t FOLD_MS;
+    IrrigationCycle(const SetupContext& ctx, Vars::Bank& io)
+        : Program(ctx, Refs::IrrigationCycle::name(),
+                  Refs::IrrigationCycle::group(), io) {}
 
 protected:
     void bind(Vars::Bank& io) override;
     void run(ProgramContext& c) override;
-    void observe(ProgramContext& c) override;
 
 private:
     /** @brief Whether a cycle may START now. Two slots: the end of the night,
@@ -696,28 +738,15 @@ private:
      *  in. Never the afternoon - a tray filled then is still wet at dusk. */
     bool _in_slot(const Vars::Bank& io) const;
 
-    /** @brief The two supply faults the inlet meter can see: water moving with
-     *  every valve shut, and water not arriving with the inlet open. */
-    void _water_alarms(ProgramContext& c, float in_flow);
-
-    /** @brief Integrate the outlet meter over one activation, and publish the
-     *  running total. Invalid flow contributes nothing and is reported. */
-    void _accumulate_drain(ProgramContext& c);
-
     /** @brief Judge the window that has just closed: did enough come back?
      *  A dose of zero or an unusable meter gives no verdict at all - a clog is
      *  a measurement, and there is nothing to measure. */
     void _drain_verdict(Vars::Bank& io);
 
-    /** @brief Fold the VPD into the dryness average, at most once an hour.
-     *  @return the average now in force */
-    float _track_dryness(ProgramContext& c);
-    /** @brief The modulation factor: modMin when the air is damp, 1 when it is
-     *  summer-dry. Gamma of 1 or more keeps it failing toward LESS water. */
-    float _modulation(const Vars::Bank& io, float vpd_avg) const;
-    /** @brief The next tray owed water, or 0. Honours the per-tray forces.
+    /** @brief The next tray owed water, or 0. Honours the per-tray forces, and
+     *  publishes the modulated interval of whichever tray it picks.
      *  @param today UNIX day number, or 0 when the clock is not yet trusted */
-    uint8_t _next_due(const Vars::Bank& io, float mod, uint32_t today) const;
+    uint8_t _next_due(Vars::Bank& io, float mod, uint32_t today);
 
     /** @brief Today as a UNIX day number, or 0 when the RTC has not been set.
      *  NTP owns the clock; before it answers there is no date to schedule
@@ -729,10 +758,13 @@ private:
     void _park_valves(Vars::Bank& io);
     /** @brief Set or clear @p per_tray for the tray being served. */
     void _blame(Vars::Bank& io, const Vars::RefOut<bool>* per_tray, bool on);
-    /** @brief Litres into the current fill, off the inlet pulse counter. */
-    float _delivered_litres(const Vars::Bank& io) const;
-    /** @brief Record that the active tray has been watered, durably. */
+    /** @brief Record that the active tray has been watered, durably, and spend
+     *  the force that asked for it. */
     void _stamp_served(Vars::Bank& io);
+    /** @brief Stamp tray @p tray (0-based) as watered on UNIX day @p day. */
+    void _stamp(Vars::Bank& io, uint8_t tray, uint32_t day) const;
+    /** @brief Spend a one-shot force. */
+    static void _clear_force(Vars::Bank& io, Vars::RefInOut<bool> r);
     void _enter(Vars::Bank& io, IrrState state);
 };
 

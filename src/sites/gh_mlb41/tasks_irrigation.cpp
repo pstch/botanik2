@@ -58,11 +58,98 @@ float ValveController::modulate(Vars::Bank& io, float duty, uint32_t period_ms,
     return (float)served / (float)period_ms;
 }
 
-// IrrigationController
+// IrrigationModulation
 
-const uint64_t IrrigationController::FOLD_MS = 3600ull * 1000ull;
+const uint64_t IrrigationModulation::FOLD_MS = 3600ull * 1000ull;
 
-void IrrigationController::bind(Vars::Bank& io) {
+float IrrigationModulation::_track_dryness(ProgramContext& c) {
+    // Once an HOUR, and the interval is the whole design: folded every scan the
+    // increment underflows a float and the average freezes; folded once a day
+    // the answer depends on which hour it was taken.
+    if (c.now_ms - _last_fold_ms >= FOLD_MS || !_seeded) {
+        const uint16_t days = c.bank.get(_v.dry_days);
+        const float alpha = (days == 0) ? 1.0f : 1.0f / (24.0f * (float)days);
+        _dryness.configure(alpha, alpha);
+        const float now = c.bank.get(_v.vpd);
+        if (!_seeded) { _dryness.preset(now); _seeded = true; }
+        else          { _dryness.push(now); }
+        _last_fold_ms = c.now_ms;
+    }
+    c.bank.drive(_v.vpd_avg, _dryness.value());
+    return _dryness.value();
+}
+
+void IrrigationModulation::observe(ProgramContext& c) {
+    const float vpd_avg = _track_dryness(c);
+
+    const float demand = Plc::ladder(vpd_avg, c.bank.get(_v.dry_lo),
+                                     c.bank.get(_v.dry_hi));
+    const float mod_min = Plc::limit(c.bank.get(_v.mod_min), 0.0f, 1.0f);
+    // Gamma is held at 1 or more so the curve is concave-up: watering reaches
+    // its summer figure only once dryness is really established, and every
+    // error in between is toward LESS water.
+    const float gamma = (c.bank.get(_v.mod_gamma) < 1.0f) ? 1.0f
+                                                          : c.bank.get(_v.mod_gamma);
+    c.bank.drive(_v.mod, Plc::limit(mod_min + (1.0f - mod_min) * powf(demand, gamma),
+                                    mod_min, 1.0f));
+}
+
+// WaterMeters
+
+void WaterMeters::observe(ProgramContext& c) {
+    const uint32_t pulses = HAL::Pulse::sample(Site::pulse_inputs[0].channel).count;
+    if (c.first_scan) {
+        _out_flow.reset(); _out_band.reset(); _in_rate.reset();
+        // Adopt both counters where they stand rather than starting from zero:
+        // the retained rows carry what was metered before this run, and the
+        // pulse counter carries what has been metered since the last boot.
+        _in_base_L      = c.bank.get(_v.in_total);
+        _in_base_pulses = pulses;
+        _out_meter.preset(c.bank.get(_v.out_total));
+    }
+
+    const float lpm = _out_flow(c.bank.get(_v.out_flow),
+                                0.001f * c.bank.get(_v.out_avg_ms), c.dt_ms);
+    if (c.bank.var(_v.out_flow.r).valid()) {
+        c.bank.drive(_v.out_flow_pub, _out_band(lpm, IRR_FLOW_BAND));
+    } else {
+        // A flow derived from a loop that has stopped answering is not a flow.
+        // The TOTAL beside it keeps its value: a totalizer is a record of what
+        // went past, and the instrument failing does not unmake it.
+        c.bank.var(_v.out_flow_pub.r).invalidate(Vars::Q_NO_DATA);
+        degraded();
+    }
+    // Per SECOND into the totalizer, which is what the block counts in.
+    c.bank.drive(_v.out_total, _out_meter(lpm / 60.0f, c.dt_ms,
+                                          IRR_FLOW_CUTOFF / 60.0f));
+
+    // Unsigned difference, so the 32-bit counter wrapping costs nothing.
+    const float in_total = _in_base_L + (float)(pulses - _in_base_pulses)
+                                        * c.bank.get(_v.qty_per_pulse);
+    c.bank.drive(_v.in_total, in_total);
+    const float in_flow = 60.0f * _in_rate(in_total, IRR_RATE_WINDOW_MS, c.dt_ms);
+    c.bank.drive(_v.in_flow, in_flow);
+    _supply_alarms(c, in_flow);
+}
+
+void WaterMeters::_supply_alarms(ProgramContext& c, float in_flow) {
+    const IrrState state = (IrrState)c.bank.get(_v.state);
+
+    // Idle means every valve in the circuit is shut, so anything the inlet
+    // meter counts is going somewhere nobody opened.
+    c.bank.drive(_v.leak, state == IRR_IDLE &&
+                          in_flow > c.bank.get(_v.leak_Lpm));
+
+    // The mirror image: the inlet is open and the water is not arriving. The
+    // row's own dwell covers the start of a fill, where the rate window has not
+    // filled yet and every fill would otherwise open with a pressure fault.
+    c.bank.drive(_v.pressure, state == IRR_FILLING &&
+                              in_flow < c.bank.get(_v.min_fill_Lpm));
+}
+
+// IrrigationCycle
+
+void IrrigationCycle::bind(Vars::Bank& io) {
     _v.bind(io, *this);
     for (uint8_t i = 0; i < 2; i++) {
         _inlet_v[i].attach(io, _v.inlet[i]);
@@ -71,35 +158,7 @@ void IrrigationController::bind(Vars::Bank& io) {
     for (uint8_t i = 0; i < IRR_TRAYS; i++) _tray_v[i].attach(io, _v.tray_valve[i]);
 }
 
-float IrrigationController::_track_dryness(ProgramContext& c) {
-    // Once an HOUR, and the interval is the whole design: folded every scan the
-    // increment underflows a float and the average freezes; folded once a day
-    // the answer depends on which hour it was taken.
-    if (c.now_ms - _last_fold_ms >= FOLD_MS || !_dryness_seeded) {
-        const uint16_t days = c.bank.get(_v.dry_days);
-        const float alpha = (days == 0) ? 1.0f : 1.0f / (24.0f * (float)days);
-        _dryness.configure(alpha, alpha);
-        const float now = c.bank.get(_v.vpd);
-        if (!_dryness_seeded) { _dryness.preset(now); _dryness_seeded = true; }
-        else                  { _dryness.push(now); }
-        _last_fold_ms = c.now_ms;
-    }
-    c.bank.drive(_v.vpd_avg, _dryness.value());
-    return _dryness.value();
-}
-
-float IrrigationController::_modulation(const Vars::Bank& io, float vpd_avg) const {
-    const float demand = Plc::ladder(vpd_avg, io.get(_v.dry_lo), io.get(_v.dry_hi));
-    const float mod_min = Plc::limit(io.get(_v.mod_min), 0.0f, 1.0f);
-    // Gamma is held at 1 or more so the curve is concave-up: watering reaches
-    // its summer figure only once dryness is really established, and every
-    // error in between is toward LESS water.
-    const float gamma = (io.get(_v.mod_gamma) < 1.0f) ? 1.0f : io.get(_v.mod_gamma);
-    return Plc::limit(mod_min + (1.0f - mod_min) * powf(demand, gamma),
-                      mod_min, 1.0f);
-}
-
-uint32_t IrrigationController::_today() {
+uint32_t IrrigationCycle::_today() {
     // The floor the sun tracker uses: below it the RTC has never been set, so
     // there is no date and nothing may be scheduled against one.
     const uint64_t wall = HAL::Clock::wall_ms();
@@ -107,8 +166,8 @@ uint32_t IrrigationController::_today() {
     return Utils::cal_time_ms(wall).unixDays;
 }
 
-uint8_t IrrigationController::_next_due(const Vars::Bank& io, float mod,
-                                        uint32_t today) const {
+uint8_t IrrigationCycle::_next_due(Vars::Bank& io, float mod,
+                                   uint32_t today) {
     // period = summer period / mod^(1 - split), volume = summer volume *
     // mod^split, so their RATIO - the water actually delivered per day - is
     // proportional to mod whatever the split is set to.
@@ -118,8 +177,7 @@ uint8_t IrrigationController::_next_due(const Vars::Bank& io, float mod,
     uint8_t  best = 0;
     uint32_t worst_overdue = 0;
     for (uint8_t i = 0; i < IRR_TRAYS; i++) {
-        if (io.get(_v.force_off[i])) continue;        // held back by hand
-        if (io.get(_v.force_on[i]))  return (uint8_t)(i + 1);
+        if (io.get(_v.force_on[i])) return (uint8_t)(i + 1);
         if (today == 0) continue;                     // no date, no schedule
         const float summer_days = (float)io.get(_v.days[i]);
         if (summer_days <= 0.0f) continue;            // this tray is not scheduled
@@ -139,18 +197,30 @@ uint8_t IrrigationController::_next_due(const Vars::Bank& io, float mod,
                                      ? due_after : (today - last);
         if (elapsed < due_after) continue;
 
+        // Held back by hand, and ONCE: the skip is spent on the watering it
+        // was due for, and the tray goes to the back of the queue rather than
+        // arriving again tomorrow with the flag gone.
+        if (io.get(_v.force_off[i])) {
+            _clear_force(io, _v.force_off[i]);
+            _stamp(io, i, today);
+            continue;
+        }
+
         // The most overdue first, so a backlog drains in the order it built up
         // rather than by tray number.
         const uint32_t overdue = elapsed - due_after;
         if (best == 0 || overdue > worst_overdue) {
             best = (uint8_t)(i + 1);
             worst_overdue = overdue;
+            // The interval that chose it, published: the summer figure is on
+            // the PARAMS page and this is what the weather made of it.
+            io.drive(_v.period, period);
         }
     }
     return best;
 }
 
-void IrrigationController::_set_valves(Vars::Bank& io, IrrState state, uint8_t tray) {
+void IrrigationCycle::_set_valves(Vars::Bank& io, IrrState state, uint8_t tray) {
     // Fill: inlet open, this tray open, outlet shut. Drain: inlet shut, tray
     // still open, outlet open. Every other tray is shut in both, so one cycle
     // can never water two.
@@ -164,7 +234,7 @@ void IrrigationController::_set_valves(Vars::Bank& io, IrrState state, uint8_t t
         _tray_v[i].set(io, (filling || draining) && (i + 1 == tray));
 }
 
-void IrrigationController::_blame(Vars::Bank& io,
+void IrrigationCycle::_blame(Vars::Bank& io,
                                   const Vars::RefOut<bool>* per_tray, bool on) {
     // The tray being served, and only it. The any-form beside these is what an
     // operator sees; this is what still says WHICH tray once the cycle has
@@ -172,7 +242,7 @@ void IrrigationController::_blame(Vars::Bank& io,
     if (_tray >= 1 && _tray <= IRR_TRAYS) io.drive(per_tray[_tray - 1], on);
 }
 
-void IrrigationController::_park_valves(Vars::Bank& io) {
+void IrrigationCycle::_park_valves(Vars::Bank& io) {
     for (uint8_t i = 0; i < 2; i++) {
         _inlet_v[i].park(io);
         _outlet_v[i].park(io);
@@ -180,14 +250,20 @@ void IrrigationController::_park_valves(Vars::Bank& io) {
     for (uint8_t i = 0; i < IRR_TRAYS; i++) _tray_v[i].park(io);
 }
 
-float IrrigationController::_delivered_litres(const Vars::Bank& io) const {
-    const HAL::Pulse::Sample s = HAL::Pulse::sample(Site::pulse_inputs[0].channel);
-    // Unsigned difference, so the 32-bit counter wrapping costs nothing.
-    const uint32_t edges = s.count - _fill_start_pulses;
-    return (float)edges * io.get(_v.qty_per_pulse);
+void IrrigationCycle::_stamp(Vars::Bank& io, uint8_t tray, uint32_t day) const {
+    // Through param_set(), because the row is a PARAMETER: drive() writes the
+    // value but skips the unsaved mark, so the schedule would restart from
+    // nothing at the next boot. Once a cycle is a rate flash is happy with.
+    Var h = io.var(_v.last[tray].r);
+    if (io.param_set_i(h, (int64_t)day) == SET_OK) (void)io.param_save(h);
 }
 
-void IrrigationController::_stamp_served(Vars::Bank& io) {
+void IrrigationCycle::_clear_force(Vars::Bank& io, Vars::RefInOut<bool> r) {
+    Var h = io.var(r.r);
+    if (io.param_set(h, false) == SET_OK) (void)io.param_save(h);
+}
+
+void IrrigationCycle::_stamp_served(Vars::Bank& io) {
     const uint32_t day = _today();
     if (day == 0 || _tray == 0) return;
 
@@ -196,45 +272,15 @@ void IrrigationController::_stamp_served(Vars::Bank& io) {
     // A forced cycle stamps too - it IS a watering, and leaving it unrecorded
     // would water the tray again on its own account tomorrow.
     //
-    // Through param_set(), because the row is a PARAMETER: drive() writes the
-    // value but skips the unsaved mark, so the schedule would restart from
-    // nothing at the next boot. Once a cycle is a rate flash is happy with.
-    Var h = io.var(_v.last[_tray - 1].r);
-    if (io.param_set_i(h, (int64_t)day) == SET_OK) (void)io.param_save(h);
+    _stamp(io, (uint8_t)(_tray - 1), day);
+    // The force is spent on the watering it asked for. Left standing it would
+    // ask for the same tray on every cycle for ever, and no other tray would
+    // ever be reached.
+    _clear_force(io, _v.force_on[_tray - 1]);
     if (_served < 0xFFu) _served++;
 }
 
-void IrrigationController::observe(ProgramContext& c) {
-    const uint32_t pulses = HAL::Pulse::sample(Site::pulse_inputs[0].channel).count;
-    if (c.first_scan) {
-        _out_flow.reset(); _out_band.reset(); _in_rate.reset();
-        // Adopt both counters where they stand rather than starting from zero:
-        // the retained rows carry what was metered before this run, and the
-        // pulse counter carries what has been metered since the last boot.
-        _in_base_L      = c.bank.get(_v.in_total);
-        _in_base_pulses = pulses;
-        _out_meter.preset(c.bank.get(_v.out_total));
-    }
-
-    // Published whatever the cycle is doing: a meter reading is an observation,
-    // and one that froze the moment the plant parked would look live.
-    const float lpm = _out_flow(c.bank.get(_v.out_flow),
-                                0.001f * c.bank.get(_v.out_avg_ms), c.dt_ms);
-    c.bank.drive(_v.out_flow_pub, _out_band(lpm, IRR_FLOW_BAND));
-    // Per SECOND into the totalizer, which is what the block counts in.
-    c.bank.drive(_v.out_total, _out_meter(lpm / 60.0f, c.dt_ms,
-                                          IRR_FLOW_CUTOFF / 60.0f));
-
-    // Unsigned difference, so the 32-bit counter wrapping costs nothing.
-    const float in_total = _in_base_L + (float)(pulses - _in_base_pulses)
-                                        * c.bank.get(_v.qty_per_pulse);
-    c.bank.drive(_v.in_total, in_total);
-    const float in_flow = 60.0f * _in_rate(in_total, IRR_RATE_WINDOW_MS, c.dt_ms);
-    c.bank.drive(_v.in_flow, in_flow);
-    _water_alarms(c, in_flow);
-}
-
-bool IrrigationController::_in_slot(const Vars::Bank& io) const {
+bool IrrigationCycle::_in_slot(const Vars::Bank& io) const {
     const DayPhase phase = (DayPhase)io.get(_v.phase);
 
     // END OF NIGHT, and only when the plants are not cold: watering cold roots
@@ -250,36 +296,7 @@ bool IrrigationController::_in_slot(const Vars::Bank& io) const {
                                              (int16_t)io.get(_v.morning_win));
 }
 
-void IrrigationController::_water_alarms(ProgramContext& c, float in_flow) {
-    // Idle means every valve in the circuit is shut, so anything the inlet
-    // meter counts is going somewhere nobody opened.
-    c.bank.drive(_v.leak, _state == IRR_IDLE &&
-                          in_flow > c.bank.get(_v.leak_Lpm));
-
-    // The mirror image: the inlet is open and the water is not arriving. Only
-    // once the rate window has had time to fill, or every fill would start by
-    // announcing a pressure fault.
-    const bool filling = _state == IRR_FILLING &&
-                         _in_state_ms > 2u * IRR_RATE_WINDOW_MS;
-    c.bank.drive(_v.pressure, filling &&
-                              in_flow < c.bank.get(_v.min_fill_Lpm));
-}
-
-void IrrigationController::_accumulate_drain(ProgramContext& c) {
-    if (!c.bank.var(_v.out_flow.r).valid()) {
-        // No verdict is possible without the meter, and the window still has to
-        // end: _drain_verdict() sees a total of zero against a live dose and
-        // declines rather than blaming the tray.
-        degraded();
-        return;
-    }
-    // The AVERAGE, which observe() folded on the previous activation: one beat
-    // of lag over a window measured in minutes.
-    _drained_L += _out_flow.value() * (float)c.dt_ms / 60000.0f;
-    c.bank.drive(_v.drained, _drained_L);
-}
-
-void IrrigationController::_drain_verdict(Vars::Bank& io) {
+void IrrigationCycle::_drain_verdict(Vars::Bank& io) {
     const bool measured = io.var(_v.out_flow.r).valid();
     if (_dose_L <= 0.0f || !measured) {
         // A fill that never delivered, or a meter that is not answering. Both
@@ -291,20 +308,21 @@ void IrrigationController::_drain_verdict(Vars::Bank& io) {
     }
     // Against the dose, not against a fixed volume: a modulated half-dose
     // drains half as much and is not a clog.
-    const float frac     = _drained_L / _dose_L;
+    const float frac     = (io.get(_v.out_total) - _drain_start_L) / _dose_L;
     const float min_frac = io.get(_v.exp_drain) - io.get(_v.drain_margin);
     const bool  clog     = frac < min_frac;
     io.drive(_v.drain_fault, clog);
     _blame(io, _v.drain_tray, clog);
 }
 
-void IrrigationController::_enter(Vars::Bank& io, IrrState state) {
+void IrrigationCycle::_enter(Vars::Bank& io, IrrState state) {
     _state = state;
     _in_state_ms = 0;
-    if (state == IRR_FILLING)
-        _fill_start_pulses = HAL::Pulse::sample(Site::pulse_inputs[0].channel).count;
+    // The meters are counters, so a window is a DIFFERENCE: stamp the one the
+    // next state is judged on and read it again when the state ends.
+    if (state == IRR_FILLING) _fill_start_L = io.get(_v.in_total);
     if (state == IRR_DRAINING) {
-        _drained_L = 0.0f;
+        _drain_start_L = io.get(_v.out_total);
         io.drive(_v.drained, 0.0f);
     }
     _set_valves(io, state, _tray);
@@ -312,7 +330,7 @@ void IrrigationController::_enter(Vars::Bank& io, IrrState state) {
     io.drive(_v.active, _tray);
 }
 
-void IrrigationController::run(ProgramContext& c) {
+void IrrigationCycle::run(ProgramContext& c) {
     if (inhibit_requested()) {
         // Where a dead controller would leave them, which is not the same for
         // all ten: the inlet fails SHUT and the drains fail OPEN, so a tray
@@ -333,8 +351,7 @@ void IrrigationController::run(ProgramContext& c) {
     }
     _in_state_ms += c.dt_ms;
 
-    const float mod = _modulation(c.bank, _track_dryness(c));
-    c.bank.drive(_v.mod, mod);
+    const float mod = c.bank.get(_v.mod);
 
     // The daily tally is against a DATE, not an uptime: it rolls when the day
     // does, so a cycle running through midnight is not counted twice and a
@@ -367,7 +384,7 @@ void IrrigationController::run(ProgramContext& c) {
             break;
         }
         case IRR_FILLING: {
-            const float got = _delivered_litres(c.bank);
+            const float got = c.bank.get(_v.in_total) - _fill_start_L;
             c.bank.drive(_v.delivered, got);
             if (got >= dose && dose > 0.0f) {
                 c.bank.drive(_v.fill_fault, false);
@@ -389,7 +406,7 @@ void IrrigationController::run(ProgramContext& c) {
             break;
         }
         case IRR_DRAINING: {
-            _accumulate_drain(c);
+            c.bank.drive(_v.drained, c.bank.get(_v.out_total) - _drain_start_L);
             if (_in_state_ms < 1000u * c.bank.get(_v.drain_window_s)) break;
             _drain_verdict(c.bank);
             _tray = 0;

@@ -104,7 +104,9 @@ class GreenhouseMLB41 final : public Botanik::BotanikFirmware {
     Site::CoolingController  _cooling;
     Site::DestratController  _destrat;
     Site::HumidityController _humidity;
-    Site::IrrigationController _irrigation;
+    Site::IrrigationModulation _irr_mod;
+    Site::WaterMeters          _irr_meters;
+    Site::IrrigationCycle      _irrigation;
     Site::ScreenController   _screen;
     Site::WindowsController  _windows;
     Site::WeatherWatch       _weather_watch;
@@ -133,6 +135,8 @@ public:
           _cooling(setup_context(), io()),
           _destrat(setup_context(), io()),
           _humidity(setup_context(), io()),
+          _irr_mod(setup_context(), io()),
+          _irr_meters(setup_context(), io()),
           _irrigation(setup_context(), io()),
           _screen(setup_context(), io()),
           _windows(setup_context(), io()),
@@ -176,6 +180,9 @@ protected:
         _cooling.register_tasks();
         _destrat.register_tasks();
         _humidity.register_tasks();
+        // The ladder, then the instruments, then the law that acts on both.
+        _irr_mod.register_tasks();
+        _irr_meters.register_tasks();
         _irrigation.register_tasks();
         _screen.register_tasks();
         _windows.register_tasks();
