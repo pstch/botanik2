@@ -101,7 +101,8 @@ void AcLocalWatch::observe(ProgramContext& c) {
 bool DcWatch::_rail(const DcWatch::Rail& r, uint32_t dt_ms, bool& seen) {
     // Averaged, then deadbanded: the first says what the rail is doing, the
     // second says when that is worth a write.
-    const float volts = r.avg(r.in.get(), 0.001f * (float)r.avg_ms.get(), dt_ms);
+    const float tau_s = 0.001f * (float)r.avg_ms.get();
+    const float volts = r.avg(r.in.get(), tau_s, dt_ms);
     r.out.set(r.band(volts, SUPPLY_V_BAND));
 
     const bool measured = r.in.valid();
@@ -178,7 +179,7 @@ ZoneVote ZoneProbes::_select(const Vars::RefIn<float>* refs) {
     switch (n) {
         // Three agreeing probes: drop the outlier, average the pair that agree.
         case 3:  return ZoneVote{ Plc::closest2_mean(v[0], v[1], v[2]), 3 };
-        // Two: they ARE the agreeing pair; there is no third to call an outlier.
+        // Two: they ARE the agreeing pair, with no third to call an outlier.
         case 2:  return ZoneVote{ 0.5f * (v[0] + v[1]), 2 };
         // One: believed, because a reading from one probe still beats none.
         case 1:  return ZoneVote{ v[0], 1 };
@@ -238,8 +239,10 @@ void TempRHZone::bind(Vars::Bank& io) {
     const float alpha = Utils::ema_alpha(SENSOR_TAU_MS, ZONE_PERIOD_MS);
     _ceiling.attach(_v.t_hi, _v.h_hi, _v.temp_hi, _v.rh_hi, _v.fault_hi, alpha);
     _floor.attach(_v.t_lo, _v.h_lo, _v.temp_lo, _v.rh_lo, _v.fault_lo, alpha);
-    _crawlspace.attach(_v.t_cs, _v.h_cs, _v.temp_cs, _v.rh_cs, _v.fault_cs, alpha);
-    _exterior.attach(_v.t_ext, _v.h_ext, _v.temp_ext, _v.rh_ext, _v.fault_ext, alpha);
+    _crawlspace.attach(_v.t_cs, _v.h_cs, _v.temp_cs, _v.rh_cs,
+                       _v.fault_cs, alpha);
+    _exterior.attach(_v.t_ext, _v.h_ext, _v.temp_ext, _v.rh_ext,
+                     _v.fault_ext, alpha);
 }
 
 void TempRHZone::run(ProgramContext& c) {
@@ -247,7 +250,8 @@ void TempRHZone::run(ProgramContext& c) {
         // The filters hold a claim about the recent past, and not being called
         // means we stopped watching. Seed them again rather than resuming an
         // average of readings from before the outage.
-        _ceiling.reset(); _floor.reset(); _crawlspace.reset(); _exterior.reset();
+        _ceiling.reset(); _floor.reset();
+        _crawlspace.reset(); _exterior.reset();
     }
 
     _ceiling.step(c.dt_ms);
@@ -257,6 +261,16 @@ void TempRHZone::run(ProgramContext& c) {
 
     const float t_hi = _ceiling.temperature();
     const float t_lo = _floor.temperature();
+
+    // ONE interior temperature, for everything that wants the house rather than
+    // a level of it. The mean of the two, or whichever one is still being
+    // measured; with both gone it is not a temperature and says so.
+    const bool hi_ok = _ceiling.valid();
+    const bool lo_ok = _floor.valid();
+    if (hi_ok && lo_ok)  _v.temp_in.set(0.5f * (t_hi + t_lo));
+    else if (hi_ok)      _v.temp_in.set(t_hi);
+    else if (lo_ok)      _v.temp_in.set(t_lo);
+    else                 _v.temp_in.invalidate();
 
     // Between the two interior levels the WORST case is kept, per the spec:
     // the smallest margin decides the condensation risk, and taking an average

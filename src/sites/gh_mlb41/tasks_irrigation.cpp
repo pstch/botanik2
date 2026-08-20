@@ -88,16 +88,16 @@ void IrrigationModulation::observe(ProgramContext& c) {
     // Gamma is held at 1 or more so the curve is concave-up: watering reaches
     // its summer figure only once dryness is really established, and every
     // error in between is toward LESS water.
-    const float gamma = (_v.mod_gamma.get() < 1.0f) ? 1.0f
-                                                          : _v.mod_gamma.get();
+    const float gamma = Plc::max_of(1.0f, _v.mod_gamma.get());
     _v.mod.set(Plc::limit(mod_min + (1.0f - mod_min) * powf(demand, gamma),
-                                    mod_min, 1.0f));
+                          mod_min, 1.0f));
 }
 
 // WaterMeters
 
 void WaterMeters::observe(ProgramContext& c) {
-    const uint32_t pulses = HAL::Pulse::sample(Site::pulse_inputs[0].channel).count;
+    const uint8_t  ch = Site::pulse_inputs[0].channel;
+    const uint32_t pulses = HAL::Pulse::sample(ch).count;
     if (c.first_scan) {
         _out_flow.reset(); _out_band.reset(); _in_rate.reset();
         // Adopt both counters where they stand rather than starting from zero:
@@ -127,7 +127,8 @@ void WaterMeters::observe(ProgramContext& c) {
     const float in_total = _in_base_L + (float)(pulses - _in_base_pulses)
                                         * _v.qty_per_pulse.get();
     _v.in_total.set(in_total);
-    const float in_flow = 60.0f * _in_rate(in_total, IRR_RATE_WINDOW_MS, c.dt_ms);
+    const float in_flow =
+        60.0f * _in_rate(in_total, IRR_RATE_WINDOW_MS, c.dt_ms);
     _v.in_flow.set(in_flow);
     _supply_alarms(c, in_flow);
 }
@@ -179,10 +180,10 @@ uint8_t IrrigationCycle::_next_due(float mod, uint32_t today) {
         if (_v.force_on[i].get()) return (uint8_t)(i + 1);
         if (today == 0) continue;                     // no date, no schedule
         const float summer_days = (float)_v.days[i].get();
-        if (summer_days <= 0.0f) continue;            // this tray is not scheduled
+        if (summer_days <= 0.0f) continue;        // this tray is not scheduled
 
         // Damper air stretches the interval; drier air shortens it back toward
-        // the summer figure. One day is the floor, since a cycle is a day's work.
+        // the summer figure. One day is the floor: a cycle is a day's work.
         const float period = (stretch > 0.0f) ? (summer_days / stretch)
                                               : summer_days;
         const uint32_t due_after = (period < 1.0f) ? 1u

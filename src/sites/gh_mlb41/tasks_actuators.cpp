@@ -233,7 +233,7 @@ void IntractorController::run(ProgramContext& c) {
         //  - the anti-rot ventilation, ungated: rot is the collection, and the
         //    dew point it fights is the one inside
         //  - the DEHUMIDIFY arm alone, while the air outside is drier. Positive
-        //    is asking for the skirt, and more air through would work against it
+        //    is asking for the skirt, and more air would work against it
         const float cooling = (cool_ok && _v.cool_ok.get()) ? cool : 0.0f;
         const float venting = _v.rot_vent.get();
         const float drying  = _v.dry_ok.get() ? -_v.humid_dem.get() : 0.0f;
@@ -245,7 +245,7 @@ void IntractorController::run(ProgramContext& c) {
         // Ground heat is ONE RUNG, not a ramp: the spec's negative half asks
         // for low speed at -0.1 and says nothing about wanting more of it the
         // colder it gets. Pulling harder on a cold house moves more air through
-        // the same ground, which cools the ground rather than warming the house.
+        // the same ground, cooling the ground rather than warming the house.
         if (_v.ground_ok.get())
             speed = Plc::max_of(speed, _v.ground_speed.get());
     }
@@ -274,7 +274,8 @@ float FanController::_demand() const {
     const float strat    = _v.strat_dem.valid() ? _v.strat_dem.get() : floor;
     const float cooling  = _v.cool_dem.valid() ? _v.cool_dem.get() : floor;
     // A cycle in progress wants air moving over the trays it has just wetted.
-    const float watering = (_v.irr_state.get() != IRR_IDLE) ? FAN_IRR_DEM : 0.0f;
+    const bool  cycling  = _v.irr_state.get() != IRR_IDLE;
+    const float watering = cycling ? FAN_IRR_DEM : 0.0f;
 
     return Plc::max_of(strat, Plc::max_of(cooling, watering));
 }

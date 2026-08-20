@@ -354,6 +354,7 @@ const Descriptor rows[] = {
     A("alarm_irr_drain_tray7"  , "DRAIN7"   , 0, 5, 0, 0 , 847, "tray 7 would not drain in time", ""),
     A("alarm_irr_drain_tray8"  , "DRAIN8"   , 0, 5, 0, 0 , 848, "tray 8 would not drain in time", ""),
     SV("sys_supply_lockout"     , T_BOOL, 0          , 0, ""    , 500, "supply unhealthy: actuators held off", ""),
+    SV("cli_temp_in"            , T_F32 , 0          , 1, "degC", 501, "interior temperature: the two levels averaged", "one number for the house; the levels themselves are beside it, and the gap between them is cli_dTStrat_degC"),
     SV("cli_temp_hi"            , T_F32 , 0          , 1, "degC", 502, "ceiling temperature, voted and filtered", "median of the three probes, then EWMA"),
     SV("cli_rh_hi"              , T_F32 , 0          , 2, ""    , 503, "ceiling relative humidity, voted and filtered", "fraction 0..1; median of three, then EWMA"),
     SV("cli_temp_lo"            , T_F32 , 0          , 1, "degC", 504, "floor temperature, voted and filtered", "median of the three probes, then EWMA"),

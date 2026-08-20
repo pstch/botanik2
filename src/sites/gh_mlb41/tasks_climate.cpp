@@ -128,7 +128,7 @@ void CoolingController::run(ProgramContext& c) {
         // intention, and the windows have their own safe position.
         _v.demand.invalidate();
         _v.window.invalidate();
-        _pid.reset();          // the integral is about a plant we stopped seeing
+        _pid.reset();      // the integral is about a plant we stopped seeing
         faulted();
         return;
     }
@@ -276,12 +276,11 @@ void HumidityController::run(ProgramContext& c) {
     // dehumStart the margin is closing on condensation (negative, dehumidify);
     // above humidStart the air is drier than the plants want (positive); in
     // between nothing moves.
-    const float m = _v.dp_margin.get();
-    _v.demand.set(Plc::signed_ladder(m,
-                                             _v.dehum_full.get(),
-                                             _v.dehum_start.get(),
-                                             _v.humid_start.get(),
-                                             _v.humid_full.get()));
+    _v.demand.set(Plc::signed_ladder(_v.dp_margin.get(),
+                                     _v.dehum_full.get(),
+                                     _v.dehum_start.get(),
+                                     _v.humid_start.get(),
+                                     _v.humid_full.get()));
 }
 
 }  // namespace Site

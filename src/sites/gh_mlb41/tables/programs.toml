@@ -123,6 +123,8 @@ h_ext = ["cli_rh_ext1",   "cli_rh_ext2",   "cli_rh_ext3"]
 rot_limit = "cli_tooHumid_degC"
 
 [program.out]
+# One number for the house, and the two levels it came from beside it.
+temp_in = "cli_temp_in"
 temp_hi = "cli_temp_hi"
 rh_hi   = "cli_rh_hi"
 temp_lo = "cli_temp_lo"

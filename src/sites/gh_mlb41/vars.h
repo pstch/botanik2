@@ -72,8 +72,8 @@ using namespace Botanik::Vars;
  *  and a spacer). The geometry caps labels at 11 chars and values at 13. */
 const HomeVar g_home_fields[] = {
     // column 1 (6): what the plant is doing, before why
-    { "Ceiling",   "cli_temp_hi" },
-    { "Floor",     "cli_temp_lo" },
+    { "Interior",  "cli_temp_in" },
+    { "Exterior",  "cli_temp_ext" },
     { "Humidity",  "cli_rh_hi" },
     { "Dew margin","cli_dpMargin_degC" },
     { "Target",    "cli_targetTemp_degC" },

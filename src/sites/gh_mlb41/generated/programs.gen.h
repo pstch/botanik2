@@ -200,6 +200,7 @@ struct TempRHZone {
 
     /** @name VAR_OUTPUT
      *  @{ */
+    Vars::RefOut<float> temp_in;
     Vars::RefOut<float> temp_hi;
     Vars::RefOut<float> rh_hi;
     Vars::RefOut<float> temp_lo;
@@ -1138,6 +1139,7 @@ inline void TempRHZone::bind(Vars::Bank& io, Plc::Program& owner) {
     h_ext[1]  = io.resolve_in<float>("cli_rh_ext2");
     h_ext[2]  = io.resolve_in<float>("cli_rh_ext3");
     rot_limit = io.resolve_in<float>("cli_tooHumid_degC");
+    temp_in   = io.resolve_out<float>("cli_temp_in");
     temp_hi   = io.resolve_out<float>("cli_temp_hi");
     rh_hi     = io.resolve_out<float>("cli_rh_hi");
     temp_lo   = io.resolve_out<float>("cli_temp_lo");

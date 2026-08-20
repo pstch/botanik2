@@ -36,7 +36,7 @@ _SUBS = [
 # the label. Mirrors the site's home-field table in order, so a renamed field
 # shows up here as an unmasked - and therefore flaky - value.
 _HOME_FIELDS = (
-    ("Ceiling", " degC"), ("Floor", " degC"), ("Humidity", ""),
+    ("Interior", " degC"), ("Exterior", " degC"), ("Humidity", ""),
     ("Dew margin", " degC"), ("Target", " degC"),
     ("Cool dem", ""), ("Strat dem", ""), ("Humid dem", ""), ("Windows", ""),
     ("Intractor", ""), ("Fan speed", ""), ("Screen", ""), ("Skirt", ""),
