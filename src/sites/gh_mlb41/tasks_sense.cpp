@@ -151,6 +151,14 @@ void DcWatch::observe(ProgramContext& c) {
     _v.ups_flt.set(low);
     _v.lockout.set(low);
 
+    // ...and the lockout IS the plant's safe state: every program is asked to
+    // park while it stands, and released the moment it does not. Held rather
+    // than requested, so it cannot cancel a halt that is still being waited on.
+    if (_tasks != nullptr && low != _safe_held) {
+        _safe_held = low;
+        _tasks->hold_safe(low);
+    }
+
     // The battery voltage is a WARNING and the contact is the interlock, so the
     // summary carries both: an operator reading one row wants the whole answer.
     _v.ok.set(ps1 && ps2 && ups && gen && !low);

@@ -57,6 +57,14 @@
  *     THE PLANT (tasks_irrigation.h, tasks_actuators.h)
  *       irrigation, screen, windows, intractors, fans, skirt
  *
+ * One thing does NOT travel through a row: the supply lockout. `dc_watch`
+ * publishes `sys_supply_lockout` for the page and the bus, and raises the
+ * registry's plant-wide safe hold beside it, so every program parks through the
+ * machinery a halt already uses instead of each one testing the row. It is
+ * released on the same edge, so the plant comes back when the battery does.
+ * The roof is the exception: a supply lockout SHUTS it, which is stage-1
+ * interlock and not a safe state, so `windows` still reads the row.
+ *
  * A law reading a demand computed in the same beat needs its producer to have
  * run first, which is the whole reason the order is fixed. See docs/dev/scan.md
  * for the cycle, and docs/design/control-system.md for what each ladder means.

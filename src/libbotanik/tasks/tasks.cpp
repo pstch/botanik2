@@ -142,6 +142,16 @@ namespace Botanik { namespace Tasks {
 
     void Registry::request_safe(bool on) {
         _safe_asked = on;
+        _push_safe();
+    }
+
+    void Registry::hold_safe(bool on) {
+        _safe_hold = on;
+        _push_safe();
+    }
+
+    void Registry::_push_safe() {
+        const bool on = safe_requested();
         for (uint8_t i = 0; i < _count; i++)
             if (_tasks[i].program != nullptr) _tasks[i].program->request_safe(on);
     }

@@ -22,6 +22,7 @@
 #include "sites/gh_mlb41/tasks.h"
 
 #include "scan_fixture.h"
+#include "scenario_trace.h"
 
 namespace site_scenarios {
 
@@ -178,6 +179,46 @@ void settle(Plant& p, const Weather& wx, uint32_t beats = 600) {
 void force_phase(Plant& p, Site::DayPhase phase) {
     g_phase = phase;
     p.f.bank.var(p.ref("cli_phase")).set_i((int64_t)phase);
+}
+
+/** @brief The plant, as the report shows it: the rows an operator would look at
+ *  to answer "what is it doing, and why". Written only when a trace is asked
+ *  for, and only from a case that has just asserted on the same values. */
+void snapshot(Plant& p, const char* moment) {
+    static const char* const ROWS[] = {
+        "cli_temp_in", "cli_temp_ext", "cli_temp_cs", "cli_rh_hi",
+        "cli_dpMargin_degC", "cli_targetTemp_degC", "cli_phase",
+        "cli_coolDem", "cli_stratDem", "cli_humidDem", "cli_rotVentDem",
+        "cli_windowDem", "cli_window1_pos", "cli_screen", "cli_screenMoving",
+        "cli_intr1", "cli_fanSpeed", "cli_skirtDuty", "cli_skirtValve",
+        "cli_intakeCoolOk", "cli_groundHeatOk", "cli_intakeDryOk",
+        "cli_rainLockout", "cli_windLockout", "sys_supply_lockout",
+        "alarm_rot", "alarm_too_hot", "alarm_too_cold", "alarm_sns_ceiling",
+    };
+    ScenarioTrace::moment(moment);
+    for (const char* r : ROWS) ScenarioTrace::row(p.f.bank, r);
+}
+
+/** @brief The weather a case is holding, as the report shows it. */
+void trace_weather(const Weather& wx, Site::DayPhase phase) {
+    char buf[48];
+    const char* const PHASE[] = { "NIGHT", "COLD_BANK", "DAWN_BREEZE",
+                                  "DAY", "HEAT_BANK", "DUSK_BREEZE" };
+    snprintf(buf, sizeof buf, "%.1f degC", (double)wx.ceiling);
+    ScenarioTrace::weather("ceiling", buf);
+    snprintf(buf, sizeof buf, "%.1f degC", (double)wx.floor_);
+    ScenarioTrace::weather("floor", buf);
+    snprintf(buf, sizeof buf, "%.1f degC", (double)wx.crawlspace);
+    ScenarioTrace::weather("crawlspace", buf);
+    snprintf(buf, sizeof buf, "%.1f degC", (double)wx.exterior);
+    ScenarioTrace::weather("outside", buf);
+    snprintf(buf, sizeof buf, "%.0f %% / %.0f %% outside", (double)wx.rh,
+             (double)wx.rh_ext);
+    ScenarioTrace::weather("humidity", buf);
+    snprintf(buf, sizeof buf, "%.1f mm/h, wind %.1f m/s", (double)wx.rain,
+             (double)wx.wind);
+    ScenarioTrace::weather("sky", buf);
+    ScenarioTrace::weather("phase", PHASE[(int)phase]);
 }
 
 const Weather HOT_AFTERNOON = { 32.0f, 29.0f, 18.0f, 30.0f, 45.0f, 40.0f, 0.0f, 1.0f };
@@ -388,10 +429,25 @@ TEST_CASE("scenario: the supply going down parks the plant") {
     }
     CHECK(p.on("sys_supply_lockout"));
 
+    INFO("the lockout IS the plant's safe state: every program was asked to "
+         "park, through the machinery a halt already uses");
+    CHECK(p.f.reg.safe_held());
+    CHECK(p.f.reg.safe_requested());
+
     INFO("windows: shut, whatever the ladder wants - the lockout is stage one");
     CHECK(p.num("cli_window1_pos") < 0.1f);
     INFO("skirt: shut");
     CHECK_FALSE(p.on("cli_skirtValve"));
+    snapshot(p, "the battery going, and the plant parked");
+
+    INFO("...and the plant is released the moment the battery is not: the hold "
+         "goes down on the same edge that raised it, and the roof reopens");
+    const uint32_t back = run_until(p, [](Plant& q) {
+        return !q.f.reg.safe_held() && q.num("cli_window1_pos") > 0.9f;
+    }, 3000);
+    CHECK(back > 0);
+    CHECK_FALSE(p.on("sys_supply_lockout"));
+    snapshot(p, "the supply back, and the plant with it");
 }
 
 TEST_CASE("scenario: a long hot spell does not cost minutes of recovery") {

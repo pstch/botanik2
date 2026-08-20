@@ -451,7 +451,6 @@ deploy_dem   = "cli_thermalScreenDem"
 phase        = "cli_phase"
 travel_s     = "cli_screenTravel_sec"
 travel_tmo_s = "cli_screenTmo_sec"
-supply_lock  = "sys_supply_lockout"
 
 [program.out]
 screen = "cli_screen"
@@ -525,7 +524,6 @@ full_dem  = "cli_intakeFullDem"
 cool_ok   = "cli_intakeCoolOk"
 ground_ok = "cli_groundHeatOk"
 dry_ok    = "cli_intakeDryOk"
-supply_lock  = "sys_supply_lockout"
 
 [program.out]
 intr = ["cli_intr1","cli_intr2"]
@@ -548,7 +546,6 @@ high_dem      = "cli_fanHighDem"
 # off them. The phase asks; this is how much.
 phase         = "cli_phase"
 breeze_dem    = "cli_breezeDem"
-supply_lock  = "sys_supply_lockout"
 
 [program.out]
 speed1 = ["cli_destrat1_speed1","cli_destrat2_speed1"]
@@ -572,7 +569,6 @@ dp_margin  = "cli_dpMargin_degC"
 rot_lock   = "cli_rotLockout"
 period_s   = "cli_skirtPeriod_sec"
 min_on_s   = "cli_skirtMinOn_sec"
-supply_lock  = "sys_supply_lockout"
 
 [program.out]
 valve = "cli_skirtValve"

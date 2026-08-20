@@ -161,6 +161,7 @@ namespace Botanik { namespace Tasks {
          *  acquire Vars to ask who decided it. */
         bool     _programs_enabled = false;
         bool     _safe_asked       = false;
+        bool     _safe_hold        = false;   ///< the standing condition, beside it
 
         /** @brief Claim a slot and fill the part both add() forms share, so the
          *  offset rule cannot drift between them. Null when the table is full
@@ -243,10 +244,24 @@ namespace Botanik { namespace Tasks {
          *  that is not activated cannot shut a valve.
          *  @{ */
 
-        /** @brief Ask every program to reach its safe state, or release them. */
+        /** @brief Ask every program to reach its safe state, or release them.
+         *  The SUPERVISOR's source: taking the unit out of service. */
         void request_safe(bool on);
-        /** @brief Whether the request stands. */
-        bool safe_requested() const { return _safe_asked; }
+
+        /** @brief Raise or release a STANDING plant condition that requires the
+         *  safe state, the supply going down being the one that does it.
+         *
+         *  A second, independent source, and the stricter wins - the same shape
+         *  ControlAuthority uses. Separate because the two end at different
+         *  times: a condition that clears must not release a halt that is still
+         *  being waited on, and a halt must not be undone by the condition
+         *  going away. */
+        void hold_safe(bool on);
+        /** @brief Whether the standing condition stands. */
+        bool safe_held() const { return _safe_hold; }
+
+        /** @brief Whether EITHER source stands. */
+        bool safe_requested() const { return _safe_asked || _safe_hold; }
         /** @brief Whether EVERY program has arrived. What a reboot waits for
          *  before it drops control and stops kicking the watchdog, and what a
          *  halt waits for before it stops the cycle. True when there are no
@@ -302,6 +317,10 @@ namespace Botanik { namespace Tasks {
         uint8_t     overflow() const { return _overflow; }
 
         /** @} */
+
+    private:
+        /** @brief Push the effective safe state at every program. */
+        void _push_safe();
     };
 
 }}  // namespace Botanik::Tasks

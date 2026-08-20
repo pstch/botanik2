@@ -689,6 +689,36 @@ TEST_CASE("safe: releasing the request puts the program back to work") {
     CHECK(p.health() == Plc::Health::HEALTHY);
 }
 
+TEST_CASE("safe: the standing hold and the supervisor's stop do not cancel each other") {
+    Live f;
+    Parker p(f.bank, Botanik::SetupContext(f.reg));
+    Plc::Program* const progs[] = { &p };
+    Cycle d(progs, 1, &f.bank, f.reg);
+
+    uint64_t t = 0;
+    f.reg.hold_safe(true);
+    f.reg.request_safe(true);
+    for (int i = 0; i < 4; i++) d.step(t += 1000);
+    REQUIRE(p.health() == Plc::Health::INHIBITED);
+
+    INFO("the condition clearing does not release a stop that is still standing");
+    f.reg.hold_safe(false);
+    d.step(t += 1000);
+    CHECK(p.health() == Plc::Health::INHIBITED);
+    CHECK(f.reg.safe_requested());
+
+    INFO("...nor the other way round");
+    f.reg.hold_safe(true);
+    f.reg.request_safe(false);
+    d.step(t += 1000);
+    CHECK(p.health() == Plc::Health::INHIBITED);
+
+    f.reg.hold_safe(false);
+    d.step(t += 1000);
+    CHECK(p.health() == Plc::Health::HEALTHY);
+    CHECK_FALSE(f.reg.safe_requested());
+}
+
 TEST_CASE("inhibit: the operator's switch parks exactly as a safe request does") {
     Live f;
     Parker p(f.bank, Botanik::SetupContext(f.reg));
