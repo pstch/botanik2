@@ -70,8 +70,10 @@ TEST_CASE("zone: the selector drops the outlier and averages the pair that agree
 
     for (uint8_t i = 0; i < 3; i++) {
         f.bank.var(p[i]).publish(from_f32(T_F32, (i == 2) ? 40.0f : 20.0f + 0.2f * i), 0);
+        // PERCENT, which is what the instrument sends and what the row's own
+        // band (0..100) declares.
         f.bank.var(f.ref(i == 0 ? "cli_rh_hi1" : i == 1 ? "cli_rh_hi2" : "cli_rh_hi3"))
-              .publish(from_f32(T_F32, 0.5f), 0);
+              .publish(from_f32(T_F32, 50.0f), 0);
     }
     for (uint64_t t = 0; t <= 60000; t += 100) d.step(t);
 
@@ -94,13 +96,41 @@ TEST_CASE("zone: an invalid probe is excluded, and one good probe still reads") 
     f.bank.var(p[0]).publish(from_f32(T_F32, 25.0f), 0);
     f.bank.var(p[1]).invalidate(Q_NO_DATA);
     f.bank.var(p[2]).invalidate(Q_NO_DATA);
-    f.bank.var(f.ref("cli_rh_hi1")).publish(from_f32(T_F32, 0.5f), 0);
+    f.bank.var(f.ref("cli_rh_hi1")).publish(from_f32(T_F32, 50.0f), 0);
     for (uint64_t t = 0; t <= 60000; t += 100) d.step(t);
 
     CHECK(f.bank.var(hi.r).valid());
     CHECK(f.bank.get(hi) == doctest::Approx(25.0f).epsilon(0.02));
     INFO("and the quorum alarm is up, because two probes are gone");
     CHECK(f.bank.var(f.ref("alarm_sns_ceiling")).b());
+}
+
+TEST_CASE("zone: the instruments report percent, the model works in fractions") {
+    Live f;
+    Site::TempRHZone z(Botanik::SetupContext(f.reg), f.bank);
+    Plc::Program* const progs[] = { &z };
+    Cycle d(progs, 1, &f.bank, f.reg);
+
+    for (uint8_t i = 1; i <= 3; i++) {
+        char t[24], h[24];
+        snprintf(t, sizeof t, "cli_temp_hi%u", (unsigned)i);
+        snprintf(h, sizeof h, "cli_rh_hi%u", (unsigned)i);
+        f.bank.var(f.ref(t)).publish(from_f32(T_F32, 22.0f), 0);
+        f.bank.var(f.ref(h)).publish(from_f32(T_F32, 68.0f), 0);
+    }
+    for (uint64_t t = 0; t <= 60000; t += 100) d.step(t);
+
+    INFO("68% in, 0.68 out - published as a percent it clamped at 1.00 and "
+         "every dew-point margin in the plant read zero");
+    CHECK(f.bank.get(f.bank.resolve_in<float>("cli_rh_hi")) ==
+          doctest::Approx(0.68f).epsilon(0.02));
+
+    INFO("and the psychrometrics that follow are sane: 22 C at 68% dews at "
+         "about 16 C");
+    CHECK(f.bank.get(f.bank.resolve_in<float>("cli_dewPoint_degC")) ==
+          doctest::Approx(15.8f).epsilon(0.05));
+    CHECK(f.bank.get(f.bank.resolve_in<float>("cli_dpMargin_degC")) ==
+          doctest::Approx(6.2f).epsilon(0.1));
 }
 
 TEST_CASE("zone: temperature survives losing every humidity probe") {

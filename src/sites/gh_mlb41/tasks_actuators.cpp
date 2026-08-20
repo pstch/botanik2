@@ -28,18 +28,12 @@ bool ScreenController::_allows(DayPhase phase, bool deploy) {
                      phase == PHASE_COLD_BANK);
 }
 
-void ScreenController::_command(Vars::Bank& io, bool deploy) {
-    if (_seeded && deploy == _deployed) return;
-    // Both ways: the fabric is in the fans' way whichever direction it travels.
-    // Capped at the actuator's own safe time, which is the DATASHEET's number
-    // where the travel is the operator's: this traverse is what the fans are
-    // cut for and what a parking supervisor waits on, and a mis-set travel
-    // would hold both for as long as it says.
-    const uint32_t want = 1000u * (uint32_t)_v.travel_s.get();
-    const uint32_t cap  = 1000u * (uint32_t)_v.travel_tmo_s.get();
-    _travel_ms = (want < cap) ? want : cap;
-    _deployed  = deploy;
-    _seeded    = true;
+void ScreenController::_command(bool deploy) {
+    // A CHANGE starts the traverse; observe() times it. Both ways, because the
+    // fabric is in the fans' way whichever direction it travels.
+    _command_changed = !_seeded || (deploy != _deployed);
+    _deployed = deploy;
+    _seeded   = true;
     _v.screen.set(deploy);
 }
 
@@ -53,8 +47,8 @@ void ScreenController::run(ProgramContext& c) {
     if (inhibit_requested()) {
         // Safe is DEPLOYED. A greenhouse nobody is controlling loses heat
         // through the roof all night, and the fabric is what stops it.
-        _command(c.bank, true);
-        if (_travel_ms > 0) parking();
+        _command(true);
+        if (_command_changed || _travelling.q()) parking();
         return;
     }
 
@@ -75,22 +69,33 @@ void ScreenController::run(ProgramContext& c) {
     // phase forbids leaves the fabric where it is, and the thermal need goes to
     // the intractors pulling ground heat instead.
     const bool want = cold || night;
-    if (_allows(phase, want)) _command(c.bank, want);
-    if (_travel_ms > 0) parking();
+    if (_allows(phase, want)) _command(want);
+    // A command that has just CHANGED is a traverse about to start, and
+    // observe() has not timed it yet: parked is neither.
+    if (_command_changed || _travelling.q()) parking();
 }
 
 void ScreenController::observe(ProgramContext& c) {
-    // Counted HERE, so a screen parked on the way to its safe position still
+    // Timed HERE, so a screen parked on the way to its safe position still
     // reports itself as moving and the fans stay cut.
-    _travel_ms = (_travel_ms > c.dt_ms) ? (_travel_ms - c.dt_ms) : 0;
-    _v.moving.set(_travel_ms > 0);
+    //
+    // The pulse is capped at the actuator's own SAFE time, which is the
+    // datasheet's number where the travel is the operator's: this traverse is
+    // what the fans are cut for and what a parking supervisor waits on, so a
+    // mis-set travel would hold both for as long as it said.
+    const uint32_t travel = 1000u * (uint32_t)_v.travel_s.get();
+    const uint32_t safe   = 1000u * (uint32_t)_v.travel_tmo_s.get();
+
+    _v.moving.set(_travelling(_moved(_command_changed),
+                              (travel < safe) ? travel : safe, c.dt_ms));
+    _command_changed = false;
 }
 
 // WindowsController
 
 const float WindowsController::SAFE_OPEN = 0.25f;
 
-Plc::ActuatorConfig WindowsController::_mechanics(const Vars::Bank& io) const {
+Plc::ActuatorConfig WindowsController::_mechanics() const {
     const uint32_t travel = 1000u * _v.travel_s.get();
     const uint32_t tmo    = 1000u * _v.tmo_s.get();
     // The safe time is the travel time plus the allowance for reaching the
@@ -153,7 +158,7 @@ void WindowsController::run(ProgramContext& c) {
         _rain_for.reset();
     }
 
-    const Plc::ActuatorConfig cfg = _mechanics(c.bank);
+    const Plc::ActuatorConfig cfg = _mechanics();
 
     // ALWAYS, and before anything else: it publishes the two lockout rows, and
     // an observation does not stop being made because this law is parked.
@@ -189,7 +194,7 @@ void WindowsController::run(ProgramContext& c) {
     }
 }
 
-void WindowsController::observe(ProgramContext& c) {
+void WindowsController::observe(ProgramContext&) {
     // One target for all four - they are one roof - against each ram's own
     // position estimate, which is what says how far behind the sequence is.
     for (uint8_t i = 0; i < WINDOWS; i++) {
@@ -201,11 +206,11 @@ void WindowsController::observe(ProgramContext& c) {
 
 // IntractorController
 
-float IntractorController::_safe_speed(const Vars::Bank& io) const {
+float IntractorController::_safe_speed() const {
     // The AO row's declared safe value, not a constant here: an actuator's safe
     // state belongs to the table, which is also what the field bus carries out
     // when control authority goes entirely.
-    const Vars::Descriptor& d = io.descriptor(_v.intr[0].r.index);
+    const Vars::Descriptor& d = _v.intr[0].io->descriptor(_v.intr[0].r.index);
     return (float)Vars::as_f32(d.type, d.def);
 }
 
@@ -213,40 +218,36 @@ void IntractorController::run(ProgramContext& c) {
     // The FLOOR, and it is a SPEED rather than a demand: some air is always
     // wanted, and the row is where this actuator's safe state is declared. A
     // demand below it simply does not reach it.
-    float speed = _safe_speed(c.bank);
+    float speed = _safe_speed();
 
     if (!inhibit_requested()) {
-        // Only the DEHUMIDIFY arm of the humidity demand: positive is asking
-        // for the skirt, and drawing more air through would work against it.
-        // Gated: air that is not drier than what is here would undo it.
-        const float dehum = _v.dry_ok.get() ? -_v.humid_dem.get()
-                                                  : 0.0f;
-        // A demand nobody can read contributes NOTHING to the maximum. It does
-        // not have to: the floor below is already this actuator's safe state,
-        // and the other two can still call for more on their own account.
-        const bool cool_ok = _v.cool_dem.valid();
+        const bool  cool_ok = _v.cool_dem.valid();
+        const float cool    = _v.cool_dem.get();
         if (!cool_ok) degraded();
-        const float cool = _v.cool_dem.get();
-        // Cooling only counts while the intake is actually cooler; the mirror
-        // gate turns the NEGATIVE half into a demand of its own, which is the
-        // one thing that pulls stored ground heat up into the house.
-        float worst = (cool_ok && _v.cool_ok.get()) ? cool : 0.0f;
-        // Ungated, and deliberately: rot is the collection, and the dew point
-        // it is fighting is the one inside.
-        if (_v.rot_vent.get() > worst) worst = _v.rot_vent.get();
-        if (dehum > worst) worst = dehum;
 
-        const float want = Plc::ladder(worst, _v.start_dem.get(),
-                                       _v.full_dem.get());
-        if (want > speed) speed = want;
+        // Three demands, each gated by the law that owns the reading behind it,
+        // and a demand nobody can read contributes NOTHING - it does not have
+        // to, since the floor below is already this actuator's safe state.
+        //
+        //  - cooling, while the intake really is cooler
+        //  - the anti-rot ventilation, ungated: rot is the collection, and the
+        //    dew point it fights is the one inside
+        //  - the DEHUMIDIFY arm alone, while the air outside is drier. Positive
+        //    is asking for the skirt, and more air through would work against it
+        const float cooling = (cool_ok && _v.cool_ok.get()) ? cool : 0.0f;
+        const float venting = _v.rot_vent.get();
+        const float drying  = _v.dry_ok.get() ? -_v.humid_dem.get() : 0.0f;
+
+        const float demand = Plc::max_of(cooling, Plc::max_of(venting, drying));
+        speed = Plc::max_of(speed, Plc::ladder(demand, _v.start_dem.get(),
+                                               _v.full_dem.get()));
 
         // Ground heat is ONE RUNG, not a ramp: the spec's negative half asks
         // for low speed at -0.1 and says nothing about wanting more of it the
         // colder it gets. Pulling harder on a cold house moves more air through
-        // the same ground, which cools the ground rather than warming the
-        // house. A floor like the others.
-        const float ground = _v.ground_speed.get();
-        if (_v.ground_ok.get() && ground > speed) speed = ground;
+        // the same ground, which cools the ground rather than warming the house.
+        if (_v.ground_ok.get())
+            speed = Plc::max_of(speed, _v.ground_speed.get());
     }
 
     for (uint8_t i = 0; i < INTRACTORS; i++) _v.intr[i].set(speed);
@@ -264,23 +265,21 @@ static const float FAN_DEM_HYST = 0.05f;
  *  and the bands themselves are already tunable. */
 static const float FAN_IRR_DEM = 0.34f;
 
-float FanController::_demand(const Vars::Bank& io) const {
-    // An unknown gap is NOT "no stratification". The destratification ladder
-    // invalidates its demand when it cannot see the profile, and still air is
-    // itself a rot risk - so an unknown one contributes these fans' OWN lowest
-    // band, which is their safe state, rather than nothing. A floor, not a
-    // target: a cooling demand above it still takes them higher.
-    float worst = _v.strat_dem.valid() ? _v.strat_dem.get()
-                                                 : _v.low_dem.get();
-    const float cool = _v.cool_dem.valid() ? _v.cool_dem.get()
-                                                     : _v.low_dem.get();
-    if (cool > worst) worst = cool;
-    if (_v.irr_state.get() != IRR_IDLE && FAN_IRR_DEM > worst)
-        worst = FAN_IRR_DEM;
-    return worst;
+float FanController::_demand() const {
+    // An unknown demand is NOT "nothing to do". Either ladder invalidates its
+    // own when it cannot see what it is about, and still air is itself a rot
+    // risk - so an unknown one contributes these fans' OWN lowest band, which
+    // is their safe state, rather than zero.
+    const float floor    = _v.low_dem.get();
+    const float strat    = _v.strat_dem.valid() ? _v.strat_dem.get() : floor;
+    const float cooling  = _v.cool_dem.valid() ? _v.cool_dem.get() : floor;
+    // A cycle in progress wants air moving over the trays it has just wetted.
+    const float watering = (_v.irr_state.get() != IRR_IDLE) ? FAN_IRR_DEM : 0.0f;
+
+    return Plc::max_of(strat, Plc::max_of(cooling, watering));
 }
 
-uint8_t FanController::_band(const Vars::Bank& io, float demand) {
+uint8_t FanController::_band(float demand) {
     // Three rungs, each engaging at its own threshold and released a little
     // under it, which is what keeps a demand sitting on an edge from stepping
     // the relays. The block is the same one the destratification ladder uses.
@@ -289,8 +288,7 @@ uint8_t FanController::_band(const Vars::Bank& io, float demand) {
     return _steps(demand, step, FAN_DEM_HYST);
 }
 
-void FanController::_drive(Vars::Bank& io, uint8_t speed) {
-    (void)io;
+void FanController::_drive(uint8_t speed) {
     for (uint8_t i = 0; i < FANS; i++) {
         _v.speed1[i].set(speed == 1);
         _v.speed2[i].set(speed == 2);
@@ -306,7 +304,7 @@ void FanController::run(ProgramContext& c) {
     if (_v.screen_moving.get()) {
         _speed = 0;
         _steps.reset();
-        _drive(c.bank, 0);
+        _drive(0);
         return;
     }
     if (inhibit_requested()) {
@@ -315,13 +313,13 @@ void FanController::run(ProgramContext& c) {
         // keep working once everything else has stopped.
         _speed = 1;
         _steps.preset(1);
-        _drive(c.bank, 1);
+        _drive(1);
         return;
     }
     if (!_v.strat_dem.valid() ||
         !_v.cool_dem.valid()) degraded();
-    _speed = _band(c.bank, _demand(c.bank));
-    _drive(c.bank, _speed);
+    _speed = _band(_demand());
+    _drive(_speed);
 }
 
 // SkirtController

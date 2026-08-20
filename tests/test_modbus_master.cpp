@@ -393,6 +393,30 @@ TEST_CASE("modbus fault: an absent unit is backed off and the rest keep answerin
     CHECK(m.client.dead_count() == 1);
 }
 
+TEST_CASE("modbus live: EVERY row of a read block commits, not just the first") {
+    // A block is one request and several rows, and the payload is indexed per
+    // row. Getting that arithmetic wrong reads as a sensor that never answers
+    // while the one beside it works, which is a wiring fault everywhere except
+    // in the code.
+    LiveBus m;
+    // A temperature/humidity pair: two rows, one four-register block.
+    Vars::Var t = m.bank.var("cli_temp_hi1");
+    Vars::Var h = m.bank.var("cli_rh_hi1");
+    REQUIRE(t.meta() != nullptr);
+    REQUIRE(h.meta() != nullptr);
+    m.bus.set_physical(*t.meta(), 22.0f);
+    m.bus.set_physical(*h.meta(), 68.0f);
+
+    m.beats(400);
+
+    CHECK(t.valid());
+    CHECK(t.as_f32() == doctest::Approx(22.0f).epsilon(0.01));
+    INFO("the SECOND row of the block: the one an off-by-one in the payload "
+         "offset leaves at its declared default for ever");
+    CHECK(h.valid());
+    CHECK(h.as_f32() == doctest::Approx(68.0f).epsilon(0.01));
+}
+
 TEST_CASE("modbus live: a modulating output and the read image share the bus") {
     // Neither side may starve the other, and only a run shows it: both urgencies
     // grow and both reset on service.

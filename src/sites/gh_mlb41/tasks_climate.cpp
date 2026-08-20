@@ -19,6 +19,12 @@ const float TargetTempController::TARGET_MAX = 27.0f;
 
 // DayPhaseController
 
+int16_t DayPhaseController::_minutes(int64_t v) {
+    if (v < -1440) return -1440;
+    if (v >  1440) return  1440;
+    return (int16_t)v;
+}
+
 bool DayPhaseController::_solar_day(int16_t& from_rise, int16_t& from_set) const {
     if (!_sun.ready()) return false;
     const uint64_t now = HAL::Clock::wall_ms();
@@ -26,12 +32,14 @@ bool DayPhaseController::_solar_day(int16_t& from_rise, int16_t& from_set) const
     // day, so one of the two is always in the past and the other in the future.
     const int64_t rise = ((int64_t)now - (int64_t)_sun.sunrise_ms()) / 60000;
     const int64_t set  = ((int64_t)now - (int64_t)_sun.sunset_ms())  / 60000;
-    from_rise = (int16_t)Plc::limit(rise, (int64_t)-1440, (int64_t)1440);
-    from_set  = (int16_t)Plc::limit(set,  (int64_t)-1440, (int64_t)1440);
+    // Clamped to a day either side, in whole minutes: an int16 row, and a
+    // clock that has jumped is not a reason to publish a nonsense offset.
+    from_rise = _minutes(rise);
+    from_set  = _minutes(set);
     return true;
 }
 
-DayPhase DayPhaseController::_phase_at(const Vars::Bank& io, int16_t from_rise,
+DayPhase DayPhaseController::_phase_at(int16_t from_rise,
                                        int16_t from_set) const {
     // Down the day in order, so a boundary an operator has trimmed past the one
     // after it shortens its own phase rather than swallowing the next.
@@ -62,7 +70,7 @@ void DayPhaseController::run(ProgramContext& c) {
     const DayPhase was = _phase;
     int16_t from_rise = 0, from_set = 0;
     if (_solar_day(from_rise, from_set)) {
-        _phase = _phase_at(c.bank, from_rise, from_set);
+        _phase = _phase_at(from_rise, from_set);
         _v.from_rise.set(from_rise);
         _v.from_set.set(from_set);
     } else {

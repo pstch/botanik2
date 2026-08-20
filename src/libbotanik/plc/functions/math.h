@@ -59,6 +59,12 @@ namespace Botanik { namespace Plc {
              : ((fabsf(b - c) <= fabsf(a - c)) ? 0.5f * (b + c) : 0.5f * (a + c));
     }
 
+    /** @brief IEC MAX / MIN, two arguments. Written out because a fusion of
+     *  three demands is the shape half these programs have, and the
+     *  if-it-is-bigger-keep-it spelling hides it. */
+    constexpr float max_of(float a, float b) { return (a > b) ? a : b; }
+    constexpr float min_of(float a, float b) { return (a < b) ? a : b; }
+
     /** @}
      *  @name Control ladders
      *

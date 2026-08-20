@@ -431,9 +431,12 @@ private:
      *  before NTP: the phase then holds rather than jumping to NIGHT. */
     bool _solar_day(int16_t& from_rise, int16_t& from_set) const;
 
+    /** @brief Whole minutes, clamped to a day either side of the event. */
+    static int16_t _minutes(int64_t v);
+
     /** @brief The phase those two offsets land in, with the two BANK phases
      *  skipped when yesterday did not arm them. */
-    DayPhase _phase_at(const Vars::Bank& io, int16_t from_rise,
+    DayPhase _phase_at(int16_t from_rise,
                        int16_t from_set) const;
 };
 
@@ -736,36 +739,36 @@ private:
     /** @brief Whether a cycle may START now. Two slots: the end of the night,
      *  and the first hours of the day for when the night was too cold to water
      *  in. Never the afternoon - a tray filled then is still wet at dusk. */
-    bool _in_slot(const Vars::Bank& io) const;
+    bool _in_slot() const;
 
     /** @brief Judge the window that has just closed: did enough come back?
      *  A dose of zero or an unusable meter gives no verdict at all - a clog is
      *  a measurement, and there is nothing to measure. */
-    void _drain_verdict(Vars::Bank& io);
+    void _drain_verdict();
 
     /** @brief The next tray owed water, or 0. Honours the per-tray forces, and
      *  publishes the modulated interval of whichever tray it picks.
      *  @param today UNIX day number, or 0 when the clock is not yet trusted */
-    uint8_t _next_due(Vars::Bank& io, float mod, uint32_t today);
+    uint8_t _next_due(float mod, uint32_t today);
 
     /** @brief Today as a UNIX day number, or 0 when the RTC has not been set.
      *  NTP owns the clock; before it answers there is no date to schedule
      *  against, and watering on a bogus one is worse than waiting. */
     static uint32_t _today();
     /** @brief Drive the valves for @p state, serving @p tray (0 = none). */
-    void _set_valves(Vars::Bank& io, IrrState state, uint8_t tray);
+    void _set_valves(IrrState state, uint8_t tray);
     /** @brief Every valve to the position its row declares it fails to. */
-    void _park_valves(Vars::Bank& io);
+    void _park_valves();
     /** @brief Set or clear @p per_tray for the tray being served. */
-    void _blame(Vars::Bank& io, const Vars::RefOut<bool>* per_tray, bool on);
+    void _blame(const Vars::RefOut<bool>* per_tray, bool on);
     /** @brief Record that the active tray has been watered, durably, and spend
      *  the force that asked for it. */
-    void _stamp_served(Vars::Bank& io);
+    void _stamp_served();
     /** @brief Stamp tray @p tray (0-based) as watered on UNIX day @p day. */
-    void _stamp(Vars::Bank& io, uint8_t tray, uint32_t day) const;
+    void _stamp(uint8_t tray, uint32_t day) const;
     /** @brief Spend a one-shot force. */
-    static void _clear_force(Vars::Bank& io, Vars::RefInOut<bool> r);
-    void _enter(Vars::Bank& io, IrrState state);
+    static void _clear_force(Vars::RefInOut<bool> r);
+    void _enter(IrrState state);
 };
 
 /**
@@ -779,11 +782,14 @@ private:
  */
 class ScreenController : public Plc::Program {
 
-    /** @brief Time left in the current traverse, ms. Counted whichever way it
-     *  is going: the fabric is in the fans' way in both. */
-    uint32_t _travel_ms = 0;
-    bool     _deployed  = false;
-    bool     _seeded    = false;
+    /** @brief The traverse: a pulse of the fabric's travel time, started by a
+     *  change of command. Whichever way it is going - the fabric is in the
+     *  fans' way in both. */
+    Plc::Tp    _travelling;
+    Plc::RTrig _moved;
+    bool       _deployed = false;
+    bool       _seeded   = false;
+    bool       _command_changed = false;
 
     Refs::ScreenController _v;
 
@@ -799,7 +805,7 @@ protected:
 
 private:
     /** @brief Command the screen, starting a traverse if that is a change. */
-    void _command(Vars::Bank& io, bool deploy);
+    void _command(bool deploy);
 
     /** @brief Whether @p phase allows a move in that direction. The spec's
      *  permission table: the day's direction decides what the fabric may do,
@@ -866,7 +872,7 @@ private:
     /** @brief The mechanics, rebuilt each scan from the parameters: a
      *  recalibrated travel time has to land on the next stroke, not the next
      *  boot. */
-    Plc::ActuatorConfig _mechanics(const Vars::Bank& io) const;
+    Plc::ActuatorConfig _mechanics() const;
     /** @brief Whether anything forbids the windows being open at all. Publishes
      *  the two reasons it owns. */
     bool _shut_in(ProgramContext& c);
@@ -902,7 +908,7 @@ protected:
 private:
     /** @brief Where these go when this law is not acting, off the row's own
      *  declared safe value. NOT stopped: some air is always wanted. */
-    float _safe_speed(const Vars::Bank& io) const;
+    float _safe_speed() const;
 };
 
 /**
@@ -940,11 +946,11 @@ protected:
 
 private:
     /** @brief The three demands, fused. */
-    float _demand(const Vars::Bank& io) const;
+    float _demand() const;
     /** @brief The speed @p demand asks for, given the one in force. */
-    uint8_t _band(const Vars::Bank& io, float demand);
+    uint8_t _band(float demand);
     /** @brief Energise exactly one speed relay, or none. */
-    void _drive(Vars::Bank& io, uint8_t speed);
+    void _drive(uint8_t speed);
 };
 
 /**

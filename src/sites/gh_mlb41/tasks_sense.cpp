@@ -101,7 +101,7 @@ void AcLocalWatch::observe(ProgramContext& c) {
 bool DcWatch::_rail(const DcWatch::Rail& r, uint32_t dt_ms, bool& seen) {
     // Averaged, then deadbanded: the first says what the rail is doing, the
     // second says when that is worth a write.
-    const float volts = r.avg(r.in.get(), 0.001f * r.avg_ms.get(), dt_ms);
+    const float volts = r.avg(r.in.get(), 0.001f * (float)r.avg_ms.get(), dt_ms);
     r.out.set(r.band(volts, SUPPLY_V_BAND));
 
     const bool measured = r.in.valid();
@@ -211,7 +211,14 @@ uint8_t ZoneProbes::step(uint32_t dt_ms) {
     // Each quantity carries its own quorum. Coupling them would let one dead
     // humidity probe invalidate a temperature three good probes agree on.
     const ZoneVote t = _select(_t);
-    const ZoneVote h = _select(_h);
+    ZoneVote h = _select(_h);
+
+    // The instruments report humidity in PERCENT and everything above this line
+    // works in fractions - the spec's convention for a percentage is a real
+    // number between 0 and 1. Converted HERE, once, at the boundary between the
+    // instrument and the model: published as a percent it clamped at 1.00 and
+    // every dew-point margin in the plant read zero.
+    h.value *= 0.01f;
 
     _publish(_temp_out, _temp, t, _temp_seeded, -100.0f, 200.0f);
     _publish(_rh_out, _rh, h, _rh_seeded, 0.0f, 1.0f);

@@ -966,12 +966,14 @@ namespace Botanik { namespace Vars {
         static bool accepts(VarType t)             { return t == T_BOOL; }
         static bool read(const Bank& b, VarRef r)  { return b.var(r).b(); }
         static void write(Bank& b, VarRef r, bool v) { b.var(r).set(v); }
+        static SetResult edit(Bank& b, VarRef r, bool v) { return b.param_set(b.var(r), v); }
     };
 
     template <> struct RefIo<float> {
         static bool  accepts(VarType t)              { return t == T_F32; }
         static float read(const Bank& b, VarRef r)   { return b.var(r).as_f32(); }
         static void  write(Bank& b, VarRef r, float v) { b.var(r).set(v); }
+        static SetResult edit(Bank& b, VarRef r, float v) { return b.param_set(b.var(r), v); }
     };
 
     // The eight widths differ only in the saturating accessor they read through.
@@ -980,6 +982,8 @@ namespace Botanik { namespace Vars {
             static bool accepts(VarType t)            { return ref_whole(t); } \
             static TYPE read(const Bank& b, VarRef r) { return b.var(r).value().AS(); } \
             static void write(Bank& b, VarRef r, TYPE v) { b.var(r).set_i((int64_t)v); } \
+            static SetResult edit(Bank& b, VarRef r, TYPE v)                   \
+                { return b.param_set_i(b.var(r), (int64_t)v); }                \
         }
 
     BOTANIK_REF_WHOLE(int8_t,   as_i8);
@@ -1010,6 +1014,14 @@ namespace Botanik { namespace Vars {
 
     template <typename T, Dir D>
     inline bool Ref<T, D>::valid() const { return io->var(r).valid(); }
+
+    template <typename T, Dir D>
+    inline bool Ref<T, D>::edit(T v) const {
+        static_assert(D == Dir::INOUT, "only a VAR_IN_OUT row is edited");
+        if (RefIo<T>::edit(*io, r, v) != SET_OK) return false;
+        io->param_save(io->var(r));
+        return true;
+    }
 
     template <typename T, Dir D>
     inline void Ref<T, D>::invalidate() const {

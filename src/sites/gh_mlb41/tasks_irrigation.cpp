@@ -109,7 +109,7 @@ void WaterMeters::observe(ProgramContext& c) {
     }
 
     const float lpm = _out_flow(_v.out_flow.get(),
-                                0.001f * _v.out_avg_ms.get(), c.dt_ms);
+                                0.001f * (float)_v.out_avg_ms.get(), c.dt_ms);
     if (_v.out_flow.valid()) {
         _v.out_flow_pub.set(_out_band(lpm, IRR_FLOW_BAND));
     } else {
@@ -166,8 +166,7 @@ uint32_t IrrigationCycle::_today() {
     return Utils::cal_time_ms(wall).unixDays;
 }
 
-uint8_t IrrigationCycle::_next_due(Vars::Bank& io, float mod,
-                                   uint32_t today) {
+uint8_t IrrigationCycle::_next_due(float mod, uint32_t today) {
     // period = summer period / mod^(1 - split), volume = summer volume *
     // mod^split, so their RATIO - the water actually delivered per day - is
     // proportional to mod whatever the split is set to.
@@ -201,8 +200,8 @@ uint8_t IrrigationCycle::_next_due(Vars::Bank& io, float mod,
         // was due for, and the tray goes to the back of the queue rather than
         // arriving again tomorrow with the flag gone.
         if (_v.force_off[i].get()) {
-            _clear_force(io, _v.force_off[i]);
-            _stamp(io, i, today);
+            _clear_force(_v.force_off[i]);
+            _stamp(i, today);
             continue;
         }
 
@@ -220,7 +219,7 @@ uint8_t IrrigationCycle::_next_due(Vars::Bank& io, float mod,
     return best;
 }
 
-void IrrigationCycle::_set_valves(Vars::Bank& io, IrrState state, uint8_t tray) {
+void IrrigationCycle::_set_valves(IrrState state, uint8_t tray) {
     // Fill: inlet open, this tray open, outlet shut. Drain: inlet shut, tray
     // still open, outlet open. Every other tray is shut in both, so one cycle
     // can never water two.
@@ -234,15 +233,14 @@ void IrrigationCycle::_set_valves(Vars::Bank& io, IrrState state, uint8_t tray) 
         _tray_v[i].set((filling || draining) && (i + 1 == tray));
 }
 
-void IrrigationCycle::_blame(Vars::Bank& io,
-                                  const Vars::RefOut<bool>* per_tray, bool on) {
+void IrrigationCycle::_blame(const Vars::RefOut<bool>* per_tray, bool on) {
     // The tray being served, and only it. The any-form beside these is what an
     // operator sees; this is what still says WHICH tray once the cycle has
     // moved on to the next one.
-    if (_tray >= 1 && _tray <= IRR_TRAYS) io.drive(per_tray[_tray - 1], on);
+    if (_tray >= 1 && _tray <= IRR_TRAYS) per_tray[_tray - 1].set(on);
 }
 
-void IrrigationCycle::_park_valves(Vars::Bank& io) {
+void IrrigationCycle::_park_valves() {
     for (uint8_t i = 0; i < 2; i++) {
         _inlet_v[i].park();
         _outlet_v[i].park();
@@ -250,20 +248,19 @@ void IrrigationCycle::_park_valves(Vars::Bank& io) {
     for (uint8_t i = 0; i < IRR_TRAYS; i++) _tray_v[i].park();
 }
 
-void IrrigationCycle::_stamp(Vars::Bank& io, uint8_t tray, uint32_t day) const {
-    // Through param_set(), because the row is a PARAMETER: drive() writes the
-    // value but skips the unsaved mark, so the schedule would restart from
-    // nothing at the next boot. Once a cycle is a rate flash is happy with.
-    Var h = io.var(_v.last[tray].r);
-    if (io.param_set_i(h, (int64_t)day) == SET_OK) (void)io.param_save(h);
+void IrrigationCycle::_stamp(uint8_t tray, uint32_t day) const {
+    // An EDIT, not a drive: the row is a PARAMETER, and driving it would write
+    // the value while leaving flash owing nothing - so the schedule would
+    // restart from nothing at the next boot. Once a cycle is a rate flash is
+    // happy with.
+    (void)_v.last[tray].edit((uint32_t)day);
 }
 
-void IrrigationCycle::_clear_force(Vars::Bank& io, Vars::RefInOut<bool> r) {
-    Var h = io.var(r.r);
-    if (io.param_set(h, false) == SET_OK) (void)io.param_save(h);
+void IrrigationCycle::_clear_force(Vars::RefInOut<bool> r) {
+    (void)r.edit(false);
 }
 
-void IrrigationCycle::_stamp_served(Vars::Bank& io) {
+void IrrigationCycle::_stamp_served() {
     const uint32_t day = _today();
     if (day == 0 || _tray == 0) return;
 
@@ -272,15 +269,15 @@ void IrrigationCycle::_stamp_served(Vars::Bank& io) {
     // A forced cycle stamps too - it IS a watering, and leaving it unrecorded
     // would water the tray again on its own account tomorrow.
     //
-    _stamp(io, (uint8_t)(_tray - 1), day);
+    _stamp((uint8_t)(_tray - 1), day);
     // The force is spent on the watering it asked for. Left standing it would
     // ask for the same tray on every cycle for ever, and no other tray would
     // ever be reached.
-    _clear_force(io, _v.force_on[_tray - 1]);
+    _clear_force(_v.force_on[_tray - 1]);
     if (_served < 0xFFu) _served++;
 }
 
-bool IrrigationCycle::_in_slot(const Vars::Bank& io) const {
+bool IrrigationCycle::_in_slot() const {
     const DayPhase phase = (DayPhase)_v.phase.get();
 
     // END OF NIGHT, and only when the plants are not cold: watering cold roots
@@ -296,14 +293,14 @@ bool IrrigationCycle::_in_slot(const Vars::Bank& io) const {
                                              (int16_t)_v.morning_win.get());
 }
 
-void IrrigationCycle::_drain_verdict(Vars::Bank& io) {
+void IrrigationCycle::_drain_verdict() {
     const bool measured = _v.out_flow.valid();
     if (_dose_L <= 0.0f || !measured) {
         // A fill that never delivered, or a meter that is not answering. Both
         // are already alarms of their own; a clog raised on top would send
         // somebody to the wrong end of the plant.
         _v.drain_fault.set(false);
-        _blame(io, _v.drain_tray, false);
+        _blame(_v.drain_tray, false);
         return;
     }
     // Against the dose, not against a fixed volume: a modulated half-dose
@@ -312,10 +309,10 @@ void IrrigationCycle::_drain_verdict(Vars::Bank& io) {
     const float min_frac = _v.exp_drain.get() - _v.drain_margin.get();
     const bool  clog     = frac < min_frac;
     _v.drain_fault.set(clog);
-    _blame(io, _v.drain_tray, clog);
+    _blame(_v.drain_tray, clog);
 }
 
-void IrrigationCycle::_enter(Vars::Bank& io, IrrState state) {
+void IrrigationCycle::_enter(IrrState state) {
     _state = state;
     _in_state_ms = 0;
     // The meters are counters, so a window is a DIFFERENCE: stamp the one the
@@ -325,7 +322,7 @@ void IrrigationCycle::_enter(Vars::Bank& io, IrrState state) {
         _drain_start_L = _v.out_total.get();
         _v.drained.set(0.0f);
     }
-    _set_valves(io, state, _tray);
+    _set_valves(state, _tray);
     _v.state.set((uint8_t)state);
     _v.active.set(_tray);
 }
@@ -335,7 +332,7 @@ void IrrigationCycle::run(ProgramContext& c) {
         // Where a dead controller would leave them, which is not the same for
         // all ten: the inlet fails SHUT and the drains fail OPEN, so a tray
         // that was filling empties rather than sitting full.
-        _park_valves(c.bank);
+        _park_valves();
         _tray  = 0;
         _state = IRR_IDLE;
         _v.state.set((uint8_t)IRR_IDLE);
@@ -347,7 +344,7 @@ void IrrigationCycle::run(ProgramContext& c) {
         // everything and start the cycle again rather than resuming a fill
         // whose delivered volume we stopped counting.
         _tray = 0;
-        _enter(c.bank, IRR_IDLE);
+        _enter(IRR_IDLE);
     }
     _in_state_ms += c.dt_ms;
 
@@ -374,13 +371,13 @@ void IrrigationCycle::run(ProgramContext& c) {
             // WHEN, before which tray: the climate decides the slot and the
             // schedule decides the tray, and an operator forcing a cycle
             // overrides both.
-            if (!_v.force_now.get() && !_in_slot(c.bank)) break;
+            if (!_v.force_now.get() && !_in_slot()) break;
 
-            const uint8_t next = _next_due(c.bank, mod, today);
+            const uint8_t next = _next_due(mod, today);
             if (next == 0) break;
             _tray   = next;
             _forced = _v.force_now.get();
-            _enter(c.bank, IRR_FILLING);
+            _enter(IRR_FILLING);
             break;
         }
         case IRR_FILLING: {
@@ -388,33 +385,33 @@ void IrrigationCycle::run(ProgramContext& c) {
             _v.delivered.set(got);
             if (got >= dose && dose > 0.0f) {
                 _v.fill_fault.set(false);
-                _blame(c.bank, _v.fill_tray, false);
-                _stamp_served(c.bank);
+                _blame(_v.fill_tray, false);
+                _stamp_served();
                 _dose_L = got;
-                _enter(c.bank, IRR_DRAINING);
+                _enter(IRR_DRAINING);
             } else if (_in_state_ms >= 1000u * _v.max_fill_s.get()) {
                 // The dose never arrived: water off, a stuck inlet, or a meter
                 // that has stopped counting. Move to drain regardless - leaving
                 // the inlet open on a fault is how a tray overflows.
                 _v.fill_fault.set(true);
-                _blame(c.bank, _v.fill_tray, true);
+                _blame(_v.fill_tray, true);
                 // What actually went in, which may be nothing: the drain is
                 // judged against the water the tray really got.
                 _dose_L = got;
-                _enter(c.bank, IRR_DRAINING);
+                _enter(IRR_DRAINING);
             }
             break;
         }
         case IRR_DRAINING: {
             _v.drained.set(_v.out_total.get() - _drain_start_L);
             if (_in_state_ms < 1000u * _v.drain_window_s.get()) break;
-            _drain_verdict(c.bank);
+            _drain_verdict();
             _tray = 0;
-            _enter(c.bank, IRR_FLUSHING);
+            _enter(IRR_FLUSHING);
             break;
         }
         case IRR_FLUSHING: {
-            if (_in_state_ms >= 1000u * _v.flush_s.get()) _enter(c.bank, IRR_IDLE);
+            if (_in_state_ms >= 1000u * _v.flush_s.get()) _enter(IRR_IDLE);
             break;
         }
     }

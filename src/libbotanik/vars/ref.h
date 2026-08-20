@@ -80,6 +80,14 @@ namespace Botanik { namespace Vars {
         void set(T v) const;
         /** @brief Whether the row carries a believable value. */
         bool valid() const;
+
+        /** @brief EDIT a parameter row: checked against its band, marked
+         *  unsaved, and written to storage. What a program uses for the state
+         *  it has to keep - a watering date, a spent one-shot force - where
+         *  set() writes the value and leaves flash owing nothing.
+         *  @return false if the band refused it. VAR_IN_OUT only: an edit is a
+         *  read-modify-write of a row somebody else also writes. */
+        bool edit(T v) const;
         /** @brief Say the value is not knowable, rather than substituting a
          *  default that reads like a measurement. VAR_INPUT does not compile. */
         void invalidate() const;
