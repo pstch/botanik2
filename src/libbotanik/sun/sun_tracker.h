@@ -13,6 +13,7 @@
 #include "libbotanik/config/base.h"
 
 #include "libbotanik/core/component.h"
+#include "libbotanik/tasks/tasks.h"
 
 #if BOTANIK_FEATURE_SUN_TRACKER
 
@@ -31,12 +32,25 @@ namespace Botanik { namespace Sun {
         bool   rising;          ///< True before solar noon (climbing), false after (descending).
         double day_length_h;    ///< Today's daylight duration (hours); 0 polar night, 24 polar day.
         double max_day_length_h;///< The longest daylight at this latitude (hours), at the summer solstice.
+        uint64_t transit_ms;    ///< Solar noon nearest this sample, UNIX ms.
+
+        /** @brief Sunrise and sunset around that noon, UNIX ms. Symmetric about
+         *  the transit by construction, so a polar day gives noon +/- 12 h and a
+         *  polar night gives noon twice - equal timestamps mean neither
+         *  happens today. */
+        uint64_t sunrise_ms() const { return transit_ms - _half_day_ms(); }
+        uint64_t sunset_ms()  const { return transit_ms + _half_day_ms(); }
 
         /** @brief Elevation as a signed fraction of the day's peak: ~1.0 at
          *  solar noon, negative below the horizon (peak is always >= 0, so the
          *  sign is elevation()'s). Zero only when the peak grazes the horizon. */
         double ratio() const {
             return peak_elevation > 0.0 ? elevation / peak_elevation : 0.0;
+        }
+
+    private:
+        uint64_t _half_day_ms() const {
+            return (uint64_t)(day_length_h * 1800000.0);   // h/2, in ms
         }
     };
 
@@ -99,12 +113,26 @@ namespace Botanik { namespace Sun {
          *  at the summer solstice. @note Zero until the first computation. */
         double max_day_length_h() const { return _pos.max_day_length_h; }
 
+        /** @brief Today's sunrise and sunset, UNIX ms. @see SolarPosition.
+         *  @note Zero until the first computation (see ready()). */
+        uint64_t sunrise_ms() const { return _pos.sunrise_ms(); }
+        uint64_t sunset_ms()  const { return _pos.sunset_ms(); }
+
         /** @brief True once a valid computation exists (needs a set wall clock). */
         bool ready() const { return _computed; }
+
+        /** @brief One entry, PHASE_SERVICE: the position is a slow observation,
+         *  and nothing in the beat waits on it. */
+        void register_tasks() override;
 
     protected:
         /** @brief Recompute the solar position after a delay has elapsed. */
         void on_service(uint64_t now_ms) override;
+
+    private:
+        /** @brief Registration handler. A static MEMBER, so it reaches the
+         *  protected hook. */
+        static void _service_task(Component* c, const Tasks::Tick& t);
     };
 
     /** @} */

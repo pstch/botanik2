@@ -116,6 +116,10 @@ namespace Botanik { namespace Sun {
         double cos_lat = std::cos(lat_r);
 
         SolarPosition p;
+        // The transit as a wall-clock instant, which is what a caller wanting
+        // sunrise and sunset needs; the elevation math below uses jtransit
+        // directly and never converts.
+        p.transit_ms = (uint64_t)((jtransit - JD_UNIX) * MS_PER_DAY);
         // Current altitude (elevation) above the horizon.
         double sin_alt = sin_lat * sin_decl + cos_lat * cos_decl * std::cos(H_r);
         p.elevation = std::asin(sin_alt);
@@ -154,6 +158,15 @@ namespace Botanik { namespace Sun {
         _geo = geo;
         _located = true;
         _computed = false;
+    }
+
+    void SunPositionTracker::_service_task(Component* c, const Tasks::Tick& t) {
+        static_cast<SunPositionTracker*>(c)->on_service(t.now_ms);
+    }
+
+    void SunPositionTracker::register_tasks() {
+        _tasks->add(*this, &SunPositionTracker::_service_task, "sun",
+                    Tasks::GROUP_SLOW, Tasks::PHASE_SERVICE);
     }
 
     void SunPositionTracker::on_service(uint64_t now_ms) {
