@@ -26,16 +26,28 @@ namespace Botanik { namespace Plc {
         uint32_t min_run_ms;   ///< shortest run worth energising
         uint32_t reverse_ms;   ///< dead time before driving the other way
         float    deadband;     ///< position error ignored, as a fraction
+        /** @brief Travel to allow between datums, in FULL STROKES.
+         *
+         *  Position is integrated from time, so every partial move adds a
+         *  little error - start and stop transients, a motor that is not quite
+         *  the speed the travel time says, a seal that stiffens. None of it is
+         *  visible, and it only ever accumulates: nothing between the two stops
+         *  can correct it. Past this much travel the next move goes to the
+         *  closed seat FIRST and then out to its target, buying back a known
+         *  position for one extra stroke. 0 disables it. */
+        float    redatum_travel;
 
         constexpr ActuatorConfig(uint32_t open_ms_, uint32_t close_ms_ = 0,
                                  float deadband_ = 0.02f,
                                  uint32_t seat_ms_ = 2000,
                                  uint32_t min_run_ms_ = 250,
-                                 uint32_t reverse_ms_ = 500)
+                                 uint32_t reverse_ms_ = 500,
+                                 float redatum_travel_ = 3.0f)
             : open_ms(open_ms_),
               close_ms(close_ms_ != 0 ? close_ms_ : open_ms_),
               seat_ms(seat_ms_), min_run_ms(min_run_ms_),
-              reverse_ms(reverse_ms_), deadband(deadband_) {}
+              reverse_ms(reverse_ms_), deadband(deadband_),
+              redatum_travel(redatum_travel_) {}
     };
 
     /**
@@ -74,6 +86,11 @@ namespace Botanik { namespace Plc {
         uint8_t  _dir     = D_NONE;
         bool     _seating = false;  ///< this stroke ends at a seat, so snap there
         bool     _datum   = false;  ///< ...and it is the one establishing position
+        /** @brief Travel since the last seat, in full strokes: the estimate's
+         *  accumulated uncertainty. Only a seat clears it. */
+        float    _since_datum = 0.0f;
+        /** @brief Where to go once the re-datum stroke has finished, or -1. */
+        float    _pending = -1.0f;
         bool     _open    = false;  ///< open coil demand
         bool     _close   = false;  ///< close coil demand
 
@@ -112,6 +129,14 @@ namespace Botanik { namespace Plc {
         const char* state_name() const;
         /** @brief Position estimate, 0..1. Only meaningful once known(). */
         float position() const { return _pos; }
+
+        /** @brief Travel since the last datum, in full strokes. Past the
+         *  configured allowance the next move re-datums first. */
+        float drift() const { return _since_datum; }
+        /** @brief Whether the next move will detour to the closed seat. */
+        bool  redatum_due(const ActuatorConfig& cfg) const {
+            return cfg.redatum_travel > 0.0f && _since_datum >= cfg.redatum_travel;
+        }
         bool known() const { return _state != ST_UNKNOWN; }
         /** @brief Whether a coil is energised right now. */
         bool moving() const { return _open || _close; }

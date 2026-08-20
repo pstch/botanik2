@@ -12,6 +12,7 @@
  */
 
 #include "libbotanik/plc/functions/math.h"
+#include "libbotanik/plc/functions/psychro.h"
 #include "libbotanik/plc/functions/time.h"
 
 #endif // PLC_FUNCTIONS_FUNCTIONS_H

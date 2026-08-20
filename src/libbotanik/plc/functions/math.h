@@ -10,7 +10,10 @@
  *       That rule is what separates this directory from blocks/.
  */
 
+#include <cmath>
+
 namespace Botanik { namespace Plc {
+
 
     /** @name Limiting
      *  @{ */
@@ -30,6 +33,60 @@ namespace Botanik { namespace Plc {
      *  not the raw value, so leaving the band does not step from 0 to @p band. */
     constexpr float deadzone(float v, float band) {
         return (v > band) ? (v - band) : ((v < -band) ? (v + band) : 0.0f);
+    }
+
+    /** @brief The middle of three, discarding both extremes.
+     *
+     *  SPATIAL, not temporal: three probes reading one place at one instant,
+     *  where Plc::MedianOf3 is three successive samples of one probe. A probe
+     *  stuck high or low can never be the answer. */
+    constexpr float median3(float a, float b, float c) {
+        return (a < b) ? ((b < c) ? b : ((a < c) ? c : a))
+                       : ((a < c) ? a : ((b < c) ? c : b));
+    }
+
+    /** @brief The mean of the two CLOSEST of three: the outlier is dropped and
+     *  the agreeing pair averaged.
+     *
+     *  What a three-probe zone reduces to. Against a plain median it keeps the
+     *  information in the second good probe instead of throwing it away, so the
+     *  result is quieter by root-two while rejecting one bad probe just as
+     *  completely - the outlier is by construction the one furthest from the
+     *  other two. */
+    inline float closest2_mean(float a, float b, float c) {
+        return (fabsf(a - b) <= fabsf(b - c))
+             ? ((fabsf(a - b) <= fabsf(a - c)) ? 0.5f * (a + b) : 0.5f * (a + c))
+             : ((fabsf(b - c) <= fabsf(a - c)) ? 0.5f * (b + c) : 0.5f * (a + c));
+    }
+
+    /** @}
+     *  @name Control ladders
+     *
+     *  Every climate ladder has one shape: a quantity brought to a demand the
+     *  actuators spread themselves along. Written once, so three subsystems
+     *  cannot disagree about what "half demand" means.
+     *  @{ */
+
+    /** @brief @p v mapped onto 0..1 across [@p lo, @p hi] and clamped.
+     *  A degenerate or inverted span reads as fully on at or above @p hi, so a
+     *  mis-set pair fails toward acting rather than toward doing nothing. */
+    constexpr float ladder(float v, float lo, float hi) {
+        return (hi <= lo) ? ((v >= hi) ? 1.0f : 0.0f)
+                          : limit((v - lo) / (hi - lo), 0.0f, 1.0f);
+    }
+
+    /** @brief The same either side of zero, with a dead band between.
+     *
+     *  Reads 0 inside [@p neg_start, @p pos_start], falls to -1 by @p neg_full
+     *  and rises to +1 by @p pos_full. What the cooling and humidity ladders
+     *  produce: one signed number, negative meaning the opposite process.
+     *  @param neg_full at or below this the negative branch is fully on
+     *  @param pos_full at or above this the positive branch is fully on */
+    constexpr float signed_ladder(float v, float neg_full, float neg_start,
+                                  float pos_start, float pos_full) {
+        return (v >= pos_start) ? ladder(v, pos_start, pos_full)
+             : (v <= neg_start) ? -ladder(-v, -neg_start, -neg_full)
+                                : 0.0f;
     }
 
     /** @}

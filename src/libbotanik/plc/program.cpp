@@ -40,6 +40,41 @@ namespace Botanik { namespace Plc {
         return late;
     }
 
+    Health worst_health(const Tasks::Registry& r, uint8_t* inhibited) {
+        Health worst = Health::HEALTHY;
+        uint8_t parked = 0;
+        const uint8_t count = r.program_count();
+        for (uint8_t i = 0; i < count; i++) {
+            const Program* p = r.program(i);
+            if (p == nullptr) continue;
+            const Health h = p->health();
+            // INHIBITED is off the severity axis, so it is counted rather than
+            // compared: a parked plant is not a degraded one.
+            if (!health_is_severity(h)) { parked++; continue; }
+            if (h > worst) worst = h;
+        }
+        if (inhibited != nullptr) *inhibited = parked;
+        return worst;
+    }
+
+    void publish_health(Vars::Bank& io, const Tasks::Registry& r,
+                        Logs::Logger* logger) {
+        const uint8_t count = r.program_count();
+        for (uint8_t i = 0; i < count; i++) {
+            Program* p = r.program(i);
+            if (p == nullptr) continue;
+            const uint8_t now = (uint8_t)p->health();
+            io.drive(p->health_row(), now);
+            if (now == p->_health_said) continue;
+            // DEBUG, and only on the CHANGE: a program reporting DEGRADED every
+            // beat for an hour is one line here and a flood anywhere else.
+            if (logger != nullptr)
+                logger->debug(Logs::PROGRAM, "%s: %s", p->name(),
+                              health_name(p->health()));
+            p->_health_said = now;
+        }
+    }
+
     bool report_writer_conflicts(Vars::Bank& io, const Tasks::Registry& reg,
                                  Logs::Logger* logger, uint16_t& said) {
         const uint16_t n = io.writer_conflicts();

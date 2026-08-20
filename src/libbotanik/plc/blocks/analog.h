@@ -64,6 +64,46 @@ namespace Botanik { namespace Plc {
 
     };
 
+    /**
+     * @brief A staircase of N thresholds, each with its own hysteresis: the
+     *        output is HOW MANY of them the reading has climbed above (0..N).
+     *
+     * A rung engages AT its edge and releases @p hyst below it, so the
+     * parameter an operator sets is the value the stage starts at and the
+     * hysteresis only ever delays coming back down. Three fan speeds are three
+     * edges; so is any other staged actuator.
+     * @warning The edges must be ascending and at least @p hyst apart, or two
+     *          rungs share a release band and the middle one cannot be held.
+     */
+    template <uint8_t N>
+    class Staircase : public Block {
+
+        Hysteresis _step[N];
+        uint8_t    _level = 0;
+
+    public:
+        /** @param edge the N rung values, ascending.
+         *  @return the rung count the reading is above, 0..N. */
+        uint8_t operator()(float value, const float (&edge)[N], float hyst) {
+            if (hyst < 0.0f) hyst = 0.0f;
+            uint8_t level = 0;
+            for (uint8_t i = 0; i < N; i++)
+                if (_step[i](value, edge[i] - hyst, edge[i])) level = (uint8_t)(i + 1);
+            _level = level;
+            return _level;
+        }
+
+        uint8_t level() const { return _level; }
+        /** @brief Declare the level without a reading: a cold start that knows
+         *  where the plant is, or a mode change. */
+        void preset(uint8_t level) {
+            for (uint8_t i = 0; i < N; i++) _step[i].preset(i < level);
+            _level = level;
+        }
+        void reset() { preset(0); }
+
+    };
+
     /** @}
      *  @name Shaping
      *  @{ */

@@ -18,6 +18,20 @@ namespace Botanik { namespace Plc {
         target = limit(target, 0.0f, 1.0f);
         _reverse_ms = cfg.reverse_ms;
 
+        // A re-datum detour owns the target for the WHOLE scan, not just where
+        // the stroke is chosen. The mid-stroke interrupt below compares the
+        // target against the direction being driven, and the caller's target is
+        // by definition the other way - it would abort the detour on the very
+        // next scan.
+        if (_pending >= 0.0f) {
+            if (_state == ST_CLOSED) {
+                target   = _pending;   // seated: go where we were really asked
+                _pending = -1.0f;
+            } else {
+                target = 0.0f;
+            }
+        }
+
         if (_run_ms > 0) {
             // Only the part of this scan the coil was actually energised for
             // counts as travel; the rest of it belongs to the next decision.
@@ -69,12 +83,37 @@ namespace Botanik { namespace Plc {
         // A zero travel time is a misconfiguration, not a divide: treat the
         // actuator as instant rather than producing an infinity.
         const float d = (span > 0) ? ((float)ran / (float)span) : 1.0f;
+        // Every stroke adds to the uncertainty, whichever way it went; only
+        // reaching a stop takes it back.
+        _since_datum += d;
         _pos = limit(_pos + ((_dir == D_OPEN) ? d : -d), 0.0f, 1.0f);
     }
 
     void Actuator::start(float target, const ActuatorConfig& cfg) {
-        const Dir w = want(target, cfg);
+        Dir w = want(target, cfg);
+        // Nothing is wanted, so nothing happens - INCLUDING a re-datum. Letting
+        // one fire on a steady target would send the actuator to the seat and
+        // back while nobody asked it to move at all.
         if (w == D_NONE) return;
+
+        // A move IS wanted and too much partial travel has accumulated since
+        // the last stop. Take it to the closed seat first and come back out:
+        // one extra stroke buys a known position, against an estimate that
+        // otherwise drifts for ever because nothing between the stops can
+        // correct it. The direction is recomputed - deciding it from the
+        // caller's target and then redirecting the stroke would drive the wrong
+        // way.
+        // Only for a move that ENDS PARTWAY. One to either end runs onto the
+        // stop and re-datums by itself, so a detour would be a wasted stroke.
+        const bool partial = (target > cfg.deadband) &&
+                             (target < 1.0f - cfg.deadband);
+        if (_pending < 0.0f && redatum_due(cfg) && _state != ST_UNKNOWN &&
+            partial) {
+            _pending = target;
+            target   = 0.0f;
+            w        = want(target, cfg);
+            if (w == D_NONE) { _pending = -1.0f; return; }
+        }
 
         const bool datum  = (_state == ST_UNKNOWN);
         const bool to_end = datum || (target <= cfg.deadband)
@@ -103,7 +142,10 @@ namespace Botanik { namespace Plc {
     void Actuator::arrive() {
         // The stroke ran past the mechanical stop, so the estimate is now a
         // fact rather than an integration.
-        if (_seating) _pos = (_dir == D_OPEN) ? 1.0f : 0.0f;
+        if (_seating) {
+            _pos = (_dir == D_OPEN) ? 1.0f : 0.0f;
+            _since_datum = 0.0f;    // the estimate is a fact again
+        }
         _dir     = D_NONE;
         _seating = false;
         _datum   = false;
