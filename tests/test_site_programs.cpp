@@ -770,6 +770,23 @@ TEST_CASE("irrigation: a skip is spent too, and sends the tray to the back") {
     CHECK(f.bank.var(f.ref("irr_last_tray1")).param_unsaved());
 }
 
+TEST_CASE("irrigation: the day the schedule runs on is today's date") {
+    // Two ways of asking what day it is, and they have to agree. They did not:
+    // the date came off cal_time_ms(), which takes an UPTIME-domain instant and
+    // projects it onto the wall, so a wall time handed to it was projected a
+    // second time - a date around 2083, gaining a day every twelve hours. Every
+    // tray's interval was therefore half what its parameter said.
+    Live f;
+    Site::IrrigationCycle irr(Botanik::SetupContext(f.reg), f.bank);
+    Plc::Program* const progs[] = { &irr };
+    Cycle d(progs, 1, &f.bank, f.reg);
+    summer(f);
+    d.step(1000);
+
+    const uint32_t want = Utils::cal_time_ms(HAL::Clock::uptime_ms()).unixDays;
+    CHECK((uint32_t)f.bank.var(f.ref("irr_today")).i() == want);
+}
+
 TEST_CASE("irrigation: a plant with no clock still spends the force it was given") {
     // The path a stored force takes on hardware that has just booted: the RTC
     // has never been set, NTP has not answered, and there is no date to stamp

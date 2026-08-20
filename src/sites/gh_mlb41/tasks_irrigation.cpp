@@ -167,7 +167,11 @@ uint32_t IrrigationCycle::_today() {
     // there is no date and nothing may be scheduled against one.
     const uint64_t wall = HAL::Clock::wall_ms();
     if (wall < 1600000000000ull) return 0;
-    return Utils::cal_time_ms(wall).unixDays;
+    // Straight off the wall clock, NOT through cal_time_ms(): that takes an
+    // UPTIME-domain instant and projects it onto the wall, so handing it a wall
+    // time adds the boot epoch a second time. The date came out around 2083 and
+    // gained a day every twelve hours, which halves every tray's interval.
+    return (uint32_t)(wall / 86400000ull);
 }
 
 uint8_t IrrigationCycle::_next_due(float mod, uint32_t today) {

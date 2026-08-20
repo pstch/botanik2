@@ -46,6 +46,8 @@ GROUPS = [
     ]),
     ("What the water did", [
         "irr_state", "irr_activeTray", "irr_servedToday",
+        "irr_today", "irr_forceNow", "irr_forceOn_tray5", "irr_forceOff_tray1",
+        "irr_last_tray1",
         "irr_delivered_L", "irr_drained_L",
         "irr_inFlow_Lpm", "irr_inTotal_L", "irr_outFlow_Lpm", "irr_outTotal_L",
     ]),

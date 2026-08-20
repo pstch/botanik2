@@ -298,6 +298,8 @@ void snapshot_water(Plant& p, const char* moment) {
         "irr_volume_L", "irr_delivered_L", "irr_drained_L",
         "irr_inFlow_Lpm", "irr_inTotal_L", "irr_outFlow_Lpm", "irr_outTotal_L",
         "irr_input_ro1", "irr_output_ro1", "irr_tray1", "irr_tray2",
+        "irr_today", "irr_forceNow", "irr_forceOn_tray5", "irr_forceOff_tray1",
+        "irr_last_tray1",
         "alarm_irr_fill", "alarm_irr_drain", "alarm_irr_drain_tray1",
         "alarm_water_leak", "alarm_water_pressure", "sys_supply_lockout",
     };
