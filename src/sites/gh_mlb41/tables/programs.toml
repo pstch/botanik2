@@ -180,12 +180,30 @@ stratified = "alarm_strat"
 sensor    = "alarm_sensor_fault"
 
 [[program]]
+name  = "sun_watch"
+class = "SunWatch"
+task  = "SLOW"
+health = "prog_sun_watch"
+# The instrument is INSIDE this program (Sun::SunPositionTracker, configured
+# from the geo_ pair), and what leaves it are rows. Everything downstream reads
+# the rows: a law that wants to know where the day is asks the table, not the
+# tracker.
+[program.out]
+from_rise = "sol_fromRise_min"
+from_set  = "sol_fromSet_min"
+elevation = "sol_elev_deg"
+
+[[program]]
 name  = "day_phase"
 class = "DayPhaseController"
 task  = "SLOW"
 health = "prog_day_phase"
 [program.in]
 inside        = "cli_temp_hi"
+# WHERE THE DAY IS, as two published offsets. The tracker is sun_watch's; this
+# law is a phase table over two numbers and reads nothing else about the sky.
+from_rise     = "sol_fromRise_min"
+from_set      = "sol_fromSet_min"
 cold_bank_trg = "cli_coldBankTrg_degC"
 heat_bank_trg = "cli_heatBankTrg_degC"
 # The five boundaries, each an offset in minutes from sunrise or from sunset.
@@ -201,8 +219,6 @@ prev_day_max   = "cli_prevDayMax_degC"
 prev_night_min = "cli_prevNightMin_degC"
 cold_arm       = "cli_coldBankArm"
 heat_arm       = "cli_heatBankArm"
-from_rise      = "sol_fromRise_min"
-from_set       = "sol_fromSet_min"
 
 [[program]]
 name  = "target_temp"

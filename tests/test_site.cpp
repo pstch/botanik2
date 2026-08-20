@@ -159,10 +159,10 @@ namespace {
  * missing from it is a program whose names nothing checks.
  */
 struct AllPrograms {
-    /** @brief The site owns the tracker, so the harness has to too. Never
-     *  registered here, so it stays unlocated and day_phase holds its phase -
-     *  which is the boot path, and the one worth walking. */
-    Botanik::Sun::SunPositionTracker sun;
+    /** @brief The sun watch owns the tracker, so the harness gets it for free.
+     *  Never registered here, so it stays unlocated and day_phase holds its
+     *  phase - which is the boot path, and the one worth walking. */
+    Site::SunWatch             sun_watch;
 
     Site::AcGridWatch          ac_grid;
     Site::AcLocalWatch         ac_local;
@@ -183,21 +183,21 @@ struct AllPrograms {
     Site::FanController        fans;
     Site::SkirtController      skirt;
 
-    Botanik::Plc::Program* all[18];
+    Botanik::Plc::Program* all[19];
 
     AllPrograms(const Botanik::SetupContext& ctx, Vars::Bank& io)
-        : sun(ctx),
-          ac_grid(ctx, io), ac_local(ctx, io), dc(ctx, io), zones(ctx, io),
-          strat(ctx, io), phase(ctx, io, sun), target(ctx, io), cooling(ctx, io),
+        : sun_watch(ctx, io), ac_grid(ctx, io), ac_local(ctx, io), dc(ctx, io), zones(ctx, io),
+          strat(ctx, io), phase(ctx, io), target(ctx, io), cooling(ctx, io),
           destrat(ctx, io), humidity(ctx, io),
           irr_mod(ctx, io), irr_meters(ctx, io), irrigation(ctx, io), screen(ctx, io), windows(ctx, io),
           intractors(ctx, io), fans(ctx, io), skirt(ctx, io) {
         Botanik::Plc::Program* const list[] = {
             &ac_grid, &ac_local, &dc, &zones, &strat, &phase, &target,
             &cooling, &destrat, &humidity, &irr_mod, &irr_meters, &irrigation, &screen,
+            &sun_watch,
             &windows, &intractors, &fans, &skirt
         };
-        for (uint8_t i = 0; i < 18; i++) all[i] = list[i];
+        for (uint8_t i = 0; i < 19; i++) all[i] = list[i];
     }
 };
 

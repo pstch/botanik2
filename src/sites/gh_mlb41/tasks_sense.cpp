@@ -11,7 +11,7 @@
 
 #include "libbotanik/utils/time.h"
 
-#include "tasks.h"
+#include "tasks_sense.h"
 
 namespace Site {
 
@@ -386,6 +386,38 @@ void WeatherWatch::observe(ProgramContext& c) {
 
     // The windows' own verdict, not a second pair of thresholds beside it.
     _v.storm.set(_v.rain_lock.get() || _v.wind_lock.get());
+}
+
+// SunWatch
+
+int16_t SunWatch::_minutes(int64_t v) {
+    if (v < -1440) return -1440;
+    if (v >  1440) return  1440;
+    return (int16_t)v;
+}
+
+void SunWatch::observe(ProgramContext& c) {
+    (void)c;
+    if (!_sun.ready()) {
+        // No location, or no wall clock yet - every boot passes through here
+        // for as long as NTP takes. The offsets ARE the sun, so they hold
+        // rather than publishing a day nobody has computed.
+        _v.from_rise.hold();
+        _v.from_set.hold();
+        _v.elevation.hold();
+        degraded();
+        return;
+    }
+
+    // Signed minutes either side of the two events, which is the form every
+    // boundary in the phase table is declared in. Both belong to the same solar
+    // day, so one of them is always in the past and the other in the future.
+    const int64_t now = (int64_t)HAL::Clock::wall_ms();
+    _v.from_rise.set(_minutes((now - (int64_t)_sun.sunrise_ms()) / 60000));
+    _v.from_set.set(_minutes((now - (int64_t)_sun.sunset_ms()) / 60000));
+
+    // Degrees, because that is what a person reads. The math is in radians.
+    _v.elevation.set((float)(_sun.elevation() * 57.2957795));
 }
 
 }  // namespace Site

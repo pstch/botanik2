@@ -73,11 +73,6 @@ const Botanik::SiteDescriptor g_site = {
  */
 class GreenhouseMLB41 final : public Botanik::BotanikFirmware {
 
-    /** @brief Where the sun is. Site-owned, as the library leaves it: a
-     *  greenhouse has one location and the base has no opinion about it.
-     *  Declared FIRST, so it is alive when day_phase takes a reference. */
-    Botanik::Sun::SunPositionTracker _sun{setup_context()};
-
     /** @name Control programs
      *
      *  Plain members, in execution order: registering is what puts them in the
@@ -97,6 +92,7 @@ class GreenhouseMLB41 final : public Botanik::BotanikFirmware {
     Site::AcLocalWatch       _ac_local;
     Site::DcWatch            _dc;
     Site::TempRHZone         _zones;
+    Site::SunWatch           _sun_watch;
     Site::StratSensor        _strat;
     Site::ClimateWatch       _climate_watch;
     Site::DayPhaseController _day_phase;
@@ -128,9 +124,10 @@ public:
           _ac_local(setup_context(), io()),
           _dc(setup_context(), io()),
           _zones(setup_context(), io()),
+          _sun_watch(setup_context(), io()),
           _strat(setup_context(), io()),
           _climate_watch(setup_context(), io()),
-          _day_phase(setup_context(), io(), _sun),
+          _day_phase(setup_context(), io()),
           _target(setup_context(), io()),
           _cooling(setup_context(), io()),
           _destrat(setup_context(), io()),
@@ -157,9 +154,9 @@ protected:
     }
 
     void on_setup() override {
-        // The geo pair reaches it on the commit, and again on every edit.
-        Botanik::Vars::bind_sun(config_binder(), _sun);
-        _sun.register_tasks();
+        // The geo pair reaches the tracker on the commit, and again on every
+        // edit. sun_watch owns it and registers it with its own tasks.
+        Botanik::Vars::bind_sun(config_binder(), _sun_watch.tracker());
 
         // The edge-counted terminals, from the table the generator built out of
         // the `isr` column: the channel a row declares and the channel the
@@ -172,6 +169,7 @@ protected:
         _ac_grid.register_tasks();
         _ac_local.register_tasks();
         _dc.register_tasks();
+        _sun_watch.register_tasks();
         _zones.register_tasks();
         _strat.register_tasks();
         _climate_watch.register_tasks();

@@ -370,6 +370,41 @@ struct ClimateWatch {
     void bind(Vars::Bank& io, Plc::Program& owner);
 };
 
+/** @brief The rows `sun_watch` connects to, one typed reference
+ *  each. SunWatch, dispatched SLOW. */
+struct SunWatch {
+
+    /** @name VAR_OUTPUT
+     *  @{ */
+    Vars::RefOut<int16_t> from_rise;
+    Vars::RefOut<int16_t> from_set;
+    Vars::RefOut<float>   elevation;
+
+    /** @} */
+
+    /** @name Health
+     *  Where this program's health is published. Written by a
+     *  SUPERVISOR walking every program, not by the program: a
+     *  program that is not being activated is exactly when a
+     *  reader wants the row. @see Plc::publish_health()
+     *  @{ */
+    Vars::RefOut<uint8_t> health;
+
+    /** @} */
+
+    /** @brief The instance name and the rate class programs.toml
+     *  declares. The constructor takes them from here, so neither can
+     *  drift from the configuration. */
+    static const char* name() { return "sun_watch"; }
+    static Tasks::GroupId group() { return Tasks::GROUP_SLOW; }
+
+    /** @brief Resolve every name. Runs inside the program's writer
+     *  window, so an output is CLAIMED here.
+     *  @param owner the program this belongs to: a declared health
+     *         row is handed to it here. */
+    void bind(Vars::Bank& io, Plc::Program& owner);
+};
+
 /** @brief The rows `day_phase` connects to, one typed reference
  *  each. DayPhaseController, dispatched SLOW. */
 struct DayPhaseController {
@@ -377,6 +412,8 @@ struct DayPhaseController {
     /** @name VAR_INPUT
      *  @{ */
     Vars::RefIn<float>   inside;
+    Vars::RefIn<int16_t> from_rise;
+    Vars::RefIn<int16_t> from_set;
     Vars::RefIn<float>   cold_bank_trg;
     Vars::RefIn<float>   heat_bank_trg;
     Vars::RefIn<int16_t> cold_bank_rise;
@@ -395,8 +432,6 @@ struct DayPhaseController {
     Vars::RefOut<float>   prev_night_min;
     Vars::RefOut<bool>    cold_arm;
     Vars::RefOut<bool>    heat_arm;
-    Vars::RefOut<int16_t> from_rise;
-    Vars::RefOut<int16_t> from_set;
 
     /** @} */
 
@@ -404,7 +439,7 @@ struct DayPhaseController {
      *  indices: what the base sweeps for validity before each
      *  activation. Parameters are not here - an operator's number is
      *  always valid, and checking one would cost a walk to learn nothing. */
-    Vars::VarRef _watched[1];
+    Vars::VarRef _watched[3];
 
     /** @name Health
      *  Where this program's health is published. Written by a
@@ -1387,8 +1422,18 @@ inline void ClimateWatch::bind(Vars::Bank& io, Plc::Program& owner) {
     owner.set_health_row(health);
 }
 
+inline void SunWatch::bind(Vars::Bank& io, Plc::Program& owner) {
+    from_rise = io.resolve_out<int16_t>("sol_fromRise_min");
+    from_set  = io.resolve_out<int16_t>("sol_fromSet_min");
+    elevation = io.resolve_out<float>("sol_elev_deg");
+    health    = io.resolve_out<uint8_t>("prog_sun_watch");
+    owner.set_health_row(health);
+}
+
 inline void DayPhaseController::bind(Vars::Bank& io, Plc::Program& owner) {
     inside         = io.resolve_in<float>("cli_temp_hi");
+    from_rise      = io.resolve_in<int16_t>("sol_fromRise_min");
+    from_set       = io.resolve_in<int16_t>("sol_fromSet_min");
     cold_bank_trg  = io.resolve_in<float>("cli_coldBankTrg_degC");
     heat_bank_trg  = io.resolve_in<float>("cli_heatBankTrg_degC");
     cold_bank_rise = io.resolve_in<int16_t>("sol_coldBankRise_min");
@@ -1402,15 +1447,15 @@ inline void DayPhaseController::bind(Vars::Bank& io, Plc::Program& owner) {
     prev_night_min = io.resolve_out<float>("cli_prevNightMin_degC");
     cold_arm       = io.resolve_out<bool>("cli_coldBankArm");
     heat_arm       = io.resolve_out<bool>("cli_heatBankArm");
-    from_rise      = io.resolve_out<int16_t>("sol_fromRise_min");
-    from_set       = io.resolve_out<int16_t>("sol_fromSet_min");
     health         = io.resolve_out<uint8_t>("prog_day_phase");
 
     // The readings this law is entitled to expect. The base walks them
     // before each activation, so an input that has stopped being believable
     // is DEGRADED whether or not the law thought to ask.
     _watched[0] = inside.r;
-    owner.set_inputs(_watched, 1);
+    _watched[1] = from_rise.r;
+    _watched[2] = from_set.r;
+    owner.set_inputs(_watched, 3);
     owner.set_health_row(health);
 }
 

@@ -311,8 +311,9 @@ is committed, never built**: the tree has no Python build dependency, and
 Edit the table, re-run the generator, commit both.
 
 The hand-written site files: `vars.h` (what the device map means, and the home
-fields), `site.h`, `tasks.h` / `tasks_*.cpp` (the control programs, one body
-file per stage: sense, climate, irrigation, actuators), `sim.h`
+fields), `site.h`, `tasks*.h` / `tasks_*.cpp` (the control programs, a
+header and a body per stage: sense, climate, irrigation, actuators, with
+`tasks.h` carrying the map of what they pass to each other), `sim.h`
 (whole body `#ifdef TARGET_SIMULATOR`), `config.h`, `vars.cpp`.
 
 ### Rules

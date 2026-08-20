@@ -18,7 +18,7 @@ Three kinds, and which kind a file is decides how you change it.
 | `config.h` | hand-written | `#define BOTANIK_*` build-wide overrides |
 | `vars.h` | hand-written | what the device map MEANS, and the home-screen captions |
 | `vars.cpp` | hand-written | the home-field reference array |
-| `tasks.h` / `tasks_*.cpp` | hand-written | the control programs - the one place a site expresses *behaviour*. One header, and a body file per stage of the flow: sense, climate, irrigation, actuators |
+| `tasks*.h` / `tasks_*.cpp` | hand-written | the control programs - the one place a site expresses *behaviour*. A header and a body per stage of the flow (sense, climate, irrigation, actuators); `tasks.h` includes the four and carries the map of what they pass to each other |
 | `site.h` | hand-written | the shell commands, the `SiteDescriptor`, and the firmware class |
 | `sim.h` | hand-written | the simulated field (whole body `#ifdef TARGET_SIMULATOR`) |
 

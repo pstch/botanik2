@@ -8,7 +8,7 @@
  */
 
 
-#include "tasks.h"
+#include "tasks_climate.h"
 
 namespace Site {
 
@@ -18,26 +18,6 @@ const float TargetTempController::TARGET_MIN = 14.0f;
 const float TargetTempController::TARGET_MAX = 27.0f;
 
 // DayPhaseController
-
-int16_t DayPhaseController::_minutes(int64_t v) {
-    if (v < -1440) return -1440;
-    if (v >  1440) return  1440;
-    return (int16_t)v;
-}
-
-bool DayPhaseController::_solar_day(int16_t& from_rise, int16_t& from_set) const {
-    if (!_sun.ready()) return false;
-    const uint64_t now = HAL::Clock::wall_ms();
-    // Signed, and in the caller's units: both events belong to the same solar
-    // day, so one of the two is always in the past and the other in the future.
-    const int64_t rise = ((int64_t)now - (int64_t)_sun.sunrise_ms()) / 60000;
-    const int64_t set  = ((int64_t)now - (int64_t)_sun.sunset_ms())  / 60000;
-    // Clamped to a day either side, in whole minutes: an int16 row, and a
-    // clock that has jumped is not a reason to publish a nonsense offset.
-    from_rise = _minutes(rise);
-    from_set  = _minutes(set);
-    return true;
-}
 
 DayPhase DayPhaseController::_phase_at(int16_t from_rise,
                                        int16_t from_set) const {
@@ -68,20 +48,15 @@ void DayPhaseController::run(ProgramContext& c) {
     // needs is how hot it got before it, and the phase boundary is where that
     // window closes.
     const DayPhase was = _phase;
-    int16_t from_rise = 0, from_set = 0;
-    if (_solar_day(from_rise, from_set)) {
-        _phase = _phase_at(from_rise, from_set);
-        _v.from_rise.set(from_rise);
-        _v.from_set.set(from_set);
-    } else {
-        // No location, or no wall clock yet: hold the phase rather than
-        // announcing a night the plant is not in. Every boot passes through
-        // here, for as long as NTP takes. The offsets ARE the sun, so they say
-        // they are not known rather than holding yesterday's numbers.
-        _v.from_rise.hold();
-        _v.from_set.hold();
-        degraded();
-    }
+
+    // Where the day is, as sun_watch published it. Unknown until the tracker
+    // has a location and a wall clock - every boot, for as long as NTP takes -
+    // and the phase HOLDS through that rather than announcing a night the plant
+    // is not in. (The base has already reported this program degraded: the
+    // offsets are declared inputs.)
+    if (_v.from_rise.valid() && _v.from_set.valid())
+        _phase = _phase_at(_v.from_rise.get(), _v.from_set.get());
+
     if (_phase == PHASE_DAY && was != PHASE_DAY)     _day_max   = inside;
     if (_phase == PHASE_NIGHT && was != PHASE_NIGHT) _night_min = inside;
 
