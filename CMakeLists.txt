@@ -509,10 +509,32 @@ elseif(BOTANIK_TARGET STREQUAL "OPTA")
         VERBATIM)
     add_custom_target(botanik_ldscript DEPENDS "${_ldscript}")
 
+    # The Arduino wiring API, which libmbed.a does NOT carry: HAL::Pulse and
+    # LocalInputs call pinMode/digitalRead/micros/attachInterrupt, and the core
+    # ships those as sources. Named one by one rather than globbed - the core's
+    # own main.cpp would collide with botanik_fw/main.cpp.
+    set(MBED_CORE_SOURCES
+        "${MBED_ROOT}/cores/arduino/wiring.cpp"          # micros / millis
+        "${MBED_ROOT}/cores/arduino/wiring_digital.cpp"  # pinMode / digitalRead
+        "${MBED_ROOT}/cores/arduino/Interrupts.cpp"      # attachInterrupt
+        "${MBED_ROOT}/cores/arduino/pinToIndex.cpp"      # the pin -> index map
+        "${MBED_VARIANT}/variant.cpp")                   # PINCOUNT_fn + g_APinDescription
+
+    # variant.cpp reaches for the QSPI flash driver's header, which is not on
+    # the core include list above (nothing else in this build needs it).
+    # It also reads the CM4 partition bounds, the same three the linker script
+    # is preprocessed with below.
+    set_source_files_properties("${MBED_VARIANT}/variant.cpp" PROPERTIES
+        INCLUDE_DIRECTORIES
+        "${MBED_ROOT}/cores/arduino/mbed/storage/blockdevice/COMPONENT_QSPIF/include/QSPIF"
+        COMPILE_DEFINITIONS
+        "CM4_BINARY_START=0x60000000;CM4_BINARY_END=0x60040000;CM4_RAM_END=0x60080000")
+
     add_executable(botanik_opta
         "src/botanik_fw/firmware.cpp"
         "src/botanik_fw/main.cpp"
         "src/botanik_fw/mbed_hooks.cpp"
+        ${MBED_CORE_SOURCES}
         ${BOTANIK_SITE_SOURCES})
     add_dependencies(botanik_opta botanik_ldscript)
     set_target_properties(botanik_opta PROPERTIES
