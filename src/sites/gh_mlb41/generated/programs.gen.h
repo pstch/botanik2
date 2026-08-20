@@ -962,9 +962,10 @@ struct FanController {
 
     /** @name VAR_OUTPUT
      *  @{ */
-    Vars::RefOut<bool> speed1[2];
-    Vars::RefOut<bool> speed2[2];
-    Vars::RefOut<bool> speed3[2];
+    Vars::RefOut<bool>    speed1[2];
+    Vars::RefOut<bool>    speed2[2];
+    Vars::RefOut<bool>    speed3[2];
+    Vars::RefOut<uint8_t> band;
 
     /** @} */
 
@@ -1494,6 +1495,7 @@ inline void FanController::bind(Vars::Bank& io, Plc::Program& owner) {
     speed2[1]     = io.resolve_out<bool>("cli_destrat2_speed2");
     speed3[0]     = io.resolve_out<bool>("cli_destrat1_speed3");
     speed3[1]     = io.resolve_out<bool>("cli_destrat2_speed3");
+    band          = io.resolve_out<uint8_t>("cli_fanSpeed");
     health        = io.resolve_out<uint8_t>("prog_fans");
     owner.set_health_row(health);
 }

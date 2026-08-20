@@ -5,20 +5,20 @@
    | |_) | (_) | || (_| | | | | |   <         Version ........ : <VERSION>
    |_.__/ \___/ \__\__,_|_| |_|_|_|\_\        Commit ......... : <COMMIT>
 
-  Uptime     <UPTIME>  L1 V       <HF>           ATS V      <HF>
-                            L2 V       <HF>           ATS A      <HF>
-  Line V     <HF>           L3 V       <HF>           ATS Hz     <HF>
-  Line-line  <HF>           L1 A       <HF>           Grid Hz    <HF>
-  Line Hz    <HF>           L2 A       <HF>           Lockout    <HF>
-  Current    <HF>           L3 A       <HF>           Screen     <HF>
-  Power      <HF>           Neutral A  <HF>           Skirt      <HF>
-  Pwr factor <HF>           THD L-N    <HF>
+  Uptime     <UPTIME>  Cool dem   <HF>           Irrigation IDLE
+                            Strat dem  <HF>           Tray       <HF>
+  Ceiling    <HF>           Humid dem  <HF>           Dose       <HF>
+  Floor      <HF>           Windows    <HF>           Water in   <HF>
+  Humidity   <HF>           Intractor  <HF>           Local V    <HF>
+  Dew margin <HF>           Fan speed  <HF>           Local A    <HF>
+  Target     <HF>           Screen     <HF>           Grid A     <HF>
+  Phase      NIGHT          Skirt      <HF>           Lockout    <HF>
 
     LOGS
-
-
-
-
-
-
+<TS> [@]  LOGS: 1 log entries dropped at sink
+<TS> [+] NETWORK: network up: 127.0.0.1
+<TS> [+] TIME: NTP synced
+<TS> [+] NETWORK: MQTT connected
+<TS> [!] ALARM_BEG: current storm conditions
+<TS> [!] ALARM_BEG: relative humidity too high
  ALARMS :<BAR>

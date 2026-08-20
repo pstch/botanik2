@@ -71,30 +71,31 @@ using namespace Botanik::Vars;
  *  8, column-major; column 1 holds 6 (its top two cells carry the uptime readout
  *  and a spacer). The geometry caps labels at 11 chars and values at 13. */
 const HomeVar g_home_fields[] = {
-    // column 1 (6): the incoming supply at a glance
-    { "Line V",    "grid_LN_V" },
-    { "Line-line", "grid_LL_V" },
-    { "Line Hz",   "grid_Hz" },
-    { "Current",   "grid_total_A" },
-    { "Power",     "grid_total_W" },
-    { "Pwr factor","grid_total_PF" },
-    // column 2 (8): the same supply, per phase
-    { "L1 V",      "grid_L1_V" },
-    { "L2 V",      "grid_L2_V" },
-    { "L3 V",      "grid_L3_V" },
-    { "L1 A",      "grid_L1_A" },
-    { "L2 A",      "grid_L2_A" },
-    { "L3 A",      "grid_L3_A" },
-    { "Neutral A", "grid_N_A" },
-    { "THD L-N",   "grid_LN_avg_THD" },
-    // column 3 (8): the transfer switch, then derived state
-    { "ATS V",     "ats_V" },
-    { "ATS A",     "ats_A" },
-    { "ATS Hz",    "ats_Hz" },
-    { "Grid Hz",   "sys_grid_Hz" },
-    { "Lockout",   "sys_supply_lockout" },
+    // column 1 (6): what the plant is doing, before why
+    { "Ceiling",   "cli_temp_hi" },
+    { "Floor",     "cli_temp_lo" },
+    { "Humidity",  "cli_rh_hi" },
+    { "Dew margin","cli_dpMargin_degC" },
+    { "Target",    "cli_targetTemp_degC" },
+    { "Phase",     "cli_phase" },
+    // column 2 (8): the three ladders, and what they came to
+    { "Cool dem",  "cli_coolDem" },
+    { "Strat dem", "cli_stratDem" },
+    { "Humid dem", "cli_humidDem" },
+    { "Windows",   "cli_windowDem" },
+    { "Intractor", "cli_intr1" },
+    { "Fan speed", "cli_fanSpeed" },
     { "Screen",    "cli_screen" },
-    { "Skirt",     "cli_skirtValve" },
+    { "Skirt",     "cli_skirtDuty" },
+    // column 3 (8): irrigation, then the supply that has to be there for it
+    { "Irrigation","irr_state" },
+    { "Tray",      "irr_activeTray" },
+    { "Dose",      "irr_volume_L" },
+    { "Water in",  "irr_inTotal_L" },
+    { "Local V",   "sys_local_V" },
+    { "Local A",   "sys_local_A" },
+    { "Grid A",    "grid_total_A" },
+    { "Lockout",   "sys_supply_lockout" },
 };
 const uint8_t g_home_field_count =
     (uint8_t)(sizeof(g_home_fields) / sizeof(g_home_fields[0]));

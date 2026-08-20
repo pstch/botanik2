@@ -36,13 +36,12 @@ _SUBS = [
 # the label. Mirrors the site's home-field table in order, so a renamed field
 # shows up here as an unmasked - and therefore flaky - value.
 _HOME_FIELDS = (
-    ("Line V", " V"), ("Line-line", " V"), ("Line Hz", " Hz"), ("Current", " A"),
-    ("Power", " W"), ("Pwr factor", ""),
-    ("L1 V", " V"), ("L2 V", " V"), ("L3 V", " V"),
-    ("L1 A", " A"), ("L2 A", " A"), ("L3 A", " A"),
-    ("Neutral A", " A"), ("THD L-N", " %"),
-    ("ATS V", " V"), ("ATS A", " A"), ("ATS W", " W"), ("ATS Hz", " Hz"),
-    ("Grid Hz", " Hz"), ("Lockout", ""), ("Screen", ""), ("Skirt", ""),
+    ("Ceiling", " degC"), ("Floor", " degC"), ("Humidity", ""),
+    ("Dew margin", " degC"), ("Target", " degC"),
+    ("Cool dem", ""), ("Strat dem", ""), ("Humid dem", ""), ("Windows", ""),
+    ("Intractor", ""), ("Fan speed", ""), ("Screen", ""), ("Skirt", ""),
+    ("Tray", ""), ("Dose", " L"), ("Water in", " L"),
+    ("Local V", " V"), ("Local A", " A"), ("Grid A", " A"), ("Lockout", ""),
 )
 
 

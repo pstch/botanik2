@@ -51,7 +51,11 @@ CTRL_G = b"\x07"             # release the mark
 CTRL_SPACE = b"\x00"         # set the mark (the region's anchor)
 CTRL_K = b"\x0b"             # cut to end of line, into the kill ring
 CTRL_L = b"\x0c"             # console-level full repaint, chrome included (console.cpp)
-CTRL_O = b"\x0f"             # NOTES: write the note out (nano's key, not ^S/XOFF)
+CTRL_O = b"\x0f"             # NOTES/PARAMS: write out. MONITOR: open the override field
+CTRL_R = b"\x12"             # MONITOR: release the selected row's override
+# MONITOR: save the overrides. Also XOFF, and the Minitel separator's lead byte,
+# so it resolves only once the command timeout passes with no second byte.
+CTRL_S = b"\x13"
 CTRL_U = b"\x15"             # clear input
 CTRL_W = b"\x17"             # cut the word before the cursor
 CTRL_Y = b"\x19"             # paste the kill ring back

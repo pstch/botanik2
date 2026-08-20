@@ -525,6 +525,9 @@ high_dem      = "cli_fanHighDem"
 speed1 = ["cli_destrat1_speed1","cli_destrat2_speed1"]
 speed2 = ["cli_destrat1_speed2","cli_destrat2_speed2"]
 speed3 = ["cli_destrat1_speed3","cli_destrat2_speed3"]
+# The band itself, published: three coils are three facts, and what an operator
+# wants is the one number they add up to.
+band   = "cli_fanSpeed"
 
 [[program]]
 name  = "skirt"

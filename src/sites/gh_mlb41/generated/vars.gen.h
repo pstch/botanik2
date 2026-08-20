@@ -373,6 +373,7 @@ const Descriptor rows[] = {
     SVE("cli_phase"              , PHASE_NIGHT, &DayPhase_label   , 518, "phase of the day in force", "NIGHT COLD_BANK DAWN_BREEZE DAY HEAT_BANK DUSK_BREEZE"),
     SV("cli_coolDem"            , T_F32 , 0          , 2, ""    , 519, "cooling demand, -1 warming to +1 cooling", "PID on the interior temperature against cli_targetTemp_degC"),
     SV("cli_stratDem"           , T_F32 , 0          , 2, ""    , 520, "destratification demand, 0 to 1", "3-band hysteresis on cli_dTStrat_degC"),
+    SV("cli_fanSpeed"           , T_U8  , 0          , 0, ""    , 569, "destratification fan speed in force, 0 to 3", "the band the fans are actually in; the three coils are one relay each"),
     SV("cli_windowDem"          , T_F32 , 0          , 2, ""    , 529, "how far the cooling ladder wants the windows open", "0..1, before the rain, wind and supply interlocks; cli_windowN_tgt is where each one is actually going"),
     SV("cli_humidDem"           , T_F32 , 0          , 2, ""    , 521, "humidity demand, -1 dehumidify to +1 humidify", "4 bands and a dead zone on cli_dpMargin_degC"),
     SV("cli_coldBankArm"        , T_BOOL, 0          , 0, ""    , 522, "cold banking armed for the coming dawn", "yesterday ran hotter than cli_coldBankTrg_degC"),

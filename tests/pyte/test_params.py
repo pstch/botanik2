@@ -44,16 +44,39 @@ def test_detail_and_edit(spawn):
     assert term.wait_for("120"), "committed value did not round-trip"
 
 
-def test_group_follows_selection(spawn):
-    """The legend's (group) tracks the cursor.
+def test_filter_narrows_the_table(spawn):
+    """Typing filters the rows by name, and ESC gives the rest back.
 
-    Guards the defect where _group_of() returns a pointer into one shared static:
-    drawing the legend re-enters it to name the neighbouring views, so every row
-    shows whichever group came last in the table.
+    The badge is asserted as well as the rows: it is the only acknowledgement of
+    a keystroke that changes nothing else on a table with no match.
     """
     term = _params(spawn)
-    assert term.wait_for("(monitor)"), "first row is the library's monitor_baud"
-    _down(term, 2)
-    assert term.wait_for("(net)"), "group did not follow the cursor into net_*"
-    _down(term, 8)
-    assert term.wait_for("(ntp)"), "group did not follow the cursor into ntp_*"
+    assert term.wait_screen("monitor_baud"), "the unfiltered table is missing its first row"
+
+    term.send(keys.text("ntp"))
+    assert term.wait_screen("[/ntp]"), "the legend badge did not show the filter"
+    assert term.wait_screen("ntp_poll_sec"), "a matching row went missing"
+    assert term.wait_screen("monitor_baud", present=False), "a non-matching row survived"
+
+    term.send(keys.BACKSPACE)
+    assert term.wait_screen("[/nt]"), "BACKSPACE did not pop a character"
+
+    term.send(keys.ESC)
+    assert term.wait_screen("monitor_baud"), "ESC did not clear the filter"
+
+
+def test_filter_and_edit_compose(spawn):
+    """An edit opened from a filtered table commits to the row it names.
+
+    _param_at() maps a DISPLAY row to a parameter index, and the filtered map is
+    not the identity one - so an edit on a narrowed table is where an off-by-one
+    would land on the wrong parameter.
+    """
+    term = _params(spawn)
+    term.send(keys.text("ntp_poll"))
+    assert term.wait_screen("ntp_poll_sec"), "the filter did not find the row"
+
+    term.send(keys.ENTER)
+    assert term.wait_for("ntp_poll_sec ="), "inline edit did not open on the filtered row"
+    term.send(keys.CTRL_U + b"90" + keys.ENTER)
+    assert term.wait_screen("90"), "the committed value did not reach the row"
