@@ -353,6 +353,13 @@ bool second_tray(Plant& p) {
 bool day_spent(Plant& p) {
     return p.num("irr_servedToday") >= 2.0f && irr_state(p) == Site::IRR_IDLE;
 }
+bool filling_five(Plant& p) {
+    return irr_state(p) == Site::IRR_FILLING && p.num("irr_activeTray") >= 5.0f;
+}
+bool filling_one(Plant& p) {
+    return irr_state(p) == Site::IRR_FILLING &&
+           p.num("irr_activeTray") == doctest::Approx(1.0f);
+}
 bool fill_blamed(Plant& p)  { return p.on("alarm_irr_fill"); }
 bool drain_blamed(Plant& p) { return p.on("alarm_irr_drain"); }
 bool leaking(Plant& p)      { return p.on("alarm_water_leak"); }
@@ -852,6 +859,61 @@ TEST_CASE("scenario: a dawn watering serves the trays one at a time") {
     CHECK(irr_state(p) == Site::IRR_IDLE);
     CHECK(p.num("irr_servedToday") == doctest::Approx(2.0f));
     snapshot_water(p, "the day's allowance spent");
+}
+
+TEST_CASE("scenario: the two forces an operator has, and what spends them") {
+    ScenarioTrace::scenario("Forcing a tray, and holding one back",
+        "Both forces are ONE-SHOT: they change the NEXT cycle and are spent "
+        "doing it, or they would ask for the same thing every morning for "
+        "ever and no other tray would be reached.");
+    Plant p;
+    plumbing(p, SOUND_CIRCUIT);
+    force_phase(p, Site::PHASE_DAWN_BREEZE);
+    force_rise(p, -30);
+    // Before the plant is stepped: the slot is open, so the first beat of the
+    // settle is already a cycle looking for a tray.
+    SAY("tray 5 is forced on. Every tray is owed water and the schedule would "
+        "have taken the first, so the tray that goes is the one asked for");
+    REQUIRE(p.f.bank.param_set(p.f.bank.var(p.ref("irr_forceOn_tray5")), true)
+            == Vars::SET_OK);
+    settle(p, MILD_DAWN, 300);
+    trace_weather(MILD_DAWN, Site::PHASE_DAWN_BREEZE);
+    REQUIRE(run_until(p, filling_five, 1200) != 0);
+    CHECK(p.on("irr_tray5"));
+    CHECK_FALSE(p.on("irr_tray1"));
+    CHECK(p.on("irr_forceOn_tray5"));
+    snapshot_water(p, "filling the tray that was asked for");
+
+    SAY("the force is spent as the fill completes, and owed to flash with the "
+        "rest of the schedule");
+    REQUIRE(run_until(p, cycle_draining, 6000) != 0);
+    CHECK_FALSE(p.on("irr_forceOn_tray5"));
+    CHECK(p.f.bank.var(p.ref("irr_forceOn_tray5")).param_unsaved());
+
+    SAY("...so the day's second cycle goes back to the schedule, which has "
+        "been asking for tray 1 all along");
+    REQUIRE(run_until(p, filling_one, 12000) != 0);
+    CHECK(p.on("irr_tray1"));
+    snapshot_water(p, "back to the schedule for the second cycle");
+
+    Plant q;
+    plumbing(q, SOUND_CIRCUIT);
+    force_phase(q, Site::PHASE_DAWN_BREEZE);
+    force_rise(q, -30);
+    SAY("the other force, on a fresh plant: tray 1 is due and held back by "
+        "hand, so the cycle passes over it and takes the next one owed");
+    REQUIRE(q.f.bank.param_set(q.f.bank.var(q.ref("irr_forceOff_tray1")), true)
+            == Vars::SET_OK);
+    settle(q, MILD_DAWN, 300);
+    REQUIRE(run_until(q, cycle_filling, 1200) != 0);
+    CHECK(q.num("irr_activeTray") == doctest::Approx(2.0f));
+
+    SAY("the skip is spent doing it, and the tray is STAMPED as though it had "
+        "been watered - so it waits its period rather than arriving again "
+        "tomorrow with the flag gone");
+    CHECK_FALSE(q.on("irr_forceOff_tray1"));
+    CHECK(q.num("irr_last_tray1") > 0.0f);
+    snapshot_water(q, "the held-back tray passed over");
 }
 
 TEST_CASE("scenario: a cold dawn waits for the morning rather than watering") {

@@ -268,20 +268,23 @@ void IrrigationCycle::_clear_force(Vars::RefInOut<bool> r) {
 }
 
 void IrrigationCycle::_stamp_served() {
-    const uint32_t day = _today();
-    if (day == 0 || _tray == 0) return;
+    if (_tray == 0) return;
+
+    // Both forces are spent on the watering they asked for, and spent WHATEVER
+    // the clock says. Left standing, one asks for the same tray on every cycle
+    // and the other for a cycle at any hour - for ever, and no other tray is
+    // ever reached. Before NTP there is no date to stamp, and the tally below
+    // is then the only thing bounding the day, so neither may wait on one.
+    _clear_force(_v.force_on[_tray - 1]);
+    if (_forced) { _clear_force(_v.force_now); _forced = false; }
+    if (_served < 0xFFu) _served++;
 
     // AFTER THE FILL, not after the drain: the tray has had its water by then,
     // and a fault or a restart during the long drain must not water it twice.
     // A forced cycle stamps too - it IS a watering, and leaving it unrecorded
     // would water the tray again on its own account tomorrow.
-    //
-    _stamp((uint8_t)(_tray - 1), day);
-    // The force is spent on the watering it asked for. Left standing it would
-    // ask for the same tray on every cycle for ever, and no other tray would
-    // ever be reached.
-    _clear_force(_v.force_on[_tray - 1]);
-    if (_served < 0xFFu) _served++;
+    const uint32_t day = _v.today.get();
+    if (day != 0) _stamp((uint8_t)(_tray - 1), day);
 }
 
 bool IrrigationCycle::_in_slot() const {
@@ -366,7 +369,12 @@ void IrrigationCycle::run(ProgramContext& c) {
     // The daily tally is against a DATE, not an uptime: it rolls when the day
     // does, so a cycle running through midnight is not counted twice and a
     // reboot at noon does not hand the plant a second allowance.
-    const uint32_t today = _today();
+    //
+    // Published and read back, like every other decision this law makes: the
+    // date is what the whole schedule turns on, and one nobody can see is one
+    // nobody can rehearse.
+    _v.today.set(_today());
+    const uint32_t today = _v.today.get();
     if (today != 0 && today != _served_day) {
         _served_day = today;
         _served     = 0;

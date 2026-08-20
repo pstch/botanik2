@@ -816,7 +816,6 @@ struct IrrigationCycle {
     Vars::RefIn<int16_t>  from_rise;
     Vars::RefIn<int16_t>  day_rise;
     Vars::RefIn<uint16_t> morning_win;
-    Vars::RefIn<bool>     force_now;
     Vars::RefIn<uint16_t> max_fill_s;
     Vars::RefIn<uint16_t> drain_window_s;
     Vars::RefIn<uint16_t> flush_s;
@@ -848,6 +847,8 @@ struct IrrigationCycle {
     Vars::RefInOut<uint32_t> last[8];
     Vars::RefInOut<bool>     force_on[8];
     Vars::RefInOut<bool>     force_off[8];
+    Vars::RefInOut<bool>     force_now;
+    Vars::RefInOut<uint32_t> today;
     Vars::RefInOut<float>    delivered;
     Vars::RefInOut<float>    drained;
 
@@ -857,7 +858,7 @@ struct IrrigationCycle {
      *  indices: what the base sweeps for validity before each
      *  activation. Parameters are not here - an operator's number is
      *  always valid, and checking one would cost a walk to learn nothing. */
-    Vars::VarRef _watched[9];
+    Vars::VarRef _watched[10];
 
     /** @name Health
      *  Where this program's health is published. Written by a
@@ -1652,7 +1653,6 @@ inline void IrrigationCycle::bind(Vars::Bank& io, Plc::Program& owner) {
     from_rise      = io.resolve_in<int16_t>("sol_fromRise_min");
     day_rise       = io.resolve_in<int16_t>("sol_dayRise_min");
     morning_win    = io.resolve_in<uint16_t>("irr_morningWin_min");
-    force_now      = io.resolve_in<bool>("irr_forceNow");
     max_fill_s     = io.resolve_in<uint16_t>("irr_maxFill_sec");
     drain_window_s = io.resolve_in<uint16_t>("irr_drainWindow_sec");
     flush_s        = io.resolve_in<uint16_t>("irr_flush_sec");
@@ -1718,6 +1718,8 @@ inline void IrrigationCycle::bind(Vars::Bank& io, Plc::Program& owner) {
     force_off[5]   = io.resolve_inout<bool>("irr_forceOff_tray6");
     force_off[6]   = io.resolve_inout<bool>("irr_forceOff_tray7");
     force_off[7]   = io.resolve_inout<bool>("irr_forceOff_tray8");
+    force_now      = io.resolve_inout<bool>("irr_forceNow");
+    today          = io.resolve_inout<uint32_t>("irr_today");
     delivered      = io.resolve_inout<float>("irr_delivered_L");
     drained        = io.resolve_inout<float>("irr_drained_L");
     health         = io.resolve_out<uint8_t>("prog_irrigation");
@@ -1732,9 +1734,10 @@ inline void IrrigationCycle::bind(Vars::Bank& io, Plc::Program& owner) {
     _watched[4] = phase.r;
     _watched[5] = from_rise.r;
     _watched[6] = out_flow.r;
-    _watched[7] = delivered.r;
-    _watched[8] = drained.r;
-    owner.set_inputs(_watched, 9);
+    _watched[7] = today.r;
+    _watched[8] = delivered.r;
+    _watched[9] = drained.r;
+    owner.set_inputs(_watched, 10);
     owner.set_health_row(health);
 }
 

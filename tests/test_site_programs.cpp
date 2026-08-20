@@ -770,6 +770,83 @@ TEST_CASE("irrigation: a skip is spent too, and sends the tray to the back") {
     CHECK(f.bank.var(f.ref("irr_last_tray1")).param_unsaved());
 }
 
+TEST_CASE("irrigation: a plant with no clock still spends the force it was given") {
+    // The path a stored force takes on hardware that has just booted: the RTC
+    // has never been set, NTP has not answered, and there is no date to stamp
+    // the watering against. The force must be spent ANYWAY - unspent it asks
+    // for the same tray on the next cycle, and the one after that, and nothing
+    // bounds the day either, so one tray is flooded until somebody notices.
+    Live f;
+    Site::WaterMeters     meters(Botanik::SetupContext(f.reg), f.bank);
+    Site::IrrigationCycle irr(Botanik::SetupContext(f.reg), f.bank);
+    Plc::Program* const progs[] = { &meters, &irr };
+    Cycle d(progs, 2, &f.bank, f.reg);
+    summer(f);
+    slot(f);
+    field(f, "cli_temp_ext", 25.0f);
+    HAL::Pulse::attach(Site::pulse_inputs[0].channel, Site::pulse_inputs[0].edge);
+    f.bank.param_set(f.bank.var(f.ref("irr_liters_tray2")), 5.0f);
+    f.bank.param_set(f.bank.var(f.ref("irr_input_qtyPerImp")), 1.0f);
+    REQUIRE(f.bank.param_set(f.bank.var(f.ref("irr_forceOn_tray2")), true) == SET_OK);
+
+    // No date, which is what the row reads before the clock is set. Forced,
+    // because the host running this test does have one.
+    REQUIRE(f.bank.override_set(f.bank.var(f.ref("irr_today")), "0") == SET_OK);
+
+    uint64_t t = 0;
+    d.step(t += 1000);
+    INFO("a force is honoured with no schedule behind it: that is what a force "
+         "is for, and the calendar is the only thing the clock is needed by");
+    REQUIRE(f.bank.var(f.ref("irr_activeTray")).i() == 2);
+
+    HAL::Pulse::inject(Site::pulse_inputs[0].channel, 20);
+    d.step(t += 1000);
+    REQUIRE(f.bank.var(f.ref("irr_state")).i() == Site::IRR_DRAINING);
+    INFO("the force is spent, and the day's tally counted, though neither has "
+         "a date to be recorded against");
+    CHECK_FALSE(f.bank.var(f.ref("irr_forceOn_tray2")).b());
+    CHECK(f.bank.var(f.ref("irr_servedToday")).i() == 1);
+    INFO("...and nothing was stamped, because there is nothing to stamp");
+    CHECK(f.bank.var(f.ref("irr_last_tray2")).i() == 0);
+}
+
+TEST_CASE("irrigation: `water now` is spent on the cycle it started") {
+    // The other force, and the dangerous one: it overrides both the slot and
+    // the day's allowance, so a flag nothing clears runs cycle after cycle at
+    // any hour until an operator notices the water bill.
+    Live f;
+    Site::WaterMeters     meters(Botanik::SetupContext(f.reg), f.bank);
+    Site::IrrigationCycle irr(Botanik::SetupContext(f.reg), f.bank);
+    Plc::Program* const progs[] = { &meters, &irr };
+    Cycle d(progs, 2, &f.bank, f.reg);
+    summer(f);
+    field(f, "cli_temp_ext", 25.0f);
+    HAL::Pulse::attach(Site::pulse_inputs[0].channel, Site::pulse_inputs[0].edge);
+    f.bank.param_set(f.bank.var(f.ref("irr_liters_tray1")), 5.0f);
+    f.bank.param_set(f.bank.var(f.ref("irr_input_qtyPerImp")), 1.0f);
+
+    // The middle of the afternoon, which is no kind of watering slot.
+    f.bank.var(f.ref("cli_phase")).set_i((int64_t)Site::PHASE_DAY);
+    f.bank.var(f.ref("sol_fromRise_min")).set_i(600);
+
+    uint64_t t = 0;
+    d.step(t += 1000);
+    REQUIRE(f.bank.var(f.ref("irr_state")).i() == Site::IRR_IDLE);
+
+    INFO("`water now` overrides the slot, which is what it is for");
+    REQUIRE(f.bank.param_set(f.bank.var(f.ref("irr_forceNow")), true) == SET_OK);
+    d.step(t += 1000);
+    REQUIRE(f.bank.var(f.ref("irr_state")).i() == Site::IRR_FILLING);
+
+    INFO("...and is spent as the fill completes, so the plant goes back to its "
+         "slots rather than running cycles until somebody clears the flag");
+    HAL::Pulse::inject(Site::pulse_inputs[0].channel, 20);
+    d.step(t += 1000);
+    REQUIRE(f.bank.var(f.ref("irr_state")).i() == Site::IRR_DRAINING);
+    CHECK_FALSE(f.bank.var(f.ref("irr_forceNow")).b());
+    CHECK(f.bank.var(f.ref("irr_forceNow")).param_unsaved());
+}
+
 TEST_CASE("irrigation: the afternoon is not a watering slot") {
     Live f;
     Site::WaterMeters   meters(Botanik::SetupContext(f.reg), f.bank);

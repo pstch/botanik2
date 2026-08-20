@@ -401,7 +401,6 @@ phase          = "cli_phase"
 from_rise      = "sol_fromRise_min"
 day_rise       = "sol_dayRise_min"
 morning_win    = "irr_morningWin_min"
-force_now      = "irr_forceNow"
 max_fill_s     = "irr_maxFill_sec"
 drain_window_s = "irr_drainWindow_sec"
 flush_s        = "irr_flush_sec"
@@ -424,6 +423,14 @@ force_on = ["irr_forceOn_tray1","irr_forceOn_tray2","irr_forceOn_tray3","irr_for
             "irr_forceOn_tray5","irr_forceOn_tray6","irr_forceOn_tray7","irr_forceOn_tray8"]
 force_off = ["irr_forceOff_tray1","irr_forceOff_tray2","irr_forceOff_tray3","irr_forceOff_tray4",
              "irr_forceOff_tray5","irr_forceOff_tray6","irr_forceOff_tray7","irr_forceOff_tray8"]
+# "Water now", which the cycle SPENDS on the cycle it started: left standing it
+# would run one cycle after another for ever, slot and daily allowance ignored.
+force_now   = "irr_forceNow"
+# The date the schedule runs against, published and read back. Before NTP there
+# is no date and nothing may be scheduled against one; forcing this row is how
+# a commissioning engineer rehearses a fortnight, or a plant that never had a
+# clock.
+today       = "irr_today"
 # What went in and what came back, published and then JUDGED on: the fill ends
 # when the row says the dose has arrived and the clog is measured against the
 # row beside it, so forcing either drives a cycle through without water.
