@@ -45,6 +45,9 @@ namespace {
  *  phase is an INPUT here, stated by the scenario, and the two programs that
  *  would otherwise own it have cases of their own.
  */
+struct Plant;
+void hold_weather(Plant& p);
+
 struct Plant {
     Live f;
 
@@ -71,6 +74,10 @@ struct Plant {
     Plc::Program* all[19];
     Cycle*        cycle = nullptr;
     uint64_t      t = 0;
+    /** @brief What this plant's environment is, held every beat. The weather
+     *  alone by default; a case about water sets the one that drives the
+     *  meters too, since a field row nobody refreshes goes stale. */
+    void (*hold)(Plant&) = hold_weather;
 
     Plant()
         : ac_grid(ctx(), io()), ac_local(ctx(), io()), dc(ctx(), io()),
@@ -100,7 +107,7 @@ struct Plant {
     }
     /** @brief ...and the same, holding the environment where the case put it:
      *  a field row goes stale without a driver refreshing it. */
-    void weather_for(uint32_t beats, void (*hold)(Plant&)) {
+    void weather_for(uint32_t beats) {
         for (uint32_t i = 0; i < beats; i++) { hold(*this); cycle->step(t += 100); }
     }
 
@@ -141,6 +148,9 @@ Weather g_wx;
  *  row and republishes it, and without a solar fix it would hold NIGHT. */
 Site::DayPhase g_phase = Site::PHASE_DAY;
 
+/** @brief Minutes since sunrise, for the laws that measure the day from it. */
+int16_t g_from_rise = 0;
+
 void hold_weather(Plant& p) {
     p.probe("cli_temp_hi%u", 3, g_wx.ceiling);
     p.probe("cli_temp_lo%u", 3, g_wx.floor_);
@@ -165,13 +175,86 @@ void hold_weather(Plant& p) {
     p.put("pwr_genBat_V", 26.0f);
     p.f.bank.var(p.ref("pwr_upsLowBat")).publish(from_bool(T_BOOL, false), p.t);
     p.f.bank.var(p.ref("cli_phase")).set_i((int64_t)g_phase);
+    // sun_watch is not in this plant, and the morning watering slot is measured
+    // from sunrise: the case states where in the day it is, the same way it
+    // states the phase.
+    p.f.bank.var(p.ref("sol_fromRise_min")).set_i((int64_t)g_from_rise);
+}
+
+/**
+ * @brief The hydraulics a scenario puts behind the valves.
+ *
+ * The weather for the water: what the inlet delivers while it is open, how much
+ * of it the tray gives back down the drain, and what passes with everything
+ * shut. Nothing here decides anything - it reads the valves the cycle has
+ * driven and answers at the two meters, exactly as the pipework would.
+ */
+struct Plumbing {
+    float fill_Lpm;     ///< what arrives at the inlet meter while filling
+    float drain_frac;   ///< of the dose, how much comes back out
+    float leak_Lpm;     ///< ...and what passes with every valve shut
+};
+
+const Plumbing SOUND_CIRCUIT    = { 60.0f, 0.80f, 0.0f };
+const Plumbing CLOGGED_TRAY     = { 60.0f, 0.10f, 0.0f };
+const Plumbing LEAKING_MANIFOLD = { 60.0f, 0.80f, 1.0f };
+const Plumbing DEAD_MAIN        = {  0.0f, 0.00f, 0.0f };
+
+Plumbing g_pipe = SOUND_CIRCUIT;
+float    g_owed = 0.0f;    ///< litres delivered but not yet a whole pulse
+
+Site::IrrState irr_state(Plant& p) {
+    return (Site::IrrState)p.f.bank.var(p.ref("irr_state")).i();
+}
+
+void hold_water(Plant& p) {
+    hold_weather(p);
+    const Site::IrrState st = irr_state(p);
+    const bool inlet_open = (st == Site::IRR_FILLING || st == Site::IRR_FLUSHING);
+
+    // The inlet meter is a PULSE TRAIN, a whole litre a pulse: carry the
+    // fraction rather than rounding it away, or anything slower than ten
+    // litres a second meters as nothing at all.
+    const float per_pulse = p.num("irr_input_qtyPerImp");
+    g_owed += (inlet_open ? g_pipe.fill_Lpm : g_pipe.leak_Lpm) / 600.0f;
+    while (per_pulse > 0.0f && g_owed >= per_pulse) {
+        HAL::Pulse::inject(Site::pulse_inputs[0].channel, 1);
+        g_owed -= per_pulse;
+    }
+
+    // The outlet is a 4-20 mA loop, so what the pipework answers with is a
+    // RATE. The tray gives back its share of the dose and then stops; a flush
+    // runs straight through the manifold and out.
+    float out = 0.0f;
+    if (st == Site::IRR_DRAINING &&
+        p.num("irr_drained_L") < g_pipe.drain_frac * p.num("irr_volume_L"))
+        out = 40.0f;
+    else if (st == Site::IRR_FLUSHING)
+        out = 40.0f;
+    p.put("irr_out_Lpm", out);
+}
+
+/** @brief Put @p pipe behind the valves for the rest of the case, and make the
+ *  plant hold both the weather and the water every beat. */
+void plumbing(Plant& p, const Plumbing& pipe) {
+    // Bare, not REQUIREd: a channel another case already attached answers false.
+    HAL::Pulse::attach(Site::pulse_inputs[0].channel, Site::pulse_inputs[0].edge);
+    g_pipe = pipe;
+    g_owed = 0.0f;
+    p.hold = hold_water;
 }
 
 /** @brief A settled plant in the weather the case describes: long enough for
  *  the probe filters to seed and the PID to have an opinion. */
 void settle(Plant& p, const Weather& wx, uint32_t beats = 600) {
     g_wx = wx;
-    p.weather_for(beats, hold_weather);
+    p.weather_for(beats);
+}
+
+/** @brief Where in the day it is, in minutes from sunrise. */
+void force_rise(Plant& p, int16_t minutes) {
+    g_from_rise = minutes;
+    p.f.bank.var(p.ref("sol_fromRise_min")).set_i((int64_t)minutes);
 }
 
 /** @brief The day phase, which the sun tracker cannot produce without a fix.
@@ -194,6 +277,23 @@ void snapshot(Plant& p, const char* moment) {
         "cli_intakeCoolOk", "cli_groundHeatOk", "cli_intakeDryOk",
         "cli_rainLockout", "cli_windLockout", "sys_supply_lockout",
         "alarm_rot", "alarm_too_hot", "alarm_too_cold", "alarm_sns_ceiling",
+    };
+    ScenarioTrace::moment(moment);
+    for (const char* r : ROWS) ScenarioTrace::row(p.f.bank, r);
+}
+
+/** @brief ...and the same for a scenario about water: the circuit, the valves
+ *  it has driven, and what the two meters counted. */
+void snapshot_water(Plant& p, const char* moment) {
+    static const char* const ROWS[] = {
+        "cli_temp_ext", "cli_phase", "sol_fromRise_min",
+        "irr_vpdAvg_kPa", "irr_mod", "irr_period_days",
+        "irr_state", "irr_activeTray", "irr_servedToday",
+        "irr_volume_L", "irr_delivered_L", "irr_drained_L",
+        "irr_inFlow_Lpm", "irr_inTotal_L", "irr_outFlow_Lpm", "irr_outTotal_L",
+        "irr_input_ro1", "irr_output_ro1", "irr_tray1", "irr_tray2",
+        "alarm_irr_fill", "alarm_irr_drain", "alarm_irr_drain_tray1",
+        "alarm_water_leak", "alarm_water_pressure", "sys_supply_lockout",
     };
     ScenarioTrace::moment(moment);
     for (const char* r : ROWS) ScenarioTrace::row(p.f.bank, r);
@@ -226,12 +326,37 @@ const Weather COLD_NIGHT    = {  9.0f,  8.0f, 14.0f,  4.0f, 70.0f, 80.0f, 0.0f, 
 const Weather DAMP_NIGHT    = { 14.0f, 13.5f, 13.0f,  8.0f, 96.0f, 75.0f, 0.0f, 1.0f };
 const Weather DRY_SPELL     = { 28.0f, 26.0f, 20.0f, 30.0f, 15.0f, 20.0f, 0.0f, 1.0f };
 
+// The end of a mild night, which is when this greenhouse waters: warm enough
+// that the dawn gate is open, and damp enough that the modulation is well
+// under its summer figure.
+const Weather MILD_DAWN = { 16.0f, 15.0f, 14.0f, 13.0f, 70.0f, 80.0f, 0.0f, 1.0f };
+const Weather COLD_DAWN = { 11.0f, 10.0f, 12.0f,  8.0f, 70.0f, 80.0f, 0.0f, 1.0f };
+// The same hour of the same day, one damp and one parched: what the irrigation
+// ladder is for, and the only difference between the two runs below.
+const Weather DAMP_MORNING = { 18.0f, 17.0f, 15.0f, 14.0f, 92.0f, 90.0f, 0.0f, 1.0f };
+const Weather DRY_MORNING  = { 26.0f, 25.0f, 18.0f, 24.0f, 25.0f, 25.0f, 0.0f, 1.0f };
+
+bool cycle_filling(Plant& p)  { return irr_state(p) == Site::IRR_FILLING; }
+bool cycle_draining(Plant& p) { return irr_state(p) == Site::IRR_DRAINING; }
+bool cycle_flushing(Plant& p) { return irr_state(p) == Site::IRR_FLUSHING; }
+bool cycle_idle(Plant& p)     { return irr_state(p) == Site::IRR_IDLE; }
+bool second_tray(Plant& p) {
+    return irr_state(p) == Site::IRR_FILLING &&
+           p.num("irr_activeTray") >= 2.0f;
+}
+bool day_spent(Plant& p) {
+    return p.num("irr_servedToday") >= 2.0f && irr_state(p) == Site::IRR_IDLE;
+}
+bool fill_blamed(Plant& p)  { return p.on("alarm_irr_fill"); }
+bool drain_blamed(Plant& p) { return p.on("alarm_irr_drain"); }
+bool leaking(Plant& p)      { return p.on("alarm_water_leak"); }
+
 /** @brief Beats until @p done, holding the weather, or 0 if it never happens.
  *  A budget rather than a fixed run: what a scenario wants to say is "within
  *  ten minutes", not "on beat 4137". */
 uint32_t run_until(Plant& p, bool (*done)(Plant&), uint32_t budget) {
     for (uint32_t i = 1; i <= budget; i++) {
-        hold_weather(p);
+        p.hold(p);
         p.cycle->step(p.t += 100);
         if (done(p)) return i;
     }
@@ -268,7 +393,7 @@ TEST_CASE("scenario: a hot afternoon opens the roof and pulls cool ground air") 
     settle(p, HOT_AFTERNOON);
     force_phase(p, Site::PHASE_DAY);
     trace_weather(HOT_AFTERNOON, Site::PHASE_DAY);
-    p.weather_for(400, hold_weather);
+    p.weather_for(400);
 
     SAY("the interior is well over the target, so the ladder is calling for "
          "everything it has");
@@ -277,7 +402,7 @@ TEST_CASE("scenario: a hot afternoon opens the roof and pulls cool ground air") 
     SAY("windows: the ladder is past cli_windowFullDem, so wide open");
     CHECK(p.num("cli_windowDem") == doctest::Approx(1.0f));
     // One ram at a time, 15 s each: four windows is a minute of travel.
-    p.weather_for(900, hold_weather);
+    p.weather_for(900);
     CHECK(p.num("cli_window1_pos") > 0.9f);
     CHECK(p.num("cli_window4_pos") > 0.9f);
 
@@ -306,7 +431,7 @@ TEST_CASE("scenario: a cold night deploys the screen and pulls ground heat") {
     settle(p, COLD_NIGHT);
     force_phase(p, Site::PHASE_NIGHT);
     trace_weather(COLD_NIGHT, Site::PHASE_NIGHT);
-    p.weather_for(600, hold_weather);
+    p.weather_for(600);
 
     SAY("the interior is well under the target, so the ladder is negative");
     CHECK(p.num("cli_coolDem") < p.num("cli_thermalScreenDem"));
@@ -335,14 +460,14 @@ TEST_CASE("scenario: rain shuts the roof over the cooling ladder's objection") {
     settle(p, HOT_AFTERNOON);
     force_phase(p, Site::PHASE_DAY);
     trace_weather(HOT_AFTERNOON, Site::PHASE_DAY);
-    p.weather_for(900, hold_weather);
+    p.weather_for(900);
     REQUIRE(p.num("cli_window1_pos") > 0.9f);
     snapshot(p, "before the shower: the roof wide open");
 
     SAY("it starts raining on a hot afternoon: the ladder still wants the roof "
          "open, and stage one of the arbitration does not care");
     g_wx.rain = 4.0f;
-    p.weather_for(600, hold_weather);
+    p.weather_for(600);
     CHECK(p.on("cli_rainLockout"));
     CHECK(p.num("cli_windowDem") > 0.5f);      // the demand is unchanged...
     CHECK(p.num("cli_window1_pos") < 0.1f);    // ...and the roof is shut anyway
@@ -351,7 +476,7 @@ TEST_CASE("scenario: rain shuts the roof over the cooling ladder's objection") {
     SAY("the shower stops, and the lockout OUTLIVES it: a shower that has just "
          "stopped is about to be one that has not");
     g_wx.rain = 0.0f;
-    p.weather_for(600, hold_weather);
+    p.weather_for(600);
     CHECK(p.on("cli_rainLockout"));
     CHECK(p.num("cli_window1_pos") < 0.1f);
     snapshot(p, "a minute after the last drop");
@@ -365,7 +490,7 @@ TEST_CASE("scenario: a damp night vents, and refuses to wet the air further") {
     settle(p, DAMP_NIGHT);
     force_phase(p, Site::PHASE_NIGHT);
     trace_weather(DAMP_NIGHT, Site::PHASE_NIGHT);
-    p.weather_for(600, hold_weather);
+    p.weather_for(600);
 
     SAY("96% at 14 degC is under a degree of dew-point margin: the rot guard "
          "is up and the ladder is asking to dehumidify");
@@ -394,7 +519,7 @@ TEST_CASE("scenario: a dry spell humidifies through the skirt") {
     settle(p, DRY_SPELL);
     force_phase(p, Site::PHASE_DAY);
     trace_weather(DRY_SPELL, Site::PHASE_DAY);
-    p.weather_for(600, hold_weather);
+    p.weather_for(600);
 
     SAY("15% at 28 degC is a very large dew-point margin: the ladder's other "
          "arm, asking to humidify");
@@ -416,7 +541,7 @@ TEST_CASE("scenario: a zone dying leaves the plant safe, not confident") {
     settle(p, HOT_AFTERNOON);
     force_phase(p, Site::PHASE_DAY);
     trace_weather(HOT_AFTERNOON, Site::PHASE_DAY);
-    p.weather_for(900, hold_weather);
+    p.weather_for(900);
     REQUIRE(p.num("cli_window1_pos") > 0.9f);
     const float was = p.num("cli_temp_hi");
 
@@ -459,7 +584,7 @@ TEST_CASE("scenario: the supply going down parks the plant") {
     settle(p, HOT_AFTERNOON);
     force_phase(p, Site::PHASE_DAY);
     trace_weather(HOT_AFTERNOON, Site::PHASE_DAY);
-    p.weather_for(900, hold_weather);
+    p.weather_for(900);
     REQUIRE(p.num("cli_window1_pos") > 0.9f);
 
     SAY("the UPS says its battery is going: the whole plant is held, and every "
@@ -504,7 +629,7 @@ TEST_CASE("scenario: a long hot spell does not cost minutes of recovery") {
     settle(p, HOT_AFTERNOON);
     force_phase(p, Site::PHASE_DAY);
     trace_weather(HOT_AFTERNOON, Site::PHASE_DAY);
-    p.weather_for(6000, hold_weather);        // ten minutes hard against the limit
+    p.weather_for(6000);        // ten minutes hard against the limit
     REQUIRE(p.num("cli_coolDem") > 0.9f);
     snapshot(p, "ten minutes hard against the limit");
 
@@ -514,7 +639,7 @@ TEST_CASE("scenario: a long hot spell does not cost minutes of recovery") {
          "the integral accumulate underneath it while the output was pinned");
     g_wx.ceiling = p.num("cli_targetTemp_degC");
     g_wx.floor_  = g_wx.ceiling - 1.0f;
-    p.weather_for(1200, hold_weather);
+    p.weather_for(1200);
     CHECK(p.num("cli_coolDem") < 0.5f);
     SAY("...and it does not fall to nothing either: some ventilation IS what "
          "is holding the house at its target");
@@ -525,7 +650,7 @@ TEST_CASE("scenario: a long hot spell does not cost minutes of recovery") {
     g_wx.ceiling = p.num("cli_targetTemp_degC") - 3.0f;
     g_wx.floor_  = g_wx.ceiling - 1.0f;
     const float from = p.num("cli_coolDem");
-    p.weather_for(600, hold_weather);
+    p.weather_for(600);
     CHECK(p.num("cli_coolDem") < from);
 
     // The rate is the TUNING's business - Ti is 200 s and the spec has it set
@@ -558,7 +683,7 @@ TEST_CASE("scenario: a house sitting on a threshold does not thrash the plant") 
     // the crawlspace, which is where two converging spaces sit for hours.
     const float margin = p.num("cli_ventTempMgn_degC");
     g_wx.crawlspace = g_wx.ceiling - margin;
-    p.weather_for(600, hold_weather);
+    p.weather_for(600);
 
     const bool gate = p.on("cli_intakeCoolOk");
     uint32_t flips = 0;
@@ -594,7 +719,7 @@ TEST_CASE("scenario: an evening moves the plant the other way, in order") {
     settle(p, HOT_AFTERNOON);
     force_phase(p, Site::PHASE_DAY);
     trace_weather(HOT_AFTERNOON, Site::PHASE_DUSK_BREEZE);
-    p.weather_for(900, hold_weather);
+    p.weather_for(900);
     REQUIRE(p.num("cli_window1_pos") > 0.9f);
     REQUIRE_FALSE(p.on("cli_screen"));
 
@@ -626,10 +751,278 @@ TEST_CASE("scenario: an evening moves the plant the other way, in order") {
 
     SAY("and once it has arrived they are allowed back - the breeze phase is "
          "asking for one");
-    p.weather_for(700, hold_weather);
+    p.weather_for(700);
     CHECK_FALSE(p.on("cli_screenMoving"));
     CHECK(p.on("cli_destrat1_speed1"));
     snapshot(p, "shut, deployed, and the breeze back on");
+}
+
+TEST_CASE("scenario: a dawn watering serves the trays one at a time") {
+    ScenarioTrace::scenario("A dawn watering",
+        "The end of a mild night, every tray owed water: one cycle per tray, "
+        "and the day's allowance closing the slot behind them.");
+    Plant p;
+    plumbing(p, SOUND_CIRCUIT);
+    force_phase(p, Site::PHASE_DAWN_BREEZE);
+    force_rise(p, -30);
+    settle(p, MILD_DAWN, 300);
+    trace_weather(MILD_DAWN, Site::PHASE_DAWN_BREEZE);
+
+    SAY("the end of the night, and 13 degC outside clears the dawn gate: the "
+        "cycle takes the first tray owed water and opens the inlet on it");
+    REQUIRE(run_until(p, cycle_filling, 600) != 0);
+    CHECK(p.num("irr_activeTray") == doctest::Approx(1.0f));
+    CHECK(p.on("irr_input_ro1"));
+    CHECK(p.on("irr_tray1"));
+    SAY("...and only that tray: one cycle can never water two");
+    CHECK_FALSE(p.on("irr_output_ro1"));
+    CHECK_FALSE(p.on("irr_tray2"));
+
+    SAY("the dose is the tray's SUMMER figure scaled down by the weather, and "
+        "damp air at dawn is a long way from summer");
+    p.weather_for(2);        // the dose is published against the tray in hand
+    const float dose = p.num("irr_volume_L");
+    CHECK(dose > 0.0f);
+    CHECK(dose < 150.0f);
+    snapshot_water(p, "filling the first tray");
+
+    SAY("the fill ends at the DOSE and not at a time: the meter says when, and "
+        "nothing is blamed for a fill that arrived");
+    REQUIRE(run_until(p, cycle_draining, 4000) != 0);
+    CHECK(p.num("irr_delivered_L") >= dose);
+    CHECK_FALSE(p.on("alarm_irr_fill"));
+    SAY("draining: the inlet shut, the tray still open, the drain carrying "
+        "what comes back past the outlet meter");
+    CHECK_FALSE(p.on("irr_input_ro1"));
+    CHECK(p.on("irr_tray1"));
+    CHECK(p.on("irr_output_ro1"));
+    SAY("...and the day is stamped at the END OF THE FILL, so a fault during "
+        "the long drain cannot water the tray twice");
+    CHECK(p.num("irr_servedToday") == doctest::Approx(1.0f));
+    snapshot_water(p, "draining the first tray");
+
+    SAY("enough came back for the tray to be clear of a clog");
+    REQUIRE(run_until(p, cycle_flushing, 6000) != 0);
+    CHECK_FALSE(p.on("alarm_irr_drain"));
+    SAY("...and the manifold is rinsed with no tray between the two ends, so "
+        "what sat in the line is not what the next tray gets first");
+    CHECK(p.on("irr_input_ro1"));
+    CHECK(p.on("irr_output_ro1"));
+    CHECK(p.num("irr_activeTray") == doctest::Approx(0.0f));
+    snapshot_water(p, "rinsing the manifold between two trays");
+
+    SAY("then the second tray, because tray 1 is no longer owed anything");
+    REQUIRE(run_until(p, second_tray, 4000) != 0);
+    CHECK(p.on("irr_tray2"));
+    CHECK_FALSE(p.on("irr_tray1"));
+
+    SAY("and there it stops: irr_traysPerDay is the day's allowance, and the "
+        "trays still owed water wait for tomorrow");
+    REQUIRE(run_until(p, day_spent, 20000) != 0);
+    CHECK(p.num("irr_servedToday") == doctest::Approx(2.0f));
+    p.weather_for(3000);
+    CHECK(irr_state(p) == Site::IRR_IDLE);
+    CHECK(p.num("irr_servedToday") == doctest::Approx(2.0f));
+    snapshot_water(p, "the day's allowance spent");
+}
+
+TEST_CASE("scenario: a cold dawn waits for the morning rather than watering") {
+    ScenarioTrace::scenario("A cold dawn",
+        "8 degC outside at the end of the night: watering cold roots is what "
+        "the dawn gate exists to prevent, and the morning slot is where that "
+        "watering goes instead.");
+    Plant p;
+    plumbing(p, SOUND_CIRCUIT);
+    force_phase(p, Site::PHASE_DAWN_BREEZE);
+    force_rise(p, -30);
+    settle(p, COLD_DAWN, 300);
+    trace_weather(COLD_DAWN, Site::PHASE_DAWN_BREEZE);
+
+    SAY("the end of the night, and too cold: the trays are owed water and the "
+        "cycle does not start anyway");
+    p.weather_for(1200);
+    CHECK(irr_state(p) == Site::IRR_IDLE);
+    CHECK(p.num("irr_servedToday") == doctest::Approx(0.0f));
+    CHECK_FALSE(p.on("irr_input_ro1"));
+    snapshot_water(p, "cold, at the end of the night");
+
+    SAY("the sun comes up and the day's own slot opens: the same tray, the "
+        "same dose, an hour and a half later");
+    force_phase(p, Site::PHASE_DAY);
+    force_rise(p, 90);
+    REQUIRE(run_until(p, cycle_filling, 1200) != 0);
+    CHECK(p.num("irr_activeTray") == doctest::Approx(1.0f));
+    snapshot_water(p, "watering in the morning slot instead");
+
+    SAY("...and the afternoon is not a slot at all: the cycle in hand finishes "
+        "and no second one starts, because a tray filled then is still wet "
+        "when the stomata open at dusk");
+    force_rise(p, 400);
+    REQUIRE(run_until(p, cycle_idle, 12000) != 0);
+    CHECK(p.num("irr_servedToday") == doctest::Approx(1.0f));
+    p.weather_for(3000);
+    CHECK(irr_state(p) == Site::IRR_IDLE);
+    CHECK(p.num("irr_servedToday") == doctest::Approx(1.0f));
+    snapshot_water(p, "the afternoon, with trays still owed water");
+}
+
+TEST_CASE("scenario: damp air waters less than dry air, and less often") {
+    ScenarioTrace::scenario("Damp air against dry",
+        "The same morning twice, at 92 % and at 25 %: the modulation is the "
+        "whole of this greenhouse's seasons, and it moves both the dose and "
+        "the interval.");
+    Plant damp;
+    plumbing(damp, SOUND_CIRCUIT);
+    force_phase(damp, Site::PHASE_DAY);
+    force_rise(damp, 90);
+    settle(damp, DAMP_MORNING, 300);
+    trace_weather(DAMP_MORNING, Site::PHASE_DAY);
+    REQUIRE(run_until(damp, cycle_filling, 1200) != 0);
+    damp.weather_for(2);     // the dose is published against the tray in hand
+    snapshot_water(damp, "the damp morning");
+
+    Plant dry;
+    plumbing(dry, SOUND_CIRCUIT);
+    force_phase(dry, Site::PHASE_DAY);
+    force_rise(dry, 90);
+    settle(dry, DRY_MORNING, 300);
+    REQUIRE(run_until(dry, cycle_filling, 1200) != 0);
+    dry.weather_for(2);
+    snapshot_water(dry, "the dry morning");
+
+    SAY("the air the plants have been breathing is the input, and the damp "
+        "house is nowhere near its summer figure");
+    CHECK(damp.num("irr_vpdAvg_kPa") < dry.num("irr_vpdAvg_kPa"));
+    CHECK(damp.num("irr_mod") < dry.num("irr_mod"));
+
+    SAY("the split spends that on BOTH halves: a smaller dose, and a longer "
+        "wait for the next one");
+    CHECK(damp.num("irr_volume_L") < dry.num("irr_volume_L"));
+    CHECK(damp.num("irr_period_days") > dry.num("irr_period_days"));
+
+    SAY("...and the floor is a floor: even at 92 % the tray still gets water");
+    CHECK(damp.num("irr_volume_L") > 0.0f);
+    CHECK(damp.num("irr_mod") >= damp.num("irr_modMin"));
+}
+
+TEST_CASE("scenario: a tray that will not drain names itself") {
+    ScenarioTrace::scenario("A tray that will not drain",
+        "The fill arrives and only a tenth of it comes back: a clog is a "
+        "MEASUREMENT, made against the dose that tray actually got.");
+    Plant p;
+    plumbing(p, CLOGGED_TRAY);
+    force_phase(p, Site::PHASE_DAWN_BREEZE);
+    force_rise(p, -30);
+    settle(p, MILD_DAWN, 300);
+    trace_weather(MILD_DAWN, Site::PHASE_DAWN_BREEZE);
+
+    REQUIRE(run_until(p, cycle_draining, 4000) != 0);
+    SAY("the fill itself was fine: the water went in, and the alarm below is "
+        "about where it went afterwards");
+    CHECK_FALSE(p.on("alarm_irr_fill"));
+    snapshot_water(p, "the tray filled, and now draining");
+
+    SAY("the drain window closes with a tenth of the dose recovered, which is "
+        "under what the tray owes even with the margin allowed");
+    REQUIRE(run_until(p, drain_blamed, 6000) != 0);
+    CHECK(p.num("irr_drained_L") < p.num("irr_volume_L"));
+    SAY("...and the per-tray row says WHICH one, so somebody goes to the right "
+        "end of the plant");
+    CHECK(p.on("alarm_irr_drain_tray1"));
+    CHECK_FALSE(p.on("alarm_irr_drain_tray2"));
+    snapshot_water(p, "the drain window closed on a clog");
+
+    SAY("the cycle carries on regardless: a blocked tray is not a reason to "
+        "leave the other seven dry");
+    REQUIRE(run_until(p, second_tray, 6000) != 0);
+    CHECK(p.on("irr_tray2"));
+    snapshot_water(p, "moving on to the next tray anyway");
+}
+
+TEST_CASE("scenario: the two things the inlet meter can see on its own") {
+    ScenarioTrace::scenario("A leak, and a main with no water in it",
+        "Both are read off the inlet meter alone: water moving with every "
+        "valve shut, and water not arriving with the inlet open.");
+    Plant p;
+    plumbing(p, LEAKING_MANIFOLD);
+    force_phase(p, Site::PHASE_NIGHT);
+    force_rise(p, -240);
+    settle(p, MILD_DAWN, 300);
+    trace_weather(MILD_DAWN, Site::PHASE_NIGHT);
+
+    SAY("the middle of the night: no cycle is running, so every valve in the "
+        "circuit is shut and anything the meter counts is going somewhere "
+        "nobody opened");
+    REQUIRE(irr_state(p) == Site::IRR_IDLE);
+    REQUIRE(run_until(p, leaking, 1200) != 0);
+    CHECK(p.num("irr_inFlow_Lpm") > 0.0f);
+    snapshot_water(p, "a litre a minute with everything shut");
+
+    SAY("the main is repaired, and gives no water at all: the mirror image, "
+        "raised while the inlet is open and nothing is arriving");
+    plumbing(p, DEAD_MAIN);
+    force_phase(p, Site::PHASE_DAWN_BREEZE);
+    REQUIRE(run_until(p, cycle_filling, 1200) != 0);
+    p.weather_for(400);
+    SAY("...and the leak is not one any more: the meter is counting into a "
+        "tray somebody opened on purpose");
+    CHECK_FALSE(p.on("alarm_water_leak"));
+    CHECK(p.on("alarm_water_pressure"));
+    snapshot_water(p, "filling, with nothing coming out of the main");
+
+    SAY("and the fill gives up at its timeout rather than holding the inlet "
+        "open on a fault, which is how a tray overflows");
+    REQUIRE(run_until(p, fill_blamed, 6000) != 0);
+    CHECK(p.on("alarm_irr_fill_tray1"));
+    CHECK(irr_state(p) == Site::IRR_DRAINING);
+    CHECK_FALSE(p.on("irr_input_ro1"));
+    SAY("...and a fill that delivered nothing gets no drain verdict either: a "
+        "clog is a measurement, and there is nothing to measure");
+    REQUIRE(run_until(p, cycle_flushing, 6000) != 0);
+    CHECK_FALSE(p.on("alarm_irr_drain"));
+    snapshot_water(p, "the fill given up on, and no clog claimed");
+}
+
+TEST_CASE("scenario: the supply going down mid-fill empties the tray") {
+    ScenarioTrace::scenario("The supply going down mid-fill",
+        "Ten valves, and they do not all fail the same way: the inlet shuts "
+        "and the drains open, so a tray half full empties instead of sitting "
+        "there.");
+    Plant p;
+    plumbing(p, SOUND_CIRCUIT);
+    force_phase(p, Site::PHASE_DAWN_BREEZE);
+    force_rise(p, -30);
+    settle(p, MILD_DAWN, 300);
+    trace_weather(MILD_DAWN, Site::PHASE_DAWN_BREEZE);
+
+    REQUIRE(run_until(p, cycle_filling, 600) != 0);
+    REQUIRE(p.on("irr_input_ro1"));
+    snapshot_water(p, "filling, on a plant with power");
+
+    SAY("the UPS says its battery is going, and the lockout parks the whole "
+        "plant - irrigation with it, through the machinery a halt uses");
+    for (uint32_t i = 0; i < 400; i++) {
+        p.hold(p);
+        p.f.bank.var(p.ref("pwr_upsLowBat")).publish(from_bool(T_BOOL, true), p.t);
+        p.cycle->step(p.t += 100);
+    }
+    REQUIRE(p.on("sys_supply_lockout"));
+    CHECK(irr_state(p) == Site::IRR_IDLE);
+    CHECK(p.num("irr_activeTray") == doctest::Approx(0.0f));
+
+    SAY("each valve where its own row says a dead controller leaves it: the "
+        "inlet shut, the drain and the trays open");
+    CHECK_FALSE(p.on("irr_input_ro1"));
+    CHECK_FALSE(p.on("irr_input_ro2"));
+    CHECK(p.on("irr_output_ro1"));
+    CHECK(p.on("irr_tray1"));
+    snapshot_water(p, "parked, with the tray draining itself");
+
+    SAY("and the plant comes back when the battery does: the cycle starts "
+        "again from IDLE rather than resuming a fill it stopped counting");
+    REQUIRE(run_until(p, cycle_filling, 6000) != 0);
+    CHECK(p.num("irr_delivered_L") < 5.0f);
+    snapshot_water(p, "the supply back, and the fill started again");
 }
 
 }  // namespace site_scenarios
