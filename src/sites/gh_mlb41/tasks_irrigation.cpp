@@ -110,9 +110,7 @@ void WaterMeters::observe(ProgramContext& c) {
 
     const float lpm = _out_flow(_v.out_flow.get(),
                                 0.001f * (float)_v.out_avg_ms.get(), c.dt_ms);
-    if (_v.out_flow.valid()) {
-        _v.out_flow_pub.set(_out_band(lpm, IRR_FLOW_BAND));
-    } else {
+    if (!_v.out_flow.valid()) {
         // A flow derived from a loop that has stopped answering is not a flow.
         // The TOTAL beside it keeps its value: a totalizer is a record of what
         // went past, and the instrument failing does not unmake it.
@@ -121,6 +119,16 @@ void WaterMeters::observe(ProgramContext& c) {
         // water is moving", which is what a leak detector must not be told.
         _v.out_flow_pub.hold();
         degraded();
+    } else if (lpm < IRR_FLOW_CUTOFF) {
+        // At rest, and said so exactly. The deadband would otherwise park the
+        // row on the last tenth it reported - a drain meter reading 0.09 Lpm
+        // with every valve shut, which is what a leak looks like. Reset with
+        // it, so the next real flow is written at once rather than waiting out
+        // a band from a figure the plant has left behind.
+        _out_band.reset();
+        _v.out_flow_pub.set(0.0f);
+    } else {
+        _v.out_flow_pub.set(_out_band(lpm, IRR_FLOW_BAND));
     }
     // Per SECOND into the totalizer, which is what the block counts in.
     _v.out_total.set(_out_meter(lpm / 60.0f, c.dt_ms,

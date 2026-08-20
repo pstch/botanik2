@@ -240,6 +240,15 @@ void hold_water(Plant& p) {
     p.put("irr_out_Lpm", out);
 }
 
+/** @brief Beats, then a snapshot. Every water snapshot goes through this.
+ *
+ *  A meter answers over a window - the inlet differentiates over five seconds,
+ *  the outlet averages and then deadbands - so a reading taken on the beat a
+ *  valve moved still describes the state BEFORE it. Ten seconds is longer than
+ *  either window; a flush lasts ten and gets eight.
+ */
+void settle_meters(Plant& p, uint32_t beats = 100) { p.weather_for(beats); }
+
 /** @brief Put @p pipe behind the valves for the rest of the case, and make the
  *  plant hold both the weather and the water every beat. */
 void plumbing(Plant& p, const Plumbing& pipe) {
@@ -799,6 +808,12 @@ TEST_CASE("scenario: a dawn watering serves the trays one at a time") {
     const float dose = p.num("irr_volume_L");
     CHECK(dose > 0.0f);
     CHECK(dose < 150.0f);
+
+    settle_meters(p);
+    SAY("...and one end of the circuit is open: water arriving at the inlet "
+        "meter, and the drain shut behind the tray");
+    CHECK(p.num("irr_inFlow_Lpm") > 0.0f);
+    CHECK(p.num("irr_outFlow_Lpm") == doctest::Approx(0.0f));
     snapshot_water(p, "filling the first tray");
 
     SAY("the fill ends at the DOSE and not at a time: the meter says when, and "
@@ -818,7 +833,7 @@ TEST_CASE("scenario: a dawn watering serves the trays one at a time") {
     // Ten seconds in, so the inlet's own 5 s rate window lies wholly inside
     // the drain: at the transition beat it is still reporting the fill.
     const float in_at_drain = p.num("irr_inTotal_L");
-    p.weather_for(100);
+    settle_meters(p);
     SAY("water is leaving and none is arriving: one meter reads and the other "
         "does not, which is what a drain looks like at the two ends");
     CHECK(p.num("irr_outFlow_Lpm") > 0.0f);
@@ -837,7 +852,7 @@ TEST_CASE("scenario: a dawn watering serves the trays one at a time") {
 
     const float in_at_flush  = p.num("irr_inTotal_L");
     const float out_at_flush = p.num("irr_outTotal_L");
-    p.weather_for(80);
+    settle_meters(p, 80);
     SAY("both meters read, and read the SAME thing: fresh water going in one "
         "end of the manifold and out of the other, with no tray to hold it");
     CHECK(p.num("irr_inFlow_Lpm") > 20.0f);
@@ -882,6 +897,7 @@ TEST_CASE("scenario: the two forces an operator has, and what spends them") {
     trace_weather(MILD_DAWN, Site::PHASE_DAWN_BREEZE);
     REQUIRE(run_until(p, filling_five, 1200) != 0);
     CHECK(p.on("irr_tray5"));
+    settle_meters(p);
     CHECK_FALSE(p.on("irr_tray1"));
     CHECK(p.on("irr_forceOn_tray5"));
     snapshot_water(p, "filling the tray that was asked for");
@@ -896,6 +912,10 @@ TEST_CASE("scenario: the two forces an operator has, and what spends them") {
         "been asking for tray 1 all along");
     REQUIRE(run_until(p, filling_one, 12000) != 0);
     CHECK(p.on("irr_tray1"));
+    settle_meters(p);
+    SAY("...and the drain is shut behind it: a tray being filled has one end "
+        "open, and the meter at the other end reads nothing");
+    CHECK(p.num("irr_outFlow_Lpm") == doctest::Approx(0.0f));
     snapshot_water(p, "back to the schedule for the second cycle");
 
     Plant q;
@@ -909,6 +929,7 @@ TEST_CASE("scenario: the two forces an operator has, and what spends them") {
     settle(q, MILD_DAWN, 300);
     REQUIRE(run_until(q, cycle_filling, 1200) != 0);
     CHECK(q.num("irr_activeTray") == doctest::Approx(2.0f));
+    settle_meters(q);
 
     SAY("the skip is spent doing it, and the tray is STAMPED as though it had "
         "been watered - so it waits its period rather than arriving again "
@@ -944,6 +965,7 @@ TEST_CASE("scenario: a cold dawn waits for the morning rather than watering") {
     force_rise(p, 90);
     REQUIRE(run_until(p, cycle_filling, 1200) != 0);
     CHECK(p.num("irr_activeTray") == doctest::Approx(1.0f));
+    settle_meters(p);
     snapshot_water(p, "watering in the morning slot instead");
 
     SAY("...and the afternoon is not a slot at all: the cycle in hand finishes "
@@ -1009,7 +1031,7 @@ TEST_CASE("scenario: a tray that will not drain names itself") {
     trace_weather(MILD_DAWN, Site::PHASE_DAWN_BREEZE);
 
     REQUIRE(run_until(p, cycle_draining, 6000) != 0);
-    p.weather_for(100);
+    settle_meters(p);
     SAY("the fill itself was fine: the water went in, and the alarm below is "
         "about where it went afterwards");
     CHECK_FALSE(p.on("alarm_irr_fill"));
@@ -1019,6 +1041,7 @@ TEST_CASE("scenario: a tray that will not drain names itself") {
         "under what the tray owes even with the margin allowed");
     REQUIRE(run_until(p, drain_blamed, 6000) != 0);
     CHECK(p.num("irr_drained_L") < p.num("irr_volume_L"));
+    settle_meters(p, 80);
     SAY("...and the per-tray row says WHICH one, so somebody goes to the right "
         "end of the plant");
     CHECK(p.on("alarm_irr_drain_tray1"));
@@ -1029,6 +1052,7 @@ TEST_CASE("scenario: a tray that will not drain names itself") {
         "leave the other seven dry");
     REQUIRE(run_until(p, second_tray, 6000) != 0);
     CHECK(p.on("irr_tray2"));
+    settle_meters(p);
     snapshot_water(p, "moving on to the next tray anyway");
 }
 
@@ -1073,6 +1097,7 @@ TEST_CASE("scenario: the two things the inlet meter can see on its own") {
         "clog is a measurement, and there is nothing to measure");
     REQUIRE(run_until(p, cycle_flushing, 6000) != 0);
     CHECK_FALSE(p.on("alarm_irr_drain"));
+    settle_meters(p, 80);
     snapshot_water(p, "the fill given up on, and no clog claimed");
 }
 
@@ -1090,6 +1115,7 @@ TEST_CASE("scenario: the supply going down mid-fill empties the tray") {
 
     REQUIRE(run_until(p, cycle_filling, 600) != 0);
     REQUIRE(p.on("irr_input_ro1"));
+    settle_meters(p);
     snapshot_water(p, "filling, on a plant with power");
 
     SAY("the UPS says its battery is going, and the lockout parks the whole "
@@ -1115,6 +1141,7 @@ TEST_CASE("scenario: the supply going down mid-fill empties the tray") {
         "again from IDLE rather than resuming a fill it stopped counting");
     REQUIRE(run_until(p, cycle_filling, 6000) != 0);
     CHECK(p.num("irr_delivered_L") < 5.0f);
+    settle_meters(p);
     snapshot_water(p, "the supply back, and the fill started again");
 }
 
