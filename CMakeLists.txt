@@ -53,6 +53,26 @@ endif()
 string(TOUPPER "${CMAKE_BUILD_TYPE}" _build_type_upper)
 set(BOTANIK_SANITIZE "OFF" CACHE STRING "Sanitizers for the SIMULATOR build")
 
+# Footprint budget for the OPTA image, enforced after the link by
+# scripts/footprint.py. Neither ceiling is enforceable in the linker script: its
+# .heap absorbs whatever .bss leaves, so static RAM growth shrinks the heap
+# rather than overflowing the region, and its FLASH LENGTH is computed from
+# CM4_BINARY_START (in QSPI), which reads as ~1.4 GB.
+#
+# Set above current usage with room to grow - a nuisance failure teaches people
+# to raise the number without looking. The RAM one is the load-bearing half.
+# Measured 2026-08-20: flash 444 KB, static RAM 256 KB, heap 255 KB. The
+# ceilings sit ~70% above flash and ~25% above RAM - loose enough not to trip on
+# a feature, tight enough to catch the kind of drift that put 83 KB into the
+# firmware singleton between August and now with nothing to notice it.
+set(BOTANIK_FLASH_MAX_BYTES 786432 CACHE STRING
+    "OPTA flash ceiling in bytes (768 KB of the 1.75 MB app region); 0 disables")
+set(BOTANIK_STATIC_RAM_MAX_BYTES 327680 CACHE STRING
+    "OPTA static RAM ceiling in bytes (320 KB of the 512 KB region); 0 disables")
+
+# Found early: both the OPTA footprint check and the docs charts below need it.
+find_program(PYTHON3 NAMES python3 python)
+
 # Profiler-friendly Debug flags in place of CMake's bare "-g".
 set(CMAKE_C_FLAGS_DEBUG   "-O0 -g3 -gdwarf-4 -fno-omit-frame-pointer" CACHE STRING "" FORCE)
 set(CMAKE_CXX_FLAGS_DEBUG "-O0 -g3 -gdwarf-4 -fno-omit-frame-pointer" CACHE STRING "" FORCE)
@@ -555,6 +575,31 @@ elseif(BOTANIK_TARGET STREQUAL "OPTA")
         COMMAND ${CMAKE_COMMAND} -E echo "-- flashable image: ${CMAKE_BINARY_DIR}/botanik_opta.bin"
         VERBATIM)
 
+    # ------------------------------------------------------------------
+    # Footprint budget
+    # ------------------------------------------------------------------
+    # Runs on every successful link, so going over budget fails the build that
+    # did it rather than the next person's. Skipped (with a warning, never a
+    # silent pass) when python3 or the binutils are missing: a toolchain gap
+    # must not break a build that otherwise linked.
+    find_program(BOTANIK_SIZE_TOOL NAMES arm-none-eabi-size)
+    find_program(BOTANIK_NM_TOOL   NAMES arm-none-eabi-nm)
+    if(PYTHON3 AND BOTANIK_SIZE_TOOL AND BOTANIK_NM_TOOL)
+        add_custom_command(TARGET botanik_opta POST_BUILD
+            COMMAND ${PYTHON3} "${CMAKE_SOURCE_DIR}/scripts/footprint.py"
+                    "$<TARGET_FILE:botanik_opta>"
+                    --size "${BOTANIK_SIZE_TOOL}"
+                    --nm   "${BOTANIK_NM_TOOL}"
+                    --flash-max ${BOTANIK_FLASH_MAX_BYTES}
+                    --ram-max   ${BOTANIK_STATIC_RAM_MAX_BYTES}
+                    --ram-region 524288
+                    --json "${CMAKE_BINARY_DIR}/footprint.json"
+            COMMENT "Checking flash / static-RAM budget"
+            VERBATIM)
+    else()
+        message(WARNING "footprint check skipped - need python3 + arm-none-eabi-size/nm")
+    endif()
+
 endif()
 
 # Doxygen documentation
@@ -562,7 +607,6 @@ endif()
 # Platform-independent: `make -C build docs` regenerates the HTML API docs from
 # the root Doxyfile, into docs/doxygen/html/.
 find_program(DOXYGEN doxygen)
-find_program(PYTHON3 NAMES python3 python)
 if(DOXYGEN)
     # Code charts (LoC + churn by area) atop the Library page, generated just
     # before doxygen runs. The script falls back to a placeholder SVG when
