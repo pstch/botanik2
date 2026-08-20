@@ -374,7 +374,12 @@ class WeatherWatch : public Plc::Program {
 
     /** @brief Whether the station has EVER answered. Before it has, silence is
      *  bring-up; after, it is a fault. @see AcSupply */
-    bool _seen = false;
+    bool     _seen = false;
+    /** @brief Ms since the gauge last read wet, and whether it ever has in this
+     *  run. A boot does not know when it last rained, so before the first
+     *  shower the row is held rather than reading "just now". */
+    uint64_t _dry_ms = 0;
+    bool     _wet_seen = false;
 
     Refs::WeatherWatch _v;
 

@@ -216,6 +216,7 @@ float IntractorController::_safe_speed() const {
 }
 
 void IntractorController::run(ProgramContext& c) {
+    (void)c;
     // The FLOOR, and it is a SPEED rather than a demand: some air is always
     // wanted, and the row is where this actuator's safe state is declared. A
     // demand below it simply does not reach it.

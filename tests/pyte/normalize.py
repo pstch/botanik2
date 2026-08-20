@@ -40,7 +40,7 @@ _HOME_FIELDS = (
     ("Dew margin", " degC"), ("Target", " degC"),
     ("Cool dem", ""), ("Strat dem", ""), ("Humid dem", ""), ("Windows", ""),
     ("Intractor", ""), ("Fan speed", ""), ("Screen", ""), ("Skirt", ""),
-    ("Tray", ""), ("Dose", " L"), ("Water in", " L"),
+    ("Tray", ""), ("Since rain", " min"), ("Wind", " mps"),
     ("Local V", " V"), ("Local A", " A"), ("Grid A", " A"), ("Lockout", ""),
 )
 

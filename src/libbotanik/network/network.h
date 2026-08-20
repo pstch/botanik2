@@ -95,6 +95,11 @@ namespace Botanik { namespace Network {
         /** @brief Healthy while the link is up. */
         bool healthy() const override { return is_up(); }
 
+        /** @brief Bring-up FAILED, or the link was lost: the alarm condition,
+         *  which is not the same as "not up". Coming up is not a fault and
+         *  neither is being switched off, and SETUP times out into this. */
+        bool failed() const { return _state == NET_ERROR; }
+
         /** @brief Bring-up phase as a short display string
          *  (down/setup/online/error). */
         const char* status_str() const;

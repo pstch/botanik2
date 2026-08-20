@@ -22,6 +22,12 @@ namespace Botanik { namespace Alarms {
         if (forced)                      hold_rem_ms = 0;
         else if (raw_on && hold > 0)     hold_rem_ms = (uint32_t)hold * 1000u;
 
+        // How long the RAW bit has been up, which is what the ON dwell asks
+        // about. Not the episode: the hold above keeps an episode alive past
+        // the signal, so a dwell measured from it can never filter anything.
+        if (!raw_on)                      raw_ms = 0;
+        else if (raw_ms <= 0xFFFFFFFFu - dt) raw_ms += dt;
+
         const bool on = raw_on || hold_rem_ms > 0;
 
         // 2. On a transition, stamp the edge and reset the per-episode bookkeeping.
@@ -36,13 +42,15 @@ namespace Botanik { namespace Alarms {
         }
         active = on;
 
-        // 3. Announce the transition once its dwell threshold has elapsed
+        // 3. Announce the transition once its dwell threshold has elapsed. ON
+        //    is measured on the raw bit (above); OFF on the episode, which is
+        //    when the hold finished draining and the alarm actually went down.
         const uint64_t dwell = now - edge_ms;
         const char* d = desc();
         const char* n = name();
         const char* label = d ? d : (n ? n : "");
         if (on) {
-            if (due_on(dwell)) {
+            if (due_on(raw_ms)) {
                 sink.log_start(label);
                 sink.notify_on(*this);
                 on_sent = true;

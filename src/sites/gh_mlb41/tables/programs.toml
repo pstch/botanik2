@@ -500,8 +500,9 @@ irrad     = "cli_irrad_Wpm2"
 rain_lock = "cli_rainLockout"
 wind_lock = "cli_windLockout"
 [program.out]
-station = "alarm_wx_station"
-storm   = "alarm_weather_storm"
+station    = "alarm_wx_station"
+storm      = "alarm_weather_storm"
+since_rain = "cli_sinceRain_min"
 
 [[program]]
 name  = "intractors"

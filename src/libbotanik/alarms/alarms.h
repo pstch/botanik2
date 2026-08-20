@@ -105,6 +105,12 @@ namespace Botanik { namespace Alarms {
         uint64_t    started_ms;     ///< time since last ON transition
 
         uint32_t    hold_rem_ms;    ///< countdown past the last raw true; 0 = elapsed
+        /** @brief How long the RAW condition has been continuously true. What
+         *  the ON dwell is measured against: hold_s EXTENDS an episode, so a
+         *  dwell taken from the episode would be unreachable on any row
+         *  declaring both, and a one-beat blip would annunciate in full.
+         *  Saturating: no dwell is measured in weeks. */
+        uint32_t    raw_ms;
 
         /** @} */
 
@@ -129,7 +135,7 @@ namespace Botanik { namespace Alarms {
         }
 
         /** @brief The ON event is due: unannounced, enabled (on_s >= 0), and
-         *         @p dwell_ms has reached the threshold. */
+         *         the RAW condition has held for the threshold. */
         bool due_on(uint64_t dwell_ms) const {
             const int16_t t = on_s();
             return !on_sent && t >= 0 && dwell_ms >= (uint64_t)t * 1000u;

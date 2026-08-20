@@ -16,10 +16,10 @@ namespace Botanik { namespace Vars {
  *  parameter segment abuts them. @see lib_order */
 const Descriptor library_vars[] = {
 #if BOTANIK_FEATURE_NETWORK
-    A("alarm_net_fault", "NET_FLT", 5, 5, 0, 10, 986, "the network link is down", "bring-up failed or the link was lost; check the cable, the switch and net_ip"),
+    A("alarm_net_fault", "NET_FLT", 5, 5, 0, 0, 986, "the network link is down", "bring-up failed or the link was lost; check the cable, the switch and net_ip"),
 #endif
 #if BOTANIK_FEATURE_NTP
-    A("alarm_ntp_timeout", "NTP_TIM", 5, 5, 0, 10, 987, "no NTP sync", "the wall clock is free-running: anything dated, scheduled or solar is adrift"),
+    A("alarm_ntp_timeout", "NTP_TIM", 5, 5, 0, 0, 987, "no NTP sync", "the wall clock is free-running: anything dated, scheduled or solar is adrift"),
 #endif
 #if BOTANIK_FEATURE_LOGGING
     A("alarm_log_flood", "LOG_FLD", 2, 2, 0, 0, 988, "log messages are being dropped", "the rate limiter is shedding; something is repeating itself and the record is incomplete"),

@@ -37,11 +37,16 @@ namespace Botanik { namespace Health {
         // Each condition comes off the component that owns it, so there is no
         // second copy of "what counts as broken" here. A row a build does not
         // declare resolves to the sink and the write goes nowhere.
+        //
+        // failed()/late() rather than !is_up()/!synced(): a subsystem still
+        // coming up is not broken, and one nobody enabled is not broken either
+        // - both of which "not up" says, once per boot and for ever after
+        // net_enable is turned off.
 #if BOTANIK_FEATURE_NETWORK
-        if (_net != nullptr) io->var(_net_fault).set(!_net->is_up());
+        if (_net != nullptr) io->var(_net_fault).set(_net->failed());
 #endif
 #if BOTANIK_FEATURE_NTP
-        if (_ntp != nullptr) io->var(_ntp_late).set(!_ntp->synced());
+        if (_ntp != nullptr) io->var(_ntp_late).set(_ntp->late());
 #endif
 #if BOTANIK_FEATURE_LOGGING
         if (_logger != nullptr) {

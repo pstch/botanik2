@@ -90,8 +90,8 @@ const HomeVar g_home_fields[] = {
     // column 3 (8): irrigation, then the supply that has to be there for it
     { "Irrigation","irr_state" },
     { "Tray",      "irr_activeTray" },
-    { "Dose",      "irr_volume_L" },
-    { "Water in",  "irr_inTotal_L" },
+    { "Since rain","cli_sinceRain_min" },
+    { "Wind",      "cli_wind_mps" },
     { "Local V",   "sys_local_V" },
     { "Local A",   "sys_local_A" },
     { "Grid A",    "grid_total_A" },

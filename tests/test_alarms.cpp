@@ -192,6 +192,29 @@ TEST_CASE("alarm: hold_s still latches a condition nobody is forcing") {
     CHECK(m.condition(0).active == false);
 }
 
+TEST_CASE("alarm: the hold latches a blip, and the dwell still refuses to announce it") {
+    // The two policies pull opposite ways and both have to hold: hold_s keeps a
+    // one-beat condition VISIBLE for five minutes, and on_s says five minutes
+    // of latch is not five seconds of signal. Measured on the episode instead,
+    // the dwell would be unreachable on any row declaring both - which is
+    // thirteen of this firmware's - and every blip would annunciate in full.
+    Logs::Logger logger;
+    TopicRecorder rec;
+    logger.add_writer(&rec);
+    AlarmBank f(HOLD_TABLE, 1);
+    Alarms::AlarmController m(Botanik::SetupContext(nullptr, &logger), &f.rows);
+    m.setup(0);
+
+    step_bits(f.bank, f.rows, m, 0x1, 1000);      // one activation, then gone
+    step_bits(f.bank, f.rows, m, 0x0, 2000);
+    step_bits(f.bank, f.rows, m, 0x0, 30000);
+    logger.refill();
+    INFO("latched, so somebody gets to see it");
+    CHECK(m.condition(0).active == true);
+    INFO("...and unannounced, because the SIGNAL never lasted its dwell");
+    CHECK_FALSE(rec.has(Logs::ALARM_BEG));
+}
+
 TEST_CASE("alarm: an END with no matching START is logged as a FLAP") {
     Logs::Logger logger;
     TopicRecorder rec;

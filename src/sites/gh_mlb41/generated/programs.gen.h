@@ -1001,8 +1001,9 @@ struct WeatherWatch {
 
     /** @name VAR_OUTPUT
      *  @{ */
-    Vars::RefOut<bool> station;
-    Vars::RefOut<bool> storm;
+    Vars::RefOut<bool>     station;
+    Vars::RefOut<bool>     storm;
+    Vars::RefOut<uint16_t> since_rain;
 
     /** @} */
 
@@ -1781,15 +1782,16 @@ inline void WindowsController::bind(Vars::Bank& io, Plc::Program& owner) {
 }
 
 inline void WeatherWatch::bind(Vars::Bank& io, Plc::Program& owner) {
-    wind      = io.resolve_in<float>("cli_wind_mps");
-    gust      = io.resolve_in<float>("cli_windGust_mps");
-    rain      = io.resolve_in<float>("cli_rain_mmph");
-    irrad     = io.resolve_in<float>("cli_irrad_Wpm2");
-    rain_lock = io.resolve_in<bool>("cli_rainLockout");
-    wind_lock = io.resolve_in<bool>("cli_windLockout");
-    station   = io.resolve_out<bool>("alarm_wx_station");
-    storm     = io.resolve_out<bool>("alarm_weather_storm");
-    health    = io.resolve_out<uint8_t>("prog_weather_watch");
+    wind       = io.resolve_in<float>("cli_wind_mps");
+    gust       = io.resolve_in<float>("cli_windGust_mps");
+    rain       = io.resolve_in<float>("cli_rain_mmph");
+    irrad      = io.resolve_in<float>("cli_irrad_Wpm2");
+    rain_lock  = io.resolve_in<bool>("cli_rainLockout");
+    wind_lock  = io.resolve_in<bool>("cli_windLockout");
+    station    = io.resolve_out<bool>("alarm_wx_station");
+    storm      = io.resolve_out<bool>("alarm_weather_storm");
+    since_rain = io.resolve_out<uint16_t>("cli_sinceRain_min");
+    health     = io.resolve_out<uint8_t>("prog_weather_watch");
 
     // The readings this law is entitled to expect. The base walks them
     // before each activation, so an input that has stopped being believable

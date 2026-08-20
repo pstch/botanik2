@@ -107,10 +107,15 @@ void AcLocalWatch::observe(ProgramContext& c) {
 bool DcWatch::_rail(const DcWatch::Rail& r, uint32_t dt_ms, bool& seen) {
     // Averaged, then deadbanded: the first says what the rail is doing, the
     // second says when that is worth a write.
+    //
+    // Only a MEASURED sample is folded in. The row reads its default while the
+    // bus is still coming up, and folding that seeds the average at zero: the
+    // rail then reads under its floor for as long as the filter takes to climb
+    // out of it, which is a supply alarm on every boot.
+    const bool  measured = r.in.valid();
     const float tau_s = 0.001f * (float)r.avg_ms.get();
-    const float volts = r.avg(r.in.get(), tau_s, dt_ms);
-
-    const bool measured = r.in.valid();
+    const float volts = measured ? r.avg(r.in.get(), tau_s, dt_ms)
+                                 : r.avg.value();
     // A rail nobody is measuring has no voltage to publish. Its LAST average
     // stays in the filter, so a divider that comes back rejoins where it left.
     if (measured) r.out.set(r.band(volts, SUPPLY_V_BAND));
@@ -382,8 +387,24 @@ void WeatherWatch::observe(ProgramContext& c) {
     _v.station.set(_seen && !measured);
     if (!measured) degraded();
 
-    // The windows' own verdict, not a second pair of thresholds beside it.
-    _v.storm.set(_v.rain_lock.get() || _v.wind_lock.get());
+    // The windows' own verdict, not a second pair of thresholds beside it -
+    // and only once the station has answered at least once. Before that the
+    // windows are shut on the BLIND interlock, which is caution rather than
+    // weather, and annunciating it puts a storm on the ribbon at every boot.
+    _v.storm.set(_seen && (_v.rain_lock.get() || _v.wind_lock.get()));
+
+    // How long the house has been dry. A gauge that is not answering says
+    // nothing about the weather, so the clock stands rather than running on.
+    if (_v.rain.valid()) {
+        if (_v.rain.get() > 0.0f) { _dry_ms = 0; _wet_seen = true; }
+        else if (_wet_seen)       { _dry_ms += c.dt_ms; }
+    }
+    if (_wet_seen) {
+        const uint64_t mins = _dry_ms / 60000ull;
+        _v.since_rain.set((uint16_t)(mins > 65535ull ? 65535ull : mins));
+    } else {
+        _v.since_rain.hold();
+    }
 }
 
 // SunWatch

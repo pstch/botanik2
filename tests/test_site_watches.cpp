@@ -331,8 +331,13 @@ TEST_CASE("weather watch: a storm is what shuts the roof, and silence is a fault
     INFO("bring-up: the bus has not reached the station, which is not a fault");
     f.bank.var(f.ref("cli_wind_mps")).invalidate(Q_NO_DATA);
     f.bank.var(f.ref("cli_rain_mmph")).invalidate(Q_NO_DATA);
+    f.bank.var(f.ref("cli_windLockout")).set(true);
     d.step(100);
     CHECK_FALSE(f.bank.var(f.ref("alarm_wx_station")).b());
+    INFO("...and neither is the blind interlock a storm: the windows are shut "
+         "out of caution, and nobody has seen weather yet");
+    CHECK_FALSE(f.bank.var(f.ref("alarm_weather_storm")).b());
+    f.bank.var(f.ref("cli_windLockout")).set(false);
 
     field(f, "cli_wind_mps", 2.0f, 100);
     field(f, "cli_rain_mmph", 0.0f, 100);

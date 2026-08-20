@@ -7,18 +7,18 @@
 
   Uptime     <UPTIME>  Cool dem   <HF>           Irrigation IDLE
                             Strat dem  <HF>           Tray       <HF>
-  Interior   <HF>           Humid dem  <HF>           Dose       <HF>
-  Exterior   <HF>           Windows    <HF>           Water in   <HF>
+  Interior   <HF>           Humid dem  <HF>           Since rain <HF>
+  Exterior   <HF>           Windows    <HF>           Wind       <HF>
   Humidity   <HF>           Intractor  <HF>           Local V    <HF>
   Dew margin <HF>           Fan speed  <HF>           Local A    <HF>
   Target     <HF>           Screen     <HF>           Grid A     <HF>
   Phase      NIGHT          Skirt      <HF>           Lockout    <HF>
 
     LOGS
+<TS> [+] TIME: NTP synced
+<TS> [+] NETWORK: MQTT connected
 <TS> [!] ALARM_BEG: current storm conditions
-<TS> [+] ALARM_FLAP: log messages are being dropped
+<TS> [!] ALARM_BEG: DC PS1 volts too low
+<TS> [!] ALARM_BEG: DC PS2 volts too low
 <TS> [!] ALARM_BEG: relative humidity too high
-<TS> [@]  MONITOR: 12 log entries dropped at sink
-<TS> [@]  LOGS: 12 log entries dropped at sink
-<TS> [!] ALARM_BEG: the network link is down
  ALARMS :<BAR>

@@ -115,6 +115,11 @@ namespace Botanik { namespace Network {
         bool synced() const { return _sync_held; }
         /** @brief Healthy while a valid time sync is held. */
         bool healthy() const override { return _sync_held; }
+
+        /** @brief The clock is free-running AND somebody is meant to be
+         *  disciplining it: the alarm condition. A client nobody enabled is not
+         *  late, it is off. */
+        bool late() const { return !_sync_held && _state != TIME_IDLE; }
         /** @brief Sync phase as a short display string
          *  (off/resolving/querying/synced/error). */
         const char* status_str() const;
