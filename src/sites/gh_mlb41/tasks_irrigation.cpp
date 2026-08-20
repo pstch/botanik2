@@ -349,7 +349,11 @@ void IrrigationCycle::run(ProgramContext& c) {
     }
     _in_state_ms += c.dt_ms;
 
-    const float mod = _v.mod.get();
+    // The dose is the tray's summer figure scaled by this: without it there is
+    // no dose to fill to, and a cycle started anyway would run its inlet to the
+    // fill timeout and blame the tray for it.
+    const bool  can_dose = _v.mod.valid();
+    const float mod      = _v.mod.get();
 
     // The daily tally is against a DATE, not an uptime: it rolls when the day
     // does, so a cycle running through midnight is not counted twice and a
@@ -362,7 +366,8 @@ void IrrigationCycle::run(ProgramContext& c) {
     const float split = Plc::limit(_v.split.get(), 0.0f, 1.0f);
     const float dose = (_tray > 0)
         ? (float)_v.litres[_tray - 1].get() * powf(mod, split) : 0.0f;
-    _v.volume.set(dose);
+    if (can_dose) _v.volume.set(dose);
+    else          _v.volume.invalidate();
 
     switch (_state) {
         case IRR_IDLE: {
@@ -373,6 +378,7 @@ void IrrigationCycle::run(ProgramContext& c) {
             // schedule decides the tray, and an operator forcing a cycle
             // overrides both.
             if (!_v.force_now.get() && !_in_slot()) break;
+            if (!can_dose) break;
 
             const uint8_t next = _next_due(mod, today);
             if (next == 0) break;

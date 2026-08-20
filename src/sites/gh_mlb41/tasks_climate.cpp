@@ -76,7 +76,10 @@ void DayPhaseController::run(ProgramContext& c) {
     } else {
         // No location, or no wall clock yet: hold the phase rather than
         // announcing a night the plant is not in. Every boot passes through
-        // here, for as long as NTP takes.
+        // here, for as long as NTP takes. The offsets ARE the sun, so they say
+        // they are not known rather than holding yesterday's numbers.
+        _v.from_rise.invalidate();
+        _v.from_set.invalidate();
         degraded();
     }
     if (_phase == PHASE_DAY && was != PHASE_DAY)     _day_max   = inside;
@@ -272,6 +275,16 @@ void HumidityController::_dry_gate(ProgramContext& c) {
 }
 
 void HumidityController::run(ProgramContext& c) {
+    (void)c;
+    if (!_v.dp_margin.valid()) {
+        // The ladder is a function of the margin, and its default is a number
+        // that means "saturated": published as a demand it would call for full
+        // dehumidification on a reading nobody has. The rot guard in observe()
+        // still ventilates - that one is a CHOICE, not a derivation.
+        _v.demand.invalidate();
+        return;
+    }
+
     // Four bands and a dead zone, and the signed ladder IS that shape: below
     // dehumStart the margin is closing on condensation (negative, dehumidify);
     // above humidStart the air is drier than the plants want (positive); in

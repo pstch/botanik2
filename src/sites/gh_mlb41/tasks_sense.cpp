@@ -46,6 +46,12 @@ void AcSupply::reset() {
     _v.reset(); _a.reset(); _w.reset(); _hz.reset();
 }
 
+void AcSupply::_mirror(Vars::RefOut<float> out, Plc::Deadband& band,
+                       Vars::RefIn<float> in, float width) {
+    if (in.valid()) out.set(band(in.get(), width));
+    else            out.invalidate();
+}
+
 bool AcSupply::step(bool& fault) {
     // The volts and the frequency are what the verdict is made of, so those two
     // decide whether there is a verdict at all. Current and power are reported
@@ -55,10 +61,15 @@ bool AcSupply::step(bool& fault) {
 
     const float volts = _in_v.get();
     const float hz    = _in_hz.get();
-    _out_v.set(_v(volts, SUPPLY_V_BAND));
-    _out_a.set(_a(_in_a.get(), SUPPLY_A_BAND));
-    _out_w.set(_w(_in_w.get(), SUPPLY_W_BAND));
-    _out_hz.set(_hz(hz, SUPPLY_HZ_BAND));
+
+    // A mirror of a reading nobody has is not a reading: published as its
+    // fallback it would read 0.0 V on a page, which is what a meter says when
+    // the supply is DEAD rather than when nobody asked it. Per quantity, since
+    // a meter half answering is still worth what it does answer.
+    _mirror(_out_v,  _v,  _in_v,  SUPPLY_V_BAND);
+    _mirror(_out_a,  _a,  _in_a,  SUPPLY_A_BAND);
+    _mirror(_out_w,  _w,  _in_w,  SUPPLY_W_BAND);
+    _mirror(_out_hz, _hz, _in_hz, SUPPLY_HZ_BAND);
 
     const bool in_spec = Plc::in_range(volts, _lo_v.get(), _hi_v.get()) &&
                          Plc::in_range(hz, _lo_hz.get(), _hi_hz.get());
@@ -103,9 +114,12 @@ bool DcWatch::_rail(const DcWatch::Rail& r, uint32_t dt_ms, bool& seen) {
     // second says when that is worth a write.
     const float tau_s = 0.001f * (float)r.avg_ms.get();
     const float volts = r.avg(r.in.get(), tau_s, dt_ms);
-    r.out.set(r.band(volts, SUPPLY_V_BAND));
 
     const bool measured = r.in.valid();
+    // A rail nobody is measuring has no voltage to publish. Its LAST average
+    // stays in the filter, so a divider that comes back rejoins where it left.
+    if (measured) r.out.set(r.band(volts, SUPPLY_V_BAND));
+    else          r.out.invalidate();
     if (measured) seen = true;
     // A divider that has never answered is the bus still coming up. One that
     // has, and has stopped, is a rail nobody can see - which is a fault.

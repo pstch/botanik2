@@ -259,6 +259,16 @@ def _struct(p, rows):
         out.append("     *  @{ */")
         out += [f"    {t.ljust(width)} {n};" for t, n in decls]
         out += ["", "    /** @} */", ""]
+    watched = _watched(p, rows)
+    if watched:
+        out += ["    /** @brief Every readable row this program connects to, as"
+                " bare",
+                "     *  indices: what the base sweeps for validity before each",
+                "     *  activation. Parameters are not here - an operator's"
+                " number is",
+                "     *  always valid, and checking one would cost a walk to"
+                " learn nothing. */",
+                f"    Vars::VarRef _watched[{len(watched)}];", ""]
     if p.get("health"):
         out += ["    /** @name Health",
                 "     *  Where this program's health is published. Written by a",
@@ -282,6 +292,29 @@ def _struct(p, rows):
     return out
 
 
+# Scopes whose value can stop being believable. A PARAMETER is always valid -
+# it is an operator's number, not a measurement - so watching one would cost a
+# check per activation to learn nothing.
+WATCHABLE = ("MI", "AI", "DI", "G", "GR", "SV", "SVR", "SVE",
+             "MO", "AO", "DO", "RO", "A")
+
+
+def _watched(p, rows):
+    """The rows a program READS that can go invalid, in declaration order.
+
+    What the base sweeps before each activation to decide DEGRADED, so a law
+    does not have to remember to ask about every input it reads.
+    """
+    out = []
+    for member, sec, row, idx in p["conns"]:
+        if sec == "out" or row not in rows:
+            continue
+        scope, _r = rows[row]
+        if scope in WATCHABLE:
+            out.append((member, idx, row))
+    return out
+
+
 def _bind(p, rows):
     """The bind() body: one resolve per connection, in declaration order."""
     ms = _members(p, rows)
@@ -300,9 +333,28 @@ def _bind(p, rows):
     width = max(len(x) for x in lhs)
     out = [f"inline void {p['class']}::bind(Vars::Bank& io, Plc::Program& owner) {{"]
     out += [f"    {l.ljust(width)} = {r}" for l, r in zip(lhs, rhs)]
-    out += ["    owner.set_health_row(health);"] if p.get("health") \
-        else ["    (void)owner;"]
+
+    watched = _watched(p, rows)
+    if watched:
+        out += ["", "    // The readings this law is entitled to expect. The base"
+                    " walks them",
+                "    // before each activation, so an input that has stopped being"
+                    " believable",
+                "    // is DEGRADED whether or not the law thought to ask."]
+        for n, (member, idx, row) in enumerate(watched):
+            ref = member + (f"[{idx}]" if _is_array(p, member) else "")
+            out.append(f"    _watched[{n}] = {ref}.r;")
+        out.append(f"    owner.set_inputs(_watched, {len(watched)});")
+    if p.get("health"):
+        out += ["    owner.set_health_row(health);"]
+    elif not watched:
+        out += ["    (void)owner;"]
     return out + ["}", ""]
+
+
+def _is_array(p, member):
+    """Whether @p member is connected to more than one row."""
+    return sum(1 for m, _s, _r, _i in p["conns"] if m == member) > 1
 
 
 def generate(programs, rows, banner):

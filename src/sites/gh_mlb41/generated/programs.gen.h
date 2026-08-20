@@ -43,6 +43,12 @@ struct AcGridWatch {
 
     /** @} */
 
+    /** @brief Every readable row this program connects to, as bare
+     *  indices: what the base sweeps for validity before each
+     *  activation. Parameters are not here - an operator's number is
+     *  always valid, and checking one would cost a walk to learn nothing. */
+    Vars::VarRef _watched[4];
+
     /** @name Health
      *  Where this program's health is published. Written by a
      *  SUPERVISOR walking every program, not by the program: a
@@ -96,6 +102,12 @@ struct AcLocalWatch {
     Vars::RefOut<bool>  gen_fault;
 
     /** @} */
+
+    /** @brief Every readable row this program connects to, as bare
+     *  indices: what the base sweeps for validity before each
+     *  activation. Parameters are not here - an operator's number is
+     *  always valid, and checking one would cost a walk to learn nothing. */
+    Vars::VarRef _watched[5];
 
     /** @name Health
      *  Where this program's health is published. Written by a
@@ -156,6 +168,12 @@ struct DcWatch {
     Vars::RefOut<bool>  gen_flt;
 
     /** @} */
+
+    /** @brief Every readable row this program connects to, as bare
+     *  indices: what the base sweeps for validity before each
+     *  activation. Parameters are not here - an operator's number is
+     *  always valid, and checking one would cost a walk to learn nothing. */
+    Vars::VarRef _watched[5];
 
     /** @name Health
      *  Where this program's health is published. Written by a
@@ -221,6 +239,12 @@ struct TempRHZone {
 
     /** @} */
 
+    /** @brief Every readable row this program connects to, as bare
+     *  indices: what the base sweeps for validity before each
+     *  activation. Parameters are not here - an operator's number is
+     *  always valid, and checking one would cost a walk to learn nothing. */
+    Vars::VarRef _watched[24];
+
     /** @name Health
      *  Where this program's health is published. Written by a
      *  SUPERVISOR walking every program, not by the program: a
@@ -260,6 +284,12 @@ struct StratSensor {
     Vars::RefOut<float> strat;
 
     /** @} */
+
+    /** @brief Every readable row this program connects to, as bare
+     *  indices: what the base sweeps for validity before each
+     *  activation. Parameters are not here - an operator's number is
+     *  always valid, and checking one would cost a walk to learn nothing. */
+    Vars::VarRef _watched[2];
 
     /** @name Health
      *  Where this program's health is published. Written by a
@@ -310,6 +340,12 @@ struct ClimateWatch {
     Vars::RefOut<bool> sensor;
 
     /** @} */
+
+    /** @brief Every readable row this program connects to, as bare
+     *  indices: what the base sweeps for validity before each
+     *  activation. Parameters are not here - an operator's number is
+     *  always valid, and checking one would cost a walk to learn nothing. */
+    Vars::VarRef _watched[7];
 
     /** @name Health
      *  Where this program's health is published. Written by a
@@ -364,6 +400,12 @@ struct DayPhaseController {
 
     /** @} */
 
+    /** @brief Every readable row this program connects to, as bare
+     *  indices: what the base sweeps for validity before each
+     *  activation. Parameters are not here - an operator's number is
+     *  always valid, and checking one would cost a walk to learn nothing. */
+    Vars::VarRef _watched[1];
+
     /** @name Health
      *  Where this program's health is published. Written by a
      *  SUPERVISOR walking every program, not by the program: a
@@ -407,6 +449,12 @@ struct TargetTempController {
     Vars::RefOut<float> target;
 
     /** @} */
+
+    /** @brief Every readable row this program connects to, as bare
+     *  indices: what the base sweeps for validity before each
+     *  activation. Parameters are not here - an operator's number is
+     *  always valid, and checking one would cost a walk to learn nothing. */
+    Vars::VarRef _watched[3];
 
     /** @name Health
      *  Where this program's health is published. Written by a
@@ -460,6 +508,12 @@ struct CoolingController {
 
     /** @} */
 
+    /** @brief Every readable row this program connects to, as bare
+     *  indices: what the base sweeps for validity before each
+     *  activation. Parameters are not here - an operator's number is
+     *  always valid, and checking one would cost a walk to learn nothing. */
+    Vars::VarRef _watched[4];
+
     /** @name Health
      *  Where this program's health is published. Written by a
      *  SUPERVISOR walking every program, not by the program: a
@@ -505,6 +559,12 @@ struct DestratController {
     Vars::RefOut<float> demand;
 
     /** @} */
+
+    /** @brief Every readable row this program connects to, as bare
+     *  indices: what the base sweeps for validity before each
+     *  activation. Parameters are not here - an operator's number is
+     *  always valid, and checking one would cost a walk to learn nothing. */
+    Vars::VarRef _watched[1];
 
     /** @name Health
      *  Where this program's health is published. Written by a
@@ -559,6 +619,12 @@ struct HumidityController {
 
     /** @} */
 
+    /** @brief Every readable row this program connects to, as bare
+     *  indices: what the base sweeps for validity before each
+     *  activation. Parameters are not here - an operator's number is
+     *  always valid, and checking one would cost a walk to learn nothing. */
+    Vars::VarRef _watched[6];
+
     /** @name Health
      *  Where this program's health is published. Written by a
      *  SUPERVISOR walking every program, not by the program: a
@@ -603,6 +669,12 @@ struct IrrigationModulation {
     Vars::RefOut<float> mod;
 
     /** @} */
+
+    /** @brief Every readable row this program connects to, as bare
+     *  indices: what the base sweeps for validity before each
+     *  activation. Parameters are not here - an operator's number is
+     *  always valid, and checking one would cost a walk to learn nothing. */
+    Vars::VarRef _watched[1];
 
     /** @name Health
      *  Where this program's health is published. Written by a
@@ -652,6 +724,12 @@ struct WaterMeters {
     Vars::RefOut<bool>  pressure;
 
     /** @} */
+
+    /** @brief Every readable row this program connects to, as bare
+     *  indices: what the base sweeps for validity before each
+     *  activation. Parameters are not here - an operator's number is
+     *  always valid, and checking one would cost a walk to learn nothing. */
+    Vars::VarRef _watched[2];
 
     /** @name Health
      *  Where this program's health is published. Written by a
@@ -732,6 +810,12 @@ struct IrrigationCycle {
 
     /** @} */
 
+    /** @brief Every readable row this program connects to, as bare
+     *  indices: what the base sweeps for validity before each
+     *  activation. Parameters are not here - an operator's number is
+     *  always valid, and checking one would cost a walk to learn nothing. */
+    Vars::VarRef _watched[7];
+
     /** @name Health
      *  Where this program's health is published. Written by a
      *  SUPERVISOR walking every program, not by the program: a
@@ -777,6 +861,12 @@ struct ScreenController {
     Vars::RefOut<bool> moving;
 
     /** @} */
+
+    /** @brief Every readable row this program connects to, as bare
+     *  indices: what the base sweeps for validity before each
+     *  activation. Parameters are not here - an operator's number is
+     *  always valid, and checking one would cost a walk to learn nothing. */
+    Vars::VarRef _watched[3];
 
     /** @name Health
      *  Where this program's health is published. Written by a
@@ -830,6 +920,12 @@ struct WindowsController {
 
     /** @} */
 
+    /** @brief Every readable row this program connects to, as bare
+     *  indices: what the base sweeps for validity before each
+     *  activation. Parameters are not here - an operator's number is
+     *  always valid, and checking one would cost a walk to learn nothing. */
+    Vars::VarRef _watched[5];
+
     /** @name Health
      *  Where this program's health is published. Written by a
      *  SUPERVISOR walking every program, not by the program: a
@@ -874,6 +970,12 @@ struct WeatherWatch {
     Vars::RefOut<bool> storm;
 
     /** @} */
+
+    /** @brief Every readable row this program connects to, as bare
+     *  indices: what the base sweeps for validity before each
+     *  activation. Parameters are not here - an operator's number is
+     *  always valid, and checking one would cost a walk to learn nothing. */
+    Vars::VarRef _watched[6];
 
     /** @name Health
      *  Where this program's health is published. Written by a
@@ -921,6 +1023,12 @@ struct IntractorController {
     Vars::RefOut<float> intr[2];
 
     /** @} */
+
+    /** @brief Every readable row this program connects to, as bare
+     *  indices: what the base sweeps for validity before each
+     *  activation. Parameters are not here - an operator's number is
+     *  always valid, and checking one would cost a walk to learn nothing. */
+    Vars::VarRef _watched[6];
 
     /** @name Health
      *  Where this program's health is published. Written by a
@@ -970,6 +1078,12 @@ struct FanController {
 
     /** @} */
 
+    /** @brief Every readable row this program connects to, as bare
+     *  indices: what the base sweeps for validity before each
+     *  activation. Parameters are not here - an operator's number is
+     *  always valid, and checking one would cost a walk to learn nothing. */
+    Vars::VarRef _watched[4];
+
     /** @name Health
      *  Where this program's health is published. Written by a
      *  SUPERVISOR walking every program, not by the program: a
@@ -1017,6 +1131,12 @@ struct SkirtController {
 
     /** @} */
 
+    /** @brief Every readable row this program connects to, as bare
+     *  indices: what the base sweeps for validity before each
+     *  activation. Parameters are not here - an operator's number is
+     *  always valid, and checking one would cost a walk to learn nothing. */
+    Vars::VarRef _watched[4];
+
     /** @name Health
      *  Where this program's health is published. Written by a
      *  SUPERVISOR walking every program, not by the program: a
@@ -1060,6 +1180,15 @@ inline void AcGridWatch::bind(Vars::Bank& io, Plc::Program& owner) {
     ok     = io.resolve_out<bool>("sys_grid_ok");
     fault  = io.resolve_out<bool>("alarm_ac_grid");
     health = io.resolve_out<uint8_t>("prog_ac_grid_watch");
+
+    // The readings this law is entitled to expect. The base walks them
+    // before each activation, so an input that has stopped being believable
+    // is DEGRADED whether or not the law thought to ask.
+    _watched[0] = volts.r;
+    _watched[1] = amps.r;
+    _watched[2] = watts.r;
+    _watched[3] = hz.r;
+    owner.set_inputs(_watched, 4);
     owner.set_health_row(health);
 }
 
@@ -1082,6 +1211,16 @@ inline void AcLocalWatch::bind(Vars::Bank& io, Plc::Program& owner) {
     fault     = io.resolve_out<bool>("alarm_ac_local");
     gen_fault = io.resolve_out<bool>("alarm_gen");
     health    = io.resolve_out<uint8_t>("prog_ac_local_watch");
+
+    // The readings this law is entitled to expect. The base walks them
+    // before each activation, so an input that has stopped being believable
+    // is DEGRADED whether or not the law thought to ask.
+    _watched[0] = volts.r;
+    _watched[1] = amps.r;
+    _watched[2] = watts.r;
+    _watched[3] = hz.r;
+    _watched[4] = grid_ok.r;
+    owner.set_inputs(_watched, 5);
     owner.set_health_row(health);
 }
 
@@ -1110,6 +1249,16 @@ inline void DcWatch::bind(Vars::Bank& io, Plc::Program& owner) {
     ups_flt = io.resolve_out<bool>("alarm_dc_ups");
     gen_flt = io.resolve_out<bool>("alarm_generator_battery");
     health  = io.resolve_out<uint8_t>("prog_dc_watch");
+
+    // The readings this law is entitled to expect. The base walks them
+    // before each activation, so an input that has stopped being believable
+    // is DEGRADED whether or not the law thought to ask.
+    _watched[0] = dc1.r;
+    _watched[1] = dc2.r;
+    _watched[2] = ups_bat.r;
+    _watched[3] = gen_bat.r;
+    _watched[4] = low_bat.r;
+    owner.set_inputs(_watched, 5);
     owner.set_health_row(health);
 }
 
@@ -1158,6 +1307,35 @@ inline void TempRHZone::bind(Vars::Bank& io, Plc::Program& owner) {
     vpd       = io.resolve_out<float>("cli_vpd_kPa");
     rot       = io.resolve_out<bool>("alarm_rot");
     health    = io.resolve_out<uint8_t>("prog_temp_rh_zone");
+
+    // The readings this law is entitled to expect. The base walks them
+    // before each activation, so an input that has stopped being believable
+    // is DEGRADED whether or not the law thought to ask.
+    _watched[0] = t_hi[0].r;
+    _watched[1] = t_hi[1].r;
+    _watched[2] = t_hi[2].r;
+    _watched[3] = h_hi[0].r;
+    _watched[4] = h_hi[1].r;
+    _watched[5] = h_hi[2].r;
+    _watched[6] = t_lo[0].r;
+    _watched[7] = t_lo[1].r;
+    _watched[8] = t_lo[2].r;
+    _watched[9] = h_lo[0].r;
+    _watched[10] = h_lo[1].r;
+    _watched[11] = h_lo[2].r;
+    _watched[12] = t_cs[0].r;
+    _watched[13] = t_cs[1].r;
+    _watched[14] = t_cs[2].r;
+    _watched[15] = h_cs[0].r;
+    _watched[16] = h_cs[1].r;
+    _watched[17] = h_cs[2].r;
+    _watched[18] = t_ext[0].r;
+    _watched[19] = t_ext[1].r;
+    _watched[20] = t_ext[2].r;
+    _watched[21] = h_ext[0].r;
+    _watched[22] = h_ext[1].r;
+    _watched[23] = h_ext[2].r;
+    owner.set_inputs(_watched, 24);
     owner.set_health_row(health);
 }
 
@@ -1166,6 +1344,13 @@ inline void StratSensor::bind(Vars::Bank& io, Plc::Program& owner) {
     floor   = io.resolve_in<float>("cli_temp_lo");
     strat   = io.resolve_out<float>("cli_dTStrat_degC");
     health  = io.resolve_out<uint8_t>("prog_strat");
+
+    // The readings this law is entitled to expect. The base walks them
+    // before each activation, so an input that has stopped being believable
+    // is DEGRADED whether or not the law thought to ask.
+    _watched[0] = ceiling.r;
+    _watched[1] = floor.r;
+    owner.set_inputs(_watched, 2);
     owner.set_health_row(health);
 }
 
@@ -1187,6 +1372,18 @@ inline void ClimateWatch::bind(Vars::Bank& io, Plc::Program& owner) {
     stratified = io.resolve_out<bool>("alarm_strat");
     sensor     = io.resolve_out<bool>("alarm_sensor_fault");
     health     = io.resolve_out<uint8_t>("prog_climate_watch");
+
+    // The readings this law is entitled to expect. The base walks them
+    // before each activation, so an input that has stopped being believable
+    // is DEGRADED whether or not the law thought to ask.
+    _watched[0] = temp.r;
+    _watched[1] = rh.r;
+    _watched[2] = strat.r;
+    _watched[3] = sns[0].r;
+    _watched[4] = sns[1].r;
+    _watched[5] = sns[2].r;
+    _watched[6] = sns[3].r;
+    owner.set_inputs(_watched, 7);
     owner.set_health_row(health);
 }
 
@@ -1208,6 +1405,12 @@ inline void DayPhaseController::bind(Vars::Bank& io, Plc::Program& owner) {
     from_rise      = io.resolve_out<int16_t>("sol_fromRise_min");
     from_set       = io.resolve_out<int16_t>("sol_fromSet_min");
     health         = io.resolve_out<uint8_t>("prog_day_phase");
+
+    // The readings this law is entitled to expect. The base walks them
+    // before each activation, so an input that has stopped being believable
+    // is DEGRADED whether or not the law thought to ask.
+    _watched[0] = inside.r;
+    owner.set_inputs(_watched, 1);
     owner.set_health_row(health);
 }
 
@@ -1220,6 +1423,14 @@ inline void TargetTempController::bind(Vars::Bank& io, Plc::Program& owner) {
     heat_bank_ofs = io.resolve_in<float>("cli_heatBankOfs_degC");
     target        = io.resolve_out<float>("cli_targetTemp_degC");
     health        = io.resolve_out<uint8_t>("prog_target_temp");
+
+    // The readings this law is entitled to expect. The base walks them
+    // before each activation, so an input that has stopped being believable
+    // is DEGRADED whether or not the law thought to ask.
+    _watched[0] = phase.r;
+    _watched[1] = cold_arm.r;
+    _watched[2] = heat_arm.r;
+    owner.set_inputs(_watched, 3);
     owner.set_health_row(health);
 }
 
@@ -1240,6 +1451,15 @@ inline void CoolingController::bind(Vars::Bank& io, Plc::Program& owner) {
     ground_ok   = io.resolve_out<bool>("cli_groundHeatOk");
     window      = io.resolve_out<float>("cli_windowDem");
     health      = io.resolve_out<uint8_t>("prog_cooling");
+
+    // The readings this law is entitled to expect. The base walks them
+    // before each activation, so an input that has stopped being believable
+    // is DEGRADED whether or not the law thought to ask.
+    _watched[0] = ceiling.r;
+    _watched[1] = floor.r;
+    _watched[2] = target.r;
+    _watched[3] = intake.r;
+    owner.set_inputs(_watched, 4);
     owner.set_health_row(health);
 }
 
@@ -1254,6 +1474,12 @@ inline void DestratController::bind(Vars::Bank& io, Plc::Program& owner) {
     fan_high = io.resolve_in<float>("cli_fanHighDem");
     demand   = io.resolve_out<float>("cli_stratDem");
     health   = io.resolve_out<uint8_t>("prog_destrat");
+
+    // The readings this law is entitled to expect. The base walks them
+    // before each activation, so an input that has stopped being believable
+    // is DEGRADED whether or not the law thought to ask.
+    _watched[0] = strat.r;
+    owner.set_inputs(_watched, 1);
     owner.set_health_row(health);
 }
 
@@ -1275,6 +1501,17 @@ inline void HumidityController::bind(Vars::Bank& io, Plc::Program& owner) {
     vent_dem    = io.resolve_out<float>("cli_rotVentDem");
     dry_ok      = io.resolve_out<bool>("cli_intakeDryOk");
     health      = io.resolve_out<uint8_t>("prog_humidity");
+
+    // The readings this law is entitled to expect. The base walks them
+    // before each activation, so an input that has stopped being believable
+    // is DEGRADED whether or not the law thought to ask.
+    _watched[0] = dp_margin.r;
+    _watched[1] = rot.r;
+    _watched[2] = in_t.r;
+    _watched[3] = in_rh.r;
+    _watched[4] = ext_t.r;
+    _watched[5] = ext_rh.r;
+    owner.set_inputs(_watched, 6);
     owner.set_health_row(health);
 }
 
@@ -1288,6 +1525,12 @@ inline void IrrigationModulation::bind(Vars::Bank& io, Plc::Program& owner) {
     vpd_avg   = io.resolve_out<float>("irr_vpdAvg_kPa");
     mod       = io.resolve_out<float>("irr_mod");
     health    = io.resolve_out<uint8_t>("prog_irr_modulation");
+
+    // The readings this law is entitled to expect. The base walks them
+    // before each activation, so an input that has stopped being believable
+    // is DEGRADED whether or not the law thought to ask.
+    _watched[0] = vpd.r;
+    owner.set_inputs(_watched, 1);
     owner.set_health_row(health);
 }
 
@@ -1305,6 +1548,13 @@ inline void WaterMeters::bind(Vars::Bank& io, Plc::Program& owner) {
     leak          = io.resolve_out<bool>("alarm_water_leak");
     pressure      = io.resolve_out<bool>("alarm_water_pressure");
     health        = io.resolve_out<uint8_t>("prog_irr_meters");
+
+    // The readings this law is entitled to expect. The base walks them
+    // before each activation, so an input that has stopped being believable
+    // is DEGRADED whether or not the law thought to ask.
+    _watched[0] = out_flow.r;
+    _watched[1] = state.r;
+    owner.set_inputs(_watched, 2);
     owner.set_health_row(health);
 }
 
@@ -1405,6 +1655,18 @@ inline void IrrigationCycle::bind(Vars::Bank& io, Plc::Program& owner) {
     force_off[6]   = io.resolve_inout<bool>("irr_forceOff_tray7");
     force_off[7]   = io.resolve_inout<bool>("irr_forceOff_tray8");
     health         = io.resolve_out<uint8_t>("prog_irrigation");
+
+    // The readings this law is entitled to expect. The base walks them
+    // before each activation, so an input that has stopped being believable
+    // is DEGRADED whether or not the law thought to ask.
+    _watched[0] = outside_temp.r;
+    _watched[1] = mod.r;
+    _watched[2] = in_total.r;
+    _watched[3] = out_total.r;
+    _watched[4] = phase.r;
+    _watched[5] = from_rise.r;
+    _watched[6] = out_flow.r;
+    owner.set_inputs(_watched, 7);
     owner.set_health_row(health);
 }
 
@@ -1419,6 +1681,14 @@ inline void ScreenController::bind(Vars::Bank& io, Plc::Program& owner) {
     screen       = io.resolve_out<bool>("cli_screen");
     moving       = io.resolve_out<bool>("cli_screenMoving");
     health       = io.resolve_out<uint8_t>("prog_screen");
+
+    // The readings this law is entitled to expect. The base walks them
+    // before each activation, so an input that has stopped being believable
+    // is DEGRADED whether or not the law thought to ask.
+    _watched[0] = cool_dem.r;
+    _watched[1] = inside.r;
+    _watched[2] = phase.r;
+    owner.set_inputs(_watched, 3);
     owner.set_health_row(health);
 }
 
@@ -1451,6 +1721,16 @@ inline void WindowsController::bind(Vars::Bank& io, Plc::Program& owner) {
     rain_lock   = io.resolve_out<bool>("cli_rainLockout");
     wind_lock   = io.resolve_out<bool>("cli_windLockout");
     health      = io.resolve_out<uint8_t>("prog_windows");
+
+    // The readings this law is entitled to expect. The base walks them
+    // before each activation, so an input that has stopped being believable
+    // is DEGRADED whether or not the law thought to ask.
+    _watched[0] = window_dem.r;
+    _watched[1] = rain_mmph.r;
+    _watched[2] = wind_mps.r;
+    _watched[3] = gust_mps.r;
+    _watched[4] = supply_lock.r;
+    owner.set_inputs(_watched, 5);
     owner.set_health_row(health);
 }
 
@@ -1464,6 +1744,17 @@ inline void WeatherWatch::bind(Vars::Bank& io, Plc::Program& owner) {
     station   = io.resolve_out<bool>("alarm_wx_station");
     storm     = io.resolve_out<bool>("alarm_weather_storm");
     health    = io.resolve_out<uint8_t>("prog_weather_watch");
+
+    // The readings this law is entitled to expect. The base walks them
+    // before each activation, so an input that has stopped being believable
+    // is DEGRADED whether or not the law thought to ask.
+    _watched[0] = wind.r;
+    _watched[1] = gust.r;
+    _watched[2] = rain.r;
+    _watched[3] = irrad.r;
+    _watched[4] = rain_lock.r;
+    _watched[5] = wind_lock.r;
+    owner.set_inputs(_watched, 6);
     owner.set_health_row(health);
 }
 
@@ -1480,6 +1771,17 @@ inline void IntractorController::bind(Vars::Bank& io, Plc::Program& owner) {
     intr[0]      = io.resolve_out<float>("cli_intr1");
     intr[1]      = io.resolve_out<float>("cli_intr2");
     health       = io.resolve_out<uint8_t>("prog_intractors");
+
+    // The readings this law is entitled to expect. The base walks them
+    // before each activation, so an input that has stopped being believable
+    // is DEGRADED whether or not the law thought to ask.
+    _watched[0] = cool_dem.r;
+    _watched[1] = rot_vent.r;
+    _watched[2] = humid_dem.r;
+    _watched[3] = cool_ok.r;
+    _watched[4] = ground_ok.r;
+    _watched[5] = dry_ok.r;
+    owner.set_inputs(_watched, 6);
     owner.set_health_row(health);
 }
 
@@ -1499,6 +1801,15 @@ inline void FanController::bind(Vars::Bank& io, Plc::Program& owner) {
     speed3[1]     = io.resolve_out<bool>("cli_destrat2_speed3");
     band          = io.resolve_out<uint8_t>("cli_fanSpeed");
     health        = io.resolve_out<uint8_t>("prog_fans");
+
+    // The readings this law is entitled to expect. The base walks them
+    // before each activation, so an input that has stopped being believable
+    // is DEGRADED whether or not the law thought to ask.
+    _watched[0] = strat_dem.r;
+    _watched[1] = cool_dem.r;
+    _watched[2] = irr_state.r;
+    _watched[3] = screen_moving.r;
+    owner.set_inputs(_watched, 4);
     owner.set_health_row(health);
 }
 
@@ -1514,6 +1825,15 @@ inline void SkirtController::bind(Vars::Bank& io, Plc::Program& owner) {
     valve      = io.resolve_out<bool>("cli_skirtValve");
     duty       = io.resolve_out<float>("cli_skirtDuty");
     health     = io.resolve_out<uint8_t>("prog_skirt");
+
+    // The readings this law is entitled to expect. The base walks them
+    // before each activation, so an input that has stopped being believable
+    // is DEGRADED whether or not the law thought to ask.
+    _watched[0] = cool_dem.r;
+    _watched[1] = humid_dem.r;
+    _watched[2] = dp_margin.r;
+    _watched[3] = rot_lock.r;
+    owner.set_inputs(_watched, 4);
     owner.set_health_row(health);
 }
 

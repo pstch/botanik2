@@ -93,6 +93,11 @@ public:
         _ok    = r.ok;
     }
 
+    /** @brief One reading onto its status row, through the deadband, or the row
+     *  marked unmeasured. */
+    static void _mirror(Vars::RefOut<float> out, Plc::Deadband& band,
+                        Vars::RefIn<float> in, float width);
+
     /** @brief Mirror the four readings and judge them.
      *  @param fault set when this supply is out of spec, or has gone silent
      *         after answering at least once

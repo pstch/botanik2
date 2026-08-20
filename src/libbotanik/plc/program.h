@@ -117,6 +117,10 @@ namespace Botanik { namespace Plc {
                 Vars::Bank& io)
             : Component(ctx, name), _io(&io), _group(group) {}
 
+        /** @brief The readable rows this program connects to. @see set_inputs */
+        const Vars::VarRef* _watched = nullptr;
+        uint8_t             _watched_count = 0;
+
         /** @brief Where this program's health is PUBLISHED, or the sink.
          *
          *  Set from the generated bind() when `programs.toml` declares a health
@@ -125,6 +129,19 @@ namespace Botanik { namespace Plc {
          *  activated - which is most of what "inhibited" means - still has a
          *  current row. @see publish_health() */
         void set_health_row(Vars::RefOut<uint8_t> r) { _health_row = r; }
+
+        /** @brief The rows this program READS that can stop being believable,
+         *  handed over by the generated bind(). Borrowed and flash-resident for
+         *  the life of the program.
+         *
+         *  Swept before every activation: an input a law is entitled to expect
+         *  and does not have is DEGRADED, whether or not the law thought to ask.
+         *  Deciding it here rather than in each run() is what makes it true of
+         *  EVERY program instead of the ones somebody remembered. */
+        void set_inputs(const Vars::VarRef* rows, uint8_t count) {
+            _watched = rows;
+            _watched_count = count;
+        }
         Vars::RefOut<uint8_t> health_row() const { return _health_row; }
 
         /** @brief Registry::add_program()'s to set: two programs claiming one
@@ -204,6 +221,16 @@ namespace Botanik { namespace Plc {
          *  move while the program is SAFE, which is the one thing that state
          *  promises does not happen. */
         virtual void observe(ProgramContext& c) { (void)c; }
+
+        /** @brief DEGRADED if any watched input is not believable. The first
+         *  one is enough - the verdict is a severity, not a count - so a table
+         *  of thirty rows costs the walk only while everything is good. */
+        void _watch_inputs() {
+            if (_io == nullptr) return;
+            for (uint8_t i = 0; i < _watched_count; i++) {
+                if (!_io->var(_watched[i]).valid()) { degraded(); return; }
+            }
+        }
 
         /** @brief Say that this program is still driving toward its parked
          *  position, so it has NOT arrived yet.
@@ -286,6 +313,9 @@ namespace Botanik { namespace Plc {
             // calls degraded()/faulted() is one whose run() cannot fail, and it
             // should read as healthy rather than as unknown.
             _health = Health::HEALTHY;
+            // BEFORE run(), so a law reading an unbelievable input starts from
+            // DEGRADED and can still escalate to FAULTED on its own account.
+            _watch_inputs();
             ProgramContext c = { t.now_ms, t.dt_ms, t.missed, t.first, *_io };
             // The window, not the program, says who is writing: a program cannot
             // name itself, and a write outside an activation claims nothing.

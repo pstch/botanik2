@@ -238,6 +238,63 @@ using TestScan::Live;
 using namespace Botanik;
 using namespace Botanik::Vars;
 
+namespace {
+    /** @brief Publish everything the cooling law reads. Its interface is four
+     *  computed rows and a handful of parameters; the parameters are always
+     *  valid, the computed ones are not until something has produced them. */
+    void live_inputs(Live& f) {
+        f.bank.var(f.ref("cli_temp_hi")).publish(from_f32(T_F32, 21.0f), 0);
+        f.bank.var(f.ref("cli_temp_lo")).publish(from_f32(T_F32, 20.0f), 0);
+        f.bank.var(f.ref("cli_temp_cs")).publish(from_f32(T_F32, 18.0f), 0);
+        f.bank.var(f.ref("cli_targetTemp_degC")).set(20.0f);
+    }
+}
+
+TEST_CASE("programs: an input nobody can believe is DEGRADED, whoever reads it") {
+    // Not a rule each law remembers: the base walks what the configuration says
+    // the program reads, so a reading that has stopped being believable is
+    // DEGRADED whether or not this particular run() thought to ask.
+    Live f;
+    Site::TargetTempController target(Botanik::SetupContext(f.reg), f.bank);
+    Plc::Program* const progs[] = { &target };
+    Cycle d(progs, 1, &f.bank, f.reg);
+
+    // Its whole interface is one computed row and four parameters, and it does
+    // not test any of them: a phase it cannot see still yields the base target.
+    f.bank.var(f.ref("cli_phase")).set_i((int64_t)Site::PHASE_DAY);
+    f.bank.var(f.ref("cli_coldBankArm")).set(false);
+    f.bank.var(f.ref("cli_heatBankArm")).set(false);
+    d.step(100);
+    REQUIRE(target.health() == Plc::Health::HEALTHY);
+
+    f.bank.var(f.ref("cli_phase")).invalidate(Q_NO_DATA);
+    d.step(200);
+    CHECK(target.health() == Plc::Health::DEGRADED);
+    INFO("and it still produces: DEGRADED is an input it wanted, not an output "
+         "it could not make");
+    CHECK(f.bank.var(f.ref("cli_targetTemp_degC")).valid());
+}
+
+TEST_CASE("programs: an output nobody can derive says so, rather than defaulting") {
+    Live f;
+    Site::HumidityController hum(Botanik::SetupContext(f.reg), f.bank);
+    Plc::Program* const progs[] = { &hum };
+    Cycle d(progs, 1, &f.bank, f.reg);
+
+    const VarRef dem = f.ref("cli_humidDem");
+    f.bank.var(f.ref("cli_dpMargin_degC")).publish(from_f32(T_F32, 10.0f), 0);
+    d.step(100);
+    REQUIRE(f.bank.var(dem).valid());
+
+    INFO("this row's default is 0, which the ladder reads as SATURATED: "
+         "published as a demand it would call for full dehumidification on a "
+         "reading nobody has");
+    f.bank.var(f.ref("cli_dpMargin_degC")).invalidate(Q_NO_DATA);
+    d.step(200);
+    CHECK_FALSE(f.bank.var(dem).valid());
+    CHECK(hum.health() == Plc::Health::DEGRADED);
+}
+
 TEST_CASE("health rows: a law that has stopped working is a WARNING") {
     Live f;
     Botanik::Logs::Logger log;
@@ -249,10 +306,13 @@ TEST_CASE("health rows: a law that has stopped working is a WARNING") {
     Plc::Program* const progs[] = { &cooling };
     Cycle d(progs, 1, &f.bank, f.reg);
 
-    f.bank.var(f.ref("cli_temp_hi")).publish(from_f32(T_F32, 21.0f), 0);
-    f.bank.var(f.ref("cli_temp_cs")).publish(from_f32(T_F32, 18.0f), 0);
+    // Every row the law READS, not just the one under test: an input a program
+    // is entitled to expect and does not have is DEGRADED, which is a different
+    // verdict from the one this case is about.
+    live_inputs(f);
     d.step(100);
     Plc::publish_health(f.bank, f.reg, &log);
+    REQUIRE(cooling.health() == Plc::Health::HEALTHY);
     w.all_msgs.clear();
 
     INFO("both interior levels gone: the law cannot produce a demand at all");
@@ -265,7 +325,7 @@ TEST_CASE("health rows: a law that has stopped working is a WARNING") {
 
     INFO("...and coming back is the record closing, at DEBUG");
     w.all_msgs.clear();
-    f.bank.var(f.ref("cli_temp_hi")).publish(from_f32(T_F32, 21.0f), 200);
+    live_inputs(f);
     d.step(300);
     Plc::publish_health(f.bank, f.reg, &log);
     CHECK(w.saw("cooling: HEALTHY"));
@@ -279,12 +339,10 @@ TEST_CASE("health rows: a program's verdict reaches its row, running or not") {
     Cycle d(progs, 1, &f.bank, f.reg);
 
     Vars::RefIn<uint8_t> row = f.bank.resolve_in<uint8_t>("prog_cooling");
-    // An interior temperature it can actually see: with both levels gone the
-    // law reports FAULTED, which is a different case (test_site_programs.cpp).
-    // The crawlspace too - the intake gate reads it, and a law that cannot see
-    // one of its inputs reports DEGRADED, which is not the case under test.
-    f.bank.var(f.ref("cli_temp_hi")).publish(from_f32(T_F32, 21.0f), 0);
-    f.bank.var(f.ref("cli_temp_cs")).publish(from_f32(T_F32, 18.0f), 0);
+    // Every row the law reads: with both interior levels gone it reports
+    // FAULTED, and with any input unbelievable it reports DEGRADED - neither of
+    // which is the case under test.
+    live_inputs(f);
 
     INFO("before the first activation a program is INHIBITED: reading HEALTHY "
          "there would say the plant was in hand during bring-up");
