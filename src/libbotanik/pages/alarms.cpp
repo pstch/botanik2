@@ -40,7 +40,7 @@ namespace Botanik { namespace Pages {
 
     void AlarmsPage::_draw_footer(uint16_t row, uint8_t active) {
         char detail[32];
-        snprintf(detail, sizeof(detail), "%u active  ENTER acks", (unsigned)active);
+        snprintf(detail, sizeof(detail), "%u active  ENTER acks/unacks", (unsigned)active);
         _draw_legend(row, detail);
     }
 
@@ -185,11 +185,13 @@ namespace Botanik { namespace Pages {
         return _model->condition(_vis[_selected]).name();
     }
 
-    void AlarmsPage::_ack_selected() {
+    void AlarmsPage::_toggle_ack() {
         if (_model == nullptr || _selected >= _nvis) return;
         const Alarms::AlarmCondition& c = _model->condition(_vis[_selected]);
-        if (c.name() != nullptr) _model->ack(c.name());
-        _dirty = true;   // ack changes the badge / sort
+        if (c.name() == nullptr) return;
+        if (c.user_ack) _model->unack(c.name());
+        else            _model->ack(c.name());
+        _dirty = true;   // either way the badge and the sort move
     }
 
     void AlarmsPage::_draw_structure() {
@@ -207,9 +209,9 @@ namespace Botanik { namespace Pages {
     }
 
     void AlarmsPage::handle_command(Command cmd, uint16_t) {
-        // ENTER acks, not 'a': every table takes typing as its filter, so the
+        // ENTER toggles the ack, not 'a': every table takes typing as its filter, so the
         // one key that acts on a row has to be one that cannot be typed.
-        if (cmd == Command::ENTER) { _ack_selected(); return; }
+        if (cmd == Command::ENTER) { _toggle_ack(); return; }
         if (_filter_command(cmd)) return;            // BACKSPACE pops, ESC clears
         if (_mode_command(cmd)) return;              // LEFT/RIGHT change the view
         if (_nav_command(cmd)) { _dirty = true; return; }

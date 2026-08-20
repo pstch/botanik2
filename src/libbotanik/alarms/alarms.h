@@ -323,6 +323,16 @@ namespace Botanik { namespace Alarms {
             return true;
         }
 
+        /** @brief Take an acknowledgement back, by code or by variable name.
+         *  The same gesture both ways: an ack given to the wrong row is a
+         *  mis-keystroke, not a decision to live with. */
+        bool unack(const char* name) {
+            const int i = index_of(name);
+            if (i < 0 || !_conditions[i].user_ack) return false;
+            _conditions[i].user_ack = false;
+            return true;
+        }
+
         /** @brief Acknowledge every active condition; returns how many. */
         uint8_t ack_all() {
             uint8_t n = 0;

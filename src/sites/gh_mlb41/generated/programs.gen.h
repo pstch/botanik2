@@ -428,10 +428,15 @@ struct DayPhaseController {
     /** @name VAR_OUTPUT
      *  @{ */
     Vars::RefOut<uint8_t> phase;
-    Vars::RefOut<float>   prev_day_max;
-    Vars::RefOut<float>   prev_night_min;
     Vars::RefOut<bool>    cold_arm;
     Vars::RefOut<bool>    heat_arm;
+
+    /** @} */
+
+    /** @name VAR_IN_OUT
+     *  @{ */
+    Vars::RefInOut<float> prev_day_max;
+    Vars::RefInOut<float> prev_night_min;
 
     /** @} */
 
@@ -439,7 +444,7 @@ struct DayPhaseController {
      *  indices: what the base sweeps for validity before each
      *  activation. Parameters are not here - an operator's number is
      *  always valid, and checking one would cost a walk to learn nothing. */
-    Vars::VarRef _watched[3];
+    Vars::VarRef _watched[5];
 
     /** @name Health
      *  Where this program's health is published. Written by a
@@ -520,6 +525,7 @@ struct CoolingController {
 
     /** @name VAR_INPUT
      *  @{ */
+    Vars::RefIn<float> inside;
     Vars::RefIn<float> ceiling;
     Vars::RefIn<float> floor;
     Vars::RefIn<float> target;
@@ -548,7 +554,7 @@ struct CoolingController {
      *  indices: what the base sweeps for validity before each
      *  activation. Parameters are not here - an operator's number is
      *  always valid, and checking one would cost a walk to learn nothing. */
-    Vars::VarRef _watched[4];
+    Vars::VarRef _watched[5];
 
     /** @name Health
      *  Where this program's health is published. Written by a
@@ -828,11 +834,9 @@ struct IrrigationCycle {
     Vars::RefOut<uint8_t> state;
     Vars::RefOut<uint8_t> active;
     Vars::RefOut<uint8_t> served;
-    Vars::RefOut<float>   delivered;
     Vars::RefOut<bool>    inlet[2];
     Vars::RefOut<bool>    outlet[2];
     Vars::RefOut<bool>    fill_fault;
-    Vars::RefOut<float>   drained;
     Vars::RefOut<bool>    drain_fault;
     Vars::RefOut<bool>    fill_tray[8];
     Vars::RefOut<bool>    drain_tray[8];
@@ -844,6 +848,8 @@ struct IrrigationCycle {
     Vars::RefInOut<uint32_t> last[8];
     Vars::RefInOut<bool>     force_on[8];
     Vars::RefInOut<bool>     force_off[8];
+    Vars::RefInOut<float>    delivered;
+    Vars::RefInOut<float>    drained;
 
     /** @} */
 
@@ -851,7 +857,7 @@ struct IrrigationCycle {
      *  indices: what the base sweeps for validity before each
      *  activation. Parameters are not here - an operator's number is
      *  always valid, and checking one would cost a walk to learn nothing. */
-    Vars::VarRef _watched[7];
+    Vars::VarRef _watched[9];
 
     /** @name Health
      *  Where this program's health is published. Written by a
@@ -950,8 +956,14 @@ struct WindowsController {
     Vars::RefOut<bool>  clo[4];
     Vars::RefOut<float> tgt[4];
     Vars::RefOut<float> pos[4];
-    Vars::RefOut<bool>  rain_lock;
-    Vars::RefOut<bool>  wind_lock;
+
+    /** @} */
+
+    /** @name VAR_IN_OUT
+     *  @{ */
+    Vars::RefInOut<bool> rain_lock;
+    Vars::RefInOut<bool> wind_lock;
+    Vars::RefInOut<bool> window_lock;
 
     /** @} */
 
@@ -959,7 +971,7 @@ struct WindowsController {
      *  indices: what the base sweeps for validity before each
      *  activation. Parameters are not here - an operator's number is
      *  always valid, and checking one would cost a walk to learn nothing. */
-    Vars::VarRef _watched[5];
+    Vars::VarRef _watched[8];
 
     /** @name Health
      *  Where this program's health is published. Written by a
@@ -1434,7 +1446,7 @@ inline void SunWatch::bind(Vars::Bank& io, Plc::Program& owner) {
 }
 
 inline void DayPhaseController::bind(Vars::Bank& io, Plc::Program& owner) {
-    inside         = io.resolve_in<float>("cli_temp_hi");
+    inside         = io.resolve_in<float>("cli_temp_in");
     from_rise      = io.resolve_in<int16_t>("sol_fromRise_min");
     from_set       = io.resolve_in<int16_t>("sol_fromSet_min");
     cold_bank_trg  = io.resolve_in<float>("cli_coldBankTrg_degC");
@@ -1446,10 +1458,10 @@ inline void DayPhaseController::bind(Vars::Bank& io, Plc::Program& owner) {
     dusk_set       = io.resolve_in<int16_t>("sol_duskSet_min");
     night_set      = io.resolve_in<int16_t>("sol_nightSet_min");
     phase          = io.resolve_out<uint8_t>("cli_phase");
-    prev_day_max   = io.resolve_out<float>("cli_prevDayMax_degC");
-    prev_night_min = io.resolve_out<float>("cli_prevNightMin_degC");
     cold_arm       = io.resolve_out<bool>("cli_coldBankArm");
     heat_arm       = io.resolve_out<bool>("cli_heatBankArm");
+    prev_day_max   = io.resolve_inout<float>("cli_prevDayMax_degC");
+    prev_night_min = io.resolve_inout<float>("cli_prevNightMin_degC");
     health         = io.resolve_out<uint8_t>("prog_day_phase");
 
     // The readings this law is entitled to expect. The base walks them
@@ -1458,7 +1470,9 @@ inline void DayPhaseController::bind(Vars::Bank& io, Plc::Program& owner) {
     _watched[0] = inside.r;
     _watched[1] = from_rise.r;
     _watched[2] = from_set.r;
-    owner.set_inputs(_watched, 3);
+    _watched[3] = prev_day_max.r;
+    _watched[4] = prev_night_min.r;
+    owner.set_inputs(_watched, 5);
     owner.set_health_row(health);
 }
 
@@ -1483,6 +1497,7 @@ inline void TargetTempController::bind(Vars::Bank& io, Plc::Program& owner) {
 }
 
 inline void CoolingController::bind(Vars::Bank& io, Plc::Program& owner) {
+    inside      = io.resolve_in<float>("cli_temp_in");
     ceiling     = io.resolve_in<float>("cli_temp_hi");
     floor       = io.resolve_in<float>("cli_temp_lo");
     target      = io.resolve_in<float>("cli_targetTemp_degC");
@@ -1504,11 +1519,12 @@ inline void CoolingController::bind(Vars::Bank& io, Plc::Program& owner) {
     // The readings this law is entitled to expect. The base walks them
     // before each activation, so an input that has stopped being believable
     // is DEGRADED whether or not the law thought to ask.
-    _watched[0] = ceiling.r;
-    _watched[1] = floor.r;
-    _watched[2] = target.r;
-    _watched[3] = intake.r;
-    owner.set_inputs(_watched, 4);
+    _watched[0] = inside.r;
+    _watched[1] = ceiling.r;
+    _watched[2] = floor.r;
+    _watched[3] = target.r;
+    _watched[4] = intake.r;
+    owner.set_inputs(_watched, 5);
     owner.set_health_row(health);
 }
 
@@ -1656,13 +1672,11 @@ inline void IrrigationCycle::bind(Vars::Bank& io, Plc::Program& owner) {
     state          = io.resolve_out<uint8_t>("irr_state");
     active         = io.resolve_out<uint8_t>("irr_activeTray");
     served         = io.resolve_out<uint8_t>("irr_servedToday");
-    delivered      = io.resolve_out<float>("irr_delivered_L");
     inlet[0]       = io.resolve_out<bool>("irr_input_ro1");
     inlet[1]       = io.resolve_out<bool>("irr_input_ro2");
     outlet[0]      = io.resolve_out<bool>("irr_output_ro1");
     outlet[1]      = io.resolve_out<bool>("irr_output_ro2");
     fill_fault     = io.resolve_out<bool>("alarm_irr_fill");
-    drained        = io.resolve_out<float>("irr_drained_L");
     drain_fault    = io.resolve_out<bool>("alarm_irr_drain");
     fill_tray[0]   = io.resolve_out<bool>("alarm_irr_fill_tray1");
     fill_tray[1]   = io.resolve_out<bool>("alarm_irr_fill_tray2");
@@ -1704,6 +1718,8 @@ inline void IrrigationCycle::bind(Vars::Bank& io, Plc::Program& owner) {
     force_off[5]   = io.resolve_inout<bool>("irr_forceOff_tray6");
     force_off[6]   = io.resolve_inout<bool>("irr_forceOff_tray7");
     force_off[7]   = io.resolve_inout<bool>("irr_forceOff_tray8");
+    delivered      = io.resolve_inout<float>("irr_delivered_L");
+    drained        = io.resolve_inout<float>("irr_drained_L");
     health         = io.resolve_out<uint8_t>("prog_irrigation");
 
     // The readings this law is entitled to expect. The base walks them
@@ -1716,7 +1732,9 @@ inline void IrrigationCycle::bind(Vars::Bank& io, Plc::Program& owner) {
     _watched[4] = phase.r;
     _watched[5] = from_rise.r;
     _watched[6] = out_flow.r;
-    owner.set_inputs(_watched, 7);
+    _watched[7] = delivered.r;
+    _watched[8] = drained.r;
+    owner.set_inputs(_watched, 9);
     owner.set_health_row(health);
 }
 
@@ -1765,8 +1783,9 @@ inline void WindowsController::bind(Vars::Bank& io, Plc::Program& owner) {
     pos[1]      = io.resolve_out<float>("cli_window2_pos");
     pos[2]      = io.resolve_out<float>("cli_window3_pos");
     pos[3]      = io.resolve_out<float>("cli_window4_pos");
-    rain_lock   = io.resolve_out<bool>("cli_rainLockout");
-    wind_lock   = io.resolve_out<bool>("cli_windLockout");
+    rain_lock   = io.resolve_inout<bool>("cli_rainLockout");
+    wind_lock   = io.resolve_inout<bool>("cli_windLockout");
+    window_lock = io.resolve_inout<bool>("cli_windowLockout");
     health      = io.resolve_out<uint8_t>("prog_windows");
 
     // The readings this law is entitled to expect. The base walks them
@@ -1777,7 +1796,10 @@ inline void WindowsController::bind(Vars::Bank& io, Plc::Program& owner) {
     _watched[2] = wind_mps.r;
     _watched[3] = gust_mps.r;
     _watched[4] = supply_lock.r;
-    owner.set_inputs(_watched, 5);
+    _watched[5] = rain_lock.r;
+    _watched[6] = wind_lock.r;
+    _watched[7] = window_lock.r;
+    owner.set_inputs(_watched, 8);
     owner.set_health_row(health);
 }
 

@@ -73,8 +73,12 @@ void DayPhaseController::run(ProgramContext& c) {
     // Whether the bank phases have anything to do when their turn comes. Both
     // can be armed at once - a clear late-spring day is hot and its night cold,
     // and the two are decided independently.
-    _v.cold_arm.set(_day_max > _v.cold_bank_trg.get());
-    _v.heat_arm.set(_night_min < _v.heat_bank_trg.get());
+    //
+    // Off the ROWS just written, not off the members behind them: forcing one
+    // is how a cold-bank morning gets rehearsed in July, and a law that armed
+    // on its own copy would leave the page saying something it was not doing.
+    _v.cold_arm.set(_v.prev_day_max.get() > _v.cold_bank_trg.get());
+    _v.heat_arm.set(_v.prev_night_min.get() < _v.heat_bank_trg.get());
 }
 
 // TargetTempController
@@ -103,7 +107,7 @@ void CoolingController::run(ProgramContext& c) {
 
     const bool hi_ok = _v.ceiling.valid();
     const bool lo_ok = _v.floor.valid();
-    if (!hi_ok && !lo_ok) {
+    if (!_v.inside.valid()) {
         // No interior temperature at all. A PID handed a defaulted reading
         // would see 0 degC against the target and call for full HEAT - into a
         // greenhouse nobody can see. Say the demand is unknown instead, and let
@@ -120,13 +124,10 @@ void CoolingController::run(ProgramContext& c) {
         faulted();
         return;
     }
-    // The HOTTEST of the two levels, which is the spec's worst case for
-    // cooling: the ceiling is usually it, and on an inverted profile - a cold
-    // roof over a warm floor at night - it is not. Whichever level is still
-    // measured carries it alone.
-    const float inside = (hi_ok && lo_ok)
-                             ? Plc::max_of(_v.ceiling.get(), _v.floor.get())
-                             : (hi_ok ? _v.ceiling.get() : _v.floor.get());
+    // The house's own row, which is the hotter of the two levels: the spec's
+    // worst case for cooling, derived once where the probes are voted rather
+    // than again here.
+    const float inside = _v.inside.get();
     if (!hi_ok || !lo_ok) degraded();
 
     // The parameters are in the TIME form an operator tunes in (Ti, Td in

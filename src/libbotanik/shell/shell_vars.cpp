@@ -572,9 +572,9 @@ namespace Botanik { namespace Shell {
     void CommandShell::_override_reply(Vars::Var h, const char* verb) {
         Vars::Bank* io = _bank();
         char out[128], val[48];
-        _emitf(out, sizeof(out), "%s: %s %s%s  (unsaved: `overrides save %s`)",
+        _emitf(out, sizeof(out), "%s: %s %s%s",
                h.meta()->name, verb, Vars::var_format(*io, h, val, sizeof(val)),
-               h.valid() ? "" : " (reading as invalid)", h.meta()->name);
+               h.valid() ? "" : " (reading as invalid)");
     }
 
     // An override is live the moment it is taken and survives a reboot only

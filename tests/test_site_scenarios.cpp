@@ -195,9 +195,13 @@ struct Plumbing {
     float leak_Lpm;     ///< ...and what passes with every valve shut
 };
 
-const Plumbing SOUND_CIRCUIT    = { 60.0f, 0.80f, 0.0f };
-const Plumbing CLOGGED_TRAY     = { 60.0f, 0.10f, 0.0f };
-const Plumbing LEAKING_MANIFOLD = { 60.0f, 0.80f, 1.0f };
+/** @brief What a tray gives back while it is draining, in Lpm. The tray's
+ *  business, not the main's, so it is not part of a Plumbing. */
+const float DRAIN_Lpm = 30.0f;
+
+const Plumbing SOUND_CIRCUIT    = { 40.0f, 0.80f, 0.0f };
+const Plumbing CLOGGED_TRAY     = { 40.0f, 0.10f, 0.0f };
+const Plumbing LEAKING_MANIFOLD = { 40.0f, 0.80f, 1.0f };
 const Plumbing DEAD_MAIN        = {  0.0f, 0.00f, 0.0f };
 
 Plumbing g_pipe = SOUND_CIRCUIT;
@@ -223,14 +227,16 @@ void hold_water(Plant& p) {
     }
 
     // The outlet is a 4-20 mA loop, so what the pipework answers with is a
-    // RATE. The tray gives back its share of the dose and then stops; a flush
-    // runs straight through the manifold and out.
+    // RATE. Draining, the tray gives back its share of the dose and then stops
+    // - and the inlet is shut, so nothing is arriving meanwhile. Flushing, what
+    // goes in comes straight back out: same water, same rate, no tray between
+    // the two ends.
     float out = 0.0f;
     if (st == Site::IRR_DRAINING &&
         p.num("irr_drained_L") < g_pipe.drain_frac * p.num("irr_volume_L"))
-        out = 40.0f;
+        out = DRAIN_Lpm;
     else if (st == Site::IRR_FLUSHING)
-        out = 40.0f;
+        out = g_pipe.fill_Lpm;
     p.put("irr_out_Lpm", out);
 }
 
@@ -799,6 +805,16 @@ TEST_CASE("scenario: a dawn watering serves the trays one at a time") {
     SAY("...and the day is stamped at the END OF THE FILL, so a fault during "
         "the long drain cannot water the tray twice");
     CHECK(p.num("irr_servedToday") == doctest::Approx(1.0f));
+
+    // Ten seconds in, so the inlet's own 5 s rate window lies wholly inside
+    // the drain: at the transition beat it is still reporting the fill.
+    const float in_at_drain = p.num("irr_inTotal_L");
+    p.weather_for(100);
+    SAY("water is leaving and none is arriving: one meter reads and the other "
+        "does not, which is what a drain looks like at the two ends");
+    CHECK(p.num("irr_outFlow_Lpm") > 0.0f);
+    CHECK(p.num("irr_inFlow_Lpm") == doctest::Approx(0.0f));
+    CHECK(p.num("irr_inTotal_L") == doctest::Approx(in_at_drain));
     snapshot_water(p, "draining the first tray");
 
     SAY("enough came back for the tray to be clear of a clog");
@@ -809,6 +825,18 @@ TEST_CASE("scenario: a dawn watering serves the trays one at a time") {
     CHECK(p.on("irr_input_ro1"));
     CHECK(p.on("irr_output_ro1"));
     CHECK(p.num("irr_activeTray") == doctest::Approx(0.0f));
+
+    const float in_at_flush  = p.num("irr_inTotal_L");
+    const float out_at_flush = p.num("irr_outTotal_L");
+    p.weather_for(80);
+    SAY("both meters read, and read the SAME thing: fresh water going in one "
+        "end of the manifold and out of the other, with no tray to hold it");
+    CHECK(p.num("irr_inFlow_Lpm") > 20.0f);
+    CHECK(fabsf(p.num("irr_inFlow_Lpm") - p.num("irr_outFlow_Lpm")) < 15.0f);
+    const float went_in   = p.num("irr_inTotal_L") - in_at_flush;
+    const float came_back = p.num("irr_outTotal_L") - out_at_flush;
+    CHECK(went_in > 0.0f);
+    CHECK(fabsf(went_in - came_back) < 0.25f * went_in);
     snapshot_water(p, "rinsing the manifold between two trays");
 
     SAY("then the second tray, because tray 1 is no longer owed anything");
@@ -916,7 +944,8 @@ TEST_CASE("scenario: a tray that will not drain names itself") {
     settle(p, MILD_DAWN, 300);
     trace_weather(MILD_DAWN, Site::PHASE_DAWN_BREEZE);
 
-    REQUIRE(run_until(p, cycle_draining, 4000) != 0);
+    REQUIRE(run_until(p, cycle_draining, 6000) != 0);
+    p.weather_for(100);
     SAY("the fill itself was fine: the water went in, and the alarm below is "
         "about where it went afterwards");
     CHECK_FALSE(p.on("alarm_irr_fill"));

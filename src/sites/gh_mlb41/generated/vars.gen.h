@@ -104,7 +104,7 @@ const uint16_t PARAMS_COUNT = 0
  *  order alarms.csv gives them. */
 extern const Descriptor rows[];
 const uint16_t ROWS_COUNT = 0
-    + 243
+    + 244
     ;
 
 /** @brief Rows the library registers ahead of this site's, into the

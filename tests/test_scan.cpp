@@ -247,6 +247,9 @@ namespace {
     void live_inputs(Live& f) {
         f.bank.var(f.ref("cli_temp_hi")).publish(from_f32(T_F32, 21.0f), 0);
         f.bank.var(f.ref("cli_temp_lo")).publish(from_f32(T_F32, 20.0f), 0);
+        // What the ladder CONTROLS on, which temp_rh_zone derives from the two
+        // levels above and this case stands in for.
+        f.bank.var(f.ref("cli_temp_in")).publish(from_f32(T_F32, 21.0f), 0);
         f.bank.var(f.ref("cli_temp_cs")).publish(from_f32(T_F32, 18.0f), 0);
         f.bank.var(f.ref("cli_targetTemp_degC")).set(20.0f);
     }
@@ -317,9 +320,10 @@ TEST_CASE("health rows: a law that has stopped working is a WARNING") {
     REQUIRE(cooling.health() == Plc::Health::HEALTHY);
     w.all_msgs.clear();
 
-    INFO("both interior levels gone: the law cannot produce a demand at all");
+    INFO("the house's temperature gone: the law cannot produce a demand at all");
     f.bank.var(f.ref("cli_temp_hi")).invalidate(Q_NO_DATA);
     f.bank.var(f.ref("cli_temp_lo")).invalidate(Q_NO_DATA);
+    f.bank.var(f.ref("cli_temp_in")).invalidate(Q_NO_DATA);
     d.step(200);
     Plc::publish_health(f.bank, f.reg, &log);
     CHECK(w.saw("cooling: FAULTED"));
@@ -372,6 +376,7 @@ TEST_CASE("health rows: the worst is on the SEVERITY axis, parked is counted") {
     // A gap computed from a level nothing measures leaves strat's own output
     // invalid, which is FAULTED rather than degraded.
     f.bank.var(f.ref("cli_temp_hi")).invalidate(Q_NO_DATA);
+    f.bank.var(f.ref("cli_temp_in")).invalidate(Q_NO_DATA);
     d.step(100);
 
     uint8_t parked = 0;

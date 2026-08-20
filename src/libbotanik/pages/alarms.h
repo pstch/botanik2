@@ -17,7 +17,7 @@
  *   row N-1          blank row below the legend
  *
  * Typing narrows the table to the conditions whose variable name holds what was
- * typed; ENTER acknowledges the selected one.
+ * typed; ENTER toggles the selected one's acknowledgement.
  *
  * @note Rows are ordered active-first then by most-recent onset. The "all"
  *       view is the exception, keeping TABLE order so rows never reorder as
@@ -201,8 +201,9 @@ namespace Botanik { namespace Pages {
         void _draw_data_row(uint16_t row, uint16_t vi);
 
 
-        /** @brief Acknowledge the selected condition through the model. */
-        void _ack_selected();
+        /** @brief Acknowledge the selected condition, or take the
+         *  acknowledgement back: one key, both ways. */
+        void _toggle_ack();
 
         /** @brief Draw the static chrome: top margin, header, and the two blank
          *  rows around the legend. */

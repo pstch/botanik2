@@ -199,7 +199,9 @@ class = "DayPhaseController"
 task  = "SLOW"
 health = "prog_day_phase"
 [program.in]
-inside        = "cli_temp_hi"
+# The house's own row, the same one the cooling ladder controls on: what the
+# bank phases arm against is the interior, not one level of it.
+inside        = "cli_temp_in"
 # WHERE THE DAY IS, as two published offsets. The tracker is sun_watch's; this
 # law is a phase table over two numbers and reads nothing else about the sky.
 from_rise     = "sol_fromRise_min"
@@ -215,10 +217,15 @@ dusk_set       = "sol_duskSet_min"
 night_set      = "sol_nightSet_min"
 [program.out]
 phase          = "cli_phase"
-prev_day_max   = "cli_prevDayMax_degC"
-prev_night_min = "cli_prevNightMin_degC"
 cold_arm       = "cli_coldBankArm"
 heat_arm       = "cli_heatBankArm"
+
+# The two extremes this law gathers AND then arms the banks against: published,
+# and read back rather than kept to itself, so an operator can force one and
+# rehearse a cold-bank morning in July.
+[program.inout]
+prev_day_max   = "cli_prevDayMax_degC"
+prev_night_min = "cli_prevNightMin_degC"
 
 [[program]]
 name  = "target_temp"
@@ -240,10 +247,14 @@ name  = "cooling"
 class = "CoolingController"
 task  = "FAST"
 health = "prog_cooling"
-# TWO interior levels, in order of preference: the ceiling is where heat
-# collects and where the target is set, but a law that can still see the floor
-# can still control. Only with both gone is there no interior temperature.
+# The house's ONE temperature, which temp_rh_zone has already made the worst
+# case of the two levels. Read as a row rather than re-derived here, so what the
+# ladder controls on is a thing an operator can watch on a page and force.
 [program.in]
+inside = "cli_temp_in"
+# ...and the two levels behind it, for the VERDICT alone: an average carried by
+# one level is still a temperature, and this law says it is working on half a
+# picture rather than pretending otherwise.
 ceiling = "cli_temp_hi"
 floor   = "cli_temp_lo"
 target = "cli_targetTemp_degC"
@@ -413,6 +424,11 @@ force_on = ["irr_forceOn_tray1","irr_forceOn_tray2","irr_forceOn_tray3","irr_for
             "irr_forceOn_tray5","irr_forceOn_tray6","irr_forceOn_tray7","irr_forceOn_tray8"]
 force_off = ["irr_forceOff_tray1","irr_forceOff_tray2","irr_forceOff_tray3","irr_forceOff_tray4",
              "irr_forceOff_tray5","irr_forceOff_tray6","irr_forceOff_tray7","irr_forceOff_tray8"]
+# What went in and what came back, published and then JUDGED on: the fill ends
+# when the row says the dose has arrived and the clog is measured against the
+# row beside it, so forcing either drives a cycle through without water.
+delivered   = "irr_delivered_L"
+drained     = "irr_drained_L"
 
 [program.out]
 tray_valve = ["irr_tray1","irr_tray2","irr_tray3","irr_tray4",
@@ -422,13 +438,11 @@ volume      = "irr_volume_L"
 state       = "irr_state"
 active      = "irr_activeTray"
 served      = "irr_servedToday"
-delivered   = "irr_delivered_L"
 # TWO contactors on ONE manifold, always in the same state: there is one inlet
 # and one drain, each switched twice.
 inlet       = ["irr_input_ro1", "irr_input_ro2"]
 outlet      = ["irr_output_ro1", "irr_output_ro2"]
 fill_fault  = "alarm_irr_fill"
-drained     = "irr_drained_L"
 drain_fault = "alarm_irr_drain"
 # The per-tray forms beside the "any" ones above: the any-form is what an
 # operator sees on the ribbon, and these are what says which tray to go and look
@@ -479,13 +493,22 @@ travel_s    = "cli_windowTravel_sec"
 tmo_s       = "cli_windowTmo_sec"
 supply_lock = "sys_supply_lockout"
 
+# The two lockouts this law derives AND then obeys: it publishes what the
+# instruments say, and shuts the roof on what the ROW reads back. An operator
+# forcing one is the point - a lockout nobody can override is a lockout nobody
+# can test, and one the law ignored would be a lie on the page.
+[program.inout]
+rain_lock   = "cli_rainLockout"
+wind_lock   = "cli_windLockout"
+# ...and their verdict, published and then obeyed the same way: one row an
+# operator can force to hold the roof shut without inventing weather.
+window_lock = "cli_windowLockout"
+
 [program.out]
 opn = ["cli_window1_opn","cli_window2_opn","cli_window3_opn","cli_window4_opn"]
 clo = ["cli_window1_clo","cli_window2_clo","cli_window3_clo","cli_window4_clo"]
 tgt = ["cli_window1_tgt","cli_window2_tgt","cli_window3_tgt","cli_window4_tgt"]
 pos = ["cli_window1_pos","cli_window2_pos","cli_window3_pos","cli_window4_pos"]
-rain_lock = "cli_rainLockout"
-wind_lock = "cli_windLockout"
 
 [[program]]
 name  = "weather_watch"

@@ -312,7 +312,9 @@ void IrrigationCycle::_drain_verdict() {
     }
     // Against the dose, not against a fixed volume: a modulated half-dose
     // drains half as much and is not a clog.
-    const float frac     = (_v.out_total.get() - _drain_start_L) / _dose_L;
+    // The published row, not the difference behind it: a verdict made on a
+    // number nobody can see is a verdict nobody can rehearse.
+    const float frac     = _v.drained.get() / _dose_L;
     const float min_frac = _v.exp_drain.get() - _v.drain_margin.get();
     const bool  clog     = frac < min_frac;
     _v.drain_fault.set(clog);
@@ -394,8 +396,10 @@ void IrrigationCycle::run(ProgramContext& c) {
             break;
         }
         case IRR_FILLING: {
-            const float got = _v.in_total.get() - _fill_start_L;
-            _v.delivered.set(got);
+            _v.delivered.set(_v.in_total.get() - _fill_start_L);
+            // ...and read back, so the fill ends on the row an operator can
+            // watch and force rather than on a local difference.
+            const float got = _v.delivered.get();
             if (got >= dose && dose > 0.0f) {
                 _v.fill_fault.set(false);
                 _blame(_v.fill_tray, false);

@@ -133,7 +133,13 @@ bool WindowsController::_shut_in(ProgramContext& c) {
 
     _v.rain_lock.set(rain_lock);
     _v.wind_lock.set(wind_lock);
-    return rain_lock || wind_lock || _v.supply_lock.get();
+    // READ BACK, never the local verdicts: each row is what an operator can
+    // force, and a lockout the law then ignored would be a lie on the page.
+    // Forcing one is also the only way to test the roof's stage-1 arbitration
+    // without waiting for weather.
+    _v.window_lock.set(_v.rain_lock.get() || _v.wind_lock.get() ||
+                       _v.supply_lock.get());
+    return _v.window_lock.get();
 }
 
 int8_t WindowsController::_owner(float target,

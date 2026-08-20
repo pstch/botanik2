@@ -1599,8 +1599,10 @@ TEST_CASE("shell overrides: a bare name forces a GOOD reading, and `clear all` r
 
     f.run("overrides set setpoint 5");
     REQUIRE(f.bank.override_count() == 2);
-    // Live, and said to be unsaved: the two are different facts now.
-    CHECK(f.writer.has("unsaved"));
+    // The reply is the reading, and nothing else: live and unsaved are two
+    // different facts, and `overrides list` is where the second one is asked.
+    CHECK(f.writer.has("setpoint: forced to"));
+    CHECK_FALSE(f.writer.has("unsaved"));
     f.run("overrides list");
     CHECK(f.writer.has("2 override(s) active, 2 unsaved"));
     // Only `all` releases the lot: a bare verb is a usage error, since it is

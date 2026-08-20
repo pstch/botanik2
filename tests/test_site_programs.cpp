@@ -49,6 +49,17 @@ void slot(Live& f) {
         f.bank.var(f.ref(row)).publish(from_f32(T_F32, v), at);
     }
 
+    /** @brief The house at two levels, and the row derived from them.
+     *
+     *  The cooling ladder controls on `cli_temp_in` and reports its verdict on
+     *  the levels behind it, so a case stating one without the other is
+     *  stating half a house. WORST CASE, as temp_rh_zone makes it. */
+    void interior(Live& f, float hi, float lo) {
+        field(f, "cli_temp_hi", hi);
+        field(f, "cli_temp_lo", lo);
+        field(f, "cli_temp_in", hi > lo ? hi : lo);
+    }
+
     /** @brief A weather station reporting fine weather, so a case that is not
      *  about the interlocks is not shut in by one. */
     void fine_weather(Live& f) {
@@ -236,6 +247,34 @@ TEST_CASE("strat: a level nothing measures makes the gap unmeasured, not zero") 
     CHECK_FALSE(f.bank.var(f.ref("cli_dTStrat_degC")).valid());
 }
 
+TEST_CASE("day phase: the banks arm off the published extremes, so one can be forced") {
+    // The extremes are gathered over hours, so the only way to rehearse a bank
+    // phase is to force the row that decides it. That works because this law
+    // arms off what it published rather than off the member behind it.
+    Live f;
+    Site::DayPhaseController dp(Botanik::SetupContext(f.reg), f.bank);
+    Plc::Program* const progs[] = { &dp };
+    Cycle d(progs, 1, &f.bank, f.reg);
+
+    const float trg = f.bank.var(f.ref("cli_coldBankTrg_degC")).as_f32();
+    field(f, "cli_temp_in", trg - 5.0f);
+    d.step(100);
+    REQUIRE_FALSE(f.bank.var(f.ref("cli_coldBankArm")).b());
+
+    INFO("a hot yesterday forced by hand arms the cold bank");
+    char hot[16];
+    snprintf(hot, sizeof hot, "%.1f", (double)(trg + 5.0f));
+    REQUIRE(f.bank.override_set(f.bank.var(f.ref("cli_prevDayMax_degC")), hot)
+            == Vars::SET_OK);
+    d.step(200);
+    CHECK(f.bank.var(f.ref("cli_coldBankArm")).b());
+
+    INFO("...and releasing it gives the decision back to the house");
+    f.bank.override_clear(f.bank.var(f.ref("cli_prevDayMax_degC")));
+    d.step(300);
+    CHECK_FALSE(f.bank.var(f.ref("cli_coldBankArm")).b());
+}
+
 TEST_CASE("target: a bank phase only shifts the target when yesterday armed it") {
     Live f;
     Site::TargetTempController tc(Botanik::SetupContext(f.reg), f.bank);
@@ -296,8 +335,7 @@ TEST_CASE("cooling: a demand it cannot make is HELD at the last one it could") {
 
     const VarRef dem = f.ref("cli_coolDem");
     field(f, "cli_targetTemp_degC", 20.0f);
-    field(f, "cli_temp_hi", 30.0f);
-    field(f, "cli_temp_lo", 30.0f);
+    interior(f, 30.0f, 30.0f);
     field(f, "cli_temp_cs", 18.0f);
     for (uint32_t i = 0; i < 20; i++) d.step(100u * (i + 1));
     const float was = f.bank.var(dem).as_f32();
@@ -305,6 +343,7 @@ TEST_CASE("cooling: a demand it cannot make is HELD at the last one it could") {
 
     f.bank.var(f.ref("cli_temp_hi")).invalidate(Q_NO_DATA);
     f.bank.var(f.ref("cli_temp_lo")).invalidate(Q_NO_DATA);
+    f.bank.var(f.ref("cli_temp_in")).invalidate(Q_NO_DATA);
     d.step(3000);
 
     INFO("every actuator reads the quality and goes to its own safe state, so "
@@ -324,8 +363,7 @@ TEST_CASE("cooling: the floor carries it when the ceiling goes, and both gone is
 
     const VarRef dem = f.ref("cli_coolDem");
     field(f, "cli_targetTemp_degC", 20.0f);
-    field(f, "cli_temp_hi", 30.0f);
-    field(f, "cli_temp_lo", 30.0f);
+    interior(f, 30.0f, 30.0f);
     // The intake gate reads it; without it the law is DEGRADED for a reason
     // that has nothing to do with this case.
     field(f, "cli_temp_cs", 18.0f);
@@ -334,17 +372,18 @@ TEST_CASE("cooling: the floor carries it when the ceiling goes, and both gone is
     REQUIRE(f.bank.var(dem).as_f32() > 0.0f);          // hot: cooling
     CHECK(cc.health() == Plc::Health::HEALTHY);
 
-    INFO("the ceiling is the better place to control from; the floor is a "
-         "worse one and a better one than nowhere");
+    INFO("one level gone: temp_rh_zone still has a house temperature to give, "
+         "and this law says it is working on half a picture");
     f.bank.var(f.ref("cli_temp_hi")).invalidate(Q_NO_DATA);
     d.step(200);
     CHECK(f.bank.var(dem).valid());
     CHECK(f.bank.var(dem).as_f32() > 0.0f);
     CHECK(cc.health() == Plc::Health::DEGRADED);
 
-    INFO("with both gone a PID on the defaulted reading would see 0 degC "
-         "against the target and call for full HEAT");
+    INFO("with the house's own row gone a PID on the defaulted reading would "
+         "see 0 degC against the target and call for full HEAT");
     f.bank.var(f.ref("cli_temp_lo")).invalidate(Q_NO_DATA);
+    f.bank.var(f.ref("cli_temp_in")).invalidate(Q_NO_DATA);
     d.step(300);
     CHECK_FALSE(f.bank.var(dem).valid());
     CHECK(cc.health() == Plc::Health::FAULTED);
@@ -570,6 +609,38 @@ TEST_CASE("screen: a cold night deploys it, and the traverse cuts the fans") {
     CHECK_FALSE(f.bank.get(moving));
 }
 
+TEST_CASE("windows: a forced lockout shuts the roof, with no weather to do it") {
+    // The point of publishing a verdict and then reading it back: every stage
+    // of the arbitration is a row, so it can be watched on a page and held by
+    // hand. A law that obeyed its own local variable would ignore the force
+    // and leave the row saying something that was not happening.
+    Live f;
+    fine_weather(f);
+    Site::WindowsController win(Botanik::SetupContext(f.reg), f.bank);
+    Plc::Program* const progs[] = { &win };
+    Cycle d(progs, 1, &f.bank, f.reg);
+
+    f.bank.var(f.ref("cli_windowDem")).set(1.0f);
+    uint64_t t = 0;
+    for (uint32_t i = 0; i < 40; i++) d.step(t += 1000);
+    REQUIRE(f.bank.var(f.ref("cli_window1_pos")).as_f32() > 0.9f);
+    REQUIRE_FALSE(f.bank.var(f.ref("cli_windowLockout")).b());
+
+    INFO("the rain lockout forced by hand: the roof shuts on the ROW, and the "
+         "verdict beside it says the roof is being held");
+    REQUIRE(f.bank.override_set(f.bank.var(f.ref("cli_rainLockout")), "1")
+            == Vars::SET_OK);
+    for (uint32_t i = 0; i < 60; i++) d.step(t += 1000);
+    CHECK(f.bank.var(f.ref("cli_windowLockout")).b());
+    CHECK(f.bank.var(f.ref("cli_window1_pos")).as_f32() < 0.1f);
+
+    INFO("...and releasing it gives the roof back to the ladder");
+    f.bank.override_clear(f.bank.var(f.ref("cli_rainLockout")));
+    for (uint32_t i = 0; i < 60; i++) d.step(t += 1000);
+    CHECK_FALSE(f.bank.var(f.ref("cli_windowLockout")).b());
+    CHECK(f.bank.var(f.ref("cli_window1_pos")).as_f32() > 0.9f);
+}
+
 TEST_CASE("cooling: an intake gate holds while the two temperatures converge") {
     Live f;
     Site::CoolingController cc(Botanik::SetupContext(f.reg), f.bank);
@@ -581,8 +652,7 @@ TEST_CASE("cooling: an intake gate holds while the two temperatures converge") {
     const float hyst   = f.bank.var(f.ref("cli_ventHyst_degC")).as_f32();
 
     field(f, "cli_targetTemp_degC", 20.0f);
-    field(f, "cli_temp_hi", 25.0f);
-    field(f, "cli_temp_lo", 25.0f);
+    interior(f, 25.0f, 25.0f);
     field(f, "cli_temp_cs", 25.0f - margin - 1.0f);
     d.step(100);
     REQUIRE(f.bank.get(gate));

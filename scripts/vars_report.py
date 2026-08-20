@@ -724,9 +724,21 @@ def orphans_doc(site, rows):
         vars_gen.site_mentions(site), vars_gen.cal_params(
             [(k, r) for k, r in rows.values()]), lib)
 
+    # A third list, and a NOTE rather than either error: a row a law computes
+    # and no law reads. Most are terminal by design - an instrument's mirror,
+    # an actuator's position, a totalizer - and exist for the page and the bus.
+    # The one that matters is an INTERMEDIATE: a quantity the control system
+    # derives, publishes, and then bypasses by keeping its own copy. Those are
+    # invisible to an operator and impossible to force, so the rule is that
+    # whatever a law decides on, it decides on the ROW.
+    bypassed = [[n, k, rows[n][1].get("desc", "")]
+                for n, (k, r) in sorted(rows.items())
+                if k in ("SV", "SVE", "SVR", "G", "GR")
+                and n in (producers | shared) and n not in readers]
+
     body = ([[n, k, "nothing writes it", why] for n, k, why in o["unwritten"]]
             + [[n, k, "nothing reads it", why] for n, k, why in o["unread"]])
-    if not body:
+    if not body and not bypassed:
         return []
     out = ["## Orphans", "",
            f"{len(body)} rows with one end missing. A row nothing writes is an",
@@ -735,7 +747,20 @@ def orphans_doc(site, rows):
            "how this site gets built. The other kind - a parameter whose law",
            "was rewritten around it - looks identical from inside the table,",
            "which is why the list is printed rather than kept.", ""]
-    return out + md_table(["row", "kind", "missing", "what that means"], body)
+    out += md_table(["row", "kind", "missing", "what that means"], body)
+
+    if bypassed:
+        out += ["### Computed, and no law reads it", "",
+                f"{len(bypassed)} rows. Most are TERMINAL by design - an "
+                "instrument's mirror, an actuator's position, a totalizer - "
+                "and exist for the page and the field bus. What to look for "
+                "here is an INTERMEDIATE: a quantity the control system "
+                "derives, publishes, and then bypasses by keeping its own "
+                "copy. That row cannot be forced and does not steer anything, "
+                "so it lies the moment an operator leans on it. Whatever a law "
+                "decides on, it should decide on the ROW.", ""]
+        out += md_table(["row", "kind", "what it is"], bypassed)
+    return out
 
 
 def programs_doc(site, rows):

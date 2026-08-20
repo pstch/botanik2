@@ -286,16 +286,19 @@ void TempRHZone::run(ProgramContext& c) {
     const float t_lo = _floor.temperature();
 
     // ONE interior temperature, for everything that wants the house rather than
-    // a level of it. The mean of the two, or whichever one is still being
-    // measured; with both gone it is not a temperature and says so.
-    const bool hi_ok = _ceiling.valid();
-    const bool lo_ok = _floor.valid();
-    if (hi_ok && lo_ok)  _v.temp_in.set(0.5f * (t_hi + t_lo));
+    // a level of it - the cooling ladder included, which is why it is the
+    // HOTTER of the two and not their mean. The spec keeps the worst case
+    // between levels, and for heat that is the top of the house: an average
+    // would hide a ridge already past the target under a cool floor.
+    const bool  hi_ok  = _ceiling.valid();
+    const bool  lo_ok  = _floor.valid();
+    const float hotter = Plc::max_of(t_hi, t_lo);
+    if (hi_ok && lo_ok)  _v.temp_in.set(hotter);
     else if (hi_ok)      _v.temp_in.set(t_hi);
     else if (lo_ok)      _v.temp_in.set(t_lo);
-    // Both levels gone: the zones are holding their last readings, so the mean
-    // of them is still the best answer there is - held, like they are.
-    else                 _v.temp_in.hold(0.5f * (t_hi + t_lo));
+    // Both levels gone: the zones are holding their last readings, so the
+    // hotter of them is still the best answer there is - held, like they are.
+    else                 _v.temp_in.hold(hotter);
 
     // Between the two interior levels the WORST case is kept, per the spec:
     // the smallest margin decides the condensation risk, and taking an average
