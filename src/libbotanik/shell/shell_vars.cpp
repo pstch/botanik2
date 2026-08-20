@@ -81,7 +81,10 @@ namespace Botanik { namespace Shell {
         _field("Group", Vars::var_group(*d), nullptr);
         // Whether `set` works; everything is forceable, so that is the only
         // question.
-        _field("Access", _writable(h) ? "read-write" : "read-only", nullptr);
+        // The row's DECLARED level, not this channel's: the console is not
+        // levelled, and what an operator wants to know here is which channel
+        // could change it.
+        _field("Access", Vars::access_label(*h.meta()), nullptr);
         // Only on a parameter, and only when it matters: a row that is durable
         // has nothing to say here, and saying it on every row would train the
         // eye to skip the line that does.

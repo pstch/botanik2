@@ -187,7 +187,7 @@ namespace Botanik { namespace Sim {
             if (_io == nullptr) return;
             Vars::Var v = _io->var(ROW_NAME);
             if (v.meta()->name == nullptr) return;
-            (void)_io->param_set(v, Vars::Scalar::U((uint64_t)_was));
+            (void)_io->param_set_scalar(v, Vars::Scalar::U((uint64_t)_was));
             (void)_io->param_save(v);
         }
 

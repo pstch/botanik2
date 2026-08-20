@@ -80,6 +80,21 @@ namespace Botanik { namespace Config {
 #endif
     BOTANIK_CFG(uint32_t, HW_WATCHDOG_MS);
 
+    /** @brief How long a reboot or a halt waits for the plant to PARK before it
+     *  acts anyway.
+     *
+     *  Every program drives its own actuators to their safe positions and says
+     *  when it has arrived, and waiting for that is the whole point - a window
+     *  takes fifteen seconds and they move one at a time. But a program that
+     *  never arrives would hold the unit out of its reboot for ever, and an
+     *  operator who typed `reboot` is owed one. Long enough for the slowest
+     *  chain this site has: four windows in sequence, or the screen's full
+     *  traverse and its timeout. */
+#ifndef BOTANIK_STOP_PARK_MS
+#  define BOTANIK_STOP_PARK_MS 90000
+#endif
+    BOTANIK_CFG(uint32_t, STOP_PARK_MS);
+
     /** @} */
 
     /** @name Performance metrics

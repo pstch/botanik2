@@ -139,6 +139,28 @@ namespace Botanik { namespace Tasks {
         return true;
     }
 
+    void Registry::request_safe(bool on) {
+        _safe_asked = on;
+        for (uint8_t i = 0; i < _count; i++)
+            if (_tasks[i].program != nullptr) _tasks[i].program->request_safe(on);
+    }
+
+    bool Registry::all_safe() const {
+        return unsafe_count() == 0;
+    }
+
+    uint8_t Registry::unsafe_count() const {
+        uint8_t n = 0;
+        for (uint8_t i = 0; i < _count; i++) {
+            const Plc::Program* p = _tasks[i].program;
+            // A program that is not being activated cannot arrive, so a request
+            // made while control is withdrawn is answered by the gate having
+            // already forced every output to its safe state.
+            if (p != nullptr && !p->is_parked()) n++;
+        }
+        return n;
+    }
+
     void Registry::set_programs_enabled(bool enabled, uint64_t now_ms) {
         if (enabled == _programs_enabled) return;
         _programs_enabled = enabled;
@@ -146,7 +168,16 @@ namespace Botanik { namespace Tasks {
         // cannot act on what it remembers, and nothing outside it reads that.
         // What has gone stale is dropped on the way back IN, where the program
         // is looking at a fresh image rather than the one the edge happened on.
-        if (!enabled) return;
+        //
+        // Its HEALTH is the exception, because that IS read from outside. A
+        // program stops being activated and would otherwise keep reporting the
+        // verdict of whatever beat happened to be its last, which for a
+        // supervisor reads as a plant still in hand.
+        if (!enabled) {
+            for (uint8_t i = 0; i < _count; i++)
+                if (_tasks[i].program != nullptr) _tasks[i].program->set_safe();
+            return;
+        }
 
         for (uint8_t i = 0; i < _count; i++) {
             if (_tasks[i].program == nullptr) continue;

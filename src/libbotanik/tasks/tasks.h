@@ -151,6 +151,7 @@ namespace Botanik { namespace Tasks {
          *  through bring-up. A plain bool, deliberately - `tasks/` must not
          *  acquire Vars to ask who decided it. */
         bool     _programs_enabled = false;
+        bool     _safe_asked       = false;
 
         /** @brief Claim a slot and fill the part both add() forms share, so the
          *  offset rule cannot drift between them. Null when the table is full
@@ -225,6 +226,27 @@ namespace Botanik { namespace Tasks {
 
         /** @brief Whether program entries are currently allowed to run. */
         bool programs_enabled() const { return _programs_enabled; }
+
+        /** @name Going safe
+         *
+         *  A request, and the question a supervisor waits on. The programs keep
+         *  running while they answer it - reaching a safe state is work, and one
+         *  that is not activated cannot shut a valve.
+         *  @{ */
+
+        /** @brief Ask every program to reach its safe state, or release them. */
+        void request_safe(bool on);
+        /** @brief Whether the request stands. */
+        bool safe_requested() const { return _safe_asked; }
+        /** @brief Whether EVERY program has arrived. What a reboot waits for
+         *  before it drops control and stops kicking the watchdog, and what a
+         *  halt waits for before it stops the cycle. True when there are no
+         *  programs at all. */
+        bool all_safe() const;
+        /** @brief Programs still on their way, for the operator waiting. */
+        uint8_t unsafe_count() const;
+
+        /** @} */
 
         /** @} */
 

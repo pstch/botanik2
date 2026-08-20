@@ -3,6 +3,7 @@
  * @brief What the unit is REPORTING: the beat's metrics and per-task costs, the
  *        build identity, and the network / field-bus state.
  */
+#include "libbotanik/vars/bindings.h"
 #include "libbotanik/shell/shell.h"
 #include "libbotanik/shell/args.h"
 
@@ -426,15 +427,23 @@ namespace Botanik { namespace Shell {
                 snprintf(val, sizeof(val), "%s  (no pub yet)", mqt->status_str());
             }
             _line("MQTT", val);
-            const char* brk = Vars::get_str(_bank(), "mqtt_host");
-            if (brk[0]) {
+            // The EFFECTIVE broker, which is what the client is actually
+            // given: an empty row falls back to the gateway, and a report
+            // showing nothing while the client talks to the router would be
+            // the report lying. Marked, so an operator can tell which it is.
+            const char* set = Vars::get_str(_bank(), "mqtt_host");
+            const char* brk = (_bank() != nullptr)
+                                  ? Vars::host_or_gateway(*_bank(), "mqtt_host")
+                                  : set;
+            if (brk != nullptr && brk[0]) {
+                const char* via = set[0] ? "" : " (net_gw)";
                 // Configured hostname, then the resolved IP:port once connected.
                 if (mqt->connected()) {
                     Network::ResolvedAddr pa = mqt->peer_addr();
-                    snprintf(val, sizeof(val), "%s  %s:%u", brk,
+                    snprintf(val, sizeof(val), "%s%s  %s:%u", brk, via,
                              ip4(pa), (unsigned)mqt->peer_port());
                 } else {
-                    snprintf(val, sizeof(val), "%s", brk);
+                    snprintf(val, sizeof(val), "%s%s", brk, via);
                 }
                 _line("MQTT broker", val);
             }

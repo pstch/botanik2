@@ -71,6 +71,9 @@ namespace Botanik { namespace Shell {
             { "reboot",    nullptr,     "soft reboot (watchdog resets us)",
                            nullptr,                               G_SYS, true,
                                                                &CommandShell::_cmd_reboot     },
+            { "halt",      nullptr,     "park the plant, then stop the cycle",
+                           nullptr,                               G_SYS, true,
+                                                               &CommandShell::_cmd_halt       },
             { "reset",     nullptr,     "immediate reset",
                            nullptr,                               G_SYS, true,
                                                                &CommandShell::_cmd_reset      },
@@ -92,9 +95,10 @@ namespace Botanik { namespace Shell {
                            "critical <text>",                     G_SYS, false,
                                                                &CommandShell::_cmd_log        },
 #if BOTANIK_FEATURE_VARS
-            { "control",   "enable|inhibit|disable",
+            { "control",   "enable|inhibit|disable|safe",
                                         "whether the firmware may drive the field",
-                           "enable\ninhibit\ndisable\nstatus",     G_SYS, true,
+                           "enable\ninhibit\ndisable\nsafe\nrelease\nstatus",
+                                                                  G_SYS, true,
                                                                &CommandShell::_cmd_control    },
 
 #endif

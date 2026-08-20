@@ -75,12 +75,12 @@ namespace Botanik { namespace Shell {
             _println("reboot: health monitor unavailable (`reset` resets now)");
             return;
         }
-#if BOTANIK_FEATURE_VARS
-        if (Vars::Bank* io = _bank()) {
-            io->set_health_hold(true);
-            (void)io->save_retained();
-        }
-#endif
+        // Control authority is NOT dropped here. The request starts a PARKING
+        // sequence: every program drives its own actuators to their safe
+        // positions and says when it has arrived, and only then does the field
+        // go safe and the kick stop. Windows move one at a time and take
+        // fifteen seconds each, so dropping authority now would leave three of
+        // them wherever the command caught them.
         _health->request_reboot();
 
         // LOGGED rather than printed: a unit that reset is worth accounting for
@@ -98,13 +98,29 @@ namespace Botanik { namespace Shell {
             if (sc != nullptr && sc->watchdog_ms != 0)
                 _logger->critical(Logs::HEALTH,
                                   "reboot requested from the console\n"
-                                  "outputs safe, kick withheld: resets within %lu ms",
+                                  "parking the plant, then %lu ms to reset",
                                   (unsigned long)sc->watchdog_ms);
             else
                 _logger->critical(Logs::HEALTH,
                                   "reboot requested from the console\n"
-                                  "outputs safe, kick withheld: resets when the watchdog expires");
+                                  "parking the plant, then the watchdog resets us");
         }
+    }
+
+    // The other ending: the same parking, and then the unit sits there. Kept
+    // alive - the watchdog is still kicked, because the loop IS alive - and
+    // doing nothing at all, including no console. Recovery is `reset`.
+    void CommandShell::_cmd_halt(const char*, uint16_t) {
+        if (_health == nullptr) {
+            _println("halt: health monitor unavailable");
+            return;
+        }
+        _health->request_stop(Health::HealthMonitor::Stop::HALT);
+        if (_logger != nullptr)
+            _logger->critical(Logs::HEALTH,
+                              "halt requested from the console\n"
+                              "parking the plant, then the cycle stops "
+                              "(console included; `reset` to recover)");
     }
 
     void CommandShell::_cmd_exit(const char*, uint16_t) {
@@ -163,6 +179,30 @@ namespace Botanik { namespace Shell {
             io->set_control_mode(Vars::CONTROL_DISABLED);
             _println("control: DISABLED - outputs at their safe state, scan "
                      "stopped, output overrides ignored (kept, not cleared)");
+            return;
+        }
+        // The plant-wide safe request, and the one verb here that is NOT a
+        // mode: the programs keep running and drive their OWN actuators to
+        // their safe positions, which is a slower and gentler thing than
+        // dropping authority and letting every output snap to its declared
+        // state. `control enable` releases it.
+        if (arg_eq(a, w, "safe") || arg_eq(a, w, "release")) {
+            if (_sys == nullptr || _sys->tasks == nullptr) {
+                _println("control: no task table");
+                return;
+            }
+            const bool on = arg_eq(a, w, "safe");
+            _sys->tasks->request_safe(on);
+            if (!on) { _println("control: safe request released"); return; }
+            const uint8_t left = _sys->tasks->unsafe_count();
+            if (left == 0) {
+                _println("control: every program is at its safe state");
+            } else {
+                char out[96];
+                _emitf(out, sizeof(out),
+                       "control: parking, %u program(s) still travelling",
+                       (unsigned)left);
+            }
             return;
         }
         _verb_usage("control");

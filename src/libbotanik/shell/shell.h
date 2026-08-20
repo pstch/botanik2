@@ -265,6 +265,7 @@ namespace Botanik { namespace Shell {
         /** @brief Drop control authority, then stop kicking the watchdog and let
          *  it reset the unit - the unattended reset path, by hand. */
         void _cmd_reboot(const char* args, uint16_t alen);
+        void _cmd_halt(const char* args, uint16_t alen);
         void _cmd_exit(const char* args, uint16_t alen);
         void _cmd_stats(const char* args, uint16_t alen);
         /** @brief The beat's totals, or one task: where `stats`' unattributed

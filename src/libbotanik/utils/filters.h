@@ -68,6 +68,12 @@ namespace Botanik { namespace Utils {
 
         /** @brief Reset the filter to zero. */
         void  reset()       { _value = 0.0f; }
+
+        /** @brief Adopt @p v as the current value without blending toward it.
+         *  A filter starting at 0 ramps from there, which on a temperature is a
+         *  reading nothing measured; seeding it with the first sample makes the
+         *  first output true rather than merely eventual. */
+        void  preset(float v) { _value = v; }
     };
 
     /** @class WindowedMax

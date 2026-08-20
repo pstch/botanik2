@@ -194,9 +194,74 @@ namespace Botanik { namespace HAL {
 
     }  // namespace Watchdog
 
+    /** @brief The controller's own digital input terminals, read as LEVELS.
+     *  Pulse below counts edges on the same eight; a contact that sits open or
+     *  closed is this one. */
+    namespace DigitalIn {
+
+        /** @brief The local input terminals: I1 is 0, I8 is 7. */
+        static const uint8_t CHANNELS = 8;
+
+        /** @brief Make @p ch an input.
+         *  @return false if the channel is out of range.
+         *  @warning Call from setup(): the OPTA path configures the pin. */
+        bool attach(uint8_t ch);
+
+        /** @brief The level on @p ch now. False for a channel never attached,
+         *  which is also what an open terminal reads. */
+        bool read(uint8_t ch);
+
+        /** @brief Drive @p ch by hand. Simulator only, and a no-op on the
+         *  OPTA: a real terminal is driven by the wire. */
+        void inject(uint8_t ch, bool level);
+
+    }  // namespace DigitalIn
+
     /** @brief Process environment. Host-only in practice: the OPTA backend has
      *  no environment and always yields the fallback. Lives here rather than in
      *  utils/ because reading it is a platform call. */
+    namespace Pulse {
+
+        /** @brief Which edge of the input advances the count. LOW and HIGH are
+         *  absent deliberately: a level is not an event, and the OPTA core maps
+         *  every mode that is not CHANGE or FALLING onto RISING anyway. */
+        enum Edge : uint8_t { EDGE_RISING, EDGE_FALLING, EDGE_BOTH };
+
+        /** @brief The most local channels that may count at once. Eight inputs
+         *  exist, but I1 and I4 share an interrupt line and cannot both carry
+         *  one, so seven is the real ceiling. */
+        static const uint8_t MAX_CHANNELS = 7;
+
+        /** @brief A count and the instant it was taken, read together.
+         *  Separately, a rate would be computed from two moments that never
+         *  coexisted - the error is small but always in the same direction. */
+        struct Sample {
+            uint32_t count;    ///< edges since attach(); wraps at 2^32
+            uint64_t at_ms;    ///< uptime when the count was read
+        };
+
+        /** @brief Count edges on local channel @p ch (0 = I1, 7 = I8).
+         *  @return false if the channel is out of range, already attached, or
+         *  would collide with one that is: I1 and I4 share a line.
+         *  @warning Call from setup(). The OPTA core allocates on attach. */
+        bool attach(uint8_t ch, Edge edge);
+
+        /** @brief @p ch's count and the instant of the read.
+         *  Re-reads until the count is stable, so an edge arriving mid-read
+         *  cannot pair a new count with an old timestamp. */
+        Sample sample(uint8_t ch);
+
+        /** @brief Edges dropped because they arrived faster than the input can
+         *  resolve. Non-zero means the meter is over-running the channel and
+         *  the volume it reports is an UNDER-estimate. */
+        uint32_t overruns(uint8_t ch);
+
+        /** @brief Feed @p ch an edge by hand. Simulator only, and a no-op on the
+         *  OPTA: a simulated field has no wire to pulse. */
+        void inject(uint8_t ch, uint32_t edges);
+
+    }  // namespace Pulse
+
     namespace Env {
 
         /** @brief Environment variable @p name as a uint32.
