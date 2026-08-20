@@ -14,6 +14,8 @@
 
 namespace Botanik { namespace Vars {
 
+    class Bank;
+
     /** @name Untyped reference
      *  @{ */
 
@@ -55,8 +57,34 @@ namespace Botanik { namespace Vars {
     template <typename T, Dir D>
     struct Ref {
         VarRef r;
-        Ref() { r.index = VAR_NONE; }
-        explicit Ref(VarRef v) : r(v) {}
+        /** @brief The table this row lives in, remembered at bind time so a
+         *  program reads and writes its interface the way ST does - `x.get()`,
+         *  `y.set(v)` - rather than routing every access through the bank.
+         *  Borrowed and never null after resolve; null on a default-constructed
+         *  reference, which reads the sink. */
+        Bank* io;
+
+        Ref() : io(nullptr) { r.index = VAR_NONE; }
+        Ref(VarRef v, Bank* b) : r(v), io(b) {}
+
+        /** @name Reading and writing
+         *  Defined out of line in model.h, where Bank is complete.
+         *  @{ */
+
+        /** @brief The value in force. Every direction reads: a POU may read
+         *  its own output. */
+        T get() const;
+        /** @brief Drive it. VAR_INPUT does not compile.
+         *  @note CONST: writing through a reference changes the TABLE, not the
+         *  reference, exactly as writing through a pointer does. */
+        void set(T v) const;
+        /** @brief Whether the row carries a believable value. */
+        bool valid() const;
+        /** @brief Say the value is not knowable, rather than substituting a
+         *  default that reads like a measurement. VAR_INPUT does not compile. */
+        void invalidate() const;
+
+        /** @} */
     };
 
     template <typename T> using RefIn    = Ref<T, Dir::IN>;

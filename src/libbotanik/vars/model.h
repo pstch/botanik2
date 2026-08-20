@@ -654,13 +654,13 @@ namespace Botanik { namespace Vars {
          *  the first time both write.
          *  @{ */
 
-        template <typename T> RefIn<T> resolve_in(const char* name) const {
-            return RefIn<T>(_resolve_typed<T>(name));
+        template <typename T> RefIn<T> resolve_in(const char* name) {
+            return RefIn<T>(_resolve_typed<T>(name), this);
         }
         template <typename T> RefOut<T> resolve_out(const char* name) {
             const VarRef r = _resolve_typed<T>(name);
             claim_writer(r, _writer_now);
-            return RefOut<T>(r);
+            return RefOut<T>(r, this);
         }
         /** @brief The same, and MARKS the row shared: a VAR_IN_OUT row is
          *  read-modify-written by more than one writer BY DECLARATION, so it
@@ -668,7 +668,7 @@ namespace Botanik { namespace Vars {
         template <typename T> RefInOut<T> resolve_inout(const char* name) {
             const VarRef r = _resolve_typed<T>(name);
             if (r.index < _count) _slots[r.index].vflags |= VF_SHARED;
-            return RefInOut<T>(r);
+            return RefInOut<T>(r, this);
         }
 
         /** @} */
@@ -992,6 +992,30 @@ namespace Botanik { namespace Vars {
     BOTANIK_REF_WHOLE(uint64_t, as_u64);
 
     #undef BOTANIK_REF_WHOLE
+
+    /** @} */
+
+    /** @name Ref accessors
+     *  Out of line, because a reference is declared before the table it reads.
+     *  @{ */
+
+    template <typename T, Dir D>
+    inline T Ref<T, D>::get() const { return io->get(*this); }
+
+    template <typename T, Dir D>
+    inline void Ref<T, D>::set(T v) const {
+        static_assert(D != Dir::IN, "a VAR_INPUT row cannot be driven");
+        io->drive(*this, v);
+    }
+
+    template <typename T, Dir D>
+    inline bool Ref<T, D>::valid() const { return io->var(r).valid(); }
+
+    template <typename T, Dir D>
+    inline void Ref<T, D>::invalidate() const {
+        static_assert(D != Dir::IN, "a VAR_INPUT row cannot be invalidated");
+        io->var(r).invalidate(Q_NO_DATA);
+    }
 
     /** @} */
 
