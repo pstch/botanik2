@@ -72,6 +72,7 @@ make -C build check-full             # the periodic sweep: clang-tidy, bare prof
 make -C build check-bare             # just the bare profile: every optional feature off
 make -C build check-vars             # the CSV tables, and the generated C++ against them
 make -C build table-golden-update    # rewrite tests/data/*.txt after an intended table change
+make -C build scenario-report        # what the control system did, out of the scenario cases
 make -C build botanik_tests          # just build the doctest binary
 ./build/tests/botanik_tests          # run it directly (doctest CLI)
 ./build/tests/botanik_tests -s       # ...every passing check + the struct-size table

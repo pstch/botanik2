@@ -254,136 +254,173 @@ bool fabric_out(Plant& p) { return p.on("cli_screen"); }
 
 }  // namespace
 
+/** @brief What the case is asserting, said once: to doctest when it fails, and
+ *  to the report when one is being written. NOT wrapped in a do-while - INFO
+ *  registers a context for the rest of the enclosing scope, and a block would
+ *  end it on the next line. */
+#define SAY(text) ScenarioTrace::note(text); INFO(text)
+
 TEST_CASE("scenario: a hot afternoon opens the roof and pulls cool ground air") {
+    ScenarioTrace::scenario("A hot afternoon",
+        "32 degC under the ridge with 18 degC in the crawlspace: the whole "
+        "cooling ladder, from the roof down to the wet skirt.");
     Plant p;
     settle(p, HOT_AFTERNOON);
     force_phase(p, Site::PHASE_DAY);
+    trace_weather(HOT_AFTERNOON, Site::PHASE_DAY);
     p.weather_for(400, hold_weather);
 
-    INFO("the interior is well over the target, so the ladder is calling for "
+    SAY("the interior is well over the target, so the ladder is calling for "
          "everything it has");
     CHECK(p.num("cli_coolDem") > 0.5f);
 
-    INFO("windows: the ladder is past cli_windowFullDem, so wide open");
+    SAY("windows: the ladder is past cli_windowFullDem, so wide open");
     CHECK(p.num("cli_windowDem") == doctest::Approx(1.0f));
     // One ram at a time, 15 s each: four windows is a minute of travel.
     p.weather_for(900, hold_weather);
     CHECK(p.num("cli_window1_pos") > 0.9f);
     CHECK(p.num("cli_window4_pos") > 0.9f);
 
-    INFO("intractors: the space under the greenhouse is 14 degC cooler, so the "
+    SAY("intractors: the space under the greenhouse is 14 degC cooler, so the "
          "gate is open and they run");
     CHECK(p.on("cli_intakeCoolOk"));
     CHECK(p.num("cli_intr1") > 0.5f);
 
-    INFO("fans: a cooling demand past cli_fanHighDem is speed 3");
+    SAY("fans: a cooling demand past cli_fanHighDem is speed 3");
     CHECK(p.on("cli_destrat1_speed3"));
 
-    INFO("skirt: past cli_skirtCoolDem, and the air is dry enough for a wet pad "
+    SAY("skirt: past cli_skirtCoolDem, and the air is dry enough for a wet pad "
          "to cool rather than just wet it");
     CHECK(p.num("cli_skirtDuty") > 0.0f);
 
-    INFO("and the screen stays off the glass: DAY forbids deploying it");
+    SAY("and the screen stays off the glass: DAY forbids deploying it");
     CHECK_FALSE(p.on("cli_screen"));
+    snapshot(p, "the plant settled in the heat");
 }
 
 TEST_CASE("scenario: a cold night deploys the screen and pulls ground heat") {
+    ScenarioTrace::scenario("A cold night",
+        "9 degC inside against 4 degC out, and 14 degC of stored heat under "
+        "the floor: the negative half of the same ladder.");
     Plant p;
     settle(p, COLD_NIGHT);
     force_phase(p, Site::PHASE_NIGHT);
+    trace_weather(COLD_NIGHT, Site::PHASE_NIGHT);
     p.weather_for(600, hold_weather);
 
-    INFO("the interior is well under the target, so the ladder is negative");
+    SAY("the interior is well under the target, so the ladder is negative");
     CHECK(p.num("cli_coolDem") < p.num("cli_thermalScreenDem"));
 
-    INFO("screen: deployed, and NIGHT is what permits it");
+    SAY("screen: deployed, and NIGHT is what permits it");
     CHECK(p.on("cli_screen"));
 
-    INFO("intractors: the ground is warmer than the house, so the mirror gate "
+    SAY("intractors: the ground is warmer than the house, so the mirror gate "
          "opens and they run at the low ground-heat speed - not at the ladder");
     CHECK(p.on("cli_groundHeatOk"));
     CHECK(p.num("cli_intr1") == doctest::Approx(p.num("cli_groundSpeed")));
 
-    INFO("windows: shut, because a negative demand ladders to zero");
+    SAY("windows: shut, because a negative demand ladders to zero");
     CHECK(p.num("cli_windowDem") == doctest::Approx(0.0f));
 
-    INFO("and nothing is calling for the skirt in the middle of a cold night");
+    SAY("and nothing is calling for the skirt in the middle of a cold night");
     CHECK(p.num("cli_skirtDuty") == doctest::Approx(0.0f));
+    snapshot(p, "the plant settled in the cold");
 }
 
 TEST_CASE("scenario: rain shuts the roof over the cooling ladder's objection") {
+    ScenarioTrace::scenario("A shower on a hot afternoon",
+        "The weather interlock against the ladder: which of the two owns the "
+        "roof, and how long the answer outlives the rain.");
     Plant p;
     settle(p, HOT_AFTERNOON);
     force_phase(p, Site::PHASE_DAY);
+    trace_weather(HOT_AFTERNOON, Site::PHASE_DAY);
     p.weather_for(900, hold_weather);
     REQUIRE(p.num("cli_window1_pos") > 0.9f);
+    snapshot(p, "before the shower: the roof wide open");
 
-    INFO("it starts raining on a hot afternoon: the ladder still wants the roof "
+    SAY("it starts raining on a hot afternoon: the ladder still wants the roof "
          "open, and stage one of the arbitration does not care");
     g_wx.rain = 4.0f;
     p.weather_for(600, hold_weather);
     CHECK(p.on("cli_rainLockout"));
     CHECK(p.num("cli_windowDem") > 0.5f);      // the demand is unchanged...
     CHECK(p.num("cli_window1_pos") < 0.1f);    // ...and the roof is shut anyway
+    snapshot(p, "raining: the demand stands, the roof does not");
 
-    INFO("the shower stops, and the lockout OUTLIVES it: a shower that has just "
+    SAY("the shower stops, and the lockout OUTLIVES it: a shower that has just "
          "stopped is about to be one that has not");
     g_wx.rain = 0.0f;
     p.weather_for(600, hold_weather);
     CHECK(p.on("cli_rainLockout"));
     CHECK(p.num("cli_window1_pos") < 0.1f);
+    snapshot(p, "a minute after the last drop");
 }
 
 TEST_CASE("scenario: a damp night vents, and refuses to wet the air further") {
+    ScenarioTrace::scenario("A damp night",
+        "96 % at 14 degC, under a degree of dew-point margin: the rot guard, "
+        "and the one thing the wet skirt must never do.");
     Plant p;
     settle(p, DAMP_NIGHT);
     force_phase(p, Site::PHASE_NIGHT);
+    trace_weather(DAMP_NIGHT, Site::PHASE_NIGHT);
     p.weather_for(600, hold_weather);
 
-    INFO("96% at 14 degC is under a degree of dew-point margin: the rot guard "
+    SAY("96% at 14 degC is under a degree of dew-point margin: the rot guard "
          "is up and the ladder is asking to dehumidify");
     CHECK(p.num("cli_dpMargin_degC") < 1.5f);
     CHECK(p.on("alarm_rot"));
     CHECK(p.num("cli_humidDem") < 0.0f);
 
-    INFO("the skirt is locked out: wetting air that is already condensing is "
+    SAY("the skirt is locked out: wetting air that is already condensing is "
          "the one thing that valve must never do");
     CHECK(p.on("cli_rotLockout"));
     CHECK(p.num("cli_skirtDuty") == doctest::Approx(0.0f));
     CHECK_FALSE(p.on("cli_skirtValve"));
 
-    INFO("and the anti-rot ventilation runs the intractors, ungated: the dew "
+    SAY("and the anti-rot ventilation runs the intractors, ungated: the dew "
          "point it is fighting is the one inside");
     CHECK(p.num("cli_rotVentDem") > 0.0f);
     CHECK(p.num("cli_intr1") > p.num("cli_groundSpeed"));
+    snapshot(p, "the rot guard up, the skirt locked out");
 }
 
 TEST_CASE("scenario: a dry spell humidifies through the skirt") {
+    ScenarioTrace::scenario("A dry spell",
+        "15 % at 28 degC: the other arm of the humidity ladder, and the only "
+        "humidifier the plant has.");
     Plant p;
     settle(p, DRY_SPELL);
     force_phase(p, Site::PHASE_DAY);
+    trace_weather(DRY_SPELL, Site::PHASE_DAY);
     p.weather_for(600, hold_weather);
 
-    INFO("15% at 28 degC is a very large dew-point margin: the ladder's other "
+    SAY("15% at 28 degC is a very large dew-point margin: the ladder's other "
          "arm, asking to humidify");
     CHECK(p.num("cli_dpMargin_degC") > 18.0f);
     CHECK(p.num("cli_humidDem") > 0.0f);
 
-    INFO("the skirt modulates, and the intractors draw the air in through it - "
+    SAY("the skirt modulates, and the intractors draw the air in through it - "
          "the wetted textile is the only humidifier the plant has");
     CHECK(p.num("cli_skirtDuty") > 0.0f);
     CHECK(p.num("cli_intr1") > p.num("cli_groundSpeed"));
+    snapshot(p, "the skirt wetting the intake");
 }
 
 TEST_CASE("scenario: a zone dying leaves the plant safe, not confident") {
+    ScenarioTrace::scenario("The ceiling probes dying",
+        "All three of one level stop answering in the middle of a hot "
+        "afternoon: what the plant does with a reading it no longer has.");
     Plant p;
     settle(p, HOT_AFTERNOON);
     force_phase(p, Site::PHASE_DAY);
+    trace_weather(HOT_AFTERNOON, Site::PHASE_DAY);
     p.weather_for(900, hold_weather);
     REQUIRE(p.num("cli_window1_pos") > 0.9f);
     const float was = p.num("cli_temp_hi");
 
-    INFO("all three ceiling probes stop answering, and the FLOOR carries the "
+    SAY("all three ceiling probes stop answering, and the FLOOR carries the "
          "law: the hottest level is what cooling controls on");
     for (uint8_t i = 1; i <= 3; i++) {
         char n[24]; snprintf(n, sizeof n, "cli_temp_hi%u", (unsigned)i);
@@ -399,28 +436,33 @@ TEST_CASE("scenario: a zone dying leaves the plant safe, not confident") {
     }
 
     CHECK_FALSE(p.valid("cli_temp_hi"));
-    INFO("the row HOLDS its last average rather than reading a default of zero");
+    SAY("the row HOLDS its last average rather than reading a default of zero");
     CHECK(p.num("cli_temp_hi") == doctest::Approx(was));
     CHECK(p.on("alarm_sns_ceiling"));
 
-    INFO("the plant keeps running on the floor: still hot, still open");
+    SAY("the plant keeps running on the floor: still hot, still open");
     CHECK(p.num("cli_coolDem") > 0.5f);
     CHECK(p.num("cli_window1_pos") > 0.9f);
 
-    INFO("and the laws that read it say they are working on a reading they do "
+    SAY("and the laws that read it say they are working on a reading they do "
          "not have");
     CHECK(p.zones.health() != Plc::Health::HEALTHY);
     CHECK(p.cooling.health() == Plc::Health::DEGRADED);
+    snapshot(p, "five minutes without a ceiling reading");
 }
 
 TEST_CASE("scenario: the supply going down parks the plant") {
+    ScenarioTrace::scenario("The supply going down",
+        "The UPS reports its battery going while the plant is working hard: "
+        "the lockout is the plant's safe state, and it is reversible.");
     Plant p;
     settle(p, HOT_AFTERNOON);
     force_phase(p, Site::PHASE_DAY);
+    trace_weather(HOT_AFTERNOON, Site::PHASE_DAY);
     p.weather_for(900, hold_weather);
     REQUIRE(p.num("cli_window1_pos") > 0.9f);
 
-    INFO("the UPS says its battery is going: the whole plant is held, and every "
+    SAY("the UPS says its battery is going: the whole plant is held, and every "
          "actuator goes where the table says it fails to");
     for (uint32_t i = 0; i < 400; i++) {
         hold_weather(p);
@@ -429,18 +471,18 @@ TEST_CASE("scenario: the supply going down parks the plant") {
     }
     CHECK(p.on("sys_supply_lockout"));
 
-    INFO("the lockout IS the plant's safe state: every program was asked to "
+    SAY("the lockout IS the plant's safe state: every program was asked to "
          "park, through the machinery a halt already uses");
     CHECK(p.f.reg.safe_held());
     CHECK(p.f.reg.safe_requested());
 
-    INFO("windows: shut, whatever the ladder wants - the lockout is stage one");
+    SAY("windows: shut, whatever the ladder wants - the lockout is stage one");
     CHECK(p.num("cli_window1_pos") < 0.1f);
-    INFO("skirt: shut");
+    SAY("skirt: shut");
     CHECK_FALSE(p.on("cli_skirtValve"));
     snapshot(p, "the battery going, and the plant parked");
 
-    INFO("...and the plant is released the moment the battery is not: the hold "
+    SAY("...and the plant is released the moment the battery is not: the hold "
          "goes down on the same edge that raised it, and the roof reopens");
     const uint32_t back = run_until(p, [](Plant& q) {
         return !q.f.reg.safe_held() && q.num("cli_window1_pos") > 0.9f;
@@ -455,13 +497,18 @@ TEST_CASE("scenario: a long hot spell does not cost minutes of recovery") {
     // an afternoon, a loop without anti-windup accumulates effort it can never
     // use, and answers a cooling house by holding the windows open for as long
     // as it spent winding.
+    ScenarioTrace::scenario("A long hot spell, then relief",
+        "Ten minutes of the cooling loop pinned at its limit, and what that "
+        "costs when the house finally reaches its target.");
     Plant p;
     settle(p, HOT_AFTERNOON);
     force_phase(p, Site::PHASE_DAY);
+    trace_weather(HOT_AFTERNOON, Site::PHASE_DAY);
     p.weather_for(6000, hold_weather);        // ten minutes hard against the limit
     REQUIRE(p.num("cli_coolDem") > 0.9f);
+    snapshot(p, "ten minutes hard against the limit");
 
-    INFO("the house reaches its target and the demand comes off the limit at "
+    SAY("the house reaches its target and the demand comes off the limit at "
          "once, keeping only what the integral had needed: the proportional "
          "term was doing the work, and conditional integration would not let "
          "the integral accumulate underneath it while the output was pinned");
@@ -469,11 +516,11 @@ TEST_CASE("scenario: a long hot spell does not cost minutes of recovery") {
     g_wx.floor_  = g_wx.ceiling - 1.0f;
     p.weather_for(1200, hold_weather);
     CHECK(p.num("cli_coolDem") < 0.5f);
-    INFO("...and it does not fall to nothing either: some ventilation IS what "
+    SAY("...and it does not fall to nothing either: some ventilation IS what "
          "is holding the house at its target");
     CHECK(p.num("cli_coolDem") > 0.0f);
 
-    INFO("...and once the house is genuinely COLDER than wanted, the loop lets "
+    SAY("...and once the house is genuinely COLDER than wanted, the loop lets "
          "go from the FIRST beat rather than sitting on stored effort");
     g_wx.ceiling = p.num("cli_targetTemp_degC") - 3.0f;
     g_wx.floor_  = g_wx.ceiling - 1.0f;
@@ -485,12 +532,13 @@ TEST_CASE("scenario: a long hot spell does not cost minutes of recovery") {
     // in situ - so what is asserted here is that the recovery is bounded by it
     // rather than by however long the loop spent saturated. Ten minutes hard
     // against the limit, and the roof is shut well inside twenty.
-    INFO("and the roof shuts within a time the tuning explains, not within one "
+    SAY("and the roof shuts within a time the tuning explains, not within one "
          "the winding does: the integral was clamped to what the output can "
          "span, so an afternoon of saturation costs no more than a minute of it");
     const uint32_t beats =
         run_until(p, [](Plant& q) { return q.num("cli_windowDem") < 0.1f; }, 12000);
     CHECK(beats != 0);
+    snapshot(p, "the roof shut again, and no minutes of winding to pay off");
 }
 
 TEST_CASE("scenario: a house sitting on a threshold does not thrash the plant") {
@@ -498,9 +546,13 @@ TEST_CASE("scenario: a house sitting on a threshold does not thrash the plant") 
     // a temperature parked ON one leaves an actuator flipping - which is a
     // question about dead bands, and it is the failure mode that wears the
     // hardware out rather than the one that kills a plant.
+    ScenarioTrace::scenario("A house parked on a threshold",
+        "A tenth of a degree of probe noise either side of a gate's own "
+        "margin, for a minute: the failure mode that wears hardware out.");
     Plant p;
     settle(p, HOT_AFTERNOON);
     force_phase(p, Site::PHASE_DAY);
+    trace_weather(HOT_AFTERNOON, Site::PHASE_DAY);
 
     // Park the interior where the intake gate lives: exactly the margin above
     // the crawlspace, which is where two converging spaces sit for hours.
@@ -517,11 +569,11 @@ TEST_CASE("scenario: a house sitting on a threshold does not thrash the plant") 
         p.cycle->step(p.t += 100);
         if (p.on("cli_intakeCoolOk") != gate) flips++;
     }
-    INFO("the gate holds through the noise: it opens at its margin and closes a "
+    SAY("the gate holds through the noise: it opens at its margin and closes a "
          "band under it, so a difference sitting on the margin cannot flip it");
     CHECK(flips == 0);
 
-    INFO("...and the fans hold their speed through the same noise");
+    SAY("...and the fans hold their speed through the same noise");
     const bool speed2 = p.on("cli_destrat1_speed2");
     uint32_t fan_flips = 0;
     for (uint32_t i = 0; i < 600; i++) {
@@ -530,18 +582,23 @@ TEST_CASE("scenario: a house sitting on a threshold does not thrash the plant") 
         if (p.on("cli_destrat1_speed2") != speed2) fan_flips++;
     }
     CHECK(fan_flips == 0);
+    snapshot(p, "a minute of noise later, nothing has moved");
 }
 
 
 TEST_CASE("scenario: an evening moves the plant the other way, in order") {
+    ScenarioTrace::scenario("An evening, in order",
+        "The house cooling through the whole ladder in one run: which of the "
+        "roof and the screen moves first, and what the fans do meanwhile.");
     Plant p;
     settle(p, HOT_AFTERNOON);
     force_phase(p, Site::PHASE_DAY);
+    trace_weather(HOT_AFTERNOON, Site::PHASE_DUSK_BREEZE);
     p.weather_for(900, hold_weather);
     REQUIRE(p.num("cli_window1_pos") > 0.9f);
     REQUIRE_FALSE(p.on("cli_screen"));
 
-    INFO("dusk, and the house loses heat at a couple of degrees a minute");
+    SAY("dusk, and the house loses heat at a couple of degrees a minute");
     force_phase(p, Site::PHASE_DUSK_BREEZE);
 
     uint32_t shut = 0, deployed = 0;
@@ -553,25 +610,26 @@ TEST_CASE("scenario: an evening moves the plant the other way, in order") {
         if (shut != 0 && deployed != 0)   break;
     }
 
-    INFO("both happen, and the ROOF FIRST: the ladder passes zero long before "
+    SAY("both happen, and the ROOF FIRST: the ladder passes zero long before "
          "it passes the screen's rung, so the fabric is never asked to hold "
          "heat through an open window");
     CHECK(shut != 0);
     CHECK(deployed != 0);
     CHECK(shut < deployed);
 
-    INFO("the fans are cut while the fabric travels: it is moving through the "
+    SAY("the fans are cut while the fabric travels: it is moving through the "
          "air they blow into");
     CHECK(p.on("cli_screenMoving"));
     CHECK_FALSE(p.on("cli_destrat1_speed1"));
     CHECK_FALSE(p.on("cli_destrat1_speed2"));
     CHECK_FALSE(p.on("cli_destrat1_speed3"));
 
-    INFO("and once it has arrived they are allowed back - the breeze phase is "
+    SAY("and once it has arrived they are allowed back - the breeze phase is "
          "asking for one");
     p.weather_for(700, hold_weather);
     CHECK_FALSE(p.on("cli_screenMoving"));
     CHECK(p.on("cli_destrat1_speed1"));
+    snapshot(p, "shut, deployed, and the breeze back on");
 }
 
 }  // namespace site_scenarios
