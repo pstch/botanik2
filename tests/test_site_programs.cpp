@@ -58,7 +58,7 @@ void slot(Live& f) {
     }
 }
 
-TEST_CASE("zone: the selector drops the outlier and averages the pair that agree") {
+TEST_CASE("zone: the selector keeps the middle reading and discards the extremes") {
     Live f;
     Vars::RefIn<float> hi = f.bank.resolve_in<float>("cli_temp_hi");
     const VarRef p[3] = { f.ref("cli_temp_hi1"), f.ref("cli_temp_hi2"),
@@ -77,8 +77,9 @@ TEST_CASE("zone: the selector drops the outlier and averages the pair that agree
     }
     for (uint64_t t = 0; t <= 60000; t += 100) d.step(t);
 
-    INFO("40 C is the outlier; 20.0 and 20.2 are the pair");
-    CHECK(f.bank.get(hi) == doctest::Approx(20.1f).epsilon(0.02));
+    INFO("40 C is stuck high and 20.0 is the low extreme: the middle reading "
+         "is what is retained, so neither extreme can ever be the answer");
+    CHECK(f.bank.get(hi) == doctest::Approx(20.2f).epsilon(0.02));
 }
 
 TEST_CASE("zone: an invalid probe is excluded, and one good probe still reads") {
@@ -551,9 +552,12 @@ TEST_CASE("screen: a cold night deploys it, and the traverse cuts the fans") {
     d.step(100);
     CHECK_FALSE(f.bank.get(screen));
 
-    INFO("a cold night deploys it, and the fabric is in the fans' way while it goes");
+    INFO("a cold night deploys it, and the fabric is in the fans' way while it "
+         "goes. The COLD is what asks - a demand under cli_thermalScreenDem - "
+         "and the night is only what permits it");
     f.bank.var(f.ref("cli_phase")).set_i((int64_t)Site::PHASE_NIGHT);
-    f.bank.var(f.ref("cli_temp_hi")).publish(from_f32(T_F32, 10.0f), 100);
+    f.bank.var(f.ref("cli_coolDem"))
+          .set(f.bank.var(f.ref("cli_thermalScreenDem")).as_f32() - 0.1f);
     d.step(200);
     CHECK(f.bank.get(screen));
     CHECK(f.bank.get(moving));
@@ -883,10 +887,14 @@ TEST_CASE("intractors: the fusion is a maximum of the demands whose gate is open
     d.step(200);
     CHECK(f.bank.get(intr) == doctest::Approx(1.0f));
 
-    INFO("asking to HUMIDIFY is not this device's business, and does not lower it");
+    INFO("asking to HUMIDIFY is this device's business too: the air it draws "
+         "comes in through the wetted skirt, which is the only humidifier the "
+         "plant has");
+    f.bank.var(f.ref("cli_rotVentDem")).set(0.0f);
     f.bank.var(f.ref("cli_humidDem")).set(1.0f);
     d.step(300);
     CHECK(f.bank.get(intr) == doctest::Approx(1.0f));
+    f.bank.var(f.ref("cli_rotVentDem")).set(1.0f);
 
     INFO("...but asking to DEHUMIDIFY is, once the air outside is drier: the "
          "gate is the humidity law's verdict, not this one's");
@@ -930,6 +938,41 @@ TEST_CASE("intractors: cooling only draws air that is worth drawing") {
          "cools the ground rather than warming the house");
     CHECK(f.bank.get(intr) ==
           doctest::Approx(f.bank.var(f.ref("cli_groundSpeed")).as_f32()));
+}
+
+TEST_CASE("fans: the day's two breezes are a floor under the brassage") {
+    Live f;
+    Site::FanController fc(Botanik::SetupContext(f.reg), f.bank);
+    Plc::Program* const progs[] = { &fc };
+    Cycle d(progs, 1, &f.bank, f.reg);
+
+    // Nothing else asking: no stratification, no cooling, no cycle.
+    f.bank.var(f.ref("cli_stratDem")).set(0.0f);
+    f.bank.var(f.ref("cli_coolDem")).set(0.0f);
+    f.bank.var(f.ref("cli_phase")).set_i((int64_t)Site::PHASE_DAY);
+    d.step(100);
+    CHECK_FALSE(f.bank.get(f.bank.resolve_in<bool>("cli_destrat1_speed1")));
+
+    INFO("dusk: a light circulation dries the leaves before the stomata open - "
+         "these plants breathe at night, and a wet leaf cannot");
+    f.bank.var(f.ref("cli_phase")).set_i((int64_t)Site::PHASE_DUSK_BREEZE);
+    d.step(200);
+    CHECK(f.bank.get(f.bank.resolve_in<bool>("cli_destrat1_speed1")));
+
+    INFO("...and dawn, for the night's condensation");
+    f.bank.var(f.ref("cli_phase")).set_i((int64_t)Site::PHASE_DAWN_BREEZE);
+    d.step(300);
+    CHECK(f.bank.get(f.bank.resolve_in<bool>("cli_destrat1_speed1")));
+
+    INFO("a FLOOR, not a target: cooling still takes them higher");
+    f.bank.var(f.ref("cli_coolDem")).set(1.0f);
+    d.step(400);
+    CHECK(f.bank.get(f.bank.resolve_in<bool>("cli_destrat1_speed3")));
+
+    f.bank.var(f.ref("cli_phase")).set_i((int64_t)Site::PHASE_NIGHT);
+    f.bank.var(f.ref("cli_coolDem")).set(0.0f);
+    for (uint32_t i = 0; i < 5; i++) d.step(500 + 100u * i);
+    CHECK_FALSE(f.bank.get(f.bank.resolve_in<bool>("cli_destrat1_speed1")));
 }
 
 TEST_CASE("fans: one speed relay at a time, and a band change costs hysteresis") {

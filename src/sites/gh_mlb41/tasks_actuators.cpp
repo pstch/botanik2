@@ -59,17 +59,13 @@ void ScreenController::run(ProgramContext& c) {
     if (!cool_ok) degraded();
     const bool cold = !cool_ok ||
                       _v.cool_dem.get() <= _v.deploy_dem.get();
-    // The night rule is a floor under the demand one: the ladder is written
-    // about the day, and a clear night loses heat with no demand to show it.
+    // The phase gives PERMISSION, the demand asks for the move - and nothing
+    // else does. A phase commanding an actuator is the one thing the design
+    // rules out: a phase sets the target and enables a ladder, and the ladder
+    // decides what moves. A cold night reaches the fabric by driving the
+    // cooling demand under cli_thermalScreenDem like any other cold hour.
     const DayPhase phase = (DayPhase)_v.phase.get();
-    const bool night = (phase == PHASE_NIGHT) &&
-                       (_v.inside.get() < _v.night_degC.get());
-
-    // The phase gives PERMISSION, the demand asks for the move. A move the
-    // phase forbids leaves the fabric where it is, and the thermal need goes to
-    // the intractors pulling ground heat instead.
-    const bool want = cold || night;
-    if (_allows(phase, want)) _command(want);
+    if (_allows(phase, cold)) _command(cold);
     // A command that has just CHANGED is a traverse about to start, and
     // observe() has not timed it yet: parked is neither.
     if (_command_changed || _travelling.q()) parking();
@@ -237,8 +233,15 @@ void IntractorController::run(ProgramContext& c) {
         const float cooling = (cool_ok && _v.cool_ok.get()) ? cool : 0.0f;
         const float venting = _v.rot_vent.get();
         const float drying  = _v.dry_ok.get() ? -_v.humid_dem.get() : 0.0f;
+        // ...and the OTHER arm too. Too little humidity is answered by the
+        // skirt and these fans TOGETHER: the air they draw comes in through the
+        // wetted textile, which is the only humidifier the plant has. Ungated -
+        // the point is to bring moisture in, so "is it drier outside" is the
+        // wrong question for this arm.
+        const float wetting = Plc::max_of(0.0f, _v.humid_dem.get());
 
-        const float demand = Plc::max_of(cooling, Plc::max_of(venting, drying));
+        const float demand = Plc::max_of(Plc::max_of(cooling, venting),
+                                         Plc::max_of(drying, wetting));
         speed = Plc::max_of(speed, Plc::ladder(demand, _v.start_dem.get(),
                                                _v.full_dem.get()));
 
@@ -277,7 +280,17 @@ float FanController::_demand() const {
     const bool  cycling  = _v.irr_state.get() != IRR_IDLE;
     const float watering = cycling ? FAN_IRR_DEM : 0.0f;
 
-    return Plc::max_of(strat, Plc::max_of(cooling, watering));
+    // The day's two breezes. At dusk it dries the leaves before the stomata
+    // open - these plants breathe at night, and a wet leaf cannot - and at dawn
+    // it takes the night's condensation off them. A FLOOR like the others: a
+    // cooling demand above it still takes the fans higher.
+    const DayPhase phase = (DayPhase)_v.phase.get();
+    const bool breezing  = (phase == PHASE_DAWN_BREEZE ||
+                            phase == PHASE_DUSK_BREEZE);
+    const float breeze   = breezing ? _v.breeze_dem.get() : 0.0f;
+
+    return Plc::max_of(Plc::max_of(strat, cooling),
+                       Plc::max_of(watering, breeze));
 }
 
 uint8_t FanController::_band(float demand) {

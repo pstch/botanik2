@@ -430,8 +430,6 @@ health = "prog_screen"
 [program.in]
 cool_dem     = "cli_coolDem"
 deploy_dem   = "cli_thermalScreenDem"
-night_degC   = "cli_screenNight_degC"
-inside       = "cli_temp_hi"
 phase        = "cli_phase"
 travel_s     = "cli_screenTravel_sec"
 travel_tmo_s = "cli_screenTmo_sec"
@@ -523,6 +521,11 @@ screen_moving = "cli_screenMoving"
 low_dem       = "cli_fanLowDem"
 med_dem       = "cli_fanMedDem"
 high_dem      = "cli_fanHighDem"
+# The two BREEZES are the fans' business: a light circulation at dusk dries the
+# leaves before the stomata open, and at dawn it takes the night's condensation
+# off them. The phase asks; this is how much.
+phase         = "cli_phase"
+breeze_dem    = "cli_breezeDem"
 [program.out]
 speed1 = ["cli_destrat1_speed1","cli_destrat2_speed1"]
 speed2 = ["cli_destrat1_speed2","cli_destrat2_speed2"]

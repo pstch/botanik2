@@ -191,9 +191,13 @@ ZoneVote ZoneProbes::_select(const Vars::RefIn<float>* refs) {
         v[n++] = refs[i].get();
     }
     switch (n) {
-        // Three agreeing probes: drop the outlier, average the pair that agree.
-        case 3:  return ZoneVote{ Plc::closest2_mean(v[0], v[1], v[2]), 3 };
-        // Two: they ARE the agreeing pair, with no third to call an outlier.
+        // THE MEDIAN, per the spec: keep the middle reading and discard both
+        // extremes, so a probe stuck high or stuck low can never be the one
+        // retained. (The mean of the two closest would be quieter by root-two
+        // and reject the same stuck probe; the spec asks for the median, and
+        // the spec is what the plant was designed against.)
+        case 3:  return ZoneVote{ Plc::median3(v[0], v[1], v[2]), 3 };
+        // Two: no middle to keep, and their mean is the only answer there is.
         case 2:  return ZoneVote{ 0.5f * (v[0] + v[1]), 2 };
         // One: believed, because a reading from one probe still beats none.
         case 1:  return ZoneVote{ v[0], 1 };
@@ -303,7 +307,15 @@ void TempRHZone::run(ProgramContext& c) {
     _v.dew_point.set(Plc::dew_point(t_worst, rh_worst));
     _v.dp_margin.set(worst_is_ceiling ? m_hi : m_lo);
     _v.sat_press.set(Plc::sat_vapour_pressure(t_worst));
-    _v.vpd.set(Plc::vapour_pressure_deficit(t_worst, rh_worst));
+
+    // The worst case is per QUANTITY, not one level chosen for all of them: the
+    // spec keeps the smallest dew-point margin for rot and the LOWEST VPD for
+    // irrigation, and they are not always the same level. A margin and a VPD
+    // tell the same story in different units, and the units are not linear in
+    // each other - the same margin is a much larger VPD when it is warm.
+    _v.vpd.set(Plc::min_of(
+        Plc::vapour_pressure_deficit(t_hi, _ceiling.humidity()),
+        Plc::vapour_pressure_deficit(t_lo, _floor.humidity())));
 
     const float limit = Plc::limit(_v.rot_limit.get(), ROT_MARGIN_DEGC, 10.0f);
     _v.rot.set((worst_is_ceiling ? m_hi : m_lo) < limit);

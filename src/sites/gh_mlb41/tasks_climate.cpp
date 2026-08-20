@@ -139,10 +139,14 @@ void CoolingController::run(ProgramContext& c) {
         faulted();
         return;
     }
-    // The ceiling by preference; the floor is a worse place to control from and
-    // a better one than nowhere.
-    const float inside = hi_ok ? _v.ceiling.get() : _v.floor.get();
-    if (!hi_ok) degraded();
+    // The HOTTEST of the two levels, which is the spec's worst case for
+    // cooling: the ceiling is usually it, and on an inverted profile - a cold
+    // roof over a warm floor at night - it is not. Whichever level is still
+    // measured carries it alone.
+    const float inside = (hi_ok && lo_ok)
+                             ? Plc::max_of(_v.ceiling.get(), _v.floor.get())
+                             : (hi_ok ? _v.ceiling.get() : _v.floor.get());
+    if (!hi_ok || !lo_ok) degraded();
 
     // The parameters are in the TIME form an operator tunes in (Ti, Td in
     // seconds); PidTuning takes gains. Ti of 0 means no integral action rather

@@ -847,8 +847,6 @@ struct ScreenController {
      *  @{ */
     Vars::RefIn<float>    cool_dem;
     Vars::RefIn<float>    deploy_dem;
-    Vars::RefIn<float>    night_degC;
-    Vars::RefIn<float>    inside;
     Vars::RefIn<uint8_t>  phase;
     Vars::RefIn<uint16_t> travel_s;
     Vars::RefIn<uint16_t> travel_tmo_s;
@@ -866,7 +864,7 @@ struct ScreenController {
      *  indices: what the base sweeps for validity before each
      *  activation. Parameters are not here - an operator's number is
      *  always valid, and checking one would cost a walk to learn nothing. */
-    Vars::VarRef _watched[3];
+    Vars::VarRef _watched[2];
 
     /** @name Health
      *  Where this program's health is published. Written by a
@@ -1066,6 +1064,8 @@ struct FanController {
     Vars::RefIn<float>   low_dem;
     Vars::RefIn<float>   med_dem;
     Vars::RefIn<float>   high_dem;
+    Vars::RefIn<uint8_t> phase;
+    Vars::RefIn<float>   breeze_dem;
 
     /** @} */
 
@@ -1082,7 +1082,7 @@ struct FanController {
      *  indices: what the base sweeps for validity before each
      *  activation. Parameters are not here - an operator's number is
      *  always valid, and checking one would cost a walk to learn nothing. */
-    Vars::VarRef _watched[4];
+    Vars::VarRef _watched[5];
 
     /** @name Health
      *  Where this program's health is published. Written by a
@@ -1673,8 +1673,6 @@ inline void IrrigationCycle::bind(Vars::Bank& io, Plc::Program& owner) {
 inline void ScreenController::bind(Vars::Bank& io, Plc::Program& owner) {
     cool_dem     = io.resolve_in<float>("cli_coolDem");
     deploy_dem   = io.resolve_in<float>("cli_thermalScreenDem");
-    night_degC   = io.resolve_in<float>("cli_screenNight_degC");
-    inside       = io.resolve_in<float>("cli_temp_hi");
     phase        = io.resolve_in<uint8_t>("cli_phase");
     travel_s     = io.resolve_in<uint16_t>("cli_screenTravel_sec");
     travel_tmo_s = io.resolve_in<uint16_t>("cli_screenTmo_sec");
@@ -1686,9 +1684,8 @@ inline void ScreenController::bind(Vars::Bank& io, Plc::Program& owner) {
     // before each activation, so an input that has stopped being believable
     // is DEGRADED whether or not the law thought to ask.
     _watched[0] = cool_dem.r;
-    _watched[1] = inside.r;
-    _watched[2] = phase.r;
-    owner.set_inputs(_watched, 3);
+    _watched[1] = phase.r;
+    owner.set_inputs(_watched, 2);
     owner.set_health_row(health);
 }
 
@@ -1793,6 +1790,8 @@ inline void FanController::bind(Vars::Bank& io, Plc::Program& owner) {
     low_dem       = io.resolve_in<float>("cli_fanLowDem");
     med_dem       = io.resolve_in<float>("cli_fanMedDem");
     high_dem      = io.resolve_in<float>("cli_fanHighDem");
+    phase         = io.resolve_in<uint8_t>("cli_phase");
+    breeze_dem    = io.resolve_in<float>("cli_breezeDem");
     speed1[0]     = io.resolve_out<bool>("cli_destrat1_speed1");
     speed1[1]     = io.resolve_out<bool>("cli_destrat2_speed1");
     speed2[0]     = io.resolve_out<bool>("cli_destrat1_speed2");
@@ -1809,7 +1808,8 @@ inline void FanController::bind(Vars::Bank& io, Plc::Program& owner) {
     _watched[1] = cool_dem.r;
     _watched[2] = irr_state.r;
     _watched[3] = screen_moving.r;
-    owner.set_inputs(_watched, 4);
+    _watched[4] = phase.r;
+    owner.set_inputs(_watched, 5);
     owner.set_health_row(health);
 }
 
