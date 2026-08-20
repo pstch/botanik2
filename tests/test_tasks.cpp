@@ -14,6 +14,8 @@
 #include "doctest.h"
 #include "libbotanik/tasks/task_timer.h"
 #include "libbotanik/utils/assert.h"
+#include "libbotanik/logs/logger.h"
+#include "recording_writer.h"
 
 // tasks
 
@@ -34,6 +36,41 @@ namespace {
     void note(Botanik::Component* c, const Tick&) { static_cast<Noted*>(c)->ran(); }
 
     Noted A("a"), B("b"), C("c");   // distinct owners: the name identifies the task
+}
+
+TEST_CASE("tasks: the roll-call is one line per TASK, not per component") {
+    Botanik::Logs::Logger log;
+    log.set_min_level(Botanik::Logs::LOG_DEBUG);
+    Botanik::RecordingWriter w;
+    log.add_writer(&w);
+
+    // One component, two tasks: the beat holds two things, so bring-up says so
+    // twice. A component that registered nothing says nothing at all.
+    struct Twice : public Botanik::Component {
+        explicit Twice(const Botanik::SetupContext& ctx)
+            : Component(ctx, "twice") {}
+        void register_tasks() override {
+            _tasks->add(*this, &note, "early", GROUP_FAST, PHASE_INPUT);
+            _tasks->add(*this, &note, "late",  GROUP_SLOW, PHASE_PRESENT);
+        }
+    };
+
+    Registry reg;
+    Twice t(Botanik::SetupContext(&reg, &log));
+    Noted quiet("quiet");
+    t.register_tasks();
+    (void)quiet;
+    reg.setup(0);
+
+#ifdef DEBUG
+    CHECK(w.saw("early"));
+    CHECK(w.saw("late"));
+    INFO("and the task's rate class and phase are on the line, because that is "
+         "what a task IS");
+    CHECK(w.saw("fast"));
+    CHECK(w.saw("present"));
+    CHECK_FALSE(w.saw("quiet"));
+#endif
 }
 
 TEST_CASE("tasks: a phase runs only its own members, in registration order") {

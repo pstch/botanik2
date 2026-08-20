@@ -68,10 +68,16 @@ namespace Botanik {
             if (_started) return;
             _started = true;
             on_setup(now_ms);
-            announce();
         }
         /** @brief Whether setup() has run. */
         bool started() const { return _started; }
+
+        /** @brief The BOOT/DEBUG roll-call line for ONE registered task (see
+         *  component.cpp). Called by the registry, once per task, after
+         *  setup(). Compiled out when DEBUG is undefined.
+         *  @note Group and phase as plain bytes: `core/` sits above `tasks/`
+         *  and does not take its enums into this header. */
+        void announce_task(const char* task, uint8_t group, uint8_t phase);
 
         /** @brief Put this component's work in the beat: one entry per point it
          *  acts at, each with its own name, rate group and phase. No argument -
@@ -111,9 +117,7 @@ namespace Botanik {
         /** @name Hooks (implemented by the component)
          *  @{ */
 
-        /** @brief One-shot BOOT/DEBUG announce, run by setup() (out-of-line: see
-         *  component.cpp). Compiled out when DEBUG is undefined. */
-        void announce();
+
 
         /** @brief One-time init, run by setup(). Default: nothing. */
         virtual void on_setup(uint64_t now_ms) { (void)now_ms; }

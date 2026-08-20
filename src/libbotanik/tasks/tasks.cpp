@@ -61,7 +61,8 @@ namespace Botanik { namespace Tasks {
         for (uint8_t p = 0; p < PHASE_COUNT; p++)
             for (uint8_t i = 0; i < _count; i++)
                 if (_tasks[i].phase == (Phase)p)
-                    component_setup(_tasks[i].owner, now_ms);
+                    component_setup(_tasks[i].owner, now_ms, _tasks[i].name,
+                                    _tasks[i].group, _tasks[i].phase);
 
         // Registered setup handlers, in registration order: bring-up ordering is
         // a property of the registry rather than of the composition root.

@@ -98,7 +98,7 @@ TEST_CASE("MqttClient: never reports connected to a dead broker, publish gated o
 
 // NTP-less builds must not report NTP coverage they don't have.
 #if BOTANIK_FEATURE_NTP
-TEST_CASE("NtpClient: stepped as a Component (announces once), query is non-blocking") {
+TEST_CASE("NtpClient: stepped as a Component, query is non-blocking") {
     botanik_test::ParamFixture fx;
     NameResolver resolver;
     NetworkHandler net(Botanik::SetupContext(), &resolver);
@@ -127,12 +127,10 @@ TEST_CASE("NtpClient: stepped as a Component (announces once), query is non-bloc
 
     for (int i = 0; i < 5; ++i) ts.step(HAL::Clock::uptime_ms());   // must not fault or block
 
-#ifdef DEBUG
-    // >= 1, not == 1: link-up may emit extra lines beyond the announce, so count
-    // isn't pinned; search all lines, not last_msg, since last is timing-dependent.
-    CHECK(w.pushes >= 1);
-    CHECK(w.saw("NtpClient"));
-#endif
+    INFO("a component does not announce itself: the roll-call is one line per "
+         "registered TASK, and this one is being stepped by hand");
+    CHECK(ts.started());
+    (void)w;
 }
 #endif
 

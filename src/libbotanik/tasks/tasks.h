@@ -28,11 +28,6 @@ namespace Botanik { namespace Plc { class Program; } }
 
 namespace Botanik { namespace Tasks {
 
-    /** @brief Run @p c's Component::setup(), the one-time init behind every
-     *  registration. Defined in core/component.cpp: `tasks/` must not acquire
-     *  `core/` to call one method on it. */
-    void component_setup(Component* c, uint64_t now_ms);
-
     /** @brief What a handler is told about the activation it is running in.
      *  @note A handler that integrates over time must read @c dt_ms rather than
      *  assume its nominal period. @c missed is what TaskTimer dropped on the way
@@ -64,6 +59,20 @@ namespace Botanik { namespace Tasks {
     uint32_t group_period_ms(GroupId g);
     /** @brief Display name of @p g ("fast", "slow"...). */
     const char* group_name(GroupId g);
+    /** @brief Display name of @p p ("input", "control"...). */
+    const char* phase_name(Phase p);
+
+    /** @brief Run @p c's Component::setup(), the one-time init behind every
+     *  registration, and announce the TASK. Defined in core/component.cpp:
+     *  `tasks/` must not acquire `core/` to call one method on it.
+     *
+     *  The announce is per TASK and not per component, because a task is what
+     *  the beat actually holds: a component with three of them says so three
+     *  times, and one that registered none says nothing rather than claiming a
+     *  place it does not have. */
+    void component_setup(Component* c, uint64_t now_ms, const char* task,
+                         GroupId group, Phase phase);
+
 
     /** @brief What one task costs, for the TASKS page and the stats command. Per
      *  TASK, not per group.
