@@ -35,12 +35,12 @@ void ScreenController::_command(Vars::Bank& io, bool deploy) {
     // where the travel is the operator's: this traverse is what the fans are
     // cut for and what a parking supervisor waits on, and a mis-set travel
     // would hold both for as long as it says.
-    const uint32_t want = 1000u * (uint32_t)io.get(_v.travel_s);
-    const uint32_t cap  = 1000u * (uint32_t)io.get(_v.travel_tmo_s);
+    const uint32_t want = 1000u * (uint32_t)_v.travel_s.get();
+    const uint32_t cap  = 1000u * (uint32_t)_v.travel_tmo_s.get();
     _travel_ms = (want < cap) ? want : cap;
     _deployed  = deploy;
     _seeded    = true;
-    io.drive(_v.screen, deploy);
+    _v.screen.set(deploy);
 }
 
 void ScreenController::run(ProgramContext& c) {
@@ -61,15 +61,15 @@ void ScreenController::run(ProgramContext& c) {
     // An unknown cooling demand DEPLOYS it: that is this one's safe state, and
     // it should never be reached - the interior is measured by three probes at
     // each of two levels precisely so that it is not.
-    const bool cool_ok = c.bank.var(_v.cool_dem.r).valid();
+    const bool cool_ok = _v.cool_dem.valid();
     if (!cool_ok) degraded();
     const bool cold = !cool_ok ||
-                      c.bank.get(_v.cool_dem) <= c.bank.get(_v.deploy_dem);
+                      _v.cool_dem.get() <= _v.deploy_dem.get();
     // The night rule is a floor under the demand one: the ladder is written
     // about the day, and a clear night loses heat with no demand to show it.
-    const DayPhase phase = (DayPhase)c.bank.get(_v.phase);
+    const DayPhase phase = (DayPhase)_v.phase.get();
     const bool night = (phase == PHASE_NIGHT) &&
-                       (c.bank.get(_v.inside) < c.bank.get(_v.night_degC));
+                       (_v.inside.get() < _v.night_degC.get());
 
     // The phase gives PERMISSION, the demand asks for the move. A move the
     // phase forbids leaves the fabric where it is, and the thermal need goes to
@@ -83,7 +83,7 @@ void ScreenController::observe(ProgramContext& c) {
     // Counted HERE, so a screen parked on the way to its safe position still
     // reports itself as moving and the fans stay cut.
     _travel_ms = (_travel_ms > c.dt_ms) ? (_travel_ms - c.dt_ms) : 0;
-    c.bank.drive(_v.moving, _travel_ms > 0);
+    _v.moving.set(_travel_ms > 0);
 }
 
 // WindowsController
@@ -91,8 +91,8 @@ void ScreenController::observe(ProgramContext& c) {
 const float WindowsController::SAFE_OPEN = 0.25f;
 
 Plc::ActuatorConfig WindowsController::_mechanics(const Vars::Bank& io) const {
-    const uint32_t travel = 1000u * io.get(_v.travel_s);
-    const uint32_t tmo    = 1000u * io.get(_v.tmo_s);
+    const uint32_t travel = 1000u * _v.travel_s.get();
+    const uint32_t tmo    = 1000u * _v.tmo_s.get();
     // The safe time is the travel time plus the allowance for reaching the
     // stop, so the difference IS the seating run rather than a second figure
     // to keep in step with the first.
@@ -104,27 +104,30 @@ bool WindowsController::_shut_in(ProgramContext& c) {
     // A weather station that has stopped answering is not "no rain". Both rows
     // fall back to 0, which reads exactly like fine weather, so the QUALITY is
     // what decides and an unmeasured sky shuts the roof.
-    const bool blind = !c.bank.var(_v.rain_mmph.r).valid() ||
-                       !c.bank.var(_v.wind_mps.r).valid();
+    const bool blind = !_v.rain_mmph.valid() ||
+                       !_v.wind_mps.valid();
     if (blind) degraded();
 
-    const bool raining = blind || (c.bank.get(_v.rain_mmph) > 0.0f);
-    // An OVERRUN on the rain: the roof stays shut for the declared time after
+    // An OVERRUN on the RAIN: the roof stays shut for the declared time after
     // the last drop, because a shower that has just stopped is about to be one
-    // that has not.
+    // that has not. Being BLIND is not a shower - it is a live interlock that
+    // holds while it lasts and lets go the moment the station answers, where
+    // feeding it the overrun cost the plant a quarter of an hour of ventilation
+    // after every restart.
     const bool rain_lock =
-        _rain_for(raining, 1000u * c.bank.get(_v.rain_hold_s), c.dt_ms);
+        _rain_for(_v.rain_mmph.get() > 0.0f, 1000u * _v.rain_hold_s.get(),
+                  c.dt_ms) || blind;
 
     // The GUST, not the average: what tears a window off its ram is the peak,
     // and the station's own window is the hysteresis - no dwell needed here.
-    const float gust = c.bank.get(_v.gust_mps);
-    const float mean = c.bank.get(_v.wind_mps);
+    const float gust = _v.gust_mps.get();
+    const float mean = _v.wind_mps.get();
     const bool wind_lock =
-        blind || ((gust > mean ? gust : mean) >= c.bank.get(_v.wind_shut));
+        blind || ((gust > mean ? gust : mean) >= _v.wind_shut.get());
 
-    c.bank.drive(_v.rain_lock, rain_lock);
-    c.bank.drive(_v.wind_lock, wind_lock);
-    return rain_lock || wind_lock || c.bank.get(_v.supply_lock);
+    _v.rain_lock.set(rain_lock);
+    _v.wind_lock.set(wind_lock);
+    return rain_lock || wind_lock || _v.supply_lock.get();
 }
 
 int8_t WindowsController::_owner(float target,
@@ -162,19 +165,19 @@ void WindowsController::run(ProgramContext& c) {
         _target = 0.0f;
     } else if (inhibit_requested()) {
         _target = SAFE_OPEN;
-    } else if (!c.bank.var(_v.window_dem.r).valid()) {
+    } else if (!_v.window_dem.valid()) {
         degraded();
         _target = SAFE_OPEN;
     } else {
-        _target = Plc::limit(c.bank.get(_v.window_dem), 0.0f, 1.0f);
+        _target = Plc::limit(_v.window_dem.get(), 0.0f, 1.0f);
     }
 
     const int8_t owner = _owner(_target, cfg);
     if (owner >= 0) _act[owner].step(_target, cfg, c.dt_ms);
 
     for (uint8_t i = 0; i < WINDOWS; i++) {
-        c.bank.drive(_v.opn[i], _act[i].open_cmd());
-        c.bank.drive(_v.clo[i], _act[i].close_cmd());
+        _v.opn[i].set(_act[i].open_cmd());
+        _v.clo[i].set(_act[i].close_cmd());
         // Parked is every window AT THE TARGET, not every window commanded to
         // it: one at a time means the last of the four is a minute behind the
         // first, and a supervisor that dropped control at the request would
@@ -190,9 +193,9 @@ void WindowsController::observe(ProgramContext& c) {
     // One target for all four - they are one roof - against each ram's own
     // position estimate, which is what says how far behind the sequence is.
     for (uint8_t i = 0; i < WINDOWS; i++) {
-        c.bank.drive(_v.tgt[i], _target);
-        if (_act[i].known()) c.bank.drive(_v.pos[i], _act[i].position());
-        else c.bank.var(_v.pos[i].r).invalidate(Vars::Q_NO_DATA);
+        _v.tgt[i].set(_target);
+        if (_act[i].known()) _v.pos[i].set(_act[i].position());
+        else _v.pos[i].invalidate();
     }
 }
 
@@ -216,25 +219,25 @@ void IntractorController::run(ProgramContext& c) {
         // Only the DEHUMIDIFY arm of the humidity demand: positive is asking
         // for the skirt, and drawing more air through would work against it.
         // Gated: air that is not drier than what is here would undo it.
-        const float dehum = c.bank.get(_v.dry_ok) ? -c.bank.get(_v.humid_dem)
+        const float dehum = _v.dry_ok.get() ? -_v.humid_dem.get()
                                                   : 0.0f;
         // A demand nobody can read contributes NOTHING to the maximum. It does
         // not have to: the floor below is already this actuator's safe state,
         // and the other two can still call for more on their own account.
-        const bool cool_ok = c.bank.var(_v.cool_dem.r).valid();
+        const bool cool_ok = _v.cool_dem.valid();
         if (!cool_ok) degraded();
-        const float cool = c.bank.get(_v.cool_dem);
+        const float cool = _v.cool_dem.get();
         // Cooling only counts while the intake is actually cooler; the mirror
         // gate turns the NEGATIVE half into a demand of its own, which is the
         // one thing that pulls stored ground heat up into the house.
-        float worst = (cool_ok && c.bank.get(_v.cool_ok)) ? cool : 0.0f;
+        float worst = (cool_ok && _v.cool_ok.get()) ? cool : 0.0f;
         // Ungated, and deliberately: rot is the collection, and the dew point
         // it is fighting is the one inside.
-        if (c.bank.get(_v.rot_vent) > worst) worst = c.bank.get(_v.rot_vent);
+        if (_v.rot_vent.get() > worst) worst = _v.rot_vent.get();
         if (dehum > worst) worst = dehum;
 
-        const float want = Plc::ladder(worst, c.bank.get(_v.start_dem),
-                                       c.bank.get(_v.full_dem));
+        const float want = Plc::ladder(worst, _v.start_dem.get(),
+                                       _v.full_dem.get());
         if (want > speed) speed = want;
 
         // Ground heat is ONE RUNG, not a ramp: the spec's negative half asks
@@ -242,11 +245,11 @@ void IntractorController::run(ProgramContext& c) {
         // colder it gets. Pulling harder on a cold house moves more air through
         // the same ground, which cools the ground rather than warming the
         // house. A floor like the others.
-        const float ground = c.bank.get(_v.ground_speed);
-        if (c.bank.get(_v.ground_ok) && ground > speed) speed = ground;
+        const float ground = _v.ground_speed.get();
+        if (_v.ground_ok.get() && ground > speed) speed = ground;
     }
 
-    for (uint8_t i = 0; i < INTRACTORS; i++) c.bank.drive(_v.intr[i], speed);
+    for (uint8_t i = 0; i < INTRACTORS; i++) _v.intr[i].set(speed);
 }
 
 // FanController
@@ -267,12 +270,12 @@ float FanController::_demand(const Vars::Bank& io) const {
     // itself a rot risk - so an unknown one contributes these fans' OWN lowest
     // band, which is their safe state, rather than nothing. A floor, not a
     // target: a cooling demand above it still takes them higher.
-    float worst = io.var(_v.strat_dem.r).valid() ? io.get(_v.strat_dem)
-                                                 : io.get(_v.low_dem);
-    const float cool = io.var(_v.cool_dem.r).valid() ? io.get(_v.cool_dem)
-                                                     : io.get(_v.low_dem);
+    float worst = _v.strat_dem.valid() ? _v.strat_dem.get()
+                                                 : _v.low_dem.get();
+    const float cool = _v.cool_dem.valid() ? _v.cool_dem.get()
+                                                     : _v.low_dem.get();
     if (cool > worst) worst = cool;
-    if (io.get(_v.irr_state) != IRR_IDLE && FAN_IRR_DEM > worst)
+    if (_v.irr_state.get() != IRR_IDLE && FAN_IRR_DEM > worst)
         worst = FAN_IRR_DEM;
     return worst;
 }
@@ -281,24 +284,26 @@ uint8_t FanController::_band(const Vars::Bank& io, float demand) {
     // Three rungs, each engaging at its own threshold and released a little
     // under it, which is what keeps a demand sitting on an edge from stepping
     // the relays. The block is the same one the destratification ladder uses.
-    const float step[3] = { io.get(_v.low_dem), io.get(_v.med_dem),
-                            io.get(_v.high_dem) };
+    const float step[3] = { _v.low_dem.get(), _v.med_dem.get(),
+                            _v.high_dem.get() };
     return _steps(demand, step, FAN_DEM_HYST);
 }
 
 void FanController::_drive(Vars::Bank& io, uint8_t speed) {
+    (void)io;
     for (uint8_t i = 0; i < FANS; i++) {
-        io.drive(_v.speed1[i], speed == 1);
-        io.drive(_v.speed2[i], speed == 2);
-        io.drive(_v.speed3[i], speed == 3);
+        _v.speed1[i].set(speed == 1);
+        _v.speed2[i].set(speed == 2);
+        _v.speed3[i].set(speed == 3);
     }
+    _v.band.set(speed);
 }
 
 void FanController::run(ProgramContext& c) {
     // MECHANICAL, so it is resolved before any demand and before the safe
     // state: the fabric is travelling through the air these blow into.
     if (c.first_scan) _steps.reset();
-    if (c.bank.get(_v.screen_moving)) {
+    if (_v.screen_moving.get()) {
         _speed = 0;
         _steps.reset();
         _drive(c.bank, 0);
@@ -313,8 +318,8 @@ void FanController::run(ProgramContext& c) {
         _drive(c.bank, 1);
         return;
     }
-    if (!c.bank.var(_v.strat_dem.r).valid() ||
-        !c.bank.var(_v.cool_dem.r).valid()) degraded();
+    if (!_v.strat_dem.valid() ||
+        !_v.cool_dem.valid()) degraded();
     _speed = _band(c.bank, _demand(c.bank));
     _drive(c.bank, _speed);
 }
@@ -323,39 +328,39 @@ void FanController::run(ProgramContext& c) {
 
 void SkirtController::bind(Vars::Bank& io) {
     _v.bind(io, *this);
-    _valve.attach(io, _v.valve);
+    _valve.attach(_v.valve);
 }
 
 void SkirtController::run(ProgramContext& c) {
     // Wetting air that is already condensing is the one thing this valve must
     // never do, so the lockout is resolved before any demand - and before the
     // pulse phase, which starts again from shut.
-    if (inhibit_requested() || c.bank.get(_v.rot_lock)) {
-        _valve.park(c.bank);
+    if (inhibit_requested() || _v.rot_lock.get()) {
+        _valve.park();
         _valve.reset();
-        c.bank.drive(_v.duty, 0.0f);
+        _v.duty.set(0.0f);
         return;
     }
 
     // PROPORTIONAL on the humidify arm: the skirt IS the humidifier, and the
     // ladder's effort is the on-time. The dehumidify arm is the intractors'.
-    const float humid = Plc::limit(c.bank.get(_v.humid_dem), 0.0f, 1.0f);
+    const float humid = Plc::limit(_v.humid_dem.get(), 0.0f, 1.0f);
 
     // STAGED on the cooling axis, and gated on the air being dry enough for a
     // wet pad to cool at all - in damp air it only adds water. An unknown
     // demand contributes this valve's own safe state, which is SHUT.
-    if (!c.bank.var(_v.cool_dem.r).valid()) degraded();
+    if (!_v.cool_dem.valid()) degraded();
     const float cool =
-        (c.bank.var(_v.cool_dem.r).valid() &&
-         c.bank.get(_v.dp_margin) >= c.bank.get(_v.dry_min))
-            ? Plc::ladder(c.bank.get(_v.cool_dem), c.bank.get(_v.cool_start), 1.0f)
+        (_v.cool_dem.valid() &&
+         _v.dp_margin.get() >= _v.dry_min.get())
+            ? Plc::ladder(_v.cool_dem.get(), _v.cool_start.get(), 1.0f)
             : 0.0f;
 
-    const float duty = _valve.modulate(c.bank, (humid > cool) ? humid : cool,
-                                       1000u * c.bank.get(_v.period_s),
-                                       1000u * c.bank.get(_v.min_on_s),
+    const float duty = _valve.modulate((humid > cool) ? humid : cool,
+                                       1000u * _v.period_s.get(),
+                                       1000u * _v.min_on_s.get(),
                                        c.dt_ms);
-    c.bank.drive(_v.duty, duty);
+    _v.duty.set(duty);
 }
 
 }  // namespace Site
