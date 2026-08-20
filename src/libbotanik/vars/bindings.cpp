@@ -23,6 +23,7 @@
 #if BOTANIK_FEATURE_NETWORK
 #include "libbotanik/network/network.h"
 #endif
+
 #if BOTANIK_FEATURE_NTP
 #include "libbotanik/network/ntp.h"
 #endif
@@ -38,6 +39,14 @@
 #endif
 
 namespace Botanik { namespace Vars {
+
+    const char* host_or_gateway(const Bank& io, const char* row) {
+        const char* t = io.text(io.var(row));
+        if (t != nullptr && t[0] != '\0') return t;
+        const char* gw = io.text(io.var("net_gw"));
+        return (gw != nullptr) ? gw : "";
+    }
+
 
     // The walk
 
@@ -144,7 +153,9 @@ namespace Botanik { namespace Vars {
         cfg.enabled  = io.var("ntp_enable").b();
         cfg.port     = io.var("ntp_port").value().as_u16();
         cfg.poll_sec = io.var("ntp_poll_sec").value().as_u32();
-        copy_str(cfg.srv1, sizeof(cfg.srv1), io.text(io.var("ntp_srv1")));
+        copy_str(cfg.srv1, sizeof(cfg.srv1), host_or_gateway(io, "ntp_srv1"));
+        // srv2 is the FALLBACK and stays empty when it is empty: falling back
+        // to the same gateway srv1 already is would be no fallback at all.
         copy_str(cfg.srv2, sizeof(cfg.srv2), io.text(io.var("ntp_srv2")));
         static_cast<Network::NtpClient*>(target)->set_config(cfg);
     }
@@ -162,7 +173,7 @@ namespace Botanik { namespace Vars {
         cfg.enabled = io.var("mqtt_enable").b();
         cfg.port    = io.var("mqtt_port").value().as_u16();
         cfg.ka_sec  = io.var("mqtt_ka_sec").value().as_u16();
-        copy_str(cfg.host, sizeof(cfg.host), io.text(io.var("mqtt_host")));
+        copy_str(cfg.host, sizeof(cfg.host), host_or_gateway(io, "mqtt_host"));
         static_cast<Network::MqttClient*>(target)->set_config(cfg);
     }
 

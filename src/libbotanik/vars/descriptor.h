@@ -99,7 +99,7 @@ namespace Botanik { namespace Vars {
     enum VarFlags : uint8_t {
         F_INVERT  = 1u << 0,   ///< active-low wiring, folded in so logic reads true = asserted
         F_BOUNDED = 1u << 1,   ///< min/max are a real band, not "unset"
-        F_RDONLY  = 1u << 2,   ///< a parameter shown but not editable
+        F_RDONLY  = 1u << 2,   ///< a parameter shown but not written: read-only
         /** @brief A 32-bit value's registers arrive low word first. Registers
          *  are big-endian on the wire; only which half of a PAIR carries the
          *  high word varies. Meaningless unless `bind.regs` is 2. */
@@ -109,7 +109,13 @@ namespace Botanik { namespace Vars {
          *  `ROLE_COMPUTED` only (@see Bank::retainable()). Saved on a cadence
          *  and on the way down, never per write - a totalizer moves every beat
          *  and would wear the flash out in days. */
-        F_RETAIN = 1u << 4
+        F_RETAIN = 1u << 4,
+        /** @brief A LOCAL digital input counted by an interrupt rather than
+         *  polled as a level (`HAL::Pulse`). The terminal is attached once, as
+         *  a counter: the level of a meter's pulse line is not a reading of
+         *  anything, and configuring one pin two ways is a hardware fault
+         *  waiting for the first wet week. */
+        F_PULSE = 1u << 5
     };
 
     /** @brief Per-slot state bits, as opposed to the row's declared behaviour.
@@ -135,7 +141,13 @@ namespace Botanik { namespace Vars {
         /** @brief The same, for this row's override: forced now, but it will
          *  not survive a reboot until `overrides save`.
          *  @see Bank::override_set() @see Bank::save_override() */
-        VF_OVR_UNSAVED   = 1u << 4
+        VF_OVR_UNSAVED   = 1u << 4,
+        /** @brief This row is written by more than one control program BY
+         *  DECLARATION (IEC 61131-3 VAR_IN_OUT), so a second author is the
+         *  design rather than a defect. Set at bind time by
+         *  Bank::resolve_inout(); read by claim_writer(), which then records no
+         *  exclusive owner for the row. */
+        VF_SHARED        = 1u << 5
     };
 
     /** @brief What the firmware may drive, strictest first. The order is

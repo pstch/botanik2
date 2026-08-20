@@ -99,6 +99,21 @@ namespace Botanik { namespace Vars {
 
     /** @} */
 
+
+    /** @brief A host row's text, or the GATEWAY when it is empty.
+     *
+     *  The hostname rows ship blank - a hostname is the one thing a register
+     *  pair cannot carry, so they are console-only, and a default in the table
+     *  would be a guess at somebody else's network. The gateway is not a guess:
+     *  it is the one address on this segment the unit has been told about, and
+     *  on a small plant the router is the NTP relay and the broker often enough
+     *  to be worth trying before nothing at all.
+     *
+     *  Public because the CONFIG and the console must agree: a `net` report
+     *  showing an empty broker while the client talks to the gateway would be
+     *  the report lying. */
+    const char* host_or_gateway(const Bank& io, const char* row);
+
 }}  // namespace Botanik::Vars
 
 #endif // LIBBOTANIK_VARS_BINDINGS_H

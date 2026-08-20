@@ -500,6 +500,11 @@ namespace Botanik { namespace Vars {
 
     bool Bank::claim_writer(VarRef r, uint8_t who) {
         if (r.index >= _count || who == WRITER_NONE) return true;
+        // A row declared VAR_IN_OUT is read-modify-written by several programs
+        // on purpose, so it records no owner at all: naming one would make the
+        // MONITOR page report whichever program happened to write last as THE
+        // writer of a row that has no single one.
+        if ((_slots[r.index].vflags & VF_SHARED) != 0) return true;
         uint8_t& held = _slots[r.index].writer;
         if (held == who) return true;               // the usual case, every beat
         if (held == WRITER_NONE) { held = who; return true; }
@@ -573,7 +578,7 @@ namespace Botanik { namespace Vars {
         return SET_OK;
     }
 
-    SetResult Bank::param_set(Var h, Scalar v) {
+    SetResult Bank::param_set_scalar(Var h, Scalar v) {
         const SetResult r = set_deferred(h, v);
         if (r != SET_OK) return r;
         // Live now, durable when the operator says so.
@@ -673,6 +678,22 @@ namespace Botanik { namespace Vars {
         for (uint16_t i = 0; i < _count; i++)
             if ((_slots[i].vflags & VF_PARAM_UNSAVED) != 0) n++;
         return n;
+    }
+
+    SetResult Bank::param_check(Var h, const char* text) const {
+        const Descriptor* d = h.meta();
+        if (text == nullptr || d == nullptr) return SET_INVALID;
+        if (_editable_slot(d) == nullptr) return SET_INVALID;
+        if (d->type == T_STR) {
+            uint16_t cap = 0;
+            const char* dst = this->text(h, &cap);
+            if (dst == nullptr) return SET_INVALID;
+            return validate_str(text_slot(*d).kind, text, cap) ? SET_OK
+                                                               : SET_INVALID;
+        }
+        Scalar parsed;
+        return (parse_for(*d, text, /*bounded=*/true, &parsed) == SET_OK)
+                   ? SET_OK : SET_INVALID;
     }
 
     SetResult Bank::param_set(Var h, const char* text) {
@@ -949,9 +970,9 @@ namespace Botanik { namespace Vars {
         const VarRef r = find("sys_log_level");
         const int32_t want = (r.index != VAR_NONE) ? (int32_t)var(r).i()
                                                    : (int32_t)Config::LOG_MIN_LEVEL;
-        // The row is a T_ENUM over log_level_label(), so only the Config
+        // The row is a T_ENUM over level_label(), so only the Config
         // fallback arrives unvetted - hence the guard rather than a bare cast.
-        if (Logs::log_level_label((uint64_t)want) != nullptr) {
+        if (Logs::level_label((uint64_t)want) != nullptr) {
             const Logs::LogLevel lvl = (Logs::LogLevel)want;
             if (lvl != _logger->min_level()) _logger->set_min_level(lvl);
         }
@@ -964,7 +985,7 @@ namespace Botanik { namespace Vars {
             const VarRef fr = find(w->level_param());
             if (fr.index == VAR_NONE) continue;
             const int32_t f = (int32_t)var(fr).i();
-            if (f < 0 || Logs::log_level_label((uint64_t)f) == nullptr) continue;
+            if (f < 0 || Logs::level_label((uint64_t)f) == nullptr) continue;
             const Logs::LogLevel want_lvl = (Logs::LogLevel)f;
             if (want_lvl != w->min_level()) w->set_min_level(want_lvl);
         }

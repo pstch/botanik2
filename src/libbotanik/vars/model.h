@@ -14,6 +14,7 @@
 #include "libbotanik/config/vars.h"
 #include "libbotanik/core/component.h"
 #include "libbotanik/vars/descriptor.h"
+#include "libbotanik/vars/ref.h"
 #include "libbotanik/vars/scalar.h"
 
 namespace Botanik { namespace Logs { class Logger; } }
@@ -61,17 +62,6 @@ namespace Botanik { namespace Vars {
     // Every field here costs RAM on every row of every site, so the size is
     // pinned rather than left to drift.
     static_assert(sizeof(Slot) == 32, "Slot must stay 32 bytes (RAM per variable)");
-
-    /** @brief A reference to any variable: a bare index into the one table.
-     *
-     *  A struct rather than a typedef so a stray integer cannot become a
-     *  reference by accident. */
-    struct VarRef { uint16_t index; };
-
-    /** @brief The "no variable" index. Deliberately NOT 0: a zero-initialised
-     *  VarRef - which is how the platform-health alarms spell "this one reads no
-     *  variable" - must not alias the first real row. */
-    static const uint16_t VAR_NONE = 0xFFFFu;
 
     /** @brief A text row that found no room in the pool. Not 0, which is a REAL
      *  slot: an overflowed row parked there keeps its declared capacity and
@@ -298,6 +288,10 @@ namespace Botanik { namespace Vars {
         /** @brief Persist @p d's current value as its retained one. */
         virtual bool save_retained(const Descriptor& d, const Slot& v) = 0;
     };
+
+    /** @brief How a Ref's type reaches the slot. Specialised below the Bank,
+     *  which its bodies need complete; an unsupported type fails to compile. */
+    template <typename T> struct RefIo;
 
     /** @brief What everything is handed to reach the variables.
      *  @note A bad index - VAR_NONE included - resolves to an inert sink, never
@@ -624,6 +618,61 @@ namespace Botanik { namespace Vars {
         void drive_i(VarRef r, int64_t v) { claim_writer(r, _writer_now); var(r).set_i(v); }
         /** @} */
 
+        /** @name Typed access
+         *  The same index and the same accessor as the untyped pair above, with
+         *  the row's type and its declaration section in the reference: reading
+         *  a digital as a float, or driving a VAR_INPUT, does not compile.
+         *  @{ */
+
+        /** @brief Read @p h. Every direction reads - a POU may read its own
+         *  output. */
+        template <typename T, Dir D>
+        T get(Ref<T, D> h) const { return RefIo<T>::read(*this, h.r); }
+
+        /** @brief Drive @p h. @p V is CHECKED against @p T, not converted, so a
+         *  mismatch names itself instead of reporting a deduction conflict.
+         *  @note A VAR_IN_OUT row skips the exclusive claim. @see claim_writer() */
+        template <typename T, Dir D, typename V>
+        void drive(Ref<T, D> h, V v) {
+            static_assert(D != Dir::IN, "a VAR_INPUT row cannot be driven");
+            static_assert(SameType<T, V>::value, "value type must be the row's own type");
+            claim_writer(h.r, _writer_now);
+            RefIo<T>::write(*this, h.r, (T)v);
+        }
+
+        /** @} */
+
+        /** @name Binding
+         *
+         *  One call per variable a program declares. A name resolving to no row,
+         *  or to a row of another type, lands on the sink and counts as
+         *  unresolved - which `tests/test_site.cpp` fails on.
+         *
+         *  Declaring a row as an OUTPUT also CLAIMS it for whoever the writer
+         *  window names, which a program's bind() runs inside. So two programs
+         *  producing one row is a bring-up failure rather than something noticed
+         *  the first time both write.
+         *  @{ */
+
+        template <typename T> RefIn<T> resolve_in(const char* name) const {
+            return RefIn<T>(_resolve_typed<T>(name));
+        }
+        template <typename T> RefOut<T> resolve_out(const char* name) {
+            const VarRef r = _resolve_typed<T>(name);
+            claim_writer(r, _writer_now);
+            return RefOut<T>(r);
+        }
+        /** @brief The same, and MARKS the row shared: a VAR_IN_OUT row is
+         *  read-modify-written by more than one writer BY DECLARATION, so it
+         *  records no single owner and the conflict scan leaves it alone. */
+        template <typename T> RefInOut<T> resolve_inout(const char* name) {
+            const VarRef r = _resolve_typed<T>(name);
+            if (r.index < _count) _slots[r.index].vflags |= VF_SHARED;
+            return RefInOut<T>(r);
+        }
+
+        /** @} */
+
         /** @brief The program that claimed @p r, or WRITER_NONE. */
         uint8_t writer_of(VarRef r) const;
 
@@ -699,10 +748,34 @@ namespace Botanik { namespace Vars {
         /** @brief Whether @p v WOULD be accepted, writing nothing. For a caller
          *  committing several rows as one unit (a multi-register write). */
         SetResult param_check(Var h, Scalar v) const;
+        /** @brief The same question for TEXT: would this edit be accepted?
+         *  Same rule as param_set(Var, const char*), which is the point - a
+         *  channel that assembles a value from somewhere else (a register pair
+         *  carrying a dotted quad) validates it the way the console does. */
+        SetResult param_check(Var h, const char* text) const;
 
-        /** @brief The same, value already typed. Going via text would apply the
-         *  row's DISPLAY rounding, storing 0.083 as 0.08. T_STR is refused. */
-        SetResult param_set(Var h, Scalar v);
+        /** @brief Apply a value, coerced INTO the row's own type.
+         *
+         *  The safe pair, and what a caller should reach for: a Scalar carries
+         *  no tag saying which arm is live, so one built for the wrong type
+         *  reads back as a bit pattern rather than as a number. These build it
+         *  from @c h's declared type, exactly as Var::set() does.
+         *
+         *  @note An integer literal is ambiguous between the two; use
+         *  param_set_i(). Same reason Scalar(int) is deleted. @{ */
+        SetResult param_set(Var h, bool v)  { return param_set_scalar(h, from_bool(h.type(), v)); }
+        SetResult param_set(Var h, float v) { return param_set_scalar(h, from_f32(h.type(), v)); }
+        SetResult param_set_i(Var h, int64_t v) { return param_set_scalar(h, from_i64(h.type(), v)); }
+        /** @} */
+
+        /** @brief Apply an ALREADY-TYPED value, going round the coercion above.
+         *  @warning @p v must have been built for @c h's type - `from_wire(
+         *  h.type(), ...)` or a Scalar factory matching it. For a driver that
+         *  has the row's type and the wire bytes; anywhere else, use the
+         *  param_set() overloads, which cannot get it wrong.
+         *  @note Going via text instead would apply the row's DISPLAY rounding,
+         *  storing 0.083 as 0.08. T_STR is refused. */
+        SetResult param_set_scalar(Var h, Scalar v);
 
         /** @brief Commit @p h's value and clear its unsaved mark; harmless on a
          *  durable row. @return SET_OK, or SET_NOT_PERSISTED. */
@@ -827,6 +900,18 @@ namespace Botanik { namespace Vars {
          *  @return the row index, or VAR_NONE. */
         uint16_t _lookup(const char* name, uint16_t len) const;
 
+        /** @brief find(), then reject a row @p T cannot bind to. A right name
+         *  with a wrong type is still a wiring defect, so it counts as
+         *  unresolved rather than reading the wrong union arm. */
+        template <typename T>
+        VarRef _resolve_typed(const char* name) const {
+            const VarRef r = find(name);
+            if (r.index >= _count) return r;
+            if (RefIo<T>::accepts(descriptor(r.index).type)) return r;
+            _unresolved++;
+            return VarRef{ VAR_NONE };
+        }
+
         /** @brief @p h's row index, or VAR_NONE when it points at the sink. */
         uint16_t _row_of(Var h) const;
         /** @brief The same from the descriptor: which row this address IS.
@@ -862,6 +947,51 @@ namespace Botanik { namespace Vars {
         static const Descriptor _sink_d;
         static Slot          _sink_v;
     };
+
+    /** @} */
+
+    /** @name Typed row access
+     *  One specialisation per type a Ref may carry. `accepts()` is what a
+     *  binding is checked against: a whole-number Ref takes any integer row and
+     *  a T_ENUM, never a T_BOOL or a T_F32 - reading one as the other is the
+     *  confusion the typed reference exists to catch.
+     *  @{ */
+
+    /** @brief Whether @p t is a whole-number row. */
+    inline bool ref_whole(VarType t) {
+        return t != T_BOOL && t != T_F32 && t != T_STR;
+    }
+
+    template <> struct RefIo<bool> {
+        static bool accepts(VarType t)             { return t == T_BOOL; }
+        static bool read(const Bank& b, VarRef r)  { return b.var(r).b(); }
+        static void write(Bank& b, VarRef r, bool v) { b.var(r).set(v); }
+    };
+
+    template <> struct RefIo<float> {
+        static bool  accepts(VarType t)              { return t == T_F32; }
+        static float read(const Bank& b, VarRef r)   { return b.var(r).as_f32(); }
+        static void  write(Bank& b, VarRef r, float v) { b.var(r).set(v); }
+    };
+
+    // The eight widths differ only in the saturating accessor they read through.
+    #define BOTANIK_REF_WHOLE(TYPE, AS)                                        \
+        template <> struct RefIo<TYPE> {                                       \
+            static bool accepts(VarType t)            { return ref_whole(t); } \
+            static TYPE read(const Bank& b, VarRef r) { return b.var(r).value().AS(); } \
+            static void write(Bank& b, VarRef r, TYPE v) { b.var(r).set_i((int64_t)v); } \
+        }
+
+    BOTANIK_REF_WHOLE(int8_t,   as_i8);
+    BOTANIK_REF_WHOLE(int16_t,  as_i16);
+    BOTANIK_REF_WHOLE(int32_t,  as_i32);
+    BOTANIK_REF_WHOLE(int64_t,  as_i64);
+    BOTANIK_REF_WHOLE(uint8_t,  as_u8);
+    BOTANIK_REF_WHOLE(uint16_t, as_u16);
+    BOTANIK_REF_WHOLE(uint32_t, as_u32);
+    BOTANIK_REF_WHOLE(uint64_t, as_u64);
+
+    #undef BOTANIK_REF_WHOLE
 
     /** @} */
 

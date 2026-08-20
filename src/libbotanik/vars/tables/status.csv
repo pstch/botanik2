@@ -1,0 +1,7 @@
+# status.csv - GENERATED ONCE from the hand-written C++.
+# From here on this file is the source of truth.
+#
+name              , type , def, digits, unit, reg, desc                             , notes                                                                                               , feature
+sys_fieldbus_dead , T_U16, 0  , 0     ,     , 902, field devices not answering      , 0 when every planned device is talking                                                              , BOTANIK_FEATURE_MODBUS_RTU_CLIENT
+sys_fieldbus_crc  , T_U16, 0  , 0     ,     , 903, frames that failed their checksum, "rising means the line: termination, stub length, or the wrong baud"                                , BOTANIK_FEATURE_MODBUS_RTU_CLIENT
+sys_fieldbus_stray, T_U16, 0  , 0     ,     , 904, bytes that arrived out of turn   , "rising means a second master, a duplicate address, or a device answering after its turn had passed", BOTANIK_FEATURE_MODBUS_RTU_CLIENT

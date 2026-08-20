@@ -88,6 +88,13 @@ namespace Botanik { namespace Vars {
      *  the address. */
     constexpr Transport xp_of(uint8_t device) { return device == 0 ? XP_LOCAL : XP_MODBUS; }
 
+    /** @brief A parameter's access as the flag bit that carries it. Taken as
+     *  WRITABLE rather than as read-only so the common case is the default and
+     *  the call sites do not read as double negatives. */
+    constexpr uint8_t access_bits(bool writable) {
+        return (uint8_t)(writable ? 0 : F_RDONLY);
+    }
+
     /** @brief An **alarm**: the boolean carrying the condition, AND the policy
      *  the AlarmController runs it on. There is no second alarm table: the model
      *  scans the variable table for SCOPE_A rows, in table order.
@@ -139,11 +146,13 @@ namespace Botanik { namespace Vars {
      *  two rows share a register. */
     constexpr Descriptor P(const char* name, VarType type, double def, double lo, double hi,
                          uint8_t digits, const char* unit, uint16_t reg,
-                         const char* desc, const char* notes) {
+                         const char* desc, const char* notes,
+                         bool writable = true) {
         return Descriptor{ num(type, def), name, unit, desc, notes,
                          Payload(num(type, lo), num(type, hi)),
                          { XP_NONE, type, 0, 0, reg, 1, 1.0f, 0.0f }, 0, 0, nullptr,
-                         type, ROLE_PARAM, SCOPE_P, digits, F_BOUNDED, {} };
+                         type, ROLE_PARAM, SCOPE_P, digits,
+                         (uint8_t)(F_BOUNDED | access_bits(writable)), {} };
     }
 
     /** @brief An enumerated **parameter**: a small code the operator reads and
@@ -162,11 +171,12 @@ namespace Botanik { namespace Vars {
      *  @warning The codes are what sits in the store and in an external master's
      *  register, so a converter may gain labels but must never renumber them. */
     constexpr Descriptor PE(const char* name, uint64_t def, const char* (*str)(uint64_t),
-                          uint16_t reg, const char* desc, const char* notes) {
+                          uint16_t reg, const char* desc, const char* notes,
+                          bool writable = true) {
         return Descriptor{ Scalar::U(def), name, "", desc, notes,
                          Payload(Scalar::U(0), Scalar::U(0)),
                          { XP_NONE, T_ENUM, 0, 0, reg, 1, 1.0f, 0.0f }, 0, 0, str,
-                         T_ENUM, ROLE_PARAM, SCOPE_P, 0, 0, {} };
+                         T_ENUM, ROLE_PARAM, SCOPE_P, 0, access_bits(writable), {} };
     }
 
     /** @brief A text **parameter**: its own factory, since bounds mean nothing
@@ -176,10 +186,11 @@ namespace Botanik { namespace Vars {
      *  declared, Bank::init() lays them out in table order. @p kind is what a
      *  new value is validated against. */
     constexpr Descriptor PS(const char* name, const char* def, uint16_t cap, StrKind kind,
-                          uint16_t reg, const char* desc, const char* notes) {
+                          uint16_t reg, const char* desc, const char* notes,
+                          bool writable = true) {
         return Descriptor{ Scalar::S(def), name, "", desc, notes, Payload(cap, kind),
                          { XP_NONE, T_STR, 0, 0, reg, 1, 1.0f, 0.0f }, 0, 0, nullptr,
-                         T_STR, ROLE_PARAM, SCOPE_P, 0, 0, {} };
+                         T_STR, ROLE_PARAM, SCOPE_P, 0, access_bits(writable), {} };
     }
 
     /** @brief A **computed** value: derived by a control program, shown on the
@@ -227,6 +238,38 @@ namespace Botanik { namespace Vars {
                          type, ROLE_COMPUTED, SCOPE_SV, digits, 0, {} };
     }
 
+    /** @brief A **retained** status value: SV(), whose value survives a reboot
+     *  (IEC 61131-3 RETAIN).
+     *
+     *  For a published row whose value IS the history - a water totalizer,
+     *  hours run - which a master reads and a reboot must not zero. @p def is
+     *  what it reads on a FIRST boot, before anything has ever been stored.
+     *  @see GR for the same thing without a register. */
+    constexpr Descriptor SVR(const char* name, VarType type, double def,
+                           uint8_t digits, const char* unit, uint16_t reg,
+                           const char* desc, const char* notes) {
+        return Descriptor{ num(type, def), name, unit, desc, notes,
+                         Payload(Scalar::U(0), Scalar::U(0)),
+                         { XP_NONE, type, 0, 0, reg, 1, 1.0f, 0.0f }, 0, 0, nullptr,
+                         type, ROLE_COMPUTED, SCOPE_SV, digits, F_RETAIN, {} };
+    }
+
+    /** @brief An enumerated **status value**: SV(), rendered through a
+     *  converter, for a published code an operator reads as a WORD.
+     *
+     *  A control program's own state machine is the case this exists for: a
+     *  phase reading `DAWN_BREEZE` on the HMI, and 3 on the wire. Same contract
+     *  as PE(): the converter is the vocabulary, and its codes are what sits in
+     *  an external master's register, so it may gain labels and must never
+     *  renumber them. */
+    constexpr Descriptor SVE(const char* name, uint64_t def, const char* (*str)(uint64_t),
+                           uint16_t reg, const char* desc, const char* notes) {
+        return Descriptor{ Scalar::U(def), name, "", desc, notes,
+                         Payload(Scalar::U(0), Scalar::U(0)),
+                         { XP_NONE, T_ENUM, 0, 0, reg, 1, 1.0f, 0.0f }, 0, 0, str,
+                         T_ENUM, ROLE_COMPUTED, SCOPE_SV, 0, 0, {} };
+    }
+
     /** @brief A **direct input**: the register maps 1:1 onto @p type, no
      *  conversion. @p lo / @p hi are the plausibility band - generous on
      *  purpose, to catch a dead meter reporting a rail rather than to police
@@ -267,16 +310,19 @@ namespace Botanik { namespace Vars {
 
     /** @brief A **digital input**: one bit. @p invert folds active-low wiring in
      *  here, so the control programs above read true = asserted. Device 0 = a
-     *  local input bit. */
+     *  local input bit.
+     *  @param pulse this LOCAL terminal is edge-counted rather than polled
+     *         (`F_PULSE`); the edge itself is in the site's pulse table. */
     constexpr Descriptor DI(const char* name, uint8_t device, uint8_t fc, uint16_t reg,
                           bool def, uint32_t timeout_ms, bool invert,
                           const char* desc, const char* notes,
-                          uint16_t poll_ms = 0) {
+                          uint16_t poll_ms = 0, bool pulse = false) {
         return Descriptor{ Scalar::B(def), name, "", desc, notes,
                          Payload(Scalar::B(false), Scalar::B(true)),
                          { xp_of(device), T_BOOL, device, fc, reg, 1, 1.0f, 0.0f },
                          timeout_ms, poll_ms, nullptr,
-                         T_BOOL, ROLE_INPUT, SCOPE_DI, 0, (uint8_t)(invert ? F_INVERT : 0), {} };
+                         T_BOOL, ROLE_INPUT, SCOPE_DI, 0,
+                         (uint8_t)((invert ? F_INVERT : 0) | (pulse ? F_PULSE : 0)), {} };
     }
 
     /** @brief A **direct output**: written 1:1 to the register. @p safe is where

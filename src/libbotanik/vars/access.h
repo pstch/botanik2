@@ -92,6 +92,17 @@ namespace Botanik { namespace Vars {
         return d.scope == SCOPE_P || d.scope == SCOPE_SV || d.scope == SCOPE_A;
     }
 
+    /** @brief Whether anything may WRITE @p d. A row that is not a parameter is
+     *  read-only by construction: nothing writes a reading. */
+    inline bool var_writable(const Descriptor& d) {
+        return d.role == ROLE_PARAM && (d.flags & F_RDONLY) == 0;
+    }
+
+    /** @brief @p d's access as a point list writes it. */
+    inline const char* access_label(const Descriptor& d) {
+        return var_writable(d) ? "RW" : "RO";
+    }
+
     /** @} */
 
     /** @brief What kind of row this is, as a short column label: the declared
