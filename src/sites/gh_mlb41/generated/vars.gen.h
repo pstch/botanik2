@@ -48,7 +48,7 @@ enum IrrState : uint8_t {
     IRR_IDLE     = 0,   ///< no tray is being served
     IRR_FILLING  = 1,   ///< inlet open; tray open; outlet shut
     IRR_DRAINING = 2,   ///< inlet shut; tray open; outlet open
-    IRR_FLUSHING = 3,   ///< the line cleared after the last tray
+    IRR_FLUSHING = 3,   ///< inlet and drain open, no tray: the manifold rinsed
 };
 
 /** @brief A IrrState as the word an operator reads and types.
@@ -253,7 +253,7 @@ const Descriptor params[] = {
     P("irr_drainWindow_sec" , T_U16 , 300    , 100   , 1800   , 0, "sec" , 300, "time allowed for a tray to drain", "", true),
     P("irr_expDrainFrac"    , T_F32 , 0.6    , 0.0   , 1.0    , 2, ""    , 301, "fraction expected to drain back", "", true),
     P("irr_drainMargin"     , T_F32 , 0.3    , 0.0   , 1.0    , 2, ""    , 302, "clog if drained is this far under", "against irr_expDrainFrac, so 0.6 expected and 0.3 here clogs under 0.3", true),
-    P("irr_flush_sec"       , T_U16 , 10     , 5     , 300    , 0, "sec" , 303, "flush duration around the cycle", "", true),
+    P("irr_flush_sec"       , T_U16 , 10     , 5     , 300    , 0, "sec" , 303, "how long the manifold is rinsed", "after every drain: the inlet and the outlet share a line with the trays, and what sat in it is what the next tray gets first", true),
     P("irr_input_qtyPerImp" , T_F32 , 1.0    , 0.01  , 10.0   , 2, "L"   , 304, "litres per pulse from the water meter", "per meter datasheet", true),
     P("irr_out_rawMin_uA"   , T_U16 , 4000.0 , 0     , 24000  , 0, "uA"  , 305, "output meter uA at zero flow", "4 mA is the live zero of the loop, not a reading of nothing", true),
     P("irr_out_rawMax_uA"   , T_U16 , 20000.0, 0     , 24000  , 0, "uA"  , 306, "output meter uA at full scale", "per output-meter datasheet", true),

@@ -229,6 +229,9 @@ void IrrigationCycle::_set_valves(IrrState state, uint8_t tray) {
     // can never water two.
     const bool filling  = (state == IRR_FILLING);
     const bool draining = (state == IRR_DRAINING);
+    // FLUSHING opens BOTH ends with no tray between them: fresh water runs the
+    // length of the shared manifold and out through the drain, so what sat in
+    // the line after a tray emptied is not what the next tray gets first.
     for (uint8_t i = 0; i < 2; i++) {
         _inlet_v[i].set(filling || state == IRR_FLUSHING);
         _outlet_v[i].set(draining || state == IRR_FLUSHING);

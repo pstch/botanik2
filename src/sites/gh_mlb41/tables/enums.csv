@@ -16,4 +16,4 @@ DayPhase, PHASE_DUSK_BREEZE, 5   , DUSK_BREEZE, last air before the night closes
 IrrState, IRR_IDLE         , 0   , IDLE       , no tray is being served
 IrrState, IRR_FILLING      , 1   , FILLING    , inlet open; tray open; outlet shut
 IrrState, IRR_DRAINING     , 2   , DRAINING   , inlet shut; tray open; outlet open
-IrrState, IRR_FLUSHING     , 3   , FLUSHING   , the line cleared after the last tray
+IrrState, IRR_FLUSHING     , 3   , FLUSHING   , "inlet and drain open, no tray: the manifold rinsed"
