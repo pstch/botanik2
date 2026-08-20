@@ -83,10 +83,12 @@ namespace Botanik { namespace Config {
     BOTANIK_CFG(size_t, LOG_QUEUE_CRITICAL_RESERVE);
 
     /** @brief Maximum burst size (number of logs allowed in a quick succession).
-     *  Sized to absorb the boot burst: every Component announces on its first
-     *  step, all in the first beat, on top of the setup() banner + POST. */
+     *  Sized to absorb the BOOT burst, which is the biggest one a run ever
+     *  has: a line per registered task, on top of the setup() banner, the POST
+     *  and the first sweep's quality lines. A site with forty tasks was losing
+     *  most of its own roll-call to the limiter. */
 #ifndef BOTANIK_LOG_GLOBAL_BUCKET_BURST
-#  define BOTANIK_LOG_GLOBAL_BUCKET_BURST 32
+#  define BOTANIK_LOG_GLOBAL_BUCKET_BURST 128
 #endif
     BOTANIK_CFG(uint16_t, LOG_GLOBAL_BUCKET_BURST);
 
@@ -96,9 +98,11 @@ namespace Botanik { namespace Config {
 #endif
     BOTANIK_CFG(uint32_t, LOG_GLOBAL_BUCKET_PERIOD_MS);
 
-    /** @brief Maximum burst size per individual topic */
+    /** @brief Maximum burst size per individual topic. BOOT and QUALITY both
+     *  spend theirs in the first second, so it is sized for the roll-call the
+     *  same way the global bucket is. */
 #ifndef BOTANIK_LOG_PERTOPIC_BUCKET_BURST
-#  define BOTANIK_LOG_PERTOPIC_BUCKET_BURST 32
+#  define BOTANIK_LOG_PERTOPIC_BUCKET_BURST 64
 #endif
     BOTANIK_CFG(uint16_t, LOG_PERTOPIC_BUCKET_BURST);
 
