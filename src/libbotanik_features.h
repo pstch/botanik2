@@ -217,7 +217,7 @@
 #endif
 
 /** @brief Modbus RTU master, filling the process image from the field.
- *  @note Requires BOTANIK_FEATURE_PLC_SCAN */
+ *  @note Requires BOTANIK_FEATURE_PLC */
 #ifndef BOTANIK_FEATURE_MODBUS_RTU_CLIENT
 #  define BOTANIK_FEATURE_MODBUS_RTU_CLIENT 0
 #endif
