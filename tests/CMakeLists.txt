@@ -20,6 +20,7 @@ add_executable(botanik_tests
     test_plc.cpp
     test_program.cpp
     test_scan.cpp
+    test_sizes.cpp
     test_site.cpp
     test_site_programs.cpp
     test_site_watches.cpp
@@ -52,8 +53,10 @@ add_custom_target(table-golden-update
     DEPENDS botanik_tests
     COMMENT "Rewriting tests/data/*.txt from the current tables")
 
-# test_sizes.cpp pins the selected site's payload via BOTANIK_SITE_HEADER, derived
-# from the PUBLIC BOTANIK_SITE define (libbotanik_site.h) inherited from botanik.
+# test_sizes.cpp prints the footprint table and reaches the site through
+# BOTANIK_SITE_HEADER, derived from the PUBLIC BOTANIK_SITE define
+# (libbotanik_site.h) inherited from botanik. The pinning itself is
+# libbotanik_sizes.h's, at COMPILE time; this only shows the numbers.
 
 # The doctest binary is registered TWICE; the label tells them apart:
 #

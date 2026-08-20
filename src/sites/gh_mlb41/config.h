@@ -137,4 +137,12 @@
 #  define BOTANIK_MODBUS_BAUD 38400
 #endif
 
+// The reference site carries the footprint contract: libbotanik_sizes.h pins
+// what each long-lived object costs, and every one of those numbers is a
+// function of the settings above. A site with different settings has different
+// sizes, so this is opt-in rather than a library default.
+#ifndef BOTANIK_PIN_SIZES
+#  define BOTANIK_PIN_SIZES 1
+#endif
+
 #endif // SITES_GH_MLB41_CONFIG_H

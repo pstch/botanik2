@@ -49,4 +49,8 @@
 // so it can only be declared once they exist.
 #include "libbotanik/firmware/firmware.h"
 
+// After everything, and only for a site that opts in: the footprint contract
+// names types from every header above. @see libbotanik_sizes.h
+#include "libbotanik_sizes.h"
+
 #endif // LIBBOTANIK_H

@@ -1,0 +1,83 @@
+#ifndef LIBBOTANIK_SIZES_H
+#define LIBBOTANIK_SIZES_H
+
+/**
+ * @file libbotanik_sizes.h
+ * @brief Memory-footprint contract - static_asserts pinning the sizes of the
+ *        long-lived objects. Included at the end of libbotanik.h.
+ *
+ * This answers WHICH TYPE grew; scripts/footprint.py answers whether the IMAGE
+ * did. Both are wanted: an aggregate that moved names no cause, and a type that
+ * moved says nothing about the headroom left.
+ */
+
+#include "libbotanik.h"
+
+// Only for the site that HAS a contract. Every size here depends on the site's
+// config - Vars::Bank alone is sized by VAR_MAX, STR_POOL_BYTES and the two
+// ANALOG_*_MAX - so a number pinned for the reference site is simply wrong for
+// another, and `sites/bare` exists precisely to be different. The reference site
+// opts in from its config.h; nothing else pays.
+#if defined(BOTANIK_PIN_SIZES) && BOTANIK_PIN_SIZES
+
+namespace Botanik { namespace detail {
+
+    // Figures differ by word size - host x86-64 against OPTA (Cortex-M7,
+    // 32-bit) - so each is spelled per target.
+#if defined(TARGET_OPTA)
+#  define BOTANIK_SIZE(host_, opta_) (opta_)
+#else
+#  define BOTANIK_SIZE(host_, opta_) (host_)
+#endif
+
+    // Scheduling and lifecycle
+    static_assert(sizeof(Tasks::Registry)          == BOTANIK_SIZE(  4280,   3128), "Tasks::Registry footprint changed");
+    static_assert(sizeof(Scheduler::LoopScheduler) == BOTANIK_SIZE(   352,    328), "LoopScheduler footprint changed");
+
+    // Logging and health
+    static_assert(sizeof(Logs::Logger)             == BOTANIK_SIZE(   288,    240), "Logs::Logger footprint changed");
+    static_assert(sizeof(Health::HealthMonitor)    == BOTANIK_SIZE(  3624,   3528), "HealthMonitor footprint changed");
+    static_assert(sizeof(Alarms::AlarmController)  == BOTANIK_SIZE(  3248,   3208), "AlarmController footprint changed");
+
+    // Serial
+    static_assert(sizeof(Utils::BufferedSerial)    == BOTANIK_SIZE(  4384,   4376), "BufferedSerial footprint changed");
+
+#if BOTANIK_FEATURE_VARS
+    /** The single largest library object, and the one a site's config moves:
+     *  VAR_MAX drives four arrays inside it. */
+    static_assert(sizeof(Vars::Bank)               == BOTANIK_SIZE( 19784,  19600), "Vars::Bank footprint changed");
+    static_assert(sizeof(Vars::ConfigBinder)       == BOTANIK_SIZE(   568,    348), "ConfigBinder footprint changed");
+#endif
+
+#if BOTANIK_FEATURE_CONSOLE
+    static_assert(sizeof(Terminal::AnsiTerminal)   == BOTANIK_SIZE(  8584,   8580), "AnsiTerminal footprint changed");
+    static_assert(sizeof(Terminal::Console)        == BOTANIK_SIZE(  9208,   9096), "Console footprint changed");
+    static_assert(sizeof(Terminal::TextEditor)     == BOTANIK_SIZE(   152,    124), "TextEditor footprint changed");
+#endif
+#if BOTANIK_FEATURE_SHELL_PAGE
+    static_assert(sizeof(Pages::ShellPage)         == BOTANIK_SIZE( 37504,  37392), "ShellPage footprint changed");
+#endif
+#if BOTANIK_FEATURE_LOGS_PAGE
+    static_assert(sizeof(Pages::LogsPage)          == BOTANIK_SIZE( 43056,  43016), "LogsPage footprint changed");
+#endif
+
+#if BOTANIK_FEATURE_MODBUS_RTU_CLIENT
+    static_assert(sizeof(Modbus::RtuClient)        == BOTANIK_SIZE(  2856,   2816), "RtuClient footprint changed");
+#endif
+#if BOTANIK_FEATURE_MODBUS_TCP_SERVER
+    static_assert(sizeof(Modbus::TcpSlave)         == BOTANIK_SIZE(  3008,   2960), "TcpSlave footprint changed");
+#endif
+
+    /** The aggregate: every flag above moves it, which is why it is pinned only
+     *  under the same opt-in. It IS the `.bss` figure footprint.py reports for
+     *  the firmware singleton, so the two numbers can be read against each
+     *  other. */
+    static_assert(sizeof(BotanikFirmware)          == BOTANIK_SIZE(196648, 193984), "BotanikFirmware footprint changed");
+
+#undef BOTANIK_SIZE
+
+}}  // namespace Botanik::detail
+
+#endif // BOTANIK_PIN_SIZES
+
+#endif // LIBBOTANIK_SIZES_H
