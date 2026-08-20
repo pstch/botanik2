@@ -10,9 +10,9 @@ The console is the unit's operator interface: a full-screen ANSI terminal on the
  - **Framing** : `8N1`
  - **Terminal** : the `console_type` parameter - `VT100`, `VT102` (default),
    `MINITEL_1B` or `MINITEL_2`
- - **Size** : the `console_cols` / `console_rows` parameters, `80x25` by default, and
-   `80x25` is also the **minimum** - the pages lay out for it, so a smaller screen
-   is refused rather than reflowed
+ - **Size** : the `console_cols` / `console_rows` parameters, `80x24` by default;
+   the **minimum** is `80x20` - the pages lay out for it, so a smaller screen is
+   refused rather than reflowed
 
 Since we want to support old terminals such as the Minitel, the default baudrate is
 very slow, and the firmware is written so that it is usable on such a low baudrate:

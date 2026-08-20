@@ -93,7 +93,7 @@ const Descriptor library_vars[] = {
     P("console_baud"  , T_U32, 4800, 1200, 921600, 0, "Bd" , 900, "console UART rate", "reconnect at the new rate; unsaved, so a power cycle undoes it", true),
     P("console_type"  , T_U8 , 1   , 0   , 3     , 0, ""   , 961, "which terminal is on the console", "0=VT100 1=VT102 2=Minitel 1B 3=Minitel 2", true),
     P("console_cols"  , T_U16, 80  , 80  , 132   , 0, "col", 962, "console width, in columns", "the screen buffer bounds the maximum; a site needing another restates the row", true),
-    P("console_rows"  , T_U16, 24  , 24  , 32    , 0, "row", 963, "console height, in rows", "the screen buffer bounds the maximum; a site needing another restates the row", true),
+    P("console_rows"  , T_U16, 24  , 20  , 32    , 0, "row", 963, "console height, in rows", "the screen buffer bounds the maximum; a site needing another restates the row", true),
 #endif
 #if BOTANIK_FEATURE_CONSOLE && BOTANIK_FEATURE_HOME_PAGE
     PE("console_home_level", Logs::LOG_NOTICE, &Logs::level_label, 964, "lowest level HOME's log tail shows", "a landing screen: only what is worth looking up for", true),

@@ -28,7 +28,7 @@ namespace Botanik { namespace Config {
 #endif
     BOTANIK_CFG(uint16_t, SCREEN_MIN_COLS);
 #ifndef BOTANIK_SCREEN_MIN_ROWS
-#  define BOTANIK_SCREEN_MIN_ROWS 24
+#  define BOTANIK_SCREEN_MIN_ROWS 20
 #endif
     BOTANIK_CFG(uint16_t, SCREEN_MIN_ROWS);
 
