@@ -770,6 +770,38 @@ TEST_CASE("irrigation: a skip is spent too, and sends the tray to the back") {
     CHECK(f.bank.var(f.ref("irr_last_tray1")).param_unsaved());
 }
 
+TEST_CASE("irrigation: the drain meter comes back to zero, not to a tenth of one") {
+    // A deadband only writes when the value moves MORE than its band, so a
+    // flow decaying toward zero leaves the row parked on the last figure it
+    // reported. That is a drain meter saying water is moving with every valve
+    // shut, which is the one thing a leak detector must not be told.
+    Live f;
+    Site::WaterMeters meters(Botanik::SetupContext(f.reg), f.bank);
+    Plc::Program* const progs[] = { &meters };
+    Cycle d(progs, 1, &f.bank, f.reg);
+
+    Vars::RefIn<float> shown = f.bank.resolve_in<float>("irr_outFlow_Lpm");
+    uint64_t t = 0;
+    for (uint32_t i = 0; i < 20; i++) {
+        field(f, "irr_out_Lpm", 30.0f, t);
+        d.step(t += 1000);
+    }
+    REQUIRE(f.bank.get(shown) > 25.0f);
+
+    INFO("the drain stops, and the row says so exactly");
+    for (uint32_t i = 0; i < 20; i++) {
+        field(f, "irr_out_Lpm", 0.0f, t);
+        d.step(t += 1000);
+    }
+    CHECK(f.bank.get(shown) == doctest::Approx(0.0f));
+
+    INFO("...and the next real flow is written at once, not after a band from "
+         "a figure the plant has left behind");
+    field(f, "irr_out_Lpm", 12.0f, t);
+    d.step(t += 1000);
+    CHECK(f.bank.get(shown) > 0.0f);
+}
+
 TEST_CASE("irrigation: the day the schedule runs on is today's date") {
     // Two ways of asking what day it is, and they have to agree. They did not:
     // the date came off cal_time_ms(), which takes an UPTIME-domain instant and

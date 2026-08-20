@@ -18,7 +18,8 @@ namespace Site {
 using namespace Botanik;
 
 /** @brief How far the outlet flow has to move to be worth a status write, in
- *  Lpm. About the METER's noise, not about the plant. */
+ *  Lpm. About the METER's noise, not about the plant - so it is also the
+ *  distance from zero within which the row simply reads zero. */
 static const float IRR_FLOW_BAND = 0.1f;
 
 /** @brief Window the inlet counter is differentiated over, in ms. A pulse is a
@@ -119,12 +120,13 @@ void WaterMeters::observe(ProgramContext& c) {
         // water is moving", which is what a leak detector must not be told.
         _v.out_flow_pub.hold();
         degraded();
-    } else if (lpm < IRR_FLOW_CUTOFF) {
-        // At rest, and said so exactly. The deadband would otherwise park the
-        // row on the last tenth it reported - a drain meter reading 0.09 Lpm
-        // with every valve shut, which is what a leak looks like. Reset with
-        // it, so the next real flow is written at once rather than waiting out
-        // a band from a figure the plant has left behind.
+    } else if (lpm < IRR_FLOW_BAND) {
+        // WITHIN THE DEADBAND OF ZERO, so it reads zero: a reading the band
+        // cannot tell from nothing is nothing. Left to the block the row parks
+        // on the last tenth it reported - a drain meter saying 0.09 Lpm with
+        // every valve shut, which is what a leak looks like. Reset with it, so
+        // the next real flow is written at once rather than waiting out a band
+        // from a figure the plant has left behind.
         _out_band.reset();
         _v.out_flow_pub.set(0.0f);
     } else {
