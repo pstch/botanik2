@@ -95,6 +95,12 @@ namespace Botanik { namespace Vars {
         return (uint8_t)(writable ? 0 : F_RDONLY);
     }
 
+    /** @brief A parameter's RETAINED bit: the row records what happened rather
+     *  than how the plant is set, so `params reset` leaves it alone. */
+    constexpr uint8_t retain_bits(bool retained) {
+        return (uint8_t)(retained ? F_RETAIN : 0);
+    }
+
     /** @brief An **alarm**: the boolean carrying the condition, AND the policy
      *  the AlarmController runs it on. There is no second alarm table: the model
      *  scans the variable table for SCOPE_A rows, in table order.
@@ -143,16 +149,21 @@ namespace Botanik { namespace Vars {
      *  register on the Modbus TCP slave, hand-assigned and NOT derived from its
      *  position: an external master's map is a contract, so inserting a
      *  parameter must not renumber the ones after it. The site test asserts no
-     *  two rows share a register. */
+     *  two rows share a register.
+     *
+     *  @p retained marks a row whose value RECORDS what happened - the day a
+     *  tray was last watered - which `params reset` then leaves alone. Same
+     *  argument on PE() and PS(). */
     constexpr Descriptor P(const char* name, VarType type, double def, double lo, double hi,
                          uint8_t digits, const char* unit, uint16_t reg,
                          const char* desc, const char* notes,
-                         bool writable = true) {
+                         bool writable = true, bool retained = false) {
         return Descriptor{ num(type, def), name, unit, desc, notes,
                          Payload(num(type, lo), num(type, hi)),
                          { XP_NONE, type, 0, 0, reg, 1, 1.0f, 0.0f }, 0, 0, nullptr,
                          type, ROLE_PARAM, SCOPE_P, digits,
-                         (uint8_t)(F_BOUNDED | access_bits(writable)), {} };
+                         (uint8_t)(F_BOUNDED | access_bits(writable)
+                                   | retain_bits(retained)), {} };
     }
 
     /** @brief An enumerated **parameter**: a small code the operator reads and
@@ -172,11 +183,12 @@ namespace Botanik { namespace Vars {
      *  register, so a converter may gain labels but must never renumber them. */
     constexpr Descriptor PE(const char* name, uint64_t def, const char* (*str)(uint64_t),
                           uint16_t reg, const char* desc, const char* notes,
-                          bool writable = true) {
+                          bool writable = true, bool retained = false) {
         return Descriptor{ Scalar::U(def), name, "", desc, notes,
                          Payload(Scalar::U(0), Scalar::U(0)),
                          { XP_NONE, T_ENUM, 0, 0, reg, 1, 1.0f, 0.0f }, 0, 0, str,
-                         T_ENUM, ROLE_PARAM, SCOPE_P, 0, access_bits(writable), {} };
+                         T_ENUM, ROLE_PARAM, SCOPE_P, 0,
+                         (uint8_t)(access_bits(writable) | retain_bits(retained)), {} };
     }
 
     /** @brief A text **parameter**: its own factory, since bounds mean nothing
@@ -187,10 +199,11 @@ namespace Botanik { namespace Vars {
      *  new value is validated against. */
     constexpr Descriptor PS(const char* name, const char* def, uint16_t cap, StrKind kind,
                           uint16_t reg, const char* desc, const char* notes,
-                          bool writable = true) {
+                          bool writable = true, bool retained = false) {
         return Descriptor{ Scalar::S(def), name, "", desc, notes, Payload(cap, kind),
                          { XP_NONE, T_STR, 0, 0, reg, 1, 1.0f, 0.0f }, 0, 0, nullptr,
-                         T_STR, ROLE_PARAM, SCOPE_P, 0, access_bits(writable), {} };
+                         T_STR, ROLE_PARAM, SCOPE_P, 0,
+                         (uint8_t)(access_bits(writable) | retain_bits(retained)), {} };
     }
 
     /** @brief A **computed** value: derived by a control program, shown on the

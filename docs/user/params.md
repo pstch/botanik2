@@ -37,7 +37,7 @@ with a count of what is still owed:
 | `params set <name> <value>` | edit it - live at once, not written |
 | `params save <name>\|all` | write one row, or every row still owed |
 | `params clear <name>\|all` | forget an unsaved edit; the saved value comes back |
-| `params reset <name>\|all` | back to the factory default, dropping the saved copy |
+| `params reset <name>\|all` | back to the factory default, dropping the saved copy. Retained rows are left alone |
 
 A verb acting on the whole set requires the literal `all`: a bare `params save` is
 a usage error rather than a commit you did not mean.
@@ -51,6 +51,31 @@ nothing outstanding it does nothing and says so.
 `params reset` is the heavier one, for a setting whose effect you cannot undo by
 typing: it restores the firmware's own default **and** forgets what was saved, so
 the next boot does not put it back.
+
+## Retained parameters: the ones `reset` will not touch
+
+A few parameters are a **record of what happened** rather than a setting. The
+irrigation schedule keeps eight of them - `irr_last_tray1` .. `irr_last_tray8`, the
+day each tray was last watered - written by the cycle itself and read to decide when
+a tray is next due. They are parameters so that the record reaches flash, and so that
+you can move one to skip a watering or bring one forward.
+
+Their factory default is zero, which reads as "never watered", so a reset would make
+every tray due at once. `params reset` therefore leaves them where they are:
+
+```
+botanik> params reset irr_last_tray1
+irr_last_tray1 is retained: `params reset` leaves it alone
+  it records what happened; `params set` is how it moves
+
+botanik> params reset all
+params: 206 reset to default
+  8 retained, left alone
+```
+
+`params set`, `params save` and `params clear` all behave as they do on any other
+parameter: the record is yours to correct, one row at a time. `params get` shows the
+row's default like any other; it is `reset` alone that declines.
 
 A save can fail, which is a storage fault rather than a bad value: the row keeps
 its mark so the unsaved count goes on reporting the debt, and `FLASH_FLT` is
@@ -195,7 +220,7 @@ Applied live - there is no `sys_serial`, because each of these stands alone.
 and a code with no label is refused outright.
 
 ```
-botanik> vars get sys_log_level
+botanik> vars info sys_log_level
 sys_log_level = debug
 ...
 Range ....................... : debug|info|notice|warning|error|critical

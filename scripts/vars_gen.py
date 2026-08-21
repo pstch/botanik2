@@ -47,7 +47,7 @@ SCALARS = {
 # Trailing parameters a call may simply omit, and what the factory defaults them
 # to when a later one forces them to be spelled.
 OPTIONAL = {"poll": "0", "word_swap": "false", "access": "true",
-            "_pulse": "false"}
+            "_pulse": "false", "retain": "false"}
 
 # What a parameter's `access` cell may say, and the `writable` bool it becomes.
 # Empty is RW, so the column stays blank on the rows nobody has thought about.

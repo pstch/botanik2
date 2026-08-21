@@ -456,42 +456,28 @@ namespace Botanik { namespace Shell {
 // modbus - the field bus and the SCADA-facing server
 
 #if BOTANIK_FEATURE_MODBUS_RTU_CLIENT
-    /** @brief The roll-call: one line per unit. The plant's tag first (an
-     *  operator knows the box by its designation, not its unit id), then how
-     *  much of the scan it accounts for, then the fastest period any of its
-     *  blocks sits on, which bounds how quickly a fault on it is noticed. */
+    /** @brief The roll-call: one line per unit, the plant's tag first (an
+     *  operator knows the box by its designation, not its unit id), then the
+     *  address, the model, and whether it is answering. No counters. */
     void CommandShell::_modbus_devices(const Modbus::RtuClient& rtu) {
         char val[96];
-        const Modbus::Planner& plan = rtu.plan();
+        _println("RTU devices (the field bus)");
+        if (rtu.peer_count() == 0) { _println("  none planned"); return; }
+
         for (uint8_t i = 0; i < rtu.peer_count(); ++i) {
             const uint8_t unit = rtu.peer_unit(i);
-
-            uint16_t blocks = 0, rows = 0;
-            uint32_t fastest = 0;
-            for (uint16_t b = 0; b < plan.block_count(); ++b) {
-                const Modbus::Block& blk = plan.block(b);
-                if (blk.device != unit) continue;
-                blocks++;
-                rows = (uint16_t)(rows + blk.row_count);
-                if (blk.period_ms != 0 && (fastest == 0 || blk.period_ms < fastest))
-                    fastest = blk.period_ms;
-            }
-
             const char* tag = Modbus::device_tag(rtu.devices(), unit);
-            char rate[16];
-            if (fastest == 0) snprintf(rate, sizeof(rate), "%s", "on demand");
-            else if (fastest >= 1000) snprintf(rate, sizeof(rate), "%us", (unsigned)(fastest / 1000u));
-            else snprintf(rate, sizeof(rate), "%ums", (unsigned)fastest);
+            const char* mdl = Modbus::model_of(rtu.devices(), unit).name;
 
-            // The state last: the column an eye runs down for the one that is
-            // not "ok".
+            // The miss count is how far into the backoff this unit is, not
+            // traffic: it says how dead "dead" is, so it stays out of stats.
             char state[16];
             if (!rtu.peer_dead(i)) snprintf(state, sizeof(state), "%s", "ok");
             else snprintf(state, sizeof(state), "DEAD x%u", (unsigned)rtu.peer_misses(i));
 
-            snprintf(val, sizeof(val), "  %-18s dev %-3u %2u blk %3u row %-9s %s",
+            snprintf(val, sizeof(val), "  %-18s dev %-3u %-19s %s",
                      (tag != nullptr && tag[0] != '\0') ? tag : "-",
-                     (unsigned)unit, (unsigned)blocks, (unsigned)rows, rate, state);
+                     (unsigned)unit, (mdl != nullptr) ? mdl : "-", state);
             _println(val);
         }
     }
@@ -506,8 +492,9 @@ namespace Botanik { namespace Shell {
         if (_sys == nullptr) { _println("modbus: no context"); return; }
         char val[96];
 
-        // `modbus devices` is the roll-call, `modbus stats` the plan and the
-        // state. A bare `modbus` is answered upstream, in _dispatch().
+        // `modbus devices` is the roll-call and nothing else, `modbus stats`
+        // the plan, the line and the counters. A bare `modbus` is answered
+        // upstream, in _dispatch().
         uint16_t wn = 0;
         const char* sub = arg_next(args, alen, wn);
         const bool want_devices = arg_eq(sub, wn, "devices");
@@ -515,6 +502,12 @@ namespace Botanik { namespace Shell {
 
 #if BOTANIK_FEATURE_MODBUS_RTU_CLIENT
         const Modbus::RtuClient* rtu = _sys->modbus_rtu;
+        if (want_devices) {
+            if (rtu == nullptr) _println("RTU master (the field bus) .. not wired");
+            else                _modbus_devices(*rtu);
+            return;
+        }
+
         if (rtu == nullptr) {
             _println("RTU master (the field bus) .. not wired");
         } else {
@@ -573,16 +566,14 @@ namespace Botanik { namespace Shell {
 
             // Counts only: twenty units is a screenful that would push the plan
             // and the state off the top. WHICH ones is `modbus devices`.
-            if (!want_devices) {
-                snprintf(val, sizeof(val), "  %u device(s), %u not answering"
-                                           "%s",
-                         (unsigned)rtu->peer_count(), (unsigned)rtu->dead_count(),
-                         rtu->dead_count() != 0 ? "  (modbus devices)" : "");
-                _println(val);
-            } else {
-                _modbus_devices(*rtu);
-            }
+            snprintf(val, sizeof(val), "  %u device(s), %u not answering%s",
+                     (unsigned)rtu->peer_count(), (unsigned)rtu->dead_count(),
+                     rtu->dead_count() != 0 ? "  (modbus devices)" : "");
+            _println(val);
         }
+#else
+        // The roll-call is the RS-485 segment's; the TCP side has no units.
+        if (want_devices) { _println("modbus devices: no field bus in this build"); return; }
 #endif
 
 #if BOTANIK_FEATURE_MODBUS_TCP_SERVER

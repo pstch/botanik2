@@ -36,10 +36,22 @@ Three annotations on a row matter:
 - `(default: nothing has written it)` - the number shown is the **declared
   default**, not a measurement. A dead sensor reads its fallback, not zero.
 
-`vars get` is the detail view of one row:
+`vars get` is the value alone - one line, so it reads at a glance and a script can
+take field 1:
 
 ```
 botanik> vars get temp_zone1
+35.0 C
+```
+
+It is the value every other reader sees, the override applied. The only thing that
+rides along is `INVALID`, when the number is not a believable reading - a bare one
+would be scraped as if it were.
+
+`vars info` is the detail view of the same row:
+
+```
+botanik> vars info temp_zone1
 temp_zone1 = 35.0 C
 Scope ....................... : AI       (input, calibrated)
 Group ....................... : temp
@@ -48,6 +60,8 @@ Raw value ................... : 21.3 C   (valid)
 Override value .............. : 35.0 C   (valid, unsaved)
 Plausible ................... : -20.0 .. 60.0 C
 Source ...................... : Modbus dev 11 fc 3 reg 4
+Written by .................. : -        (no control program drives it)
+Read by ..................... : climate_watch, cooling
 Description ................. : zone 1 air temperature
 ```
 
@@ -55,11 +69,23 @@ Description ................. : zone 1 air temperature
 being held at, or `-` when nothing is forced. That pair answers the question behind
 releasing an override: has the sensor come back?
 
+Three more lines appear where they have something to say:
+
+- **Retained** - the row's value is written back to storage and survives a reboot.
+  Only the rows whose value IS the history carry it: litres delivered, hours run.
+- **Written by** - the control program that drives this row, `-` when none does (a
+  field input is filled by the bus, and **Source** is what says so). A row declared
+  shared between programs reads `several`.
+- **Read by** - the programs that watch this row, and go degraded without it. Both
+  are read off the running scan rather than a list anyone maintains, so they cannot
+  go stale. A **parameter** is not watched - an operator's number is always valid -
+  so it names no readers whoever reads it.
+
 The MONITOR page shows the same set on screen, filtered by typing (@ref user_console).
 
 ### Why a reading is invalid
 
-Both `vars get` and the MONITOR panel say *why*, because the causes want different
+Both `vars info` and the MONITOR panel say *why*, because the causes want different
 next moves:
 
 | Reads | What happened | Where to look |

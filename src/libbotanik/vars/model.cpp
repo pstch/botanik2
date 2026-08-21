@@ -616,6 +616,7 @@ namespace Botanik { namespace Vars {
         const Descriptor* d = h.meta();
         Slot* slot = _editable_slot(d);
         if (slot == nullptr) return SET_INVALID;
+        if (param_retained(*d)) return SET_INVALID;
 
         slot->v    = d->def;
         slot->qual = Q_GOOD;                  // a parameter always has a value

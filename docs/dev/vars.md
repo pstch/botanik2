@@ -243,6 +243,29 @@ one `ovr.<name>` key per saved override. There is no layout to version, so addin
 removing or reordering parameters cannot invalidate the others. The `ovr.` prefix cannot
 collide with a parameter name, because no identifier carries a dot.
 
+### A retained parameter
+
+`F_RETAIN` on a `ROLE_PARAM` row says the value is a RECORD of what happened -
+`irr_last_trayN`, the day each tray was last watered - and `param_reset()` refuses it.
+The factory default of such a row is a lie about the plant: zero reads as "never
+watered", so restoring it makes every tray due at once.
+
+It reuses the flag instead of adding one because the question is the same either way,
+"is this value history?"; only the mechanism differs by role, and `Bank::retainable()`
+/ `Bank::param_retained()` are the two halves. A retained parameter never enters the
+retained store - it already has a key of its own, and two keys for one row could
+disagree.
+
+In the tables it is a `retain` column beside `access`, the same word `globals.csv`
+already uses, rather than a `PR` factory beside `P`: retention is orthogonal to the
+P / PE / PS split, which is about the shape of the value, and a new scope token would
+have to be added by hand to a dozen kind lists across `scripts/`.
+
+`param_clear()` still moves a retained row, deliberately. It restores what a reboot
+would give it - the saved copy, or the factory default when nothing was ever saved -
+so it can undo only an edit that is not durable yet, and takes away nothing a power
+cut would not.
+
 Config-driven components read by name (`Vars::get_int` / `get_f32` / `get_str`) and
 re-apply their whole group when its commit serial changes - `group_serial(io, "net")`
 is just `get_int(io, "net")`, the group's own same-named parameter.

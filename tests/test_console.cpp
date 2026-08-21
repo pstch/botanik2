@@ -1546,6 +1546,33 @@ namespace {
         MI("ext_temp", T_F32, 5, 3, 18, 2, SF(-40.0f), SF(85.0f), SF(20.5f), 0, 1,
                        "C", "outside", ""),
         G ("setpoint", T_F32, SF(18.0f), 1, "C", "target temp", ""),
+        GR("hours_run", T_F32, SF(0.0f), 1, "h", "compressor hours", ""),
+        // The parameter block goes last, and has to be one contiguous run.
+        P ("hyst",     T_U32, 1, 0, 10, 0, "", 20, "a setting", ""),
+        P ("last_run", T_U32, 0, 0, 100000, 0, "days", 21, "when it last ran", "",
+                       /*writable=*/true, /*retained=*/true),
+    };
+
+    /** @brief Drives one row and watches another, so a detail view has both
+     *  halves of a program's interface to report. Either name may be null. */
+    class Wired : public Plc::Program {
+        const char*         _drives;
+        const char*         _reads;
+        Vars::VarRef        _watch[1];
+        Vars::RefOut<float> _out;
+    public:
+        Wired(const Botanik::SetupContext& sc, const char* name,
+              const char* drives, const char* reads, Vars::Bank& io)
+            : Program(sc, name, Tasks::GROUP_FAST, io),
+              _drives(drives), _reads(reads) {}
+    protected:
+        void bind(Vars::Bank& io) override {
+            if (_drives != nullptr) _out = io.resolve_out<float>(_drives);
+            if (_reads == nullptr) return;
+            _watch[0] = io.find(_reads);
+            set_inputs(_watch, 1);
+        }
+        void run(ProgramContext&) override {}
     };
 
     /** @brief A shell with a bank behind it and its output kept. */
@@ -1564,6 +1591,10 @@ namespace {
         // Declared before shell: its address must be valid in shell's init list.
         SystemContext                  ctx{};
         Shell::CommandShell            shell;
+        Wired                          maker{Botanik::SetupContext(reg), "maker",
+                                             "setpoint", "ext_temp", bank};
+        Wired                          user{Botanik::SetupContext(reg), "user",
+                                            nullptr, "ext_temp", bank};
 
         CmdFixture()
             : console(Botanik::SetupContext(), wire.serial, &now),
@@ -1572,10 +1603,19 @@ namespace {
             console.reconfigure(Terminal::ConsoleConfig().type, 80, 24);
             console.terminal().set_baud(115200);
             editor.reset();
-            bank.register_vars(CMD_VARS, 2);
+            bank.register_vars(CMD_VARS,
+                               (uint16_t)(sizeof(CMD_VARS) / sizeof(CMD_VARS[0])));
             bank.freeze();
             ctx.vars = &bank;
-            ctx.tasks = &reg;   // empty, but `programs` checks for it before usage
+            ctx.tasks = &reg;   // empty until with_programs(), which few cases want
+        }
+
+        /** @brief Put the two programs in the scan, bound: registration assigns
+         *  the writer slot, and Registry::setup() is what runs bind(). */
+        void with_programs() {
+            maker.register_tasks();
+            user.register_tasks();
+            reg.setup(0);
         }
 
         void run(const char* cmd) {
@@ -1629,12 +1669,59 @@ TEST_CASE("shell overrides: one row can be released by name") {
     CHECK(f.bank.override_count() == 0);
 }
 
-TEST_CASE("shell vars get: the detail view, and what it adds when a row is forced") {
+TEST_CASE("shell params reset: a setting goes home, a retained record stays put") {
+    CmdFixture f;
+    REQUIRE(f.bank.param_set_i(f.bank.var("hyst"), 7) == Vars::SET_OK);
+    REQUIRE(f.bank.param_set_i(f.bank.var("last_run"), 20140) == Vars::SET_OK);
+
+    f.run("params reset last_run");
+    CHECK(f.writer.has("last_run is retained"));
+    CHECK(f.writer.has("`params set` is how it moves"));
+    CHECK(f.bank.var("last_run").i() == 20140);
+
+    // No store behind the fixture, so the rows that DO reset also report the
+    // storage refusal; the retained tally is a line of its own either way.
+    f.run("params reset all");
+    INFO("params reset all -> " << f.writer.text);
+    CHECK(f.writer.has("1 retained, left alone"));
+    CHECK(f.bank.var("last_run").i() == 20140);
+    CHECK(f.bank.var("hyst").i() == 1);
+}
+
+TEST_CASE("shell vars get: the value, and nothing that is not the value") {
     CmdFixture f;
     f.bank.var("ext_temp").publish(Vars::Scalar::F(21.0f), 1000);
 
     f.run("vars get ext_temp");
     MESSAGE("vars get ext_temp ->\n" << f.writer.text);
+    CHECK(f.writer.text == "21.0 C\n");
+
+    // A row nothing has written reads its default, and says so: a number that
+    // is not a reading must not be scraped as one.
+    f.run("vars get setpoint");
+    CHECK(f.writer.text == "18.0 C INVALID\n");
+
+    // The value in force, override applied - what every other reader sees.
+    f.run("overrides set ext_temp 35");
+    f.run("vars get ext_temp");
+    CHECK(f.writer.text == "35.0 C\n");
+    f.run("overrides set ext_temp 35 invalid");
+    f.run("vars get ext_temp");
+    CHECK(f.writer.text == "35.0 C INVALID\n");
+
+    f.run("vars get nosuch");
+    CHECK(f.writer.has("unknown variable"));
+    f.run("vars get");
+    CHECK(f.writer.has("usage: vars get <name>"));
+    CHECK(f.writer.has("vars info <name>"));      // ...and where the rest went
+}
+
+TEST_CASE("shell vars info: the detail view, and what it adds when a row is forced") {
+    CmdFixture f;
+    f.bank.var("ext_temp").publish(Vars::Scalar::F(21.0f), 1000);
+
+    f.run("vars info ext_temp");
+    MESSAGE("vars info ext_temp ->\n" << f.writer.text);
     CHECK(f.writer.has("ext_temp = 21.0"));
     CHECK(f.writer.has(": MI"));                  // what kind of row...
     CHECK(f.writer.has("(input, direct)"));       // ...spelled out
@@ -1653,14 +1740,14 @@ TEST_CASE("shell vars get: the detail view, and what it adds when a row is force
 
     // Forced: both values kept apart, each with its own validity.
     f.run("overrides set ext_temp 35");
-    f.run("vars get ext_temp");
-    MESSAGE("vars get ext_temp (forced) ->\n" << f.writer.text);
+    f.run("vars info ext_temp");
+    MESSAGE("vars info ext_temp (forced) ->\n" << f.writer.text);
     CHECK(f.writer.has("Raw value ........ : 21.0 C   (valid)"));
     CHECK(f.writer.has("Override value ... : 35.0 C   (valid, unsaved)"));
 
     // ...and forcing the QUALITY shows on the value it belongs to.
     f.run("overrides set ext_temp 35 invalid");
-    f.run("vars get ext_temp");
+    f.run("vars info ext_temp");
     CHECK(f.writer.has("Override value ... : 35.0 C   (invalid, unsaved)"));
     // All four on screen at once, and all four different: 35 forced over a
     // live 21, falling back to 20.5. Reading any one of them for another is
@@ -1669,6 +1756,84 @@ TEST_CASE("shell vars get: the detail view, and what it adds when a row is force
     CHECK(f.writer.has("Raw value ........ : 21.0 C"));
     CHECK(f.writer.has("Default .......... : 20.5 C"));
 }
+
+TEST_CASE("shell vars info: RETAIN is reported on the rows that have it, and only those") {
+    CmdFixture f;
+    f.run("vars info hours_run");
+    MESSAGE("vars info hours_run ->\n" << f.writer.text);
+    CHECK(f.writer.has("Retained ......... : yes"));
+    CHECK(f.writer.has("survives a reboot"));
+    // An input is overwritten by the next scan, so there is nothing to keep.
+    f.run("vars info ext_temp");
+    CHECK_FALSE(f.writer.has("Retained"));
+
+    INFO("...and the flag reads two ways: on a PARAMETER it is not the retained "
+         "store, it is the row `params reset` leaves alone");
+    f.run("vars info last_run");
+    MESSAGE("vars info last_run ->\n" << f.writer.text);
+    CHECK(f.writer.has("Retained ......... : yes"));
+    CHECK(f.writer.has("a record; `params reset` leaves it alone"));
+    CHECK_FALSE(f.writer.has("survives a reboot"));
+
+    INFO("and its default says so too: nothing puts a retained record back");
+    CHECK(f.writer.has("retained, so nothing puts it back"));
+    f.run("vars info hyst");
+    CHECK(f.writer.has("`params reset` restores it"));
+}
+
+TEST_CASE("shell vars info: which programs write a row and which watch it") {
+    CmdFixture f;
+    // Nothing to answer with before the scan has any programs: two dashes
+    // would read as a finding rather than as an empty registry.
+    f.run("vars info setpoint");
+    CHECK_FALSE(f.writer.has("Written by"));
+
+    f.with_programs();
+    f.run("vars info setpoint");
+    MESSAGE("vars info setpoint (with programs) ->\n" << f.writer.text);
+    // Claimed at bind(), not on the first write: `maker` has never run.
+    CHECK(f.writer.has("Written by ....... : maker"));
+    CHECK(f.writer.has("Read by .......... : -"));
+
+    f.run("vars info ext_temp");
+    MESSAGE("vars info ext_temp (with programs) ->\n" << f.writer.text);
+    CHECK(f.writer.has("Read by .......... : maker, user"));
+    // A field input: the wire fills it, and Source is what says so.
+    CHECK(f.writer.has("Written by ....... : -"));
+    CHECK(f.writer.has("no control program drives it"));
+}
+
+#if BOTANIK_FEATURE_MODBUS_RTU_CLIENT
+TEST_CASE("shell modbus: `devices` is the roll-call alone, `stats` keeps the counters") {
+    CmdFixture f;
+    Bank field;                                  // the site's rows, so the plan is real
+    TestSite::build(field);
+    Modbus::RtuClient rtu(Botanik::SetupContext(), &field, Site::g_site.devices);
+    rtu.setup(0);
+    f.ctx.modbus_rtu = &rtu;
+    REQUIRE(rtu.peer_count() > 0);
+
+    f.run("modbus devices");
+    MESSAGE("modbus devices ->\n" << f.writer.text);
+    CHECK(f.writer.has("SRR/TAC/MTR-1"));        // the plant's own designation
+    CHECK(f.writer.has("dev 5"));                // where it sits on the segment
+    CHECK(f.writer.has("Eastron SDM630"));       // what answers there
+    CHECK(f.writer.has("ok"));                   // and whether it is answering
+    // Everything a counter reaches belongs to `modbus stats`, and only there.
+    CHECK_FALSE(f.writer.has("Plan"));
+    CHECK_FALSE(f.writer.has("Transactions"));
+    CHECK_FALSE(f.writer.has("Line"));
+    CHECK_FALSE(f.writer.has("blk"));
+    CHECK_FALSE(f.writer.has("device(s)"));
+
+    f.run("modbus stats");
+    CHECK(f.writer.has("Plan"));
+    CHECK(f.writer.has("Transactions"));
+    CHECK(f.writer.has("Line"));
+    CHECK(f.writer.has("device(s), 0 not answering"));
+    CHECK_FALSE(f.writer.has("SRR/TAC/MTR-1"));  // ...and the roll-call stays out
+}
+#endif
 
 TEST_CASE("shell help: a summary of groups, not a command list") {
     CmdFixture f;
