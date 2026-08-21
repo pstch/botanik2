@@ -5,6 +5,12 @@
 
 # The suite compiles the selected site's header, so it links the site's own
 # sources too - the IO value stores live in one of them.
+#
+# -Wshadow on those, as the top-level does for the sim: a source property is
+# per-directory, so the target defined here needs its own.
+set_source_files_properties(${BOTANIK_SITE_SOURCES}
+                            PROPERTIES COMPILE_FLAGS "-Wshadow")
+
 add_executable(botanik_tests
     ${BOTANIK_SITE_SOURCES}
     doctest_main.cpp

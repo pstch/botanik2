@@ -217,6 +217,11 @@ if(BOTANIK_TARGET STREQUAL "SIMULATOR")
     # site's control programs sit one directory further down still.
     file(GLOB_RECURSE BOTANIK_SITE_SOURCES CONFIGURE_DEPENDS
          "${_site_dir}/*.cpp")
+
+    # -Wshadow on the site's own sources only. A control program reads its
+    # variables as members, so a local of the same name takes over silently.
+    set_source_files_properties(${BOTANIK_SITE_SOURCES}
+                                PROPERTIES COMPILE_FLAGS "-Wshadow")
     add_executable(botanik_sim
         "src/botanik_sim/main.cpp"
         ${BOTANIK_SITE_SOURCES})
@@ -506,6 +511,11 @@ elseif(BOTANIK_TARGET STREQUAL "OPTA")
     # site's control programs sit one directory further down still.
     file(GLOB_RECURSE BOTANIK_SITE_SOURCES CONFIGURE_DEPENDS
          "${_site_dir}/*.cpp")
+
+    # -Wshadow on the site's own sources only. A control program reads its
+    # variables as members, so a local of the same name takes over silently.
+    set_source_files_properties(${BOTANIK_SITE_SOURCES}
+                                PROPERTIES COMPILE_FLAGS "-Wshadow")
 
     # ------------------------------------------------------------------
     # botanik_opta - the flashable M7 image
