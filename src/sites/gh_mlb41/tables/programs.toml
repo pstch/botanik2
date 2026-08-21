@@ -663,6 +663,7 @@ drain_tray = ["alarm_irr_drain_tray1","alarm_irr_drain_tray2","alarm_irr_drain_t
 name  = "screen"
 class = "ScreenController"
 task  = "SLOW"
+stage = "actuators"
 health = "prog_screen"
 desc  = "The thermal screen: one coil, deployed when the greenhouse is losing heat rather than gaining it."
 notes = """
@@ -671,6 +672,10 @@ negative, or a cold night. No feedback, so travel is TIMED - and while it runs
 the destratification fans are cut, because the fabric is moving through the
 air they blow into.
 """
+
+[program.block]
+travelling = { type = "Tp",    doc = "a pulse of the fabric's travel time" }
+moved      = { type = "RTrig", doc = "...started by a change of command" }
 
 [program.in]
 cool_dem     = "cli_coolDem"
@@ -687,6 +692,7 @@ moving = "cli_screenMoving"
 name  = "windows"
 class = "WindowsController"
 task  = "SLOW"
+stage = "actuators"
 health = "prog_windows"
 desc  = "The four roof windows: one target from the cooling ladder, and ONE MOVING AT A TIME."
 notes = """
@@ -707,6 +713,12 @@ dry-and-hot case.
 # windows shut, and the spec is explicit that cooling wins over it - "l'air sec
 # ne met pas les Hawortia en danger, mais la chaleur oui". With no cooling
 # demand the target is 0 and they are shut anyway, so absence IS the rule.
+# One per window, and the rain lockout's overrun. The roof is four rams on one
+# demand, so the block is an array and the table says how many.
+[program.block]
+act      = { type = "Actuator", count = 4 }
+rain_for = { type = "Tof", doc = "the rain lockout's overrun past the last drop" }
+
 [program.in]
 # The INTENDED opening, laddered by the cooling law that owns the demand. This
 # program's job is the interlocks and the rams, not the staging.
@@ -767,6 +779,7 @@ since_rain = "cli_sinceRain_min"
 name  = "intractors"
 class = "IntractorController"
 task  = "SLOW"
+stage = "actuators"
 health = "prog_intractors"
 desc  = "The two intractors: variable-speed fans drawing air from under the floor, driven by whichever of three demands wants the most."
 notes = """
@@ -800,6 +813,7 @@ intr = ["cli_intr1","cli_intr2"]
 name  = "fans"
 class = "FanController"
 task  = "SLOW"
+stage = "actuators"
 health = "prog_fans"
 desc  = "The two destratification fans: three relayed speeds, driven by whichever of three demands wants the most."
 notes = """

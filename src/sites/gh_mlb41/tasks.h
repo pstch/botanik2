@@ -70,6 +70,10 @@
  * for the cycle, and docs/design/control-system.md for what each ladder means.
  */
 
+#include "programs/actuators/windows_controller/windows_controller.h"
+#include "programs/actuators/screen_controller/screen_controller.h"
+#include "programs/actuators/fan_controller/fan_controller.h"
+#include "programs/actuators/intractor_controller/intractor_controller.h"
 #include "programs/climate/humidity_controller/humidity_controller.h"
 #include "programs/climate/cooling_controller/cooling_controller.h"
 #include "programs/actuators/skirt_controller/skirt_controller.h"
@@ -87,6 +91,5 @@
 #include "programs/climate/target_temp_controller/target_temp_controller.h"
 #include "programs/climate/destrat_controller/destrat_controller.h"
 #include "tasks_irrigation.h"
-#include "tasks_actuators.h"
 
 #endif // SITE_TASKS_H

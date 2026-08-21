@@ -1,0 +1,90 @@
+/**
+ * @file fan_controller.cpp
+ * @brief HAND-WRITTEN - the body of the `fans` POU.
+ */
+
+#include "fan_controller.h"
+
+#include "../../../vars.h"
+
+namespace Site {
+
+/** @brief Demand change needed to leave the speed band in force. On the fused
+ *  DEMAND, not on any one signal: which input wins changes as the plant does,
+ *  and the fans would step every time it did. */
+static const float FAN_DEM_HYST = 0.05f;
+
+/** @brief What a watering cycle asks of the fans. Fixed here rather than a
+ *  parameter: it is the LOWEST band, the floor that keeps air over wet trays,
+ *  and the bands themselves are already tunable. */
+static const float FAN_IRR_DEM = 0.34f;
+
+float FanController::_demand() const {
+    // An unknown demand is NOT "nothing to do". Either ladder invalidates its
+    // own when it cannot see what it is about, and still air is itself a rot
+    // risk - so an unknown one contributes these fans' OWN lowest band, which
+    // is their safe state, rather than zero.
+    const float floor    = low_dem.get();
+    const float strat    = strat_dem.valid() ? strat_dem.get() : floor;
+    const float cooling  = cool_dem.valid() ? cool_dem.get() : floor;
+    // A cycle in progress wants air moving over the trays it has just wetted.
+    const bool  cycling  = irr_state.get() != IRR_IDLE;
+    const float watering = cycling ? FAN_IRR_DEM : 0.0f;
+
+    // The day's two breezes. At dusk it dries the leaves before the stomata
+    // open - these plants breathe at night, and a wet leaf cannot - and at dawn
+    // it takes the night's condensation off them. A FLOOR like the others: a
+    // cooling demand above it still takes the fans higher.
+    const DayPhase now  = (DayPhase)phase.get();
+    const bool breezing = (now == PHASE_DAWN_BREEZE ||
+                           now == PHASE_DUSK_BREEZE);
+    const float breeze   = breezing ? breeze_dem.get() : 0.0f;
+
+    return Plc::max_of(Plc::max_of(strat, cooling),
+                       Plc::max_of(watering, breeze));
+}
+
+uint8_t FanController::_band(float demand) {
+    // Three rungs, each engaging at its own threshold and released a little
+    // under it, which is what keeps a demand sitting on an edge from stepping
+    // the relays. The block is the same one the destratification ladder uses.
+    const float step[3] = { low_dem.get(), med_dem.get(),
+                            high_dem.get() };
+    return _steps(demand, step, FAN_DEM_HYST);
+}
+
+void FanController::_drive(uint8_t speed) {
+    for (uint8_t i = 0; i < FANS; i++) {
+        speed1[i].set(speed == 1);
+        speed2[i].set(speed == 2);
+        speed3[i].set(speed == 3);
+    }
+    band.set(speed);
+}
+
+void FanController::run(ProgramContext& c) {
+    // MECHANICAL, so it is resolved before any demand and before the safe
+    // state: the fabric is travelling through the air these blow into.
+    if (c.first_scan) _steps.reset();
+    if (screen_moving.get()) {
+        _speed = 0;
+        _steps.reset();
+        _drive(0);
+        return;
+    }
+    if (inhibit_requested()) {
+        // Speed 1, not off, and the table's safe column says the same: still
+        // air is itself a rot risk, so the fans are one of the few things that
+        // keep working once everything else has stopped.
+        _speed = 1;
+        _steps.preset(1);
+        _drive(1);
+        return;
+    }
+    if (!strat_dem.valid() ||
+        !cool_dem.valid()) degraded();
+    _speed = _band(_demand());
+    _drive(_speed);
+}
+
+}  // namespace Site
