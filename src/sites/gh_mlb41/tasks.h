@@ -70,6 +70,8 @@
  * for the cycle, and docs/design/control-system.md for what each ladder means.
  */
 
+#include "programs/climate/humidity_controller/humidity_controller.h"
+#include "programs/climate/cooling_controller/cooling_controller.h"
 #include "programs/actuators/skirt_controller/skirt_controller.h"
 #include "programs/irrigation/water_meters/water_meters.h"
 
@@ -81,7 +83,9 @@
 #include "programs/sense/ac_local_watch/ac_local_watch.h"
 #include "programs/sense/dc_watch/dc_watch.h"
 #include "programs/sense/sun_watch/sun_watch.h"
-#include "tasks_climate.h"
+#include "programs/climate/day_phase_controller/day_phase_controller.h"
+#include "programs/climate/target_temp_controller/target_temp_controller.h"
+#include "programs/climate/destrat_controller/destrat_controller.h"
 #include "tasks_irrigation.h"
 #include "tasks_actuators.h"
 

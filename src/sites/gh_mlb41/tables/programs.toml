@@ -293,6 +293,7 @@ sensor    = "alarm_sensor_fault"
 name  = "day_phase"
 class = "DayPhaseController"
 task  = "SLOW"
+stage = "climate"
 health = "prog_day_phase"
 desc  = "The day's phase, and the temperature target it puts in force."
 notes = """
@@ -337,6 +338,7 @@ prev_night_min = "cli_prevNightMin_degC"
 name  = "target_temp"
 class = "TargetTempController"
 task  = "SLOW"
+stage = "climate"
 health = "prog_target_temp"
 desc  = "The temperature the greenhouse is being held to: the base setting, shifted by whichever bank phase is both IN FORCE and ARMED."
 notes = """
@@ -359,6 +361,7 @@ target = "cli_targetTemp_degC"
 name  = "cooling"
 class = "CoolingController"
 task  = "FAST"
+stage = "climate"
 health = "prog_cooling"
 desc  = "The cooling ladder: a PID on the interior temperature against the phase's target, published as one signed demand."
 notes = """
@@ -370,6 +373,16 @@ demand; this program does not know which they are.
 # The house's ONE temperature, which temp_rh_zone has already made the worst
 # case of the two levels. Read as a row rather than re-derived here, so what the
 # ladder controls on is a thing an operator can watch on a page and force.
+# The loop, and the two intake comparisons. Both compare temperatures that
+# CONVERGE, so each carries a dead band: without one a gate flips beat to beat
+# as the difference sits on its margin. `ground_band` rather than `ground_dem`,
+# which is the ROW it is judging.
+[program.block]
+pid         = { type = "Pid" }
+cool_gate   = { type = "Hysteresis", doc = "the intake is cooler by the margin" }
+ground_gate = { type = "Hysteresis", doc = "...or warmer by it" }
+ground_band = { type = "Hysteresis", doc = "and the ladder is asking for heat" }
+
 [program.in]
 inside = "cli_temp_in"
 # ...and the two levels behind it, for the VERDICT alone: an average carried by
@@ -401,6 +414,7 @@ window    = "cli_windowDem"
 name  = "destrat"
 class = "DestratController"
 task  = "SLOW"
+stage = "climate"
 health = "prog_destrat"
 desc  = "The destratification ladder: three bands with hysteresis on the ceiling-to-floor gap, published as a demand."
 notes = """
@@ -431,6 +445,7 @@ demand = "cli_stratDem"
 name  = "humidity"
 class = "HumidityController"
 task  = "SLOW"
+stage = "climate"
 health = "prog_humidity"
 desc  = "The humidity ladder: four bands and a dead zone on the dew-point margin, published as one signed demand - and the rot guard under it."
 notes = """
@@ -446,6 +461,10 @@ about it on the beat it moves. The guard's two rows are published from
 observe(): they command nothing, and their verdict has to stand while the
 plant is parked.
 """
+
+[program.block]
+lockout_for   = { type = "Tof",        doc = "the lockout's overrun past the condition" }
+dry_gate_band = { type = "Hysteresis", doc = "two dew points that converge, so a dead band" }
 
 [program.in]
 dp_margin   = "cli_dpMargin_degC"
