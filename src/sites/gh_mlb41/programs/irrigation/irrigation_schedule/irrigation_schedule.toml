@@ -1,0 +1,68 @@
+name   = "irr_schedule"
+class  = "IrrigationSchedule"
+task   = "SLOW"
+health = "prog_irr_schedule"
+desc   = """
+Which tray is owed water, and whether the climate will allow a cycle to start.
+"""
+notes  = """
+The decision, published: which tray goes next is what the whole plan turns on,
+and a decision nobody can see is one nobody can rehearse. It commands nothing -
+the cycle downstream reads `irr_dueTray` and serves it.
+
+A day's allowance is counted here and spent by the cycle, through
+`irr_servedToday`: before NTP there is no date to stamp against, and the tally
+is then the only thing bounding the day.
+"""
+
+[var.served_day]
+type = "uint32_t"
+init = "0"
+doc  = """
+The UNIX day the tally is counted against; it rolls when the date does, so a
+cycle spanning midnight is not counted twice.
+"""
+
+[fn.next_due]
+type = "uint8_t (float mod, uint32_t today)"
+doc  = """
+The tray owed water, or 0. Honours the per-tray forces, and publishes the
+modulated interval of whichever tray it picks.
+"""
+
+[fn.in_slot]
+type = "bool () const"
+doc  = """
+Whether a cycle may START now. Two slots: the end of the night, and the first
+hours of the day for when the night was too cold to water in. Never the
+afternoon - a tray filled then is still wet at dusk.
+"""
+
+[fn.stamp]
+type = "void (uint8_t tray, uint32_t day) const"
+doc  = "Stamp tray @p tray (0-based) as watered on UNIX day @p day."
+
+[in]
+mod           = "irr_mod"
+split         = "irr_volFreqSplit"
+trays_per_day = "irr_traysPerDay"
+days          = { rows = "irr_days_tray*", count = 8 }
+outside_temp  = "cli_temp_ext"
+dawn_gate     = "irr_dawnGate_degC"
+phase         = "cli_phase"
+from_rise     = "sol_fromRise_min"
+day_rise      = "sol_dayRise_min"
+morning_win   = "irr_morningWin_min"
+
+[out]
+due_tray  = "irr_dueTray"
+slot_open = "irr_slotOpen"
+period    = "irr_period_days"
+
+[inout]
+last      = { rows = "irr_last_tray*", count = 8 }
+force_on  = { rows = "irr_forceOn_tray*", count = 8 }
+force_off = { rows = "irr_forceOff_tray*", count = 8 }
+force_now = "irr_forceNow"
+today     = "irr_today"
+served    = "irr_servedToday"

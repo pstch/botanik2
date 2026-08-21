@@ -20,6 +20,7 @@ order = [
     "humidity",
     "irr_modulation",
     "irr_meters",
+    "irr_schedule",
     "irrigation",
     "screen",
     "windows",

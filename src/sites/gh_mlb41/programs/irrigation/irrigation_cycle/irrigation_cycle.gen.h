@@ -28,19 +28,12 @@ public:
     /** @name VAR_INPUT
      *  @{ */
 
-    Vars::RefIn<float>    outside_temp;
+    Vars::RefIn<uint8_t>  due_tray;
     Vars::RefIn<float>    mod;
     Vars::RefIn<float>    in_total;
     Vars::RefIn<float>    out_total;
-    Vars::RefIn<uint8_t>  days[8];
     Vars::RefIn<uint16_t> litres[8];
-    Vars::RefIn<uint16_t> trays_per_day;
     Vars::RefIn<float>    split;
-    Vars::RefIn<float>    dawn_gate;
-    Vars::RefIn<uint8_t>  phase;
-    Vars::RefIn<int16_t>  from_rise;
-    Vars::RefIn<int16_t>  day_rise;
-    Vars::RefIn<uint16_t> morning_win;
     Vars::RefIn<uint16_t> max_fill_s;
     Vars::RefIn<uint16_t> soak_s;
     Vars::RefIn<uint16_t> drain_window_s;
@@ -55,11 +48,9 @@ public:
      *  @{ */
 
     Vars::RefOut<bool>    tray_valve[8];
-    Vars::RefOut<float>   period;
     Vars::RefOut<float>   volume;
     Vars::RefOut<uint8_t> state;
     Vars::RefOut<uint8_t> active;
-    Vars::RefOut<uint8_t> served;
     Vars::RefOut<bool>    inlet[2];
     Vars::RefOut<bool>    outlet[2];
     Vars::RefOut<bool>    fill_fault;
@@ -72,9 +63,9 @@ public:
     /** @name VAR_IN_OUT
      *  @{ */
 
+    Vars::RefInOut<uint8_t>  served;
     Vars::RefInOut<uint32_t> last[8];
     Vars::RefInOut<bool>     force_on[8];
-    Vars::RefInOut<bool>     force_off[8];
     Vars::RefInOut<bool>     force_now;
     Vars::RefInOut<uint32_t> today;
     Vars::RefInOut<float>    delivered;
@@ -100,8 +91,6 @@ private:
 
     IrrState _state = IRR_IDLE;
     uint8_t  _tray = 0;        ///< 1..N_TRAY_VALVE while serving, else 0
-    uint8_t  _served = 0;      ///< trays done since the day rolled
-    uint32_t _in_state_ms = 0;
     /** @brief The two meters' totals when the window under judgement
      *  opened. Litres are the DIFFERENCE, so a counter that has run since
      *  boot - or since last year, retained - needs no reset. */
@@ -110,10 +99,6 @@ private:
     /** @brief What the tray actually got, kept because the modulation may
      *  move under a cycle that is already draining. */
     float    _dose_L = 0.0f;
-    /** @brief The UNIX day `_served` is counted against; the tally rolls
-     *  when the date does, so a cycle spanning midnight is not counted
-     *  twice. */
-    uint32_t _served_day = 0;
     bool     _forced = false;  ///< this cycle came from irr_forceNow
 
     /** @} */
@@ -121,7 +106,6 @@ private:
     /** @name Sizes - what a body loops over
      *  @{ */
 
-    static const uint8_t N_DAYS       = 8;
     static const uint8_t N_LITRES     = 8;
     static const uint8_t N_TRAY_VALVE = 8;
     static const uint8_t N_INLET      = 2;
@@ -130,14 +114,13 @@ private:
     static const uint8_t N_DRAIN_TRAY = 8;
     static const uint8_t N_LAST       = 8;
     static const uint8_t N_FORCE_ON   = 8;
-    static const uint8_t N_FORCE_OFF  = 8;
     static const uint8_t N_INLET_V    = 2;
     static const uint8_t N_OUTLET_V   = 2;
     static const uint8_t N_TRAY_V     = 8;
 
     /** @} */
 
-    Vars::VarRef _watched[10];  ///< swept for validity before each activation
+    Vars::VarRef _watched[9];  ///< swept for validity before each activation
 
 public:
     IrrigationCycle(const SetupContext& ctx, Vars::Bank& io)
@@ -151,19 +134,10 @@ protected:
 
 private:
 
-    /** @brief Whether a cycle may START now. Two slots: the end of the
-     *  night, and the first hours of the day for when the night was too
-     *  cold to water in. Never the afternoon - a tray filled then is still
-     *  wet at dusk. */
-    bool     _in_slot() const;
     /** @brief Judge the window that has just closed: did enough come back?
      *  A dose of zero or an unusable meter gives no verdict at all - a clog
      *  is a measurement, and there is nothing to measure. */
     void     _drain_verdict();
-    /** @brief The next tray owed water, or 0. Honours the per-tray forces,
-     *  and publishes the modulated interval of whichever tray it picks.
-     *  @param today UNIX day number, or 0 when the clock is not yet trusted */
-    uint8_t  _next_due(float mod, uint32_t today);
     /** @brief Drive the valves for @p state, serving @p tray (0 = none). */
     void     _set_valves(IrrState state, uint8_t tray);
     /** @brief Every valve to the position its row declares it fails to. */
@@ -182,18 +156,10 @@ private:
 };
 
 inline void IrrigationCycle::bind(Vars::Bank& io) {
-    outside_temp   = io.resolve_in<float>("cli_temp_ext");
+    due_tray       = io.resolve_in<uint8_t>("irr_dueTray");
     mod            = io.resolve_in<float>("irr_mod");
     in_total       = io.resolve_in<float>("irr_inTotal_L");
     out_total      = io.resolve_in<float>("irr_outTotal_L");
-    days[0]        = io.resolve_in<uint8_t>("irr_days_tray1");
-    days[1]        = io.resolve_in<uint8_t>("irr_days_tray2");
-    days[2]        = io.resolve_in<uint8_t>("irr_days_tray3");
-    days[3]        = io.resolve_in<uint8_t>("irr_days_tray4");
-    days[4]        = io.resolve_in<uint8_t>("irr_days_tray5");
-    days[5]        = io.resolve_in<uint8_t>("irr_days_tray6");
-    days[6]        = io.resolve_in<uint8_t>("irr_days_tray7");
-    days[7]        = io.resolve_in<uint8_t>("irr_days_tray8");
     litres[0]      = io.resolve_in<uint16_t>("irr_liters_tray1");
     litres[1]      = io.resolve_in<uint16_t>("irr_liters_tray2");
     litres[2]      = io.resolve_in<uint16_t>("irr_liters_tray3");
@@ -202,13 +168,7 @@ inline void IrrigationCycle::bind(Vars::Bank& io) {
     litres[5]      = io.resolve_in<uint16_t>("irr_liters_tray6");
     litres[6]      = io.resolve_in<uint16_t>("irr_liters_tray7");
     litres[7]      = io.resolve_in<uint16_t>("irr_liters_tray8");
-    trays_per_day  = io.resolve_in<uint16_t>("irr_traysPerDay");
     split          = io.resolve_in<float>("irr_volFreqSplit");
-    dawn_gate      = io.resolve_in<float>("irr_dawnGate_degC");
-    phase          = io.resolve_in<uint8_t>("cli_phase");
-    from_rise      = io.resolve_in<int16_t>("sol_fromRise_min");
-    day_rise       = io.resolve_in<int16_t>("sol_dayRise_min");
-    morning_win    = io.resolve_in<uint16_t>("irr_morningWin_min");
     max_fill_s     = io.resolve_in<uint16_t>("irr_maxFill_sec");
     soak_s         = io.resolve_in<uint16_t>("irr_soak_sec");
     drain_window_s = io.resolve_in<uint16_t>("irr_drainWindow_sec");
@@ -224,11 +184,9 @@ inline void IrrigationCycle::bind(Vars::Bank& io) {
     tray_valve[5]  = io.resolve_out<bool>("irr_tray6");
     tray_valve[6]  = io.resolve_out<bool>("irr_tray7");
     tray_valve[7]  = io.resolve_out<bool>("irr_tray8");
-    period         = io.resolve_out<float>("irr_period_days");
     volume         = io.resolve_out<float>("irr_volume_L");
     state          = io.resolve_out<uint8_t>("irr_state");
     active         = io.resolve_out<uint8_t>("irr_activeTray");
-    served         = io.resolve_out<uint8_t>("irr_servedToday");
     inlet[0]       = io.resolve_out<bool>("irr_input_ro1");
     inlet[1]       = io.resolve_out<bool>("irr_input_ro2");
     outlet[0]      = io.resolve_out<bool>("irr_output_ro1");
@@ -251,6 +209,7 @@ inline void IrrigationCycle::bind(Vars::Bank& io) {
     drain_tray[5]  = io.resolve_out<bool>("alarm_irr_drain_tray6");
     drain_tray[6]  = io.resolve_out<bool>("alarm_irr_drain_tray7");
     drain_tray[7]  = io.resolve_out<bool>("alarm_irr_drain_tray8");
+    served         = io.resolve_inout<uint8_t>("irr_servedToday");
     last[0]        = io.resolve_inout<uint32_t>("irr_last_tray1");
     last[1]        = io.resolve_inout<uint32_t>("irr_last_tray2");
     last[2]        = io.resolve_inout<uint32_t>("irr_last_tray3");
@@ -267,14 +226,6 @@ inline void IrrigationCycle::bind(Vars::Bank& io) {
     force_on[5]    = io.resolve_inout<bool>("irr_forceOn_tray6");
     force_on[6]    = io.resolve_inout<bool>("irr_forceOn_tray7");
     force_on[7]    = io.resolve_inout<bool>("irr_forceOn_tray8");
-    force_off[0]   = io.resolve_inout<bool>("irr_forceOff_tray1");
-    force_off[1]   = io.resolve_inout<bool>("irr_forceOff_tray2");
-    force_off[2]   = io.resolve_inout<bool>("irr_forceOff_tray3");
-    force_off[3]   = io.resolve_inout<bool>("irr_forceOff_tray4");
-    force_off[4]   = io.resolve_inout<bool>("irr_forceOff_tray5");
-    force_off[5]   = io.resolve_inout<bool>("irr_forceOff_tray6");
-    force_off[6]   = io.resolve_inout<bool>("irr_forceOff_tray7");
-    force_off[7]   = io.resolve_inout<bool>("irr_forceOff_tray8");
     force_now      = io.resolve_inout<bool>("irr_forceNow");
     today          = io.resolve_inout<uint32_t>("irr_today");
     delivered      = io.resolve_inout<float>("irr_delivered_L");
@@ -282,17 +233,16 @@ inline void IrrigationCycle::bind(Vars::Bank& io) {
 
     // What the base sweeps before each activation, so an input that has
     // stopped being believable is DEGRADED without the law asking.
-    _watched[0] = outside_temp.r;
+    _watched[0] = due_tray.r;
     _watched[1] = mod.r;
     _watched[2] = in_total.r;
     _watched[3] = out_total.r;
-    _watched[4] = phase.r;
-    _watched[5] = from_rise.r;
-    _watched[6] = out_flow.r;
-    _watched[7] = today.r;
-    _watched[8] = delivered.r;
-    _watched[9] = drained.r;
-    set_inputs(_watched, 10);
+    _watched[4] = out_flow.r;
+    _watched[5] = served.r;
+    _watched[6] = today.r;
+    _watched[7] = delivered.r;
+    _watched[8] = drained.r;
+    set_inputs(_watched, 9);
     set_health_row(io.resolve_out<uint8_t>("prog_irrigation"));
     on_bind();
 }

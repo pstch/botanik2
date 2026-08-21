@@ -4,15 +4,12 @@
  */
 
 #include <cmath>
-#include <cmath>
 #include "libbotanik/utils/time.h"
 
 #include "irrigation_cycle.gen.h"
 
 namespace Site {
 
-static uint32_t _today();
-static void _clear_force(Vars::RefInOut<bool> r);
 
 void IrrigationCycle::on_bind() {
     for (uint8_t i = 0; i < 2; i++) {
@@ -20,71 +17,6 @@ void IrrigationCycle::on_bind() {
         outlet_v[i].attach(outlet[i]);
     }
     for (uint8_t i = 0; i < N_TRAY_VALVE; i++) tray_v[i].attach(tray_valve[i]);
-}
-
-static uint32_t _today() {
-    // The floor the sun tracker uses: below it the RTC has never been set, so
-    // there is no date and nothing may be scheduled against one.
-    const uint64_t wall = HAL::Clock::wall_ms();
-    if (wall < 1600000000000ull) return 0;
-    // Straight off the wall clock, NOT through cal_time_ms(): that takes an
-    // UPTIME-domain instant and projects it onto the wall, so handing it a wall
-    // time adds the boot epoch a second time. The date came out around 2083 and
-    // gained a day every twelve hours, which halves every tray's interval.
-    return (uint32_t)(wall / 86400000ull);
-}
-
-uint8_t IrrigationCycle::_next_due(float mod, uint32_t today) {
-    // period = summer period / mod^(1 - split), volume = summer volume *
-    // mod^split, so their RATIO - the water actually delivered per day - is
-    // proportional to mod whatever the split is set to.
-    const float split_lim = Plc::limit(split.get(), 0.0f, 1.0f);
-    const float stretch = powf(mod, 1.0f - split_lim);
-
-    uint8_t  best = 0;
-    uint32_t worst_overdue = 0;
-    for (uint8_t i = 0; i < N_TRAY_VALVE; i++) {
-        if (force_on[i].get()) return (uint8_t)(i + 1);
-        if (today == 0) continue;                     // no date, no schedule
-        const float summer_days = (float)days[i].get();
-        if (summer_days <= 0.0f) continue;        // this tray is not scheduled
-
-        // Damper air stretches the interval; drier air shortens it back toward
-        // the summer figure. One day is the floor: a cycle is a day's work.
-        const float interval = (stretch > 0.0f) ? (summer_days / stretch)
-                                                : summer_days;
-        const uint32_t due_after = (interval < 1.0f)
-                                       ? 1u : (uint32_t)lroundf(interval);
-
-        const uint32_t served_on = last[i].get();
-        // A tray never served has no history to be overdue against, so it goes
-        // first; one whose stored day is in the FUTURE is a clock that moved
-        // backwards, and waiting for it to catch up would strand the tray.
-        const uint32_t elapsed = (served_on == 0 || served_on > today)
-                                     ? due_after : (today - served_on);
-        if (elapsed < due_after) continue;
-
-        // Held back by hand, and ONCE: the skip is spent on the watering it
-        // was due for, and the tray goes to the back of the queue rather than
-        // arriving again tomorrow with the flag gone.
-        if (force_off[i].get()) {
-            _clear_force(force_off[i]);
-            _stamp(i, today);
-            continue;
-        }
-
-        // The most overdue first, so a backlog drains in the order it built up
-        // rather than by tray number.
-        const uint32_t overdue = elapsed - due_after;
-        if (best == 0 || overdue > worst_overdue) {
-            best = (uint8_t)(i + 1);
-            worst_overdue = overdue;
-            // The interval that chose it, published: the summer figure is on
-            // the PARAMS page and this is what the weather made of it.
-            period.set(interval);
-        }
-    }
-    return best;
 }
 
 void IrrigationCycle::_set_valves(IrrState st, uint8_t tray) {
@@ -144,7 +76,9 @@ void IrrigationCycle::_stamp_served() {
     // is then the only thing bounding the day, so neither may wait on one.
     _clear_force(force_on[_tray - 1]);
     if (_forced) { _clear_force(force_now); _forced = false; }
-    if (_served < 0xFFu) _served++;
+    // The day's allowance, counted by the schedule and spent here.
+    const uint8_t done = served.get();
+    if (done < 0xFFu) (void)served.set((uint8_t)(done + 1));
 
     // AFTER THE FILL, not after the drain: the tray has had its water by then,
     // and a fault or a restart during the long drain must not water it twice.
@@ -152,22 +86,6 @@ void IrrigationCycle::_stamp_served() {
     // would water the tray again on its own account tomorrow.
     const uint32_t day = today.get();
     if (day != 0) _stamp((uint8_t)(_tray - 1), day);
-}
-
-bool IrrigationCycle::_in_slot() const {
-    const DayPhase now = (DayPhase)phase.get();
-
-    // END OF NIGHT, and only when the plants are not cold: watering cold roots
-    // is what the gate exists to prevent, and the morning slot below is where
-    // that watering goes instead.
-    if (now == PHASE_COLD_BANK || now == PHASE_DAWN_BREEZE)
-        return outside_temp.get() >= dawn_gate.get();
-
-    // START OF THE DAY, for a window an operator sets: the tray has to drain
-    // and dry before the stomata open at dusk.
-    return now == PHASE_DAY &&
-           from_rise.get() <= (int16_t)(day_rise.get() +
-                                        (int16_t)morning_win.get());
 }
 
 void IrrigationCycle::_drain_verdict() {
@@ -237,19 +155,6 @@ void IrrigationCycle::run(ProgramContext& c) {
     const bool  can_dose = mod.valid();
     const float mod_now  = mod.get();
 
-    // The daily tally is against a DATE, not an uptime: it rolls when the day
-    // does, so a cycle running through midnight is not counted twice and a
-    // reboot at noon does not hand the plant a second allowance.
-    //
-    // Published and read back, like every other decision this law makes: the
-    // date is what the whole schedule turns on, and one nobody can see is one
-    // nobody can rehearse.
-    today.set(_today());
-    const uint32_t day = today.get();
-    if (day != 0 && day != _served_day) {
-        _served_day = day;
-        _served     = 0;
-    }
     const float split_lim = Plc::limit(split.get(), 0.0f, 1.0f);
     const float dose = (_tray > 0)
         ? (float)litres[_tray - 1].get() * powf(mod_now, split_lim) : 0.0f;
@@ -259,15 +164,10 @@ void IrrigationCycle::run(ProgramContext& c) {
     switch (_state) {
         case IRR_IDLE: {
             delivered.set(0.0f);
-            if (_served >= trays_per_day.get() && !force_now.get())
-                break;                         // the surplus waits for tomorrow
-            // WHEN, before which tray: the climate decides the slot and the
-            // schedule decides the tray, and an operator forcing a cycle
-            // overrides both.
-            if (!force_now.get() && !_in_slot()) break;
+            // WHICH tray, and whether now: irr_schedule has decided both,
+            // and published the answer.
             if (!can_dose) break;
-
-            const uint8_t next = _next_due(mod_now, day);
+            const uint8_t next = due_tray.get();
             if (next == 0) break;
             _tray   = next;
             _forced = force_now.get();
@@ -323,7 +223,6 @@ void IrrigationCycle::run(ProgramContext& c) {
             break;
         }
     }
-    served.set(_served);
 }
 
 }  // namespace Site

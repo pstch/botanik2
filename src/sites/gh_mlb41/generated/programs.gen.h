@@ -18,14 +18,14 @@
 // [sense]
 //   ac_grid_watch   sys_grid_ok           -> ac_local_watch
 //   dc_watch        sys_supply_lockout    -> windows
-//   sun_watch       sol_fromRise_min      -> day_phase, irrigation
+//   sun_watch       sol_fromRise_min      -> day_phase, irr_schedule
 //   sun_watch       sol_fromSet_min       -> day_phase
 //   temp_rh_zone    cli_temp_in           -> cooling, day_phase
 //   temp_rh_zone    cli_temp_hi           -> climate_watch, cooling, humidity, strat
 //   temp_rh_zone    cli_rh_hi             -> climate_watch, humidity
 //   temp_rh_zone    cli_temp_lo           -> cooling, strat
 //   temp_rh_zone    cli_temp_cs           -> cooling
-//   temp_rh_zone    cli_temp_ext          -> humidity, irrigation
+//   temp_rh_zone    cli_temp_ext          -> humidity, irr_schedule
 //   temp_rh_zone    cli_rh_ext            -> humidity
 //   temp_rh_zone    alarm_sns_ceiling     -> climate_watch
 //   temp_rh_zone    alarm_sns_floor       -> climate_watch
@@ -37,7 +37,7 @@
 //   strat           cli_dTStrat_degC      -> climate_watch, destrat
 //
 // [climate]
-//   day_phase       cli_phase             -> fans, irrigation, screen, target_temp
+//   day_phase       cli_phase             -> fans, irr_schedule, screen, target_temp
 //   day_phase       cli_coldBankArm       -> target_temp
 //   day_phase       cli_heatBankArm       -> target_temp
 //   target_temp     cli_targetTemp_degC   -> cooling
@@ -52,10 +52,11 @@
 //   humidity        cli_intakeDryOk       -> intractors
 //
 // [irrigation]
-//   irr_modulation  irr_mod               -> irrigation
+//   irr_modulation  irr_mod               -> irr_schedule, irrigation
 //   irr_meters      irr_inTotal_L         -> irrigation
 //   irr_meters      irr_outFlow_Lpm       -> irrigation
 //   irr_meters      irr_outTotal_L        -> irrigation
+//   irr_schedule    irr_dueTray           -> irrigation
 //   irrigation      irr_state             -> fans, irr_meters
 //
 // [actuators]
@@ -84,6 +85,7 @@
 #include "../programs/climate/humidity_controller/humidity_controller.gen.h"
 #include "../programs/irrigation/irrigation_modulation/irrigation_modulation.gen.h"
 #include "../programs/irrigation/water_meters/water_meters.gen.h"
+#include "../programs/irrigation/irrigation_schedule/irrigation_schedule.gen.h"
 #include "../programs/irrigation/irrigation_cycle/irrigation_cycle.gen.h"
 #include "../programs/actuators/screen_controller/screen_controller.gen.h"
 #include "../programs/actuators/windows_controller/windows_controller.gen.h"
@@ -112,6 +114,7 @@
     X(HumidityController,   _humidity)       \
     X(IrrigationModulation, _irr_modulation) \
     X(WaterMeters,          _irr_meters)     \
+    X(IrrigationSchedule,   _irr_schedule)   \
     X(IrrigationCycle,      _irrigation)     \
     X(ScreenController,     _screen)         \
     X(WindowsController,    _windows)        \

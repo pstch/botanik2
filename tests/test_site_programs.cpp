@@ -732,9 +732,10 @@ TEST_CASE("screen: the phase gives permission, the demand only asks") {
 TEST_CASE("irrigation: a force is spent on the watering it asked for") {
     Live f;
     Site::WaterMeters   meters(Botanik::SetupContext(f.reg), f.bank);
+    Site::IrrigationSchedule sched(Botanik::SetupContext(f.reg), f.bank);
     Site::IrrigationCycle irr(Botanik::SetupContext(f.reg), f.bank);
-    Plc::Program* const progs[] = { &meters, &irr };
-    Cycle d(progs, 2, &f.bank, f.reg);
+    Plc::Program* const progs[] = { &meters, &sched, &irr };
+    Cycle d(progs, 3, &f.bank, f.reg);
     summer(f);
     no_soak(f);
     slot(f);
@@ -763,9 +764,10 @@ TEST_CASE("irrigation: a force is spent on the watering it asked for") {
 TEST_CASE("irrigation: a skip is spent too, and sends the tray to the back") {
     Live f;
     Site::WaterMeters   meters(Botanik::SetupContext(f.reg), f.bank);
+    Site::IrrigationSchedule sched(Botanik::SetupContext(f.reg), f.bank);
     Site::IrrigationCycle irr(Botanik::SetupContext(f.reg), f.bank);
-    Plc::Program* const progs[] = { &meters, &irr };
-    Cycle d(progs, 2, &f.bank, f.reg);
+    Plc::Program* const progs[] = { &meters, &sched, &irr };
+    Cycle d(progs, 3, &f.bank, f.reg);
     summer(f);
     slot(f);
     field(f, "cli_temp_ext", 25.0f);
@@ -788,9 +790,10 @@ TEST_CASE("irrigation: a skip is spent too, and sends the tray to the back") {
 TEST_CASE("irrigation: the tray sits full for its soak before either end opens") {
     Live f;
     Site::WaterMeters     meters(Botanik::SetupContext(f.reg), f.bank);
+    Site::IrrigationSchedule sched(Botanik::SetupContext(f.reg), f.bank);
     Site::IrrigationCycle irr(Botanik::SetupContext(f.reg), f.bank);
-    Plc::Program* const progs[] = { &meters, &irr };
-    Cycle d(progs, 2, &f.bank, f.reg);
+    Plc::Program* const progs[] = { &meters, &sched, &irr };
+    Cycle d(progs, 3, &f.bank, f.reg);
     summer(f);
     slot(f);
     field(f, "cli_temp_ext", 25.0f);
@@ -838,9 +841,10 @@ TEST_CASE("irrigation: a soak of zero is skipped, not passed through") {
     // activation is a state somebody has to explain.
     Live f;
     Site::WaterMeters     meters(Botanik::SetupContext(f.reg), f.bank);
+    Site::IrrigationSchedule sched(Botanik::SetupContext(f.reg), f.bank);
     Site::IrrigationCycle irr(Botanik::SetupContext(f.reg), f.bank);
-    Plc::Program* const progs[] = { &meters, &irr };
-    Cycle d(progs, 2, &f.bank, f.reg);
+    Plc::Program* const progs[] = { &meters, &sched, &irr };
+    Cycle d(progs, 3, &f.bank, f.reg);
     summer(f);
     no_soak(f);
     slot(f);
@@ -897,9 +901,10 @@ TEST_CASE("irrigation: the day the schedule runs on is today's date") {
     // second time - a date around 2083, gaining a day every twelve hours. Every
     // tray's interval was therefore half what its parameter said.
     Live f;
+    Site::IrrigationSchedule sched(Botanik::SetupContext(f.reg), f.bank);
     Site::IrrigationCycle irr(Botanik::SetupContext(f.reg), f.bank);
-    Plc::Program* const progs[] = { &irr };
-    Cycle d(progs, 1, &f.bank, f.reg);
+    Plc::Program* const progs[] = { &sched, &irr };
+    Cycle d(progs, 2, &f.bank, f.reg);
     summer(f);
     d.step(1000);
 
@@ -915,9 +920,10 @@ TEST_CASE("irrigation: a plant with no clock still spends the force it was given
     // bounds the day either, so one tray is flooded until somebody notices.
     Live f;
     Site::WaterMeters     meters(Botanik::SetupContext(f.reg), f.bank);
+    Site::IrrigationSchedule sched(Botanik::SetupContext(f.reg), f.bank);
     Site::IrrigationCycle irr(Botanik::SetupContext(f.reg), f.bank);
-    Plc::Program* const progs[] = { &meters, &irr };
-    Cycle d(progs, 2, &f.bank, f.reg);
+    Plc::Program* const progs[] = { &meters, &sched, &irr };
+    Cycle d(progs, 3, &f.bank, f.reg);
     summer(f);
     no_soak(f);
     slot(f);
@@ -954,9 +960,10 @@ TEST_CASE("irrigation: `water now` is spent on the cycle it started") {
     // any hour until an operator notices the water bill.
     Live f;
     Site::WaterMeters     meters(Botanik::SetupContext(f.reg), f.bank);
+    Site::IrrigationSchedule sched(Botanik::SetupContext(f.reg), f.bank);
     Site::IrrigationCycle irr(Botanik::SetupContext(f.reg), f.bank);
-    Plc::Program* const progs[] = { &meters, &irr };
-    Cycle d(progs, 2, &f.bank, f.reg);
+    Plc::Program* const progs[] = { &meters, &sched, &irr };
+    Cycle d(progs, 3, &f.bank, f.reg);
     summer(f);
     no_soak(f);
     field(f, "cli_temp_ext", 25.0f);
@@ -989,10 +996,11 @@ TEST_CASE("irrigation: `water now` is spent on the cycle it started") {
 TEST_CASE("irrigation: the afternoon is not a watering slot") {
     Live f;
     Site::WaterMeters   meters(Botanik::SetupContext(f.reg), f.bank);
+    Site::IrrigationSchedule sched(Botanik::SetupContext(f.reg), f.bank);
     Site::IrrigationCycle irr(Botanik::SetupContext(f.reg), f.bank);
     // The meters FIRST: the cycle judges a fill against what they publish.
-    Plc::Program* const progs[] = { &meters, &irr };
-    Cycle d(progs, 2, &f.bank, f.reg);
+    Plc::Program* const progs[] = { &meters, &sched, &irr };
+    Cycle d(progs, 3, &f.bank, f.reg);
     summer(f);
 
     field(f, "cli_temp_ext", 25.0f);
@@ -1436,10 +1444,11 @@ TEST_CASE("skirt: damp air gates the cooling arm, and the rot lockout cuts both"
 TEST_CASE("valves: each parks where its own row says it fails, not all one way") {
     Live f;
     Site::WaterMeters   meters(Botanik::SetupContext(f.reg), f.bank);
+    Site::IrrigationSchedule sched(Botanik::SetupContext(f.reg), f.bank);
     Site::IrrigationCycle irr(Botanik::SetupContext(f.reg), f.bank);
     // The meters FIRST: the cycle judges a fill against what they publish.
-    Plc::Program* const progs[] = { &meters, &irr };
-    Cycle d(progs, 2, &f.bank, f.reg);
+    Plc::Program* const progs[] = { &meters, &sched, &irr };
+    Cycle d(progs, 3, &f.bank, f.reg);
     summer(f);
 
     irr.request_safe(true);
@@ -1455,10 +1464,11 @@ TEST_CASE("valves: each parks where its own row says it fails, not all one way")
 TEST_CASE("irrigation: a fill fault names the tray, not just the cycle") {
     Live f;
     Site::WaterMeters   meters(Botanik::SetupContext(f.reg), f.bank);
+    Site::IrrigationSchedule sched(Botanik::SetupContext(f.reg), f.bank);
     Site::IrrigationCycle irr(Botanik::SetupContext(f.reg), f.bank);
     // The meters FIRST: the cycle judges a fill against what they publish.
-    Plc::Program* const progs[] = { &meters, &irr };
-    Cycle d(progs, 2, &f.bank, f.reg);
+    Plc::Program* const progs[] = { &meters, &sched, &irr };
+    Cycle d(progs, 3, &f.bank, f.reg);
     summer(f);
 
     // Tray 2 alone is due, and nothing will ever arrive to fill it.
@@ -1510,10 +1520,11 @@ TEST_CASE("irrigation: total water tracks the modulation whatever the split") {
 TEST_CASE("irrigation: the cycle fills to its dose, then drains, then idles") {
     Live f;
     Site::WaterMeters   meters(Botanik::SetupContext(f.reg), f.bank);
+    Site::IrrigationSchedule sched(Botanik::SetupContext(f.reg), f.bank);
     Site::IrrigationCycle irr(Botanik::SetupContext(f.reg), f.bank);
     // The meters FIRST: the cycle judges a fill against what they publish.
-    Plc::Program* const progs[] = { &meters, &irr };
-    Cycle d(progs, 2, &f.bank, f.reg);
+    Plc::Program* const progs[] = { &meters, &sched, &irr };
+    Cycle d(progs, 3, &f.bank, f.reg);
     summer(f);
     no_soak(f);
 
@@ -1610,10 +1621,11 @@ float drain_at(Live& f, Cycle& d, Site::WaterMeters& meters,
 TEST_CASE("irrigation: the two meters read as a counter and a rate") {
     Live f;
     Site::WaterMeters   meters(Botanik::SetupContext(f.reg), f.bank);
+    Site::IrrigationSchedule sched(Botanik::SetupContext(f.reg), f.bank);
     Site::IrrigationCycle irr(Botanik::SetupContext(f.reg), f.bank);
     // The meters FIRST: the cycle judges a fill against what they publish.
-    Plc::Program* const progs[] = { &meters, &irr };
-    Cycle d(progs, 2, &f.bank, f.reg);
+    Plc::Program* const progs[] = { &meters, &sched, &irr };
+    Cycle d(progs, 3, &f.bank, f.reg);
     summer(f);
     HAL::Pulse::attach(Site::pulse_inputs[0].channel, Site::pulse_inputs[0].edge);
     f.bank.param_set(f.bank.var(f.ref("irr_input_qtyPerImp")), 1.0f);
@@ -1640,10 +1652,11 @@ TEST_CASE("irrigation: the two meters read as a counter and a rate") {
 TEST_CASE("irrigation: what comes back out is judged against what went in") {
     Live f;
     Site::WaterMeters   meters(Botanik::SetupContext(f.reg), f.bank);
+    Site::IrrigationSchedule sched(Botanik::SetupContext(f.reg), f.bank);
     Site::IrrigationCycle irr(Botanik::SetupContext(f.reg), f.bank);
     // The meters FIRST: the cycle judges a fill against what they publish.
-    Plc::Program* const progs[] = { &meters, &irr };
-    Cycle d(progs, 2, &f.bank, f.reg);
+    Plc::Program* const progs[] = { &meters, &sched, &irr };
+    Cycle d(progs, 3, &f.bank, f.reg);
     summer(f);
     // Bare, not REQUIREd: a channel another case already attached answers
     // false, and this one only needs it counting.
@@ -1660,10 +1673,11 @@ TEST_CASE("irrigation: what comes back out is judged against what went in") {
 TEST_CASE("irrigation: a tray that does not drain names itself") {
     Live f;
     Site::WaterMeters   meters(Botanik::SetupContext(f.reg), f.bank);
+    Site::IrrigationSchedule sched(Botanik::SetupContext(f.reg), f.bank);
     Site::IrrigationCycle irr(Botanik::SetupContext(f.reg), f.bank);
     // The meters FIRST: the cycle judges a fill against what they publish.
-    Plc::Program* const progs[] = { &meters, &irr };
-    Cycle d(progs, 2, &f.bank, f.reg);
+    Plc::Program* const progs[] = { &meters, &sched, &irr };
+    Cycle d(progs, 3, &f.bank, f.reg);
     summer(f);
     HAL::Pulse::attach(Site::pulse_inputs[0].channel, Site::pulse_inputs[0].edge);
 
@@ -1679,10 +1693,11 @@ TEST_CASE("irrigation: a tray that does not drain names itself") {
 TEST_CASE("irrigation: a silent outlet meter gives no verdict, not a clog") {
     Live f;
     Site::WaterMeters   meters(Botanik::SetupContext(f.reg), f.bank);
+    Site::IrrigationSchedule sched(Botanik::SetupContext(f.reg), f.bank);
     Site::IrrigationCycle irr(Botanik::SetupContext(f.reg), f.bank);
     // The meters FIRST: the cycle judges a fill against what they publish.
-    Plc::Program* const progs[] = { &meters, &irr };
-    Cycle d(progs, 2, &f.bank, f.reg);
+    Plc::Program* const progs[] = { &meters, &sched, &irr };
+    Cycle d(progs, 3, &f.bank, f.reg);
     summer(f);
     HAL::Pulse::attach(Site::pulse_inputs[0].channel, Site::pulse_inputs[0].edge);
 
@@ -1700,10 +1715,11 @@ TEST_CASE("irrigation: a silent outlet meter gives no verdict, not a clog") {
 TEST_CASE("irrigation: a fill that never arrives raises, and still opens the drain") {
     Live f;
     Site::WaterMeters   meters(Botanik::SetupContext(f.reg), f.bank);
+    Site::IrrigationSchedule sched(Botanik::SetupContext(f.reg), f.bank);
     Site::IrrigationCycle irr(Botanik::SetupContext(f.reg), f.bank);
     // The meters FIRST: the cycle judges a fill against what they publish.
-    Plc::Program* const progs[] = { &meters, &irr };
-    Cycle d(progs, 2, &f.bank, f.reg);
+    Plc::Program* const progs[] = { &meters, &sched, &irr };
+    Cycle d(progs, 3, &f.bank, f.reg);
     summer(f);
     HAL::Pulse::attach(Site::pulse_inputs[0].channel, Site::pulse_inputs[0].edge);
 

@@ -20,15 +20,6 @@ type = "uint8_t"
 init = "0"
 doc  = "1..N_TRAY_VALVE while serving, else 0"
 
-[var.served]
-type = "uint8_t"
-init = "0"
-doc  = "trays done since the day rolled"
-
-[var.in_state_ms]
-type = "uint32_t"
-init = "0"
-
 [var.fill_start_L]
 type = "float"
 init = "0.0f"
@@ -50,26 +41,10 @@ What the tray actually got, kept because the modulation may move under a cycle
 that is already draining.
 """
 
-[var.served_day]
-type = "uint32_t"
-init = "0"
-doc  = """
-The UNIX day `_served` is counted against; the tally rolls when the date does,
-so a cycle spanning midnight is not counted twice.
-"""
-
 [var.forced]
 type = "bool"
 init = "false"
 doc  = "this cycle came from irr_forceNow"
-
-[fn.in_slot]
-type = "bool () const"
-doc  = """
-Whether a cycle may START now. Two slots: the end of the night, and the first
-hours of the day for when the night was too cold to water in. Never the
-afternoon - a tray filled then is still wet at dusk.
-"""
 
 [fn.drain_verdict]
 type = "void ()"
@@ -77,14 +52,6 @@ doc  = """
 Judge the window that has just closed: did enough come back? A dose of zero or
 an unusable meter gives no verdict at all - a clog is a measurement, and there
 is nothing to measure.
-"""
-
-[fn.next_due]
-type = "uint8_t (float mod, uint32_t today)"
-doc  = """
-The next tray owed water, or 0. Honours the per-tray forces, and publishes the
-modulated interval of whichever tray it picks. @param today UNIX day number,
-or 0 when the clock is not yet trusted
 """
 
 [fn.set_valves]
@@ -138,24 +105,17 @@ count   = 8
 include = "blocks/valve_controller.h"
 
 [in]
-outside_temp   = "cli_temp_ext"
+due_tray      = "irr_dueTray"
 # The other two programs' answers: how much water this weather is worth, and
 # what the meters have counted. Both are read as TOTALS and differenced, so
 # this law holds no meter state of its own.
 mod            = "irr_mod"
 in_total       = "irr_inTotal_L"
 out_total      = "irr_outTotal_L"
-days           = { rows = "irr_days_tray*", count = 8 }
 litres         = { rows = "irr_liters_tray*", count = 8 }
-trays_per_day  = "irr_traysPerDay"
 split          = "irr_volFreqSplit"
-dawn_gate      = "irr_dawnGate_degC"
 # WHEN a cycle may start: end of night, or the first hours of the day. The spec
 # waters cold plants in the morning instead, never in the afternoon.
-phase          = "cli_phase"
-from_rise      = "sol_fromRise_min"
-day_rise       = "sol_dayRise_min"
-morning_win    = "irr_morningWin_min"
 max_fill_s     = "irr_maxFill_sec"
 soak_s         = "irr_soak_sec"
 drain_window_s = "irr_drainWindow_sec"
@@ -171,12 +131,12 @@ out_flow       = "irr_outFlow_Lpm"
 # declaration, so it records no single owner.
 
 [inout]
+served    = "irr_servedToday"
 last      = { rows = "irr_last_tray*", count = 8 }
 # The two forces are ONE-SHOT, per the spec: they force or skip the NEXT
 # watering of that tray, so the cycle clears them as it honours them. Read and
 # written, therefore, not read alone.
 force_on  = { rows = "irr_forceOn_tray*", count = 8 }
-force_off = { rows = "irr_forceOff_tray*", count = 8 }
 # "Water now", which the cycle SPENDS on the cycle it started: left standing it
 # would run one cycle after another for ever, slot and daily allowance ignored.
 force_now = "irr_forceNow"
@@ -193,11 +153,9 @@ drained   = "irr_drained_L"
 
 [out]
 tray_valve  = { rows = "irr_tray*", count = 8 }
-period      = "irr_period_days"
 volume      = "irr_volume_L"
 state       = "irr_state"
 active      = "irr_activeTray"
-served      = "irr_servedToday"
 # TWO contactors on ONE manifold, always in the same state: there is one inlet
 # and one drain, each switched twice.
 inlet       = { rows = "irr_input_ro*", count = 2 }

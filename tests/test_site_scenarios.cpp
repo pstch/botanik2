@@ -64,6 +64,7 @@ struct Plant {
     Site::HumidityController   humidity;
     Site::IrrigationModulation irr_mod;
     Site::WaterMeters          irr_meters;
+    Site::IrrigationSchedule   irr_schedule;
     Site::IrrigationCycle      irrigation;
     Site::ScreenController     screen;
     Site::WindowsController    windows;
@@ -71,7 +72,7 @@ struct Plant {
     Site::FanController        fans;
     Site::SkirtController      skirt;
 
-    Plc::Program* all[19];
+    Plc::Program* all[24];   ///< room for the list below
     Cycle*        cycle = nullptr;
     uint64_t      t = 0;
     /** @brief What this plant's environment is, held every beat. The weather
@@ -85,16 +86,20 @@ struct Plant {
           climate(ctx(), io()), weather(ctx(), io()),
           target(ctx(), io()), cooling(ctx(), io()), destrat(ctx(), io()),
           humidity(ctx(), io()), irr_mod(ctx(), io()), irr_meters(ctx(), io()),
-          irrigation(ctx(), io()), screen(ctx(), io()), windows(ctx(), io()),
+          irr_schedule(ctx(), io()), irrigation(ctx(), io()), screen(ctx(), io()),
+          windows(ctx(), io()),
           intractors(ctx(), io()), fans(ctx(), io()), skirt(ctx(), io()) {
         Plc::Program* const list[] = {
             &ac_grid, &ac_local, &dc, &zones, &strat, &climate, &weather,
             &target, &cooling, &destrat, &humidity,
-            &irr_mod, &irr_meters, &irrigation,
+            &irr_mod, &irr_meters, &irr_schedule, &irrigation,
             &screen, &windows, &intractors, &fans, &skirt
         };
-        for (uint8_t i = 0; i < 19; i++) all[i] = list[i];
-        cycle = new Cycle(all, 19, &f.bank, f.reg);
+        // Sized from the list, never a literal: a hand-kept count silently
+        // drops whichever program is last the day one is added.
+        const uint8_t n = (uint8_t)(sizeof(list) / sizeof(list[0]));
+        for (uint8_t i = 0; i < n; i++) all[i] = list[i];
+        cycle = new Cycle(all, n, &f.bank, f.reg);
     }
     ~Plant() { delete cycle; }
 
