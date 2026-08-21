@@ -49,6 +49,7 @@ enum IrrState : uint8_t {
     IRR_FILLING  = 1,   ///< inlet open; tray open; outlet shut
     IRR_DRAINING = 2,   ///< inlet shut; tray open; outlet open
     IRR_FLUSHING = 3,   ///< inlet and drain open, no tray: the manifold rinsed
+    IRR_SOAKING  = 4,   ///< every valve shut: the tray sits full for irr_soak_sec
 };
 
 /** @brief A IrrState as the word an operator reads and types.
@@ -59,6 +60,7 @@ inline const char* IrrState_label(uint64_t code) {
         case 1: return "FILLING";
         case 2: return "DRAINING";
         case 3: return "FLUSHING";
+        case 4: return "SOAKING";
         default: return nullptr;
     }
 }
@@ -96,7 +98,7 @@ static_assert(g_analog_cal_count <= Config::ANALOG_ROWS_MAX,
  *  ROLE_PARAM run has to stay contiguous with the library's. */
 extern const Descriptor params[];
 const uint16_t PARAMS_COUNT = 0
-    + 164
+    + 165
     ;
 
 /** @brief Everything else, in file order. Alarms lead, so their table

@@ -116,6 +116,9 @@ class WaterMeters : public Plc::Program {
     Plc::Deadband   _out_band;   ///< ...and how far it must move to be written
     Plc::Derivative _in_rate;    ///< litres -> Lpm, over a window
     Plc::Integral   _out_meter;  ///< Lpm -> litres
+    /** @brief Off-delay on the inlet being OPEN, one rate window wide: what
+     *  says the meter has caught up with a fill that has ended. */
+    Plc::Tof        _inlet_for;
 
     /** @} */
 
@@ -144,9 +147,9 @@ private:
 };
 
 /**
- * @brief Irrigation: one tray at a time, filled to a dose and left to drain.
+ * @brief Irrigation: one tray at a time, filled to a dose, steeped, and drained.
  *
- * A cycle is long - a fill plus a drain window per tray - so only
+ * FILLING -> SOAKING -> DRAINING -> FLUSHING, and a cycle is long - so only
  * `irr_traysPerDay` are served in a day and the surplus waits for tomorrow.
  * The summer settings a tray carries are its DRY-WEATHER ones; `irr_mod` scales
  * them down as the air gets damper, and the split decides whether that shows up
@@ -235,6 +238,8 @@ private:
     void _stamp(uint8_t tray, uint32_t day) const;
     /** @brief Spend a one-shot force. */
     static void _clear_force(Vars::RefInOut<bool> r);
+    /** @brief What follows a fill: the soak, or the drain when there is none. */
+    IrrState _after_fill() const;
     void _enter(IrrState state);
 };
 

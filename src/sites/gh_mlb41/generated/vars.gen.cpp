@@ -194,6 +194,7 @@ const Descriptor params[] = {
     P("irr_dawnGate_degC"   , T_F32 , 12.0   , 5.0   , 30.0   , 1, "degC", 298, "skip pre-dawn watering below this", "", true),
     P("irr_morningWin_min"  , T_U16 , 180    , 30    , 480    , 0, "min" , 314, "how long into the day the morning slot runs", "the tray has to dry before night; watering at four in the afternoon does not", true),
     P("irr_maxFill_sec"     , T_U16 , 300    , 100   , 1800   , 0, "sec" , 299, "alarm if a tray takes longer to fill", "", true),
+    P("irr_soak_sec"        , T_U16 , 300    , 0     , 3600   , 0, "sec" , 315, "how long a filled tray sits before draining", "0 skips the soak and opens the drain at the end of the fill", true),
     P("irr_drainWindow_sec" , T_U16 , 300    , 100   , 1800   , 0, "sec" , 300, "time allowed for a tray to drain", "", true),
     P("irr_expDrainFrac"    , T_F32 , 0.6    , 0.0   , 1.0    , 2, ""    , 301, "fraction expected to drain back", "", true),
     P("irr_drainMargin"     , T_F32 , 0.3    , 0.0   , 1.0    , 2, ""    , 302, "clog if drained is this far under", "against irr_expDrainFrac, so 0.6 expected and 0.3 here clogs under 0.3", true),

@@ -101,6 +101,7 @@ void WaterMeters::observe(ProgramContext& c) {
     const uint32_t pulses = HAL::Pulse::sample(ch).count;
     if (c.first_scan) {
         _out_flow.reset(); _out_band.reset(); _in_rate.reset();
+        _inlet_for.reset();
         // Adopt both counters where they stand rather than starting from zero:
         // the retained rows carry what was metered before this run, and the
         // pulse counter carries what has been metered since the last boot.
@@ -243,6 +244,9 @@ void IrrigationCycle::_set_valves(IrrState state, uint8_t tray) {
     // can never water two.
     const bool filling  = (state == IRR_FILLING);
     const bool draining = (state == IRR_DRAINING);
+    // SOAKING keeps the tray connected with both ends of the manifold shut, so
+    // the dose sits where it was put and nothing moves.
+    const bool soaking  = (state == IRR_SOAKING);
     // FLUSHING opens BOTH ends with no tray between them: fresh water runs the
     // length of the shared manifold and out through the drain, so what sat in
     // the line after a tray emptied is not what the next tray gets first.
@@ -251,7 +255,7 @@ void IrrigationCycle::_set_valves(IrrState state, uint8_t tray) {
         _outlet_v[i].set(draining || state == IRR_FLUSHING);
     }
     for (uint8_t i = 0; i < IRR_TRAYS; i++)
-        _tray_v[i].set((filling || draining) && (i + 1 == tray));
+        _tray_v[i].set((filling || soaking || draining) && (i + 1 == tray));
 }
 
 void IrrigationCycle::_blame(const Vars::RefOut<bool>* per_tray, bool on) {
@@ -336,6 +340,12 @@ void IrrigationCycle::_drain_verdict() {
     const bool  clog     = frac < min_frac;
     _v.drain_fault.set(clog);
     _blame(_v.drain_tray, clog);
+}
+
+IrrState IrrigationCycle::_after_fill() const {
+    // A soak of zero is SKIPPED, not passed through for one activation: a state
+    // the field bus sees flicker is a state somebody has to explain.
+    return (_v.soak_s.get() > 0) ? IRR_SOAKING : IRR_DRAINING;
 }
 
 void IrrigationCycle::_enter(IrrState state) {
@@ -427,7 +437,7 @@ void IrrigationCycle::run(ProgramContext& c) {
                 _blame(_v.fill_tray, false);
                 _stamp_served();
                 _dose_L = got;
-                _enter(IRR_DRAINING);
+                _enter(_after_fill());
             } else if (_in_state_ms >= 1000u * _v.max_fill_s.get()) {
                 // The dose never arrived: water off, a stuck inlet, or a meter
                 // that has stopped counting. Move to drain regardless - leaving
@@ -437,8 +447,19 @@ void IrrigationCycle::run(ProgramContext& c) {
                 // What actually went in, which may be nothing: the drain is
                 // judged against the water the tray really got.
                 _dose_L = got;
+                // ...and straight to the drain, soak or no soak. A soak steeps
+                // a tray in the dose it was given; whatever is in this one got
+                // there by accident, and the slot is better spent on the next
+                // tray than on waiting out a fault.
                 _enter(IRR_DRAINING);
             }
+            break;
+        }
+        case IRR_SOAKING: {
+            // The tray sits full. Nothing is measured here and nothing can go
+            // wrong: the fill has already been judged, and the drain window
+            // has not started, so the only thing this state does is wait.
+            if (_in_state_ms >= 1000u * _v.soak_s.get()) _enter(IRR_DRAINING);
             break;
         }
         case IRR_DRAINING: {

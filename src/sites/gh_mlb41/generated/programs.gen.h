@@ -817,6 +817,7 @@ struct IrrigationCycle {
     Vars::RefIn<int16_t>  day_rise;
     Vars::RefIn<uint16_t> morning_win;
     Vars::RefIn<uint16_t> max_fill_s;
+    Vars::RefIn<uint16_t> soak_s;
     Vars::RefIn<uint16_t> drain_window_s;
     Vars::RefIn<uint16_t> flush_s;
     Vars::RefIn<float>    exp_drain;
@@ -1654,6 +1655,7 @@ inline void IrrigationCycle::bind(Vars::Bank& io, Plc::Program& owner) {
     day_rise       = io.resolve_in<int16_t>("sol_dayRise_min");
     morning_win    = io.resolve_in<uint16_t>("irr_morningWin_min");
     max_fill_s     = io.resolve_in<uint16_t>("irr_maxFill_sec");
+    soak_s         = io.resolve_in<uint16_t>("irr_soak_sec");
     drain_window_s = io.resolve_in<uint16_t>("irr_drainWindow_sec");
     flush_s        = io.resolve_in<uint16_t>("irr_flush_sec");
     exp_drain      = io.resolve_in<float>("irr_expDrainFrac");

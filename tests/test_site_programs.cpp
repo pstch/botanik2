@@ -37,6 +37,13 @@ void summer(Live& f) {
     f.bank.var(f.ref("irr_mod")).set(1.0f);
 }
 
+/** @brief Take the soak out of the cycle, which `irr_soak_sec` 0 is for.
+ *  A case about the fill or the drain states its own configuration; the soak
+ *  has a case of its own and the scenarios run at the site's real figure. */
+void no_soak(Live& f) {
+    f.bank.param_set(f.bank.var(f.ref("irr_soak_sec")), "0");
+}
+
 /** @brief Put the plant in the end-of-night watering slot. A cycle may only
  *  START in one of the two the spec allows, so every irrigation case has to
  *  say which one it is in. */
@@ -722,6 +729,7 @@ TEST_CASE("irrigation: a force is spent on the watering it asked for") {
     Plc::Program* const progs[] = { &meters, &irr };
     Cycle d(progs, 2, &f.bank, f.reg);
     summer(f);
+    no_soak(f);
     slot(f);
     field(f, "cli_temp_ext", 25.0f);
     HAL::Pulse::attach(Site::pulse_inputs[0].channel, Site::pulse_inputs[0].edge);
@@ -768,6 +776,79 @@ TEST_CASE("irrigation: a skip is spent too, and sends the tray to the back") {
     CHECK_FALSE(f.bank.var(f.ref("irr_forceOff_tray1")).b());
     CHECK(f.bank.var(f.ref("irr_last_tray1")).i() > 0);
     CHECK(f.bank.var(f.ref("irr_last_tray1")).param_unsaved());
+}
+
+TEST_CASE("irrigation: the tray sits full for its soak before either end opens") {
+    Live f;
+    Site::WaterMeters     meters(Botanik::SetupContext(f.reg), f.bank);
+    Site::IrrigationCycle irr(Botanik::SetupContext(f.reg), f.bank);
+    Plc::Program* const progs[] = { &meters, &irr };
+    Cycle d(progs, 2, &f.bank, f.reg);
+    summer(f);
+    slot(f);
+    field(f, "cli_temp_ext", 25.0f);
+    HAL::Pulse::attach(Site::pulse_inputs[0].channel, Site::pulse_inputs[0].edge);
+    f.bank.param_set(f.bank.var(f.ref("irr_forceOn_tray1")), true);
+    f.bank.param_set(f.bank.var(f.ref("irr_liters_tray1")), 5.0f);
+    f.bank.param_set(f.bank.var(f.ref("irr_input_qtyPerImp")), 1.0f);
+    REQUIRE(f.bank.param_set(f.bank.var(f.ref("irr_soak_sec")), "60") == SET_OK);
+
+    uint64_t t = 0;
+    d.step(t += 1000);
+    REQUIRE(f.bank.var(f.ref("irr_state")).i() == Site::IRR_FILLING);
+    HAL::Pulse::inject(Site::pulse_inputs[0].channel, 20);
+    d.step(t += 1000);
+
+    INFO("the dose has arrived, and the tray keeps it: both ends of the "
+         "manifold shut, and the tray still connected to it");
+    REQUIRE(f.bank.var(f.ref("irr_state")).i() == Site::IRR_SOAKING);
+    CHECK_FALSE(f.bank.var(f.ref("irr_input_ro1")).b());
+    CHECK_FALSE(f.bank.var(f.ref("irr_output_ro1")).b());
+    CHECK(f.bank.var(f.ref("irr_tray1")).b());
+    CHECK_FALSE(f.bank.var(f.ref("irr_tray2")).b());
+    INFO("...and it is still this tray's cycle while it sits");
+    CHECK(f.bank.var(f.ref("irr_activeTray")).i() == 1);
+
+    INFO("the fill is judged before the soak, not after it: a tray that got "
+         "its water is not owed a verdict an hour later");
+    CHECK_FALSE(f.bank.var(f.ref("alarm_irr_fill")).b());
+    CHECK(f.bank.var(f.ref("irr_servedToday")).i() == 1);
+
+    INFO("half way through, nothing has moved");
+    for (uint32_t i = 0; i < 30; i++) d.step(t += 1000);
+    CHECK(f.bank.var(f.ref("irr_state")).i() == Site::IRR_SOAKING);
+    CHECK_FALSE(f.bank.var(f.ref("irr_output_ro1")).b());
+
+    INFO("and the drain opens when the soak is up");
+    for (uint32_t i = 0; i < 32; i++) d.step(t += 1000);
+    CHECK(f.bank.var(f.ref("irr_state")).i() == Site::IRR_DRAINING);
+    CHECK(f.bank.var(f.ref("irr_output_ro1")).b());
+    CHECK(f.bank.var(f.ref("irr_tray1")).b());
+}
+
+TEST_CASE("irrigation: a soak of zero is skipped, not passed through") {
+    // The field bus carries irr_state, so a state that appears for one
+    // activation is a state somebody has to explain.
+    Live f;
+    Site::WaterMeters     meters(Botanik::SetupContext(f.reg), f.bank);
+    Site::IrrigationCycle irr(Botanik::SetupContext(f.reg), f.bank);
+    Plc::Program* const progs[] = { &meters, &irr };
+    Cycle d(progs, 2, &f.bank, f.reg);
+    summer(f);
+    no_soak(f);
+    slot(f);
+    field(f, "cli_temp_ext", 25.0f);
+    HAL::Pulse::attach(Site::pulse_inputs[0].channel, Site::pulse_inputs[0].edge);
+    f.bank.param_set(f.bank.var(f.ref("irr_forceOn_tray1")), true);
+    f.bank.param_set(f.bank.var(f.ref("irr_liters_tray1")), 5.0f);
+    f.bank.param_set(f.bank.var(f.ref("irr_input_qtyPerImp")), 1.0f);
+
+    uint64_t t = 0;
+    d.step(t += 1000);
+    REQUIRE(f.bank.var(f.ref("irr_state")).i() == Site::IRR_FILLING);
+    HAL::Pulse::inject(Site::pulse_inputs[0].channel, 20);
+    d.step(t += 1000);
+    CHECK(f.bank.var(f.ref("irr_state")).i() == Site::IRR_DRAINING);
 }
 
 TEST_CASE("irrigation: the drain meter comes back to zero, not to a tenth of one") {
@@ -831,6 +912,7 @@ TEST_CASE("irrigation: a plant with no clock still spends the force it was given
     Plc::Program* const progs[] = { &meters, &irr };
     Cycle d(progs, 2, &f.bank, f.reg);
     summer(f);
+    no_soak(f);
     slot(f);
     field(f, "cli_temp_ext", 25.0f);
     HAL::Pulse::attach(Site::pulse_inputs[0].channel, Site::pulse_inputs[0].edge);
@@ -869,6 +951,7 @@ TEST_CASE("irrigation: `water now` is spent on the cycle it started") {
     Plc::Program* const progs[] = { &meters, &irr };
     Cycle d(progs, 2, &f.bank, f.reg);
     summer(f);
+    no_soak(f);
     field(f, "cli_temp_ext", 25.0f);
     HAL::Pulse::attach(Site::pulse_inputs[0].channel, Site::pulse_inputs[0].edge);
     f.bank.param_set(f.bank.var(f.ref("irr_liters_tray1")), 5.0f);
@@ -1425,6 +1508,7 @@ TEST_CASE("irrigation: the cycle fills to its dose, then drains, then idles") {
     Plc::Program* const progs[] = { &meters, &irr };
     Cycle d(progs, 2, &f.bank, f.reg);
     summer(f);
+    no_soak(f);
 
     // Bare, not REQUIREd: a channel another case already attached answers false.
     HAL::Pulse::attach(Site::pulse_inputs[0].channel, Site::pulse_inputs[0].edge);
@@ -1485,6 +1569,7 @@ float drain_at(Live& f, Cycle& d, Site::WaterMeters& meters,
                Site::IrrigationCycle& irr, float lpm, bool meter_live,
                Plc::Health* worst = nullptr) {
     (void)irr;
+    no_soak(f);
     f.bank.var(f.ref("cli_temp_ext")).publish(from_f32(T_F32, 20.0f), 0);
     slot(f);
     f.bank.param_set(f.bank.var(f.ref("irr_forceOn_tray1")), true);
@@ -1629,7 +1714,8 @@ TEST_CASE("irrigation: a fill that never arrives raises, and still opens the dra
 
     for (uint32_t i = 0; i < 102; i++) d.step(t += 1000);   // no pulses at all
 
-    INFO("leaving the inlet open on a fault is how a tray overflows");
+    INFO("leaving the inlet open on a fault is how a tray overflows, and the "
+         "soak is skipped with it: this tray was given nothing to steep in");
     CHECK(f.bank.var(f.ref("alarm_irr_fill")).b());
     CHECK(f.bank.var(f.ref("irr_state")).i() == Site::IRR_DRAINING);
     CHECK_FALSE(f.bank.var(f.ref("irr_input_ro1")).b());
