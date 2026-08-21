@@ -198,6 +198,41 @@ struct DcWatch {
     void bind(Vars::Bank& io, Plc::Program& owner);
 };
 
+/** @brief The rows `sun_watch` connects to, one typed reference
+ *  each. SunWatch, dispatched SLOW. */
+struct SunWatch {
+
+    /** @name VAR_OUTPUT
+     *  @{ */
+    Vars::RefOut<int16_t> from_rise;
+    Vars::RefOut<int16_t> from_set;
+    Vars::RefOut<float>   elevation;
+
+    /** @} */
+
+    /** @name Health
+     *  Where this program's health is published. Written by a
+     *  SUPERVISOR walking every program, not by the program: a
+     *  program that is not being activated is exactly when a
+     *  reader wants the row. @see Plc::publish_health()
+     *  @{ */
+    Vars::RefOut<uint8_t> health;
+
+    /** @} */
+
+    /** @brief The instance name and the rate class programs.toml
+     *  declares. The constructor takes them from here, so neither can
+     *  drift from the configuration. */
+    static const char* name() { return "sun_watch"; }
+    static Tasks::GroupId group() { return Tasks::GROUP_SLOW; }
+
+    /** @brief Resolve every name. Runs inside the program's writer
+     *  window, so an output is CLAIMED here.
+     *  @param owner the program this belongs to: a declared health
+     *         row is handed to it here. */
+    void bind(Vars::Bank& io, Plc::Program& owner);
+};
+
 /** @brief The rows `temp_rh_zone` connects to, one typed reference
  *  each. TempRHZone, dispatched FAST. */
 struct TempRHZone {
@@ -361,41 +396,6 @@ struct ClimateWatch {
      *  declares. The constructor takes them from here, so neither can
      *  drift from the configuration. */
     static const char* name() { return "climate_watch"; }
-    static Tasks::GroupId group() { return Tasks::GROUP_SLOW; }
-
-    /** @brief Resolve every name. Runs inside the program's writer
-     *  window, so an output is CLAIMED here.
-     *  @param owner the program this belongs to: a declared health
-     *         row is handed to it here. */
-    void bind(Vars::Bank& io, Plc::Program& owner);
-};
-
-/** @brief The rows `sun_watch` connects to, one typed reference
- *  each. SunWatch, dispatched SLOW. */
-struct SunWatch {
-
-    /** @name VAR_OUTPUT
-     *  @{ */
-    Vars::RefOut<int16_t> from_rise;
-    Vars::RefOut<int16_t> from_set;
-    Vars::RefOut<float>   elevation;
-
-    /** @} */
-
-    /** @name Health
-     *  Where this program's health is published. Written by a
-     *  SUPERVISOR walking every program, not by the program: a
-     *  program that is not being activated is exactly when a
-     *  reader wants the row. @see Plc::publish_health()
-     *  @{ */
-    Vars::RefOut<uint8_t> health;
-
-    /** @} */
-
-    /** @brief The instance name and the rate class programs.toml
-     *  declares. The constructor takes them from here, so neither can
-     *  drift from the configuration. */
-    static const char* name() { return "sun_watch"; }
     static Tasks::GroupId group() { return Tasks::GROUP_SLOW; }
 
     /** @brief Resolve every name. Runs inside the program's writer
@@ -1314,6 +1314,14 @@ inline void DcWatch::bind(Vars::Bank& io, Plc::Program& owner) {
     owner.set_health_row(health);
 }
 
+inline void SunWatch::bind(Vars::Bank& io, Plc::Program& owner) {
+    from_rise = io.resolve_out<int16_t>("sol_fromRise_min");
+    from_set  = io.resolve_out<int16_t>("sol_fromSet_min");
+    elevation = io.resolve_out<float>("sol_elev_deg");
+    health    = io.resolve_out<uint8_t>("prog_sun_watch");
+    owner.set_health_row(health);
+}
+
 inline void TempRHZone::bind(Vars::Bank& io, Plc::Program& owner) {
     t_hi[0]   = io.resolve_in<float>("cli_temp_hi1");
     t_hi[1]   = io.resolve_in<float>("cli_temp_hi2");
@@ -1436,14 +1444,6 @@ inline void ClimateWatch::bind(Vars::Bank& io, Plc::Program& owner) {
     _watched[5] = sns[2].r;
     _watched[6] = sns[3].r;
     owner.set_inputs(_watched, 7);
-    owner.set_health_row(health);
-}
-
-inline void SunWatch::bind(Vars::Bank& io, Plc::Program& owner) {
-    from_rise = io.resolve_out<int16_t>("sol_fromRise_min");
-    from_set  = io.resolve_out<int16_t>("sol_fromSet_min");
-    elevation = io.resolve_out<float>("sol_elev_deg");
-    health    = io.resolve_out<uint8_t>("prog_sun_watch");
     owner.set_health_row(health);
 }
 
