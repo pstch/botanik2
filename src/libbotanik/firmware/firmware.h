@@ -40,6 +40,7 @@
 #include "libbotanik/plc/authority.h"
 #include "libbotanik/plc/program.h"
 #include "libbotanik/scheduler/scheduler.h"
+#include "libbotanik/sun/sun_tracker.h"
 #include "libbotanik/shell/shell.h"
 #include "libbotanik/tasks/tasks.h"
 #include "libbotanik/utils/assert.h"
@@ -140,6 +141,12 @@ namespace Botanik {
         /** @brief Who may drive the field. Declared after the bank it enacts
          *  through, and before HealthMonitor, which is handed it. */
         Plc::ControlAuthority          _authority;
+#endif
+#if BOTANIK_FEATURE_SUN_TRACKER
+        /** @brief The solar-position instrument. Owned here rather than by a
+         *  site: it is library code, one build has at most one, and every
+         *  program that wants the sun reads it through SetupContext. */
+        Sun::SunPositionTracker        _sun;
 #endif
         Health::HealthMonitor          _health;
         SystemContext                  _sys_ctx;     ///< Filled in the ctor body
@@ -289,8 +296,7 @@ namespace Botanik {
         const Vars::Bank&                 io() const { return _io; }
         Vars::Bank&                       io()       { return _io; }
         /** @brief Where a site binds a component of its OWN to the parameters
-         *  that configure it - Vars::bind_sun() for a site-owned tracker, say.
-         *  Bind in on_setup(): apply_all() runs after it. */
+         *  that configure it. Bind in on_setup(): apply_all() runs after it. */
         Vars::ConfigBinder&               config_binder() { return _binder; }
         /** @brief Who may drive the field: the operator's standing choice and
          *  the system's hold, stricter wins. */

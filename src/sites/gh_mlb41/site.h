@@ -115,10 +115,6 @@ protected:
     }
 
     void on_setup() override {
-        // The geo pair reaches the tracker on the commit, and again on every
-        // edit. sun_watch owns it and registers it with its own tasks.
-        Botanik::Vars::bind_sun(config_binder(), _sun_watch.tracker());
-
         // The edge-counted terminals, from the table the generator built out of
         // the `isr` column: the channel a row declares and the channel the
         // firmware attaches cannot part. Without this the counter never runs

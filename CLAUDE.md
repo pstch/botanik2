@@ -183,7 +183,7 @@ Subsystems under `src/libbotanik/`. Each row's doc is the reference; the header 
 | `alarms/` | `AlarmController` reads an `AlarmSourceTable`, never a bank. With `VARS` on that is `Vars::BankAlarms` over the site's `SCOPE_A` rows, each carrying both its boolean and its dwell policy; without it, `StaticAlarmTable` over a flash array. Not feature-gated: every build has alarms | `health.md` |
 | `health/` | `HealthMonitor` owns the `AlarmController`, raises the platform-health alarms from scheduler metrics, runs the POST, and produces the watchdog verdict | `health.md` |
 | `network/` | `NetworkHandler` / `NameResolver` / `NtpClient` / `MqttClient`, all non-blocking. The sim backend is hermetic - it emulates DNS/NTP/MQTT in-process | `network.md` |
-| `sun/` | `SunPositionTracker` over the NOAA solar-position math. Standalone: a site owns the instance | - |
+| `sun/` | `SunPositionTracker` over the NOAA solar-position math. `BotanikFirmware` owns the instance, registers it and binds its `geo_` parameters; a program reads it through `SetupContext::sun` | - |
 | `utils/` | `BufferedSerial` (256-byte RX ring, 4096-byte TX; not a Component and pumped by whoever owns the wire), metric filters, uptime, text helpers, the firmware assert | `concurrency.md` |
 
 ### Rules that are not in a header
@@ -243,7 +243,7 @@ Optional subsystems are gated at compile time by the 25 `BOTANIK_FEATURE_*` flag
 | transports | `LOGS_PUBLISH`, `ALARMS_PUBLISH` (both need `LOGGING`+`MQTT`), `LOGS_MONITOR` (needs `LOGGING`) | `LOGS_MONITOR` is the secondary serial log sink - **not** `MONITOR_PAGE`, which is a console page |
 | PLC | `PLC` (on), `PLC_BLK_BASE`, `PLC_BLK_FILTERS` | `PLC` off keeps `SiteDescriptor`'s program fields (removing trailing aggregate fields would break every site's initialiser) and does **not** remove control authority. `PLC_BLK_FILTERS` is `plc/blocks/filters.h`, distinct from `utils/filters.h` |
 | field bus | `MODBUS_TCP_SERVER`, `MODBUS_TCP_CLIENT`, `MODBUS_RTU_CLIENT`, `MODBUS_RTU_SERVER` | all four implemented. The two SERVERs answer, the two CLIENTs ask: `RtuClient` is the field-bus master that scans the site's `XP_MODBUS` rows, `TcpSlave` serves the register map, `TcpMaster` is the sim's own self-check against that map, and `RtuSlave` is the device model the simulated field is built from. `TCP_*` need `NETWORK`; `RTU_CLIENT` and `TCP_SERVER` need `VARS` |
-| standalone | `SUN_TRACKER` | not instantiated by `BotanikFirmware`; a site owns the instance. Off in the header, on in `gh_mlb41/config.h` - otherwise nothing compiles `sun/` and its two test files contribute nothing to the gate |
+| standalone | `SUN_TRACKER` | owned by `BotanikFirmware` and reached through `SetupContext::sun`, so no site declares one. Off in the header, on in `gh_mlb41/config.h` - otherwise nothing compiles `sun/` and its two test files contribute nothing to the gate |
 
 A site's opt-in must yield to the command line, and `#ifndef` alone does not do that: with `-DBOTANIK_FEATURE_CONSOLE=OFF` the page flags are still undefined when the site config is read, so a bare `#define ..._PAGE 1` would turn the builder's choice into a dependency error the builder never wrote. Guard the block with `#if !defined(X) || X` ("unless explicitly turned off") - see `gh_mlb41/config.h`.
 

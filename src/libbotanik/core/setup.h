@@ -26,17 +26,18 @@
 
 #include <cstdint>
 
-// Forward-declared, never included: this is a bag of two borrowed pointers and
-// has no business acquiring either subsystem.
+// Forward-declared, never included: this is a bag of borrowed pointers and has
+// no business acquiring any of the subsystems behind them.
 namespace Botanik { namespace Tasks { class Registry; } }
 namespace Botanik { namespace Logs  { class Logger;   } }
+namespace Botanik { namespace Sun   { class SunPositionTracker; } }
 
 namespace Botanik {
 
-    /** @brief The pair every Component is constructed with (see file header).
+    /** @brief What every Component is constructed with (see file header).
      *
-     *  Borrowed, and both outlive every component: the firmware owns the table
-     *  and the logger, and declares them first for exactly that reason. */
+     *  Borrowed, and all of them outlive every component: the firmware owns
+     *  them and declares them first for exactly that reason. */
     struct SetupContext {
         /** @brief Where register_tasks() puts its entries. Non-const:
          *  registering mutates the table, and bring-up is the one moment that
@@ -47,6 +48,13 @@ namespace Botanik {
          *  component, not a broken one (and that is what a test usually
          *  wants). */
         Logs::Logger*    logger = nullptr;
+        /** @brief The solar-position instrument, or null when the build has
+         *  none. A borrowed pointer, declared unconditionally: the firmware
+         *  owns the tracker and hands it to whatever reads it, and gating a
+         *  pointer would only move the #if to every consumer.
+         *  @note Not a Component's own wiring - it is here because a control
+         *  program is built with this and has no other way to reach it. */
+        Sun::SunPositionTracker* sun = nullptr;
 
         SetupContext() = default;
         SetupContext(Tasks::Registry& r, Logs::Logger* log = nullptr)

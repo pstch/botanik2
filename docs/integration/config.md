@@ -48,7 +48,7 @@ the build log. Guard every feature flag a site pins.
 | `NETWORK` | off | - | the network stack: device bring-up and the DNS resolver |
 | `NTP` | off | `NETWORK` | the NTP client |
 | `MQTT` | off | `NETWORK` | the MQTT client |
-| `SUN_TRACKER` | off | - | the solar-position tracker. Standalone - `BotanikFirmware` does not instantiate it, so a site that wants it owns the instance |
+| `SUN_TRACKER` | off | - | the solar-position tracker. `BotanikFirmware` owns it, registers it and binds its `geo_` parameters; a program reads it through `SetupContext::sun` |
 | `HOME_PAGE` | = `CONSOLE` | `CONSOLE`, `VARS` | the HOME page and its log-tail sink. Its fields are variable rows, hence `VARS` |
 | `SHELL_PAGE` | = `CONSOLE` | `CONSOLE` | the SHELL page **and the whole command interpreter** - `ShellPage` owns `Shell::CommandShell`, so this also gates `register_commands()` |
 | `LOGS_PAGE` | off | `CONSOLE`, `LOGGING` | the LOGS page and its sink |

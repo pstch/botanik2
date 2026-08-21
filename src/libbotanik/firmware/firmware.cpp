@@ -29,6 +29,9 @@ namespace Botanik {
 #endif
           // The alarm model scans the variable table for SCOPE_A rows;
           // platform-health alarms are appended and driven locally.
+#if BOTANIK_FEATURE_SUN_TRACKER
+          _sun(_setup),
+#endif
 #if BOTANIK_FEATURE_VARS
           _health(_setup, _scheduler.context(), &_io)
 #else
@@ -76,9 +79,19 @@ namespace Botanik {
 #endif
 #endif
     {
+        // The tracker, to whatever is built with this context after us. A site
+        // program is a derived member, so it is constructed after this body
+        // runs and sees the pointer already set.
+#if BOTANIK_FEATURE_SUN_TRACKER
+        _setup.sun = &_sun;
+#endif
+
         // Bind each component's config to the rows behind it, now every one of
         // them exists. Pushed at PHASE_CONFIG, and once at bring-up.
 #if BOTANIK_FEATURE_VARS
+#if BOTANIK_FEATURE_SUN_TRACKER
+        Vars::bind_sun(_binder, _sun);
+#endif
 #if BOTANIK_FEATURE_CONSOLE
         Vars::bind_console(_binder, _console.terminal());
 #endif
@@ -347,6 +360,11 @@ namespace Botanik {
         // The bank's own two sweeps: age a row out, and reject one that is
         // fresh and still nonsense. Both before anything reads, so one beat is
         // coherent.
+#if BOTANIK_FEATURE_SUN_TRACKER
+        // A slow SERVICE recompute of its own, not something a control phase
+        // does: the programs that read it just read rows.
+        _sun.register_tasks();
+#endif
 #if BOTANIK_FEATURE_VARS
         _io.register_tasks();
 

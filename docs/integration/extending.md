@@ -95,8 +95,8 @@ void on_setup() override {
 }
 ```
 
-Site-owned components register the same way: a driver, a solar-position tracker,
-anything with state of its own. Each overrides the `Component` phase hook whose
+Site-owned components register the same way: a driver, anything with state of
+its own. Each overrides the `Component` phase hook whose
 place in the data flow matches its work.
 
 | Phase | Runs | For |

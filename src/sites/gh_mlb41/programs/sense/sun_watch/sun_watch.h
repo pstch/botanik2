@@ -16,21 +16,14 @@ using namespace Botanik;
 
 class SunWatch final : public Gen::SunWatch {
 
-    Sun::SunPositionTracker _sun;
+    /** @brief The instrument, borrowed: the firmware owns it, registers it and
+     *  binds its geo parameters. Null in a build without SUN_TRACKER, which is
+     *  a build this program is not in either. */
+    Sun::SunPositionTracker* const _sun;
 
 public:
     SunWatch(const SetupContext& ctx, Vars::Bank& io)
-        : Gen::SunWatch(ctx, io), _sun(ctx) {}
-
-    /** @brief The instrument, for the config binder. Nothing else needs it. */
-    Sun::SunPositionTracker& tracker() { return _sun; }
-
-    /** @brief This program's own entry, and the tracker's: the recompute is a
-     *  slow SERVICE task of its own, not something a control phase does. */
-    void register_tasks() override {
-        Program::register_tasks();
-        _sun.register_tasks();
-    }
+        : Gen::SunWatch(ctx, io), _sun(ctx.sun) {}
 
 protected:
     void run(ProgramContext& c) override { (void)c; }
