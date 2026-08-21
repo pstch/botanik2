@@ -407,8 +407,21 @@ def schema_doc():
             "```toml",
             "[[program]]",
             'name  = "supply_watch"      # the instance, and its writer identity',
-            'class = "SupplyWatch"       # the C++ class in tasks.h',
+            'class = "SupplyWatch"       # the C++ class it is an instance of',
             'task  = "SLOW"              # the rate class it is dispatched at',
+            'desc  = "The supply rails, watched."   # one line: what it is FOR',
+            'notes = """                 # the paragraphs under it, optional',
+            "Everything a reader needs that the interface below does not say.",
+            '"""',
+            "",
+            "# The POU's VAR section: the function block instances it holds. A",
+            "# bare string is the type, resolved in Botanik::Plc; the table form",
+            "# carries `count` for an array, `include` for a block of the site's",
+            "# own (site-root relative), and `doc` for the one-line comment the",
+            "# declaration gets.",
+            "[program.block]",
+            'settle    = "Tof"',
+            'rail_avg  = { type = "Ewma", count = 2, doc = "one per rail" }',
             "",
             "# A member is `name = \"row\"`, or a list for an array member. The",
             "# member takes the FORMAL name, so one class can serve two sites.",
@@ -423,6 +436,12 @@ def schema_doc():
             "typed from its row, so the two cannot disagree - and its `bind()`",
             "body. A program holds that struct as `_v` and binds it in one call.",
             "",
+            "`desc` is the one place a program says what it is for: it becomes",
+            "the generated class's `@brief` AND this site report's heading for",
+            "it, so a header and a binder page cannot describe one program two",
+            "ways. `notes` is where the paragraphs under it go, and stays in",
+            "the documents - rationale does not belong beside the code.", ""]
+    out += ["",
             "A PROGRAM POU may connect a formal parameter to a global or name",
             "the global directly; both spellings land on the same three modes,",
             "so there is one section per mode rather than one per spelling.", ""]
@@ -780,10 +799,8 @@ def programs_doc(site, rows):
            "`in` may not be written; `out` has exactly one producer, checked",
            "before the firmware is built; `inout` is read-modify-write, shared",
            "by declaration.", ""]
-    out += md_table(["program", "class", "task", "in", "out", "inout"],
-                    [[p["name"], f"`{p['class']}`", p["task"]]
-                     + [str(sum(1 for c in p["conns"] if c[1] == sec))
-                        for sec in ("in", "out", "inout")]
+    out += md_table(["program", "class", "task", "what it does"],
+                    [[p["name"], f"`{p['class']}`", p["task"], p.get("desc", "")]
                      for p in progs])
 
     produced = {}
@@ -798,6 +815,14 @@ def programs_doc(site, rows):
         out += [PAGE_BREAK, "",
                 f"### {p['name']}", "",
                 f"`{p['class']}`, dispatched at {p['task']}.", ""]
+        # What the program is for, from the table. The same sentence is the
+        # generated class's @brief, so the binder page and the header cannot
+        # describe the program differently.
+        if p.get("desc"):
+            out += [p["desc"], ""]
+        for para in (p.get("notes") or "").strip().split("\n\n"):
+            if para.strip():
+                out += [" ".join(para.split()), ""]
         # One line per MEMBER, not per connection: an eight-tray array is one
         # thing the program declares, and the variable tables above are where
         # each of its rows is mapped to a device and a register.

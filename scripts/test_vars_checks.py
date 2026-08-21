@@ -76,9 +76,10 @@ def blk(name, type="Ton", count=0, include="", doc=""):
             "doc": doc}
 
 
-def prog(name, cls="C", task="SLOW", stage="", blocks=(), **sections):
+def prog(name, cls="C", task="SLOW", stage="", blocks=(), desc="What it does.",
+         **sections):
     p = {"name": name, "class": cls, "task": task, "conns": [], "arrays": set(),
-         "stage": stage, "blocks": list(blocks)}
+         "stage": stage, "blocks": list(blocks), "desc": desc, "notes": ""}
     for sec, members in sections.items():
         for member, rows in members.items():
             if isinstance(rows, str):
@@ -312,6 +313,16 @@ def program_checks():
 
     ok &= pclean("...and none when it is on",
                  [full(blocks=[blk("f", "Ewma")])])
+
+    ok &= pexpect("a program that does not say what it does",
+                  [full(desc="")], "what does this program do")
+
+    ok &= pexpect("a desc that is really the notes",
+                  [full(desc="One thing.\n\nAnd another.")],
+                  "the paragraphs go in `notes`")
+
+    ok &= pexpect("a desc too long to be a @brief",
+                  [full(desc="x" * 200)], "has to read as one @brief")
 
     ok &= pexpect("a stage that is not a directory name",
                   [prog("p", cls="P1", stage="Sense/Climate")],

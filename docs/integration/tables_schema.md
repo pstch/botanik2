@@ -298,8 +298,21 @@ the global table.
 ```toml
 [[program]]
 name  = "supply_watch"      # the instance, and its writer identity
-class = "SupplyWatch"       # the C++ class in tasks.h
+class = "SupplyWatch"       # the C++ class it is an instance of
 task  = "SLOW"              # the rate class it is dispatched at
+desc  = "The supply rails, watched."   # one line: what it is FOR
+notes = """                 # the paragraphs under it, optional
+Everything a reader needs that the interface below does not say.
+"""
+
+# The POU's VAR section: the function block instances it holds. A
+# bare string is the type, resolved in Botanik::Plc; the table form
+# carries `count` for an array, `include` for a block of the site's
+# own (site-root relative), and `doc` for the one-line comment the
+# declaration gets.
+[program.block]
+settle    = "Tof"
+rail_avg  = { type = "Ewma", count = 2, doc = "one per rail" }
 
 # A member is `name = "row"`, or a list for an array member. The
 # member takes the FORMAL name, so one class can serve two sites.
@@ -314,6 +327,13 @@ win    = ["cli_window1_opn", "cli_window2_opn"]
 The generator emits one `Refs` struct per program - each member
 typed from its row, so the two cannot disagree - and its `bind()`
 body. A program holds that struct as `_v` and binds it in one call.
+
+`desc` is the one place a program says what it is for: it becomes
+the generated class's `@brief` AND this site report's heading for
+it, so a header and a binder page cannot describe one program two
+ways. `notes` is where the paragraphs under it go, and stays in
+the documents - rationale does not belong beside the code.
+
 
 A PROGRAM POU may connect a formal parameter to a global or name
 the global directly; both spellings land on the same three modes,
@@ -401,7 +421,7 @@ assigned, and keep the type - the library binds these by both.
 | console_baud | T_U32 | 4800 | 1200 .. 921600 | Bd | RW | 900 | console UART rate | reconnect at the new rate; unsaved, so a power cycle undoes it |
 | console_type | T_U8 | 1 | 0 .. 3 | - | RW | 961 | which terminal is on the console | 0=VT100 1=VT102 2=Minitel 1B 3=Minitel 2 |
 | console_cols | T_U16 | 80 | 80 .. 132 | col | RW | 962 | console width, in columns | the screen buffer bounds the maximum; a site needing another restates the row |
-| console_rows | T_U16 | 24 | 24 .. 32 | row | RW | 963 | console height, in rows | the screen buffer bounds the maximum; a site needing another restates the row |
+| console_rows | T_U16 | 24 | 20 .. 32 | row | RW | 963 | console height, in rows | the screen buffer bounds the maximum; a site needing another restates the row |
 | console_home_level | enum | Logs::LOG_NOTICE | `Logs::level_label` | - | RW | 964 | lowest level HOME's log tail shows | a landing screen: only what is worth looking up for |
 | console_shell_level | enum | Logs::LOG_INFO | `Logs::level_label` | - | RW | 965 | lowest level the SHELL page interleaves | `logs off` silences it entirely without moving this |
 | console_logs_level | enum | Logs::LOG_DEBUG | `Logs::level_label` | - | RW | 966 | lowest level the LOGS page keeps | this page is the record; raising it loses the record |
@@ -421,8 +441,8 @@ assigned, and keep the type - the library binds these by both.
 
 | name | code | on | off | hold | recent | reg | description | notes |
 |---|---|---|---|---|---|---|---|---|
-| alarm_net_fault | NET_FLT | 5 | 5 | 10 | 0 | 986 | the network link is down | bring-up failed or the link was lost; check the cable, the switch and net_ip |
-| alarm_ntp_timeout | NTP_TIM | 5 | 5 | 10 | 0 | 987 | no NTP sync | the wall clock is free-running: anything dated, scheduled or solar is adrift |
+| alarm_net_fault | NET_FLT | 5 | 5 | 0 | 0 | 986 | the network link is down | bring-up failed or the link was lost; check the cable, the switch and net_ip |
+| alarm_ntp_timeout | NTP_TIM | 5 | 5 | 0 | 0 | 987 | no NTP sync | the wall clock is free-running: anything dated, scheduled or solar is adrift |
 | alarm_log_flood | LOG_FLD | 2 | 2 | 0 | 0 | 988 | log messages are being dropped | the rate limiter is shedding; something is repeating itself and the record is incomplete |
 | alarm_system_reset | SYS_RST | -1 | 0 | 0 | 30*24*3600 | 990 | unit reset recently | - |
 | alarm_cpu_xrun | CPU_XRUN | 0 | -1 | 300 | 24*3600 | 991 | scheduler overrun (skipped beat) | - |

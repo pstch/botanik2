@@ -10,8 +10,11 @@ in.
 import os
 import re
 import sys
+import textwrap
 
 SECTIONS = ("in", "out", "inout")
+# A program's one-line summary, as long as two wrapped @brief lines.
+DESC_MAX = 160
 TASKS = ("FAST", "SLOW", "BACKGROUND")
 
 
@@ -65,6 +68,7 @@ def load(path):
         out.append({"name": p.get("name", "?"), "class": p.get("class", "?"),
                     "task": p.get("task", "?"), "health": p.get("health", ""),
                     "stage": p.get("stage", ""), "blocks": _blocks(p),
+                    "desc": p.get("desc", ""), "notes": p.get("notes", ""),
                     "conns": conns,
                     "arrays": {m for sec in SECTIONS
                                for m, v in (p.get(sec) or {}).items()
@@ -128,6 +132,17 @@ def check(programs, rows, err, mentioned=(), cal_params=(), library=(),
                     f"'{producers[row]}'")
             else:
                 producers[row] = p["name"]
+
+        # What the program is FOR, in the table rather than in a comment: it
+        # becomes the generated class's @brief and the report's page heading,
+        # so the two cannot say different things.
+        if not p["desc"]:
+            err(f"{where}: no desc - what does this program do?")
+        elif "\n" in p["desc"]:
+            err(f"{where}: desc is a single line; the paragraphs go in `notes`")
+        elif len(p["desc"]) > DESC_MAX:
+            err(f"{where}: desc is {len(p['desc'])} chars, over {DESC_MAX}: it "
+                f"has to read as one @brief")
 
         if p["stage"] and not re.match(r"^[a-z][a-z0-9_]*$", p["stage"]):
             err(f"{where}: stage '{p['stage']}' becomes a directory name, so it "
@@ -474,6 +489,12 @@ def snake(cls):
     return re.sub(r"([a-z0-9])([A-Z])", r"\1_\2", out).lower()
 
 
+def _brief(desc):
+    """@brief, wrapped. The table's one line, as the doc block's first."""
+    lines = textwrap.wrap(desc, 71)
+    return [" * @brief " + lines[0]] + [" *        " + x for x in lines[1:]]
+
+
 def _block_type(b):
     """A block's C++ type. The library's are reached through Plc::; a block of
     the site's own is emitted as written, and resolves in the enclosing Site."""
@@ -531,15 +552,15 @@ def program_header(p, rows, banner):
     if includes:
         out += includes + [""]
     out += ["namespace Site { namespace Gen {", "", "using namespace Botanik;", "",
-            "/**",
-            f" * @brief The declaration part of `{p['name']}`: every row the",
-            f" *        {cls} POU connects to, and every block it holds.",
-            f" *        Dispatched {p['task']}.",
-            " *",
-            f" * Site::{cls} derives this and carries the body. A name without a",
-            " * leading underscore was declared in the table; the derived class",
-            " * owns everything else.",
-            " */",
+            "/**"]
+    out += _brief(p["desc"] or f"The {cls} POU.")
+    out += [" *"]
+    out += [" * " + x for x in textwrap.wrap(
+        f"The declaration part of `{p['name']}`, dispatched {p['task']}: every "
+        f"row it connects to, and every block it holds. Site::{cls} derives "
+        f"this and carries the body. A name without a leading underscore was "
+        f"declared in the table; the derived class owns everything else.", 74)]
+    out += [" */",
             f"class {cls} : public Plc::Program {{", ""]
 
     watched = _watched(p, rows)

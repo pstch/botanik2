@@ -26,6 +26,13 @@ name  = "ac_grid_watch"
 class = "AcGridWatch"
 task  = "SLOW"
 health = "prog_ac_grid_watch"
+desc  = "The utility feed, watched."
+notes = """
+A watch program: empty run(), everything in observe(). What it publishes is an
+observation, and observations are exactly what must survive the plant being
+parked.
+"""
+
 [program.in]
 volts = "grid_LN_V"
 amps  = "grid_total_A"
@@ -50,6 +57,12 @@ name  = "ac_local_watch"
 class = "AcLocalWatch"
 task  = "SLOW"
 health = "prog_ac_local_watch"
+desc  = "The generator-backed side of the transfer switch, watched."
+notes = """
+The same law as the grid over different rows and wider frequency bands: a
+generator wanders where a utility does not.
+"""
+
 [program.in]
 volts = "ats_V"
 amps  = "ats_A"
@@ -77,6 +90,14 @@ name  = "dc_watch"
 class = "DcWatch"
 task  = "SLOW"
 health = "prog_dc_watch"
+desc  = "The DC rails and the two batteries, watched - and the plant-wide lockout they raise."
+notes = """
+`sys_supply_lockout` follows the UPS LOW-BATTERY CONTACT, not a voltage: the
+UPS knows what its own battery has left, and a divider on the rail does not.
+The voltages alarm on their own floors, which is warning rather than
+interlock.
+"""
+
 [program.in]
 dc1     = "pwr_dc1_V"
 dc2     = "pwr_dc2_V"
@@ -110,6 +131,18 @@ name  = "sun_watch"
 class = "SunWatch"
 task  = "SLOW"
 health = "prog_sun_watch"
+desc  = "Where the sun is, published as rows."
+notes = """
+The tracker is INSIDE this program: it is an instrument, and what turns an
+instrument into rows is a watch, exactly as the field-bus client does for the
+probes. Everything downstream reads the rows - a law that wants to know where
+the day is asks the table, not the tracker - so no other program needs a
+reference to anything but its own interface.
+
+Configured from the `geo_` pair through Vars::bind_sun(), which the firmware
+hands tracker() at bring-up.
+"""
+
 # The instrument is INSIDE this program (Sun::SunPositionTracker, configured
 # from the geo_ pair), and what leaves it are rows. Everything downstream reads
 # the rows: a law that wants to know where the day is asks the table, not the
@@ -124,6 +157,11 @@ name  = "temp_rh_zone"
 class = "TempRHZone"
 task  = "FAST"
 health = "prog_temp_rh_zone"
+desc  = "The conditioned picture of the greenhouse: four locations voted and filtered, then the psychrometrics every other law is set in."
+notes = """
+Runs FIRST. Everything downstream reads its rows rather than the probes.
+"""
+
 
 [program.in]
 t_hi  = ["cli_temp_hi1",  "cli_temp_hi2",  "cli_temp_hi3"]
@@ -162,6 +200,13 @@ name  = "strat"
 class = "StratSensor"
 task  = "FAST"
 health = "prog_strat"
+desc  = "The stratification gap: how much warmer the ceiling is than the floor, unsigned."
+notes = """
+Its own program because it is a reading ABOUT two zones rather than part of
+either, and because the destratification controller wants exactly one number
+from it.
+"""
+
 [program.in]
 ceiling = "cli_temp_hi"
 floor   = "cli_temp_lo"
@@ -176,6 +221,17 @@ name  = "climate_watch"
 class = "ClimateWatch"
 task  = "SLOW"
 health = "prog_climate_watch"
+desc  = "The interior conditions, watched: the alarms that are a READING crossing a line rather than a law failing to hold one."
+notes = """
+A watch program - empty run(), everything in observe(). An alarm is an
+observation, and an observation has to keep being made while the plant is
+parked, which is exactly when someone is looking at the ALARMS page.
+
+An unmeasured reading raises NOTHING here. What it raises is the zone's own
+quorum alarm, which this rolls up: alarming twice for one dead probe would
+make the second alarm mean "and also we cannot see".
+"""
+
 [program.in]
 temp      = "cli_temp_hi"
 rh        = "cli_rh_hi"
@@ -198,6 +254,16 @@ name  = "day_phase"
 class = "DayPhaseController"
 task  = "SLOW"
 health = "prog_day_phase"
+desc  = "The day's phase, and the temperature target it puts in force."
+notes = """
+The phase never commands an actuator: it sets the target and the permissions,
+and the ladders below decide what moves. See the spec's phase table.
+
+The six phases are five boundaries, each declared as an offset in minutes from
+sunrise or from sunset, so the whole table slides with the season instead of
+being a clock an operator re-enters four times a year.
+"""
+
 [program.in]
 # The house's own row, the same one the cooling ladder controls on: what the
 # bank phases arm against is the interior, not one level of it.
@@ -232,6 +298,13 @@ name  = "target_temp"
 class = "TargetTempController"
 task  = "SLOW"
 health = "prog_target_temp"
+desc  = "The temperature the greenhouse is being held to: the base setting, shifted by whichever bank phase is both IN FORCE and ARMED."
+notes = """
+Its own program because the target is a decision, not a property of the phase:
+the two bank phases only move it when yesterday justified them, and a reader
+wants the number rather than the rule that produced it.
+"""
+
 [program.in]
 phase         = "cli_phase"
 cold_arm      = "cli_coldBankArm"
@@ -247,6 +320,13 @@ name  = "cooling"
 class = "CoolingController"
 task  = "FAST"
 health = "prog_cooling"
+desc  = "The cooling ladder: a PID on the interior temperature against the phase's target, published as one signed demand."
+notes = """
+Negative is heating - the intractors drawing warm air from under the floor,
+and below that the thermal screen. The actuators spread themselves along the
+demand; this program does not know which they are.
+"""
+
 # The house's ONE temperature, which temp_rh_zone has already made the worst
 # case of the two levels. Read as a row rather than re-derived here, so what the
 # ladder controls on is a thing an operator can watch on a page and force.
@@ -282,6 +362,12 @@ name  = "destrat"
 class = "DestratController"
 task  = "SLOW"
 health = "prog_destrat"
+desc  = "The destratification ladder: three bands with hysteresis on the ceiling-to-floor gap, published as a demand."
+notes = """
+A band change needs the gap to move by the declared hysteresis, so the fans do
+not step between speeds on noise.
+"""
+
 [program.in]
 strat = "cli_dTStrat_degC"
 low   = "cli_dTStratLow_degC"
@@ -306,6 +392,21 @@ name  = "humidity"
 class = "HumidityController"
 task  = "SLOW"
 health = "prog_humidity"
+desc  = "The humidity ladder: four bands and a dead zone on the dew-point margin, published as one signed demand - and the rot guard under it."
+notes = """
+Negative dehumidifies (the margin is closing on condensation), positive
+humidifies (the air is drier than the plants want). Set in degC rather than
+kPa because it is CONDENSATION being guarded against, and that happens at the
+temperature the surfaces are actually at.
+
+The GUARD is the same signal read against a different question: the ladder's
+corners are the operator's comfort band, and `cli_tooHumid_degC` is the limit
+`alarm_rot` means. One program, because two reading one margin can disagree
+about it on the beat it moves. The guard's two rows are published from
+observe(): they command nothing, and their verdict has to stand while the
+plant is parked.
+"""
+
 [program.in]
 dp_margin   = "cli_dpMargin_degC"
 dehum_full  = "cli_dehumFull_degC"
@@ -337,6 +438,14 @@ name  = "irr_modulation"
 class = "IrrigationModulation"
 task  = "SLOW"
 health = "prog_irr_modulation"
+desc  = "The irrigation ladder: how thirsty the air has been, as one factor."
+notes = """
+The spec's irrigation "regulator" - evaporation in, a modulation factor out.
+It commands nothing, so all of it is in observe() and it keeps folding while
+the plant is parked: an outage is not a dry spell, and a hole in the average
+would read as one for days afterwards.
+"""
+
 # The spec's irrigation "regulator": evaporation in, a modulation factor out.
 # It never touches a valve, and it keeps folding while the plant is parked -
 # an outage is not a dry spell.
@@ -356,6 +465,14 @@ name  = "irr_meters"
 class = "WaterMeters"
 task  = "SLOW"
 health = "prog_irr_meters"
+desc  = "Both water meters, and the two supply faults they can see."
+notes = """
+Opposite ends of the same circuit and opposite instruments: the inlet is a
+pulse train, so its COUNTER is the measurement and the rate is derived; the
+outlet is a 4-20 mA loop, so its RATE is the measurement and the counter is.
+An instrument, not a law - it drives no valve, and it reads while parked.
+"""
+
 # Both ends of the circuit, and the two supply faults they can see. Opposite
 # instruments: the inlet is a pulse train whose COUNTER is the measurement, the
 # outlet a 4-20 mA loop whose RATE is.
@@ -379,6 +496,18 @@ name  = "irrigation"
 class = "IrrigationCycle"
 task  = "SLOW"
 health = "prog_irrigation"
+desc  = "Irrigation: one tray at a time, filled to a dose, steeped, and drained."
+notes = """
+FILLING -> SOAKING -> DRAINING -> FLUSHING, and a cycle is long - so only
+`irr_traysPerDay` are served in a day and the surplus waits for tomorrow. The
+summer settings a tray carries are its DRY-WEATHER ones; `irr_mod` scales them
+down as the air gets damper, and the split decides whether that shows up as
+smaller doses or rarer ones.
+
+It holds no meter state: what went in and what came back out are both read as
+published TOTALS and differenced across the window that is being judged.
+"""
+
 
 [program.in]
 outside_temp  = "cli_temp_ext"
@@ -467,6 +596,14 @@ name  = "screen"
 class = "ScreenController"
 task  = "SLOW"
 health = "prog_screen"
+desc  = "The thermal screen: one coil, deployed when the greenhouse is losing heat rather than gaining it."
+notes = """
+Two independent causes, either sufficient: the cooling ladder gone far enough
+negative, or a cold night. No feedback, so travel is TIMED - and while it runs
+the destratification fans are cut, because the fabric is moving through the
+air they blow into.
+"""
+
 [program.in]
 cool_dem     = "cli_coolDem"
 deploy_dem   = "cli_thermalScreenDem"
@@ -483,6 +620,20 @@ name  = "windows"
 class = "WindowsController"
 task  = "SLOW"
 health = "prog_windows"
+desc  = "The four roof windows: one target from the cooling ladder, and ONE MOVING AT A TIME."
+notes = """
+The one-at-a-time rule is electrical, so a safety cannot break it either: a
+rain interlock shuts them in sequence, not together. A window keeps the bus
+until its stroke ends, which is also what stops a target changing mid-travel
+from handing the bus to the next window and leaving a coil energised.
+
+The humidity demand is not read. Anti-dryness would ask them shut and the spec
+is explicit that cooling wins over it; with no cooling demand the target is 0
+and they are shut regardless, so absence is the rule rather than a merge.
+Taking a MINIMUM of the two was proposed and rejected: it inverts exactly the
+dry-and-hot case.
+"""
+
 
 # The humidity demand is deliberately absent. Anti-dryness would ask the
 # windows shut, and the spec is explicit that cooling wins over it - "l'air sec
@@ -523,6 +674,14 @@ name  = "weather_watch"
 class = "WeatherWatch"
 task  = "SLOW"
 health = "prog_weather_watch"
+desc  = "The weather station, watched: whether it is answering, and whether what it says is a storm."
+notes = """
+A storm IS what shuts the roof, so this reads `WindowsController`'s two
+lockouts rather than declaring a second pair of thresholds beside them - an
+alarm that disagreed with the actuator it is about would be worse than no
+alarm.
+"""
+
 [program.in]
 wind      = "cli_wind_mps"
 gust      = "cli_windGust_mps"
@@ -540,6 +699,14 @@ name  = "intractors"
 class = "IntractorController"
 task  = "SLOW"
 health = "prog_intractors"
+desc  = "The two intractors: variable-speed fans drawing air from under the floor, driven by whichever of three demands wants the most."
+notes = """
+Both run together at one speed - they serve one volume - and the fusion is a
+MAXIMUM, so each input is a floor rather than a share. The ramp runs between
+the two staging thresholds, so the windows below it and the intractors above
+it hand over rather than overlap.
+"""
+
 
 # Three FLOORS, per the spec's fusion: whichever wants the most air gets it.
 # The humidity demand contributes its DEHUMIDIFY arm only - the other way it is
@@ -565,6 +732,17 @@ name  = "fans"
 class = "FanController"
 task  = "SLOW"
 health = "prog_fans"
+desc  = "The two destratification fans: three relayed speeds, driven by whichever of three demands wants the most."
+notes = """
+The speed relays are exclusive - one contactor per speed on one motor - and
+the band the fused demand falls in decides which. That band has its own
+hysteresis: the inputs are floors, so the winner changes as the plant does,
+and the fans would step between speeds every time it did.
+
+The screen cuts them outright while it travels: the fabric moves through the
+air they blow into.
+"""
+
 [program.in]
 strat_dem     = "cli_stratDem"
 cool_dem      = "cli_coolDem"
@@ -592,6 +770,17 @@ name  = "skirt"
 class = "SkirtController"
 task  = "SLOW"
 health = "prog_skirt"
+desc  = "The wet skirt: one valve pulsed against two demands."
+notes = """
+It is the humidifier, and it tracks the humidify arm PROPORTIONALLY - the
+effort is the on-time within a period. It is also an evaporative cooler, and
+on that axis it is STAGED, above cli_skirtCoolDem and only while the air is
+dry enough for a wet pad to cool anything at all.
+
+The rot lockout cuts it outright. Wetting air that is already condensing is
+the one thing this valve must never do.
+"""
+
 [program.in]
 cool_dem   = "cli_coolDem"
 humid_dem  = "cli_humidDem"
