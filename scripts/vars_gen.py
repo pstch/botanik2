@@ -511,7 +511,7 @@ def program_dir(site, p):
                         vars_programs.snake(p["class"]))
 
 
-def orphans(site, progs, err):
+def orphan_dirs(site, progs, err):
     """A program directory for a program that is no longer in the table.
 
     Its hand-written .cpp would keep compiling, and the law would keep running,
@@ -656,7 +656,7 @@ def main():
                             {r["name"] for _, r in both
                              if r.get("_set") == "libbotanik"},
                             features(a.site))
-        orphans(a.site, progs, problems.append)
+        orphan_dirs(a.site, progs, problems.append)
     for p in problems:
         print("  " + p, file=sys.stderr)
     if problems:
