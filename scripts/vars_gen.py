@@ -286,6 +286,24 @@ def var_max(site):
     return int(m.group(1)) if m else None
 
 
+def features(site):
+    """The site's BOTANIK_FEATURE_* map: the header's defaults, then whatever
+    the site's config.h pins over them.
+
+    A -D on the command line beats both and is not visible here, which is why a
+    finding from this says "this site builds with X off" rather than "X is off".
+    """
+    out = {}
+    for path in (os.path.join(ROOT, "src", "libbotanik_features.h"),
+                 os.path.join(ROOT, "src", "sites", site, "config.h")):
+        if not os.path.exists(path):
+            continue
+        for m in re.finditer(r"^\s*#\s*define\s+(BOTANIK_FEATURE_\w+)\s+([01])\b",
+                             open(path, encoding="utf-8").read(), re.M):
+            out[m.group(1)] = m.group(2) == "1"
+    return out
+
+
 def site_mentions(site):
     """Every quoted identifier in the site's HAND-WRITTEN C++.
 
@@ -565,7 +583,8 @@ def main():
         vars_programs.check(progs, by_name, problems.append,
                             site_mentions(a.site), cal_params(both),
                             {r["name"] for _, r in both
-                             if r.get("_set") == "libbotanik"})
+                             if r.get("_set") == "libbotanik"},
+                            features(a.site))
     for p in problems:
         print("  " + p, file=sys.stderr)
     if problems:

@@ -71,8 +71,14 @@ def base():
 
 # --- the configuration ------------------------------------------------------
 
-def prog(name, cls="C", task="SLOW", **sections):
-    p = {"name": name, "class": cls, "task": task, "conns": [], "arrays": set()}
+def blk(name, type="Ton", count=0, include="", doc=""):
+    return {"name": name, "type": type, "count": count, "include": include,
+            "doc": doc}
+
+
+def prog(name, cls="C", task="SLOW", stage="", blocks=(), **sections):
+    p = {"name": name, "class": cls, "task": task, "conns": [], "arrays": set(),
+         "stage": stage, "blocks": list(blocks)}
     for sec, members in sections.items():
         for member, rows in members.items():
             if isinstance(rows, str):
@@ -94,16 +100,17 @@ TABLE = {
 }
 
 
-def prun(programs, mentioned=()):
+def prun(programs, mentioned=(), features=None):
     out = []
     # a_text is READ by the fixture site's own C++: a text row has no typed
     # reference, so a program could not read it even if it wanted to.
-    vars_programs.check(programs, TABLE, out.append, set(mentioned) | {"a_text"})
+    vars_programs.check(programs, TABLE, out.append, set(mentioned) | {"a_text"},
+                        features=features)
     return out
 
 
-def pexpect(label, programs, needle, mentioned=()):
-    got = prun(programs, mentioned)
+def pexpect(label, programs, needle, mentioned=(), features=None):
+    got = prun(programs, mentioned, features)
     if not [x for x in got if needle in x]:
         print(f"FAIL {label}\n     wanted {needle!r}\n     got: {got or 'nothing'}")
         return False
@@ -186,9 +193,15 @@ def program_checks():
     ok = True
     # Every row the fixture table declares has a producer: an unproduced one is
     # now an error of its own, and a case about ownership should not trip it.
-    base = prog("p", cls="P1", **{"in": {"x": "a_input", "k": "a_param"},
-                                  "out": {"y": "a_global", "z": "b_global",
-                                          "c": "a_coil", "a": "an_alarm"}})
+    CONNS = {"in": {"x": "a_input", "k": "a_param"},
+             "out": {"y": "a_global", "z": "b_global",
+                     "c": "a_coil", "a": "an_alarm"}}
+
+    def full(**kw):
+        """The well-formed configuration, with one thing added to it."""
+        return prog("p", cls="P1", **dict(CONNS, **kw))
+
+    base = full()
     ok &= pclean("a well-formed configuration", [base])
 
     ok &= pexpect("a computed row nothing produces",
@@ -260,6 +273,49 @@ def program_checks():
                   [prog("p", cls="P1", **{"in": {"x": "a_input"},
                                           "out": {"x": "a_global"}})],
                   "connected twice")
+
+    # --- the per-program shape: names land in the program's own scope --------
+
+    ok &= pexpect("a member named after Plc::Program's own",
+                  [prog("p", cls="P1", **{"in": {"health": "a_input"}})],
+                  "would shadow it")
+
+    ok &= pexpect("a block named after Plc::Program's own",
+                  [prog("p", cls="P1", blocks=[blk("group")])],
+                  "would shadow it")
+
+    ok &= pexpect("a member reaching into the hand-written half",
+                  [prog("p", cls="P1", **{"in": {"_state": "a_input"}})],
+                  "belongs to the hand-written half")
+
+    ok &= pexpect("a block and a member of one name",
+                  [prog("p", cls="P1", blocks=[blk("x")],
+                        **{"in": {"x": "a_input"}})],
+                  "both as a member and as a block")
+
+    ok &= pexpect("one block declared twice",
+                  [prog("p", cls="P1", blocks=[blk("t"), blk("t", "Tof")])],
+                  "declared twice")
+
+    ok &= pexpect("a block the library does not have",
+                  [prog("p", cls="P1", blocks=[blk("v", "ValveController")])],
+                  "needs its `include`")
+
+    ok &= pclean("...which its include makes the site's own",
+                 [full(blocks=[blk("v", "ValveController",
+                                   include="blocks/v.h")])])
+
+    ok &= pexpect("a block whose family this site builds without",
+                  [prog("p", cls="P1", blocks=[blk("f", "Ewma")])],
+                  "PLC_BLK_FILTERS off",
+                  features={"BOTANIK_FEATURE_PLC_BLK_FILTERS": False})
+
+    ok &= pclean("...and none when it is on",
+                 [full(blocks=[blk("f", "Ewma")])])
+
+    ok &= pexpect("a stage that is not a directory name",
+                  [prog("p", cls="P1", stage="Sense/Climate")],
+                  "becomes a directory name")
     return ok
 
 

@@ -8,10 +8,38 @@ in.
 """
 
 import os
+import re
 import sys
 
 SECTIONS = ("in", "out", "inout")
 TASKS = ("FAST", "SLOW", "BACKGROUND")
+
+
+# The library's function block vocabulary, and the feature flag each needs. A
+# block named without an `include` has to be one of these; one WITH an include
+# is the site's own and is emitted verbatim.
+PLC_BLOCKS = {
+    "Ton": "PLC_BLK_BASE", "Tof": "PLC_BLK_BASE", "Tp": "PLC_BLK_BASE",
+    "RTrig": "PLC_BLK_BASE", "FTrig": "PLC_BLK_BASE", "Sr": "PLC_BLK_BASE",
+    "Rs": "PLC_BLK_BASE", "Interlock": "PLC_BLK_BASE",
+    "Hysteresis": "PLC_BLK_BASE", "Hysteresis3": "PLC_BLK_BASE",
+    "Staircase": "PLC_BLK_BASE", "Ramp": "PLC_BLK_BASE",
+    "Deadband": "PLC_BLK_BASE", "Integral": "PLC_BLK_BASE",
+    "Derivative": "PLC_BLK_BASE", "Actuator": "PLC_BLK_BASE",
+    "Pid": "PLC_BLK_BASE",
+    "Ewma": "PLC_BLK_FILTERS", "MedianOf3": "PLC_BLK_FILTERS",
+    "MovingAverage": "PLC_BLK_FILTERS",
+}
+
+# Plc::Program's own surface. A row or block member takes the name it is given
+# in the table, in the program's scope, so one of these would shadow the base.
+RESERVED = frozenset((
+    "bind", "on_bind", "run", "observe", "parking", "degraded", "faulted",
+    "group", "slot", "set_slot", "io", "name", "health", "health_row",
+    "set_health_row", "set_inputs", "set_safe", "is_parked", "register_tasks",
+    "late_ms", "late_max_ms", "safe_requested", "disable_requested",
+    "inhibit_requested", "request_safe", "request_disable",
+))
 
 
 def load(path):
@@ -36,6 +64,7 @@ def load(path):
                         conns.append((member, sec, r, i))
         out.append({"name": p.get("name", "?"), "class": p.get("class", "?"),
                     "task": p.get("task", "?"), "health": p.get("health", ""),
+                    "stage": p.get("stage", ""), "blocks": _blocks(p),
                     "conns": conns,
                     "arrays": {m for sec in SECTIONS
                                for m, v in (p.get(sec) or {}).items()
@@ -43,7 +72,26 @@ def load(path):
     return out
 
 
-def check(programs, rows, err, mentioned=(), cal_params=(), library=()):
+def _blocks(p):
+    """The POU's VAR section: its function block instances.
+
+    `name = "Type"`, or the table form for the ones that need more: `count`
+    makes it an array, `include` is the site header a block of the site's own
+    lives in and is what marks it as NOT one of the library's.
+    """
+    out = []
+    for name, spec in (p.get("block") or {}).items():
+        if isinstance(spec, str):
+            spec = {"type": spec}
+        out.append({"name": name, "type": spec.get("type", ""),
+                    "count": int(spec.get("count", 0) or 0),
+                    "include": spec.get("include", ""),
+                    "doc": spec.get("doc", "")})
+    return out
+
+
+def check(programs, rows, err, mentioned=(), cal_params=(), library=(),
+          features=None):
     """Every rule the configuration has to satisfy.
 
     @p rows is the effective table as {name: (scope, row)}. @p mentioned is the
@@ -52,6 +100,7 @@ def check(programs, rows, err, mentioned=(), cal_params=(), library=()):
     says. @p cal_params is the parameters an analog calibration names.
     @p library is every name libbotanik declares: a site row RESTATING one is
     read and written by library code, which has no entry in this file.
+    @p features is the site's BOTANIK_FEATURE_* map, for the block families.
     """
     seen_names, seen_classes = {}, {}
     producers = {}          # row -> the program that declares it an out
@@ -79,6 +128,44 @@ def check(programs, rows, err, mentioned=(), cal_params=(), library=()):
                     f"'{producers[row]}'")
             else:
                 producers[row] = p["name"]
+
+        if p["stage"] and not re.match(r"^[a-z][a-z0-9_]*$", p["stage"]):
+            err(f"{where}: stage '{p['stage']}' becomes a directory name, so it "
+                f"has to be lowercase letters, digits and underscores")
+
+        # The table's names land in the program's own scope, so they answer to
+        # the base class as well as to each other.
+        declared = {}
+        for what, names in (("member", [m for m, _s, _r, _i in p["conns"]]),
+                            ("block", [b["name"] for b in p["blocks"]])):
+            for n in names:
+                if n in RESERVED:
+                    err(f"{where}: {what} '{n}' is Plc::Program's own, and would "
+                        f"shadow it")
+                elif n.startswith("_"):
+                    err(f"{where}: {what} '{n}' starts with an underscore, which "
+                        f"belongs to the hand-written half")
+                elif n in declared and declared[n] != what:
+                    err(f"{where}: '{n}' is declared both as a {declared[n]} and "
+                        f"as a {what}")
+                declared[n] = what
+
+        seen_blocks = set()
+        for b in p["blocks"]:
+            if b["name"] in seen_blocks:
+                err(f"{where}: block '{b['name']}' is declared twice")
+            seen_blocks.add(b["name"])
+            if not b["type"]:
+                err(f"{where}: block '{b['name']}' names no type")
+            elif not b["include"]:
+                if b["type"] not in PLC_BLOCKS:
+                    err(f"{where}: block '{b['name']}' is a {b['type']}, which is "
+                        f"not one of the library's blocks - a block of the "
+                        f"site's own needs its `include`")
+                elif features and not features.get(
+                        "BOTANIK_FEATURE_" + PLC_BLOCKS[b["type"]], True):
+                    err(f"{where}: block '{b['name']}' is a {b['type']}, and this "
+                        f"site builds with {PLC_BLOCKS[b['type']]} off")
 
         members = {}
         for member, sec, row, idx in p["conns"]:
