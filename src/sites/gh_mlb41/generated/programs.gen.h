@@ -1136,59 +1136,6 @@ struct FanController {
     void bind(Vars::Bank& io, Plc::Program& owner);
 };
 
-/** @brief The rows `skirt` connects to, one typed reference
- *  each. SkirtController, dispatched SLOW. */
-struct SkirtController {
-
-    /** @name VAR_INPUT
-     *  @{ */
-    Vars::RefIn<float>    cool_dem;
-    Vars::RefIn<float>    humid_dem;
-    Vars::RefIn<float>    cool_start;
-    Vars::RefIn<float>    dry_min;
-    Vars::RefIn<float>    dp_margin;
-    Vars::RefIn<bool>     rot_lock;
-    Vars::RefIn<uint16_t> period_s;
-    Vars::RefIn<uint16_t> min_on_s;
-
-    /** @} */
-
-    /** @name VAR_OUTPUT
-     *  @{ */
-    Vars::RefOut<bool>  valve;
-    Vars::RefOut<float> duty;
-
-    /** @} */
-
-    /** @brief Every readable row this program connects to, as bare
-     *  indices: what the base sweeps for validity before each
-     *  activation. Parameters are not here - an operator's number is
-     *  always valid, and checking one would cost a walk to learn nothing. */
-    Vars::VarRef _watched[4];
-
-    /** @name Health
-     *  Where this program's health is published. Written by a
-     *  SUPERVISOR walking every program, not by the program: a
-     *  program that is not being activated is exactly when a
-     *  reader wants the row. @see Plc::publish_health()
-     *  @{ */
-    Vars::RefOut<uint8_t> health;
-
-    /** @} */
-
-    /** @brief The instance name and the rate class programs.toml
-     *  declares. The constructor takes them from here, so neither can
-     *  drift from the configuration. */
-    static const char* name() { return "skirt"; }
-    static Tasks::GroupId group() { return Tasks::GROUP_SLOW; }
-
-    /** @brief Resolve every name. Runs inside the program's writer
-     *  window, so an output is CLAIMED here.
-     *  @param owner the program this belongs to: a declared health
-     *         row is handed to it here. */
-    void bind(Vars::Bank& io, Plc::Program& owner);
-};
-
 /** @name Binding
  *  Out of line, so the structs above read as the interface.
  *  @{ */
@@ -1841,30 +1788,6 @@ inline void FanController::bind(Vars::Bank& io, Plc::Program& owner) {
     _watched[3] = screen_moving.r;
     _watched[4] = phase.r;
     owner.set_inputs(_watched, 5);
-    owner.set_health_row(health);
-}
-
-inline void SkirtController::bind(Vars::Bank& io, Plc::Program& owner) {
-    cool_dem   = io.resolve_in<float>("cli_coolDem");
-    humid_dem  = io.resolve_in<float>("cli_humidDem");
-    cool_start = io.resolve_in<float>("cli_skirtCoolDem");
-    dry_min    = io.resolve_in<float>("cli_skirtDryMin_degC");
-    dp_margin  = io.resolve_in<float>("cli_dpMargin_degC");
-    rot_lock   = io.resolve_in<bool>("cli_rotLockout");
-    period_s   = io.resolve_in<uint16_t>("cli_skirtPeriod_sec");
-    min_on_s   = io.resolve_in<uint16_t>("cli_skirtMinOn_sec");
-    valve      = io.resolve_out<bool>("cli_skirtValve");
-    duty       = io.resolve_out<float>("cli_skirtDuty");
-    health     = io.resolve_out<uint8_t>("prog_skirt");
-
-    // The readings this law is entitled to expect. The base walks them
-    // before each activation, so an input that has stopped being believable
-    // is DEGRADED whether or not the law thought to ask.
-    _watched[0] = cool_dem.r;
-    _watched[1] = humid_dem.r;
-    _watched[2] = dp_margin.r;
-    _watched[3] = rot_lock.r;
-    owner.set_inputs(_watched, 4);
     owner.set_health_row(health);
 }
 

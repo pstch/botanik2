@@ -778,6 +778,7 @@ band   = "cli_fanSpeed"
 name  = "skirt"
 class = "SkirtController"
 task  = "SLOW"
+stage = "actuators"
 health = "prog_skirt"
 desc  = "The wet skirt: one valve pulsed against two demands."
 notes = """
@@ -789,6 +790,14 @@ dry enough for a wet pad to cool anything at all.
 The rot lockout cuts it outright. Wetting air that is already condensing is
 the one thing this valve must never do.
 """
+
+# `pulse` rather than `valve`: the ROW is the coil, and the block is the pulse
+# train that decides when it is energised. A block needing more than a type
+# takes a table of its own - an inline one cannot be split over two lines.
+[program.block.pulse]
+type    = "ValveController"
+include = "blocks/valve_controller.h"
+doc     = "the on-time within a period"
 
 [program.in]
 cool_dem   = "cli_coolDem"

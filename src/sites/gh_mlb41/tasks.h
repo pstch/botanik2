@@ -70,6 +70,7 @@
  * for the cycle, and docs/design/control-system.md for what each ladder means.
  */
 
+#include "programs/actuators/skirt_controller/skirt_controller.h"
 #include "programs/irrigation/water_meters/water_meters.h"
 
 #include "tasks_sense.h"

@@ -348,43 +348,4 @@ void FanController::run(ProgramContext& c) {
     _drive(_speed);
 }
 
-// SkirtController
-
-void SkirtController::bind(Vars::Bank& io) {
-    _v.bind(io, *this);
-    _valve.attach(_v.valve);
-}
-
-void SkirtController::run(ProgramContext& c) {
-    // Wetting air that is already condensing is the one thing this valve must
-    // never do, so the lockout is resolved before any demand - and before the
-    // pulse phase, which starts again from shut.
-    if (inhibit_requested() || _v.rot_lock.get()) {
-        _valve.park();
-        _valve.reset();
-        _v.duty.set(0.0f);
-        return;
-    }
-
-    // PROPORTIONAL on the humidify arm: the skirt IS the humidifier, and the
-    // ladder's effort is the on-time. The dehumidify arm is the intractors'.
-    const float humid = Plc::limit(_v.humid_dem.get(), 0.0f, 1.0f);
-
-    // STAGED on the cooling axis, and gated on the air being dry enough for a
-    // wet pad to cool at all - in damp air it only adds water. An unknown
-    // demand contributes this valve's own safe state, which is SHUT.
-    if (!_v.cool_dem.valid()) degraded();
-    const float cool =
-        (_v.cool_dem.valid() &&
-         _v.dp_margin.get() >= _v.dry_min.get())
-            ? Plc::ladder(_v.cool_dem.get(), _v.cool_start.get(), 1.0f)
-            : 0.0f;
-
-    const float duty = _valve.modulate((humid > cool) ? humid : cool,
-                                       1000u * _v.period_s.get(),
-                                       1000u * _v.min_on_s.get(),
-                                       c.dt_ms);
-    _v.duty.set(duty);
-}
-
 }  // namespace Site

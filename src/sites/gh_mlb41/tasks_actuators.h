@@ -212,33 +212,6 @@ private:
     void _drive(uint8_t speed);
 };
 
-/**
- * @brief The wet skirt: one valve pulsed against two demands.
- *
- * It is the humidifier, and it tracks the humidify arm PROPORTIONALLY - the
- * effort is the on-time within a period. It is also an evaporative cooler, and
- * on that axis it is STAGED, above cli_skirtCoolDem and only while the air is
- * dry enough for a wet pad to cool anything at all.
- *
- * The rot lockout cuts it outright. Wetting air that is already condensing is
- * the one thing this valve must never do.
- */
-class SkirtController : public Plc::Program {
-
-    ValveController _valve;
-
-    Refs::SkirtController _v;
-
-public:
-    SkirtController(const SetupContext& ctx, Vars::Bank& io)
-        : Program(ctx, Refs::SkirtController::name(),
-                  Refs::SkirtController::group(), io) {}
-
-protected:
-    void bind(Vars::Bank& io) override;
-    void run(ProgramContext& c) override;
-};
-
 }  // namespace Site
 
 #endif // SITE_TASKS_ACTUATORS_H
