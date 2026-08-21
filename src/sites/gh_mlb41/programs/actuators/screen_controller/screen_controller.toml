@@ -34,10 +34,6 @@ doc  = "Command the screen, starting a traverse if that is a change."
 type = "Tp"
 doc  = "a pulse of the fabric's travel time"
 
-[block.moved]
-type = "RTrig"
-doc  = "...started by a change of command"
-
 [in]
 cool_dem     = "cli_coolDem"
 deploy_dem   = "cli_thermalScreenDem"

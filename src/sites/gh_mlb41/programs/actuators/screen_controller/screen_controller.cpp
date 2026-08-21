@@ -76,8 +76,10 @@ void ScreenController::observe(ProgramContext& c) {
     const uint32_t travel = 1000u * (uint32_t)travel_s.get();
     const uint32_t safe   = 1000u * (uint32_t)travel_tmo_s.get();
 
-    moving.set(travelling(moved(_command_changed),
-                              (travel < safe) ? travel : safe, c.dt_ms));
+    // Straight into the pulse: _command_changed is already one scan wide, so
+    // an edge detector in front of it would pass it through unchanged.
+    moving.set(travelling(_command_changed,
+                          (travel < safe) ? travel : safe, c.dt_ms));
     _command_changed = false;
 }
 

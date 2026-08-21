@@ -48,8 +48,7 @@ private:
     /** @name VAR - function blocks
      *  @{ */
 
-    Plc::Tp    travelling;  ///< a pulse of the fabric's travel time
-    Plc::RTrig moved;       ///< ...started by a change of command
+    Plc::Tp travelling;  ///< a pulse of the fabric's travel time
 
     /** @} */
 
