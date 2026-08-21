@@ -36,6 +36,8 @@
 #include "tasks.h"
 #include "vars.h"
 
+#include "generated/programs.gen.h"
+
 namespace Site {
 
 /** @brief The site's shell commands (Botanik::Shell::ShellCommand): none here.
@@ -75,78 +77,37 @@ class GreenhouseMLB41 final : public Botanik::BotanikFirmware {
 
     /** @name Control programs
      *
-     *  Plain members, in execution order: registering is what puts them in the
-     *  beat, so there is no table of pointers and nothing to keep in step with
-     *  one. Being members, there is exactly one of each by construction - which
-     *  a header-declared static could not promise (a namespace-scope `static` is
+     *  One list, from generated/programs.gen.h, expanded here for the members,
+     *  below for the constructor init, and again for the registration. Being
+     *  members, there is exactly one of each by construction - which a
+     *  header-declared static could not promise (a namespace-scope `static` is
      *  internal linkage, so every including TU would get its own).
+     *
+     *  The order is the table's, and it is EXECUTION order: registering is what
+     *  puts a program in the beat, so a law reading a value computed this beat
+     *  finds it already written. @see docs/dev/scan.md
      *  @{ */
 
-    /** @name The control programs
-     *  Declared, constructed and registered in SIGNAL ORDER: conditioning,
-     *  then the day's phase, then the three ladders. Registration order is
-     *  execution order within a phase, so a law reading a value computed this
-     *  beat finds it already written. @see docs/dev/scan.md */
-
-    Site::AcGridWatch        _ac_grid;
-    Site::AcLocalWatch       _ac_local;
-    Site::DcWatch            _dc;
-    Site::TempRHZone         _zones;
-    Site::SunWatch           _sun_watch;
-    Site::StratSensor        _strat;
-    Site::ClimateWatch       _climate_watch;
-    Site::DayPhaseController _day_phase;
-    Site::TargetTempController _target;
-    Site::CoolingController  _cooling;
-    Site::DestratController  _destrat;
-    Site::HumidityController _humidity;
-    Site::IrrigationModulation _irr_mod;
-    Site::WaterMeters          _irr_meters;
-    Site::IrrigationCycle      _irrigation;
-    Site::ScreenController   _screen;
-    Site::WindowsController  _windows;
-    Site::WeatherWatch       _weather_watch;
-    Site::IntractorController _intractors;
-    Site::FanController      _fans;
-    Site::SkirtController    _skirt;
+#define X(cls, mem) Site::cls mem;
+    SITE_PROGRAM_LIST(X)
+#undef X
 
     /** @} */
 
 public:
     /** @brief Hand the base this site's descriptor. */
     GreenhouseMLB41()
-        : Botanik::BotanikFirmware(Site::g_site),
+        : Botanik::BotanikFirmware(Site::g_site)
           // The base is fully constructed before any derived member, so
           // setup_context() and io() are already alive here: a program is
           // handed the table it registers in and the field it drives at
           // construction, rather than through a later attach().
-          _ac_grid(setup_context(), io()),
-          _ac_local(setup_context(), io()),
-          _dc(setup_context(), io()),
-          _zones(setup_context(), io()),
-          _sun_watch(setup_context(), io()),
-          _strat(setup_context(), io()),
-          _climate_watch(setup_context(), io()),
-          _day_phase(setup_context(), io()),
-          _target(setup_context(), io()),
-          _cooling(setup_context(), io()),
-          _destrat(setup_context(), io()),
-          _humidity(setup_context(), io()),
-          _irr_mod(setup_context(), io()),
-          _irr_meters(setup_context(), io()),
-          _irrigation(setup_context(), io()),
-          _screen(setup_context(), io()),
-          _windows(setup_context(), io()),
-          _weather_watch(setup_context(), io()),
-          _intractors(setup_context(), io()),
-          _fans(setup_context(), io()),
-          _skirt(setup_context(), io())
+#define X(cls, mem) , mem(setup_context(), io())
+          SITE_PROGRAM_LIST(X)
+#undef X
     {}
 
 protected:
-    /** @brief Register what this site adds to the beat. Order here is execution
-     *  order within PHASE_CONTROL, so a law that computes a setpoint goes before
-     *  the law that acts on it. */
     /** @brief Hand the bank this site's rows. The generated register_all()
      *  holds the parameters-first ordering the ROLE_PARAM run depends on. */
     void register_vars() override {
@@ -166,28 +127,9 @@ protected:
             Botanik::HAL::Pulse::attach(Site::pulse_inputs[i].channel,
                                         Site::pulse_inputs[i].edge);
 
-        _ac_grid.register_tasks();
-        _ac_local.register_tasks();
-        _dc.register_tasks();
-        _sun_watch.register_tasks();
-        _zones.register_tasks();
-        _strat.register_tasks();
-        _climate_watch.register_tasks();
-        _day_phase.register_tasks();
-        _target.register_tasks();
-        _cooling.register_tasks();
-        _destrat.register_tasks();
-        _humidity.register_tasks();
-        // The ladder, then the instruments, then the law that acts on both.
-        _irr_mod.register_tasks();
-        _irr_meters.register_tasks();
-        _irrigation.register_tasks();
-        _screen.register_tasks();
-        _windows.register_tasks();
-        _weather_watch.register_tasks();
-        _intractors.register_tasks();
-        _fans.register_tasks();
-        _skirt.register_tasks();
+#define X(cls, mem) mem.register_tasks();
+        SITE_PROGRAM_LIST(X)
+#undef X
     }
 };
 

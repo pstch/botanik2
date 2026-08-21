@@ -357,11 +357,36 @@ def _is_array(p, member):
     return sum(1 for m, _s, _r, _i in p["conns"] if m == member) > 1
 
 
+def _program_list(programs):
+    """SITE_PROGRAM_LIST: the site's programs, once, for site.h to expand.
+
+    The member, its constructor init and its register_tasks() call are the same
+    list three times over, and the three had already drifted: the declaration
+    order, the registration order and this file disagreed about where sun_watch
+    ran. One list is what stops that.
+    """
+    rows = [(p["class"], "_" + p["name"]) for p in programs]
+    width = max(len(c) for c, _m in rows) + 1
+    lines = ["#define SITE_PROGRAM_LIST(X)"]
+    lines += [f"    X({(c + ',').ljust(width)} {m})" for c, m in rows]
+    col = max(len(x) for x in lines) + 1
+    return (["/** @name The site's programs",
+             " *  In table order, which is EXECUTION order: a law reading a value",
+             " *  computed this beat needs its producer registered first.",
+             " *  site.h expands this for the members, the constructor init and",
+             " *  the registration, so none of the three can drift.",
+             " *  @{ */", ""]
+            + [x.ljust(col) + "\\" for x in lines[:-1]] + [lines[-1]]
+            + ["", "/** @} */", ""])
+
+
 def generate(programs, rows, banner):
-    """programs.gen.h: the Refs struct and the bind() body of every program."""
+    """programs.gen.h: the site's program list, then the Refs struct and the
+    bind() body of every program."""
     out = banner + ["#ifndef SITE_PROGRAMS_GEN_H", "#define SITE_PROGRAMS_GEN_H", "",
-                    "#include <cstdint>", "", '#include "libbotanik.h"', "",
-                    "namespace Site { namespace Refs {", "",
+                    "#include <cstdint>", "", '#include "libbotanik.h"', ""]
+    out += _program_list(programs)
+    out += ["namespace Site { namespace Refs {", "",
                     "using namespace Botanik;", ""]
     for p in programs:
         out += _struct(p, rows)

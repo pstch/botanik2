@@ -11,6 +11,38 @@
 
 #include "libbotanik.h"
 
+/** @name The site's programs
+ *  In table order, which is EXECUTION order: a law reading a value
+ *  computed this beat needs its producer registered first.
+ *  site.h expands this for the members, the constructor init and
+ *  the registration, so none of the three can drift.
+ *  @{ */
+
+#define SITE_PROGRAM_LIST(X)                 \
+    X(AcGridWatch,          _ac_grid_watch)  \
+    X(AcLocalWatch,         _ac_local_watch) \
+    X(DcWatch,              _dc_watch)       \
+    X(SunWatch,             _sun_watch)      \
+    X(TempRHZone,           _temp_rh_zone)   \
+    X(StratSensor,          _strat)          \
+    X(ClimateWatch,         _climate_watch)  \
+    X(DayPhaseController,   _day_phase)      \
+    X(TargetTempController, _target_temp)    \
+    X(CoolingController,    _cooling)        \
+    X(DestratController,    _destrat)        \
+    X(HumidityController,   _humidity)       \
+    X(IrrigationModulation, _irr_modulation) \
+    X(WaterMeters,          _irr_meters)     \
+    X(IrrigationCycle,      _irrigation)     \
+    X(ScreenController,     _screen)         \
+    X(WindowsController,    _windows)        \
+    X(WeatherWatch,         _weather_watch)  \
+    X(IntractorController,  _intractors)     \
+    X(FanController,        _fans)           \
+    X(SkirtController,      _skirt)
+
+/** @} */
+
 namespace Site { namespace Refs {
 
 using namespace Botanik;
