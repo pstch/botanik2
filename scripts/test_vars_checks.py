@@ -300,7 +300,10 @@ def program_checks():
 
     ok &= pexpect("a block the library does not have",
                   [prog("p", cls="P1", blocks=[blk("v", "ValveController")])],
-                  "needs its `include`")
+                  "not one of the library's blocks")
+
+    ok &= pclean("...and a qualified one is taken as given",
+                 [full(blocks=[blk("sun", "Sun::SunPositionTracker")])])
 
     ok &= pclean("...which its include makes the site's own",
                  [full(blocks=[blk("v", "ValveController",

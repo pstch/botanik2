@@ -172,11 +172,11 @@ def check(programs, rows, err, mentioned=(), cal_params=(), library=(),
             seen_blocks.add(b["name"])
             if not b["type"]:
                 err(f"{where}: block '{b['name']}' names no type")
-            elif not b["include"]:
+            elif not b["include"] and "::" not in b["type"]:
                 if b["type"] not in PLC_BLOCKS:
                     err(f"{where}: block '{b['name']}' is a {b['type']}, which is "
-                        f"not one of the library's blocks - a block of the "
-                        f"site's own needs its `include`")
+                        f"not one of the library's blocks - qualify it, or give "
+                        f"a block of the site's own its `include`")
                 elif features and not features.get(
                         "BOTANIK_FEATURE_" + PLC_BLOCKS[b["type"]], True):
                     err(f"{where}: block '{b['name']}' is a {b['type']}, and this "
@@ -496,9 +496,15 @@ def _brief(desc):
 
 
 def _block_type(b):
-    """A block's C++ type. The library's are reached through Plc::; a block of
-    the site's own is emitted as written, and resolves in the enclosing Site."""
-    return b["type"] if b["include"] else "Plc::" + b["type"]
+    """A block's C++ type.
+
+    A bare name is one of the library's function blocks and is reached through
+    `Plc::`. Anything QUALIFIED is written as given: a library type from another
+    namespace (`Sun::SunPositionTracker`) arrives with `libbotanik.h`, and a
+    type of the site's own resolves in the enclosing `Site` and says where it
+    lives through `include`.
+    """
+    return b["type"] if ("::" in b["type"] or b["include"]) else "Plc::" + b["type"]
 
 
 def _sizes(p, rows):
