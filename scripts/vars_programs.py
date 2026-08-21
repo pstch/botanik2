@@ -667,14 +667,18 @@ def generate(programs, rows, banner):
     out = banner + ["#ifndef SITE_PROGRAMS_GEN_H", "#define SITE_PROGRAMS_GEN_H", "",
                     "#include <cstdint>", "", '#include "libbotanik.h"', ""]
     out += _program_list(programs)
+    # A program that has moved to its own directory carries its interface as a
+    # base class instead, so it gets no struct here. During the migration the
+    # two shapes stand side by side, and `stage` is which one a program is on.
+    old_shape = [p for p in programs if not p["stage"]]
     out += ["namespace Site { namespace Refs {", "",
                     "using namespace Botanik;", ""]
-    for p in programs:
+    for p in old_shape:
         out += _struct(p, rows)
     out += ["/** @name Binding",
             " *  Out of line, so the structs above read as the interface.",
             " *  @{ */", ""]
-    for p in programs:
+    for p in old_shape:
         out += _bind(p, rows)
     out += ["/** @} */", "", "}}  // namespace Site::Refs", "",
             "#endif  // SITE_PROGRAMS_GEN_H"]
