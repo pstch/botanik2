@@ -101,7 +101,6 @@ void WaterMeters::observe(ProgramContext& c) {
     const uint32_t pulses = HAL::Pulse::sample(ch).count;
     if (c.first_scan) {
         _out_flow.reset(); _out_band.reset(); _in_rate.reset();
-        _inlet_for.reset();
         // Adopt both counters where they stand rather than starting from zero:
         // the retained rows carry what was metered before this run, and the
         // pulse counter carries what has been metered since the last boot.

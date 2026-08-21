@@ -116,9 +116,6 @@ class WaterMeters : public Plc::Program {
     Plc::Deadband   _out_band;   ///< ...and how far it must move to be written
     Plc::Derivative _in_rate;    ///< litres -> Lpm, over a window
     Plc::Integral   _out_meter;  ///< Lpm -> litres
-    /** @brief Off-delay on the inlet being OPEN, one rate window wide: what
-     *  says the meter has caught up with a fill that has ended. */
-    Plc::Tof        _inlet_for;
 
     /** @} */
 
