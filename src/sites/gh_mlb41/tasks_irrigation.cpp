@@ -31,34 +31,6 @@ static const uint32_t IRR_RATE_WINDOW_MS = 5000;
  *  noise would otherwise totalize a plausible volume with the valves shut. */
 static const float IRR_FLOW_CUTOFF = 0.2f;
 
-// ValveController
-
-void ValveController::attach(Vars::RefOut<bool> coil) {
-    _coil = coil;
-    // The declared safe state IS the fail direction: a de-energised coil is
-    // the only thing a dead controller guarantees, and the row already says
-    // which way that leaves this valve.
-    const Vars::Descriptor& d = coil.io->descriptor(coil.r.index);
-    _fail_open = Vars::as_bool(d.type, d.def);
-}
-
-float ValveController::modulate(float duty, uint32_t period_ms,
-                                uint32_t min_on_ms, uint32_t dt_ms) {
-    duty = Plc::limit(duty, 0.0f, 1.0f);
-    if (period_ms == 0) period_ms = 1;
-
-    const uint32_t on_ms = (uint32_t)(duty * (float)period_ms);
-    // A pulse under the minimum does not lift the seat, so it is not made:
-    // rounding it up instead would deliver water nobody asked for.
-    const uint32_t served = (on_ms < min_on_ms) ? 0 : on_ms;
-
-    _phase_ms += dt_ms;
-    while (_phase_ms >= period_ms) _phase_ms -= period_ms;
-
-    set(_phase_ms < served);
-    return (float)served / (float)period_ms;
-}
-
 // IrrigationModulation
 
 const uint64_t IrrigationModulation::FOLD_MS = 3600ull * 1000ull;

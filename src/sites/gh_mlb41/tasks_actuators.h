@@ -23,9 +23,8 @@
 
 #include "generated/programs.gen.h"
 
-// The skirt is a modulated valve, and the valve block is the irrigation
-// cycle's: one plant, one kind of solenoid.
-#include "tasks_irrigation.h"
+// The skirt is a modulated valve: one plant, one kind of solenoid.
+#include "blocks/valve_controller.h"
 
 namespace Site {
 
