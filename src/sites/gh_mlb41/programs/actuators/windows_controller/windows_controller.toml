@@ -41,13 +41,6 @@ The mechanics, rebuilt each scan from the parameters: a recalibrated travel
 time has to land on the next stroke, not the next boot.
 """
 
-[fn.shut_in]
-type = "bool (ProgramContext& c)"
-doc  = """
-Whether anything forbids the windows being open at all. Publishes the two
-reasons it owns.
-"""
-
 [fn.owner]
 type = "int8_t (float target, const Plc::ActuatorConfig& cfg) const"
 doc  = "Which window may move this scan, or -1."
@@ -56,33 +49,15 @@ doc  = "Which window may move this scan, or -1."
 type  = "Actuator"
 count = 4
 
-[block.rain_for]
-type = "Tof"
-doc  = "the rain lockout's overrun past the last drop"
-
 [in]
 # The INTENDED opening, laddered by the cooling law that owns the demand. This
 # program's job is the interlocks and the rams, not the staging.
 window_dem  = "cli_windowDem"
-rain_mmph   = "cli_rain_mmph"
-wind_mps    = "cli_wind_mps"
-gust_mps    = "cli_windGust_mps"
-wind_shut   = "cli_windShut_mps"
-rain_hold_s = "cli_rainLockout_sec"
 travel_s    = "cli_windowTravel_sec"
 tmo_s       = "cli_windowTmo_sec"
-supply_lock = "sys_supply_lockout"
 
-# The two lockouts this law derives AND then obeys: it publishes what the
-# instruments say, and shuts the roof on what the ROW reads back. An operator
-# forcing one is the point - a lockout nobody can override is a lockout nobody
-# can test, and one the law ignored would be a lie on the page.
-
-[inout]
-rain_lock   = "cli_rainLockout"
-wind_lock   = "cli_windLockout"
-# ...and their verdict, published and then obeyed the same way: one row an
-# operator can force to hold the roof shut without inventing weather.
+# Stage 1, decided by roof_lockout and OBEYED here: an operator forcing it is
+# the only way to rehearse the arbitration without waiting for weather.
 window_lock = "cli_windowLockout"
 
 [out]

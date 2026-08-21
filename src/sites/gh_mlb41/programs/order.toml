@@ -23,6 +23,7 @@ order = [
     "irr_schedule",
     "irrigation",
     "screen",
+    "roof_lockout",
     "windows",
     "weather_watch",
     "intractors",

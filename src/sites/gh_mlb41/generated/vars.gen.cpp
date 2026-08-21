@@ -405,6 +405,7 @@ const Descriptor rows[] = {
     SV("irr_dueTray"            , T_U8  , 0          , 0, ""    , 598, "tray owed water now, 0 when none is", "the schedule's answer: the most overdue tray whose interval has elapsed, or a forced one"),
     SV("irr_slotOpen"           , T_BOOL, 0          , 0, ""    , 599, "the climate allows a cycle to start", "end of night once the plants are warm enough, or the morning window"),
     SVE("prog_irr_schedule"      , 3          , &Plc::health_label, 600, "health of the irrigation schedule", ""),
+    SVE("prog_roof_lockout"      , 3          , &Plc::health_label, 601, "health of the roof lockout program", ""),
     MI("grid_L1_V"              , T_F32 , 5 , 4, 0  , 2, SF(0.0f)       , SF(500.0f)    , SF(0.0f), 15000, 1, "V"   , "L1 phase voltage", "SDM630 p1 30001", 10000),
     MI("grid_L2_V"              , T_F32 , 5 , 4, 2  , 2, SF(0.0f)       , SF(500.0f)    , SF(0.0f), 15000, 1, "V"   , "L2 phase voltage", "SDM630 p2 30003", 10000),
     MI("grid_L3_V"              , T_F32 , 5 , 4, 4  , 2, SF(0.0f)       , SF(500.0f)    , SF(0.0f), 15000, 1, "V"   , "L3 phase voltage", "SDM630 p3 30005", 10000),

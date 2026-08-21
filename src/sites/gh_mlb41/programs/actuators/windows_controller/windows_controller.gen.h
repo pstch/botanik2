@@ -28,14 +28,9 @@ public:
      *  @{ */
 
     Vars::RefIn<float>    window_dem;
-    Vars::RefIn<float>    rain_mmph;
-    Vars::RefIn<float>    wind_mps;
-    Vars::RefIn<float>    gust_mps;
-    Vars::RefIn<float>    wind_shut;
-    Vars::RefIn<uint16_t> rain_hold_s;
     Vars::RefIn<uint16_t> travel_s;
     Vars::RefIn<uint16_t> tmo_s;
-    Vars::RefIn<bool>     supply_lock;
+    Vars::RefIn<bool>     window_lock;
 
     /** @} */
 
@@ -49,22 +44,12 @@ public:
 
     /** @} */
 
-    /** @name VAR_IN_OUT
-     *  @{ */
-
-    Vars::RefInOut<bool> rain_lock;
-    Vars::RefInOut<bool> wind_lock;
-    Vars::RefInOut<bool> window_lock;
-
-    /** @} */
-
 private:
 
     /** @name VAR - function blocks
      *  @{ */
 
     Plc::Actuator act[4];
-    Plc::Tof      rain_for;  ///< the rain lockout's overrun past the last drop
 
     /** @} */
 
@@ -95,7 +80,7 @@ private:
 
     /** @} */
 
-    Vars::VarRef _watched[8];  ///< swept for validity before each activation
+    Vars::VarRef _watched[2];  ///< swept for validity before each activation
 
 public:
     WindowsController(const SetupContext& ctx, Vars::Bank& io)
@@ -114,23 +99,15 @@ private:
      *  recalibrated travel time has to land on the next stroke, not the
      *  next boot. */
     Plc::ActuatorConfig _mechanics() const;
-    /** @brief Whether anything forbids the windows being open at all.
-     *  Publishes the two reasons it owns. */
-    bool                _shut_in(ProgramContext& c);
     /** @brief Which window may move this scan, or -1. */
     int8_t              _owner(float target, const Plc::ActuatorConfig& cfg) const;
 };
 
 inline void WindowsController::bind(Vars::Bank& io) {
     window_dem  = io.resolve_in<float>("cli_windowDem");
-    rain_mmph   = io.resolve_in<float>("cli_rain_mmph");
-    wind_mps    = io.resolve_in<float>("cli_wind_mps");
-    gust_mps    = io.resolve_in<float>("cli_windGust_mps");
-    wind_shut   = io.resolve_in<float>("cli_windShut_mps");
-    rain_hold_s = io.resolve_in<uint16_t>("cli_rainLockout_sec");
     travel_s    = io.resolve_in<uint16_t>("cli_windowTravel_sec");
     tmo_s       = io.resolve_in<uint16_t>("cli_windowTmo_sec");
-    supply_lock = io.resolve_in<bool>("sys_supply_lockout");
+    window_lock = io.resolve_in<bool>("cli_windowLockout");
     opn[0]      = io.resolve_out<bool>("cli_window1_opn");
     opn[1]      = io.resolve_out<bool>("cli_window2_opn");
     opn[2]      = io.resolve_out<bool>("cli_window3_opn");
@@ -147,21 +124,12 @@ inline void WindowsController::bind(Vars::Bank& io) {
     pos[1]      = io.resolve_out<float>("cli_window2_pos");
     pos[2]      = io.resolve_out<float>("cli_window3_pos");
     pos[3]      = io.resolve_out<float>("cli_window4_pos");
-    rain_lock   = io.resolve_inout<bool>("cli_rainLockout");
-    wind_lock   = io.resolve_inout<bool>("cli_windLockout");
-    window_lock = io.resolve_inout<bool>("cli_windowLockout");
 
     // What the base sweeps before each activation, so an input that has
     // stopped being believable is DEGRADED without the law asking.
     _watched[0] = window_dem.r;
-    _watched[1] = rain_mmph.r;
-    _watched[2] = wind_mps.r;
-    _watched[3] = gust_mps.r;
-    _watched[4] = supply_lock.r;
-    _watched[5] = rain_lock.r;
-    _watched[6] = wind_lock.r;
-    _watched[7] = window_lock.r;
-    set_inputs(_watched, 8);
+    _watched[1] = window_lock.r;
+    set_inputs(_watched, 2);
     set_health_row(io.resolve_out<uint8_t>("prog_windows"));
     on_bind();
 }

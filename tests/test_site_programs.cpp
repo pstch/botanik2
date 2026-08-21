@@ -406,13 +406,14 @@ TEST_CASE("cooling: the floor carries it when the ceiling goes, and both gone is
 TEST_CASE("cooling: an unknown demand puts every actuator at its own safe state") {
     Live f;
     fine_weather(f);
+    Site::RoofLockout    lock_(Botanik::SetupContext(f.reg), f.bank);
     Site::WindowsController    win(Botanik::SetupContext(f.reg), f.bank);
     Site::IntractorController  intr(Botanik::SetupContext(f.reg), f.bank);
     Site::ScreenController     scr(Botanik::SetupContext(f.reg), f.bank);
     Site::SkirtController      sk(Botanik::SetupContext(f.reg), f.bank);
     Site::FanController        fan(Botanik::SetupContext(f.reg), f.bank);
-    Plc::Program* const progs[] = { &win, &intr, &scr, &sk, &fan };
-    Cycle d(progs, 5, &f.bank, f.reg);
+    Plc::Program* const progs[] = { &lock_, &win, &intr, &scr, &sk, &fan };
+    Cycle d(progs, 6, &f.bank, f.reg);
 
     // Everything else says GO: only the cooling demand is missing.
     f.bank.var(f.ref("cli_coolDem")).invalidate(Q_NO_DATA);
@@ -630,9 +631,10 @@ TEST_CASE("windows: a forced lockout shuts the roof, with no weather to do it") 
     // and leave the row saying something that was not happening.
     Live f;
     fine_weather(f);
+    Site::RoofLockout lock_(Botanik::SetupContext(f.reg), f.bank);
     Site::WindowsController win(Botanik::SetupContext(f.reg), f.bank);
-    Plc::Program* const progs[] = { &win };
-    Cycle d(progs, 1, &f.bank, f.reg);
+    Plc::Program* const progs[] = { &lock_, &win };
+    Cycle d(progs, 2, &f.bank, f.reg);
 
     f.bank.var(f.ref("cli_windowDem")).set(1.0f);
     uint64_t t = 0;
@@ -1065,9 +1067,10 @@ TEST_CASE("screen: a safe request DEPLOYS it, and it parks only once it is there
 TEST_CASE("windows: exactly one ram is energised at a time") {
     Live f;
     fine_weather(f);
+    Site::RoofLockout lock_(Botanik::SetupContext(f.reg), f.bank);
     Site::WindowsController wc(Botanik::SetupContext(f.reg), f.bank);
-    Plc::Program* const progs[] = { &wc };
-    Cycle d(progs, 1, &f.bank, f.reg);
+    Plc::Program* const progs[] = { &lock_, &wc };
+    Cycle d(progs, 2, &f.bank, f.reg);
 
     f.bank.var(f.ref("cli_windowDem")).set(1.0f);
 
@@ -1099,9 +1102,10 @@ TEST_CASE("windows: exactly one ram is energised at a time") {
 TEST_CASE("windows: rain shuts them, and the lockout outlives the shower") {
     Live f;
     fine_weather(f);
+    Site::RoofLockout lock_(Botanik::SetupContext(f.reg), f.bank);
     Site::WindowsController wc(Botanik::SetupContext(f.reg), f.bank);
-    Plc::Program* const progs[] = { &wc };
-    Cycle d(progs, 1, &f.bank, f.reg);
+    Plc::Program* const progs[] = { &lock_, &wc };
+    Cycle d(progs, 2, &f.bank, f.reg);
 
     Vars::RefIn<float> tgt = f.bank.resolve_in<float>("cli_window1_tgt");
     Vars::RefIn<bool>  rain_lock = f.bank.resolve_in<bool>("cli_rainLockout");
@@ -1130,9 +1134,10 @@ TEST_CASE("windows: rain shuts them, and the lockout outlives the shower") {
 TEST_CASE("windows: a gust shuts them, and the mean alone does not") {
     Live f;
     fine_weather(f);
+    Site::RoofLockout lock_(Botanik::SetupContext(f.reg), f.bank);
     Site::WindowsController wc(Botanik::SetupContext(f.reg), f.bank);
-    Plc::Program* const progs[] = { &wc };
-    Cycle d(progs, 1, &f.bank, f.reg);
+    Plc::Program* const progs[] = { &lock_, &wc };
+    Cycle d(progs, 2, &f.bank, f.reg);
 
     Vars::RefIn<bool> wind_lock = f.bank.resolve_in<bool>("cli_windLockout");
     const float shut = f.bank.var(f.ref("cli_windShut_mps")).as_f32();
@@ -1144,7 +1149,10 @@ TEST_CASE("windows: a gust shuts them, and the mean alone does not") {
 
     INFO("the PEAK is what tears a window off its ram, not the average");
     f.bank.var(f.ref("cli_windGust_mps")).publish(from_f32(T_F32, shut + 1.0f), 100);
+    // Two beats: roof_lockout decides on the first and the windows obey on the
+    // next, because the two are separate tasks and the registry staggers them.
     d.step(200);
+    d.step(300);
     CHECK(f.bank.get(wind_lock));
     CHECK(f.bank.get(f.bank.resolve_in<float>("cli_window1_tgt")) ==
           doctest::Approx(0.0f));
@@ -1152,9 +1160,10 @@ TEST_CASE("windows: a gust shuts them, and the mean alone does not") {
 
 TEST_CASE("windows: an unmeasured sky shuts the roof rather than reading fine") {
     Live f;
+    Site::RoofLockout lock_(Botanik::SetupContext(f.reg), f.bank);
     Site::WindowsController wc(Botanik::SetupContext(f.reg), f.bank);
-    Plc::Program* const progs[] = { &wc };
-    Cycle d(progs, 1, &f.bank, f.reg);
+    Plc::Program* const progs[] = { &lock_, &wc };
+    Cycle d(progs, 2, &f.bank, f.reg);
 
     f.bank.var(f.ref("cli_rain_mmph")).invalidate(Q_NO_DATA);
     f.bank.var(f.ref("cli_wind_mps")).invalidate(Q_NO_DATA);
@@ -1163,15 +1172,19 @@ TEST_CASE("windows: an unmeasured sky shuts the roof rather than reading fine") 
 
     CHECK(f.bank.get(f.bank.resolve_in<bool>("cli_rainLockout")));
     CHECK(f.bank.get(f.bank.resolve_in<bool>("cli_windLockout")));
-    CHECK(wc.health() == Plc::Health::DEGRADED);
+    // The program that LOOKS at the sky is the one that cannot see it. The
+    // windows read a lockout row, which is as readable as ever.
+    CHECK(lock_.health() == Plc::Health::DEGRADED);
+    CHECK(wc.health() != Plc::Health::DEGRADED);
 }
 
 TEST_CASE("windows: parking waits for the LAST ram to seat, not the first") {
     Live f;
     fine_weather(f);
+    Site::RoofLockout lock_(Botanik::SetupContext(f.reg), f.bank);
     Site::WindowsController wc(Botanik::SetupContext(f.reg), f.bank);
-    Plc::Program* const progs[] = { &wc };
-    Cycle d(progs, 1, &f.bank, f.reg);
+    Plc::Program* const progs[] = { &lock_, &wc };
+    Cycle d(progs, 2, &f.bank, f.reg);
 
     f.bank.var(f.ref("cli_windowDem")).set(1.0f);
     uint64_t t = 0;

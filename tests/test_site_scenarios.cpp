@@ -67,6 +67,7 @@ struct Plant {
     Site::IrrigationSchedule   irr_schedule;
     Site::IrrigationCycle      irrigation;
     Site::ScreenController     screen;
+    Site::RoofLockout          roof_lock;
     Site::WindowsController    windows;
     Site::IntractorController  intractors;
     Site::FanController        fans;
@@ -87,13 +88,13 @@ struct Plant {
           target(ctx(), io()), cooling(ctx(), io()), destrat(ctx(), io()),
           humidity(ctx(), io()), irr_mod(ctx(), io()), irr_meters(ctx(), io()),
           irr_schedule(ctx(), io()), irrigation(ctx(), io()), screen(ctx(), io()),
-          windows(ctx(), io()),
+          roof_lock(ctx(), io()), windows(ctx(), io()),
           intractors(ctx(), io()), fans(ctx(), io()), skirt(ctx(), io()) {
         Plc::Program* const list[] = {
             &ac_grid, &ac_local, &dc, &zones, &strat, &climate, &weather,
             &target, &cooling, &destrat, &humidity,
             &irr_mod, &irr_meters, &irr_schedule, &irrigation,
-            &screen, &windows, &intractors, &fans, &skirt
+            &screen, &roof_lock, &windows, &intractors, &fans, &skirt
         };
         // Sized from the list, never a literal: a hand-kept count silently
         // drops whichever program is last the day one is added.

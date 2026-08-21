@@ -1,0 +1,32 @@
+name   = "roof_lockout"
+class  = "RoofLockout"
+task   = "SLOW"
+health = "prog_roof_lockout"
+desc   = "What forbids the roof being open at all, whatever the ladder asks."
+notes  = """
+Stage 1 of the roof's arbitration, and absolute: rain, wind and a supply
+lockout shut the windows whatever else is true, including their own safe state.
+Its own program because the interlocks are a judgement about the WEATHER, while
+the windows are a judgement about four rams sharing one bus.
+
+Published and then obeyed: the windows read `cli_windowLockout` back rather
+than a verdict of their own, so an operator can force one and hold the roof
+shut without inventing weather. It is also the only way to rehearse stage 1.
+"""
+
+[block.rain_for]
+type = "Tof"
+doc  = "the rain lockout's overrun past the last drop"
+
+[in]
+rain_mmph   = "cli_rain_mmph"
+wind_mps    = "cli_wind_mps"
+gust_mps    = "cli_windGust_mps"
+wind_shut   = "cli_windShut_mps"
+rain_hold_s = "cli_rainLockout_sec"
+supply_lock = "sys_supply_lockout"
+
+[inout]
+rain_lock   = "cli_rainLockout"
+wind_lock   = "cli_windLockout"
+window_lock = "cli_windowLockout"

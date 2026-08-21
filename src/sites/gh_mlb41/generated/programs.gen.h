@@ -17,7 +17,7 @@
 //
 // [sense]
 //   ac_grid_watch   sys_grid_ok           -> ac_local_watch
-//   dc_watch        sys_supply_lockout    -> windows
+//   dc_watch        sys_supply_lockout    -> roof_lockout
 //   sun_watch       sol_fromRise_min      -> day_phase, irr_schedule
 //   sun_watch       sol_fromSet_min       -> day_phase
 //   temp_rh_zone    cli_temp_in           -> cooling, day_phase
@@ -88,6 +88,7 @@
 #include "../programs/irrigation/irrigation_schedule/irrigation_schedule.gen.h"
 #include "../programs/irrigation/irrigation_cycle/irrigation_cycle.gen.h"
 #include "../programs/actuators/screen_controller/screen_controller.gen.h"
+#include "../programs/actuators/roof_lockout/roof_lockout.gen.h"
 #include "../programs/actuators/windows_controller/windows_controller.gen.h"
 #include "../programs/sense/weather_watch/weather_watch.gen.h"
 #include "../programs/actuators/intractor_controller/intractor_controller.gen.h"
@@ -117,6 +118,7 @@
     X(IrrigationSchedule,   _irr_schedule)   \
     X(IrrigationCycle,      _irrigation)     \
     X(ScreenController,     _screen)         \
+    X(RoofLockout,          _roof_lockout)   \
     X(WindowsController,    _windows)        \
     X(WeatherWatch,         _weather_watch)  \
     X(IntractorController,  _intractors)     \
