@@ -25,6 +25,7 @@
 name  = "ac_grid_watch"
 class = "AcGridWatch"
 task  = "SLOW"
+stage = "sense"
 health = "prog_ac_grid_watch"
 desc  = "The utility feed, watched."
 notes = """
@@ -32,6 +33,11 @@ A watch program: empty run(), everything in observe(). What it publishes is an
 observation, and observations are exactly what must survive the plant being
 parked.
 """
+
+# The supply block, bound from this program's own interface: the two supplies
+# declare the same member names and one law reads either.
+[program.block]
+supply = { type = "AcSupply", include = "blocks/ac_supply.h" }
 
 [program.in]
 volts = "grid_LN_V"
@@ -56,12 +62,19 @@ fault  = "alarm_ac_grid"
 name  = "ac_local_watch"
 class = "AcLocalWatch"
 task  = "SLOW"
+stage = "sense"
 health = "prog_ac_local_watch"
 desc  = "The generator-backed side of the transfer switch, watched."
 notes = """
 The same law as the grid over different rows and wider frequency bands: a
 generator wanders where a utility does not.
 """
+
+# The supply block, bound from this program's own interface: the two supplies
+# declare the same member names and one law reads either.
+[program.block]
+supply = { type = "AcSupply", include = "blocks/ac_supply.h" }
+cranking = { type = "Ton", doc = "the grid gone with nothing taking over" }
 
 [program.in]
 volts = "ats_V"
@@ -89,6 +102,7 @@ gen_fault = "alarm_gen"
 name  = "dc_watch"
 class = "DcWatch"
 task  = "SLOW"
+stage = "sense"
 health = "prog_dc_watch"
 desc  = "The DC rails and the two batteries, watched - and the plant-wide lockout they raise."
 notes = """
@@ -97,6 +111,19 @@ UPS knows what its own battery has left, and a divider on the rail does not.
 The voltages alarm on their own floors, which is warning rather than
 interlock.
 """
+
+# One deadband and one rolling average per divider, and the debounce under the
+# UPS contact. Named for what they do: the ROWS are called dc1, dc2, ups_bat.
+[program.block]
+band1   = { type = "Deadband" }
+band2   = { type = "Deadband" }
+bandu   = { type = "Deadband" }
+bandg   = { type = "Deadband" }
+avg1    = { type = "Ewma", doc = "the rail is judged on the AVERAGE, so one" }
+avg2    = { type = "Ewma", doc = "noisy sample cannot raise a supply fault" }
+avgu    = { type = "Ewma" }
+avgg    = { type = "Ewma" }
+low_for = { type = "Ton", doc = "debounce: a contact bounces, a UPS does not" }
 
 [program.in]
 dc1     = "pwr_dc1_V"
@@ -130,6 +157,7 @@ gen_flt = "alarm_generator_battery"
 name  = "sun_watch"
 class = "SunWatch"
 task  = "SLOW"
+stage = "sense"
 health = "prog_sun_watch"
 desc  = "Where the sun is, published as rows."
 notes = """
@@ -156,12 +184,22 @@ elevation = "sol_elev_deg"
 name  = "temp_rh_zone"
 class = "TempRHZone"
 task  = "FAST"
+stage = "sense"
 health = "prog_temp_rh_zone"
 desc  = "The conditioned picture of the greenhouse: four locations voted and filtered, then the psychrometrics every other law is set in."
 notes = """
 Runs FIRST. Everything downstream reads its rows rather than the probes.
 """
 
+
+# One per measurement location: three probes selected down to one reading,
+# then filtered. Held by value so one zone's filter state cannot become
+# another's.
+[program.block]
+ceiling    = { type = "ZoneProbes", include = "blocks/zone_probes.h" }
+floor      = { type = "ZoneProbes", include = "blocks/zone_probes.h" }
+crawlspace = { type = "ZoneProbes", include = "blocks/zone_probes.h" }
+exterior   = { type = "ZoneProbes", include = "blocks/zone_probes.h" }
 
 [program.in]
 t_hi  = ["cli_temp_hi1",  "cli_temp_hi2",  "cli_temp_hi3"]
@@ -199,6 +237,7 @@ rot       = "alarm_rot"
 name  = "strat"
 class = "StratSensor"
 task  = "FAST"
+stage = "sense"
 health = "prog_strat"
 desc  = "The stratification gap: how much warmer the ceiling is than the floor, unsigned."
 notes = """
@@ -220,6 +259,7 @@ strat = "cli_dTStrat_degC"
 name  = "climate_watch"
 class = "ClimateWatch"
 task  = "SLOW"
+stage = "sense"
 health = "prog_climate_watch"
 desc  = "The interior conditions, watched: the alarms that are a READING crossing a line rather than a law failing to hold one."
 notes = """
@@ -682,6 +722,7 @@ pos = ["cli_window1_pos","cli_window2_pos","cli_window3_pos","cli_window4_pos"]
 name  = "weather_watch"
 class = "WeatherWatch"
 task  = "SLOW"
+stage = "sense"
 health = "prog_weather_watch"
 desc  = "The weather station, watched: whether it is answering, and whether what it says is a storm."
 notes = """

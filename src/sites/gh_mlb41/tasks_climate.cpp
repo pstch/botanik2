@@ -8,6 +8,7 @@
  */
 
 
+#include "limits.h"
 #include "tasks_climate.h"
 
 namespace Site {
