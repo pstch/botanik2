@@ -11,7 +11,13 @@
 
 namespace Site {
 
-const float WindowsController::SAFE_OPEN = 0.25f;
+void WindowsController::on_bind() {
+    // The safe opening is the row's own default, the way a valve takes its fail
+    // direction from its coil row: one place declares where this actuator goes
+    // when nobody is driving it.
+    const Vars::Descriptor& d = tgt[0].io->descriptor(tgt[0].r.index);
+    _safe_open = Vars::as_f32(d.type, d.def);
+}
 
 Plc::ActuatorConfig WindowsController::_mechanics() const {
     const uint32_t travel = 1000u * travel_s.get();
@@ -92,10 +98,10 @@ void WindowsController::run(ProgramContext& c) {
         // whatever else is true, including the safe state below.
         _target = 0.0f;
     } else if (inhibit_requested()) {
-        _target = SAFE_OPEN;
+        _target = _safe_open;
     } else if (!window_dem.valid()) {
         degraded();
-        _target = SAFE_OPEN;
+        _target = _safe_open;
     } else {
         _target = Plc::limit(window_dem.get(), 0.0f, 1.0f);
     }

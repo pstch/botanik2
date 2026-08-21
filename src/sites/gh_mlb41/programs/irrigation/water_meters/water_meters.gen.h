@@ -30,6 +30,9 @@ public:
     /** @name VAR_INPUT
      *  @{ */
 
+    Vars::RefIn<float>    band;
+    Vars::RefIn<float>    cutoff;
+    Vars::RefIn<uint16_t> rate_win;
     Vars::RefIn<float>    out_flow;
     Vars::RefIn<uint16_t> out_avg_ms;
     Vars::RefIn<float>    qty_per_pulse;
@@ -90,6 +93,9 @@ protected:
 };
 
 inline void WaterMeters::bind(Vars::Bank& io) {
+    band          = io.resolve_in<float>("irr_flowBand_Lpm");
+    cutoff        = io.resolve_in<float>("irr_flowCutoff_Lpm");
+    rate_win      = io.resolve_in<uint16_t>("irr_rateWin_ms");
     out_flow      = io.resolve_in<float>("irr_out_Lpm");
     out_avg_ms    = io.resolve_in<uint16_t>("irr_out_avg_ms");
     qty_per_pulse = io.resolve_in<float>("irr_input_qtyPerImp");

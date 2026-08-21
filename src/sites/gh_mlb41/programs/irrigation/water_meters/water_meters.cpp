@@ -9,17 +9,6 @@
 
 namespace Site {
 
-/** @brief How far the outlet flow has to move to be worth a status write, in
- *  Lpm. Also the band around zero: under this the loop reads as shut. */
-static const float IRR_FLOW_BAND = 0.1f;
-
-/** @brief The window the inlet rate is differenced over, in ms. */
-static const uint32_t IRR_RATE_WINDOW_MS = 5000;
-
-/** @brief Below this the outlet is idle, in Lpm. A loop sitting on its own
- *  noise would otherwise totalize a plausible volume with the valves shut. */
-static const float IRR_FLOW_CUTOFF = 0.2f;
-
 void WaterMeters::observe(ProgramContext& c) {
     const uint8_t  ch = Site::pulse_inputs[0].channel;
     const uint32_t pulses = HAL::Pulse::sample(ch).count;
@@ -44,7 +33,7 @@ void WaterMeters::observe(ProgramContext& c) {
         // water is moving", which is what a leak detector must not be told.
         out_flow_pub.hold();
         degraded();
-    } else if (lpm < IRR_FLOW_BAND) {
+    } else if (lpm < band.get()) {
         // WITHIN THE DEADBAND OF ZERO, so it reads zero: a reading the band
         // cannot tell from nothing is nothing. Left to the block the row parks
         // on the last tenth it reported - a drain meter saying 0.09 Lpm with
@@ -54,16 +43,16 @@ void WaterMeters::observe(ProgramContext& c) {
         flow_band.reset();
         out_flow_pub.set(0.0f);
     } else {
-        out_flow_pub.set(flow_band(lpm, IRR_FLOW_BAND));
+        out_flow_pub.set(flow_band(lpm, band.get()));
     }
     // Per SECOND into the totalizer, which is what the block counts in.
-    out_total.set(out_meter(lpm / 60.0f, c.dt_ms, IRR_FLOW_CUTOFF / 60.0f));
+    out_total.set(out_meter(lpm / 60.0f, c.dt_ms, cutoff.get() / 60.0f));
 
     // Unsigned difference, so the 32-bit counter wrapping costs nothing.
     const float total = _in_base_L
                       + (float)(pulses - _in_base_pulses) * qty_per_pulse.get();
     in_total.set(total);
-    const float flow = 60.0f * in_rate(total, IRR_RATE_WINDOW_MS, c.dt_ms);
+    const float flow = 60.0f * in_rate(total, rate_win.get(), c.dt_ms);
     in_flow.set(flow);
     _supply_alarms(flow);
 }

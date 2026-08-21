@@ -20,11 +20,6 @@ public:
     TargetTempController(const SetupContext& ctx, Vars::Bank& io)
         : Gen::TargetTempController(ctx, io) {}
 
-    /** @brief The floor and ceiling the bank offsets may not push the target
-     *  past, however aggressively they are set. */
-    static const float TARGET_MIN;
-    static const float TARGET_MAX;
-
 protected:
     void run(ProgramContext& c) override;
 };

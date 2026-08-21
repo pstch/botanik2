@@ -5,16 +5,9 @@
 
 #include "humidity_controller.h"
 
-#include "../../../limits.h"
 #include "../../../vars.h"
 
 namespace Site {
-
-/** @brief How long the margin must stay above the limit before humidifying is
- *  allowed again. In TIME, because the limit it releases against is already a
- *  parameter: what this adds is that a margin hovering on that limit does not
- *  let the skirt back on every other scan. */
-static const uint32_t ROT_RELEASE_MS = 300000;
 
 void HumidityController::observe(ProgramContext& c) {
     if (!dp_margin.valid()) {
@@ -22,12 +15,12 @@ void HumidityController::observe(ProgramContext& c) {
         // ventilating costs energy, not ventilating costs the collection.
         degraded();
         vent_dem.set(1.0f);
-        lockout.set(lockout_for(true, ROT_RELEASE_MS, c.dt_ms));
+        lockout.set(lockout_for(true, 1000u * rot_release_s.get(), c.dt_ms));
         return;
     }
 
     const float margin = dp_margin.get();
-    const float limit  = Plc::limit(rot_limit.get(), ROT_MARGIN_DEGC, 10.0f);
+    const float limit  = rot_limit.get();
 
     // A FALLING ramp, negated so the one ladder function serves both
     // directions: nothing at the limit, everything at the dew point itself.
@@ -38,7 +31,7 @@ void HumidityController::observe(ProgramContext& c) {
     // An OVERRUN, not a dwell: the lockout follows the condition up at once and
     // outlives it, because humidifying into air that has only just dried out is
     // what puts the margin back where it was. Nothing is locked out at boot.
-    lockout.set(lockout_for(rot.get(), ROT_RELEASE_MS, c.dt_ms));
+    lockout.set(lockout_for(rot.get(), 1000u * rot_release_s.get(), c.dt_ms));
     _dry_gate(c);
 }
 

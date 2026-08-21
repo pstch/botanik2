@@ -9,9 +9,6 @@
 
 namespace Site {
 
-const float TargetTempController::TARGET_MIN = 14.0f;
-const float TargetTempController::TARGET_MAX = 27.0f;
-
 void TargetTempController::run(ProgramContext& c) {
     const DayPhase now = (DayPhase)phase.get();
     float held = cool_set.get();
@@ -26,7 +23,7 @@ void TargetTempController::run(ProgramContext& c) {
 
     // The clamp is what keeps an aggressively-set offset from pushing the
     // greenhouse somewhere dangerous, whatever the phase asked for.
-    target.set(Plc::limit(held, TARGET_MIN, TARGET_MAX));
+    target.set(Plc::limit(held, t_min.get(), t_max.get()));
 }
 
 }  // namespace Site

@@ -9,16 +9,6 @@
 
 namespace Site {
 
-/** @brief Demand change needed to leave the speed band in force. On the fused
- *  DEMAND, not on any one signal: which input wins changes as the plant does,
- *  and the fans would step every time it did. */
-static const float FAN_DEM_HYST = 0.05f;
-
-/** @brief What a watering cycle asks of the fans. Fixed here rather than a
- *  parameter: it is the LOWEST band, the floor that keeps air over wet trays,
- *  and the bands themselves are already tunable. */
-static const float FAN_IRR_DEM = 0.34f;
-
 float FanController::_demand() const {
     // An unknown demand is NOT "nothing to do". Either ladder invalidates its
     // own when it cannot see what it is about, and still air is itself a rot
@@ -29,7 +19,7 @@ float FanController::_demand() const {
     const float cooling  = cool_dem.valid() ? cool_dem.get() : floor;
     // A cycle in progress wants air moving over the trays it has just wetted.
     const bool  cycling  = irr_state.get() != IRR_IDLE;
-    const float watering = cycling ? FAN_IRR_DEM : 0.0f;
+    const float watering = cycling ? irr_dem.get() : 0.0f;
 
     // The day's two breezes. At dusk it dries the leaves before the stomata
     // open - these plants breathe at night, and a wet leaf cannot - and at dawn
@@ -50,7 +40,7 @@ uint8_t FanController::_band(float demand) {
     // the relays. The block is the same one the destratification ladder uses.
     const float step[3] = { low_dem.get(), med_dem.get(),
                             high_dem.get() };
-    return _steps(demand, step, FAN_DEM_HYST);
+    return _steps(demand, step, dem_hyst.get());
 }
 
 void FanController::_drive(uint8_t speed) {

@@ -33,15 +33,16 @@ public:
     /** @name VAR_INPUT
      *  @{ */
 
-    Vars::RefIn<float> t_hi[3];
-    Vars::RefIn<float> h_hi[3];
-    Vars::RefIn<float> t_lo[3];
-    Vars::RefIn<float> h_lo[3];
-    Vars::RefIn<float> t_cs[3];
-    Vars::RefIn<float> h_cs[3];
-    Vars::RefIn<float> t_ext[3];
-    Vars::RefIn<float> h_ext[3];
-    Vars::RefIn<float> rot_limit;
+    Vars::RefIn<uint16_t> tau_ms;
+    Vars::RefIn<float>    t_hi[3];
+    Vars::RefIn<float>    h_hi[3];
+    Vars::RefIn<float>    t_lo[3];
+    Vars::RefIn<float>    h_lo[3];
+    Vars::RefIn<float>    t_cs[3];
+    Vars::RefIn<float>    h_cs[3];
+    Vars::RefIn<float>    t_ext[3];
+    Vars::RefIn<float>    h_ext[3];
+    Vars::RefIn<float>    rot_limit;
 
     /** @} */
 
@@ -125,6 +126,7 @@ protected:
 };
 
 inline void TempRHZone::bind(Vars::Bank& io) {
+    tau_ms    = io.resolve_in<uint16_t>("cli_sensorTau_ms");
     t_hi[0]   = io.resolve_in<float>("cli_temp_hi1");
     t_hi[1]   = io.resolve_in<float>("cli_temp_hi2");
     t_hi[2]   = io.resolve_in<float>("cli_temp_hi3");

@@ -31,6 +31,7 @@ public:
     /** @name VAR_INPUT
      *  @{ */
 
+    Vars::RefIn<float> dem_hyst;
     Vars::RefIn<float> inside;
     Vars::RefIn<float> ceiling;
     Vars::RefIn<float> floor;
@@ -96,6 +97,7 @@ protected:
 };
 
 inline void CoolingController::bind(Vars::Bank& io) {
+    dem_hyst    = io.resolve_in<float>("cli_groundDemHyst");
     inside      = io.resolve_in<float>("cli_temp_in");
     ceiling     = io.resolve_in<float>("cli_temp_hi");
     floor       = io.resolve_in<float>("cli_temp_lo");

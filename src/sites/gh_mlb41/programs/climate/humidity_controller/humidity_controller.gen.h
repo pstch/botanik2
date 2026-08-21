@@ -31,19 +31,20 @@ public:
     /** @name VAR_INPUT
      *  @{ */
 
-    Vars::RefIn<float> dp_margin;
-    Vars::RefIn<float> dehum_full;
-    Vars::RefIn<float> dehum_start;
-    Vars::RefIn<float> humid_start;
-    Vars::RefIn<float> humid_full;
-    Vars::RefIn<float> rot_limit;
-    Vars::RefIn<bool>  rot;
-    Vars::RefIn<float> in_t;
-    Vars::RefIn<float> in_rh;
-    Vars::RefIn<float> ext_t;
-    Vars::RefIn<float> ext_rh;
-    Vars::RefIn<float> dry_margin;
-    Vars::RefIn<float> vent_hyst;
+    Vars::RefIn<uint16_t> rot_release_s;
+    Vars::RefIn<float>    dp_margin;
+    Vars::RefIn<float>    dehum_full;
+    Vars::RefIn<float>    dehum_start;
+    Vars::RefIn<float>    humid_start;
+    Vars::RefIn<float>    humid_full;
+    Vars::RefIn<float>    rot_limit;
+    Vars::RefIn<bool>     rot;
+    Vars::RefIn<float>    in_t;
+    Vars::RefIn<float>    in_rh;
+    Vars::RefIn<float>    ext_t;
+    Vars::RefIn<float>    ext_rh;
+    Vars::RefIn<float>    dry_margin;
+    Vars::RefIn<float>    vent_hyst;
 
     /** @} */
 
@@ -94,23 +95,24 @@ protected:
 };
 
 inline void HumidityController::bind(Vars::Bank& io) {
-    dp_margin   = io.resolve_in<float>("cli_dpMargin_degC");
-    dehum_full  = io.resolve_in<float>("cli_dehumFull_degC");
-    dehum_start = io.resolve_in<float>("cli_dehumStart_degC");
-    humid_start = io.resolve_in<float>("cli_humidStart_degC");
-    humid_full  = io.resolve_in<float>("cli_humidFull_degC");
-    rot_limit   = io.resolve_in<float>("cli_tooHumid_degC");
-    rot         = io.resolve_in<bool>("alarm_rot");
-    in_t        = io.resolve_in<float>("cli_temp_hi");
-    in_rh       = io.resolve_in<float>("cli_rh_hi");
-    ext_t       = io.resolve_in<float>("cli_temp_ext");
-    ext_rh      = io.resolve_in<float>("cli_rh_ext");
-    dry_margin  = io.resolve_in<float>("cli_ventDryMgn_degC");
-    vent_hyst   = io.resolve_in<float>("cli_ventHyst_degC");
-    demand      = io.resolve_out<float>("cli_humidDem");
-    lockout     = io.resolve_out<bool>("cli_rotLockout");
-    vent_dem    = io.resolve_out<float>("cli_rotVentDem");
-    dry_ok      = io.resolve_out<bool>("cli_intakeDryOk");
+    rot_release_s = io.resolve_in<uint16_t>("cli_rotRelease_sec");
+    dp_margin     = io.resolve_in<float>("cli_dpMargin_degC");
+    dehum_full    = io.resolve_in<float>("cli_dehumFull_degC");
+    dehum_start   = io.resolve_in<float>("cli_dehumStart_degC");
+    humid_start   = io.resolve_in<float>("cli_humidStart_degC");
+    humid_full    = io.resolve_in<float>("cli_humidFull_degC");
+    rot_limit     = io.resolve_in<float>("cli_tooHumid_degC");
+    rot           = io.resolve_in<bool>("alarm_rot");
+    in_t          = io.resolve_in<float>("cli_temp_hi");
+    in_rh         = io.resolve_in<float>("cli_rh_hi");
+    ext_t         = io.resolve_in<float>("cli_temp_ext");
+    ext_rh        = io.resolve_in<float>("cli_rh_ext");
+    dry_margin    = io.resolve_in<float>("cli_ventDryMgn_degC");
+    vent_hyst     = io.resolve_in<float>("cli_ventHyst_degC");
+    demand        = io.resolve_out<float>("cli_humidDem");
+    lockout       = io.resolve_out<bool>("cli_rotLockout");
+    vent_dem      = io.resolve_out<float>("cli_rotVentDem");
+    dry_ok        = io.resolve_out<bool>("cli_intakeDryOk");
 
     // The readings this law is entitled to expect. The base walks them
     // before each activation, so an input that has stopped being believable

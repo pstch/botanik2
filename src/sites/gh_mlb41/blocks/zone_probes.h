@@ -39,7 +39,7 @@ class ZoneProbes {
      *  Filtered against dt, not against a fixed blend: a program due late runs
      *  ONCE with the real elapsed time, so a filter carrying a constant alpha
      *  silently changes its time constant the moment the scan slips. The tau is
-     *  the same for every zone (SENSOR_TAU_MS) and the block does the rest.
+     *  the same for every zone (cli_sensorTau_ms) and the block does the rest.
      *  @{ */
 
     Plc::Ewma _temp;

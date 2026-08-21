@@ -31,6 +31,8 @@ public:
     /** @name VAR_INPUT
      *  @{ */
 
+    Vars::RefIn<float>   dem_hyst;
+    Vars::RefIn<float>   irr_dem;
     Vars::RefIn<float>   strat_dem;
     Vars::RefIn<float>   cool_dem;
     Vars::RefIn<uint8_t> irr_state;
@@ -94,6 +96,8 @@ protected:
 };
 
 inline void FanController::bind(Vars::Bank& io) {
+    dem_hyst      = io.resolve_in<float>("cli_fanDemHyst");
+    irr_dem       = io.resolve_in<float>("cli_fanIrrDem");
     strat_dem     = io.resolve_in<float>("cli_stratDem");
     cool_dem      = io.resolve_in<float>("cli_coolDem");
     irr_state     = io.resolve_in<uint8_t>("irr_state");

@@ -5,18 +5,12 @@
 
 #include "temp_rh_zone.h"
 
-#include "../../../limits.h"
 #include "../../../vars.h"
 
 namespace Site {
 
-/** @brief Filter time constant for the conditioned readings. Long enough that
- *  probe noise does not reach the ladders, short enough that the PID's tuning
- *  is not fighting it. @see the spec's note on Ziegler-Nichols. */
-static const uint32_t SENSOR_TAU_MS = 30000;
-
 void TempRHZone::on_bind() {
-    const float tau_s = 0.001f * (float)SENSOR_TAU_MS;
+    const float tau_s = 0.001f * (float)tau_ms.get();
     ceiling.attach(t_hi, h_hi, temp_hi, rh_hi, fault_hi, tau_s);
     floor.attach(t_lo, h_lo, temp_lo, rh_lo, fault_lo, tau_s);
     crawlspace.attach(t_cs, h_cs, temp_cs, rh_cs, fault_cs, tau_s);
@@ -78,7 +72,7 @@ void TempRHZone::run(ProgramContext& c) {
         Plc::vapour_pressure_deficit(t_hi, ceiling.humidity()),
         Plc::vapour_pressure_deficit(t_lo, floor.humidity())));
 
-    const float limit = Plc::limit(rot_limit.get(), ROT_MARGIN_DEGC, 10.0f);
+    const float limit = rot_limit.get();
     rot.set((worst_isceiling ? m_hi : m_lo) < limit);
 }
 

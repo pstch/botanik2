@@ -9,11 +9,6 @@
 
 namespace Site {
 
-/** @brief How much of the demand the ground-heat rung gives back before it
- *  lets go. In demand units, like the fans' own band: small, because the rung
- *  only chooses a fan speed and the PID crossing it is already slow. */
-static const float GROUND_DEM_HYST = 0.02f;
-
 void CoolingController::run(ProgramContext& c) {
     if (c.first_scan) pid.reset();   // the integral is a claim about the past
 
@@ -88,7 +83,7 @@ void CoolingController::_intake_gates(ProgramContext& c, float t_in, float dem) 
     // be worth pulling it out of. Both halves are banded - the demand is a PID
     // output and it crosses a rung as slowly as it likes.
     const float rung   = ground_dem.get();
-    const bool  asking = ground_band(-dem, -rung, -rung + GROUND_DEM_HYST);
+    const bool  asking = ground_band(-dem, -rung, -rung + dem_hyst.get());
     ground_ok.set(ok && asking &&
                   ground_gate(t_intake - t_in, margin - hyst, margin));
 }

@@ -31,6 +31,8 @@ public:
     /** @name VAR_INPUT
      *  @{ */
 
+    Vars::RefIn<float>   t_min;
+    Vars::RefIn<float>   t_max;
     Vars::RefIn<uint8_t> phase;
     Vars::RefIn<bool>    cold_arm;
     Vars::RefIn<bool>    heat_arm;
@@ -76,6 +78,8 @@ protected:
 };
 
 inline void TargetTempController::bind(Vars::Bank& io) {
+    t_min         = io.resolve_in<float>("cli_targetMin_degC");
+    t_max         = io.resolve_in<float>("cli_targetMax_degC");
     phase         = io.resolve_in<uint8_t>("cli_phase");
     cold_arm      = io.resolve_in<bool>("cli_coldBankArm");
     heat_arm      = io.resolve_in<bool>("cli_heatBankArm");

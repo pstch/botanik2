@@ -202,6 +202,7 @@ crawlspace = { type = "ZoneProbes", include = "blocks/zone_probes.h" }
 exterior   = { type = "ZoneProbes", include = "blocks/zone_probes.h" }
 
 [program.in]
+tau_ms = "cli_sensorTau_ms"
 t_hi  = ["cli_temp_hi1",  "cli_temp_hi2",  "cli_temp_hi3"]
 h_hi  = ["cli_rh_hi1",    "cli_rh_hi2",    "cli_rh_hi3"]
 t_lo  = ["cli_temp_lo1",  "cli_temp_lo2",  "cli_temp_lo3"]
@@ -348,6 +349,8 @@ wants the number rather than the rule that produced it.
 """
 
 [program.in]
+t_min         = "cli_targetMin_degC"
+t_max         = "cli_targetMax_degC"
 phase         = "cli_phase"
 cold_arm      = "cli_coldBankArm"
 heat_arm      = "cli_heatBankArm"
@@ -384,6 +387,7 @@ ground_gate = { type = "Hysteresis", doc = "...or warmer by it" }
 ground_band = { type = "Hysteresis", doc = "and the ladder is asking for heat" }
 
 [program.in]
+dem_hyst      = "cli_groundDemHyst"
 inside = "cli_temp_in"
 # ...and the two levels behind it, for the VERDICT alone: an average carried by
 # one level is still a temperature, and this law says it is working on half a
@@ -467,6 +471,7 @@ lockout_for   = { type = "Tof",        doc = "the lockout's overrun past the con
 dry_gate_band = { type = "Hysteresis", doc = "two dew points that converge, so a dead band" }
 
 [program.in]
+rot_release_s = "cli_rotRelease_sec"
 dp_margin   = "cli_dpMargin_degC"
 dehum_full  = "cli_dehumFull_degC"
 dehum_start = "cli_dehumStart_degC"
@@ -551,6 +556,9 @@ in_rate   = { type = "Derivative", doc = "litres -> Lpm, over a window" }
 out_meter = { type = "Integral",   doc = "Lpm -> litres" }
 
 [program.in]
+band          = "irr_flowBand_Lpm"
+cutoff        = "irr_flowCutoff_Lpm"
+rate_win      = "irr_rateWin_ms"
 out_flow      = "irr_out_Lpm"
 out_avg_ms    = "irr_out_avg_ms"
 qty_per_pulse = "irr_input_qtyPerImp"
@@ -841,6 +849,8 @@ air they blow into.
 """
 
 [program.in]
+dem_hyst   = "cli_fanDemHyst"
+irr_dem    = "cli_fanIrrDem"
 strat_dem     = "cli_stratDem"
 cool_dem      = "cli_coolDem"
 irr_state     = "irr_state"

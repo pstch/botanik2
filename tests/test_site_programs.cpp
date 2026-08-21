@@ -51,6 +51,12 @@ void slot(Live& f) {
     f.bank.var(f.ref("cli_phase")).set_i((int64_t)Site::PHASE_DAWN_BREEZE);
 }
 
+    /** @brief Where the roof parks, from the row that declares it. */
+    float safe_open(Live& f) {
+        const Vars::Descriptor& d = f.bank.descriptor(f.ref("cli_window1_tgt").index);
+        return Vars::as_f32(d.type, d.def);
+    }
+
     /** @brief Publish one field-read row as if the bus had just answered it. */
     void field(Live& f, const char* row, float v, uint64_t at = 0) {
         f.bank.var(f.ref(row)).publish(from_f32(T_F32, v), at);
@@ -331,7 +337,8 @@ TEST_CASE("target: an aggressive offset is clamped to the safe band") {
     d.step(100);
 
     Vars::RefIn<float> target = f.bank.resolve_in<float>("cli_targetTemp_degC");
-    CHECK(f.bank.get(target) == doctest::Approx(Site::TargetTempController::TARGET_MIN));
+    Vars::RefIn<float> floor_ = f.bank.resolve_in<float>("cli_targetMin_degC");
+    CHECK(f.bank.get(target) == doctest::Approx(f.bank.get(floor_)));
 }
 
 TEST_CASE("cooling: a demand it cannot make is HELD at the last one it could") {
@@ -428,7 +435,7 @@ TEST_CASE("cooling: an unknown demand puts every actuator at its own safe state"
     INFO("each one substitutes ITS OWN safe state for the input it cannot read, "
          "and not one of the five is simply OFF");
     CHECK(f.bank.get(f.bank.resolve_in<float>("cli_window1_tgt")) ==
-          doctest::Approx(Site::WindowsController::SAFE_OPEN));   // part open
+          doctest::Approx(safe_open(f)));                         // part open
     CHECK(f.bank.get(f.bank.resolve_in<float>("cli_intr1")) ==
           doctest::Approx(0.15f));                                // some air
     CHECK(f.bank.get(f.bank.resolve_in<bool>("cli_screen")));     // deployed
@@ -1168,7 +1175,7 @@ TEST_CASE("windows: parking waits for the LAST ram to seat, not the first") {
     // fourth - which is PART OPEN, not shut.
     for (uint32_t i = 0; i < 200; i++) d.step(t += 100);
     REQUIRE(f.bank.get(f.bank.resolve_in<float>("cli_window1_pos")) ==
-            doctest::Approx(Site::WindowsController::SAFE_OPEN).epsilon(0.15));
+            doctest::Approx(safe_open(f)).epsilon(0.15));
     CHECK_FALSE(wc.is_parked());
 
     for (uint32_t i = 0; i < 800; i++) d.step(t += 100);

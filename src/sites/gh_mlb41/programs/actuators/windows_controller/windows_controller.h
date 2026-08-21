@@ -23,21 +23,16 @@ class WindowsController final : public Gen::WindowsController {
     /** @brief The position the arbitration asked for this scan. One number for
      *  all four: they are one roof. */
     float         _target = 0.0f;
+    /** @brief Where the roof goes when this law is not acting: PART OPEN, not
+     *  shut, read off the target row's declared default like every other safe
+     *  state here. It should never be reached, but a greenhouse with some
+     *  ventilation survives a summer afternoon and a sealed one does not.
+     *  @note NOT the interlocks: rain and wind shut the roof outright. */
+    float         _safe_open = 0.0f;
 
     /** @} */
 
 public:
-    /** @brief Where the roof goes when this law is not acting: PART OPEN, not
-     *  shut. It should never be reached - the interior is measured by three
-     *  probes at each of two levels precisely so that it is not - but if it is,
-     *  a greenhouse with some ventilation survives a summer afternoon and a
-     *  sealed one does not.
-     *  @note NOT the interlocks: rain and wind shut the roof outright, and a
-     *  mechanical safety is resolved before any of this. */
-    static const float SAFE_OPEN;
-
-private:
-
 public:
     WindowsController(const SetupContext& ctx, Vars::Bank& io)
         : Gen::WindowsController(ctx, io) {}
@@ -46,6 +41,7 @@ public:
     static const uint8_t WINDOWS = N_ACT;
 
 protected:
+    void on_bind() override;
     void run(ProgramContext& c) override;
     void observe(ProgramContext& c) override;
 

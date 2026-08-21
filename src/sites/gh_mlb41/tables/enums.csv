@@ -5,6 +5,8 @@
 # The CODE is the contract: it is what an external master reads out of the
 # register, so a vocabulary may gain members and must never renumber them. The
 # LABEL is what an operator reads and types, and may be changed freely.
+# APPENDED, not inserted: the value is the wire contract the Modbus map and the
+# MQTT topics carry, so a new state goes on the end however the cycle orders it.
 #
 enum    , member           , code, label      , desc
 DayPhase, PHASE_NIGHT      , 0   , NIGHT      , dark; the target is the night setting
@@ -17,6 +19,4 @@ IrrState, IRR_IDLE         , 0   , IDLE       , no tray is being served
 IrrState, IRR_FILLING      , 1   , FILLING    , inlet open; tray open; outlet shut
 IrrState, IRR_DRAINING     , 2   , DRAINING   , inlet shut; tray open; outlet open
 IrrState, IRR_FLUSHING     , 3   , FLUSHING   , "inlet and drain open, no tray: the manifold rinsed"
-# APPENDED, not inserted: the value is the wire contract the Modbus map and the
-# MQTT topics carry, so a new state goes on the end however the cycle orders it.
-IrrState, IRR_SOAKING      , 4   , SOAKING    , "every valve shut: the tray sits full for irr_soak_sec"
+IrrState, IRR_SOAKING      , 4   , SOAKING    , every valve shut: the tray sits full for irr_soak_sec
