@@ -636,6 +636,8 @@ def main():
     progs = vars_programs.load(os.path.join(ROOT, "src", "sites", a.site,
                                             "tables", "programs.toml"))
     if progs:
+        # Patterns become rows before anything looks at a connection.
+        vars_programs.expand(progs, by_name, problems.append)
         print(f"Checking {len(progs)} programs, "
               f"{sum(len(x['conns']) for x in progs)} connections:")
         vars_programs.check(progs, by_name, problems.append,

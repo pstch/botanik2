@@ -84,9 +84,12 @@ def prog(name, cls="C", task="SLOW", stage="sense", blocks=(), desc="What it doe
          vars=(), fns=(), hooks=(), **sections):
     p = {"name": name, "class": cls, "task": task, "conns": [], "arrays": set(),
          "stage": stage, "blocks": list(blocks), "desc": desc, "notes": "",
-         "vars": list(vars), "fns": list(fns), "hooks": list(hooks)}
+         "vars": list(vars), "fns": list(fns), "hooks": list(hooks), "counts": {}}
     for sec, members in sections.items():
         for member, rows in members.items():
+            if isinstance(rows, dict):
+                p["counts"][(sec, member)] = rows.get("count")
+                rows = rows.get("rows", "")
             if isinstance(rows, str):
                 p["conns"].append((member, sec, rows, None))
             else:
@@ -355,6 +358,43 @@ def program_checks():
     return ok
 
 
+def expand_checks():
+    """The wildcard: what it matches, in what order, and what it refuses."""
+    rows = dict(TABLE)
+    for n in (1, 2, 9, 10):
+        rows[f"t_tray{n}"] = ("SV", {"name": f"t_tray{n}", "type": "T_F32",
+                                     "_set": "site"})
+    rows["t_trayCount"] = ("SV", {"name": "t_trayCount", "type": "T_F32",
+                                  "_set": "site"})
+
+    def run(value, count=None):
+        spec = {"rows": value, "count": count} if count else value
+        p = prog("p", cls="P1", **{"in": {"x": spec}})
+        out = []
+        vars_programs.expand([p], rows, out.append)
+        return [r for _m, _s, r, _i in p["conns"]], out
+
+    ok = True
+    got, errs = run("t_tray*")
+    if got == ["t_tray1", "t_tray2", "t_tray9", "t_tray10"] and not errs:
+        print("ok   a wildcard expands in NUMERIC order, and skips t_trayCount")
+    else:
+        print(f"FAIL numeric order\n     got {got} {errs}")
+        ok = False
+
+    for label, args, needle in (
+            ("a wildcard that matches nothing", ("t_none*",), "matches no row"),
+            ("a wildcard that matches one row", ("t_trayCount*",), "matches no row"),
+            ("a count that disagrees", ("t_tray*", 3), "not the 3 it declares")):
+        _got, errs = run(*args)
+        if [e for e in errs if needle in e]:
+            print(f"ok   {label}")
+        else:
+            print(f"FAIL {label}\n     wanted {needle!r}, got {errs}")
+            ok = False
+    return ok
+
+
 def header_checks():
     """The per-program declaration part: what the emitted C++ has to say.
 
@@ -555,6 +595,7 @@ def main():
 
     ok &= enum_checks()
     ok &= program_checks()
+    ok &= expand_checks()
     ok &= header_checks()
 
     print("\n" + ("all checks bite" if ok else "SOME CHECKS DO NOT BITE"))

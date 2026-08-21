@@ -423,10 +423,13 @@ def schema_doc():
             'settle    = "Tof"',
             'rail_avg  = { type = "Ewma", count = 2, doc = "one per rail" }',
             "",
-            "# A member is `name = \"row\"`, or a list for an array member. The",
-            "# member takes the FORMAL name, so one class can serve two sites.",
+            "# A member is `name = \"row\"`, a list for an array, or a PATTERN",
+            "# where `*` is one or more digits - eight trays without writing",
+            "# eight names. The member takes the FORMAL name, so one class can",
+            "# serve two sites.",
             "[program.in]",
-            'ln = "grid_LN_V"',
+            'ln    = "grid_LN_V"',
+            'rail  = { rows = "dc_rail*_V", count = 4 }',
             "",
             "[program.out]",
             'locked = "sys_supply_lockout"',
@@ -458,6 +461,13 @@ def schema_doc():
     ])
     out += ["A row carrying text has no typed reference - its value lives in",
             "the bank's pool - so naming one from a program is refused.", "",
+            "`*` matches DIGITS and nothing else, so `irr_tray*` takes the eight",
+            "numbered trays and not `irr_traysPerDay`, and the order it expands",
+            "in is numeric - `tray10` follows `tray9`. `count` is optional and",
+            "asserted: it is how a row quietly added or removed becomes an error",
+            "rather than an array that changed size. The generated `bind()` lists",
+            "every name it resolved to, and that file is committed, so an",
+            "expansion that moves shows up as a diff.", "",
             "## `enums.csv`: the vocabularies a row is written over", "",
             "One line per MEMBER. The generator emits the C++ enum AND the",
             "converter a `PE`/`SVE` row takes the address of, so the type and",
@@ -724,6 +734,7 @@ def orphans_doc(site, rows):
     """
     d = os.path.join(ROOT, "src", "sites", site, "tables")
     progs = vars_programs.load(os.path.join(d, "programs.toml"))
+    vars_programs.expand(progs, rows, lambda _m: None)
     if not progs:
         return []
     producers, readers, shared = set(), set(), set()
@@ -788,6 +799,7 @@ def programs_doc(site, rows):
     """The site's control programs, and the networks their signals form."""
     path = os.path.join(ROOT, "src", "sites", site, "tables", "programs.toml")
     progs = vars_programs.load(path)
+    vars_programs.expand(progs, rows, lambda _m: None)
     if not progs:
         return ["## Programs", "",
                 "No `tables/programs.toml`, so the control programs are still",

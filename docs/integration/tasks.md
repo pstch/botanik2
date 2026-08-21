@@ -94,7 +94,11 @@ Three sections, and each promises something the compiler then holds you to:
 | `out` | `VAR_OUTPUT` / `VAR_EXTERNAL` | this program is the row's ONE producer, claimed at bind time |
 | `inout` | `VAR_IN_OUT` | read-modify-write, SHARED by declaration |
 
-A member is `name = "row"`, or a list for an array (`days = ["irr_days_tray1", ...]`).
+A member is `name = "row"`, a list, or a PATTERN where `*` is one or more
+digits: `days = { rows = "irr_days_tray*", count = 8 }` takes the eight numbered
+trays in numeric order. `*` matches digits and nothing else, so it cannot take
+`irr_traysPerDay` for a tray, and `count` is asserted so a row quietly added or
+removed is an error rather than an array that changed size.
 The reference's TYPE comes from the row, so a member cannot disagree with what it
 names.
 

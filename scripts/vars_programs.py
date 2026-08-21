@@ -57,9 +57,12 @@ def load(path):
         doc = tomllib.load(f)
     out = []
     for p in doc.get("program", []):
-        conns = []
+        conns, counts = [], {}
         for sec in SECTIONS:
             for member, rows in (p.get(sec) or {}).items():
+                if isinstance(rows, dict):
+                    counts[(sec, member)] = rows.get("count")
+                    rows = rows.get("rows", "")
                 if isinstance(rows, str):
                     conns.append((member, sec, rows, None))
                 else:
@@ -71,7 +74,7 @@ def load(path):
                     "vars": _decls(p.get("var")), "fns": _decls(p.get("fn")),
                     "hooks": list(p.get("hooks") or []),
                     "desc": p.get("desc", ""), "notes": p.get("notes", ""),
-                    "conns": conns,
+                    "conns": conns, "counts": counts,
                     "arrays": {m for sec in SECTIONS
                                for m, v in (p.get(sec) or {}).items()
                                if isinstance(v, list)}})
@@ -110,6 +113,50 @@ def _blocks(p):
                     "include": spec.get("include", ""),
                     "doc": spec.get("doc", "")})
     return out
+
+
+def expand(programs, rows, err):
+    """Turn every `prefix*suffix` member into the rows it matches, in order.
+
+    `*` is one or more DIGITS, and nothing else. An array member indexes
+    numbered instances - eight trays, four windows - so the number is what
+    varies, and matching anything else would take `irr_traysPerDay` for a tray.
+    It also settles the ORDER, which is the part a wildcard has to get right:
+    numeric, so tray10 follows tray9 rather than tray1.
+
+    The generated bind() lists what it resolved to, and that file is committed,
+    so an expansion that changes shows up as a diff rather than as behaviour.
+    """
+    for p in programs:
+        conns = []
+        for member, sec, row, idx in p["conns"]:
+            if "*" not in row:
+                conns.append((member, sec, row, idx))
+                continue
+            where = f"programs.toml [{p['name']}]: {sec} '{member}'"
+            head, _star, tail = row.partition("*")
+            hits = []
+            for name in rows:
+                if name.startswith(head) and name.endswith(tail) \
+                        and len(name) > len(head) + len(tail):
+                    cap = name[len(head):len(name) - len(tail)]
+                    if cap.isdigit():
+                        hits.append((int(cap), name))
+            if not hits:
+                err(f"{where}: '{row}' matches no row")
+                continue
+            if len(hits) == 1:
+                err(f"{where}: '{row}' matches only {hits[0][1]} - name the row")
+                continue
+            hits.sort()
+            want = p["counts"].get((sec, member))
+            if want is not None and want != len(hits):
+                err(f"{where}: '{row}' matches {len(hits)} rows, not the {want} "
+                    f"it declares")
+            p["arrays"].add(member)
+            for i, (_h, name) in enumerate(hits):
+                conns.append((member, sec, name, i))
+        p["conns"] = conns
 
 
 def check(programs, rows, err, mentioned=(), cal_params=(), library=(),
