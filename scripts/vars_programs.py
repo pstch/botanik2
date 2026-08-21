@@ -533,11 +533,9 @@ def _program_list(programs):
     lines = ["#define SITE_PROGRAM_LIST(X)"]
     lines += [f"    X({(c + ',').ljust(width)} {m})" for c, m in rows]
     col = max(len(x) for x in lines) + 1
-    return (["/** @name The site's programs",
-             " *  In table order, which is EXECUTION order: a law reading a value",
-             " *  computed this beat needs its producer registered first.",
-             " *  site.h expands this for the members, the constructor init and",
-             " *  the registration, so none of the three can drift.",
+    return (["/** @name The site's programs, in EXECUTION order",
+             " *  site.h expands this three times: the members, the constructor",
+             " *  init, the registration.",
              " *  @{ */", ""]
             + [x.ljust(col) + "\\" for x in lines[:-1]] + [lines[-1]]
             + ["", "/** @} */", ""])
@@ -637,12 +635,6 @@ def program_header(p, rows, banner):
         out += includes + [""]
     out += ["namespace Site {", "", "using namespace Botanik;", "", "/**"]
     out += _brief(p["desc"] or f"The {cls} POU.")
-    out += [" *"]
-    out += [" * " + x for x in textwrap.wrap(
-        f"`{p['name']}`, dispatched {p['task']}. Everything here is declared in "
-        f"tables/programs.toml; the body is hand-written beside this file. A "
-        f"name without a leading underscore is a row or a block the POU is "
-        f"connected to; one with is its own.", 74)]
     out += [" */",
             f"class {cls} final : public Plc::Program {{", ""]
 
@@ -680,54 +672,33 @@ def program_header(p, rows, banner):
     sizes = _sizes(p, rows)
     if sizes:
         width = max(len(n) for n, _c in sizes)
-        out += ["    /** @name Sizes",
-                "     *  How many rows or instances each array member has, from"
-                " the",
-                "     *  table. What a body loops over, so a site constant cannot"
-                " get",
-                "     *  out of step with what is declared.",
+        out += ["    /** @name Sizes - what a body loops over",
                 "     *  @{ */", ""]
         out += [f"    static const uint8_t {n.ljust(width)} = {c};" for n, c in sizes]
         out += ["", "    /** @} */", ""]
 
     if watched:
-        out += ["    /** @brief Every readable row this program connects to, as"
-                " bare",
-                "     *  indices: what the base sweeps for validity before each",
-                "     *  activation. Parameters are not here - an operator's"
-                " number is",
-                "     *  always valid, and checking one would cost a walk to"
-                " learn nothing. */",
-                f"    Vars::VarRef _watched[{len(watched)}];", ""]
+        out += [f"    Vars::VarRef _watched[{len(watched)}];  ///< swept for"
+                f" validity before each activation", ""]
 
     ctx_init = [v for v in p["vars"] if "ctx." in (v["init"] or "")]
     init = "".join(f", {v['name']}({v['init']})" for v in ctx_init)
     out += ["public:",
-            "    /** @brief The instance name and rate class programs.toml",
-            "     *  declares, so neither can drift from the configuration. */",
             f"    {cls}(const SetupContext& ctx, Vars::Bank& io)",
             f'        : Program(ctx, "{p["name"]}", Tasks::GROUP_{p["task"]},'
             f' io){init} {{}}',
             ""]
 
     out += ["protected:",
-            "    /** @brief Resolve every name. Runs inside the program's writer",
-            "     *  window, so an output is CLAIMED here. */",
-            "    void bind(Vars::Bank& io) override;", ""]
-    hooks = [("run", "    /** @brief One activation of the law. */",
-              "    void run(ProgramContext& c) override;")]
+            "    /** @brief Resolve every name. An output is CLAIMED here. */",
+            "    void bind(Vars::Bank& io) override;",
+            "    void run(ProgramContext& c) override;"]
     if "observe" in p["hooks"]:
-        hooks.append(("observe",
-                      "    /** @brief What this program SAYS, in every state -"
-                      " including\n     *  while the plant is parked. */",
-                      "    void observe(ProgramContext& c) override;"))
-    for _n, doc, decl in hooks:
-        out += [doc, decl, ""]
+        out += ["    void observe(ProgramContext& c) override;  ///< reports in"
+                " EVERY state"]
     if "on_bind" in p["hooks"]:
-        out += ["    /** @brief What the law wires once the rows are resolved: a"
-                " block",
-                "     *  taking a reference, a fail direction read off a row. */",
-                "    void on_bind();", ""]
+        out += ["    void on_bind();  ///< wire a block to a row it was handed"]
+    out += [""]
     if p["fns"]:
         out += ["private:", ""]
         width = max(len(f["type"].split("(")[0].strip()) for f in p["fns"])
@@ -766,11 +737,10 @@ def _program_bind(p, rows):
 
     watched = _watched(p, rows)
     if watched:
-        out += ["", "    // The readings this law is entitled to expect. The base"
-                    " walks them",
-                "    // before each activation, so an input that has stopped being"
-                    " believable",
-                "    // is DEGRADED whether or not the law thought to ask."]
+        out += ["", "    // What the base sweeps before each activation, so an"
+                    " input that has",
+                "    // stopped being believable is DEGRADED without the law"
+                    " asking."]
         for n, (member, idx, _row) in enumerate(watched):
             ref = member + (f"[{idx}]" if _is_array(p, member) else "")
             out.append(f"    _watched[{n}] = {ref}.r;")
@@ -803,13 +773,9 @@ def _flow(programs, rows):
                 read_by.setdefault(row, []).append(p["name"])
 
     out = ["/**",
-           " * @brief How the site's programs reach each other.",
-           " *",
-           " * NEVER directly: no program holds a reference to another, or to an",
-           " * instrument another owns. They meet in the variable table and nowhere",
-           " * else, which is what lets any of them be constructed with",
-           " * (setup_context(), io()) alone. Order below is EXECUTION order, so a",
-           " * law reading a value computed this beat finds it already written.",
+           " * @brief How the site's programs reach each other: through the"
+           " table,",
+           " *        never directly. In EXECUTION order.",
            " */", ""]
     body, stage = [], None
     for p in programs:
@@ -826,9 +792,10 @@ def _flow(programs, rows):
         return out
     w0 = max(len(b[0]) for b in body)
     w1 = max(len(b[1]) for b in body)
-    lines = ["// The signal flow, from the table: a row one program produces and",
-             "// another reads. Terminal rows - a totalizer, a position, an alarm -",
-             "// are not here; they go to the pages and the bus."]
+    lines = ["// A row one program produces and another reads. Terminal rows -"
+             " a",
+             "// totalizer, a position, an alarm - go to the pages and the bus,"
+             " not here."]
     for a, b, c in body:
         if not b:
             lines.append("//" + (f" {a}" if a else ""))
@@ -848,9 +815,7 @@ def generate(programs, rows, banner):
     out += _flow(programs, rows)
     out += ["#include <cstdint>", "", '#include "libbotanik.h"', ""]
     if programs:
-        out += ["// Every program, in table order: the declaration part"
-                " generated from",
-                "// the table, with its body in the .cpp beside it."]
+        out += ["// Every program, in EXECUTION order."]
         out += [f'#include "../programs/{p["stage"]}/{snake(p["class"])}/'
                 f'{snake(p["class"])}.gen.h"' for p in programs]
         out += [""]

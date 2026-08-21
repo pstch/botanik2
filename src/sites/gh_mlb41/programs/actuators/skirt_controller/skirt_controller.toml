@@ -1,20 +1,13 @@
-# skirt: what this POU is connected to, what it holds, and what it
-# declares. The body is in skirt_controller.cpp; everything else here is
-# generated into skirt_controller.gen.h.
-
 name   = "skirt"
 class  = "SkirtController"
 task   = "SLOW"
 health = "prog_skirt"
 desc   = "The wet skirt: one valve pulsed against two demands."
 notes  = """
-It is the humidifier, and it tracks the humidify arm PROPORTIONALLY - the
-effort is the on-time within a period. It is also an evaporative cooler, and
-on that axis it is STAGED, above cli_skirtCoolDem and only while the air is
-dry enough for a wet pad to cool anything at all.
-
-The rot lockout cuts it outright. Wetting air that is already condensing is
-the one thing this valve must never do.
+PROPORTIONAL on the humidify arm - it IS the humidifier - and STAGED on the
+cooling axis, only while the air is dry enough for a wet pad to cool
+anything. The rot lockout cuts it outright: wetting condensing air is the
+one thing this valve must never do.
 """
 hooks  = ["on_bind"]
 

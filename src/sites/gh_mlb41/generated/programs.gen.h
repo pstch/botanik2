@@ -8,18 +8,12 @@
 #define SITE_PROGRAMS_GEN_H
 
 /**
- * @brief How the site's programs reach each other.
- *
- * NEVER directly: no program holds a reference to another, or to an
- * instrument another owns. They meet in the variable table and nowhere
- * else, which is what lets any of them be constructed with
- * (setup_context(), io()) alone. Order below is EXECUTION order, so a
- * law reading a value computed this beat finds it already written.
+ * @brief How the site's programs reach each other: through the table,
+ *        never directly. In EXECUTION order.
  */
 
-// The signal flow, from the table: a row one program produces and
-// another reads. Terminal rows - a totalizer, a position, an alarm -
-// are not here; they go to the pages and the bus.
+// A row one program produces and another reads. Terminal rows - a
+// totalizer, a position, an alarm - go to the pages and the bus, not here.
 //
 // [sense]
 //   ac_grid_watch   sys_grid_ok           -> ac_local_watch
@@ -75,8 +69,7 @@
 
 #include "libbotanik.h"
 
-// Every program, in table order: the declaration part generated from
-// the table, with its body in the .cpp beside it.
+// Every program, in EXECUTION order.
 #include "../programs/sense/ac_grid_watch/ac_grid_watch.gen.h"
 #include "../programs/sense/ac_local_watch/ac_local_watch.gen.h"
 #include "../programs/sense/dc_watch/dc_watch.gen.h"
@@ -99,11 +92,9 @@
 #include "../programs/actuators/fan_controller/fan_controller.gen.h"
 #include "../programs/actuators/skirt_controller/skirt_controller.gen.h"
 
-/** @name The site's programs
- *  In table order, which is EXECUTION order: a law reading a value
- *  computed this beat needs its producer registered first.
- *  site.h expands this for the members, the constructor init and
- *  the registration, so none of the three can drift.
+/** @name The site's programs, in EXECUTION order
+ *  site.h expands this three times: the members, the constructor
+ *  init, the registration.
  *  @{ */
 
 #define SITE_PROGRAM_LIST(X)                 \

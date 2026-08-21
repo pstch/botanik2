@@ -1,7 +1,3 @@
-# screen: what this POU is connected to, what it holds, and what it
-# declares. The body is in screen_controller.cpp; everything else here is
-# generated into screen_controller.gen.h.
-
 name   = "screen"
 class  = "ScreenController"
 task   = "SLOW"
@@ -11,14 +7,12 @@ The thermal screen: one coil, deployed when the greenhouse is losing heat
 rather than gaining it.
 """
 notes  = """
-Two independent causes, either sufficient: the cooling ladder gone far enough
-negative, or a cold night. No feedback, so travel is TIMED - and while it runs
-the destratification fans are cut, because the fabric is moving through the
-air they blow into.
+Two independent causes, either sufficient: the cooling ladder far enough
+negative, or a cold night. No feedback, so travel is TIMED, and the
+destratification fans are cut while the fabric moves through the air they
+blow into.
 """
 hooks  = ["observe"]
-
-# What the law remembers between activations.
 
 [var.deployed]
 type = "bool"

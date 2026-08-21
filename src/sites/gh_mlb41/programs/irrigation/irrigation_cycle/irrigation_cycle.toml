@@ -1,25 +1,15 @@
-# irrigation: what this POU is connected to, what it holds, and what it
-# declares. The body is in irrigation_cycle.cpp; everything else here is
-# generated into irrigation_cycle.gen.h.
-
 name   = "irrigation"
 class  = "IrrigationCycle"
 task   = "SLOW"
 health = "prog_irrigation"
 desc   = "Irrigation: one tray at a time, filled to a dose, steeped, and drained."
 notes  = """
-FILLING -> SOAKING -> DRAINING -> FLUSHING, and a cycle is long - so only
-`irr_traysPerDay` are served in a day and the surplus waits for tomorrow. The
-summer settings a tray carries are its DRY-WEATHER ones; `irr_mod` scales them
-down as the air gets damper, and the split decides whether that shows up as
-smaller doses or rarer ones.
-
-It holds no meter state: what went in and what came back out are both read as
-published TOTALS and differenced across the window that is being judged.
+FILLING -> SOAKING -> DRAINING -> FLUSHING. A cycle is long, so only
+`irr_traysPerDay` are served in a day and the surplus waits. A tray's
+settings are its DRY-WEATHER ones; `irr_mod` scales them, and the split
+decides whether that shows up as smaller doses or rarer ones.
 """
 hooks  = ["on_bind"]
-
-# What the law remembers between activations.
 
 [var.state]
 type = "IrrState"

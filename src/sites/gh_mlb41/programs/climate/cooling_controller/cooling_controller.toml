@@ -1,7 +1,3 @@
-# cooling: what this POU is connected to, what it holds, and what it
-# declares. The body is in cooling_controller.cpp; everything else here is
-# generated into cooling_controller.gen.h.
-
 name   = "cooling"
 class  = "CoolingController"
 task   = "FAST"
@@ -11,12 +7,10 @@ The cooling ladder: a PID on the interior temperature against the phase's
 target, published as one signed demand.
 """
 notes  = """
-Negative is heating - the intractors drawing warm air from under the floor,
+Negative is heating: the intractors drawing warm air from under the floor,
 and below that the thermal screen. The actuators spread themselves along the
 demand; this program does not know which they are.
 """
-
-# Its own helpers.
 
 [fn.intake_gates]
 type = "void (ProgramContext& c, float t_in, float dem)"

@@ -1,22 +1,13 @@
-# day_phase: what this POU is connected to, what it holds, and what it
-# declares. The body is in day_phase_controller.cpp; everything else here is
-# generated into day_phase_controller.gen.h.
-
 name   = "day_phase"
 class  = "DayPhaseController"
 task   = "SLOW"
 health = "prog_day_phase"
 desc   = "The day's phase, and the temperature target it puts in force."
 notes  = """
-The phase never commands an actuator: it sets the target and the permissions,
-and the ladders below decide what moves. See the spec's phase table.
-
-The six phases are five boundaries, each declared as an offset in minutes from
-sunrise or from sunset, so the whole table slides with the season instead of
-being a clock an operator re-enters four times a year.
+It commands nothing: it sets the target and the permissions, and the ladders
+below decide what moves. The six phases are five boundaries, each an offset
+in minutes from sunrise or sunset, so the table slides with the season.
 """
-
-# What the law remembers between activations.
 
 [var.phase]
 type = "DayPhase"

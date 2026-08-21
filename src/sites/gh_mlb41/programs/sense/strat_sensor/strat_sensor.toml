@@ -1,7 +1,3 @@
-# strat: what this POU is connected to, what it holds, and what it
-# declares. The body is in strat_sensor.cpp; everything else here is
-# generated into strat_sensor.gen.h.
-
 name   = "strat"
 class  = "StratSensor"
 task   = "FAST"
@@ -12,8 +8,7 @@ unsigned.
 """
 notes  = """
 Its own program because it is a reading ABOUT two zones rather than part of
-either, and because the destratification controller wants exactly one number
-from it.
+either, and the destratification ladder wants exactly one number from it.
 """
 
 [in]

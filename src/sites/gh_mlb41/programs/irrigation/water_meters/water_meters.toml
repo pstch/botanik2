@@ -1,21 +1,15 @@
-# irr_meters: what this POU is connected to, what it holds, and what it
-# declares. The body is in water_meters.cpp; everything else here is
-# generated into water_meters.gen.h.
-
 name   = "irr_meters"
 class  = "WaterMeters"
 task   = "SLOW"
 health = "prog_irr_meters"
 desc   = "Both water meters, and the two supply faults they can see."
 notes  = """
-Opposite ends of the same circuit and opposite instruments: the inlet is a
-pulse train, so its COUNTER is the measurement and the rate is derived; the
-outlet is a 4-20 mA loop, so its RATE is the measurement and the counter is.
-An instrument, not a law - it drives no valve, and it reads while parked.
+Opposite instruments: the inlet is a pulse train, so its COUNTER is the
+measurement and the rate is derived; the outlet is a 4-20 mA loop, so its
+RATE is. An instrument, not a law - it drives no valve and it reads while
+parked.
 """
 hooks  = ["observe"]
-
-# What the law remembers between activations.
 
 [var.in_base_L]
 type = "float"

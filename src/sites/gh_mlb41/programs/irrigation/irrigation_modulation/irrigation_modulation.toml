@@ -1,21 +1,14 @@
-# irr_modulation: what this POU is connected to, what it holds, and what it
-# declares. The body is in irrigation_modulation.cpp; everything else here is
-# generated into irrigation_modulation.gen.h.
-
 name   = "irr_modulation"
 class  = "IrrigationModulation"
 task   = "SLOW"
 health = "prog_irr_modulation"
 desc   = "The irrigation ladder: how thirsty the air has been, as one factor."
 notes  = """
-The spec's irrigation "regulator" - evaporation in, a modulation factor out.
-It commands nothing, so all of it is in observe() and it keeps folding while
-the plant is parked: an outage is not a dry spell, and a hole in the average
-would read as one for days afterwards.
+Evaporation in, a modulation factor out. It commands nothing, so all of it
+is in observe(), and it keeps folding while the plant is parked: an outage
+is not a dry spell.
 """
 hooks  = ["observe"]
-
-# What the law remembers between activations.
 
 [var.seeded]
 type = "bool"

@@ -1,7 +1,3 @@
-# weather_watch: what this POU is connected to, what it holds, and what it
-# declares. The body is in weather_watch.cpp; everything else here is
-# generated into weather_watch.gen.h.
-
 name   = "weather_watch"
 class  = "WeatherWatch"
 task   = "SLOW"
@@ -11,14 +7,11 @@ The weather station, watched: whether it is answering, and whether what it
 says is a storm.
 """
 notes  = """
-A storm IS what shuts the roof, so this reads `WindowsController`'s two
-lockouts rather than declaring a second pair of thresholds beside them - an
-alarm that disagreed with the actuator it is about would be worse than no
-alarm.
+It reads the roof's two lockouts rather than declaring a second pair of
+thresholds beside them: a storm alarm that disagreed with the actuator it is
+about would be worse than no alarm.
 """
 hooks  = ["observe"]
-
-# What the law remembers between activations.
 
 [var.seen]
 type = "bool"

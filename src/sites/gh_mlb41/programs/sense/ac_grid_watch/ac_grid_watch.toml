@@ -1,16 +1,11 @@
-# ac_grid_watch: what this POU is connected to, what it holds, and what it
-# declares. The body is in ac_grid_watch.cpp; everything else here is
-# generated into ac_grid_watch.gen.h.
-
 name   = "ac_grid_watch"
 class  = "AcGridWatch"
 task   = "SLOW"
 health = "prog_ac_grid_watch"
 desc   = "The utility feed, watched."
 notes  = """
-A watch program: empty run(), everything in observe(). What it publishes is an
-observation, and observations are exactly what must survive the plant being
-parked.
+Empty run(), everything in observe(): an observation is exactly what has to
+survive the plant being parked.
 """
 hooks  = ["observe", "on_bind"]
 

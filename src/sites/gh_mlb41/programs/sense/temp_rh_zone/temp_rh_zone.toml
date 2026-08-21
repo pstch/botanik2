@@ -1,7 +1,3 @@
-# temp_rh_zone: what this POU is connected to, what it holds, and what it
-# declares. The body is in temp_rh_zone.cpp; everything else here is
-# generated into temp_rh_zone.gen.h.
-
 name   = "temp_rh_zone"
 class  = "TempRHZone"
 task   = "FAST"

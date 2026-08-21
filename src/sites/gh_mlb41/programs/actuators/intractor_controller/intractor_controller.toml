@@ -1,7 +1,3 @@
-# intractors: what this POU is connected to, what it holds, and what it
-# declares. The body is in intractor_controller.cpp; everything else here is
-# generated into intractor_controller.gen.h.
-
 name   = "intractors"
 class  = "IntractorController"
 task   = "SLOW"
@@ -11,13 +7,10 @@ The two intractors: variable-speed fans drawing air from under the floor,
 driven by whichever of three demands wants the most.
 """
 notes  = """
-Both run together at one speed - they serve one volume - and the fusion is a
-MAXIMUM, so each input is a floor rather than a share. The ramp runs between
-the two staging thresholds, so the windows below it and the intractors above
-it hand over rather than overlap.
+Both run at one speed - they serve one volume - and the fusion is a MAXIMUM,
+so each input is a floor rather than a share. The ramp spans the two staging
+thresholds, so the windows and the intractors hand over rather than overlap.
 """
-
-# Its own helpers.
 
 [fn.safe_speed]
 type = "float () const"

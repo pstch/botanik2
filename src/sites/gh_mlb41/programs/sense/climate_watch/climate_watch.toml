@@ -1,7 +1,3 @@
-# climate_watch: what this POU is connected to, what it holds, and what it
-# declares. The body is in climate_watch.cpp; everything else here is
-# generated into climate_watch.gen.h.
-
 name   = "climate_watch"
 class  = "ClimateWatch"
 task   = "SLOW"
@@ -11,13 +7,10 @@ The interior conditions, watched: the alarms that are a READING crossing a
 line rather than a law failing to hold one.
 """
 notes  = """
-A watch program - empty run(), everything in observe(). An alarm is an
-observation, and an observation has to keep being made while the plant is
-parked, which is exactly when someone is looking at the ALARMS page.
-
-An unmeasured reading raises NOTHING here. What it raises is the zone's own
-quorum alarm, which this rolls up: alarming twice for one dead probe would
-make the second alarm mean "and also we cannot see".
+Empty run(), everything in observe(): the ALARMS page is read exactly when
+the plant is parked. An unmeasured reading raises nothing here - the zone's
+own quorum alarm covers it, and alarming twice for one dead probe would
+blunt both.
 """
 hooks  = ["observe"]
 

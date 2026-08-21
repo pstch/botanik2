@@ -1,7 +1,3 @@
-# humidity: what this POU is connected to, what it holds, and what it
-# declares. The body is in humidity_controller.cpp; everything else here is
-# generated into humidity_controller.gen.h.
-
 name   = "humidity"
 class  = "HumidityController"
 task   = "SLOW"
@@ -11,21 +7,14 @@ The humidity ladder: four bands and a dead zone on the dew-point margin,
 published as one signed demand - and the rot guard under it.
 """
 notes  = """
-Negative dehumidifies (the margin is closing on condensation), positive
-humidifies (the air is drier than the plants want). Set in degC rather than
-kPa because it is CONDENSATION being guarded against, and that happens at the
-temperature the surfaces are actually at.
-
-The GUARD is the same signal read against a different question: the ladder's
-corners are the operator's comfort band, and `cli_tooHumid_degC` is the limit
-`alarm_rot` means. One program, because two reading one margin can disagree
-about it on the beat it moves. The guard's two rows are published from
-observe(): they command nothing, and their verdict has to stand while the
-plant is parked.
+Negative dehumidifies, positive humidifies. Set in degC rather than kPa
+because CONDENSATION is what is guarded against, and that happens at the
+temperature the surfaces are at. The guard is the same signal against a
+different question - `cli_tooHumid_degC` is what `alarm_rot` means - and it
+is one program because two laws reading one margin can disagree on the beat
+it moves.
 """
 hooks  = ["observe"]
-
-# Its own helpers.
 
 [fn.dry_gate]
 type = "void (ProgramContext& c)"

@@ -1,7 +1,3 @@
-# ac_local_watch: what this POU is connected to, what it holds, and what it
-# declares. The body is in ac_local_watch.cpp; everything else here is
-# generated into ac_local_watch.gen.h.
-
 name   = "ac_local_watch"
 class  = "AcLocalWatch"
 task   = "SLOW"
