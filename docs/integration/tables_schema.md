@@ -28,7 +28,7 @@ declares no rows, only the vocabularies they are written over.
 | file | rows it holds | columns |
 |---|---|---|
 | `enums.csv` | - | 5 |
-| `params.csv` | P, PE, PS | 12 |
+| `params.csv` | P, PE, PS | 13 |
 | `alarms.csv` | A | 10 |
 | `globals.csv` | G, GR | 8 |
 | `status.csv` | SV, SVR, SVE | 9 |
@@ -68,6 +68,7 @@ declares no rows, only the vocabularies they are written over.
 | `str` | the function rendering an enum code as a word. Its labels ARE the row's range |
 | `reg` | on a parameter, status value or alarm: its register on the Modbus TCP slave, hand-assigned and a contract. On a field row: the register address on the device. On a local row: the channel |
 | `access` | RW (the default, left empty) or RO. A parameter an external master may read but never write |
+| `retain` | `true` on a row whose value IS the history: litres, hours run, the day a tray was last watered. A computed row is then kept across a reboot (IEC RETAIN); a parameter already persists, so it is `params reset` that leaves it alone |
 | `desc` | one line, shown under the value |
 | `notes` | free text. On a field row, the published map entry it was transcribed from |
 | `feature` | BOTANIK_FEATURE_* this row is compiled under; empty means always. Several are ANDed |
@@ -96,7 +97,7 @@ declares no rows, only the vocabularies they are written over.
 | `def` | an input's fallback once invalid, an output's SAFE state, a parameter's factory value |
 | `digits` | decimals shown on the HMI (T_F32 only) |
 | `unit` | engineering unit, shown beside the value |
-| `retain` | keep the value across a reboot (IEC RETAIN). For rows whose value IS the history: litres, hours run |
+| `retain` | `true` on a row whose value IS the history: litres, hours run, the day a tray was last watered. A computed row is then kept across a reboot (IEC RETAIN); a parameter already persists, so it is `params reset` that leaves it alone |
 | `desc` | one line, shown under the value |
 | `notes` | free text. On a field row, the published map entry it was transcribed from |
 | `feature` | BOTANIK_FEATURE_* this row is compiled under; empty means always. Several are ANDed |

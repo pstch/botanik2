@@ -117,7 +117,9 @@ namespace Botanik { namespace Shell {
                            nullptr,                               G_STA, false,
                                                                &CommandShell::_cmd_features   },
             { "modbus",    "...",       "the field bus: plan, state and devices",
-                           "stats\ndevices",                      G_STA, false,
+                           "stats                the plan, the line, the counters\n"
+                           "devices              the roll-call, one line per unit",
+                                                                  G_STA, false,
                                                                &CommandShell::_cmd_modbus     },
             { "tasks",     "...",       "what the beat spends its time on",
                            "stats\nlist [<prefix>]\nget <name>",   G_STA, false,
@@ -156,7 +158,8 @@ namespace Botanik { namespace Shell {
 #if BOTANIK_FEATURE_VARS
             { "vars",      "...",       "read any variable, whatever its scope",
                            "list [<prefix>]\n"
-                           "get <name>",                          G_TAB, false,
+                           "get <name>           the value, and nothing else\n"
+                           "info <name>          the whole row",  G_TAB, false,
                                                                &CommandShell::_cmd_vars       },
 #endif
         };

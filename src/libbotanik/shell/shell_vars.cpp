@@ -17,6 +17,11 @@
 #include "libbotanik/vars/access.h"
 #include "libbotanik/vars/params.h"
 
+#if BOTANIK_FEATURE_PLC
+#include "libbotanik/plc/program.h"
+#include "libbotanik/tasks/tasks.h"
+#endif
+
 #include "libbotanik/config/logging.h"
 
 namespace Botanik { namespace Shell {
@@ -37,17 +42,46 @@ namespace Botanik { namespace Shell {
                h.valid() ? "" : " (default: nothing has written it)");
     }
 
+    // `vars get`: the value, and nothing that is not the value. One line, so it
+    // is read at a glance and scraped by whatever wants field 1; `vars info` is
+    // where everything about the row went.
+    void CommandShell::_show_value(const char* noun, const char* name,
+                                   uint16_t nlen) {
+        char out[96], val[64];
+        Vars::Bank* io = _bank();
+        if (io == nullptr) { _emitf(out, sizeof(out), "%s: no variables", noun); return; }
+        if (name == nullptr) {
+            _emitf(out, sizeof(out), "usage: %s get <name>   (%s info <name> for the row)",
+                   noun, noun);
+            return;
+        }
+        const Vars::VarRef r = io->find(name, nlen);
+        if (r.index == Vars::VAR_NONE) {
+            _emitf(out, sizeof(out), "%s: unknown variable", noun); return;
+        }
+        const Vars::Var h = io->var(r);
+        const char* u = h.meta()->unit;
+        // The value is the one every other reader sees, override applied. Only
+        // its QUALITY comes with it: a number a dead sensor is not producing is
+        // not a reading, and a bare one would be taken for one.
+        _emitf(out, sizeof(out), "%s%s%s%s",
+               Vars::var_format(*io, h, val, sizeof(val)),
+               (u && u[0]) ? " " : "", (u && u[0]) ? u : "",
+               h.valid() ? "" : " INVALID");
+    }
+
     // The detail view: what kind of row, whether you may write it, what it
     // reads underneath any override. Laid out like `stats` and `net` (dotted
     // leader to a fixed column, value, detail in parentheses).
-    void CommandShell::_show_var(const char* noun, const char* name,
+    void CommandShell::_show_var(const char* noun, const char* verb,
+                                 const char* name,
                                  uint16_t nlen, bool params_only) {
         char out[Config::LOG_FORMATTED_LEN];
         Vars::Bank* io = _bank();
         if (io == nullptr) { _emitf(out, sizeof(out), "%s: no variables", noun); return; }
         if (name == nullptr) {
-            _emitf(out, sizeof(out), "usage: %s get <name>   (%s list [<prefix>] to browse)",
-                   noun, noun);
+            _emitf(out, sizeof(out), "usage: %s %s <name>   (%s list [<prefix>] to browse)",
+                   noun, verb, noun);
             return;
         }
 
@@ -61,7 +95,7 @@ namespace Botanik { namespace Shell {
         // does own the row beats "unknown", which would send someone looking
         // for a typo that is not there.
         if (params_only && d->role != Vars::ROLE_PARAM) {
-            _emitf(out, sizeof(out), "%s: %s is not a parameter (vars get %s)",
+            _emitf(out, sizeof(out), "%s: %s is not a parameter (vars info %s)",
                    noun, d->name, d->name);
             return;
         }
@@ -118,8 +152,17 @@ namespace Botanik { namespace Shell {
                 : Vars::format_scalar(d->type, d->def, d->digits, d->str,
                                       num, sizeof(num));
             snprintf(cell, sizeof(cell), "%s%s%s", text, u[0] ? " " : "", u);
-            _field("Default", cell, _default_phrase(d->role));
+            _field("Default", cell, _default_phrase(*d));
         }
+        // Only where it is true, like Saved above. Asked of the bank rather than
+        // of the flag: F_RETAIN reads two ways and neither is the raw bit - a
+        // computed row is written back to the retained store, a PARAMETER is
+        // one `params reset` leaves alone. A line here that storage does not
+        // keep would be worse than none.
+        if (Vars::Bank::retainable(*d))
+            _field("Retained", "yes", "written back; survives a reboot");
+        else if (Vars::Bank::param_retained(*d))
+            _field("Retained", "yes", "a record; `params reset` leaves it alone");
 
         // The declared band, live: an analog row's comes from its calibration
         // parameters, so var_band() rather than the flash constants.
@@ -134,8 +177,73 @@ namespace Botanik { namespace Shell {
 
         // Where the value physically comes from.
         _field("Source", _binding_phrase(d->bind, det, sizeof(det)), nullptr);
+        // ...and which of the control programs it passes through, which the
+        // binding does not answer: a computed row has no wire and still has an
+        // author.
+        _program_fields(*io, h, r);
         if (d->desc  && d->desc[0])  _field("Description", d->desc,  nullptr);
         if (d->notes && d->notes[0]) _field("Notes",       d->notes, nullptr);
+    }
+
+    // Who drives this row and who watches it, both read off the running scan:
+    // the bank stamps a driven row with the program that claimed it, and every
+    // program carries the rows its bind() declared as inputs.
+    //
+    // Both understate rather than mislead: a PARAMETER is in no program's
+    // watched set, and a row nothing in the scan writes reads "-" whoever else
+    // fills it.
+    void CommandShell::_program_fields(const Vars::Bank& io, Vars::Var h,
+                                       Vars::VarRef r) {
+#if BOTANIK_FEATURE_PLC
+        const Tasks::Registry* reg = _registry();
+        if (reg == nullptr) return;
+        const uint8_t progs = reg->program_count();
+        // Nothing to answer with, and "-" twice would read as a finding.
+        if (progs == 0) return;
+
+        if (h.shared()) {
+            _field("Written by", "several", "declared VAR_IN_OUT: no single one");
+        } else {
+            const uint8_t w = io.writer_of(r);
+            const Plc::Program* by = (w == Vars::WRITER_NONE) ? nullptr
+                                                             : reg->program(w);
+            _field("Written by", (by != nullptr) ? by->name() : "-",
+                   (by != nullptr) ? nullptr : "no control program drives it");
+        }
+
+        // The readers, named while they fit and counted when they do not: a
+        // line that wraps breaks the column for every row under it.
+        char cell[80], det[24];
+        const char* detail = nullptr;
+        size_t n = 0;
+        uint8_t found = 0, shown = 0;
+        cell[0] = '\0';
+        for (uint8_t i = 0; i < progs; i++) {
+            const Plc::Program* p = reg->program(i);
+            if (p == nullptr) continue;
+            bool reads = false;
+            for (uint8_t k = 0; k < p->watched_count(); k++)
+                if (p->watched()[k].index == r.index) { reads = true; break; }
+            if (!reads) continue;
+            found++;
+            const size_t len = strlen(p->name());
+            if (n + len + (n != 0 ? 2 : 0) >= sizeof(cell)) continue;
+            if (n != 0) { cell[n++] = ','; cell[n++] = ' '; }
+            memcpy(cell + n, p->name(), len);
+            n += len;
+            cell[n] = '\0';
+            shown++;
+        }
+        if (found != shown) {
+            snprintf(det, sizeof(det), "%u in all", (unsigned)found);
+            detail = det;
+        } else if (found == 0 && h.role() == Vars::ROLE_PARAM) {
+            detail = "a parameter is not a watched row";
+        }
+        _field("Read by", (found != 0) ? cell : "-", detail);
+#else
+        (void)io; (void)h; (void)r;
+#endif
     }
 
     // The leader is built rather than written into each label, so the column
@@ -159,8 +267,12 @@ namespace Botanik { namespace Shell {
 
     // `def` does three jobs (@see Descriptor::def), and which one is the whole
     // reason to print it: the number says nothing about what it is for.
-    const char* CommandShell::_default_phrase(uint8_t role) {
-        switch ((Vars::VarRole)role) {
+    const char* CommandShell::_default_phrase(const Vars::Descriptor& d) {
+        // The descriptor, not the role alone: a RETAINED parameter is the one
+        // kind whose default nothing puts back, so the phrase would be a lie.
+        if (Vars::Bank::param_retained(d))
+            return "factory value; retained, so nothing puts it back";
+        switch ((Vars::VarRole)d.role) {
             case Vars::ROLE_PARAM:  return "factory value; `params reset` restores it";
             case Vars::ROLE_OUTPUT: return "safe state, driven when control is withdrawn";
             case Vars::ROLE_INPUT:  return "substituted while the reading is invalid";
@@ -248,7 +360,11 @@ namespace Botanik { namespace Shell {
             return;
         }
         if (arg_eq(verb, wv, "get")) {
-            _show_var("vars", a, wa, /*params_only=*/false);
+            _show_value("vars", a, wa);
+            return;
+        }
+        if (arg_eq(verb, wv, "info")) {
+            _show_var("vars", "info", a, wa, /*params_only=*/false);
             return;
         }
         _verb_usage("vars");
@@ -272,7 +388,7 @@ namespace Botanik { namespace Shell {
             return;
         }
         if (arg_eq(verb, wv, "get")) {
-            _show_var("params", nm, wn, /*params_only=*/true);
+            _show_var("params", "get", nm, wn, /*params_only=*/true);
             return;
         }
         if (arg_eq(verb, wv, "set"))   { _params_set(nm, wn, args, alen); return; }
@@ -293,9 +409,11 @@ namespace Botanik { namespace Shell {
         if (nm == nullptr) { _println("usage: params reset <name>|all"); return; }
 
         if (arg_is_all(nm, wn)) {
-            uint16_t done = 0, refused = 0;
+            uint16_t done = 0, refused = 0, kept = 0;
             for (uint16_t k = 0; k < io->param_count(); k++) {
-                switch (io->param_reset(io->param_at(k))) {
+                Vars::Var p = io->param_at(k);
+                if (Vars::Bank::param_retained(*p.meta())) { kept++; continue; }
+                switch (io->param_reset(p)) {
                     case Vars::SET_OK:             done++;    break;
                     case Vars::SET_NOT_PERSISTED:  refused++; break;
                     default: break;                // read-only rows are not errors
@@ -306,12 +424,20 @@ namespace Botanik { namespace Shell {
                        done, refused);
             else
                 _emitf(out, sizeof(out), "params: %u reset to default", done);
+            if (kept != 0)
+                _emitf(out, sizeof(out), "  %u retained, left alone", kept);
             return;
         }
 
         const Vars::VarRef r = io->find(nm, wn);
         if (r.index == Vars::VAR_NONE) { _println("params: unknown parameter"); return; }
         Vars::Var p = io->var(r);
+        if (Vars::Bank::param_retained(*p.meta())) {
+            _emitf(out, sizeof(out), "%s is retained: `params reset` leaves it alone",
+                   p.meta()->name);
+            _println("  it records what happened; `params set` is how it moves");
+            return;
+        }
         switch (io->param_reset(p)) {
             case Vars::SET_OK:
                 _emitf(out, sizeof(out), "%s reset to its default", p.meta()->name);
@@ -466,7 +592,7 @@ namespace Botanik { namespace Shell {
         if (arg_eq(verb, wv, "list")) { _overrides_list(); return; }
 
         uint16_t wn; const char* nm = arg_next(args, alen, wn);
-        if (arg_eq(verb, wv, "get"))   { _show_var("overrides", nm, wn, false); return; }
+        if (arg_eq(verb, wv, "get"))   { _show_var("overrides", "get", nm, wn, false); return; }
         if (arg_eq(verb, wv, "save"))  { _overrides_save(nm, wn);  return; }
         if (arg_eq(verb, wv, "clear")) { _overrides_clear(nm, wn); return; }
         if (arg_eq(verb, wv, "set"))   { _overrides_set(nm, wn, args, alen); return; }

@@ -50,8 +50,11 @@ COLUMNS = {
                            "was transcribed from"),
     "feature":   ("feature", "BOTANIK_FEATURE_* this row is compiled under; empty "
                              "means always. Several are ANDed"),
-    "retain":    ("retain", "keep the value across a reboot (IEC RETAIN). For rows "
-                            "whose value IS the history: litres, hours run"),
+    "retain":    ("retain", "`true` on a row whose value IS the history: litres, "
+                            "hours run, the day a tray was last watered. A "
+                            "computed row is then kept across a reboot (IEC "
+                            "RETAIN); a parameter already persists, so it is "
+                            "`params reset` that leaves it alone"),
 
     # persistence and publication
     "reg":       ("reg", "on a parameter, status value or alarm: its register on "

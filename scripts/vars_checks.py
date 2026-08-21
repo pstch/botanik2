@@ -151,6 +151,7 @@ def check(rows, err):
     _field_bus(rows, err)
     _pulses(rows, err)
     _access(rows, err)
+    _retain(rows, err)
     _calibrations(rows, err)
     _names(rows, err)
 
@@ -323,6 +324,25 @@ def _access(rows, err):
         elif cell not in ACCESS_WORDS:
             err(f"{_where(r)}: {r['name']}: access '{cell}' is not one of "
                 + ", ".join(w or "(empty)" for w in ACCESS_WORDS))
+
+
+# The one word a `retain` cell may say. Empty is the common case: a row whose
+# value is a setting or a reading, rather than a record of what happened.
+RETAIN_WORDS = ("", "true")
+
+
+def _retain(rows, err):
+    """The retain column: parameters and computed globals, and one word."""
+    for kind, r in rows:
+        cell = r.get("retain", "")
+        if not cell:
+            continue
+        if kind not in ("P", "PE", "PS", "G", "GR"):
+            err(f"{_where(r)}: {r['name']}: only a parameter or a computed "
+                f"global may be retained")
+        elif cell not in RETAIN_WORDS:
+            err(f"{_where(r)}: {r['name']}: retain '{cell}' is not one of "
+                + ", ".join(w or "(empty)" for w in RETAIN_WORDS))
 
 
 # What an `isr` cell may say, and the HAL::Pulse::Edge it becomes.

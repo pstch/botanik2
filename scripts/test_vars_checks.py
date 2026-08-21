@@ -514,6 +514,19 @@ def main():
     t[0][1]["access"] = "RO"
     ok &= expect_clean("...and RO on a parameter is fine", t)
 
+    t = base()
+    t[0][1]["retain"] = "yes"
+    ok &= expect("a retain cell that is not `true`", t, "is not one of")
+
+    t = base()
+    t[4][1]["retain"] = "true"
+    ok &= expect("retaining a row that is neither a parameter nor a global", t,
+                 "may be retained")
+
+    t = base()
+    t[0][1]["retain"] = "true"
+    ok &= expect_clean("...and a retained parameter is fine", t)
+
     ok &= enum_checks()
     ok &= program_checks()
     ok &= header_checks()

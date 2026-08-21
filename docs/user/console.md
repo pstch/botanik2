@@ -143,7 +143,7 @@ Three things follow from one shared ring:
   and its answer become a note;
 - `Alt+W` on a table row (MONITOR, PARAMS, TASKS, ALARMS) puts the selected row's
   **name** in the ring, which is the short way from a row you are looking at to a
-  `vars get` or `params set` about it;
+  `vars info` or `params set` about it;
 - the mark is **transient** - any edit drops it - so there is no stale selection to
   drift off the text it pointed at.
 
@@ -332,8 +332,8 @@ Neither writes an unsaved parameter or override on your behalf (@ref user_params
 |------------------------------------------------|---------------------------------------|
 | `stats`                                        | show system statistics                |
 | `net`                                          | show network, MQTT & NTP state        |
-| `modbus stats`                                 | show ModBus status                    |
-| `modbus devices`                               | the device roll-call                  |
+| `modbus stats`                                 | the plan, the line, the counters      |
+| `modbus devices`                               | the roll-call, one line per unit      |
 | `tasks stats`                                  | the beat's totals                     |
 | `tasks list [<prefix>]`                        | list tasks                            |
 | `tasks get <name>`                             | show task state                       |
@@ -359,7 +359,8 @@ Neither writes an unsaved parameter or override on your behalf (@ref user_params
 | `alarms get <code\|name>`                      | get an alarm                          |
 | `alarms ack <code\|name\|all>`                 | acknowledge an alarm                  |
 | `vars list [<prefix>]`                         | list variables                        |
-| `vars get <name>`                              | read a variable                       |
+| `vars get <name>`                              | read a variable's value               |
+| `vars info <name>`                             | everything known about a variable     |
 | `programs list [<prefix>]`                     | list programs                         |
 | `programs enable <name>\|all`                  | enable a program, or all of them      |
 | `programs disable <name>\|all`                 | disable a program, or all of them     |

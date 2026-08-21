@@ -1538,6 +1538,50 @@ TEST_CASE("params: reset puts a row back to its default, live and in storage") {
     CHECK_FALSE(store.load(*p.meta(), fresh, nullptr, 0));
 }
 
+namespace {
+    const Descriptor RETAIN_PARAMS[] = {
+        P("p_setpoint", T_F32, 18.0, 0, 40, 1, "C", 20, "a setting", ""),
+        P("p_last_day", T_U32, 0, 0, 100000, 0, "days", 21, "when it last ran", "",
+          /*writable=*/true, /*retained=*/true),
+    };
+
+    struct RetainParamFx {
+        Bank bank;
+        Botanik::Plc::ControlAuthority auth{bank};
+        RetainParamFx() {
+            bank.register_vars(RETAIN_PARAMS, 2);
+            bank.freeze();
+        }
+        Var row(const char* name) { return bank.var(bank.find(name)); }
+    };
+}
+
+TEST_CASE("params: reset restores a setting and refuses a retained record") {
+    StoreEnv env("/tmp/botanik_test_retained_param");
+    RetainParamFx f;
+    KvParamStore store;
+    f.bank.set_store(&store);
+
+    Var setpoint = f.row("p_setpoint"), last = f.row("p_last_day");
+    CHECK(Bank::param_retained(*last.meta()));
+    CHECK_FALSE(Bank::param_retained(*setpoint.meta()));
+    INFO("a retained PARAMETER persists through its own key, not the retained store");
+    CHECK_FALSE(Bank::retainable(*last.meta()));
+
+    REQUIRE(f.bank.param_set(setpoint, 25.0f) == SET_OK);
+    REQUIRE(f.bank.param_set_i(last, 20140) == SET_OK);
+    REQUIRE(f.bank.param_save(setpoint) == SET_OK);
+    REQUIRE(f.bank.param_save(last) == SET_OK);
+
+    CHECK(f.bank.param_reset(setpoint) == SET_OK);
+    CHECK(setpoint.as_f32() == doctest::Approx(18.0f));
+
+    CHECK(f.bank.param_reset(last) == SET_INVALID);
+    CHECK(last.i() == 20140);
+    Slot fresh{};
+    CHECK(store.load(*last.meta(), fresh, nullptr, 0));
+}
+
 TEST_CASE("params: clear forgets the unsaved edit and keeps the saved one") {
     // The pair that must not be confused: `clear` walks back what was never
     // committed, `reset` throws the committed value away too.

@@ -181,6 +181,11 @@ namespace Botanik { namespace Vars {
 
         /** @} */
 
+        /** @brief Whether this row is read-modify-written by more than one
+         *  program BY DECLARATION (VAR_IN_OUT), so it records no single writer.
+         *  @see Bank::claim_writer() */
+        bool shared() const { return (_v->vflags & VF_SHARED) != 0; }
+
         const Descriptor* meta() const { return _d; }
         const char*     name() const { return _d->name; }
         const char*     unit() const { return _d->unit; }
@@ -493,15 +498,23 @@ namespace Botanik { namespace Vars {
 
         /** @name Retained values (F_RETAIN)
          *
-         *  The rows whose value IS the history - litres delivered, hours run.
+         *  The rows whose value IS the history - litres delivered, hours run,
+         *  the day a tray was last watered.
          *  @{ */
 
-        /** @brief Whether @p d is retained: `F_RETAIN` on `ROLE_COMPUTED` only.
-         *  A parameter already persists, an input is overwritten by the next
-         *  scan, and restoring an output would energise a contactor before
-         *  anything looked at the plant. */
+        /** @brief Whether @p d goes to the retained store: `F_RETAIN` on
+         *  `ROLE_COMPUTED` only. A parameter already persists, an input is
+         *  overwritten by the next scan, and restoring an output would energise
+         *  a contactor before anything looked at the plant. */
         static bool retainable(const Descriptor& d) {
             return (d.flags & F_RETAIN) != 0 && d.role == ROLE_COMPUTED;
+        }
+
+        /** @brief The flag's other half: `F_RETAIN` on a `ROLE_PARAM` row,
+         *  which persists through its own key already. Such a row is editable
+         *  and saved like any parameter, and param_reset() refuses it. */
+        static bool param_retained(const Descriptor& d) {
+            return (d.flags & F_RETAIN) != 0 && d.role == ROLE_PARAM;
         }
 
         /** @brief Restore every retained row from the store. Called at bring-up
@@ -772,8 +785,10 @@ namespace Botanik { namespace Vars {
 
         /** @brief Put @p h back to its factory default, live and durably: `def`
          *  returns and the stored copy is dropped, so a reboot cannot undo it.
-         *  @return SET_OK; SET_INVALID on a non-parameter; SET_NOT_PERSISTED
-         *  when the store kept it (the live value is still reset). */
+         *  A RETAINED parameter is refused (@see param_retained).
+         *  @return SET_OK; SET_INVALID on a non-parameter or a retained one;
+         *  SET_NOT_PERSISTED when the store kept it (the live value is still
+         *  reset). */
         SetResult param_reset(Var h);
 
         /** @brief Forget @p h's UNSAVED edit: the row goes back to exactly what

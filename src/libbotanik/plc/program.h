@@ -104,6 +104,9 @@ namespace Botanik { namespace Plc {
          *  finds rather than only a change from HEALTHY. */
         Vars::RefOut<uint8_t> _health_row;
         uint8_t        _health_said   = 0xFF;
+        /** @brief The readable rows this program connects to. @see set_inputs */
+        const Vars::VarRef* _watched = nullptr;
+        uint8_t             _watched_count = 0;
 
         /** @} */
 
@@ -116,10 +119,6 @@ namespace Botanik { namespace Plc {
         Program(const SetupContext& ctx, const char* name, Tasks::GroupId group,
                 Vars::Bank& io)
             : Component(ctx, name), _io(&io), _group(group) {}
-
-        /** @brief The readable rows this program connects to. @see set_inputs */
-        const Vars::VarRef* _watched = nullptr;
-        uint8_t             _watched_count = 0;
 
         /** @brief Where this program's health is PUBLISHED, or the sink.
          *
@@ -142,6 +141,12 @@ namespace Botanik { namespace Plc {
             _watched = rows;
             _watched_count = count;
         }
+
+        /** @brief The rows set_inputs() was handed, for a reader asking which
+         *  programs consume one. Borrowed; null until bind() has run. */
+        const Vars::VarRef* watched() const   { return _watched; }
+        uint8_t             watched_count() const { return _watched_count; }
+
         Vars::RefOut<uint8_t> health_row() const { return _health_row; }
 
         /** @brief Registry::add_program()'s to set: two programs claiming one

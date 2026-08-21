@@ -114,11 +114,11 @@ namespace Botanik { namespace Vars {
          *  are big-endian on the wire; only which half of a PAIR carries the
          *  high word varies. Meaningless unless `bind.regs` is 2. */
         F_WORD_SWAP = 1u << 3,
-        /** @brief Keep this row's value across a reboot (IEC 61131-3 RETAIN),
-         *  for rows whose value IS the history: litres delivered, hours run.
-         *  `ROLE_COMPUTED` only (@see Bank::retainable()). Saved on a cadence
-         *  and on the way down, never per write - a totalizer moves every beat
-         *  and would wear the flash out in days. */
+        /** @brief This row's value IS the history: litres delivered, hours
+         *  run, the day a tray was last watered. Read by role - a
+         *  `ROLE_COMPUTED` row goes to the retained store (@see
+         *  Bank::retainable), a `ROLE_PARAM` one already persists, so the flag
+         *  means `params reset` leaves it alone (@see Bank::param_retained). */
         F_RETAIN = 1u << 4,
         /** @brief A LOCAL digital input counted by an interrupt rather than
          *  polled as a level (`HAL::Pulse`). The terminal is attached once, as

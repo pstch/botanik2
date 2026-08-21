@@ -274,10 +274,12 @@ namespace Botanik { namespace Shell {
         void _cmd_version(const char* args, uint16_t alen);
         void _cmd_features(const char* args, uint16_t alen);
         void _cmd_alarms(const char* args, uint16_t alen);
-        /** @brief The field bus: plan cost, master state, devices answering. */
+        /** @brief `modbus stats` is the plan cost and the master state,
+         *  `modbus devices` the roll-call. */
         void _cmd_modbus(const char* args, uint16_t alen);
         #if BOTANIK_FEATURE_MODBUS_RTU_CLIENT
-        /** @brief `modbus devices`: one line per unit, named and counted. */
+        /** @brief `modbus devices`: one line per unit - tag, address, model and
+         *  whether it is answering. No counters. */
         void _modbus_devices(const Modbus::RtuClient& rtu);
         #endif
         void _cmd_net(const char* args, uint16_t alen);
@@ -288,7 +290,7 @@ namespace Botanik { namespace Shell {
         void _cmd_programs(const char* args, uint16_t alen);
         /** @brief `overrides list|get|set|clear|save` - the forced rows. */
         void _cmd_overrides(const char* args, uint16_t alen);
-        /** @brief `vars list|get` - every row, whatever its scope. */
+        /** @brief `vars list|get|info` - every row, whatever its scope. */
         void _cmd_vars(const char* args, uint16_t alen);
         void _cmd_control(const char* args, uint16_t alen);
 
@@ -307,7 +309,8 @@ namespace Botanik { namespace Shell {
         /** @brief `params clear <name>|all` - back to the factory default. */
         void _params_clear(const char* nm, uint16_t wn);
         /** @brief `params reset`: back to the FACTORY default, stored copy and
-         *  all. The destructive sibling of _params_clear(). */
+         *  all. The destructive sibling of _params_clear(), and it skips a
+         *  RETAINED parameter (@see Vars::Bank::param_retained). */
         void _params_reset(const char* nm, uint16_t wn);
         /** @brief `overrides save <name>|all` - the same, for overrides. */
         void _overrides_save(const char* nm, uint16_t wn);
@@ -330,7 +333,7 @@ namespace Botanik { namespace Shell {
 
         /** @name Shared verb bodies
          *
-         *  `params get` and `vars get` are the same detail view over a
+         *  `params get` and `vars info` are the same detail view over a
          *  different admission rule, and both list forms are one filtered walk.
          *  Written once, so a row reads the same whichever noun showed it.
          *  @{ */
@@ -345,9 +348,13 @@ namespace Botanik { namespace Shell {
          *  command in the empty-result line. */
         void _list_vars(const char* noun, const char* prefix, uint16_t plen,
                         bool params_only);
-        /** @brief The detail view for one row. */
-        void _show_var(const char* noun, const char* name, uint16_t nlen,
-                       bool params_only);
+        /** @brief The detail view for one row. @p verb is the one that reached
+         *  here, since the nouns spell it differently (`vars info`, `params
+         *  get`) and the usage line has to name the caller's. */
+        void _show_var(const char* noun, const char* verb, const char* name,
+                       uint16_t nlen, bool params_only);
+        /** @brief `vars get`: the live value on one line, and nothing else. */
+        void _show_value(const char* noun, const char* name, uint16_t nlen);
         /** @} */
         /** @brief Report control state, naming every hold still in force. */
         void _report_control(Plc::ControlAuthority* auth);
@@ -396,14 +403,19 @@ namespace Botanik { namespace Shell {
                           Vars::Value val, const char* quality, const char* unit);
         /** @brief What a VarScope abbreviation means, for the detail column. */
         static const char* _scope_phrase(uint8_t scope);
-        /** @brief What `def` is FOR on a row of this role - it does three
-         *  different jobs, and the number alone does not say which. */
-        static const char* _default_phrase(uint8_t role);
+        /** @brief What `def` is FOR on this row - it does three different jobs,
+         *  and the number alone does not say which. Takes the descriptor, not
+         *  the role: a retained parameter's default is one nothing restores. */
+        static const char* _default_phrase(const Vars::Descriptor& d);
         /** @brief Whether `set` will take @p h. */
         static bool _writable(Vars::Var h);
         /** @brief Where a value physically comes from, into @p buf. */
         static const char* _binding_phrase(const Vars::Binding& b,
                                            char* buf, size_t cap);
+        /** @brief The two program rows: who drives @p r, and who watches it.
+         *  Both read off the running registry. Emits nothing when the build has
+         *  no scan, or the site no programs. */
+        void _program_fields(const Vars::Bank& io, Vars::Var h, Vars::VarRef r);
         /** @} */
 
         /** @brief The variables, from the injected SystemContext (null when the

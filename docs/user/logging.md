@@ -54,7 +54,7 @@ Two filters in series. The `sys_log_level` **parameter** is the master floor -
 below it nothing is emitted at all, to any sink:
 
 ```
-botanik> vars get sys_log_level              # report the current threshold
+botanik> vars info sys_log_level             # report the current threshold
 sys_log_level = debug
 ...
 Range ....................... : debug|info|notice|warning|error|critical
