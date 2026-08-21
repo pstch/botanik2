@@ -103,14 +103,14 @@ private:
      *  @{ */
 
     IrrState _state = IRR_IDLE;
-    uint8_t  _tray = 0;;             ///< 1..N_TRAY_VALVE while serving, else 0
-    uint8_t  _served = 0;;           ///< trays done since the day rolled
+    uint8_t  _tray = 0;              ///< 1..N_TRAY_VALVE while serving, else 0
+    uint8_t  _served = 0;            ///< trays done since the day rolled
     uint32_t _in_state_ms = 0;
     float    _fill_start_L = 0.0f;   ///< The two meters' totals when the window under judgement opened. Litres are the DIFFERENCE, so a counter that has run since boot - or since last year, retained - needs no reset.
     float    _drain_start_L = 0.0f;
     float    _dose_L = 0.0f;         ///< What the tray actually got, kept because the modulation may move under a cycle that is already draining.
     uint32_t _served_day = 0;        ///< The UNIX day `_served` is counted against; the tally rolls when the date does, so a cycle spanning midnight is not counted twice.
-    bool     _forced = false;;       ///< this cycle came from irr_forceNow
+    bool     _forced = false;        ///< this cycle came from irr_forceNow
 
     /** @} */
 
