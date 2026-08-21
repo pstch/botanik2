@@ -25,13 +25,7 @@ using namespace Botanik;
  */
 class WaterMeters : public Plc::Program {
 
-    /** @brief Every readable row this program connects to, as bare
-     *  indices: what the base sweeps for validity before each
-     *  activation. Parameters are not here - an operator's number is
-     *  always valid, and checking one would cost a walk to learn nothing. */
-    Vars::VarRef _watched[2];
-
-protected:
+public:
 
     /** @name VAR_INPUT
      *  @{ */
@@ -57,6 +51,8 @@ protected:
 
     /** @} */
 
+protected:
+
     /** @name VAR - function blocks
      *  @{ */
 
@@ -66,6 +62,13 @@ protected:
     Plc::Integral   out_meter;  ///< Lpm -> litres
 
     /** @} */
+
+private:
+    /** @brief Every readable row this program connects to, as bare
+     *  indices: what the base sweeps for validity before each
+     *  activation. Parameters are not here - an operator's number is
+     *  always valid, and checking one would cost a walk to learn nothing. */
+    Vars::VarRef _watched[2];
 
 public:
     /** @brief The instance name and rate class programs.toml

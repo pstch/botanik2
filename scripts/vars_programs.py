@@ -570,16 +570,11 @@ def program_header(p, rows, banner):
             f"class {cls} : public Plc::Program {{", ""]
 
     watched = _watched(p, rows)
-    if watched:
-        out += ["    /** @brief Every readable row this program connects to, as"
-                " bare",
-                "     *  indices: what the base sweeps for validity before each",
-                "     *  activation. Parameters are not here - an operator's"
-                " number is",
-                "     *  always valid, and checking one would cost a walk to"
-                " learn nothing. */",
-                f"    Vars::VarRef _watched[{len(watched)}];", ""]
-    out += ["protected:", ""]
+    # The rows are PUBLIC: they are the POU's declared interface, which is what
+    # a site block bound from it reads (AcSupply takes either supply's, by
+    # template). The blocks under them are internal, and _watched is the base's
+    # own bookkeeping.
+    out += ["public:", ""]
 
     ms = _members(p, rows)
     for sec in SECTIONS:
@@ -591,6 +586,8 @@ def program_header(p, rows, banner):
                            [(f"Vars::{tmpl}<{m[2]}>",
                              m[1] + (f"[{len(m[3])}]" if len(m[3]) > 1 else ""), "")
                             for m in group]) + [""]
+    if p["blocks"] or _sizes(p, rows) or watched:
+        out += ["protected:", ""]
     out += _decl_group("VAR - function blocks",
                        [(_block_type(b),
                          b["name"] + (f"[{b['count']}]" if b["count"] > 1 else ""),
@@ -611,6 +608,16 @@ def program_header(p, rows, banner):
         out += [f"    static const uint8_t {n.ljust(width)} = {c};" for n, c in sizes]
         out += ["", "    /** @} */", ""]
 
+    if watched:
+        out += ["private:",
+                "    /** @brief Every readable row this program connects to, as"
+                " bare",
+                "     *  indices: what the base sweeps for validity before each",
+                "     *  activation. Parameters are not here - an operator's"
+                " number is",
+                "     *  always valid, and checking one would cost a walk to"
+                " learn nothing. */",
+                f"    Vars::VarRef _watched[{len(watched)}];", ""]
     out += ["public:",
             "    /** @brief The instance name and rate class programs.toml",
             "     *  declares, so neither can drift from the configuration. */",

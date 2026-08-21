@@ -27,13 +27,7 @@ using namespace Botanik;
  */
 class SkirtController : public Plc::Program {
 
-    /** @brief Every readable row this program connects to, as bare
-     *  indices: what the base sweeps for validity before each
-     *  activation. Parameters are not here - an operator's number is
-     *  always valid, and checking one would cost a walk to learn nothing. */
-    Vars::VarRef _watched[4];
-
-protected:
+public:
 
     /** @name VAR_INPUT
      *  @{ */
@@ -57,12 +51,21 @@ protected:
 
     /** @} */
 
+protected:
+
     /** @name VAR - function blocks
      *  @{ */
 
     ValveController pulse;  ///< the on-time within a period
 
     /** @} */
+
+private:
+    /** @brief Every readable row this program connects to, as bare
+     *  indices: what the base sweeps for validity before each
+     *  activation. Parameters are not here - an operator's number is
+     *  always valid, and checking one would cost a walk to learn nothing. */
+    Vars::VarRef _watched[4];
 
 public:
     /** @brief The instance name and rate class programs.toml
