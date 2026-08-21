@@ -14,16 +14,16 @@ hooks  = ["observe"]
 type = "bool"
 init = "false"
 
-[var.last_fold_ms]
-type = "uint64_t"
-init = "0"
-
 [fn.track_dryness]
 type = "float (ProgramContext& c)"
 doc  = """
 Fold the VPD into the dryness average, at most once an hour. @return the
 average now in force
 """
+
+[block.fold]
+type = "Ton"
+doc  = "one hour, self-reset: when the dryness average takes a sample"
 
 [block.dryness]
 type = "Utils::ExpMovingAverage"

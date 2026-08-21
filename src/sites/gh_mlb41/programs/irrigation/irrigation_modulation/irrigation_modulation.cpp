@@ -12,20 +12,20 @@ namespace Site {
 
 void IrrigationModulation::run(ProgramContext& c) { (void)c; }
 
-static const uint64_t FOLD_MS = 3600ull * 1000ull;
+static const uint32_t FOLD_MS = 3600u * 1000u;
 
 float IrrigationModulation::_track_dryness(ProgramContext& c) {
     // Once an HOUR, and the interval is the whole design: folded every scan the
     // increment underflows a float and the average freezes; folded once a day
     // the answer depends on which hour it was taken.
-    if (c.now_ms - _last_fold_ms >= FOLD_MS || !_seeded) {
+    if (fold(true, FOLD_MS, c.dt_ms) || !_seeded) {
         const uint16_t days = dry_days.get();
         const float alpha = (days == 0) ? 1.0f : 1.0f / (24.0f * (float)days);
         dryness.configure(alpha, alpha);
         const float now = vpd.get();
         if (!_seeded) { dryness.preset(now); _seeded = true; }
         else          { dryness.push(now); }
-        _last_fold_ms = c.now_ms;
+        fold.reset();
     }
     vpd_avg.set(dryness.value());
     return dryness.value();

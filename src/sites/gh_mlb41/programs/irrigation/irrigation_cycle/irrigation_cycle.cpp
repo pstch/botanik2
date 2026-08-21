@@ -199,7 +199,7 @@ IrrState IrrigationCycle::_after_fill() const {
 
 void IrrigationCycle::_enter(IrrState st) {
     _state = st;
-    _in_state_ms = 0;
+    dwell.reset();
     // The meters are counters, so a window is a DIFFERENCE: stamp the one the
     // next st is judged on and read it again when the st ends.
     if (st == IRR_FILLING) _fill_start_L = in_total.get();
@@ -231,8 +231,6 @@ void IrrigationCycle::run(ProgramContext& c) {
         _tray = 0;
         _enter(IRR_IDLE);
     }
-    _in_state_ms += c.dt_ms;
-
     // The dose is the tray's summer figure scaled by this: without it there is
     // no dose to fill to, and a cycle started anyway would run its inlet to the
     // fill timeout and blame the tray for it.
@@ -287,7 +285,7 @@ void IrrigationCycle::run(ProgramContext& c) {
                 _stamp_served();
                 _dose_L = got;
                 _enter(_after_fill());
-            } else if (_in_state_ms >= 1000u * max_fill_s.get()) {
+            } else if (dwell(true, 1000u * max_fill_s.get(), c.dt_ms)) {
                 // The dose never arrived: water off, a stuck inlet, or a meter
                 // that has stopped counting. Move to drain regardless - leaving
                 // the inlet open on a fault is how a tray overflows.
@@ -308,19 +306,20 @@ void IrrigationCycle::run(ProgramContext& c) {
             // The tray sits full. Nothing is measured here and nothing can go
             // wrong: the fill has already been judged, and the drain window
             // has not started, so the only thing this state does is wait.
-            if (_in_state_ms >= 1000u * soak_s.get()) _enter(IRR_DRAINING);
+            if (dwell(true, 1000u * soak_s.get(), c.dt_ms))
+                _enter(IRR_DRAINING);
             break;
         }
         case IRR_DRAINING: {
             drained.set(out_total.get() - _drain_start_L);
-            if (_in_state_ms < 1000u * drain_window_s.get()) break;
+            if (!dwell(true, 1000u * drain_window_s.get(), c.dt_ms)) break;
             _drain_verdict();
             _tray = 0;
             _enter(IRR_FLUSHING);
             break;
         }
         case IRR_FLUSHING: {
-            if (_in_state_ms >= 1000u * flush_s.get()) _enter(IRR_IDLE);
+            if (dwell(true, 1000u * flush_s.get(), c.dt_ms)) _enter(IRR_IDLE);
             break;
         }
     }

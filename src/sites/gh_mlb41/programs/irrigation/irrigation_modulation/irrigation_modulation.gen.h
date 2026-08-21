@@ -48,6 +48,8 @@ private:
     /** @name VAR - function blocks
      *  @{ */
 
+    /** @brief one hour, self-reset: when the dryness average takes a sample */
+    Plc::Ton                fold;
     Utils::ExpMovingAverage dryness;  ///< the dryness tracker
 
     /** @} */
@@ -55,8 +57,7 @@ private:
     /** @name VAR - what this law remembers
      *  @{ */
 
-    bool     _seeded = false;
-    uint64_t _last_fold_ms = 0;
+    bool _seeded = false;
 
     /** @} */
 

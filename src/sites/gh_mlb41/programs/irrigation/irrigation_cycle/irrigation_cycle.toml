@@ -117,6 +117,10 @@ doc  = "What follows a fill: the soak, or the drain when there is none."
 [fn.enter]
 type = "void (IrrState state)"
 
+[block.dwell]
+type = "Ton"
+doc  = "how long this state has run; _enter() resets it"
+
 [block.inlet_v]
 type    = "ValveController"
 count   = 2

@@ -87,6 +87,8 @@ private:
     /** @name VAR - function blocks
      *  @{ */
 
+    /** @brief how long this state has run; _enter() resets it */
+    Plc::Ton        dwell;
     ValveController inlet_v[2];  ///< two contactors on one manifold
     ValveController outlet_v[2];
     ValveController tray_v[8];
