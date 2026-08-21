@@ -11,7 +11,9 @@
 
 #include "libbotanik.h"
 
-namespace Site { namespace Gen {
+#include "../../../vars.h"
+
+namespace Site {
 
 using namespace Botanik;
 
@@ -19,12 +21,12 @@ using namespace Botanik;
  * @brief The weather station, watched: whether it is answering, and whether what
  *        it says is a storm.
  *
- * The declaration part of `weather_watch`, dispatched SLOW: every row it
- * connects to, and every block it holds. Site::WeatherWatch derives this and
- * carries the body. A name without a leading underscore was declared in the
- * table; the derived class owns everything else.
+ * `weather_watch`, dispatched SLOW. Everything here is declared in
+ * tables/programs.toml; the body is hand-written beside this file. A name
+ * without a leading underscore is a row or a block the POU is connected to;
+ * one with is its own.
  */
-class WeatherWatch : public Plc::Program {
+class WeatherWatch final : public Plc::Program {
 
 public:
 
@@ -49,9 +51,17 @@ public:
 
     /** @} */
 
-protected:
-
 private:
+
+    /** @name VAR - what this law remembers
+     *  @{ */
+
+    bool     _seen = false;      ///< Whether the station has EVER answered. Before it has, silence is bring-up; after, it is a fault. @see AcSupply
+    uint64_t _dry_ms = 0;        ///< Ms since the gauge last read wet, and whether it ever has in this run. A boot does not know when it last rained, so before the first shower the row is held rather than reading "just now".
+    bool     _wet_seen = false;
+
+    /** @} */
+
     /** @brief Every readable row this program connects to, as bare
      *  indices: what the base sweeps for validity before each
      *  activation. Parameters are not here - an operator's number is
@@ -66,15 +76,15 @@ public:
 
 protected:
     /** @brief Resolve every name. Runs inside the program's writer
-     *  window, so an output is CLAIMED here. Not overridable: a law
-     *  extends it through on_bind(), which cannot forget to resolve
-     *  first. */
-    void bind(Vars::Bank& io) final;
+     *  window, so an output is CLAIMED here. */
+    void bind(Vars::Bank& io) override;
 
-    /** @brief Whatever the law has to wire once the rows are resolved:
-     *  a block taking a reference, a fail direction read off a row.
-     *  Nothing by default. */
-    virtual void on_bind() {}
+    /** @brief One activation of the law. */
+    void run(ProgramContext& c) override;
+
+    /** @brief What this program SAYS, in every state - including
+     *  while the plant is parked. */
+    void observe(ProgramContext& c) override;
 };
 
 inline void WeatherWatch::bind(Vars::Bank& io) {
@@ -99,9 +109,8 @@ inline void WeatherWatch::bind(Vars::Bank& io) {
     _watched[5] = wind_lock.r;
     set_inputs(_watched, 6);
     set_health_row(io.resolve_out<uint8_t>("prog_weather_watch"));
-    on_bind();
 }
 
-}}  // namespace Site::Gen
+}  // namespace Site
 
 #endif // SITE_PROGRAM_WEATHER_WATCH_GEN_H

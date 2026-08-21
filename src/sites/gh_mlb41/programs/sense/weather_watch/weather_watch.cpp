@@ -3,11 +3,11 @@
  * @brief HAND-WRITTEN - the body of the `weather_watch` POU.
  */
 
-#include "weather_watch.h"
-
-#include "../../../vars.h"
+#include "weather_watch.gen.h"
 
 namespace Site {
+
+void WeatherWatch::run(ProgramContext& c) { (void)c; }
 
 void WeatherWatch::observe(ProgramContext& c) {
     const bool measured = wind.valid() &&

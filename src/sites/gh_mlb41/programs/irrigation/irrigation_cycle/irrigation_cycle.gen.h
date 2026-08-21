@@ -11,21 +11,23 @@
 
 #include "libbotanik.h"
 
+#include "../../../vars.h"
+
 #include "../../../blocks/valve_controller.h"
 
-namespace Site { namespace Gen {
+namespace Site {
 
 using namespace Botanik;
 
 /**
  * @brief Irrigation: one tray at a time, filled to a dose, steeped, and drained.
  *
- * The declaration part of `irrigation`, dispatched SLOW: every row it
- * connects to, and every block it holds. Site::IrrigationCycle derives this
- * and carries the body. A name without a leading underscore was declared in
- * the table; the derived class owns everything else.
+ * `irrigation`, dispatched SLOW. Everything here is declared in
+ * tables/programs.toml; the body is hand-written beside this file. A name
+ * without a leading underscore is a row or a block the POU is connected to;
+ * one with is its own.
  */
-class IrrigationCycle : public Plc::Program {
+class IrrigationCycle final : public Plc::Program {
 
 public:
 
@@ -86,7 +88,7 @@ public:
 
     /** @} */
 
-protected:
+private:
 
     /** @name VAR - function blocks
      *  @{ */
@@ -94,6 +96,21 @@ protected:
     ValveController inlet_v[2];   ///< two contactors on one manifold
     ValveController outlet_v[2];
     ValveController tray_v[8];
+
+    /** @} */
+
+    /** @name VAR - what this law remembers
+     *  @{ */
+
+    IrrState _state = IRR_IDLE;
+    uint8_t  _tray = 0;;             ///< 1..N_TRAY_VALVE while serving, else 0
+    uint8_t  _served = 0;;           ///< trays done since the day rolled
+    uint32_t _in_state_ms = 0;
+    float    _fill_start_L = 0.0f;   ///< The two meters' totals when the window under judgement opened. Litres are the DIFFERENCE, so a counter that has run since boot - or since last year, retained - needs no reset.
+    float    _drain_start_L = 0.0f;
+    float    _dose_L = 0.0f;         ///< What the tray actually got, kept because the modulation may move under a cycle that is already draining.
+    uint32_t _served_day = 0;        ///< The UNIX day `_served` is counted against; the tally rolls when the date does, so a cycle spanning midnight is not counted twice.
+    bool     _forced = false;;       ///< this cycle came from irr_forceNow
 
     /** @} */
 
@@ -119,7 +136,6 @@ protected:
 
     /** @} */
 
-private:
     /** @brief Every readable row this program connects to, as bare
      *  indices: what the base sweeps for validity before each
      *  activation. Parameters are not here - an operator's number is
@@ -134,15 +150,37 @@ public:
 
 protected:
     /** @brief Resolve every name. Runs inside the program's writer
-     *  window, so an output is CLAIMED here. Not overridable: a law
-     *  extends it through on_bind(), which cannot forget to resolve
-     *  first. */
-    void bind(Vars::Bank& io) final;
+     *  window, so an output is CLAIMED here. */
+    void bind(Vars::Bank& io) override;
 
-    /** @brief Whatever the law has to wire once the rows are resolved:
-     *  a block taking a reference, a fail direction read off a row.
-     *  Nothing by default. */
-    virtual void on_bind() {}
+    /** @brief One activation of the law. */
+    void run(ProgramContext& c) override;
+
+    /** @brief What the law wires once the rows are resolved: a block
+     *  taking a reference, a fail direction read off a row. */
+    void on_bind();
+
+private:
+
+    /** @brief Whether a cycle may START now. Two slots: the end of the night, and the first hours of the day for when the night was too cold to water in. Never the afternoon - a tray filled then is still wet at dusk. */
+    bool     _in_slot() const;
+    /** @brief Judge the window that has just closed: did enough come back? A dose of zero or an unusable meter gives no verdict at all - a clog is a measurement, and there is nothing to measure. */
+    void     _drain_verdict();
+    /** @brief The next tray owed water, or 0. Honours the per-tray forces, and publishes the modulated interval of whichever tray it picks. @param today UNIX day number, or 0 when the clock is not yet trusted */
+    uint8_t  _next_due(float mod, uint32_t today);
+    /** @brief Drive the valves for @p state, serving @p tray (0 = none). */
+    void     _set_valves(IrrState state, uint8_t tray);
+    /** @brief Every valve to the position its row declares it fails to. */
+    void     _park_valves();
+    /** @brief Set or clear @p per_tray for the tray being served. */
+    void     _blame(const Vars::RefOut<bool>* per_tray, bool on);
+    /** @brief Record that the active tray has been watered, durably, and spend the force that asked for it. */
+    void     _stamp_served();
+    /** @brief Stamp tray @p tray (0-based) as watered on UNIX day @p day. */
+    void     _stamp(uint8_t tray, uint32_t day) const;
+    /** @brief What follows a fill: the soak, or the drain when there is none. */
+    IrrState _after_fill() const;
+    void     _enter(IrrState state);
 };
 
 inline void IrrigationCycle::bind(Vars::Bank& io) {
@@ -262,6 +300,6 @@ inline void IrrigationCycle::bind(Vars::Bank& io) {
     on_bind();
 }
 
-}}  // namespace Site::Gen
+}  // namespace Site
 
 #endif // SITE_PROGRAM_IRRIGATION_CYCLE_GEN_H

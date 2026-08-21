@@ -11,7 +11,9 @@
 
 #include "libbotanik.h"
 
-namespace Site { namespace Gen {
+#include "../../../vars.h"
+
+namespace Site {
 
 using namespace Botanik;
 
@@ -19,12 +21,12 @@ using namespace Botanik;
  * @brief The two intractors: variable-speed fans drawing air from under the
  *        floor, driven by whichever of three demands wants the most.
  *
- * The declaration part of `intractors`, dispatched SLOW: every row it
- * connects to, and every block it holds. Site::IntractorController derives
- * this and carries the body. A name without a leading underscore was
- * declared in the table; the derived class owns everything else.
+ * `intractors`, dispatched SLOW. Everything here is declared in
+ * tables/programs.toml; the body is hand-written beside this file. A name
+ * without a leading underscore is a row or a block the POU is connected to;
+ * one with is its own.
  */
-class IntractorController : public Plc::Program {
+class IntractorController final : public Plc::Program {
 
 public:
 
@@ -50,7 +52,7 @@ public:
 
     /** @} */
 
-protected:
+private:
 
     /** @name Sizes
      *  How many rows or instances each array member has, from the
@@ -62,7 +64,6 @@ protected:
 
     /** @} */
 
-private:
     /** @brief Every readable row this program connects to, as bare
      *  indices: what the base sweeps for validity before each
      *  activation. Parameters are not here - an operator's number is
@@ -77,15 +78,16 @@ public:
 
 protected:
     /** @brief Resolve every name. Runs inside the program's writer
-     *  window, so an output is CLAIMED here. Not overridable: a law
-     *  extends it through on_bind(), which cannot forget to resolve
-     *  first. */
-    void bind(Vars::Bank& io) final;
+     *  window, so an output is CLAIMED here. */
+    void bind(Vars::Bank& io) override;
 
-    /** @brief Whatever the law has to wire once the rows are resolved:
-     *  a block taking a reference, a fail direction read off a row.
-     *  Nothing by default. */
-    virtual void on_bind() {}
+    /** @brief One activation of the law. */
+    void run(ProgramContext& c) override;
+
+private:
+
+    /** @brief Where these go when this law is not acting, off the row's own declared safe value. NOT stopped: some air is always wanted. */
+    float _safe_speed() const;
 };
 
 inline void IntractorController::bind(Vars::Bank& io) {
@@ -112,9 +114,8 @@ inline void IntractorController::bind(Vars::Bank& io) {
     _watched[5] = dry_ok.r;
     set_inputs(_watched, 6);
     set_health_row(io.resolve_out<uint8_t>("prog_intractors"));
-    on_bind();
 }
 
-}}  // namespace Site::Gen
+}  // namespace Site
 
 #endif // SITE_PROGRAM_INTRACTOR_CONTROLLER_GEN_H

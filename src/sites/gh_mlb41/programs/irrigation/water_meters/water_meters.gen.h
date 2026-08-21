@@ -11,19 +11,21 @@
 
 #include "libbotanik.h"
 
-namespace Site { namespace Gen {
+#include "../../../vars.h"
+
+namespace Site {
 
 using namespace Botanik;
 
 /**
  * @brief Both water meters, and the two supply faults they can see.
  *
- * The declaration part of `irr_meters`, dispatched SLOW: every row it
- * connects to, and every block it holds. Site::WaterMeters derives this and
- * carries the body. A name without a leading underscore was declared in the
- * table; the derived class owns everything else.
+ * `irr_meters`, dispatched SLOW. Everything here is declared in
+ * tables/programs.toml; the body is hand-written beside this file. A name
+ * without a leading underscore is a row or a block the POU is connected to;
+ * one with is its own.
  */
-class WaterMeters : public Plc::Program {
+class WaterMeters final : public Plc::Program {
 
 public:
 
@@ -54,7 +56,7 @@ public:
 
     /** @} */
 
-protected:
+private:
 
     /** @name VAR - function blocks
      *  @{ */
@@ -66,7 +68,14 @@ protected:
 
     /** @} */
 
-private:
+    /** @name VAR - what this law remembers
+     *  @{ */
+
+    float    _in_base_L = 0.0f;    ///< Where the inlet counter stood when this run adopted it: the pulse counter restarts at boot and the published total does not, so the total is the retained value plus what has been counted since.
+    uint32_t _in_base_pulses = 0;
+
+    /** @} */
+
     /** @brief Every readable row this program connects to, as bare
      *  indices: what the base sweeps for validity before each
      *  activation. Parameters are not here - an operator's number is
@@ -81,15 +90,20 @@ public:
 
 protected:
     /** @brief Resolve every name. Runs inside the program's writer
-     *  window, so an output is CLAIMED here. Not overridable: a law
-     *  extends it through on_bind(), which cannot forget to resolve
-     *  first. */
-    void bind(Vars::Bank& io) final;
+     *  window, so an output is CLAIMED here. */
+    void bind(Vars::Bank& io) override;
 
-    /** @brief Whatever the law has to wire once the rows are resolved:
-     *  a block taking a reference, a fail direction read off a row.
-     *  Nothing by default. */
-    virtual void on_bind() {}
+    /** @brief One activation of the law. */
+    void run(ProgramContext& c) override;
+
+    /** @brief What this program SAYS, in every state - including
+     *  while the plant is parked. */
+    void observe(ProgramContext& c) override;
+
+private:
+
+    /** @brief Water moving with every valve shut, and water not arriving with the inlet open. Both are read off the inlet meter alone. */
+    void _supply_alarms(float in_flow_Lpm);
 };
 
 inline void WaterMeters::bind(Vars::Bank& io) {
@@ -116,9 +130,8 @@ inline void WaterMeters::bind(Vars::Bank& io) {
     _watched[1] = state.r;
     set_inputs(_watched, 2);
     set_health_row(io.resolve_out<uint8_t>("prog_irr_meters"));
-    on_bind();
 }
 
-}}  // namespace Site::Gen
+}  // namespace Site
 
 #endif // SITE_PROGRAM_WATER_METERS_GEN_H

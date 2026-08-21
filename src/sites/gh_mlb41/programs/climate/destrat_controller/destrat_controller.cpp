@@ -3,9 +3,7 @@
  * @brief HAND-WRITTEN - the body of the `destrat` POU.
  */
 
-#include "destrat_controller.h"
-
-#include "../../../vars.h"
+#include "destrat_controller.gen.h"
 
 namespace Site {
 

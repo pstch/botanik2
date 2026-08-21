@@ -3,11 +3,11 @@
  * @brief HAND-WRITTEN - the body of the `climate_watch` POU.
  */
 
-#include "climate_watch.h"
-
-#include "../../../vars.h"
+#include "climate_watch.gen.h"
 
 namespace Site {
+
+void ClimateWatch::run(ProgramContext& c) { (void)c; }
 
 void ClimateWatch::observe(ProgramContext& c) {
     // Rolled up from the four zones: "a sensor is faulty" is a fact about the

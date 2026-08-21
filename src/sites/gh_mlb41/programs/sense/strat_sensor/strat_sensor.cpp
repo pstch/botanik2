@@ -5,9 +5,7 @@
 
 #include <cmath>
 
-#include "strat_sensor.h"
-
-#include "../../../vars.h"
+#include "strat_sensor.gen.h"
 
 namespace Site {
 

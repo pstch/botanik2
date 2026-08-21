@@ -5,9 +5,7 @@
 
 #include <cmath>
 
-#include "windows_controller.h"
-
-#include "../../../vars.h"
+#include "windows_controller.gen.h"
 
 namespace Site {
 
@@ -69,9 +67,9 @@ int8_t WindowsController::_owner(float target,
     // A stroke is committed: whoever is moving keeps the bus until it stops,
     // or the next selection would leave a coil energised with nothing stepping
     // it down.
-    for (uint8_t i = 0; i < WINDOWS; i++)
+    for (uint8_t i = 0; i < N_ACT; i++)
         if (act[i].moving()) return (int8_t)i;
-    for (uint8_t i = 0; i < WINDOWS; i++) {
+    for (uint8_t i = 0; i < N_ACT; i++) {
         if (!act[i].known()) return (int8_t)i;
         if (fabsf(target - act[i].position()) > cfg.deadband) return (int8_t)i;
     }
@@ -83,7 +81,7 @@ void WindowsController::run(ProgramContext& c) {
         // Where the rams actually are, nothing here knows: control was away
         // and the coils were dropped mid-stroke for all we can tell. Forget
         // the estimate and let the next command datum on a stop.
-        for (uint8_t i = 0; i < WINDOWS; i++) act[i].home();
+        for (uint8_t i = 0; i < N_ACT; i++) act[i].home();
         rain_for.reset();
     }
 
@@ -109,7 +107,7 @@ void WindowsController::run(ProgramContext& c) {
     const int8_t owner = _owner(_target, cfg);
     if (owner >= 0) act[owner].step(_target, cfg, c.dt_ms);
 
-    for (uint8_t i = 0; i < WINDOWS; i++) {
+    for (uint8_t i = 0; i < N_ACT; i++) {
         opn[i].set(act[i].open_cmd());
         clo[i].set(act[i].close_cmd());
         // Parked is every window AT THE TARGET, not every window commanded to
@@ -126,7 +124,7 @@ void WindowsController::run(ProgramContext& c) {
 void WindowsController::observe(ProgramContext&) {
     // One target for all four - they are one roof - against each ram's own
     // position estimate, which is what says how far behind the sequence is.
-    for (uint8_t i = 0; i < WINDOWS; i++) {
+    for (uint8_t i = 0; i < N_ACT; i++) {
         tgt[i].set(_target);
         if (act[i].known()) pos[i].set(act[i].position());
         else pos[i].invalidate();

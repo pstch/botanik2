@@ -11,19 +11,21 @@
 
 #include "libbotanik.h"
 
-namespace Site { namespace Gen {
+#include "../../../vars.h"
+
+namespace Site {
 
 using namespace Botanik;
 
 /**
  * @brief The day's phase, and the temperature target it puts in force.
  *
- * The declaration part of `day_phase`, dispatched SLOW: every row it
- * connects to, and every block it holds. Site::DayPhaseController derives
- * this and carries the body. A name without a leading underscore was
- * declared in the table; the derived class owns everything else.
+ * `day_phase`, dispatched SLOW. Everything here is declared in
+ * tables/programs.toml; the body is hand-written beside this file. A name
+ * without a leading underscore is a row or a block the POU is connected to;
+ * one with is its own.
  */
-class DayPhaseController : public Plc::Program {
+class DayPhaseController final : public Plc::Program {
 
 public:
 
@@ -61,9 +63,18 @@ public:
 
     /** @} */
 
-protected:
-
 private:
+
+    /** @name VAR - what this law remembers
+     *  @{ */
+
+    DayPhase _phase = PHASE_NIGHT;
+    float    _day_max = 0.0f;       ///< The interior extremes since the current day and night began. What COLD_BANK and HEAT_BANK are gated on: pre-cool only after a hot day, bank heat only after a cold night.
+    float    _night_min = 0.0f;
+    bool     _seeded = false;
+
+    /** @} */
+
     /** @brief Every readable row this program connects to, as bare
      *  indices: what the base sweeps for validity before each
      *  activation. Parameters are not here - an operator's number is
@@ -78,15 +89,16 @@ public:
 
 protected:
     /** @brief Resolve every name. Runs inside the program's writer
-     *  window, so an output is CLAIMED here. Not overridable: a law
-     *  extends it through on_bind(), which cannot forget to resolve
-     *  first. */
-    void bind(Vars::Bank& io) final;
+     *  window, so an output is CLAIMED here. */
+    void bind(Vars::Bank& io) override;
 
-    /** @brief Whatever the law has to wire once the rows are resolved:
-     *  a block taking a reference, a fail direction read off a row.
-     *  Nothing by default. */
-    virtual void on_bind() {}
+    /** @brief One activation of the law. */
+    void run(ProgramContext& c) override;
+
+private:
+
+    /** @brief The phase two offsets land in, with the two BANK phases skipped when yesterday did not arm them. */
+    DayPhase _phase_at(int16_t from_rise, int16_t from_set) const;
 };
 
 inline void DayPhaseController::bind(Vars::Bank& io) {
@@ -117,9 +129,8 @@ inline void DayPhaseController::bind(Vars::Bank& io) {
     _watched[4] = prev_night_min.r;
     set_inputs(_watched, 5);
     set_health_row(io.resolve_out<uint8_t>("prog_day_phase"));
-    on_bind();
 }
 
-}}  // namespace Site::Gen
+}  // namespace Site
 
 #endif // SITE_PROGRAM_DAY_PHASE_CONTROLLER_GEN_H

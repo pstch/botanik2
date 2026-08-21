@@ -3,14 +3,23 @@
  * @brief HAND-WRITTEN - the body of the `dc_watch` POU.
  */
 
-#include "dc_watch.h"
+#include "dc_watch.gen.h"
 
 #include "../../../blocks/ac_supply.h"
-#include "../../../vars.h"
-
 namespace Site {
 
-bool DcWatch::_rail(const DcWatch::Rail& r, uint32_t dt_ms, bool& seen) {
+struct Rail {
+    Plc::Ewma&           avg;
+    Plc::Deadband&       band;
+    Vars::RefIn<float>   in;
+    Vars::RefOut<float>  out;
+    Vars::RefIn<float>   lo;
+    Vars::RefIn<uint16_t> avg_ms;
+};
+
+void DcWatch::run(ProgramContext& c) { (void)c; }
+
+static bool _rail(const Rail& r, uint32_t dt_ms, bool& seen) {
     // Averaged, then deadbanded: the first says what the rail is doing, the
     // second says when that is worth a write.
     //

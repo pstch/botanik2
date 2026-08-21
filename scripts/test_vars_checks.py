@@ -76,10 +76,15 @@ def blk(name, type="Ton", count=0, include="", doc=""):
             "doc": doc}
 
 
+def var(name, type="float", init="", doc=""):
+    return {"name": name, "type": type, "count": 0, "init": init, "doc": doc}
+
+
 def prog(name, cls="C", task="SLOW", stage="sense", blocks=(), desc="What it does.",
-         **sections):
+         vars=(), fns=(), hooks=(), **sections):
     p = {"name": name, "class": cls, "task": task, "conns": [], "arrays": set(),
-         "stage": stage, "blocks": list(blocks), "desc": desc, "notes": ""}
+         "stage": stage, "blocks": list(blocks), "desc": desc, "notes": "",
+         "vars": list(vars), "fns": list(fns), "hooks": list(hooks)}
     for sec, members in sections.items():
         for member, rows in members.items():
             if isinstance(rows, str):
@@ -327,6 +332,20 @@ def program_checks():
     ok &= pexpect("a desc too long to be a @brief",
                   [full(desc="x" * 200)], "has to read as one @brief")
 
+    ok &= pexpect("an internal that forgot it was internal",
+                  [full(vars=[var("state")])],
+                  "starts with an underscore")
+
+    ok &= pexpect("a helper declared as a variable too",
+                  [full(vars=[var("_x")], fns=[var("_x", "void ()")])],
+                  "both as a var and as a fn")
+
+    ok &= pexpect("a hook that is not one",
+                  [full(hooks=["setup"])], "is not one of observe, on_bind")
+
+    ok &= pclean("...and the two that are",
+                 [full(hooks=["observe", "on_bind"], vars=[var("_seen", "bool", "false")])])
+
     ok &= pexpect("a program with no stage",
                   [full(stage="")], "which directory under programs/")
 
@@ -343,6 +362,8 @@ def header_checks():
     change. These are the claims the hand-written half depends on.
     """
     p = prog("irr", cls="WaterMeters", task="SLOW", stage="irrigation",
+             hooks=["on_bind"], vars=[var("_seen", "bool", "false")],
+             fns=[var("_judge", "bool (float x) const")],
              blocks=[blk("avg", "Ewma"),
                      blk("v", "ValveController", count=3,
                          include="blocks/valve_controller.h")],
@@ -352,13 +373,15 @@ def header_checks():
     p["health"] = "a_global"
     text = vars_programs.program_header(p, TABLE, ["// banner", ""])
     wanted = [
-        ("the class derives Plc::Program",
-         "class WaterMeters : public Plc::Program {"),
+        ("the class is complete, so it is final",
+         "class WaterMeters final : public Plc::Program {"),
         ("the name and rate class are baked in",
          'Program(ctx, "irr", Tasks::GROUP_SLOW, io) {}'),
-        ("bind() cannot be overridden", "void bind(Vars::Bank& io) final;"),
-        ("...only extended", "virtual void on_bind() {}"),
-        ("...and it calls the hook", "    on_bind();"),
+        ("bind() is declared for the .cpp", "void bind(Vars::Bank& io) override;"),
+        ("a declared hook is declared", "void on_bind();"),
+        ("...and bind() calls it", "    on_bind();"),
+        ("what the law remembers", "bool _seen = false;"),
+        ("...and its helpers", "bool _judge(float x) const;"),
         ("a library block is reached through Plc::", "Plc::Ewma       avg;"),
         ("a site block is emitted as written", "ValveController v[3];"),
         ("...and its header included from the program's directory",

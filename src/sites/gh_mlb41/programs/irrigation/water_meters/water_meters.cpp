@@ -3,11 +3,11 @@
  * @brief HAND-WRITTEN - the body of the `irr_meters` POU.
  */
 
-#include "water_meters.h"
-
-#include "../../../vars.h"
+#include "water_meters.gen.h"
 
 namespace Site {
+
+void WaterMeters::run(ProgramContext& c) { (void)c; }
 
 void WaterMeters::observe(ProgramContext& c) {
     const uint8_t  ch = Site::pulse_inputs[0].channel;

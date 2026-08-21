@@ -3,9 +3,7 @@
  * @brief HAND-WRITTEN - the body of the `intractors` POU.
  */
 
-#include "intractor_controller.h"
-
-#include "../../../vars.h"
+#include "intractor_controller.gen.h"
 
 namespace Site {
 
@@ -61,7 +59,7 @@ void IntractorController::run(ProgramContext& c) {
             speed = Plc::max_of(speed, ground_speed.get());
     }
 
-    for (uint8_t i = 0; i < INTRACTORS; i++) intr[i].set(speed);
+    for (uint8_t i = 0; i < N_INTR; i++) intr[i].set(speed);
 }
 
 }  // namespace Site

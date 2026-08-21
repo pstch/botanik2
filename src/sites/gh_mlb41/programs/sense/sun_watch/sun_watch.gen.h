@@ -11,19 +11,21 @@
 
 #include "libbotanik.h"
 
-namespace Site { namespace Gen {
+#include "../../../vars.h"
+
+namespace Site {
 
 using namespace Botanik;
 
 /**
  * @brief Where the sun is, published as rows.
  *
- * The declaration part of `sun_watch`, dispatched SLOW: every row it
- * connects to, and every block it holds. Site::SunWatch derives this and
- * carries the body. A name without a leading underscore was declared in the
- * table; the derived class owns everything else.
+ * `sun_watch`, dispatched SLOW. Everything here is declared in
+ * tables/programs.toml; the body is hand-written beside this file. A name
+ * without a leading underscore is a row or a block the POU is connected to;
+ * one with is its own.
  */
-class SunWatch : public Plc::Program {
+class SunWatch final : public Plc::Program {
 
 public:
 
@@ -36,23 +38,32 @@ public:
 
     /** @} */
 
+private:
+
+    /** @name VAR - what this law remembers
+     *  @{ */
+
+    Sun::SunPositionTracker* const _sun;  ///< The instrument, borrowed: the firmware owns it, registers it and binds its geo parameters. Null in a build without SUN_TRACKER, which is a build this program is not in either.
+
+    /** @} */
+
 public:
     /** @brief The instance name and rate class programs.toml
      *  declares, so neither can drift from the configuration. */
     SunWatch(const SetupContext& ctx, Vars::Bank& io)
-        : Program(ctx, "sun_watch", Tasks::GROUP_SLOW, io) {}
+        : Program(ctx, "sun_watch", Tasks::GROUP_SLOW, io), _sun(ctx.sun) {}
 
 protected:
     /** @brief Resolve every name. Runs inside the program's writer
-     *  window, so an output is CLAIMED here. Not overridable: a law
-     *  extends it through on_bind(), which cannot forget to resolve
-     *  first. */
-    void bind(Vars::Bank& io) final;
+     *  window, so an output is CLAIMED here. */
+    void bind(Vars::Bank& io) override;
 
-    /** @brief Whatever the law has to wire once the rows are resolved:
-     *  a block taking a reference, a fail direction read off a row.
-     *  Nothing by default. */
-    virtual void on_bind() {}
+    /** @brief One activation of the law. */
+    void run(ProgramContext& c) override;
+
+    /** @brief What this program SAYS, in every state - including
+     *  while the plant is parked. */
+    void observe(ProgramContext& c) override;
 };
 
 inline void SunWatch::bind(Vars::Bank& io) {
@@ -60,9 +71,8 @@ inline void SunWatch::bind(Vars::Bank& io) {
     from_set  = io.resolve_out<int16_t>("sol_fromSet_min");
     elevation = io.resolve_out<float>("sol_elev_deg");
     set_health_row(io.resolve_out<uint8_t>("prog_sun_watch"));
-    on_bind();
 }
 
-}}  // namespace Site::Gen
+}  // namespace Site
 
 #endif // SITE_PROGRAM_SUN_WATCH_GEN_H

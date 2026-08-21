@@ -7,11 +7,12 @@
 #include <cmath>
 #include "libbotanik/utils/time.h"
 
-#include "irrigation_cycle.h"
-
-#include "../../../vars.h"
+#include "irrigation_cycle.gen.h"
 
 namespace Site {
+
+static uint32_t _today();
+static void _clear_force(Vars::RefInOut<bool> r);
 
 void IrrigationCycle::on_bind() {
     for (uint8_t i = 0; i < 2; i++) {
@@ -21,7 +22,7 @@ void IrrigationCycle::on_bind() {
     for (uint8_t i = 0; i < N_TRAY_VALVE; i++) tray_v[i].attach(tray_valve[i]);
 }
 
-uint32_t IrrigationCycle::_today() {
+static uint32_t _today() {
     // The floor the sun tracker uses: below it the RTC has never been set, so
     // there is no date and nothing may be scheduled against one.
     const uint64_t wall = HAL::Clock::wall_ms();
@@ -129,7 +130,7 @@ void IrrigationCycle::_stamp(uint8_t tray, uint32_t day) const {
     (void)last[tray].edit((uint32_t)day);
 }
 
-void IrrigationCycle::_clear_force(Vars::RefInOut<bool> r) {
+static void _clear_force(Vars::RefInOut<bool> r) {
     (void)r.edit(false);
 }
 

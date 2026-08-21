@@ -3,13 +3,13 @@
  * @brief HAND-WRITTEN - the body of the `sun_watch` POU.
  */
 
-#include "sun_watch.h"
-
-#include "../../../vars.h"
+#include "sun_watch.gen.h"
 
 namespace Site {
 
-int16_t SunWatch::_minutes(int64_t v) {
+void SunWatch::run(ProgramContext& c) { (void)c; }
+
+static int16_t _minutes(int64_t v) {
     if (v < -1440) return -1440;
     if (v >  1440) return  1440;
     return (int16_t)v;

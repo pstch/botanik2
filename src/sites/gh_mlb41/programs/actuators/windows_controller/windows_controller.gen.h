@@ -11,7 +11,9 @@
 
 #include "libbotanik.h"
 
-namespace Site { namespace Gen {
+#include "../../../vars.h"
+
+namespace Site {
 
 using namespace Botanik;
 
@@ -19,12 +21,12 @@ using namespace Botanik;
  * @brief The four roof windows: one target from the cooling ladder, and ONE
  *        MOVING AT A TIME.
  *
- * The declaration part of `windows`, dispatched SLOW: every row it connects
- * to, and every block it holds. Site::WindowsController derives this and
- * carries the body. A name without a leading underscore was declared in the
- * table; the derived class owns everything else.
+ * `windows`, dispatched SLOW. Everything here is declared in
+ * tables/programs.toml; the body is hand-written beside this file. A name
+ * without a leading underscore is a row or a block the POU is connected to;
+ * one with is its own.
  */
-class WindowsController : public Plc::Program {
+class WindowsController final : public Plc::Program {
 
 public:
 
@@ -62,13 +64,21 @@ public:
 
     /** @} */
 
-protected:
+private:
 
     /** @name VAR - function blocks
      *  @{ */
 
     Plc::Actuator act[4];
     Plc::Tof      rain_for;  ///< the rain lockout's overrun past the last drop
+
+    /** @} */
+
+    /** @name VAR - what this law remembers
+     *  @{ */
+
+    float _target = 0.0f;     ///< The position the arbitration asked for this scan. One number for all four: they are one roof.
+    float _safe_open = 0.0f;  ///< Where the roof goes when this law is not acting: PART OPEN, not shut, read off the target row's declared default like every other safe state here. It should never be reached, but a greenhouse with some ventilation survives a summer afternoon and a sealed one does not. @note NOT the interlocks: rain and wind shut the roof outright.
 
     /** @} */
 
@@ -86,7 +96,6 @@ protected:
 
     /** @} */
 
-private:
     /** @brief Every readable row this program connects to, as bare
      *  indices: what the base sweeps for validity before each
      *  activation. Parameters are not here - an operator's number is
@@ -101,15 +110,28 @@ public:
 
 protected:
     /** @brief Resolve every name. Runs inside the program's writer
-     *  window, so an output is CLAIMED here. Not overridable: a law
-     *  extends it through on_bind(), which cannot forget to resolve
-     *  first. */
-    void bind(Vars::Bank& io) final;
+     *  window, so an output is CLAIMED here. */
+    void bind(Vars::Bank& io) override;
 
-    /** @brief Whatever the law has to wire once the rows are resolved:
-     *  a block taking a reference, a fail direction read off a row.
-     *  Nothing by default. */
-    virtual void on_bind() {}
+    /** @brief One activation of the law. */
+    void run(ProgramContext& c) override;
+
+    /** @brief What this program SAYS, in every state - including
+     *  while the plant is parked. */
+    void observe(ProgramContext& c) override;
+
+    /** @brief What the law wires once the rows are resolved: a block
+     *  taking a reference, a fail direction read off a row. */
+    void on_bind();
+
+private:
+
+    /** @brief The mechanics, rebuilt each scan from the parameters: a recalibrated travel time has to land on the next stroke, not the next boot. */
+    Plc::ActuatorConfig _mechanics() const;
+    /** @brief Whether anything forbids the windows being open at all. Publishes the two reasons it owns. */
+    bool                _shut_in(ProgramContext& c);
+    /** @brief Which window may move this scan, or -1. */
+    int8_t              _owner(float target, const Plc::ActuatorConfig& cfg) const;
 };
 
 inline void WindowsController::bind(Vars::Bank& io) {
@@ -158,6 +180,6 @@ inline void WindowsController::bind(Vars::Bank& io) {
     on_bind();
 }
 
-}}  // namespace Site::Gen
+}  // namespace Site
 
 #endif // SITE_PROGRAM_WINDOWS_CONTROLLER_GEN_H

@@ -11,19 +11,21 @@
 
 #include "libbotanik.h"
 
-namespace Site { namespace Gen {
+#include "../../../vars.h"
+
+namespace Site {
 
 using namespace Botanik;
 
 /**
  * @brief The irrigation ladder: how thirsty the air has been, as one factor.
  *
- * The declaration part of `irr_modulation`, dispatched SLOW: every row it
- * connects to, and every block it holds. Site::IrrigationModulation derives
- * this and carries the body. A name without a leading underscore was
- * declared in the table; the derived class owns everything else.
+ * `irr_modulation`, dispatched SLOW. Everything here is declared in
+ * tables/programs.toml; the body is hand-written beside this file. A name
+ * without a leading underscore is a row or a block the POU is connected to;
+ * one with is its own.
  */
-class IrrigationModulation : public Plc::Program {
+class IrrigationModulation final : public Plc::Program {
 
 public:
 
@@ -47,7 +49,7 @@ public:
 
     /** @} */
 
-protected:
+private:
 
     /** @name VAR - function blocks
      *  @{ */
@@ -56,7 +58,14 @@ protected:
 
     /** @} */
 
-private:
+    /** @name VAR - what this law remembers
+     *  @{ */
+
+    bool     _seeded = false;
+    uint64_t _last_fold_ms = 0;
+
+    /** @} */
+
     /** @brief Every readable row this program connects to, as bare
      *  indices: what the base sweeps for validity before each
      *  activation. Parameters are not here - an operator's number is
@@ -71,15 +80,20 @@ public:
 
 protected:
     /** @brief Resolve every name. Runs inside the program's writer
-     *  window, so an output is CLAIMED here. Not overridable: a law
-     *  extends it through on_bind(), which cannot forget to resolve
-     *  first. */
-    void bind(Vars::Bank& io) final;
+     *  window, so an output is CLAIMED here. */
+    void bind(Vars::Bank& io) override;
 
-    /** @brief Whatever the law has to wire once the rows are resolved:
-     *  a block taking a reference, a fail direction read off a row.
-     *  Nothing by default. */
-    virtual void on_bind() {}
+    /** @brief One activation of the law. */
+    void run(ProgramContext& c) override;
+
+    /** @brief What this program SAYS, in every state - including
+     *  while the plant is parked. */
+    void observe(ProgramContext& c) override;
+
+private:
+
+    /** @brief Fold the VPD into the dryness average, at most once an hour. @return the average now in force */
+    float _track_dryness(ProgramContext& c);
 };
 
 inline void IrrigationModulation::bind(Vars::Bank& io) {
@@ -98,9 +112,8 @@ inline void IrrigationModulation::bind(Vars::Bank& io) {
     _watched[0] = vpd.r;
     set_inputs(_watched, 1);
     set_health_row(io.resolve_out<uint8_t>("prog_irr_modulation"));
-    on_bind();
 }
 
-}}  // namespace Site::Gen
+}  // namespace Site
 
 #endif // SITE_PROGRAM_IRRIGATION_MODULATION_GEN_H

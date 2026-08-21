@@ -3,9 +3,7 @@
  * @brief HAND-WRITTEN - the body of the `target_temp` POU.
  */
 
-#include "target_temp_controller.h"
-
-#include "../../../vars.h"
+#include "target_temp_controller.gen.h"
 
 namespace Site {
 

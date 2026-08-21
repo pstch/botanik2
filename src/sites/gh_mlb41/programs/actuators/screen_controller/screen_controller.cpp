@@ -3,13 +3,11 @@
  * @brief HAND-WRITTEN - the body of the `screen` POU.
  */
 
-#include "screen_controller.h"
-
-#include "../../../vars.h"
+#include "screen_controller.gen.h"
 
 namespace Site {
 
-bool ScreenController::_allows(DayPhase phase, bool deploy) {
+static bool _allows(DayPhase phase, bool deploy) {
     // Deploying belongs to the half of the day that is closing down, retracting
     // to the half that is opening up. An hour of cold at midday therefore never
     // shuts the fabric against the sun, and a mild night never opens it and

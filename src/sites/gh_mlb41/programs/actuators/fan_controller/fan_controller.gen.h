@@ -11,7 +11,9 @@
 
 #include "libbotanik.h"
 
-namespace Site { namespace Gen {
+#include "../../../vars.h"
+
+namespace Site {
 
 using namespace Botanik;
 
@@ -19,12 +21,12 @@ using namespace Botanik;
  * @brief The two destratification fans: three relayed speeds, driven by
  *        whichever of three demands wants the most.
  *
- * The declaration part of `fans`, dispatched SLOW: every row it connects to,
- * and every block it holds. Site::FanController derives this and carries the
- * body. A name without a leading underscore was declared in the table; the
- * derived class owns everything else.
+ * `fans`, dispatched SLOW. Everything here is declared in
+ * tables/programs.toml; the body is hand-written beside this file. A name
+ * without a leading underscore is a row or a block the POU is connected to;
+ * one with is its own.
  */
-class FanController : public Plc::Program {
+class FanController final : public Plc::Program {
 
 public:
 
@@ -55,7 +57,15 @@ public:
 
     /** @} */
 
-protected:
+private:
+
+    /** @name VAR - what this law remembers
+     *  @{ */
+
+    uint8_t           _speed = 0;  ///< 0 (off) to 3, and the three rungs it is chosen on. Held across scans: the hysteresis lives on the rungs.
+    Plc::Staircase<3> _steps;
+
+    /** @} */
 
     /** @name Sizes
      *  How many rows or instances each array member has, from the
@@ -69,7 +79,6 @@ protected:
 
     /** @} */
 
-private:
     /** @brief Every readable row this program connects to, as bare
      *  indices: what the base sweeps for validity before each
      *  activation. Parameters are not here - an operator's number is
@@ -84,15 +93,20 @@ public:
 
 protected:
     /** @brief Resolve every name. Runs inside the program's writer
-     *  window, so an output is CLAIMED here. Not overridable: a law
-     *  extends it through on_bind(), which cannot forget to resolve
-     *  first. */
-    void bind(Vars::Bank& io) final;
+     *  window, so an output is CLAIMED here. */
+    void bind(Vars::Bank& io) override;
 
-    /** @brief Whatever the law has to wire once the rows are resolved:
-     *  a block taking a reference, a fail direction read off a row.
-     *  Nothing by default. */
-    virtual void on_bind() {}
+    /** @brief One activation of the law. */
+    void run(ProgramContext& c) override;
+
+private:
+
+    /** @brief The three demands, fused. */
+    float   _demand() const;
+    /** @brief The speed @p demand asks for, given the one in force. */
+    uint8_t _band(float demand);
+    /** @brief Energise exactly one speed relay, or none. */
+    void    _drive(uint8_t speed);
 };
 
 inline void FanController::bind(Vars::Bank& io) {
@@ -125,9 +139,8 @@ inline void FanController::bind(Vars::Bank& io) {
     _watched[4] = phase.r;
     set_inputs(_watched, 5);
     set_health_row(io.resolve_out<uint8_t>("prog_fans"));
-    on_bind();
 }
 
-}}  // namespace Site::Gen
+}  // namespace Site
 
 #endif // SITE_PROGRAM_FAN_CONTROLLER_GEN_H

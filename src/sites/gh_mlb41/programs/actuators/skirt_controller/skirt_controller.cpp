@@ -3,11 +3,11 @@
  * @brief HAND-WRITTEN - the body of the `skirt` POU.
  */
 
-#include "skirt_controller.h"
-
-#include "../../../vars.h"
+#include "skirt_controller.gen.h"
 
 namespace Site {
+
+void SkirtController::on_bind() { pulse.attach(valve); }
 
 void SkirtController::run(ProgramContext& c) {
     // Wetting air that is already condensing is the one thing this valve must

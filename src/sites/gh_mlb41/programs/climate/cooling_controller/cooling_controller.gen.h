@@ -11,7 +11,9 @@
 
 #include "libbotanik.h"
 
-namespace Site { namespace Gen {
+#include "../../../vars.h"
+
+namespace Site {
 
 using namespace Botanik;
 
@@ -19,12 +21,12 @@ using namespace Botanik;
  * @brief The cooling ladder: a PID on the interior temperature against the
  *        phase's target, published as one signed demand.
  *
- * The declaration part of `cooling`, dispatched FAST: every row it connects
- * to, and every block it holds. Site::CoolingController derives this and
- * carries the body. A name without a leading underscore was declared in the
- * table; the derived class owns everything else.
+ * `cooling`, dispatched FAST. Everything here is declared in
+ * tables/programs.toml; the body is hand-written beside this file. A name
+ * without a leading underscore is a row or a block the POU is connected to;
+ * one with is its own.
  */
-class CoolingController : public Plc::Program {
+class CoolingController final : public Plc::Program {
 
 public:
 
@@ -58,7 +60,7 @@ public:
 
     /** @} */
 
-protected:
+private:
 
     /** @name VAR - function blocks
      *  @{ */
@@ -70,7 +72,6 @@ protected:
 
     /** @} */
 
-private:
     /** @brief Every readable row this program connects to, as bare
      *  indices: what the base sweeps for validity before each
      *  activation. Parameters are not here - an operator's number is
@@ -85,15 +86,16 @@ public:
 
 protected:
     /** @brief Resolve every name. Runs inside the program's writer
-     *  window, so an output is CLAIMED here. Not overridable: a law
-     *  extends it through on_bind(), which cannot forget to resolve
-     *  first. */
-    void bind(Vars::Bank& io) final;
+     *  window, so an output is CLAIMED here. */
+    void bind(Vars::Bank& io) override;
 
-    /** @brief Whatever the law has to wire once the rows are resolved:
-     *  a block taking a reference, a fail direction read off a row.
-     *  Nothing by default. */
-    virtual void on_bind() {}
+    /** @brief One activation of the law. */
+    void run(ProgramContext& c) override;
+
+private:
+
+    /** @brief Whether drawing crawlspace air would help, in either direction. Published rather than acted on: this law owns the reading, the intractors own the device. */
+    void _intake_gates(ProgramContext& c, float t_in, float dem);
 };
 
 inline void CoolingController::bind(Vars::Bank& io) {
@@ -126,9 +128,8 @@ inline void CoolingController::bind(Vars::Bank& io) {
     _watched[4] = intake.r;
     set_inputs(_watched, 5);
     set_health_row(io.resolve_out<uint8_t>("prog_cooling"));
-    on_bind();
 }
 
-}}  // namespace Site::Gen
+}  // namespace Site
 
 #endif // SITE_PROGRAM_COOLING_CONTROLLER_GEN_H

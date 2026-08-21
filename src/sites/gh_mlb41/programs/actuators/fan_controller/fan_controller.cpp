@@ -3,9 +3,7 @@
  * @brief HAND-WRITTEN - the body of the `fans` POU.
  */
 
-#include "fan_controller.h"
-
-#include "../../../vars.h"
+#include "fan_controller.gen.h"
 
 namespace Site {
 
@@ -44,7 +42,7 @@ uint8_t FanController::_band(float demand) {
 }
 
 void FanController::_drive(uint8_t speed) {
-    for (uint8_t i = 0; i < FANS; i++) {
+    for (uint8_t i = 0; i < N_SPEED1; i++) {
         speed1[i].set(speed == 1);
         speed2[i].set(speed == 2);
         speed3[i].set(speed == 3);

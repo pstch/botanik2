@@ -75,29 +75,29 @@
 
 #include "libbotanik.h"
 
-// Every program, in table order. A program's own header pulls in the
-// declaration part generated beside it.
-#include "../programs/sense/ac_grid_watch/ac_grid_watch.h"
-#include "../programs/sense/ac_local_watch/ac_local_watch.h"
-#include "../programs/sense/dc_watch/dc_watch.h"
-#include "../programs/sense/sun_watch/sun_watch.h"
-#include "../programs/sense/temp_rh_zone/temp_rh_zone.h"
-#include "../programs/sense/strat_sensor/strat_sensor.h"
-#include "../programs/sense/climate_watch/climate_watch.h"
-#include "../programs/climate/day_phase_controller/day_phase_controller.h"
-#include "../programs/climate/target_temp_controller/target_temp_controller.h"
-#include "../programs/climate/cooling_controller/cooling_controller.h"
-#include "../programs/climate/destrat_controller/destrat_controller.h"
-#include "../programs/climate/humidity_controller/humidity_controller.h"
-#include "../programs/irrigation/irrigation_modulation/irrigation_modulation.h"
-#include "../programs/irrigation/water_meters/water_meters.h"
-#include "../programs/irrigation/irrigation_cycle/irrigation_cycle.h"
-#include "../programs/actuators/screen_controller/screen_controller.h"
-#include "../programs/actuators/windows_controller/windows_controller.h"
-#include "../programs/sense/weather_watch/weather_watch.h"
-#include "../programs/actuators/intractor_controller/intractor_controller.h"
-#include "../programs/actuators/fan_controller/fan_controller.h"
-#include "../programs/actuators/skirt_controller/skirt_controller.h"
+// Every program, in table order: the declaration part generated from
+// the table, with its body in the .cpp beside it.
+#include "../programs/sense/ac_grid_watch/ac_grid_watch.gen.h"
+#include "../programs/sense/ac_local_watch/ac_local_watch.gen.h"
+#include "../programs/sense/dc_watch/dc_watch.gen.h"
+#include "../programs/sense/sun_watch/sun_watch.gen.h"
+#include "../programs/sense/temp_rh_zone/temp_rh_zone.gen.h"
+#include "../programs/sense/strat_sensor/strat_sensor.gen.h"
+#include "../programs/sense/climate_watch/climate_watch.gen.h"
+#include "../programs/climate/day_phase_controller/day_phase_controller.gen.h"
+#include "../programs/climate/target_temp_controller/target_temp_controller.gen.h"
+#include "../programs/climate/cooling_controller/cooling_controller.gen.h"
+#include "../programs/climate/destrat_controller/destrat_controller.gen.h"
+#include "../programs/climate/humidity_controller/humidity_controller.gen.h"
+#include "../programs/irrigation/irrigation_modulation/irrigation_modulation.gen.h"
+#include "../programs/irrigation/water_meters/water_meters.gen.h"
+#include "../programs/irrigation/irrigation_cycle/irrigation_cycle.gen.h"
+#include "../programs/actuators/screen_controller/screen_controller.gen.h"
+#include "../programs/actuators/windows_controller/windows_controller.gen.h"
+#include "../programs/sense/weather_watch/weather_watch.gen.h"
+#include "../programs/actuators/intractor_controller/intractor_controller.gen.h"
+#include "../programs/actuators/fan_controller/fan_controller.gen.h"
+#include "../programs/actuators/skirt_controller/skirt_controller.gen.h"
 
 /** @name The site's programs
  *  In table order, which is EXECUTION order: a law reading a value

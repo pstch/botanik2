@@ -3,11 +3,13 @@
  * @brief HAND-WRITTEN - the body of the `ac_grid_watch` POU.
  */
 
-#include "ac_grid_watch.h"
-
-#include "../../../vars.h"
+#include "ac_grid_watch.gen.h"
 
 namespace Site {
+
+void AcGridWatch::on_bind() { supply.attach(*this); }
+
+void AcGridWatch::run(ProgramContext& c) { (void)c; }
 
 void AcGridWatch::observe(ProgramContext& c) {
     if (c.first_scan) supply.reset();

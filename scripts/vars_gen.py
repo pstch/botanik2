@@ -533,47 +533,34 @@ def orphan_dirs(site, progs, err):
 
 
 def scaffold(d, p, check):
-    """The hand-written pair, created ONCE and never touched again.
+    """The one hand-written file, created ONCE and never touched again.
 
     A program new to the table gets a body to fill in, the way a PLC IDE creates
-    one. Anything already there is the integrator's.
+    one. Everything it declares is generated beside it, so this is the only file
+    the integrator owns - and anything already there is theirs.
     """
     cls, base = p["class"], vars_programs.snake(p["class"])
-    guard = "SITE_PROGRAM_" + base.upper() + "_H"
-    hdr = "\n".join([
-        f"#ifndef {guard}", f"#define {guard}", "",
-        "/**", f" * @file {base}.h",
-        f" * @brief HAND-WRITTEN - {p['name']}: TODO, what this law decides.",
-        " */", "",
-        "#include <cstdint>", "", f'#include "{base}.gen.h"', "",
-        "namespace Site {", "", "using namespace Botanik;", "",
-        f"class {cls} final : public Gen::{cls} {{", "",
-        "public:",
-        f"    {cls}(const SetupContext& ctx, Vars::Bank& io)",
-        f"        : Gen::{cls}(ctx, io) {{}}", "",
-        "protected:",
-        "    void run(ProgramContext& c) override;",
-        "};", "", "}  // namespace Site", "", f"#endif // {guard}", ""])
+    body = [f"void {cls}::run(ProgramContext& c) {{", "    (void)c;", "}"]
+    if "observe" in p["hooks"]:
+        body += ["", f"void {cls}::observe(ProgramContext& c) {{", "    (void)c;", "}"]
+    if "on_bind" in p["hooks"]:
+        body += ["", f"void {cls}::on_bind() {{", "}"]
     src = "\n".join([
         "/**", f" * @file {base}.cpp",
         f" * @brief HAND-WRITTEN - the body of the `{p['name']}` POU.",
-        " */", "", f'#include "{base}.h"', "", "namespace Site {", "",
-        f"void {cls}::run(ProgramContext& c) {{", "    (void)c;", "}", "",
-        "}  // namespace Site", ""])
-    stale = False
-    for name, text in ((base + ".h", hdr), (base + ".cpp", src)):
-        path = os.path.join(d, name)
-        if os.path.exists(path):
-            continue
-        rel = os.path.relpath(path, ROOT)
-        if check:
-            print(f"  {rel}: MISSING", file=sys.stderr)
-            stale = True
-            continue
-        os.makedirs(d, exist_ok=True)
-        open(path, "w", encoding="utf-8").write(text)
-        print(f"  {rel}: scaffolded")
-    return stale
+        " */", "", f'#include "{base}.gen.h"', "", "namespace Site {", ""]
+        + body + ["", "}  // namespace Site", ""])
+    path = os.path.join(d, base + ".cpp")
+    if os.path.exists(path):
+        return False
+    rel = os.path.relpath(path, ROOT)
+    if check:
+        print(f"  {rel}: MISSING", file=sys.stderr)
+        return True
+    os.makedirs(d, exist_ok=True)
+    open(path, "w", encoding="utf-8").write(src)
+    print(f"  {rel}: scaffolded")
+    return False
 
 
 def put(path, text, check):

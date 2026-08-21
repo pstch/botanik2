@@ -3,9 +3,7 @@
  * @brief HAND-WRITTEN - the body of the `humidity` POU.
  */
 
-#include "humidity_controller.h"
-
-#include "../../../vars.h"
+#include "humidity_controller.gen.h"
 
 namespace Site {
 

@@ -3,11 +3,13 @@
  * @brief HAND-WRITTEN - the body of the `ac_local_watch` POU.
  */
 
-#include "ac_local_watch.h"
-
-#include "../../../vars.h"
+#include "ac_local_watch.gen.h"
 
 namespace Site {
+
+void AcLocalWatch::on_bind() { supply.attach(*this); }
+
+void AcLocalWatch::run(ProgramContext& c) { (void)c; }
 
 void AcLocalWatch::observe(ProgramContext& c) {
     if (c.first_scan) { supply.reset(); cranking.reset(); }

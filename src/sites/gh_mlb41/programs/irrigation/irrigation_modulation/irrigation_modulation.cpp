@@ -6,13 +6,13 @@
 #include <cmath>
 #include "libbotanik/utils/time.h"
 
-#include "irrigation_modulation.h"
-
-#include "../../../vars.h"
+#include "irrigation_modulation.gen.h"
 
 namespace Site {
 
-const uint64_t IrrigationModulation::FOLD_MS = 3600ull * 1000ull;
+void IrrigationModulation::run(ProgramContext& c) { (void)c; }
+
+static const uint64_t FOLD_MS = 3600ull * 1000ull;
 
 float IrrigationModulation::_track_dryness(ProgramContext& c) {
     // Once an HOUR, and the interval is the whole design: folded every scan the

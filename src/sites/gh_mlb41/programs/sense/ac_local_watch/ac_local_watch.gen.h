@@ -11,21 +11,23 @@
 
 #include "libbotanik.h"
 
+#include "../../../vars.h"
+
 #include "../../../blocks/ac_supply.h"
 
-namespace Site { namespace Gen {
+namespace Site {
 
 using namespace Botanik;
 
 /**
  * @brief The generator-backed side of the transfer switch, watched.
  *
- * The declaration part of `ac_local_watch`, dispatched SLOW: every row it
- * connects to, and every block it holds. Site::AcLocalWatch derives this and
- * carries the body. A name without a leading underscore was declared in the
- * table; the derived class owns everything else.
+ * `ac_local_watch`, dispatched SLOW. Everything here is declared in
+ * tables/programs.toml; the body is hand-written beside this file. A name
+ * without a leading underscore is a row or a block the POU is connected to;
+ * one with is its own.
  */
-class AcLocalWatch : public Plc::Program {
+class AcLocalWatch final : public Plc::Program {
 
 public:
 
@@ -58,7 +60,7 @@ public:
 
     /** @} */
 
-protected:
+private:
 
     /** @name VAR - function blocks
      *  @{ */
@@ -68,7 +70,6 @@ protected:
 
     /** @} */
 
-private:
     /** @brief Every readable row this program connects to, as bare
      *  indices: what the base sweeps for validity before each
      *  activation. Parameters are not here - an operator's number is
@@ -83,15 +84,19 @@ public:
 
 protected:
     /** @brief Resolve every name. Runs inside the program's writer
-     *  window, so an output is CLAIMED here. Not overridable: a law
-     *  extends it through on_bind(), which cannot forget to resolve
-     *  first. */
-    void bind(Vars::Bank& io) final;
+     *  window, so an output is CLAIMED here. */
+    void bind(Vars::Bank& io) override;
 
-    /** @brief Whatever the law has to wire once the rows are resolved:
-     *  a block taking a reference, a fail direction read off a row.
-     *  Nothing by default. */
-    virtual void on_bind() {}
+    /** @brief One activation of the law. */
+    void run(ProgramContext& c) override;
+
+    /** @brief What this program SAYS, in every state - including
+     *  while the plant is parked. */
+    void observe(ProgramContext& c) override;
+
+    /** @brief What the law wires once the rows are resolved: a block
+     *  taking a reference, a fail direction read off a row. */
+    void on_bind();
 };
 
 inline void AcLocalWatch::bind(Vars::Bank& io) {
@@ -126,6 +131,6 @@ inline void AcLocalWatch::bind(Vars::Bank& io) {
     on_bind();
 }
 
-}}  // namespace Site::Gen
+}  // namespace Site
 
 #endif // SITE_PROGRAM_AC_LOCAL_WATCH_GEN_H

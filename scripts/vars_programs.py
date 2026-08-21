@@ -68,11 +68,29 @@ def load(path):
         out.append({"name": p.get("name", "?"), "class": p.get("class", "?"),
                     "task": p.get("task", "?"), "health": p.get("health", ""),
                     "stage": p.get("stage", ""), "blocks": _blocks(p),
+                    "vars": _decls(p.get("var")), "fns": _decls(p.get("fn")),
+                    "hooks": list(p.get("hooks") or []),
                     "desc": p.get("desc", ""), "notes": p.get("notes", ""),
                     "conns": conns,
                     "arrays": {m for sec in SECTIONS
                                for m, v in (p.get(sec) or {}).items()
                                if isinstance(v, list)}})
+    return out
+
+
+def _decls(section):
+    """A [program.var] or [program.fn] section: name -> {type/sig, init, doc}.
+
+    A bare string is the type (or the signature); the table form carries the
+    initial value and the one-line comment the declaration gets.
+    """
+    out = []
+    for name, spec in (section or {}).items():
+        if isinstance(spec, str):
+            spec = {"type": spec}
+        out.append({"name": name, "type": spec.get("type", ""),
+                    "count": int(spec.get("count", 0) or 0),
+                    "init": spec.get("init", ""), "doc": spec.get("doc", "")})
     return out
 
 
@@ -168,6 +186,24 @@ def check(programs, rows, err, mentioned=(), cal_params=(), library=(),
                     err(f"{where}: '{n}' is declared both as a {declared[n]} and "
                         f"as a {what}")
                 declared[n] = what
+
+        # The internals keep their underscore: the interface is bare, and the
+        # two are told apart the same way they always were.
+        for what, items in (("var", p["vars"]), ("fn", p["fns"])):
+            for d in items:
+                if not d["name"].startswith("_"):
+                    err(f"{where}: {what} '{d['name']}' is internal, so its name "
+                        f"starts with an underscore")
+                elif d["name"] in {x["name"] for x in
+                                   (p["fns"] if what == "var" else p["vars"])}:
+                    err(f"{where}: '{d['name']}' is declared both as a var and "
+                        f"as a fn")
+                if not d["type"]:
+                    err(f"{where}: {what} '{d['name']}' names no type")
+
+        for h in p["hooks"]:
+            if h not in ("observe", "on_bind"):
+                err(f"{where}: hook '{h}' is not one of observe, on_bind")
 
         seen_blocks = set()
         for b in p["blocks"]:
@@ -453,11 +489,11 @@ def _decl_group(title, decls, doc=()):
 
 
 def program_header(p, rows, banner):
-    """<class>.gen.h: the POU's whole declaration part, as a base class.
+    """<class>.gen.h: the POU's whole declaration part.
 
-    The derived class carries the body and whatever state the table cannot
-    describe. Everything here comes from the table, so the two halves cannot
-    disagree about what the program is connected to.
+    Everything the class has - its rows, its blocks, its internal variables, its
+    helpers - is declared from the table, so the site writes one file: the .cpp
+    that defines the bodies.
     """
     cls, guard = p["class"], "SITE_PROGRAM_" + snake(p["class"]).upper() + "_GEN_H"
     includes = []
@@ -470,26 +506,22 @@ def program_header(p, rows, banner):
             includes.append(inc)
 
     out = banner + [f"#ifndef {guard}", f"#define {guard}", "",
-                    "#include <cstdint>", "", '#include "libbotanik.h"', ""]
+                    "#include <cstdint>", "", '#include "libbotanik.h"', "",
+                    '#include "../../../vars.h"', ""]
     if includes:
         out += includes + [""]
-    out += ["namespace Site { namespace Gen {", "", "using namespace Botanik;", "",
-            "/**"]
+    out += ["namespace Site {", "", "using namespace Botanik;", "", "/**"]
     out += _brief(p["desc"] or f"The {cls} POU.")
     out += [" *"]
     out += [" * " + x for x in textwrap.wrap(
-        f"The declaration part of `{p['name']}`, dispatched {p['task']}: every "
-        f"row it connects to, and every block it holds. Site::{cls} derives "
-        f"this and carries the body. A name without a leading underscore was "
-        f"declared in the table; the derived class owns everything else.", 74)]
+        f"`{p['name']}`, dispatched {p['task']}. Everything here is declared in "
+        f"tables/programs.toml; the body is hand-written beside this file. A "
+        f"name without a leading underscore is a row or a block the POU is "
+        f"connected to; one with is its own.", 74)]
     out += [" */",
-            f"class {cls} : public Plc::Program {{", ""]
+            f"class {cls} final : public Plc::Program {{", ""]
 
     watched = _watched(p, rows)
-    # The rows are PUBLIC: they are the POU's declared interface, which is what
-    # a site block bound from it reads (AcSupply takes either supply's, by
-    # template). The blocks under them are internal, and _watched is the base's
-    # own bookkeeping.
     out += ["public:", ""]
 
     ms = _members(p, rows)
@@ -502,13 +534,22 @@ def program_header(p, rows, banner):
                            [(f"Vars::{tmpl}<{m[2]}>",
                              m[1] + (f"[{len(m[3])}]" if len(m[3]) > 1 else ""), "")
                             for m in group]) + [""]
-    if p["blocks"] or _sizes(p, rows) or watched:
-        out += ["protected:", ""]
+
+    if p["blocks"] or p["vars"] or _sizes(p, rows) or watched:
+        out += ["private:", ""]
     out += _decl_group("VAR - function blocks",
                        [(_block_type(b),
                          b["name"] + (f"[{b['count']}]" if b["count"] > 1 else ""),
                          b["doc"]) for b in p["blocks"]])
     if p["blocks"]:
+        out += [""]
+    out += _decl_group("VAR - what this law remembers",
+                       [(v["type"],
+                         v["name"] + (f"[{v['count']}]" if v["count"] else "")
+                         + (f" = {v['init']}" if v["init"]
+                            and "ctx." not in v["init"] else ""),
+                         v["doc"]) for v in p["vars"]])
+    if p["vars"]:
         out += [""]
 
     sizes = _sizes(p, rows)
@@ -525,8 +566,7 @@ def program_header(p, rows, banner):
         out += ["", "    /** @} */", ""]
 
     if watched:
-        out += ["private:",
-                "    /** @brief Every readable row this program connects to, as"
+        out += ["    /** @brief Every readable row this program connects to, as"
                 " bare",
                 "     *  indices: what the base sweeps for validity before each",
                 "     *  activation. Parameters are not here - an operator's"
@@ -534,26 +574,48 @@ def program_header(p, rows, banner):
                 "     *  always valid, and checking one would cost a walk to"
                 " learn nothing. */",
                 f"    Vars::VarRef _watched[{len(watched)}];", ""]
+
+    ctx_init = [v for v in p["vars"] if "ctx." in (v["init"] or "")]
+    init = "".join(f", {v['name']}({v['init']})" for v in ctx_init)
     out += ["public:",
             "    /** @brief The instance name and rate class programs.toml",
             "     *  declares, so neither can drift from the configuration. */",
             f"    {cls}(const SetupContext& ctx, Vars::Bank& io)",
-            f'        : Program(ctx, "{p["name"]}", Tasks::GROUP_{p["task"]}, io) {{}}',
-            "",
-            "protected:",
+            f'        : Program(ctx, "{p["name"]}", Tasks::GROUP_{p["task"]},'
+            f' io){init} {{}}',
+            ""]
+
+    out += ["protected:",
             "    /** @brief Resolve every name. Runs inside the program's writer",
-            "     *  window, so an output is CLAIMED here. Not overridable: a law",
-            "     *  extends it through on_bind(), which cannot forget to resolve",
-            "     *  first. */",
-            "    void bind(Vars::Bank& io) final;", "",
-            "    /** @brief Whatever the law has to wire once the rows are"
-            " resolved:",
-            "     *  a block taking a reference, a fail direction read off a row.",
-            "     *  Nothing by default. */",
-            "    virtual void on_bind() {}",
-            "};", ""]
+            "     *  window, so an output is CLAIMED here. */",
+            "    void bind(Vars::Bank& io) override;", ""]
+    hooks = [("run", "    /** @brief One activation of the law. */",
+              "    void run(ProgramContext& c) override;")]
+    if "observe" in p["hooks"]:
+        hooks.append(("observe",
+                      "    /** @brief What this program SAYS, in every state -"
+                      " including\n     *  while the plant is parked. */",
+                      "    void observe(ProgramContext& c) override;"))
+    for _n, doc, decl in hooks:
+        out += [doc, decl, ""]
+    if "on_bind" in p["hooks"]:
+        out += ["    /** @brief What the law wires once the rows are resolved: a"
+                " block",
+                "     *  taking a reference, a fail direction read off a row. */",
+                "    void on_bind();", ""]
+    if p["fns"]:
+        out += ["private:", ""]
+        width = max(len(f["type"].split("(")[0].strip()) for f in p["fns"])
+        for f in p["fns"]:
+            ret, rest = f["type"].split("(", 1)
+            if f["doc"]:
+                out += [f"    /** @brief {f['doc']} */"]
+            out += [f"    {ret.strip().ljust(width)} {f['name']}({rest.strip()};"]
+        out += [""]
+    out = out[:-1] if out[-1] == "" else out
+    out += ["};", ""]
     out += _program_bind(p, rows)
-    out += ["}}  // namespace Site::Gen", "", f"#endif // {guard}"]
+    out += ["}  // namespace Site", "", f"#endif // {guard}"]
     return "\n".join(out) + "\n"
 
 
@@ -587,7 +649,9 @@ def _program_bind(p, rows):
     if p.get("health"):
         out += ["    set_health_row("
                 f'io.resolve_out<uint8_t>("{p["health"]}"));']
-    return out + ["    on_bind();", "}", ""]
+    if "on_bind" in p["hooks"]:
+        out.append("    on_bind();")
+    return out + ["}", ""]
 
 
 def _flow(programs, rows):
@@ -655,10 +719,11 @@ def generate(programs, rows, banner):
     out += _flow(programs, rows)
     out += ["#include <cstdint>", "", '#include "libbotanik.h"', ""]
     if programs:
-        out += ["// Every program, in table order. A program's own header pulls in the",
-                "// declaration part generated beside it."]
+        out += ["// Every program, in table order: the declaration part"
+                " generated from",
+                "// the table, with its body in the .cpp beside it."]
         out += [f'#include "../programs/{p["stage"]}/{snake(p["class"])}/'
-                f'{snake(p["class"])}.h"' for p in programs]
+                f'{snake(p["class"])}.gen.h"' for p in programs]
         out += [""]
     out += _program_list(programs)
     out += ["#endif  // SITE_PROGRAMS_GEN_H"]

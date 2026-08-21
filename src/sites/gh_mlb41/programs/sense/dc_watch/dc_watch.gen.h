@@ -11,7 +11,9 @@
 
 #include "libbotanik.h"
 
-namespace Site { namespace Gen {
+#include "../../../vars.h"
+
+namespace Site {
 
 using namespace Botanik;
 
@@ -19,12 +21,12 @@ using namespace Botanik;
  * @brief The DC rails and the two batteries, watched - and the plant-wide
  *        lockout they raise.
  *
- * The declaration part of `dc_watch`, dispatched SLOW: every row it connects
- * to, and every block it holds. Site::DcWatch derives this and carries the
- * body. A name without a leading underscore was declared in the table; the
- * derived class owns everything else.
+ * `dc_watch`, dispatched SLOW. Everything here is declared in
+ * tables/programs.toml; the body is hand-written beside this file. A name
+ * without a leading underscore is a row or a block the POU is connected to;
+ * one with is its own.
  */
-class DcWatch : public Plc::Program {
+class DcWatch final : public Plc::Program {
 
 public:
 
@@ -63,7 +65,7 @@ public:
 
     /** @} */
 
-protected:
+private:
 
     /** @name VAR - function blocks
      *  @{ */
@@ -80,7 +82,14 @@ protected:
 
     /** @} */
 
-private:
+    /** @name VAR - what this law remembers
+     *  @{ */
+
+    bool _seen[4] = { false, false, false, false };  ///< Per rail, whether its divider has EVER answered. @see AcSupply
+    bool _safe_held = false;                         ///< What this law last told the registry, so the plant-wide hold is pushed on the EDGE and not walked over every task every beat.
+
+    /** @} */
+
     /** @brief Every readable row this program connects to, as bare
      *  indices: what the base sweeps for validity before each
      *  activation. Parameters are not here - an operator's number is
@@ -95,15 +104,15 @@ public:
 
 protected:
     /** @brief Resolve every name. Runs inside the program's writer
-     *  window, so an output is CLAIMED here. Not overridable: a law
-     *  extends it through on_bind(), which cannot forget to resolve
-     *  first. */
-    void bind(Vars::Bank& io) final;
+     *  window, so an output is CLAIMED here. */
+    void bind(Vars::Bank& io) override;
 
-    /** @brief Whatever the law has to wire once the rows are resolved:
-     *  a block taking a reference, a fail direction read off a row.
-     *  Nothing by default. */
-    virtual void on_bind() {}
+    /** @brief One activation of the law. */
+    void run(ProgramContext& c) override;
+
+    /** @brief What this program SAYS, in every state - including
+     *  while the plant is parked. */
+    void observe(ProgramContext& c) override;
 };
 
 inline void DcWatch::bind(Vars::Bank& io) {
@@ -141,9 +150,8 @@ inline void DcWatch::bind(Vars::Bank& io) {
     _watched[4] = low_bat.r;
     set_inputs(_watched, 5);
     set_health_row(io.resolve_out<uint8_t>("prog_dc_watch"));
-    on_bind();
 }
 
-}}  // namespace Site::Gen
+}  // namespace Site
 
 #endif // SITE_PROGRAM_DC_WATCH_GEN_H
