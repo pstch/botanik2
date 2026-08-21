@@ -18,7 +18,7 @@ demand; this program does not know which they are.
 
 # Its own helpers.
 
-[fn._intake_gates]
+[fn.intake_gates]
 type = "void (ProgramContext& c, float t_in, float dem)"
 doc  = """
 Whether drawing crawlspace air would help, in either direction. Published

@@ -27,7 +27,7 @@ hooks  = ["observe"]
 
 # Its own helpers.
 
-[fn._dry_gate]
+[fn.dry_gate]
 type = "void (ProgramContext& c)"
 doc  = """
 Whether the air outside would dry the greenhouse if drawn in. Dew points, so

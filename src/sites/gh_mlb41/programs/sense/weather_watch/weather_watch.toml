@@ -20,7 +20,7 @@ hooks  = ["observe"]
 
 # What the law remembers between activations.
 
-[var._seen]
+[var.seen]
 type = "bool"
 init = "false"
 doc  = """
@@ -28,7 +28,7 @@ Whether the station has EVER answered. Before it has, silence is bring-up;
 after, it is a fault. @see AcSupply
 """
 
-[var._dry_ms]
+[var.dry_ms]
 type = "uint64_t"
 init = "0"
 doc  = """
@@ -37,7 +37,7 @@ does not know when it last rained, so before the first shower the row is held
 rather than reading "just now".
 """
 
-[var._wet_seen]
+[var.wet_seen]
 type = "bool"
 init = "false"
 

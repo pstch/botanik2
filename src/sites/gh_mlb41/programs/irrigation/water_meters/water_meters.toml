@@ -17,7 +17,7 @@ hooks  = ["observe"]
 
 # What the law remembers between activations.
 
-[var._in_base_L]
+[var.in_base_L]
 type = "float"
 init = "0.0f"
 doc  = """
@@ -26,11 +26,11 @@ restarts at boot and the published total does not, so the total is the
 retained value plus what has been counted since.
 """
 
-[var._in_base_pulses]
+[var.in_base_pulses]
 type = "uint32_t"
 init = "0"
 
-[fn._supply_alarms]
+[fn.supply_alarms]
 type = "void (float in_flow_Lpm)"
 doc  = """
 Water moving with every valve shut, and water not arriving with the inlet

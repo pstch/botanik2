@@ -360,9 +360,15 @@ so there is one section per mode rather than one per spelling.
 | `inout` | VAR_IN_OUT | read-modify-write, SHARED by declaration: the row is marked `VF_SHARED` and records no single owner |
 
 Each of `block`, `var` and `fn` is a section per entry -
-`[var._state]`, not `_state = { ... }` - because a type, an initial
+`[var.state]`, not `state = { ... }` - because a type, an initial
 value and a sentence of prose do not fit on one line. The
 connection sections stay a two-column map: a member is a row.
+
+A `var` or a `fn` is declared under its PLAIN name and generated
+with a leading underscore: `[var.state]` becomes `_state`. That is
+what tells the law's own state from the interface it is connected
+to, and the generator refuses a name that would land on one of
+`Plc::Program`'s (`_health`, `_group`, `_slot`, ...).
 
 A row carrying text has no typed reference - its value lives in
 the bank's pool - so naming one from a program is refused.

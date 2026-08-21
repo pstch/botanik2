@@ -20,19 +20,19 @@ hooks  = ["observe"]
 
 # What the law remembers between activations.
 
-[var._deployed]
+[var.deployed]
 type = "bool"
 init = "false"
 
-[var._seeded]
+[var.seeded]
 type = "bool"
 init = "false"
 
-[var._command_changed]
+[var.command_changed]
 type = "bool"
 init = "false"
 
-[fn._command]
+[fn.command]
 type = "void (bool deploy)"
 doc  = "Command the screen, starting a traverse if that is a change."
 

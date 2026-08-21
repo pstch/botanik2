@@ -19,7 +19,7 @@ it hand over rather than overlap.
 
 # Its own helpers.
 
-[fn._safe_speed]
+[fn.safe_speed]
 type = "float () const"
 doc  = """
 Where these go when this law is not acting, off the row's own declared safe

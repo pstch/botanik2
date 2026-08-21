@@ -21,25 +21,25 @@ hooks  = ["on_bind"]
 
 # What the law remembers between activations.
 
-[var._state]
+[var.state]
 type = "IrrState"
 init = "IRR_IDLE"
 
-[var._tray]
+[var.tray]
 type = "uint8_t"
 init = "0"
 doc  = "1..N_TRAY_VALVE while serving, else 0"
 
-[var._served]
+[var.served]
 type = "uint8_t"
 init = "0"
 doc  = "trays done since the day rolled"
 
-[var._in_state_ms]
+[var.in_state_ms]
 type = "uint32_t"
 init = "0"
 
-[var._fill_start_L]
+[var.fill_start_L]
 type = "float"
 init = "0.0f"
 doc  = """
@@ -48,11 +48,11 @@ DIFFERENCE, so a counter that has run since boot - or since last year,
 retained - needs no reset.
 """
 
-[var._drain_start_L]
+[var.drain_start_L]
 type = "float"
 init = "0.0f"
 
-[var._dose_L]
+[var.dose_L]
 type = "float"
 init = "0.0f"
 doc  = """
@@ -60,7 +60,7 @@ What the tray actually got, kept because the modulation may move under a cycle
 that is already draining.
 """
 
-[var._served_day]
+[var.served_day]
 type = "uint32_t"
 init = "0"
 doc  = """
@@ -68,12 +68,12 @@ The UNIX day `_served` is counted against; the tally rolls when the date does,
 so a cycle spanning midnight is not counted twice.
 """
 
-[var._forced]
+[var.forced]
 type = "bool"
 init = "false"
 doc  = "this cycle came from irr_forceNow"
 
-[fn._in_slot]
+[fn.in_slot]
 type = "bool () const"
 doc  = """
 Whether a cycle may START now. Two slots: the end of the night, and the first
@@ -81,7 +81,7 @@ hours of the day for when the night was too cold to water in. Never the
 afternoon - a tray filled then is still wet at dusk.
 """
 
-[fn._drain_verdict]
+[fn.drain_verdict]
 type = "void ()"
 doc  = """
 Judge the window that has just closed: did enough come back? A dose of zero or
@@ -89,7 +89,7 @@ an unusable meter gives no verdict at all - a clog is a measurement, and there
 is nothing to measure.
 """
 
-[fn._next_due]
+[fn.next_due]
 type = "uint8_t (float mod, uint32_t today)"
 doc  = """
 The next tray owed water, or 0. Honours the per-tray forces, and publishes the
@@ -97,34 +97,34 @@ modulated interval of whichever tray it picks. @param today UNIX day number,
 or 0 when the clock is not yet trusted
 """
 
-[fn._set_valves]
+[fn.set_valves]
 type = "void (IrrState state, uint8_t tray)"
 doc  = "Drive the valves for @p state, serving @p tray (0 = none)."
 
-[fn._park_valves]
+[fn.park_valves]
 type = "void ()"
 doc  = "Every valve to the position its row declares it fails to."
 
-[fn._blame]
+[fn.blame]
 type = "void (const Vars::RefOut<bool>* per_tray, bool on)"
 doc  = "Set or clear @p per_tray for the tray being served."
 
-[fn._stamp_served]
+[fn.stamp_served]
 type = "void ()"
 doc  = """
 Record that the active tray has been watered, durably, and spend the force
 that asked for it.
 """
 
-[fn._stamp]
+[fn.stamp]
 type = "void (uint8_t tray, uint32_t day) const"
 doc  = "Stamp tray @p tray (0-based) as watered on UNIX day @p day."
 
-[fn._after_fill]
+[fn.after_fill]
 type = "IrrState () const"
 doc  = "What follows a fill: the soak, or the drain when there is none."
 
-[fn._enter]
+[fn.enter]
 type = "void (IrrState state)"
 
 [block.inlet_v]

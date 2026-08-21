@@ -70,19 +70,20 @@ All you write is the law, and it reads the rows as its own members:
 are baked into the generated constructor, so neither can drift.
 
 **A name without a leading underscore was declared as an interface**; `[var]` and
-`[fn]` carry the underscored half - what the law remembers and its own helpers -
-and the generator refuses a member named after one of `Plc::Program`'s own
-(`health`, `group`, `run`, ...) since they share a scope.
+`[fn]` are the law's own half, and the generator adds the underscore that says
+so - `[var.seeded]` becomes `_seeded`. It refuses a name that would collide
+either way: with `Plc::Program`'s interface (`health`, `group`, `run`, ...) or,
+once underscored, with its internals (`_health`, `_slot`, ...).
 
 Everything a program declares beyond its connections gets a section of its own,
 because a type, an initial value and a sentence of prose do not fit on one line:
 
 ```toml
-[var._seeded]
+[var.seeded]
 type = "bool"
 init = "false"
 
-[fn._phase_at]
+[fn.phase_at]
 type = "DayPhase (int16_t from_rise, int16_t from_set) const"
 doc  = """
 The phase two offsets land in, with the two BANK phases skipped when yesterday

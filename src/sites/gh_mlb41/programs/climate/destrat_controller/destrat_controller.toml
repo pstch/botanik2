@@ -17,7 +17,7 @@ not step between speeds on noise.
 
 # What the law remembers between activations.
 
-[var._bands]
+[var.bands]
 type = "Plc::Staircase<3>"
 
 [in]

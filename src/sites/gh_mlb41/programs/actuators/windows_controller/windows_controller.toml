@@ -26,7 +26,7 @@ hooks  = ["observe", "on_bind"]
 
 # What the law remembers between activations.
 
-[var._target]
+[var.target]
 type = "float"
 init = "0.0f"
 doc  = """
@@ -34,7 +34,7 @@ The position the arbitration asked for this scan. One number for all four:
 they are one roof.
 """
 
-[var._safe_open]
+[var.safe_open]
 type = "float"
 init = "0.0f"
 doc  = """
@@ -45,21 +45,21 @@ afternoon and a sealed one does not. @note NOT the interlocks: rain and wind
 shut the roof outright.
 """
 
-[fn._mechanics]
+[fn.mechanics]
 type = "Plc::ActuatorConfig () const"
 doc  = """
 The mechanics, rebuilt each scan from the parameters: a recalibrated travel
 time has to land on the next stroke, not the next boot.
 """
 
-[fn._shut_in]
+[fn.shut_in]
 type = "bool (ProgramContext& c)"
 doc  = """
 Whether anything forbids the windows being open at all. Publishes the two
 reasons it owns.
 """
 
-[fn._owner]
+[fn.owner]
 type = "int8_t (float target, const Plc::ActuatorConfig& cfg) const"
 doc  = "Which window may move this scan, or -1."
 

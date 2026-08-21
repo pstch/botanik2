@@ -81,7 +81,10 @@ def _snake(cls):
 
 
 def var(name, type="float", init="", doc=""):
-    return {"name": name, "type": type, "count": 0, "init": init, "doc": doc}
+    """A [var] or [fn] entry, as load() hands it over: named plainly in the
+    table, declared with the underscore the generator adds."""
+    return {"name": "_" + name.lstrip("_"), "given": name, "type": type,
+            "count": 0, "init": init, "doc": doc}
 
 
 def prog(name, cls="C", task="SLOW", stage="sense", blocks=(), desc="What it does.",
@@ -346,19 +349,23 @@ def program_checks():
     ok &= pexpect("a desc too long to be a @brief",
                   [full(desc="x" * 200)], "has to read as one @brief")
 
-    ok &= pexpect("an internal that forgot it was internal",
-                  [full(vars=[var("state")])],
-                  "starts with an underscore")
+    ok &= pexpect("an internal that spelled its own underscore",
+                  [full(vars=[var("_state")])],
+                  "is the generator's, not the table's")
+
+    ok &= pexpect("an internal named after one of the base's",
+                  [full(vars=[var("health", "bool")])],
+                  "becomes _health, which is Plc::Program's own")
 
     ok &= pexpect("a helper declared as a variable too",
-                  [full(vars=[var("_x")], fns=[var("_x", "void ()")])],
+                  [full(vars=[var("x")], fns=[var("x", "void ()")])],
                   "both as a var and as a fn")
 
     ok &= pexpect("a hook that is not one",
                   [full(hooks=["setup"])], "is not one of observe, on_bind")
 
     ok &= pclean("...and the two that are",
-                 [full(hooks=["observe", "on_bind"], vars=[var("_seen", "bool", "false")])])
+                 [full(hooks=["observe", "on_bind"], vars=[var("seen", "bool", "false")])])
 
     misplaced = full()
     misplaced["path"] = "programs/sense/wrong_name/wrong_name.toml"
@@ -415,8 +422,8 @@ def header_checks():
     change. These are the claims the hand-written half depends on.
     """
     p = prog("irr", cls="WaterMeters", task="SLOW", stage="irrigation",
-             hooks=["on_bind"], vars=[var("_seen", "bool", "false")],
-             fns=[var("_judge", "bool (float x) const")],
+             hooks=["on_bind"], vars=[var("seen", "bool", "false")],
+             fns=[var("judge", "bool (float x) const")],
              blocks=[blk("avg", "Ewma"),
                      blk("v", "ValveController", count=3,
                          include="blocks/valve_controller.h")],

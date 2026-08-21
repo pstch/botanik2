@@ -21,7 +21,7 @@ hooks  = ["observe"]
 
 # What the law remembers between activations.
 
-[var._sun]
+[var.sun]
 type = "Sun::SunPositionTracker* const"
 init = "ctx.sun"
 doc  = """

@@ -22,7 +22,7 @@ air they blow into.
 
 # What the law remembers between activations.
 
-[var._speed]
+[var.speed]
 type = "uint8_t"
 init = "0"
 doc  = """
@@ -30,18 +30,18 @@ doc  = """
 hysteresis lives on the rungs.
 """
 
-[var._steps]
+[var.steps]
 type = "Plc::Staircase<3>"
 
-[fn._demand]
+[fn.demand]
 type = "float () const"
 doc  = "The three demands, fused."
 
-[fn._band]
+[fn.band]
 type = "uint8_t (float demand)"
 doc  = "The speed @p demand asks for, given the one in force."
 
-[fn._drive]
+[fn.drive]
 type = "void (uint8_t speed)"
 doc  = "Energise exactly one speed relay, or none."
 

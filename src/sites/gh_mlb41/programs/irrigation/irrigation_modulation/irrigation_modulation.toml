@@ -17,15 +17,15 @@ hooks  = ["observe"]
 
 # What the law remembers between activations.
 
-[var._seeded]
+[var.seeded]
 type = "bool"
 init = "false"
 
-[var._last_fold_ms]
+[var.last_fold_ms]
 type = "uint64_t"
 init = "0"
 
-[fn._track_dryness]
+[fn.track_dryness]
 type = "float (ProgramContext& c)"
 doc  = """
 Fold the VPD into the dryness average, at most once an hour. @return the

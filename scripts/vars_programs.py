@@ -37,6 +37,15 @@ PLC_BLOCKS = {
 
 # Plc::Program's own surface. A row or block member takes the name it is given
 # in the table, in the program's scope, so one of these would shadow the base.
+# Plc::Program's and Component's own internals. A `[var]` or `[fn]` name takes
+# an underscore here, so one of these would land on top of the base's.
+RESERVED_INTERNAL = frozenset((
+    "_io", "_group", "_slot", "_late_ms", "_late_max_ms", "_health",
+    "_health_row", "_health_said", "_safe_asked", "_disable_asked",
+    "_travelling", "_watched", "_watched_count", "_tasks", "_logger", "_name",
+    "_started",
+))
+
 RESERVED = frozenset((
     "bind", "on_bind", "run", "observe", "parking", "degraded", "faulted",
     "group", "slot", "set_slot", "io", "name", "health", "health_row",
@@ -133,7 +142,9 @@ def _decls(section):
     for name, spec in (section or {}).items():
         if isinstance(spec, str):
             spec = {"type": spec}
-        out.append({"name": name, "type": spec.get("type", ""),
+        # The table names it as the law thinks of it; the underscore that says
+        # "internal, not an interface" is added here, once.
+        out.append({"name": "_" + name, "given": name, "type": spec.get("type", ""),
                     "count": int(spec.get("count", 0) or 0),
                     "init": spec.get("init", ""), "doc": spec.get("doc", "")})
     return out
@@ -282,19 +293,22 @@ def check(programs, rows, err, mentioned=(), cal_params=(), library=(),
                         f"as a {what}")
                 declared[n] = what
 
-        # The internals keep their underscore: the interface is bare, and the
-        # two are told apart the same way they always were.
+        # An internal is declared under its plain name and DECLARED with an
+        # underscore, which is what tells it from the interface in the body.
         for what, items in (("var", p["vars"]), ("fn", p["fns"])):
             for d in items:
-                if not d["name"].startswith("_"):
-                    err(f"{where}: {what} '{d['name']}' is internal, so its name "
-                        f"starts with an underscore")
+                if d["given"].startswith("_"):
+                    err(f"{where}: {what} '{d['given']}': the underscore that "
+                        f"says INTERNAL is the generator's, not the table's")
+                elif d["name"] in RESERVED_INTERNAL:
+                    err(f"{where}: {what} '{d['given']}' becomes {d['name']}, "
+                        f"which is Plc::Program's own")
                 elif d["name"] in {x["name"] for x in
                                    (p["fns"] if what == "var" else p["vars"])}:
-                    err(f"{where}: '{d['name']}' is declared both as a var and "
+                    err(f"{where}: '{d['given']}' is declared both as a var and "
                         f"as a fn")
                 if not d["type"]:
-                    err(f"{where}: {what} '{d['name']}' names no type")
+                    err(f"{where}: {what} '{d['given']}' names no type")
 
         for h in p["hooks"]:
             if h not in ("observe", "on_bind"):

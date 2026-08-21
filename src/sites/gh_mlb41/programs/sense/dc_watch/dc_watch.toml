@@ -20,13 +20,13 @@ hooks  = ["observe"]
 
 # What the law remembers between activations.
 
-[var._seen]
+[var.seen]
 type  = "bool"
 count = "4"
 init  = "{ false, false, false, false }"
 doc   = "Per rail, whether its divider has EVER answered. @see AcSupply"
 
-[var._safe_held]
+[var.safe_held]
 type = "bool"
 init = "false"
 doc  = """
