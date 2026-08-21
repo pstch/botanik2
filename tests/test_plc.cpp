@@ -188,46 +188,6 @@ TEST_CASE("Hysteresis3: seeds into the band it starts in, either end") {
     CHECK(parked(18.5f, 18.0f, 26.0f, 1.0f) == Hysteresis3::BAND_MID);
 }
 
-TEST_CASE("Interlock: latches, and names the input that went first") {
-    Interlock il("door", "pressure", "estop", "spare");
-    CHECK_FALSE(il(true, true, true, true));      // starts un-permitted
-    CHECK(il(true, true, true, true, true));      // one acknowledge arms it
-    CHECK(il.first_out() == Interlock::NONE);
-
-    CHECK_FALSE(il(true, false, true, true));     // pressure trips
-    CHECK(il.first_out() == 1);
-    CHECK(std::string(il.first_out_name()) == "pressure");
-
-    // A second input falling does not steal the first-out.
-    CHECK_FALSE(il(false, false, true, true));
-    CHECK(std::string(il.first_out_name()) == "pressure");
-
-    // Everything back, but the latch holds until acknowledged.
-    CHECK_FALSE(il(true, true, true, true));
-    CHECK(std::string(il.first_out_name()) == "pressure");
-    CHECK(il(true, true, true, true, true));
-    CHECK(il.first_out() == Interlock::NONE);
-}
-
-TEST_CASE("Interlock: the acknowledge is an edge, and needs the inputs back") {
-    Interlock il;
-    CHECK(il(true, true, true, true, true));
-    CHECK_FALSE(il(true, true, false, true, true));   // trips despite reset held
-    // No rising edge, no clear, even once recovered: a stuck button isn't permission.
-    CHECK_FALSE(il(true, true, true, true, true));
-    CHECK(il(true, true, true, true, false) == false);
-    CHECK(il(true, true, true, true, true));          // a fresh edge clears it
-}
-
-TEST_CASE("Interlock: non-latching just follows the four inputs") {
-    Interlock il(false);
-    CHECK(il(true, true, true, true));
-    CHECK_FALSE(il(true, true, true, false));
-    CHECK(il.first_out() == 3);
-    CHECK(il(true, true, true, true));                // recovers on its own
-    CHECK(il.first_out() == Interlock::NONE);
-}
-
 TEST_CASE("Ewma: adopts the first sample, then lags by its time constant") {
     Ewma e;
     CHECK(e(20.0f, 10.0f, 1000) == doctest::Approx(20.0f));   // no warm-up ramp

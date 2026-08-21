@@ -247,7 +247,7 @@ that uses them.
 | Header | Blocks |
 |---|---|
 | `timers.h` | `Ton` `Tof` `Tp` |
-| `logic.h` | `RTrig` `FTrig` `Sr` `Rs` `Interlock` |
+| `logic.h` | `RTrig` `FTrig` `Sr` `Rs` |
 | `analog.h` | `Hysteresis` `Hysteresis3` `Ramp` `Deadband` |
 | `filters.h` | `Ewma` `MedianOf3` `MovingAverage<N>` |
 | `meter.h` | `Integral` `Derivative` |

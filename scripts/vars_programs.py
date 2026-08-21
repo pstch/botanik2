@@ -24,7 +24,7 @@ TASKS = ("FAST", "SLOW", "BACKGROUND")
 PLC_BLOCKS = {
     "Ton": "PLC_BLK_BASE", "Tof": "PLC_BLK_BASE", "Tp": "PLC_BLK_BASE",
     "RTrig": "PLC_BLK_BASE", "FTrig": "PLC_BLK_BASE", "Sr": "PLC_BLK_BASE",
-    "Rs": "PLC_BLK_BASE", "Interlock": "PLC_BLK_BASE",
+    "Rs": "PLC_BLK_BASE",
     "Hysteresis": "PLC_BLK_BASE", "Hysteresis3": "PLC_BLK_BASE",
     "Staircase": "PLC_BLK_BASE", "Ramp": "PLC_BLK_BASE",
     "Deadband": "PLC_BLK_BASE", "Integral": "PLC_BLK_BASE",
