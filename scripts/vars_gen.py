@@ -505,6 +505,77 @@ def gen_library():
     return "\n".join(out) + "\n"
 
 
+def program_dir(site, p):
+    """Where one program's three files live."""
+    return os.path.join(ROOT, "src", "sites", site, "programs", p["stage"],
+                        vars_programs.snake(p["class"]))
+
+
+def orphans(site, progs, err):
+    """A program directory for a program that is no longer in the table.
+
+    Its hand-written .cpp would keep compiling, and the law would keep running,
+    with nothing in the configuration saying so.
+    """
+    root = os.path.join(ROOT, "src", "sites", site, "programs")
+    if not os.path.isdir(root):
+        return
+    want = {program_dir(site, p) for p in progs if p["stage"]}
+    for stage in sorted(os.listdir(root)):
+        d = os.path.join(root, stage)
+        if not os.path.isdir(d):
+            continue
+        for name in sorted(os.listdir(d)):
+            got = os.path.join(d, name)
+            if os.path.isdir(got) and got not in want:
+                err(f"programs/{stage}/{name}: a program directory that "
+                    f"programs.toml no longer declares")
+
+
+def scaffold(d, p, check):
+    """The hand-written pair, created ONCE and never touched again.
+
+    A program new to the table gets a body to fill in, the way a PLC IDE creates
+    one. Anything already there is the integrator's.
+    """
+    cls, base = p["class"], vars_programs.snake(p["class"])
+    guard = "SITE_PROGRAM_" + base.upper() + "_H"
+    hdr = "\n".join([
+        f"#ifndef {guard}", f"#define {guard}", "",
+        "/**", f" * @file {base}.h",
+        f" * @brief HAND-WRITTEN - {p['name']}: TODO, what this law decides.",
+        " */", "",
+        "#include <cstdint>", "", f'#include "{base}.gen.h"', "",
+        "namespace Site {", "", "using namespace Botanik;", "",
+        f"class {cls} final : public Gen::{cls} {{", "",
+        "public:",
+        f"    {cls}(const SetupContext& ctx, Vars::Bank& io)",
+        f"        : Gen::{cls}(ctx, io) {{}}", "",
+        "protected:",
+        "    void run(ProgramContext& c) override;",
+        "};", "", "}  // namespace Site", "", f"#endif // {guard}", ""])
+    src = "\n".join([
+        "/**", f" * @file {base}.cpp",
+        f" * @brief HAND-WRITTEN - the body of the `{p['name']}` POU.",
+        " */", "", f'#include "{base}.h"', "", "namespace Site {", "",
+        f"void {cls}::run(ProgramContext& c) {{", "    (void)c;", "}", "",
+        "}  // namespace Site", ""])
+    stale = False
+    for name, text in ((base + ".h", hdr), (base + ".cpp", src)):
+        path = os.path.join(d, name)
+        if os.path.exists(path):
+            continue
+        rel = os.path.relpath(path, ROOT)
+        if check:
+            print(f"  {rel}: MISSING", file=sys.stderr)
+            stale = True
+            continue
+        os.makedirs(d, exist_ok=True)
+        open(path, "w", encoding="utf-8").write(text)
+        print(f"  {rel}: scaffolded")
+    return stale
+
+
 def put(path, text, check):
     """Write, or report a difference. @return whether anything differed."""
     old = open(path, encoding="utf-8").read() if os.path.exists(path) else None
@@ -585,6 +656,7 @@ def main():
                             {r["name"] for _, r in both
                              if r.get("_set") == "libbotanik"},
                             features(a.site))
+        orphans(a.site, progs, problems.append)
     for p in problems:
         print("  " + p, file=sys.stderr)
     if problems:
@@ -598,6 +670,18 @@ def main():
     stale |= put(os.path.join(site_gen, "vars.gen.cpp"), site_src, a.check)
     stale |= put(os.path.join(ROOT, "src", "libbotanik", "vars", "generated", "vars.gen.h"),
                  gen_library(), a.check)
+    for p in progs:
+        if not p["stage"]:
+            continue        # not moved to the per-program shape yet
+        d = program_dir(a.site, p)
+        base = vars_programs.snake(p["class"])
+        stale |= put(os.path.join(d, base + ".gen.h"),
+                     vars_programs.program_header(
+                         p, by_name,
+                         banner("the site's tables/programs.toml",
+                                base + ".gen.h")),
+                     a.check)
+        stale |= scaffold(d, p, a.check)
     if progs:
         stale |= put(os.path.join(ROOT, "src", "sites", a.site, "generated",
                                   "programs.gen.h"),

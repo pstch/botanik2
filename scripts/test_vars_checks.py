@@ -319,6 +319,48 @@ def program_checks():
     return ok
 
 
+def header_checks():
+    """The per-program declaration part: what the emitted C++ has to say.
+
+    Not a golden file - one would have to be regenerated for every wording
+    change. These are the claims the hand-written half depends on.
+    """
+    p = prog("irr", cls="WaterMeters", task="SLOW", stage="irrigation",
+             blocks=[blk("avg", "Ewma"),
+                     blk("v", "ValveController", count=3,
+                         include="blocks/valve_controller.h")],
+             **{"in": {"x": "a_input"},
+                "out": {"y": ["a_global", "b_global"], "c": "a_coil",
+                        "a": "an_alarm"}})
+    p["health"] = "a_global"
+    text = vars_programs.program_header(p, TABLE, ["// banner", ""])
+    wanted = [
+        ("the class derives Plc::Program",
+         "class WaterMeters : public Plc::Program {"),
+        ("the name and rate class are baked in",
+         'Program(ctx, "irr", Tasks::GROUP_SLOW, io) {}'),
+        ("bind() cannot be overridden", "void bind(Vars::Bank& io) final;"),
+        ("...only extended", "virtual void on_bind() {}"),
+        ("...and it calls the hook", "    on_bind();"),
+        ("a library block is reached through Plc::", "Plc::Ewma       avg;"),
+        ("a site block is emitted as written", "ValveController v[3];"),
+        ("...and its header included from the program's directory",
+         '#include "../../../blocks/valve_controller.h"'),
+        ("an array member carries its length", "static const uint8_t N_Y = 2;"),
+        ("a block array too", "static const uint8_t N_V = 3;"),
+        ("the watched rows are handed to the base", "set_inputs(_watched, 1);"),
+        ("the health row is resolved into the base", "set_health_row("),
+    ]
+    ok = True
+    for label, needle in wanted:
+        if needle in text:
+            print(f"ok   {label}")
+        else:
+            print(f"FAIL {label}\n     wanted {needle!r} in the generated header")
+            ok = False
+    return ok
+
+
 def main():
     ok = True
 
@@ -460,6 +502,7 @@ def main():
 
     ok &= enum_checks()
     ok &= program_checks()
+    ok &= header_checks()
 
     print("\n" + ("all checks bite" if ok else "SOME CHECKS DO NOT BITE"))
     return 0 if ok else 1

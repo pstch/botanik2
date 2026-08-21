@@ -467,6 +467,179 @@ def _program_list(programs):
             + ["", "/** @} */", ""])
 
 
+def snake(cls):
+    """A class name as the directory and file name it gets: TempRHZone ->
+    temp_rh_zone."""
+    out = re.sub(r"(.)([A-Z][a-z]+)", r"\1_\2", cls)
+    return re.sub(r"([a-z0-9])([A-Z])", r"\1_\2", out).lower()
+
+
+def _block_type(b):
+    """A block's C++ type. The library's are reached through Plc::; a block of
+    the site's own is emitted as written, and resolves in the enclosing Site."""
+    return b["type"] if b["include"] else "Plc::" + b["type"]
+
+
+def _sizes(p, rows):
+    """Every array member's length, as (CONSTANT, count) in declaration order.
+
+    A body loops over these rather than over a site constant, so what it walks
+    and what the table declares cannot disagree.
+    """
+    out = []
+    for sec, member, _cpp, names in _members(p, rows):
+        if len(names) > 1:
+            out.append(("N_" + member.upper(), len(names)))
+    for b in p["blocks"]:
+        if b["count"] > 1:
+            out.append(("N_" + b["name"].upper(), b["count"]))
+    return out
+
+
+def _decl_group(title, decls, doc=()):
+    """One @name group of member declarations, types column-aligned."""
+    if not decls:
+        return []
+    width = max(len(t) for t, _n, _d in decls)
+    named = max(len(n) for _t, n, _d in decls) + 1 if any(d for _t, _n, d in decls) else 0
+    out = [f"    /** @name {title}"] + [f"     *  {x}" for x in doc] + ["     *  @{ */", ""]
+    for t, n, d in decls:
+        line = f"    {t.ljust(width)} {(n + ';').ljust(named)}"
+        out.append((line + f"  ///< {d}") if d else line.rstrip())
+    return out + ["", "    /** @} */"]
+
+
+def program_header(p, rows, banner):
+    """<class>.gen.h: the POU's whole declaration part, as a base class.
+
+    The derived class carries the body and whatever state the table cannot
+    describe. Everything here comes from the table, so the two halves cannot
+    disagree about what the program is connected to.
+    """
+    cls, guard = p["class"], "SITE_PROGRAM_" + snake(p["class"]).upper() + "_GEN_H"
+    includes = []
+    for b in p["blocks"]:
+        # Site-root relative in the table, emitted relative to this file: a site
+        # can live outside this tree, where an in-tree path would silently
+        # resolve to the reference site instead.
+        inc = f'#include "../../../{b["include"]}"'
+        if b["include"] and inc not in includes:
+            includes.append(inc)
+
+    out = banner + [f"#ifndef {guard}", f"#define {guard}", "",
+                    "#include <cstdint>", "", '#include "libbotanik.h"', ""]
+    if includes:
+        out += includes + [""]
+    out += ["namespace Site { namespace Gen {", "", "using namespace Botanik;", "",
+            "/**",
+            f" * @brief The declaration part of `{p['name']}`: every row the",
+            f" *        {cls} POU connects to, and every block it holds.",
+            f" *        Dispatched {p['task']}.",
+            " *",
+            f" * Site::{cls} derives this and carries the body. A name without a",
+            " * leading underscore was declared in the table; the derived class",
+            " * owns everything else.",
+            " */",
+            f"class {cls} : public Plc::Program {{", ""]
+
+    watched = _watched(p, rows)
+    if watched:
+        out += ["    /** @brief Every readable row this program connects to, as"
+                " bare",
+                "     *  indices: what the base sweeps for validity before each",
+                "     *  activation. Parameters are not here - an operator's"
+                " number is",
+                "     *  always valid, and checking one would cost a walk to"
+                " learn nothing. */",
+                f"    Vars::VarRef _watched[{len(watched)}];", ""]
+    out += ["protected:", ""]
+
+    ms = _members(p, rows)
+    for sec in SECTIONS:
+        group = [m for m in ms if m[0] == sec]
+        if not group:
+            continue
+        tmpl, _r = REFS[sec]
+        out += _decl_group(SECTION_DOC[sec],
+                           [(f"Vars::{tmpl}<{m[2]}>",
+                             m[1] + (f"[{len(m[3])}]" if len(m[3]) > 1 else ""), "")
+                            for m in group]) + [""]
+    out += _decl_group("VAR - function blocks",
+                       [(_block_type(b),
+                         b["name"] + (f"[{b['count']}]" if b["count"] > 1 else ""),
+                         b["doc"]) for b in p["blocks"]])
+    if p["blocks"]:
+        out += [""]
+
+    sizes = _sizes(p, rows)
+    if sizes:
+        width = max(len(n) for n, _c in sizes)
+        out += ["    /** @name Sizes",
+                "     *  How many rows or instances each array member has, from"
+                " the",
+                "     *  table. What a body loops over, so a site constant cannot"
+                " get",
+                "     *  out of step with what is declared.",
+                "     *  @{ */", ""]
+        out += [f"    static const uint8_t {n.ljust(width)} = {c};" for n, c in sizes]
+        out += ["", "    /** @} */", ""]
+
+    out += ["public:",
+            "    /** @brief The instance name and rate class programs.toml",
+            "     *  declares, so neither can drift from the configuration. */",
+            f"    {cls}(const SetupContext& ctx, Vars::Bank& io)",
+            f'        : Program(ctx, "{p["name"]}", Tasks::GROUP_{p["task"]}, io) {{}}',
+            "",
+            "protected:",
+            "    /** @brief Resolve every name. Runs inside the program's writer",
+            "     *  window, so an output is CLAIMED here. Not overridable: a law",
+            "     *  extends it through on_bind(), which cannot forget to resolve",
+            "     *  first. */",
+            "    void bind(Vars::Bank& io) final;", "",
+            "    /** @brief Whatever the law has to wire once the rows are"
+            " resolved:",
+            "     *  a block taking a reference, a fail direction read off a row.",
+            "     *  Nothing by default. */",
+            "    virtual void on_bind() {}",
+            "};", ""]
+    out += _program_bind(p, rows)
+    out += ["}}  // namespace Site::Gen", "", f"#endif // {guard}"]
+    return "\n".join(out) + "\n"
+
+
+def _program_bind(p, rows):
+    """bind(), out of line so the class above reads as the declaration part."""
+    cls = p["class"]
+    lhs, rhs = [], []
+    for sec, member, cpp, names in _members(p, rows):
+        _t, resolve = REFS[sec]
+        for i, row in enumerate(names):
+            lhs.append(member + (f"[{i}]" if len(names) > 1 else ""))
+            rhs.append(f'io.{resolve}<{cpp}>("{row}");')
+    out = [f"inline void {cls}::bind(Vars::Bank& io) {{"]
+    if lhs:
+        width = max(len(x) for x in lhs)
+        out += [f"    {l.ljust(width)} = {r}" for l, r in zip(lhs, rhs)]
+    else:
+        out += ["    (void)io;"]
+
+    watched = _watched(p, rows)
+    if watched:
+        out += ["", "    // The readings this law is entitled to expect. The base"
+                    " walks them",
+                "    // before each activation, so an input that has stopped being"
+                    " believable",
+                "    // is DEGRADED whether or not the law thought to ask."]
+        for n, (member, idx, _row) in enumerate(watched):
+            ref = member + (f"[{idx}]" if _is_array(p, member) else "")
+            out.append(f"    _watched[{n}] = {ref}.r;")
+        out.append(f"    set_inputs(_watched, {len(watched)});")
+    if p.get("health"):
+        out += ["    set_health_row("
+                f'io.resolve_out<uint8_t>("{p["health"]}"));']
+    return out + ["    on_bind();", "}", ""]
+
+
 def generate(programs, rows, banner):
     """programs.gen.h: the site's program list, then the Refs struct and the
     bind() body of every program."""
