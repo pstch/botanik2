@@ -12,7 +12,8 @@ Three kinds, and which kind a file is decides how you change it.
 |---|---|---|
 | `tables/*.csv` | **declared** | every variable the site has, one file per row factory |
 | `tables/enums.csv` | declared | the vocabularies its enumerated rows are written over |
-| `tables/programs.toml` | declared | which control programs exist, and which row each of their variables connects to |
+| `programs/<stage>/<class>/<class>.toml` | declared | one control program: what it connects to, what it holds, what it declares |
+| `programs/order.toml` | declared | the order the programs run in, which is the one thing about a program that is not a property of the program |
 | `generated/vars.gen.h` | **generated** | the `Descriptor` arrays, the calibration blocks, the enums and their converters |
 | `generated/programs.gen.h` | generated | every program's header, the map of what they pass to each other, and `SITE_PROGRAM_LIST` |
 | `programs/<stage>/<class>/<class>.gen.h` | generated | one program's whole declaration part: its rows, its blocks, its `bind()` |
@@ -20,7 +21,7 @@ Three kinds, and which kind a file is decides how you change it.
 | `vars.h` | hand-written | what the device map MEANS, and the home-screen captions |
 | `vars.cpp` | hand-written | the home-field reference array |
 | `programs/<stage>/<class>/<class>.{h,cpp}` | hand-written | one control program: the state the table cannot describe, its helpers, and the law itself. The one place a site expresses *behaviour* |
-| `blocks/*.{h,cpp}` | hand-written | function blocks of the site's own, nameable from `programs.toml` |
+| `blocks/*.{h,cpp}` | hand-written | function blocks of the site's own, nameable from a program's table |
 | `site.h` | hand-written | the shell commands, the `SiteDescriptor`, and the firmware class |
 | `sim.h` | hand-written | the simulated field (whole body `#ifdef TARGET_SIMULATOR`) |
 
@@ -111,7 +112,7 @@ using BotanikSite = GreenhouseMLB41;   // what the harness instantiates
 ```
 
 @note The program list appears three times - member, constructor init, and
-`register_tasks()` - and `programs.toml` already knows it. Generating the trio is
+`register_tasks()` - and `programs/order.toml` already knows it. Generating the trio is
 an obvious next step and has not been taken; until it is, the three lists are
 kept in step by hand and by the site test that walks them.
 

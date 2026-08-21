@@ -1,0 +1,38 @@
+# weather_watch: what this POU is connected to, what it holds, and what it
+# declares. The body is in weather_watch.cpp; everything else here is
+# generated into weather_watch.gen.h.
+
+name   = "weather_watch"
+class  = "WeatherWatch"
+task   = "SLOW"
+health = "prog_weather_watch"
+desc   = "The weather station, watched: whether it is answering, and whether what it says is a storm."
+notes  = """
+A storm IS what shuts the roof, so this reads `WindowsController`'s two
+lockouts rather than declaring a second pair of thresholds beside them - an
+alarm that disagreed with the actuator it is about would be worse than no
+alarm.
+"""
+hooks  = ["observe"]
+
+# What the law remembers between activations.
+
+[var]
+_seen     = { type = "bool", init = "false", doc = "Whether the station has EVER answered. Before it has, silence is bring-up; after, it is a fault. @see AcSupply" }
+_dry_ms   = { type = "uint64_t", init = "0", doc = "Ms since the gauge last read wet, and whether it ever has in this run. A boot does not know when it last rained, so before the first shower the row is held rather than reading \"just now\"." }
+_wet_seen = { type = "bool", init = "false" }
+
+
+
+[in]
+wind      = "cli_wind_mps"
+gust      = "cli_windGust_mps"
+rain      = "cli_rain_mmph"
+irrad     = "cli_irrad_Wpm2"
+rain_lock = "cli_rainLockout"
+wind_lock = "cli_windLockout"
+
+[out]
+station    = "alarm_wx_station"
+storm      = "alarm_weather_storm"
+since_rain = "cli_sinceRain_min"

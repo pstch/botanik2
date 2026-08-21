@@ -82,7 +82,7 @@ which they already are, without making them *contemporaneous*.
 ## How a program declares its variables
 
 A program does not write its references down. They are declared in the site's
-`tables/programs.toml`, one entry per member, and `scripts/vars_gen.py` emits the
+its own `<class>.toml`, one entry per member, and `scripts/vars_gen.py` emits the
 program's BASE CLASS into `programs/<stage>/<class>/<class>.gen.h`: one typed
 member per row, the blocks it declares beside them, and the `bind()` that
 resolves them all. The site derives that class and writes the body, so a law

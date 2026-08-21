@@ -1,0 +1,63 @@
+# humidity: what this POU is connected to, what it holds, and what it
+# declares. The body is in humidity_controller.cpp; everything else here is
+# generated into humidity_controller.gen.h.
+
+name   = "humidity"
+class  = "HumidityController"
+task   = "SLOW"
+health = "prog_humidity"
+desc   = "The humidity ladder: four bands and a dead zone on the dew-point margin, published as one signed demand - and the rot guard under it."
+notes  = """
+Negative dehumidifies (the margin is closing on condensation), positive
+humidifies (the air is drier than the plants want). Set in degC rather than
+kPa because it is CONDENSATION being guarded against, and that happens at the
+temperature the surfaces are actually at.
+
+The GUARD is the same signal read against a different question: the ladder's
+corners are the operator's comfort band, and `cli_tooHumid_degC` is the limit
+`alarm_rot` means. One program, because two reading one margin can disagree
+about it on the beat it moves. The guard's two rows are published from
+observe(): they command nothing, and their verdict has to stand while the
+plant is parked.
+"""
+hooks  = ["observe"]
+
+# Its own helpers.
+
+[fn]
+_dry_gate = { type = "void (ProgramContext& c)", doc = "Whether the air outside would dry the greenhouse if drawn in. Dew points, so it survives a cold damp morning reading 95% RH." }
+
+
+
+[block]
+lockout_for   = { type = "Tof",        doc = "the lockout's overrun past the condition" }
+dry_gate_band = { type = "Hysteresis", doc = "two dew points that converge, so a dead band" }
+
+
+[in]
+rot_release_s = "cli_rotRelease_sec"
+dp_margin     = "cli_dpMargin_degC"
+dehum_full    = "cli_dehumFull_degC"
+dehum_start   = "cli_dehumStart_degC"
+humid_start   = "cli_humidStart_degC"
+humid_full    = "cli_humidFull_degC"
+rot_limit     = "cli_tooHumid_degC"
+rot           = "alarm_rot"
+# The dryness gate: whether the air outside would dry the greenhouse at all.
+# Dew points, not humidities - a colder outside at the same RH is drier air.
+in_t          = "cli_temp_hi"
+in_rh         = "cli_rh_hi"
+ext_t         = "cli_temp_ext"
+ext_rh        = "cli_rh_ext"
+dry_margin    = "cli_ventDryMgn_degC"
+vent_hyst     = "cli_ventHyst_degC"
+
+[out]
+demand   = "cli_humidDem"
+lockout  = "cli_rotLockout"
+vent_dem = "cli_rotVentDem"
+dry_ok   = "cli_intakeDryOk"
+
+# The irrigation subsystem is three programs, along the seam the spec draws: a
+# ladder (how thirsty the air has been), an instrument (what the two meters
+# say), and the law that acts (which tray, and the valves).

@@ -1,0 +1,50 @@
+# irr_modulation: what this POU is connected to, what it holds, and what it
+# declares. The body is in irrigation_modulation.cpp; everything else here is
+# generated into irrigation_modulation.gen.h.
+
+name   = "irr_modulation"
+class  = "IrrigationModulation"
+task   = "SLOW"
+health = "prog_irr_modulation"
+desc   = "The irrigation ladder: how thirsty the air has been, as one factor."
+notes  = """
+The spec's irrigation "regulator" - evaporation in, a modulation factor out.
+It commands nothing, so all of it is in observe() and it keeps folding while
+the plant is parked: an outage is not a dry spell, and a hole in the average
+would read as one for days afterwards.
+"""
+hooks  = ["observe"]
+
+# What the law remembers between activations.
+
+[var]
+_seeded       = { type = "bool", init = "false" }
+_last_fold_ms = { type = "uint64_t", init = "0" }
+
+# Its own helpers.
+
+[fn]
+_track_dryness = { type = "float (ProgramContext& c)", doc = "Fold the VPD into the dryness average, at most once an hour. @return the average now in force" }
+
+
+# The spec's irrigation "regulator": evaporation in, a modulation factor out.
+# It never touches a valve, and it keeps folding while the plant is parked -
+# an outage is not a dry spell.
+# Deliberately slow: an hour's fold over several days, so one dry afternoon
+# cannot call for a watering.
+
+[block]
+dryness = { type = "Utils::ExpMovingAverage", doc = "the dryness tracker" }
+
+
+[in]
+vpd       = "cli_vpd_kPa"
+dry_days  = "irr_dryEwmaDays"
+dry_lo    = "irr_dryLo_kPa"
+dry_hi    = "irr_dryHi_kPa"
+mod_min   = "irr_modMin"
+mod_gamma = "irr_modGamma"
+
+[out]
+vpd_avg = "irr_vpdAvg_kPa"
+mod     = "irr_mod"

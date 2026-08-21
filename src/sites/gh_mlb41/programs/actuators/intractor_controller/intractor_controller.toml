@@ -1,0 +1,43 @@
+# intractors: what this POU is connected to, what it holds, and what it
+# declares. The body is in intractor_controller.cpp; everything else here is
+# generated into intractor_controller.gen.h.
+
+name   = "intractors"
+class  = "IntractorController"
+task   = "SLOW"
+health = "prog_intractors"
+desc   = "The two intractors: variable-speed fans drawing air from under the floor, driven by whichever of three demands wants the most."
+notes  = """
+Both run together at one speed - they serve one volume - and the fusion is a
+MAXIMUM, so each input is a floor rather than a share. The ramp runs between
+the two staging thresholds, so the windows below it and the intractors above
+it hand over rather than overlap.
+"""
+
+# Its own helpers.
+
+[fn]
+_safe_speed = { type = "float () const", doc = "Where these go when this law is not acting, off the row's own declared safe value. NOT stopped: some air is always wanted." }
+
+
+
+# Three FLOORS, per the spec's fusion: whichever wants the most air gets it.
+# The humidity demand contributes its DEHUMIDIFY arm only - the other way it is
+# asking for the skirt, which is not this device.
+
+[in]
+cool_dem     = "cli_coolDem"
+rot_vent     = "cli_rotVentDem"
+humid_dem    = "cli_humidDem"
+ground_speed = "cli_groundSpeed"
+start_dem    = "cli_intakeStartDem"
+full_dem     = "cli_intakeFullDem"
+# The three gates, each decided by the law that owns the reading behind it: a
+# demand whose gate is shut contributes nothing to the maximum.
+cool_ok      = "cli_intakeCoolOk"
+ground_ok    = "cli_groundHeatOk"
+dry_ok       = "cli_intakeDryOk"
+
+
+[out]
+intr = { rows = "cli_intr*", count = 2 }

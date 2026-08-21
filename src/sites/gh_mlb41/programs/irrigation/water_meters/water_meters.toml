@@ -1,0 +1,60 @@
+# irr_meters: what this POU is connected to, what it holds, and what it
+# declares. The body is in water_meters.cpp; everything else here is
+# generated into water_meters.gen.h.
+
+name   = "irr_meters"
+class  = "WaterMeters"
+task   = "SLOW"
+health = "prog_irr_meters"
+desc   = "Both water meters, and the two supply faults they can see."
+notes  = """
+Opposite ends of the same circuit and opposite instruments: the inlet is a
+pulse train, so its COUNTER is the measurement and the rate is derived; the
+outlet is a 4-20 mA loop, so its RATE is the measurement and the counter is.
+An instrument, not a law - it drives no valve, and it reads while parked.
+"""
+hooks  = ["observe"]
+
+# What the law remembers between activations.
+
+[var]
+_in_base_L      = { type = "float", init = "0.0f", doc = "Where the inlet counter stood when this run adopted it: the pulse counter restarts at boot and the published total does not, so the total is the retained value plus what has been counted since." }
+_in_base_pulses = { type = "uint32_t", init = "0" }
+
+# Its own helpers.
+
+[fn]
+_supply_alarms = { type = "void (float in_flow_Lpm)", doc = "Water moving with every valve shut, and water not arriving with the inlet open. Both are read off the inlet meter alone." }
+
+
+# Both ends of the circuit, and the two supply faults they can see. Opposite
+# instruments: the inlet is a pulse train whose COUNTER is the measurement, the
+# outlet a 4-20 mA loop whose RATE is.
+# The blocks it holds. `flow_avg` rather than `out_flow`: a block takes its
+# name from what it does, and the row it filters is already called that.
+
+[block]
+flow_avg  = { type = "Ewma",       doc = "the loop, averaged over irr_out_avg_ms" }
+flow_band = { type = "Deadband",   doc = "...and how far it must move to be written" }
+in_rate   = { type = "Derivative", doc = "litres -> Lpm, over a window" }
+out_meter = { type = "Integral",   doc = "Lpm -> litres" }
+
+
+[in]
+band          = "irr_flowBand_Lpm"
+cutoff        = "irr_flowCutoff_Lpm"
+rate_win      = "irr_rateWin_ms"
+out_flow      = "irr_out_Lpm"
+out_avg_ms    = "irr_out_avg_ms"
+qty_per_pulse = "irr_input_qtyPerImp"
+leak_Lpm      = "irr_leak_Lpm"
+min_fill_Lpm  = "irr_minFill_Lpm"
+state         = "irr_state"
+
+[out]
+in_flow      = "irr_inFlow_Lpm"
+in_total     = "irr_inTotal_L"
+out_flow_pub = "irr_outFlow_Lpm"
+out_total    = "irr_outTotal_L"
+leak         = "alarm_water_leak"
+pressure     = "alarm_water_pressure"

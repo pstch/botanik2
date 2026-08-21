@@ -76,6 +76,10 @@ def blk(name, type="Ton", count=0, include="", doc=""):
             "doc": doc}
 
 
+def _snake(cls):
+    return vars_programs.snake(cls)
+
+
 def var(name, type="float", init="", doc=""):
     return {"name": name, "type": type, "count": 0, "init": init, "doc": doc}
 
@@ -84,7 +88,8 @@ def prog(name, cls="C", task="SLOW", stage="sense", blocks=(), desc="What it doe
          vars=(), fns=(), hooks=(), **sections):
     p = {"name": name, "class": cls, "task": task, "conns": [], "arrays": set(),
          "stage": stage, "blocks": list(blocks), "desc": desc, "notes": "",
-         "vars": list(vars), "fns": list(fns), "hooks": list(hooks), "counts": {}}
+         "vars": list(vars), "fns": list(fns), "hooks": list(hooks), "counts": {},
+         "path": "programs/%s/%s/%s.toml" % (stage, _snake(cls), _snake(cls))}
     for sec, members in sections.items():
         for member, rows in members.items():
             if isinstance(rows, dict):
@@ -109,17 +114,19 @@ TABLE = {
 }
 
 
-def prun(programs, mentioned=(), features=None):
+def prun(programs, mentioned=(), features=None, order=None):
     out = []
     # a_text is READ by the fixture site's own C++: a text row has no typed
     # reference, so a program could not read it even if it wanted to.
     vars_programs.check(programs, TABLE, out.append, set(mentioned) | {"a_text"},
-                        features=features)
+                        features=features,
+                        order=([p["name"] for p in programs] if order is None
+                               else list(order)))
     return out
 
 
-def pexpect(label, programs, needle, mentioned=(), features=None):
-    got = prun(programs, mentioned, features)
+def pexpect(label, programs, needle, mentioned=(), features=None, order=None):
+    got = prun(programs, mentioned, features, order)
     if not [x for x in got if needle in x]:
         print(f"FAIL {label}\n     wanted {needle!r}\n     got: {got or 'nothing'}")
         return False
@@ -349,12 +356,14 @@ def program_checks():
     ok &= pclean("...and the two that are",
                  [full(hooks=["observe", "on_bind"], vars=[var("_seen", "bool", "false")])])
 
-    ok &= pexpect("a program with no stage",
-                  [full(stage="")], "which directory under programs/")
+    misplaced = full()
+    misplaced["path"] = "programs/sense/wrong_name/wrong_name.toml"
+    ok &= pexpect("a program declared in the wrong file", [misplaced],
+                  "belongs in p1.toml")
 
-    ok &= pexpect("a stage that is not a directory name",
-                  [prog("p", cls="P1", stage="Sense/Climate")],
-                  "becomes a directory name")
+    unlisted = full()
+    ok &= pexpect("a program nothing schedules",
+                  [unlisted], "nothing says when it runs", order=())
     return ok
 
 

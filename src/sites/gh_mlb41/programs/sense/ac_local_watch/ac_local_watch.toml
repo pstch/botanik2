@@ -1,0 +1,46 @@
+# ac_local_watch: what this POU is connected to, what it holds, and what it
+# declares. The body is in ac_local_watch.cpp; everything else here is
+# generated into ac_local_watch.gen.h.
+
+name   = "ac_local_watch"
+class  = "AcLocalWatch"
+task   = "SLOW"
+health = "prog_ac_local_watch"
+desc   = "The generator-backed side of the transfer switch, watched."
+notes  = """
+The same law as the grid over different rows and wider frequency bands: a
+generator wanders where a utility does not.
+"""
+hooks  = ["observe", "on_bind"]
+
+
+# The supply block, bound from this program's own interface: the two supplies
+# declare the same member names and one law reads either.
+
+[block]
+supply   = { type = "AcSupply", include = "blocks/ac_supply.h" }
+cranking = { type = "Ton", doc = "the grid gone with nothing taking over" }
+
+
+[in]
+volts   = "ats_V"
+amps    = "ats_A"
+watts   = "ats_W"
+hz      = "ats_Hz"
+lo_V    = "pwr_localLo_V"
+hi_V    = "pwr_localHi_V"
+lo_Hz   = "pwr_localLo_Hz"
+hi_Hz   = "pwr_localHi_Hz"
+# The grid's verdict, decided earlier in the same beat: what makes a dead local
+# supply a FAILED GENERATOR rather than a power cut nobody asked it to cover.
+grid_ok = "sys_grid_ok"
+start_s = "pwr_genStart_sec"
+
+[out]
+out_V     = "sys_local_V"
+out_A     = "sys_local_A"
+out_W     = "sys_local_W"
+out_Hz    = "sys_local_Hz"
+ok        = "sys_local_ok"
+fault     = "alarm_ac_local"
+gen_fault = "alarm_gen"

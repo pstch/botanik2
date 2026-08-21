@@ -1,0 +1,39 @@
+# climate_watch: what this POU is connected to, what it holds, and what it
+# declares. The body is in climate_watch.cpp; everything else here is
+# generated into climate_watch.gen.h.
+
+name   = "climate_watch"
+class  = "ClimateWatch"
+task   = "SLOW"
+health = "prog_climate_watch"
+desc   = "The interior conditions, watched: the alarms that are a READING crossing a line rather than a law failing to hold one."
+notes  = """
+A watch program - empty run(), everything in observe(). An alarm is an
+observation, and an observation has to keep being made while the plant is
+parked, which is exactly when someone is looking at the ALARMS page.
+
+An unmeasured reading raises NOTHING here. What it raises is the zone's own
+quorum alarm, which this rolls up: alarming twice for one dead probe would
+make the second alarm mean "and also we cannot see".
+"""
+hooks  = ["observe"]
+
+
+
+[in]
+temp     = "cli_temp_hi"
+rh       = "cli_rh_hi"
+strat    = "cli_dTStrat_degC"
+too_hot  = "cli_tooHot_degC"
+too_cold = "cli_tooCold_degC"
+rh_cap   = "cli_rotRhCap"
+strat_hi = "cli_dTStratHigh_degC"
+sns      = ["alarm_sns_ceiling", "alarm_sns_floor",
+             "alarm_sns_crawlspace", "alarm_sns_exterior"]
+
+[out]
+hot        = "alarm_too_hot"
+cold       = "alarm_too_cold"
+humid      = "alarm_too_humid"
+stratified = "alarm_strat"
+sensor     = "alarm_sensor_fault"

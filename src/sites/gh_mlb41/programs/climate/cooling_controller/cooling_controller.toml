@@ -1,0 +1,64 @@
+# cooling: what this POU is connected to, what it holds, and what it
+# declares. The body is in cooling_controller.cpp; everything else here is
+# generated into cooling_controller.gen.h.
+
+name   = "cooling"
+class  = "CoolingController"
+task   = "FAST"
+health = "prog_cooling"
+desc   = "The cooling ladder: a PID on the interior temperature against the phase's target, published as one signed demand."
+notes  = """
+Negative is heating - the intractors drawing warm air from under the floor,
+and below that the thermal screen. The actuators spread themselves along the
+demand; this program does not know which they are.
+"""
+
+# Its own helpers.
+
+[fn]
+_intake_gates = { type = "void (ProgramContext& c, float t_in, float dem)", doc = "Whether drawing crawlspace air would help, in either direction. Published rather than acted on: this law owns the reading, the intractors own the device." }
+
+
+# The house's ONE temperature, which temp_rh_zone has already made the worst
+# case of the two levels. Read as a row rather than re-derived here, so what the
+# ladder controls on is a thing an operator can watch on a page and force.
+# The loop, and the two intake comparisons. Both compare temperatures that
+# CONVERGE, so each carries a dead band: without one a gate flips beat to beat
+# as the difference sits on its margin. `ground_band` rather than `ground_dem`,
+# which is the ROW it is judging.
+
+[block]
+pid         = { type = "Pid" }
+cool_gate   = { type = "Hysteresis", doc = "the intake is cooler by the margin" }
+ground_gate = { type = "Hysteresis", doc = "...or warmer by it" }
+ground_band = { type = "Hysteresis", doc = "and the ladder is asking for heat" }
+
+
+[in]
+dem_hyst    = "cli_groundDemHyst"
+inside      = "cli_temp_in"
+# ...and the two levels behind it, for the VERDICT alone: an average carried by
+# one level is still a temperature, and this law says it is working on half a
+# picture rather than pretending otherwise.
+ceiling     = "cli_temp_hi"
+floor       = "cli_temp_lo"
+target      = "cli_targetTemp_degC"
+# What the intractors would actually deliver, and the two margins that decide
+# whether drawing it is worth anything. The crawlspace IS the intake path.
+intake      = "cli_temp_cs"
+temp_margin = "cli_ventTempMgn_degC"
+vent_hyst   = "cli_ventHyst_degC"
+ground_dem  = "cli_groundHeatDem"
+# The window staging, so the INTENDED opening is a row of its own: the windows
+# then apply the interlocks to a published demand rather than re-deriving it.
+win_start   = "cli_windowStartDem"
+win_full    = "cli_windowFullDem"
+kp          = "cli_coolKp"
+ti          = "cli_coolTi_sec"
+td          = "cli_coolTd_sec"
+
+[out]
+demand    = "cli_coolDem"
+intake_ok = "cli_intakeCoolOk"
+ground_ok = "cli_groundHeatOk"
+window    = "cli_windowDem"

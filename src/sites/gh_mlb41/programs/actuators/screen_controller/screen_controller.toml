@@ -1,0 +1,47 @@
+# screen: what this POU is connected to, what it holds, and what it
+# declares. The body is in screen_controller.cpp; everything else here is
+# generated into screen_controller.gen.h.
+
+name   = "screen"
+class  = "ScreenController"
+task   = "SLOW"
+health = "prog_screen"
+desc   = "The thermal screen: one coil, deployed when the greenhouse is losing heat rather than gaining it."
+notes  = """
+Two independent causes, either sufficient: the cooling ladder gone far enough
+negative, or a cold night. No feedback, so travel is TIMED - and while it runs
+the destratification fans are cut, because the fabric is moving through the
+air they blow into.
+"""
+hooks  = ["observe"]
+
+# What the law remembers between activations.
+
+[var]
+_deployed        = { type = "bool", init = "false" }
+_seeded          = { type = "bool", init = "false" }
+_command_changed = { type = "bool", init = "false" }
+
+# Its own helpers.
+
+[fn]
+_command = { type = "void (bool deploy)", doc = "Command the screen, starting a traverse if that is a change." }
+
+
+
+[block]
+travelling = { type = "Tp",    doc = "a pulse of the fabric's travel time" }
+moved      = { type = "RTrig", doc = "...started by a change of command" }
+
+
+[in]
+cool_dem     = "cli_coolDem"
+deploy_dem   = "cli_thermalScreenDem"
+phase        = "cli_phase"
+travel_s     = "cli_screenTravel_sec"
+travel_tmo_s = "cli_screenTmo_sec"
+
+
+[out]
+screen = "cli_screen"
+moving = "cli_screenMoving"

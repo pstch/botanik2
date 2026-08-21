@@ -1,0 +1,67 @@
+# dc_watch: what this POU is connected to, what it holds, and what it
+# declares. The body is in dc_watch.cpp; everything else here is
+# generated into dc_watch.gen.h.
+
+name   = "dc_watch"
+class  = "DcWatch"
+task   = "SLOW"
+health = "prog_dc_watch"
+desc   = "The DC rails and the two batteries, watched - and the plant-wide lockout they raise."
+notes  = """
+`sys_supply_lockout` follows the UPS LOW-BATTERY CONTACT, not a voltage: the
+UPS knows what its own battery has left, and a divider on the rail does not.
+The voltages alarm on their own floors, which is warning rather than
+interlock.
+"""
+hooks  = ["observe"]
+
+# What the law remembers between activations.
+
+[var]
+_seen      = { type = "bool", count = "4", init = "{ false, false, false, false }", doc = "Per rail, whether its divider has EVER answered. @see AcSupply" }
+_safe_held = { type = "bool", init = "false", doc = "What this law last told the registry, so the plant-wide hold is pushed on the EDGE and not walked over every task every beat." }
+
+
+# One deadband and one rolling average per divider, and the debounce under the
+# UPS contact. Named for what they do: the ROWS are called dc1, dc2, ups_bat.
+
+[block]
+band1   = { type = "Deadband" }
+band2   = { type = "Deadband" }
+bandu   = { type = "Deadband" }
+bandg   = { type = "Deadband" }
+avg1    = { type = "Ewma", doc = "the rail is judged on the AVERAGE, so one" }
+avg2    = { type = "Ewma", doc = "noisy sample cannot raise a supply fault" }
+avgu    = { type = "Ewma" }
+avgg    = { type = "Ewma" }
+low_for = { type = "Ton", doc = "debounce: a contact bounces, a UPS does not" }
+
+
+[in]
+dc1     = "pwr_dc1_V"
+dc2     = "pwr_dc2_V"
+ups_bat = "pwr_upsBat_V"
+gen_bat = "pwr_genBat_V"
+# One rolling average per divider: the rail is judged on the AVERAGE, so a
+# single noisy sample cannot raise a supply fault.
+dc1_avg = "pwr_dc1_avg_ms"
+dc2_avg = "pwr_dc2_avg_ms"
+ups_avg = "pwr_upsBat_avg_ms"
+gen_avg = "pwr_genBat_avg_ms"
+dc1_lo  = "pwr_dc1Lo_V"
+dc2_lo  = "pwr_dc2Lo_V"
+ups_lo  = "pwr_upsBatLo_V"
+gen_lo  = "pwr_genBatLo_V"
+low_bat = "pwr_upsLowBat"
+
+[out]
+out_dc1 = "sys_dc1_V"
+out_dc2 = "sys_dc2_V"
+out_ups = "sys_upsBat_V"
+out_gen = "sys_genBat_V"
+ok      = "sys_dc_ok"
+lockout = "sys_supply_lockout"
+ps1_flt = "alarm_dc_ps1"
+ps2_flt = "alarm_dc_ps2"
+ups_flt = "alarm_dc_ups"
+gen_flt = "alarm_generator_battery"

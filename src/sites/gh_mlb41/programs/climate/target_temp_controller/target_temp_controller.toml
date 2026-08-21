@@ -1,0 +1,28 @@
+# target_temp: what this POU is connected to, what it holds, and what it
+# declares. The body is in target_temp_controller.cpp; everything else here is
+# generated into target_temp_controller.gen.h.
+
+name   = "target_temp"
+class  = "TargetTempController"
+task   = "SLOW"
+health = "prog_target_temp"
+desc   = "The temperature the greenhouse is being held to: the base setting, shifted by whichever bank phase is both IN FORCE and ARMED."
+notes  = """
+Its own program because the target is a decision, not a property of the phase:
+the two bank phases only move it when yesterday justified them, and a reader
+wants the number rather than the rule that produced it.
+"""
+
+
+[in]
+t_min         = "cli_targetMin_degC"
+t_max         = "cli_targetMax_degC"
+phase         = "cli_phase"
+cold_arm      = "cli_coldBankArm"
+heat_arm      = "cli_heatBankArm"
+cool_set      = "cli_coolSet_degC"
+cold_bank_ofs = "cli_coldBankOfs_degC"
+heat_bank_ofs = "cli_heatBankOfs_degC"
+
+[out]
+target = "cli_targetTemp_degC"

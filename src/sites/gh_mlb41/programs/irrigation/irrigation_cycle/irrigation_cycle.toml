@@ -1,0 +1,132 @@
+# irrigation: what this POU is connected to, what it holds, and what it
+# declares. The body is in irrigation_cycle.cpp; everything else here is
+# generated into irrigation_cycle.gen.h.
+
+name   = "irrigation"
+class  = "IrrigationCycle"
+task   = "SLOW"
+health = "prog_irrigation"
+desc   = "Irrigation: one tray at a time, filled to a dose, steeped, and drained."
+notes  = """
+FILLING -> SOAKING -> DRAINING -> FLUSHING, and a cycle is long - so only
+`irr_traysPerDay` are served in a day and the surplus waits for tomorrow. The
+summer settings a tray carries are its DRY-WEATHER ones; `irr_mod` scales them
+down as the air gets damper, and the split decides whether that shows up as
+smaller doses or rarer ones.
+
+It holds no meter state: what went in and what came back out are both read as
+published TOTALS and differenced across the window that is being judged.
+"""
+hooks  = ["on_bind"]
+
+# What the law remembers between activations.
+
+[var]
+_state         = { type = "IrrState", init = "IRR_IDLE" }
+_tray          = { type = "uint8_t", init = "0", doc = "1..N_TRAY_VALVE while serving, else 0" }
+_served        = { type = "uint8_t", init = "0", doc = "trays done since the day rolled" }
+_in_state_ms   = { type = "uint32_t", init = "0" }
+_fill_start_L  = { type = "float", init = "0.0f", doc = "The two meters' totals when the window under judgement opened. Litres are the DIFFERENCE, so a counter that has run since boot - or since last year, retained - needs no reset." }
+_drain_start_L = { type = "float", init = "0.0f" }
+_dose_L        = { type = "float", init = "0.0f", doc = "What the tray actually got, kept because the modulation may move under a cycle that is already draining." }
+_served_day    = { type = "uint32_t", init = "0", doc = "The UNIX day `_served` is counted against; the tally rolls when the date does, so a cycle spanning midnight is not counted twice." }
+_forced        = { type = "bool", init = "false", doc = "this cycle came from irr_forceNow" }
+
+# Its own helpers.
+
+[fn]
+_in_slot       = { type = "bool () const", doc = "Whether a cycle may START now. Two slots: the end of the night, and the first hours of the day for when the night was too cold to water in. Never the afternoon - a tray filled then is still wet at dusk." }
+_drain_verdict = { type = "void ()", doc = "Judge the window that has just closed: did enough come back? A dose of zero or an unusable meter gives no verdict at all - a clog is a measurement, and there is nothing to measure." }
+_next_due      = { type = "uint8_t (float mod, uint32_t today)", doc = "The next tray owed water, or 0. Honours the per-tray forces, and publishes the modulated interval of whichever tray it picks. @param today UNIX day number, or 0 when the clock is not yet trusted" }
+_set_valves    = { type = "void (IrrState state, uint8_t tray)", doc = "Drive the valves for @p state, serving @p tray (0 = none)." }
+_park_valves   = { type = "void ()", doc = "Every valve to the position its row declares it fails to." }
+_blame         = { type = "void (const Vars::RefOut<bool>* per_tray, bool on)", doc = "Set or clear @p per_tray for the tray being served." }
+_stamp_served  = { type = "void ()", doc = "Record that the active tray has been watered, durably, and spend the force that asked for it." }
+_stamp         = { type = "void (uint8_t tray, uint32_t day) const", doc = "Stamp tray @p tray (0-based) as watered on UNIX day @p day." }
+_after_fill    = { type = "IrrState () const", doc = "What follows a fill: the soak, or the drain when there is none." }
+_enter         = "void (IrrState state)"
+
+
+
+# The cycle's ten valves, each failing where its own row declares. Held so a
+# parked cycle leaves the plant where a dead controller would.
+
+[block]
+inlet_v  = { type = "ValveController", include = "blocks/valve_controller.h", count = 2, doc = "two contactors on one manifold" }
+outlet_v = { type = "ValveController", include = "blocks/valve_controller.h", count = 2 }
+tray_v   = { type = "ValveController", include = "blocks/valve_controller.h", count = 8 }
+
+
+[in]
+outside_temp   = "cli_temp_ext"
+# The other two programs' answers: how much water this weather is worth, and
+# what the meters have counted. Both are read as TOTALS and differenced, so
+# this law holds no meter state of its own.
+mod            = "irr_mod"
+in_total       = "irr_inTotal_L"
+out_total      = "irr_outTotal_L"
+days           = { rows = "irr_days_tray*", count = 8 }
+litres         = { rows = "irr_liters_tray*", count = 8 }
+trays_per_day  = "irr_traysPerDay"
+split          = "irr_volFreqSplit"
+dawn_gate      = "irr_dawnGate_degC"
+# WHEN a cycle may start: end of night, or the first hours of the day. The spec
+# waters cold plants in the morning instead, never in the afternoon.
+phase          = "cli_phase"
+from_rise      = "sol_fromRise_min"
+day_rise       = "sol_dayRise_min"
+morning_win    = "irr_morningWin_min"
+max_fill_s     = "irr_maxFill_sec"
+soak_s         = "irr_soak_sec"
+drain_window_s = "irr_drainWindow_sec"
+flush_s        = "irr_flush_sec"
+exp_drain      = "irr_expDrainFrac"
+drain_margin   = "irr_drainMargin"
+# For its QUALITY: a drain verdict needs the outlet meter to be answering, and
+# the totalizer beside it is a record that stays valid whatever the loop does.
+out_flow       = "irr_outFlow_Lpm"
+
+# Read to decide when a tray is due, stamped once its fill completes - and an
+# operator edits it to skip a watering or bring one forward. Shared by
+# declaration, so it records no single owner.
+
+[inout]
+last      = { rows = "irr_last_tray*", count = 8 }
+# The two forces are ONE-SHOT, per the spec: they force or skip the NEXT
+# watering of that tray, so the cycle clears them as it honours them. Read and
+# written, therefore, not read alone.
+force_on  = { rows = "irr_forceOn_tray*", count = 8 }
+force_off = { rows = "irr_forceOff_tray*", count = 8 }
+# "Water now", which the cycle SPENDS on the cycle it started: left standing it
+# would run one cycle after another for ever, slot and daily allowance ignored.
+force_now = "irr_forceNow"
+# The date the schedule runs against, published and read back. Before NTP there
+# is no date and nothing may be scheduled against one; forcing this row is how
+# a commissioning engineer rehearses a fortnight, or a plant that never had a
+# clock.
+today     = "irr_today"
+# What went in and what came back, published and then JUDGED on: the fill ends
+# when the row says the dose has arrived and the clog is measured against the
+# row beside it, so forcing either drives a cycle through without water.
+delivered = "irr_delivered_L"
+drained   = "irr_drained_L"
+
+
+[out]
+tray_valve  = { rows = "irr_tray*", count = 8 }
+period      = "irr_period_days"
+volume      = "irr_volume_L"
+state       = "irr_state"
+active      = "irr_activeTray"
+served      = "irr_servedToday"
+# TWO contactors on ONE manifold, always in the same state: there is one inlet
+# and one drain, each switched twice.
+inlet       = { rows = "irr_input_ro*", count = 2 }
+outlet      = { rows = "irr_output_ro*", count = 2 }
+fill_fault  = "alarm_irr_fill"
+drain_fault = "alarm_irr_drain"
+# The per-tray forms beside the "any" ones above: the any-form is what an
+# operator sees on the ribbon, and these are what says which tray to go and look
+# at once the cycle has moved on.
+fill_tray   = { rows = "alarm_irr_fill_tray*", count = 8 }
+drain_tray  = { rows = "alarm_irr_drain_tray*", count = 8 }

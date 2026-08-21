@@ -1,0 +1,36 @@
+# sun_watch: what this POU is connected to, what it holds, and what it
+# declares. The body is in sun_watch.cpp; everything else here is
+# generated into sun_watch.gen.h.
+
+name   = "sun_watch"
+class  = "SunWatch"
+task   = "SLOW"
+health = "prog_sun_watch"
+desc   = "Where the sun is, published as rows."
+notes  = """
+The tracker is INSIDE this program: it is an instrument, and what turns an
+instrument into rows is a watch, exactly as the field-bus client does for the
+probes. Everything downstream reads the rows - a law that wants to know where
+the day is asks the table, not the tracker - so no other program needs a
+reference to anything but its own interface.
+
+Configured from the `geo_` pair through Vars::bind_sun(), which the firmware
+hands tracker() at bring-up.
+"""
+hooks  = ["observe"]
+
+# What the law remembers between activations.
+
+[var]
+_sun = { type = "Sun::SunPositionTracker* const", init = "ctx.sun", doc = "The instrument, borrowed: the firmware owns it, registers it and binds its geo parameters. Null in a build without SUN_TRACKER, which is a build this program is not in either." }
+
+
+# The instrument is INSIDE this program (Sun::SunPositionTracker, configured
+# from the geo_ pair), and what leaves it are rows. Everything downstream reads
+# the rows: a law that wants to know where the day is asks the table, not the
+# tracker.
+
+[out]
+from_rise = "sol_fromRise_min"
+from_set  = "sol_fromSet_min"
+elevation = "sol_elev_deg"

@@ -302,7 +302,7 @@ A site's rows are DECLARED IN CSV, under `tables/`, one file per row factory
 (`params.csv`, `alarms.csv`, `direct_inputs.csv`, `relay_outputs.csv`, ...), and
 generated into `generated/vars.gen.h` by `scripts/vars_gen.py`. The library
 declares its own rows the same way, in `src/libbotanik/vars/tables/`. A site's
-control programs are declared the same way in `tables/programs.toml` - which row
+control programs are declared one file per program, `programs/<stage>/<class>/<class>.toml` - which row
 each of a program's variables connects to - and generated into
 `generated/programs.gen.h` as one `Refs` struct per program, typed from the
 table, with its `bind()` body; the program holds it as `_v`. Its RS-485 field
@@ -316,7 +316,7 @@ The hand-written site files: `vars.h` (what the device map means, and the home
 fields), `site.h`, `programs/<stage>/<class>/<class>.{h,cpp}` (one control
 program each: the state the table cannot describe, its helpers, and the law),
 `blocks/*.{h,cpp}` (function blocks of the site's own, nameable from
-`programs.toml`), `sim.h` (whole body `#ifdef TARGET_SIMULATOR`), `config.h`,
+its own `<class>.toml`), `sim.h` (whole body `#ifdef TARGET_SIMULATOR`), `config.h`,
 `vars.cpp`.
 
 A program is TWO classes: `<class>.gen.h` is generated and carries the whole

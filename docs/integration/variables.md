@@ -202,7 +202,7 @@ deliberately not 0, so a zero-initialised `VarRef` does not alias row 0.
 Nothing outside the bank writes an index down. The home fields, the alarm rows and
 the control programs all spell the variable's **name**, and `Bank::find()`
 resolves it - once, at bring-up. A control program does not even spell it in C++:
-`tables/programs.toml` says which row each member connects to, and the generated
+A program's own table says which row each member connects to, and the generated
 `bind()` is what calls `resolve_in` / `resolve_out` / `resolve_inout`.
 
 Those return a `Ref<T, Dir>` rather than a bare `VarRef` - the row's C++ TYPE and

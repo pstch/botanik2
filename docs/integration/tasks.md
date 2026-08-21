@@ -34,7 +34,7 @@ stale - see *When programs run* below.
 
 ## Declaring one
 
-A program's variables are not spelled in C++. `tables/programs.toml` connects its
+A program's variables are not spelled in C++. Its own `<class>.toml` connects its
 interface to the table, and `scripts/vars_gen.py` emits its base class - one
 typed member per row, the blocks it declares, and the `bind()` that resolves
 them all - into `programs/<stage>/<class>/<class>.gen.h`:
@@ -122,7 +122,7 @@ list expanded three times:
 
 **Registration order is execution order** within `PHASE_CONTROL`, so a law that
 computes a setpoint and a law that acts on it complete in one beat when written
-that way round. The order is `programs.toml`'s, and that is the file to change
+that way round. The order is `programs/order.toml`'s, and that is the file to change
 to change it. The three lists used to be hand-kept and had already drifted about
 where one program ran.
 

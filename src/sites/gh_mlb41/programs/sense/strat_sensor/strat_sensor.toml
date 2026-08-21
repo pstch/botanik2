@@ -1,0 +1,26 @@
+# strat: what this POU is connected to, what it holds, and what it
+# declares. The body is in strat_sensor.cpp; everything else here is
+# generated into strat_sensor.gen.h.
+
+name   = "strat"
+class  = "StratSensor"
+task   = "FAST"
+health = "prog_strat"
+desc   = "The stratification gap: how much warmer the ceiling is than the floor, unsigned."
+notes  = """
+Its own program because it is a reading ABOUT two zones rather than part of
+either, and because the destratification controller wants exactly one number
+from it.
+"""
+
+
+[in]
+ceiling = "cli_temp_hi"
+floor   = "cli_temp_lo"
+
+[out]
+strat = "cli_dTStrat_degC"
+
+# The interior conditions, watched. Empty run(): an alarm is an observation, and
+# an observation has to keep being made while the plant is parked - which is
+# exactly when someone is looking at the ALARMS page.

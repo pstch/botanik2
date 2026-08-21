@@ -1,0 +1,60 @@
+# temp_rh_zone: what this POU is connected to, what it holds, and what it
+# declares. The body is in temp_rh_zone.cpp; everything else here is
+# generated into temp_rh_zone.gen.h.
+
+name   = "temp_rh_zone"
+class  = "TempRHZone"
+task   = "FAST"
+health = "prog_temp_rh_zone"
+desc   = "The conditioned picture of the greenhouse: four locations voted and filtered, then the psychrometrics every other law is set in."
+notes  = """
+Runs FIRST. Everything downstream reads its rows rather than the probes.
+"""
+hooks  = ["on_bind"]
+
+
+
+# One per measurement location: three probes selected down to one reading,
+# then filtered. Held by value so one zone's filter state cannot become
+# another's.
+
+[block]
+ceiling    = { type = "ZoneProbes", include = "blocks/zone_probes.h" }
+floor      = { type = "ZoneProbes", include = "blocks/zone_probes.h" }
+crawlspace = { type = "ZoneProbes", include = "blocks/zone_probes.h" }
+exterior   = { type = "ZoneProbes", include = "blocks/zone_probes.h" }
+
+
+[in]
+tau_ms    = "cli_sensorTau_ms"
+t_hi      = { rows = "cli_temp_hi*", count = 3 }
+h_hi      = { rows = "cli_rh_hi*", count = 3 }
+t_lo      = { rows = "cli_temp_lo*", count = 3 }
+h_lo      = { rows = "cli_rh_lo*", count = 3 }
+t_cs      = { rows = "cli_temp_cs*", count = 3 }
+h_cs      = { rows = "cli_rh_cs*", count = 3 }
+t_ext     = { rows = "cli_temp_ext*", count = 3 }
+h_ext     = { rows = "cli_rh_ext*", count = 3 }
+rot_limit = "cli_tooHumid_degC"
+
+
+[out]
+# One number for the house, and the two levels it came from beside it.
+temp_in   = "cli_temp_in"
+temp_hi   = "cli_temp_hi"
+rh_hi     = "cli_rh_hi"
+temp_lo   = "cli_temp_lo"
+rh_lo     = "cli_rh_lo"
+temp_cs   = "cli_temp_cs"
+rh_cs     = "cli_rh_cs"
+temp_ext  = "cli_temp_ext"
+rh_ext    = "cli_rh_ext"
+fault_hi  = "alarm_sns_ceiling"
+fault_lo  = "alarm_sns_floor"
+fault_cs  = "alarm_sns_crawlspace"
+fault_ext = "alarm_sns_exterior"
+dew_point = "cli_dewPoint_degC"
+dp_margin = "cli_dpMargin_degC"
+sat_press = "cli_satPress_kPa"
+vpd       = "cli_vpd_kPa"
+rot       = "alarm_rot"

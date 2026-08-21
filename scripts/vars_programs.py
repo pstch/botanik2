@@ -7,6 +7,7 @@ than being noticed at bring-up - or, for a row only a fault path drives, months
 in.
 """
 
+import glob
 import os
 import re
 import sys
@@ -45,40 +46,76 @@ RESERVED = frozenset((
 ))
 
 
-def load(path):
-    """Every program as {name, class, task, conns: [(member, section, row, idx)]}."""
+def load(site_dir):
+    """Every program the site declares, in the order it runs.
+
+    One file per program, `programs/<stage>/<class>/<class>.toml`, beside the
+    body it declares. `programs/order.toml` is the ORDER they run in, which is
+    the one thing about a program that is not a property of the program.
+    """
     try:
         import tomllib
     except ImportError:                       # pragma: no cover
-        sys.exit("programs.toml needs Python 3.11+ for tomllib")
+        sys.exit("the program tables need Python 3.11+ for tomllib")
+
+    root = os.path.join(site_dir, "programs")
+    if not os.path.isdir(root):
+        return []
+    listed = order(site_dir)
+
+    found = {}
+    for path in sorted(glob.glob(os.path.join(root, "*", "*", "*.toml"))):
+        with open(path, "rb") as f:
+            doc = tomllib.load(f)
+        stage = os.path.basename(os.path.dirname(os.path.dirname(path)))
+        found[doc.get("name", os.path.basename(path)[:-5])] = _program(doc, stage, path)
+
+    out = [found.pop(n) for n in listed if n in found]
+    out += [found[n] for n in sorted(found)]      # not in the order file: kept,
+    return out                                    # so check() can say so
+
+
+def _where(p):
+    """A program's file, as the message names it."""
+    return os.path.relpath(p.get("path") or p["name"], os.getcwd())
+
+
+def order(site_dir):
+    """The names programs/order.toml lists, in the order it lists them."""
+    try:
+        import tomllib
+    except ImportError:                       # pragma: no cover
+        return []
+    path = os.path.join(site_dir, "programs", "order.toml")
     if not os.path.exists(path):
         return []
     with open(path, "rb") as f:
-        doc = tomllib.load(f)
-    out = []
-    for p in doc.get("program", []):
-        conns, counts = [], {}
-        for sec in SECTIONS:
-            for member, rows in (p.get(sec) or {}).items():
-                if isinstance(rows, dict):
-                    counts[(sec, member)] = rows.get("count")
-                    rows = rows.get("rows", "")
-                if isinstance(rows, str):
-                    conns.append((member, sec, rows, None))
-                else:
-                    for i, r in enumerate(rows):
-                        conns.append((member, sec, r, i))
-        out.append({"name": p.get("name", "?"), "class": p.get("class", "?"),
-                    "task": p.get("task", "?"), "health": p.get("health", ""),
-                    "stage": p.get("stage", ""), "blocks": _blocks(p),
-                    "vars": _decls(p.get("var")), "fns": _decls(p.get("fn")),
-                    "hooks": list(p.get("hooks") or []),
-                    "desc": p.get("desc", ""), "notes": p.get("notes", ""),
-                    "conns": conns, "counts": counts,
-                    "arrays": {m for sec in SECTIONS
-                               for m, v in (p.get(sec) or {}).items()
-                               if isinstance(v, list)}})
-    return out
+        return list(tomllib.load(f).get("order") or [])
+
+
+def _program(p, stage, path):
+    """One program's file as the dict everything downstream reads."""
+    conns, counts = [], {}
+    for sec in SECTIONS:
+        for member, rows in (p.get(sec) or {}).items():
+            if isinstance(rows, dict):
+                counts[(sec, member)] = rows.get("count")
+                rows = rows.get("rows", "")
+            if isinstance(rows, str):
+                conns.append((member, sec, rows, None))
+            else:
+                for i, r in enumerate(rows):
+                    conns.append((member, sec, r, i))
+    return {"name": p.get("name", "?"), "class": p.get("class", "?"),
+            "task": p.get("task", "?"), "health": p.get("health", ""),
+            "stage": stage, "path": path, "blocks": _blocks(p),
+            "vars": _decls(p.get("var")), "fns": _decls(p.get("fn")),
+            "hooks": list(p.get("hooks") or []),
+            "desc": p.get("desc", ""), "notes": p.get("notes", ""),
+            "conns": conns, "counts": counts,
+            "arrays": {m for sec in SECTIONS
+                       for m, v in (p.get(sec) or {}).items()
+                       if isinstance(v, list)}}
 
 
 def _decls(section):
@@ -133,7 +170,7 @@ def expand(programs, rows, err):
             if "*" not in row:
                 conns.append((member, sec, row, idx))
                 continue
-            where = f"programs.toml [{p['name']}]: {sec} '{member}'"
+            where = f"{_where(p)}: {sec} '{member}'"
             head, _star, tail = row.partition("*")
             hits = []
             for name in rows:
@@ -160,7 +197,7 @@ def expand(programs, rows, err):
 
 
 def check(programs, rows, err, mentioned=(), cal_params=(), library=(),
-          features=None):
+          features=None, order=()):
     """Every rule the configuration has to satisfy.
 
     @p rows is the effective table as {name: (scope, row)}. @p mentioned is the
@@ -170,6 +207,7 @@ def check(programs, rows, err, mentioned=(), cal_params=(), library=(),
     @p library is every name libbotanik declares: a site row RESTATING one is
     read and written by library code, which has no entry in this file.
     @p features is the site's BOTANIK_FEATURE_* map, for the block families.
+    @p order is programs/order.toml: every program has to be in it.
     """
     seen_names, seen_classes = {}, {}
     producers = {}          # row -> the program that declares it an out
@@ -177,7 +215,7 @@ def check(programs, rows, err, mentioned=(), cal_params=(), library=(),
     shared = set()          # rows declared inout by anyone
 
     for p in programs:
-        where = f"programs.toml [{p['name']}]"
+        where = _where(p)
         if p["name"] in seen_names:
             err(f"{where}: two programs are called '{p['name']}'")
         seen_names[p["name"]] = p
@@ -209,13 +247,18 @@ def check(programs, rows, err, mentioned=(), cal_params=(), library=(),
             err(f"{where}: desc is {len(p['desc'])} chars, over {DESC_MAX}: it "
                 f"has to read as one @brief")
 
-        # Every program carries its own declaration part now, and `stage` is
-        # the directory it lives in: there is no second shape to fall back to.
-        if not p["stage"]:
-            err(f"{where}: no stage - which directory under programs/ is it in?")
-        elif not re.match(r"^[a-z][a-z0-9_]*$", p["stage"]):
-            err(f"{where}: stage '{p['stage']}' becomes a directory name, so it "
-                f"has to be lowercase letters, digits and underscores")
+        # The file is the declaration and its path is the rest of it: the
+        # directory names the class, the one above it names the stage.
+        want = snake(p["class"]) + ".toml"
+        got = os.path.basename(p["path"])
+        if got != want:
+            err(f"{where}: class {p['class']} belongs in {want}, not {got}")
+        elif os.path.basename(os.path.dirname(p["path"])) != snake(p["class"]):
+            err(f"{where}: class {p['class']} belongs in a directory called "
+                f"{snake(p['class'])}")
+        if p["name"] not in order:
+            err(f"{where}: not in programs/order.toml, so nothing says when it "
+                f"runs")
 
         # The table's names land in the program's own scope, so they answer to
         # the base class as well as to each other.

@@ -144,7 +144,7 @@ alarm_too_hot , TOO_HOT, 3   , 3    , 0       , 15    , 813, inside temperature 
 
 | Column | Meaning |
 |---|---|
-| `name` | the variable; a control program drives it, the model reads it. `programs.toml` says WHICH program, and `check-vars` refuses two |
+| `name` | the variable; a control program drives it, the model reads it. A program's own table says WHICH program, and `check-vars` refuses two |
 | `code` | short display code, max 8 chars - the ALARMS table's first column and the alarm bar |
 | `on_s` / `off_s` | dwell before a START / END is announced; `-1` never announces that edge. They gate the log line and the notifier fan-out ONLY - neither touches whether the alarm is active |
 | `recent_s` | RECENT filter window (0 = the default week, `<0` = never expires) |

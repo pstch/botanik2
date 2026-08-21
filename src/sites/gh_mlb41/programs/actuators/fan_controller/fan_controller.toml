@@ -1,0 +1,58 @@
+# fans: what this POU is connected to, what it holds, and what it
+# declares. The body is in fan_controller.cpp; everything else here is
+# generated into fan_controller.gen.h.
+
+name   = "fans"
+class  = "FanController"
+task   = "SLOW"
+health = "prog_fans"
+desc   = "The two destratification fans: three relayed speeds, driven by whichever of three demands wants the most."
+notes  = """
+The speed relays are exclusive - one contactor per speed on one motor - and
+the band the fused demand falls in decides which. That band has its own
+hysteresis: the inputs are floors, so the winner changes as the plant does,
+and the fans would step between speeds every time it did.
+
+The screen cuts them outright while it travels: the fabric moves through the
+air they blow into.
+"""
+
+# What the law remembers between activations.
+
+[var]
+_speed = { type = "uint8_t", init = "0", doc = "0 (off) to 3, and the three rungs it is chosen on. Held across scans: the hysteresis lives on the rungs." }
+_steps = "Plc::Staircase<3>"
+
+# Its own helpers.
+
+[fn]
+_demand = { type = "float () const", doc = "The three demands, fused." }
+_band   = { type = "uint8_t (float demand)", doc = "The speed @p demand asks for, given the one in force." }
+_drive  = { type = "void (uint8_t speed)", doc = "Energise exactly one speed relay, or none." }
+
+
+
+[in]
+dem_hyst      = "cli_fanDemHyst"
+irr_dem       = "cli_fanIrrDem"
+strat_dem     = "cli_stratDem"
+cool_dem      = "cli_coolDem"
+irr_state     = "irr_state"
+screen_moving = "cli_screenMoving"
+low_dem       = "cli_fanLowDem"
+med_dem       = "cli_fanMedDem"
+high_dem      = "cli_fanHighDem"
+# The two BREEZES are the fans' business: a light circulation at dusk dries the
+# leaves before the stomata open, and at dawn it takes the night's condensation
+# off them. The phase asks; this is how much.
+phase         = "cli_phase"
+breeze_dem    = "cli_breezeDem"
+
+
+[out]
+speed1 = { rows = "cli_destrat*_speed1", count = 2 }
+speed2 = { rows = "cli_destrat*_speed2", count = 2 }
+speed3 = { rows = "cli_destrat*_speed3", count = 2 }
+# The band itself, published: three coils are three facts, and what an operator
+# wants is the one number they add up to.
+band   = "cli_fanSpeed"
