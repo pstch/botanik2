@@ -17,19 +17,8 @@ namespace Site {
 
 using namespace Botanik;
 
-/** @brief How far the outlet flow has to move to be worth a status write, in
- *  Lpm. About the METER's noise, not about the plant - so it is also the
- *  distance from zero within which the row simply reads zero. */
-static const float IRR_FLOW_BAND = 0.1f;
 
-/** @brief Window the inlet counter is differentiated over, in ms. A pulse is a
- *  whole litre, so scan-to-scan the rate would alternate between zero and a
- *  spike; a window long enough to hold several pulses reads as a flow. */
-static const uint32_t IRR_RATE_WINDOW_MS = 5000;
 
-/** @brief Below this the outlet is idle, in Lpm. A loop sitting on its own
- *  noise would otherwise totalize a plausible volume with the valves shut. */
-static const float IRR_FLOW_CUTOFF = 0.2f;
 
 // IrrigationModulation
 
@@ -64,73 +53,6 @@ void IrrigationModulation::observe(ProgramContext& c) {
     const float gamma = Plc::max_of(1.0f, _v.mod_gamma.get());
     _v.mod.set(Plc::limit(mod_min + (1.0f - mod_min) * powf(demand, gamma),
                           mod_min, 1.0f));
-}
-
-// WaterMeters
-
-void WaterMeters::observe(ProgramContext& c) {
-    const uint8_t  ch = Site::pulse_inputs[0].channel;
-    const uint32_t pulses = HAL::Pulse::sample(ch).count;
-    if (c.first_scan) {
-        _out_flow.reset(); _out_band.reset(); _in_rate.reset();
-        // Adopt both counters where they stand rather than starting from zero:
-        // the retained rows carry what was metered before this run, and the
-        // pulse counter carries what has been metered since the last boot.
-        _in_base_L      = _v.in_total.get();
-        _in_base_pulses = pulses;
-        _out_meter.preset(_v.out_total.get());
-    }
-
-    const float lpm = _out_flow(_v.out_flow.get(),
-                                0.001f * (float)_v.out_avg_ms.get(), c.dt_ms);
-    if (!_v.out_flow.valid()) {
-        // A flow derived from a loop that has stopped answering is not a flow.
-        // The TOTAL beside it keeps its value: a totalizer is a record of what
-        // went past, and the instrument failing does not unmake it.
-        // The last flow the loop reported, held: a totalizer beside it that
-        // stopped counting says the same thing, and zero would read as "no
-        // water is moving", which is what a leak detector must not be told.
-        _v.out_flow_pub.hold();
-        degraded();
-    } else if (lpm < IRR_FLOW_BAND) {
-        // WITHIN THE DEADBAND OF ZERO, so it reads zero: a reading the band
-        // cannot tell from nothing is nothing. Left to the block the row parks
-        // on the last tenth it reported - a drain meter saying 0.09 Lpm with
-        // every valve shut, which is what a leak looks like. Reset with it, so
-        // the next real flow is written at once rather than waiting out a band
-        // from a figure the plant has left behind.
-        _out_band.reset();
-        _v.out_flow_pub.set(0.0f);
-    } else {
-        _v.out_flow_pub.set(_out_band(lpm, IRR_FLOW_BAND));
-    }
-    // Per SECOND into the totalizer, which is what the block counts in.
-    _v.out_total.set(_out_meter(lpm / 60.0f, c.dt_ms,
-                                          IRR_FLOW_CUTOFF / 60.0f));
-
-    // Unsigned difference, so the 32-bit counter wrapping costs nothing.
-    const float in_total = _in_base_L + (float)(pulses - _in_base_pulses)
-                                        * _v.qty_per_pulse.get();
-    _v.in_total.set(in_total);
-    const float in_flow =
-        60.0f * _in_rate(in_total, IRR_RATE_WINDOW_MS, c.dt_ms);
-    _v.in_flow.set(in_flow);
-    _supply_alarms(c, in_flow);
-}
-
-void WaterMeters::_supply_alarms(ProgramContext& c, float in_flow) {
-    const IrrState state = (IrrState)_v.state.get();
-
-    // Idle means every valve in the circuit is shut, so anything the inlet
-    // meter counts is going somewhere nobody opened.
-    _v.leak.set(state == IRR_IDLE &&
-                          in_flow > _v.leak_Lpm.get());
-
-    // The mirror image: the inlet is open and the water is not arriving. The
-    // row's own dwell covers the start of a fill, where the rate window has not
-    // filled yet and every fill would otherwise open with a pressure fault.
-    _v.pressure.set(state == IRR_FILLING &&
-                              in_flow < _v.min_fill_Lpm.get());
 }
 
 // IrrigationCycle

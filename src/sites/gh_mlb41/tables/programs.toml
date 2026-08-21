@@ -464,6 +464,7 @@ mod     = "irr_mod"
 name  = "irr_meters"
 class = "WaterMeters"
 task  = "SLOW"
+stage = "irrigation"
 health = "prog_irr_meters"
 desc  = "Both water meters, and the two supply faults they can see."
 notes = """
@@ -476,6 +477,14 @@ An instrument, not a law - it drives no valve, and it reads while parked.
 # Both ends of the circuit, and the two supply faults they can see. Opposite
 # instruments: the inlet is a pulse train whose COUNTER is the measurement, the
 # outlet a 4-20 mA loop whose RATE is.
+# The blocks it holds. `flow_avg` rather than `out_flow`: a block takes its
+# name from what it does, and the row it filters is already called that.
+[program.block]
+flow_avg  = { type = "Ewma",       doc = "the loop, averaged over irr_out_avg_ms" }
+flow_band = { type = "Deadband",   doc = "...and how far it must move to be written" }
+in_rate   = { type = "Derivative", doc = "litres -> Lpm, over a window" }
+out_meter = { type = "Integral",   doc = "Lpm -> litres" }
+
 [program.in]
 out_flow      = "irr_out_Lpm"
 out_avg_ms    = "irr_out_avg_ms"

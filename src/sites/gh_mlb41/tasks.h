@@ -70,6 +70,8 @@
  * for the cycle, and docs/design/control-system.md for what each ladder means.
  */
 
+#include "programs/irrigation/water_meters/water_meters.h"
+
 #include "tasks_sense.h"
 #include "tasks_climate.h"
 #include "tasks_irrigation.h"

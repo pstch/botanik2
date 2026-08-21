@@ -774,61 +774,6 @@ struct IrrigationModulation {
     void bind(Vars::Bank& io, Plc::Program& owner);
 };
 
-/** @brief The rows `irr_meters` connects to, one typed reference
- *  each. WaterMeters, dispatched SLOW. */
-struct WaterMeters {
-
-    /** @name VAR_INPUT
-     *  @{ */
-    Vars::RefIn<float>    out_flow;
-    Vars::RefIn<uint16_t> out_avg_ms;
-    Vars::RefIn<float>    qty_per_pulse;
-    Vars::RefIn<float>    leak_Lpm;
-    Vars::RefIn<float>    min_fill_Lpm;
-    Vars::RefIn<uint8_t>  state;
-
-    /** @} */
-
-    /** @name VAR_OUTPUT
-     *  @{ */
-    Vars::RefOut<float> in_flow;
-    Vars::RefOut<float> in_total;
-    Vars::RefOut<float> out_flow_pub;
-    Vars::RefOut<float> out_total;
-    Vars::RefOut<bool>  leak;
-    Vars::RefOut<bool>  pressure;
-
-    /** @} */
-
-    /** @brief Every readable row this program connects to, as bare
-     *  indices: what the base sweeps for validity before each
-     *  activation. Parameters are not here - an operator's number is
-     *  always valid, and checking one would cost a walk to learn nothing. */
-    Vars::VarRef _watched[2];
-
-    /** @name Health
-     *  Where this program's health is published. Written by a
-     *  SUPERVISOR walking every program, not by the program: a
-     *  program that is not being activated is exactly when a
-     *  reader wants the row. @see Plc::publish_health()
-     *  @{ */
-    Vars::RefOut<uint8_t> health;
-
-    /** @} */
-
-    /** @brief The instance name and the rate class programs.toml
-     *  declares. The constructor takes them from here, so neither can
-     *  drift from the configuration. */
-    static const char* name() { return "irr_meters"; }
-    static Tasks::GroupId group() { return Tasks::GROUP_SLOW; }
-
-    /** @brief Resolve every name. Runs inside the program's writer
-     *  window, so an output is CLAIMED here.
-     *  @param owner the program this belongs to: a declared health
-     *         row is handed to it here. */
-    void bind(Vars::Bank& io, Plc::Program& owner);
-};
-
 /** @brief The rows `irrigation` connects to, one typed reference
  *  each. IrrigationCycle, dispatched SLOW. */
 struct IrrigationCycle {
@@ -1631,30 +1576,6 @@ inline void IrrigationModulation::bind(Vars::Bank& io, Plc::Program& owner) {
     // is DEGRADED whether or not the law thought to ask.
     _watched[0] = vpd.r;
     owner.set_inputs(_watched, 1);
-    owner.set_health_row(health);
-}
-
-inline void WaterMeters::bind(Vars::Bank& io, Plc::Program& owner) {
-    out_flow      = io.resolve_in<float>("irr_out_Lpm");
-    out_avg_ms    = io.resolve_in<uint16_t>("irr_out_avg_ms");
-    qty_per_pulse = io.resolve_in<float>("irr_input_qtyPerImp");
-    leak_Lpm      = io.resolve_in<float>("irr_leak_Lpm");
-    min_fill_Lpm  = io.resolve_in<float>("irr_minFill_Lpm");
-    state         = io.resolve_in<uint8_t>("irr_state");
-    in_flow       = io.resolve_out<float>("irr_inFlow_Lpm");
-    in_total      = io.resolve_out<float>("irr_inTotal_L");
-    out_flow_pub  = io.resolve_out<float>("irr_outFlow_Lpm");
-    out_total     = io.resolve_out<float>("irr_outTotal_L");
-    leak          = io.resolve_out<bool>("alarm_water_leak");
-    pressure      = io.resolve_out<bool>("alarm_water_pressure");
-    health        = io.resolve_out<uint8_t>("prog_irr_meters");
-
-    // The readings this law is entitled to expect. The base walks them
-    // before each activation, so an input that has stopped being believable
-    // is DEGRADED whether or not the law thought to ask.
-    _watched[0] = out_flow.r;
-    _watched[1] = state.r;
-    owner.set_inputs(_watched, 2);
     owner.set_health_row(health);
 }
 

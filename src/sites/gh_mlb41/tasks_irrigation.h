@@ -70,50 +70,6 @@ private:
 };
 
 /**
- * @brief Both water meters, and the two supply faults they can see.
- *
- * Opposite ends of the same circuit and opposite instruments: the inlet is a
- * pulse train, so its COUNTER is the measurement and the rate is derived; the
- * outlet is a 4-20 mA loop, so its RATE is the measurement and the counter is.
- * An instrument, not a law - it drives no valve, and it reads while parked.
- */
-class WaterMeters : public Plc::Program {
-
-    /** @name Blocks
-     *  @{ */
-
-    Plc::Ewma       _out_flow;   ///< the loop, averaged over irr_out_avg_ms
-    Plc::Deadband   _out_band;   ///< ...and how far it must move to be written
-    Plc::Derivative _in_rate;    ///< litres -> Lpm, over a window
-    Plc::Integral   _out_meter;  ///< Lpm -> litres
-
-    /** @} */
-
-    /** @brief Where the inlet counter stood when this run adopted it: the pulse
-     *  counter restarts at boot and the published total does not, so the total
-     *  is the retained value plus what has been counted since. */
-    float    _in_base_L      = 0.0f;
-    uint32_t _in_base_pulses = 0;
-
-    Refs::WaterMeters _v;
-
-public:
-    WaterMeters(const SetupContext& ctx, Vars::Bank& io)
-        : Program(ctx, Refs::WaterMeters::name(),
-                  Refs::WaterMeters::group(), io) {}
-
-protected:
-    void bind(Vars::Bank& io) override { _v.bind(io, *this); }
-    void run(ProgramContext& c) override { (void)c; }
-    void observe(ProgramContext& c) override;
-
-private:
-    /** @brief Water moving with every valve shut, and water not arriving with
-     *  the inlet open. Both are read off the inlet meter alone. */
-    void _supply_alarms(ProgramContext& c, float in_flow);
-};
-
-/**
  * @brief Irrigation: one tray at a time, filled to a dose, steeped, and drained.
  *
  * FILLING -> SOAKING -> DRAINING -> FLUSHING, and a cycle is long - so only
