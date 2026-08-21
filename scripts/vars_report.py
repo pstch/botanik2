@@ -811,26 +811,84 @@ def orphans_doc(site, rows):
     return out
 
 
+# What an `out` row IS, so a page can say what the program does to the plant
+# rather than guess a label for it.
+ACTUATES = ("DO", "RO", "AO", "MO")
+
+
+def _what_it_drives(p):
+    """Counted by kind: actuators commanded, status published, alarms raised."""
+    act = status = alarm = 0
+    for _m, sec, row, _i in p["conns"]:
+        if sec not in ("out", "inout"):
+            continue
+        k = _KIND.get(row, "")
+        act += k in ACTUATES
+        alarm += k == "A"
+        status += k not in ACTUATES and k != "A"
+    said = []
+    if act:
+        said.append(f"drives {act} actuator row{'s' if act > 1 else ''}")
+    if status:
+        said.append(f"publishes {status} reading{'s' if status > 1 else ''}")
+    if alarm:
+        said.append(f"raises {alarm} alarm{'s' if alarm > 1 else ''}")
+    if len(said) > 1:
+        return ", ".join(said[:-1]) + " and " + said[-1]
+    return said[0] if said else "produces nothing"
+
+
+def _block_type(b):
+    """A block's C++ type, spelled as the generated header spells it."""
+    return b["type"] if ("::" in b["type"] or b["include"]) else "Plc::" + b["type"]
+
+
+_KIND = {}
+
+
 def programs_doc(site, rows):
     """The site's control programs, and the networks their signals form."""
     progs = vars_programs.load(os.path.join(ROOT, "src", "sites", site))
     vars_programs.expand(progs, rows, lambda _m: None)
     if not progs:
         return ["## Programs", "",
-                "No `tables/programs.toml`, so the control programs are still",
+                "Nothing under `programs/`, so the control programs are still",
                 "hand-written in C++ and cannot be reported here.", ""]
 
+    blocks = sum(len(p["blocks"]) for p in progs)
     out = ["## Programs", "",
            f"{len(progs)} programs, "
-           f"{sum(len(p['conns']) for p in progs)} connections. Declared in",
-           "`tables/programs.toml`, which is the IEC 61131-3 CONFIGURATION: it",
-           "joins each POU's interface to the global table.", "",
+           f"{sum(len(p['conns']) for p in progs)} connections and "
+           f"{blocks} function blocks. Each is declared in its own",
+           "`programs/<stage>/<class>/<class>.toml`, which is the IEC 61131-3",
+           "CONFIGURATION: it joins the POU's interface to the global table.",
+           "The order they run in is `programs/order.toml`.", "",
            "`in` may not be written; `out` has exactly one producer, checked",
            "before the firmware is built; `inout` is read-modify-write, shared",
            "by declaration.", ""]
-    out += md_table(["program", "class", "task", "what it does"],
-                    [[p["name"], f"`{p['class']}`", p["task"], p.get("desc", "")]
-                     for p in progs])
+    out += md_table(["#", "stage", "program", "class", "task", "what it does"],
+                    [[str(i + 1), p["stage"], p["name"], f"`{p['class']}`",
+                      p["task"], p.get("desc", "")]
+                     for i, p in enumerate(progs)])
+
+    # The block vocabulary actually in play, which is a question an engineer
+    # asks of a plant and no file used to answer.
+    held = {}
+    for p in progs:
+        for b in p["blocks"]:
+            e = held.setdefault(_block_type(b), [0, []])
+            e[0] += b["count"] or 1
+            if p["name"] not in e[1]:
+                e[1].append(p["name"])
+    if held:
+        out += ["", "The function blocks this site is built from:", ""]
+        out += md_table(["block", "instances", "held by"],
+                        [[f"`{t}`", str(n), ", ".join(who)]
+                         for t, (n, who) in sorted(held.items(),
+                                                   key=lambda x: -x[1][0])])
+
+    _KIND.clear()
+    _KIND.update({n: k for n, (k, _r) in rows.items()})
 
     produced = {}
     for p in progs:
@@ -841,9 +899,12 @@ def programs_doc(site, rows):
     # A page each: the per-program table is what an engineer reads at the
     # cabinet, and a binder page per program is the form that gets printed.
     for p in progs:
-        out += [PAGE_BREAK, "",
-                f"### {p['name']}", "",
-                f"`{p['class']}`, dispatched at {p['task']}.", ""]
+        line = (f"`{p['class']}`, dispatched at {p['task']}, in the "
+                f"{p['stage']} stage. It {_what_it_drives(p)}.")
+        if "observe" in p["hooks"]:
+            line += (" It defines `observe()`, so it keeps reporting while the"
+                     " plant is parked.")
+        out += [PAGE_BREAK, "", f"### {p['name']}", "", line, ""]
         # What the program is for, from the table. The same sentence is the
         # generated class's @brief, so the binder page and the header cannot
         # describe the program differently.
@@ -872,6 +933,21 @@ def programs_doc(site, rows):
                 line[0] += f"[{len(line[2])}]"
             line[2] = row_range(line[2])
         out += md_table(["member", "section", "row", "kind", "description"], body)
+
+        # What it HOLDS and what it REMEMBERS: the rest of the POU's
+        # declaration part, which used to be C++ nobody could report on.
+        if p["blocks"]:
+            out += ["Function blocks it holds:", ""]
+            out += md_table(["block", "type", "what for"],
+                            [[b["name"] + (f"[{b['count']}]" if b["count"] else ""),
+                              f"`{_block_type(b)}`", b["doc"]]
+                             for b in p["blocks"]])
+        if p["vars"]:
+            out += ["What it remembers between activations:", ""]
+            out += md_table(["variable", "type", "starts at", "what it is"],
+                            [[v["name"] + (f"[{v['count']}]" if v["count"] else ""),
+                              f"`{v['type']}`", f"`{v['init']}`" if v["init"] else "",
+                              " ".join(v["doc"].split())] for v in p["vars"]])
 
     out += _networks(progs)
     return out
