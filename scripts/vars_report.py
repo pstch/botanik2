@@ -432,9 +432,11 @@ def schema_doc():
             'locked = "sys_supply_lockout"',
             'win    = ["cli_window1_opn", "cli_window2_opn"]',
             "```", "",
-            "The generator emits one `Refs` struct per program - each member",
-            "typed from its row, so the two cannot disagree - and its `bind()`",
-            "body. A program holds that struct as `_v` and binds it in one call.",
+            "The generator emits one BASE CLASS per program, into",
+            "`programs/<stage>/<class>/<class>.gen.h`: the rows as members typed",
+            "from the table, the blocks it declares, the constructor with the",
+            "instance name and rate class baked in, and the `bind()` that",
+            "resolves it all. The site derives it and writes the body.",
             "",
             "`desc` is the one place a program says what it is for: it becomes",
             "the generated class's `@brief` AND this site report's heading for",
@@ -460,7 +462,7 @@ def schema_doc():
             "One line per MEMBER. The generator emits the C++ enum AND the",
             "converter a `PE`/`SVE` row takes the address of, so the type and",
             "its labels cannot part - gh_mlb41 declared each of its two twice",
-            "before this file existed, once in `tasks.h` and once in",
+            "before this file existed, once by hand and once in",
             "`vars.cpp`.", "",
             "```",
             "enum    , member     , code, label  , desc",
@@ -789,7 +791,7 @@ def programs_doc(site, rows):
     if not progs:
         return ["## Programs", "",
                 "No `tables/programs.toml`, so the control programs are still",
-                "hand-written in `tasks.h` and cannot be reported here.", ""]
+                "hand-written in C++ and cannot be reported here.", ""]
 
     out = ["## Programs", "",
            f"{len(progs)} programs, "

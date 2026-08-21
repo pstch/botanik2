@@ -82,10 +82,11 @@ which they already are, without making them *contemporaneous*.
 ## How a program declares its variables
 
 A program does not write its references down. They are declared in the site's
-`tables/programs.toml`, one entry per member, and `scripts/vars_gen.py` emits a
-`Refs` struct per program into `generated/programs.gen.h`: one typed reference
-per member, and the `bind()` body that resolves them all. The program holds that
-struct as `_v`, and its own `bind()` is the one call.
+`tables/programs.toml`, one entry per member, and `scripts/vars_gen.py` emits the
+program's BASE CLASS into `programs/<stage>/<class>/<class>.gen.h`: one typed
+member per row, the blocks it declares beside them, and the `bind()` that
+resolves them all. The site derives that class and writes the body, so a law
+reads its rows as its own members.
 
 ```toml
 [program.in]

@@ -313,10 +313,17 @@ is committed, never built**: the tree has no Python build dependency, and
 Edit the table, re-run the generator, commit both.
 
 The hand-written site files: `vars.h` (what the device map means, and the home
-fields), `site.h`, `tasks*.h` / `tasks_*.cpp` (the control programs, a
-header and a body per stage: sense, climate, irrigation, actuators, with
-`tasks.h` carrying the map of what they pass to each other), `sim.h`
-(whole body `#ifdef TARGET_SIMULATOR`), `config.h`, `vars.cpp`.
+fields), `site.h`, `programs/<stage>/<class>/<class>.{h,cpp}` (one control
+program each: the state the table cannot describe, its helpers, and the law),
+`blocks/*.{h,cpp}` (function blocks of the site's own, nameable from
+`programs.toml`), `sim.h` (whole body `#ifdef TARGET_SIMULATOR`), `config.h`,
+`vars.cpp`.
+
+A program is TWO classes: `<class>.gen.h` is generated and carries the whole
+declaration part - the rows, the blocks, the constructor, `bind()` - and the
+hand-written half derives it. A bare name came from the table; a leading
+underscore is the site's own. `bind()` is `final` and ends in `on_bind()`, which
+is where a law wires a block to a row it was handed.
 
 ### Rules
 

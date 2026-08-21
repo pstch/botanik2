@@ -14,11 +14,13 @@ Three kinds, and which kind a file is decides how you change it.
 | `tables/enums.csv` | declared | the vocabularies its enumerated rows are written over |
 | `tables/programs.toml` | declared | which control programs exist, and which row each of their variables connects to |
 | `generated/vars.gen.h` | **generated** | the `Descriptor` arrays, the calibration blocks, the enums and their converters |
-| `generated/programs.gen.h` | generated | one `Refs` struct per program, and its `bind()` |
+| `generated/programs.gen.h` | generated | every program's header, the map of what they pass to each other, and `SITE_PROGRAM_LIST` |
+| `programs/<stage>/<class>/<class>.gen.h` | generated | one program's whole declaration part: its rows, its blocks, its `bind()` |
 | `config.h` | hand-written | `#define BOTANIK_*` build-wide overrides |
 | `vars.h` | hand-written | what the device map MEANS, and the home-screen captions |
 | `vars.cpp` | hand-written | the home-field reference array |
-| `tasks*.h` / `tasks_*.cpp` | hand-written | the control programs - the one place a site expresses *behaviour*. A header and a body per stage of the flow (sense, climate, irrigation, actuators); `tasks.h` includes the four and carries the map of what they pass to each other |
+| `programs/<stage>/<class>/<class>.{h,cpp}` | hand-written | one control program: the state the table cannot describe, its helpers, and the law itself. The one place a site expresses *behaviour* |
+| `blocks/*.{h,cpp}` | hand-written | function blocks of the site's own, nameable from `programs.toml` |
 | `site.h` | hand-written | the shell commands, the `SiteDescriptor`, and the firmware class |
 | `sim.h` | hand-written | the simulated field (whole body `#ifdef TARGET_SIMULATOR`) |
 
@@ -27,8 +29,8 @@ dependency, and an Arduino sketch path could not run a generator. Edit a table,
 re-run `scripts/vars_gen.py`, commit both - `make check` runs `check-vars`, which
 regenerates into memory and fails if the committed C++ differs.
 
-@warning Intra-site includes are bare sibling names (`vars.h`, `tasks.h`,
-`generated/vars.gen.h`); the library is reached as `libbotanik.h`, which resolves
+@warning Intra-site includes are relative (`vars.h`, `generated/vars.gen.h`, and
+`../../../vars.h` from inside a program directory); the library is reached as `libbotanik.h`, which resolves
 against the build's include root. The sibling rule is load-bearing rather than
 style: the Arduino PLC IDE adds no include directory inside a sketch folder, so
 quoted-relative resolution is the only mechanism that works there for the site's
@@ -48,7 +50,7 @@ transport, safe state, access level; which program produces which row; what an
 enum's codes are. All of it is CSV or TOML, all of it is checked before the
 firmware is built, and none of it is C++ you can get subtly wrong.
 
-**Written** is behaviour: what a law does with the numbers. `tasks_*.cpp` is the
+**Written** is behaviour: what a law does with the numbers. A program's `.cpp` is the
 only file where a site decides anything.
 
 ## The binding
@@ -132,7 +134,7 @@ OFF path cannot rot unnoticed (`make check-bare`).
 
 1. edit a table under `tables/`
 2. `python3 scripts/vars_gen.py` - validates, then writes `generated/`
-3. write or change the law in the `tasks_*.cpp` its stage belongs to
+3. write or change the law in its own `programs/<stage>/<class>/<class>.cpp`
 4. `make -C build check`
 
 Step 2 is where most mistakes are caught: a register collision, a program

@@ -168,7 +168,7 @@ The sections below follow the header's own order.
 |---|---|---|
 | `TASK_PERIOD_MS` | 10 | the beat. Must be >= 2 |
 | `GROUP_FAST_MS` | = `TASK_PERIOD_MS` | the four task rate groups. A task's group is its rate; its phase is its place in the data flow (@ref dev_architecture) |
-| `GROUP_MAIN_MS` | 50 | **currently has no members** - the console render it was named for moved to `GROUP_SLOW`. Check `tasks.h` before tuning it |
+| `GROUP_MAIN_MS` | 50 | **currently has no members** - the console render it was named for moved to `GROUP_SLOW`. Check the registry before tuning it |
 | `GROUP_SLOW_MS` | 100 | dwell, config, and the console render. `TX_COLD_TARGET_MS` must stay above it |
 | `GROUP_BACKGROUND_MS` | 500 | |
 | `MAX_TASKS` | 24 | registry capacity, base tasks plus the site's |

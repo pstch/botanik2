@@ -6,8 +6,9 @@ write. There is no driver stepping them - **a program registers itself with the
 task registry** like everything else in the beat, so it gets its own rate, its
 own row on the TASKS page and its own cost sample.
 
-A program is a `Plc::Program` subclass. It holds its function blocks as members,
-its variable references in a generated `Refs` struct, and overrides one method:
+A program is TWO classes: a generated base carrying its whole declaration part -
+the rows it connects to and the function blocks it holds - and a hand-written
+derived class carrying the body. The base derives `Plc::Program`:
 
 ```cpp
 class Program {
@@ -34,15 +35,18 @@ stale - see *When programs run* below.
 ## Declaring one
 
 A program's variables are not spelled in C++. `tables/programs.toml` connects its
-interface to the table, and `scripts/vars_gen.py` emits a `Refs` struct with one
-typed reference per member and the `bind()` that resolves them:
+interface to the table, and `scripts/vars_gen.py` emits its base class - one
+typed member per row, the blocks it declares, and the `bind()` that resolves
+them all - into `programs/<stage>/<class>/<class>.gen.h`:
 
 ```toml
 [[program]]
 name   = "strat"          # the instance, and its writer identity
-class  = "StratSensor"    # the C++ class in tasks.h
+class  = "StratSensor"    # the class, and the directory it lives in
 task   = "FAST"           # the rate class it is dispatched at
+stage  = "sense"          # which directory under programs/
 health = "prog_strat"     # optional: where its health is published
+desc   = "The stratification gap, unsigned."   # its @brief, and the report's
 
 [program.in]
 ceiling = "cli_temp_hi"
@@ -52,21 +56,35 @@ floor   = "cli_temp_lo"
 strat = "cli_dTStrat_degC"
 ```
 
+The generator writes three files the first time it sees the program, and
+overwrites only the first:
+
+```
+programs/sense/strat_sensor/
+    strat_sensor.gen.h    GENERATED: class Gen::StratSensor : Plc::Program
+    strat_sensor.h        yours: the state and the helpers
+    strat_sensor.cpp      yours: the body
+```
+
+All you write is what the table cannot describe:
+
 ```cpp
-class StratSensor : public Plc::Program {
-    Refs::StratSensor _v;
+class StratSensor final : public Gen::StratSensor {
 public:
     StratSensor(const SetupContext& ctx, Vars::Bank& io)
-        : Program(ctx, Refs::StratSensor::name(),
-                  Refs::StratSensor::group(), io) {}
+        : Gen::StratSensor(ctx, io) {}
 protected:
-    void bind(Vars::Bank& io) override { _v.bind(io, *this); }
     void run(ProgramContext& c) override;
 };
 ```
 
-The name and the rate class come from the generated struct too, so neither can
-drift from the configuration.
+and the body reads the rows as its own members: `strat.set(ceiling.get() -
+floor.get())`. The instance name and the rate class are baked into the generated
+constructor, so neither can drift from the configuration.
+
+**A name without a leading underscore was declared in the table**; the derived
+class owns everything else, and the generator refuses a member named after one of
+`Plc::Program`'s own (`health`, `group`, `run`, ...) since they share a scope.
 
 Three sections, and each promises something the compiler then holds you to:
 
@@ -88,19 +106,21 @@ firmware is built.
 
 ## Registering one
 
-Programs are members of the site's firmware class, constructed and registered in
-the same order:
+Nowhere, by hand. Programs are members of the site's firmware class, and the
+member, its constructor init and its `register_tasks()` call are one generated
+list expanded three times:
 
 ```cpp
-Site::StratSensor _strat;          // ...in EXECUTION order
-// ctor: _strat(setup_context(), io()),
-// on_setup(): _strat.register_tasks();
+#define X(cls, mem) Site::cls mem;
+    SITE_PROGRAM_LIST(X)          // generated/programs.gen.h, in TABLE order
+#undef X
 ```
 
 **Registration order is execution order** within `PHASE_CONTROL`, so a law that
 computes a setpoint and a law that acts on it complete in one beat when written
-that way round. `programs.toml` lists them in the same order, and it is the file
-to read for what that order IS.
+that way round. The order is `programs.toml`'s, and that is the file to change
+to change it. The three lists used to be hand-kept and had already drifted about
+where one program ran.
 
 ## What a program gets
 
@@ -135,37 +155,36 @@ a stall silently loses the time it was late by. Always pass `c.dt_ms`.
 name  = "supply_watch"
 class = "SupplyWatch"
 task  = "SLOW"
+stage = "sense"
+desc  = "The supply rails, watched."
+[program.block]
+bad_for = { type = "Ton", doc = "debounce" }
+lockout = { type = "Sr" }
 [program.in]
 ln = "grid_LN_V"
 [program.out]
 locked = "sys_supply_lockout"
 ```
 
+The rows and the two blocks are declared, so the hand-written half is the law
+and nothing else:
+
 ```cpp
-class SupplyWatch : public Plc::Program {
-    Plc::Ton _bad_for;    // debounce
-    Plc::Sr  _lockout;
-
-    Refs::SupplyWatch _v;
-
+class SupplyWatch final : public Gen::SupplyWatch {
 public:
     SupplyWatch(const SetupContext& ctx, Vars::Bank& io)
-        : Program(ctx, Refs::SupplyWatch::name(),
-                  Refs::SupplyWatch::group(), io) {}   // SLOW: 100 ms
+        : Gen::SupplyWatch(ctx, io) {}          // SLOW: 100 ms, from the table
 
 protected:
-    void bind(Vars::Bank& io) override { _v.bind(io, *this); }
     void run(ProgramContext& c) override { (void)c; }
 
     void observe(ProgramContext& c) override {
-        if (c.first_scan) { _bad_for.reset(); _lockout.reset(); }
+        if (c.first_scan) { bad_for.reset(); lockout.reset(); }
 
-        const bool unhealthy = !Plc::in_range(c.bank.get(_v.ln), 200.0f, 260.0f);
+        const bool unhealthy = !Plc::in_range(ln.get(), 200.0f, 260.0f);
 
         // reset-dominant: recovery wins, so the lockout cannot stick
-        _lockout(_bad_for(unhealthy, 5000, c.dt_ms), !unhealthy);
-
-        c.bank.drive(_v.locked, _lockout.q());
+        locked.set(lockout(bad_for(unhealthy, 5000, c.dt_ms), !unhealthy));
     }
 };
 ```
@@ -204,7 +223,7 @@ way IEC 61131-3 does:
 |---|---|---|
 | FUNCTION | `plc/functions/` | nothing. Same inputs, same output, always |
 | FUNCTION_BLOCK | `plc/blocks/` | instance state, carried between scans |
-| PROGRAM | the site's `tasks.h` | blocks, and the field |
+| PROGRAM | the site's `programs/` | blocks, and the field |
 
 The line between the first two is mechanical rather than a judgement call: **a
 function is a single expression in a header, and a block needs a `.cpp`.** If it
