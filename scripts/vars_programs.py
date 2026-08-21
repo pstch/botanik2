@@ -111,7 +111,12 @@ def _program(p, stage, path):
             "stage": stage, "path": path, "blocks": _blocks(p),
             "vars": _decls(p.get("var")), "fns": _decls(p.get("fn")),
             "hooks": list(p.get("hooks") or []),
-            "desc": p.get("desc", ""), "notes": p.get("notes", ""),
+            # Collapsed, so a long one can WRAP in the table: it is one
+            # sentence, not one physical line. A blank line in it means the
+            # author wanted `notes`.
+            "desc": " ".join(p.get("desc", "").split()),
+            "desc_paras": "\n\n" in p.get("desc", "").strip(),
+            "notes": p.get("notes", ""),
             "conns": conns, "counts": counts,
             "arrays": {m for sec in SECTIONS
                        for m, v in (p.get(sec) or {}).items()
@@ -241,8 +246,8 @@ def check(programs, rows, err, mentioned=(), cal_params=(), library=(),
         # so the two cannot say different things.
         if not p["desc"]:
             err(f"{where}: no desc - what does this program do?")
-        elif "\n" in p["desc"]:
-            err(f"{where}: desc is a single line; the paragraphs go in `notes`")
+        elif p["desc_paras"]:
+            err(f"{where}: desc is one sentence; the paragraphs go in `notes`")
         elif len(p["desc"]) > DESC_MAX:
             err(f"{where}: desc is {len(p['desc'])} chars, over {DESC_MAX}: it "
                 f"has to read as one @brief")
@@ -565,16 +570,32 @@ def _sizes(p, rows):
     return out
 
 
+# A declaration and its trailing ///< have to fit a line; a longer note goes
+# above the member as a wrapped block, which is what a hand-written header did.
+DECL_COLS = 79
+
+
 def _decl_group(title, decls, doc=()):
     """One @name group of member declarations, types column-aligned."""
     if not decls:
         return []
     width = max(len(t) for t, _n, _d in decls)
-    named = max(len(n) for _t, n, _d in decls) + 1 if any(d for _t, _n, d in decls) else 0
+    short = [(t, n, " ".join(d.split())) for t, n, d in decls]
+    short = [(t, n, d if len(f"    {t.ljust(width)} {n};  ///< {d}") <= DECL_COLS
+              else "") for t, n, d in short]
+    named = max(len(n) for _t, n, d in short if d) + 1 if any(
+        d for _t, _n, d in short) else 0
     out = [f"    /** @name {title}"] + [f"     *  {x}" for x in doc] + ["     *  @{ */", ""]
-    for t, n, d in decls:
+    for (t, n, _d), (_t, _n, note) in zip(decls, short):
+        long_ = " ".join(_d.split()) if _d and not note else ""
+        if long_:
+            wrapped = textwrap.wrap(long_, DECL_COLS - 3,
+                                    initial_indent="    /** @brief ",
+                                    subsequent_indent="     *  ")
+            wrapped[-1] += " */"
+            out += wrapped
         line = f"    {t.ljust(width)} {(n + ';').ljust(named)}"
-        out.append((line + f"  ///< {d}") if d else line.rstrip())
+        out.append((line + f"  ///< {note}") if note else line.rstrip())
     return out + ["", "    /** @} */"]
 
 
@@ -699,7 +720,11 @@ def program_header(p, rows, banner):
         for f in p["fns"]:
             ret, rest = f["type"].split("(", 1)
             if f["doc"]:
-                out += [f"    /** @brief {f['doc']} */"]
+                wrapped = textwrap.wrap(" ".join(f["doc"].split()), DECL_COLS - 3,
+                                        initial_indent="    /** @brief ",
+                                        subsequent_indent="     *  ")
+                wrapped[-1] += " */"
+                out += wrapped
             out += [f"    {ret.strip().ljust(width)} {f['name']}({rest.strip()};"]
         out += [""]
     out = out[:-1] if out[-1] == "" else out

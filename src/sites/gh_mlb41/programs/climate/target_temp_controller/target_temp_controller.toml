@@ -6,13 +6,15 @@ name   = "target_temp"
 class  = "TargetTempController"
 task   = "SLOW"
 health = "prog_target_temp"
-desc   = "The temperature the greenhouse is being held to: the base setting, shifted by whichever bank phase is both IN FORCE and ARMED."
+desc   = """
+The temperature the greenhouse is being held to: the base setting, shifted by
+whichever bank phase is both IN FORCE and ARMED.
+"""
 notes  = """
 Its own program because the target is a decision, not a property of the phase:
 the two bank phases only move it when yesterday justified them, and a reader
 wants the number rather than the rule that produced it.
 """
-
 
 [in]
 t_min         = "cli_targetMin_degC"

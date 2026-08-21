@@ -6,7 +6,10 @@ name   = "climate_watch"
 class  = "ClimateWatch"
 task   = "SLOW"
 health = "prog_climate_watch"
-desc   = "The interior conditions, watched: the alarms that are a READING crossing a line rather than a law failing to hold one."
+desc   = """
+The interior conditions, watched: the alarms that are a READING crossing a
+line rather than a law failing to hold one.
+"""
 notes  = """
 A watch program - empty run(), everything in observe(). An alarm is an
 observation, and an observation has to keep being made while the plant is
@@ -17,8 +20,6 @@ quorum alarm, which this rolls up: alarming twice for one dead probe would
 make the second alarm mean "and also we cannot see".
 """
 hooks  = ["observe"]
-
-
 
 [in]
 temp     = "cli_temp_hi"

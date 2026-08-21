@@ -18,18 +18,33 @@ being a clock an operator re-enters four times a year.
 
 # What the law remembers between activations.
 
-[var]
-_phase     = { type = "DayPhase", init = "PHASE_NIGHT" }
-_day_max   = { type = "float", init = "0.0f", doc = "The interior extremes since the current day and night began. What COLD_BANK and HEAT_BANK are gated on: pre-cool only after a hot day, bank heat only after a cold night." }
-_night_min = { type = "float", init = "0.0f" }
-_seeded    = { type = "bool", init = "false" }
+[var._phase]
+type = "DayPhase"
+init = "PHASE_NIGHT"
 
-# Its own helpers.
+[var._day_max]
+type = "float"
+init = "0.0f"
+doc  = """
+The interior extremes since the current day and night began. What COLD_BANK
+and HEAT_BANK are gated on: pre-cool only after a hot day, bank heat only
+after a cold night.
+"""
 
-[fn]
-_phase_at = { type = "DayPhase (int16_t from_rise, int16_t from_set) const", doc = "The phase two offsets land in, with the two BANK phases skipped when yesterday did not arm them." }
+[var._night_min]
+type = "float"
+init = "0.0f"
 
+[var._seeded]
+type = "bool"
+init = "false"
 
+[fn._phase_at]
+type = "DayPhase (int16_t from_rise, int16_t from_set) const"
+doc  = """
+The phase two offsets land in, with the two BANK phases skipped when yesterday
+did not arm them.
+"""
 
 [in]
 # The house's own row, the same one the cooling ladder controls on: what the

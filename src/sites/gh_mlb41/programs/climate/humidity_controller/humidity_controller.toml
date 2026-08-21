@@ -6,7 +6,10 @@ name   = "humidity"
 class  = "HumidityController"
 task   = "SLOW"
 health = "prog_humidity"
-desc   = "The humidity ladder: four bands and a dead zone on the dew-point margin, published as one signed demand - and the rot guard under it."
+desc   = """
+The humidity ladder: four bands and a dead zone on the dew-point margin,
+published as one signed demand - and the rot guard under it.
+"""
 notes  = """
 Negative dehumidifies (the margin is closing on condensation), positive
 humidifies (the air is drier than the plants want). Set in degC rather than
@@ -24,15 +27,20 @@ hooks  = ["observe"]
 
 # Its own helpers.
 
-[fn]
-_dry_gate = { type = "void (ProgramContext& c)", doc = "Whether the air outside would dry the greenhouse if drawn in. Dew points, so it survives a cold damp morning reading 95% RH." }
+[fn._dry_gate]
+type = "void (ProgramContext& c)"
+doc  = """
+Whether the air outside would dry the greenhouse if drawn in. Dew points, so
+it survives a cold damp morning reading 95% RH.
+"""
 
+[block.lockout_for]
+type = "Tof"
+doc  = "the lockout's overrun past the condition"
 
-
-[block]
-lockout_for   = { type = "Tof",        doc = "the lockout's overrun past the condition" }
-dry_gate_band = { type = "Hysteresis", doc = "two dew points that converge, so a dead band" }
-
+[block.dry_gate_band]
+type = "Hysteresis"
+doc  = "two dew points that converge, so a dead band"
 
 [in]
 rot_release_s = "cli_rotRelease_sec"

@@ -21,14 +21,14 @@ hooks  = ["observe"]
 
 # What the law remembers between activations.
 
-[var]
-_sun = { type = "Sun::SunPositionTracker* const", init = "ctx.sun", doc = "The instrument, borrowed: the firmware owns it, registers it and binds its geo parameters. Null in a build without SUN_TRACKER, which is a build this program is not in either." }
-
-
-# The instrument is INSIDE this program (Sun::SunPositionTracker, configured
-# from the geo_ pair), and what leaves it are rows. Everything downstream reads
-# the rows: a law that wants to know where the day is asks the table, not the
-# tracker.
+[var._sun]
+type = "Sun::SunPositionTracker* const"
+init = "ctx.sun"
+doc  = """
+The instrument, borrowed: the firmware owns it, registers it and binds its geo
+parameters. Null in a build without SUN_TRACKER, which is a build this program
+is not in either.
+"""
 
 [out]
 from_rise = "sol_fromRise_min"

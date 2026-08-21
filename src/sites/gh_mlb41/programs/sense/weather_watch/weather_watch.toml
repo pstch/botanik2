@@ -6,7 +6,10 @@ name   = "weather_watch"
 class  = "WeatherWatch"
 task   = "SLOW"
 health = "prog_weather_watch"
-desc   = "The weather station, watched: whether it is answering, and whether what it says is a storm."
+desc   = """
+The weather station, watched: whether it is answering, and whether what it
+says is a storm.
+"""
 notes  = """
 A storm IS what shuts the roof, so this reads `WindowsController`'s two
 lockouts rather than declaring a second pair of thresholds beside them - an
@@ -17,12 +20,26 @@ hooks  = ["observe"]
 
 # What the law remembers between activations.
 
-[var]
-_seen     = { type = "bool", init = "false", doc = "Whether the station has EVER answered. Before it has, silence is bring-up; after, it is a fault. @see AcSupply" }
-_dry_ms   = { type = "uint64_t", init = "0", doc = "Ms since the gauge last read wet, and whether it ever has in this run. A boot does not know when it last rained, so before the first shower the row is held rather than reading \"just now\"." }
-_wet_seen = { type = "bool", init = "false" }
+[var._seen]
+type = "bool"
+init = "false"
+doc  = """
+Whether the station has EVER answered. Before it has, silence is bring-up;
+after, it is a fault. @see AcSupply
+"""
 
+[var._dry_ms]
+type = "uint64_t"
+init = "0"
+doc  = """
+Ms since the gauge last read wet, and whether it ever has in this run. A boot
+does not know when it last rained, so before the first shower the row is held
+rather than reading "just now".
+"""
 
+[var._wet_seen]
+type = "bool"
+init = "false"
 
 [in]
 wind      = "cli_wind_mps"

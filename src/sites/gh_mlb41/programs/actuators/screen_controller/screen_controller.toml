@@ -6,7 +6,10 @@ name   = "screen"
 class  = "ScreenController"
 task   = "SLOW"
 health = "prog_screen"
-desc   = "The thermal screen: one coil, deployed when the greenhouse is losing heat rather than gaining it."
+desc   = """
+The thermal screen: one coil, deployed when the greenhouse is losing heat
+rather than gaining it.
+"""
 notes  = """
 Two independent causes, either sufficient: the cooling ladder gone far enough
 negative, or a cold night. No feedback, so travel is TIMED - and while it runs
@@ -17,22 +20,29 @@ hooks  = ["observe"]
 
 # What the law remembers between activations.
 
-[var]
-_deployed        = { type = "bool", init = "false" }
-_seeded          = { type = "bool", init = "false" }
-_command_changed = { type = "bool", init = "false" }
+[var._deployed]
+type = "bool"
+init = "false"
 
-# Its own helpers.
+[var._seeded]
+type = "bool"
+init = "false"
 
-[fn]
-_command = { type = "void (bool deploy)", doc = "Command the screen, starting a traverse if that is a change." }
+[var._command_changed]
+type = "bool"
+init = "false"
 
+[fn._command]
+type = "void (bool deploy)"
+doc  = "Command the screen, starting a traverse if that is a change."
 
+[block.travelling]
+type = "Tp"
+doc  = "a pulse of the fabric's travel time"
 
-[block]
-travelling = { type = "Tp",    doc = "a pulse of the fabric's travel time" }
-moved      = { type = "RTrig", doc = "...started by a change of command" }
-
+[block.moved]
+type = "RTrig"
+doc  = "...started by a change of command"
 
 [in]
 cool_dem     = "cli_coolDem"
@@ -40,7 +50,6 @@ deploy_dem   = "cli_thermalScreenDem"
 phase        = "cli_phase"
 travel_s     = "cli_screenTravel_sec"
 travel_tmo_s = "cli_screenTmo_sec"
-
 
 [out]
 screen = "cli_screen"

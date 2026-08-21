@@ -670,8 +670,8 @@ def main():
         stale |= put(os.path.join(d, base + ".gen.h"),
                      vars_programs.program_header(
                          p, by_name,
-                         banner(base + ".toml beside it", base + ".gen.h",
-                                base + ".toml")),
+                         banner(base + ".toml", base + ".gen.h",
+                                "the table beside it")),
                      a.check)
         stale |= scaffold(d, p, a.check)
     if progs:

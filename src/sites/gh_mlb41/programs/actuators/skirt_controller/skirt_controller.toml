@@ -18,16 +18,13 @@ the one thing this valve must never do.
 """
 hooks  = ["on_bind"]
 
-
 # `pulse` rather than `valve`: the ROW is the coil, and the block is the pulse
-# train that decides when it is energised. A block needing more than a type
-# takes a table of its own - an inline one cannot be split over two lines.
+# train that decides when it is energised.
 
 [block.pulse]
 type    = "ValveController"
 include = "blocks/valve_controller.h"
 doc     = "the on-time within a period"
-
 
 [in]
 cool_dem   = "cli_coolDem"
@@ -38,7 +35,6 @@ dp_margin  = "cli_dpMargin_degC"
 rot_lock   = "cli_rotLockout"
 period_s   = "cli_skirtPeriod_sec"
 min_on_s   = "cli_skirtMinOn_sec"
-
 
 [out]
 valve = "cli_skirtValve"

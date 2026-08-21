@@ -6,13 +6,15 @@ name   = "strat"
 class  = "StratSensor"
 task   = "FAST"
 health = "prog_strat"
-desc   = "The stratification gap: how much warmer the ceiling is than the floor, unsigned."
+desc   = """
+The stratification gap: how much warmer the ceiling is than the floor,
+unsigned.
+"""
 notes  = """
 Its own program because it is a reading ABOUT two zones rather than part of
 either, and because the destratification controller wants exactly one number
 from it.
 """
-
 
 [in]
 ceiling = "cli_temp_hi"

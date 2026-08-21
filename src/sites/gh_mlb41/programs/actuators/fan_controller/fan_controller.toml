@@ -6,7 +6,10 @@ name   = "fans"
 class  = "FanController"
 task   = "SLOW"
 health = "prog_fans"
-desc   = "The two destratification fans: three relayed speeds, driven by whichever of three demands wants the most."
+desc   = """
+The two destratification fans: three relayed speeds, driven by whichever of
+three demands wants the most.
+"""
 notes  = """
 The speed relays are exclusive - one contactor per speed on one motor - and
 the band the fused demand falls in decides which. That band has its own
@@ -19,18 +22,28 @@ air they blow into.
 
 # What the law remembers between activations.
 
-[var]
-_speed = { type = "uint8_t", init = "0", doc = "0 (off) to 3, and the three rungs it is chosen on. Held across scans: the hysteresis lives on the rungs." }
-_steps = "Plc::Staircase<3>"
+[var._speed]
+type = "uint8_t"
+init = "0"
+doc  = """
+0 (off) to 3, and the three rungs it is chosen on. Held across scans: the
+hysteresis lives on the rungs.
+"""
 
-# Its own helpers.
+[var._steps]
+type = "Plc::Staircase<3>"
 
-[fn]
-_demand = { type = "float () const", doc = "The three demands, fused." }
-_band   = { type = "uint8_t (float demand)", doc = "The speed @p demand asks for, given the one in force." }
-_drive  = { type = "void (uint8_t speed)", doc = "Energise exactly one speed relay, or none." }
+[fn._demand]
+type = "float () const"
+doc  = "The three demands, fused."
 
+[fn._band]
+type = "uint8_t (float demand)"
+doc  = "The speed @p demand asks for, given the one in force."
 
+[fn._drive]
+type = "void (uint8_t speed)"
+doc  = "Energise exactly one speed relay, or none."
 
 [in]
 dem_hyst      = "cli_fanDemHyst"
@@ -47,7 +60,6 @@ high_dem      = "cli_fanHighDem"
 # off them. The phase asks; this is how much.
 phase         = "cli_phase"
 breeze_dem    = "cli_breezeDem"
-
 
 [out]
 speed1 = { rows = "cli_destrat*_speed1", count = 2 }

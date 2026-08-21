@@ -40,51 +40,55 @@ typed member per row, the blocks it declares, and the `bind()` that resolves
 them all - into `programs/<stage>/<class>/<class>.gen.h`:
 
 ```toml
-[[program]]
+# programs/sense/strat_sensor/strat_sensor.toml
 name   = "strat"          # the instance, and its writer identity
-class  = "StratSensor"    # the class, and the directory it lives in
+class  = "StratSensor"    # and the directory it lives in, in snake_case
 task   = "FAST"           # the rate class it is dispatched at
-stage  = "sense"          # which directory under programs/
 health = "prog_strat"     # optional: where its health is published
 desc   = "The stratification gap, unsigned."   # its @brief, and the report's
 
-[program.in]
+[in]
 ceiling = "cli_temp_hi"
 floor   = "cli_temp_lo"
 
-[program.out]
+[out]
 strat = "cli_dTStrat_degC"
 ```
 
-The generator writes three files the first time it sees the program, and
-overwrites only the first:
+The directory holds three files, and the generator owns two of them - it
+scaffolds the third once and never touches it again:
 
 ```
 programs/sense/strat_sensor/
-    strat_sensor.gen.h    GENERATED: class Gen::StratSensor : Plc::Program
-    strat_sensor.h        yours: the state and the helpers
-    strat_sensor.cpp      yours: the body
+    strat_sensor.toml     declared: this file
+    strat_sensor.gen.h    GENERATED: class Site::StratSensor : Plc::Program
+    strat_sensor.cpp      yours: the bodies
 ```
 
-All you write is what the table cannot describe:
+All you write is the law, and it reads the rows as its own members:
+`strat.set(ceiling.get() - floor.get())`. The instance name and the rate class
+are baked into the generated constructor, so neither can drift.
 
-```cpp
-class StratSensor final : public Gen::StratSensor {
-public:
-    StratSensor(const SetupContext& ctx, Vars::Bank& io)
-        : Gen::StratSensor(ctx, io) {}
-protected:
-    void run(ProgramContext& c) override;
-};
+**A name without a leading underscore was declared as an interface**; `[var]` and
+`[fn]` carry the underscored half - what the law remembers and its own helpers -
+and the generator refuses a member named after one of `Plc::Program`'s own
+(`health`, `group`, `run`, ...) since they share a scope.
+
+Everything a program declares beyond its connections gets a section of its own,
+because a type, an initial value and a sentence of prose do not fit on one line:
+
+```toml
+[var._seeded]
+type = "bool"
+init = "false"
+
+[fn._phase_at]
+type = "DayPhase (int16_t from_rise, int16_t from_set) const"
+doc  = """
+The phase two offsets land in, with the two BANK phases skipped when yesterday
+did not arm them.
+"""
 ```
-
-and the body reads the rows as its own members: `strat.set(ceiling.get() -
-floor.get())`. The instance name and the rate class are baked into the generated
-constructor, so neither can drift from the configuration.
-
-**A name without a leading underscore was declared in the table**; the derived
-class owns everything else, and the generator refuses a member named after one of
-`Plc::Program`'s own (`health`, `group`, `run`, ...) since they share a scope.
 
 Three sections, and each promises something the compiler then holds you to:
 
@@ -155,18 +159,21 @@ a stall silently loses the time it was late by. Always pass `c.dt_ms`.
 ## Writing one
 
 ```toml
-[[program]]
+# programs/sense/supply_watch/supply_watch.toml
 name  = "supply_watch"
 class = "SupplyWatch"
 task  = "SLOW"
 stage = "sense"
 desc  = "The supply rails, watched."
-[program.block]
-bad_for = { type = "Ton", doc = "debounce" }
-lockout = { type = "Sr" }
-[program.in]
+[block.bad_for]
+type = "Ton"
+doc  = "debounce"
+
+[block.lockout]
+type = "Sr"
+[in]
 ln = "grid_LN_V"
-[program.out]
+[out]
 locked = "sys_supply_lockout"
 ```
 

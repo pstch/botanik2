@@ -17,25 +17,24 @@ hooks  = ["observe"]
 
 # What the law remembers between activations.
 
-[var]
-_seeded       = { type = "bool", init = "false" }
-_last_fold_ms = { type = "uint64_t", init = "0" }
+[var._seeded]
+type = "bool"
+init = "false"
 
-# Its own helpers.
+[var._last_fold_ms]
+type = "uint64_t"
+init = "0"
 
-[fn]
-_track_dryness = { type = "float (ProgramContext& c)", doc = "Fold the VPD into the dryness average, at most once an hour. @return the average now in force" }
+[fn._track_dryness]
+type = "float (ProgramContext& c)"
+doc  = """
+Fold the VPD into the dryness average, at most once an hour. @return the
+average now in force
+"""
 
-
-# The spec's irrigation "regulator": evaporation in, a modulation factor out.
-# It never touches a valve, and it keeps folding while the plant is parked -
-# an outage is not a dry spell.
-# Deliberately slow: an hour's fold over several days, so one dry afternoon
-# cannot call for a watering.
-
-[block]
-dryness = { type = "Utils::ExpMovingAverage", doc = "the dryness tracker" }
-
+[block.dryness]
+type = "Utils::ExpMovingAverage"
+doc  = "the dryness tracker"
 
 [in]
 vpd       = "cli_vpd_kPa"

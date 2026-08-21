@@ -6,7 +6,10 @@ name   = "windows"
 class  = "WindowsController"
 task   = "SLOW"
 health = "prog_windows"
-desc   = "The four roof windows: one target from the cooling ladder, and ONE MOVING AT A TIME."
+desc   = """
+The four roof windows: one target from the cooling ladder, and ONE MOVING AT A
+TIME.
+"""
 notes  = """
 The one-at-a-time rule is electrical, so a safety cannot break it either: a
 rain interlock shuts them in sequence, not together. A window keeps the bus
@@ -23,30 +26,50 @@ hooks  = ["observe", "on_bind"]
 
 # What the law remembers between activations.
 
-[var]
-_target    = { type = "float", init = "0.0f", doc = "The position the arbitration asked for this scan. One number for all four: they are one roof." }
-_safe_open = { type = "float", init = "0.0f", doc = "Where the roof goes when this law is not acting: PART OPEN, not shut, read off the target row's declared default like every other safe state here. It should never be reached, but a greenhouse with some ventilation survives a summer afternoon and a sealed one does not. @note NOT the interlocks: rain and wind shut the roof outright." }
+[var._target]
+type = "float"
+init = "0.0f"
+doc  = """
+The position the arbitration asked for this scan. One number for all four:
+they are one roof.
+"""
 
-# Its own helpers.
+[var._safe_open]
+type = "float"
+init = "0.0f"
+doc  = """
+Where the roof goes when this law is not acting: PART OPEN, not shut, read off
+the target row's declared default like every other safe state here. It should
+never be reached, but a greenhouse with some ventilation survives a summer
+afternoon and a sealed one does not. @note NOT the interlocks: rain and wind
+shut the roof outright.
+"""
 
-[fn]
-_mechanics = { type = "Plc::ActuatorConfig () const", doc = "The mechanics, rebuilt each scan from the parameters: a recalibrated travel time has to land on the next stroke, not the next boot." }
-_shut_in   = { type = "bool (ProgramContext& c)", doc = "Whether anything forbids the windows being open at all. Publishes the two reasons it owns." }
-_owner     = { type = "int8_t (float target, const Plc::ActuatorConfig& cfg) const", doc = "Which window may move this scan, or -1." }
+[fn._mechanics]
+type = "Plc::ActuatorConfig () const"
+doc  = """
+The mechanics, rebuilt each scan from the parameters: a recalibrated travel
+time has to land on the next stroke, not the next boot.
+"""
 
+[fn._shut_in]
+type = "bool (ProgramContext& c)"
+doc  = """
+Whether anything forbids the windows being open at all. Publishes the two
+reasons it owns.
+"""
 
+[fn._owner]
+type = "int8_t (float target, const Plc::ActuatorConfig& cfg) const"
+doc  = "Which window may move this scan, or -1."
 
-# The humidity demand is deliberately absent. Anti-dryness would ask the
-# windows shut, and the spec is explicit that cooling wins over it - "l'air sec
-# ne met pas les Hawortia en danger, mais la chaleur oui". With no cooling
-# demand the target is 0 and they are shut anyway, so absence IS the rule.
-# One per window, and the rain lockout's overrun. The roof is four rams on one
-# demand, so the block is an array and the table says how many.
+[block.act]
+type  = "Actuator"
+count = 4
 
-[block]
-act      = { type = "Actuator", count = 4 }
-rain_for = { type = "Tof", doc = "the rain lockout's overrun past the last drop" }
-
+[block.rain_for]
+type = "Tof"
+doc  = "the rain lockout's overrun past the last drop"
 
 [in]
 # The INTENDED opening, laddered by the cooling law that owns the demand. This
@@ -72,7 +95,6 @@ wind_lock   = "cli_windLockout"
 # ...and their verdict, published and then obeyed the same way: one row an
 # operator can force to hold the roof shut without inventing weather.
 window_lock = "cli_windowLockout"
-
 
 [out]
 opn = { rows = "cli_window*_opn", count = 4 }

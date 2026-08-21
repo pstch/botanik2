@@ -6,7 +6,10 @@ name   = "destrat"
 class  = "DestratController"
 task   = "SLOW"
 health = "prog_destrat"
-desc   = "The destratification ladder: three bands with hysteresis on the ceiling-to-floor gap, published as a demand."
+desc   = """
+The destratification ladder: three bands with hysteresis on the ceiling-to-
+floor gap, published as a demand.
+"""
 notes  = """
 A band change needs the gap to move by the declared hysteresis, so the fans do
 not step between speeds on noise.
@@ -14,10 +17,8 @@ not step between speeds on noise.
 
 # What the law remembers between activations.
 
-[var]
-_bands = "Plc::Staircase<3>"
-
-
+[var._bands]
+type = "Plc::Staircase<3>"
 
 [in]
 strat    = "cli_dTStrat_degC"

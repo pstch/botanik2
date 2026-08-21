@@ -310,14 +310,18 @@ notes = """                 # the paragraphs under it, optional
 Everything a reader needs that the interface below does not say.
 """
 
-# The POU's VAR section: the function block instances it holds. A
-# bare string is the type, resolved in Botanik::Plc; the table form
-# carries `count` for an array, `include` for a block of the site's
-# own (site-root relative), and `doc` for the one-line comment the
-# declaration gets.
-[block]
-settle    = "Tof"
-rail_avg  = { type = "Ewma", count = 2, doc = "one per rail" }
+# The POU's VAR section: the function block instances it holds.
+# `type` is resolved in Botanik::Plc unless it is qualified;
+# `count` makes it an array, `include` names the header a block of
+# the site's own lives in (site-root relative), and `doc` is the
+# comment the declaration gets.
+[block.settle]
+type = "Tof"
+
+[block.rail_avg]
+type  = "Ewma"
+count = 2
+doc   = "one per rail"
 
 # A member is `name = "row"`, a list for an array, or a PATTERN
 # where `*` is one or more digits - eight trays without writing
@@ -354,6 +358,11 @@ so there is one section per mode rather than one per spelling.
 | `in` | VAR_INPUT / VAR_EXTERNAL CONSTANT | read-only: `drive()` on it does not compile |
 | `out` | VAR_OUTPUT / VAR_EXTERNAL | this program is the row's one producer, claimed at bind time |
 | `inout` | VAR_IN_OUT | read-modify-write, SHARED by declaration: the row is marked `VF_SHARED` and records no single owner |
+
+Each of `block`, `var` and `fn` is a section per entry -
+`[var._state]`, not `_state = { ... }` - because a type, an initial
+value and a sentence of prose do not fit on one line. The
+connection sections stay a two-column map: a member is a row.
 
 A row carrying text has no typed reference - its value lives in
 the bank's pool - so naming one from a program is refused.

@@ -89,7 +89,8 @@ def prog(name, cls="C", task="SLOW", stage="sense", blocks=(), desc="What it doe
     p = {"name": name, "class": cls, "task": task, "conns": [], "arrays": set(),
          "stage": stage, "blocks": list(blocks), "desc": desc, "notes": "",
          "vars": list(vars), "fns": list(fns), "hooks": list(hooks), "counts": {},
-         "path": "programs/%s/%s/%s.toml" % (stage, _snake(cls), _snake(cls))}
+         "path": "programs/%s/%s/%s.toml" % (stage, _snake(cls), _snake(cls)),
+         "desc_paras": "\n\n" in desc}
     for sec, members in sections.items():
         for member, rows in members.items():
             if isinstance(rows, dict):
@@ -338,6 +339,9 @@ def program_checks():
     ok &= pexpect("a desc that is really the notes",
                   [full(desc="One thing.\n\nAnd another.")],
                   "the paragraphs go in `notes`")
+
+    ok &= pclean("...but one that merely wraps is fine",
+                 [full(desc="One sentence,\nwrapped in the table.")])
 
     ok &= pexpect("a desc too long to be a @brief",
                   [full(desc="x" * 200)], "has to read as one @brief")

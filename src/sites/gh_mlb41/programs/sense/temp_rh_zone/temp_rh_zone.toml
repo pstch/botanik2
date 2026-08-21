@@ -6,24 +6,34 @@ name   = "temp_rh_zone"
 class  = "TempRHZone"
 task   = "FAST"
 health = "prog_temp_rh_zone"
-desc   = "The conditioned picture of the greenhouse: four locations voted and filtered, then the psychrometrics every other law is set in."
+desc   = """
+The conditioned picture of the greenhouse: four locations voted and filtered,
+then the psychrometrics every other law is set in.
+"""
 notes  = """
 Runs FIRST. Everything downstream reads its rows rather than the probes.
 """
 hooks  = ["on_bind"]
 
-
-
 # One per measurement location: three probes selected down to one reading,
 # then filtered. Held by value so one zone's filter state cannot become
 # another's.
 
-[block]
-ceiling    = { type = "ZoneProbes", include = "blocks/zone_probes.h" }
-floor      = { type = "ZoneProbes", include = "blocks/zone_probes.h" }
-crawlspace = { type = "ZoneProbes", include = "blocks/zone_probes.h" }
-exterior   = { type = "ZoneProbes", include = "blocks/zone_probes.h" }
+[block.ceiling]
+type    = "ZoneProbes"
+include = "blocks/zone_probes.h"
 
+[block.floor]
+type    = "ZoneProbes"
+include = "blocks/zone_probes.h"
+
+[block.crawlspace]
+type    = "ZoneProbes"
+include = "blocks/zone_probes.h"
+
+[block.exterior]
+type    = "ZoneProbes"
+include = "blocks/zone_probes.h"
 
 [in]
 tau_ms    = "cli_sensorTau_ms"
@@ -36,7 +46,6 @@ h_cs      = { rows = "cli_rh_cs*", count = 3 }
 t_ext     = { rows = "cli_temp_ext*", count = 3 }
 h_ext     = { rows = "cli_rh_ext*", count = 3 }
 rot_limit = "cli_tooHumid_degC"
-
 
 [out]
 # One number for the house, and the two levels it came from beside it.

@@ -6,7 +6,10 @@ name   = "dc_watch"
 class  = "DcWatch"
 task   = "SLOW"
 health = "prog_dc_watch"
-desc   = "The DC rails and the two batteries, watched - and the plant-wide lockout they raise."
+desc   = """
+The DC rails and the two batteries, watched - and the plant-wide lockout they
+raise.
+"""
 notes  = """
 `sys_supply_lockout` follows the UPS LOW-BATTERY CONTACT, not a voltage: the
 UPS knows what its own battery has left, and a divider on the rail does not.
@@ -17,25 +20,49 @@ hooks  = ["observe"]
 
 # What the law remembers between activations.
 
-[var]
-_seen      = { type = "bool", count = "4", init = "{ false, false, false, false }", doc = "Per rail, whether its divider has EVER answered. @see AcSupply" }
-_safe_held = { type = "bool", init = "false", doc = "What this law last told the registry, so the plant-wide hold is pushed on the EDGE and not walked over every task every beat." }
+[var._seen]
+type  = "bool"
+count = "4"
+init  = "{ false, false, false, false }"
+doc   = "Per rail, whether its divider has EVER answered. @see AcSupply"
 
+[var._safe_held]
+type = "bool"
+init = "false"
+doc  = """
+What this law last told the registry, so the plant-wide hold is pushed on the
+EDGE and not walked over every task every beat.
+"""
 
-# One deadband and one rolling average per divider, and the debounce under the
-# UPS contact. Named for what they do: the ROWS are called dc1, dc2, ups_bat.
+[block.band1]
+type = "Deadband"
 
-[block]
-band1   = { type = "Deadband" }
-band2   = { type = "Deadband" }
-bandu   = { type = "Deadband" }
-bandg   = { type = "Deadband" }
-avg1    = { type = "Ewma", doc = "the rail is judged on the AVERAGE, so one" }
-avg2    = { type = "Ewma", doc = "noisy sample cannot raise a supply fault" }
-avgu    = { type = "Ewma" }
-avgg    = { type = "Ewma" }
-low_for = { type = "Ton", doc = "debounce: a contact bounces, a UPS does not" }
+[block.band2]
+type = "Deadband"
 
+[block.bandu]
+type = "Deadband"
+
+[block.bandg]
+type = "Deadband"
+
+[block.avg1]
+type = "Ewma"
+doc  = "the rail is judged on the AVERAGE, so one"
+
+[block.avg2]
+type = "Ewma"
+doc  = "noisy sample cannot raise a supply fault"
+
+[block.avgu]
+type = "Ewma"
+
+[block.avgg]
+type = "Ewma"
+
+[block.low_for]
+type = "Ton"
+doc  = "debounce: a contact bounces, a UPS does not"
 
 [in]
 dc1     = "pwr_dc1_V"
