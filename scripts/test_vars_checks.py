@@ -76,7 +76,7 @@ def blk(name, type="Ton", count=0, include="", doc=""):
             "doc": doc}
 
 
-def prog(name, cls="C", task="SLOW", stage="", blocks=(), desc="What it does.",
+def prog(name, cls="C", task="SLOW", stage="sense", blocks=(), desc="What it does.",
          **sections):
     p = {"name": name, "class": cls, "task": task, "conns": [], "arrays": set(),
          "stage": stage, "blocks": list(blocks), "desc": desc, "notes": ""}
@@ -326,6 +326,9 @@ def program_checks():
 
     ok &= pexpect("a desc too long to be a @brief",
                   [full(desc="x" * 200)], "has to read as one @brief")
+
+    ok &= pexpect("a program with no stage",
+                  [full(stage="")], "which directory under programs/")
 
     ok &= pexpect("a stage that is not a directory name",
                   [prog("p", cls="P1", stage="Sense/Climate")],

@@ -12,7 +12,7 @@
  *
  *   vars.h    GENERATED     every variable in one table, the analog calibration
  *                           blocks, the field devices, the home-screen readings
- *   tasks.h   hand-written  the control programs
+ *   programs/ hand-written  the control programs, one directory each
  *   sim.h     hand-written  the simulated field
  *
  * `config.h` stays its own file: CMake includes it before the library defaults.
@@ -33,9 +33,9 @@
 // site can live outside this tree (-DBOTANIK_SITE_DIR), with no include
 // directory of its own, so "sites/gh_mlb41/vars.h" would silently resolve to the
 // IN-TREE reference site instead of the one being built.
-#include "tasks.h"
 #include "vars.h"
 
+// Every control program, and the one list site.h expands three times below.
 #include "generated/programs.gen.h"
 
 namespace Site {

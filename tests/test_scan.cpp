@@ -21,7 +21,7 @@
 #include BOTANIK_SITE_HEADER
 #include "libbotanik/core/component.h"
 #include "scan_fixture.h"
-#include "sites/gh_mlb41/tasks.h"
+#include "sites/gh_mlb41/generated/programs.gen.h"
 
 
 // scan

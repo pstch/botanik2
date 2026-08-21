@@ -16,7 +16,7 @@
 #include "libbotanik.h"
 #include "libbotanik_site.h"
 #include BOTANIK_SITE_HEADER
-#include "sites/gh_mlb41/tasks.h"
+#include "sites/gh_mlb41/generated/programs.gen.h"
 
 #include "scan_fixture.h"
 

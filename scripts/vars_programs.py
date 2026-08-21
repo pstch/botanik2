@@ -144,7 +144,11 @@ def check(programs, rows, err, mentioned=(), cal_params=(), library=(),
             err(f"{where}: desc is {len(p['desc'])} chars, over {DESC_MAX}: it "
                 f"has to read as one @brief")
 
-        if p["stage"] and not re.match(r"^[a-z][a-z0-9_]*$", p["stage"]):
+        # Every program carries its own declaration part now, and `stage` is
+        # the directory it lives in: there is no second shape to fall back to.
+        if not p["stage"]:
+            err(f"{where}: no stage - which directory under programs/ is it in?")
+        elif not re.match(r"^[a-z][a-z0-9_]*$", p["stage"]):
             err(f"{where}: stage '{p['stage']}' becomes a directory name, so it "
                 f"has to be lowercase letters, digits and underscores")
 
@@ -343,57 +347,6 @@ def _members(p, rows):
     return [e for e in out if e[2]]
 
 
-def _struct(p, rows):
-    """The Refs struct for one program: its members, grouped by section."""
-    ms = _members(p, rows)
-    out = [f"/** @brief The rows `{p['name']}` connects to, one typed reference",
-           f" *  each. {p['class']}, dispatched {p['task']}. */",
-           f"struct {p['class']} {{", ""]
-    for sec in SECTIONS:
-        group = [m for m in ms if m[0] == sec]
-        if not group:
-            continue
-        tmpl, _ = REFS[sec]
-        decls = [(f"Vars::{tmpl}<{m[2]}>",
-                  m[1] + (f"[{len(m[3])}]" if len(m[3]) > 1 else "")) for m in group]
-        width = max(len(d[0]) for d in decls)
-        out.append(f"    /** @name {SECTION_DOC[sec]}")
-        out.append("     *  @{ */")
-        out += [f"    {t.ljust(width)} {n};" for t, n in decls]
-        out += ["", "    /** @} */", ""]
-    watched = _watched(p, rows)
-    if watched:
-        out += ["    /** @brief Every readable row this program connects to, as"
-                " bare",
-                "     *  indices: what the base sweeps for validity before each",
-                "     *  activation. Parameters are not here - an operator's"
-                " number is",
-                "     *  always valid, and checking one would cost a walk to"
-                " learn nothing. */",
-                f"    Vars::VarRef _watched[{len(watched)}];", ""]
-    if p.get("health"):
-        out += ["    /** @name Health",
-                "     *  Where this program's health is published. Written by a",
-                "     *  SUPERVISOR walking every program, not by the program: a",
-                "     *  program that is not being activated is exactly when a",
-                "     *  reader wants the row. @see Plc::publish_health()",
-                "     *  @{ */",
-                "    Vars::RefOut<uint8_t> health;", "",
-                "    /** @} */", ""]
-    out += ["    /** @brief The instance name and the rate class programs.toml",
-            "     *  declares. The constructor takes them from here, so neither can",
-            "     *  drift from the configuration. */",
-            f'    static const char* name() {{ return "{p["name"]}"; }}',
-            f"    static Tasks::GroupId group() {{ return Tasks::GROUP_{p['task']}; }}",
-            "",
-            "    /** @brief Resolve every name. Runs inside the program's writer",
-            "     *  window, so an output is CLAIMED here.",
-            "     *  @param owner the program this belongs to: a declared health",
-            "     *         row is handed to it here. */",
-            "    void bind(Vars::Bank& io, Plc::Program& owner);", "};", ""]
-    return out
-
-
 # Scopes whose value can stop being believable. A PARAMETER is always valid -
 # it is an operator's number, not a measurement - so watching one would cost a
 # check per activation to learn nothing.
@@ -415,43 +368,6 @@ def _watched(p, rows):
         if scope in WATCHABLE:
             out.append((member, idx, row))
     return out
-
-
-def _bind(p, rows):
-    """The bind() body: one resolve per connection, in declaration order."""
-    ms = _members(p, rows)
-    lhs, rhs = [], []
-    for sec, member, cpp, names in ms:
-        _, resolve = REFS[sec]
-        for i, row in enumerate(names):
-            lhs.append(member + (f"[{i}]" if len(names) > 1 else ""))
-            rhs.append(f'io.{resolve}<{cpp}>("{row}");')
-    if p.get("health"):
-        lhs.append("health")
-        rhs.append(f'io.resolve_out<uint8_t>("{p["health"]}");')
-    if not lhs:
-        return [f"inline void {p['class']}::bind(Vars::Bank& io, Plc::Program&)"
-                f" {{ (void)io; }}", ""]
-    width = max(len(x) for x in lhs)
-    out = [f"inline void {p['class']}::bind(Vars::Bank& io, Plc::Program& owner) {{"]
-    out += [f"    {l.ljust(width)} = {r}" for l, r in zip(lhs, rhs)]
-
-    watched = _watched(p, rows)
-    if watched:
-        out += ["", "    // The readings this law is entitled to expect. The base"
-                    " walks them",
-                "    // before each activation, so an input that has stopped being"
-                    " believable",
-                "    // is DEGRADED whether or not the law thought to ask."]
-        for n, (member, idx, row) in enumerate(watched):
-            ref = member + (f"[{idx}]" if _is_array(p, member) else "")
-            out.append(f"    _watched[{n}] = {ref}.r;")
-        out.append(f"    owner.set_inputs(_watched, {len(watched)});")
-    if p.get("health"):
-        out += ["    owner.set_health_row(health);"]
-    elif not watched:
-        out += ["    (void)owner;"]
-    return out + ["}", ""]
 
 
 def _is_array(p, member):
@@ -674,25 +590,76 @@ def _program_bind(p, rows):
     return out + ["    on_bind();", "}", ""]
 
 
+def _flow(programs, rows):
+    """The map that was `tasks.h`'s header comment: what each program passes to
+    another, and to whom.
+
+    Only the rows a program produces that ANOTHER program reads. The rest -
+    a totalizer, an actuator's position, an alarm - go to the pages and the bus
+    and are not how these laws reach each other. Generated, because a
+    hand-written map of 21 programs is a map that rots.
+    """
+    if not programs:
+        return []
+    produced, read_by = {}, {}
+    for p in programs:
+        for member, sec, row, _i in p["conns"]:
+            if sec in ("out", "inout"):
+                produced.setdefault(row, p["name"])
+            if sec in ("in", "inout"):
+                read_by.setdefault(row, []).append(p["name"])
+
+    out = ["/**",
+           " * @brief How the site's programs reach each other.",
+           " *",
+           " * NEVER directly: no program holds a reference to another, or to an",
+           " * instrument another owns. They meet in the variable table and nowhere",
+           " * else, which is what lets any of them be constructed with",
+           " * (setup_context(), io()) alone. Order below is EXECUTION order, so a",
+           " * law reading a value computed this beat finds it already written.",
+           " */", ""]
+    body, stage = [], None
+    for p in programs:
+        if p["stage"] != stage:
+            stage = p["stage"]
+            body.append(("", "", ""))
+            body.append((f"[{stage}]", "", ""))
+        for member, sec, row, _i in p["conns"]:
+            if sec == "out" and produced.get(row) == p["name"]:
+                readers = [r for r in read_by.get(row, []) if r != p["name"]]
+                if readers:
+                    body.append((p["name"], row, ", ".join(sorted(set(readers)))))
+    if not any(b[1] for b in body):
+        return out
+    w0 = max(len(b[0]) for b in body)
+    w1 = max(len(b[1]) for b in body)
+    lines = ["// The signal flow, from the table: a row one program produces and",
+             "// another reads. Terminal rows - a totalizer, a position, an alarm -",
+             "// are not here; they go to the pages and the bus."]
+    for a, b, c in body:
+        if not b:
+            lines.append("//" + (f" {a}" if a else ""))
+        else:
+            lines.append(f"//   {a.ljust(w0)}  {b.ljust(w1)}  -> {c}")
+    return out + lines + [""]
+
+
 def generate(programs, rows, banner):
-    """programs.gen.h: the site's program list, then the Refs struct and the
-    bind() body of every program."""
-    out = banner + ["#ifndef SITE_PROGRAMS_GEN_H", "#define SITE_PROGRAMS_GEN_H", "",
-                    "#include <cstdint>", "", '#include "libbotanik.h"', ""]
+    """programs.gen.h: what the site's C++ needs to know about its programs.
+
+    The includes, the map of what they pass to each other, and the one list
+    site.h expands three times. Every program carries its own interface as a
+    base class of its own, so nothing here describes one.
+    """
+    out = banner + ["#ifndef SITE_PROGRAMS_GEN_H", "#define SITE_PROGRAMS_GEN_H", ""]
+    out += _flow(programs, rows)
+    out += ["#include <cstdint>", "", '#include "libbotanik.h"', ""]
+    if programs:
+        out += ["// Every program, in table order. A program's own header pulls in the",
+                "// declaration part generated beside it."]
+        out += [f'#include "../programs/{p["stage"]}/{snake(p["class"])}/'
+                f'{snake(p["class"])}.h"' for p in programs]
+        out += [""]
     out += _program_list(programs)
-    # A program that has moved to its own directory carries its interface as a
-    # base class instead, so it gets no struct here. During the migration the
-    # two shapes stand side by side, and `stage` is which one a program is on.
-    old_shape = [p for p in programs if not p["stage"]]
-    out += ["namespace Site { namespace Refs {", "",
-                    "using namespace Botanik;", ""]
-    for p in old_shape:
-        out += _struct(p, rows)
-    out += ["/** @name Binding",
-            " *  Out of line, so the structs above read as the interface.",
-            " *  @{ */", ""]
-    for p in old_shape:
-        out += _bind(p, rows)
-    out += ["/** @} */", "", "}}  // namespace Site::Refs", "",
-            "#endif  // SITE_PROGRAMS_GEN_H"]
+    out += ["#endif  // SITE_PROGRAMS_GEN_H"]
     return "\n".join(out) + "\n"
