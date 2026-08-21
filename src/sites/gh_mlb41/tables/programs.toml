@@ -496,6 +496,7 @@ dry_ok   = "cli_intakeDryOk"
 name  = "irr_modulation"
 class = "IrrigationModulation"
 task  = "SLOW"
+stage = "irrigation"
 health = "prog_irr_modulation"
 desc  = "The irrigation ladder: how thirsty the air has been, as one factor."
 notes = """
@@ -508,6 +509,11 @@ would read as one for days afterwards.
 # The spec's irrigation "regulator": evaporation in, a modulation factor out.
 # It never touches a valve, and it keeps folding while the plant is parked -
 # an outage is not a dry spell.
+# Deliberately slow: an hour's fold over several days, so one dry afternoon
+# cannot call for a watering.
+[program.block]
+dryness = { type = "Utils::ExpMovingAverage", doc = "the dryness tracker" }
+
 [program.in]
 vpd       = "cli_vpd_kPa"
 dry_days  = "irr_dryEwmaDays"
@@ -563,6 +569,7 @@ pressure     = "alarm_water_pressure"
 name  = "irrigation"
 class = "IrrigationCycle"
 task  = "SLOW"
+stage = "irrigation"
 health = "prog_irrigation"
 desc  = "Irrigation: one tray at a time, filled to a dose, steeped, and drained."
 notes = """
@@ -576,6 +583,13 @@ It holds no meter state: what went in and what came back out are both read as
 published TOTALS and differenced across the window that is being judged.
 """
 
+
+# The cycle's ten valves, each failing where its own row declares. Held so a
+# parked cycle leaves the plant where a dead controller would.
+[program.block]
+inlet_v  = { type = "ValveController", include = "blocks/valve_controller.h", count = 2, doc = "two contactors on one manifold" }
+outlet_v = { type = "ValveController", include = "blocks/valve_controller.h", count = 2 }
+tray_v   = { type = "ValveController", include = "blocks/valve_controller.h", count = 8 }
 
 [program.in]
 outside_temp  = "cli_temp_ext"

@@ -70,6 +70,8 @@
  * for the cycle, and docs/design/control-system.md for what each ladder means.
  */
 
+#include "programs/irrigation/irrigation_cycle/irrigation_cycle.h"
+#include "programs/irrigation/irrigation_modulation/irrigation_modulation.h"
 #include "programs/actuators/windows_controller/windows_controller.h"
 #include "programs/actuators/screen_controller/screen_controller.h"
 #include "programs/actuators/fan_controller/fan_controller.h"
@@ -90,6 +92,5 @@
 #include "programs/climate/day_phase_controller/day_phase_controller.h"
 #include "programs/climate/target_temp_controller/target_temp_controller.h"
 #include "programs/climate/destrat_controller/destrat_controller.h"
-#include "tasks_irrigation.h"
 
 #endif // SITE_TASKS_H
