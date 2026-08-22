@@ -18,69 +18,68 @@ static bool _allows(DayPhase phase, bool deploy) {
                      phase == PHASE_COLD_BANK);
 }
 
-void ScreenController::_command(bool deploy) {
-    // A CHANGE starts the traverse; observe() times it. Both ways, because the
-    // fabric is in the fans' way whichever direction it travels.
-    _command_changed = !_seeded || (deploy != _deployed);
-    _deployed = deploy;
-    _seeded   = true;
-    screen.set(deploy);
+Plc::ActuatorConfig ScreenController::_mechanics() const {
+    const uint32_t travel = 1000u * (uint32_t)travel_s.get();
+    const uint32_t tmo    = 1000u * (uint32_t)travel_tmo_s.get();
+    // Capped at the actuator's own SAFE time, which is the datasheet's number
+    // where the travel is the operator's: this traverse is what the fans are
+    // cut for and what a parking supervisor waits on, so a mis-set travel must
+    // not hold both for as long as it says.
+    const uint32_t stroke = (travel < tmo) ? travel : tmo;
+    // No seating run and no reversal dead time: the coil is HELD rather than
+    // driven, so the fabric starts back the moment the command does, and the
+    // stroke is the whole of the traverse.
+    return Plc::ActuatorConfig(stroke, stroke, 0.02f, /* seat_ms */ 0u,
+                               /* min_run_ms */ 250u, /* reverse_ms */ 0u);
 }
 
 void ScreenController::run(ProgramContext& c) {
     if (c.first_scan) {
-        // Where the fabric actually is, nothing here knows. Command it afresh
-        // and let the traverse run, rather than trusting a position from
-        // before control was withdrawn.
-        _seeded = false;
-    }
-    if (inhibit_requested()) {
-        // Safe is DEPLOYED. A greenhouse nobody is controlling loses heat
-        // through the roof all night, and the fabric is what stops it. Free,
-        // too: the coil is de-energised there.
-        _command(true);
-        if (_command_changed || travelling.q()) parking();
-        return;
+        // DEPLOYED, and known to be: this coil is held rather than driven, and
+        // it deploys on the de-energised one - so a controller that was not
+        // driving anything left the fabric out. Presetting says that, where
+        // UNKNOWN would send it on a full datum stroke to learn what the
+        // wiring already guarantees.
+        fabric.preset(1.0f);
     }
 
-    // An unknown cooling demand DEPLOYS it: that is this one's safe state, and
-    // it should never be reached - the interior is measured by three probes at
-    // each of two levels precisely so that it is not.
-    const bool dem_ok = cool_dem.valid();
-    if (!dem_ok) degraded();
+    // Safe is DEPLOYED. A greenhouse nobody is controlling loses heat through
+    // the roof all night, and the fabric is what stops it. Free, too: the coil
+    // is de-energised there.
+    bool deploy = true;
+    if (!inhibit_requested()) {
+        // An unknown cooling demand DEPLOYS it: that is this one's safe state,
+        // and it should never be reached - the interior is measured by three
+        // probes at each of two levels precisely so that it is not.
+        const bool dem_ok = cool_dem.valid();
+        if (!dem_ok) degraded();
 
-    // No dead band on this one, and none is needed: the permission table above
-    // makes every phase ONE-DIRECTIONAL, so a demand sitting on the rung can
-    // move the fabric at most once per phase whatever it does afterwards.
-    const bool cold = !dem_ok || cool_dem.get() <= deploy_dem.get();
-    // The phase gives PERMISSION, the demand asks for the move - and nothing
-    // else does. A phase commanding an actuator is the one thing the design
-    // rules out: a phase sets the target and enables a ladder, and the ladder
-    // decides what moves. A cold night reaches the fabric by driving the
-    // cooling demand under cli_thermalScreenDem like any other cold hour.
-    const DayPhase now = (DayPhase)phase.get();
-    if (_allows(now, cold)) _command(cold);
-    // A command that has just CHANGED is a traverse about to start, and
-    // observe() has not timed it yet: parked is neither.
-    if (_command_changed || travelling.q()) parking();
+        // No dead band on this one, and none is needed: the permission table
+        // above makes every phase ONE-DIRECTIONAL, so a demand sitting on the
+        // rung can move the fabric at most once per phase whatever it does
+        // afterwards.
+        const bool cold = !dem_ok || cool_dem.get() <= deploy_dem.get();
+        // The phase gives PERMISSION, the demand asks for the move - and
+        // nothing else does. Denied, the command STANDS, read back off the row
+        // an operator can force rather than off a copy of it here.
+        const DayPhase now = (DayPhase)phase.get();
+        deploy = _allows(now, cold) ? cold : screen.get();
+    }
+    screen.set(deploy);
+
+    // Travelling, or about to be: observe() starts the stroke, and a command
+    // that disagrees with where the fabric is means one is coming.
+    const bool settled = fabric.known() &&
+                         (deploy == (fabric.position() >= 0.5f));
+    if (fabric.moving() || !settled) parking();
 }
 
 void ScreenController::observe(ProgramContext& c) {
-    // Timed HERE, so a screen parked on the way to its safe position still
-    // reports itself as moving and the fans stay cut.
-    //
-    // The pulse is capped at the actuator's own SAFE time, which is the
-    // datasheet's number where the travel is the operator's: this traverse is
-    // what the fans are cut for and what a parking supervisor waits on, so a
-    // mis-set travel would hold both for as long as it said.
-    const uint32_t travel = 1000u * (uint32_t)travel_s.get();
-    const uint32_t safe   = 1000u * (uint32_t)travel_tmo_s.get();
-
-    // Straight into the pulse: _command_changed is already one scan wide, so
-    // an edge detector in front of it would pass it through unchanged.
-    moving.set(travelling(_command_changed,
-                          (travel < safe) ? travel : safe, c.dt_ms));
-    _command_changed = false;
+    // Stepped HERE, so a screen parked on the way to its safe position still
+    // reports itself as moving and the fans stay cut. The target is the ROW,
+    // which is what this law asked for and what an operator may have forced.
+    fabric.step(screen.get() ? 1.0f : 0.0f, _mechanics(), c.dt_ms);
+    moving.set(fabric.moving());
 }
 
 }  // namespace Site

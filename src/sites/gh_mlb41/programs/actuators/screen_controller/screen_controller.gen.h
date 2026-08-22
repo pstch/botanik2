@@ -48,16 +48,8 @@ private:
     /** @name VAR - function blocks
      *  @{ */
 
-    Plc::Tp travelling;  ///< a pulse of the fabric's travel time
-
-    /** @} */
-
-    /** @name VAR - what this law remembers
-     *  @{ */
-
-    bool _deployed = false;
-    bool _seeded = false;
-    bool _command_changed = false;
+    /** @brief where the fabric is, and whether it is travelling */
+    Plc::Actuator fabric;
 
     /** @} */
 
@@ -75,8 +67,9 @@ protected:
 
 private:
 
-    /** @brief Command the screen, starting a traverse if that is a change. */
-    void _command(bool deploy);
+    /** @brief The traverse, rebuilt each scan from the parameters: a re-
+     *  timed screen has to land on the next stroke, not the next boot. */
+    Plc::ActuatorConfig _mechanics() const;
 };
 
 inline void ScreenController::bind(Vars::Bank& io) {

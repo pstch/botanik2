@@ -8,31 +8,22 @@ rather than gaining it.
 """
 notes  = """
 Two independent causes, either sufficient: the cooling ladder far enough
-negative, or a cold night. No feedback, so travel is TIMED, and the
-destratification fans are cut while the fabric moves through the air they
-blow into.
+negative, or a cold night. No feedback, so travel is TIMED: the fabric block carries the estimate and
+says UNKNOWN until a stroke to an end has datumed it. The destratification
+fans are cut while it moves through the air they blow into.
 """
 hooks  = ["observe"]
 
-[var.deployed]
-type = "bool"
-init = "false"
+[block.fabric]
+type = "Actuator"
+doc  = "where the fabric is, and whether it is travelling"
 
-[var.seeded]
-type = "bool"
-init = "false"
-
-[var.command_changed]
-type = "bool"
-init = "false"
-
-[fn.command]
-type = "void (bool deploy)"
-doc  = "Command the screen, starting a traverse if that is a change."
-
-[block.travelling]
-type = "Tp"
-doc  = "a pulse of the fabric's travel time"
+[fn.mechanics]
+type = "Plc::ActuatorConfig () const"
+doc  = """
+The traverse, rebuilt each scan from the parameters: a re-timed screen has to
+land on the next stroke, not the next boot.
+"""
 
 [in]
 cool_dem     = "cli_coolDem"
