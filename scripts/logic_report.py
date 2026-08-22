@@ -955,9 +955,13 @@ LOGIC = {
    ("out", "cli_dTStrat_degC", "one number, which is all the fans want")],
 
  "climate_watch": [
-   ("do", "roll up the zones", "any zone's quorum alarm is 'we cannot see'"),
-   ("if", "nothing measured", "raise NOTHING here; the quorum alarm already says it"),
-   ("out", "four alarms", "too hot, too cold, too humid, stratified")],
+   ("do", "roll up the four zones", "OR their quorum alarms: a fact about the "
+                                    "plant, not about a zone"),
+   ("out", "alarm_sensor_fault", "so a supervisor need not know there are four"),
+   ("if", "no interior temp or RH", "raise NOTHING: the roll-up above already "
+                                    "says the plant is blind"),
+   ("out", "hot, cold, humid", "the readings against their three limits"),
+   ("out", "stratified", "past the band the fans are already flat out on")],
 
  "day_phase": [
    ("do", "track the extremes", "the day's max and the night's min, since each began"),
