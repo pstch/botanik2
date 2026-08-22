@@ -4,14 +4,24 @@ The reference Botanik **site**: everything specific to one physical greenhouse.
 `libbotanik` stays generic; this directory is the single source of truth for the
 `gh_mlb41` greenhouse.
 
-| File | Origin | Holds |
+| Path | Origin | Holds |
 |---|---|---|
-| `vars.h` | generated | everything declarative: every variable in one table (parameters, alarms, field IO, computed and status values), the analog calibration blocks, the home-screen readings, and the RAM value store + string pool behind them |
+| `tables/*.csv` | **declared** | every variable the site has, one file per row factory |
+| `programs/<stage>/<class>/<class>.toml` | declared | one control program: what it connects to, what it holds, what it declares |
+| `programs/order.toml` | declared | the order the programs run in |
+| `generated/vars.gen.{h,cpp}` | **generated** | the descriptor arrays, the calibration blocks, the enums, the RAM value store |
+| `generated/programs.gen.h` | generated | every program's header, the map of what they pass to each other, and `SITE_PROGRAM_LIST` |
+| `programs/<stage>/<class>/<class>.gen.h` | generated | one program's whole declaration part |
+| `programs/<stage>/<class>/<class>.cpp` | hand-written | one control program's body: the law itself |
+| `blocks/*.{h,cpp}` | hand-written | function blocks of the site's own, nameable from a program's table |
+| `vars.h` | hand-written | what the device map MEANS, and the home-screen captions |
 | `site.h` | hand-written | the shell commands, the `g_site` `SiteDescriptor`, and the `GreenhouseMLB41` binding |
 | `config.h` | hand-written | build-wide config overrides (`#define BOTANIK_*`); separate because it is read with none of the library in scope |
-| `tasks.h` | hand-written | the control programs |
 | `sim.h` | hand-written | the simulated field: it writes the variable tables the way a Modbus driver will. Its whole body is `#ifdef TARGET_SIMULATOR`, so it drops out of the hardware build |
-| `site.h` | hand-written | the thin `GreenhouseMLB41` binding and the uniform `BotanikSite` handle |
+
+A program is one directory: the table that declares it, the header generated
+from that table, and the `.cpp` you write. `docs/generated/gh_mlb41_report.pdf`
+lists all 23 of them with what each is connected to, holds and remembers.
 
 `GreenhouseMLB41` derives `BotanikFirmware` and just
 passes `g_site` to the base constructor - it declares no pages and overrides no hooks.
@@ -44,8 +54,7 @@ precision and - the load-bearing one - a **default**, which does three jobs: an
 input's substitute when a read is invalid, an output's safe state on a fault, and
 a parameter's factory value.
 
-The home-screen readings are the only declarative variable table left, and they
-live in `vars.h` with everything else. Grouping for the MONITOR page and
+The home-screen readings live in `vars.h`. Grouping for the MONITOR page and
 telemetry is derived: a variable's group is the prefix of its name, and whether
 it is published is its scope. Naming a variable files it.
 
