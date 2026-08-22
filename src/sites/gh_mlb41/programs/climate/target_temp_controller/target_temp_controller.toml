@@ -10,6 +10,11 @@ notes  = """
 Its own program because the target is a DECISION, not a property of the
 phase: a bank moves it only when yesterday justified it, and a reader wants
 the number rather than the rule.
+
+The published number is FILTERED, so a phase boundary eases the target over
+minutes instead of stepping it: everything downstream is a proportional or
+staged response to the gap, and a step in the target is a step in all of them
+at once. The clamp stays last, so the guard rails still bite immediately.
 """
 
 [in]
@@ -21,6 +26,11 @@ heat_arm      = "cli_heatBankArm"
 cool_set      = "cli_coolSet_degC"
 cold_bank_ofs = "cli_coldBankOfs_degC"
 heat_bank_ofs = "cli_heatBankOfs_degC"
+tau           = "cli_targetTau_s"
+
+[block.smooth]
+type = "Ewma"
+doc  = "eases a phase boundary over cli_targetTau_s"
 
 [out]
 target = "cli_targetTemp_degC"

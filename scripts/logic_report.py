@@ -972,7 +972,10 @@ LOGIC = {
  "target_temp": [
    ("do", "the base setting", "the phase's own target"),
    ("if", "a bank is in force AND armed", "shift it by that bank's offset"),
-   ("out", "clamp and publish", "held between cli_targetMin and cli_targetMax")],
+   ("do", "ease it", "Ewma over cli_targetTau_s; the first scan ADOPTS instead, "
+                     "so an outage cannot call for heat"),
+   ("out", "clamp, then publish", "the rails last, so one an operator just moved "
+                                  "bites now and not a time constant later")],
 
  "cooling": [
    ("if", "no interior temperature", "HOLD the demand and the window ask; FAULTED"),

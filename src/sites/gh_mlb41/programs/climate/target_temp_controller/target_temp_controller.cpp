@@ -19,9 +19,18 @@ void TargetTempController::run(ProgramContext& c) {
     else if (now == PHASE_HEAT_BANK && heat_arm.get())
         held += heat_bank_ofs.get();
 
-    // The clamp is what keeps an aggressively-set offset from pushing the
-    // greenhouse somewhere dangerous, whatever the phase asked for.
-    target.set(Plc::limit(held, t_min.get(), t_max.get()));
+    // A phase boundary is a STEP, and every consumer of the target answers a
+    // gap proportionally: unfiltered, dawn moves the windows, the fans and the
+    // screen in one beat. Adopted whole on the first scan - easing up from
+    // whatever the filter held before an outage would call for heat the house
+    // does not need.
+    if (c.first_scan) smooth.preset(held);
+    const float eased = smooth(held, (float)tau.get(), c.dt_ms);
+
+    // The clamp is LAST, and what keeps an aggressively-set offset from pushing
+    // the greenhouse somewhere dangerous, whatever the phase asked for: a rail
+    // an operator has just moved has to bite now, not one time constant later.
+    target.set(Plc::limit(eased, t_min.get(), t_max.get()));
 }
 
 }  // namespace Site

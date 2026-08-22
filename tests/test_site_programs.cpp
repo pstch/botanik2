@@ -300,6 +300,10 @@ TEST_CASE("target: a bank phase only shifts the target when yesterday armed it")
     const VarRef heat  = f.ref("cli_heatBankArm");
     const float base = f.bank.var(f.ref("cli_coolSet_degC")).as_f32();
 
+    // The output filter off, so this case is about the ARMING and reads the
+    // number the law computed. Its own case below covers the easing.
+    f.bank.param_set(f.bank.var(f.ref("cli_targetTau_s")), 0.0f);
+
     f.bank.var(phase).set_i((int64_t)Site::PHASE_DAY);
     d.step(100);
     CHECK(f.bank.get(target) == doctest::Approx(base));
@@ -323,6 +327,34 @@ TEST_CASE("target: a bank phase only shifts the target when yesterday armed it")
     const float hofs = f.bank.var(f.ref("cli_heatBankOfs_degC")).as_f32();
     REQUIRE(hofs != ofs);          // else the case proves nothing
     CHECK(f.bank.get(target) == doctest::Approx(base + hofs));
+}
+
+TEST_CASE("target: a phase boundary eases the target instead of stepping it") {
+    Live f;
+    Site::TargetTempController tc(Botanik::SetupContext(f.reg), f.bank);
+    Plc::Program* const progs[] = { &tc };
+    Cycle d(progs, 1, &f.bank, f.reg);
+
+    Vars::RefIn<float> target = f.bank.resolve_in<float>("cli_targetTemp_degC");
+    const float base = f.bank.var(f.ref("cli_coolSet_degC")).as_f32();
+    const float ofs  = f.bank.var(f.ref("cli_coldBankOfs_degC")).as_f32();
+
+    f.bank.var(f.ref("cli_phase")).set_i((int64_t)Site::PHASE_DAY);
+    d.step(100);
+    INFO("the first scan ADOPTS the target: easing up from a stale filter would "
+         "call for heat the house does not need");
+    REQUIRE(f.bank.get(target) == doctest::Approx(base));
+
+    f.bank.var(f.ref("cli_phase")).set_i((int64_t)Site::PHASE_COLD_BANK);
+    f.bank.var(f.ref("cli_coldBankArm")).set(true);
+    d.step(1100);                       // a second into the new phase
+    const float moved = f.bank.get(target);
+    CHECK(moved < base);                                  // it has begun
+    CHECK(moved > base - ofs * 0.05f);                    // ...by a sliver of it
+
+    INFO("and arrives, given several time constants of the default 300 s");
+    for (uint32_t t = 2100; t <= 3000000u; t += 1000) d.step(t);
+    CHECK(f.bank.get(target) == doctest::Approx(base - ofs).epsilon(0.001));
 }
 
 TEST_CASE("target: an aggressive offset is clamped to the safe band") {

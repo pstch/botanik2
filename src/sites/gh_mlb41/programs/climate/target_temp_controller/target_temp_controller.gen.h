@@ -27,14 +27,15 @@ public:
     /** @name VAR_INPUT
      *  @{ */
 
-    Vars::RefIn<float>   t_min;
-    Vars::RefIn<float>   t_max;
-    Vars::RefIn<uint8_t> phase;
-    Vars::RefIn<bool>    cold_arm;
-    Vars::RefIn<bool>    heat_arm;
-    Vars::RefIn<float>   cool_set;
-    Vars::RefIn<float>   cold_bank_ofs;
-    Vars::RefIn<float>   heat_bank_ofs;
+    Vars::RefIn<float>    t_min;
+    Vars::RefIn<float>    t_max;
+    Vars::RefIn<uint8_t>  phase;
+    Vars::RefIn<bool>     cold_arm;
+    Vars::RefIn<bool>     heat_arm;
+    Vars::RefIn<float>    cool_set;
+    Vars::RefIn<float>    cold_bank_ofs;
+    Vars::RefIn<float>    heat_bank_ofs;
+    Vars::RefIn<uint16_t> tau;
 
     /** @} */
 
@@ -46,6 +47,13 @@ public:
     /** @} */
 
 private:
+
+    /** @name VAR - function blocks
+     *  @{ */
+
+    Plc::Ewma smooth;  ///< eases a phase boundary over cli_targetTau_s
+
+    /** @} */
 
     Vars::VarRef _watch_rows[3];  ///< swept for validity before each activation
 
@@ -68,6 +76,7 @@ inline void TargetTempController::bind(Vars::Bank& io) {
     cool_set      = io.resolve_in<float>("cli_coolSet_degC");
     cold_bank_ofs = io.resolve_in<float>("cli_coldBankOfs_degC");
     heat_bank_ofs = io.resolve_in<float>("cli_heatBankOfs_degC");
+    tau           = io.resolve_in<uint16_t>("cli_targetTau_s");
     target        = io.resolve_out<float>("cli_targetTemp_degC");
 
     // What the base sweeps before each activation, so an input that has
