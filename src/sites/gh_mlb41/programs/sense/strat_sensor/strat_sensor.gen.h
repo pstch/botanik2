@@ -41,7 +41,7 @@ public:
 
 private:
 
-    Vars::VarRef _watched[2];  ///< swept for validity before each activation
+    Vars::VarRef _watch_rows[2];  ///< swept for validity before each activation
 
 public:
     StratSensor(const SetupContext& ctx, Vars::Bank& io)
@@ -60,9 +60,9 @@ inline void StratSensor::bind(Vars::Bank& io) {
 
     // What the base sweeps before each activation, so an input that has
     // stopped being believable is DEGRADED without the law asking.
-    _watched[0] = ceiling.r;
-    _watched[1] = floor.r;
-    set_inputs(_watched, 2);
+    _watch_rows[0] = ceiling.r;
+    _watch_rows[1] = floor.r;
+    set_inputs(_watch_rows, 2);
     set_health_row(io.resolve_out<uint8_t>("prog_strat"));
 }
 

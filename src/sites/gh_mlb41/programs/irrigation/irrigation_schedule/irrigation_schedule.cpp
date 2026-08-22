@@ -94,7 +94,9 @@ uint8_t IrrigationSchedule::_next_due(float mod, uint32_t today) {
             best = (uint8_t)(i + 1);
             worst_overdue = overdue;
             // The interval that chose it, published: the summer figure is on
-            // the PARAMS page and this is what the weather made of it.
+            // the PARAMS page and this is what the weather made of it. Written
+            // HERE and not after the loop, because a force_on returns early and
+            // the row would then never be written at all.
             period.set(interval);
         }
     }

@@ -60,7 +60,7 @@ private:
 
     /** @} */
 
-    Vars::VarRef _watched[4];  ///< swept for validity before each activation
+    Vars::VarRef _watch_rows[4];  ///< swept for validity before each activation
 
 public:
     AcGridWatch(const SetupContext& ctx, Vars::Bank& io)
@@ -92,11 +92,11 @@ inline void AcGridWatch::bind(Vars::Bank& io) {
 
     // What the base sweeps before each activation, so an input that has
     // stopped being believable is DEGRADED without the law asking.
-    _watched[0] = volts.r;
-    _watched[1] = amps.r;
-    _watched[2] = watts.r;
-    _watched[3] = hz.r;
-    set_inputs(_watched, 4);
+    _watch_rows[0] = volts.r;
+    _watch_rows[1] = amps.r;
+    _watch_rows[2] = watts.r;
+    _watch_rows[3] = hz.r;
+    set_inputs(_watch_rows, 4);
     set_health_row(io.resolve_out<uint8_t>("prog_ac_grid_watch"));
     on_bind();
 }

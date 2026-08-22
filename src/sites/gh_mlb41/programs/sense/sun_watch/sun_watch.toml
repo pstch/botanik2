@@ -11,9 +11,10 @@ instrument.
 hooks  = ["observe"]
 
 [var.sun]
-type = "Sun::SunPositionTracker* const"
-init = "ctx.sun"
-doc  = """
+type     = "Sun::SunPositionTracker* const"
+init     = "ctx.sun"
+from_ctx = true
+doc      = """
 The instrument, borrowed: the firmware owns it, registers it and binds its geo
 parameters. Null in a build without SUN_TRACKER, which is a build this program
 is not in either.

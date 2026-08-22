@@ -50,8 +50,8 @@ namespace Botanik { namespace Plc {
     /** @brief Dew point in degC: the temperature at which this air saturates
      *  and its vapour begins condensing onto whatever it touches. */
     inline float dew_point(float t_degC, float rh) {
-        return (MAGNUS_B * magnus_gamma(t_degC, rh))
-             / (MAGNUS_A - magnus_gamma(t_degC, rh));
+        const float g = magnus_gamma(t_degC, rh);
+        return (MAGNUS_B * g) / (MAGNUS_A - g);
     }
 
     /** @brief Dew-point margin (depression) in degC: how far the air is from

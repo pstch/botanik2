@@ -84,12 +84,12 @@ def var(name, type="float", init="", doc=""):
     """A [var] or [fn] entry, as load() hands it over: named plainly in the
     table, declared with the underscore the generator adds."""
     return {"name": "_" + name.lstrip("_"), "given": name, "type": type,
-            "count": 0, "init": init, "doc": doc}
+            "count": 0, "init": init, "from_ctx": False, "doc": doc}
 
 
 def prog(name, cls="C", task="SLOW", stage="sense", blocks=(), desc="What it does.",
          vars=(), fns=(), hooks=(), **sections):
-    p = {"name": name, "class": cls, "task": task, "conns": [], "arrays": set(),
+    p = {"name": name, "class": cls, "task": task, "conns": [],
          "stage": stage, "blocks": list(blocks), "desc": desc, "notes": "",
          "vars": list(vars), "fns": list(fns), "hooks": list(hooks), "counts": {},
          "path": "programs/%s/%s/%s.toml" % (stage, _snake(cls), _snake(cls)),
@@ -378,6 +378,43 @@ def program_checks():
     return ok
 
 
+def reserved_checks():
+    """The two reserved lists against the headers they mirror.
+
+    A site's member names land in Plc::Program's own scope, so the lists have to
+    know every name it and Component declare. They are written out rather than
+    derived - a bad regex would break the generator, where a stale list only
+    breaks this. Both were already missing names when the check was written.
+    """
+    import re
+    fns, data = set(), set()
+    for f, cls in (("src/libbotanik/plc/program.h", "class Program"),
+                   ("src/libbotanik/core/component.h", "class Component")):
+        body = open(f).read()
+        body = body[body.index(cls):]
+        for m in re.finditer(r"^\s{8}(?:virtual\s+|static\s+|inline\s+)*"
+                             r"[\w:<>&*\s]+?\b(\w+)\s*\(", body, re.M):
+            fns.add(m.group(1))
+        for m in re.finditer(r"^\s{8}(?:mutable\s+)?[\w:<>*]+\s+(_\w+)\s*"
+                             r"(?:=|;|\[)", body, re.M):
+            data.add(m.group(1))
+    # Words the regex picks up that are not member names.
+    fns -= {"if", "for", "switch", "work", "Component", "Program"}
+    fns = {f for f in fns if not f.startswith("_")}
+
+    ok = True
+    for label, found, have in (("Plc::Program's interface", fns, vars_programs.RESERVED),
+                               ("its internals", data, vars_programs.RESERVED_INTERNAL)):
+        missing = sorted(found - set(have))
+        if missing:
+            print(f"FAIL {label} has names the reserved list does not: "
+                  f"{', '.join(missing)}")
+            ok = False
+        else:
+            print(f"ok   the reserved list covers {label}")
+    return ok
+
+
 def expand_checks():
     """The wildcard: what it matches, in what order, and what it refuses."""
     rows = dict(TABLE)
@@ -448,7 +485,7 @@ def header_checks():
          '#include "../../../blocks/valve_controller.h"'),
         ("an array member carries its length", "static const uint8_t N_Y = 2;"),
         ("a block array too", "static const uint8_t N_V = 3;"),
-        ("the watched rows are handed to the base", "set_inputs(_watched, 1);"),
+        ("the watched rows are handed to the base", "set_inputs(_watch_rows, 1);"),
         ("the health row is resolved into the base", "set_health_row("),
     ]
     ok = True
@@ -615,6 +652,7 @@ def main():
 
     ok &= enum_checks()
     ok &= program_checks()
+    ok &= reserved_checks()
     ok &= expand_checks()
     ok &= header_checks()
 

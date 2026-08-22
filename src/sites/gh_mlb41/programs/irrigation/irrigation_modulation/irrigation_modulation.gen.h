@@ -61,7 +61,7 @@ private:
 
     /** @} */
 
-    Vars::VarRef _watched[1];  ///< swept for validity before each activation
+    Vars::VarRef _watch_rows[1];  ///< swept for validity before each activation
 
 public:
     IrrigationModulation(const SetupContext& ctx, Vars::Bank& io)
@@ -92,8 +92,8 @@ inline void IrrigationModulation::bind(Vars::Bank& io) {
 
     // What the base sweeps before each activation, so an input that has
     // stopped being believable is DEGRADED without the law asking.
-    _watched[0] = vpd.r;
-    set_inputs(_watched, 1);
+    _watch_rows[0] = vpd.r;
+    set_inputs(_watch_rows, 1);
     set_health_row(io.resolve_out<uint8_t>("prog_irr_modulation"));
 }
 

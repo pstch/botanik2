@@ -8,7 +8,7 @@
 namespace Site {
 
 void DestratController::run(ProgramContext& c) {
-    if (c.first_scan) _bands.reset();
+    if (c.first_scan) bands.reset();
 
     // A band chosen from a gap nobody measured is a speed chosen from a
     // DEFAULT, and this row's default is 0 - which reads as "no stratification"
@@ -18,7 +18,7 @@ void DestratController::run(ProgramContext& c) {
         demand.hold();
         // The bands are a claim about where the gap has recently been, and we
         // stopped seeing it.
-        _bands.reset();
+        bands.reset();
         faulted();
         return;
     }
@@ -29,7 +29,7 @@ void DestratController::run(ProgramContext& c) {
     // to have really moved, whichever pair of speeds it is between.
     const float edge[3] = { low.get(), med.get(),
                             high.get() };
-    const uint8_t speed = _bands(strat.get(), edge, hyst.get());
+    const uint8_t speed = bands(strat.get(), edge, hyst.get());
 
     // The demand the arbitration reads is the FANS' OWN rung for that speed.
     // Any other number would have to be translated twice, and the two ladders

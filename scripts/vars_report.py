@@ -470,6 +470,9 @@ def schema_doc():
             "`[var.state]`, not `state = { ... }` - because a type, an initial",
             "value and a sentence of prose do not fit on one line. The",
             "connection sections stay a two-column map: a member is a row.", "",
+            "`from_ctx = true` on a `var` makes its initialiser a constructor",
+            "init rather than a default member initialiser, which is how a",
+            "borrowed pointer takes something the constructor was handed.", "",
             "A `var` or a `fn` is declared under its PLAIN name and generated",
             "with a leading underscore: `[var.state]` becomes `_state`. That is",
             "what tells the law's own state from the interface it is connected",
@@ -838,11 +841,6 @@ def _what_it_drives(p):
     return said[0] if said else "produces nothing"
 
 
-def _block_type(b):
-    """A block's C++ type, spelled as the generated header spells it."""
-    return b["type"] if ("::" in b["type"] or b["include"]) else "Plc::" + b["type"]
-
-
 _KIND = {}
 
 
@@ -876,7 +874,7 @@ def programs_doc(site, rows):
     held = {}
     for p in progs:
         for b in p["blocks"]:
-            e = held.setdefault(_block_type(b), [0, []])
+            e = held.setdefault(vars_programs.block_type(b), [0, []])
             e[0] += b["count"] or 1
             if p["name"] not in e[1]:
                 e[1].append(p["name"])
@@ -890,11 +888,6 @@ def programs_doc(site, rows):
     _KIND.clear()
     _KIND.update({n: k for n, (k, _r) in rows.items()})
 
-    produced = {}
-    for p in progs:
-        for member, sec, row, idx in p["conns"]:
-            if sec in ("out", "inout"):
-                produced.setdefault(row, []).append(p["name"])
 
     # A page each: the per-program table is what an engineer reads at the
     # cabinet, and a binder page per program is the form that gets printed.
@@ -923,9 +916,8 @@ def programs_doc(site, rows):
                 seen[key] = len(body)
                 kind = rows.get(row, ("?", {}))[0]
                 desc = rows.get(row, ("?", {}))[1].get("desc", "")
-                body.append([member, {"in": "VAR_INPUT", "out": "VAR_OUTPUT",
-                                      "inout": "VAR_IN_OUT"}[sec], [row], kind,
-                             re.sub(r"\d+", "n", desc)])
+                body.append([member, vars_programs.SECTION_DOC[sec], [row],
+                             kind, re.sub(r"\d+", "n", desc)])
             else:
                 body[seen[key]][2].append(row)
         for line in body:
@@ -940,7 +932,7 @@ def programs_doc(site, rows):
             out += ["Function blocks it holds:", ""]
             out += md_table(["block", "type", "what for"],
                             [[b["name"] + (f"[{b['count']}]" if b["count"] else ""),
-                              f"`{_block_type(b)}`", b["doc"]]
+                              f"`{vars_programs.block_type(b)}`", b["doc"]]
                              for b in p["blocks"]])
         if p["vars"]:
             out += ["What it remembers between activations:", ""]

@@ -12,17 +12,6 @@ picks one. That band is hysteretic: the inputs are FLOORS, so the winner
 moves as the plant does. A travelling screen cuts them outright.
 """
 
-[var.speed]
-type = "uint8_t"
-init = "0"
-doc  = """
-0 (off) to 3, and the three rungs it is chosen on. Held across scans: the
-hysteresis lives on the rungs.
-"""
-
-[var.steps]
-type = "Plc::Staircase<3>"
-
 [fn.demand]
 type = "float () const"
 doc  = "The three demands, fused."
@@ -34,6 +23,10 @@ doc  = "The speed @p demand asks for, given the one in force."
 [fn.drive]
 type = "void (uint8_t speed)"
 doc  = "Energise exactly one speed relay, or none."
+
+[block.steps]
+type = "Staircase<3>"
+
 
 [in]
 dem_hyst      = "cli_fanDemHyst"

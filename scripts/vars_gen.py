@@ -511,11 +511,6 @@ def gen_library():
     return "\n".join(out) + "\n"
 
 
-def program_dir(site, p):
-    """Where one program's files live: beside the table that declares it."""
-    return os.path.dirname(p["path"])
-
-
 def orphan_dirs(site, progs, err):
     """A program directory that declares nothing, or one nothing declares.
 
@@ -669,9 +664,7 @@ def main():
     stale |= put(os.path.join(ROOT, "src", "libbotanik", "vars", "generated", "vars.gen.h"),
                  gen_library(), a.check)
     for p in progs:
-        if not p["stage"]:
-            continue        # not moved to the per-program shape yet
-        d = program_dir(a.site, p)
+        d = os.path.dirname(p["path"])
         base = vars_programs.snake(p["class"])
         stale |= put(os.path.join(d, base + ".gen.h"),
                      vars_programs.program_header(

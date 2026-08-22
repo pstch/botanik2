@@ -11,8 +11,9 @@ A band change needs the gap to move by the declared hysteresis, so the fans
 do not step between speeds on noise.
 """
 
-[var.bands]
-type = "Plc::Staircase<3>"
+[block.bands]
+type = "Staircase<3>"
+
 
 [in]
 strat    = "cli_dTStrat_degC"

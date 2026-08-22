@@ -92,7 +92,7 @@ private:
 
     /** @} */
 
-    Vars::VarRef _watched[24];  ///< swept for validity before each activation
+    Vars::VarRef _watch_rows[24];  ///< swept for validity before each activation
 
 public:
     TempRHZone(const SetupContext& ctx, Vars::Bank& io)
@@ -153,31 +153,31 @@ inline void TempRHZone::bind(Vars::Bank& io) {
 
     // What the base sweeps before each activation, so an input that has
     // stopped being believable is DEGRADED without the law asking.
-    _watched[0] = t_hi[0].r;
-    _watched[1] = t_hi[1].r;
-    _watched[2] = t_hi[2].r;
-    _watched[3] = h_hi[0].r;
-    _watched[4] = h_hi[1].r;
-    _watched[5] = h_hi[2].r;
-    _watched[6] = t_lo[0].r;
-    _watched[7] = t_lo[1].r;
-    _watched[8] = t_lo[2].r;
-    _watched[9] = h_lo[0].r;
-    _watched[10] = h_lo[1].r;
-    _watched[11] = h_lo[2].r;
-    _watched[12] = t_cs[0].r;
-    _watched[13] = t_cs[1].r;
-    _watched[14] = t_cs[2].r;
-    _watched[15] = h_cs[0].r;
-    _watched[16] = h_cs[1].r;
-    _watched[17] = h_cs[2].r;
-    _watched[18] = t_ext[0].r;
-    _watched[19] = t_ext[1].r;
-    _watched[20] = t_ext[2].r;
-    _watched[21] = h_ext[0].r;
-    _watched[22] = h_ext[1].r;
-    _watched[23] = h_ext[2].r;
-    set_inputs(_watched, 24);
+    _watch_rows[0] = t_hi[0].r;
+    _watch_rows[1] = t_hi[1].r;
+    _watch_rows[2] = t_hi[2].r;
+    _watch_rows[3] = h_hi[0].r;
+    _watch_rows[4] = h_hi[1].r;
+    _watch_rows[5] = h_hi[2].r;
+    _watch_rows[6] = t_lo[0].r;
+    _watch_rows[7] = t_lo[1].r;
+    _watch_rows[8] = t_lo[2].r;
+    _watch_rows[9] = h_lo[0].r;
+    _watch_rows[10] = h_lo[1].r;
+    _watch_rows[11] = h_lo[2].r;
+    _watch_rows[12] = t_cs[0].r;
+    _watch_rows[13] = t_cs[1].r;
+    _watch_rows[14] = t_cs[2].r;
+    _watch_rows[15] = h_cs[0].r;
+    _watch_rows[16] = h_cs[1].r;
+    _watch_rows[17] = h_cs[2].r;
+    _watch_rows[18] = t_ext[0].r;
+    _watch_rows[19] = t_ext[1].r;
+    _watch_rows[20] = t_ext[2].r;
+    _watch_rows[21] = h_ext[0].r;
+    _watch_rows[22] = h_ext[1].r;
+    _watch_rows[23] = h_ext[2].r;
+    set_inputs(_watch_rows, 24);
     set_health_row(io.resolve_out<uint8_t>("prog_temp_rh_zone"));
     on_bind();
 }

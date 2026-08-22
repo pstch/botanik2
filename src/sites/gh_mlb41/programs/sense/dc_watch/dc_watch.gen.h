@@ -88,7 +88,7 @@ private:
 
     /** @} */
 
-    Vars::VarRef _watched[5];  ///< swept for validity before each activation
+    Vars::VarRef _watch_rows[5];  ///< swept for validity before each activation
 
 public:
     DcWatch(const SetupContext& ctx, Vars::Bank& io)
@@ -128,12 +128,12 @@ inline void DcWatch::bind(Vars::Bank& io) {
 
     // What the base sweeps before each activation, so an input that has
     // stopped being believable is DEGRADED without the law asking.
-    _watched[0] = dc1.r;
-    _watched[1] = dc2.r;
-    _watched[2] = ups_bat.r;
-    _watched[3] = gen_bat.r;
-    _watched[4] = low_bat.r;
-    set_inputs(_watched, 5);
+    _watch_rows[0] = dc1.r;
+    _watch_rows[1] = dc2.r;
+    _watch_rows[2] = ups_bat.r;
+    _watch_rows[3] = gen_bat.r;
+    _watch_rows[4] = low_bat.r;
+    set_inputs(_watch_rows, 5);
     set_health_row(io.resolve_out<uint8_t>("prog_dc_watch"));
 }
 

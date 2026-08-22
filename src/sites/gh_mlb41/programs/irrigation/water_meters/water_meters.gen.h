@@ -73,7 +73,7 @@ private:
 
     /** @} */
 
-    Vars::VarRef _watched[2];  ///< swept for validity before each activation
+    Vars::VarRef _watch_rows[2];  ///< swept for validity before each activation
 
 public:
     WaterMeters(const SetupContext& ctx, Vars::Bank& io)
@@ -111,9 +111,9 @@ inline void WaterMeters::bind(Vars::Bank& io) {
 
     // What the base sweeps before each activation, so an input that has
     // stopped being believable is DEGRADED without the law asking.
-    _watched[0] = out_flow.r;
-    _watched[1] = state.r;
-    set_inputs(_watched, 2);
+    _watch_rows[0] = out_flow.r;
+    _watch_rows[1] = state.r;
+    set_inputs(_watch_rows, 2);
     set_health_row(io.resolve_out<uint8_t>("prog_irr_meters"));
 }
 

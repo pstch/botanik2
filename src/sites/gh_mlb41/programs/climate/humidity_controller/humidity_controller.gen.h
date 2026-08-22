@@ -65,7 +65,7 @@ private:
 
     /** @} */
 
-    Vars::VarRef _watched[6];  ///< swept for validity before each activation
+    Vars::VarRef _watch_rows[6];  ///< swept for validity before each activation
 
 public:
     HumidityController(const SetupContext& ctx, Vars::Bank& io)
@@ -106,13 +106,13 @@ inline void HumidityController::bind(Vars::Bank& io) {
 
     // What the base sweeps before each activation, so an input that has
     // stopped being believable is DEGRADED without the law asking.
-    _watched[0] = dp_margin.r;
-    _watched[1] = rot.r;
-    _watched[2] = in_t.r;
-    _watched[3] = in_rh.r;
-    _watched[4] = ext_t.r;
-    _watched[5] = ext_rh.r;
-    set_inputs(_watched, 6);
+    _watch_rows[0] = dp_margin.r;
+    _watch_rows[1] = rot.r;
+    _watch_rows[2] = in_t.r;
+    _watch_rows[3] = in_rh.r;
+    _watch_rows[4] = ext_t.r;
+    _watch_rows[5] = ext_rh.r;
+    set_inputs(_watch_rows, 6);
     set_health_row(io.resolve_out<uint8_t>("prog_humidity"));
 }
 

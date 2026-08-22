@@ -364,6 +364,10 @@ Each of `block`, `var` and `fn` is a section per entry -
 value and a sentence of prose do not fit on one line. The
 connection sections stay a two-column map: a member is a row.
 
+`from_ctx = true` on a `var` makes its initialiser a constructor
+init rather than a default member initialiser, which is how a
+borrowed pointer takes something the constructor was handed.
+
 A `var` or a `fn` is declared under its PLAIN name and generated
 with a leading underscore: `[var.state]` becomes `_state`. That is
 what tells the law's own state from the interface it is connected

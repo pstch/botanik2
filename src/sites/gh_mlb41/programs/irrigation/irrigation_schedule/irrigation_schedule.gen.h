@@ -82,7 +82,7 @@ private:
 
     /** @} */
 
-    Vars::VarRef _watched[6];  ///< swept for validity before each activation
+    Vars::VarRef _watch_rows[6];  ///< swept for validity before each activation
 
 public:
     IrrigationSchedule(const SetupContext& ctx, Vars::Bank& io)
@@ -158,13 +158,13 @@ inline void IrrigationSchedule::bind(Vars::Bank& io) {
 
     // What the base sweeps before each activation, so an input that has
     // stopped being believable is DEGRADED without the law asking.
-    _watched[0] = mod.r;
-    _watched[1] = outside_temp.r;
-    _watched[2] = phase.r;
-    _watched[3] = from_rise.r;
-    _watched[4] = today.r;
-    _watched[5] = served.r;
-    set_inputs(_watched, 6);
+    _watch_rows[0] = mod.r;
+    _watch_rows[1] = outside_temp.r;
+    _watch_rows[2] = phase.r;
+    _watch_rows[3] = from_rise.r;
+    _watch_rows[4] = today.r;
+    _watch_rows[5] = served.r;
+    set_inputs(_watch_rows, 6);
     set_health_row(io.resolve_out<uint8_t>("prog_irr_schedule"));
 }
 

@@ -61,7 +61,7 @@ private:
 
     /** @} */
 
-    Vars::VarRef _watched[2];  ///< swept for validity before each activation
+    Vars::VarRef _watch_rows[2];  ///< swept for validity before each activation
 
 public:
     ScreenController(const SetupContext& ctx, Vars::Bank& io)
@@ -90,9 +90,9 @@ inline void ScreenController::bind(Vars::Bank& io) {
 
     // What the base sweeps before each activation, so an input that has
     // stopped being believable is DEGRADED without the law asking.
-    _watched[0] = cool_dem.r;
-    _watched[1] = phase.r;
-    set_inputs(_watched, 2);
+    _watch_rows[0] = cool_dem.r;
+    _watch_rows[1] = phase.r;
+    set_inputs(_watch_rows, 2);
     set_health_row(io.resolve_out<uint8_t>("prog_screen"));
 }
 

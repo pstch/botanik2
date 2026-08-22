@@ -61,7 +61,7 @@ private:
 
     /** @} */
 
-    Vars::VarRef _watched[6];  ///< swept for validity before each activation
+    Vars::VarRef _watch_rows[6];  ///< swept for validity before each activation
 
 public:
     WeatherWatch(const SetupContext& ctx, Vars::Bank& io)
@@ -87,13 +87,13 @@ inline void WeatherWatch::bind(Vars::Bank& io) {
 
     // What the base sweeps before each activation, so an input that has
     // stopped being believable is DEGRADED without the law asking.
-    _watched[0] = wind.r;
-    _watched[1] = gust.r;
-    _watched[2] = rain.r;
-    _watched[3] = irrad.r;
-    _watched[4] = rain_lock.r;
-    _watched[5] = wind_lock.r;
-    set_inputs(_watched, 6);
+    _watch_rows[0] = wind.r;
+    _watch_rows[1] = gust.r;
+    _watch_rows[2] = rain.r;
+    _watch_rows[3] = irrad.r;
+    _watch_rows[4] = rain_lock.r;
+    _watch_rows[5] = wind_lock.r;
+    set_inputs(_watch_rows, 6);
     set_health_row(io.resolve_out<uint8_t>("prog_weather_watch"));
 }
 

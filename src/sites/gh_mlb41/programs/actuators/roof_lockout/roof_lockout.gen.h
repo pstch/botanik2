@@ -53,7 +53,7 @@ private:
 
     /** @} */
 
-    Vars::VarRef _watched[7];  ///< swept for validity before each activation
+    Vars::VarRef _watch_rows[7];  ///< swept for validity before each activation
 
 public:
     RoofLockout(const SetupContext& ctx, Vars::Bank& io)
@@ -78,14 +78,14 @@ inline void RoofLockout::bind(Vars::Bank& io) {
 
     // What the base sweeps before each activation, so an input that has
     // stopped being believable is DEGRADED without the law asking.
-    _watched[0] = rain_mmph.r;
-    _watched[1] = wind_mps.r;
-    _watched[2] = gust_mps.r;
-    _watched[3] = supply_lock.r;
-    _watched[4] = rain_lock.r;
-    _watched[5] = wind_lock.r;
-    _watched[6] = window_lock.r;
-    set_inputs(_watched, 7);
+    _watch_rows[0] = rain_mmph.r;
+    _watch_rows[1] = wind_mps.r;
+    _watch_rows[2] = gust_mps.r;
+    _watch_rows[3] = supply_lock.r;
+    _watch_rows[4] = rain_lock.r;
+    _watch_rows[5] = wind_lock.r;
+    _watch_rows[6] = window_lock.r;
+    set_inputs(_watch_rows, 7);
     set_health_row(io.resolve_out<uint8_t>("prog_roof_lockout"));
 }
 

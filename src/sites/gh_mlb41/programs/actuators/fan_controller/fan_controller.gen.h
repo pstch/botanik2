@@ -53,13 +53,10 @@ public:
 
 private:
 
-    /** @name VAR - what this law remembers
+    /** @name VAR - function blocks
      *  @{ */
 
-    /** @brief 0 (off) to 3, and the three rungs it is chosen on. Held
-     *  across scans: the hysteresis lives on the rungs. */
-    uint8_t           _speed = 0;
-    Plc::Staircase<3> _steps;
+    Plc::Staircase<3> steps;
 
     /** @} */
 
@@ -72,7 +69,7 @@ private:
 
     /** @} */
 
-    Vars::VarRef _watched[5];  ///< swept for validity before each activation
+    Vars::VarRef _watch_rows[5];  ///< swept for validity before each activation
 
 public:
     FanController(const SetupContext& ctx, Vars::Bank& io)
@@ -115,12 +112,12 @@ inline void FanController::bind(Vars::Bank& io) {
 
     // What the base sweeps before each activation, so an input that has
     // stopped being believable is DEGRADED without the law asking.
-    _watched[0] = strat_dem.r;
-    _watched[1] = cool_dem.r;
-    _watched[2] = irr_state.r;
-    _watched[3] = screen_moving.r;
-    _watched[4] = phase.r;
-    set_inputs(_watched, 5);
+    _watch_rows[0] = strat_dem.r;
+    _watch_rows[1] = cool_dem.r;
+    _watch_rows[2] = irr_state.r;
+    _watch_rows[3] = screen_moving.r;
+    _watch_rows[4] = phase.r;
+    set_inputs(_watch_rows, 5);
     set_health_row(io.resolve_out<uint8_t>("prog_fans"));
 }
 

@@ -120,7 +120,7 @@ private:
 
     /** @} */
 
-    Vars::VarRef _watched[9];  ///< swept for validity before each activation
+    Vars::VarRef _watch_rows[9];  ///< swept for validity before each activation
 
 public:
     IrrigationCycle(const SetupContext& ctx, Vars::Bank& io)
@@ -233,16 +233,16 @@ inline void IrrigationCycle::bind(Vars::Bank& io) {
 
     // What the base sweeps before each activation, so an input that has
     // stopped being believable is DEGRADED without the law asking.
-    _watched[0] = due_tray.r;
-    _watched[1] = mod.r;
-    _watched[2] = in_total.r;
-    _watched[3] = out_total.r;
-    _watched[4] = out_flow.r;
-    _watched[5] = served.r;
-    _watched[6] = today.r;
-    _watched[7] = delivered.r;
-    _watched[8] = drained.r;
-    set_inputs(_watched, 9);
+    _watch_rows[0] = due_tray.r;
+    _watch_rows[1] = mod.r;
+    _watch_rows[2] = in_total.r;
+    _watch_rows[3] = out_total.r;
+    _watch_rows[4] = out_flow.r;
+    _watch_rows[5] = served.r;
+    _watch_rows[6] = today.r;
+    _watch_rows[7] = delivered.r;
+    _watch_rows[8] = drained.r;
+    set_inputs(_watch_rows, 9);
     set_health_row(io.resolve_out<uint8_t>("prog_irrigation"));
     on_bind();
 }

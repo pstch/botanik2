@@ -47,7 +47,7 @@ public:
 
 private:
 
-    Vars::VarRef _watched[3];  ///< swept for validity before each activation
+    Vars::VarRef _watch_rows[3];  ///< swept for validity before each activation
 
 public:
     TargetTempController(const SetupContext& ctx, Vars::Bank& io)
@@ -72,10 +72,10 @@ inline void TargetTempController::bind(Vars::Bank& io) {
 
     // What the base sweeps before each activation, so an input that has
     // stopped being believable is DEGRADED without the law asking.
-    _watched[0] = phase.r;
-    _watched[1] = cold_arm.r;
-    _watched[2] = heat_arm.r;
-    set_inputs(_watched, 3);
+    _watch_rows[0] = phase.r;
+    _watch_rows[1] = cold_arm.r;
+    _watch_rows[2] = heat_arm.r;
+    set_inputs(_watch_rows, 3);
     set_health_row(io.resolve_out<uint8_t>("prog_target_temp"));
 }
 

@@ -50,14 +50,16 @@ void TempRHZone::run(ProgramContext& c) {
     // Between the two interior levels the WORST case is kept, per the spec:
     // the smallest margin decides the condensation risk, and taking an average
     // would hide a level that is already at the dew point.
-    const float m_hi = Plc::dew_point_margin(t_hi, ceiling.humidity());
-    const float m_lo = Plc::dew_point_margin(t_lo, floor.humidity());
+    // One dew point per level: the margin and the VPD are both derived from
+    // it, and computing it three times over cost three logarithms a beat.
+    const float dp_hi = Plc::dew_point(t_hi, ceiling.humidity());
+    const float dp_lo = Plc::dew_point(t_lo, floor.humidity());
+    const float m_hi = t_hi - dp_hi;
+    const float m_lo = t_lo - dp_lo;
     const bool  worst_isceiling = (m_hi <= m_lo);
     const float t_worst  = worst_isceiling ? t_hi : t_lo;
-    const float rh_worst = worst_isceiling ? ceiling.humidity()
-                                            : floor.humidity();
 
-    dew_point.set(Plc::dew_point(t_worst, rh_worst));
+    dew_point.set(worst_isceiling ? dp_hi : dp_lo);
     dp_margin.set(worst_isceiling ? m_hi : m_lo);
     sat_press.set(Plc::sat_vapour_pressure(t_worst));
 
@@ -67,8 +69,8 @@ void TempRHZone::run(ProgramContext& c) {
     // tell the same story in different units, and the units are not linear in
     // each other - the same margin is a much larger VPD when it is warm.
     vpd.set(Plc::min_of(
-        Plc::vapour_pressure_deficit(t_hi, ceiling.humidity()),
-        Plc::vapour_pressure_deficit(t_lo, floor.humidity())));
+        Plc::sat_vapour_pressure(t_hi) - Plc::sat_vapour_pressure(dp_hi),
+        Plc::sat_vapour_pressure(t_lo) - Plc::sat_vapour_pressure(dp_lo)));
 
     const float limit = rot_limit.get();
     rot.set((worst_isceiling ? m_hi : m_lo) < limit);

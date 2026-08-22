@@ -58,7 +58,7 @@ private:
 
     /** @} */
 
-    Vars::VarRef _watched[7];  ///< swept for validity before each activation
+    Vars::VarRef _watch_rows[7];  ///< swept for validity before each activation
 
 public:
     ClimateWatch(const SetupContext& ctx, Vars::Bank& io)
@@ -91,14 +91,14 @@ inline void ClimateWatch::bind(Vars::Bank& io) {
 
     // What the base sweeps before each activation, so an input that has
     // stopped being believable is DEGRADED without the law asking.
-    _watched[0] = temp.r;
-    _watched[1] = rh.r;
-    _watched[2] = strat.r;
-    _watched[3] = sns[0].r;
-    _watched[4] = sns[1].r;
-    _watched[5] = sns[2].r;
-    _watched[6] = sns[3].r;
-    set_inputs(_watched, 7);
+    _watch_rows[0] = temp.r;
+    _watch_rows[1] = rh.r;
+    _watch_rows[2] = strat.r;
+    _watch_rows[3] = sns[0].r;
+    _watch_rows[4] = sns[1].r;
+    _watch_rows[5] = sns[2].r;
+    _watch_rows[6] = sns[3].r;
+    set_inputs(_watch_rows, 7);
     set_health_row(io.resolve_out<uint8_t>("prog_climate_watch"));
 }
 

@@ -42,8 +42,9 @@ PLC_BLOCKS = {
 RESERVED_INTERNAL = frozenset((
     "_io", "_group", "_slot", "_late_ms", "_late_max_ms", "_health",
     "_health_row", "_health_said", "_safe_asked", "_disable_asked",
-    "_travelling", "_watched", "_watched_count", "_tasks", "_logger", "_name",
-    "_started",
+    "_travelling", "_watched", "_watched_count", "_watch_rows", "_tasks",
+    "_logger", "_name", "_started",
+    "_activate", "_run_task", "_watch_inputs", "_worsen",
 ))
 
 RESERVED = frozenset((
@@ -52,6 +53,11 @@ RESERVED = frozenset((
     "set_health_row", "set_inputs", "set_safe", "is_parked", "register_tasks",
     "late_ms", "late_max_ms", "safe_requested", "disable_requested",
     "inhibit_requested", "request_safe", "request_disable",
+    "watched", "watched_count", "publish_health",
+    # ...and Component's, which Program derives.
+    "setup", "started", "step", "announce", "announce_task", "healthy",
+    "on_setup", "on_input", "on_config", "on_service", "on_control",
+    "on_output", "on_present",
 ))
 
 
@@ -86,7 +92,7 @@ def load(site_dir):
 
 def _where(p):
     """A program's file, as the message names it."""
-    return os.path.relpath(p.get("path") or p["name"], os.getcwd())
+    return os.path.relpath(p["path"], os.getcwd())
 
 
 def order(site_dir):
@@ -126,10 +132,7 @@ def _program(p, stage, path):
             "desc": " ".join(p.get("desc", "").split()),
             "desc_paras": "\n\n" in p.get("desc", "").strip(),
             "notes": p.get("notes", ""),
-            "conns": conns, "counts": counts,
-            "arrays": {m for sec in SECTIONS
-                       for m, v in (p.get(sec) or {}).items()
-                       if isinstance(v, list)}}
+            "conns": conns, "counts": counts}
 
 
 def _decls(section):
@@ -146,7 +149,11 @@ def _decls(section):
         # "internal, not an interface" is added here, once.
         out.append({"name": "_" + name, "given": name, "type": spec.get("type", ""),
                     "count": int(spec.get("count", 0) or 0),
-                    "init": spec.get("init", ""), "doc": spec.get("doc", "")})
+                    "init": spec.get("init", ""),
+                    # An initialiser naming the constructor's own argument has
+                    # to be a ctor-init entry, not an NSDMI.
+                    "from_ctx": bool(spec.get("from_ctx", False)),
+                    "doc": spec.get("doc", "")})
     return out
 
 
@@ -182,9 +189,11 @@ def expand(programs, rows, err):
     """
     for p in programs:
         conns = []
+        listed = {}
         for member, sec, row, idx in p["conns"]:
             if "*" not in row:
                 conns.append((member, sec, row, idx))
+                listed[(sec, member)] = listed.get((sec, member), 0) + 1
                 continue
             where = f"{_where(p)}: {sec} '{member}'"
             head, _star, tail = row.partition("*")
@@ -206,9 +215,13 @@ def expand(programs, rows, err):
             if want is not None and want != len(hits):
                 err(f"{where}: '{row}' matches {len(hits)} rows, not the {want} "
                     f"it declares")
-            p["arrays"].add(member)
             for i, (_h, name) in enumerate(hits):
                 conns.append((member, sec, name, i))
+        for key, n in listed.items():
+            want = p["counts"].get(key)
+            if want is not None and want != n:
+                err(f"{_where(p)}: {key[0]} '{key[1]}' lists {n} rows, not the "
+                    f"{want} it declares")
         p["conns"] = conns
 
 
@@ -322,14 +335,15 @@ def check(programs, rows, err, mentioned=(), cal_params=(), library=(),
             if not b["type"]:
                 err(f"{where}: block '{b['name']}' names no type")
             elif not b["include"] and "::" not in b["type"]:
-                if b["type"] not in PLC_BLOCKS:
+                base = b["type"].split("<")[0]
+                if base not in PLC_BLOCKS:
                     err(f"{where}: block '{b['name']}' is a {b['type']}, which is "
                         f"not one of the library's blocks - qualify it, or give "
                         f"a block of the site's own its `include`")
                 elif features and not features.get(
-                        "BOTANIK_FEATURE_" + PLC_BLOCKS[b["type"]], True):
+                        "BOTANIK_FEATURE_" + PLC_BLOCKS[base], True):
                     err(f"{where}: block '{b['name']}' is a {b['type']}, and this "
-                        f"site builds with {PLC_BLOCKS[b['type']]} off")
+                        f"site builds with {PLC_BLOCKS[base]} off")
 
         members = {}
         for member, sec, row, idx in p["conns"]:
@@ -548,13 +562,23 @@ def snake(cls):
     return re.sub(r"([a-z0-9])([A-Z])", r"\1_\2", out).lower()
 
 
+def _doc_block(text, indent="    "):
+    """A doc comment above a member, wrapped. The trailing form (`///<`) is the
+    caller's business; this is the one that does not fit on the line."""
+    out = textwrap.wrap(" ".join(text.split()), DECL_COLS - 3,
+                        initial_indent=indent + "/** @brief ",
+                        subsequent_indent=indent + " *  ")
+    out[-1] += " */"
+    return out
+
+
 def _brief(desc):
     """@brief, wrapped. The table's one line, as the doc block's first."""
     lines = textwrap.wrap(desc, 71)
     return [" * @brief " + lines[0]] + [" *        " + x for x in lines[1:]]
 
 
-def _block_type(b):
+def block_type(b):
     """A block's C++ type.
 
     A bare name is one of the library's function blocks and is reached through
@@ -601,11 +625,7 @@ def _decl_group(title, decls, doc=()):
     for (t, n, _d), (_t, _n, note) in zip(decls, short):
         long_ = " ".join(_d.split()) if _d and not note else ""
         if long_:
-            wrapped = textwrap.wrap(long_, DECL_COLS - 3,
-                                    initial_indent="    /** @brief ",
-                                    subsequent_indent="     *  ")
-            wrapped[-1] += " */"
-            out += wrapped
+            out += _doc_block(long_)
         line = f"    {t.ljust(width)} {(n + ';').ljust(named)}"
         out.append((line + f"  ///< {note}") if note else line.rstrip())
     return out + ["", "    /** @} */"]
@@ -655,7 +675,7 @@ def program_header(p, rows, banner):
     if p["blocks"] or p["vars"] or _sizes(p, rows) or watched:
         out += ["private:", ""]
     out += _decl_group("VAR - function blocks",
-                       [(_block_type(b),
+                       [(block_type(b),
                          b["name"] + (f"[{b['count']}]" if b["count"] > 1 else ""),
                          b["doc"]) for b in p["blocks"]])
     if p["blocks"]:
@@ -663,8 +683,8 @@ def program_header(p, rows, banner):
     out += _decl_group("VAR - what this law remembers",
                        [(v["type"],
                          v["name"] + (f"[{v['count']}]" if v["count"] else "")
-                         + (f" = {v['init']}" if v["init"]
-                            and "ctx." not in v["init"] else ""),
+                         + (f" = {v['init']}" if v["init"] and not v["from_ctx"]
+                            else ""),
                          v["doc"]) for v in p["vars"]])
     if p["vars"]:
         out += [""]
@@ -678,10 +698,10 @@ def program_header(p, rows, banner):
         out += ["", "    /** @} */", ""]
 
     if watched:
-        out += [f"    Vars::VarRef _watched[{len(watched)}];  ///< swept for"
+        out += [f"    Vars::VarRef _watch_rows[{len(watched)}];  ///< swept for"
                 f" validity before each activation", ""]
 
-    ctx_init = [v for v in p["vars"] if "ctx." in (v["init"] or "")]
+    ctx_init = [v for v in p["vars"] if v["from_ctx"]]
     init = "".join(f", {v['name']}({v['init']})" for v in ctx_init)
     out += ["public:",
             f"    {cls}(const SetupContext& ctx, Vars::Bank& io)",
@@ -705,11 +725,7 @@ def program_header(p, rows, banner):
         for f in p["fns"]:
             ret, rest = f["type"].split("(", 1)
             if f["doc"]:
-                wrapped = textwrap.wrap(" ".join(f["doc"].split()), DECL_COLS - 3,
-                                        initial_indent="    /** @brief ",
-                                        subsequent_indent="     *  ")
-                wrapped[-1] += " */"
-                out += wrapped
+                out += _doc_block(f["doc"])
             out += [f"    {ret.strip().ljust(width)} {f['name']}({rest.strip()};"]
         out += [""]
     out = out[:-1] if out[-1] == "" else out
@@ -743,8 +759,8 @@ def _program_bind(p, rows):
                     " asking."]
         for n, (member, idx, _row) in enumerate(watched):
             ref = member + (f"[{idx}]" if _is_array(p, member) else "")
-            out.append(f"    _watched[{n}] = {ref}.r;")
-        out.append(f"    set_inputs(_watched, {len(watched)});")
+            out.append(f"    _watch_rows[{n}] = {ref}.r;")
+        out.append(f"    set_inputs(_watch_rows, {len(watched)});")
     if p.get("health"):
         out += ["    set_health_row("
                 f'io.resolve_out<uint8_t>("{p["health"]}"));']

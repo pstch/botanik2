@@ -48,6 +48,15 @@ public:
 
 private:
 
+    /** @name VAR - what this law remembers
+     *  @{ */
+
+    /** @brief Where these go when this law is not acting, off the row's own
+     *  declared safe value. NOT stopped: some air is always wanted. */
+    float _safe_speed = 0.0f;
+
+    /** @} */
+
     /** @name Sizes - what a body loops over
      *  @{ */
 
@@ -55,7 +64,7 @@ private:
 
     /** @} */
 
-    Vars::VarRef _watched[6];  ///< swept for validity before each activation
+    Vars::VarRef _watch_rows[6];  ///< swept for validity before each activation
 
 public:
     IntractorController(const SetupContext& ctx, Vars::Bank& io)
@@ -65,12 +74,7 @@ protected:
     /** @brief Resolve every name. An output is CLAIMED here. */
     void bind(Vars::Bank& io) override;
     void run(ProgramContext& c) override;
-
-private:
-
-    /** @brief Where these go when this law is not acting, off the row's own
-     *  declared safe value. NOT stopped: some air is always wanted. */
-    float _safe_speed() const;
+    void on_bind();  ///< wire a block to a row it was handed
 };
 
 inline void IntractorController::bind(Vars::Bank& io) {
@@ -88,14 +92,15 @@ inline void IntractorController::bind(Vars::Bank& io) {
 
     // What the base sweeps before each activation, so an input that has
     // stopped being believable is DEGRADED without the law asking.
-    _watched[0] = cool_dem.r;
-    _watched[1] = rot_vent.r;
-    _watched[2] = humid_dem.r;
-    _watched[3] = cool_ok.r;
-    _watched[4] = ground_ok.r;
-    _watched[5] = dry_ok.r;
-    set_inputs(_watched, 6);
+    _watch_rows[0] = cool_dem.r;
+    _watch_rows[1] = rot_vent.r;
+    _watch_rows[2] = humid_dem.r;
+    _watch_rows[3] = cool_ok.r;
+    _watch_rows[4] = ground_ok.r;
+    _watch_rows[5] = dry_ok.r;
+    set_inputs(_watch_rows, 6);
     set_health_row(io.resolve_out<uint8_t>("prog_intractors"));
+    on_bind();
 }
 
 }  // namespace Site

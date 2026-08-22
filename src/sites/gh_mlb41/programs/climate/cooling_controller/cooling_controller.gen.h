@@ -66,7 +66,7 @@ private:
 
     /** @} */
 
-    Vars::VarRef _watched[5];  ///< swept for validity before each activation
+    Vars::VarRef _watch_rows[5];  ///< swept for validity before each activation
 
 public:
     CoolingController(const SetupContext& ctx, Vars::Bank& io)
@@ -107,12 +107,12 @@ inline void CoolingController::bind(Vars::Bank& io) {
 
     // What the base sweeps before each activation, so an input that has
     // stopped being believable is DEGRADED without the law asking.
-    _watched[0] = inside.r;
-    _watched[1] = ceiling.r;
-    _watched[2] = floor.r;
-    _watched[3] = target.r;
-    _watched[4] = intake.r;
-    set_inputs(_watched, 5);
+    _watch_rows[0] = inside.r;
+    _watch_rows[1] = ceiling.r;
+    _watch_rows[2] = floor.r;
+    _watch_rows[3] = target.r;
+    _watch_rows[4] = intake.r;
+    set_inputs(_watch_rows, 5);
     set_health_row(io.resolve_out<uint8_t>("prog_cooling"));
 }
 

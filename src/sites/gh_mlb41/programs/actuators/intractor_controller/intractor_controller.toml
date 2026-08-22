@@ -2,6 +2,7 @@ name   = "intractors"
 class  = "IntractorController"
 task   = "SLOW"
 health = "prog_intractors"
+hooks  = ["on_bind"]
 desc   = """
 The two intractors: variable-speed fans drawing air from under the floor,
 driven by whichever of three demands wants the most.
@@ -12,8 +13,9 @@ so each input is a floor rather than a share. The ramp spans the two staging
 thresholds, so the windows and the intractors hand over rather than overlap.
 """
 
-[fn.safe_speed]
-type = "float () const"
+[var.safe_speed]
+type = "float"
+init = "0.0f"
 doc  = """
 Where these go when this law is not acting, off the row's own declared safe
 value. NOT stopped: some air is always wanted.

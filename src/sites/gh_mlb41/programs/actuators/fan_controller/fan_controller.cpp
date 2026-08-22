@@ -38,7 +38,7 @@ uint8_t FanController::_band(float demand) {
     // the relays. The block is the same one the destratification ladder uses.
     const float step[3] = { low_dem.get(), med_dem.get(),
                             high_dem.get() };
-    return _steps(demand, step, dem_hyst.get());
+    return steps(demand, step, dem_hyst.get());
 }
 
 void FanController::_drive(uint8_t speed) {
@@ -53,10 +53,9 @@ void FanController::_drive(uint8_t speed) {
 void FanController::run(ProgramContext& c) {
     // MECHANICAL, so it is resolved before any demand and before the safe
     // state: the fabric is travelling through the air these blow into.
-    if (c.first_scan) _steps.reset();
+    if (c.first_scan) steps.reset();
     if (screen_moving.get()) {
-        _speed = 0;
-        _steps.reset();
+        steps.reset();
         _drive(0);
         return;
     }
@@ -64,15 +63,13 @@ void FanController::run(ProgramContext& c) {
         // Speed 1, not off, and the table's safe column says the same: still
         // air is itself a rot risk, so the fans are one of the few things that
         // keep working once everything else has stopped.
-        _speed = 1;
-        _steps.preset(1);
+        steps.preset(1);
         _drive(1);
         return;
     }
     if (!strat_dem.valid() ||
         !cool_dem.valid()) degraded();
-    _speed = _band(_demand());
-    _drive(_speed);
+    _drive(_band(_demand()));
 }
 
 }  // namespace Site
