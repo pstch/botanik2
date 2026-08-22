@@ -307,8 +307,9 @@ def program_diagram(p, rows):
     y0 = 26
 
     prims.append(text(cx[0], 16, "VAR_INPUT", 7, bold=True))
-    prims.append(text(cx[1] + colw / 2.0, 16, "what it holds", 7, "middle",
-                      bold=True))
+    if held or kept:
+        prims.append(text(cx[1] + colw / 2.0, 16, "what it holds", 7, "middle",
+                          bold=True))
     shared = any(sec == "inout" for _m, sec, _n in outs)
     prims.append(text(cx[2] + colw, 16,
                       "VAR_OUTPUT / VAR_IN_OUT" if shared else "VAR_OUTPUT",
@@ -331,18 +332,23 @@ def program_diagram(p, rows):
     mid_h = max(1, len(held) + len(kept)) * (ROW_H + GAP)
     body_h = max(len(ins), len(outs)) * (ROW_H + GAP)
     my = y0 + max(0, (body_h - mid_h) / 2.0)
-    prims.append(rect(cx[1] - 6, y0 - 6, colw + 12,
-                      max(mid_h + 12, body_h), "", PLAIN, dashed=True))
+    if held or kept:
+        prims.append(rect(cx[1] - 6, y0 - 6, colw + 12,
+                          max(mid_h + 12, body_h), "", PLAIN, dashed=True))
     for i, (name, typ) in enumerate(held + kept):
         y = my + i * (ROW_H + GAP)
         prims.append(rect(cx[1], y, colw, ROW_H, name,
                           BLK_C if i < len(held) else VAR_C, sub=typ))
 
     span = max(body_h, mid_h) + y0
-    prims.append(line([(cx[0] + colw + 4, span / 2.0),
-                       (cx[1] - 10, span / 2.0)], arrow=True))
-    prims.append(line([(cx[1] + colw + 10, span / 2.0),
-                       (cx[2] - 4, span / 2.0)], arrow=True))
+    if held or kept:
+        prims.append(line([(cx[0] + colw + 4, span / 2.0),
+                           (cx[1] - 10, span / 2.0)], arrow=True))
+        prims.append(line([(cx[1] + colw + 10, span / 2.0),
+                           (cx[2] - 4, span / 2.0)], arrow=True))
+    else:
+        prims.append(line([(cx[0] + colw + 4, span / 2.0),
+                           (cx[2] - 4, span / 2.0)], arrow=True))
 
     # What the fills mean, on the page that uses them, and only those it does.
     ly, lx = span + 12, 8
@@ -375,52 +381,85 @@ def _row_label(names):
 
 
 def flow_diagram(spec):
-    """Signal flow: columns of boxes, wired left to right."""
-    cols = spec["cols"]
-    colw, gapx, y0 = 130, 46, 30
-    tall = max(len(c) for c in cols)
-    h = y0 + tall * (ROW_H + 12) + 12
+    """Signal flow, TOP DOWN: one band per stage, wired downward.
+
+    Portrait pages are tall and narrow, so stages go down the page. Left to
+    right ran out of width at four columns and scaled the text to nothing.
+    """
+    stages = spec["cols"]
+    bw, bh, gapx, gapy, top = 150, 26, 14, 30, 26
+    width = max(len(st) for st in stages) * (bw + gapx) - gapx
     prims, pos = [], {}
-    for ci, col in enumerate(cols):
-        x = 12 + ci * (colw + gapx)
-        top = y0 + (tall - len(col)) * (ROW_H + 12) / 2.0
-        for ri, (name, sub, fill) in enumerate(col):
-            y = top + ri * (ROW_H + 12)
-            prims.append(rect(x, y, colw, ROW_H, name, fill, sub=sub))
-            pos[name] = (x, y, colw, ROW_H)
+    y = top
+    for st in stages:
+        x0 = (width - (len(st) * (bw + gapx) - gapx)) / 2.0 + 8
+        for i, (name, sub, fill) in enumerate(st):
+            x = x0 + i * (bw + gapx)
+            prims.append(rect(x, y, bw, bh, name, fill, sub=sub))
+            pos[name] = (x + bw / 2.0, y, bw, bh)
+        y += bh + gapy
+
     for a, b, label in spec.get("wires", []):
         if a not in pos or b not in pos:
             continue
-        ax, ay, aw, ah = pos[a]
-        bx, by, bw, bh = pos[b]
-        prims.append(line([(ax + aw + 2, ay + ah / 2.0),
-                           (bx - 2, by + bh / 2.0)], arrow=True, label=label))
-    return prims, 12 + len(cols) * (colw + gapx), int(h + 4)
+        ax, ay, _aw, ah = pos[a]
+        bx, by, _bw, _bh = pos[b]
+        if abs(ax - bx) < 1.0:
+            pts = [(ax, ay + ah), (bx, by - 2)]
+        else:                       # an elbow, so nothing crosses a box
+            mid = ay + ah + (by - ay - ah) / 2.0
+            pts = [(ax, ay + ah), (ax, mid), (bx, mid), (bx, by - 2)]
+        prims.append(line(pts, arrow=True, label=label))
+    return prims, int(width + 16), int(y - gapy + bh + 6)
 
 
 def states_diagram(spec):
-    """A state machine: the states around a ring, the transitions labelled."""
+    """A state machine: the states around a ring, the transitions labelled.
+
+    A pair with an edge each way is BOWED apart - drawn straight, the two lie on
+    top of each other and so do their labels.
+    """
     import math
     nodes = spec["states"]
-    r, cx, cy, bw, bh = 96, 250, 124, 96, 26
+    n = len(nodes)
+    bw, bh = 104, 26
+    rx, ry = (150, 96) if n > 2 else (0, 54)
+    cx, cy = 250, 30 + ry + bh / 2.0
     prims, pos = [], {}
     for i, (name, sub) in enumerate(nodes):
-        a = -math.pi / 2.0 + i * 2.0 * math.pi / len(nodes)
-        x = cx + r * 1.55 * math.cos(a) - bw / 2.0
-        y = cy + r * math.sin(a) - bh / 2.0
+        a = -math.pi / 2.0 + i * 2.0 * math.pi / n
+        x = cx + rx * math.cos(a) - bw / 2.0
+        y = cy + ry * math.sin(a) - bh / 2.0
         prims.append(rect(x, y, bw, bh, name, spec.get("fill", BLK_C), sub=sub))
         pos[name] = (x + bw / 2.0, y + bh / 2.0)
+
+    pairs = {(a, b) for a, b, _l in spec["edges"]}
     for a, b, label in spec["edges"]:
         if a not in pos or b not in pos:
             continue
         (x0, y0), (x1, y1) = pos[a], pos[b]
         dx, dy = x1 - x0, y1 - y0
-        d = max(1.0, (dx * dx + dy * dy) ** 0.5)
-        k = bw / 2.2
-        prims.append(line([(x0 + dx / d * k, y0 + dy / d * k),
-                           (x1 - dx / d * k, y1 - dy / d * k)],
-                          arrow=True, label=label))
-    return prims, 500, int(cy + r + bh + 6)
+        d = max(1.0, math.hypot(dx, dy))
+        ux, uy = dx / d, dy / d
+        # Trim to the box EDGE, not to a circle around it: a circle sized for a
+        # side-by-side pair leaves a stacked pair floating.
+        k = min(abs((bw / 2.0 + 4) / ux) if abs(ux) > 1e-3 else 1e9,
+                abs((bh / 2.0 + 4) / uy) if abs(uy) > 1e-3 else 1e9)
+        sx, sy = x0 + ux * k, y0 + uy * k
+        ex, ey = x1 - ux * k, y1 - uy * k
+        if (b, a) in pairs:                      # bow the two apart
+            px, py = -uy * 30, ux * 30
+            mx, my = (sx + ex) / 2.0 + px, (sy + ey) / 2.0 + py
+            prims.append(line([(sx, sy), (mx, my), (ex, ey)], arrow=True))
+            prims.append(text(mx + px * 0.5, my + py * 0.5 + 2, label, 6.2,
+                              "middle", MUTED))
+        else:
+            prims.append(line([(sx, sy), (ex, ey)], arrow=True))
+            # Beside the line, not on it.
+            prims.append(text((sx + ex) / 2.0 - uy * 8,
+                              (sy + ey) / 2.0 + ux * 8 - 3, label, 6.2,
+                              "middle", MUTED))
+    return prims, 500, int(cy + ry + bh)
 
 
 def curve_diagram(spec):
@@ -459,6 +498,36 @@ def timing_diagram(spec):
                           dashed=True))
         prims.append(text(x0 + px * w, y + 8, label, 6.4, "middle"))
     return prims, x0 + w + 20, int(y + 22)
+
+
+def steps_diagram(steps):
+    """What the law DOES, as a spine: one box per step, guards marked.
+
+    Simplified on purpose - the .cpp is the law, and a diagram that tried to be
+    it would be the law written twice. This is the shape of it.
+    """
+    bw, bh, gap, x = 300, 30, 16, 96
+    prims, at = [], {}
+    y = 22
+    for i, step in enumerate(steps):
+        kind, title, detail = step[0], step[1], step[2]
+        fill = {"if": PARAM_C, "out": FIELD_OUT, "do": PLAIN}.get(kind, PLAIN)
+        prims.append(rect(x, y, bw, bh, title, fill, sub=detail))
+        at[title] = y
+        if kind == "if":
+            prims.append(text(x + bw + 8, y + bh / 2.0 + 2, "guard", 6.2,
+                              color=MUTED))
+        y += bh
+        if len(step) > 3:                       # a cycle, not a fall-through
+            ty = at[step[3]]
+            prims.append(line([(x, y - bh / 2.0), (x - 26, y - bh / 2.0),
+                               (x - 26, ty + bh / 2.0), (x - 2, ty + bh / 2.0)],
+                              arrow=True))
+        if i < len(steps) - 1:
+            prims.append(line([(x + bw / 2.0, y), (x + bw / 2.0, y + gap)],
+                              arrow=True))
+        y += gap
+    return prims, bw + x + 60, int(y - gap + 6)
 
 
 LAYOUT = {"flow": flow_diagram, "states": states_diagram,
@@ -524,8 +593,8 @@ BLOCKS = [
  ("Sr / Rs", "logic.h", "IEC SR / RS, the two latches", {
    "kind": "states",
    "states": [("q = false", "at rest"), ("q = true", "latched")],
-   "edges": [("q = false", "q = true", "Sr: set    Rs: set && !reset"),
-             ("q = true", "q = false", "Sr: reset && !set    Rs: reset")],
+   "edges": [("q = false", "q = true", "set"),
+             ("q = true", "q = false", "reset")],
    "notes": ["Sr is SET-dominant: q = set || (q && !reset). Both true, and it "
              "latches.",
              "Rs is RESET-dominant: q = !reset && (set || q). Both true, and it "
@@ -677,6 +746,7 @@ BLOCKS += [
               ("OPEN", "off the seat"), ("CLOSING", "close coil"),
               ("CLOSED", "on the seat")],
    "edges": [("UNKNOWN", "OPENING", "target high"),
+             ("UNKNOWN", "CLOSING", "target low"),
              ("OPENING", "OPEN", "stroke ends"),
              ("OPEN", "CLOSING", "target below"),
              ("CLOSING", "CLOSED", "reaches the seat"),
@@ -755,6 +825,154 @@ BLOCKS += [
              "Only VALID probes take part. With none left the zone's rows go "
              "INVALID rather than publishing a number nothing measured."]}),
 ]
+
+
+# The law each program runs, in the fewest steps that are still true. Authored
+# from the .cpp, because control flow is the one thing no table declares.
+# ("if", ...) is a guard that ends or diverts the scan.
+
+LOGIC = {
+ "ac_grid_watch": [
+   ("if", "first scan", "reset the supply's four deadbands"),
+   ("do", "supply.step()", "mirror V, A, W, Hz through their deadbands"),
+   ("if", "meter silent", "report DEGRADED; it answered before, so it is a fault"),
+   ("out", "publish", "the four status rows, ok, and alarm_ac_grid")],
+
+ "ac_local_watch": [
+   ("do", "the grid's law, other rows", "same AcSupply, wider frequency bands"),
+   ("if", "grid gone and local dead", "cranking Ton runs; only the WAIT is a failure"),
+   ("out", "publish", "the four status rows, ok, alarm_ac_local, alarm_gen")],
+
+ "dc_watch": [
+   ("if", "first scan", "reset every mean, band and the contact debounce"),
+   ("do", "four rails", "each: Ewma over its own tau, then a deadband to the row"),
+   ("if", "rail under its floor", "or silent after answering - raise that rail's fault"),
+   ("do", "low_for(low_bat)", "THE UPS CONTACT, debounced 2 s - not a voltage"),
+   ("out", "lockout + hold_safe", "the plant-wide safe request, pushed on the EDGE")],
+
+ "sun_watch": [
+   ("if", "tracker not ready", "no location or no clock yet: HOLD the three rows"),
+   ("do", "read the instrument", "the firmware owns it; this turns it into rows"),
+   ("out", "publish", "minutes from sunrise and sunset, elevation in degrees")],
+
+ "temp_rh_zone": [
+   ("do", "four zones", "three probes each: drop the outlier, average the two"),
+   ("do", "filter", "Ewma per zone against dt, tau from a parameter"),
+   ("do", "interior", "the HOTTER level is the house: the spec's worst case"),
+   ("do", "psychrometrics", "one dew point per level; margin and VPD derived"),
+   ("out", "publish", "the conditioned rows, the quorum alarms, alarm_rot")],
+
+ "strat": [
+   ("if", "either level unmeasured", "HOLD the last gap and report FAULTED"),
+   ("do", "difference", "ABSOLUTE: an inverted profile is as much a case for the fans"),
+   ("out", "cli_dTStrat_degC", "one number, which is all the fans want")],
+
+ "climate_watch": [
+   ("do", "roll up the zones", "any zone's quorum alarm is 'we cannot see'"),
+   ("if", "nothing measured", "raise NOTHING here; the quorum alarm already says it"),
+   ("out", "four alarms", "too hot, too cold, too humid, stratified")],
+
+ "day_phase": [
+   ("do", "track the extremes", "the day's max and the night's min, since each began"),
+   ("do", "phase from the sun", "five boundaries as offsets from sunrise and sunset"),
+   ("if", "a BANK phase", "skipped unless yesterday armed it"),
+   ("out", "publish", "the phase, the two bank arms, the day's extremes")],
+
+ "target_temp": [
+   ("do", "the base setting", "the phase's own target"),
+   ("if", "a bank is in force AND armed", "shift it by that bank's offset"),
+   ("out", "clamp and publish", "held between cli_targetMin and cli_targetMax")],
+
+ "cooling": [
+   ("if", "no interior temperature", "HOLD the demand and the window ask; FAULTED"),
+   ("do", "PID", "reverse-acting on the interior against the phase's target"),
+   ("out", "cli_coolDem", "one signed demand: negative is heating"),
+   ("do", "window ask", "the demand laddered between its two staging thresholds"),
+   ("out", "intake gates", "would crawlspace air help? published, not acted on")],
+
+ "destrat": [
+   ("do", "Staircase on the gap", "three bands, each with its own hysteresis"),
+   ("out", "cli_stratDem", "a band change needs the gap to cross a whole band")],
+
+ "humidity": [
+   ("if", "rot risk", "vent flat out, latch the lockout, and leave"),
+   ("do", "ladder the margin", "four bands and a dead zone on the dew-point margin"),
+   ("out", "cli_humidDem", "negative dehumidifies, positive humidifies"),
+   ("do", "the dryness gate", "would outside air dry the house? dew points, not RH"),
+   ("out", "the guard", "published from observe(), so it stands while parked")],
+
+ "irr_modulation": [
+   ("if", "an hour has passed", "fold the VPD into the dryness average, once"),
+   ("do", "ladder the dryness", "between the two thresholds an operator sets"),
+   ("out", "irr_mod", "raised to gamma, floored: every error is toward LESS water")],
+
+ "irr_meters": [
+   ("if", "first scan", "adopt both counters where they stand; nothing is a reset"),
+   ("do", "outlet", "a 4-20 mA loop: its RATE is the measurement, totalized"),
+   ("do", "inlet", "a pulse train: its COUNTER is the measurement, differentiated"),
+   ("if", "flow with every valve shut", "leak. Inlet open and nothing arriving: pressure"),
+   ("out", "publish", "both flows, both totals, the two supply alarms")],
+
+ "irr_schedule": [
+   ("do", "the date", "off the wall clock; 0 until the RTC has been set"),
+   ("if", "the day rolled", "zero the tally the cycle spends"),
+   ("if", "allowance spent, or out of slot", "publish tray 0: nothing may start"),
+   ("do", "walk the trays", "interval = summer days / mod^(1-split), one day floor"),
+   ("if", "held back by hand", "spend the skip and stamp it to the back of the queue"),
+   ("out", "irr_dueTray", "the MOST OVERDUE tray, so a backlog drains in order")],
+
+ "irrigation": [
+   ("if", "inhibited", "park all ten valves where a dead controller would leave them"),
+   ("if", "IDLE", "start on irr_dueTray, if the modulation gives a dose"),
+   ("do", "FILLING", "inlet and one tray open, to the dose or to the timeout"),
+   ("out", "stamp", "at the END of the fill: a restart in the long drain must "
+                    "not water the tray twice"),
+   ("do", "SOAKING", "both ends shut; skipped when the soak is zero"),
+   ("do", "DRAINING", "judge what came back against the dose that went in"),
+   ("do", "FLUSHING", "both ends open, no tray: clear the shared manifold",
+    "IDLE")],
+
+ "screen": [
+   ("if", "first scan", "PRESET deployed: a released coil already says where it is"),
+   ("if", "inhibited", "deploy - the safe state, and free on a dead coil"),
+   ("do", "cold?", "the cooling demand under cli_thermalScreenDem"),
+   ("if", "the phase forbids that direction", "the command STANDS, read off the row"),
+   ("out", "coil + traverse", "the Actuator times the stroke; moving cuts the fans")],
+
+ "roof_lockout": [
+   ("if", "the station is blind", "a live interlock while it lasts, and DEGRADED"),
+   ("do", "rain", "Tof, so the lockout outlives the shower"),
+   ("do", "wind", "the GUST, not the mean: the peak is what tears a ram"),
+   ("out", "three rows", "rain, wind, and their verdict with the supply lockout")],
+
+ "windows": [
+   ("if", "window_lock", "stage 1, absolute: target 0, whatever else is true"),
+   ("if", "inhibited or no demand", "the safe opening, off the row's own default"),
+   ("do", "choose an owner", "ONE ram may move; a stroke keeps the bus until it ends"),
+   ("out", "coils", "open and close per window, never both, plus the positions")],
+
+ "weather_watch": [
+   ("if", "the station is answering", "latch that it ever did"),
+   ("do", "time the dry spell", "the clock stands while the gauge is silent"),
+   ("out", "storm + alarms", "read off the roof's own lockouts, not new thresholds")],
+
+ "intractors": [
+   ("do", "floor", "the row's declared safe speed: some air is always wanted"),
+   ("do", "fuse three demands", "cooling gated on the intake, anti-rot, dehumidify"),
+   ("out", "one speed", "both run together: they serve one volume")],
+
+ "fans": [
+   ("if", "the screen is travelling", "cut them: the fabric moves through their air"),
+   ("if", "inhibited", "speed 1, not off: still air is itself a rot risk"),
+   ("do", "fuse four demands", "MAXIMUM, so each is a floor rather than a share"),
+   ("out", "one of three relays", "Staircase, so the winner moving cannot chatter")],
+
+ "skirt": [
+   ("if", "rot lockout", "shut, and reset the pulse phase"),
+   ("do", "humidify arm", "PROPORTIONAL: the effort is the on-time"),
+   ("do", "cooling arm", "STAGED, and only while the air is dry enough to cool"),
+   ("out", "pulse the valve", "the greater of the two, floored at the minimum pulse")],
+}
 
 
 # --- the document ------------------------------------------------------------
@@ -842,9 +1060,10 @@ def main():
     c.setFont("Helvetica", 10)
     for i, l in enumerate(_wrap(
             "One page per control program and one per function block. A "
-            "program's diagram is DERIVED from the table that declares it, so "
-            "it cannot go stale. A block's is authored from its source, "
-            "because what a Pid does inside is not in any table. Every diagram "
+            "program gets two: what it is CONNECTED to, derived from the table "
+            "that declares it, and what it DOES, authored from its source. A "
+            "block's is authored too, because what a Pid does inside is not in "
+            "any table. Every diagram "
             "is also an editable images/logic/*.drawio.svg, drawn from the "
             "same model as the page.", 96)):
         c.drawString(40, ph - 150 - i * 13, l)
@@ -863,11 +1082,21 @@ def main():
             notes.append("Its own helpers: " +
                          ", ".join(f["name"] + "()" for f in p["fns"]) + ".")
         hooks = ["run()"] + [h + "()" for h in p["hooks"]]
-        page(c, p["name"], f"{p['class']} - {p['task']}, {p['stage']} stage - "
-                           f"defines {', '.join(hooks)}",
-             prims, dw, dh, notes)
+        sub = (f"{p['class']} - {p['task']}, {p['stage']} stage - "
+               f"defines {', '.join(hooks)}")
+        page(c, p["name"], sub, prims, dw, dh, notes)
         _svg(f"{p['name']}", prims, dw, dh)
         made += 1
+
+        steps = LOGIC.get(p["name"])
+        if steps:
+            lprims, ldw, ldh = steps_diagram(steps)
+            page(c, p["name"] + ": the law", sub, lprims, ldw, ldh, [],
+                 kicker="The scan, in the fewest steps that are still true. "
+                        "Authored from the source, because control flow is the "
+                        "one thing no table declares.")
+            _svg(p["name"] + "_law", lprims, ldw, ldh)
+            made += 1
 
     for name, where, what, spec in BLOCKS:
         prims, dw, dh = LAYOUT[spec["kind"]](spec)
