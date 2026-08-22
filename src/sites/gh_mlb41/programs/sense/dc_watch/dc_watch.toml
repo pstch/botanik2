@@ -27,31 +27,38 @@ What this law last told the registry, so the plant-wide hold is pushed on the
 EDGE and not walked over every task every beat.
 """
 
-[block.band1]
-type = "Deadband"
+# One pair per rail, named for the rail it serves: the two power supplies, the
+# UPS battery and the generator battery, which is what ps1_flt / ps2_flt /
+# ups_flt / gen_flt call them too.
 
-[block.band2]
-type = "Deadband"
-
-[block.bandu]
-type = "Deadband"
-
-[block.bandg]
-type = "Deadband"
-
-[block.avg1]
+[block.ps1_mean]
 type = "Ewma"
-doc  = "the rail is judged on the AVERAGE, so one"
+doc  = """
+The rail is judged on the AVERAGE, so one noisy sample cannot raise a supply
+fault. One per divider, each with its own time constant.
+"""
 
-[block.avg2]
-type = "Ewma"
-doc  = "noisy sample cannot raise a supply fault"
+[block.ps1_band]
+type = "Deadband"
+doc  = "...and how far the average must move to be worth a status write"
 
-[block.avgu]
+[block.ps2_mean]
 type = "Ewma"
 
-[block.avgg]
+[block.ps2_band]
+type = "Deadband"
+
+[block.ups_mean]
 type = "Ewma"
+
+[block.ups_band]
+type = "Deadband"
+
+[block.gen_mean]
+type = "Ewma"
+
+[block.gen_band]
+type = "Deadband"
 
 [block.low_for]
 type = "Ton"

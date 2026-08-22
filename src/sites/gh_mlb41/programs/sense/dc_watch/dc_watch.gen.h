@@ -64,14 +64,19 @@ private:
     /** @name VAR - function blocks
      *  @{ */
 
-    Plc::Deadband band1;
-    Plc::Deadband band2;
-    Plc::Deadband bandu;
-    Plc::Deadband bandg;
-    Plc::Ewma     avg1;     ///< the rail is judged on the AVERAGE, so one
-    Plc::Ewma     avg2;     ///< noisy sample cannot raise a supply fault
-    Plc::Ewma     avgu;
-    Plc::Ewma     avgg;
+    /** @brief The rail is judged on the AVERAGE, so one noisy sample cannot
+     *  raise a supply fault. One per divider, each with its own time
+     *  constant. */
+    Plc::Ewma     ps1_mean;
+    /** @brief ...and how far the average must move to be worth a status
+     *  write */
+    Plc::Deadband ps1_band;
+    Plc::Ewma     ps2_mean;
+    Plc::Deadband ps2_band;
+    Plc::Ewma     ups_mean;
+    Plc::Deadband ups_band;
+    Plc::Ewma     gen_mean;
+    Plc::Deadband gen_band;
     Plc::Ton      low_for;  ///< debounce: a contact bounces, a UPS does not
 
     /** @} */

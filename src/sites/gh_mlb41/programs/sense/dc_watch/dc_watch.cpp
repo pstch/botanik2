@@ -44,16 +44,18 @@ static bool _rail(const Rail& r, uint32_t dt_ms, bool& seen) {
 
 void DcWatch::observe(ProgramContext& c) {
     if (c.first_scan) {
-        band1.reset(); band2.reset(); bandu.reset(); bandg.reset();
-        avg1.reset(); avg2.reset(); avgu.reset(); avgg.reset();
+        ps1_mean.reset(); ps1_band.reset();
+        ps2_mean.reset(); ps2_band.reset();
+        ups_mean.reset(); ups_band.reset();
+        gen_mean.reset(); gen_band.reset();
         low_for.reset();
     }
 
     const Rail rails[] = {
-        { avg1, band1, dc1,     out_dc1, dc1_lo, dc1_avg },
-        { avg2, band2, dc2,     out_dc2, dc2_lo, dc2_avg },
-        { avgu, bandu, ups_bat, out_ups, ups_lo, ups_avg },
-        { avgg, bandg, gen_bat, out_gen, gen_lo, gen_avg },
+        { ps1_mean, ps1_band, dc1,     out_dc1, dc1_lo, dc1_avg },
+        { ps2_mean, ps2_band, dc2,     out_dc2, dc2_lo, dc2_avg },
+        { ups_mean, ups_band, ups_bat, out_ups, ups_lo, ups_avg },
+        { gen_mean, gen_band, gen_bat, out_gen, gen_lo, gen_avg },
     };
     const bool ps1 = _rail(rails[0], c.dt_ms, _seen[0]);
     const bool ps2 = _rail(rails[1], c.dt_ms, _seen[1]);
