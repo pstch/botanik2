@@ -75,6 +75,13 @@ namespace Botanik { namespace HAL {
      *  Simulator-only. */
     uint64_t real_uptime_ms();
 
+    /** @brief Whether time is SIMULATED rather than the host's.
+     *
+     *  True under BOTANIK_SIM_CLOCK. What it gates is platform-health
+     *  modelling: a duty cycle, a jitter figure and a watchdog window all
+     *  measure the real passage of time, and there is none to measure. */
+    inline bool is_virtual() { return _manual_clock(); }
+
     /** @brief Host wall clock, as UNIX ms. */
     uint64_t wall_ms();
 

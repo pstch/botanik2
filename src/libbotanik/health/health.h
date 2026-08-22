@@ -188,7 +188,12 @@ namespace Botanik { namespace Health {
         bool     _post_ok          = false;
         // BOTANIK_NO_LOAD_ALARMS: hold the CPU_* load alarms cleared for
         // deterministic screen goldens (sim/test only; reads 0 on OPTA).
-        bool     _no_load_alarms   = HAL::Env::u8("BOTANIK_NO_LOAD_ALARMS", 0) != 0;
+        // Default ON under a virtual clock, where the beat's work takes no
+        // simulated time at all and the duty figure they watch is not a
+        // measurement of anything.
+        bool     _no_load_alarms   =
+            HAL::Env::u8("BOTANIK_NO_LOAD_ALARMS",
+                         HAL::Clock::is_virtual() ? 1 : 0) != 0;
 
     public:
         /** @brief The alarms this class raises, in the order PLATFORM_NAMES

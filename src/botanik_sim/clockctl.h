@@ -3,11 +3,15 @@
 
 /**
  * @file clockctl.h
- * @brief Simulator-only driver for the manual clock (BOTANIK_SIM_CLOCK=manual).
+ * @brief Simulator-only driver for the virtual clock (BOTANIK_SIM_CLOCK).
  *
- * With the manual clock the sim runs no faster than a harness tells it to: time
- * advances one beat per command, so a screen test asserts on a known number of
- * beats instead of waiting for the host to get round to it.
+ * `manual` hands the clock to a harness: time advances one beat per command, so
+ * a screen test asserts on a known number of beats instead of waiting for the
+ * host to get round to it.
+ *
+ * `fast` is the same clock with the sim itself moving it - one beat per
+ * iteration, paced by BOTANIK_SIM_SPEED (sim seconds per real second; 0, the
+ * default, is as fast as the host manages). A greenhouse day in a minute.
  *
  * Commands arrive on the fd named by BOTANIK_SIM_CONTROL_FD, one per line:
  *
@@ -83,6 +87,26 @@ namespace Botanik { namespace Sim {
      */
     inline void ctl_advance_one_beat() {
         HAL::_virtual_ns() += (uint64_t)Config::TASK_PERIOD_MS * 1000000u;
+    }
+
+    /** @brief Sim seconds per real second under `fast`; 0 is unpaced. */
+    inline uint32_t fast_speed() {
+        static const uint32_t x = HAL::Env::u32("BOTANIK_SIM_SPEED", 0);
+        return x;
+    }
+
+    /** @brief Hold the clock to fast_speed() by sleeping REAL time.
+     *
+     *  Against the whole run rather than the last beat: a beat the host was slow
+     *  to serve is then made up by the next one, so the ratio holds over a long
+     *  run instead of drifting a little later every beat.
+     */
+    inline void fast_pace() {
+        const uint32_t x = fast_speed();
+        if (x == 0) return;                     // flat out
+        const uint64_t want_ms = (HAL::_virtual_ns() / 1000000u) / x;
+        const uint64_t have_ms = HAL::Clock::real_uptime_ms();
+        if (want_ms > have_ms) usleep((useconds_t)((want_ms - have_ms) * 1000u));
     }
 
     /** @brief Tell the harness the requested beats are done and drained. */

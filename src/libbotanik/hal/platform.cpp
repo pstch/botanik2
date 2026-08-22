@@ -561,7 +561,10 @@ namespace Botanik { namespace HAL {
     bool _manual_clock() {
         static const bool manual = []() -> bool {
             const char* s = getenv("BOTANIK_SIM_CLOCK");
-            return s != nullptr && strcmp(s, "manual") == 0;
+            if (s == nullptr) return false;
+            // Both modes read the same virtual clock; they differ only in WHO
+            // moves it - a harness over the control fd, or the sim itself.
+            return strcmp(s, "manual") == 0 || strcmp(s, "fast") == 0;
         }();
         return manual;
     }
@@ -887,7 +890,12 @@ namespace Botanik { namespace HAL {
      *  that paused the sim would be re-executed underneath its own PTY. Read
      *  once: the answer cannot change within a process. */
     bool _wd_enabled() {
-        static const bool on = (Env::u8("BOTANIK_WATCHDOG", 1) != 0);
+        // Off by default on a virtual clock: the nap is real time and the
+        // window is not, so the loop can cross a whole window between two
+        // polls. Still opt-in-able, which is how the one case that asserts the
+        // watchdog works gets it.
+        static const bool on = (Env::u8("BOTANIK_WATCHDOG",
+                                        _manual_clock() ? 0 : 1) != 0);
         return on;
     }
 

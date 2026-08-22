@@ -66,6 +66,9 @@ namespace Botanik { namespace HAL {
 
     void set_wall_ms(uint64_t unix_ms);
 
+    /** @brief False: the hardware clock is the only one there is. */
+    inline bool is_virtual() { return false; }
+
     void sleep_ms(uint32_t ms);
 
     }  // namespace Clock

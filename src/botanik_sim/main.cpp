@@ -147,6 +147,11 @@ int main(int argc, char** argv) {
     // between commands, so the loop blocks on the control fd rather than
     // spinning against a clock that will not move.
     const bool manual = HAL::_manual_clock() && Sim::ctl_fd() >= 0;
+    // Same clock, nobody driving it: the sim moves it itself, one beat per
+    // iteration. Without this the loop LIVELOCKS - the scheduler busy-waits the
+    // last millisecond before each beat, and on a virtual clock nothing else is
+    // going to move it.
+    const bool fast = HAL::_manual_clock() && !manual;
     int pending_beats = 0;
     if (manual) Sim::ctl_ack();      // ready; also what a re-exec announces itself with
 
@@ -158,6 +163,9 @@ int main(int argc, char** argv) {
             }
             Sim::ctl_advance_one_beat();
             --pending_beats;
+        } else if (fast) {
+            Sim::ctl_advance_one_beat();
+            Sim::fast_pace();
         }
         // The field is serviced ONCE PER BEAT, and loop() says when one ran:
         // unguarded, this would run tens of times per beat, giving a simulated

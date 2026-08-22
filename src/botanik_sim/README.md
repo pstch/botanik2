@@ -36,21 +36,35 @@ UI's screen.
 
 ## Fast / high-iteration testing
 
-`BOTANIK_SIM_CLOCK=manual` hands the clock to a harness: the sim runs one beat
-per `RUN n` command on `BOTANIK_SIM_CONTROL_FD` and stands still between them, so
-a run is bounded in beats rather than seconds and repeats identically. That is
-what the pyte suite drives; see
-[tests/pyte/README.md](../../tests/pyte/README.md) and `botanik_sim/clockctl.h`.
+`BOTANIK_SIM_CLOCK` replaces the host clock with a simulated one. Two modes,
+differing only in who moves it.
 
-There is no clock-scaling knob: a firmware clock running faster than the host's
-puts uptime and the wall clock in different time bases, which sawtooths the
-calendar clock and forces the watchdog to be inflated out of the way. Driving the
-beat gets the speed-up with neither.
+`manual` hands it to a harness: the sim runs one beat per `RUN n` command on
+`BOTANIK_SIM_CONTROL_FD` and stands still between them, so a run is bounded in
+beats rather than seconds and repeats identically. That is what the pyte suite
+drives; see [tests/pyte/README.md](../../tests/pyte/README.md) and
+`botanik_sim/clockctl.h`.
+
+`fast` has the sim move it: one beat per iteration, held to `BOTANIK_SIM_SPEED`
+simulated seconds per real second. It is for WATCHING the control system - a
+greenhouse day is 24 hours of laws whose slowest inputs move over days, and it
+is the only way to see an irrigation interval elapse.
+
+The clock is not the host's SCALED, which is what makes this sound: uptime and
+the wall clock are both derived from the one virtual reading, so the calendar
+cannot sawtooth against uptime. What genuinely does not survive is the
+platform-health modelling - a duty cycle, a jitter figure and a watchdog window
+all measure the real passage of time, and under a virtual clock there is none to
+measure. So `HAL::Clock::is_virtual()` defaults the watchdog and the CPU_* load
+alarms off; both are still opt-in-able, and neither reads anything meaningful if
+you do.
 
 | Variable | Effect |
 |---|---|
-| `BOTANIK_SIM_CLOCK` | `manual` to take the clock (with `BOTANIK_SIM_CONTROL_FD`). Default: free-running on the host clock. |
-| `BOTANIK_NO_LOAD_ALARMS` | Holds the CPU_* load alarms (CPU_LOAD / CPU_JITT / CPU_XRUN) cleared, so the active-alarm set is deterministic for screen goldens. Set it to a non-zero value. No effect on OPTA (no environment). See `health/health.h`. |
+| `BOTANIK_SIM_CLOCK` | `manual` to hand the clock to a harness (with `BOTANIK_SIM_CONTROL_FD`), `fast` to have the sim drive it. Default: free-running on the host clock. |
+| `BOTANIK_SIM_SPEED` | Under `fast`, simulated seconds per real second (`60` is a minute a second). Default `0`: as fast as the host manages. |
+| `BOTANIK_NO_LOAD_ALARMS` | Holds the CPU_* load alarms (CPU_LOAD / CPU_JITT / CPU_XRUN) cleared, so the active-alarm set is deterministic for screen goldens. Set it to a non-zero value. Defaults ON under a virtual clock. No effect on OPTA (no environment). See `health/health.h`. |
+| `BOTANIK_WATCHDOG` | `0` to run without it. Defaults ON, except under a virtual clock. |
 
 See also the developer manual: [the page framework](../../docs/dev/pages.md),
 [the scheduler](../../docs/dev/scheduler.md), and
