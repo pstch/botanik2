@@ -23,14 +23,38 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SITE = os.path.join(ROOT, "src", "sites", "gh_mlb41")
 IMAGES = os.path.join(ROOT, "images", "logic")
 
-# The one palette, so the PDF and the SVG cannot drift apart.
+# The one palette, so the PDF and the SVG cannot drift apart. A row is coloured
+# by WHAT IT IS - the scope its table declares - not by which section of the POU
+# names it, because that is the fact a reader is missing at the cabinet.
 INK    = "#1a1a1a"
 MUTED  = "#6b6b6b"
-IN_C   = "#d8e6f3"   # a row this POU reads
-OUT_C  = "#dbeedd"   # a row it produces
-BLK_C  = "#f2e5cc"   # a function block it holds
-VAR_C  = "#ece6f2"   # what it remembers
-PLAIN  = "#ffffff"
+FIELD_IN  = "#d6e8f7"   # MI / AI / DI - the field, read
+FIELD_OUT = "#d7efdb"   # RO / AO / DO / MO - the field, driven
+STATUS_C  = "#dfe4ea"   # SV / SVE / SVR - published
+PARAM_C   = "#fdf1d0"   # P / PS / PE - an operator's number
+ALARM_C   = "#f7d5d1"   # A
+GLOBAL_C  = "#e6ddf2"   # G / GR
+BLK_C     = "#f0dfbe"   # a function block it holds
+VAR_C     = "#efeef6"   # what it remembers - not a row at all
+PLAIN     = "#ffffff"
+
+KIND_FILL = {"MI": FIELD_IN, "AI": FIELD_IN, "DI": FIELD_IN,
+             "RO": FIELD_OUT, "AO": FIELD_OUT, "DO": FIELD_OUT,
+             "MO": FIELD_OUT,
+             "SV": STATUS_C, "SVE": STATUS_C, "SVR": STATUS_C,
+             "P": PARAM_C, "PS": PARAM_C, "PE": PARAM_C,
+             "A": ALARM_C, "G": GLOBAL_C, "GR": GLOBAL_C}
+
+KIND_NAME = {FIELD_IN: "field", FIELD_OUT: "field, driven",
+             STATUS_C: "status", PARAM_C: "parameter", ALARM_C: "alarm",
+             GLOBAL_C: "global"}
+
+# A value that survives a power cut: a retained scope, or a parameter the table
+# marks. Drawn as a dot rather than a seventh colour.
+RETAINED_KINDS = ("SVR", "GR")
+
+# On a BLOCK's page there are no rows, only what goes in and what comes out.
+IN_C, OUT_C = FIELD_IN, FIELD_OUT
 
 
 class Prim:
@@ -41,9 +65,13 @@ class Prim:
         self.__dict__.update(kw)
 
 
-def rect(x, y, w, h, label="", fill=PLAIN, sub="", dashed=False):
+def rect(x, y, w, h, label="", fill=PLAIN, sub="", dashed=False, dot=False):
     return Prim("rect", x=x, y=y, w=w, h=h, label=label, fill=fill, sub=sub,
-                dashed=dashed)
+                dashed=dashed, dot=dot)
+
+
+def dot(x, y, r=2.2):
+    return Prim("dot", x=x, y=y, r=r)
 
 
 def text(x, y, s, size=8, anchor="start", color=INK, bold=False):
@@ -87,6 +115,10 @@ def to_pdf(c, prims, ox, oy, scale=1.0):
                 c.setFont("Helvetica", 6.2 * scale)
                 c.drawCentredString(X(p.x + p.w / 2.0), Y(p.y + p.h - 4.5),
                                     p.sub)
+        elif p.kind == "dot":
+            c.setFillColor(INK)
+            c.setStrokeColor(INK)
+            c.circle(X(p.x), Y(p.y), p.r * scale, stroke=0, fill=1)
         elif p.kind == "text":
             c.setFillColor(p.color)
             c.setFont("Helvetica-Bold" if p.bold else "Helvetica", p.size * scale)
@@ -151,6 +183,15 @@ def to_svg(prims, w, h, title):
                          f'style="{style}" vertex="1" parent="1">'
                          f'<mxGeometry x="{p.x}" y="{p.y}" width="{p.w}" '
                          f'height="{p.h}" as="geometry"/></mxCell>')
+            cid += 1
+        elif p.kind == "dot":
+            body.append(f'<circle cx="{p.x}" cy="{p.y}" r="{p.r}" '
+                        f'fill="{INK}"/>')
+            cells.append(f'<mxCell id="d{cid}" value="" '
+                         f'style="ellipse;fillColor={INK};strokeColor=none" '
+                         f'vertex="1" parent="1"><mxGeometry x="{p.x - p.r}" '
+                         f'y="{p.y - p.r}" width="{p.r * 2}" '
+                         f'height="{p.r * 2}" as="geometry"/></mxCell>')
             cid += 1
         elif p.kind == "text":
             body.append(_svg_text(p.x, p.y, p.s, p.size, p.anchor, p.color,
@@ -237,6 +278,13 @@ def _group(rows):
     return out
 
 
+def _fill_of(names, rows):
+    """A member's colour and whether it is retained, from the ROW it names."""
+    kind, row = rows.get(names[0], ("", {}))
+    keep = kind in RETAINED_KINDS or str(row.get("retain", "")).strip() == "true"
+    return KIND_FILL.get(kind, PLAIN), keep
+
+
 def program_diagram(p, rows):
     """A POU: what it reads on the left, what it holds in the middle, what it
     produces on the right. Derived from the table, so it cannot go stale."""
@@ -254,27 +302,31 @@ def program_diagram(p, rows):
     kept = [(v["name"] + (f"[{v['count']}]" if v["count"] else ""), v["type"])
             for v in p["vars"]]
 
-    prims = []
+    prims, used = [], set()
     colw, cx = 168, [8, 236, W - 176]
-    tallest = max(len(ins), len(outs), len(held) + len(kept), 1)
     y0 = 26
 
-    prims.append(text(cx[0], 16, "VAR_INPUT / VAR_IN_OUT", 7, bold=True))
+    prims.append(text(cx[0], 16, "VAR_INPUT", 7, bold=True))
     prims.append(text(cx[1] + colw / 2.0, 16, "what it holds", 7, "middle",
                       bold=True))
-    prims.append(text(cx[2] + colw, 16, "VAR_OUTPUT", 7, "end", bold=True))
+    shared = any(sec == "inout" for _m, sec, _n in outs)
+    prims.append(text(cx[2] + colw, 16,
+                      "VAR_OUTPUT / VAR_IN_OUT" if shared else "VAR_OUTPUT",
+                      7, "end", bold=True))
 
-    for i, (member, sec, names) in enumerate(ins):
-        y = y0 + i * (ROW_H + GAP)
-        n = f"{member}[{len(names)}]" if len(names) > 1 else member
-        prims.append(rect(cx[0], y, colw, ROW_H, n, IN_C,
-                          sub=_row_label(names)))
-    for i, (member, sec, names) in enumerate(outs):
-        y = y0 + i * (ROW_H + GAP)
-        n = f"{member}[{len(names)}]" if len(names) > 1 else member
-        prims.append(rect(cx[2], y, colw, ROW_H, n,
-                          OUT_C if sec == "out" else VAR_C,
-                          sub=_row_label(names)))
+    keeps = False
+    for col, items in ((0, ins), (2, outs)):
+        for i, (member, sec, names) in enumerate(items):
+            y = y0 + i * (ROW_H + GAP)
+            n = f"{member}[{len(names)}]" if len(names) > 1 else member
+            fill, keep = _fill_of(names, rows)
+            used.add(fill)
+            keeps = keeps or keep
+            sub = _row_label(names) + (" <>" if sec == "inout" else "")
+            prims.append(rect(cx[col], y, colw, ROW_H, n, fill, sub=sub,
+                              dot=keep))
+            if keep:
+                prims.append(dot(cx[col] + colw - 5.5, y + 5.5))
 
     mid_h = max(1, len(held) + len(kept)) * (ROW_H + GAP)
     body_h = max(len(ins), len(outs)) * (ROW_H + GAP)
@@ -291,7 +343,28 @@ def program_diagram(p, rows):
                        (cx[1] - 10, span / 2.0)], arrow=True))
     prims.append(line([(cx[1] + colw + 10, span / 2.0),
                        (cx[2] - 4, span / 2.0)], arrow=True))
-    return prims, W, int(span + 16)
+
+    # What the fills mean, on the page that uses them, and only those it does.
+    ly, lx = span + 12, 8
+    key = [(f, KIND_NAME[f]) for f in
+           (FIELD_IN, FIELD_OUT, STATUS_C, PARAM_C, ALARM_C, GLOBAL_C)
+           if f in used]
+    if held:
+        key.append((BLK_C, "function block"))
+    if kept:
+        key.append((VAR_C, "remembers"))
+    for fill, what in key:
+        prims.append(rect(lx, ly, 9, 8, "", fill))
+        prims.append(text(lx + 13, ly + 7, what, 6.4, color=MUTED))
+        lx += 16 + len(what) * 3.4
+    if keeps:
+        prims.append(dot(lx + 4, ly + 4))
+        prims.append(text(lx + 10, ly + 7, "retained", 6.4, color=MUTED))
+        lx += 16 + 8 * 3.4
+    if shared:
+        prims.append(text(lx + 4, ly + 7, "<> read and written", 6.4,
+                          color=MUTED))
+    return prims, W, int(span + 28)
 
 
 def _row_label(names):
