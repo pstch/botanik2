@@ -37,6 +37,7 @@ GLOBAL_C  = "#e6ddf2"   # G / GR
 BLK_C     = "#f0dfbe"   # a function block it holds
 VAR_C     = "#efeef6"   # what it remembers - not a row at all
 PLAIN     = "#ffffff"
+FALL_C    = "#2f6fae"   # the falling branch of a hysteretic curve
 
 KIND_FILL = {"MI": FIELD_IN, "AI": FIELD_IN, "DI": FIELD_IN,
              "RO": FIELD_OUT, "AO": FIELD_OUT, "DO": FIELD_OUT,
@@ -139,11 +140,26 @@ def to_pdf(c, prims, ox, oy, scale=1.0):
                 _arrow_pdf(c, X(p.pts[-2][0]), Y(p.pts[-2][1]),
                            X(p.pts[-1][0]), Y(p.pts[-1][1]), p.color, scale)
             if p.label:
-                mx = (p.pts[0][0] + p.pts[-1][0]) / 2.0
-                my = (p.pts[0][1] + p.pts[-1][1]) / 2.0
+                mx, my, anc = _label_at(p.pts)
                 c.setFillColor(p.color)
                 c.setFont("Helvetica", 6.2 * scale)
-                c.drawCentredString(X(mx), Y(my - 2), p.label)
+                draw = c.drawCentredString if anc == "middle" else c.drawString
+                draw(X(mx), Y(my), p.label)
+
+
+def _label_at(pts):
+    """Beside the longest RUN of a route, not between its two ends: an elbow's
+    midpoint sits wherever the elbow went, which is often inside a box."""
+    best, run = (pts[0], pts[-1]), -1.0
+    for a, b in zip(pts, pts[1:]):
+        d = abs(b[0] - a[0]) + abs(b[1] - a[1])
+        if d > run:
+            best, run = (a, b), d
+    (ax, ay), (bx, by) = best
+    mx, my = (ax + bx) / 2.0, (ay + by) / 2.0
+    if abs(bx - ax) < abs(by - ay):
+        return mx + 4, my, "start"
+    return mx, my - 3, "middle"
 
 
 def _arrow_pdf(c, x0, y0, x1, y1, color, scale):
@@ -211,9 +227,8 @@ def to_svg(prims, w, h, title):
                         f'stroke="{p.color}" stroke-width="0.7"{dash}'
                         + (f' marker-end="url(#a)"' if p.arrow else "") + '/>')
             if p.label:
-                mx = (p.pts[0][0] + p.pts[-1][0]) / 2.0
-                my = (p.pts[0][1] + p.pts[-1][1]) / 2.0
-                body.append(_svg_text(mx, my - 2, p.label, 6.2, "middle", p.color))
+                mx, my, anc = _label_at(p.pts)
+                body.append(_svg_text(mx, my, p.label, 6.2, anc, p.color))
             way = "".join(f'<mxPoint x="{x}" y="{y}"/>' for x, y in p.pts[1:-1])
             style = (f"edgeStyle=none;html=1;strokeColor={p.color};"
                      f"endArrow={'block' if p.arrow else 'none'}"
@@ -383,34 +398,65 @@ def _row_label(names):
 def flow_diagram(spec):
     """Signal flow, TOP DOWN: one band per stage, wired downward.
 
-    Portrait pages are tall and narrow, so stages go down the page. Left to
-    right ran out of width at four columns and scaled the text to nothing.
+    Portrait pages are tall and narrow, so stages go down the page. A wire that
+    skips a stage is routed down a CORRIDOR - a vertical lane no box occupies -
+    because the straight line between its ends runs through the stage between.
     """
     stages = spec["cols"]
     bw, bh, gapx, gapy, top = 150, 26, 14, 30, 26
     width = max(len(st) for st in stages) * (bw + gapx) - gapx
     prims, pos = [], {}
     y = top
-    for st in stages:
+    for r, st in enumerate(stages):
         x0 = (width - (len(st) * (bw + gapx) - gapx)) / 2.0 + 8
         for i, (name, sub, fill) in enumerate(st):
             x = x0 + i * (bw + gapx)
             prims.append(rect(x, y, bw, bh, name, fill, sub=sub))
-            pos[name] = (x + bw / 2.0, y, bw, bh)
+            pos[name] = (x + bw / 2.0, y, r, x)
         y += bh + gapy
+    bottom = y - gapy
+
+    def _free(x, r0, r1):
+        """Is the lane at x clear of every box in rows r0..r1?"""
+        for _cx, _cy, r, bx0 in pos.values():
+            if r0 <= r <= r1 and bx0 - 7 < x < bx0 + bw + 7:
+                return False
+        return True
+
+    def _corridor(want, r0, r1):
+        # The margins first, then out from the target's own lane: a wire wants
+        # to arrive straight down on its target if anything lets it.
+        for x in [want] + [want + d * s for d in range(8, 200, 8)
+                           for s in (-1, 1)]:
+            if 4 < x < width + 4 and _free(x, r0, r1):
+                return x
+        return -4.0
 
     for a, b, label in spec.get("wires", []):
         if a not in pos or b not in pos:
             continue
-        ax, ay, _aw, ah = pos[a]
-        bx, by, _bw, _bh = pos[b]
-        if abs(ax - bx) < 1.0:
-            pts = [(ax, ay + ah), (bx, by - 2)]
-        else:                       # an elbow, so nothing crosses a box
-            mid = ay + ah + (by - ay - ah) / 2.0
-            pts = [(ax, ay + ah), (ax, mid), (bx, mid), (bx, by - 2)]
-        prims.append(line(pts, arrow=True, label=label))
-    return prims, int(width + 16), int(y - gapy + bh + 6)
+        ax, ay, ra, _ax0 = pos[a]
+        bx, by, rb, _bx0 = pos[b]
+        if rb <= ra:                            # sideways, or a feedback
+            lane = ay + bh + gapy / 2.0
+            pts = [(ax, ay + bh), (ax, lane), (bx, lane), (bx, by + bh + 2)]
+        elif abs(ax - bx) < 1.0 and rb == ra + 1:
+            pts = [(ax, ay + bh), (bx, by - 2)]
+        elif rb == ra + 1:                      # one gap, and it is empty
+            mid = ay + bh + gapy / 2.0
+            pts = [(ax, ay + bh), (ax, mid), (bx, mid), (bx, by - 2)]
+        else:                                   # around the stages between
+            lane = _corridor(bx, ra + 1, rb - 1)
+            y_top = ay + bh + gapy / 2.0
+            y_bot = by - gapy / 2.0
+            pts = [(ax, ay + bh), (ax, y_top), (lane, y_top), (lane, y_bot),
+                   (bx, y_bot), (bx, by - 2)]
+        out = [pts[0]]
+        for q in pts[1:]:                       # a lane ON the target is a line
+            if abs(q[0] - out[-1][0]) > 0.5 or abs(q[1] - out[-1][1]) > 0.5:
+                out.append(q)
+        prims.append(line(out, arrow=True, label=label))
+    return prims, int(width + 16), int(bottom + 6)
 
 
 def states_diagram(spec):
@@ -463,16 +509,48 @@ def states_diagram(spec):
 
 
 def curve_diagram(spec):
-    """A transfer curve: what comes out for what goes in."""
+    """A transfer curve: what comes out for what goes in.
+
+    A hysteretic block has TWO curves, one per direction of travel, and the gap
+    between them IS the block - so both are drawn, with an arrow on each saying
+    which way the reading was going.
+    """
     x0, y0, w, h = 46, 28, 330, 120
     prims = [line([(x0, y0), (x0, y0 + h), (x0 + w, y0 + h)]),
              text(x0 - 6, y0 + 6, spec.get("ylab", "out"), 6.6, "end"),
              text(x0 + w, y0 + h + 12, spec.get("xlab", "in"), 6.6, "end")]
-    pts = [(x0 + px * w, y0 + h - py * h) for px, py in spec["points"]]
-    prims.append(line(pts, color=INK))
+
+    def _plot(points, falling):
+        # The falling branch is nudged clear of the rising one: on the flat runs
+        # the two coincide exactly, and one drawn over the other hides the loop.
+        dy = 2.5 if falling else 0.0
+        col = FALL_C if falling else INK
+        pts = [(x0 + px * w, y0 + h - py * h + dy) for px, py in points]
+        prims.append(line(pts, color=col))
+        # An arrowhead on the longest flat run, pointing the way it is walked.
+        best, run = None, -1.0
+        for (px, py), (qx, qy) in zip(pts, pts[1:]):
+            if abs(qy - py) < 0.5 and abs(qx - px) > run:
+                best, run = ((px + qx) / 2.0, py), abs(qx - px)
+        if best and run > 24:
+            mx, my = best
+            d = -9 if falling else 9
+            prims.append(line([(mx - d, my), (mx + d, my)], arrow=True,
+                              color=col))
+
+    down = spec.get("down")
+    _plot(spec["points"], False)
+    if down:
+        _plot(down, True)
+        prims.append(line([(x0 + w - 96, y0 - 4), (x0 + w - 78, y0 - 4)]))
+        prims.append(text(x0 + w - 74, y0 - 2, "rising", 6.2, color=MUTED))
+        prims.append(line([(x0 + w - 44, y0 - 4), (x0 + w - 26, y0 - 4)],
+                          color=FALL_C))
+        prims.append(text(x0 + w - 22, y0 - 2, "falling", 6.2, color=MUTED))
+
     for px, label in spec.get("marks", []):
         prims.append(line([(x0 + px * w, y0), (x0 + px * w, y0 + h)],
-                          dashed=True))
+                          dashed=True, color=MUTED))
         prims.append(text(x0 + px * w, y0 + h + 10, label, 6.4, "middle"))
     return prims, 400, int(y0 + h + 26)
 
@@ -604,12 +682,13 @@ BLOCKS = [
  ("Hysteresis", "analog.h", "a band with two edges", {
    "kind": "curve",
    "points": [(0.0, 0.05), (0.55, 0.05), (0.55, 0.9), (1.0, 0.9)],
+   "down": [(1.0, 0.9), (0.3, 0.9), (0.3, 0.05), (0.0, 0.05)],
    "marks": [(0.3, "low"), (0.55, "high")],
    "xlab": "value", "ylab": "q",
    "notes": ["q goes true at high and false at low, and NOTHING happens in "
              "between: a reading sitting on one threshold cannot chatter.",
-             "The curve is drawn rising; going back down it falls at low, not "
-             "at high.",
+             "The two curves never meet between low and high: which one the "
+             "block is on is the state it keeps.",
              "Used for: the intake gates (cooling), the dryness gate "
              "(humidity)."]}),
 
@@ -617,7 +696,10 @@ BLOCKS = [
    "kind": "curve",
    "points": [(0.0, 0.05), (0.3, 0.05), (0.3, 0.45), (0.62, 0.45),
               (0.62, 0.85), (1.0, 0.85)],
-   "marks": [(0.3, "edge 1"), (0.62, "edge 2")],
+   "down": [(1.0, 0.85), (0.46, 0.85), (0.46, 0.45), (0.14, 0.45),
+            (0.14, 0.05), (0.0, 0.05)],
+   "marks": [(0.14, "e1 - hyst"), (0.3, "edge 1"), (0.46, "e2 - hyst"),
+             (0.62, "edge 2")],
    "xlab": "value", "ylab": "level",
    "notes": ["Two thresholds, each with its own hysteresis, giving three "
              "levels. A level change needs the reading to cross a whole band."]}),
@@ -626,7 +708,10 @@ BLOCKS = [
    "kind": "curve",
    "points": [(0.0, 0.03), (0.22, 0.03), (0.22, 0.35), (0.5, 0.35),
               (0.5, 0.66), (0.78, 0.66), (0.78, 0.97), (1.0, 0.97)],
-   "marks": [(0.22, "edge[0]"), (0.5, "edge[1]"), (0.78, "edge[2]")],
+   "down": [(1.0, 0.97), (0.64, 0.97), (0.64, 0.66), (0.36, 0.66),
+            (0.36, 0.35), (0.08, 0.35), (0.08, 0.03), (0.0, 0.03)],
+   "marks": [(0.08, "- hyst"), (0.22, "edge[0]"), (0.36, "- hyst"),
+             (0.5, "edge[1]"), (0.64, "- hyst"), (0.78, "edge[2]")],
    "xlab": "value", "ylab": "level 0..N",
    "notes": ["One Hysteresis per rung, each engaging at edge[i] and releasing "
              "at edge[i] - hyst. Returns how many rungs the reading is above.",
@@ -646,7 +731,10 @@ BLOCKS = [
    "kind": "curve",
    "points": [(0.0, 0.2), (0.28, 0.2), (0.28, 0.5), (0.66, 0.5), (0.66, 0.8),
               (1.0, 0.8)],
-   "marks": [(0.28, "+band"), (0.66, "+band")],
+   "down": [(1.0, 0.8), (0.5, 0.8), (0.5, 0.5), (0.12, 0.5), (0.12, 0.2),
+            (0.0, 0.2)],
+   "marks": [(0.12, "-band"), (0.28, "+band"), (0.5, "-band"),
+             (0.66, "+band")],
    "xlab": "value", "ylab": "reported",
    "notes": ["Holds the last reported figure until the input has moved more "
              "than band from it, then adopts the new one whole.",
@@ -773,13 +861,12 @@ BLOCKS += [
    "kind": "flow",
    "cols": [[("duty", "0..1 demand", IN_C), ("period_ms", "", IN_C),
              ("min_on_ms", "", IN_C)],
-            [("on_ms", "duty * period", BLK_C),
-             ("floor", "under min_on -> 0", BLK_C),
+            [("on_ms", "duty * period, 0 under min_on", BLK_C),
              ("phase", "phase += dt, wraps", BLK_C)],
             [("coil", "phase < on_ms", OUT_C)]],
    "wires": [("duty", "on_ms", ""), ("period_ms", "phase", ""),
-             ("min_on_ms", "floor", ""), ("on_ms", "floor", ""),
-             ("floor", "coil", ""), ("phase", "coil", "")],
+             ("min_on_ms", "on_ms", ""),
+             ("on_ms", "coil", ""), ("phase", "coil", "")],
    "notes": ["A pulse train: a fractional demand becomes an ON-TIME within a "
              "period. A pulse under min_on_ms is not made at all, because one "
              "that short does not lift the seat - rounding it up would deliver "
@@ -1039,6 +1126,23 @@ def page(c, title, subtitle, prims, dw, dh, notes, kicker=""):
     c.showPage()
 
 
+def _audit(prims, where, bad):
+    """No wire may run through the inside of a box. Cheap to check, and the one
+    fault that makes a diagram say something false."""
+    boxes = [(p.x, p.y, p.w, p.h) for p in prims if p.kind == "rect"]
+    for p in prims:
+        if p.kind != "line":
+            continue
+        for a, b in zip(p.pts, p.pts[1:]):
+            x0, x1 = sorted((a[0], b[0]))
+            y0, y1 = sorted((a[1], b[1]))
+            for bx, by, bw, bh in boxes:
+                if x0 < bx + bw - 1 and x1 > bx + 1 and \
+                   y0 < by + bh - 1 and y1 > by + 1:
+                    bad.append(f"{where}: a wire crosses a box at "
+                               f"({bx:.0f}, {by:.0f})")
+
+
 def main():
     from reportlab.lib.pagesizes import A4
     from reportlab.pdfgen import canvas as rl
@@ -1072,7 +1176,7 @@ def main():
                          f"One-time report: scripts/logic_report.py")
     c.showPage()
 
-    made = 0
+    made, crossings = 0, []
     for p in progs:
         prims, dw, dh = program_diagram(p, rows)
         notes = [p.get("desc", "")]
@@ -1100,12 +1204,15 @@ def main():
 
     for name, where, what, spec in BLOCKS:
         prims, dw, dh = LAYOUT[spec["kind"]](spec)
+        _audit(prims, name, crossings)
         page(c, name, f"{where} - {what}", prims, dw, dh, spec.get("notes", []))
         _svg("block_" + name.split()[0].replace("<", "").replace(">", "")
              .replace("/", ""), prims, dw, dh)
         made += 1
 
     c.save()
+    for msg in crossings:
+        print("  WARNING " + msg)
     print(f"  {os.path.relpath(out, ROOT)}: written ({made} diagrams)")
     print(f"  {os.path.relpath(IMAGES, ROOT)}/: {made} editable .drawio.svg")
 
