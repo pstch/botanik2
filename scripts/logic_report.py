@@ -14,6 +14,7 @@ table.
 
 import html
 import os
+import re
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -1069,6 +1070,273 @@ LOGIC = {
 }
 
 
+# --- FBD: the blocks a program holds, wired ------------------------------------
+
+# Pin names are the block's OWN parameter names, not IEC's: this report explains
+# this code, and these are what a reader finds in the .cpp.
+PINS = {
+    "Ton":        (("in", "delay_ms", "dt"), ("q",)),
+    "Tof":        (("in", "delay_ms", "dt"), ("q",)),
+    "Tp":         (("in", "width_ms", "dt"), ("q",)),
+    "Sr":         (("set", "reset"), ("q",)),
+    "Rs":         (("set", "reset"), ("q",)),
+    "RTrig":      (("in",), ("q",)),
+    "FTrig":      (("in",), ("q",)),
+    "Hysteresis": (("value", "low", "high"), ("q",)),
+    "Hysteresis3": (("value", "low", "high", "hyst"), ("band",)),
+    "Staircase":  (("value", "edge[]", "hyst"), ("level",)),
+    "Ramp":       (("target", "rate_per_s", "dt"), ("out",)),
+    "Deadband":   (("value", "band"), ("out",)),
+    "Ewma":       (("x", "tau_s", "dt"), ("out",)),
+    "ExpMovingAverage": (("x",), ("out",)),
+    "MedianOf3":  (("x",), ("out",)),
+    "MovingAverage": (("x",), ("out",)),
+    "Integral":   (("rate_per_s", "dt", "cutoff"), ("total",)),
+    "Derivative": (("quantity", "window_ms", "dt"), ("rate",)),
+    "Pid":        (("sp", "pv", "tuning", "dt"), ("out",)),
+    "Actuator":   (("target", "cfg", "dt"), ("position", "moving", "open", "close")),
+    "ValveController": (("duty", "period_ms", "min_on_ms", "dt"), ("coil",)),
+    "ZoneProbes": (("probes[3]", "tau_s"), ("temperature", "humidity", "valid")),
+    "AcSupply":   (("rows",), ("ok", "fault")),
+}
+
+
+def _pins(type_name):
+    """The pin lists for a declared block type, template arguments dropped."""
+    base = type_name.split("::")[-1].split("<")[0]
+    return PINS.get(base, (("in",), ("out",)))
+
+
+def fbd_diagram(spec, unwired=None):
+    """An FBD: the blocks a program holds, wired between its own variables.
+
+    Laid out by DEPTH - a block sits one column right of whatever feeds it - so
+    the page reads left to right the way a signal does. The wiring is authored:
+    the table declares the instances, and only the .cpp says what reaches a pin.
+    """
+    inst = {b[0]: b for b in spec}
+    if unwired is None:
+        unwired = []
+    depth = {}
+
+    def _depth(name, seen):
+        if name in depth:
+            return depth[name]
+        if name in seen:
+            return 0                       # a loop, which a scan may legally have
+        d = 0
+        for src in inst[name][2].values():
+            head = str(src).split(".")[0]
+            if head in inst and head != name:
+                d = max(d, _depth(head, seen | {name}) + 1)
+        depth[name] = d
+        return d
+
+    for n in inst:
+        _depth(n, set())
+    cols = max(depth.values()) + 1 if depth else 1
+
+    bw, gapx, gapy, lane = 118, 104, 22, 96
+    prims, box = [], {}
+    y_of = {}
+    for c in range(cols):
+        here = [b for b in spec if depth[b[0]] == c]
+        y = 26
+        for b in here:
+            name, typ, ins, outs = b
+            pi, po = _pins(typ)
+            rows_ = max(len(pi), len(po))
+            bh = 16 + rows_ * 11
+            x = lane + c * (bw + gapx)
+            prims.append(rect(x, y, bw, bh, "", BLK_C))
+            prims.append(text(x + bw / 2.0, y - 3, name, 6.6, "middle", bold=True))
+            prims.append(text(x + bw / 2.0, y + 10, typ.split("::")[-1], 6.6,
+                              "middle", INK))
+            for i, pin in enumerate(pi):
+                py = y + 20 + i * 11
+                prims.append(text(x + 4, py, pin, 5.8, color=MUTED))
+                box[(name, "in", pin)] = (x, py - 2)
+            for i, pin in enumerate(po):
+                py = y + 20 + i * 11
+                prims.append(text(x + bw - 4, py, pin, 5.8, "end", color=MUTED))
+                box[(name, "out", pin)] = (x + bw, py - 2)
+            y_of[name] = (x, y, bw, bh)
+            y += bh + gapy
+    height = max((v[1] + v[3] for v in y_of.values()), default=60)
+
+    # The wires. A source is either another block's output pin or a variable,
+    # and a variable gets a stub on the left rail so the page names it once.
+    left, right = [], []
+    for name, typ, ins, outs in spec:
+        for pin, src in ins.items():
+            if (name, "in", pin) not in box:
+                continue
+            tx, ty = box[(name, "in", pin)]
+            ref = re.match(r"([A-Za-z_]\w*)\.([A-Za-z_]\w*)", str(src))
+            head = ref.group(1) if ref else str(src)
+            if head in inst:
+                # The named pin, or the block's first output when the source is
+                # an expression over it ("flow_avg.out / 60").
+                opin = ref.group(2) if ref else _pins(inst[head][1])[1][0]
+                if (head, "out", opin) not in box:
+                    opin = _pins(inst[head][1])[1][0]
+                if (head, "out", opin) in box:
+                    sx, sy = box[(head, "out", opin)]
+                    mid = sx + (tx - sx) / 2.0
+                    prims.append(line([(sx, sy), (mid, sy), (mid, ty), (tx, ty)],
+                                      arrow=True))
+                else:
+                    unwired.append(f"{name}.{pin} <- {src}")
+                continue
+            left.append((src, tx, ty))
+        for pin, dst in outs.items():
+            if (name, "out", pin) in box:
+                sx, sy = box[(name, "out", pin)]
+                right.append((dst, sx, sy))
+
+    # Beside ITS OWN block, never on one shared rail: a stub for a block two
+    # columns in would otherwise be drawn at the far left, and its wire would
+    # cross everything between.
+    for label, tx, ty in left:
+        prims.append(text(tx - 10, ty + 2, label, 6.0, "end", INK))
+        prims.append(line([(tx - 8, ty), (tx, ty)], arrow=True))
+    # ...and the same on the way out: a stub at the far right would be drawn
+    # straight through every column after this block's own.
+    edge = lane + cols * (bw + gapx) - gapx
+    for label, sx, sy in right:
+        prims.append(line([(sx, sy), (sx + 8, sy)], arrow=True))
+        prims.append(text(sx + 12, sy + 2, label, 6.0, color=INK))
+    return prims, int(edge + 120), int(height + 14)
+
+
+# What reaches each pin, per program. AUTHORED from the call site, because the
+# table declares the instances and only the .cpp says what is wired to them.
+# A source of "<block>.<pin>" is another block's output; anything else is a
+# variable this program holds or reads.
+FBD = {
+ "target_temp": [
+   ("smooth", "Plc::Ewma", {"x": "held", "tau_s": "tau", "dt": "c.dt_ms"},
+    {"out": "eased -> clamp -> target"}),
+ ],
+ "roof_lockout": [
+   ("rain_for", "Plc::Tof", {"in": "rain_mmph > 0", "delay_ms": "rain_hold_s",
+                             "dt": "c.dt_ms"}, {"q": "rain_lock"}),
+ ],
+ "destrat": [
+   ("bands", "Plc::Staircase<3>", {"value": "strat", "edge[]": "the three dT",
+                                   "hyst": "hyst"}, {"level": "cli_stratDem"}),
+ ],
+ "fans": [
+   ("steps", "Plc::Staircase<3>", {"value": "the fused demand",
+                                   "edge[]": "low/med/high", "hyst": "dem_hyst"},
+    {"level": "cli_fanSpeed"}),
+ ],
+ "humidity": [
+   ("lockout_for", "Plc::Tof", {"in": "true while at risk",
+                                "delay_ms": "rot_release_s", "dt": "c.dt_ms"},
+    {"q": "lockout"}),
+   ("dry_gate_band", "Plc::Hysteresis", {"value": "dp_in - outside",
+                                         "low": "margin - hyst", "high": "margin"},
+    {"q": "dry_ok"}),
+ ],
+ "cooling": [
+   ("pid", "Plc::Pid", {"sp": "target", "pv": "t_in", "tuning": "kp/ti/td",
+                        "dt": "c.dt_ms"}, {"out": "cli_coolDem"}),
+   ("cool_gate", "Plc::Hysteresis", {"value": "t_in - t_intake",
+                                     "low": "margin - hyst", "high": "margin"},
+    {"q": "intake_ok"}),
+   ("ground_gate", "Plc::Hysteresis", {"value": "t_intake - t_in",
+                                       "low": "margin - hyst", "high": "margin"},
+    {"q": "ground_ok"}),
+   ("ground_band", "Plc::Hysteresis", {"value": "-dem", "low": "-rung",
+                                       "high": "-rung + dem_hyst"},
+    {"q": "asking for ground heat"}),
+ ],
+ "irr_meters": [
+   ("flow_avg", "Plc::Ewma", {"x": "out_flow", "tau_s": "out_avg_ms",
+                              "dt": "c.dt_ms"}, {}),
+   ("flow_band", "Plc::Deadband", {"value": "flow_avg.out", "band": "band"},
+    {"out": "out_flow_pub"}),
+   ("out_meter", "Plc::Integral", {"rate_per_s": "flow_avg.out / 60",
+                                   "dt": "c.dt_ms", "cutoff": "cutoff / 60"},
+    {"total": "out_total"}),
+   ("in_rate", "Plc::Derivative", {"quantity": "the pulse total",
+                                   "window_ms": "rate_win", "dt": "c.dt_ms"},
+    {"rate": "in_flow"}),
+   ("idle_for", "Plc::Ton", {"in": "state == IDLE", "delay_ms": "2 x rate_win",
+                             "dt": "c.dt_ms"}, {"q": "gates alarm_water_leak"}),
+   ("fill_for", "Plc::Ton", {"in": "state == FILLING", "delay_ms": "2 x rate_win",
+                             "dt": "c.dt_ms"}, {"q": "gates alarm_water_pressure"}),
+ ],
+ "dc_watch": [
+   ("ps1_mean", "Plc::Ewma", {"x": "dc1", "tau_s": "dc1_avg", "dt": "c.dt_ms"}, {}),
+   ("ps1_band", "Plc::Deadband", {"value": "ps1_mean.out", "band": "a write's worth"},
+    {"out": "out_dc1"}),
+   ("ps2_mean", "Plc::Ewma", {"x": "dc2", "tau_s": "dc2_avg", "dt": "c.dt_ms"}, {}),
+   ("ps2_band", "Plc::Deadband", {"value": "ps2_mean.out", "band": "a write's worth"},
+    {"out": "out_dc2"}),
+   ("ups_mean", "Plc::Ewma", {"x": "ups_bat", "tau_s": "ups_avg", "dt": "c.dt_ms"}, {}),
+   ("ups_band", "Plc::Deadband", {"value": "ups_mean.out", "band": "a write's worth"},
+    {"out": "out_ups"}),
+   ("gen_mean", "Plc::Ewma", {"x": "gen_bat", "tau_s": "gen_avg", "dt": "c.dt_ms"}, {}),
+   ("gen_band", "Plc::Deadband", {"value": "gen_mean.out", "band": "a write's worth"},
+    {"out": "out_gen"}),
+   ("low_for", "Plc::Ton", {"in": "low_bat contact", "delay_ms": "2 s",
+                            "dt": "c.dt_ms"}, {"q": "lockout + hold_safe"}),
+ ],
+ "screen": [
+   ("fabric", "Plc::Actuator", {"target": "screen ? 1 : 0", "cfg": "_mechanics()",
+                                "dt": "c.dt_ms"},
+    {"position": "settled?", "moving": "moving", "open": "coil", "close": "coil"}),
+ ],
+ "windows": [
+   ("act", "Plc::Actuator", {"target": "_target, capped", "cfg": "_mechanics()",
+                             "dt": "c.dt_ms"},
+    {"position": "cli_windowN_pos", "moving": "one owner at a time",
+     "open": "opn[i]", "close": "clo[i]"}),
+ ],
+ "irrigation": [
+   ("dwell", "Plc::Ton", {"in": "true, in the state", "delay_ms": "the state's own",
+                          "dt": "c.dt_ms"}, {"q": "the state ends"}),
+   ("inlet_v", "ValveController", {"duty": "filling or flushing"}, {"coil": "irr_input_roN"}),
+   ("tray_v", "ValveController", {"duty": "this tray, this state"}, {"coil": "irr_trayN"}),
+   ("outlet_v", "ValveController", {"duty": "draining or flushing"}, {"coil": "irr_output_roN"}),
+ ],
+ "skirt": [
+   ("pulse", "ValveController", {"duty": "max(humidify, cool)", "period_ms": "period",
+                                 "min_on_ms": "min_on", "dt": "c.dt_ms"},
+    {"coil": "cli_skirtValve"}),
+ ],
+ "irr_modulation": [
+   ("fold", "Plc::Ton", {"in": "true", "delay_ms": "one hour", "dt": "c.dt_ms"},
+    {"q": "fold the VPD in, once"}),
+   ("dryness", "Utils::ExpMovingAverage", {"x": "the hour's VPD"},
+    {"out": "irr_vpdAvg_kPa"}),
+ ],
+ "ac_grid_watch": [
+   ("supply", "AcSupply", {"rows": "V, A, W, Hz"},
+    {"ok": "sys_ac_grid_ok", "fault": "alarm_ac_grid"}),
+ ],
+ "ac_local_watch": [
+   ("supply", "AcSupply", {"rows": "V, A, W, Hz"},
+    {"ok": "sys_ac_local_ok", "fault": "alarm_ac_local"}),
+   ("cranking", "Plc::Ton", {"in": "grid gone and local dead",
+                             "delay_ms": "start_s", "dt": "c.dt_ms"},
+    {"q": "alarm_gen"}),
+ ],
+ "temp_rh_zone": [
+   ("ceiling", "ZoneProbes", {"probes[3]": "t_hi, h_hi", "tau_s": "tau_s"},
+    {"temperature": "temp_hi", "humidity": "rh_hi", "valid": "fault_hi"}),
+   ("floor", "ZoneProbes", {"probes[3]": "t_lo, h_lo", "tau_s": "tau_s"},
+    {"temperature": "temp_lo", "humidity": "rh_lo", "valid": "fault_lo"}),
+   ("crawlspace", "ZoneProbes", {"probes[3]": "t_cs, h_cs", "tau_s": "tau_s"},
+    {"temperature": "temp_cs", "humidity": "rh_cs", "valid": "fault_cs"}),
+   ("exterior", "ZoneProbes", {"probes[3]": "t_ext, h_ext", "tau_s": "tau_s"},
+    {"temperature": "temp_ext", "humidity": "rh_ext", "valid": "fault_ext"}),
+ ],
+}
+
+
 # --- the document ------------------------------------------------------------
 
 def _rows_of(site):
@@ -1183,7 +1451,7 @@ def main():
                          f"One-time report: scripts/logic_report.py")
     c.showPage()
 
-    made, crossings = 0, []
+    made, crossings, unwired = 0, [], []
     for p in progs:
         prims, dw, dh = program_diagram(p, rows)
         notes = [p.get("desc", "")]
@@ -1198,6 +1466,29 @@ def main():
         page(c, p["name"], sub, prims, dw, dh, notes)
         _svg(f"{p['name']}", prims, dw, dh)
         made += 1
+
+        wiring = FBD.get(p["name"])
+        if p["blocks"]:
+            # The table declares the instances; the wiring is authored. They
+            # have to name the same set, or a page is quietly short a block.
+            declared = set(b["name"] for b in p["blocks"])
+            drawn = set(b[0] for b in (wiring or []))
+            for miss in sorted(declared - drawn):
+                crossings.append(f"{p['name']}: block '{miss}' is declared and "
+                                 f"not in the FBD")
+            for extra in sorted(drawn - declared):
+                crossings.append(f"{p['name']}: FBD draws '{extra}', which the "
+                                 f"table does not declare")
+        if wiring:
+            fprims, fdw, fdh = fbd_diagram(wiring, unwired)
+            _audit(fprims, p["name"] + " (fbd)", crossings)
+            page(c, p["name"] + ": the blocks", sub, fprims, fdw, fdh, [],
+                 kicker="What it HOLDS, wired. The instances and their types are "
+                        "the table's; what reaches a pin is authored from the "
+                        "call site, because only the .cpp says. Pin names are "
+                        "the block's own parameters.")
+            _svg(p["name"] + "_fbd", fprims, fdw, fdh)
+            made += 1
 
         steps = LOGIC.get(p["name"])
         if steps:
@@ -1220,6 +1511,8 @@ def main():
     c.save()
     for msg in crossings:
         print("  WARNING " + msg)
+    for msg in unwired:
+        print("  WARNING a pin names an output that does not exist: " + msg)
     print(f"  {os.path.relpath(out, ROOT)}: written ({made} diagrams)")
     print(f"  {os.path.relpath(IMAGES, ROOT)}/: {made} editable .drawio.svg")
 
