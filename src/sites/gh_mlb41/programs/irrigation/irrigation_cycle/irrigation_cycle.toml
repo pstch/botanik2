@@ -181,10 +181,17 @@ in1 = "soak_s"
 in2 = "drain_window_s"
 in3 = "flush_s"
 
+# The window is an operator's SECONDS and the timer counts milliseconds.
+[net.window_ms]
+fn = "mul"
+[net.window_ms.in]
+in1 = "window.out"
+in2 = "=1000"
+
 [net.dwell]
 [net.dwell.in]
 in       = "=true"
-delay_ms = "=1000 * window.out"
+delay_ms = "window_ms.out"
 dt       = "=c.dt_ms"
 
 [net.inlet_v]
