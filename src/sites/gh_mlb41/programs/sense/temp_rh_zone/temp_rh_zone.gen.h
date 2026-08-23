@@ -12,15 +12,13 @@
 
 #include "../../../vars.h"
 
-#include "../../../blocks/zone_probes.h"
-
 namespace Site {
 
 using namespace Botanik;
 
 /**
- * @brief The conditioned picture of the greenhouse: four locations voted and
- *        filtered, then the psychrometrics every other law is set in.
+ * @brief The psychrometrics every other law is set in, off the two interior
+ *        levels: one temperature for the house, and the worst case per quantity.
  */
 class TempRHZone final : public Plc::Program {
 
@@ -29,16 +27,11 @@ public:
     /** @name VAR_INPUT
      *  @{ */
 
-    Vars::RefIn<uint16_t> tau_ms;
-    Vars::RefIn<float>    t_hi[3];
-    Vars::RefIn<float>    h_hi[3];
-    Vars::RefIn<float>    t_lo[3];
-    Vars::RefIn<float>    h_lo[3];
-    Vars::RefIn<float>    t_cs[3];
-    Vars::RefIn<float>    h_cs[3];
-    Vars::RefIn<float>    t_ext[3];
-    Vars::RefIn<float>    h_ext[3];
-    Vars::RefIn<float>    rot_limit;
+    Vars::RefIn<float> temp_hi;
+    Vars::RefIn<float> rh_hi;
+    Vars::RefIn<float> temp_lo;
+    Vars::RefIn<float> rh_lo;
+    Vars::RefIn<float> rot_limit;
 
     /** @} */
 
@@ -46,18 +39,6 @@ public:
      *  @{ */
 
     Vars::RefOut<float> temp_in;
-    Vars::RefOut<float> temp_hi;
-    Vars::RefOut<float> rh_hi;
-    Vars::RefOut<float> temp_lo;
-    Vars::RefOut<float> rh_lo;
-    Vars::RefOut<float> temp_cs;
-    Vars::RefOut<float> rh_cs;
-    Vars::RefOut<float> temp_ext;
-    Vars::RefOut<float> rh_ext;
-    Vars::RefOut<bool>  fault_hi;
-    Vars::RefOut<bool>  fault_lo;
-    Vars::RefOut<bool>  fault_cs;
-    Vars::RefOut<bool>  fault_ext;
     Vars::RefOut<float> dew_point;
     Vars::RefOut<float> dp_margin;
     Vars::RefOut<float> sat_press;
@@ -68,31 +49,7 @@ public:
 
 private:
 
-    /** @name VAR - function blocks
-     *  @{ */
-
-    ZoneProbes ceiling;
-    ZoneProbes floor;
-    ZoneProbes crawlspace;
-    ZoneProbes exterior;
-
-    /** @} */
-
-    /** @name Sizes - what a body loops over
-     *  @{ */
-
-    static const uint8_t N_T_HI  = 3;
-    static const uint8_t N_H_HI  = 3;
-    static const uint8_t N_T_LO  = 3;
-    static const uint8_t N_H_LO  = 3;
-    static const uint8_t N_T_CS  = 3;
-    static const uint8_t N_H_CS  = 3;
-    static const uint8_t N_T_EXT = 3;
-    static const uint8_t N_H_EXT = 3;
-
-    /** @} */
-
-    Vars::VarRef _watch_rows[24];  ///< swept for validity before each activation
+    Vars::VarRef _watch_rows[4];  ///< swept for validity before each activation
 
 public:
     TempRHZone(const SetupContext& ctx, Vars::Bank& io)
@@ -102,49 +59,15 @@ protected:
     /** @brief Resolve every name. An output is CLAIMED here. */
     void bind(Vars::Bank& io) override;
     void run(ProgramContext& c) override;
-    void on_bind();  ///< wire a block to a row it was handed
 };
 
 inline void TempRHZone::bind(Vars::Bank& io) {
-    tau_ms    = io.resolve_in<uint16_t>("cli_sensorTau_ms");
-    t_hi[0]   = io.resolve_in<float>("cli_temp_hi1");
-    t_hi[1]   = io.resolve_in<float>("cli_temp_hi2");
-    t_hi[2]   = io.resolve_in<float>("cli_temp_hi3");
-    h_hi[0]   = io.resolve_in<float>("cli_rh_hi1");
-    h_hi[1]   = io.resolve_in<float>("cli_rh_hi2");
-    h_hi[2]   = io.resolve_in<float>("cli_rh_hi3");
-    t_lo[0]   = io.resolve_in<float>("cli_temp_lo1");
-    t_lo[1]   = io.resolve_in<float>("cli_temp_lo2");
-    t_lo[2]   = io.resolve_in<float>("cli_temp_lo3");
-    h_lo[0]   = io.resolve_in<float>("cli_rh_lo1");
-    h_lo[1]   = io.resolve_in<float>("cli_rh_lo2");
-    h_lo[2]   = io.resolve_in<float>("cli_rh_lo3");
-    t_cs[0]   = io.resolve_in<float>("cli_temp_cs1");
-    t_cs[1]   = io.resolve_in<float>("cli_temp_cs2");
-    t_cs[2]   = io.resolve_in<float>("cli_temp_cs3");
-    h_cs[0]   = io.resolve_in<float>("cli_rh_cs1");
-    h_cs[1]   = io.resolve_in<float>("cli_rh_cs2");
-    h_cs[2]   = io.resolve_in<float>("cli_rh_cs3");
-    t_ext[0]  = io.resolve_in<float>("cli_temp_ext1");
-    t_ext[1]  = io.resolve_in<float>("cli_temp_ext2");
-    t_ext[2]  = io.resolve_in<float>("cli_temp_ext3");
-    h_ext[0]  = io.resolve_in<float>("cli_rh_ext1");
-    h_ext[1]  = io.resolve_in<float>("cli_rh_ext2");
-    h_ext[2]  = io.resolve_in<float>("cli_rh_ext3");
+    temp_hi   = io.resolve_in<float>("cli_temp_hi");
+    rh_hi     = io.resolve_in<float>("cli_rh_hi");
+    temp_lo   = io.resolve_in<float>("cli_temp_lo");
+    rh_lo     = io.resolve_in<float>("cli_rh_lo");
     rot_limit = io.resolve_in<float>("cli_rotMargin_degC");
     temp_in   = io.resolve_out<float>("cli_temp_in");
-    temp_hi   = io.resolve_out<float>("cli_temp_hi");
-    rh_hi     = io.resolve_out<float>("cli_rh_hi");
-    temp_lo   = io.resolve_out<float>("cli_temp_lo");
-    rh_lo     = io.resolve_out<float>("cli_rh_lo");
-    temp_cs   = io.resolve_out<float>("cli_temp_cs");
-    rh_cs     = io.resolve_out<float>("cli_rh_cs");
-    temp_ext  = io.resolve_out<float>("cli_temp_ext");
-    rh_ext    = io.resolve_out<float>("cli_rh_ext");
-    fault_hi  = io.resolve_out<bool>("alarm_sns_ceiling");
-    fault_lo  = io.resolve_out<bool>("alarm_sns_floor");
-    fault_cs  = io.resolve_out<bool>("alarm_sns_crawlspace");
-    fault_ext = io.resolve_out<bool>("alarm_sns_exterior");
     dew_point = io.resolve_out<float>("cli_dewPoint_degC");
     dp_margin = io.resolve_out<float>("cli_dpMargin_degC");
     sat_press = io.resolve_out<float>("cli_satPress_kPa");
@@ -153,33 +76,12 @@ inline void TempRHZone::bind(Vars::Bank& io) {
 
     // What the base sweeps before each activation, so an input that has
     // stopped being believable is DEGRADED without the law asking.
-    _watch_rows[0] = t_hi[0].r;
-    _watch_rows[1] = t_hi[1].r;
-    _watch_rows[2] = t_hi[2].r;
-    _watch_rows[3] = h_hi[0].r;
-    _watch_rows[4] = h_hi[1].r;
-    _watch_rows[5] = h_hi[2].r;
-    _watch_rows[6] = t_lo[0].r;
-    _watch_rows[7] = t_lo[1].r;
-    _watch_rows[8] = t_lo[2].r;
-    _watch_rows[9] = h_lo[0].r;
-    _watch_rows[10] = h_lo[1].r;
-    _watch_rows[11] = h_lo[2].r;
-    _watch_rows[12] = t_cs[0].r;
-    _watch_rows[13] = t_cs[1].r;
-    _watch_rows[14] = t_cs[2].r;
-    _watch_rows[15] = h_cs[0].r;
-    _watch_rows[16] = h_cs[1].r;
-    _watch_rows[17] = h_cs[2].r;
-    _watch_rows[18] = t_ext[0].r;
-    _watch_rows[19] = t_ext[1].r;
-    _watch_rows[20] = t_ext[2].r;
-    _watch_rows[21] = h_ext[0].r;
-    _watch_rows[22] = h_ext[1].r;
-    _watch_rows[23] = h_ext[2].r;
-    set_inputs(_watch_rows, 24);
+    _watch_rows[0] = temp_hi.r;
+    _watch_rows[1] = rh_hi.r;
+    _watch_rows[2] = temp_lo.r;
+    _watch_rows[3] = rh_lo.r;
+    set_inputs(_watch_rows, 4);
     set_health_row(io.resolve_out<uint8_t>("prog_temp_rh_zone"));
-    on_bind();
 }
 
 }  // namespace Site

@@ -61,6 +61,7 @@ struct AllPrograms {
     Site::AcGridWatch          ac_grid;
     Site::AcLocalWatch         ac_local;
     Site::DcWatch              dc;
+    Site::TempRHSensors        sensors;
     Site::TempRHZone           zones;
     Site::StratSensor          strat;
     Site::DayPhaseController   phase;
@@ -69,7 +70,8 @@ struct AllPrograms {
     Site::DestratController    destrat;
     Site::HumidityController   humidity;
     Site::IrrigationModulation irr_mod;
-    Site::WaterMeters          irr_meters;
+    Site::IrrMtrInput          irr_in;
+    Site::IrrMtrOutput         irr_out;
     Site::IrrigationCycle      irrigation;
     Site::ScreenController     screen;
     Site::WindowsController    windows;
@@ -77,21 +79,24 @@ struct AllPrograms {
     Site::FanController        fans;
     Site::SkirtController      skirt;
 
-    Botanik::Plc::Program* all[19];
+    static const uint8_t COUNT = 21;
+    Botanik::Plc::Program* all[COUNT];
 
     AllPrograms(const Botanik::SetupContext& ctx, Vars::Bank& io)
-        : sun_watch(ctx, io), ac_grid(ctx, io), ac_local(ctx, io), dc(ctx, io), zones(ctx, io),
+        : sun_watch(ctx, io), ac_grid(ctx, io), ac_local(ctx, io), dc(ctx, io), sensors(ctx, io), zones(ctx, io),
           strat(ctx, io), phase(ctx, io), target(ctx, io), cooling(ctx, io),
           destrat(ctx, io), humidity(ctx, io),
-          irr_mod(ctx, io), irr_meters(ctx, io), irrigation(ctx, io), screen(ctx, io), windows(ctx, io),
+          irr_mod(ctx, io), irr_in(ctx, io), irr_out(ctx, io), irrigation(ctx, io), screen(ctx, io), windows(ctx, io),
           intractors(ctx, io), fans(ctx, io), skirt(ctx, io) {
         Botanik::Plc::Program* const list[] = {
-            &ac_grid, &ac_local, &dc, &zones, &strat, &phase, &target,
-            &cooling, &destrat, &humidity, &irr_mod, &irr_meters, &irrigation, &screen,
+            &ac_grid, &ac_local, &dc, &sensors, &zones, &strat, &phase, &target,
+            &cooling, &destrat, &humidity, &irr_mod, &irr_in, &irr_out, &irrigation, &screen,
             &sun_watch,
             &windows, &intractors, &fans, &skirt
         };
-        for (uint8_t i = 0; i < 19; i++) all[i] = list[i];
+        // Sized from the list, never a literal: a hand-kept count silently
+        // drops whichever program is last the day one is added.
+        for (uint8_t i = 0; i < COUNT; i++) all[i] = list[i];
     }
 };
 

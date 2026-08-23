@@ -1062,7 +1062,7 @@ def fbd_diagram(spec, unwired=None):
     # down to fit and the pin names stop being readable.
     for BAND in (3, 2):
         xs = _slots(BAND)
-        if xs[-1] + bw - xs[0] <= 664 or BAND == 2:
+        if xs[-1] + bw - xs[0] <= 560 or BAND == 2:
             break
     lane = xs[0]
 

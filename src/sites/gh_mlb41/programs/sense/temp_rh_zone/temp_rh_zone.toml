@@ -3,113 +3,34 @@ class  = "TempRHZone"
 task   = "FAST"
 health = "prog_temp_rh_zone"
 desc   = """
-The conditioned picture of the greenhouse: four locations voted and filtered,
-then the psychrometrics every other law is set in.
+The psychrometrics every other law is set in, off the two interior levels:
+one temperature for the house, and the worst case per quantity.
 """
 notes  = """
-Runs FIRST. Everything downstream reads its rows rather than the probes.
+Reads the conditioned rows temp_rh_sensors publishes, never a probe. The
+worst case is taken among the levels that are MEASURED, so one holding a
+reading from before its probes died does not speak for the house.
 """
-hooks  = ["on_bind"]
-
-# One per measurement location: three probes selected down to one reading,
-# then filtered. Held by value so one zone's filter state cannot become
-# another's.
-
-[block.ceiling]
-type    = "ZoneProbes"
-include = "blocks/zone_probes.h"
-
-[block.floor]
-type    = "ZoneProbes"
-include = "blocks/zone_probes.h"
-
-[block.crawlspace]
-type    = "ZoneProbes"
-include = "blocks/zone_probes.h"
-
-[block.exterior]
-type    = "ZoneProbes"
-include = "blocks/zone_probes.h"
 
 [in]
-tau_ms    = "cli_sensorTau_ms"
-t_hi      = { rows = "cli_temp_hi*", count = 3 }
-h_hi      = { rows = "cli_rh_hi*", count = 3 }
-t_lo      = { rows = "cli_temp_lo*", count = 3 }
-h_lo      = { rows = "cli_rh_lo*", count = 3 }
-t_cs      = { rows = "cli_temp_cs*", count = 3 }
-h_cs      = { rows = "cli_rh_cs*", count = 3 }
-t_ext     = { rows = "cli_temp_ext*", count = 3 }
-h_ext     = { rows = "cli_rh_ext*", count = 3 }
-rot_limit = "cli_rotMargin_degC"
-
-[out]
-# One number for the house, and the two levels it came from beside it.
-temp_in   = "cli_temp_in"
 temp_hi   = "cli_temp_hi"
 rh_hi     = "cli_rh_hi"
 temp_lo   = "cli_temp_lo"
 rh_lo     = "cli_rh_lo"
-temp_cs   = "cli_temp_cs"
-rh_cs     = "cli_rh_cs"
-temp_ext  = "cli_temp_ext"
-rh_ext    = "cli_rh_ext"
-fault_hi  = "alarm_sns_ceiling"
-fault_lo  = "alarm_sns_floor"
-fault_cs  = "alarm_sns_crawlspace"
-fault_ext = "alarm_sns_exterior"
+rot_limit = "cli_rotMargin_degC"
+
+[out]
+temp_in   = "cli_temp_in"
 dew_point = "cli_dewPoint_degC"
 dp_margin = "cli_dpMargin_degC"
 sat_press = "cli_satPress_kPa"
 vpd       = "cli_vpd_kPa"
 rot       = "alarm_rot"
 
-# The law as a network: four locations voted and filtered, then one worst case
-# per QUANTITY - the smallest margin for rot, the lowest VPD for irrigation,
-# and they are not always the same level.
+# The law as a network: one temperature for the house, and one worst case per
+# QUANTITY - the smallest margin for rot, the lowest VPD for irrigation, and
+# they are not always the same level.
 
-[net.ceiling]
-[net.ceiling.in]
-t     = "t_hi"
-h     = "h_hi"
-tau_s = "tau_ms"
-[net.ceiling.out]
-temperature = "temp_hi"
-humidity    = "rh_hi"
-valid       = "fault_hi"
-
-[net.floor]
-[net.floor.in]
-t     = "t_lo"
-h     = "h_lo"
-tau_s = "tau_ms"
-[net.floor.out]
-temperature = "temp_lo"
-humidity    = "rh_lo"
-valid       = "fault_lo"
-
-[net.crawlspace]
-[net.crawlspace.in]
-t     = "t_cs"
-h     = "h_cs"
-tau_s = "tau_ms"
-[net.crawlspace.out]
-temperature = "temp_cs"
-humidity    = "rh_cs"
-valid       = "fault_cs"
-
-[net.exterior]
-[net.exterior.in]
-t     = "t_ext"
-h     = "h_ext"
-tau_s = "tau_ms"
-[net.exterior.out]
-temperature = "temp_ext"
-humidity    = "rh_ext"
-valid       = "fault_ext"
-
-# ONE interior temperature: the HOTTER of the two levels, because for heat the
-# worst case is the top of the house.
 [net.hotter]
 fn = "max_of"
 [net.hotter.in]
@@ -137,6 +58,14 @@ in1 = "margin_hi.out"
 in2 = "margin_lo.out"
 [net.margin.out]
 out = "dp_margin"
+
+[net.rot_risk]
+fn = "lt"
+[net.rot_risk.in]
+in1 = "dp_margin"
+in2 = "rot_limit"
+[net.rot_risk.out]
+out = "rot"
 
 [net.vpd_hi]
 fn = "vapour_pressure_deficit"

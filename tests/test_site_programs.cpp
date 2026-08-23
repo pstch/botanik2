@@ -92,15 +92,27 @@ struct Rig {
     Cycle               d{progs, 1, &live.bank, live.reg};
 };
 
+/** @brief The sensing chain: the probes are voted and filtered, then the
+ *  psychrometrics are taken off the two interior levels. Split across two
+ *  programs, so a case about what a reading BECOMES needs both. */
+struct ZoneRig {
+    Live                live;
+    Site::TempRHSensors sensors{Botanik::SetupContext(live.reg), live.bank};
+    Site::TempRHZone    zone   {Botanik::SetupContext(live.reg), live.bank};
+    Plc::Program* const progs[2] = { &sensors, &zone };
+    Cycle               d{progs, 2, &live.bank, live.reg};
+};
+
 /** @brief The irrigation chain: the meters feed the schedule, the schedule
  *  arms the cycle. Nothing here works with fewer than all three. */
 struct IrrigationRig {
     Live                     live;
-    Site::WaterMeters        meters{Botanik::SetupContext(live.reg), live.bank};
-    Site::IrrigationSchedule sched {Botanik::SetupContext(live.reg), live.bank};
-    Site::IrrigationCycle    irr   {Botanik::SetupContext(live.reg), live.bank};
-    Plc::Program* const      progs[3] = { &meters, &sched, &irr };
-    Cycle                    d{progs, 3, &live.bank, live.reg};
+    Site::IrrMtrInput        in_meter {Botanik::SetupContext(live.reg), live.bank};
+    Site::IrrMtrOutput       out_meter{Botanik::SetupContext(live.reg), live.bank};
+    Site::IrrigationSchedule sched    {Botanik::SetupContext(live.reg), live.bank};
+    Site::IrrigationCycle    irr      {Botanik::SetupContext(live.reg), live.bank};
+    Plc::Program* const      progs[4] = { &in_meter, &out_meter, &sched, &irr };
+    Cycle                    d{progs, 4, &live.bank, live.reg};
 };
 
 /** @brief The roof: the lockout runs FIRST, so the windows see the interlock
@@ -113,7 +125,7 @@ struct RoofRig {
     Cycle                   d{progs, 2, &live.bank, live.reg};
 };
 
-TEST_CASE_FIXTURE(Rig<Site::TempRHZone>, "zone: the selector keeps the middle reading and discards the extremes") {
+TEST_CASE_FIXTURE(Rig<Site::TempRHSensors>, "zone: the selector keeps the middle reading and discards the extremes") {
     Vars::RefIn<float> hi = live.bank.resolve_in<float>("cli_temp_hi");
     const VarRef p[3] = { live.ref("cli_temp_hi1"), live.ref("cli_temp_hi2"),
                           live.ref("cli_temp_hi3") };
@@ -133,7 +145,7 @@ TEST_CASE_FIXTURE(Rig<Site::TempRHZone>, "zone: the selector keeps the middle re
     CHECK(live.bank.get(hi) == doctest::Approx(20.2f).epsilon(0.02));
 }
 
-TEST_CASE_FIXTURE(Rig<Site::TempRHZone>, "zone: an invalid probe is excluded, and one good probe still reads") {
+TEST_CASE_FIXTURE(Rig<Site::TempRHSensors>, "zone: an invalid probe is excluded, and one good probe still reads") {
     Vars::RefIn<float> hi = live.bank.resolve_in<float>("cli_temp_hi");
     const VarRef p[3] = { live.ref("cli_temp_hi1"), live.ref("cli_temp_hi2"),
                           live.ref("cli_temp_hi3") };
@@ -153,7 +165,7 @@ TEST_CASE_FIXTURE(Rig<Site::TempRHZone>, "zone: an invalid probe is excluded, an
     CHECK(live.bank.var(live.ref("alarm_sns_ceiling")).b());
 }
 
-TEST_CASE_FIXTURE(Rig<Site::TempRHZone>, "zone: the instruments report percent, the model works in fractions") {
+TEST_CASE_FIXTURE(ZoneRig, "zone: the instruments report percent, the model works in fractions") {
 
     for (uint8_t i = 1; i <= 3; i++) {
         char t[24], h[24];
@@ -177,7 +189,7 @@ TEST_CASE_FIXTURE(Rig<Site::TempRHZone>, "zone: the instruments report percent, 
           doctest::Approx(6.2f).epsilon(0.1));
 }
 
-TEST_CASE_FIXTURE(Rig<Site::TempRHZone>, "zone: temperature survives losing every humidity probe") {
+TEST_CASE_FIXTURE(Rig<Site::TempRHSensors>, "zone: temperature survives losing every humidity probe") {
     // The two quantities carry their own quorum. Coupling them would let one
     // dead RH probe invalidate a temperature three good probes agree on.
     Vars::RefIn<float> t_out = live.bank.resolve_in<float>("cli_temp_hi");
@@ -197,7 +209,7 @@ TEST_CASE_FIXTURE(Rig<Site::TempRHZone>, "zone: temperature survives losing ever
     CHECK_FALSE(live.bank.var(h_out.r).valid());
 }
 
-TEST_CASE_FIXTURE(Rig<Site::TempRHZone>, "zone: with every probe gone the reading is HELD, not defaulted") {
+TEST_CASE_FIXTURE(Rig<Site::TempRHSensors>, "zone: with every probe gone the reading is HELD, not defaulted") {
     Vars::RefIn<float> hi = live.bank.resolve_in<float>("cli_temp_hi");
     const VarRef p[3] = { live.ref("cli_temp_hi1"), live.ref("cli_temp_hi2"),
                           live.ref("cli_temp_hi3") };
@@ -223,7 +235,7 @@ TEST_CASE_FIXTURE(Rig<Site::TempRHZone>, "zone: with every probe gone the readin
     CHECK(live.bank.get(hi) == doctest::Approx(21.0f));
 }
 
-TEST_CASE_FIXTURE(Rig<Site::TempRHZone>, "zone: a zone that has never been measured has nothing to hold") {
+TEST_CASE_FIXTURE(Rig<Site::TempRHSensors>, "zone: a zone that has never been measured has nothing to hold") {
     Vars::RefIn<float> cs = live.bank.resolve_in<float>("cli_temp_cs");
 
     for (uint64_t t = 0; t <= 2000; t += 100) d.step(t);
@@ -933,7 +945,7 @@ TEST_CASE_FIXTURE(IrrigationRig, "irrigation: a soak of zero is skipped, not pas
     CHECK(live.bank.var(live.ref("irr_state")).i() == Site::IRR_DRAINING);
 }
 
-TEST_CASE_FIXTURE(Rig<Site::WaterMeters>, "irrigation: the drain meter comes back to zero, not to a tenth of one") {
+TEST_CASE_FIXTURE(Rig<Site::IrrMtrOutput>, "irrigation: the drain meter comes back to zero, not to a tenth of one") {
     // A deadband only writes when the value moves MORE than its band, so a
     // flow decaying toward zero leaves the row parked on the last figure it
     // reported. That is a drain meter saying water is moving with every valve
@@ -961,7 +973,7 @@ TEST_CASE_FIXTURE(Rig<Site::WaterMeters>, "irrigation: the drain meter comes bac
     CHECK(live.bank.get(shown) > 0.0f);
 }
 
-TEST_CASE_FIXTURE(Rig<Site::WaterMeters>,
+TEST_CASE_FIXTURE(Rig<Site::IrrMtrInput>,
                   "irrigation: a state change raises no supply fault the rate window has yet to catch up with") {
     // The inlet rate is the LAST COMPLETED window and stands until the next one
     // closes, so for irr_rateWin_ms after a state change it is still reporting
@@ -1129,7 +1141,7 @@ TEST_CASE_FIXTURE(IrrigationRig, "irrigation: the afternoon is not a watering sl
     INFO("and a cold end of night waits for that window rather than watering "
          "cold roots");
     Live g;
-    Site::WaterMeters     meters2(Botanik::SetupContext(g.reg), g.bank);
+    Site::IrrMtrInput     meters2(Botanik::SetupContext(g.reg), g.bank);
     Site::IrrigationCycle irr2(Botanik::SetupContext(g.reg), g.bank);
     Plc::Program* const progs2[] = { &meters2, &irr2 };
     Cycle d2(progs2, 2, &g.bank, g.reg);
@@ -1620,7 +1632,7 @@ namespace {
 
 /** @brief Fill tray 1, then hold @p lpm on the outlet meter for the whole drain
  *  window. @return the litres the meter says came back. */
-float drain_at(Live& live, Cycle& d, Site::WaterMeters& meters,
+float drain_at(Live& live, Cycle& d, Site::IrrMtrOutput& meter,
                Site::IrrigationCycle& irr, float lpm, bool meter_live,
                Plc::Health* worst = nullptr) {
     (void)irr;
@@ -1646,9 +1658,9 @@ float drain_at(Live& live, Cycle& d, Site::WaterMeters& meters,
         d.step(t += 1000);
         // Health is per ACTIVATION, so it has to be read inside the window: by
         // the time the loop ends the cycle is flushing and healthy again. The
-        // METERS are what report a silent instrument now - the cycle only
-        // declines to judge on one.
-        if (worst != nullptr && meters.health() > *worst) *worst = meters.health();
+        // OUTLET METER is what reports a silent instrument now - the cycle
+        // only declines to judge on one.
+        if (worst != nullptr && meter.health() > *worst) *worst = meter.health();
     }
     return live.bank.var(live.ref("irr_drained_L")).as_f32();
 }
@@ -1689,7 +1701,7 @@ TEST_CASE_FIXTURE(IrrigationRig, "irrigation: what comes back out is judged agai
 
     // 20 L went in; 5 L/min over the 300 s window is far more than the 30% the
     // margin allows to be missing.
-    const float back = drain_at(live, d, meters, irr, 5.0f, true);
+    const float back = drain_at(live, d, out_meter, irr, 5.0f, true);
     CHECK(back > 20.0f);
     CHECK_FALSE(live.bank.var(live.ref("alarm_irr_drain")).b());
     CHECK_FALSE(live.bank.var(live.ref("alarm_irr_drain_tray1")).b());
@@ -1701,7 +1713,7 @@ TEST_CASE_FIXTURE(IrrigationRig, "irrigation: a tray that does not drain names i
     HAL::Pulse::attach(Site::pulse_inputs[0].channel, Site::pulse_inputs[0].edge);
 
     // A trickle: half a litre back out of twenty.
-    const float back = drain_at(live, d, meters, irr, 0.1f, true);
+    const float back = drain_at(live, d, out_meter, irr, 0.1f, true);
     CHECK(back < 1.0f);
     CHECK(live.bank.var(live.ref("alarm_irr_drain")).b());
     CHECK(live.bank.var(live.ref("alarm_irr_drain_tray1")).b());
@@ -1715,7 +1727,7 @@ TEST_CASE_FIXTURE(IrrigationRig, "irrigation: a silent outlet meter gives no ver
     HAL::Pulse::attach(Site::pulse_inputs[0].channel, Site::pulse_inputs[0].edge);
 
     Plc::Health worst = Plc::Health::HEALTHY;
-    const float back = drain_at(live, d, meters, irr, 0.0f, false, &worst);
+    const float back = drain_at(live, d, out_meter, irr, 0.0f, false, &worst);
     CHECK(back == 0.0f);
     INFO("nothing was measured, so nothing is blamed - the meter has an alarm "
          "of its own");

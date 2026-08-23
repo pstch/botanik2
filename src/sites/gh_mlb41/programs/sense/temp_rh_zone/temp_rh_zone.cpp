@@ -7,43 +7,23 @@
 
 namespace Site {
 
-void TempRHZone::on_bind() {
-    const float tau_s = 0.001f * (float)tau_ms.get();
-    ceiling.attach(t_hi, h_hi, temp_hi, rh_hi, fault_hi, tau_s);
-    floor.attach(t_lo, h_lo, temp_lo, rh_lo, fault_lo, tau_s);
-    crawlspace.attach(t_cs, h_cs, temp_cs, rh_cs, fault_cs, tau_s);
-    exterior.attach(t_ext, h_ext, temp_ext, rh_ext, fault_ext, tau_s);
-}
-
 void TempRHZone::run(ProgramContext& c) {
-    if (c.first_scan) {
-        // The filters hold a claim about the recent past, and not being called
-        // means we stopped watching. Seed them again rather than resuming an
-        // average of readings from before the outage.
-        ceiling.reset(); floor.reset();
-        crawlspace.reset(); exterior.reset();
-    }
-
-    ceiling.step(c.dt_ms);
-    floor.step(c.dt_ms);
-    crawlspace.step(c.dt_ms);
-    exterior.step(c.dt_ms);
-
-    const float t_hi = ceiling.temperature();
-    const float t_lo = floor.temperature();
+    (void)c;
+    const float t_hi = temp_hi.get();
+    const float t_lo = temp_lo.get();
 
     // ONE interior temperature, for everything that wants the house rather than
     // a level of it - the cooling ladder included, which is why it is the
     // HOTTER of the two and not their mean. The spec keeps the worst case
     // between levels, and for heat that is the top of the house: an average
     // would hide a ridge already past the target under a cool floor.
-    const bool  hi_ok  = ceiling.valid();
-    const bool  lo_ok  = floor.valid();
+    const bool  hi_ok  = temp_hi.valid();
+    const bool  lo_ok  = temp_lo.valid();
     const float hotter = Plc::max_of(t_hi, t_lo);
     if (hi_ok && lo_ok)  temp_in.set(hotter);
     else if (hi_ok)      temp_in.set(t_hi);
     else if (lo_ok)      temp_in.set(t_lo);
-    // Both levels gone: the zones are holding their last readings, so the
+    // Both levels gone: the rows are holding their last readings, so the
     // hotter of them is still the best answer there is - held, like they are.
     else                 temp_in.hold(hotter);
 
@@ -52,8 +32,8 @@ void TempRHZone::run(ProgramContext& c) {
     // would hide a level that is already at the dew point.
     // One dew point per level: the margin and the VPD are both derived from
     // it, and computing it three times over cost three logarithms a beat.
-    const float dp_hi = Plc::dew_point(t_hi, ceiling.humidity());
-    const float dp_lo = Plc::dew_point(t_lo, floor.humidity());
+    const float dp_hi = Plc::dew_point(t_hi, rh_hi.get());
+    const float dp_lo = Plc::dew_point(t_lo, rh_lo.get());
     const float m_hi = t_hi - dp_hi;
     const float m_lo = t_lo - dp_lo;
     // Among the levels that are MEASURED, like temp_in above: one holding a
@@ -62,7 +42,7 @@ void TempRHZone::run(ProgramContext& c) {
     const bool  worst_isceiling = (hi_ok == lo_ok) ? (m_hi <= m_lo) : hi_ok;
     const float t_worst  = worst_isceiling ? t_hi : t_lo;
 
-    // Published every beat whatever the zones did, and the QUALITY is what
+    // Published every beat whatever the sensors did, and the QUALITY is what
     // says nothing measured it - a reader that checks learns not to act, and
     // one that does not gets the margin the house last really had rather than
     // a zero, which reads like saturated air.

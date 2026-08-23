@@ -54,6 +54,7 @@ struct Plant {
     Site::AcGridWatch          ac_grid;
     Site::AcLocalWatch         ac_local;
     Site::DcWatch              dc;
+    Site::TempRHSensors        sensors;
     Site::TempRHZone           zones;
     Site::StratSensor          strat;
     Site::ClimateWatch         climate;
@@ -63,7 +64,8 @@ struct Plant {
     Site::DestratController    destrat;
     Site::HumidityController   humidity;
     Site::IrrigationModulation irr_mod;
-    Site::WaterMeters          irr_meters;
+    Site::IrrMtrInput          irr_in;
+    Site::IrrMtrOutput         irr_out;
     Site::IrrigationSchedule   irr_schedule;
     Site::IrrigationCycle      irrigation;
     Site::ScreenController     screen;
@@ -73,7 +75,7 @@ struct Plant {
     Site::FanController        fans;
     Site::SkirtController      skirt;
 
-    Plc::Program* all[24];   ///< room for the list below
+    Plc::Program* all[26];   ///< room for the list below
     Cycle*        cycle = nullptr;
     uint64_t      t = 0;
     /** @brief What this plant's environment is, held every beat. The weather
@@ -83,17 +85,17 @@ struct Plant {
 
     Plant()
         : ac_grid(ctx(), io()), ac_local(ctx(), io()), dc(ctx(), io()),
-          zones(ctx(), io()), strat(ctx(), io()),
+          sensors(ctx(), io()), zones(ctx(), io()), strat(ctx(), io()),
           climate(ctx(), io()), weather(ctx(), io()),
           target(ctx(), io()), cooling(ctx(), io()), destrat(ctx(), io()),
-          humidity(ctx(), io()), irr_mod(ctx(), io()), irr_meters(ctx(), io()),
+          humidity(ctx(), io()), irr_mod(ctx(), io()), irr_in(ctx(), io()), irr_out(ctx(), io()),
           irr_schedule(ctx(), io()), irrigation(ctx(), io()), screen(ctx(), io()),
           roof_lock(ctx(), io()), windows(ctx(), io()),
           intractors(ctx(), io()), fans(ctx(), io()), skirt(ctx(), io()) {
         Plc::Program* const list[] = {
-            &ac_grid, &ac_local, &dc, &zones, &strat, &climate, &weather,
+            &ac_grid, &ac_local, &dc, &sensors, &zones, &strat, &climate, &weather,
             &target, &cooling, &destrat, &humidity,
-            &irr_mod, &irr_meters, &irr_schedule, &irrigation,
+            &irr_mod, &irr_in, &irr_out, &irr_schedule, &irrigation,
             &screen, &roof_lock, &windows, &intractors, &fans, &skirt
         };
         // Sized from the list, never a literal: a hand-kept count silently

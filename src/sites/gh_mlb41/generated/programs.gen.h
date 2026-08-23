@@ -16,52 +16,53 @@
 // totalizer, a position, an alarm - go to the pages and the bus, not here.
 //
 // [sense]
-//   ac_grid_watch   sys_grid_ok           -> ac_local_watch
-//   dc_watch        sys_supply_lockout    -> roof_lockout
-//   sun_watch       sol_fromRise_min      -> day_phase, irr_schedule
-//   sun_watch       sol_fromSet_min       -> day_phase
-//   temp_rh_zone    cli_temp_in           -> cooling, day_phase
-//   temp_rh_zone    cli_temp_hi           -> climate_watch, cooling, humidity, strat
-//   temp_rh_zone    cli_rh_hi             -> humidity
-//   temp_rh_zone    cli_temp_lo           -> cooling, strat
-//   temp_rh_zone    cli_temp_cs           -> cooling
-//   temp_rh_zone    cli_temp_ext          -> humidity, irr_schedule
-//   temp_rh_zone    cli_rh_ext            -> humidity
-//   temp_rh_zone    alarm_sns_ceiling     -> climate_watch
-//   temp_rh_zone    alarm_sns_floor       -> climate_watch
-//   temp_rh_zone    alarm_sns_crawlspace  -> climate_watch
-//   temp_rh_zone    alarm_sns_exterior    -> climate_watch
-//   temp_rh_zone    cli_dpMargin_degC     -> climate_watch, humidity, skirt
-//   temp_rh_zone    cli_vpd_kPa           -> irr_modulation
-//   temp_rh_zone    alarm_rot             -> humidity
-//   strat           cli_dTStrat_degC      -> climate_watch, destrat
+//   ac_grid_watch    sys_grid_ok           -> ac_local_watch
+//   dc_watch         sys_supply_lockout    -> roof_lockout
+//   sun_watch        sol_fromRise_min      -> day_phase, irr_schedule
+//   sun_watch        sol_fromSet_min       -> day_phase
+//   temp_rh_sensors  cli_temp_hi           -> climate_watch, cooling, humidity, strat, temp_rh_zone
+//   temp_rh_sensors  cli_rh_hi             -> humidity, temp_rh_zone
+//   temp_rh_sensors  cli_temp_lo           -> cooling, strat, temp_rh_zone
+//   temp_rh_sensors  cli_rh_lo             -> temp_rh_zone
+//   temp_rh_sensors  cli_temp_cs           -> cooling
+//   temp_rh_sensors  cli_temp_ext          -> humidity, irr_schedule
+//   temp_rh_sensors  cli_rh_ext            -> humidity
+//   temp_rh_sensors  alarm_sns_ceiling     -> climate_watch
+//   temp_rh_sensors  alarm_sns_floor       -> climate_watch
+//   temp_rh_sensors  alarm_sns_crawlspace  -> climate_watch
+//   temp_rh_sensors  alarm_sns_exterior    -> climate_watch
+//   temp_rh_zone     cli_temp_in           -> cooling, day_phase
+//   temp_rh_zone     cli_dpMargin_degC     -> climate_watch, humidity, skirt
+//   temp_rh_zone     cli_vpd_kPa           -> irr_modulation
+//   temp_rh_zone     alarm_rot             -> humidity
+//   strat            cli_dTStrat_degC      -> climate_watch, destrat
 //
 // [climate]
-//   day_phase       cli_phase             -> fans, irr_schedule, screen, target_temp
-//   day_phase       cli_coldBankArm       -> target_temp
-//   day_phase       cli_heatBankArm       -> target_temp
-//   target_temp     cli_targetTemp_degC   -> cooling
-//   cooling         cli_coolDem           -> fans, intractors, screen, skirt
-//   cooling         cli_intakeCoolOk      -> intractors
-//   cooling         cli_groundHeatOk      -> intractors
-//   cooling         cli_windowDem         -> windows
-//   destrat         cli_stratDem          -> fans
-//   humidity        cli_humidDem          -> intractors, skirt
-//   humidity        cli_rotLockout        -> skirt
-//   humidity        cli_rotVentDem        -> intractors
-//   humidity        cli_intakeDryOk       -> intractors
+//   day_phase        cli_phase             -> fans, irr_schedule, screen, target_temp
+//   day_phase        cli_coldBankArm       -> target_temp
+//   day_phase        cli_heatBankArm       -> target_temp
+//   target_temp      cli_targetTemp_degC   -> cooling
+//   cooling          cli_coolDem           -> fans, intractors, screen, skirt
+//   cooling          cli_intakeCoolOk      -> intractors
+//   cooling          cli_groundHeatOk      -> intractors
+//   cooling          cli_windowDem         -> windows
+//   destrat          cli_stratDem          -> fans
+//   humidity         cli_humidDem          -> intractors, skirt
+//   humidity         cli_rotLockout        -> skirt
+//   humidity         cli_rotVentDem        -> intractors
+//   humidity         cli_intakeDryOk       -> intractors
 //
 // [irrigation]
-//   irr_modulation  irr_mod               -> irr_schedule, irrigation
-//   irr_meters      irr_inTotal_L         -> irrigation
-//   irr_meters      irr_outFlow_Lpm       -> irrigation
-//   irr_meters      irr_outTotal_L        -> irrigation
-//   irr_schedule    irr_dueTray           -> irrigation
-//   irrigation      irr_state             -> fans, irr_meters
+//   irr_modulation   irr_mod               -> irr_schedule, irrigation
+//   irr_mtr_input    irr_inTotal_L         -> irrigation
+//   irr_mtr_output   irr_outFlow_Lpm       -> irrigation
+//   irr_mtr_output   irr_outTotal_L        -> irrigation
+//   irr_schedule     irr_dueTray           -> irrigation
+//   irrigation       irr_state             -> fans, irr_mtr_input
 //
 // [actuators]
-//   screen          cli_screenMoving      -> fans
-//   roof_lockout    cli_windowCap         -> windows
+//   screen           cli_screenMoving      -> fans
+//   roof_lockout     cli_windowCap         -> windows
 //
 // [sense]
 //
@@ -76,6 +77,7 @@
 #include "../programs/sense/ac_local_watch/ac_local_watch.gen.h"
 #include "../programs/sense/dc_watch/dc_watch.gen.h"
 #include "../programs/sense/sun_watch/sun_watch.gen.h"
+#include "../programs/sense/temp_rh_sensors/temp_rh_sensors.gen.h"
 #include "../programs/sense/temp_rh_zone/temp_rh_zone.gen.h"
 #include "../programs/sense/strat_sensor/strat_sensor.gen.h"
 #include "../programs/sense/climate_watch/climate_watch.gen.h"
@@ -85,7 +87,8 @@
 #include "../programs/climate/destrat_controller/destrat_controller.gen.h"
 #include "../programs/climate/humidity_controller/humidity_controller.gen.h"
 #include "../programs/irrigation/irrigation_modulation/irrigation_modulation.gen.h"
-#include "../programs/irrigation/water_meters/water_meters.gen.h"
+#include "../programs/irrigation/irr_mtr_input/irr_mtr_input.gen.h"
+#include "../programs/irrigation/irr_mtr_output/irr_mtr_output.gen.h"
 #include "../programs/irrigation/irrigation_schedule/irrigation_schedule.gen.h"
 #include "../programs/irrigation/irrigation_cycle/irrigation_cycle.gen.h"
 #include "../programs/actuators/screen_controller/screen_controller.gen.h"
@@ -101,29 +104,31 @@
  *  init, the registration.
  *  @{ */
 
-#define SITE_PROGRAM_LIST(X)                 \
-    X(AcGridWatch,          _ac_grid_watch)  \
-    X(AcLocalWatch,         _ac_local_watch) \
-    X(DcWatch,              _dc_watch)       \
-    X(SunWatch,             _sun_watch)      \
-    X(TempRHZone,           _temp_rh_zone)   \
-    X(StratSensor,          _strat)          \
-    X(ClimateWatch,         _climate_watch)  \
-    X(DayPhaseController,   _day_phase)      \
-    X(TargetTempController, _target_temp)    \
-    X(CoolingController,    _cooling)        \
-    X(DestratController,    _destrat)        \
-    X(HumidityController,   _humidity)       \
-    X(IrrigationModulation, _irr_modulation) \
-    X(WaterMeters,          _irr_meters)     \
-    X(IrrigationSchedule,   _irr_schedule)   \
-    X(IrrigationCycle,      _irrigation)     \
-    X(ScreenController,     _screen)         \
-    X(RoofLockout,          _roof_lockout)   \
-    X(WindowsController,    _windows)        \
-    X(WeatherWatch,         _weather_watch)  \
-    X(IntractorController,  _intractors)     \
-    X(FanController,        _fans)           \
+#define SITE_PROGRAM_LIST(X)                  \
+    X(AcGridWatch,          _ac_grid_watch)   \
+    X(AcLocalWatch,         _ac_local_watch)  \
+    X(DcWatch,              _dc_watch)        \
+    X(SunWatch,             _sun_watch)       \
+    X(TempRHSensors,        _temp_rh_sensors) \
+    X(TempRHZone,           _temp_rh_zone)    \
+    X(StratSensor,          _strat)           \
+    X(ClimateWatch,         _climate_watch)   \
+    X(DayPhaseController,   _day_phase)       \
+    X(TargetTempController, _target_temp)     \
+    X(CoolingController,    _cooling)         \
+    X(DestratController,    _destrat)         \
+    X(HumidityController,   _humidity)        \
+    X(IrrigationModulation, _irr_modulation)  \
+    X(IrrMtrInput,          _irr_mtr_input)   \
+    X(IrrMtrOutput,         _irr_mtr_output)  \
+    X(IrrigationSchedule,   _irr_schedule)    \
+    X(IrrigationCycle,      _irrigation)      \
+    X(ScreenController,     _screen)          \
+    X(RoofLockout,          _roof_lockout)    \
+    X(WindowsController,    _windows)         \
+    X(WeatherWatch,         _weather_watch)   \
+    X(IntractorController,  _intractors)      \
+    X(FanController,        _fans)            \
     X(SkirtController,      _skirt)
 
 /** @} */
