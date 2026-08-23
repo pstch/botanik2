@@ -66,6 +66,12 @@ namespace Botanik { namespace Plc {
     constexpr float max_of(float a, float b) { return (a > b) ? a : b; }
     constexpr float min_of(float a, float b) { return (a < b) ? a : b; }
 
+    /** @brief IEC MAX, four arguments. A fusion of four demands is one node
+     *  rather than a tree of three, which is how the law reads. */
+    constexpr float max4(float a, float b, float c, float d) {
+        return max_of(max_of(a, b), max_of(c, d));
+    }
+
     /** @brief IEC SUB / ABS. Named for the same reason MAX and MIN are: a law
      *  written in the vocabulary reads as the network it is, and a gap between
      *  two levels is one SUB into one ABS rather than an expression. */

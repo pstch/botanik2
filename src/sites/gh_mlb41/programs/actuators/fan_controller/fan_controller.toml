@@ -52,27 +52,24 @@ speed3 = { rows = "cli_destrat*_speed3", count = 2 }
 # wants is the one number they add up to.
 band   = "cli_fanSpeed"
 
-# The law as a network: four demands fused by MAX, a staircase turning that into
-# a speed, and the two interlocks that overrule it - the screen mechanically,
-# an inhibit down to speed 1, because still air is itself a rot risk.
+# The law as a network: four demands fused by one MAX, a staircase turning that
+# into a speed, and the two interlocks that overrule it - the screen
+# mechanically, an inhibit down to speed 1, because still air is a rot risk.
 
-[net.climate]
-fn = "max_of"
-[net.climate.in]
-in1 = "=strat_dem.valid ? strat_dem : low_dem"
-in2 = "=cool_dem.valid ? cool_dem : low_dem"
-
-[net.errands]
-fn = "max_of"
-[net.errands.in]
-in1 = "=irr_state != IRR_IDLE ? irr_dem : 0"
-in2 = "=phase == PHASE_DAWN_BREEZE || phase == PHASE_DUSK_BREEZE ? breeze_dem : 0"
+[net.breeze]
+fn = "sel"
+[net.breeze.in]
+g   = "=phase == PHASE_DAWN_BREEZE || phase == PHASE_DUSK_BREEZE"
+in0 = "=0"
+in1 = "breeze_dem"
 
 [net.demand]
-fn = "max_of"
+fn = "max4"
 [net.demand.in]
-in1 = "climate.out"
-in2 = "errands.out"
+in1 = "=strat_dem.valid ? strat_dem : low_dem"
+in2 = "=cool_dem.valid ? cool_dem : low_dem"
+in3 = "=irr_state != IRR_IDLE ? irr_dem : 0"
+in4 = "breeze.out"
 
 [net.steps]
 [net.steps.in]

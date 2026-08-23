@@ -65,7 +65,8 @@ vpd       = "cli_vpd_kPa"
 rot       = "alarm_rot"
 
 # The law as a network: four locations voted and filtered, then one worst case
-# per QUANTITY. The psychrometrics themselves are arithmetic and stay inline.
+# per QUANTITY - the smallest margin for rot, the lowest VPD for irrigation,
+# and they are not always the same level.
 
 [net.ceiling]
 [net.ceiling.in]
@@ -112,25 +113,47 @@ valid       = "fault_ext"
 [net.hotter]
 fn = "max_of"
 [net.hotter.in]
-in1 = "ceiling.temperature"
-in2 = "floor.temperature"
+in1 = "temp_hi"
+in2 = "temp_lo"
 [net.hotter.out]
 out = "temp_in"
 
-# The SMALLEST margin decides the condensation risk. Per quantity, not one
-# level chosen for all of them: the lowest VPD is not always the same level.
+[net.margin_hi]
+fn = "dew_point_margin"
+[net.margin_hi.in]
+t  = "temp_hi"
+rh = "rh_hi"
+
+[net.margin_lo]
+fn = "dew_point_margin"
+[net.margin_lo.in]
+t  = "temp_lo"
+rh = "rh_lo"
+
 [net.margin]
 fn = "min_of"
 [net.margin.in]
-in1 = "=dew_point_margin(temp_hi, rh_hi)"
-in2 = "=dew_point_margin(temp_lo, rh_lo)"
+in1 = "margin_hi.out"
+in2 = "margin_lo.out"
 [net.margin.out]
 out = "dp_margin"
+
+[net.vpd_hi]
+fn = "vapour_pressure_deficit"
+[net.vpd_hi.in]
+t  = "temp_hi"
+rh = "rh_hi"
+
+[net.vpd_lo]
+fn = "vapour_pressure_deficit"
+[net.vpd_lo.in]
+t  = "temp_lo"
+rh = "rh_lo"
 
 [net.driest]
 fn = "min_of"
 [net.driest.in]
-in1 = "=vapour_pressure_deficit(temp_hi, rh_hi)"
-in2 = "=vapour_pressure_deficit(temp_lo, rh_lo)"
+in1 = "vpd_hi.out"
+in2 = "vpd_lo.out"
 [net.driest.out]
 out = "vpd"

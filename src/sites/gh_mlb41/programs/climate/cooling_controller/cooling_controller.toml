@@ -96,7 +96,8 @@ high  = "temp_margin"
 q = "intake_ok"
 
 # The mirror, and the only place the negative half of the ladder does anything:
-# cold enough to be asking for heat, and ground warm enough to be worth it.
+# cold enough to be ASKING for heat, and ground warm enough to be worth it.
+# Both halves have to hold, which is what the AND below is.
 [net.ground_band]
 [net.ground_band.in]
 value = "=-demand"
@@ -108,5 +109,11 @@ high  = "=-ground_dem + dem_hyst"
 value = "=intake - inside"
 low   = "=temp_margin - vent_hyst"
 high  = "temp_margin"
-[net.ground_gate.out]
-q = "ground_ok"
+
+[net.worth_it]
+fn = "and_of"
+[net.worth_it.in]
+in1 = "ground_band.q"
+in2 = "ground_gate.q"
+[net.worth_it.out]
+out = "ground_ok"

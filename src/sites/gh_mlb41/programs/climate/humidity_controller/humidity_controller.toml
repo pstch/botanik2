@@ -95,9 +95,21 @@ dt       = "=c.dt_ms"
 [net.lockout_for.out]
 q = "lockout"
 
+[net.dp_in]
+fn = "dew_point"
+[net.dp_in.in]
+t  = "in_t"
+rh = "in_rh"
+
+[net.dp_ext]
+fn = "dew_point"
+[net.dp_ext.in]
+t  = "ext_t"
+rh = "ext_rh"
+
 [net.dry_gate_band]
 [net.dry_gate_band.in]
-value = "=dew_point(in_t, in_rh) - dew_point(ext_t, ext_rh)"
+value = "=dp_in.out - dp_ext.out"
 low   = "=dry_margin - vent_hyst"
 high  = "dry_margin"
 [net.dry_gate_band.out]

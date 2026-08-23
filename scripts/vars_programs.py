@@ -68,6 +68,7 @@ PINS = {
     "abs_of":     (("in",), ("out",)),
     "mux4":       (("k", "in0", "in1", "in2", "in3"), ("out",)),
     "max_of":     (("in1", "in2"), ("out",)),
+    "max4":       (("in1", "in2", "in3", "in4"), ("out",)),
     "min_of":     (("in1", "in2"), ("out",)),
     "sel":        (("g", "in0", "in1"), ("out",)),
     "limit":      (("v", "lo", "hi"), ("out",)),

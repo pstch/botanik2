@@ -939,17 +939,37 @@ def fbd_diagram(spec, unwired=None):
     if unwired is None:
         unwired = []
 
+    # Which node publishes which row. A law that READS BACK a row it has just
+    # written - because that row is what an operator can force - is connected to
+    # itself, and the layout has to know that as much as the drawing does.
+    made = {}
+    for _n, _t, _i, outs in spec:
+        for _pin, dst in outs.items():
+            made.setdefault(str(dst), (_n, _pin))
+
+    def _feeds(name):
+        """Every node this one reads: as a bare source, from inside a formula,
+        or through a row that another node publishes. One answer, so what the
+        columns are ordered by and what the wires are drawn from agree."""
+        out = set()
+        for src in inst[name][2].values():
+            body = str(src)[1:] if str(src).startswith("=") else str(src)
+            for m in re.finditer(r"([A-Za-z_]\w*)\.([A-Za-z_]\w*)", body):
+                if m.group(1) in inst:
+                    out.add(m.group(1))
+            if body in made:
+                out.add(made[body][0])
+        return out - {name}
+
     # A program's [net] is often SEVERAL networks - four rails that never meet,
     # four zones, a fill path and a drain path. Drawn as one graph they share
     # columns they have no reason to share and their wires cross each other for
     # nothing, so each is found here and laid out on its own rows.
     adj = {n: set() for n in inst}
-    for name, _t, ins, _o in spec:
-        for src in ins.values():
-            head = str(src).split(".")[0]
-            if head in inst and head != name:
-                adj[name].add(head)
-                adj[head].add(name)
+    for name in inst:
+        for head in _feeds(name):
+            adj[name].add(head)
+            adj[head].add(name)
     comps, taken = [], set()
     for b in spec:                       # spec order, so the table's order holds
         if b[0] in taken:
@@ -970,10 +990,11 @@ def fbd_diagram(spec, unwired=None):
     for _n, _t, _ins, _o in spec:
         for _pin in _pins(_t)[0]:
             _src = str(_ins.get(_pin, ""))
+            _body = _src[1:] if _src.startswith("=") else _src
             _ref = re.match(r"([A-Za-z_]\w*)\.([A-Za-z_]\w*)", _src)
-            if _ref and _ref.group(1) in inst:
-                continue
-            rail.append(_src[1:] if _src.startswith("=") else _src)
+            if (_ref and _ref.group(1) in inst) or _body in made:
+                continue                  # a wire carries it, not a stub
+            rail.append(_body)
     bw, gapx, gapy = 118, 104, 22
     lane = max(96, int(max((len(t) for t in rail), default=0) * 3.4) + 22)
     # A deep network WRAPS rather than running off the side: past three columns
@@ -992,9 +1013,8 @@ def fbd_diagram(spec, unwired=None):
             if name in seen:
                 return 0                   # a loop, which a scan may legally have
             d = 0
-            for src in inst[name][2].values():
-                head = str(src).split(".")[0]
-                if head in mine and head != name:
+            for head in _feeds(name):
+                if head in mine:
                     d = max(d, _depth(head, seen | {name}) + 1)
             depth[name] = d
             return d
@@ -1016,10 +1036,18 @@ def fbd_diagram(spec, unwired=None):
                 x = lane + (c % BAND) * (bw + gapx)
                 prims.append(rect(x, y, bw, bh, "",
                                   FN_C if is_function(typ) else BLK_C))
-                prims.append(text(x + bw / 2.0, y - 3, name, 6.6, "middle",
-                                  bold=True))
-                prims.append(text(x + bw / 2.0, y + 10, typ.split("::")[-1],
-                                  6.6, "middle", INK))
+                label = typ.split("::")[-1]
+                if is_function(typ):
+                    # A function has no instance to name - it is not held, and
+                    # two calls to it are the same function. IEC spells them in
+                    # caps, and that is what tells it from a block at a glance.
+                    prims.append(text(x + bw / 2.0, y + 10, label.upper(),
+                                      6.6, "middle", INK))
+                else:
+                    prims.append(text(x + bw / 2.0, y - 3, name, 6.6, "middle",
+                                      bold=True))
+                    prims.append(text(x + bw / 2.0, y + 10, label, 6.6,
+                                      "middle", INK))
                 for i, pin in enumerate(pi):
                     py = y + 20 + i * 11
                     prims.append(text(x + 4, py, pin, 5.8, color=MUTED))
@@ -1064,7 +1092,7 @@ def fbd_diagram(spec, unwired=None):
         jogs[(sx, sy)] = n + 1
         if abs(sy - ty) < 0.1 and not _hits(sx, tx, sy, sy):
             return [(sx, sy), (tx, ty)]     # level with each other: no jog at all
-        mid = sx + (tx - sx) / 2.0 + 9 * (n % 5) - 18
+        mid = max(sx + 9, sx + (tx - sx) / 2.0 + 9 * (n % 5) - 18)
         if not (_hits(sx, mid, sy, sy) or _hits(mid, mid, sy, ty)
                 or _hits(mid, tx, ty, ty)):
             return [(sx, sy), (mid, sy), (mid, ty), (tx, ty)]
@@ -1085,6 +1113,33 @@ def fbd_diagram(spec, unwired=None):
             if (name, "in", pin) not in box:
                 continue
             tx, ty = box[(name, "in", pin)]
+            # Every node output the source names, whether the source IS one or
+            # merely mentions one: a formula over another node's output is a
+            # connection, and a page that drew only the bare form left two
+            # boxes looking independent when one feeds the other.
+            body = str(src)[1:] if str(src).startswith("=") else str(src)
+            fed = [m for m in re.finditer(r"([A-Za-z_]\w*)\.([A-Za-z_]\w*)", body)
+                   if m.group(1) in inst]
+            if fed and body != fed[0].group(0):
+                for m in fed:
+                    h, opin = m.group(1), m.group(2)
+                    if (h, "out", opin) not in box:
+                        opin = _pins(inst[h][1])[1][0]
+                    if (h, "out", opin) in box:
+                        sx, sy = box[(h, "out", opin)]
+                        prims.append(line(_route(sx, sy, tx, ty,
+                                                 bottom.get(name, height), lanes),
+                                          arrow=True))
+                left.append((body, tx, ty))
+                continue
+            if str(src) in made:
+                h, opin = made[str(src)]
+                if h != name and (h, "out", opin) in box:
+                    sx, sy = box[(h, "out", opin)]
+                    prims.append(line(_route(sx, sy, tx, ty,
+                                             bottom.get(name, height), lanes),
+                                      arrow=True))
+                    continue
             ref = re.match(r"([A-Za-z_]\w*)\.([A-Za-z_]\w*)", str(src))
             head = ref.group(1) if ref else str(src)
             if head in inst:

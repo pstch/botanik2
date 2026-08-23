@@ -37,8 +37,8 @@ window_lock = "cli_windowLockout"
 cap = "cli_windowCap"
 
 # The law as a network. The GUST or the mean, whichever is higher, decides both
-# the lockout and the ceiling. An unmeasured sky is a live interlock of its own,
-# so each lockout is that peak against its own threshold, ORed with blind.
+# the wind lockout and the ceiling. An unmeasured sky is a live interlock of its
+# own, so each lockout ORs the blind test in.
 
 [net.peak]
 fn = "max_of"
@@ -56,6 +56,24 @@ dt       = "=c.dt_ms"
 [net.rain_for.out]
 q = "rain_lock"
 
+[net.blowing]
+fn = "ge"
+[net.blowing.in]
+in1 = "peak.out"
+in2 = "shut_end"
+[net.blowing.out]
+out = "wind_lock"
+
+# READ BACK off the rows, never the verdicts above: each is what an operator
+# can force, and a lockout the law then ignored would be a lie on the page.
+[net.any_lock]
+fn = "or_of"
+[net.any_lock.in]
+in1 = "rain_lock"
+in2 = "=wind_lock || supply_lock"
+[net.any_lock.out]
+out = "window_lock"
+
 # From shut_begin the ceiling comes down a straight line to nothing at
 # shut_end, so the roof is nearly shut before the lockout takes it the rest.
 [net.ceiling]
@@ -67,8 +85,6 @@ in_hi  = "shut_end"
 out_lo = "shut_max"
 out_hi = "=0"
 
-# READ BACK off the rows, never the verdicts: each is what an operator can
-# force, and a lockout the law then ignored would be a lie on the page.
 [net.capped]
 fn = "sel"
 [net.capped.in]

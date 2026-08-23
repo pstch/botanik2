@@ -28,8 +28,7 @@ float FanController::_demand() const {
                            now == PHASE_DUSK_BREEZE);
     const float breeze   = breezing ? breeze_dem.get() : 0.0f;
 
-    return Plc::max_of(Plc::max_of(strat, cooling),
-                       Plc::max_of(watering, breeze));
+    return Plc::max4(strat, cooling, watering, breeze);
 }
 
 uint8_t FanController::_band(float demand) {
