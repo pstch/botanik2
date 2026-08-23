@@ -35,62 +35,13 @@ doc  = "eases a phase boundary over cli_targetTau_s"
 [out]
 target = "cli_targetTemp_degC"
 
-# The law as a network: the base target, shifted by whichever bank phase is in
-# force AND armed, eased against a step, and clamped last.
-
-[net.is_cold_bank]
-fn = "eq"
-[net.is_cold_bank.in]
-in1 = "phase"
-in2 = "=PHASE_COLD_BANK"
-
-[net.is_heat_bank]
-fn = "eq"
-[net.is_heat_bank.in]
-in1 = "phase"
-in2 = "=PHASE_HEAT_BANK"
-
-[net.banking_cold]
-fn = "and_of"
-[net.banking_cold.in]
-in1 = "is_cold_bank.out"
-in2 = "cold_arm"
-
-[net.banking_heat]
-fn = "and_of"
-[net.banking_heat.in]
-in1 = "is_heat_bank.out"
-in2 = "heat_arm"
-
-[net.precooled]
-fn = "sub"
-[net.precooled.in]
-in1 = "cool_set"
-in2 = "cold_bank_ofs"
-
-[net.banked]
-fn = "add"
-[net.banked.in]
-in1 = "cool_set"
-in2 = "heat_bank_ofs"
-
-[net.after_cold]
-fn = "sel"
-[net.after_cold.in]
-g   = "banking_cold.out"
-in0 = "cool_set"
-in1 = "precooled.out"
-
-[net.held]
-fn = "sel"
-[net.held.in]
-g   = "banking_heat.out"
-in0 = "after_cold.out"
-in1 = "banked.out"
+# The law as a network: the base target shifted by whichever bank phase is in
+# force AND armed - a comparison, inline - then eased against the step a phase
+# boundary is, and clamped LAST so a rail an operator just moved bites now.
 
 [net.smooth]
 [net.smooth.in]
-x     = "held.out"
+x     = "=cool_set -/+ the armed bank offset"
 tau_s = "tau"
 dt    = "=c.dt_ms"
 

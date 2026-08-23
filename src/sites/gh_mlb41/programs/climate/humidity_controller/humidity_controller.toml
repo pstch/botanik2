@@ -59,9 +59,9 @@ dry_ok   = "cli_intakeDryOk"
 # ladder (how thirsty the air has been), an instrument (what the two meters
 # say), and the law that acts (which tray, and the valves).
 
-# The law as a network. One signed demand off the dew-point margin, the rot
-# ramp under it, and the dryness gate beside them - which is a comparison of
-# two DEW POINTS, because a colder outside at the same RH is drier air.
+# The law as a network: one signed demand off the dew-point margin, the rot ramp
+# under it, and the dryness gate beside them - which bands the difference of two
+# DEW POINTS, because a colder outside at the same RH is drier air.
 
 [net.demand]
 fn = "signed_ladder"
@@ -85,6 +85,8 @@ hi = "=0"
 [net.rot_ramp.out]
 out = "vent_dem"
 
+# An OVERRUN, not a dwell: humidifying into air that has only just dried out is
+# what puts the margin back where it was.
 [net.lockout_for]
 [net.lockout_for.in]
 in       = "rot"
@@ -93,34 +95,10 @@ dt       = "=c.dt_ms"
 [net.lockout_for.out]
 q = "lockout"
 
-[net.dp_in]
-fn = "dew_point"
-[net.dp_in.in]
-t  = "in_t"
-rh = "in_rh"
-
-[net.dp_out]
-fn = "dew_point"
-[net.dp_out.in]
-t  = "ext_t"
-rh = "ext_rh"
-
-[net.drier_by]
-fn = "sub"
-[net.drier_by.in]
-in1 = "dp_in.out"
-in2 = "dp_out.out"
-
-[net.gate_lo]
-fn = "sub"
-[net.gate_lo.in]
-in1 = "dry_margin"
-in2 = "vent_hyst"
-
 [net.dry_gate_band]
 [net.dry_gate_band.in]
-value = "drier_by.out"
-low   = "gate_lo.out"
+value = "=dew_point(in) - dew_point(ext)"
+low   = "=dry_margin - vent_hyst"
 high  = "dry_margin"
 [net.dry_gate_band.out]
 q = "dry_ok"

@@ -37,47 +37,16 @@ dry_ok       = "cli_intakeDryOk"
 [out]
 intr = { rows = "cli_intr*", count = 2 }
 
-# The law as a network. Four demands fused by MAX and laddered to a speed, then
-# floored twice: by this actuator's own safe speed, and by the ground-heat rung
-# when the crawlspace is worth drawing on.
-
-[net.cooling]
-fn = "sel"
-[net.cooling.in]
-g   = "cool_ok"
-in0 = "=0"
-in1 = "cool_dem"
-
-[net.drying]
-fn = "sel"
-[net.drying.in]
-g   = "dry_ok"
-in0 = "=0"
-in1 = "=-humid_dem"
-
-[net.wetting]
-fn = "max_of"
-[net.wetting.in]
-in1 = "=0"
-in2 = "humid_dem"
-
-[net.air]
-fn = "max_of"
-[net.air.in]
-in1 = "cooling.out"
-in2 = "rot_vent"
-
-[net.moisture]
-fn = "max_of"
-[net.moisture.in]
-in1 = "drying.out"
-in2 = "wetting.out"
+# The law as a network: four demands fused by MAX and laddered to a speed, then
+# floored twice - by this actuator's own safe speed, and by the ground-heat rung
+# when the crawlspace is worth drawing on. Each demand's gate is one test and
+# stays inline.
 
 [net.demand]
 fn = "max_of"
 [net.demand.in]
-in1 = "air.out"
-in2 = "moisture.out"
+in1 = "=cool_dem while the intake is cooler, or rot_vent"
+in2 = "=the humidity arm, whichever way it points"
 
 [net.ramp]
 fn = "ladder"
@@ -89,20 +58,15 @@ hi = "full_dem"
 [net.floored]
 fn = "max_of"
 [net.floored.in]
-in1 = "=safe_speed"
+in1 = "=safe_speed, the row's own"
 in2 = "ramp.out"
 
-[net.ground]
-fn = "sel"
-[net.ground.in]
-g   = "ground_ok"
-in0 = "=0"
-in1 = "ground_speed"
-
+# ONE RUNG, not a ramp: pulling harder on a cold house moves more air through
+# the same ground, cooling the ground rather than warming the house.
 [net.speed]
 fn = "max_of"
 [net.speed.in]
 in1 = "floored.out"
-in2 = "ground.out"
+in2 = "=ground_speed, while the ground is worth it"
 [net.speed.out]
 out = "intr"

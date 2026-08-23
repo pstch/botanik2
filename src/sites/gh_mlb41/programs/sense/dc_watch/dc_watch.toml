@@ -94,8 +94,9 @@ ups_flt = "alarm_dc_ups"
 gen_flt = "alarm_generator_battery"
 
 # The law as a network: four rails, each averaged then deadbanded onto its
-# status row and compared against its own floor. The UPS's low-battery CONTACT
-# is separate from its volts - it is the one that parks the plant.
+# status row. Each rail's fault is that average against its own floor, which is
+# one comparison and stays inline. The UPS's low-battery CONTACT is separate
+# from its volts - it is the one that parks the plant.
 
 [net.ps1_mean]
 [net.ps1_mean.in]
@@ -110,14 +111,6 @@ band  = "=SUPPLY_V_BAND"
 [net.ps1_band.out]
 out = "out_dc1"
 
-[net.ps1_low]
-fn = "lt"
-[net.ps1_low.in]
-in1 = "ps1_mean.out"
-in2 = "dc1_lo"
-[net.ps1_low.out]
-out = "ps1_flt"
-
 [net.ps2_mean]
 [net.ps2_mean.in]
 x     = "dc2"
@@ -130,14 +123,6 @@ value = "ps2_mean.out"
 band  = "=SUPPLY_V_BAND"
 [net.ps2_band.out]
 out = "out_dc2"
-
-[net.ps2_low]
-fn = "lt"
-[net.ps2_low.in]
-in1 = "ps2_mean.out"
-in2 = "dc2_lo"
-[net.ps2_low.out]
-out = "ps2_flt"
 
 [net.ups_mean]
 [net.ups_mean.in]
@@ -165,14 +150,6 @@ band  = "=SUPPLY_V_BAND"
 [net.gen_band.out]
 out = "out_gen"
 
-[net.gen_low]
-fn = "lt"
-[net.gen_low.in]
-in1 = "gen_mean.out"
-in2 = "gen_lo"
-[net.gen_low.out]
-out = "gen_flt"
-
 # The CONTACT, not the volts: it is what the UPS itself says, and it is what
 # holds the plant.
 [net.low_for]
@@ -182,19 +159,3 @@ delay_ms = "=2 s"
 dt       = "=c.dt_ms"
 [net.low_for.out]
 q = "ups_flt"
-
-[net.held]
-fn = "or_of"
-[net.held.in]
-in1 = "low_for.q"
-in2 = "=safe_held"
-[net.held.out]
-out = "lockout"
-
-[net.rails_ok]
-fn = "and_of"
-[net.rails_ok.in]
-in1 = "=no rail under its floor"
-in2 = "=every divider answered"
-[net.rails_ok.out]
-out = "ok"

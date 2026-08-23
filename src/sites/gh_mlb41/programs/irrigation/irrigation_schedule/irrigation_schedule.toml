@@ -68,72 +68,22 @@ today     = "irr_today"
 served    = "irr_servedToday"
 
 # The law as a network. The CLIMATE decides the slot and the SCHEDULE decides
-# the tray; an operator forcing a cycle overrides both. The interval search
-# itself is a loop over the trays and is not a network - what it computes is
-# one number, and that number is what leaves here.
-
-[net.warm_enough]
-fn = "ge"
-[net.warm_enough.in]
-in1 = "outside_temp"
-in2 = "dawn_gate"
-
-[net.in_morning]
-fn = "le"
-[net.in_morning.in]
-in1 = "from_rise"
-in2 = "=day_rise + morning_win"
-
-[net.slot]
-fn = "sel"
-[net.slot.in]
-g   = "=phase is a dawn phase"
-in0 = "in_morning.out"
-in1 = "warm_enough.out"
-[net.slot.out]
-out = "slot_open"
-
-[net.allowance_left]
-fn = "lt"
-[net.allowance_left.in]
-in1 = "served"
-in2 = "trays_per_day"
-
-[net.may_start]
-fn = "and_of"
-[net.may_start.in]
-in1 = "allowance_left.out"
-in2 = "slot_open"
-
-[net.asked]
-fn = "or_of"
-[net.asked.in]
-in1 = "may_start.out"
-in2 = "force_now"
-
-# period = summer period / mod^(1 - split), so damper air stretches the
-# interval and drier air shortens it back toward the summer figure.
-[net.stretch]
-fn = "scale"
-[net.stretch.in]
-v      = "mod"
-in_lo  = "=0"
-in_hi  = "=1"
-out_lo = "=0"
-out_hi = "split"
+# the tray; an operator forcing a cycle overrides both. Both gates are
+# comparisons and stay inline, and the search itself is a loop over the trays -
+# what leaves here is the interval it chose and the tray it picked.
 
 [net.interval]
 fn = "div"
 [net.interval.in]
 in1 = "days"
-in2 = "stretch.out"
+in2 = "=mod ^ (1 - split)"
 [net.interval.out]
 out = "period"
 
 [net.due]
 fn = "sel"
 [net.due.in]
-g   = "asked.out"
+g   = "=in a slot with allowance left, or forced"
 in0 = "=0"
 in1 = "=the most overdue tray"
 [net.due.out]

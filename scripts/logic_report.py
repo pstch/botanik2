@@ -962,7 +962,7 @@ def fbd_diagram(spec, unwired=None):
     # page is scaled down to fit and the pin names stop being readable, which
     # is the one thing the diagram is for. Each band picks up where the last
     # left off, and a wire between them takes the channel like any other.
-    BAND = 4
+    BAND = 3
     prims, box = [], {}
     y_of = {}
     band_top = 26

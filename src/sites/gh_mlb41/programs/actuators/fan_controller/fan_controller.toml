@@ -52,61 +52,21 @@ speed3 = { rows = "cli_destrat*_speed3", count = 2 }
 # wants is the one number they add up to.
 band   = "cli_fanSpeed"
 
-# The law as a network. Four demands fused by MAX, a staircase turning that into
-# a speed, and two interlocks that get to overrule it - the screen mechanically,
-# the inhibit down to speed 1, because still air is itself a rot risk.
-
-[net.strat_dem_or_floor]
-fn = "sel"
-[net.strat_dem_or_floor.in]
-g   = "=strat_dem valid"
-in0 = "low_dem"
-in1 = "strat_dem"
-
-[net.cool_dem_or_floor]
-fn = "sel"
-[net.cool_dem_or_floor.in]
-g   = "=cool_dem valid"
-in0 = "low_dem"
-in1 = "cool_dem"
-
-[net.idle]
-fn = "eq"
-[net.idle.in]
-in1 = "irr_state"
-in2 = "=IRR_IDLE"
-
-[net.watering]
-fn = "sel"
-[net.watering.in]
-g   = "idle.out"
-in0 = "irr_dem"
-in1 = "=0"
-
-[net.breezing]
-fn = "or_of"
-[net.breezing.in]
-in1 = "=phase is DAWN_BREEZE"
-in2 = "=phase is DUSK_BREEZE"
-
-[net.breeze]
-fn = "sel"
-[net.breeze.in]
-g   = "breezing.out"
-in0 = "=0"
-in1 = "breeze_dem"
+# The law as a network: four demands fused by MAX, a staircase turning that into
+# a speed, and the two interlocks that overrule it - the screen mechanically,
+# an inhibit down to speed 1, because still air is itself a rot risk.
 
 [net.climate]
 fn = "max_of"
 [net.climate.in]
-in1 = "strat_dem_or_floor.out"
-in2 = "cool_dem_or_floor.out"
+in1 = "=strat_dem, or low_dem if unmeasured"
+in2 = "=cool_dem, or low_dem if unmeasured"
 
 [net.errands]
 fn = "max_of"
 [net.errands.in]
-in1 = "watering.out"
-in2 = "breeze.out"
+in1 = "=irr_dem, while a cycle is running"
+in2 = "=breeze_dem, at dawn and dusk"
 
 [net.demand]
 fn = "max_of"
@@ -122,42 +82,12 @@ edge2 = "med_dem"
 edge3 = "high_dem"
 hyst  = "dem_hyst"
 
-[net.after_inhibit]
-fn = "sel"
-[net.after_inhibit.in]
-g   = "=inhibit_requested()"
-in0 = "steps.level"
-in1 = "=1"
-
+# The relays follow the band: speed1 is band == 1, and so on.
 [net.speed]
 fn = "sel"
 [net.speed.in]
-g   = "screen_moving"
-in0 = "after_inhibit.out"
-in1 = "=0"
+g   = "=screen_moving, or inhibited"
+in0 = "steps.level"
+in1 = "=0 moving, 1 inhibited"
 [net.speed.out]
 out = "band"
-
-[net.at1]
-fn = "eq"
-[net.at1.in]
-in1 = "band"
-in2 = "=1"
-[net.at1.out]
-out = "speed1"
-
-[net.at2]
-fn = "eq"
-[net.at2.in]
-in1 = "band"
-in2 = "=2"
-[net.at2.out]
-out = "speed2"
-
-[net.at3]
-fn = "eq"
-[net.at3.in]
-in1 = "band"
-in2 = "=3"
-[net.at3.out]
-out = "speed3"

@@ -37,13 +37,8 @@ window_lock = "cli_windowLockout"
 cap = "cli_windowCap"
 
 # The law as a network. The GUST or the mean, whichever is higher, decides both
-# the lockout and the ceiling; an unmeasured sky is a live interlock of its own.
-
-[net.blind]
-fn = "or_of"
-[net.blind.in]
-in1 = "=rain_mmph not valid"
-in2 = "=wind_mps not valid"
+# the lockout and the ceiling. An unmeasured sky is a live interlock of its own,
+# so each lockout is that peak against its own threshold, ORed with blind.
 
 [net.peak]
 fn = "max_of"
@@ -51,74 +46,29 @@ fn = "max_of"
 in1 = "gust_mps"
 in2 = "wind_mps"
 
-[net.dropping]
-fn = "gt"
-[net.dropping.in]
-in1 = "rain_mmph"
-in2 = "=0"
-
+# An OVERRUN, not a dwell: a shower that has just stopped is about to be one
+# that has not. Being BLIND is not a shower - it is live while it lasts.
 [net.rain_for]
 [net.rain_for.in]
-in       = "dropping.out"
+in       = "=rain_mmph > 0"
 delay_ms = "rain_hold_s"
 dt       = "=c.dt_ms"
-
-[net.raining]
-fn = "or_of"
-[net.raining.in]
-in1 = "rain_for.q"
-in2 = "blind.out"
-[net.raining.out]
-out = "rain_lock"
-
-[net.gale]
-fn = "ge"
-[net.gale.in]
-in1 = "peak.out"
-in2 = "shut_end"
-
-[net.blowing]
-fn = "or_of"
-[net.blowing.in]
-in1 = "blind.out"
-in2 = "gale.out"
-[net.blowing.out]
-out = "wind_lock"
-
-# READ BACK off the rows, never the verdicts above: each is what an operator
-# can force, and a lockout the law then ignored would be a lie on the page.
-[net.weather_lock]
-fn = "or_of"
-[net.weather_lock.in]
-in1 = "rain_lock"
-in2 = "wind_lock"
-
-[net.any_lock]
-fn = "or_of"
-[net.any_lock.in]
-in1 = "weather_lock.out"
-in2 = "supply_lock"
-[net.any_lock.out]
-out = "window_lock"
+[net.rain_for.out]
+q = "rain_lock"
 
 # From shut_begin the ceiling comes down a straight line to nothing at
 # shut_end, so the roof is nearly shut before the lockout takes it the rest.
-[net.ramp]
+[net.ceiling]
 fn = "scale"
-[net.ramp.in]
+[net.ceiling.in]
 v      = "peak.out"
 in_lo  = "shut_begin"
 in_hi  = "shut_end"
 out_lo = "shut_max"
 out_hi = "=0"
 
-[net.ceiling]
-fn = "limit"
-[net.ceiling.in]
-v  = "ramp.out"
-lo = "=0"
-hi = "=1"
-
+# READ BACK off the rows, never the verdicts: each is what an operator can
+# force, and a lockout the law then ignored would be a lie on the page.
 [net.capped]
 fn = "sel"
 [net.capped.in]

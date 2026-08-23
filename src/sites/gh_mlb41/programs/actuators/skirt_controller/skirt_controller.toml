@@ -37,49 +37,23 @@ duty  = "cli_skirtDuty"
 # cooling one, whichever asks for more - and the rot lockout above both, because
 # wetting air that is already condensing is what this valve must never do.
 
-[net.humid]
-fn = "limit"
-[net.humid.in]
-v  = "humid_dem"
-lo = "=0"
-hi = "=1"
-
-[net.dry_enough]
-fn = "ge"
-[net.dry_enough.in]
-in1 = "dp_margin"
-in2 = "dry_min"
-
-[net.cool_ramp]
+[net.cool]
 fn = "ladder"
-[net.cool_ramp.in]
+[net.cool.in]
 v  = "cool_dem"
 lo = "cool_start"
 hi = "=1"
 
-[net.cool]
-fn = "sel"
-[net.cool.in]
-g   = "dry_enough.out"
-in0 = "=0"
-in1 = "cool_ramp.out"
-
 [net.effort]
 fn = "max_of"
 [net.effort.in]
-in1 = "humid.out"
-in2 = "cool.out"
-
-[net.locked]
-fn = "or_of"
-[net.locked.in]
-in1 = "rot_lock"
-in2 = "=inhibit_requested()"
+in1 = "=humid_dem, clamped to 0..1"
+in2 = "=cool.out, while dp_margin >= dry_min"
 
 [net.asked]
 fn = "sel"
 [net.asked.in]
-g   = "locked.out"
+g   = "=rot_lock, or inhibited"
 in0 = "effort.out"
 in1 = "=0"
 

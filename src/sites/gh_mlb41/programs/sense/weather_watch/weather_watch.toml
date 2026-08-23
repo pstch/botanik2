@@ -48,46 +48,21 @@ since_rain = "cli_sinceRain_min"
 
 # The law as a network. A station that has never answered is the bus still
 # coming up; one that has and has stopped is the fault the windows are already
-# shut for. A STORM is sustained wind - the mean, not the gust, because a gust
-# is a moment and a storm is a condition.
-
-[net.measured]
-fn = "and_of"
-[net.measured.in]
-in1 = "=wind valid"
-in2 = "=rain valid"
-
-[net.gone]
-fn = "not_of"
-[net.gone.in]
-in = "measured.out"
+# shut for - which is the latch below. A STORM is the MEAN against one
+# threshold, because a gust is a moment and a storm is a condition.
 
 [net.station_flt]
 fn = "and_of"
 [net.station_flt.in]
-in1 = "=seen"
-in2 = "gone.out"
+in1 = "=it has answered before"
+in2 = "=wind or rain is not valid now"
 [net.station_flt.out]
 out = "station"
 
-[net.gale]
+[net.storming]
 fn = "ge"
-[net.gale.in]
+[net.storming.in]
 in1 = "wind"
 in2 = "storm_wind"
-
-[net.storming]
-fn = "and_of"
-[net.storming.in]
-in1 = "=seen and wind valid"
-in2 = "gale.out"
 [net.storming.out]
 out = "storm"
-
-[net.dry_minutes]
-fn = "mul"
-[net.dry_minutes.in]
-in1 = "=dry_ms, since the last drop"
-in2 = "=1/60000"
-[net.dry_minutes.out]
-out = "since_rain"
