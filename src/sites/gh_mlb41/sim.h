@@ -140,6 +140,9 @@ inline SimScenario scenario() {
     return chosen;
 }
 
+/** @brief How long a new day's character takes to arrive, hours. */
+static const float CHANGE_H = 3.0f;
+
 /** @brief The one in force today: the chosen one, or the day's turn. */
 inline SimScenario acting(uint32_t day) {
     const SimScenario s = scenario();
@@ -170,6 +173,22 @@ struct Sky {
     float    dew_ofs;  ///< how far today's air sits from an ordinary humidity
     SimScenario act;   ///< the day's character
 };
+
+/** @brief What a scenario does to the weather: the cloud it fixes, and its
+ *  offsets to the day's mean, its swing, and how moist the air is. */
+inline void _character(SimScenario a, float drifting_cloud,
+                       float* cloud, float* t_ofs, float* amp_ofs, float* dew) {
+    *cloud = drifting_cloud; *t_ofs = 0.0f; *amp_ofs = 0.0f; *dew = 0.0f;
+    switch (a) {
+        case SCN_HOT:   *cloud = 0.05f; *t_ofs =  7.0f; *amp_ofs = 2.0f;
+                        *dew   =  -3.0f;                           break;
+        case SCN_COLD:  *cloud = 0.00f; *t_ofs = -6.0f; *dew =  -4.0f; break;
+        case SCN_STORM: *cloud = 0.85f; *t_ofs = -2.0f; *dew =   2.0f; break;
+        case SCN_DAMP:  *cloud = 0.90f; *t_ofs =  1.0f; *dew =   4.5f; break;
+        case SCN_DRY:   *cloud = 0.05f; *t_ofs =  4.0f; *dew = -12.0f; break;
+        default: break;              // FAIR, PROBES, SUPPLY: ordinary weather
+    }
+}
 
 /// Site latitude, for the solar geometry. Matches geo_lat_deg's default.
 static const float SIM_LAT_DEG = 47.96f;
@@ -217,25 +236,27 @@ inline Sky sky_now(uint32_t now_ms) {
     // swings, so it is the one knob most of these turn.
     static float cloud = 0.3f;
     cloud = drift(cloud, 0.05f, 0.0f, 1.0f, s.dt_ms, 1200000.0f);  // ~20 min
-    s.cloud   = cloud;
-    s.dew_ofs = 0.0f;
-    const float summer = 0.5f * (1.0f - cosf(6.2831853f * (s.doy - 15.0f) / 365.2425f));
-    s.t_mean = 3.5f + 17.0f * summer;
 
-    switch (s.act) {
-        case SCN_HOT:    s.cloud = 0.05f; s.t_mean += 7.0f;  s.dew_ofs = -3.0f;  break;
-        case SCN_COLD:   s.cloud = 0.00f; s.t_mean -= 6.0f;  s.dew_ofs = -4.0f;  break;
-        case SCN_STORM:  s.cloud = 0.85f; s.t_mean -= 2.0f;  s.dew_ofs = +2.0f;  break;
-        case SCN_DAMP:   s.cloud = 0.90f; s.t_mean += 1.0f;  s.dew_ofs = +4.5f;  break;
-        case SCN_DRY:    s.cloud = 0.05f; s.t_mean += 4.0f;  s.dew_ofs = -12.0f; break;
-        default: break;                 // FAIR, PROBES and SUPPLY: ordinary weather
-    }
+    // Yesterday's character CROSS-FADED into today's over the small hours: a
+    // cycle that stepped the weather at the stroke of midnight would be exactly
+    // the implausibility this model exists to remove. A fixed scenario is the
+    // same both sides, so this costs it nothing.
+    float c0, t0, a0, d0, c1, t1, a1, d1;
+    _character(acting(s.day - 1u), cloud, &c0, &t0, &a0, &d0);
+    _character(s.act,              cloud, &c1, &t1, &a1, &d1);
+    const float w = (s.hour < CHANGE_H) ? s.hour / CHANGE_H : 1.0f;
+    s.cloud   = c0 + (c1 - c0) * w;
+    s.dew_ofs = d0 + (d1 - d0) * w;
+
+    const float summer = 0.5f * (1.0f - cosf(6.2831853f * (s.doy - 15.0f) / 365.2425f));
+    s.t_mean = 3.5f + 17.0f * summer + (t0 + (t1 - t0) * w);
+
     s.irrad = 1050.0f * s.sun * (1.0f - 0.75f * s.cloud);
 
     // A clear sky swings wider than an overcast one, and summer wider than
     // winter: about 4 C in January and 20 C in July, either side of the mean.
-    s.t_amp = (3.5f + 4.0f * summer) * (1.0f - 0.45f * s.cloud);
-    if (s.act == SCN_HOT) s.t_amp += 2.0f;
+    s.t_amp = (3.5f + 4.0f * summer) * (1.0f - 0.45f * s.cloud)
+            + (a0 + (a1 - a0) * w);
 
     return s;
 }

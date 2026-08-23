@@ -149,15 +149,22 @@ a held step.
 | `probes` | ordinary weather; the ridge probes stop answering 04:00-06:00, one at a time | the quorum holding, and then not |
 | `supply` | ordinary weather; a sag at 09:00, the grid gone 13:00-15:00 with the generator carrying it, the UPS calling its battery low at 14:00 | the plant-wide lockout, and that it is reversible |
 
-A scenario repeats daily, so its window comes round every simulated day.
-`BOTANIK_SIM_EPOCH` is a UNIX second, not just a date, so a run can START
-inside one:
+A scenario repeats daily, so its window comes round every simulated day, and
+`BOTANIK_SIM_EPOCH` is a UNIX second rather than just a date, so a run can
+START inside one. `scripts/sim_scenario.sh` is that, per scenario:
 
 ```bash
-# straight into the outage: 2026-07-01 12:45 UTC, the supply scenario
-BOTANIK_SIM_CLOCK=fast BOTANIK_SIM_SCENARIO=supply \
-  BOTANIK_SIM_EPOCH=$(date -u -d '2026-07-01 12:45' +%s) ./build/botanik_sim
+scripts/sim_scenario.sh list          # the scenarios, and what each one shows
+scripts/sim_scenario.sh hot           # a minute a second, from 11:00
+scripts/sim_scenario.sh supply 600    # ...and one at ten minutes a second
+scripts/sim_scenario.sh cold 60 2026-01-15    # on a chosen day
 ```
+
+It picks the start HOUR per scenario, so a fault window is minutes away rather
+than most of a simulated day, and parks the mock network's chatter in a log
+instead of over the console. Under `cycle` the character CROSS-FADES over the
+first three hours of a day: stepping the weather at the stroke of midnight
+would be the implausibility this model exists to remove.
 
 Under `cycle` a full sweep is eight simulated days, which is about an hour of
 wall clock in fast mode. See `src/botanik_sim/README.md` for the clock.
