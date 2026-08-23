@@ -1062,7 +1062,7 @@ def fbd_diagram(spec, unwired=None):
     # down to fit and the pin names stop being readable.
     for BAND in (3, 2):
         xs = _slots(BAND)
-        if xs[-1] + bw <= 760 or BAND == 2:
+        if xs[-1] + bw - xs[0] <= 664 or BAND == 2:
             break
     lane = xs[0]
 
@@ -1082,10 +1082,7 @@ def fbd_diagram(spec, unwired=None):
             for name, typ, ins, outs in here:
                 pi, po = _pins(typ)
                 bh = 16 + max(len(pi), len(po)) * 11
-                slot = c % BAND
-                if (c // BAND) % 2:
-                    slot = BAND - 1 - slot
-                x = xs[slot]
+                x = xs[c % BAND]
                 prims.append(rect(x, y, bw, bh, "",
                                   FN_C if is_function(typ) else BLK_C))
                 label = typ.split("::")[-1]
@@ -1144,14 +1141,17 @@ def fbd_diagram(spec, unwired=None):
         jogs[(sx, sy)] = n + 1
         if abs(sy - ty) < 0.1 and not _hits(sx, tx, sy, sy):
             return [(sx, sy), (tx, ty)]     # level with each other: no jog at all
-        mid = max(sx + 9, sx + (tx - sx) / 2.0 + 9 * (n % 5) - 18)
+        # Jog EARLY, so the long run happens at the target's height. Halfway
+        # across put it at the source's, which is where the next box's own pin
+        # labels are - the wire ran straight through them.
+        mid = sx + 16 + 9 * (n % 5)
         if not (_hits(sx, mid, sy, sy) or _hits(mid, mid, sy, ty)
                 or _hits(mid, tx, ty, ty)):
             return [(sx, sy), (mid, sy), (mid, ty), (tx, ty)]
         # Round the outside of whatever is in the way, above or below,
         # whichever side is clear: a wire that dived under the whole page to
         # reach the box just below it read as going somewhere else entirely.
-        for lane_y in (min(sy, ty) - 30, max(sy, ty) + 30):
+        for lane_y in (ty - 30, ty + 34, sy - 30, sy + 34):
             if abs(lane_y - sy) < 12 or lane_y < 4:
                 continue
             if not (_hits(sx, sx + 52, sy, sy)

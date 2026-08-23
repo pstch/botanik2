@@ -64,9 +64,15 @@ out_Hz = "out_Hz"
 ok     = "ok"
 fault  = "fault"
 
+[net.waiting]
+fn = "and_of"
+[net.waiting.in]
+in1 = "=!grid_ok"
+in2 = "=!supply.answered"
+
 [net.cranking]
 [net.cranking.in]
-in       = "=!grid_ok && !supply.answered"
+in       = "waiting.out"
 delay_ms = "start_s"
 dt       = "=c.dt_ms"
 [net.cranking.out]

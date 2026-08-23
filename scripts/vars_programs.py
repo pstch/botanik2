@@ -94,6 +94,7 @@ PINS = {
     "eq":         (("in1", "in2"), ("out",)),
     "and_of":     (("in1", "in2"), ("out",)),
     "or_of":      (("in1", "in2"), ("out",)),
+    "or4":        (("in1", "in2", "in3", "in4"), ("out",)),
     "not_of":     (("in",), ("out",)),
     "add":        (("in1", "in2"), ("out",)),
     "mul":        (("in1", "in2"), ("out",)),

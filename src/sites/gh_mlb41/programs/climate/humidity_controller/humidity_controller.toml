@@ -107,9 +107,15 @@ fn = "dew_point"
 t  = "ext_t"
 rh = "ext_rh"
 
+[net.drier_by]
+fn = "sub"
+[net.drier_by.in]
+in1 = "dp_in.out"
+in2 = "dp_ext.out"
+
 [net.dry_gate_band]
 [net.dry_gate_band.in]
-value = "=dp_in.out - dp_ext.out"
+value = "drier_by.out"
 low   = "=dry_margin - vent_hyst"
 high  = "dry_margin"
 [net.dry_gate_band.out]
