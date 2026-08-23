@@ -36,6 +36,7 @@ PARAM_C   = "#fdf1d0"   # P / PS / PE - an operator's number
 ALARM_C   = "#f7d5d1"   # A
 GLOBAL_C  = "#e6ddf2"   # G / GR
 BLK_C     = "#f0dfbe"   # a function block it holds
+FN_C      = "#dcecdd"   # a FUNCTION it calls - stateless, held by nobody
 VAR_C     = "#efeef6"   # what it remembers - not a row at all
 PLAIN     = "#ffffff"
 FALL_C    = "#2f6fae"   # the falling branch of a hysteretic curve
@@ -911,7 +912,11 @@ PINS = {
     "Ramp":       (("target", "rate_per_s", "dt"), ("out",)),
     "Deadband":   (("value", "band"), ("out",)),
     "Ewma":       (("x", "tau_s", "dt"), ("out",)),
-    "ExpMovingAverage": (("x",), ("out",)),
+    # push is the CALL, not a parameter: this block samples only when the law
+    # asks it to, and a page that did not show what asks is missing the design.
+    "ExpMovingAverage": (("x", "push"), ("out",)),
+    "sub":        (("in1", "in2"), ("out",)),
+    "abs_of":     (("in",), ("out",)),
     "MedianOf3":  (("x",), ("out",)),
     "MovingAverage": (("x",), ("out",)),
     "Integral":   (("rate_per_s", "dt", "cutoff"), ("total",)),
@@ -922,6 +927,12 @@ PINS = {
     "ZoneProbes": (("probes[3]", "tau_s"), ("temperature", "humidity", "valid")),
     "AcSupply":   (("rows",), ("ok", "fault")),
 }
+
+
+def is_function(type_name):
+    """A FUNCTION node rather than a block. Stateless, so no member declares it
+    and the table cannot be asked to: `Plc::sub` against `Plc::Staircase3`."""
+    return type_name.split("::")[-1][:1].islower()
 
 
 def _pins(type_name):
@@ -971,7 +982,8 @@ def fbd_diagram(spec, unwired=None):
             rows_ = max(len(pi), len(po))
             bh = 16 + rows_ * 11
             x = lane + c * (bw + gapx)
-            prims.append(rect(x, y, bw, bh, "", BLK_C))
+            prims.append(rect(x, y, bw, bh, "",
+                              FN_C if is_function(typ) else BLK_C))
             prims.append(text(x + bw / 2.0, y - 3, name, 6.6, "middle", bold=True))
             prims.append(text(x + bw / 2.0, y + 10, typ.split("::")[-1], 6.6,
                               "middle", INK))
@@ -1137,8 +1149,14 @@ FBD = {
  "irr_modulation": [
    ("fold", "Plc::Ton", {"in": "true", "delay_ms": "one hour", "dt": "c.dt_ms"},
     {"q": "fold the VPD in, once"}),
-   ("dryness", "Utils::ExpMovingAverage", {"x": "the hour's VPD"},
+   ("dryness", "Utils::ExpMovingAverage", {"x": "the hour's VPD",
+                                          "push": "fold.q"},
     {"out": "irr_vpdAvg_kPa"}),
+ ],
+ "strat": [
+   ("gap", "Plc::sub", {"in1": "ceiling", "in2": "floor"}, {}),
+   ("magnitude", "Plc::abs_of", {"in": "gap.out"},
+    {"out": "cli_dTStrat_degC"}),
  ],
  "ac_grid_watch": [
    ("supply", "AcSupply", {"rows": "V, A, W, Hz"},
@@ -1300,7 +1318,8 @@ def main():
             # The table declares the instances; the wiring is authored. They
             # have to name the same set, or a page is quietly short a block.
             declared = set(b["name"] for b in p["blocks"])
-            drawn = set(b[0] for b in (wiring or []))
+            drawn = set(b[0] for b in (wiring or [])
+                        if not is_function(b[1]))
             for miss in sorted(declared - drawn):
                 crossings.append(f"{p['name']}: block '{miss}' is declared and "
                                  f"not in the FBD")
@@ -1310,9 +1329,10 @@ def main():
         if wiring:
             fprims, fdw, fdh = fbd_diagram(wiring, unwired)
             _audit(fprims, p["name"] + " (fbd)", crossings)
-            page(c, p["name"] + ": the blocks", sub, fprims, fdw, fdh, [],
-                 kicker="What it HOLDS, wired. The instances and their types are "
-                        "the table's; what reaches a pin is authored from the "
+            page(c, p["name"] + ": the network", sub, fprims, fdw, fdh, [],
+                 kicker="What it HOLDS and what it CALLS, wired. Blocks are the "
+                        "table's; a GREEN box is a stateless function, which no "
+                        "table declares. What reaches a pin is authored from the "
                         "call site, because only the .cpp says. Pin names are "
                         "the block's own parameters.")
             _svg(p["name"] + "_fbd", fprims, fdw, fdh)
