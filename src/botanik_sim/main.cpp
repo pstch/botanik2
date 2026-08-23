@@ -118,6 +118,14 @@ int main(int argc, char** argv) {
     Site::field_sink() = [](void* ctx, const Vars::Descriptor& d, float v) {
         static_cast<Sim::FieldBus*>(ctx)->set_physical(d, v);
     };
+    // ...and the same reach for taking a device off the wire, which is the only
+    // way to simulate one that has died: a device left holding its last
+    // register answers every poll, and the row stays valid.
+    Site::field_fault() = [](void* ctx, uint8_t unit, bool absent) {
+        static_cast<Sim::FieldBus*>(ctx)->set_fault(
+            unit, absent ? Sim::FieldBus::FAULT_ABSENT
+                         : Sim::FieldBus::FAULT_NONE);
+    };
     if (fieldbus.dropped() != 0) {
         // Fatal, not a warning: a sim missing devices reports them as
         // unanswering, sending the operator to debug a bus that is fine.
