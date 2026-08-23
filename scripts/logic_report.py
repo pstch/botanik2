@@ -938,61 +938,93 @@ def fbd_diagram(spec, unwired=None):
     inst = {b[0]: b for b in spec}
     if unwired is None:
         unwired = []
-    depth = {}
 
-    def _depth(name, seen):
-        if name in depth:
-            return depth[name]
-        if name in seen:
-            return 0                       # a loop, which a scan may legally have
-        d = 0
-        for src in inst[name][2].values():
+    # A program's [net] is often SEVERAL networks - four rails that never meet,
+    # four zones, a fill path and a drain path. Drawn as one graph they share
+    # columns they have no reason to share and their wires cross each other for
+    # nothing, so each is found here and laid out on its own rows.
+    adj = {n: set() for n in inst}
+    for name, _t, ins, _o in spec:
+        for src in ins.values():
             head = str(src).split(".")[0]
             if head in inst and head != name:
-                d = max(d, _depth(head, seen | {name}) + 1)
-        depth[name] = d
-        return d
-
-    for n in inst:
-        _depth(n, set())
-    cols = max(depth.values()) + 1 if depth else 1
+                adj[name].add(head)
+                adj[head].add(name)
+    comps, taken = [], set()
+    for b in spec:                       # spec order, so the table's order holds
+        if b[0] in taken:
+            continue
+        stack, here = [b[0]], set()
+        while stack:
+            n = stack.pop()
+            if n in taken:
+                continue
+            taken.add(n)
+            here.add(n)
+            stack.extend(adj[n] - taken)
+        comps.append([x for x in spec if x[0] in here])
 
     bw, gapx, gapy, lane = 118, 104, 22, 96
-    # A deep law WRAPS rather than running off the side: past four columns the
-    # page is scaled down to fit and the pin names stop being readable, which
-    # is the one thing the diagram is for. Each band picks up where the last
-    # left off, and a wire between them takes the channel like any other.
+    # A deep network WRAPS rather than running off the side: past three columns
+    # the page is scaled down to fit and the pin names stop being readable,
+    # which is the one thing the diagram is for.
     BAND = 3
-    prims, box = [], {}
-    y_of = {}
-    band_top = 26
-    for c in range(cols):
-        here = [b for b in spec if depth[b[0]] == c]
-        if c and c % BAND == 0:                      # a new band starts below
-            band_top = max((v[1] + v[3] for v in y_of.values()),
-                           default=band_top) + 58
-        y = band_top
-        for b in here:
-            name, typ, ins, outs = b
-            pi, po = _pins(typ)
-            rows_ = max(len(pi), len(po))
-            bh = 16 + rows_ * 11
-            x = lane + (c % BAND) * (bw + gapx)
-            prims.append(rect(x, y, bw, bh, "",
-                              FN_C if is_function(typ) else BLK_C))
-            prims.append(text(x + bw / 2.0, y - 3, name, 6.6, "middle", bold=True))
-            prims.append(text(x + bw / 2.0, y + 10, typ.split("::")[-1], 6.6,
-                              "middle", INK))
-            for i, pin in enumerate(pi):
-                py = y + 20 + i * 11
-                prims.append(text(x + 4, py, pin, 5.8, color=MUTED))
-                box[(name, "in", pin)] = (x, py - 2)
-            for i, pin in enumerate(po):
-                py = y + 20 + i * 11
-                prims.append(text(x + bw - 4, py, pin, 5.8, "end", color=MUTED))
-                box[(name, "out", pin)] = (x + bw, py - 2)
-            y_of[name] = (x, y, bw, bh)
-            y += bh + gapy
+    prims, box, y_of, bottom = [], {}, {}, {}
+    top, widest = 26, 1
+    for comp in comps:
+        mine = set(x[0] for x in comp)
+        depth = {}
+
+        def _depth(name, seen, mine=mine, depth=depth):
+            if name in depth:
+                return depth[name]
+            if name in seen:
+                return 0                   # a loop, which a scan may legally have
+            d = 0
+            for src in inst[name][2].values():
+                head = str(src).split(".")[0]
+                if head in mine and head != name:
+                    d = max(d, _depth(head, seen | {name}) + 1)
+            depth[name] = d
+            return d
+
+        for n in mine:
+            _depth(n, set())
+        cols = max(depth.values()) + 1
+        widest = max(widest, min(cols, BAND))
+        band_top = top
+        for c in range(cols):
+            here = [x for x in comp if depth[x[0]] == c]
+            if c and c % BAND == 0:                  # a new band starts below
+                band_top = max((y_of[n][1] + y_of[n][3] for n in mine
+                                if n in y_of), default=band_top) + 58
+            y = band_top
+            for name, typ, ins, outs in here:
+                pi, po = _pins(typ)
+                bh = 16 + max(len(pi), len(po)) * 11
+                x = lane + (c % BAND) * (bw + gapx)
+                prims.append(rect(x, y, bw, bh, "",
+                                  FN_C if is_function(typ) else BLK_C))
+                prims.append(text(x + bw / 2.0, y - 3, name, 6.6, "middle",
+                                  bold=True))
+                prims.append(text(x + bw / 2.0, y + 10, typ.split("::")[-1],
+                                  6.6, "middle", INK))
+                for i, pin in enumerate(pi):
+                    py = y + 20 + i * 11
+                    prims.append(text(x + 4, py, pin, 5.8, color=MUTED))
+                    box[(name, "in", pin)] = (x, py - 2)
+                for i, pin in enumerate(po):
+                    py = y + 20 + i * 11
+                    prims.append(text(x + bw - 4, py, pin, 5.8, "end",
+                                      color=MUTED))
+                    box[(name, "out", pin)] = (x + bw, py - 2)
+                y_of[name] = (x, y, bw, bh)
+                y += bh + gapy
+        foot = max((y_of[n][1] + y_of[n][3] for n in mine if n in y_of),
+                   default=top)
+        for n in mine:
+            bottom[n] = foot          # this network's own channel floor
+        top = foot + 46
     height = max((v[1] + v[3] for v in y_of.values()), default=60)
 
     def _hits(x0, x1, y0, y1):
@@ -1006,7 +1038,7 @@ def fbd_diagram(spec, unwired=None):
 
     jogs = {}
 
-    def _route(sx, sy, tx, ty, lanes):
+    def _route(sx, sy, tx, ty, floor_y, lanes):
         """A wire from an output pin to an input pin, around the boxes.
 
         The straight three-segment run first, which is what an adjacent pair of
@@ -1017,20 +1049,26 @@ def fbd_diagram(spec, unwired=None):
         # Each wire jogs at its OWN x inside the gutter. Sharing one midpoint
         # put two verticals on top of each other wherever a pin fed two nodes,
         # and the pair read as a single wire going somewhere neither went.
-        n = jogs.setdefault((sx, sy), len(jogs))
+        n = jogs.get((sx, sy), 0)
+        jogs[(sx, sy)] = n + 1
+        if abs(sy - ty) < 0.1 and not _hits(sx, tx, sy, sy):
+            return [(sx, sy), (tx, ty)]     # level with each other: no jog at all
         mid = sx + (tx - sx) / 2.0 + 9 * (n % 5) - 18
         if not (_hits(sx, mid, sy, sy) or _hits(mid, mid, sy, ty)
                 or _hits(mid, tx, ty, ty)):
             return [(sx, sy), (mid, sy), (mid, ty), (tx, ty)]
         gx = sx + gapx / 2.0          # the gutter just right of the source
-        ch = height + 12 + 7 * (len(lanes) % 12)
-        lanes.append(ch)
+        # Under THIS network, not under the page: a wire that dived past every
+        # other network below it was the length of the diagram for nothing.
+        n = lanes.setdefault(floor_y, 0)
+        lanes[floor_y] = n + 1
+        ch = floor_y + 12 + 7 * (n % 12)
         return [(sx, sy), (gx, sy), (gx, ch), (tx - 10, ch),
                 (tx - 10, ty), (tx, ty)]
 
     # The wires. A source is either another block's output pin or a variable,
     # and a variable gets a stub on the left rail so the page names it once.
-    left, right, lanes = [], [], []
+    left, right, lanes = [], [], {}
     for name, typ, ins, outs in spec:
         for pin, src in ins.items():
             if (name, "in", pin) not in box:
@@ -1046,7 +1084,8 @@ def fbd_diagram(spec, unwired=None):
                     opin = _pins(inst[head][1])[1][0]
                 if (head, "out", opin) in box:
                     sx, sy = box[(head, "out", opin)]
-                    prims.append(line(_route(sx, sy, tx, ty, lanes),
+                    prims.append(line(_route(sx, sy, tx, ty,
+                                             bottom.get(name, height), lanes),
                                       arrow=True))
                 else:
                     unwired.append(f"{name}.{pin} <- {src}")
@@ -1065,12 +1104,20 @@ def fbd_diagram(spec, unwired=None):
         prims.append(line([(tx - 8, ty), (tx, ty)], arrow=True))
     # ...and the same on the way out: a stub at the far right would be drawn
     # straight through every column after this block's own.
-    edge = lane + min(cols, BAND) * (bw + gapx) - gapx
+    edge = lane + widest * (bw + gapx) - gapx
     for label, sx, sy in right:
-        prims.append(line([(sx, sy), (sx + 8, sy)], arrow=True))
-        prims.append(text(sx + 12, sy + 2, label, 6.0, color=INK))
-    floor_ = max(lanes) if lanes else height
-    return prims, int(edge + 120), int(max(height, floor_) + 14)
+        # A pin can feed a node AND a row. Drawn straight, the stub lies on top
+        # of the wire for its first few pixels and the two read as one, so the
+        # stub steps aside when the pin is already wired somewhere.
+        if (sx, sy) in jogs:
+            prims.append(line([(sx, sy), (sx + 5, sy), (sx + 5, sy + 6),
+                               (sx + 13, sy + 6)], arrow=True))
+            prims.append(text(sx + 17, sy + 8, label, 6.0, color=INK))
+        else:
+            prims.append(line([(sx, sy), (sx + 8, sy)], arrow=True))
+            prims.append(text(sx + 12, sy + 2, label, 6.0, color=INK))
+    deepest = max((f + 12 + 7 * 11 for f in lanes), default=height)
+    return prims, int(edge + 120), int(max(height, deepest) + 14)
 
 
 
