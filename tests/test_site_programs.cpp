@@ -807,6 +807,23 @@ TEST_CASE_FIXTURE(Rig<Site::ScreenController>, "screen: the phase gives permissi
     CHECK_FALSE(live.bank.get(screen));
 }
 
+TEST_CASE_FIXTURE(IrrigationRig, "irrigation: every row it reads back is written before it is read") {
+    // The four inout rows are published and then JUDGED on, so each is a
+    // watched INPUT too: one the law has not written yet is invalid, and the
+    // program reports DEGRADED for it. drained was only written on entering the
+    // drain, so a plant whose slot was hours away sat degraded until then.
+    uint64_t t = 0;
+    for (uint32_t i = 0; i < 4; i++) d.step(t += 1000);
+    const char* const readback[] = { "irr_delivered_L", "irr_drained_L",
+                                     "irr_servedToday", "irr_today" };
+    for (const char* r : readback) {
+        Vars::VarRef ref = live.bank.find(r);
+        REQUIRE(ref.index != Vars::VAR_NONE);
+        INFO("row: ", r);
+        CHECK(live.bank.var(ref).valid());
+    }
+}
+
 TEST_CASE_FIXTURE(IrrigationRig, "irrigation: a force is spent on the watering it asked for") {
     summer(live);
     no_soak(live);

@@ -163,7 +163,12 @@ void IrrigationCycle::run(ProgramContext& c) {
 
     switch (_state) {
         case IRR_IDLE: {
+            // BOTH of them, and every idle scan. They are read back as well as
+            // written, so an unwritten one is an invalid input and the program
+            // reports DEGRADED for it - which drained did from boot until a
+            // cycle first reached the drain, hours if the slot was hours away.
             delivered.set(0.0f);
+            drained.set(0.0f);
             // WHICH tray, and whether now: irr_schedule has decided both,
             // and published the answer.
             if (!can_dose) break;
