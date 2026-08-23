@@ -958,17 +958,26 @@ def fbd_diagram(spec, unwired=None):
     cols = max(depth.values()) + 1 if depth else 1
 
     bw, gapx, gapy, lane = 118, 104, 22, 96
+    # A deep law WRAPS rather than running off the side: past four columns the
+    # page is scaled down to fit and the pin names stop being readable, which
+    # is the one thing the diagram is for. Each band picks up where the last
+    # left off, and a wire between them takes the channel like any other.
+    BAND = 4
     prims, box = [], {}
     y_of = {}
+    band_top = 26
     for c in range(cols):
         here = [b for b in spec if depth[b[0]] == c]
-        y = 26
+        if c and c % BAND == 0:                      # a new band starts below
+            band_top = max((v[1] + v[3] for v in y_of.values()),
+                           default=band_top) + 58
+        y = band_top
         for b in here:
             name, typ, ins, outs = b
             pi, po = _pins(typ)
             rows_ = max(len(pi), len(po))
             bh = 16 + rows_ * 11
-            x = lane + c * (bw + gapx)
+            x = lane + (c % BAND) * (bw + gapx)
             prims.append(rect(x, y, bw, bh, "",
                               FN_C if is_function(typ) else BLK_C))
             prims.append(text(x + bw / 2.0, y - 3, name, 6.6, "middle", bold=True))
@@ -995,6 +1004,8 @@ def fbd_diagram(spec, unwired=None):
                 return True
         return False
 
+    jogs = {}
+
     def _route(sx, sy, tx, ty, lanes):
         """A wire from an output pin to an input pin, around the boxes.
 
@@ -1003,12 +1014,16 @@ def fbd_diagram(spec, unwired=None):
         over, so that one drops into a CHANNEL under the diagram, runs across
         and climbs back - one lane per wire, so two never sit on top of another.
         """
-        mid = sx + (tx - sx) / 2.0
+        # Each wire jogs at its OWN x inside the gutter. Sharing one midpoint
+        # put two verticals on top of each other wherever a pin fed two nodes,
+        # and the pair read as a single wire going somewhere neither went.
+        n = jogs.setdefault((sx, sy), len(jogs))
+        mid = sx + (tx - sx) / 2.0 + 9 * (n % 5) - 18
         if not (_hits(sx, mid, sy, sy) or _hits(mid, mid, sy, ty)
                 or _hits(mid, tx, ty, ty)):
             return [(sx, sy), (mid, sy), (mid, ty), (tx, ty)]
         gx = sx + gapx / 2.0          # the gutter just right of the source
-        ch = height + 12 + 7 * (len(lanes) % 6)
+        ch = height + 12 + 7 * (len(lanes) % 12)
         lanes.append(ch)
         return [(sx, sy), (gx, sy), (gx, ch), (tx - 10, ch),
                 (tx - 10, ty), (tx, ty)]
@@ -1050,7 +1065,7 @@ def fbd_diagram(spec, unwired=None):
         prims.append(line([(tx - 8, ty), (tx, ty)], arrow=True))
     # ...and the same on the way out: a stub at the far right would be drawn
     # straight through every column after this block's own.
-    edge = lane + cols * (bw + gapx) - gapx
+    edge = lane + min(cols, BAND) * (bw + gapx) - gapx
     for label, sx, sy in right:
         prims.append(line([(sx, sy), (sx + 8, sy)], arrow=True))
         prims.append(text(sx + 12, sy + 2, label, 6.0, color=INK))
