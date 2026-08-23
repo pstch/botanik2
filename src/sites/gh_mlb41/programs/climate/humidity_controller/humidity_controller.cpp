@@ -22,7 +22,7 @@ void HumidityController::observe(ProgramContext& c) {
 
     // A FALLING ramp, negated so the one ladder function serves both
     // directions: nothing at the limit, everything at the dew point itself.
-    // The span IS the operator's setting - cli_tooHumid_degC sits on its own
+    // The span IS the operator's setting - cli_rotMargin_degC sits on its own
     // floor by default, so a ramp to that floor would be a step.
     vent_dem.set(Plc::ladder(-margin, -limit, 0.0f));
 

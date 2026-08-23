@@ -91,7 +91,7 @@ inline void HumidityController::bind(Vars::Bank& io) {
     dehum_start   = io.resolve_in<float>("cli_dehumStart_degC");
     humid_start   = io.resolve_in<float>("cli_humidStart_degC");
     humid_full    = io.resolve_in<float>("cli_humidFull_degC");
-    rot_limit     = io.resolve_in<float>("cli_tooHumid_degC");
+    rot_limit     = io.resolve_in<float>("cli_rotMargin_degC");
     rot           = io.resolve_in<bool>("alarm_rot");
     in_t          = io.resolve_in<float>("cli_temp_hi");
     in_rh         = io.resolve_in<float>("cli_rh_hi");

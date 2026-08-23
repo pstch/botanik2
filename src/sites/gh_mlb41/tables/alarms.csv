@@ -12,7 +12,7 @@ alarm_generator_battery, GEN_BATT , 5   , 5    , 0       , 0     , 807, gen. sta
 alarm_sensor_fault     , SNS_FLT  , 2   , 2    , 0       , 0     , 812, sensor fault                        ,                                                                                                 ,
 alarm_too_hot          , TOO_HOT  , 3   , 3    , 0       , 15    , 813, inside temperature too high         , increase ventilation / open windows                                                             ,
 alarm_too_cold         , TOO_COLD , 3   , 3    , 0       , 15    , 814, inside temperature too low          ,                                                                                                 ,
-alarm_too_humid        , TOO_HUM  , 3   , 3    , 0       , 15    , 815, relative humidity too high          ,                                                                                                 ,
+alarm_too_humid        , TOO_HUM  , 3   , 3    , 0       , 15    , 815, too humid: the ladder is at full    , ventilate more or cut the moisture load; alarm_rot is the band below this one                   ,
 alarm_strat            , STRAT    , 5   , 5    , 0       , 0     , 816, temp. stratification too high       ,                                                                                                 ,
 alarm_water_leak       , WTR_LK   , 1   , 2    , 0       , 0     , 817, leak in irrigation circuit          , "shut irrigation valve, inspect circuit"                                                        ,
 alarm_water_pressure   , WTR_BAR  , 2   , 2    , 0       , 0     , 818, water pressure too low              ,                                                                                                 ,

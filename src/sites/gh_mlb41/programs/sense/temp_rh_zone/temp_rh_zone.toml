@@ -41,7 +41,7 @@ t_cs      = { rows = "cli_temp_cs*", count = 3 }
 h_cs      = { rows = "cli_rh_cs*", count = 3 }
 t_ext     = { rows = "cli_temp_ext*", count = 3 }
 h_ext     = { rows = "cli_rh_ext*", count = 3 }
-rot_limit = "cli_tooHumid_degC"
+rot_limit = "cli_rotMargin_degC"
 
 [out]
 # One number for the house, and the two levels it came from beside it.

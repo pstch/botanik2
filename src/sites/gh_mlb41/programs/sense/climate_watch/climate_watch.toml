@@ -17,10 +17,11 @@ hooks  = ["observe"]
 [in]
 temp     = "cli_temp_hi"
 rh       = "cli_rh_hi"
+margin   = "cli_dpMargin_degC"
 strat    = "cli_dTStrat_degC"
 too_hot  = "cli_tooHot_degC"
 too_cold = "cli_tooCold_degC"
-rh_cap   = "cli_rotRhCap"
+humid_at = "cli_dehumFull_degC"
 strat_hi = "cli_dTStratHigh_degC"
 sns      = ["alarm_sns_ceiling", "alarm_sns_floor",
              "alarm_sns_crawlspace", "alarm_sns_exterior"]

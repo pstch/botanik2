@@ -28,7 +28,11 @@ void ClimateWatch::observe(ProgramContext& c) {
     } else {
         hot.set(temp.get() > too_hot.get());
         cold.set(temp.get() < too_cold.get());
-        humid.set(rh.get() > rh_cap.get());
+        // A MARGIN, not an RH: air at 90% and 5 degC is drier than air at 60%
+        // and 25, and the alarm has to mean one thing at both. The line is the
+        // dehumidify arm's own saturation point, so the alarm cannot disagree
+        // with the actuator it is about.
+        humid.set(margin.get() < humid_at.get());
     }
 
     // Past the band the fans are already flat out on: the gap is not something

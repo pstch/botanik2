@@ -484,6 +484,12 @@ TEST_CASE("scenario: a cold night deploys the screen and pulls ground heat") {
 
     SAY("and nothing is calling for the skirt in the middle of a cold night");
     CHECK(p.num("cli_skirtDuty") == doctest::Approx(0.0f));
+
+    SAY("70% on a cold night is an ordinary night, and the alarm says so: the "
+         "margin is wide, the ladder is idle, and TOO_HUM agrees with both");
+    CHECK(p.num("cli_dpMargin_degC") > p.num("cli_dehumFull_degC"));
+    CHECK(p.num("cli_humidDem") == doctest::Approx(0.0f));
+    CHECK_FALSE(p.on("alarm_too_humid"));
     snapshot(p, "the plant settled in the cold");
 }
 
@@ -534,6 +540,11 @@ TEST_CASE("scenario: a damp night vents, and refuses to wet the air further") {
     CHECK(p.on("cli_rotLockout"));
     CHECK(p.num("cli_skirtDuty") == doctest::Approx(0.0f));
     CHECK_FALSE(p.on("cli_skirtValve"));
+
+    SAY("and TOO_HUM is up, because the dehumidify arm is saturated and the "
+         "air is still this wet - the alarm the operator can act on");
+    CHECK(p.num("cli_dpMargin_degC") < p.num("cli_dehumFull_degC"));
+    CHECK(p.on("alarm_too_humid"));
 
     SAY("and the anti-rot ventilation runs the intractors, ungated: the dew "
          "point it is fighting is the one inside");

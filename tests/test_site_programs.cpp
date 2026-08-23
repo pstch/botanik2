@@ -523,7 +523,7 @@ TEST_CASE_FIXTURE(Rig<Site::HumidityController>, "humidity, rot guard: the venti
 
     Vars::RefIn<float> dem = live.bank.resolve_in<float>("cli_rotVentDem");
     const VarRef margin = live.ref("cli_dpMargin_degC");
-    const float limit = live.bank.var(live.ref("cli_tooHumid_degC")).as_f32();
+    const float limit = live.bank.var(live.ref("cli_rotMargin_degC")).as_f32();
 
     live.bank.var(margin).publish(from_f32(T_F32, limit + 2.0f), 0);
     d.step(100);

@@ -131,7 +131,7 @@ inline void TempRHZone::bind(Vars::Bank& io) {
     h_ext[0]  = io.resolve_in<float>("cli_rh_ext1");
     h_ext[1]  = io.resolve_in<float>("cli_rh_ext2");
     h_ext[2]  = io.resolve_in<float>("cli_rh_ext3");
-    rot_limit = io.resolve_in<float>("cli_tooHumid_degC");
+    rot_limit = io.resolve_in<float>("cli_rotMargin_degC");
     temp_in   = io.resolve_out<float>("cli_temp_in");
     temp_hi   = io.resolve_out<float>("cli_temp_hi");
     rh_hi     = io.resolve_out<float>("cli_rh_hi");

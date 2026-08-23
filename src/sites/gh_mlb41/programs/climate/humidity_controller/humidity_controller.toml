@@ -10,7 +10,7 @@ notes  = """
 Negative dehumidifies, positive humidifies. Set in degC rather than kPa
 because CONDENSATION is what is guarded against, and that happens at the
 temperature the surfaces are at. The guard is the same signal against a
-different question - `cli_tooHumid_degC` is what `alarm_rot` means - and it
+different question - `cli_rotMargin_degC` is what `alarm_rot` means - and it
 is one program because two laws reading one margin can disagree on the beat
 it moves.
 """
@@ -38,7 +38,7 @@ dehum_full    = "cli_dehumFull_degC"
 dehum_start   = "cli_dehumStart_degC"
 humid_start   = "cli_humidStart_degC"
 humid_full    = "cli_humidFull_degC"
-rot_limit     = "cli_tooHumid_degC"
+rot_limit     = "cli_rotMargin_degC"
 rot           = "alarm_rot"
 # The dryness gate: whether the air outside would dry the greenhouse at all.
 # Dew points, not humidities - a colder outside at the same RH is drier air.

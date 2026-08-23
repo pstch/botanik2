@@ -31,7 +31,7 @@
 //   temp_rh_zone    alarm_sns_floor       -> climate_watch
 //   temp_rh_zone    alarm_sns_crawlspace  -> climate_watch
 //   temp_rh_zone    alarm_sns_exterior    -> climate_watch
-//   temp_rh_zone    cli_dpMargin_degC     -> humidity, skirt
+//   temp_rh_zone    cli_dpMargin_degC     -> climate_watch, humidity, skirt
 //   temp_rh_zone    cli_vpd_kPa           -> irr_modulation
 //   temp_rh_zone    alarm_rot             -> humidity
 //   strat           cli_dTStrat_degC      -> climate_watch, destrat
