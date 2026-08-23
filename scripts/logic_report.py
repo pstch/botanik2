@@ -1285,9 +1285,11 @@ FBD = {
                             "dt": "c.dt_ms"}, {"q": "lockout + hold_safe"}),
  ],
  "screen": [
-   ("fabric", "Plc::Actuator", {"target": "screen ? 1 : 0", "cfg": "_mechanics()",
-                                "dt": "c.dt_ms"},
-    {"position": "settled?", "moving": "moving", "open": "coil", "close": "coil"}),
+   # The coil is driven straight from the law; this block is only the traverse
+   # ESTIMATE, so its two coil outputs go nowhere.
+   ("fabric", "Plc::Actuator", {"target": "the coil, read back",
+                                "cfg": "_mechanics()", "dt": "c.dt_ms"},
+    {"position": "settled?", "moving": "cli_screenMoving"}),
  ],
  "windows": [
    ("act", "Plc::Actuator", {"target": "_target, capped", "cfg": "_mechanics()",
