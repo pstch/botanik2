@@ -28,7 +28,6 @@ public:
      *  @{ */
 
     Vars::RefIn<float> temp;
-    Vars::RefIn<float> rh;
     Vars::RefIn<float> margin;
     Vars::RefIn<float> strat;
     Vars::RefIn<float> too_hot;
@@ -59,7 +58,7 @@ private:
 
     /** @} */
 
-    Vars::VarRef _watch_rows[8];  ///< swept for validity before each activation
+    Vars::VarRef _watch_rows[7];  ///< swept for validity before each activation
 
 public:
     ClimateWatch(const SetupContext& ctx, Vars::Bank& io)
@@ -74,7 +73,6 @@ protected:
 
 inline void ClimateWatch::bind(Vars::Bank& io) {
     temp       = io.resolve_in<float>("cli_temp_hi");
-    rh         = io.resolve_in<float>("cli_rh_hi");
     margin     = io.resolve_in<float>("cli_dpMargin_degC");
     strat      = io.resolve_in<float>("cli_dTStrat_degC");
     too_hot    = io.resolve_in<float>("cli_tooHot_degC");
@@ -94,14 +92,13 @@ inline void ClimateWatch::bind(Vars::Bank& io) {
     // What the base sweeps before each activation, so an input that has
     // stopped being believable is DEGRADED without the law asking.
     _watch_rows[0] = temp.r;
-    _watch_rows[1] = rh.r;
-    _watch_rows[2] = margin.r;
-    _watch_rows[3] = strat.r;
-    _watch_rows[4] = sns[0].r;
-    _watch_rows[5] = sns[1].r;
-    _watch_rows[6] = sns[2].r;
-    _watch_rows[7] = sns[3].r;
-    set_inputs(_watch_rows, 8);
+    _watch_rows[1] = margin.r;
+    _watch_rows[2] = strat.r;
+    _watch_rows[3] = sns[0].r;
+    _watch_rows[4] = sns[1].r;
+    _watch_rows[5] = sns[2].r;
+    _watch_rows[6] = sns[3].r;
+    set_inputs(_watch_rows, 7);
     set_health_row(io.resolve_out<uint8_t>("prog_climate_watch"));
 }
 

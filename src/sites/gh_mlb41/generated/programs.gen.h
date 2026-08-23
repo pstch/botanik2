@@ -22,7 +22,7 @@
 //   sun_watch       sol_fromSet_min       -> day_phase
 //   temp_rh_zone    cli_temp_in           -> cooling, day_phase
 //   temp_rh_zone    cli_temp_hi           -> climate_watch, cooling, humidity, strat
-//   temp_rh_zone    cli_rh_hi             -> climate_watch, humidity
+//   temp_rh_zone    cli_rh_hi             -> humidity
 //   temp_rh_zone    cli_temp_lo           -> cooling, strat
 //   temp_rh_zone    cli_temp_cs           -> cooling
 //   temp_rh_zone    cli_temp_ext          -> humidity, irr_schedule

@@ -119,6 +119,11 @@ void IrrigationSchedule::run(ProgramContext& c) {
     const bool open   = _in_slot();
     slot_open.set(open);
 
+    // The interval is written only where one is actually chosen, and a forced
+    // tray, an empty search and the gate below all skip that. Held here so the
+    // row still says what it last was, and says it is not current.
+    period.hold();
+
     // WHEN, before which tray: the climate decides the slot and the schedule
     // decides the tray, and an operator forcing a cycle overrides both. A
     // modulation nobody can read is no dose, so there is nothing to start.

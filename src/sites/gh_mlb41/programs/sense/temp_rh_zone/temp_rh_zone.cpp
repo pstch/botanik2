@@ -7,6 +7,16 @@
 
 namespace Site {
 
+namespace {
+    /** @brief A derived row, written every beat. @p seen is whether any level
+     *  measured what it came from; if none did the value stands, marked not
+     *  current. */
+    void publish(Vars::RefOut<float> row, float v, bool seen) {
+        if (seen) row.set(v);
+        else      row.hold(v);
+    }
+}  // namespace
+
 void TempRHZone::on_bind() {
     const float tau_s = 0.001f * (float)tau_ms.get();
     ceiling.attach(t_hi, h_hi, temp_hi, rh_hi, fault_hi, tau_s);
@@ -56,21 +66,32 @@ void TempRHZone::run(ProgramContext& c) {
     const float dp_lo = Plc::dew_point(t_lo, floor.humidity());
     const float m_hi = t_hi - dp_hi;
     const float m_lo = t_lo - dp_lo;
-    const bool  worst_isceiling = (m_hi <= m_lo);
+    // Among the levels that are MEASURED, like temp_in above: one holding a
+    // reading from before its probes died would otherwise win the worst-case
+    // vote and speak for the house.
+    const bool  worst_isceiling = (hi_ok == lo_ok) ? (m_hi <= m_lo) : hi_ok;
     const float t_worst  = worst_isceiling ? t_hi : t_lo;
 
-    dew_point.set(worst_isceiling ? dp_hi : dp_lo);
-    dp_margin.set(worst_isceiling ? m_hi : m_lo);
-    sat_press.set(Plc::sat_vapour_pressure(t_worst));
+    // Published every beat whatever the zones did, and the QUALITY is what
+    // says nothing measured it - a reader that checks learns not to act, and
+    // one that does not gets the margin the house last really had rather than
+    // a zero, which reads like saturated air.
+    const bool seen = hi_ok || lo_ok;
+    publish(dew_point, worst_isceiling ? dp_hi : dp_lo, seen);
+    publish(dp_margin, worst_isceiling ? m_hi : m_lo, seen);
+    publish(sat_press, Plc::sat_vapour_pressure(t_worst), seen);
 
     // The worst case is per QUANTITY, not one level chosen for all of them: the
     // spec keeps the smallest dew-point margin for rot and the LOWEST VPD for
     // irrigation, and they are not always the same level. A margin and a VPD
     // tell the same story in different units, and the units are not linear in
     // each other - the same margin is a much larger VPD when it is warm.
-    vpd.set(Plc::min_of(
-        Plc::sat_vapour_pressure(t_hi) - Plc::sat_vapour_pressure(dp_hi),
-        Plc::sat_vapour_pressure(t_lo) - Plc::sat_vapour_pressure(dp_lo)));
+    const float vpd_hi = Plc::sat_vapour_pressure(t_hi) -
+                         Plc::sat_vapour_pressure(dp_hi);
+    const float vpd_lo = Plc::sat_vapour_pressure(t_lo) -
+                         Plc::sat_vapour_pressure(dp_lo);
+    publish(vpd, (hi_ok == lo_ok) ? Plc::min_of(vpd_hi, vpd_lo)
+                                  : (hi_ok ? vpd_hi : vpd_lo), seen);
 
     const float limit = rot_limit.get();
     rot.set((worst_isceiling ? m_hi : m_lo) < limit);

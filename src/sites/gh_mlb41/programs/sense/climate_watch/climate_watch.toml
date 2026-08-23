@@ -16,7 +16,6 @@ hooks  = ["observe"]
 
 [in]
 temp     = "cli_temp_hi"
-rh       = "cli_rh_hi"
 margin   = "cli_dpMargin_degC"
 strat    = "cli_dTStrat_degC"
 too_hot  = "cli_tooHot_degC"

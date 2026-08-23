@@ -296,7 +296,8 @@ void snapshot(Plant& p, const char* moment) {
         "cli_windowDem", "cli_window1_pos", "cli_screen", "cli_screenMoving",
         "cli_intr1", "cli_fanSpeed", "cli_skirtDuty", "cli_skirtValve",
         "cli_intakeCoolOk", "cli_groundHeatOk", "cli_intakeDryOk",
-        "cli_rainLockout", "cli_windLockout", "sys_supply_lockout",
+        "cli_rainLockout", "cli_windLockout", "cli_windowCap",
+        "sys_supply_lockout", "alarm_weather_storm",
         "alarm_rot", "alarm_too_hot", "alarm_too_cold", "alarm_sns_ceiling",
     };
     ScenarioTrace::moment(moment);
@@ -611,7 +612,34 @@ TEST_CASE("scenario: a zone dying leaves the plant safe, not confident") {
          "not have");
     CHECK(p.zones.health() != Plc::Health::HEALTHY);
     CHECK(p.cooling.health() == Plc::Health::DEGRADED);
+
+    SAY("the dew-point margin is still MEASURED, and it is the FLOOR's: a "
+         "level holding an old reading does not speak for the house");
+    CHECK(p.valid("cli_dpMargin_degC"));
+    CHECK(p.num("cli_dpMargin_degC") ==
+          doctest::Approx(p.num("cli_temp_lo") - p.num("cli_dewPoint_degC")));
     snapshot(p, "five minutes without a ceiling reading");
+
+    SAY("the floor goes too, and now nothing measures the house: the margin "
+         "keeps the number it last had and says it is not current");
+    for (uint8_t i = 1; i <= 3; i++) {
+        char n[24]; snprintf(n, sizeof n, "cli_temp_lo%u", (unsigned)i);
+        p.f.bank.var(p.ref(n)).invalidate(Q_NO_DATA);
+    }
+    for (uint32_t i = 0; i < 300; i++) {
+        p.probe("cli_temp_cs%u", 3, g_wx.crawlspace);
+        p.probe("cli_rh_hi%u", 3, g_wx.rh);
+        p.probe("cli_rh_lo%u", 3, g_wx.rh);
+        p.cycle->step(p.t += 100);
+    }
+    CHECK_FALSE(p.valid("cli_dpMargin_degC"));
+    CHECK(p.num("cli_dpMargin_degC") > 0.0f);   // held, not a default of zero
+
+    SAY("and the rot guard fails toward acting on a margin nobody has, which "
+         "is the branch it has always documented and never reached");
+    CHECK(p.num("cli_rotVentDem") == doctest::Approx(1.0f));
+    CHECK(p.on("cli_rotLockout"));
+    snapshot(p, "the house with no measured margin at all");
 }
 
 TEST_CASE("scenario: the supply going down parks the plant") {

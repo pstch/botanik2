@@ -17,7 +17,7 @@ void ClimateWatch::observe(ProgramContext& c) {
     sensor.set(blind);
 
     const bool measured = temp.valid() &&
-                          rh.valid();
+                          margin.valid();
     if (!measured) {
         // Nothing is raised on a reading nobody has. The quorum alarm above is
         // what says the plant cannot be seen, and it is already raised.
