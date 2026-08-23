@@ -947,18 +947,31 @@ def fbd_diagram(spec, unwired=None):
         for _pin, dst in outs.items():
             made.setdefault(str(dst), (_n, _pin))
 
+    def _reads(name, src):
+        """The (node, out-pin) pairs one source reads, and its label.
+
+        A source names them three ways and all three are connections: it IS a
+        node's pin, it MENTIONS one inside a formula, or it names a ROW that
+        another node publishes - which a formula may do too, and roof_lockout's
+        wind_lock did, leaving the node that decides it feeding nothing.
+        """
+        body = str(src)[1:] if str(src).startswith("=") else str(src)
+        out = []
+        for m in re.finditer(r"[A-Za-z_]\w*(?:\.[A-Za-z_]\w*)?", body):
+            tok = m.group(0)
+            head, _, tail = tok.partition(".")
+            if head in inst and tail and head != name:
+                out.append((head, tail))
+            elif tok in made and made[tok][0] != name:
+                out.append(made[tok])
+        return body, out
+
     def _feeds(name):
-        """Every node this one reads: as a bare source, from inside a formula,
-        or through a row that another node publishes. One answer, so what the
-        columns are ordered by and what the wires are drawn from agree."""
+        """Every node this one reads. One answer, so what the columns are
+        ordered by and what the wires are drawn from agree."""
         out = set()
         for src in inst[name][2].values():
-            body = str(src)[1:] if str(src).startswith("=") else str(src)
-            for m in re.finditer(r"([A-Za-z_]\w*)\.([A-Za-z_]\w*)", body):
-                if m.group(1) in inst:
-                    out.add(m.group(1))
-            if body in made:
-                out.add(made[body][0])
+            out |= {h for h, _p in _reads(name, src)[1]}
         return out - {name}
 
     # A program's [net] is often SEVERAL networks - four rails that never meet,
@@ -1069,7 +1082,10 @@ def fbd_diagram(spec, unwired=None):
             for name, typ, ins, outs in here:
                 pi, po = _pins(typ)
                 bh = 16 + max(len(pi), len(po)) * 11
-                x = xs[c % BAND]
+                slot = c % BAND
+                if (c // BAND) % 2:
+                    slot = BAND - 1 - slot
+                x = xs[slot]
                 prims.append(rect(x, y, bw, bh, "",
                                   FN_C if is_function(typ) else BLK_C))
                 label = typ.split("::")[-1]
@@ -1132,6 +1148,18 @@ def fbd_diagram(spec, unwired=None):
         if not (_hits(sx, mid, sy, sy) or _hits(mid, mid, sy, ty)
                 or _hits(mid, tx, ty, ty)):
             return [(sx, sy), (mid, sy), (mid, ty), (tx, ty)]
+        # Round the outside of whatever is in the way, above or below,
+        # whichever side is clear: a wire that dived under the whole page to
+        # reach the box just below it read as going somewhere else entirely.
+        for lane_y in (min(sy, ty) - 30, max(sy, ty) + 30):
+            if abs(lane_y - sy) < 12 or lane_y < 4:
+                continue
+            if not (_hits(sx, sx + 52, sy, sy)
+                    or _hits(sx + 52, sx + 52, sy, lane_y)
+                    or _hits(sx + 52, tx - 10, lane_y, lane_y)
+                    or _hits(tx - 10, tx - 10, lane_y, ty)):
+                return [(sx, sy), (sx + 52, sy), (sx + 52, lane_y),
+                        (tx - 10, lane_y), (tx - 10, ty), (tx, ty)]
         gx = sx + 52                  # the gutter just right of the source
         # Under THIS network, not under the page: a wire that dived past every
         # other network below it was the length of the diagram for nothing.
@@ -1168,50 +1196,27 @@ def fbd_diagram(spec, unwired=None):
             if (name, "in", pin) not in box:
                 continue
             tx, ty = box[(name, "in", pin)]
-            # Every node output the source names, whether the source IS one or
-            # merely mentions one: a formula over another node's output is a
-            # connection, and a page that drew only the bare form left two
-            # boxes looking independent when one feeds the other.
-            body = str(src)[1:] if str(src).startswith("=") else str(src)
-            fed = [m for m in re.finditer(r"([A-Za-z_]\w*)\.([A-Za-z_]\w*)", body)
-                   if m.group(1) in inst]
-            if fed and body != fed[0].group(0):
-                for m in fed:
-                    h, opin = m.group(1), m.group(2)
-                    if (h, "out", opin) not in box:
-                        opin = _pins(inst[h][1])[1][0]
-                    if (h, "out", opin) in box:
-                        sx, sy = _out_at(h, opin)
-                        prims.append(line(_route(sx, sy, tx, ty,
-                                                 bottom.get(name, height), lanes),
-                                          arrow=True))
-                left.append((body, tx, ty))
-                continue
-            if str(src) in made:
-                h, opin = made[str(src)]
-                if h != name and (h, "out", opin) in box:
-                    sx, sy = _out_at(h, opin)
-                    prims.append(line(_route(sx, sy, tx, ty,
-                                             bottom.get(name, height), lanes),
-                                      arrow=True))
-                    continue
-            ref = re.match(r"([A-Za-z_]\w*)\.([A-Za-z_]\w*)", str(src))
-            head = ref.group(1) if ref else str(src)
-            if head in inst:
-                # The named pin, or the block's first output when the source is
-                # an expression over it ("flow_avg.out / 60").
-                opin = ref.group(2) if ref else _pins(inst[head][1])[1][0]
-                if (head, "out", opin) not in box:
-                    opin = _pins(inst[head][1])[1][0]
-                if (head, "out", opin) in box:
-                    sx, sy = _out_at(head, opin)
-                    prims.append(line(_route(sx, sy, tx, ty,
-                                             bottom.get(name, height), lanes),
-                                      arrow=True))
-                else:
+            body, srcs = _reads(name, src)
+            drawn = False
+            for h, opin in srcs:
+                if (h, "out", opin) not in box:
+                    opin = _pins(inst[h][1])[1][0]
+                if (h, "out", opin) not in box:
                     unwired.append(f"{name}.{pin} <- {src}")
-                continue
-            left.append((src, tx, ty))
+                    continue
+                sx, sy = _out_at(h, opin)
+                prims.append(line(_route(sx, sy, tx, ty,
+                                         bottom.get(name, height), lanes),
+                                  arrow=True))
+                drawn = True
+            # A wire says where it comes from; a FORMULA still has to say what
+            # is done to it, so it keeps its label. A plain name does not - the
+            # far end of the wire already carries it.
+            bare = len(srcs) == 1 and body in (f"{srcs[0][0]}.{srcs[0][1]}",
+                                               *[k for k, v in made.items()
+                                                 if v == srcs[0]])
+            if not drawn or not bare:
+                left.append((body, tx, ty))
 
     # Beside ITS OWN block, never on one shared rail: a stub for a block two
     # columns in would otherwise be drawn at the far left, and its wire would
