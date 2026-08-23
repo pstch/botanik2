@@ -1115,18 +1115,23 @@ def fbd_diagram(spec, unwired=None):
         top = foot + 46
     height = max((v[1] + v[3] for v in y_of.values()), default=60)
 
+    # A row label sits in the gutter beside its box and a wire through it is
+    # as unreadable as one through the box, so it blocks like one.
+    blocking = []
+
     def _hits(x0, x1, y0, y1):
-        """Whether the axis-aligned run (x0,y0)-(x1,y1) touches any box."""
+        """Whether the axis-aligned run (x0,y0)-(x1,y1) touches a box or a
+        label."""
         x0, x1 = min(x0, x1), max(x0, x1)
         y0, y1 = min(y0, y1), max(y0, y1)
-        for bx, by, bwid, bhgt in y_of.values():
+        for bx, by, bwid, bhgt in list(y_of.values()) + blocking:
             if x0 < bx + bwid and x1 > bx and y0 < by + bhgt and y1 > by:
                 return True
         return False
 
     jogs = {}
 
-    def _route(sx, sy, tx, ty, floor_y, lanes):
+    def _route(sx, sy, tx, ty, floor_y, lanes, clear=0):
         """A wire from an output pin to an input pin, around the boxes.
 
         The straight three-segment run first, which is what an adjacent pair of
@@ -1144,7 +1149,7 @@ def fbd_diagram(spec, unwired=None):
         # Jog EARLY, so the long run happens at the target's height. Halfway
         # across put it at the source's, which is where the next box's own pin
         # labels are - the wire ran straight through them.
-        mid = sx + 16 + 9 * (n % 5)
+        mid = max(sx + 16, clear) + 9 * (n % 5)
         if not (_hits(sx, mid, sy, sy) or _hits(mid, mid, sy, ty)
                 or _hits(mid, tx, ty, ty)):
             return [(sx, sy), (mid, sy), (mid, ty), (tx, ty)]
@@ -1154,13 +1159,14 @@ def fbd_diagram(spec, unwired=None):
         for lane_y in (ty - 30, ty + 34, sy - 30, sy + 34):
             if abs(lane_y - sy) < 12 or lane_y < 4:
                 continue
-            if not (_hits(sx, sx + 52, sy, sy)
-                    or _hits(sx + 52, sx + 52, sy, lane_y)
-                    or _hits(sx + 52, tx - 10, lane_y, lane_y)
+            gx = max(sx + 52, clear)
+            if not (_hits(sx, gx, sy, sy)
+                    or _hits(gx, gx, sy, lane_y)
+                    or _hits(gx, tx - 10, lane_y, lane_y)
                     or _hits(tx - 10, tx - 10, lane_y, ty)):
-                return [(sx, sy), (sx + 52, sy), (sx + 52, lane_y),
+                return [(sx, sy), (gx, sy), (gx, lane_y),
                         (tx - 10, lane_y), (tx - 10, ty), (tx, ty)]
-        gx = sx + 52                  # the gutter just right of the source
+        gx = max(sx + 52, clear)      # the gutter just right of the source
         # Under THIS network, not under the page: a wire that dived past every
         # other network below it was the length of the diagram for nothing.
         n = lanes.setdefault(floor_y, 0)
@@ -1173,15 +1179,18 @@ def fbd_diagram(spec, unwired=None):
     # feeds another node continues FROM THE ROW: the signal is named once and
     # the page shows the reader picking up the same name, rather than two
     # arrows leaving one pin as if they were different things.
-    from_label = {}
+    from_label, past_labels = {}, {}
     for name, typ, ins, outs in spec:
         for pin, dst in outs.items():
             if (name, "out", pin) not in box:
                 continue
             sx, sy = box[(name, "out", pin)]
+            end = sx + 14 + len(str(dst)) * 3.4
             prims.append(line([(sx, sy), (sx + 8, sy)], arrow=True))
             prims.append(text(sx + 12, sy + 2, str(dst), 6.0, color=INK))
-            from_label[(name, pin)] = (sx + 14 + len(str(dst)) * 3.4, sy)
+            from_label[(name, pin)] = (end, sy)
+            blocking.append((sx + 8, sy - 5, end - sx - 8, 10))
+            past_labels[name] = max(past_labels.get(name, 0), end + 8)
 
     def _out_at(head, opin):
         """Where a wire out of this pin starts: the row's label if it writes
@@ -1206,7 +1215,8 @@ def fbd_diagram(spec, unwired=None):
                     continue
                 sx, sy = _out_at(h, opin)
                 prims.append(line(_route(sx, sy, tx, ty,
-                                         bottom.get(name, height), lanes),
+                                         bottom.get(name, height), lanes,
+                                         past_labels.get(h, 0)),
                                   arrow=True))
                 drawn = True
             # A wire says where it comes from; a FORMULA still has to say what

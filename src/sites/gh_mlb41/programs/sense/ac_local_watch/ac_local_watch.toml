@@ -64,11 +64,16 @@ out_Hz = "out_Hz"
 ok     = "ok"
 fault  = "fault"
 
+[net.silent]
+fn = "not_of"
+[net.silent.in]
+in = "supply.answered"
+
 [net.waiting]
 fn = "and_of"
 [net.waiting.in]
 in1 = "=!grid_ok"
-in2 = "=!supply.answered"
+in2 = "silent.out"
 
 [net.cranking]
 [net.cranking.in]
