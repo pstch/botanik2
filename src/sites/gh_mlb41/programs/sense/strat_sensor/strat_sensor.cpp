@@ -3,8 +3,6 @@
  * @brief HAND-WRITTEN - the body of the `strat` POU.
  */
 
-#include <cmath>
-
 #include "strat_sensor.gen.h"
 
 namespace Site {
@@ -22,7 +20,7 @@ void StratSensor::run(ProgramContext& c) {
     // gone, and an inverted one - a cold roof at night over a warm floor - is
     // as much a case for the fans as the usual way round. The sign would only
     // matter to a law that wanted to move heat in one direction, and none does.
-    strat.set(fabsf(ceiling.get() - floor.get()), measured);
+    strat.set(Plc::abs_of(Plc::sub(ceiling.get(), floor.get())), measured);
 }
 
 }  // namespace Site
