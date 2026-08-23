@@ -984,47 +984,83 @@ def fbd_diagram(spec, unwired=None):
             stack.extend(adj[n] - taken)
         comps.append([x for x in spec if x[0] in here])
 
-    # The left rail carries a stub per pin nothing else feeds, and a formula is
-    # a long label. Measured up front, because it decides where column 0 sits.
-    rail = []
-    for _n, _t, _ins, _o in spec:
-        for _pin in _pins(_t)[0]:
-            _src = str(_ins.get(_pin, ""))
-            _body = _src[1:] if _src.startswith("=") else _src
-            _ref = re.match(r"([A-Za-z_]\w*)\.([A-Za-z_]\w*)", _src)
-            if (_ref and _ref.group(1) in inst) or _body in made:
+    def _stubs(name):
+        """The labels this node hangs off the rail: every input pin no wire
+        feeds. They decide how much room the column in front of it needs."""
+        out = []
+        for pin in _pins(inst[name][1])[0]:
+            src = str(inst[name][2].get(pin, ""))
+            body = src[1:] if src.startswith("=") else src
+            ref = re.match(r"([A-Za-z_]\w*)\.([A-Za-z_]\w*)", src)
+            if (ref and ref.group(1) in inst) or body in made:
                 continue                  # a wire carries it, not a stub
-            rail.append(_body)
-    bw, gapx, gapy = 118, 104, 22
-    lane = max(96, int(max((len(t) for t in rail), default=0) * 3.4) + 22)
-    # A deep network WRAPS rather than running off the side: past three columns
-    # the page is scaled down to fit and the pin names stop being readable,
-    # which is the one thing the diagram is for.
-    BAND = 3
+            out.append(body)
+        return out
+
+    bw, gapy = 118, 22
+
+    # Depths first, per network, because the COLUMNS have to be sized before
+    # anything is placed: a column is as wide as the longest label landing in
+    # front of it, or the two collide and the page has to be read twice.
+    depth = {}
+    for comp in comps:
+        mine = set(x[0] for x in comp)
+        d = {}
+
+        def _depth(name, seen, mine=mine, d=d):
+            if name in d:
+                return d[name]
+            if name in seen:
+                return 0               # a loop, which a scan may legally have
+            v = 0
+            for head in _feeds(name):
+                if head in mine:
+                    v = max(v, _depth(head, seen | {name}) + 1)
+            d[name] = v
+            return v
+
+        for n in mine:
+            _depth(n, set())
+        depth.update(d)
+
+    def _widest(c):
+        return max((len(t) for n in inst if depth[n] == c for t in _stubs(n)),
+                   default=0)
+
+    cols = max(depth.values()) + 1 if depth else 1
+    lab = [_widest(c) for c in range(cols)]
+
+    def _slots(band):
+        """Where each column SLOT starts. Sized by slot and not by column: a
+        network deep enough to wrap puts column 3 back in slot 0, and its
+        labels hang off the same rail as column 0's.
+        """
+        def _for(k):
+            return max([lab[c] for c in range(cols) if c % band == k],
+                       default=0)
+        # A gutter holds the labels landing in front of the column AND the
+        # wires crossing it to get there: the labels plus room to pass them.
+        out = [max(96, int(_for(0) * 3.4) + 22)]
+        for k in range(1, band):
+            out.append(out[-1] + bw + max(104, int(_for(k) * 3.4) + 72))
+        return out
+
+    # Wrap sooner when the columns are wide: a page past about 760 is scaled
+    # down to fit and the pin names stop being readable.
+    for BAND in (3, 2):
+        xs = _slots(BAND)
+        if xs[-1] + bw <= 760 or BAND == 2:
+            break
+    lane = xs[0]
+
     prims, box, y_of, bottom = [], {}, {}, {}
     top, widest = 26, 1
     for comp in comps:
         mine = set(x[0] for x in comp)
-        depth = {}
-
-        def _depth(name, seen, mine=mine, depth=depth):
-            if name in depth:
-                return depth[name]
-            if name in seen:
-                return 0                   # a loop, which a scan may legally have
-            d = 0
-            for head in _feeds(name):
-                if head in mine:
-                    d = max(d, _depth(head, seen | {name}) + 1)
-            depth[name] = d
-            return d
-
-        for n in mine:
-            _depth(n, set())
-        cols = max(depth.values()) + 1
-        widest = max(widest, min(cols, BAND))
         band_top = top
-        for c in range(cols):
+        ccols = max(depth[n] for n in mine) + 1
+        widest = max(widest, min(ccols, BAND))
+        for c in range(ccols):
             here = [x for x in comp if depth[x[0]] == c]
             if c and c % BAND == 0:                  # a new band starts below
                 band_top = max((y_of[n][1] + y_of[n][3] for n in mine
@@ -1033,7 +1069,7 @@ def fbd_diagram(spec, unwired=None):
             for name, typ, ins, outs in here:
                 pi, po = _pins(typ)
                 bh = 16 + max(len(pi), len(po)) * 11
-                x = lane + (c % BAND) * (bw + gapx)
+                x = xs[c % BAND]
                 prims.append(rect(x, y, bw, bh, "",
                                   FN_C if is_function(typ) else BLK_C))
                 label = typ.split("::")[-1]
@@ -1096,7 +1132,7 @@ def fbd_diagram(spec, unwired=None):
         if not (_hits(sx, mid, sy, sy) or _hits(mid, mid, sy, ty)
                 or _hits(mid, tx, ty, ty)):
             return [(sx, sy), (mid, sy), (mid, ty), (tx, ty)]
-        gx = sx + gapx / 2.0          # the gutter just right of the source
+        gx = sx + 52                  # the gutter just right of the source
         # Under THIS network, not under the page: a wire that dived past every
         # other network below it was the length of the diagram for nothing.
         n = lanes.setdefault(floor_y, 0)
@@ -1105,9 +1141,28 @@ def fbd_diagram(spec, unwired=None):
         return [(sx, sy), (gx, sy), (gx, ch), (tx - 10, ch),
                 (tx - 10, ty), (tx, ty)]
 
+    # The rows a pin publishes, placed FIRST. A pin that writes a row and also
+    # feeds another node continues FROM THE ROW: the signal is named once and
+    # the page shows the reader picking up the same name, rather than two
+    # arrows leaving one pin as if they were different things.
+    from_label = {}
+    for name, typ, ins, outs in spec:
+        for pin, dst in outs.items():
+            if (name, "out", pin) not in box:
+                continue
+            sx, sy = box[(name, "out", pin)]
+            prims.append(line([(sx, sy), (sx + 8, sy)], arrow=True))
+            prims.append(text(sx + 12, sy + 2, str(dst), 6.0, color=INK))
+            from_label[(name, pin)] = (sx + 14 + len(str(dst)) * 3.4, sy)
+
+    def _out_at(head, opin):
+        """Where a wire out of this pin starts: the row's label if it writes
+        one, the pin itself if it does not."""
+        return from_label.get((head, opin)) or box[(head, "out", opin)]
+
     # The wires. A source is either another block's output pin or a variable,
     # and a variable gets a stub on the left rail so the page names it once.
-    left, right, lanes = [], [], {}
+    left, lanes = [], {}
     for name, typ, ins, outs in spec:
         for pin, src in ins.items():
             if (name, "in", pin) not in box:
@@ -1126,7 +1181,7 @@ def fbd_diagram(spec, unwired=None):
                     if (h, "out", opin) not in box:
                         opin = _pins(inst[h][1])[1][0]
                     if (h, "out", opin) in box:
-                        sx, sy = box[(h, "out", opin)]
+                        sx, sy = _out_at(h, opin)
                         prims.append(line(_route(sx, sy, tx, ty,
                                                  bottom.get(name, height), lanes),
                                           arrow=True))
@@ -1135,7 +1190,7 @@ def fbd_diagram(spec, unwired=None):
             if str(src) in made:
                 h, opin = made[str(src)]
                 if h != name and (h, "out", opin) in box:
-                    sx, sy = box[(h, "out", opin)]
+                    sx, sy = _out_at(h, opin)
                     prims.append(line(_route(sx, sy, tx, ty,
                                              bottom.get(name, height), lanes),
                                       arrow=True))
@@ -1149,7 +1204,7 @@ def fbd_diagram(spec, unwired=None):
                 if (head, "out", opin) not in box:
                     opin = _pins(inst[head][1])[1][0]
                 if (head, "out", opin) in box:
-                    sx, sy = box[(head, "out", opin)]
+                    sx, sy = _out_at(head, opin)
                     prims.append(line(_route(sx, sy, tx, ty,
                                              bottom.get(name, height), lanes),
                                       arrow=True))
@@ -1157,10 +1212,6 @@ def fbd_diagram(spec, unwired=None):
                     unwired.append(f"{name}.{pin} <- {src}")
                 continue
             left.append((src, tx, ty))
-        for pin, dst in outs.items():
-            if (name, "out", pin) in box:
-                sx, sy = box[(name, "out", pin)]
-                right.append((dst, sx, sy))
 
     # Beside ITS OWN block, never on one shared rail: a stub for a block two
     # columns in would otherwise be drawn at the far left, and its wire would
@@ -1170,18 +1221,7 @@ def fbd_diagram(spec, unwired=None):
         prims.append(line([(tx - 8, ty), (tx, ty)], arrow=True))
     # ...and the same on the way out: a stub at the far right would be drawn
     # straight through every column after this block's own.
-    edge = lane + widest * (bw + gapx) - gapx
-    for label, sx, sy in right:
-        # A pin can feed a node AND a row. Drawn straight, the stub lies on top
-        # of the wire for its first few pixels and the two read as one, so the
-        # stub steps aside when the pin is already wired somewhere.
-        if (sx, sy) in jogs:
-            prims.append(line([(sx, sy), (sx + 5, sy), (sx + 5, sy + 6),
-                               (sx + 13, sy + 6)], arrow=True))
-            prims.append(text(sx + 17, sy + 8, label, 6.0, color=INK))
-        else:
-            prims.append(line([(sx, sy), (sx + 8, sy)], arrow=True))
-            prims.append(text(sx + 12, sy + 2, label, 6.0, color=INK))
+    edge = xs[widest - 1] + bw
     deepest = max((f + 12 + 7 * 11 for f in lanes), default=height)
     return prims, int(edge + 120), int(max(height, deepest) + 14)
 

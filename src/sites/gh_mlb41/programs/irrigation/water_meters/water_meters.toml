@@ -95,9 +95,16 @@ band  = "band"
 [net.flow_band.out]
 out = "out_flow_pub"
 
+# Per SECOND into the totalizer, which is what the block counts in.
+[net.per_second]
+fn = "div"
+[net.per_second.in]
+in1 = "flow_avg.out"
+in2 = "=60"
+
 [net.out_meter]
 [net.out_meter.in]
-rate_per_s = "=flow_avg.out / 60"
+rate_per_s = "per_second.out"
 dt         = "=c.dt_ms"
 cutoff     = "cutoff"
 [net.out_meter.out]
