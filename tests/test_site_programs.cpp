@@ -843,6 +843,62 @@ TEST_CASE_FIXTURE(Rig<Site::WaterMeters>, "irrigation: the drain meter comes bac
     CHECK(live.bank.get(shown) > 0.0f);
 }
 
+TEST_CASE_FIXTURE(Rig<Site::WaterMeters>,
+                  "irrigation: a state change raises no supply fault the rate window has yet to catch up with") {
+    // The inlet rate is the LAST COMPLETED window and stands until the next one
+    // closes, so for irr_rateWin_ms after a state change it is still reporting
+    // the state before: the flush's flow read as a leak the instant the cycle
+    // went idle, and idle's zero read as a pressure fault the instant a fill
+    // opened. Both fired on every cycle the plant ran.
+    const VarRef st   = live.ref("irr_state");
+    const VarRef leak = live.ref("alarm_water_leak");
+    const VarRef pres = live.ref("alarm_water_pressure");
+    // The law waits two of these: a window straddling the change closes with
+    // the old state's water in it, and that figure stands for a window more.
+    const uint32_t win =
+        2u * (uint32_t)live.bank.var(live.ref("irr_rateWin_ms")).i();
+    HAL::Pulse::attach(Site::pulse_inputs[0].channel,
+                       Site::pulse_inputs[0].edge);
+    live.bank.param_set(live.bank.var(live.ref("irr_input_qtyPerImp")), 1.0f);
+
+    uint64_t t = 0;
+    live.bank.var(st).set_i((int64_t)Site::IRR_FILLING);
+    for (uint32_t i = 0; i < 20; i++) {          // a litre a second, so 60 Lpm
+        HAL::Pulse::inject(Site::pulse_inputs[0].channel, 1);
+        d.step(t += 1000);
+    }
+    REQUIRE(live.bank.var(live.ref("irr_inFlow_Lpm")).as_f32() > 30.0f);
+
+    INFO("the cycle goes idle with the window still full of the fill's water");
+    live.bank.var(st).set_i((int64_t)Site::IRR_IDLE);
+    for (uint32_t i = 0; i <= win / 1000u + 2u; i++) {
+        d.step(t += 1000);
+        CHECK_FALSE(live.bank.var(leak).b());
+    }
+
+    INFO("...but water still moving a window later IS a leak");
+    for (uint32_t i = 0; i < win / 1000u + 4u; i++) {
+        HAL::Pulse::inject(Site::pulse_inputs[0].channel, 1);
+        d.step(t += 1000);
+    }
+    CHECK(live.bank.var(leak).b());
+
+    INFO("and the mirror image: a fill opening on an idle window is not a "
+         "pressure fault");
+    live.bank.var(st).set_i((int64_t)Site::IRR_IDLE);
+    for (uint32_t i = 0; i < win / 1000u + 4u; i++) d.step(t += 1000);
+    REQUIRE_FALSE(live.bank.var(pres).b());
+    live.bank.var(st).set_i((int64_t)Site::IRR_FILLING);
+    for (uint32_t i = 0; i + 1u < win / 1000u; i++) {   // up TO the window
+        d.step(t += 1000);
+        CHECK_FALSE(live.bank.var(pres).b());
+    }
+
+    INFO("...while a supply that never arrives still is");
+    for (uint32_t i = 0; i < win / 1000u + 4u; i++) d.step(t += 1000);
+    CHECK(live.bank.var(pres).b());
+}
+
 TEST_CASE("irrigation: the day the schedule runs on is today's date") {
     // Two ways of asking what day it is, and they have to agree. They did not:
     // the date came off cal_time_ms(), which takes an UPTIME-domain instant and

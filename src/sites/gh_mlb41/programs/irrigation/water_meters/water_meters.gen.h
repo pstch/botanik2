@@ -58,6 +58,12 @@ private:
     Plc::Ewma       flow_avg;   ///< the loop, averaged over irr_out_avg_ms
     Plc::Deadband   flow_band;  ///< ...and how far it must move to be written
     Plc::Derivative in_rate;    ///< litres -> Lpm, over a window
+    /** @brief One whole rate window in the state being judged, before
+     *  either supply alarm is allowed an opinion: the rate HOLDS its last
+     *  completed window, so for irr_rateWin_ms after a state change it is
+     *  still reporting the state before. */
+    Plc::Ton        idle_for;
+    Plc::Ton        fill_for;
     Plc::Integral   out_meter;  ///< Lpm -> litres
 
     /** @} */
@@ -89,7 +95,7 @@ private:
 
     /** @brief Water moving with every valve shut, and water not arriving
      *  with the inlet open. Both are read off the inlet meter alone. */
-    void _supply_alarms(float in_flow_Lpm);
+    void _supply_alarms(float in_flow_Lpm, uint32_t dt_ms);
 };
 
 inline void WaterMeters::bind(Vars::Bank& io) {

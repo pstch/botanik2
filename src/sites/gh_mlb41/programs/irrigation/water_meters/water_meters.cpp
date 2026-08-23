@@ -54,20 +54,29 @@ void WaterMeters::observe(ProgramContext& c) {
     in_total.set(total);
     const float flow = 60.0f * in_rate(total, rate_win.get(), c.dt_ms);
     in_flow.set(flow);
-    _supply_alarms(flow);
+    _supply_alarms(flow, c.dt_ms);
 }
 
-void WaterMeters::_supply_alarms(float in_flow_Lpm) {
-    const IrrState st = (IrrState)state.get();
+void WaterMeters::_supply_alarms(float in_flow_Lpm, uint32_t dt_ms) {
+    const IrrState st  = (IrrState)state.get();
+    // TWO windows, not one. The rate is the last COMPLETED window and stands
+    // until the next one closes, and the block's window boundaries have nothing
+    // to do with when the state changed: a window straddling the change closes
+    // with the old state's water still in it, and that figure then stands for a
+    // window more. Until two have passed, the rate can still be reporting the
+    // state before - which is how the flush's 60 L/min read as a leak the
+    // moment the cycle went idle, and idle's zero read as a pressure fault the
+    // moment a fill opened. Both fired on every cycle the plant ran.
+    const uint32_t win = 2u * rate_win.get();
+    const bool idle = idle_for(st == IRR_IDLE, win, dt_ms);
+    const bool fill = fill_for(st == IRR_FILLING, win, dt_ms);
 
     // Idle means every valve in the circuit is shut, so anything the inlet
     // meter counts is going somewhere nobody opened.
-    leak.set(st == IRR_IDLE && in_flow_Lpm > leak_Lpm.get());
+    leak.set(idle && in_flow_Lpm > leak_Lpm.get());
 
-    // The mirror image: the inlet is open and the water is not arriving. The
-    // row's own dwell covers the start of a fill, where the rate window has not
-    // filled yet and every fill would otherwise open with a pressure fault.
-    pressure.set(st == IRR_FILLING && in_flow_Lpm < min_fill_Lpm.get());
+    // The mirror image: the inlet is open and the water is not arriving.
+    pressure.set(fill && in_flow_Lpm < min_fill_Lpm.get());
 }
 
 }  // namespace Site

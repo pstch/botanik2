@@ -25,7 +25,7 @@ type = "uint32_t"
 init = "0"
 
 [fn.supply_alarms]
-type = "void (float in_flow_Lpm)"
+type = "void (float in_flow_Lpm, uint32_t dt_ms)"
 doc  = """
 Water moving with every valve shut, and water not arriving with the inlet
 open. Both are read off the inlet meter alone.
@@ -42,6 +42,17 @@ doc  = "...and how far it must move to be written"
 [block.in_rate]
 type = "Derivative"
 doc  = "litres -> Lpm, over a window"
+
+[block.idle_for]
+type = "Ton"
+doc  = """
+One whole rate window in the state being judged, before either supply alarm
+is allowed an opinion: the rate HOLDS its last completed window, so for
+irr_rateWin_ms after a state change it is still reporting the state before.
+"""
+
+[block.fill_for]
+type = "Ton"
 
 [block.out_meter]
 type = "Integral"
