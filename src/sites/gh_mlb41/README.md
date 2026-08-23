@@ -102,4 +102,63 @@ Notes:
   the two cannot fall out of step.
 - **No simulated field on hardware.** `sim.h` compiles to nothing without
   `TARGET_SIMULATOR`; the Modbus driver fills the same variables instead.
+
+## The simulated field
+
+`sim.h` animates the tables off ONE reading of the wall clock, which is the
+same clock the sun tracker works from - so a temperature minimum at dawn and
+`PHASE_DAWN_BREEZE` are the same morning by construction rather than by
+coincidence. `BOTANIK_SIM_EPOCH` moves the date, and with it the season: the
+declination sets how high the sun gets, which sets the day length, the
+irradiance and the seasonal mean, about 4 C in January and 20 C in July.
+
+Three layers:
+
+| Layer | What it is |
+|---|---|
+| the sky | season, solar elevation, cloud, irradiance, and the day's mean and swing |
+| the house | one lumped thermal model, plus a stratification gap and a dew point |
+| the field | the twelve probes, the two meters, the dividers and the weather station, all read off the two above |
+
+The house is a **closed loop**: it reads the windows, the intake fans, the
+destratification fans, the screen and the skirt, and answers them. Shut in full
+sun it runs about 19 C over ambient; open it tracks ambient within about 2 C.
+That is the difference between exercising the control programs and merely
+running them - unfed back, the PID never settles and the ladders never stop
+climbing. The exterior temperature is the solar forcing LAGGED by about 2.5
+hours, which is what puts the minimum at dawn and the maximum mid-afternoon in
+every season without either being a constant.
+
+### Scenarios
+
+Rare things a plant has to survive are not rare enough to wait for, so
+`BOTANIK_SIM_SCENARIO` names one and the field puts the plant through it every
+simulated day. They are the weather the control-system scenarios in
+`tests/test_site_scenarios.cpp` are written against, as a whole DAY rather than
+a held step.
+
+| `BOTANIK_SIM_SCENARIO` | The day it makes | What it is for |
+|---|---|---|
+| `cycle` (default) | each of the below in turn, one per simulated day | an unattended run that still sweeps the state space |
+| `fair` | an ordinary day for the season | the baseline |
+| `hot` | cloudless, 7 C over the seasonal mean | the whole cooling ladder, `cli_tooHot_degC`, the cold bank it arms |
+| `cold` | clear and 6 C under it | the screen, the negative half of the ladder, `cli_tooCold_degC` |
+| `storm` | wind over `cli_windShut_mps` from 06:00 to 20:00, with rain | the roof lockout, and how long it outlives the shower |
+| `damp` | overcast, air within a few degrees of saturation | the rot guard, and the one thing the wet skirt must never do |
+| `dry` | hot and parched | the other arm of the humidity ladder |
+| `probes` | ordinary weather; the ridge probes stop answering 04:00-06:00, one at a time | the quorum holding, and then not |
+| `supply` | ordinary weather; a sag at 09:00, the grid gone 13:00-15:00 with the generator carrying it, the UPS calling its battery low at 14:00 | the plant-wide lockout, and that it is reversible |
+
+A scenario repeats daily, so its window comes round every simulated day.
+`BOTANIK_SIM_EPOCH` is a UNIX second, not just a date, so a run can START
+inside one:
+
+```bash
+# straight into the outage: 2026-07-01 12:45 UTC, the supply scenario
+BOTANIK_SIM_CLOCK=fast BOTANIK_SIM_SCENARIO=supply \
+  BOTANIK_SIM_EPOCH=$(date -u -d '2026-07-01 12:45' +%s) ./build/botanik_sim
+```
+
+Under `cycle` a full sweep is eight simulated days, which is about an hour of
+wall clock in fast mode. See `src/botanik_sim/README.md` for the clock.
 - `src/botanik_fw/` is the canonical example of this wiring.

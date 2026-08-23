@@ -627,9 +627,16 @@ namespace Botanik { namespace HAL {
     }
 
     uint64_t wall_ms() {
-        // Manual clock: a fixed epoch plus simulated uptime, so every run stamps
-        // its logs and status bar identically. 2026-01-01T00:00:00Z.
-        if (_manual_clock()) return 1767225600000ull + _now_as<std::chrono::milliseconds>();
+        // Virtual clock: an epoch plus simulated uptime, so every run stamps its
+        // logs and status bar identically. BOTANIK_SIM_EPOCH (UNIX seconds)
+        // moves it, which is how a summer day is reached: the sun tracker and
+        // the simulated weather both work from this one reading.
+        // Default 2026-01-01T00:00:00Z.
+        if (_manual_clock()) {
+            static const uint64_t epoch_ms =
+                1000ull * (uint64_t)Env::u32("BOTANIK_SIM_EPOCH", 1767225600u);
+            return epoch_ms + _now_as<std::chrono::milliseconds>();
+        }
         return (uint64_t)std::chrono::duration_cast<std::chrono::milliseconds>(
             std::chrono::system_clock::now().time_since_epoch()).count();
     }

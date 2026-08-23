@@ -268,6 +268,11 @@ namespace Botanik { namespace HAL {
          *  @returns @p fallback if unset, empty, unparseable or out of range. */
         uint32_t u32(const char* name, uint32_t fallback = 0);
 
+        /** @brief Environment variable @p name, or @p fallback if unset or
+         *  empty. Never null when @p fallback is not. OPTA has no environment,
+         *  so it always answers @p fallback. */
+        const char* str(const char* name, const char* fallback = nullptr);
+
         /** @brief Environment variable @p name as a uint8.
          *  @returns @p fallback if unset or it does not fit a byte. */
         uint8_t  u8(const char* name, uint8_t fallback = 0);

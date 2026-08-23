@@ -50,6 +50,11 @@ simulated seconds per real second. It is for WATCHING the control system - a
 greenhouse day is 24 hours of laws whose slowest inputs move over days, and it
 is the only way to see an irrigation interval elapse.
 
+```bash
+# a July day, flat out: about 7 minutes for 24 simulated hours
+BOTANIK_SIM_CLOCK=fast BOTANIK_SIM_EPOCH=$(date -u -d 2026-07-01 +%s) ./build/botanik_sim
+```
+
 The clock is not the host's SCALED, which is what makes this sound: uptime and
 the wall clock are both derived from the one virtual reading, so the calendar
 cannot sawtooth against uptime. What genuinely does not survive is the
@@ -63,6 +68,8 @@ you do.
 |---|---|
 | `BOTANIK_SIM_CLOCK` | `manual` to hand the clock to a harness (with `BOTANIK_SIM_CONTROL_FD`), `fast` to have the sim drive it. Default: free-running on the host clock. |
 | `BOTANIK_SIM_SPEED` | Under `fast`, simulated seconds per real second (`60` is a minute a second). Default `0`: as fast as the host manages. |
+| `BOTANIK_SIM_SCENARIO` | The day the simulated field puts the plant through: `fair`, `hot`, `cold`, `storm`, `damp`, `dry`, `probes`, `supply`, or `cycle` (the default, one per simulated day). See the site README. |
+| `BOTANIK_SIM_EPOCH` | Under a virtual clock, the UNIX second the run starts at (`date -u -d 2026-07-01 +%s`). Default 2026-01-01. The sun tracker and the simulated weather both work from it, so this is what picks the SEASON. |
 | `BOTANIK_NO_LOAD_ALARMS` | Holds the CPU_* load alarms (CPU_LOAD / CPU_JITT / CPU_XRUN) cleared, so the active-alarm set is deterministic for screen goldens. Set it to a non-zero value. Defaults ON under a virtual clock. No effect on OPTA (no environment). See `health/health.h`. |
 | `BOTANIK_WATCHDOG` | `0` to run without it. Defaults ON, except under a virtual clock. |
 

@@ -17,6 +17,16 @@
 
 namespace Botanik { namespace HAL { namespace Env {
 
+    const char* str(const char* name, const char* fallback) {
+#ifdef TARGET_SIMULATOR
+        const char* v = std::getenv(name);
+        return (v == nullptr || *v == '\0') ? fallback : v;
+#else
+        (void)name;
+        return fallback;
+#endif
+    }
+
     uint32_t u32(const char* name, uint32_t fallback) {
 #ifdef TARGET_SIMULATOR
         const char* v = std::getenv(name);
