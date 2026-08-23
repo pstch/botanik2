@@ -24,17 +24,3 @@ is not in either.
 from_rise = "sol_fromRise_min"
 from_set  = "sol_fromSet_min"
 elevation = "sol_elev_deg"
-
-# The law as a network: the tracker's three answers, put in the units a person
-# reads and the phase table is declared in. Both offsets are one subtraction
-# from the wall clock and the elevation is one conversion, so all three are
-# inline - what this program does is READ the tracker, not compute.
-
-[net.sun]
-fn = "sel"
-[net.sun.in]
-g   = "=the tracker is ready"
-in0 = "=held, nothing is published"
-in1 = "=minutes either side of rise and set, and degrees"
-[net.sun.out]
-out = "elevation"

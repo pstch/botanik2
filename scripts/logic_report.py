@@ -964,7 +964,18 @@ def fbd_diagram(spec, unwired=None):
             stack.extend(adj[n] - taken)
         comps.append([x for x in spec if x[0] in here])
 
-    bw, gapx, gapy, lane = 118, 104, 22, 96
+    # The left rail carries a stub per pin nothing else feeds, and a formula is
+    # a long label. Measured up front, because it decides where column 0 sits.
+    rail = []
+    for _n, _t, _ins, _o in spec:
+        for _pin in _pins(_t)[0]:
+            _src = str(_ins.get(_pin, ""))
+            _ref = re.match(r"([A-Za-z_]\w*)\.([A-Za-z_]\w*)", _src)
+            if _ref and _ref.group(1) in inst:
+                continue
+            rail.append(_src[1:] if _src.startswith("=") else _src)
+    bw, gapx, gapy = 118, 104, 22
+    lane = max(96, int(max((len(t) for t in rail), default=0) * 3.4) + 22)
     # A deep network WRAPS rather than running off the side: past three columns
     # the page is scaled down to fit and the pin names stop being readable,
     # which is the one thing the diagram is for.

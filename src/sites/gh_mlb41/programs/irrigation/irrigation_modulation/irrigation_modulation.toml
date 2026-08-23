@@ -47,7 +47,7 @@ mod     = "irr_mod"
 [net.fold]
 [net.fold.in]
 in       = "=true"
-delay_ms = "=one hour"
+delay_ms = "=3600000"
 dt       = "=c.dt_ms"
 
 [net.dryness]

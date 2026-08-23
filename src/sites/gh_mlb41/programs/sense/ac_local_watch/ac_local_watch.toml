@@ -66,7 +66,7 @@ fault  = "fault"
 
 [net.cranking]
 [net.cranking.in]
-in       = "=grid_ok is down and supply.answered is not"
+in       = "=!grid_ok && !supply.answered"
 delay_ms = "start_s"
 dt       = "=c.dt_ms"
 [net.cranking.out]

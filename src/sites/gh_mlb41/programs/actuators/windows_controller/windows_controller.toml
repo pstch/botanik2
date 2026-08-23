@@ -81,7 +81,7 @@ hi = "cap"
 [net.parked]
 fn = "sel"
 [net.parked.in]
-g   = "=inhibit_requested()"
+g   = "=inhibited"
 in0 = "wanted.out"
 in1 = "=safe_open"
 

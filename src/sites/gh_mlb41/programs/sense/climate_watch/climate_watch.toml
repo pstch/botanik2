@@ -72,7 +72,7 @@ out = "stratified"
 [net.blind]
 fn = "or_of"
 [net.blind.in]
-in1 = "sns"
-in2 = "=any of the other three"
+in1 = "=sns[0] || sns[1]"
+in2 = "=sns[2] || sns[3]"
 [net.blind.out]
 out = "sensor"

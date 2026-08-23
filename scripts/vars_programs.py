@@ -80,6 +80,8 @@ PINS = {
     "median3":    (("in1", "in2", "in3"), ("out",)),
     "dew_point":  (("t", "rh"), ("out",)),
     "sat_vapour_pressure": (("t",), ("out",)),
+    "dew_point_margin": (("t", "rh"), ("out",)),
+    "vapour_pressure_deficit": (("t", "rh"), ("out",)),
     # The OPERATORS a law writes inline. No Plc:: function stands behind these -
     # `a > b` is GT whatever it is spelled as, and an FBD has to draw the
     # comparison that decides. Anything with a naming CHOICE gets a real
@@ -95,6 +97,7 @@ PINS = {
     "add":        (("in1", "in2"), ("out",)),
     "mul":        (("in1", "in2"), ("out",)),
     "div":        (("in1", "in2"), ("out",)),
+    "expt":       (("in1", "in2"), ("out",)),
     "MedianOf3":  (("x",), ("out",)),
     "MovingAverage": (("x",), ("out",)),
     "Integral":   (("rate_per_s", "dt", "cutoff"), ("total",)),
@@ -289,6 +292,46 @@ def net_type(n, blocks):
     return ""
 
 
+# What a pin may read besides a local or a node output: the scan context, the
+# base's own inhibit, and the two boolean literals. Everything else has to be a
+# name the program declares - a diagram whose labels are prose says whatever
+# the author felt like, and nothing can check it.
+NET_BASE = frozenset(("c.dt_ms", "c.first_scan", "inhibited", "true", "false"))
+
+_NET_CHARS = re.compile(r"^[A-Za-z0-9_.\s+\-*/()\[\]<>=!&|?:^%,]*$")
+_NET_IDENT = re.compile(r"[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)?")
+
+
+def _check_expr(src, at, nodes, locals_, blocks, err):
+    """One `=` source: a formula over names this program actually declares.
+
+    Numbers, operators and ALL_CAPS constants pass; a bare word does not, which
+    is what keeps a pin label from drifting back into prose.
+    """
+    if not _NET_CHARS.match(src):
+        err(f"{at} reads '{src}', which is not a formula")
+        return
+    for m in _NET_IDENT.finditer(src):
+        tok = m.group(0)
+        head, _, tail = tok.partition(".")
+        if tok in NET_BASE or head in NET_BASE:
+            continue
+        if head in nodes:
+            outs = (pins_of(net_type(nodes[head], blocks)) or ((), ()))[1]
+            if tail and tail not in outs:
+                err(f"{at} reads '{tok}', which {head} does not output")
+            continue
+        if head in locals_:
+            if tail and tail != "valid":
+                err(f"{at} reads '{tok}', and a row has no '{tail}'")
+            continue
+        if head.upper() == head:
+            continue                      # a constant, by the usual spelling
+        if pins_of(head) is not None:
+            continue                      # one of the vocabulary's own functions
+        err(f"{at} reads '{tok}', which this program does not declare")
+
+
 def check_net(p, err):
     """One program's [net]: every pin sourced, every source a real signal.
 
@@ -329,7 +372,9 @@ def check_net(p, err):
                     f"{typ.split('::')[-1]}")
                 continue
             if src.startswith("="):
-                continue                      # not a signal, and says so
+                _check_expr(src[1:], f"{where}: [net.{n['name']}.in] '{pin}'",
+                            nodes, locals_, p["blocks"], err)
+                continue
             head, _, tail = src.partition(".")
             if tail:
                 if head not in nodes:

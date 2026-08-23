@@ -47,13 +47,13 @@ hi = "=1"
 [net.effort]
 fn = "max_of"
 [net.effort.in]
-in1 = "=humid_dem, clamped to 0..1"
-in2 = "=cool.out, while dp_margin >= dry_min"
+in1 = "=limit(humid_dem, 0, 1)"
+in2 = "=dp_margin >= dry_min ? cool.out : 0"
 
 [net.asked]
 fn = "sel"
 [net.asked.in]
-g   = "=rot_lock, or inhibited"
+g   = "=rot_lock || inhibited"
 in0 = "effort.out"
 in1 = "=0"
 

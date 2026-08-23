@@ -54,8 +54,8 @@ since_rain = "cli_sinceRain_min"
 [net.station_flt]
 fn = "and_of"
 [net.station_flt.in]
-in1 = "=it has answered before"
-in2 = "=wind or rain is not valid now"
+in1 = "seen"
+in2 = "=!wind.valid || !rain.valid"
 [net.station_flt.out]
 out = "station"
 

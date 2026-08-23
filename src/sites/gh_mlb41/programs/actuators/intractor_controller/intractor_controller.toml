@@ -39,14 +39,27 @@ intr = { rows = "cli_intr*", count = 2 }
 
 # The law as a network: four demands fused by MAX and laddered to a speed, then
 # floored twice - by this actuator's own safe speed, and by the ground-heat rung
-# when the crawlspace is worth drawing on. Each demand's gate is one test and
-# stays inline.
+# when the crawlspace is worth drawing on.
+
+[net.air]
+fn = "max_of"
+[net.air.in]
+in1 = "=cool_ok ? cool_dem : 0"
+in2 = "rot_vent"
+
+# The DEHUMIDIFY arm alone while the air outside is drier, and the other arm
+# ungated - the point there is to bring moisture in through the wetted skirt.
+[net.moisture]
+fn = "max_of"
+[net.moisture.in]
+in1 = "=dry_ok ? -humid_dem : 0"
+in2 = "=max_of(0, humid_dem)"
 
 [net.demand]
 fn = "max_of"
 [net.demand.in]
-in1 = "=cool_dem while the intake is cooler, or rot_vent"
-in2 = "=the humidity arm, whichever way it points"
+in1 = "air.out"
+in2 = "moisture.out"
 
 [net.ramp]
 fn = "ladder"
@@ -58,7 +71,7 @@ hi = "full_dem"
 [net.floored]
 fn = "max_of"
 [net.floored.in]
-in1 = "=safe_speed, the row's own"
+in1 = "safe_speed"
 in2 = "ramp.out"
 
 # ONE RUNG, not a ramp: pulling harder on a cold house moves more air through
@@ -67,6 +80,6 @@ in2 = "ramp.out"
 fn = "max_of"
 [net.speed.in]
 in1 = "floored.out"
-in2 = "=ground_speed, while the ground is worth it"
+in2 = "=ground_ok ? ground_speed : 0"
 [net.speed.out]
 out = "intr"

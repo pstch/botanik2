@@ -122,15 +122,15 @@ out = "temp_in"
 [net.margin]
 fn = "min_of"
 [net.margin.in]
-in1 = "=temp_hi - dew_point(temp_hi, rh_hi)"
-in2 = "=temp_lo - dew_point(temp_lo, rh_lo)"
+in1 = "=dew_point_margin(temp_hi, rh_hi)"
+in2 = "=dew_point_margin(temp_lo, rh_lo)"
 [net.margin.out]
 out = "dp_margin"
 
 [net.driest]
 fn = "min_of"
 [net.driest.in]
-in1 = "=vpd at the ceiling"
-in2 = "=vpd at the floor"
+in1 = "=vapour_pressure_deficit(temp_hi, rh_hi)"
+in2 = "=vapour_pressure_deficit(temp_lo, rh_lo)"
 [net.driest.out]
 out = "vpd"

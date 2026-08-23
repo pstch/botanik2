@@ -59,14 +59,14 @@ band   = "cli_fanSpeed"
 [net.climate]
 fn = "max_of"
 [net.climate.in]
-in1 = "=strat_dem, or low_dem if unmeasured"
-in2 = "=cool_dem, or low_dem if unmeasured"
+in1 = "=strat_dem.valid ? strat_dem : low_dem"
+in2 = "=cool_dem.valid ? cool_dem : low_dem"
 
 [net.errands]
 fn = "max_of"
 [net.errands.in]
-in1 = "=irr_dem, while a cycle is running"
-in2 = "=breeze_dem, at dawn and dusk"
+in1 = "=irr_state != IRR_IDLE ? irr_dem : 0"
+in2 = "=phase == PHASE_DAWN_BREEZE || phase == PHASE_DUSK_BREEZE ? breeze_dem : 0"
 
 [net.demand]
 fn = "max_of"
@@ -86,8 +86,8 @@ hyst  = "dem_hyst"
 [net.speed]
 fn = "sel"
 [net.speed.in]
-g   = "=screen_moving, or inhibited"
+g   = "=screen_moving || inhibited"
 in0 = "steps.level"
-in1 = "=0 moving, 1 inhibited"
+in1 = "=screen_moving ? 0 : 1"
 [net.speed.out]
 out = "band"

@@ -80,8 +80,7 @@ pressure     = "alarm_water_pressure"
 # The law as a network. The OUTLET is a flow meter averaged, deadbanded and
 # integrated; the INLET is a pulse counter differentiated back into a rate. The
 # two dwells are what let a reading mean something: a flow with every valve
-# shut is a leak, and no flow while filling is no pressure - each is that rate
-# against its own threshold, inline.
+# shut is a leak, and no flow while filling is no pressure.
 
 [net.flow_avg]
 [net.flow_avg.in]
@@ -114,16 +113,28 @@ rate = "in_flow"
 
 [net.idle_for]
 [net.idle_for.in]
-in       = "=state is IDLE"
-delay_ms = "=2 x rate_win"
+in       = "=state == IRR_IDLE"
+delay_ms = "=2 * rate_win"
 dt       = "=c.dt_ms"
-[net.idle_for.out]
-q = "leak"
+
+[net.leaking]
+fn = "and_of"
+[net.leaking.in]
+in1 = "idle_for.q"
+in2 = "=in_flow > leak_Lpm"
+[net.leaking.out]
+out = "leak"
 
 [net.fill_for]
 [net.fill_for.in]
-in       = "=state is FILLING"
-delay_ms = "=2 x rate_win"
+in       = "=state == IRR_FILLING"
+delay_ms = "=2 * rate_win"
 dt       = "=c.dt_ms"
-[net.fill_for.out]
-q = "pressure"
+
+[net.starved]
+fn = "and_of"
+[net.starved.in]
+in1 = "fill_for.q"
+in2 = "=in_flow < min_fill_Lpm"
+[net.starved.out]
+out = "pressure"

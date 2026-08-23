@@ -63,7 +63,7 @@ out = "screen"
 [net.fabric]
 [net.fabric.in]
 target = "screen"
-cfg    = "=travel_s capped at travel_tmo_s"
+cfg    = "=min_of(travel_s, travel_tmo_s)"
 dt     = "=c.dt_ms"
 [net.fabric.out]
 moving = "moving"

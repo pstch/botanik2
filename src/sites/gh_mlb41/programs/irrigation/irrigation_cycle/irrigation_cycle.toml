@@ -170,46 +170,46 @@ drain_tray  = { rows = "alarm_irr_drain_tray*", count = 8 }
 
 # The law as a network. The STATE MACHINE itself is not a network - five states
 # and the dwell that ends each one - so what is drawn is the layer under it:
-# which valves the state opens. The two verdicts are what the meters said
-# against what the dose asked for, which is a subtraction each.
+# the window each state gets, and which valves it opens.
+
+[net.window]
+fn = "mux4"
+[net.window.in]
+k   = "state"
+in0 = "max_fill_s"
+in1 = "soak_s"
+in2 = "drain_window_s"
+in3 = "flush_s"
 
 [net.dwell]
 [net.dwell.in]
-in       = "=true, while in the state"
-delay_ms = "=the state's own window"
+in       = "=true"
+delay_ms = "=1000 * window.out"
 dt       = "=c.dt_ms"
 
 [net.inlet_v]
 [net.inlet_v.in]
-duty      = "=FILLING or FLUSHING"
-period_ms = "=held, not modulated"
-min_on_ms = "=held, not modulated"
+duty      = "=state == IRR_FILLING || state == IRR_FLUSHING"
+period_ms = "=0"
+min_on_ms = "=0"
 dt        = "=c.dt_ms"
 [net.inlet_v.out]
 coil = "inlet"
 
 [net.outlet_v]
 [net.outlet_v.in]
-duty      = "=DRAINING or FLUSHING"
-period_ms = "=held, not modulated"
-min_on_ms = "=held, not modulated"
+duty      = "=state == IRR_DRAINING || state == IRR_FLUSHING"
+period_ms = "=0"
+min_on_ms = "=0"
 dt        = "=c.dt_ms"
 [net.outlet_v.out]
 coil = "outlet"
 
 [net.tray_v]
 [net.tray_v.in]
-duty      = "=this tray, in FILLING, SOAKING or DRAINING"
-period_ms = "=held, not modulated"
-min_on_ms = "=held, not modulated"
+duty      = "=active > 0 && state != IRR_IDLE && state != IRR_FLUSHING"
+period_ms = "=0"
+min_on_ms = "=0"
 dt        = "=c.dt_ms"
 [net.tray_v.out]
 coil = "tray_valve"
-
-# The dose is the tray's summer figure scaled by the modulation, so a damp week
-# waters less. Without it there is no dose and no cycle may start.
-[net.dose]
-fn = "mul"
-[net.dose.in]
-in1 = "litres"
-in2 = "=mod ^ split"

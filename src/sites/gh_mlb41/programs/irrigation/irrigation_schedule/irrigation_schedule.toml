@@ -68,23 +68,23 @@ today     = "irr_today"
 served    = "irr_servedToday"
 
 # The law as a network. The CLIMATE decides the slot and the SCHEDULE decides
-# the tray; an operator forcing a cycle overrides both. Both gates are
-# comparisons and stay inline, and the search itself is a loop over the trays -
-# what leaves here is the interval it chose and the tray it picked.
+# the tray; the tray search itself is a loop over the eight and is not a
+# network, so what is drawn is the slot it may start in and the interval the
+# weather made of the summer figure.
+
+[net.slot]
+fn = "sel"
+[net.slot.in]
+g   = "=phase == PHASE_COLD_BANK || phase == PHASE_DAWN_BREEZE"
+in0 = "=from_rise <= day_rise + morning_win"
+in1 = "=outside_temp >= dawn_gate"
+[net.slot.out]
+out = "slot_open"
 
 [net.interval]
 fn = "div"
 [net.interval.in]
 in1 = "days"
-in2 = "=mod ^ (1 - split)"
+in2 = "=expt(mod, 1 - split)"
 [net.interval.out]
 out = "period"
-
-[net.due]
-fn = "sel"
-[net.due.in]
-g   = "=in a slot with allowance left, or forced"
-in0 = "=0"
-in1 = "=the most overdue tray"
-[net.due.out]
-out = "due_tray"

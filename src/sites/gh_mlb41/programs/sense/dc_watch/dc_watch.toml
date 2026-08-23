@@ -155,7 +155,7 @@ out = "out_gen"
 [net.low_for]
 [net.low_for.in]
 in       = "low_bat"
-delay_ms = "=2 s"
+delay_ms = "=2000"
 dt       = "=c.dt_ms"
 [net.low_for.out]
 q = "ups_flt"
