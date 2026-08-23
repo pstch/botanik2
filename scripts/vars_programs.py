@@ -63,17 +63,48 @@ PINS = {
     # push is the CALL, not a parameter: this block samples only when the law
     # asks it to, and a page that did not show what asks is missing the design.
     "ExpMovingAverage": (("x", "push"), ("out",)),
+    # plc/functions/ - the vocabulary a law calls by name.
     "sub":        (("in1", "in2"), ("out",)),
-    "mux4":       (("k", "in0", "in1", "in2", "in3"), ("out",)),
     "abs_of":     (("in",), ("out",)),
+    "mux4":       (("k", "in0", "in1", "in2", "in3"), ("out",)),
+    "max_of":     (("in1", "in2"), ("out",)),
+    "min_of":     (("in1", "in2"), ("out",)),
+    "sel":        (("g", "in0", "in1"), ("out",)),
+    "limit":      (("v", "lo", "hi"), ("out",)),
+    "in_range":   (("v", "lo", "hi"), ("out",)),
+    "ladder":     (("v", "lo", "hi"), ("out",)),
+    "signed_ladder": (("v", "neg_full", "neg_start", "pos_start", "pos_full"),
+                      ("out",)),
+    "scale":      (("v", "in_lo", "in_hi", "out_lo", "out_hi"), ("out",)),
+    "deadzone":   (("v", "band"), ("out",)),
+    "median3":    (("in1", "in2", "in3"), ("out",)),
+    "dew_point":  (("t", "rh"), ("out",)),
+    "sat_vapour_pressure": (("t",), ("out",)),
+    # The OPERATORS a law writes inline. No Plc:: function stands behind these -
+    # `a > b` is GT whatever it is spelled as, and an FBD has to draw the
+    # comparison that decides. Anything with a naming CHOICE gets a real
+    # function instead, which is why mux4 is one and gt is not.
+    "gt":         (("in1", "in2"), ("out",)),
+    "ge":         (("in1", "in2"), ("out",)),
+    "lt":         (("in1", "in2"), ("out",)),
+    "le":         (("in1", "in2"), ("out",)),
+    "eq":         (("in1", "in2"), ("out",)),
+    "and_of":     (("in1", "in2"), ("out",)),
+    "or_of":      (("in1", "in2"), ("out",)),
+    "not_of":     (("in",), ("out",)),
+    "add":        (("in1", "in2"), ("out",)),
+    "mul":        (("in1", "in2"), ("out",)),
+    "div":        (("in1", "in2"), ("out",)),
     "MedianOf3":  (("x",), ("out",)),
     "MovingAverage": (("x",), ("out",)),
     "Integral":   (("rate_per_s", "dt", "cutoff"), ("total",)),
     "Derivative": (("quantity", "window_ms", "dt"), ("rate",)),
     "Pid":        (("sp", "pv", "tuning", "dt"), ("out",)),
     "Actuator":   (("target", "cfg", "dt"), ("position", "moving", "open", "close")),
-    "ValveController": (("duty", "period_ms", "min_on_ms", "dt"), ("coil",)),
-    "ZoneProbes": (("probes[3]", "tau_s"), ("temperature", "humidity", "valid")),
+    "ValveController": (("duty", "period_ms", "min_on_ms", "dt"),
+                        ("coil", "on_time")),
+    "ZoneProbes": (("t", "h", "tau_s"),
+                   ("temperature", "humidity", "valid")),
     # Eight in and seven out: attach() names every one of them, and the
     # readings and the bands they are judged against are not one input.
     "AcSupply":   (("volts", "amps", "watts", "hz",

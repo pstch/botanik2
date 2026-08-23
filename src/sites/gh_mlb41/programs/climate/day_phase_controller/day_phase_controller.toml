@@ -67,3 +67,51 @@ heat_arm = "cli_heatBankArm"
 [inout]
 prev_day_max   = "cli_prevDayMax_degC"
 prev_night_min = "cli_prevNightMin_degC"
+
+# The law as a network. The phase comes off the two solar offsets and the
+# boundaries an operator sets; the extremes are gathered per PHASE, and each
+# bank arms off the row just published rather than the member behind it - so
+# forcing one is how a cold-bank morning gets rehearsed in July.
+
+[net.phase_at]
+fn = "mux4"
+[net.phase_at.in]
+k   = "=which boundary from_rise/from_set are past"
+in0 = "breeze_rise"
+in1 = "day_rise"
+in2 = "dusk_set"
+in3 = "night_set"
+[net.phase_at.out]
+out = "phase"
+
+[net.hottest]
+fn = "max_of"
+[net.hottest.in]
+in1 = "inside"
+in2 = "=the phase's running max"
+[net.hottest.out]
+out = "prev_day_max"
+
+[net.coldest]
+fn = "min_of"
+[net.coldest.in]
+in1 = "inside"
+in2 = "=the phase's running min"
+[net.coldest.out]
+out = "prev_night_min"
+
+[net.was_hot]
+fn = "gt"
+[net.was_hot.in]
+in1 = "prev_day_max"
+in2 = "cold_bank_trg"
+[net.was_hot.out]
+out = "cold_arm"
+
+[net.was_cold]
+fn = "lt"
+[net.was_cold.in]
+in1 = "prev_night_min"
+in2 = "heat_bank_trg"
+[net.was_cold.out]
+out = "heat_arm"

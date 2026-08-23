@@ -66,3 +66,40 @@ opn = { rows = "cli_window*_opn", count = 4 }
 clo = { rows = "cli_window*_clo", count = 4 }
 tgt = { rows = "cli_window*_tgt", count = 4 }
 pos = { rows = "cli_window*_pos", count = 4 }
+
+# The law as a network. Three things can decide the target and the strictest
+# wins: the lockout shuts it, an inhibit parks it, and only then does the
+# ladder's demand get a say - capped by what the wind allows.
+
+[net.wanted]
+fn = "limit"
+[net.wanted.in]
+v  = "window_dem"
+lo = "=0"
+hi = "cap"
+
+[net.parked]
+fn = "sel"
+[net.parked.in]
+g   = "=inhibit_requested()"
+in0 = "wanted.out"
+in1 = "=safe_open"
+
+[net.target]
+fn = "sel"
+[net.target.in]
+g   = "window_lock"
+in0 = "parked.out"
+in1 = "=0"
+[net.target.out]
+out = "tgt"
+
+[net.act]
+[net.act.in]
+target = "tgt"
+cfg    = "=travel_s, tmo_s"
+dt     = "=c.dt_ms"
+[net.act.out]
+position = "pos"
+open     = "opn"
+close    = "clo"

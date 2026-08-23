@@ -36,3 +36,24 @@ fault  = "alarm_ac_grid"
 
 # The generator-backed side, downstream of the transfer switch. Same members as
 # the grid above, because AcSupply is bound from either by template.
+
+# The law as a network: the block does all of it, and its eight inputs are the
+# four meter reads and the four bands they are judged against.
+
+[net.supply]
+[net.supply.in]
+volts = "volts"
+amps  = "amps"
+watts = "watts"
+hz    = "hz"
+lo_V  = "lo_V"
+hi_V  = "hi_V"
+lo_Hz = "lo_Hz"
+hi_Hz = "hi_Hz"
+[net.supply.out]
+out_V  = "out_V"
+out_A  = "out_A"
+out_W  = "out_W"
+out_Hz = "out_Hz"
+ok     = "ok"
+fault  = "fault"

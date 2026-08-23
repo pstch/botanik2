@@ -32,3 +32,63 @@ min_on_s   = "cli_skirtMinOn_sec"
 [out]
 valve = "cli_skirtValve"
 duty  = "cli_skirtDuty"
+
+# The law as a network. PROPORTIONAL on the humidify arm and STAGED on the
+# cooling one, whichever asks for more - and the rot lockout above both, because
+# wetting air that is already condensing is what this valve must never do.
+
+[net.humid]
+fn = "limit"
+[net.humid.in]
+v  = "humid_dem"
+lo = "=0"
+hi = "=1"
+
+[net.dry_enough]
+fn = "ge"
+[net.dry_enough.in]
+in1 = "dp_margin"
+in2 = "dry_min"
+
+[net.cool_ramp]
+fn = "ladder"
+[net.cool_ramp.in]
+v  = "cool_dem"
+lo = "cool_start"
+hi = "=1"
+
+[net.cool]
+fn = "sel"
+[net.cool.in]
+g   = "dry_enough.out"
+in0 = "=0"
+in1 = "cool_ramp.out"
+
+[net.effort]
+fn = "max_of"
+[net.effort.in]
+in1 = "humid.out"
+in2 = "cool.out"
+
+[net.locked]
+fn = "or_of"
+[net.locked.in]
+in1 = "rot_lock"
+in2 = "=inhibit_requested()"
+
+[net.asked]
+fn = "sel"
+[net.asked.in]
+g   = "locked.out"
+in0 = "effort.out"
+in1 = "=0"
+
+[net.pulse]
+[net.pulse.in]
+duty       = "asked.out"
+period_ms  = "period_s"
+min_on_ms  = "min_on_s"
+dt         = "=c.dt_ms"
+[net.pulse.out]
+coil    = "valve"
+on_time = "duty"

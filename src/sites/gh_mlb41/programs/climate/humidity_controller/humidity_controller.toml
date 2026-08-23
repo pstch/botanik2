@@ -58,3 +58,69 @@ dry_ok   = "cli_intakeDryOk"
 # The irrigation subsystem is three programs, along the seam the spec draws: a
 # ladder (how thirsty the air has been), an instrument (what the two meters
 # say), and the law that acts (which tray, and the valves).
+
+# The law as a network. One signed demand off the dew-point margin, the rot
+# ramp under it, and the dryness gate beside them - which is a comparison of
+# two DEW POINTS, because a colder outside at the same RH is drier air.
+
+[net.demand]
+fn = "signed_ladder"
+[net.demand.in]
+v         = "dp_margin"
+neg_full  = "dehum_full"
+neg_start = "dehum_start"
+pos_start = "humid_start"
+pos_full  = "humid_full"
+[net.demand.out]
+out = "demand"
+
+# A FALLING ramp, negated so the one ladder serves both directions: nothing at
+# the limit, everything at the dew point itself.
+[net.rot_ramp]
+fn = "ladder"
+[net.rot_ramp.in]
+v  = "=-dp_margin"
+lo = "=-rot_limit"
+hi = "=0"
+[net.rot_ramp.out]
+out = "vent_dem"
+
+[net.lockout_for]
+[net.lockout_for.in]
+in       = "rot"
+delay_ms = "rot_release_s"
+dt       = "=c.dt_ms"
+[net.lockout_for.out]
+q = "lockout"
+
+[net.dp_in]
+fn = "dew_point"
+[net.dp_in.in]
+t  = "in_t"
+rh = "in_rh"
+
+[net.dp_out]
+fn = "dew_point"
+[net.dp_out.in]
+t  = "ext_t"
+rh = "ext_rh"
+
+[net.drier_by]
+fn = "sub"
+[net.drier_by.in]
+in1 = "dp_in.out"
+in2 = "dp_out.out"
+
+[net.gate_lo]
+fn = "sub"
+[net.gate_lo.in]
+in1 = "dry_margin"
+in2 = "vent_hyst"
+
+[net.dry_gate_band]
+[net.dry_gate_band.in]
+value = "drier_by.out"
+low   = "gate_lo.out"
+high  = "dry_margin"
+[net.dry_gate_band.out]
+q = "dry_ok"

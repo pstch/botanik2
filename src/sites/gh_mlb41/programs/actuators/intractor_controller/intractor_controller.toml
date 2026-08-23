@@ -36,3 +36,73 @@ dry_ok       = "cli_intakeDryOk"
 
 [out]
 intr = { rows = "cli_intr*", count = 2 }
+
+# The law as a network. Four demands fused by MAX and laddered to a speed, then
+# floored twice: by this actuator's own safe speed, and by the ground-heat rung
+# when the crawlspace is worth drawing on.
+
+[net.cooling]
+fn = "sel"
+[net.cooling.in]
+g   = "cool_ok"
+in0 = "=0"
+in1 = "cool_dem"
+
+[net.drying]
+fn = "sel"
+[net.drying.in]
+g   = "dry_ok"
+in0 = "=0"
+in1 = "=-humid_dem"
+
+[net.wetting]
+fn = "max_of"
+[net.wetting.in]
+in1 = "=0"
+in2 = "humid_dem"
+
+[net.air]
+fn = "max_of"
+[net.air.in]
+in1 = "cooling.out"
+in2 = "rot_vent"
+
+[net.moisture]
+fn = "max_of"
+[net.moisture.in]
+in1 = "drying.out"
+in2 = "wetting.out"
+
+[net.demand]
+fn = "max_of"
+[net.demand.in]
+in1 = "air.out"
+in2 = "moisture.out"
+
+[net.ramp]
+fn = "ladder"
+[net.ramp.in]
+v  = "demand.out"
+lo = "start_dem"
+hi = "full_dem"
+
+[net.floored]
+fn = "max_of"
+[net.floored.in]
+in1 = "=safe_speed"
+in2 = "ramp.out"
+
+[net.ground]
+fn = "sel"
+[net.ground.in]
+g   = "ground_ok"
+in0 = "=0"
+in1 = "ground_speed"
+
+[net.speed]
+fn = "max_of"
+[net.speed.in]
+in1 = "floored.out"
+in2 = "ground.out"
+[net.speed.out]
+out = "intr"

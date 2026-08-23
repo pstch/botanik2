@@ -63,3 +63,150 @@ dp_margin = "cli_dpMargin_degC"
 sat_press = "cli_satPress_kPa"
 vpd       = "cli_vpd_kPa"
 rot       = "alarm_rot"
+
+# The law as a network. Four locations voted and filtered, then the
+# psychrometrics every other law is set in - the worst case per QUANTITY,
+# taken among the levels that are MEASURED.
+
+[net.ceiling]
+[net.ceiling.in]
+t     = "t_hi"
+h     = "h_hi"
+tau_s = "tau_ms"
+[net.ceiling.out]
+temperature = "temp_hi"
+humidity    = "rh_hi"
+valid       = "fault_hi"
+
+[net.floor]
+[net.floor.in]
+t     = "t_lo"
+h     = "h_lo"
+tau_s = "tau_ms"
+[net.floor.out]
+temperature = "temp_lo"
+humidity    = "rh_lo"
+valid       = "fault_lo"
+
+[net.crawlspace]
+[net.crawlspace.in]
+t     = "t_cs"
+h     = "h_cs"
+tau_s = "tau_ms"
+[net.crawlspace.out]
+temperature = "temp_cs"
+humidity    = "rh_cs"
+valid       = "fault_cs"
+
+[net.exterior]
+[net.exterior.in]
+t     = "t_ext"
+h     = "h_ext"
+tau_s = "tau_ms"
+[net.exterior.out]
+temperature = "temp_ext"
+humidity    = "rh_ext"
+valid       = "fault_ext"
+
+# ONE interior temperature: the HOTTER of the two levels, because for heat the
+# worst case is the top of the house.
+[net.hotter]
+fn = "max_of"
+[net.hotter.in]
+in1 = "ceiling.temperature"
+in2 = "floor.temperature"
+[net.hotter.out]
+out = "temp_in"
+
+# One dew point per level: the margin and the VPD are both derived from it.
+[net.dp_hi]
+fn = "dew_point"
+[net.dp_hi.in]
+t  = "ceiling.temperature"
+rh = "ceiling.humidity"
+
+[net.dp_lo]
+fn = "dew_point"
+[net.dp_lo.in]
+t  = "floor.temperature"
+rh = "floor.humidity"
+
+[net.m_hi]
+fn = "sub"
+[net.m_hi.in]
+in1 = "ceiling.temperature"
+in2 = "dp_hi.out"
+
+[net.m_lo]
+fn = "sub"
+[net.m_lo.in]
+in1 = "floor.temperature"
+in2 = "dp_lo.out"
+
+[net.worst_is_ceiling]
+fn = "le"
+[net.worst_is_ceiling.in]
+in1 = "m_hi.out"
+in2 = "m_lo.out"
+
+[net.worst_dew]
+fn = "sel"
+[net.worst_dew.in]
+g   = "worst_is_ceiling.out"
+in0 = "dp_lo.out"
+in1 = "dp_hi.out"
+[net.worst_dew.out]
+out = "dew_point"
+
+[net.worst_margin]
+fn = "sel"
+[net.worst_margin.in]
+g   = "worst_is_ceiling.out"
+in0 = "m_lo.out"
+in1 = "m_hi.out"
+[net.worst_margin.out]
+out = "dp_margin"
+
+[net.worst_temp]
+fn = "sel"
+[net.worst_temp.in]
+g   = "worst_is_ceiling.out"
+in0 = "floor.temperature"
+in1 = "ceiling.temperature"
+
+[net.sat]
+fn = "sat_vapour_pressure"
+[net.sat.in]
+t = "worst_temp.out"
+[net.sat.out]
+out = "sat_press"
+
+# The worst case is per QUANTITY: the smallest margin for rot, the LOWEST VPD
+# for irrigation, and they are not always the same level.
+[net.vpd_hi]
+fn = "sub"
+[net.vpd_hi.in]
+in1 = "=sat(t_hi)"
+in2 = "=sat(dp_hi)"
+
+[net.vpd_lo]
+fn = "sub"
+[net.vpd_lo.in]
+in1 = "=sat(t_lo)"
+in2 = "=sat(dp_lo)"
+
+[net.driest]
+fn = "min_of"
+[net.driest.in]
+in1 = "vpd_hi.out"
+in2 = "vpd_lo.out"
+[net.driest.out]
+out = "vpd"
+
+[net.rot_risk]
+fn = "lt"
+[net.rot_risk.in]
+in1 = "worst_margin.out"
+in2 = "rot_limit"
+[net.rot_risk.out]
+out = "rot"

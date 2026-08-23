@@ -63,3 +63,90 @@ demand    = "cli_coolDem"
 intake_ok = "cli_intakeCoolOk"
 ground_ok = "cli_groundHeatOk"
 window    = "cli_windowDem"
+
+# The law as a network. One PID on the house's own temperature, its output
+# laddered into a window opening, and two intake gates that decide whether
+# drawing air would move the interior the way it is being asked to go.
+
+[net.pid]
+[net.pid.in]
+sp     = "target"
+pv     = "inside"
+tuning = "=kp, ti, td"
+dt     = "=c.dt_ms"
+[net.pid.out]
+out = "demand"
+
+[net.window_ramp]
+fn = "ladder"
+[net.window_ramp.in]
+v  = "demand"
+lo = "win_start"
+hi = "win_full"
+[net.window_ramp.out]
+out = "window"
+
+[net.warmer_in]
+fn = "sub"
+[net.warmer_in.in]
+in1 = "inside"
+in2 = "intake"
+
+[net.cooler_in]
+fn = "sub"
+[net.cooler_in.in]
+in1 = "intake"
+in2 = "inside"
+
+[net.band_lo]
+fn = "sub"
+[net.band_lo.in]
+in1 = "temp_margin"
+in2 = "vent_hyst"
+
+[net.cool_gate]
+[net.cool_gate.in]
+value = "warmer_in.out"
+low   = "band_lo.out"
+high  = "temp_margin"
+
+[net.intake_worth_it]
+fn = "and_of"
+[net.intake_worth_it.in]
+in1 = "=intake valid"
+in2 = "cool_gate.q"
+[net.intake_worth_it.out]
+out = "intake_ok"
+
+# The mirror, and the only place the negative half of the ladder does anything.
+[net.rung_top]
+fn = "add"
+[net.rung_top.in]
+in1 = "=-ground_dem"
+in2 = "dem_hyst"
+
+[net.ground_band]
+[net.ground_band.in]
+value = "=-demand"
+low   = "=-ground_dem"
+high  = "rung_top.out"
+
+[net.ground_gate]
+[net.ground_gate.in]
+value = "cooler_in.out"
+low   = "band_lo.out"
+high  = "temp_margin"
+
+[net.asking]
+fn = "and_of"
+[net.asking.in]
+in1 = "=intake valid"
+in2 = "ground_band.q"
+
+[net.ground_worth_it]
+fn = "and_of"
+[net.ground_worth_it.in]
+in1 = "asking.out"
+in2 = "ground_gate.q"
+[net.ground_worth_it.out]
+out = "ground_ok"

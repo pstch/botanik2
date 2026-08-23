@@ -42,3 +42,48 @@ out_Hz    = "sys_local_Hz"
 ok        = "sys_local_ok"
 fault     = "alarm_ac_local"
 gen_fault = "alarm_gen"
+
+# The law as a network. The generator only owes an answer once the grid has
+# gone AND this supply is silent, which is what the timer is started on.
+
+[net.supply]
+[net.supply.in]
+volts = "volts"
+amps  = "amps"
+watts = "watts"
+hz    = "hz"
+lo_V  = "lo_V"
+hi_V  = "hi_V"
+lo_Hz = "lo_Hz"
+hi_Hz = "hi_Hz"
+[net.supply.out]
+out_V  = "out_V"
+out_A  = "out_A"
+out_W  = "out_W"
+out_Hz = "out_Hz"
+ok     = "ok"
+fault  = "fault"
+
+[net.grid_gone]
+fn = "not_of"
+[net.grid_gone.in]
+in = "grid_ok"
+
+[net.silent]
+fn = "not_of"
+[net.silent.in]
+in = "supply.answered"
+
+[net.waiting]
+fn = "and_of"
+[net.waiting.in]
+in1 = "grid_gone.out"
+in2 = "silent.out"
+
+[net.cranking]
+[net.cranking.in]
+in       = "waiting.out"
+delay_ms = "start_s"
+dt       = "=c.dt_ms"
+[net.cranking.out]
+q = "gen_fault"

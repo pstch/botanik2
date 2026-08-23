@@ -167,3 +167,96 @@ drain_fault = "alarm_irr_drain"
 # at once the cycle has moved on.
 fill_tray   = { rows = "alarm_irr_fill_tray*", count = 8 }
 drain_tray  = { rows = "alarm_irr_drain_tray*", count = 8 }
+
+# The law as a network. The STATE MACHINE itself is not a network - it is a
+# switch over five states and the dwell that ends each one - so what is drawn
+# is the layer under it: which valves the state opens, and the two verdicts
+# taken by comparing what the meters said against what the dose asked for.
+
+[net.dwell]
+[net.dwell.in]
+in       = "=true, while in the state"
+delay_ms = "=the state's own window"
+dt       = "=c.dt_ms"
+
+# The dose is the tray's summer figure scaled by the modulation, so a damp week
+# waters less. Without it there is no dose and no cycle may start.
+[net.dose]
+fn = "mul"
+[net.dose.in]
+in1 = "litres"
+in2 = "=mod ^ split"
+
+[net.inlet_v]
+[net.inlet_v.in]
+duty      = "=FILLING or FLUSHING"
+period_ms = "=held, not modulated"
+min_on_ms = "=held, not modulated"
+dt        = "=c.dt_ms"
+[net.inlet_v.out]
+coil = "inlet"
+
+[net.outlet_v]
+[net.outlet_v.in]
+duty      = "=DRAINING or FLUSHING"
+period_ms = "=held, not modulated"
+min_on_ms = "=held, not modulated"
+dt        = "=c.dt_ms"
+[net.outlet_v.out]
+coil = "outlet"
+
+[net.tray_v]
+[net.tray_v.in]
+duty      = "=this tray, in FILLING, SOAKING or DRAINING"
+period_ms = "=held, not modulated"
+min_on_ms = "=held, not modulated"
+dt        = "=c.dt_ms"
+[net.tray_v.out]
+coil = "tray_valve"
+
+# What went in, against what was asked for: the fill window running out before
+# the dose landed is the fault.
+[net.delivered]
+fn = "sub"
+[net.delivered.in]
+in1 = "in_total"
+in2 = "=the litres at the start of the fill"
+[net.delivered.out]
+out = "delivered"
+
+[net.filled]
+fn = "ge"
+[net.filled.in]
+in1 = "delivered.out"
+in2 = "dose.out"
+
+[net.fill_late]
+fn = "not_of"
+[net.fill_late.in]
+in = "filled.out"
+[net.fill_late.out]
+out = "fill_fault"
+
+# ...and what came back out. A tray that took the water and would not give it
+# back is a clog, and only worth saying when a dose really went in.
+[net.recovered]
+fn = "sub"
+[net.recovered.in]
+in1 = "out_total"
+in2 = "=the litres at the start of the drain"
+[net.recovered.out]
+out = "drained"
+
+[net.fraction]
+fn = "div"
+[net.fraction.in]
+in1 = "recovered.out"
+in2 = "dose.out"
+
+[net.clog]
+fn = "lt"
+[net.clog.in]
+in1 = "fraction.out"
+in2 = "drain_margin"
+[net.clog.out]
+out = "drain_fault"

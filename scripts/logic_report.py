@@ -902,7 +902,7 @@ BLOCKS += [
 ]
 
 
-# --- FBD: the blocks a program holds, wired ------------------------------------
+# --- FBD: the network a program declares, drawn --------------------------------
 
 # Pin names are the block's OWN parameter names, not IEC's: this report explains
 # this code, and these are what a reader finds in the .cpp.
@@ -916,11 +916,10 @@ def _pins(type_name):
 
 
 def net_spec(p):
-    """The FBD spec for a program that declares its own [net].
+    """One program's [net] as the drawing wants it.
 
-    Its shape is the authored FBD's, so the drawing does not care which of the
-    two it was handed. A `=` source is not a signal: the prefix comes off and
-    what is left is drawn as a stub, exactly as a literal always was.
+    A `=` source is not a signal at all: the prefix comes off and what is left
+    is drawn as a left-hand stub, which is where a literal or a constant goes.
     """
     return [(n["name"], vars_programs.net_type(n, p["blocks"]),
              {k: (v[1:] if v.startswith("=") else v) for k, v in n["in"].items()},
@@ -929,11 +928,12 @@ def net_spec(p):
 
 
 def fbd_diagram(spec, unwired=None):
-    """An FBD: the blocks a program holds, wired between its own variables.
+    """An FBD: what a program holds and calls, wired between its own variables.
 
-    Laid out by DEPTH - a block sits one column right of whatever feeds it - so
-    the page reads left to right the way a signal does. The wiring is authored:
-    the table declares the instances, and only the .cpp says what reaches a pin.
+    Laid out by DEPTH - a node sits one column right of whatever feeds it - so
+    the page reads left to right the way a signal does. Every node, pin and
+    source comes from the program's [net]; check_net is what holds that to the
+    program's own locals.
     """
     inst = {b[0]: b for b in spec}
     if unwired is None:
@@ -986,9 +986,36 @@ def fbd_diagram(spec, unwired=None):
             y += bh + gapy
     height = max((v[1] + v[3] for v in y_of.values()), default=60)
 
+    def _hits(x0, x1, y0, y1):
+        """Whether the axis-aligned run (x0,y0)-(x1,y1) touches any box."""
+        x0, x1 = min(x0, x1), max(x0, x1)
+        y0, y1 = min(y0, y1), max(y0, y1)
+        for bx, by, bwid, bhgt in y_of.values():
+            if x0 < bx + bwid and x1 > bx and y0 < by + bhgt and y1 > by:
+                return True
+        return False
+
+    def _route(sx, sy, tx, ty, lanes):
+        """A wire from an output pin to an input pin, around the boxes.
+
+        The straight three-segment run first, which is what an adjacent pair of
+        columns wants. A wire spanning further crosses whatever column it flies
+        over, so that one drops into a CHANNEL under the diagram, runs across
+        and climbs back - one lane per wire, so two never sit on top of another.
+        """
+        mid = sx + (tx - sx) / 2.0
+        if not (_hits(sx, mid, sy, sy) or _hits(mid, mid, sy, ty)
+                or _hits(mid, tx, ty, ty)):
+            return [(sx, sy), (mid, sy), (mid, ty), (tx, ty)]
+        gx = sx + gapx / 2.0          # the gutter just right of the source
+        ch = height + 12 + 7 * (len(lanes) % 6)
+        lanes.append(ch)
+        return [(sx, sy), (gx, sy), (gx, ch), (tx - 10, ch),
+                (tx - 10, ty), (tx, ty)]
+
     # The wires. A source is either another block's output pin or a variable,
     # and a variable gets a stub on the left rail so the page names it once.
-    left, right = [], []
+    left, right, lanes = [], [], []
     for name, typ, ins, outs in spec:
         for pin, src in ins.items():
             if (name, "in", pin) not in box:
@@ -1004,8 +1031,7 @@ def fbd_diagram(spec, unwired=None):
                     opin = _pins(inst[head][1])[1][0]
                 if (head, "out", opin) in box:
                     sx, sy = box[(head, "out", opin)]
-                    mid = sx + (tx - sx) / 2.0
-                    prims.append(line([(sx, sy), (mid, sy), (mid, ty), (tx, ty)],
+                    prims.append(line(_route(sx, sy, tx, ty, lanes),
                                       arrow=True))
                 else:
                     unwired.append(f"{name}.{pin} <- {src}")
@@ -1028,137 +1054,10 @@ def fbd_diagram(spec, unwired=None):
     for label, sx, sy in right:
         prims.append(line([(sx, sy), (sx + 8, sy)], arrow=True))
         prims.append(text(sx + 12, sy + 2, label, 6.0, color=INK))
-    return prims, int(edge + 120), int(height + 14)
+    floor_ = max(lanes) if lanes else height
+    return prims, int(edge + 120), int(max(height, floor_) + 14)
 
 
-# What reaches each pin, per program. AUTHORED from the call site, because the
-# table declares the instances and only the .cpp says what is wired to them.
-# A source of "<block>.<pin>" is another block's output; anything else is a
-# variable this program holds or reads.
-FBD = {
- "target_temp": [
-   ("smooth", "Plc::Ewma", {"x": "held", "tau_s": "tau", "dt": "c.dt_ms"},
-    {"out": "eased -> clamp -> target"}),
- ],
- "roof_lockout": [
-   ("rain_for", "Plc::Tof", {"in": "rain_mmph > 0", "delay_ms": "rain_hold_s",
-                             "dt": "c.dt_ms"}, {"q": "rain_lock"}),
- ],
- "fans": [
-   ("steps", "Plc::Staircase3", {"value": "the fused demand",
-                                 "edge1": "low_dem", "edge2": "med_dem",
-                                 "edge3": "high_dem", "hyst": "dem_hyst"},
-    {"level": "cli_fanSpeed"}),
- ],
- "humidity": [
-   ("lockout_for", "Plc::Tof", {"in": "true while at risk",
-                                "delay_ms": "rot_release_s", "dt": "c.dt_ms"},
-    {"q": "lockout"}),
-   ("dry_gate_band", "Plc::Hysteresis", {"value": "dp_in - outside",
-                                         "low": "margin - hyst", "high": "margin"},
-    {"q": "dry_ok"}),
- ],
- "cooling": [
-   ("pid", "Plc::Pid", {"sp": "target", "pv": "t_in", "tuning": "kp/ti/td",
-                        "dt": "c.dt_ms"}, {"out": "cli_coolDem"}),
-   ("cool_gate", "Plc::Hysteresis", {"value": "t_in - t_intake",
-                                     "low": "margin - hyst", "high": "margin"},
-    {"q": "intake_ok"}),
-   ("ground_gate", "Plc::Hysteresis", {"value": "t_intake - t_in",
-                                       "low": "margin - hyst", "high": "margin"},
-    {"q": "ground_ok"}),
-   ("ground_band", "Plc::Hysteresis", {"value": "-dem", "low": "-rung",
-                                       "high": "-rung + dem_hyst"},
-    {"q": "asking for ground heat"}),
- ],
- "irr_meters": [
-   ("flow_avg", "Plc::Ewma", {"x": "out_flow", "tau_s": "out_avg_ms",
-                              "dt": "c.dt_ms"}, {}),
-   ("flow_band", "Plc::Deadband", {"value": "flow_avg.out", "band": "band"},
-    {"out": "out_flow_pub"}),
-   ("out_meter", "Plc::Integral", {"rate_per_s": "flow_avg.out / 60",
-                                   "dt": "c.dt_ms", "cutoff": "cutoff / 60"},
-    {"total": "out_total"}),
-   ("in_rate", "Plc::Derivative", {"quantity": "the pulse total",
-                                   "window_ms": "rate_win", "dt": "c.dt_ms"},
-    {"rate": "in_flow"}),
-   ("idle_for", "Plc::Ton", {"in": "state == IDLE", "delay_ms": "2 x rate_win",
-                             "dt": "c.dt_ms"}, {"q": "gates alarm_water_leak"}),
-   ("fill_for", "Plc::Ton", {"in": "state == FILLING", "delay_ms": "2 x rate_win",
-                             "dt": "c.dt_ms"}, {"q": "gates alarm_water_pressure"}),
- ],
- "dc_watch": [
-   ("ps1_mean", "Plc::Ewma", {"x": "dc1", "tau_s": "dc1_avg", "dt": "c.dt_ms"}, {}),
-   ("ps1_band", "Plc::Deadband", {"value": "ps1_mean.out", "band": "a write's worth"},
-    {"out": "out_dc1"}),
-   ("ps2_mean", "Plc::Ewma", {"x": "dc2", "tau_s": "dc2_avg", "dt": "c.dt_ms"}, {}),
-   ("ps2_band", "Plc::Deadband", {"value": "ps2_mean.out", "band": "a write's worth"},
-    {"out": "out_dc2"}),
-   ("ups_mean", "Plc::Ewma", {"x": "ups_bat", "tau_s": "ups_avg", "dt": "c.dt_ms"}, {}),
-   ("ups_band", "Plc::Deadband", {"value": "ups_mean.out", "band": "a write's worth"},
-    {"out": "out_ups"}),
-   ("gen_mean", "Plc::Ewma", {"x": "gen_bat", "tau_s": "gen_avg", "dt": "c.dt_ms"}, {}),
-   ("gen_band", "Plc::Deadband", {"value": "gen_mean.out", "band": "a write's worth"},
-    {"out": "out_gen"}),
-   ("low_for", "Plc::Ton", {"in": "low_bat contact", "delay_ms": "2 s",
-                            "dt": "c.dt_ms"}, {"q": "lockout + hold_safe"}),
- ],
- "screen": [
-   # The coil is driven straight from the law; this block is only the traverse
-   # ESTIMATE, so its two coil outputs go nowhere.
-   ("fabric", "Plc::Actuator", {"target": "the coil, read back",
-                                "cfg": "_mechanics()", "dt": "c.dt_ms"},
-    {"position": "settled?", "moving": "cli_screenMoving"}),
- ],
- "windows": [
-   ("act", "Plc::Actuator", {"target": "_target, capped", "cfg": "_mechanics()",
-                             "dt": "c.dt_ms"},
-    {"position": "cli_windowN_pos", "moving": "one owner at a time",
-     "open": "opn[i]", "close": "clo[i]"}),
- ],
- "irrigation": [
-   ("dwell", "Plc::Ton", {"in": "true, in the state", "delay_ms": "the state's own",
-                          "dt": "c.dt_ms"}, {"q": "the state ends"}),
-   ("inlet_v", "ValveController", {"duty": "filling or flushing"}, {"coil": "irr_input_roN"}),
-   ("tray_v", "ValveController", {"duty": "this tray, this state"}, {"coil": "irr_trayN"}),
-   ("outlet_v", "ValveController", {"duty": "draining or flushing"}, {"coil": "irr_output_roN"}),
- ],
- "skirt": [
-   ("pulse", "ValveController", {"duty": "max(humidify, cool)", "period_ms": "period",
-                                 "min_on_ms": "min_on", "dt": "c.dt_ms"},
-    {"coil": "cli_skirtValve"}),
- ],
- "ac_grid_watch": [
-   ("supply", "AcSupply",
-    {"volts": "grid_LN_V", "amps": "grid_total_A", "watts": "grid_total_W",
-     "hz": "grid_Hz", "lo_V": "pwr_gridLo_V", "hi_V": "pwr_gridHi_V",
-     "lo_Hz": "pwr_gridLo_Hz", "hi_Hz": "pwr_gridHi_Hz"},
-    {"out_V": "sys_grid_V", "out_A": "sys_grid_A", "out_W": "sys_grid_W",
-     "out_Hz": "sys_grid_Hz", "ok": "sys_grid_ok", "fault": "alarm_ac_grid"}),
- ],
- "ac_local_watch": [
-   ("supply", "AcSupply",
-    {"volts": "ats_V", "amps": "ats_A", "watts": "ats_W", "hz": "ats_Hz",
-     "lo_V": "pwr_localLo_V", "hi_V": "pwr_localHi_V",
-     "lo_Hz": "pwr_localLo_Hz", "hi_Hz": "pwr_localHi_Hz"},
-    {"out_V": "sys_local_V", "out_A": "sys_local_A", "out_W": "sys_local_W",
-     "out_Hz": "sys_local_Hz", "ok": "sys_local_ok",
-     "fault": "alarm_ac_local"}),
-   ("cranking", "Plc::Ton", {"in": "grid gone and local dead",
-                             "delay_ms": "start_s", "dt": "c.dt_ms"},
-    {"q": "alarm_gen"}),
- ],
- "temp_rh_zone": [
-   ("ceiling", "ZoneProbes", {"probes[3]": "t_hi, h_hi", "tau_s": "tau_s"},
-    {"temperature": "temp_hi", "humidity": "rh_hi", "valid": "fault_hi"}),
-   ("floor", "ZoneProbes", {"probes[3]": "t_lo, h_lo", "tau_s": "tau_s"},
-    {"temperature": "temp_lo", "humidity": "rh_lo", "valid": "fault_lo"}),
-   ("crawlspace", "ZoneProbes", {"probes[3]": "t_cs, h_cs", "tau_s": "tau_s"},
-    {"temperature": "temp_cs", "humidity": "rh_cs", "valid": "fault_cs"}),
-   ("exterior", "ZoneProbes", {"probes[3]": "t_ext, h_ext", "tau_s": "tau_s"},
-    {"temperature": "temp_ext", "humidity": "rh_ext", "valid": "fault_ext"}),
- ],
-}
 
 
 # --- the document ------------------------------------------------------------
@@ -1264,7 +1163,7 @@ def main():
     for i, l in enumerate(_wrap(
             "One page per control program and one per function block. A "
             "program gets what it is CONNECTED to, derived from the table that "
-            "declares it, and - where it holds any - an FBD of the blocks it "
+            "declares it, and an FBD of the network it "
             "owns, whose instances and types are the table's and whose wiring "
             "is authored from the call site. A block's own page is authored "
             "too, because what a Pid does inside is not in any table. Every "
@@ -1292,20 +1191,7 @@ def main():
         _svg(f"{p['name']}", prims, dw, dh)
         made += 1
 
-        # The table if it declares one, the authored dict until it does.
-        wiring = net_spec(p) if p["net"] else FBD.get(p["name"])
-        if p["blocks"]:
-            # The table declares the instances; the wiring is authored. They
-            # have to name the same set, or a page is quietly short a block.
-            declared = set(b["name"] for b in p["blocks"])
-            drawn = set(b[0] for b in (wiring or [])
-                        if not is_function(b[1]))
-            for miss in sorted(declared - drawn):
-                crossings.append(f"{p['name']}: block '{miss}' is declared and "
-                                 f"not in the FBD")
-            for extra in sorted(drawn - declared):
-                crossings.append(f"{p['name']}: FBD draws '{extra}', which the "
-                                 f"table does not declare")
+        wiring = net_spec(p)
         if wiring:
             fprims, fdw, fdh = fbd_diagram(wiring, unwired)
             _audit(fprims, p["name"] + " (fbd)", crossings)

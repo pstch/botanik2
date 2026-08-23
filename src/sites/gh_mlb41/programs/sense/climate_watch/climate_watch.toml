@@ -31,3 +31,48 @@ cold       = "alarm_too_cold"
 humid      = "alarm_too_humid"
 stratified = "alarm_strat"
 sensor     = "alarm_sensor_fault"
+
+# The law as a network: four readings crossing four lines, and the zone quorum
+# alarms rolled up into one. Nothing is raised on a reading nobody has.
+
+[net.hot]
+fn = "gt"
+[net.hot.in]
+in1 = "temp"
+in2 = "too_hot"
+[net.hot.out]
+out = "hot"
+
+[net.cold]
+fn = "lt"
+[net.cold.in]
+in1 = "temp"
+in2 = "too_cold"
+[net.cold.out]
+out = "cold"
+
+# A MARGIN, not an RH: the line is the dehumidify arm's own saturation point,
+# so the alarm cannot disagree with the actuator it is about.
+[net.humid]
+fn = "lt"
+[net.humid.in]
+in1 = "margin"
+in2 = "humid_at"
+[net.humid.out]
+out = "humid"
+
+[net.stratified]
+fn = "gt"
+[net.stratified.in]
+in1 = "strat"
+in2 = "strat_hi"
+[net.stratified.out]
+out = "stratified"
+
+[net.blind]
+fn = "or_of"
+[net.blind.in]
+in1 = "sns"
+in2 = "=any of the other three"
+[net.blind.out]
+out = "sensor"

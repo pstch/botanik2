@@ -24,3 +24,30 @@ is not in either.
 from_rise = "sol_fromRise_min"
 from_set  = "sol_fromSet_min"
 elevation = "sol_elev_deg"
+
+# The law as a network: the tracker's three answers, put in the units a person
+# reads and the phase table is declared in. Nothing is computed here.
+
+[net.rise_offset]
+fn = "sub"
+[net.rise_offset.in]
+in1 = "=wall clock, minutes"
+in2 = "=sun.sunrise_ms"
+[net.rise_offset.out]
+out = "from_rise"
+
+[net.set_offset]
+fn = "sub"
+[net.set_offset.in]
+in1 = "=wall clock, minutes"
+in2 = "=sun.sunset_ms"
+[net.set_offset.out]
+out = "from_set"
+
+[net.degrees]
+fn = "mul"
+[net.degrees.in]
+in1 = "=sun.elevation, radians"
+in2 = "=57.2957795"
+[net.degrees.out]
+out = "elevation"
