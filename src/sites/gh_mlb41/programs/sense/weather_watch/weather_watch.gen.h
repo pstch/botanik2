@@ -78,7 +78,7 @@ inline void WeatherWatch::bind(Vars::Bank& io) {
     gust       = io.resolve_in<float>("cli_windGust_mps");
     rain       = io.resolve_in<float>("cli_rain_mmph");
     irrad      = io.resolve_in<float>("cli_irrad_Wpm2");
-    storm_wind = io.resolve_in<float>("cli_windShut_mps");
+    storm_wind = io.resolve_in<float>("cli_windShutEnd_mps");
     station    = io.resolve_out<bool>("alarm_wx_station");
     storm      = io.resolve_out<bool>("alarm_weather_storm");
     since_rain = io.resolve_out<uint16_t>("cli_sinceRain_min");

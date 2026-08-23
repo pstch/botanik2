@@ -18,7 +18,7 @@ void WeatherWatch::observe(ProgramContext& c) {
     station.set(_seen && !measured);
     if (!measured) degraded();
 
-    // A STORM is sustained wind: cli_windShut_mps, 20.8, which is 75 kmph and
+    // A STORM is sustained wind: cli_windShutEnd_mps, 20.8, which is 75 kmph and
     // Beaufort 9. It is the same number that shuts the roof, because it is the
     // same fact. Reading the windows' verdict instead put a storm on the ribbon
     // for a stiff breeze or a passing shower.

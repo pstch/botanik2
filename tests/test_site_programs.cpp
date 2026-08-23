@@ -609,8 +609,8 @@ TEST_CASE_FIXTURE(Rig<Site::ScreenController>, "screen: a cold night deploys it,
 
 TEST_CASE("windows: the wind takes the roof down a ramp before it shuts it") {
     // Three parameters and a straight line between two of them: below
-    // cli_windEase_mps the wind has no say, at it the roof may open
-    // cli_windEaseCap, and that ceiling falls to nothing by cli_windShut_mps -
+    // cli_windShutBegin_mps the wind has no say, at it the roof may open
+    // cli_windShutMax, and that ceiling falls to nothing by cli_windShutEnd_mps -
     // which is also the wind that IS a storm. A cliff from wide open to shut
     // would slam four rams at whatever moment a gust crossed one number.
     Live f;
@@ -620,9 +620,9 @@ TEST_CASE("windows: the wind takes the roof down a ramp before it shuts it") {
     Plc::Program* const progs[] = { &lock_, &win };
     Cycle d(progs, 2, &f.bank, f.reg);
 
-    const float ease = f.bank.var(f.ref("cli_windEase_mps")).as_f32();
-    const float shut = f.bank.var(f.ref("cli_windShut_mps")).as_f32();
-    const float top  = f.bank.var(f.ref("cli_windEaseCap")).as_f32();
+    const float ease = f.bank.var(f.ref("cli_windShutBegin_mps")).as_f32();
+    const float shut = f.bank.var(f.ref("cli_windShutEnd_mps")).as_f32();
+    const float top  = f.bank.var(f.ref("cli_windShutMax")).as_f32();
     REQUIRE(shut > ease);
 
     Vars::RefIn<float> cap = f.bank.resolve_in<float>("cli_windowCap");
@@ -636,7 +636,7 @@ TEST_CASE("windows: the wind takes the roof down a ramp before it shuts it") {
     CHECK(f.bank.get(cap) == doctest::Approx(1.0f));
     CHECK(f.bank.var(f.ref("cli_window1_pos")).as_f32() > 0.9f);
 
-    INFO("at it, the roof may open cli_windEaseCap and no more");
+    INFO("at it, the roof may open cli_windShutMax and no more");
     field(f, "cli_wind_mps", ease);
     field(f, "cli_windGust_mps", ease);
     for (uint32_t i = 0; i < 60; i++) d.step(t += 1000);
@@ -649,7 +649,7 @@ TEST_CASE("windows: the wind takes the roof down a ramp before it shuts it") {
     for (uint32_t i = 0; i < 60; i++) d.step(t += 1000);
     CHECK(f.bank.get(cap) == doctest::Approx(top / 2.0f).epsilon(0.05));
 
-    INFO("and at cli_windShut_mps the roof is shut, not nearly shut");
+    INFO("and at cli_windShutEnd_mps the roof is shut, not nearly shut");
     field(f, "cli_wind_mps", shut);
     field(f, "cli_windGust_mps", shut);
     for (uint32_t i = 0; i < 80; i++) d.step(t += 1000);
@@ -665,7 +665,7 @@ TEST_CASE_FIXTURE(Rig<Site::WeatherWatch>,
     // reasons to shut the roof, which is a much lower bar than the weather
     // being severe.
     Vars::RefIn<bool> storm = live.bank.resolve_in<bool>("alarm_weather_storm");
-    const float shut = live.bank.var(live.ref("cli_windShut_mps")).as_f32();
+    const float shut = live.bank.var(live.ref("cli_windShutEnd_mps")).as_f32();
     uint64_t t = 0;
 
     field(live, "cli_rain_mmph", 0.0f);
@@ -1207,7 +1207,7 @@ TEST_CASE_FIXTURE(RoofRig, "windows: a gust shuts them, and the mean alone does 
     fine_weather(live);
 
     Vars::RefIn<bool> wind_lock = live.bank.resolve_in<bool>("cli_windLockout");
-    const float shut = live.bank.var(live.ref("cli_windShut_mps")).as_f32();
+    const float shut = live.bank.var(live.ref("cli_windShutEnd_mps")).as_f32();
     live.bank.var(live.ref("cli_windowDem")).set(1.0f);
 
     live.bank.var(live.ref("cli_wind_mps")).publish(from_f32(T_F32, shut - 1.0f), 0);

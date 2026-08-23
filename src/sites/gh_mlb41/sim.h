@@ -112,7 +112,7 @@ enum SimScenario {
     SCN_FAIR,        ///< an ordinary day for the season
     SCN_HOT,         ///< a cloudless heat anomaly: the whole cooling ladder
     SCN_COLD,        ///< a hard clear night: the screen, and the negative half
-    SCN_STORM,       ///< wind over cli_windShut_mps and rain: the interlock
+    SCN_STORM,       ///< wind over cli_windShutEnd_mps and rain: the interlock
     SCN_DAMP,        ///< saturated air overnight: the rot guard
     SCN_DRY,         ///< hot and parched: the humidifier arm
     SCN_PROBES,      ///< the ridge probes dying, one at a time
@@ -454,9 +454,9 @@ inline void publish_weather(Vars::Bank& io, const Sky& s, uint32_t now_ms) {
     static float    wind    = 1.5f;
     static uint32_t rain_ms = 0;
 
-    // A storm day sits over cli_windShut_mps - 20.8 mps, which is 75 kmph -
+    // A storm day sits over cli_windShutEnd_mps - 20.8 mps, which is 75 kmph -
     // for hours, so the roof shuts and alarm_weather_storm means it. A fair day
-    // keeps its gusts under cli_windEase_mps, so the ramp is a storm-day thing
+    // keeps its gusts under cli_windShutBegin_mps, so the ramp is a storm-day thing
     // and not a permanent ceiling on the roof.
     const bool storm = (s.act == SCN_STORM && s.hour >= 6.0f && s.hour < 20.0f);
     wind = drift(wind, 1.2f, 0.2f, storm ? 30.0f : 6.0f, s.dt_ms, 120000.0f);
