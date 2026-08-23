@@ -11,6 +11,7 @@
  */
 
 #include <cmath>
+#include <cstdint>
 
 namespace Botanik { namespace Plc {
 
@@ -70,6 +71,13 @@ namespace Botanik { namespace Plc {
      *  two levels is one SUB into one ABS rather than an expression. */
     constexpr float sub(float a, float b) { return a - b; }
     constexpr float abs_of(float v) { return (v < 0.0f) ? -v : v; }
+
+    /** @brief IEC MUX, four inputs: @p k picks one of @p in0 .. @p in3, and
+     *  anything out of range reads as @p in0. What an array indexed by a
+     *  staircase level is, with the selection named rather than implied. */
+    constexpr float mux4(uint8_t k, float in0, float in1, float in2, float in3) {
+        return (k == 1) ? in1 : ((k == 2) ? in2 : ((k == 3) ? in3 : in0));
+    }
 
     /** @}
      *  @name Control ladders

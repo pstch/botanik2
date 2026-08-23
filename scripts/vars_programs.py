@@ -39,6 +39,61 @@ PLC_BLOCKS = {
 # in the table, in the program's scope, so one of these would shadow the base.
 # Plc::Program's and Component's own internals. A `[var]` or `[fn]` name takes
 # an underscore here, so one of these would land on top of the base's.
+# The pins a node presents, as (inputs, outputs). A block's OWN parameter names,
+# never IEC's: these pages explain THIS code, and these are what a reader finds
+# in the .cpp. Shared with logic_report, which draws exactly what this checks.
+#
+# A lowercase key is a stateless FUNCTION, which no table declares and nothing
+# holds; a CamelCase one is a function block, and the program's [block] section
+# has to declare it.
+PINS = {
+    "Ton":        (("in", "delay_ms", "dt"), ("q",)),
+    "Tof":        (("in", "delay_ms", "dt"), ("q",)),
+    "Tp":         (("in", "width_ms", "dt"), ("q",)),
+    "Sr":         (("set", "reset"), ("q",)),
+    "Rs":         (("set", "reset"), ("q",)),
+    "RTrig":      (("in",), ("q",)),
+    "FTrig":      (("in",), ("q",)),
+    "Hysteresis": (("value", "low", "high"), ("q",)),
+    "Hysteresis3": (("value", "low", "high", "hyst"), ("band",)),
+    "Staircase3": (("value", "edge1", "edge2", "edge3", "hyst"), ("level",)),
+    "Ramp":       (("target", "rate_per_s", "dt"), ("out",)),
+    "Deadband":   (("value", "band"), ("out",)),
+    "Ewma":       (("x", "tau_s", "dt"), ("out",)),
+    # push is the CALL, not a parameter: this block samples only when the law
+    # asks it to, and a page that did not show what asks is missing the design.
+    "ExpMovingAverage": (("x", "push"), ("out",)),
+    "sub":        (("in1", "in2"), ("out",)),
+    "mux4":       (("k", "in0", "in1", "in2", "in3"), ("out",)),
+    "abs_of":     (("in",), ("out",)),
+    "MedianOf3":  (("x",), ("out",)),
+    "MovingAverage": (("x",), ("out",)),
+    "Integral":   (("rate_per_s", "dt", "cutoff"), ("total",)),
+    "Derivative": (("quantity", "window_ms", "dt"), ("rate",)),
+    "Pid":        (("sp", "pv", "tuning", "dt"), ("out",)),
+    "Actuator":   (("target", "cfg", "dt"), ("position", "moving", "open", "close")),
+    "ValveController": (("duty", "period_ms", "min_on_ms", "dt"), ("coil",)),
+    "ZoneProbes": (("probes[3]", "tau_s"), ("temperature", "humidity", "valid")),
+    # Eight in and seven out: attach() names every one of them, and the
+    # readings and the bands they are judged against are not one input.
+    "AcSupply":   (("volts", "amps", "watts", "hz",
+                    "lo_V", "hi_V", "lo_Hz", "hi_Hz"),
+                   ("out_V", "out_A", "out_W", "out_Hz",
+                    "ok", "fault", "answered")),
+}
+
+
+def is_function(type_name):
+    """A FUNCTION node rather than a block. Stateless, so no member declares it
+    and the table cannot be asked to: `Plc::sub` against `Plc::Staircase3`."""
+    return type_name.split("::")[-1][:1].islower()
+
+
+def pins_of(type_name):
+    """The (inputs, outputs) a node type presents, template arguments dropped."""
+    return PINS.get(type_name.split("::")[-1].split("<")[0])
+
+
 RESERVED_INTERNAL = frozenset((
     "_io", "_group", "_slot", "_late_ms", "_late_max_ms", "_health",
     "_health_row", "_health_said", "_safe_asked", "_disable_asked",
@@ -132,7 +187,7 @@ def _program(p, stage, path):
             "desc": " ".join(p.get("desc", "").split()),
             "desc_paras": "\n\n" in p.get("desc", "").strip(),
             "notes": p.get("notes", ""),
-            "conns": conns, "counts": counts}
+            "conns": conns, "counts": counts, "net": _net(p)}
 
 
 def _decls(section):
@@ -173,6 +228,97 @@ def _blocks(p):
                     "include": spec.get("include", ""),
                     "doc": spec.get("doc", "")})
     return out
+
+
+def _net(p):
+    """The [net.*] sections: this program's FBD network, node by node.
+
+    A node is one BLOCK it holds (the name matches its [block] entry) or one
+    FUNCTION it calls (`fn = "sub"`). Its [net.x.in] table sources every input
+    pin and [net.x.out] says where each output lands. A source is a local name,
+    another node's `node.pin`, or - prefixed `=` - something that is not a
+    signal at all: a literal, a constant, the scan's own dt.
+    """
+    out = []
+    for name, spec in (p.get("net") or {}).items():
+        out.append({"name": name, "fn": spec.get("fn", ""),
+                    "in": dict(spec.get("in") or {}),
+                    "out": dict(spec.get("out") or {})})
+    return out
+
+
+def net_type(n, blocks):
+    """A net node's C++ type: a function is reached through `Plc::` like any
+    other, and a block's type is whatever its [block] entry declared."""
+    if n["fn"]:
+        return n["fn"] if "::" in n["fn"] else "Plc::" + n["fn"]
+    for b in blocks:
+        if b["name"] == n["name"]:
+            return block_type(b)
+    return ""
+
+
+def check_net(p, err):
+    """One program's [net]: every pin sourced, every source a real signal.
+
+    The wiring used to be transcribed into the report by hand and nothing
+    checked it, so two pins pointed at rows that had never existed. Here the
+    names are the program's own, and a name it does not declare is an error.
+    """
+    net = p["net"]
+    if not net:
+        return
+    where = _where(p)
+    nodes = {n["name"]: n for n in net}
+    locals_ = set(c[0] for c in p["conns"]) | set(v["given"] for v in p["vars"])
+    outs = set(c[0] for c in p["conns"] if c[1] in ("out", "inout"))
+
+    declared = set(b["name"] for b in p["blocks"])
+    for miss in sorted(declared - set(nodes)):
+        err(f"{where}: block '{miss}' is declared and not wired into [net]")
+
+    for n in net:
+        typ = net_type(n, p["blocks"])
+        if not typ:
+            err(f"{where}: [net.{n['name']}] is neither a declared block nor a "
+                f"function (give it `fn`)")
+            continue
+        pins = pins_of(typ)
+        if pins is None:
+            err(f"{where}: [net.{n['name']}] is a {typ}, whose pins nothing "
+                f"declares - add it to vars_programs.PINS")
+            continue
+        pi, po = pins
+        for pin in pi:
+            if pin not in n["in"]:
+                err(f"{where}: [net.{n['name']}.in] does not source '{pin}'")
+        for pin, src in n["in"].items():
+            if pin not in pi:
+                err(f"{where}: [net.{n['name']}.in] '{pin}' is not a pin of "
+                    f"{typ.split('::')[-1]}")
+                continue
+            if src.startswith("="):
+                continue                      # not a signal, and says so
+            head, _, tail = src.partition(".")
+            if tail:
+                if head not in nodes:
+                    err(f"{where}: [net.{n['name']}.in] '{pin}' reads "
+                        f"'{src}', and there is no node '{head}'")
+                else:
+                    other = pins_of(net_type(nodes[head], p["blocks"])) or ((), ())
+                    if tail not in other[1]:
+                        err(f"{where}: [net.{n['name']}.in] '{pin}' reads "
+                            f"'{src}', which {head} does not output")
+            elif src not in locals_:
+                err(f"{where}: [net.{n['name']}.in] '{pin}' reads '{src}', "
+                    f"which this program does not declare")
+        for pin, dst in n["out"].items():
+            if pin not in po:
+                err(f"{where}: [net.{n['name']}.out] '{pin}' is not an output "
+                    f"of {typ.split('::')[-1]}")
+            elif dst not in outs:
+                err(f"{where}: [net.{n['name']}.out] '{pin}' lands on '{dst}', "
+                    f"which is not one of this program's outputs")
 
 
 def expand(programs, rows, err):
@@ -245,6 +391,7 @@ def check(programs, rows, err, mentioned=(), cal_params=(), library=(),
 
     for p in programs:
         where = _where(p)
+        check_net(p, err)
         if p["name"] in seen_names:
             err(f"{where}: two programs are called '{p['name']}'")
         seen_names[p["name"]] = p

@@ -906,52 +906,26 @@ BLOCKS += [
 
 # Pin names are the block's OWN parameter names, not IEC's: this report explains
 # this code, and these are what a reader finds in the .cpp.
-PINS = {
-    "Ton":        (("in", "delay_ms", "dt"), ("q",)),
-    "Tof":        (("in", "delay_ms", "dt"), ("q",)),
-    "Tp":         (("in", "width_ms", "dt"), ("q",)),
-    "Sr":         (("set", "reset"), ("q",)),
-    "Rs":         (("set", "reset"), ("q",)),
-    "RTrig":      (("in",), ("q",)),
-    "FTrig":      (("in",), ("q",)),
-    "Hysteresis": (("value", "low", "high"), ("q",)),
-    "Hysteresis3": (("value", "low", "high", "hyst"), ("band",)),
-    "Staircase3": (("value", "edge1", "edge2", "edge3", "hyst"), ("level",)),
-    "Ramp":       (("target", "rate_per_s", "dt"), ("out",)),
-    "Deadband":   (("value", "band"), ("out",)),
-    "Ewma":       (("x", "tau_s", "dt"), ("out",)),
-    # push is the CALL, not a parameter: this block samples only when the law
-    # asks it to, and a page that did not show what asks is missing the design.
-    "ExpMovingAverage": (("x", "push"), ("out",)),
-    "sub":        (("in1", "in2"), ("out",)),
-    "abs_of":     (("in",), ("out",)),
-    "MedianOf3":  (("x",), ("out",)),
-    "MovingAverage": (("x",), ("out",)),
-    "Integral":   (("rate_per_s", "dt", "cutoff"), ("total",)),
-    "Derivative": (("quantity", "window_ms", "dt"), ("rate",)),
-    "Pid":        (("sp", "pv", "tuning", "dt"), ("out",)),
-    "Actuator":   (("target", "cfg", "dt"), ("position", "moving", "open", "close")),
-    "ValveController": (("duty", "period_ms", "min_on_ms", "dt"), ("coil",)),
-    "ZoneProbes": (("probes[3]", "tau_s"), ("temperature", "humidity", "valid")),
-    # Eight in and seven out: attach() names every one of them, and the
-    # readings and the bands they are judged against are not one input.
-    "AcSupply":   (("volts", "amps", "watts", "hz",
-                    "lo_V", "hi_V", "lo_Hz", "hi_Hz"),
-                   ("out_V", "out_A", "out_W", "out_Hz",
-                    "ok", "fault", "answered")),
-}
-
-
-def is_function(type_name):
-    """A FUNCTION node rather than a block. Stateless, so no member declares it
-    and the table cannot be asked to: `Plc::sub` against `Plc::Staircase3`."""
-    return type_name.split("::")[-1][:1].islower()
+is_function = vars_programs.is_function
 
 
 def _pins(type_name):
-    """The pin lists for a declared block type, template arguments dropped."""
-    base = type_name.split("::")[-1].split("<")[0]
-    return PINS.get(base, (("in",), ("out",)))
+    """The pin lists for a node type. Unknown is one in and one out, which is
+    what an undeclared type looks like - check_net is what refuses it."""
+    return vars_programs.pins_of(type_name) or (("in",), ("out",))
+
+
+def net_spec(p):
+    """The FBD spec for a program that declares its own [net].
+
+    Its shape is the authored FBD's, so the drawing does not care which of the
+    two it was handed. A `=` source is not a signal: the prefix comes off and
+    what is left is drawn as a stub, exactly as a literal always was.
+    """
+    return [(n["name"], vars_programs.net_type(n, p["blocks"]),
+             {k: (v[1:] if v.startswith("=") else v) for k, v in n["in"].items()},
+             dict(n["out"]))
+            for n in p["net"]]
 
 
 def fbd_diagram(spec, unwired=None):
@@ -1070,11 +1044,6 @@ FBD = {
    ("rain_for", "Plc::Tof", {"in": "rain_mmph > 0", "delay_ms": "rain_hold_s",
                              "dt": "c.dt_ms"}, {"q": "rain_lock"}),
  ],
- "destrat": [
-   ("bands", "Plc::Staircase3", {"value": "strat", "edge1": "low",
-                                 "edge2": "med", "edge3": "high",
-                                 "hyst": "hyst"}, {"level": "cli_stratDem"}),
- ],
  "fans": [
    ("steps", "Plc::Staircase3", {"value": "the fused demand",
                                  "edge1": "low_dem", "edge2": "med_dem",
@@ -1158,18 +1127,6 @@ FBD = {
    ("pulse", "ValveController", {"duty": "max(humidify, cool)", "period_ms": "period",
                                  "min_on_ms": "min_on", "dt": "c.dt_ms"},
     {"coil": "cli_skirtValve"}),
- ],
- "irr_modulation": [
-   ("fold", "Plc::Ton", {"in": "true", "delay_ms": "one hour", "dt": "c.dt_ms"},
-    {"q": "fold the VPD in, once"}),
-   ("dryness", "Utils::ExpMovingAverage", {"x": "the hour's VPD",
-                                          "push": "fold.q"},
-    {"out": "irr_vpdAvg_kPa"}),
- ],
- "strat": [
-   ("gap", "Plc::sub", {"in1": "ceiling", "in2": "floor"}, {}),
-   ("magnitude", "Plc::abs_of", {"in": "gap.out"},
-    {"out": "cli_dTStrat_degC"}),
  ],
  "ac_grid_watch": [
    ("supply", "AcSupply",
@@ -1335,7 +1292,8 @@ def main():
         _svg(f"{p['name']}", prims, dw, dh)
         made += 1
 
-        wiring = FBD.get(p["name"])
+        # The table if it declares one, the authored dict until it does.
+        wiring = net_spec(p) if p["net"] else FBD.get(p["name"])
         if p["blocks"]:
             # The table declares the instances; the wiring is authored. They
             # have to name the same set, or a page is quietly short a block.

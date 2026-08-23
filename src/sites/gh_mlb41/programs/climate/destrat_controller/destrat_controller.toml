@@ -35,3 +35,25 @@ demand = "cli_stratDem"
 # One ladder over one signal. The comfort band and the rot guard are both read
 # off the dew-point margin, and splitting them made two programs that could
 # disagree about what the margin was on a beat where it moved.
+
+# The law as a network. The staircase picks a speed and the speed picks the
+# FANS' rung for it, which is the number the arbitration compares against.
+
+[net.bands]
+[net.bands.in]
+value = "strat"
+edge1 = "low"
+edge2 = "med"
+edge3 = "high"
+hyst  = "hyst"
+
+[net.rung]
+fn = "mux4"
+[net.rung.in]
+k     = "bands.level"
+in0   = "=0"
+in1   = "fan_low"
+in2   = "fan_med"
+in3   = "fan_high"
+[net.rung.out]
+out = "demand"

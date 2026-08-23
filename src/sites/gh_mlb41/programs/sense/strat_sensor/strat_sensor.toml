@@ -18,6 +18,22 @@ floor   = "cli_temp_lo"
 [out]
 strat = "cli_dTStrat_degC"
 
+# The law as a network: one SUB into one ABS. Both are FUNCTIONs, so nothing
+# holds them and no [block] declares them.
+
+[net.gap]
+fn = "sub"
+[net.gap.in]
+in1 = "ceiling"
+in2 = "floor"
+
+[net.magnitude]
+fn = "abs_of"
+[net.magnitude.in]
+in = "gap.out"
+[net.magnitude.out]
+out = "strat"
+
 # The interior conditions, watched. Empty run(): an alarm is an observation, and
 # an observation has to keep being made while the plant is parked - which is
 # exactly when someone is looking at the ALARMS page.

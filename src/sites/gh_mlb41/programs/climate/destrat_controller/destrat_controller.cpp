@@ -33,9 +33,8 @@ void DestratController::run(ProgramContext& c) {
     // The demand the arbitration reads is the FANS' OWN rung for that speed.
     // Any other number would have to be translated twice, and the two ladders
     // would drift apart the first time one of them was retuned.
-    const float rung[4] = { 0.0f, fan_low.get(),
-                            fan_med.get(), fan_high.get() };
-    demand.set(rung[speed]);
+    demand.set(Plc::mux4(speed, 0.0f, fan_low.get(), fan_med.get(),
+                         fan_high.get()));
 }
 
 }  // namespace Site

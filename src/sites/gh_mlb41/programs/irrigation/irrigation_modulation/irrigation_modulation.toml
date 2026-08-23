@@ -40,3 +40,19 @@ mod_gamma = "irr_modGamma"
 [out]
 vpd_avg = "irr_vpdAvg_kPa"
 mod     = "irr_mod"
+
+# The law as a network. The hour timer is what makes the average take a
+# sample, so it wires into the block rather than sitting beside it.
+
+[net.fold]
+[net.fold.in]
+in       = "=true"
+delay_ms = "=one hour"
+dt       = "=c.dt_ms"
+
+[net.dryness]
+[net.dryness.in]
+x    = "vpd"
+push = "fold.q"
+[net.dryness.out]
+out = "vpd_avg"
