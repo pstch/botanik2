@@ -74,7 +74,7 @@ make -C build check-vars             # the CSV tables, and the generated C++ aga
 make -C build scenario-report        # what the control system did, out of the scenario cases
 make -C build botanik_tests          # just build the doctest binary
 ./build/tests/botanik_tests          # run it directly (doctest CLI)
-./build/tests/botanik_tests -s       # ...every passing check + the struct-size table
+./build/tests/botanik_tests -s       # ...every passing check, not just failures
 ./build/tests/botanik_tests -tc=<name>              # one test case
 ctest --test-dir build --output-on-failure          # all CTest entries
 ctest --test-dir build -R pyte --output-on-failure  # just the pyte suite

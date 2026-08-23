@@ -31,15 +31,11 @@ to run matching cases, `-ltc` to list them.
 
 ## Suites {#cpptests_suites}
 
-One `tests/test_<subsystem>.cpp` per subsystem, named after the part of
-`src/libbotanik/` it covers. `-ltc` lists the cases in the current binary.
+The suite covers the site's control laws (`test_site_programs.cpp` per law,
+`test_site_scenarios.cpp` end to end), the POU vocabulary (`test_plc.cpp`),
+alarms, health, and the site's table integrity. Everything the operator SEES is
+@ref termtests instead, which drives the real binary. `-ltc` lists the cases in
+the current binary.
 
-## Object sizes {#cpptests_sizes}
-
-The OPTA core is RAM-constrained, so the suite prints the size of the big
-long-lived structures on every run and fails only if one grows past a generous
-budget. The page sizes are dominated by config-driven line/log buffers, so they
-track the `Config::*` buffer knobs rather than code changes, and the host
-figures differ from the ARM target's (narrower pointers there).
-
-Run `./build/tests/botanik_tests -s` for the current numbers.
+Object footprints are pinned at COMPILE time in `libbotanik_sizes.h`, not by a
+case here.

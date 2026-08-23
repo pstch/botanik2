@@ -3,8 +3,8 @@
 @brief Screen-level regression tests that drive the real `botanik_sim` over a
        PTY and assert its reconstructed terminal against golden fixtures.
 
-The unit suite (@ref cpptests) checks logic in isolation; this suite checks what
-the operator sees. It replays the sim's ANSI output through
+The unit suite (@ref cpptests) checks the control laws; this suite checks what
+the operator sees, and reaches more of the firmware than the unit suite does. It replays the sim's ANSI output through
 [pyte](https://github.com/selectel/pyte) to reconstruct the 80x24 screen and
 asserts it against committed goldens, catching rendering regressions - cursor
 moves, insert/delete, IL/DL, editor reconciliation - that a source diff cannot.

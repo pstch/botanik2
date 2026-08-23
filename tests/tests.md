@@ -10,8 +10,8 @@ suites that drive the real simulator:
   that validates structural invariants at every boot, and the debug-only
   `BOTANIK_ASSERT`. These ship inside the firmware.
 - @subpage cpptests - **C++ tests.** A native [doctest](https://github.com/doctest/doctest)
-  suite over the host-runnable logic (formatting, time math, object sizes, and
-  the parser/logger/shell units).
+  suite over the site's control laws, the POU vocabulary, and the table
+  integrity a typo would otherwise break silently.
 - @subpage termtests - **Terminal emulation tests.** A pyte-based suite that
   drives the real `botanik_sim` over a PTY and asserts the reconstructed screen
   against golden fixtures.
