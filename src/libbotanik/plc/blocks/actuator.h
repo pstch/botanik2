@@ -125,8 +125,6 @@ namespace Botanik { namespace Plc {
         void stop();
 
         State state() const { return (State)_state; }
-        /** @brief "UNKNOWN" / "CLOSING" / "CLOSED" / "OPENING" / "OPEN". */
-        const char* state_name() const;
         /** @brief Position estimate, 0..1. Only meaningful once known(). */
         float position() const { return _pos; }
 

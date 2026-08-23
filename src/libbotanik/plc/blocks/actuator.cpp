@@ -180,16 +180,6 @@ namespace Botanik { namespace Plc {
         _datum   = false;
     }
 
-    const char* Actuator::state_name() const {
-        switch (_state) {
-            case ST_CLOSING: return "CLOSING";
-            case ST_CLOSED:  return "CLOSED";
-            case ST_OPENING: return "OPENING";
-            case ST_OPEN:    return "OPEN";
-            default:         return "UNKNOWN";
-        }
-    }
-
     void Actuator::home() {
         stop();
         _pos   = 0.0f;

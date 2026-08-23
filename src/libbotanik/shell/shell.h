@@ -407,8 +407,6 @@ namespace Botanik { namespace Shell {
          *  and the number alone does not say which. Takes the descriptor, not
          *  the role: a retained parameter's default is one nothing restores. */
         static const char* _default_phrase(const Vars::Descriptor& d);
-        /** @brief Whether `set` will take @p h. */
-        static bool _writable(Vars::Var h);
         /** @brief Where a value physically comes from, into @p buf. */
         static const char* _binding_phrase(const Vars::Binding& b,
                                            char* buf, size_t cap);

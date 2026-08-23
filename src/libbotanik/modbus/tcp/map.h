@@ -178,9 +178,6 @@ namespace Botanik { namespace Modbus {
          *  override-aware, since every other reader sees the forced value too. */
         uint32_t to_wire(const Vars::Var& v) const;
 
-        /** @brief Whether @p d is a dotted quad, which this map DOES serve:
-         *  four octets are exactly the 32 bits a row already has. */
-        static bool ipv4_row(const Vars::Descriptor& d);
         /** @brief A dotted quad as the value a register pair carries, big-endian
          *  - 192.168.1.10 is 0xC0A8010A. 0 for anything that is not one, which
          *  is also what an empty optional address reads as. */

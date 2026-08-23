@@ -299,13 +299,6 @@ namespace Botanik { namespace Shell {
         }
     }
 
-    // A parameter, unless the site marked it read-only; everything else is
-    // driven by something and would be overwritten on the next scan.
-    bool CommandShell::_writable(Vars::Var h) {
-        const Vars::Descriptor* d = h.meta();
-        return d->role == Vars::ROLE_PARAM && (d->flags & Vars::F_RDONLY) == 0;
-    }
-
     // Mirrors the MONITOR page's Source field, so a row reads the same whichever
     // showed it.
     const char* CommandShell::_binding_phrase(const Vars::Binding& b,

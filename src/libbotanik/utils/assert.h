@@ -32,9 +32,6 @@ namespace Botanik {
      *  Called once during firmware setup. */
     void set_assert_logger(Logs::Logger* logger);
 
-    /** @brief The logger assertion failures are routed to, or null. */
-    Logs::Logger* get_assert_logger();
-
     /** @brief Assertion-failure handler (see BOTANIK_ASSERT). */
     void assert_fail(const char* expr, const char* file, int line);
 

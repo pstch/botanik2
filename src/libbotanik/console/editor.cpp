@@ -300,13 +300,6 @@ namespace Botanik { namespace Terminal {
         _place_cursor(_map_cursor_pos(_pos));
     }
 
-    bool TextEditor::load(const char* buf, uint16_t len) {
-        uint16_t cap = load_capacity();
-        if (len > cap) len = cap;                 // commit_loaded reports the drop
-        if (len > 0) memmove(_buf, buf, len);
-        return commit_loaded(len);
-    }
-
     bool TextEditor::commit_loaded(uint16_t len) {
         bool fitted = true;
         if (len > load_capacity()) { len = load_capacity(); fitted = false; }

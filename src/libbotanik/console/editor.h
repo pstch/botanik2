@@ -378,8 +378,6 @@ namespace Botanik { namespace Terminal {
          *  the row cap can lay out - in which case the tail was dropped. */
         bool commit_loaded(uint16_t len);
 
-        /** @brief commit_loaded() for text the caller already holds. */
-        bool load(const char* buf, uint16_t len);
 
         /** @brief Whether the buffer has changed since the last load() /
          *  clear_dirty(). */

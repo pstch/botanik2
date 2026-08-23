@@ -64,8 +64,6 @@ namespace Botanik { namespace Modbus {
         return var_writable(d) && (d.type != T_STR || is_ipv4(d));
     }
 
-    bool Map::ipv4_row(const Descriptor& d) { return is_ipv4(d); }
-
     uint32_t Map::ipv4_to_wire(const char* text) {
         // Big-endian, the way an address is written and the way a register pair
         // is read: 192.168.1.10 is 0xC0A8010A. An empty optional row is 0,

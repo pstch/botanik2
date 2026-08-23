@@ -19,8 +19,6 @@ namespace Botanik {
 
     void set_assert_logger(Logs::Logger* logger) { _sink() = logger; }
 
-    Logs::Logger* get_assert_logger() { return _sink(); }
-
     void assert_fail(const char* expr, const char* file, int line) {
         Logs::Logger* logger = _sink();
         if (logger != nullptr)
