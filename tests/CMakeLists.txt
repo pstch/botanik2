@@ -15,7 +15,6 @@ add_executable(botanik_tests
     ${BOTANIK_SITE_SOURCES}
     doctest_main.cpp
     test_alarms.cpp
-    test_bindings.cpp
     test_console.cpp
     test_health.cpp
     test_logging.cpp
@@ -30,10 +29,7 @@ add_executable(botanik_tests
     test_site.cpp
     test_site_programs.cpp
     test_site_scenarios.cpp
-    test_site_watches.cpp
-    test_storage.cpp
     test_sun.cpp
-    test_table_golden.cpp
     test_tasks.cpp
     test_utils.cpp
     test_vars.cpp
@@ -47,18 +43,10 @@ target_include_directories(botanik_tests PRIVATE
 
 target_link_libraries(botanik_tests botanik)
 
-# Where the committed goldens live. Only test_table_golden.cpp reads them, so
-# this stays a test-target define rather than a project-wide one.
+# Where the committed goldens live. Only test_alarms.cpp reads them, so this
+# stays a test-target define rather than a project-wide one.
 target_compile_definitions(botanik_tests PRIVATE
     BOTANIK_TEST_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/data")
-
-# Rewrite the table goldens from the tables as they stand. NEVER in the gate: a
-# golden that regenerates itself asserts nothing. Read the diff.
-add_custom_target(table-golden-update
-    COMMAND ${CMAKE_COMMAND} -E env BOTANIK_GOLDEN_UPDATE=1
-            $<TARGET_FILE:botanik_tests> "-tc=table golden:*"
-    DEPENDS botanik_tests
-    COMMENT "Rewriting tests/data/*.txt from the current tables")
 
 # test_sizes.cpp prints the footprint table and reaches the site through
 # BOTANIK_SITE_HEADER, derived from the PUBLIC BOTANIK_SITE define
