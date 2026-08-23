@@ -322,7 +322,8 @@ def program_diagram(p, rows):
     colw, cx = 168, [8, 236, W - 176]
     y0 = 26
 
-    prims.append(text(cx[0], 16, "VAR_INPUT", 7, bold=True))
+    if ins:
+        prims.append(text(cx[0], 16, "VAR_INPUT", 7, bold=True))
     if held or kept:
         prims.append(text(cx[1] + colw / 2.0, 16, "what it holds", 7, "middle",
                           bold=True))
@@ -345,26 +346,33 @@ def program_diagram(p, rows):
             if keep:
                 prims.append(dot(cx[col] + colw - 5.5, y + 5.5))
 
-    mid_h = max(1, len(held) + len(kept)) * (ROW_H + GAP)
+    # All three columns start at the same top edge. Centring the middle against
+    # the tallest side put four blocks halfway down a page of eighteen rows,
+    # with a dashed box stretched to match and mostly empty.
+    mid_n  = len(held) + len(kept)
+    mid_h  = mid_n * (ROW_H + GAP)
     body_h = max(len(ins), len(outs)) * (ROW_H + GAP)
-    my = y0 + max(0, (body_h - mid_h) / 2.0)
-    if held or kept:
-        prims.append(rect(cx[1] - 6, y0 - 6, colw + 12,
-                          max(mid_h + 12, body_h), "", PLAIN, dashed=True))
+    if mid_n:
+        prims.append(rect(cx[1] - 6, y0 - 6, colw + 12, mid_h + 6, "", PLAIN,
+                          dashed=True))
     for i, (name, typ) in enumerate(held + kept):
-        y = my + i * (ROW_H + GAP)
+        y = y0 + i * (ROW_H + GAP)
         prims.append(rect(cx[1], y, colw, ROW_H, name,
                           BLK_C if i < len(held) else VAR_C, sub=typ))
 
     span = max(body_h, mid_h) + y0
-    if held or kept:
-        prims.append(line([(cx[0] + colw + 4, span / 2.0),
-                           (cx[1] - 10, span / 2.0)], arrow=True))
-        prims.append(line([(cx[1] + colw + 10, span / 2.0),
-                           (cx[2] - 4, span / 2.0)], arrow=True))
-    else:
-        prims.append(line([(cx[0] + colw + 4, span / 2.0),
-                           (cx[2] - 4, span / 2.0)], arrow=True))
+    # ...and the arrows meet the middle where the middle IS, not at the page's
+    # own half way.
+    wire_y = y0 + (mid_h if mid_n else body_h) / 2.0
+    if mid_n:
+        if ins:
+            prims.append(line([(cx[0] + colw + 4, wire_y),
+                               (cx[1] - 10, wire_y)], arrow=True))
+        prims.append(line([(cx[1] + colw + 10, wire_y),
+                           (cx[2] - 4, wire_y)], arrow=True))
+    elif ins:
+        prims.append(line([(cx[0] + colw + 4, wire_y),
+                           (cx[2] - 4, wire_y)], arrow=True))
 
     # What the fills mean, on the page that uses them, and only those it does.
     ly, lx = span + 12, 8
@@ -577,36 +585,6 @@ def timing_diagram(spec):
                           dashed=True))
         prims.append(text(x0 + px * w, y + 8, label, 6.4, "middle"))
     return prims, x0 + w + 20, int(y + 22)
-
-
-def steps_diagram(steps):
-    """What the law DOES, as a spine: one box per step, guards marked.
-
-    Simplified on purpose - the .cpp is the law, and a diagram that tried to be
-    it would be the law written twice. This is the shape of it.
-    """
-    bw, bh, gap, x = 300, 30, 16, 96
-    prims, at = [], {}
-    y = 22
-    for i, step in enumerate(steps):
-        kind, title, detail = step[0], step[1], step[2]
-        fill = {"if": PARAM_C, "out": FIELD_OUT, "do": PLAIN}.get(kind, PLAIN)
-        prims.append(rect(x, y, bw, bh, title, fill, sub=detail))
-        at[title] = y
-        if kind == "if":
-            prims.append(text(x + bw + 8, y + bh / 2.0 + 2, "guard", 6.2,
-                              color=MUTED))
-        y += bh
-        if len(step) > 3:                       # a cycle, not a fall-through
-            ty = at[step[3]]
-            prims.append(line([(x, y - bh / 2.0), (x - 26, y - bh / 2.0),
-                               (x - 26, ty + bh / 2.0), (x - 2, ty + bh / 2.0)],
-                              arrow=True))
-        if i < len(steps) - 1:
-            prims.append(line([(x + bw / 2.0, y), (x + bw / 2.0, y + gap)],
-                              arrow=True))
-        y += gap
-    return prims, bw + x + 60, int(y - gap + 6)
 
 
 LAYOUT = {"flow": flow_diagram, "states": states_diagram,
@@ -913,161 +891,6 @@ BLOCKS += [
              "Only VALID probes take part. With none left the zone's rows go "
              "INVALID rather than publishing a number nothing measured."]}),
 ]
-
-
-# The law each program runs, in the fewest steps that are still true. Authored
-# from the .cpp, because control flow is the one thing no table declares.
-# ("if", ...) is a guard that ends or diverts the scan.
-
-LOGIC = {
- "ac_grid_watch": [
-   ("if", "first scan", "reset the supply's four deadbands"),
-   ("do", "supply.step()", "mirror V, A, W, Hz through their deadbands"),
-   ("if", "meter silent", "report DEGRADED; it answered before, so it is a fault"),
-   ("out", "publish", "the four status rows, ok, and alarm_ac_grid")],
-
- "ac_local_watch": [
-   ("do", "the grid's law, other rows", "same AcSupply, wider frequency bands"),
-   ("if", "grid gone and local dead", "cranking Ton runs; only the WAIT is a failure"),
-   ("out", "publish", "the four status rows, ok, alarm_ac_local, alarm_gen")],
-
- "dc_watch": [
-   ("if", "first scan", "reset every mean, band and the contact debounce"),
-   ("do", "four rails", "each: Ewma over its own tau, then a deadband to the row"),
-   ("if", "rail under its floor", "or silent after answering - raise that rail's fault"),
-   ("do", "low_for(low_bat)", "THE UPS CONTACT, debounced 2 s - not a voltage"),
-   ("out", "lockout + hold_safe", "the plant-wide safe request, pushed on the EDGE")],
-
- "sun_watch": [
-   ("if", "tracker not ready", "no location or no clock yet: HOLD the three rows"),
-   ("do", "read the instrument", "the firmware owns it; this turns it into rows"),
-   ("out", "publish", "minutes from sunrise and sunset, elevation in degrees")],
-
- "temp_rh_zone": [
-   ("do", "four zones", "three probes each: drop the outlier, average the two"),
-   ("do", "filter", "Ewma per zone against dt, tau from a parameter"),
-   ("do", "interior", "the HOTTER level is the house: the spec's worst case"),
-   ("do", "psychrometrics", "one dew point per level; margin and VPD derived"),
-   ("out", "publish", "the conditioned rows, the quorum alarms, alarm_rot")],
-
- "strat": [
-   ("if", "either level unmeasured", "HOLD the last gap and report FAULTED"),
-   ("do", "difference", "ABSOLUTE: an inverted profile is as much a case for the fans"),
-   ("out", "cli_dTStrat_degC", "one number, which is all the fans want")],
-
- "climate_watch": [
-   ("do", "roll up the four zones", "OR their quorum alarms: a fact about the "
-                                    "plant, not about a zone"),
-   ("out", "alarm_sensor_fault", "so a supervisor need not know there are four"),
-   ("if", "no interior temp or RH", "raise NOTHING: the roll-up above already "
-                                    "says the plant is blind"),
-   ("out", "hot, cold, humid", "the readings against their three limits"),
-   ("out", "stratified", "past the band the fans are already flat out on")],
-
- "day_phase": [
-   ("do", "track the extremes", "the day's max and the night's min, since each began"),
-   ("do", "phase from the sun", "five boundaries as offsets from sunrise and sunset"),
-   ("if", "a BANK phase", "skipped unless yesterday armed it"),
-   ("out", "publish", "the phase, the two bank arms, the day's extremes")],
-
- "target_temp": [
-   ("do", "the base setting", "the phase's own target"),
-   ("if", "a bank is in force AND armed", "shift it by that bank's offset"),
-   ("do", "ease it", "Ewma over cli_targetTau_s; the first scan ADOPTS instead, "
-                     "so an outage cannot call for heat"),
-   ("out", "clamp, then publish", "the rails last, so one an operator just moved "
-                                  "bites now and not a time constant later")],
-
- "cooling": [
-   ("if", "no interior temperature", "HOLD the demand and the window ask; FAULTED"),
-   ("do", "PID", "reverse-acting on the interior against the phase's target"),
-   ("out", "cli_coolDem", "one signed demand: negative is heating"),
-   ("do", "window ask", "the demand laddered between its two staging thresholds"),
-   ("out", "intake gates", "would crawlspace air help? published, not acted on")],
-
- "destrat": [
-   ("do", "Staircase on the gap", "three bands, each with its own hysteresis"),
-   ("out", "cli_stratDem", "a band change needs the gap to cross a whole band")],
-
- "humidity": [
-   ("if", "rot risk", "vent flat out, latch the lockout, and leave"),
-   ("do", "ladder the margin", "four bands and a dead zone on the dew-point margin"),
-   ("out", "cli_humidDem", "negative dehumidifies, positive humidifies"),
-   ("do", "the dryness gate", "would outside air dry the house? dew points, not RH"),
-   ("out", "the guard", "published from observe(), so it stands while parked")],
-
- "irr_modulation": [
-   ("if", "an hour has passed", "fold the VPD into the dryness average, once"),
-   ("do", "ladder the dryness", "between the two thresholds an operator sets"),
-   ("out", "irr_mod", "raised to gamma, floored: every error is toward LESS water")],
-
- "irr_meters": [
-   ("if", "first scan", "adopt both counters where they stand; nothing is a reset"),
-   ("do", "outlet", "a 4-20 mA loop: its RATE is the measurement, totalized"),
-   ("do", "inlet", "a pulse train: its COUNTER is the measurement, differentiated"),
-   ("if", "flow with every valve shut", "leak. Inlet open and nothing arriving: pressure"),
-   ("out", "publish", "both flows, both totals, the two supply alarms")],
-
- "irr_schedule": [
-   ("do", "the date", "off the wall clock; 0 until the RTC has been set"),
-   ("if", "the day rolled", "zero the tally the cycle spends"),
-   ("if", "allowance spent, or out of slot", "publish tray 0: nothing may start"),
-   ("do", "walk the trays", "interval = summer days / mod^(1-split), one day floor"),
-   ("if", "held back by hand", "spend the skip and stamp it to the back of the queue"),
-   ("out", "irr_dueTray", "the MOST OVERDUE tray, so a backlog drains in order")],
-
- "irrigation": [
-   ("if", "inhibited", "park all ten valves where a dead controller would leave them"),
-   ("if", "IDLE", "start on irr_dueTray, if the modulation gives a dose"),
-   ("do", "FILLING", "inlet and one tray open, to the dose or to the timeout"),
-   ("out", "stamp", "at the END of the fill: a restart in the long drain must "
-                    "not water the tray twice"),
-   ("do", "SOAKING", "both ends shut; skipped when the soak is zero"),
-   ("do", "DRAINING", "judge what came back against the dose that went in"),
-   ("do", "FLUSHING", "both ends open, no tray: clear the shared manifold",
-    "IDLE")],
-
- "screen": [
-   ("if", "first scan", "PRESET deployed: a released coil already says where it is"),
-   ("if", "inhibited", "deploy - the safe state, and free on a dead coil"),
-   ("do", "cold?", "the cooling demand under cli_thermalScreenDem"),
-   ("if", "the phase forbids that direction", "the command STANDS, read off the row"),
-   ("out", "coil + traverse", "the Actuator times the stroke; moving cuts the fans")],
-
- "roof_lockout": [
-   ("if", "the station is blind", "a live interlock while it lasts, and DEGRADED"),
-   ("do", "rain", "Tof, so the lockout outlives the shower"),
-   ("do", "wind", "the GUST, not the mean: the peak is what tears a ram"),
-   ("out", "three rows", "rain, wind, and their verdict with the supply lockout")],
-
- "windows": [
-   ("if", "window_lock", "stage 1, absolute: target 0, whatever else is true"),
-   ("if", "inhibited or no demand", "the safe opening, off the row's own default"),
-   ("do", "choose an owner", "ONE ram may move; a stroke keeps the bus until it ends"),
-   ("out", "coils", "open and close per window, never both, plus the positions")],
-
- "weather_watch": [
-   ("if", "the station is answering", "latch that it ever did"),
-   ("do", "time the dry spell", "the clock stands while the gauge is silent"),
-   ("out", "storm + alarms", "read off the roof's own lockouts, not new thresholds")],
-
- "intractors": [
-   ("do", "floor", "the row's declared safe speed: some air is always wanted"),
-   ("do", "fuse three demands", "cooling gated on the intake, anti-rot, dehumidify"),
-   ("out", "one speed", "both run together: they serve one volume")],
-
- "fans": [
-   ("if", "the screen is travelling", "cut them: the fabric moves through their air"),
-   ("if", "inhibited", "speed 1, not off: still air is itself a rot risk"),
-   ("do", "fuse four demands", "MAXIMUM, so each is a floor rather than a share"),
-   ("out", "one of three relays", "Staircase, so the winner moving cannot chatter")],
-
- "skirt": [
-   ("if", "rot lockout", "shut, and reset the pulse phase"),
-   ("do", "humidify arm", "PROPORTIONAL: the effort is the on-time"),
-   ("do", "cooling arm", "STAGED, and only while the air is dry enough to cool"),
-   ("out", "pulse the valve", "the greater of the two, floored at the minimum pulse")],
-}
 
 
 # --- FBD: the blocks a program holds, wired ------------------------------------
@@ -1441,12 +1264,13 @@ def main():
     c.setFont("Helvetica", 10)
     for i, l in enumerate(_wrap(
             "One page per control program and one per function block. A "
-            "program gets two: what it is CONNECTED to, derived from the table "
-            "that declares it, and what it DOES, authored from its source. A "
-            "block's is authored too, because what a Pid does inside is not in "
-            "any table. Every diagram "
-            "is also an editable images/logic/*.drawio.svg, drawn from the "
-            "same model as the page.", 96)):
+            "program gets what it is CONNECTED to, derived from the table that "
+            "declares it, and - where it holds any - an FBD of the blocks it "
+            "owns, whose instances and types are the table's and whose wiring "
+            "is authored from the call site. A block's own page is authored "
+            "too, because what a Pid does inside is not in any table. Every "
+            "diagram is also an editable images/logic/*.drawio.svg, drawn from "
+            "the same model as the page.", 96)):
         c.drawString(40, ph - 150 - i * 13, l)
     c.setFont("Helvetica", 9)
     c.drawString(40, 60, f"{len(progs)} programs, {len(BLOCKS)} blocks. "
@@ -1490,16 +1314,6 @@ def main():
                         "call site, because only the .cpp says. Pin names are "
                         "the block's own parameters.")
             _svg(p["name"] + "_fbd", fprims, fdw, fdh)
-            made += 1
-
-        steps = LOGIC.get(p["name"])
-        if steps:
-            lprims, ldw, ldh = steps_diagram(steps)
-            page(c, p["name"] + ": the law", sub, lprims, ldw, ldh, [],
-                 kicker="The scan, in the fewest steps that are still true. "
-                        "Authored from the source, because control flow is the "
-                        "one thing no table declares.")
-            _svg(p["name"] + "_law", lprims, ldw, ldh)
             made += 1
 
     for name, where, what, spec in BLOCKS:
