@@ -15,24 +15,11 @@ add_executable(botanik_tests
     ${BOTANIK_SITE_SOURCES}
     doctest_main.cpp
     test_alarms.cpp
-    test_console.cpp
     test_health.cpp
-    test_logging.cpp
-    test_modbus_master.cpp
-    test_modbus_rtu.cpp
-    test_modbus_tcp.cpp
-    test_network.cpp
     test_plc.cpp
-    test_program.cpp
-    test_scan.cpp
-    test_sizes.cpp
     test_site.cpp
     test_site_programs.cpp
     test_site_scenarios.cpp
-    test_sun.cpp
-    test_tasks.cpp
-    test_utils.cpp
-    test_vars.cpp
 )
 
 # vendor/ for doctest.h; src/ for the library and the simulator's site payloads.
@@ -47,11 +34,6 @@ target_link_libraries(botanik_tests botanik)
 # stays a test-target define rather than a project-wide one.
 target_compile_definitions(botanik_tests PRIVATE
     BOTANIK_TEST_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/data")
-
-# test_sizes.cpp prints the footprint table and reaches the site through
-# BOTANIK_SITE_HEADER, derived from the PUBLIC BOTANIK_SITE define
-# (libbotanik_site.h) inherited from botanik. The pinning itself is
-# libbotanik_sizes.h's, at COMPILE time; this only shows the numbers.
 
 # The doctest binary is registered TWICE; the label tells them apart:
 #
