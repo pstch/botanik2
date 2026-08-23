@@ -454,12 +454,13 @@ inline void publish_weather(Vars::Bank& io, const Sky& s, uint32_t now_ms) {
     static float    wind    = 1.5f;
     static uint32_t rain_ms = 0;
 
-    // A fair day has to stay UNDER cli_windShut_mps with its gusts, or the roof
-    // is locked out around the clock and the storm alarm says nothing. The gust
-    // is 1.5x the mean, so the fair ceiling is the threshold divided by that.
+    // A storm day sits over cli_windShut_mps - 20.8 mps, which is 75 kmph -
+    // for hours, so the roof shuts and alarm_weather_storm means it. A fair day
+    // keeps its gusts under cli_windEase_mps, so the ramp is a storm-day thing
+    // and not a permanent ceiling on the roof.
     const bool storm = (s.act == SCN_STORM && s.hour >= 6.0f && s.hour < 20.0f);
-    wind = drift(wind, 0.4f, 0.2f, storm ? 12.0f : 2.8f, s.dt_ms, 120000.0f);
-    if (storm && wind < 4.0f) wind = 4.0f;
+    wind = drift(wind, 1.2f, 0.2f, storm ? 30.0f : 6.0f, s.dt_ms, 120000.0f);
+    if (storm && wind < 22.0f) wind = 22.0f;
     put(io, "cli_wind_mps", wind, now_ms);
     put(io, "cli_windGust_mps", wind * 1.5f, now_ms);
 

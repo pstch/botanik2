@@ -106,7 +106,7 @@ const Descriptor library_vars[] = {
 #endif
     P("sys_cpu_load_pct", T_U8 , 50             , 1, 100  , 0, "%"  , 970, "CPU_LOAD alarm threshold", "percent of the task period", true),
     P("sys_jitter_pct"  , T_U8 , 50             , 1, 100  , 0, "%"  , 971, "CPU_JITT alarm threshold", "percent of the task period", true),
-    P("sys_stack_pct"   , T_U8 , 80             , 1, 100  , 0, "%"  , 972, "STACK alarm threshold", "percent of the stack in use", true),
+    P("sys_stack_pct"   , T_U8 , 75             , 1, 100  , 0, "%"  , 972, "STACK alarm threshold", "percent of the stack in use", true),
     PE("sys_log_level"   , Logs::LOG_DEBUG, &Logs::level_label, 973, "lowest level the logger forwards", "the floor for EVERY sink; each page filters further", true),
     P("sys_retain_sec"  , T_U32, 300            , 0, 86400, 0, "sec", 974, "how often retained values reach flash", "0 leaves only `save` and the way down; wear vs loss", true),
 #if BOTANIK_FEATURE_MODBUS_RTU_CLIENT

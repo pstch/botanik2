@@ -30,8 +30,17 @@ public:
     Vars::RefIn<float>    wind_mps;
     Vars::RefIn<float>    gust_mps;
     Vars::RefIn<float>    wind_shut;
+    Vars::RefIn<float>    wind_ease;
+    Vars::RefIn<float>    ease_cap;
     Vars::RefIn<uint16_t> rain_hold_s;
     Vars::RefIn<bool>     supply_lock;
+
+    /** @} */
+
+    /** @name VAR_OUTPUT
+     *  @{ */
+
+    Vars::RefOut<float> cap;
 
     /** @} */
 
@@ -70,8 +79,11 @@ inline void RoofLockout::bind(Vars::Bank& io) {
     wind_mps    = io.resolve_in<float>("cli_wind_mps");
     gust_mps    = io.resolve_in<float>("cli_windGust_mps");
     wind_shut   = io.resolve_in<float>("cli_windShut_mps");
+    wind_ease   = io.resolve_in<float>("cli_windEase_mps");
+    ease_cap    = io.resolve_in<float>("cli_windEaseCap");
     rain_hold_s = io.resolve_in<uint16_t>("cli_rainLockout_sec");
     supply_lock = io.resolve_in<bool>("sys_supply_lockout");
+    cap         = io.resolve_out<float>("cli_windowCap");
     rain_lock   = io.resolve_inout<bool>("cli_rainLockout");
     wind_lock   = io.resolve_inout<bool>("cli_windLockout");
     window_lock = io.resolve_inout<bool>("cli_windowLockout");

@@ -34,7 +34,7 @@ namespace Botanik { namespace Config {
 #endif
     BOTANIK_CFG(uint8_t, ALARM_CPU_JITTER_PCT);
 #ifndef BOTANIK_ALARM_STACK_PCT
-#  define BOTANIK_ALARM_STACK_PCT 80
+#  define BOTANIK_ALARM_STACK_PCT 75
 #endif
     BOTANIK_CFG(uint8_t, ALARM_STACK_PCT);
 

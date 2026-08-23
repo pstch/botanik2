@@ -28,14 +28,25 @@ void RoofLockout::run(ProgramContext& c) {
     // and the station's own window is the hysteresis - no dwell needed here.
     const float gust = gust_mps.get();
     const float mean = wind_mps.get();
-    const bool blowing =
-        blind || ((gust > mean ? gust : mean) >= wind_shut.get());
+    const float w    = (gust > mean) ? gust : mean;
+    const bool blowing = blind || (w >= wind_shut.get());
 
     rain_lock.set(raining);
     wind_lock.set(blowing);
     // READ BACK, never the local verdicts: each row is what an operator can
     // force, and a lockout the law then ignored would be a lie on the page.
     window_lock.set(rain_lock.get() || wind_lock.get() || supply_lock.get());
+
+    // How far the roof may open, which is not a yes or a no. Below wind_ease
+    // the wind has no say; from there to wind_shut the ceiling comes down a
+    // straight line from ease_cap to nothing, so the roof is already almost
+    // shut by the time the lockout above takes it the rest of the way. Off the
+    // ROW again, so a forced lockout still means what it says.
+    float ceiling = 1.0f;
+    const float ease = wind_ease.get(), shut = wind_shut.get();
+    if (w >= ease && shut > ease)
+        ceiling = ease_cap.get() * (1.0f - (w - ease) / (shut - ease));
+    cap.set(window_lock.get() ? 0.0f : Plc::limit(ceiling, 0.0f, 1.0f));
 }
 
 }  // namespace Site

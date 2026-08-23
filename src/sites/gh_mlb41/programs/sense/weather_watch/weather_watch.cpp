@@ -18,11 +18,15 @@ void WeatherWatch::observe(ProgramContext& c) {
     station.set(_seen && !measured);
     if (!measured) degraded();
 
-    // The windows' own verdict, not a second pair of thresholds beside it -
-    // and only once the station has answered at least once. Before that the
-    // windows are shut on the BLIND interlock, which is caution rather than
-    // weather, and annunciating it puts a storm on the ribbon at every boot.
-    storm.set(_seen && (rain_lock.get() || wind_lock.get()));
+    // A STORM is sustained wind: cli_windShut_mps, 20.8, which is 75 kmph and
+    // Beaufort 9. It is the same number that shuts the roof, because it is the
+    // same fact. Reading the windows' verdict instead put a storm on the ribbon
+    // for a stiff breeze or a passing shower.
+    //
+    // The MEAN, not the gust: a gust is a moment and a storm is a condition.
+    // The row's own dwell is what makes it sustained. Only once the station has
+    // answered, or every boot announces one.
+    storm.set(_seen && wind.valid() && wind.get() >= storm_wind.get());
 
     // How long the house has been dry. A gauge that is not answering says
     // nothing about the weather, so the clock stands rather than running on.

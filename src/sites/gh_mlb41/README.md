@@ -143,7 +143,7 @@ a held step.
 | `fair` | an ordinary day for the season | the baseline |
 | `hot` | cloudless, 7 C over the seasonal mean | the whole cooling ladder, `cli_tooHot_degC`, the cold bank it arms |
 | `cold` | clear and 6 C under it | the screen, the negative half of the ladder, `cli_tooCold_degC` |
-| `storm` | wind over `cli_windShut_mps` from 06:00 to 20:00, with rain | the roof lockout, and how long it outlives the shower |
+| `storm` | sustained wind over 75 kmph from 06:00 to 20:00, with rain | the roof shut, `alarm_weather_storm`, and how long the rain hold outlives the shower |
 | `damp` | overcast, air within a few degrees of saturation | the rot guard, and the one thing the wet skirt must never do |
 | `dry` | hot and parched | the other arm of the humidity ladder |
 | `probes` | ordinary weather; the ridge probes stop answering 04:00-06:00, one at a time | the quorum holding, and then not |

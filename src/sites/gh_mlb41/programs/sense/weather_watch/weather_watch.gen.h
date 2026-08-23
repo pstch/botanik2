@@ -31,8 +31,7 @@ public:
     Vars::RefIn<float> gust;
     Vars::RefIn<float> rain;
     Vars::RefIn<float> irrad;
-    Vars::RefIn<bool>  rain_lock;
-    Vars::RefIn<bool>  wind_lock;
+    Vars::RefIn<float> storm_wind;
 
     /** @} */
 
@@ -61,7 +60,7 @@ private:
 
     /** @} */
 
-    Vars::VarRef _watch_rows[6];  ///< swept for validity before each activation
+    Vars::VarRef _watch_rows[4];  ///< swept for validity before each activation
 
 public:
     WeatherWatch(const SetupContext& ctx, Vars::Bank& io)
@@ -79,8 +78,7 @@ inline void WeatherWatch::bind(Vars::Bank& io) {
     gust       = io.resolve_in<float>("cli_windGust_mps");
     rain       = io.resolve_in<float>("cli_rain_mmph");
     irrad      = io.resolve_in<float>("cli_irrad_Wpm2");
-    rain_lock  = io.resolve_in<bool>("cli_rainLockout");
-    wind_lock  = io.resolve_in<bool>("cli_windLockout");
+    storm_wind = io.resolve_in<float>("cli_windShut_mps");
     station    = io.resolve_out<bool>("alarm_wx_station");
     storm      = io.resolve_out<bool>("alarm_weather_storm");
     since_rain = io.resolve_out<uint16_t>("cli_sinceRain_min");
@@ -91,9 +89,7 @@ inline void WeatherWatch::bind(Vars::Bank& io) {
     _watch_rows[1] = gust.r;
     _watch_rows[2] = rain.r;
     _watch_rows[3] = irrad.r;
-    _watch_rows[4] = rain_lock.r;
-    _watch_rows[5] = wind_lock.r;
-    set_inputs(_watch_rows, 6);
+    set_inputs(_watch_rows, 4);
     set_health_row(io.resolve_out<uint8_t>("prog_weather_watch"));
 }
 

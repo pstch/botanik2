@@ -17,7 +17,7 @@ alarm_strat            , STRAT    , 5   , 5    , 0       , 0     , 816, temp. st
 alarm_water_leak       , WTR_LK   , 1   , 2    , 0       , 0     , 817, leak in irrigation circuit          , "shut irrigation valve, inspect circuit"                                                        ,
 alarm_water_pressure   , WTR_BAR  , 2   , 2    , 0       , 0     , 818, water pressure too low              ,                                                                                                 ,
 alarm_irr_drain        , DRAIN_FLT, 3   , 3    , 0       , 0     , 819, a tray would not drain in time      ,                                                                                                 ,
-alarm_weather_storm    , WH_STORM , 2   , 5    , 0       , 15    , 822, current storm conditions            , "close roof windows, secure screens"                                                            ,
+alarm_weather_storm    , WH_STORM , 60  , 120  , 0       , 15    , 822, current storm conditions            , "close roof windows, secure screens"                                                            ,
 alarm_sns_ceiling      , SNS_CEIL , 5   , 5    , 0       , 0     , 826, ceiling temp/RH probe quorum lost   , the vote runs on the two that are left; replace before a second goes                            ,
 alarm_sns_floor        , SNS_FLR  , 5   , 5    , 0       , 0     , 827, floor temp/RH probe quorum lost     , the vote runs on the two that are left; replace before a second goes                            ,
 alarm_sns_crawlspace   , SNS_CS   , 5   , 5    , 0       , 0     , 828, crawlspace temp/RH probe quorum lost, the vote runs on the two that are left; replace before a second goes                            ,

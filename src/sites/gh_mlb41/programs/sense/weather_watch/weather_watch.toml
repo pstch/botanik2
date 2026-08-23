@@ -39,8 +39,7 @@ wind      = "cli_wind_mps"
 gust      = "cli_windGust_mps"
 rain      = "cli_rain_mmph"
 irrad     = "cli_irrad_Wpm2"
-rain_lock = "cli_rainLockout"
-wind_lock = "cli_windLockout"
+storm_wind = "cli_windShut_mps"
 
 [out]
 station    = "alarm_wx_station"

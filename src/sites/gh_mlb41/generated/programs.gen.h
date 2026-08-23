@@ -61,6 +61,7 @@
 //
 // [actuators]
 //   screen          cli_screenMoving      -> fans
+//   roof_lockout    cli_windowCap         -> windows
 //
 // [sense]
 //

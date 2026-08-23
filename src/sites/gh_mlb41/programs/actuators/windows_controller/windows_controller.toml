@@ -59,6 +59,7 @@ tmo_s       = "cli_windowTmo_sec"
 # Stage 1, decided by roof_lockout and OBEYED here: an operator forcing it is
 # the only way to rehearse the arbitration without waiting for weather.
 window_lock = "cli_windowLockout"
+cap         = "cli_windowCap"
 
 [out]
 opn = { rows = "cli_window*_opn", count = 4 }

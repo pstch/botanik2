@@ -607,6 +607,107 @@ TEST_CASE_FIXTURE(Rig<Site::ScreenController>, "screen: a cold night deploys it,
     CHECK_FALSE(live.bank.get(moving));
 }
 
+TEST_CASE("windows: the wind takes the roof down a ramp before it shuts it") {
+    // Three parameters and a straight line between two of them: below
+    // cli_windEase_mps the wind has no say, at it the roof may open
+    // cli_windEaseCap, and that ceiling falls to nothing by cli_windShut_mps -
+    // which is also the wind that IS a storm. A cliff from wide open to shut
+    // would slam four rams at whatever moment a gust crossed one number.
+    Live f;
+    fine_weather(f);
+    Site::RoofLockout lock_(Botanik::SetupContext(f.reg), f.bank);
+    Site::WindowsController win(Botanik::SetupContext(f.reg), f.bank);
+    Plc::Program* const progs[] = { &lock_, &win };
+    Cycle d(progs, 2, &f.bank, f.reg);
+
+    const float ease = f.bank.var(f.ref("cli_windEase_mps")).as_f32();
+    const float shut = f.bank.var(f.ref("cli_windShut_mps")).as_f32();
+    const float top  = f.bank.var(f.ref("cli_windEaseCap")).as_f32();
+    REQUIRE(shut > ease);
+
+    Vars::RefIn<float> cap = f.bank.resolve_in<float>("cli_windowCap");
+    f.bank.var(f.ref("cli_windowDem")).set(1.0f);
+    uint64_t t = 0;
+
+    INFO("under the ease threshold the wind has no opinion at all");
+    field(f, "cli_wind_mps", ease - 2.0f);
+    field(f, "cli_windGust_mps", ease - 2.0f);
+    for (uint32_t i = 0; i < 40; i++) d.step(t += 1000);
+    CHECK(f.bank.get(cap) == doctest::Approx(1.0f));
+    CHECK(f.bank.var(f.ref("cli_window1_pos")).as_f32() > 0.9f);
+
+    INFO("at it, the roof may open cli_windEaseCap and no more");
+    field(f, "cli_wind_mps", ease);
+    field(f, "cli_windGust_mps", ease);
+    for (uint32_t i = 0; i < 60; i++) d.step(t += 1000);
+    CHECK(f.bank.get(cap) == doctest::Approx(top).epsilon(0.02));
+    CHECK(f.bank.var(f.ref("cli_window1_pos")).as_f32() <= doctest::Approx(top).epsilon(0.1));
+
+    INFO("half way up the band, half the ceiling");
+    field(f, "cli_wind_mps", (ease + shut) / 2.0f);
+    field(f, "cli_windGust_mps", (ease + shut) / 2.0f);
+    for (uint32_t i = 0; i < 60; i++) d.step(t += 1000);
+    CHECK(f.bank.get(cap) == doctest::Approx(top / 2.0f).epsilon(0.05));
+
+    INFO("and at cli_windShut_mps the roof is shut, not nearly shut");
+    field(f, "cli_wind_mps", shut);
+    field(f, "cli_windGust_mps", shut);
+    for (uint32_t i = 0; i < 80; i++) d.step(t += 1000);
+    CHECK(f.bank.var(f.ref("cli_windLockout")).b());
+    CHECK(f.bank.get(cap) == doctest::Approx(0.0f));
+    CHECK(f.bank.var(f.ref("cli_window1_pos")).as_f32() < 0.05f);
+}
+
+TEST_CASE_FIXTURE(Rig<Site::WeatherWatch>,
+                  "weather: a storm is 75 kmph of sustained wind, not a stiff breeze") {
+    // It used to be read off the roof's own lockouts, so a passing shower or a
+    // gust over the vent-closing threshold put a storm on the ribbon. Those are
+    // reasons to shut the roof, which is a much lower bar than the weather
+    // being severe.
+    Vars::RefIn<bool> storm = live.bank.resolve_in<bool>("alarm_weather_storm");
+    const float shut = live.bank.var(live.ref("cli_windShut_mps")).as_f32();
+    uint64_t t = 0;
+
+    field(live, "cli_rain_mmph", 0.0f);
+    field(live, "cli_wind_mps", shut - 6.0f);      // a gale, and not a storm
+    field(live, "cli_windGust_mps", shut + 4.0f);  // gusting past it, even
+    for (uint32_t i = 0; i < 20; i++) d.step(t += 1000);
+    CHECK_FALSE(live.bank.get(storm));
+
+    INFO("rain alone is not one either");
+    field(live, "cli_rain_mmph", 8.0f);
+    for (uint32_t i = 0; i < 20; i++) d.step(t += 1000);
+    CHECK_FALSE(live.bank.get(storm));
+
+    INFO("...and the MEAN reaching it is");
+    field(live, "cli_wind_mps", shut + 0.5f);
+    for (uint32_t i = 0; i < 20; i++) d.step(t += 1000);
+    CHECK(live.bank.get(storm));
+}
+
+TEST_CASE("windows: rain shuts the roof whatever the wind is doing") {
+    Live f;
+    fine_weather(f);
+    Site::RoofLockout lock_(Botanik::SetupContext(f.reg), f.bank);
+    Site::WindowsController win(Botanik::SetupContext(f.reg), f.bank);
+    Plc::Program* const progs[] = { &lock_, &win };
+    Cycle d(progs, 2, &f.bank, f.reg);
+
+    Vars::RefIn<float> cap = f.bank.resolve_in<float>("cli_windowCap");
+    f.bank.var(f.ref("cli_windowDem")).set(1.0f);
+    uint64_t t = 0;
+    for (uint32_t i = 0; i < 40; i++) d.step(t += 1000);
+    REQUIRE(f.bank.get(cap) == doctest::Approx(1.0f));
+
+    INFO("a still day, and rain: shut, and it outlives the shower by "
+         "cli_rainLockout_sec");
+    field(f, "cli_rain_mmph", 4.0f);
+    for (uint32_t i = 0; i < 40; i++) d.step(t += 1000);
+    CHECK(f.bank.var(f.ref("cli_rainLockout")).b());
+    CHECK(f.bank.get(cap) == doctest::Approx(0.0f));
+    CHECK(f.bank.var(f.ref("cli_window1_pos")).as_f32() < 0.05f);
+}
+
 TEST_CASE("windows: a forced lockout shuts the roof, with no weather to do it") {
     // The point of publishing a verdict and then reading it back: every stage
     // of the arbitration is a row, so it can be watched on a page and held by

@@ -18,9 +18,9 @@ BIN="${BOTANIK_SIM:-$(dirname "$0")/../build/botanik_sim}"
 # scenario:hour:what to watch for
 ROWS=(
   "fair:06:00:an ordinary day: dawn, the roof opening, an irrigation cycle"
-  "hot:11:00:cli_tooHot_degC, the whole cooling ladder, the cold bank it arms"
+  "hot:17:00:cli_tooHot_degC, the whole cooling ladder, the cold bank it arms"
   "cold:02:00:cli_tooCold_degC, the screen deployed, the roof shut"
-  "storm:11:00:wind over cli_windShut_mps: the roof lockout, and the rot guard against it"
+  "storm:11:00:75 kmph sustained: the roof shut, alarm_weather_storm, the rot guard against it"
   "damp:02:00:air at saturation: alarm_rot, and the skirt refusing to add water"
   "dry:11:00:the humidifier arm of the ladder"
   "probes:03:50:04:00 one ridge probe dies, 05:00 a second: the quorum, then not"

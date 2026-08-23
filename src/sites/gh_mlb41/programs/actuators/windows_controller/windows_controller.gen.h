@@ -31,6 +31,7 @@ public:
     Vars::RefIn<uint16_t> travel_s;
     Vars::RefIn<uint16_t> tmo_s;
     Vars::RefIn<bool>     window_lock;
+    Vars::RefIn<float>    cap;
 
     /** @} */
 
@@ -80,7 +81,7 @@ private:
 
     /** @} */
 
-    Vars::VarRef _watch_rows[2];  ///< swept for validity before each activation
+    Vars::VarRef _watch_rows[3];  ///< swept for validity before each activation
 
 public:
     WindowsController(const SetupContext& ctx, Vars::Bank& io)
@@ -108,6 +109,7 @@ inline void WindowsController::bind(Vars::Bank& io) {
     travel_s    = io.resolve_in<uint16_t>("cli_windowTravel_sec");
     tmo_s       = io.resolve_in<uint16_t>("cli_windowTmo_sec");
     window_lock = io.resolve_in<bool>("cli_windowLockout");
+    cap         = io.resolve_in<float>("cli_windowCap");
     opn[0]      = io.resolve_out<bool>("cli_window1_opn");
     opn[1]      = io.resolve_out<bool>("cli_window2_opn");
     opn[2]      = io.resolve_out<bool>("cli_window3_opn");
@@ -129,7 +131,8 @@ inline void WindowsController::bind(Vars::Bank& io) {
     // stopped being believable is DEGRADED without the law asking.
     _watch_rows[0] = window_dem.r;
     _watch_rows[1] = window_lock.r;
-    set_inputs(_watch_rows, 2);
+    _watch_rows[2] = cap.r;
+    set_inputs(_watch_rows, 3);
     set_health_row(io.resolve_out<uint8_t>("prog_windows"));
     on_bind();
 }

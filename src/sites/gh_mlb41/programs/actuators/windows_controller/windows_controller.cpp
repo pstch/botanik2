@@ -51,8 +51,9 @@ void WindowsController::run(ProgramContext& c) {
 
     const Plc::ActuatorConfig cfg = _mechanics();
 
-    // Stage 1, decided upstream: the ROW, never a verdict of this law's own.
-    const bool shut_in = window_lock.get();
+    // Stage 1, decided upstream: the ROWS, never a verdict of this law's own.
+    const bool  shut_in = window_lock.get();
+    const float ceiling = Plc::limit(cap.get(), 0.0f, 1.0f);
 
     if (shut_in) {
         // Stage 1 of the arbitration, and absolute: rain and wind shut the roof
@@ -66,6 +67,10 @@ void WindowsController::run(ProgramContext& c) {
     } else {
         _target = Plc::limit(window_dem.get(), 0.0f, 1.0f);
     }
+    // ...and the wind's ceiling over all of it, the safe state included: a
+    // stiff wind is a reason to open less, not a reason the plant may ignore
+    // because control went away.
+    if (_target > ceiling) _target = ceiling;
 
     const int8_t owner = _owner(_target, cfg);
     if (owner >= 0) act[owner].step(_target, cfg, c.dt_ms);

@@ -23,6 +23,8 @@ rain_mmph   = "cli_rain_mmph"
 wind_mps    = "cli_wind_mps"
 gust_mps    = "cli_windGust_mps"
 wind_shut   = "cli_windShut_mps"
+wind_ease   = "cli_windEase_mps"
+ease_cap    = "cli_windEaseCap"
 rain_hold_s = "cli_rainLockout_sec"
 supply_lock = "sys_supply_lockout"
 
@@ -30,3 +32,6 @@ supply_lock = "sys_supply_lockout"
 rain_lock   = "cli_rainLockout"
 wind_lock   = "cli_windLockout"
 window_lock = "cli_windowLockout"
+
+[out]
+cap = "cli_windowCap"
