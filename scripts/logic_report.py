@@ -858,15 +858,23 @@ BLOCKS += [
 
  ("AcSupply", "site: blocks/", "one AC supply, mirrored and judged", {
    "kind": "flow",
-   "cols": [[("V, A, W, Hz", "four field reads", IN_C)],
-            [("deadband x4", "one per quantity", BLK_C)],
-            [("in_range", "V and Hz against their bands", BLK_C)],
-            [("status rows", "the mirror", OUT_C), ("ok", "", OUT_C),
-             ("fault", "out of spec, or gone silent", OUT_C)]],
-   "wires": [("V, A, W, Hz", "deadband x4", ""),
-             ("deadband x4", "status rows", ""),
-             ("V, A, W, Hz", "in_range", ""), ("in_range", "ok", ""),
-             ("in_range", "fault", "")],
+   "cols": [[("volts", "field read", IN_C), ("amps", "field read", IN_C),
+             ("watts", "field read", IN_C), ("hz", "field read", IN_C),
+             ("lo_V / hi_V", "the voltage band", PARAM_C),
+             ("lo_Hz / hi_Hz", "the frequency band", PARAM_C)],
+            [("deadband x4", "one per quantity", BLK_C),
+             ("in_range", "V and Hz against their bands", BLK_C)],
+            [("out_V / out_A / out_W / out_Hz", "the mirror", OUT_C),
+             ("ok", "measured and in spec", OUT_C),
+             ("fault", "out of spec, or gone silent", OUT_C),
+             ("answered", "so the caller can say DEGRADED", OUT_C)]],
+   "wires": [("volts", "deadband x4", ""), ("amps", "deadband x4", ""),
+             ("watts", "deadband x4", ""), ("hz", "deadband x4", ""),
+             ("deadband x4", "out_V / out_A / out_W / out_Hz", ""),
+             ("volts", "in_range", ""), ("hz", "in_range", ""),
+             ("lo_V / hi_V", "in_range", ""), ("lo_Hz / hi_Hz", "in_range", ""),
+             ("in_range", "ok", ""), ("in_range", "fault", ""),
+             ("volts", "answered", "")],
    "notes": ["The mirror exists because a field-read row carries no Modbus "
              "register of its own, so an external master could not see the "
              "meter without one.",
@@ -925,7 +933,12 @@ PINS = {
     "Actuator":   (("target", "cfg", "dt"), ("position", "moving", "open", "close")),
     "ValveController": (("duty", "period_ms", "min_on_ms", "dt"), ("coil",)),
     "ZoneProbes": (("probes[3]", "tau_s"), ("temperature", "humidity", "valid")),
-    "AcSupply":   (("rows",), ("ok", "fault")),
+    # Eight in and seven out: attach() names every one of them, and the
+    # readings and the bands they are judged against are not one input.
+    "AcSupply":   (("volts", "amps", "watts", "hz",
+                    "lo_V", "hi_V", "lo_Hz", "hi_Hz"),
+                   ("out_V", "out_A", "out_W", "out_Hz",
+                    "ok", "fault", "answered")),
 }
 
 
@@ -1159,12 +1172,21 @@ FBD = {
     {"out": "cli_dTStrat_degC"}),
  ],
  "ac_grid_watch": [
-   ("supply", "AcSupply", {"rows": "V, A, W, Hz"},
-    {"ok": "sys_ac_grid_ok", "fault": "alarm_ac_grid"}),
+   ("supply", "AcSupply",
+    {"volts": "grid_LN_V", "amps": "grid_total_A", "watts": "grid_total_W",
+     "hz": "grid_Hz", "lo_V": "pwr_gridLo_V", "hi_V": "pwr_gridHi_V",
+     "lo_Hz": "pwr_gridLo_Hz", "hi_Hz": "pwr_gridHi_Hz"},
+    {"out_V": "sys_grid_V", "out_A": "sys_grid_A", "out_W": "sys_grid_W",
+     "out_Hz": "sys_grid_Hz", "ok": "sys_grid_ok", "fault": "alarm_ac_grid"}),
  ],
  "ac_local_watch": [
-   ("supply", "AcSupply", {"rows": "V, A, W, Hz"},
-    {"ok": "sys_ac_local_ok", "fault": "alarm_ac_local"}),
+   ("supply", "AcSupply",
+    {"volts": "ats_V", "amps": "ats_A", "watts": "ats_W", "hz": "ats_Hz",
+     "lo_V": "pwr_localLo_V", "hi_V": "pwr_localHi_V",
+     "lo_Hz": "pwr_localLo_Hz", "hi_Hz": "pwr_localHi_Hz"},
+    {"out_V": "sys_local_V", "out_A": "sys_local_A", "out_W": "sys_local_W",
+     "out_Hz": "sys_local_Hz", "ok": "sys_local_ok",
+     "fault": "alarm_ac_local"}),
    ("cranking", "Plc::Ton", {"in": "grid gone and local dead",
                              "delay_ms": "start_s", "dt": "c.dt_ms"},
     {"q": "alarm_gen"}),
