@@ -49,6 +49,27 @@ namespace Botanik { namespace Plc {
         _seed = false;
     }
 
+    uint8_t Staircase3::operator()(float value, float edge1, float edge2,
+                                   float edge3, float hyst) {
+        if (hyst < 0.0f) hyst = 0.0f;
+        // Every rung is evaluated, not just the one above the reading: each
+        // holds its own release band, and a rung that stopped being asked
+        // would keep whichever side of it the reading was last on.
+        uint8_t level = 0;
+        if (_rung1(value, edge1 - hyst, edge1)) level = 1;
+        if (_rung2(value, edge2 - hyst, edge2)) level = 2;
+        if (_rung3(value, edge3 - hyst, edge3)) level = 3;
+        _level = level;
+        return _level;
+    }
+
+    void Staircase3::preset(uint8_t level) {
+        _rung1.preset(level >= 1);
+        _rung2.preset(level >= 2);
+        _rung3.preset(level >= 3);
+        _level = level;
+    }
+
     float Ramp::operator()(float target, float rate_per_s, uint32_t dt_ms) {
         if (!_seed) { _out = target; _seed = true; return _out; }
         // A non-positive rate is no motion, not motion the other way: the

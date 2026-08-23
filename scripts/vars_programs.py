@@ -27,7 +27,7 @@ PLC_BLOCKS = {
     "RTrig": "PLC_BLK_BASE", "FTrig": "PLC_BLK_BASE", "Sr": "PLC_BLK_BASE",
     "Rs": "PLC_BLK_BASE",
     "Hysteresis": "PLC_BLK_BASE", "Hysteresis3": "PLC_BLK_BASE",
-    "Staircase": "PLC_BLK_BASE", "Ramp": "PLC_BLK_BASE",
+    "Staircase3": "PLC_BLK_BASE", "Ramp": "PLC_BLK_BASE",
     "Deadband": "PLC_BLK_BASE", "Integral": "PLC_BLK_BASE",
     "Derivative": "PLC_BLK_BASE", "Actuator": "PLC_BLK_BASE",
     "Pid": "PLC_BLK_BASE",

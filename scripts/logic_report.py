@@ -683,17 +683,17 @@ BLOCKS = [
    "notes": ["Two thresholds, each with its own hysteresis, giving three "
              "levels. A level change needs the reading to cross a whole band."]}),
 
- ("Staircase<N>", "analog.h", "N rungs, each hysteretic", {
+ ("Staircase3", "analog.h", "three rungs, each hysteretic", {
    "kind": "curve",
    "points": [(0.0, 0.03), (0.22, 0.03), (0.22, 0.35), (0.5, 0.35),
               (0.5, 0.66), (0.78, 0.66), (0.78, 0.97), (1.0, 0.97)],
    "down": [(1.0, 0.97), (0.64, 0.97), (0.64, 0.66), (0.36, 0.66),
             (0.36, 0.35), (0.08, 0.35), (0.08, 0.03), (0.0, 0.03)],
-   "marks": [(0.08, "- hyst"), (0.22, "edge[0]"), (0.36, "- hyst"),
-             (0.5, "edge[1]"), (0.64, "- hyst"), (0.78, "edge[2]")],
-   "xlab": "value", "ylab": "level 0..N",
-   "notes": ["One Hysteresis per rung, each engaging at edge[i] and releasing "
-             "at edge[i] - hyst. Returns how many rungs the reading is above.",
+   "marks": [(0.08, "- hyst"), (0.22, "edge1"), (0.36, "- hyst"),
+             (0.5, "edge2"), (0.64, "- hyst"), (0.78, "edge3")],
+   "xlab": "value", "ylab": "level 0..3",
+   "notes": ["One Hysteresis per rung, each engaging at its edge and releasing "
+             "at edge - hyst. Returns how many rungs the reading is above.",
              "Used for: the fan speeds and the destratification bands - which "
              "is why a demand sitting on a rung does not step the relays."]}),
 
@@ -907,7 +907,7 @@ PINS = {
     "FTrig":      (("in",), ("q",)),
     "Hysteresis": (("value", "low", "high"), ("q",)),
     "Hysteresis3": (("value", "low", "high", "hyst"), ("band",)),
-    "Staircase":  (("value", "edge[]", "hyst"), ("level",)),
+    "Staircase3": (("value", "edge1", "edge2", "edge3", "hyst"), ("level",)),
     "Ramp":       (("target", "rate_per_s", "dt"), ("out",)),
     "Deadband":   (("value", "band"), ("out",)),
     "Ewma":       (("x", "tau_s", "dt"), ("out",)),
@@ -1046,12 +1046,14 @@ FBD = {
                              "dt": "c.dt_ms"}, {"q": "rain_lock"}),
  ],
  "destrat": [
-   ("bands", "Plc::Staircase<3>", {"value": "strat", "edge[]": "the three dT",
-                                   "hyst": "hyst"}, {"level": "cli_stratDem"}),
+   ("bands", "Plc::Staircase3", {"value": "strat", "edge1": "low",
+                                 "edge2": "med", "edge3": "high",
+                                 "hyst": "hyst"}, {"level": "cli_stratDem"}),
  ],
  "fans": [
-   ("steps", "Plc::Staircase<3>", {"value": "the fused demand",
-                                   "edge[]": "low/med/high", "hyst": "dem_hyst"},
+   ("steps", "Plc::Staircase3", {"value": "the fused demand",
+                                 "edge1": "low_dem", "edge2": "med_dem",
+                                 "edge3": "high_dem", "hyst": "dem_hyst"},
     {"level": "cli_fanSpeed"}),
  ],
  "humidity": [

@@ -50,7 +50,7 @@ private:
     /** @name VAR - function blocks
      *  @{ */
 
-    Plc::Staircase<3> bands;
+    Plc::Staircase3 bands;
 
     /** @} */
 

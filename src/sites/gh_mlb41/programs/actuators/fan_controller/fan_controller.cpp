@@ -36,9 +36,8 @@ uint8_t FanController::_band(float demand) {
     // Three rungs, each engaging at its own threshold and released a little
     // under it, which is what keeps a demand sitting on an edge from stepping
     // the relays. The block is the same one the destratification ladder uses.
-    const float step[3] = { low_dem.get(), med_dem.get(),
-                            high_dem.get() };
-    return steps(demand, step, dem_hyst.get());
+    return steps(demand, low_dem.get(), med_dem.get(), high_dem.get(),
+                 dem_hyst.get());
 }
 
 void FanController::_drive(uint8_t speed) {

@@ -56,7 +56,7 @@ private:
     /** @name VAR - function blocks
      *  @{ */
 
-    Plc::Staircase<3> steps;
+    Plc::Staircase3 steps;
 
     /** @} */
 

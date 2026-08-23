@@ -27,9 +27,8 @@ void DestratController::run(ProgramContext& c) {
     // own gap and released by the common hysteresis. All three, not two with
     // the middle one decided by a bare comparison: a speed change needs the gap
     // to have really moved, whichever pair of speeds it is between.
-    const float edge[3] = { low.get(), med.get(),
-                            high.get() };
-    const uint8_t speed = bands(strat.get(), edge, hyst.get());
+    const uint8_t speed = bands(strat.get(), low.get(), med.get(), high.get(),
+                                hyst.get());
 
     // The demand the arbitration reads is the FANS' OWN rung for that speed.
     // Any other number would have to be translated twice, and the two ladders

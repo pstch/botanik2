@@ -12,7 +12,7 @@ do not step between speeds on noise.
 """
 
 [block.bands]
-type = "Staircase<3>"
+type = "Staircase3"
 
 
 [in]

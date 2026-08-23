@@ -25,7 +25,7 @@ type = "void (uint8_t speed)"
 doc  = "Energise exactly one speed relay, or none."
 
 [block.steps]
-type = "Staircase<3>"
+type = "Staircase3"
 
 
 [in]
