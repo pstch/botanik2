@@ -344,6 +344,14 @@ void trace_weather(const Weather& wx, Site::DayPhase phase) {
     ScenarioTrace::weather("phase", PHASE[(int)phase]);
 }
 
+/** @brief Put the plant in one weather and one phase, and say so in the
+ *  report: what every scenario does before it asserts anything. */
+void hold(Plant& p, const Weather& wx, Site::DayPhase phase) {
+    settle(p, wx);
+    force_phase(p, phase);
+    trace_weather(wx, phase);
+}
+
 const Weather HOT_AFTERNOON = { 32.0f, 29.0f, 18.0f, 30.0f, 45.0f, 40.0f, 0.0f, 1.0f };
 const Weather COLD_NIGHT    = {  9.0f,  8.0f, 14.0f,  4.0f, 70.0f, 80.0f, 0.0f, 1.0f };
 const Weather DAMP_NIGHT    = { 14.0f, 13.5f, 13.0f,  8.0f, 96.0f, 75.0f, 0.0f, 1.0f };
@@ -421,9 +429,7 @@ TEST_CASE("scenario: a hot afternoon opens the roof and pulls cool ground air") 
         "32 degC under the ridge with 18 degC in the crawlspace: the whole "
         "cooling ladder, from the roof down to the wet skirt.");
     Plant p;
-    settle(p, HOT_AFTERNOON);
-    force_phase(p, Site::PHASE_DAY);
-    trace_weather(HOT_AFTERNOON, Site::PHASE_DAY);
+    hold(p, HOT_AFTERNOON, Site::PHASE_DAY);
     p.weather_for(400);
 
     SAY("the interior is well over the target, so the ladder is calling for "
@@ -459,9 +465,7 @@ TEST_CASE("scenario: a cold night deploys the screen and pulls ground heat") {
         "9 degC inside against 4 degC out, and 14 degC of stored heat under "
         "the floor: the negative half of the same ladder.");
     Plant p;
-    settle(p, COLD_NIGHT);
-    force_phase(p, Site::PHASE_NIGHT);
-    trace_weather(COLD_NIGHT, Site::PHASE_NIGHT);
+    hold(p, COLD_NIGHT, Site::PHASE_NIGHT);
     p.weather_for(600);
 
     SAY("the interior is well under the target, so the ladder is negative");
@@ -488,9 +492,7 @@ TEST_CASE("scenario: rain shuts the roof over the cooling ladder's objection") {
         "The weather interlock against the ladder: which of the two owns the "
         "roof, and how long the answer outlives the rain.");
     Plant p;
-    settle(p, HOT_AFTERNOON);
-    force_phase(p, Site::PHASE_DAY);
-    trace_weather(HOT_AFTERNOON, Site::PHASE_DAY);
+    hold(p, HOT_AFTERNOON, Site::PHASE_DAY);
     p.weather_for(900);
     REQUIRE(p.num("cli_window1_pos") > 0.9f);
     snapshot(p, "before the shower: the roof wide open");
@@ -518,9 +520,7 @@ TEST_CASE("scenario: a damp night vents, and refuses to wet the air further") {
         "96 % at 14 degC, under a degree of dew-point margin: the rot guard, "
         "and the one thing the wet skirt must never do.");
     Plant p;
-    settle(p, DAMP_NIGHT);
-    force_phase(p, Site::PHASE_NIGHT);
-    trace_weather(DAMP_NIGHT, Site::PHASE_NIGHT);
+    hold(p, DAMP_NIGHT, Site::PHASE_NIGHT);
     p.weather_for(600);
 
     SAY("96% at 14 degC is under a degree of dew-point margin: the rot guard "
@@ -547,9 +547,7 @@ TEST_CASE("scenario: a dry spell humidifies through the skirt") {
         "15 % at 28 degC: the other arm of the humidity ladder, and the only "
         "humidifier the plant has.");
     Plant p;
-    settle(p, DRY_SPELL);
-    force_phase(p, Site::PHASE_DAY);
-    trace_weather(DRY_SPELL, Site::PHASE_DAY);
+    hold(p, DRY_SPELL, Site::PHASE_DAY);
     p.weather_for(600);
 
     SAY("15% at 28 degC is a very large dew-point margin: the ladder's other "
@@ -569,9 +567,7 @@ TEST_CASE("scenario: a zone dying leaves the plant safe, not confident") {
         "All three of one level stop answering in the middle of a hot "
         "afternoon: what the plant does with a reading it no longer has.");
     Plant p;
-    settle(p, HOT_AFTERNOON);
-    force_phase(p, Site::PHASE_DAY);
-    trace_weather(HOT_AFTERNOON, Site::PHASE_DAY);
+    hold(p, HOT_AFTERNOON, Site::PHASE_DAY);
     p.weather_for(900);
     REQUIRE(p.num("cli_window1_pos") > 0.9f);
     const float was = p.num("cli_temp_hi");
@@ -612,9 +608,7 @@ TEST_CASE("scenario: the supply going down parks the plant") {
         "The UPS reports its battery going while the plant is working hard: "
         "the lockout is the plant's safe state, and it is reversible.");
     Plant p;
-    settle(p, HOT_AFTERNOON);
-    force_phase(p, Site::PHASE_DAY);
-    trace_weather(HOT_AFTERNOON, Site::PHASE_DAY);
+    hold(p, HOT_AFTERNOON, Site::PHASE_DAY);
     p.weather_for(900);
     REQUIRE(p.num("cli_window1_pos") > 0.9f);
 
@@ -657,9 +651,7 @@ TEST_CASE("scenario: a long hot spell does not cost minutes of recovery") {
         "Ten minutes of the cooling loop pinned at its limit, and what that "
         "costs when the house finally reaches its target.");
     Plant p;
-    settle(p, HOT_AFTERNOON);
-    force_phase(p, Site::PHASE_DAY);
-    trace_weather(HOT_AFTERNOON, Site::PHASE_DAY);
+    hold(p, HOT_AFTERNOON, Site::PHASE_DAY);
     p.weather_for(6000);        // ten minutes hard against the limit
     REQUIRE(p.num("cli_coolDem") > 0.9f);
     snapshot(p, "ten minutes hard against the limit");
@@ -706,9 +698,7 @@ TEST_CASE("scenario: a house sitting on a threshold does not thrash the plant") 
         "A tenth of a degree of probe noise either side of a gate's own "
         "margin, for a minute: the failure mode that wears hardware out.");
     Plant p;
-    settle(p, HOT_AFTERNOON);
-    force_phase(p, Site::PHASE_DAY);
-    trace_weather(HOT_AFTERNOON, Site::PHASE_DAY);
+    hold(p, HOT_AFTERNOON, Site::PHASE_DAY);
 
     // Park the interior where the intake gate lives: exactly the margin above
     // the crawlspace, which is where two converging spaces sit for hours.
