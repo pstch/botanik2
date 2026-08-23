@@ -78,6 +78,12 @@ namespace Botanik { namespace Vars {
          *  @note CONST: writing through a reference changes the TABLE, not the
          *  reference, exactly as writing through a pointer does. */
         void set(T v) const;
+
+        /** @brief Drive it, and say whether the value is CURRENT. The law runs
+         *  the same either way; the quality is what says nobody measured it.
+         *  @note @c set(v,false) is @c hold(v). */
+        void set(T v, bool current) const;
+
         /** @brief Whether the row carries a believable value. */
         bool valid() const;
 

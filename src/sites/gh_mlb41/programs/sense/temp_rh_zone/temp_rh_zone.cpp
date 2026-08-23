@@ -7,16 +7,6 @@
 
 namespace Site {
 
-namespace {
-    /** @brief A derived row, written every beat. @p seen is whether any level
-     *  measured what it came from; if none did the value stands, marked not
-     *  current. */
-    void publish(Vars::RefOut<float> row, float v, bool seen) {
-        if (seen) row.set(v);
-        else      row.hold(v);
-    }
-}  // namespace
-
 void TempRHZone::on_bind() {
     const float tau_s = 0.001f * (float)tau_ms.get();
     ceiling.attach(t_hi, h_hi, temp_hi, rh_hi, fault_hi, tau_s);
@@ -77,9 +67,9 @@ void TempRHZone::run(ProgramContext& c) {
     // one that does not gets the margin the house last really had rather than
     // a zero, which reads like saturated air.
     const bool seen = hi_ok || lo_ok;
-    publish(dew_point, worst_isceiling ? dp_hi : dp_lo, seen);
-    publish(dp_margin, worst_isceiling ? m_hi : m_lo, seen);
-    publish(sat_press, Plc::sat_vapour_pressure(t_worst), seen);
+    dew_point.set(worst_isceiling ? dp_hi : dp_lo, seen);
+    dp_margin.set(worst_isceiling ? m_hi : m_lo, seen);
+    sat_press.set(Plc::sat_vapour_pressure(t_worst), seen);
 
     // The worst case is per QUANTITY, not one level chosen for all of them: the
     // spec keeps the smallest dew-point margin for rot and the LOWEST VPD for
@@ -90,8 +80,8 @@ void TempRHZone::run(ProgramContext& c) {
                          Plc::sat_vapour_pressure(dp_hi);
     const float vpd_lo = Plc::sat_vapour_pressure(t_lo) -
                          Plc::sat_vapour_pressure(dp_lo);
-    publish(vpd, (hi_ok == lo_ok) ? Plc::min_of(vpd_hi, vpd_lo)
-                                  : (hi_ok ? vpd_hi : vpd_lo), seen);
+    vpd.set((hi_ok == lo_ok) ? Plc::min_of(vpd_hi, vpd_lo)
+                             : (hi_ok ? vpd_hi : vpd_lo), seen);
 
     const float limit = rot_limit.get();
     rot.set((worst_isceiling ? m_hi : m_lo) < limit);

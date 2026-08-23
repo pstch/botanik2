@@ -1017,6 +1017,12 @@ namespace Botanik { namespace Vars {
     }
 
     template <typename T, Dir D>
+    inline void Ref<T, D>::set(T v, bool current) const {
+        if (current) set(v);
+        else         hold(v);
+    }
+
+    template <typename T, Dir D>
     inline bool Ref<T, D>::valid() const { return io->var(r).valid(); }
 
     template <typename T, Dir D>

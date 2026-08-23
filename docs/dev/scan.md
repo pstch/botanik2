@@ -73,6 +73,17 @@ re-renders in place. Every diagram under `images/` works this way; see
   as it arrives (`publish()`, or `Bank::publish_wire()` for a scaled row, whose
   band is in the calibration's parameters) - a dead 4-20 mA loop reads full
   scale, and no timeout catches that.
+- **A program always writes its outputs**, every beat, whatever its inputs did.
+  It runs the same law on whatever those inputs hold and says so on the way out:
+  `Ref::set(v, current)` drives the value and drops the quality when `current`
+  is false (`set(v, false)` is `hold(v)`). Skipping the write leaves a stale
+  number reading `Q_GOOD`; substituting zero reads as a measurement, which is
+  how a dead probe becomes a greenhouse at 0 degC. Two things sit outside this.
+  An ACTUATOR goes to its declared safe state instead - a coil command is a
+  decision, not an estimate, and there is no invalid position for a relay. An
+  ALARM boolean cannot carry quality at all: `Vars::BankAlarms::raw()` reads the
+  bool and never the qual, so the only policy it can express is that an
+  unmeasured condition raises nothing.
 
 Rows carry independent ages, and nothing pretends otherwise: each has its own
 `stamp_ms` and `valid`. Snapshotting the image into a per-cycle shadow would
