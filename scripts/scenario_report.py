@@ -53,8 +53,10 @@ GROUPS = [
     ]),
     ("What was allowed", [
         "cli_intakeCoolOk", "cli_groundHeatOk", "cli_intakeDryOk",
-        "cli_rainLockout", "cli_windLockout", "sys_supply_lockout",
-        "alarm_rot", "alarm_too_hot", "alarm_too_cold", "alarm_sns_ceiling",
+        "cli_rainLockout", "cli_windLockout", "cli_windowCap",
+        "sys_supply_lockout",
+        "alarm_rot", "alarm_too_hot", "alarm_too_cold", "alarm_weather_storm",
+        "alarm_sns_ceiling",
         "alarm_irr_fill", "alarm_irr_drain", "alarm_irr_drain_tray1",
         "alarm_water_leak", "alarm_water_pressure",
     ]),
