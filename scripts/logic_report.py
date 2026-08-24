@@ -648,26 +648,44 @@ def timing_diagram(spec):
 
 
 ROLE_C = {"in": IN_C, "param": PARAM_C, "block": BLK_C, "out": OUT_C,
-          "status": STATUS_C, "alarm": ALARM_C}
+          "status": STATUS_C, "alarm": ALARM_C, "var": VAR_C}
 
 
-def site_catalogue(site_dir):
-    """The site's own blocks as catalogue entries, out of its blocks.toml.
+def catalogue(blocks, where):
+    """A blocks.toml as pages to draw.
 
-    A block of the site's is declared with the site; this turns that
-    declaration into the same shape the library's entries are written in, so
-    the two are drawn by one renderer and the report knows no site.
+    Every block is declared beside the code that implements it - the library's
+    with the library, a site's with the site - and this is the one place that
+    turns such a declaration into a page. Nothing here knows which it was.
     """
     out = []
-    for name, spec in vars_programs.site_blocks(site_dir).items():
-        inside = dict(spec.get("inside") or {})
-        inside["cols"] = [[(n, sub, ROLE_C.get(role, BLK_C))
-                           for n, sub, role in col]
-                          for col in inside.get("cols", [])]
-        inside["wires"] = [tuple(w) for w in inside.get("wires", [])]
-        inside["notes"] = list(spec.get("notes", []))
-        out.append((name, "site: blocks/", spec.get("brief", ""), inside))
+    for name, spec in blocks.items():
+        inside = spec.get("inside")
+        if not inside:
+            continue                       # pins only: nothing to draw
+        page = dict(inside)
+        page["cols"] = [[(n, sub, ROLE_C.get(role, BLK_C))
+                         for n, sub, role in col]
+                        for col in inside.get("cols", [])]
+        for k in ("wires", "edges", "states", "marks", "points", "down"):
+            if k in inside:
+                page[k] = [tuple(x) for x in inside[k]]
+        if "traces" in inside:
+            page["traces"] = [(n, [tuple(q) for q in pts])
+                              for n, pts in inside["traces"]]
+        page["notes"] = list(spec.get("notes", []))
+        out.append((name, spec.get("header", where), spec.get("brief", ""),
+                    page))
     return out
+
+
+def all_blocks(site_dir):
+    """Every block worth a page: the library's, then the site's own."""
+    lib = []
+    for path in vars_programs.LIB_BLOCKS:
+        lib += catalogue(vars_programs.read_blocks(path), "libbotanik")
+    return lib + catalogue(vars_programs.site_blocks(site_dir),
+                           "site: blocks/")
 
 
 LAYOUT = {"flow": flow_diagram, "states": states_diagram,
@@ -684,241 +702,6 @@ def _sq(*levels):
     return list(levels)
 
 
-BLOCKS = [
- ("Ton", "timers.h", "IEC TON, on-delay", {
-   "kind": "timing",
-   "traces": [("in", _sq((0.15, 0), (0.75, 1), (1.0, 0))),
-              ("q",  _sq((0.45, 0), (0.75, 1), (1.0, 0)))],
-   "marks": [(0.15, "in rises"), (0.45, "+delay"), (0.75, "in drops")],
-   "notes": ["q goes true once in has held true for delay_ms, and false the "
-             "moment in drops.",
-             "elapsed_ms() saturates at the delay, so it reads as a "
-             "\"starting in N s\" countdown and never runs away.",
-             "Used for: a contact debounce (dc_watch), a generator's cranking "
-             "time (ac_local_watch), a state dwell (irrigation)."]}),
-
- ("Tof", "timers.h", "IEC TOF, off-delay", {
-   "kind": "timing",
-   "traces": [("in", _sq((0.15, 0), (0.5, 1), (1.0, 0))),
-              ("q",  _sq((0.15, 0), (0.8, 1), (1.0, 0)))],
-   "marks": [(0.15, "in rises"), (0.5, "in drops"), (0.8, "+delay")],
-   "notes": ["q follows in UP immediately and holds true for delay_ms after it "
-             "drops. A minimum run time, or an overrun.",
-             "Used for: the rain lockout outliving the shower (roof_lockout), "
-             "the rot lockout's release (humidity)."]}),
-
- ("Tp", "timers.h", "IEC TP, pulse", {
-   "kind": "timing",
-   "traces": [("in", _sq((0.15, 0), (0.3, 1), (0.62, 0), (0.68, 1), (1.0, 0))),
-              ("q",  _sq((0.15, 0), (0.55, 1), (1.0, 0)))],
-   "marks": [(0.15, "rising edge"), (0.55, "+width")],
-   "notes": ["A rising in starts a pulse of exactly width_ms, and the pulse "
-             "RUNS TO COMPLETION whatever in does next - a second edge inside "
-             "it is ignored.",
-             "Used for: nothing now. The thermal screen's traverse was a Tp "
-             "until the fabric became a Plc::Actuator, which times the stroke "
-             "and knows where it ended."]}),
-
- ("RTrig / FTrig", "logic.h", "IEC R_TRIG / F_TRIG, edge detectors", {
-   "kind": "timing",
-   "traces": [("in",    _sq((0.15, 0), (0.55, 1), (1.0, 0))),
-              ("RTrig", _sq((0.15, 0), (0.21, 1), (1.0, 0))),
-              ("FTrig", _sq((0.55, 0), (0.61, 1), (1.0, 0)))],
-   "marks": [(0.15, "rise"), (0.55, "fall")],
-   "notes": ["True for exactly ONE activation, on the edge. e = in && !prev "
-             "for RTrig; e = !in && prev for FTrig.",
-             "An edge detector in front of a signal that is already one scan "
-             "wide adds nothing - which is why the screen lost one."]}),
-
- ("Sr / Rs", "logic.h", "IEC SR / RS, the two latches", {
-   "kind": "states",
-   "states": [("q = false", "at rest"), ("q = true", "latched")],
-   "edges": [("q = false", "q = true", "set"),
-             ("q = true", "q = false", "reset")],
-   "notes": ["Sr is SET-dominant: q = set || (q && !reset). Both true, and it "
-             "latches.",
-             "Rs is RESET-dominant: q = !reset && (set || q). Both true, and it "
-             "drops. Pick the one whose dominant input is the safe one - a "
-             "lockout that must clear on recovery is an Rs."]}),
-
- ("Hysteresis", "analog.h", "a band with two edges", {
-   "kind": "curve",
-   "points": [(0.0, 0.05), (0.55, 0.05), (0.55, 0.9), (1.0, 0.9)],
-   "down": [(1.0, 0.9), (0.3, 0.9), (0.3, 0.05), (0.0, 0.05)],
-   "marks": [(0.3, "low"), (0.55, "high")],
-   "xlab": "value", "ylab": "q",
-   "notes": ["q goes true at high and false at low, and NOTHING happens in "
-             "between: a reading sitting on one threshold cannot chatter.",
-             "The two curves never meet between low and high: which one the "
-             "block is on is the state it keeps.",
-             "Used for: the intake gates (cooling), the dryness gate "
-             "(humidity)."]}),
-
- ("Hysteresis3", "analog.h", "three bands, one reading", {
-   "kind": "curve",
-   "points": [(0.0, 0.05), (0.3, 0.05), (0.3, 0.45), (0.62, 0.45),
-              (0.62, 0.85), (1.0, 0.85)],
-   "down": [(1.0, 0.85), (0.46, 0.85), (0.46, 0.45), (0.14, 0.45),
-            (0.14, 0.05), (0.0, 0.05)],
-   "marks": [(0.14, "e1 - hyst"), (0.3, "edge 1"), (0.46, "e2 - hyst"),
-             (0.62, "edge 2")],
-   "xlab": "value", "ylab": "level",
-   "notes": ["Two thresholds, each with its own hysteresis, giving three "
-             "levels. A level change needs the reading to cross a whole band."]}),
-
- ("Staircase3", "analog.h", "three rungs, each hysteretic", {
-   "kind": "curve",
-   "points": [(0.0, 0.03), (0.22, 0.03), (0.22, 0.35), (0.5, 0.35),
-              (0.5, 0.66), (0.78, 0.66), (0.78, 0.97), (1.0, 0.97)],
-   "down": [(1.0, 0.97), (0.64, 0.97), (0.64, 0.66), (0.36, 0.66),
-            (0.36, 0.35), (0.08, 0.35), (0.08, 0.03), (0.0, 0.03)],
-   "marks": [(0.08, "- hyst"), (0.22, "edge1"), (0.36, "- hyst"),
-             (0.5, "edge2"), (0.64, "- hyst"), (0.78, "edge3")],
-   "xlab": "value", "ylab": "level 0..3",
-   "notes": ["One Hysteresis per rung, each engaging at its edge and releasing "
-             "at edge - hyst. Returns how many rungs the reading is above.",
-             "Used for: the fan speeds and the destratification bands - which "
-             "is why a demand sitting on a rung does not step the relays."]}),
-
- ("Ramp", "analog.h", "IEC RAMP, a rate limiter", {
-   "kind": "curve",
-   "points": [(0.0, 0.1), (0.12, 0.1), (0.62, 0.85), (1.0, 0.85)],
-   "marks": [(0.12, "target steps")],
-   "xlab": "time", "ylab": "out",
-   "notes": ["The output moves toward the target by at most rate_per_s, so a "
-             "step demand becomes a slope the mechanics can follow.",
-             "preset() jumps without ramping, for a mode change."]}),
-
- ("Deadband", "analog.h", "report only a real move", {
-   "kind": "curve",
-   "points": [(0.0, 0.2), (0.28, 0.2), (0.28, 0.5), (0.66, 0.5), (0.66, 0.8),
-              (1.0, 0.8)],
-   "down": [(1.0, 0.8), (0.5, 0.8), (0.5, 0.5), (0.12, 0.5), (0.12, 0.2),
-            (0.0, 0.2)],
-   "marks": [(0.12, "-band"), (0.28, "+band"), (0.5, "-band"),
-             (0.66, "+band")],
-   "xlab": "value", "ylab": "reported",
-   "notes": ["Holds the last reported figure until the input has moved more "
-             "than band from it, then adopts the new one whole.",
-             "Suppresses jitter without lagging a real change - a meter's last "
-             "digit is not a telemetry publish and not a register write."]}),
-]
-
-BLOCKS += [
- ("Ewma", "filters.h", "an exponential average, against dt", {
-   "kind": "flow",
-   "cols": [[("value", "the reading", IN_C)],
-            [("alpha", "dt / (tau + dt)", VAR_C)],
-            [("state", "s += alpha * (value - s)", BLK_C)],
-            [("out", "s", OUT_C)]],
-   "wires": [("value", "state", ""), ("alpha", "state", ""),
-             ("state", "out", "")],
-   "notes": ["Filtered against the REAL dt, not a fixed blend: a program due "
-             "late runs once with the whole elapsed time, and a constant alpha "
-             "would silently change the time constant when the scan slipped.",
-             "Used for: the probe zones, the DC rail averages, the outlet flow."]}),
-
- ("MedianOf3", "filters.h", "the middle of three", {
-   "kind": "flow",
-   "cols": [[("a", "", IN_C), ("b", "", IN_C), ("c", "", IN_C)],
-            [("sort", "drop high and low", BLK_C)],
-            [("out", "the middle one", OUT_C)]],
-   "wires": [("a", "sort", ""), ("b", "sort", ""), ("c", "sort", ""),
-             ("sort", "out", "")],
-   "notes": ["One spike cannot move the answer, which is what a median buys "
-             "over a mean. Stateless."]}),
-
- ("MovingAverage<N>", "filters.h", "the last N samples, evenly weighted", {
-   "kind": "flow",
-   "cols": [[("value", "", IN_C)],
-            [("ring", "N slots, oldest overwritten", BLK_C)],
-            [("out", "sum / count", OUT_C)]],
-   "wires": [("value", "ring", ""), ("ring", "out", "")],
-   "notes": ["Every sample counts the same, and one leaves the window "
-             "entirely - where an Ewma's oldest reading only ever fades.",
-             "Fixed storage: N floats, no allocation."]}),
-
- ("Integral", "meter.h", "a rate becomes a total", {
-   "kind": "flow",
-   "cols": [[("rate_per_s", "", IN_C), ("cutoff", "", IN_C)],
-            [("gate", "|rate| < cutoff -> 0", BLK_C)],
-            [("accumulate", "total += rate * dt", BLK_C)],
-            [("total", "double, so it does not lose the small ones", OUT_C)]],
-   "wires": [("rate_per_s", "gate", ""), ("cutoff", "gate", ""),
-             ("gate", "accumulate", ""), ("accumulate", "total", "")],
-   "notes": ["The cutoff is a LIVE ZERO: a 4-20 mA loop sitting on its own "
-             "noise would otherwise totalize a plausible volume with every "
-             "valve shut.",
-             "The total is a double - a float loses a small rate against a "
-             "large total, which is exactly what a meter does all day."]}),
-
- ("Derivative", "meter.h", "a total becomes a rate", {
-   "kind": "flow",
-   "cols": [[("quantity", "", IN_C), ("window_ms", "", IN_C)],
-            [("wait", "until elapsed >= window", BLK_C)],
-            [("divide", "(q - prev) / elapsed", BLK_C)],
-            [("rate", "held between windows", OUT_C)]],
-   "wires": [("quantity", "wait", ""), ("window_ms", "wait", ""),
-             ("wait", "divide", ""), ("divide", "rate", "")],
-   "notes": ["Over the time ACTUALLY accumulated, not the nominal window: a "
-             "late scan overshoots it, and dividing by the nominal figure would "
-             "report a rate that never happened.",
-             "Between windows the last rate stands rather than reading zero."]}),
-
- ("Pid", "pid.h", "hold a reading at a setpoint", {
-   "kind": "flow",
-   "cols": [[("sp", "setpoint", IN_C), ("pv", "the reading", IN_C)],
-            [("error", "sp - pv, sign-corrected", BLK_C)],
-            [("P", "kp * error", BLK_C),
-             ("I", "+= ki * error * dt", BLK_C),
-             ("D", "-kd * d(pv)/dt", BLK_C)],
-            [("sum", "P + I + D", BLK_C)],
-            [("clamp", "out_min .. out_max", OUT_C)]],
-   "wires": [("sp", "error", ""), ("pv", "error", ""), ("error", "P", ""),
-             ("error", "I", ""), ("pv", "D", ""), ("P", "sum", ""),
-             ("I", "sum", ""), ("D", "sum", ""), ("sum", "clamp", "")],
-   "notes": ["Three departures from the textbook sum, all affecting tuning:",
-             "- DERIVATIVE ON THE MEASUREMENT, not the error: a typed setpoint "
-             "does not slam the output.",
-             "- CONDITIONAL INTEGRATION: the integral stops accumulating while "
-             "the output is saturated, so there is no back-calculation gain to "
-             "tune.",
-             "- The integral is clamped to the OUTPUT span, so it cannot wind "
-             "up somewhere the actuator could never follow.",
-             "preset() forces the output and makes the integral carry it, for "
-             "a bumpless hand-back from manual."]}),
-]
-
-BLOCKS += [
- ("Actuator", "actuator.h", "two coils, no feedback, a position ESTIMATE", {
-   "kind": "states",
-   "states": [("UNKNOWN", "no datum yet"), ("OPENING", "open coil"),
-              ("OPEN", "off the seat"), ("CLOSING", "close coil"),
-              ("CLOSED", "on the seat")],
-   "edges": [("UNKNOWN", "OPENING", "target high"),
-             ("UNKNOWN", "CLOSING", "target low"),
-             ("OPENING", "OPEN", "stroke ends"),
-             ("OPEN", "CLOSING", "target below"),
-             ("CLOSING", "CLOSED", "reaches the seat"),
-             ("CLOSED", "OPENING", "target above")],
-   "notes": ["CLOSED means ON THE SEAT, which only a stroke to the closed end "
-             "produces. Anything else at rest is OPEN, with position() for the "
-             "detail: a claim about the seal, not a number.",
-             "From UNKNOWN it drives to whichever end the target is nearer and "
-             "datums there, and that stroke is COMMITTED - it cannot be "
-             "interrupted, because a half-finished datum knows nothing.",
-             "Enforced: the coils are never both energised; a reversal passes "
-             "through reverse_ms with both dropped (a contactor that makes "
-             "before the other breaks shorts the motor); a move under "
-             "min_run_ms is not made at all.",
-             "The estimate drifts, because nothing between the stops can "
-             "correct it. Past redatum_travel the next PARTIAL move detours to "
-             "the closed seat first and buys a known position for one stroke.",
-             "Used for: the four roof windows, and the thermal screen - which "
-             "PRESETS rather than datums, because its coil is held and deploys "
-             "de-energised, so a released coil already says where the fabric "
-             "is."]}),
-]
 
 
 # --- FBD: the network a program declares, drawn --------------------------------
@@ -1587,7 +1370,7 @@ def main(site="gh_mlb41"):
         c.drawString(40, ph - 150 - i * 13, l)
     c.setFont("Helvetica", 9)
     c.drawString(40, 60, f"{len(progs)} programs, "
-                         f"{len(BLOCKS) + len(site_catalogue(site_dir))} blocks. "
+                         f"{len(all_blocks(site_dir))} blocks. "
                          f"One-time report: scripts/logic_report.py")
     c.showPage()
 
@@ -1612,7 +1395,7 @@ def main(site="gh_mlb41"):
             page(c, p["name"] + ": the network", sub, fprims, fdw, fdh, [])
             made += 1
 
-    for name, where, what, spec in BLOCKS + site_catalogue(site_dir):
+    for name, where, what, spec in all_blocks(site_dir):
         prims, dw, dh = LAYOUT[spec["kind"]](spec)
         _audit(prims, name, crossings)
         prims, dw, dh = _held("block_" + name.split()[0].replace("<", "")

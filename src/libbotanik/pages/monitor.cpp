@@ -34,6 +34,7 @@ namespace Botanik { namespace Pages {
         if (cmd == Command::CTRL_R) { _clear_override();  return; }
         if (cmd == Command::CTRL_S) { _save_override();   return; }
         if (_filter_command(cmd)) return;       // BACKSPACE pops, ESC clears
+        if (_mode_command(cmd)) return;         // LEFT/RIGHT change the view
         if (_nav_command(cmd)) _dirty = true;   // redraw next tick, not the cadence
     }
 
@@ -56,6 +57,9 @@ namespace Botanik { namespace Pages {
         if (!_dirty && now - _last_refresh_ms < Config::PAGE_HOT_MS) return;
         _last_refresh_ms = now;
         _dirty = false;
+        // A live view selects on readings, so a row can join or leave the set
+        // between two refreshes with nothing to bump a generation.
+        if (_mode_is_live()) _invalidate_rows();
         uint16_t win = _window();
         _clamp_selection();
         _follow_selection();
@@ -74,10 +78,20 @@ namespace Botanik { namespace Pages {
         _draw_prompt_row();
     }
 
+    const char* MonitorPage::_mode_label(uint8_t i) const {
+        static const char* const labels[MODE_COUNT] = {"all", "invalid", "override"};
+        return i < MODE_COUNT ? labels[i] : "all";
+    }
+
     bool MonitorPage::_visible(uint16_t i) const {
-        const Vars::Descriptor& d = *_io->var(i).meta();
-        if (!Vars::var_published(d)) return false;
-        return _filter_match(d.name);
+        Vars::Var h = _io->var(i);
+        if (!Vars::var_published(*h.meta())) return false;
+        if (!_filter_match(h.meta()->name)) return false;
+        switch (_mode) {
+            case MODE_INVALID:  return !h.live().good();
+            case MODE_OVERRIDE: return h.override().present();
+            default:            return true;
+        }
     }
 
     uint16_t MonitorPage::_total() const {

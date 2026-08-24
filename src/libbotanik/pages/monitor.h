@@ -14,8 +14,11 @@
  *   rows 4..N-3      one row per status variable (window into the full set)
  *   row N-8          bottom rule (corners cap to 'v' when hidden below)
  *   rows N-7..N-3    detail panel: Description / Notes / Mapping / Quality
- *   row N-2          legend: [filter] badge + position + hint
+ *   row N-2          legend: view badge + position + [filter] + hint
  *   row N-1          the override field, or what the last override key did
+ *
+ * LEFT / RIGHT step the view: every published row, only the ones reading dead,
+ * or only the ones being forced. The typed filter narrows whichever is showing.
  *
  * The one page that FORCES a row as well as showing it: `^O` opens an override
  * field on the bottom row (ENTER commits, ESC abandons), `^V` toggles whether
@@ -78,6 +81,27 @@ namespace Botanik { namespace Pages {
         enum { C_SCOPE = 0, C_NAME, C_VALUE, C_UNIT, C_OVR };
         /** @} */
 
+        /** @name Views
+         *  The base's view-mode machinery (scroll_table.h): RIGHT steps
+         *  forward, LEFT back. The two narrow views select on exactly what the
+         *  VALUE column already flags per row, [I] and [O], so the badge and
+         *  the letters cannot say different things.
+         *  @{ */
+        static constexpr uint8_t MODE_ALL      = 0;  // every published row
+        static constexpr uint8_t MODE_INVALID  = 1;  // the reading is not good
+        static constexpr uint8_t MODE_OVERRIDE = 2;  // a force is standing
+        static constexpr uint8_t MODE_COUNT    = 3;
+
+        uint8_t _mode_count() const override { return MODE_COUNT; }
+        const char* _mode_label(uint8_t i) const override;
+        /** @brief A new view keeps a different set of rows, so the caches the
+         *  old one filled say nothing. */
+        void _on_mode_changed() override { _invalidate_rows(); _dirty = true; }
+        /** @brief True while the view selects on LIVE state, which moves with no
+         *  keypress behind it: its row set has to be re-counted every refresh. */
+        bool _mode_is_live() const { return _mode != MODE_ALL; }
+        /** @} */
+
         /** @name State
          *  @{ */
         /** @brief Sequential-scan memo for _ref_at(), and the cached row total.
@@ -86,14 +110,15 @@ namespace Botanik { namespace Pages {
          *  substring search per row), and _ref_at() runs once per DRAWN row: a
          *  12-row window over a 259-row table is ~3100 searches a refresh. Rows
          *  are drawn top to bottom, so remembering the last (row -> index) pair
-         *  turns the walk into a resume. Invalidated by _on_filter_changed(),
-         *  the only thing that moves the mapping - the table's rows and scopes
-         *  are fixed at build time. */
+         *  turns the walk into a resume. Invalidated by whatever moves the
+         *  mapping: the filter, the view, and - in a live view - every refresh,
+         *  since the readings a view selects on move with no keypress. */
         mutable uint16_t    _memo_row  = 0;
         mutable uint16_t    _memo_idx  = 0;
         mutable bool        _memo_ok   = false;
         mutable uint16_t    _total_n   = 0;
-        /** @brief Which filter _total_n was counted for; 0 = none yet.
+        /** @brief Which filter _total_n was counted for; 0 = none yet, and how
+         *  _invalidate_rows() drops it.
          *  Holding the generation rather than a valid flag makes the
          *  invalidation structural: a path that moves the filter without going
          *  through _on_filter_changed() still cannot leave a stale count
@@ -194,11 +219,16 @@ namespace Botanik { namespace Pages {
 
         void _on_filter_changed() override {
             _dirty = true;
-            _memo_ok = false;      // the row -> index mapping just moved
+            _invalidate_rows();    // the row -> index mapping just moved
         }
 
-        /** @brief Whether row @p i is in the table at all, and past the filter:
-         *  every published row whose name holds the typed text. */
+        /** @brief Drop the row caches: the (row -> index) memo and the total.
+         *  _total_gen is a filter generation, and those are never 0. */
+        void _invalidate_rows() const { _memo_ok = false; _total_gen = 0; }
+
+        /** @brief Whether row @p i is in the table at all, past the filter and
+         *  kept by the view: a published row whose name holds the typed text,
+         *  and which reads dead / is forced when the view asks for that. */
         bool _visible(uint16_t i) const;
 
         uint16_t _total() const;

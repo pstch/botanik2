@@ -16,7 +16,7 @@ hooks  = ["on_bind"]
 
 [block.pulse]
 type    = "ValveController"
-include = "blocks/valve_controller.h"
+include = "blocks/valve_controller/valve_controller.h"
 doc     = "the on-time within a period"
 
 [in]

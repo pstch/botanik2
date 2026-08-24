@@ -1,0 +1,38 @@
+# ac_supply.toml - what this block presents, and what it does inside.
+#
+# Beside the header it describes, the way a program is declared beside
+# its body. The pins are what a network naming this block is checked
+# against; `inside` is its page in the logic report.
+
+[AcSupply]
+header = "blocks/ac_supply/ac_supply.h"
+brief = "one AC supply, mirrored and judged"
+in    = ["volts", "amps", "watts", "hz", "lo_V", "hi_V", "lo_Hz", "hi_Hz"]
+out   = ["out_V", "out_A", "out_W", "out_Hz", "ok", "fault", "answered"]
+notes = [
+  "The mirror exists because a field-read row carries no Modbus register of its own, so an external master could not see the meter without one.",
+  "A meter that has NEVER answered is bring-up, not a fault. Only one that answered and then stopped raises it.",
+  "Bound from either supply's interface by template: the grid and the generator declare the same member names, and the compiler is what holds them to it.",
+]
+[AcSupply.inside]
+kind = "flow"
+cols = [
+  [["volts", "field read", "in"], ["amps", "field read", "in"],
+   ["watts", "field read", "in"], ["hz", "field read", "in"],
+   ["lo_V / hi_V", "the voltage band", "param"],
+   ["lo_Hz / hi_Hz", "the frequency band", "param"]],
+  [["deadband x4", "one per quantity", "block"],
+   ["in_range", "V and Hz against their bands", "block"]],
+  [["out_V / out_A / out_W / out_Hz", "the mirror", "out"],
+   ["ok", "measured and in spec", "out"],
+   ["fault", "out of spec, or gone silent", "out"],
+   ["answered", "so the caller can say DEGRADED", "out"]],
+]
+wires = [
+  ["volts", "deadband x4", ""], ["amps", "deadband x4", ""],
+  ["watts", "deadband x4", ""], ["hz", "deadband x4", ""],
+  ["deadband x4", "out_V / out_A / out_W / out_Hz", ""],
+  ["volts", "in_range", ""], ["hz", "in_range", ""],
+  ["lo_V / hi_V", "in_range", ""], ["lo_Hz / hi_Hz", "in_range", ""],
+  ["in_range", "ok", ""], ["in_range", "fault", ""], ["volts", "answered", ""],
+]

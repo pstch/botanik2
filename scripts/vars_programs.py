@@ -47,22 +47,6 @@ PLC_BLOCKS = {
 # holds; a CamelCase one is a function block, and the program's [block] section
 # has to declare it.
 PINS = {
-    "Ton":        (("in", "delay_ms", "dt"), ("q",)),
-    "Tof":        (("in", "delay_ms", "dt"), ("q",)),
-    "Tp":         (("in", "width_ms", "dt"), ("q",)),
-    "Sr":         (("set", "reset"), ("q",)),
-    "Rs":         (("set", "reset"), ("q",)),
-    "RTrig":      (("in",), ("q",)),
-    "FTrig":      (("in",), ("q",)),
-    "Hysteresis": (("value", "low", "high"), ("q",)),
-    "Hysteresis3": (("value", "low", "high", "hyst"), ("band",)),
-    "Staircase3": (("value", "edge1", "edge2", "edge3", "hyst"), ("level",)),
-    "Ramp":       (("target", "rate_per_s", "dt"), ("out",)),
-    "Deadband":   (("value", "band"), ("out",)),
-    "Ewma":       (("x", "tau_s", "dt"), ("out",)),
-    # push is the CALL, not a parameter: this block samples only when the law
-    # asks it to, and a page that did not show what asks is missing the design.
-    "ExpMovingAverage": (("x", "push"), ("out",)),
     # plc/functions/ - the vocabulary a law calls by name.
     "sub":        (("in1", "in2"), ("out",)),
     "abs_of":     (("in",), ("out",)),
@@ -100,30 +84,51 @@ PINS = {
     "mul":        (("in1", "in2"), ("out",)),
     "div":        (("in1", "in2"), ("out",)),
     "expt":       (("in1", "in2"), ("out",)),
-    "MedianOf3":  (("x",), ("out",)),
-    "MovingAverage": (("x",), ("out",)),
-    "Integral":   (("rate_per_s", "dt", "cutoff"), ("total",)),
-    "Derivative": (("quantity", "window_ms", "dt"), ("rate",)),
-    "Pid":        (("sp", "pv", "tuning", "dt"), ("out",)),
-    "Actuator":   (("target", "cfg", "dt"), ("position", "moving", "open", "close")),
 }
 
 
-def site_blocks(site_dir):
-    """The site's OWN function blocks, out of blocks/blocks.toml.
-
-    The library's are above; a site's are its own and are declared with it, so
-    this file knows what every block presents without knowing any site.
-    """
+def read_blocks(path):
+    """A blocks.toml: what each function block presents, and its reference
+    page. The library has one beside its headers and a site has one of its
+    own, and neither this file nor the report knows the difference."""
     try:
         import tomllib
     except ImportError:                       # pragma: no cover
         return {}
-    path = os.path.join(site_dir, "blocks", "blocks.toml")
     if not os.path.exists(path):
         return {}
     with open(path, "rb") as f:
         return tomllib.load(f)
+
+
+def _pins_from(blocks):
+    """Fold a blocks.toml's pins into the table check_net reads.
+
+    One entry can name a PAIR - `RTrig / FTrig` is one page and two blocks -
+    and a template's argument is not part of its name.
+    """
+    for name, spec in blocks.items():
+        pins = (tuple(spec.get("in", ())), tuple(spec.get("out", ())))
+        for one in name.split("/"):
+            PINS[one.strip().split("<")[0]] = pins
+
+
+_LIB = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                    "src", "libbotanik")
+LIB_BLOCKS = (os.path.join(_LIB, "plc", "blocks", "blocks.toml"),
+              os.path.join(_LIB, "utils", "blocks.toml"))
+for _p in LIB_BLOCKS:
+    _pins_from(read_blocks(_p))
+
+
+def site_blocks(site_dir):
+    """The site's OWN function blocks: one directory each, declared beside the
+    header it describes, the way a program is declared beside its body."""
+    out = {}
+    for path in sorted(glob.glob(os.path.join(site_dir, "blocks", "*",
+                                              "*.toml"))):
+        out.update(read_blocks(path))
+    return out
 
 
 def is_function(type_name):
@@ -171,8 +176,7 @@ def load(site_dir):
     except ImportError:                       # pragma: no cover
         sys.exit("the program tables need Python 3.11+ for tomllib")
 
-    for _name, _spec in site_blocks(site_dir).items():
-        PINS[_name] = (tuple(_spec.get("in", ())), tuple(_spec.get("out", ())))
+    _pins_from(site_blocks(site_dir))
 
     root = os.path.join(site_dir, "programs")
     if not os.path.isdir(root):

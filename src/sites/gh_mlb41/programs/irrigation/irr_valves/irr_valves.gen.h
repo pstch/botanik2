@@ -12,7 +12,7 @@
 
 #include "../../../vars.h"
 
-#include "../../../blocks/valve_controller.h"
+#include "../../../blocks/valve_controller/valve_controller.h"
 
 namespace Site {
 

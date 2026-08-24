@@ -12,7 +12,7 @@
 
 #include "../../../vars.h"
 
-#include "../../../blocks/ac_supply.h"
+#include "../../../blocks/ac_supply/ac_supply.h"
 
 namespace Site {
 

@@ -12,7 +12,7 @@
 
 #include "../../../vars.h"
 
-#include "../../../blocks/zone_probes.h"
+#include "../../../blocks/zone_probes/zone_probes.h"
 
 namespace Site {
 

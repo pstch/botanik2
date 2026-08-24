@@ -13,18 +13,18 @@ hooks  = ["on_bind"]
 [block.inlet_v]
 type    = "ValveController"
 count   = 2
-include = "blocks/valve_controller.h"
+include = "blocks/valve_controller/valve_controller.h"
 doc     = "two contactors on one manifold"
 
 [block.outlet_v]
 type    = "ValveController"
 count   = 2
-include = "blocks/valve_controller.h"
+include = "blocks/valve_controller/valve_controller.h"
 
 [block.tray_v]
 type    = "ValveController"
 count   = 8
-include = "blocks/valve_controller.h"
+include = "blocks/valve_controller/valve_controller.h"
 
 [in]
 state  = "irr_state"
