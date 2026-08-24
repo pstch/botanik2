@@ -106,17 +106,24 @@ PINS = {
     "Derivative": (("quantity", "window_ms", "dt"), ("rate",)),
     "Pid":        (("sp", "pv", "tuning", "dt"), ("out",)),
     "Actuator":   (("target", "cfg", "dt"), ("position", "moving", "open", "close")),
-    "ValveController": (("duty", "period_ms", "min_on_ms", "dt"),
-                        ("coil", "on_time")),
-    "ZoneProbes": (("t", "h", "tau_s"),
-                   ("temperature", "humidity", "valid")),
-    # Eight in and seven out: attach() names every one of them, and the
-    # readings and the bands they are judged against are not one input.
-    "AcSupply":   (("volts", "amps", "watts", "hz",
-                    "lo_V", "hi_V", "lo_Hz", "hi_Hz"),
-                   ("out_V", "out_A", "out_W", "out_Hz",
-                    "ok", "fault", "answered")),
 }
+
+
+def site_blocks(site_dir):
+    """The site's OWN function blocks, out of blocks/blocks.toml.
+
+    The library's are above; a site's are its own and are declared with it, so
+    this file knows what every block presents without knowing any site.
+    """
+    try:
+        import tomllib
+    except ImportError:                       # pragma: no cover
+        return {}
+    path = os.path.join(site_dir, "blocks", "blocks.toml")
+    if not os.path.exists(path):
+        return {}
+    with open(path, "rb") as f:
+        return tomllib.load(f)
 
 
 def is_function(type_name):
@@ -163,6 +170,9 @@ def load(site_dir):
         import tomllib
     except ImportError:                       # pragma: no cover
         sys.exit("the program tables need Python 3.11+ for tomllib")
+
+    for _name, _spec in site_blocks(site_dir).items():
+        PINS[_name] = (tuple(_spec.get("in", ())), tuple(_spec.get("out", ())))
 
     root = os.path.join(site_dir, "programs")
     if not os.path.isdir(root):

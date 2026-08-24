@@ -12,6 +12,7 @@ authored below from its source, because what a Pid does inside is not in any
 table.
 """
 
+import argparse
 import html
 import os
 import re
@@ -22,7 +23,6 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import vars_programs
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-SITE = os.path.join(ROOT, "src", "sites", "gh_mlb41")
 IMAGES = os.path.join(ROOT, "images", "logic")
 
 # The one palette, so the PDF and the SVG cannot drift apart. A row is coloured
@@ -647,6 +647,29 @@ def timing_diagram(spec):
     return prims, x0 + w + 20, int(y + 22)
 
 
+ROLE_C = {"in": IN_C, "param": PARAM_C, "block": BLK_C, "out": OUT_C,
+          "status": STATUS_C, "alarm": ALARM_C}
+
+
+def site_catalogue(site_dir):
+    """The site's own blocks as catalogue entries, out of its blocks.toml.
+
+    A block of the site's is declared with the site; this turns that
+    declaration into the same shape the library's entries are written in, so
+    the two are drawn by one renderer and the report knows no site.
+    """
+    out = []
+    for name, spec in vars_programs.site_blocks(site_dir).items():
+        inside = dict(spec.get("inside") or {})
+        inside["cols"] = [[(n, sub, ROLE_C.get(role, BLK_C))
+                           for n, sub, role in col]
+                          for col in inside.get("cols", [])]
+        inside["wires"] = [tuple(w) for w in inside.get("wires", [])]
+        inside["notes"] = list(spec.get("notes", []))
+        out.append((name, "site: blocks/", spec.get("brief", ""), inside))
+    return out
+
+
 LAYOUT = {"flow": flow_diagram, "states": states_diagram,
           "curve": curve_diagram, "timing": timing_diagram}
 
@@ -895,69 +918,6 @@ BLOCKS += [
              "PRESETS rather than datums, because its coil is held and deploys "
              "de-energised, so a released coil already says where the fabric "
              "is."]}),
-
- ("ValveController", "site: blocks/", "one two-position valve", {
-   "kind": "flow",
-   "cols": [[("duty", "0..1 demand", IN_C), ("period_ms", "", IN_C),
-             ("min_on_ms", "", IN_C)],
-            [("on_ms", "duty * period, 0 under min_on", BLK_C),
-             ("phase", "phase += dt, wraps", BLK_C)],
-            [("coil", "phase < on_ms", OUT_C)]],
-   "wires": [("duty", "on_ms", ""), ("period_ms", "phase", ""),
-             ("min_on_ms", "on_ms", ""),
-             ("on_ms", "coil", ""), ("phase", "coil", "")],
-   "notes": ["A pulse train: a fractional demand becomes an ON-TIME within a "
-             "period. A pulse under min_on_ms is not made at all, because one "
-             "that short does not lift the seat - rounding it up would deliver "
-             "water nobody asked for.",
-             "park() drives it where a DEAD CONTROLLER would leave it, and the "
-             "fail direction is read off the coil ROW's declared default: the "
-             "table is the one place it is said.",
-             "Used for: the irrigation cycle's ten valves, and the wet skirt."]}),
-
- ("AcSupply", "site: blocks/", "one AC supply, mirrored and judged", {
-   "kind": "flow",
-   "cols": [[("volts", "field read", IN_C), ("amps", "field read", IN_C),
-             ("watts", "field read", IN_C), ("hz", "field read", IN_C),
-             ("lo_V / hi_V", "the voltage band", PARAM_C),
-             ("lo_Hz / hi_Hz", "the frequency band", PARAM_C)],
-            [("deadband x4", "one per quantity", BLK_C),
-             ("in_range", "V and Hz against their bands", BLK_C)],
-            [("out_V / out_A / out_W / out_Hz", "the mirror", OUT_C),
-             ("ok", "measured and in spec", OUT_C),
-             ("fault", "out of spec, or gone silent", OUT_C),
-             ("answered", "so the caller can say DEGRADED", OUT_C)]],
-   "wires": [("volts", "deadband x4", ""), ("amps", "deadband x4", ""),
-             ("watts", "deadband x4", ""), ("hz", "deadband x4", ""),
-             ("deadband x4", "out_V / out_A / out_W / out_Hz", ""),
-             ("volts", "in_range", ""), ("hz", "in_range", ""),
-             ("lo_V / hi_V", "in_range", ""), ("lo_Hz / hi_Hz", "in_range", ""),
-             ("in_range", "ok", ""), ("in_range", "fault", ""),
-             ("volts", "answered", "")],
-   "notes": ["The mirror exists because a field-read row carries no Modbus "
-             "register of its own, so an external master could not see the "
-             "meter without one.",
-             "A meter that has NEVER answered is bring-up, not a fault. Only "
-             "one that answered and then stopped raises it.",
-             "Bound from either supply's interface by template: the grid and "
-             "the generator declare the same member names, and the compiler is "
-             "what holds them to it."]}),
-
- ("ZoneProbes", "site: blocks/", "three probes become one reading", {
-   "kind": "flow",
-   "cols": [[("t[3]", "three probes", IN_C), ("h[3]", "", IN_C)],
-            [("select", "drop the OUTLIER, average the two that agree", BLK_C)],
-            [("Ewma x2", "against dt, tau from a parameter", BLK_C)],
-            [("temp, rh", "the zone's rows", OUT_C),
-             ("quorum", "alarm on too few", OUT_C)]],
-   "wires": [("t[3]", "select", ""), ("h[3]", "select", ""),
-             ("select", "Ewma x2", ""), ("Ewma x2", "temp, rh", ""),
-             ("select", "quorum", "used")],
-   "notes": ["Dropping the outlier and averaging the two that agree keeps the "
-             "second good probe's information, where a plain median throws it "
-             "away.",
-             "Only VALID probes take part. With none left the zone's rows go "
-             "INVALID rather than publishing a number nothing measured."]}),
 ]
 
 
@@ -1597,23 +1557,24 @@ def _audit(prims, where, bad):
                                f"({bx:.0f}, {by:.0f})")
 
 
-def main():
+def main(site="gh_mlb41"):
     from reportlab.lib.pagesizes import A4
     from reportlab.pdfgen import canvas as rl
 
-    progs = vars_programs.load(SITE)
-    rows = _rows_of(SITE)
+    site_dir = os.path.join(ROOT, "src", "sites", site)
+    progs = vars_programs.load(site_dir)
+    rows = _rows_of(site_dir)
     vars_programs.expand(progs, rows, lambda _m: None)
 
     os.makedirs(IMAGES, exist_ok=True)
-    out = os.path.join(ROOT, "docs", "generated", "gh_mlb41_logic.pdf")
+    out = os.path.join(ROOT, "docs", "generated", f"{site}_logic.pdf")
     c = rl.canvas.Canvas(out, pagesize=A4) if hasattr(rl, "canvas") else \
         rl.Canvas(out, pagesize=A4)
 
     pw, ph = A4
     c.setFillColor(INK)
     c.setFont("Helvetica-Bold", 22)
-    c.drawString(40, ph - 120, "gh_mlb41: what each POU does inside")
+    c.drawString(40, ph - 120, f"{site}: what each POU does inside")
     c.setFillColor(MUTED)
     c.setFont("Helvetica", 10)
     for i, l in enumerate(_wrap(
@@ -1625,7 +1586,8 @@ def main():
             "one reworked in drawio is kept and followed here.", 96)):
         c.drawString(40, ph - 150 - i * 13, l)
     c.setFont("Helvetica", 9)
-    c.drawString(40, 60, f"{len(progs)} programs, {len(BLOCKS)} blocks. "
+    c.drawString(40, 60, f"{len(progs)} programs, "
+                         f"{len(BLOCKS) + len(site_catalogue(site_dir))} blocks. "
                          f"One-time report: scripts/logic_report.py")
     c.showPage()
 
@@ -1650,7 +1612,7 @@ def main():
             page(c, p["name"] + ": the network", sub, fprims, fdw, fdh, [])
             made += 1
 
-    for name, where, what, spec in BLOCKS:
+    for name, where, what, spec in BLOCKS + site_catalogue(site_dir):
         prims, dw, dh = LAYOUT[spec["kind"]](spec)
         _audit(prims, name, crossings)
         prims, dw, dh = _held("block_" + name.split()[0].replace("<", "")
@@ -1691,4 +1653,8 @@ def _held(name, prims, w, h, kept):
 
 
 if __name__ == "__main__":
-    main()
+    ap = argparse.ArgumentParser(description=__doc__,
+                                 formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("--site", default="gh_mlb41",
+                    help="the site to draw (default: gh_mlb41)")
+    main(**vars(ap.parse_args()))
