@@ -294,9 +294,9 @@ components of its own register. There is no per-phase hook on the firmware: work
 at a point in the beat is a `Component` or a `Plc::Program`. The site is chosen at configure time
 with `-DBOTANIK_SITE=<name>`.
 
-A site's rows are declared in C++, in `vars_table.cpp`: one `constexpr` factory
-call per row, `P(...)` for a parameter and `A(...)` for an alarm, with
-`vars_table.h` carrying the counts and the enums. The library declares its own
+A site's rows are declared in C++, in `vars.cpp`: one `constexpr` factory
+call per row, `P(...)` for a parameter and `A(...)` for an alarm, with `vars.h`
+carrying the counts, the enums and the device map they were read off. The library declares its own
 rows the same way in `src/libbotanik/vars/vars_table.h` (included by
 `firmware/vars_wiring.cpp`, never standalone), and registers them ahead of the
 site's into the same table. The site states how many as `LIBRARY_ROWS`.
@@ -309,8 +309,8 @@ wire to a row it was handed ends `bind()` in its own `on_bind()`.
 `programs.h` lists them in execution order, as the X-macro `site.h` expands
 three times.
 
-Its RS-485 field devices are declared in `vars_table.cpp` beside the rows,
-under the `MODBUS_RTU_CLIENT` guard.
+Its RS-485 field devices are declared in `vars.cpp` beside the rows, under the
+`MODBUS_RTU_CLIENT` guard.
 
 The site's own function blocks are one directory each under `blocks/`,
 `blocks/<name>/<name>.{h,cpp}`, and a program names one in its header.

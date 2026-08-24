@@ -11,10 +11,8 @@ Every one is hand-written C++.
 | File | Holds |
 |---|---|
 | `config.h` | `#define BOTANIK_*` build-wide overrides |
-| `vars_table.h` | the row counts, the enums, and the register map |
-| `vars_table.cpp` | the `Descriptor` array itself, the calibration blocks, and the field devices |
-| `vars.h` | what the device map MEANS, and the home-screen captions |
-| `vars.cpp` | the home-field reference array |
+| `vars.h` | the device map the rows were derived from, the counts, the enums, and the home-screen captions |
+| `vars.cpp` | the `Descriptor` arrays themselves, the calibration blocks, the field devices, and the home-field reference array |
 | `programs/<stage>/<class>/<class>.h` | one control program's declaration: its rows, the blocks it holds, and its `bind()` |
 | `programs/<stage>/<class>/<class>.cpp` | that program's law. The one place a site expresses *behaviour* |
 | `programs.h` | the order the programs run in, as one X-macro |
@@ -34,8 +32,8 @@ sitting inside its own band. What no test can see until the run starts is caught
 at bring-up: a program resolving a name no row declares is FAULTED for the life
 of the run, which the POST reports.
 
-@warning Intra-site includes are relative (`vars.h`, `vars_table.h`, and
-`../../../vars.h` from inside a program directory); the library is reached as `libbotanik.h`, which resolves
+@warning Intra-site includes are relative (`vars.h`, and `../../../vars.h`
+from inside a program directory); the library is reached as `libbotanik.h`, which resolves
 against the build's include root. The sibling rule is load-bearing rather than
 style: the Arduino PLC IDE adds no include directory inside a sketch folder, so
 quoted-relative resolution is the only mechanism that works there for the site's
@@ -83,7 +81,7 @@ would stop it being a C++11 aggregate, and the descriptor would no longer
 constant-initialise into flash.
 
 The variable table is NOT in the descriptor: the site hands it over by overriding
-`register_vars()`, which calls `register_all()` in `vars_table.cpp`. That
+`register_vars()`, which calls `register_all()` in `vars.h`. That
 function holds the ordering rule the parameter block depends on, so no law and
 no page has to remember it.
 
@@ -138,7 +136,7 @@ OFF path cannot rot unnoticed (`make check-bare`).
 
 ## The workflow
 
-1. add or change the row in `vars_table.cpp`, and its count or enum in `vars_table.h`
+1. add or change the row in `vars.cpp`, and its count or enum in `vars.h`
 2. write or change the law in its own `programs/<stage>/<class>/<class>.{h,cpp}`
 3. `make -C build check`
 
