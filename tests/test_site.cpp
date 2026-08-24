@@ -262,4 +262,43 @@ TEST_CASE("site: every register sits in its scope's block") {
 }
 
 
+
+TEST_CASE("site: an alarm carries a code the ALARMS page can show") {
+    // The page prints AlarmsPage::CODE_W characters and no more, so a longer
+    // one is not a long code - it is a truncated one, on the display an
+    // operator reads at three in the morning.
+    SiteBank f;
+    for (uint16_t i = 0; i < f.bank.count(); i++) {
+        const Vars::Descriptor& d = *f.bank.var(i).meta();
+        if (d.scope != Vars::SCOPE_A) continue;
+        const char* code = Vars::alarm_spec(d).code;
+        INFO(doctest::String(d.name) << ": its alarm code");
+        REQUIRE(code != nullptr);
+        CHECK(code[0] != '\0');
+        CHECK(strlen(code) <= 9u);   // AlarmsPage::CODE_W
+    }
+}
+
+TEST_CASE("site: every numeric row's default sits inside its own band") {
+    // A default outside the band is one an operator cannot type back in: the
+    // band refuses the write, so the row can never return to where it booted.
+    SiteBank f;
+    for (uint16_t i = 0; i < f.bank.count(); i++) {
+        const Vars::Descriptor& d = *f.bank.var(i).meta();
+        // Through the checked accessor: an analog row keeps its band in the
+        // PARAMETER table and a text row keeps a pool slot there, so reading
+        // the union directly hands you another arm's bytes as numbers.
+        const Vars::NumBand band = Vars::num_band(d);
+        const float lo = Vars::as_f32(d.type, band.min);
+        const float hi = Vars::as_f32(d.type, band.max);
+        if (lo == 0.0f && hi == 0.0f) continue;      // no band declared
+        const float def = Vars::as_f32(d.type, d.def);
+        INFO(doctest::String(d.name) << ": default " << def
+                 << " against " << lo << " .. " << hi);
+        CHECK(lo <= hi);
+        CHECK(def >= lo);
+        CHECK(def <= hi);
+    }
+}
+
 }  // namespace site_names
