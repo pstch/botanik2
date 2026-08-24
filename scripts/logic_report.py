@@ -477,17 +477,30 @@ def states_diagram(spec):
     """
     import math
     nodes = spec["states"]
-    n = len(nodes)
+    # A state nothing RETURNS to is where the machine is entered, not a stop on
+    # its cycle: on the ring it forces its edges across the middle, and the
+    # Actuator's two crossed the cycle's own. It goes in the HUB instead, and
+    # what is left is the cycle, in order, around the ring.
+    entered = {b for _a, b, _l in spec["edges"]}
+    hub = [x for x in nodes if x[0] not in entered]
+    ring = [x for x in nodes if x[0] in entered]
+    if not ring or len(hub) > 1:
+        hub, ring = [], nodes
+    n = len(ring)
     bw, bh = 104, 26
     rx, ry = (150, 96) if n > 2 else (0, 54)
     cx, cy = 250, 30 + ry + bh / 2.0
     prims, pos = [], {}
-    for i, (name, sub) in enumerate(nodes):
+    for i, (name, sub) in enumerate(ring):
         a = -math.pi / 2.0 + i * 2.0 * math.pi / n
         x = cx + rx * math.cos(a) - bw / 2.0
         y = cy + ry * math.sin(a) - bh / 2.0
         prims.append(rect(x, y, bw, bh, name, spec.get("fill", BLK_C), sub=sub))
         pos[name] = (x + bw / 2.0, y + bh / 2.0)
+    for name, sub in hub:
+        x, y = cx - bw / 2.0, cy - bh / 2.0
+        prims.append(rect(x, y, bw, bh, name, spec.get("fill", BLK_C), sub=sub))
+        pos[name] = (cx, cy)
 
     pairs = {(a, b) for a, b, _l in spec["edges"]}
     for a, b, label in spec["edges"]:
