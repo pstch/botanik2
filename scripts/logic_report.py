@@ -16,6 +16,7 @@ import html
 import os
 import re
 import sys
+import xml.etree.ElementTree as ET
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import vars_programs
@@ -1404,6 +1405,110 @@ def fbd_diagram(spec, unwired=None):
 
 
 
+def _style(style, key, fallback=None):
+    """One value out of an mxCell style string."""
+    m = re.search(rf"(?:^|;){re.escape(key)}=([^;]*)", style or "")
+    return m.group(1) if m else fallback
+
+
+def _plain(html_value):
+    """A cell's label as text: drawio keeps it as HTML, we draw strings."""
+    v = re.sub(r"<br\s*/?>", "\n", html_value or "")
+    v = re.sub(r"<[^>]+>", "", v)
+    return html.unescape(v)
+
+
+def read_drawio(path):
+    """A page somebody has REWORKED, read back as prims.
+
+    These files carry the editor's own model beside the picture, so a diagram
+    moved by hand can still reach the PDF: the report renders THAT layout for
+    the page instead of overwriting it with its own. Only a file drawio has
+    saved counts - it leaves a signature the generator never writes.
+    """
+    if not os.path.exists(path):
+        return None
+    src = open(path).read()
+    if "editors other than draw.io" not in src:
+        return None                        # still the generator's own
+    m = re.search(r'content="([^"]*)"', src)
+    size = re.search(r'<svg[^>]*width="([\d.]+)(?:px)?"[^>]*height="([\d.]+)(?:px)?"',
+                     src)
+    if m is None or size is None:
+        return None
+    root = ET.fromstring(html.unescape(m.group(1)))
+    geo, boxes, edges, labels = {}, [], [], []
+    for c in root.iter("mxCell"):
+        g = c.find("mxGeometry")
+        style = c.get("style") or ""
+        if c.get("vertex") == "1" and g is not None:
+            x, y = float(g.get("x", 0)), float(g.get("y", 0))
+            w, h = float(g.get("width", 0)), float(g.get("height", 0))
+            geo[c.get("id")] = (x, y, w, h)
+            val = _plain(c.get("value"))
+            if style.startswith("text;"):
+                sz = float(_style(style, "fontSize", 8))
+                al = _style(style, "align", "left")
+                anc = {"center": "middle", "right": "end"}.get(al, "start")
+                ax = {"middle": x + w / 2.0, "end": x + w}.get(anc, x)
+                labels.append(text(ax, y + 0.75 * sz + 2, val, sz, anc,
+                                   _style(style, "fontColor", INK),
+                                   "fontStyle=1" in style))
+            else:
+                head, _, tail = val.partition("\n")
+                boxes.append(rect(x, y, w, h, head,
+                                  _style(style, "fillColor", PLAIN), sub=tail,
+                                  dashed="dashed=1" in style))
+        elif c.get("edge") == "1" and g is not None:
+            edges.append((c, g, style))
+
+    def _end(cid, style, kind):
+        """Where an attached edge really meets its box - which is the geometry,
+        not the point drawio left behind when the box was moved."""
+        if cid not in geo:
+            return None
+        fx, fy = _style(style, kind + "X"), _style(style, kind + "Y")
+        if fx is None or fy is None:
+            return None
+        x, y, w, h = geo[cid]
+        return (x + float(fx) * w, y + float(fy) * h)
+
+    wires = []
+    for c, g, style in edges:
+        pt = {p.get("as"): (float(p.get("x", 0)), float(p.get("y", 0)))
+              for p in g.findall("mxPoint")}
+        a = _end(c.get("source"), style, "exit") or pt.get("sourcePoint")
+        b = _end(c.get("target"), style, "entry") or pt.get("targetPoint")
+        if a is None or b is None:
+            continue
+        arr = g.find("Array")
+        way = [(float(q.get("x", 0)), float(q.get("y", 0)))
+               for q in (arr if arr is not None else [])]
+        wires.append(line([a] + way + [b], arrow="endArrow=block" in style,
+                          label=_plain(c.get("value")),
+                          dashed="dashed=1" in style,
+                          color=_style(style, "strokeColor", MUTED)))
+
+    # Boxes, then the wires over them, then every label on top - which is the
+    # order the generator draws in, so a reworked page reads the same way.
+    prims = boxes + wires + labels
+    # Sized from what is IN it, not from the editor's page: drawio saves the
+    # page it was showing, and a diagram can reach past it.
+    right = bottom = 0.0
+    for q in prims:
+        if q.kind == "line":
+            right = max([right] + [x for x, _y in q.pts])
+            bottom = max([bottom] + [y for _x, y in q.pts])
+        elif q.kind == "rect":
+            right, bottom = max(right, q.x + q.w), max(bottom, q.y + q.h)
+        else:
+            wide = len(q.s) * q.size * 0.6
+            right = max(right, q.x + (0 if q.anchor == "end" else wide))
+            bottom = max(bottom, q.y)
+    return (prims, max(float(size.group(1)), right + 12),
+            max(float(size.group(2)), bottom + 12))
+
+
 # --- the document ------------------------------------------------------------
 
 def _rows_of(site):
@@ -1519,7 +1624,7 @@ def main():
                          f"One-time report: scripts/logic_report.py")
     c.showPage()
 
-    made, crossings, unwired = 0, [], []
+    made, crossings, unwired, kept = 0, [], [], []
     for p in progs:
         prims, dw, dh = program_diagram(p, rows)
         notes = [p.get("desc", "")]
@@ -1531,29 +1636,30 @@ def main():
         hooks = ["run()"] + [h + "()" for h in p["hooks"]]
         sub = (f"{p['class']} - {p['task']}, {p['stage']} stage - "
                f"defines {', '.join(hooks)}")
+        prims, dw, dh = _held(p["name"], prims, dw, dh, kept)
         page(c, p["name"], sub, prims, dw, dh, notes)
-        _svg(f"{p['name']}", prims, dw, dh)
         made += 1
 
         wiring = net_spec(p)
         if wiring:
             fprims, fdw, fdh = fbd_diagram(wiring, unwired)
             _audit(fprims, p["name"] + " (fbd)", crossings)
+            fprims, fdw, fdh = _held(p["name"] + "_fbd", fprims, fdw, fdh, kept)
             page(c, p["name"] + ": the network", sub, fprims, fdw, fdh, [],
                  kicker="What it HOLDS and what it CALLS, wired. Blocks are the "
                         "table's; a GREEN box is a stateless function, which no "
                         "table declares. What reaches a pin is authored from the "
                         "call site, because only the .cpp says. Pin names are "
                         "the block's own parameters.")
-            _svg(p["name"] + "_fbd", fprims, fdw, fdh)
             made += 1
 
     for name, where, what, spec in BLOCKS:
         prims, dw, dh = LAYOUT[spec["kind"]](spec)
         _audit(prims, name, crossings)
+        prims, dw, dh = _held("block_" + name.split()[0].replace("<", "")
+                              .replace(">", "").replace("/", ""),
+                              prims, dw, dh, kept)
         page(c, name, f"{where} - {what}", prims, dw, dh, spec.get("notes", []))
-        _svg("block_" + name.split()[0].replace("<", "").replace(">", "")
-             .replace("/", ""), prims, dw, dh)
         made += 1
 
     c.save()
@@ -1562,12 +1668,29 @@ def main():
     for msg in unwired:
         print("  WARNING a pin names an output that does not exist: " + msg)
     print(f"  {os.path.relpath(out, ROOT)}: written ({made} diagrams)")
-    print(f"  {os.path.relpath(IMAGES, ROOT)}/: {made} editable .drawio.svg")
+    print(f"  {os.path.relpath(IMAGES, ROOT)}/: "
+          f"{made - len(kept)} editable .drawio.svg")
+    for name in kept:
+        print(f"  {name}: reworked by hand - kept, and the PDF follows it")
 
 
 def _svg(name, prims, w, h):
     with open(os.path.join(IMAGES, f"{name}.drawio.svg"), "w") as f:
         f.write(to_svg(prims, w, h, name))
+
+
+def _held(name, prims, w, h, kept):
+    """This page as it should be DRAWN, and whether the file is left alone.
+
+    A file drawio has saved is someone's own work: the PDF takes their layout
+    and the generator does not write over it.
+    """
+    reworked = read_drawio(os.path.join(IMAGES, f"{name}.drawio.svg"))
+    if reworked is None:
+        _svg(name, prims, w, h)
+        return prims, w, h
+    kept.append(name)
+    return reworked
 
 
 if __name__ == "__main__":
