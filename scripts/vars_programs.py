@@ -355,7 +355,7 @@ def check_net(p, err):
     checked it, so two pins pointed at rows that had never existed. Here the
     names are the program's own, and a name it does not declare is an error.
     """
-    net = p["net"]
+    net = p.get("net") or []
     if not net:
         return
     where = _where(p)

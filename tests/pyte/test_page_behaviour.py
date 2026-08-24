@@ -137,12 +137,11 @@ def test_the_task_table_is_complete(spawn):
 
     # Every task a full build registers, the site's control programs included.
     # Move it deliberately when the set changes; an unexplained DROP is the bug
-    # this exists to catch. Last moved when the three supply watches replaced
-    # supply_watch and supply_report, the local input scan arrived, and the
-    # rot guard was folded back into the humidity ladder, the two watch
-    # programs arrived, irrigation became three programs instead of one, and
-    # the sun tracker moved inside a watch program of its own.
-    assert term.wait_for("Registered ....... : 44"), \
+    # this exists to catch. Last moved when the instruments split from the
+    # derivations they feed: temp_rh_sensors out of temp_rh_zone, irr_meters
+    # into an inlet and an outlet, and the manifold out of the cycle as
+    # irr_valves - three more programs, so three more tasks.
+    assert term.wait_for("Registered ....... : 47"), \
         "the task table changed size - a registration was added or silently lost"
     assert term.wait_for("0 refused"), "a registration was refused: MAX_TASKS"
 

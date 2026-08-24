@@ -70,26 +70,6 @@ if(Python3_Interpreter_FOUND)
         COMMENT "Checking the variable tables and the generated C++")
     set(BOTANIK_CHECK_VARS check-vars)
 
-    # The two documents the tables can produce. Not in the gate: they are
-    # deliverables, not assertions, and the PDF half needs reportlab.
-    add_custom_target(vars-report
-        COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/scripts/vars_report.py
-                --schema
-        COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/scripts/vars_report.py
-                --site ${BOTANIK_SITE}
-        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-        COMMENT "Variable reference (docs/integration) and the ${BOTANIK_SITE} report")
-
-    # The third, and the only one that has to RUN something: it reports what the
-    # control system did, out of the trace the scenario cases write while they
-    # pass. DEPENDS the suite, because a stale binary would report a plant that
-    # is no longer there.
-    add_custom_target(scenario-report
-        COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/scripts/scenario_report.py
-                --site ${BOTANIK_SITE} --binary $<TARGET_FILE:botanik_tests>
-        DEPENDS botanik_tests
-        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-        COMMENT "What the ${BOTANIK_SITE} control system did, through its scenarios")
 else()
     add_custom_target(check-vars
         COMMAND ${CMAKE_COMMAND} -E echo
