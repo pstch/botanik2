@@ -68,9 +68,12 @@ class Prim:
         self.__dict__.update(kw)
 
 
-def rect(x, y, w, h, label="", fill=PLAIN, sub="", dashed=False, dot=False):
+def rect(x, y, w, h, label="", fill=PLAIN, sub="", dashed=False, dot=False,
+         key=None):
+    """@p key names the box so a wire can be ATTACHED to it: drawio wants an
+    edge to reference the cells it joins, not two loose points."""
     return Prim("rect", x=x, y=y, w=w, h=h, label=label, fill=fill, sub=sub,
-                dashed=dashed, dot=dot)
+                dashed=dashed, dot=dot, key=key)
 
 
 def dot(x, y, r=2.2):
@@ -82,9 +85,12 @@ def text(x, y, s, size=8, anchor="start", color=INK, bold=False):
                 bold=bold)
 
 
-def line(pts, arrow=False, label="", dashed=False, color=MUTED):
+def line(pts, arrow=False, label="", dashed=False, color=MUTED,
+         frm=None, to=None):
+    """@p frm and @p to are (box key, relative x, relative y): where on which
+    box each end hangs, so the editor keeps them joined when a box moves."""
     return Prim("line", pts=pts, arrow=arrow, label=label, dashed=dashed,
-                color=color)
+                color=color, frm=frm, to=to)
 
 
 # --- the two renderers -------------------------------------------------------
@@ -180,8 +186,17 @@ def _arrow_pdf(c, x0, y0, x1, y1, color, scale):
 def to_svg(prims, w, h, title):
     """The same model as an editable .drawio.svg: the shapes to look at, and the
     mxfile the editor reopens, in one file."""
-    body, cells, cid = [], [], 2
+    body, cells = [], []
+    # Ids first, because an edge has to name cells that may be emitted after
+    # it. A box with a key is what a wire attaches to.
+    ids, by_key, cid = {}, {}, 2
     for p in prims:
+        ids[id(p)] = cid
+        if p.kind == "rect" and getattr(p, "key", None) is not None:
+            by_key[p.key] = cid
+        cid += 1
+    for p in prims:
+        cid = ids[id(p)]
         if p.kind == "rect":
             dash = ' stroke-dasharray="3,3"' if p.dashed else ""
             body.append(f'<rect x="{p.x}" y="{p.y}" width="{p.w}" height="{p.h}" '
@@ -205,7 +220,6 @@ def to_svg(prims, w, h, title):
                          f'style="{style}" vertex="1" parent="1">'
                          f'<mxGeometry x="{p.x}" y="{p.y}" width="{p.w}" '
                          f'height="{p.h}" as="geometry"/></mxCell>')
-            cid += 1
         elif p.kind == "dot":
             body.append(f'<circle cx="{p.x}" cy="{p.y}" r="{p.r}" '
                         f'fill="{INK}"/>')
@@ -214,7 +228,6 @@ def to_svg(prims, w, h, title):
                          f'vertex="1" parent="1"><mxGeometry x="{p.x - p.r}" '
                          f'y="{p.y - p.r}" width="{p.r * 2}" '
                          f'height="{p.r * 2}" as="geometry"/></mxCell>')
-            cid += 1
         elif p.kind == "text":
             body.append(_svg_text(p.x, p.y, p.s, p.size, p.anchor, p.color,
                                   p.bold))
@@ -235,7 +248,6 @@ def to_svg(prims, w, h, title):
                          f'y="{round(p.y - 0.75 * p.size - 2, 2)}" '
                          f'width="{round(tw, 2)}" '
                          f'height="{round(th, 2)}" as="geometry"/></mxCell>')
-            cid += 1
         elif p.kind == "line":
             pts = " ".join(f"{x},{y}" for x, y in p.pts)
             dash = ' stroke-dasharray="3,3"' if p.dashed else ""
@@ -249,15 +261,23 @@ def to_svg(prims, w, h, title):
             style = (f"edgeStyle=none;html=1;strokeColor={p.color};"
                      f"endArrow={'block' if p.arrow else 'none'}"
                      + (";dashed=1" if p.dashed else ""))
+            joins = ""
+            frm, to = getattr(p, "frm", None), getattr(p, "to", None)
+            if frm and frm[0] in by_key:
+                style += f";exitX={frm[1]};exitY={round(frm[2], 4)};exitDx=0;exitDy=0"
+                joins += f' source="n{by_key[frm[0]]}"'
+            if to and to[0] in by_key:
+                style += f";entryX={to[1]};entryY={round(to[2], 4)};entryDx=0;entryDy=0"
+                joins += f' target="n{by_key[to[0]]}"'
+            style = style
             cells.append(f'<mxCell id="e{cid}" value="{_x(p.label)}" '
-                         f'style="{style}" edge="1" parent="1">'
+                         f'style="{style}" edge="1" parent="1"{joins}>'
                          f'<mxGeometry relative="1" as="geometry">'
                          f'<mxPoint x="{p.pts[0][0]}" y="{p.pts[0][1]}" '
                          f'as="sourcePoint"/><mxPoint x="{p.pts[-1][0]}" '
                          f'y="{p.pts[-1][1]}" as="targetPoint"/>'
                          + (f'<Array as="points">{way}</Array>' if way else "")
                          + '</mxGeometry></mxCell>')
-            cid += 1
 
     mx = (f'<mxfile host="app.diagrams.net" type="device">'
           f'<diagram id="{_x(title)}" name="{_x(title)}">'
@@ -435,7 +455,7 @@ def flow_diagram(spec):
         x0 = (width - (len(st) * (bw + gapx) - gapx)) / 2.0 + 8
         for i, (name, sub, fill) in enumerate(st):
             x = x0 + i * (bw + gapx)
-            prims.append(rect(x, y, bw, bh, name, fill, sub=sub))
+            prims.append(rect(x, y, bw, bh, name, fill, sub=sub, key=name))
             pos[name] = (x + bw / 2.0, y, r, x)
         y += bh + gapy
     bottom = y - gapy
@@ -475,11 +495,13 @@ def flow_diagram(spec):
             y_bot = by - gapy / 2.0
             pts = [(ax, ay + bh), (ax, y_top), (lane, y_top), (lane, y_bot),
                    (bx, y_bot), (bx, by - 2)]
+        e_rel = (a, round((ax - _ax0) / bw, 4), 1.0)
+        t_rel = (b, round((bx - _bx0) / bw, 4), 1.0 if rb <= ra else 0.0)
         out = [pts[0]]
         for q in pts[1:]:                       # a lane ON the target is a line
             if abs(q[0] - out[-1][0]) > 0.5 or abs(q[1] - out[-1][1]) > 0.5:
                 out.append(q)
-        prims.append(line(out, arrow=True, label=label))
+        prims.append(line(out, arrow=True, label=label, frm=e_rel, to=t_rel))
     return prims, int(width + 16), int(bottom + 6)
 
 
@@ -509,11 +531,13 @@ def states_diagram(spec):
         a = -math.pi / 2.0 + i * 2.0 * math.pi / n
         x = cx + rx * math.cos(a) - bw / 2.0
         y = cy + ry * math.sin(a) - bh / 2.0
-        prims.append(rect(x, y, bw, bh, name, spec.get("fill", BLK_C), sub=sub))
+        prims.append(rect(x, y, bw, bh, name, spec.get("fill", BLK_C), sub=sub,
+                          key=name))
         pos[name] = (x + bw / 2.0, y + bh / 2.0)
     for name, sub in hub:
         x, y = cx - bw / 2.0, cy - bh / 2.0
-        prims.append(rect(x, y, bw, bh, name, spec.get("fill", BLK_C), sub=sub))
+        prims.append(rect(x, y, bw, bh, name, spec.get("fill", BLK_C), sub=sub,
+                          key=name))
         pos[name] = (cx, cy)
 
     pairs = {(a, b) for a, b, _l in spec["edges"]}
@@ -530,14 +554,18 @@ def states_diagram(spec):
                 abs((bh / 2.0 + 4) / uy) if abs(uy) > 1e-3 else 1e9)
         sx, sy = x0 + ux * k, y0 + uy * k
         ex, ey = x1 - ux * k, y1 - uy * k
+        fa = (a, round(0.5 + ux * 0.5, 4), round(0.5 + uy * 0.5, 4))
+        ta = (b, round(0.5 - ux * 0.5, 4), round(0.5 - uy * 0.5, 4))
         if (b, a) in pairs:                      # bow the two apart
             px, py = -uy * 30, ux * 30
             mx, my = (sx + ex) / 2.0 + px, (sy + ey) / 2.0 + py
-            prims.append(line([(sx, sy), (mx, my), (ex, ey)], arrow=True))
+            prims.append(line([(sx, sy), (mx, my), (ex, ey)], arrow=True,
+                              frm=fa, to=ta))
             prims.append(text(mx + px * 0.5, my + py * 0.5 + 2, label, 6.2,
                               "middle", MUTED))
         else:
-            prims.append(line([(sx, sy), (ex, ey)], arrow=True))
+            prims.append(line([(sx, sy), (ex, ey)], arrow=True,
+                              frm=fa, to=ta))
             # Beside the line, not on it.
             prims.append(text((sx + ex) / 2.0 - uy * 8,
                               (sy + ey) / 2.0 + ux * 8 - 3, label, 6.2,
@@ -1140,7 +1168,8 @@ def fbd_diagram(spec, unwired=None):
                 bh = 16 + max(len(pi), len(po)) * 11
                 x = xs[c % BAND]
                 prims.append(rect(x, y, bw, bh, "",
-                                  FN_C if is_function(typ) else BLK_C))
+                                  FN_C if is_function(typ) else BLK_C,
+                                  key=name))
                 label = typ.split("::")[-1]
                 if is_function(typ):
                     # A function has no instance to name - it is not held, and
@@ -1171,6 +1200,15 @@ def fbd_diagram(spec, unwired=None):
             bottom[n] = foot          # this network's own channel floor
         top = foot + 46
     height = max((v[1] + v[3] for v in y_of.values()), default=60)
+
+    def _at(node, way, pin):
+        """(edge x, edge y) of a pin as a FRACTION of its box, which is how an
+        attached edge says where it leaves or arrives."""
+        if (node, way, pin) not in box or node not in y_of:
+            return None
+        _px, py = box[(node, way, pin)]
+        bx, by, bwid, bhgt = y_of[node]
+        return (node, 1 if way == "out" else 0, (py - by) / bhgt)
 
     # A row label sits in the gutter beside its box and a wire through it is
     # as unreadable as one through the box, so it blocks like one.
@@ -1263,7 +1301,8 @@ def fbd_diagram(spec, unwired=None):
                 continue
             sx, sy = box[(name, "out", pin)]
             end = sx + 14 + len(str(dst)) * 3.4
-            prims.append(line([(sx, sy), (sx + 8, sy)], arrow=True))
+            prims.append(line([(sx, sy), (sx + 8, sy)], arrow=True,
+                              frm=_at(name, "out", pin)))
             prims.append(text(sx + 12, sy + 2, str(dst), 6.0, color=INK))
             from_label[(name, pin)] = (end, sy)
             blocking.append((sx + 8, sy - 5, end - sx - 8, 10))
@@ -1272,9 +1311,13 @@ def fbd_diagram(spec, unwired=None):
         if (h, opin) in from_label or (h, "out", opin) not in box:
             continue
         sx, sy = box[(h, "out", opin)]
-        end = sx + 14 + len(label) * 3.4
-        prims.append(line([(sx, sy), (sx + 8, sy)], arrow=True))
-        prims.append(text(sx + 12, sy + 2, label, 6.0, color=MUTED))
+        # Past the BOX, not just past the text: a wire leaving the same pin
+        # started inside its own connector and read as crossing it.
+        end = sx + 24 + len(label) * 3.4
+        prims.append(line([(sx, sy), (sx + 8, sy)], arrow=True,
+                          frm=_at(h, "out", opin)))
+        prims.append(rect(sx + 12, sy - 4, len(label) * 3.4 + 8, 11, "", VAR_C))
+        prims.append(text(sx + 16, sy + 2, label, 6.0, color=MUTED))
         from_label[(h, opin)] = (end, sy)
         blocking.append((sx + 8, sy - 5, end - sx - 8, 10))
         past_labels[h] = max(past_labels.get(h, 0), end + 8)
@@ -1318,7 +1361,8 @@ def fbd_diagram(spec, unwired=None):
                 prims.append(line(_route(sx, sy, tx, ty,
                                          bottom.get(name, height), lanes,
                                          past_labels.get(h, 0)),
-                                  arrow=True))
+                                  arrow=True, frm=_at(h, "out", opin),
+                                  to=_at(name, "in", pin)))
                 drawn = True
             # A wire says where it comes from; a FORMULA still has to say what
             # is done to it, so it keeps its label. A plain name does not - the
@@ -1329,16 +1373,28 @@ def fbd_diagram(spec, unwired=None):
             # A formula already spells the connector's name, so it labels the
             # pin on its own; a bare source needs the name put there.
             if crossed is not None and bare:
-                left.append((crossed, tx, ty))
+                left.append((crossed, tx, ty, name, pin))
             elif not drawn or not bare:
-                left.append((body, tx, ty))
+                left.append((body, tx, ty, name, pin))
 
     # Beside ITS OWN block, never on one shared rail: a stub for a block two
     # columns in would otherwise be drawn at the far left, and its wire would
     # cross everything between.
-    for label, tx, ty in left:
-        prims.append(text(tx - 10, ty + 2, label, 6.0, "end", INK))
-        prims.append(line([(tx - 8, ty), (tx, ty)], arrow=True))
+    def _temp(label):
+        """A label naming another node's pin rather than a row: a value this
+        law holds for one beat and nothing outside it can see."""
+        head = str(label).split(".")[0]
+        return "." in str(label) and head in inst
+
+    for label, tx, ty, node, pin in left:
+        if _temp(label):
+            # Boxed, because it is not a row: an operator cannot find this one
+            # on any page, and it exists only between these two boxes.
+            tw = len(label) * 3.4
+            prims.append(rect(tx - 16 - tw, ty - 4, tw + 8, 11, "", VAR_C))
+        prims.append(text(tx - 12, ty + 2, label, 6.0, "end", INK))
+        prims.append(line([(tx - 6, ty), (tx, ty)], arrow=True,
+                          to=_at(node, "in", pin)))
     # ...and the same on the way out: a stub at the far right would be drawn
     # straight through every column after this block's own.
     edge = xs[widest - 1] + bw
