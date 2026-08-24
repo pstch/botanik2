@@ -44,11 +44,20 @@ v  = "cool_dem"
 lo = "cool_start"
 hi = "=1"
 
+# In damp air a wet pad only adds water, so the cooling arm is gated on the
+# margin rather than laddered straight through.
+[net.staged]
+fn = "sel"
+[net.staged.in]
+g   = "=dp_margin >= dry_min"
+in0 = "=0"
+in1 = "cool.out"
+
 [net.effort]
 fn = "max_of"
 [net.effort.in]
 in1 = "=limit(humid_dem, 0, 1)"
-in2 = "=dp_margin >= dry_min ? cool.out : 0"
+in2 = "staged.out"
 
 [net.asked]
 fn = "sel"
