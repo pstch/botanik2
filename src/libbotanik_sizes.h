@@ -6,9 +6,9 @@
  * @brief Memory-footprint contract - static_asserts pinning the sizes of the
  *        long-lived objects. Included at the end of libbotanik.h.
  *
- * This answers WHICH TYPE grew; scripts/footprint.py answers whether the IMAGE
- * did. Both are wanted: an aggregate that moved names no cause, and a type that
- * moved says nothing about the headroom left.
+ * This answers WHICH TYPE grew; the linker's map answers whether the IMAGE
+ * did. Both are wanted: an aggregate that moved names no cause, and a type
+ * that moved says nothing about the headroom left.
  */
 
 #include "libbotanik.h"

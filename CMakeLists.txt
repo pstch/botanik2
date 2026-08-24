@@ -70,9 +70,6 @@ set(BOTANIK_FLASH_MAX_BYTES 786432 CACHE STRING
 set(BOTANIK_STATIC_RAM_MAX_BYTES 327680 CACHE STRING
     "OPTA static RAM ceiling in bytes (320 KB of the 512 KB region); 0 disables")
 
-# Found early: both the OPTA footprint check and the docs charts below need it.
-find_program(PYTHON3 NAMES python3 python)
-
 # Profiler-friendly Debug flags in place of CMake's bare "-g".
 set(CMAKE_C_FLAGS_DEBUG   "-O0 -g3 -gdwarf-4 -fno-omit-frame-pointer" CACHE STRING "" FORCE)
 set(CMAKE_CXX_FLAGS_DEBUG "-O0 -g3 -gdwarf-4 -fno-omit-frame-pointer" CACHE STRING "" FORCE)
@@ -611,8 +608,7 @@ if(DOXYGEN)
     # `make clean` wipes the generated docs output (CMake 3.15+). Doxygen never
     # deletes stale pages, so without this a removed page lingers until a rm.
     set_property(DIRECTORY APPEND PROPERTY ADDITIONAL_CLEAN_FILES
-        "${CMAKE_SOURCE_DIR}/docs/doxygen"
-        "${CMAKE_SOURCE_DIR}/docs/generated")
+        "${CMAKE_SOURCE_DIR}/docs/doxygen")
 
     # To read them: xdg-open docs/doxygen/html/index.html
 else()

@@ -92,29 +92,25 @@ which they already are, without making them *contemporaneous*.
 
 ## How a program declares its variables
 
-A program does not write its references down. They are declared in the site's
-its own `<class>.toml`, one entry per member, and `scripts/vars_gen.py` emits the
-program's BASE CLASS into `programs/<stage>/<class>/<class>.gen.h`: one typed
-member per row, the blocks it declares beside them, and the `bind()` that
-resolves them all. The site derives that class and writes the body, so a law
-reads its rows as its own members.
+A program declares one typed member per row, in its own header, and resolves
+them all in `bind()`:
 
-```toml
-[program.in]
-ln = "grid_LN_V"
-[program.out]
-locked = "sys_supply_lockout"
+```cpp
+void SupplyWatch::bind(Vars::Bank& io) {
+    ln     = io.resolve_in<float>("grid_LN_V");
+    locked = io.resolve_out<bool>("sys_supply_lockout");
+}
 ```
 
 ```cpp
-Vars::RefIn<float>  ln;      // io.resolve_in<float>("grid_LN_V")
-Vars::RefOut<bool>  locked;  // io.resolve_out<bool>("sys_supply_lockout")
+Vars::RefIn<float>  ln;      // VAR_INPUT:  get() only
+Vars::RefOut<bool>  locked;  // VAR_OUTPUT: this program is the one producer
 ```
 
-The reference carries two facts the compiler can then hold it to: the row's C++
-type, and which IEC 61131-3 declaration section the program reads it through.
-Both come from the table, so a member cannot disagree with the row it names, and
-a row carrying text is refused outright - its value lives in the bank's pool,
+The reference carries two facts the compiler then holds it to: the row's C++
+type, and which IEC 61131-3 declaration section the program reads it through. A
+`T` disagreeing with the row's declared type resolves to nothing, exactly as a
+missing name does, and a row carrying text is refused outright - its value lives in the bank's pool,
 where no typed reference reaches it.
 
 A `Plc::Program` is a PROGRAM POU and takes no arguments, so its relationship to

@@ -10,7 +10,7 @@ platform-agnostic C++11 library; the same code builds as a Linux simulator or fo
 OPTA hardware.
 
 Everything specific to one physical greenhouse - its variables, alarms and control
-programs - is a **site**: a directory of declarative tables plus a few pages of code.
+programs - is a **site**: a directory of variable tables and control programs, in C++.
 The library never knows which greenhouse it is running.
 
 This documentation is in three parts, by who you are:

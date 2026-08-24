@@ -6,31 +6,35 @@ forked per target.
 
 ## The files
 
-Three kinds, and which kind a file is decides how you change it.
+Every one is hand-written C++.
 
-| File | Kind | Holds |
-|---|---|---|
-| `tables/*.csv` | **declared** | every variable the site has, one file per row factory |
-| `tables/enums.csv` | declared | the vocabularies its enumerated rows are written over |
-| `programs/<stage>/<class>/<class>.toml` | declared | one control program: what it connects to, what it holds, what it declares |
-| `programs/order.toml` | declared | the order the programs run in, which is the one thing about a program that is not a property of the program |
-| `generated/vars.gen.h` | **generated** | the `Descriptor` arrays, the calibration blocks, the enums and their converters |
-| `generated/programs.gen.h` | generated | every program's header, the map of what they pass to each other, and `SITE_PROGRAM_LIST` |
-| `programs/<stage>/<class>/<class>.gen.h` | generated | one program's whole declaration part: its rows, its blocks, its `bind()` |
-| `config.h` | hand-written | `#define BOTANIK_*` build-wide overrides |
-| `vars.h` | hand-written | what the device map MEANS, and the home-screen captions |
-| `vars.cpp` | hand-written | the home-field reference array |
-| `programs/<stage>/<class>/<class>.{h,cpp}` | hand-written | one control program: the state the table cannot describe, its helpers, and the law itself. The one place a site expresses *behaviour* |
-| `blocks/*.{h,cpp}` | hand-written | function blocks of the site's own, nameable from a program's table |
-| `site.h` | hand-written | the shell commands, the `SiteDescriptor`, and the firmware class |
-| `sim.h` | hand-written | the simulated field (whole body `#ifdef TARGET_SIMULATOR`) |
+| File | Holds |
+|---|---|
+| `config.h` | `#define BOTANIK_*` build-wide overrides |
+| `vars_table.h` | the row counts, the enums, and the register map |
+| `vars_table.cpp` | the `Descriptor` array itself, the calibration blocks, and the field devices |
+| `vars.h` | what the device map MEANS, and the home-screen captions |
+| `vars.cpp` | the home-field reference array |
+| `programs/<stage>/<class>/<class>.h` | one control program's declaration: its rows, the blocks it holds, and its `bind()` |
+| `programs/<stage>/<class>/<class>.cpp` | that program's law. The one place a site expresses *behaviour* |
+| `programs.h` | the order the programs run in, as one X-macro |
+| `blocks/<name>/<name>.{h,cpp}` | function blocks of the site's own, one directory each |
+| `site.h` | the shell commands, the `SiteDescriptor`, and the firmware class |
+| `sim.h` | the simulated field (whole body `#ifdef TARGET_SIMULATOR`) |
 
-**The generated C++ is committed and never built.** The tree has no Python build
-dependency, and an Arduino sketch path could not run a generator. Edit a table,
-re-run `scripts/vars_gen.py`, commit both - `make check` runs `check-vars`, which
-regenerates into memory and fails if the committed C++ differs.
+These files were generated once, from CSV and TOML, by a tool that has since
+been retired: the shape they have is its doing, and it is worth keeping. They
+are ordinary source now, with no build-time step behind them - the tree has no
+Python dependency, and an Arduino sketch path could not have run one anyway.
 
-@warning Intra-site includes are relative (`vars.h`, `generated/vars.gen.h`, and
+What the generator used to prove, `tests/test_site.cpp` proves instead, walking
+the bank the site actually built: register uniqueness and blocks, the parameter
+run's contiguity, the persisted pool's size, alarm codes, and every default
+sitting inside its own band. What no test can see until the run starts is caught
+at bring-up: a program resolving a name no row declares is FAULTED for the life
+of the run, which the POST reports.
+
+@warning Intra-site includes are relative (`vars.h`, `vars_table.h`, and
 `../../../vars.h` from inside a program directory); the library is reached as `libbotanik.h`, which resolves
 against the build's include root. The sibling rule is load-bearing rather than
 style: the Arduino PLC IDE adds no include directory inside a sketch folder, so
@@ -48,8 +52,9 @@ questions about this tree land.
 
 **Declared** is anything a rule can check: a row's type, band, register,
 transport, safe state, access level; which program produces which row; what an
-enum's codes are. All of it is CSV or TOML, all of it is checked before the
-firmware is built, and none of it is C++ you can get subtly wrong.
+enum's codes are. It is C++, but it is data - `constexpr` factory calls and
+`resolve_*` names, in tables and headers - and the suite checks all of it against
+the bank the site built.
 
 **Written** is behaviour: what a law does with the numbers. A program's `.cpp` is the
 only file where a site decides anything.
@@ -78,8 +83,9 @@ would stop it being a C++11 aggregate, and the descriptor would no longer
 constant-initialise into flash.
 
 The variable table is NOT in the descriptor: the site hands it over by overriding
-`register_vars()`, which calls the generated `register_all()`. That function holds
-the ordering rule the parameter block depends on, so no site has to remember it.
+`register_vars()`, which calls `register_all()` in `vars_table.cpp`. That
+function holds the ordering rule the parameter block depends on, so no law and
+no page has to remember it.
 
 ```cpp
 class GreenhouseMLB41 final : public Botanik::BotanikFirmware {
@@ -112,9 +118,8 @@ using BotanikSite = GreenhouseMLB41;   // what the harness instantiates
 ```
 
 @note The program list appears three times - member, constructor init, and
-`register_tasks()` - and `programs/order.toml` already knows it. Generating the trio is
-an obvious next step and has not been taken; until it is, the three lists are
-kept in step by hand and by the site test that walks them.
+`register_tasks()` - and `SITE_PROGRAM_LIST` in `programs.h` is what keeps them
+in step: one X-macro, expanded three times, so the order is written once.
 
 ## Running it
 
@@ -133,12 +138,13 @@ OFF path cannot rot unnoticed (`make check-bare`).
 
 ## The workflow
 
-1. edit a table under `tables/`
-2. `python3 scripts/vars_gen.py` - validates, then writes `generated/`
-3. write or change the law in its own `programs/<stage>/<class>/<class>.cpp`
-4. `make -C build check`
+1. add or change the row in `vars_table.cpp`, and its count or enum in `vars_table.h`
+2. write or change the law in its own `programs/<stage>/<class>/<class>.{h,cpp}`
+3. `make -C build check`
 
-Step 2 is where most mistakes are caught: a register collision, a program
-producing a row another already produces, a parameter no law reads, a default
-outside its own band, a diagram naming a program that is not there. See
-@ref int_tables_schema for every column and every rule.
+Step 3 is where most mistakes are caught, because `tests/test_site.cpp` walks
+the bank the site actually built: a register collision, a register outside its
+scope's block, two rows on one terminal, a default outside its own band, a name
+nothing resolves. What it cannot see is caught the first time the firmware runs
+instead - a program whose `bind()` missed a name is FAULTED for the life of the
+run.

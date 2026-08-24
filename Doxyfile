@@ -124,17 +124,6 @@ GENERATE_TREEVIEW      = YES
 DISABLE_INDEX          = NO
 GENERATE_LATEX         = NO
 
-# Layout for the Library page's code charts: the .code-charts stylesheet plus
-# the generated SVGs copied into the HTML output so the <img> tags resolve. The
-# SVGs come from scripts/code_charts.py (run by the `docs` target); where they
-# were not generated, Doxygen just warns they are missing.
-HTML_EXTRA_STYLESHEET  = docs/charts.css
-HTML_EXTRA_FILES       = docs/generated/code_loc.svg \
-                         docs/generated/code_churn.svg \
-                         docs/generated/code_asserts.svg \
-                         docs/generated/code_tests.svg \
-                         docs/generated/coupling.svg
-
 #---------------------------------------------------------------------------
 # Warnings / diagnostics
 #---------------------------------------------------------------------------

@@ -117,8 +117,7 @@ make -C build docs        # -> docs/doxygen/html/index.html
 make -C build docs-open
 ```
 
-The target regenerates the LoC / churn / coverage charts (`scripts/code_charts.py`)
-and then runs Doxygen. Warnings land in `docs/doxygen/doxygen-warnings.log`.
+The target runs Doxygen. Warnings land in `docs/doxygen/doxygen-warnings.log`.
 
 @note Doxygen's `INPUT` is `src tests docs` with `*.md` in `FILE_PATTERNS`, so **every
 markdown file under those trees becomes a page**, whether or not anything links to it.

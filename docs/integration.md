@@ -4,7 +4,7 @@
 
 `libbotanik` ships a working firmware, not a framework you assemble: the main loop,
 console, shell, logger, scheduler, alarm model and health supervision are already
-wired. What you supply is a **site** - a directory of declarative tables describing
+wired. What you supply is a **site** - a directory of C++ describing
 your plant, plus the control programs that run it.
 
 A site is data first and code second. Most of it (the variable table, the display
@@ -15,8 +15,6 @@ the simulated field are hand-written.
 - @subpage int_site - what a site is, its files, and how the build selects one.
 - @subpage int_variables - the variable table: the one model every value goes
   through.
-- @subpage int_tables - the declarative tables and the `SiteDescriptor` that
-  bundles them.
 - @subpage int_tasks - control programs: the scan cycle, and the PLC function
   and function-block libraries they are written with.
 - @subpage int_extending - the extension hooks: custom commands, custom pages,

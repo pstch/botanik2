@@ -7,7 +7,7 @@ This part is for changing the library, not using it. Each page takes one mechani
 and explains how it actually works.
 
 The order below is the dependency order: every page depends only on the ones above
-it, which is the same layering the @ref dev_metrics matrix enforces. Read
+it, which is the same layering @ref dev_metrics_coupling states. Read
 **Orientation** once before your first change, then the section you are touching.
 
 ## Orientation {#dev_orientation}
@@ -58,47 +58,15 @@ The console has the most non-obvious machinery in the tree, because it drives a
 - @subpage dev_porting - what a third target needs: one new HAL implementation.
 - @subpage testing - the test suites in detail.
 
-## The shape of the tree {#dev_metrics}
+## Which way the dependencies point {#dev_metrics_coupling}
 
-Regenerated on every docs build by `scripts/code_charts.py`, broken down by the
-folder under `src/`. The first sizes each area; the second shows where recent work
-has gone.
+Every cross-module `#include` points DOWN the stack, and the module graph is
+acyclic. Only header (`.h` -> `.h`) edges count, because only those are
+contagious: an include in a `.cpp` is private to one translation unit, while one
+in a header lands in every file that transitively includes it. The config
+headers are held out - every module includes them.
 
-@htmlonly
-<div class="code-charts">
-  <figure>
-    <img src="code_loc.svg" alt="Lines of code by area"/>
-    <figcaption>Lines of code by area (code lines only, via cloc)</figcaption>
-  </figure>
-  <figure>
-    <img src="code_churn.svg" alt="Churn by area"/>
-    <figcaption>Churn by area over the last 12 months: lines changed and commits touched</figcaption>
-  </figure>
-</div>
-@endhtmlonly
-
-### Which way the dependencies point {#dev_metrics_coupling}
-
-Every cross-module `#include`, with the modules on both axes ordered bottom-of-stack
-to top (`scripts/coupling_matrix.py`). A cell **left of the diagonal** is a module
-depending on something beneath it: the layering working. A cell **right of the
-diagonal** points back up the stack, and is a layering violation.
-
-Only header (`.h` -> `.h`) edges are shown, because only those are contagious: an
-include in a `.cpp` is private to one translation unit, while one in a header lands
-in every file that transitively includes it. The config headers are held out - every
-module includes them, so they would render as a solid column and say nothing.
-
-@htmlonly
-<div class="code-charts">
-  <figure>
-    <img src="coupling.svg" alt="Module dependency matrix"/>
-    <figcaption>Cross-module includes; red cells point up the stack</figcaption>
-  </figure>
-</div>
-@endhtmlonly
-
-**There are no red cells, and the module graph is acyclic.** The baseline is zero
+**There is not one upward edge.** The baseline is zero
 so the first one to appear stands out; a baseline of "four known-good exceptions"
 does not work, because the fifth blends in.
 
@@ -108,6 +76,5 @@ indirection: `Console` forward-declares `Pages::Page` rather than including all 
 site-facing. An interface or a pimpl bought only to green a cell costs a vtable or
 an allocation on a path that does not want one.
 
-Run `python3 scripts/coupling_matrix.py --text` for the current state; it prints the
-exact files behind any upward edge. A NEW red cell is a layering regression, and
-wants either a fix or a line here saying why it earns its place.
+A NEW upward edge is a layering regression, and wants either a fix or a line
+here saying why it earns its place.

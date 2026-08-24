@@ -105,7 +105,7 @@ table at all.
 **The device table** (`device.h`) is a `DeviceModel` per part number - register
 ceiling, coil count, address and quantity alignment, multi-write support,
 minimum gap - and a `Device` per unit binding a model to an address and to the
-plant's own **tag**. A site declares both in CSV (@ref int_tables) and the
+plant's own **tag**. A site declares both in `vars_table.cpp` (@ref int_variables) and the
 generator emits them, so the checks can hold a row's address against the model
 it lands on. A unit nobody described plans against the protocol's own
 limits rather than acquiring invented ones: a model entry is only as good as the

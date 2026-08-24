@@ -263,6 +263,25 @@ TEST_CASE("site: every register sits in its scope's block") {
 
 
 
+TEST_CASE("site: no two local rows claim the same terminal") {
+    // A local row has no register to address, so `reg` carries the PIN
+    // instead. Two rows on one pin both attach and both publish the same
+    // level, which reads as two independent contacts that never disagree.
+    SiteBank f;
+    for (uint16_t i = 0; i < f.bank.count(); i++) {
+        const Vars::Descriptor& a = *f.bank.var(i).meta();
+        if (a.bind.transport != Vars::XP_LOCAL) continue;
+        for (uint16_t j = (uint16_t)(i + 1); j < f.bank.count(); j++) {
+            const Vars::Descriptor& b = *f.bank.var(j).meta();
+            if (b.bind.transport != Vars::XP_LOCAL) continue;
+            if (a.scope != b.scope) continue;
+            INFO(doctest::String(a.name) << " and " << doctest::String(b.name)
+                     << " both claim terminal " << a.bind.reg);
+            CHECK(a.bind.reg != b.bind.reg);
+        }
+    }
+}
+
 TEST_CASE("site: an alarm carries a code the ALARMS page can show") {
     // The page prints AlarmsPage::CODE_W characters and no more, so a longer
     // one is not a long code - it is a truncated one, on the display an

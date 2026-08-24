@@ -256,10 +256,9 @@ It reuses the flag instead of adding one because the question is the same either
 retained store - it already has a key of its own, and two keys for one row could
 disagree.
 
-In the tables it is a `retain` column beside `access`, the same word `globals.csv`
-already uses, rather than a `PR` factory beside `P`: retention is orthogonal to the
-P / PE / PS split, which is about the shape of the value, and a new scope token would
-have to be added by hand to a dozen kind lists across `scripts/`.
+On the row it is a trailing `retain` flag rather than a `PR` factory beside `P`:
+retention is orthogonal to the P / PE / PS split, which is about the shape of
+the value, so a factory per combination would multiply out.
 
 `param_clear()` still moves a retained row, deliberately. It restores what a reboot
 would give it - the saved copy, or the factory default when nothing was ever saved -

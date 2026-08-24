@@ -70,7 +70,6 @@ Host-only, SIMULATOR build. Two suites, both wired into CTest:
 make -C build check                  # the pre-push gate
 make -C build check-full             # the periodic sweep: clang-tidy, bare profile, then the gate under ASan+UBSan
 make -C build check-bare             # just the bare profile: every optional feature off
-make -C build check-vars             # the CSV tables, and the generated C++ against them
 make -C build botanik_tests          # just build the doctest binary
 ./build/tests/botanik_tests          # run it directly (doctest CLI)
 ./build/tests/botanik_tests -s       # ...every passing check, not just failures
@@ -79,8 +78,7 @@ ctest --test-dir build --output-on-failure          # all CTest entries
 ctest --test-dir build -R pyte --output-on-failure  # just the pyte suite
 ```
 
-**`make check`** fails on the first problem: `check-vars` validates the CSV tables and
-proves the committed C++ still matches them; the library compiles `-Werror`, so building
+**`make check`** fails on the first problem: the library compiles `-Werror`, so building
 the suite at all fails on a warning in a library source; then the doctest + pyte suites
 via `ctest -LE unit`. The gate excludes the per-case entries because the aggregate entry
 covers the same cases in one process (~0.6 s against ~14 s, all of it process startup),
@@ -296,32 +294,34 @@ components of its own register. There is no per-phase hook on the firmware: work
 at a point in the beat is a `Component` or a `Plc::Program`. The site is chosen at configure time
 with `-DBOTANIK_SITE=<name>`.
 
-A site's rows are DECLARED IN CSV, under `tables/`, one file per row factory
-(`params.csv`, `alarms.csv`, `direct_inputs.csv`, `relay_outputs.csv`, ...), and
-generated into `generated/vars.gen.h` by `scripts/vars_gen.py`. The library
-declares its own rows the same way, in `src/libbotanik/vars/tables/`. A site's
-control programs are declared one file per program, `programs/<stage>/<class>/<class>.toml` - which row
-each of a program's variables connects to - and generated into
-`generated/programs.gen.h` as one `Refs` struct per program, typed from the
-table, with its `bind()` body; the program holds it as `_v`. Its RS-485 field
-devices are declared in `tables/device_models.csv` + `tables/devices.csv` and
-generated into the same `vars.gen.h`. **The generated C++
-is committed, never built**: the tree has no Python build dependency, and
-`make check` runs `check-vars` to catch a table edited without regenerating.
-Edit the table, re-run the generator, commit both.
+A site's rows are declared in C++, in `vars_table.cpp`: one `constexpr` factory
+call per row, `P(...)` for a parameter and `A(...)` for an alarm, with
+`vars_table.h` carrying the counts and the enums. The library declares its own
+rows the same way in `src/libbotanik/vars/vars_table.h` (included by
+`firmware/vars_wiring.cpp`, never standalone), and registers them ahead of the
+site's into the same table. The site states how many as `LIBRARY_ROWS`.
 
-The hand-written site files: `vars.h` (what the device map means, and the home
-fields), `site.h`, `programs/<stage>/<class>/<class>.{h,cpp}` (one control
-program each: the state the table cannot describe, its helpers, and the law),
-`blocks/*.{h,cpp}` (function blocks of the site's own, nameable from
-its own `<class>.toml`), `sim.h` (whole body `#ifdef TARGET_SIMULATOR`), `config.h`,
-`vars.cpp`.
+A site's control programs are one directory each,
+`programs/<stage>/<class>/<class>.{h,cpp}`: the header declares the class - its
+rows as `Vars::RefIn`/`RefOut` members, the blocks it holds, and the `bind()`
+that resolves every name - and the `.cpp` is the law. A program with a block to
+wire to a row it was handed ends `bind()` in its own `on_bind()`.
+`programs.h` lists them in execution order, as the X-macro `site.h` expands
+three times.
 
-A program is TWO classes: `<class>.gen.h` is generated and carries the whole
-declaration part - the rows, the blocks, the constructor, `bind()` - and the
-hand-written half derives it. A bare name came from the table; a leading
-underscore is the site's own. `bind()` is `final` and ends in `on_bind()`, which
-is where a law wires a block to a row it was handed.
+Its RS-485 field devices are declared in `vars_table.cpp` beside the rows,
+under the `MODBUS_RTU_CLIENT` guard.
+
+The site's own function blocks are one directory each under `blocks/`,
+`blocks/<name>/<name>.{h,cpp}`, and a program names one in its header.
+
+**These files were generated once, from CSV and TOML, by a tool that has since
+been retired.** They are ordinary source now: edit them directly. What the
+generator used to check, the suite checks - see `tests/test_site.cpp`, which
+walks the built bank for register uniqueness and blocks, parameter contiguity,
+pool bytes, alarm codes and bands. What it cannot check is caught at bring-up
+instead: a program that resolves a name no row declares is FAULTED for the life
+of the run.
 
 ### Rules
 

@@ -26,7 +26,6 @@ nohup.out
 docs/doxygen/
 
 generated/
-docs/generated/
 
 # Design plans: working notes, not part of the built manual
 design/

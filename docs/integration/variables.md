@@ -45,19 +45,10 @@ transport can never disagree.
 
 ## Declaring one
 
-**In CSV, one file per row factory.** Each file's columns are exactly that
-factory's arguments, so a row that could not be spelled in C++ cannot be spelled
-here either - a relay with a plausibility band, or an alarm with a type, has
-nowhere to go.
-
-```
-# tables/params.csv
-scope, name         , type , def , min, max  , digits, unit, reg, access, desc
-P    , ntp_poll_sec , T_U32, 3600, 10 , 86400, 0     , sec , 922, RO    , NTP poll interval
-```
-
-`scripts/vars_gen.py` turns the tables into `generated/vars.gen.h`, which holds
-the same `constexpr` factory calls the tables used to be written as:
+**In C++, one `constexpr` factory call per row**, in `vars_table.cpp`. The
+factory is the scope: its arguments are exactly what a row of that scope has, so
+a row that cannot be spelled has nowhere to go - a relay with a plausibility
+band, or an alarm with a type.
 
 ```cpp
 const Descriptor params[] = {
@@ -68,10 +59,8 @@ const Descriptor params[] = {
 };
 ```
 
-So `vars/declare.h` is still the one definition of what a scope MEANS, and the
-flash placement is unchanged - what moved is who writes the call. See
-@ref int_tables_schema for every file, every column, and every rule the
-generator checks.
+`vars/declare.h` is the one definition of what a scope MEANS, and the whole
+array is `const` at namespace scope, so it constant-initialises into flash.
 
 @note Every factory ends with `desc` and `notes`, and `notes` is never optional:
 `""` says "nothing more to add" in the same shape as a real note. `SU`/`SI`/`SF`/
@@ -84,8 +73,8 @@ whole vocabulary: it renders a code as a word, parses a word back (`params set
 sys_log_level warning`), and a code it cannot name is REFUSED - by `set`, by the
 typed overload, and by `override`, which skips a band but not this. A set of
 codes is not an interval, so a `min`/`max` would admit every gap between them.
-A site declares its vocabularies in `tables/enums.csv` and the generator emits
-both the enum and the converter; the library's own (`Logs::level_label`,
+A site declares its vocabularies in `vars_table.h`, the enum beside its
+converter; the library's own (`Logs::level_label`,
 `Plc::health_label`) stay in their subsystems and a row names them there.
 The codes are what reach the store and an external master, so a vocabulary may
 gain labels but must never renumber them.
@@ -134,15 +123,7 @@ An `AI` / `AO` row carries no numbers of its own. It points at a shared
 `const AnalogCal` of six **tunables**, each independently a firmware constant or a
 parameter an operator can edit:
 
-Six cells on the row declare it, each `parameter@fallback` or `=constant`:
-
-```
-# tables/analog_inputs.csv
-name     , dev, fc, reg, wire , unit, cal_raw_min                , cal_raw_max                , ...
-pwr_dc1_V, 11 , 4 , 2  , T_U16, V   , pwr_dc1_rawMin_mV@4000.0   , pwr_dc1_rawMax_mV@6000.0   , ...
-```
-
-and the generator emits the block, named after the row:
+Two builders declare each cell, and the block is named after the row:
 
 ```cpp
 constexpr Tunable K(float v);                            // fixed in firmware
@@ -252,7 +233,8 @@ split above is what guarantees it: the library's parameters come last within its
 own set and the site's come first within the site's, so the two runs abut. The
 parameter pages address them with a dense 0-based index and one add - a parameter
 outside the run is unreachable: shown nowhere, editable nowhere, silently not
-persisted. `check-vars` enforces the ordering rather than a comment asking for it.
+persisted. `tests/test_site.cpp` walks the built bank for it, rather than a
+comment asking for it.
 
 @note The site's rows are registered AFTER the library's and share one flat index
 space, so the two read as one table. A site may **restate** a library row by
@@ -300,18 +282,23 @@ what it means operationally (including why a restored override on an **output** 
 announced as a critical, and why `control disable` deliberately leaves overrides
 alone).
 
-## Static asserts to carry
+## What checks the table
 
-Each of these guards a **silent** truncation, so a site should keep all of them:
+Everything a table can get wrong is checked at TEST time, in
+`tests/test_site.cpp`, against the bank the site actually built: no two rows
+share a register, every register sits in its scope's block, no two local rows
+claim the same terminal, a default sits inside its own band, no two text rows
+share pool bytes, the parameters are one contiguous run, and every alarm carries
+a code short enough for the page.
 
-Most of what used to be a `static_assert` is now a generator check, and runs
-before the firmware is built rather than during it: no two rows share a name or a
-register, a default sits inside its own band, a text row has a pool slot, the
-parameters are one contiguous run, an edge-counted input is on a channel that can
-carry an interrupt. `python3 scripts/vars_gen.py` reports all of them at once,
-and `make check` runs it.
+What only a running bank can answer is checked there too: that every name every
+table and every control program reaches for resolves, that `unresolved_count()`
+is zero after the programs bind and the simulated field has run, and that no
+parameter was written by accident.
 
-What is still checked at TEST time, in `tests/test_site.cpp`, is what only a
-running bank can answer: that every name every table and every control program
-reaches for resolves, that `unresolved_count()` is zero after the programs bind
-and the simulated field has run, and that no parameter was written by accident.
+On hardware there is no suite to run, so the same failure is reported instead of
+checked: a program whose `bind()` reached for a name no row declares is
+**FAULTED** for the life of the run, which the POST sees and the TASKS page
+shows. A `VarRef` that resolves to nothing is the inert sink, which reads zero
+for ever, and zero is a plausible number - the fault is the only thing that says
+so.

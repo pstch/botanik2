@@ -35,7 +35,7 @@ order wrong is not - `Bank::freeze()` names the row that broke it.
 
 ## Adding shell commands
 
-Declare the table (see @ref int_tables) and put it in the descriptor. No hook needed
+Declare the table (see @ref int_variables) and put it in the descriptor. No hook needed
 - the default `register_commands()` picks it up.
 
 Override the hook only to pass a different `ctx`:

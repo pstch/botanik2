@@ -44,8 +44,8 @@ namespace Botanik { namespace Io {
          *  @{ */
 
         /** @brief The rows to publish, and the terminal each reads. Bounded by
-         *  the terminal count: two rows on one channel is a table defect the
-         *  generator already refuses. */
+         *  the terminal count: two rows on one channel would both attach and
+         *  both publish, which the site test refuses. */
         uint16_t _row[HAL::DigitalIn::CHANNELS];
         uint8_t  _channel[HAL::DigitalIn::CHANNELS];
         uint8_t  _count = 0;

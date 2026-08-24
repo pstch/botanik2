@@ -1,7 +1,7 @@
 /**
- * @file vars.h
- * @brief The site\'s variable table.
- *        Edit the CSVs and re-run, or `make -C build check-vars` will fail.
+ * @file vars_table.h
+ * @brief The site's variable table: its counts, its enums, and the register
+ *        map every row is numbered out of.
  */
 
 #ifndef SITE_VARS_TABLE_H

@@ -137,7 +137,7 @@ breath. The NTP port (`network/ntp.h`), the storage key length
 simulator's stack-painting constants (`scheduler/scheduler.cpp`) all live that way.
 
 **The factory value of a library variable does not belong here either.** A site
-pins one by redeclaring the row (@ref int_tables), not by defining a macro. The
+pins one by redeclaring the row (@ref int_variables), not by defining a macro. The
 `net_` / `ntp_` / `mqtt_` / `geo_` defaults used to be 17 `BOTANIK_*` macros in
 `config/net.h` and `config/sun.h` and are now gone: a macro could only override
 what the library had written an `#ifndef` block for, and only the default, while
@@ -198,7 +198,7 @@ unit is nuisance-alarming on. The macros are their factory values.
 | `HEALTH_RESET_WINDOW_MS` | 300000 | how long after boot `SYS_RST` stays asserted |
 | `ALARM_NOTIFIERS_MAX` | 4 | |
 | `ALARM_RECENT_S` | 604800 | RECENT window a cleared alarm stays listed for (a row's own `recent_s` wins) |
-| `ALARM_SLOTS` | 64 | `SCOPE_A` rows the model has room for - the site's and the library's together, since they share one table. See @ref int_tables |
+| `ALARM_SLOTS` | 64 | `SCOPE_A` rows the model has room for - the site's and the library's together, since they share one table. See @ref int_variables |
 
 ### Site table capacity
 

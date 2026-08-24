@@ -122,8 +122,8 @@ namespace Botanik { namespace Plc {
 
         /** @brief Where this program's health is PUBLISHED, or the sink.
          *
-         *  Set from the generated bind() when `programs.toml` declares a health
-         *  row. The program does not write it itself: it is written by a
+         *  Set from bind() by a program that declares a health row. The
+         *  program does not write it itself: it is written by a
          *  supervisor walking every program, so a program that is not being
          *  activated - which is most of what "inhibited" means - still has a
          *  current row. @see publish_health() */

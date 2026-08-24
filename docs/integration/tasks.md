@@ -6,9 +6,8 @@ write. There is no driver stepping them - **a program registers itself with the
 task registry** like everything else in the beat, so it gets its own rate, its
 own row on the TASKS page and its own cost sample.
 
-A program is TWO classes: a generated base carrying its whole declaration part -
-the rows it connects to and the function blocks it holds - and a hand-written
-derived class carrying the body. The base derives `Plc::Program`:
+A program is one class, deriving `Plc::Program`: its header declares what it
+connects to and what it holds, its `.cpp` carries the body.
 
 ```cpp
 class Program {
@@ -34,102 +33,103 @@ stale - see *When programs run* below.
 
 ## Declaring one
 
-A program's variables are not spelled in C++. Its own `<class>.toml` connects its
-interface to the table, and `scripts/vars_gen.py` emits its base class - one
-typed member per row, the blocks it declares, and the `bind()` that resolves
-them all - into `programs/<stage>/<class>/<class>.gen.h`:
-
-```toml
-# programs/sense/strat_sensor/strat_sensor.toml
-name   = "strat"          # the instance, and its writer identity
-class  = "StratSensor"    # and the directory it lives in, in snake_case
-task   = "FAST"           # the rate class it is dispatched at
-health = "prog_strat"     # optional: where its health is published
-desc   = "The stratification gap, unsigned."   # its @brief, and the report's
-
-[in]
-ceiling = "cli_temp_hi"
-floor   = "cli_temp_lo"
-
-[out]
-strat = "cli_dTStrat_degC"
-```
-
-The directory holds three files, and the generator owns two of them - it
-scaffolds the third once and never touches it again:
+A program is one directory and two files: the header is its whole declaration -
+its rows, the blocks it holds, and the `bind()` that resolves every name - and
+the `.cpp` is the law.
 
 ```
 programs/sense/strat_sensor/
-    strat_sensor.toml     declared: this file
-    strat_sensor.gen.h    GENERATED: class Site::StratSensor : Plc::Program
-    strat_sensor.cpp      yours: the bodies
+    strat_sensor.h      the interface: rows, blocks, bind()
+    strat_sensor.cpp    the bodies
 ```
 
-All you write is the law, and it reads the rows as its own members:
-`strat.set(ceiling.get() - floor.get())`. The instance name and the rate class
-are baked into the generated constructor, so neither can drift.
+```cpp
+class StratSensor final : public Plc::Program {
+public:
+    /** @name VAR_INPUT
+     *  @{ */
+    Vars::RefIn<float> ceiling;
+    Vars::RefIn<float> floor;
+    /** @} */
 
-**A name without a leading underscore was declared as an interface**; `[var]` and
-`[fn]` are the law's own half, and the generator adds the underscore that says
-so - `[var.seeded]` becomes `_seeded`. It refuses a name that would collide
-either way: with `Plc::Program`'s interface (`health`, `group`, `run`, ...) or,
-once underscored, with its internals (`_health`, `_slot`, ...).
+    /** @name VAR_OUTPUT
+     *  @{ */
+    Vars::RefOut<float> strat;
+    /** @} */
 
-Everything a program declares beyond its connections gets a section of its own,
-because a type, an initial value and a sentence of prose do not fit on one line:
+private:
+    Vars::VarRef _watch_rows[2];  ///< swept for validity before each activation
 
-```toml
-[var.seeded]
-type = "bool"
-init = "false"
+public:
+    StratSensor(const SetupContext& ctx, Vars::Bank& io)
+        : Program(ctx, "strat", Tasks::GROUP_FAST, io) {}
+        //                     ^ the instance name, and the rate class
 
-[fn.phase_at]
-type = "DayPhase (int16_t from_rise, int16_t from_set) const"
-doc  = """
-The phase two offsets land in, with the two BANK phases skipped when yesterday
-did not arm them.
-"""
+protected:
+    void bind(Vars::Bank& io) override;
+    void run(ProgramContext& c) override;
+};
+
+inline void StratSensor::bind(Vars::Bank& io) {
+    ceiling = io.resolve_in<float>("cli_temp_hi");
+    floor   = io.resolve_in<float>("cli_temp_lo");
+    strat   = io.resolve_out<float>("cli_dTStrat_degC");
+
+    _watch_rows[0] = ceiling.r;
+    _watch_rows[1] = floor.r;
+    set_inputs(_watch_rows, 2);
+    set_health_row(io.resolve_out<uint8_t>("prog_strat"));
+}
 ```
 
-Three sections, and each promises something the compiler then holds you to:
+All the `.cpp` holds is the law, and it reads the rows as its own members:
+`strat.set(Plc::abs_of(Plc::sub(ceiling.get(), floor.get())), measured)`.
 
-| Section | IEC 61131-3 | Rule |
+**A name without a leading underscore is part of the interface**; the law's own
+half - the state the table cannot describe, and its helpers - takes the
+underscore that says so. Neither may collide with `Plc::Program`'s own
+(`health`, `group`, `run`, ... and `_health`, `_slot`, ...).
+
+The direction is the TYPE, and each promises something the compiler then holds
+you to:
+
+| Member | IEC 61131-3 | Rule |
 |---|---|---|
-| `in` | `VAR_INPUT` / `VAR_EXTERNAL CONSTANT` | read-only: `drive()` on it does not compile |
-| `out` | `VAR_OUTPUT` / `VAR_EXTERNAL` | this program is the row's ONE producer, claimed at bind time |
-| `inout` | `VAR_IN_OUT` | read-modify-write, SHARED by declaration |
+| `RefIn<T>` | `VAR_INPUT` / `VAR_EXTERNAL CONSTANT` | read-only: `set()` on it does not compile |
+| `RefOut<T>` | `VAR_OUTPUT` / `VAR_EXTERNAL` | this program is the row's ONE producer, claimed at bind time |
+| `Ref<T>` | `VAR_IN_OUT` | read-modify-write, SHARED by declaration |
 
-A member is `name = "row"`, a list, or a PATTERN where `*` is one or more
-digits: `days = { rows = "irr_days_tray*", count = 8 }` takes the eight numbered
-trays in numeric order. `*` matches digits and nothing else, so it cannot take
-`irr_traysPerDay` for a tray, and `count` is asserted so a row quietly added or
-removed is an error rather than an array that changed size.
-The reference's TYPE comes from the row, so a member cannot disagree with what it
-names.
+A member may be an ARRAY of references, resolved in a loop over numbered rows:
+`RefIn<float> days[8]`, filled from `irr_days_tray1` .. `irr_days_tray8`. The
+count is the array's own, so a row quietly added or removed is a row nothing
+resolves - which is a bind failure, not an array that changed size.
+
+A `resolve_*<T>` whose `T` disagrees with the row's own declared type resolves
+to the inert sink, exactly as a missing name does: the row is bound by name AND
+type.
 
 @note **Declaring an output claims it**, inside the program's own writer window,
 so two programs producing one row is a BRING-UP failure rather than something
 noticed on whichever beat both first wrote - which for a row only a fault path
-drives could be months in. `check-vars` catches it earlier still, before the
-firmware is built.
+drives could be months in.
 
 ## Registering one
 
 Nowhere, by hand. Programs are members of the site's firmware class, and the
-member, its constructor init and its `register_tasks()` call are one generated
-list expanded three times:
+member, its constructor init and its `register_tasks()` call are one list
+expanded three times:
 
 ```cpp
 #define X(cls, mem) Site::cls mem;
-    SITE_PROGRAM_LIST(X)          // generated/programs.gen.h, in TABLE order
+    SITE_PROGRAM_LIST(X)          // programs.h, in EXECUTION order
 #undef X
 ```
 
 **Registration order is execution order** within `PHASE_CONTROL`, so a law that
 computes a setpoint and a law that acts on it complete in one beat when written
-that way round. The order is `programs/order.toml`'s, and that is the file to change
-to change it. The three lists used to be hand-kept and had already drifted about
-where one program ran.
+that way round. The order is `SITE_PROGRAM_LIST`'s, in `programs.h`, and that is
+the one place to change it: the macro is what keeps the three lists from
+drifting about where a program runs.
 
 ## What a program gets
 
@@ -159,46 +159,43 @@ a stall silently loses the time it was late by. Always pass `c.dt_ms`.
 
 ## Writing one
 
-```toml
-# programs/sense/supply_watch/supply_watch.toml
-name  = "supply_watch"
-class = "SupplyWatch"
-task  = "SLOW"
-stage = "sense"
-desc  = "The supply rails, watched."
-[block.bad_for]
-type = "Ton"
-doc  = "debounce"
-
-[block.lockout]
-type = "Sr"
-[in]
-ln = "grid_LN_V"
-[out]
-locked = "sys_supply_lockout"
-```
-
-The rows and the two blocks are declared, so the hand-written half is the law
-and nothing else:
+A worked one, in full. The header declares what it has:
 
 ```cpp
-class SupplyWatch final : public Gen::SupplyWatch {
+class SupplyWatch final : public Plc::Program {
+public:
+    Vars::RefIn<float> ln;
+    Vars::RefOut<bool> locked;
+
+private:
+    Plc::Ton _bad_for;   ///< debounce
+    Plc::Sr  _lockout;
+
 public:
     SupplyWatch(const SetupContext& ctx, Vars::Bank& io)
-        : Gen::SupplyWatch(ctx, io) {}          // SLOW: 100 ms, from the table
+        : Plc::Program(ctx, "supply_watch", Tasks::GROUP_SLOW, io) {}
 
 protected:
-    void run(ProgramContext& c) override { (void)c; }
-
-    void observe(ProgramContext& c) override {
-        if (c.first_scan) { bad_for.reset(); lockout.reset(); }
-
-        const bool unhealthy = !Plc::in_range(ln.get(), 200.0f, 260.0f);
-
-        // reset-dominant: recovery wins, so the lockout cannot stick
-        locked.set(lockout(bad_for(unhealthy, 5000, c.dt_ms), !unhealthy));
+    void bind(Vars::Bank& io) override {
+        ln     = io.resolve_in<float>("grid_LN_V");
+        locked = io.resolve_out<bool>("sys_supply_lockout");
     }
+    void run(ProgramContext& c) override { (void)c; }
+    void observe(ProgramContext& c) override;
 };
+```
+
+and the `.cpp` is the law and nothing else:
+
+```cpp
+void SupplyWatch::observe(ProgramContext& c) {
+    if (c.first_scan) { _bad_for.reset(); _lockout.reset(); }
+
+    const bool unhealthy = !Plc::in_range(ln.get(), 200.0f, 260.0f);
+
+    // reset-dominant: recovery wins, so the lockout cannot stick
+    locked.set(_lockout(_bad_for(unhealthy, 5000, c.dt_ms), !unhealthy));
+}
 ```
 
 It commands nothing, so all of it is in `observe()` and `run()` is empty: the

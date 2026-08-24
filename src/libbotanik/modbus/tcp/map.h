@@ -170,8 +170,8 @@ namespace Botanik { namespace Modbus {
         /** @name Conversion
          *
          *  A row's value as the 32 bits two registers carry, and back. Exposed so
-         *  the tests can specify the wire format and the CSV generator produces
-         *  the numbers the server serves.
+         *  the tests can specify the wire format independently of the server
+         *  that serves it.
          *  @{ */
 
         /** @brief @p v's value as the 32-bit word its two registers carry -

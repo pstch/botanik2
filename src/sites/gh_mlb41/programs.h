@@ -1,7 +1,7 @@
 /**
  * @file programs.h
- * @brief The site\'s variable table.
- *        Edit a program's own table, or programs/order.toml and re-run, or `make -C build check-vars` will fail.
+ * @brief The site's programs, in EXECUTION order: one X-macro, expanded
+ *        three times by site.h so the order is written once.
  */
 
 #ifndef SITE_PROGRAMS_H
