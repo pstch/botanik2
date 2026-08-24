@@ -287,14 +287,24 @@ namespace Botanik { namespace Plc {
             // found at BRING-UP, where it is a POST failure someone can act on,
             // rather than on whichever beat both first happened to write - which
             // for a row only a fault path drives may be months in.
+            // A name matching no row resolves to the INERT SINK, which reads 0
+            // for ever - so a law bound to one runs on zeros and says nothing
+            // about it. The bank counts them; a program that added to the count
+            // failed to bind, and says so where the POST can see it.
+            const uint16_t missed = _io->unresolved_count();
             _io->begin_writer(_slot);
             bind(*_io);
             _io->end_writer();
+            _unbound = (_io->unresolved_count() != missed);
         }
 
         /** @} */
 
     private:
+        /** @brief bind() named a row no table declares. Permanent: the ref it
+         *  got is the inert sink and nothing later replaces it. */
+        bool _unbound = false;
+
         /** @brief The supervisor sets `_health_said`; nothing else may. */
         friend void publish_health(Vars::Bank&, const Tasks::Registry&,
                                    Logs::Logger*);
@@ -318,6 +328,10 @@ namespace Botanik { namespace Plc {
             // calls degraded()/faulted() is one whose run() cannot fail, and it
             // should read as healthy rather than as unknown.
             _health = Health::HEALTHY;
+            // A bind that missed a name never gets better: that ref is the
+            // inert sink for the life of the program, so it is re-stated every
+            // activation rather than only on the one where it happened.
+            if (_unbound) faulted();
             // BEFORE run(), so a law reading an unbelievable input starts from
             // DEGRADED and can still escalate to FAULTED on its own account.
             _watch_inputs();

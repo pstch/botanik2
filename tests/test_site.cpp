@@ -136,6 +136,11 @@ TEST_CASE("site: nothing the site touches fails to resolve") {
          "that is not in vars.h; the bank logs which one");
     CHECK(f.bank.unresolved_count() == 0);
 
+    INFO("and every one of them bound: a program that missed a name is FAULTED "
+         "at bring-up, which is what says so on hardware where no test runs");
+    for (Plc::Program* p : progs.all)
+        CHECK(p->health() != Plc::Health::FAULTED);
+
     // Bank::set() is the operator's path alone; catches a write at a stale index - zero is a real row.
     for (uint16_t k = 0; k < f.bank.param_count(); k++) {
         const Vars::Var h = f.bank.param_at(k);
@@ -255,5 +260,6 @@ TEST_CASE("site: every register sits in its scope's block") {
     // Platform alarms are the library's own rows; a missed registration passes silently.
     CHECK(alarms >= 6);
 }
+
 
 }  // namespace site_names

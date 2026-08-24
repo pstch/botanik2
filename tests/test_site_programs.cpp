@@ -1767,4 +1767,40 @@ TEST_CASE_FIXTURE(IrrigationRig, "irrigation: a fill that never arrives raises, 
     CHECK_FALSE(live.bank.var(live.ref("irr_input_ro1")).b());
 }
 
+namespace {
+
+/** @brief A program that names a row no table declares. */
+class MisnamedProgram final : public Plc::Program {
+public:
+    Vars::RefIn<float> missing;
+    MisnamedProgram(const SetupContext& ctx, Vars::Bank& io)
+        : Plc::Program(ctx, "misnamed", Tasks::GROUP_FAST, io) {}
+
+protected:
+    void bind(Vars::Bank& io) override {
+        missing = io.resolve_in<float>("no_such_row_anywhere");
+    }
+    void run(ProgramContext& c) override { (void)c; }
+};
+
+}  // namespace
+
+TEST_CASE("program: a name that resolves to nothing FAULTS the program that asked") {
+    Live live;
+    MisnamedProgram p{Botanik::SetupContext(live.reg), live.bank};
+    Plc::Program* const progs[1] = { &p };
+    Cycle d{progs, 1, &live.bank, live.reg};
+
+    INFO("the sink reads 0 for ever, so a law bound to one would run on zeros "
+         "and say nothing at all - the program says it instead");
+    d.step(100);
+    CHECK(live.bank.unresolved_count() == 1);
+    CHECK(p.health() == Plc::Health::FAULTED);
+
+    INFO("and it stays said: the ref never stops being the sink, so a later "
+         "activation cannot read as healthy");
+    d.step(200);
+    CHECK(p.health() == Plc::Health::FAULTED);
+}
+
 }  // namespace site_programs
