@@ -6,7 +6,7 @@
 #include <cmath>
 #include "libbotanik/utils/time.h"
 
-#include "irrigation_cycle.gen.h"
+#include "irrigation_cycle.h"
 
 namespace Site {
 

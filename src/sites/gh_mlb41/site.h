@@ -36,7 +36,7 @@
 #include "vars.h"
 
 // Every control program, and the one list site.h expands three times below.
-#include "generated/programs.gen.h"
+#include "programs.h"
 
 namespace Site {
 
@@ -77,7 +77,7 @@ class GreenhouseMLB41 final : public Botanik::BotanikFirmware {
 
     /** @name Control programs
      *
-     *  One list, from generated/programs.gen.h, expanded here for the members,
+     *  One list, from programs.h, expanded here for the members,
      *  below for the constructor init, and again for the registration. Being
      *  members, there is exactly one of each by construction - which a
      *  header-declared static could not promise (a namespace-scope `static` is

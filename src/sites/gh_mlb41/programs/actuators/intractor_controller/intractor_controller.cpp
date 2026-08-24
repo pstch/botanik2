@@ -3,7 +3,7 @@
  * @brief HAND-WRITTEN - the body of the `intractors` POU.
  */
 
-#include "intractor_controller.gen.h"
+#include "intractor_controller.h"
 
 namespace Site {
 

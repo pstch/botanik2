@@ -3,7 +3,7 @@
  * @brief HAND-WRITTEN - the body of the `irr_mtr_input` POU.
  */
 
-#include "irr_mtr_input.gen.h"
+#include "irr_mtr_input.h"
 
 namespace Site {
 

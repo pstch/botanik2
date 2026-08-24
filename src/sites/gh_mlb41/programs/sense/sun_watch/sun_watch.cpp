@@ -3,7 +3,7 @@
  * @brief HAND-WRITTEN - the body of the `sun_watch` POU.
  */
 
-#include "sun_watch.gen.h"
+#include "sun_watch.h"
 
 namespace Site {
 

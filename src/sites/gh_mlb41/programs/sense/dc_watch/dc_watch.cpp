@@ -3,7 +3,7 @@
  * @brief HAND-WRITTEN - the body of the `dc_watch` POU.
  */
 
-#include "dc_watch.gen.h"
+#include "dc_watch.h"
 
 #include "../../../blocks/ac_supply/ac_supply.h"
 namespace Site {

@@ -3,7 +3,7 @@
  * @brief HAND-WRITTEN - the body of the `temp_rh_sensors` POU.
  */
 
-#include "temp_rh_sensors.gen.h"
+#include "temp_rh_sensors.h"
 
 namespace Site {
 

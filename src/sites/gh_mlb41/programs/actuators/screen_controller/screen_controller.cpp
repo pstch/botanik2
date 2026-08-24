@@ -3,7 +3,7 @@
  * @brief HAND-WRITTEN - the body of the `screen` POU.
  */
 
-#include "screen_controller.gen.h"
+#include "screen_controller.h"
 
 namespace Site {
 

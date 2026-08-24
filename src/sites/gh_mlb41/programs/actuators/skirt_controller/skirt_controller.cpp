@@ -3,7 +3,7 @@
  * @brief HAND-WRITTEN - the body of the `skirt` POU.
  */
 
-#include "skirt_controller.gen.h"
+#include "skirt_controller.h"
 
 namespace Site {
 

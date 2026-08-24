@@ -3,7 +3,7 @@
  * @brief HAND-WRITTEN - the body of the `weather_watch` POU.
  */
 
-#include "weather_watch.gen.h"
+#include "weather_watch.h"
 
 namespace Site {
 

@@ -3,7 +3,7 @@
  * @brief HAND-WRITTEN - the body of the `target_temp` POU.
  */
 
-#include "target_temp_controller.gen.h"
+#include "target_temp_controller.h"
 
 namespace Site {
 

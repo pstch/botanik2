@@ -10,7 +10,7 @@
  *
  * A row belongs here when the LIBRARY reads or raises it by name. It is
  * declared in the CSV tables under `vars/tables/` and generated into
- * `generated/vars.gen.h`,
+ * `vars/vars_table.h`,
  * which this file includes AFTER the feature-gated includes below - a row's
  * factory default is its component's own struct default, so those types have to
  * be complete first.
@@ -53,7 +53,7 @@
 #include "libbotanik/config/vars.h"
 #include "libbotanik/logs/topics.h"
 #include "libbotanik/vars/declare.h"
-#include "libbotanik/vars/generated/vars.gen.h"
+#include "libbotanik/vars/vars_table.h"
 
 namespace Botanik { namespace Vars {
 

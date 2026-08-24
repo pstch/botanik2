@@ -3,7 +3,7 @@
  * @brief HAND-WRITTEN - the body of the `strat` POU.
  */
 
-#include "strat_sensor.gen.h"
+#include "strat_sensor.h"
 
 namespace Site {
 

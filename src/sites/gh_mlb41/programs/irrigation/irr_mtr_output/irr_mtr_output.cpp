@@ -3,7 +3,7 @@
  * @brief HAND-WRITTEN - the body of the `irr_mtr_output` POU.
  */
 
-#include "irr_mtr_output.gen.h"
+#include "irr_mtr_output.h"
 
 namespace Site {
 

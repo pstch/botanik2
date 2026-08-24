@@ -5,7 +5,7 @@
 
 #include <cmath>
 
-#include "irrigation_schedule.gen.h"
+#include "irrigation_schedule.h"
 
 namespace Site {
 

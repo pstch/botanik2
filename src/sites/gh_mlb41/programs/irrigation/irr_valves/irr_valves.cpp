@@ -3,7 +3,7 @@
  * @brief HAND-WRITTEN - the body of the `irr_valves` POU.
  */
 
-#include "irr_valves.gen.h"
+#include "irr_valves.h"
 
 namespace Site {
 

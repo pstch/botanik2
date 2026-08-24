@@ -3,7 +3,7 @@
  * @brief HAND-WRITTEN - the body of the `climate_watch` POU.
  */
 
-#include "climate_watch.gen.h"
+#include "climate_watch.h"
 
 namespace Site {
 

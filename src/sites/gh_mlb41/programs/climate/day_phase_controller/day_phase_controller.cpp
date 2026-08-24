@@ -3,7 +3,7 @@
  * @brief HAND-WRITTEN - the body of the `day_phase` POU.
  */
 
-#include "day_phase_controller.gen.h"
+#include "day_phase_controller.h"
 
 namespace Site {
 

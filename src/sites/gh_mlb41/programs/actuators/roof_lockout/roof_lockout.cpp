@@ -3,7 +3,7 @@
  * @brief HAND-WRITTEN - the body of the `roof_lockout` POU.
  */
 
-#include "roof_lockout.gen.h"
+#include "roof_lockout.h"
 
 namespace Site {
 

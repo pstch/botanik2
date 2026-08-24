@@ -3,7 +3,7 @@
  * @brief HAND-WRITTEN - the body of the `fans` POU.
  */
 
-#include "fan_controller.gen.h"
+#include "fan_controller.h"
 
 namespace Site {
 

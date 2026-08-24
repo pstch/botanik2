@@ -3,7 +3,7 @@
  * @brief HAND-WRITTEN - the body of the `cooling` POU.
  */
 
-#include "cooling_controller.gen.h"
+#include "cooling_controller.h"
 
 namespace Site {
 

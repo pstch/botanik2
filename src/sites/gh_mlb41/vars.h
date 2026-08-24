@@ -6,7 +6,7 @@
  * @brief HAND-WRITTEN - what the device map means, and the home screen.
  *
  * The rows themselves live in the CSV tables under `tables/` and are generated
- * into `generated/vars.gen.h`, included below. This file holds the two things
+ * in `vars_table.h`, included below. This file holds the two things
  * no table expresses: the reading of the site's Modbus device map that the
  * bindings were derived from, and the home-screen captions.
  *
@@ -53,7 +53,7 @@
 
 #include "libbotanik.h"
 
-#include "generated/vars.gen.h"
+#include "vars_table.h"
 
 namespace Site {
 

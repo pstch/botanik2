@@ -19,7 +19,7 @@
 #include "libbotanik.h"
 #include "libbotanik_site.h"
 #include BOTANIK_SITE_HEADER
-#include "sites/gh_mlb41/generated/programs.gen.h"
+#include "sites/gh_mlb41/programs.h"
 
 #include "scan_fixture.h"
 #include "scenario_trace.h"

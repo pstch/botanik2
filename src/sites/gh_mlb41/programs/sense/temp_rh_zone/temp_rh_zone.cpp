@@ -3,7 +3,7 @@
  * @brief HAND-WRITTEN - the body of the `temp_rh_zone` POU.
  */
 
-#include "temp_rh_zone.gen.h"
+#include "temp_rh_zone.h"
 
 namespace Site {
 

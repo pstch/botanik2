@@ -3,7 +3,7 @@
  * @brief HAND-WRITTEN - the body of the `ac_local_watch` POU.
  */
 
-#include "ac_local_watch.gen.h"
+#include "ac_local_watch.h"
 
 namespace Site {
 

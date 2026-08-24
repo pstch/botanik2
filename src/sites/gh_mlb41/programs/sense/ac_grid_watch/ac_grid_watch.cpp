@@ -3,7 +3,7 @@
  * @brief HAND-WRITTEN - the body of the `ac_grid_watch` POU.
  */
 
-#include "ac_grid_watch.gen.h"
+#include "ac_grid_watch.h"
 
 namespace Site {
 
