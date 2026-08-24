@@ -73,24 +73,25 @@ struct AllPrograms {
     Site::IrrMtrInput          irr_in;
     Site::IrrMtrOutput         irr_out;
     Site::IrrigationCycle      irrigation;
+    Site::IrrValves            irr_valves;
     Site::ScreenController     screen;
     Site::WindowsController    windows;
     Site::IntractorController  intractors;
     Site::FanController        fans;
     Site::SkirtController      skirt;
 
-    static const uint8_t COUNT = 21;
+    static const uint8_t COUNT = 22;
     Botanik::Plc::Program* all[COUNT];
 
     AllPrograms(const Botanik::SetupContext& ctx, Vars::Bank& io)
         : sun_watch(ctx, io), ac_grid(ctx, io), ac_local(ctx, io), dc(ctx, io), sensors(ctx, io), zones(ctx, io),
           strat(ctx, io), phase(ctx, io), target(ctx, io), cooling(ctx, io),
           destrat(ctx, io), humidity(ctx, io),
-          irr_mod(ctx, io), irr_in(ctx, io), irr_out(ctx, io), irrigation(ctx, io), screen(ctx, io), windows(ctx, io),
+          irr_mod(ctx, io), irr_in(ctx, io), irr_out(ctx, io), irrigation(ctx, io), irr_valves(ctx, io), screen(ctx, io), windows(ctx, io),
           intractors(ctx, io), fans(ctx, io), skirt(ctx, io) {
         Botanik::Plc::Program* const list[] = {
             &ac_grid, &ac_local, &dc, &sensors, &zones, &strat, &phase, &target,
-            &cooling, &destrat, &humidity, &irr_mod, &irr_in, &irr_out, &irrigation, &screen,
+            &cooling, &destrat, &humidity, &irr_mod, &irr_in, &irr_out, &irrigation, &irr_valves, &screen,
             &sun_watch,
             &windows, &intractors, &fans, &skirt
         };

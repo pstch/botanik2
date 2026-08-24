@@ -12,8 +12,6 @@
 
 #include "../../../vars.h"
 
-#include "../../../blocks/valve_controller.h"
-
 namespace Site {
 
 using namespace Botanik;
@@ -47,12 +45,9 @@ public:
     /** @name VAR_OUTPUT
      *  @{ */
 
-    Vars::RefOut<bool>    tray_valve[8];
     Vars::RefOut<float>   volume;
     Vars::RefOut<uint8_t> state;
     Vars::RefOut<uint8_t> active;
-    Vars::RefOut<bool>    inlet[2];
-    Vars::RefOut<bool>    outlet[2];
     Vars::RefOut<bool>    fill_fault;
     Vars::RefOut<bool>    drain_fault;
     Vars::RefOut<bool>    fill_tray[8];
@@ -78,11 +73,7 @@ private:
     /** @name VAR - function blocks
      *  @{ */
 
-    /** @brief how long this state has run; _enter() resets it */
-    Plc::Ton        dwell;
-    ValveController inlet_v[2];  ///< two contactors on one manifold
-    ValveController outlet_v[2];
-    ValveController tray_v[8];
+    Plc::Ton dwell;  ///< how long this state has run; _enter() resets it
 
     /** @} */
 
@@ -107,16 +98,10 @@ private:
      *  @{ */
 
     static const uint8_t N_LITRES     = 8;
-    static const uint8_t N_TRAY_VALVE = 8;
-    static const uint8_t N_INLET      = 2;
-    static const uint8_t N_OUTLET     = 2;
     static const uint8_t N_FILL_TRAY  = 8;
     static const uint8_t N_DRAIN_TRAY = 8;
     static const uint8_t N_LAST       = 8;
     static const uint8_t N_FORCE_ON   = 8;
-    static const uint8_t N_INLET_V    = 2;
-    static const uint8_t N_OUTLET_V   = 2;
-    static const uint8_t N_TRAY_V     = 8;
 
     /** @} */
 
@@ -130,7 +115,6 @@ protected:
     /** @brief Resolve every name. An output is CLAIMED here. */
     void bind(Vars::Bank& io) override;
     void run(ProgramContext& c) override;
-    void on_bind();  ///< wire a block to a row it was handed
 
 private:
 
@@ -176,21 +160,9 @@ inline void IrrigationCycle::bind(Vars::Bank& io) {
     exp_drain      = io.resolve_in<float>("irr_expDrainFrac");
     drain_margin   = io.resolve_in<float>("irr_drainMargin");
     out_flow       = io.resolve_in<float>("irr_outFlow_Lpm");
-    tray_valve[0]  = io.resolve_out<bool>("irr_tray1");
-    tray_valve[1]  = io.resolve_out<bool>("irr_tray2");
-    tray_valve[2]  = io.resolve_out<bool>("irr_tray3");
-    tray_valve[3]  = io.resolve_out<bool>("irr_tray4");
-    tray_valve[4]  = io.resolve_out<bool>("irr_tray5");
-    tray_valve[5]  = io.resolve_out<bool>("irr_tray6");
-    tray_valve[6]  = io.resolve_out<bool>("irr_tray7");
-    tray_valve[7]  = io.resolve_out<bool>("irr_tray8");
     volume         = io.resolve_out<float>("irr_volume_L");
     state          = io.resolve_out<uint8_t>("irr_state");
     active         = io.resolve_out<uint8_t>("irr_activeTray");
-    inlet[0]       = io.resolve_out<bool>("irr_input_ro1");
-    inlet[1]       = io.resolve_out<bool>("irr_input_ro2");
-    outlet[0]      = io.resolve_out<bool>("irr_output_ro1");
-    outlet[1]      = io.resolve_out<bool>("irr_output_ro2");
     fill_fault     = io.resolve_out<bool>("alarm_irr_fill");
     drain_fault    = io.resolve_out<bool>("alarm_irr_drain");
     fill_tray[0]   = io.resolve_out<bool>("alarm_irr_fill_tray1");
@@ -244,7 +216,6 @@ inline void IrrigationCycle::bind(Vars::Bank& io) {
     _watch_rows[8] = drained.r;
     set_inputs(_watch_rows, 9);
     set_health_row(io.resolve_out<uint8_t>("prog_irrigation"));
-    on_bind();
 }
 
 }  // namespace Site

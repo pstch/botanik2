@@ -396,6 +396,7 @@ const Descriptor rows[] = {
     SVE("prog_humidity"          , 3          , &Plc::health_label, 580, "health of the humidity program", "3 is INHIBITED: nothing has run yet"),
     SVE("prog_irr_modulation"    , 3          , &Plc::health_label, 591, "health of the irrigation modulation program", "3 is INHIBITED: nothing has run yet"),
     SVE("prog_irr_mtr_input"     , 3          , &Plc::health_label, 592, "health of the inlet meter program", "3 is INHIBITED: nothing has run yet"),
+    SVE("prog_irr_valves"        , 3          , &Plc::health_label, 605, "health of the irrigation valves program", "3 is INHIBITED: nothing has run yet"),
     SVE("prog_irr_mtr_output"    , 3          , &Plc::health_label, 604, "health of the outlet meter program", "3 is INHIBITED: nothing has run yet"),
     SVE("prog_irrigation"        , 3          , &Plc::health_label, 581, "health of the irrigation program", "3 is INHIBITED: nothing has run yet"),
     SVE("prog_screen"            , 3          , &Plc::health_label, 582, "health of the screen program", "3 is INHIBITED: nothing has run yet"),

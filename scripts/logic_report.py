@@ -531,11 +531,13 @@ def curve_diagram(spec):
              text(x0 + w, y0 + h + 12, spec.get("xlab", "in"), 6.6, "end")]
 
     def _plot(points, falling):
-        # The falling branch is nudged clear of the rising one: on the flat runs
-        # the two coincide exactly, and one drawn over the other hides the loop.
-        dy = 2.5 if falling else 0.0
+        # Both branches on the SAME levels: a level is a level whichever way the
+        # reading arrived at it, and nudging one clear drew a staircase whose
+        # treads did not line up. The loop still shows - the two step at
+        # different values, which is the whole of what hysteresis is - and the
+        # falling branch goes down first so the rising one stays on top.
         col = FALL_C if falling else INK
-        pts = [(x0 + px * w, y0 + h - py * h + dy) for px, py in points]
+        pts = [(x0 + px * w, y0 + h - py * h) for px, py in points]
         prims.append(line(pts, color=col))
         # An arrowhead on the longest flat run, pointing the way it is walked.
         best, run = None, -1.0
@@ -549,9 +551,10 @@ def curve_diagram(spec):
                               color=col))
 
     down = spec.get("down")
-    _plot(spec["points"], False)
     if down:
         _plot(down, True)
+    _plot(spec["points"], False)
+    if down:
         prims.append(line([(x0 + w - 96, y0 - 4), (x0 + w - 78, y0 - 4)]))
         prims.append(text(x0 + w - 74, y0 - 2, "rising", 6.2, color=MUTED))
         prims.append(line([(x0 + w - 44, y0 - 4), (x0 + w - 26, y0 - 4)],
@@ -1055,7 +1058,10 @@ def fbd_diagram(spec, unwired=None):
         # wires crossing it to get there: the labels plus room to pass them.
         out = [max(96, int(_for(0) * 3.4) + 22)]
         for k in range(1, band):
-            out.append(out[-1] + bw + max(104, int(_for(k) * 3.4) + 72))
+            # A column every wire reaches needs room for the wires and nothing
+            # else; one with labels in front of it needs room for those too.
+            room = 64 if _for(k) == 0 else max(104, int(_for(k) * 3.4) + 72)
+            out.append(out[-1] + bw + room)
         return out
 
     # Wrap sooner when the columns are wide: a page past about 760 is scaled
@@ -1066,15 +1072,37 @@ def fbd_diagram(spec, unwired=None):
             break
     lane = xs[0]
 
-    prims, box, y_of, bottom = [], {}, {}, {}
+    prims, box, y_of, bottom, band_of = [], {}, {}, {}, {}
     top, widest = 26, 1
     for comp in comps:
         mine = set(x[0] for x in comp)
-        band_top = top
+        # Vertical ORDER inside each column, so the wires between two columns
+        # run flat instead of crossing: a node sits level with whatever feeds
+        # it, and a node in the first column level with whatever it feeds.
+        # Forward once, then back, which is the usual two sweeps.
         ccols = max(depth[n] for n in mine) + 1
+        rank = {n: i for i, n in enumerate(x[0] for x in comp)}
+        by_col = [[n for n in rank if depth[n] == c] for c in range(ccols)]
+        for _pass in range(2):
+            for c in range(1, ccols):
+                by_col[c].sort(key=lambda n: (
+                    sum(rank[h] for h in _feeds(n) if h in rank) /
+                    max(1, len([h for h in _feeds(n) if h in rank])), rank[n]))
+                for i, n in enumerate(by_col[c]):
+                    rank[n] = i
+            for c in range(ccols - 2, -1, -1):
+                eats = {n: [m for m in by_col[c + 1] if n in _feeds(m)]
+                        for n in by_col[c]}
+                by_col[c].sort(key=lambda n: (
+                    sum(rank[m] for m in eats[n]) / max(1, len(eats[n]))
+                    if eats[n] else rank[n], rank[n]))
+                for i, n in enumerate(by_col[c]):
+                    rank[n] = i
+
+        band_top = top
         widest = max(widest, min(ccols, BAND))
         for c in range(ccols):
-            here = [x for x in comp if depth[x[0]] == c]
+            here = [inst[n] for n in by_col[c]]
             if c and c % BAND == 0:                  # a new band starts below
                 band_top = max((y_of[n][1] + y_of[n][3] for n in mine
                                 if n in y_of), default=band_top) + 58
@@ -1107,6 +1135,7 @@ def fbd_diagram(spec, unwired=None):
                                       color=MUTED))
                     box[(name, "out", pin)] = (x + bw, py - 2)
                 y_of[name] = (x, y, bw, bh)
+                band_of[name] = c // BAND
                 y += bh + gapy
         foot = max((y_of[n][1] + y_of[n][3] for n in mine if n in y_of),
                    default=top)
@@ -1130,6 +1159,12 @@ def fbd_diagram(spec, unwired=None):
         return False
 
     jogs = {}
+
+    def _straight(sx, sy, tx, ty, clear=0):
+        """Whether a plain three-segment wire gets there without a detour."""
+        mid = max(sx + 16, clear)
+        return not (_hits(sx, mid, sy, sy) or _hits(mid, mid, sy, ty)
+                    or _hits(mid, tx, ty, ty)) and tx > mid
 
     def _route(sx, sy, tx, ty, floor_y, lanes, clear=0):
         """A wire from an output pin to an input pin, around the boxes.
@@ -1179,6 +1214,20 @@ def fbd_diagram(spec, unwired=None):
     # feeds another node continues FROM THE ROW: the signal is named once and
     # the page shows the reader picking up the same name, rather than two
     # arrows leaving one pin as if they were different things.
+    # A signal that leaves this row is a CONNECTOR, not a wire: drawn, it is a
+    # line back across the whole page, and every FBD tool names it at both ends
+    # instead. The name is the row it publishes, or the pin itself.
+    pin_row, crossing = {}, {}
+    for name, typ, ins, outs in spec:
+        for pin, dst in outs.items():
+            pin_row[(name, pin)] = str(dst)
+    for name, typ, ins, outs in spec:
+        for pin in _pins(typ)[0]:
+            for h, opin in _reads(name, str(ins.get(pin, "")))[1]:
+                if band_of.get(h) != band_of.get(name):
+                    crossing[(h, opin)] = pin_row.get((h, opin),
+                                                      f"{h}.{opin}")
+
     from_label, past_labels = {}, {}
     for name, typ, ins, outs in spec:
         for pin, dst in outs.items():
@@ -1191,6 +1240,16 @@ def fbd_diagram(spec, unwired=None):
             from_label[(name, pin)] = (end, sy)
             blocking.append((sx + 8, sy - 5, end - sx - 8, 10))
             past_labels[name] = max(past_labels.get(name, 0), end + 8)
+    for (h, opin), label in sorted(crossing.items()):
+        if (h, opin) in from_label or (h, "out", opin) not in box:
+            continue
+        sx, sy = box[(h, "out", opin)]
+        end = sx + 14 + len(label) * 3.4
+        prims.append(line([(sx, sy), (sx + 8, sy)], arrow=True))
+        prims.append(text(sx + 12, sy + 2, label, 6.0, color=MUTED))
+        from_label[(h, opin)] = (end, sy)
+        blocking.append((sx + 8, sy - 5, end - sx - 8, 10))
+        past_labels[h] = max(past_labels.get(h, 0), end + 8)
 
     def _out_at(head, opin):
         """Where a wire out of this pin starts: the row's label if it writes
@@ -1206,7 +1265,7 @@ def fbd_diagram(spec, unwired=None):
                 continue
             tx, ty = box[(name, "in", pin)]
             body, srcs = _reads(name, src)
-            drawn = False
+            drawn, crossed = False, None
             for h, opin in srcs:
                 if (h, "out", opin) not in box:
                     opin = _pins(inst[h][1])[1][0]
@@ -1214,6 +1273,18 @@ def fbd_diagram(spec, unwired=None):
                     unwired.append(f"{name}.{pin} <- {src}")
                     continue
                 sx, sy = _out_at(h, opin)
+                # A NAMED signal that cannot get there in a straight line is a
+                # connector too: the name is already on the page at both ends,
+                # and a detour around three boxes to repeat it reads as noise.
+                if (band_of.get(h) != band_of.get(name)
+                        or ((h, opin) in pin_row
+                            and not _straight(sx, sy, tx, ty,
+                                              past_labels.get(h, 0)))):
+                    crossed = crossing.get((h, opin),
+                                           pin_row.get((h, opin),
+                                                       f"{h}.{opin}"))
+                    drawn = True
+                    continue
                 prims.append(line(_route(sx, sy, tx, ty,
                                          bottom.get(name, height), lanes,
                                          past_labels.get(h, 0)),
@@ -1225,7 +1296,11 @@ def fbd_diagram(spec, unwired=None):
             bare = len(srcs) == 1 and body in (f"{srcs[0][0]}.{srcs[0][1]}",
                                                *[k for k, v in made.items()
                                                  if v == srcs[0]])
-            if not drawn or not bare:
+            # A formula already spells the connector's name, so it labels the
+            # pin on its own; a bare source needs the name put there.
+            if crossed is not None and bare:
+                left.append((crossed, tx, ty))
+            elif not drawn or not bare:
                 left.append((body, tx, ty))
 
     # Beside ITS OWN block, never on one shared rail: a stub for a block two

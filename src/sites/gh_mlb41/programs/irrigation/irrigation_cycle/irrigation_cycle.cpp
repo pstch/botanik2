@@ -11,47 +11,11 @@
 namespace Site {
 
 
-void IrrigationCycle::on_bind() {
-    for (uint8_t i = 0; i < 2; i++) {
-        inlet_v[i].attach(inlet[i]);
-        outlet_v[i].attach(outlet[i]);
-    }
-    for (uint8_t i = 0; i < N_TRAY_VALVE; i++) tray_v[i].attach(tray_valve[i]);
-}
-
-void IrrigationCycle::_set_valves(IrrState st, uint8_t tray) {
-    // Fill: inlet open, this tray open, outlet shut. Drain: inlet shut, tray
-    // still open, outlet open. Every other tray is shut in both, so one cycle
-    // can never water two.
-    const bool filling  = (st == IRR_FILLING);
-    const bool draining = (st == IRR_DRAINING);
-    // SOAKING keeps the tray connected with both ends of the manifold shut, so
-    // the dose sits where it was put and nothing moves.
-    const bool soaking  = (st == IRR_SOAKING);
-    // FLUSHING opens BOTH ends with no tray between them: fresh water runs the
-    // length of the shared manifold and out through the drain, so what sat in
-    // the line after a tray emptied is not what the next tray gets first.
-    for (uint8_t i = 0; i < 2; i++) {
-        inlet_v[i].set(filling || st == IRR_FLUSHING);
-        outlet_v[i].set(draining || st == IRR_FLUSHING);
-    }
-    for (uint8_t i = 0; i < N_TRAY_VALVE; i++)
-        tray_v[i].set((filling || soaking || draining) && (i + 1 == tray));
-}
-
 void IrrigationCycle::_blame(const Vars::RefOut<bool>* per_tray, bool on) {
     // The tray being served, and only it. The any-form beside these is what an
     // operator sees; this is what still says WHICH tray once the cycle has
     // moved on to the next one.
-    if (_tray >= 1 && _tray <= N_TRAY_VALVE) per_tray[_tray - 1].set(on);
-}
-
-void IrrigationCycle::_park_valves() {
-    for (uint8_t i = 0; i < 2; i++) {
-        inlet_v[i].park();
-        outlet_v[i].park();
-    }
-    for (uint8_t i = 0; i < N_TRAY_VALVE; i++) tray_v[i].park();
+    if (_tray >= 1 && _tray <= N_DRAIN_TRAY) per_tray[_tray - 1].set(on);
 }
 
 void IrrigationCycle::_stamp(uint8_t tray, uint32_t day) const {
@@ -125,7 +89,6 @@ void IrrigationCycle::_enter(IrrState st) {
         _drain_start_L = out_total.get();
         drained.set(0.0f);
     }
-    _set_valves(st, _tray);
     state.set((uint8_t)st);
     active.set(_tray);
 }
@@ -135,7 +98,6 @@ void IrrigationCycle::run(ProgramContext& c) {
         // Where a dead controller would leave them, which is not the same for
         // all ten: the inlet fails SHUT and the drains fail OPEN, so a tray
         // that was filling empties rather than sitting full.
-        _park_valves();
         _tray  = 0;
         _state = IRR_IDLE;
         state.set((uint8_t)IRR_IDLE);

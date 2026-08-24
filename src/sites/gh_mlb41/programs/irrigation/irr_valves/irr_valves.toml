@@ -1,0 +1,67 @@
+name   = "irr_valves"
+class  = "IrrValves"
+task   = "SLOW"
+health = "prog_irr_valves"
+desc   = "The irrigation manifold: which valves each state of the cycle opens."
+notes  = """
+Split from irrigation_cycle, which decides the STATE - this only opens what
+that state means. It reads the two rows the cycle publishes, so an operator
+forcing either drives the manifold directly.
+"""
+hooks  = ["on_bind"]
+
+[block.inlet_v]
+type    = "ValveController"
+count   = 2
+include = "blocks/valve_controller.h"
+doc     = "two contactors on one manifold"
+
+[block.outlet_v]
+type    = "ValveController"
+count   = 2
+include = "blocks/valve_controller.h"
+
+[block.tray_v]
+type    = "ValveController"
+count   = 8
+include = "blocks/valve_controller.h"
+
+[in]
+state  = "irr_state"
+active = "irr_activeTray"
+
+[out]
+# TWO contactors on ONE manifold, always in the same state: there is one inlet
+# and one drain, each switched twice.
+inlet      = { rows = "irr_input_ro*", count = 2 }
+outlet     = { rows = "irr_output_ro*", count = 2 }
+tray_valve = { rows = "irr_tray*", count = 8 }
+
+# The law as a network: one state, three sets of coils.
+
+[net.inlet_v]
+[net.inlet_v.in]
+duty      = "=state == IRR_FILLING || state == IRR_FLUSHING"
+period_ms = "=0"
+min_on_ms = "=0"
+dt        = "=c.dt_ms"
+[net.inlet_v.out]
+coil = "inlet"
+
+[net.outlet_v]
+[net.outlet_v.in]
+duty      = "=state == IRR_DRAINING || state == IRR_FLUSHING"
+period_ms = "=0"
+min_on_ms = "=0"
+dt        = "=c.dt_ms"
+[net.outlet_v.out]
+coil = "outlet"
+
+[net.tray_v]
+[net.tray_v.in]
+duty      = "=active > 0 && state != IRR_IDLE && state != IRR_FLUSHING"
+period_ms = "=0"
+min_on_ms = "=0"
+dt        = "=c.dt_ms"
+[net.tray_v.out]
+coil = "tray_valve"

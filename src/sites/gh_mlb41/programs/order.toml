@@ -24,6 +24,7 @@ order = [
     "irr_mtr_output",
     "irr_schedule",
     "irrigation",
+    "irr_valves",
     "screen",
     "roof_lockout",
     "windows",

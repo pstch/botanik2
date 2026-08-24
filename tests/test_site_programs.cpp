@@ -111,8 +111,10 @@ struct IrrigationRig {
     Site::IrrMtrOutput       out_meter{Botanik::SetupContext(live.reg), live.bank};
     Site::IrrigationSchedule sched    {Botanik::SetupContext(live.reg), live.bank};
     Site::IrrigationCycle    irr      {Botanik::SetupContext(live.reg), live.bank};
-    Plc::Program* const      progs[4] = { &in_meter, &out_meter, &sched, &irr };
-    Cycle                    d{progs, 4, &live.bank, live.reg};
+    Site::IrrValves          valves   {Botanik::SetupContext(live.reg), live.bank};
+    Plc::Program* const      progs[5] = { &in_meter, &out_meter, &sched, &irr,
+                                          &valves };
+    Cycle                    d{progs, 5, &live.bank, live.reg};
 };
 
 /** @brief The roof: the lockout runs FIRST, so the windows see the interlock
@@ -1512,14 +1514,16 @@ TEST_CASE_FIXTURE(IrrigationRig, "valves: each parks where its own row says it f
     // The meters FIRST: the cycle judges a fill against what they publish.
     summer(live);
 
-    irr.request_safe(true);
+    // The VALVES are what park: the cycle decides the state, this drives the
+    // coils, and each coil fails where its own row says it does.
+    valves.request_safe(true);
     d.step(100);
 
     INFO("the inlet fails SHUT and the drains fail OPEN, so a filling tray empties");
     CHECK_FALSE(live.bank.get(live.bank.resolve_in<bool>("irr_input_ro1")));
     CHECK(live.bank.get(live.bank.resolve_in<bool>("irr_output_ro1")));
     CHECK(live.bank.get(live.bank.resolve_in<bool>("irr_tray1")));
-    CHECK(irr.is_parked());
+    CHECK(valves.is_parked());
 }
 
 TEST_CASE_FIXTURE(IrrigationRig, "irrigation: a fill fault names the tray, not just the cycle") {

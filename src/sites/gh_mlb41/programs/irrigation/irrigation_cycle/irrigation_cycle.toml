@@ -9,7 +9,6 @@ FILLING -> SOAKING -> DRAINING -> FLUSHING. A cycle is long, so only
 settings are its DRY-WEATHER ones; `irr_mod` scales them, and the split
 decides whether that shows up as smaller doses or rarer ones.
 """
-hooks  = ["on_bind"]
 
 [var.state]
 type = "IrrState"
@@ -88,22 +87,6 @@ type = "void (IrrState state)"
 type = "Ton"
 doc  = "how long this state has run; _enter() resets it"
 
-[block.inlet_v]
-type    = "ValveController"
-count   = 2
-include = "blocks/valve_controller.h"
-doc     = "two contactors on one manifold"
-
-[block.outlet_v]
-type    = "ValveController"
-count   = 2
-include = "blocks/valve_controller.h"
-
-[block.tray_v]
-type    = "ValveController"
-count   = 8
-include = "blocks/valve_controller.h"
-
 [in]
 due_tray      = "irr_dueTray"
 # The other two programs' answers: how much water this weather is worth, and
@@ -152,14 +135,9 @@ delivered = "irr_delivered_L"
 drained   = "irr_drained_L"
 
 [out]
-tray_valve  = { rows = "irr_tray*", count = 8 }
 volume      = "irr_volume_L"
 state       = "irr_state"
 active      = "irr_activeTray"
-# TWO contactors on ONE manifold, always in the same state: there is one inlet
-# and one drain, each switched twice.
-inlet       = { rows = "irr_input_ro*", count = 2 }
-outlet      = { rows = "irr_output_ro*", count = 2 }
 fill_fault  = "alarm_irr_fill"
 drain_fault = "alarm_irr_drain"
 # The per-tray forms beside the "any" ones above: the any-form is what an
@@ -194,29 +172,3 @@ in       = "=true"
 delay_ms = "window_ms.out"
 dt       = "=c.dt_ms"
 
-[net.inlet_v]
-[net.inlet_v.in]
-duty      = "=state == IRR_FILLING || state == IRR_FLUSHING"
-period_ms = "=0"
-min_on_ms = "=0"
-dt        = "=c.dt_ms"
-[net.inlet_v.out]
-coil = "inlet"
-
-[net.outlet_v]
-[net.outlet_v.in]
-duty      = "=state == IRR_DRAINING || state == IRR_FLUSHING"
-period_ms = "=0"
-min_on_ms = "=0"
-dt        = "=c.dt_ms"
-[net.outlet_v.out]
-coil = "outlet"
-
-[net.tray_v]
-[net.tray_v.in]
-duty      = "=active > 0 && state != IRR_IDLE && state != IRR_FLUSHING"
-period_ms = "=0"
-min_on_ms = "=0"
-dt        = "=c.dt_ms"
-[net.tray_v.out]
-coil = "tray_valve"

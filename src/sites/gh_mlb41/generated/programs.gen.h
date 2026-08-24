@@ -58,7 +58,8 @@
 //   irr_mtr_output   irr_outFlow_Lpm       -> irrigation
 //   irr_mtr_output   irr_outTotal_L        -> irrigation
 //   irr_schedule     irr_dueTray           -> irrigation
-//   irrigation       irr_state             -> fans, irr_mtr_input
+//   irrigation       irr_state             -> fans, irr_mtr_input, irr_valves
+//   irrigation       irr_activeTray        -> irr_valves
 //
 // [actuators]
 //   screen           cli_screenMoving      -> fans
@@ -91,6 +92,7 @@
 #include "../programs/irrigation/irr_mtr_output/irr_mtr_output.gen.h"
 #include "../programs/irrigation/irrigation_schedule/irrigation_schedule.gen.h"
 #include "../programs/irrigation/irrigation_cycle/irrigation_cycle.gen.h"
+#include "../programs/irrigation/irr_valves/irr_valves.gen.h"
 #include "../programs/actuators/screen_controller/screen_controller.gen.h"
 #include "../programs/actuators/roof_lockout/roof_lockout.gen.h"
 #include "../programs/actuators/windows_controller/windows_controller.gen.h"
@@ -123,6 +125,7 @@
     X(IrrMtrOutput,         _irr_mtr_output)  \
     X(IrrigationSchedule,   _irr_schedule)    \
     X(IrrigationCycle,      _irrigation)      \
+    X(IrrValves,            _irr_valves)      \
     X(ScreenController,     _screen)          \
     X(RoofLockout,          _roof_lockout)    \
     X(WindowsController,    _windows)         \

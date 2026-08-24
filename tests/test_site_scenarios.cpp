@@ -68,6 +68,7 @@ struct Plant {
     Site::IrrMtrOutput         irr_out;
     Site::IrrigationSchedule   irr_schedule;
     Site::IrrigationCycle      irrigation;
+    Site::IrrValves            irr_valves;
     Site::ScreenController     screen;
     Site::RoofLockout          roof_lock;
     Site::WindowsController    windows;
@@ -75,7 +76,7 @@ struct Plant {
     Site::FanController        fans;
     Site::SkirtController      skirt;
 
-    Plc::Program* all[26];   ///< room for the list below
+    Plc::Program* all[27];   ///< room for the list below
     Cycle*        cycle = nullptr;
     uint64_t      t = 0;
     /** @brief What this plant's environment is, held every beat. The weather
@@ -89,13 +90,13 @@ struct Plant {
           climate(ctx(), io()), weather(ctx(), io()),
           target(ctx(), io()), cooling(ctx(), io()), destrat(ctx(), io()),
           humidity(ctx(), io()), irr_mod(ctx(), io()), irr_in(ctx(), io()), irr_out(ctx(), io()),
-          irr_schedule(ctx(), io()), irrigation(ctx(), io()), screen(ctx(), io()),
+          irr_schedule(ctx(), io()), irrigation(ctx(), io()), irr_valves(ctx(), io()), screen(ctx(), io()),
           roof_lock(ctx(), io()), windows(ctx(), io()),
           intractors(ctx(), io()), fans(ctx(), io()), skirt(ctx(), io()) {
         Plc::Program* const list[] = {
             &ac_grid, &ac_local, &dc, &sensors, &zones, &strat, &climate, &weather,
             &target, &cooling, &destrat, &humidity,
-            &irr_mod, &irr_in, &irr_out, &irr_schedule, &irrigation,
+            &irr_mod, &irr_in, &irr_out, &irr_schedule, &irrigation, &irr_valves,
             &screen, &roof_lock, &windows, &intractors, &fans, &skirt
         };
         // Sized from the list, never a literal: a hand-kept count silently
