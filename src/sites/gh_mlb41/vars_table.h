@@ -109,68 +109,31 @@ const uint16_t ROWS_COUNT = 0
     + 253
     ;
 
-/** @brief Rows the library registers ahead of this site's, into the
- *  same table. Gated the way the library's own table is: a build
- *  with a subsystem off must not reserve rows it never
- *  registers. */
-const uint16_t LIBRARY_ROWS = 0
-#if BOTANIK_FEATURE_NETWORK
-    + 1
+// This site turns every optional feature ON, and the row count above says
+// so as a flat number rather than a sum of #ifs. Build it with one off
+// and the table reserves rows the library never registers, which
+// misaligns every register after them - so refuse instead of drifting.
+#if !(BOTANIK_FEATURE_CONSOLE     \
+      && BOTANIK_FEATURE_HOME_PAGE     \
+      && BOTANIK_FEATURE_SHELL_PAGE     \
+      && BOTANIK_FEATURE_LOGS_PAGE     \
+      && BOTANIK_FEATURE_LOGGING     \
+      && BOTANIK_FEATURE_LOGS_MONITOR     \
+      && BOTANIK_FEATURE_LOGS_PUBLISH     \
+      && BOTANIK_FEATURE_NETWORK     \
+      && BOTANIK_FEATURE_NTP     \
+      && BOTANIK_FEATURE_MQTT     \
+      && BOTANIK_FEATURE_PLC     \
+      && BOTANIK_FEATURE_MODBUS_RTU_CLIENT     \
+      && BOTANIK_FEATURE_MODBUS_TCP_SERVER     \
+      && BOTANIK_FEATURE_SUN_TRACKER)
+#error "gh_mlb41 assumes every optional feature is enabled"
 #endif
-#if BOTANIK_FEATURE_NTP
-    + 1
-#endif
-#if BOTANIK_FEATURE_LOGGING
-    + 1
-#endif
-    + 6
-#if BOTANIK_FEATURE_MODBUS_RTU_CLIENT
-    + 1
-#endif
-#if BOTANIK_FEATURE_PLC
-    + 1
-#endif
-#if BOTANIK_FEATURE_MODBUS_RTU_CLIENT
-    + 5
-#endif
-#if BOTANIK_FEATURE_LOGS_MONITOR
-    + 2
-#endif
-#if BOTANIK_FEATURE_NETWORK
-    + 8
-#endif
-#if BOTANIK_FEATURE_NTP
-    + 6
-#endif
-#if BOTANIK_FEATURE_MQTT
-    + 7
-#endif
-#if BOTANIK_FEATURE_LOGS_PUBLISH
-    + 1
-#endif
-#if BOTANIK_FEATURE_SUN_TRACKER
-    + 3
-#endif
-#if BOTANIK_FEATURE_MODBUS_TCP_SERVER
-    + 4
-#endif
-#if BOTANIK_FEATURE_CONSOLE
-    + 5
-#endif
-#if BOTANIK_FEATURE_CONSOLE && BOTANIK_FEATURE_HOME_PAGE
-    + 1
-#endif
-#if BOTANIK_FEATURE_CONSOLE && BOTANIK_FEATURE_SHELL_PAGE
-    + 1
-#endif
-#if BOTANIK_FEATURE_CONSOLE && BOTANIK_FEATURE_LOGS_PAGE
-    + 1
-#endif
-    + 5
-#if BOTANIK_FEATURE_MODBUS_RTU_CLIENT
-    + 6
-#endif
-    ;
+
+/** @brief Rows the library registers ahead of this site's, into the same
+ *  table. A flat count, because this site turns every optional feature ON -
+ *  see the #error below, which is what holds that true. */
+const uint16_t LIBRARY_ROWS = 66;
 
 // register_vars() adds NONE of a segment that does not fit, so one row
 // past the limit costs a whole table: an empty field-bus plan and a
