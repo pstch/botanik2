@@ -1066,10 +1066,11 @@ def fbd_diagram(spec, unwired=None):
 
     # Wrap sooner when the columns are wide: a page past about 760 is scaled
     # down to fit and the pin names stop being readable.
-    for BAND in (3, 2):
-        xs = _slots(BAND)
-        if xs[-1] + bw - xs[0] <= 560 or BAND == 2:
-            break
+    # TWO columns, and a network deeper than that continues on the next row.
+    # A connector carries it there, so the wrap costs a name rather than a line
+    # back across the page - and the page stays narrow enough to read.
+    BAND = 2
+    xs = _slots(BAND)
     lane = xs[0]
 
     prims, box, y_of, bottom, band_of = [], {}, {}, {}, {}
@@ -1273,13 +1274,15 @@ def fbd_diagram(spec, unwired=None):
                     unwired.append(f"{name}.{pin} <- {src}")
                     continue
                 sx, sy = _out_at(h, opin)
-                # A NAMED signal that cannot get there in a straight line is a
-                # connector too: the name is already on the page at both ends,
-                # and a detour around three boxes to repeat it reads as noise.
-                if (band_of.get(h) != band_of.get(name)
-                        or ((h, opin) in pin_row
-                            and not _straight(sx, sy, tx, ty,
-                                              past_labels.get(h, 0)))):
+                # A NAMED signal is a connector wherever a wire would have to
+                # work for it: crossing rows, taking a detour, or merely being
+                # MENTIONED in a formula - which already spells the name, so a
+                # line drawn beside it says nothing the label has not.
+                named = (h, opin) in pin_row
+                mentioned = named and body != pin_row[(h, opin)]
+                if (band_of.get(h) != band_of.get(name) or mentioned
+                        or (named and not _straight(sx, sy, tx, ty,
+                                                    past_labels.get(h, 0)))):
                     crossed = crossing.get((h, opin),
                                            pin_row.get((h, opin),
                                                        f"{h}.{opin}"))
