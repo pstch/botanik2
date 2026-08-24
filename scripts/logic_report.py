@@ -361,7 +361,7 @@ def program_diagram(p, rows):
     if ins:
         prims.append(text(cx[0], 16, "VAR_INPUT", 7, bold=True))
     if held or kept:
-        prims.append(text(cx[1] + colw / 2.0, 16, "what it holds", 7, "middle",
+        prims.append(text(cx[1] + colw / 2.0, 16, "VAR", 7, "middle",
                           bold=True))
     shared = any(sec == "inout" for _m, sec, _n in outs)
     prims.append(text(cx[2] + colw, 16,
@@ -1251,10 +1251,17 @@ def fbd_diagram(spec, unwired=None):
         # Jog EARLY, so the long run happens at the target's height. Halfway
         # across put it at the source's, which is where the next box's own pin
         # labels are - the wire ran straight through them.
-        mid = max(sx + 16, clear) + 9 * (n % 5)
-        if not (_hits(sx, mid, sy, sy) or _hits(mid, mid, sy, ty)
-                or _hits(mid, tx, ty, ty)):
-            return [(sx, sy), (mid, sy), (mid, ty), (tx, ty)]
+        # Where early is blocked, try further along before giving up on a
+        # straight run: one box in the way is no reason to leave the lane.
+        span = tx - sx
+        for mid in ([max(sx + 16, clear) + 9 * (n % 5)]
+                    + [sx + span * f for f in (0.3, 0.45, 0.6, 0.75)]
+                    + [tx - 12]):
+            if mid <= sx + 8 or mid >= tx - 2:
+                continue
+            if not (_hits(sx, mid, sy, sy) or _hits(mid, mid, sy, ty)
+                    or _hits(mid, tx, ty, ty)):
+                return [(sx, sy), (mid, sy), (mid, ty), (tx, ty)]
         # Round the outside of whatever is in the way, above or below,
         # whichever side is clear: a wire that dived under the whole page to
         # reach the box just below it read as going somewhere else entirely.
@@ -1610,14 +1617,12 @@ def main():
     c.setFillColor(MUTED)
     c.setFont("Helvetica", 10)
     for i, l in enumerate(_wrap(
-            "One page per control program and one per function block. A "
-            "program gets what it is CONNECTED to, derived from the table that "
-            "declares it, and an FBD of the network it "
-            "owns, whose instances and types are the table's and whose wiring "
-            "is authored from the call site. A block's own page is authored "
-            "too, because what a Pid does inside is not in any table. Every "
-            "diagram is also an editable images/logic/*.drawio.svg, drawn from "
-            "the same model as the page.", 96)):
+            "One page per control program and one per function block. Both of "
+            "a program's pages come from the table that declares it: what it "
+            "is connected to, and the network it owns. A block's own page is "
+            "authored, because what a Pid does inside is not in any table. "
+            "Every diagram is also an editable images/logic/*.drawio.svg, and "
+            "one reworked in drawio is kept and followed here.", 96)):
         c.drawString(40, ph - 150 - i * 13, l)
     c.setFont("Helvetica", 9)
     c.drawString(40, 60, f"{len(progs)} programs, {len(BLOCKS)} blocks. "
@@ -1630,9 +1635,6 @@ def main():
         notes = [p.get("desc", "")]
         notes += [" ".join(x.split()) for x in
                   (p.get("notes") or "").strip().split("\n\n") if x.strip()]
-        if p["fns"]:
-            notes.append("Its own helpers: " +
-                         ", ".join(f["name"] + "()" for f in p["fns"]) + ".")
         hooks = ["run()"] + [h + "()" for h in p["hooks"]]
         sub = (f"{p['class']} - {p['task']}, {p['stage']} stage - "
                f"defines {', '.join(hooks)}")
@@ -1645,12 +1647,7 @@ def main():
             fprims, fdw, fdh = fbd_diagram(wiring, unwired)
             _audit(fprims, p["name"] + " (fbd)", crossings)
             fprims, fdw, fdh = _held(p["name"] + "_fbd", fprims, fdw, fdh, kept)
-            page(c, p["name"] + ": the network", sub, fprims, fdw, fdh, [],
-                 kicker="What it HOLDS and what it CALLS, wired. Blocks are the "
-                        "table's; a GREEN box is a stateless function, which no "
-                        "table declares. What reaches a pin is authored from the "
-                        "call site, because only the .cpp says. Pin names are "
-                        "the block's own parameters.")
+            page(c, p["name"] + ": the network", sub, fprims, fdw, fdh, [])
             made += 1
 
     for name, where, what, spec in BLOCKS:

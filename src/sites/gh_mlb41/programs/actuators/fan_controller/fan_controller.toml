@@ -56,10 +56,18 @@ band   = "cli_fanSpeed"
 # into a speed, and the two interlocks that overrule it - the screen
 # mechanically, an inhibit down to speed 1, because still air is a rot risk.
 
+# The day's two breezes: at dusk it dries the leaves before the stomata open,
+# at dawn it takes the night's condensation off them.
+[net.breezing]
+fn = "or_of"
+[net.breezing.in]
+in1 = "=phase == PHASE_DAWN_BREEZE"
+in2 = "=phase == PHASE_DUSK_BREEZE"
+
 [net.breeze]
 fn = "sel"
 [net.breeze.in]
-g   = "=phase == PHASE_DAWN_BREEZE || phase == PHASE_DUSK_BREEZE"
+g   = "breezing.out"
 in0 = "=0"
 in1 = "breeze_dem"
 
