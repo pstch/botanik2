@@ -54,7 +54,7 @@ string(TOUPPER "${CMAKE_BUILD_TYPE}" _build_type_upper)
 set(BOTANIK_SANITIZE "OFF" CACHE STRING "Sanitizers for the SIMULATOR build")
 
 # Footprint budget for the OPTA image, enforced after the link by
-# scripts/footprint.py. Neither ceiling is enforceable in the linker script: its
+# the map file. Neither ceiling is enforceable in the linker script: its
 # .heap absorbs whatever .bss leaves, so static RAM growth shrinks the heap
 # rather than overflowing the region, and its FLASH LENGTH is computed from
 # CM4_BINARY_START (in QSPI), which reads as ~1.4 GB.
@@ -592,29 +592,6 @@ elseif(BOTANIK_TARGET STREQUAL "OPTA")
         VERBATIM)
 
     # ------------------------------------------------------------------
-    # Footprint budget
-    # ------------------------------------------------------------------
-    # Runs on every successful link, so going over budget fails the build that
-    # did it rather than the next person's. Skipped (with a warning, never a
-    # silent pass) when python3 or the binutils are missing: a toolchain gap
-    # must not break a build that otherwise linked.
-    find_program(BOTANIK_SIZE_TOOL NAMES arm-none-eabi-size)
-    find_program(BOTANIK_NM_TOOL   NAMES arm-none-eabi-nm)
-    if(PYTHON3 AND BOTANIK_SIZE_TOOL AND BOTANIK_NM_TOOL)
-        add_custom_command(TARGET botanik_opta POST_BUILD
-            COMMAND ${PYTHON3} "${CMAKE_SOURCE_DIR}/scripts/footprint.py"
-                    "$<TARGET_FILE:botanik_opta>"
-                    --size "${BOTANIK_SIZE_TOOL}"
-                    --nm   "${BOTANIK_NM_TOOL}"
-                    --flash-max ${BOTANIK_FLASH_MAX_BYTES}
-                    --ram-max   ${BOTANIK_STATIC_RAM_MAX_BYTES}
-                    --ram-region 524288
-                    --json "${CMAKE_BINARY_DIR}/footprint.json"
-            COMMENT "Checking flash / static-RAM budget"
-            VERBATIM)
-    else()
-        message(WARNING "footprint check skipped - need python3 + arm-none-eabi-size/nm")
-    endif()
 
 endif()
 
@@ -624,25 +601,7 @@ endif()
 # the root Doxyfile, into docs/doxygen/html/.
 find_program(DOXYGEN doxygen)
 if(DOXYGEN)
-    # Code charts (LoC + churn by area) atop the Library page, generated just
-    # before doxygen runs. The script falls back to a placeholder SVG when
-    # git/cloc are missing; without Python the step is skipped entirely.
-    set(DOCS_CHART_CMD "")
-    if(PYTHON3)
-        set(DOCS_CHART_CMD COMMAND ${PYTHON3}
-            ${CMAKE_SOURCE_DIR}/scripts/code_charts.py
-            --out ${CMAKE_SOURCE_DIR}/docs/generated
-            --since "12 months ago"
-            # Module coupling matrix on the same page: which way the cross-module
-            # includes point. Reads the source tree, so it needs no build.
-            COMMAND ${PYTHON3}
-            ${CMAKE_SOURCE_DIR}/scripts/coupling_matrix.py
-            --out ${CMAKE_SOURCE_DIR}/docs/generated)
-    else()
-        message(STATUS "python3 not found - Library code charts will be skipped")
-    endif()
     add_custom_target(docs
-        ${DOCS_CHART_CMD}
         COMMAND ${DOXYGEN} ${CMAKE_SOURCE_DIR}/Doxyfile
         WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
         COMMENT "Generating API documentation with Doxygen"

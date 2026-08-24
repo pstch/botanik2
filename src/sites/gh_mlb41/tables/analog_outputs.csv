@@ -1,6 +1,0 @@
-# analog_outputs.csv - GENERATED ONCE from the hand-written C++.
-# From here on this file is the source of truth.
-#
-name     , dev, fc, reg, regs, wire , safe , word_swap, digits, unit, cal_raw_min           , cal_raw_max               , cal_eng_min        , cal_eng_max        , cal_min         , cal_max         , desc             , notes                                                , feature
-cli_intr1, 16 , 6 , 0  , 1   , T_U16, 0.15f,          , 2     ,     , cli_intr_rawMin_mV@0.0, cli_intr_rawMax_mV@10000.0, cli_intr_engMin@0.0, cli_intr_engMax@1.0, cli_intr_min@0.0, cli_intr_max@1.0, intractor 1 speed, "safe is 15%, not stopped: some air is always wanted",
-cli_intr2, 16 , 6 , 1  , 1   , T_U16, 0.15f,          , 2     ,     , cli_intr_rawMin_mV@0.0, cli_intr_rawMax_mV@10000.0, cli_intr_engMin@0.0, cli_intr_engMax@1.0, cli_intr_min@0.0, cli_intr_max@1.0, intractor 2 speed, "safe is 15%, not stopped: some air is always wanted",

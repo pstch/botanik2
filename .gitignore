@@ -16,12 +16,6 @@ Makefile
 CTestTestfile.cmake
 tests/botanik_tests_include-*.cmake
 
-generated/
-# ...except the variable tables' generated C++, which is COMMITTED. The build
-# has no Python dependency and an Arduino sketch path could not run a generator,
-# so a clone must carry the output; `make check` runs check-vars to catch drift.
-!src/libbotanik/vars/generated/
-!src/sites/*/generated/
 build/
 build-*/
 
@@ -31,9 +25,8 @@ nohup.out
 # Generated API docs
 docs/doxygen/
 
-# Build-time code charts (scripts/code_charts.py, run by the `docs` target)
+generated/
 docs/generated/
-scripts/__pycache__/
 
 # Design plans: working notes, not part of the built manual
 design/

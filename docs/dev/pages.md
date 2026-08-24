@@ -132,8 +132,10 @@ clears) and a GENERATION counter it bumps on every change; a page calls
 `_filter_match()` from its own row predicate and caches whatever that walk costs
 against `_filter_gen`. Nothing per-page decides what a filter IS, so the four
 tables cannot drift on it - only on which cell they match against (the variable,
-parameter, condition or task name). View MODES stay a separate axis: `AlarmsPage`
-is the one table with both, and the filter narrows whichever view is showing.
+parameter, condition or task name). View MODES stay a separate axis, on the same
+`LEFT`/`RIGHT` keys: `AlarmsPage` selects on what an alarm is doing, `MonitorPage`
+on the two things its VALUE column already flags per row - a reading that is not
+good, and a standing override - and the filter narrows whichever view is showing.
 
 **`NotesPage` drives the same PS1/PS2/PS3 gutter the shell does** - `"> "` on a
 row the operator started, `"  "` on a soft-wrapped tail - so a wrapped line reads

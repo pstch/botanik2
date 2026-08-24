@@ -1,7 +1,0 @@
-# globals.csv - computed rows the HMI and MQTT see, but no Modbus register.
-# `retain` marks a row whose value IS the history and must survive a reboot
-# (IEC 61131-3 RETAIN). A row an OPERATOR also edits belongs in params.csv
-# instead, however internal it looks: a parameter is the only kind that is
-# both editable and durable.
-#
-name, type, def, digits, unit, retain, desc, notes, feature

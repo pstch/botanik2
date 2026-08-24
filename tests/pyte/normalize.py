@@ -16,7 +16,12 @@ _SUBS = [
     (re.compile(r"cpu:\s*\d+%"), "cpu:<C>"),
     (re.compile(r"stk:\s*\d+%"), "stk:<S>"),
 
-    # Home's identity block: version and commit move with every build.
+    # Home's identity block: version and commit move with every build. The
+    # block's LEFT EDGE moves too - it is right-sized to the widest value, and
+    # the commit is `git rev-parse --short`, which grows a character as the
+    # history does. Collapse the gap the logo leaves before it, or the golden
+    # pins one clone's hash length on everybody else.
+    (re.compile(r"\s{2,}((?:Site name|Version|Commit) \.+ : )"), r"  \g<1>"),
     (re.compile(r"(Version \.+ : )\S+"), r"\g<1><VERSION>"),
     (re.compile(r"(Commit \.+ : )\S+"), r"\g<1><COMMIT>"),
 
