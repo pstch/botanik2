@@ -591,53 +591,6 @@ def timing_diagram(spec):
     return prims, x0 + w + 20, int(y + 22)
 
 
-def _shift(prims, dx, dy=0.0):
-    """The same drawing, moved: a page composes two of these side by side."""
-    out = []
-    for p in prims:
-        kw = {k: v for k, v in p.__dict__.items() if k != "kind"}
-        if p.kind == "line":
-            kw["pts"] = [(x + dx, y + dy) for x, y in p.pts]
-        else:
-            kw["x"] = p.x + dx
-            kw["y"] = p.y + dy
-        out.append(Prim(p.kind, **kw))
-    return out
-
-
-def block_symbol(name):
-    """A block as its FBD SYMBOL: the box, and its own pins named either side.
-
-    The same box the program pages draw, from the same pin table - so what a
-    reader learns here is what they meet there, down to the pin names.
-    """
-    key = name.split()[0].split("<")[0].replace("/", "")
-    pins = vars_programs.pins_of(key)
-    if pins is None:
-        return [], 0.0, 0.0
-    pi, po = pins
-    bw = 118.0
-    lane = max(len(t) for t in pi) * 3.4 + 16
-    bh = 16 + max(len(pi), len(po)) * 11
-    y = 26.0
-    prims = [rect(lane, y, bw, bh, "",
-                  FN_C if vars_programs.is_function(key) else BLK_C),
-             text(lane + bw / 2.0, y + 10, key.upper()
-                  if vars_programs.is_function(key) else key,
-                  6.6, "middle", INK)]
-    for i, pin in enumerate(pi):
-        py = y + 20 + i * 11
-        prims.append(text(lane + 4, py, pin, 5.8, color=MUTED))
-        prims.append(line([(lane - 9, py - 2), (lane, py - 2)], arrow=True))
-    for i, pin in enumerate(po):
-        py = y + 20 + i * 11
-        prims.append(text(lane + bw - 4, py, pin, 5.8, "end", color=MUTED))
-        prims.append(line([(lane + bw, py - 2), (lane + bw + 9, py - 2)],
-                          arrow=True))
-    right = max(len(t) for t in po) * 3.4 + 14
-    return prims, lane + bw + right, y + bh + 10
-
-
 LAYOUT = {"flow": flow_diagram, "states": states_diagram,
           "curve": curve_diagram, "timing": timing_diagram}
 
@@ -1514,18 +1467,6 @@ def main():
 
     for name, where, what, spec in BLOCKS:
         prims, dw, dh = LAYOUT[spec["kind"]](spec)
-        # The SYMBOL first, then how it behaves: a block reference that did not
-        # show the box you meet on every program page was explaining the wrong
-        # half of it.
-        sym, sw, sh = block_symbol(name)
-        if sym and dw <= 460:
-            prims = sym + _shift(prims, sw + 30)
-            dw, dh = sw + 30 + dw, max(sh, dh)
-        elif sym:
-            # A wide illustration goes UNDER the symbol rather than beside it:
-            # side by side the page is scaled to fit and neither can be read.
-            prims = sym + _shift(prims, 0, sh + 16)
-            dw, dh = max(sw, dw), sh + 16 + dh
         _audit(prims, name, crossings)
         page(c, name, f"{where} - {what}", prims, dw, dh, spec.get("notes", []))
         _svg("block_" + name.split()[0].replace("<", "").replace(">", "")
