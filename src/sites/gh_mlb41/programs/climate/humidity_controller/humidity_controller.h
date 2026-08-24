@@ -82,7 +82,7 @@ private:
 
     /** @brief Whether the air outside would dry the greenhouse if drawn in.
      *  Dew points, so it survives a cold damp morning reading 95% RH. */
-    void _dry_gate(ProgramContext& c);
+    void _dry_gate();
 };
 
 inline void HumidityController::bind(Vars::Bank& io) {

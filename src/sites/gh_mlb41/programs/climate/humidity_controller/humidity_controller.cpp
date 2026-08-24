@@ -14,6 +14,9 @@ void HumidityController::observe(ProgramContext& c) {
         degraded();
         vent_dem.set(1.0f);
         lockout.set(lockout_for(true, 1000u * rot_release_s.get(), c.dt_ms));
+        // The gate reads none of the margin, so it is decided here too rather
+        // than only on the path that got this far.
+        _dry_gate();
         return;
     }
 
@@ -30,10 +33,10 @@ void HumidityController::observe(ProgramContext& c) {
     // outlives it, because humidifying into air that has only just dried out is
     // what puts the margin back where it was. Nothing is locked out at boot.
     lockout.set(lockout_for(rot.get(), 1000u * rot_release_s.get(), c.dt_ms));
-    _dry_gate(c);
+    _dry_gate();
 }
 
-void HumidityController::_dry_gate(ProgramContext& c) {
+void HumidityController::_dry_gate() {
     // DEW POINTS, not humidities: air at 90% and 5 degC is drier than air at
     // 60% and 25, and swapping one for the other is what ventilating does.
     const bool have = in_t.valid() &&

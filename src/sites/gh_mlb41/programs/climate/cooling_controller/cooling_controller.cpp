@@ -25,6 +25,12 @@ void CoolingController::run(ProgramContext& c) {
         // is wanted", which is a different and much more reassuring lie.
         demand.hold();
         window.hold();
+        // Both gates SHUT, as they are whenever the crawlspace probe is out:
+        // drawing air is a decision about which side of a difference is
+        // cooler, and one end of it has gone. Written, not held - a gate is a
+        // command, and this one is the safe answer rather than a stale guess.
+        intake_ok.set(false);
+        ground_ok.set(false);
         pid.reset();      // the integral is about a plant we stopped seeing
         faulted();
         return;
@@ -57,10 +63,10 @@ void CoolingController::run(ProgramContext& c) {
     // opening: the windows apply the interlocks to it, and an operator can see
     // what was asked for beside where each ram actually is.
     window.set(Plc::ladder(dem, win_start.get(), win_full.get()));
-    _intake_gates(c, t_in, dem);
+    _intake_gates(t_in, dem);
 }
 
-void CoolingController::_intake_gates(ProgramContext& c, float t_in, float dem) {
+void CoolingController::_intake_gates(float t_in, float dem) {
     // Drawing air only moves the interior toward whatever the intake is. Both
     // gates are shut while the crawlspace probe is out, which costs a little
     // ventilation and cannot cost a plant: the windows and the fans are on

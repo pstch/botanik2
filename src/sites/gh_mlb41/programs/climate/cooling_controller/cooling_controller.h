@@ -83,7 +83,7 @@ private:
     /** @brief Whether drawing crawlspace air would help, in either
      *  direction. Published rather than acted on: this law owns the
      *  reading, the intractors own the device. */
-    void _intake_gates(ProgramContext& c, float t_in, float dem);
+    void _intake_gates(float t_in, float dem);
 };
 
 inline void CoolingController::bind(Vars::Bank& io) {

@@ -102,6 +102,9 @@ void IrrigationCycle::run(ProgramContext& c) {
         _state = IRR_IDLE;
         state.set((uint8_t)IRR_IDLE);
         active.set((uint8_t)0);
+        // No tray, so no dose to compute - but a row nobody wrote keeps GOOD
+        // quality on the last one, which reads as a fill still being aimed at.
+        volume.hold();
         return;
     }
     if (c.first_scan) {

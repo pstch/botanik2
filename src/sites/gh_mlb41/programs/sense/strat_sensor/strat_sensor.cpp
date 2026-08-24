@@ -8,6 +8,8 @@
 namespace Site {
 
 void StratSensor::run(ProgramContext& c) {
+    (void)c;
+
     // A gap computed from a level nothing is measuring is not a small error,
     // it is a number about a place. The levels hold their last readings, so
     // the difference is still the last profile this law saw - written either
