@@ -197,7 +197,11 @@ def to_svg(prims, w, h, title):
             style = (f"rounded=1;fillColor={p.fill};strokeColor={INK};"
                      f"whiteSpace=wrap;html=1;fontSize=8"
                      + (";dashed=1" if p.dashed else ""))
-            cells.append(f'<mxCell id="n{cid}" value="{_x(p.label)}" '
+            val = _x(p.label)
+            if p.sub:
+                val += "&lt;br&gt;&lt;font style=&quot;font-size:6px&quot;&gt;"
+                val += _x(p.sub) + "&lt;/font&gt;"
+            cells.append(f'<mxCell id="n{cid}" value="{val}" '
                          f'style="{style}" vertex="1" parent="1">'
                          f'<mxGeometry x="{p.x}" y="{p.y}" width="{p.w}" '
                          f'height="{p.h}" as="geometry"/></mxCell>')
@@ -214,13 +218,23 @@ def to_svg(prims, w, h, title):
         elif p.kind == "text":
             body.append(_svg_text(p.x, p.y, p.s, p.size, p.anchor, p.color,
                                   p.bold))
-            style = (f"text;html=1;fontSize={int(p.size)};fontColor={p.color};"
-                     f"align={'center' if p.anchor == 'middle' else 'left'}"
+            # SVG anchors text at a POINT; drawio aligns it inside a BOX. The
+            # box has to be placed so the two land in the same place, or every
+            # right- and centre-anchored label - which is most of them - moves
+            # the moment the file is opened for editing.
+            tw = max(20.0, len(p.s) * p.size * 0.55 + 4)
+            al = {"middle": "center", "end": "right"}.get(p.anchor, "left")
+            tx = {"center": p.x - tw / 2.0, "right": p.x - tw}.get(al, p.x)
+            th = p.size + 4
+            style = (f"text;html=1;whiteSpace=nowrap;fontSize={round(p.size)};"
+                     f"fontColor={p.color};align={al};verticalAlign=middle"
                      + (";fontStyle=1" if p.bold else ""))
             cells.append(f'<mxCell id="n{cid}" value="{_x(p.s)}" style="{style}" '
-                         f'vertex="1" parent="1"><mxGeometry x="{p.x}" '
-                         f'y="{p.y - p.size}" width="{max(40, len(p.s) * 5)}" '
-                         f'height="{p.size + 4}" as="geometry"/></mxCell>')
+                         f'vertex="1" parent="1">'
+                         f'<mxGeometry x="{round(tx, 2)}" '
+                         f'y="{round(p.y - 0.75 * p.size - 2, 2)}" '
+                         f'width="{round(tw, 2)}" '
+                         f'height="{round(th, 2)}" as="geometry"/></mxCell>')
             cid += 1
         elif p.kind == "line":
             pts = " ".join(f"{x},{y}" for x, y in p.pts)
