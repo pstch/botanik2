@@ -722,3 +722,55 @@ TEST_CASE("AlarmController: a transition fans out to every registered notifier")
 }
 
 }  // namespace notifier
+
+namespace static_source {
+
+using namespace Botanik;
+
+TEST_CASE("alarm: a StaticAlarmTable is a source like any other") {
+    // What a build with no variable table runs on: the rows are plain structs
+    // whose `raw` points at bools somebody else owns, and the controller reads
+    // them through the same AlarmSourceTable interface a bank presents.
+    bool state[3] = { false, false, false };
+    Alarms::StaticAlarm rows[3] = {
+        { "alarm_one",   "the first",  "", { "ONE",   0, 0, 0, 0 }, &state[0] },
+        { "alarm_two",   "the second", "", { "TWO",   0, 0, 0, 0 }, &state[1] },
+        // A null `raw` is a row nobody publishes, and must read false rather
+        // than dereference.
+        { "alarm_three", "the third",  "", { "THREE", 0, 0, 0, 0 }, nullptr   },
+    };
+    Alarms::StaticAlarmTable table(rows, 3);
+    Alarms::AlarmController m(Botanik::SetupContext(), &table);
+    m.setup(0);
+
+    REQUIRE(m.count() == 3);
+    CHECK(m.active_count() == 0);
+
+    state[1] = true;
+    m.step(1000, Botanik::Tasks::PHASE_SERVICE);
+    CHECK(m.active_count() == 1);
+    CHECK(m.condition(1).active);
+    CHECK(m.index_of("TWO") == 1);
+
+    state[1] = false;
+    m.step(2000, Botanik::Tasks::PHASE_SERVICE);
+    CHECK(m.active_count() == 0);
+
+    // The unpublished row never raises, whatever happens around it.
+    state[0] = true;
+    m.step(3000, Botanik::Tasks::PHASE_SERVICE);
+    CHECK(m.condition(2).active == false);
+}
+
+TEST_CASE("alarm: a default StaticAlarmTable declares nothing") {
+    // The shape HealthMonitor's no-VARS members had before they were filled:
+    // a table over no rows. It must be inert rather than a null dereference.
+    Alarms::StaticAlarmTable empty;
+    Alarms::AlarmController m(Botanik::SetupContext(), &empty);
+    m.setup(0);
+    CHECK(m.count() == 0);
+    m.step(1000, Botanik::Tasks::PHASE_SERVICE);
+    CHECK(m.active_count() == 0);
+}
+
+}  // namespace static_source

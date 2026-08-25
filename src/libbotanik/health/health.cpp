@@ -30,6 +30,29 @@ namespace Botanik { namespace Health {
         "alarm_flash_error",
     };
 
+#if !BOTANIK_FEATURE_VARS
+    /** @brief The same six as the library's own SCOPE_A rows carry, for a build
+     *  with no table to read them out of. @see vars/vars_table.h */
+    const char* const HealthMonitor::PLATFORM_DESCS[HealthMonitor::PA_COUNT] = {
+        "unit reset recently",
+        "scheduler overrun (skipped beat)",
+        "CPU load over threshold",
+        "stack usage over threshold",
+        "CPU jitter over threshold",
+        "persistent storage write failed",
+    };
+
+    const Alarms::AlarmSpec
+    HealthMonitor::PLATFORM_SPECS[HealthMonitor::PA_COUNT] = {
+        { "SYS_RST"  , -1, 0 , 30*24*3600, 0   },
+        { "CPU_XRUN" , 0 , -1, 24*3600   , 300 },
+        { "CPU_LOAD" , 5 , 5 , 24*3600   , 300 },
+        { "STACK"    , 5 , 5 , 30*24*3600, 300 },
+        { "CPU_JITT" , 5 , 5 , 24*3600   , 300 },
+        { "FLASH_FLT", 0 , -1, 30*24*3600, 0   },
+    };
+#endif
+
     /** @brief The registry hands back the owner it was given; the cast is
      *  confined to this line, beside the method it calls. */
 #if BOTANIK_FEATURE_VARS

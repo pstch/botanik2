@@ -209,6 +209,12 @@ namespace Botanik { namespace Health {
         /** @brief The row each one is, by name. A name matching no row is
          *  counted by the bank, logged, and failed by POST. */
         static const char* const PLATFORM_NAMES[PA_COUNT];
+#if !BOTANIK_FEATURE_VARS
+        /** @brief What the variable table carries for these six when there IS
+         *  one. Kept beside PLATFORM_NAMES, in the same enum order. */
+        static const char* const    PLATFORM_DESCS[PA_COUNT];
+        static const Alarms::AlarmSpec PLATFORM_SPECS[PA_COUNT];
+#endif
 
 #if BOTANIK_FEATURE_VARS
         /** @brief Bound once in on_setup() rather than looked up per beat. */
@@ -249,10 +255,10 @@ namespace Botanik { namespace Health {
         /** @} */
 
     public:
-        /** @brief Build the notifier + model. With a variable table every alarm
-         *  is a SCOPE_A row in it, so there is no alarm table to pass; without
-         *  one the owner hands the model a StaticAlarmTable through
-         *  alarm_model().set_source(). */
+        /** @brief Build the notifier + model. Either way the model is handed
+         *  `_alarm_rows`: with a variable table that is a BankAlarms over the
+         *  SCOPE_A rows, without one a StaticAlarmTable over the six this
+         *  object declares itself. */
         HealthMonitor(const SetupContext& ctx,
                       const Scheduler::SchedulerContext* sched,
                       Vars::Bank* io = nullptr)
@@ -260,12 +266,22 @@ namespace Botanik { namespace Health {
 #if BOTANIK_FEATURE_ALARMS_PUBLISH
               _notifier(Config::MQTT_TOPIC_PREFIX),
 #endif
-#if BOTANIK_FEATURE_VARS
               _model(ctx, &_alarm_rows),
-#else
-              _model(ctx, nullptr),
-#endif
               _sched(sched), _io(io) {
+#if !BOTANIK_FEATURE_VARS
+            // With no table to declare them in, the six platform alarms are
+            // this object's own: each row points its `raw` at the bool _raise()
+            // writes. Built here rather than in flash because that pointer is
+            // per-instance.
+            for (uint8_t i = 0; i < PA_COUNT; i++) {
+                _a_rows[i].name  = PLATFORM_NAMES[i];
+                _a_rows[i].desc  = PLATFORM_DESCS[i];
+                _a_rows[i].notes = "";
+                _a_rows[i].spec  = PLATFORM_SPECS[i];
+                _a_rows[i].raw   = &_a_state[i];
+            }
+            _alarm_rows = Alarms::StaticAlarmTable(_a_rows, PA_COUNT);
+#endif
 #if BOTANIK_FEATURE_ALARMS_PUBLISH
             _model.add_notifier(&_notifier);   // the built-in MQTT sink
 #endif
