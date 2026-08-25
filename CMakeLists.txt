@@ -202,6 +202,10 @@ if(BOTANIK_TARGET STREQUAL "SIMULATOR")
         string(REPLACE "+" "," _san "${BOTANIK_SANITIZE}")
         set(_san_flags -fsanitize=${_san} -fno-omit-frame-pointer)
         target_compile_options(botanik PUBLIC ${_san_flags})
+        # So the HAL can leave SIGSEGV to the sanitizer's own handler rather
+        # than replacing it: __SANITIZE_ADDRESS__ is GCC's and clang spells the
+        # test differently, so state it once here for both.
+        target_compile_definitions(botanik PUBLIC BOTANIK_SANITIZED=1)
         # Also as link flags so the runtimes get linked; via
         # target_link_libraries because target_link_options is CMake 3.13+.
         target_link_libraries(botanik PUBLIC ${_san_flags})

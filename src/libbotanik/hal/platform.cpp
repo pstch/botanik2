@@ -420,11 +420,16 @@ extern "C" void botanik_restore_console() {
     tcsetattr(STDIN_FILENO, TCSAFLUSH, saved_console_termios());
 }
 
-/** @brief Restore the terminal before exiting so Ctrl+C or a crash doesn't
- *  leave the shell in raw mode. Async-signal-safe (tcsetattr + _exit). */
-extern "C" void botanik_console_signal_handler(int) {
+/** @brief Restore the terminal before dying, then die the way we were asked to.
+ *
+ *  Async-signal-safe: tcsetattr, then the default disposition. Re-raising and
+ *  NOT _exit(0) - a SIGSEGV that exits 0 is a crash the harness reads as a pass,
+ *  and this handler replaces the sanitizers' own, so it would swallow their
+ *  report too. */
+extern "C" void botanik_console_signal_handler(int sig) {
     botanik_restore_console();
-    _exit(0);
+    signal(sig, SIG_DFL);
+    raise(sig);
 }
 
 namespace {
@@ -697,7 +702,12 @@ namespace Botanik { namespace HAL {
         atexit(botanik_restore_console);
         signal(SIGINT,  botanik_console_signal_handler);
         signal(SIGTERM, botanik_console_signal_handler);
+#if !defined(__SANITIZE_ADDRESS__) && !defined(BOTANIK_SANITIZED)
+        // Left to the sanitizer when there is one: its handler prints the
+        // report, and ours would replace it (this runs from main(), after
+        // theirs is installed).
         signal(SIGSEGV, botanik_console_signal_handler);
+#endif
         struct termios raw = saved;
         // Clear ISIG so the app sees Ctrl-C/Z/\ as raw bytes (it decodes them as
         // InputEvents) rather than as signals. Restore handlers still fire on
