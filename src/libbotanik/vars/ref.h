@@ -79,8 +79,7 @@ namespace Botanik { namespace Vars {
          *  quality is the half a reader cannot recover from the number.
          *  VAR_INPUT does not compile.
          *  @note CONST: writing through a reference changes the TABLE, not the
-         *  reference, exactly as writing through a pointer does. @c
-         *  set(v,false) is @c hold(v). */
+         *  reference, exactly as writing through a pointer does. */
         void set(T v, bool current) const;
 
         /** @brief Whether the row carries a believable value. */
@@ -98,8 +97,10 @@ namespace Botanik { namespace Vars {
          *  that has never had a value at all. VAR_INPUT does not compile. */
         void invalidate() const;
 
-        /** @brief Say the value is not current while KEEPING it: the best
-         *  answer this law has, marked not-believable.
+        /** @brief Say the value is not current while KEEPING it: the law had
+         *  nothing new to derive, so the last answer stands, marked
+         *  not-believable. To keep deriving and mark the RESULT, drive it with
+         *  @c set(v,false) instead.
          *
          *  What a law does when its inputs go: a reader that checks quality
          *  learns the number is not to be acted on, and one that does not gets
@@ -108,7 +109,6 @@ namespace Botanik { namespace Vars {
          *  greenhouse at 0 degC.
          *  @{ */
         void hold() const;
-        void hold(T v) const;
         /** @} */
 
         /** @} */

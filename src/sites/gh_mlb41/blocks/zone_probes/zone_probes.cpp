@@ -59,7 +59,7 @@ void ZoneProbes::_publish(Vars::RefOut<float> row, Plc::Ewma& filter,
         // measurement of a freezing house. The filter keeps its state and
         // seeding is not re-armed, so a probe coming back rejoins the average
         // it left.
-        if (seeded) row.hold(Plc::limit(filter.value(), lo, hi));
+        if (seeded) row.set(Plc::limit(filter.value(), lo, hi), false);
         else        row.invalidate();     // nothing has ever been measured here
         return;
     }

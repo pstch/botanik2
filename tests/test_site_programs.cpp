@@ -227,7 +227,7 @@ TEST_CASE_FIXTURE(Rig<Site::TempRHSensors>, "zone: with every probe gone the rea
 
     INFO("a law gating on quality must see that nothing is measuring this zone");
     CHECK_FALSE(live.bank.var(hi.r).valid());
-    CHECK(live.bank.var(hi.r).value().q == Q_HELD);
+    CHECK(live.bank.var(hi.r).value().q == Q_UNCERTAIN);
 
     // ...and the VALUE is the last average this zone could make. A reader that
     // does not test quality gets the temperature the greenhouse last had rather
@@ -389,7 +389,7 @@ TEST_CASE_FIXTURE(Rig<Site::CoolingController>, "cooling: a demand it cannot mak
          "what the number says matters only to a reader that does not - and to "
          "that reader, zero would mean nothing is wanted");
     CHECK_FALSE(live.bank.var(dem).valid());
-    CHECK(live.bank.var(dem).value().q == Q_HELD);
+    CHECK(live.bank.var(dem).value().q == Q_UNCERTAIN);
     CHECK(live.bank.var(dem).as_f32() == doctest::Approx(was));
     CHECK(prog.health() == Plc::Health::FAULTED);
 }

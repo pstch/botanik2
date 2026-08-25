@@ -225,13 +225,13 @@ namespace Botanik { namespace Vars {
 
         /** @brief What the row reads with no override: the ONE statement of the
          *  fallback rule, shared by raw() and live().
-         *  @note A STALE or HELD row KEEPS its value - a sensor that answered a
-         *  minute ago still knows what the plant was doing, and so does the last
-         *  thing a law could derive. Q_NO_DATA, Q_SAFE and Q_IMPLAUSIBLE fall
+         *  @note A STALE or UNCERTAIN row KEEPS its value - a sensor that
+         *  answered a minute ago still knows what the plant was doing, and so
+         *  does a law still deriving from one. Q_NO_DATA, Q_SAFE and Q_IMPLAUSIBLE fall
          *  back, because there is nothing behind them to keep. */
         Scalar _under() const {
             return (_v->qual == Q_GOOD || _v->qual == Q_STALE ||
-                    _v->qual == Q_HELD) ? _v->v : _d->def;
+                    _v->qual == Q_UNCERTAIN) ? _v->v : _d->def;
         }
 
         /** @brief Whether the override reaches this reader: in force and not
@@ -1014,7 +1014,7 @@ namespace Botanik { namespace Vars {
     inline void Ref<T, D>::set(T v, bool current) const {
         static_assert(D != Dir::IN, "a VAR_INPUT row cannot be driven");
         io->drive(*this, v);
-        if (!current) io->var(r).invalidate(Q_HELD);
+        if (!current) io->var(r).invalidate(Q_UNCERTAIN);
     }
 
     template <typename T, Dir D>
@@ -1037,14 +1037,7 @@ namespace Botanik { namespace Vars {
     template <typename T, Dir D>
     inline void Ref<T, D>::hold() const {
         static_assert(D != Dir::IN, "a VAR_INPUT row cannot be held");
-        io->var(r).invalidate(Q_HELD);
-    }
-
-    template <typename T, Dir D>
-    inline void Ref<T, D>::hold(T v) const {
-        static_assert(D != Dir::IN, "a VAR_INPUT row cannot be held");
-        io->drive(*this, v);
-        io->var(r).invalidate(Q_HELD);
+        io->var(r).invalidate(Q_UNCERTAIN);
     }
 
     /** @} */

@@ -36,7 +36,7 @@ void WeatherWatch::observe(ProgramContext& c) {
     }
     if (_wet_seen) {
         const uint64_t mins = _dry_ms / 60000ull;
-        since_rain.set((uint16_t)(mins > 65535ull ? 65535ull : mins), true);
+        since_rain.set((uint16_t)(mins > 65535ull ? 65535ull : mins), rain.valid());
     } else {
         since_rain.hold();
     }

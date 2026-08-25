@@ -32,17 +32,23 @@ void IrrigationSchedule::_stamp(uint8_t tray, uint32_t day) const {
     (void)last[tray].edit((uint32_t)day);
 }
 
-bool IrrigationSchedule::_in_slot() const {
+bool IrrigationSchedule::_in_slot(bool& known) const {
     const DayPhase now = (DayPhase)phase.get();
+    // Which phase it is decides everything below, so it is the one row both
+    // arms rest on.
+    known = phase.valid();
 
     // END OF NIGHT, and only when the plants are not cold: watering cold roots
     // is what the gate exists to prevent, and the morning slot below is where
     // that watering goes instead.
-    if (now == PHASE_COLD_BANK || now == PHASE_DAWN_BREEZE)
+    if (now == PHASE_COLD_BANK || now == PHASE_DAWN_BREEZE) {
+        known = known && outside_temp.valid();
         return outside_temp.get() >= dawn_gate.get();
+    }
 
     // START OF THE DAY, for a window an operator sets: the tray has to drain
     // and dry before the stomata open at dusk.
+    known = known && from_rise.valid();
     return now == PHASE_DAY &&
            from_rise.get() <= (int16_t)(day_rise.get() +
                                         (int16_t)morning_win.get());
@@ -116,8 +122,9 @@ void IrrigationSchedule::run(ProgramContext& c) {
     }
 
     const bool forced = force_now.get();
-    const bool open   = _in_slot();
-    slot_open.set(open, true);
+    bool       known  = false;
+    const bool open   = _in_slot(known);
+    slot_open.set(open, known);
 
     // The interval is written only where one is actually chosen, and a forced
     // tray, an empty search and the gate below all skip that. Held here so the

@@ -25,7 +25,7 @@ void TempRHZone::run(ProgramContext& c) {
     else if (lo_ok)      temp_in.set(t_lo, true);
     // Both levels gone: the rows are holding their last readings, so the
     // hotter of them is still the best answer there is - held, like they are.
-    else                 temp_in.hold(hotter);
+    else                 temp_in.set(hotter, false);
 
     // Between the two interior levels the WORST case is kept, per the spec:
     // the smallest margin decides the condensation risk, and taking an average

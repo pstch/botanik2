@@ -102,8 +102,11 @@ private:
     /** @brief Whether a cycle may START now. Two slots: the end of the
      *  night, and the first hours of the day for when the night was too
      *  cold to water in. Never the afternoon - a tray filled then is still
-     *  wet at dusk. */
-    bool    _in_slot() const;
+     *  wet at dusk.
+     *  @param known cleared when the rows the answer rests on are not
+     *         believable; WHICH those are depends on the phase, so the test
+     *         is what reports it */
+    bool    _in_slot(bool& known) const;
     /** @brief Stamp tray @p tray (0-based) as watered on UNIX day @p day. */
     void    _stamp(uint8_t tray, uint32_t day) const;
 };

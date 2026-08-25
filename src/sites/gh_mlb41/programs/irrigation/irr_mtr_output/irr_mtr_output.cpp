@@ -39,7 +39,11 @@ void IrrMtrOutput::observe(ProgramContext& c) {
     } else {
         out_flow_pub.set(flow_band(lpm, band.get()), true);
     }
-    out_total.set(meter(lpm / 60.0f, c.dt_ms, cutoff.get() / 60.0f), true);
+    // Integrated from `lpm`, which is the average of a reading that may have
+    // stopped arriving - so while the loop is out this is a total that keeps
+    // growing on the last flow anybody saw.
+    out_total.set(meter(lpm / 60.0f, c.dt_ms, cutoff.get() / 60.0f),
+                  out_flow.valid());
 }
 
 }  // namespace Site

@@ -27,7 +27,9 @@ float IrrigationModulation::_track_dryness(ProgramContext& c) {
         else          { dryness.push(now); }
         fold.reset();
     }
-    vpd_avg.set(dryness.value(), true);
+    // The average is only ever as good as what was folded into it, and the
+    // fold below repeats the last VPD while the probes are out.
+    vpd_avg.set(dryness.value(), vpd.valid());
     return dryness.value();
 }
 
@@ -41,7 +43,7 @@ void IrrigationModulation::observe(ProgramContext& c) {
     // error in between is toward LESS water.
     const float gamma = Plc::max_of(1.0f, mod_gamma.get());
     mod.set(Plc::limit(min_mod + (1.0f - min_mod) * powf(demand, gamma),
-                       min_mod, 1.0f), true);
+                       min_mod, 1.0f), vpd.valid());
 }
 
 }  // namespace Site

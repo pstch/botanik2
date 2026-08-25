@@ -145,7 +145,7 @@ void IrrigationCycle::run(ProgramContext& c) {
             break;
         }
         case IRR_FILLING: {
-            delivered.set(in_total.get() - _fill_start_L, true);
+            delivered.set(in_total.get() - _fill_start_L, in_total.valid());
             // ...and read back, so the fill ends on the row an operator can
             // watch and force rather than on a local difference.
             const float got = delivered.get();
@@ -181,7 +181,7 @@ void IrrigationCycle::run(ProgramContext& c) {
             break;
         }
         case IRR_DRAINING: {
-            drained.set(out_total.get() - _drain_start_L, true);
+            drained.set(out_total.get() - _drain_start_L, out_total.valid());
             if (!dwell(true, 1000u * drain_window_s.get(), c.dt_ms)) break;
             _drain_verdict();
             _tray = 0;

@@ -24,6 +24,11 @@ DayPhase DayPhaseController::_phase_at(int16_t since_rise,
 
 void DayPhaseController::run(ProgramContext& c) {
     const float t_in = inside.get();
+    // What the two halves of this law stand on: the sun says WHERE the day is,
+    // the interior probe says what it did. Either can go, and they go
+    // separately - a boot with no NTP has the probe and not the sun.
+    const bool sun_ok  = from_rise.valid() && from_set.valid();
+    const bool temp_ok = inside.valid();
 
     if (c.first_scan || !_seeded) {
         _day_max = _night_min = t_in;
@@ -42,15 +47,17 @@ void DayPhaseController::run(ProgramContext& c) {
     // and the phase HOLDS through that rather than announcing a night the plant
     // is not in. (The base has already reported this program degraded: the
     // offsets are declared inputs.)
-    if (from_rise.valid() && from_set.valid())
-        _phase = _phase_at(from_rise.get(), from_set.get());
+    if (sun_ok) _phase = _phase_at(from_rise.get(), from_set.get());
 
     if (_phase == PHASE_DAY && was != PHASE_DAY)     _day_max   = t_in;
     if (_phase == PHASE_NIGHT && was != PHASE_NIGHT) _night_min = t_in;
 
-    phase.set((uint8_t)_phase, true);
-    prev_day_max.set(_day_max, true);
-    prev_night_min.set(_night_min, true);
+    phase.set((uint8_t)_phase, sun_ok);
+    // The extremes are an accumulation, and a probe that has gone stops adding
+    // to it: what is published is the window as it stood when the house was
+    // last visible, which is the best answer there is and not a current one.
+    prev_day_max.set(_day_max, temp_ok);
+    prev_night_min.set(_night_min, temp_ok);
 
     // Whether the bank phases have anything to do when their turn comes. Both
     // can be armed at once - a clear late-spring day is hot and its night cold,
@@ -59,8 +66,8 @@ void DayPhaseController::run(ProgramContext& c) {
     // Off the ROWS just written, not off the members behind them: forcing one
     // is how a cold-bank morning gets rehearsed in July, and a law that armed
     // on its own copy would leave the page saying something it was not doing.
-    cold_arm.set(prev_day_max.get() > cold_bank_trg.get(), true);
-    heat_arm.set(prev_night_min.get() < heat_bank_trg.get(), true);
+    cold_arm.set(prev_day_max.get() > cold_bank_trg.get(), temp_ok);
+    heat_arm.set(prev_night_min.get() < heat_bank_trg.get(), temp_ok);
 }
 
 }  // namespace Site

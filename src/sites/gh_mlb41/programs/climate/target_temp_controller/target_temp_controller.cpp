@@ -30,7 +30,9 @@ void TargetTempController::run(ProgramContext& c) {
     // The clamp is LAST, and what keeps an aggressively-set offset from pushing
     // the greenhouse somewhere dangerous, whatever the phase asked for: a rail
     // an operator has just moved has to bite now, not one time constant later.
-    target.set(Plc::limit(eased, t_min.get(), t_max.get()), true);
+    // The whole ladder hangs off the phase, so a phase nobody can place makes
+    // this a target for a time of day we are guessing at.
+    target.set(Plc::limit(eased, t_min.get(), t_max.get()), phase.valid());
 }
 
 }  // namespace Site
