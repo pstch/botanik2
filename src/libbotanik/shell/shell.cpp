@@ -144,6 +144,7 @@ namespace Botanik { namespace Shell {
 #endif
 #if BOTANIK_FEATURE_PLC
             { "programs",  "...",       "the control programs in the scan",
+                           "status               what each one is doing\n"
                            "list [<prefix>]\n"
                            "enable <name>|all\n"
                            "disable <name>|all\n"

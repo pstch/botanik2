@@ -10,6 +10,8 @@
 #include "libbotanik/shell/shell.h"
 #include "libbotanik/shell/args.h"
 
+#include <cstdarg>
+#include <cstdio>
 #include <cstring>
 
 #include "libbotanik/hal/platform.h"
@@ -19,6 +21,26 @@
 namespace Botanik { namespace Shell {
 
 #if BOTANIK_FEATURE_PLC
+
+    /** @brief How many names `programs status` prints per state before it
+     *  falls back to a count. A state with more members than this is one the
+     *  operator reads as a number anyway. */
+    static const uint8_t NAME_CAP = 4;
+
+    /** @brief Append to @p buf at @p at, leaving @p at inside cap-1 whatever
+     *  printf says it WOULD have written - so a truncated line stops growing
+     *  rather than indexing past the end. */
+    static void _append(char* buf, size_t cap, uint16_t& at, const char* fmt, ...)
+        __attribute__((format(printf, 4, 5)));
+
+    static void _append(char* buf, size_t cap, uint16_t& at, const char* fmt, ...) {
+        if ((size_t)at + 1 >= cap) return;
+        va_list ap; va_start(ap, fmt);
+        const int w = vsnprintf(buf + at, cap - at, fmt, ap);
+        va_end(ap);
+        if (w < 0) return;
+        at = (at + (size_t)w >= cap) ? (uint16_t)(cap - 1) : (uint16_t)(at + w);
+    }
 
     void CommandShell::_cmd_programs(const char* args, uint16_t alen) {
         Tasks::Registry* reg = _registry();
@@ -52,11 +74,69 @@ namespace Botanik { namespace Shell {
             return;
         }
 
+        if (arg_eq(verb, wv, "status"))  { _programs_status();            return; }
         if (arg_eq(verb, wv, "enable"))  { _programs_gate(nm, wn, true);  return; }
         if (arg_eq(verb, wv, "disable")) { _programs_gate(nm, wn, false); return; }
         if (arg_eq(verb, wv, "save"))    { _programs_save(nm, wn);        return; }
 
         _verb_usage("programs");
+    }
+
+    void CommandShell::_programs_status() {
+        Tasks::Registry* reg = _registry();
+        char out[160];
+        if (reg == nullptr) { _println("programs: no task table"); return; }
+
+        const uint8_t n = reg->program_count();
+        uint8_t tally[Plc::HEALTH_COUNT] = { 0 };
+        uint8_t total = 0;
+        for (uint8_t i = 0; i < n; i++) {
+            const Plc::Program* p = reg->program(i);
+            if (p == nullptr) continue;
+            const uint8_t h = (uint8_t)p->health();
+            if (h < Plc::HEALTH_COUNT) tally[h]++;
+            total++;
+        }
+        if (total == 0) { _println("programs: none"); return; }
+
+        // The whole tally on one line, in enum order, states with nobody in
+        // them left out.
+        uint16_t at = 0;
+        _append(out, sizeof(out), at, "programs: %u  (", (unsigned)total);
+        bool first = true;
+        for (uint8_t h = 0; h < Plc::HEALTH_COUNT; h++) {
+            if (tally[h] == 0) continue;
+            _append(out, sizeof(out), at, "%s%u %s", first ? "" : ", ",
+                    (unsigned)tally[h], Plc::health_name((Plc::Health)h));
+            first = false;
+        }
+        _append(out, sizeof(out), at, ")");
+        _println(out);
+
+        // Named, worst first. HEALTHY and INHIBITED are counted and not listed:
+        // with control withheld or before the first scan EVERY program is
+        // inhibited, and a screen of names says less than the number does.
+        static const Plc::Health NAMED[] = { Plc::Health::FAULTED,
+                                             Plc::Health::DEGRADED,
+                                             Plc::Health::PARKING };
+        for (Plc::Health h : NAMED) {
+            const uint8_t code = (uint8_t)h;
+            if (tally[code] == 0) continue;
+            at = 0;
+            _append(out, sizeof(out), at, "  %-9s ", Plc::health_name(h));
+            uint8_t shown = 0;
+            for (uint8_t i = 0; i < n && shown < NAME_CAP; i++) {
+                const Plc::Program* p = reg->program(i);
+                if (p == nullptr || p->health() != h) continue;
+                _append(out, sizeof(out), at, "%s%s", shown == 0 ? "" : ", ",
+                        p->name());
+                shown++;
+            }
+            if (tally[code] > shown)
+                _append(out, sizeof(out), at, " +%u more",
+                        (unsigned)(tally[code] - shown));
+            _println(out);
+        }
     }
 
     void CommandShell::_programs_gate(const char* nm, uint16_t wn, bool on) {
@@ -123,6 +203,7 @@ namespace Botanik { namespace Shell {
     }
     void CommandShell::_programs_gate(const char*, uint16_t, bool) {}
     void CommandShell::_programs_save(const char*, uint16_t) {}
+    void CommandShell::_programs_status() {}
 
 #endif
 

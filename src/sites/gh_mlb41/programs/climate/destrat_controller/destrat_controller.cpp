@@ -19,7 +19,6 @@ void DestratController::run(ProgramContext& c) {
         // The bands are a claim about where the gap has recently been, and we
         // stopped seeing it.
         bands.reset();
-        faulted();
         return;
     }
 

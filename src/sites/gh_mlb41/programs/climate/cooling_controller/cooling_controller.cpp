@@ -32,7 +32,6 @@ void CoolingController::run(ProgramContext& c) {
         intake_ok.set(false, true);
         ground_ok.set(false, true);
         pid.reset();      // the integral is about a plant we stopped seeing
-        faulted();
         return;
     }
     // The house's own row, which is the hotter of the two levels: the spec's

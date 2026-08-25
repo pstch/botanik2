@@ -433,4 +433,114 @@ TEST_CASE("stop: a halt keeps kicking, because the loop IS alive") {
     CHECK(f.auth.health_hold());
 }
 
+TEST_CASE("health: a program on its way to safe reads PARKING, not HEALTHY") {
+    Fixture f;
+    Botanik::Tasks::Registry reg;
+    Health::HealthMonitor h(Botanik::SetupContext(reg, &f.log), &f.sched, &f.bank);
+    h.set_authority(&f.auth);
+    SlowToPark slow(Botanik::SetupContext(reg, &f.log), f.bank, 10);
+    slow.set_slot(0);
+    slow.register_tasks();
+    h.register_tasks();
+    reg.setup(0);
+    f.auth.set_health_hold(false);
+
+    uint64_t t = SETTLED;
+    beat(reg, h, t, 5);
+    REQUIRE(slow.health() == Plc::Health::HEALTHY);
+
+    reg.request_safe(true);
+    beat(reg, h, t, 3);
+    INFO("the actuator has not arrived, so the program has not either - and "
+         "reading HEALTHY here would say the plant was still in hand");
+    CHECK(slow.health() == Plc::Health::PARKING);
+    CHECK_FALSE(slow.is_parked());
+    CHECK(reg.unsafe_count() == 1);
+
+    beat(reg, h, t, 20);
+    CHECK(slow.health() == Plc::Health::INHIBITED);
+    CHECK(slow.is_parked());
+
+    INFO("both are NOTICE: on the OPTA the minimum level is INFO, so a plant "
+         "going to its safe state at DEBUG leaves no record at all");
+    CHECK(f.writer.saw("slow: PARKING"));
+    CHECK(f.writer.saw("slow: INHIBITED"));
+    CHECK(f.writer.last_level == Logs::LOG_NOTICE);
+
+    INFO("...and released, it says so on the way back up");
+    reg.request_safe(false);
+    beat(reg, h, t, 3);
+    CHECK(slow.health() == Plc::Health::HEALTHY);
+    CHECK(f.writer.saw("slow: HEALTHY"));
+}
+
+namespace {
+    /** @brief A program naming a row no table declares, so setup FAULTS it. */
+    class Unwireable : public Botanik::Plc::Program {
+    public:
+        uint16_t ran = 0, observed = 0;
+
+        Unwireable(const Botanik::SetupContext& ctx, Vars::Bank& io)
+            : Program(ctx, "unwireable", Botanik::Tasks::GROUP_FAST, io) {}
+
+    protected:
+        void bind(Vars::Bank& io) override {
+            (void)io.resolve_in<float>("no_such_row_anywhere");
+        }
+        void run(Botanik::ProgramContext&) override     { ran++; }
+        void observe(Botanik::ProgramContext&) override { observed++; }
+    };
+}
+
+TEST_CASE("health: a program setup could not wire is FAULTED, and never runs") {
+    Fixture f;
+    Botanik::Tasks::Registry reg;
+    Health::HealthMonitor h(Botanik::SetupContext(reg, &f.log), &f.sched, &f.bank);
+    h.set_authority(&f.auth);
+    Unwireable bad(Botanik::SetupContext(reg, &f.log), f.bank);
+    bad.set_slot(0);
+    bad.register_tasks();
+    h.register_tasks();
+    reg.setup(0);
+    f.auth.set_health_hold(false);
+
+    CHECK(bad.health() == Plc::Health::FAULTED);
+    CHECK(bad.is_faulted());
+
+    uint64_t t = SETTLED;
+    beat(reg, h, t, 20);
+    INFO("its refs are inert sinks, so an activation would publish zeros that "
+         "read exactly like readings");
+    CHECK(bad.ran == 0);
+    CHECK(bad.observed == 0);
+    CHECK(bad.health() == Plc::Health::FAULTED);
+
+    INFO("and it counts as parked: one that will never run can never arrive, "
+         "and waiting on it would hold the plant out of its reboot for ever");
+    CHECK(bad.is_parked());
+    CHECK(reg.all_safe());
+}
+
+TEST_CASE("health: FAULTED is said even though bring-up is quiet") {
+    // The quiet window exists so the first verdict of every program is adopted
+    // in silence. FAULTED is only ever reached in setup, so obeying it would
+    // mean an unwireable program was never reported at all.
+    Fixture f;
+    Botanik::Tasks::Registry reg;
+    Health::HealthMonitor h(Botanik::SetupContext(reg, &f.log), &f.sched, &f.bank);
+    h.set_authority(&f.auth);
+    Unwireable bad(Botanik::SetupContext(reg, &f.log), f.bank);
+    bad.set_slot(0);
+    bad.register_tasks();
+    h.register_tasks();
+    reg.setup(0);
+    f.auth.set_health_hold(false);
+
+    uint64_t t = 0;
+    beat(reg, h, t, 20);
+    REQUIRE(t < Config::HEALTH_QUIET_MS);
+    CHECK(f.writer.saw("unwireable: FAULTED"));
+    CHECK(f.writer.last_level == Logs::LOG_CRITICAL);
+}
+
 }  // namespace health

@@ -40,25 +40,8 @@ namespace Botanik { namespace Plc {
         return late;
     }
 
-    Health worst_health(const Tasks::Registry& r, uint8_t* inhibited) {
-        Health worst = Health::HEALTHY;
-        uint8_t parked = 0;
-        const uint8_t count = r.program_count();
-        for (uint8_t i = 0; i < count; i++) {
-            const Program* p = r.program(i);
-            if (p == nullptr) continue;
-            const Health h = p->health();
-            // INHIBITED is off the severity axis, so it is counted rather than
-            // compared: a parked plant is not a degraded one.
-            if (!health_is_severity(h)) { parked++; continue; }
-            if (h > worst) worst = h;
-        }
-        if (inhibited != nullptr) *inhibited = parked;
-        return worst;
-    }
-
     void publish_health(Vars::Bank& io, const Tasks::Registry& r,
-                        Logs::Logger* logger) {
+                        Logs::Logger* logger, bool quiet) {
         const uint8_t count = r.program_count();
         for (uint8_t i = 0; i < count; i++) {
             Program* p = r.program(i);
@@ -66,23 +49,28 @@ namespace Botanik { namespace Plc {
             const uint8_t now = (uint8_t)p->health();
             io.drive(p->health_row(), now);
             if (now == p->_health_said) continue;
+            const Health h = p->health();
             // Only on the CHANGE: a program reporting DEGRADED every beat for
-            // an hour is one line here and a flood anywhere else. A null logger
-            // adopts the verdict silently, which is what bring-up does with the
-            // first one every program publishes.
+            // an hour is one line here and a flood anywhere else.
             //
-            // WARNING on the way DOWN the severity axis: a law that has stopped
-            // being able to do its job is something an operator wants without
-            // turning debug on. Coming back up, and parking, are DEBUG - the
-            // record closing rather than opening.
-            if (logger != nullptr) {
-                const Health h = p->health();
-                if (h == Health::DEGRADED || h == Health::FAULTED)
-                    logger->warning(Logs::PROGRAM, "%s: %s", p->name(),
-                                    health_name(h));
+            // A program stopping or resuming control is a NOTICE and not a
+            // debug line, because on the OPTA the minimum level is INFO: below
+            // it the only record that a plant went to its safe state would be
+            // one the hardware never keeps. The whole set of them lands on one
+            // operator command, which is a rare and deliberate act.
+            //
+            // The quiet window exists so bring-up does not announce the first
+            // verdict of every program, and FAULTED is exempt from it: setup is
+            // the only place that verdict is reached, so obeying quiet would
+            // mean an unwireable program was never reported at all.
+            if (logger != nullptr && (!quiet || h == Health::FAULTED)) {
+                if (h == Health::FAULTED)
+                    logger->critical(Logs::PROGRAM, "%s: FAULTED", p->name());
+                else if (h == Health::DEGRADED)
+                    logger->warning(Logs::PROGRAM, "%s: DEGRADED", p->name());
                 else
-                    logger->debug(Logs::PROGRAM, "%s: %s", p->name(),
-                                  health_name(h));
+                    logger->notice(Logs::PROGRAM, "%s: %s", p->name(),
+                                   health_name(h));
             }
             p->_health_said = now;
         }

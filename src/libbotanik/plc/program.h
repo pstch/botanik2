@@ -20,37 +20,46 @@ namespace Botanik { namespace Plc {
 
     /** @brief What a program can do right now.
      *
-     *  The first three are a SEVERITY run and are ordered: a supervisor takes
-     *  the worst across the programs, and one comparison answers "is anything
-     *  going wrong". The distinction that matters there is DEGRADED against
-     *  FAULTED - short of an input but still producing good demands needs an
-     *  engineer eventually; outputs gone invalid needs one now.
+     *  HEALTHY and DEGRADED are a severity pair and are ordered, so a reader
+     *  takes the worse of two and one comparison answers "is anything going
+     *  wrong". FAULTED sorts above them and is not one of them: it is decided
+     *  once and never re-derived.
      *
-     *  INHIBITED is off that axis: the program's CONTROL has stopped and its
-     *  actuators are parked, but it is still reporting - status values and
-     *  alarms keep being published, which is the whole reason the state is
-     *  named for what stops rather than for the program being off. It is
-     *  REACHED rather than commanded: an actuator takes time to park, and the
-     *  program keeps running until it is there.
+     *  FAULTED is a program that could not be WIRED. bind() named a row no
+     *  table declares, or a dependency it was handed is null. Nothing about it
+     *  gets better, so it is set during setup and never again, and the program
+     *  is never activated - no run(), no observe(). One that ran on inert
+     *  sinks would publish zeros as though they were readings.
      *
-     *  One state, two causes. A plant-wide safe request and the operator's
-     *  per-program switch inhibit the same things in the same way; which one
-     *  asked is safe_requested() / disable_requested(), not a second value
-     *  every reader would have to treat alike. */
+     *  INHIBITED and PARKING are off the severity axis: the program's CONTROL
+     *  has stopped, but it is still reporting - status values and alarms keep
+     *  being published, which is the whole reason the states are named for
+     *  what stops rather than for the program being off. They are REACHED
+     *  rather than commanded: an actuator takes time to park, PARKING is the
+     *  travel and INHIBITED is arrival, and the program keeps running through
+     *  both.
+     *
+     *  Two causes, one pair of states. A plant-wide safe request and the
+     *  operator's per-program switch inhibit the same things in the same way;
+     *  which one asked is safe_requested() / disable_requested(), not a second
+     *  value every reader would have to treat alike.
+     *
+     *  @note The codes are published as a T_ENUM row, so the vocabulary may
+     *  gain labels and must never renumber them. */
     enum class Health : uint8_t {
         HEALTHY = 0,   ///< normal operation, every output valid
-        DEGRADED,      ///< an input is invalid; the outputs are still good
-        FAULTED,       ///< at least one output is invalid
-        INHIBITED      ///< control stopped and actuators parked; still reporting
+        DEGRADED,      ///< an input is invalid; the outputs are still driven
+        FAULTED,       ///< could not be wired at bring-up; never runs
+        INHIBITED,     ///< control stopped and actuators parked; still reporting
+        PARKING        ///< control stopped, actuators still travelling
     };
 
-    /** @brief Whether @p h is one of the severity states, so a supervisor knows
-     *  which values it may compare. */
-    inline bool health_is_severity(Health h) { return h <= Health::FAULTED; }
+    /** @brief How many values Health has, so a per-state tally can be sized. */
+    constexpr uint8_t HEALTH_COUNT = 5;
 
     /** @brief A health CODE as a word: the converter a status row over this
      *  vocabulary takes the address of.
-     *  @note Null for anything that is not one of the four, which is what a
+     *  @note Null for anything that is not one of the five, which is what a
      *  T_ENUM row refuses. @see health_name() for the typed form. */
     inline const char* health_label(uint64_t code) {
         switch (code) {
@@ -58,6 +67,7 @@ namespace Botanik { namespace Plc {
             case (uint64_t)Health::DEGRADED:  return "DEGRADED";
             case (uint64_t)Health::FAULTED:   return "FAULTED";
             case (uint64_t)Health::INHIBITED: return "INHIBITED";
+            case (uint64_t)Health::PARKING:   return "PARKING";
             default:                          return nullptr;
         }
     }
@@ -69,6 +79,7 @@ namespace Botanik { namespace Plc {
             case Health::DEGRADED: return "DEGRADED";
             case Health::FAULTED:   return "FAULTED";
             case Health::INHIBITED: return "INHIBITED";
+            case Health::PARKING:   return "PARKING";
             default:                return "?";
         }
     }
@@ -99,6 +110,9 @@ namespace Botanik { namespace Plc {
         /** @brief Set by parking() during one activation: the program is still
          *  driving toward its fail position. */
         bool           _travelling    = false;
+        /** @brief Whether setup decided this program cannot be wired. Latches
+         *  _health at FAULTED and stops it ever being activated. */
+        bool           _faulted       = false;
         /** @brief Where health is published, and what was last LOGGED there.
          *  0xFF is "nothing yet", so the first pass announces whatever it
          *  finds rather than only a change from HEALTHY. */
@@ -158,21 +172,27 @@ namespace Botanik { namespace Plc {
 
         /** @name Health
          *  What this program could do on its last activation. Re-derived each
-         *  time, so a fault that clears is not sticky - a program that stops
+         *  time, so a condition that clears is not sticky - a program that stops
          *  running keeps its last verdict, which is why withdrawal sets SAFE.
+         *  FAULTED is the exception: setup decides it, and nothing re-derives it.
          *  @{ */
 
         Health health() const { return _health; }
 
+        /** @brief Whether setup found this program unwireable. It is never
+         *  activated, so a reader asking why nothing is happening asks here. */
+        bool is_faulted() const { return _faulted; }
+
         /** @name Going safe
          *
-         *  SAFE is REACHED, not commanded. A request tells a program to put its
-         *  own actuators where they belong; it keeps being activated while it
-         *  does, because a program that is not run cannot close a valve or park
-         *  a window. It reports SAFE once it is actually there, and a supervisor
-         *  waits for every program before it acts - dropping control the instant
-         *  the operator asked would leave a half-travelled actuator wherever the
-         *  request happened to catch it.
+         *  INHIBITED is REACHED, not commanded. A request tells a program to put
+         *  its own actuators where they belong; it keeps being activated while
+         *  it does, because a program that is not run cannot close a valve or
+         *  park a window. It reads PARKING for as long as it is travelling and
+         *  INHIBITED once it is there, and a supervisor waits for every program
+         *  before it acts - dropping control the instant the operator asked
+         *  would leave a half-travelled actuator wherever the request happened
+         *  to catch it.
          *  @{ */
 
         /** @brief Ask this program to reach its safe state, or release it. */
@@ -190,28 +210,37 @@ namespace Botanik { namespace Plc {
         bool inhibit_requested() const { return _safe_asked || _disable_asked; }
 
         /** @brief Whether it has ARRIVED, not whether it was asked. What a
-         *  supervisor waits on before it drops control. */
-        bool is_parked() const { return _health == Health::INHIBITED; }
+         *  supervisor waits on before it drops control.
+         *
+         *  A FAULTED program counts: it is never activated, so it can neither
+         *  travel nor arrive, and waiting on one would hold the whole plant out
+         *  of its reboot for ever. */
+        bool is_parked() const {
+            return _health == Health::INHIBITED || _health == Health::FAULTED;
+        }
 
         /** @brief Force the verdict without asking. For the authority gate,
          *  which drops every output to its declared safe state itself: the
          *  plant is out of this program's hands whether or not it agreed. */
-        void set_safe() { _health = Health::INHIBITED; }
+        void set_safe() { if (!_faulted) _health = Health::INHIBITED; }
 
         /** @} */
 
     protected:
-        /** @name Reporting health, from run()
-         *  Worst wins within one activation, so a program can report each
-         *  finding as it makes it without tracking which was worst.
+        /** @name Reporting health
          *  @{ */
 
-        /** @brief An input this program wanted is not believable, but what it
-         *  produced still is. */
-        void degraded() { _worsen(Health::DEGRADED); }
-        /** @brief An output could not be produced: this program is not
-         *  controlling what it is supposed to control. */
-        void faulted()  { _worsen(Health::FAULTED); }
+        /** @brief From run(): an input this program wanted is not believable,
+         *  but what it produced still is. Cleared by the next activation. */
+        void degraded() { if (_health == Health::HEALTHY) _health = Health::DEGRADED; }
+
+        /** @brief From bind(), and only from there: this program cannot be
+         *  wired, so it must never run.
+         *
+         *  For a dependency that is null rather than a name that is missing -
+         *  an unresolved name is caught by on_setup() without the program
+         *  asking. Permanent either way. */
+        void fault() { _faulted = true; }
 
         /** @} */
 
@@ -295,21 +324,18 @@ namespace Botanik { namespace Plc {
             _io->begin_writer(_slot);
             bind(*_io);
             _io->end_writer();
-            _unbound = (_io->unresolved_count() != missed);
+            if (_io->unresolved_count() != missed) fault();
+            // The one place FAULTED is decided. It outranks the INHIBITED a
+            // program starts at, and no activation ever revisits it.
+            if (_faulted) _health = Health::FAULTED;
         }
 
         /** @} */
 
     private:
-        /** @brief bind() named a row no table declares. Permanent: the ref it
-         *  got is the inert sink and nothing later replaces it. */
-        bool _unbound = false;
-
         /** @brief The supervisor sets `_health_said`; nothing else may. */
         friend void publish_health(Vars::Bank&, const Tasks::Registry&,
-                                   Logs::Logger*);
-
-        void _worsen(Health h) { if (h > _health) _health = h; }
+                                   Logs::Logger*, bool);
 
         /** @brief Registration handler. A static MEMBER, so the cast reaches
          *  the private activation below. */
@@ -317,6 +343,11 @@ namespace Botanik { namespace Plc {
 
         void _activate(const Tasks::Tick& t) {
             if (_io == nullptr) return;
+            // Nothing at all for a program setup could not wire: not run(), not
+            // observe(), not even the lateness. Its refs are inert sinks, so
+            // every value it produced would be a zero indistinguishable from a
+            // reading, and its verdict stands from setup for the life of the run.
+            if (_faulted) return;
 
             // Against the program's OWN period, not the beat: 40 ms late is
             // fine for a 1 s program and not for a 100 ms one.
@@ -325,15 +356,11 @@ namespace Botanik { namespace Plc {
             if (_late_ms > _late_max_ms) _late_max_ms = _late_ms;
 
             // HEALTHY until this activation says otherwise. A program that never
-            // calls degraded()/faulted() is one whose run() cannot fail, and it
-            // should read as healthy rather than as unknown.
+            // calls degraded() is one whose run() cannot fail, and it should
+            // read as healthy rather than as unknown.
             _health = Health::HEALTHY;
-            // A bind that missed a name never gets better: that ref is the
-            // inert sink for the life of the program, so it is re-stated every
-            // activation rather than only on the one where it happened.
-            if (_unbound) faulted();
-            // BEFORE run(), so a law reading an unbelievable input starts from
-            // DEGRADED and can still escalate to FAULTED on its own account.
+            // BEFORE run(), so a law reading an unbelievable input is DEGRADED
+            // whether or not it thought to ask.
             _watch_inputs();
             ProgramContext c = { t.now_ms, t.dt_ms, t.missed, t.first, *_io };
             // The window, not the program, says who is writing: a program cannot
@@ -347,10 +374,13 @@ namespace Botanik { namespace Plc {
             // position instead of to a demand.
             _travelling = false;
             run(c);
-            // Arrived unless the program said otherwise. Either request parks
-            // the same actuators the same way, so one the operator had already
-            // switched off is ALREADY where a reboot needs it.
-            if (inhibit_requested() && !_travelling) _health = Health::INHIBITED;
+            // Still travelling, or arrived. Either request parks the same
+            // actuators the same way, so one the operator had already switched
+            // off is ALREADY where a reboot needs it. Both outrank whatever the
+            // law reported: a program that has stopped controlling is not a
+            // degraded one, and a reader asking why the plant is still says so.
+            if (inhibit_requested())
+                _health = _travelling ? Health::PARKING : Health::INHIBITED;
             // ALWAYS, and after the decision so it can report what this beat
             // decided. Saying what is true does not stop because control has:
             // a plant going into its safe state is exactly when an operator is
@@ -366,20 +396,16 @@ namespace Botanik { namespace Plc {
      *  @param worst receives the owner, or null when nothing was late. */
     uint32_t worst_lateness(const Tasks::Registry& r, const Program** worst);
 
-    /** @brief The worst health across the registry's programs, on the SEVERITY
-     *  axis alone. INHIBITED is not on it - a parked plant is not a degraded
-     *  one - so it is reported separately.
-     *  @param inhibited receives how many programs are parked */
-    Health worst_health(const Tasks::Registry& r, uint8_t* inhibited);
-
     /** @brief Publish every program's health to the row it declared, and log
      *  the changes.
      *
      *  Walked by a SUPERVISOR rather than written by each program in its own
      *  activation: a program that is not being activated is exactly the case a
-     *  reader most wants the row for, and it cannot write its own row then. */
+     *  reader most wants the row for, and it cannot write its own row then.
+     *  @param quiet suppress the log during bring-up. FAULTED is said anyway -
+     *         setup is the only place it is reached. */
     void publish_health(Vars::Bank& io, const Tasks::Registry& r,
-                        Logs::Logger* logger);
+                        Logs::Logger* logger, bool quiet);
 
     /** @brief Name a row that has acquired a second author, once per new conflict.
      *  @param said count already reported, so a defect true on every beat is

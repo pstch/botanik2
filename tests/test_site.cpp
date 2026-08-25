@@ -128,7 +128,12 @@ TEST_CASE("site: nothing the site touches fails to resolve") {
     // table to walk: AllPrograms is the list instead, and the check it buys is
     // that no program names a row the tables do not declare.
     Botanik::Tasks::Registry prog_reg;
-    AllPrograms progs(Botanik::SetupContext(prog_reg), f.bank);
+    Botanik::SetupContext prog_ctx(prog_reg);
+    // The firmware hands this over; a program built without one is FAULTED for
+    // a reason that has nothing to do with the names this case is checking.
+    Botanik::Sun::SunPositionTracker tracker(prog_ctx);
+    prog_ctx.sun = &tracker;
+    AllPrograms progs(prog_ctx, f.bank);
     for (Plc::Program* p : progs.all)
         p->step(1000);      // setup() binds the names, then one activation
 
