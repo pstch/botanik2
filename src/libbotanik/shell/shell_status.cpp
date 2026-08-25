@@ -214,7 +214,7 @@ namespace Botanik { namespace Shell {
         for (uint8_t i = 0; i < reg.count(); i++) {
             const Tasks::Task& t = reg.task(i);
             if (t.name == nullptr) continue;
-            if (prefix != nullptr && strncmp(t.name, prefix, plen) != 0) continue;
+            if (!Utils::glob_bounded(t.name, prefix, plen)) continue;
             _emitf(out, sizeof(out), "  %-22s %-5s %-8s %5lums %6luus %5lu",
                    t.name, Tasks::group_name(t.group), Tasks::phase_name(t.phase),
                    (unsigned long)Tasks::group_period_ms(t.group),

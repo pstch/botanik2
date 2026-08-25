@@ -84,3 +84,40 @@ TEST_CASE("vars: retention is a flag on the factory, not a factory of its own") 
         Vars::SV("t_sv", Vars::T_F32, 0, 1, "L", 901, "a totalizer", "", true);
     CHECK(Vars::Bank::retainable(sv));
 }
+
+TEST_CASE("text: a listing pattern is a prefix until it has a wildcard") {
+    auto m = [](const char* s, const char* pat) {
+        return Utils::glob_bounded(s, pat, (uint16_t)strlen(pat));
+    };
+
+    // What every shell listing meant before wildcards existed, unchanged.
+    CHECK(m("cli_temp_in", "cli_"));
+    CHECK(m("cli_temp_in", "cli_temp_in"));
+    CHECK_FALSE(m("cli_temp_in", "pwr_"));
+    // A prefix longer than the name is not a match.
+    CHECK_FALSE(m("cli_", "cli_temp_in"));
+
+    // With a wildcard the pattern is anchored at BOTH ends, so a bare group
+    // name stops matching and `*` is how you say "the rest".
+    CHECK(m("cli_window1_pos", "cli_win*_pos"));
+    CHECK(m("cli_window1_pos", "*_pos"));
+    CHECK(m("cli_window1_pos", "cli_*"));
+    CHECK(m("cli_window1_pos", "*"));
+    CHECK(m("cli_window1_pos", "*win*pos"));
+    CHECK_FALSE(m("cli_window1_tgt", "*_pos"));
+    CHECK_FALSE(m("cli_window1_pos", "cli_win*_tgt"));
+
+    // ? is exactly one character.
+    CHECK(m("cli_intr1", "cli_intr?"));
+    CHECK_FALSE(m("cli_intr12", "cli_intr?"));
+
+    // The backtrack: the first star must give characters back for the tail.
+    CHECK(m("aaa_pos", "*a_pos"));
+    CHECK(m("abcabc", "*abc"));
+    CHECK_FALSE(m("abcabd", "*abc"));
+
+    // Null and empty: no pattern filters nothing, a null name matches nothing.
+    CHECK(Utils::glob_bounded("anything", nullptr, 0));
+    CHECK(Utils::glob_bounded("anything", "cli_", 0));
+    CHECK_FALSE(Utils::glob_bounded(nullptr, "cli_", 4));
+}

@@ -335,7 +335,7 @@ Neither writes an unsaved parameter or override on your behalf (@ref user_params
 | `modbus stats`                                 | the plan, the line, the counters      |
 | `modbus devices`                               | the roll-call, one line per unit      |
 | `tasks stats`                                  | the beat's totals                     |
-| `tasks list [<prefix>]`                        | list tasks                            |
+| `tasks list [<pat>]`                        | list tasks                            |
 | `tasks get <name>`                             | show task state                       |
 | `version`                                      | show the firmware version             |
 | `features`                                     | show enabled features                 |
@@ -344,7 +344,7 @@ Neither writes an unsaved parameter or override on your behalf (@ref user_params
 
 | Command                                        | Action                                |
 |------------------------------------------------|---------------------------------------|
-| `params list [<prefix>]`                       | list parameters                       |
+| `params list [<pat>]`                       | list parameters                       |
 | `params get <name>`                            | get a parameter                       |
 | `params set <name> <value>`                    | set a parameter (live, unsaved)       |
 | `params clear <name>\|all`                     | forget unsaved parameter edits        |
@@ -355,20 +355,30 @@ Neither writes an unsaved parameter or override on your behalf (@ref user_params
 | `overrides set <name> [<value>] [invalid]`     | set an override                       |
 | `overrides clear <name>\|all`                  | release one override, or all of them  |
 | `overrides save <name>\|all`                   | persist an override, or all of them   |
-| `alarms list [<prefix>]`                       | list active alarms                    |
+| `alarms list [<pat>]`                       | list active alarms                    |
 | `alarms get <code\|name>`                      | get an alarm                          |
 | `alarms ack <code\|name\|all>`                 | acknowledge an alarm                  |
-| `vars list [<prefix>]`                         | list variables                        |
+| `vars list [<pat>]`                         | list variables                        |
 | `vars get <name>`                              | read a variable's value               |
 | `vars info <name>`                             | everything known about a variable     |
 | `programs status`                              | a tally per health, and who is in each |
-| `programs list [<prefix>]`                     | list programs                         |
+| `programs list [<pat>]`                     | list programs                         |
 | `programs enable <name>\|all`                  | enable a program, or all of them      |
 | `programs disable <name>\|all`                 | disable a program, or all of them     |
 | `programs save <name>\|all`                    | persist to flash disabled programs    |
 
-Every listing takes a name prefix, and variables are conventionally named by domain (ex.
-`grid_`, `irr_`, `cli_`), so using name prefixes allow to view items "per subsystem".
+Every listing takes a pattern. Names are conventionally grouped by domain
+(`grid_`, `irr_`, `cli_`), so a bare prefix is the subsystem view: `vars list
+cli_` lists the climate rows.
+
+A pattern with `*` (any run of characters) or `?` (exactly one) is matched
+against the WHOLE name instead, which is how you cut across the grouping:
+
+```
+botanik> vars list cli_win*_pos
+botanik> vars list *_tgt              every setpoint, whatever its domain
+botanik> vars list cli_intr?          the single-digit channels, not intr10
+```
 
 ##### Console
 

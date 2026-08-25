@@ -122,12 +122,12 @@ namespace Botanik { namespace Shell {
                                                                   G_STA, false,
                                                                &CommandShell::_cmd_modbus     },
             { "tasks",     "...",       "what the beat spends its time on",
-                           "stats\nlist [<prefix>]\nget <name>",   G_STA, false,
+                           "stats\nlist [<pat>]\nget <name>",      G_STA, false,
                                                                &CommandShell::_cmd_tasks      },
 
 #if BOTANIK_FEATURE_VARS
             { "params",    "...",       "the editable settings",
-                           "list [<prefix>]\n"
+                           "list [<pat>]         name, or a glob: cli_win*_pos\n"
                            "get <name>\n"
                            "set <name> <value>\n"
                            "clear <name>|all     forget unsaved edits\n"
@@ -145,20 +145,20 @@ namespace Botanik { namespace Shell {
 #if BOTANIK_FEATURE_PLC
             { "programs",  "...",       "the control programs in the scan",
                            "status               what each one is doing\n"
-                           "list [<prefix>]\n"
+                           "list [<pat>]         name, or a glob\n"
                            "enable <name>|all\n"
                            "disable <name>|all\n"
                            "save <name>|all",                     G_TAB, false,
                                                                &CommandShell::_cmd_programs   },
 #endif
             { "alarms",    "...",       "the alarm table, and acknowledging",
-                           "list [<prefix>]\n"
+                           "list [<pat>]         code, or a glob: TOO_*\n"
                            "get <code|name>\n"
                            "ack <code|name|all>",                 G_TAB, false,
                                                                &CommandShell::_cmd_alarms     },
 #if BOTANIK_FEATURE_VARS
             { "vars",      "...",       "read any variable, whatever its scope",
-                           "list [<prefix>]\n"
+                           "list [<pat>]         name, or a glob: cli_win*_pos\n"
                            "get <name>           the value, and nothing else\n"
                            "info <name>          the whole row",  G_TAB, false,
                                                                &CommandShell::_cmd_vars       },

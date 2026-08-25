@@ -336,7 +336,7 @@ namespace Botanik { namespace Shell {
             const char* name = h.meta()->name;
             if (name == nullptr) continue;
             if (params_only && h.role() != Vars::ROLE_PARAM) continue;
-            if (prefix != nullptr && strncmp(name, prefix, plen) != 0) continue;
+            if (!Utils::glob_bounded(name, prefix, plen)) continue;
             _emit_var(*io, h);
             n++;
         }

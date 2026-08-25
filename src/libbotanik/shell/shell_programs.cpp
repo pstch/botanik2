@@ -17,6 +17,7 @@
 #include "libbotanik/hal/platform.h"
 #include "libbotanik/plc/program.h"
 #include "libbotanik/tasks/tasks.h"
+#include "libbotanik/utils/text.h"
 
 namespace Botanik { namespace Shell {
 
@@ -56,7 +57,7 @@ namespace Botanik { namespace Shell {
             for (uint8_t i = 0; i < n; i++) {
                 const Plc::Program* p = reg->program(i);
                 if (p == nullptr) continue;
-                if (nm != nullptr && strncmp(p->name(), nm, wn) != 0) continue;
+                if (!Utils::glob_bounded(p->name(), nm, wn)) continue;
                 const bool on = reg->program_enabled(i);
                 if (!on) off++;
                 if (reg->program_unsaved(i)) unsaved++;

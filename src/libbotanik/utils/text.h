@@ -43,6 +43,17 @@ namespace Botanik { namespace Utils {
      *  @p needle matches anything; a null @p hay matches nothing. */
     bool contains_ci(const char* hay, const char* needle);
 
+    /** @brief Whether NUL-terminated @p s matches the pattern [@p pat,
+     *  @p pat+len), where `*` stands for any run of characters and `?` for one.
+     *
+     *  A pattern with NO wildcard matches as a PREFIX, which is what every
+     *  shell listing meant before wildcards existed: `vars list cli_` still
+     *  lists the group. One with a wildcard is anchored at both ends, so
+     *  `*_pos` means ends-with and `cli_win*_pos` means both.
+     *  @note Iterative, with one backtrack point: a pathological pattern costs
+     *  time, never stack. */
+    bool glob_bounded(const char* s, const char* pat, uint16_t len);
+
     /** @}
      *  @name Line wrapping
      *  @{ */

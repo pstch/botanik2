@@ -60,7 +60,7 @@ namespace Botanik { namespace Shell {
                 const Alarms::AlarmCondition& c = m->condition(i);
                 if (!c.active) continue;
                 const char* code = c.code() ? c.code() : "?";
-                if (prefix != nullptr && strncmp(code, prefix, wp) != 0) continue;
+                if (!Utils::glob_bounded(code, prefix, wp)) continue;
                 uint32_t secs = (uint32_t)((now - c.started_ms) / 1000);
                 // Code first (what the alarm bar shows and what `alarms ack`
                 // takes), then the variable name (what `vars get` takes).

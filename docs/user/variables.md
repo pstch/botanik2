@@ -18,14 +18,24 @@ for ever, and no timeout catches that. The band does.
 
 ## Reading one
 
-`vars list` browses, optionally filtered by name prefix. Variables are named by
-domain, so a prefix is the subsystem view:
+`vars list` browses, optionally filtered. Variables are named by domain, so a
+bare prefix is the subsystem view:
 
 ```
 botanik> vars list grid_L1_
   grid_L1_V            237.4        V    (MI)
   grid_L1_A            7.6          A    (MI)
   2 variable(s)
+```
+
+A pattern carrying `*` or `?` matches the whole name rather than its start, for
+the rows a prefix cannot gather:
+
+```
+botanik> vars list cli_win*_pos
+  cli_window1_pos      0.0               (SV)
+  cli_window2_pos      0.0               (SV)
+  ...
 ```
 
 Three annotations on a row matter:

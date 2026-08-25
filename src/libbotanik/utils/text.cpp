@@ -93,6 +93,36 @@ namespace Botanik { namespace Utils {
         return false;
     }
 
+    bool glob_bounded(const char* s, const char* pat, uint16_t len) {
+        if (s == nullptr) return false;
+        if (pat == nullptr || len == 0) return true;
+
+        bool wild = false;
+        for (uint16_t k = 0; k < len; k++)
+            if (pat[k] == '*' || pat[k] == '?') { wild = true; break; }
+        // No wildcard, no change: the pattern is the prefix it has always been.
+        if (!wild) {
+            uint16_t k = 0;
+            while (k < len && s[k] != 0 && s[k] == pat[k]) k++;
+            return k == len;
+        }
+
+        // One star may need to give characters back, so its position and the
+        // input it was first tried at are remembered. Only the LAST star has to
+        // be: an earlier one can always yield to it.
+        uint16_t p = 0, i = 0;
+        uint16_t star = len, star_i = 0;   // star == len: none seen yet
+        while (s[i] != 0) {
+            if (p < len && (pat[p] == '?' || pat[p] == s[i])) { p++; i++; continue; }
+            if (p < len && pat[p] == '*')  { star = p++; star_i = i; continue; }
+            if (star != len)               { p = (uint16_t)(star + 1); i = ++star_i; continue; }
+            return false;
+        }
+        // Trailing stars match the empty rest.
+        while (p < len && pat[p] == '*') p++;
+        return p == len;
+    }
+
     const char* format_int(char* buf, size_t cap, long long value) {
         if (cap == 0) return buf;
         bool negative = value < 0;
