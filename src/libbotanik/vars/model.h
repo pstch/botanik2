@@ -309,8 +309,9 @@ namespace Botanik { namespace Vars {
      *
      *  - `<noun>_<verb>` for a FAMILY of operations on one concept, so the
      *    family sorts together and reads the way the shell says it:
-     *    `override_set` / `override_clear` / `override_clear_all`,
-     *    matching `overrides set` / `overrides clear`.
+     *    `override_set` / `override_clear`, matching `overrides set` /
+     *    `overrides clear`. `clear_overrides()` predates the rule and
+     *    breaks it; it is the only one left that does.
      *  - `set_<property>` for a single property with no family behind it:
      *    `set_store`, `set_control_mode`, `set_health_hold`. Turning these
      *    around would give `health_hold_set`, which is why they are not the
