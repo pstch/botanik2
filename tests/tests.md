@@ -16,20 +16,3 @@ suites that drive the real simulator:
   drives the real `botanik_sim` over a PTY and asserts the reconstructed screen
   against golden fixtures.
 
-## Coverage at a glance {#testing_coverage}
-
-Regenerated on every docs build (`scripts/code_charts.py`), broken down by code
-area - a companion to the LoC / churn charts on the @ref development page.
-
-@htmlonly
-<div class="code-charts">
-  <figure>
-    <img src="code_asserts.svg" alt="Self-checks by area"/>
-    <figcaption>Self-checks by area: BOTANIK_ASSERT call sites and POST structural checks</figcaption>
-  </figure>
-  <figure>
-    <img src="code_tests.svg" alt="Tests by area"/>
-    <figcaption>Unit-test cases and pyte screen-tests by area</figcaption>
-  </figure>
-</div>
-@endhtmlonly

@@ -69,9 +69,9 @@ namespace Botanik { namespace detail {
 #endif
 
     /** The aggregate: every flag above moves it, which is why it is pinned only
-     *  under the same opt-in. It IS the `.bss` figure footprint.py reports for
-     *  the firmware singleton, so the two numbers can be read against each
-     *  other. */
+     *  under the same opt-in. It is the firmware singleton's whole `.bss`
+     *  footprint, so it can be read against the linker's map for the
+     *  image. */
     static_assert(sizeof(BotanikFirmware)          == BOTANIK_SIZE(196816, 194136), "BotanikFirmware footprint changed");
 
 #undef BOTANIK_SIZE
