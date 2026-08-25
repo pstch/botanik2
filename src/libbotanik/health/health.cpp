@@ -74,7 +74,7 @@ namespace Botanik { namespace Health {
     // one. A build with no variable model has a watchdog verdict and alarms,
     // and nothing to withdraw authority FROM.
     void HealthMonitor::_latch_control(uint64_t now_ms) {
-        Vars::Bank* io = const_cast<Vars::Bank*>(_io);
+        Vars::Bank* io = _io;
         if (io == nullptr) return;
         // A null authority is a harness with nothing to withdraw control FROM.
         // Guarded per use rather than up front: the quality sweep, the alarms

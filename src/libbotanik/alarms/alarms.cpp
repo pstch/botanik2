@@ -31,12 +31,16 @@ namespace Botanik { namespace Alarms {
         const bool on = raw_on || hold_rem_ms > 0;
 
         // 2. On a transition, stamp the edge and reset the per-episode bookkeeping.
+        //    An ack belongs to ONE episode, so either edge ends it: the alarm
+        //    going down is what the operator acknowledged happening, and a
+        //    cleared condition carrying an ack would mask the next episode
+        //    until its own ON edge got round to dropping it.
         if (on != active) {
-            edge_ms = now;
+            edge_ms  = now;
+            user_ack = false;
             if (on) {                       // fresh ON episode
                 off_sent = false;
                 on_sent  = false;
-                user_ack   = false;         // a fresh episode is unacknowledged
                 started_ms = now;           // onset, for start-time ordering
             }
         }

@@ -415,25 +415,48 @@ What a line means - the timestamp, the level badge, the topic - is in
 ```
  1 2 3 4:ALARMS 5 6 7 8             00:00:19                  cpu:100% stk:  2%
 
-  | CODE     | VARIABLE                          | ON | OVR | LAST EVENT     |
-  +----------+-----------------------------------+----+-----+----------------+
-  | TOO_HOT  | cli_zone1_over_temp               | ON |     | 12:03:41       |
-  | WTR_LK   | irr_leak_detected                 |    |     | 11:58:02       |
-  +----------+-----------------------------------+----+-----+----------------+
-
+  | CODE     | VARIABLE                    | ON | ACK | OVR | LAST EVENT     |
+  +----------+-----------------------------+----+-----+-----+----------------+
+  | TOO_HOT  | cli_zone1_over_temp         | ON | yes |     | 12:03:41       |
+  | WTR_LK   | irr_leak_detected           |    |     |     | 11:58:02       |
+  +----------+-----------------------------+----+-----+-----+----------------+
+ override released
  Description  : zone 1 above its high-temperature limit
  Remediation  : check vent actuators and the zone 1 sensor
- Acknowledged : -
+ Acknowledged : 26/03/14 12:04
 
- unmasked <  [recent]     > all    1-2 / 2      [/cli]      1 active  ENTER acks
+ unmasked <  [recent]     > all    1-2 / 2      [/cli]      1 active  ENTER ack
 
  ALARMS :
 ```
 
 The alarm table, and the only place an alarm can be acknowledged: select a row and
-press `ENTER`. The panel below shows the selected alarm's description, its
-remediation note - written by the site, in terms of the real installation - and when
-it was acknowledged.
+press `ENTER`. `ACK` says whether this episode has been acknowledged; the panel below
+shows the selected alarm's description, its remediation note - written by the site,
+in terms of the real installation - and when it was acknowledged.
+
+An acknowledgement belongs to **one episode**. It is dropped the moment the alarm
+stops, so the next time that condition comes up it is unacknowledged again and the
+alarm bar shows it: an ack silences the alarm you looked at, never the next one.
+
+Four keys act on the row under the cursor:
+
+| Key | Does |
+|---|---|
+| `ENTER` | acknowledge the condition, or take the acknowledgement back |
+| `^O` | flip the boolean override: with nothing forced the row is held at the opposite of what it reads now, and pressing again flips the held value |
+| `^R` | release the override - the live condition takes over again |
+| `^S` | write that row's override to flash |
+
+The override keys are the MONITOR page's, on a row whose value is only ever a
+boolean: there is no field to open, so `^O` flips it outright. A forced condition
+behaves exactly like a real one - it dwells, latches, logs and annunciates - which is
+what the `OVR` column is there to say. Each keypress answers on the row just under
+the table for a few seconds (`override released` above), because what it did to
+flash and to the plant is worth reading back.
+
+> `^S` is also XOFF; see the note under the MONITOR page if your terminal does
+> software flow control.
 
 `LEFT` / `RIGHT` change the view, shown in the footer badge:
 

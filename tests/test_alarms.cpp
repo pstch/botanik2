@@ -105,7 +105,7 @@ TEST_CASE("alarm: ack marks an active condition, ignores inactive / unknown") {
     CHECK(m.index_of("BBB") == m.index_of("bbb"));
 }
 
-TEST_CASE("alarm: ack clears on the next ON edge (a fresh episode is unacknowledged)") {
+TEST_CASE("alarm: an ack belongs to one episode - either edge drops it") {
     AlarmBank f(TABLE, 2);
     Alarms::AlarmController m(Botanik::SetupContext(), &f.rows);
     m.setup(0);   // the scan is on_setup(): the rows exist now
@@ -113,8 +113,58 @@ TEST_CASE("alarm: ack clears on the next ON edge (a fresh episode is unacknowled
     m.ack("aaa");
     CHECK(m.condition(0).user_ack == true);
     step_bits(f.bank, f.rows, m, 0x0, 2000);                              // A clears
+    CHECK(m.condition(0).user_ack == false);    // dropped when the alarm stopped
     step_bits(f.bank, f.rows, m, 0x1, 3000);                              // A re-fires
-    CHECK(m.condition(0).user_ack == false);    // reset on the ON edge
+    CHECK(m.condition(0).user_ack == false);    // and the fresh episode is unack'd
+}
+
+TEST_CASE("alarm: an ack survives the raw bit dropping while the hold is still up") {
+    // hold_s extends the EPISODE past the raw bit, and the ack goes with the
+    // episode: the alarm has not stopped while the hold is up.
+    AlarmBank f(HOLD_TABLE, 1);
+    Alarms::AlarmController m(Botanik::SetupContext(), &f.rows);
+    m.setup(0);
+    step_bits(f.bank, f.rows, m, 0x1, 1000);
+    CHECK(m.ack("hld") == true);
+    step_bits(f.bank, f.rows, m, 0x0, 2000);        // raw drops, 300 s hold still up
+    CHECK(m.condition(0).active   == true);
+    CHECK(m.condition(0).user_ack == true);
+    step_bits(f.bank, f.rows, m, 0x0, 400000);      // hold drained: it is down now
+    CHECK(m.condition(0).active   == false);
+    CHECK(m.condition(0).user_ack == false);
+}
+
+TEST_CASE("alarm: forcing a condition goes through the source, and releasing gives it back") {
+    AlarmBank f(TABLE, 2);
+    Alarms::AlarmController m(Botanik::SetupContext(), &f.rows);
+    m.setup(0);
+    step_bits(f.bank, f.rows, m, 0x0, 1000);
+    bool held = false;
+    CHECK(m.forced(0, &held) == false);
+
+    CHECK(m.force_toggle(0) == true);               // live OFF -> held ON
+    m.step(2000);
+    CHECK(m.forced(0, &held) == true);
+    CHECK(held == true);
+    CHECK(m.condition(0).active == true);
+
+    CHECK(m.force_toggle(0) == true);               // held ON -> held OFF
+    m.step(3000);
+    CHECK(m.forced(0, &held) == true);
+    CHECK(held == false);
+    CHECK(m.condition(0).active == false);
+
+    CHECK(m.force_clear(0) == true);                // released: the live bit again
+    CHECK(m.forced(0) == false);
+    CHECK(m.force_clear(0) == false);               // nothing left to release
+}
+
+TEST_CASE("alarm: an unbound model forces nothing") {
+    Alarms::AlarmController m(Botanik::SetupContext(), nullptr);
+    m.setup(0);
+    CHECK(m.force_toggle(0) == false);
+    CHECK(m.force_clear(0)  == false);
+    CHECK(m.force_save(0)   == false);
 }
 
 TEST_CASE("alarm: ack_all acknowledges every active condition and counts them") {
@@ -518,6 +568,48 @@ TEST_CASE("alarms render: ENTER acknowledges the selected condition") {
     f.page.handle_command(Command::ENTER, 1);
     CHECK(f.model.condition(0).user_ack == true);
     CHECK(f.model.condition(1).user_ack == false);   // only the selected one
+}
+
+TEST_CASE("alarms render: the ACK column says which conditions were acknowledged") {
+    RenderFixture f;
+    step_bits(f.bank, f.alarm_rows, f.model, 0xF, 1000);
+    f.page.focus();
+    std::string first = f.paint();
+    CHECK(first.find("ACK") != std::string::npos);       // the column is there
+    CHECK(first.find("yes") == std::string::npos);       // nothing ack'd yet
+
+    f.page.handle_command(Command::ENTER, 1);            // ack the selected row
+    REQUIRE(f.model.condition(0).user_ack == true);
+    CHECK(f.paint().find("yes") != std::string::npos);   // and its cell fills in
+}
+
+TEST_CASE("alarms render: ^O flips the selected condition's override, ^R releases it") {
+    RenderFixture f;
+    raise_all(f);                                          // all four ON; row 0 = AAA
+    REQUIRE(f.model.forced(0) == false);
+
+    bool held = false;
+    f.page.handle_command(Command::CTRL_O, 1);             // live ON -> held OFF
+    CHECK(f.model.forced(0, &held) == true);
+    CHECK(held == false);
+
+    f.page.handle_command(Command::CTRL_O, 1);             // held OFF -> held ON
+    CHECK(f.model.forced(0, &held) == true);
+    CHECK(held == true);
+
+    f.page.handle_command(Command::CTRL_R, 1);             // released
+    CHECK(f.model.forced(0) == false);
+    f.model.step(2000);
+    CHECK(f.model.condition(0).active == true);            // the live bit, back
+}
+
+TEST_CASE("alarms render: ^S on a row with nothing forced says so rather than saving") {
+    RenderFixture f;
+    raise_all(f);
+    f.page.handle_command(Command::CTRL_S, 1);
+    // The terminal diff skips unchanged cells, so the words arrive separated by
+    // cursor moves: match one of them, not the sentence.
+    CHECK(f.paint().find("nothing") != std::string::npos);
 }
 
 }  // namespace alarms_render

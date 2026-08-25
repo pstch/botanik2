@@ -13,7 +13,7 @@
 
 namespace Botanik { namespace Vars {
 
-    void BankAlarms::bind(const Bank* io) {
+    void BankAlarms::bind(Bank* io) {
         _io = io;
         _count = 0;
         _declared = 0;
@@ -47,6 +47,25 @@ namespace Botanik { namespace Vars {
     }
     bool BankAlarms::forced(uint16_t i) const {
         return _io->var(_row[i]).override().present();
+    }
+
+    bool BankAlarms::force(uint16_t i, bool on) {
+        if (_io == nullptr || i >= _count) return false;
+        _io->override_set(_io->var(_row[i]), Scalar::B(on));
+        return true;
+    }
+
+    bool BankAlarms::force_clear(uint16_t i) {
+        if (_io == nullptr || i >= _count) return false;
+        Var h = _io->var(_row[i]);
+        if (!h.override().present()) return false;
+        _io->override_clear(h);        // through the bank: it owns the store
+        return true;
+    }
+
+    bool BankAlarms::force_save(uint16_t i) {
+        if (_io == nullptr || i >= _count) return false;
+        return _io->save_override(_io->var(_row[i])) == SET_OK;
     }
 
     int32_t BankAlarms::find(const char* name, uint16_t len) const {

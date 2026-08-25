@@ -27,12 +27,13 @@ namespace Botanik { namespace Vars {
         /** @brief SCOPE_A rows the table DECLARES, which is @c _count unless it
          *  overran the slots. The pair is what makes a lost tail visible. */
         uint16_t    _declared = 0;
-        const Bank* _io = nullptr;
+        Bank*       _io = nullptr;
 
     public:
         /** @brief Scan @p io for SCOPE_A rows. Call once the table is frozen:
-         *  before that there is nothing to scan. */
-        void bind(const Bank* io);
+         *  before that there is nothing to scan. Non-const: an alarm row is
+         *  forceable, and the force lands on the bank. */
+        void bind(Bank* io);
 
         /** @brief SCOPE_A rows the table declares, slots or not. Past
          *  count() the tail was lost. */
@@ -50,6 +51,10 @@ namespace Botanik { namespace Vars {
         bool        raw(uint16_t i) const override;
         bool        forced(uint16_t i) const override;
         int32_t     find(const char* name, uint16_t len) const override;
+
+        bool        force(uint16_t i, bool on) override;
+        bool        force_clear(uint16_t i) override;
+        bool        force_save(uint16_t i) override;
     };
 
 }}  // namespace Botanik::Vars

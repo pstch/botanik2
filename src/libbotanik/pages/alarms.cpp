@@ -25,9 +25,10 @@ namespace Botanik { namespace Pages {
         out[C_CODE]  = Col{ "CODE",       CODE_W  };
         out[C_NAME]  = Col{ "VARIABLE",   0       };   // flex: the base fits it
         out[C_STATE] = Col{ "ON",         STATE_W };
+        out[C_ACK]   = Col{ "ACK",        ACK_W };
         out[C_OVR]   = Col{ "OVR",        OVR_W };
         out[C_EVENT] = Col{ "LAST EVENT", EVENT_W };
-        return 5;
+        return COL_COUNT;
     }
 
     void AlarmsPage::_fmt_event(char* buf, size_t cap, const Alarms::AlarmCondition& c) {
@@ -39,9 +40,27 @@ namespace Botanik { namespace Pages {
     }
 
     void AlarmsPage::_draw_footer(uint16_t row, uint8_t active) {
-        char detail[32];
-        snprintf(detail, sizeof(detail), "%u active  ENTER acks/unacks", (unsigned)active);
+        // The legend's detail slot is 20 columns on an 80-wide display, so it
+        // carries the standing hint only; what a key just did goes on the
+        // full-width row under the rule (_draw_notes).
+        char detail[24];
+        snprintf(detail, sizeof(detail), "%u active  ENTER ack", (unsigned)active);
         _draw_legend(row, detail);
+    }
+
+    void AlarmsPage::_say(const char* text) {
+        snprintf(_said, sizeof(_said), "%s", text);
+        _said_until_ms = HAL::Clock::uptime_ms() + SAID_MS;
+        _dirty = true;
+    }
+
+    void AlarmsPage::_draw_said(uint16_t row) {
+        if (_said[0] != '\0' && HAL::Clock::uptime_ms() >= _said_until_ms)
+            _said[0] = '\0';
+        if (_said[0] == '\0') { _blank_line(row); return; }
+        char buf[Config::TABLE_LINE_LEN];
+        const int n = snprintf(buf, sizeof(buf), " %s", _said);
+        _draw_line(row, buf, (n < 0) ? 0 : (uint16_t)n);
     }
 
     void AlarmsPage::_draw_notes() {
@@ -58,7 +77,7 @@ namespace Botanik { namespace Pages {
             ack = ackbuf;
         }
         uint16_t br = _brule_row();
-        _blank_line((uint16_t)(br + 1));
+        _draw_said((uint16_t)(br + 1));   // the spacer row, when a key had an answer
         // Description leads: the row's name says what it IS, not what it means.
         _panel_field((uint16_t)(br + 2), "Description",  c ? c->desc()  : nullptr);
         _panel_field((uint16_t)(br + 3), "Remediation",  c ? c->notes() : nullptr);
@@ -147,8 +166,9 @@ namespace Botanik { namespace Pages {
             bool held = false;
             if (_model->forced(idx, &held)) forced = held ? "ON" : "OFF";
         }
-        const char* cells[5] = { c.code() ? c.code() : "?",
-                                 c.name() ? c.name() : "?", state, forced, ev };
+        const char* cells[COL_COUNT] = { c.code() ? c.code() : "?",
+                                         c.name() ? c.name() : "?", state,
+                                         c.user_ack ? "yes" : "", forced, ev };
         char     line[Config::TABLE_LINE_LEN];
         uint16_t n = _build_row(line, sizeof(line), cells);
         // One fit for both cells the row needs, rather than one per end.
@@ -194,6 +214,31 @@ namespace Botanik { namespace Pages {
         _dirty = true;   // either way the badge and the sort move
     }
 
+    void AlarmsPage::_toggle_force() {
+        if (_model == nullptr || _selected >= _nvis) return;
+        const uint8_t i = _vis[_selected];
+        if (!_model->force_toggle(i)) { _say("this alarm cannot be forced"); return; }
+        bool held = false;
+        _model->forced(i, &held);
+        _say(held ? "forced ON - ^R releases" : "forced OFF - ^R releases");
+    }
+
+    void AlarmsPage::_clear_force() {
+        if (_model == nullptr || _selected >= _nvis) return;
+        _say(_model->force_clear(_vis[_selected]) ? "override released"
+                                                  : "not overridden");
+    }
+
+    void AlarmsPage::_save_force() {
+        if (_model == nullptr || _selected >= _nvis) return;
+        const uint8_t i = _vis[_selected];
+        // The row under the cursor, not every unsaved one: what goes to flash
+        // should be the row the operator is looking at.
+        if (!_model->forced(i))            _say("nothing forced on this row");
+        else if (_model->force_save(i))    _say("override saved");
+        else                               _say("NOT saved - storage refused it");
+    }
+
     void AlarmsPage::_draw_structure() {
         uint16_t legend = _legend_row();
         _blank_line(1);                                     // top margin
@@ -211,7 +256,13 @@ namespace Botanik { namespace Pages {
     void AlarmsPage::handle_command(Command cmd, uint16_t) {
         // ENTER toggles the ack, not 'a': every table takes typing as its filter, so the
         // one key that acts on a row has to be one that cannot be typed.
-        if (cmd == Command::ENTER) { _toggle_ack(); return; }
+        if (cmd == Command::ENTER)  { _toggle_ack();   return; }
+        // The override keys, in the MONITOR page's vocabulary: ^O holds the row,
+        // ^R releases it, ^S commits it. A boolean has no field to open, so ^O
+        // flips it rather than starting an edit.
+        if (cmd == Command::CTRL_O) { _toggle_force(); return; }
+        if (cmd == Command::CTRL_R) { _clear_force();  return; }
+        if (cmd == Command::CTRL_S) { _save_force();   return; }
         if (_filter_command(cmd)) return;            // BACKSPACE pops, ESC clears
         if (_mode_command(cmd)) return;              // LEFT/RIGHT change the view
         if (_nav_command(cmd)) { _dirty = true; return; }

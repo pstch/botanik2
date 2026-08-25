@@ -8,16 +8,19 @@
  *
  * Layout (row 0 is the terminal status bar):
  *   row 1            blank top margin
- *   row 2            table header  (| CODE | VARIABLE | ON | OVR | LAST EVENT |)
+ *   row 2            table header  (| CODE | VARIABLE | ON | ACK | OVR | LAST EVENT |)
  *   row 3            top rule (+----+...+); its corners cap to '^' when more above
- *   rows 4..N-5      data rows
- *   row N-4          bottom rule; corners cap to 'v' when more below
+ *   rows 4..N-9      data rows
+ *   row N-8          bottom rule; corners cap to 'v' when more below
+ *   row N-7          what the last keypress had to say, else blank
+ *   rows N-6..N-4    detail panel: Description / Remediation / Acknowledged
  *   row N-3          blank row above the legend
  *   row N-2          footer legend: reverse-video mode badge, counts, filter
  *   row N-1          blank row below the legend
  *
  * Typing narrows the table to the conditions whose variable name holds what was
- * typed; ENTER toggles the selected one's acknowledgement.
+ * typed. On the selected condition: ENTER toggles the acknowledgement, ^O flips
+ * the boolean override, ^R releases it and ^S commits it to flash.
  *
  * @note Rows are ordered active-first then by most-recent onset. The "all"
  *       view is the exception, keeping TABLE order so rows never reorder as
@@ -62,6 +65,11 @@ namespace Botanik { namespace Pages {
         uint8_t                   _vis[Config::ALARM_SLOTS];
         /** @brief Number of visible entries in _vis. */
         uint8_t                   _nvis     = 0;
+        /** @brief What the last keypress had to say, while _said_until_ms has
+         *  not passed. The override keys act on flash and on the plant, so each
+         *  one answers. */
+        char                      _said[40] = {0};
+        uint64_t                  _said_until_ms = 0;
 
         /** @} */
 
@@ -86,11 +94,15 @@ namespace Botanik { namespace Pages {
 
         /** @name Layout
          *  Columns: CODE | VARIABLE (the selection cursor's cell) | ON
-         *  (reverse-video badge when active) | OVR | LAST EVENT (the last
+         *  (reverse-video badge when active) | ACK | OVR | LAST EVENT (the last
          *  transition's timestamp, "YY/MM/DD HH:MM").
          *  @{ */
         static constexpr uint16_t CODE_W     = 9;   // short display code
         static constexpr uint16_t STATE_W    = 3;   // "ON" badge / "ON" header
+        /** @brief The acknowledgement marker: "yes" while the operator has
+         *  ack'd this episode, blank otherwise. The ON badge only stops
+         *  inverting, which says nothing on its own. */
+        static constexpr uint16_t ACK_W      = 4;
         /** @brief The override marker: what the row is being HELD at, in the
          *  state column's own ON/OFF vocabulary (that is what the state column
          *  shows while forced). Blank when live. Without it a hand-forced alarm
@@ -105,7 +117,8 @@ namespace Botanik { namespace Pages {
          *  of the cell's right edge.
          *  @note The STATE cell's "ON" badge is split out of the row write, so
          *  there is no flicker-prone overdraw. */
-        enum { C_CODE = 0, C_NAME, C_STATE, C_OVR, C_EVENT };
+        enum { C_CODE = 0, C_NAME, C_STATE, C_ACK, C_OVR, C_EVENT };
+        static constexpr uint8_t COL_COUNT = 6;
         /** @} */
 
         /** @brief The alarms grid packs its cells (no trailing pad): the width
@@ -126,8 +139,16 @@ namespace Botanik { namespace Pages {
          *  position, the filter, and how many conditions are active. */
         void _draw_footer(uint16_t row, uint8_t active);
 
-        /** @brief Detail panel between the bottom rule and the legend, a blank
-         *  row each side: the selected alarm's Description, its Remediation
+        /** @brief Answer a keypress for SAID_MS on the spacer row under the
+         *  bottom rule. Not the legend's detail slot: that is 20 columns on an
+         *  80-wide display, and these say what happened to flash. */
+        void _say(const char* text);
+        /** @brief Draw what _say() left, or blank @p row once it has expired. */
+        void _draw_said(uint16_t row);
+        static constexpr uint32_t SAID_MS = 4000;
+
+        /** @brief Detail panel between the bottom rule and the legend: the
+         *  _say() row, then the selected alarm's Description, its Remediation
          *  (what to do while it is up) and its ack time. */
         void _draw_notes();
 
@@ -204,6 +225,15 @@ namespace Botanik { namespace Pages {
         /** @brief Acknowledge the selected condition, or take the
          *  acknowledgement back: one key, both ways. */
         void _toggle_ack();
+
+        /** @name Override keys
+         *  The same three the MONITOR page binds, on a row whose only value is
+         *  a boolean: there is nothing to open a field on, so ^O flips it.
+         *  @{ */
+        void _toggle_force();
+        void _clear_force();
+        void _save_force();
+        /** @} */
 
         /** @brief Draw the static chrome: top margin, header, and the two blank
          *  rows around the legend. */
