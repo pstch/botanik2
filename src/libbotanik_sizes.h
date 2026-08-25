@@ -72,7 +72,7 @@ namespace Botanik { namespace detail {
      *  under the same opt-in. It IS the `.bss` figure footprint.py reports for
      *  the firmware singleton, so the two numbers can be read against each
      *  other. */
-    static_assert(sizeof(BotanikFirmware)          == BOTANIK_SIZE(196768, 194088), "BotanikFirmware footprint changed");
+    static_assert(sizeof(BotanikFirmware)          == BOTANIK_SIZE(196816, 194136), "BotanikFirmware footprint changed");
 
 #undef BOTANIK_SIZE
 

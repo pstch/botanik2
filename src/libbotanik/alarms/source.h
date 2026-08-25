@@ -56,6 +56,20 @@ namespace Botanik { namespace Alarms {
         virtual int32_t find(const char* name, uint16_t len) const = 0;
 
         /** @} */
+        /** @name Forcing
+         *  Where the boolean lives is the source's business, so holding one by
+         *  hand is too. The default is a source nothing can force; false means
+         *  the gesture did not happen.
+         *  @{ */
+
+        /** @brief Hold alarm @p i at @p on until force_clear(). */
+        virtual bool force(uint16_t i, bool on) { (void)i; (void)on; return false; }
+        /** @brief Release @p i's force; the live condition takes over again. */
+        virtual bool force_clear(uint16_t i) { (void)i; return false; }
+        /** @brief Persist @p i's force, so it survives a reboot. */
+        virtual bool force_save(uint16_t i) { (void)i; return false; }
+
+        /** @} */
     };
 
     /** @brief One alarm declared without a variable table: its metadata in

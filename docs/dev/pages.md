@@ -214,6 +214,19 @@ The `--` separator splits the site-owned static metadata from the model-owned dy
 state; `step()` advances the countdowns and announces due ON/OFF transitions each
 tick.
 
+**`user_ack` belongs to one episode, and EITHER edge drops it.** A cleared condition
+carrying an ack would mask the next episode until its own ON edge got round to
+dropping it, which is the one moment the mask must not be there. `hold_s` is what
+decides when the alarm stopped, not the raw bit: the hold extends the episode, and
+the ack goes with the episode.
+
+**A condition is FORCEABLE through its source.** `AlarmSourceTable` carries
+`force` / `force_clear` / `force_save` alongside the reads, so the ALARMS page holds a
+row by hand without learning where the boolean lives - a `SCOPE_A` override on the
+bank with `VARS` on, and nothing at all on a `StaticAlarmTable`, which answers false.
+The model reads a forced condition through `raw()` like any other, so it dwells,
+latches and annunciates exactly as a real one does.
+
 There is **no aggregate bitset**. Each condition names the `VarRef` of the boolean
 that carries it and the model reads that variable per condition, OR'd with a local
 override for the platform alarms. A row written out positionally (the platform

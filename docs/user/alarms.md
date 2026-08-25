@@ -47,12 +47,17 @@ page's `recent` view.
 ## Overriding
 
 There is no separate way to force an alarm. A condition reads its variable, so
-overriding that variable is what forcing it means - `overrides set alarm_too_hot 1`
-from the shell, or the MONITOR page. The override reaches the alarm model by the
-same route it reaches control logic and telemetry, so a forced alarm logs,
-publishes and lands on the alarm bar exactly like a real one. The ALARMS page shows
-the row as forced `ON` or `OFF`, because a held alarm and a real one are otherwise
-indistinguishable.
+overriding that variable is what forcing it means - `^O` on the ALARMS page,
+`overrides set alarm_too_hot 1` from the shell, or the MONITOR page. All three land
+on the same row. The override reaches the alarm model by the same route it reaches
+control logic and telemetry, so a forced alarm logs, publishes and lands on the alarm
+bar exactly like a real one. The ALARMS page shows the row as forced `ON` or `OFF`,
+because a held alarm and a real one are otherwise indistinguishable.
+
+On the ALARMS page the three keys are the MONITOR page's: `^O` flips what the row is
+held at (unforced, it is held at the opposite of what it reads now), `^R` releases it
+and `^S` writes it to flash. An override is live the moment it commits and gone at
+the next boot until `^S`.
 
 A forced condition follows the force immediately: `hold` does not apply to it,
 since the hold exists to smooth a signal that flaps and a hand-held row does not.
@@ -60,7 +65,8 @@ Releasing the override drops the alarm on the next beat.
 
 ## Acknowledging
 
-On the ALARMS page, select the row and press `a`. From the shell, `alarms ack <code>`
+On the ALARMS page, select the row and press `ENTER`; pressing it again takes the
+acknowledgement back. From the shell, `alarms ack <code>`
 or `alarms ack all`. Either spelling of the condition works - the short code the
 alarm bar shows (`SYS_RST`) or the variable name `alarms list` shows
 (`alarm_system_reset`) - and `alarms get <code|name>` answers with the one condition
@@ -71,12 +77,17 @@ Acknowledging means "seen", not "fixed". It:
 - removes the code from the alarm bar;
 - stops the `ON` badge being highlighted on the ALARMS page;
 - demotes the row below still-unacknowledged alarms, without removing it;
-- records the time, shown in the detail panel's `Ack'd` line.
+- fills in the `ACK` column, and records the time in the detail panel's
+  `Acknowledged` line.
 
 It does **not** clear the alarm. The condition is still active, still logged, still
-published. And an acknowledgement covers only the current episode: if the condition
-clears and fires again, the new episode is unacknowledged and the alarm comes back
-onto the bar.
+published.
+
+An acknowledgement covers **one episode**, and the episode ending is what ends it:
+the moment the alarm stops, the acknowledgement is dropped. So if the condition fires
+again it is unacknowledged, and it comes back onto the bar - whether or not anyone
+was watching in between. `hold` is what decides when the alarm stopped, which is why
+a bit that twitches does not demand a fresh ack each time.
 
 The `unmasked` filter shows exactly what the alarm bar shows - active and not
 acknowledged.

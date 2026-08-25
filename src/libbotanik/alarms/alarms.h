@@ -227,8 +227,10 @@ namespace Botanik { namespace Alarms {
          *  bank's index to a row, and the refs are already sorted. */
         uint8_t         _by_code[Config::ALARM_SLOTS];
         /** where the conditions come from (null -> every condition reads false,
-         *  which is what an unbound model is) */
-        const AlarmSourceTable* _src;
+         *  which is what an unbound model is). Non-const: forcing a condition
+         *  is the source's business, since only it knows where the boolean
+         *  lives. */
+        AlarmSourceTable* _src;
         /** registered transition sinks (fan-out, mirrors Logger's writers) */
         AlarmNotifier*  _notifiers[Config::ALARM_NOTIFIERS_MAX];
         uint8_t         _notifier_count; // entries used in _notifiers
@@ -244,7 +246,7 @@ namespace Botanik { namespace Alarms {
          *
          *  The scan itself is in on_setup(), NOT here: a bank-backed source has
          *  nothing to offer until the table is frozen. */
-        AlarmController(const SetupContext& ctx, const AlarmSourceTable* src)
+        AlarmController(const SetupContext& ctx, AlarmSourceTable* src)
             : Component(ctx, "AlarmController"),
               _count(0), _declared(0), _src(src), _notifier_count(0),
               _last_now(0), _first_step(true), _active_count(0) {
@@ -254,7 +256,7 @@ namespace Botanik { namespace Alarms {
         /** @brief Point this controller at @p src. Before on_setup(), which is
          *  what reads it: an owner with no variable table declares a
          *  StaticAlarmTable and hands it over here. */
-        void set_source(const AlarmSourceTable* src) { _src = src; }
+        void set_source(AlarmSourceTable* src) { _src = src; }
 
         /** @brief Take one slot per alarm the source declares, in its order, so
          *  condition *i* reads source entry *i*. */
@@ -343,6 +345,34 @@ namespace Botanik { namespace Alarms {
                 n++;
             }
             return n;
+        }
+
+        /** @} */
+
+        /** @name Forcing
+         *  A condition's boolean can be HELD by an operator; the model reads it
+         *  through the source either way, so these only pass the gesture on.
+         *  False means it did not happen - a source that cannot be forced, or
+         *  nothing forced to release or save.
+         *  @{ */
+
+        /** @brief Flip what condition @p i is held at: unforced, it is held at
+         *  the opposite of what it reads now. */
+        bool force_toggle(uint8_t i) {
+            if (_src == nullptr || i >= _count) return false;
+            return _src->force(i, !_raw(i));
+        }
+
+        /** @brief Release condition @p i's force; the live signal takes over. */
+        bool force_clear(uint8_t i) {
+            if (_src == nullptr || i >= _count) return false;
+            return _src->force_clear(i);
+        }
+
+        /** @brief Persist condition @p i's force, so it survives a reboot. */
+        bool force_save(uint8_t i) {
+            if (_src == nullptr || i >= _count) return false;
+            return _src->force_save(i);
         }
 
         /** @} */

@@ -48,7 +48,7 @@ namespace Botanik { namespace Health {
         void register_tasks() override;
 
         /** @brief Bind the variable bank this drives its alarms into. */
-        void set_bank(const Vars::Bank* io) { _io = io; }
+        void set_bank(Vars::Bank* io) { _io = io; }
         /** @brief Who to raise and release the system hold on. Without
          *  one the monitor still reports; it just cannot withdraw
          *  authority. */
@@ -168,8 +168,10 @@ namespace Botanik { namespace Health {
         Alarms::AlarmController                 _model;
         /** perf metrics (may be null) */
         const Scheduler::SchedulerContext* _sched;
-        /** the variable bank the alarm rows live in (may be null) */
-        const Vars::Bank*                  _io;
+        /** @brief The variable bank the alarm rows live in (may be null).
+         *  Non-const: an alarm row is forceable from the ALARMS page, and the
+         *  force lands on the bank through BankAlarms. */
+        Vars::Bank*                        _io;
         Plc::ControlAuthority*             _authority = nullptr;
 
         /** last overrun count seen (edge detect) */
@@ -253,7 +255,7 @@ namespace Botanik { namespace Health {
          *  alarm_model().set_source(). */
         HealthMonitor(const SetupContext& ctx,
                       const Scheduler::SchedulerContext* sched,
-                      const Vars::Bank* io = nullptr)
+                      Vars::Bank* io = nullptr)
             : Component(ctx, "HealthMonitor"),
 #if BOTANIK_FEATURE_ALARMS_PUBLISH
               _notifier(Config::MQTT_TOPIC_PREFIX),
