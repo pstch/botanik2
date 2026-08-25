@@ -8,6 +8,7 @@
 
 #if BOTANIK_FEATURE_VARS
 #include "libbotanik/vars/params.h"
+#include "libbotanik/vars/edit.h"
 
 #include <cstdio>
 #include <cstring>
@@ -268,6 +269,228 @@ namespace Botanik { namespace Vars {
 
 namespace Botanik { namespace Vars {
 
+
+
+    /** @brief Copy @p src into @p dst, always NUL-terminating. */
+    void copy_bounded(char* dst, uint16_t cap, const char* src) {
+        if (dst == nullptr || cap == 0) return;
+        if (src == nullptr) { dst[0] = 0; return; }
+        uint16_t n = 0;
+        while (src[n] != 0 && n + 1u < cap) { dst[n] = src[n]; n++; }
+        dst[n] = 0;
+    }
+
+/** @brief Parse @p text as @p d's type into @p out, optionally holding
+     *  it to the declared band. Shared by set() and override_set(), which
+     *  differ only in whether the band applies. */
+    SetResult parse_for(const Descriptor& d, const char* text, bool bounded,
+                        Scalar* out) {
+        const NumBand band = num_band(d);
+        // d.str goes in so a labelled enum answers to its own words, and so
+        // a code it cannot name is refused. That refusal is NOT the band and
+        // so is not gated on `bounded`: an override may push a reading past
+        // what is plausible, but there is no such thing as an enum value
+        // outside its labels - it would render as a bare number and mean
+        // nothing to anything reading it.
+        if (parse_scalar(d.type, text, out, d.str) != PARSE_OK) return SET_INVALID;
+        if (bounded && (d.flags & F_BOUNDED) != 0 &&
+            !in_range(d.type, *out, band.min, band.max)) return SET_INVALID;
+        return SET_OK;
+    }
+
+void Bank::_find_param_block() {
+        _param_first = 0;
+        _param_count = 0;
+        for (uint16_t i = 0; i < _count; i++) {
+            if (descriptor(i).role != ROLE_PARAM) continue;
+            _param_first = i;
+            while (i < _count && descriptor(i).role == ROLE_PARAM) { _param_count++; i++; }
+            return;
+        }
+    }
+
+    void Bank::load_params() {
+        if (_store == nullptr) return;
+        for (uint16_t k = 0; k < _param_count; k++) {
+            const uint16_t i = (uint16_t)(_param_first + k);
+            // A missing key is normal: the parameter keeps the declared default
+            // that init() already seeded.
+            uint16_t cap = 0;
+            char* txt = text(var(i), &cap);
+            (void)_store->load(descriptor(i), _slots[i], txt, cap);
+            // Whatever the row now holds came from the store (or is the seeded
+            // default), so nothing is owed a write.
+            _slots[i].vflags = (uint8_t)(_slots[i].vflags & ~VF_PARAM_UNSAVED);
+        }
+    }
+
+    SetResult Bank::param_check(Var h, Scalar v) const {
+        const Descriptor* d = h.meta();
+        // A T_STR's live text is in the pool, so there is no typed form of it to
+        // write; the text overload is the only way in.
+        if (d->type == T_STR) return SET_INVALID;
+        if (_editable_slot(d) == nullptr) return SET_INVALID;
+        // Same rule the text path gets through parse_for(): a labelled enum's
+        // codes are its labels, and this overload never goes near a parser, so
+        // the check has to be here too or a typed write is the way around it.
+        if (d->type == T_ENUM && d->str != nullptr && d->str(v.u) == nullptr)
+            return SET_INVALID;
+        const NumBand band = num_band(*d);
+        if ((d->flags & F_BOUNDED) != 0 && !in_range(d->type, v, band.min, band.max))
+            return SET_INVALID;
+        return SET_OK;
+    }
+
+    SetResult Bank::param_check(Var h, const char* text) const {
+        const Descriptor* d = h.meta();
+        if (text == nullptr || d == nullptr) return SET_INVALID;
+        if (_editable_slot(d) == nullptr) return SET_INVALID;
+        if (d->type == T_STR) {
+            uint16_t cap = 0;
+            const char* dst = this->text(h, &cap);
+            if (dst == nullptr) return SET_INVALID;
+            return validate_str(text_slot(*d).kind, text, cap) ? SET_OK
+                                                               : SET_INVALID;
+        }
+        Scalar parsed;
+        return (parse_for(*d, text, /*bounded=*/true, &parsed) == SET_OK)
+                   ? SET_OK : SET_INVALID;
+    }
+
+    SetResult Bank::param_set_scalar(Var h, Scalar v) {
+        const SetResult r = set_deferred(h, v);
+        if (r != SET_OK) return r;
+        // Live now, durable when the operator says so.
+        Slot* slot = _editable_slot(h.meta());
+        slot->vflags = (uint8_t)(slot->vflags | VF_PARAM_UNSAVED);
+        return SET_OK;
+    }
+
+    SetResult Bank::set_deferred(Var h, Scalar v) {
+        if (param_check(h, v) != SET_OK) return SET_INVALID;
+        const Descriptor* d = h.meta();
+        Slot* slot = _editable_slot(d);
+        if (slot == nullptr) return SET_INVALID;
+        slot->v     = v;
+        slot->qual  = Q_GOOD;
+        // Live now, durable when somebody saves. See the header: it is the one
+        // rule that makes a setting able to break its own console recoverable.
+        slot->vflags = (uint8_t)(slot->vflags | VF_PARAM_UNSAVED);
+        return SET_OK;
+    }
+
+    SetResult Bank::param_clear(Var h) {
+        const Descriptor* d = h.meta();
+        Slot* slot = _editable_slot(d);
+        if (slot == nullptr) return SET_INVALID;
+        // Nothing owed, nothing to forget. Not an error: `clear` on a settled
+        // row is the no-op an operator expects, not a complaint.
+        if ((slot->vflags & VF_PARAM_UNSAVED) == 0) return SET_OK;
+
+        uint16_t cap = 0;
+        char* txt = text(h, &cap);
+        // Exactly what a reboot would give it: the stored copy, or the factory
+        // default when nothing was ever saved. The stored copy is NOT touched -
+        // that is the whole difference from param_reset().
+        if (_store == nullptr || !_store->load(*d, *slot, txt, cap)) {
+            slot->v = d->def;
+            if (txt != nullptr) copy_bounded(txt, cap, d->def.s);
+        }
+        slot->qual   = Q_GOOD;                // a parameter always has a value
+        slot->vflags = (uint8_t)(slot->vflags & ~VF_PARAM_UNSAVED);
+        return SET_OK;
+    }
+
+    SetResult Bank::param_reset(Var h) {
+        const Descriptor* d = h.meta();
+        Slot* slot = _editable_slot(d);
+        if (slot == nullptr) return SET_INVALID;
+        if (param_retained(*d)) return SET_INVALID;
+
+        slot->v    = d->def;
+        slot->qual = Q_GOOD;                  // a parameter always has a value
+        uint16_t cap = 0;
+        char* txt = text(h, &cap);
+        if (txt != nullptr) copy_bounded(txt, cap, d->def.s);
+        slot->vflags = (uint8_t)(slot->vflags & ~VF_PARAM_UNSAVED);
+
+        // The stored copy goes with the live one: left behind, it would put the
+        // old value back at the next boot, which is not "back to default".
+        if (_store == nullptr) return SET_NOT_PERSISTED;
+        if (!_store->clear(*d)) {
+            if (_logger != nullptr)
+                _logger->critical(Logs::STORAGE, "param not cleared\n'%s'", d->name);
+            return SET_NOT_PERSISTED;
+        }
+        return SET_OK;
+    }
+
+    SetResult Bank::param_save(Var h) {
+        const Descriptor* d = h.meta();
+        Slot* slot = _editable_slot(d);
+        if (slot == nullptr) return SET_INVALID;
+        const SetResult r = _persist_param(h, *d, *slot);
+        // Only a write that landed clears the mark: a refused row stays owed,
+        // so the next `params save` tries it again.
+        if (r == SET_OK) slot->vflags = (uint8_t)(slot->vflags & ~VF_PARAM_UNSAVED);
+        return r;
+    }
+
+    uint16_t Bank::save_params(uint16_t* refused) {
+        uint16_t saved = 0, bad = 0;
+        for (uint16_t i = 0; i < _count; i++) {
+            if ((_slots[i].vflags & VF_PARAM_UNSAVED) == 0) continue;
+            if (param_save(var(i)) == SET_OK) saved++; else bad++;
+        }
+        if (refused != nullptr) *refused = bad;
+        return saved;
+    }
+
+    uint16_t Bank::unsaved_count() const {
+        uint16_t n = 0;
+        for (uint16_t i = 0; i < _count; i++)
+            if ((_slots[i].vflags & VF_PARAM_UNSAVED) != 0) n++;
+        return n;
+    }
+
+    SetResult Bank::param_set(Var h, const char* text) {
+        const Descriptor* d = h.meta();
+        if (text == nullptr) return SET_INVALID;
+        Slot* slotp = _editable_slot(d);
+        if (slotp == nullptr) return SET_INVALID;
+        Slot& slot = *slotp;
+
+        if (d->type == T_STR) {
+            uint16_t cap = 0;
+            char* dst = this->text(h, &cap);
+            if (dst == nullptr) return SET_INVALID;
+            if (!validate_str(text_slot(*d).kind, text, cap)) return SET_INVALID;
+            copy_bounded(dst, cap, text);
+            slot.qual = Q_GOOD;
+        } else {
+            Scalar parsed;
+            if (parse_for(*d, text, /*bounded=*/true, &parsed) != SET_OK) return SET_INVALID;
+            slot.v    = parsed;
+            slot.qual = Q_GOOD;
+        }
+
+        slot.vflags = (uint8_t)(slot.vflags | VF_PARAM_UNSAVED);
+        return SET_OK;
+    }
+
+    SetResult Bank::_persist_param(Var h, const Descriptor& d, Slot& slot) {
+        if (_store == nullptr) return SET_NOT_PERSISTED;
+        uint16_t save_cap = 0;
+        char* save_text = text(h, &save_cap);
+        if (!_store->save(d, slot, save_text, save_cap)) {
+            // Loud: the value is live, so nothing looks wrong until the reboot
+            // that quietly reverts it.
+            if (_logger != nullptr)
+                _logger->critical(Logs::STORAGE, "param not persisted\n'%s'", d.name);
+            return SET_NOT_PERSISTED;
+        }
+        return SET_OK;
+    }
 
 }}  // namespace Botanik::Vars
 

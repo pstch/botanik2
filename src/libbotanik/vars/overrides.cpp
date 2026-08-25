@@ -1,0 +1,155 @@
+/**
+ * @file overrides.cpp
+ * @brief The override layer: forcing a row, releasing it, and the stored copy.
+ *
+ * An override shadows the live value for every reader. It is the one write that
+ * outlives a reboot without being a parameter, so each of these has a storage
+ * side as well as a slot side.
+ */
+
+#include "libbotanik/vars/model.h"
+#include "libbotanik_features.h"
+
+#if BOTANIK_FEATURE_VARS
+
+#include "libbotanik/logs/logger.h"
+#include "libbotanik/vars/edit.h"
+
+namespace Botanik { namespace Vars {
+
+    uint16_t Bank::unsaved_override_count() const {
+        uint16_t n = 0;
+        for (uint16_t i = 0; i < _count; i++)
+            if ((_slots[i].vflags & VF_OVR_UNSAVED) != 0) n++;
+        return n;
+    }
+
+    SetResult Bank::override_set(Var h, const char* text, bool valid) {
+        const Descriptor* d = h.meta();
+        // A T_STR's live text lives in the pool, not the slot, so there is
+        // nothing for an override to shadow.
+        if (text == nullptr || d->type == T_STR) return SET_INVALID;
+        // An output is deliberately NOT refused while control is disabled: with
+        // the programs stopped, an override is the only way left to command an
+        // actuator.
+        Scalar parsed;
+        // Band deliberately NOT applied - see the header note.
+        if (parse_for(*d, text, /*bounded=*/false, &parsed) != SET_OK) return SET_INVALID;
+        override_set(h, parsed, valid);
+        return SET_OK;
+    }
+
+    void Bank::override_set(Var h, Scalar v, bool valid) {
+        h.override_set(v, valid);
+        (void)_sync_override_mute(_row_of(h));
+        _mark_override_unsaved(h);
+    }
+
+    bool Bank::override_flip_valid(Var h) {
+        // An UNFORCED row counts as reading valid, so the first flip freezes
+        // it where it stands and marks it dead in one act.
+        const bool reads_valid = h.override().present() ? h.valid() : true;
+        override_set(h, h.value().v, !reads_valid);
+        return !reads_valid;
+    }
+
+    SetResult Bank::save_override(Var h) {
+        const uint16_t row = _row_of(h);
+        if (row == VAR_NONE || !_slots[row].ovr_on) return SET_INVALID;
+        if (!_persist_override(h)) return SET_NOT_PERSISTED;
+        _slots[row].vflags = (uint8_t)(_slots[row].vflags & ~VF_OVR_UNSAVED);
+        return SET_OK;
+    }
+
+    uint16_t Bank::save_overrides(uint16_t* refused) {
+        uint16_t saved = 0, bad = 0;
+        for (uint16_t i = 0; i < _count; i++) {
+            if ((_slots[i].vflags & VF_OVR_UNSAVED) == 0) continue;
+            if (save_override(var(i)) == SET_OK) saved++; else bad++;
+        }
+        if (refused != nullptr) *refused = bad;
+        return saved;
+    }
+
+    void Bank::_mark_override_unsaved(Var h) {
+        const uint16_t row = _row_of(h);
+        if (row == VAR_NONE) return;
+        _slots[row].vflags = (uint8_t)(_slots[row].vflags | VF_OVR_UNSAVED);
+    }
+
+    bool Bank::_sync_override_mute(uint16_t i) {
+        // VAR_NONE lands here as an out-of-range index, so a sink handle is a
+        // no-op rather than a special case at each caller.
+        if (i >= _count || descriptor(i).role != ROLE_OUTPUT) return false;
+        Slot& v = _slots[i];
+        const uint8_t before = v.vflags;
+        v.vflags = (_mode == CONTROL_DISABLED)
+                     ? (uint8_t)(before | VF_OVR_MUTED)
+                     : (uint8_t)(before & ~VF_OVR_MUTED);
+        return v.vflags != before;
+    }
+
+    void Bank::override_clear(Var h) {
+        h.override_clear();
+        const uint16_t row = _row_of(h);
+        if (row == VAR_NONE) return;
+        _slots[row].vflags = (uint8_t)(_slots[row].vflags & ~VF_OVR_UNSAVED);
+        // Forget the stored copy too, or the override comes back at the next
+        // boot. Unconditional: an override cleared before it was ever saved may
+        // still have an older durable copy underneath it.
+        if (_store != nullptr) (void)_store->clear_override(*h.meta());
+    }
+
+    bool Bank::_persist_override(Var h) {
+        const uint16_t row = _row_of(h);
+        if (_store == nullptr || row == VAR_NONE) return false;
+        const Descriptor* d = h.meta();
+        if (!_store->save_override(*d, _slots[row])) {
+            if (_logger != nullptr)
+                _logger->critical(Logs::STORAGE, "override not persisted\n'%s'", d->name);
+            return false;
+        }
+        return true;
+    }
+
+    uint16_t Bank::load_overrides() {
+        if (_store == nullptr) return 0;
+        uint16_t n = 0;
+        for (uint16_t i = 0; i < _count; i++) {
+            const Descriptor& d = descriptor(i);
+            if (!_store->load_override(d, _slots[i])) continue;
+            _slots[i].ovr_on = true;
+            // It came OUT of the store, so it is durable by definition.
+            _slots[i].vflags = (uint8_t)(_slots[i].vflags & ~VF_OVR_UNSAVED);
+            // Restored while the system still holds control, i.e. with the mode
+            // at CONTROL_DISABLED, so this is exactly the window the mute covers:
+            // an output override must not reach the field until control does.
+            (void)_sync_override_mute(i);
+            if (d.role == ROLE_OUTPUT) _slots[i].vflags |= VF_FIELD_DIRTY;
+            n++;
+            // CRITICAL, not a warning: an override explains behaviour nothing
+            // else accounts for, and after a reboot nobody remembers setting it.
+            if (_logger != nullptr)
+                _logger->critical(Logs::BOOT, "override restored\non '%s'", d.name);
+        }
+        return n;
+    }
+
+    uint16_t Bank::override_clear_all() {
+        uint16_t n = 0;
+        for (uint16_t i = 0; i < _count; i++) {
+            if (!_slots[i].ovr_on) continue;
+            _slots[i].ovr_on = false;
+            _slots[i].vflags = (uint8_t)(_slots[i].vflags & ~VF_OVR_UNSAVED);
+            if (_store != nullptr) (void)_store->clear_override(descriptor(i));
+            // The field owes the programs' demand again; a release never written
+            // out would leave the actuator where the maintainer left it.
+            if (descriptor(i).role == ROLE_OUTPUT)
+                _slots[i].vflags |= VF_FIELD_DIRTY;
+            n++;
+        }
+        return n;
+    }
+}}  // namespace Botanik::Vars
+
+#endif // BOTANIK_FEATURE_VARS
