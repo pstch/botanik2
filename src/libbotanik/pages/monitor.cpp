@@ -438,15 +438,14 @@ namespace Botanik { namespace Pages {
         if (!ok) return;
         Vars::Var h = _io->var(ref);
         if (h.meta()->type == Vars::T_STR) { _say("a text row cannot be forced"); return; }
-        // With nothing forced, the row is frozen where it stands and marked
-        // dead in one act: "make this sensor read failed" is the reason to
-        // reach for this at all, and it would otherwise be ^O then ^V.
-        const bool forced = h.override().present();
-        const bool valid  = forced ? h.valid() : true;
-        _io->override_set(h, h.value().v, !valid);
-        if (!forced)     _say("forced, and reading invalid");
-        else if (valid)  _say("override now reads invalid");
-        else             _say("override now reads valid");
+        // The freeze-and-kill is the BANK's rule, not the page's: with nothing
+        // forced yet this is one act, and "make this sensor read failed" is
+        // the reason to reach for the key at all.
+        const bool forced    = h.override().present();
+        const bool now_valid = _io->override_flip_valid(h);
+        if (!forced)         _say("forced, and reading invalid");
+        else if (!now_valid) _say("override now reads invalid");
+        else                 _say("override now reads valid");
         _dirty = true;
     }
 

@@ -36,20 +36,10 @@ namespace Botanik { namespace Vars {
         bool clear(const Descriptor& d) override;
     };
 
-    /**
-     * @brief The parameter surface: the editable view of the ROLE_PARAM block.
-     *
-     * Holds no registry of its own: the variables are the registry. It owns the
-     * store, runs the boot load, and gives the PARAMS page and the shell a dense
-     * 0-based index over just the parameters.
-     */
     /** @name Parameter helpers
      *  Free functions: the parameter block is the bank's, and these need no
      *  state of their own.
      *  @{ */
-
-    /** @brief Find a PARAMETER by name; VAR_NONE when absent or not one. */
-    VarRef param_find(const Bank* io, const char* name, uint16_t len);
 
     /** @brief Render @p d's declared default or bound. Not the live value -
      *  a T_STR keeps that in the pool, so it renders empty here. */
@@ -64,7 +54,6 @@ namespace Botanik { namespace Vars {
      *  @{ */
 
     int32_t     get_int(const Bank* io, const char* name, int32_t dflt = 0);
-    float       get_f32(const Bank* io, const char* name, float dflt = 0.0f);
     /** @brief A text parameter's live text ("" if absent). Valid for the bank's
      *  lifetime - it points into the string pool. */
     const char* get_str(const Bank* io, const char* name);

@@ -162,13 +162,6 @@ namespace Botanik { namespace Vars {
 
 
 
-    VarRef param_find(const Bank* io, const char* name, uint16_t len) {
-        VarRef r = { VAR_NONE };
-        if (io == nullptr) return r;
-        r = io->find(name, len);
-        if (r.index != VAR_NONE && io->var(r).role() != ROLE_PARAM) r.index = VAR_NONE;
-        return r;
-    }
 
 
     const char* format_declared(const Descriptor& d, Scalar v,
@@ -196,11 +189,6 @@ namespace Botanik { namespace Vars {
         return (int32_t)h.i();
     }
 
-    float get_f32(const Bank* io, const char* name, float dflt) {
-        Var h(nullptr, nullptr);
-        if (!lookup(io, name, &h)) return dflt;
-        return h.as_f32();
-    }
 
     const char* get_str(const Bank* io, const char* name) {
         Var h(nullptr, nullptr);
@@ -208,6 +196,14 @@ namespace Botanik { namespace Vars {
         if (h.meta()->type != T_STR || io->pool() == nullptr) return "";
         const char* t = io->text(h);
         return (t != nullptr) ? t : "";
+    }
+
+    /** @brief A float parameter by name. Only tunable() wants one: everything
+     *  else reads a float through `var(name).as_f32()`. */
+    static float get_f32(const Bank* io, const char* name, float dflt) {
+        Var h(nullptr, nullptr);
+        if (!lookup(io, name, &h)) return dflt;
+        return h.as_f32();
     }
 
     float tunable(const Bank* io, const Tunable& t) {

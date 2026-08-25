@@ -621,7 +621,7 @@ namespace Botanik { namespace Shell {
         if (nm == nullptr) { _println("usage: overrides clear <name>|all"); return; }
 
         if (arg_is_all(nm, wn)) {
-            _emitf(out, sizeof(out), "overrides: cleared %u", io->clear_overrides());
+            _emitf(out, sizeof(out), "overrides: cleared %u", io->override_clear_all());
             return;
         }
         const Vars::VarRef r = _resolve("overrides", nm, wn);

@@ -747,6 +747,14 @@ namespace Botanik { namespace Vars {
         _mark_override_unsaved(h);
     }
 
+    bool Bank::override_flip_valid(Var h) {
+        // An UNFORCED row counts as reading valid, so the first flip freezes
+        // it where it stands and marks it dead in one act.
+        const bool reads_valid = h.override().present() ? h.valid() : true;
+        override_set(h, h.value().v, !reads_valid);
+        return !reads_valid;
+    }
+
     SetResult Bank::save_override(Var h) {
         const uint16_t row = _row_of(h);
         if (row == VAR_NONE || !_slots[row].ovr_on) return SET_INVALID;
@@ -894,7 +902,7 @@ namespace Botanik { namespace Vars {
         return n;
     }
 
-    uint16_t Bank::clear_overrides() {
+    uint16_t Bank::override_clear_all() {
         uint16_t n = 0;
         for (uint16_t i = 0; i < _count; i++) {
             if (!_slots[i].ovr_on) continue;

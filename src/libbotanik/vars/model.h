@@ -309,9 +309,8 @@ namespace Botanik { namespace Vars {
      *
      *  - `<noun>_<verb>` for a FAMILY of operations on one concept, so the
      *    family sorts together and reads the way the shell says it:
-     *    `override_set` / `override_clear`, matching `overrides set` /
-     *    `overrides clear`. `clear_overrides()` predates the rule and
-     *    breaks it; it is the only one left that does.
+     *    `override_set` / `override_clear` / `override_clear_all`, matching
+     *    `overrides set` / `overrides clear`.
      *  - `set_<property>` for a single property with no family behind it:
      *    `set_store`, `set_control_mode`, `set_health_hold`. Turning these
      *    around would give `health_hold_set`, which is why they are not the
@@ -825,6 +824,11 @@ namespace Botanik { namespace Vars {
          *  any other override. */
         void override_set(Var h, Scalar v, bool valid = true);
 
+        /** @brief Flip whether @p h's override READS valid, freezing the live
+         *  value first when nothing was forced yet: "make this sensor read
+         *  failed" is one act rather than force-then-invalidate.
+         *  @return true if the override now reads VALID. */
+        bool override_flip_valid(Var h);
 
         /** @brief Commit @p h's override so it survives a reboot.
          *  @return SET_INVALID when nothing is forced on @p h, SET_NOT_PERSISTED
@@ -840,7 +844,7 @@ namespace Botanik { namespace Vars {
         void override_clear(Var h);
 
         /** @brief Release every override in one go. @return how many were on. */
-        uint16_t clear_overrides();
+        uint16_t override_clear_all();
 
 
         /** @} */

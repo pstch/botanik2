@@ -122,7 +122,7 @@ back and the reading they forced did not.
 @warning A restored output override is **driving the plant** from the moment
 `load_overrides()` runs. Each restore is announced as a CRITICAL naming the row, and
 an output's says so explicitly; that announcement is the safeguard. Every release path
-(`override_clear()`, `clear_overrides()`, a health withdrawal) wipes the stored copy in
+(`override_clear()`, `override_clear_all()`, a health withdrawal) wipes the stored copy in
 the same breath, so a released one cannot come back.
 
 ## `Bank`: the one writer
@@ -143,7 +143,7 @@ from the context; nothing gets its own pointer.
 | `save_params()` / `save_overrides()` | the same for every row still marked |
 | `control_mode()` / `control_enabled()` | what authority is in force |
 | `set_effective_control()` | ENACT a verdict: mute, unmute, or drop to safe. `Plc::ControlAuthority`'s to call, nobody else's |
-| `clear_overrides()` | release the lot |
+| `override_clear_all()` | release the lot |
 
 The bank ENACTS control authority; it does not decide it. Who may drive the
 field is `Plc::ControlAuthority` - the operator's standing choice and the
