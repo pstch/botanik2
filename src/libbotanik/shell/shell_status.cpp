@@ -116,7 +116,7 @@ namespace Botanik { namespace Shell {
         if (arg_eq(verb, wlen, "stats")) { _tasks_stats(*reg); return; }
         if (arg_eq(verb, wlen, "list"))  { _tasks_list(*reg, a, wa); return; }
         if (arg_eq(verb, wlen, "get")) {
-            if (a == nullptr) { _println("usage: tasks get <name>"); return; }
+            if (a == nullptr) { _verb_usage("tasks", "get"); return; }
             _task_detail(*reg, a, wa);
             return;
         }

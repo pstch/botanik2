@@ -80,7 +80,7 @@ namespace Botanik { namespace Shell {
         Vars::Bank* io = _bank();
         if (io == nullptr) { _emitf(out, sizeof(out), "%s: no variables", noun); return; }
         if (name == nullptr) {
-            _emitf(out, sizeof(out), "usage: %s %s <name>   (%s list [<prefix>] to browse)",
+            _emitf(out, sizeof(out), "usage: %s %s <name>   (%s list to browse)",
                    noun, verb, noun);
             return;
         }
@@ -399,7 +399,7 @@ namespace Botanik { namespace Shell {
         char out[128];
         if (io == nullptr) { _println("params: no variables"); return; }
 
-        if (nm == nullptr) { _println("usage: params reset <name>|all"); return; }
+        if (nm == nullptr) { _verb_usage("params", "reset"); return; }
 
         if (arg_is_all(nm, wn)) {
             uint16_t done = 0, refused = 0, kept = 0;
@@ -453,7 +453,7 @@ namespace Botanik { namespace Shell {
         Vars::Bank* io = _bank();
         char out[128];
         if (io == nullptr) { _println("params: no variables"); return; }
-        if (nm == nullptr) { _println("usage: params clear <name>|all"); return; }
+        if (nm == nullptr) { _verb_usage("params", "clear"); return; }
 
         if (arg_is_all(nm, wn)) {
             uint16_t done = 0;
@@ -497,7 +497,7 @@ namespace Botanik { namespace Shell {
         if (io == nullptr) { _println("params: no variables"); return; }
         uint16_t wv; const char* v = arg_next(args, alen, wv);
         if (nm == nullptr || v == nullptr) {
-            _println("usage: params set <name> <value>"); return;
+            _verb_usage("params", "set"); return;
         }
         const Vars::VarRef r = io->find(nm, wn);
         if (r.index == Vars::VAR_NONE) { _println("params: unknown parameter"); return; }
@@ -528,7 +528,7 @@ namespace Botanik { namespace Shell {
         char out[128];
         if (io == nullptr) { _println("params: no variables"); return; }
 
-        if (nm == nullptr) { _println("usage: params save <name>|all"); return; }
+        if (nm == nullptr) { _verb_usage("params", "save"); return; }
 
         if (arg_is_all(nm, wn)) {
             uint16_t refused = 0;
@@ -618,7 +618,7 @@ namespace Botanik { namespace Shell {
     void CommandShell::_overrides_clear(const char* nm, uint16_t wn) {
         Vars::Bank* io = _bank();
         char out[128];
-        if (nm == nullptr) { _println("usage: overrides clear <name>|all"); return; }
+        if (nm == nullptr) { _verb_usage("overrides", "clear"); return; }
 
         if (arg_is_all(nm, wn)) {
             _emitf(out, sizeof(out), "overrides: cleared %u", io->override_clear_all());
@@ -639,7 +639,7 @@ namespace Botanik { namespace Shell {
         Vars::Bank* io = _bank();
         char out[128];
         if (nm == nullptr) {
-            _println("usage: overrides set <name> [<value>] [valid|invalid]");
+            _verb_usage("overrides", "set");
             return;
         }
         const Vars::VarRef r = _resolve("overrides", nm, wn);

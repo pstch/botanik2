@@ -29,7 +29,7 @@ namespace Botanik { namespace Shell {
             }
             uint16_t tlen; const char* tgt = arg_next(args, alen, tlen);
             if (tgt == nullptr) {
-                _println("usage: alarms ack <code|name|all>"); return;
+                _verb_usage("alarms", "ack"); return;
             }
             if (arg_eq(tgt, tlen, "all")) {
                 _emitf(out, sizeof(out), "acknowledged %u active alarm(s)",
@@ -80,7 +80,7 @@ namespace Botanik { namespace Shell {
         if (sub && arg_eq(sub, wlen, "get")) {
             uint16_t wt = 0;
             const char* tgt = arg_next(args, alen, wt);
-            if (tgt == nullptr) { _println("usage: alarms get <code|name>"); return; }
+            if (tgt == nullptr) { _verb_usage("alarms", "get"); return; }
             char key[24];
             uint16_t kl = std::min(wt, (uint16_t)(sizeof(key) - 1));
             memcpy(key, tgt, kl); key[kl] = '\0';

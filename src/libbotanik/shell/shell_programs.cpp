@@ -149,7 +149,7 @@ namespace Botanik { namespace Shell {
         if (reg == nullptr) { _println("programs: no task table"); return; }
         const uint64_t now = HAL::Clock::uptime_ms();
 
-        if (nm == nullptr) { _println("usage: programs enable|disable <name>|all"); return; }
+        if (nm == nullptr) { _verb_usage("programs", on ? "enable" : "disable"); return; }
 
         if (arg_is_all(nm, wn)) {
             const uint8_t n = reg->program_count();
@@ -177,7 +177,7 @@ namespace Botanik { namespace Shell {
         char out[128];
         if (reg == nullptr) { _println("programs: no task table"); return; }
 
-        if (nm == nullptr) { _println("usage: programs save <name>|all"); return; }
+        if (nm == nullptr) { _verb_usage("programs", "save"); return; }
 
         if (arg_is_all(nm, wn)) {
             uint8_t refused = 0;

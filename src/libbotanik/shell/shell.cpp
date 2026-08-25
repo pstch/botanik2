@@ -196,6 +196,39 @@ namespace Botanik { namespace Shell {
         }
     }
 
+    void CommandShell::_verb_usage(const char* noun, const char* verb) {
+        uint8_t n; const Builtin* B = _builtins(n);
+        const Builtin* b = nullptr;
+        for (uint8_t i = 0; i < n; i++)
+            if (strcmp(B[i].name, noun) == 0) { b = &B[i]; break; }
+        if (b == nullptr || b->verbs == nullptr) { _verb_usage(noun); return; }
+
+        // The line whose FIRST WORD is @p verb, printed with the noun in front
+        // and its trailing description column trimmed: a usage line is what to
+        // type, and the help page is where the prose belongs.
+        const size_t vlen = strlen(verb);
+        const char*  v    = b->verbs;
+        while (*v != '\0') {
+            size_t k = 0;
+            while (v[k] != '\0' && v[k] != '\n') k++;
+            if (strncmp(v, verb, vlen) == 0 &&
+                (v[vlen] == ' ' || v[vlen] == '\0' || v[vlen] == '\n')) {
+                size_t end = k;
+                while (end > vlen && v[end - 1] == ' ') end--;
+                // Two spaces or more is the description column, not the syntax.
+                for (size_t i = vlen; i + 1 < end; i++)
+                    if (v[i] == ' ' && v[i + 1] == ' ') { end = i; break; }
+                char out[Config::LOG_FORMATTED_LEN];
+                _emitf(out, sizeof(out), "usage: %s %.*s", b->name, (int)end, v);
+                return;
+            }
+            v += k;
+            if (*v == '\n') v++;
+        }
+        // No such verb in the table: the whole list is better than nothing.
+        _verb_usage(noun);
+    }
+
     // Help page
 
     const CommandShell::HelpGroup* CommandShell::_help_groups(uint8_t& count) {

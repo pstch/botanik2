@@ -239,6 +239,10 @@ namespace Botanik { namespace Shell {
          *  the text has ONE home: `help`, a bare noun and a mistyped verb all
          *  reach the same string. */
         void _verb_usage(const char* noun);
+        /** @brief One verb's line from the same table, so a usage message
+         *  cannot drift from the help page. Falls back to the whole list when
+         *  @p verb is not in it. */
+        void _verb_usage(const char* noun, const char* verb);
 
         /** @brief Append a submitted line to the history ring (skips a
          *  consecutive duplicate) and ends any in-progress browsing. */
