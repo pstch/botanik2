@@ -258,12 +258,6 @@ namespace Botanik { namespace Vars {
 
     bool Value::as_bool() const { return as_i64() != 0; }
 
-    int8_t  Value::as_i8()  const { return (int8_t) clamp_i((double)as_i64(), INT8_MIN,  INT8_MAX); }
-    int16_t Value::as_i16() const { return (int16_t)clamp_i((double)as_i64(), INT16_MIN, INT16_MAX); }
-    int32_t Value::as_i32() const { return (int32_t)clamp_i((double)as_i64(), INT32_MIN, INT32_MAX); }
-    uint8_t  Value::as_u8()  const { return (uint8_t) clamp_u((double)as_u64(), UINT8_MAX); }
-    uint16_t Value::as_u16() const { return (uint16_t)clamp_u((double)as_u64(), UINT16_MAX); }
-    uint32_t Value::as_u32() const { return (uint32_t)clamp_u((double)as_u64(), UINT32_MAX); }
 
     const char* Value::label() const {
         if (d == nullptr || t != T_ENUM || d->str == nullptr) return nullptr;

@@ -376,12 +376,21 @@ namespace Botanik { namespace Vars {
         bool     as_bool() const;
         int64_t  as_i64() const;
         uint64_t as_u64() const;
-        int8_t   as_i8()  const;
-        int16_t  as_i16() const;
-        int32_t  as_i32() const;
-        uint8_t  as_u8()  const;
-        uint16_t as_u16() const;
-        uint32_t as_u32() const;
+
+        /** @brief The value as any whole type, saturating at ITS rail.
+         *  @note Signedness and bounds come from @p T's own width, so this
+         *  needs neither <limits> nor <type_traits>. */
+        template <typename T> T as() const {
+            if ((T)-1 < (T)0) {
+                const int64_t hi = (int64_t)(((uint64_t)1 << (8 * sizeof(T) - 1)) - 1);
+                const int64_t lo = -hi - 1;
+                const int64_t x  = as_i64();
+                return (T)((x < lo) ? lo : ((x > hi) ? hi : x));
+            }
+            const uint64_t hi = (uint64_t)(T)~(T)0;
+            const uint64_t x  = as_u64();
+            return (T)((x > hi) ? hi : x);
+        }
         /** @} */
 
         /** @brief A T_ENUM's label, or null: not an enum, or a code the

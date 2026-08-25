@@ -132,10 +132,10 @@ namespace Botanik { namespace Vars {
     static void apply_console(void* target, const Bank& io, bool announce) {
         Terminal::Console& console = *static_cast<Terminal::Console*>(target);
         Terminal::ConsoleConfig cfg;
-        cfg.baud = io.var("console_baud").value().as_u32();
-        cfg.cols = io.var("console_cols").value().as_u16();
-        cfg.rows = io.var("console_rows").value().as_u16();
-        const uint8_t type = io.var("console_type").value().as_u8();
+        cfg.baud = io.var("console_baud").value().as<uint32_t>();
+        cfg.cols = io.var("console_cols").value().as<uint16_t>();
+        cfg.rows = io.var("console_rows").value().as<uint16_t>();
+        const uint8_t type = io.var("console_type").value().as<uint8_t>();
         if (type <= (uint8_t)Terminal::Ansi::TerminalType::MINITEL_2)
             cfg.type = (Terminal::Ansi::TerminalType)type;
         console.set_config(cfg, announce);
@@ -171,8 +171,8 @@ namespace Botanik { namespace Vars {
     static void apply_ntp(void* target, const Bank& io, bool) {
         Network::NtpConfig cfg;
         cfg.enabled  = io.var("ntp_enable").b();
-        cfg.port     = io.var("ntp_port").value().as_u16();
-        cfg.poll_sec = io.var("ntp_poll_sec").value().as_u32();
+        cfg.port     = io.var("ntp_port").value().as<uint16_t>();
+        cfg.poll_sec = io.var("ntp_poll_sec").value().as<uint32_t>();
         copy_str(cfg.srv1, sizeof(cfg.srv1), host_or_gateway(io, "ntp_srv1"));
         // srv2 is the FALLBACK and stays empty when it is empty: falling back
         // to the same gateway srv1 already is would be no fallback at all.
@@ -191,8 +191,8 @@ namespace Botanik { namespace Vars {
     static void apply_mqtt(void* target, const Bank& io, bool) {
         Network::MqttConfig cfg;
         cfg.enabled = io.var("mqtt_enable").b();
-        cfg.port    = io.var("mqtt_port").value().as_u16();
-        cfg.ka_sec  = io.var("mqtt_ka_sec").value().as_u16();
+        cfg.port    = io.var("mqtt_port").value().as<uint16_t>();
+        cfg.ka_sec  = io.var("mqtt_ka_sec").value().as<uint16_t>();
         copy_str(cfg.host, sizeof(cfg.host), host_or_gateway(io, "mqtt_host"));
         static_cast<Network::MqttClient*>(target)->set_config(cfg);
     }
@@ -224,7 +224,7 @@ namespace Botanik { namespace Vars {
         Modbus::TcpSlaveConfig cfg;
         cfg.enabled  = io.var("mb_enable").b();
         cfg.writable = io.var("mb_write_enable").b();
-        cfg.port     = io.var("mb_port").value().as_u16();
+        cfg.port     = io.var("mb_port").value().as<uint16_t>();
         static_cast<Modbus::TcpSlave*>(target)->set_config(cfg);
     }
 
@@ -238,7 +238,7 @@ namespace Botanik { namespace Vars {
      *  and nothing else. */
     static void apply_monitor(void* target, const Bank& io, bool) {
         MonitorConfig cfg;
-        cfg.baud = io.var("monitor_baud").value().as_u32();
+        cfg.baud = io.var("monitor_baud").value().as<uint32_t>();
         static_cast<MonitorStack*>(target)->set_config(cfg);
     }
 

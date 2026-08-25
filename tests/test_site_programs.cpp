@@ -614,7 +614,7 @@ TEST_CASE_FIXTURE(Rig<Site::ScreenController>, "screen: a cold night deploys it,
     CHECK(live.bank.get(moving));
 
     INFO("...and stops being in their way once the traverse has run");
-    const uint32_t travel = live.bank.var(live.ref("cli_screenTravel_sec")).value().as_u32();
+    const uint32_t travel = live.bank.var(live.ref("cli_screenTravel_sec")).value().as<uint32_t>();
     uint64_t t = 200;
     for (uint32_t i = 0; i < 10 * travel + 5; i++) d.step(t += 100);
     CHECK(live.bank.get(screen));
@@ -1228,7 +1228,7 @@ TEST_CASE_FIXTURE(RoofRig, "windows: rain shuts them, and the lockout outlives t
     d.step(t += 100);
     CHECK(live.bank.get(rain_lock));
 
-    const uint32_t hold = live.bank.var(live.ref("cli_rainLockout_sec")).value().as_u32();
+    const uint32_t hold = live.bank.var(live.ref("cli_rainLockout_sec")).value().as<uint32_t>();
     for (uint32_t i = 0; i < 10 * hold + 20; i++) d.step(t += 100);
     CHECK_FALSE(live.bank.get(rain_lock));
     CHECK(live.bank.get(tgt) == doctest::Approx(1.0f));
@@ -1457,8 +1457,8 @@ TEST_CASE_FIXTURE(Rig<Site::FanController>, "fans: a watering cycle is a floor u
 TEST_CASE_FIXTURE(Rig<Site::SkirtController>, "skirt: the humidify arm is proportional, the cooling arm is staged") {
 
     Vars::RefIn<float> duty = live.bank.resolve_in<float>("cli_skirtDuty");
-    const uint32_t period = live.bank.var(live.ref("cli_skirtPeriod_sec")).value().as_u32();
-    const uint32_t min_on = live.bank.var(live.ref("cli_skirtMinOn_sec")).value().as_u32();
+    const uint32_t period = live.bank.var(live.ref("cli_skirtPeriod_sec")).value().as<uint32_t>();
+    const uint32_t min_on = live.bank.var(live.ref("cli_skirtMinOn_sec")).value().as<uint32_t>();
 
     // Dry enough for a wet pad to cool, so the cooling arm is not gated out.
     live.bank.var(live.ref("cli_dpMargin_degC")).publish(from_f32(T_F32, 20.0f), 0);

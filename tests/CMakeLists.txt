@@ -18,6 +18,7 @@ add_executable(botanik_tests
     test_health.cpp
     test_plc.cpp
     test_site.cpp
+    test_vars.cpp
     test_site_programs.cpp
     test_site_scenarios.cpp
 )

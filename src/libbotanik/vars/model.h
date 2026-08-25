@@ -669,24 +669,24 @@ namespace Botanik { namespace Vars {
         static SetResult edit(Bank& b, VarRef r, float v) { return b.param_set(b.var(r), v); }
     };
 
-    // The eight widths differ only in the saturating accessor they read through.
-    #define BOTANIK_REF_WHOLE(TYPE, AS)                                        \
+    // The eight widths now differ in nothing but the width itself.
+    #define BOTANIK_REF_WHOLE(TYPE)                                            \
         template <> struct RefIo<TYPE> {                                       \
             static bool accepts(VarType t)            { return ref_whole(t); } \
-            static TYPE read(const Bank& b, VarRef r) { return b.var(r).value().AS(); } \
+            static TYPE read(const Bank& b, VarRef r) { return b.var(r).value().as<TYPE>(); } \
             static void write(Bank& b, VarRef r, TYPE v) { b.var(r).set_i((int64_t)v); } \
             static SetResult edit(Bank& b, VarRef r, TYPE v)                   \
                 { return b.param_set_i(b.var(r), (int64_t)v); }                \
         }
 
-    BOTANIK_REF_WHOLE(int8_t,   as_i8);
-    BOTANIK_REF_WHOLE(int16_t,  as_i16);
-    BOTANIK_REF_WHOLE(int32_t,  as_i32);
-    BOTANIK_REF_WHOLE(int64_t,  as_i64);
-    BOTANIK_REF_WHOLE(uint8_t,  as_u8);
-    BOTANIK_REF_WHOLE(uint16_t, as_u16);
-    BOTANIK_REF_WHOLE(uint32_t, as_u32);
-    BOTANIK_REF_WHOLE(uint64_t, as_u64);
+    BOTANIK_REF_WHOLE(int8_t);
+    BOTANIK_REF_WHOLE(int16_t);
+    BOTANIK_REF_WHOLE(int32_t);
+    BOTANIK_REF_WHOLE(int64_t);
+    BOTANIK_REF_WHOLE(uint8_t);
+    BOTANIK_REF_WHOLE(uint16_t);
+    BOTANIK_REF_WHOLE(uint32_t);
+    BOTANIK_REF_WHOLE(uint64_t);
 
     #undef BOTANIK_REF_WHOLE
 
