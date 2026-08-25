@@ -58,3 +58,29 @@ TEST_CASE("vars: a float row narrows through its own saturation first") {
     CHECK(of_f(nan).as<uint8_t>() == 0u);
     CHECK(of_f(nan).as<int32_t>() == 0);
 }
+
+TEST_CASE("vars: retention is a flag on the factory, not a factory of its own") {
+    // G/SV take `retained` the way P does. What the flag means is split by
+    // ROLE: a computed row goes to the retained store, a parameter already
+    // persists through its own key and only becomes reset-proof.
+    const Vars::Descriptor plain =
+        Vars::G("t_plain", Vars::T_F32, Vars::SF(0.0f), 1, "L", "not retained", "");
+    const Vars::Descriptor kept =
+        Vars::G("t_kept", Vars::T_F32, Vars::SF(0.0f), 1, "L", "retained", "", true);
+
+    CHECK_FALSE(Vars::Bank::retainable(plain));
+    CHECK(Vars::Bank::retainable(kept));
+    // ...and not as a parameter, which is the other half of the same flag.
+    CHECK_FALSE(Vars::Bank::param_retained(kept));
+
+    const Vars::Descriptor pk =
+        Vars::P("t_pk", Vars::T_U16, 1, 0, 10, 0, "", 900, "a retained param", "",
+                true, true);
+    CHECK(Vars::Bank::param_retained(pk));
+    CHECK_FALSE(Vars::Bank::retainable(pk));
+
+    // The published factory carries it too - that is what SVR used to be.
+    const Vars::Descriptor sv =
+        Vars::SV("t_sv", Vars::T_F32, 0, 1, "L", 901, "a totalizer", "", true);
+    CHECK(Vars::Bank::retainable(sv));
+}

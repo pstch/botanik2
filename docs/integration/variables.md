@@ -33,7 +33,7 @@ to agree.
 | `A` | alarm: the boolean an `AlarmCondition` reads |
 | `P` | parameter: editable, saved on demand. Written `P` (numeric, banded), `PS` (text) or `PE` (enumerated - its labels are its bound). One carrying `retain` records what happened rather than how the plant is set, and `params reset` leaves it alone |
 | `G` | computed value, HMI only - rename it freely. `GR` is the same thing RETAINED: its value survives a reboot |
-| `SV` | status value, **published** over MQTT and the Modbus TCP slave, so its name is an external contract. `SVE` is one rendered through an enum converter, `SVR` one that is RETAINED - a water totalizer, hours run |
+| `SV` | status value, **published** over MQTT and the Modbus TCP slave, so its name is an external contract. `SVE` is one rendered through an enum converter; pass `retained` for a value that survives a reboot - a water totalizer, hours run |
 | `MI` / `MO` | direct input / output: the register maps 1:1, no conversion |
 | `AI` / `AO` | analog input / output: a raw count via `scale`/`offset` |
 | `DI` / `DO` | digital input / output |

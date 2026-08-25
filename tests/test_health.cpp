@@ -38,7 +38,7 @@ namespace {
             log.add_writer(&writer);
         }
 
-        bool alarm(const char* name) { return bank.var(bank.find(name)).b(); }
+        bool alarm(const char* name) { return bank.var(bank.find(name)).as_bool(); }
 
         void step(Health::HealthMonitor& h, uint64_t now) { h.step(now); }
     };

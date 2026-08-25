@@ -65,7 +65,7 @@ inline void row(Botanik::Vars::Bank& io, const char* name) {
     if (h.meta()->str != nullptr) {
         std::snprintf(val, sizeof val, "%s", v.label());
     } else if (h.meta()->type == Botanik::Vars::T_BOOL) {
-        std::snprintf(val, sizeof val, "%s", h.b() ? "yes" : "no");
+        std::snprintf(val, sizeof val, "%s", h.as_bool() ? "yes" : "no");
     } else {
         const char* unit = h.unit();
         std::snprintf(val, sizeof val, "%.2f%s%s", (double)h.as_f32(),

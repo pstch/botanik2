@@ -187,7 +187,7 @@ namespace Botanik { namespace Vars {
     int32_t get_int(const Bank* io, const char* name, int32_t dflt) {
         Var h(nullptr, nullptr);
         if (!lookup(io, name, &h)) return dflt;
-        return (int32_t)h.i();
+        return (int32_t)h.as_i64();
     }
 
 

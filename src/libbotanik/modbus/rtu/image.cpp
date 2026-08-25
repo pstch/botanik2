@@ -53,7 +53,7 @@ namespace {
      *  raw(), not the live value: an override on an actuator has to reach the
      *  wire, or `control disable` leaves nothing able to move one. */
     bool row_bit(const Vars::Descriptor& d, Vars::Var h) {
-        const bool on = h.b();
+        const bool on = h.as_bool();
         return (d.flags & Vars::F_INVERT) ? !on : on;
     }
 
@@ -80,7 +80,7 @@ namespace {
         // mis-trimmed can produce one.
         const int64_t v = (d.scope == Vars::SCOPE_AO)
                               ? (int64_t)wire_value(io, r)
-                              : h.i();
+                              : h.as_i64();
         if (is_pair(d)) u32_to_regs((uint32_t)v, order_of(d), at);
         else            wr16(at, (uint16_t)v);
     }

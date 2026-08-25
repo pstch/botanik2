@@ -208,64 +208,40 @@ namespace Botanik { namespace Vars {
 
     /** @brief A **computed** value: derived by a control program, shown on the
      *  HMI and nowhere else. Rename it freely - nothing outside the firmware
-     *  knows its name. Use SV() instead the moment it is published. */
+     *  knows its name. Use SV() instead the moment it is published.
+     *  @p retained is IEC 61131-3 RETAIN: the value survives a reboot, for the
+     *  rows whose value IS the history. It costs one storage key and a write
+     *  every Config::RETAIN_SAVE_MS, so it is not for every row, and @p def is
+     *  then what a FIRST boot reads. */
     constexpr Descriptor G(const char* name, VarType type, Scalar def, uint8_t digits,
-                         const char* unit, const char* desc, const char* notes) {
+                         const char* unit, const char* desc, const char* notes,
+                         bool retained = false) {
         return Descriptor{ def, name, unit, desc, notes,
                          Payload(Scalar::U(0), Scalar::U(0)),
                          { XP_NONE, type, 0, 0, 0, 0, 1.0f, 0.0f }, 0, 0, nullptr,
-                         type, ROLE_COMPUTED, SCOPE_G, digits, 0, {} };
+                         type, ROLE_COMPUTED, SCOPE_G, digits,
+                         retain_bits(retained), {} };
     }
 
-    /** @brief A **retained** computed value: G(), but its value survives a
-     *  reboot (IEC 61131-3 RETAIN).
-     *
-     *  For the rows whose value IS the history: litres delivered, hours run,
-     *  cycles counted. @p def is what it reads on a FIRST boot, before anything
-     *  has ever been stored.
-     *
-     *  Costs one storage key and a write every Config::RETAIN_SAVE_MS, so it is
-     *  for values worth that, not for every computed row. */
-    constexpr Descriptor GR(const char* name, VarType type, Scalar def,
-                          uint8_t digits, const char* unit, const char* desc,
-                          const char* notes) {
-        return Descriptor{ def, name, unit, desc, notes,
-                         Payload(Scalar::U(0), Scalar::U(0)),
-                         { XP_NONE, type, 0, 0, 0, 0, 1.0f, 0.0f }, 0, 0, nullptr,
-                         type, ROLE_COMPUTED, SCOPE_G, digits, F_RETAIN, {} };
-    }
 
     /** @brief A **status value**: computed like G(), but PUBLISHED - MQTT
      *  telemetry and the Modbus TCP slave. Its name and its scaling are an
      *  external contract, so renaming one breaks whatever is subscribed.
      *
      *  @p reg is its register on that slave, hand-assigned for the same reason a
-     *  parameter's is (@see P). Parameters and status values share one register
+     *  parameter's is, like P() above. Parameters and status values share one register
      *  space, and the site test asserts no two rows claim the same one. */
     constexpr Descriptor SV(const char* name, VarType type, double def, uint8_t digits,
                           const char* unit, uint16_t reg,
-                          const char* desc, const char* notes) {
+                          const char* desc, const char* notes,
+                          bool retained = false) {
         return Descriptor{ num(type, def), name, unit, desc, notes,
                          Payload(Scalar::U(0), Scalar::U(0)),
                          { XP_NONE, type, 0, 0, reg, 1, 1.0f, 0.0f }, 0, 0, nullptr,
-                         type, ROLE_COMPUTED, SCOPE_SV, digits, 0, {} };
+                         type, ROLE_COMPUTED, SCOPE_SV, digits,
+                         retain_bits(retained), {} };
     }
 
-    /** @brief A **retained** status value: SV(), whose value survives a reboot
-     *  (IEC 61131-3 RETAIN).
-     *
-     *  For a published row whose value IS the history - a water totalizer,
-     *  hours run - which a master reads and a reboot must not zero. @p def is
-     *  what it reads on a FIRST boot, before anything has ever been stored.
-     *  @see GR for the same thing without a register. */
-    constexpr Descriptor SVR(const char* name, VarType type, double def,
-                           uint8_t digits, const char* unit, uint16_t reg,
-                           const char* desc, const char* notes) {
-        return Descriptor{ num(type, def), name, unit, desc, notes,
-                         Payload(Scalar::U(0), Scalar::U(0)),
-                         { XP_NONE, type, 0, 0, reg, 1, 1.0f, 0.0f }, 0, 0, nullptr,
-                         type, ROLE_COMPUTED, SCOPE_SV, digits, F_RETAIN, {} };
-    }
 
     /** @brief An enumerated **status value**: SV(), rendered through a
      *  converter, for a published code an operator reads as a WORD.

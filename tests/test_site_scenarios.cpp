@@ -132,7 +132,7 @@ struct Plant {
     void phase(Site::DayPhase p)        { /* day_phase owns it; see hold_day() */ (void)p; }
 
     float num(const char* row)  { return f.bank.var(f.ref(row)).as_f32(); }
-    bool  on(const char* row)   { return f.bank.var(f.ref(row)).b(); }
+    bool  on(const char* row)   { return f.bank.var(f.ref(row)).as_bool(); }
     bool  valid(const char* row){ return f.bank.var(f.ref(row)).valid(); }
     Vars::VarRef ref(const char* n) { return f.bank.find(n); }
 };
@@ -217,7 +217,7 @@ Plumbing g_pipe = SOUND_CIRCUIT;
 float    g_owed = 0.0f;    ///< litres delivered but not yet a whole pulse
 
 Site::IrrState irr_state(Plant& p) {
-    return (Site::IrrState)p.f.bank.var(p.ref("irr_state")).i();
+    return (Site::IrrState)p.f.bank.var(p.ref("irr_state")).as_i64();
 }
 
 void hold_water(Plant& p) {

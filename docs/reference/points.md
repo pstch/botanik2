@@ -1176,7 +1176,7 @@ A PULSE TRAIN, so the COUNTER is the measurement and the rate is derived - the o
 | min_fill_Lpm | VAR_INPUT | irr_minFill_Lpm | P | a fill under this rate is a pressure fault |
 | state | VAR_INPUT | irr_state | SVE | what the irrigation cycle is doing |
 | in_flow | VAR_OUTPUT | irr_inFlow_Lpm | SV | inlet flow, differentiated from the counter |
-| in_total | VAR_OUTPUT | irr_inTotal_L | SVR | inlet water counter, since it was last zeroed |
+| in_total | VAR_OUTPUT | irr_inTotal_L | SV | inlet water counter, since it was last zeroed |
 | leak | VAR_OUTPUT | alarm_water_leak | A | leak in irrigation circuit |
 | pressure | VAR_OUTPUT | alarm_water_pressure | A | water pressure too low |
 
@@ -1212,7 +1212,7 @@ A 4-20 mA loop, so the RATE is the measurement and the total is integrated - the
 | out_flow | VAR_INPUT | irr_out_Lpm | AI | irrigation output flow |
 | out_avg_ms | VAR_INPUT | irr_out_avg_ms | P | rolling average for this flow meter |
 | out_flow_pub | VAR_OUTPUT | irr_outFlow_Lpm | SV | outlet flow, averaged over irr_out_avg_ms |
-| out_total | VAR_OUTPUT | irr_outTotal_L | SVR | outlet water counter, since it was last zeroed |
+| out_total | VAR_OUTPUT | irr_outTotal_L | SV | outlet water counter, since it was last zeroed |
 
 Function blocks it holds:
 
@@ -1276,8 +1276,8 @@ FILLING -> SOAKING -> DRAINING -> FLUSHING. A cycle is long, so only `irr_traysP
 |---|---|---|---|---|
 | due_tray | VAR_INPUT | irr_dueTray | SV | tray owed water now, n when none is |
 | mod | VAR_INPUT | irr_mod | SV | irrigation modulation, irr_modMin (wet) to n (summer dry) |
-| in_total | VAR_INPUT | irr_inTotal_L | SVR | inlet water counter, since it was last zeroed |
-| out_total | VAR_INPUT | irr_outTotal_L | SVR | outlet water counter, since it was last zeroed |
+| in_total | VAR_INPUT | irr_inTotal_L | SV | inlet water counter, since it was last zeroed |
+| out_total | VAR_INPUT | irr_outTotal_L | SV | outlet water counter, since it was last zeroed |
 | litres[8] | VAR_INPUT | irr_liters_tray1..8 | P | litres to flood this tray in summer |
 | split | VAR_INPUT | irr_volFreqSplit | P | cut the volume, or stretch the period |
 | max_fill_s | VAR_INPUT | irr_maxFill_sec | P | alarm if a tray takes longer to fill |

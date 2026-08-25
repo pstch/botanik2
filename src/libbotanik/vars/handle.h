@@ -63,11 +63,6 @@ namespace Botanik { namespace Vars {
      *  would be written over the first text row. */
     static const uint16_t STR_NO_SLOT = 0xFFFFu;
 
-    /** @} */
-
-    /** @name Handle
-     *  @{ */
-
     /** @brief The one handle: a non-owning (descriptor, value slot) pair, made
      *  on the fly and passed by value. */
     class Var {
@@ -97,25 +92,18 @@ namespace Botanik { namespace Vars {
          *  mute is consulted - nothing outside has to know about it. */
         Value value() const { return _forced() ? override() : live(); }
 
-        /** @name Shortcuts
-         *  value() in one type. A digital reads 0/1, so no consumer branches.
-         *  @{ */
-        float    as_f32() const { return value().as_f32(); }
-        bool     b()      const { return value().as_bool(); }
-        int64_t  i()      const { return value().as_i64(); }
-        bool     valid()  const { return value().good(); }
-        /** @} */
-        /** @} */
+        /** @brief value() as @p T, saturating. A digital reads 0/1, so no
+         *  consumer branches. */
+        template <typename T> T as() const { return value().as<T>(); }
+        float    as_f32()  const { return value().as_f32(); }
+        bool     as_bool() const { return value().as_bool(); }
+        int64_t  as_i64()  const { return value().as_i64(); }
+        bool     valid()   const { return value().good(); }
+
         /** @brief Where this row's text sits in the pool (T_STR only; 0
          *  otherwise, and text_slot().cap is 0 there so nothing writes). */
         uint16_t str_off() const { return _v->str_off; }
         uint64_t stamp() const { return _v->stamp_ms; }
-        /** @} */
-
-        /** @name Override (maintenance)
-         *  See Slot's override note. Writes keep landing in the underlying
-         *  slot while one is in force, so clearing it resumes the live value.
-         *  @{ */
 
         /** @} */
 
@@ -240,11 +228,6 @@ namespace Botanik { namespace Vars {
             if (_d->role == ROLE_OUTPUT) _v->vflags = (uint8_t)(_v->vflags | VF_FIELD_DIRTY);
         }
     };
-
-    /** @} */
-
-    /** @name Table
-     *  @{ */
 
     /** @brief What a write attempt did. A failed PERSIST is not a rejected
      *  EDIT: the value is live either way. */

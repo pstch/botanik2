@@ -191,17 +191,6 @@ namespace Botanik { namespace Vars {
          *  every override. */
         void init();
 
-        /** @brief Load every ROLE_PARAM from the store, over the defaults
-         *  init() seeded. A missing key is normal (the default stands). */
-        void load_params();
-
-        /** @brief Restore the overrides in force at the last shutdown - every
-         *  role, ROLE_OUTPUT included.
-         *  @warning A restored output override is DRIVING the plant from this
-         *  moment, so each restore is a CRITICAL naming the row.
-         *  @return how many were restored. */
-        uint16_t load_overrides();
-
         /** @name Retained values (F_RETAIN)
          *
          *  The rows whose value IS the history - litres delivered, hours run,
@@ -223,9 +212,6 @@ namespace Botanik { namespace Vars {
             return (d.flags & F_RETAIN) != 0 && d.role == ROLE_PARAM;
         }
 
-        /** @brief Restore every retained row from the store. Called at bring-up
-         *  after load_params(). @return how many were restored. */
-        uint16_t load_retained();
         /** @brief Write every retained row out. Called on a cadence and on the
          *  way down - never per write, which would be a flash erase per beat.
          *  @return how many were written. */
@@ -312,6 +298,7 @@ namespace Botanik { namespace Vars {
          *  belonged to another. First claim wins, and the write still goes
          *  through: refusing it would leave the plant where the loser left it. */
         bool claim_writer(VarRef r, uint8_t who);
+        /** @} */
 
         /** @name Writer window
          *  Whose writes count as theirs. The DISPATCHER opens the window around
@@ -388,9 +375,11 @@ namespace Botanik { namespace Vars {
         /** @brief How many ROWS two programs have both written, and the first.
          *  Rows, not collisions: two programs collide every beat, but the count
          *  of doubly-authored rows is fixed by the site's design. */
+        /** @name Write conflicts
+         *  What the POST reports: a row two programs both drive is a wiring
+         *  defect, not a race. @{ */
         uint16_t writer_conflicts() const { return _conflicts; }
         VarRef   first_conflict() const   { return _conflict_row; }
-
         /** @} */
 
         /** @brief Whether the name index is in use. False before freeze(), and
@@ -433,9 +422,9 @@ namespace Botanik { namespace Vars {
         void expire_stale(uint64_t now_ms);
 
         /** @name Writing
-         *  set() edits a PARAMETER against its declared band; override() forces
-         *  ANY variable, type-checked only. NEITHER writes to flash: applying and
-         *  committing are separate steps. @{ */
+         *  param_set() edits a PARAMETER against its declared band;
+         *  override_set() forces ANY variable, type-checked only. NEITHER
+         *  writes to flash: applying and committing are separate steps. @{ */
 
         /** @brief Apply @p text to parameter @p h, live but unsaved. A
          *  non-parameter is SET_INVALID - use override() for those. */
@@ -449,6 +438,7 @@ namespace Botanik { namespace Vars {
          *  channel that assembles a value from somewhere else (a register pair
          *  carrying a dotted quad) validates it the way the console does. */
         SetResult param_check(Var h, const char* text) const;
+        /** @} */
 
         /** @brief Apply a value, coerced INTO the row's own type.
          *
@@ -544,6 +534,17 @@ namespace Botanik { namespace Vars {
         /** @} */
 
     private:
+        /** @name Bring-up, in this order
+         *  The three restores on_setup() runs, and the ORDER is the contract:
+         *  parameters first, then the overrides that shadow them, then the
+         *  retained totals, which neither touches. Private because calling one
+         *  out of turn loads a setting over the override forcing it.
+         *  @{ */
+        void     load_params();
+        uint16_t load_overrides();
+        uint16_t load_retained();
+        /** @} */
+
         /** @brief Apply @p v WITHOUT marking the row unsaved. PRIVATE: set() is
          *  its only caller. It was public for a writer pacing the flash side
          *  itself, but the Modbus persist queue never took it up, and a public
@@ -641,8 +642,6 @@ namespace Botanik { namespace Vars {
         static Slot          _sink_v;
     };
 
-    /** @} */
-
     /** @name Typed row access
      *  One specialisation per type a Ref may carry. `accepts()` is what a
      *  binding is checked against: a whole-number Ref takes any integer row and
@@ -657,7 +656,7 @@ namespace Botanik { namespace Vars {
 
     template <> struct RefIo<bool> {
         static bool accepts(VarType t)             { return t == T_BOOL; }
-        static bool read(const Bank& b, VarRef r)  { return b.var(r).b(); }
+        static bool read(const Bank& b, VarRef r)  { return b.var(r).as_bool(); }
         static void write(Bank& b, VarRef r, bool v) { b.var(r).set(v); }
         static SetResult edit(Bank& b, VarRef r, bool v) { return b.param_set(b.var(r), v); }
     };
@@ -692,9 +691,8 @@ namespace Botanik { namespace Vars {
 
     /** @} */
 
-    /** @name Ref accessors
-     *  Out of line, because a reference is declared before the table it reads.
-     *  @{ */
+    // Ref's bodies, out of line because a reference is declared before the
+    // table it reads. Grouped at their declarations, in ref.h.
 
     template <typename T, Dir D>
     inline T Ref<T, D>::get() const { return io->get(*this); }
@@ -729,7 +727,6 @@ namespace Botanik { namespace Vars {
         io->var(r).invalidate(Q_UNCERTAIN);
     }
 
-    /** @} */
 
 }}  // namespace Botanik::Vars
 

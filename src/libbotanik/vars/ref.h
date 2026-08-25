@@ -32,9 +32,6 @@ namespace Botanik { namespace Vars {
 
     /** @} */
 
-    /** @name Typed reference
-     *  @{ */
-
     /** @brief Which IEC 61131-3 declaration section a program reads this row
      *  through. Read-only, produced, or shared.
      *  @note A PROGRAM POU may connect a formal parameter to a global or name
@@ -106,10 +103,8 @@ namespace Botanik { namespace Vars {
          *  learns the number is not to be acted on, and one that does not gets
          *  the last real answer rather than a declared default - which reads
          *  like a measurement of zero and is how a dead probe becomes a
-         *  greenhouse at 0 degC.
-         *  @{ */
+         *  greenhouse at 0 degC. */
         void hold() const;
-        /** @} */
 
         /** @} */
     };
@@ -117,8 +112,6 @@ namespace Botanik { namespace Vars {
     template <typename T> using RefIn    = Ref<T, Dir::IN>;
     template <typename T> using RefOut   = Ref<T, Dir::OUT>;
     template <typename T> using RefInOut = Ref<T, Dir::INOUT>;
-
-    /** @} */
 
     /** @brief Whether two types are the same, so a mismatched drive() names the
      *  problem instead of reporting a deduction conflict. Hand-rolled: three

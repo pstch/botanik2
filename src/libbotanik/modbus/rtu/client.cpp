@@ -25,7 +25,7 @@ uint32_t RtuClient::_tune(Vars::VarRef r, uint32_t dflt) const {
     if (_io == nullptr || r.index == Vars::VAR_NONE) return dflt;
     const Vars::Var h = _io->var(r);
     if (!h.valid()) return dflt;
-    const int64_t v = h.i();
+    const int64_t v = h.as_i64();
     // A band keeps these non-negative on the way in; this guards the way a
     // corrupt store or a forced override could still reach here.
     return (v >= 0) ? (uint32_t)v : dflt;

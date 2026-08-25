@@ -320,14 +320,14 @@ inline void step_plant(const Vars::Bank& io, const Sky& s, float t_ext,
     const float dt = (float)dt_ms / 1000.0f;
     if (dt <= 0.0f) return;
 
-    const bool  screen = io.var("cli_screen").b();
+    const bool  screen = io.var("cli_screen").as_bool();
     const float vent   = _windows_open(io);
     // The INTAKE fans exchange air with outside; the destratification fans only
     // stir what is already in here, so they move the gap and not the heat.
     const float intake = 0.5f * (io.var("cli_intr1").as_f32() +
                                  io.var("cli_intr2").as_f32());
-    const float mix    = (float)io.var("cli_fanSpeed").i() / 3.0f;
-    const float skirt  = io.var("cli_skirtValve").b() ? 1.0f : 0.0f;
+    const float mix    = (float)io.var("cli_fanSpeed").as_i64() / 3.0f;
+    const float skirt  = io.var("cli_skirtValve").as_bool() ? 1.0f : 0.0f;
 
     // Solar gain, shaded by the screen. Conduction through the fabric, which
     // the screen is there to slow at night. Ventilation, the only thing that
@@ -375,7 +375,7 @@ inline void publish_meters(Vars::Bank& io, const Sky& s, uint32_t now_ms) {
     static float load = 0.0f;
     load = drift(load, 0.5f, 0.0f, 1.0f, s.dt_ms, 60000.0f);       // ~1 min
     // The plant draws what it is running: fans and windows are the load.
-    const float duty = 0.25f + 0.55f * ((float)io.var("cli_fanSpeed").i() / 3.0f);
+    const float duty = 0.25f + 0.55f * ((float)io.var("cli_fanSpeed").as_i64() / 3.0f);
 
     // The power day, in four acts, by the hour.
     float sag = 1.0f;
@@ -442,7 +442,7 @@ inline void publish_analog(Vars::Bank& io, const Sky& s, uint32_t now_ms) {
     // Output flow: what the irrigation cycle is actually drawing, plus a swell.
     // Sized against irr_expDrainFrac: a tray gives back about 0.6 of its dose
     // inside irr_drainWindow_sec, so the verdict has something to judge.
-    const bool draining = io.var("irr_output_ro1").b();
+    const bool draining = io.var("irr_output_ro1").as_bool();
     put(io, "irr_out_Lpm", draining ? 20.0f + 3.0f * sinf(t / 5.0f) : 0.0f, now_ms);
 }
 
@@ -488,7 +488,7 @@ inline void pulse_inlet(const Vars::Bank& io, uint32_t now_ms) {
 
     const uint32_t dt = (now_ms > last_ms) ? (now_ms - last_ms) : 0;
     last_ms = now_ms;
-    if (!io.var("irr_input_ro1").b()) { owed_ms = 0; return; }
+    if (!io.var("irr_input_ro1").as_bool()) { owed_ms = 0; return; }
 
     owed_ms += dt;
     const uint32_t pulses = owed_ms / 1000u;

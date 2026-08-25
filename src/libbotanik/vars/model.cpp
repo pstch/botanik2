@@ -430,7 +430,7 @@ namespace Botanik { namespace Vars {
     uint32_t Bank::_retain_ms() const {
         const VarRef r = find("sys_retain_sec");
         const int32_t sec = (r.index != VAR_NONE)
-                                ? (int32_t)var(r).i()
+                                ? (int32_t)var(r).as_i64()
                                 : (int32_t)(Config::RETAIN_SAVE_MS / 1000u);
         return sec > 0 ? (uint32_t)sec * 1000u : 0u;
     }
@@ -438,7 +438,7 @@ namespace Botanik { namespace Vars {
     void Bank::_apply_log_level() {
         if (_logger == nullptr) return;
         const VarRef r = find("sys_log_level");
-        const int32_t want = (r.index != VAR_NONE) ? (int32_t)var(r).i()
+        const int32_t want = (r.index != VAR_NONE) ? (int32_t)var(r).as_i64()
                                                    : (int32_t)Config::LOG_MIN_LEVEL;
         // The row is a T_ENUM over level_label(), so only the Config
         // fallback arrives unvetted - hence the guard rather than a bare cast.
@@ -454,7 +454,7 @@ namespace Botanik { namespace Vars {
             if (w == nullptr || w->level_param() == nullptr) continue;
             const VarRef fr = find(w->level_param());
             if (fr.index == VAR_NONE) continue;
-            const int32_t f = (int32_t)var(fr).i();
+            const int32_t f = (int32_t)var(fr).as_i64();
             if (f < 0 || Logs::level_label((uint64_t)f) == nullptr) continue;
             const Logs::LogLevel want_lvl = (Logs::LogLevel)f;
             if (want_lvl != w->min_level()) w->set_min_level(want_lvl);

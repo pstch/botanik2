@@ -151,8 +151,8 @@ namespace Botanik { namespace Vars {
      *  three different networks is not a link anyone can bring up. */
     static void apply_network(void* target, const Bank& io, bool) {
         Network::NetworkConfig cfg;
-        cfg.enabled = io.var("net_enable").b();
-        cfg.dhcp    = io.var("net_dhcp").b();
+        cfg.enabled = io.var("net_enable").as_bool();
+        cfg.dhcp    = io.var("net_dhcp").as_bool();
         copy_str(cfg.ip,   sizeof(cfg.ip),   io.text(io.var("net_ip")));
         copy_str(cfg.mask, sizeof(cfg.mask), io.text(io.var("net_mask")));
         copy_str(cfg.gw,   sizeof(cfg.gw),   io.text(io.var("net_gw")));
@@ -170,7 +170,7 @@ namespace Botanik { namespace Vars {
     /** @brief The `ntp_` group. */
     static void apply_ntp(void* target, const Bank& io, bool) {
         Network::NtpConfig cfg;
-        cfg.enabled  = io.var("ntp_enable").b();
+        cfg.enabled  = io.var("ntp_enable").as_bool();
         cfg.port     = io.var("ntp_port").value().as<uint16_t>();
         cfg.poll_sec = io.var("ntp_poll_sec").value().as<uint32_t>();
         copy_str(cfg.srv1, sizeof(cfg.srv1), host_or_gateway(io, "ntp_srv1"));
@@ -190,7 +190,7 @@ namespace Botanik { namespace Vars {
      *  the same serial to its own struct. */
     static void apply_mqtt(void* target, const Bank& io, bool) {
         Network::MqttConfig cfg;
-        cfg.enabled = io.var("mqtt_enable").b();
+        cfg.enabled = io.var("mqtt_enable").as_bool();
         cfg.port    = io.var("mqtt_port").value().as<uint16_t>();
         cfg.ka_sec  = io.var("mqtt_ka_sec").value().as<uint16_t>();
         copy_str(cfg.host, sizeof(cfg.host), host_or_gateway(io, "mqtt_host"));
@@ -207,9 +207,9 @@ namespace Botanik { namespace Vars {
      *  client's: one commit, two structs. */
     static void apply_telemetry(void* target, const Bank& io, bool) {
         Network::TelemetryConfig cfg;
-        const int32_t sec = (int32_t)io.var("mqtt_tlm_sec").i();
+        const int32_t sec = (int32_t)io.var("mqtt_tlm_sec").as_i64();
         cfg.period_ms = sec > 0 ? (uint32_t)sec * 1000u : 0u;
-        cfg.retain    = io.var("mqtt_retain").b();
+        cfg.retain    = io.var("mqtt_retain").as_bool();
         static_cast<Network::MqttSender*>(target)->set_config(cfg);
     }
 
@@ -222,8 +222,8 @@ namespace Botanik { namespace Vars {
     /** @brief The `mb` group. */
     static void apply_modbus_tcp(void* target, const Bank& io, bool) {
         Modbus::TcpSlaveConfig cfg;
-        cfg.enabled  = io.var("mb_enable").b();
-        cfg.writable = io.var("mb_write_enable").b();
+        cfg.enabled  = io.var("mb_enable").as_bool();
+        cfg.writable = io.var("mb_write_enable").as_bool();
         cfg.port     = io.var("mb_port").value().as<uint16_t>();
         static_cast<Modbus::TcpSlave*>(target)->set_config(cfg);
     }

@@ -272,7 +272,7 @@ namespace Botanik { namespace Modbus {
                 // A coil is a BOOLEAN row's value. A float at that number is not
                 // a coil, and reporting "non-zero" for it would invent a signal
                 // the table never declared.
-                put_bit(out, i, v.type() == T_BOOL && v.b());
+                put_bit(out, i, v.type() == T_BOOL && v.as_bool());
             }
         }
         return EX_NONE;

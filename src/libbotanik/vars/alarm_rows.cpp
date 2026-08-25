@@ -43,7 +43,7 @@ namespace Botanik { namespace Vars {
         return alarm_spec(*_io->var(_row[i]).meta());
     }
     bool BankAlarms::raw(uint16_t i) const {
-        return _io->var(_row[i]).b();
+        return _io->var(_row[i]).as_bool();
     }
     bool BankAlarms::forced(uint16_t i) const {
         return _io->var(_row[i]).override().present();

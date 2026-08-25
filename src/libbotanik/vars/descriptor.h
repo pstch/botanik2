@@ -339,8 +339,6 @@ namespace Botanik { namespace Vars {
 
     /** @} */
 
-    /** @name The read result
-     *  @{ */
 
     /** @brief One layer of a variable: the number, what it is, and whether it
      *  is any good. Every read accessor returns this, so a value and its
@@ -378,8 +376,8 @@ namespace Botanik { namespace Vars {
         uint64_t as_u64() const;
 
         /** @brief The value as any whole type, saturating at ITS rail.
-         *  @note Signedness and bounds come from @p T's own width, so this
-         *  needs neither <limits> nor <type_traits>. */
+         *  @note Signedness and bounds come from @p T's own width, so this needs
+         *  neither @c \<limits\> nor @c \<type_traits\>. */
         template <typename T> T as() const {
             if ((T)-1 < (T)0) {
                 const int64_t hi = (int64_t)(((uint64_t)1 << (8 * sizeof(T) - 1)) - 1);
@@ -397,8 +395,6 @@ namespace Botanik { namespace Vars {
          *  converter does not know. That null IS the range check `set` uses. */
         const char* label() const;
     };
-
-    /** @} */
 
 
 }}  // namespace Botanik::Vars

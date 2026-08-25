@@ -164,7 +164,7 @@ TEST_CASE_FIXTURE(Rig<Site::TempRHSensors>, "zone: an invalid probe is excluded,
     CHECK(live.bank.var(hi.r).valid());
     CHECK(live.bank.get(hi) == doctest::Approx(25.0f).epsilon(0.02));
     INFO("and the quorum alarm is up, because two probes are gone");
-    CHECK(live.bank.var(live.ref("alarm_sns_ceiling")).b());
+    CHECK(live.bank.var(live.ref("alarm_sns_ceiling")).as_bool());
 }
 
 TEST_CASE_FIXTURE(ZoneRig, "zone: the instruments report percent, the model works in fractions") {
@@ -281,7 +281,7 @@ TEST_CASE_FIXTURE(Rig<Site::DayPhaseController>, "day phase: the banks arm off t
     const float trg = live.bank.var(live.ref("cli_coldBankTrg_degC")).as_f32();
     field(live, "cli_temp_in", trg - 5.0f);
     d.step(100);
-    REQUIRE_FALSE(live.bank.var(live.ref("cli_coldBankArm")).b());
+    REQUIRE_FALSE(live.bank.var(live.ref("cli_coldBankArm")).as_bool());
 
     INFO("a hot yesterday forced by hand arms the cold bank");
     char hot[16];
@@ -289,12 +289,12 @@ TEST_CASE_FIXTURE(Rig<Site::DayPhaseController>, "day phase: the banks arm off t
     REQUIRE(live.bank.override_set(live.bank.var(live.ref("cli_prevDayMax_degC")), hot)
             == Vars::SET_OK);
     d.step(200);
-    CHECK(live.bank.var(live.ref("cli_coldBankArm")).b());
+    CHECK(live.bank.var(live.ref("cli_coldBankArm")).as_bool());
 
     INFO("...and releasing it gives the decision back to the house");
     live.bank.override_clear(live.bank.var(live.ref("cli_prevDayMax_degC")));
     d.step(300);
-    CHECK_FALSE(live.bank.var(live.ref("cli_coldBankArm")).b());
+    CHECK_FALSE(live.bank.var(live.ref("cli_coldBankArm")).as_bool());
 }
 
 TEST_CASE_FIXTURE(Rig<Site::TargetTempController>, "target: a bank phase only shifts the target when yesterday armed it") {
@@ -452,7 +452,7 @@ TEST_CASE("cooling: an unknown demand puts every actuator at its own safe state"
 
     uint64_t t = 0;
     for (uint32_t i = 0; i < 40; i++) d.step(t += 100);
-    REQUIRE_FALSE(f.bank.var(f.ref("cli_screenMoving")).b());
+    REQUIRE_FALSE(f.bank.var(f.ref("cli_screenMoving")).as_bool());
 
     INFO("each one substitutes ITS OWN safe state for the input it cannot read, "
          "and not one of the five is simply OFF");
@@ -667,7 +667,7 @@ TEST_CASE("windows: the wind takes the roof down a ramp before it shuts it") {
     field(f, "cli_wind_mps", shut);
     field(f, "cli_windGust_mps", shut);
     for (uint32_t i = 0; i < 80; i++) d.step(t += 1000);
-    CHECK(f.bank.var(f.ref("cli_windLockout")).b());
+    CHECK(f.bank.var(f.ref("cli_windLockout")).as_bool());
     CHECK(f.bank.get(cap) == doctest::Approx(0.0f));
     CHECK(f.bank.var(f.ref("cli_window1_pos")).as_f32() < 0.05f);
 }
@@ -717,7 +717,7 @@ TEST_CASE("windows: rain shuts the roof whatever the wind is doing") {
          "cli_rainLockout_sec");
     field(f, "cli_rain_mmph", 4.0f);
     for (uint32_t i = 0; i < 40; i++) d.step(t += 1000);
-    CHECK(f.bank.var(f.ref("cli_rainLockout")).b());
+    CHECK(f.bank.var(f.ref("cli_rainLockout")).as_bool());
     CHECK(f.bank.get(cap) == doctest::Approx(0.0f));
     CHECK(f.bank.var(f.ref("cli_window1_pos")).as_f32() < 0.05f);
 }
@@ -738,20 +738,20 @@ TEST_CASE("windows: a forced lockout shuts the roof, with no weather to do it") 
     uint64_t t = 0;
     for (uint32_t i = 0; i < 40; i++) d.step(t += 1000);
     REQUIRE(f.bank.var(f.ref("cli_window1_pos")).as_f32() > 0.9f);
-    REQUIRE_FALSE(f.bank.var(f.ref("cli_windowLockout")).b());
+    REQUIRE_FALSE(f.bank.var(f.ref("cli_windowLockout")).as_bool());
 
     INFO("the rain lockout forced by hand: the roof shuts on the ROW, and the "
          "verdict beside it says the roof is being held");
     REQUIRE(f.bank.override_set(f.bank.var(f.ref("cli_rainLockout")), "1")
             == Vars::SET_OK);
     for (uint32_t i = 0; i < 60; i++) d.step(t += 1000);
-    CHECK(f.bank.var(f.ref("cli_windowLockout")).b());
+    CHECK(f.bank.var(f.ref("cli_windowLockout")).as_bool());
     CHECK(f.bank.var(f.ref("cli_window1_pos")).as_f32() < 0.1f);
 
     INFO("...and releasing it gives the roof back to the ladder");
     f.bank.override_clear(f.bank.var(f.ref("cli_rainLockout")));
     for (uint32_t i = 0; i < 60; i++) d.step(t += 1000);
-    CHECK_FALSE(f.bank.var(f.ref("cli_windowLockout")).b());
+    CHECK_FALSE(f.bank.var(f.ref("cli_windowLockout")).as_bool());
     CHECK(f.bank.var(f.ref("cli_window1_pos")).as_f32() > 0.9f);
 }
 
@@ -850,15 +850,15 @@ TEST_CASE_FIXTURE(IrrigationRig, "irrigation: a force is spent on the watering i
 
     uint64_t t = 0;
     d.step(t += 1000);
-    REQUIRE(live.bank.var(live.ref("irr_activeTray")).i() == 2);
+    REQUIRE(live.bank.var(live.ref("irr_activeTray")).as_i64() == 2);
 
     INFO("the force is cleared as the fill completes: left standing it would "
          "ask for the same tray on every cycle for ever, and no other tray "
          "would ever be reached");
     HAL::Pulse::inject(Site::pulse_inputs[0].channel, 20);
     d.step(t += 1000);
-    REQUIRE(live.bank.var(live.ref("irr_state")).i() == Site::IRR_DRAINING);
-    CHECK_FALSE(live.bank.var(live.ref("irr_forceOn_tray2")).b());
+    REQUIRE(live.bank.var(live.ref("irr_state")).as_i64() == Site::IRR_DRAINING);
+    CHECK_FALSE(live.bank.var(live.ref("irr_forceOn_tray2")).as_bool());
 
     INFO("...and it is owed to flash, like every other schedule edit");
     CHECK(live.bank.var(live.ref("irr_forceOn_tray2")).param_unsaved());
@@ -875,12 +875,12 @@ TEST_CASE_FIXTURE(IrrigationRig, "irrigation: a skip is spent too, and sends the
 
     d.step(1000);
     INFO("tray 1 is passed over, and the next due tray goes instead");
-    CHECK(live.bank.var(live.ref("irr_activeTray")).i() == 2);
+    CHECK(live.bank.var(live.ref("irr_activeTray")).as_i64() == 2);
 
     INFO("the skip is spent doing it, and the tray is stamped so it waits its "
          "period rather than arriving again tomorrow with the flag gone");
-    CHECK_FALSE(live.bank.var(live.ref("irr_forceOff_tray1")).b());
-    CHECK(live.bank.var(live.ref("irr_last_tray1")).i() > 0);
+    CHECK_FALSE(live.bank.var(live.ref("irr_forceOff_tray1")).as_bool());
+    CHECK(live.bank.var(live.ref("irr_last_tray1")).as_i64() > 0);
     CHECK(live.bank.var(live.ref("irr_last_tray1")).param_unsaved());
 }
 
@@ -896,35 +896,35 @@ TEST_CASE_FIXTURE(IrrigationRig, "irrigation: the tray sits full for its soak be
 
     uint64_t t = 0;
     d.step(t += 1000);
-    REQUIRE(live.bank.var(live.ref("irr_state")).i() == Site::IRR_FILLING);
+    REQUIRE(live.bank.var(live.ref("irr_state")).as_i64() == Site::IRR_FILLING);
     HAL::Pulse::inject(Site::pulse_inputs[0].channel, 20);
     d.step(t += 1000);
 
     INFO("the dose has arrived, and the tray keeps it: both ends of the "
          "manifold shut, and the tray still connected to it");
-    REQUIRE(live.bank.var(live.ref("irr_state")).i() == Site::IRR_SOAKING);
-    CHECK_FALSE(live.bank.var(live.ref("irr_input_ro1")).b());
-    CHECK_FALSE(live.bank.var(live.ref("irr_output_ro1")).b());
-    CHECK(live.bank.var(live.ref("irr_tray1")).b());
-    CHECK_FALSE(live.bank.var(live.ref("irr_tray2")).b());
+    REQUIRE(live.bank.var(live.ref("irr_state")).as_i64() == Site::IRR_SOAKING);
+    CHECK_FALSE(live.bank.var(live.ref("irr_input_ro1")).as_bool());
+    CHECK_FALSE(live.bank.var(live.ref("irr_output_ro1")).as_bool());
+    CHECK(live.bank.var(live.ref("irr_tray1")).as_bool());
+    CHECK_FALSE(live.bank.var(live.ref("irr_tray2")).as_bool());
     INFO("...and it is still this tray's cycle while it sits");
-    CHECK(live.bank.var(live.ref("irr_activeTray")).i() == 1);
+    CHECK(live.bank.var(live.ref("irr_activeTray")).as_i64() == 1);
 
     INFO("the fill is judged before the soak, not after it: a tray that got "
          "its water is not owed a verdict an hour later");
-    CHECK_FALSE(live.bank.var(live.ref("alarm_irr_fill")).b());
-    CHECK(live.bank.var(live.ref("irr_servedToday")).i() == 1);
+    CHECK_FALSE(live.bank.var(live.ref("alarm_irr_fill")).as_bool());
+    CHECK(live.bank.var(live.ref("irr_servedToday")).as_i64() == 1);
 
     INFO("half way through, nothing has moved");
     for (uint32_t i = 0; i < 30; i++) d.step(t += 1000);
-    CHECK(live.bank.var(live.ref("irr_state")).i() == Site::IRR_SOAKING);
-    CHECK_FALSE(live.bank.var(live.ref("irr_output_ro1")).b());
+    CHECK(live.bank.var(live.ref("irr_state")).as_i64() == Site::IRR_SOAKING);
+    CHECK_FALSE(live.bank.var(live.ref("irr_output_ro1")).as_bool());
 
     INFO("and the drain opens when the soak is up");
     for (uint32_t i = 0; i < 32; i++) d.step(t += 1000);
-    CHECK(live.bank.var(live.ref("irr_state")).i() == Site::IRR_DRAINING);
-    CHECK(live.bank.var(live.ref("irr_output_ro1")).b());
-    CHECK(live.bank.var(live.ref("irr_tray1")).b());
+    CHECK(live.bank.var(live.ref("irr_state")).as_i64() == Site::IRR_DRAINING);
+    CHECK(live.bank.var(live.ref("irr_output_ro1")).as_bool());
+    CHECK(live.bank.var(live.ref("irr_tray1")).as_bool());
 }
 
 TEST_CASE_FIXTURE(IrrigationRig, "irrigation: a soak of zero is skipped, not passed through") {
@@ -941,10 +941,10 @@ TEST_CASE_FIXTURE(IrrigationRig, "irrigation: a soak of zero is skipped, not pas
 
     uint64_t t = 0;
     d.step(t += 1000);
-    REQUIRE(live.bank.var(live.ref("irr_state")).i() == Site::IRR_FILLING);
+    REQUIRE(live.bank.var(live.ref("irr_state")).as_i64() == Site::IRR_FILLING);
     HAL::Pulse::inject(Site::pulse_inputs[0].channel, 20);
     d.step(t += 1000);
-    CHECK(live.bank.var(live.ref("irr_state")).i() == Site::IRR_DRAINING);
+    CHECK(live.bank.var(live.ref("irr_state")).as_i64() == Site::IRR_DRAINING);
 }
 
 TEST_CASE_FIXTURE(Rig<Site::IrrMtrOutput>, "irrigation: the drain meter comes back to zero, not to a tenth of one") {
@@ -988,7 +988,7 @@ TEST_CASE_FIXTURE(Rig<Site::IrrMtrInput>,
     // The law waits two of these: a window straddling the change closes with
     // the old state's water in it, and that figure stands for a window more.
     const uint32_t win =
-        2u * (uint32_t)live.bank.var(live.ref("irr_rateWin_ms")).i();
+        2u * (uint32_t)live.bank.var(live.ref("irr_rateWin_ms")).as_i64();
     HAL::Pulse::attach(Site::pulse_inputs[0].channel,
                        Site::pulse_inputs[0].edge);
     live.bank.param_set(live.bank.var(live.ref("irr_input_qtyPerImp")), 1.0f);
@@ -1005,7 +1005,7 @@ TEST_CASE_FIXTURE(Rig<Site::IrrMtrInput>,
     live.bank.var(st).set_i((int64_t)Site::IRR_IDLE);
     for (uint32_t i = 0; i <= win / 1000u + 2u; i++) {
         d.step(t += 1000);
-        CHECK_FALSE(live.bank.var(leak).b());
+        CHECK_FALSE(live.bank.var(leak).as_bool());
     }
 
     INFO("...but water still moving a window later IS a leak");
@@ -1013,22 +1013,22 @@ TEST_CASE_FIXTURE(Rig<Site::IrrMtrInput>,
         HAL::Pulse::inject(Site::pulse_inputs[0].channel, 1);
         d.step(t += 1000);
     }
-    CHECK(live.bank.var(leak).b());
+    CHECK(live.bank.var(leak).as_bool());
 
     INFO("and the mirror image: a fill opening on an idle window is not a "
          "pressure fault");
     live.bank.var(st).set_i((int64_t)Site::IRR_IDLE);
     for (uint32_t i = 0; i < win / 1000u + 4u; i++) d.step(t += 1000);
-    REQUIRE_FALSE(live.bank.var(pres).b());
+    REQUIRE_FALSE(live.bank.var(pres).as_bool());
     live.bank.var(st).set_i((int64_t)Site::IRR_FILLING);
     for (uint32_t i = 0; i + 1u < win / 1000u; i++) {   // up TO the window
         d.step(t += 1000);
-        CHECK_FALSE(live.bank.var(pres).b());
+        CHECK_FALSE(live.bank.var(pres).as_bool());
     }
 
     INFO("...while a supply that never arrives still is");
     for (uint32_t i = 0; i < win / 1000u + 4u; i++) d.step(t += 1000);
-    CHECK(live.bank.var(pres).b());
+    CHECK(live.bank.var(pres).as_bool());
 }
 
 TEST_CASE("irrigation: the day the schedule runs on is today's date") {
@@ -1046,7 +1046,7 @@ TEST_CASE("irrigation: the day the schedule runs on is today's date") {
     d.step(1000);
 
     const uint32_t want = Utils::cal_time_ms(HAL::Clock::uptime_ms()).unixDays;
-    CHECK((uint32_t)f.bank.var(f.ref("irr_today")).i() == want);
+    CHECK((uint32_t)f.bank.var(f.ref("irr_today")).as_i64() == want);
 }
 
 TEST_CASE_FIXTURE(IrrigationRig, "irrigation: a plant with no clock still spends the force it was given") {
@@ -1072,17 +1072,17 @@ TEST_CASE_FIXTURE(IrrigationRig, "irrigation: a plant with no clock still spends
     d.step(t += 1000);
     INFO("a force is honoured with no schedule behind it: that is what a force "
          "is for, and the calendar is the only thing the clock is needed by");
-    REQUIRE(live.bank.var(live.ref("irr_activeTray")).i() == 2);
+    REQUIRE(live.bank.var(live.ref("irr_activeTray")).as_i64() == 2);
 
     HAL::Pulse::inject(Site::pulse_inputs[0].channel, 20);
     d.step(t += 1000);
-    REQUIRE(live.bank.var(live.ref("irr_state")).i() == Site::IRR_DRAINING);
+    REQUIRE(live.bank.var(live.ref("irr_state")).as_i64() == Site::IRR_DRAINING);
     INFO("the force is spent, and the day's tally counted, though neither has "
          "a date to be recorded against");
-    CHECK_FALSE(live.bank.var(live.ref("irr_forceOn_tray2")).b());
-    CHECK(live.bank.var(live.ref("irr_servedToday")).i() == 1);
+    CHECK_FALSE(live.bank.var(live.ref("irr_forceOn_tray2")).as_bool());
+    CHECK(live.bank.var(live.ref("irr_servedToday")).as_i64() == 1);
     INFO("...and nothing was stamped, because there is nothing to stamp");
-    CHECK(live.bank.var(live.ref("irr_last_tray2")).i() == 0);
+    CHECK(live.bank.var(live.ref("irr_last_tray2")).as_i64() == 0);
 }
 
 TEST_CASE_FIXTURE(IrrigationRig, "irrigation: `water now` is spent on the cycle it started") {
@@ -1102,19 +1102,19 @@ TEST_CASE_FIXTURE(IrrigationRig, "irrigation: `water now` is spent on the cycle 
 
     uint64_t t = 0;
     d.step(t += 1000);
-    REQUIRE(live.bank.var(live.ref("irr_state")).i() == Site::IRR_IDLE);
+    REQUIRE(live.bank.var(live.ref("irr_state")).as_i64() == Site::IRR_IDLE);
 
     INFO("`water now` overrides the slot, which is what it is for");
     REQUIRE(live.bank.param_set(live.bank.var(live.ref("irr_forceNow")), true) == SET_OK);
     d.step(t += 1000);
-    REQUIRE(live.bank.var(live.ref("irr_state")).i() == Site::IRR_FILLING);
+    REQUIRE(live.bank.var(live.ref("irr_state")).as_i64() == Site::IRR_FILLING);
 
     INFO("...and is spent as the fill completes, so the plant goes back to its "
          "slots rather than running cycles until somebody clears the flag");
     HAL::Pulse::inject(Site::pulse_inputs[0].channel, 20);
     d.step(t += 1000);
-    REQUIRE(live.bank.var(live.ref("irr_state")).i() == Site::IRR_DRAINING);
-    CHECK_FALSE(live.bank.var(live.ref("irr_forceNow")).b());
+    REQUIRE(live.bank.var(live.ref("irr_state")).as_i64() == Site::IRR_DRAINING);
+    CHECK_FALSE(live.bank.var(live.ref("irr_forceNow")).as_bool());
     CHECK(live.bank.var(live.ref("irr_forceNow")).param_unsaved());
 }
 
@@ -1128,17 +1128,17 @@ TEST_CASE_FIXTURE(IrrigationRig, "irrigation: the afternoon is not a watering sl
 
     // DAY, but hours past the morning window: a tray filled now is still wet
     // when the stomata open.
-    const int16_t rise = (int16_t)(live.bank.var(live.ref("sol_dayRise_min")).i() +
-                                   live.bank.var(live.ref("irr_morningWin_min")).i() + 1);
+    const int16_t rise = (int16_t)(live.bank.var(live.ref("sol_dayRise_min")).as_i64() +
+                                   live.bank.var(live.ref("irr_morningWin_min")).as_i64() + 1);
     live.bank.var(live.ref("cli_phase")).set_i((int64_t)Site::PHASE_DAY);
     live.bank.var(live.ref("sol_fromRise_min")).set_i(rise);
     d.step(1000);
-    CHECK(live.bank.var(live.ref("irr_state")).i() == Site::IRR_IDLE);
+    CHECK(live.bank.var(live.ref("irr_state")).as_i64() == Site::IRR_IDLE);
 
     INFO("inside the morning window it goes");
     live.bank.var(live.ref("sol_fromRise_min")).set_i((int64_t)(rise - 2));
     d.step(2000);
-    CHECK(live.bank.var(live.ref("irr_state")).i() == Site::IRR_FILLING);
+    CHECK(live.bank.var(live.ref("irr_state")).as_i64() == Site::IRR_FILLING);
 
     INFO("and a cold end of night waits for that window rather than watering "
          "cold roots");
@@ -1153,7 +1153,7 @@ TEST_CASE_FIXTURE(IrrigationRig, "irrigation: the afternoon is not a watering sl
           g.bank.var(g.ref("irr_dawnGate_degC")).as_f32() - 1.0f);
     g.bank.var(g.ref("cli_phase")).set_i((int64_t)Site::PHASE_DAWN_BREEZE);
     d2.step(1000);
-    CHECK(g.bank.var(g.ref("irr_state")).i() == Site::IRR_IDLE);
+    CHECK(g.bank.var(g.ref("irr_state")).as_i64() == Site::IRR_IDLE);
 }
 
 TEST_CASE_FIXTURE(Rig<Site::ScreenController>, "screen: a safe request DEPLOYS it, and it parks only once it is there") {
@@ -1190,8 +1190,8 @@ TEST_CASE_FIXTURE(RoofRig, "windows: exactly one ram is energised at a time") {
             char opn[24], clo[24];
             snprintf(opn, sizeof(opn), "cli_window%u_opn", (unsigned)w);
             snprintf(clo, sizeof(clo), "cli_window%u_clo", (unsigned)w);
-            const bool o = live.bank.var(live.ref(opn)).b();
-            const bool c = live.bank.var(live.ref(clo)).b();
+            const bool o = live.bank.var(live.ref(opn)).as_bool();
+            const bool c = live.bank.var(live.ref(clo)).as_bool();
             const bool both = o && c;
             REQUIRE_FALSE(both);            // never both coils of one ram
             if (o || c) energised++;
@@ -1543,17 +1543,17 @@ TEST_CASE_FIXTURE(IrrigationRig, "irrigation: a fill fault names the tray, not j
 
     uint64_t t = 0;
     d.step(t += 1000);
-    REQUIRE(live.bank.var(live.ref("irr_state")).i() == Site::IRR_FILLING);
-    REQUIRE(live.bank.var(live.ref("irr_activeTray")).i() == 2);
+    REQUIRE(live.bank.var(live.ref("irr_state")).as_i64() == Site::IRR_FILLING);
+    REQUIRE(live.bank.var(live.ref("irr_activeTray")).as_i64() == 2);
 
     for (uint32_t i = 0; i < 102; i++) d.step(t += 1000);
 
     INFO("the any-form is what an operator sees; the per-tray one is what still "
          "says which tray once the cycle has moved on");
-    CHECK(live.bank.var(live.ref("alarm_irr_fill")).b());
-    CHECK(live.bank.var(live.ref("alarm_irr_fill_tray2")).b());
-    CHECK_FALSE(live.bank.var(live.ref("alarm_irr_fill_tray1")).b());
-    CHECK_FALSE(live.bank.var(live.ref("alarm_irr_fill_tray3")).b());
+    CHECK(live.bank.var(live.ref("alarm_irr_fill")).as_bool());
+    CHECK(live.bank.var(live.ref("alarm_irr_fill_tray2")).as_bool());
+    CHECK_FALSE(live.bank.var(live.ref("alarm_irr_fill_tray1")).as_bool());
+    CHECK_FALSE(live.bank.var(live.ref("alarm_irr_fill_tray3")).as_bool());
 }
 
 TEST_CASE("irrigation: total water tracks the modulation whatever the split") {
@@ -1596,28 +1596,28 @@ TEST_CASE_FIXTURE(IrrigationRig, "irrigation: the cycle fills to its dose, then 
 
     uint64_t t = 0;
     d.step(t += 1000);
-    CHECK(live.bank.var(live.ref("irr_state")).i() == Site::IRR_FILLING);
-    CHECK(live.bank.var(live.ref("irr_activeTray")).i() == 1);
+    CHECK(live.bank.var(live.ref("irr_state")).as_i64() == Site::IRR_FILLING);
+    CHECK(live.bank.var(live.ref("irr_activeTray")).as_i64() == 1);
     INFO("filling: inlet and this tray open, outlet shut, no other tray");
-    CHECK(live.bank.var(live.ref("irr_input_ro1")).b());
-    CHECK(live.bank.var(live.ref("irr_tray1")).b());
-    CHECK_FALSE(live.bank.var(live.ref("irr_output_ro1")).b());
-    CHECK_FALSE(live.bank.var(live.ref("irr_tray2")).b());
+    CHECK(live.bank.var(live.ref("irr_input_ro1")).as_bool());
+    CHECK(live.bank.var(live.ref("irr_tray1")).as_bool());
+    CHECK_FALSE(live.bank.var(live.ref("irr_output_ro1")).as_bool());
+    CHECK_FALSE(live.bank.var(live.ref("irr_tray2")).as_bool());
 
     // The meter delivers the dose. It is modulated, so ask for plenty.
     HAL::Pulse::inject(Site::pulse_inputs[0].channel, 20);
     d.step(t += 1000);
-    CHECK(live.bank.var(live.ref("irr_state")).i() == Site::IRR_DRAINING);
+    CHECK(live.bank.var(live.ref("irr_state")).as_i64() == Site::IRR_DRAINING);
     INFO("draining: inlet shut, tray still open, outlet open");
-    CHECK_FALSE(live.bank.var(live.ref("irr_input_ro1")).b());
-    CHECK(live.bank.var(live.ref("irr_tray1")).b());
-    CHECK(live.bank.var(live.ref("irr_output_ro1")).b());
-    CHECK_FALSE(live.bank.var(live.ref("alarm_irr_fill")).b());
+    CHECK_FALSE(live.bank.var(live.ref("irr_input_ro1")).as_bool());
+    CHECK(live.bank.var(live.ref("irr_tray1")).as_bool());
+    CHECK(live.bank.var(live.ref("irr_output_ro1")).as_bool());
+    CHECK_FALSE(live.bank.var(live.ref("alarm_irr_fill")).as_bool());
 
     INFO("the day is stamped at the END OF THE FILL, so a fault during the long "
          "drain cannot cause a second watering");
-    CHECK(live.bank.var(live.ref("irr_servedToday")).i() == 1);
-    const uint32_t stamped = (uint32_t)live.bank.var(live.ref("irr_last_tray1")).i();
+    CHECK(live.bank.var(live.ref("irr_servedToday")).as_i64() == 1);
+    const uint32_t stamped = (uint32_t)live.bank.var(live.ref("irr_last_tray1")).as_i64();
     CHECK(stamped > 0);
     // The bank under test has no store bound, so the write stays marked and a
     // later save retries it. That mark is the whole point: drive() would have
@@ -1626,10 +1626,10 @@ TEST_CASE_FIXTURE(IrrigationRig, "irrigation: the cycle fills to its dose, then 
     INFO("it went through the parameter path, so flash is owed the new value");
     CHECK(live.bank.var(live.ref("irr_last_tray1")).param_unsaved());
 
-    const uint32_t window = (uint32_t)live.bank.var(live.ref("irr_drainWindow_sec")).i();
+    const uint32_t window = (uint32_t)live.bank.var(live.ref("irr_drainWindow_sec")).as_i64();
     for (uint32_t i = 0; i <= window + 2; i++) d.step(t += 1000);
-    CHECK(live.bank.var(live.ref("irr_activeTray")).i() == 0);
-    CHECK(live.bank.var(live.ref("irr_last_tray1")).i() == stamped);
+    CHECK(live.bank.var(live.ref("irr_activeTray")).as_i64() == 0);
+    CHECK(live.bank.var(live.ref("irr_last_tray1")).as_i64() == stamped);
 }
 
 namespace {
@@ -1651,9 +1651,9 @@ float drain_at(Live& live, Cycle& d, Site::IrrMtrOutput& meter,
     d.step(t += 1000);
     HAL::Pulse::inject(Site::pulse_inputs[0].channel, 20);
     d.step(t += 1000);
-    REQUIRE(live.bank.var(live.ref("irr_state")).i() == Site::IRR_DRAINING);
+    REQUIRE(live.bank.var(live.ref("irr_state")).as_i64() == Site::IRR_DRAINING);
 
-    const uint32_t window = (uint32_t)live.bank.var(live.ref("irr_drainWindow_sec")).i();
+    const uint32_t window = (uint32_t)live.bank.var(live.ref("irr_drainWindow_sec")).as_i64();
     for (uint32_t i = 0; i <= window + 2; i++) {
         // Every second: the row's timeout is 5 s, and a meter that went stale
         // half way through would be testing the invalid path instead.
@@ -1707,8 +1707,8 @@ TEST_CASE_FIXTURE(IrrigationRig, "irrigation: what comes back out is judged agai
     // margin allows to be missing.
     const float back = drain_at(live, d, out_meter, irr, 5.0f, true);
     CHECK(back > 20.0f);
-    CHECK_FALSE(live.bank.var(live.ref("alarm_irr_drain")).b());
-    CHECK_FALSE(live.bank.var(live.ref("alarm_irr_drain_tray1")).b());
+    CHECK_FALSE(live.bank.var(live.ref("alarm_irr_drain")).as_bool());
+    CHECK_FALSE(live.bank.var(live.ref("alarm_irr_drain_tray1")).as_bool());
 }
 
 TEST_CASE_FIXTURE(IrrigationRig, "irrigation: a tray that does not drain names itself") {
@@ -1719,10 +1719,10 @@ TEST_CASE_FIXTURE(IrrigationRig, "irrigation: a tray that does not drain names i
     // A trickle: half a litre back out of twenty.
     const float back = drain_at(live, d, out_meter, irr, 0.1f, true);
     CHECK(back < 1.0f);
-    CHECK(live.bank.var(live.ref("alarm_irr_drain")).b());
-    CHECK(live.bank.var(live.ref("alarm_irr_drain_tray1")).b());
+    CHECK(live.bank.var(live.ref("alarm_irr_drain")).as_bool());
+    CHECK(live.bank.var(live.ref("alarm_irr_drain_tray1")).as_bool());
     INFO("the OTHER trays are not accused");
-    CHECK_FALSE(live.bank.var(live.ref("alarm_irr_drain_tray2")).b());
+    CHECK_FALSE(live.bank.var(live.ref("alarm_irr_drain_tray2")).as_bool());
 }
 
 TEST_CASE_FIXTURE(IrrigationRig, "irrigation: a silent outlet meter gives no verdict, not a clog") {
@@ -1735,8 +1735,8 @@ TEST_CASE_FIXTURE(IrrigationRig, "irrigation: a silent outlet meter gives no ver
     CHECK(back == 0.0f);
     INFO("nothing was measured, so nothing is blamed - the meter has an alarm "
          "of its own");
-    CHECK_FALSE(live.bank.var(live.ref("alarm_irr_drain")).b());
-    CHECK_FALSE(live.bank.var(live.ref("alarm_irr_drain_tray1")).b());
+    CHECK_FALSE(live.bank.var(live.ref("alarm_irr_drain")).as_bool());
+    CHECK_FALSE(live.bank.var(live.ref("alarm_irr_drain_tray1")).as_bool());
     INFO("but it does not pass in silence");
     CHECK(worst == Plc::Health::DEGRADED);
 }
@@ -1756,15 +1756,15 @@ TEST_CASE_FIXTURE(IrrigationRig, "irrigation: a fill that never arrives raises, 
 
     uint64_t t = 0;
     d.step(t += 1000);
-    REQUIRE(live.bank.var(live.ref("irr_state")).i() == Site::IRR_FILLING);
+    REQUIRE(live.bank.var(live.ref("irr_state")).as_i64() == Site::IRR_FILLING);
 
     for (uint32_t i = 0; i < 102; i++) d.step(t += 1000);   // no pulses at all
 
     INFO("leaving the inlet open on a fault is how a tray overflows, and the "
          "soak is skipped with it: this tray was given nothing to steep in");
-    CHECK(live.bank.var(live.ref("alarm_irr_fill")).b());
-    CHECK(live.bank.var(live.ref("irr_state")).i() == Site::IRR_DRAINING);
-    CHECK_FALSE(live.bank.var(live.ref("irr_input_ro1")).b());
+    CHECK(live.bank.var(live.ref("alarm_irr_fill")).as_bool());
+    CHECK(live.bank.var(live.ref("irr_state")).as_i64() == Site::IRR_DRAINING);
+    CHECK_FALSE(live.bank.var(live.ref("irr_input_ro1")).as_bool());
 }
 
 namespace {

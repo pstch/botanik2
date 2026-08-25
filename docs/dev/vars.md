@@ -125,7 +125,7 @@ an output's says so explicitly; that announcement is the safeguard. Every releas
 (`override_clear()`, `override_clear_all()`, a health withdrawal) wipes the stored copy in
 the same breath, so a released one cannot come back.
 
-## `Bank`: the one writer
+## `Bank`: the one writer {#dev_vars_writers}
 
 `Bank` owns the tables and is what `SystemContext::vars` exposes. Consumers read it
 from the context; nothing gets its own pointer.
