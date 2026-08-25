@@ -125,7 +125,6 @@ namespace Botanik { namespace Pages {
             (void)count;
         }
         void handle_text(char c) override { if (_filter_text(c)) _dirty = true; }
-        bool handle_cancel() override { return false; }
         /** @} */
 
         /** @name Focus & update

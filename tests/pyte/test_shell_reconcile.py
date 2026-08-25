@@ -189,9 +189,16 @@ def test_cursor_returns_to_the_prompt_after_clear(term):
     the declaration along with it.
     """
     home = (_prompt_row(term), 9)         # PS1 is 9 columns
-    for text in (b"hello", RULER.encode()):    # one row, then two
-        term.send(text + keys.CTRL_U)
+    # One row, then two: the multi-row clear shrinks the band back down, and
+    # only that path ever re-placed the cursor.
+    for text, drawn in ((b"hello", ["botanik> hello"]),
+                        (RULER.encode(), ["botanik> " + RULER[:71],
+                                          "> " + RULER[71:]])):
+        term.send(text)
+        assert_editor(term, *drawn)
+        term.send(keys.CTRL_U)
         assert_editor(term, "botanik>")
+        term.settle()                 # the screen is right; let the cursor land
         assert (term.screen.cursor.y, term.screen.cursor.x) == home, \
             "^U left the cursor at %r" % ((term.screen.cursor.y,
                                            term.screen.cursor.x),)

@@ -301,18 +301,6 @@ namespace Botanik { namespace Pages {
         end = (uint16_t)(start + (i < n ? cols[i].width : 0));
     }
 
-    uint16_t ScrollTablePage::_cell_col(uint8_t i) const {
-        uint16_t start = 0, end = 0;
-        _cell_span(i, start, end);
-        return start;
-    }
-
-    uint16_t ScrollTablePage::_cell_end(uint8_t i) const {
-        uint16_t start = 0, end = 0;
-        _cell_span(i, start, end);
-        return end;
-    }
-
     uint16_t ScrollTablePage::_build_row(char* out, size_t cap, const char* const* cells) const {
         Col cols[MAX_COLS];
         uint8_t n = _fit_columns(cols);

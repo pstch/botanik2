@@ -145,9 +145,8 @@ namespace Botanik { namespace Pages {
         /** @name Content
          *  @{ */
 
-        /** @brief The note as it stands, for a test or a shell command. */
-        const char* text() const     { return _editor.buffer(); }
-        uint16_t    text_len() const { return _editor.buffer_len(); }
+        /** @brief The note as it stands. */
+        const char* text() const { return _editor.buffer(); }
 
         /** @} */
 

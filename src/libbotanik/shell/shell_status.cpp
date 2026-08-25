@@ -3,8 +3,11 @@
  * @brief What the unit is REPORTING: the beat's metrics and per-task costs, the
  *        build identity, and the network / field-bus state.
  */
-#include "libbotanik/vars/bindings.h"
 #include "libbotanik/shell/shell.h"
+#include "libbotanik_features.h"
+
+#if BOTANIK_FEATURE_SHELL_PAGE
+#include "libbotanik/vars/bindings.h"
 #include "libbotanik/shell/args.h"
 
 #include <algorithm>
@@ -15,8 +18,6 @@
 #include "libbotanik/config/modbus.h"
 #include "libbotanik/config/net.h"
 #include "libbotanik/config/scheduler.h"
-#include "libbotanik_features.h"
-
 #include "libbotanik/hal/platform.h"
 #include "libbotanik/modbus/rtu/client.h"
 #include "libbotanik/modbus/tcp/slave.h"
@@ -601,3 +602,5 @@ namespace Botanik { namespace Shell {
 #endif
 
 }}  // namespace Botanik::Shell
+
+#endif // BOTANIK_FEATURE_SHELL_PAGE

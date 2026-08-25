@@ -374,13 +374,6 @@ namespace Botanik { namespace Pages {
         /** @brief Column @p i's contents on screen: [@p start, @p end). */
         void _cell_span(uint8_t i, uint16_t& start, uint16_t& end) const;
 
-        /** @brief Screen column where column @p i's CONTENTS start - what a
-         *  selection cursor or an in-cell badge inverts from. */
-        uint16_t _cell_col(uint8_t i) const;
-
-        /** @brief One past the last column of column @p i's contents. */
-        uint16_t _cell_end(uint8_t i) const;
-
         /** @brief Build "  | a | b | c |" into @p out from @p cells (one per
          *  declared column; a null cell renders empty). @return its length. */
         uint16_t _build_row(char* out, size_t cap, const char* const* cells) const;

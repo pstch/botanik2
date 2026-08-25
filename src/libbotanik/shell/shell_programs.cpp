@@ -8,6 +8,9 @@
  * inhibited changes nothing visible, which is what `control` is for reporting.
  */
 #include "libbotanik/shell/shell.h"
+#include "libbotanik_features.h"
+
+#if BOTANIK_FEATURE_SHELL_PAGE && BOTANIK_FEATURE_PLC
 #include "libbotanik/shell/args.h"
 
 #include <cstdarg>
@@ -209,3 +212,5 @@ namespace Botanik { namespace Shell {
 #endif
 
 }}  // namespace Botanik::Shell
+
+#endif // BOTANIK_FEATURE_SHELL_PAGE && BOTANIK_FEATURE_PLC
