@@ -48,57 +48,39 @@ namespace {
 /**
  * @brief Every control program the site runs, constructed together.
  *
- * A new program goes HERE, and that is the price of them being firmware
- * members rather than a table: two cases below walk this list, and a program
- * missing from it is a program whose names nothing checks.
+ * Driven by SITE_PROGRAM_LIST, the same X-macro site.h expands three times, so
+ * this cannot fall behind the firmware the way a hand-kept list did: it was
+ * missing four programs, and the two cases below walked past them.
+ *
+ * @note The tracker is never registered here, so it stays unlocated and
+ * day_phase holds its phase - the boot path, and the one worth walking.
  */
 struct AllPrograms {
-    /** @brief The sun watch owns the tracker, so the harness gets it for free.
-     *  Never registered here, so it stays unlocated and day_phase holds its
-     *  phase - which is the boot path, and the one worth walking. */
-    Site::SunWatch             sun_watch;
+#define X(cls, mem) Site::cls mem;
+    SITE_PROGRAM_LIST(X)
+#undef X
 
-    Site::AcGridWatch          ac_grid;
-    Site::AcLocalWatch         ac_local;
-    Site::DcWatch              dc;
-    Site::TempRHSensors        sensors;
-    Site::TempRHZone           zones;
-    Site::StratSensor          strat;
-    Site::DayPhaseController   phase;
-    Site::TargetTempController target;
-    Site::CoolingController    cooling;
-    Site::DestratController    destrat;
-    Site::HumidityController   humidity;
-    Site::IrrigationModulation irr_mod;
-    Site::IrrMtrInput          irr_in;
-    Site::IrrMtrOutput         irr_out;
-    Site::IrrigationCycle      irrigation;
-    Site::IrrValves            irr_valves;
-    Site::ScreenController     screen;
-    Site::WindowsController    windows;
-    Site::IntractorController  intractors;
-    Site::FanController        fans;
-    Site::SkirtController      skirt;
-
-    static const uint8_t COUNT = 22;
+#define X(cls, mem) + 1
+    static const uint8_t COUNT = 0 SITE_PROGRAM_LIST(X);
+#undef X
     Botanik::Plc::Program* all[COUNT];
 
     AllPrograms(const Botanik::SetupContext& ctx, Vars::Bank& io)
-        : sun_watch(ctx, io), ac_grid(ctx, io), ac_local(ctx, io), dc(ctx, io), sensors(ctx, io), zones(ctx, io),
-          strat(ctx, io), phase(ctx, io), target(ctx, io), cooling(ctx, io),
-          destrat(ctx, io), humidity(ctx, io),
-          irr_mod(ctx, io), irr_in(ctx, io), irr_out(ctx, io), irrigation(ctx, io), irr_valves(ctx, io), screen(ctx, io), windows(ctx, io),
-          intractors(ctx, io), fans(ctx, io), skirt(ctx, io) {
-        Botanik::Plc::Program* const list[] = {
-            &ac_grid, &ac_local, &dc, &sensors, &zones, &strat, &phase, &target,
-            &cooling, &destrat, &humidity, &irr_mod, &irr_in, &irr_out, &irrigation, &irr_valves, &screen,
-            &sun_watch,
-            &windows, &intractors, &fans, &skirt
-        };
-        // Sized from the list, never a literal: a hand-kept count silently
-        // drops whichever program is last the day one is added.
-        for (uint8_t i = 0; i < COUNT; i++) all[i] = list[i];
+        : _first(io)
+#define X(cls, mem) , mem(ctx, io)
+          SITE_PROGRAM_LIST(X)
+#undef X
+    {
+        uint8_t n = 0;
+#define X(cls, mem) all[n++] = &mem;
+        SITE_PROGRAM_LIST(X)
+#undef X
     }
+
+private:
+    /** @brief Only so the ctor-init list above can lead every entry with a
+     *  comma, which is what lets the macro emit them uniformly. */
+    Vars::Bank& _first;
 };
 
 }  // namespace
