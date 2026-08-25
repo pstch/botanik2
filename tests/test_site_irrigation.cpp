@@ -602,4 +602,32 @@ TEST_CASE_FIXTURE(IrrigationRig, "irrigation: a fill that never arrives raises, 
     CHECK_FALSE(live.bank.var(live.ref("irr_input_ro1")).as_bool());
 }
 
+TEST_CASE_FIXTURE(IrrigationRig, "irrigation: a fill that never arrives is spent, not retried") {
+    // The flood: with a stuck meter the fill times out, and if the attempt is
+    // not spent the schedule re-picks the same tray on the next slot and
+    // refills it until the window closes.
+    summer(live);
+    HAL::Pulse::attach(Site::pulse_inputs[0].channel, Site::pulse_inputs[0].edge);
+    live.bank.var(live.ref("cli_temp_ext")).publish(from_f32(T_F32, 20.0f), 0);
+    slot(live);
+    live.bank.param_set(live.bank.var(live.ref("irr_forceOn_tray1")), true);
+    live.bank.param_set(live.bank.var(live.ref("irr_liters_tray1")), 5.0f);
+    REQUIRE(live.bank.param_set(live.bank.var(live.ref("irr_maxFill_sec")), 100.0f) == SET_OK);
+
+    uint64_t t = 0;
+    d.step(t += 1000);
+    REQUIRE(live.bank.var(live.ref("irr_state")).as_i64() == Site::IRR_FILLING);
+    REQUIRE(live.bank.var(live.ref("irr_servedToday")).as_i64() == 0);
+
+    for (uint32_t i = 0; i < 102; i++) d.step(t += 1000);   // no pulses at all
+    REQUIRE(live.bank.var(live.ref("alarm_irr_fill")).as_bool());
+
+    INFO("the force asked for one watering, and it got its attempt");
+    CHECK(live.bank.var(live.ref("irr_forceOn_tray1")).as_bool() == false);
+    INFO("the day's allowance counts an attempt, which is what bounds the day");
+    CHECK(live.bank.var(live.ref("irr_servedToday")).as_i64() == 1);
+    INFO("...and the tray is stamped, so its own interval backs it off");
+    CHECK(live.bank.var(live.ref("irr_last_tray1")).as_i64() > 0);
+}
+
 }  // namespace site_programs

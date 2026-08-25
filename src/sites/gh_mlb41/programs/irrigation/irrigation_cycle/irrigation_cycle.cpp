@@ -161,6 +161,13 @@ void IrrigationCycle::run(ProgramContext& c) {
                 // the inlet open on a fault is how a tray overflows.
                 fill_fault.set(true, true);
                 _blame(fill_tray, true);
+                // SPENT, exactly as a fill that arrived. An attempt that failed
+                // is still an attempt: leaving the force standing and the tray
+                // unstamped puts the schedule straight back on the same tray,
+                // and a stuck meter then refills it every slot until the window
+                // closes - which is water on the floor rather than a fault
+                // somebody reads. alarm_irr_fill is how it gets read.
+                _stamp_served();
                 // What actually went in, which may be nothing: the drain is
                 // judged against the water the tray really got.
                 _dose_L = got;
