@@ -98,7 +98,7 @@ private:
 
     /** @brief The tray owed water, or 0. Honours the per-tray forces, and
      *  publishes the modulated interval of whichever tray it picks. */
-    uint8_t _next_due(float mod, uint32_t today);
+    uint8_t _next_due(float mod_now, uint32_t day);
     /** @brief Whether a cycle may START now. Two slots: the end of the
      *  night, and the first hours of the day for when the night was too
      *  cold to water in. Never the afternoon - a tray filled then is still

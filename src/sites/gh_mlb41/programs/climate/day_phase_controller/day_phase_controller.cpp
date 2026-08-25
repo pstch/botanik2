@@ -7,18 +7,18 @@
 
 namespace Site {
 
-DayPhase DayPhaseController::_phase_at(int16_t from_rise,
-                                       int16_t from_set) const {
+DayPhase DayPhaseController::_phase_at(int16_t since_rise,
+                                       int16_t since_set) const {
     // Down the day in order, so a boundary an operator has trimmed past the one
     // after it shortens its own phase rather than swallowing the next.
-    if (from_rise < cold_bank_rise.get()) return PHASE_NIGHT;
-    if (from_rise < breeze_rise.get())
+    if (since_rise < cold_bank_rise.get()) return PHASE_NIGHT;
+    if (since_rise < breeze_rise.get())
         return cold_arm.get() ? PHASE_COLD_BANK : PHASE_NIGHT;
-    if (from_rise < day_rise.get())       return PHASE_DAWN_BREEZE;
-    if (from_set  < heat_bank_set.get())  return PHASE_DAY;
-    if (from_set  < dusk_set.get())
+    if (since_rise < day_rise.get())       return PHASE_DAWN_BREEZE;
+    if (since_set  < heat_bank_set.get())  return PHASE_DAY;
+    if (since_set  < dusk_set.get())
         return heat_arm.get() ? PHASE_HEAT_BANK : PHASE_DAY;
-    if (from_set  < night_set.get())      return PHASE_DUSK_BREEZE;
+    if (since_set  < night_set.get())      return PHASE_DUSK_BREEZE;
     return PHASE_NIGHT;
 }
 

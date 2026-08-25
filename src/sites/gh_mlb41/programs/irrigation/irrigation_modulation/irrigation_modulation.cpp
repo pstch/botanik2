@@ -32,9 +32,9 @@ float IrrigationModulation::_track_dryness(ProgramContext& c) {
 }
 
 void IrrigationModulation::observe(ProgramContext& c) {
-    const float vpd_avg = _track_dryness(c);
+    const float avg = _track_dryness(c);
 
-    const float demand  = Plc::ladder(vpd_avg, dry_lo.get(), dry_hi.get());
+    const float demand  = Plc::ladder(avg, dry_lo.get(), dry_hi.get());
     const float min_mod = Plc::limit(mod_min.get(), 0.0f, 1.0f);
     // Gamma is held at 1 or more so the curve is concave-up: watering reaches
     // its summer figure only once dryness is really established, and every

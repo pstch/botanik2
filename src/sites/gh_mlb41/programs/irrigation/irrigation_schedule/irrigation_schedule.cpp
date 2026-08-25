@@ -48,18 +48,18 @@ bool IrrigationSchedule::_in_slot() const {
                                         (int16_t)morning_win.get());
 }
 
-uint8_t IrrigationSchedule::_next_due(float mod, uint32_t today) {
+uint8_t IrrigationSchedule::_next_due(float mod_now, uint32_t day) {
     // period = summer period / mod^(1 - split), volume = summer volume *
     // mod^split, so their RATIO - the water actually delivered per day - is
     // proportional to mod whatever the split is set to.
     const float split_lim = Plc::limit(split.get(), 0.0f, 1.0f);
-    const float stretch = powf(mod, 1.0f - split_lim);
+    const float stretch = powf(mod_now, 1.0f - split_lim);
 
     uint8_t  best = 0;
     uint32_t worst_overdue = 0;
     for (uint8_t i = 0; i < N_DAYS; i++) {
         if (force_on[i].get()) return (uint8_t)(i + 1);
-        if (today == 0) continue;                     // no date, no schedule
+        if (day == 0) continue;                     // no date, no schedule
         const float summer_days = (float)days[i].get();
         if (summer_days <= 0.0f) continue;        // this tray is not scheduled
 
@@ -74,8 +74,8 @@ uint8_t IrrigationSchedule::_next_due(float mod, uint32_t today) {
         // A tray never served has no history to be overdue against, so it goes
         // first; one whose stored day is in the FUTURE is a clock that moved
         // backwards, and waiting for it to catch up would strand the tray.
-        const uint32_t elapsed = (served_on == 0 || served_on > today)
-                                     ? due_after : (today - served_on);
+        const uint32_t elapsed = (served_on == 0 || served_on > day)
+                                     ? due_after : (day - served_on);
         if (elapsed < due_after) continue;
 
         // Held back by hand, and ONCE: the skip is spent on the watering it
@@ -83,7 +83,7 @@ uint8_t IrrigationSchedule::_next_due(float mod, uint32_t today) {
         // arriving again tomorrow with the flag gone.
         if (force_off[i].get()) {
             _clear_force(force_off[i]);
-            _stamp(i, today);
+            _stamp(i, day);
             continue;
         }
 

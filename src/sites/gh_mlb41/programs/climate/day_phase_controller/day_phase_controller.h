@@ -88,7 +88,7 @@ private:
 
     /** @brief The phase two offsets land in, with the two BANK phases
      *  skipped when yesterday did not arm them. */
-    DayPhase _phase_at(int16_t from_rise, int16_t from_set) const;
+    DayPhase _phase_at(int16_t since_rise, int16_t since_set) const;
 };
 
 inline void DayPhaseController::bind(Vars::Bank& io) {
