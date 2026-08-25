@@ -156,6 +156,20 @@ parameter with `SET_INVALID` - writing a sensor or an output would simply be
 overwritten by the next scan. `override_set()` checks only the type, so a reading can
 be pushed past its plausibility band to exercise the alarm watching for it.
 
+### How its methods are named {#dev_vars_naming}
+
+Three shapes, and which one a new method takes is not a matter of taste.
+
+| Shape | For | Examples |
+|---|---|---|
+| `<noun>_<verb>` | a FAMILY of operations on one concept, so the family sorts together and reads the way the shell says it | `override_set` / `override_clear` / `override_clear_all`, matching `overrides set` / `overrides clear` |
+| `set_<property>` | a single property with no family behind it. Turning these around would give `health_hold_set`, which is why they are not the shape above | `set_store`, `set_control_mode`, `set_health_hold` |
+| `<thing>_count()` | a tally, always, and never `num_` or `n_` | `param_count`, `unsaved_count`, `refused_count`, `unresolved_count`, `param_stray_count` |
+
+`set()` alone means EDIT A PARAMETER. Anything that writes a row by another
+route says so in its name (`override_set`, `publish` on `Var`), so a caller
+cannot reach for `set` and get a different rule.
+
 ### The sink
 
 An out-of-range index - including `VAR_NONE` - resolves to an inert **sink** row, not
