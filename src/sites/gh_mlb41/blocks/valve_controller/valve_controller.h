@@ -32,9 +32,12 @@ public:
     /** @brief Take @p coil, and its declared safe state as the fail direction. */
     void attach(Vars::RefOut<bool> coil);
 
-    void set(bool open) { _coil.set(open); }
+    /** @brief Drive the coil. @p current is the quality it is written with,
+     *  forwarded rather than decided here: a valve is commanded by a law, and
+     *  the law is what knows whether it still has the inputs it commanded on. */
+    void set(bool open, bool current);
     /** @brief Drive it where a dead controller would leave it. */
-    void park() { set(_fail_open); }
+    void park();
     bool fails_open() const { return _fail_open; }
 
     /** @brief Modulate: @p duty of @p period_ms, floored at @p min_on_ms -

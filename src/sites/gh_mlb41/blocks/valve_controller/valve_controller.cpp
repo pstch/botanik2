@@ -1,6 +1,6 @@
 /**
  * @file valve_controller.cpp
- * @brief HAND-WRITTEN - the valve block's two out-of-line members.
+ * @brief HAND-WRITTEN - the valve block's out-of-line members.
  */
 
 #include "valve_controller.h"
@@ -16,6 +16,16 @@ void ValveController::attach(Vars::RefOut<bool> coil) {
     _fail_open = Vars::as_bool(d.type, d.def);
 }
 
+void ValveController::set(bool open, bool current) {
+    _coil.set(open, current);
+}
+
+void ValveController::park() {
+    // A parked valve is a DECISION, not an estimate: the coil goes where a
+    // dead controller would leave it, and that is as current as anything.
+    _coil.set(_fail_open, true);
+}
+
 float ValveController::modulate(float duty, uint32_t period_ms,
                                 uint32_t min_on_ms, uint32_t dt_ms) {
     duty = Plc::limit(duty, 0.0f, 1.0f);
@@ -29,7 +39,7 @@ float ValveController::modulate(float duty, uint32_t period_ms,
     _phase_ms += dt_ms;
     while (_phase_ms >= period_ms) _phase_ms -= period_ms;
 
-    set(_phase_ms < served);
+    _coil.set(_phase_ms < served, true);
     return (float)served / (float)period_ms;
 }
 

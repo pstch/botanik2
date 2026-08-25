@@ -65,7 +65,7 @@ void ScreenController::run(ProgramContext& c) {
         const DayPhase now = (DayPhase)phase.get();
         deploy = _allows(now, cold) ? cold : screen.get();
     }
-    screen.set(deploy);
+    screen.set(deploy, true);
 
     // Travelling, or about to be: observe() starts the stroke, and a command
     // that disagrees with where the fabric is means one is coming.
@@ -79,7 +79,7 @@ void ScreenController::observe(ProgramContext& c) {
     // reports itself as moving and the fans stay cut. The target is the ROW,
     // which is what this law asked for and what an operator may have forced.
     fabric.step(screen.get() ? 1.0f : 0.0f, _mechanics(), c.dt_ms);
-    moving.set(fabric.moving());
+    moving.set(fabric.moving(), true);
 }
 
 }  // namespace Site

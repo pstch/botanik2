@@ -76,7 +76,8 @@ re-renders in place. Every diagram under `images/` works this way; see
 - **A program always writes its outputs**, every beat, whatever its inputs did.
   It runs the same law on whatever those inputs hold and says so on the way out:
   `Ref::set(v, current)` drives the value and drops the quality when `current`
-  is false (`set(v, false)` is `hold(v)`). Skipping the write leaves a stale
+  is false (`set(v, false)` is `hold(v)`). There is NO one-argument form, so a
+  write that has not thought about quality does not compile. Skipping the write leaves a stale
   number reading `Q_GOOD`; substituting zero reads as a measurement, which is
   how a dead probe becomes a greenhouse at 0 degC. Two things sit outside this.
   An ACTUATOR goes to its declared safe state instead - a coil command is a

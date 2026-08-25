@@ -24,9 +24,9 @@ void IrrMtrInput::observe(ProgramContext& c) {
     // Unsigned difference, so the 32-bit counter wrapping costs nothing.
     const float total = _base_L
                       + (float)(pulses - _base_pulses) * qty_per_pulse.get();
-    in_total.set(total);
+    in_total.set(total, true);
     const float flow = 60.0f * rate(total, rate_win.get(), c.dt_ms);
-    in_flow.set(flow);
+    in_flow.set(flow, true);
 
     const IrrState st = (IrrState)state.get();
     // TWO windows, not one. The rate is the last COMPLETED window and stands
@@ -43,10 +43,10 @@ void IrrMtrInput::observe(ProgramContext& c) {
 
     // Idle means every valve in the circuit is shut, so anything the inlet
     // meter counts is going somewhere nobody opened.
-    leak.set(idle && flow > leak_Lpm.get());
+    leak.set(idle && flow > leak_Lpm.get(), true);
 
     // The mirror image: the inlet is open and the water is not arriving.
-    pressure.set(fill && flow < min_fill_Lpm.get());
+    pressure.set(fill && flow < min_fill_Lpm.get(), true);
 }
 
 }  // namespace Site

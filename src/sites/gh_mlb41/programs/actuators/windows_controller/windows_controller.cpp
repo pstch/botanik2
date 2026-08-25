@@ -76,8 +76,8 @@ void WindowsController::run(ProgramContext& c) {
     if (owner >= 0) act[owner].step(_target, cfg, c.dt_ms);
 
     for (uint8_t i = 0; i < N_ACT; i++) {
-        opn[i].set(act[i].open_cmd());
-        clo[i].set(act[i].close_cmd());
+        opn[i].set(act[i].open_cmd(), true);
+        clo[i].set(act[i].close_cmd(), true);
         // Parked is every window AT THE TARGET, not every window commanded to
         // it: one at a time means the last of the four is a minute behind the
         // first, and a supervisor that dropped control at the request would
@@ -93,8 +93,8 @@ void WindowsController::observe(ProgramContext&) {
     // One target for all four - they are one roof - against each ram's own
     // position estimate, which is what says how far behind the sequence is.
     for (uint8_t i = 0; i < N_ACT; i++) {
-        tgt[i].set(_target);
-        if (act[i].known()) pos[i].set(act[i].position());
+        tgt[i].set(_target, true);
+        if (act[i].known()) pos[i].set(act[i].position(), true);
         else pos[i].invalidate();
     }
 }

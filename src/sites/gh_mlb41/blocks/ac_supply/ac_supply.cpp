@@ -15,7 +15,7 @@ void AcSupply::reset() {
 
 void AcSupply::_mirror(Vars::RefOut<float> out, Plc::Deadband& band,
                        Vars::RefIn<float> in, float width) {
-    if (in.valid()) out.set(band(in.get(), width));
+    if (in.valid()) out.set(band(in.get(), width), true);
     else            out.invalidate();
 }
 
@@ -40,7 +40,7 @@ bool AcSupply::step(bool& fault) {
 
     const bool in_spec = Plc::in_range(volts, _lo_v.get(), _hi_v.get()) &&
                          Plc::in_range(hz, _lo_hz.get(), _hi_hz.get());
-    _ok.set(measured && in_spec);
+    _ok.set(measured && in_spec, true);
 
     // A meter that has never answered is BRING-UP, not a supply fault: the bus
     // has not got round to it yet, and alarming on that annunciates every boot.

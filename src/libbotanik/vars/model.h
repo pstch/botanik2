@@ -1011,15 +1011,10 @@ namespace Botanik { namespace Vars {
     inline T Ref<T, D>::get() const { return io->get(*this); }
 
     template <typename T, Dir D>
-    inline void Ref<T, D>::set(T v) const {
+    inline void Ref<T, D>::set(T v, bool current) const {
         static_assert(D != Dir::IN, "a VAR_INPUT row cannot be driven");
         io->drive(*this, v);
-    }
-
-    template <typename T, Dir D>
-    inline void Ref<T, D>::set(T v, bool current) const {
-        if (current) set(v);
-        else         hold(v);
+        if (!current) io->var(r).invalidate(Q_HELD);
     }
 
     template <typename T, Dir D>

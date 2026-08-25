@@ -194,7 +194,7 @@ void SupplyWatch::observe(ProgramContext& c) {
     const bool unhealthy = !Plc::in_range(ln.get(), 200.0f, 260.0f);
 
     // reset-dominant: recovery wins, so the lockout cannot stick
-    locked.set(_lockout(_bad_for(unhealthy, 5000, c.dt_ms), !unhealthy));
+    locked.set(_lockout(_bad_for(unhealthy, 5000, c.dt_ms), !unhealthy), true);
 }
 ```
 

@@ -14,7 +14,7 @@ void ClimateWatch::observe(ProgramContext& c) {
     // plant that a supervisor wants without knowing there are four of them.
     bool blind = false;
     for (const Vars::RefIn<bool>& a : sns) blind = blind || c.bank.get(a);
-    sensor.set(blind);
+    sensor.set(blind, true);
 
     const bool measured = temp.valid() &&
                           margin.valid();
@@ -22,23 +22,23 @@ void ClimateWatch::observe(ProgramContext& c) {
         // Nothing is raised on a reading nobody has. The quorum alarm above is
         // what says the plant cannot be seen, and it is already raised.
         degraded();
-        hot.set(false);
-        cold.set(false);
-        humid.set(false);
+        hot.set(false, true);
+        cold.set(false, true);
+        humid.set(false, true);
     } else {
-        hot.set(temp.get() > too_hot.get());
-        cold.set(temp.get() < too_cold.get());
+        hot.set(temp.get() > too_hot.get(), true);
+        cold.set(temp.get() < too_cold.get(), true);
         // A MARGIN, not an RH: air at 90% and 5 degC is drier than air at 60%
         // and 25, and the alarm has to mean one thing at both. The line is the
         // dehumidify arm's own saturation point, so the alarm cannot disagree
         // with the actuator it is about.
-        humid.set(margin.get() < humid_at.get());
+        humid.set(margin.get() < humid_at.get(), true);
     }
 
     // Past the band the fans are already flat out on: the gap is not something
     // destratification is going to close on its own.
     stratified.set(strat.valid() &&
-                 strat.get() > strat_hi.get());
+                 strat.get() > strat_hi.get(), true);
 }
 
 }  // namespace Site

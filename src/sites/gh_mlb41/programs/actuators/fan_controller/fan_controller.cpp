@@ -41,11 +41,11 @@ uint8_t FanController::_band(float demand) {
 
 void FanController::_drive(uint8_t speed) {
     for (uint8_t i = 0; i < N_SPEED1; i++) {
-        speed1[i].set(speed == 1);
-        speed2[i].set(speed == 2);
-        speed3[i].set(speed == 3);
+        speed1[i].set(speed == 1, true);
+        speed2[i].set(speed == 2, true);
+        speed3[i].set(speed == 3, true);
     }
-    band.set(speed);
+    band.set(speed, true);
 }
 
 void FanController::run(ProgramContext& c) {

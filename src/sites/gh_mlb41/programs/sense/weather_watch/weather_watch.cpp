@@ -15,7 +15,7 @@ void WeatherWatch::observe(ProgramContext& c) {
     if (measured) _seen = true;
     // A station that has never answered is the bus still coming up; one that
     // has and has stopped is the fault the windows are already shut for.
-    station.set(_seen && !measured);
+    station.set(_seen && !measured, true);
     if (!measured) degraded();
 
     // A STORM is sustained wind: cli_windShutEnd_mps, 20.8, which is 75 kmph and
@@ -26,7 +26,7 @@ void WeatherWatch::observe(ProgramContext& c) {
     // The MEAN, not the gust: a gust is a moment and a storm is a condition.
     // The row's own dwell is what makes it sustained. Only once the station has
     // answered, or every boot announces one.
-    storm.set(_seen && wind.valid() && wind.get() >= storm_wind.get());
+    storm.set(_seen && wind.valid() && wind.get() >= storm_wind.get(), true);
 
     // How long the house has been dry. A gauge that is not answering says
     // nothing about the weather, so the clock stands rather than running on.
@@ -36,7 +36,7 @@ void WeatherWatch::observe(ProgramContext& c) {
     }
     if (_wet_seen) {
         const uint64_t mins = _dry_ms / 60000ull;
-        since_rain.set((uint16_t)(mins > 65535ull ? 65535ull : mins));
+        since_rain.set((uint16_t)(mins > 65535ull ? 65535ull : mins), true);
     } else {
         since_rain.hold();
     }

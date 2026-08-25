@@ -16,7 +16,7 @@ void SkirtController::run(ProgramContext& c) {
     if (inhibit_requested() || rot_lock.get()) {
         pulse.park();
         pulse.reset();
-        duty.set(0.0f);
+        duty.set(0.0f, true);
         return;
     }
 
@@ -35,7 +35,7 @@ void SkirtController::run(ProgramContext& c) {
     const float on_time = pulse.modulate((humid > cool) ? humid : cool,
                                          1000u * period_s.get(),
                                          1000u * min_on_s.get(), c.dt_ms);
-    duty.set(on_time);
+    duty.set(on_time, true);
 }
 
 }  // namespace Site

@@ -40,11 +40,11 @@ void IrrValves::run(ProgramContext& c) {
     // length of the shared manifold and out through the drain, so what sat in
     // the line after a tray emptied is not what the next tray gets first.
     for (uint8_t i = 0; i < 2; i++) {
-        inlet_v[i].set(filling || st == IRR_FLUSHING);
-        outlet_v[i].set(draining || st == IRR_FLUSHING);
+        inlet_v[i].set(filling || st == IRR_FLUSHING, true);
+        outlet_v[i].set(draining || st == IRR_FLUSHING, true);
     }
     for (uint8_t i = 0; i < N_TRAY_VALVE; i++)
-        tray_v[i].set((filling || soaking || draining) && (i + 1 == tray));
+        tray_v[i].set((filling || soaking || draining) && (i + 1 == tray), true);
 }
 
 }  // namespace Site

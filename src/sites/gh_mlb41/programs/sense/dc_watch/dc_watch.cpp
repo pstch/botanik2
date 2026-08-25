@@ -33,7 +33,7 @@ static bool _rail(const Rail& r, uint32_t dt_ms, bool& seen) {
                                  : r.avg.value();
     // A rail nobody is measuring has no voltage to publish. Its LAST average
     // stays in the filter, so a divider that comes back rejoins where it left.
-    if (measured) r.out.set(r.band(volts, SUPPLY_V_BAND));
+    if (measured) r.out.set(r.band(volts, SUPPLY_V_BAND), true);
     else          r.out.invalidate();
     if (measured) seen = true;
     // A divider that has never answered is the bus still coming up. One that
@@ -62,16 +62,16 @@ void DcWatch::observe(ProgramContext& c) {
     const bool ups = _rail(rails[2], c.dt_ms, _seen[2]);
     const bool gen = _rail(rails[3], c.dt_ms, _seen[3]);
 
-    ps1_flt.set(!ps1);
-    ps2_flt.set(!ps2);
-    gen_flt.set(!gen);
+    ps1_flt.set(!ps1, true);
+    ps2_flt.set(!ps2, true);
+    gen_flt.set(!gen, true);
 
     // THE CONTACT, not the divider: the UPS knows what its own battery has
     // left, and a voltage on the rail is a guess at it. Debounced, because a
     // dry contact bounces and this one holds the whole plant.
     const bool low = low_for(low_bat.get(), 2000, c.dt_ms);
-    ups_flt.set(low);
-    lockout.set(low);
+    ups_flt.set(low, true);
+    lockout.set(low, true);
 
     // ...and the lockout IS the plant's safe state: every program is asked to
     // park while it stands, and released the moment it does not. Held rather
@@ -83,7 +83,7 @@ void DcWatch::observe(ProgramContext& c) {
 
     // The battery voltage is a WARNING and the contact is the interlock, so the
     // summary carries both: an operator reading one row wants the whole answer.
-    ok.set(ps1 && ps2 && ups && gen && !low);
+    ok.set(ps1 && ps2 && ups && gen && !low, true);
 }
 
 }  // namespace Site

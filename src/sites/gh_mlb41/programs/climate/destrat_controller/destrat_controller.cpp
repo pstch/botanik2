@@ -34,7 +34,7 @@ void DestratController::run(ProgramContext& c) {
     // Any other number would have to be translated twice, and the two ladders
     // would drift apart the first time one of them was retuned.
     demand.set(Plc::mux4(speed, 0.0f, fan_low.get(), fan_med.get(),
-                         fan_high.get()));
+                         fan_high.get()), true);
 }
 
 }  // namespace Site

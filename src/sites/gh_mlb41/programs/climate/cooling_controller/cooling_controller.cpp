@@ -29,8 +29,8 @@ void CoolingController::run(ProgramContext& c) {
         // drawing air is a decision about which side of a difference is
         // cooler, and one end of it has gone. Written, not held - a gate is a
         // command, and this one is the safe answer rather than a stale guess.
-        intake_ok.set(false);
-        ground_ok.set(false);
+        intake_ok.set(false, true);
+        ground_ok.set(false, true);
         pid.reset();      // the integral is about a plant we stopped seeing
         faulted();
         return;
@@ -58,11 +58,11 @@ void CoolingController::run(ProgramContext& c) {
     // it is positive (cooling) and below it negative (the intractors drawing
     // warm floor air, and lower still the thermal screen).
     const float dem = pid(target.get(), t_in, t, c.dt_ms);
-    demand.set(dem);
+    demand.set(dem, true);
     // Where the ladder wants the windows, published as the one INTENDED
     // opening: the windows apply the interlocks to it, and an operator can see
     // what was asked for beside where each ram actually is.
-    window.set(Plc::ladder(dem, win_start.get(), win_full.get()));
+    window.set(Plc::ladder(dem, win_start.get(), win_full.get()), true);
     _intake_gates(t_in, dem);
 }
 
@@ -80,7 +80,7 @@ void CoolingController::_intake_gates(float t_in, float dem) {
     // Each gate opens AT its margin and closes a band under it, so a difference
     // sitting on the margin - which is what two converging temperatures do -
     // holds the gate where it is instead of flipping it every beat.
-    intake_ok.set(ok && cool_gate(t_in - t_intake, margin - hyst, margin));
+    intake_ok.set(ok && cool_gate(t_in - t_intake, margin - hyst, margin), true);
 
     // The mirror, and the only place the negative half of the ladder does
     // anything: cold enough to be asking for heat, and ground warm enough to
@@ -89,7 +89,7 @@ void CoolingController::_intake_gates(float t_in, float dem) {
     const float rung   = ground_dem.get();
     const bool  asking = ground_band(-dem, -rung, -rung + dem_hyst.get());
     ground_ok.set(ok && asking &&
-                  ground_gate(t_intake - t_in, margin - hyst, margin));
+                  ground_gate(t_intake - t_in, margin - hyst, margin), true);
 }
 
 }  // namespace Site

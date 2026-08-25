@@ -15,7 +15,7 @@ void IrrigationCycle::_blame(const Vars::RefOut<bool>* per_tray, bool on) {
     // The tray being served, and only it. The any-form beside these is what an
     // operator sees; this is what still says WHICH tray once the cycle has
     // moved on to the next one.
-    if (_tray >= 1 && _tray <= N_DRAIN_TRAY) per_tray[_tray - 1].set(on);
+    if (_tray >= 1 && _tray <= N_DRAIN_TRAY) per_tray[_tray - 1].set(on, true);
 }
 
 void IrrigationCycle::_stamp(uint8_t tray, uint32_t day) const {
@@ -42,7 +42,7 @@ void IrrigationCycle::_stamp_served() {
     if (_forced) { _clear_force(force_now); _forced = false; }
     // The day's allowance, counted by the schedule and spent here.
     const uint8_t done = served.get();
-    if (done < 0xFFu) (void)served.set((uint8_t)(done + 1));
+    if (done < 0xFFu) (void)served.set((uint8_t)(done + 1), true);
 
     // AFTER THE FILL, not after the drain: the tray has had its water by then,
     // and a fault or a restart during the long drain must not water it twice.
@@ -58,7 +58,7 @@ void IrrigationCycle::_drain_verdict() {
         // A fill that never delivered, or a meter that is not answering. Both
         // are already alarms of their own; a clog raised on top would send
         // somebody to the wrong end of the plant.
-        drain_fault.set(false);
+        drain_fault.set(false, true);
         _blame(drain_tray, false);
         return;
     }
@@ -69,7 +69,7 @@ void IrrigationCycle::_drain_verdict() {
     const float frac     = drained.get() / _dose_L;
     const float min_frac = exp_drain.get() - drain_margin.get();
     const bool  clog     = frac < min_frac;
-    drain_fault.set(clog);
+    drain_fault.set(clog, true);
     _blame(drain_tray, clog);
 }
 
@@ -87,10 +87,10 @@ void IrrigationCycle::_enter(IrrState st) {
     if (st == IRR_FILLING) _fill_start_L = in_total.get();
     if (st == IRR_DRAINING) {
         _drain_start_L = out_total.get();
-        drained.set(0.0f);
+        drained.set(0.0f, true);
     }
-    state.set((uint8_t)st);
-    active.set(_tray);
+    state.set((uint8_t)st, true);
+    active.set(_tray, true);
 }
 
 void IrrigationCycle::run(ProgramContext& c) {
@@ -100,8 +100,8 @@ void IrrigationCycle::run(ProgramContext& c) {
         // that was filling empties rather than sitting full.
         _tray  = 0;
         _state = IRR_IDLE;
-        state.set((uint8_t)IRR_IDLE);
-        active.set((uint8_t)0);
+        state.set((uint8_t)IRR_IDLE, true);
+        active.set((uint8_t)0, true);
         // No tray, so no dose to compute - but a row nobody wrote keeps GOOD
         // quality on the last one, which reads as a fill still being aimed at.
         volume.hold();
@@ -123,7 +123,7 @@ void IrrigationCycle::run(ProgramContext& c) {
     const float split_lim = Plc::limit(split.get(), 0.0f, 1.0f);
     const float dose = (_tray > 0)
         ? (float)litres[_tray - 1].get() * powf(mod_now, split_lim) : 0.0f;
-    if (can_dose) volume.set(dose);
+    if (can_dose) volume.set(dose, true);
     else          volume.hold();
 
     switch (_state) {
@@ -132,8 +132,8 @@ void IrrigationCycle::run(ProgramContext& c) {
             // written, so an unwritten one is an invalid input and the program
             // reports DEGRADED for it - which drained did from boot until a
             // cycle first reached the drain, hours if the slot was hours away.
-            delivered.set(0.0f);
-            drained.set(0.0f);
+            delivered.set(0.0f, true);
+            drained.set(0.0f, true);
             // WHICH tray, and whether now: irr_schedule has decided both,
             // and published the answer.
             if (!can_dose) break;
@@ -145,12 +145,12 @@ void IrrigationCycle::run(ProgramContext& c) {
             break;
         }
         case IRR_FILLING: {
-            delivered.set(in_total.get() - _fill_start_L);
+            delivered.set(in_total.get() - _fill_start_L, true);
             // ...and read back, so the fill ends on the row an operator can
             // watch and force rather than on a local difference.
             const float got = delivered.get();
             if (got >= dose && dose > 0.0f) {
-                fill_fault.set(false);
+                fill_fault.set(false, true);
                 _blame(fill_tray, false);
                 _stamp_served();
                 _dose_L = got;
@@ -159,7 +159,7 @@ void IrrigationCycle::run(ProgramContext& c) {
                 // The dose never arrived: water off, a stuck inlet, or a meter
                 // that has stopped counting. Move to drain regardless - leaving
                 // the inlet open on a fault is how a tray overflows.
-                fill_fault.set(true);
+                fill_fault.set(true, true);
                 _blame(fill_tray, true);
                 // What actually went in, which may be nothing: the drain is
                 // judged against the water the tray really got.
@@ -181,7 +181,7 @@ void IrrigationCycle::run(ProgramContext& c) {
             break;
         }
         case IRR_DRAINING: {
-            drained.set(out_total.get() - _drain_start_L);
+            drained.set(out_total.get() - _drain_start_L, true);
             if (!dwell(true, 1000u * drain_window_s.get(), c.dt_ms)) break;
             _drain_verdict();
             _tray = 0;

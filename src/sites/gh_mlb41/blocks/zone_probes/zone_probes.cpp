@@ -64,7 +64,7 @@ void ZoneProbes::_publish(Vars::RefOut<float> row, Plc::Ewma& filter,
         return;
     }
     seeded = true;                      // the block starts AT its first reading
-    row.set(Plc::limit(filter(v.value, tau_s, dt_ms), lo, hi));
+    row.set(Plc::limit(filter(v.value, tau_s, dt_ms), lo, hi), true);
 }
 
 uint8_t ZoneProbes::step(uint32_t dt_ms) {
@@ -87,7 +87,7 @@ uint8_t ZoneProbes::step(uint32_t dt_ms) {
     // operator is told to replace one before the second goes. The alarm is the
     // zone's, so it follows whichever quantity has lost the most.
     const uint8_t worst = (t.used < h.used) ? t.used : h.used;
-    _fault.set(_quorum_for(worst < 3, 5000, dt_ms));
+    _fault.set(_quorum_for(worst < 3, 5000, dt_ms), true);
     return worst;
 }
 

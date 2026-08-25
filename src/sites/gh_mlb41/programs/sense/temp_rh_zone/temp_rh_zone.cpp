@@ -20,9 +20,9 @@ void TempRHZone::run(ProgramContext& c) {
     const bool  hi_ok  = temp_hi.valid();
     const bool  lo_ok  = temp_lo.valid();
     const float hotter = Plc::max_of(t_hi, t_lo);
-    if (hi_ok && lo_ok)  temp_in.set(hotter);
-    else if (hi_ok)      temp_in.set(t_hi);
-    else if (lo_ok)      temp_in.set(t_lo);
+    if (hi_ok && lo_ok)  temp_in.set(hotter, true);
+    else if (hi_ok)      temp_in.set(t_hi, true);
+    else if (lo_ok)      temp_in.set(t_lo, true);
     // Both levels gone: the rows are holding their last readings, so the
     // hotter of them is still the best answer there is - held, like they are.
     else                 temp_in.hold(hotter);
@@ -64,7 +64,7 @@ void TempRHZone::run(ProgramContext& c) {
                              : (hi_ok ? vpd_hi : vpd_lo), seen);
 
     const float limit = rot_limit.get();
-    rot.set((worst_isceiling ? m_hi : m_lo) < limit);
+    rot.set((worst_isceiling ? m_hi : m_lo) < limit, true);
 }
 
 }  // namespace Site

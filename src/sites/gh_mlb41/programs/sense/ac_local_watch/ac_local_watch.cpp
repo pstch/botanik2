@@ -16,13 +16,13 @@ void AcLocalWatch::observe(ProgramContext& c) {
     bool bad = false;
     const bool answered = supply.step(bad);
     if (!answered) degraded();
-    fault.set(bad);
+    fault.set(bad, true);
 
     // The generator only owes an answer once the grid has gone. With the grid
     // up, an unhealthy ATS output is a transfer-switch fault (alarm_ac_local
     // above) and the set was never asked to start.
     const bool waiting = !grid_ok.get() && !answered;
-    gen_fault.set(cranking(waiting, 1000u * start_s.get(), c.dt_ms));
+    gen_fault.set(cranking(waiting, 1000u * start_s.get(), c.dt_ms), true);
 }
 
 }  // namespace Site

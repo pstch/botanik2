@@ -31,11 +31,11 @@ void RoofLockout::run(ProgramContext& c) {
     const float w    = (gust > mean) ? gust : mean;
     const bool blowing = blind || (w >= shut_end.get());
 
-    rain_lock.set(raining);
-    wind_lock.set(blowing);
+    rain_lock.set(raining, true);
+    wind_lock.set(blowing, true);
     // READ BACK, never the local verdicts: each row is what an operator can
     // force, and a lockout the law then ignored would be a lie on the page.
-    window_lock.set(rain_lock.get() || wind_lock.get() || supply_lock.get());
+    window_lock.set(rain_lock.get() || wind_lock.get() || supply_lock.get(), true);
 
     // How far the roof may open, which is not a yes or a no. Below shut_begin
     // the wind has no say; from there to shut_end the ceiling comes down a
@@ -46,7 +46,7 @@ void RoofLockout::run(ProgramContext& c) {
     const float begin = shut_begin.get(), end = shut_end.get();
     if (w >= begin && end > begin)
         ceiling = shut_max.get() * (1.0f - (w - begin) / (end - begin));
-    cap.set(window_lock.get() ? 0.0f : Plc::limit(ceiling, 0.0f, 1.0f));
+    cap.set(window_lock.get() ? 0.0f : Plc::limit(ceiling, 0.0f, 1.0f), true);
 }
 
 }  // namespace Site

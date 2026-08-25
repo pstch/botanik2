@@ -15,7 +15,7 @@ void AcGridWatch::observe(ProgramContext& c) {
     if (c.first_scan) supply.reset();
     bool bad = false;
     if (!supply.step(bad)) degraded();
-    fault.set(bad);
+    fault.set(bad, true);
 }
 
 }  // namespace Site

@@ -48,9 +48,9 @@ void DayPhaseController::run(ProgramContext& c) {
     if (_phase == PHASE_DAY && was != PHASE_DAY)     _day_max   = t_in;
     if (_phase == PHASE_NIGHT && was != PHASE_NIGHT) _night_min = t_in;
 
-    phase.set((uint8_t)_phase);
-    prev_day_max.set(_day_max);
-    prev_night_min.set(_night_min);
+    phase.set((uint8_t)_phase, true);
+    prev_day_max.set(_day_max, true);
+    prev_night_min.set(_night_min, true);
 
     // Whether the bank phases have anything to do when their turn comes. Both
     // can be armed at once - a clear late-spring day is hot and its night cold,
@@ -59,8 +59,8 @@ void DayPhaseController::run(ProgramContext& c) {
     // Off the ROWS just written, not off the members behind them: forcing one
     // is how a cold-bank morning gets rehearsed in July, and a law that armed
     // on its own copy would leave the page saying something it was not doing.
-    cold_arm.set(prev_day_max.get() > cold_bank_trg.get());
-    heat_arm.set(prev_night_min.get() < heat_bank_trg.get());
+    cold_arm.set(prev_day_max.get() > cold_bank_trg.get(), true);
+    heat_arm.set(prev_night_min.get() < heat_bank_trg.get(), true);
 }
 
 }  // namespace Site

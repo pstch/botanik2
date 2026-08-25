@@ -97,7 +97,7 @@ uint8_t IrrigationSchedule::_next_due(float mod_now, uint32_t day) {
             // the PARAMS page and this is what the weather made of it. Written
             // HERE and not after the loop, because a force_on returns early and
             // the row would then never be written at all.
-            period.set(interval);
+            period.set(interval, true);
         }
     }
     return best;
@@ -108,16 +108,16 @@ void IrrigationSchedule::run(ProgramContext& c) {
     // The daily tally is against a DATE, not an uptime: it rolls when the day
     // does, so a cycle running through midnight is not counted twice and a
     // reboot at noon does not hand the plant a second allowance.
-    today.set(_today());
+    today.set(_today(), true);
     const uint32_t day = today.get();
     if (day != 0 && day != _served_day) {
         _served_day = day;
-        (void)served.set((uint8_t)0);
+        (void)served.set((uint8_t)0, true);
     }
 
     const bool forced = force_now.get();
     const bool open   = _in_slot();
-    slot_open.set(open);
+    slot_open.set(open, true);
 
     // The interval is written only where one is actually chosen, and a forced
     // tray, an empty search and the gate below all skip that. Held here so the
@@ -129,10 +129,10 @@ void IrrigationSchedule::run(ProgramContext& c) {
     // modulation nobody can read is no dose, so there is nothing to start.
     if ((served.get() >= trays_per_day.get() && !forced) ||
         (!forced && !open) || !mod.valid()) {
-        due_tray.set((uint8_t)0);
+        due_tray.set((uint8_t)0, true);
         return;
     }
-    due_tray.set(_next_due(mod.get(), day));
+    due_tray.set(_next_due(mod.get(), day), true);
 }
 
 }  // namespace Site

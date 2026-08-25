@@ -35,11 +35,11 @@ void IrrMtrOutput::observe(ProgramContext& c) {
         // the next real flow is written at once rather than waiting out a band
         // from a figure the plant has left behind.
         flow_band.reset();
-        out_flow_pub.set(0.0f);
+        out_flow_pub.set(0.0f, true);
     } else {
-        out_flow_pub.set(flow_band(lpm, band.get()));
+        out_flow_pub.set(flow_band(lpm, band.get()), true);
     }
-    out_total.set(meter(lpm / 60.0f, c.dt_ms, cutoff.get() / 60.0f));
+    out_total.set(meter(lpm / 60.0f, c.dt_ms, cutoff.get() / 60.0f), true);
 }
 
 }  // namespace Site

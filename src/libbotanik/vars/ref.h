@@ -74,14 +74,13 @@ namespace Botanik { namespace Vars {
         /** @brief The value in force. Every direction reads: a POU may read
          *  its own output. */
         T get() const;
-        /** @brief Drive it. VAR_INPUT does not compile.
+        /** @brief Drive it, saying whether the value is CURRENT. There is no
+         *  one-argument form: the law runs the same either way, and the
+         *  quality is the half a reader cannot recover from the number.
+         *  VAR_INPUT does not compile.
          *  @note CONST: writing through a reference changes the TABLE, not the
-         *  reference, exactly as writing through a pointer does. */
-        void set(T v) const;
-
-        /** @brief Drive it, and say whether the value is CURRENT. The law runs
-         *  the same either way; the quality is what says nobody measured it.
-         *  @note @c set(v,false) is @c hold(v). */
+         *  reference, exactly as writing through a pointer does. @c
+         *  set(v,false) is @c hold(v). */
         void set(T v, bool current) const;
 
         /** @brief Whether the row carries a believable value. */

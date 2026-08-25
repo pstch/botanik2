@@ -35,11 +35,11 @@ void SunWatch::observe(ProgramContext& c) {
     // boundary in the phase table is declared in. Both belong to the same solar
     // day, so one of them is always in the past and the other in the future.
     const int64_t now = (int64_t)HAL::Clock::wall_ms();
-    from_rise.set(_minutes((now - (int64_t)_sun->sunrise_ms()) / 60000));
-    from_set.set(_minutes((now - (int64_t)_sun->sunset_ms()) / 60000));
+    from_rise.set(_minutes((now - (int64_t)_sun->sunrise_ms()) / 60000), true);
+    from_set.set(_minutes((now - (int64_t)_sun->sunset_ms()) / 60000), true);
 
     // Degrees, because that is what a person reads. The math is in radians.
-    elevation.set((float)(_sun->elevation() * 57.2957795));
+    elevation.set((float)(_sun->elevation() * 57.2957795), true);
 }
 
 }  // namespace Site

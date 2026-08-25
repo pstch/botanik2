@@ -12,8 +12,8 @@ void HumidityController::observe(ProgramContext& c) {
         // No margin, no verdict on it - and the guard fails toward acting:
         // ventilating costs energy, not ventilating costs the collection.
         degraded();
-        vent_dem.set(1.0f);
-        lockout.set(lockout_for(true, 1000u * rot_release_s.get(), c.dt_ms));
+        vent_dem.set(1.0f, true);
+        lockout.set(lockout_for(true, 1000u * rot_release_s.get(), c.dt_ms), true);
         // The gate reads none of the margin, so it is decided here too rather
         // than only on the path that got this far.
         _dry_gate();
@@ -27,12 +27,12 @@ void HumidityController::observe(ProgramContext& c) {
     // directions: nothing at the limit, everything at the dew point itself.
     // The span IS the operator's setting - cli_rotMargin_degC sits on its own
     // floor by default, so a ramp to that floor would be a step.
-    vent_dem.set(Plc::ladder(-margin, -limit, 0.0f));
+    vent_dem.set(Plc::ladder(-margin, -limit, 0.0f), true);
 
     // An OVERRUN, not a dwell: the lockout follows the condition up at once and
     // outlives it, because humidifying into air that has only just dried out is
     // what puts the margin back where it was. Nothing is locked out at boot.
-    lockout.set(lockout_for(rot.get(), 1000u * rot_release_s.get(), c.dt_ms));
+    lockout.set(lockout_for(rot.get(), 1000u * rot_release_s.get(), c.dt_ms), true);
     _dry_gate();
 }
 
@@ -48,7 +48,7 @@ void HumidityController::_dry_gate() {
         // be wetter than what is already here, which is the one thing this
         // gate exists to prevent. The rot ladder is not gated and still vents.
         degraded();
-        dry_ok.set(false);
+        dry_ok.set(false, true);
         return;
     }
     const float dp_in   = Plc::dew_point(in_t.get(), in_rh.get());
@@ -57,7 +57,7 @@ void HumidityController::_dry_gate() {
     const float hyst    = vent_hyst.get();
     // Banded, like the temperature gates: a morning where the two dew points
     // meet would otherwise open and shut the intake every beat.
-    dry_ok.set(dry_gate_band(dp_in - outside, margin - hyst, margin));
+    dry_ok.set(dry_gate_band(dp_in - outside, margin - hyst, margin), true);
 }
 
 void HumidityController::run(ProgramContext& c) {
@@ -79,7 +79,7 @@ void HumidityController::run(ProgramContext& c) {
                                      dehum_full.get(),
                                      dehum_start.get(),
                                      humid_start.get(),
-                                     humid_full.get()));
+                                     humid_full.get()), true);
 }
 
 }  // namespace Site
