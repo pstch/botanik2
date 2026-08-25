@@ -266,12 +266,9 @@ namespace Botanik { namespace Network {
 
 namespace Botanik { namespace Network {
 
-    void MqttClient::_service_task(Component* c, const Tasks::Tick& t) {
-        static_cast<MqttClient*>(c)->on_service(t.now_ms);
-    }
 
     void MqttClient::register_tasks() {
-        _tasks->add(*this, &MqttClient::_service_task, "sys_mqtt", Tasks::GROUP_FAST,
+        _tasks->add(*this, "sys_mqtt", Tasks::GROUP_FAST,
               Tasks::PHASE_SERVICE);
     }
 

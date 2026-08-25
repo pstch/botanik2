@@ -130,9 +130,6 @@ namespace Botanik { namespace Sun {
         void on_service(uint64_t now_ms) override;
 
     private:
-        /** @brief Registration handler. A static MEMBER, so it reaches the
-         *  protected hook. */
-        static void _service_task(Component* c, const Tasks::Tick& t);
     };
 
     /** @} */

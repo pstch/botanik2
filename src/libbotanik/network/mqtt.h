@@ -58,9 +58,6 @@ namespace Botanik { namespace Network {
     public:
         void register_tasks() override;
     private:
-        /** @brief Registration handler: a static MEMBER, so the cast reaches the
-         *  protected hook without a friend and stays beside the class. */
-        static void _service_task(Component* c, const Tasks::Tick& t);
 
         /** @name State
          *  @{ */

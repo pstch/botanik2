@@ -99,12 +99,9 @@ namespace Botanik { namespace Logs {
         _serial->transmit();
     }
 
-    void SerialLogWriter::_present_task(Component* c, const Tasks::Tick& t) {
-        static_cast<SerialLogWriter*>(c)->on_present(t.now_ms);
-    }
 
     void SerialLogWriter::register_tasks() {
-        _tasks->add(*this, &SerialLogWriter::_present_task, name(), Tasks::GROUP_FAST,
+        _tasks->add(*this, name(), Tasks::GROUP_FAST,
               Tasks::PHASE_PRESENT);
     }
 

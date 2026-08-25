@@ -46,12 +46,9 @@ namespace Botanik { namespace Io {
         }
     }
 
-    void LocalInputs::_input_task(Component* c, const Tasks::Tick& t) {
-        static_cast<LocalInputs*>(c)->on_input(t.now_ms);
-    }
 
     void LocalInputs::register_tasks() {
-        _tasks->add(*this, &LocalInputs::_input_task, "sys_local_in",
+        _tasks->add(*this, "sys_local_in",
                     Tasks::GROUP_FAST, Tasks::PHASE_INPUT);
     }
 

@@ -77,14 +77,11 @@ namespace Botanik { namespace Alarms {
 
 namespace Botanik { namespace Alarms {
 
-    void AlarmController::_service_task(Component* c, const Tasks::Tick& t) {
-        static_cast<AlarmController*>(c)->on_service(t.now_ms);
-    }
 
     void AlarmController::register_tasks() {
         // Its own row on the TASKS page: it was stepped inside HealthMonitor's
         // task, so its cost was charged to health and it had no rate of its own.
-        _tasks->add(*this, &AlarmController::_service_task, "sys_alarms", Tasks::GROUP_SLOW,
+        _tasks->add(*this, "sys_alarms", Tasks::GROUP_SLOW,
               Tasks::PHASE_SERVICE);
     }
 

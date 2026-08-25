@@ -118,6 +118,18 @@ namespace Botanik { namespace Tasks {
         return true;
     }
 
+    bool Registry::add(Component& owner, const char* name,
+                       GroupId group, Phase phase) {
+        // A null handler is the SIGNAL here, where the overload above treats it
+        // as the defect it is there: run_phase() reads it as "call the owner's
+        // hook for this phase".
+        Task* t = _claim(name, group, phase);
+        if (t == nullptr) return false;
+        t->owner   = &owner;
+        t->handler = nullptr;
+        return true;
+    }
+
     bool Registry::add_setup(Component& owner,
                              void (*handler)(Component*, const Tick&),
                              const char* name) {
@@ -222,7 +234,10 @@ namespace Botanik { namespace Tasks {
             Tick tick;
             tick.now_ms = now_ms; tick.dt_ms = dt; tick.missed = missed;
             tick.first  = t.first_activation;
-            t.handler(t.owner, tick);
+            // A task registered without a handler is one whose work IS its
+            // component's hook for the phase it sits in.
+            if (t.handler != nullptr) t.handler(t.owner, tick);
+            else                      t.owner->step(now_ms, t.phase);
             // Cleared after the run: the flag describes the activation that just
             // happened, so a handler reads it for its own run and no other.
             t.first_activation = false;

@@ -76,9 +76,6 @@ namespace Botanik { namespace Health {
         };
 
     private:
-        /** @brief The registration handler. A static MEMBER, so the cast has
-         *  access to the protected hook and stays beside the class. */
-        static void _service_task(Component* c, const Tasks::Tick& t);
 #if BOTANIK_FEATURE_VARS
         static void _latch_task(Component* c, const Tasks::Tick& t);
 #endif

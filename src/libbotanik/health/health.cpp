@@ -84,9 +84,6 @@ namespace Botanik { namespace Health {
     }
 #endif
 
-    void HealthMonitor::_service_task(Component* c, const Tasks::Tick& t) {
-        static_cast<HealthMonitor*>(c)->on_service(t.now_ms);
-    }
 
 #if BOTANIK_FEATURE_VARS
     void HealthMonitor::_latch_task(Component* c, const Tasks::Tick& t) {
@@ -227,7 +224,7 @@ namespace Botanik { namespace Health {
 #endif
 
     void HealthMonitor::register_tasks() {
-        _tasks->add(*this, &HealthMonitor::_service_task, "sys_health", Tasks::GROUP_SLOW,
+        _tasks->add(*this, "sys_health", Tasks::GROUP_SLOW,
               Tasks::PHASE_SERVICE);
 #if BOTANIK_FEATURE_VARS
         // Every beat, and BEFORE the programs: a fault must inhibit this beat's

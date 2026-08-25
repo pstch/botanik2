@@ -326,7 +326,6 @@ namespace Botanik { namespace Modbus {
         /** @name Registration handlers
          *  Static MEMBERS: the hooks they call are protected. @{ */
         static void _input_task(Component* c, const Tasks::Tick& t);
-        static void _output_task(Component* c, const Tasks::Tick& t);
         /** @} */
 
     protected:

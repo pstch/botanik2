@@ -474,13 +474,10 @@ namespace Botanik { namespace Vars {
         (void)save_retained();
     }
 
-    void Bank::_config_task(Component* c, const Tasks::Tick& t) {
-        static_cast<Bank*>(c)->on_config(t.now_ms);
-    }
 
     void Bank::register_tasks() {
         // The parameter image everything below reads its config from.
-        _tasks->add(*this, &Bank::_config_task, "sys_params",
+        _tasks->add(*this, "sys_params",
               Tasks::GROUP_SLOW, Tasks::PHASE_CONFIG);
         // A full linear scan of the variable table, resolving timeouts measured
         // in seconds - which is why it is GROUP_BACKGROUND and not the beat.

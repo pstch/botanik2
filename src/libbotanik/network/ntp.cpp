@@ -203,12 +203,9 @@ namespace Botanik { namespace Network {
 
 namespace Botanik { namespace Network {
 
-    void NtpClient::_service_task(Component* c, const Tasks::Tick& t) {
-        static_cast<NtpClient*>(c)->on_service(t.now_ms);
-    }
 
     void NtpClient::register_tasks() {
-        _tasks->add(*this, &NtpClient::_service_task, "sys_ntp", Tasks::GROUP_FAST,
+        _tasks->add(*this, "sys_ntp", Tasks::GROUP_FAST,
               Tasks::PHASE_SERVICE);
     }
 

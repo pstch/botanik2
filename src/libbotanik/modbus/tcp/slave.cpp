@@ -445,29 +445,20 @@ namespace Botanik { namespace Modbus {
 
 namespace Botanik { namespace Modbus {
 
-    void TcpSlave::_input_task(Component* c, const Tasks::Tick& t) {
-        static_cast<TcpSlave*>(c)->on_input(t.now_ms);
-    }
 
-    void TcpSlave::_service_task(Component* c, const Tasks::Tick& t) {
-        static_cast<TcpSlave*>(c)->on_service(t.now_ms);
-    }
 
-    void TcpSlave::_present_task(Component* c, const Tasks::Tick& t) {
-        static_cast<TcpSlave*>(c)->on_present(t.now_ms);
-    }
 
     void TcpSlave::register_tasks() {
         // A master's write lands at INPUT, before the programs run, so a
         // setpoint written this beat is what they run on this beat.
-        _tasks->add(*this, &TcpSlave::_input_task,   "sys_mbtcp_rx",
+        _tasks->add(*this, "sys_mbtcp_rx",
               Tasks::GROUP_FAST, Tasks::PHASE_INPUT);
         // The flash half of that write, paced: a side effect of the request,
         // not part of answering it.
-        _tasks->add(*this, &TcpSlave::_service_task, "sys_mbtcp_wr",
+        _tasks->add(*this, "sys_mbtcp_wr",
               Tasks::GROUP_FAST, Tasks::PHASE_SERVICE);
         // The answer goes out off the image the scan just produced.
-        _tasks->add(*this, &TcpSlave::_present_task, "sys_mbtcp_tx",
+        _tasks->add(*this, "sys_mbtcp_tx",
               Tasks::GROUP_FAST, Tasks::PHASE_PRESENT);
     }
 

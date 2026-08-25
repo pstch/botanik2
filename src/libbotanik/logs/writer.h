@@ -222,9 +222,6 @@ namespace Botanik { namespace Logs {
         void register_tasks() override;
 
     private:
-        /** @brief The registration handler. A static MEMBER, so the cast has
-         *  access to the protected hook and stays beside the class. */
-        static void _present_task(Component* c, const Tasks::Tick& t);
 
     protected:
         using BufferedSerial = Utils::BufferedSerial;

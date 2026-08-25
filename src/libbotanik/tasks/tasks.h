@@ -193,6 +193,14 @@ namespace Botanik { namespace Tasks {
         bool add(Component& owner, void (*handler)(Component*, const Tick&),
                  const char* name, GroupId group, Phase phase);
 
+        /** @brief The same, dispatching straight to @p owner's own hook for @p
+         *  phase. What a component wants when its handler would be nothing but
+         *  a cast back to itself - which was 15 of them.
+         *  @note No first_activation flag reaches the hook: Component's per-phase
+         *  hooks take now_ms alone. A task that needs the tick registers a
+         *  handler. */
+        bool add(Component& owner, const char* name, GroupId group, Phase phase);
+
         /** @brief Register one-time init for @p owner, run by setup() before the
          *  loop starts, in registration order. Never dispatched in the beat. */
         bool add_setup(Component& owner, void (*handler)(Component*, const Tick&),

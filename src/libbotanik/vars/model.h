@@ -51,7 +51,6 @@ namespace Botanik { namespace Vars {
          *  Static MEMBERS: each cast sits on one line beside what it calls.
          *  @{ */
         static void _expire_task(Component* c, const Tasks::Tick& t);
-        static void _config_task(Component* c, const Tasks::Tick& t);
         /** @} */
 
         /** @name The rows

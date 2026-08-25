@@ -118,12 +118,9 @@ namespace Botanik { namespace Network {
 
 namespace Botanik { namespace Network {
 
-    void NetworkHandler::_service_task(Component* c, const Tasks::Tick& t) {
-        static_cast<NetworkHandler*>(c)->on_service(t.now_ms);
-    }
 
     void NetworkHandler::register_tasks() {
-        _tasks->add(*this, &NetworkHandler::_service_task, "sys_net", Tasks::GROUP_FAST,
+        _tasks->add(*this, "sys_net", Tasks::GROUP_FAST,
               Tasks::PHASE_SERVICE);
     }
 

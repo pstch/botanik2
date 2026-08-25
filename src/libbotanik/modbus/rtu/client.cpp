@@ -661,21 +661,15 @@ const char* RtuClient::status_str() const {
 
 namespace Botanik { namespace Modbus {
 
-    void RtuClient::_input_task(Component* c, const Tasks::Tick& t) {
-        static_cast<RtuClient*>(c)->on_input(t.now_ms);
-    }
 
-    void RtuClient::_output_task(Component* c, const Tasks::Tick& t) {
-        static_cast<RtuClient*>(c)->on_output(t.now_ms);
-    }
 
     void RtuClient::register_tasks() {
         // The field bus commits its readings ahead of the bank's expiry sweep,
         // which must judge the freshest image and not the one from before this
         // beat's answers.
-        _tasks->add(*this, &RtuClient::_input_task,  "sys_mbrtu_rx",
+        _tasks->add(*this, "sys_mbrtu_rx",
               Tasks::GROUP_FAST, Tasks::PHASE_INPUT);
-        _tasks->add(*this, &RtuClient::_output_task, "sys_mbrtu_tx",
+        _tasks->add(*this, "sys_mbrtu_tx",
               Tasks::GROUP_FAST, Tasks::PHASE_OUTPUT);
     }
 
