@@ -747,12 +747,6 @@ namespace Botanik { namespace Vars {
         _mark_override_unsaved(h);
     }
 
-    void Bank::override_freeze(Var h) {
-        h.override_freeze();
-        (void)_sync_override_mute(_row_of(h));
-        _mark_override_unsaved(h);
-    }
-
     SetResult Bank::save_override(Var h) {
         const uint16_t row = _row_of(h);
         if (row == VAR_NONE || !_slots[row].ovr_on) return SET_INVALID;
@@ -913,12 +907,6 @@ namespace Botanik { namespace Vars {
                 _slots[i].vflags |= VF_FIELD_DIRTY;
             n++;
         }
-        return n;
-    }
-
-    uint16_t Bank::override_count() const {
-        uint16_t n = 0;
-        for (uint16_t i = 0; i < _count; i++) if (_slots[i].ovr_on) n++;
         return n;
     }
 

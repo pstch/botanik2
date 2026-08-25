@@ -206,8 +206,6 @@ namespace Botanik { namespace Vars {
         void override_set(Scalar v, bool valid = true) {
             _v->ovr = v; _v->ovr_valid = valid; _v->ovr_on = true; _touch_field();
         }
-        /** @brief Freeze at whatever it reads right now, keeping its quality. */
-        void override_freeze() { const Value c = value(); override_set(c.v, c.good()); }
         /** @brief Release the override; the live value takes over. Marks the
          *  field dirty, or the actuator would stay where it was left. */
         void override_clear() { _v->ovr_on = false; _touch_field(); }
@@ -311,14 +309,14 @@ namespace Botanik { namespace Vars {
      *
      *  - `<noun>_<verb>` for a FAMILY of operations on one concept, so the
      *    family sorts together and reads the way the shell says it:
-     *    `override_set` / `override_clear` / `override_freeze` /
-     *    `override_count`, matching `overrides set` / `overrides clear`.
+     *    `override_set` / `override_clear` / `override_clear_all`,
+     *    matching `overrides set` / `overrides clear`.
      *  - `set_<property>` for a single property with no family behind it:
      *    `set_store`, `set_control_mode`, `set_health_hold`. Turning these
      *    around would give `health_hold_set`, which is why they are not the
      *    same shape as the group above.
      *  - `<thing>_count()` for a tally, always, and never `num_` or `n_`:
-     *    `param_count`, `override_count`, `unsaved_count`, `refused_count`,
+     *    `param_count`, `unsaved_count`, `refused_count`,
      *    `unresolved_count`, `param_stray_count`.
      *
      *  `set()` alone means EDIT A PARAMETER. Anything that writes a row by
@@ -558,7 +556,6 @@ namespace Botanik { namespace Vars {
         uint16_t param_count() const     { return _param_count; }
         /** @brief Table index of the first ROLE_PARAM row (0 when there are
          *  none). */
-        uint16_t param_first() const     { return _param_first; }
 
         /** @brief Where @p h's text lives in the pool, or null. The ONLY route to
          *  a row's text: the declared capacity is in flash and says nothing about
@@ -629,7 +626,6 @@ namespace Botanik { namespace Vars {
          *  @{ */
         void drive(VarRef r, bool v)      { claim_writer(r, _writer_now); var(r).set(v); }
         void drive(VarRef r, float v)     { claim_writer(r, _writer_now); var(r).set(v); }
-        void drive_i(VarRef r, int64_t v) { claim_writer(r, _writer_now); var(r).set_i(v); }
         /** @} */
 
         /** @name Typed access
@@ -700,7 +696,6 @@ namespace Botanik { namespace Vars {
 
         /** @brief Whether the name index is in use. False before freeze(), and
          *  every find() is then a full scan. */
-        bool name_index_built() const { return _indexed; }
 
         /** @brief Rows that found no pool left. Must be zero: such a row reads
          *  empty and refuses every write. */
@@ -829,9 +824,6 @@ namespace Botanik { namespace Vars {
          *  any other override. */
         void override_set(Var h, Scalar v, bool valid = true);
 
-        /** @brief Force @p h to what it reads right now, keeping its validity -
-         *  for pinning a signal while you work on what depends on it. */
-        void override_freeze(Var h);
 
         /** @brief Commit @p h's override so it survives a reboot.
          *  @return SET_INVALID when nothing is forced on @p h, SET_NOT_PERSISTED
@@ -849,8 +841,6 @@ namespace Botanik { namespace Vars {
         /** @brief Release every override in one go. @return how many were on. */
         uint16_t clear_overrides();
 
-        /** @brief Variables currently overridden. */
-        uint16_t override_count() const;
 
         /** @} */
 
