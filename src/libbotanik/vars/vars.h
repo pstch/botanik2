@@ -21,23 +21,7 @@
  * expands into a namespace it cannot see. Registering segments costs one
  * compare in `Bank::desc()` and buys back ordinary C++: these rows are now
  * written with the same unqualified factories a site writes its own with.
- *
- * @section lib_order Order
- *
- * `Bank` requires the `ROLE_PARAM` rows to be **one contiguous run** - that is
- * what lets the PARAMS page and the shell address them by a dense 0-based index.
- * The library registers first and its parameters come last in its array, so a
- * site's parameter segment abuts them. `Bank::freeze()` checks it and names the
- * row that broke it.
- *
- * @section lib_regs Register space
- *
- * A parameter, status value or alarm carries a hand-assigned Modbus TCP slave
- * register (`Binding::reg`), and an external master's map is a contract. The
- * library reserves **900-999**: parameters and status values grow upward from
- * 900, its alarms take 990-999, and a site's own alarms live in 800-899.
- * `tests/test_site_names.cpp` fails on a collision and on a row outside the
- * block its scope belongs to.
+ * @note The rationale behind this file is @ref lib_order, @ref lib_regs.
  */
 
 #include <cstdint>

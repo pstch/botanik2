@@ -289,6 +289,73 @@ group like the static IP block is incoherent until every field is in, so applyin
 edit would restart the interface through states that were never meant to exist. See
 @ref user_variables.
 
+
+## Scalar, and the declaration factories
+
+### One tag, four uses {#scalar_one_tag}
+
+A variable carries a single VarType. That tag governs its live value AND its
+declared @c min, @c max and @c def: the same union, read the same way, so
+they cannot disagree about what the variable is (a real-valued parameter's
+band of 0.5..2.5 stays fractional).
+
+### Why constexpr constructors {#scalar_flash}
+
+A site's variable table is `const` and must be constant-initialised straight
+into flash: no `.data` copy, no startup initialiser. A union with constexpr
+constructors keeps that property (a *member* having constructors does not
+stop the enclosing descriptor being an aggregate), while brace-initialisation
+could only ever reach the union's FIRST member, C++11 having no designated
+initialisers. Two load-bearing constraints fall out:
+
+ - a C++11 constexpr function body must be a SINGLE return statement, so the
+   factories below construct rather than assign
+ - a bare integer literal converts equally well to uint64_t, int64_t and
+   float, so Scalar(int) is deleted and the named factories are the way in
+
+### Persisted width {#scalar_width}
+
+@c type_width() is the NARROW width (1/2/4/8), not sizeof(Scalar): what a
+value occupies in storage. It must stay narrow, or already-stored records
+stop being readable.
+
+
+### Order {#lib_order}
+
+`Bank` requires the `ROLE_PARAM` rows to be **one contiguous run** - that is
+what lets the PARAMS page and the shell address them by a dense 0-based index.
+The library registers first and its parameters come last in its array, so a
+site's parameter segment abuts them. `Bank::freeze()` checks it and names the
+row that broke it.
+
+### Register space {#lib_regs}
+
+A parameter, status value or alarm carries a hand-assigned Modbus TCP slave
+register (`Binding::reg`), and an external master's map is a contract. The
+library reserves **900-999**: parameters and status values grow upward from
+900, its alarms take 990-999, and a site's own alarms live in 800-899.
+`tests/test_site_names.cpp` fails on a collision and on a row outside the
+block its scope belongs to.
+
+
+### constexpr and the single return {#declare_flash}
+
+These build the site's `const Descriptor g_vars[]`, which must be
+constant-initialised straight into flash: a runtime call in that initialiser
+would drag ~20 KB of table into `.data` behind a startup loop. A C++11
+constexpr body must be a SINGLE return statement, so each one below is
+exactly that - an aggregate initialiser, no locals and no branches.
+
+### Local I/O {#declare_local}
+
+There is no separate scope for a local channel. A local row is one whose
+Modbus device address is 0, and the factories derive `transport` from that,
+so the two can never disagree. `AI`, `DI`, `AO`, `DO` and `RO` all take a
+device: 0 is local, anything else is a unit on the bus.
+
+The names are the scope enum's own abbreviations, so a row and the value a
+table filters on are spelled the same way, and rows stay one line wide.
+
 ## Access tables
 
 `vars/access.h` holds the display-side rules. There used to be a `VarGroup[]` table

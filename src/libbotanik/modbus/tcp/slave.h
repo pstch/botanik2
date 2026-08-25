@@ -10,46 +10,7 @@
  * a @ref Botanik::Component like every other config-driven subsystem, reading the
  * `mb` parameter group and restarting its listener when that group's commit
  * serial moves.
- *
- * @section server_beat Two phases, one request
- *
- * The server is stepped TWICE per beat, from two different phases:
- *
- *  - `step()` in `PHASE_INPUT` accepts, reads, decodes, and applies WRITES, so a
- *    setpoint written this beat is what the control programs run on this beat
- *    and `PHASE_CONFIG` picks up the group serial in the same cycle.
- *  - `service_tx()` in `PHASE_PRESENT` answers READS, off the image the scan just
- *    produced, and pushes the bytes out.
- *
- * The cost is one beat of latency on a read, against a SCADA poll measured in
- * seconds. What it buys is that no request is answered from a half-updated
- * image: nothing writes the bank between the output phase and the encode.
- *
- * @section server_ack The acknowledgement block
- *
- * An alarm is published as a READ-ONLY coil at its row number (map.h), but
- * acknowledging one is a write and is what an operator does at a SCADA station.
- * It gets a block of its own at `MODBUS_TCP_ACK_COIL_BASE + reg` rather than a
- * second meaning on the alarm's own bit:
- *
- *  - FC01 there reads the condition's `user_ack`, which clears itself on the
- *    next fresh ON edge, exactly as the ALARMS page shows it;
- *  - FC05 with 0xFF00 acks that condition - the same `AlarmController::ack()`
- *    the `a` key and `alarms ack` call;
- *  - FC05 at the BASE address acks every active condition. `reg == 0` is never
- *    assigned to a row, so the base is free and means "the lot";
- *  - FC05 with 0x0000 is refused: un-acknowledging is not something the model
- *    can express, and quietly ignoring it would look like it worked.
- *
- * The block exists only when the server was given an `AlarmController`, and it
- * is gated on `mb_write_enable` like any other write, because it is one.
- *
- * @section server_bounded Bounded per beat
- *
- * Like every task: at most `MODBUS_TCP_ACCEPT_PER_STEP` accepts, ONE request decoded
- * per connection (a master may pipeline; the extra bytes wait), and the protocol
- * ceilings on the request itself. A partial send resumes next beat rather than
- * blocking.
+ * @note The rationale behind this file is @ref server_beat, @ref server_ack, @ref server_bounded.
  */
 
 #include <cstdint>

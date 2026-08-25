@@ -13,16 +13,9 @@
  *  ASSERT topic, traps if a debugger is attached, and keeps running - the same
  *  on the simulator as on hardware. The CRITICAL entry is the whole report.
  *
- *  @section assert_deps Why this header includes nothing
- *
- *  An assertion is the one thing any file may want, so this header must cost
- *  its includers nothing (<cstdint> aside).
- *  Logs::Logger is only forward-declared and
- *  assert_fail()'s body lives in assert.cpp, the one TU that pulls the full
- *  Logger and the HAL (the arrangement core/component.h uses). Naming logger.h
- *  here would drag the logging subsystem, and through it core/ and tasks/, into
- *  every file that asserts; hal/ sits below the logger and cannot afford even
- *  this, so it falls back to plain assert(). */
+ *  @note This header costs its includers nothing but <cstdint>: Logs::Logger is
+ *  forward-declared and assert_fail()'s body is in assert.cpp. Naming logger.h
+ *  here would drag core/ and tasks/ into every file that asserts. */
 
 namespace Botanik {
 

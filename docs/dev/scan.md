@@ -342,3 +342,25 @@ list that has to be read, rather than a rule spread over every write.
 
 See @ref user_control for the operator's view, and @ref dev_architecture for where
 in the loop this sits.
+
+## What a block promises
+
+### The contract {#blk_contract}
+
+Every FUNCTION_BLOCK provides `reset()`: back to a cold block, as if it had
+just been constructed. A program calls it on the blocks it chooses on a first
+control-authority withdrawal, and a program's reset is the sum of its blocks',
+so a block without one is state that survives an outage it should not have.
+That is why this is enforced rather than documented.
+
+`preset()` is deliberately NOT part of the contract. It means "declare the
+state without a reading", and its argument is whatever the block holds - a
+bool, a float, a double, a position - so a uniform signature would have to lie
+about at least one. Blocks that can be preset say so individually.
+
+### Why the interface is checked, not dispatched {#blk_novirtual}
+
+`reset()` is not virtual and `Block` has no vtable: nothing ever holds a
+`Block*`, since blocks are value members of a `Plc::Program` named directly by
+the control law. So the base carries the family membership and
+BOTANIK_PLC_BLOCK() carries the interface, as three static_asserts per block.

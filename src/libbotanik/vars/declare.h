@@ -10,24 +10,7 @@
  * a plausibility band, an alarm with a Modbus register, a parameter with a
  * timeout. The fields a row does not carry are absent from the call, and the
  * factory supplies them.
- *
- * @section declare_flash constexpr and the single return
- *
- * These build the site's `const Descriptor g_vars[]`, which must be
- * constant-initialised straight into flash: a runtime call in that initialiser
- * would drag ~20 KB of table into `.data` behind a startup loop. A C++11
- * constexpr body must be a SINGLE return statement, so each one below is
- * exactly that - an aggregate initialiser, no locals and no branches.
- *
- * @section declare_local Local I/O
- *
- * There is no separate scope for a local channel. A local row is one whose
- * Modbus device address is 0, and the factories derive `transport` from that,
- * so the two can never disagree. `AI`, `DI`, `AO`, `DO` and `RO` all take a
- * device: 0 is local, anything else is a unit on the bus.
- *
- * The names are the scope enum's own abbreviations, so a row and the value a
- * table filters on are spelled the same way, and rows stay one line wide.
+ * @note The rationale behind this file is @ref declare_flash, @ref declare_local.
  */
 
 #include <cstdint>

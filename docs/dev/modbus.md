@@ -123,17 +123,77 @@ The tag is what makes a log line say `dev 34 (SRR/TDC/RO-4) not answering`
 instead of `dev 34`. Optional in the library; the reference site requires one for
 every unit, since a nameless device is one somebody added and stopped halfway.
 
-**Scheduling** (`client.h`) picks the next block with a single scoring pass:
+### Scheduling: one clock, no ladder {#dev_modbus_rank}
 
-```
- safe state   4000000   an output must reach its declared safe value
- starved      3000000   a block that has missed its period
- write        2000000   a demand the operator or a program has made
- read         1000000   the routine scan
-```
+`client.h` picks the next block with a single scoring pass. Every block is
+ranked on how far it is through the lateness it is allowed, **in permille**, and
+the highest wins. Reads and writes differ only in how that pair is DERIVED
+(`_slot_of()`: a poll period on one side, the minimum write interval and
+`MODBUS_WRITE_DEADLINE_MS` on the other), never in how they are compared.
 
-Priority is a number, not a place in a sequence, so changing one is an edit to a
-constant rather than a reordering that has to be re-argued.
+Relative and not absolute, because ranked by milliseconds the fast rungs hold
+the bus for ever: they re-arm constantly while a slow block's lateness only
+creeps up. In permille, 900 ms late on a 1 s rung and 8 s late on a 10 s rung
+score the same. There is no tier ladder, and the per-block starvation floor is
+not a jump between tiers but simply the point where urgency passes 1000.
+
+The one absolute pre-empt sits AHEAD of the scale rather than on it: a dirty
+write while a safe state is owed. A scale has no top, so a late enough block
+could otherwise climb into any rank reserved above it.
+
+### A silent device must not take the bus down
+
+An unplugged device costs a full response timeout, and left alone that is paid
+on EVERY sweep until the live devices lose their rates to the dead ones. Three
+things stop it, and the third is the one that matters at scale:
+
+- Each device carries its own health: consecutive failures, and the earliest
+  time it may be spoken to again. One retry, then backoff doubling from
+  `MODBUS_BACKOFF_MS` to `MODBUS_BACKOFF_MAX_MS`.
+- A miss does not push a read's retry out by a whole poll period
+  (`MODBUS_RETRY_DELAY_MS` caps it), so how long a device takes to be declared
+  dead is a property of the fault and not of the rung it happens to sit on.
+- At most ONE device that is not answering is offered the bus at a time (a
+  cursor, round-robin), and not until `MODBUS_PROBE_SPACING_MS` has passed since
+  the last transaction that failed (a gate). Their share of the bus is therefore
+  `timeout / (timeout + spacing)`, INDEPENDENT of how many are down.
+
+Without the interleave a probe is enormously late against its own period and
+wins every comparison it enters, so the least valuable and most expensive
+transaction on the bus goes first, and N dead devices arrive as one contiguous
+burst of response timeouts every backoff interval.
+
+The bound is on the STEADY STATE. A device that has never missed is presumed
+good, so its first failure cannot be gated - there is no way to know a device is
+down without trying it - and discovering N of them costs N timeouts once.
+
+A REFUSAL clears the device's count: an exception means it heard us, understood
+us and declined, so it is alive and its register map is the problem. The BLOCK
+backs off instead, doubling to `MODBUS_REFUSAL_MAX_MS`, since a refused write
+stays dirty and nothing else would ever slow the retry down.
+
+### Why the master is stepped twice
+
+`on_input()` runs at the top of the beat, so a control program sees the freshest
+image; `on_output()` runs after the programs have executed, so a demand written
+this beat reaches the wire without waiting for the next one. Stepping it once
+would cost a beat of latency in one direction or the other.
+
+`on_output()` runs whatever control authority says. Withholding control drops
+every output to its safe state and stops the scan, but those safe values sit in
+the image until a transaction carries them out: gating the collector too would
+leave the actuators energised at exactly the moment control was withdrawn.
+
+### A frame goes out whole or not at all
+
+The driver enable is hardware-timed: the USART drops DE when its shift register
+empties, so a frame handed to the UART in pieces would have DE fall mid-frame
+and every slave on the bus would see a truncated frame - which reads as a wiring
+fault, not a firmware one. A `static_assert` in `client.cpp` proves a full FC16
+fits the transmit ring (`MODBUS_TX_RING_BYTES`), and `on_output()` will not begin
+a transaction until `fieldbus_tx_idle()` says the ring has DRAINED, not merely
+that it has room for one more byte. A refused byte is then impossible, and is
+logged as a critical if it ever happens anyway.
 
 **Values** move through `image.h`, both directions, and a read failure
 invalidates the rows it covered (`Q_REFUSED`) rather than leaving the last good
@@ -216,6 +276,90 @@ Persisting is queued rather than synchronous: a master writing forty parameters
 in one transaction would otherwise be forty flash erases inside one beat. The
 queue drains a few per beat and answers `EX_SLAVE_BUSY` when it is already full,
 which is a slave saying "ask again" and not a rejection.
+
+
+## The TCP slave, in detail
+
+### Two phases, one request {#server_beat}
+
+The server is stepped TWICE per beat, from two different phases:
+
+ - `step()` in `PHASE_INPUT` accepts, reads, decodes, and applies WRITES, so a
+   setpoint written this beat is what the control programs run on this beat
+   and `PHASE_CONFIG` picks up the group serial in the same cycle.
+ - `service_tx()` in `PHASE_PRESENT` answers READS, off the image the scan just
+   produced, and pushes the bytes out.
+
+The cost is one beat of latency on a read, against a SCADA poll measured in
+seconds. What it buys is that no request is answered from a half-updated
+image: nothing writes the bank between the output phase and the encode.
+
+### The acknowledgement block {#server_ack}
+
+An alarm is published as a READ-ONLY coil at its row number (map.h), but
+acknowledging one is a write and is what an operator does at a SCADA station.
+It gets a block of its own at `MODBUS_TCP_ACK_COIL_BASE + reg` rather than a
+second meaning on the alarm's own bit:
+
+ - FC01 there reads the condition's `user_ack`, which clears itself on the
+   next fresh ON edge, exactly as the ALARMS page shows it;
+ - FC05 with 0xFF00 acks that condition - the same `AlarmController::ack()`
+   the `a` key and `alarms ack` call;
+ - FC05 at the BASE address acks every active condition. `reg == 0` is never
+   assigned to a row, so the base is free and means "the lot";
+ - FC05 with 0x0000 is refused: un-acknowledging is not something the model
+   can express, and quietly ignoring it would look like it worked.
+
+The block exists only when the server was given an `AlarmController`, and it
+is gated on `mb_write_enable` like any other write, because it is one.
+
+### Bounded per beat {#server_bounded}
+
+Like every task: at most `MODBUS_TCP_ACCEPT_PER_STEP` accepts, ONE request decoded
+per connection (a master may pipeline; the extra bytes wait), and the protocol
+ceilings on the request itself. A partial send resumes next beat rather than
+blocking.
+
+## RTU framing
+
+### Why not t3.5 {#fr_silence}
+
+Modbus RTU delimits frames by 3.5 character times of silence: 2.005 ms at
+19200, and a spec-fixed 1.75 ms above it. This firmware cannot observe that -
+the framer is only LOOKED AT once per 10 ms beat, so every gap it could
+measure has already closed. Three things replace it, and together they are
+strictly stronger than a timer would be:
+
+ - @ref RtuFramer::arm() drops whatever the previous transaction left behind,
+   so every frame begins at a known offset rather than at a guessed boundary.
+ - The LENGTH is the delimiter. A response's size is knowable from the
+   function code plus, for a read, its byte count - and the byte count is
+   checked against the request before it is believed.
+ - The CRC confirms it. A frame that ends where we thought it did, and
+   checksums, is the frame that was sent.
+
+The response deadline is a backstop for a slave that says nothing at all, not
+a frame boundary. Nothing here treats elapsed time as evidence about where a
+frame ends.
+
+It takes bytes and a clock reading, and has never heard of BufferedSerial,
+HAL::Serial, the beat or RS-485: so it is tested with array literals and a
+fake @c now_ms, and servicing the UART more than once per beat (which the
+budget doc wants above 38400) is a change in the caller.
+
+
+### Framing without a length field {#sl_framing}
+
+A slave knows nothing until it has read the function code, and then the length
+follows from it: eight bytes for the single-value functions, and for the
+multi-writes a byte count that is itself inside the frame. A request is
+complete when `request_len()` says it is, never because a gap in the bytes
+suggested it.
+
+It answers from a flat register image and a flat coil image, addressed exactly
+as the wire addresses them. No variable table, no bank: whoever owns the
+instance decides what the registers mean, and the simulator fills them from
+the site's own table (botanik_sim/fieldbus.h).
 
 ## Text rows, and the IPv4 quad (planned)
 

@@ -195,3 +195,24 @@ of per-task state and answers it:
 
 `due()` is a pure query and `ran()` commits, so a caller that decides not to run
 (the scan while control is withheld) does not silently consume the activation.
+
+## TaskTimer, in detail
+
+### due() queries, ran() commits {#timer_split}
+
+due() is const. A caller that decides not to run a due task - the scan cycle
+while control is withheld - must not silently consume the activation, so
+nothing moves until ran() says it did.
+
+### Why there is an offset {#timer_offset}
+
+Every timer seeds itself on its first run, and everything runs on the first
+beat, so without an offset every period is phase-locked to boot and rates cut
+the MEAN work per beat while leaving the PEAK exactly where it was - and the
+peak is what sets the shortest beat the loop can hold.
+
+The offset is a one-shot delay on the FIRST interval only: a task with offset
+30 waits period+30 for its second activation and period thereafter, so it runs
+30 ms out of step with an unoffset task of the same period, for good. Keep it
+under the period, and prefer a multiple of the beat (an offset the beat grid
+cannot express just rounds up to the next beat).

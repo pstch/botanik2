@@ -8,19 +8,7 @@
  * The mirror image of @ref modbus/rtu/client.h. Written for the simulator's
  * field devices, but ordinary firmware: a unit that has to APPEAR as a device to
  * somebody else's master uses the same object.
- *
- * @section sl_framing Framing without a length field
- *
- * A slave knows nothing until it has read the function code, and then the length
- * follows from it: eight bytes for the single-value functions, and for the
- * multi-writes a byte count that is itself inside the frame. A request is
- * complete when `request_len()` says it is, never because a gap in the bytes
- * suggested it.
- *
- * It answers from a flat register image and a flat coil image, addressed exactly
- * as the wire addresses them. No variable table, no bank: whoever owns the
- * instance decides what the registers mean, and the simulator fills them from
- * the site's own table (botanik_sim/fieldbus.h).
+ * @note The rationale behind this file is @ref sl_framing.
  */
 
 #include <cstdint>

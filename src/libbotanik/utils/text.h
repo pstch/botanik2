@@ -96,11 +96,7 @@ namespace Botanik { namespace Utils {
      *  printf's `%0<width>.<decimals>f`, and return @p buf for inline use.
      *
      *  Our Mbed newlib-nano @c snprintf stubs out @c %f, so format with this
-     *  first and feed the result via @c %s:
-     *  @code
-     *      char fb[12];
-     *      snprintf(buf, sizeof(buf), "%s C", format_float(fb, sizeof(fb), t, 1));
-     *  @endcode
+     *  first and feed the result through @c %s.
      *
      *  @param value     Rounded half away from zero to @p decimals places
      *                   (diverges from %f only on exact .5 ties).

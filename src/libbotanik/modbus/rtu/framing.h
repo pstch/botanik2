@@ -5,31 +5,7 @@
  * @file modbus/rtu/framing.h
  * @brief Finding where a response ends, without being able to hear the silence
  *        that officially delimits it.
- *
- * @section fr_silence Why not t3.5
- *
- * Modbus RTU delimits frames by 3.5 character times of silence: 2.005 ms at
- * 19200, and a spec-fixed 1.75 ms above it. This firmware cannot observe that -
- * the framer is only LOOKED AT once per 10 ms beat, so every gap it could
- * measure has already closed. Three things replace it, and together they are
- * strictly stronger than a timer would be:
- *
- *  - @ref RtuFramer::arm() drops whatever the previous transaction left behind,
- *    so every frame begins at a known offset rather than at a guessed boundary.
- *  - The LENGTH is the delimiter. A response's size is knowable from the
- *    function code plus, for a read, its byte count - and the byte count is
- *    checked against the request before it is believed.
- *  - The CRC confirms it. A frame that ends where we thought it did, and
- *    checksums, is the frame that was sent.
- *
- * The response deadline is a backstop for a slave that says nothing at all, not
- * a frame boundary. Nothing here treats elapsed time as evidence about where a
- * frame ends.
- *
- * It takes bytes and a clock reading, and has never heard of BufferedSerial,
- * HAL::Serial, the beat or RS-485: so it is tested with array literals and a
- * fake @c now_ms, and servicing the UART more than once per beat (which the
- * budget doc wants above 38400) is a change in the caller.
+ * @note The rationale behind this file is @ref fr_silence.
  */
 
 #include <cstdint>

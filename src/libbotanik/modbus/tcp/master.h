@@ -39,18 +39,9 @@ namespace Botanik { namespace Modbus {
     /**
      * @brief A Modbus TCP master: one connection, one transaction in flight.
      *
-     * Usage is poll-shaped, like the DNS resolver: start a request, step the
-     * component each beat, ask whether it finished. Nothing blocks and nothing
-     * calls back.
-     *
-     * @code
-     * if (master.read_registers(1, 1000, 2)) {      // unit, address, quantity
-     *     ...each beat: master.step(now_ms) ...
-     *     if (master.done()) {
-     *         if (master.error() == ERR_OK) use(master.response());
-     *     }
-     * }
-     * @endcode
+     * Usage is poll-shaped, like the DNS resolver: read_registers() starts a
+     * request, step() runs it each beat, done() says it finished and error()
+     * whether it worked. Nothing blocks and nothing calls back.
      */
     class TcpMaster : public Component {
 

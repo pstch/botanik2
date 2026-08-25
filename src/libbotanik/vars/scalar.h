@@ -5,33 +5,7 @@
  * @file scalar.h
  * @brief One value slot for every type a variable can hold, and the type-driven
  *        read / write / render / parse that go with it.
- *
- * @section scalar_one_tag One tag, four uses
- *
- * A variable carries a single VarType. That tag governs its live value AND its
- * declared @c min, @c max and @c def: the same union, read the same way, so
- * they cannot disagree about what the variable is (a real-valued parameter's
- * band of 0.5..2.5 stays fractional).
- *
- * @section scalar_flash Why constexpr constructors
- *
- * A site's variable table is `const` and must be constant-initialised straight
- * into flash: no `.data` copy, no startup initialiser. A union with constexpr
- * constructors keeps that property (a *member* having constructors does not
- * stop the enclosing descriptor being an aggregate), while brace-initialisation
- * could only ever reach the union's FIRST member, C++11 having no designated
- * initialisers. Two load-bearing constraints fall out:
- *
- *  - a C++11 constexpr function body must be a SINGLE return statement, so the
- *    factories below construct rather than assign
- *  - a bare integer literal converts equally well to uint64_t, int64_t and
- *    float, so Scalar(int) is deleted and the named factories are the way in
- *
- * @section scalar_width Persisted width
- *
- * @c type_width() is the NARROW width (1/2/4/8), not sizeof(Scalar): what a
- * value occupies in storage. It must stay narrow, or already-stored records
- * stop being readable.
+ * @note The rationale behind this file is @ref scalar_one_tag, @ref scalar_flash, @ref scalar_width.
  */
 
 #include <cmath>

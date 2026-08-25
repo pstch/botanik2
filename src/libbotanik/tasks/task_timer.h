@@ -11,25 +11,7 @@
  *
  * No clock of its own: the caller passes the beat timestamp in, exactly as the
  * function blocks take dt_ms, so this is testable without one.
- *
- * @section timer_split due() queries, ran() commits
- *
- * due() is const. A caller that decides not to run a due task - the scan cycle
- * while control is withheld - must not silently consume the activation, so
- * nothing moves until ran() says it did.
- *
- * @section timer_offset Why there is an offset
- *
- * Every timer seeds itself on its first run, and everything runs on the first
- * beat, so without an offset every period is phase-locked to boot and rates cut
- * the MEAN work per beat while leaving the PEAK exactly where it was - and the
- * peak is what sets the shortest beat the loop can hold.
- *
- * The offset is a one-shot delay on the FIRST interval only: a task with offset
- * 30 waits period+30 for its second activation and period thereafter, so it runs
- * 30 ms out of step with an unoffset task of the same period, for good. Keep it
- * under the period, and prefer a multiple of the beat (an offset the beat grid
- * cannot express just rounds up to the next beat).
+ * @note The rationale behind this file is @ref timer_split, @ref timer_offset.
  */
 
 #include <cstdint>
