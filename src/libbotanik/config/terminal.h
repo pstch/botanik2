@@ -285,9 +285,6 @@ namespace Botanik { namespace Config {
 
     /** @} */
 
-
-    /** @} */
-
 } }
 
 #undef BOTANIK_CFG

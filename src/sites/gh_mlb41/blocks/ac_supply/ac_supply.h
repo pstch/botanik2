@@ -25,6 +25,8 @@ static const float SUPPLY_A_BAND  = 0.1f;
 static const float SUPPLY_W_BAND  = 5.0f;
 static const float SUPPLY_HZ_BAND = 0.05f;
 
+/** @} */
+
 /**
  * @brief One AC supply, watched: four readings mirrored onto status rows and
  *        judged against their bands.

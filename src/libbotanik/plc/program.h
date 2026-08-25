@@ -170,6 +170,8 @@ namespace Botanik { namespace Plc {
 
         Tasks::GroupId group() const { return _group; }
 
+        /** @} */
+
         /** @name Health
          *  What this program could do on its last activation. Re-derived each
          *  time, so a condition that clears is not sticky - a program that stops
@@ -182,6 +184,8 @@ namespace Botanik { namespace Plc {
         /** @brief Whether setup found this program unwireable. It is never
          *  activated, so a reader asking why nothing is happening asks here. */
         bool is_faulted() const { return _faulted; }
+
+        /** @} */
 
         /** @name Going safe
          *
@@ -283,7 +287,6 @@ namespace Botanik { namespace Plc {
          *  authority. Registering also runs bind(), via Component::setup(). */
         void register_tasks() override;
 
-        /** @} */
         /** @name Accounting
          *  @{ */
 

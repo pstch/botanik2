@@ -7,8 +7,6 @@
 
 namespace Site {
 
-/** @} */
-
 void AcSupply::reset() {
     _v.reset(); _a.reset(); _w.reset(); _hz.reset();
 }

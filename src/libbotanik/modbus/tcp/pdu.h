@@ -79,8 +79,6 @@ namespace Botanik { namespace Modbus {
         DEC_EXCEPTION        ///< well-formed, refused: answer with Request::ex
     };
 
-    /** @} */
-
     /** @name Codec
      *  @{ */
 
