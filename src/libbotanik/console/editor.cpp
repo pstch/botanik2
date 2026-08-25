@@ -195,8 +195,13 @@ namespace Botanik { namespace Terminal {
         uint16_t draw_row = _suppress_sync_redraw ? old_origin : _origin;
         _terminal->move_to({draw_row, _indent});
         _write_prompt(0);
-        if (!_suppress_sync_redraw)
-            _place_cursor(_map_cursor_pos(0));
+        // On the row the prompt just went to, not the one the layout says: a
+        // suppressed redraw leaves the band still to be moved, and the caller
+        // re-places the cursor after it moves. Skipping the declaration instead
+        // parked the visible cursor where the discarded text ended.
+        CursorPos at = _map_cursor_pos(0);
+        at.row = draw_row;
+        _place_cursor(at);
     }
 
     void TextEditor::commit() {

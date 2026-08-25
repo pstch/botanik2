@@ -95,9 +95,13 @@ namespace Botanik { namespace Shell {
                            "critical <text>",                     G_SYS, false,
                                                                &CommandShell::_cmd_log        },
 #if BOTANIK_FEATURE_VARS
-            { "control",   "enable|inhibit|disable|safe",
-                                        "whether the firmware may drive the field",
-                           "enable\ninhibit\ndisable\nsafe\nrelease\nstatus",
+            { "control",   "MODE",      "whether the firmware may drive the field",
+                           "enable               programs drive, overrides reach the field\n"
+                           "inhibit              programs stopped; an override still drives\n"
+                           "disable              programs stopped; an override is MUTED\n"
+                           "safe                 drive every program to its fail position\n"
+                           "release              lift a safe request\n"
+                           "status               the mode, and who is holding it",
                                                                   G_SYS, true,
                                                                &CommandShell::_cmd_control    },
 

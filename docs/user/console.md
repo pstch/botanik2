@@ -274,16 +274,19 @@ lists a topic, and `<command> help` spells out a command's verbs.
 ```
 botanik> help
 -- Main commands ---------------------------------------------------------------
-  help [<topic>]                 : this help page, or a topic's help page
-  breakpoint                     : break into an attached debugger
+  help [<topic>] : this help page, or a topic's help page
+  breakpoint     : break into an attached debugger
   ...
-  control enable|inhibit|disable : whether the firmware may drive the field
+  control MODE   : whether the firmware may drive the field
 
 -- Topics ----------------------------------------------------------------------
-  system                         : driving the unit, and the ways out of it
-  status                         : what the unit is doing right now
-  tables                         : params, overrides, programs, alarms, vars
+  system         : driving the unit, and the ways out of it
+  status         : what the unit is doing right now
+  tables         : params, overrides, programs, alarms, vars
 ```
+
+The left column is as wide as the widest row and no wider, so one command
+spelling out its options in that column costs every other row the room.
 
 A command that takes a verb is marked `...` in a topic listing, and answers a
 bare call with its usage - one verb per line, so a line can be copied rather
@@ -309,7 +312,12 @@ commands with their own code.
 |------------------------------------------------|---------------------------------------|
 | `logs on\|off\|status`                          | show/hide logs on the shell page      |
 | `log <level> <text>`                           | write an entry of your own to the log  |
-| `control enable\|inhibit\|disable\|status`       | disable or inhibit the control logic  |
+| `control status`                               | the mode in force, and who is holding it |
+| `control enable`                               | programs drive; an override reaches the field |
+| `control inhibit`                              | programs stopped; an override still drives |
+| `control disable`                              | programs stopped; an override is muted too |
+| `control safe`                                 | drive every program to its fail position |
+| `control release`                              | lift a safe request                   |
 | `ntpsync`                                      | request an immediate NTP sync         |
 | `breakpoint`                                   | trap into an attached debugger        |
 | `reboot`                                       | drop control, then let the watchdog reset the unit |

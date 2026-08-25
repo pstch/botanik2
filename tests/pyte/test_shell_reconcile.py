@@ -178,3 +178,20 @@ def test_taller_than_screen(term):
     # alarm bar, a garbled artifact this test is not about. line00 has gone.
     assert_editor(term, *["...> line%02d" % i for i in range(1, 23)],
                   clip=(0, 23), alarm_bar=False)
+
+
+def test_cursor_returns_to_the_prompt_after_clear(term):
+    """^U parks the hardware cursor after the prompt, whatever it cleared.
+
+    pyte's cursor is the one on the wire, so this asserts what present() homed
+    the terminal at. A single-row clear used to leave it where the text ended:
+    the shell suppresses the editor's redraw, and the suppressed path skipped
+    the declaration along with it.
+    """
+    home = (_prompt_row(term), 9)         # PS1 is 9 columns
+    for text in (b"hello", RULER.encode()):    # one row, then two
+        term.send(text + keys.CTRL_U)
+        assert_editor(term, "botanik>")
+        assert (term.screen.cursor.y, term.screen.cursor.x) == home, \
+            "^U left the cursor at %r" % ((term.screen.cursor.y,
+                                           term.screen.cursor.x),)
