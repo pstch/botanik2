@@ -605,4 +605,36 @@ TEST_CASE("program: a name that resolves to nothing FAULTS the program that aske
     CHECK(p.health() == Plc::Health::FAULTED);
 }
 
+TEST_CASE_FIXTURE(Rig<Site::IrrValves>, "programs: one switched off parks its own valves before it stops") {
+    // `programs disable` is the operator's switch beside the system's, and it
+    // has to reach the plant the same way: a program that simply stops being
+    // activated abandons its actuators wherever the command caught them.
+    const Vars::VarRef inlet = live.ref("irr_input_ro1");
+    const Vars::Descriptor& id = live.bank.descriptor(inlet.index);
+    const bool fails_to = Vars::as_bool(id.type, id.def);
+
+    uint64_t t = 0;
+    live.bank.var(live.ref("irr_state")).set_i((int64_t)Site::IRR_FILLING);
+    live.bank.var(live.ref("irr_activeTray")).set_i(1);
+    d.step(t += 1000);
+    // Filling drives the inlet away from where it fails, which is what makes
+    // the parking observable at all.
+    REQUIRE(live.bank.var(inlet).as_bool() != fails_to);
+
+    const int16_t k = live.reg.find_program("irr_valves");
+    REQUIRE(k >= 0);
+    REQUIRE(live.reg.set_program_enabled((uint8_t)k, false, t));
+
+    // Still asked to fill: only the operator's switch has changed.
+    d.step(t += 1000);
+    CHECK(live.bank.var(inlet).as_bool() == fails_to);
+    CHECK(live.reg.program_enabled((uint8_t)k) == false);
+
+    // ...and once it has arrived it stops being activated, so a later change
+    // to its inputs moves nothing.
+    live.bank.var(live.ref("irr_state")).set_i((int64_t)Site::IRR_DRAINING);
+    for (int i = 0; i < 5; i++) d.step(t += 1000);
+    CHECK(live.bank.var(inlet).as_bool() == fails_to);
+}
+
 }  // namespace site_programs

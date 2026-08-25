@@ -379,15 +379,20 @@ namespace Botanik { namespace Vars {
          *  @note Signedness and bounds come from @p T's own width, so this needs
          *  neither @c \<limits\> nor @c \<type_traits\>. */
         template <typename T> T as() const {
+            // BOTH arms are compiled for every T - C++11 has no if constexpr -
+            // so each rail is derived from sizeof rather than from T's own bit
+            // pattern: ~(T)0 on a signed T sign-extends to all ones.
+            const uint64_t span = (sizeof(T) >= 8)
+                                      ? ~(uint64_t)0
+                                      : (((uint64_t)1 << (8 * sizeof(T))) - 1);
             if ((T)-1 < (T)0) {
-                const int64_t hi = (int64_t)(((uint64_t)1 << (8 * sizeof(T) - 1)) - 1);
+                const int64_t hi = (int64_t)(span >> 1);
                 const int64_t lo = -hi - 1;
                 const int64_t x  = as_i64();
                 return (T)((x < lo) ? lo : ((x > hi) ? hi : x));
             }
-            const uint64_t hi = (uint64_t)(T)~(T)0;
-            const uint64_t x  = as_u64();
-            return (T)((x > hi) ? hi : x);
+            const uint64_t x = as_u64();
+            return (T)((x > span) ? span : x);
         }
         /** @} */
 

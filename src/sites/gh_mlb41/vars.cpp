@@ -137,12 +137,14 @@ const Descriptor params[] = {
     P("cli_rainLockout_sec"  , T_U16 , 300    , 0     , 3600   , 0, "sec" , 145, "keep windows shut this long after rain", "", true),
     P("cli_skirtPeriod_sec"  , T_U16 , 60     , 10    , 600    , 0, "sec" , 146, "skirt valve modulation period", "humidify effort sets the on-time in it", true),
     P("cli_skirtMinOn_sec"   , T_U16 , 10     , 1     , 600    , 0, "sec" , 147, "shortest skirt valve pulse", "<= cli_skirtPeriod_sec; under it, stay off", true),
+
     P("sol_coldBankRise_min" , T_I16 , -30    , -180  , 60     , 0, "min" , 200, "cold banking starts, from sunrise", "", true),
     P("sol_breezeRise_min"   , T_I16 , 30     , -60   , 180    , 0, "min" , 201, "dawn breeze starts, from sunrise", "", true),
     P("sol_dayRise_min"      , T_I16 , 60     , 0     , 180    , 0, "min" , 202, "day operation starts, from sunrise", "", true),
     P("sol_heatBankSet_min"  , T_I16 , -180   , -300  , 0      , 0, "min" , 203, "heat banking starts, from sunset", "", true),
     P("sol_duskSet_min"      , T_I16 , -15    , -120  , 0      , 0, "min" , 205, "dusk breeze starts, from sunset", "the breeze runs into the sunset; night follows at sol_nightSet_min", true),
     P("sol_nightSet_min"     , T_I16 , 30     , 0     , 180    , 0, "min" , 204, "night operation starts, from sunset", "", true),
+
     P("irr_forceNow"         , T_BOOL, 0      , 0     , 1      , 0, ""    , 250, "water now, then clear this flag", "", true),
     P("irr_liters_tray1"     , T_U16 , 150    , 0     , 500    , 0, "L"   , 251, "litres to flood this tray in summer", "", true),
     P("irr_days_tray1"       , T_U8  , 14     , 1     , 60     , 0, "days", 252, "days between waterings in summer", "", true),
@@ -184,6 +186,7 @@ const Descriptor params[] = {
     P("irr_last_tray8"       , T_U32 , 0      , 0     , 100000 , 0, "days", 288, "last watering (days since 1 Jan 1970)", "read to decide when the tray is due, stamped by the cycle once the fill completes. Editable: moving it skips or brings forward a watering", true, true),
     P("irr_forceOn_tray8"    , T_BOOL, 0      , 0     , 1      , 0, ""    , 289, "force watering this tray next cycle", "", true),
     P("irr_forceOff_tray8"   , T_BOOL, 0      , 0     , 1      , 0, ""    , 290, "force skipping this tray next cycle", "", true),
+
     P("irr_dryEwmaDays"      , T_U16 , 3      , 1     , 30     , 0, "days", 291, "days of dryness history set the dose", "sampled every 2 h", true),
     P("irr_dryLo_kPa"        , T_F32 , 0.15   , 0.0   , 2.0    , 2, "kPa" , 292, "air dryness giving the least water", "", true),
     P("irr_dryHi_kPa"        , T_F32 , 1.2    , 0.0   , 5.0    , 2, "kPa" , 293, "air dryness giving the most water", "> irr_dryLo_kPa", true),
@@ -209,6 +212,7 @@ const Descriptor params[] = {
     P("irr_out_avg_ms"       , T_U16 , 200    , 0     , 10000  , 0, "ms"  , 311, "rolling average for this flow meter", "per output-meter datasheet", true),
     P("irr_leak_Lpm"         , T_F32 , 0.5    , 0.1   , 10.0   , 1, "Lpm" , 312, "inlet flow with the cycle idle is a leak", "every valve is shut: whatever is moving is moving through something broken", true),
     P("irr_minFill_Lpm"      , T_F32 , 5.0    , 0.5   , 50.0   , 1, "Lpm" , 313, "a fill under this rate is a pressure fault", "the inlet is open and the water is not arriving: supply pressure, or a part-shut valve", true),
+
     P("pwr_dc1_rawMin_mV"    , T_U16 , 4000   , 0     , 10000  , 0, "mV"  , 400, "DC PS1 raw value at the low end", "per divider setup", true),
     P("pwr_dc1_rawMax_mV"    , T_U16 , 6000   , 0     , 10000  , 0, "mV"  , 401, "DC PS1 raw value at the high end", "per divider setup", true),
     P("pwr_dc1_engMin_V"     , T_F32 , 20.0   , 0.0   , 48.0   , 1, "V"   , 402, "DC PS1 volts at the low end", "per divider setup", true),
@@ -252,6 +256,7 @@ const Descriptor params[] = {
     P("pwr_genStart_sec"     , T_U16 , 30     , 5     , 300    , 0, "sec" , 440, "the generator has this long to take over", "grid gone and the ATS still dead past it: the set did not start", true),
     P("geo_lat_deg"          , T_F32 , 47.96  , -90.0 , 90.0   , 2, "deg" , 941, "geographical latitude, in degrees", "this greenhouse", true),
     P("geo_lon_deg"          , T_F32 , 1.24   , -180.0, 180.0  , 2, "deg" , 942, "geographical longitude, in degrees", "this greenhouse", true),
+
     P("cli_groundDemHyst"    , T_F32 , 0.02   , 0.0   , 0.5    , 2, ""    , 150, "demand given back before the rung lets go", "", true),
     P("cli_fanDemHyst"       , T_F32 , 0.05   , 0.0   , 0.5    , 2, ""    , 151, "demand change needed to switch fan speed", "", true),
     P("cli_fanIrrDem"        , T_F32 , 0.34   , 0.0   , 1.0    , 2, ""    , 152, "fan demand while a tray is being watered", "", true),
@@ -260,12 +265,14 @@ const Descriptor params[] = {
     P("cli_targetMax_degC"   , T_F32 , 27.0   , 0.0   , 40.0   , 1, "degC", 155, "warmest the target may be clamped to", "", true),
     P("cli_sensorTau_ms"     , T_U16 , 30000  , 1000  , 60000  , 0, "ms"  , 156, "probe filter time constant", "", true),
     P("cli_targetTau_s"      , T_U16 , 300    , 0     , 3600   , 0, "s"   , 160, "target temperature filter time constant", "", true),
+
     P("irr_flowBand_Lpm"     , T_F32 , 0.1    , 0.0   , 5.0    , 2, "Lpm" , 157, "outlet flow change worth a status write", "", true),
     P("irr_flowCutoff_Lpm"   , T_F32 , 0.2    , 0.0   , 5.0    , 2, "Lpm" , 158, "below this the outlet counts no litres", "", true),
     P("irr_rateWin_ms"       , T_U16 , 5000   , 500   , 60000  , 0, "ms"  , 159, "window the inlet rate is differenced over", "", true),
 };
 
 const Descriptor rows[] = {
+    // Alarms
     A("alarm_ac_grid"          , "AC_GRID"  , 2 , 2  , 0, 10, 800, "grid AC out-of-spec/offline", "check mains breaker / utility feed"),
     A("alarm_dc_ps1"           , "DC_PS1"   , 2 , 2  , 0, 0 , 801, "DC PS1 volts too low", ""),
     A("alarm_gen"              , "GEN_FLT"  , 1 , 2  , 0, 10, 802, "generator failed to start", "inspect generator + start battery"),
@@ -305,7 +312,8 @@ const Descriptor rows[] = {
     A("alarm_irr_drain_tray6"  , "DRAIN6"   , 0 , 5  , 0, 0 , 846, "tray 6 would not drain in time", ""),
     A("alarm_irr_drain_tray7"  , "DRAIN7"   , 0 , 5  , 0, 0 , 847, "tray 7 would not drain in time", ""),
     A("alarm_irr_drain_tray8"  , "DRAIN8"   , 0 , 5  , 0, 0 , 848, "tray 8 would not drain in time", ""),
-    SV("sys_supply_lockout"     , T_BOOL, 0          , 0, ""    , 500, "supply unhealthy: actuators held off", ""),
+
+    // Status variables
     SV("cli_temp_in"            , T_F32 , 0          , 1, "degC", 501, "interior temperature: the hotter of the two levels", "what the cooling ladder controls on; the spec keeps the worst case between levels, and the gap between them is cli_dTStrat_degC"),
     SV("cli_temp_hi"            , T_F32 , 0          , 1, "degC", 502, "ceiling temperature, voted and filtered", "median of the three probes, then EWMA"),
     SV("cli_rh_hi"              , T_F32 , 0          , 2, ""    , 503, "ceiling relative humidity, voted and filtered", "fraction 0..1; median of three, then EWMA"),
@@ -323,7 +331,7 @@ const Descriptor rows[] = {
     SV("cli_targetTemp_degC"    , T_F32 , 0          , 1, "degC", 515, "cooling target in force for the current phase", "the bank phases offset it, then it is clamped 14..27"),
     SV("cli_prevDayMax_degC"    , T_F32 , 0          , 1, "degC", 516, "highest interior temperature of the previous day", "gates COLD_BANK: pre-cool only after a hot day"),
     SV("cli_prevNightMin_degC"  , T_F32 , 0          , 1, "degC", 517, "lowest interior temperature of the previous night", "gates HEAT_BANK: bank heat only after a cold night"),
-    SVE("cli_phase"              , PHASE_NIGHT, &DayPhase_label   , 518, "phase of the day in force", "NIGHT COLD_BANK DAWN_BREEZE DAY HEAT_BANK DUSK_BREEZE"),
+    SVE("cli_phase"             , PHASE_NIGHT, &DayPhase_label  , 518, "phase of the day in force", "NIGHT COLD_BANK DAWN_BREEZE DAY HEAT_BANK DUSK_BREEZE"),
     SV("cli_coolDem"            , T_F32 , 0          , 2, ""    , 519, "cooling demand, -1 warming to +1 cooling", "PID on the interior temperature against cli_targetTemp_degC"),
     SV("cli_stratDem"           , T_F32 , 0          , 2, ""    , 520, "destratification demand, 0 to 1", "3-band hysteresis on cli_dTStrat_degC"),
     SV("cli_fanSpeed"           , T_U8  , 0          , 0, ""    , 569, "destratification fan speed in force, 0 to 3", "the band the fans are actually in; the three coils are one relay each"),
@@ -347,7 +355,7 @@ const Descriptor rows[] = {
     SV("irr_delivered_L"        , T_F32 , 0          , 1, "L"   , 536, "delivered into the tray being filled", "counted off irr_inPulse, one pulse per irr_input_qtyPerImp"),
     SV("irr_drained_L"          , T_F32 , 0          , 1, "L"   , 538, "drained back out of the tray being served", "integrated off irr_out_Lpm over the drain window"),
     SV("irr_outFlow_Lpm"        , T_F32 , 0          , 1, "Lpm" , 539, "outlet flow, averaged over irr_out_avg_ms", "what the drain verdict integrates"),
-    SVE("irr_state"              , IRR_IDLE   , &IrrState_label   , 537, "what the irrigation cycle is doing", "IDLE FILLING DRAINING FLUSHING"),
+    SVE("irr_state"             , IRR_IDLE   , &IrrState_label  , 537, "what the irrigation cycle is doing", "IDLE FILLING DRAINING FLUSHING"),
     SV("cli_window1_tgt"        , T_F32 , 0.25       , 2, ""    , 540, "window 1 commanded position, 0 to 1", "what the arbitration asked for"),
     SV("cli_window1_pos"        , T_F32 , 0          , 2, ""    , 541, "window 1 position, 0 to 1", "estimated from travel time; only a seating stroke proves 0"),
     SV("cli_window2_tgt"        , T_F32 , 0.25       , 2, ""    , 542, "window 2 commanded position, 0 to 1", "what the arbitration asked for"),
@@ -365,6 +373,14 @@ const Descriptor rows[] = {
     SV("cli_rotLockout"         , T_BOOL, 0          , 0, ""    , 551, "rot risk: nothing may humidify", "cuts the skirt valve whatever the humidity demand"),
     SV("cli_rotVentDem"         , T_F32 , 0          , 2, ""    , 552, "anti-rot ventilation demand, 0 to 1", "one of the three the intractors take the max of"),
     SV("cli_skirtDuty"          , T_F32 , 0          , 2, ""    , 553, "skirt valve on-time, 0 to 1", "of cli_skirtPeriod_sec; under cli_skirtMinOn_sec it stays off"),
+    SV("cli_intakeCoolOk"       , T_BOOL, 0          , 0, ""    , 588, "intake air is cool enough to be worth drawing", "crawlspace is cli_ventTempMgn_degC under the interior"),
+    SV("cli_groundHeatOk"       , T_BOOL, 0          , 0, ""    , 589, "intake air is warm enough to be worth drawing", "the mirror gate: the ground is that much OVER the interior, and the ladder is asking for heat"),
+    SV("cli_intakeDryOk"        , T_BOOL, 0          , 0, ""    , 590, "outside air is dry enough to be worth drawing", "exterior dew point is cli_ventDryMgn_degC under the interior's"),
+    SV("irr_dueTray"            , T_U8  , 0          , 0, ""    , 598, "tray owed water now, 0 when none is", "the schedule's answer: the most overdue tray whose interval has elapsed, or a forced one"),
+    SV("irr_slotOpen"           , T_BOOL, 0          , 0, ""    , 599, "the climate allows a cycle to start", "end of night once the plants are warm enough, or the morning window"),
+    
+    // Library variables
+    SV("sys_supply_lockout"     , T_BOOL, 0          , 0, ""    , 500, "supply unhealthy: actuators held off", ""),
     SV("sys_grid_V"             , T_F32 , 0          , 1, "V"   , 554, "grid line-to-neutral volts", "deadbanded mirror of the meter"),
     SV("sys_grid_A"             , T_F32 , 0          , 1, "A"   , 555, "grid total current", "deadbanded mirror of the meter"),
     SV("sys_grid_W"             , T_F32 , 0          , 0, "W"   , 556, "grid active power", "deadbanded mirror of the meter"),
@@ -380,6 +396,8 @@ const Descriptor rows[] = {
     SV("sys_upsBat_V"           , T_F32 , 0          , 1, "V"   , 566, "UPS battery volts", "deadbanded mirror of the divider"),
     SV("sys_genBat_V"           , T_F32 , 0          , 1, "V"   , 567, "generator start battery volts", "deadbanded mirror of the divider"),
     SV("sys_dc_ok"              , T_BOOL, 0          , 0, ""    , 568, "every DC rail above its floor, and the UPS off its low-battery contact", ""),
+
+    // Program status variables
     SVE("prog_ac_grid_watch"     , 3          , &Plc::health_label, 570, "health of the ac_grid_watch program", "3 is INHIBITED: nothing has run yet"),
     SVE("prog_ac_local_watch"    , 3          , &Plc::health_label, 571, "health of the ac_local_watch program", "3 is INHIBITED: nothing has run yet"),
     SVE("prog_dc_watch"          , 3          , &Plc::health_label, 572, "health of the dc_watch program", "3 is INHIBITED: nothing has run yet"),
@@ -404,13 +422,10 @@ const Descriptor rows[] = {
     SVE("prog_intractors"        , 3          , &Plc::health_label, 585, "health of the intractors program", "3 is INHIBITED: nothing has run yet"),
     SVE("prog_fans"              , 3          , &Plc::health_label, 586, "health of the fans program", "3 is INHIBITED: nothing has run yet"),
     SVE("prog_skirt"             , 3          , &Plc::health_label, 587, "health of the skirt program", "3 is INHIBITED: nothing has run yet"),
-    SV("cli_intakeCoolOk"       , T_BOOL, 0          , 0, ""    , 588, "intake air is cool enough to be worth drawing", "crawlspace is cli_ventTempMgn_degC under the interior"),
-    SV("cli_groundHeatOk"       , T_BOOL, 0          , 0, ""    , 589, "intake air is warm enough to be worth drawing", "the mirror gate: the ground is that much OVER the interior, and the ladder is asking for heat"),
-    SV("cli_intakeDryOk"        , T_BOOL, 0          , 0, ""    , 590, "outside air is dry enough to be worth drawing", "exterior dew point is cli_ventDryMgn_degC under the interior's"),
-    SV("irr_dueTray"            , T_U8  , 0          , 0, ""    , 598, "tray owed water now, 0 when none is", "the schedule's answer: the most overdue tray whose interval has elapsed, or a forced one"),
-    SV("irr_slotOpen"           , T_BOOL, 0          , 0, ""    , 599, "the climate allows a cycle to start", "end of night once the plants are warm enough, or the morning window"),
     SVE("prog_irr_schedule"      , 3          , &Plc::health_label, 600, "health of the irrigation schedule", ""),
     SVE("prog_roof_lockout"      , 3          , &Plc::health_label, 601, "health of the roof lockout program", ""),
+
+    // Mapped inputs
     MI("grid_L1_V"              , T_F32 , 5 , 4, 0  , 2, SF(0.0f)       , SF(500.0f)    , SF(0.0f), 15000, 1, "V"   , "L1 phase voltage", "SDM630 p1 30001", 10000),
     MI("grid_L2_V"              , T_F32 , 5 , 4, 2  , 2, SF(0.0f)       , SF(500.0f)    , SF(0.0f), 15000, 1, "V"   , "L2 phase voltage", "SDM630 p2 30003", 10000),
     MI("grid_L3_V"              , T_F32 , 5 , 4, 4  , 2, SF(0.0f)       , SF(500.0f)    , SF(0.0f), 15000, 1, "V"   , "L3 phase voltage", "SDM630 p3 30005", 10000),
@@ -448,12 +463,15 @@ const Descriptor rows[] = {
     MI("grid_L1_W"              , T_F32 , 5 , 4, 12 , 2, SF(-1000000.0f), SF(1000000.0f), SF(0.0f), 15000, 0, "W"   , "L1 active power", "SDM630 p7 30013", 10000),
     MI("grid_L2_W"              , T_F32 , 5 , 4, 14 , 2, SF(-1000000.0f), SF(1000000.0f), SF(0.0f), 15000, 0, "W"   , "L2 active power", "SDM630 p8 30015", 10000),
     MI("grid_L3_W"              , T_F32 , 5 , 4, 16 , 2, SF(-1000000.0f), SF(1000000.0f), SF(0.0f), 15000, 0, "W"   , "L3 active power", "SDM630 p9 30017", 10000),
+    
     MI("ats_V"                  , T_F32 , 6 , 4, 0  , 2, SF(0.0f)       , SF(500.0f)    , SF(0.0f), 15000, 1, "V"   , "ATS voltage", "MCT1-140 0x0000", 10000),
     MI("ats_A"                  , T_F32 , 6 , 4, 2  , 2, SF(0.0f)       , SF(200.0f)    , SF(0.0f), 15000, 1, "A"   , "ATS current", "MCT1-140 0x0002", 10000),
     MI("ats_W"                  , T_F32 , 6 , 4, 4  , 2, SF(-1000000.0f), SF(1000000.0f), SF(0.0f), 15000, 0, "W"   , "ATS active power", "MCT1-140 0x0004", 10000),
     MI("ats_VAr"                , T_F32 , 6 , 4, 6  , 2, SF(-1000000.0f), SF(1000000.0f), SF(0.0f), 15000, 0, "VAr" , "ATS reactive power", "MCT1-140 0x0006", 10000),
     MI("ats_VA"                 , T_F32 , 6 , 4, 8  , 2, SF(-1000000.0f), SF(1000000.0f), SF(0.0f), 15000, 0, "VA"  , "ATS apparent power", "MCT1-140 0x0008", 10000),
     MI("ats_Hz"                 , T_F32 , 6 , 4, 12 , 2, SF(0.0f)       , SF(100.0f)    , SF(0.0f), 15000, 2, "Hz"  , "ATS frequency", "MCT1-140 0x000C", 10000),
+    
+    // 
     MI("cli_temp_ext1"          , T_F32 , 41, 4, 0  , 2, SF(-40.0f)     , SF(80.0f)     , SF(0.0f), 5000 , 1, "C"   , "exterior temperature 1", "temp/RH sensor 0x0000"),
     MI("cli_rh_ext1"            , T_F32 , 41, 4, 2  , 2, SF(0.0f)       , SF(100.0f)    , SF(0.0f), 5000 , 1, "%"   , "exterior humidity 1", "temp/RH sensor 0x0002"),
     MI("cli_temp_ext2"          , T_F32 , 42, 4, 0  , 2, SF(-40.0f)     , SF(80.0f)     , SF(0.0f), 5000 , 1, "C"   , "exterior temperature 2", "temp/RH sensor 0x0000"),
@@ -478,19 +496,29 @@ const Descriptor rows[] = {
     MI("cli_rh_hi2"             , T_F32 , 51, 4, 2  , 2, SF(0.0f)       , SF(100.0f)    , SF(0.0f), 5000 , 1, "%"   , "high level humidity 2", "temp/RH sensor 0x0002"),
     MI("cli_temp_hi3"           , T_F32 , 52, 4, 0  , 2, SF(-40.0f)     , SF(80.0f)     , SF(0.0f), 5000 , 1, "C"   , "high level temperature 3", "temp/RH sensor 0x0000"),
     MI("cli_rh_hi3"             , T_F32 , 52, 4, 2  , 2, SF(0.0f)       , SF(100.0f)    , SF(0.0f), 5000 , 1, "%"   , "high level humidity 3", "temp/RH sensor 0x0002"),
+   
+    // Weather station
     MI("cli_wind_mps"           , T_F32 , 21, 4, 0  , 2, SF(0.0f)       , SF(80.0f)     , SF(0.0f), 30000, 1, "mps" , "wind speed at the station", "TODO confirm against the device datasheet: address, register and word order", 10000),
     MI("cli_windGust_mps"       , T_F32 , 21, 4, 2  , 2, SF(0.0f)       , SF(80.0f)     , SF(0.0f), 30000, 1, "mps" , "peak gust over the station's own window", "TODO confirm against the device datasheet: address, register and word order", 10000),
     MI("cli_rain_mmph"          , T_F32 , 21, 4, 4  , 2, SF(0.0f)       , SF(200.0f)    , SF(0.0f), 30000, 1, "mmph", "rainfall rate", "non-zero shuts the windows; TODO confirm against the device datasheet: address, register and word order", 10000),
     MI("cli_irrad_Wpm2"         , T_F32 , 21, 4, 6  , 2, SF(0.0f)       , SF(1500.0f)   , SF(0.0f), 30000, 0, "Wpm2", "solar irradiance", "recorded for tuning only, no law reads it; TODO confirm against the device datasheet: address, register and word order", 10000),
+    
+    // Analogic inputs
     AI("pwr_genBat_V"           , &CAL_pwr_genBat_V, 11, 4, 0  , 1, T_U16, SF(0.0f), 5000 , 1, "V"   , "generator start battery", ""),
     AI("pwr_upsBat_V"           , &CAL_pwr_upsBat_V, 11, 4, 1  , 1, T_U16, SF(0.0f), 5000 , 1, "V"   , "UPS battery voltage", ""),
     AI("pwr_dc1_V"              , &CAL_pwr_dc1_V   , 11, 4, 2  , 1, T_U16, SF(0.0f), 5000 , 1, "V"   , "DC PS1 bus voltage", ""),
     AI("pwr_dc2_V"              , &CAL_pwr_dc2_V   , 11, 4, 3  , 1, T_U16, SF(0.0f), 5000 , 1, "V"   , "DC PS2 bus voltage", ""),
     AI("irr_out_Lpm"            , &CAL_irr_out_Lpm , 11, 4, 4  , 1, T_U16, SF(0.0f), 5000 , 1, "Lpm" , "irrigation output flow", "Hall turbine through a 4-20 mA transmitter: the loop, not the pulse train, is what is wired. 4 mA = no flow"),
+    
+    // Digital inputs
     DI("irr_inPulse"            , 0 , 2, 1  , false   , 0    , false, "inlet water meter pulse (interrupt-counted)", "inlet volume meter, one pulse per irr_input_qtyPerImp litres. Channel 1 = terminal I2 = A1", 0    , true),
     DI("pwr_upsLowBat"          , 0 , 2, 0  , true    , 0    , false, "UPS low battery contact", "closed = the UPS is about to drop; holds every actuator. Fails ASSERTED: an unreadable terminal is not a healthy supply"),
+    
+    // Analogic outputs
     AO("cli_intr1"              , &CAL_cli_intr1   , 16, 6, 0  , 1, T_U16, 0.15f, 2, ""    , "intractor 1 speed", "safe is 15%, not stopped: some air is always wanted"),
     AO("cli_intr2"              , &CAL_cli_intr2   , 16, 6, 1  , 1, T_U16, 0.15f, 2, ""    , "intractor 2 speed", "safe is 15%, not stopped: some air is always wanted"),
+    
+    // Relay outputs
     RO("cli_window1_opn"        , 31, 0, false, false, "window 1 open", ""),
     RO("cli_window1_clo"        , 31, 1, false, false, "window 1 close", ""),
     RO("irr_input_ro1"          , 31, 2, false, false, "irrigation input valve 1", ""),

@@ -224,7 +224,13 @@ namespace Botanik { namespace Tasks {
             // out to the field.
             // Two independent gates, and the stricter wins: the system's control
             // authority, and the operator's own choice for this one program.
-            if (t.program != nullptr && (!_programs_enabled || !t.enabled)) continue;
+            // A program the operator switched off keeps being activated until it
+            // has ARRIVED at its fail position: it reads inhibit_requested() and
+            // drives its own actuators there, and one that stops running cannot
+            // close a valve. The plant-wide gate parks them itself
+            // (set_programs_enabled), so those are already is_parked() here.
+            if (t.program != nullptr && (!_programs_enabled || !t.enabled) &&
+                t.program->is_parked()) continue;
 
             uint32_t dt = 0; uint16_t missed = 0;
             if (!t.timer.due(now_ms, group_period_ms(t.group), dt, missed)) continue;
@@ -297,6 +303,10 @@ namespace Botanik { namespace Tasks {
         if (t.enabled == on) return true;      // idempotent, and not a new edit
         t.enabled        = on;
         t.enable_unsaved = true;
+        // The operator's own switch, beside the system's. Asking rather than
+        // just gating: the program has to run to drive its actuators to the
+        // fail position, and run_phase() keeps activating it until it has.
+        if (t.program != nullptr) t.program->request_disable(!on);
         // The reseed control authority does, for the same reason: without it the
         // first activation back reports the whole outage as its dt, and a dwell
         // timer handed an hour of it fires the instant the program returns.
