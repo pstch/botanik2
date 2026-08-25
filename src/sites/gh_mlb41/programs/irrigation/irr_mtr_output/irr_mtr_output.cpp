@@ -17,9 +17,16 @@ void IrrMtrOutput::observe(ProgramContext& c) {
         meter.preset(out_total.get());
     }
 
-    const float lpm = flow_avg(out_flow.get(),
-                               0.001f * (float)out_avg_ms.get(), c.dt_ms);
-    if (!out_flow.valid()) {
+    // Only a MEASURED sample is folded in: the row keeps its last reading while
+    // the loop is out, and averaging that is the same number over and over.
+    // The filter KEEPS its state, so a loop that comes back rejoins where it
+    // left rather than climbing out of a hole.
+    const bool measured = out_flow.valid();
+    const float lpm = measured ? flow_avg(out_flow.get(),
+                                          0.001f * (float)out_avg_ms.get(),
+                                          c.dt_ms)
+                               : flow_avg.value();
+    if (!measured) {
         // A flow derived from a loop that has stopped answering is not a flow.
         // The TOTAL beside it keeps its value: a totalizer is a record of what
         // went past, and the instrument failing does not unmake it. Zero would
@@ -39,11 +46,14 @@ void IrrMtrOutput::observe(ProgramContext& c) {
     } else {
         out_flow_pub.set(flow_band(lpm, band.get()), true);
     }
-    // Integrated from `lpm`, which is the average of a reading that may have
-    // stopped arriving - so while the loop is out this is a total that keeps
-    // growing on the last flow anybody saw.
-    out_total.set(meter(lpm / 60.0f, c.dt_ms, cutoff.get() / 60.0f),
-                  out_flow.valid());
+    // A totalizer is a record of what went past, so nothing is counted from a
+    // loop that is not answering: the last flow it reported, integrated, is
+    // invented water - and it is invented into the figure the drain verdict
+    // and the leak alarm are made against. The total STANDS, and says it is
+    // not current.
+    out_total.set(measured ? meter(lpm / 60.0f, c.dt_ms, cutoff.get() / 60.0f)
+                           : meter.total(),
+                  measured);
 }
 
 }  // namespace Site

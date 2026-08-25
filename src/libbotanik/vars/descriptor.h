@@ -79,8 +79,8 @@ namespace Botanik { namespace Vars {
          *  Q_NO_DATA's, so a zeroed Slot reads as "nothing wrote this". */
         Q_NONE,
         /** @brief A value its law still computed, from inputs that have
-         *  stopped being believable. IEC's third quality: present and usable,
-         *  reliability unknown.
+         *  stopped being believable: present and usable, reliability unknown.
+         *  The name is OPC's, whose quality is Good / Uncertain / Bad.
          *
          *  Not "held" - the law kept running and the number is fresh; what is
          *  gone is the ground under it. Distinct from Q_STALE, which is the
