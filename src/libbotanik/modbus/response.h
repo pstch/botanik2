@@ -50,6 +50,31 @@ namespace Botanik { namespace Modbus {
     Error match_response(uint8_t unit, const uint8_t* body, uint16_t body_len,
                          const Expect& e, Response* out);
 
+    /**
+     * @brief Check a multi-write request's own consistency: FC15 and FC16.
+     *
+     * The quantity against what the function code allows, then the declared
+     * byte count against that quantity. Both transports ask this, and it is
+     * where a slave stops trusting a master's arithmetic.
+     *
+     * @param bc  the byte count the frame declares (pdu[5])
+     * @param qty the quantity the frame declares
+     * @return EX_NONE, or EX_ILLEGAL_VALUE naming which of the two is wrong
+     *
+     * @note The byte count is REDUNDANT with the quantity, and checked because
+     * of it: guessing which to believe when they disagree is how a master ends
+     * up writing a register it did not name. Computed in 32 bits - 2*qty wraps
+     * to 0 at qty 128 in a uint8_t, which would then match a declared 0 and let
+     * a short frame commit 128 registers from past the end of the buffer.
+     */
+    inline Exception check_write_count(uint8_t fc, uint8_t bc, uint16_t qty) {
+        if (qty < 1 || qty > max_quantity(fc)) return EX_ILLEGAL_VALUE;
+        const uint32_t want = is_bit(fc) ? (uint32_t)bit_bytes(qty)
+                                         : (uint32_t)qty * 2u;
+        if ((uint32_t)bc != want) return EX_ILLEGAL_VALUE;
+        return EX_NONE;
+    }
+
 }}  // namespace Botanik::Modbus
 
 #endif // MODBUS_RESPONSE_H

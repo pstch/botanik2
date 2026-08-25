@@ -106,15 +106,11 @@ namespace Botanik { namespace Modbus {
                 out->addr  = rd16(pdu + 1);
                 out->count = rd16(pdu + 3);
                 const uint8_t bc = pdu[5];
-                const bool bits = is_bit(out->fc);
-                if (out->count < 1 || out->count > max_quantity(out->fc))
+                if (check_write_count(out->fc, bc, out->count) != EX_NONE)
                     return refuse(out, EX_ILLEGAL_VALUE);
-                // The byte count is redundant with the quantity, and checked
-                // because of it: guessing which to believe when they disagree is
-                // how a master ends up writing a register it did not name.
-                const uint16_t want = bits ? bit_bytes(out->count)
-                                           : (uint16_t)(out->count * 2);
-                if (bc != want) return refuse(out, EX_ILLEGAL_VALUE);
+                // EXACT, where RTU takes >=: this transport carries its own
+                // length, so a frame that disagrees with it is malformed rather
+                // than merely trailed by silence.
                 if (pdu_len != (uint16_t)(6 + bc)) return refuse(out, EX_ILLEGAL_VALUE);
                 out->data     = pdu + 6;
                 return DEC_OK;

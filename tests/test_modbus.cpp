@@ -138,4 +138,24 @@ TEST_CASE("modbus: a single write is confirmed by its echo alone") {
     CHECK(match_response(0x11, wrong_val, 5, e, &r) == ERR_ECHO);
 }
 
+TEST_CASE("modbus: a multi-write's byte count must agree with its quantity") {
+    // The check both slaves make before trusting a master's arithmetic. The
+    // 32-bit computation is the point: 2*qty wraps to 0 at qty 128 in a
+    // uint8_t, and a declared count of 0 would then match - letting a short
+    // frame commit 128 registers read from past the end of the buffer.
+    CHECK(check_write_count(FC_WRITE_REGISTERS, 6, 3) == EX_NONE);
+    CHECK(check_write_count(FC_WRITE_REGISTERS, 0, 128) == EX_ILLEGAL_VALUE);
+    CHECK(check_write_count(FC_WRITE_REGISTERS, 5, 3) == EX_ILLEGAL_VALUE);
+
+    // Bits pack 8 per byte and round up, so the expected count differs by code.
+    CHECK(check_write_count(FC_WRITE_COILS, 2, 9) == EX_NONE);
+    CHECK(check_write_count(FC_WRITE_COILS, 1, 9) == EX_ILLEGAL_VALUE);
+
+    // A quantity of zero writes nothing and is refused rather than ignored,
+    // and one past the code's ceiling is refused before any arithmetic.
+    CHECK(check_write_count(FC_WRITE_REGISTERS, 0, 0) == EX_ILLEGAL_VALUE);
+    CHECK(check_write_count(FC_WRITE_REGISTERS, 252, 126) == EX_ILLEGAL_VALUE);
+    CHECK(check_write_count(FC_WRITE_COILS, 251, 2001) == EX_ILLEGAL_VALUE);
+}
+
 }  // namespace modbus_wire

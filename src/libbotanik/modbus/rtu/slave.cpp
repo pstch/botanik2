@@ -7,6 +7,7 @@
 #include <cstring>
 
 #include "libbotanik/modbus/rtu/codec.h"
+#include "libbotanik/modbus/response.h"
 
 #if BOTANIK_FEATURE_MODBUS_RTU_SERVER
 
@@ -199,15 +200,8 @@ namespace Botanik { namespace Modbus {
                 break;
             case FC_WRITE_COILS: {
                 const uint8_t bc = pdu[5];
-                // The quantity ceiling first, and in 32-bit arithmetic: the
-                // expected byte count is 2*qty for registers, which wraps to 0
-                // at qty 128 in a uint8_t and would then match a declared count
-                // of 0, letting a 9-byte frame commit 128 registers from past
-                // the end of the buffer.
-                if (val < 1 || val > max_quantity(fc))
-                    return _except(fc, EX_ILLEGAL_VALUE, out, cap);
-                if (pdu_len < (uint16_t)(6 + bc) ||
-                    (uint32_t)bc != (uint32_t)bit_bytes(val))
+                if (check_write_count(fc, bc, val) != EX_NONE ||
+                    pdu_len < (uint16_t)(6 + bc))
                     return _except(fc, EX_ILLEGAL_VALUE, out, cap);
                 if ((uint32_t)addr + val > Config::MODBUS_SIM_COILS)
                     return _except(fc, EX_ILLEGAL_ADDRESS, out, cap);
@@ -217,10 +211,8 @@ namespace Botanik { namespace Modbus {
             }
             case FC_WRITE_REGISTERS: {
                 const uint8_t bc = pdu[5];
-                if (val < 1 || val > max_quantity(fc))
-                    return _except(fc, EX_ILLEGAL_VALUE, out, cap);
-                if (pdu_len < (uint16_t)(6 + bc) ||
-                    (uint32_t)bc != (uint32_t)val * 2u)
+                if (check_write_count(fc, bc, val) != EX_NONE ||
+                    pdu_len < (uint16_t)(6 + bc))
                     return _except(fc, EX_ILLEGAL_VALUE, out, cap);
                 if ((uint32_t)addr + val > Config::MODBUS_SIM_REGS)
                     return _except(fc, EX_ILLEGAL_ADDRESS, out, cap);
