@@ -361,6 +361,7 @@ Neither writes an unsaved parameter or override on your behalf (@ref user_params
 | `vars list [<prefix>]`                         | list variables                        |
 | `vars get <name>`                              | read a variable's value               |
 | `vars info <name>`                             | everything known about a variable     |
+| `programs status`                              | a tally per health, and who is in each |
 | `programs list [<prefix>]`                     | list programs                         |
 | `programs enable <name>\|all`                  | enable a program, or all of them      |
 | `programs disable <name>\|all`                 | disable a program, or all of them     |

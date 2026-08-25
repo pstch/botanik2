@@ -158,33 +158,48 @@ wiring defect - lands on the inert sink and counts as unresolved, which
 
 Every program answers for itself with a `Plc::Health`:
 
-| | |
-|---|---|
-| `HEALTHY` | normal operation, every output valid |
-| `DEGRADED` | an input is invalid; the outputs are still good |
-| `FAULTED` | at least one output is invalid |
-| `INHIBITED` | control stopped and actuators parked; still reporting |
+| | | |
+|---|---|---|
+| `HEALTHY` | 0 | normal operation, every output valid |
+| `DEGRADED` | 1 | an input is invalid; the outputs are still driven |
+| `FAULTED` | 2 | could not be wired at bring-up; never runs |
+| `INHIBITED` | 3 | control stopped and actuators parked; still reporting |
+| `PARKING` | 4 | control stopped, actuators still travelling |
 
-The first three are a **severity run** and are ordered, so a supervisor takes the
-worst across the programs and one comparison answers "is anything going wrong".
-`health_is_severity()` says which values may be compared that way. `INHIBITED`
-is off that axis: control deliberately stopped is not a fault, and ranking it
-against one is meaningless.
+The codes are published as a `T_ENUM` row, so the vocabulary may gain labels and
+must never renumber them.
 
-The name is for what STOPS. A program's control law stops and its actuators
-park, but it keeps reporting - `observe()` still runs, so status values and
-alarms are published throughout. That is the whole point: a plant going into
-its safe state is exactly when someone is watching, and a status row that froze
-at the moment of the request would be stale AND look live.
+`HEALTHY` and `DEGRADED` are a severity pair and are ordered, so a reader takes
+the worse of two and one comparison answers "is anything going wrong". The rest
+are decided rather than compared.
 
-Two causes reach it - a plant-wide safe request, and the operator switching one
-program off - and they inhibit the same things the same way, so the STATE is
-one value. Which one asked is `safe_requested()` / `disable_requested()`, not a
-second value every reader would have to treat alike.
+**Health is re-derived every activation**, so a condition that clears is not
+sticky. A program that never calls `degraded()` is one whose `run()` cannot fail,
+and it reads healthy rather than unknown. `FAULTED` is the one exception, below.
 
-**Health is re-derived every activation**, so a fault that clears is not sticky.
-A program that never calls `degraded()` or `faulted()` is one whose `run()`
-cannot fail, and it reads healthy rather than unknown.
+### FAULTED is decided in setup, and only there
+
+A program is `FAULTED` when it could not be **wired**: `bind()` named a row no
+table declares, or a dependency it was handed is null. Nothing about that gets
+better, so it is set once during setup and no activation revisits it.
+
+Such a program is **never activated at all** - not `run()`, not `observe()`. Its
+refs are inert sinks that read 0 for ever, so every value it published would be
+a zero indistinguishable from a reading, and every alarm it derived would be a
+quiet false negative. Better to run nothing and say why.
+
+Two ways in. An unresolved name is caught by the base without the program
+asking: `on_setup()` compares `Bank::unresolved_count()` across `bind()`. A null
+dependency the program has to declare itself, with `fault()`, from `bind()`.
+
+It counts as parked for the reboot handshake. A program that will never run can
+neither travel nor arrive, and waiting on one would hold the plant out of its
+reboot for ever.
+
+An input that stops being believable is **not** this. That is `DEGRADED`, and it
+is what a law says when it is short of something it wanted; `_watch_inputs()`
+says it on the law's behalf for every row passed to `set_inputs()`, so a
+program usually does not have to.
 
 ### INHIBITED is reached, not commanded
 
@@ -194,10 +209,18 @@ assign the state:
 1. `Registry::request_safe(true)` (or `request_disable()` on one program) raises
    the ask.
 2. The program **keeps being activated** - one that is not run cannot close a
-   valve - but `run()` stops and `on_park()` is called in its place.
-3. `on_park()` returns whether it is THERE. It must terminate. `observe()` keeps
-   running throughout, so nothing stops being reported.
+   valve. `run()` is called as always; what changes is the TARGET, which the law
+   reads off `inhibit_requested()` and drives to instead of to a demand.
+3. A law still travelling says so by calling `parking()` during that activation,
+   and reads `PARKING`. One that does not is `INHIBITED`: a program with no
+   actuators of its own is parked the moment it is asked, which needs no code.
+   The travel must terminate.
 4. `Registry::all_safe()` becomes true when every program has arrived.
+
+`observe()` runs throughout both, so nothing stops being reported. That is the
+whole point of naming the states for what STOPS: a plant going into its safe
+state is exactly when someone is watching, and a status row that froze at the
+moment of the request would be stale AND look live.
 
 Only then does a supervisor act, and what it does next is the difference between
 the two commands: a **reboot** drops control, forces every output to its declared
@@ -208,22 +231,52 @@ Dropping control the instant the operator asked would leave a half-travelled
 actuator wherever the request happened to catch it, which is the failure this
 protocol exists to prevent.
 
-One hook serves both requests, because where an actuator has to go is a property
-of the actuator and not of the reason: a tray valve fails open, an inlet valve
-fails shut, whichever asked. A program the operator had already switched off is
-therefore ALREADY where a reboot needs it, and the supervisor's wait means what
-it says with no second state to reconcile.
+Two causes reach the pair - a plant-wide safe request, and the operator
+switching one program off - and they park the same actuators the same way, so
+the STATE is one value. Which one asked is `safe_requested()` /
+`disable_requested()`. Where an actuator has to go is a property of the actuator
+and not of the reason: a tray valve fails open, an inlet valve fails shut,
+whichever asked. A program the operator had already switched off is therefore
+ALREADY where a reboot needs it.
 
 ### Where the work goes
 
 | hook | when | for |
 |---|---|---|
-| `run()` | only while controlling | the control law |
-| `on_park()` | while a request stands, in place of `run()` | driving actuators to their fail position |
-| `observe()` | **every activation, in every state** | status values, alarm conditions |
+| `run()` | every activation, inhibited or not | the control law, and driving to the fail position |
+| `observe()` | every activation, in every state | status values, alarm conditions |
+
+Neither runs on a `FAULTED` program.
 
 An actuator moved from `observe()` would move while the program is inhibited,
 which is the one thing that state promises does not happen.
+
+### What gets said about it
+
+`Plc::publish_health()` writes each program's verdict to the row it declared and
+logs the CHANGES, walked by the supervisor rather than by each program - one that
+is not being activated is exactly when a reader wants the row, and it cannot
+write its own then.
+
+| entering | level |
+|---|---|
+| `FAULTED` | critical |
+| `DEGRADED` | warning |
+| `HEALTHY`, `INHIBITED`, `PARKING` | notice |
+
+Notice and not debug, because `LOG_MIN_LEVEL` is `LOG_INFO` on the OPTA: below it
+the only record that a plant went to its safe state is one the hardware never
+keeps. The whole set of them lands on one deliberate operator command.
+
+`HEALTH_QUIET_MS` suppresses the log for the first seconds so bring-up does not
+announce the first verdict of every program. `FAULTED` is exempt: setup is the
+only place it is reached, so obeying the window would mean an unwireable program
+was never reported at all.
+
+`programs status` is the on-demand view - a tally per state, with the members of
+`FAULTED`, `DEGRADED` and `PARKING` named. `HEALTHY` and `INHIBITED` are counted
+and not listed: with control withheld or before the first scan every program is
+inhibited, and a screen of names says less than the number does.
 
 ## Control authority, and its two edges
 

@@ -217,8 +217,8 @@ It reads variables, applies blocks, and drives variables. Three idioms worth cop
   recent past, and not being called means the program stopped watching. Resuming
   a dwell that was counting an outage nobody saw is worse than starting again.
 - **Say what you cannot see.** A reading whose row is invalid is not a small
-  error; report `degraded()`, or `faulted()` if the output goes with it, and let
-  each actuator substitute its OWN safe state.
+  error; report `degraded()` and let each actuator substitute its OWN safe
+  state. A row passed to `set_inputs()` is swept for you and needs no call.
 - **Publish the decision, not just the effect.** `sys_supply_lockout` exists so the
   console, shell and telemetry can see *why* the windows are held. A coil reading 0
   does not distinguish "not commanded" from "locked out".

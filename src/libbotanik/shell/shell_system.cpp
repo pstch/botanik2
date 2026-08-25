@@ -204,9 +204,13 @@ namespace Botanik { namespace Shell {
                 _println("control: every program is at its safe state");
             } else {
                 char out[96];
+                // Not yet ARRIVED: nothing has been activated since the ask, so
+                // most of these will be parked on their next scan and only the
+                // ones with travel will read PARKING. `programs status` names
+                // them once the scan has run.
                 _emitf(out, sizeof(out),
-                       "control: parking, %u program(s) still travelling",
-                       (unsigned)left);
+                       "control: parking, %u program(s) not there yet"
+                       "  (`programs status`)", (unsigned)left);
             }
             return;
         }

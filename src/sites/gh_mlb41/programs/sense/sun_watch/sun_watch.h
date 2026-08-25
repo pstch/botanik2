@@ -61,6 +61,9 @@ inline void SunWatch::bind(Vars::Bank& io) {
     from_set  = io.resolve_out<int16_t>("sol_fromSet_min");
     elevation = io.resolve_out<float>("sol_elev_deg");
     set_health_row(io.resolve_out<uint8_t>("prog_sun_watch"));
+    // The offsets ARE the sun. A tracker that is not here never starts being
+    // here, so this law has nothing to publish for the life of the run.
+    if (_sun == nullptr) fault();
 }
 
 }  // namespace Site

@@ -17,17 +17,15 @@ static int16_t _minutes(int64_t v) {
 
 void SunWatch::observe(ProgramContext& c) {
     (void)c;
-    // No tracker at all, no location, or no wall clock yet - every boot passes
-    // through the last of those for as long as NTP takes. The offsets ARE the
-    // sun, so they hold rather than publishing a day nobody has computed. The
-    // health is what tells the three apart: a tracker that is not there never
-    // starts being there.
-    if (_sun == nullptr || !_sun->ready()) {
+    // No location, or no wall clock yet - every boot passes through the second
+    // for as long as NTP takes. The offsets ARE the sun, so they hold rather
+    // than publishing a day nobody has computed. A tracker that is not there at
+    // all was FAULTED at bind() and this never runs.
+    if (!_sun->ready()) {
         from_rise.hold();
         from_set.hold();
         elevation.hold();
-        if (_sun == nullptr) faulted();
-        else                 degraded();
+        degraded();
         return;
     }
 

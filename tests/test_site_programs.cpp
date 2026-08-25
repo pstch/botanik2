@@ -391,7 +391,7 @@ TEST_CASE_FIXTURE(Rig<Site::CoolingController>, "cooling: a demand it cannot mak
     CHECK_FALSE(live.bank.var(dem).valid());
     CHECK(live.bank.var(dem).value().q == Q_HELD);
     CHECK(live.bank.var(dem).as_f32() == doctest::Approx(was));
-    CHECK(prog.health() == Plc::Health::FAULTED);
+    CHECK(prog.health() == Plc::Health::DEGRADED);
 }
 
 TEST_CASE_FIXTURE(Rig<Site::CoolingController>, "cooling: the floor carries it when the ceiling goes, and both gone is unknown") {
@@ -421,7 +421,7 @@ TEST_CASE_FIXTURE(Rig<Site::CoolingController>, "cooling: the floor carries it w
     live.bank.var(live.ref("cli_temp_in")).invalidate(Q_NO_DATA);
     d.step(300);
     CHECK_FALSE(live.bank.var(dem).valid());
-    CHECK(prog.health() == Plc::Health::FAULTED);
+    CHECK(prog.health() == Plc::Health::DEGRADED);
 }
 
 TEST_CASE("cooling: an unknown demand puts every actuator at its own safe state") {
@@ -502,7 +502,7 @@ TEST_CASE_FIXTURE(Rig<Site::DestratController>, "destrat: an unmeasured gap make
     live.bank.var(live.ref("cli_dTStrat_degC")).invalidate(Q_NO_DATA);
     d.step(200);
     CHECK_FALSE(live.bank.var(dem).valid());
-    CHECK(prog.health() == Plc::Health::FAULTED);
+    CHECK(prog.health() == Plc::Health::DEGRADED);
 }
 
 TEST_CASE_FIXTURE(Rig<Site::FanController>, "fans: an unknown gap floors them at their safe state, not at rest") {
