@@ -121,3 +121,27 @@ TEST_CASE("text: a listing pattern is a prefix until it has a wildcard") {
     CHECK(Utils::glob_bounded("anything", "cli_", 0));
     CHECK_FALSE(Utils::glob_bounded(nullptr, "cli_", 4));
 }
+
+TEST_CASE("vars: a calibration with no span reads as implausible, not as a number") {
+    // raw_min == raw_max leaves to_eng() with no slope, so every count the ADC
+    // reads collapses to eng_min - which is inside the row's own band, so it
+    // would sit at Q_GOOD for ever and the under-range alarm would never fire.
+    Vars::AnalogValues a = {};
+    a.raw_min = 4000.0f; a.raw_max = 4000.0f;
+    a.eng_min = 20.0f;   a.eng_max = 30.0f;
+    a.min     = 20.0f;   a.max     = 30.0f;
+
+    CHECK(a.degenerate());
+    CHECK(a.scale() == 0.0f);
+    // The trap: the collapsed value is a PLAUSIBLE one, which is why the span
+    // has to be tested separately from the band.
+    CHECK(a.to_eng(9999.0f) == 20.0f);
+    CHECK(a.plausible(a.to_eng(9999.0f)));
+
+    // A real span converts and stays believable.
+    a.raw_max = 6000.0f;
+    CHECK_FALSE(a.degenerate());
+    CHECK(a.to_eng(4000.0f) == doctest::Approx(20.0f));
+    CHECK(a.to_eng(6000.0f) == doctest::Approx(30.0f));
+    CHECK(a.to_eng(5000.0f) == doctest::Approx(25.0f));
+}

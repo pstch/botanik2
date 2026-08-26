@@ -76,7 +76,12 @@ namespace Botanik { namespace Vars {
         // The band lives in the calibration's parameters, which is why this is
         // the model's job and not a sweep's: a dead 4-20 mA loop reads full
         // scale, and no timeout catches that.
-        s.qual = a.plausible(eng) ? Q_GOOD : Q_IMPLAUSIBLE;
+        // A calibration whose two raw endpoints coincide has no slope, so
+        // to_eng() returns eng_min for every count the ADC ever reads. That is
+        // a plausible number - it is the bottom of the row's own band - so it
+        // would sit there at Q_GOOD for ever and the alarm below it would never
+        // fire. The channel is not reading; say so.
+        s.qual = (a.degenerate() || !a.plausible(eng)) ? Q_IMPLAUSIBLE : Q_GOOD;
     }
 
 

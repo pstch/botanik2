@@ -88,6 +88,11 @@ namespace Botanik { namespace Vars {
             const float span = raw_max - raw_min;
             return (span == 0.0f) ? 0.0f : (eng_max - eng_min) / span;
         }
+        /** @brief Whether the raw endpoints coincide, so there is no conversion
+         *  to do. NOT a value: to_eng() would collapse every reading to
+         *  eng_min, which is a plausible number and would read as a
+         *  measurement. @see Bank::publish_wire */
+        bool degenerate() const { return scale() == 0.0f; }
         /** @brief Intercept, so `eng = raw * scale() + offset()`. */
         float offset() const { return eng_min - raw_min * scale(); }
         /** @brief Convert a raw wire reading to engineering units. */
