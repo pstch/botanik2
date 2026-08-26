@@ -56,6 +56,10 @@ namespace {
  * day_phase holds its phase - the boot path, and the one worth walking.
  */
 struct AllPrograms {
+    /** @brief Declared FIRST because it is initialised first: it exists only so
+     *  every macro-emitted ctor-init entry below can lead with a comma. */
+    Vars::Bank& _first;
+
 #define X(cls, mem) Site::cls mem;
     SITE_PROGRAM_LIST(X)
 #undef X
@@ -77,10 +81,6 @@ struct AllPrograms {
 #undef X
     }
 
-private:
-    /** @brief Only so the ctor-init list above can lead every entry with a
-     *  comma, which is what lets the macro emit them uniformly. */
-    Vars::Bank& _first;
 };
 
 }  // namespace

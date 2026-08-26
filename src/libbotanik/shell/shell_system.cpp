@@ -168,6 +168,11 @@ namespace Botanik { namespace Shell {
 
         if (arg_eq(a, w, "enable")) {
             auth->set_control_mode(Vars::CONTROL_ENABLED);
+            // ...and the safe request with it: they are independent axes, so
+            // handing authority back while every program is still driving to
+            // its fail position resumes nothing, and nothing on screen said why.
+            if (_sys != nullptr && _sys->tasks != nullptr)
+                _sys->tasks->request_safe(false);
             _report_control(auth);         // ...which the system may still veto
             return;
         }
@@ -176,21 +181,23 @@ namespace Botanik { namespace Shell {
             // actuator - the whole reason to type this before working on the
             // plant.
             auth->set_control_mode(Vars::CONTROL_INHIBITED);
-            _println("control: INHIBITED - outputs at their safe state, scan "
-                     "stopped; `overrides set` still drives them by hand");
+            // Through the reporter, not a literal: with the system holding
+            // control the EFFECTIVE mode is DISABLED, which mutes every output
+            // override - so promising hand control here would be a lie exactly
+            // when somebody is about to work on the plant.
+            _report_control(auth);
             return;
         }
         if (arg_eq(a, w, "disable")) {
             auth->set_control_mode(Vars::CONTROL_DISABLED);
-            _println("control: DISABLED - outputs at their safe state, scan "
-                     "stopped, output overrides ignored (kept, not cleared)");
+            _report_control(auth);
             return;
         }
         // The plant-wide safe request, and the one verb here that is NOT a
         // mode: the programs keep running and drive their OWN actuators to
         // their safe positions, which is a slower and gentler thing than
         // dropping authority and letting every output snap to its declared
-        // state. `control enable` releases it.
+        // state. `control enable` releases it, as does `control release`.
         if (arg_eq(a, w, "safe") || arg_eq(a, w, "release")) {
             if (_sys == nullptr || _sys->tasks == nullptr) {
                 _println("control: no task table");
@@ -224,9 +231,24 @@ namespace Botanik { namespace Shell {
         const Vars::ControlMode eff = auth->control_mode();
         const Vars::ControlMode op  = auth->operator_mode();
         char out[160];
+        // What the mode MEANS for the two things an operator is about to do:
+        // whether the programs decide, and whether a hand override reaches a
+        // coil. Only ENABLED and INHIBITED let one through.
+        const char* what = (eff == Vars::CONTROL_ENABLED)
+                               ? "programs driving"
+                               : (eff == Vars::CONTROL_INHIBITED)
+                                     ? "outputs safe, scan stopped; `overrides "
+                                       "set` still drives them by hand"
+                                     : "outputs safe, scan stopped, output "
+                                       "overrides MUTED (kept, not cleared)";
+        // The other axis. A safe request outlives a mode change, and a plant
+        // that will not resume after `control enable` is otherwise unexplained.
+        const bool parking = (_sys != nullptr && _sys->tasks != nullptr &&
+                              _sys->tasks->safe_requested());
         if (!auth->health_hold()) {
-            _emitf(out, sizeof(out), "control: %s",
-                   Vars::Bank::control_mode_name(eff));
+            _emitf(out, sizeof(out), "control: %s - %s%s",
+                   Vars::Bank::control_mode_name(eff), what,
+                   parking ? "  [safe request standing: `control release`]" : "");
             return;
         }
         // Held by the system: say so, and say what the operator asked for, so
