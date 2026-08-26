@@ -601,6 +601,58 @@ int drive(Actuator& a, float target, uint32_t ms) {
 
 }  // namespace
 
+TEST_CASE("Actuator: a preset or a reset cancels an armed re-datum detour") {
+    // The detour owns the target for a whole scan: while it is armed, step()
+    // drives to 0 whatever the caller asks for, until the seat is reached. That
+    // is right mid-detour and wrong across a preset() - "declare the position
+    // known, SKIPPING the datum stroke" - which would otherwise drive the ram
+    // fully shut on a caller that never asked for it.
+    Actuator a;
+    // Datum, then travel far enough to owe a re-datum (3 full strokes).
+    drive(a, 0.0f, 12000);
+    REQUIRE(a.state() == Actuator::ST_CLOSED);
+    // PARTIAL moves only, and stopping the moment the drift is owed: a move to
+    // either end runs onto a stop and re-datums by itself, and one more partial
+    // move past the threshold would arm the detour before the case does.
+    for (int i = 0; i < 12 && !a.redatum_due(CFG); i++)
+        drive(a, (i % 2) ? 0.3f : 0.7f, 6000);
+    REQUIRE(a.redatum_due(CFG));
+
+    // Ask for a position: this ARMS the detour rather than going there.
+    a.step(0.7f, CFG, 100);
+
+    // Something else establishes the position, so the datum stroke is not
+    // wanted any more.
+    a.preset(0.5f);
+    CHECK(a.position() == doctest::Approx(0.5f));
+
+    // The caller holds 0.5. Nothing should move: it is already there.
+    const int closed = [&]{
+        int n = 0;
+        for (uint32_t t = 0; t < 6000; t += 100) {
+            a.step(0.5f, CFG, 100);
+            if (a.close_cmd()) n++;
+        }
+        return n;
+    }();
+    INFO("a stale detour drives the ram to the seat on a caller asking for 0.5");
+    CHECK(closed == 0);
+    CHECK(a.position() == doctest::Approx(0.5f));
+}
+
+TEST_CASE("Actuator: home() forgets the drift as well as the position") {
+    // home() is "we know nothing": a drift figure carried over from before it
+    // would demand a re-datum the block has no basis for.
+    Actuator a;
+    drive(a, 0.0f, 12000);
+    for (int i = 0; i < 12 && !a.redatum_due(CFG); i++)
+        drive(a, (i % 2) ? 0.3f : 0.7f, 6000);
+    REQUIRE(a.redatum_due(CFG));
+    a.home();
+    CHECK(a.drift() == doctest::Approx(0.0f));
+    CHECK_FALSE(a.redatum_due(CFG));
+}
+
 TEST_CASE("Actuator: starts UNKNOWN and datums against the closed stop") {
     Actuator a;
     CHECK(a.state() == Actuator::ST_UNKNOWN);

@@ -178,12 +178,20 @@ namespace Botanik { namespace Plc {
         else        { settle(); }
         _seating = false;
         _datum   = false;
+        // The armed re-datum detour goes with the stroke it belonged to. It
+        // owns the target for a WHOLE scan while it stands, so one surviving a
+        // stop() drives the ram to the seat on whatever the caller asks next -
+        // and preset() is precisely "the position is known, skip the datum".
+        _pending = -1.0f;
     }
 
     void Actuator::home() {
         stop();
         _pos   = 0.0f;
         _state = ST_UNKNOWN;
+        // Nothing is known, so nothing is owed: a drift figure carried across
+        // would demand a re-datum against an estimate that no longer exists.
+        _since_datum = 0.0f;
     }
 
     void Actuator::preset(float pos) {
