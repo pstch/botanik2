@@ -221,8 +221,15 @@ RtuClient::Slot RtuClient::_slot_of(const Block& b) const {
     // went out, so a chattering demand still cannot monopolise the bus, and
     // due_ms raises that floor further while a refusal penalty is running.
     const bool dirty = block_dirty(*_io, _plan, b);
-    const uint64_t floor_ms = b.last_ms +
-        (dirty ? _write_min_ms() : _rewrite_ms());
+    // last_ms 0 is NEVER WRITTEN, not "written at uptime 0". Adding an interval
+    // to it made the floor an ABSOLUTE uptime, so at bring-up a block that has
+    // never gone out waited the whole rewrite interval before it could: a relay
+    // board that kept its power across a reset held its pre-crash coils for
+    // rtu_rewrite_ms, which the band allows up to ten minutes. seed() has always
+    // said this sentinel means overdue.
+    const uint64_t floor_ms =
+        (b.last_ms == 0) ? 0
+                         : b.last_ms + (dirty ? _write_min_ms() : _rewrite_ms());
     s.due      = (b.due_ms > floor_ms) ? b.due_ms : floor_ms;
     // A demand that has moved is owed to the field inside MODBUS_WRITE_DEADLINE_MS;
     // an unchanged one is only the keepalive a slave-side failsafe watches for,
