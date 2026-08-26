@@ -57,7 +57,6 @@ private:
      *  this run. A boot does not know when it last rained, so before the
      *  first shower the row is held rather than reading "just now". */
     uint64_t _dry_ms = 0;
-    bool     _wet_seen = false;
 
     /** @} */
 

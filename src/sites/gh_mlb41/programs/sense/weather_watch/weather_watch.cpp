@@ -30,16 +30,17 @@ void WeatherWatch::observe(ProgramContext& c) {
 
     // How long the house has been dry. A gauge that is not answering says
     // nothing about the weather, so the clock stands rather than running on.
+    //
+    // It runs from BOOT, not from the first shower this unit happened to
+    // witness. Before then the answer is "at least this long", which is both
+    // true and what the roof cares about; waiting for a first raindrop left the
+    // home screen blank for however many dry weeks it took.
     if (rain.valid()) {
-        if (rain.get() > 0.0f) { _dry_ms = 0; _wet_seen = true; }
-        else if (_wet_seen)       { _dry_ms += c.dt_ms; }
+        if (rain.get() > 0.0f) _dry_ms = 0;
+        else                   _dry_ms += c.dt_ms;
     }
-    if (_wet_seen) {
-        const uint64_t mins = _dry_ms / 60000ull;
-        since_rain.set((uint16_t)(mins > 65535ull ? 65535ull : mins), rain.valid());
-    } else {
-        since_rain.hold();
-    }
+    const uint64_t mins = _dry_ms / 60000ull;
+    since_rain.set((uint16_t)(mins > 65535ull ? 65535ull : mins), rain.valid());
 }
 
 }  // namespace Site

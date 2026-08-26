@@ -14,6 +14,7 @@ void IrrMtrInput::observe(ProgramContext& c) {
     const uint32_t pulses = HAL::Pulse::sample(ch).count;
     if (c.first_scan) {
         rate.reset();
+        _last_pulses = pulses;
         // Adopt the counter where it stands rather than starting from zero:
         // the retained row carries what was metered before this run, and the
         // pulse counter carries what has been metered since the last boot.
@@ -24,6 +25,13 @@ void IrrMtrInput::observe(ProgramContext& c) {
     // Unsigned difference, so the 32-bit counter wrapping costs nothing.
     const float total = _base_L
                       + (float)(pulses - _base_pulses) * qty_per_pulse.get();
+    // Whether the line is ticking, which is the only thing a pulse terminal
+    // can say about itself: its LEVEL is a moment of a train. Written every
+    // beat, so the row reads as a live terminal rather than as one nothing has
+    // ever published.
+    pulsing.set(pulses != _last_pulses, true);
+    _last_pulses = pulses;
+
     in_total.set(total, true);
     const float flow = 60.0f * rate(total, rate_win.get(), c.dt_ms);
     in_flow.set(flow, true);

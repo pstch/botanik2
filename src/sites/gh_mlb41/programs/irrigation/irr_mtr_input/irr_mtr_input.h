@@ -42,6 +42,11 @@ public:
     Vars::RefOut<float> in_total;
     Vars::RefOut<bool>  leak;
     Vars::RefOut<bool>  pressure;
+    /** @brief The pulse LINE, which nothing else can publish: LocalInputs skips
+     *  an F_PULSE terminal deliberately - the level of a pulse train is not a
+     *  reading of anything - so this program, which owns the channel, says
+     *  whether it is ticking. */
+    Vars::RefOut<bool>  pulsing;
 
     /** @} */
 
@@ -66,6 +71,9 @@ private:
      *  total is the retained value plus what has been counted since. */
     float    _base_L = 0.0f;
     uint32_t _base_pulses = 0;
+    /** @brief The count at the previous activation, so a beat can tell whether
+     *  an edge arrived in it. */
+    uint32_t _last_pulses = 0;
 
     /** @} */
 
@@ -92,6 +100,7 @@ inline void IrrMtrInput::bind(Vars::Bank& io) {
     in_total      = io.resolve_out<float>("irr_inTotal_L");
     leak          = io.resolve_out<bool>("alarm_water_leak");
     pressure      = io.resolve_out<bool>("alarm_water_pressure");
+    pulsing       = io.resolve_out<bool>("irr_inPulse");
 
     // What the base sweeps before each activation, so an input that has
     // stopped being believable is DEGRADED without the law asking.

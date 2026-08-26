@@ -126,10 +126,18 @@ void IrrigationSchedule::run(ProgramContext& c) {
     const bool open   = _in_slot(known);
     slot_open.set(open, known);
 
-    // The interval is written only where one is actually chosen, and a forced
-    // tray, an empty search and the gate below all skip that. Held here so the
-    // row still says what it last was, and says it is not current.
-    period.hold();
+    // A STARTING value, so the row does not read as never-written for the whole
+    // of bring-up: _next_due() publishes the modulated interval of the tray it
+    // picks, and it picks nothing before there is a date and a modulation. The
+    // shortest summer interval is what the plant runs on at full modulation,
+    // and it is overwritten the moment the weather has an opinion.
+    uint16_t shortest = 0;
+    for (uint8_t i = 0; i < N_DAYS; i++) {
+        const uint16_t d = days[i].get();
+        if (d > 0 && (shortest == 0 || d < shortest)) shortest = d;
+    }
+    if (shortest > 0) period.set((float)shortest, true);
+    else              period.hold();
 
     // WHEN, before which tray: the climate decides the slot and the schedule
     // decides the tray, and an operator forcing a cycle overrides both. A

@@ -630,4 +630,28 @@ TEST_CASE_FIXTURE(IrrigationRig, "irrigation: a fill that never arrives is spent
     CHECK(live.bank.var(live.ref("irr_last_tray1")).as_i64() > 0);
 }
 
+TEST_CASE_FIXTURE(Rig<Site::IrrMtrInput>, "irrigation: the pulse line says whether the meter is ticking") {
+    // LocalInputs skips an F_PULSE terminal deliberately, so nothing else can
+    // publish this row - it read as never-written for the life of the run.
+    // Its LEVEL is meaningless (a pulse is a moment of a train), so what it
+    // carries is whether an edge arrived in the beat.
+    HAL::Pulse::attach(Site::pulse_inputs[0].channel, Site::pulse_inputs[0].edge);
+    const Vars::VarRef line = live.ref("irr_inPulse");
+
+    uint64_t t = 0;
+    d.step(t += 1000);
+    INFO("written from the first activation, whatever the meter is doing");
+    CHECK(live.bank.var(line).valid());
+    CHECK(live.bank.var(line).as_bool() == false);
+
+    HAL::Pulse::inject(Site::pulse_inputs[0].channel, 5);
+    d.step(t += 1000);
+    CHECK(live.bank.var(line).as_bool() == true);
+
+    // ...and it goes quiet again when the water stops.
+    d.step(t += 1000);
+    CHECK(live.bank.var(line).as_bool() == false);
+    CHECK(live.bank.var(line).valid());
+}
+
 }  // namespace site_programs
