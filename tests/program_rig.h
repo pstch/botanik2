@@ -30,63 +30,60 @@ using namespace Botanik::Vars;
 using TestScan::Cycle;
 using TestScan::Live;
 
-// ANONYMOUS, and that matters now this is a header: the helpers below are
-// plain free functions, so each including TU wants its own copy rather than a
-// duplicate symbol at link.
-namespace {
+// INLINE, not an anonymous namespace: the three program test files each use a
+// SUBSET of these, and an unused static function warns where an unused inline
+// one does not.
 
 /** @brief Summer, as the modulation ladder would report it: full watering. The
  *  ladder is its own program now, so a cycle case states the factor rather than
  *  driving the weather that would produce it. */
-void summer(Live& f) {
+inline void summer(Live& f) {
     f.bank.var(f.ref("irr_mod")).set(1.0f);
 }
 
 /** @brief Take the soak out of the cycle, which `irr_soak_sec` 0 is for.
  *  A case about the fill or the drain states its own configuration; the soak
  *  has a case of its own and the scenarios run at the site's real figure. */
-void no_soak(Live& f) {
+inline void no_soak(Live& f) {
     f.bank.param_set(f.bank.var(f.ref("irr_soak_sec")), "0");
 }
 
 /** @brief Put the plant in the end-of-night watering slot. A cycle may only
  *  START in one of the two the spec allows, so every irrigation case has to
  *  say which one it is in. */
-void slot(Live& f) {
+inline void slot(Live& f) {
     f.bank.var(f.ref("cli_phase")).set_i((int64_t)Site::PHASE_DAWN_BREEZE);
 }
 
-    /** @brief Where the roof parks, from the row that declares it. */
-    float safe_open(Live& f) {
-        const Vars::Descriptor& d = f.bank.descriptor(f.ref("cli_window1_tgt").index);
-        return Vars::as_f32(d.type, d.def);
-    }
-
-    /** @brief Publish one field-read row as if the bus had just answered it. */
-    void field(Live& f, const char* row, float v, uint64_t at = 0) {
-        f.bank.var(f.ref(row)).publish(from_f32(T_F32, v), at);
-    }
-
-    /** @brief The house at two levels, and the row derived from them.
-     *
-     *  The cooling ladder controls on `cli_temp_in` and reports its verdict on
-     *  the levels behind it, so a case stating one without the other is
-     *  stating half a house. WORST CASE, as temp_rh_zone makes it. */
-    void interior(Live& f, float hi, float lo) {
-        field(f, "cli_temp_hi", hi);
-        field(f, "cli_temp_lo", lo);
-        field(f, "cli_temp_in", hi > lo ? hi : lo);
-    }
-
-    /** @brief A weather station reporting fine weather, so a case that is not
-     *  about the interlocks is not shut in by one. */
-    void fine_weather(Live& f) {
-        field(f, "cli_rain_mmph", 0.0f);
-        field(f, "cli_wind_mps", 1.0f);
-        field(f, "cli_windGust_mps", 2.0f);
-    }
+/** @brief Where the roof parks, from the row that declares it. */
+inline float safe_open(Live& f) {
+    const Vars::Descriptor& d = f.bank.descriptor(f.ref("cli_window1_tgt").index);
+    return Vars::as_f32(d.type, d.def);
 }
 
+/** @brief Publish one field-read row as if the bus had just answered it. */
+inline void field(Live& f, const char* row, float v, uint64_t at = 0) {
+    f.bank.var(f.ref(row)).publish(from_f32(T_F32, v), at);
+}
+
+/** @brief The house at two levels, and the row derived from them.
+ *
+ *  The cooling ladder controls on `cli_temp_in` and reports its verdict on
+ *  the levels behind it, so a case stating one without the other is
+ *  stating half a house. WORST CASE, as temp_rh_zone makes it. */
+inline void interior(Live& f, float hi, float lo) {
+    field(f, "cli_temp_hi", hi);
+    field(f, "cli_temp_lo", lo);
+    field(f, "cli_temp_in", hi > lo ? hi : lo);
+}
+
+/** @brief A weather station reporting fine weather, so a case that is not
+ *  about the interlocks is not shut in by one. */
+inline void fine_weather(Live& f) {
+    field(f, "cli_rain_mmph", 0.0f);
+    field(f, "cli_wind_mps", 1.0f);
+    field(f, "cli_windGust_mps", 2.0f);
+}
 /** @brief A live bank with ONE program on the beat, which is what a law's own
  *  case needs: `prog` is the program, `d` the cycle over it. */
 template <class P>

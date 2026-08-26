@@ -35,15 +35,18 @@ namespace Botanik { namespace Vars {
          *  forceable, and the force lands on the bank. */
         void bind(Bank* io);
 
-        /** @brief SCOPE_A rows the table declares, slots or not. Past
-         *  count() the tail was lost. */
-        uint16_t declared() const { return _declared; }
 
         /** @brief The row alarm @p i reads, for anything that needs the variable
          *  rather than the alarm. */
         VarRef row(uint16_t i) const { return _row[i]; }
 
-        uint16_t    count() const override { return _count; }
+        /** @brief Every SCOPE_A row the table declares, slots or not - the
+         *  contract AlarmSourceTable states, and what makes a lost tail
+         *  visible. The controller caps its own loop at ALARM_SLOTS, and the
+         *  row accessors below are only reached for what it took. */
+        uint16_t    count() const override { return _declared; }
+        /** @brief How many the slots actually hold. */
+        uint16_t    driven() const { return _count; }
         const char* name(uint16_t i) const override;
         const char* desc(uint16_t i) const override;
         const char* notes(uint16_t i) const override;

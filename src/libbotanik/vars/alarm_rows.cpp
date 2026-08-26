@@ -19,8 +19,8 @@ namespace Botanik { namespace Vars {
         _declared = 0;
         if (io == nullptr) return;
         // Runs to the END of the table rather than stopping at the last slot:
-        // _count saturates, so only _declared can tell a table that filled the
-        // slots exactly from one that lost a tail.
+        // count() reports _declared, so the controller can see a tail it could
+        // not take. _count is what the slots actually hold.
         for (uint16_t i = 0; i < io->count(); i++) {
             if (io->var(i).meta()->scope != SCOPE_A) continue;
             _declared++;
