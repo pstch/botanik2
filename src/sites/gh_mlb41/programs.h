@@ -42,15 +42,16 @@
 //   day_phase        cli_coldBankArm       -> target_temp
 //   day_phase        cli_heatBankArm       -> target_temp
 //   target_temp      cli_targetTemp_degC   -> cooling
-//   cooling          cli_coolDem           -> fans, intractors, screen, skirt
-//   cooling          cli_intakeCoolOk      -> intractors
-//   cooling          cli_groundHeatOk      -> intractors
+//   cooling          cli_coolDem           -> fans, intractors, screen, skirt,
+//                                            intake_gates
 //   cooling          cli_windowDem         -> windows
+//   intake_gates     cli_intakeCoolOk      -> intractors
+//   intake_gates     cli_groundHeatOk      -> intractors
 //   destrat          cli_stratDem          -> fans
 //   humidity         cli_humidDem          -> intractors, skirt
 //   humidity         cli_rotLockout        -> skirt
 //   humidity         cli_rotVentDem        -> intractors
-//   humidity         cli_intakeDryOk       -> intractors
+//   intake_dry       cli_intakeDryOk       -> intractors
 //
 // [irrigation]
 //   irr_modulation   irr_mod               -> irr_schedule, irrigation
@@ -85,8 +86,10 @@
 #include "programs/climate/day_phase_controller/day_phase_controller.h"
 #include "programs/climate/target_temp_controller/target_temp_controller.h"
 #include "programs/climate/cooling_controller/cooling_controller.h"
+#include "programs/climate/intake_gates/intake_gates.h"
 #include "programs/climate/destrat_controller/destrat_controller.h"
 #include "programs/climate/humidity_controller/humidity_controller.h"
+#include "programs/climate/intake_dry_gate/intake_dry_gate.h"
 #include "programs/irrigation/irrigation_modulation/irrigation_modulation.h"
 #include "programs/irrigation/irr_mtr_input/irr_mtr_input.h"
 #include "programs/irrigation/irr_mtr_output/irr_mtr_output.h"
@@ -118,8 +121,10 @@
     X(DayPhaseController,   _day_phase)       \
     X(TargetTempController, _target_temp)     \
     X(CoolingController,    _cooling)         \
+    X(IntakeGates,          _intake_gates)   \
     X(DestratController,    _destrat)         \
     X(HumidityController,   _humidity)        \
+    X(IntakeDryGate,        _intake_dry)     \
     X(IrrigationModulation, _irr_modulation)  \
     X(IrrMtrInput,          _irr_mtr_input)   \
     X(IrrMtrOutput,         _irr_mtr_output)  \

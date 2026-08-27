@@ -28,15 +28,10 @@ public:
     /** @name VAR_INPUT
      *  @{ */
 
-    Vars::RefIn<float> dem_hyst;
     Vars::RefIn<float> inside;
     Vars::RefIn<float> ceiling;
     Vars::RefIn<float> floor;
     Vars::RefIn<float> target;
-    Vars::RefIn<float> intake;
-    Vars::RefIn<float> temp_margin;
-    Vars::RefIn<float> vent_hyst;
-    Vars::RefIn<float> ground_dem;
     Vars::RefIn<float> win_start;
     Vars::RefIn<float> win_full;
     Vars::RefIn<float> kp;
@@ -49,8 +44,6 @@ public:
      *  @{ */
 
     Vars::RefOut<float> demand;
-    Vars::RefOut<bool>  intake_ok;
-    Vars::RefOut<bool>  ground_ok;
     Vars::RefOut<float> window;
 
     /** @} */
@@ -61,9 +54,6 @@ private:
      *  @{ */
 
     Plc::Pid        pid;
-    Plc::Hysteresis cool_gate;    ///< the intake is cooler by the margin
-    Plc::Hysteresis ground_gate;  ///< ...or warmer by it
-    Plc::Hysteresis ground_band;  ///< and the ladder is asking for heat
 
     /** @} */
 
@@ -75,33 +65,19 @@ protected:
     /** @brief Resolve every name. An output is CLAIMED here. */
     void bind(Vars::Bank& io) override;
     void run(ProgramContext& c) override;
-
-private:
-
-    /** @brief Whether drawing crawlspace air would help, in either
-     *  direction. Published rather than acted on: this law owns the
-     *  reading, the intractors own the device. */
-    void _intake_gates(float t_in, float dem);
 };
 
 inline void CoolingController::bind(Vars::Bank& io) {
-    dem_hyst    = _bind_input<float>(io, "cli_groundDemHyst");
     inside      = _bind_input<float>(io, "cli_temp_in");
     ceiling     = _bind_input<float>(io, "cli_temp_hi");
     floor       = _bind_input<float>(io, "cli_temp_lo");
     target      = _bind_input<float>(io, "cli_targetTemp_degC");
-    intake      = _bind_input<float>(io, "cli_temp_cs");
-    temp_margin = _bind_input<float>(io, "cli_ventTempMgn_degC");
-    vent_hyst   = _bind_input<float>(io, "cli_ventHyst_degC");
-    ground_dem  = _bind_input<float>(io, "cli_groundHeatDem");
     win_start   = _bind_input<float>(io, "cli_windowStartDem");
     win_full    = _bind_input<float>(io, "cli_windowFullDem");
     kp          = _bind_input<float>(io, "cli_coolKp");
     ti          = _bind_input<float>(io, "cli_coolTi_sec");
     td          = _bind_input<float>(io, "cli_coolTd_sec");
     demand      = _bind_output<float>(io, "cli_coolDem");
-    intake_ok   = _bind_output<bool>(io, "cli_intakeCoolOk");
-    ground_ok   = _bind_output<bool>(io, "cli_groundHeatOk");
     window      = _bind_output<float>(io, "cli_windowDem");
 
     set_health_row(_bind_output<uint8_t>(io, "prog_cooling"));

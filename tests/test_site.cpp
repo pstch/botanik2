@@ -156,6 +156,10 @@ TEST_CASE("site: every control program binds every name it reaches for") {
 
     INFO("a name that is absent, or a row bound at the wrong type, counts here");
     CHECK(bank.unresolved_count() == before);
+
+    INFO("and every registration fitted: MAX_TASKS is a HARD limit, and a "
+         "program past it is refused rather than dropped quietly");
+    CHECK(reg.overflow() == 0);
 }
 
 #endif

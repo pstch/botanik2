@@ -58,10 +58,11 @@ namespace Botanik { namespace Config {
 
     /** @brief Capacity of the scheduler's task table. Fixed, no allocation;
      *  registrations past it are refused and counted, never silently dropped.
-     *  @note gh_mlb41 registers 31 and a site adds its own on top, so the
-     *  headroom is the point. 80 bytes a slot. */
+     *  @note gh_mlb41 registers 49 - the library's components plus 28 control
+     *  programs - and it is the reference site, not a large one. 80 bytes a
+     *  slot, so the headroom is cheap and running out is not. */
 #ifndef BOTANIK_MAX_TASKS
-#  define BOTANIK_MAX_TASKS 48
+#  define BOTANIK_MAX_TASKS 64
 #endif
     BOTANIK_CFG(uint8_t, MAX_TASKS);
 

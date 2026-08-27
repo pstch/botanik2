@@ -59,8 +59,10 @@ struct Plant {
     Site::WeatherWatch         weather;
     Site::TargetTempController target;
     Site::CoolingController    cooling;
+    Site::IntakeGates          intake_gates;
     Site::DestratController    destrat;
     Site::HumidityController   humidity;
+    Site::IntakeDryGate        intake_dry;
     Site::IrrigationModulation irr_mod;
     Site::IrrMtrInput          irr_in;
     Site::IrrMtrOutput         irr_out;
@@ -74,7 +76,7 @@ struct Plant {
     Site::FanController        fans;
     Site::SkirtController      skirt;
 
-    Plc::Program* all[27];   ///< room for the list below
+    Plc::Program* all[29];   ///< room for the list below
     Cycle*        cycle = nullptr;
     uint64_t      t = 0;
     /** @brief What this plant's environment is, held every beat. The weather
@@ -86,14 +88,15 @@ struct Plant {
         : ac_grid(ctx(), io()), ac_local(ctx(), io()), dc(ctx(), io()),
           sensors(ctx(), io()), zones(ctx(), io()), strat(ctx(), io()),
           climate(ctx(), io()), weather(ctx(), io()),
-          target(ctx(), io()), cooling(ctx(), io()), destrat(ctx(), io()),
-          humidity(ctx(), io()), irr_mod(ctx(), io()), irr_in(ctx(), io()), irr_out(ctx(), io()),
+          target(ctx(), io()), cooling(ctx(), io()),
+          intake_gates(ctx(), io()), destrat(ctx(), io()),
+          humidity(ctx(), io()), intake_dry(ctx(), io()), irr_mod(ctx(), io()), irr_in(ctx(), io()), irr_out(ctx(), io()),
           irr_schedule(ctx(), io()), irrigation(ctx(), io()), irr_valves(ctx(), io()), screen(ctx(), io()),
           roof_lock(ctx(), io()), windows(ctx(), io()),
           intractors(ctx(), io()), fans(ctx(), io()), skirt(ctx(), io()) {
         Plc::Program* const list[] = {
             &ac_grid, &ac_local, &dc, &sensors, &zones, &strat, &climate, &weather,
-            &target, &cooling, &destrat, &humidity,
+            &target, &cooling, &intake_gates, &destrat, &humidity, &intake_dry,
             &irr_mod, &irr_in, &irr_out, &irr_schedule, &irrigation, &irr_valves,
             &screen, &roof_lock, &windows, &intractors, &fans, &skirt
         };

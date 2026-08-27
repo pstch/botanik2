@@ -36,12 +36,6 @@ public:
     Vars::RefIn<float>    humid_full;
     Vars::RefIn<float>    rot_limit;
     Vars::RefIn<bool>     rot;
-    Vars::RefIn<float>    in_t;
-    Vars::RefIn<float>    in_rh;
-    Vars::RefIn<float>    ext_t;
-    Vars::RefIn<float>    ext_rh;
-    Vars::RefIn<float>    dry_margin;
-    Vars::RefIn<float>    vent_hyst;
 
     /** @} */
 
@@ -51,7 +45,6 @@ public:
     Vars::RefOut<float> demand;
     Vars::RefOut<bool>  lockout;
     Vars::RefOut<float> vent_dem;
-    Vars::RefOut<bool>  dry_ok;
 
     /** @} */
 
@@ -61,8 +54,6 @@ private:
      *  @{ */
 
     Plc::Tof        lockout_for;  ///< the lockout's overrun past the condition
-    /** @brief two dew points that converge, so a dead band */
-    Plc::Hysteresis dry_gate_band;
 
     /** @} */
 
@@ -75,12 +66,6 @@ protected:
     void bind(Vars::Bank& io) override;
     void run(ProgramContext& c) override;
     void observe(ProgramContext& c) override;  ///< reports in EVERY state
-
-private:
-
-    /** @brief Whether the air outside would dry the greenhouse if drawn in.
-     *  Dew points, so it survives a cold damp morning reading 95% RH. */
-    void _dry_gate();
 };
 
 inline void HumidityController::bind(Vars::Bank& io) {
@@ -92,16 +77,9 @@ inline void HumidityController::bind(Vars::Bank& io) {
     humid_full    = _bind_input<float>(io, "cli_humidFull_degC");
     rot_limit     = _bind_input<float>(io, "cli_rotMargin_degC");
     rot           = _bind_input<bool>(io, "alarm_rot");
-    in_t          = _bind_input<float>(io, "cli_temp_hi");
-    in_rh         = _bind_input<float>(io, "cli_rh_hi");
-    ext_t         = _bind_input<float>(io, "cli_temp_ext");
-    ext_rh        = _bind_input<float>(io, "cli_rh_ext");
-    dry_margin    = _bind_input<float>(io, "cli_ventDryMgn_degC");
-    vent_hyst     = _bind_input<float>(io, "cli_ventHyst_degC");
     demand        = _bind_output<float>(io, "cli_humidDem");
     lockout       = _bind_output<bool>(io, "cli_rotLockout");
     vent_dem      = _bind_output<float>(io, "cli_rotVentDem");
-    dry_ok        = _bind_output<bool>(io, "cli_intakeDryOk");
 
     set_health_row(_bind_output<uint8_t>(io, "prog_humidity"));
 }

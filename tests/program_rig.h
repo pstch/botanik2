@@ -105,6 +105,18 @@ struct ZoneRig {
     Cycle               d{progs, 2, &live.bank, live.reg};
 };
 
+/** @brief The cooling chain: the ladder makes a demand, the gates decide
+ *  whether crawlspace air would help serve it. Two programs because they are
+ *  two networks - the ladder reads the interior, the gates read the crawlspace
+ *  probe and the demand the ladder just published. */
+struct CoolingRig {
+    Live                     live;
+    Site::CoolingController  cooling{Botanik::SetupContext(live.reg), live.bank};
+    Site::IntakeGates        gates  {Botanik::SetupContext(live.reg), live.bank};
+    Plc::Program* const      progs[2] = { &cooling, &gates };
+    Cycle                    d{progs, 2, &live.bank, live.reg};
+};
+
 /** @brief The irrigation chain: the meters feed the schedule, the schedule
  *  arms the cycle. Nothing here works with fewer than all three. */
 struct IrrigationRig {

@@ -530,7 +530,7 @@ TEST_CASE_FIXTURE(Rig<Site::WeatherWatch>,
     CHECK(live.bank.var(live.ref("cli_wind_mps")).valid());
 }
 
-TEST_CASE_FIXTURE(Rig<Site::CoolingController>, "cooling: an intake gate holds while the two temperatures converge") {
+TEST_CASE_FIXTURE(CoolingRig, "intake: a gate holds while the two temperatures converge") {
 
     Vars::RefIn<bool> gate = live.bank.resolve_in<bool>("cli_intakeCoolOk");
     const float margin = live.bank.var(live.ref("cli_ventTempMgn_degC")).as_f32();

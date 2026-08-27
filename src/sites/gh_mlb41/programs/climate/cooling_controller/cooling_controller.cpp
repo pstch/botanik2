@@ -24,14 +24,11 @@ void CoolingController::run(ProgramContext& c) {
         // goes to its own safe state anyway. A zero here would read as "nothing
         // is wanted", which is a different and much more reassuring lie.
         degraded();
+        // HELD, and the quality is what the intake gates read to know this law
+        // stopped having an opinion: they shut on it, which is their own safe
+        // answer rather than one this program reaches across and gives them.
         demand.hold();
         window.hold();
-        // Both gates SHUT, as they are whenever the crawlspace probe is out:
-        // drawing air is a decision about which side of a difference is
-        // cooler, and one end of it has gone. Written, not held - a gate is a
-        // command, and this one is the safe answer rather than a stale guess.
-        intake_ok.set(false, true);
-        ground_ok.set(false, true);
         pid.reset();      // the integral is about a plant we stopped seeing
         return;
     }
@@ -63,33 +60,6 @@ void CoolingController::run(ProgramContext& c) {
     // opening: the windows apply the interlocks to it, and an operator can see
     // what was asked for beside where each ram actually is.
     window.set(Plc::ladder(dem, win_start.get(), win_full.get()), true);
-    _intake_gates(t_in, dem);
-}
-
-void CoolingController::_intake_gates(float t_in, float dem) {
-    // Drawing air only moves the interior toward whatever the intake is. Both
-    // gates are shut while the crawlspace probe is out, which costs a little
-    // ventilation and cannot cost a plant: the windows and the fans are on
-    // their own paths.
-    const bool  ok = intake.valid();
-    if (!ok) degraded();
-    const float t_intake = intake.get();
-    const float margin = temp_margin.get();
-    const float hyst   = vent_hyst.get();
-
-    // Each gate opens AT its margin and closes a band under it, so a difference
-    // sitting on the margin - which is what two converging temperatures do -
-    // holds the gate where it is instead of flipping it every beat.
-    intake_ok.set(ok && cool_gate(t_in - t_intake, margin - hyst, margin), true);
-
-    // The mirror, and the only place the negative half of the ladder does
-    // anything: cold enough to be asking for heat, and ground warm enough to
-    // be worth pulling it out of. Both halves are banded - the demand is a PID
-    // output and it crosses a rung as slowly as it likes.
-    const float rung   = ground_dem.get();
-    const bool  asking = ground_band(-dem, -rung, -rung + dem_hyst.get());
-    ground_ok.set(ok && asking &&
-                  ground_gate(t_intake - t_in, margin - hyst, margin), true);
 }
 
 }  // namespace Site
