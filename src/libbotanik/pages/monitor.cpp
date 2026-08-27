@@ -171,8 +171,30 @@ namespace Botanik { namespace Pages {
         return _build_row(out, cap, cells);
     }
 
+    Vars::VarRef MonitorPage::_selected_ref() const {
+        // A live view (`invalid`, `override`) selects on READINGS, so the set
+        // can change with no keypress: a variable going good between the paint
+        // and the keystroke shifts every row under the cursor, and a fresh walk
+        // would then name a different variable from the one on screen. So the
+        // drawn row stands - unless the cursor has MOVED since, which is the
+        // operator changing their mind and has to re-resolve.
+        if (_sel_ok && _sel_row == _selected) return _sel_ref;
+        bool ok = false;
+        const Vars::VarRef v = _ref_at(_selected, ok);
+        _sel_ref = v; _sel_row = _selected; _sel_ok = ok;
+        if (!ok) { Vars::VarRef none = { Vars::VAR_NONE }; return none; }
+        return v;
+    }
+
     void MonitorPage::_draw_row(uint16_t r, uint16_t row, bool selected) {
         char line[LINE_CAP];
+        if (selected) {
+            // Pinned as the line goes out: the one moment the screen and the
+            // index are known to agree.
+            bool ok = false;
+            const Vars::VarRef v = _ref_at(r, ok);
+            _sel_ref = v; _sel_row = r; _sel_ok = ok;
+        }
         uint16_t n = _row_text(r, line, sizeof(line));
         uint16_t name_l = 0, name_r = 0;
         _cell_span(C_NAME, name_l, name_r);      // one fit, both ends
@@ -247,18 +269,18 @@ namespace Botanik { namespace Pages {
     }
 
     const char* MonitorPage::_selected_cell() const {
-        bool ok = false;
-        Vars::VarRef ref = _ref_at(_selected, ok);
-        if (!ok || _io == nullptr) return nullptr;
+        const Vars::VarRef ref = _selected_ref();
+        if (ref.index == Vars::VAR_NONE || _io == nullptr) return nullptr;
         return _io->var(ref).meta()->name;
     }
 
     void MonitorPage::_draw_panel() {
         uint16_t br = _brule_row();
         _blank_line((uint16_t)(br + 1));    // breathe under the table
-        bool ok = false;
-        Vars::VarRef ref = _ref_at(_selected, ok);
-        const bool have = ok && _io != nullptr;
+        // The same row a key would act on, so the panel cannot describe one
+        // variable while ^R releases another.
+        const Vars::VarRef ref = _selected_ref();
+        const bool have = (ref.index != Vars::VAR_NONE) && _io != nullptr;
         Vars::Var h = have ? _io->var(ref) : Vars::Var(nullptr, nullptr);
         _panel_field((uint16_t)(br + 2), "Description", have ? h.description() : nullptr);
         _panel_field((uint16_t)(br + 3), "Notes",       have ? h.notes() : nullptr);
@@ -365,9 +387,8 @@ namespace Botanik { namespace Pages {
 
     void MonitorPage::_start_edit() {
         if (_io == nullptr) return;
-        bool ok = false;
-        const Vars::VarRef ref = _ref_at(_selected, ok);
-        if (!ok) return;
+        const Vars::VarRef ref = _selected_ref();
+        if (ref.index == Vars::VAR_NONE) return;
         Vars::Var h = _io->var(ref);
         // A T_STR's value lives in the text pool, which an override cannot
         // hold: say so rather than opening a field whose every commit fails.
@@ -433,9 +454,8 @@ namespace Botanik { namespace Pages {
 
     void MonitorPage::_toggle_validity() {
         if (_io == nullptr) return;
-        bool ok = false;
-        const Vars::VarRef ref = _ref_at(_selected, ok);
-        if (!ok) return;
+        const Vars::VarRef ref = _selected_ref();
+        if (ref.index == Vars::VAR_NONE) return;
         Vars::Var h = _io->var(ref);
         if (h.meta()->type == Vars::T_STR) { _say("a text row cannot be forced"); return; }
         // The freeze-and-kill is the BANK's rule, not the page's: with nothing
@@ -451,9 +471,8 @@ namespace Botanik { namespace Pages {
 
     void MonitorPage::_clear_override() {
         if (_io == nullptr) return;
-        bool ok = false;
-        const Vars::VarRef ref = _ref_at(_selected, ok);
-        if (!ok) return;
+        const Vars::VarRef ref = _selected_ref();
+        if (ref.index == Vars::VAR_NONE) return;
         Vars::Var h = _io->var(ref);
         if (!h.override().present()) { _say("not overridden"); return; }
         _io->override_clear(h);          // through the bank: it owns the store
@@ -462,9 +481,8 @@ namespace Botanik { namespace Pages {
 
     void MonitorPage::_save_override() {
         if (_io == nullptr) return;
-        bool ok = false;
-        const Vars::VarRef ref = _ref_at(_selected, ok);
-        if (!ok) return;
+        const Vars::VarRef ref = _selected_ref();
+        if (ref.index == Vars::VAR_NONE) return;
         // The row under the cursor, not every unsaved one: what is being
         // committed to flash should be the row the operator is looking at.
         switch (_io->save_override(_io->var(ref))) {

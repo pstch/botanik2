@@ -116,6 +116,24 @@ namespace Botanik { namespace Pages {
         mutable uint16_t    _memo_row  = 0;
         mutable uint16_t    _memo_idx  = 0;
         mutable bool        _memo_ok   = false;
+
+        /** @brief The row the highlighted line was DRAWN from, pinned there.
+         *
+         *  A live view (`invalid`, `override`) selects on readings, so the set
+         *  can change with no keypress: a variable that goes good between the
+         *  paint and the keystroke shifts every row under the cursor, and a
+         *  fresh _ref_at(_selected) would then name a different variable from
+         *  the one on screen. The operator acts on what they can see. */
+        mutable Vars::VarRef _sel_ref = { Vars::VAR_NONE };
+        /** @brief Which selection index @c _sel_ref was resolved for. A cursor
+         *  MOVE is the operator changing their mind and re-resolves; the set
+         *  moving under a still cursor must not. */
+        mutable uint16_t     _sel_row = 0;
+        mutable bool         _sel_ok  = false;
+
+        /** @brief The row a key acts on: the pin while the cursor has not
+         *  moved, a fresh walk the moment it has. */
+        Vars::VarRef _selected_ref() const;
         mutable uint16_t    _total_n   = 0;
         /** @brief Which filter _total_n was counted for; 0 = none yet, and how
          *  _invalidate_rows() drops it.

@@ -158,3 +158,35 @@ def test_a_named_task_answers_for_itself(spawn):
                         ("sys_mbrtu_tx", "output"), ("sys_console_tx", "present")):
         term.send(b"tasks get " + name.encode() + keys.ENTER)
         assert term.wait_for(phase), "no task named %s in %s" % (name, phase)
+
+def test_monitor_acts_on_the_row_it_drew(spawn):
+    """A live view selects on READINGS, so its rows move with no keypress.
+
+    `override` lists exactly the forced rows. Force one, and the row under the
+    cursor in the unfiltered `all` view is a different variable from the one
+    `override` shows at the same index - which is the drift a key must not
+    follow. The panel names the row, so it is what proves which one is armed.
+    """
+    term = boot(spawn)
+    goto(term, keys.ALT_6, "VARIABLE")
+    term.send(keys.text("cli_temp_hi"))
+    assert term.wait_screen("[/cli_temp_hi]"), "the filter did not narrow the table"
+
+    # Force the SECOND row, so the override view's only entry is not the one
+    # sitting at index 0 of the filtered `all` view.
+    term.send(keys.DOWN)
+    term.send(keys.CTRL_O)
+    assert term.wait_screen("="), "^O did not open the override field"
+    term.send(keys.CTRL_U + b"31.5" + keys.ENTER)
+    assert term.wait_screen("31.5"), "the override did not land"
+
+    # Into the override view: one row, and it is the one just forced.
+    term.send(keys.LEFT)
+    assert term.wait_screen("[override]"), "the view did not change"
+
+    # ^R acts on what the panel names. If the key re-walked the table instead
+    # of using the drawn row, it would release something else - and the value
+    # would still be on screen.
+    term.send(keys.CTRL_R)
+    assert term.wait_screen("override released"), "^R did not release it"
+    assert term.wait_screen("31.5", present=False), "the forced value survived: the key hit another row"
