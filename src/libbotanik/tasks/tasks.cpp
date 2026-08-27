@@ -153,15 +153,22 @@ namespace Botanik { namespace Tasks {
     }
 
     void Registry::request_safe(bool on) {
+        if (on == _safe_asked) return;
         _safe_asked = on;
         _push_safe();
     }
 
     void Registry::hold_safe(bool on) {
+        if (on == _safe_hold) return;
         _safe_hold = on;
         _push_safe();
     }
 
+    /** @note Both callers above return early when nothing moved. The sweep is
+     *  over every task and it is about to do more than set a flag; the health
+     *  monitor RE-ASSERTS request_safe(true) on each of its own activations for
+     *  the whole park window, so an unguarded push would run the sweep for the
+     *  length of it and change nothing each time. */
     void Registry::_push_safe() {
         const bool on = safe_requested();
         for (uint8_t i = 0; i < _count; i++)
@@ -229,7 +236,8 @@ namespace Botanik { namespace Tasks {
             // drives its own actuators there, and one that stops running cannot
             // close a valve. The plant-wide gate parks them itself
             // (set_programs_enabled), so those are already is_parked() here.
-            if (t.program != nullptr && (!_programs_enabled || !t.enabled) &&
+            if (t.program != nullptr &&
+            (!_programs_enabled || t.program->disable_requested()) &&
                 t.program->is_parked()) continue;
 
             uint32_t dt = 0; uint16_t missed = 0;
@@ -287,8 +295,13 @@ namespace Botanik { namespace Tasks {
     }
 
     bool Registry::program_enabled(uint8_t i) const {
+        // Off the PROGRAM, which is where the flag lives. A copy on the Task
+        // beside it was a second answer to one question, and request_disable()
+        // is public - so anything that set it directly left this reporting the
+        // state before.
         const Task* t = _program_task(i);
-        return (t != nullptr) && t->enabled;
+        return (t != nullptr) && t->program != nullptr &&
+               !t->program->disable_requested();
     }
 
     bool Registry::program_unsaved(uint8_t i) const {
@@ -300,13 +313,14 @@ namespace Botanik { namespace Tasks {
         Task* tp = _program_task(i);
         if (tp == nullptr) return false;
         Task& t = *tp;
-        if (t.enabled == on) return true;      // idempotent, and not a new edit
-        t.enabled        = on;
+        if (t.program == nullptr) return false;
+        if (!t.program->disable_requested() == on)
+            return true;                       // idempotent, and not a new edit
         t.enable_unsaved = true;
         // The operator's own switch, beside the system's. Asking rather than
         // just gating: the program has to run to drive its actuators to the
         // fail position, and run_phase() keeps activating it until it has.
-        if (t.program != nullptr) t.program->request_disable(!on);
+        t.program->request_disable(!on);
         // The reseed control authority does, for the same reason: without it the
         // first activation back reports the whole outage as its dt, and a dwell
         // timer handed an hour of it fires the instant the program returns.
@@ -320,7 +334,8 @@ namespace Botanik { namespace Tasks {
         Task& t = *tp;
         char key[HAL::Storage::KEY_MAX];
         if (!_prog_key(t.name, key, sizeof(key))) return false;
-        const uint8_t byte = t.enabled ? 1u : 0u;
+        const uint8_t byte = (t.program != nullptr &&
+                              !t.program->disable_requested()) ? 1u : 0u;
         if (!HAL::Storage::set(key, &byte, 1)) return false;
         t.enable_unsaved = false;              // cleared only on a write that landed
         return true;
@@ -347,7 +362,7 @@ namespace Botanik { namespace Tasks {
             // Nothing stored is the normal case: a program runs unless it was
             // deliberately taken out.
             if (!HAL::Storage::get(key, &byte, 1, &got) || got != 1) continue;
-            t.enabled        = (byte != 0);
+            if (t.program != nullptr) t.program->request_disable(byte == 0);
             t.enable_unsaved = false;
         }
     }

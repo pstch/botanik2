@@ -600,6 +600,33 @@ TEST_CASE("bind: the rows a program reads are recorded, outputs are not") {
     CHECK_FALSE(p.input_overflow());
 }
 
+TEST_CASE("tasks: the operator's switch has one home, whichever end sets it") {
+    Fixture f;
+    Botanik::Tasks::Registry reg;
+    OneBinding p(Botanik::SetupContext(reg, &f.log), f.bank, "switched",
+                 OneBinding::IN, "cli_temp_hi");
+    p.set_slot(0);
+    p.register_tasks();
+    reg.setup(0);
+    REQUIRE(reg.program_count() == 1);
+    REQUIRE(reg.program_enabled(0));
+
+    INFO("through the registry, which is what the shell calls");
+    REQUIRE(reg.set_program_enabled(0, false, 100));
+    CHECK_FALSE(reg.program_enabled(0));
+    CHECK(p.disable_requested());
+
+    // The other end of the same switch. It is public, so a copy of the flag on
+    // the Task beside it would report the state before this call for ever.
+    INFO("...and directly on the program, which is public and always was");
+    p.request_disable(false);
+    CHECK(reg.program_enabled(0));
+
+    INFO("and a re-assert is not a new edit");
+    p.request_disable(true);
+    CHECK_FALSE(reg.program_enabled(0));
+}
+
 TEST_CASE("health: a program setup could not wire is INVALID, and never runs") {
     Fixture f;
     Botanik::Tasks::Registry reg;

@@ -126,12 +126,10 @@ namespace Botanik { namespace Tasks {
          *  True at registration - nothing has run yet - and raised again on a
          *  program when control authority returns. */
         bool       first_activation = true;
-        /** @brief Whether this PROGRAM may run. The operator's standing choice,
-         *  independent of control authority - the stricter of the two wins.
-         *  Ignored on a non-program entry. */
-        bool       enabled = true;
-        /** @brief `enabled` differs from the stored copy. Setting and saving are
-         *  two steps, as they are for a parameter. */
+        /** @brief The operator's standing choice differs from the stored copy.
+         *  Setting and saving are two steps, as they are for a parameter.
+         *  @note The choice ITSELF lives on the Program - see
+         *  Plc::Program::disable_requested(). One question, one answer. */
         bool       enable_unsaved = false;
         /** @} */
         TaskTimer   timer;                ///< period from the group, own offset
