@@ -152,6 +152,8 @@ namespace Botanik { namespace Pages {
          *  test_alarms_render.cpp. */
         void _cycle_mode(int dir);
 
+        /** @} */
+
         /** @name Legend layout
          *  Fixed columns, so the fields sit in the same place on every table and
          *  redraw. The three view fields are CENTRED in equal slots, so a
@@ -171,6 +173,10 @@ namespace Botanik { namespace Pages {
         static constexpr uint16_t ML_FILTER = 48;   // "[/text]", while one is set
         static constexpr uint16_t ML_DETAIL = 60;   // page-specific extra
         /** @} */
+
+        /** @name Drawing the legend
+         *  The column constants above, applied: padding, centring in a slot,
+         *  and the row itself. @{ */
 
         /** @brief Pad @p buf out to column @p col. */
         static void _pad_to(char* buf, uint16_t& w, size_t cap, uint16_t col) {

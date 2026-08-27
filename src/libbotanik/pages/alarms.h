@@ -189,12 +189,11 @@ namespace Botanik { namespace Pages {
             uint16_t r = _console.rows();
             return (r >= (uint16_t)(DATA_TOP + 9)) ? (uint16_t)(r - DATA_TOP - 8) : 0;
         }
-        /** @name ScrollTablePage geometry
-         *  @{ */
+        // ScrollTablePage's own geometry hooks, in the same group as the rest
+        // of this page's: they answer the same question about the same window.
         uint16_t _data_top()  const override { return DATA_TOP; }
         uint16_t _row_count() const override { return _nvis; }
         const char* _selected_cell() const override;
-        /** @} */
         /** @brief Entries scrolled off the bottom of the visible window. */
         uint16_t _hidden_below(uint16_t window) const {
             uint16_t end = (uint16_t)(_top + window);

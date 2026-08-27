@@ -94,6 +94,8 @@ namespace Botanik { namespace Pages {
         bool                _dirty    = true;    ///< table needs a redraw
         uint64_t            _last_refresh_ms = 0; ///< last cadence rebuild
 
+        /** @} */
+
         /** @name Edit sub-state (bottom-row inline editor)
          *  @{ */
         /** buffers the editor borrows; declared before it */
@@ -106,7 +108,7 @@ namespace Botanik { namespace Pages {
         /** last ^O save was refused by storage (shown on the prompt row; the
          *  values themselves stay live and stay marked unsaved) */
         bool                _save_failed = false;
-        /** @} */
+
         /** @} */
 
     public:
