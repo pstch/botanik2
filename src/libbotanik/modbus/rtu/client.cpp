@@ -626,13 +626,22 @@ void RtuClient::_settle(uint64_t now_ms) {
         // Only now, with the slave's echo in hand. Clearing on send would lose a
         // demand to a frame that never arrived.
         //
-        // The payload is still where the builder left it: byte 7 of the frame,
-        // for as long as that frame is the request in flight. Handing it back is
-        // what lets clear_dirty() tell a row this transaction carried from one a
-        // program moved while it was in flight.
-        const uint16_t head = 7u;                    // unit, fc, addr, qty, count
-        const uint16_t sent = (_frame_len > head + 2u)
-                                  ? (uint16_t)(_frame_len - head - 2u) : 0u;
+        // The payload is still where the builder left it, for as long as that
+        // frame is the request in flight. Handing it back is what lets
+        // clear_dirty() tell a row this transaction carried from one a program
+        // moved while it was in flight.
+        //
+        // Where it sits depends on the code. FC15/FC16 have a byte count, so
+        // the payload starts at 7; FC05/FC06 carry their one value at 4 with no
+        // count. A single-write block is one point by construction (span_cap),
+        // so the row's offset within it is 0 and one value is the whole payload
+        // - and FC05's 0xFF00/0x0000 has the same bit 0 the packed form would.
+        const bool     single = (b.fc == FC_WRITE_COIL || b.fc == FC_WRITE_REGISTER);
+        const uint16_t head   = single ? 4u : 7u;   // unit, fc, addr[, qty, count]
+        const uint16_t sent   = single
+                                  ? (b.fc == FC_WRITE_COIL ? 1u : 2u)
+                                  : ((_frame_len > head + 2u)
+                                         ? (uint16_t)(_frame_len - head - 2u) : 0u);
         clear_dirty(*_io, _plan, b, sent != 0 ? _frame + head : nullptr, sent);
         // Accepted, so whatever the map was wrong about has been fixed. The
         // penalty starts from the base again rather than from where it stopped.

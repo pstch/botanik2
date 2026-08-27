@@ -92,6 +92,28 @@ TEST_CASE("modbus: a coil write puts 0xFF00 on the wire, not 1") {
     CHECK(adu[5] == 0x00);
 }
 
+TEST_CASE("modbus: a write's payload sits where the settle path looks for it") {
+    // RtuClient::_settle() hands clear_dirty() a pointer into the request still
+    // in flight, so where the payload starts is part of that contract: 4 for the
+    // single writes, which have no byte count, and 7 for the multiples.
+    uint8_t adu[32] = {};
+
+    REQUIRE(build_write_register(adu, sizeof(adu), 0x11, 0x0001, 0x0003) == 8);
+    CHECK(adu[4] == 0x00);
+    CHECK(adu[5] == 0x03);
+
+    const uint8_t regs[4] = { 0x00, 0x0A, 0x01, 0x02 };
+    const uint16_t n = build_write_registers(adu, sizeof(adu), 0x11, 0x0001, 2, regs);
+    REQUIRE(n == 13);                       // 7 head + 4 payload + 2 CRC
+    CHECK(n - 7u - 2u == sizeof(regs));
+    CHECK(memcmp(adu + 7, regs, sizeof(regs)) == 0);
+
+    const uint8_t bits[1] = { 0x05 };
+    const uint16_t c = build_write_coils(adu, sizeof(adu), 0x11, 0x0001, 3, bits);
+    REQUIRE(c == 10);                       // 7 head + 1 payload + 2 CRC
+    CHECK(adu[7] == 0x05);
+}
+
 TEST_CASE("modbus: match_response separates a refusal from a mismatch") {
     // Written in BODY bytes, which is what makes one function serve both
     // transports: everything after the unit byte, trailer already excluded.
