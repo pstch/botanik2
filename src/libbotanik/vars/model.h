@@ -327,12 +327,13 @@ namespace Botanik { namespace Vars {
         /** @brief Read @p h, or the row's DECLARED value when it is not
          *  believable. Every direction reads - a POU may read its own output.
          *
-         *  The substitution is the whole of the cascade rule on the read side:
-         *  a law computes on a number somebody chose rather than on a reading
-         *  of unbounded age, and says so by flagging its own output. Only the
-         *  typed reference does it - the pages, the telemetry and the register
-         *  map read through Var, so an operator looking for what a dead probe
-         *  LAST said still finds it.
+         *  Var::_under() already substitutes for the qualities with nothing
+         *  behind them at all - Q_NO_DATA, Q_SAFE, Q_IMPLAUSIBLE. What this
+         *  ADDS is the two that keep a value: Q_STALE and Q_UNCERTAIN, which
+         *  is what the whole cascade writes. So a law computes on a number
+         *  somebody chose rather than on a reading of unbounded age, while the
+         *  pages, the telemetry and the register map read through Var and an
+         *  operator looking for what a dead probe LAST said still finds it.
          *  @note An override reads as the force: valid() is asked of the value
          *  in effect, so a forced row is believable and never substituted. */
         template <typename T, Dir D>
