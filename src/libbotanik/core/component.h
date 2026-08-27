@@ -117,10 +117,11 @@ namespace Botanik {
         /** @name Hooks (implemented by the component)
          *  @{ */
 
-
-
         /** @brief One-time init, run by setup(). Default: nothing. */
         virtual void on_setup(uint64_t now_ms) { (void)now_ms; }
+
+        /** @} */
+
         /** @name Per-phase work
          *
          *  One hook per phase; override the one whose place in the DATA FLOW
@@ -134,7 +135,7 @@ namespace Botanik {
         virtual void on_control(uint64_t now_ms) { (void)now_ms; }
         virtual void on_output(uint64_t now_ms)  { (void)now_ms; }
         virtual void on_present(uint64_t now_ms) { (void)now_ms; }
-        /** @} */
+
         /** @} */
     };
 

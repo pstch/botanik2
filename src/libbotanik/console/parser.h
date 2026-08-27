@@ -106,18 +106,14 @@ namespace Botanik { namespace Terminal {
 
         InputEvent      _event;                 ///< event being constructed
 
-        /** @name CSI accumulator
+        /** @brief The CSI accumulator: the PARSER's, not the event's.
          *
-         *  The parser's, not the event's. A sequence arrives across as many
-         *  calls as the ring splits it into - parse() returns the moment the
-         *  ring empties - and _event is cleared at the top of every one. Held
-         *  here, beside _state, which has always survived a call for the same
-         *  reason. Cleared on entering IN_CSI.
-         *  @{ */
+         *  A sequence arrives across as many calls as the ring splits it into
+         *  - parse() returns the moment the ring empties - and _event is
+         *  cleared at the top of every one. Cleared on entering IN_CSI. */
         static const uint8_t MAX_CSI_PARAMS = 8;
         uint16_t        _csi_params[MAX_CSI_PARAMS] = {};
         uint8_t         _csi_count = 0;
-        /** @} */
         State           _state = State::IDLE;   ///< parser state
         uint64_t        _last_byte_ms = 0;      ///< timestamp of last read byte
         uint64_t        _batch_start_ms = 0;    ///< timestamp of current batch start

@@ -128,6 +128,8 @@ namespace Botanik { namespace Logs {
          *  check). */
         bool has_writers() const { return _writerCount > 0; }
 
+        /** @} */
+
         /** @name The registered sinks
          *
          *  Read-only access to the list, for the config pass that applies each
@@ -139,7 +141,11 @@ namespace Botanik { namespace Logs {
         LogWriter* writer(uint8_t i) const {
             return (i < _writerCount) ? _writers[i] : nullptr;
         }
+
         /** @} */
+
+        /** @name Level and TX watch
+         *  @{ */
 
         /** @brief Set the minimum forwarded level (criticals always pass); see
          *  @c _min_level. */

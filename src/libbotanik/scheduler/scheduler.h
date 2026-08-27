@@ -270,6 +270,8 @@ namespace Botanik { namespace Scheduler {
          *  bar). */
         SchedulerContext* context() { return &_context; }
 
+        /** @} */
+
         /** @name The scan cycle
          *
          *  The scheduler paces the beat AND runs it: it owns the task table, the
@@ -312,8 +314,6 @@ namespace Botanik { namespace Scheduler {
          *  left energised. The verdict stays the caller's - the scheduler owns
          *  the watchdog, not the judgement. */
         bool kick(bool healthy);
-
-        /** @} */
 
         /** @} */
 

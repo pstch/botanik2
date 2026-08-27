@@ -245,6 +245,8 @@ namespace Botanik { namespace Tasks {
         /** @brief Whether program entries are currently allowed to run. */
         bool programs_enabled() const { return _programs_enabled; }
 
+        /** @} */
+
         /** @name Going safe
          *
          *  A request, and the question a supervisor waits on. The programs keep
@@ -277,8 +279,6 @@ namespace Botanik { namespace Tasks {
         bool all_safe() const;
         /** @brief Programs still on their way, for the operator waiting. */
         uint8_t unsafe_count() const;
-
-        /** @} */
 
         /** @} */
 
