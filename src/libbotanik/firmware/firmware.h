@@ -373,6 +373,8 @@ namespace Botanik {
          *  so if it turns out to be slow nothing will say so. */
         virtual void on_loop(uint64_t now_ms) { (void)now_ms; }
 
+        /** @} */
+
         /** @name Config appliers, as task handlers
          *  @{ */
 

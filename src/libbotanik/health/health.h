@@ -227,6 +227,8 @@ namespace Botanik { namespace Health {
         /** @brief Cleared by _bind() when a name resolves to nothing. */
         bool         _bound_ok = true;
 
+        /** @} */
+
         /** @name The thresholds those alarms fire at
          *
          *  Parameters, not constants: what counts as too much load, jitter or
