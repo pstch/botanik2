@@ -74,8 +74,6 @@ namespace Botanik { namespace Terminal {
         uint16_t    count       = 1;
         const char* batch_data  = nullptr;  // CONTENT batch
         uint16_t    batch_len   = 0;        // CONTENT batch length
-        uint16_t    params[8];              // CSI params
-        uint8_t     param_count = 0;        // CSI param count
     };
 
     /** @} */
@@ -107,6 +105,19 @@ namespace Botanik { namespace Terminal {
         const uint64_t* _timestamp_ms;          ///< shared loop timestamp, published by the scheduler
 
         InputEvent      _event;                 ///< event being constructed
+
+        /** @name CSI accumulator
+         *
+         *  The parser's, not the event's. A sequence arrives across as many
+         *  calls as the ring splits it into - parse() returns the moment the
+         *  ring empties - and _event is cleared at the top of every one. Held
+         *  here, beside _state, which has always survived a call for the same
+         *  reason. Cleared on entering IN_CSI.
+         *  @{ */
+        static const uint8_t MAX_CSI_PARAMS = 8;
+        uint16_t        _csi_params[MAX_CSI_PARAMS] = {};
+        uint8_t         _csi_count = 0;
+        /** @} */
         State           _state = State::IDLE;   ///< parser state
         uint64_t        _last_byte_ms = 0;      ///< timestamp of last read byte
         uint64_t        _batch_start_ms = 0;    ///< timestamp of current batch start

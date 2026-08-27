@@ -121,27 +121,29 @@ namespace Botanik { namespace Terminal {
     }
 
     InputParser::State InputParser::_handle_esc(uint8_t b) {
-        if (b == '[') return State::IN_CSI;
+        if (b == '[') {
+            // A fresh sequence: the accumulator belongs to THIS one.
+            for (uint8_t i = 0; i < MAX_CSI_PARAMS; i++) _csi_params[i] = 0;
+            _csi_count = 0;
+            return State::IN_CSI;
+        }
         return _set_command(_map_esc_extension(b));
     }
 
     InputParser::State InputParser::_handle_csi(uint8_t b) {
-        constexpr uint8_t MAX_PARAMS =
-            (uint8_t)(sizeof(_event.params) / sizeof(_event.params[0]));
-
         // Read parameter and stay in CSI mode
         if (b >= '0' && b <= '9') {
-            uint8_t idx = _event.param_count;
-            if (idx < MAX_PARAMS) {
-                uint32_t v = (uint32_t)_event.params[idx] * 10 + (uint32_t)(b - '0');
-                _event.params[idx] = (v > 0xFFFF) ? (uint16_t)0xFFFF : (uint16_t)v;
+            const uint8_t idx = _csi_count;
+            if (idx < MAX_CSI_PARAMS) {
+                uint32_t v = (uint32_t)_csi_params[idx] * 10 + (uint32_t)(b - '0');
+                _csi_params[idx] = (v > 0xFFFF) ? (uint16_t)0xFFFF : (uint16_t)v;
             }
             return State::IN_CSI;
         }
 
         // Read separator and stay in CSI mode
         if (b == ';' || b == ':') {
-            if (_event.param_count + 1 < MAX_PARAMS) _event.param_count++;
+            if (_csi_count + 1 < MAX_CSI_PARAMS) _csi_count++;
             return State::IN_CSI;
         }
 
@@ -152,7 +154,7 @@ namespace Botanik { namespace Terminal {
 
         // Publish CSI command and leave CSI mode
         if (b >= 0x40 && b <= 0x7E) {
-            _event.command = _map_csi_to_command(b, _event.params[0], _event.params[1]);
+            _event.command = _map_csi_to_command(b, _csi_params[0], _csi_params[1]);
             _event.type = EventType::COMMAND;
             return State::IDLE;
         }

@@ -269,6 +269,7 @@ const Descriptor params[] = {
     P("irr_flowBand_Lpm"     , T_F32 , 0.1    , 0.0   , 5.0    , 2, "Lpm" , 157, "outlet flow change worth a status write", "", true),
     P("irr_flowCutoff_Lpm"   , T_F32 , 0.2    , 0.0   , 5.0    , 2, "Lpm" , 158, "below this the outlet counts no litres", "", true),
     P("irr_rateWin_ms"       , T_U16 , 5000   , 500   , 60000  , 0, "ms"  , 159, "window the inlet rate is differenced over", "", true),
+
 };
 
 const Descriptor rows[] = {
@@ -425,7 +426,7 @@ const Descriptor rows[] = {
     SVE("prog_irr_schedule"      , 3          , &Plc::health_label, 600, "health of the irrigation schedule", ""),
     SVE("prog_roof_lockout"      , 3          , &Plc::health_label, 601, "health of the roof lockout program", ""),
 
-    // Mapped inputs
+    // Grid monitoring inputs
     MI("grid_L1_V"              , T_F32 , 5 , 4, 0  , 2, SF(0.0f)       , SF(500.0f)    , SF(0.0f), 15000, 1, "V"   , "L1 phase voltage", "SDM630 p1 30001", 10000),
     MI("grid_L2_V"              , T_F32 , 5 , 4, 2  , 2, SF(0.0f)       , SF(500.0f)    , SF(0.0f), 15000, 1, "V"   , "L2 phase voltage", "SDM630 p2 30003", 10000),
     MI("grid_L3_V"              , T_F32 , 5 , 4, 4  , 2, SF(0.0f)       , SF(500.0f)    , SF(0.0f), 15000, 1, "V"   , "L3 phase voltage", "SDM630 p3 30005", 10000),
@@ -464,6 +465,7 @@ const Descriptor rows[] = {
     MI("grid_L2_W"              , T_F32 , 5 , 4, 14 , 2, SF(-1000000.0f), SF(1000000.0f), SF(0.0f), 15000, 0, "W"   , "L2 active power", "SDM630 p8 30015", 10000),
     MI("grid_L3_W"              , T_F32 , 5 , 4, 16 , 2, SF(-1000000.0f), SF(1000000.0f), SF(0.0f), 15000, 0, "W"   , "L3 active power", "SDM630 p9 30017", 10000),
     
+    // Local AC )generator-backed) state
     MI("ats_V"                  , T_F32 , 6 , 4, 0  , 2, SF(0.0f)       , SF(500.0f)    , SF(0.0f), 15000, 1, "V"   , "ATS voltage", "MCT1-140 0x0000", 10000),
     MI("ats_A"                  , T_F32 , 6 , 4, 2  , 2, SF(0.0f)       , SF(200.0f)    , SF(0.0f), 15000, 1, "A"   , "ATS current", "MCT1-140 0x0002", 10000),
     MI("ats_W"                  , T_F32 , 6 , 4, 4  , 2, SF(-1000000.0f), SF(1000000.0f), SF(0.0f), 15000, 0, "W"   , "ATS active power", "MCT1-140 0x0004", 10000),
@@ -471,7 +473,7 @@ const Descriptor rows[] = {
     MI("ats_VA"                 , T_F32 , 6 , 4, 8  , 2, SF(-1000000.0f), SF(1000000.0f), SF(0.0f), 15000, 0, "VA"  , "ATS apparent power", "MCT1-140 0x0008", 10000),
     MI("ats_Hz"                 , T_F32 , 6 , 4, 12 , 2, SF(0.0f)       , SF(100.0f)    , SF(0.0f), 15000, 2, "Hz"  , "ATS frequency", "MCT1-140 0x000C", 10000),
     
-    // 
+    // Climate monitoring sensors
     MI("cli_temp_ext1"          , T_F32 , 41, 4, 0  , 2, SF(-40.0f)     , SF(80.0f)     , SF(0.0f), 5000 , 1, "C"   , "exterior temperature 1", "temp/RH sensor 0x0000"),
     MI("cli_rh_ext1"            , T_F32 , 41, 4, 2  , 2, SF(0.0f)       , SF(100.0f)    , SF(0.0f), 5000 , 1, "%"   , "exterior humidity 1", "temp/RH sensor 0x0002"),
     MI("cli_temp_ext2"          , T_F32 , 42, 4, 0  , 2, SF(-40.0f)     , SF(80.0f)     , SF(0.0f), 5000 , 1, "C"   , "exterior temperature 2", "temp/RH sensor 0x0000"),
