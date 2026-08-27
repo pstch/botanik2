@@ -114,8 +114,10 @@ void IrrigationSchedule::run(ProgramContext& c) {
     // The daily tally is against a DATE, not an uptime: it rolls when the day
     // does, so a cycle running through midnight is not counted twice and a
     // reboot at noon does not hand the plant a second allowance.
-    today.set(_today(), true);
-    const uint32_t day = today.get();
+    // 0 is _today()'s "the RTC has never been set", so the row carries that as
+    // its quality rather than publishing day zero as a date.
+    const uint32_t day = _today();
+    today.set(day, day != 0);
     if (day != 0 && day != _served_day) {
         _served_day = day;
         (void)served.set((uint8_t)0, true);

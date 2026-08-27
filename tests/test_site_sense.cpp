@@ -217,6 +217,36 @@ TEST_CASE_FIXTURE(Rig<Site::TargetTempController>, "target: a bank phase only sh
     CHECK(live.bank.get(target) == doctest::Approx(base + hofs));
 }
 
+TEST_CASE_FIXTURE(Rig<Site::TargetTempController>, "target: an unplaced phase takes the base setpoint, and stays believable") {
+
+    Vars::RefIn<float> target = live.bank.resolve_in<float>("cli_targetTemp_degC");
+    const VarRef phase = live.ref("cli_phase");
+    const VarRef cold  = live.ref("cli_coldBankArm");
+    const float base = live.bank.var(live.ref("cli_coolSet_degC")).as_f32();
+    REQUIRE(base == doctest::Approx(20.0f));      // the site's safe cooling target
+    live.bank.param_set(live.bank.var(live.ref("cli_targetTau_s")), 0.0f);
+
+    INFO("armed and in the bank phase, the offset applies");
+    live.bank.var(phase).set_i((int64_t)Site::PHASE_COLD_BANK);
+    live.bank.var(cold).set(true);
+    d.step(100);
+    const float ofs = live.bank.var(live.ref("cli_coldBankOfs_degC")).as_f32();
+    REQUIRE(live.bank.get(target) == doctest::Approx(base - ofs));
+    REQUIRE(live.bank.var(live.ref("cli_targetTemp_degC")).valid());
+
+    INFO("the phase goes unplaceable - no wall clock, so no sun - and the shift "
+         "goes with it: an offset from a phase nobody placed is a setpoint "
+         "nobody asked for");
+    live.bank.var(phase).invalidate(Q_NO_DATA);
+    d.step(200);
+    CHECK(live.bank.get(target) == doctest::Approx(base));
+
+    INFO("and the CHAIN STOPS HERE: the base setpoint is a proper value, so "
+         "the row stays believable for every cooling stage that keys off it");
+    CHECK(live.bank.var(live.ref("cli_targetTemp_degC")).valid());
+    CHECK(prog.health() == Plc::Health::DEGRADED);
+}
+
 TEST_CASE_FIXTURE(Rig<Site::TargetTempController>, "target: a phase boundary eases the target instead of stepping it") {
 
     Vars::RefIn<float> target = live.bank.resolve_in<float>("cli_targetTemp_degC");

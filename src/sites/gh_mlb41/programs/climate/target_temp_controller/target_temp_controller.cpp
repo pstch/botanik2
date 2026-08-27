@@ -8,19 +8,23 @@
 namespace Site {
 
 void TargetTempController::run(ProgramContext& c) {
-    // The whole ladder hangs off the phase, and the target below carries its
-    // quality. Said here too: a target for a time of day nobody can place is
-    // a degraded law, not just a doubtful row.
-    if (!phase.valid()) degraded();
+    // The chain STOPS here. Every cooling stage keys off this row, so a target
+    // nobody could place must not be published as one nobody can use: the base
+    // setpoint is a proper value on its own - it is what the plant runs at for
+    // most of the day - and the phase only ever shifts it. So an unplaced phase
+    // takes the base unshifted, the law says it is running short, and the row
+    // stays believable for everything downstream.
+    const bool placed = phase.valid();
+    if (!placed) degraded();
     const DayPhase now = (DayPhase)phase.get();
     float held = cool_set.get();
 
     // A bank phase shifts the base only when yesterday justified it: pre-cool
     // before dawn after a hot day, bank heat at dusk after a cold night. In
     // force but not armed, the phase runs at the ordinary target.
-    if (now == PHASE_COLD_BANK && cold_arm.get())
+    if (placed && now == PHASE_COLD_BANK && cold_arm.get())
         held -= cold_bank_ofs.get();
-    else if (now == PHASE_HEAT_BANK && heat_arm.get())
+    else if (placed && now == PHASE_HEAT_BANK && heat_arm.get())
         held += heat_bank_ofs.get();
 
     // A phase boundary is a STEP, and every consumer of the target answers a
@@ -34,9 +38,7 @@ void TargetTempController::run(ProgramContext& c) {
     // The clamp is LAST, and what keeps an aggressively-set offset from pushing
     // the greenhouse somewhere dangerous, whatever the phase asked for: a rail
     // an operator has just moved has to bite now, not one time constant later.
-    // The whole ladder hangs off the phase, so a phase nobody can place makes
-    // this a target for a time of day we are guessing at.
-    target.set(Plc::limit(eased, t_min.get(), t_max.get()), phase.valid());
+    target.set(Plc::limit(eased, t_min.get(), t_max.get()), true);
 }
 
 }  // namespace Site
