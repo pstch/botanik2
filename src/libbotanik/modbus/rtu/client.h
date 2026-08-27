@@ -82,8 +82,7 @@ namespace Botanik { namespace Modbus {
          *
          *  A gate and a cursor here rather than a state in the transaction FSM:
          *  a probe is an ordinary transaction over the same framer, settle path
-         *  and gap, and only the SCHEDULING of it differs.
-         *  @{ */
+         *  and gap, and only the SCHEDULING of it differs. */
 
         /** @brief No suspect is eligible before this. Set by any transaction
          *  that failed, not only by a probe: the first miss of each device is
@@ -95,7 +94,6 @@ namespace Botanik { namespace Modbus {
          *  suspect happens to be latest. */
         uint8_t  _probe_cursor  = 0;
 
-        /** @} */
         /** @brief Whether control authority was up on the previous beat, so the
          *  withdrawal EDGE can be seen. */
         bool     _control_was = false;
@@ -136,10 +134,9 @@ namespace Botanik { namespace Modbus {
 
         uint64_t            _since_ms = 0;     ///< when the current state was entered
 
-        /** @name Counters
-         *  What the shell and the comms alarms will read. Kept apart because
-         *  they mean different things to whoever is holding a multimeter.
-         *  @{ */
+        /** @brief What the shell and the comms alarms will read. Kept apart
+         *  because they mean different things to whoever is holding a
+         *  multimeter. */
         uint32_t _txns      = 0;   ///< transactions that completed
         uint32_t _faults    = 0;   ///< that did not: no answer, bad frame, refusal
         uint32_t _refusals  = 0;   ///< a slave answered, and said no
@@ -151,7 +148,6 @@ namespace Botanik { namespace Modbus {
          *  Discarding them is what keeps the next transaction aligned; counting
          *  them is what stops that being silent. */
         uint32_t _stale_rx  = 0;
-        /** @} */
 
         enum State : uint8_t {
             MB_IDLE,    ///< nothing in flight; looking for work

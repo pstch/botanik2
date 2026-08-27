@@ -46,30 +46,21 @@ namespace Botanik { namespace Modbus {
          *  beats cannot accumulate error. */
         uint64_t _deadline_ms = 0;
 
-        /** @name Counters
-         *  Diagnostics, and the raw material for the comms alarms a later stage
-         *  raises. Separate rather than one failure count, because they point at
-         *  different physical faults: see @ref Error.
-         *  @{ */
+        /** @brief Diagnostics, and the raw material for the comms alarms a
+         *  later stage raises. Separate rather than one failure count, because
+         *  they point at different physical faults: see @ref Error. */
         uint32_t _frames      = 0;   ///< completed, exceptions included
         uint32_t _crc_errors  = 0;   ///< cable, termination, or baud mismatch
         uint32_t _bad_frames  = 0;   ///< well-timed but wrong: unit, fc, count, echo
         uint32_t _timeouts    = 0;   ///< nothing arrived in time
         uint32_t _stray_bytes = 0;   ///< arrived when nothing was armed, or after a frame
-        /** @} */
 
-        /** @name Our own transmission
-         *
-         *  RE is held asserted for the life of the port (hal/platform.cpp), so
-         *  the receiver hears the frame we just sent. Those bytes arrive first,
-         *  they are exactly as many as we wrote, and they are not the answer.
-         *  @{ */
-
-        /** @brief Bytes still to be discarded as our own transmission. */
+        /** @brief Bytes still to be discarded as OUR OWN transmission. RE is
+         *  held asserted for the life of the port (hal/platform.cpp), so the
+         *  receiver hears the frame we just sent: those bytes arrive first,
+         *  they are exactly as many as we wrote, and they are not the answer. */
         uint16_t _skip     = 0;
         uint16_t _skipped  = 0;
-
-        /** @} */
 
         /** @brief Bytes accumulated so far. */
         uint16_t _len  = 0;

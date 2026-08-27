@@ -183,6 +183,8 @@ namespace Botanik { namespace Modbus {
      * reports rows_dropped() and rows_unscanned() at bring-up; both are zero on
      * a sane table, and neither is allowed to be silent.
      */
+    /** @} */
+
     class Planner {
 
         /** @name State
@@ -282,8 +284,6 @@ namespace Botanik { namespace Modbus {
         /** @brief Cut the sorted rows into blocks. */
         void _cut(const Vars::Bank& io);
     };
-
-    /** @} */
 
     /** @name Pinned against the manual
      *

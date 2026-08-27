@@ -57,12 +57,10 @@ namespace Botanik { namespace Modbus {
          *
          *  Rows a master has written whose flash copy has not been made yet.
          *  Storage is synchronous, so committing a full request's worth inside
-         *  the beat that decoded it would let a remote peer stall the firmware.
-         *  @{ */
+         *  the beat that decoded it would let a remote peer stall the firmware. */
         uint16_t     _pending[Config::MODBUS_PERSIST_QUEUE];
         uint16_t     _pending_head  = 0;
         uint16_t     _pending_count = 0;
-        /** @} */
 
         /** @} */
 
@@ -79,6 +77,8 @@ namespace Botanik { namespace Modbus {
 
         uint16_t count() const    { return _count; }
         uint16_t overflow() const { return _overflow; }
+
+        /** @} */
 
         /** @name Persisting, paced
          *  @{ */
@@ -100,6 +100,10 @@ namespace Botanik { namespace Modbus {
         }
 
         /** @} */
+
+        /** @name Row lookup
+         *  By position, by register, and what counts as mapped at all. @{ */
+
         /** @brief The @p i-th mapped row, ascending by register. Past the end, or
          *  a map with no bank, reads as an inert row rather than faulting. */
         Vars::Var row(uint16_t i) const;
