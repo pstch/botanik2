@@ -63,7 +63,6 @@
 //   irrigation       irr_activeTray        -> irr_valves
 //
 // [actuators]
-//   screen           cli_screenMoving      -> fans
 //   roof_lockout     cli_windowCap         -> windows
 //
 // [sense]

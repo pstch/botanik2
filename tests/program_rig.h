@@ -84,6 +84,18 @@ inline void fine_weather(Live& f) {
     field(f, "cli_wind_mps", 1.0f);
     field(f, "cli_windGust_mps", 2.0f);
 }
+
+/** @brief Clear the interlocks that DEFAULT to their forbidding state.
+ *
+ *  A permissive boolean whose whole purpose is to forbid something defaults to
+ *  the forbidding answer: a roof must not open on a supply nobody has measured,
+ *  and the skirt must not humidify into air that has only just dried. dc_watch
+ *  and humidity are what clear them, and a rig without those on the beat never
+ *  does - so a case about anything else has to say so. */
+inline void interlocks_clear(Live& f) {
+    f.bank.var(f.ref("sys_supply_lockout")).set(false);
+    f.bank.var(f.ref("cli_rotLockout")).set(false);
+}
 /** @brief A live bank with ONE program on the beat, which is what a law's own
  *  case needs: `prog` is the program, `d` the cycle over it. */
 template <class P>

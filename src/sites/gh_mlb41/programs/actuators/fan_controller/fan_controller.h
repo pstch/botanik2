@@ -33,7 +33,6 @@ public:
     Vars::RefIn<float>   strat_dem;
     Vars::RefIn<float>   cool_dem;
     Vars::RefIn<uint8_t> irr_state;
-    Vars::RefIn<bool>    screen_moving;
     Vars::RefIn<float>   low_dem;
     Vars::RefIn<float>   med_dem;
     Vars::RefIn<float>   high_dem;
@@ -95,7 +94,6 @@ inline void FanController::bind(Vars::Bank& io) {
     strat_dem     = _bind_input<float>(io, "cli_stratDem");
     cool_dem      = _bind_input<float>(io, "cli_coolDem");
     irr_state     = _bind_input<uint8_t>(io, "irr_state");
-    screen_moving = _bind_input<bool>(io, "cli_screenMoving");
     low_dem       = _bind_input<float>(io, "cli_fanLowDem");
     med_dem       = _bind_input<float>(io, "cli_fanMedDem");
     high_dem      = _bind_input<float>(io, "cli_fanHighDem");

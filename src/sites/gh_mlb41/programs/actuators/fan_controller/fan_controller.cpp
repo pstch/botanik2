@@ -49,14 +49,7 @@ void FanController::_drive(uint8_t speed) {
 }
 
 void FanController::run(ProgramContext& c) {
-    // MECHANICAL, so it is resolved before any demand and before the safe
-    // state: the fabric is travelling through the air these blow into.
     if (c.first_scan) steps.reset();
-    if (screen_moving.get()) {
-        steps.reset();
-        _drive(0);
-        return;
-    }
     if (inhibit_requested()) {
         // Speed 1, not off, and the table's safe column says the same: still
         // air is itself a rot risk, so the fans are one of the few things that

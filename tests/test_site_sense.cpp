@@ -340,6 +340,7 @@ TEST_CASE_FIXTURE(Rig<Site::CoolingController>, "cooling: the floor carries it w
 TEST_CASE("cooling: an unknown demand puts every actuator at its own safe state") {
     Live f;
     fine_weather(f);
+    interlocks_clear(f);
     Site::RoofLockout    lock_(Botanik::SetupContext(f.reg), f.bank);
     Site::WindowsController    win(Botanik::SetupContext(f.reg), f.bank);
     Site::IntractorController  intr(Botanik::SetupContext(f.reg), f.bank);
@@ -349,8 +350,11 @@ TEST_CASE("cooling: an unknown demand puts every actuator at its own safe state"
     Plc::Program* const progs[] = { &lock_, &win, &intr, &scr, &sk, &fan };
     Cycle d(progs, 6, &f.bank, f.reg);
 
-    // Everything else says GO: only the cooling demand is missing.
+    // Everything else says GO: only the cooling ladder's two outputs are
+    // missing, which is how they go - cooling HOLDS both together when it
+    // cannot see the house.
     f.bank.var(f.ref("cli_coolDem")).invalidate(Q_NO_DATA);
+    f.bank.var(f.ref("cli_windowDem")).invalidate(Q_NO_DATA);
     f.bank.var(f.ref("cli_stratDem")).set(0.0f);
     f.bank.var(f.ref("cli_humidDem")).set(0.0f);
     f.bank.var(f.ref("cli_rotVentDem")).set(0.0f);
@@ -377,8 +381,13 @@ TEST_CASE("cooling: an unknown demand puts every actuator at its own safe state"
     CHECK_FALSE(f.bank.get(f.bank.resolve_in<bool>("cli_skirtValve")));  // shut
     CHECK(f.bank.get(f.bank.resolve_in<bool>("cli_destrat1_speed1")));   // speed 1
 
-    for (Plc::Program* p : progs)
-        CHECK(p->health() == Plc::Health::DEGRADED);
+    // The five that READ a missing demand, not the lockout: roof_lockout is on
+    // the beat because the windows need its cap, and it has every input it
+    // wants - saying it is degraded would be a verdict about a network that is
+    // perfectly fine.
+    for (uint8_t i = 1; i < 6; i++)
+        CHECK(progs[i]->health() == Plc::Health::DEGRADED);
+    CHECK(lock_.health() == Plc::Health::HEALTHY);
 }
 
 TEST_CASE_FIXTURE(Rig<Site::DestratController>, "destrat: an unmeasured gap makes the demand unknown, not zero") {

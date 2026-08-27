@@ -29,6 +29,7 @@ protected:
 }  // namespace
 
 TEST_CASE_FIXTURE(Rig<Site::FanController>, "fans: an unknown gap floors them at their safe state, not at rest") {
+    interlocks_clear(live);
 
     Vars::RefIn<bool> s1 = live.bank.resolve_in<bool>("cli_destrat1_speed1");
     Vars::RefIn<bool> s3 = live.bank.resolve_in<bool>("cli_destrat1_speed3");
@@ -46,17 +47,9 @@ TEST_CASE_FIXTURE(Rig<Site::FanController>, "fans: an unknown gap floors them at
     d.step(200);
     CHECK_FALSE(live.bank.get(s1));
     CHECK(live.bank.get(s3));
-
-    INFO("the screen still outranks it: a mechanical interlock is resolved "
-         "before any demand, and before the safe state the floor comes from");
-    live.bank.var(live.ref("cli_coolDem")).set(0.0f);
-    live.bank.var(live.ref("cli_screenMoving")).set(true);
-    d.step(300);
-    CHECK_FALSE(live.bank.get(s1));
-    CHECK_FALSE(live.bank.get(s3));
 }
 
-TEST_CASE_FIXTURE(Rig<Site::ScreenController>, "screen: a cold night deploys it, and the traverse cuts the fans") {
+TEST_CASE_FIXTURE(Rig<Site::ScreenController>, "screen: a cold night deploys it, and the traverse is published while it runs") {
 
     Vars::RefIn<bool> screen = live.bank.resolve_in<bool>("cli_screen");
     Vars::RefIn<bool> moving = live.bank.resolve_in<bool>("cli_screenMoving");
@@ -67,9 +60,9 @@ TEST_CASE_FIXTURE(Rig<Site::ScreenController>, "screen: a cold night deploys it,
     d.step(100);
     CHECK_FALSE(live.bank.get(screen));
 
-    INFO("a cold night deploys it, and the fabric is in the fans' way while it "
-         "goes. The COLD is what asks - a demand under cli_thermalScreenDem - "
-         "and the night is only what permits it");
+    INFO("a cold night deploys it, and it says so while it goes. The COLD is "
+         "what asks - a demand under cli_thermalScreenDem - and the night is "
+         "only what permits it");
     live.bank.var(live.ref("cli_phase")).set_i((int64_t)Site::PHASE_NIGHT);
     live.bank.var(live.ref("cli_coolDem"))
           .set(live.bank.var(live.ref("cli_thermalScreenDem")).as_f32() - 0.1f);
@@ -77,7 +70,7 @@ TEST_CASE_FIXTURE(Rig<Site::ScreenController>, "screen: a cold night deploys it,
     CHECK(live.bank.get(screen));
     CHECK(live.bank.get(moving));
 
-    INFO("...and stops being in their way once the traverse has run");
+    INFO("...and stops saying so once the traverse has run");
     const uint32_t travel = live.bank.var(live.ref("cli_screenTravel_sec")).value().as<uint32_t>();
     uint64_t t = 200;
     for (uint32_t i = 0; i < 10 * travel + 5; i++) d.step(t += 100);
@@ -93,6 +86,7 @@ TEST_CASE("windows: the wind takes the roof down a ramp before it shuts it") {
     // would slam four rams at whatever moment a gust crossed one number.
     Live f;
     fine_weather(f);
+    interlocks_clear(f);
     Site::RoofLockout lock_(Botanik::SetupContext(f.reg), f.bank);
     Site::WindowsController win(Botanik::SetupContext(f.reg), f.bank);
     Plc::Program* const progs[] = { &lock_, &win };
@@ -139,6 +133,7 @@ TEST_CASE("windows: the wind takes the roof down a ramp before it shuts it") {
 TEST_CASE("windows: rain shuts the roof whatever the wind is doing") {
     Live f;
     fine_weather(f);
+    interlocks_clear(f);
     Site::RoofLockout lock_(Botanik::SetupContext(f.reg), f.bank);
     Site::WindowsController win(Botanik::SetupContext(f.reg), f.bank);
     Plc::Program* const progs[] = { &lock_, &win };
@@ -166,6 +161,7 @@ TEST_CASE("windows: a forced lockout shuts the roof, with no weather to do it") 
     // and leave the row saying something that was not happening.
     Live f;
     fine_weather(f);
+    interlocks_clear(f);
     Site::RoofLockout lock_(Botanik::SetupContext(f.reg), f.bank);
     Site::WindowsController win(Botanik::SetupContext(f.reg), f.bank);
     Plc::Program* const progs[] = { &lock_, &win };
@@ -256,6 +252,7 @@ TEST_CASE_FIXTURE(Rig<Site::ScreenController>, "screen: a safe request DEPLOYS i
 
 TEST_CASE_FIXTURE(RoofRig, "windows: exactly one ram is energised at a time") {
     fine_weather(live);
+    interlocks_clear(live);
 
     live.bank.var(live.ref("cli_windowDem")).set(1.0f);
 
@@ -286,6 +283,7 @@ TEST_CASE_FIXTURE(RoofRig, "windows: exactly one ram is energised at a time") {
 
 TEST_CASE_FIXTURE(RoofRig, "windows: rain shuts them, and the lockout outlives the shower") {
     fine_weather(live);
+    interlocks_clear(live);
 
     Vars::RefIn<float> tgt = live.bank.resolve_in<float>("cli_window1_tgt");
     Vars::RefIn<bool>  rain_lock = live.bank.resolve_in<bool>("cli_rainLockout");
@@ -313,6 +311,7 @@ TEST_CASE_FIXTURE(RoofRig, "windows: rain shuts them, and the lockout outlives t
 
 TEST_CASE_FIXTURE(RoofRig, "windows: a gust shuts them, and the mean alone does not") {
     fine_weather(live);
+    interlocks_clear(live);
 
     Vars::RefIn<bool> wind_lock = live.bank.resolve_in<bool>("cli_windLockout");
     const float shut = live.bank.var(live.ref("cli_windShutEnd_mps")).as_f32();
@@ -350,6 +349,7 @@ TEST_CASE_FIXTURE(RoofRig, "windows: an unmeasured sky shuts the roof rather tha
 
 TEST_CASE_FIXTURE(RoofRig, "windows: parking waits for the LAST ram to seat, not the first") {
     fine_weather(live);
+    interlocks_clear(live);
 
     live.bank.var(live.ref("cli_windowDem")).set(1.0f);
     uint64_t t = 0;
@@ -435,6 +435,7 @@ TEST_CASE_FIXTURE(Rig<Site::IntractorController>, "intractors: cooling only draw
 }
 
 TEST_CASE_FIXTURE(Rig<Site::FanController>, "fans: the day's two breezes are a floor under the brassage") {
+    interlocks_clear(live);
 
     // Nothing else asking: no stratification, no cooling, no cycle.
     live.bank.var(live.ref("cli_stratDem")).set(0.0f);
@@ -466,6 +467,7 @@ TEST_CASE_FIXTURE(Rig<Site::FanController>, "fans: the day's two breezes are a f
 }
 
 TEST_CASE_FIXTURE(Rig<Site::FanController>, "fans: one speed relay at a time, and a band change costs hysteresis") {
+    interlocks_clear(live);
 
     Vars::RefIn<bool> s1 = live.bank.resolve_in<bool>("cli_destrat1_speed1");
     Vars::RefIn<bool> s2 = live.bank.resolve_in<bool>("cli_destrat1_speed2");
@@ -490,7 +492,8 @@ TEST_CASE_FIXTURE(Rig<Site::FanController>, "fans: one speed relay at a time, an
     CHECK_FALSE(live.bank.get(s2));
 }
 
-TEST_CASE_FIXTURE(Rig<Site::FanController>, "fans: a travelling screen cuts them, and a safe request leaves speed 1") {
+TEST_CASE_FIXTURE(Rig<Site::FanController>, "fans: a safe request leaves them RUNNING at speed 1") {
+    interlocks_clear(live);
 
     Vars::RefIn<bool> s1 = live.bank.resolve_in<bool>("cli_destrat1_speed1");
     Vars::RefIn<bool> s3 = live.bank.resolve_in<bool>("cli_destrat2_speed3");
@@ -499,18 +502,9 @@ TEST_CASE_FIXTURE(Rig<Site::FanController>, "fans: a travelling screen cuts them
     d.step(100);
     REQUIRE(live.bank.get(s3));
 
-    live.bank.var(live.ref("cli_screenMoving")).set(true);
-    d.step(200);
-    CHECK_FALSE(live.bank.get(s1));
-    CHECK_FALSE(live.bank.get(s3));
-
-    INFO("the interlock outranks the safe state too: the fabric is still moving");
+    INFO("still air is itself a rot risk, so these are one of the few things "
+         "that keep working once everything else has stopped");
     prog.request_safe(true);
-    d.step(300);
-    CHECK_FALSE(live.bank.get(s1));
-
-    INFO("and once it has stopped, safe is RUNNING at speed 1");
-    live.bank.var(live.ref("cli_screenMoving")).set(false);
     d.step(400);
     CHECK(live.bank.get(s1));
     CHECK_FALSE(live.bank.get(s3));
@@ -518,6 +512,7 @@ TEST_CASE_FIXTURE(Rig<Site::FanController>, "fans: a travelling screen cuts them
 }
 
 TEST_CASE_FIXTURE(Rig<Site::FanController>, "fans: a watering cycle is a floor under them") {
+    interlocks_clear(live);
 
     // Both demands present and asking for nothing: an ABSENT one is a floor of
     // its own, which is the case above this one.
@@ -537,8 +532,9 @@ TEST_CASE_FIXTURE(Rig<Site::SkirtController>, "skirt: the humidify arm is propor
     const uint32_t period = live.bank.var(live.ref("cli_skirtPeriod_sec")).value().as<uint32_t>();
     const uint32_t min_on = live.bank.var(live.ref("cli_skirtMinOn_sec")).value().as<uint32_t>();
 
-    // Dry enough for a wet pad to cool, so the cooling arm is not gated out.
+    // Dry enough for a wet pad to cool, so the cooling arm is not gated out...
     live.bank.var(live.ref("cli_dpMargin_degC")).publish(from_f32(T_F32, 20.0f), 0);
+    interlocks_clear(live);
 
     live.bank.var(live.ref("cli_humidDem")).set(0.5f);
     d.step(100);
@@ -569,6 +565,7 @@ TEST_CASE_FIXTURE(Rig<Site::SkirtController>, "skirt: damp air gates the cooling
 
     Vars::RefIn<bool> valve = live.bank.resolve_in<bool>("cli_skirtValve");
     const float dry_min = live.bank.var(live.ref("cli_skirtDryMin_degC")).as_f32();
+    interlocks_clear(live);
 
     INFO("a wet pad in damp air adds water without cooling anything");
     live.bank.var(live.ref("cli_dpMargin_degC")).publish(from_f32(T_F32, dry_min - 1.0f), 0);
