@@ -106,8 +106,6 @@ private:
 
     /** @} */
 
-    Vars::VarRef _watch_rows[9];  ///< swept for validity before each activation
-
 public:
     IrrigationCycle(const SetupContext& ctx, Vars::Bank& io)
         : Program(ctx, "irrigation", Tasks::GROUP_SLOW, io) {}
@@ -141,82 +139,70 @@ private:
 };
 
 inline void IrrigationCycle::bind(Vars::Bank& io) {
-    due_tray       = io.resolve_in<uint8_t>("irr_dueTray");
-    mod            = io.resolve_in<float>("irr_mod");
-    in_total       = io.resolve_in<float>("irr_inTotal_L");
-    out_total      = io.resolve_in<float>("irr_outTotal_L");
-    litres[0]      = io.resolve_in<uint16_t>("irr_liters_tray1");
-    litres[1]      = io.resolve_in<uint16_t>("irr_liters_tray2");
-    litres[2]      = io.resolve_in<uint16_t>("irr_liters_tray3");
-    litres[3]      = io.resolve_in<uint16_t>("irr_liters_tray4");
-    litres[4]      = io.resolve_in<uint16_t>("irr_liters_tray5");
-    litres[5]      = io.resolve_in<uint16_t>("irr_liters_tray6");
-    litres[6]      = io.resolve_in<uint16_t>("irr_liters_tray7");
-    litres[7]      = io.resolve_in<uint16_t>("irr_liters_tray8");
-    split          = io.resolve_in<float>("irr_volFreqSplit");
-    max_fill_s     = io.resolve_in<uint16_t>("irr_maxFill_sec");
-    soak_s         = io.resolve_in<uint16_t>("irr_soak_sec");
-    drain_window_s = io.resolve_in<uint16_t>("irr_drainWindow_sec");
-    flush_s        = io.resolve_in<uint16_t>("irr_flush_sec");
-    exp_drain      = io.resolve_in<float>("irr_expDrainFrac");
-    drain_margin   = io.resolve_in<float>("irr_drainMargin");
-    out_flow       = io.resolve_in<float>("irr_outFlow_Lpm");
-    volume         = io.resolve_out<float>("irr_volume_L");
-    state          = io.resolve_out<uint8_t>("irr_state");
-    active         = io.resolve_out<uint8_t>("irr_activeTray");
-    fill_fault     = io.resolve_out<bool>("alarm_irr_fill");
-    drain_fault    = io.resolve_out<bool>("alarm_irr_drain");
-    fill_tray[0]   = io.resolve_out<bool>("alarm_irr_fill_tray1");
-    fill_tray[1]   = io.resolve_out<bool>("alarm_irr_fill_tray2");
-    fill_tray[2]   = io.resolve_out<bool>("alarm_irr_fill_tray3");
-    fill_tray[3]   = io.resolve_out<bool>("alarm_irr_fill_tray4");
-    fill_tray[4]   = io.resolve_out<bool>("alarm_irr_fill_tray5");
-    fill_tray[5]   = io.resolve_out<bool>("alarm_irr_fill_tray6");
-    fill_tray[6]   = io.resolve_out<bool>("alarm_irr_fill_tray7");
-    fill_tray[7]   = io.resolve_out<bool>("alarm_irr_fill_tray8");
-    drain_tray[0]  = io.resolve_out<bool>("alarm_irr_drain_tray1");
-    drain_tray[1]  = io.resolve_out<bool>("alarm_irr_drain_tray2");
-    drain_tray[2]  = io.resolve_out<bool>("alarm_irr_drain_tray3");
-    drain_tray[3]  = io.resolve_out<bool>("alarm_irr_drain_tray4");
-    drain_tray[4]  = io.resolve_out<bool>("alarm_irr_drain_tray5");
-    drain_tray[5]  = io.resolve_out<bool>("alarm_irr_drain_tray6");
-    drain_tray[6]  = io.resolve_out<bool>("alarm_irr_drain_tray7");
-    drain_tray[7]  = io.resolve_out<bool>("alarm_irr_drain_tray8");
-    served         = io.resolve_inout<uint8_t>("irr_servedToday");
-    last[0]        = io.resolve_inout<uint32_t>("irr_last_tray1");
-    last[1]        = io.resolve_inout<uint32_t>("irr_last_tray2");
-    last[2]        = io.resolve_inout<uint32_t>("irr_last_tray3");
-    last[3]        = io.resolve_inout<uint32_t>("irr_last_tray4");
-    last[4]        = io.resolve_inout<uint32_t>("irr_last_tray5");
-    last[5]        = io.resolve_inout<uint32_t>("irr_last_tray6");
-    last[6]        = io.resolve_inout<uint32_t>("irr_last_tray7");
-    last[7]        = io.resolve_inout<uint32_t>("irr_last_tray8");
-    force_on[0]    = io.resolve_inout<bool>("irr_forceOn_tray1");
-    force_on[1]    = io.resolve_inout<bool>("irr_forceOn_tray2");
-    force_on[2]    = io.resolve_inout<bool>("irr_forceOn_tray3");
-    force_on[3]    = io.resolve_inout<bool>("irr_forceOn_tray4");
-    force_on[4]    = io.resolve_inout<bool>("irr_forceOn_tray5");
-    force_on[5]    = io.resolve_inout<bool>("irr_forceOn_tray6");
-    force_on[6]    = io.resolve_inout<bool>("irr_forceOn_tray7");
-    force_on[7]    = io.resolve_inout<bool>("irr_forceOn_tray8");
-    force_now      = io.resolve_inout<bool>("irr_forceNow");
-    today          = io.resolve_inout<uint32_t>("irr_today");
-    delivered      = io.resolve_inout<float>("irr_delivered_L");
-    drained        = io.resolve_inout<float>("irr_drained_L");
+    due_tray       = _bind_input<uint8_t>(io, "irr_dueTray");
+    mod            = _bind_input<float>(io, "irr_mod");
+    in_total       = _bind_input<float>(io, "irr_inTotal_L");
+    out_total      = _bind_input<float>(io, "irr_outTotal_L");
+    litres[0]      = _bind_input<uint16_t>(io, "irr_liters_tray1");
+    litres[1]      = _bind_input<uint16_t>(io, "irr_liters_tray2");
+    litres[2]      = _bind_input<uint16_t>(io, "irr_liters_tray3");
+    litres[3]      = _bind_input<uint16_t>(io, "irr_liters_tray4");
+    litres[4]      = _bind_input<uint16_t>(io, "irr_liters_tray5");
+    litres[5]      = _bind_input<uint16_t>(io, "irr_liters_tray6");
+    litres[6]      = _bind_input<uint16_t>(io, "irr_liters_tray7");
+    litres[7]      = _bind_input<uint16_t>(io, "irr_liters_tray8");
+    split          = _bind_input<float>(io, "irr_volFreqSplit");
+    max_fill_s     = _bind_input<uint16_t>(io, "irr_maxFill_sec");
+    soak_s         = _bind_input<uint16_t>(io, "irr_soak_sec");
+    drain_window_s = _bind_input<uint16_t>(io, "irr_drainWindow_sec");
+    flush_s        = _bind_input<uint16_t>(io, "irr_flush_sec");
+    exp_drain      = _bind_input<float>(io, "irr_expDrainFrac");
+    drain_margin   = _bind_input<float>(io, "irr_drainMargin");
+    out_flow       = _bind_input<float>(io, "irr_outFlow_Lpm");
+    volume         = _bind_output<float>(io, "irr_volume_L");
+    state          = _bind_output<uint8_t>(io, "irr_state");
+    active         = _bind_output<uint8_t>(io, "irr_activeTray");
+    fill_fault     = _bind_output<bool>(io, "alarm_irr_fill");
+    drain_fault    = _bind_output<bool>(io, "alarm_irr_drain");
+    fill_tray[0]   = _bind_output<bool>(io, "alarm_irr_fill_tray1");
+    fill_tray[1]   = _bind_output<bool>(io, "alarm_irr_fill_tray2");
+    fill_tray[2]   = _bind_output<bool>(io, "alarm_irr_fill_tray3");
+    fill_tray[3]   = _bind_output<bool>(io, "alarm_irr_fill_tray4");
+    fill_tray[4]   = _bind_output<bool>(io, "alarm_irr_fill_tray5");
+    fill_tray[5]   = _bind_output<bool>(io, "alarm_irr_fill_tray6");
+    fill_tray[6]   = _bind_output<bool>(io, "alarm_irr_fill_tray7");
+    fill_tray[7]   = _bind_output<bool>(io, "alarm_irr_fill_tray8");
+    drain_tray[0]  = _bind_output<bool>(io, "alarm_irr_drain_tray1");
+    drain_tray[1]  = _bind_output<bool>(io, "alarm_irr_drain_tray2");
+    drain_tray[2]  = _bind_output<bool>(io, "alarm_irr_drain_tray3");
+    drain_tray[3]  = _bind_output<bool>(io, "alarm_irr_drain_tray4");
+    drain_tray[4]  = _bind_output<bool>(io, "alarm_irr_drain_tray5");
+    drain_tray[5]  = _bind_output<bool>(io, "alarm_irr_drain_tray6");
+    drain_tray[6]  = _bind_output<bool>(io, "alarm_irr_drain_tray7");
+    drain_tray[7]  = _bind_output<bool>(io, "alarm_irr_drain_tray8");
+    served         = _bind_inout<uint8_t>(io, "irr_servedToday");
+    last[0]        = _bind_inout<uint32_t>(io, "irr_last_tray1");
+    last[1]        = _bind_inout<uint32_t>(io, "irr_last_tray2");
+    last[2]        = _bind_inout<uint32_t>(io, "irr_last_tray3");
+    last[3]        = _bind_inout<uint32_t>(io, "irr_last_tray4");
+    last[4]        = _bind_inout<uint32_t>(io, "irr_last_tray5");
+    last[5]        = _bind_inout<uint32_t>(io, "irr_last_tray6");
+    last[6]        = _bind_inout<uint32_t>(io, "irr_last_tray7");
+    last[7]        = _bind_inout<uint32_t>(io, "irr_last_tray8");
+    force_on[0]    = _bind_inout<bool>(io, "irr_forceOn_tray1");
+    force_on[1]    = _bind_inout<bool>(io, "irr_forceOn_tray2");
+    force_on[2]    = _bind_inout<bool>(io, "irr_forceOn_tray3");
+    force_on[3]    = _bind_inout<bool>(io, "irr_forceOn_tray4");
+    force_on[4]    = _bind_inout<bool>(io, "irr_forceOn_tray5");
+    force_on[5]    = _bind_inout<bool>(io, "irr_forceOn_tray6");
+    force_on[6]    = _bind_inout<bool>(io, "irr_forceOn_tray7");
+    force_on[7]    = _bind_inout<bool>(io, "irr_forceOn_tray8");
+    force_now      = _bind_inout<bool>(io, "irr_forceNow");
+    today          = _bind_inout<uint32_t>(io, "irr_today");
+    delivered      = _bind_inout<float>(io, "irr_delivered_L");
+    drained        = _bind_inout<float>(io, "irr_drained_L");
 
-    // What the base sweeps before each activation, so an input that has
-    // stopped being believable is DEGRADED without the law asking.
-    _watch_rows[0] = due_tray.r;
-    _watch_rows[1] = mod.r;
-    _watch_rows[2] = in_total.r;
-    _watch_rows[3] = out_total.r;
-    _watch_rows[4] = out_flow.r;
-    _watch_rows[5] = served.r;
-    _watch_rows[6] = today.r;
-    _watch_rows[7] = delivered.r;
-    _watch_rows[8] = drained.r;
-    set_inputs(_watch_rows, 9);
-    set_health_row(io.resolve_out<uint8_t>("prog_irrigation"));
+    set_health_row(_bind_output<uint8_t>(io, "prog_irrigation"));
 }
 
 }  // namespace Site

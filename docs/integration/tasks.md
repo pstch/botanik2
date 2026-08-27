@@ -57,10 +57,6 @@ public:
     Vars::RefOut<float> strat;
     /** @} */
 
-private:
-    Vars::VarRef _watch_rows[2];  ///< swept for validity before each activation
-
-public:
     StratSensor(const SetupContext& ctx, Vars::Bank& io)
         : Program(ctx, "strat", Tasks::GROUP_FAST, io) {}
         //                     ^ the instance name, and the rate class
@@ -71,16 +67,21 @@ protected:
 };
 
 inline void StratSensor::bind(Vars::Bank& io) {
-    ceiling = io.resolve_in<float>("cli_temp_hi");
-    floor   = io.resolve_in<float>("cli_temp_lo");
-    strat   = io.resolve_out<float>("cli_dTStrat_degC");
+    ceiling = _bind_input<float>(io, "cli_temp_hi");
+    floor   = _bind_input<float>(io, "cli_temp_lo");
+    strat   = _bind_output<float>(io, "cli_dTStrat_degC");
 
-    _watch_rows[0] = ceiling.r;
-    _watch_rows[1] = floor.r;
-    set_inputs(_watch_rows, 2);
-    set_health_row(io.resolve_out<uint8_t>("prog_strat"));
+    set_health_row(_bind_output<uint8_t>(io, "prog_strat"));
 }
 ```
+
+`bind()` resolves through the base's three wrappers rather than through the bank
+directly, and each checks what the declaration promised: that the name exists,
+that the row's type is one the reference can carry, and - for an output - that
+no other program has already claimed it. A failure is logged with the name that
+caused it and the program is FAULTED for the life of the run, so it never
+activates. Nothing there is about a row's VALIDITY: that is the law's business,
+in `run()` or `observe()`.
 
 All the `.cpp` holds is the law, and it reads the rows as its own members:
 `strat.set(Plc::abs_of(Plc::sub(ceiling.get(), floor.get())), measured)`.
@@ -177,8 +178,8 @@ public:
 
 protected:
     void bind(Vars::Bank& io) override {
-        ln     = io.resolve_in<float>("grid_LN_V");
-        locked = io.resolve_out<bool>("sys_supply_lockout");
+        ln     = _bind_input<float>(io, "grid_LN_V");
+        locked = _bind_output<bool>(io, "sys_supply_lockout");
     }
     void run(ProgramContext& c) override { (void)c; }
     void observe(ProgramContext& c) override;
@@ -218,7 +219,8 @@ It reads variables, applies blocks, and drives variables. Three idioms worth cop
   a dwell that was counting an outage nobody saw is worse than starting again.
 - **Say what you cannot see.** A reading whose row is invalid is not a small
   error; report `degraded()` and let each actuator substitute its OWN safe
-  state. A row passed to `set_inputs()` is swept for you and needs no call.
+  state. Nothing does it for you: name the inputs the law really rests on, not
+  every row it touches.
 - **Publish the decision, not just the effect.** `sys_supply_lockout` exists so the
   console, shell and telemetry can see *why* the windows are held. A coil reading 0
   does not distinguish "not commanded" from "locked out".

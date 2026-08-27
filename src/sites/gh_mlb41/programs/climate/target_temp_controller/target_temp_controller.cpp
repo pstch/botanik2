@@ -8,6 +8,10 @@
 namespace Site {
 
 void TargetTempController::run(ProgramContext& c) {
+    // The whole ladder hangs off the phase, and the target below carries its
+    // quality. Said here too: a target for a time of day nobody can place is
+    // a degraded law, not just a doubtful row.
+    if (!phase.valid()) degraded();
     const DayPhase now = (DayPhase)phase.get();
     float held = cool_set.get();
 

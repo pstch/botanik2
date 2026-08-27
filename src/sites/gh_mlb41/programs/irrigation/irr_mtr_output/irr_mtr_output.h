@@ -54,8 +54,6 @@ private:
 
     /** @} */
 
-    Vars::VarRef _watch_rows[1];  ///< swept for validity before each activation
-
 public:
     IrrMtrOutput(const SetupContext& ctx, Vars::Bank& io)
         : Program(ctx, "irr_mtr_output", Tasks::GROUP_SLOW, io) {}
@@ -68,18 +66,14 @@ protected:
 };
 
 inline void IrrMtrOutput::bind(Vars::Bank& io) {
-    band         = io.resolve_in<float>("irr_flowBand_Lpm");
-    cutoff       = io.resolve_in<float>("irr_flowCutoff_Lpm");
-    out_flow     = io.resolve_in<float>("irr_out_Lpm");
-    out_avg_ms   = io.resolve_in<uint16_t>("irr_out_avg_ms");
-    out_flow_pub = io.resolve_out<float>("irr_outFlow_Lpm");
-    out_total    = io.resolve_out<float>("irr_outTotal_L");
+    band         = _bind_input<float>(io, "irr_flowBand_Lpm");
+    cutoff       = _bind_input<float>(io, "irr_flowCutoff_Lpm");
+    out_flow     = _bind_input<float>(io, "irr_out_Lpm");
+    out_avg_ms   = _bind_input<uint16_t>(io, "irr_out_avg_ms");
+    out_flow_pub = _bind_output<float>(io, "irr_outFlow_Lpm");
+    out_total    = _bind_output<float>(io, "irr_outTotal_L");
 
-    // What the base sweeps before each activation, so an input that has
-    // stopped being believable is DEGRADED without the law asking.
-    _watch_rows[0] = out_flow.r;
-    set_inputs(_watch_rows, 1);
-    set_health_row(io.resolve_out<uint8_t>("prog_irr_mtr_output"));
+    set_health_row(_bind_output<uint8_t>(io, "prog_irr_mtr_output"));
 }
 
 }  // namespace Site

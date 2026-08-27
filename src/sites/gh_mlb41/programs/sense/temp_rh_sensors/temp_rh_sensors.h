@@ -86,8 +86,6 @@ private:
 
     /** @} */
 
-    Vars::VarRef _watch_rows[24];  ///< swept for validity before each activation
-
 public:
     TempRHSensors(const SetupContext& ctx, Vars::Bank& io)
         : Program(ctx, "temp_rh_sensors", Tasks::GROUP_FAST, io) {}
@@ -100,72 +98,45 @@ protected:
 };
 
 inline void TempRHSensors::bind(Vars::Bank& io) {
-    tau_ms    = io.resolve_in<uint16_t>("cli_sensorTau_ms");
-    t_hi[0]   = io.resolve_in<float>("cli_temp_hi1");
-    t_hi[1]   = io.resolve_in<float>("cli_temp_hi2");
-    t_hi[2]   = io.resolve_in<float>("cli_temp_hi3");
-    h_hi[0]   = io.resolve_in<float>("cli_rh_hi1");
-    h_hi[1]   = io.resolve_in<float>("cli_rh_hi2");
-    h_hi[2]   = io.resolve_in<float>("cli_rh_hi3");
-    t_lo[0]   = io.resolve_in<float>("cli_temp_lo1");
-    t_lo[1]   = io.resolve_in<float>("cli_temp_lo2");
-    t_lo[2]   = io.resolve_in<float>("cli_temp_lo3");
-    h_lo[0]   = io.resolve_in<float>("cli_rh_lo1");
-    h_lo[1]   = io.resolve_in<float>("cli_rh_lo2");
-    h_lo[2]   = io.resolve_in<float>("cli_rh_lo3");
-    t_cs[0]   = io.resolve_in<float>("cli_temp_cs1");
-    t_cs[1]   = io.resolve_in<float>("cli_temp_cs2");
-    t_cs[2]   = io.resolve_in<float>("cli_temp_cs3");
-    h_cs[0]   = io.resolve_in<float>("cli_rh_cs1");
-    h_cs[1]   = io.resolve_in<float>("cli_rh_cs2");
-    h_cs[2]   = io.resolve_in<float>("cli_rh_cs3");
-    t_ext[0]  = io.resolve_in<float>("cli_temp_ext1");
-    t_ext[1]  = io.resolve_in<float>("cli_temp_ext2");
-    t_ext[2]  = io.resolve_in<float>("cli_temp_ext3");
-    h_ext[0]  = io.resolve_in<float>("cli_rh_ext1");
-    h_ext[1]  = io.resolve_in<float>("cli_rh_ext2");
-    h_ext[2]  = io.resolve_in<float>("cli_rh_ext3");
-    temp_hi   = io.resolve_out<float>("cli_temp_hi");
-    rh_hi     = io.resolve_out<float>("cli_rh_hi");
-    temp_lo   = io.resolve_out<float>("cli_temp_lo");
-    rh_lo     = io.resolve_out<float>("cli_rh_lo");
-    temp_cs   = io.resolve_out<float>("cli_temp_cs");
-    rh_cs     = io.resolve_out<float>("cli_rh_cs");
-    temp_ext  = io.resolve_out<float>("cli_temp_ext");
-    rh_ext    = io.resolve_out<float>("cli_rh_ext");
-    fault_hi  = io.resolve_out<bool>("alarm_sns_ceiling");
-    fault_lo  = io.resolve_out<bool>("alarm_sns_floor");
-    fault_cs  = io.resolve_out<bool>("alarm_sns_crawlspace");
-    fault_ext = io.resolve_out<bool>("alarm_sns_exterior");
+    tau_ms    = _bind_input<uint16_t>(io, "cli_sensorTau_ms");
+    t_hi[0]   = _bind_input<float>(io, "cli_temp_hi1");
+    t_hi[1]   = _bind_input<float>(io, "cli_temp_hi2");
+    t_hi[2]   = _bind_input<float>(io, "cli_temp_hi3");
+    h_hi[0]   = _bind_input<float>(io, "cli_rh_hi1");
+    h_hi[1]   = _bind_input<float>(io, "cli_rh_hi2");
+    h_hi[2]   = _bind_input<float>(io, "cli_rh_hi3");
+    t_lo[0]   = _bind_input<float>(io, "cli_temp_lo1");
+    t_lo[1]   = _bind_input<float>(io, "cli_temp_lo2");
+    t_lo[2]   = _bind_input<float>(io, "cli_temp_lo3");
+    h_lo[0]   = _bind_input<float>(io, "cli_rh_lo1");
+    h_lo[1]   = _bind_input<float>(io, "cli_rh_lo2");
+    h_lo[2]   = _bind_input<float>(io, "cli_rh_lo3");
+    t_cs[0]   = _bind_input<float>(io, "cli_temp_cs1");
+    t_cs[1]   = _bind_input<float>(io, "cli_temp_cs2");
+    t_cs[2]   = _bind_input<float>(io, "cli_temp_cs3");
+    h_cs[0]   = _bind_input<float>(io, "cli_rh_cs1");
+    h_cs[1]   = _bind_input<float>(io, "cli_rh_cs2");
+    h_cs[2]   = _bind_input<float>(io, "cli_rh_cs3");
+    t_ext[0]  = _bind_input<float>(io, "cli_temp_ext1");
+    t_ext[1]  = _bind_input<float>(io, "cli_temp_ext2");
+    t_ext[2]  = _bind_input<float>(io, "cli_temp_ext3");
+    h_ext[0]  = _bind_input<float>(io, "cli_rh_ext1");
+    h_ext[1]  = _bind_input<float>(io, "cli_rh_ext2");
+    h_ext[2]  = _bind_input<float>(io, "cli_rh_ext3");
+    temp_hi   = _bind_output<float>(io, "cli_temp_hi");
+    rh_hi     = _bind_output<float>(io, "cli_rh_hi");
+    temp_lo   = _bind_output<float>(io, "cli_temp_lo");
+    rh_lo     = _bind_output<float>(io, "cli_rh_lo");
+    temp_cs   = _bind_output<float>(io, "cli_temp_cs");
+    rh_cs     = _bind_output<float>(io, "cli_rh_cs");
+    temp_ext  = _bind_output<float>(io, "cli_temp_ext");
+    rh_ext    = _bind_output<float>(io, "cli_rh_ext");
+    fault_hi  = _bind_output<bool>(io, "alarm_sns_ceiling");
+    fault_lo  = _bind_output<bool>(io, "alarm_sns_floor");
+    fault_cs  = _bind_output<bool>(io, "alarm_sns_crawlspace");
+    fault_ext = _bind_output<bool>(io, "alarm_sns_exterior");
 
-    // What the base sweeps before each activation, so an input that has
-    // stopped being believable is DEGRADED without the law asking.
-    _watch_rows[0] = t_hi[0].r;
-    _watch_rows[1] = t_hi[1].r;
-    _watch_rows[2] = t_hi[2].r;
-    _watch_rows[3] = h_hi[0].r;
-    _watch_rows[4] = h_hi[1].r;
-    _watch_rows[5] = h_hi[2].r;
-    _watch_rows[6] = t_lo[0].r;
-    _watch_rows[7] = t_lo[1].r;
-    _watch_rows[8] = t_lo[2].r;
-    _watch_rows[9] = h_lo[0].r;
-    _watch_rows[10] = h_lo[1].r;
-    _watch_rows[11] = h_lo[2].r;
-    _watch_rows[12] = t_cs[0].r;
-    _watch_rows[13] = t_cs[1].r;
-    _watch_rows[14] = t_cs[2].r;
-    _watch_rows[15] = h_cs[0].r;
-    _watch_rows[16] = h_cs[1].r;
-    _watch_rows[17] = h_cs[2].r;
-    _watch_rows[18] = t_ext[0].r;
-    _watch_rows[19] = t_ext[1].r;
-    _watch_rows[20] = t_ext[2].r;
-    _watch_rows[21] = h_ext[0].r;
-    _watch_rows[22] = h_ext[1].r;
-    _watch_rows[23] = h_ext[2].r;
-    set_inputs(_watch_rows, 24);
-    set_health_row(io.resolve_out<uint8_t>("prog_temp_rh_sensors"));
+    set_health_row(_bind_output<uint8_t>(io, "prog_temp_rh_sensors"));
     on_bind();
 }
 

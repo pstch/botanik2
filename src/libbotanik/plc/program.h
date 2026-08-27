@@ -118,9 +118,13 @@ namespace Botanik { namespace Plc {
          *  finds rather than only a change from HEALTHY. */
         Vars::RefOut<uint8_t> _health_row;
         uint8_t        _health_said   = 0xFF;
-        /** @brief The readable rows this program connects to. @see set_inputs */
-        const Vars::VarRef* _watched = nullptr;
-        uint8_t             _watched_count = 0;
+        /** @brief The rows _bind_input()/_bind_inout() resolved, in declaration
+         *  order. Recorded for the "who reads this row" query and nothing else:
+         *  a law that wants an input's validity asks the row itself. Truncated
+         *  at the cap, which _input_overflow says. */
+        Vars::VarRef _inputs[Config::PROGRAM_MAX_INPUTS];
+        uint8_t      _input_count    = 0;
+        bool         _input_overflow = false;
 
         /** @} */
 
@@ -143,23 +147,13 @@ namespace Botanik { namespace Plc {
          *  current row. @see publish_health() */
         void set_health_row(Vars::RefOut<uint8_t> r) { _health_row = r; }
 
-        /** @brief The rows this program READS that can stop being believable,
-         *  handed over by the generated bind(). Borrowed and flash-resident for
-         *  the life of the program.
-         *
-         *  Swept before every activation: an input a law is entitled to expect
-         *  and does not have is DEGRADED, whether or not the law thought to ask.
-         *  Deciding it here rather than in each run() is what makes it true of
-         *  EVERY program instead of the ones somebody remembered. */
-        void set_inputs(const Vars::VarRef* rows, uint8_t count) {
-            _watched = rows;
-            _watched_count = count;
-        }
-
-        /** @brief The rows set_inputs() was handed, for a reader asking which
-         *  programs consume one. Borrowed; null until bind() has run. */
-        const Vars::VarRef* watched() const   { return _watched; }
-        uint8_t             watched_count() const { return _watched_count; }
+        /** @brief The rows this program reads, for a reader asking which
+         *  programs consume one. Empty until bind() has run. */
+        const Vars::VarRef* inputs() const { return _inputs; }
+        uint8_t             input_count() const { return _input_count; }
+        /** @brief Whether more inputs were bound than fit, so inputs() is a
+         *  prefix rather than the whole list. */
+        bool input_overflow() const { return _input_overflow; }
 
         Vars::RefOut<uint8_t> health_row() const { return _health_row; }
 
@@ -242,9 +236,39 @@ namespace Botanik { namespace Plc {
          *  wired, so it must never run.
          *
          *  For a dependency that is null rather than a name that is missing -
-         *  an unresolved name is caught by on_setup() without the program
-         *  asking. Permanent either way. */
+         *  an unresolved name is caught by _bind_input() and its two siblings
+         *  without the program asking. Permanent either way. */
         void fault() { _faulted = true; }
+
+        /** @} */
+
+        /** @name Binding
+         *
+         *  What a bind() resolves its names through. Each checks what the
+         *  declaration promised - that the name exists, that the row's type is
+         *  one the reference can carry, and for an output that no other program
+         *  has already claimed it - logs whichever failed, and FAULTS. A
+         *  program bound to an inert sink runs a law on zeros and publishes
+         *  them as readings, which is the one outcome worth refusing to start
+         *  for.
+         *
+         *  Validity is NOT one of the checks: a row that is merely not
+         *  believable right now is the law's business, tested in run() or
+         *  observe() where the law knows what it can do without it.
+         *  @{ */
+
+        template <typename T> Vars::RefIn<T> _bind_input(Vars::Bank& io, const char* name) {
+            _bind_check(io, name, BIND_IN, &Vars::RefIo<T>::accepts);
+            return io.resolve_in<T>(name);
+        }
+        template <typename T> Vars::RefOut<T> _bind_output(Vars::Bank& io, const char* name) {
+            _bind_check(io, name, BIND_OUT, &Vars::RefIo<T>::accepts);
+            return io.resolve_out<T>(name);
+        }
+        template <typename T> Vars::RefInOut<T> _bind_inout(Vars::Bank& io, const char* name) {
+            _bind_check(io, name, BIND_INOUT, &Vars::RefIo<T>::accepts);
+            return io.resolve_inout<T>(name);
+        }
 
         /** @} */
 
@@ -259,16 +283,6 @@ namespace Botanik { namespace Plc {
          *  move while the program is SAFE, which is the one thing that state
          *  promises does not happen. */
         virtual void observe(ProgramContext& c) { (void)c; }
-
-        /** @brief DEGRADED if any watched input is not believable. The first
-         *  one is enough - the verdict is a severity, not a count - so a table
-         *  of thirty rows costs the walk only while everything is good. */
-        void _watch_inputs() {
-            if (_io == nullptr) return;
-            for (uint8_t i = 0; i < _watched_count; i++) {
-                if (!_io->var(_watched[i]).valid()) { degraded(); return; }
-            }
-        }
 
         /** @brief Say that this program is still driving toward its parked
          *  position, so it has NOT arrived yet.
@@ -315,14 +329,14 @@ namespace Botanik { namespace Plc {
             (void)now_ms;
             if (_io == nullptr) return;
             // The writer window is open across bind(), so declaring a row as an
-            // OUTPUT claims it there and then. Two programs producing one row is
-            // found at BRING-UP, where it is a POST failure someone can act on,
-            // rather than on whichever beat both first happened to write - which
-            // for a row only a fault path drives may be months in.
-            // A name matching no row resolves to the INERT SINK, which reads 0
-            // for ever - so a law bound to one runs on zeros and says nothing
-            // about it. The bank counts them; a program that added to the count
-            // failed to bind, and says so where the POST can see it.
+            // OUTPUT claims it there and then, and _bind_output() refuses one
+            // another program already holds. Both belong at BRING-UP, where a
+            // POST failure is something someone can act on.
+            //
+            // The count is the BACKSTOP under the three wrappers: a bind() that
+            // reached the bank directly gets no message naming the row, but a
+            // program bound to the inert sink still must not run - it would
+            // publish zeros indistinguishable from readings.
             const uint16_t missed = _io->unresolved_count();
             _io->begin_writer(_slot);
             bind(*_io);
@@ -336,6 +350,18 @@ namespace Botanik { namespace Plc {
         /** @} */
 
     private:
+        /** @brief Which of the three wrappers is asking. Only the direction the
+         *  checks differ on: an output is the one that can be taken. */
+        enum BindDir : uint8_t { BIND_IN, BIND_OUT, BIND_INOUT };
+
+        /** @brief The three checks, run before the resolve that follows. Faults
+         *  and logs on the first one that fails.
+         *  @param accepts RefIo<T>::accepts, passed as a function rather than a
+         *         template parameter so the body stays out of this header and
+         *         off every program's include of the logger. */
+        void _bind_check(Vars::Bank& io, const char* name, BindDir dir,
+                         bool (*accepts)(Vars::VarType));
+
         /** @brief The supervisor sets `_health_said`; nothing else may. */
         friend void publish_health(Vars::Bank&, const Tasks::Registry&,
                                    Logs::Logger*, bool);
@@ -362,9 +388,6 @@ namespace Botanik { namespace Plc {
             // calls degraded() is one whose run() cannot fail, and it should
             // read as healthy rather than as unknown.
             _health = Health::HEALTHY;
-            // BEFORE run(), so a law reading an unbelievable input is DEGRADED
-            // whether or not it thought to ask.
-            _watch_inputs();
             ProgramContext c = { t.now_ms, t.dt_ms, t.missed, t.first, *_io };
             // The window, not the program, says who is writing: a program cannot
             // name itself, and a write outside an activation claims nothing.

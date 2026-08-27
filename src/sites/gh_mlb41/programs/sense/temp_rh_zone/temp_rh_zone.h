@@ -48,11 +48,6 @@ public:
 
     /** @} */
 
-private:
-
-    Vars::VarRef _watch_rows[4];  ///< swept for validity before each activation
-
-public:
     TempRHZone(const SetupContext& ctx, Vars::Bank& io)
         : Program(ctx, "temp_rh_zone", Tasks::GROUP_FAST, io) {}
 
@@ -63,26 +58,19 @@ protected:
 };
 
 inline void TempRHZone::bind(Vars::Bank& io) {
-    temp_hi   = io.resolve_in<float>("cli_temp_hi");
-    rh_hi     = io.resolve_in<float>("cli_rh_hi");
-    temp_lo   = io.resolve_in<float>("cli_temp_lo");
-    rh_lo     = io.resolve_in<float>("cli_rh_lo");
-    rot_limit = io.resolve_in<float>("cli_rotMargin_degC");
-    temp_in   = io.resolve_out<float>("cli_temp_in");
-    dew_point = io.resolve_out<float>("cli_dewPoint_degC");
-    dp_margin = io.resolve_out<float>("cli_dpMargin_degC");
-    sat_press = io.resolve_out<float>("cli_satPress_kPa");
-    vpd       = io.resolve_out<float>("cli_vpd_kPa");
-    rot       = io.resolve_out<bool>("alarm_rot");
+    temp_hi   = _bind_input<float>(io, "cli_temp_hi");
+    rh_hi     = _bind_input<float>(io, "cli_rh_hi");
+    temp_lo   = _bind_input<float>(io, "cli_temp_lo");
+    rh_lo     = _bind_input<float>(io, "cli_rh_lo");
+    rot_limit = _bind_input<float>(io, "cli_rotMargin_degC");
+    temp_in   = _bind_output<float>(io, "cli_temp_in");
+    dew_point = _bind_output<float>(io, "cli_dewPoint_degC");
+    dp_margin = _bind_output<float>(io, "cli_dpMargin_degC");
+    sat_press = _bind_output<float>(io, "cli_satPress_kPa");
+    vpd       = _bind_output<float>(io, "cli_vpd_kPa");
+    rot       = _bind_output<bool>(io, "alarm_rot");
 
-    // What the base sweeps before each activation, so an input that has
-    // stopped being believable is DEGRADED without the law asking.
-    _watch_rows[0] = temp_hi.r;
-    _watch_rows[1] = rh_hi.r;
-    _watch_rows[2] = temp_lo.r;
-    _watch_rows[3] = rh_lo.r;
-    set_inputs(_watch_rows, 4);
-    set_health_row(io.resolve_out<uint8_t>("prog_temp_rh_zone"));
+    set_health_row(_bind_output<uint8_t>(io, "prog_temp_rh_zone"));
 }
 
 }  // namespace Site

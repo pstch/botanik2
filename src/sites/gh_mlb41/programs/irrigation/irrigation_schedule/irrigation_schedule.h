@@ -83,8 +83,6 @@ private:
 
     /** @} */
 
-    Vars::VarRef _watch_rows[6];  ///< swept for validity before each activation
-
 public:
     IrrigationSchedule(const SetupContext& ctx, Vars::Bank& io)
         : Program(ctx, "irr_schedule", Tasks::GROUP_SLOW, io) {}
@@ -112,64 +110,55 @@ private:
 };
 
 inline void IrrigationSchedule::bind(Vars::Bank& io) {
-    mod           = io.resolve_in<float>("irr_mod");
-    split         = io.resolve_in<float>("irr_volFreqSplit");
-    trays_per_day = io.resolve_in<uint16_t>("irr_traysPerDay");
-    days[0]       = io.resolve_in<uint8_t>("irr_days_tray1");
-    days[1]       = io.resolve_in<uint8_t>("irr_days_tray2");
-    days[2]       = io.resolve_in<uint8_t>("irr_days_tray3");
-    days[3]       = io.resolve_in<uint8_t>("irr_days_tray4");
-    days[4]       = io.resolve_in<uint8_t>("irr_days_tray5");
-    days[5]       = io.resolve_in<uint8_t>("irr_days_tray6");
-    days[6]       = io.resolve_in<uint8_t>("irr_days_tray7");
-    days[7]       = io.resolve_in<uint8_t>("irr_days_tray8");
-    outside_temp  = io.resolve_in<float>("cli_temp_ext");
-    dawn_gate     = io.resolve_in<float>("irr_dawnGate_degC");
-    phase         = io.resolve_in<uint8_t>("cli_phase");
-    from_rise     = io.resolve_in<int16_t>("sol_fromRise_min");
-    day_rise      = io.resolve_in<int16_t>("sol_dayRise_min");
-    morning_win   = io.resolve_in<uint16_t>("irr_morningWin_min");
-    due_tray      = io.resolve_out<uint8_t>("irr_dueTray");
-    slot_open     = io.resolve_out<bool>("irr_slotOpen");
-    period        = io.resolve_out<float>("irr_period_days");
-    last[0]       = io.resolve_inout<uint32_t>("irr_last_tray1");
-    last[1]       = io.resolve_inout<uint32_t>("irr_last_tray2");
-    last[2]       = io.resolve_inout<uint32_t>("irr_last_tray3");
-    last[3]       = io.resolve_inout<uint32_t>("irr_last_tray4");
-    last[4]       = io.resolve_inout<uint32_t>("irr_last_tray5");
-    last[5]       = io.resolve_inout<uint32_t>("irr_last_tray6");
-    last[6]       = io.resolve_inout<uint32_t>("irr_last_tray7");
-    last[7]       = io.resolve_inout<uint32_t>("irr_last_tray8");
-    force_on[0]   = io.resolve_inout<bool>("irr_forceOn_tray1");
-    force_on[1]   = io.resolve_inout<bool>("irr_forceOn_tray2");
-    force_on[2]   = io.resolve_inout<bool>("irr_forceOn_tray3");
-    force_on[3]   = io.resolve_inout<bool>("irr_forceOn_tray4");
-    force_on[4]   = io.resolve_inout<bool>("irr_forceOn_tray5");
-    force_on[5]   = io.resolve_inout<bool>("irr_forceOn_tray6");
-    force_on[6]   = io.resolve_inout<bool>("irr_forceOn_tray7");
-    force_on[7]   = io.resolve_inout<bool>("irr_forceOn_tray8");
-    force_off[0]  = io.resolve_inout<bool>("irr_forceOff_tray1");
-    force_off[1]  = io.resolve_inout<bool>("irr_forceOff_tray2");
-    force_off[2]  = io.resolve_inout<bool>("irr_forceOff_tray3");
-    force_off[3]  = io.resolve_inout<bool>("irr_forceOff_tray4");
-    force_off[4]  = io.resolve_inout<bool>("irr_forceOff_tray5");
-    force_off[5]  = io.resolve_inout<bool>("irr_forceOff_tray6");
-    force_off[6]  = io.resolve_inout<bool>("irr_forceOff_tray7");
-    force_off[7]  = io.resolve_inout<bool>("irr_forceOff_tray8");
-    force_now     = io.resolve_inout<bool>("irr_forceNow");
-    today         = io.resolve_inout<uint32_t>("irr_today");
-    served        = io.resolve_inout<uint8_t>("irr_servedToday");
+    mod           = _bind_input<float>(io, "irr_mod");
+    split         = _bind_input<float>(io, "irr_volFreqSplit");
+    trays_per_day = _bind_input<uint16_t>(io, "irr_traysPerDay");
+    days[0]       = _bind_input<uint8_t>(io, "irr_days_tray1");
+    days[1]       = _bind_input<uint8_t>(io, "irr_days_tray2");
+    days[2]       = _bind_input<uint8_t>(io, "irr_days_tray3");
+    days[3]       = _bind_input<uint8_t>(io, "irr_days_tray4");
+    days[4]       = _bind_input<uint8_t>(io, "irr_days_tray5");
+    days[5]       = _bind_input<uint8_t>(io, "irr_days_tray6");
+    days[6]       = _bind_input<uint8_t>(io, "irr_days_tray7");
+    days[7]       = _bind_input<uint8_t>(io, "irr_days_tray8");
+    outside_temp  = _bind_input<float>(io, "cli_temp_ext");
+    dawn_gate     = _bind_input<float>(io, "irr_dawnGate_degC");
+    phase         = _bind_input<uint8_t>(io, "cli_phase");
+    from_rise     = _bind_input<int16_t>(io, "sol_fromRise_min");
+    day_rise      = _bind_input<int16_t>(io, "sol_dayRise_min");
+    morning_win   = _bind_input<uint16_t>(io, "irr_morningWin_min");
+    due_tray      = _bind_output<uint8_t>(io, "irr_dueTray");
+    slot_open     = _bind_output<bool>(io, "irr_slotOpen");
+    period        = _bind_output<float>(io, "irr_period_days");
+    last[0]       = _bind_inout<uint32_t>(io, "irr_last_tray1");
+    last[1]       = _bind_inout<uint32_t>(io, "irr_last_tray2");
+    last[2]       = _bind_inout<uint32_t>(io, "irr_last_tray3");
+    last[3]       = _bind_inout<uint32_t>(io, "irr_last_tray4");
+    last[4]       = _bind_inout<uint32_t>(io, "irr_last_tray5");
+    last[5]       = _bind_inout<uint32_t>(io, "irr_last_tray6");
+    last[6]       = _bind_inout<uint32_t>(io, "irr_last_tray7");
+    last[7]       = _bind_inout<uint32_t>(io, "irr_last_tray8");
+    force_on[0]   = _bind_inout<bool>(io, "irr_forceOn_tray1");
+    force_on[1]   = _bind_inout<bool>(io, "irr_forceOn_tray2");
+    force_on[2]   = _bind_inout<bool>(io, "irr_forceOn_tray3");
+    force_on[3]   = _bind_inout<bool>(io, "irr_forceOn_tray4");
+    force_on[4]   = _bind_inout<bool>(io, "irr_forceOn_tray5");
+    force_on[5]   = _bind_inout<bool>(io, "irr_forceOn_tray6");
+    force_on[6]   = _bind_inout<bool>(io, "irr_forceOn_tray7");
+    force_on[7]   = _bind_inout<bool>(io, "irr_forceOn_tray8");
+    force_off[0]  = _bind_inout<bool>(io, "irr_forceOff_tray1");
+    force_off[1]  = _bind_inout<bool>(io, "irr_forceOff_tray2");
+    force_off[2]  = _bind_inout<bool>(io, "irr_forceOff_tray3");
+    force_off[3]  = _bind_inout<bool>(io, "irr_forceOff_tray4");
+    force_off[4]  = _bind_inout<bool>(io, "irr_forceOff_tray5");
+    force_off[5]  = _bind_inout<bool>(io, "irr_forceOff_tray6");
+    force_off[6]  = _bind_inout<bool>(io, "irr_forceOff_tray7");
+    force_off[7]  = _bind_inout<bool>(io, "irr_forceOff_tray8");
+    force_now     = _bind_inout<bool>(io, "irr_forceNow");
+    today         = _bind_inout<uint32_t>(io, "irr_today");
+    served        = _bind_inout<uint8_t>(io, "irr_servedToday");
 
-    // What the base sweeps before each activation, so an input that has
-    // stopped being believable is DEGRADED without the law asking.
-    _watch_rows[0] = mod.r;
-    _watch_rows[1] = outside_temp.r;
-    _watch_rows[2] = phase.r;
-    _watch_rows[3] = from_rise.r;
-    _watch_rows[4] = today.r;
-    _watch_rows[5] = served.r;
-    set_inputs(_watch_rows, 6);
-    set_health_row(io.resolve_out<uint8_t>("prog_irr_schedule"));
+    set_health_row(_bind_output<uint8_t>(io, "prog_irr_schedule"));
 }
 
 }  // namespace Site

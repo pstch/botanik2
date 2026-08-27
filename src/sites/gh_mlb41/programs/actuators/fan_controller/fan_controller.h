@@ -70,8 +70,6 @@ private:
 
     /** @} */
 
-    Vars::VarRef _watch_rows[5];  ///< swept for validity before each activation
-
 public:
     FanController(const SetupContext& ctx, Vars::Bank& io)
         : Program(ctx, "fans", Tasks::GROUP_SLOW, io) {}
@@ -92,34 +90,26 @@ private:
 };
 
 inline void FanController::bind(Vars::Bank& io) {
-    dem_hyst      = io.resolve_in<float>("cli_fanDemHyst");
-    irr_dem       = io.resolve_in<float>("cli_fanIrrDem");
-    strat_dem     = io.resolve_in<float>("cli_stratDem");
-    cool_dem      = io.resolve_in<float>("cli_coolDem");
-    irr_state     = io.resolve_in<uint8_t>("irr_state");
-    screen_moving = io.resolve_in<bool>("cli_screenMoving");
-    low_dem       = io.resolve_in<float>("cli_fanLowDem");
-    med_dem       = io.resolve_in<float>("cli_fanMedDem");
-    high_dem      = io.resolve_in<float>("cli_fanHighDem");
-    phase         = io.resolve_in<uint8_t>("cli_phase");
-    breeze_dem    = io.resolve_in<float>("cli_breezeDem");
-    speed1[0]     = io.resolve_out<bool>("cli_destrat1_speed1");
-    speed1[1]     = io.resolve_out<bool>("cli_destrat2_speed1");
-    speed2[0]     = io.resolve_out<bool>("cli_destrat1_speed2");
-    speed2[1]     = io.resolve_out<bool>("cli_destrat2_speed2");
-    speed3[0]     = io.resolve_out<bool>("cli_destrat1_speed3");
-    speed3[1]     = io.resolve_out<bool>("cli_destrat2_speed3");
-    band          = io.resolve_out<uint8_t>("cli_fanSpeed");
+    dem_hyst      = _bind_input<float>(io, "cli_fanDemHyst");
+    irr_dem       = _bind_input<float>(io, "cli_fanIrrDem");
+    strat_dem     = _bind_input<float>(io, "cli_stratDem");
+    cool_dem      = _bind_input<float>(io, "cli_coolDem");
+    irr_state     = _bind_input<uint8_t>(io, "irr_state");
+    screen_moving = _bind_input<bool>(io, "cli_screenMoving");
+    low_dem       = _bind_input<float>(io, "cli_fanLowDem");
+    med_dem       = _bind_input<float>(io, "cli_fanMedDem");
+    high_dem      = _bind_input<float>(io, "cli_fanHighDem");
+    phase         = _bind_input<uint8_t>(io, "cli_phase");
+    breeze_dem    = _bind_input<float>(io, "cli_breezeDem");
+    speed1[0]     = _bind_output<bool>(io, "cli_destrat1_speed1");
+    speed1[1]     = _bind_output<bool>(io, "cli_destrat2_speed1");
+    speed2[0]     = _bind_output<bool>(io, "cli_destrat1_speed2");
+    speed2[1]     = _bind_output<bool>(io, "cli_destrat2_speed2");
+    speed3[0]     = _bind_output<bool>(io, "cli_destrat1_speed3");
+    speed3[1]     = _bind_output<bool>(io, "cli_destrat2_speed3");
+    band          = _bind_output<uint8_t>(io, "cli_fanSpeed");
 
-    // What the base sweeps before each activation, so an input that has
-    // stopped being believable is DEGRADED without the law asking.
-    _watch_rows[0] = strat_dem.r;
-    _watch_rows[1] = cool_dem.r;
-    _watch_rows[2] = irr_state.r;
-    _watch_rows[3] = screen_moving.r;
-    _watch_rows[4] = phase.r;
-    set_inputs(_watch_rows, 5);
-    set_health_row(io.resolve_out<uint8_t>("prog_fans"));
+    set_health_row(_bind_output<uint8_t>(io, "prog_fans"));
 }
 
 }  // namespace Site

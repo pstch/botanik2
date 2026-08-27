@@ -12,7 +12,10 @@ void RoofLockout::run(ProgramContext& c) {
     // fall back to 0, which reads exactly like fine weather, so the QUALITY is
     // what decides and an unmeasured sky shuts the roof.
     const bool blind = !rain_mmph.valid() || !wind_mps.valid();
-    if (blind) degraded();
+    // Wider than blind: the gust and the supply interlock do not shut the roof
+    // by themselves - the gust falls back to the mean, which is still measured
+    // - but a law running on either unread is one saying so.
+    if (blind || !gust_mps.valid() || !supply_lock.valid()) degraded();
 
     // An OVERRUN on the RAIN: the roof stays shut for the declared time after
     // the last drop, because a shower that has just stopped is about to be one

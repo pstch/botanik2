@@ -66,8 +66,6 @@ private:
 
     /** @} */
 
-    Vars::VarRef _watch_rows[2];  ///< swept for validity before each activation
-
 public:
     IrrValves(const SetupContext& ctx, Vars::Bank& io)
         : Program(ctx, "irr_valves", Tasks::GROUP_SLOW, io) {}
@@ -80,27 +78,22 @@ protected:
 };
 
 inline void IrrValves::bind(Vars::Bank& io) {
-    state         = io.resolve_in<uint8_t>("irr_state");
-    active        = io.resolve_in<uint8_t>("irr_activeTray");
-    inlet[0]      = io.resolve_out<bool>("irr_input_ro1");
-    inlet[1]      = io.resolve_out<bool>("irr_input_ro2");
-    outlet[0]     = io.resolve_out<bool>("irr_output_ro1");
-    outlet[1]     = io.resolve_out<bool>("irr_output_ro2");
-    tray_valve[0] = io.resolve_out<bool>("irr_tray1");
-    tray_valve[1] = io.resolve_out<bool>("irr_tray2");
-    tray_valve[2] = io.resolve_out<bool>("irr_tray3");
-    tray_valve[3] = io.resolve_out<bool>("irr_tray4");
-    tray_valve[4] = io.resolve_out<bool>("irr_tray5");
-    tray_valve[5] = io.resolve_out<bool>("irr_tray6");
-    tray_valve[6] = io.resolve_out<bool>("irr_tray7");
-    tray_valve[7] = io.resolve_out<bool>("irr_tray8");
+    state         = _bind_input<uint8_t>(io, "irr_state");
+    active        = _bind_input<uint8_t>(io, "irr_activeTray");
+    inlet[0]      = _bind_output<bool>(io, "irr_input_ro1");
+    inlet[1]      = _bind_output<bool>(io, "irr_input_ro2");
+    outlet[0]     = _bind_output<bool>(io, "irr_output_ro1");
+    outlet[1]     = _bind_output<bool>(io, "irr_output_ro2");
+    tray_valve[0] = _bind_output<bool>(io, "irr_tray1");
+    tray_valve[1] = _bind_output<bool>(io, "irr_tray2");
+    tray_valve[2] = _bind_output<bool>(io, "irr_tray3");
+    tray_valve[3] = _bind_output<bool>(io, "irr_tray4");
+    tray_valve[4] = _bind_output<bool>(io, "irr_tray5");
+    tray_valve[5] = _bind_output<bool>(io, "irr_tray6");
+    tray_valve[6] = _bind_output<bool>(io, "irr_tray7");
+    tray_valve[7] = _bind_output<bool>(io, "irr_tray8");
 
-    // What the base sweeps before each activation, so an input that has
-    // stopped being believable is DEGRADED without the law asking.
-    _watch_rows[0] = state.r;
-    _watch_rows[1] = active.r;
-    set_inputs(_watch_rows, 2);
-    set_health_row(io.resolve_out<uint8_t>("prog_irr_valves"));
+    set_health_row(_bind_output<uint8_t>(io, "prog_irr_valves"));
     on_bind();
 }
 

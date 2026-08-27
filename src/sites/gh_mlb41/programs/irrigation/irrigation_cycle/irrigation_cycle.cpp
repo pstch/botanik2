@@ -118,6 +118,7 @@ void IrrigationCycle::run(ProgramContext& c) {
     // no dose to fill to, and a cycle started anyway would run its inlet to the
     // fill timeout and blame the tray for it.
     const bool  can_dose = mod.valid();
+    if (!can_dose || !out_flow.valid()) degraded();
     const float mod_now  = mod.get();
 
     const float split_lim = Plc::limit(split.get(), 0.0f, 1.0f);

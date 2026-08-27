@@ -23,6 +23,7 @@ void CoolingController::run(ProgramContext& c) {
         // at what the plant needs, and every actuator reads the quality and
         // goes to its own safe state anyway. A zero here would read as "nothing
         // is wanted", which is a different and much more reassuring lie.
+        degraded();
         demand.hold();
         window.hold();
         // Both gates SHUT, as they are whenever the crawlspace probe is out:

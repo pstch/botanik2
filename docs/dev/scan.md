@@ -98,8 +98,8 @@ them all in `bind()`:
 
 ```cpp
 void SupplyWatch::bind(Vars::Bank& io) {
-    ln     = io.resolve_in<float>("grid_LN_V");
-    locked = io.resolve_out<bool>("sys_supply_lockout");
+    ln     = _bind_input<float>(io, "grid_LN_V");
+    locked = _bind_output<bool>(io, "sys_supply_lockout");
 }
 ```
 
@@ -132,15 +132,16 @@ for the same reason `Scalar(int)` is deleted: `drive(a_u16_row, 3)` naming the
 mismatch beats a deduction conflict naming nothing.
 
 **Declaring an output claims it, at bind time.** A program's `bind()` runs
-inside its own writer window, so `resolve_out()` claims the row there and then.
-Two programs producing one row is therefore a *bring-up* failure that
-`report_writer_conflicts()` names at the first health service, rather than
-something noticed on whichever beat both first happened to write - which for a
-row only a fault path drives could be months in. `drive()` still claims on every
+inside its own writer window, so `_bind_output()` claims the row there and then.
+Two programs producing one row is therefore a *bring-up* failure: the second one
+is refused and FAULTED, naming the first. `report_writer_conflicts()` still
+covers what declaration cannot - a program that reaches a row it never declared
+- rather than something noticed on whichever beat both first happened to write,
+which for a row only a fault path drives could be months in. `drive()` still claims on every
 write, cheaply (first claim wins, so it short-circuits), which covers a program
 that reaches a row without declaring it.
 
-**A shared row records no owner.** `resolve_inout()` marks the slot `VF_SHARED`,
+**A shared row records no owner.** `_bind_inout()` marks the slot `VF_SHARED`,
 and `claim_writer()` then returns without recording anyone. That is what
 distinguishes a declared read-modify-write from the defect
 `report_writer_conflicts()` exists to catch - two programs fighting over one
@@ -188,18 +189,20 @@ refs are inert sinks that read 0 for ever, so every value it published would be
 a zero indistinguishable from a reading, and every alarm it derived would be a
 quiet false negative. Better to run nothing and say why.
 
-Two ways in. An unresolved name is caught by the base without the program
-asking: `on_setup()` compares `Bank::unresolved_count()` across `bind()`. A null
-dependency the program has to declare itself, with `fault()`, from `bind()`.
+Two ways in. A binding the base can see is wrong is caught without the
+program asking: `_bind_input()`, `_bind_output()` and `_bind_inout()` refuse a
+name no table declares, a row the reference cannot carry, and an output another
+program has already claimed - logging which, and faulting. A null dependency the
+program has to declare itself, with `fault()`, from `bind()`.
 
 It counts as parked for the reboot handshake. A program that will never run can
 neither travel nor arrive, and waiting on one would hold the plant out of its
 reboot for ever.
 
-An input that stops being believable is **not** this. That is `DEGRADED`, and it
-is what a law says when it is short of something it wanted; `_watch_inputs()`
-says it on the law's behalf for every row passed to `set_inputs()`, so a
-program usually does not have to.
+An input that stops being believable is **not** this. That is `DEGRADED`, and
+it is what a law says when it is short of something it wanted - in `run()` or
+`observe()`, where the law is the only thing that knows which of its inputs it
+can do without. Nothing says it on the law's behalf.
 
 ### INHIBITED is reached, not commanded
 

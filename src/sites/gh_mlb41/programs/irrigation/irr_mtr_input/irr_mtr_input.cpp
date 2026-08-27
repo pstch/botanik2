@@ -36,6 +36,9 @@ void IrrMtrInput::observe(ProgramContext& c) {
     const float flow = 60.0f * rate(total, rate_win.get(), c.dt_ms);
     in_flow.set(flow, true);
 
+    // The two alarms below are gated on the cycle's state: without it they
+    // would be judged against IDLE, which is what a leak is measured from.
+    if (!state.valid()) degraded();
     const IrrState st = (IrrState)state.get();
     // TWO windows, not one. The rate is the last COMPLETED window and stands
     // until the next one closes, and the block's window boundaries have nothing

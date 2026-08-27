@@ -125,6 +125,9 @@ void IrrigationSchedule::run(ProgramContext& c) {
     bool       known  = false;
     const bool open   = _in_slot(known);
     slot_open.set(open, known);
+    // The slot rests on the phase and one of two sun/weather rows, and the
+    // tray below on the modulation. Either short is a schedule guessing.
+    if (!known || !mod.valid()) degraded();
 
     // A STARTING value, so the row does not read as never-written for the whole
     // of bring-up: _next_due() publishes the modulated interval of the tray it

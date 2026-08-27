@@ -66,8 +66,6 @@ private:
 
     /** @} */
 
-    Vars::VarRef _watch_rows[6];  ///< swept for validity before each activation
-
 public:
     HumidityController(const SetupContext& ctx, Vars::Bank& io)
         : Program(ctx, "humidity", Tasks::GROUP_SLOW, io) {}
@@ -86,35 +84,26 @@ private:
 };
 
 inline void HumidityController::bind(Vars::Bank& io) {
-    rot_release_s = io.resolve_in<uint16_t>("cli_rotRelease_sec");
-    dp_margin     = io.resolve_in<float>("cli_dpMargin_degC");
-    dehum_full    = io.resolve_in<float>("cli_dehumFull_degC");
-    dehum_start   = io.resolve_in<float>("cli_dehumStart_degC");
-    humid_start   = io.resolve_in<float>("cli_humidStart_degC");
-    humid_full    = io.resolve_in<float>("cli_humidFull_degC");
-    rot_limit     = io.resolve_in<float>("cli_rotMargin_degC");
-    rot           = io.resolve_in<bool>("alarm_rot");
-    in_t          = io.resolve_in<float>("cli_temp_hi");
-    in_rh         = io.resolve_in<float>("cli_rh_hi");
-    ext_t         = io.resolve_in<float>("cli_temp_ext");
-    ext_rh        = io.resolve_in<float>("cli_rh_ext");
-    dry_margin    = io.resolve_in<float>("cli_ventDryMgn_degC");
-    vent_hyst     = io.resolve_in<float>("cli_ventHyst_degC");
-    demand        = io.resolve_out<float>("cli_humidDem");
-    lockout       = io.resolve_out<bool>("cli_rotLockout");
-    vent_dem      = io.resolve_out<float>("cli_rotVentDem");
-    dry_ok        = io.resolve_out<bool>("cli_intakeDryOk");
+    rot_release_s = _bind_input<uint16_t>(io, "cli_rotRelease_sec");
+    dp_margin     = _bind_input<float>(io, "cli_dpMargin_degC");
+    dehum_full    = _bind_input<float>(io, "cli_dehumFull_degC");
+    dehum_start   = _bind_input<float>(io, "cli_dehumStart_degC");
+    humid_start   = _bind_input<float>(io, "cli_humidStart_degC");
+    humid_full    = _bind_input<float>(io, "cli_humidFull_degC");
+    rot_limit     = _bind_input<float>(io, "cli_rotMargin_degC");
+    rot           = _bind_input<bool>(io, "alarm_rot");
+    in_t          = _bind_input<float>(io, "cli_temp_hi");
+    in_rh         = _bind_input<float>(io, "cli_rh_hi");
+    ext_t         = _bind_input<float>(io, "cli_temp_ext");
+    ext_rh        = _bind_input<float>(io, "cli_rh_ext");
+    dry_margin    = _bind_input<float>(io, "cli_ventDryMgn_degC");
+    vent_hyst     = _bind_input<float>(io, "cli_ventHyst_degC");
+    demand        = _bind_output<float>(io, "cli_humidDem");
+    lockout       = _bind_output<bool>(io, "cli_rotLockout");
+    vent_dem      = _bind_output<float>(io, "cli_rotVentDem");
+    dry_ok        = _bind_output<bool>(io, "cli_intakeDryOk");
 
-    // What the base sweeps before each activation, so an input that has
-    // stopped being believable is DEGRADED without the law asking.
-    _watch_rows[0] = dp_margin.r;
-    _watch_rows[1] = rot.r;
-    _watch_rows[2] = in_t.r;
-    _watch_rows[3] = in_rh.r;
-    _watch_rows[4] = ext_t.r;
-    _watch_rows[5] = ext_rh.r;
-    set_inputs(_watch_rows, 6);
-    set_health_row(io.resolve_out<uint8_t>("prog_humidity"));
+    set_health_row(_bind_output<uint8_t>(io, "prog_humidity"));
 }
 
 }  // namespace Site

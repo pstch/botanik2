@@ -94,8 +94,6 @@ private:
 
     /** @} */
 
-    Vars::VarRef _watch_rows[5];  ///< swept for validity before each activation
-
 public:
     DcWatch(const SetupContext& ctx, Vars::Bank& io)
         : Program(ctx, "dc_watch", Tasks::GROUP_SLOW, io) {}
@@ -108,39 +106,31 @@ protected:
 };
 
 inline void DcWatch::bind(Vars::Bank& io) {
-    dc1     = io.resolve_in<float>("pwr_dc1_V");
-    dc2     = io.resolve_in<float>("pwr_dc2_V");
-    ups_bat = io.resolve_in<float>("pwr_upsBat_V");
-    gen_bat = io.resolve_in<float>("pwr_genBat_V");
-    dc1_avg = io.resolve_in<uint16_t>("pwr_dc1_avg_ms");
-    dc2_avg = io.resolve_in<uint16_t>("pwr_dc2_avg_ms");
-    ups_avg = io.resolve_in<uint16_t>("pwr_upsBat_avg_ms");
-    gen_avg = io.resolve_in<uint16_t>("pwr_genBat_avg_ms");
-    dc1_lo  = io.resolve_in<float>("pwr_dc1Lo_V");
-    dc2_lo  = io.resolve_in<float>("pwr_dc2Lo_V");
-    ups_lo  = io.resolve_in<float>("pwr_upsBatLo_V");
-    gen_lo  = io.resolve_in<float>("pwr_genBatLo_V");
-    low_bat = io.resolve_in<bool>("pwr_upsLowBat");
-    out_dc1 = io.resolve_out<float>("sys_dc1_V");
-    out_dc2 = io.resolve_out<float>("sys_dc2_V");
-    out_ups = io.resolve_out<float>("sys_upsBat_V");
-    out_gen = io.resolve_out<float>("sys_genBat_V");
-    ok      = io.resolve_out<bool>("sys_dc_ok");
-    lockout = io.resolve_out<bool>("sys_supply_lockout");
-    ps1_flt = io.resolve_out<bool>("alarm_dc_ps1");
-    ps2_flt = io.resolve_out<bool>("alarm_dc_ps2");
-    ups_flt = io.resolve_out<bool>("alarm_dc_ups");
-    gen_flt = io.resolve_out<bool>("alarm_generator_battery");
+    dc1     = _bind_input<float>(io, "pwr_dc1_V");
+    dc2     = _bind_input<float>(io, "pwr_dc2_V");
+    ups_bat = _bind_input<float>(io, "pwr_upsBat_V");
+    gen_bat = _bind_input<float>(io, "pwr_genBat_V");
+    dc1_avg = _bind_input<uint16_t>(io, "pwr_dc1_avg_ms");
+    dc2_avg = _bind_input<uint16_t>(io, "pwr_dc2_avg_ms");
+    ups_avg = _bind_input<uint16_t>(io, "pwr_upsBat_avg_ms");
+    gen_avg = _bind_input<uint16_t>(io, "pwr_genBat_avg_ms");
+    dc1_lo  = _bind_input<float>(io, "pwr_dc1Lo_V");
+    dc2_lo  = _bind_input<float>(io, "pwr_dc2Lo_V");
+    ups_lo  = _bind_input<float>(io, "pwr_upsBatLo_V");
+    gen_lo  = _bind_input<float>(io, "pwr_genBatLo_V");
+    low_bat = _bind_input<bool>(io, "pwr_upsLowBat");
+    out_dc1 = _bind_output<float>(io, "sys_dc1_V");
+    out_dc2 = _bind_output<float>(io, "sys_dc2_V");
+    out_ups = _bind_output<float>(io, "sys_upsBat_V");
+    out_gen = _bind_output<float>(io, "sys_genBat_V");
+    ok      = _bind_output<bool>(io, "sys_dc_ok");
+    lockout = _bind_output<bool>(io, "sys_supply_lockout");
+    ps1_flt = _bind_output<bool>(io, "alarm_dc_ps1");
+    ps2_flt = _bind_output<bool>(io, "alarm_dc_ps2");
+    ups_flt = _bind_output<bool>(io, "alarm_dc_ups");
+    gen_flt = _bind_output<bool>(io, "alarm_generator_battery");
 
-    // What the base sweeps before each activation, so an input that has
-    // stopped being believable is DEGRADED without the law asking.
-    _watch_rows[0] = dc1.r;
-    _watch_rows[1] = dc2.r;
-    _watch_rows[2] = ups_bat.r;
-    _watch_rows[3] = gen_bat.r;
-    _watch_rows[4] = low_bat.r;
-    set_inputs(_watch_rows, 5);
-    set_health_row(io.resolve_out<uint8_t>("prog_dc_watch"));
+    set_health_row(_bind_output<uint8_t>(io, "prog_dc_watch"));
 }
 
 }  // namespace Site

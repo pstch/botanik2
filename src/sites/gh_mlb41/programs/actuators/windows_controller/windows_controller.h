@@ -82,8 +82,6 @@ private:
 
     /** @} */
 
-    Vars::VarRef _watch_rows[3];  ///< swept for validity before each activation
-
 public:
     WindowsController(const SetupContext& ctx, Vars::Bank& io)
         : Program(ctx, "windows", Tasks::GROUP_SLOW, io) {}
@@ -106,35 +104,29 @@ private:
 };
 
 inline void WindowsController::bind(Vars::Bank& io) {
-    window_dem  = io.resolve_in<float>("cli_windowDem");
-    travel_s    = io.resolve_in<uint16_t>("cli_windowTravel_sec");
-    tmo_s       = io.resolve_in<uint16_t>("cli_windowTmo_sec");
-    window_lock = io.resolve_in<bool>("cli_windowLockout");
-    cap         = io.resolve_in<float>("cli_windowCap");
-    opn[0]      = io.resolve_out<bool>("cli_window1_opn");
-    opn[1]      = io.resolve_out<bool>("cli_window2_opn");
-    opn[2]      = io.resolve_out<bool>("cli_window3_opn");
-    opn[3]      = io.resolve_out<bool>("cli_window4_opn");
-    clo[0]      = io.resolve_out<bool>("cli_window1_clo");
-    clo[1]      = io.resolve_out<bool>("cli_window2_clo");
-    clo[2]      = io.resolve_out<bool>("cli_window3_clo");
-    clo[3]      = io.resolve_out<bool>("cli_window4_clo");
-    tgt[0]      = io.resolve_out<float>("cli_window1_tgt");
-    tgt[1]      = io.resolve_out<float>("cli_window2_tgt");
-    tgt[2]      = io.resolve_out<float>("cli_window3_tgt");
-    tgt[3]      = io.resolve_out<float>("cli_window4_tgt");
-    pos[0]      = io.resolve_out<float>("cli_window1_pos");
-    pos[1]      = io.resolve_out<float>("cli_window2_pos");
-    pos[2]      = io.resolve_out<float>("cli_window3_pos");
-    pos[3]      = io.resolve_out<float>("cli_window4_pos");
+    window_dem  = _bind_input<float>(io, "cli_windowDem");
+    travel_s    = _bind_input<uint16_t>(io, "cli_windowTravel_sec");
+    tmo_s       = _bind_input<uint16_t>(io, "cli_windowTmo_sec");
+    window_lock = _bind_input<bool>(io, "cli_windowLockout");
+    cap         = _bind_input<float>(io, "cli_windowCap");
+    opn[0]      = _bind_output<bool>(io, "cli_window1_opn");
+    opn[1]      = _bind_output<bool>(io, "cli_window2_opn");
+    opn[2]      = _bind_output<bool>(io, "cli_window3_opn");
+    opn[3]      = _bind_output<bool>(io, "cli_window4_opn");
+    clo[0]      = _bind_output<bool>(io, "cli_window1_clo");
+    clo[1]      = _bind_output<bool>(io, "cli_window2_clo");
+    clo[2]      = _bind_output<bool>(io, "cli_window3_clo");
+    clo[3]      = _bind_output<bool>(io, "cli_window4_clo");
+    tgt[0]      = _bind_output<float>(io, "cli_window1_tgt");
+    tgt[1]      = _bind_output<float>(io, "cli_window2_tgt");
+    tgt[2]      = _bind_output<float>(io, "cli_window3_tgt");
+    tgt[3]      = _bind_output<float>(io, "cli_window4_tgt");
+    pos[0]      = _bind_output<float>(io, "cli_window1_pos");
+    pos[1]      = _bind_output<float>(io, "cli_window2_pos");
+    pos[2]      = _bind_output<float>(io, "cli_window3_pos");
+    pos[3]      = _bind_output<float>(io, "cli_window4_pos");
 
-    // What the base sweeps before each activation, so an input that has
-    // stopped being believable is DEGRADED without the law asking.
-    _watch_rows[0] = window_dem.r;
-    _watch_rows[1] = window_lock.r;
-    _watch_rows[2] = cap.r;
-    set_inputs(_watch_rows, 3);
-    set_health_row(io.resolve_out<uint8_t>("prog_windows"));
+    set_health_row(_bind_output<uint8_t>(io, "prog_windows"));
     on_bind();
 }
 

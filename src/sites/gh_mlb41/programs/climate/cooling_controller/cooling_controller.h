@@ -67,8 +67,6 @@ private:
 
     /** @} */
 
-    Vars::VarRef _watch_rows[5];  ///< swept for validity before each activation
-
 public:
     CoolingController(const SetupContext& ctx, Vars::Bank& io)
         : Program(ctx, "cooling", Tasks::GROUP_FAST, io) {}
@@ -87,34 +85,26 @@ private:
 };
 
 inline void CoolingController::bind(Vars::Bank& io) {
-    dem_hyst    = io.resolve_in<float>("cli_groundDemHyst");
-    inside      = io.resolve_in<float>("cli_temp_in");
-    ceiling     = io.resolve_in<float>("cli_temp_hi");
-    floor       = io.resolve_in<float>("cli_temp_lo");
-    target      = io.resolve_in<float>("cli_targetTemp_degC");
-    intake      = io.resolve_in<float>("cli_temp_cs");
-    temp_margin = io.resolve_in<float>("cli_ventTempMgn_degC");
-    vent_hyst   = io.resolve_in<float>("cli_ventHyst_degC");
-    ground_dem  = io.resolve_in<float>("cli_groundHeatDem");
-    win_start   = io.resolve_in<float>("cli_windowStartDem");
-    win_full    = io.resolve_in<float>("cli_windowFullDem");
-    kp          = io.resolve_in<float>("cli_coolKp");
-    ti          = io.resolve_in<float>("cli_coolTi_sec");
-    td          = io.resolve_in<float>("cli_coolTd_sec");
-    demand      = io.resolve_out<float>("cli_coolDem");
-    intake_ok   = io.resolve_out<bool>("cli_intakeCoolOk");
-    ground_ok   = io.resolve_out<bool>("cli_groundHeatOk");
-    window      = io.resolve_out<float>("cli_windowDem");
+    dem_hyst    = _bind_input<float>(io, "cli_groundDemHyst");
+    inside      = _bind_input<float>(io, "cli_temp_in");
+    ceiling     = _bind_input<float>(io, "cli_temp_hi");
+    floor       = _bind_input<float>(io, "cli_temp_lo");
+    target      = _bind_input<float>(io, "cli_targetTemp_degC");
+    intake      = _bind_input<float>(io, "cli_temp_cs");
+    temp_margin = _bind_input<float>(io, "cli_ventTempMgn_degC");
+    vent_hyst   = _bind_input<float>(io, "cli_ventHyst_degC");
+    ground_dem  = _bind_input<float>(io, "cli_groundHeatDem");
+    win_start   = _bind_input<float>(io, "cli_windowStartDem");
+    win_full    = _bind_input<float>(io, "cli_windowFullDem");
+    kp          = _bind_input<float>(io, "cli_coolKp");
+    ti          = _bind_input<float>(io, "cli_coolTi_sec");
+    td          = _bind_input<float>(io, "cli_coolTd_sec");
+    demand      = _bind_output<float>(io, "cli_coolDem");
+    intake_ok   = _bind_output<bool>(io, "cli_intakeCoolOk");
+    ground_ok   = _bind_output<bool>(io, "cli_groundHeatOk");
+    window      = _bind_output<float>(io, "cli_windowDem");
 
-    // What the base sweeps before each activation, so an input that has
-    // stopped being believable is DEGRADED without the law asking.
-    _watch_rows[0] = inside.r;
-    _watch_rows[1] = ceiling.r;
-    _watch_rows[2] = floor.r;
-    _watch_rows[3] = target.r;
-    _watch_rows[4] = intake.r;
-    set_inputs(_watch_rows, 5);
-    set_health_row(io.resolve_out<uint8_t>("prog_cooling"));
+    set_health_row(_bind_output<uint8_t>(io, "prog_cooling"));
 }
 
 }  // namespace Site

@@ -19,6 +19,10 @@ void TempRHZone::run(ProgramContext& c) {
     // would hide a ridge already past the target under a cool floor.
     const bool  hi_ok  = temp_hi.valid();
     const bool  lo_ok  = temp_lo.valid();
+    // Every write below carries its own quality, so the law degrades rather
+    // than stopping - but a reader asking why the house has one temperature
+    // instead of two asks the program, not the rows.
+    if (!hi_ok || !lo_ok || !rh_hi.valid() || !rh_lo.valid()) degraded();
     const float hotter = Plc::max_of(t_hi, t_lo);
     if (hi_ok && lo_ok)  temp_in.set(hotter, true);
     else if (hi_ok)      temp_in.set(t_hi, true);

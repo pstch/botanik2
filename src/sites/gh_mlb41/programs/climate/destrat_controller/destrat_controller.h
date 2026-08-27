@@ -55,8 +55,6 @@ private:
 
     /** @} */
 
-    Vars::VarRef _watch_rows[1];  ///< swept for validity before each activation
-
 public:
     DestratController(const SetupContext& ctx, Vars::Bank& io)
         : Program(ctx, "destrat", Tasks::GROUP_SLOW, io) {}
@@ -68,21 +66,17 @@ protected:
 };
 
 inline void DestratController::bind(Vars::Bank& io) {
-    strat    = io.resolve_in<float>("cli_dTStrat_degC");
-    low      = io.resolve_in<float>("cli_dTStratLow_degC");
-    med      = io.resolve_in<float>("cli_dTStratMed_degC");
-    high     = io.resolve_in<float>("cli_dTStratHigh_degC");
-    hyst     = io.resolve_in<float>("cli_dTStratHyst_degC");
-    fan_low  = io.resolve_in<float>("cli_fanLowDem");
-    fan_med  = io.resolve_in<float>("cli_fanMedDem");
-    fan_high = io.resolve_in<float>("cli_fanHighDem");
-    demand   = io.resolve_out<float>("cli_stratDem");
+    strat    = _bind_input<float>(io, "cli_dTStrat_degC");
+    low      = _bind_input<float>(io, "cli_dTStratLow_degC");
+    med      = _bind_input<float>(io, "cli_dTStratMed_degC");
+    high     = _bind_input<float>(io, "cli_dTStratHigh_degC");
+    hyst     = _bind_input<float>(io, "cli_dTStratHyst_degC");
+    fan_low  = _bind_input<float>(io, "cli_fanLowDem");
+    fan_med  = _bind_input<float>(io, "cli_fanMedDem");
+    fan_high = _bind_input<float>(io, "cli_fanHighDem");
+    demand   = _bind_output<float>(io, "cli_stratDem");
 
-    // What the base sweeps before each activation, so an input that has
-    // stopped being believable is DEGRADED without the law asking.
-    _watch_rows[0] = strat.r;
-    set_inputs(_watch_rows, 1);
-    set_health_row(io.resolve_out<uint8_t>("prog_destrat"));
+    set_health_row(_bind_output<uint8_t>(io, "prog_destrat"));
 }
 
 }  // namespace Site

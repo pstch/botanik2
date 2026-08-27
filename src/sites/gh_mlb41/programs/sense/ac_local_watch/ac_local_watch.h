@@ -65,8 +65,6 @@ private:
 
     /** @} */
 
-    Vars::VarRef _watch_rows[5];  ///< swept for validity before each activation
-
 public:
     AcLocalWatch(const SetupContext& ctx, Vars::Bank& io)
         : Program(ctx, "ac_local_watch", Tasks::GROUP_SLOW, io) {}
@@ -80,33 +78,25 @@ protected:
 };
 
 inline void AcLocalWatch::bind(Vars::Bank& io) {
-    volts     = io.resolve_in<float>("ats_V");
-    amps      = io.resolve_in<float>("ats_A");
-    watts     = io.resolve_in<float>("ats_W");
-    hz        = io.resolve_in<float>("ats_Hz");
-    lo_V      = io.resolve_in<float>("pwr_localLo_V");
-    hi_V      = io.resolve_in<float>("pwr_localHi_V");
-    lo_Hz     = io.resolve_in<float>("pwr_localLo_Hz");
-    hi_Hz     = io.resolve_in<float>("pwr_localHi_Hz");
-    grid_ok   = io.resolve_in<bool>("sys_grid_ok");
-    start_s   = io.resolve_in<uint16_t>("pwr_genStart_sec");
-    out_V     = io.resolve_out<float>("sys_local_V");
-    out_A     = io.resolve_out<float>("sys_local_A");
-    out_W     = io.resolve_out<float>("sys_local_W");
-    out_Hz    = io.resolve_out<float>("sys_local_Hz");
-    ok        = io.resolve_out<bool>("sys_local_ok");
-    fault     = io.resolve_out<bool>("alarm_ac_local");
-    gen_fault = io.resolve_out<bool>("alarm_gen");
+    volts     = _bind_input<float>(io, "ats_V");
+    amps      = _bind_input<float>(io, "ats_A");
+    watts     = _bind_input<float>(io, "ats_W");
+    hz        = _bind_input<float>(io, "ats_Hz");
+    lo_V      = _bind_input<float>(io, "pwr_localLo_V");
+    hi_V      = _bind_input<float>(io, "pwr_localHi_V");
+    lo_Hz     = _bind_input<float>(io, "pwr_localLo_Hz");
+    hi_Hz     = _bind_input<float>(io, "pwr_localHi_Hz");
+    grid_ok   = _bind_input<bool>(io, "sys_grid_ok");
+    start_s   = _bind_input<uint16_t>(io, "pwr_genStart_sec");
+    out_V     = _bind_output<float>(io, "sys_local_V");
+    out_A     = _bind_output<float>(io, "sys_local_A");
+    out_W     = _bind_output<float>(io, "sys_local_W");
+    out_Hz    = _bind_output<float>(io, "sys_local_Hz");
+    ok        = _bind_output<bool>(io, "sys_local_ok");
+    fault     = _bind_output<bool>(io, "alarm_ac_local");
+    gen_fault = _bind_output<bool>(io, "alarm_gen");
 
-    // What the base sweeps before each activation, so an input that has
-    // stopped being believable is DEGRADED without the law asking.
-    _watch_rows[0] = volts.r;
-    _watch_rows[1] = amps.r;
-    _watch_rows[2] = watts.r;
-    _watch_rows[3] = hz.r;
-    _watch_rows[4] = grid_ok.r;
-    set_inputs(_watch_rows, 5);
-    set_health_row(io.resolve_out<uint8_t>("prog_ac_local_watch"));
+    set_health_row(_bind_output<uint8_t>(io, "prog_ac_local_watch"));
     on_bind();
 }
 

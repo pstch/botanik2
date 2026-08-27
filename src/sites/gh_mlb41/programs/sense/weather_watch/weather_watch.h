@@ -60,8 +60,6 @@ private:
 
     /** @} */
 
-    Vars::VarRef _watch_rows[4];  ///< swept for validity before each activation
-
 public:
     WeatherWatch(const SetupContext& ctx, Vars::Bank& io)
         : Program(ctx, "weather_watch", Tasks::GROUP_SLOW, io) {}
@@ -74,23 +72,16 @@ protected:
 };
 
 inline void WeatherWatch::bind(Vars::Bank& io) {
-    wind       = io.resolve_in<float>("cli_wind_mps");
-    gust       = io.resolve_in<float>("cli_windGust_mps");
-    rain       = io.resolve_in<float>("cli_rain_mmph");
-    irrad      = io.resolve_in<float>("cli_irrad_Wpm2");
-    storm_wind = io.resolve_in<float>("cli_windShutEnd_mps");
-    station    = io.resolve_out<bool>("alarm_wx_station");
-    storm      = io.resolve_out<bool>("alarm_weather_storm");
-    since_rain = io.resolve_out<uint16_t>("cli_sinceRain_min");
+    wind       = _bind_input<float>(io, "cli_wind_mps");
+    gust       = _bind_input<float>(io, "cli_windGust_mps");
+    rain       = _bind_input<float>(io, "cli_rain_mmph");
+    irrad      = _bind_input<float>(io, "cli_irrad_Wpm2");
+    storm_wind = _bind_input<float>(io, "cli_windShutEnd_mps");
+    station    = _bind_output<bool>(io, "alarm_wx_station");
+    storm      = _bind_output<bool>(io, "alarm_weather_storm");
+    since_rain = _bind_output<uint16_t>(io, "cli_sinceRain_min");
 
-    // What the base sweeps before each activation, so an input that has
-    // stopped being believable is DEGRADED without the law asking.
-    _watch_rows[0] = wind.r;
-    _watch_rows[1] = gust.r;
-    _watch_rows[2] = rain.r;
-    _watch_rows[3] = irrad.r;
-    set_inputs(_watch_rows, 4);
-    set_health_row(io.resolve_out<uint8_t>("prog_weather_watch"));
+    set_health_row(_bind_output<uint8_t>(io, "prog_weather_watch"));
 }
 
 }  // namespace Site

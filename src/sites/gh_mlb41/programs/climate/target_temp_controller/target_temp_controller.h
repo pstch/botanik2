@@ -56,8 +56,6 @@ private:
 
     /** @} */
 
-    Vars::VarRef _watch_rows[3];  ///< swept for validity before each activation
-
 public:
     TargetTempController(const SetupContext& ctx, Vars::Bank& io)
         : Program(ctx, "target_temp", Tasks::GROUP_SLOW, io) {}
@@ -69,24 +67,18 @@ protected:
 };
 
 inline void TargetTempController::bind(Vars::Bank& io) {
-    t_min         = io.resolve_in<float>("cli_targetMin_degC");
-    t_max         = io.resolve_in<float>("cli_targetMax_degC");
-    phase         = io.resolve_in<uint8_t>("cli_phase");
-    cold_arm      = io.resolve_in<bool>("cli_coldBankArm");
-    heat_arm      = io.resolve_in<bool>("cli_heatBankArm");
-    cool_set      = io.resolve_in<float>("cli_coolSet_degC");
-    cold_bank_ofs = io.resolve_in<float>("cli_coldBankOfs_degC");
-    heat_bank_ofs = io.resolve_in<float>("cli_heatBankOfs_degC");
-    tau           = io.resolve_in<uint16_t>("cli_targetTau_s");
-    target        = io.resolve_out<float>("cli_targetTemp_degC");
+    t_min         = _bind_input<float>(io, "cli_targetMin_degC");
+    t_max         = _bind_input<float>(io, "cli_targetMax_degC");
+    phase         = _bind_input<uint8_t>(io, "cli_phase");
+    cold_arm      = _bind_input<bool>(io, "cli_coldBankArm");
+    heat_arm      = _bind_input<bool>(io, "cli_heatBankArm");
+    cool_set      = _bind_input<float>(io, "cli_coolSet_degC");
+    cold_bank_ofs = _bind_input<float>(io, "cli_coldBankOfs_degC");
+    heat_bank_ofs = _bind_input<float>(io, "cli_heatBankOfs_degC");
+    tau           = _bind_input<uint16_t>(io, "cli_targetTau_s");
+    target        = _bind_output<float>(io, "cli_targetTemp_degC");
 
-    // What the base sweeps before each activation, so an input that has
-    // stopped being believable is DEGRADED without the law asking.
-    _watch_rows[0] = phase.r;
-    _watch_rows[1] = cold_arm.r;
-    _watch_rows[2] = heat_arm.r;
-    set_inputs(_watch_rows, 3);
-    set_health_row(io.resolve_out<uint8_t>("prog_target_temp"));
+    set_health_row(_bind_output<uint8_t>(io, "prog_target_temp"));
 }
 
 }  // namespace Site

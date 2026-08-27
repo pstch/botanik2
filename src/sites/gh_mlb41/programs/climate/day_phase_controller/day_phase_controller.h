@@ -73,8 +73,6 @@ private:
 
     /** @} */
 
-    Vars::VarRef _watch_rows[5];  ///< swept for validity before each activation
-
 public:
     DayPhaseController(const SetupContext& ctx, Vars::Bank& io)
         : Program(ctx, "day_phase", Tasks::GROUP_SLOW, io) {}
@@ -92,32 +90,24 @@ private:
 };
 
 inline void DayPhaseController::bind(Vars::Bank& io) {
-    inside         = io.resolve_in<float>("cli_temp_in");
-    from_rise      = io.resolve_in<int16_t>("sol_fromRise_min");
-    from_set       = io.resolve_in<int16_t>("sol_fromSet_min");
-    cold_bank_trg  = io.resolve_in<float>("cli_coldBankTrg_degC");
-    heat_bank_trg  = io.resolve_in<float>("cli_heatBankTrg_degC");
-    cold_bank_rise = io.resolve_in<int16_t>("sol_coldBankRise_min");
-    breeze_rise    = io.resolve_in<int16_t>("sol_breezeRise_min");
-    day_rise       = io.resolve_in<int16_t>("sol_dayRise_min");
-    heat_bank_set  = io.resolve_in<int16_t>("sol_heatBankSet_min");
-    dusk_set       = io.resolve_in<int16_t>("sol_duskSet_min");
-    night_set      = io.resolve_in<int16_t>("sol_nightSet_min");
-    phase          = io.resolve_out<uint8_t>("cli_phase");
-    cold_arm       = io.resolve_out<bool>("cli_coldBankArm");
-    heat_arm       = io.resolve_out<bool>("cli_heatBankArm");
-    prev_day_max   = io.resolve_inout<float>("cli_prevDayMax_degC");
-    prev_night_min = io.resolve_inout<float>("cli_prevNightMin_degC");
+    inside         = _bind_input<float>(io, "cli_temp_in");
+    from_rise      = _bind_input<int16_t>(io, "sol_fromRise_min");
+    from_set       = _bind_input<int16_t>(io, "sol_fromSet_min");
+    cold_bank_trg  = _bind_input<float>(io, "cli_coldBankTrg_degC");
+    heat_bank_trg  = _bind_input<float>(io, "cli_heatBankTrg_degC");
+    cold_bank_rise = _bind_input<int16_t>(io, "sol_coldBankRise_min");
+    breeze_rise    = _bind_input<int16_t>(io, "sol_breezeRise_min");
+    day_rise       = _bind_input<int16_t>(io, "sol_dayRise_min");
+    heat_bank_set  = _bind_input<int16_t>(io, "sol_heatBankSet_min");
+    dusk_set       = _bind_input<int16_t>(io, "sol_duskSet_min");
+    night_set      = _bind_input<int16_t>(io, "sol_nightSet_min");
+    phase          = _bind_output<uint8_t>(io, "cli_phase");
+    cold_arm       = _bind_output<bool>(io, "cli_coldBankArm");
+    heat_arm       = _bind_output<bool>(io, "cli_heatBankArm");
+    prev_day_max   = _bind_inout<float>(io, "cli_prevDayMax_degC");
+    prev_night_min = _bind_inout<float>(io, "cli_prevNightMin_degC");
 
-    // What the base sweeps before each activation, so an input that has
-    // stopped being believable is DEGRADED without the law asking.
-    _watch_rows[0] = inside.r;
-    _watch_rows[1] = from_rise.r;
-    _watch_rows[2] = from_set.r;
-    _watch_rows[3] = prev_day_max.r;
-    _watch_rows[4] = prev_night_min.r;
-    set_inputs(_watch_rows, 5);
-    set_health_row(io.resolve_out<uint8_t>("prog_day_phase"));
+    set_health_row(_bind_output<uint8_t>(io, "prog_day_phase"));
 }
 
 }  // namespace Site

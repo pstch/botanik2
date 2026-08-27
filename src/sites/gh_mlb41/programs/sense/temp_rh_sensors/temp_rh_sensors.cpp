@@ -24,10 +24,13 @@ void TempRHSensors::run(ProgramContext& c) {
         crawlspace.reset(); exterior.reset();
     }
 
-    ceiling.step(c.dt_ms);
-    floor.step(c.dt_ms);
-    crawlspace.step(c.dt_ms);
-    exterior.step(c.dt_ms);
+    // Each returns how many probes it could use. Short of the three is a zone
+    // still publishing, on fewer instruments than it was specified with: the
+    // per-zone alarm is what sends somebody out, this is what a supervisor
+    // reading one health code sees.
+    const uint8_t used[] = { ceiling.step(c.dt_ms), floor.step(c.dt_ms),
+                             crawlspace.step(c.dt_ms), exterior.step(c.dt_ms) };
+    for (uint8_t u : used) if (u < 3) { degraded(); break; }
 }
 
 }  // namespace Site

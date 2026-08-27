@@ -29,6 +29,9 @@ void IrrValves::run(ProgramContext& c) {
     // Fill: inlet open, this tray open, outlet shut. Drain: inlet shut, tray
     // still open, outlet open. Every other tray is shut in both, so one cycle
     // can never water two.
+    // Both default to IDLE/no-tray, which is a safe pattern rather than a
+    // dangerous one - but it is a pattern nobody asked for, so say so.
+    if (!state.valid() || !active.valid()) degraded();
     const IrrState st = (IrrState)state.get();
     const uint8_t  tray = (uint8_t)active.get();
     const bool filling  = (st == IRR_FILLING);

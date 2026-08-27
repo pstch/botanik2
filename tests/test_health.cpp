@@ -492,6 +492,114 @@ namespace {
     };
 }
 
+namespace {
+    /** @brief Binds one name, however the case under test asks for it. */
+    class OneBinding : public Botanik::Plc::Program {
+    public:
+        enum How { IN, OUT, INOUT_ } how;
+        const char* row;
+
+        OneBinding(const Botanik::SetupContext& ctx, Vars::Bank& io,
+                   const char* label, How h, const char* name)
+            : Program(ctx, label, Botanik::Tasks::GROUP_FAST, io), how(h), row(name) {}
+
+    protected:
+        void bind(Vars::Bank& io) override {
+            if (how == IN)         (void)_bind_input<float>(io, row);
+            else if (how == OUT)   (void)_bind_output<float>(io, row);
+            else                   (void)_bind_inout<float>(io, row);
+        }
+        void run(Botanik::ProgramContext&) override {}
+    };
+
+    /** @brief Set the two up, register both, and run setup once. */
+    void wire_two(Botanik::Tasks::Registry& reg, Botanik::Plc::Program& a,
+                  Botanik::Plc::Program& b) {
+        a.set_slot(0); b.set_slot(1);
+        a.register_tasks(); b.register_tasks();
+        reg.setup(0);
+    }
+}
+
+TEST_CASE("bind: a name no table declares is refused, and says which") {
+    Fixture f;
+    Botanik::Tasks::Registry reg;
+    OneBinding p(Botanik::SetupContext(reg, &f.log), f.bank, "ghost",
+                 OneBinding::IN, "no_such_row_anywhere");
+    p.set_slot(0);
+    p.register_tasks();
+    reg.setup(0);
+
+    CHECK(p.is_faulted());
+    CHECK(p.health() == Plc::Health::FAULTED);
+    CHECK(f.writer.saw("ghost: cannot bind 'no_such_row_anywhere'"));
+    CHECK(f.writer.saw("no such row"));
+}
+
+TEST_CASE("bind: a row the reference cannot carry is refused, not read sideways") {
+    Fixture f;
+    Botanik::Tasks::Registry reg;
+    // A real row, and a boolean: a float reference over it would read the wrong
+    // arm of the union rather than fail.
+    REQUIRE(f.bank.find("cli_rainLockout").index != Vars::VAR_NONE);
+    OneBinding p(Botanik::SetupContext(reg, &f.log), f.bank, "mistyped",
+                 OneBinding::IN, "cli_rainLockout");
+    p.set_slot(0);
+    p.register_tasks();
+    reg.setup(0);
+
+    CHECK(p.is_faulted());
+    CHECK(f.writer.saw("mistyped: cannot bind 'cli_rainLockout'"));
+    CHECK(f.writer.saw("wrong type"));
+}
+
+TEST_CASE("bind: an output another program already drives is refused, and names it") {
+    Fixture f;
+    Botanik::Tasks::Registry reg;
+    const char* row = "cli_dTStrat_degC";
+    REQUIRE(f.bank.find(row).index != Vars::VAR_NONE);
+    OneBinding first(Botanik::SetupContext(reg, &f.log), f.bank, "first",
+                     OneBinding::OUT, row);
+    OneBinding second(Botanik::SetupContext(reg, &f.log), f.bank, "second",
+                      OneBinding::OUT, row);
+    wire_two(reg, first, second);
+
+    INFO("first claim wins: the loser is the one that cannot be wired");
+    CHECK_FALSE(first.is_faulted());
+    CHECK(second.is_faulted());
+    CHECK(f.writer.saw("second: cannot bind 'cli_dTStrat_degC'"));
+    CHECK(f.writer.saw("already driven, by 'first'"));
+}
+
+TEST_CASE("bind: VAR_IN_OUT is shared by declaration, so two of them is not a fault") {
+    Fixture f;
+    Botanik::Tasks::Registry reg;
+    const char* row = "cli_dTStrat_degC";
+    OneBinding a(Botanik::SetupContext(reg, &f.log), f.bank, "a",
+                 OneBinding::INOUT_, row);
+    OneBinding b(Botanik::SetupContext(reg, &f.log), f.bank, "b",
+                 OneBinding::INOUT_, row);
+    wire_two(reg, a, b);
+
+    CHECK_FALSE(a.is_faulted());
+    CHECK_FALSE(b.is_faulted());
+}
+
+TEST_CASE("bind: the rows a program reads are recorded, outputs are not") {
+    Fixture f;
+    Botanik::Tasks::Registry reg;
+    OneBinding p(Botanik::SetupContext(reg, &f.log), f.bank, "reader",
+                 OneBinding::IN, "cli_temp_hi");
+    p.set_slot(0);
+    p.register_tasks();
+    reg.setup(0);
+
+    CHECK_FALSE(p.is_faulted());
+    REQUIRE(p.input_count() == 1);
+    CHECK(p.inputs()[0].index == f.bank.find("cli_temp_hi").index);
+    CHECK_FALSE(p.input_overflow());
+}
+
 TEST_CASE("health: a program setup could not wire is FAULTED, and never runs") {
     Fixture f;
     Botanik::Tasks::Registry reg;

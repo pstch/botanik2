@@ -59,8 +59,6 @@ private:
 
     /** @} */
 
-    Vars::VarRef _watch_rows[7];  ///< swept for validity before each activation
-
 public:
     ClimateWatch(const SetupContext& ctx, Vars::Bank& io)
         : Program(ctx, "climate_watch", Tasks::GROUP_SLOW, io) {}
@@ -73,34 +71,24 @@ protected:
 };
 
 inline void ClimateWatch::bind(Vars::Bank& io) {
-    temp       = io.resolve_in<float>("cli_temp_hi");
-    margin     = io.resolve_in<float>("cli_dpMargin_degC");
-    strat      = io.resolve_in<float>("cli_dTStrat_degC");
-    too_hot    = io.resolve_in<float>("cli_tooHot_degC");
-    too_cold   = io.resolve_in<float>("cli_tooCold_degC");
-    humid_at   = io.resolve_in<float>("cli_dehumFull_degC");
-    strat_hi   = io.resolve_in<float>("cli_dTStratHigh_degC");
-    sns[0]     = io.resolve_in<bool>("alarm_sns_ceiling");
-    sns[1]     = io.resolve_in<bool>("alarm_sns_floor");
-    sns[2]     = io.resolve_in<bool>("alarm_sns_crawlspace");
-    sns[3]     = io.resolve_in<bool>("alarm_sns_exterior");
-    hot        = io.resolve_out<bool>("alarm_too_hot");
-    cold       = io.resolve_out<bool>("alarm_too_cold");
-    humid      = io.resolve_out<bool>("alarm_too_humid");
-    stratified = io.resolve_out<bool>("alarm_strat");
-    sensor     = io.resolve_out<bool>("alarm_sensor_fault");
+    temp       = _bind_input<float>(io, "cli_temp_hi");
+    margin     = _bind_input<float>(io, "cli_dpMargin_degC");
+    strat      = _bind_input<float>(io, "cli_dTStrat_degC");
+    too_hot    = _bind_input<float>(io, "cli_tooHot_degC");
+    too_cold   = _bind_input<float>(io, "cli_tooCold_degC");
+    humid_at   = _bind_input<float>(io, "cli_dehumFull_degC");
+    strat_hi   = _bind_input<float>(io, "cli_dTStratHigh_degC");
+    sns[0]     = _bind_input<bool>(io, "alarm_sns_ceiling");
+    sns[1]     = _bind_input<bool>(io, "alarm_sns_floor");
+    sns[2]     = _bind_input<bool>(io, "alarm_sns_crawlspace");
+    sns[3]     = _bind_input<bool>(io, "alarm_sns_exterior");
+    hot        = _bind_output<bool>(io, "alarm_too_hot");
+    cold       = _bind_output<bool>(io, "alarm_too_cold");
+    humid      = _bind_output<bool>(io, "alarm_too_humid");
+    stratified = _bind_output<bool>(io, "alarm_strat");
+    sensor     = _bind_output<bool>(io, "alarm_sensor_fault");
 
-    // What the base sweeps before each activation, so an input that has
-    // stopped being believable is DEGRADED without the law asking.
-    _watch_rows[0] = temp.r;
-    _watch_rows[1] = margin.r;
-    _watch_rows[2] = strat.r;
-    _watch_rows[3] = sns[0].r;
-    _watch_rows[4] = sns[1].r;
-    _watch_rows[5] = sns[2].r;
-    _watch_rows[6] = sns[3].r;
-    set_inputs(_watch_rows, 7);
-    set_health_row(io.resolve_out<uint8_t>("prog_climate_watch"));
+    set_health_row(_bind_output<uint8_t>(io, "prog_climate_watch"));
 }
 
 }  // namespace Site

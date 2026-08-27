@@ -29,6 +29,7 @@ void DayPhaseController::run(ProgramContext& c) {
     // separately - a boot with no NTP has the probe and not the sun.
     const bool sun_ok  = from_rise.valid() && from_set.valid();
     const bool temp_ok = inside.valid();
+    if (!sun_ok || !temp_ok) degraded();
 
     if (c.first_scan || !_seeded) {
         _day_max = _night_min = t_in;
@@ -45,8 +46,7 @@ void DayPhaseController::run(ProgramContext& c) {
     // Where the day is, as sun_watch published it. Unknown until the tracker
     // has a location and a wall clock - every boot, for as long as NTP takes -
     // and the phase HOLDS through that rather than announcing a night the plant
-    // is not in. (The base has already reported this program degraded: the
-    // offsets are declared inputs.)
+    // is not in.
     if (sun_ok) _phase = _phase_at(from_rise.get(), from_set.get());
 
     if (_phase == PHASE_DAY && was != PHASE_DAY)     _day_max   = t_in;

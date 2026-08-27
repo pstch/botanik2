@@ -57,10 +57,10 @@ protected:
 };
 
 inline void SunWatch::bind(Vars::Bank& io) {
-    from_rise = io.resolve_out<int16_t>("sol_fromRise_min");
-    from_set  = io.resolve_out<int16_t>("sol_fromSet_min");
-    elevation = io.resolve_out<float>("sol_elev_deg");
-    set_health_row(io.resolve_out<uint8_t>("prog_sun_watch"));
+    from_rise = _bind_output<int16_t>(io, "sol_fromRise_min");
+    from_set  = _bind_output<int16_t>(io, "sol_fromSet_min");
+    elevation = _bind_output<float>(io, "sol_elev_deg");
+    set_health_row(_bind_output<uint8_t>(io, "prog_sun_watch"));
     // The offsets ARE the sun. A tracker that is not here never starts being
     // here, so this law has nothing to publish for the life of the run.
     if (_sun == nullptr) fault();

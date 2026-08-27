@@ -222,8 +222,8 @@ namespace Botanik { namespace Shell {
             const Plc::Program* p = reg->program(i);
             if (p == nullptr) continue;
             bool reads = false;
-            for (uint8_t k = 0; k < p->watched_count(); k++)
-                if (p->watched()[k].index == r.index) { reads = true; break; }
+            for (uint8_t k = 0; k < p->input_count(); k++)
+                if (p->inputs()[k].index == r.index) { reads = true; break; }
             if (!reads) continue;
             found++;
             const size_t len = strlen(p->name());
@@ -237,8 +237,8 @@ namespace Botanik { namespace Shell {
         if (found != shown) {
             snprintf(det, sizeof(det), "%u in all", (unsigned)found);
             detail = det;
-        } else if (found == 0 && h.role() == Vars::ROLE_PARAM) {
-            detail = "a parameter is not a watched row";
+        } else if (found == 0) {
+            detail = "no control program reads it";
         }
         _field("Read by", (found != 0) ? cell : "-", detail);
 #else

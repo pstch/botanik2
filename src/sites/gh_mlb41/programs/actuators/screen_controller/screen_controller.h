@@ -54,8 +54,6 @@ private:
 
     /** @} */
 
-    Vars::VarRef _watch_rows[2];  ///< swept for validity before each activation
-
 public:
     ScreenController(const SetupContext& ctx, Vars::Bank& io)
         : Program(ctx, "screen", Tasks::GROUP_SLOW, io) {}
@@ -74,20 +72,15 @@ private:
 };
 
 inline void ScreenController::bind(Vars::Bank& io) {
-    cool_dem     = io.resolve_in<float>("cli_coolDem");
-    deploy_dem   = io.resolve_in<float>("cli_thermalScreenDem");
-    phase        = io.resolve_in<uint8_t>("cli_phase");
-    travel_s     = io.resolve_in<uint16_t>("cli_screenTravel_sec");
-    travel_tmo_s = io.resolve_in<uint16_t>("cli_screenTmo_sec");
-    screen       = io.resolve_out<bool>("cli_screen");
-    moving       = io.resolve_out<bool>("cli_screenMoving");
+    cool_dem     = _bind_input<float>(io, "cli_coolDem");
+    deploy_dem   = _bind_input<float>(io, "cli_thermalScreenDem");
+    phase        = _bind_input<uint8_t>(io, "cli_phase");
+    travel_s     = _bind_input<uint16_t>(io, "cli_screenTravel_sec");
+    travel_tmo_s = _bind_input<uint16_t>(io, "cli_screenTmo_sec");
+    screen       = _bind_output<bool>(io, "cli_screen");
+    moving       = _bind_output<bool>(io, "cli_screenMoving");
 
-    // What the base sweeps before each activation, so an input that has
-    // stopped being believable is DEGRADED without the law asking.
-    _watch_rows[0] = cool_dem.r;
-    _watch_rows[1] = phase.r;
-    set_inputs(_watch_rows, 2);
-    set_health_row(io.resolve_out<uint8_t>("prog_screen"));
+    set_health_row(_bind_output<uint8_t>(io, "prog_screen"));
 }
 
 }  // namespace Site

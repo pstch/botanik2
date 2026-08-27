@@ -15,6 +15,7 @@ void DestratController::run(ProgramContext& c) {
     // and stops the fans. Say the demand is unknown instead and let each
     // actuator decide what that means for it.
     if (!strat.valid()) {
+        degraded();
         demand.hold();
         // The bands are a claim about where the gap has recently been, and we
         // stopped seeing it.

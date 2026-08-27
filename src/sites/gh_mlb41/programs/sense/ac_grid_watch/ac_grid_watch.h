@@ -61,8 +61,6 @@ private:
 
     /** @} */
 
-    Vars::VarRef _watch_rows[4];  ///< swept for validity before each activation
-
 public:
     AcGridWatch(const SetupContext& ctx, Vars::Bank& io)
         : Program(ctx, "ac_grid_watch", Tasks::GROUP_SLOW, io) {}
@@ -76,29 +74,22 @@ protected:
 };
 
 inline void AcGridWatch::bind(Vars::Bank& io) {
-    volts  = io.resolve_in<float>("grid_LN_V");
-    amps   = io.resolve_in<float>("grid_total_A");
-    watts  = io.resolve_in<float>("grid_total_W");
-    hz     = io.resolve_in<float>("grid_Hz");
-    lo_V   = io.resolve_in<float>("pwr_gridLo_V");
-    hi_V   = io.resolve_in<float>("pwr_gridHi_V");
-    lo_Hz  = io.resolve_in<float>("pwr_gridLo_Hz");
-    hi_Hz  = io.resolve_in<float>("pwr_gridHi_Hz");
-    out_V  = io.resolve_out<float>("sys_grid_V");
-    out_A  = io.resolve_out<float>("sys_grid_A");
-    out_W  = io.resolve_out<float>("sys_grid_W");
-    out_Hz = io.resolve_out<float>("sys_grid_Hz");
-    ok     = io.resolve_out<bool>("sys_grid_ok");
-    fault  = io.resolve_out<bool>("alarm_ac_grid");
+    volts  = _bind_input<float>(io, "grid_LN_V");
+    amps   = _bind_input<float>(io, "grid_total_A");
+    watts  = _bind_input<float>(io, "grid_total_W");
+    hz     = _bind_input<float>(io, "grid_Hz");
+    lo_V   = _bind_input<float>(io, "pwr_gridLo_V");
+    hi_V   = _bind_input<float>(io, "pwr_gridHi_V");
+    lo_Hz  = _bind_input<float>(io, "pwr_gridLo_Hz");
+    hi_Hz  = _bind_input<float>(io, "pwr_gridHi_Hz");
+    out_V  = _bind_output<float>(io, "sys_grid_V");
+    out_A  = _bind_output<float>(io, "sys_grid_A");
+    out_W  = _bind_output<float>(io, "sys_grid_W");
+    out_Hz = _bind_output<float>(io, "sys_grid_Hz");
+    ok     = _bind_output<bool>(io, "sys_grid_ok");
+    fault  = _bind_output<bool>(io, "alarm_ac_grid");
 
-    // What the base sweeps before each activation, so an input that has
-    // stopped being believable is DEGRADED without the law asking.
-    _watch_rows[0] = volts.r;
-    _watch_rows[1] = amps.r;
-    _watch_rows[2] = watts.r;
-    _watch_rows[3] = hz.r;
-    set_inputs(_watch_rows, 4);
-    set_health_row(io.resolve_out<uint8_t>("prog_ac_grid_watch"));
+    set_health_row(_bind_output<uint8_t>(io, "prog_ac_grid_watch"));
     on_bind();
 }
 

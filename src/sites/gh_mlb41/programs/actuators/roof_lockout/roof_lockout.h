@@ -63,8 +63,6 @@ private:
 
     /** @} */
 
-    Vars::VarRef _watch_rows[7];  ///< swept for validity before each activation
-
 public:
     RoofLockout(const SetupContext& ctx, Vars::Bank& io)
         : Program(ctx, "roof_lockout", Tasks::GROUP_SLOW, io) {}
@@ -76,30 +74,20 @@ protected:
 };
 
 inline void RoofLockout::bind(Vars::Bank& io) {
-    rain_mmph   = io.resolve_in<float>("cli_rain_mmph");
-    wind_mps    = io.resolve_in<float>("cli_wind_mps");
-    gust_mps    = io.resolve_in<float>("cli_windGust_mps");
-    shut_end    = io.resolve_in<float>("cli_windShutEnd_mps");
-    shut_begin  = io.resolve_in<float>("cli_windShutBegin_mps");
-    shut_max    = io.resolve_in<float>("cli_windShutMax");
-    rain_hold_s = io.resolve_in<uint16_t>("cli_rainLockout_sec");
-    supply_lock = io.resolve_in<bool>("sys_supply_lockout");
-    cap         = io.resolve_out<float>("cli_windowCap");
-    rain_lock   = io.resolve_inout<bool>("cli_rainLockout");
-    wind_lock   = io.resolve_inout<bool>("cli_windLockout");
-    window_lock = io.resolve_inout<bool>("cli_windowLockout");
+    rain_mmph   = _bind_input<float>(io, "cli_rain_mmph");
+    wind_mps    = _bind_input<float>(io, "cli_wind_mps");
+    gust_mps    = _bind_input<float>(io, "cli_windGust_mps");
+    shut_end    = _bind_input<float>(io, "cli_windShutEnd_mps");
+    shut_begin  = _bind_input<float>(io, "cli_windShutBegin_mps");
+    shut_max    = _bind_input<float>(io, "cli_windShutMax");
+    rain_hold_s = _bind_input<uint16_t>(io, "cli_rainLockout_sec");
+    supply_lock = _bind_input<bool>(io, "sys_supply_lockout");
+    cap         = _bind_output<float>(io, "cli_windowCap");
+    rain_lock   = _bind_inout<bool>(io, "cli_rainLockout");
+    wind_lock   = _bind_inout<bool>(io, "cli_windLockout");
+    window_lock = _bind_inout<bool>(io, "cli_windowLockout");
 
-    // What the base sweeps before each activation, so an input that has
-    // stopped being believable is DEGRADED without the law asking.
-    _watch_rows[0] = rain_mmph.r;
-    _watch_rows[1] = wind_mps.r;
-    _watch_rows[2] = gust_mps.r;
-    _watch_rows[3] = supply_lock.r;
-    _watch_rows[4] = rain_lock.r;
-    _watch_rows[5] = wind_lock.r;
-    _watch_rows[6] = window_lock.r;
-    set_inputs(_watch_rows, 7);
-    set_health_row(io.resolve_out<uint8_t>("prog_roof_lockout"));
+    set_health_row(_bind_output<uint8_t>(io, "prog_roof_lockout"));
 }
 
 }  // namespace Site

@@ -37,6 +37,7 @@ void ClimateWatch::observe(ProgramContext& c) {
 
     // Past the band the fans are already flat out on: the gap is not something
     // destratification is going to close on its own.
+    if (!strat.valid()) degraded();
     stratified.set(strat.valid() &&
                  strat.get() > strat_hi.get(), true);
 }

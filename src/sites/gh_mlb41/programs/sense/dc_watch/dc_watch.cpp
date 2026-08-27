@@ -57,6 +57,9 @@ void DcWatch::observe(ProgramContext& c) {
         { ups_mean, ups_band, ups_bat, out_ups, ups_lo, ups_avg },
         { gen_mean, gen_band, gen_bat, out_gen, gen_lo, gen_avg },
     };
+    // A divider that has stopped answering leaves its rail on the last
+    // average, which is a guess: say so rather than only alarming on it.
+    for (const Rail& r : rails) if (!r.in.valid()) { degraded(); break; }
     const bool ps1 = _rail(rails[0], c.dt_ms, _seen[0]);
     const bool ps2 = _rail(rails[1], c.dt_ms, _seen[1]);
     const bool ups = _rail(rails[2], c.dt_ms, _seen[2]);

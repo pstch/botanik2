@@ -65,8 +65,6 @@ private:
 
     /** @} */
 
-    Vars::VarRef _watch_rows[6];  ///< swept for validity before each activation
-
 public:
     IntractorController(const SetupContext& ctx, Vars::Bank& io)
         : Program(ctx, "intractors", Tasks::GROUP_SLOW, io) {}
@@ -79,28 +77,19 @@ protected:
 };
 
 inline void IntractorController::bind(Vars::Bank& io) {
-    cool_dem     = io.resolve_in<float>("cli_coolDem");
-    rot_vent     = io.resolve_in<float>("cli_rotVentDem");
-    humid_dem    = io.resolve_in<float>("cli_humidDem");
-    ground_speed = io.resolve_in<float>("cli_groundSpeed");
-    start_dem    = io.resolve_in<float>("cli_intakeStartDem");
-    full_dem     = io.resolve_in<float>("cli_intakeFullDem");
-    cool_ok      = io.resolve_in<bool>("cli_intakeCoolOk");
-    ground_ok    = io.resolve_in<bool>("cli_groundHeatOk");
-    dry_ok       = io.resolve_in<bool>("cli_intakeDryOk");
-    intr[0]      = io.resolve_out<float>("cli_intr1");
-    intr[1]      = io.resolve_out<float>("cli_intr2");
+    cool_dem     = _bind_input<float>(io, "cli_coolDem");
+    rot_vent     = _bind_input<float>(io, "cli_rotVentDem");
+    humid_dem    = _bind_input<float>(io, "cli_humidDem");
+    ground_speed = _bind_input<float>(io, "cli_groundSpeed");
+    start_dem    = _bind_input<float>(io, "cli_intakeStartDem");
+    full_dem     = _bind_input<float>(io, "cli_intakeFullDem");
+    cool_ok      = _bind_input<bool>(io, "cli_intakeCoolOk");
+    ground_ok    = _bind_input<bool>(io, "cli_groundHeatOk");
+    dry_ok       = _bind_input<bool>(io, "cli_intakeDryOk");
+    intr[0]      = _bind_output<float>(io, "cli_intr1");
+    intr[1]      = _bind_output<float>(io, "cli_intr2");
 
-    // What the base sweeps before each activation, so an input that has
-    // stopped being believable is DEGRADED without the law asking.
-    _watch_rows[0] = cool_dem.r;
-    _watch_rows[1] = rot_vent.r;
-    _watch_rows[2] = humid_dem.r;
-    _watch_rows[3] = cool_ok.r;
-    _watch_rows[4] = ground_ok.r;
-    _watch_rows[5] = dry_ok.r;
-    set_inputs(_watch_rows, 6);
-    set_health_row(io.resolve_out<uint8_t>("prog_intractors"));
+    set_health_row(_bind_output<uint8_t>(io, "prog_intractors"));
     on_bind();
 }
 

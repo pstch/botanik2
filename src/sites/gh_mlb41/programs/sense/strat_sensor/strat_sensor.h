@@ -40,11 +40,6 @@ public:
 
     /** @} */
 
-private:
-
-    Vars::VarRef _watch_rows[2];  ///< swept for validity before each activation
-
-public:
     StratSensor(const SetupContext& ctx, Vars::Bank& io)
         : Program(ctx, "strat", Tasks::GROUP_FAST, io) {}
 
@@ -55,16 +50,11 @@ protected:
 };
 
 inline void StratSensor::bind(Vars::Bank& io) {
-    ceiling = io.resolve_in<float>("cli_temp_hi");
-    floor   = io.resolve_in<float>("cli_temp_lo");
-    strat   = io.resolve_out<float>("cli_dTStrat_degC");
+    ceiling = _bind_input<float>(io, "cli_temp_hi");
+    floor   = _bind_input<float>(io, "cli_temp_lo");
+    strat   = _bind_output<float>(io, "cli_dTStrat_degC");
 
-    // What the base sweeps before each activation, so an input that has
-    // stopped being believable is DEGRADED without the law asking.
-    _watch_rows[0] = ceiling.r;
-    _watch_rows[1] = floor.r;
-    set_inputs(_watch_rows, 2);
-    set_health_row(io.resolve_out<uint8_t>("prog_strat"));
+    set_health_row(_bind_output<uint8_t>(io, "prog_strat"));
 }
 
 }  // namespace Site

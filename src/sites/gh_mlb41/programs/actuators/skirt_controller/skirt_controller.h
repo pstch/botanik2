@@ -57,8 +57,6 @@ private:
 
     /** @} */
 
-    Vars::VarRef _watch_rows[4];  ///< swept for validity before each activation
-
 public:
     SkirtController(const SetupContext& ctx, Vars::Bank& io)
         : Program(ctx, "skirt", Tasks::GROUP_SLOW, io) {}
@@ -71,25 +69,18 @@ protected:
 };
 
 inline void SkirtController::bind(Vars::Bank& io) {
-    cool_dem   = io.resolve_in<float>("cli_coolDem");
-    humid_dem  = io.resolve_in<float>("cli_humidDem");
-    cool_start = io.resolve_in<float>("cli_skirtCoolDem");
-    dry_min    = io.resolve_in<float>("cli_skirtDryMin_degC");
-    dp_margin  = io.resolve_in<float>("cli_dpMargin_degC");
-    rot_lock   = io.resolve_in<bool>("cli_rotLockout");
-    period_s   = io.resolve_in<uint16_t>("cli_skirtPeriod_sec");
-    min_on_s   = io.resolve_in<uint16_t>("cli_skirtMinOn_sec");
-    valve      = io.resolve_out<bool>("cli_skirtValve");
-    duty       = io.resolve_out<float>("cli_skirtDuty");
+    cool_dem   = _bind_input<float>(io, "cli_coolDem");
+    humid_dem  = _bind_input<float>(io, "cli_humidDem");
+    cool_start = _bind_input<float>(io, "cli_skirtCoolDem");
+    dry_min    = _bind_input<float>(io, "cli_skirtDryMin_degC");
+    dp_margin  = _bind_input<float>(io, "cli_dpMargin_degC");
+    rot_lock   = _bind_input<bool>(io, "cli_rotLockout");
+    period_s   = _bind_input<uint16_t>(io, "cli_skirtPeriod_sec");
+    min_on_s   = _bind_input<uint16_t>(io, "cli_skirtMinOn_sec");
+    valve      = _bind_output<bool>(io, "cli_skirtValve");
+    duty       = _bind_output<float>(io, "cli_skirtDuty");
 
-    // What the base sweeps before each activation, so an input that has
-    // stopped being believable is DEGRADED without the law asking.
-    _watch_rows[0] = cool_dem.r;
-    _watch_rows[1] = humid_dem.r;
-    _watch_rows[2] = dp_margin.r;
-    _watch_rows[3] = rot_lock.r;
-    set_inputs(_watch_rows, 4);
-    set_health_row(io.resolve_out<uint8_t>("prog_skirt"));
+    set_health_row(_bind_output<uint8_t>(io, "prog_skirt"));
     on_bind();
 }
 

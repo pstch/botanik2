@@ -62,8 +62,6 @@ private:
 
     /** @} */
 
-    Vars::VarRef _watch_rows[1];  ///< swept for validity before each activation
-
 public:
     IrrigationModulation(const SetupContext& ctx, Vars::Bank& io)
         : Program(ctx, "irr_modulation", Tasks::GROUP_SLOW, io) {}
@@ -82,20 +80,16 @@ private:
 };
 
 inline void IrrigationModulation::bind(Vars::Bank& io) {
-    vpd       = io.resolve_in<float>("cli_vpd_kPa");
-    dry_days  = io.resolve_in<uint16_t>("irr_dryEwmaDays");
-    dry_lo    = io.resolve_in<float>("irr_dryLo_kPa");
-    dry_hi    = io.resolve_in<float>("irr_dryHi_kPa");
-    mod_min   = io.resolve_in<float>("irr_modMin");
-    mod_gamma = io.resolve_in<float>("irr_modGamma");
-    vpd_avg   = io.resolve_out<float>("irr_vpdAvg_kPa");
-    mod       = io.resolve_out<float>("irr_mod");
+    vpd       = _bind_input<float>(io, "cli_vpd_kPa");
+    dry_days  = _bind_input<uint16_t>(io, "irr_dryEwmaDays");
+    dry_lo    = _bind_input<float>(io, "irr_dryLo_kPa");
+    dry_hi    = _bind_input<float>(io, "irr_dryHi_kPa");
+    mod_min   = _bind_input<float>(io, "irr_modMin");
+    mod_gamma = _bind_input<float>(io, "irr_modGamma");
+    vpd_avg   = _bind_output<float>(io, "irr_vpdAvg_kPa");
+    mod       = _bind_output<float>(io, "irr_mod");
 
-    // What the base sweeps before each activation, so an input that has
-    // stopped being believable is DEGRADED without the law asking.
-    _watch_rows[0] = vpd.r;
-    set_inputs(_watch_rows, 1);
-    set_health_row(io.resolve_out<uint8_t>("prog_irr_modulation"));
+    set_health_row(_bind_output<uint8_t>(io, "prog_irr_modulation"));
 }
 
 }  // namespace Site

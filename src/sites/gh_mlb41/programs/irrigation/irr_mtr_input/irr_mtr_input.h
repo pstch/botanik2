@@ -77,8 +77,6 @@ private:
 
     /** @} */
 
-    Vars::VarRef _watch_rows[1];  ///< swept for validity before each activation
-
 public:
     IrrMtrInput(const SetupContext& ctx, Vars::Bank& io)
         : Program(ctx, "irr_mtr_input", Tasks::GROUP_SLOW, io) {}
@@ -91,22 +89,18 @@ protected:
 };
 
 inline void IrrMtrInput::bind(Vars::Bank& io) {
-    rate_win      = io.resolve_in<uint16_t>("irr_rateWin_ms");
-    qty_per_pulse = io.resolve_in<float>("irr_input_qtyPerImp");
-    leak_Lpm      = io.resolve_in<float>("irr_leak_Lpm");
-    min_fill_Lpm  = io.resolve_in<float>("irr_minFill_Lpm");
-    state         = io.resolve_in<uint8_t>("irr_state");
-    in_flow       = io.resolve_out<float>("irr_inFlow_Lpm");
-    in_total      = io.resolve_out<float>("irr_inTotal_L");
-    leak          = io.resolve_out<bool>("alarm_water_leak");
-    pressure      = io.resolve_out<bool>("alarm_water_pressure");
-    pulsing       = io.resolve_out<bool>("irr_inPulse");
+    rate_win      = _bind_input<uint16_t>(io, "irr_rateWin_ms");
+    qty_per_pulse = _bind_input<float>(io, "irr_input_qtyPerImp");
+    leak_Lpm      = _bind_input<float>(io, "irr_leak_Lpm");
+    min_fill_Lpm  = _bind_input<float>(io, "irr_minFill_Lpm");
+    state         = _bind_input<uint8_t>(io, "irr_state");
+    in_flow       = _bind_output<float>(io, "irr_inFlow_Lpm");
+    in_total      = _bind_output<float>(io, "irr_inTotal_L");
+    leak          = _bind_output<bool>(io, "alarm_water_leak");
+    pressure      = _bind_output<bool>(io, "alarm_water_pressure");
+    pulsing       = _bind_output<bool>(io, "irr_inPulse");
 
-    // What the base sweeps before each activation, so an input that has
-    // stopped being believable is DEGRADED without the law asking.
-    _watch_rows[0] = state.r;
-    set_inputs(_watch_rows, 1);
-    set_health_row(io.resolve_out<uint8_t>("prog_irr_mtr_input"));
+    set_health_row(_bind_output<uint8_t>(io, "prog_irr_mtr_input"));
 }
 
 }  // namespace Site

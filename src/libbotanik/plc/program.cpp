@@ -9,6 +9,8 @@
 
 #if BOTANIK_FEATURE_PLC
 
+#include <cstdio>
+
 #include "libbotanik/logs/logger.h"
 #include "libbotanik/logs/topics.h"
 #include "libbotanik/tasks/tasks.h"
@@ -17,6 +19,54 @@ namespace Botanik { namespace Plc {
 
     void Program::_run_task(Component* c, const Tasks::Tick& t) {
         static_cast<Program*>(c)->_activate(t);
+    }
+
+    void Program::_bind_check(Vars::Bank& io, const char* name, BindDir dir,
+                              bool (*accepts)(Vars::VarType)) {
+        const Vars::VarRef r = io.find(name);
+
+        // Every failure here is the same defect wearing three faces: the row
+        // this program was written against is not the row it got. Logged as an
+        // ERROR rather than a critical because the POST is what stops the
+        // plant; this only says which name did it.
+        const char* why = nullptr;
+        char        extra[32];
+        extra[0] = '\0';
+
+        if (r.index == Vars::VAR_NONE) {
+            why = "no such row";
+        } else if (!accepts(io.var(r).meta()->type)) {
+            why = "wrong type";
+            snprintf(extra, sizeof extra, "row is %s",
+                     Vars::type_name(io.var(r).meta()->type));
+        } else if (dir == BIND_OUT) {
+            // Before resolve_out() claims it, because claim_writer() hands the
+            // row to the NEWEST writer even as it refuses: after the call every
+            // loser looks like the owner.
+            const uint8_t held = io.writer_of(r);
+            if (held != Vars::WRITER_NONE && held != slot()) {
+                why = "already driven";
+                const Program* by = (_tasks != nullptr) ? _tasks->program(held)
+                                                        : nullptr;
+                snprintf(extra, sizeof extra, "by '%s'",
+                         (by != nullptr) ? by->name() : "?");
+            }
+        }
+
+        if (why != nullptr) {
+            fault();
+            if (_logger != nullptr)
+                _logger->error(Logs::BOOT, "%s: cannot bind '%s'\n%s%s%s",
+                               this->name(), name, why,
+                               extra[0] != '\0' ? ", " : "", extra);
+            return;
+        }
+
+        // Readable rows only, and only for the query that asks who consumes a
+        // row. An output has a writer, which the bank records for itself.
+        if (dir == BIND_OUT) return;
+        if (_input_count >= Config::PROGRAM_MAX_INPUTS) { _input_overflow = true; return; }
+        _inputs[_input_count++] = r;
     }
 
     void Program::register_tasks() {
