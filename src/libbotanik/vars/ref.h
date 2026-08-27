@@ -82,6 +82,16 @@ namespace Botanik { namespace Vars {
         /** @brief Whether the row carries a believable value. */
         bool valid() const;
 
+        /** @brief The row's OWN value, believable or not - get() without the
+         *  declared substitute.
+         *
+         *  For the one shape the substitute cannot serve: a running absolute,
+         *  where a law subtracts two readings of the SAME counter. A constant
+         *  put in place of one of them makes the difference arithmetic about
+         *  nothing, and a large negative volume is worse than a stale one.
+         *  Ask valid() and say so; do not reach for this to dodge the cascade. */
+        T held() const;
+
         /** @brief EDIT a parameter row: checked against its band, marked
          *  unsaved, and written to storage. What a program uses for the state
          *  it has to keep - a watering date, a spent one-shot force - where

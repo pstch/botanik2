@@ -723,6 +723,9 @@ namespace Botanik { namespace Vars {
     inline bool Ref<T, D>::valid() const { return io->var(r).valid(); }
 
     template <typename T, Dir D>
+    inline T Ref<T, D>::held() const { return RefIo<T>::read(*io, r); }
+
+    template <typename T, Dir D>
     inline bool Ref<T, D>::edit(T v) const {
         static_assert(D == Dir::INOUT, "only a VAR_IN_OUT row is edited");
         if (RefIo<T>::edit(*io, r, v) != SET_OK) return false;

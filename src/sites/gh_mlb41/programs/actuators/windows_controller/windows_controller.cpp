@@ -61,10 +61,18 @@ void WindowsController::run(ProgramContext& c) {
         _target = 0.0f;
     } else if (inhibit_requested()) {
         _target = _safe_open;
-    } else if (!window_dem.valid()) {
-        degraded();
-        _target = _safe_open;
     } else {
+        // The cascade STOPS here. An unbelievable demand reads as the row's
+        // declared opening, which is a real position and the one the roof parks
+        // at - so the law runs its normal path on it rather than branching to a
+        // safe state. That matters for more than tidiness: PARKING is decided
+        // by the travel below, and a branch that skipped it would report a roof
+        // as arrived while its rams were still moving.
+        //
+        // The coils and the position rows stay believable either way. A coil is
+        // a command, not an estimate, and a ram's measured position is a fact
+        // about the ram whatever asked it to move.
+        if (!window_dem.valid()) degraded();
         _target = Plc::limit(window_dem.get(), 0.0f, 1.0f);
     }
     // ...and the wind's ceiling over all of it, the safe state included: a

@@ -84,9 +84,14 @@ void IrrigationCycle::_enter(IrrState st) {
     dwell.reset();
     // The meters are counters, so a window is a DIFFERENCE: stamp the one the
     // next st is judged on and read it again when the st ends.
-    if (st == IRR_FILLING) _fill_start_L = in_total.get();
+    // held(), not get(), on all four: the delivered volume is a DIFFERENCE
+    // between two readings of one running counter, and a declared constant
+    // standing in for either end makes the subtraction arithmetic about
+    // nothing - a dose of minus several hundred litres. The cascade reaches
+    // the volumes through their quality instead.
+    if (st == IRR_FILLING) _fill_start_L = in_total.held();
     if (st == IRR_DRAINING) {
-        _drain_start_L = out_total.get();
+        _drain_start_L = out_total.held();
         drained.set(0.0f, true);
     }
     state.set((uint8_t)st, true);
@@ -114,9 +119,10 @@ void IrrigationCycle::run(ProgramContext& c) {
         _tray = 0;
         _enter(IRR_IDLE);
     }
-    // The dose is the tray's summer figure scaled by this: without it there is
-    // no dose to fill to, and a cycle started anyway would run its inlet to the
-    // fill timeout and blame the tray for it.
+    // The dose is the tray's summer figure scaled by this. A modulation nobody
+    // has reads as the declared one, so there is always a dose to publish -
+    // but STARTING a cycle on it is a different act from deriving a number,
+    // and the plant is not watered to a guess. IRR_IDLE gates on this.
     const bool  can_dose = mod.valid();
     if (!can_dose || !out_flow.valid()) degraded();
     const float mod_now  = mod.get();
@@ -124,8 +130,7 @@ void IrrigationCycle::run(ProgramContext& c) {
     const float split_lim = Plc::limit(split.get(), 0.0f, 1.0f);
     const float dose = (_tray > 0)
         ? (float)litres[_tray - 1].get() * powf(mod_now, split_lim) : 0.0f;
-    if (can_dose) volume.set(dose, true);
-    else          volume.hold();
+    volume.set(dose, can_dose);
 
     switch (_state) {
         case IRR_IDLE: {
@@ -146,7 +151,7 @@ void IrrigationCycle::run(ProgramContext& c) {
             break;
         }
         case IRR_FILLING: {
-            delivered.set(in_total.get() - _fill_start_L, in_total.valid());
+            delivered.set(in_total.held() - _fill_start_L, in_total.valid());
             // ...and read back, so the fill ends on the row an operator can
             // watch and force rather than on a local difference.
             const float got = delivered.get();
@@ -189,7 +194,7 @@ void IrrigationCycle::run(ProgramContext& c) {
             break;
         }
         case IRR_DRAINING: {
-            drained.set(out_total.get() - _drain_start_L, out_total.valid());
+            drained.set(out_total.held() - _drain_start_L, out_total.valid());
             if (!dwell(true, 1000u * drain_window_s.get(), c.dt_ms)) break;
             _drain_verdict();
             _tray = 0;

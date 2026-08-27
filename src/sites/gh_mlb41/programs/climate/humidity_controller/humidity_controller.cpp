@@ -34,14 +34,13 @@ void HumidityController::observe(ProgramContext& c) {
 
 void HumidityController::run(ProgramContext& c) {
     (void)c;
-    if (!dp_margin.valid()) {
-        // The ladder is a function of the margin, and its default is a number
-        // that means "saturated": published as a demand it would call for full
-        // dehumidification on a reading nobody has. The rot guard in observe()
-        // still ventilates - that one is a CHOICE, not a derivation.
-        demand.hold();
-        return;
-    }
+    // The ladder is a function of the margin, and a margin nobody has reads as
+    // the row's DECLARED one - a wet-ish 2 degC, which asks to dehumidify.
+    // That is the same direction the rot guard in observe() fails toward, and
+    // for the same reason: ventilating costs energy, not ventilating costs the
+    // collection. What the quality says is that nobody measured it.
+    const bool measured = dp_margin.valid();
+    if (!measured) degraded();
 
     // Four bands and a dead zone, and the signed ladder IS that shape: below
     // dehumStart the margin is closing on condensation (negative, dehumidify);
@@ -51,7 +50,7 @@ void HumidityController::run(ProgramContext& c) {
                                      dehum_full.get(),
                                      dehum_start.get(),
                                      humid_start.get(),
-                                     humid_full.get()), true);
+                                     humid_full.get()), measured);
 }
 
 }  // namespace Site

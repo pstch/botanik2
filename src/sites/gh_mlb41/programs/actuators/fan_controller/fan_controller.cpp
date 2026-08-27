@@ -8,10 +8,11 @@
 namespace Site {
 
 float FanController::_demand() const {
-    // An unknown demand is NOT "nothing to do". Either ladder invalidates its
-    // own when it cannot see what it is about, and still air is itself a rot
-    // risk - so an unknown one contributes these fans' OWN lowest band, which
-    // is their safe state, rather than zero.
+    // An INTERCEPTION, and one the cascade allows: an unbelievable demand would
+    // otherwise read as the row's declared one, and these fans' safe state is
+    // not the climate's declared demand - it is their OWN lowest band, because
+    // still air is itself a rot risk. Substituted here rather than through the
+    // row it came from.
     const float floor    = low_dem.get();
     const float strat    = strat_dem.valid() ? strat_dem.get() : floor;
     const float cooling  = cool_dem.valid() ? cool_dem.get() : floor;

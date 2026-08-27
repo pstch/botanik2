@@ -290,7 +290,7 @@ TEST_CASE_FIXTURE(Rig<Site::TargetTempController>, "target: an aggressive offset
     CHECK(live.bank.get(target) == doctest::Approx(live.bank.get(floor_)));
 }
 
-TEST_CASE_FIXTURE(Rig<Site::CoolingController>, "cooling: a demand it cannot make is HELD at the last one it could") {
+TEST_CASE_FIXTURE(Rig<Site::CoolingController>, "cooling: a demand it cannot measure is still made, and marked") {
 
     const VarRef dem = live.ref("cli_coolDem");
     field(live, "cli_targetTemp_degC", 20.0f);
@@ -305,13 +305,20 @@ TEST_CASE_FIXTURE(Rig<Site::CoolingController>, "cooling: a demand it cannot mak
     live.bank.var(live.ref("cli_temp_in")).invalidate(Q_NO_DATA);
     d.step(3000);
 
-    INFO("every actuator reads the quality and goes to its own safe state, so "
-         "what the number says matters only to a reader that does not - and to "
-         "that reader, zero would mean nothing is wanted");
+    INFO("the ladder keeps running, on the interior row's DECLARED value - so "
+         "there is still a demand for an actuator to fall back from, and the "
+         "quality is what says it is not about this greenhouse");
     CHECK_FALSE(live.bank.var(dem).valid());
     CHECK(live.bank.var(dem).value().q == Q_UNCERTAIN);
-    CHECK(live.bank.var(dem).as_f32() == doctest::Approx(was));
     CHECK(prog.health() == Plc::Health::DEGRADED);
+
+    // 14 degC declared against a 20 degC target is BELOW it, and the ladder is
+    // reverse-acting, so the honest answer on that reading asks for warmth -
+    // the opposite of the 30 degC house it was reading a moment ago.
+    const Vars::Descriptor& d = live.bank.descriptor(live.ref("cli_temp_in").index);
+    REQUIRE(Vars::as_f32(d.type, d.def) < 20.0f);
+    CHECK(live.bank.var(dem).as_f32() < 0.0f);
+    CHECK(live.bank.var(dem).as_f32() != doctest::Approx(was));
 }
 
 TEST_CASE_FIXTURE(Rig<Site::CoolingController>, "cooling: the floor carries it when the ceiling goes, and both gone is unknown") {
