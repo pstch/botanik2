@@ -29,7 +29,7 @@ What the generator used to prove, `tests/test_site.cpp` proves instead, walking
 the bank the site actually built: register uniqueness and blocks, the parameter
 run's contiguity, the persisted pool's size, alarm codes, and every default
 sitting inside its own band. What no test can see until the run starts is caught
-at bring-up: a program resolving a name no row declares is FAULTED for the life
+at bring-up: a program resolving a name no row declares is INVALID for the life
 of the run, which the POST reports.
 
 @warning Intra-site includes are relative (`vars.h`, and `../../../vars.h`
@@ -144,5 +144,5 @@ Step 3 is where most mistakes are caught, because `tests/test_site.cpp` walks
 the bank the site actually built: a register collision, a register outside its
 scope's block, two rows on one terminal, a default outside its own band, a name
 nothing resolves. What it cannot see is caught the first time the firmware runs
-instead - a program whose `bind()` missed a name is FAULTED for the life of the
+instead - a program whose `bind()` missed a name is INVALID for the life of the
 run.

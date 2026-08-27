@@ -2594,8 +2594,9 @@ What a control program could do on its last activation. The first three are a SE
 |---|---|---|---|
 | 0 | HEALTHY | `Health::HEALTHY` | normal operation; every output valid |
 | 1 | DEGRADED | `Health::DEGRADED` | an input is invalid; the outputs are still good |
-| 2 | FAULTED | `Health::FAULTED` | at least one output is invalid |
+| 2 | INVALID | `Health::INVALID` | could not be wired at bring-up; never runs |
 | 3 | INHIBITED | `Health::INHIBITED` | control stopped and actuators parked; still reporting |
+| 4 | PARKING | `Health::PARKING` | control stopped, actuators still travelling |
 
 ## MQTT telemetry
 

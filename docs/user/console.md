@@ -623,8 +623,10 @@ library task is named `sys_`, so the two halves read apart at a glance. Typing
 narrows the table to one subsystem's rows.
 
 **HEALTH** is a control program's own verdict on its last activation - `HEALTHY`,
-`DEGRADED` (an input went invalid, the outputs are still good), `FAULTED` (an output
-did not) or `INHIBITED` (control stopped, actuators parked, still reporting). It is
+`DEGRADED` (an input went invalid, the outputs are still driven), `INHIBITED`
+(control stopped, actuators parked, still reporting) or `PARKING` (on its way
+there). `INVALID` is the odd one out: it is not a verdict on an activation at all
+but on the WIRING, decided once at bring-up, and such a program never runs. It is
 blank on a row that is not a program, which is most of the table: a driver or a
 service task has no such verdict to give. `INHIBITED` is what a program reports once
 it has actually parked, which is the state @ref user_control is about.

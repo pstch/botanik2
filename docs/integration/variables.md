@@ -298,7 +298,7 @@ parameter was written by accident.
 
 On hardware there is no suite to run, so the same failure is reported instead of
 checked: a program whose `bind()` reached for a name no row declares is
-**FAULTED** for the life of the run, which the POST sees and the TASKS page
+**INVALID** for the life of the run, which the POST sees and the TASKS page
 shows. A `VarRef` that resolves to nothing is the inert sink, which reads zero
 for ever, and zero is a plausible number - the fault is the only thing that says
 so.

@@ -20,7 +20,7 @@ void SunWatch::observe(ProgramContext& c) {
     // No location, or no wall clock yet - every boot passes through the second
     // for as long as NTP takes. The offsets ARE the sun, so they hold rather
     // than publishing a day nobody has computed. A tracker that is not there at
-    // all was FAULTED at bind() and this never runs.
+    // all was INVALID at bind() and this never runs.
     if (!_sun->ready()) {
         from_rise.hold();
         from_set.hold();

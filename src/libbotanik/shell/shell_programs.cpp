@@ -120,7 +120,7 @@ namespace Botanik { namespace Shell {
         // Named, worst first. HEALTHY and INHIBITED are counted and not listed:
         // with control withheld or before the first scan EVERY program is
         // inhibited, and a screen of names says less than the number does.
-        static const Plc::Health NAMED[] = { Plc::Health::FAULTED,
+        static const Plc::Health NAMED[] = { Plc::Health::INVALID,
                                              Plc::Health::DEGRADED,
                                              Plc::Health::PARKING };
         for (Plc::Health h : NAMED) {

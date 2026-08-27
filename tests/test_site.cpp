@@ -111,7 +111,7 @@ TEST_CASE("site: nothing the site touches fails to resolve") {
     // that no program names a row the tables do not declare.
     Botanik::Tasks::Registry prog_reg;
     Botanik::SetupContext prog_ctx(prog_reg);
-    // The firmware hands this over; a program built without one is FAULTED for
+    // The firmware hands this over; a program built without one is INVALID for
     // a reason that has nothing to do with the names this case is checking.
     Botanik::Sun::SunPositionTracker tracker(prog_ctx);
     prog_ctx.sun = &tracker;
@@ -123,10 +123,10 @@ TEST_CASE("site: nothing the site touches fails to resolve") {
          "that is not in vars.h; the bank logs which one");
     CHECK(f.bank.unresolved_count() == 0);
 
-    INFO("and every one of them bound: a program that missed a name is FAULTED "
+    INFO("and every one of them bound: a program that missed a name is INVALID "
          "at bring-up, which is what says so on hardware where no test runs");
     for (Plc::Program* p : progs.all)
-        CHECK(p->health() != Plc::Health::FAULTED);
+        CHECK(p->health() != Plc::Health::INVALID);
 
     // Bank::set() is the operator's path alone; catches a write at a stale index - zero is a real row.
     for (uint16_t k = 0; k < f.bank.param_count(); k++) {

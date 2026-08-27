@@ -63,7 +63,7 @@ inline void SunWatch::bind(Vars::Bank& io) {
     set_health_row(_bind_output<uint8_t>(io, "prog_sun_watch"));
     // The offsets ARE the sun. A tracker that is not here never starts being
     // here, so this law has nothing to publish for the life of the run.
-    if (_sun == nullptr) fault();
+    if (_sun == nullptr) invalidate();
 }
 
 }  // namespace Site

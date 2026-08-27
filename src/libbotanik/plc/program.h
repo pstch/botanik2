@@ -22,10 +22,10 @@ namespace Botanik { namespace Plc {
      *
      *  HEALTHY and DEGRADED are a severity pair and are ordered, so a reader
      *  takes the worse of two and one comparison answers "is anything going
-     *  wrong". FAULTED sorts above them and is not one of them: it is decided
+     *  wrong". INVALID sorts above them and is not one of them: it is decided
      *  once and never re-derived.
      *
-     *  FAULTED is a program that could not be WIRED. bind() named a row no
+     *  INVALID is a program that could not be WIRED. bind() named a row no
      *  table declares, or a dependency it was handed is null. Nothing about it
      *  gets better, so it is set during setup and never again, and the program
      *  is never activated - no run(), no observe(). One that ran on inert
@@ -49,7 +49,7 @@ namespace Botanik { namespace Plc {
     enum class Health : uint8_t {
         HEALTHY = 0,   ///< normal operation, every output valid
         DEGRADED,      ///< an input is invalid; the outputs are still driven
-        FAULTED,       ///< could not be wired at bring-up; never runs
+        INVALID,       ///< could not be wired at bring-up; never runs
         INHIBITED,     ///< control stopped and actuators parked; still reporting
         PARKING        ///< control stopped, actuators still travelling
     };
@@ -65,7 +65,7 @@ namespace Botanik { namespace Plc {
         switch (code) {
             case (uint64_t)Health::HEALTHY:   return "HEALTHY";
             case (uint64_t)Health::DEGRADED:  return "DEGRADED";
-            case (uint64_t)Health::FAULTED:   return "FAULTED";
+            case (uint64_t)Health::INVALID:   return "INVALID";
             case (uint64_t)Health::INHIBITED: return "INHIBITED";
             case (uint64_t)Health::PARKING:   return "PARKING";
             default:                          return nullptr;
@@ -77,7 +77,7 @@ namespace Botanik { namespace Plc {
         switch (h) {
             case Health::HEALTHY:  return "HEALTHY";
             case Health::DEGRADED: return "DEGRADED";
-            case Health::FAULTED:   return "FAULTED";
+            case Health::INVALID:   return "INVALID";
             case Health::INHIBITED: return "INHIBITED";
             case Health::PARKING:   return "PARKING";
             default:                return "?";
@@ -111,8 +111,8 @@ namespace Botanik { namespace Plc {
          *  driving toward its fail position. */
         bool           _travelling    = false;
         /** @brief Whether setup decided this program cannot be wired. Latches
-         *  _health at FAULTED and stops it ever being activated. */
-        bool           _faulted       = false;
+         *  _health at INVALID and stops it ever being activated. */
+        bool           _invalid       = false;
         /** @brief Where health is published, and what was last LOGGED there.
          *  0xFF is "nothing yet", so the first pass announces whatever it
          *  finds rather than only a change from HEALTHY. */
@@ -170,14 +170,14 @@ namespace Botanik { namespace Plc {
          *  What this program could do on its last activation. Re-derived each
          *  time, so a condition that clears is not sticky - a program that stops
          *  running keeps its last verdict, which is why withdrawal sets SAFE.
-         *  FAULTED is the exception: setup decides it, and nothing re-derives it.
+         *  INVALID is the exception: setup decides it, and nothing re-derives it.
          *  @{ */
 
         Health health() const { return _health; }
 
         /** @brief Whether setup found this program unwireable. It is never
          *  activated, so a reader asking why nothing is happening asks here. */
-        bool is_faulted() const { return _faulted; }
+        bool is_invalid() const { return _invalid; }
 
         /** @} */
 
@@ -210,17 +210,17 @@ namespace Botanik { namespace Plc {
         /** @brief Whether it has ARRIVED, not whether it was asked. What a
          *  supervisor waits on before it drops control.
          *
-         *  A FAULTED program counts: it is never activated, so it can neither
+         *  A INVALID program counts: it is never activated, so it can neither
          *  travel nor arrive, and waiting on one would hold the whole plant out
          *  of its reboot for ever. */
         bool is_parked() const {
-            return _health == Health::INHIBITED || _health == Health::FAULTED;
+            return _health == Health::INHIBITED || _health == Health::INVALID;
         }
 
         /** @brief Force the verdict without asking. For the authority gate,
          *  which drops every output to its declared safe state itself: the
          *  plant is out of this program's hands whether or not it agreed. */
-        void set_safe() { if (!_faulted) _health = Health::INHIBITED; }
+        void set_safe() { if (!_invalid) _health = Health::INHIBITED; }
 
         /** @} */
 
@@ -238,7 +238,7 @@ namespace Botanik { namespace Plc {
          *  For a dependency that is null rather than a name that is missing -
          *  an unresolved name is caught by _bind_input() and its two siblings
          *  without the program asking. Permanent either way. */
-        void fault() { _faulted = true; }
+        void invalidate() { _invalid = true; }
 
         /** @} */
 
@@ -341,10 +341,10 @@ namespace Botanik { namespace Plc {
             _io->begin_writer(_slot);
             bind(*_io);
             _io->end_writer();
-            if (_io->unresolved_count() != missed) fault();
-            // The one place FAULTED is decided. It outranks the INHIBITED a
+            if (_io->unresolved_count() != missed) invalidate();
+            // The one place INVALID is decided. It outranks the INHIBITED a
             // program starts at, and no activation ever revisits it.
-            if (_faulted) _health = Health::FAULTED;
+            if (_invalid) _health = Health::INVALID;
         }
 
         /** @} */
@@ -376,7 +376,7 @@ namespace Botanik { namespace Plc {
             // observe(), not even the lateness. Its refs are inert sinks, so
             // every value it produced would be a zero indistinguishable from a
             // reading, and its verdict stands from setup for the life of the run.
-            if (_faulted) return;
+            if (_invalid) return;
 
             // Against the program's OWN period, not the beat: 40 ms late is
             // fine for a 1 s program and not for a 100 ms one.
@@ -428,7 +428,7 @@ namespace Botanik { namespace Plc {
      *  Walked by a SUPERVISOR rather than written by each program in its own
      *  activation: a program that is not being activated is exactly the case a
      *  reader most wants the row for, and it cannot write its own row then.
-     *  @param quiet suppress the log during bring-up. FAULTED is said anyway -
+     *  @param quiet suppress the log during bring-up. INVALID is said anyway -
      *         setup is the only place it is reached. */
     void publish_health(Vars::Bank& io, const Tasks::Registry& r,
                         Logs::Logger* logger, bool quiet);

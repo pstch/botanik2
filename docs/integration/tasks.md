@@ -79,7 +79,7 @@ inline void StratSensor::bind(Vars::Bank& io) {
 directly, and each checks what the declaration promised: that the name exists,
 that the row's type is one the reference can carry, and - for an output - that
 no other program has already claimed it. A failure is logged with the name that
-caused it and the program is FAULTED for the life of the run, so it never
+caused it and the program is INVALID for the life of the run, so it never
 activates. Nothing there is about a row's VALIDITY: that is the law's business,
 in `run()` or `observe()`.
 

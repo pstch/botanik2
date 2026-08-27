@@ -134,7 +134,7 @@ mismatch beats a deduction conflict naming nothing.
 **Declaring an output claims it, at bind time.** A program's `bind()` runs
 inside its own writer window, so `_bind_output()` claims the row there and then.
 Two programs producing one row is therefore a *bring-up* failure: the second one
-is refused and FAULTED, naming the first. `report_writer_conflicts()` still
+is refused and INVALID, naming the first. `report_writer_conflicts()` still
 covers what declaration cannot - a program that reaches a row it never declared
 - rather than something noticed on whichever beat both first happened to write,
 which for a row only a fault path drives could be months in. `drive()` still claims on every
@@ -163,7 +163,7 @@ Every program answers for itself with a `Plc::Health`:
 |---|---|---|
 | `HEALTHY` | 0 | normal operation, every output valid |
 | `DEGRADED` | 1 | an input is invalid; the outputs are still driven |
-| `FAULTED` | 2 | could not be wired at bring-up; never runs |
+| `INVALID` | 2 | could not be wired at bring-up; never runs |
 | `INHIBITED` | 3 | control stopped and actuators parked; still reporting |
 | `PARKING` | 4 | control stopped, actuators still travelling |
 
@@ -176,11 +176,11 @@ are decided rather than compared.
 
 **Health is re-derived every activation**, so a condition that clears is not
 sticky. A program that never calls `degraded()` is one whose `run()` cannot fail,
-and it reads healthy rather than unknown. `FAULTED` is the one exception, below.
+and it reads healthy rather than unknown. `INVALID` is the one exception, below.
 
-### FAULTED is decided in setup, and only there
+### INVALID is decided in setup, and only there
 
-A program is `FAULTED` when it could not be **wired**: `bind()` named a row no
+A program is `INVALID` when it could not be **wired**: `bind()` named a row no
 table declares, or a dependency it was handed is null. Nothing about that gets
 better, so it is set once during setup and no activation revisits it.
 
@@ -193,7 +193,7 @@ Two ways in. A binding the base can see is wrong is caught without the
 program asking: `_bind_input()`, `_bind_output()` and `_bind_inout()` refuse a
 name no table declares, a row the reference cannot carry, and an output another
 program has already claimed - logging which, and faulting. A null dependency the
-program has to declare itself, with `fault()`, from `bind()`.
+program has to declare itself, with `invalidate()`, from `bind()`.
 
 It counts as parked for the reboot handshake. A program that will never run can
 neither travel nor arrive, and waiting on one would hold the plant out of its
@@ -249,7 +249,7 @@ ALREADY where a reboot needs it.
 | `run()` | every activation, inhibited or not | the control law, and driving to the fail position |
 | `observe()` | every activation, in every state | status values, alarm conditions |
 
-Neither runs on a `FAULTED` program.
+Neither runs on a `INVALID` program.
 
 An actuator moved from `observe()` would move while the program is inhibited,
 which is the one thing that state promises does not happen.
@@ -263,7 +263,7 @@ write its own then.
 
 | entering | level |
 |---|---|
-| `FAULTED` | critical |
+| `INVALID` | critical |
 | `DEGRADED` | warning |
 | `HEALTHY`, `INHIBITED`, `PARKING` | notice |
 
@@ -272,12 +272,12 @@ the only record that a plant went to its safe state is one the hardware never
 keeps. The whole set of them lands on one deliberate operator command.
 
 `HEALTH_QUIET_MS` suppresses the log for the first seconds so bring-up does not
-announce the first verdict of every program. `FAULTED` is exempt: setup is the
+announce the first verdict of every program. `INVALID` is exempt: setup is the
 only place it is reached, so obeying the window would mean an unwireable program
 was never reported at all.
 
 `programs status` is the on-demand view - a tally per state, with the members of
-`FAULTED`, `DEGRADED` and `PARKING` named. `HEALTHY` and `INHIBITED` are counted
+`INVALID`, `DEGRADED` and `PARKING` named. `HEALTHY` and `INHIBITED` are counted
 and not listed: with control withheld or before the first scan every program is
 inhibited, and a screen of names says less than the number does.
 

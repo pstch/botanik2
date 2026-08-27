@@ -530,8 +530,8 @@ TEST_CASE("bind: a name no table declares is refused, and says which") {
     p.register_tasks();
     reg.setup(0);
 
-    CHECK(p.is_faulted());
-    CHECK(p.health() == Plc::Health::FAULTED);
+    CHECK(p.is_invalid());
+    CHECK(p.health() == Plc::Health::INVALID);
     CHECK(f.writer.saw("ghost: cannot bind 'no_such_row_anywhere'"));
     CHECK(f.writer.saw("no such row"));
 }
@@ -548,7 +548,7 @@ TEST_CASE("bind: a row the reference cannot carry is refused, not read sideways"
     p.register_tasks();
     reg.setup(0);
 
-    CHECK(p.is_faulted());
+    CHECK(p.is_invalid());
     CHECK(f.writer.saw("mistyped: cannot bind 'cli_rainLockout'"));
     CHECK(f.writer.saw("wrong type"));
 }
@@ -565,8 +565,8 @@ TEST_CASE("bind: an output another program already drives is refused, and names 
     wire_two(reg, first, second);
 
     INFO("first claim wins: the loser is the one that cannot be wired");
-    CHECK_FALSE(first.is_faulted());
-    CHECK(second.is_faulted());
+    CHECK_FALSE(first.is_invalid());
+    CHECK(second.is_invalid());
     CHECK(f.writer.saw("second: cannot bind 'cli_dTStrat_degC'"));
     CHECK(f.writer.saw("already driven, by 'first'"));
 }
@@ -581,8 +581,8 @@ TEST_CASE("bind: VAR_IN_OUT is shared by declaration, so two of them is not a fa
                  OneBinding::INOUT_, row);
     wire_two(reg, a, b);
 
-    CHECK_FALSE(a.is_faulted());
-    CHECK_FALSE(b.is_faulted());
+    CHECK_FALSE(a.is_invalid());
+    CHECK_FALSE(b.is_invalid());
 }
 
 TEST_CASE("bind: the rows a program reads are recorded, outputs are not") {
@@ -594,13 +594,13 @@ TEST_CASE("bind: the rows a program reads are recorded, outputs are not") {
     p.register_tasks();
     reg.setup(0);
 
-    CHECK_FALSE(p.is_faulted());
+    CHECK_FALSE(p.is_invalid());
     REQUIRE(p.input_count() == 1);
     CHECK(p.inputs()[0].index == f.bank.find("cli_temp_hi").index);
     CHECK_FALSE(p.input_overflow());
 }
 
-TEST_CASE("health: a program setup could not wire is FAULTED, and never runs") {
+TEST_CASE("health: a program setup could not wire is INVALID, and never runs") {
     Fixture f;
     Botanik::Tasks::Registry reg;
     Health::HealthMonitor h(Botanik::SetupContext(reg, &f.log), &f.sched, &f.bank);
@@ -612,8 +612,8 @@ TEST_CASE("health: a program setup could not wire is FAULTED, and never runs") {
     reg.setup(0);
     f.auth.set_health_hold(false);
 
-    CHECK(bad.health() == Plc::Health::FAULTED);
-    CHECK(bad.is_faulted());
+    CHECK(bad.health() == Plc::Health::INVALID);
+    CHECK(bad.is_invalid());
 
     uint64_t t = SETTLED;
     beat(reg, h, t, 20);
@@ -621,7 +621,7 @@ TEST_CASE("health: a program setup could not wire is FAULTED, and never runs") {
          "read exactly like readings");
     CHECK(bad.ran == 0);
     CHECK(bad.observed == 0);
-    CHECK(bad.health() == Plc::Health::FAULTED);
+    CHECK(bad.health() == Plc::Health::INVALID);
 
     INFO("and it counts as parked: one that will never run can never arrive, "
          "and waiting on it would hold the plant out of its reboot for ever");
@@ -629,9 +629,9 @@ TEST_CASE("health: a program setup could not wire is FAULTED, and never runs") {
     CHECK(reg.all_safe());
 }
 
-TEST_CASE("health: FAULTED is said even though bring-up is quiet") {
+TEST_CASE("health: INVALID is said even though bring-up is quiet") {
     // The quiet window exists so the first verdict of every program is adopted
-    // in silence. FAULTED is only ever reached in setup, so obeying it would
+    // in silence. INVALID is only ever reached in setup, so obeying it would
     // mean an unwireable program was never reported at all.
     Fixture f;
     Botanik::Tasks::Registry reg;
@@ -647,7 +647,7 @@ TEST_CASE("health: FAULTED is said even though bring-up is quiet") {
     uint64_t t = 0;
     beat(reg, h, t, 20);
     REQUIRE(t < Config::HEALTH_QUIET_MS);
-    CHECK(f.writer.saw("unwireable: FAULTED"));
+    CHECK(f.writer.saw("unwireable: INVALID"));
     CHECK(f.writer.last_level == Logs::LOG_CRITICAL);
 }
 

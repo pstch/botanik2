@@ -597,12 +597,12 @@ TEST_CASE("program: a name that resolves to nothing FAULTS the program that aske
          "and say nothing at all - the program says it instead");
     d.step(100);
     CHECK(live.bank.unresolved_count() == 1);
-    CHECK(p.health() == Plc::Health::FAULTED);
+    CHECK(p.health() == Plc::Health::INVALID);
 
     INFO("and it stays said: the ref never stops being the sink, so a later "
          "activation cannot read as healthy");
     d.step(200);
-    CHECK(p.health() == Plc::Health::FAULTED);
+    CHECK(p.health() == Plc::Health::INVALID);
 }
 
 TEST_CASE_FIXTURE(Rig<Site::IrrValves>, "programs: one switched off parks its own valves before it stops") {

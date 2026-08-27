@@ -54,7 +54,7 @@ namespace Botanik { namespace Plc {
         }
 
         if (why != nullptr) {
-            fault();
+            invalidate();
             if (_logger != nullptr)
                 _logger->error(Logs::BOOT, "%s: cannot bind '%s'\n%s%s%s",
                                this->name(), name, why,
@@ -110,12 +110,12 @@ namespace Botanik { namespace Plc {
             // operator command, which is a rare and deliberate act.
             //
             // The quiet window exists so bring-up does not announce the first
-            // verdict of every program, and FAULTED is exempt from it: setup is
+            // verdict of every program, and INVALID is exempt from it: setup is
             // the only place that verdict is reached, so obeying quiet would
             // mean an unwireable program was never reported at all.
-            if (logger != nullptr && (!quiet || h == Health::FAULTED)) {
-                if (h == Health::FAULTED)
-                    logger->critical(Logs::PROGRAM, "%s: FAULTED", p->name());
+            if (logger != nullptr && (!quiet || h == Health::INVALID)) {
+                if (h == Health::INVALID)
+                    logger->critical(Logs::PROGRAM, "%s: INVALID", p->name());
                 else if (h == Health::DEGRADED)
                     logger->warning(Logs::PROGRAM, "%s: DEGRADED", p->name());
                 else
