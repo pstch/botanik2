@@ -469,6 +469,8 @@ namespace Botanik { namespace Terminal {
         /** @brief Buffer-position-to-screen-position map. O(_layout.count). */
         CursorPos _map_cursor_pos(uint16_t pos) const;
 
+        /** @} */
+
         /**
          * @name Viewport
          *
@@ -582,6 +584,9 @@ namespace Botanik { namespace Terminal {
         void _record_painted();
 
         /** @} */
+
+        /** @name Row placement and cursor
+         *  @{ */
 
         /** @brief Declare which rows the editor occupies now. Called whenever the
          *  extent may have moved. */

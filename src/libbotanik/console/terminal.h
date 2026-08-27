@@ -212,6 +212,9 @@ namespace Botanik { namespace Terminal {
         /** @brief Blank the active region of both grids - after a physical
          *  clear, the wire is blank and nothing is drawn. */
         void _reset_grids();
+
+        /** @} */
+
         /** @name present() phases
          *  @{ */
         /** @brief Emit each pending band DL/IL, shifting BACK on success. */
@@ -225,7 +228,6 @@ namespace Botanik { namespace Terminal {
         /** @brief Reconcile cursor visibility and park it: at the edit point when
          *  a renderer wants it visible, else idle in the bottom-right corner. */
         void _park_cursor();
-        /** @} */
 
         /** @} */
 
