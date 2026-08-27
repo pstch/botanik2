@@ -128,9 +128,10 @@ moves the field's end.
 
 **The row filter is the base's, the predicate the page's.** The base holds the
 typed text, the keys that edit it (typing appends, `BACKSPACE` pops, `ESC`
-clears) and a GENERATION counter it bumps on every change; a page calls
-`_filter_match()` from its own row predicate and caches whatever that walk costs
-against `_filter_gen`. Nothing per-page decides what a filter IS, so the four
+clears), the matching rule (`Utils::glob_ci()`: a substring until the pattern
+carries a `*` or `?`, then anchored at both ends) and a GENERATION counter it
+bumps on every change; a page calls `_filter_match()` from its own row predicate
+and caches whatever that walk costs against `_filter_gen`. Nothing per-page decides what a filter IS, so the four
 tables cannot drift on it - only on which cell they match against (the variable,
 parameter, condition or task name). View MODES stay a separate axis, on the same
 `LEFT`/`RIGHT` keys: `AlarmsPage` selects on what an alarm is doing, `MonitorPage`

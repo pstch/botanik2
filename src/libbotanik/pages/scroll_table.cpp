@@ -165,7 +165,7 @@ namespace Botanik { namespace Pages {
 
     bool ScrollTablePage::_filter_match(const char* s) const {
         if (_filter_n == 0) return true;
-        return Utils::contains_ci(s, _filter);
+        return Utils::glob_ci(s, _filter);
     }
 
     bool ScrollTablePage::_filter_text(char c) {
