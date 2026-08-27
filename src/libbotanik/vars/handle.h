@@ -79,6 +79,14 @@ namespace Botanik { namespace Vars {
         /** @brief What the row would read with nothing forced. */
         Value live() const { return Value{ _under(), _d, _d->type, _v->qual }; }
 
+        /** @brief The row's DECLARED value, as a Value ready to convert.
+         *
+         *  What a control program reads in place of a row that is not
+         *  believable: a number somebody chose and reviewed, rather than a
+         *  reading of unbounded age. Q_GOOD because the substitution is not in
+         *  doubt - whether the ROW is, is what valid() answers. */
+        Value declared() const { return Value{ _d->def, _d, _d->type, Q_GOOD }; }
+
         /** @brief The force, or Q_NONE when there is none. Recorded, not
          *  necessarily driving: CONTROL_DISABLED MUTES an override without
          *  erasing it, and a muted one is still there and still worth showing. */

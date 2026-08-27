@@ -112,12 +112,19 @@ TEST_CASE_FIXTURE(Rig<Site::TempRHSensors>, "zone: with every probe gone the rea
     CHECK_FALSE(live.bank.var(hi.r).valid());
     CHECK(live.bank.var(hi.r).value().q == Q_UNCERTAIN);
 
-    // ...and the VALUE is the last average this zone could make. A reader that
-    // does not test quality gets the temperature the greenhouse last had rather
-    // than the declared default, which is 0 degC and reads like a measurement
-    // of a freezing house.
-    INFO("and it holds the last average rather than dropping to its default");
-    CHECK(live.bank.get(hi) == doctest::Approx(21.0f));
+    // The two readers see different things, and that is the whole design. The
+    // ROW holds the last average this zone could make, so an operator chasing
+    // a dead probe finds what the house last really was...
+    INFO("the row holds the last average, for whoever is diagnosing it");
+    CHECK(live.bank.var(hi.r).as_f32() == doctest::Approx(21.0f));
+
+    // ...while a control program reading through its typed reference gets the
+    // DECLARED value: a number somebody chose and reviewed, rather than a
+    // reading of unbounded age that looks exactly like a fresh one.
+    const Vars::Descriptor& d = live.bank.descriptor(hi.r.index);
+    INFO("a law reading it gets the declared value instead");
+    CHECK(live.bank.get(hi) == doctest::Approx(Vars::as_f32(d.type, d.def)));
+    CHECK(live.bank.get(hi) != doctest::Approx(21.0f));
 }
 
 TEST_CASE_FIXTURE(Rig<Site::TempRHSensors>, "zone: a zone that has never been measured has nothing to hold") {

@@ -324,10 +324,23 @@ namespace Botanik { namespace Vars {
          *  a digital as a float, or driving a VAR_INPUT, does not compile.
          *  @{ */
 
-        /** @brief Read @p h. Every direction reads - a POU may read its own
-         *  output. */
+        /** @brief Read @p h, or the row's DECLARED value when it is not
+         *  believable. Every direction reads - a POU may read its own output.
+         *
+         *  The substitution is the whole of the cascade rule on the read side:
+         *  a law computes on a number somebody chose rather than on a reading
+         *  of unbounded age, and says so by flagging its own output. Only the
+         *  typed reference does it - the pages, the telemetry and the register
+         *  map read through Var, so an operator looking for what a dead probe
+         *  LAST said still finds it.
+         *  @note An override reads as the force: valid() is asked of the value
+         *  in effect, so a forced row is believable and never substituted. */
         template <typename T, Dir D>
-        T get(Ref<T, D> h) const { return RefIo<T>::read(*this, h.r); }
+        T get(Ref<T, D> h) const {
+            const Var v = var(h.r);
+            return v.valid() ? RefIo<T>::read(*this, h.r)
+                             : RefIo<T>::of(v.declared());
+        }
 
         /** @brief Drive @p h. @p V is CHECKED against @p T, not converted, so a
          *  mismatch names itself instead of reporting a deduction conflict.
@@ -656,6 +669,7 @@ namespace Botanik { namespace Vars {
     template <> struct RefIo<bool> {
         static bool accepts(VarType t)             { return t == T_BOOL; }
         static bool read(const Bank& b, VarRef r)  { return b.var(r).as_bool(); }
+        static bool of(Value v)                    { return v.as_bool(); }
         static void write(Bank& b, VarRef r, bool v) { b.var(r).set(v); }
         static SetResult edit(Bank& b, VarRef r, bool v) { return b.param_set(b.var(r), v); }
     };
@@ -663,6 +677,7 @@ namespace Botanik { namespace Vars {
     template <> struct RefIo<float> {
         static bool  accepts(VarType t)              { return t == T_F32; }
         static float read(const Bank& b, VarRef r)   { return b.var(r).as_f32(); }
+        static float of(Value v)                     { return v.as_f32(); }
         static void  write(Bank& b, VarRef r, float v) { b.var(r).set(v); }
         static SetResult edit(Bank& b, VarRef r, float v) { return b.param_set(b.var(r), v); }
     };
@@ -672,6 +687,7 @@ namespace Botanik { namespace Vars {
         template <> struct RefIo<TYPE> {                                       \
             static bool accepts(VarType t)            { return ref_whole(t); } \
             static TYPE read(const Bank& b, VarRef r) { return b.var(r).value().as<TYPE>(); } \
+            static TYPE of(Value v)                   { return v.as<TYPE>(); } \
             static void write(Bank& b, VarRef r, TYPE v) { b.var(r).set_i((int64_t)v); } \
             static SetResult edit(Bank& b, VarRef r, TYPE v)                   \
                 { return b.param_set_i(b.var(r), (int64_t)v); }                \
