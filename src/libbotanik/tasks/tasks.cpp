@@ -172,7 +172,7 @@ namespace Botanik { namespace Tasks {
     void Registry::_push_safe() {
         const bool on = safe_requested();
         for (uint8_t i = 0; i < _count; i++)
-            if (_tasks[i].program != nullptr) _tasks[i].program->request_safe(on);
+            if (_tasks[i].program != nullptr) _tasks[i].program->hold_safe(on);
     }
 
     bool Registry::all_safe() const {
@@ -203,11 +203,10 @@ namespace Botanik { namespace Tasks {
         // program stops being activated and would otherwise keep reporting the
         // verdict of whatever beat happened to be its last, which for a
         // supervisor reads as a plant still in hand.
-        if (!enabled) {
-            for (uint8_t i = 0; i < _count; i++)
-                if (_tasks[i].program != nullptr) _tasks[i].program->set_safe();
-            return;
-        }
+        // Withholding authority IS a plant-wide safe ask - a program that is
+        // not called cannot park its own valve - so it goes through the one
+        // path rather than a special case that forced the verdict by hand.
+        if (!enabled) { _push_safe(); return; }
 
         for (uint8_t i = 0; i < _count; i++) {
             if (_tasks[i].program == nullptr) continue;
@@ -236,9 +235,7 @@ namespace Botanik { namespace Tasks {
             // drives its own actuators there, and one that stops running cannot
             // close a valve. The plant-wide gate parks them itself
             // (set_programs_enabled), so those are already is_parked() here.
-            if (t.program != nullptr &&
-            (!_programs_enabled || t.program->disable_requested()) &&
-                t.program->is_parked()) continue;
+            if (t.program != nullptr && !t.program->wants_activation()) continue;
 
             uint32_t dt = 0; uint16_t missed = 0;
             if (!t.timer.due(now_ms, group_period_ms(t.group), dt, missed)) continue;
@@ -276,11 +273,15 @@ namespace Botanik { namespace Tasks {
     // Per-program enable
 
     namespace {
-        /** "prog.<name>", one key per program: no layout to version, like the
+        /** "pmode.<name>", one key per program: no layout to version, like the
          *  parameter and override keys. False when the name would not fit -
-         *  a truncated key would collide with another program's. */
+         *  a truncated key would collide with another program's.
+         *
+         *  NOT "prog.", which held a 0/1 enabled flag: 1 is Mode::SAFE in this
+         *  vocabulary, so reading an old key back would quietly take a running
+         *  program out of service. Old keys are left as orphans. */
         bool _prog_key(const char* name, char* buf, size_t cap) {
-            const int n = snprintf(buf, cap, "prog.%s", name);
+            const int n = snprintf(buf, cap, "pmode.%s", name);
             return n > 0 && (size_t)n < cap;
         }
     }
@@ -294,14 +295,14 @@ namespace Botanik { namespace Tasks {
         return -1;
     }
 
-    bool Registry::program_enabled(uint8_t i) const {
-        // Off the PROGRAM, which is where the flag lives. A copy on the Task
-        // beside it was a second answer to one question, and request_disable()
-        // is public - so anything that set it directly left this reporting the
+    Plc::Mode Registry::program_mode(uint8_t i) const {
+        // Off the PROGRAM, which is where the mode lives. A copy on the Task
+        // beside it was a second answer to one question, and the setter is
+        // public - so anything that set it directly left this reporting the
         // state before.
         const Task* t = _program_task(i);
-        return (t != nullptr) && t->program != nullptr &&
-               !t->program->disable_requested();
+        return (t != nullptr && t->program != nullptr) ? t->program->operator_mode()
+                                                       : Plc::Mode::NORMAL;
     }
 
     bool Registry::program_unsaved(uint8_t i) const {
@@ -309,22 +310,23 @@ namespace Botanik { namespace Tasks {
         return (t != nullptr) && t->enable_unsaved;
     }
 
-    bool Registry::set_program_enabled(uint8_t i, bool on, uint64_t now_ms) {
+    bool Registry::set_program_mode(uint8_t i, Plc::Mode m, uint64_t now_ms) {
         Task* tp = _program_task(i);
         if (tp == nullptr) return false;
         Task& t = *tp;
         if (t.program == nullptr) return false;
-        if (!t.program->disable_requested() == on)
-            return true;                       // idempotent, and not a new edit
+        const Plc::Mode was = t.program->operator_mode();
+        if (was == m) return true;             // idempotent, and not a new edit
         t.enable_unsaved = true;
-        // The operator's own switch, beside the system's. Asking rather than
-        // just gating: the program has to run to drive its actuators to the
-        // fail position, and run_phase() keeps activating it until it has.
-        t.program->request_disable(!on);
-        // The reseed control authority does, for the same reason: without it the
-        // first activation back reports the whole outage as its dt, and a dwell
-        // timer handed an hour of it fires the instant the program returns.
-        if (on) { t.timer.reseed(now_ms); t.first_activation = true; }
+        // The operator's own ask, beside the system's. Asking rather than just
+        // gating: the program has to run to drive its actuators to the fail
+        // position, and run_phase() keeps activating it until it has.
+        t.program->set_operator_mode(m);
+        // The reseed control authority does, and only on the way UP: without it
+        // the first activation back reports the whole outage as its dt, and a
+        // dwell timer handed an hour of it fires the instant the program
+        // returns. Going the other way there is no outage to hide.
+        if (m > was) { t.timer.reseed(now_ms); t.first_activation = true; }
         return true;
     }
 
@@ -334,8 +336,8 @@ namespace Botanik { namespace Tasks {
         Task& t = *tp;
         char key[HAL::Storage::KEY_MAX];
         if (!_prog_key(t.name, key, sizeof(key))) return false;
-        const uint8_t byte = (t.program != nullptr &&
-                              !t.program->disable_requested()) ? 1u : 0u;
+        const uint8_t byte = (t.program != nullptr)
+                                 ? (uint8_t)t.program->operator_mode() : 3u;
         if (!HAL::Storage::set(key, &byte, 1)) return false;
         t.enable_unsaved = false;              // cleared only on a write that landed
         return true;
@@ -362,7 +364,11 @@ namespace Botanik { namespace Tasks {
             // Nothing stored is the normal case: a program runs unless it was
             // deliberately taken out.
             if (!HAL::Storage::get(key, &byte, 1, &got) || got != 1) continue;
-            if (t.program != nullptr) t.program->request_disable(byte == 0);
+            // A byte outside the vocabulary is ignored: bring-up must not take
+            // a program out of service because one flash cell went bad.
+            if (byte > (uint8_t)Plc::Mode::NORMAL) continue;
+            if (t.program != nullptr)
+                t.program->set_operator_mode((Plc::Mode)byte);
             t.enable_unsaved = false;
         }
     }

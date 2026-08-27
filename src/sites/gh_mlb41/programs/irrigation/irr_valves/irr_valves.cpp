@@ -17,7 +17,7 @@ void IrrValves::on_bind() {
 
 void IrrValves::run(ProgramContext& c) {
     (void)c;
-    if (inhibit_requested()) {
+    if (going_safe()) {
         for (uint8_t i = 0; i < 2; i++) {
             inlet_v[i].park();
             outlet_v[i].park();

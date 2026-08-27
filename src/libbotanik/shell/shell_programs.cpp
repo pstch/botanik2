@@ -61,11 +61,15 @@ namespace Botanik { namespace Shell {
                 const Plc::Program* p = reg->program(i);
                 if (p == nullptr) continue;
                 if (!Utils::glob_bounded(p->name(), nm, wn)) continue;
-                const bool on = reg->program_enabled(i);
-                if (!on) off++;
+                const Plc::Mode m = reg->program_mode(i);
+                if (m != Plc::Mode::NORMAL) off++;
                 if (reg->program_unsaved(i)) unsaved++;
-                _emitf(out, sizeof(out), "  %-20s %-8s%s", p->name(),
-                       on ? "enabled" : "DISABLED",
+                // The COMMANDED rung beside the EFFECTIVE verdict. Both,
+                // because the plant's own ask is weighed with the operator's -
+                // one column would leave "it says safe, why is it still
+                // moving" unanswerable.
+                _emitf(out, sizeof(out), "  %-20s %-9s %-9s%s", p->name(),
+                       Plc::mode_name(m), Plc::health_name(p->health()),
                        reg->program_unsaved(i) ? " (unsaved)" : "");
                 shown++;
             }
@@ -79,8 +83,16 @@ namespace Botanik { namespace Shell {
         }
 
         if (arg_eq(verb, wv, "status"))  { _programs_status();            return; }
-        if (arg_eq(verb, wv, "enable"))  { _programs_gate(nm, wn, true);  return; }
-        if (arg_eq(verb, wv, "disable")) { _programs_gate(nm, wn, false); return; }
+        // The verb IS the rung. `release` is an alias for `enable`, which reads
+        // better against the three that take something away.
+        if (arg_eq(verb, wv, "enable") || arg_eq(verb, wv, "release"))
+            { _programs_mode(nm, wn, Plc::Mode::NORMAL);    return; }
+        if (arg_eq(verb, wv, "inhibit"))
+            { _programs_mode(nm, wn, Plc::Mode::INHIBITED); return; }
+        if (arg_eq(verb, wv, "safe"))
+            { _programs_mode(nm, wn, Plc::Mode::SAFE);      return; }
+        if (arg_eq(verb, wv, "disable"))
+            { _programs_mode(nm, wn, Plc::Mode::DISABLED);  return; }
         if (arg_eq(verb, wv, "save"))    { _programs_save(nm, wn);        return; }
 
         _verb_usage("programs");
@@ -120,9 +132,13 @@ namespace Botanik { namespace Shell {
         // Named, worst first. HEALTHY and INHIBITED are counted and not listed:
         // with control withheld or before the first scan EVERY program is
         // inhibited, and a screen of names says less than the number does.
+        // SAFE is named too: a program can reach it UNASKED, through its own
+        // go_safe(), so a tally alone would leave an operator with no way to
+        // find which law took itself out.
         static const Plc::Health NAMED[] = { Plc::Health::INVALID,
                                              Plc::Health::DEGRADED,
-                                             Plc::Health::PARKING };
+                                             Plc::Health::PARKING,
+                                             Plc::Health::SAFE };
         for (Plc::Health h : NAMED) {
             const uint8_t code = (uint8_t)h;
             if (tally[code] == 0) continue;
@@ -143,33 +159,35 @@ namespace Botanik { namespace Shell {
         }
     }
 
-    void CommandShell::_programs_gate(const char* nm, uint16_t wn, bool on) {
+    void CommandShell::_programs_mode(const char* nm, uint16_t wn, Plc::Mode m) {
         Tasks::Registry* reg = _registry();
         char out[128];
         if (reg == nullptr) { _println("programs: no task table"); return; }
         const uint64_t now = HAL::Clock::uptime_ms();
 
-        if (nm == nullptr) { _verb_usage("programs", on ? "enable" : "disable"); return; }
+        if (nm == nullptr) { _verb_usage("programs", Plc::mode_name(m)); return; }
 
         if (arg_is_all(nm, wn)) {
             const uint8_t n = reg->program_count();
             uint8_t moved = 0;
             for (uint8_t i = 0; i < n; i++) {
-                if (reg->program_enabled(i) == on) continue;
-                if (reg->set_program_enabled(i, on, now)) moved++;
+                if (reg->program_mode(i) == m) continue;
+                if (reg->set_program_mode(i, m, now)) moved++;
             }
-            _emitf(out, sizeof(out), "programs: %u %s%s", moved,
-                   on ? "enabled" : "disabled",
+            _emitf(out, sizeof(out), "programs: %u %s%s", moved, Plc::mode_name(m),
                    moved == 0 ? "" : "  (unsaved: `programs save all`)");
             return;
         }
 
         const int16_t i = reg->find_program(nm, wn);
         if (i < 0) { _println("programs: unknown program"); return; }
-        reg->set_program_enabled((uint8_t)i, on, now);
-        _emitf(out, sizeof(out), "%s: %s  (unsaved: `programs save %s`)",
-               reg->program((uint8_t)i)->name(), on ? "enabled" : "disabled",
-               reg->program((uint8_t)i)->name());
+        reg->set_program_mode((uint8_t)i, m, now);
+        const Plc::Program* p = reg->program((uint8_t)i);
+        // What was ASKED and where it is NOW, because parking is work: a rung
+        // is reached over several beats and the first answer is PARKING.
+        _emitf(out, sizeof(out), "%s: %s, now %s  (unsaved: `programs save %s`)",
+               p->name(), Plc::mode_name(m), Plc::health_name(p->health()),
+               p->name());
     }
 
     void CommandShell::_programs_save(const char* nm, uint16_t wn) {
@@ -205,7 +223,7 @@ namespace Botanik { namespace Shell {
     void CommandShell::_cmd_programs(const char*, uint16_t) {
         _println("programs: this build has no scan cycle");
     }
-    void CommandShell::_programs_gate(const char*, uint16_t, bool) {}
+    void CommandShell::_programs_mode(const char*, uint16_t, Plc::Mode) {}
     void CommandShell::_programs_save(const char*, uint16_t) {}
     void CommandShell::_programs_status() {}
 

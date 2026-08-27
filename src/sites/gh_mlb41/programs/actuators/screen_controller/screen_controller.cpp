@@ -47,7 +47,7 @@ void ScreenController::run(ProgramContext& c) {
     // the roof all night, and the fabric is what stops it. Free, too: the coil
     // is de-energised there.
     bool deploy = true;
-    if (!inhibit_requested()) {
+    if (!going_safe()) {
         // An unknown cooling demand DEPLOYS it: that is this one's safe state,
         // and it should never be reached - the interior is measured by three
         // probes at each of two levels precisely so that it is not.

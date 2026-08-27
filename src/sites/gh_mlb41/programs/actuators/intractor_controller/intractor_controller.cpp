@@ -23,7 +23,7 @@ void IntractorController::run(ProgramContext& c) {
     // demand below it simply does not reach it.
     float speed = _safe_speed;
 
-    if (!inhibit_requested()) {
+    if (!going_safe()) {
         const bool  dem_ok = cool_dem.valid();
         const float cool    = cool_dem.get();
         if (!dem_ok) degraded();

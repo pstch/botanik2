@@ -9,6 +9,7 @@
 #include <cstddef>
 #include <cstdint>
 
+#include "libbotanik/plc/mode.h"
 #include "libbotanik/console/editor.h"
 #include "libbotanik/console/terminal.h"
 #include "libbotanik/core/context.h"
@@ -334,7 +335,7 @@ namespace Botanik { namespace Shell {
          *  and how to make it durable. */
         void _override_reply(Vars::Var h, const char* verb);
         /** @brief `programs enable|disable <name>|all`. @p on is which. */
-        void _programs_gate(const char* nm, uint16_t wn, bool on);
+        void _programs_mode(const char* nm, uint16_t wn, Plc::Mode m);
         /** @brief `programs save <name>|all`. */
         void _programs_save(const char* nm, uint16_t wn);
         /** @brief `programs status`: a tally per health, and who is in the ones

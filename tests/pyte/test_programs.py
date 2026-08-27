@@ -29,7 +29,8 @@ def test_status_names_the_one_still_travelling(spawn):
 
     # The windows drive their rams to the seated position and say `parking()`
     # until the last one lands; everything else is where a reboot needs it on
-    # the activation it was asked.
+    # the activation it was asked. SAFE is what a plant-wide ask reaches -
+    # INHIBITED is the rung an operator takes ONE loop to, by hand.
     term.send(b"programs status" + keys.ENTER)
     assert term.wait_for("PARKING   windows"), "the travelling program is not named"
-    assert term.wait_for("INHIBITED"), "the arrived ones are not counted"
+    assert term.wait_for("SAFE"), "the arrived ones are not counted"

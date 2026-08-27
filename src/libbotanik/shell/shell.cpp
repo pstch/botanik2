@@ -149,9 +149,11 @@ namespace Botanik { namespace Shell {
 #if BOTANIK_FEATURE_PLC
             { "programs",  "...",       "the control programs in the scan",
                            "status               what each one is doing\n"
-                           "list [<pat>]         name, or a glob\n"
-                           "enable <name>|all\n"
-                           "disable <name>|all\n"
+                           "list [<pat>]         asked, and where it is\n"
+                           "enable <name>|all    run it (alias: release)\n"
+                           "inhibit <name>|all   stop the law, hold the outputs\n"
+                           "safe <name>|all      stop it, outputs to safe\n"
+                           "disable <name>|all   the same, and stop reporting\n"
                            "save <name>|all",                     G_TAB, false,
                                                                &CommandShell::_cmd_programs   },
 #endif

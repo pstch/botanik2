@@ -331,7 +331,7 @@ namespace {
 
     protected:
         void run(Botanik::ProgramContext&) override {
-            if (!inhibit_requested()) { parked_for = 0; return; }
+            if (!going_safe()) { parked_for = 0; return; }
             if (parked_for < travel) { parked_for++; parking(); }
         }
     };
@@ -458,13 +458,16 @@ TEST_CASE("health: a program on its way to safe reads PARKING, not HEALTHY") {
     CHECK(reg.unsafe_count() == 1);
 
     beat(reg, h, t, 20);
-    CHECK(slow.health() == Plc::Health::INHIBITED);
+    INFO("SAFE, not INHIBITED: the plant asked for the safe state, and the two "
+         "rungs are what a reader tells apart - INHIBITED is a loop taken by "
+         "hand, whose outputs stand where the law left them");
+    CHECK(slow.health() == Plc::Health::SAFE);
     CHECK(slow.is_parked());
 
     INFO("both are NOTICE: on the OPTA the minimum level is INFO, so a plant "
          "going to its safe state at DEBUG leaves no record at all");
     CHECK(f.writer.saw("slow: PARKING"));
-    CHECK(f.writer.saw("slow: INHIBITED"));
+    CHECK(f.writer.saw("slow: SAFE"));
     CHECK(f.writer.last_level == Logs::LOG_NOTICE);
 
     INFO("...and released, it says so on the way back up");
@@ -609,22 +612,22 @@ TEST_CASE("tasks: the operator's switch has one home, whichever end sets it") {
     p.register_tasks();
     reg.setup(0);
     REQUIRE(reg.program_count() == 1);
-    REQUIRE(reg.program_enabled(0));
+    REQUIRE(reg.program_mode(0) == Plc::Mode::NORMAL);
 
     INFO("through the registry, which is what the shell calls");
-    REQUIRE(reg.set_program_enabled(0, false, 100));
-    CHECK_FALSE(reg.program_enabled(0));
-    CHECK(p.disable_requested());
+    REQUIRE(reg.set_program_mode(0, Plc::Mode::DISABLED, 100));
+    CHECK(reg.program_mode(0) == Plc::Mode::DISABLED);
+    CHECK(p.operator_mode() == Plc::Mode::DISABLED);
 
-    // The other end of the same switch. It is public, so a copy of the flag on
+    // The other end of the same switch. It is public, so a copy of the mode on
     // the Task beside it would report the state before this call for ever.
     INFO("...and directly on the program, which is public and always was");
-    p.request_disable(false);
-    CHECK(reg.program_enabled(0));
+    p.set_operator_mode(Plc::Mode::NORMAL);
+    CHECK(reg.program_mode(0) == Plc::Mode::NORMAL);
 
     INFO("and a re-assert is not a new edit");
-    p.request_disable(true);
-    CHECK_FALSE(reg.program_enabled(0));
+    p.set_operator_mode(Plc::Mode::DISABLED);
+    CHECK(reg.program_mode(0) == Plc::Mode::DISABLED);
 }
 
 TEST_CASE("health: a program setup could not wire is INVALID, and never runs") {

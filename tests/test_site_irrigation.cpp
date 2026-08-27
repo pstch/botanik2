@@ -390,7 +390,7 @@ TEST_CASE_FIXTURE(IrrigationRig, "valves: each parks where its own row says it f
 
     // The VALVES are what park: the cycle decides the state, this drives the
     // coils, and each coil fails where its own row says it does.
-    valves.request_safe(true);
+    valves.set_operator_mode(Plc::Mode::SAFE);
     d.step(100);
 
     INFO("the inlet fails SHUT and the drains fail OPEN, so a filling tray empties");

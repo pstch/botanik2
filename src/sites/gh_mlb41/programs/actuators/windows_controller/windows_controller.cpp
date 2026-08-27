@@ -59,7 +59,7 @@ void WindowsController::run(ProgramContext& c) {
         // Stage 1 of the arbitration, and absolute: rain and wind shut the roof
         // whatever else is true, including the safe state below.
         _target = 0.0f;
-    } else if (inhibit_requested()) {
+    } else if (going_safe()) {
         _target = _safe_open;
     } else {
         // The cascade STOPS here. An unbelievable demand reads as the row's
@@ -90,7 +90,7 @@ void WindowsController::run(ProgramContext& c) {
         // it: one at a time means the last of the four is a minute behind the
         // first, and a supervisor that dropped control at the request would
         // leave three of them wherever they were.
-        if (inhibit_requested() &&
+        if (going_safe() &&
             (!act[i].known() || act[i].moving() ||
              fabsf(_target - act[i].position()) > cfg.deadband))
             parking();

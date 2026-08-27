@@ -10,6 +10,7 @@
 #include <cstdint>
 
 #include "libbotanik/core/component.h"
+#include "libbotanik/plc/mode.h"
 #include "libbotanik/core/context.h"   // ProgramContext
 #include "libbotanik/tasks/tasks.h"
 #include "libbotanik/vars/model.h"
@@ -50,12 +51,14 @@ namespace Botanik { namespace Plc {
         HEALTHY = 0,   ///< normal operation, every output valid
         DEGRADED,      ///< an input is invalid; the outputs are still driven
         INVALID,       ///< could not be wired at bring-up; never runs
-        INHIBITED,     ///< control stopped and actuators parked; still reporting
-        PARKING        ///< control stopped, actuators still travelling
+        INHIBITED,     ///< the law stopped, the outputs stand where it left them
+        PARKING,       ///< on the way to one of the two below
+        SAFE,          ///< the law stopped and the outputs are at their safe state
+        DISABLED       ///< the same, and it has stopped reporting too
     };
 
     /** @brief How many values Health has, so a per-state tally can be sized. */
-    constexpr uint8_t HEALTH_COUNT = 5;
+    constexpr uint8_t HEALTH_COUNT = 7;
 
     /** @brief A health CODE as a word: the converter a status row over this
      *  vocabulary takes the address of.
@@ -68,20 +71,17 @@ namespace Botanik { namespace Plc {
             case (uint64_t)Health::INVALID:   return "INVALID";
             case (uint64_t)Health::INHIBITED: return "INHIBITED";
             case (uint64_t)Health::PARKING:   return "PARKING";
+            case (uint64_t)Health::SAFE:      return "SAFE";
+            case (uint64_t)Health::DISABLED:  return "DISABLED";
             default:                          return nullptr;
         }
     }
 
-    /** @brief @p h as a word, for the TASKS page and the logs. */
+    /** @brief @p h as a word, for the TASKS page and the logs. The typed form
+     *  of health_label(), so the two vocabularies cannot drift. */
     inline const char* health_name(Health h) {
-        switch (h) {
-            case Health::HEALTHY:  return "HEALTHY";
-            case Health::DEGRADED: return "DEGRADED";
-            case Health::INVALID:   return "INVALID";
-            case Health::INHIBITED: return "INHIBITED";
-            case Health::PARKING:   return "PARKING";
-            default:                return "?";
-        }
+        const char* n = health_label((uint64_t)h);
+        return (n != nullptr) ? n : "?";
     }
 
     /**
@@ -99,17 +99,33 @@ namespace Botanik { namespace Plc {
         uint8_t        _slot  = Vars::WRITER_NONE;  ///< writer id stamped on rows it drives
         uint32_t       _late_ms     = 0;
         uint32_t       _late_max_ms = 0;
-        /** @brief INHIBITED until the first activation: before the scan runs at
-         *  all a program is not controlling anything, and reading HEALTHY there
-         *  would tell a supervisor the plant was in hand during bring-up. */
+        /** @brief DERIVED, never assigned from outside: refresh() computes it
+         *  from the mode and the flags below. Cached because a program that is
+         *  not being activated still needs a current verdict.
+         *
+         *  INHIBITED until the first activation: before the scan runs at all a
+         *  program is not controlling anything, and reading HEALTHY there would
+         *  tell a supervisor the plant was in hand during bring-up. */
         Health         _health = Health::INHIBITED;
-        /** @brief Whether a safe state has been ASKED for. Distinct from having
-         *  reached one, which is what @c _health says. */
-        bool           _safe_asked    = false;
-        bool           _disable_asked = false;
+        /** @name The three asks
+         *  Weighed by mode(), strictest wins. Independent by construction: the
+         *  operator's standing choice, the plant's, and the law's own.
+         *  @{ */
+        Mode           _op_mode    = Mode::NORMAL;
+        bool           _plant_safe = false;
+        bool           _self_safe  = false;
+        /** @} */
         /** @brief Set by parking() during one activation: the program is still
          *  driving toward its fail position. */
         bool           _travelling    = false;
+        /** @brief Whether it has ARRIVED. Set on an activation that did NOT
+         *  say parking(); cleared whenever the mode is back above SAFE, so a
+         *  program asked again parks from scratch. */
+        bool           _parked        = false;
+        /** @brief Whether this activation was short of an input. Its own flag
+         *  rather than a Health value, because the verdict is derived and
+         *  DEGRADED has to outrank the state it may have caused. */
+        bool           _degraded      = false;
         /** @brief Whether setup decided this program cannot be wired. Latches
          *  _health at INVALID and stops it ever being activated. */
         bool           _invalid       = false;
@@ -181,46 +197,63 @@ namespace Botanik { namespace Plc {
 
         /** @} */
 
-        /** @name Going safe
+        /** @name The mode ladder
          *
-         *  INHIBITED is REACHED, not commanded. A request tells a program to put
-         *  its own actuators where they belong; it keeps being activated while
-         *  it does, because a program that is not run cannot close a valve or
-         *  park a window. It reads PARKING for as long as it is travelling and
-         *  INHIBITED once it is there, and a supervisor waits for every program
-         *  before it acts - dropping control the instant the operator asked
-         *  would leave a half-travelled actuator wherever the request happened
-         *  to catch it.
+         *  Four rungs, each taking away one more thing, weighed from three
+         *  independent asks with the STRICTEST winning. @see plc/mode.h
+         *
+         *  A rung is REACHED, not commanded. Parking is work - a valve has
+         *  travel, a window has travel - so a program asked to go safe keeps
+         *  being activated while it drives there, reads PARKING for as long as
+         *  it is travelling, and only then reports where it arrived. A
+         *  supervisor waits on every program before it acts: dropping control
+         *  the instant the operator asked would leave a half-travelled actuator
+         *  wherever the request happened to catch it.
          *  @{ */
 
-        /** @brief Ask this program to reach its safe state, or release it. */
-        void request_safe(bool on) { _safe_asked = on; }
-        bool safe_requested() const { return _safe_asked; }
+        /** @brief The rung in force: the strictest of the three asks. */
+        Mode mode() const {
+            const Mode plant = _plant_safe ? Mode::SAFE : Mode::NORMAL;
+            const Mode self  = _self_safe  ? Mode::SAFE : Mode::NORMAL;
+            return stricter(_op_mode, stricter(plant, self));
+        }
 
-        /** @brief Turn this program off, or back on. The operator's switch, and
-         *  it parks the same actuators the same way: what differs is the state
-         *  reported once it is there. */
-        void request_disable(bool on) { _disable_asked = on; }
-        bool disable_requested() const { return _disable_asked; }
+        /** @brief The operator's standing choice for this program, which is
+         *  what @c programs sets and what is persisted. Enacts itself: there is
+         *  no set-then-refresh protocol for a caller to forget. */
+        void set_operator_mode(Mode m) { _op_mode = m; refresh(); }
+        Mode operator_mode() const     { return _op_mode; }
 
-        /** @brief Whether EITHER request stands. What a program's run() tests
-         *  to know it should be driving to its fail position. */
-        bool inhibit_requested() const { return _safe_asked || _disable_asked; }
+        /** @brief The PLANT's ask, raised by the registry - a safe request, or
+         *  control authority being withheld, which are the same thing to a
+         *  program. Enacts itself for the same reason. */
+        void hold_safe(bool on) { _plant_safe = on; refresh(); }
+
+        /** @brief Whether the outputs are to end up at their safe state. What a
+         *  site law tests; it never names a Mode, so a fifth rung stays a
+         *  one-line edit here rather than N edits across the site. */
+        bool going_safe() const { return mode() <= Mode::SAFE; }
+
+        /** @brief Whether run() is called this activation: at NORMAL always,
+         *  and below it only while there is still travel to do. */
+        bool runs() const {
+            return mode() == Mode::NORMAL || (going_safe() && !_parked);
+        }
+
+        /** @brief Whether the dispatcher activates it at all. A DISABLED
+         *  program that has arrived has stopped reporting too. */
+        bool wants_activation() const {
+            return !_invalid && !(mode() == Mode::DISABLED && _parked);
+        }
 
         /** @brief Whether it has ARRIVED, not whether it was asked. What a
          *  supervisor waits on before it drops control.
          *
-         *  A INVALID program counts: it is never activated, so it can neither
+         *  An INVALID program counts: it is never activated, so it can neither
          *  travel nor arrive, and waiting on one would hold the whole plant out
-         *  of its reboot for ever. */
-        bool is_parked() const {
-            return _health == Health::INHIBITED || _health == Health::INVALID;
-        }
-
-        /** @brief Force the verdict without asking. For the authority gate,
-         *  which drops every output to its declared safe state itself: the
-         *  plant is out of this program's hands whether or not it agreed. */
-        void set_safe() { if (!_invalid) _health = Health::INHIBITED; }
+         *  of its reboot for ever. So does one at a rung it is not travelling
+         *  away from. */
+        bool is_parked() const { return _invalid || !going_safe() || _parked; }
 
         /** @} */
 
@@ -228,9 +261,21 @@ namespace Botanik { namespace Plc {
         /** @name Reporting health
          *  @{ */
 
-        /** @brief From run(): an input this program wanted is not believable,
-         *  but what it produced still is. Cleared by the next activation. */
-        void degraded() { if (_health == Health::HEALTHY) _health = Health::DEGRADED; }
+        /** @brief From run() or observe(): an input this program wanted is not
+         *  believable, but what it produced still is. Cleared by the next
+         *  activation. Outranks the state it may have caused - "short of an
+         *  input" is the answer to the question an operator is really asking. */
+        void degraded() { _degraded = true; }
+
+        /** @brief From observe(): this law cannot command at all, so ask for
+         *  the safe rung on its own account. Released by simply not saying it
+         *  again, which is why it is cleared before every activation.
+         *
+         *  @warning State it from observe(), never from run(). observe() runs
+         *  in every rung a program can come back from; run() is what STOPS once
+         *  it has parked, so a law that only said this from there could never
+         *  take it back. */
+        void go_safe(bool blind) { if (blind) _self_safe = true; }
 
         /** @brief From bind(), and only from there: this program cannot be
          *  wired, so it must never run.
@@ -350,6 +395,24 @@ namespace Botanik { namespace Plc {
         /** @} */
 
     private:
+        /** @brief Re-derive the verdict. The ONE place _health is assigned.
+         *
+         *  Ordered by what an operator is asking when they read it: a wiring
+         *  fault outranks everything, travel outranks the rung it travels to,
+         *  and being short of an input outranks the state that shortage caused
+         *  - a program parked BECAUSE it went blind reads DEGRADED, not SAFE. */
+        void refresh() {
+            const Mode m = mode();
+            if (m > Mode::SAFE) _parked = false;   // asked again, park afresh
+            _health = _invalid                  ? Health::INVALID
+                    : (m <= Mode::SAFE && !_parked) ? Health::PARKING
+                    : (m == Mode::DISABLED)     ? Health::DISABLED
+                    : (m == Mode::INHIBITED)    ? Health::INHIBITED
+                    : _degraded                 ? Health::DEGRADED
+                    : (m == Mode::SAFE)         ? Health::SAFE
+                                                : Health::HEALTHY;
+        }
+
         /** @brief Which of the three wrappers is asking. Only the direction the
          *  checks differ on: an output is the one that can be taken. */
         enum BindDir : uint8_t { BIND_IN, BIND_OUT, BIND_INOUT };
@@ -384,36 +447,38 @@ namespace Botanik { namespace Plc {
             _late_ms = (t.dt_ms > p) ? (t.dt_ms - p) : 0;
             if (_late_ms > _late_max_ms) _late_max_ms = _late_ms;
 
-            // HEALTHY until this activation says otherwise. A program that never
-            // calls degraded() is one whose run() cannot fail, and it should
-            // read as healthy rather than as unknown.
-            _health = Health::HEALTHY;
             ProgramContext c = { t.now_ms, t.dt_ms, t.missed, t.first, *_io };
             // The window, not the program, says who is writing: a program cannot
             // name itself, and a write outside an activation claims nothing.
             _io->begin_writer(_slot);
-            // run() ALWAYS, inhibited or not. Parking is part of the control
-            // law: an actuator program already knows how to drive its valve to a
-            // position, and a separate hook would make it own that twice. What
-            // changes under a request is the TARGET, which is the program's own
-            // business - it reads inhibit_requested() and drives to its fail
-            // position instead of to a demand.
-            _travelling = false;
-            run(c);
-            // Still travelling, or arrived. Either request parks the same
-            // actuators the same way, so one the operator had already switched
-            // off is ALREADY where a reboot needs it. Both outrank whatever the
-            // law reported: a program that has stopped controlling is not a
-            // degraded one, and a reader asking why the plant is still says so.
-            if (inhibit_requested())
-                _health = _travelling ? Health::PARKING : Health::INHIBITED;
-            // ALWAYS, and after the decision so it can report what this beat
-            // decided. Saying what is true does not stop because control has:
-            // a plant going into its safe state is exactly when an operator is
-            // watching, and a status row or an alarm that froze at the moment
-            // of the request would be worse than absent - it would be stale and
-            // look live.
+
+            // SAMPLED BEFORE THE RESET below, which clears the law's own ask.
+            // Reading it after would forget that the law is blind and run it on
+            // the inputs it just disowned.
+            const bool ran = runs();
+            _degraded = _self_safe = _travelling = false;
+
+            // run() while there is anything to drive TO. Parking is part of the
+            // control law: an actuator program already knows how to take its
+            // valve to a position, and a separate hook would make it own that
+            // twice. What changes below NORMAL is the TARGET, which the law
+            // reads off going_safe() and drives to instead of a demand.
+            if (ran) run(c);
+
+            // ALWAYS, and after run() so it reports what this beat decided.
+            // Saying what is true does not stop because control has: a plant
+            // going into its safe state is exactly when an operator is
+            // watching, and a status row that froze at the moment of the
+            // request would be worse than absent - stale, and looking live.
+            // It is also where go_safe() is stated, so the ask below is this
+            // beat's rather than the one before it.
             observe(c);
+
+            // Arrived, unless this activation said otherwise. Only an
+            // activation that ACTUALLY RAN can settle it: one that was skipped
+            // because the program had already parked must not un-park it.
+            if (ran) _parked = !_travelling;
+            refresh();
             _io->end_writer();
         }
     };

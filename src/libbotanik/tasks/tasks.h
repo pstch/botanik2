@@ -15,6 +15,7 @@
 
 #include "libbotanik/config/scheduler.h"
 
+#include "libbotanik/plc/mode.h"
 #include "libbotanik/tasks/phase.h"
 #include "libbotanik/tasks/task_timer.h"
 
@@ -288,15 +289,17 @@ namespace Botanik { namespace Tasks {
         /** @brief Program index of @p name (the name it registered under), or
          *  -1. @p len 0 means NUL-terminated. */
         int16_t find_program(const char* name, uint16_t len = 0) const;
-        /** @brief Whether the @p i'th program's own gate is open. */
-        bool    program_enabled(uint8_t i) const;
-        /** @brief Whether that flag has yet to reach storage. */
+        /** @brief The @p i'th program's OPERATOR mode - its standing ask, not
+         *  the rung in force. The plant's own ask is weighed beside it by the
+         *  program. @see Plc::Program::mode() */
+        Plc::Mode program_mode(uint8_t i) const;
+        /** @brief Whether that has yet to reach storage. */
         bool    program_unsaved(uint8_t i) const;
 
-        /** @brief Open or shut the @p i'th program's gate. Re-opening reseeds
-         *  its timer and raises Tick::first, for the reason
+        /** @brief Set the @p i'th program's operator mode. A LOOSER rung
+         *  reseeds its timer and raises Tick::first, for the reason
          *  set_programs_enabled() does. @return false past the last program. */
-        bool    set_program_enabled(uint8_t i, bool on, uint64_t now_ms);
+        bool    set_program_mode(uint8_t i, Plc::Mode m, uint64_t now_ms);
 
         /** @brief Persist the @p i'th program's flag. */
         bool    save_program(uint8_t i);

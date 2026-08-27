@@ -51,7 +51,7 @@ void FanController::_drive(uint8_t speed) {
 
 void FanController::run(ProgramContext& c) {
     if (c.first_scan) steps.reset();
-    if (inhibit_requested()) {
+    if (going_safe()) {
         // Speed 1, not off, and the table's safe column says the same: still
         // air is itself a rot risk, so the fans are one of the few things that
         // keep working once everything else has stopped.

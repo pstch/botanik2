@@ -13,7 +13,7 @@ void SkirtController::run(ProgramContext& c) {
     // Wetting air that is already condensing is the one thing this valve must
     // never do, so the lockout is resolved before any demand - and before the
     // pulse phase, which starts again from shut.
-    if (inhibit_requested() || rot_lock.get()) {
+    if (going_safe() || rot_lock.get()) {
         pulse.park();
         pulse.reset();
         duty.set(0.0f, true);

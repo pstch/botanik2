@@ -240,7 +240,7 @@ TEST_CASE_FIXTURE(Rig<Site::ScreenController>, "screen: a safe request DEPLOYS i
     for (uint32_t i = 0; i < 700; i++) d.step(t += 100);
     REQUIRE_FALSE(live.bank.get(live.bank.resolve_in<bool>("cli_screen")));
 
-    prog.request_safe(true);
+    prog.set_operator_mode(Plc::Mode::SAFE);
     d.step(t += 100);
     CHECK(live.bank.get(live.bank.resolve_in<bool>("cli_screen")));
     INFO("deployed is COMMANDED here, not reached: the fabric is still travelling");
@@ -356,7 +356,7 @@ TEST_CASE_FIXTURE(RoofRig, "windows: parking waits for the LAST ram to seat, not
     for (uint32_t i = 0; i < 800; i++) d.step(t += 100);
     REQUIRE(live.bank.get(live.bank.resolve_in<float>("cli_window4_pos")) > 0.9f);
 
-    wc.request_safe(true);
+    wc.set_operator_mode(Plc::Mode::SAFE);
     // One at a time, so the first ram reaches the safe opening long before the
     // fourth - which is PART OPEN, not shut.
     for (uint32_t i = 0; i < 200; i++) d.step(t += 100);
@@ -504,7 +504,7 @@ TEST_CASE_FIXTURE(Rig<Site::FanController>, "fans: a safe request leaves them RU
 
     INFO("still air is itself a rot risk, so these are one of the few things "
          "that keep working once everything else has stopped");
-    prog.request_safe(true);
+    prog.set_operator_mode(Plc::Mode::SAFE);
     d.step(400);
     CHECK(live.bank.get(s1));
     CHECK_FALSE(live.bank.get(s3));
@@ -620,12 +620,12 @@ TEST_CASE_FIXTURE(Rig<Site::IrrValves>, "programs: one switched off parks its ow
 
     const int16_t k = live.reg.find_program("irr_valves");
     REQUIRE(k >= 0);
-    REQUIRE(live.reg.set_program_enabled((uint8_t)k, false, t));
+    REQUIRE(live.reg.set_program_mode((uint8_t)k, Plc::Mode::DISABLED, t));
 
     // Still asked to fill: only the operator's switch has changed.
     d.step(t += 1000);
     CHECK(live.bank.var(inlet).as_bool() == fails_to);
-    CHECK(live.reg.program_enabled((uint8_t)k) == false);
+    CHECK(live.reg.program_mode((uint8_t)k) == Plc::Mode::DISABLED);
 
     // ...and once it has arrived it stops being activated, so a later change
     // to its inputs moves nothing.

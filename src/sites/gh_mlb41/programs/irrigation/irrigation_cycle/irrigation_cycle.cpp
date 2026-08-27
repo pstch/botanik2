@@ -99,7 +99,7 @@ void IrrigationCycle::_enter(IrrState st) {
 }
 
 void IrrigationCycle::run(ProgramContext& c) {
-    if (inhibit_requested()) {
+    if (going_safe()) {
         // Where a dead controller would leave them, which is not the same for
         // all ten: the inlet fails SHUT and the drains fail OPEN, so a tray
         // that was filling empties rather than sitting full.
