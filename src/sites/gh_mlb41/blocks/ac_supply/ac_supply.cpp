@@ -18,11 +18,15 @@ void AcSupply::_mirror(Vars::RefOut<float> out, Plc::Deadband& band,
 }
 
 bool AcSupply::step(bool& fault) {
-    // The volts and the frequency are what the verdict is made of, so those two
+    // The volts and the frequency are what the VERDICT is made of, so those two
     // decide whether there is a verdict at all. Current and power are reported
     // either way: a meter half answering is still worth what it does answer.
     const bool measured = _in_v.valid() && _in_hz.valid();
     if (measured) _seen = true;
+    // But each mirror below is its own network of one input, and one that is
+    // out is a network this block is not producing. So the verdict and the
+    // block being WHOLE are two questions, and this is the second.
+    const bool whole = measured && _in_a.valid() && _in_w.valid();
 
     const float volts = _in_v.get();
     const float hz    = _in_hz.get();
@@ -44,7 +48,7 @@ bool AcSupply::step(bool& fault) {
     // has not got round to it yet, and alarming on that annunciates every boot.
     // Once it has answered, silence is exactly the fault worth raising.
     fault = _seen && (!measured || !in_spec);
-    return measured;
+    return whole;
 }
 
 }  // namespace Site

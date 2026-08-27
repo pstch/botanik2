@@ -28,6 +28,13 @@ void WeatherWatch::observe(ProgramContext& c) {
     // answered, or every boot announces one.
     storm.set(_seen && wind.valid() && wind.get() >= storm_wind.get(), true);
 
+    // A published copy of the irradiance, which nothing controls on: the field
+    // row is SCOPE_MI and so carries no Modbus TCP register, and a historian on
+    // the plant network has no other way to poll it. Its own network, of one
+    // input, so it carries that input's quality and no other's.
+    solar.set(irrad.get(), irrad.valid());
+    if (!irrad.valid()) degraded();
+
     // How long the house has been dry. A gauge that is not answering says
     // nothing about the weather, so the clock stands rather than running on.
     //

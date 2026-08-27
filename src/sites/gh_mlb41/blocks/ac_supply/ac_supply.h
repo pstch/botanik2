@@ -83,8 +83,10 @@ public:
     /** @brief Mirror the four readings and judge them.
      *  @param fault set when this supply is out of spec, or has gone silent
      *         after answering at least once
-     *  @return whether the meter answered, so the caller can report itself
-     *         degraded rather than publishing a verdict on nothing */
+     *  @return whether EVERY quantity answered - wider than the verdict, which
+     *         rests on volts and frequency alone. The caller reports itself
+     *         degraded on it: a mirror with no reading behind it is a network
+     *         this block is not producing, whether or not the verdict stands */
     bool step(bool& fault);
 
     void reset();

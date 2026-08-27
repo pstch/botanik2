@@ -369,6 +369,7 @@ const Descriptor rows[] = {
     SV("cli_windLockout"        , T_BOOL, 0          , 0, ""    , 549, "wind holds the windows shut", "gusting over cli_windShutEnd_mps"),
     SV("cli_windowLockout"      , T_BOOL, 0          , 0, ""    , 596, "the roof is held shut, whatever the ladder wants", "stage one of the arbitration: rain, wind or the supply. Force it to hold the roof shut by hand"),
     SV("cli_windowCap"          , T_F32 , 1          , 2, ""    , 602, "the most the roof may open", "0 shuts it; the wind band ramps it down to 0 at cli_windShutEnd_mps"),
+    SV("cli_solar_Wpm2"         , T_F32 , 0          , 1, "Wpm2", 606, "solar irradiance on the glass", "a published copy of the station's reading: the field row it mirrors is SCOPE_MI, which carries no TCP register"),
     SV("cli_sinceRain_min"      , T_U16 , 0          , 0, "min" , 595, "minutes since the gauge last read wet", "held until the first shower of this run: a reboot does not know when it last rained"),
     SV("cli_screenMoving"       , T_BOOL, 0          , 0, ""    , 550, "thermal screen travelling", "cuts the destratification fans while it moves"),
     SV("cli_rotLockout"         , T_BOOL, 0          , 0, ""    , 551, "rot risk: nothing may humidify", "cuts the skirt valve whatever the humidity demand"),
