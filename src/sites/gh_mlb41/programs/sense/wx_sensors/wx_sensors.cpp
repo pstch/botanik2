@@ -9,7 +9,8 @@ namespace Site {
 
 void WxSensors::on_bind() {
     stations.attach(wind, gust, rain, irrad,
-                    wind_out, gust_out, rain_out, irrad_out, fault);
+                    wind_out, gust_out, rain_out, irrad_out, fault,
+                    0.001f * (float)tau_ms.get());
 }
 
 void WxSensors::run(ProgramContext& c) {

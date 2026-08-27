@@ -20,7 +20,11 @@ void WeatherProbes::attach(const Vars::RefIn<float>* wind,
                            Vars::RefOut<float> gust_out,
                            Vars::RefOut<float> rain_out,
                            Vars::RefOut<float> irrad_out,
-                           Vars::RefOut<bool> fault) {
+                           Vars::RefOut<bool> fault, float tau_s) {
+    // Symmetric: a weather reading is one quantity, so rising and falling have
+    // no reason to answer at different speeds.
+    _tau_s = tau_s;
+
     for (uint8_t i = 0; i < 2; i++) {
         _wind[i]  = wind[i];
         _gust[i]  = gust[i];
@@ -60,12 +64,21 @@ WxVote WeatherProbes::_mean(const Vars::RefIn<float>* refs) {
     return out;
 }
 
-void WeatherProbes::_publish(Vars::RefOut<float> row, const WxVote& v) {
-    // Nothing believable left, so there is nothing to compute FROM: the row
-    // keeps what the weather last really was and says it is not current. A law
-    // reading it through its own reference gets the declared value instead.
-    if (v.used == 0) row.hold();
-    else             row.set(v.value, true);
+void WeatherProbes::_publish(Vars::RefOut<float> row, Plc::Ewma& filter,
+                            const WxVote& v, bool& seeded, float tau_s,
+                            uint32_t dt_ms, float lo, float hi) {
+    if (v.used == 0) {
+        // Nothing believable left. The row keeps the last average the weather
+        // could make and says it is not current; a law reading it through its
+        // own reference gets the declared value instead. The filter keeps its
+        // state and seeding is not re-armed, so a station coming back rejoins
+        // the average it left.
+        if (seeded) row.set(Plc::limit(filter.value(), lo, hi), false);
+        else        row.invalidate();     // nothing has ever measured the sky
+        return;
+    }
+    seeded = true;                      // the block starts AT its first reading
+    row.set(Plc::limit(filter(v.value, tau_s, dt_ms), lo, hi), true);
 }
 
 uint8_t WeatherProbes::step(uint32_t dt_ms) {
@@ -77,10 +90,12 @@ uint8_t WeatherProbes::step(uint32_t dt_ms) {
     const WxVote rain  = _worse(_rain);
     const WxVote sun   = _mean(_irrad);
 
-    _publish(_wind_out,  wind);
-    _publish(_gust_out,  gust);
-    _publish(_rain_out,  rain);
-    _publish(_irrad_out, sun);
+    // The rails are the rows' own declared bands, so a filter that has been
+    // fed a spike cannot publish past what the instrument can report.
+    _publish(_wind_out,  _wind_f,  wind, _wind_seeded,  _tau_s, dt_ms, 0.0f,   80.0f);
+    _publish(_gust_out,  _gust_f,  gust, _gust_seeded,  _tau_s, dt_ms, 0.0f,   80.0f);
+    _publish(_rain_out,  _rain_f,  rain, _rain_seeded,  _tau_s, dt_ms, 0.0f,  200.0f);
+    _publish(_irrad_out, _irrad_f, sun,  _irrad_seeded, _tau_s, dt_ms, 0.0f, 1500.0f);
 
     // The WORST-served quantity decides, so a station answering three of its
     // four registers is still a station short. One is enough to keep the plant

@@ -33,6 +33,7 @@ public:
     Vars::RefIn<float> gust[2];
     Vars::RefIn<float> rain[2];
     Vars::RefIn<float> irrad[2];
+    Vars::RefIn<uint16_t> tau_ms;
 
     /** @} */
 
@@ -79,6 +80,7 @@ inline void WxSensors::bind(Vars::Bank& io) {
     rain[1]   = _bind_input<float>(io, "cli_rain2_mmph");
     irrad[0]  = _bind_input<float>(io, "cli_irrad1_Wpm2");
     irrad[1]  = _bind_input<float>(io, "cli_irrad2_Wpm2");
+    tau_ms    = _bind_input<uint16_t>(io, "cli_wxTau_ms");
     wind_out  = _bind_output<float>(io, "cli_wind_mps");
     gust_out  = _bind_output<float>(io, "cli_windGust_mps");
     rain_out  = _bind_output<float>(io, "cli_rain_mmph");
