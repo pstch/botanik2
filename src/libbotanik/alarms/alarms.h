@@ -424,7 +424,13 @@ namespace Botanik { namespace Alarms {
             if (_src == nullptr) return -1;
             // The length-bounded find(), deliberately: this is operator input,
             // so a miss is a typo and must not count as an unresolved name.
-            return (int)_src->find(key, (uint16_t)strlen(key));
+            const int by_name = (int)_src->find(key, (uint16_t)strlen(key));
+            // ...and bounded against the CONDITIONS, not the source. A source
+            // may declare more alarms than the controller has slots for - that
+            // is its documented contract, and what count() reports - so a name
+            // past the last slot resolves in the table and has nothing here to
+            // acknowledge. Every caller indexes _conditions[] with this.
+            return (by_name >= 0 && by_name < (int)_count) ? by_name : -1;
         }
 
         /** @} */

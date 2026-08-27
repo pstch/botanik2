@@ -774,3 +774,45 @@ TEST_CASE("alarm: a default StaticAlarmTable declares nothing") {
 }
 
 }  // namespace static_source
+
+namespace slot_overflow {
+
+using namespace Botanik;
+
+TEST_CASE("alarm: a source declaring more than the slots hold loses the tail safely") {
+    // AlarmSourceTable's contract: count() may EXCEED the controller's slots,
+    // and the controller is what reports the loss. So a name past the last
+    // slot resolves in the table and has no condition to act on - index_of()
+    // must say so rather than handing ack() an index past _conditions[].
+    const uint16_t n = (uint16_t)(Config::ALARM_SLOTS + 3);
+    std::vector<bool>                state((size_t)n, false);
+    std::vector<Alarms::StaticAlarm> rows((size_t)n);
+    std::vector<std::string>         names((size_t)n), codes((size_t)n);
+    for (uint16_t i = 0; i < n; i++) {
+        names[i] = "alarm_" + std::to_string(i);
+        codes[i] = "C" + std::to_string(i);
+        // vector<bool> is a bitfield, so the raw pointers come from a plain array.
+        rows[i].name  = names[i].c_str();
+        rows[i].desc  = "";
+        rows[i].notes = "";
+        rows[i].spec  = Alarms::AlarmSpec{ codes[i].c_str(), 0, 0, 0, 0 };
+        rows[i].raw   = nullptr;
+    }
+    Alarms::StaticAlarmTable table(rows.data(), n);
+    Alarms::AlarmController m(Botanik::SetupContext(), &table);
+    m.setup(0);
+
+    INFO("the loss is visible, which is what the POST reports on");
+    CHECK(m.declared_count() == n);
+    CHECK(m.count() == Config::ALARM_SLOTS);
+    CHECK(m.declared_count() > m.count());
+
+    // A row that got a slot resolves; one past the end does not, and neither
+    // ack nor unack may reach past the array.
+    CHECK(m.index_of(codes[0].c_str()) == 0);
+    CHECK(m.index_of(names[n - 1].c_str()) < 0);
+    CHECK(m.ack(names[n - 1].c_str()) == false);
+    CHECK(m.unack(names[n - 1].c_str()) == false);
+}
+
+}  // namespace slot_overflow
