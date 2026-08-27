@@ -143,7 +143,7 @@ const uint16_t PARAMS_COUNT = 0
  *  order IS the order the ALARMS page lists them in. */
 extern const Descriptor rows[];
 const uint16_t ROWS_COUNT = 0
-    + 256
+    + 264
     ;
 
 // This site turns every optional feature ON, and the row count above says

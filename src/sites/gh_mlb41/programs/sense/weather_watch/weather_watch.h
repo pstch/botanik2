@@ -29,9 +29,7 @@ public:
      *  @{ */
 
     Vars::RefIn<float> wind;
-    Vars::RefIn<float> gust;
     Vars::RefIn<float> rain;
-    Vars::RefIn<float> irrad;
     Vars::RefIn<float> storm_wind;
 
     /** @} */
@@ -39,9 +37,7 @@ public:
     /** @name VAR_OUTPUT
      *  @{ */
 
-    Vars::RefOut<bool>     station;
     Vars::RefOut<bool>     storm;
-    Vars::RefOut<float>    solar;
     Vars::RefOut<uint16_t> since_rain;
 
     /** @} */
@@ -74,12 +70,8 @@ protected:
 
 inline void WeatherWatch::bind(Vars::Bank& io) {
     wind       = _bind_input<float>(io, "cli_wind_mps");
-    gust       = _bind_input<float>(io, "cli_windGust_mps");
     rain       = _bind_input<float>(io, "cli_rain_mmph");
-    irrad      = _bind_input<float>(io, "cli_irrad_Wpm2");
-    solar      = _bind_output<float>(io, "cli_solar_Wpm2");
     storm_wind = _bind_input<float>(io, "cli_windShutEnd_mps");
-    station    = _bind_output<bool>(io, "alarm_wx_station");
     storm      = _bind_output<bool>(io, "alarm_weather_storm");
     since_rain = _bind_output<uint16_t>(io, "cli_sinceRain_min");
 

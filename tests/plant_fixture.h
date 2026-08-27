@@ -56,6 +56,7 @@ struct Plant {
     Site::TempRHZone           zones;
     Site::StratSensor          strat;
     Site::ClimateWatch         climate;
+    Site::WxSensors            wx;
     Site::WeatherWatch         weather;
     Site::TargetTempController target;
     Site::CoolingController    cooling;
@@ -76,7 +77,7 @@ struct Plant {
     Site::FanController        fans;
     Site::SkirtController      skirt;
 
-    Plc::Program* all[29];   ///< room for the list below
+    Plc::Program* all[30];   ///< room for the list below
     Cycle*        cycle = nullptr;
     uint64_t      t = 0;
     /** @brief What this plant's environment is, held every beat. The weather
@@ -87,7 +88,7 @@ struct Plant {
     Plant()
         : ac_grid(ctx(), io()), ac_local(ctx(), io()), dc(ctx(), io()),
           sensors(ctx(), io()), zones(ctx(), io()), strat(ctx(), io()),
-          climate(ctx(), io()), weather(ctx(), io()),
+          climate(ctx(), io()), wx(ctx(), io()), weather(ctx(), io()),
           target(ctx(), io()), cooling(ctx(), io()),
           intake_gates(ctx(), io()), destrat(ctx(), io()),
           humidity(ctx(), io()), intake_dry(ctx(), io()), irr_mod(ctx(), io()), irr_in(ctx(), io()), irr_out(ctx(), io()),
@@ -95,7 +96,8 @@ struct Plant {
           roof_lock(ctx(), io()), windows(ctx(), io()),
           intractors(ctx(), io()), fans(ctx(), io()), skirt(ctx(), io()) {
         Plc::Program* const list[] = {
-            &ac_grid, &ac_local, &dc, &sensors, &zones, &strat, &climate, &weather,
+            &ac_grid, &ac_local, &dc, &sensors, &zones, &strat, &climate,
+            &wx, &weather,
             &target, &cooling, &intake_gates, &destrat, &humidity, &intake_dry,
             &irr_mod, &irr_in, &irr_out, &irr_schedule, &irrigation, &irr_valves,
             &screen, &roof_lock, &windows, &intractors, &fans, &skirt
@@ -170,10 +172,10 @@ inline void hold_weather(Plant& p) {
     p.probe("cli_rh_lo%u", 3, g_wx().rh);
     p.probe("cli_rh_cs%u", 3, g_wx().rh);
     p.probe("cli_rh_ext%u", 3, g_wx().rh_ext);
-    p.put("cli_rain_mmph", g_wx().rain);
-    p.put("cli_wind_mps", g_wx().wind);
-    p.put("cli_windGust_mps", g_wx().wind * 1.5f);
-    p.put("cli_irrad_Wpm2", 0.0f);
+    p.probe("cli_rain%u_mmph", 2, g_wx().rain);
+    p.probe("cli_wind%u_mps", 2, g_wx().wind);
+    p.probe("cli_windGust%u_mps", 2, g_wx().wind * 1.5f);
+    p.probe("cli_irrad%u_Wpm2", 2, 0.0f);
     // The supplies, so nothing is held off for want of power.
     p.put("grid_LN_V", 230.0f);
     p.put("grid_Hz", 50.0f);

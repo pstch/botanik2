@@ -527,30 +527,23 @@ TEST_CASE_FIXTURE(Rig<Site::WeatherWatch>,
     CHECK(live.bank.get(storm));
 }
 
-TEST_CASE_FIXTURE(Rig<Site::WeatherWatch>,
-                  "weather: irradiance is mirrored into a row the register map carries") {
-    // Nothing controls on it, but the field row is SCOPE_MI and so has no TCP
-    // register: without the copy a historian on the plant network cannot poll
-    // the one reading that says how much sun the glass got.
-    const VarRef raw = live.ref("cli_irrad_Wpm2");
-    const VarRef pub = live.ref("cli_solar_Wpm2");
+TEST_CASE_FIXTURE(Rig<Site::WxSensors>,
+                  "wx: the voted rows carry a TCP register the stations' own do not") {
+    // Nothing controls on irradiance, but the field rows are SCOPE_MI and so
+    // have no TCP register: without the voted row a historian on the plant
+    // network cannot poll the one reading that says how much sun the glass got.
+    const VarRef raw = live.ref("cli_irrad1_Wpm2");
+    const VarRef pub = live.ref("cli_irrad_Wpm2");
     REQUIRE(Vars::var_mapped(*live.bank.var(pub).meta()));
     REQUIRE_FALSE(Vars::var_mapped(*live.bank.var(raw).meta()));
 
-    field(live, "cli_wind_mps", 2.0f);
-    field(live, "cli_rain_mmph", 0.0f);
-    field(live, "cli_irrad_Wpm2", 820.0f);
+    field(live, "cli_irrad1_Wpm2", 800.0f);
+    field(live, "cli_irrad2_Wpm2", 840.0f);
     d.step(100);
+    INFO("the MEAN, because nothing controls on it and a worst case would "
+         "mean nothing");
     CHECK(live.bank.var(pub).as_f32() == doctest::Approx(820.0f));
     CHECK(live.bank.var(pub).valid());
-
-    INFO("its own network, of one input: the station losing that one register "
-         "takes the copy with it and leaves the wind and rain rows alone");
-    live.bank.var(raw).invalidate(Q_NO_DATA);
-    d.step(200);
-    CHECK_FALSE(live.bank.var(pub).valid());
-    CHECK(prog.health() == Plc::Health::DEGRADED);
-    CHECK(live.bank.var(live.ref("cli_wind_mps")).valid());
 }
 
 TEST_CASE_FIXTURE(CoolingRig, "intake: a gate holds while the two temperatures converge") {

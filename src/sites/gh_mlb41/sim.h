@@ -446,10 +446,10 @@ inline void publish_analog(Vars::Bank& io, const Sky& s, uint32_t now_ms) {
     put(io, "irr_out_Lpm", draining ? 20.0f + 3.0f * sinf(t / 5.0f) : 0.0f, now_ms);
 }
 
-/** @brief The weather station: wind with gusts, showers, and the irradiance the
- *  sky already computed. Without it the sky reads as unmeasured and the roof is
- *  locked shut for ever, the interlock doing its job on a field that was not
- *  there. */
+/** @brief The two weather stations: wind with gusts, showers, and the
+ *  irradiance the sky already computed. Without them the sky reads as
+ *  unmeasured and the roof is locked shut for ever, the interlock doing its
+ *  job on a field that was not there. */
 inline void publish_weather(Vars::Bank& io, const Sky& s, uint32_t now_ms) {
     static float    wind    = 1.5f;
     static uint32_t rain_ms = 0;
@@ -461,8 +461,14 @@ inline void publish_weather(Vars::Bank& io, const Sky& s, uint32_t now_ms) {
     const bool storm = (s.act == SCN_STORM && s.hour >= 6.0f && s.hour < 20.0f);
     wind = drift(wind, 1.2f, 0.2f, storm ? 30.0f : 6.0f, s.dt_ms, 120000.0f);
     if (storm && wind < 22.0f) wind = 22.0f;
-    put(io, "cli_wind_mps", wind, now_ms);
-    put(io, "cli_windGust_mps", wind * 1.5f, now_ms);
+    // BOTH stations, and not identically: they stand in different places, so a
+    // vote between two readings that never differ would prove nothing about
+    // the voting. The second reads a little low, which is the direction that
+    // matters - the worse of the two is what the interlock takes.
+    put(io, "cli_wind1_mps", wind, now_ms);
+    put(io, "cli_wind2_mps", wind * 0.94f, now_ms);
+    put(io, "cli_windGust1_mps", wind * 1.5f, now_ms);
+    put(io, "cli_windGust2_mps", wind * 1.42f, now_ms);
 
     // Showers rather than a rain rate that wanders: one starts rarely and then
     // lasts, which is what the lockout's overrun is written against. About one
@@ -471,9 +477,12 @@ inline void publish_weather(Vars::Bank& io, const Sky& s, uint32_t now_ms) {
     else if (rain_ms > 0)  rain_ms = 0;
     else if (chance_per(s.dt_ms, storm ? 3600000.0f : 86400000.0f))
         rain_ms = storm ? 1800000u : 600000u;
-    put(io, "cli_rain_mmph", (rain_ms > 0) ? (storm ? 12.0f : 3.0f) : 0.0f, now_ms);
+    const float rain = (rain_ms > 0) ? (storm ? 12.0f : 3.0f) : 0.0f;
+    put(io, "cli_rain1_mmph", rain, now_ms);
+    put(io, "cli_rain2_mmph", rain * 0.90f, now_ms);
 
-    put(io, "cli_irrad_Wpm2", s.irrad, now_ms);
+    put(io, "cli_irrad1_Wpm2", s.irrad, now_ms);
+    put(io, "cli_irrad2_Wpm2", s.irrad * 0.97f, now_ms);
 }
 
 /** @brief The inlet meter: a pulse train, only while the inlet valve is open,

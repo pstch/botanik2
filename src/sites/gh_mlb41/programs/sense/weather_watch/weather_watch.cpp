@@ -10,12 +10,11 @@ namespace Site {
 void WeatherWatch::run(ProgramContext& c) { (void)c; }
 
 void WeatherWatch::observe(ProgramContext& c) {
-    const bool measured = wind.valid() &&
-                          rain.valid();
+    // The VOTED rows, so this law sees the weather rather than a station.
+    // Whether a station is missing is wx_sensors' verdict and its alarm; what
+    // is left here is a reading nothing could vote at all.
+    const bool measured = wind.valid() && rain.valid();
     if (measured) _seen = true;
-    // A station that has never answered is the bus still coming up; one that
-    // has and has stopped is the fault the windows are already shut for.
-    station.set(_seen && !measured, true);
     if (!measured) degraded();
 
     // A STORM is sustained wind: cli_windShutEnd_mps, 20.8, which is 75 kmph and
@@ -27,13 +26,6 @@ void WeatherWatch::observe(ProgramContext& c) {
     // The row's own dwell is what makes it sustained. Only once the station has
     // answered, or every boot announces one.
     storm.set(_seen && wind.valid() && wind.get() >= storm_wind.get(), true);
-
-    // A published copy of the irradiance, which nothing controls on: the field
-    // row is SCOPE_MI and so carries no Modbus TCP register, and a historian on
-    // the plant network has no other way to poll it. Its own network, of one
-    // input, so it carries that input's quality and no other's.
-    solar.set(irrad.get(), irrad.valid());
-    if (!irrad.valid()) degraded();
 
     // How long the house has been dry. A gauge that is not answering says
     // nothing about the weather, so the clock stands rather than running on.

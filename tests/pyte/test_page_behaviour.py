@@ -137,10 +137,10 @@ def test_the_task_table_is_complete(spawn):
 
     # Every task a full build registers, the site's control programs included.
     # Move it deliberately when the set changes; an unexplained DROP is the bug
-    # this exists to catch. Last moved when the two intake gates became programs
-    # of their own - intake_gates out of cooling, intake_dry out of humidity -
-    # so that one health code answers for one network.
-    assert term.wait_for("Registered ....... : 49"), \
+    # this exists to catch. Last moved when wx_sensors split the two weather
+    # stations off the derivations they feed, the way temp_rh_sensors is split
+    # from temp_rh_zone.
+    assert term.wait_for("Registered ....... : 50"), \
         "the task table changed size - a registration was added or silently lost"
     assert term.wait_for("0 refused"), "a registration was refused: MAX_TASKS"
 

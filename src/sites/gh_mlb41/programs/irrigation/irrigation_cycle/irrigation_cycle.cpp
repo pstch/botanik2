@@ -120,9 +120,8 @@ void IrrigationCycle::run(ProgramContext& c) {
         _enter(IRR_IDLE);
     }
     // The dose is the tray's summer figure scaled by this. A modulation nobody
-    // has reads as the declared one, so there is always a dose to publish -
-    // but STARTING a cycle on it is a different act from deriving a number,
-    // and the plant is not watered to a guess. IRR_IDLE gates on this.
+    // has reads as the DECLARED one, so there is always a dose - the cycle runs
+    // on it and the quality below is what says it was a guess.
     const bool  can_dose = mod.valid();
     if (!can_dose || !out_flow.valid()) degraded();
     const float mod_now  = mod.get();
@@ -141,8 +140,11 @@ void IrrigationCycle::run(ProgramContext& c) {
             delivered.set(0.0f, true);
             drained.set(0.0f, true);
             // WHICH tray, and whether now: irr_schedule has decided both,
-            // and published the answer.
-            if (!can_dose) break;
+            // and published the answer. A modulation nobody could measure does
+            // NOT hold the cycle: the declared one covers the ordinary case,
+            // and a tray that goes unwatered because the weather stopped being
+            // legible is a worse outcome than one watered to a fair guess. The
+            // guess is what irr_volume_L's quality says it is.
             const uint8_t next = due_tray.get();
             if (next == 0) break;
             _tray   = next;
