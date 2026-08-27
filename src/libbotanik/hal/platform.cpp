@@ -176,9 +176,6 @@ namespace Botanik { namespace HAL {
      *  variant's: TX PB_10, RX PB_11, DE PB_14, RE PB_13. */
     class Rs485Raw : public Raw {
 
-        /** @name State
-         *  @{ */
-
         mbed::BufferedSerial _port;
         /** @brief Receiver enable, active low: 0 listens. Held there for the
          *  life of the port - see the note above. */
@@ -191,8 +188,6 @@ namespace Botanik { namespace HAL {
          *  leaving. Accumulated per byte rather than measured, because there is
          *  nothing to measure it with. */
         uint64_t             _tx_done_us = 0;
-
-        /** @} */
 
     public:
         Rs485Raw() : _port(PB_10, PB_11), _re(PB_13, 0) {
@@ -473,9 +468,6 @@ namespace Botanik { namespace HAL {
 
     uint64_t& _virtual_ns() { static uint64_t ns = 0; return ns; }
 
-
-    /** @name Hardware identity
-     *  @{ */
 
     const char* hardware_description() {
         return "x86-64 POSIX simulator";

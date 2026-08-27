@@ -251,6 +251,8 @@ namespace Botanik { namespace Shell {
          *  the draft when _hist_browse < 0). */
         void _load_browse();
 
+        /** @} */
+
         /** @name Built-in command handlers
          *
          *  Each takes the (already leading-space-trimmed) argument slice after
@@ -297,6 +299,8 @@ namespace Botanik { namespace Shell {
         /** @brief `vars list|get|info` - every row, whatever its scope. */
         void _cmd_vars(const char* args, uint16_t alen);
         void _cmd_control(const char* args, uint16_t alen);
+
+        /** @} */
 
         /** @name Editing verbs
          *
@@ -423,6 +427,10 @@ namespace Botanik { namespace Shell {
         void _program_fields(const Vars::Bank& io, Vars::Var h, Vars::VarRef r);
         /** @} */
 
+        /** @name Context and output
+         *  What every handler reaches through: the injected pointers, and the
+         *  one place a line goes to the wire. @{ */
+
         /** @brief The variables, from the injected SystemContext (null when the
          *  firmware wired none). One lookup point for the variable commands. */
         Vars::Bank* _bank() const { return _sys != nullptr ? _sys->vars : nullptr; }
@@ -439,7 +447,6 @@ namespace Botanik { namespace Shell {
             __attribute__((format(printf, 4, 5)));
         /** @brief Emit a dotted-leader "label : value" status line. */
         void _line(const char* label, const char* val);
-        /** @} */
 
         /** @} */
     };
