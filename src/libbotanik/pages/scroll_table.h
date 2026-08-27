@@ -231,9 +231,10 @@ namespace Botanik { namespace Pages {
         /** @}
          *  @name Row filter
          *
-         *  A live substring the table narrows itself to. Typing appends to it,
+         *  A live pattern the table narrows itself to. Typing appends to it,
          *  BACKSPACE pops a character and ESC clears it - no field to open and
          *  none to leave, so a search costs exactly the characters it is worth.
+         *  `*` and `?` are wildcards; without one the pattern is a substring.
          *  A page opts in by calling _filter_text() / _filter_command() from its
          *  handlers and _filter_match() from its row predicate.
          *  @{ */
@@ -251,8 +252,8 @@ namespace Botanik { namespace Pages {
          *  re-collects whatever the new filter shows. */
         virtual void _on_filter_changed() {}
 
-        /** @brief Whether @p s passes the filter (ASCII case-insensitive
-         *  substring). A null @p s matches only the empty filter. */
+        /** @brief Whether @p s passes the filter (Utils::glob_ci(), so ASCII
+         *  case-insensitive). A null @p s matches only the empty filter. */
         bool _filter_match(const char* s) const;
 
         /** @brief Append a typed character. @return true if @p c was one this

@@ -122,6 +122,33 @@ TEST_CASE("text: a listing pattern is a prefix until it has a wildcard") {
     CHECK_FALSE(Utils::glob_bounded(nullptr, "cli_", 4));
 }
 
+TEST_CASE("text: a table filter is a substring until it has a wildcard") {
+    auto m = Utils::glob_ci;
+
+    // What every table filter meant before wildcards existed, unchanged: the
+    // typed text anywhere in the name, either case.
+    CHECK(m("cli_temp_in", "temp"));
+    CHECK(m("cli_temp_in", "TEMP"));
+    CHECK(m("CLI_TEMP_IN", "temp"));
+    CHECK_FALSE(m("cli_temp_in", "pwr"));
+
+    // With a wildcard it is anchored at both ends, so a fragment that matched
+    // anywhere stops matching.
+    CHECK(m("cli_window1_pos", "cli_*"));
+    CHECK(m("cli_window1_pos", "*_POS"));
+    CHECK(m("cli_window1_pos", "cli_win*_pos"));
+    CHECK(m("cli_window1_pos", "cli_window?_pos"));
+    CHECK(m("cli_window1_pos", "window"));         // no wildcard: still anywhere
+    CHECK_FALSE(m("cli_window1_pos", "window*"));  // one: anchored at the start
+    CHECK_FALSE(m("cli_window1_pos", "*_tgt"));
+
+    // Null and empty: no filter narrows nothing, a null name matches nothing.
+    CHECK(m("anything", ""));
+    CHECK(m("anything", nullptr));
+    CHECK_FALSE(m(nullptr, "cli_"));
+    CHECK_FALSE(m(nullptr, "*"));
+}
+
 TEST_CASE("vars: a calibration with no span reads as implausible, not as a number") {
     // raw_min == raw_max leaves to_eng() with no slope, so every count the ADC
     // reads collapses to eng_min - which is inside the row's own band, so it

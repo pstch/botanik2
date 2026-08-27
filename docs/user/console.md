@@ -177,6 +177,12 @@ matter). `BACKSPACE` takes a character back, `ESC` clears the filter and gives t
 whole table back. The footer badge shows the filter, so `[/cli_temp]` on the legend
 line is the whole explanation of why the table is short.
 
+A filter carrying `*` (any run of characters) or `?` (exactly one) matches the
+whole name rather than any part of it, for the rows a fragment cannot gather:
+`cli_window?_pos` is every window's position and none of its setpoints, and
+`*_tgt` is every setpoint in the greenhouse. It is the pattern `vars list` takes
+(@ref user_variables), typed at the table instead.
+
 A page that also has view MODES - only ALARMS today - keeps them on `LEFT` /
 `RIGHT`, with the active one in its own badge. The filter narrows whichever view is
 showing.

@@ -54,6 +54,11 @@ namespace Botanik { namespace Utils {
      *  time, never stack. */
     bool glob_bounded(const char* s, const char* pat, uint16_t len);
 
+    /** @brief glob_bounded()'s ASCII case-folded form over a NUL-terminated
+     *  pattern, where a wildcard-free pattern matches as a SUBSTRING - the row
+     *  filter a table page has always had, until a `*` or `?` is typed. */
+    bool glob_ci(const char* s, const char* pat);
+
     /** @}
      *  @name Line wrapping
      *  @{ */

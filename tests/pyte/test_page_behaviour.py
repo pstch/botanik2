@@ -60,6 +60,33 @@ def test_monitor_forces_a_row_and_releases_it(spawn):
     assert term.wait_screen("33.5", present=False), "the forced value is still on the row"
 
 
+def test_a_wildcard_filter_narrows_a_table(spawn):
+    """A `*`/`?` pattern narrows a table where a substring cannot.
+
+    On MONITOR, where the names an operator knows come in groups:
+    `cli_window?_pos` is every window's position and none of its setpoints,
+    which no substring of those names selects.
+    """
+    term = boot(spawn)
+    goto(term, keys.ALT_6, "VARIABLE")
+
+    def names():
+        rows = [l for l in term.view() if l.startswith("  | ")]
+        return [n for n in (r.split("|")[2].strip() for r in rows)
+                if n and n != "VARIABLE"]
+
+    def narrowed():
+        rows = names()
+        return len(rows) == 4 and all(n.startswith("cli_window") and
+                                      n.endswith("_pos") for n in rows)
+
+    term.send(keys.text("cli_window?_pos"))
+    assert term.wait_screen("[/cli_window?_pos]"), "the filter did not reach the legend"
+    # Waited on rather than asserted once: the legend is PRIO_CHROME and goes out
+    # a frame ahead of the band it describes.
+    assert term.until(narrowed), "the table did not narrow to the pattern: %s" % names()
+
+
 def test_tasks_page_reports_program_health(spawn):
     """HEALTH is a program's verdict, and blank on everything else.
 
