@@ -270,7 +270,16 @@ namespace Botanik { namespace Tasks {
         bool safe_held() const { return _safe_hold; }
 
         /** @brief Whether EITHER source stands. */
-        bool safe_requested() const { return _safe_asked || _safe_hold; }
+        /** @brief Whether ANYTHING plant-wide asks for the safe state.
+         *
+         *  Authority is one of them: withholding control IS a plant-wide ask,
+         *  because a program that is not called cannot park its own valve. It
+         *  folds in here rather than gating the dispatch separately - a second
+         *  gate is a second answer to one question, and the day they disagree
+         *  the programs keep driving a field nobody is authorising. */
+        bool safe_requested() const {
+            return _safe_asked || _safe_hold || !_programs_enabled;
+        }
         /** @brief Whether EVERY program has arrived. What a reboot waits for
          *  before it drops control and stops kicking the watchdog, and what a
          *  halt waits for before it stops the cycle. True when there are no

@@ -324,6 +324,7 @@ namespace {
     public:
         uint16_t travel;
         uint16_t parked_for = 0;
+        uint32_t runs_seen  = 0;   ///< activations that actually called run()
 
         SlowToPark(const Botanik::SetupContext& ctx, Vars::Bank& io,
                    uint16_t t, const char* name = "slow")
@@ -331,6 +332,7 @@ namespace {
 
     protected:
         void run(Botanik::ProgramContext&) override {
+            runs_seen++;
             if (!going_safe()) { parked_for = 0; return; }
             if (parked_for < travel) { parked_for++; parking(); }
         }
@@ -628,6 +630,48 @@ TEST_CASE("tasks: the operator's switch has one home, whichever end sets it") {
     INFO("and a re-assert is not a new edit");
     p.set_operator_mode(Plc::Mode::DISABLED);
     CHECK(reg.program_mode(0) == Plc::Mode::DISABLED);
+}
+
+TEST_CASE("scan: withholding authority stops the programs driving") {
+    // The one thing control authority is FOR. It reaches a program as the
+    // plant's own ask rather than as a second gate beside it, so this is the
+    // case that fails if the two ever stop being the same signal.
+    Fixture f;
+    Botanik::Tasks::Registry reg;
+    Health::HealthMonitor h(Botanik::SetupContext(reg, &f.log), &f.sched, &f.bank);
+    h.set_authority(&f.auth);
+    SlowToPark slow(Botanik::SetupContext(reg, &f.log), f.bank, 3);
+    slow.set_slot(0);
+    slow.register_tasks();
+    h.register_tasks();
+    reg.setup(0);
+    f.auth.set_health_hold(false);
+
+    uint64_t t = SETTLED;
+    beat(reg, h, t, 5);
+    REQUIRE(slow.health() == Plc::Health::HEALTHY);
+    const uint32_t ran = slow.runs_seen;
+
+    // Through the AUTHORITY, which is how it really happens - the health
+    // monitor pushes its verdict into the registry on every one of its own
+    // activations, so a registry poked directly is undone on the next beat.
+    INFO("authority withdrawn: the program parks and then stops running");
+    f.auth.set_health_hold(true);
+    beat(reg, h, t, 40);
+    CHECK(reg.safe_requested());
+    CHECK(slow.is_parked());
+    CHECK(slow.health() == Plc::Health::SAFE);
+    const uint32_t parked_at = slow.runs_seen;
+    beat(reg, h, t, 20);
+    CHECK(slow.runs_seen == parked_at);        // run() has stopped
+
+    INFO("...and handed back, it drives again");
+    f.auth.set_health_hold(false);
+    beat(reg, h, t, 5);
+    CHECK_FALSE(reg.safe_requested());
+    CHECK(slow.runs_seen > parked_at);
+    CHECK(slow.runs_seen > ran);
+    CHECK(slow.health() == Plc::Health::HEALTHY);
 }
 
 TEST_CASE("health: a program setup could not wire is INVALID, and never runs") {

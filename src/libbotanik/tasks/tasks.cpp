@@ -194,20 +194,17 @@ namespace Botanik { namespace Tasks {
     void Registry::set_programs_enabled(bool enabled, uint64_t now_ms) {
         if (enabled == _programs_enabled) return;
         _programs_enabled = enabled;
-        // Withdrawal is the gate and nothing else: a program that is not called
-        // cannot act on what it remembers, and nothing outside it reads that.
-        // What has gone stale is dropped on the way back IN, where the program
-        // is looking at a fresh image rather than the one the edge happened on.
-        //
-        // Its HEALTH is the exception, because that IS read from outside. A
-        // program stops being activated and would otherwise keep reporting the
-        // verdict of whatever beat happened to be its last, which for a
-        // supervisor reads as a plant still in hand.
         // Withholding authority IS a plant-wide safe ask - a program that is
         // not called cannot park its own valve - so it goes through the one
-        // path rather than a special case that forced the verdict by hand.
-        if (!enabled) { _push_safe(); return; }
+        // path rather than a special case that forces the verdict by hand.
+        // BOTH edges: the ask has to be released as deliberately as it was
+        // made, or a plant handed control back sits parked with nothing on
+        // screen saying which of the two withdrew it.
+        _push_safe();
+        if (!enabled) return;
 
+        // What has gone stale is dropped on the way back IN, where the program
+        // is looking at a fresh image rather than the one the edge happened on.
         for (uint8_t i = 0; i < _count; i++) {
             if (_tasks[i].program == nullptr) continue;
             // reseed() is "treat this as having just run", so the next
@@ -228,13 +225,12 @@ namespace Botanik { namespace Tasks {
             // this one must not be gated with it: withholding control writes
             // safe states into the image, and something still has to carry them
             // out to the field.
-            // Two independent gates, and the stricter wins: the system's control
-            // authority, and the operator's own choice for this one program.
-            // A program the operator switched off keeps being activated until it
-            // has ARRIVED at its fail position: it reads inhibit_requested() and
-            // drives its own actuators there, and one that stops running cannot
-            // close a valve. The plant-wide gate parks them itself
-            // (set_programs_enabled), so those are already is_parked() here.
+            // ONE gate, because the program already weighs every ask that
+            // bears on it: the operator's rung for this one, the plant's, and
+            // its own. Authority is the plant's, folded into safe_requested().
+            // A program asked to stop keeps being activated until it has
+            // ARRIVED at its fail position - one that is not run cannot close
+            // a valve - and only then does this drop it.
             if (t.program != nullptr && !t.program->wants_activation()) continue;
 
             uint32_t dt = 0; uint16_t missed = 0;
