@@ -41,7 +41,6 @@ namespace Botanik { namespace Vars {
 
     void Bank::override_set(Var h, Scalar v, bool valid) {
         h.override_set(v, valid);
-        (void)_sync_override_mute(_row_of(h));
         _mark_override_unsaved(h);
     }
 
@@ -77,18 +76,6 @@ namespace Botanik { namespace Vars {
         _slots[row].vflags = (uint8_t)(_slots[row].vflags | VF_OVR_UNSAVED);
     }
 
-    bool Bank::_sync_override_mute(uint16_t i) {
-        // VAR_NONE lands here as an out-of-range index, so a sink handle is a
-        // no-op rather than a special case at each caller.
-        if (i >= _count || descriptor(i).role != ROLE_OUTPUT) return false;
-        Slot& v = _slots[i];
-        const uint8_t before = v.vflags;
-        v.vflags = (_mode == CONTROL_DISABLED)
-                     ? (uint8_t)(before | VF_OVR_MUTED)
-                     : (uint8_t)(before & ~VF_OVR_MUTED);
-        return v.vflags != before;
-    }
-
     void Bank::override_clear(Var h) {
         h.override_clear();
         const uint16_t row = _row_of(h);
@@ -121,10 +108,6 @@ namespace Botanik { namespace Vars {
             _slots[i].ovr_on = true;
             // It came OUT of the store, so it is durable by definition.
             _slots[i].vflags = (uint8_t)(_slots[i].vflags & ~VF_OVR_UNSAVED);
-            // Restored while the system still holds control, i.e. with the mode
-            // at CONTROL_DISABLED, so this is exactly the window the mute covers:
-            // an output override must not reach the field until control does.
-            (void)_sync_override_mute(i);
             if (d.role == ROLE_OUTPUT) _slots[i].vflags |= VF_FIELD_DIRTY;
             n++;
             // CRITICAL, not a warning: an override explains behaviour nothing

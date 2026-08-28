@@ -130,7 +130,7 @@ namespace Botanik { namespace Vars {
          *  owns the two sources behind it. Starts DISABLED, for the same reason
          *  the system's hold starts raised: outputs are not ours to move until
          *  setup() has finished. */
-        ControlMode   _mode = CONTROL_DISABLED;
+        ControlMode   _mode = CONTROL_WITHHELD;
         /** @brief Name lookups that found nothing: non-zero after bring-up means
          *  something names a row that is not in vars.h. Mutable, being
          *  diagnostics behind a const find(). */
@@ -422,9 +422,7 @@ namespace Botanik { namespace Vars {
 
         /** @brief The effective mode as a word, for the console and the logs. */
         static const char* control_mode_name(ControlMode m) {
-            return (m == CONTROL_ENABLED)   ? "enabled"
-                 : (m == CONTROL_INHIBITED) ? "inhibited"
-                                            : "disabled";
+            return (m == CONTROL_ENABLED) ? "enabled" : "withheld";
         }
 
         /** @} */
@@ -640,10 +638,6 @@ namespace Botanik { namespace Vars {
          *  transition from a re-assertion; @p erase_overrides is the system's
          *  destructive edge. Outputs only. */
         void _apply_control(ControlMode before, bool erase_overrides);   // set_effective_control()'s body
-        /** @brief Bring row @p i's mute bit in step with the current mode; true
-         *  when it moved. ROLE_OUTPUT only. The one owner of "an output's
-         *  override reaches the field iff the mode is not CONTROL_DISABLED". */
-        bool _sync_override_mute(uint16_t i);
 
         /** @brief Locate the ROLE_PARAM run. A parameter outside it is
          *  unreachable as one, the pages addressing the block by offset. */

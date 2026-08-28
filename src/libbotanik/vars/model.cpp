@@ -196,11 +196,6 @@ namespace Botanik { namespace Vars {
                 v.vflags |= VF_FIELD_DIRTY;
             }
 
-            // Muting and unmuting both CHANGE what the field is owed, so both
-            // mark the row: unmuting hands the actuator back to the forced
-            // value, and nothing else would carry it out there.
-            if (_sync_override_mute(i) && v.ovr_on) v.vflags |= VF_FIELD_DIRTY;
-
             if (to_safe) {
                 v.qual = Q_SAFE;
                 // The safe state is only in the image until something carries it

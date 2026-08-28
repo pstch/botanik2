@@ -44,7 +44,7 @@ namespace Botanik { namespace Plc {
          *  @{ */
 
         /** @brief Built over the bank it will drive. Pushes nothing: the bank
-         *  starts at CONTROL_DISABLED for the same reason the hold starts
+         *  starts at CONTROL_WITHHELD for the same reason the hold starts
          *  raised, so the two already agree. */
         explicit ControlAuthority(Vars::Bank& bank) : _bank(bank) {}
 
@@ -59,7 +59,7 @@ namespace Botanik { namespace Plc {
         /** @brief The operator's standing choice, whatever the system is doing. */
         Vars::ControlMode operator_mode() const { return _op_mode; }
 
-        /** @brief Raise or release the SYSTEM's hold. Forces CONTROL_DISABLED.
+        /** @brief Raise or release the SYSTEM's hold. Forces CONTROL_WITHHELD.
          *  @warning Unlike the operator's own disable this ERASES every output
          *  override, stored copy included. */
         void set_health_hold(bool held);
@@ -75,7 +75,7 @@ namespace Botanik { namespace Plc {
 
         /** @brief What is in force: the stricter of the two sources. */
         Vars::ControlMode control_mode() const {
-            return _health_hold ? Vars::CONTROL_DISABLED : _op_mode;
+            return _health_hold ? Vars::CONTROL_WITHHELD : _op_mode;
         }
 
         /** @brief Whether the field may be driven (the scan is gated on it). */

@@ -88,7 +88,7 @@ namespace Botanik { namespace Vars {
         Value declared() const { return Value{ _d->def, _d, _d->type, Q_GOOD }; }
 
         /** @brief The force, or Q_NONE when there is none. Recorded, not
-         *  necessarily driving: CONTROL_DISABLED MUTES an override without
+         *  necessarily driving: CONTROL_WITHHELD MUTES an override without
          *  erasing it, and a muted one is still there and still worth showing. */
         Value override() const {
             if (!_v->ovr_on) return Value{ _d->def, _d, _d->type, Q_NONE };
@@ -224,10 +224,10 @@ namespace Botanik { namespace Vars {
         }
 
         /** @brief Whether the override reaches this reader: in force and not
-         *  muted. CONTROL_DISABLED mutes an OUTPUT's without erasing it; other
+         *  muted. CONTROL_WITHHELD mutes an OUTPUT's without erasing it; other
          *  roles are unaffected. */
         bool _forced() const {
-            return _v->ovr_on && (_v->vflags & VF_OVR_MUTED) == 0;
+            return _v->ovr_on;
         }
 
         /** @brief Note that a ROLE_OUTPUT's demand has moved. One compare on a

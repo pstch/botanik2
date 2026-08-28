@@ -140,10 +140,6 @@ namespace Botanik { namespace Vars {
          *  Latched, so the count is of ROWS with two authors rather than of
          *  per-beat collisions. @see Bank::claim_writer() */
         VF_TWO_WRITERS = 1u << 1,
-        /** @brief This output's override is in force but must not reach the
-         *  field (CONTROL_DISABLED). NOT erased, so leaving the mode restores
-         *  it. ROLE_OUTPUT only, maintained by the Bank alone. */
-        VF_OVR_MUTED   = 1u << 2,
         /** @brief This parameter's edit is live but not durable. What lets a
          *  display mark the row, and a bare `params save` find every row still
          *  owed a write. Cleared by save(), and by a load that overwrites the
@@ -165,16 +161,18 @@ namespace Botanik { namespace Vars {
      *  load-bearing: the effective mode is the MINIMUM of the operator's
      *  choice and what the system's hold allows. */
     enum ControlMode : uint8_t {
-        /** @brief Outputs safe, and an output override does NOT reach the
-         *  field - muted, not erased, so a less strict mode brings it back
-         *  (unless the SYSTEM withdrew control, which erases it). */
-        CONTROL_DISABLED  = 0,
         /** @brief Outputs safe and the programs stopped, but an override still
          *  drives - how you take the plant by hand, since an override is then
-         *  the only thing left that can move an actuator. */
-        CONTROL_INHIBITED = 1,
+         *  the only thing left that can move an actuator.
+         *
+         *  There used to be a stricter rung below this that MUTED overrides
+         *  too. It differed from this one in nothing else, and an override
+         *  that stops driving without saying so is worse than one that keeps
+         *  driving visibly: use `override clear` to take a force off. What
+         *  ERASES them is the system's own hold, which is a different axis. */
+        CONTROL_WITHHELD = 0,
         /** @brief Normal operation. */
-        CONTROL_ENABLED   = 2
+        CONTROL_ENABLED  = 1
     };
 
     /** @brief How a driver reaches a variable.

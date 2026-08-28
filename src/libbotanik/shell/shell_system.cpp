@@ -176,20 +176,14 @@ namespace Botanik { namespace Shell {
             _report_control(auth);         // ...which the system may still veto
             return;
         }
-        if (arg_eq(a, w, "inhibit")) {
+        // `disable` is an alias: the two used to differ in whether an output
+        // override still reached the field, and nothing else. Overrides always
+        // reach it now, so there is one withheld rung and two words for it.
+        if (arg_eq(a, w, "inhibit") || arg_eq(a, w, "disable")) {
             // The programs stop deciding, but `override` still reaches an
             // actuator - the whole reason to type this before working on the
             // plant.
-            auth->set_control_mode(Vars::CONTROL_INHIBITED);
-            // Through the reporter, not a literal: with the system holding
-            // control the EFFECTIVE mode is DISABLED, which mutes every output
-            // override - so promising hand control here would be a lie exactly
-            // when somebody is about to work on the plant.
-            _report_control(auth);
-            return;
-        }
-        if (arg_eq(a, w, "disable")) {
-            auth->set_control_mode(Vars::CONTROL_DISABLED);
+            auth->set_control_mode(Vars::CONTROL_WITHHELD);
             _report_control(auth);
             return;
         }
@@ -233,14 +227,11 @@ namespace Botanik { namespace Shell {
         char out[160];
         // What the mode MEANS for the two things an operator is about to do:
         // whether the programs decide, and whether a hand override reaches a
-        // coil. Only ENABLED and INHIBITED let one through.
+        // coil. It always does now, in either mode.
         const char* what = (eff == Vars::CONTROL_ENABLED)
                                ? "programs driving"
-                               : (eff == Vars::CONTROL_INHIBITED)
-                                     ? "outputs safe, scan stopped; `overrides "
-                                       "set` still drives them by hand"
-                                     : "outputs safe, scan stopped, output "
-                                       "overrides MUTED (kept, not cleared)";
+                               : "outputs safe, scan stopped; `override set` "
+                                 "still drives them by hand";
         // The other axis. A safe request outlives a mode change, and a plant
         // that will not resume after `control enable` is otherwise unexplained.
         const bool parking = (_sys != nullptr && _sys->tasks != nullptr &&
