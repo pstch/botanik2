@@ -29,8 +29,6 @@ public:
      *  @{ */
 
     Vars::RefIn<float> inside;
-    Vars::RefIn<float> ceiling;
-    Vars::RefIn<float> floor;
     Vars::RefIn<float> target;
     Vars::RefIn<float> win_start;
     Vars::RefIn<float> win_full;
@@ -69,8 +67,6 @@ protected:
 
 inline void CoolingController::bind(Vars::Bank& io) {
     inside      = _bind_input<float>(io, "cli_temp_in");
-    ceiling     = _bind_input<float>(io, "cli_temp_hi");
-    floor       = _bind_input<float>(io, "cli_temp_lo");
     target      = _bind_input<float>(io, "cli_targetTemp_degC");
     win_start   = _bind_input<float>(io, "cli_windowStartDem");
     win_full    = _bind_input<float>(io, "cli_windowFullDem");

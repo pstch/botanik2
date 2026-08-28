@@ -11,7 +11,6 @@ void HumidityController::observe(ProgramContext& c) {
     if (!dp_margin.valid()) {
         // No margin, no verdict on it - and the guard fails toward acting:
         // ventilating costs energy, not ventilating costs the collection.
-        degraded();
         vent_dem.set(1.0f, true);
         lockout.set(lockout_for(true, 1000u * rot_release_s.get(), c.dt_ms), true);
         return;
@@ -40,7 +39,6 @@ void HumidityController::run(ProgramContext& c) {
     // for the same reason: ventilating costs energy, not ventilating costs the
     // collection. What the quality says is that nobody measured it.
     const bool measured = dp_margin.valid();
-    if (!measured) degraded();
 
     // Four bands and a dead zone, and the signed ladder IS that shape: below
     // dehumStart the margin is closing on condensation (negative, dehumidify);

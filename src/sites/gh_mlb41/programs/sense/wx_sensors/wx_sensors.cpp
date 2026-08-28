@@ -16,12 +16,10 @@ void WxSensors::on_bind() {
 void WxSensors::run(ProgramContext& c) {
     if (c.first_scan) stations.reset();
 
-    // Two stations, so a station short is half the weather gone - and the roof
-    // interlock is downstream of every one of these rows. Said here rather
-    // than left to the alarm alone: the alarm has a dwell, and a supervisor
-    // reading one health code should not have to wait it out.
-    const uint8_t used = stations.step(c.dt_ms);
-    if (used < 2) degraded();
+    // A station short is half the weather gone, and alarm_wx_station is what
+    // says so - with its own dwell, since one missed scan of RS-485 is the bus
+    // being busy rather than a station that has gone.
+    stations.step(c.dt_ms);
 }
 
 }  // namespace Site

@@ -5,7 +5,6 @@
  */
 #include "libbotanik/shell/shell.h"
 
-#include "libbotanik/plc/authority.h"
 #include "libbotanik_features.h"
 
 #if BOTANIK_FEATURE_SHELL_PAGE
@@ -46,11 +45,7 @@ namespace Botanik { namespace Shell {
     // reset() nor shutdown() promises anything about the outputs, and the gap
     // across a reboot is exactly when an actuator must not be left energised.
     void CommandShell::_leave_running() {
-        // The system's hold, not the operator's: the firmware is deciding to
-        // stop running, not someone turning control off.
 #if BOTANIK_FEATURE_VARS
-        if (_sys != nullptr && _sys->authority != nullptr)
-            _sys->authority->set_health_hold(true);
         if (Vars::Bank* io = _bank()) {
             // A deliberate stop loses no counting: the retain cadence bounds
             // what a power cut costs, a planned stop should cost nothing.
@@ -156,100 +151,6 @@ namespace Botanik { namespace Shell {
     }
 
 #if BOTANIK_FEATURE_VARS
-    void CommandShell::_cmd_control(const char* args, uint16_t alen) {
-        Vars::Bank* io = _bank();
-        if (io == nullptr) { _println("control: no variables"); return; }
-        Plc::ControlAuthority* auth = (_sys != nullptr) ? _sys->authority : nullptr;
-        if (auth == nullptr) { _println("control: no authority"); return; }
-        uint16_t w = 0;
-        const char* a = arg_next(args, alen, w);
-
-        if (arg_eq(a, w, "status")) { _report_control(auth); return; }
-
-        if (arg_eq(a, w, "enable")) {
-            auth->set_control_mode(Vars::CONTROL_ENABLED);
-            // ...and the safe request with it: they are independent axes, so
-            // handing authority back while every program is still driving to
-            // its fail position resumes nothing, and nothing on screen said why.
-            if (_sys != nullptr && _sys->tasks != nullptr)
-                _sys->tasks->request_safe(false);
-            _report_control(auth);         // ...which the system may still veto
-            return;
-        }
-        // `disable` is an alias: the two used to differ in whether an output
-        // override still reached the field, and nothing else. Overrides always
-        // reach it now, so there is one withheld rung and two words for it.
-        if (arg_eq(a, w, "inhibit") || arg_eq(a, w, "disable")) {
-            // The programs stop deciding, but `override` still reaches an
-            // actuator - the whole reason to type this before working on the
-            // plant.
-            auth->set_control_mode(Vars::CONTROL_WITHHELD);
-            _report_control(auth);
-            return;
-        }
-        // The plant-wide safe request, and the one verb here that is NOT a
-        // mode: the programs keep running and drive their OWN actuators to
-        // their safe positions, which is a slower and gentler thing than
-        // dropping authority and letting every output snap to its declared
-        // state. `control enable` releases it, as does `control release`.
-        if (arg_eq(a, w, "safe") || arg_eq(a, w, "release")) {
-            if (_sys == nullptr || _sys->tasks == nullptr) {
-                _println("control: no task table");
-                return;
-            }
-            const bool on = arg_eq(a, w, "safe");
-            _sys->tasks->request_safe(on);
-            if (!on) { _println("control: safe request released"); return; }
-            const uint8_t left = _sys->tasks->unsafe_count();
-            if (left == 0) {
-                _println("control: every program is at its safe state");
-            } else {
-                char out[96];
-                // Not yet ARRIVED: nothing has been activated since the ask, so
-                // most of these will be parked on their next scan and only the
-                // ones with travel will read PARKING. `programs status` names
-                // them once the scan has run.
-                _emitf(out, sizeof(out),
-                       "control: parking, %u program(s) not there yet"
-                       "  (`programs status`)", (unsigned)left);
-            }
-            return;
-        }
-        _verb_usage("control");
-    }
-
-    // The operator's choice and the system's hold are reported separately: a
-    // `control enable` that changes nothing must read as a health fault still in
-    // force rather than a broken command.
-    void CommandShell::_report_control(Plc::ControlAuthority* auth) {
-        const Vars::ControlMode eff = auth->control_mode();
-        const Vars::ControlMode op  = auth->operator_mode();
-        char out[160];
-        // What the mode MEANS for the two things an operator is about to do:
-        // whether the programs decide, and whether a hand override reaches a
-        // coil. It always does now, in either mode.
-        const char* what = (eff == Vars::CONTROL_ENABLED)
-                               ? "programs driving"
-                               : "outputs safe, scan stopped; `override set` "
-                                 "still drives them by hand";
-        // The other axis. A safe request outlives a mode change, and a plant
-        // that will not resume after `control enable` is otherwise unexplained.
-        const bool parking = (_sys != nullptr && _sys->tasks != nullptr &&
-                              _sys->tasks->safe_requested());
-        if (!auth->health_hold()) {
-            _emitf(out, sizeof(out), "control: %s - %s%s",
-                   Vars::Bank::control_mode_name(eff), what,
-                   parking ? "  [safe request standing: `control release`]" : "");
-            return;
-        }
-        // Held by the system: say so, and say what the operator asked for, so
-        // releasing the fault has a predictable result.
-        _emitf(out, sizeof(out),
-               "control: %s - held by the system (bring-up, health, or a "
-               "pending reset); operator asked for %s",
-               Vars::Bank::control_mode_name(eff),
-               Vars::Bank::control_mode_name(op));
-    }
 
 #endif // BOTANIK_FEATURE_VARS
 

@@ -555,9 +555,6 @@ namespace Botanik { namespace Shell {
                 _line("  Rows dropped", val);
             }
 
-            if (rtu->safe_state_pending())
-                _println("  (safe state owed to the field)");
-
             // Twenty devices do not fail at once. Said here as well as in the
             // alarm, because this is the screen an engineer is already looking
             // at when they ask which cabinet to walk to.

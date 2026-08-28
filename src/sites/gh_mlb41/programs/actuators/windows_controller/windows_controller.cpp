@@ -59,25 +59,18 @@ void WindowsController::run(ProgramContext& c) {
         // Stage 1 of the arbitration, and absolute: rain and wind shut the roof
         // whatever else is true, including the safe state below.
         _target = 0.0f;
-    } else if (going_safe()) {
-        _target = _safe_open;
     } else {
         // The cascade STOPS here. An unbelievable demand reads as the row's
         // declared opening, which is a real position and the one the roof parks
-        // at - so the law runs its normal path on it rather than branching to a
-        // safe state. That matters for more than tidiness: PARKING is decided
-        // by the travel below, and a branch that skipped it would report a roof
-        // as arrived while its rams were still moving.
+        // at - so the law runs its normal path on it rather than branching.
         //
         // The coils and the position rows stay believable either way. A coil is
         // a command, not an estimate, and a ram's measured position is a fact
         // about the ram whatever asked it to move.
-        if (!window_dem.valid()) degraded();
         _target = Plc::limit(window_dem.get(), 0.0f, 1.0f);
     }
-    // ...and the wind's ceiling over all of it, the safe state included: a
-    // stiff wind is a reason to open less, not a reason the plant may ignore
-    // because control went away.
+    // ...and the wind's ceiling over all of it: a stiff wind is a reason to
+    // open less, whatever the ladder asked for.
     if (_target > ceiling) _target = ceiling;
 
     const int8_t owner = _owner(_target, cfg);
@@ -86,14 +79,6 @@ void WindowsController::run(ProgramContext& c) {
     for (uint8_t i = 0; i < N_ACT; i++) {
         opn[i].set(act[i].open_cmd(), true);
         clo[i].set(act[i].close_cmd(), true);
-        // Parked is every window AT THE TARGET, not every window commanded to
-        // it: one at a time means the last of the four is a minute behind the
-        // first, and a supervisor that dropped control at the request would
-        // leave three of them wherever they were.
-        if (going_safe() &&
-            (!act[i].known() || act[i].moving() ||
-             fabsf(_target - act[i].position()) > cfg.deadband))
-            parking();
     }
 }
 

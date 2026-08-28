@@ -251,7 +251,6 @@ TEST_CASE_FIXTURE(Rig<Site::TargetTempController>, "target: an unplaced phase ta
     INFO("and the CHAIN STOPS HERE: the base setpoint is a proper value, so "
          "the row stays believable for every cooling stage that keys off it");
     CHECK(live.bank.var(live.ref("cli_targetTemp_degC")).valid());
-    CHECK(prog.health() == Plc::Health::DEGRADED);
 }
 
 TEST_CASE_FIXTURE(Rig<Site::TargetTempController>, "target: a phase boundary eases the target instead of stepping it") {
@@ -310,7 +309,6 @@ TEST_CASE_FIXTURE(Rig<Site::CoolingController>, "cooling: a demand it cannot mea
          "quality is what says it is not about this greenhouse");
     CHECK_FALSE(live.bank.var(dem).valid());
     CHECK(live.bank.var(dem).value().q == Q_UNCERTAIN);
-    CHECK(prog.health() == Plc::Health::DEGRADED);
 
     // 14 degC declared against a 20 degC target is BELOW it, and the ladder is
     // reverse-acting, so the honest answer on that reading asks for warmth -
@@ -340,7 +338,6 @@ TEST_CASE_FIXTURE(Rig<Site::CoolingController>, "cooling: the floor carries it w
     d.step(200);
     CHECK(live.bank.var(dem).valid());
     CHECK(live.bank.var(dem).as_f32() > 0.0f);
-    CHECK(prog.health() == Plc::Health::DEGRADED);
 
     INFO("with the house's own row gone a PID on the defaulted reading would "
          "see 0 degC against the target and call for full HEAT");
@@ -348,7 +345,6 @@ TEST_CASE_FIXTURE(Rig<Site::CoolingController>, "cooling: the floor carries it w
     live.bank.var(live.ref("cli_temp_in")).invalidate(Q_NO_DATA);
     d.step(300);
     CHECK_FALSE(live.bank.var(dem).valid());
-    CHECK(prog.health() == Plc::Health::DEGRADED);
 }
 
 TEST_CASE("cooling: an unknown demand puts every actuator at its own safe state") {
@@ -400,7 +396,6 @@ TEST_CASE("cooling: an unknown demand puts every actuator at its own safe state"
     // wants - saying it is degraded would be a verdict about a network that is
     // perfectly fine.
     for (uint8_t i = 1; i < 6; i++)
-        CHECK(progs[i]->health() == Plc::Health::DEGRADED);
     CHECK(lock_.health() == Plc::Health::HEALTHY);
 }
 
@@ -438,7 +433,6 @@ TEST_CASE_FIXTURE(Rig<Site::DestratController>, "destrat: an unmeasured gap make
     live.bank.var(live.ref("cli_dTStrat_degC")).invalidate(Q_NO_DATA);
     d.step(200);
     CHECK_FALSE(live.bank.var(dem).valid());
-    CHECK(prog.health() == Plc::Health::DEGRADED);
 }
 
 TEST_CASE_FIXTURE(Rig<Site::HumidityController>, "humidity, rot guard: the ventilation demand rises as the margin falls") {
@@ -497,7 +491,6 @@ TEST_CASE_FIXTURE(Rig<Site::HumidityController>, "humidity, rot guard: an unmeas
     d.step(100);
     CHECK(live.bank.get(live.bank.resolve_in<float>("cli_rotVentDem")) == doctest::Approx(1.0f));
     CHECK(live.bank.get(live.bank.resolve_in<bool>("cli_rotLockout")));
-    CHECK(prog.health() == Plc::Health::DEGRADED);
 }
 
 TEST_CASE_FIXTURE(Rig<Site::WeatherWatch>,

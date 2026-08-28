@@ -38,7 +38,6 @@ void IrrMtrInput::observe(ProgramContext& c) {
 
     // The two alarms below are gated on the cycle's state: without it they
     // would be judged against IDLE, which is what a leak is measured from.
-    if (!state.valid()) degraded();
     const IrrState st = (IrrState)state.get();
     // TWO windows, not one. The rate is the last COMPLETED window and stands
     // until the next one closes, and the block's window boundaries have nothing

@@ -74,7 +74,6 @@ namespace Botanik { namespace Tasks {
         // A program the operator took out stays out across a power cycle. Read
         // AFTER the handlers: control authority is still withheld here, so
         // nothing runs on the answer before the first beat.
-        load_programs();
     }
 
     Task* Registry::_claim(const char* name, GroupId group, Phase phase) {
@@ -152,86 +151,14 @@ namespace Botanik { namespace Tasks {
         return true;
     }
 
-    void Registry::request_safe(bool on) {
-        if (on == _safe_asked) return;
-        _safe_asked = on;
-        _push_safe();
-    }
-
-    void Registry::hold_safe(bool on) {
-        if (on == _safe_hold) return;
-        _safe_hold = on;
-        _push_safe();
-    }
-
-    /** @note Both callers above return early when nothing moved. The sweep is
-     *  over every task and it is about to do more than set a flag; the health
-     *  monitor RE-ASSERTS request_safe(true) on each of its own activations for
-     *  the whole park window, so an unguarded push would run the sweep for the
-     *  length of it and change nothing each time. */
-    void Registry::_push_safe() {
-        const bool on = safe_requested();
-        for (uint8_t i = 0; i < _count; i++)
-            if (_tasks[i].program != nullptr) _tasks[i].program->hold_safe(on);
-    }
-
-    bool Registry::all_safe() const {
-        return unsafe_count() == 0;
-    }
-
-    uint8_t Registry::unsafe_count() const {
-        uint8_t n = 0;
-        for (uint8_t i = 0; i < _count; i++) {
-            const Plc::Program* p = _tasks[i].program;
-            // A program that is not being activated cannot arrive, so a request
-            // made while control is withdrawn is answered by the gate having
-            // already forced every output to its safe state.
-            if (p != nullptr && !p->is_parked()) n++;
-        }
-        return n;
-    }
-
-    void Registry::set_programs_enabled(bool enabled, uint64_t now_ms) {
-        if (enabled == _programs_enabled) return;
-        _programs_enabled = enabled;
-        // Withholding authority IS a plant-wide safe ask - a program that is
-        // not called cannot park its own valve - so it goes through the one
-        // path rather than a special case that forces the verdict by hand.
-        // BOTH edges: the ask has to be released as deliberately as it was
-        // made, or a plant handed control back sits parked with nothing on
-        // screen saying which of the two withdrew it.
-        _push_safe();
-        if (!enabled) return;
-
-        // What has gone stale is dropped on the way back IN, where the program
-        // is looking at a fresh image rather than the one the edge happened on.
-        for (uint8_t i = 0; i < _count; i++) {
-            if (_tasks[i].program == nullptr) continue;
-            // reseed() is "treat this as having just run", so the next
-            // activation is a full period away rather than immediate, and
-            // reports its nominal period rather than the outage. A task that
-            // has never run is left alone - its first activation is due
-            // immediately by design, which is also the bring-up case.
-            _tasks[i].timer.reseed(now_ms);
-            _tasks[i].first_activation = true;
-        }
-    }
-
     void Registry::run_phase(Phase phase, uint64_t now_ms) {
         for (uint8_t i = 0; i < _count; i++) {
             Task& t = _tasks[i];
             if (t.phase != phase) continue;
-            // Control authority, and the ONLY thing it gates. The phases around
-            // this one must not be gated with it: withholding control writes
-            // safe states into the image, and something still has to carry them
-            // out to the field.
-            // ONE gate, because the program already weighs every ask that
-            // bears on it: the operator's rung for this one, the plant's, and
-            // its own. Authority is the plant's, folded into safe_requested().
-            // A program asked to stop keeps being activated until it has
-            // ARRIVED at its fail position - one that is not run cannot close
-            // a valve - and only then does this drop it.
-            if (t.program != nullptr && !t.program->wants_activation()) continue;
+            // A program setup could not wire never runs: its refs are inert
+            // sinks, so every value it produced would be a zero nothing could
+            // tell from a reading.
+            if (t.program != nullptr && t.program->is_invalid()) continue;
 
             uint32_t dt = 0; uint16_t missed = 0;
             if (!t.timer.due(now_ms, group_period_ms(t.group), dt, missed)) continue;
@@ -266,21 +193,6 @@ namespace Botanik { namespace Tasks {
 
     uint8_t Registry::program_count() const { return _prog_count; }
 
-    // Per-program enable
-
-    namespace {
-        /** "pmode.<name>", one key per program: no layout to version, like the
-         *  parameter and override keys. False when the name would not fit -
-         *  a truncated key would collide with another program's.
-         *
-         *  NOT "prog.", which held a 0/1 enabled flag: 1 is Mode::SAFE in this
-         *  vocabulary, so reading an old key back would quietly take a running
-         *  program out of service. Old keys are left as orphans. */
-        bool _prog_key(const char* name, char* buf, size_t cap) {
-            const int n = snprintf(buf, cap, "pmode.%s", name);
-            return n > 0 && (size_t)n < cap;
-        }
-    }
 
     int16_t Registry::find_program(const char* name, uint16_t len) const {
         if (name == nullptr) return -1;
@@ -289,84 +201,6 @@ namespace Botanik { namespace Tasks {
             if (Utils::equals_bounded(nm, name, len)) return (int16_t)i;
         }
         return -1;
-    }
-
-    Plc::Mode Registry::program_mode(uint8_t i) const {
-        // Off the PROGRAM, which is where the mode lives. A copy on the Task
-        // beside it was a second answer to one question, and the setter is
-        // public - so anything that set it directly left this reporting the
-        // state before.
-        const Task* t = _program_task(i);
-        return (t != nullptr && t->program != nullptr) ? t->program->operator_mode()
-                                                       : Plc::Mode::NORMAL;
-    }
-
-    bool Registry::program_unsaved(uint8_t i) const {
-        const Task* t = _program_task(i);
-        return (t != nullptr) && t->enable_unsaved;
-    }
-
-    bool Registry::set_program_mode(uint8_t i, Plc::Mode m, uint64_t now_ms) {
-        Task* tp = _program_task(i);
-        if (tp == nullptr) return false;
-        Task& t = *tp;
-        if (t.program == nullptr) return false;
-        const Plc::Mode was = t.program->operator_mode();
-        if (was == m) return true;             // idempotent, and not a new edit
-        t.enable_unsaved = true;
-        // The operator's own ask, beside the system's. Asking rather than just
-        // gating: the program has to run to drive its actuators to the fail
-        // position, and run_phase() keeps activating it until it has.
-        t.program->set_operator_mode(m);
-        // The reseed control authority does, and only on the way UP: without it
-        // the first activation back reports the whole outage as its dt, and a
-        // dwell timer handed an hour of it fires the instant the program
-        // returns. Going the other way there is no outage to hide.
-        if (m > was) { t.timer.reseed(now_ms); t.first_activation = true; }
-        return true;
-    }
-
-    bool Registry::save_program(uint8_t i) {
-        Task* tp = _program_task(i);
-        if (tp == nullptr || tp->name == nullptr) return false;
-        Task& t = *tp;
-        char key[HAL::Storage::KEY_MAX];
-        if (!_prog_key(t.name, key, sizeof(key))) return false;
-        const uint8_t byte = (t.program != nullptr)
-                                 ? (uint8_t)t.program->operator_mode() : 3u;
-        if (!HAL::Storage::set(key, &byte, 1)) return false;
-        t.enable_unsaved = false;              // cleared only on a write that landed
-        return true;
-    }
-
-    uint8_t Registry::save_programs(uint8_t* refused) {
-        uint8_t saved = 0, bad = 0;
-        for (uint8_t i = 0; i < _prog_count; i++) {
-            if (!program_unsaved(i)) continue;
-            if (save_program(i)) saved++;
-            else if (bad < 0xFF)  bad++;
-        }
-        if (refused != nullptr) *refused = bad;
-        return saved;
-    }
-
-    void Registry::load_programs() {
-        for (uint8_t i = 0; i < _prog_count; i++) {
-            Task& t = _tasks[_prog[i]];
-            if (t.name == nullptr) continue;
-            char key[HAL::Storage::KEY_MAX];
-            if (!_prog_key(t.name, key, sizeof(key))) continue;
-            uint8_t byte = 0; size_t got = 0;
-            // Nothing stored is the normal case: a program runs unless it was
-            // deliberately taken out.
-            if (!HAL::Storage::get(key, &byte, 1, &got) || got != 1) continue;
-            // A byte outside the vocabulary is ignored: bring-up must not take
-            // a program out of service because one flash cell went bad.
-            if (byte > (uint8_t)Plc::Mode::NORMAL) continue;
-            if (t.program != nullptr)
-                t.program->set_operator_mode((Plc::Mode)byte);
-            t.enable_unsaved = false;
-        }
     }
 
 }}  // namespace Botanik::Tasks

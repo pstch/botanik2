@@ -15,7 +15,6 @@
 
 #include "libbotanik/config/scheduler.h"
 
-#include "libbotanik/plc/mode.h"
 #include "libbotanik/tasks/phase.h"
 #include "libbotanik/tasks/task_timer.h"
 
@@ -131,7 +130,6 @@ namespace Botanik { namespace Tasks {
          *  Setting and saving are two steps, as they are for a parameter.
          *  @note The choice ITSELF lives on the Program - see
          *  Plc::Program::disable_requested(). One question, one answer. */
-        bool       enable_unsaved = false;
         /** @} */
         TaskTimer   timer;                ///< period from the group, own offset
         TaskCost    cost;
@@ -158,9 +156,6 @@ namespace Botanik { namespace Tasks {
          *  authority starts withheld, so nothing can drive the field on the way
          *  through bring-up. A plain bool, deliberately - `tasks/` must not
          *  acquire Vars to ask who decided it. */
-        bool     _programs_enabled = false;
-        bool     _safe_asked       = false;
-        bool     _safe_hold        = false;   ///< the standing condition, beside it
 
         /** @brief Claim a slot and fill the part both add() forms share, so the
          *  offset rule cannot drift between them. Null when the table is full
@@ -233,90 +228,17 @@ namespace Botanik { namespace Tasks {
          *  additionally needs control authority. */
         void run_phase(Phase phase, uint64_t now_ms);
 
-        /** @brief Grant or withdraw control authority: the whole edge, in one
-         *  idempotent call. Withdrawing shuts the gate and does nothing else.
-         *  @note Granting also RESEEDS each program's timer and raises
-         *  Tick::first. Without the reseed the first activation back reports the
-         *  whole outage as its dt, and a Ton holding 5 s handed an hour of it
-         *  fires instantly - the one thing a withdrawal exists to prevent. */
-        void set_programs_enabled(bool enabled, uint64_t now_ms);
 
         /** @brief Whether program entries are currently allowed to run. */
-        bool programs_enabled() const { return _programs_enabled; }
 
         /** @} */
 
-        /** @name Going safe
-         *
-         *  A request, and the question a supervisor waits on. The programs keep
-         *  running while they answer it - reaching a safe state is work, and one
-         *  that is not activated cannot shut a valve.
+        /** @name Program lookup
          *  @{ */
-
-        /** @brief Ask every program to reach its safe state, or release them.
-         *  The SUPERVISOR's source: taking the unit out of service. */
-        void request_safe(bool on);
-
-        /** @brief Raise or release a STANDING plant condition that requires the
-         *  safe state, the supply going down being the one that does it.
-         *
-         *  A second, independent source, and the stricter wins - the same shape
-         *  ControlAuthority uses. Separate because the two end at different
-         *  times: a condition that clears must not release a halt that is still
-         *  being waited on, and a halt must not be undone by the condition
-         *  going away. */
-        void hold_safe(bool on);
-        /** @brief Whether the standing condition stands. */
-        bool safe_held() const { return _safe_hold; }
-
-        /** @brief Whether EITHER source stands. */
-        /** @brief Whether ANYTHING plant-wide asks for the safe state.
-         *
-         *  Authority is one of them: withholding control IS a plant-wide ask,
-         *  because a program that is not called cannot park its own valve. It
-         *  folds in here rather than gating the dispatch separately - a second
-         *  gate is a second answer to one question, and the day they disagree
-         *  the programs keep driving a field nobody is authorising. */
-        bool safe_requested() const {
-            return _safe_asked || _safe_hold || !_programs_enabled;
-        }
-        /** @brief Whether EVERY program has arrived. What a reboot waits for
-         *  before it drops control and stops kicking the watchdog, and what a
-         *  halt waits for before it stops the cycle. True when there are no
-         *  programs at all. */
-        bool all_safe() const;
-        /** @brief Programs still on their way, for the operator waiting. */
-        uint8_t unsafe_count() const;
-
-        /** @} */
-
-        /** @name Per-program enable
-         *  A SECOND gate beside control authority, and the stricter wins: an
-         *  operator's disable survives a health fault, and authority returning
-         *  does not undo it. Live but not durable until saved. @{ */
 
         /** @brief Program index of @p name (the name it registered under), or
          *  -1. @p len 0 means NUL-terminated. */
         int16_t find_program(const char* name, uint16_t len = 0) const;
-        /** @brief The @p i'th program's OPERATOR mode - its standing ask, not
-         *  the rung in force. The plant's own ask is weighed beside it by the
-         *  program. @see Plc::Program::mode() */
-        Plc::Mode program_mode(uint8_t i) const;
-        /** @brief Whether that has yet to reach storage. */
-        bool    program_unsaved(uint8_t i) const;
-
-        /** @brief Set the @p i'th program's operator mode. A LOOSER rung
-         *  reseeds its timer and raises Tick::first, for the reason
-         *  set_programs_enabled() does. @return false past the last program. */
-        bool    set_program_mode(uint8_t i, Plc::Mode m, uint64_t now_ms);
-
-        /** @brief Persist the @p i'th program's flag. */
-        bool    save_program(uint8_t i);
-        /** @brief Persist every unsaved flag. @return how many were written;
-         *  @p refused counts those storage would not take. */
-        uint8_t save_programs(uint8_t* refused = nullptr);
-        /** @brief Read every program's stored flag. Called by setup(). */
-        void    load_programs();
 
         /** @} */
 
@@ -337,8 +259,6 @@ namespace Botanik { namespace Tasks {
         /** @} */
 
     private:
-        /** @brief Push the effective safe state at every program. */
-        void _push_safe();
     };
 
 }}  // namespace Botanik::Tasks

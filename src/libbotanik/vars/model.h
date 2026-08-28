@@ -126,11 +126,6 @@ namespace Botanik { namespace Vars {
         /** @brief Where ROLE_PARAM writes are persisted (null -> RAM only, and
          *  set() reports SET_NOT_PERSISTED). */
         VarStore*     _store  = nullptr;
-        /** @brief What is IN FORCE, pushed in by Plc::ControlAuthority - which
-         *  owns the two sources behind it. Starts DISABLED, for the same reason
-         *  the system's hold starts raised: outputs are not ours to move until
-         *  setup() has finished. */
-        ControlMode   _mode = CONTROL_WITHHELD;
         /** @brief Name lookups that found nothing: non-zero after bring-up means
          *  something names a row that is not in vars.h. Mutable, being
          *  diagnostics behind a const find(). */
@@ -402,31 +397,6 @@ namespace Botanik { namespace Vars {
          *  empty and refuses every write. */
         uint16_t pool_overflow() const { return _pool_overflow; }
 
-        /** @name Control authority
-         *  The bank ENACTS a verdict it is handed; it does not decide one. Who
-         *  decided, and why, is Plc::ControlAuthority's - which is also the only
-         *  caller of set_effective_control(). See docs/dev/scan.md. @{ */
-
-        /** @brief Take @p now as the mode in force: mute or unmute the output
-         *  overrides, and on the way out of ENABLED drop every output to its
-         *  safe state. @p erase_overrides additionally WIPES them, stored copy
-         *  included - the system's hold does that, the operator's disable does
-         *  not. Idempotent when nothing moved. */
-        void set_effective_control(ControlMode now, bool erase_overrides);
-
-        /** @brief What is actually in force. */
-        ControlMode control_mode() const { return _mode; }
-
-        /** @brief Whether the field may be driven (the scan is gated on it). */
-        bool control_enabled() const { return control_mode() == CONTROL_ENABLED; }
-
-        /** @brief The effective mode as a word, for the console and the logs. */
-        static const char* control_mode_name(ControlMode m) {
-            return (m == CONTROL_ENABLED) ? "enabled" : "withheld";
-        }
-
-        /** @} */
-
         /** @brief Invalidate ROLE_INPUTs whose last good read is older than
          *  their declared timeout. A timeout of 0 never expires, for a value a
          *  driver publishes only on change. */
@@ -634,10 +604,6 @@ namespace Botanik { namespace Vars {
          *  refuses. Shared by both set() overloads. */
         SetResult _persist_param(Var h, const Descriptor& d, Slot& slot);
 
-        /** @brief The one output sweep both control edges run. @p before tells a
-         *  transition from a re-assertion; @p erase_overrides is the system's
-         *  destructive edge. Outputs only. */
-        void _apply_control(ControlMode before, bool erase_overrides);   // set_effective_control()'s body
 
         /** @brief Locate the ROLE_PARAM run. A parameter outside it is
          *  unreachable as one, the pages addressing the block by offset. */

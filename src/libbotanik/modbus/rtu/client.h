@@ -94,13 +94,6 @@ namespace Botanik { namespace Modbus {
          *  suspect happens to be latest. */
         uint8_t  _probe_cursor  = 0;
 
-        /** @brief Whether control authority was up on the previous beat, so the
-         *  withdrawal EDGE can be seen. */
-        bool     _control_was = false;
-        /** @brief A safe state is owed to the field and has not gone out yet.
-         *  While set, a dirty write pre-empts everything and ignores the
-         *  ordinary write interval. */
-        bool     _urgent = false;
 
         /** @brief What each unit answers. Borrowed; may be null. */
         const DeviceTable* _devices = nullptr;
@@ -189,9 +182,6 @@ namespace Botanik { namespace Modbus {
             return _pick(now_ms);
         }
 
-        /** @brief Whether a safe state is owed to the field and has not gone out
-         *  yet. While true a dirty write pre-empts everything. */
-        bool safe_state_pending() const { return _urgent; }
 
         const Planner& plan() const { return _plan; }
         uint32_t txns() const      { return _txns; }

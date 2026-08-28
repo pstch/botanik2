@@ -15,7 +15,6 @@ void StratSensor::run(ProgramContext& c) {
     // the difference is still the last profile this law saw - written either
     // way, with the quality saying nobody measured it.
     const bool measured = ceiling.valid() && floor.valid();
-    if (!measured) degraded();
 
     // ABSOLUTE: destratification mixes the air whichever way the profile has
     // gone, and an inverted one - a cold roof at night over a warm floor - is

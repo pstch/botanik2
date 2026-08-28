@@ -29,7 +29,6 @@ void DayPhaseController::run(ProgramContext& c) {
     // separately - a boot with no NTP has the probe and not the sun.
     const bool sun_ok  = from_rise.valid() && from_set.valid();
     const bool temp_ok = inside.valid();
-    if (!sun_ok || !temp_ok) degraded();
 
     if (c.first_scan || !_seeded) {
         _day_max = _night_min = t_in;

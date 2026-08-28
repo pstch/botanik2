@@ -14,7 +14,6 @@ void AcGridWatch::run(ProgramContext& c) { (void)c; }
 void AcGridWatch::observe(ProgramContext& c) {
     if (c.first_scan) supply.reset();
     bool bad = false;
-    if (!supply.step(bad)) degraded();
     fault.set(bad, true);
 }
 

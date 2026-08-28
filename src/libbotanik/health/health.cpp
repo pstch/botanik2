@@ -5,7 +5,6 @@
 
 #include "libbotanik/health/health.h"
 
-#include "libbotanik/plc/authority.h"
 
 #include "libbotanik/plc/program.h"
 #include "libbotanik/tasks/tasks.h"
@@ -96,68 +95,15 @@ namespace Botanik { namespace Health {
     void HealthMonitor::_latch_control(uint64_t now_ms) {
         Vars::Bank* io = _io;
         if (io == nullptr) return;
-        // A null authority is a harness with nothing to withdraw control FROM.
-        // Guarded per use rather than up front: the quality sweep, the alarms
-        // and the parking handshake below are none of them about who may drive
-        // the field, and skipping them here once cost five health cases.
-        if (_authority != nullptr && !watchdog_ok()) {
-            if (!_health_fault) {
-                _health_fault = true;
-                _authority->set_health_hold(true);
-                if (_logger) _logger->critical(Logs::HEALTH,
-                    "control disabled\n"
-                    "outputs at their safe state, scan inhibited");
-            }
-        } else if (_authority != nullptr && _health_fault) {
-            _health_fault = false;
-            _authority->set_health_hold(false);
-            // Lead hoisted out of the ternary: the format string stays a
-            // literal the printf attribute can check, and both outcomes grep
-            // as "health recovered".
-            if (_logger) _logger->warning(Logs::HEALTH, "health recovered\n%s",
-                _authority->control_enabled()
-                    ? "control enabled, scan resuming"
-                    : "control still disabled by the operator");
+        // Taking the unit out of service, if that has been asked for. The
+        // retained rows are written and the ending takes effect; there is no
+        // handshake to wait on, because a program has no state to reach.
+        if (_stop != Stop::NONE && !_stopped) {
+            _stopped = true;
+            (void)io->save_retained();
+            if (_logger) _logger->warning(Logs::HEALTH, "%s: retained saved",
+                _stop == Stop::REBOOT ? "reboot" : "halt");
         }
-
-        // Taking the unit out of service, if that has been asked for. FIRST,
-        // because it decides what control authority may be this beat.
-        if (_stop != Stop::NONE && !_stopped && _tasks != nullptr) {
-            // Every program drives its own actuators to their safe positions
-            // and says when it has arrived. It keeps being ACTIVATED while it
-            // does: parking is work, and a program that is not run cannot close
-            // a valve or park a window.
-            _tasks->request_safe(true);
-            if (_stop_since == 0) _stop_since = now_ms;
-            const bool out_of_time =
-                (now_ms - _stop_since) >= Config::STOP_PARK_MS;
-            if (out_of_time && _logger && !_stopped)
-                _logger->error(Logs::HEALTH,
-                               "%s: %u program(s) never parked, going anyway",
-                               _stop == Stop::REBOOT ? "reboot" : "halt",
-                               (unsigned)_tasks->unsafe_count());
-            if (_tasks->all_safe() || out_of_time) {
-                _stopped = true;
-                // Only now: the field goes to its declared safe state, the
-                // retained rows are written, and whichever of the two endings
-                // was asked for takes effect.
-                if (_authority != nullptr) _authority->set_health_hold(true);
-                (void)io->save_retained();
-                if (_logger) _logger->warning(Logs::HEALTH,
-                    "%s: plant safe",
-                    _stop == Stop::REBOOT ? "reboot" : "halt");
-            } else if (_logger && _stop_said != _tasks->unsafe_count()) {
-                _stop_said = _tasks->unsafe_count();
-                _logger->notice(Logs::HEALTH, "%s: %u program(s) still parking",
-                                _stop == Stop::REBOOT ? "reboot" : "halt",
-                                (unsigned)_stop_said);
-            }
-        }
-
-        // The whole authority edge, in one idempotent call: the gate, and on
-        // the way back up the timer reseed and the first-scan flag.
-        if (_tasks != nullptr && _authority != nullptr)
-            _tasks->set_programs_enabled(_authority->control_enabled(), now_ms);
 
 #if BOTANIK_FEATURE_LOGGING
         // Before the PLC block below, and outside it: whether a reading is

@@ -6,7 +6,6 @@
  */
 
 #include <string>
-#include "libbotanik/plc/authority.h"
 
 #include "doctest.h"
 
@@ -28,7 +27,6 @@ namespace {
     struct Fixture {
         Vars::Slot*                vals;
         Vars::Bank                  bank;
-        Botanik::Plc::ControlAuthority auth{bank};
         Logs::Logger                log;
         RecordingWriter             writer;
         Scheduler::SchedulerContext sched;
@@ -50,7 +48,6 @@ namespace {
 TEST_CASE("health: SYS_RST is asserted for the reset window and then clears") {
     Fixture f;
     Health::HealthMonitor h(Botanik::SetupContext(nullptr, &f.log), &f.sched, &f.bank);
-    h.set_authority(&f.auth);
 
     h.step(1000);                                   // early in the window
     CHECK(f.alarm("alarm_system_reset"));
@@ -62,7 +59,6 @@ TEST_CASE("health: CPU load and jitter are judged against the beat, not a consta
     // Integer-scaled (no float): at threshold must NOT fire, one us past must.
     Fixture f;
     Health::HealthMonitor h(Botanik::SetupContext(nullptr, &f.log), &f.sched, &f.bank);
-    h.set_authority(&f.auth);
 
     const uint32_t at = (uint32_t)((uint64_t)PERIOD_US * Config::ALARM_CPU_LOAD_PCT / 100u);
     f.sched.cpu_loop_us_recent = at;
@@ -84,7 +80,6 @@ TEST_CASE("health: CPU load and jitter are judged against the beat, not a consta
 TEST_CASE("health: the stack alarm follows the high-water fraction") {
     Fixture f;
     Health::HealthMonitor h(Botanik::SetupContext(nullptr, &f.log), &f.sched, &f.bank);
-    h.set_authority(&f.auth);
 
     f.sched.stack_usage = (float)Config::ALARM_STACK_PCT / 100.0f - 0.01f;
     h.step(SETTLED);
@@ -100,7 +95,6 @@ TEST_CASE("health: the thresholds are parameters, live, not compile-time constan
     // number an operator wants to move is the one a unit nuisance-alarms on.
     Fixture f;
     Health::HealthMonitor h(Botanik::SetupContext(nullptr, &f.log), &f.sched, &f.bank);
-    h.set_authority(&f.auth);
 
     // Sit exactly at the factory threshold: quiet by the "at does not fire" rule.
     f.sched.cpu_loop_us_recent =
@@ -159,7 +153,6 @@ TEST_CASE("health: an overrun pulses CPU_XRUN, and the row's own hold_s latches 
     static const uint64_t HOLD_MS = 300u * 1000u;   // the CPU_XRUN row's hold_s
     Fixture f;
     Health::HealthMonitor h(Botanik::SetupContext(nullptr, &f.log), &f.sched, &f.bank);
-    h.set_authority(&f.auth);
     Alarms::AlarmController& m = h.alarm_model();
     h.setup(0);          // binds the alarm source, then sets the model up
     const int xr = m.index_of("CPU_XRUN");
@@ -192,7 +185,6 @@ TEST_CASE("health: POST fails when the alarm table declares more than the model 
     // BOTANIK_ASSERT compiles to nothing without DEBUG (every OPTA build); POST must catch this too.
     Fixture f;
     Health::HealthMonitor h(Botanik::SetupContext(nullptr, &f.log), &f.sched, &f.bank);
-    h.set_authority(&f.auth);
     h.setup(0);                                     // runs POST
     CHECK(h.healthy());
     CHECK(f.bank.var(f.bank.find("alarm_system_reset")).meta() != nullptr);
@@ -203,7 +195,6 @@ TEST_CASE("health: with no scheduler context the load alarms stay quiet") {
     // Must not invent a fault from a null scheduler pointer; SYS_RST/FLASH_FLT still work.
     Fixture f;
     Health::HealthMonitor h(Botanik::SetupContext(nullptr, &f.log), nullptr, &f.bank);
-    h.set_authority(&f.auth);
     h.step(SETTLED);
     CHECK_FALSE(f.alarm("alarm_cpu_load"));
     CHECK_FALSE(f.alarm("alarm_cpu_jitter"));
@@ -248,7 +239,6 @@ TEST_CASE("quality: a row losing its validity is announced once, not per beat") 
     Fixture f;
     Botanik::Tasks::Registry reg;
     Health::HealthMonitor h(Botanik::SetupContext(reg, &f.log), &f.sched, &f.bank);
-    h.set_authority(&f.auth);
     h.register_tasks();
     reg.setup(0);
 
@@ -293,7 +283,6 @@ TEST_CASE("quality: bring-up is adopted in silence, not announced row by row") {
     Fixture f;
     Botanik::Tasks::Registry reg;
     Health::HealthMonitor h(Botanik::SetupContext(reg, &f.log), &f.sched, &f.bank);
-    h.set_authority(&f.auth);
     h.register_tasks();
     reg.setup(0);
 
@@ -317,167 +306,6 @@ TEST_CASE("quality: bring-up is adopted in silence, not announced row by row") {
     CHECK(f.writer.saw("cli_temp_hi1: invalid"));
 }
 
-namespace {
-    /** @brief A program that takes @c travel activations to reach its safe
-     *  state, so a case can watch a supervisor wait for it. */
-    class SlowToPark : public Botanik::Plc::Program {
-    public:
-        uint16_t travel;
-        uint16_t parked_for = 0;
-        uint32_t runs_seen  = 0;   ///< activations that actually called run()
-
-        SlowToPark(const Botanik::SetupContext& ctx, Vars::Bank& io,
-                   uint16_t t, const char* name = "slow")
-            : Program(ctx, name, Botanik::Tasks::GROUP_FAST, io), travel(t) {}
-
-    protected:
-        void run(Botanik::ProgramContext&) override {
-            runs_seen++;
-            if (!going_safe()) { parked_for = 0; return; }
-            if (parked_for < travel) { parked_for++; parking(); }
-        }
-    };
-
-    /** @brief Beat the registry the way the firmware does. */
-    void beat(Botanik::Tasks::Registry& reg, Health::HealthMonitor& h,
-              uint64_t& t, uint16_t n) {
-        for (uint16_t i = 0; i < n; i++) {
-            t += Config::TASK_PERIOD_MS;
-            reg.run_phase(Botanik::Tasks::PHASE_SERVICE, t);
-            reg.run_phase(Botanik::Tasks::PHASE_CONTROL, t);
-            h.step(t);
-        }
-    }
-}
-
-TEST_CASE("stop: a reboot parks the plant BEFORE it stops kicking") {
-    Fixture f;
-    Botanik::Tasks::Registry reg;
-    Health::HealthMonitor h(Botanik::SetupContext(reg, &f.log), &f.sched, &f.bank);
-    h.set_authority(&f.auth);
-    SlowToPark slow(Botanik::SetupContext(reg, &f.log), f.bank, 50);
-    slow.set_slot(0);
-    slow.register_tasks();
-    h.register_tasks();
-    reg.setup(0);
-    f.auth.set_health_hold(false);
-
-    uint64_t t = SETTLED;
-    beat(reg, h, t, 5);
-    REQUIRE(h.watchdog_ok());
-
-    h.request_reboot();
-    beat(reg, h, t, 10);
-    INFO("still travelling: withholding the kick now would reset the unit "
-         "mid-stroke, which is the one thing the parking exists to avoid");
-    CHECK(h.watchdog_ok());
-    CHECK_FALSE(h.stopped());
-
-    beat(reg, h, t, 60);
-    CHECK(h.stopped());
-    CHECK_FALSE(h.watchdog_ok());
-    INFO("and the field is at its declared safe state before the reset window "
-         "opens, not after it");
-    CHECK(f.auth.health_hold());
-}
-
-TEST_CASE("stop: a program that never parks does not hold the unit for ever") {
-    Fixture f;
-    Botanik::Tasks::Registry reg;
-    Health::HealthMonitor h(Botanik::SetupContext(reg, &f.log), &f.sched, &f.bank);
-    h.set_authority(&f.auth);
-    // Longer than the deadline: this one is never going to arrive.
-    SlowToPark stuck(Botanik::SetupContext(reg, &f.log), f.bank, 0xFFFF);
-    stuck.set_slot(0);
-    stuck.register_tasks();
-    h.register_tasks();
-    reg.setup(0);
-    f.auth.set_health_hold(false);
-
-    uint64_t t = SETTLED;
-    beat(reg, h, t, 5);
-    h.request_reboot();
-
-    const uint16_t deadline_beats =
-        (uint16_t)(Config::STOP_PARK_MS / Config::TASK_PERIOD_MS);
-    beat(reg, h, t, (uint16_t)(deadline_beats - 20));
-    CHECK_FALSE(h.stopped());
-
-    beat(reg, h, t, 40);
-    INFO("an operator who typed `reboot` is owed one");
-    CHECK(h.stopped());
-    CHECK_FALSE(h.watchdog_ok());
-    CHECK(f.writer.saw("never parked"));
-}
-
-TEST_CASE("stop: a halt keeps kicking, because the loop IS alive") {
-    Fixture f;
-    Botanik::Tasks::Registry reg;
-    Health::HealthMonitor h(Botanik::SetupContext(reg, &f.log), &f.sched, &f.bank);
-    h.set_authority(&f.auth);
-    SlowToPark slow(Botanik::SetupContext(reg, &f.log), f.bank, 10);
-    slow.set_slot(0);
-    slow.register_tasks();
-    h.register_tasks();
-    reg.setup(0);
-    f.auth.set_health_hold(false);
-
-    uint64_t t = SETTLED;
-    beat(reg, h, t, 5);
-    h.request_stop(Health::HealthMonitor::Stop::HALT);
-    beat(reg, h, t, 40);
-
-    CHECK(h.stopped());
-    CHECK(h.halted());
-    INFO("the watchdog says the loop is alive, and it is - what stops is the "
-         "beat, which the firmware skips while this holds");
-    CHECK(h.watchdog_ok());
-    CHECK(f.auth.health_hold());
-}
-
-TEST_CASE("health: a program on its way to safe reads PARKING, not HEALTHY") {
-    Fixture f;
-    Botanik::Tasks::Registry reg;
-    Health::HealthMonitor h(Botanik::SetupContext(reg, &f.log), &f.sched, &f.bank);
-    h.set_authority(&f.auth);
-    SlowToPark slow(Botanik::SetupContext(reg, &f.log), f.bank, 10);
-    slow.set_slot(0);
-    slow.register_tasks();
-    h.register_tasks();
-    reg.setup(0);
-    f.auth.set_health_hold(false);
-
-    uint64_t t = SETTLED;
-    beat(reg, h, t, 5);
-    REQUIRE(slow.health() == Plc::Health::HEALTHY);
-
-    reg.request_safe(true);
-    beat(reg, h, t, 3);
-    INFO("the actuator has not arrived, so the program has not either - and "
-         "reading HEALTHY here would say the plant was still in hand");
-    CHECK(slow.health() == Plc::Health::PARKING);
-    CHECK_FALSE(slow.is_parked());
-    CHECK(reg.unsafe_count() == 1);
-
-    beat(reg, h, t, 20);
-    INFO("SAFE, not INHIBITED: the plant asked for the safe state, and the two "
-         "rungs are what a reader tells apart - INHIBITED is a loop taken by "
-         "hand, whose outputs stand where the law left them");
-    CHECK(slow.health() == Plc::Health::SAFE);
-    CHECK(slow.is_parked());
-
-    INFO("both are NOTICE: on the OPTA the minimum level is INFO, so a plant "
-         "going to its safe state at DEBUG leaves no record at all");
-    CHECK(f.writer.saw("slow: PARKING"));
-    CHECK(f.writer.saw("slow: SAFE"));
-    CHECK(f.writer.last_level == Logs::LOG_NOTICE);
-
-    INFO("...and released, it says so on the way back up");
-    reg.request_safe(false);
-    beat(reg, h, t, 3);
-    CHECK(slow.health() == Plc::Health::HEALTHY);
-    CHECK(f.writer.saw("slow: HEALTHY"));
-}
 
 namespace {
     /** @brief A program naming a row no table declares, so setup FAULTS it. */
@@ -605,86 +433,28 @@ TEST_CASE("bind: the rows a program reads are recorded, outputs are not") {
     CHECK_FALSE(p.input_overflow());
 }
 
-TEST_CASE("tasks: the operator's switch has one home, whichever end sets it") {
-    Fixture f;
-    Botanik::Tasks::Registry reg;
-    OneBinding p(Botanik::SetupContext(reg, &f.log), f.bank, "switched",
-                 OneBinding::IN, "cli_temp_hi");
-    p.set_slot(0);
-    p.register_tasks();
-    reg.setup(0);
-    REQUIRE(reg.program_count() == 1);
-    REQUIRE(reg.program_mode(0) == Plc::Mode::NORMAL);
-
-    INFO("through the registry, which is what the shell calls");
-    REQUIRE(reg.set_program_mode(0, Plc::Mode::DISABLED, 100));
-    CHECK(reg.program_mode(0) == Plc::Mode::DISABLED);
-    CHECK(p.operator_mode() == Plc::Mode::DISABLED);
-
-    // The other end of the same switch. It is public, so a copy of the mode on
-    // the Task beside it would report the state before this call for ever.
-    INFO("...and directly on the program, which is public and always was");
-    p.set_operator_mode(Plc::Mode::NORMAL);
-    CHECK(reg.program_mode(0) == Plc::Mode::NORMAL);
-
-    INFO("and a re-assert is not a new edit");
-    p.set_operator_mode(Plc::Mode::DISABLED);
-    CHECK(reg.program_mode(0) == Plc::Mode::DISABLED);
-}
-
-TEST_CASE("scan: withholding authority stops the programs driving") {
-    // The one thing control authority is FOR. It reaches a program as the
-    // plant's own ask rather than as a second gate beside it, so this is the
-    // case that fails if the two ever stop being the same signal.
-    Fixture f;
-    Botanik::Tasks::Registry reg;
-    Health::HealthMonitor h(Botanik::SetupContext(reg, &f.log), &f.sched, &f.bank);
-    h.set_authority(&f.auth);
-    SlowToPark slow(Botanik::SetupContext(reg, &f.log), f.bank, 3);
-    slow.set_slot(0);
-    slow.register_tasks();
-    h.register_tasks();
-    reg.setup(0);
-    f.auth.set_health_hold(false);
-
-    uint64_t t = SETTLED;
-    beat(reg, h, t, 5);
-    REQUIRE(slow.health() == Plc::Health::HEALTHY);
-    const uint32_t ran = slow.runs_seen;
-
-    // Through the AUTHORITY, which is how it really happens - the health
-    // monitor pushes its verdict into the registry on every one of its own
-    // activations, so a registry poked directly is undone on the next beat.
-    INFO("authority withdrawn: the program parks and then stops running");
-    f.auth.set_health_hold(true);
-    beat(reg, h, t, 40);
-    CHECK(reg.safe_requested());
-    CHECK(slow.is_parked());
-    CHECK(slow.health() == Plc::Health::SAFE);
-    const uint32_t parked_at = slow.runs_seen;
-    beat(reg, h, t, 20);
-    CHECK(slow.runs_seen == parked_at);        // run() has stopped
-
-    INFO("...and handed back, it drives again");
-    f.auth.set_health_hold(false);
-    beat(reg, h, t, 5);
-    CHECK_FALSE(reg.safe_requested());
-    CHECK(slow.runs_seen > parked_at);
-    CHECK(slow.runs_seen > ran);
-    CHECK(slow.health() == Plc::Health::HEALTHY);
+namespace {
+    /** @brief Beat the registry the way the firmware does. */
+    void beat(Botanik::Tasks::Registry& reg, Health::HealthMonitor& h,
+              uint64_t& t, uint16_t n) {
+        for (uint16_t i = 0; i < n; i++) {
+            t += Config::TASK_PERIOD_MS;
+            reg.run_phase(Botanik::Tasks::PHASE_SERVICE, t);
+            reg.run_phase(Botanik::Tasks::PHASE_CONTROL, t);
+            h.step(t);
+        }
+    }
 }
 
 TEST_CASE("health: a program setup could not wire is INVALID, and never runs") {
     Fixture f;
     Botanik::Tasks::Registry reg;
     Health::HealthMonitor h(Botanik::SetupContext(reg, &f.log), &f.sched, &f.bank);
-    h.set_authority(&f.auth);
     Unwireable bad(Botanik::SetupContext(reg, &f.log), f.bank);
     bad.set_slot(0);
     bad.register_tasks();
     h.register_tasks();
     reg.setup(0);
-    f.auth.set_health_hold(false);
 
     CHECK(bad.health() == Plc::Health::INVALID);
     CHECK(bad.is_invalid());
@@ -697,10 +467,6 @@ TEST_CASE("health: a program setup could not wire is INVALID, and never runs") {
     CHECK(bad.observed == 0);
     CHECK(bad.health() == Plc::Health::INVALID);
 
-    INFO("and it counts as parked: one that will never run can never arrive, "
-         "and waiting on it would hold the plant out of its reboot for ever");
-    CHECK(bad.is_parked());
-    CHECK(reg.all_safe());
 }
 
 TEST_CASE("health: INVALID is said even though bring-up is quiet") {
@@ -710,13 +476,11 @@ TEST_CASE("health: INVALID is said even though bring-up is quiet") {
     Fixture f;
     Botanik::Tasks::Registry reg;
     Health::HealthMonitor h(Botanik::SetupContext(reg, &f.log), &f.sched, &f.bank);
-    h.set_authority(&f.auth);
     Unwireable bad(Botanik::SetupContext(reg, &f.log), f.bank);
     bad.set_slot(0);
     bad.register_tasks();
     h.register_tasks();
     reg.setup(0);
-    f.auth.set_health_hold(false);
 
     uint64_t t = 0;
     beat(reg, h, t, 20);

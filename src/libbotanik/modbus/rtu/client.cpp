@@ -261,20 +261,6 @@ uint16_t RtuClient::_pick(uint64_t now_ms) const {
     // would win every comparison it entered.
     const uint8_t suspect = _next_suspect(now_ms);
 
-    if (_urgent) {
-        for (uint16_t i = 0; i < _plan.block_count(); ++i) {
-            const Block& b = _plan.block(i);
-            if (is_read(b.fc)) continue;
-            // Absolute in PRIORITY, not in eligibility. A safe state owed to a
-            // device that is not answering still waits its turn in the rotation:
-            // the bus cannot deliver it any faster by trying more often, and the
-            // devices that can still hear one are behind it.
-            if (_peer[b.peer].misses != 0 && b.peer != suspect) continue;
-            if (!_due(b, now_ms)) continue;
-            if (block_dirty(*_io, _plan, b)) return i;
-        }
-    }
-
     uint16_t best    = NO_BLOCK;
     uint32_t urgency = 0;
 
@@ -298,34 +284,6 @@ uint16_t RtuClient::_pick(uint64_t now_ms) const {
     return best;
 }
 
-void RtuClient::_track_control(uint64_t now_ms) {
-    if (_io == nullptr) return;
-    const bool on = _io->control_enabled();
-    // The falling edge, and only that: an operator who leaves control disabled
-    // must not keep the bus at emergency priority for the rest of the day.
-    if (_control_was && !on) _urgent = true;
-    // The rising edge spends it, whatever the sweep below would say: with
-    // control back the programs drive the outputs from the next beat, so nothing
-    // is owed an EMERGENCY delivery. Otherwise the flag's lifetime depends on
-    // the sweep finding nothing, which a block that cannot go out prevents.
-    if (!_control_was && on) _urgent = false;
-    _control_was = on;
-
-    // Spent once the safe state is out. Cheaper than it looks - it stops at the
-    // first dirty block, and after the sweep there are none.
-    if (!_urgent) return;
-    for (uint16_t i = 0; i < _plan.block_count(); ++i) {
-        const Block& b = _plan.block(i);
-        if (is_read(b.fc)) continue;
-        // Only a block that could ACTUALLY go out holds the urgency. One on a
-        // backed-off device stays dirty because _pick() never offers it the bus,
-        // so without this one dead output device pins every live device's writes
-        // at safe-state priority for the rest of the boot.
-        if (!_due(b, now_ms)) continue;
-        if (block_dirty(*_io, _plan, b)) return;
-    }
-    _urgent = false;
-}
 
 bool RtuClient::_build(uint16_t block, uint64_t now_ms) {
     (void)now_ms;
@@ -415,7 +373,6 @@ void RtuClient::on_output(uint64_t now_ms) {
     // Every beat, not only when idle. The control-authority edge is what raises
     // the safe-state urgency, and a withdrawal during a transaction would
     // otherwise be seen only once the transaction ended.
-    _track_control(now_ms);
 
     // The gap expires INTO this beat rather than costing one of its own: it is
     // inter-frame silence, and once it has elapsed there is nothing left to wait

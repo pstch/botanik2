@@ -49,7 +49,6 @@ float IrrigationModulation::_track_dryness(ProgramContext& c) {
 
 void IrrigationModulation::observe(ProgramContext& c) {
     const float avg = _track_dryness(c);
-    if (!vpd.valid()) degraded();
 
     const float demand  = Plc::ladder(avg, dry_lo.get(), dry_hi.get());
     const float min_mod = Plc::limit(mod_min.get(), 0.0f, 1.0f);

@@ -23,10 +23,9 @@ void IntractorController::run(ProgramContext& c) {
     // demand below it simply does not reach it.
     float speed = _safe_speed;
 
-    if (!going_safe()) {
+    {
         const bool  dem_ok = cool_dem.valid();
         const float cool    = cool_dem.get();
-        if (!dem_ok) degraded();
 
         // Three demands, each gated by the law that owns the reading behind it,
         // and a demand nobody can read contributes NOTHING - it does not have

@@ -194,11 +194,6 @@ TEST_CASE("scenario: a zone dying leaves the plant safe, not confident") {
     CHECK(p.num("cli_coolDem") > 0.5f);
     CHECK(p.num("cli_window1_pos") > 0.9f);
 
-    SAY("and the laws that read it say they are working on a reading they do "
-         "not have");
-    CHECK(p.zones.health() != Plc::Health::HEALTHY);
-    CHECK(p.cooling.health() == Plc::Health::DEGRADED);
-
     SAY("the dew-point margin is still MEASURED, and it is the FLOOR's: a "
          "level holding an old reading does not speak for the house");
     CHECK(p.valid("cli_dpMargin_degC"));
@@ -226,45 +221,6 @@ TEST_CASE("scenario: a zone dying leaves the plant safe, not confident") {
     CHECK(p.num("cli_rotVentDem") == doctest::Approx(1.0f));
     CHECK(p.on("cli_rotLockout"));
     snapshot(p, "the house with no measured margin at all");
-}
-
-TEST_CASE("scenario: the supply going down parks the plant") {
-    ScenarioTrace::scenario("The supply going down",
-        "The UPS reports its battery going while the plant is working hard: "
-        "the lockout is the plant's safe state, and it is reversible.");
-    Plant p;
-    hold(p, HOT_AFTERNOON, Site::PHASE_DAY);
-    p.weather_for(900);
-    REQUIRE(p.num("cli_window1_pos") > 0.9f);
-
-    SAY("the UPS says its battery is going: the whole plant is held, and every "
-         "actuator goes where the table says it fails to");
-    for (uint32_t i = 0; i < 400; i++) {
-        hold_weather(p);
-        p.f.bank.var(p.ref("pwr_upsLowBat")).publish(from_bool(T_BOOL, true), p.t);
-        p.cycle->step(p.t += 100);
-    }
-    CHECK(p.on("sys_supply_lockout"));
-
-    SAY("the lockout IS the plant's safe state: every program was asked to "
-         "park, through the machinery a halt already uses");
-    CHECK(p.f.reg.safe_held());
-    CHECK(p.f.reg.safe_requested());
-
-    SAY("windows: shut, whatever the ladder wants - the lockout is stage one");
-    CHECK(p.num("cli_window1_pos") < 0.1f);
-    SAY("skirt: shut");
-    CHECK_FALSE(p.on("cli_skirtValve"));
-    snapshot(p, "the battery going, and the plant parked");
-
-    SAY("...and the plant is released the moment the battery is not: the hold "
-         "goes down on the same edge that raised it, and the roof reopens");
-    const uint32_t back = run_until(p, [](Plant& q) {
-        return !q.f.reg.safe_held() && q.num("cli_window1_pos") > 0.9f;
-    }, 3000);
-    CHECK(back > 0);
-    CHECK_FALSE(p.on("sys_supply_lockout"));
-    snapshot(p, "the supply back, and the plant with it");
 }
 
 TEST_CASE("scenario: a long hot spell does not cost minutes of recovery") {

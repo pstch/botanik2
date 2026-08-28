@@ -59,7 +59,6 @@ void DcWatch::observe(ProgramContext& c) {
     };
     // A divider that has stopped answering leaves its rail on the last
     // average, which is a guess: say so rather than only alarming on it.
-    for (const Rail& r : rails) if (!r.in.valid()) { degraded(); break; }
     const bool ps1 = _rail(rails[0], c.dt_ms, _seen[0]);
     const bool ps2 = _rail(rails[1], c.dt_ms, _seen[1]);
     const bool ups = _rail(rails[2], c.dt_ms, _seen[2]);
@@ -75,14 +74,6 @@ void DcWatch::observe(ProgramContext& c) {
     const bool low = low_for(low_bat.get(), 2000, c.dt_ms);
     ups_flt.set(low, true);
     lockout.set(low, true);
-
-    // ...and the lockout IS the plant's safe state: every program is asked to
-    // park while it stands, and released the moment it does not. Held rather
-    // than requested, so it cannot cancel a halt that is still being waited on.
-    if (_tasks != nullptr && low != _safe_held) {
-        _safe_held = low;
-        _tasks->hold_safe(low);
-    }
 
     // The battery voltage is a WARNING and the contact is the interlock, so the
     // summary carries both: an operator reading one row wants the whole answer.

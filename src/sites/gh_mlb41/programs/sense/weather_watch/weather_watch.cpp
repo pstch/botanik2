@@ -15,7 +15,6 @@ void WeatherWatch::observe(ProgramContext& c) {
     // is left here is a reading nothing could vote at all.
     const bool measured = wind.valid() && rain.valid();
     if (measured) _seen = true;
-    if (!measured) degraded();
 
     // A STORM is sustained wind: cli_windShutEnd_mps, 20.8, which is 75 kmph and
     // Beaufort 9. It is the same number that shuts the roof, because it is the

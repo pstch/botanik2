@@ -15,7 +15,6 @@ void TargetTempController::run(ProgramContext& c) {
     // takes the base unshifted, the law says it is running short, and the row
     // stays believable for everything downstream.
     const bool placed = phase.valid();
-    if (!placed) degraded();
     const DayPhase now = (DayPhase)phase.get();
     float held = cool_set.get();
 

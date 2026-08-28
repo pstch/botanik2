@@ -95,15 +95,6 @@ namespace Botanik { namespace Shell {
                            "critical <text>",                     G_SYS, false,
                                                                &CommandShell::_cmd_log        },
 #if BOTANIK_FEATURE_VARS
-            { "control",   "MODE",      "whether the firmware may drive the field",
-                           "enable               programs drive, overrides reach the field\n"
-                           "inhibit              programs stopped; an override still drives\n"
-                           "disable              programs stopped; an override is MUTED\n"
-                           "safe                 drive every program to its fail position\n"
-                           "release              lift a safe request\n"
-                           "status               the mode, and who is holding it",
-                                                                  G_SYS, true,
-                                                               &CommandShell::_cmd_control    },
 
 #endif
 #if BOTANIK_FEATURE_NTP
@@ -148,13 +139,8 @@ namespace Botanik { namespace Shell {
 #endif
 #if BOTANIK_FEATURE_PLC
             { "programs",  "...",       "the control programs in the scan",
-                           "status               what each one is doing\n"
-                           "list [<pat>]         asked, and where it is\n"
-                           "enable <name>|all    run it (alias: release)\n"
-                           "inhibit <name>|all   stop the law, hold the outputs\n"
-                           "safe <name>|all      stop it, outputs to safe\n"
-                           "disable <name>|all   the same, and stop reporting\n"
-                           "save <name>|all",                     G_TAB, false,
+                           "status               how many, and which cannot run\n"
+                           "list [<pat>]         name, or a glob",  G_TAB, false,
                                                                &CommandShell::_cmd_programs   },
 #endif
             { "alarms",    "...",       "the alarm table, and acknowledging",

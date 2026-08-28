@@ -37,7 +37,6 @@
 #if BOTANIK_FEATURE_MODBUS_TCP_SERVER
 #include "libbotanik/modbus/tcp/slave.h"
 #endif
-#include "libbotanik/plc/authority.h"
 #include "libbotanik/plc/program.h"
 #include "libbotanik/scheduler/scheduler.h"
 #include "libbotanik/sun/sun_tracker.h"
@@ -138,9 +137,6 @@ namespace Botanik {
          *  struct. Bindings are added in the ctor body, once every component
          *  exists. @see vars/bindings.h */
         Vars::ConfigBinder             _binder;
-        /** @brief Who may drive the field. Declared after the bank it enacts
-         *  through, and before HealthMonitor, which is handed it. */
-        Plc::ControlAuthority          _authority;
 #endif
 #if BOTANIK_FEATURE_SUN_TRACKER
         /** @brief The solar-position instrument. Owned here rather than by a
@@ -263,7 +259,6 @@ namespace Botanik {
             // not be left energised.
             if (!_scheduler.kick(_health.watchdog_ok())) {
 #if BOTANIK_FEATURE_VARS
-                _authority.set_health_hold(true);
 #endif
             }
             return true;
@@ -298,9 +293,6 @@ namespace Botanik {
         /** @brief Where a site binds a component of its OWN to the parameters
          *  that configure it. Bind in on_setup(): apply_all() runs after it. */
         Vars::ConfigBinder&               config_binder() { return _binder; }
-        /** @brief Who may drive the field: the operator's standing choice and
-         *  the system's hold, stricter wins. */
-        Plc::ControlAuthority&            authority()     { return _authority; }
 #endif
 #if BOTANIK_FEATURE_NETWORK
         Network::NetworkHandler&        network()         { return _net.network(); }

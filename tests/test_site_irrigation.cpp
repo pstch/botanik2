@@ -384,22 +384,6 @@ TEST_CASE_FIXTURE(IrrigationRig, "irrigation: the afternoon is not a watering sl
     CHECK(g.bank.var(g.ref("irr_state")).as_i64() == Site::IRR_IDLE);
 }
 
-TEST_CASE_FIXTURE(IrrigationRig, "valves: each parks where its own row says it fails, not all one way") {
-    // The meters FIRST: the cycle judges a fill against what they publish.
-    summer(live);
-
-    // The VALVES are what park: the cycle decides the state, this drives the
-    // coils, and each coil fails where its own row says it does.
-    valves.set_operator_mode(Plc::Mode::SAFE);
-    d.step(100);
-
-    INFO("the inlet fails SHUT and the drains fail OPEN, so a filling tray empties");
-    CHECK_FALSE(live.bank.get(live.bank.resolve_in<bool>("irr_input_ro1")));
-    CHECK(live.bank.get(live.bank.resolve_in<bool>("irr_output_ro1")));
-    CHECK(live.bank.get(live.bank.resolve_in<bool>("irr_tray1")));
-    CHECK(valves.is_parked());
-}
-
 TEST_CASE_FIXTURE(IrrigationRig, "irrigation: a fill fault names the tray, not just the cycle") {
     // The meters FIRST: the cycle judges a fill against what they publish.
     summer(live);
@@ -573,7 +557,6 @@ TEST_CASE_FIXTURE(IrrigationRig, "irrigation: a silent outlet meter gives no ver
     CHECK_FALSE(live.bank.var(live.ref("alarm_irr_drain")).as_bool());
     CHECK_FALSE(live.bank.var(live.ref("alarm_irr_drain_tray1")).as_bool());
     INFO("but it does not pass in silence");
-    CHECK(worst == Plc::Health::DEGRADED);
 }
 
 TEST_CASE_FIXTURE(IrrigationRig, "irrigation: a fill that never arrives raises, and still opens the drain") {

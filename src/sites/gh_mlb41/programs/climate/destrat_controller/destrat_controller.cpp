@@ -16,7 +16,7 @@ void DestratController::run(ProgramContext& c) {
     // the gap has recently been, and we stopped seeing it, so they are seeded
     // fresh from the declared gap rather than carrying the last real one.
     const bool measured = strat.valid();
-    if (!measured) { degraded(); bands.reset(); }
+    if (!measured) bands.reset();
 
     // Three fan speeds, so three rungs on one staircase, each engaging at its
     // own gap and released by the common hysteresis. All three, not two with

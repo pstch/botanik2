@@ -40,7 +40,6 @@ TEST_CASE_FIXTURE(Rig<Site::FanController>, "fans: an unknown gap floors them at
 
     INFO("still air is itself a rot risk, so an unknown gap is speed 1");
     CHECK(live.bank.get(s1));
-    CHECK(prog.health() == Plc::Health::DEGRADED);
 
     INFO("...and it is a FLOOR: a cooling demand above it still takes them up");
     live.bank.var(live.ref("cli_coolDem")).set(1.0f);
@@ -229,27 +228,6 @@ TEST_CASE_FIXTURE(Rig<Site::ScreenController>, "screen: the phase gives permissi
     CHECK_FALSE(live.bank.get(screen));
 }
 
-TEST_CASE_FIXTURE(Rig<Site::ScreenController>, "screen: a safe request DEPLOYS it, and it parks only once it is there") {
-
-    // A warm DAY, so the law itself wants it removed and the safe state is the
-    // only thing that could deploy it.
-    live.bank.var(live.ref("cli_phase")).set_i((int64_t)Site::PHASE_DAY);
-    live.bank.var(live.ref("cli_temp_hi")).publish(from_f32(T_F32, 25.0f), 0);
-    live.bank.var(live.ref("cli_coolDem")).set(0.5f);
-    uint64_t t = 0;
-    for (uint32_t i = 0; i < 700; i++) d.step(t += 100);
-    REQUIRE_FALSE(live.bank.get(live.bank.resolve_in<bool>("cli_screen")));
-
-    prog.set_operator_mode(Plc::Mode::SAFE);
-    d.step(t += 100);
-    CHECK(live.bank.get(live.bank.resolve_in<bool>("cli_screen")));
-    INFO("deployed is COMMANDED here, not reached: the fabric is still travelling");
-    CHECK_FALSE(prog.is_parked());
-
-    for (uint32_t i = 0; i < 700; i++) d.step(t += 100);
-    CHECK(prog.is_parked());
-}
-
 TEST_CASE_FIXTURE(RoofRig, "windows: exactly one ram is energised at a time") {
     fine_weather(live);
     interlocks_clear(live);
@@ -343,29 +321,6 @@ TEST_CASE_FIXTURE(RoofRig, "windows: an unmeasured sky shuts the roof rather tha
     CHECK(live.bank.get(live.bank.resolve_in<bool>("cli_windLockout")));
     // The program that LOOKS at the sky is the one that cannot see it. The
     // windows read a lockout row, which is as readable as ever.
-    CHECK(lock_.health() == Plc::Health::DEGRADED);
-    CHECK(wc.health() != Plc::Health::DEGRADED);
-}
-
-TEST_CASE_FIXTURE(RoofRig, "windows: parking waits for the LAST ram to seat, not the first") {
-    fine_weather(live);
-    interlocks_clear(live);
-
-    live.bank.var(live.ref("cli_windowDem")).set(1.0f);
-    uint64_t t = 0;
-    for (uint32_t i = 0; i < 800; i++) d.step(t += 100);
-    REQUIRE(live.bank.get(live.bank.resolve_in<float>("cli_window4_pos")) > 0.9f);
-
-    wc.set_operator_mode(Plc::Mode::SAFE);
-    // One at a time, so the first ram reaches the safe opening long before the
-    // fourth - which is PART OPEN, not shut.
-    for (uint32_t i = 0; i < 200; i++) d.step(t += 100);
-    REQUIRE(live.bank.get(live.bank.resolve_in<float>("cli_window1_pos")) ==
-            doctest::Approx(safe_open(live)).epsilon(0.15));
-    CHECK_FALSE(wc.is_parked());
-
-    for (uint32_t i = 0; i < 800; i++) d.step(t += 100);
-    CHECK(wc.is_parked());
 }
 
 TEST_CASE_FIXTURE(Rig<Site::IntractorController>, "intractors: the fusion is a maximum of the demands whose gate is open") {
@@ -492,25 +447,6 @@ TEST_CASE_FIXTURE(Rig<Site::FanController>, "fans: one speed relay at a time, an
     CHECK_FALSE(live.bank.get(s2));
 }
 
-TEST_CASE_FIXTURE(Rig<Site::FanController>, "fans: a safe request leaves them RUNNING at speed 1") {
-    interlocks_clear(live);
-
-    Vars::RefIn<bool> s1 = live.bank.resolve_in<bool>("cli_destrat1_speed1");
-    Vars::RefIn<bool> s3 = live.bank.resolve_in<bool>("cli_destrat2_speed3");
-
-    live.bank.var(live.ref("cli_stratDem")).set(1.0f);
-    d.step(100);
-    REQUIRE(live.bank.get(s3));
-
-    INFO("still air is itself a rot risk, so these are one of the few things "
-         "that keep working once everything else has stopped");
-    prog.set_operator_mode(Plc::Mode::SAFE);
-    d.step(400);
-    CHECK(live.bank.get(s1));
-    CHECK_FALSE(live.bank.get(s3));
-    CHECK(prog.is_parked());
-}
-
 TEST_CASE_FIXTURE(Rig<Site::FanController>, "fans: a watering cycle is a floor under them") {
     interlocks_clear(live);
 
@@ -600,38 +536,6 @@ TEST_CASE("program: a name that resolves to nothing FAULTS the program that aske
          "activation cannot read as healthy");
     d.step(200);
     CHECK(p.health() == Plc::Health::INVALID);
-}
-
-TEST_CASE_FIXTURE(Rig<Site::IrrValves>, "programs: one switched off parks its own valves before it stops") {
-    // `programs disable` is the operator's switch beside the system's, and it
-    // has to reach the plant the same way: a program that simply stops being
-    // activated abandons its actuators wherever the command caught them.
-    const Vars::VarRef inlet = live.ref("irr_input_ro1");
-    const Vars::Descriptor& id = live.bank.descriptor(inlet.index);
-    const bool fails_to = Vars::as_bool(id.type, id.def);
-
-    uint64_t t = 0;
-    live.bank.var(live.ref("irr_state")).set_i((int64_t)Site::IRR_FILLING);
-    live.bank.var(live.ref("irr_activeTray")).set_i(1);
-    d.step(t += 1000);
-    // Filling drives the inlet away from where it fails, which is what makes
-    // the parking observable at all.
-    REQUIRE(live.bank.var(inlet).as_bool() != fails_to);
-
-    const int16_t k = live.reg.find_program("irr_valves");
-    REQUIRE(k >= 0);
-    REQUIRE(live.reg.set_program_mode((uint8_t)k, Plc::Mode::DISABLED, t));
-
-    // Still asked to fill: only the operator's switch has changed.
-    d.step(t += 1000);
-    CHECK(live.bank.var(inlet).as_bool() == fails_to);
-    CHECK(live.reg.program_mode((uint8_t)k) == Plc::Mode::DISABLED);
-
-    // ...and once it has arrived it stops being activated, so a later change
-    // to its inputs moves nothing.
-    live.bank.var(live.ref("irr_state")).set_i((int64_t)Site::IRR_DRAINING);
-    for (int i = 0; i < 5; i++) d.step(t += 1000);
-    CHECK(live.bank.var(inlet).as_bool() == fails_to);
 }
 
 }  // namespace site_programs

@@ -34,7 +34,6 @@ namespace Botanik { namespace Tasks { struct Tick; } }
 namespace Botanik { namespace Network { class NetworkHandler; class NtpClient; } }
 // Forward-declared, not included: health/ raises and releases the system hold,
 // and needs no more of plc/ than the type of the pointer it is handed.
-namespace Botanik { namespace Plc { class ControlAuthority; } }
 
 namespace Botanik { namespace Health {
 
@@ -49,10 +48,6 @@ namespace Botanik { namespace Health {
 
         /** @brief Bind the variable bank this drives its alarms into. */
         void set_bank(Vars::Bank* io) { _io = io; }
-        /** @brief Who to raise and release the system hold on. Without
-         *  one the monitor still reports; it just cannot withdraw
-         *  authority. */
-        void set_authority(Plc::ControlAuthority* a) { _authority = a; }
 
         /** @brief The two network components whose faults are platform alarms.
          *  Borrowed, optional, and set by the composition root: this class
@@ -91,10 +86,6 @@ namespace Botanik { namespace Health {
 #if BOTANIK_FEATURE_VARS
         void _latch_control(uint64_t now_ms);
 #endif
-        /** @brief Whether the last beat saw a fault. Edge tracking only: the
-         *  control state lives in the Bank, so an operator's `control disable`
-         *  is not something this can silently talk over. */
-        bool _health_fault = false;
         /** @brief Conflicts already reported, so a defect true on every beat is
          *  named once. @see Vars::Bank::claim_writer */
         uint16_t _conflicts_said = 0;
@@ -169,7 +160,6 @@ namespace Botanik { namespace Health {
          *  Non-const: an alarm row is forceable from the ALARMS page, and the
          *  force lands on the bank through BankAlarms. */
         Vars::Bank*                        _io;
-        Plc::ControlAuthority*             _authority = nullptr;
 
         /** last overrun count seen (edge detect) */
         uint32_t _xrun_last        = 0;
@@ -179,11 +169,6 @@ namespace Botanik { namespace Health {
         Stop     _stop             = Stop::NONE;
         /** whether the parking it started has finished */
         bool     _stopped          = false;
-        /** programs still parking, as last announced: the count is what an
-         *  operator watches, and it only moves a few times */
-        uint8_t  _stop_said        = 0xFF;
-        /** when the parking began, for the deadline. 0 is "not yet". */
-        uint64_t _stop_since       = 0;
         bool     _post_ok          = false;
         // BOTANIK_NO_LOAD_ALARMS: hold the CPU_* load alarms cleared for
         // deterministic screen goldens (sim/test only; reads 0 on OPTA).

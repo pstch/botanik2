@@ -25,7 +25,6 @@ void SunWatch::observe(ProgramContext& c) {
         from_rise.hold();
         from_set.hold();
         elevation.hold();
-        degraded();
         return;
     }
 

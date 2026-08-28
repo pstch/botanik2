@@ -8,7 +8,6 @@
  */
 
 #include <cstdint>
-#include "libbotanik/plc/authority.h"
 
 #include "libbotanik.h"
 #include "site_bank.h"
@@ -39,9 +38,6 @@ struct Cycle {
     }
 
     void step(uint64_t t) {
-        // Idempotent, and the whole edge: the gate, plus on the way back up the
-        // timer reseed and the first-scan flag.
-        reg.set_programs_enabled(io->control_enabled(), t);
         reg.run_phase(Botanik::Tasks::PHASE_CONTROL, t);
         // ...and what the firmware does after the phase: publish the worst
         // lateness onto the alarm row, whose own dwell decides whether it
@@ -71,11 +67,8 @@ private:
 struct Live {
     Botanik::Tasks::Registry reg;   ///< what the case's programs register in
     Botanik::Vars::Bank      bank;
-    Botanik::Plc::ControlAuthority auth{bank};
     Live() {
         TestSite::build(bank);
-        auth.set_health_hold(false);
-        auth.set_control_mode(Botanik::Vars::CONTROL_ENABLED);
     }
     Botanik::Vars::VarRef ref(const char* name) { return bank.find(name); }
 };

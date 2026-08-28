@@ -9,7 +9,6 @@
 #include <cstddef>
 #include <cstdint>
 
-#include "libbotanik/plc/mode.h"
 #include "libbotanik/console/editor.h"
 #include "libbotanik/console/terminal.h"
 #include "libbotanik/core/context.h"
@@ -299,7 +298,6 @@ namespace Botanik { namespace Shell {
         void _cmd_overrides(const char* args, uint16_t alen);
         /** @brief `vars list|get|info` - every row, whatever its scope. */
         void _cmd_vars(const char* args, uint16_t alen);
-        void _cmd_control(const char* args, uint16_t alen);
 
         /** @} */
 
@@ -335,9 +333,6 @@ namespace Botanik { namespace Shell {
          *  and how to make it durable. */
         void _override_reply(Vars::Var h, const char* verb);
         /** @brief `programs enable|disable <name>|all`. @p on is which. */
-        void _programs_mode(const char* nm, uint16_t wn, Plc::Mode m);
-        /** @brief `programs save <name>|all`. */
-        void _programs_save(const char* nm, uint16_t wn);
         /** @brief `programs status`: a tally per health, and who is in the ones
          *  worth naming. */
         void _programs_status();
@@ -368,8 +363,6 @@ namespace Botanik { namespace Shell {
         /** @brief `vars get`: the live value on one line, and nothing else. */
         void _show_value(const char* noun, const char* name, uint16_t nlen);
         /** @} */
-        /** @brief Report control state, naming every hold still in force. */
-        void _report_control(Plc::ControlAuthority* auth);
 
         /** @brief `tasks get <name>`: one task's schedule and its cost samples.
          *  @p name is the word slice from the command line, not NUL-terminated. */

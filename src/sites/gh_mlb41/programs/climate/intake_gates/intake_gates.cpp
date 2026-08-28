@@ -19,7 +19,6 @@ void IntakeGates::run(ProgramContext& c) {
         // and this is the safe answer rather than a stale guess. Stepping them
         // on a reading nobody has would advance a hysteresis that is supposed
         // to be a claim about a real difference.
-        degraded();
         intake_ok.set(false, true);
         ground_ok.set(false, true);
         return;
@@ -30,7 +29,6 @@ void IntakeGates::run(ProgramContext& c) {
     // ventilation and cannot cost a plant: the windows and the fans are on
     // their own paths.
     const bool  ok = intake.valid();
-    if (!ok) degraded();
     const float t_in     = inside.get();
     const float dem      = cool_dem.get();
     const float t_intake = intake.get();

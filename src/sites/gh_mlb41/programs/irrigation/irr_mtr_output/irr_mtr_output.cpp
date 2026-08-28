@@ -33,7 +33,6 @@ void IrrMtrOutput::observe(ProgramContext& c) {
         // read as "no water is moving", which is what a leak detector must not
         // be told.
         out_flow_pub.hold();
-        degraded();
     } else if (lpm < band.get()) {
         // WITHIN THE DEADBAND OF ZERO, so it reads zero: a reading the band
         // cannot tell from nothing is nothing. Left to the block the row parks

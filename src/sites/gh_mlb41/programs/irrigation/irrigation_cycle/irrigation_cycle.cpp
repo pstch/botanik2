@@ -99,19 +99,6 @@ void IrrigationCycle::_enter(IrrState st) {
 }
 
 void IrrigationCycle::run(ProgramContext& c) {
-    if (going_safe()) {
-        // Where a dead controller would leave them, which is not the same for
-        // all ten: the inlet fails SHUT and the drains fail OPEN, so a tray
-        // that was filling empties rather than sitting full.
-        _tray  = 0;
-        _state = IRR_IDLE;
-        state.set((uint8_t)IRR_IDLE, true);
-        active.set((uint8_t)0, true);
-        // No tray, so no dose to compute - but a row nobody wrote keeps GOOD
-        // quality on the last one, which reads as a fill still being aimed at.
-        volume.hold();
-        return;
-    }
     if (c.first_scan) {
         // Control was away, so whatever was open is not ours to assume. Shut
         // everything and start the cycle again rather than resuming a fill
@@ -123,7 +110,6 @@ void IrrigationCycle::run(ProgramContext& c) {
     // has reads as the DECLARED one, so there is always a dose - the cycle runs
     // on it and the quality below is what says it was a guess.
     const bool  can_dose = mod.valid();
-    if (!can_dose || !out_flow.valid()) degraded();
     const float mod_now  = mod.get();
 
     const float split_lim = Plc::limit(split.get(), 0.0f, 1.0f);

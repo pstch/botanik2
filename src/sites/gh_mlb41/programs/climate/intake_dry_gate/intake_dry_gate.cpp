@@ -21,7 +21,6 @@ void IntakeDryGate::run(ProgramContext& c) {
         // be wetter than what is already here, which is the one thing this
         // gate exists to prevent. The rot ladder is a program of its own and
         // still vents.
-        degraded();
         dry_ok.set(false, true);
         return;
     }

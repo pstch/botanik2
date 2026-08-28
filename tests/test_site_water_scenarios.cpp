@@ -346,48 +346,4 @@ TEST_CASE("scenario: the two things the inlet meter can see on its own") {
     snapshot_water(p, "the fill given up on, and no clog claimed");
 }
 
-TEST_CASE("scenario: the supply going down mid-fill empties the tray") {
-    ScenarioTrace::scenario("The supply going down mid-fill",
-        "Ten valves, and they do not all fail the same way: the inlet shuts "
-        "and the drains open, so a tray half full empties instead of sitting "
-        "there.");
-    Plant p;
-    plumbing(p, SOUND_CIRCUIT);
-    force_phase(p, Site::PHASE_DAWN_BREEZE);
-    force_rise(p, -30);
-    settle(p, MILD_DAWN, 300);
-    trace_weather(MILD_DAWN, Site::PHASE_DAWN_BREEZE);
-
-    REQUIRE(run_until(p, cycle_filling, 600) != 0);
-    REQUIRE(p.on("irr_input_ro1"));
-    settle_meters(p);
-    snapshot_water(p, "filling, on a plant with power");
-
-    SAY("the UPS says its battery is going, and the lockout parks the whole "
-        "plant - irrigation with it, through the machinery a halt uses");
-    for (uint32_t i = 0; i < 400; i++) {
-        p.hold(p);
-        p.f.bank.var(p.ref("pwr_upsLowBat")).publish(from_bool(T_BOOL, true), p.t);
-        p.cycle->step(p.t += 100);
-    }
-    REQUIRE(p.on("sys_supply_lockout"));
-    CHECK(irr_state(p) == Site::IRR_IDLE);
-    CHECK(p.num("irr_activeTray") == doctest::Approx(0.0f));
-
-    SAY("each valve where its own row says a dead controller leaves it: the "
-        "inlet shut, the drain and the trays open");
-    CHECK_FALSE(p.on("irr_input_ro1"));
-    CHECK_FALSE(p.on("irr_input_ro2"));
-    CHECK(p.on("irr_output_ro1"));
-    CHECK(p.on("irr_tray1"));
-    snapshot_water(p, "parked, with the tray draining itself");
-
-    SAY("and the plant comes back when the battery does: the cycle starts "
-        "again from IDLE rather than resuming a fill it stopped counting");
-    REQUIRE(run_until(p, cycle_filling, 12000) != 0);
-    CHECK(p.num("irr_delivered_L") < 5.0f);
-    settle_meters(p);
-    snapshot_water(p, "the supply back, and the fill started again");
-}
-
 }  // namespace site_scenarios

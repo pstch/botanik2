@@ -25,7 +25,6 @@ namespace Botanik {
           // Parameters come from local storage; the bank owns the store.
           _param_store(),
           _binder(_setup, &_io),
-          _authority(_io),
 #endif
           // The alarm model scans the variable table for SCOPE_A rows;
           // platform-health alarms are appended and driven locally.
@@ -118,8 +117,6 @@ namespace Botanik {
         _sys_ctx.tasks     = &_tasks;
 #if BOTANIK_FEATURE_VARS
         _sys_ctx.vars      = &_io;
-        _sys_ctx.authority = &_authority;
-        _health.set_authority(&_authority);
 #endif
 #if BOTANIK_FEATURE_NETWORK
         _sys_ctx.network = &_net.network();
@@ -269,11 +266,6 @@ namespace Botanik {
 #endif
 
         // Bring-up is done: release the system's hold on control. It starts held
-        // (Bank's default), so nothing between power-on and here can energise an
-        // actuator on the way past.
-#if BOTANIK_FEATURE_VARS
-        _authority.set_health_hold(false);
-#endif
 
         // One line per UART so neither overflows 80 cols and each gates with its
         // feature (console/monitor dropped when their UART is absent).

@@ -8,7 +8,6 @@
  */
 
 #include <cstdint>
-#include "libbotanik/plc/authority.h"
 #include <cstring>
 #include "libbotanik_site.h"
 #include "libbotanik.h"
@@ -35,7 +34,6 @@ namespace {
      *  it - not the firmware (drags in UART/terminal). */
     struct SiteBank {
         Vars::Bank bank;
-        Botanik::Plc::ControlAuthority auth{bank};
         SiteBank() { TestSite::build(bank); }
     };
 
@@ -102,7 +100,6 @@ TEST_CASE("site: nothing the site touches fails to resolve") {
 
     // Var::set() isn't gated (authority is enforced where a writer is
     // DISPATCHED); this resolves names against a running bank, not a stopped one.
-    f.auth.set_health_hold(false);
 #ifdef TARGET_SIMULATOR
     Site::simulate(f.bank, 1000);
 #endif
@@ -146,7 +143,6 @@ TEST_CASE("site: every control program binds every name it reaches for") {
     // Constructing and binding them all is the only thing that covers it.
     Botanik::Tasks::Registry reg;
     Vars::Bank bank;
-    Botanik::Plc::ControlAuthority auth{bank};
     TestSite::build(bank);
     const uint16_t before = bank.unresolved_count();
 

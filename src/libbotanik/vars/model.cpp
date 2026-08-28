@@ -169,43 +169,6 @@ namespace Botanik { namespace Vars {
 
 
 
-    void Bank::set_effective_control(ControlMode now, bool erase_overrides) {
-        const ControlMode before = _mode;
-        _mode = now;
-        _apply_control(before, erase_overrides);
-    }
-
-    void Bank::_apply_control(ControlMode before, bool erase_overrides) {
-        const ControlMode now = _mode;
-        if (now == before && !erase_overrides) return;
-
-        // Drop to safe on the way out of ENABLED only; a mode change between the
-        // two withheld modes finds the outputs already there.
-        const bool to_safe = (before == CONTROL_ENABLED && now != CONTROL_ENABLED);
-
-        for (uint16_t i = 0; i < _count; i++) {
-            if (descriptor(i).role != ROLE_OUTPUT) continue;
-            Slot& v = _slots[i];
-
-            if (erase_overrides && v.ovr_on) {
-                // Wipe the stored copy too: overrides persist, so clearing only
-                // RAM hands the actuator back to whoever forced it at the next
-                // boot.
-                if (_store != nullptr) (void)_store->clear_override(descriptor(i));
-                v.ovr_on  = false;
-                v.vflags |= VF_FIELD_DIRTY;
-            }
-
-            if (to_safe) {
-                v.qual = Q_SAFE;
-                // The safe state is only in the image until something carries it
-                // out: over a field bus that is a transaction, and an unmarked
-                // row leaves the actuator energised.
-                v.vflags |= VF_FIELD_DIRTY;
-            }
-        }
-    }
-
     void Bank::expire_stale(uint64_t now_ms) {
         for (uint16_t i = 0; i < _count; i++) {
             const Descriptor& d = descriptor(i);

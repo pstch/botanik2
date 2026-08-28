@@ -13,7 +13,7 @@ void SkirtController::run(ProgramContext& c) {
     // Wetting air that is already condensing is the one thing this valve must
     // never do, so the lockout is resolved before any demand - and before the
     // pulse phase, which starts again from shut.
-    if (going_safe() || rot_lock.get()) {
+    if (rot_lock.get()) {
         pulse.park();
         pulse.reset();
         duty.set(0.0f, true);
@@ -27,7 +27,6 @@ void SkirtController::run(ProgramContext& c) {
     // STAGED on the cooling axis, and gated on the air being dry enough for a
     // wet pad to cool at all - in damp air it only adds water. An unknown
     // demand contributes this valve's own safe state, which is SHUT.
-    if (!cool_dem.valid()) degraded();
     const float cool = (cool_dem.valid() && dp_margin.get() >= dry_min.get())
                            ? Plc::ladder(cool_dem.get(), cool_start.get(), 1.0f)
                            : 0.0f;

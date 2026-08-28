@@ -10,8 +10,6 @@ namespace Site {
 void CoolingController::run(ProgramContext& c) {
     if (c.first_scan) pid.reset();   // the integral is a claim about the past
 
-    const bool hi_ok    = ceiling.valid();
-    const bool lo_ok    = floor.valid();
     const bool measured = inside.valid();
     if (!measured) {
         // No interior temperature at all, so the ladder runs on the row's
@@ -19,7 +17,6 @@ void CoolingController::run(ProgramContext& c) {
         // every actuator wants a number to fall back from - and the quality is
         // what says the number is not about this greenhouse. The intake gates
         // read that quality to know this law stopped having an opinion.
-        degraded();
         // The integral is a claim about a plant we stopped seeing, and an error
         // computed against a substituted reading is not an error this house
         // ever had. Reset while it lasts, so nothing winds up on a number
@@ -31,7 +28,6 @@ void CoolingController::run(ProgramContext& c) {
     // worst case for cooling, derived once where the probes are voted rather
     // than again here.
     const float t_in = inside.get();
-    if (!hi_ok || !lo_ok) degraded();
 
     // The parameters are in the TIME form an operator tunes in (Ti, Td in
     // seconds); PidTuning takes gains. Ti of 0 means no integral action rather

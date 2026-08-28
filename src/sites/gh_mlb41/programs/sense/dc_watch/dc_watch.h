@@ -88,9 +88,6 @@ private:
     /** @brief Per rail, whether its divider has EVER answered. @see
      *  AcSupply */
     bool _seen[4] = { false, false, false, false };
-    /** @brief What this law last told the registry, so the plant-wide hold
-     *  is pushed on the EDGE and not walked over every task every beat. */
-    bool _safe_held = false;
 
     /** @} */
 

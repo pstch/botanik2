@@ -15,7 +15,6 @@ void AcLocalWatch::observe(ProgramContext& c) {
     if (c.first_scan) { supply.reset(); cranking.reset(); }
     bool bad = false;
     const bool answered = supply.step(bad);
-    if (!answered) degraded();
     fault.set(bad, true);
 
     // The generator only owes an answer once the grid has gone. With the grid

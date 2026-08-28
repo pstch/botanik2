@@ -293,18 +293,6 @@ namespace Botanik { namespace Scheduler {
          *  Not configurable, and not a list a caller assembles. */
         void run_beat(uint64_t now_ms);
 
-        /** @brief Open or close the control-authority gate on the program
-         *  entries, reseeding their timers on the way back up
-         *  (Tasks::Registry::set_programs_enabled).
-         *
-         *  Here because the scheduler owns the table; the VERDICT stays the
-         *  caller's, exactly as it does for kick(). Programs are the only thing
-         *  it gates - the phases around CONTROL still run, because a withdrawal
-         *  writes safe states that something has to carry outward. */
-        void set_control_enabled(bool enabled, uint64_t now_ms) {
-            _tasks.set_programs_enabled(enabled, now_ms);
-        }
-
         /** @brief Kick the watchdog while @p healthy; returns false when the
          *  kick was WITHHELD.
          *

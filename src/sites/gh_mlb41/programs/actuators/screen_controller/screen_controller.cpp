@@ -47,12 +47,11 @@ void ScreenController::run(ProgramContext& c) {
     // the roof all night, and the fabric is what stops it. Free, too: the coil
     // is de-energised there.
     bool deploy = true;
-    if (!going_safe()) {
+    {
         // An unknown cooling demand DEPLOYS it: that is this one's safe state,
         // and it should never be reached - the interior is measured by three
         // probes at each of two levels precisely so that it is not.
         const bool dem_ok = cool_dem.valid();
-        if (!dem_ok) degraded();
 
         // No dead band on this one, and none is needed: the permission table
         // above makes every phase ONE-DIRECTIONAL, so a demand sitting on the
@@ -67,11 +66,6 @@ void ScreenController::run(ProgramContext& c) {
     }
     screen.set(deploy, true);
 
-    // Travelling, or about to be: observe() starts the stroke, and a command
-    // that disagrees with where the fabric is means one is coming.
-    const bool settled = fabric.known() &&
-                         (deploy == (fabric.position() >= 0.5f));
-    if (fabric.moving() || !settled) parking();
 }
 
 void ScreenController::observe(ProgramContext& c) {

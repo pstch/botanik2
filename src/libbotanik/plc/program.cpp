@@ -100,24 +100,14 @@ namespace Botanik { namespace Plc {
             io.drive(p->health_row(), now);
             if (now == p->_health_said) continue;
             const Health h = p->health();
-            // Only on the CHANGE: a program reporting DEGRADED every beat for
-            // an hour is one line here and a flood anywhere else.
-            //
-            // A program stopping or resuming control is a NOTICE and not a
-            // debug line, because on the OPTA the minimum level is INFO: below
-            // it the only record that a plant went to its safe state would be
-            // one the hardware never keeps. The whole set of them lands on one
-            // operator command, which is a rare and deliberate act.
-            //
-            // The quiet window exists so bring-up does not announce the first
-            // verdict of every program, and INVALID is exempt from it: setup is
+            // Only on the CHANGE, which for a two-state vocabulary means once
+            // at bring-up and never again. The quiet window exists so bring-up
+            // does not announce every program, and INVALID is exempt: setup is
             // the only place that verdict is reached, so obeying quiet would
             // mean an unwireable program was never reported at all.
             if (logger != nullptr && (!quiet || h == Health::INVALID)) {
                 if (h == Health::INVALID)
                     logger->critical(Logs::PROGRAM, "%s: INVALID", p->name());
-                else if (h == Health::DEGRADED)
-                    logger->warning(Logs::PROGRAM, "%s: DEGRADED", p->name());
                 else
                     logger->notice(Logs::PROGRAM, "%s: %s", p->name(),
                                    health_name(h));
