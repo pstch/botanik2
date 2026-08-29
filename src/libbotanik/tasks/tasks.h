@@ -63,15 +63,9 @@ namespace Botanik { namespace Tasks {
     const char* phase_name(Phase p);
 
     /** @brief Run @p c's Component::setup(), the one-time init behind every
-     *  registration, and announce the TASK. Defined in core/component.cpp:
-     *  `tasks/` must not acquire `core/` to call one method on it.
-     *
-     *  The announce is per TASK and not per component, because a task is what
-     *  the beat actually holds: a component with three of them says so three
-     *  times, and one that registered none says nothing rather than claiming a
-     *  place it does not have. */
-    void component_setup(Component* c, uint64_t now_ms, const char* task,
-                         GroupId group, Phase phase);
+     *  registration. Defined in core/component.cpp: `tasks/` must not acquire
+     *  `core/` to call one method on it. */
+    void component_setup(Component* c, uint64_t now_ms);
 
 
     /** @brief What one task costs, for the TASKS page and the stats command. Per
