@@ -23,12 +23,14 @@
 #  define BOTANIK_VAR_MAX 512
 #endif
 
-/** @brief The TCP map holds every PARAMETER, STATUS and ALARM row - 354 on this
- *  profile, past the 256 default. Two bytes each, and a site that outgrows it
- *  serves a SHORT map: the rows past the end answer nothing, which an
- *  integrator reads as a device that does not have them. */
+/** @brief The TCP map holds every PARAMETER, STATUS and ALARM row, which is
+ *  well past the 256 default on this profile. Two bytes each, and a site that
+ *  outgrows it serves a SHORT map: the rows past the end answer nothing, which
+ *  an integrator reads as a device that does not have them.
+ *  @note No number quoted here - it rots a row at a time, and it did. The gate
+ *  fails on the real one ("site: every mapped row fits the TCP map"). */
 #ifndef BOTANIK_MODBUS_TCP_MAX_ROWS
-#  define BOTANIK_MODBUS_TCP_MAX_ROWS 384
+#  define BOTANIK_MODBUS_TCP_MAX_ROWS 448
 #endif
 
 /** @brief String pool: this site declares no text rows of its own, so it is

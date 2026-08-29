@@ -91,7 +91,7 @@ namespace Botanik { namespace Plc {
     }
 
     void publish_health(Vars::Bank& io, const Tasks::Registry& r,
-                        Logs::Logger* logger, bool quiet) {
+                        Logs::Logger* logger) {
         const uint8_t count = r.program_count();
         for (uint8_t i = 0; i < count; i++) {
             Program* p = r.program(i);
@@ -99,19 +99,14 @@ namespace Botanik { namespace Plc {
             const uint8_t now = (uint8_t)p->health();
             io.drive(p->health_row(), now);
             if (now == p->_health_said) continue;
-            const Health h = p->health();
-            // Only on the CHANGE, which for a two-state vocabulary means once
-            // at bring-up and never again. The quiet window exists so bring-up
-            // does not announce every program, and INVALID is exempt: setup is
-            // the only place that verdict is reached, so obeying quiet would
-            // mean an unwireable program was never reported at all.
-            if (logger != nullptr && (!quiet || h == Health::INVALID)) {
-                if (h == Health::INVALID)
-                    logger->critical(Logs::PROGRAM, "%s: INVALID", p->name());
-                else
-                    logger->notice(Logs::PROGRAM, "%s: %s", p->name(),
-                                   health_name(h));
-            }
+            // ONLY the bad news. A program being wired is the normal case and
+            // there are thirty of them, so announcing it says nothing and
+            // says it thirty times over the one screen an operator reads at
+            // boot. INVALID ignores the quiet window for the opposite reason:
+            // setup is the only place that verdict is reached, so obeying it
+            // would mean an unwireable program was never reported at all.
+            if (logger != nullptr && p->is_invalid())
+                logger->critical(Logs::PROGRAM, "%s: INVALID", p->name());
             p->_health_said = now;
         }
     }

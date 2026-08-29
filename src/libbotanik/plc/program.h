@@ -72,8 +72,8 @@ namespace Botanik { namespace Plc {
          *  at INVALID and stops it ever being activated. */
         bool           _invalid = false;
         /** @brief Where health is published, and what was last LOGGED there.
-         *  0xFF is "nothing yet", so the first pass announces whatever it
-         *  finds rather than only a change from HEALTHY. */
+         *  0xFF is "nothing yet", so a program that comes up INVALID is said
+         *  once rather than never. */
         Vars::RefOut<uint8_t> _health_row;
         uint8_t        _health_said   = 0xFF;
         /** @brief The rows _bind_input()/_bind_inout() resolved, in declaration
@@ -99,10 +99,10 @@ namespace Botanik { namespace Plc {
         /** @brief Where this program's health is PUBLISHED, or the sink.
          *
          *  Set from bind() by a program that declares a health row. The
-         *  program does not write it itself: it is written by a
-         *  supervisor walking every program, so a program that is not being
-         *  activated - which is most of what "inhibited" means - still has a
-         *  current row. @see publish_health() */
+         *  program does not write it itself: it is written by a supervisor
+         *  walking every program, so one that is never activated still has a
+         *  current row - which is exactly the INVALID case a reader wants it
+         *  for. @see publish_health() */
         void set_health_row(Vars::RefOut<uint8_t> r) { _health_row = r; }
 
         /** @brief The rows this program reads, for a reader asking which
@@ -125,10 +125,9 @@ namespace Botanik { namespace Plc {
         /** @} */
 
         /** @name Health
-         *  What this program could do on its last activation. Re-derived each
-         *  time, so a condition that clears is not sticky - a program that stops
-         *  running keeps its last verdict, which is why withdrawal sets SAFE.
-         *  INVALID is the exception: setup decides it, and nothing re-derives it.
+         *  Whether this program was WIRED. Decided once, in setup, and never
+         *  re-derived: everything that could change beat to beat is a property
+         *  of the ROWS, and carries its own quality.
          *  @{ */
 
         Health health() const { return _health; }
@@ -158,8 +157,8 @@ namespace Botanik { namespace Plc {
          *  What a bind() resolves its names through. Each checks what the
          *  declaration promised - that the name exists, that the row's type is
          *  one the reference can carry, and for an output that no other program
-         *  has already claimed it - logs whichever failed, and FAULTS. A
-         *  program bound to an inert sink runs a law on zeros and publishes
+         *  has already claimed it - logs whichever failed, and INVALIDATES.
+         *  A program bound to an inert sink runs a law on zeros and publishes
          *  them as readings, which is the one outcome worth refusing to start
          *  for.
          *
@@ -263,7 +262,7 @@ namespace Botanik { namespace Plc {
 
         /** @brief The supervisor sets `_health_said`; nothing else may. */
         friend void publish_health(Vars::Bank&, const Tasks::Registry&,
-                                   Logs::Logger*, bool);
+                                   Logs::Logger*);
 
         /** @brief Registration handler. A static MEMBER, so the cast reaches
          *  the private activation below. */
@@ -308,10 +307,10 @@ namespace Botanik { namespace Plc {
      *  Walked by a SUPERVISOR rather than written by each program in its own
      *  activation: a program that is not being activated is exactly the case a
      *  reader most wants the row for, and it cannot write its own row then.
-     *  @param quiet suppress the log during bring-up. INVALID is said anyway -
-     *         setup is the only place it is reached. */
+     *  @note ONLY an INVALID one is logged: a program being wired is the
+     *  normal case, and thirty such lines at boot say nothing thirty times. */
     void publish_health(Vars::Bank& io, const Tasks::Registry& r,
-                        Logs::Logger* logger, bool quiet);
+                        Logs::Logger* logger);
 
     /** @brief Name a row that has acquired a second author, once per new conflict.
      *  @param said count already reported, so a defect true on every beat is

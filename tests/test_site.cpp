@@ -232,6 +232,34 @@ TEST_CASE("site: no two rows claim the same Modbus register") {
     CHECK(checked > 0);
 }
 
+#if BOTANIK_FEATURE_MODBUS_TCP_SERVER
+TEST_CASE("site: every mapped row fits the TCP map") {
+    // Outgrowing it serves a SHORT map - the rows past the end answer nothing,
+    // which an integrator reads as a device that does not have them. The slave
+    // says so at bring-up, but a boot warning is not a thing anyone reads on
+    // the way past, and the table grows a row at a time.
+    SiteBank f;
+    Modbus::Map map(&f.bank);
+    map.build();
+
+    INFO("mapped " << map.count() << " of " << Config::MODBUS_TCP_MAX_ROWS
+                   << ", " << map.overflow() << " did not fit");
+    CHECK(map.overflow() == 0);
+    CHECK(map.count() > 0);
+
+    // Counted here rather than left implicit: the cap is a site override, and
+    // the number it has to clear is this one. A hostname is the one mapped row
+    // the map does not serve - sixteen bits cannot hold one - so it is not in
+    // the count either.
+    uint16_t mapped = 0;
+    for (uint16_t i = 0; i < f.bank.count(); i++) {
+        const Vars::Descriptor& d = *f.bank.var(i).meta();
+        if (Vars::var_mapped(d) && Modbus::Map::published(d)) mapped++;
+    }
+    CHECK(map.count() == mapped);
+}
+#endif
+
 TEST_CASE("site: every register sits in its scope's block") {
     // Uniqueness alone would let an alarm take register 750 and read as a parameter downstream.
     SiteBank f;

@@ -65,14 +65,14 @@ namespace Botanik { namespace detail {
     static_assert(sizeof(Modbus::RtuClient)        == BOTANIK_SIZE(  2856,   2816), "RtuClient footprint changed");
 #endif
 #if BOTANIK_FEATURE_MODBUS_TCP_SERVER
-    static_assert(sizeof(Modbus::TcpSlave)         == BOTANIK_SIZE(  3008,   2960), "TcpSlave footprint changed");
+    static_assert(sizeof(Modbus::TcpSlave)         == BOTANIK_SIZE(  3264,   3216), "TcpSlave footprint changed");
 #endif
 
     /** The aggregate: every flag above moves it, which is why it is pinned only
      *  under the same opt-in. It is the firmware singleton's whole `.bss`
      *  footprint, so it can be read against the linker's map for the
      *  image. */
-    static_assert(sizeof(BotanikFirmware)          == BOTANIK_SIZE(198224, 195168), "BotanikFirmware footprint changed");
+    static_assert(sizeof(BotanikFirmware)          == BOTANIK_SIZE(198480, 195424), "BotanikFirmware footprint changed");
 
 #undef BOTANIK_SIZE
 

@@ -126,7 +126,7 @@ namespace Botanik { namespace Health {
         // Every program's own verdict onto its row, and the changes into the
         // log. Here rather than in each program's activation, because a program
         // that is NOT being activated is exactly when a reader wants the row.
-        Plc::publish_health(*io, *_tasks, _logger, _quiet(now_ms));
+        Plc::publish_health(*io, *_tasks, _logger);
 #endif
     }
 #endif // BOTANIK_FEATURE_VARS
