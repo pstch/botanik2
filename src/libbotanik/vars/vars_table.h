@@ -45,7 +45,7 @@ const Descriptor library_vars[] = {
 #endif
 #if BOTANIK_FEATURE_LOGS_MONITOR
     P("monitor_baud" , T_U32, 115200         , 1200, 921600, 0, "Bd", 901, "monitor UART rate", "log-only port; ignored on the OPTA, whose MONITOR is USB CDC", true),
-    PE("monitor_level", Logs::LOG_DEBUG, &Logs::level_label, 905, "lowest level the monitor port carries", "open by default: this port exists to be the full record", true),
+    PE("monitor_log_level", Logs::LOG_DEBUG, &Logs::level_label, 905, "lowest level the monitor port carries", "open by default: this port exists to be the full record", true),
 #endif
 #if BOTANIK_FEATURE_NETWORK
     P("net_serial", T_U32 , 1              , 0, 9999, 0, "", 910, "bump to apply staged net_ edits", "", true),
@@ -96,18 +96,17 @@ const Descriptor library_vars[] = {
     P("console_rows"  , T_U16, 24  , 20  , 32    , 0, "row", 963, "console height, in rows", "the screen buffer bounds the maximum; a site needing another restates the row", true),
 #endif
 #if BOTANIK_FEATURE_CONSOLE && BOTANIK_FEATURE_HOME_PAGE
-    PE("console_home_level", Logs::LOG_NOTICE, &Logs::level_label, 964, "lowest level HOME's log tail shows", "a landing screen: only what is worth looking up for", true),
+    PE("home_log_level", Logs::LOG_INFO, &Logs::level_label, 964, "lowest level HOME's log tail shows", "a landing screen: only what is worth looking up for", true),
 #endif
 #if BOTANIK_FEATURE_CONSOLE && BOTANIK_FEATURE_SHELL_PAGE
-    PE("console_shell_level", Logs::LOG_INFO, &Logs::level_label, 965, "lowest level the SHELL page interleaves", "`logs off` silences it entirely without moving this", true),
+    PE("shell_log_level", Logs::LOG_NOTICE, &Logs::level_label, 965, "lowest level the SHELL page interleaves", "`logs off` silences it entirely without moving this", true),
 #endif
 #if BOTANIK_FEATURE_CONSOLE && BOTANIK_FEATURE_LOGS_PAGE
-    PE("console_logs_level", Logs::LOG_DEBUG, &Logs::level_label, 966, "lowest level the LOGS page keeps", "this page is the record; raising it loses the record", true),
+    PE("logs_log_level", Logs::LOG_DEBUG, &Logs::level_label, 966, "lowest level the LOGS page keeps", "this page is the record; raising it loses the record", true),
 #endif
     P("sys_cpu_load_pct", T_U8 , 50             , 1, 100  , 0, "%"  , 970, "CPU_LOAD alarm threshold", "percent of the task period", true),
     P("sys_jitter_pct"  , T_U8 , 50             , 1, 100  , 0, "%"  , 971, "CPU_JITT alarm threshold", "percent of the task period", true),
     P("sys_stack_pct"   , T_U8 , 75             , 1, 100  , 0, "%"  , 972, "STACK alarm threshold", "percent of the stack in use", true),
-    PE("sys_log_level"   , Logs::LOG_DEBUG, &Logs::level_label, 973, "lowest level the logger forwards", "the floor for EVERY sink; each page filters further", true),
     P("sys_retain_sec"  , T_U32, 300            , 0, 86400, 0, "sec", 974, "how often retained values reach flash", "0 leaves only `save` and the way down; wear vs loss", true),
 #if BOTANIK_FEATURE_MODBUS_RTU_CLIENT
     P("rtu_timeout_ms"    , T_U32, 300  , 20  , 5000  , 0, "ms", 980, "how long a slave has to answer", "the bus default; a device model may declare its own", true),

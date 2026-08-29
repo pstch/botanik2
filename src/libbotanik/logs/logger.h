@@ -96,15 +96,6 @@ namespace Botanik { namespace Logs {
         Utils::BufferedSerial* _watched_tx[2]  = { nullptr, nullptr };
         uint8_t         _watched_tx_count       = 0;
 
-        /** @brief Minimum level a non-critical entry must reach to be forwarded.
-         *
-         *  A cache of the `sys_log_level` parameter, which is the setting: it is
-         *  read on every _emit() before any formatting, so it is pushed here
-         *  rather than looked up. Seeded from Config::LOG_MIN_LEVEL (LOG_DEBUG
-         *  on the simulator, LOG_INFO on hardware) for the beats before the
-         *  parameter store is read; LOG_CRITICAL is the max, so it never
-         *  filters. */
-        Logs::LogLevel _min_level = (Logs::LogLevel)Config::LOG_MIN_LEVEL;
 
         /** @} */
 
@@ -147,11 +138,6 @@ namespace Botanik { namespace Logs {
         /** @name Level and TX watch
          *  @{ */
 
-        /** @brief Set the minimum forwarded level (criticals always pass); see
-         *  @c _min_level. */
-        void set_min_level(Logs::LogLevel lvl) { _min_level = lvl; }
-        /** @brief Current minimum forwarded level. */
-        Logs::LogLevel min_level() const { return _min_level; }
         /** @brief Watch a serial so its TX-full drops are reported (the
          *  terminal reserves space, so only non-resuming callers actually
          *  drop). Up to two (console + monitor). */

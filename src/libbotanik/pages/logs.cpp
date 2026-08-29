@@ -22,11 +22,11 @@ namespace Botanik { namespace Pages {
     // Lifecycle
 
     LogsPage::LogsPage(Terminal::Console& console) :
-        Logs::BufferedLogWriter(nullptr, "console_logs_level"),
+        Logs::BufferedLogWriter(nullptr, "logs_log_level"),
         _console(console), _terminal(console.terminal())
     {
         // This page IS the record, so it takes whatever the logger forwarded -
-        // DEBUG included. Raising the master floor (`sys_log_level`) still
+        // DEBUG included. Raising `logs_log_level` still
         // quiets it.
         set_min_level(Logs::LOG_DEBUG);
     }

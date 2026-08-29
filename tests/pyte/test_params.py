@@ -4,7 +4,7 @@ Own sim per test: an edit here commits to the parameter store.
 
 Cursor arithmetic below counts rows in the ROLE_PARAM block, which the library's
 parameters open (its own go last within its block, which places them first):
-  0 monitor_baud  1 monitor_level
+  0 monitor_baud  1 monitor_log_level
   2 net_serial  3 net_enable  4 net_dhcp  5 net_ip  6 net_mask  7 net_gw
   8 net_dns1  9 net_dns2
   10 ntp_serial  11 ntp_enable  12 ntp_poll_sec

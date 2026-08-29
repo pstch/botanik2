@@ -164,7 +164,7 @@ namespace Botanik { namespace Pages {
                  uint8_t count = 0, const Vars::Bank* io = nullptr,
                  const Vars::VarRef* refs = nullptr)
             : MetricPage(console),
-              Logs::BufferedLogWriter(nullptr, "console_home_level"),
+              Logs::BufferedLogWriter(nullptr, "home_log_level"),
               _fields(fields), _refs(refs), _field_count(count), _io(io) {
             // cold-field redraw cadence is MetricPage's default (PAGE_COLD_MS)
             // uptime ticks every second

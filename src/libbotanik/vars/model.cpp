@@ -400,18 +400,13 @@ namespace Botanik { namespace Vars {
 
     void Bank::_apply_log_level() {
         if (_logger == nullptr) return;
-        const VarRef r = find("sys_log_level");
-        const int32_t want = (r.index != VAR_NONE) ? (int32_t)var(r).as_i64()
-                                                   : (int32_t)Config::LOG_MIN_LEVEL;
-        // The row is a T_ENUM over level_label(), so only the Config
-        // fallback arrives unvetted - hence the guard rather than a bare cast.
-        if (Logs::level_label((uint64_t)want) != nullptr) {
-            const Logs::LogLevel lvl = (Logs::LogLevel)want;
-            if (lvl != _logger->min_level()) _logger->set_min_level(lvl);
-        }
-        // Then each sink's floor, from the row that sink names: a page cannot
-        // reach the bank and should not learn how. Live, no commit serial - a
-        // level takes effect on the next entry.
+        // Each sink's floor, from the row that sink names: a page cannot reach
+        // the bank and should not learn how. Live, no commit serial - a level
+        // takes effect on the next entry.
+        //
+        // No floor above them. One existed, and it could only ever take a
+        // level AWAY from a sink that had asked for it: raising it to hide the
+        // shell's chatter silently emptied the LOGS page, which is the record.
         for (uint8_t i = 0; i < _logger->writer_count(); i++) {
             Logs::LogWriter* w = _logger->writer(i);
             if (w == nullptr || w->level_param() == nullptr) continue;

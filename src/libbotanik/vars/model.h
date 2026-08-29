@@ -550,8 +550,8 @@ namespace Botanik { namespace Vars {
          *  way down and on `save`. */
         uint32_t _retain_ms() const;
 
-        /** @brief Push `sys_log_level` into the logger, and each sink's floor
-         *  from the row it names. Here because this is the object already
+        /** @brief Push each sink's floor into it from the row that sink
+         *  names. Here because this is the object already
          *  holding both the rows and a logger - `vars/` depends on `logs/`
          *  already, since a refused write is reported through one. The logger
          *  cannot read it for itself: that would make `logs/` depend back on

@@ -17,21 +17,10 @@ namespace Botanik { namespace Config {
      *  in front of them.
      *  @{ */
 
-    /** @brief The FACTORY DEFAULT for the `sys_log_level` parameter, which is
-     *  the master floor: below it nothing is forwarded to any sink.
-     *
-     *  The live value is the parameter, so a level set over the terminal
-     *  survives a reboot. DEBUG, so the LOGS page can show everything; each page
-     *  sink then applies its own floor on top (below). Cheap to leave open:
-     *  every debug() call site is a one-shot boot line. */
-#ifndef BOTANIK_LOG_MIN_LEVEL
-#  define BOTANIK_LOG_MIN_LEVEL 1   /* Logs::LOG_DEBUG */
-#endif
-    BOTANIK_CFG(uint8_t, LOG_MIN_LEVEL);
 
-    // What each sink shows on top of LOG_MIN_LEVEL is a PARAMETER, not a macro:
-    // console_home_level, console_shell_level, console_logs_level,
-    // monitor_level, mqtt_level. Each sink seeds its own floor where it is
+    // What each sink shows is a PARAMETER, not a macro:
+    // home_log_level, shell_log_level, logs_log_level,
+    // monitor_log_level, mqtt_level. Each sink seeds its own floor where it is
     // built, and the bank raises it from the row it names. A sink floor can only
     // ever be MORE restrictive - an entry the logger dropped never reaches a
     // sink to be admitted - and LOG_CRITICAL clears every floor.

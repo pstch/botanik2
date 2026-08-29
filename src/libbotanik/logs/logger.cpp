@@ -25,12 +25,6 @@ namespace Botanik { namespace Logs {
         using LogTopic = Botanik::Logs::LogTopic;
     }
 
-    // Guard the numeric Config default against a bogus -DBOTANIK_LOG_MIN_LEVEL:
-    // it must be one of the LogLevel bit values (topics.h).
-    static_assert(Config::LOG_MIN_LEVEL == LOG_DEBUG   || Config::LOG_MIN_LEVEL == LOG_INFO  ||
-                  Config::LOG_MIN_LEVEL == LOG_NOTICE  || Config::LOG_MIN_LEVEL == LOG_WARNING ||
-                  Config::LOG_MIN_LEVEL == LOG_ERROR   || Config::LOG_MIN_LEVEL == LOG_CRITICAL,
-                  "BOTANIK_LOG_MIN_LEVEL must be a valid Logs::LogLevel wire value");
 
     // Lifecycle
 
@@ -123,10 +117,6 @@ namespace Botanik { namespace Logs {
     // the sink queue, not the limiter; a limiter-dropped critical is still
     // counted and summary-reported.
     void Logger::push_entry(const Logs::LogEntry& entry) {
-        // Level gate before the limiter so a filtered entry costs no token.
-        // LogLevel is monotonic and LOG_CRITICAL is the max, so a critical
-        // never falls below _min_level.
-        if (entry.level < _min_level) return;
         Logs::LogTopic topic = entry.topic >=
             Logs::LOG_TOPIC_COUNT ? LogTopic::NONE : entry.topic;
         LogBucket_t* topic_bucket = &_perTopic_buckets[topic];

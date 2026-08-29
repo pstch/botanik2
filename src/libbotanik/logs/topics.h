@@ -28,7 +28,7 @@ namespace Botanik { namespace Logs {
 
     /** @brief A level's lowercase word, or NULL for anything that is not one.
      *
-     *  The T_ENUM converter behind the `sys_log_level` parameter (declared with
+     *  The T_ENUM converter behind every `*_log_level` parameter (declared with
      *  PE() in library_vars.h), so it is what the operator both reads and types.
      *  NULL is load-bearing there: it is how the variable model knows 3 is not a
      *  level, since these are bit values and not a run.
