@@ -62,6 +62,23 @@ Three ways out, none free:
 **(2) is the only one that keeps both, and it is a design change to the
 variable model, not an integration detail.**
 
+**Resolved: (2), narrowed.** The doubling was the objection, and it does not
+happen. `Ref::get()` already substitutes a row's DECLARED value when the row is
+not believable, so most of those 21 programs are testing quality to compute a
+number the substitution hands them anyway. Judged one at a time
+(`quality-companions.md`), **12 rows earn a `_qlt`** and the other ~28 reads go:
+a companion is warranted only where the law must do something STRUCTURALLY
+different, which no value substitution can express.
+
+`roof_lockout` is the worked case and the reason the rule exists. Both weather
+rows declare 0, so a dead station reads as fine weather; `st/roof_lockout.st`
+runs on `cli_rain_mmph_qlt` and `cli_wind_mps_qlt` as plain BOOLs, and its
+harness shows the roof opening to `cap = 1.00` the moment the two reads are
+taken out.
+
+The one rule the design has to enforce is the second half of the objection:
+nothing in ST may WRITE a `_qlt` it did not earn.
+
 ### The descriptor
 
 IEC's `VAR_GLOBAL` carries a type and an initial value. A `Descriptor` carries
