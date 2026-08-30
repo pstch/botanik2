@@ -28,13 +28,16 @@ protected:
 
 }  // namespace
 
-TEST_CASE_FIXTURE(Rig<Site::FanController>, "fans: an unknown gap floors them at their safe state, not at rest") {
+TEST_CASE_FIXTURE(StRig, "fans: an unknown gap floors them at their safe state, not at rest") {
     interlocks_clear(live);
 
     Vars::RefIn<bool> s1 = live.bank.resolve_in<bool>("cli_destrat1_speed1");
     Vars::RefIn<bool> s3 = live.bank.resolve_in<bool>("cli_destrat1_speed3");
 
-    live.bank.var(live.ref("cli_stratDem")).invalidate(Q_NO_DATA);
+    // The GAP, not the demand: destrat publishes cli_stratDem every scan now,
+    // so an unreadable gap is what reaches the fans. It substitutes the row's
+    // declared 2.0 degC, which is the low rung.
+    live.bank.var(live.ref("cli_dTStrat_degC")).invalidate(Q_NO_DATA);
     live.bank.var(live.ref("cli_coolDem")).set(0.0f);
     d.step(100);
 
@@ -409,7 +412,7 @@ TEST_CASE_FIXTURE(Rig<Site::IntractorController>, "intractors: cooling only draw
           doctest::Approx(live.bank.var(live.ref("cli_groundSpeed")).as_f32()));
 }
 
-TEST_CASE_FIXTURE(Rig<Site::FanController>, "fans: the day's two breezes are a floor under the brassage") {
+TEST_CASE_FIXTURE(StRig, "fans: the day's two breezes are a floor under the brassage") {
     interlocks_clear(live);
 
     // Nothing else asking: no stratification, no cooling, no cycle.
@@ -441,7 +444,7 @@ TEST_CASE_FIXTURE(Rig<Site::FanController>, "fans: the day's two breezes are a f
     CHECK_FALSE(live.bank.get(live.bank.resolve_in<bool>("cli_destrat1_speed1")));
 }
 
-TEST_CASE_FIXTURE(Rig<Site::FanController>, "fans: one speed relay at a time, and a band change costs hysteresis") {
+TEST_CASE_FIXTURE(StRig, "fans: one speed relay at a time, and a band change costs hysteresis") {
     interlocks_clear(live);
 
     Vars::RefIn<bool> s1 = live.bank.resolve_in<bool>("cli_destrat1_speed1");
@@ -449,25 +452,27 @@ TEST_CASE_FIXTURE(Rig<Site::FanController>, "fans: one speed relay at a time, an
     Vars::RefIn<bool> s3 = live.bank.resolve_in<bool>("cli_destrat1_speed3");
     const float med = live.bank.var(live.ref("cli_fanMedDem")).as_f32();
 
-    live.bank.var(live.ref("cli_stratDem")).set(med + 0.01f);
+    // Driven through the COOLING floor: cli_stratDem is destrat's output now
+    // and would be overwritten on every scan of the resource.
+    live.bank.var(live.ref("cli_coolDem")).set(med + 0.01f);
     d.step(100);
     CHECK_FALSE(live.bank.get(s1));
     CHECK(live.bank.get(s2));
     CHECK_FALSE(live.bank.get(s3));
 
     INFO("just under the threshold again is not a band change");
-    live.bank.var(live.ref("cli_stratDem")).set(med - 0.01f);
+    live.bank.var(live.ref("cli_coolDem")).set(med - 0.01f);
     d.step(200);
     CHECK(live.bank.get(s2));
 
     INFO("...it takes the whole hysteresis to give the band back");
-    live.bank.var(live.ref("cli_stratDem")).set(med - 0.2f);
+    live.bank.var(live.ref("cli_coolDem")).set(med - 0.2f);
     d.step(300);
     CHECK(live.bank.get(s1));
     CHECK_FALSE(live.bank.get(s2));
 }
 
-TEST_CASE_FIXTURE(Rig<Site::FanController>, "fans: a watering cycle is a floor under them") {
+TEST_CASE_FIXTURE(StRig, "fans: a watering cycle is a floor under them") {
     interlocks_clear(live);
 
     // Both demands present and asking for nothing: an ABSENT one is a floor of

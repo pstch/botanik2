@@ -102,7 +102,6 @@
 #include "programs/actuators/windows_controller/windows_controller.h"
 #include "programs/sense/weather_watch/weather_watch.h"
 #include "programs/actuators/intractor_controller/intractor_controller.h"
-#include "programs/actuators/fan_controller/fan_controller.h"
 #include "programs/actuators/skirt_controller/skirt_controller.h"
 
 /** @name The site's programs, in EXECUTION order
@@ -136,7 +135,6 @@
     X(WindowsController,    _windows)         \
     X(WeatherWatch,         _weather_watch)   \
     X(IntractorController,  _intractors)      \
-    X(FanController,        _fans)            \
     X(SkirtController,      _skirt)
 
 /** @} */

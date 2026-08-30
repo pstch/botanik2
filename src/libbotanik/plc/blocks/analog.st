@@ -11,6 +11,29 @@
  * means - its unit, band, register, transport and timeout - is the table's,
  * and matiec never sees it. *)
 
+(* BAND_LATCH: latches ON at its rising edge and OFF below the falling one,
+   holding between the two. Mirrors Plc::Hysteresis.
+
+   NOT named HYSTERESIS, and not for taste: matiec ships a standard FB of that
+   name, and redefining it is an internal compiler error rather than a
+   diagnostic - "Internal compiler error in file ../util/symtable.cc". *)
+FUNCTION_BLOCK BAND_LATCH
+VAR_INPUT
+  IN  : REAL;
+  RISE : REAL;   (* engages at or above *)
+  FALL : REAL;   (* releases AT or below, as Plc::Hysteresis does *)
+END_VAR
+VAR_OUTPUT
+  Q : BOOL;
+END_VAR
+  IF   IN >= RISE THEN Q := TRUE;
+  ELSIF IN <= FALL THEN Q := FALSE;
+  END_IF;
+END_FUNCTION_BLOCK
+
+(* Three rungs, each holding its OWN release band. Evaluated all three rather
+   than only the one above the reading: a rung that stopped being asked keeps
+   whichever side of itself the reading was last on. Mirrors Plc::Staircase3. *)
 FUNCTION_BLOCK STAIRCASE3
 VAR_INPUT
   IN   : REAL;
@@ -22,9 +45,23 @@ END_VAR
 VAR_OUTPUT
   Q : USINT;
 END_VAR
-  IF    IN >= HI  THEN Q := 3;
-  ELSIF IN >= MED THEN Q := 2;
-  ELSIF IN >= LO  THEN Q := 1;
-  ELSIF IN <  LO - HYST THEN Q := 0;
-  END_IF;
+VAR
+  rung1 : BAND_LATCH;
+  rung2 : BAND_LATCH;
+  rung3 : BAND_LATCH;
+END_VAR
+VAR_TEMP
+  h : REAL;
+END_VAR
+  (* A negative hysteresis is no hysteresis, never an inverted band. *)
+  IF HYST < 0.0 THEN h := 0.0; ELSE h := HYST; END_IF;
+
+  rung1(IN := IN, RISE := LO,  FALL := LO  - h);
+  rung2(IN := IN, RISE := MED, FALL := MED - h);
+  rung3(IN := IN, RISE := HI,  FALL := HI  - h);
+
+  Q := 0;
+  IF rung1.Q THEN Q := 1; END_IF;
+  IF rung2.Q THEN Q := 2; END_IF;
+  IF rung3.Q THEN Q := 3; END_IF;
 END_FUNCTION_BLOCK

@@ -365,9 +365,8 @@ TEST_CASE("cooling: an unknown demand puts every actuator at its own safe state"
     Site::IntractorController  intr(Botanik::SetupContext(f.reg), f.bank);
     Site::ScreenController     scr(Botanik::SetupContext(f.reg), f.bank);
     Site::SkirtController      sk(Botanik::SetupContext(f.reg), f.bank);
-    Site::FanController        fan(Botanik::SetupContext(f.reg), f.bank);
-    Plc::Program* const progs[] = { &win, &intr, &scr, &sk, &fan };
-    Cycle cyc(progs, 5, &f.bank, f.reg);
+    Plc::Program* const progs[] = { &win, &intr, &scr, &sk };
+    Cycle cyc(progs, 4, &f.bank, f.reg);
     st.wire();
     struct { Site::StRuntime* st; Cycle* c; uint64_t last;
              void step(uint64_t n) { st->scan_slow((uint32_t)(n - last));

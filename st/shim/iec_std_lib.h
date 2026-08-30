@@ -7,6 +7,7 @@
  *  storage, the forcing and the quality are the bank's.
  */
 #include <cstdint>
+#include <cstdarg>
 
 typedef bool     BOOL;
 typedef int8_t   SINT;
@@ -37,6 +38,31 @@ IEC_CONV(REAL,  UDINT)
 IEC_CONV(REAL,  INT)
 IEC_CONV(INT,   REAL)
 #undef IEC_CONV
+
+/* MAX and MIN are VARIADIC in IEC: matiec passes the argument count ahead of
+ * the values, and a REAL promotes to double through the ellipsis. */
+static inline REAL ___MAX__REAL__REAL(BOOL en, BOOL* eno, UINT n, ...) {
+    va_list ap; va_start(ap, n);
+    REAL best = (REAL)va_arg(ap, double);
+    for (UINT i = 1; i < n; i++) {
+        const REAL v = (REAL)va_arg(ap, double);
+        if (v > best) best = v;
+    }
+    va_end(ap);
+    if (eno) *eno = en;
+    return best;
+}
+static inline REAL ___MIN__REAL__REAL(BOOL en, BOOL* eno, UINT n, ...) {
+    va_list ap; va_start(ap, n);
+    REAL best = (REAL)va_arg(ap, double);
+    for (UINT i = 1; i < n; i++) {
+        const REAL v = (REAL)va_arg(ap, double);
+        if (v < best) best = v;
+    }
+    va_end(ap);
+    if (eno) *eno = en;
+    return best;
+}
 
 static inline REAL ___LIMIT__REAL__REAL__REAL__REAL(BOOL en, BOOL* eno,
                                                     REAL mn, REAL in, REAL mx) {

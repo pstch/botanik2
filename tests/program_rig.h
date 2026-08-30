@@ -124,7 +124,17 @@ struct StRig {
     Live            live;
     Site::StRuntime st{ Botanik::SetupContext(live.reg), live.bank };
 
-    StRig() { st.wire(); d.st = &st; }
+    StRig() {
+        st.wire();
+        d.st = &st;
+        // The resource is the unit now, not the program: every ST program in
+        // it runs on every scan. destrat publishes cli_stratDem, which is one
+        // of the four floors under the fan ladder, so a case about any OTHER
+        // floor has to put the gap where destrat asks for nothing. A case
+        // about destrat sets the gap itself.
+        live.bank.var(live.ref("cli_dTStrat_degC"))
+            .publish(from_f32(T_F32, -0.1f), 0);
+    }
 
     struct Driver {
         Site::StRuntime* st = nullptr;
