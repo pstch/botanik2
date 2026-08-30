@@ -60,7 +60,7 @@ private:
 
 public:
     HumidityController(const SetupContext& ctx, Vars::Bank& io)
-        : Program(ctx, "humidity", Tasks::GROUP_SLOW, io) {}
+        : Program(ctx, "humidity", BOTANIK_SITE_CONTROL_MS, io) {}
 
 protected:
     /** @brief Resolve every name. An output is CLAIMED here. */

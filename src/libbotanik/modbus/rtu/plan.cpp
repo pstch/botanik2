@@ -295,7 +295,7 @@ uint32_t Planner::wire_duty_ppm() const {
 }
 
 uint32_t Planner::duty_ppm() const {
-    const uint32_t beat_us = (uint32_t)Config::GROUP_FAST_MS * 1000u;
+    const uint32_t beat_us = (uint32_t)Config::TASK_PERIOD_MS * 1000u;
     uint32_t ppm = 0;
     for (uint16_t i = 0; i < _block_count; ++i) {
         const Block& b = _blocks[i];

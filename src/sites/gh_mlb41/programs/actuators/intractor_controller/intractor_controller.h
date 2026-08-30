@@ -67,7 +67,7 @@ private:
 
 public:
     IntractorController(const SetupContext& ctx, Vars::Bank& io)
-        : Program(ctx, "intractors", Tasks::GROUP_SLOW, io) {}
+        : Program(ctx, "intractors", BOTANIK_SITE_CONTROL_MS, io) {}
 
 protected:
     /** @brief Resolve every name. An output is CLAIMED here. */

@@ -66,7 +66,7 @@ private:
 
 public:
     IrrigationModulation(const SetupContext& ctx, Vars::Bank& io)
-        : Program(ctx, "irr_modulation", Tasks::GROUP_SLOW, io) {}
+        : Program(ctx, "irr_modulation", BOTANIK_SITE_CONTROL_MS, io) {}
 
 protected:
     /** @brief Resolve every name. An output is CLAIMED here. */

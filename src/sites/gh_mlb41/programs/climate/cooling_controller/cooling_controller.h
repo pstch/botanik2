@@ -61,7 +61,7 @@ private:
 
 public:
     CoolingController(const SetupContext& ctx, Vars::Bank& io)
-        : Program(ctx, "cooling", Tasks::GROUP_FAST, io) {}
+        : Program(ctx, "cooling", BOTANIK_SITE_SENSE_MS, io) {}
 
 protected:
     /** @brief Resolve every name. An output is CLAIMED here. */

@@ -25,6 +25,14 @@ namespace Botanik { namespace Config {
 
     /** @} */
 
+
+/** @brief How often the solar position is recomputed. The sun moves a quarter
+ *  of a degree a minute; this is already far finer than anything reading it. */
+#ifndef BOTANIK_SUN_PERIOD_MS
+#  define BOTANIK_SUN_PERIOD_MS 100
+#endif
+    BOTANIK_CFG(uint32_t, SUN_PERIOD_MS);
+
 } }
 
 /** @name Parameter factory defaults

@@ -24,38 +24,6 @@ namespace Botanik { namespace Config {
 #endif
     BOTANIK_CFG(uint32_t, TASK_PERIOD_MS);
 
-    /** @brief Every beat: the field bus, the log drain, the serial pumps. This
-     *  and the three below are the rate classes; each must be an integer
-     *  multiple of TASK_PERIOD_MS. See docs/dev/scheduler.md. */
-#ifndef BOTANIK_GROUP_FAST_MS
-#  define BOTANIK_GROUP_FAST_MS BOTANIK_TASK_PERIOD_MS
-#endif
-    BOTANIK_CFG(uint32_t, GROUP_FAST_MS);
-
-    /** @brief The operator-facing rate.
-     *  @note Has NO members today - the console render runs in GROUP_SLOW - so
-     *  tuning it affects nothing. Check tasks.h first. */
-#ifndef BOTANIK_GROUP_MAIN_MS
-#  define BOTANIK_GROUP_MAIN_MS 50
-#endif
-    BOTANIK_CFG(uint32_t, GROUP_MAIN_MS);
-
-    /** @brief Dwell and config: alarm on_s/off_s are in SECONDS, and a parameter
-     *  edit is bounded by how fast a human types. Also the console render, which
-     *  is why TX_COLD_TARGET_MS must stay above this. */
-#ifndef BOTANIK_GROUP_SLOW_MS
-#  define BOTANIK_GROUP_SLOW_MS 100
-#endif
-    BOTANIK_CFG(uint32_t, GROUP_SLOW_MS);
-
-    /** @brief Housekeeping measured in seconds - the input-expiry sweep, which
-     *  is a full linear scan of the variable table run to resolve timeouts of
-     *  3x a poll group's period. */
-#ifndef BOTANIK_GROUP_BACKGROUND_MS
-#  define BOTANIK_GROUP_BACKGROUND_MS 500
-#endif
-    BOTANIK_CFG(uint32_t, GROUP_BACKGROUND_MS);
-
     /** @brief Capacity of the scheduler's task table. Fixed, no allocation;
      *  registrations past it are refused and counted, never silently dropped.
      *  @note gh_mlb41 registers 49 - the library's components plus 28 control

@@ -59,7 +59,7 @@ private:
 
 public:
     TargetTempController(const SetupContext& ctx, Vars::Bank& io)
-        : Program(ctx, "target_temp", Tasks::GROUP_SLOW, io) {}
+        : Program(ctx, "target_temp", BOTANIK_SITE_CONTROL_MS, io) {}
 
 protected:
     /** @brief Resolve every name. An output is CLAIMED here. */

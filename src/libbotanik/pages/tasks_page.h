@@ -67,7 +67,7 @@ namespace Botanik { namespace Pages {
         static constexpr uint16_t HEADER_ROW = 2;
         static constexpr uint16_t RULE_ROW   = 3;
         static constexpr uint16_t DATA_TOP   = 4;    // first task row
-        static constexpr uint16_t GROUP_W    = 5;    // "bkgnd"
+        static constexpr uint16_t PERIOD_W   = 6;    // "60000" plus a margin
         static constexpr uint16_t HEALTH_W   = 9;    // "INHIBITED"
         static constexpr uint16_t PHASE_W    = 7;    // "service"
         static constexpr uint16_t MEAN_W     = 8;    // mean us
@@ -87,7 +87,7 @@ namespace Botanik { namespace Pages {
          *  the console's byte budget. */
         static constexpr uint32_t REFRESH_MS = Config::PAGE_TASKS_MS;
         /** @brief Column order; the selection cursor inverts C_NAME's cell. */
-        enum { C_NAME = 0, C_GROUP, C_HEALTH, C_PHASE, C_MEAN, C_MISSED };
+        enum { C_NAME = 0, C_PERIOD, C_HEALTH, C_PHASE, C_MEAN, C_MISSED };
         /** @} */
 
         /** @name State
@@ -197,7 +197,7 @@ namespace Botanik { namespace Pages {
         /** @brief The group's period as text. Four compile-time constants, so
          *  they are rendered once into a small cache rather than through an
          *  snprintf per row per refresh. */
-        static const char* _period_str(Tasks::GroupId g);
+        static const char* _period_str(uint32_t period_ms);
 
         /** @brief @p t's health as a word, or "" when it is not a program. */
         static const char* _health_str(const Tasks::Task& t);

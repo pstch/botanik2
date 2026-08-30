@@ -155,7 +155,7 @@ namespace Botanik { namespace Config {
      *  @{ */
 
     /** @brief Single paint depth floor, in ms of wire time at the console rate.
-     *  @warning Must stay above GROUP_SLOW_MS (static_asserted): the render runs
+     *  @warning Must stay above CONSOLE_DRAW_MS (static_asserted): the render runs
      *  on that group, so a lower floor lets the wire drain empty between paints.
      *  Nothing measures an underrun, so raise rather than lower it. */
 #ifndef BOTANIK_TX_COLD_TARGET_MS
@@ -284,6 +284,16 @@ namespace Botanik { namespace Config {
                   "EDITOR_MAX_ROWS too small to lay out SHELL_INPUT_LEN at EDITOR_MIN_COLS");
 
     /** @} */
+
+/** @brief How often the console REDRAWS. The operator-facing rate: fast
+ *  enough that a keystroke feels immediate, slow enough that a full repaint
+ *  is not competing with the field bus for the wire.
+ *  @note TX_COLD_TARGET_MS must stay above this - a redraw that cannot be
+ *  flushed before the next one starts never converges. */
+#ifndef BOTANIK_CONSOLE_DRAW_MS
+#  define BOTANIK_CONSOLE_DRAW_MS 100
+#endif
+    BOTANIK_CFG(uint32_t, CONSOLE_DRAW_MS);
 
 } }
 

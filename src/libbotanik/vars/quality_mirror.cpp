@@ -52,7 +52,7 @@ namespace Botanik { namespace Vars {
         // order inside a phase is dispatch order, and the composition root is
         // what knows which came first.
         _tasks->add(*this, &QualityMirror::_run, "qmirror",
-                    Tasks::GROUP_FAST, Tasks::PHASE_INPUT);
+                    Tasks::EVERY_BEAT, Tasks::PHASE_INPUT);
     }
 
     void QualityMirror::_run(Component* self, const Tasks::Tick& t) {

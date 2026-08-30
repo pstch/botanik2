@@ -314,7 +314,7 @@ namespace {
         uint16_t ran = 0;
 
         Unwireable(const Botanik::SetupContext& ctx, Vars::Bank& io)
-            : Program(ctx, "unwireable", Botanik::Tasks::GROUP_FAST, io) {}
+            : Program(ctx, "unwireable", Botanik::Tasks::EVERY_BEAT, io) {}
 
     protected:
         void bind(Vars::Bank& io) override {
@@ -333,7 +333,7 @@ namespace {
 
         OneBinding(const Botanik::SetupContext& ctx, Vars::Bank& io,
                    const char* label, How h, const char* name)
-            : Program(ctx, label, Botanik::Tasks::GROUP_FAST, io), how(h), row(name) {}
+            : Program(ctx, label, Botanik::Tasks::EVERY_BEAT, io), how(h), row(name) {}
 
     protected:
         void bind(Vars::Bank& io) override {

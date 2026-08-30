@@ -499,7 +499,7 @@ namespace Botanik { namespace Health {
             // A counter, not a level: pulse the row for the one beat the count
             // moved and let the CPU_XRUN row's own hold_s do the latching, like
             // every other alarm. Safe because `health` and `alarms` share a rate
-            // group and a phase (GROUP_SLOW / PHASE_SERVICE), so the pulse is
+            // period and a phase (HEALTH_PERIOD_MS / PHASE_SERVICE), so the pulse is
             // always sampled - keep them together or it is missed.
             const bool xrun = load && _sched->overruns != _xrun_last;
             _xrun_last = _sched->overruns;

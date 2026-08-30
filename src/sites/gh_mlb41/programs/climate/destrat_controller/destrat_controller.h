@@ -57,7 +57,7 @@ private:
 
 public:
     DestratController(const SetupContext& ctx, Vars::Bank& io)
-        : Program(ctx, "destrat", Tasks::GROUP_SLOW, io) {}
+        : Program(ctx, "destrat", BOTANIK_SITE_CONTROL_MS, io) {}
 
 protected:
     /** @brief Resolve every name. An output is CLAIMED here. */

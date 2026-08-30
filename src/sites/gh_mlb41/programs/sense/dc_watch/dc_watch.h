@@ -93,7 +93,7 @@ private:
 
 public:
     DcWatch(const SetupContext& ctx, Vars::Bank& io)
-        : Program(ctx, "dc_watch", Tasks::GROUP_SLOW, io) {}
+        : Program(ctx, "dc_watch", BOTANIK_SITE_CONTROL_MS, io) {}
 
 protected:
     /** @brief Resolve every name. An output is CLAIMED here. */

@@ -84,7 +84,7 @@ namespace Botanik { namespace Pages {
 
     uint8_t TasksPage::_columns(Col* out) const {
         out[C_NAME]   = Col{ "TASK",      0         };   // flex: the base fits it
-        out[C_GROUP]  = Col{ "GROUP",     GROUP_W   };
+        out[C_PERIOD] = Col{ "EVERY",     PERIOD_W  };
         out[C_HEALTH] = Col{ "HEALTH",    HEALTH_W  };
         out[C_PHASE]  = Col{ "PHASE",     PHASE_W   };
         out[C_MEAN]   = Col{ "MEAN us",   MEAN_W    };
@@ -92,16 +92,13 @@ namespace Botanik { namespace Pages {
         return 6;
     }
 
-    const char* TasksPage::_period_str(Tasks::GroupId g) {
-        static char buf[Tasks::GROUP_COUNT][8];
-        static bool built = false;
-        if (!built) {
-            built = true;
-            for (uint8_t i = 0; i < Tasks::GROUP_COUNT; i++)
-                Utils::format_int(buf[i], sizeof(buf[i]),
-                                  (long long)Tasks::group_period_ms((Tasks::GroupId)i));
-        }
-        return (g < Tasks::GROUP_COUNT) ? buf[g] : "";
+    const char* TasksPage::_period_str(uint32_t period_ms) {
+        // One buffer, filled per row as the table is drawn: a period is a
+        // number a task carries now, not one of a handful of classes there
+        // was any point caching.
+        static char buf[12];
+        Utils::format_int(buf, sizeof buf, (long long)period_ms);
+        return buf;
     }
 
     const char* TasksPage::_health_str(const Tasks::Task& t) {
@@ -115,7 +112,7 @@ namespace Botanik { namespace Pages {
         char mean[CELL_CAP], missed[CELL_CAP], line[LINE_CAP];
         const char* cells[6] = {
             t.name != nullptr ? t.name : "",
-            Tasks::group_name(t.group),
+            _period_str(t.period_ms),
             _health_str(t),
             Tasks::phase_name(t.phase),
             _num(mean,   sizeof(mean),   t.cost.us_mean(), t.cost.runs),
@@ -159,7 +156,7 @@ namespace Botanik { namespace Pages {
         const char* missed_s = _num(missed, sizeof(missed), t.cost.missed,  t.cost.runs);
         Utils::format_int(runs, sizeof(runs), (long long)t.cost.runs);
 
-        const uint32_t period = Tasks::group_period_ms(t.group);
+        const uint32_t period = t.period_ms;
         const char* duty_s = "-";
         if (t.cost.runs != 0 && period != 0) {
             // us_mean/period_ms IS per-mille of the period - the us/ms ratio
@@ -182,7 +179,7 @@ namespace Botanik { namespace Pages {
         // together, and a declared period earns a panel field rather than a
         // column repeating one of four numbers down the table.
         _panel_field2((uint16_t)(r + 4), "Of period", duty_s,
-                      PANEL_COL2, "Every ms", _period_str(t.group));
+                      PANEL_COL2, "Every ms", _period_str(t.period_ms));
         _draw_legend(_legend_row(), nullptr);
     }
 }}

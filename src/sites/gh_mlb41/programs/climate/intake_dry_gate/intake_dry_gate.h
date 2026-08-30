@@ -56,7 +56,7 @@ private:
 
 public:
     IntakeDryGate(const SetupContext& ctx, Vars::Bank& io)
-        : Program(ctx, "intake_dry", Tasks::GROUP_SLOW, io) {}
+        : Program(ctx, "intake_dry", BOTANIK_SITE_CONTROL_MS, io) {}
 
 protected:
     /** @brief Resolve every name. An output is CLAIMED here. */

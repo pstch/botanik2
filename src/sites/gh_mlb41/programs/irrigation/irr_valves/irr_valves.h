@@ -68,7 +68,7 @@ private:
 
 public:
     IrrValves(const SetupContext& ctx, Vars::Bank& io)
-        : Program(ctx, "irr_valves", Tasks::GROUP_SLOW, io) {}
+        : Program(ctx, "irr_valves", BOTANIK_SITE_CONTROL_MS, io) {}
 
 protected:
     /** @brief Resolve every name. An output is CLAIMED here. */

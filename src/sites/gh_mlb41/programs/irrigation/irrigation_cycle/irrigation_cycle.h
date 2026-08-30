@@ -111,7 +111,7 @@ private:
 
 public:
     IrrigationCycle(const SetupContext& ctx, Vars::Bank& io)
-        : Program(ctx, "irrigation", Tasks::GROUP_SLOW, io) {}
+        : Program(ctx, "irrigation", BOTANIK_SITE_CONTROL_MS, io) {}
 
 protected:
     /** @brief Resolve every name. An output is CLAIMED here. */

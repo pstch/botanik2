@@ -133,7 +133,7 @@ namespace Botanik { namespace Health {
 
 #if BOTANIK_FEATURE_VARS && BOTANIK_FEATURE_LOGGING
     void HealthMonitor::_quality_sweep(uint64_t now_ms) {
-        // Enough to cross a 500-row table in about a second at GROUP_SLOW: fast
+        // Enough to cross a 500-row table in about a second at HEALTH_PERIOD_MS: fast
         // enough that a reader watching a sensor die sees it, slow enough that
         // it is not a per-beat walk of the whole model.
         static const uint16_t PER_BEAT = 48;
@@ -170,13 +170,13 @@ namespace Botanik { namespace Health {
 #endif
 
     void HealthMonitor::register_tasks() {
-        _tasks->add(*this, "sys_health", Tasks::GROUP_SLOW,
+        _tasks->add(*this, "sys_health", Config::HEALTH_PERIOD_MS,
               Tasks::PHASE_SERVICE);
 #if BOTANIK_FEATURE_VARS
         // Every beat, and BEFORE the programs: a fault must inhibit this beat's
         // control, not the next one.
         _tasks->add(*this, &HealthMonitor::_latch_task, "sys_control_latch",
-                    Tasks::GROUP_FAST, Tasks::PHASE_SERVICE);
+                    Tasks::EVERY_BEAT, Tasks::PHASE_SERVICE);
 #endif
         // Then the model, which this used to step inside its own task: same
         // order, but with a rate and a TASKS row of its own.

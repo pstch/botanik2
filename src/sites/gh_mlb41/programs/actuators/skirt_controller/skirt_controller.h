@@ -59,7 +59,7 @@ private:
 
 public:
     SkirtController(const SetupContext& ctx, Vars::Bank& io)
-        : Program(ctx, "skirt", Tasks::GROUP_SLOW, io) {}
+        : Program(ctx, "skirt", BOTANIK_SITE_CONTROL_MS, io) {}
 
 protected:
     /** @brief Resolve every name. An output is CLAIMED here. */

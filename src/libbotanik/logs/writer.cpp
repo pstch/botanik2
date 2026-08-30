@@ -101,7 +101,7 @@ namespace Botanik { namespace Logs {
 
 
     void SerialLogWriter::register_tasks() {
-        _tasks->add(*this, name(), Tasks::GROUP_FAST,
+        _tasks->add(*this, name(), Tasks::EVERY_BEAT,
               Tasks::PHASE_PRESENT);
     }
 

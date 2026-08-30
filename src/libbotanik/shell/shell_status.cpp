@@ -155,14 +155,24 @@ namespace Botanik { namespace Shell {
         // periods, both slash-joined: the pairwise form ("fast 10, main 50") is
         // wider still, and _field() cuts whatever does not fit.
         snprintf(val, sizeof(val), "%lums", (unsigned long)Config::TASK_PERIOD_MS);
+        // The DISTINCT periods in the table, smallest first. There is no fixed
+        // set of rate classes to name any more: a task states its own, so what
+        // an operator wants is which ones are actually in use.
+        uint32_t seen[8];
+        uint8_t  n = 0;
+        for (uint8_t i = 0; i < reg.count() && n < 8; i++) {
+            const uint32_t p = reg.task(i).period_ms;
+            bool have = false;
+            for (uint8_t j = 0; j < n; j++) if (seen[j] == p) have = true;
+            if (have) continue;
+            uint8_t at = n++;
+            while (at > 0 && seen[at - 1] > p) { seen[at] = seen[at - 1]; at--; }
+            seen[at] = p;
+        }
         int w = 0;
-        for (uint8_t g = 0; g < Tasks::GROUP_COUNT && w >= 0 && w < (int)sizeof(detail); g++)
-            w += snprintf(detail + w, sizeof(detail) - (size_t)w, "%s%s",
-                          (g == 0) ? "" : "/", Tasks::group_name((Tasks::GroupId)g));
-        for (uint8_t g = 0; g < Tasks::GROUP_COUNT && w >= 0 && w < (int)sizeof(detail); g++)
+        for (uint8_t i = 0; i < n && w >= 0 && w < (int)sizeof(detail); i++)
             w += snprintf(detail + w, sizeof(detail) - (size_t)w, "%s%lu",
-                          (g == 0) ? " " : "/",
-                          (unsigned long)Tasks::group_period_ms((Tasks::GroupId)g));
+                          (i == 0) ? "" : "/", (unsigned long)seen[i]);
         _field("Beat", val, detail);
 
         // Missed is the headline: a dropped activation is never caught up
@@ -190,7 +200,7 @@ namespace Botanik { namespace Shell {
 
         // One name to go and look at, since the table is the TASKS page's.
         if (busiest != nullptr && busiest->cost.runs != 0) {
-            const uint32_t period = Tasks::group_period_ms(busiest->group);
+            const uint32_t period = busiest->period_ms;
             char fa[12];
             snprintf(val, sizeof(val), "%luus",
                      (unsigned long)busiest->cost.us_mean());
@@ -216,9 +226,9 @@ namespace Botanik { namespace Shell {
             const Tasks::Task& t = reg.task(i);
             if (t.name == nullptr) continue;
             if (!Utils::glob_bounded(t.name, prefix, plen)) continue;
-            _emitf(out, sizeof(out), "  %-22s %-5s %-8s %5lums %6luus %5lu",
-                   t.name, Tasks::group_name(t.group), Tasks::phase_name(t.phase),
-                   (unsigned long)Tasks::group_period_ms(t.group),
+            _emitf(out, sizeof(out), "  %-22s %-8s %5lums %6luus %5lu",
+                   t.name, Tasks::phase_name(t.phase),
+                   (unsigned long)t.period_ms,
                    (unsigned long)t.cost.us_mean(),
                    (unsigned long)t.cost.missed);
             n++;
@@ -234,11 +244,10 @@ namespace Botanik { namespace Shell {
             if (t.name == nullptr || !arg_eq(name, nlen, t.name)) continue;
 
             char val[64], fa[12];
-            const uint32_t period = Tasks::group_period_ms(t.group);
+            const uint32_t period = t.period_ms;
 
-            snprintf(val, sizeof(val), "%s (%s, every %lu ms)",
-                     Tasks::phase_name(t.phase), Tasks::group_name(t.group),
-                     (unsigned long)period);
+            snprintf(val, sizeof(val), "%s, every %lu ms",
+                     Tasks::phase_name(t.phase), (unsigned long)period);
             _line("Runs in", val);
 
             // last_run_ms() is meaningless until the first activation, so a task

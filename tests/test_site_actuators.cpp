@@ -21,7 +21,7 @@ class MisnamedProgram final : public Plc::Program {
 public:
     Vars::RefIn<float> missing;
     MisnamedProgram(const SetupContext& ctx, Vars::Bank& io)
-        : Plc::Program(ctx, "misnamed", Tasks::GROUP_FAST, io) {}
+        : Plc::Program(ctx, "misnamed", Tasks::EVERY_BEAT, io) {}
 
 protected:
     void bind(Vars::Bank& io) override {

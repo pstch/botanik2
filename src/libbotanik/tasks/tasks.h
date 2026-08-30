@@ -3,11 +3,11 @@
 
 /**
  * @file tasks.h
- * @brief The task table: rate groups, beat phases, and the registry that
+ * @brief The task table: periods, beat phases, and the registry that
  *        dispatches them.
  * @note GROUP is how often a task runs, PHASE where in the beat it sits, and
  *       neither derives from the other. Rate is a tuning knob; phase is a
- *       correctness property, so dispatch is phase-major and the group only
+ *       correctness property, so dispatch is phase-major and the period only
  *       answers "is it due". No priority: see docs/dev/tasks.md.
  */
 
@@ -44,21 +44,9 @@ namespace Botanik { namespace Tasks {
         bool     first  = false;
     };
 
-    /** @brief Rate classes. A task names one instead of carrying a raw period,
-     *  so a rate is retuned in one place for everything that shares it. */
-    enum GroupId {
-        GROUP_FAST = 0,    ///< every beat: the field bus, the log drain, the pumps
-        GROUP_MAIN,        ///< the operator-facing rate (currently unused)
-        GROUP_SLOW,        ///< dwell and config: health, parameters
-        GROUP_BACKGROUND,  ///< housekeeping measured in seconds
-        GROUP_COUNT
-    };
-
-    /** @brief Period of @p g in ms. Config-driven so a site retunes a whole
-     *  rate class at once. */
-    uint32_t group_period_ms(GroupId g);
-    /** @brief Display name of @p g ("fast", "slow"...). */
-    const char* group_name(GroupId g);
+    /** @brief A task due every beat. Spelled rather than written as a
+     *  number, because "as often as there is" is not a tuning choice. */
+    static const uint32_t EVERY_BEAT = 0;
     /** @brief Display name of @p p ("input", "control"...). */
     const char* phase_name(Phase p);
 
@@ -104,11 +92,10 @@ namespace Botanik { namespace Tasks {
      *  work in the beat is a Component, or wraps itself in one. */
     struct Task {
         const char* name     = nullptr;   ///< shown in the TASKS table
-        GroupId     group    = GROUP_FAST;
         Phase       phase    = PHASE_SERVICE;
 
         /** @name The dispatch
-         *  A component supplies the name, rate group, phase and a named handler
+         *  A component supplies the name, period, phase and a named handler
          *  that casts @c owner back to its own type. @{ */
         Component* owner   = nullptr;
         void     (*handler)(Component* owner, const Tick& tick) = nullptr;
@@ -125,12 +112,9 @@ namespace Botanik { namespace Tasks {
          *  @note The choice ITSELF lives on the Program - see
          *  Plc::Program::disable_requested(). One question, one answer. */
         /** @} */
-        /** @brief This task's period, resolved at registration.
-         *
-         *  Seeded from the rate GROUP, which is what almost everything wants.
-         *  A task may state its own instead - the ST resource does, because
-         *  its period is `common_ticktime__`, a number matiec computed from
-         *  the TASK intervals and not one of ours to pick. */
+        /** @brief How often it runs, in ms. Stated by whoever registers it:
+         *  a rate is a property of the work, not of a class the work was
+         *  sorted into. `EVERY_BEAT` resolves to TASK_PERIOD_MS. */
         uint32_t    period_ms = 0;
         TaskTimer   timer;                ///< period from period_ms, own offset
         TaskCost    cost;
@@ -161,7 +145,7 @@ namespace Botanik { namespace Tasks {
         /** @brief Claim a slot and fill the part both add() forms share, so the
          *  offset rule cannot drift between them. Null when the table is full
          *  (counted in overflow()). */
-        Task* _claim(const char* name, GroupId group, Phase phase);
+        Task* _claim(const char* name, uint32_t period_ms, Phase phase);
 
         /** @brief Table index of each PROGRAM entry, in registration order.
          *  Filled by add_program(), which is where the dense program index is
@@ -181,19 +165,12 @@ namespace Botanik { namespace Tasks {
          *  @{ */
 
         /** @brief Register one piece of @p owner's work: @p handler, at @p
-         *  group's rate, in @p phase. The component states phase and rate itself;
+         *  @p period_ms, in @p phase. The component states phase and rate itself;
          *  the caller adds WHICH INSTANCE this is.
          *  @note Registering also sets @p owner up: on_setup() and announce() run
          *  once, however many phases it registered in. */
         bool add(Component& owner, void (*handler)(Component*, const Tick&),
-                 const char* name, GroupId group, Phase phase);
-
-        /** @brief The same, at an explicit @p period_ms rather than the group's.
-         *  The group still names the entry's place in the stagger and on the
-         *  TASKS page. @p period_ms of 0 falls back to the group's. */
-        bool add_at(Component& owner, void (*handler)(Component*, const Tick&),
-                    const char* name, GroupId group, Phase phase,
-                    uint32_t period_ms);
+                 const char* name, uint32_t period_ms, Phase phase);
 
         /** @brief The same, dispatching straight to @p owner's own hook for @p
          *  phase. What a component wants when its handler would be nothing but
@@ -201,7 +178,7 @@ namespace Botanik { namespace Tasks {
          *  @note No first_activation flag reaches the hook: Component's per-phase
          *  hooks take now_ms alone. A task that needs the tick registers a
          *  handler. */
-        bool add(Component& owner, const char* name, GroupId group, Phase phase);
+        bool add(Component& owner, const char* name, uint32_t period_ms, Phase phase);
 
         /** @brief Register one-time init for @p owner, run by setup() before the
          *  loop starts, in registration order. Never dispatched in the beat. */
@@ -214,7 +191,7 @@ namespace Botanik { namespace Tasks {
          *  be registered as one and quietly acquire the gate. */
         bool add_program(Plc::Program& program,
                          void (*handler)(Component*, const Tick&),
-                         const char* name, GroupId group);
+                         const char* name, uint32_t period_ms);
 
         /** @} */
 
@@ -231,7 +208,7 @@ namespace Botanik { namespace Tasks {
          */
         void setup(uint64_t now_ms);
 
-        /** @brief Run every task in @p phase whose group has come due, in
+        /** @brief Run every task in @p phase that has come due, in
          *  registration order, timing each into its TaskCost. A PROGRAM entry
          *  additionally needs control authority. */
         void run_phase(Phase phase, uint64_t now_ms);

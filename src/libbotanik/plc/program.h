@@ -64,7 +64,7 @@ namespace Botanik { namespace Plc {
          *  @{ */
 
         Vars::Bank*    _io    = nullptr;  ///< borrowed; the firmware owns it
-        Tasks::GroupId _group = Tasks::GROUP_FAST;
+        uint32_t       _period_ms = Tasks::EVERY_BEAT;  ///< how often it runs
         uint8_t        _slot  = Vars::WRITER_NONE;  ///< writer id stamped on rows it drives
         uint32_t       _late_ms     = 0;
         /** @brief HEALTHY, or INVALID once setup decides it cannot be wired. */
@@ -93,9 +93,9 @@ namespace Botanik { namespace Plc {
 
         /** @brief @p name is borrowed and used for the boot announce, the TASKS
          *  row and diagnostics; @p group is the rate class it runs at. */
-        Program(const SetupContext& ctx, const char* name, Tasks::GroupId group,
+        Program(const SetupContext& ctx, const char* name, uint32_t period_ms,
                 Vars::Bank& io)
-            : Component(ctx, name), _io(&io), _group(group) {}
+            : Component(ctx, name), _io(&io), _period_ms(period_ms) {}
 
 
         /** @brief The rows this program reads, for a reader asking which
@@ -113,7 +113,7 @@ namespace Botanik { namespace Plc {
         void set_slot(uint8_t slot) { _slot = slot; }
         uint8_t slot() const        { return _slot; }
 
-        Tasks::GroupId group() const { return _group; }
+        uint32_t period_ms() const { return _period_ms; }
 
         /** @} */
 
@@ -186,7 +186,7 @@ namespace Botanik { namespace Plc {
          *  @{ */
 
         /** @brief Ms past its nominal period on the last activation. Always 0
-         *  for GROUP_FAST: due every beat, so there is no slack to be late by. */
+         *  for a program on the beat: due every beat, so there is no slack. */
         uint32_t late_ms() const     { return _late_ms; }
 
         /** @} */
@@ -294,7 +294,8 @@ namespace Botanik { namespace Plc {
 
             // Against the program's OWN period, not the beat: 40 ms late is
             // fine for a 1 s program and not for a 100 ms one.
-            const uint32_t p = Tasks::group_period_ms(_group);
+            const uint32_t p = (_period_ms != 0) ? _period_ms
+                                                 : Config::TASK_PERIOD_MS;
             _late_ms = (t.dt_ms > p) ? (t.dt_ms - p) : 0;
 
             ProgramContext c = { t.now_ms, t.dt_ms, t.missed, t.first, *_io };

@@ -55,7 +55,7 @@ private:
 
 public:
     WxSensors(const SetupContext& ctx, Vars::Bank& io)
-        : Program(ctx, "wx_sensors", Tasks::GROUP_FAST, io) {}
+        : Program(ctx, "wx_sensors", BOTANIK_SITE_SENSE_MS, io) {}
 
 protected:
     /** @brief Resolve every name. An output is CLAIMED here. */

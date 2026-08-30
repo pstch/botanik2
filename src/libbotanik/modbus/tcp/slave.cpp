@@ -452,14 +452,14 @@ namespace Botanik { namespace Modbus {
         // A master's write lands at INPUT, before the programs run, so a
         // setpoint written this beat is what they run on this beat.
         _tasks->add(*this, "sys_mbtcp_rx",
-              Tasks::GROUP_FAST, Tasks::PHASE_INPUT);
+              Tasks::EVERY_BEAT, Tasks::PHASE_INPUT);
         // The flash half of that write, paced: a side effect of the request,
         // not part of answering it.
         _tasks->add(*this, "sys_mbtcp_wr",
-              Tasks::GROUP_FAST, Tasks::PHASE_SERVICE);
+              Tasks::EVERY_BEAT, Tasks::PHASE_SERVICE);
         // The answer goes out off the image the scan just produced.
         _tasks->add(*this, "sys_mbtcp_tx",
-              Tasks::GROUP_FAST, Tasks::PHASE_PRESENT);
+              Tasks::EVERY_BEAT, Tasks::PHASE_PRESENT);
     }
 
 }}  // namespace Botanik::Modbus

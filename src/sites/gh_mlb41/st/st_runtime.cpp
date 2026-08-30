@@ -58,20 +58,6 @@ namespace Site {
         _wired = (_io.unresolved_count() == missed);
     }
 
-    /** @brief The rate group whose period is @p ms, for the TASKS page and the
-     *  stagger. The ST's period is matiec's number, so it need not be one of
-     *  ours; the nearest group at or under it is what it is staggered with. */
-    static Tasks::GroupId _group_for(uint32_t ms) {
-        Tasks::GroupId best = Tasks::GROUP_FAST;
-        for (uint8_t g = 0; g < Tasks::GROUP_COUNT; g++) {
-            const Tasks::GroupId id = (Tasks::GroupId)g;
-            if (Tasks::group_period_ms(id) <= ms &&
-                Tasks::group_period_ms(id) >= Tasks::group_period_ms(best))
-                best = id;
-        }
-        return best;
-    }
-
     void StRuntime::register_tasks() {
         // matiec's number, the GCD of the TASK intervals in plant.st. Nothing
         // here picks a rate, and nothing here assumes what it will be: adding
@@ -94,8 +80,8 @@ namespace Site {
                                   (unsigned)Config::TASK_PERIOD_MS);
             return;
         }
-        _tasks->add_at(*this, &StRuntime::_run_plant, "st.plant",
-                       _group_for(base_ms), Tasks::PHASE_CONTROL, base_ms);
+        _tasks->add(*this, &StRuntime::_run_plant, "st.plant",
+                    base_ms, Tasks::PHASE_CONTROL);
     }
 
     void StRuntime::_run_plant(Component* self, const Tasks::Tick& t) {

@@ -43,7 +43,7 @@ public:
     /** @} */
 
     StratSensor(const SetupContext& ctx, Vars::Bank& io)
-        : Program(ctx, "strat", Tasks::GROUP_FAST, io) {}
+        : Program(ctx, "strat", BOTANIK_SITE_SENSE_MS, io) {}
 
 protected:
     /** @brief Resolve every name. An output is CLAIMED here. */

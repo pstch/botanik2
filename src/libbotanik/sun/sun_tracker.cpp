@@ -163,7 +163,7 @@ namespace Botanik { namespace Sun {
 
     void SunPositionTracker::register_tasks() {
         _tasks->add(*this, "sys_sun",
-                    Tasks::GROUP_SLOW, Tasks::PHASE_SERVICE);
+                    Config::SUN_PERIOD_MS, Tasks::PHASE_SERVICE);
     }
 
     void SunPositionTracker::on_service(uint64_t now_ms) {

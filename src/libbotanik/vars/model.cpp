@@ -436,11 +436,11 @@ namespace Botanik { namespace Vars {
     void Bank::register_tasks() {
         // The parameter image everything below reads its config from.
         _tasks->add(*this, "sys_params",
-              Tasks::GROUP_SLOW, Tasks::PHASE_CONFIG);
+              Config::CONFIG_COMMIT_MS, Tasks::PHASE_CONFIG);
         // A full linear scan of the variable table, resolving timeouts measured
-        // in seconds - which is why it is GROUP_BACKGROUND and not the beat.
+        // in seconds - which is why it runs at VAR_EXPIRY_MS and not the beat.
         _tasks->add(*this, &Bank::_expire_task, "sys_expire_stale",
-              Tasks::GROUP_BACKGROUND, Tasks::PHASE_INPUT);
+              Config::VAR_EXPIRY_MS, Tasks::PHASE_INPUT);
     }
 
 }}  // namespace Botanik::Vars

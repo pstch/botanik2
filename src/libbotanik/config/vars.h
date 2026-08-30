@@ -119,6 +119,22 @@ namespace Botanik { namespace Config {
 
     /** @} */
 
+
+/** @brief How often a committed parameter reaches the component that reads it.
+ *  Bounded by how fast a human types, not by the plant. */
+#ifndef BOTANIK_CONFIG_COMMIT_MS
+#  define BOTANIK_CONFIG_COMMIT_MS 100
+#endif
+    BOTANIK_CFG(uint32_t, CONFIG_COMMIT_MS);
+
+/** @brief How often the input-expiry sweep runs: a full linear scan of the
+ *  table, resolving timeouts that are themselves 3x a poll group's period.
+ *  Housekeeping, measured in seconds. */
+#ifndef BOTANIK_VAR_EXPIRY_MS
+#  define BOTANIK_VAR_EXPIRY_MS 500
+#endif
+    BOTANIK_CFG(uint32_t, VAR_EXPIRY_MS);
+
 } }
 
 #undef BOTANIK_CFG

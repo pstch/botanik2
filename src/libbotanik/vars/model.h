@@ -32,7 +32,7 @@ namespace Botanik { namespace Vars {
      *  an actual relay. Method naming: @ref dev_vars_naming. */
     class Bank : public Botanik::Component {
     public:
-        /** @brief The two sweeps this class owns, both GROUP_BACKGROUND in
+        /** @brief The two sweeps this class owns, both at VAR_EXPIRY_MS in
          *  PHASE_INPUT: a row must age out BEFORE anything reads it, so one beat
          *  is coherent. */
         void register_tasks() override;

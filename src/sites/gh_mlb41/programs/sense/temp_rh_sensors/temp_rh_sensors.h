@@ -62,7 +62,7 @@ private:
 
 public:
     TempRHSensors(const SetupContext& ctx, Vars::Bank& io)
-        : Program(ctx, "temp_rh_sensors", Tasks::GROUP_FAST, io) {}
+        : Program(ctx, "temp_rh_sensors", BOTANIK_SITE_SENSE_MS, io) {}
 
 protected:
     /** @brief Resolve every name. An output is CLAIMED here. */

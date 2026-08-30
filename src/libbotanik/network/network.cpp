@@ -120,7 +120,7 @@ namespace Botanik { namespace Network {
 
 
     void NetworkHandler::register_tasks() {
-        _tasks->add(*this, "sys_net", Tasks::GROUP_FAST,
+        _tasks->add(*this, "sys_net", Tasks::EVERY_BEAT,
               Tasks::PHASE_SERVICE);
     }
 

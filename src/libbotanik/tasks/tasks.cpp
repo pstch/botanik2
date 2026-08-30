@@ -18,26 +18,6 @@
 
 namespace Botanik { namespace Tasks {
 
-    uint32_t group_period_ms(GroupId g) {
-        switch (g) {
-            case GROUP_FAST:       return Config::GROUP_FAST_MS;
-            case GROUP_MAIN:       return Config::GROUP_MAIN_MS;
-            case GROUP_SLOW:       return Config::GROUP_SLOW_MS;
-            case GROUP_BACKGROUND: return Config::GROUP_BACKGROUND_MS;
-            default:               return Config::GROUP_FAST_MS;
-        }
-    }
-
-    const char* group_name(GroupId g) {
-        switch (g) {
-            case GROUP_FAST:       return "fast";
-            case GROUP_MAIN:       return "main";
-            case GROUP_SLOW:       return "slow";
-            case GROUP_BACKGROUND: return "bkgnd";
-            default:               return "?";
-        }
-    }
-
     const char* phase_name(Phase p) {
         switch (p) {
             case PHASE_INPUT:   return "input";
@@ -75,7 +55,7 @@ namespace Botanik { namespace Tasks {
         // nothing runs on the answer before the first beat.
     }
 
-    Task* Registry::_claim(const char* name, GroupId group, Phase phase) {
+    Task* Registry::_claim(const char* name, uint32_t period_ms, Phase phase) {
         if (_count >= Config::MAX_TASKS) {
             // A refused registration is INVISIBLE: it fails no build and no
             // unit test, the work simply never runs. The counter and `tasks`
@@ -85,41 +65,35 @@ namespace Botanik { namespace Tasks {
             if (_overflow < 0xFF) _overflow++;
             return nullptr;
         }
-        // Offset by how many members this group has, so each lands a beat
-        // further along (stagger_offset(), shared with the scan cycle). A setup
-        // handler is not in the beat, so it takes no slot in the spread.
+        // EVERY_BEAT is "as often as there is", which is the beat itself.
+        if (period_ms == 0) period_ms = Config::TASK_PERIOD_MS;
+
+        // Offset by how many tasks already share this PERIOD, so each lands a
+        // beat further along (stagger_offset(), shared with the scan cycle). A
+        // setup handler is not in the beat, so it takes no slot in the spread.
         uint8_t rank = 0;
         if (phase != PHASE_COUNT)
             for (uint8_t i = 0; i < _count; i++)
-                if (_tasks[i].group == group && _tasks[i].phase != PHASE_COUNT) rank++;
+                if (_tasks[i].period_ms == period_ms &&
+                    _tasks[i].phase != PHASE_COUNT) rank++;
 
         Task& t = _tasks[_count++];
         t.name  = name;
-        t.group = group;
         t.phase = phase;
-        t.period_ms = group_period_ms(group);
+        t.period_ms = period_ms;
         t.timer.set_offset(stagger_offset(rank, Config::TASK_PERIOD_MS,
-                                          group_period_ms(group)));
+                                          period_ms));
         return &t;
     }
 
-    bool Registry::add_at(Component& owner,
-                          void (*handler)(Component*, const Tick&),
-                          const char* name, GroupId group, Phase phase,
-                          uint32_t period_ms) {
-        if (!add(owner, handler, name, group, phase)) return false;
-        if (period_ms != 0) _tasks[_count - 1].period_ms = period_ms;
-        return true;
-    }
-
     bool Registry::add(Component& owner, void (*handler)(Component*, const Tick&),
-                       const char* name, GroupId group, Phase phase) {
+                       const char* name, uint32_t period_ms, Phase phase) {
         if (handler == nullptr) {
             BOTANIK_ASSERT(!"a task registered with no handler");
             if (_overflow < 0xFF) _overflow++;
             return false;
         }
-        Task* t = _claim(name, group, phase);
+        Task* t = _claim(name, period_ms, phase);
         if (t == nullptr) return false;
         t->owner   = &owner;
         t->handler = handler;
@@ -127,11 +101,11 @@ namespace Botanik { namespace Tasks {
     }
 
     bool Registry::add(Component& owner, const char* name,
-                       GroupId group, Phase phase) {
+                       uint32_t period_ms, Phase phase) {
         // A null handler is the SIGNAL here, where the overload above treats it
         // as the defect it is there: run_phase() reads it as "call the owner's
         // hook for this phase".
-        Task* t = _claim(name, group, phase);
+        Task* t = _claim(name, period_ms, phase);
         if (t == nullptr) return false;
         t->owner   = &owner;
         t->handler = nullptr;
@@ -142,18 +116,18 @@ namespace Botanik { namespace Tasks {
                              void (*handler)(Component*, const Tick&),
                              const char* name) {
         // PHASE_COUNT: registered, never dispatched by run_phase().
-        return add(owner, handler, name, GROUP_FAST, PHASE_COUNT);
+        return add(owner, handler, name, EVERY_BEAT, PHASE_COUNT);
     }
 
     bool Registry::add_program(Plc::Program& program,
                                void (*handler)(Component*, const Tick&),
-                               const char* name, GroupId group) {
+                               const char* name, uint32_t period_ms) {
         // The slot BEFORE the entry exists, so it is the index this program
         // will have in program(): the registry is the list, so a program's
         // position in it IS the writer id every row it drives is stamped with.
         // Nothing else can assign it now that no site table survives.
         const uint8_t slot = _prog_count;
-        if (!add(program, handler, name, group, PHASE_CONTROL)) return false;
+        if (!add(program, handler, name, period_ms, PHASE_CONTROL)) return false;
         _tasks[_count - 1].program = &program;
         _prog[_prog_count++] = (uint8_t)(_count - 1);
         program.set_slot(slot);

@@ -641,9 +641,9 @@ namespace Botanik { namespace Modbus {
         // which must judge the freshest image and not the one from before this
         // beat's answers.
         _tasks->add(*this, "sys_mbrtu_rx",
-              Tasks::GROUP_FAST, Tasks::PHASE_INPUT);
+              Tasks::EVERY_BEAT, Tasks::PHASE_INPUT);
         _tasks->add(*this, "sys_mbrtu_tx",
-              Tasks::GROUP_FAST, Tasks::PHASE_OUTPUT);
+              Tasks::EVERY_BEAT, Tasks::PHASE_OUTPUT);
     }
 
 }}  // namespace Botanik::Modbus

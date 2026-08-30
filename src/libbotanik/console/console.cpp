@@ -25,8 +25,8 @@ namespace Botanik { namespace Terminal {
     // often it runs, so what has to stay under that depth is the FLUSH rate, not
     // the DRAW rate: the wire only idles if the ring drains empty between two
     // flushes. Splitting the two is what buys the draw its freedom - it is
-    // GROUP_SLOW against a GROUP_FAST flush, and could be slower still.
-    static_assert(Config::GROUP_FAST_MS < Config::TX_COLD_TARGET_MS,
+    // CONSOLE_DRAW_MS against an every-beat flush, and could be slower still.
+    static_assert(Config::TASK_PERIOD_MS < Config::TX_COLD_TARGET_MS,
                   "the console's flush period must stay under TX_COLD_TARGET_MS, "
                   "or the TX ring drains between flushes and the link idles");
 
@@ -65,11 +65,11 @@ namespace Botanik { namespace Terminal {
     void Console::register_tasks() {
         // The port's own two tasks are gone: the console pumps the wire it
         // owns, at the two ends of the beat it was already working at.
-        _tasks->add(*this, &Console::_input_task, "sys_console_rx", Tasks::GROUP_FAST,
+        _tasks->add(*this, &Console::_input_task, "sys_console_rx", Tasks::EVERY_BEAT,
               Tasks::PHASE_INPUT);
-        _tasks->add(*this, &Console::_draw_task,  "sys_console",    Tasks::GROUP_SLOW,
+        _tasks->add(*this, &Console::_draw_task,  "sys_console",    Config::CONSOLE_DRAW_MS,
               Tasks::PHASE_PRESENT);
-        _tasks->add(*this, &Console::_flush_task, "sys_console_tx", Tasks::GROUP_FAST,
+        _tasks->add(*this, &Console::_flush_task, "sys_console_tx", Tasks::EVERY_BEAT,
               Tasks::PHASE_PRESENT);
     }
 

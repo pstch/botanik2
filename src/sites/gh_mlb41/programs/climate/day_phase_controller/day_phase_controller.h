@@ -77,7 +77,7 @@ private:
 
 public:
     DayPhaseController(const SetupContext& ctx, Vars::Bank& io)
-        : Program(ctx, "day_phase", Tasks::GROUP_SLOW, io) {}
+        : Program(ctx, "day_phase", BOTANIK_SITE_CONTROL_MS, io) {}
 
 protected:
     /** @brief Resolve every name. An output is CLAIMED here. */

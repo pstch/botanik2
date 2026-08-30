@@ -86,7 +86,7 @@ private:
 
 public:
     IrrigationSchedule(const SetupContext& ctx, Vars::Bank& io)
-        : Program(ctx, "irr_schedule", Tasks::GROUP_SLOW, io) {}
+        : Program(ctx, "irr_schedule", BOTANIK_SITE_CONTROL_MS, io) {}
 
 protected:
     /** @brief Resolve every name. An output is CLAIMED here. */

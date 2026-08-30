@@ -19,6 +19,21 @@
  *  are sized off this, so trimming it to what is declared is what stops a
  *  512-row default costing 6 KB of RAM nobody uses. Headroom for a few rows;
  *  past it, registration is refused and POST says so. */
+/** @brief How often this site's control programs run.
+ *
+ *  A greenhouse is a slow plant: the fastest thing any law here reacts to is
+ *  a window ram, which takes tens of seconds to travel. Stated once because
+ *  every program shares it, not because a "rate class" exists - a program
+ *  needing its own says so at its own registration.
+ *  @note SENSE_PERIOD_MS is the conditioning chain, which runs finer so the
+ *  filters see an even sample interval. */
+#ifndef BOTANIK_SITE_CONTROL_MS
+#  define BOTANIK_SITE_CONTROL_MS 100
+#endif
+#ifndef BOTANIK_SITE_SENSE_MS
+#  define BOTANIK_SITE_SENSE_MS 10
+#endif
+
 #ifndef BOTANIK_VAR_MAX
 #  define BOTANIK_VAR_MAX 544
 #endif

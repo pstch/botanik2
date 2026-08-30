@@ -82,7 +82,7 @@ namespace Botanik { namespace Vars {
     }
 
     void ConfigBinder::register_tasks() {
-        _tasks->add(*this, &ConfigBinder::_task, "sys_config", Tasks::GROUP_SLOW,
+        _tasks->add(*this, &ConfigBinder::_task, "sys_config", Config::CONFIG_COMMIT_MS,
                     Tasks::PHASE_CONFIG);
     }
 

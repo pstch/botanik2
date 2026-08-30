@@ -268,7 +268,7 @@ namespace Botanik { namespace Network {
 
 
     void MqttClient::register_tasks() {
-        _tasks->add(*this, "sys_mqtt", Tasks::GROUP_FAST,
+        _tasks->add(*this, "sys_mqtt", Tasks::EVERY_BEAT,
               Tasks::PHASE_SERVICE);
     }
 

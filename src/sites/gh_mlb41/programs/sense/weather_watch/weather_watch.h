@@ -61,7 +61,7 @@ private:
 
 public:
     WeatherWatch(const SetupContext& ctx, Vars::Bank& io)
-        : Program(ctx, "weather_watch", Tasks::GROUP_SLOW, io) {}
+        : Program(ctx, "weather_watch", BOTANIK_SITE_CONTROL_MS, io) {}
 
 protected:
     /** @brief Resolve every name. An output is CLAIMED here. */

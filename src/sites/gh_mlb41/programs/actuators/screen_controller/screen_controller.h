@@ -57,7 +57,7 @@ private:
 
 public:
     ScreenController(const SetupContext& ctx, Vars::Bank& io)
-        : Program(ctx, "screen", Tasks::GROUP_SLOW, io) {}
+        : Program(ctx, "screen", BOTANIK_SITE_CONTROL_MS, io) {}
 
 protected:
     /** @brief Resolve every name. An output is CLAIMED here. */

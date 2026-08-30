@@ -62,7 +62,7 @@ private:
 
 public:
     IntakeGates(const SetupContext& ctx, Vars::Bank& io)
-        : Program(ctx, "intake_gates", Tasks::GROUP_FAST, io) {}
+        : Program(ctx, "intake_gates", BOTANIK_SITE_SENSE_MS, io) {}
 
 protected:
     /** @brief Resolve every name. An output is CLAIMED here. */

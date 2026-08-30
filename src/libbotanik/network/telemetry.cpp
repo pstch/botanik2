@@ -148,7 +148,7 @@ namespace Botanik { namespace Network {
 
     void MqttSender::register_tasks() {
         _tasks->add(*this, "sys_telemetry",
-              Tasks::GROUP_FAST, Tasks::PHASE_SERVICE);
+              Tasks::EVERY_BEAT, Tasks::PHASE_SERVICE);
     }
 
 }}  // namespace Botanik::Network

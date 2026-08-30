@@ -94,6 +94,23 @@ namespace Botanik { namespace Config {
 
     /** @} */
 
+
+/** @brief How often the alarm controller sweeps its sources. Dwell times are
+ *  in SECONDS, so this only has to be fine enough that an on_s/off_s boundary
+ *  lands on the right side. */
+#ifndef BOTANIK_ALARMS_PERIOD_MS
+#  define BOTANIK_ALARMS_PERIOD_MS 100
+#endif
+    BOTANIK_CFG(uint32_t, ALARMS_PERIOD_MS);
+
+/** @brief How often HealthMonitor takes the platform's vitals and produces the
+ *  watchdog verdict. Slower than the beat because every input it reads is a
+ *  rolling average over many of them. */
+#ifndef BOTANIK_HEALTH_PERIOD_MS
+#  define BOTANIK_HEALTH_PERIOD_MS 100
+#endif
+    BOTANIK_CFG(uint32_t, HEALTH_PERIOD_MS);
+
 } }
 
 #undef BOTANIK_CFG

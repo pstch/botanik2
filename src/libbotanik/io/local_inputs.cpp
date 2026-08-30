@@ -49,7 +49,7 @@ namespace Botanik { namespace Io {
 
     void LocalInputs::register_tasks() {
         _tasks->add(*this, "sys_local_in",
-                    Tasks::GROUP_FAST, Tasks::PHASE_INPUT);
+                    Tasks::EVERY_BEAT, Tasks::PHASE_INPUT);
     }
 
 }}  // namespace Botanik::Io

@@ -47,7 +47,7 @@ private:
 
 public:
     SunWatch(const SetupContext& ctx, Vars::Bank& io)
-        : Program(ctx, "sun_watch", Tasks::GROUP_SLOW, io), _sun(ctx.sun) {}
+        : Program(ctx, "sun_watch", BOTANIK_SITE_CONTROL_MS, io), _sun(ctx.sun) {}
 
 protected:
     /** @brief Resolve every name. An output is CLAIMED here. */
