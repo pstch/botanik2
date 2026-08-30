@@ -20,41 +20,6 @@ typedef struct {
 
 } TOF_MS_data__;
 
-// FUNCTION_BLOCK EWMA
-// Data part
-typedef struct {
-  // FB Interface - IN, OUT, IN_OUT variables
-  __DECLARE_VAR(BOOL,EN)
-  __DECLARE_VAR(BOOL,ENO)
-  __DECLARE_VAR(REAL,X)
-  __DECLARE_VAR(REAL,TAU_S)
-  __DECLARE_VAR(UDINT,DT_MS)
-  __DECLARE_VAR(REAL,Y)
-
-  // FB private variables - TEMP, private and located variables
-  __DECLARE_VAR(BOOL,SEEDED)
-  __DECLARE_VAR(REAL,DT_S)
-  __DECLARE_VAR(REAL,ALPHA)
-
-} EWMA_data__;
-
-// FUNCTION_BLOCK STAIRCASE3
-// Data part
-typedef struct {
-  // FB Interface - IN, OUT, IN_OUT variables
-  __DECLARE_VAR(BOOL,EN)
-  __DECLARE_VAR(BOOL,ENO)
-  __DECLARE_VAR(REAL,IN)
-  __DECLARE_VAR(REAL,LO)
-  __DECLARE_VAR(REAL,MED)
-  __DECLARE_VAR(REAL,HI)
-  __DECLARE_VAR(REAL,HYST)
-  __DECLARE_VAR(USINT,Q)
-
-  // FB private variables - TEMP, private and located variables
-
-} STAIRCASE3_data__;
-
 // PROGRAM ROOF_LOCKOUT
 // Data part
 typedef struct {
