@@ -16,27 +16,27 @@ void ValveController::bind(const ValveRefs& r) {
     _fail_open = Vars::as_bool(d.type, d.def);
 }
 
-float ValveController::operator()(const ValveCmd& c) {
-    if (c.mode == ValveCmd::DRIVE) {
-        _coil.set(c.open, c.current);
-        return c.open ? 1.0f : 0.0f;
-    }
-    if (c.mode == ValveCmd::PARK) {
-        // A parked valve is a DECISION, not an estimate: the coil goes where a
-        // dead controller would leave it, and that is as current as anything.
-        _coil.set(_fail_open, true);
-        return _fail_open ? 1.0f : 0.0f;
-    }
+void ValveController::set(bool open, bool current) {
+    _coil.set(open, current);
+}
 
-    const float    duty      = Plc::limit(c.duty, 0.0f, 1.0f);
-    const uint32_t period_ms = (c.period_ms == 0) ? 1u : c.period_ms;
+void ValveController::park() {
+    // A parked valve is a DECISION, not an estimate: the coil goes where a
+    // dead controller would leave it, and that is as current as anything.
+    _coil.set(_fail_open, true);
+}
+
+float ValveController::operator()(float duty, uint32_t period_ms,
+                                  uint32_t min_on_ms, uint32_t dt_ms) {
+    duty = Plc::limit(duty, 0.0f, 1.0f);
+    if (period_ms == 0) period_ms = 1;
 
     const uint32_t on_ms = (uint32_t)(duty * (float)period_ms);
     // A pulse under the minimum does not lift the seat, so it is not made:
     // rounding it up instead would deliver water nobody asked for.
-    const uint32_t served = (on_ms < c.min_on_ms) ? 0 : on_ms;
+    const uint32_t served = (on_ms < min_on_ms) ? 0 : on_ms;
 
-    _phase_ms += c.dt_ms;
+    _phase_ms += dt_ms;
     while (_phase_ms >= period_ms) _phase_ms -= period_ms;
 
     _coil.set(_phase_ms < served, true);
