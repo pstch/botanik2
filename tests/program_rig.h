@@ -121,12 +121,17 @@ struct Rig {
  *  generated ST now - so the fixture drives the RESOURCE. `d.step()` keeps the
  *  name every other rig uses so a case reads the same. */
 struct StRig {
-    Live            live;
-    Site::StRuntime st{ Botanik::SetupContext(live.reg), live.bank };
+    Live                live;
+    /** PHASE_INPUT's job, which the beat does before PHASE_CONTROL: a probe
+     *  that stopped answering reaches ST as a companion, never as a quality. */
+    Vars::QualityMirror mirror{ Botanik::SetupContext(live.reg), live.bank };
+    Site::StRuntime     st{ Botanik::SetupContext(live.reg), live.bank };
 
     StRig() {
         st.wire();
+        mirror.wire();
         d.st = &st;
+        d.mirror = &mirror;
         // The resource is the unit now, not the program: every ST program in
         // it runs on every scan. destrat publishes cli_stratDem, which is one
         // of the four floors under the fan ladder, so a case about any OTHER
@@ -137,8 +142,9 @@ struct StRig {
     }
 
     struct Driver {
-        Site::StRuntime* st = nullptr;
-        void step(uint64_t now_ms) { st->scan(now_ms); }
+        Site::StRuntime*     st = nullptr;
+        Vars::QualityMirror* mirror = nullptr;
+        void step(uint64_t now_ms) { mirror->scan(); st->scan(now_ms); }
     } d;
 };
 
@@ -147,10 +153,19 @@ struct StRig {
  *  programs, so a case about what a reading BECOMES needs both. */
 struct ZoneRig {
     Live                live;
-    Site::TempRHSensors sensors{Botanik::SetupContext(live.reg), live.bank};
-    Site::TempRHZone    zone   {Botanik::SetupContext(live.reg), live.bank};
-    Plc::Program* const progs[2] = { &sensors, &zone };
-    Cycle               d{progs, 2, &live.bank, live.reg};
+    /** The voting and filtering half is ST now; the psychrometrics are not. */
+    Site::StRuntime     st  {Botanik::SetupContext(live.reg), live.bank};
+    Site::TempRHZone    zone{Botanik::SetupContext(live.reg), live.bank};
+    Plc::Program* const progs[1] = { &zone };
+    Cycle               cycle{progs, 1, &live.bank, live.reg};
+
+    ZoneRig() { st.wire(); d.st = &st; d.cycle = &cycle; }
+
+    struct Driver {
+        Site::StRuntime* st = nullptr;
+        Cycle*           cycle = nullptr;
+        void step(uint64_t now_ms) { st->scan(now_ms); cycle->step(now_ms); }
+    } d;
 };
 
 /** @brief The cooling chain: the ladder makes a demand, the gates decide

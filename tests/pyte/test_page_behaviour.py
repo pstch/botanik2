@@ -167,7 +167,7 @@ def test_the_task_table_is_complete(spawn):
     # this exists to catch. Last moved when wx_sensors split the two weather
     # stations off the derivations they feed, the way temp_rh_sensors is split
     # from temp_rh_zone.
-    assert term.wait_for("Registered ....... : 49"), \
+    assert term.wait_for("Registered ....... : 48"), \
         "the task table changed size - a registration was added or silently lost"
     assert term.wait_for("0 refused"), "a registration was refused: MAX_TASKS"
 
@@ -196,9 +196,10 @@ def test_monitor_acts_on_the_row_it_drew(spawn):
     term = boot(spawn)
     goto(term, keys.ALT_6, "VARIABLE")
     # A group with no _qlt companion, so every row the filter leaves is a
-    # number the override field will take.
-    term.send(keys.text("cli_temp_cs"))
-    assert term.wait_screen("[/cli_temp_cs]"), "the filter did not narrow the table"
+    # number the override field will take. Every cli_temp_* and cli_rh_* probe
+    # has one now: the conditioning chain is ST, and ST reads quality as rows.
+    term.send(keys.text("grid_L1"))
+    assert term.wait_screen("[/grid_L1]"), "the filter did not narrow the table"
 
     # Force the SECOND row, so the override view's only entry is not the one
     # sitting at index 0 of the filtered `all` view.

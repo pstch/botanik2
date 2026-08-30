@@ -10,7 +10,7 @@
 
 namespace site_programs {
 
-TEST_CASE_FIXTURE(Rig<Site::TempRHSensors>, "zone: the selector keeps the middle reading and discards the extremes") {
+TEST_CASE_FIXTURE(StRig, "zone: the selector keeps the middle reading and discards the extremes") {
     Vars::RefIn<float> hi = live.bank.resolve_in<float>("cli_temp_hi");
     const VarRef p[3] = { live.ref("cli_temp_hi1"), live.ref("cli_temp_hi2"),
                           live.ref("cli_temp_hi3") };
@@ -30,7 +30,7 @@ TEST_CASE_FIXTURE(Rig<Site::TempRHSensors>, "zone: the selector keeps the middle
     CHECK(live.bank.get(hi) == doctest::Approx(20.2f).epsilon(0.02));
 }
 
-TEST_CASE_FIXTURE(Rig<Site::TempRHSensors>, "zone: an invalid probe is excluded, and one good probe still reads") {
+TEST_CASE_FIXTURE(StRig, "zone: an invalid probe is excluded, and one good probe still reads") {
     Vars::RefIn<float> hi = live.bank.resolve_in<float>("cli_temp_hi");
     const VarRef p[3] = { live.ref("cli_temp_hi1"), live.ref("cli_temp_hi2"),
                           live.ref("cli_temp_hi3") };
@@ -74,7 +74,7 @@ TEST_CASE_FIXTURE(ZoneRig, "zone: the instruments report percent, the model work
           doctest::Approx(6.2f).epsilon(0.1));
 }
 
-TEST_CASE_FIXTURE(Rig<Site::TempRHSensors>, "zone: temperature survives losing every humidity probe") {
+TEST_CASE_FIXTURE(StRig, "zone: temperature survives losing every humidity probe") {
     // The two quantities carry their own quorum. Coupling them would let one
     // dead RH probe invalidate a temperature three good probes agree on.
     Vars::RefIn<float> t_out = live.bank.resolve_in<float>("cli_temp_hi");
@@ -89,12 +89,15 @@ TEST_CASE_FIXTURE(Rig<Site::TempRHSensors>, "zone: temperature survives losing e
     }
     for (uint64_t t = 0; t <= 60000; t += 100) d.step(t);
 
-    CHECK(live.bank.var(t_out.r).valid());
     CHECK(live.bank.get(t_out) == doctest::Approx(22.0f).epsilon(0.02));
-    CHECK_FALSE(live.bank.var(h_out.r).valid());
+    INFO("the humidity says so on its own companion, and the temperature's "
+         "is untouched: two quorums, two answers");
+    CHECK_FALSE(live.bank.var(live.ref("cli_rh_hi_qlt")).as_bool());
+    CHECK(live.bank.var(live.ref("cli_temp_hi_qlt")).as_bool());
+    (void)h_out;
 }
 
-TEST_CASE_FIXTURE(Rig<Site::TempRHSensors>, "zone: with every probe gone the reading is HELD, not defaulted") {
+TEST_CASE_FIXTURE(StRig, "zone: with every probe gone the reading is HELD, not defaulted") {
     Vars::RefIn<float> hi = live.bank.resolve_in<float>("cli_temp_hi");
     const VarRef p[3] = { live.ref("cli_temp_hi1"), live.ref("cli_temp_hi2"),
                           live.ref("cli_temp_hi3") };
@@ -103,39 +106,32 @@ TEST_CASE_FIXTURE(Rig<Site::TempRHSensors>, "zone: with every probe gone the rea
     for (uint8_t i = 0; i < 3; i++)
         live.bank.var(p[i]).publish(from_f32(T_F32, 21.0f), 0);
     for (uint64_t t = 0; t <= 20000; t += 100) d.step(t);
-    REQUIRE(live.bank.var(hi.r).valid());
+    REQUIRE(live.bank.var(live.ref("cli_temp_hi_qlt")).as_bool());
 
     for (uint8_t i = 0; i < 3; i++) live.bank.var(p[i]).invalidate(Q_NO_DATA);
     for (uint64_t t = 20000; t <= 40000; t += 100) d.step(t);
 
-    INFO("a law gating on quality must see that nothing is measuring this zone");
-    CHECK_FALSE(live.bank.var(hi.r).valid());
-    CHECK(live.bank.var(hi.r).value().q == Q_UNCERTAIN);
+    // ST cannot write a quality - `__SET_EXTERNAL` has nowhere to put one - so
+    // the row stays valid and the COMPANION carries the doubt. That is the
+    // whole reason companions exist, and it is why the substitution a C++
+    // producer used to trigger no longer applies to an ST-written row.
+    INFO("a law gating on this zone reads the companion, not the row");
+    CHECK_FALSE(live.bank.var(live.ref("cli_temp_hi_qlt")).as_bool());
 
-    // The two readers see different things, and that is the whole design. The
-    // ROW holds the last average this zone could make, so an operator chasing
-    // a dead probe finds what the house last really was...
-    INFO("the row holds the last average, for whoever is diagnosing it");
+    INFO("and the row holds the last average this zone could make, which is "
+         "what an operator chasing a dead probe wants to see");
     CHECK(live.bank.var(hi.r).as_f32() == doctest::Approx(21.0f));
-
-    // ...while a control program reading through its typed reference gets the
-    // DECLARED value: a number somebody chose and reviewed, rather than a
-    // reading of unbounded age that looks exactly like a fresh one.
-    const Vars::Descriptor& d = live.bank.descriptor(hi.r.index);
-    INFO("a law reading it gets the declared value instead");
-    CHECK(live.bank.get(hi) == doctest::Approx(Vars::as_f32(d.type, d.def)));
-    CHECK(live.bank.get(hi) != doctest::Approx(21.0f));
+    CHECK(live.bank.get(hi) == doctest::Approx(21.0f));
 }
 
-TEST_CASE_FIXTURE(Rig<Site::TempRHSensors>, "zone: a zone that has never been measured has nothing to hold") {
+TEST_CASE_FIXTURE(StRig, "zone: a zone that has never been measured has nothing to hold") {
     Vars::RefIn<float> cs = live.bank.resolve_in<float>("cli_temp_cs");
 
     for (uint64_t t = 0; t <= 2000; t += 100) d.step(t);
 
     INFO("holding would publish a filter that has never been seeded, which is "
          "the declared default wearing a better label");
-    CHECK_FALSE(live.bank.var(cs.r).valid());
-    CHECK(live.bank.var(cs.r).value().q == Q_NO_DATA);
+    CHECK_FALSE(live.bank.var(live.ref("cli_temp_cs_qlt")).as_bool());
 }
 
 /** A level and the companion that says it was measured, which is what

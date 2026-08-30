@@ -34,8 +34,14 @@
 #  define BOTANIK_SITE_SENSE_MS 10
 #endif
 
+/** @brief One entry per FIELD row this site exposes a `_qlt` companion for:
+ *  24 probes, plus headroom. @see Vars::QualityMirror */
+#ifndef BOTANIK_QUALITY_MIRROR_MAX
+#  define BOTANIK_QUALITY_MIRROR_MAX 96
+#endif
+
 #ifndef BOTANIK_VAR_MAX
-#  define BOTANIK_VAR_MAX 544
+#  define BOTANIK_VAR_MAX 576
 #endif
 
 /** @brief The TCP map holds every PARAMETER, STATUS and ALARM row, which is

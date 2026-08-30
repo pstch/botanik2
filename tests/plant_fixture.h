@@ -52,7 +52,6 @@ struct Plant {
     Site::AcGridWatch          ac_grid;
     Site::AcLocalWatch         ac_local;
     Site::DcWatch              dc;
-    Site::TempRHSensors        sensors;
     Site::TempRHZone           zones;
     Site::StratSensor          strat;
     Site::ClimateWatch         climate;
@@ -74,6 +73,9 @@ struct Plant {
     Site::WindowsController    windows;
     Site::IntractorController  intractors;
     Site::SkirtController      skirt;
+    /** @brief PHASE_INPUT's job: a field row's quality reaches ST as a
+     *  companion. Before the plant, as the beat has it. */
+    Vars::QualityMirror        mirror;
     /** @brief The ST plant. LAST, because a ctor list runs in DECLARATION
      *  order and this is initialised after every program beside it. */
     Site::StRuntime            st;
@@ -88,7 +90,7 @@ struct Plant {
 
     Plant()
         : ac_grid(ctx(), io()), ac_local(ctx(), io()), dc(ctx(), io()),
-          sensors(ctx(), io()), zones(ctx(), io()), strat(ctx(), io()),
+          zones(ctx(), io()), strat(ctx(), io()),
           climate(ctx(), io()), wx(ctx(), io()), weather(ctx(), io()),
           target(ctx(), io()), cooling(ctx(), io()),
           intake_gates(ctx(), io()),
@@ -96,9 +98,9 @@ struct Plant {
           irr_schedule(ctx(), io()), irrigation(ctx(), io()), irr_valves(ctx(), io()), screen(ctx(), io()),
           windows(ctx(), io()),
           intractors(ctx(), io()), skirt(ctx(), io()),
-          st(ctx(), io()) {
+          mirror(ctx(), io()), st(ctx(), io()) {
         Plc::Program* const list[] = {
-            &ac_grid, &ac_local, &dc, &sensors, &zones, &strat, &climate,
+            &ac_grid, &ac_local, &dc, &zones, &strat, &climate,
             &wx, &weather,
             &target, &cooling, &intake_gates, &humidity, &intake_dry,
             &irr_mod, &irr_in, &irr_out, &irr_schedule, &irrigation, &irr_valves,
@@ -110,21 +112,32 @@ struct Plant {
         for (uint8_t i = 0; i < n; i++) all[i] = list[i];
         cycle = new Cycle(all, n, &f.bank, f.reg);
         st.wire();
+        mirror.wire();
     }
     ~Plant() { delete cycle; }
 
     SetupContext ctx() { return Botanik::SetupContext(f.reg); }
     Vars::Bank&  io()  { return f.bank; }
 
+    /** @brief ONE beat, in the order the firmware has: the field's quality
+     *  reaches ST as companions, the ST plant runs, then the C++ programs. A
+     *  case that steps the cycle alone runs neither of the first two. */
+    void beat() {
+        t += 100;
+        mirror.scan();
+        st.scan(t);
+        cycle->step(t);
+    }
+
     /** @brief Beats, at the site's own period. */
     void run(uint32_t beats) {
-        for (uint32_t i = 0; i < beats; i++) { t += 100; st.scan(t); cycle->step(t); }
+        for (uint32_t i = 0; i < beats; i++) beat();
     }
     /** @brief ...and the same, holding the environment where the case put it:
      *  a field row goes stale without a driver refreshing it. */
     void weather_for(uint32_t beats) {
         for (uint32_t i = 0; i < beats; i++) {
-            hold(*this); t += 100; st.scan(t); cycle->step(t);
+            hold(*this); beat();
         }
     }
 

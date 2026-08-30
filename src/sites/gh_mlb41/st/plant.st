@@ -18,6 +18,10 @@
 CONFIGURATION gh_mlb41
 
   VAR_GLOBAL
+    alarm_sns_ceiling     : BOOL;
+    alarm_sns_crawlspace  : BOOL;
+    alarm_sns_exterior    : BOOL;
+    alarm_sns_floor       : BOOL;
     cli_breezeDem         : REAL;
     cli_coolDem           : REAL;
     cli_dTStratHigh_degC  : REAL;
@@ -42,7 +46,72 @@ CONFIGURATION gh_mlb41
     cli_rainLockout_sec   : UINT;
     cli_rain_mmph         : REAL;
     cli_rain_mmph_qlt     : BOOL;
+    cli_rh_cs             : REAL;
+    cli_rh_cs1            : REAL;
+    cli_rh_cs1_qlt        : BOOL;
+    cli_rh_cs2            : REAL;
+    cli_rh_cs2_qlt        : BOOL;
+    cli_rh_cs3            : REAL;
+    cli_rh_cs3_qlt        : BOOL;
+    cli_rh_cs_qlt         : BOOL;
+    cli_rh_ext            : REAL;
+    cli_rh_ext1           : REAL;
+    cli_rh_ext1_qlt       : BOOL;
+    cli_rh_ext2           : REAL;
+    cli_rh_ext2_qlt       : BOOL;
+    cli_rh_ext3           : REAL;
+    cli_rh_ext3_qlt       : BOOL;
+    cli_rh_ext_qlt        : BOOL;
+    cli_rh_hi             : REAL;
+    cli_rh_hi1            : REAL;
+    cli_rh_hi1_qlt        : BOOL;
+    cli_rh_hi2            : REAL;
+    cli_rh_hi2_qlt        : BOOL;
+    cli_rh_hi3            : REAL;
+    cli_rh_hi3_qlt        : BOOL;
+    cli_rh_hi_qlt         : BOOL;
+    cli_rh_lo             : REAL;
+    cli_rh_lo1            : REAL;
+    cli_rh_lo1_qlt        : BOOL;
+    cli_rh_lo2            : REAL;
+    cli_rh_lo2_qlt        : BOOL;
+    cli_rh_lo3            : REAL;
+    cli_rh_lo3_qlt        : BOOL;
+    cli_rh_lo_qlt         : BOOL;
+    cli_sensorTau_ms      : UINT;
     cli_stratDem          : REAL;
+    cli_temp_cs           : REAL;
+    cli_temp_cs1          : REAL;
+    cli_temp_cs1_qlt      : BOOL;
+    cli_temp_cs2          : REAL;
+    cli_temp_cs2_qlt      : BOOL;
+    cli_temp_cs3          : REAL;
+    cli_temp_cs3_qlt      : BOOL;
+    cli_temp_cs_qlt       : BOOL;
+    cli_temp_ext          : REAL;
+    cli_temp_ext1         : REAL;
+    cli_temp_ext1_qlt     : BOOL;
+    cli_temp_ext2         : REAL;
+    cli_temp_ext2_qlt     : BOOL;
+    cli_temp_ext3         : REAL;
+    cli_temp_ext3_qlt     : BOOL;
+    cli_temp_ext_qlt      : BOOL;
+    cli_temp_hi           : REAL;
+    cli_temp_hi1          : REAL;
+    cli_temp_hi1_qlt      : BOOL;
+    cli_temp_hi2          : REAL;
+    cli_temp_hi2_qlt      : BOOL;
+    cli_temp_hi3          : REAL;
+    cli_temp_hi3_qlt      : BOOL;
+    cli_temp_hi_qlt       : BOOL;
+    cli_temp_lo           : REAL;
+    cli_temp_lo1          : REAL;
+    cli_temp_lo1_qlt      : BOOL;
+    cli_temp_lo2          : REAL;
+    cli_temp_lo2_qlt      : BOOL;
+    cli_temp_lo3          : REAL;
+    cli_temp_lo3_qlt      : BOOL;
+    cli_temp_lo_qlt       : BOOL;
     cli_windGust_mps      : REAL;
     cli_windLockout       : BOOL;
     cli_windShutBegin_mps : REAL;
@@ -53,7 +122,7 @@ CONFIGURATION gh_mlb41
     cli_windowCap         : REAL;
     cli_windowLockout     : BOOL;
     irr_state             : USINT;
-    sys_now_ms             : UDINT;
+    sys_now_ms            : UDINT;
     sys_supply_lockout    : BOOL;
   END_VAR
 
@@ -61,6 +130,9 @@ CONFIGURATION gh_mlb41
     TASK slow (INTERVAL := T#100ms, PRIORITY := 1);
 
     (* Execution order within the beat is the order they appear here. *)
+    (* Conditioning first: everything below reads what it publishes. *)
+    PROGRAM sensors WITH slow : temp_rh_sensors;
+
     PROGRAM destrat WITH slow : destrat_controller;
     PROGRAM roof    WITH slow : roof_lockout;
     PROGRAM fans    WITH slow : fan_controller;

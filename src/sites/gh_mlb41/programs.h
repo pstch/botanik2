@@ -82,7 +82,6 @@
 #include "programs/sense/dc_watch/dc_watch.h"
 #include "programs/sense/sun_watch/sun_watch.h"
 #include "programs/sense/wx_sensors/wx_sensors.h"
-#include "programs/sense/temp_rh_sensors/temp_rh_sensors.h"
 #include "programs/sense/temp_rh_zone/temp_rh_zone.h"
 #include "programs/sense/strat_sensor/strat_sensor.h"
 #include "programs/sense/climate_watch/climate_watch.h"
@@ -115,7 +114,6 @@
     X(DcWatch,              _dc_watch)        \
     X(SunWatch,             _sun_watch)       \
     X(WxSensors,            _wx_sensors)     \
-    X(TempRHSensors,        _temp_rh_sensors) \
     X(TempRHZone,           _temp_rh_zone)    \
     X(StratSensor,          _strat)           \
     X(ClimateWatch,         _climate_watch)   \

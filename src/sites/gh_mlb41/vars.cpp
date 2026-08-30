@@ -441,10 +441,39 @@ const Descriptor rows[] = {
     // and is done. Each declares FALSE, so nothing is believed until measured.
     // FIELD companions: written by Vars::QualityMirror from the row's own
     // quality each beat, never by a program. A law that cannot ask the bank -
-    // which is every ST law - reads these instead.
-    SV("cli_temp_hi1_qlt"       , T_BOOL, 0          , 0, ""    , 625, "probe 1 believable", "mirrored from cli_temp_hi1 by the bank, not written by a law"),
-    SV("cli_temp_hi2_qlt"       , T_BOOL, 0          , 0, ""    , 626, "probe 2 believable", "mirrored from cli_temp_hi2 by the bank, not written by a law"),
-    SV("cli_temp_hi3_qlt"       , T_BOOL, 0          , 0, ""    , 627, "probe 3 believable", "mirrored from cli_temp_hi3 by the bank, not written by a law"),
+    // which is every ST law - reads these instead. One per probe, because a
+    // zone votes on WHICH of its three answered.
+    SV("cli_temp_hi1_qlt"        , T_BOOL, 0          , 0, ""    , 625, "ceiling temperature probe 1 believable", "mirrored from cli_temp_hi1 by the bank"),
+    SV("cli_temp_hi2_qlt"        , T_BOOL, 0          , 0, ""    , 626, "ceiling temperature probe 2 believable", "mirrored from cli_temp_hi2 by the bank"),
+    SV("cli_temp_hi3_qlt"        , T_BOOL, 0          , 0, ""    , 627, "ceiling temperature probe 3 believable", "mirrored from cli_temp_hi3 by the bank"),
+    SV("cli_rh_hi1_qlt"          , T_BOOL, 0          , 0, ""    , 628, "ceiling humidity probe 1 believable", "mirrored from cli_rh_hi1 by the bank"),
+    SV("cli_rh_hi2_qlt"          , T_BOOL, 0          , 0, ""    , 629, "ceiling humidity probe 2 believable", "mirrored from cli_rh_hi2 by the bank"),
+    SV("cli_rh_hi3_qlt"          , T_BOOL, 0          , 0, ""    , 630, "ceiling humidity probe 3 believable", "mirrored from cli_rh_hi3 by the bank"),
+    SV("cli_temp_lo1_qlt"        , T_BOOL, 0          , 0, ""    , 631, "floor temperature probe 1 believable", "mirrored from cli_temp_lo1 by the bank"),
+    SV("cli_temp_lo2_qlt"        , T_BOOL, 0          , 0, ""    , 632, "floor temperature probe 2 believable", "mirrored from cli_temp_lo2 by the bank"),
+    SV("cli_temp_lo3_qlt"        , T_BOOL, 0          , 0, ""    , 633, "floor temperature probe 3 believable", "mirrored from cli_temp_lo3 by the bank"),
+    SV("cli_rh_lo1_qlt"          , T_BOOL, 0          , 0, ""    , 634, "floor humidity probe 1 believable", "mirrored from cli_rh_lo1 by the bank"),
+    SV("cli_rh_lo2_qlt"          , T_BOOL, 0          , 0, ""    , 635, "floor humidity probe 2 believable", "mirrored from cli_rh_lo2 by the bank"),
+    SV("cli_rh_lo3_qlt"          , T_BOOL, 0          , 0, ""    , 636, "floor humidity probe 3 believable", "mirrored from cli_rh_lo3 by the bank"),
+    SV("cli_temp_cs1_qlt"        , T_BOOL, 0          , 0, ""    , 637, "crawlspace temperature probe 1 believable", "mirrored from cli_temp_cs1 by the bank"),
+    SV("cli_temp_cs2_qlt"        , T_BOOL, 0          , 0, ""    , 638, "crawlspace temperature probe 2 believable", "mirrored from cli_temp_cs2 by the bank"),
+    SV("cli_temp_cs3_qlt"        , T_BOOL, 0          , 0, ""    , 639, "crawlspace temperature probe 3 believable", "mirrored from cli_temp_cs3 by the bank"),
+    SV("cli_rh_cs1_qlt"          , T_BOOL, 0          , 0, ""    , 640, "crawlspace humidity probe 1 believable", "mirrored from cli_rh_cs1 by the bank"),
+    SV("cli_rh_cs2_qlt"          , T_BOOL, 0          , 0, ""    , 641, "crawlspace humidity probe 2 believable", "mirrored from cli_rh_cs2 by the bank"),
+    SV("cli_rh_cs3_qlt"          , T_BOOL, 0          , 0, ""    , 642, "crawlspace humidity probe 3 believable", "mirrored from cli_rh_cs3 by the bank"),
+    SV("cli_temp_ext1_qlt"       , T_BOOL, 0          , 0, ""    , 643, "exterior temperature probe 1 believable", "mirrored from cli_temp_ext1 by the bank"),
+    SV("cli_temp_ext2_qlt"       , T_BOOL, 0          , 0, ""    , 644, "exterior temperature probe 2 believable", "mirrored from cli_temp_ext2 by the bank"),
+    SV("cli_temp_ext3_qlt"       , T_BOOL, 0          , 0, ""    , 645, "exterior temperature probe 3 believable", "mirrored from cli_temp_ext3 by the bank"),
+    SV("cli_rh_ext1_qlt"         , T_BOOL, 0          , 0, ""    , 646, "exterior humidity probe 1 believable", "mirrored from cli_rh_ext1 by the bank"),
+    SV("cli_rh_ext2_qlt"         , T_BOOL, 0          , 0, ""    , 647, "exterior humidity probe 2 believable", "mirrored from cli_rh_ext2 by the bank"),
+    SV("cli_rh_ext3_qlt"         , T_BOOL, 0          , 0, ""    , 648, "exterior humidity probe 3 believable", "mirrored from cli_rh_ext3 by the bank"),
+
+    SV("cli_temp_cs_qlt"         , T_BOOL, 0          , 0, ""    , 649, "crawlspace temperature believable", "the zone's own verdict, written by temp_rh_sensors"),
+    SV("cli_temp_ext_qlt"        , T_BOOL, 0          , 0, ""    , 650, "exterior temperature believable", "the zone's own verdict, written by temp_rh_sensors"),
+    SV("cli_rh_hi_qlt"           , T_BOOL, 0          , 0, ""    , 651, "ceiling humidity believable", "the zone's own verdict, written by temp_rh_sensors"),
+    SV("cli_rh_lo_qlt"           , T_BOOL, 0          , 0, ""    , 652, "floor humidity believable", "the zone's own verdict, written by temp_rh_sensors"),
+    SV("cli_rh_cs_qlt"           , T_BOOL, 0          , 0, ""    , 653, "crawlspace humidity believable", "the zone's own verdict, written by temp_rh_sensors"),
+    SV("cli_rh_ext_qlt"          , T_BOOL, 0          , 0, ""    , 654, "exterior humidity believable", "the zone's own verdict, written by temp_rh_sensors"),
 
     SV("cli_rain_mmph_qlt"      , T_BOOL, 0          , 0, ""    , 613, "rain rate believable", "roof_lockout shuts the roof without it: the row declares 0, which reads as fine weather"),
     SV("cli_wind_mps_qlt"       , T_BOOL, 0          , 0, ""    , 614, "wind speed believable", "roof_lockout shuts the roof without it: the row declares 0, which reads as calm"),

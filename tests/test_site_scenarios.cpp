@@ -182,10 +182,12 @@ TEST_CASE("scenario: a zone dying leaves the plant safe, not confident") {
         p.probe("cli_temp_cs%u", 3, g_wx().crawlspace);
         p.probe("cli_rh_hi%u", 3, g_wx().rh);
         p.probe("cli_rh_lo%u", 3, g_wx().rh);
-        p.cycle->step(p.t += 100);
+        p.beat();
     }
 
-    CHECK_FALSE(p.valid("cli_temp_hi"));
+    // The COMPANION, not the row: temp_rh_sensors is ST now, and ST has no
+    // way to write a quality. The row stays valid and holds its last average.
+    CHECK_FALSE(p.on("cli_temp_hi_qlt"));
     SAY("the row HOLDS its last average rather than reading a default of zero");
     CHECK(p.num("cli_temp_hi") == doctest::Approx(was));
     CHECK(p.on("alarm_sns_ceiling"));
@@ -211,7 +213,7 @@ TEST_CASE("scenario: a zone dying leaves the plant safe, not confident") {
         p.probe("cli_temp_cs%u", 3, g_wx().crawlspace);
         p.probe("cli_rh_hi%u", 3, g_wx().rh);
         p.probe("cli_rh_lo%u", 3, g_wx().rh);
-        p.cycle->step(p.t += 100);
+        p.beat();
     }
     CHECK_FALSE(p.valid("cli_dpMargin_degC"));
     CHECK(p.num("cli_dpMargin_degC") > 0.0f);   // held, not a default of zero
@@ -293,7 +295,7 @@ TEST_CASE("scenario: a house sitting on a threshold does not thrash the plant") 
         // A tenth of a degree of probe noise either side of the threshold.
         g_wx().crawlspace = g_wx().ceiling - margin + ((i % 2) ? 0.1f : -0.1f);
         hold_weather(p);
-        p.cycle->step(p.t += 100);
+        p.beat();
         if (p.on("cli_intakeCoolOk") != gate) flips++;
     }
     SAY("the gate holds through the noise: it opens at its margin and closes a "
@@ -305,7 +307,7 @@ TEST_CASE("scenario: a house sitting on a threshold does not thrash the plant") 
     uint32_t fan_flips = 0;
     for (uint32_t i = 0; i < 600; i++) {
         hold_weather(p);
-        p.cycle->step(p.t += 100);
+        p.beat();
         if (p.on("cli_destrat1_speed2") != speed2) fan_flips++;
     }
     CHECK(fan_flips == 0);
@@ -330,7 +332,7 @@ TEST_CASE("scenario: an evening moves the plant the other way, in order") {
     uint32_t shut = 0, deployed = 0;
     for (uint32_t i = 1; i <= 30000; i++) {          // 50 minutes of beats
         cooling_evening(p);
-        p.cycle->step(p.t += 100);
+        p.beat();
         if (shut == 0 && roof_shut(p))    shut = i;
         if (deployed == 0 && fabric_out(p)) deployed = i;
         if (shut != 0 && deployed != 0)   break;
