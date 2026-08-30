@@ -72,7 +72,6 @@ struct Plant {
     Site::IrrigationCycle      irrigation;
     Site::IrrValves            irr_valves;
     Site::ScreenController     screen;
-    Site::RoofLockout          roof_lock;
     Site::WindowsController    windows;
     Site::IntractorController  intractors;
     Site::FanController        fans;
@@ -94,7 +93,7 @@ struct Plant {
           intake_gates(ctx(), io()),
           humidity(ctx(), io()), intake_dry(ctx(), io()), irr_mod(ctx(), io()), irr_in(ctx(), io()), irr_out(ctx(), io()),
           irr_schedule(ctx(), io()), irrigation(ctx(), io()), irr_valves(ctx(), io()), screen(ctx(), io()),
-          roof_lock(ctx(), io()), windows(ctx(), io()),
+          windows(ctx(), io()),
           intractors(ctx(), io()), fans(ctx(), io()), skirt(ctx(), io()),
           st(ctx(), io()) {
         Plc::Program* const list[] = {
@@ -102,7 +101,7 @@ struct Plant {
             &wx, &weather,
             &target, &cooling, &intake_gates, &humidity, &intake_dry,
             &irr_mod, &irr_in, &irr_out, &irr_schedule, &irrigation, &irr_valves,
-            &screen, &roof_lock, &windows, &intractors, &fans, &skirt
+            &screen, &windows, &intractors, &fans, &skirt
         };
         // Sized from the list, never a literal: a hand-kept count silently
         // drops whichever program is last the day one is added.
@@ -118,13 +117,13 @@ struct Plant {
 
     /** @brief Beats, at the site's own period. */
     void run(uint32_t beats) {
-        for (uint32_t i = 0; i < beats; i++) { cycle->step(t += 100); st.scan_slow(100); }
+        for (uint32_t i = 0; i < beats; i++) { st.scan_slow(100); cycle->step(t += 100); }
     }
     /** @brief ...and the same, holding the environment where the case put it:
      *  a field row goes stale without a driver refreshing it. */
     void weather_for(uint32_t beats) {
         for (uint32_t i = 0; i < beats; i++) {
-            hold(*this); cycle->step(t += 100); st.scan_slow(100);
+            hold(*this); st.scan_slow(100); cycle->step(t += 100);
         }
     }
 

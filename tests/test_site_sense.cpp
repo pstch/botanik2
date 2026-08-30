@@ -359,14 +359,19 @@ TEST_CASE("cooling: an unknown demand puts every actuator at its own safe state"
     Live f;
     fine_weather(f);
     interlocks_clear(f);
-    Site::RoofLockout    lock_(Botanik::SetupContext(f.reg), f.bank);
+    // The lockout is ST, so the resource runs ahead of the actuators.
+    Site::StRuntime            st(Botanik::SetupContext(f.reg), f.bank);
     Site::WindowsController    win(Botanik::SetupContext(f.reg), f.bank);
     Site::IntractorController  intr(Botanik::SetupContext(f.reg), f.bank);
     Site::ScreenController     scr(Botanik::SetupContext(f.reg), f.bank);
     Site::SkirtController      sk(Botanik::SetupContext(f.reg), f.bank);
     Site::FanController        fan(Botanik::SetupContext(f.reg), f.bank);
-    Plc::Program* const progs[] = { &lock_, &win, &intr, &scr, &sk, &fan };
-    Cycle d(progs, 6, &f.bank, f.reg);
+    Plc::Program* const progs[] = { &win, &intr, &scr, &sk, &fan };
+    Cycle cyc(progs, 5, &f.bank, f.reg);
+    st.wire();
+    struct { Site::StRuntime* st; Cycle* c; uint64_t last;
+             void step(uint64_t n) { st->scan_slow((uint32_t)(n - last));
+                                     last = n; c->step(n); } } d{ &st, &cyc, 0 };
 
     // Everything else says GO: only the cooling ladder's two outputs are
     // missing, which is how they go - cooling HOLDS both together when it
@@ -401,10 +406,9 @@ TEST_CASE("cooling: an unknown demand puts every actuator at its own safe state"
 
     // The five that READ a missing demand, not the lockout: roof_lockout is on
     // the beat because the windows need its cap, and it has every input it
-    // wants - saying it is degraded would be a verdict about a network that is
-    // perfectly fine.
-    for (uint8_t i = 1; i < 6; i++)
-    CHECK(lock_.health() == Plc::Health::HEALTHY);
+    // wants. The ST plant has no per-program health, so what stands in is that
+    // it WIRED: every VAR_EXTERNAL in it resolved to a row.
+    CHECK(st.wired());
 }
 
 TEST_CASE_FIXTURE(StRig, "scan: sys_dt_ms is the elapsed time of the group running now") {

@@ -24,11 +24,27 @@ CONFIGURATION gh_mlb41
     cli_fanMedDem        : REAL;
     cli_fanHighDem       : REAL;
     cli_stratDem         : REAL;
+
+    cli_rain_mmph         : REAL;
+    cli_rain_mmph_qlt     : BOOL;
+    cli_wind_mps          : REAL;
+    cli_wind_mps_qlt      : BOOL;
+    cli_windGust_mps      : REAL;
+    cli_windShutBegin_mps : REAL;
+    cli_windShutEnd_mps   : REAL;
+    cli_windShutMax       : REAL;
+    cli_rainLockout_sec   : UINT;
+    sys_supply_lockout    : BOOL;
+    cli_rainLockout       : BOOL;
+    cli_windLockout       : BOOL;
+    cli_windowLockout     : BOOL;
+    cli_windowCap         : REAL;
   END_VAR
 
   RESOURCE slow ON OPTA
     TASK beat (INTERVAL := T#10ms, PRIORITY := 1);
     PROGRAM destrat WITH beat : destrat_controller;
+    PROGRAM roof    WITH beat : roof_lockout;
   END_RESOURCE
 
 END_CONFIGURATION

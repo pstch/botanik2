@@ -77,6 +77,28 @@ TEST_CASE_FIXTURE(Rig<Site::ScreenController>, "screen: a cold night deploys it,
     CHECK_FALSE(live.bank.get(moving));
 }
 
+/** @brief roof_lockout is ST now, so the RESOURCE runs and then the windows
+ *  program does - the same order the beat uses, and the one the lockout needs:
+ *  cli_windowCap has to reach the rams on the beat it was published. */
+struct RoofDrive {
+    Site::StRuntime         st;
+    Site::WindowsController win;
+    Plc::Program*           progs[1];
+    Cycle                   cyc;
+    uint64_t                last = 0;
+
+    explicit RoofDrive(Live& f)
+        : st(Botanik::SetupContext(f.reg), f.bank),
+          win(Botanik::SetupContext(f.reg), f.bank),
+          progs{ &win }, cyc(progs, 1, &f.bank, f.reg) { st.wire(); }
+
+    void step(uint64_t now_ms) {
+        st.scan_slow((uint32_t)(now_ms - last));
+        last = now_ms;
+        cyc.step(now_ms);
+    }
+};
+
 TEST_CASE("windows: the wind takes the roof down a ramp before it shuts it") {
     // Three parameters and a straight line between two of them: below
     // cli_windShutBegin_mps the wind has no say, at it the roof may open
@@ -86,10 +108,7 @@ TEST_CASE("windows: the wind takes the roof down a ramp before it shuts it") {
     Live f;
     fine_weather(f);
     interlocks_clear(f);
-    Site::RoofLockout lock_(Botanik::SetupContext(f.reg), f.bank);
-    Site::WindowsController win(Botanik::SetupContext(f.reg), f.bank);
-    Plc::Program* const progs[] = { &lock_, &win };
-    Cycle d(progs, 2, &f.bank, f.reg);
+    RoofDrive d(f);
 
     const float ease = f.bank.var(f.ref("cli_windShutBegin_mps")).as_f32();
     const float shut = f.bank.var(f.ref("cli_windShutEnd_mps")).as_f32();
@@ -133,10 +152,7 @@ TEST_CASE("windows: rain shuts the roof whatever the wind is doing") {
     Live f;
     fine_weather(f);
     interlocks_clear(f);
-    Site::RoofLockout lock_(Botanik::SetupContext(f.reg), f.bank);
-    Site::WindowsController win(Botanik::SetupContext(f.reg), f.bank);
-    Plc::Program* const progs[] = { &lock_, &win };
-    Cycle d(progs, 2, &f.bank, f.reg);
+    RoofDrive d(f);
 
     Vars::RefIn<float> cap = f.bank.resolve_in<float>("cli_windowCap");
     f.bank.var(f.ref("cli_windowDem")).set(1.0f);
@@ -161,10 +177,7 @@ TEST_CASE("windows: a forced lockout shuts the roof, with no weather to do it") 
     Live f;
     fine_weather(f);
     interlocks_clear(f);
-    Site::RoofLockout lock_(Botanik::SetupContext(f.reg), f.bank);
-    Site::WindowsController win(Botanik::SetupContext(f.reg), f.bank);
-    Plc::Program* const progs[] = { &lock_, &win };
-    Cycle d(progs, 2, &f.bank, f.reg);
+    RoofDrive d(f);
 
     f.bank.var(f.ref("cli_windowDem")).set(1.0f);
     uint64_t t = 0;

@@ -177,10 +177,25 @@ struct IrrigationRig {
  *  it publishes on the same beat rather than the one before. */
 struct RoofRig {
     Live                    live;
-    Site::RoofLockout       lock_{Botanik::SetupContext(live.reg), live.bank};
-    Site::WindowsController wc   {Botanik::SetupContext(live.reg), live.bank};
-    Plc::Program* const     progs[2] = { &lock_, &wc };
-    Cycle                   d{progs, 2, &live.bank, live.reg};
+    /** The lockout is ST now, so it is the RESOURCE that runs first. */
+    Site::StRuntime         st{Botanik::SetupContext(live.reg), live.bank};
+    Site::WindowsController wc{Botanik::SetupContext(live.reg), live.bank};
+    Plc::Program* const     progs[1] = { &wc };
+    Cycle                   cycle{progs, 1, &live.bank, live.reg};
+
+    RoofRig() { st.wire(); d.st = &st; d.cycle = &cycle; }
+
+    /** @brief ST, then the programs - the order the beat uses. */
+    struct Driver {
+        Site::StRuntime* st = nullptr;
+        Cycle*           cycle = nullptr;
+        uint64_t         last = 0;
+        void step(uint64_t now_ms) {
+            st->scan_slow((uint32_t)(now_ms - last));
+            last = now_ms;
+            cycle->step(now_ms);
+        }
+    } d;
 };
 
 }  // namespace site_programs

@@ -167,7 +167,7 @@ def test_the_task_table_is_complete(spawn):
     # this exists to catch. Last moved when wx_sensors split the two weather
     # stations off the derivations they feed, the way temp_rh_sensors is split
     # from temp_rh_zone.
-    assert term.wait_for("Registered ....... : 50"), \
+    assert term.wait_for("Registered ....... : 49"), \
         "the task table changed size - a registration was added or silently lost"
     assert term.wait_for("0 refused"), "a registration was refused: MAX_TASKS"
 

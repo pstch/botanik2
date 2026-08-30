@@ -99,7 +99,6 @@
 #include "programs/irrigation/irrigation_cycle/irrigation_cycle.h"
 #include "programs/irrigation/irr_valves/irr_valves.h"
 #include "programs/actuators/screen_controller/screen_controller.h"
-#include "programs/actuators/roof_lockout/roof_lockout.h"
 #include "programs/actuators/windows_controller/windows_controller.h"
 #include "programs/sense/weather_watch/weather_watch.h"
 #include "programs/actuators/intractor_controller/intractor_controller.h"
@@ -134,7 +133,6 @@
     X(IrrigationCycle,      _irrigation)      \
     X(IrrValves,            _irr_valves)      \
     X(ScreenController,     _screen)          \
-    X(RoofLockout,          _roof_lockout)    \
     X(WindowsController,    _windows)         \
     X(WeatherWatch,         _weather_watch)   \
     X(IntractorController,  _intractors)      \

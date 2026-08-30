@@ -130,10 +130,16 @@ protected:
             Botanik::HAL::Pulse::attach(Site::pulse_inputs[i].channel,
                                         Site::pulse_inputs[i].edge);
 
+        // FIRST, and it is an ordering rule rather than a preference: a
+        // lockout the ST publishes has to reach the actuator that reads it on
+        // the SAME beat - roof_lockout's cli_windowCap into windows is the
+        // case. Its own inputs are then one beat old, which on a rain or wind
+        // interlock is 100 ms and does not matter. When the last program
+        // leaves plc/ the RESOURCE decides the whole order and this goes away.
+        _st.register_tasks();
 #define X(cls, mem) mem.register_tasks();
         SITE_PROGRAM_LIST(X)
 #undef X
-        _st.register_tasks();
     }
 };
 

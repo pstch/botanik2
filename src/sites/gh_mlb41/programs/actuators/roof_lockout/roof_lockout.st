@@ -20,7 +20,7 @@ VAR_EXTERNAL
   cli_windShutMax       : REAL;
   cli_rainLockout_sec   : UINT;
   sys_supply_lockout    : BOOL;
-  sys_scan_dt_ms        : UDINT;
+  sys_dt_ms        : UDINT;
   cli_rainLockout       : BOOL;
   cli_windLockout       : BOOL;
   cli_windowLockout     : BOOL;
@@ -41,7 +41,7 @@ END_VAR
      lets go the moment the station answers, where feeding it the overrun cost
      a quarter of an hour of ventilation after every restart. *)
   rain_for(IN := cli_rain_mmph > 0.0, PT := UINT_TO_UDINT(cli_rainLockout_sec) * 1000,
-           DT_MS := sys_scan_dt_ms);
+           DT_MS := sys_dt_ms);
   cli_rainLockout := rain_for.Q OR blind;
 
   (* The GUST, not the average: what tears a window off its ram is the peak. *)
