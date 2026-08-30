@@ -127,8 +127,6 @@ void IrrigationSchedule::run(ProgramContext& c) {
     bool       known  = false;
     const bool open   = _in_slot(known);
     slot_open.set(open, known);
-    // The slot rests on the phase and one of two sun/weather rows, and the
-    // tray below on the modulation. Either short is a schedule guessing.
 
     // A STARTING value, so the row does not read as never-written for the whole
     // of bring-up: _next_due() publishes the modulated interval of the tray it
@@ -144,13 +142,23 @@ void IrrigationSchedule::run(ProgramContext& c) {
     else              period.hold();
 
     // WHEN, before which tray: the climate decides the slot and the schedule
-    // decides the tray, and an operator forcing a cycle overrides both. A
-    // modulation nobody can read is no dose, so there is nothing to start.
-    if ((served.get() >= trays_per_day.get() && !forced) ||
-        (!forced && !open) || !mod.valid()) {
+    // decides the tray, and an operator forcing a cycle overrides both.
+    //
+    // A modulation nobody can read does NOT hold the plant: it reads as the
+    // declared one, the tray is picked against that, and the quality below is
+    // what says the interval was a guess. A tray left dry because the weather
+    // stopped being legible is the worse outcome, and irr_volume_L says the
+    // same thing about the dose.
+    if ((served.get() >= trays_per_day.get() && !forced) || (!forced && !open)) {
+        // Nothing owed is a definite answer, whatever the weather is doing.
         due_tray.set((uint8_t)0, true);
         return;
     }
+    // GOOD, even on a guessed modulation. This row's declared value is 0 -
+    // "no tray owed" - so marking it doubtful would hand the cycle a refusal
+    // rather than a doubt, and the tray it just picked would go unwatered.
+    // Naming a tray is a definite answer; irr_volume_L is where the guess
+    // shows, because a DOSE has a number to be wrong about.
     due_tray.set(_next_due(mod.get(), day), true);
 }
 

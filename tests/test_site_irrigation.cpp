@@ -66,6 +66,37 @@ TEST_CASE_FIXTURE(IrrigationRig, "irrigation: every row it reads back is written
     }
 }
 
+TEST_CASE_FIXTURE(IrrigationRig, "irrigation: a modulation nobody can read still waters, and says it guessed") {
+    // The two halves of this used to disagree: the CYCLE was told to run on
+    // the declared modulation, while the SCHEDULE still refused to name a tray
+    // without a measured one - so nothing started and the tray stayed dry.
+    no_soak(live);
+    slot(live);
+    live.bank.param_set(live.bank.var(live.ref("irr_liters_tray1")), 5.0f);
+    live.bank.param_set(live.bank.var(live.ref("irr_forceOn_tray1")), true);
+    live.bank.var(live.ref("irr_mod")).invalidate(Q_NO_DATA);
+
+    const VarRef due = live.ref("irr_dueTray");
+    const VarRef vol = live.ref("irr_volume_L");
+    uint64_t t = 0;
+    for (uint32_t i = 0; i < 5; i++) d.step(t += 1000);
+    REQUIRE(live.bank.var(live.ref("irr_state")).as_i64() != Site::IRR_IDLE);
+
+    INFO("it fills: the declared modulation covers the ordinary case, and a "
+         "tray left dry because the weather stopped being legible is the worse "
+         "outcome");
+    CHECK(live.bank.var(vol).as_f32() > 0.0f);
+
+    INFO("...and the dose says it was guessed at, which is all a reader needs "
+         "to know it should not be trended");
+    CHECK_FALSE(live.bank.var(vol).valid());
+
+    INFO("...while the TRAY NUMBER stays good: its declared value is 0, so a "
+         "doubtful one would read as no tray owed and the cycle would refuse");
+    CHECK(live.bank.var(due).valid());
+    CHECK(live.bank.var(due).as_i64() != 0);
+}
+
 TEST_CASE_FIXTURE(IrrigationRig, "irrigation: a force is spent on the watering it asked for") {
     summer(live);
     no_soak(live);

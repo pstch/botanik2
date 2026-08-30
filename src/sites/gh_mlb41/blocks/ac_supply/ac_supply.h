@@ -69,9 +69,21 @@ public:
      *  the same way will do, which is the point: one law, two supplies. */
     template <typename R>
     void attach(const R& r) {
-        _in_v = r.volts;  _in_a  = r.amps;  _in_w   = r.watts; _in_hz = r.hz;
-        _lo_v = r.lo_V;   _hi_v  = r.hi_V;  _lo_hz  = r.lo_Hz; _hi_hz = r.hi_Hz;
-        _out_v = r.out_V; _out_a = r.out_A; _out_w  = r.out_W; _out_hz = r.out_Hz;
+        _lo_v = r.lo_V;   
+        _hi_v  = r.hi_V;  
+        _lo_hz  = r.lo_Hz;
+        _hi_hz = r.hi_Hz;
+
+        _in_v = r.volts;  
+        _in_a  = r.amps;  
+        _in_w   = r.watts; 
+        _in_hz = r.hz;
+
+        _out_v = r.out_V;
+        _out_a = r.out_A;
+        _out_w  = r.out_W;
+        _out_hz = r.out_Hz;
+        
         _ok    = r.ok;
     }
 
