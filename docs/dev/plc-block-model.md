@@ -1,57 +1,71 @@
 # Plan: one variable model for programs and blocks
 
-Status: **agreed in outline, not started.** Written 2026-08-30.
+Status: **agreed, not started.** Written 2026-08-30.
 
 The target is a `Plc::Block` that is a structured node like a `Program`: it
 declares its inputs and outputs as variables, keeps its own state, and has
-exactly three entry points — construction, `bind()`, `operator()`.
+exactly three entry points - construction, `bind()`, `operator()`.
 
 ---
 
-## 1. What changed my recommendation
+## 1. Both questions are answered
 
-I had proposed dropping `Bank*` from `Ref` first, so a reference could address
-either a bank row or block-local storage. **That is not needed**, and the reason
-is the decision to put block variables in the variable store as ANONYMOUS ROWS:
+**Q1. A block's INPUTS are rows**, like its outputs. Both spellings are legal
+ST - `TON(IN := a AND b, PT := t)` assigns at the call, `TON.IN := x; TON();`
+assigns first - and the second is chosen because there is then no line to
+remember: every block, primitive or composite, declares its whole interface and
+is invoked with none of it.
 
-> if a block's inputs and outputs are rows in the same store the programs use,
-> there is only ever ONE store, and `Ref` needs no polymorphism at all.
+**Q2. `Ref` loses its `Bank*`.** Every read and write goes through the store:
+`io.get(ref)`, `io.set(ref, v, current)`. That recovers 4 bytes per declared
+reference, about **1 KB on the OPTA** across the 272 in the site's programs
+today, and more once every block instance declares one per input and output.
 
-That removes the whole `VarStore` interface, the type-erasure through `Scalar`
-it would have needed (`get<T>` is a template and templates cannot be virtual),
-and ~450 call sites of churn. `x.get()` stays `x.get()`.
+### What Q2 changes about the order
 
-The pointer in `Ref` becomes an independent memory question — 4 bytes × 272
-declared references ≈ **1 KB on the OPTA** — worth its own decision, at the end,
-on its own merits. It is no longer on the critical path.
+Removing the pointer was going to be last, on the grounds that anonymous rows
+put every variable in ONE store, so `Ref` needed no polymorphism and the pointer
+was only a memory question. That reasoning still holds - there is no `VarStore`
+interface in this plan, and no type-erasure through `Scalar` - but the ORDER
+inverts:
 
-## 2. The two open questions
+> Stages that follow ADD references and call sites. Removing the pointer
+> afterwards would mean writing new code in the old spelling and converting it
+> too.
 
-**Q1. Are a block's INPUTS rows too, or arguments to `operator()`?**
+So it goes first. Convert the ~450 existing sites once, and every block written
+after it is written in the new spelling.
 
-Both are legal ST: `TON(IN := a AND b, PT := t)` assigns at the call,
-`TON.IN := x; TON();` assigns first.
+### What it changes about a block
 
-| | rows | arguments |
-|---|---|---|
-| anonymous rows needed | ~100 | ~30 |
-| RAM | ~3.9 KB | ~1.2 KB |
-| `bands(strat.get(), lo, mid, hi, hys)` | a row, a write, a call | one line |
-| rule to remember | none | "composites bind, primitives take arguments" |
+With no pointer in a `Ref`, a block cannot reach the store on its own, so the
+store is an argument:
 
-The case for rows is that there is no line to remember. The case for arguments
-is that the cost lands on the ~40 primitive instances where the benefit is
-smallest. **Undecided.**
+```cpp
+void operator()(Vars::Bank& io, uint32_t dt_ms);
+```
 
-**Q2. Does `Ref` keep its `Bank*`?** ~1 KB against ~450 mechanical edits and
-laws reading `io.get(strat)` rather than `strat.get()`. **Undecided, and last.**
+which is what makes a block genuinely storage-agnostic: it holds indices, and
+whoever calls it says which table they index.
 
-## 3. Stages
+## 2. Stages
 
 Each stage builds, passes `make check`, `check-bare`, `clang-tidy` and the OPTA
 cross-build, and re-pins `libbotanik_sizes.h` on both targets.
 
-### Stage 1 — anonymous rows in the bank
+### Stage 1 - `Ref` loses its `Bank*`
+
+- `Ref<T,D>` becomes `{ VarRef r; }`, 2 bytes.
+- `get` / `set` / `valid` / `hold` / `held` / `invalidate` / `edit` move onto
+  the store: `io.get(ref)`, `io.set(ref, v, current)`.
+- ~450 call sites, mechanical. The laws read `io.get(strat)` rather than
+  `strat.get()`, which is the price.
+- `Program` already holds `_io`, and every `run()` already receives the bank
+  through its `ProgramContext`.
+- Wide and shallow, so it lands in ONE commit: a bisect should come down either
+  side of it, never inside.
+
+### Stage 2 - anonymous rows in the bank
 
 - `SCOPE_LOCAL` in `VarScope`. It must fall outside `var_published()` and
   `var_mapped()` **deliberately**: local rows currently dodge telemetry only by
@@ -65,18 +79,20 @@ cross-build, and re-pins `libbotanik_sizes.h` on both targets.
 
 Nothing uses it yet. Landing it alone keeps the diff readable.
 
-### Stage 2 — composite blocks take their outputs as rows
+### Stage 3 - composite blocks take their interface as rows
 
 The four site blocks already hold a `Refs` struct (`AcSupplyRefs`,
 `ZoneProbeRefs`, `WeatherProbeRefs`, `ValveRefs`), so this is small:
 
 - `operator()` returns `void`; what it returned becomes a `RefOut` in the struct.
-- `ZoneProbes::temperature()`, `humidity()`, `valid()` go — a caller reads the
+- `ZoneProbes::temperature()`, `humidity()`, `valid()` go: a caller reads the
   output row it already bound.
 - `AcSupply::operator()` already drives `ok` and `fault` as rows; its return
   (whether every quantity answered) becomes one.
+- `ValveController::set()` and `park()` become inputs. `set(open, current)`
+  maps onto `io.set(ref, v, current)` exactly, which is neat.
 
-### Stage 3 — library primitives take their outputs as rows
+### Stage 4 - library primitives take their interface as rows
 
 The big mechanical one: **56 block instances** across the site.
 
@@ -84,24 +100,21 @@ The big mechanical one: **56 block instances** across the site.
   which is what `TON.Q` and `TON.ET` are in ST.
 - Same for `Ton`, `Ewma`, `Hysteresis`, `Deadband`, `Staircase3`, `Pid`,
   `Integral`, `Derivative`, `Actuator`, `MovingAverage`, `WindowedMax`.
-- Q1 decides whether inputs move with them.
-- An output that feeds only another block gets an anonymous row from stage 1;
+- Inputs move with them: a primitive declares a `RefIn` for each and is invoked
+  as `ton(io, dt_ms)`.
+- An output that feeds only another block gets an anonymous row from stage 2;
   one that feeds a published variable binds that row directly, with no
   intermediate.
 
 `tests/test_plc.cpp` is written against the current call shape and moves with it.
 
-### Stage 4 — the laws
+### Stage 5 - the laws
 
 Intermediates that cross a block boundary become anonymous rows. A readability
-local (`const float t_in = inside.get();`) stays a local: a row costs ~39 bytes
-and buys nothing for a value read once, two lines down.
+local (`const float t_in = io.get(inside);`) stays a local: a row costs ~39
+bytes and buys nothing for a value read once, two lines down.
 
-### Stage 5 — `Ref` loses `Bank*` (optional, decided last)
-
-Only if Q2 says the kilobyte is worth it. Mechanical but wide.
-
-## 4. Costs, measured rather than guessed
+## 3. Costs, measured rather than guessed
 
 | | |
 |---|---|
@@ -113,21 +126,25 @@ Only if Q2 says the kilobyte is worth it. Mechanical but wide.
 | scalar state members in blocks + programs | 79 |
 | intermediates in the site's laws | ~100 (upper bound) |
 | declared `Vars::Ref` members in programs | 272 |
+| call sites of the `Ref` surface | ~450 |
 
-`VAR_MAX` goes 512 -> ~600-700 depending on Q1; the bank grows by the pool.
+`VAR_MAX` goes 512 to about 650. The pool costs roughly 5-6 KB of RAM; stage 1
+gives about 1 KB of it back. Net around +5 KB on the bank's 19.7.
 
-## 5. Risks
+## 4. Risks
 
 - **Rows are allocated, not declared.** Today the table is a frozen `constexpr`
   array and `tests/test_site.cpp` leans on that. A bind-time pool is a new
-  mechanism, and `unresolved_count()` cannot vouch for a row with no name -
-  the equivalent guarantee is "the pool did not overflow".
+  mechanism, and `unresolved_count()` cannot vouch for a row with no name: the
+  equivalent guarantee is "the pool did not overflow".
 - **Scope leakage.** Every filter that walks the table (telemetry, TCP map,
   MONITOR, params, alarms) must exclude `SCOPE_LOCAL` explicitly. 39 sites
   reference a scope or `ROLE_PARAM`; each wants checking once.
 - **Instance count multiplies.** A block class is instantiated many times
   (`Plc::Ewma` x12, `ValveController` x8, `ZoneProbes` x4), so a row per
   instance is what is being paid, not a row per class.
-- **Primitives are already close to ST.** `ton(in, pt, dt)` with `ton.q()` maps
-  onto `TON(IN:=..., PT:=...)` / `TON.Q`. Stage 3 is a real improvement on the
-  output side and a real cost on the input side; Q1 is where that is decided.
+- **Primitives get more verbose.** `rain_for(io.get(rain_mmph) > 0.0f, ...)`
+  becomes a row, a write and a call. That is the accepted price of Q1: no rule
+  to remember about which blocks bind and which take arguments.
+- **Stage 1 has no behaviour change to test.** ~450 mechanical edits with only
+  the existing suite standing behind them.
