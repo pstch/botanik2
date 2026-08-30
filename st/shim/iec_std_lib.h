@@ -25,6 +25,25 @@ typedef uint32_t DWORD;
 typedef uint64_t LWORD;
 typedef int64_t  TIME;
 
+/* The standard library, as much of it as the ported POUs reach. Every entry
+ * takes matiec's implicit (EN, ENO) pair ahead of its own arguments. */
+#define IEC_CONV(F, T) \
+    static inline T ___##F##_TO_##T(BOOL en, BOOL* eno, F x) { \
+        if (eno) *eno = en; return (T)x; }
+IEC_CONV(UDINT, REAL)
+IEC_CONV(UINT,  UDINT)
+IEC_CONV(USINT, UDINT)
+IEC_CONV(REAL,  UDINT)
+IEC_CONV(REAL,  INT)
+IEC_CONV(INT,   REAL)
+#undef IEC_CONV
+
+static inline REAL ___LIMIT__REAL__REAL__REAL__REAL(BOOL en, BOOL* eno,
+                                                    REAL mn, REAL in, REAL mx) {
+    if (eno) *eno = en;
+    return in < mn ? mn : (in > mx ? mx : in);
+}
+
 #define TRUE  true
 #define FALSE false
 
