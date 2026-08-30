@@ -7,9 +7,7 @@
 
 namespace Site {
 
-void IrrMtrInput::run(ProgramContext& c) { (void)c; }
-
-void IrrMtrInput::observe(ProgramContext& c) {
+void IrrMtrInput::run(ProgramContext& c) {
     const uint8_t  ch = Site::pulse_inputs[0].channel;
     const uint32_t pulses = HAL::Pulse::sample(ch).count;
     if (c.first_scan) {
@@ -58,5 +56,6 @@ void IrrMtrInput::observe(ProgramContext& c) {
     // The mirror image: the inlet is open and the water is not arriving.
     pressure.set(fill && flow < min_fill_Lpm.get(), true);
 }
+
 
 }  // namespace Site

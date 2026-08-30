@@ -7,15 +7,13 @@
 
 namespace Site {
 
-void SunWatch::run(ProgramContext& c) { (void)c; }
-
 static int16_t _minutes(int64_t v) {
     if (v < -1440) return -1440;
     if (v >  1440) return  1440;
     return (int16_t)v;
 }
 
-void SunWatch::observe(ProgramContext& c) {
+void SunWatch::run(ProgramContext& c) {
     (void)c;
     // No location, or no wall clock yet - every boot passes through the second
     // for as long as NTP takes. The offsets ARE the sun, so they hold rather
@@ -38,5 +36,4 @@ void SunWatch::observe(ProgramContext& c) {
     // Degrees, because that is what a person reads. The math is in radians.
     elevation.set((float)(_sun->elevation() * 57.2957795), true);
 }
-
 }  // namespace Site

@@ -7,9 +7,7 @@
 
 namespace Site {
 
-void IrrMtrOutput::run(ProgramContext& c) { (void)c; }
-
-void IrrMtrOutput::observe(ProgramContext& c) {
+void IrrMtrOutput::run(ProgramContext& c) {
     if (c.first_scan) {
         flow_avg.reset();
         flow_band.reset();
@@ -54,5 +52,6 @@ void IrrMtrOutput::observe(ProgramContext& c) {
                            : meter.total(),
                   measured);
 }
+
 
 }  // namespace Site

@@ -72,9 +72,7 @@ void WindowsController::run(ProgramContext& c) {
         opn[i].set(act[i].open_cmd(), true);
         clo[i].set(act[i].close_cmd(), true);
     }
-}
 
-void WindowsController::observe(ProgramContext&) {
     // One target for all four - they are one roof - against each ram's own
     // position estimate, which is what says how far behind the sequence is.
     for (uint8_t i = 0; i < N_ACT; i++) {
@@ -83,5 +81,6 @@ void WindowsController::observe(ProgramContext&) {
         else pos[i].invalidate();
     }
 }
+
 
 }  // namespace Site

@@ -157,7 +157,7 @@ namespace Botanik { namespace Plc {
          *
          *  Validity is NOT one of the checks: a row that is merely not
          *  believable right now is the law's business, tested in run() or
-         *  observe() where the law knows what it can do without it.
+         *  run(), where the law knows what it can do without it.
          *  @{ */
 
         template <typename T> Vars::RefIn<T> _bind_input(Vars::Bank& io, const char* name) {
@@ -175,17 +175,6 @@ namespace Botanik { namespace Plc {
 
         /** @} */
 
-        /** @brief Report what is true, every activation, in EVERY state.
-         *
-         *  Status values and alarm conditions belong here rather than in run():
-         *  they are observations, not control, and they must survive the
-         *  program being parked or switched off. A watch program that only
-         *  derives alarms has an empty run() and does all its work here.
-         *
-         *  @warning Drive only observations. An actuator moved from here would
-         *  move while the program is SAFE, which is the one thing that state
-         *  promises does not happen. */
-        virtual void observe(ProgramContext& c) { (void)c; }
 
     public:
 
@@ -209,7 +198,19 @@ namespace Botanik { namespace Plc {
         /** @brief Resolve this program's variable names, once, at bring-up. */
         virtual void bind(Vars::Bank& io) { (void)io; }
 
-        /** @brief One activation. The only required override. */
+        /** @brief ONE activation: the POU's body, and the only required
+         *  override.
+         *
+         *  Control and observation both, in that order - a status value or an
+         *  alarm derived from what the law just decided belongs after it. There
+         *  used to be a second hook for the second half; it existed so a PARKED
+         *  program went on reporting, and with parking gone the two were called
+         *  back to back in one writer window every beat, which is one body with
+         *  a convention about where to put things.
+         *
+         *  @warning Everything here runs every activation. A law that must not
+         *  move an actuator under some condition tests that condition; there is
+         *  no longer a hook that stops for it. */
         virtual void run(ProgramContext& c) = 0;
 
         /** @} */
@@ -285,8 +286,8 @@ namespace Botanik { namespace Plc {
 
         void _activate(const Tasks::Tick& t) {
             if (_io == nullptr) return;
-            // Nothing at all for a program setup could not wire: not run(), not
-            // observe(), not even the lateness. Its refs are inert sinks, so
+            // Nothing at all for a program setup could not wire: not run(),
+            // not even the lateness. Its refs are inert sinks, so
             // every value it produced would be a zero indistinguishable from a
             // reading, and its verdict stands from setup for the life of the run.
             if (_invalid) return;
@@ -302,12 +303,6 @@ namespace Botanik { namespace Plc {
             _io->begin_writer(_slot);
 
             run(c);
-
-            // ALWAYS, and after run() so it reports what this beat decided.
-            // Status values and alarm conditions belong here: they are
-            // observations, not control, and a watch program that only derives
-            // alarms has an empty run() and does all its work in observe().
-            observe(c);
             _io->end_writer();
         }
     };

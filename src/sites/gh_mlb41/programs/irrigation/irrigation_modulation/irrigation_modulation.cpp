@@ -10,7 +10,21 @@
 
 namespace Site {
 
-void IrrigationModulation::run(ProgramContext& c) { (void)c; }
+void IrrigationModulation::run(ProgramContext& c) {
+    const float avg = _track_dryness(c);
+
+    const float demand  = Plc::ladder(avg, dry_lo.get(), dry_hi.get());
+    const float min_mod = Plc::limit(mod_min.get(), 0.0f, 1.0f);
+    // Gamma is held at 1 or more so the curve is concave-up: watering reaches
+    // its summer figure only once dryness is really established, and every
+    // error in between is toward LESS water.
+    const float gamma = Plc::max_of(1.0f, mod_gamma.get());
+    // A modulation nobody can read is no dose, and irr_schedule reads it that
+    // way: before the first fold there is nothing to modulate BY.
+    if (!_seeded) { mod.invalidate(); return; }
+    mod.set(Plc::limit(min_mod + (1.0f - min_mod) * powf(demand, gamma),
+                       min_mod, 1.0f), vpd.valid());
+}
 
 static const uint32_t FOLD_MS = 3600u * 1000u;
 
@@ -47,20 +61,5 @@ float IrrigationModulation::_track_dryness(ProgramContext& c) {
     return dryness.value();
 }
 
-void IrrigationModulation::observe(ProgramContext& c) {
-    const float avg = _track_dryness(c);
-
-    const float demand  = Plc::ladder(avg, dry_lo.get(), dry_hi.get());
-    const float min_mod = Plc::limit(mod_min.get(), 0.0f, 1.0f);
-    // Gamma is held at 1 or more so the curve is concave-up: watering reaches
-    // its summer figure only once dryness is really established, and every
-    // error in between is toward LESS water.
-    const float gamma = Plc::max_of(1.0f, mod_gamma.get());
-    // A modulation nobody can read is no dose, and irr_schedule reads it that
-    // way: before the first fold there is nothing to modulate BY.
-    if (!_seeded) { mod.invalidate(); return; }
-    mod.set(Plc::limit(min_mod + (1.0f - min_mod) * powf(demand, gamma),
-                       min_mod, 1.0f), vpd.valid());
-}
 
 }  // namespace Site

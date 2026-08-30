@@ -58,14 +58,12 @@ void ScreenController::run(ProgramContext& c) {
     const DayPhase now = (DayPhase)phase.get();
     screen.set(_allows(now, cold) ? cold : screen.get(), true);
 
-}
-
-void ScreenController::observe(ProgramContext& c) {
     // Stepped HERE, so a screen parked on the way to its safe position still
     // reports itself as moving and the fans stay cut. The target is the ROW,
     // which is what this law asked for and what an operator may have forced.
     fabric.step(screen.get() ? 1.0f : 0.0f, _mechanics(), c.dt_ms);
     moving.set(fabric.moving(), true);
 }
+
 
 }  // namespace Site

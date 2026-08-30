@@ -7,9 +7,7 @@
 
 namespace Site {
 
-void AcLocalWatch::run(ProgramContext& c) { (void)c; }
-
-void AcLocalWatch::observe(ProgramContext& c) {
+void AcLocalWatch::run(ProgramContext& c) {
     if (c.first_scan) { supply.reset(); cranking.reset(); }
     const bool answered = supply();
 
@@ -19,5 +17,6 @@ void AcLocalWatch::observe(ProgramContext& c) {
     const bool waiting = !grid_ok.get() && !answered;
     gen_fault.set(cranking(waiting, 1000u * start_s.get(), c.dt_ms), true);
 }
+
 
 }  // namespace Site

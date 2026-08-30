@@ -66,7 +66,6 @@ protected:
     /** @brief Resolve every name. An output is CLAIMED here. */
     void bind(Vars::Bank& io) override;
     void run(ProgramContext& c) override;
-    void observe(ProgramContext& c) override;  ///< reports in EVERY state
     void on_bind();  ///< wire a block to a row it was handed
 };
 

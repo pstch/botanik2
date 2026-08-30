@@ -7,9 +7,7 @@
 
 namespace Site {
 
-void ClimateWatch::run(ProgramContext& c) { (void)c; }
-
-void ClimateWatch::observe(ProgramContext& c) {
+void ClimateWatch::run(ProgramContext& c) {
     // Rolled up from the four zones: "a sensor is faulty" is a fact about the
     // plant that a supervisor wants without knowing there are four of them.
     bool blind = false;
@@ -39,5 +37,6 @@ void ClimateWatch::observe(ProgramContext& c) {
     stratified.set(strat.valid() &&
                  strat.get() > strat_hi.get(), true);
 }
+
 
 }  // namespace Site

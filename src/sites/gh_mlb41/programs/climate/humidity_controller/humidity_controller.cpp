@@ -7,7 +7,26 @@
 
 namespace Site {
 
-void HumidityController::observe(ProgramContext& c) {
+
+void HumidityController::run(ProgramContext& c) {
+    (void)c;
+    // The ladder is a function of the margin, and a margin nobody has reads as
+    // the row's DECLARED one - a wet-ish 2 degC, which asks to dehumidify.
+    // That is the same direction the rot guard below fails toward, and
+    // for the same reason: ventilating costs energy, not ventilating costs the
+    // collection. What the quality says is that nobody measured it.
+    const bool measured = dp_margin.valid();
+
+    // Four bands and a dead zone, and the signed ladder IS that shape: below
+    // dehumStart the margin is closing on condensation (negative, dehumidify);
+    // above humidStart the air is drier than the plants want (positive); in
+    // between nothing moves.
+    demand.set(Plc::signed_ladder(dp_margin.get(),
+                                     dehum_full.get(),
+                                     dehum_start.get(),
+                                     humid_start.get(),
+                                     humid_full.get()), measured);
+
     if (!dp_margin.valid()) {
         // No margin, no verdict on it - and the guard fails toward acting:
         // ventilating costs energy, not ventilating costs the collection.
@@ -29,26 +48,6 @@ void HumidityController::observe(ProgramContext& c) {
     // outlives it, because humidifying into air that has only just dried out is
     // what puts the margin back where it was. Nothing is locked out at boot.
     lockout.set(lockout_for(rot.get(), 1000u * rot_release_s.get(), c.dt_ms), true);
-}
-
-void HumidityController::run(ProgramContext& c) {
-    (void)c;
-    // The ladder is a function of the margin, and a margin nobody has reads as
-    // the row's DECLARED one - a wet-ish 2 degC, which asks to dehumidify.
-    // That is the same direction the rot guard in observe() fails toward, and
-    // for the same reason: ventilating costs energy, not ventilating costs the
-    // collection. What the quality says is that nobody measured it.
-    const bool measured = dp_margin.valid();
-
-    // Four bands and a dead zone, and the signed ladder IS that shape: below
-    // dehumStart the margin is closing on condensation (negative, dehumidify);
-    // above humidStart the air is drier than the plants want (positive); in
-    // between nothing moves.
-    demand.set(Plc::signed_ladder(dp_margin.get(),
-                                     dehum_full.get(),
-                                     dehum_start.get(),
-                                     humid_start.get(),
-                                     humid_full.get()), measured);
 }
 
 }  // namespace Site

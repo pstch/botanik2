@@ -7,9 +7,7 @@
 
 namespace Site {
 
-void WeatherWatch::run(ProgramContext& c) { (void)c; }
-
-void WeatherWatch::observe(ProgramContext& c) {
+void WeatherWatch::run(ProgramContext& c) {
     // The VOTED rows, so this law sees the weather rather than a station.
     // Whether a station is missing is wx_sensors' verdict and its alarm; what
     // is left here is a reading nothing could vote at all.
@@ -40,5 +38,6 @@ void WeatherWatch::observe(ProgramContext& c) {
     const uint64_t mins = _dry_ms / 60000ull;
     since_rain.set((uint16_t)(mins > 65535ull ? 65535ull : mins), rain.valid());
 }
+
 
 }  // namespace Site

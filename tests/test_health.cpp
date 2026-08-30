@@ -311,7 +311,7 @@ namespace {
     /** @brief A program naming a row no table declares, so setup FAULTS it. */
     class Unwireable : public Botanik::Plc::Program {
     public:
-        uint16_t ran = 0, observed = 0;
+        uint16_t ran = 0;
 
         Unwireable(const Botanik::SetupContext& ctx, Vars::Bank& io)
             : Program(ctx, "unwireable", Botanik::Tasks::GROUP_FAST, io) {}
@@ -320,8 +320,7 @@ namespace {
         void bind(Vars::Bank& io) override {
             (void)io.resolve_in<float>("no_such_row_anywhere");
         }
-        void run(Botanik::ProgramContext&) override     { ran++; }
-        void observe(Botanik::ProgramContext&) override { observed++; }
+        void run(Botanik::ProgramContext&) override { ran++; }
     };
 }
 
@@ -464,7 +463,6 @@ TEST_CASE("health: a program setup could not wire is INVALID, and never runs") {
     INFO("its refs are inert sinks, so an activation would publish zeros that "
          "read exactly like readings");
     CHECK(bad.ran == 0);
-    CHECK(bad.observed == 0);
     CHECK(bad.health() == Plc::Health::INVALID);
 
 }

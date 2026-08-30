@@ -17,8 +17,6 @@ struct Rail {
     Vars::RefIn<uint16_t> avg_ms;
 };
 
-void DcWatch::run(ProgramContext& c) { (void)c; }
-
 static bool _rail(const Rail& r, uint32_t dt_ms, bool& seen) {
     // Averaged, then deadbanded: the first says what the rail is doing, the
     // second says when that is worth a write.
@@ -42,7 +40,7 @@ static bool _rail(const Rail& r, uint32_t dt_ms, bool& seen) {
     return volts >= r.lo.get();
 }
 
-void DcWatch::observe(ProgramContext& c) {
+void DcWatch::run(ProgramContext& c) {
     if (c.first_scan) {
         ps1_mean.reset(); ps1_band.reset();
         ps2_mean.reset(); ps2_band.reset();
@@ -79,5 +77,4 @@ void DcWatch::observe(ProgramContext& c) {
     // summary carries both: an operator reading one row wants the whole answer.
     ok.set(ps1 && ps2 && ups && gen && !low, true);
 }
-
 }  // namespace Site

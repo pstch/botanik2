@@ -67,7 +67,6 @@ protected:
     /** @brief Resolve every name. An output is CLAIMED here. */
     void bind(Vars::Bank& io) override;
     void run(ProgramContext& c) override;
-    void observe(ProgramContext& c) override;  ///< reports in EVERY state
 };
 
 inline void ClimateWatch::bind(Vars::Bank& io) {
