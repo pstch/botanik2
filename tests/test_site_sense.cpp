@@ -369,7 +369,7 @@ TEST_CASE("cooling: an unknown demand puts every actuator at its own safe state"
     Cycle cyc(progs, 4, &f.bank, f.reg);
     st.wire();
     struct { Site::StRuntime* st; Cycle* c;
-             void step(uint64_t n) { st->scan_slow(n); c->step(n); } } d{ &st, &cyc };
+             void step(uint64_t n) { st->scan(n); c->step(n); } } d{ &st, &cyc };
 
     // Everything else says GO: only the cooling ladder's two outputs are
     // missing, which is how they go - cooling HOLDS both together when it

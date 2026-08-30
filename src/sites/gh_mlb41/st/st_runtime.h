@@ -22,6 +22,7 @@ namespace Site {
 
         Botanik::Vars::Bank&  _io;
         Botanik::Vars::VarRef _dt_ref;    ///< sys_now_ms
+        unsigned long _tick = 0;
         bool _wired = false;
 
     public:
@@ -39,7 +40,7 @@ namespace Site {
         /** @brief Run the SLOW resource once, with the clock at @p now_ms.
          *  The beat calls this through the registry; a test calls it directly,
          *  because ST has no program object to hold a rig open on. */
-        void scan_slow(uint64_t now_ms);
+        void scan(uint64_t now_ms);
 
         /** @brief Bind the plant. Called by `on_setup()`; public so a test can
          *  wire without standing a whole firmware up. */
@@ -51,14 +52,12 @@ namespace Site {
         void on_setup(uint64_t now_ms) override;
 
     private:
-        /** @brief One per RESOURCE. Publishes this group's ACTUAL elapsed into
-         *  `sys_now_ms`, then runs the group's bodies.
-         *  @note The tick passed on is always 0: every resource declares the
-         *  base interval and compiles to `tick % 1`, so the RATE is this
-         *  registry entry's, not the ST's. Declaring it in both places is what
-         *  the single interval avoids. */
-        static void _run_slow(Botanik::Component* self,
-                              const Botanik::Tasks::Tick& t);
+        /** @brief Publishes the clock into `sys_now_ms`, then runs the plant.
+         *  @note Registered at `common_ticktime__`, and the tick counter is
+         *  what divides it: the TASK intervals in plant.st are the only place
+         *  a rate is declared. */
+        static void _run_plant(Botanik::Component* self,
+                               const Botanik::Tasks::Tick& t);
     };
 
 }  // namespace Site

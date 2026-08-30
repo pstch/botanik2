@@ -5,11 +5,15 @@
    nothing else. Every row's unit, band, digits, register, transport, timeout
    and enum renderer stay in vars.cpp, where matiec never sees them.
 
-   ONE RESOURCE PER RATE GROUP, each declaring the base tick, so every
-   resource compiles to `tick % 1` and runs whenever it is called. StRuntime
-   calls each at its group's real period through Tasks::Registry, which is
-   what keeps sys_now_ms the group's ACTUAL elapsed time and stops the period
-   being declared in two places. *)
+   ONE RESOURCE, and the TASK intervals are the real ones. matiec computes
+   their GCD as `common_ticktime__` and divides by it, so this file is the
+   single source of truth for what runs how often. StRuntime registers at
+   `common_ticktime__` and calls `config_run__(tick)`; nothing on the C++ side
+   picks a rate.
+
+   That works because a block reads the CLOCK rather than a delta: it
+   differences sys_now_ms against its own last reading, so it does not matter
+   which task it is on or whether our side knows the task ran. *)
 
 CONFIGURATION gh_mlb41
 
@@ -53,11 +57,13 @@ CONFIGURATION gh_mlb41
     sys_supply_lockout    : BOOL;
   END_VAR
 
-  RESOURCE slow ON OPTA
-    TASK beat (INTERVAL := T#10ms, PRIORITY := 1);
-    PROGRAM destrat WITH beat : destrat_controller;
-    PROGRAM roof    WITH beat : roof_lockout;
-    PROGRAM fans    WITH beat : fan_controller;
+  RESOURCE plc ON OPTA
+    TASK slow (INTERVAL := T#100ms, PRIORITY := 1);
+
+    (* Execution order within the beat is the order they appear here. *)
+    PROGRAM destrat WITH slow : destrat_controller;
+    PROGRAM roof    WITH slow : roof_lockout;
+    PROGRAM fans    WITH slow : fan_controller;
   END_RESOURCE
 
 END_CONFIGURATION

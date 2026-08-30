@@ -62,19 +62,21 @@ struct Plant {
     Site::CoolingController    cooling;
     Site::IntakeGates          intake_gates;
     Site::HumidityController   humidity;
-    /** @brief destrat_controller lives here now: it is ST, not a program. */
-    Site::StRuntime            st;
     Site::IntakeDryGate        intake_dry;
     Site::IrrigationModulation irr_mod;
     Site::IrrMtrInput          irr_in;
     Site::IrrMtrOutput         irr_out;
     Site::IrrigationSchedule   irr_schedule;
+
     Site::IrrigationCycle      irrigation;
     Site::IrrValves            irr_valves;
     Site::ScreenController     screen;
     Site::WindowsController    windows;
     Site::IntractorController  intractors;
     Site::SkirtController      skirt;
+    /** @brief The ST plant. LAST, because a ctor list runs in DECLARATION
+     *  order and this is initialised after every program beside it. */
+    Site::StRuntime            st;
 
     Plc::Program* all[30];   ///< room for the list below
     Cycle*        cycle = nullptr;
@@ -116,13 +118,13 @@ struct Plant {
 
     /** @brief Beats, at the site's own period. */
     void run(uint32_t beats) {
-        for (uint32_t i = 0; i < beats; i++) { t += 100; st.scan_slow(t); cycle->step(t); }
+        for (uint32_t i = 0; i < beats; i++) { t += 100; st.scan(t); cycle->step(t); }
     }
     /** @brief ...and the same, holding the environment where the case put it:
      *  a field row goes stale without a driver refreshing it. */
     void weather_for(uint32_t beats) {
         for (uint32_t i = 0; i < beats; i++) {
-            hold(*this); t += 100; st.scan_slow(t); cycle->step(t);
+            hold(*this); t += 100; st.scan(t); cycle->step(t);
         }
     }
 

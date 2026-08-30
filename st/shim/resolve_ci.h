@@ -28,10 +28,10 @@ namespace Botanik { namespace St {
      *  POU naming a row no site declares fails the same way one written in
      *  C++ does. */
     template <typename T>
-    Vars::Ref<T, Vars::Dir::INOUT> resolve_ci(Vars::Bank& io, const char* name) {
-        for (uint16_t i = 0; i < io.count(); i++)
-            if (same_folded(io.descriptor(i).name, name))
-                return io.resolve_inout<T>(io.descriptor(i).name);
+    Vars::Ref<T, Vars::Dir::INOUT> resolve_ci(Vars::Bank& bank, const char* name) {
+        for (uint16_t i = 0; i < bank.count(); i++)
+            if (same_folded(bank.descriptor(i).name, name))
+                return bank.resolve_inout<T>(bank.descriptor(i).name);
         return Vars::Ref<T, Vars::Dir::INOUT>();
     }
 

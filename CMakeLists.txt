@@ -231,11 +231,6 @@ if(BOTANIK_TARGET STREQUAL "SIMULATOR")
     # variables as members, so a local of the same name takes over silently.
     set_source_files_properties(${BOTANIK_SITE_SOURCES}
                                 PROPERTIES COMPILE_FLAGS "-Wshadow")
-    # The one TU that compiles matiec's output. Its warnings are not ours to
-    # fix - the file says "editing this file is not recommended" - and -Wshadow
-    # over generated C is pure noise.
-    set_source_files_properties("${_site_dir}/st/st_runtime.cpp"
-        PROPERTIES COMPILE_FLAGS "-Wno-unused-parameter -Wno-shadow -Wno-unused-function")
     add_executable(botanik_sim
         "src/botanik_sim/main.cpp"
         ${BOTANIK_SITE_SOURCES})

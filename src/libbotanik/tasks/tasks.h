@@ -125,7 +125,14 @@ namespace Botanik { namespace Tasks {
          *  @note The choice ITSELF lives on the Program - see
          *  Plc::Program::disable_requested(). One question, one answer. */
         /** @} */
-        TaskTimer   timer;                ///< period from the group, own offset
+        /** @brief This task's period, resolved at registration.
+         *
+         *  Seeded from the rate GROUP, which is what almost everything wants.
+         *  A task may state its own instead - the ST resource does, because
+         *  its period is `common_ticktime__`, a number matiec computed from
+         *  the TASK intervals and not one of ours to pick. */
+        uint32_t    period_ms = 0;
+        TaskTimer   timer;                ///< period from period_ms, own offset
         TaskCost    cost;
     };
 
@@ -180,6 +187,13 @@ namespace Botanik { namespace Tasks {
          *  once, however many phases it registered in. */
         bool add(Component& owner, void (*handler)(Component*, const Tick&),
                  const char* name, GroupId group, Phase phase);
+
+        /** @brief The same, at an explicit @p period_ms rather than the group's.
+         *  The group still names the entry's place in the stagger and on the
+         *  TASKS page. @p period_ms of 0 falls back to the group's. */
+        bool add_at(Component& owner, void (*handler)(Component*, const Tick&),
+                    const char* name, GroupId group, Phase phase,
+                    uint32_t period_ms);
 
         /** @brief The same, dispatching straight to @p owner's own hook for @p
          *  phase. What a component wants when its handler would be nothing but

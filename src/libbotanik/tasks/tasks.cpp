@@ -97,9 +97,19 @@ namespace Botanik { namespace Tasks {
         t.name  = name;
         t.group = group;
         t.phase = phase;
+        t.period_ms = group_period_ms(group);
         t.timer.set_offset(stagger_offset(rank, Config::TASK_PERIOD_MS,
                                           group_period_ms(group)));
         return &t;
+    }
+
+    bool Registry::add_at(Component& owner,
+                          void (*handler)(Component*, const Tick&),
+                          const char* name, GroupId group, Phase phase,
+                          uint32_t period_ms) {
+        if (!add(owner, handler, name, group, phase)) return false;
+        if (period_ms != 0) _tasks[_count - 1].period_ms = period_ms;
+        return true;
     }
 
     bool Registry::add(Component& owner, void (*handler)(Component*, const Tick&),
@@ -160,7 +170,7 @@ namespace Botanik { namespace Tasks {
             if (t.program != nullptr && t.program->is_invalid()) continue;
 
             uint32_t dt = 0; uint16_t missed = 0;
-            if (!t.timer.due(now_ms, group_period_ms(t.group), dt, missed)) continue;
+            if (!t.timer.due(now_ms, t.period_ms, dt, missed)) continue;
             t.timer.ran(now_ms);
 
             const uint64_t t0 = HAL::Clock::uptime_us();

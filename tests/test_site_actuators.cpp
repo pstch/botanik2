@@ -8,6 +8,10 @@
 
 #include "program_rig.h"
 
+/* matiec's, from the generated CONFIGURATION. Global, and declared without
+   extern "C" because the generated files compile as C++ here. */
+extern unsigned long long common_ticktime__;
+
 namespace site_programs {
 
 namespace {
@@ -27,6 +31,30 @@ protected:
 };
 
 }  // namespace
+
+TEST_CASE("scan: the ST plant runs at matiec's period, not at one we picked") {
+    // common_ticktime__ is the GCD of the TASK intervals in plant.st, so it
+    // MOVES the day a program joins on a faster task. Nothing on this side
+    // may assume its value: the registration reads it.
+    TestScan::Live live;
+    Site::StRuntime st(Botanik::SetupContext(live.reg), live.bank);
+    st.wire();
+    st.register_tasks();
+
+    const Tasks::Task* plant = nullptr;
+    for (uint8_t i = 0; i < live.reg.count(); i++)
+        if (strcmp(live.reg.task(i).name, "st.plant") == 0) plant = &live.reg.task(i);
+    REQUIRE(plant != nullptr);
+
+    INFO("the plant's period is matiec's number, whatever it currently is");
+    CHECK(plant->period_ms ==
+          (uint32_t)(common_ticktime__ / 1000000ULL));
+
+    INFO("and the beat has to be able to release it: a period that is not a "
+         "multiple of TASK_PERIOD_MS drifts rather than runs slow");
+    CHECK(plant->period_ms >= Config::TASK_PERIOD_MS);
+    CHECK(plant->period_ms % Config::TASK_PERIOD_MS == 0);
+}
 
 TEST_CASE_FIXTURE(StRig, "scan: an ST timer measures VIRTUAL time, whatever the beat size") {
     // The property the clock buys over a threaded dt: a block differences
@@ -126,7 +154,7 @@ struct RoofDrive {
           progs{ &win }, cyc(progs, 1, &f.bank, f.reg) { st.wire(); }
 
     void step(uint64_t now_ms) {
-        st.scan_slow(now_ms);
+        st.scan(now_ms);
         cyc.step(now_ms);
     }
 };
