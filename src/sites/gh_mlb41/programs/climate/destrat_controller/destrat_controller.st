@@ -1,80 +1,37 @@
-(* destrat_controller, as ST. Mirrors
-   src/sites/gh_mlb41/programs/climate/destrat_controller/. *)
+(* destrat_controller, as ST. STAIRCASE3 comes from
+   src/libbotanik/plc/blocks/analog.st - the library block, not a copy. *)
 
-FUNCTION_BLOCK STAIRCASE3
-VAR_INPUT
-  IN   : REAL;
-  LO   : REAL;
-  MED  : REAL;
-  HI   : REAL;
-  HYST : REAL;
-END_VAR
-VAR_OUTPUT
-  Q : USINT;
+PROGRAM destrat_controller
+(* VAR_EXTERNAL, so __INIT_EXTERNAL is the generated bind() and the body
+   reads and writes the bank with no copy in or out. *)
+VAR_EXTERNAL
+  cli_dTStrat_degC     : REAL;
+  cli_dTStratLow_degC  : REAL;
+  cli_dTStratMed_degC  : REAL;
+  cli_dTStratHigh_degC : REAL;
+  cli_dTStratHyst_degC : REAL;
+  cli_fanLowDem        : REAL;
+  cli_fanMedDem        : REAL;
+  cli_fanHighDem       : REAL;
+  cli_stratDem         : REAL;
 END_VAR
 VAR
-  band : USINT := 0;
-END_VAR
-  (* Each rung engages AT its gap and is released a hysteresis below it. *)
-  IF   IN >= HI  THEN band := 3;
-  ELSIF IN >= MED THEN band := 2;
-  ELSIF IN >= LO  THEN band := 1;
-  ELSIF IN <  LO - HYST THEN band := 0;
-  END_IF;
-  Q := band;
-END_FUNCTION_BLOCK
-
-PROGRAM destrat
-VAR_INPUT
-  strat    : REAL;
-  low      : REAL;
-  med      : REAL;
-  high     : REAL;
-  hyst     : REAL;
-  fan_low  : REAL;
-  fan_med  : REAL;
-  fan_high : REAL;
-END_VAR
-VAR_OUTPUT
-  demand : REAL;
-END_VAR
-VAR
+  (* A plain member, like Plc::Staircase3 is today. Its rung survives between
+     scans because the instance does, and it costs no row. *)
   bands : STAIRCASE3;
 END_VAR
-  bands(IN := strat, LO := low, MED := med, HI := high, HYST := hyst);
+  bands(IN   := cli_dTStrat_degC,   LO   := cli_dTStratLow_degC,
+        MED  := cli_dTStratMed_degC, HI  := cli_dTStratHigh_degC,
+        HYST := cli_dTStratHyst_degC);
+
+  (* The demand is the FANS' OWN rung for that speed. Any other number would
+     be translated twice, and the two ladders would drift apart the first time
+     one of them was retuned. *)
   CASE bands.Q OF
-    1: demand := fan_low;
-    2: demand := fan_med;
-    3: demand := fan_high;
+    1: cli_stratDem := cli_fanLowDem;
+    2: cli_stratDem := cli_fanMedDem;
+    3: cli_stratDem := cli_fanHighDem;
   ELSE
-    demand := 0.0;
+    cli_stratDem := 0.0;
   END_CASE;
 END_PROGRAM
-
-CONFIGURATION gh_mlb41
-  VAR_GLOBAL
-    cli_dTStrat_degC     : REAL;
-    cli_dTStratLow_degC  : REAL := 2.0;
-    cli_dTStratMed_degC  : REAL := 4.0;
-    cli_dTStratHigh_degC : REAL := 6.0;
-    cli_dTStratHyst_degC : REAL := 0.5;
-    cli_fanLowDem        : REAL := 0.3;
-    cli_fanMedDem        : REAL := 0.6;
-    cli_fanHighDem       : REAL := 1.0;
-    cli_stratDem         : REAL;
-  END_VAR
-
-  RESOURCE plc ON OPTA
-    TASK slow (INTERVAL := T#100ms, PRIORITY := 1);
-    PROGRAM destrat_inst WITH slow : destrat(
-        strat    := cli_dTStrat_degC,
-        low      := cli_dTStratLow_degC,
-        med      := cli_dTStratMed_degC,
-        high     := cli_dTStratHigh_degC,
-        hyst     := cli_dTStratHyst_degC,
-        fan_low  := cli_fanLowDem,
-        fan_med  := cli_fanMedDem,
-        fan_high := cli_fanHighDem,
-        demand   => cli_stratDem);
-  END_RESOURCE
-END_CONFIGURATION

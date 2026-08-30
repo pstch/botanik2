@@ -233,6 +233,7 @@ namespace Botanik { namespace Plc {
             _io->begin_writer(_slot);
             bind(*_io);
             _bind_health_row();
+            _dt_ref = _io->find("sys_dt_ms");
             _io->end_writer();
             if (_io->unresolved_count() != missed) invalidate();
             // The one place INVALID is decided. It outranks the INHIBITED a
@@ -284,6 +285,14 @@ namespace Botanik { namespace Plc {
          *  the private activation below. */
         static void _run_task(Component* c, const Tasks::Tick& t);
 
+        /** @brief `sys_dt_ms`, found by name at bring-up.
+         *
+         *  A bare `VarRef` and a framework write, deliberately: every program
+         *  writes this row, so claiming it as an output would fail the
+         *  double-claim check for all but the first. It belongs to the scan,
+         *  not to any one program. */
+        Vars::VarRef _dt_ref;
+
         void _activate(const Tasks::Tick& t) {
             if (_io == nullptr) return;
             // Nothing at all for a program setup could not wire: not run(),
@@ -298,6 +307,10 @@ namespace Botanik { namespace Plc {
             _late_ms = (t.dt_ms > p) ? (t.dt_ms - p) : 0;
 
             ProgramContext c = { t.now_ms, t.dt_ms, t.missed, t.first, *_io };
+            // Published before the body, so a program reads its OWN elapsed
+            // time. A generated ST law has no argument to take it from.
+            if (_dt_ref.index != Vars::VAR_NONE)
+                _io->var(_dt_ref).set_i((int64_t)t.dt_ms);
             // The window, not the program, says who is writing: a program cannot
             // name itself, and a write outside an activation claims nothing.
             _io->begin_writer(_slot);

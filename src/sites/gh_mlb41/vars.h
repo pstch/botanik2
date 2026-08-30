@@ -170,7 +170,7 @@ const uint16_t ROWS_COUNT = 0
 /** @brief Rows the library registers ahead of this site's, into the same
  *  table. A flat count, because this site turns every optional feature ON, and
  *  the guard above is what holds that true. */
-const uint16_t LIBRARY_ROWS = 65;
+const uint16_t LIBRARY_ROWS = 66;
 
 // register_vars() adds NONE of a segment that does not fit, so one row
 // past the limit costs a whole table: an empty field-bus plan and a
