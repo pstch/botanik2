@@ -29,7 +29,7 @@ namespace Site {
 
     void StRuntime::wire() {
         g_st_io = &_io;
-        _dt_ref = _io.find("sys_dt_ms");
+        _dt_ref = _io.find("sys_now_ms");
 
         // One window for the whole plant: config_init__() reaches every POU's
         // binding, and ST has no per-program bracket to open a narrower one in.
@@ -46,16 +46,16 @@ namespace Site {
     }
 
     void StRuntime::_run_slow(Component* self, const Tasks::Tick& t) {
-        static_cast<StRuntime*>(self)->scan_slow(t.dt_ms);
+        static_cast<StRuntime*>(self)->scan_slow(t.now_ms);
     }
 
-    void StRuntime::scan_slow(uint32_t dt_ms) {
+    void StRuntime::scan_slow(uint64_t now_ms) {
         if (!_wired) return;
-        // This GROUP's elapsed time, published before any body reads it. The
-        // row is written by whichever group is about to run, so last-writer-
-        // wins is the contract here rather than a smell.
+        // The CLOCK, published before any body reads it. Every block
+        // differences it against its own last reading, so one row serves every
+        // rate and nothing here has to know which programs are about to run.
         if (_dt_ref.index != Vars::VAR_NONE)
-            _io.var(_dt_ref).set_i((int64_t)dt_ms);
+            _io.var(_dt_ref).set_i((int64_t)(uint32_t)now_ms);
         _io.begin_writer(Vars::WRITER_ST);
         SLOW_run__(0);
         _io.end_writer();

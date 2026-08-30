@@ -368,9 +368,8 @@ TEST_CASE("cooling: an unknown demand puts every actuator at its own safe state"
     Plc::Program* const progs[] = { &win, &intr, &scr, &sk };
     Cycle cyc(progs, 4, &f.bank, f.reg);
     st.wire();
-    struct { Site::StRuntime* st; Cycle* c; uint64_t last;
-             void step(uint64_t n) { st->scan_slow((uint32_t)(n - last));
-                                     last = n; c->step(n); } } d{ &st, &cyc, 0 };
+    struct { Site::StRuntime* st; Cycle* c;
+             void step(uint64_t n) { st->scan_slow(n); c->step(n); } } d{ &st, &cyc };
 
     // Everything else says GO: only the cooling ladder's two outputs are
     // missing, which is how they go - cooling HOLDS both together when it
@@ -410,18 +409,18 @@ TEST_CASE("cooling: an unknown demand puts every actuator at its own safe state"
     CHECK(st.wired());
 }
 
-TEST_CASE_FIXTURE(StRig, "scan: sys_dt_ms is the elapsed time of the group running now") {
-    // The one thing a C++ law takes as an ARGUMENT that ST has no way to be
-    // handed: a POU reads variables, so dt has to be one. Written by the
-    // Program base just before each body, which is what makes it the running
-    // program's own elapsed time rather than the beat's.
-    const VarRef dt = live.ref("sys_dt_ms");
-    REQUIRE(dt.index != Vars::VAR_NONE);
+TEST_CASE_FIXTURE(StRig, "scan: sys_now_ms is the clock, and a block differences it itself") {
+    // A C++ law is HANDED dt through ProgramContext; ST has no argument to be
+    // handed anything, so the scan publishes a clock and each block keeps its
+    // own last reading. One row serves every rate, and it is the simulator's
+    // virtual clock, so accelerated time works unchanged.
+    const VarRef now = live.ref("sys_now_ms");
+    REQUIRE(now.index != Vars::VAR_NONE);
 
     d.step(100);
+    CHECK(live.bank.var(now).value().as<uint32_t>() == 100u);
     d.step(700);
-    INFO("600 ms since THIS program last ran, not the beat period");
-    CHECK(live.bank.var(dt).value().as<uint32_t>() == 600u);
+    CHECK(live.bank.var(now).value().as<uint32_t>() == 700u);
 }
 
 TEST_CASE_FIXTURE(StRig, "destrat: an unmeasured gap makes the demand unknown, not zero") {

@@ -235,7 +235,7 @@ if(BOTANIK_TARGET STREQUAL "SIMULATOR")
     # fix - the file says "editing this file is not recommended" - and -Wshadow
     # over generated C is pure noise.
     set_source_files_properties("${_site_dir}/st/st_runtime.cpp"
-        PROPERTIES COMPILE_FLAGS "-Wno-unused-parameter -Wno-shadow")
+        PROPERTIES COMPILE_FLAGS "-Wno-unused-parameter -Wno-shadow -Wno-unused-function")
     add_executable(botanik_sim
         "src/botanik_sim/main.cpp"
         ${BOTANIK_SITE_SOURCES})

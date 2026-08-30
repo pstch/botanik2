@@ -15,12 +15,13 @@ FUNCTION_BLOCK EWMA
 VAR_INPUT
   X     : REAL;
   TAU_S : REAL;
-  DT_MS    : UDINT;   (* ms *)
+  NOW   : UDINT;   (* sys_now_ms: the scan clock, not an elapsed time *)
 END_VAR
 VAR_OUTPUT
   Y : REAL;
 END_VAR
 VAR
+  last   : UDINT;
   seeded : BOOL := FALSE;
 END_VAR
 VAR_TEMP
@@ -28,12 +29,18 @@ VAR_TEMP
   alpha : REAL;
 END_VAR
   IF NOT seeded THEN
+    (* Starts AT its first reading rather than climbing to it from zero. The
+       clock is adopted with it, so the first real interval is the second
+       scan's and never the time since boot. *)
     Y := X;
+    last := NOW;
     seeded := TRUE;
   ELSIF TAU_S <= 0.0 THEN
     Y := X;
+    last := NOW;
   ELSE
-    dt_s  := UDINT_TO_REAL(DT_MS) / 1000.0;
+    dt_s  := UDINT_TO_REAL(NOW - last) / 1000.0;
+    last  := NOW;
     alpha := dt_s / (TAU_S + dt_s);
     Y := Y + alpha * (X - Y);
   END_IF;

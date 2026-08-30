@@ -8,7 +8,7 @@
    ONE RESOURCE PER RATE GROUP, each declaring the base tick, so every
    resource compiles to `tick % 1` and runs whenever it is called. StRuntime
    calls each at its group's real period through Tasks::Registry, which is
-   what keeps sys_dt_ms the group's ACTUAL elapsed time and stops the period
+   what keeps sys_now_ms the group's ACTUAL elapsed time and stops the period
    being declared in two places. *)
 
 CONFIGURATION gh_mlb41
@@ -49,7 +49,7 @@ CONFIGURATION gh_mlb41
     cli_windowCap         : REAL;
     cli_windowLockout     : BOOL;
     irr_state             : USINT;
-    sys_dt_ms             : UDINT;
+    sys_now_ms             : UDINT;
     sys_supply_lockout    : BOOL;
   END_VAR
 

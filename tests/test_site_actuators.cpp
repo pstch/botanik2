@@ -28,6 +28,37 @@ protected:
 
 }  // namespace
 
+TEST_CASE_FIXTURE(StRig, "scan: an ST timer measures VIRTUAL time, whatever the beat size") {
+    // The property the clock buys over a threaded dt: a block differences
+    // sys_now_ms against its OWN last reading, so it is rate-independent. The
+    // simulator accelerates by advancing the virtual clock faster in real
+    // time, never by changing the step, so this is also what makes a
+    // greenhouse day in a minute give the same answers as a greenhouse day.
+    Vars::RefIn<bool> lock = live.bank.resolve_in<bool>("cli_rainLockout");
+    const uint32_t hold_ms =
+        1000u * live.bank.var(live.ref("cli_rainLockout_sec")).value().as<uint32_t>();
+
+    // Released between the last beat before the overrun and the first after
+    // it: a step can only ever land on one side or the other.
+    uint64_t t = 0;
+    for (uint32_t step : { 100u, 700u }) {
+        live.bank.var(live.ref("cli_rain_mmph_qlt")).publish(from_bool(T_BOOL, true), t);
+        live.bank.var(live.ref("cli_wind_mps_qlt")).publish(from_bool(T_BOOL, true), t);
+        live.bank.var(live.ref("cli_rain_mmph")).publish(from_f32(T_F32, 0.4f), t);
+        d.step(t += step);
+        REQUIRE(live.bank.get(lock));
+
+        live.bank.var(live.ref("cli_rain_mmph")).publish(from_f32(T_F32, 0.0f), t);
+        const uint64_t stopped = t;
+        while (live.bank.get(lock) && t - stopped < 2 * hold_ms) d.step(t += step);
+
+        const uint64_t elapsed = t - stopped;
+        INFO("released after ", (unsigned)elapsed, " ms with a ", step, " ms beat");
+        CHECK(elapsed >= hold_ms);
+        CHECK(elapsed < hold_ms + step);
+    }
+}
+
 TEST_CASE_FIXTURE(StRig, "fans: an unknown gap floors them at their safe state, not at rest") {
     interlocks_clear(live);
 
@@ -88,7 +119,6 @@ struct RoofDrive {
     Site::WindowsController win;
     Plc::Program*           progs[1];
     Cycle                   cyc;
-    uint64_t                last = 0;
 
     explicit RoofDrive(Live& f)
         : st(Botanik::SetupContext(f.reg), f.bank),
@@ -96,8 +126,7 @@ struct RoofDrive {
           progs{ &win }, cyc(progs, 1, &f.bank, f.reg) { st.wire(); }
 
     void step(uint64_t now_ms) {
-        st.scan_slow((uint32_t)(now_ms - last));
-        last = now_ms;
+        st.scan_slow(now_ms);
         cyc.step(now_ms);
     }
 };

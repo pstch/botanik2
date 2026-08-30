@@ -138,11 +138,7 @@ struct StRig {
 
     struct Driver {
         Site::StRuntime* st = nullptr;
-        uint64_t last = 0;
-        void step(uint64_t now_ms) {
-            st->scan_slow((uint32_t)(now_ms - last));
-            last = now_ms;
-        }
+        void step(uint64_t now_ms) { st->scan_slow(now_ms); }
     } d;
 };
 
@@ -201,8 +197,7 @@ struct RoofRig {
         Cycle*           cycle = nullptr;
         uint64_t         last = 0;
         void step(uint64_t now_ms) {
-            st->scan_slow((uint32_t)(now_ms - last));
-            last = now_ms;
+            st->scan_slow(now_ms);
             cycle->step(now_ms);
         }
     } d;

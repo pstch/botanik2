@@ -116,13 +116,13 @@ struct Plant {
 
     /** @brief Beats, at the site's own period. */
     void run(uint32_t beats) {
-        for (uint32_t i = 0; i < beats; i++) { st.scan_slow(100); cycle->step(t += 100); }
+        for (uint32_t i = 0; i < beats; i++) { t += 100; st.scan_slow(t); cycle->step(t); }
     }
     /** @brief ...and the same, holding the environment where the case put it:
      *  a field row goes stale without a driver refreshing it. */
     void weather_for(uint32_t beats) {
         for (uint32_t i = 0; i < beats; i++) {
-            hold(*this); st.scan_slow(100); cycle->step(t += 100);
+            hold(*this); t += 100; st.scan_slow(t); cycle->step(t);
         }
     }
 

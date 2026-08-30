@@ -39,12 +39,14 @@ const Descriptor library_vars[] = {
 #if BOTANIK_FEATURE_MODBUS_RTU_CLIENT
     A("alarm_fieldbus_line", "BUS_LINE", 0, 5 , 0         , 0, 998, "the whole segment has gone quiet", "the trunk, the termination, this unit's transceiver, or a second master - not twenty devices that failed at once"),
     A("alarm_io_drop"      , "IO_DROP" , 0, -1, 30*24*3600, 0, 999, "a field row is never scanned", "the planner could not place it: the device model's limits, or more rows than the plan holds. It is a signal that will never be read"),
-    /* The elapsed time of the program RUNNING NOW, written by
-     * Plc::Program::_activate() just before its body. A scan-local, and the
-     * one thing a C++ law takes as an argument that ST has no way to be
-     * handed: a POU reads variables, so dt has to be one. Outside an
-     * activation it holds whichever program ran last. */
-    SV("sys_dt_ms"          , T_U32, 0, 0, "ms", 906, "elapsed ms of the program now running", "written before each program body; ST reads it where C++ takes ProgramContext::dt_ms"),
+    /* The scan CLOCK, not an elapsed time. A C++ law is handed dt through
+     * ProgramContext; ST has no argument to be handed anything, so a block
+     * reads this and keeps its own last value. That makes it rate-independent
+     * - the same block works on any task - and it is the simulator's VIRTUAL
+     * clock, so accelerated time works unchanged.
+     * Wraps at 2^32 ms, about 49 days: unsigned subtraction carries it, and
+     * no block goes that long between scans. */
+    SV("sys_now_ms"         , T_U32, 0, 0, "ms", 906, "the scan clock, milliseconds since boot", "ST blocks difference it themselves; wraps at ~49 days and unsigned subtraction carries it"),
     SV("sys_fieldbus_dead"  , T_U16, 0, 0, "", 902, "field devices not answering", "0 when every planned device is talking"),
     SV("sys_fieldbus_crc"   , T_U16, 0, 0, "", 903, "frames that failed their checksum", "rising means the line: termination, stub length, or the wrong baud"),
     SV("sys_fieldbus_stray" , T_U16, 0, 0, "", 904, "bytes that arrived out of turn", "rising means a second master, a duplicate address, or a device answering after its turn had passed"),
