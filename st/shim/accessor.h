@@ -6,26 +6,35 @@
  *  never touches storage directly, so replacing the header is what makes its
  *  output address OUR rows instead of its own `{value, flags}` structs.
  *
- *  A POU's `_data__` struct becomes a struct of typed references. `bind()` is
- *  what fills them, exactly as a hand-written program's does.
+ *  Two kinds of variable, and the split is the whole design: VAR_EXTERNAL
+ *  becomes a `Ref` into the bank and `__INIT_EXTERNAL` is the generated
+ *  `bind()`; everything internal to a POU stays a plain member.
  */
 #include "libbotanik/vars/model.h"
 #include "st/shim/iec_std_lib.h"
 
-/* Direction is not in the macro - matiec separates IN/OUT in the STRUCT
- * COMMENT, not the declaration - so every reference is declared VAR_IN_OUT.
- * A POU may read its own output, and the writer check still catches two
- * programs driving one row. */
-#define __DECLARE_VAR(type, name) \
-    ::Botanik::Vars::Ref< type, ::Botanik::Vars::Dir::INOUT > name;
+/** @name POU-internal variables - plain members, never rows
+ *
+ *  VAR, VAR_TEMP and a FUNCTION_BLOCK's VAR_INPUT/VAR_OUTPUT are internal to
+ *  the POU: nothing outside names them, nothing displays them, no transport
+ *  carries them. So they are ordinary C++ members, exactly as `Plc::Tof` has
+ *  them today - no row, no descriptor, no pool.
+ *
+ *  Only VAR_EXTERNAL becomes a `Ref`, because only it names a row the site
+ *  declares. That split is what removes the anonymous-row problem entirely.
+ *  @{ */
 
-/* Initialisation is bind()'s, not the body's: a row's value comes from the
- * table's declared default and its quality from whoever last wrote it. */
-#define __INIT_VAR(name, initial, retained)  do { (void)(initial); } while (0);
-
-#define __GET_VAR(name, ...)        ((name) __VA_ARGS__).get()
+#define __DECLARE_VAR(type, name)            type name;
+#define __INIT_VAR(name, initial, retained)  (name) = (initial);
+#define __GET_VAR(name, ...)                 ((name) __VA_ARGS__)
 #define __SET_VAR(prefix, name, suffix, new_value) \
-    (prefix name suffix).set((new_value), true)
+    (prefix name suffix) = (new_value)
+#define __GET_VAR_BY_REF(name, ...)          (&((name) __VA_ARGS__))
+#define __GET_VAR_REF(name, ...)             (&((name) __VA_ARGS__))
+#define __GET_VAR_DREF(name, ...)            (*((name) __VA_ARGS__))
+#define __INITIAL_VALUE(...)                 __VA_ARGS__
+
+/** @} */
 
 #define __BOOL_LITERAL(v)   ((BOOL)(v))
 #define __REAL_LITERAL(v)   ((REAL)(v))
@@ -37,5 +46,42 @@
 #define __UINT_LITERAL(v)   ((UINT)(v))
 #define __UDINT_LITERAL(v)  ((UDINT)(v))
 #define __TIME_LITERAL(v)   ((TIME)(v))
+
+
+/** @name VAR_EXTERNAL - the path that generates bind()
+ *
+ *  A POU declaring `VAR_EXTERNAL` reads and writes the global DIRECTLY:
+ *  matiec emits no copy in or out, and the resource body is one call. The
+ *  formal-parameter connection list does not work here - it emits a raw `=`
+ *  between a value and matiec's own `{value, flags}` struct, which does not
+ *  compile against matiec's own runtime either.
+ *
+ *  `__INIT_EXTERNAL` is the whole of `bind()`: one resolve per row, at setup.
+ *  IEC is case-insensitive and matiec upper-cases every identifier, so the
+ *  resolve folds case. All 425 site rows stay unique under folding.
+ *  @{ */
+
+#define __DECLARE_EXTERNAL(type, name) \
+    ::Botanik::Vars::Ref< type, ::Botanik::Vars::Dir::INOUT > name;
+
+/* The row already exists in the site's table, so a VAR_GLOBAL declares
+ * nothing. It only has to name itself for __INIT_EXTERNAL to find. */
+#define __DECLARE_GLOBAL(type, domain, name) \
+    static const char* const GLOBAL_NAME__##name = #name;
+#define __INIT_GLOBAL(type, name, initial, retained)  do { } while (0);
+#define __DECLARE_GLOBAL_LOCATION(type, location)
+#define __INIT_RETAIN(name, retained)
+
+#define __INIT_EXTERNAL(type, global, name, retained) \
+    (name) = ::Botanik::St::resolve_ci< type >(BOTANIK_ST_IO, #global);
+
+/* A Ref carries its store, so only the RESOLVE needs to be told which bank.
+ * Reads and writes go through the reference, exactly as a C++ law writes
+ * them - which is the point: the generated body is our own spelling. */
+#define __GET_EXTERNAL(name, ...)   (name).get()
+#define __SET_EXTERNAL(prefix, name, suffix, new_value) \
+    (prefix name).set((new_value), true)
+
+/** @} */
 
 #endif
