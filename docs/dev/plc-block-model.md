@@ -86,6 +86,29 @@ cross-build, and re-pins `libbotanik_sizes.h` on both targets.
 
 Nothing uses it yet. Landing it alone keeps the diff readable.
 
+**An allocated row costs about four times a declared one, and the reason is
+where its descriptor lives.** Measured, both ways:
+
+| | slot | descriptor | index + row map | total |
+|---|---|---|---|---|
+| declared row | 32 | 0, it is in FLASH | 4 | **36 B** |
+| allocated local | 32 | 104, it must be in RAM | 4 | **~140 B** |
+
+`Bank::_desc_phys()` resolves through `_seg[]`, which are `const Descriptor*`
+into the site's `constexpr` array - so a declared row's 104-byte descriptor
+never enters RAM. An allocated row has no flash array to point into, so the
+pool needs a writable `Descriptor` array beside the slots. The 36 B figure is
+the one confirmed by the companion work: `VAR_MAX` 512 to 544 moved
+`Vars::Bank` by exactly 1152 bytes.
+
+The consequence is a rule, not a reason to drop the pool: **where a row could
+be either, declare it.** The eleven `_qlt` companions are declared and cost
+396 bytes; the same eleven allocated would cost 1.5 KB. The pool earns its
+place only for what genuinely cannot be declared - an intermediate wire between
+two blocks, which has no name a site would want on a page. And the earlier
+count says there are about 14 of those, not 100, so size the pool from that
+rather than from the upper bound.
+
 ### Stage 3 - composite blocks take their interface as rows
 
 The four site blocks already hold a `Refs` struct (`AcSupplyRefs`,
@@ -135,8 +158,10 @@ bytes and buys nothing for a value read once, two lines down.
 | declared `Vars::Ref` members in programs | 272 |
 | call sites of the `Ref` surface | ~450 |
 
-`VAR_MAX` goes 512 to about 650. The pool costs roughly 5-6 KB of RAM; stage 1
-gives about 1 KB of it back. Net around +5 KB on the bank's 19.7.
+`VAR_MAX` goes 512 to about 650. A pool sized for the ~14 intermediates that
+really need one costs about 2 KB at the measured 140 bytes an allocated row;
+stage 1 gives about 1 KB of it back. Net around +1 KB on the bank's 19.7,
+against the +5 KB this table first estimated off the 100-row upper bound.
 
 ## 4. Risks
 
