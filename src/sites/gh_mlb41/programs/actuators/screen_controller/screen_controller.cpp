@@ -43,28 +43,20 @@ void ScreenController::run(ProgramContext& c) {
         fabric.preset(1.0f);
     }
 
-    // Safe is DEPLOYED. A greenhouse nobody is controlling loses heat through
-    // the roof all night, and the fabric is what stops it. Free, too: the coil
-    // is de-energised there.
-    bool deploy = true;
-    {
-        // An unknown cooling demand DEPLOYS it: that is this one's safe state,
-        // and it should never be reached - the interior is measured by three
-        // probes at each of two levels precisely so that it is not.
-        const bool dem_ok = cool_dem.valid();
+    // An unknown cooling demand DEPLOYS it: that is this one's safe state, and
+    // a greenhouse nobody can see loses heat through the roof all night. Free,
+    // too - the fabric deploys on the de-energised coil.
+    const bool dem_ok = cool_dem.valid();
 
-        // No dead band on this one, and none is needed: the permission table
-        // above makes every phase ONE-DIRECTIONAL, so a demand sitting on the
-        // rung can move the fabric at most once per phase whatever it does
-        // afterwards.
-        const bool cold = !dem_ok || cool_dem.get() <= deploy_dem.get();
-        // The phase gives PERMISSION, the demand asks for the move - and
-        // nothing else does. Denied, the command STANDS, read back off the row
-        // an operator can force rather than off a copy of it here.
-        const DayPhase now = (DayPhase)phase.get();
-        deploy = _allows(now, cold) ? cold : screen.get();
-    }
-    screen.set(deploy, true);
+    // No dead band on this one, and none is needed: the permission table above
+    // makes every phase ONE-DIRECTIONAL, so a demand sitting on the rung can
+    // move the fabric at most once per phase whatever it does afterwards.
+    const bool cold = !dem_ok || cool_dem.get() <= deploy_dem.get();
+    // The phase gives PERMISSION, the demand asks for the move - and nothing
+    // else does. Denied, the command STANDS, read back off the row an operator
+    // can force rather than off a copy of it here.
+    const DayPhase now = (DayPhase)phase.get();
+    screen.set(_allows(now, cold) ? cold : screen.get(), true);
 
 }
 

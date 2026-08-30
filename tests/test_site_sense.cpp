@@ -520,6 +520,37 @@ TEST_CASE_FIXTURE(Rig<Site::WeatherWatch>,
     CHECK(live.bank.get(storm));
 }
 
+TEST_CASE_FIXTURE(Rig<Site::AcGridWatch>,
+                  "grid: the meter's readings are mirrored, and judged") {
+    // Every one of these comes out of AcSupply::step(), which the program
+    // drives once per beat. A law that never called it published a supply
+    // that was always in spec and never faulted, on any wiring at all.
+    const VarRef ok  = live.ref("sys_grid_ok");
+    const VarRef flt = live.ref("alarm_ac_grid");
+    const VarRef v   = live.ref("sys_grid_V");
+
+    const float lo = live.bank.var(live.ref("pwr_gridLo_V")).as_f32();
+    const float hi = live.bank.var(live.ref("pwr_gridHi_V")).as_f32();
+    REQUIRE(hi > lo);
+    const float good = 0.5f * (lo + hi);
+
+    field(live, "grid_LN_V", good);
+    field(live, "grid_Hz", 50.0f);
+    field(live, "grid_total_A", 12.0f);
+    d.step(100);
+    INFO("in spec: the verdict says so and the mirror carries the reading");
+    CHECK(live.bank.var(ok).as_bool());
+    CHECK_FALSE(live.bank.var(flt).as_bool());
+    CHECK(live.bank.var(v).as_f32() == doctest::Approx(good).epsilon(0.02));
+
+    INFO("...and out of it, both move - which is the whole of what this "
+         "program is for");
+    field(live, "grid_LN_V", lo - 10.0f, 200);
+    d.step(200);
+    CHECK_FALSE(live.bank.var(ok).as_bool());
+    CHECK(live.bank.var(flt).as_bool());
+}
+
 TEST_CASE_FIXTURE(Rig<Site::WxSensors>,
                   "wx: the voted rows carry a TCP register the stations' own do not") {
     // Nothing controls on irradiance, but the field rows are SCOPE_MI and so
