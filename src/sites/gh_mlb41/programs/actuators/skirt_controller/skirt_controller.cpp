@@ -12,7 +12,7 @@ void SkirtController::run(ProgramContext& c) {
     // never do, so the lockout is resolved before any demand - and before the
     // pulse phase, which starts again from shut.
     if (rot_lock.get()) {
-        pulse.park();
+        pulse(ValveCmd::parked());
         pulse.reset();
         duty.set(0.0f, true);
         return;
@@ -29,9 +29,9 @@ void SkirtController::run(ProgramContext& c) {
                            ? Plc::ladder(cool_dem.get(), cool_start.get(), 1.0f)
                            : 0.0f;
 
-    const float on_time = pulse.modulate((humid > cool) ? humid : cool,
-                                         1000u * period_s.get(),
-                                         1000u * min_on_s.get(), c.dt_ms);
+    const float on_time = pulse(ValveCmd::pulse((humid > cool) ? humid : cool,
+                                               1000u * period_s.get(),
+                                               1000u * min_on_s.get(), c.dt_ms));
     duty.set(on_time, true);
 }
 

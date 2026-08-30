@@ -21,6 +21,19 @@ namespace Botanik { namespace Plc {
      *  members are protected: not a thing to instantiate, and the non-virtual
      *  destructor is not a thing to delete through. */
     class Block {
+    public:
+        /** @brief Drop whatever this block remembers about the recent past.
+         *
+         *  Called from a program's first scan: not having been activated means
+         *  it stopped watching, and a dwell that was counting an outage nobody
+         *  saw is worse than one starting again.
+         *
+         *  A no-op here, and shadowed - not overridden - by a block with state.
+         *  A stateless block has nothing to drop and needs no code to say so,
+         *  and a virtual would put a vptr on every block instance for a call
+         *  nothing makes through a base pointer. */
+        void reset() {}
+
     protected:
         Block() = default;
         ~Block() = default;
