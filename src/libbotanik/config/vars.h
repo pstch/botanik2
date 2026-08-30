@@ -105,7 +105,17 @@ namespace Botanik { namespace Config {
 #ifndef BOTANIK_ANALOG_ROWS_MAX
 #  define BOTANIK_ANALOG_ROWS_MAX 32
 #endif
+
+/** @brief How many `X_qlt` companions of TRANSPORT-fed rows the mirror can
+ *  hold. One entry per field row a site chose to expose to a law that cannot
+ *  ask the bank - which is every ST law. Four bytes each.
+ *  @note Only field rows count. A derived row's companion is written by the
+ *  program that computes it and never enters this table. */
+#ifndef BOTANIK_QUALITY_MIRROR_MAX
+#  define BOTANIK_QUALITY_MIRROR_MAX 64
+#endif
     BOTANIK_CFG(uint8_t, ANALOG_ROWS_MAX);
+    BOTANIK_CFG(uint16_t, QUALITY_MIRROR_MAX);
 
     /** @} */
 

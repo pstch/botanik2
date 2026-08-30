@@ -24,6 +24,7 @@ namespace Botanik {
           _io(_setup),
           // Parameters come from local storage; the bank owns the store.
           _param_store(),
+          _qmirror(_setup, _io),
           _binder(_setup, &_io),
 #endif
           // The alarm model scans the variable table for SCOPE_A rows;
@@ -150,6 +151,10 @@ namespace Botanik {
         Vars::register_library_vars(_io);
         register_vars();
         _io.freeze();
+        // Pairs each `X_qlt` with its field row. After freeze(), because
+        // freeze() is what compacts a redeclared row out and settles the
+        // indices a pair holds.
+        _qmirror.wire();
         // The bank holds the store: it is what reads and writes variables, and
         // Bank::on_setup() loads the image from it in the setup pass below.
         _io.set_store(&_param_store, &_logger);
@@ -359,6 +364,10 @@ namespace Botanik {
 #endif
 #if BOTANIK_FEATURE_VARS
         _io.register_tasks();
+        // AFTER the bank's expiry sweep: a row that just aged out is invalid
+        // only once that has run, and a companion copied before it would be a
+        // beat stale on exactly the transition that matters.
+        _qmirror.register_tasks();
 
         // --- CONFIG: a commit reaches its component ---
         _binder.register_tasks();

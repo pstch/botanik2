@@ -210,6 +210,49 @@ namespace {
     }
 }
 
+TEST_CASE_FIXTURE(SiteBank, "vars: a field row's quality reaches its companion") {
+    // A C++ law asks the bank whether a reading is believable. ST has no way
+    // to ask anything, so for a FIELD row the answer has to BE a row, and the
+    // bank is what puts it there - never a program, which has nothing to copy.
+    Botanik::Tasks::Registry reg;
+    Vars::QualityMirror m(Botanik::SetupContext(reg), bank);
+    m.wire();
+    REQUIRE(m.pairs() > 0);
+    REQUIRE(m.refused() == 0);
+
+    const Vars::VarRef probe = bank.find("cli_temp_hi1");
+    const Vars::VarRef qlt   = bank.find("cli_temp_hi1_qlt");
+    REQUIRE(probe.index != Vars::VAR_NONE);
+    REQUIRE(qlt.index != Vars::VAR_NONE);
+
+    bank.var(probe).publish(Vars::from_f32(Vars::T_F32, 21.5f), 1000);
+    m.scan();
+    CHECK(bank.var(qlt).as_bool());
+
+    INFO("and it follows the row down: a probe that stops answering is what "
+         "the companion is for");
+    bank.var(probe).invalidate(Vars::Q_NO_DATA);
+    m.scan();
+    CHECK_FALSE(bank.var(qlt).as_bool());
+}
+
+TEST_CASE_FIXTURE(SiteBank, "vars: a DERIVED row's companion is not mirrored") {
+    // cli_temp_in_qlt is temp_rh_zone's verdict about a number it computed.
+    // Nothing measured it, so there is no quality to copy, and mirroring it
+    // would overwrite the law that owns it.
+    Botanik::Tasks::Registry reg;
+    Vars::QualityMirror m(Botanik::SetupContext(reg), bank);
+    m.wire();
+
+    const Vars::VarRef derived = bank.find("cli_temp_in_qlt");
+    REQUIRE(derived.index != Vars::VAR_NONE);
+    bank.var(derived).set(true);
+    bank.var(bank.find("cli_temp_in")).invalidate(Vars::Q_NO_DATA);
+    m.scan();
+    INFO("the law's verdict stands: the mirror never touched it");
+    CHECK(bank.var(derived).as_bool());
+}
+
 TEST_CASE("site: no two rows claim the same Modbus register") {
     // Registers are hand-assigned so inserting a row never renumbers the
     // map; nothing else catches a duplicate.

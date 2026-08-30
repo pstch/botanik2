@@ -47,6 +47,7 @@
 #include "libbotanik/vars/access.h"
 #include "libbotanik/vars/bindings.h"
 #include "libbotanik/vars/model.h"
+#include "libbotanik/vars/quality_mirror.h"
 #include "libbotanik/vars/params.h"
 #include "libbotanik/vars/vars.h"
 
@@ -136,6 +137,9 @@ namespace Botanik {
         /** @brief The one bridge from the table to a component's own config
          *  struct. Bindings are added in the ctor body, once every component
          *  exists. @see vars/bindings.h */
+        /** @brief Publishes a field row's quality into its `_qlt` companion,
+         *  for laws that cannot ask the bank. @see Vars::QualityMirror */
+        Vars::QualityMirror            _qmirror;
         Vars::ConfigBinder             _binder;
 #endif
 #if BOTANIK_FEATURE_SUN_TRACKER

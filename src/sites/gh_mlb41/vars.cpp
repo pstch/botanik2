@@ -439,6 +439,13 @@ const Descriptor rows[] = {
     // shut a roof, reset an integrator, decline to judge - which no value
     // substitution can express. Every other law takes the row's declared value
     // and is done. Each declares FALSE, so nothing is believed until measured.
+    // FIELD companions: written by Vars::QualityMirror from the row's own
+    // quality each beat, never by a program. A law that cannot ask the bank -
+    // which is every ST law - reads these instead.
+    SV("cli_temp_hi1_qlt"       , T_BOOL, 0          , 0, ""    , 625, "probe 1 believable", "mirrored from cli_temp_hi1 by the bank, not written by a law"),
+    SV("cli_temp_hi2_qlt"       , T_BOOL, 0          , 0, ""    , 626, "probe 2 believable", "mirrored from cli_temp_hi2 by the bank, not written by a law"),
+    SV("cli_temp_hi3_qlt"       , T_BOOL, 0          , 0, ""    , 627, "probe 3 believable", "mirrored from cli_temp_hi3 by the bank, not written by a law"),
+
     SV("cli_rain_mmph_qlt"      , T_BOOL, 0          , 0, ""    , 613, "rain rate believable", "roof_lockout shuts the roof without it: the row declares 0, which reads as fine weather"),
     SV("cli_wind_mps_qlt"       , T_BOOL, 0          , 0, ""    , 614, "wind speed believable", "roof_lockout shuts the roof without it: the row declares 0, which reads as calm"),
     SV("cli_temp_in_qlt"        , T_BOOL, 0          , 0, ""    , 615, "interior temperature believable", "cooling_controller resets the PID integral, which is an act rather than a value"),
