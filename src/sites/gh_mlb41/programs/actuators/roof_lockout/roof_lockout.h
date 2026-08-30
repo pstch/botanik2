@@ -29,6 +29,8 @@ public:
 
     Vars::RefIn<float>    rain_mmph;
     Vars::RefIn<float>    wind_mps;
+    Vars::RefIn<bool>     rain_qlt;
+    Vars::RefIn<bool>     wind_qlt;
     Vars::RefIn<float>    gust_mps;
     Vars::RefIn<float>    shut_end;
     Vars::RefIn<float>    shut_begin;
@@ -76,6 +78,8 @@ protected:
 inline void RoofLockout::bind(Vars::Bank& io) {
     rain_mmph   = _bind_input<float>(io, "cli_rain_mmph");
     wind_mps    = _bind_input<float>(io, "cli_wind_mps");
+    rain_qlt    = _bind_input<bool>(io, "cli_rain_mmph_qlt");
+    wind_qlt    = _bind_input<bool>(io, "cli_wind_mps_qlt");
     gust_mps    = _bind_input<float>(io, "cli_windGust_mps");
     shut_end    = _bind_input<float>(io, "cli_windShutEnd_mps");
     shut_begin  = _bind_input<float>(io, "cli_windShutBegin_mps");

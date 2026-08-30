@@ -38,7 +38,7 @@ WxVote WeatherProbes::_mean(const Vars::RefIn<float>* refs) {
     return out;
 }
 
-void WeatherProbes::_publish(Vars::RefOut<float> row, Plc::Ewma& filter,
+bool WeatherProbes::_publish(Vars::RefOut<float> row, Plc::Ewma& filter,
                             const WxVote& v, bool& seeded, float tau_s,
                             uint32_t dt_ms, float lo, float hi) {
     if (v.used == 0) {
@@ -49,10 +49,11 @@ void WeatherProbes::_publish(Vars::RefOut<float> row, Plc::Ewma& filter,
         // the average it left.
         if (seeded) row.set(Plc::limit(filter.value(), lo, hi), false);
         else        row.invalidate();     // nothing has ever measured the sky
-        return;
+        return false;
     }
     seeded = true;                      // the block starts AT its first reading
     row.set(Plc::limit(filter(v.value, tau_s, dt_ms), lo, hi), true);
+    return true;
 }
 
 uint8_t WeatherProbes::operator()(uint32_t dt_ms) {
@@ -66,9 +67,9 @@ uint8_t WeatherProbes::operator()(uint32_t dt_ms) {
 
     // The rails are the rows' own declared bands, so a filter that has been
     // fed a spike cannot publish past what the instrument can report.
-    _publish(_r.wind_out,  _wind_f,  wind, _wind_seeded,  _tau_s, dt_ms, 0.0f,   80.0f);
+    _wind_ok = _publish(_r.wind_out,  _wind_f,  wind, _wind_seeded,  _tau_s, dt_ms, 0.0f,   80.0f);
     _publish(_r.gust_out,  _gust_f,  gust, _gust_seeded,  _tau_s, dt_ms, 0.0f,   80.0f);
-    _publish(_r.rain_out,  _rain_f,  rain, _rain_seeded,  _tau_s, dt_ms, 0.0f,  200.0f);
+    _rain_ok = _publish(_r.rain_out,  _rain_f,  rain, _rain_seeded,  _tau_s, dt_ms, 0.0f,  200.0f);
     _publish(_r.irrad_out, _irrad_f, sun,  _irrad_seeded, _tau_s, dt_ms, 0.0f, 1500.0f);
 
     // The WORST-served quantity decides, so a station answering three of its

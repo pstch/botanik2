@@ -61,9 +61,18 @@ inline float safe_open(Live& f) {
     return Vars::as_f32(d.type, d.def);
 }
 
-/** @brief Publish one field-read row as if the bus had just answered it. */
+/** @brief Publish one field-read row as if the bus had just answered it,
+ *  and, where the row has a `_qlt` companion, say it was measured. A case
+ *  giving a reading means the instrument answered; one rehearsing a dead
+ *  instrument clears the companion itself. */
 inline void field(Live& f, const char* row, float v, uint64_t at = 0) {
     f.bank.var(f.ref(row)).publish(from_f32(T_F32, v), at);
+    char qlt[48];
+    const int n = snprintf(qlt, sizeof qlt, "%s_qlt", row);
+    if (n <= 0 || (size_t)n >= sizeof qlt) return;
+    const Vars::VarRef q = f.bank.find(qlt, (uint16_t)n);
+    if (q.index != Vars::VAR_NONE)
+        f.bank.var(q).publish(from_bool(T_BOOL, true), at);
 }
 
 /** @brief The house at two levels, and the row derived from them.

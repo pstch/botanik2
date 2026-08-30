@@ -70,6 +70,8 @@ class WeatherProbes : public Plc::Block {
     Plc::Ewma _gust_f;
     Plc::Ewma _rain_f;
     Plc::Ewma _irrad_f;
+    bool      _wind_ok      = false;
+    bool      _rain_ok      = false;
     bool      _wind_seeded  = false;
     bool      _gust_seeded  = false;
     bool      _rain_seeded  = false;
@@ -88,7 +90,7 @@ class WeatherProbes : public Plc::Block {
     static WxVote _mean(const Vars::RefIn<float>* refs);
     /** @brief Filter @p v and publish it, clamped to @p lo / @p hi. With
      *  nothing measured the row keeps the last average and says so. */
-    static void _publish(Vars::RefOut<float> row, Plc::Ewma& filter,
+    static bool _publish(Vars::RefOut<float> row, Plc::Ewma& filter,
                          const WxVote& v, bool& seeded, float tau_s,
                          uint32_t dt_ms, float lo, float hi);
 
@@ -105,9 +107,16 @@ public:
      *  quantity had; 2 is both answering. */
     uint8_t operator()(uint32_t dt_ms);
 
+    /** @brief Whether the sky was MEASURED this beat, per quantity. The two
+     *  an interlock reads, because both rows declare 0 and a declared 0 is
+     *  fine weather. VAR_OUTPUTs when this block is ported. */
+    bool wind_ok() const { return _wind_ok; }
+    bool rain_ok() const { return _rain_ok; }
+
     void reset() {
         _quorum_for.reset();
         _wind_f.reset(); _gust_f.reset(); _rain_f.reset(); _irrad_f.reset();
+        _wind_ok = _rain_ok = false;
         _wind_seeded = _gust_seeded = _rain_seeded = _irrad_seeded = false;
     }
 

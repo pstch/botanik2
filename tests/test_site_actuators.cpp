@@ -312,11 +312,18 @@ TEST_CASE_FIXTURE(RoofRig, "windows: a gust shuts them, and the mean alone does 
 
 TEST_CASE_FIXTURE(RoofRig, "windows: an unmeasured sky shuts the roof rather than reading fine") {
 
-    live.bank.var(live.ref("cli_rain_mmph")).invalidate(Q_NO_DATA);
-    live.bank.var(live.ref("cli_wind_mps")).invalidate(Q_NO_DATA);
+    fine_weather(live);
+    interlocks_clear(live);
     live.bank.var(live.ref("cli_windowDem")).set(1.0f);
     d.step(100);
+    REQUIRE_FALSE(live.bank.get(live.bank.resolve_in<bool>("cli_windowLockout")));
 
+    INFO("the SAME readings, no longer believed: both rows still say calm and "
+         "dry, which is the trap - only the companions separate a fine sky "
+         "from one nobody is watching");
+    live.bank.var(live.ref("cli_rain_mmph_qlt")).set(false);
+    live.bank.var(live.ref("cli_wind_mps_qlt")).set(false);
+    d.step(200);
     CHECK(live.bank.get(live.bank.resolve_in<bool>("cli_rainLockout")));
     CHECK(live.bank.get(live.bank.resolve_in<bool>("cli_windLockout")));
     // The program that LOOKS at the sky is the one that cannot see it. The

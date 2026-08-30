@@ -9,9 +9,9 @@ namespace Site {
 
 void RoofLockout::run(ProgramContext& c) {
     // A weather station that has stopped answering is not "no rain". Both rows
-    // fall back to 0, which reads exactly like fine weather, so the QUALITY is
-    // what decides and an unmeasured sky shuts the roof.
-    const bool blind = !rain_mmph.valid() || !wind_mps.valid();
+    // fall back to 0, which reads exactly like fine weather, so the COMPANIONS
+    // are what decide and an unmeasured sky shuts the roof.
+    const bool blind = !rain_qlt.get() || !wind_qlt.get();
     // Wider than blind: the gust and the supply interlock do not shut the roof
     // by themselves - the gust falls back to the mean, which is still measured
     // - but a law running on either unread is one saying so.

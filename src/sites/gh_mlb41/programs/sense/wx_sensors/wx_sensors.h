@@ -29,6 +29,10 @@ public:
     /** @name VAR - the two stations' rows
      *  The block's declared interface, filled by bind(). @{ */
 
+    Vars::RefOut<bool> wind_qlt;
+
+    Vars::RefOut<bool> rain_qlt;
+
     WeatherProbeRefs stations_rows;
 
     /** @} */
@@ -74,6 +78,8 @@ inline void WxSensors::bind(Vars::Bank& io) {
     stations_rows.rain_out  = _bind_output<float>(io, "cli_rain_mmph");
     stations_rows.irrad_out = _bind_output<float>(io, "cli_irrad_Wpm2");
     stations_rows.fault     = _bind_output<bool>(io, "alarm_wx_station");
+    wind_qlt = _bind_output<bool>(io, "cli_wind_mps_qlt");
+    rain_qlt = _bind_output<bool>(io, "cli_rain_mmph_qlt");
 
     tau_ms = _bind_input<uint16_t>(io, "cli_wxTau_ms");
     stations.bind(stations_rows, 0.001f * (float)tau_ms.get());
