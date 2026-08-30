@@ -12,32 +12,6 @@ namespace Site {
  *  being busy, not a station that has gone. */
 static const uint32_t WX_QUORUM_MS = 5000u;
 
-void WeatherProbes::attach(const Vars::RefIn<float>* wind,
-                           const Vars::RefIn<float>* gust,
-                           const Vars::RefIn<float>* rain,
-                           const Vars::RefIn<float>* irrad,
-                           Vars::RefOut<float> wind_out,
-                           Vars::RefOut<float> gust_out,
-                           Vars::RefOut<float> rain_out,
-                           Vars::RefOut<float> irrad_out,
-                           Vars::RefOut<bool> fault, float tau_s) {
-    // Symmetric: a weather reading is one quantity, so rising and falling have
-    // no reason to answer at different speeds.
-    _tau_s = tau_s;
-
-    for (uint8_t i = 0; i < 2; i++) {
-        _wind[i]  = wind[i];
-        _gust[i]  = gust[i];
-        _rain[i]  = rain[i];
-        _irrad[i] = irrad[i];
-    }
-    _wind_out  = wind_out;
-    _gust_out  = gust_out;
-    _rain_out  = rain_out;
-    _irrad_out = irrad_out;
-    _fault     = fault;
-}
-
 WxVote WeatherProbes::_worse(const Vars::RefIn<float>* refs) {
     WxVote out = { 0.0f, 0 };
     for (uint8_t i = 0; i < 2; i++) {
@@ -81,21 +55,21 @@ void WeatherProbes::_publish(Vars::RefOut<float> row, Plc::Ewma& filter,
     row.set(Plc::limit(filter(v.value, tau_s, dt_ms), lo, hi), true);
 }
 
-uint8_t WeatherProbes::step(uint32_t dt_ms) {
+uint8_t WeatherProbes::operator()(uint32_t dt_ms) {
     // Three of the four take the worse reading, because three of the four are
     // read by an interlock. Irradiance is not: nothing controls on it, so the
     // worst case has no meaning and the mean is the better estimate.
-    const WxVote wind  = _worse(_wind);
-    const WxVote gust  = _worse(_gust);
-    const WxVote rain  = _worse(_rain);
-    const WxVote sun   = _mean(_irrad);
+    const WxVote wind  = _worse(_r.wind);
+    const WxVote gust  = _worse(_r.gust);
+    const WxVote rain  = _worse(_r.rain);
+    const WxVote sun   = _mean(_r.irrad);
 
     // The rails are the rows' own declared bands, so a filter that has been
     // fed a spike cannot publish past what the instrument can report.
-    _publish(_wind_out,  _wind_f,  wind, _wind_seeded,  _tau_s, dt_ms, 0.0f,   80.0f);
-    _publish(_gust_out,  _gust_f,  gust, _gust_seeded,  _tau_s, dt_ms, 0.0f,   80.0f);
-    _publish(_rain_out,  _rain_f,  rain, _rain_seeded,  _tau_s, dt_ms, 0.0f,  200.0f);
-    _publish(_irrad_out, _irrad_f, sun,  _irrad_seeded, _tau_s, dt_ms, 0.0f, 1500.0f);
+    _publish(_r.wind_out,  _wind_f,  wind, _wind_seeded,  _tau_s, dt_ms, 0.0f,   80.0f);
+    _publish(_r.gust_out,  _gust_f,  gust, _gust_seeded,  _tau_s, dt_ms, 0.0f,   80.0f);
+    _publish(_r.rain_out,  _rain_f,  rain, _rain_seeded,  _tau_s, dt_ms, 0.0f,  200.0f);
+    _publish(_r.irrad_out, _irrad_f, sun,  _irrad_seeded, _tau_s, dt_ms, 0.0f, 1500.0f);
 
     // The WORST-served quantity decides, so a station answering three of its
     // four registers is still a station short. One is enough to keep the plant
@@ -105,7 +79,7 @@ uint8_t WeatherProbes::step(uint32_t dt_ms) {
     if (rain.used < worst) worst = rain.used;
     if (sun.used  < worst) worst = sun.used;
 
-    _fault.set(_quorum_for(worst < 2, WX_QUORUM_MS, dt_ms), true);
+    _r.fault.set(_quorum_for(worst < 2, WX_QUORUM_MS, dt_ms), true);
     return worst;
 }
 

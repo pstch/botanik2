@@ -33,7 +33,21 @@ struct ZoneVote {
  * Not a Program - a location is a part OF one. Held by value so one zone's
  * filter state cannot be shared with another's by accident.
  */
-class ZoneProbes {
+struct ZoneProbeRefs {
+    /** @name VAR_INPUT
+     *  Three probes per quantity: the vote is what the third one buys. @{ */
+    Vars::RefIn<float>  t[3];
+    Vars::RefIn<float>  h[3];
+    /** @} */
+    /** @name VAR_OUTPUT
+     *  @{ */
+    Vars::RefOut<float> temp;
+    Vars::RefOut<float> rh;
+    Vars::RefOut<bool>  fault;
+    /** @} */
+};
+
+class ZoneProbes : public Plc::Block {
 
     /** @name Blocks
      *  Filtered against dt, not against a fixed blend: a program due late runs
@@ -52,12 +66,8 @@ class ZoneProbes {
     /** @name Variables
      *  @{ */
 
-    Vars::RefIn<float>  _t[3];
-    Vars::RefIn<float>  _h[3];
-    Vars::RefOut<float> _temp_out;
-    Vars::RefOut<float> _rh_out;
-    Vars::RefOut<bool>  _fault;
-    float               _tau_s = 1.0f;
+    ZoneProbeRefs _r;
+    float         _tau_s = 1.0f;
 
     /** @} */
 
@@ -65,17 +75,15 @@ public:
     /** @brief Adopt this zone's three probes, the two conditioned rows they
      *  feed and its quorum alarm - all resolved by the program that owns them.
      *  @p tau_s is the filter's time constant, in seconds. */
-    void attach(const Vars::RefIn<float>* t, const Vars::RefIn<float>* h,
-                Vars::RefOut<float> temp, Vars::RefOut<float> rh,
-                Vars::RefOut<bool> fault, float tau_s);
+    void bind(const ZoneProbeRefs& r, float tau_s) { _r = r; _tau_s = tau_s; }
 
     /** @brief Select, filter and publish. @return how many probes were used. */
-    uint8_t step(uint32_t dt_ms);
+    uint8_t operator()(uint32_t dt_ms);
 
-    float temperature() const { return _temp_out.get(); }
-    float humidity() const    { return _rh_out.get(); }
+    float temperature() const { return _r.temp.get(); }
+    float humidity() const    { return _r.rh.get(); }
     /** @brief Whether this zone published a believable reading this beat. */
-    bool valid() const { return _temp_out.valid(); }
+    bool valid() const { return _r.temp.valid(); }
 
     void reset() {
         _quorum_for.reset();
@@ -93,6 +101,8 @@ private:
                          const ZoneVote& v, bool& seeded, float tau_s,
                          uint32_t dt_ms, float lo, float hi);
 };
+
+BOTANIK_PLC_BLOCK(ZoneProbes);
 
 }  // namespace Site
 

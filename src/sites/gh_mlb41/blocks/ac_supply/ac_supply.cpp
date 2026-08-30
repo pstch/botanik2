@@ -17,37 +17,37 @@ void AcSupply::_mirror(Vars::RefOut<float> out, Plc::Deadband& band,
     else            out.invalidate();
 }
 
-bool AcSupply::step(bool& fault) {
+bool AcSupply::operator()() {
     // The volts and the frequency are what the VERDICT is made of, so those two
     // decide whether there is a verdict at all. Current and power are reported
     // either way: a meter half answering is still worth what it does answer.
-    const bool measured = _in_v.valid() && _in_hz.valid();
+    const bool measured = _r.volts.valid() && _r.hz.valid();
     if (measured) _seen = true;
     // But each mirror below is its own network of one input, and one that is
     // out is a network this block is not producing. So the verdict and the
     // block being WHOLE are two questions, and this is the second.
-    const bool whole = measured && _in_a.valid() && _in_w.valid();
+    const bool whole = measured && _r.amps.valid() && _r.watts.valid();
 
-    const float volts = _in_v.get();
-    const float hz    = _in_hz.get();
+    const float volts = _r.volts.get();
+    const float hz    = _r.hz.get();
 
     // A mirror of a reading nobody has is not a reading: published as its
     // fallback it would read 0.0 V on a page, which is what a meter says when
     // the supply is DEAD rather than when nobody asked it. Per quantity, since
     // a meter half answering is still worth what it does answer.
-    _mirror(_out_v,  _v,  _in_v,  SUPPLY_V_BAND);
-    _mirror(_out_a,  _a,  _in_a,  SUPPLY_A_BAND);
-    _mirror(_out_w,  _w,  _in_w,  SUPPLY_W_BAND);
-    _mirror(_out_hz, _hz, _in_hz, SUPPLY_HZ_BAND);
+    _mirror(_r.out_V,  _v,  _r.volts,  SUPPLY_V_BAND);
+    _mirror(_r.out_A,  _a,  _r.amps,  SUPPLY_A_BAND);
+    _mirror(_r.out_W,  _w,  _r.watts,  SUPPLY_W_BAND);
+    _mirror(_r.out_Hz, _hz, _r.hz, SUPPLY_HZ_BAND);
 
-    const bool in_spec = Plc::in_range(volts, _lo_v.get(), _hi_v.get()) &&
-                         Plc::in_range(hz, _lo_hz.get(), _hi_hz.get());
-    _ok.set(measured && in_spec, true);
+    const bool in_spec = Plc::in_range(volts, _r.lo_V.get(), _r.hi_V.get()) &&
+                         Plc::in_range(hz, _r.lo_Hz.get(), _r.hi_Hz.get());
+    _r.ok.set(measured && in_spec, true);
 
     // A meter that has never answered is BRING-UP, not a supply fault: the bus
     // has not got round to it yet, and alarming on that annunciates every boot.
     // Once it has answered, silence is exactly the fault worth raising.
-    fault = _seen && (!measured || !in_spec);
+    _r.fault.set(_seen && (!measured || !in_spec), true);
     return whole;
 }
 

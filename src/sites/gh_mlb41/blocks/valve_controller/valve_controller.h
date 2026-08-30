@@ -22,7 +22,16 @@ using namespace Botanik;
  * the wet skirt hold several. The fail direction comes from the ROW, so the
  * table stays the one place it is declared.
  */
-class ValveController {
+struct ValveRefs {
+    /** @brief The coil this valve drives. Its row's DEFAULT is the fail
+     *  direction: park() reads it rather than being told. */
+    Vars::RefOut<bool> coil;
+};
+
+/** @note No operator(): this one has four verbs, not a call. A valve is set,
+ *  parked, or modulated, and a program says which - collapsing them into one
+ *  invocation would need a mode argument nobody wants to read. */
+class ValveController : public Plc::Block {
 
     Vars::RefOut<bool> _coil;
     bool     _fail_open = false;
@@ -30,7 +39,7 @@ class ValveController {
 
 public:
     /** @brief Take @p coil, and its declared safe state as the fail direction. */
-    void attach(Vars::RefOut<bool> coil);
+    void bind(const ValveRefs& r);
 
     /** @brief Drive the coil. @p current is the quality it is written with,
      *  forwarded rather than decided here: a valve is commanded by a law, and
@@ -48,6 +57,8 @@ public:
 
     void reset() { _phase_ms = 0; }
 };
+
+BOTANIK_PLC_BLOCK(ValveController);
 
 }  // namespace Site
 

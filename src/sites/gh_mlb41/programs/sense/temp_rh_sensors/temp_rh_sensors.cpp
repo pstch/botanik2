@@ -18,10 +18,10 @@ void TempRHSensors::run(ProgramContext& c) {
 
     // Each publishes its zone and raises its own quorum alarm; how many probes
     // it could use is that alarm's business, not this program's.
-    ceiling.step(c.dt_ms);
-    floor.step(c.dt_ms);
-    crawlspace.step(c.dt_ms);
-    exterior.step(c.dt_ms);
+    ceiling(c.dt_ms);
+    floor(c.dt_ms);
+    crawlspace(c.dt_ms);
+    exterior(c.dt_ms);
 }
 
 }  // namespace Site

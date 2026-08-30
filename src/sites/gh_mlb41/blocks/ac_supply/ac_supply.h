@@ -40,7 +40,21 @@ static const float SUPPLY_HZ_BAND = 0.05f;
  * own - only parameters, status values and alarms are mapped - so an external
  * master cannot see the meter without one.
  */
-class AcSupply {
+struct AcSupplyRefs {
+    /** @name VAR_INPUT
+     *  @{ */
+    Vars::RefIn<float>  volts, amps, watts, hz;
+    Vars::RefIn<float>  lo_V, hi_V, lo_Hz, hi_Hz;
+    /** @} */
+    /** @name VAR_OUTPUT
+     *  @{ */
+    Vars::RefOut<float> out_V, out_A, out_W, out_Hz;
+    Vars::RefOut<bool>  ok;
+    Vars::RefOut<bool>  fault;
+    /** @} */
+};
+
+class AcSupply : public Plc::Block {
 
     /** @name Blocks
      *  One deadband per quantity: the meter answers every few seconds and its
@@ -57,52 +71,29 @@ class AcSupply {
     /** @name Variables
      *  @{ */
 
-    Vars::RefIn<float>  _in_v, _in_a, _in_w, _in_hz;
-    Vars::RefIn<float>  _lo_v, _hi_v, _lo_hz, _hi_hz;
-    Vars::RefOut<float> _out_v, _out_a, _out_w, _out_hz;
-    Vars::RefOut<bool>  _ok;
+    AcSupplyRefs _r;
 
     /** @} */
-
-public:
-    /** @brief Adopt @p r's references. Any `Refs` struct spelling the members
-     *  the same way will do, which is the point: one law, two supplies. */
-    template <typename R>
-    void attach(const R& r) {
-        _lo_v = r.lo_V;   
-        _hi_v  = r.hi_V;  
-        _lo_hz  = r.lo_Hz;
-        _hi_hz = r.hi_Hz;
-
-        _in_v = r.volts;  
-        _in_a  = r.amps;  
-        _in_w   = r.watts; 
-        _in_hz = r.hz;
-
-        _out_v = r.out_V;
-        _out_a = r.out_A;
-        _out_w  = r.out_W;
-        _out_hz = r.out_Hz;
-        
-        _ok    = r.ok;
-    }
 
     /** @brief One reading onto its status row, through the deadband, or the row
      *  marked unmeasured. */
     static void _mirror(Vars::RefOut<float> out, Plc::Deadband& band,
                         Vars::RefIn<float> in, float width);
 
-    /** @brief Mirror the four readings and judge them.
-     *  @param fault set when this supply is out of spec, or has gone silent
-     *         after answering at least once
+public:
+    /** @brief Adopt the rows the program resolved. One law, two supplies: the
+     *  struct is what says which. */
+    void bind(const AcSupplyRefs& r) { _r = r; }
+
+    /** @brief Mirror the four readings, judge them, and drive the verdict and
+     *  the alarm.
      *  @return whether EVERY quantity answered - wider than the verdict, which
-     *         rests on volts and frequency alone. The caller reports itself
-     *         degraded on it: a mirror with no reading behind it is a network
-     *         this block is not producing, whether or not the verdict stands */
-    bool step(bool& fault);
+     *          rests on volts and frequency alone. */
+    bool operator()();
 
     void reset();
 };
+BOTANIK_PLC_BLOCK(AcSupply);
 
 }  // namespace Site
 

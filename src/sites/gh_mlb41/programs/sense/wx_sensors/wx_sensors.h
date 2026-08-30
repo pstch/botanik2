@@ -26,25 +26,17 @@ class WxSensors final : public Plc::Program {
 
 public:
 
-    /** @name VAR_INPUT
-     *  @{ */
+    /** @name VAR - the two stations' rows
+     *  The block's declared interface, filled by bind(). @{ */
 
-    Vars::RefIn<float> wind[2];
-    Vars::RefIn<float> gust[2];
-    Vars::RefIn<float> rain[2];
-    Vars::RefIn<float> irrad[2];
-    Vars::RefIn<uint16_t> tau_ms;
+    WeatherProbeRefs stations_rows;
 
     /** @} */
 
-    /** @name VAR_OUTPUT
+    /** @name VAR_INPUT
      *  @{ */
 
-    Vars::RefOut<float> wind_out;
-    Vars::RefOut<float> gust_out;
-    Vars::RefOut<float> rain_out;
-    Vars::RefOut<float> irrad_out;
-    Vars::RefOut<bool>  fault;
+    Vars::RefIn<uint16_t> tau_ms;
 
     /** @} */
 
@@ -69,24 +61,22 @@ protected:
 };
 
 inline void WxSensors::bind(Vars::Bank& io) {
-    wind[0]   = _bind_input<float>(io, "cli_wind1_mps");
-    wind[1]   = _bind_input<float>(io, "cli_wind2_mps");
-    gust[0]   = _bind_input<float>(io, "cli_windGust1_mps");
-    gust[1]   = _bind_input<float>(io, "cli_windGust2_mps");
-    rain[0]   = _bind_input<float>(io, "cli_rain1_mmph");
-    rain[1]   = _bind_input<float>(io, "cli_rain2_mmph");
-    irrad[0]  = _bind_input<float>(io, "cli_irrad1_Wpm2");
-    irrad[1]  = _bind_input<float>(io, "cli_irrad2_Wpm2");
-    tau_ms    = _bind_input<uint16_t>(io, "cli_wxTau_ms");
-    wind_out  = _bind_output<float>(io, "cli_wind_mps");
-    gust_out  = _bind_output<float>(io, "cli_windGust_mps");
-    rain_out  = _bind_output<float>(io, "cli_rain_mmph");
-    irrad_out = _bind_output<float>(io, "cli_irrad_Wpm2");
-    fault     = _bind_output<bool>(io, "alarm_wx_station");
+    stations_rows.wind[0]  = _bind_input<float>(io, "cli_wind1_mps");
+    stations_rows.wind[1]  = _bind_input<float>(io, "cli_wind2_mps");
+    stations_rows.gust[0]  = _bind_input<float>(io, "cli_windGust1_mps");
+    stations_rows.gust[1]  = _bind_input<float>(io, "cli_windGust2_mps");
+    stations_rows.rain[0]  = _bind_input<float>(io, "cli_rain1_mmph");
+    stations_rows.rain[1]  = _bind_input<float>(io, "cli_rain2_mmph");
+    stations_rows.irrad[0] = _bind_input<float>(io, "cli_irrad1_Wpm2");
+    stations_rows.irrad[1] = _bind_input<float>(io, "cli_irrad2_Wpm2");
+    stations_rows.wind_out  = _bind_output<float>(io, "cli_wind_mps");
+    stations_rows.gust_out  = _bind_output<float>(io, "cli_windGust_mps");
+    stations_rows.rain_out  = _bind_output<float>(io, "cli_rain_mmph");
+    stations_rows.irrad_out = _bind_output<float>(io, "cli_irrad_Wpm2");
+    stations_rows.fault     = _bind_output<bool>(io, "alarm_wx_station");
 
-    stations.attach(wind, gust, rain, irrad,
-                    wind_out, gust_out, rain_out, irrad_out, fault,
-                    0.001f * (float)tau_ms.get());
+    tau_ms = _bind_input<uint16_t>(io, "cli_wxTau_ms");
+    stations.bind(stations_rows, 0.001f * (float)tau_ms.get());
 }
 
 }  // namespace Site

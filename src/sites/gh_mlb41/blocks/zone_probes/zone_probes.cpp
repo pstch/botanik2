@@ -7,22 +7,6 @@
 
 namespace Site {
 
-void ZoneProbes::attach(const Vars::RefIn<float>* t, const Vars::RefIn<float>* h,
-                        Vars::RefOut<float> temp, Vars::RefOut<float> rh,
-                        Vars::RefOut<bool> fault, float tau_s) {
-    // Symmetric: a zone reading is one quantity, so rising and falling have no
-    // reason to answer at different speeds.
-    _tau_s = tau_s;
-
-    for (uint8_t i = 0; i < 3; i++) {
-        _t[i] = t[i];
-        _h[i] = h[i];
-    }
-    _temp_out = temp;
-    _rh_out   = rh;
-    _fault    = fault;
-}
-
 ZoneVote ZoneProbes::_select(const Vars::RefIn<float>* refs) {
     float    v[3];
     uint8_t  n = 0;
@@ -67,11 +51,11 @@ void ZoneProbes::_publish(Vars::RefOut<float> row, Plc::Ewma& filter,
     row.set(Plc::limit(filter(v.value, tau_s, dt_ms), lo, hi), true);
 }
 
-uint8_t ZoneProbes::step(uint32_t dt_ms) {
+uint8_t ZoneProbes::operator()(uint32_t dt_ms) {
     // Each quantity carries its own quorum. Coupling them would let one dead
     // humidity probe invalidate a temperature three good probes agree on.
-    const ZoneVote t = _select(_t);
-    ZoneVote h = _select(_h);
+    const ZoneVote t = _select(_r.t);
+    ZoneVote h = _select(_r.h);
 
     // The instruments report humidity in PERCENT and everything above this line
     // works in fractions - the spec's convention for a percentage is a real
@@ -80,14 +64,14 @@ uint8_t ZoneProbes::step(uint32_t dt_ms) {
     // every dew-point margin in the plant read zero.
     h.value *= 0.01f;
 
-    _publish(_temp_out, _temp, t, _temp_seeded, _tau_s, dt_ms, -100.0f, 200.0f);
-    _publish(_rh_out, _rh, h, _rh_seeded, _tau_s, dt_ms, 0.0f, 1.0f);
+    _publish(_r.temp, _temp, t, _temp_seeded, _tau_s, dt_ms, -100.0f, 200.0f);
+    _publish(_r.rh, _rh, h, _rh_seeded, _tau_s, dt_ms, 0.0f, 1.0f);
 
     // Two probes still select correctly, so the plant keeps running and the
     // operator is told to replace one before the second goes. The alarm is the
     // zone's, so it follows whichever quantity has lost the most.
     const uint8_t worst = (t.used < h.used) ? t.used : h.used;
-    _fault.set(_quorum_for(worst < 3, 5000, dt_ms), true);
+    _r.fault.set(_quorum_for(worst < 3, 5000, dt_ms), true);
     return worst;
 }
 

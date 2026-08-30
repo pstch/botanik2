@@ -33,21 +33,28 @@ struct WxVote {
  * Not a Program - the stations are a part OF one. Held by value so one
  * quantity's filter state cannot be shared with another's by accident.
  */
-class WeatherProbes {
+struct WeatherProbeRefs {
+    /** @name VAR_INPUT
+     *  Two stations per quantity - a weaker vote than a zone's three. @{ */
+    Vars::RefIn<float>  wind[2];
+    Vars::RefIn<float>  gust[2];
+    Vars::RefIn<float>  rain[2];
+    Vars::RefIn<float>  irrad[2];
+    /** @} */
+    /** @name VAR_OUTPUT
+     *  @{ */
+    Vars::RefOut<float> wind_out, gust_out, rain_out, irrad_out;
+    Vars::RefOut<bool>  fault;
+    /** @} */
+};
+
+class WeatherProbes : public Plc::Block {
 
     /** @name Variables
      *  @{ */
 
-    Vars::RefIn<float>  _wind[2];
-    Vars::RefIn<float>  _gust[2];
-    Vars::RefIn<float>  _rain[2];
-    Vars::RefIn<float>  _irrad[2];
-    Vars::RefOut<float> _wind_out;
-    Vars::RefOut<float> _gust_out;
-    Vars::RefOut<float> _rain_out;
-    Vars::RefOut<float> _irrad_out;
-    Vars::RefOut<bool>  _fault;
-    float               _tau_s = 1.0f;
+    WeatherProbeRefs _r;
+    float            _tau_s = 1.0f;
 
     /** @} */
 
@@ -91,17 +98,12 @@ public:
     /** @name Lifecycle
      *  @{ */
 
-    /** @brief Adopt the two stations' rows and the four they feed, all
-     *  resolved by the program that owns them. */
-    void attach(const Vars::RefIn<float>* wind, const Vars::RefIn<float>* gust,
-                const Vars::RefIn<float>* rain, const Vars::RefIn<float>* irrad,
-                Vars::RefOut<float> wind_out, Vars::RefOut<float> gust_out,
-                Vars::RefOut<float> rain_out, Vars::RefOut<float> irrad_out,
-                Vars::RefOut<bool> fault, float tau_s);
+    /** @brief Adopt the rows the program resolved. */
+    void bind(const WeatherProbeRefs& r, float tau_s) { _r = r; _tau_s = tau_s; }
 
     /** @brief Select and publish. @return how many stations the WORST-served
      *  quantity had; 2 is both answering. */
-    uint8_t step(uint32_t dt_ms);
+    uint8_t operator()(uint32_t dt_ms);
 
     void reset() {
         _quorum_for.reset();
@@ -111,6 +113,8 @@ public:
 
     /** @} */
 };
+
+BOTANIK_PLC_BLOCK(WeatherProbes);
 
 }  // namespace Site
 

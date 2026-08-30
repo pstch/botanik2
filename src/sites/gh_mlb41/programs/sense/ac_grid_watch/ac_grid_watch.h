@@ -26,29 +26,12 @@ class AcGridWatch final : public Plc::Program {
 
 public:
 
-    /** @name VAR_INPUT
-     *  @{ */
+    /** @name VAR - the meter's own rows
+     *  The block's declared interface, filled by bind(). Held here rather than
+     *  as fourteen loose members, so what this program reads IS what the block
+     *  was handed. @{ */
 
-    Vars::RefIn<float> volts;
-    Vars::RefIn<float> amps;
-    Vars::RefIn<float> watts;
-    Vars::RefIn<float> hz;
-    Vars::RefIn<float> lo_V;
-    Vars::RefIn<float> hi_V;
-    Vars::RefIn<float> lo_Hz;
-    Vars::RefIn<float> hi_Hz;
-
-    /** @} */
-
-    /** @name VAR_OUTPUT
-     *  @{ */
-
-    Vars::RefOut<float> out_V;
-    Vars::RefOut<float> out_A;
-    Vars::RefOut<float> out_W;
-    Vars::RefOut<float> out_Hz;
-    Vars::RefOut<bool>  ok;
-    Vars::RefOut<bool>  fault;
+    AcSupplyRefs meter;
 
     /** @} */
 
@@ -74,22 +57,21 @@ protected:
 };
 
 inline void AcGridWatch::bind(Vars::Bank& io) {
-    volts  = _bind_input<float>(io, "grid_LN_V");
-    amps   = _bind_input<float>(io, "grid_total_A");
-    watts  = _bind_input<float>(io, "grid_total_W");
-    hz     = _bind_input<float>(io, "grid_Hz");
-    lo_V   = _bind_input<float>(io, "pwr_gridLo_V");
-    hi_V   = _bind_input<float>(io, "pwr_gridHi_V");
-    lo_Hz  = _bind_input<float>(io, "pwr_gridLo_Hz");
-    hi_Hz  = _bind_input<float>(io, "pwr_gridHi_Hz");
-    out_V  = _bind_output<float>(io, "sys_grid_V");
-    out_A  = _bind_output<float>(io, "sys_grid_A");
-    out_W  = _bind_output<float>(io, "sys_grid_W");
-    out_Hz = _bind_output<float>(io, "sys_grid_Hz");
-    ok     = _bind_output<bool>(io, "sys_grid_ok");
-    fault  = _bind_output<bool>(io, "alarm_ac_grid");
-
-    supply.attach(*this);
+    meter.volts  = _bind_input<float>(io, "grid_LN_V");
+    meter.amps   = _bind_input<float>(io, "grid_total_A");
+    meter.watts  = _bind_input<float>(io, "grid_total_W");
+    meter.hz     = _bind_input<float>(io, "grid_Hz");
+    meter.lo_V   = _bind_input<float>(io, "pwr_gridLo_V");
+    meter.hi_V   = _bind_input<float>(io, "pwr_gridHi_V");
+    meter.lo_Hz  = _bind_input<float>(io, "pwr_gridLo_Hz");
+    meter.hi_Hz  = _bind_input<float>(io, "pwr_gridHi_Hz");
+    meter.out_V  = _bind_output<float>(io, "sys_grid_V");
+    meter.out_A  = _bind_output<float>(io, "sys_grid_A");
+    meter.out_W  = _bind_output<float>(io, "sys_grid_W");
+    meter.out_Hz = _bind_output<float>(io, "sys_grid_Hz");
+    meter.ok     = _bind_output<bool>(io, "sys_grid_ok");
+    meter.fault  = _bind_output<bool>(io, "alarm_ac_grid");
+    supply.bind(meter);
 }
 
 }  // namespace Site

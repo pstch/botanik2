@@ -27,36 +27,21 @@ class TempRHSensors final : public Plc::Program {
 
 public:
 
+    /** @name VAR - the four zones' rows
+     *
+     *  One struct per measurement location, which is the block's own declared
+     *  interface: the pairing of three probes to the two rows they feed is
+     *  structural here rather than positional in an attach() argument list.
+     *  @{ */
+
+    ZoneProbeRefs hi, lo, cs, ext;
+
+    /** @} */
+
     /** @name VAR_INPUT
      *  @{ */
 
     Vars::RefIn<uint16_t> tau_ms;
-    Vars::RefIn<float>    t_hi[3];
-    Vars::RefIn<float>    h_hi[3];
-    Vars::RefIn<float>    t_lo[3];
-    Vars::RefIn<float>    h_lo[3];
-    Vars::RefIn<float>    t_cs[3];
-    Vars::RefIn<float>    h_cs[3];
-    Vars::RefIn<float>    t_ext[3];
-    Vars::RefIn<float>    h_ext[3];
-
-    /** @} */
-
-    /** @name VAR_OUTPUT
-     *  @{ */
-
-    Vars::RefOut<float> temp_hi;
-    Vars::RefOut<float> rh_hi;
-    Vars::RefOut<float> temp_lo;
-    Vars::RefOut<float> rh_lo;
-    Vars::RefOut<float> temp_cs;
-    Vars::RefOut<float> rh_cs;
-    Vars::RefOut<float> temp_ext;
-    Vars::RefOut<float> rh_ext;
-    Vars::RefOut<bool>  fault_hi;
-    Vars::RefOut<bool>  fault_lo;
-    Vars::RefOut<bool>  fault_cs;
-    Vars::RefOut<bool>  fault_ext;
 
     /** @} */
 
@@ -72,20 +57,6 @@ private:
 
     /** @} */
 
-    /** @name Sizes - what a body loops over
-     *  @{ */
-
-    static const uint8_t N_T_HI  = 3;
-    static const uint8_t N_H_HI  = 3;
-    static const uint8_t N_T_LO  = 3;
-    static const uint8_t N_H_LO  = 3;
-    static const uint8_t N_T_CS  = 3;
-    static const uint8_t N_H_CS  = 3;
-    static const uint8_t N_T_EXT = 3;
-    static const uint8_t N_H_EXT = 3;
-
-    /** @} */
-
 public:
     TempRHSensors(const SetupContext& ctx, Vars::Bank& io)
         : Program(ctx, "temp_rh_sensors", Tasks::GROUP_FAST, io) {}
@@ -98,49 +69,53 @@ protected:
 };
 
 inline void TempRHSensors::bind(Vars::Bank& io) {
-    tau_ms    = _bind_input<uint16_t>(io, "cli_sensorTau_ms");
-    t_hi[0]   = _bind_input<float>(io, "cli_temp_hi1");
-    t_hi[1]   = _bind_input<float>(io, "cli_temp_hi2");
-    t_hi[2]   = _bind_input<float>(io, "cli_temp_hi3");
-    h_hi[0]   = _bind_input<float>(io, "cli_rh_hi1");
-    h_hi[1]   = _bind_input<float>(io, "cli_rh_hi2");
-    h_hi[2]   = _bind_input<float>(io, "cli_rh_hi3");
-    t_lo[0]   = _bind_input<float>(io, "cli_temp_lo1");
-    t_lo[1]   = _bind_input<float>(io, "cli_temp_lo2");
-    t_lo[2]   = _bind_input<float>(io, "cli_temp_lo3");
-    h_lo[0]   = _bind_input<float>(io, "cli_rh_lo1");
-    h_lo[1]   = _bind_input<float>(io, "cli_rh_lo2");
-    h_lo[2]   = _bind_input<float>(io, "cli_rh_lo3");
-    t_cs[0]   = _bind_input<float>(io, "cli_temp_cs1");
-    t_cs[1]   = _bind_input<float>(io, "cli_temp_cs2");
-    t_cs[2]   = _bind_input<float>(io, "cli_temp_cs3");
-    h_cs[0]   = _bind_input<float>(io, "cli_rh_cs1");
-    h_cs[1]   = _bind_input<float>(io, "cli_rh_cs2");
-    h_cs[2]   = _bind_input<float>(io, "cli_rh_cs3");
-    t_ext[0]  = _bind_input<float>(io, "cli_temp_ext1");
-    t_ext[1]  = _bind_input<float>(io, "cli_temp_ext2");
-    t_ext[2]  = _bind_input<float>(io, "cli_temp_ext3");
-    h_ext[0]  = _bind_input<float>(io, "cli_rh_ext1");
-    h_ext[1]  = _bind_input<float>(io, "cli_rh_ext2");
-    h_ext[2]  = _bind_input<float>(io, "cli_rh_ext3");
-    temp_hi   = _bind_output<float>(io, "cli_temp_hi");
-    rh_hi     = _bind_output<float>(io, "cli_rh_hi");
-    temp_lo   = _bind_output<float>(io, "cli_temp_lo");
-    rh_lo     = _bind_output<float>(io, "cli_rh_lo");
-    temp_cs   = _bind_output<float>(io, "cli_temp_cs");
-    rh_cs     = _bind_output<float>(io, "cli_rh_cs");
-    temp_ext  = _bind_output<float>(io, "cli_temp_ext");
-    rh_ext    = _bind_output<float>(io, "cli_rh_ext");
-    fault_hi  = _bind_output<bool>(io, "alarm_sns_ceiling");
-    fault_lo  = _bind_output<bool>(io, "alarm_sns_floor");
-    fault_cs  = _bind_output<bool>(io, "alarm_sns_crawlspace");
-    fault_ext = _bind_output<bool>(io, "alarm_sns_exterior");
+    tau_ms = _bind_input<uint16_t>(io, "cli_sensorTau_ms");
+
+    hi.t[0] = _bind_input<float>(io, "cli_temp_hi1");
+    hi.t[1] = _bind_input<float>(io, "cli_temp_hi2");
+    hi.t[2] = _bind_input<float>(io, "cli_temp_hi3");
+    hi.h[0] = _bind_input<float>(io, "cli_rh_hi1");
+    hi.h[1] = _bind_input<float>(io, "cli_rh_hi2");
+    hi.h[2] = _bind_input<float>(io, "cli_rh_hi3");
+    hi.temp  = _bind_output<float>(io, "cli_temp_hi");
+    hi.rh    = _bind_output<float>(io, "cli_rh_hi");
+    hi.fault = _bind_output<bool>(io, "alarm_sns_ceiling");
+
+    lo.t[0] = _bind_input<float>(io, "cli_temp_lo1");
+    lo.t[1] = _bind_input<float>(io, "cli_temp_lo2");
+    lo.t[2] = _bind_input<float>(io, "cli_temp_lo3");
+    lo.h[0] = _bind_input<float>(io, "cli_rh_lo1");
+    lo.h[1] = _bind_input<float>(io, "cli_rh_lo2");
+    lo.h[2] = _bind_input<float>(io, "cli_rh_lo3");
+    lo.temp  = _bind_output<float>(io, "cli_temp_lo");
+    lo.rh    = _bind_output<float>(io, "cli_rh_lo");
+    lo.fault = _bind_output<bool>(io, "alarm_sns_floor");
+
+    cs.t[0] = _bind_input<float>(io, "cli_temp_cs1");
+    cs.t[1] = _bind_input<float>(io, "cli_temp_cs2");
+    cs.t[2] = _bind_input<float>(io, "cli_temp_cs3");
+    cs.h[0] = _bind_input<float>(io, "cli_rh_cs1");
+    cs.h[1] = _bind_input<float>(io, "cli_rh_cs2");
+    cs.h[2] = _bind_input<float>(io, "cli_rh_cs3");
+    cs.temp  = _bind_output<float>(io, "cli_temp_cs");
+    cs.rh    = _bind_output<float>(io, "cli_rh_cs");
+    cs.fault = _bind_output<bool>(io, "alarm_sns_crawlspace");
+
+    ext.t[0] = _bind_input<float>(io, "cli_temp_ext1");
+    ext.t[1] = _bind_input<float>(io, "cli_temp_ext2");
+    ext.t[2] = _bind_input<float>(io, "cli_temp_ext3");
+    ext.h[0] = _bind_input<float>(io, "cli_rh_ext1");
+    ext.h[1] = _bind_input<float>(io, "cli_rh_ext2");
+    ext.h[2] = _bind_input<float>(io, "cli_rh_ext3");
+    ext.temp  = _bind_output<float>(io, "cli_temp_ext");
+    ext.rh    = _bind_output<float>(io, "cli_rh_ext");
+    ext.fault = _bind_output<bool>(io, "alarm_sns_exterior");
 
     const float tau_s = 0.001f * (float)tau_ms.get();
-    ceiling.attach(t_hi, h_hi, temp_hi, rh_hi, fault_hi, tau_s);
-    floor.attach(t_lo, h_lo, temp_lo, rh_lo, fault_lo, tau_s);
-    crawlspace.attach(t_cs, h_cs, temp_cs, rh_cs, fault_cs, tau_s);
-    exterior.attach(t_ext, h_ext, temp_ext, rh_ext, fault_ext, tau_s);
+    ceiling.bind(hi, tau_s);
+    floor.bind(lo, tau_s);
+    crawlspace.bind(cs, tau_s);
+    exterior.bind(ext, tau_s);
 }
 
 }  // namespace Site

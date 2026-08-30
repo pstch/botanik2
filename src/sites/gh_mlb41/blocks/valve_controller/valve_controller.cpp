@@ -7,12 +7,12 @@
 
 namespace Site {
 
-void ValveController::attach(Vars::RefOut<bool> coil) {
-    _coil = coil;
+void ValveController::bind(const ValveRefs& r) {
+    _coil = r.coil;
     // The declared safe state IS the fail direction: a de-energised coil is
     // the only thing a dead controller guarantees, and the row already says
     // which way that leaves this valve.
-    const Vars::Descriptor& d = coil.io->descriptor(coil.r.index);
+    const Vars::Descriptor& d = r.coil.io->descriptor(r.coil.r.index);
     _fail_open = Vars::as_bool(d.type, d.def);
 }
 
