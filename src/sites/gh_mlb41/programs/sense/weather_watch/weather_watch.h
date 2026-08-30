@@ -75,7 +75,6 @@ inline void WeatherWatch::bind(Vars::Bank& io) {
     storm      = _bind_output<bool>(io, "alarm_weather_storm");
     since_rain = _bind_output<uint16_t>(io, "cli_sinceRain_min");
 
-    set_health_row(_bind_output<uint8_t>(io, "prog_weather_watch"));
 }
 
 }  // namespace Site

@@ -89,8 +89,7 @@ inline void AcGridWatch::bind(Vars::Bank& io) {
     ok     = _bind_output<bool>(io, "sys_grid_ok");
     fault  = _bind_output<bool>(io, "alarm_ac_grid");
 
-    set_health_row(_bind_output<uint8_t>(io, "prog_ac_grid_watch"));
-    on_bind();
+    supply.attach(*this);
 }
 
 }  // namespace Site

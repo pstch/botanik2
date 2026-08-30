@@ -7,15 +7,6 @@
 
 namespace Site {
 
-void IntractorController::on_bind() {
-    // The AO row's declared safe value, not a constant here: an actuator's safe
-    // state belongs to the table, which is also what the field bus carries out
-    // when control authority goes entirely. Read once - a descriptor does not
-    // change under a running plant.
-    const Vars::Descriptor& d = intr[0].io->descriptor(intr[0].r.index);
-    _safe_speed = Vars::as_f32(d.type, d.def);
-}
-
 void IntractorController::run(ProgramContext& c) {
     (void)c;
     // The FLOOR, and it is a SPEED rather than a demand: some air is always

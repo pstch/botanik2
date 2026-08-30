@@ -7,14 +7,6 @@
 
 namespace Site {
 
-void IrrValves::on_bind() {
-    for (uint8_t i = 0; i < 2; i++) {
-        inlet_v[i].attach(inlet[i]);
-        outlet_v[i].attach(outlet[i]);
-    }
-    for (uint8_t i = 0; i < N_TRAY_VALVE; i++) tray_v[i].attach(tray_valve[i]);
-}
-
 void IrrValves::run(ProgramContext& c) {
     (void)c;
     // Fill: inlet open, this tray open, outlet shut. Drain: inlet shut, tray

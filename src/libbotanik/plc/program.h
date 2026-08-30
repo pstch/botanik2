@@ -8,6 +8,7 @@
  */
 
 #include <cstdint>
+#include <cstdio>
 
 #include "libbotanik/core/component.h"
 #include "libbotanik/core/context.h"   // ProgramContext
@@ -96,14 +97,6 @@ namespace Botanik { namespace Plc {
                 Vars::Bank& io)
             : Component(ctx, name), _io(&io), _group(group) {}
 
-        /** @brief Where this program's health is PUBLISHED, or the sink.
-         *
-         *  Set from bind() by a program that declares a health row. The
-         *  program does not write it itself: it is written by a supervisor
-         *  walking every program, so one that is never activated still has a
-         *  current row - which is exactly the INVALID case a reader wants it
-         *  for. @see publish_health() */
-        void set_health_row(Vars::RefOut<uint8_t> r) { _health_row = r; }
 
         /** @brief The rows this program reads, for a reader asking which
          *  programs consume one. Empty until bind() has run. */
@@ -238,6 +231,7 @@ namespace Botanik { namespace Plc {
             const uint16_t missed = _io->unresolved_count();
             _io->begin_writer(_slot);
             bind(*_io);
+            _bind_health_row();
             _io->end_writer();
             if (_io->unresolved_count() != missed) invalidate();
             // The one place INVALID is decided. It outranks the INHIBITED a
@@ -248,6 +242,27 @@ namespace Botanik { namespace Plc {
         /** @} */
 
     private:
+        /** @brief Claim "prog_<name>" as this program's health row, if the site
+         *  declared one.
+         *
+         *  DERIVED rather than named: the row is one per program and its name
+         *  is the program's own, so spelling it in every bind() was a chance to
+         *  spell it wrong and no chance to get anything else. Silent when the
+         *  site declares none - a program without one is legitimate, and the
+         *  harness rigs a test on has none at all. */
+        void _bind_health_row() {
+            char row[40];
+            const int n = snprintf(row, sizeof row, "prog_%s", name());
+            if (n <= 0 || (size_t)n >= sizeof row) return;
+            // The LENGTH-BOUNDED find, which does not count a miss: a program
+            // with no health row is not a program that failed to bind one, and
+            // the unresolved delta above would otherwise fault every harness
+            // rig in the suite.
+            const Vars::VarRef r = _io->find(row, (uint16_t)n);
+            if (r.index == Vars::VAR_NONE) return;
+            _health_row = _io->resolve_out<uint8_t>(row);
+        }
+
         /** @brief Which of the three wrappers is asking. Only the direction the
          *  checks differ on: an output is the one that can be taken. */
         enum BindDir : uint8_t { BIND_IN, BIND_OUT, BIND_INOUT };

@@ -7,8 +7,6 @@
 
 namespace Site {
 
-void AcLocalWatch::on_bind() { supply.attach(*this); }
-
 void AcLocalWatch::run(ProgramContext& c) { (void)c; }
 
 void AcLocalWatch::observe(ProgramContext& c) {

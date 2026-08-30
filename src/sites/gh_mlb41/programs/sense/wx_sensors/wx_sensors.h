@@ -66,9 +66,6 @@ protected:
     void bind(Vars::Bank& io) override;
     void run(ProgramContext& c) override;
 
-private:
-    /** @brief Hand the block the rows bind() resolved. */
-    void on_bind();
 };
 
 inline void WxSensors::bind(Vars::Bank& io) {
@@ -87,8 +84,9 @@ inline void WxSensors::bind(Vars::Bank& io) {
     irrad_out = _bind_output<float>(io, "cli_irrad_Wpm2");
     fault     = _bind_output<bool>(io, "alarm_wx_station");
 
-    set_health_row(_bind_output<uint8_t>(io, "prog_wx_sensors"));
-    on_bind();
+    stations.attach(wind, gust, rain, irrad,
+                    wind_out, gust_out, rain_out, irrad_out, fault,
+                    0.001f * (float)tau_ms.get());
 }
 
 }  // namespace Site

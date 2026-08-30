@@ -127,7 +127,6 @@ inline void DcWatch::bind(Vars::Bank& io) {
     ups_flt = _bind_output<bool>(io, "alarm_dc_ups");
     gen_flt = _bind_output<bool>(io, "alarm_generator_battery");
 
-    set_health_row(_bind_output<uint8_t>(io, "prog_dc_watch"));
 }
 
 }  // namespace Site

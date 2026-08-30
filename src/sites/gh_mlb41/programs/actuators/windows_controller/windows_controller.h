@@ -126,8 +126,11 @@ inline void WindowsController::bind(Vars::Bank& io) {
     pos[2]      = _bind_output<float>(io, "cli_window3_pos");
     pos[3]      = _bind_output<float>(io, "cli_window4_pos");
 
-    set_health_row(_bind_output<uint8_t>(io, "prog_windows"));
-    on_bind();
+    // The safe opening is the row's own default, the way a valve takes its fail
+    // direction from its coil row: one place declares where this actuator goes
+    // when nobody is driving it.
+    const Vars::Descriptor& d = tgt[0].io->descriptor(tgt[0].r.index);
+    _safe_open = Vars::as_f32(d.type, d.def);
 }
 
 }  // namespace Site

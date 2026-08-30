@@ -100,7 +100,6 @@ inline void IrrMtrInput::bind(Vars::Bank& io) {
     pressure      = _bind_output<bool>(io, "alarm_water_pressure");
     pulsing       = _bind_output<bool>(io, "irr_inPulse");
 
-    set_health_row(_bind_output<uint8_t>(io, "prog_irr_mtr_input"));
 }
 
 }  // namespace Site

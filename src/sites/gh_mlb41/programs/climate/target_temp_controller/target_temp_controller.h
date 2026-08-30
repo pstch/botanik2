@@ -78,7 +78,6 @@ inline void TargetTempController::bind(Vars::Bank& io) {
     tau           = _bind_input<uint16_t>(io, "cli_targetTau_s");
     target        = _bind_output<float>(io, "cli_targetTemp_degC");
 
-    set_health_row(_bind_output<uint8_t>(io, "prog_target_temp"));
 }
 
 }  // namespace Site

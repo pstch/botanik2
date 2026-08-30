@@ -7,8 +7,6 @@
 
 namespace Site {
 
-void AcGridWatch::on_bind() { supply.attach(*this); }
-
 void AcGridWatch::run(ProgramContext& c) { (void)c; }
 
 void AcGridWatch::observe(ProgramContext& c) {

@@ -158,7 +158,6 @@ inline void IrrigationSchedule::bind(Vars::Bank& io) {
     today         = _bind_inout<uint32_t>(io, "irr_today");
     served        = _bind_inout<uint8_t>(io, "irr_servedToday");
 
-    set_health_row(_bind_output<uint8_t>(io, "prog_irr_schedule"));
 }
 
 }  // namespace Site

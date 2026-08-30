@@ -76,7 +76,6 @@ inline void DestratController::bind(Vars::Bank& io) {
     fan_high = _bind_input<float>(io, "cli_fanHighDem");
     demand   = _bind_output<float>(io, "cli_stratDem");
 
-    set_health_row(_bind_output<uint8_t>(io, "prog_destrat"));
 }
 
 }  // namespace Site

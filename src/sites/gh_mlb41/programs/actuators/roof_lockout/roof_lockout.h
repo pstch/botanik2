@@ -87,7 +87,6 @@ inline void RoofLockout::bind(Vars::Bank& io) {
     wind_lock   = _bind_inout<bool>(io, "cli_windLockout");
     window_lock = _bind_inout<bool>(io, "cli_windowLockout");
 
-    set_health_row(_bind_output<uint8_t>(io, "prog_roof_lockout"));
 }
 
 }  // namespace Site

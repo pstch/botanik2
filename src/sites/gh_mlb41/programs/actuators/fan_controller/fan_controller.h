@@ -107,7 +107,6 @@ inline void FanController::bind(Vars::Bank& io) {
     speed3[1]     = _bind_output<bool>(io, "cli_destrat2_speed3");
     band          = _bind_output<uint8_t>(io, "cli_fanSpeed");
 
-    set_health_row(_bind_output<uint8_t>(io, "prog_fans"));
 }
 
 }  // namespace Site

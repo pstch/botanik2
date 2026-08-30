@@ -70,7 +70,6 @@ inline void TempRHZone::bind(Vars::Bank& io) {
     vpd       = _bind_output<float>(io, "cli_vpd_kPa");
     rot       = _bind_output<bool>(io, "alarm_rot");
 
-    set_health_row(_bind_output<uint8_t>(io, "prog_temp_rh_zone"));
 }
 
 }  // namespace Site

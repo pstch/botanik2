@@ -89,7 +89,6 @@ inline void IrrigationModulation::bind(Vars::Bank& io) {
     vpd_avg   = _bind_output<float>(io, "irr_vpdAvg_kPa");
     mod       = _bind_output<float>(io, "irr_mod");
 
-    set_health_row(_bind_output<uint8_t>(io, "prog_irr_modulation"));
 }
 
 }  // namespace Site

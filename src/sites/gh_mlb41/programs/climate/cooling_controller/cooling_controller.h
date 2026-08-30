@@ -76,7 +76,6 @@ inline void CoolingController::bind(Vars::Bank& io) {
     demand      = _bind_output<float>(io, "cli_coolDem");
     window      = _bind_output<float>(io, "cli_windowDem");
 
-    set_health_row(_bind_output<uint8_t>(io, "prog_cooling"));
 }
 
 }  // namespace Site

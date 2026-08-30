@@ -233,6 +233,31 @@ TEST_CASE("site: no two rows claim the same Modbus register") {
 }
 
 #if BOTANIK_FEATURE_MODBUS_TCP_SERVER
+#if BOTANIK_FEATURE_PLC
+TEST_CASE("site: every program publishes its health, off its own name") {
+    // The base derives "prog_<name>" and stays SILENT when the site declares
+    // none - a harness rig has no such row. Silent is the right behaviour and
+    // the wrong thing to leave untested: a renamed program would quietly stop
+    // publishing, and the row it used to drive would sit at its default
+    // reading HEALTHY for ever.
+    Vars::Bank bank;
+    Botanik::Tasks::Registry reg;
+    TestSite::build(bank);
+    AllPrograms progs(Botanik::SetupContext(reg), bank);
+    for (Botanik::Plc::Program* p : progs.all) p->register_tasks();
+    reg.setup(0);
+
+    for (Botanik::Plc::Program* p : progs.all) {
+        char row[40];
+        snprintf(row, sizeof row, "prog_%s", p->name());
+        INFO("'" << p->name() << "' should drive '" << row << "'");
+        const Vars::VarRef declared = bank.find(row, (uint16_t)strlen(row));
+        REQUIRE(declared.index != Vars::VAR_NONE);   // the site declares one
+        CHECK(p->health_row().r.index == declared.index);
+    }
+}
+#endif
+
 TEST_CASE("site: every mapped row fits the TCP map") {
     // Outgrowing it serves a SHORT map - the rows past the end answer nothing,
     // which an integrator reads as a device that does not have them. The slave

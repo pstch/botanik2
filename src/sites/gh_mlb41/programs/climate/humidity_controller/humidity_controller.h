@@ -81,7 +81,6 @@ inline void HumidityController::bind(Vars::Bank& io) {
     lockout       = _bind_output<bool>(io, "cli_rotLockout");
     vent_dem      = _bind_output<float>(io, "cli_rotVentDem");
 
-    set_health_row(_bind_output<uint8_t>(io, "prog_humidity"));
 }
 
 }  // namespace Site

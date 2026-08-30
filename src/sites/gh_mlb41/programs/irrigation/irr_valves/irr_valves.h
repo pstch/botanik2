@@ -93,8 +93,11 @@ inline void IrrValves::bind(Vars::Bank& io) {
     tray_valve[6] = _bind_output<bool>(io, "irr_tray7");
     tray_valve[7] = _bind_output<bool>(io, "irr_tray8");
 
-    set_health_row(_bind_output<uint8_t>(io, "prog_irr_valves"));
-    on_bind();
+    for (uint8_t i = 0; i < 2; i++) {
+        inlet_v[i].attach(inlet[i]);
+        outlet_v[i].attach(outlet[i]);
+    }
+    for (uint8_t i = 0; i < N_TRAY_VALVE; i++) tray_v[i].attach(tray_valve[i]);
 }
 
 }  // namespace Site

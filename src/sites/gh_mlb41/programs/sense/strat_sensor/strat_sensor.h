@@ -54,7 +54,6 @@ inline void StratSensor::bind(Vars::Bank& io) {
     floor   = _bind_input<float>(io, "cli_temp_lo");
     strat   = _bind_output<float>(io, "cli_dTStrat_degC");
 
-    set_health_row(_bind_output<uint8_t>(io, "prog_strat"));
 }
 
 }  // namespace Site

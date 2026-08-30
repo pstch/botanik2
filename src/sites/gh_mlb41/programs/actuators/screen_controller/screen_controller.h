@@ -80,7 +80,6 @@ inline void ScreenController::bind(Vars::Bank& io) {
     screen       = _bind_output<bool>(io, "cli_screen");
     moving       = _bind_output<bool>(io, "cli_screenMoving");
 
-    set_health_row(_bind_output<uint8_t>(io, "prog_screen"));
 }
 
 }  // namespace Site

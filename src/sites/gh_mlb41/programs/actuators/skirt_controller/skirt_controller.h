@@ -80,8 +80,7 @@ inline void SkirtController::bind(Vars::Bank& io) {
     valve      = _bind_output<bool>(io, "cli_skirtValve");
     duty       = _bind_output<float>(io, "cli_skirtDuty");
 
-    set_health_row(_bind_output<uint8_t>(io, "prog_skirt"));
-    on_bind();
+    pulse.attach(valve);
 }
 
 }  // namespace Site

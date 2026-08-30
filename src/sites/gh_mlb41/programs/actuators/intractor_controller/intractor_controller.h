@@ -89,8 +89,12 @@ inline void IntractorController::bind(Vars::Bank& io) {
     intr[0]      = _bind_output<float>(io, "cli_intr1");
     intr[1]      = _bind_output<float>(io, "cli_intr2");
 
-    set_health_row(_bind_output<uint8_t>(io, "prog_intractors"));
-    on_bind();
+    // The AO row's declared safe value, not a constant here: an actuator's safe
+    // state belongs to the table, which is also what the field bus carries out
+    // when control authority goes entirely. Read once - a descriptor does not
+    // change under a running plant.
+    const Vars::Descriptor& d = intr[0].io->descriptor(intr[0].r.index);
+    _safe_speed = Vars::as_f32(d.type, d.def);
 }
 
 }  // namespace Site

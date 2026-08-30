@@ -202,7 +202,6 @@ inline void IrrigationCycle::bind(Vars::Bank& io) {
     delivered      = _bind_inout<float>(io, "irr_delivered_L");
     drained        = _bind_inout<float>(io, "irr_drained_L");
 
-    set_health_row(_bind_output<uint8_t>(io, "prog_irrigation"));
 }
 
 }  // namespace Site

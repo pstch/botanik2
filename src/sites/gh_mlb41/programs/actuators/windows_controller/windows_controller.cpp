@@ -9,14 +9,6 @@
 
 namespace Site {
 
-void WindowsController::on_bind() {
-    // The safe opening is the row's own default, the way a valve takes its fail
-    // direction from its coil row: one place declares where this actuator goes
-    // when nobody is driving it.
-    const Vars::Descriptor& d = tgt[0].io->descriptor(tgt[0].r.index);
-    _safe_open = Vars::as_f32(d.type, d.def);
-}
-
 Plc::ActuatorConfig WindowsController::_mechanics() const {
     const uint32_t travel = 1000u * travel_s.get();
     const uint32_t tmo    = 1000u * tmo_s.get();

@@ -73,7 +73,6 @@ inline void IrrMtrOutput::bind(Vars::Bank& io) {
     out_flow_pub = _bind_output<float>(io, "irr_outFlow_Lpm");
     out_total    = _bind_output<float>(io, "irr_outTotal_L");
 
-    set_health_row(_bind_output<uint8_t>(io, "prog_irr_mtr_output"));
 }
 
 }  // namespace Site

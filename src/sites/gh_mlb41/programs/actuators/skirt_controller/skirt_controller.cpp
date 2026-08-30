@@ -7,8 +7,6 @@
 
 namespace Site {
 
-void SkirtController::on_bind() { pulse.attach(valve); }
-
 void SkirtController::run(ProgramContext& c) {
     // Wetting air that is already condensing is the one thing this valve must
     // never do, so the lockout is resolved before any demand - and before the

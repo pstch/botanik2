@@ -88,7 +88,6 @@ inline void ClimateWatch::bind(Vars::Bank& io) {
     stratified = _bind_output<bool>(io, "alarm_strat");
     sensor     = _bind_output<bool>(io, "alarm_sensor_fault");
 
-    set_health_row(_bind_output<uint8_t>(io, "prog_climate_watch"));
 }
 
 }  // namespace Site

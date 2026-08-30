@@ -79,7 +79,6 @@ inline void IntakeGates::bind(Vars::Bank& io) {
     intake_ok   = _bind_output<bool>(io, "cli_intakeCoolOk");
     ground_ok   = _bind_output<bool>(io, "cli_groundHeatOk");
 
-    set_health_row(_bind_output<uint8_t>(io, "prog_intake_gates"));
 }
 
 }  // namespace Site

@@ -73,7 +73,6 @@ inline void IntakeDryGate::bind(Vars::Bank& io) {
     vent_hyst  = _bind_input<float>(io, "cli_ventHyst_degC");
     dry_ok     = _bind_output<bool>(io, "cli_intakeDryOk");
 
-    set_health_row(_bind_output<uint8_t>(io, "prog_intake_dry"));
 }
 
 }  // namespace Site

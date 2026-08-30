@@ -96,8 +96,7 @@ inline void AcLocalWatch::bind(Vars::Bank& io) {
     fault     = _bind_output<bool>(io, "alarm_ac_local");
     gen_fault = _bind_output<bool>(io, "alarm_gen");
 
-    set_health_row(_bind_output<uint8_t>(io, "prog_ac_local_watch"));
-    on_bind();
+    supply.attach(*this);
 }
 
 }  // namespace Site

@@ -136,8 +136,11 @@ inline void TempRHSensors::bind(Vars::Bank& io) {
     fault_cs  = _bind_output<bool>(io, "alarm_sns_crawlspace");
     fault_ext = _bind_output<bool>(io, "alarm_sns_exterior");
 
-    set_health_row(_bind_output<uint8_t>(io, "prog_temp_rh_sensors"));
-    on_bind();
+    const float tau_s = 0.001f * (float)tau_ms.get();
+    ceiling.attach(t_hi, h_hi, temp_hi, rh_hi, fault_hi, tau_s);
+    floor.attach(t_lo, h_lo, temp_lo, rh_lo, fault_lo, tau_s);
+    crawlspace.attach(t_cs, h_cs, temp_cs, rh_cs, fault_cs, tau_s);
+    exterior.attach(t_ext, h_ext, temp_ext, rh_ext, fault_ext, tau_s);
 }
 
 }  // namespace Site

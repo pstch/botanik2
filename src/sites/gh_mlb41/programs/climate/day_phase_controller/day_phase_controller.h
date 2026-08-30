@@ -107,7 +107,6 @@ inline void DayPhaseController::bind(Vars::Bank& io) {
     prev_day_max   = _bind_inout<float>(io, "cli_prevDayMax_degC");
     prev_night_min = _bind_inout<float>(io, "cli_prevNightMin_degC");
 
-    set_health_row(_bind_output<uint8_t>(io, "prog_day_phase"));
 }
 
 }  // namespace Site
