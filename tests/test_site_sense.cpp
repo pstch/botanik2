@@ -407,7 +407,7 @@ TEST_CASE("cooling: an unknown demand puts every actuator at its own safe state"
     CHECK(lock_.health() == Plc::Health::HEALTHY);
 }
 
-TEST_CASE_FIXTURE(Rig<Site::DestratController>, "scan: sys_dt_ms is the elapsed time of the program running now") {
+TEST_CASE_FIXTURE(StRig, "scan: sys_dt_ms is the elapsed time of the group running now") {
     // The one thing a C++ law takes as an ARGUMENT that ST has no way to be
     // handed: a POU reads variables, so dt has to be one. Written by the
     // Program base just before each body, which is what makes it the running
@@ -421,7 +421,7 @@ TEST_CASE_FIXTURE(Rig<Site::DestratController>, "scan: sys_dt_ms is the elapsed 
     CHECK(live.bank.var(dt).value().as<uint32_t>() == 600u);
 }
 
-TEST_CASE_FIXTURE(Rig<Site::DestratController>, "destrat: an unmeasured gap makes the demand unknown, not zero") {
+TEST_CASE_FIXTURE(StRig, "destrat: an unmeasured gap makes the demand unknown, not zero") {
 
     const VarRef dem = live.ref("cli_stratDem");
     field(live, "cli_dTStrat_degC", 8.0f);

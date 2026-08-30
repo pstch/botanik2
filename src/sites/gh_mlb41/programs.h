@@ -90,7 +90,6 @@
 #include "programs/climate/target_temp_controller/target_temp_controller.h"
 #include "programs/climate/cooling_controller/cooling_controller.h"
 #include "programs/climate/intake_gates/intake_gates.h"
-#include "programs/climate/destrat_controller/destrat_controller.h"
 #include "programs/climate/humidity_controller/humidity_controller.h"
 #include "programs/climate/intake_dry_gate/intake_dry_gate.h"
 #include "programs/irrigation/irrigation_modulation/irrigation_modulation.h"
@@ -126,7 +125,6 @@
     X(TargetTempController, _target_temp)     \
     X(CoolingController,    _cooling)         \
     X(IntakeGates,          _intake_gates)   \
-    X(DestratController,    _destrat)         \
     X(HumidityController,   _humidity)        \
     X(IntakeDryGate,        _intake_dry)     \
     X(IrrigationModulation, _irr_modulation)  \

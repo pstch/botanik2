@@ -115,6 +115,27 @@ struct Rig {
     Cycle               d{progs, 1, &live.bank, live.reg};
 };
 
+/** @brief The ST plant on its own.
+ *
+ *  There is no program object to hold a rig open on - destrat_controller is
+ *  generated ST now - so the fixture drives the RESOURCE. `d.step()` keeps the
+ *  name every other rig uses so a case reads the same. */
+struct StRig {
+    Live            live;
+    Site::StRuntime st{ Botanik::SetupContext(live.reg), live.bank };
+
+    StRig() { st.wire(); d.st = &st; }
+
+    struct Driver {
+        Site::StRuntime* st = nullptr;
+        uint64_t last = 0;
+        void step(uint64_t now_ms) {
+            st->scan_slow((uint32_t)(now_ms - last));
+            last = now_ms;
+        }
+    } d;
+};
+
 /** @brief The sensing chain: the probes are voted and filtered, then the
  *  psychrometrics are taken off the two interior levels. Split across two
  *  programs, so a case about what a reading BECOMES needs both. */

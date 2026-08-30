@@ -37,6 +37,7 @@
 
 // Every control program, and the one list site.h expands three times below.
 #include "programs.h"
+#include "st/st_runtime.h"
 
 namespace Site {
 
@@ -92,6 +93,11 @@ class GreenhouseMLB41 final : public Botanik::BotanikFirmware {
     SITE_PROGRAM_LIST(X)
 #undef X
 
+    /** @brief The generated ST plant. Holds destrat_controller, which is no
+     *  longer a Plc::Program - it is ST, and matiec generates its binding,
+     *  its law and the resource that dispatches it. */
+    Site::StRuntime _st;
+
     /** @} */
 
 public:
@@ -105,6 +111,7 @@ public:
 #define X(cls, mem) , mem(setup_context(), io())
           SITE_PROGRAM_LIST(X)
 #undef X
+          , _st(setup_context(), io())
     {}
 
 protected:
@@ -126,6 +133,7 @@ protected:
 #define X(cls, mem) mem.register_tasks();
         SITE_PROGRAM_LIST(X)
 #undef X
+        _st.register_tasks();
     }
 };
 

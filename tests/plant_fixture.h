@@ -61,8 +61,9 @@ struct Plant {
     Site::TargetTempController target;
     Site::CoolingController    cooling;
     Site::IntakeGates          intake_gates;
-    Site::DestratController    destrat;
     Site::HumidityController   humidity;
+    /** @brief destrat_controller lives here now: it is ST, not a program. */
+    Site::StRuntime            st;
     Site::IntakeDryGate        intake_dry;
     Site::IrrigationModulation irr_mod;
     Site::IrrMtrInput          irr_in;
@@ -90,15 +91,16 @@ struct Plant {
           sensors(ctx(), io()), zones(ctx(), io()), strat(ctx(), io()),
           climate(ctx(), io()), wx(ctx(), io()), weather(ctx(), io()),
           target(ctx(), io()), cooling(ctx(), io()),
-          intake_gates(ctx(), io()), destrat(ctx(), io()),
+          intake_gates(ctx(), io()),
           humidity(ctx(), io()), intake_dry(ctx(), io()), irr_mod(ctx(), io()), irr_in(ctx(), io()), irr_out(ctx(), io()),
           irr_schedule(ctx(), io()), irrigation(ctx(), io()), irr_valves(ctx(), io()), screen(ctx(), io()),
           roof_lock(ctx(), io()), windows(ctx(), io()),
-          intractors(ctx(), io()), fans(ctx(), io()), skirt(ctx(), io()) {
+          intractors(ctx(), io()), fans(ctx(), io()), skirt(ctx(), io()),
+          st(ctx(), io()) {
         Plc::Program* const list[] = {
             &ac_grid, &ac_local, &dc, &sensors, &zones, &strat, &climate,
             &wx, &weather,
-            &target, &cooling, &intake_gates, &destrat, &humidity, &intake_dry,
+            &target, &cooling, &intake_gates, &humidity, &intake_dry,
             &irr_mod, &irr_in, &irr_out, &irr_schedule, &irrigation, &irr_valves,
             &screen, &roof_lock, &windows, &intractors, &fans, &skirt
         };
@@ -107,6 +109,7 @@ struct Plant {
         const uint8_t n = (uint8_t)(sizeof(list) / sizeof(list[0]));
         for (uint8_t i = 0; i < n; i++) all[i] = list[i];
         cycle = new Cycle(all, n, &f.bank, f.reg);
+        st.wire();
     }
     ~Plant() { delete cycle; }
 
@@ -115,12 +118,14 @@ struct Plant {
 
     /** @brief Beats, at the site's own period. */
     void run(uint32_t beats) {
-        for (uint32_t i = 0; i < beats; i++) cycle->step(t += 100);
+        for (uint32_t i = 0; i < beats; i++) { cycle->step(t += 100); st.scan_slow(100); }
     }
     /** @brief ...and the same, holding the environment where the case put it:
      *  a field row goes stale without a driver refreshing it. */
     void weather_for(uint32_t beats) {
-        for (uint32_t i = 0; i < beats; i++) { hold(*this); cycle->step(t += 100); }
+        for (uint32_t i = 0; i < beats; i++) {
+            hold(*this); cycle->step(t += 100); st.scan_slow(100);
+        }
     }
 
     void probe(const char* fmt, uint8_t n, float v) {

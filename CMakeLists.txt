@@ -138,6 +138,14 @@ if(BOTANIK_SITE_DIR)
 else()
     set(_site_dir "${CMAKE_CURRENT_SOURCE_DIR}/src/sites/${BOTANIK_SITE}")
 endif()
+# The ST shim, and the matiec output the site's StRuntime compiles. Every
+# target needs them: st_runtime.cpp is a SITE source, so it builds into the
+# sim, the suite AND the firmware.
+target_include_directories(botanik PUBLIC
+    "${CMAKE_CURRENT_SOURCE_DIR}/st/shim"
+    "${_site_dir}/st"
+    "${_site_dir}/st/generated")
+
 foreach(_f config.h site.h)
     if(NOT EXISTS "${_site_dir}/${_f}")
         message(FATAL_ERROR "Site directory '${_site_dir}' has no ${_f}; "
@@ -223,6 +231,11 @@ if(BOTANIK_TARGET STREQUAL "SIMULATOR")
     # variables as members, so a local of the same name takes over silently.
     set_source_files_properties(${BOTANIK_SITE_SOURCES}
                                 PROPERTIES COMPILE_FLAGS "-Wshadow")
+    # The one TU that compiles matiec's output. Its warnings are not ours to
+    # fix - the file says "editing this file is not recommended" - and -Wshadow
+    # over generated C is pure noise.
+    set_source_files_properties("${_site_dir}/st/st_runtime.cpp"
+        PROPERTIES COMPILE_FLAGS "-Wno-unused-parameter -Wno-shadow")
     add_executable(botanik_sim
         "src/botanik_sim/main.cpp"
         ${BOTANIK_SITE_SOURCES})

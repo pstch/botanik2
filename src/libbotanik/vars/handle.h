@@ -50,6 +50,10 @@ namespace Botanik { namespace Vars {
     /** @brief No program has claimed this row. Not 0, which is a real program
      *  index - the same trap VAR_NONE exists to avoid. */
     static const uint8_t WRITER_NONE = 0xFFu;
+    /** @brief The generated ST plant, as ONE writer. Programs take slots
+     *  counting up from 0, so this sits at the far end and cannot collide.
+     *  ST has no per-program bracket to open a narrower window in. */
+    static const uint8_t WRITER_ST   = 0xFEu;
 
     /** @brief This row has no wire value of its own: its value IS what the wire
      *  carries, or it has no binding at all. */

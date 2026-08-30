@@ -11,7 +11,7 @@
  *  `bind()`; everything internal to a POU stays a plain member.
  */
 #include "libbotanik/vars/model.h"
-#include "st/shim/iec_std_lib.h"
+#include "iec_std_lib.h"
 
 /** @name POU-internal variables - plain members, never rows
  *
@@ -70,6 +70,10 @@
     static const char* const GLOBAL_NAME__##name = #name;
 #define __INIT_GLOBAL(type, name, initial, retained)  do { } while (0);
 #define __DECLARE_GLOBAL_LOCATION(type, location)
+/* The config header restates every global as a prototype. The row already
+ * exists in the site table, so there is nothing to prototype. */
+#define __DECLARE_GLOBAL_PROTOTYPE(type, name)
+#define __DECLARE_GLOBAL_PROTOTYPE_FB(type, name)
 #define __INIT_RETAIN(name, retained)
 
 #define __INIT_EXTERNAL(type, global, name, retained) \
