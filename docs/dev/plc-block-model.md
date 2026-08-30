@@ -72,10 +72,17 @@ cross-build, and re-pins `libbotanik_sizes.h` on both targets.
   the null-name check in `telemetry.cpp`, which is luck rather than intent.
 - A pool after the declared rows, sized by `BOTANIK_VAR_LOCAL_MAX`.
   `Bank::alloc_local(VarType, Scalar def) -> VarRef`, callable after `freeze()`.
-- Overflow is counted and reported at bring-up, like `rows_unscanned()`.
+- **Allocated in `bind()`, at setup, exactly as a program resolves its names.**
+  A block's `bind()` is called from its program's, inside the same writer
+  window, so every local in the plant exists before the first beat. Nothing
+  allocates at run time and the pool cannot be exceeded by a path that only
+  runs on a Tuesday.
+- Overflow is therefore a BRING-UP failure. It fails the way an unresolved name
+  does: counted, reported by the POST, and the program that asked is INVALID
+  and never activated. `Program::_bind_check()` already has the shape.
 - Tests: allocation returns distinct rows; a local is absent from the TCP map,
-  from telemetry and from the parameter block; the pool reports overflow rather
-  than aliasing.
+  from telemetry and from the parameter block; a program whose pool request
+  cannot be met comes up INVALID rather than sharing a row.
 
 Nothing uses it yet. Landing it alone keeps the diff readable.
 
@@ -135,8 +142,11 @@ gives about 1 KB of it back. Net around +5 KB on the bank's 19.7.
 
 - **Rows are allocated, not declared.** Today the table is a frozen `constexpr`
   array and `tests/test_site.cpp` leans on that. A bind-time pool is a new
-  mechanism, and `unresolved_count()` cannot vouch for a row with no name: the
-  equivalent guarantee is "the pool did not overflow".
+  mechanism. It is NOT a weaker guarantee, because allocation happens in
+  `bind()` at setup: `unresolved_count()` cannot vouch for a row with no name,
+  but "the pool did not overflow" is answered at the same moment and reported
+  the same way. What is lost is only the ability to read the whole table out of
+  `vars.cpp`.
 - **Scope leakage.** Every filter that walks the table (telemetry, TCP map,
   MONITOR, params, alarms) must exclude `SCOPE_LOCAL` explicitly. 39 sites
   reference a scope or `ROLE_PARAM`; each wants checking once.
