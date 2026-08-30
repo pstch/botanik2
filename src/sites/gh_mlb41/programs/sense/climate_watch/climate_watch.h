@@ -30,6 +30,8 @@ public:
 
     Vars::RefIn<float> temp;
     Vars::RefIn<float> margin;
+    Vars::RefIn<bool>  temp_qlt;
+    Vars::RefIn<bool>  margin_qlt;
     Vars::RefIn<float> strat;
     Vars::RefIn<float> too_hot;
     Vars::RefIn<float> too_cold;
@@ -72,6 +74,8 @@ protected:
 inline void ClimateWatch::bind(Vars::Bank& io) {
     temp       = _bind_input<float>(io, "cli_temp_hi");
     margin     = _bind_input<float>(io, "cli_dpMargin_degC");
+    temp_qlt   = _bind_input<bool>(io, "cli_temp_hi_qlt");
+    margin_qlt = _bind_input<bool>(io, "cli_dpMargin_degC_qlt");
     strat      = _bind_input<float>(io, "cli_dTStrat_degC");
     too_hot    = _bind_input<float>(io, "cli_tooHot_degC");
     too_cold   = _bind_input<float>(io, "cli_tooCold_degC");

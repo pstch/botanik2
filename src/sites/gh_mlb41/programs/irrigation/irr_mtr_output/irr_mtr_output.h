@@ -38,6 +38,8 @@ public:
      *  @{ */
 
     Vars::RefOut<float> out_flow_pub;
+    Vars::RefOut<bool>  out_total_qlt;
+    Vars::RefOut<bool>  out_flow_qlt;
     Vars::RefOut<float> out_total;
 
     /** @} */
@@ -71,6 +73,8 @@ inline void IrrMtrOutput::bind(Vars::Bank& io) {
     out_avg_ms   = _bind_input<uint16_t>(io, "irr_out_avg_ms");
     out_flow_pub = _bind_output<float>(io, "irr_outFlow_Lpm");
     out_total    = _bind_output<float>(io, "irr_outTotal_L");
+    out_total_qlt = _bind_output<bool>(io, "irr_outTotal_L_qlt");
+    out_flow_qlt  = _bind_output<bool>(io, "irr_outFlow_Lpm_qlt");
 
 }
 

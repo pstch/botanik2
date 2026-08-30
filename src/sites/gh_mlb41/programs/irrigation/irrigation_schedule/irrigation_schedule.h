@@ -35,6 +35,7 @@ public:
     Vars::RefIn<float>    outside_temp;
     Vars::RefIn<float>    dawn_gate;
     Vars::RefIn<uint8_t>  phase;
+    Vars::RefIn<bool>     phase_qlt;
     Vars::RefIn<int16_t>  from_rise;
     Vars::RefIn<int16_t>  day_rise;
     Vars::RefIn<uint16_t> morning_win;
@@ -124,6 +125,7 @@ inline void IrrigationSchedule::bind(Vars::Bank& io) {
     outside_temp  = _bind_input<float>(io, "cli_temp_ext");
     dawn_gate     = _bind_input<float>(io, "irr_dawnGate_degC");
     phase         = _bind_input<uint8_t>(io, "cli_phase");
+    phase_qlt     = _bind_input<bool>(io, "cli_phase_qlt");
     from_rise     = _bind_input<int16_t>(io, "sol_fromRise_min");
     day_rise      = _bind_input<int16_t>(io, "sol_dayRise_min");
     morning_win   = _bind_input<uint16_t>(io, "irr_morningWin_min");

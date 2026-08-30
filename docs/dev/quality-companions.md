@@ -7,7 +7,7 @@ a time against one test:
 > earns a companion row only when the law must do something STRUCTURALLY
 > different - not merely compute on a different number.
 
-**12 rows keep a `_qlt`. Everything else goes.**
+**11 rows keep a `_qlt`. Everything else goes.**
 
 ## Keep
 
@@ -22,7 +22,7 @@ a time against one test:
 | `cli_temp_hi_qlt` | temp_rh_zone | the worst-case vote is among MEASURED levels. A level holding an old reading must not speak for the house |
 | `cli_temp_lo_qlt` | temp_rh_zone | the other half of that vote |
 | `irr_inTotal_L_qlt` | irrigation_cycle | a totalizer DIFFERENCE cannot take a substituted constant at either end. `Ref::held()` is what reads it; the companion is what flags the volume |
-| `irr_outTotal_L_qlt` | irrigation_cycle | the drain half of the same |
+| `irr_outTotal_L_qlt` | irrigation_cycle | a totaliser DIFFERENCE cannot take a substituted constant at either end. `Ref::held()` reads the value; the companion flags the volume. The INLET needs none - it is a local pulse counter, always readable, so its companion would be a constant |
 | `irr_outFlow_Lpm_qlt` | irrigation_cycle | the drain verdict DECLINES TO JUDGE on a silent meter. Declared 0 Lpm reads as a clog |
 | `irr_mod_qlt` | irrigation_cycle | the cycle still runs on the declared modulation - the companion is what marks the dose a guess |
 
@@ -63,8 +63,28 @@ blind := NOT cli_rain_mmph_qlt OR NOT cli_wind_mps_qlt;
 The bank keeps them in step - nothing in ST may WRITE a `_qlt` it did not
 earn, which is the one rule this design has to enforce.
 
+## Where quality still lives
+
+Twenty-two reads survive, in three classes, and none of them is a law
+branching on a derived row:
+
+1. **Inside a conditioning block, on a row the TRANSPORT fills.** `ZoneProbes`,
+   `WeatherProbes`, `AcSupply`, `IntakeDryGate`, `DcWatch`, `IrrMtrOutput`.
+   The driver's verdict is the only source there is, and excluding a dead probe
+   from a vote is not something a value can express. These blocks stay C++.
+2. **`Ref::held()` on a totaliser.** Four, all in `irrigation_cycle`. A
+   difference between two readings of one running counter cannot take a
+   substituted constant at either end.
+3. **A producer deriving its own output's quality.** `day_phase` off the sun
+   rows, `strat_sensor` off the two level companions. One expression, and it is
+   what makes the row it writes honest.
+
+The rule, stated once: **quality is READ where the transport put it and where a
+producer derives its own output's. A LAW that branches on a DERIVED row's
+quality gets a companion, or does without.**
+
 ## What it costs
 
-12 rows against ~40 reads, so **most of the validity logic goes away**. The
+11 rows against ~40 reads, so **most of the validity logic goes away**. The
 survivors are the ones where getting it wrong opens a roof in the rain, calls
 for heat into a house nobody can see, or reports a clog that is not there.

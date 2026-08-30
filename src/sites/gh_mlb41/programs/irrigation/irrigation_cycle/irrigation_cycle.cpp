@@ -53,7 +53,7 @@ void IrrigationCycle::_stamp_served() {
 }
 
 void IrrigationCycle::_drain_verdict() {
-    const bool measured = out_flow.valid();
+    const bool measured = out_flow_qlt.get();
     if (_dose_L <= 0.0f || !measured) {
         // A fill that never delivered, or a meter that is not answering. Both
         // are already alarms of their own; a clog raised on top would send
@@ -109,7 +109,7 @@ void IrrigationCycle::run(ProgramContext& c) {
     // The dose is the tray's summer figure scaled by this. A modulation nobody
     // has reads as the DECLARED one, so there is always a dose - the cycle runs
     // on it and the quality below is what says it was a guess.
-    const bool  can_dose = mod.valid();
+    const bool  can_dose = mod_qlt.get();
     const float mod_now  = mod.get();
 
     const float split_lim = Plc::limit(split.get(), 0.0f, 1.0f);
@@ -139,7 +139,7 @@ void IrrigationCycle::run(ProgramContext& c) {
             break;
         }
         case IRR_FILLING: {
-            delivered.set(in_total.held() - _fill_start_L, in_total.valid());
+            delivered.set(in_total.held() - _fill_start_L, true);
             // ...and read back, so the fill ends on the row an operator can
             // watch and force rather than on a local difference.
             const float got = delivered.get();
@@ -182,7 +182,7 @@ void IrrigationCycle::run(ProgramContext& c) {
             break;
         }
         case IRR_DRAINING: {
-            drained.set(out_total.held() - _drain_start_L, out_total.valid());
+            drained.set(out_total.held() - _drain_start_L, out_total_qlt.get());
             if (!dwell(true, 1000u * drain_window_s.get(), c.dt_ms)) break;
             _drain_verdict();
             _tray = 0;

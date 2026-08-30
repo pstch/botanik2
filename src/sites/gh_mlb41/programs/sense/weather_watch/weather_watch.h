@@ -30,6 +30,8 @@ public:
 
     Vars::RefIn<float> wind;
     Vars::RefIn<float> rain;
+    Vars::RefIn<bool>  wind_qlt;
+    Vars::RefIn<bool>  rain_qlt;
     Vars::RefIn<float> storm_wind;
 
     /** @} */
@@ -70,6 +72,8 @@ protected:
 inline void WeatherWatch::bind(Vars::Bank& io) {
     wind       = _bind_input<float>(io, "cli_wind_mps");
     rain       = _bind_input<float>(io, "cli_rain_mmph");
+    wind_qlt   = _bind_input<bool>(io, "cli_wind_mps_qlt");
+    rain_qlt   = _bind_input<bool>(io, "cli_rain_mmph_qlt");
     storm_wind = _bind_input<float>(io, "cli_windShutEnd_mps");
     storm      = _bind_output<bool>(io, "alarm_weather_storm");
     since_rain = _bind_output<uint16_t>(io, "cli_sinceRain_min");

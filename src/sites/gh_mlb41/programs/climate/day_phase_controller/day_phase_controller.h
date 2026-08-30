@@ -44,6 +44,8 @@ public:
     /** @name VAR_OUTPUT
      *  @{ */
 
+    Vars::RefOut<bool>    phase_qlt;
+
     Vars::RefOut<uint8_t> phase;
     Vars::RefOut<bool>    cold_arm;
     Vars::RefOut<bool>    heat_arm;
@@ -102,6 +104,7 @@ inline void DayPhaseController::bind(Vars::Bank& io) {
     dusk_set       = _bind_input<int16_t>(io, "sol_duskSet_min");
     night_set      = _bind_input<int16_t>(io, "sol_nightSet_min");
     phase          = _bind_output<uint8_t>(io, "cli_phase");
+    phase_qlt      = _bind_output<bool>(io, "cli_phase_qlt");
     cold_arm       = _bind_output<bool>(io, "cli_coldBankArm");
     heat_arm       = _bind_output<bool>(io, "cli_heatBankArm");
     prev_day_max   = _bind_inout<float>(io, "cli_prevDayMax_degC");

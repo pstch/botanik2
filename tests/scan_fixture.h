@@ -8,6 +8,7 @@
  */
 
 #include <cstdint>
+#include <cstring>
 
 #include "libbotanik.h"
 #include "site_bank.h"
@@ -69,6 +70,24 @@ struct Live {
     Botanik::Vars::Bank      bank;
     Live() {
         TestSite::build(bank);
+        believe_all();
+    }
+
+    /** @brief Every `_qlt` companion true.
+     *
+     *  A companion declares FALSE, which is right in the field: nothing is
+     *  believed until something measures it. In a rig it is the wrong start,
+     *  because whatever the program under test READS comes from a program the
+     *  rig is not running. The program's OWN companions are overwritten on its
+     *  first scan, so this cannot hide one it fails to publish - a case
+     *  rehearsing a dead instrument clears the one it means. */
+    void believe_all() {
+        for (uint16_t i = 0; i < bank.count(); i++) {
+            const char* n = bank.descriptor(i).name;
+            const size_t len = strlen(n);
+            if (len > 4 && strcmp(n + len - 4, "_qlt") == 0)
+                bank.var(Botanik::Vars::VarRef{ i }).set(true);
+        }
     }
     Botanik::Vars::VarRef ref(const char* name) { return bank.find(name); }
 };

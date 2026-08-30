@@ -31,6 +31,7 @@ public:
     Vars::RefIn<float>    t_min;
     Vars::RefIn<float>    t_max;
     Vars::RefIn<uint8_t>  phase;
+    Vars::RefIn<bool>     phase_qlt;
     Vars::RefIn<bool>     cold_arm;
     Vars::RefIn<bool>     heat_arm;
     Vars::RefIn<float>    cool_set;
@@ -70,6 +71,7 @@ inline void TargetTempController::bind(Vars::Bank& io) {
     t_min         = _bind_input<float>(io, "cli_targetMin_degC");
     t_max         = _bind_input<float>(io, "cli_targetMax_degC");
     phase         = _bind_input<uint8_t>(io, "cli_phase");
+    phase_qlt     = _bind_input<bool>(io, "cli_phase_qlt");
     cold_arm      = _bind_input<bool>(io, "cli_coldBankArm");
     heat_arm      = _bind_input<bool>(io, "cli_heatBankArm");
     cool_set      = _bind_input<float>(io, "cli_coolSet_degC");

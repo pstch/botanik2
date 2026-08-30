@@ -30,6 +30,9 @@ public:
     Vars::RefIn<uint8_t>  due_tray;
     Vars::RefIn<float>    mod;
     Vars::RefIn<float>    in_total;
+    Vars::RefIn<bool>      out_total_qlt;
+    Vars::RefIn<bool>      out_flow_qlt;
+    Vars::RefIn<bool>      mod_qlt;
     Vars::RefIn<float>    out_total;
     Vars::RefIn<uint16_t> litres[8];
     Vars::RefIn<float>    split;
@@ -143,6 +146,8 @@ inline void IrrigationCycle::bind(Vars::Bank& io) {
     mod            = _bind_input<float>(io, "irr_mod");
     in_total       = _bind_input<float>(io, "irr_inTotal_L");
     out_total      = _bind_input<float>(io, "irr_outTotal_L");
+    out_total_qlt  = _bind_input<bool>(io, "irr_outTotal_L_qlt");
+    mod_qlt        = _bind_input<bool>(io, "irr_mod_qlt");
     litres[0]      = _bind_input<uint16_t>(io, "irr_liters_tray1");
     litres[1]      = _bind_input<uint16_t>(io, "irr_liters_tray2");
     litres[2]      = _bind_input<uint16_t>(io, "irr_liters_tray3");
@@ -159,6 +164,7 @@ inline void IrrigationCycle::bind(Vars::Bank& io) {
     exp_drain      = _bind_input<float>(io, "irr_expDrainFrac");
     drain_margin   = _bind_input<float>(io, "irr_drainMargin");
     out_flow       = _bind_input<float>(io, "irr_outFlow_Lpm");
+    out_flow_qlt   = _bind_input<bool>(io, "irr_outFlow_Lpm_qlt");
     volume         = _bind_output<float>(io, "irr_volume_L");
     state          = _bind_output<uint8_t>(io, "irr_state");
     active         = _bind_output<uint8_t>(io, "irr_activeTray");

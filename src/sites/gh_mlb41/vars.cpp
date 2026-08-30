@@ -447,7 +447,6 @@ const Descriptor rows[] = {
     SV("cli_temp_lo_qlt"        , T_BOOL, 0          , 0, ""    , 618, "floor temperature believable", "temp_rh_zone votes worst case among MEASURED levels only"),
     SV("cli_coolDem_qlt"        , T_BOOL, 0          , 0, ""    , 619, "cooling demand believable", "the screen deploys at cli_thermalScreenDem, which the declared demand never reaches"),
     SV("cli_phase_qlt"          , T_BOOL, 0          , 0, ""    , 620, "day phase believable", "target_temp applies no bank offset without it; the declared phase would apply one"),
-    SV("irr_inTotal_L_qlt"      , T_BOOL, 0          , 0, ""    , 621, "inlet total believable", "a totaliser DIFFERENCE cannot take a substituted constant at either end"),
     SV("irr_outTotal_L_qlt"     , T_BOOL, 0          , 0, ""    , 622, "outlet total believable", "a totaliser DIFFERENCE cannot take a substituted constant at either end"),
     SV("irr_outFlow_Lpm_qlt"    , T_BOOL, 0          , 0, ""    , 623, "drain flow believable", "the drain verdict declines to judge; the declared 0 Lpm reads as a clog"),
     SV("irr_mod_qlt"            , T_BOOL, 0          , 0, ""    , 624, "modulation believable", "the cycle still runs, but the dose is a guess"),

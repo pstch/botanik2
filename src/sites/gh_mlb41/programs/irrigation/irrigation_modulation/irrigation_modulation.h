@@ -40,6 +40,8 @@ public:
      *  @{ */
 
     Vars::RefOut<float> vpd_avg;
+    Vars::RefIn<bool>   vpd_qlt;
+    Vars::RefOut<bool>  mod_qlt;
     Vars::RefOut<float> mod;
 
     /** @} */
@@ -87,6 +89,10 @@ inline void IrrigationModulation::bind(Vars::Bank& io) {
     mod_gamma = _bind_input<float>(io, "irr_modGamma");
     vpd_avg   = _bind_output<float>(io, "irr_vpdAvg_kPa");
     mod       = _bind_output<float>(io, "irr_mod");
+    mod_qlt   = _bind_output<bool>(io, "irr_mod_qlt");
+    // cli_vpd and cli_dpMargin_degC are published on ONE verdict by
+    // temp_rh_zone, so the margin's companion is the VPD's too.
+    vpd_qlt   = _bind_input<bool>(io, "cli_dpMargin_degC_qlt");
 
 }
 

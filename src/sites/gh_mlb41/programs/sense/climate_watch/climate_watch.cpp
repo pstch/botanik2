@@ -14,8 +14,7 @@ void ClimateWatch::run(ProgramContext& c) {
     for (const Vars::RefIn<bool>& a : sns) blind = blind || c.bank.get(a);
     sensor.set(blind, true);
 
-    const bool measured = temp.valid() &&
-                          margin.valid();
+    const bool measured = temp_qlt.get() && margin_qlt.get();
     if (!measured) {
         // Nothing is raised on a reading nobody has. The quorum alarm above is
         // what says the plant cannot be seen, and it is already raised.
@@ -34,8 +33,9 @@ void ClimateWatch::run(ProgramContext& c) {
 
     // Past the band the fans are already flat out on: the gap is not something
     // destratification is going to close on its own.
-    stratified.set(strat.valid() &&
-                 strat.get() > strat_hi.get(), true);
+    // The gap declares 2.0 degC, under cli_dTStratHi, so an unreadable one
+    // does not raise this on its own.
+    stratified.set(strat.get() > strat_hi.get(), true);
 }
 
 

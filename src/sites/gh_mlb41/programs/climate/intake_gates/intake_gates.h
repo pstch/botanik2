@@ -32,6 +32,8 @@ public:
     Vars::RefIn<float> inside;
     Vars::RefIn<float> intake;
     Vars::RefIn<float> cool_dem;
+    Vars::RefIn<bool>  inside_qlt;
+    Vars::RefIn<bool>  cool_dem_qlt;
     Vars::RefIn<float> temp_margin;
     Vars::RefIn<float> vent_hyst;
     Vars::RefIn<float> ground_dem;
@@ -72,6 +74,8 @@ inline void IntakeGates::bind(Vars::Bank& io) {
     inside      = _bind_input<float>(io, "cli_temp_in");
     intake      = _bind_input<float>(io, "cli_temp_cs");
     cool_dem    = _bind_input<float>(io, "cli_coolDem");
+    inside_qlt  = _bind_input<bool>(io, "cli_temp_in_qlt");
+    cool_dem_qlt = _bind_input<bool>(io, "cli_coolDem_qlt");
     temp_margin = _bind_input<float>(io, "cli_ventTempMgn_degC");
     vent_hyst   = _bind_input<float>(io, "cli_ventHyst_degC");
     ground_dem  = _bind_input<float>(io, "cli_groundHeatDem");

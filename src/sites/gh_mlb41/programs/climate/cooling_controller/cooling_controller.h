@@ -41,6 +41,10 @@ public:
     /** @name VAR_OUTPUT
      *  @{ */
 
+    Vars::RefIn<bool>  inside_qlt;
+
+    Vars::RefOut<bool>  demand_qlt;
+
     Vars::RefOut<float> demand;
     Vars::RefOut<float> window;
 
@@ -74,6 +78,8 @@ inline void CoolingController::bind(Vars::Bank& io) {
     ti          = _bind_input<float>(io, "cli_coolTi_sec");
     td          = _bind_input<float>(io, "cli_coolTd_sec");
     demand      = _bind_output<float>(io, "cli_coolDem");
+    demand_qlt  = _bind_output<bool>(io, "cli_coolDem_qlt");
+    inside_qlt  = _bind_input<bool>(io, "cli_temp_in_qlt");
     window      = _bind_output<float>(io, "cli_windowDem");
 
 }

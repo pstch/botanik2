@@ -29,6 +29,7 @@ public:
      *  @{ */
 
     Vars::RefIn<float>    cool_dem;
+    Vars::RefIn<bool>     cool_dem_qlt;
     Vars::RefIn<float>    deploy_dem;
     Vars::RefIn<uint8_t>  phase;
     Vars::RefIn<uint16_t> travel_s;
@@ -72,6 +73,7 @@ private:
 
 inline void ScreenController::bind(Vars::Bank& io) {
     cool_dem     = _bind_input<float>(io, "cli_coolDem");
+    cool_dem_qlt = _bind_input<bool>(io, "cli_coolDem_qlt");
     deploy_dem   = _bind_input<float>(io, "cli_thermalScreenDem");
     phase        = _bind_input<uint8_t>(io, "cli_phase");
     travel_s     = _bind_input<uint16_t>(io, "cli_screenTravel_sec");

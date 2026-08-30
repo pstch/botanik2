@@ -36,7 +36,7 @@ bool IrrigationSchedule::_in_slot(bool& known) const {
     const DayPhase now = (DayPhase)phase.get();
     // Which phase it is decides everything below, so it is the one row both
     // arms rest on.
-    known = phase.valid();
+    known = phase_qlt.get();
 
     // END OF NIGHT, and only when the plants are not cold: watering cold roots
     // is what the gate exists to prevent, and the morning slot below is where

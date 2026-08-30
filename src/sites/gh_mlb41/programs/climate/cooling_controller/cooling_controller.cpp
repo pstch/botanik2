@@ -10,13 +10,13 @@ namespace Site {
 void CoolingController::run(ProgramContext& c) {
     if (c.first_scan) pid.reset();   // the integral is a claim about the past
 
-    const bool measured = inside.valid();
+    const bool measured = inside_qlt.get();
     if (!measured) {
         // No interior temperature at all, so the ladder runs on the row's
         // DECLARED one. It still produces a demand and still publishes it -
         // every actuator wants a number to fall back from - and the quality is
         // what says the number is not about this greenhouse. The intake gates
-        // read that quality to know this law stopped having an opinion.
+        // read cli_coolDem_qlt to know this law stopped having an opinion.
         // The integral is a claim about a plant we stopped seeing, and an error
         // computed against a substituted reading is not an error this house
         // ever had. Reset while it lasts, so nothing winds up on a number
@@ -51,6 +51,7 @@ void CoolingController::run(ProgramContext& c) {
     // opening: the windows apply the interlocks to it, and an operator can see
     // what was asked for beside where each ram actually is.
     window.set(Plc::ladder(dem, win_start.get(), win_full.get()), measured);
+    demand_qlt.set(measured, true);
 }
 
 }  // namespace Site

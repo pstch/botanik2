@@ -30,6 +30,7 @@ public:
 
     Vars::RefIn<uint16_t> rot_release_s;
     Vars::RefIn<float>    dp_margin;
+    Vars::RefIn<bool>     dp_margin_qlt;
     Vars::RefIn<float>    dehum_full;
     Vars::RefIn<float>    dehum_start;
     Vars::RefIn<float>    humid_start;
@@ -70,6 +71,7 @@ protected:
 inline void HumidityController::bind(Vars::Bank& io) {
     rot_release_s = _bind_input<uint16_t>(io, "cli_rotRelease_sec");
     dp_margin     = _bind_input<float>(io, "cli_dpMargin_degC");
+    dp_margin_qlt = _bind_input<bool>(io, "cli_dpMargin_degC_qlt");
     dehum_full    = _bind_input<float>(io, "cli_dehumFull_degC");
     dehum_start   = _bind_input<float>(io, "cli_dehumStart_degC");
     humid_start   = _bind_input<float>(io, "cli_humidStart_degC");

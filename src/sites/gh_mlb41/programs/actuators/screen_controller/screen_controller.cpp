@@ -46,7 +46,7 @@ void ScreenController::run(ProgramContext& c) {
     // An unknown cooling demand DEPLOYS it: that is this one's safe state, and
     // a greenhouse nobody can see loses heat through the roof all night. Free,
     // too - the fabric deploys on the de-energised coil.
-    const bool dem_ok = cool_dem.valid();
+    const bool dem_ok = cool_dem_qlt.get();
 
     // No dead band on this one, and none is needed: the permission table above
     // makes every phase ONE-DIRECTIONAL, so a demand sitting on the rung can

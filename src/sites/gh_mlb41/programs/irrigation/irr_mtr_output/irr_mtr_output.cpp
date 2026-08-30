@@ -51,6 +51,11 @@ void IrrMtrOutput::run(ProgramContext& c) {
     out_total.set(measured ? meter(lpm / 60.0f, c.dt_ms, cutoff.get() / 60.0f)
                            : meter.total(),
                   measured);
+    // The cycle reads both: a totaliser DIFFERENCE cannot take a substituted
+    // constant at either end, and the drain verdict declines to judge on a
+    // silent meter rather than reading the declared 0 Lpm as a clog.
+    out_total_qlt.set(measured, true);
+    out_flow_qlt.set(measured, true);
 }
 
 

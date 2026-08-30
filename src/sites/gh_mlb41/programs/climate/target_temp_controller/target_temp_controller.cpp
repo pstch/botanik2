@@ -14,7 +14,7 @@ void TargetTempController::run(ProgramContext& c) {
     // most of the day - and the phase only ever shifts it. So an unplaced phase
     // takes the base unshifted, the law says it is running short, and the row
     // stays believable for everything downstream.
-    const bool placed = phase.valid();
+    const bool placed = phase_qlt.get();
     const DayPhase now = (DayPhase)phase.get();
     float held = cool_set.get();
 

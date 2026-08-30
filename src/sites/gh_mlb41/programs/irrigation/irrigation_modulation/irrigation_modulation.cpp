@@ -23,13 +23,14 @@ void IrrigationModulation::run(ProgramContext& c) {
     // way: before the first fold there is nothing to modulate BY.
     if (!_seeded) { mod.invalidate(); return; }
     mod.set(Plc::limit(min_mod + (1.0f - min_mod) * powf(demand, gamma),
-                       min_mod, 1.0f), vpd.valid());
+                       min_mod, 1.0f), vpd_qlt.get());
+    mod_qlt.set(vpd_qlt.get(), true);
 }
 
 static const uint32_t FOLD_MS = 3600u * 1000u;
 
 float IrrigationModulation::_track_dryness(ProgramContext& c) {
-    const bool measured = vpd.valid();
+    const bool measured = vpd_qlt.get();
 
     // Once an HOUR, and the interval is the whole design: folded every scan the
     // increment underflows a float and the average freezes; folded once a day

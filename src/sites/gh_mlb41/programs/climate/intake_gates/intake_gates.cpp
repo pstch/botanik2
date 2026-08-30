@@ -12,9 +12,9 @@ void IntakeGates::run(ProgramContext& c) {
 
     // The cooling ladder is the other half of this: a gate is a decision about
     // which side of a difference is cooler AND whether anything is being asked
-    // for. The demand row is where the ladder says it stopped having an
-    // opinion, so it is read for its QUALITY as much as its value.
-    if (!inside.valid() || !cool_dem.valid()) {
+    // for. cli_coolDem_qlt is where the ladder says it stopped having an
+    // opinion, and shutting both gates is not a value any demand expresses.
+    if (!inside_qlt.get() || !cool_dem_qlt.get()) {
         // Both SHUT, and the bands left where they are: a gate is a command,
         // and this is the safe answer rather than a stale guess. Stepping them
         // on a reading nobody has would advance a hysteresis that is supposed
