@@ -335,7 +335,7 @@ const Descriptor rows[] = {
     SV("cli_prevNightMin_degC"  , T_F32 , 0          , 1, "degC", 517, "lowest interior temperature of the previous night", "gates HEAT_BANK: bank heat only after a cold night"),
     SVE("cli_phase"             , PHASE_NIGHT, &DayPhase_label  , 518, "phase of the day in force", "NIGHT COLD_BANK DAWN_BREEZE DAY HEAT_BANK DUSK_BREEZE"),
     SV("cli_coolDem"            , T_F32 , 0.20       , 2, ""    , 519, "cooling demand, -1 warming to +1 cooling", "PID on the interior temperature against cli_targetTemp_degC"),
-    SV("cli_stratDem"           , T_F32 , 0.30       , 2, ""    , 520, "destratification demand, 0 to 1", "3-band hysteresis on cli_dTStrat_degC"),
+    SV("cli_stratDem"           , T_F32 , 0.20       , 2, ""    , 520, "destratification demand, 0 to 1", "3-band hysteresis on cli_dTStrat_degC; the default is the low band, which is what an unknown gap must fall back to"),
     SV("cli_fanSpeed"           , T_U8  , 0          , 0, ""    , 569, "destratification fan speed in force, 0 to 3", "the band the fans are actually in; the three coils are one relay each"),
     SV("cli_windowDem"          , T_F32 , 0.25       , 2, ""    , 529, "how far the cooling ladder wants the windows open", "0..1, before the rain, wind and supply interlocks; cli_windowN_tgt is where each one is actually going"),
     SV("cli_humidDem"           , T_F32 , 0          , 2, ""    , 521, "humidity demand, -1 dehumidify to +1 humidify", "4 bands and a dead zone on cli_dpMargin_degC"),
@@ -433,6 +433,24 @@ const Descriptor rows[] = {
     SVE("prog_skirt"             , 3          , &Plc::health_label, 587, "health of the skirt program", "3 is INHIBITED: nothing has run yet"),
     SVE("prog_irr_schedule"      , 3          , &Plc::health_label, 600, "health of the irrigation schedule", ""),
     SVE("prog_roof_lockout"      , 3          , &Plc::health_label, 601, "health of the roof lockout program", ""),
+
+    // Quality companions. A derived row carries one only where a law must do
+    // something STRUCTURALLY different when the reading is not believable -
+    // shut a roof, reset an integrator, decline to judge - which no value
+    // substitution can express. Every other law takes the row's declared value
+    // and is done. Each declares FALSE, so nothing is believed until measured.
+    SV("cli_rain_mmph_qlt"      , T_BOOL, 0          , 0, ""    , 613, "rain rate believable", "roof_lockout shuts the roof without it: the row declares 0, which reads as fine weather"),
+    SV("cli_wind_mps_qlt"       , T_BOOL, 0          , 0, ""    , 614, "wind speed believable", "roof_lockout shuts the roof without it: the row declares 0, which reads as calm"),
+    SV("cli_temp_in_qlt"        , T_BOOL, 0          , 0, ""    , 615, "interior temperature believable", "cooling_controller resets the PID integral, which is an act rather than a value"),
+    SV("cli_dpMargin_degC_qlt"  , T_BOOL, 0          , 0, ""    , 616, "dew point margin believable", "humidity_controller fails toward full vent, which the declared margin would not give"),
+    SV("cli_temp_hi_qlt"        , T_BOOL, 0          , 0, ""    , 617, "ceiling temperature believable", "temp_rh_zone votes worst case among MEASURED levels only"),
+    SV("cli_temp_lo_qlt"        , T_BOOL, 0          , 0, ""    , 618, "floor temperature believable", "temp_rh_zone votes worst case among MEASURED levels only"),
+    SV("cli_coolDem_qlt"        , T_BOOL, 0          , 0, ""    , 619, "cooling demand believable", "the screen deploys at cli_thermalScreenDem, which the declared demand never reaches"),
+    SV("cli_phase_qlt"          , T_BOOL, 0          , 0, ""    , 620, "day phase believable", "target_temp applies no bank offset without it; the declared phase would apply one"),
+    SV("irr_inTotal_L_qlt"      , T_BOOL, 0          , 0, ""    , 621, "inlet total believable", "a totaliser DIFFERENCE cannot take a substituted constant at either end"),
+    SV("irr_outTotal_L_qlt"     , T_BOOL, 0          , 0, ""    , 622, "outlet total believable", "a totaliser DIFFERENCE cannot take a substituted constant at either end"),
+    SV("irr_outFlow_Lpm_qlt"    , T_BOOL, 0          , 0, ""    , 623, "drain flow believable", "the drain verdict declines to judge; the declared 0 Lpm reads as a clog"),
+    SV("irr_mod_qlt"            , T_BOOL, 0          , 0, ""    , 624, "modulation believable", "the cycle still runs, but the dose is a guess"),
 
     // Grid monitoring inputs
     MI("grid_L1_V"              , T_F32 , 5 , 4, 0  , 2, SF(0.0f)       , SF(500.0f)    , SF(0.0f), 15000, 1, "V"   , "L1 phase voltage", "SDM630 p1 30001", 10000),

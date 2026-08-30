@@ -30,6 +30,8 @@ public:
 
     Vars::RefIn<float> ceiling;
     Vars::RefIn<float> floor;
+    Vars::RefIn<bool>  hi_qlt;
+    Vars::RefIn<bool>  lo_qlt;
 
     /** @} */
 
@@ -52,6 +54,8 @@ protected:
 inline void StratSensor::bind(Vars::Bank& io) {
     ceiling = _bind_input<float>(io, "cli_temp_hi");
     floor   = _bind_input<float>(io, "cli_temp_lo");
+    hi_qlt  = _bind_input<bool>(io, "cli_temp_hi_qlt");
+    lo_qlt  = _bind_input<bool>(io, "cli_temp_lo_qlt");
     strat   = _bind_output<float>(io, "cli_dTStrat_degC");
 
 }

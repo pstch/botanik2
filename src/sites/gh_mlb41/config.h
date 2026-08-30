@@ -20,7 +20,7 @@
  *  512-row default costing 6 KB of RAM nobody uses. Headroom for a few rows;
  *  past it, registration is refused and POST says so. */
 #ifndef BOTANIK_VAR_MAX
-#  define BOTANIK_VAR_MAX 512
+#  define BOTANIK_VAR_MAX 544
 #endif
 
 /** @brief The TCP map holds every PARAMETER, STATUS and ALARM row, which is

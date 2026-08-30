@@ -17,8 +17,8 @@ void TempRHZone::run(ProgramContext& c) {
     // HOTTER of the two and not their mean. The spec keeps the worst case
     // between levels, and for heat that is the top of the house: an average
     // would hide a ridge already past the target under a cool floor.
-    const bool  hi_ok  = temp_hi.valid();
-    const bool  lo_ok  = temp_lo.valid();
+    const bool  hi_ok  = hi_qlt.get();
+    const bool  lo_ok  = lo_qlt.get();
     // Every write below carries its own quality, so the law degrades rather
     // than stopping - but a reader asking why the house has one temperature
     // instead of two asks the program, not the rows.
@@ -52,6 +52,8 @@ void TempRHZone::run(ProgramContext& c) {
     const bool seen = hi_ok || lo_ok;
     dew_point.set(worst_isceiling ? dp_hi : dp_lo, seen);
     dp_margin.set(worst_isceiling ? m_hi : m_lo, seen);
+    dp_margin_qlt.set(seen, true);
+    temp_in_qlt.set(seen, true);
     sat_press.set(Plc::sat_vapour_pressure(t_worst), seen);
 
     // The worst case is per QUANTITY, not one level chosen for all of them: the

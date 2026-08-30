@@ -8,14 +8,10 @@
 namespace Site {
 
 float FanController::_demand() const {
-    // An INTERCEPTION, and one the cascade allows: an unbelievable demand would
-    // otherwise read as the row's declared one, and these fans' safe state is
-    // not the climate's declared demand - it is their OWN lowest band, because
-    // still air is itself a rot risk. Substituted here rather than through the
-    // row it came from.
-    const float floor    = low_dem.get();
-    const float strat    = strat_dem.valid() ? strat_dem.get() : floor;
-    const float cooling  = cool_dem.valid() ? cool_dem.get() : floor;
+    // Both demands declare the low band, so an unbelievable one already reads
+    // as this floor: still air is a rot risk, and the fans keep turning.
+    const float strat    = strat_dem.get();
+    const float cooling  = cool_dem.get();
     // A cycle in progress wants air moving over the trays it has just wetted.
     const bool  cycling  = irr_state.get() != IRR_IDLE;
     const float watering = cycling ? irr_dem.get() : 0.0f;

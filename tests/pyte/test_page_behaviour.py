@@ -195,8 +195,10 @@ def test_monitor_acts_on_the_row_it_drew(spawn):
     """
     term = boot(spawn)
     goto(term, keys.ALT_6, "VARIABLE")
-    term.send(keys.text("cli_temp_hi"))
-    assert term.wait_screen("[/cli_temp_hi]"), "the filter did not narrow the table"
+    # A group with no _qlt companion, so every row the filter leaves is a
+    # number the override field will take.
+    term.send(keys.text("cli_temp_cs"))
+    assert term.wait_screen("[/cli_temp_cs]"), "the filter did not narrow the table"
 
     # Force the SECOND row, so the override view's only entry is not the one
     # sitting at index 0 of the filtered `all` view.

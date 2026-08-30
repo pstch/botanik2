@@ -36,7 +36,7 @@ namespace Botanik { namespace detail {
 
     // Logging and health
     static_assert(sizeof(Logs::Logger)             == BOTANIK_SIZE(   288,    240), "Logs::Logger footprint changed");
-    static_assert(sizeof(Health::HealthMonitor)    == BOTANIK_SIZE(  3608,   3512), "HealthMonitor footprint changed");
+    static_assert(sizeof(Health::HealthMonitor)    == BOTANIK_SIZE(  3616,   3512), "HealthMonitor footprint changed");
     static_assert(sizeof(Alarms::AlarmController)  == BOTANIK_SIZE(  3248,   3208), "AlarmController footprint changed");
 
     // Serial
@@ -45,7 +45,7 @@ namespace Botanik { namespace detail {
 #if BOTANIK_FEATURE_VARS
     /** The single largest library object, and the one a site's config moves:
      *  VAR_MAX drives four arrays inside it. */
-    static_assert(sizeof(Vars::Bank)               == BOTANIK_SIZE( 19784,  19600), "Vars::Bank footprint changed");
+    static_assert(sizeof(Vars::Bank)               == BOTANIK_SIZE( 20936,  20752), "Vars::Bank footprint changed");
     static_assert(sizeof(Vars::ConfigBinder)       == BOTANIK_SIZE(   568,    348), "ConfigBinder footprint changed");
 #endif
 
@@ -72,7 +72,7 @@ namespace Botanik { namespace detail {
      *  under the same opt-in. It is the firmware singleton's whole `.bss`
      *  footprint, so it can be read against the linker's map for the
      *  image. */
-    static_assert(sizeof(BotanikFirmware)          == BOTANIK_SIZE(198480, 195424), "BotanikFirmware footprint changed");
+    static_assert(sizeof(BotanikFirmware)          == BOTANIK_SIZE(199640, 196576), "BotanikFirmware footprint changed");
 
 #undef BOTANIK_SIZE
 

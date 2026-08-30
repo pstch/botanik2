@@ -32,7 +32,7 @@ ZoneVote ZoneProbes::_select(const Vars::RefIn<float>* refs) {
     }
 }
 
-void ZoneProbes::_publish(Vars::RefOut<float> row, Plc::Ewma& filter,
+bool ZoneProbes::_publish(Vars::RefOut<float> row, Plc::Ewma& filter,
                           const ZoneVote& v, bool& seeded, float tau_s,
                           uint32_t dt_ms, float lo, float hi) {
     if (v.used == 0) {
@@ -45,10 +45,11 @@ void ZoneProbes::_publish(Vars::RefOut<float> row, Plc::Ewma& filter,
         // it left.
         if (seeded) row.set(Plc::limit(filter.value(), lo, hi), false);
         else        row.invalidate();     // nothing has ever been measured here
-        return;
+        return false;
     }
     seeded = true;                      // the block starts AT its first reading
     row.set(Plc::limit(filter(v.value, tau_s, dt_ms), lo, hi), true);
+    return true;
 }
 
 uint8_t ZoneProbes::operator()(uint32_t dt_ms) {
@@ -64,7 +65,8 @@ uint8_t ZoneProbes::operator()(uint32_t dt_ms) {
     // every dew-point margin in the plant read zero.
     h.value *= 0.01f;
 
-    _publish(_r.temp, _temp, t, _temp_seeded, _tau_s, dt_ms, -100.0f, 200.0f);
+    _temp_ok = _publish(_r.temp, _temp, t, _temp_seeded, _tau_s, dt_ms,
+                        -100.0f, 200.0f);
     _publish(_r.rh, _rh, h, _rh_seeded, _tau_s, dt_ms, 0.0f, 1.0f);
 
     // Two probes still select correctly, so the plant keeps running and the

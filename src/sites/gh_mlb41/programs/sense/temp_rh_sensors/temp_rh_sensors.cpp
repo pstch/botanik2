@@ -22,6 +22,13 @@ void TempRHSensors::run(ProgramContext& c) {
     floor(c.dt_ms);
     crawlspace(c.dt_ms);
     exterior(c.dt_ms);
+
+    // The two interior levels publish whether they MEASURED, because the
+    // worst-case vote downstream is among measured levels only and a level
+    // holding an old reading must not speak for the house. The other two
+    // zones have no reader that needs the distinction.
+    hi_qlt.set(ceiling.valid(), true);
+    lo_qlt.set(floor.valid(), true);
 }
 
 }  // namespace Site

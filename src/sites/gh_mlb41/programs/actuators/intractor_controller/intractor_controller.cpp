@@ -14,19 +14,18 @@ void IntractorController::run(ProgramContext& c) {
     // demand below it simply does not reach it.
     float speed = _safe_speed;
 
-    const bool  dem_ok = cool_dem.valid();
-    const float cool    = cool_dem.get();
+    const float cool = cool_dem.get();
 
-    // Three demands, each gated by the law that owns the reading behind it,
-    // and a demand nobody can read contributes NOTHING - it does not have
-    // to, since the floor below is already this actuator's safe state.
+    // Three demands, each gated by the law that owns the reading behind it.
+    // An unreadable cooling demand declares 0.20, under the start threshold,
+    // so it contributes nothing on its own and the floor stands.
     //
     //  - cooling, while the intake really is cooler
     //  - the anti-rot ventilation, ungated: rot is the collection, and the
     //    dew point it fights is the one inside
     //  - the DEHUMIDIFY arm alone, while the air outside is drier. Positive
     //    is asking for the skirt, and more air would work against it
-    const float cooling = (dem_ok && cool_ok.get()) ? cool : 0.0f;
+    const float cooling = cool_ok.get() ? cool : 0.0f;
     const float venting = rot_vent.get();
     const float drying  = dry_ok.get() ? -humid_dem.get() : 0.0f;
     // ...and the OTHER arm too. Too little humidity is answered by the

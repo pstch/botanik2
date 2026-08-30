@@ -39,6 +39,10 @@ public:
     /** @name VAR_OUTPUT
      *  @{ */
 
+    Vars::RefIn<bool>   hi_qlt;
+    Vars::RefIn<bool>   lo_qlt;
+    Vars::RefOut<bool>  temp_in_qlt;
+    Vars::RefOut<bool>  dp_margin_qlt;
     Vars::RefOut<float> temp_in;
     Vars::RefOut<float> dew_point;
     Vars::RefOut<float> dp_margin;
@@ -63,7 +67,11 @@ inline void TempRHZone::bind(Vars::Bank& io) {
     temp_lo   = _bind_input<float>(io, "cli_temp_lo");
     rh_lo     = _bind_input<float>(io, "cli_rh_lo");
     rot_limit = _bind_input<float>(io, "cli_rotMargin_degC");
+    hi_qlt    = _bind_input<bool>(io, "cli_temp_hi_qlt");
+    lo_qlt    = _bind_input<bool>(io, "cli_temp_lo_qlt");
     temp_in   = _bind_output<float>(io, "cli_temp_in");
+    temp_in_qlt   = _bind_output<bool>(io, "cli_temp_in_qlt");
+    dp_margin_qlt = _bind_output<bool>(io, "cli_dpMargin_degC_qlt");
     dew_point = _bind_output<float>(io, "cli_dewPoint_degC");
     dp_margin = _bind_output<float>(io, "cli_dpMargin_degC");
     sat_press = _bind_output<float>(io, "cli_satPress_kPa");

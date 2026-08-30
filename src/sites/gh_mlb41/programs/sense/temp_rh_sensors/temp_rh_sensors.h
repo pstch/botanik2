@@ -52,6 +52,9 @@ private:
 
     ZoneProbes ceiling;
     ZoneProbes floor;
+    Vars::RefOut<bool> hi_qlt;   ///< cli_temp_hi_qlt
+    Vars::RefOut<bool> lo_qlt;   ///< cli_temp_lo_qlt
+
     ZoneProbes crawlspace;
     ZoneProbes exterior;
 
@@ -80,6 +83,7 @@ inline void TempRHSensors::bind(Vars::Bank& io) {
     hi.temp  = _bind_output<float>(io, "cli_temp_hi");
     hi.rh    = _bind_output<float>(io, "cli_rh_hi");
     hi.fault = _bind_output<bool>(io, "alarm_sns_ceiling");
+    hi_qlt   = _bind_output<bool>(io, "cli_temp_hi_qlt");
 
     lo.t[0] = _bind_input<float>(io, "cli_temp_lo1");
     lo.t[1] = _bind_input<float>(io, "cli_temp_lo2");
@@ -90,6 +94,7 @@ inline void TempRHSensors::bind(Vars::Bank& io) {
     lo.temp  = _bind_output<float>(io, "cli_temp_lo");
     lo.rh    = _bind_output<float>(io, "cli_rh_lo");
     lo.fault = _bind_output<bool>(io, "alarm_sns_floor");
+    lo_qlt   = _bind_output<bool>(io, "cli_temp_lo_qlt");
 
     cs.t[0] = _bind_input<float>(io, "cli_temp_cs1");
     cs.t[1] = _bind_input<float>(io, "cli_temp_cs2");

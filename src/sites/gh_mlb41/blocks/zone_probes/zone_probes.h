@@ -59,6 +59,7 @@ class ZoneProbes : public Plc::Block {
     Plc::Ewma _temp;
     Plc::Ewma _rh;
     Plc::Ton                _quorum_for;   ///< dwell before a lost probe is announced
+    bool                    _temp_ok     = false;
     bool                    _temp_seeded = false;
     bool                    _rh_seeded   = false;
 
@@ -82,12 +83,15 @@ public:
 
     float temperature() const { return _r.temp.get(); }
     float humidity() const    { return _r.rh.get(); }
-    /** @brief Whether this zone published a believable reading this beat. */
-    bool valid() const { return _r.temp.valid(); }
+    /** @brief Whether this zone MEASURED its temperature this beat. The
+     *  block's own verdict, not the row read back: it becomes a VAR_OUTPUT
+     *  when this block is ported, and a `_qlt` row where a law needs it. */
+    bool valid() const { return _temp_ok; }
 
     void reset() {
         _quorum_for.reset();
         _temp.reset(); _rh.reset();
+        _temp_ok = false;
         _temp_seeded = _rh_seeded = false;
     }
 
@@ -97,7 +101,7 @@ private:
     static ZoneVote _select(const Vars::RefIn<float>* refs);
 
     /** @brief Filter and publish one quantity, or mark it unmeasured. */
-    static void _publish(Vars::RefOut<float> row, Plc::Ewma& filter,
+    static bool _publish(Vars::RefOut<float> row, Plc::Ewma& filter,
                          const ZoneVote& v, bool& seeded, float tau_s,
                          uint32_t dt_ms, float lo, float hi);
 };

@@ -138,28 +138,36 @@ TEST_CASE_FIXTURE(Rig<Site::TempRHSensors>, "zone: a zone that has never been me
     CHECK(live.bank.var(cs.r).value().q == Q_NO_DATA);
 }
 
+/** A level and the companion that says it was measured, which is what
+ *  TempRHSensors publishes as a pair. */
+static void levels(Live& f, float hi, float lo, uint64_t at = 0,
+                   bool hi_ok = true, bool lo_ok = true) {
+    f.bank.var(f.ref("cli_temp_hi")).publish(from_f32(T_F32, hi), at);
+    f.bank.var(f.ref("cli_temp_lo")).publish(from_f32(T_F32, lo), at);
+    f.bank.var(f.ref("cli_temp_hi_qlt")).publish(from_bool(T_BOOL, hi_ok), at);
+    f.bank.var(f.ref("cli_temp_lo_qlt")).publish(from_bool(T_BOOL, lo_ok), at);
+}
+
 TEST_CASE_FIXTURE(Rig<Site::StratSensor>, "strat: the gap is unsigned, so an inverted profile still calls the fans") {
 
     Vars::RefIn<float> gap = live.bank.resolve_in<float>("cli_dTStrat_degC");
-    const VarRef hi = live.ref("cli_temp_hi"), lo = live.ref("cli_temp_lo");
 
-    live.bank.var(hi).publish(from_f32(T_F32, 24.0f), 0);
-    live.bank.var(lo).publish(from_f32(T_F32, 20.0f), 0);
+    levels(live, 24.0f, 20.0f, 0);
     d.step(100);
     CHECK(live.bank.get(gap) == doctest::Approx(4.0f));
 
     INFO("a cold roof over a warm floor is as much a case for mixing");
-    live.bank.var(hi).publish(from_f32(T_F32, 18.0f), 200);
-    live.bank.var(lo).publish(from_f32(T_F32, 22.0f), 200);
+    levels(live, 18.0f, 22.0f, 200);
     d.step(200);
     CHECK(live.bank.get(gap) == doctest::Approx(4.0f));
 }
 
 TEST_CASE_FIXTURE(Rig<Site::StratSensor>, "strat: a level nothing measures makes the gap unmeasured, not zero") {
 
-    live.bank.var(live.ref("cli_temp_hi")).publish(from_f32(T_F32, 24.0f), 0);
-    live.bank.var(live.ref("cli_temp_lo")).invalidate(Q_NO_DATA);
+    levels(live, 24.0f, 20.0f, 0, true, false);
     d.step(100);
+    INFO("the companion is what says so - the level row still holds a number, "
+         "and it is the one that would fabricate a four-degree gap");
     CHECK_FALSE(live.bank.var(live.ref("cli_dTStrat_degC")).valid());
 }
 
@@ -428,11 +436,13 @@ TEST_CASE_FIXTURE(Rig<Site::DestratController>, "destrat: an unmeasured gap make
     d.step(400);
     CHECK(live.bank.var(dem).as_f32() == doctest::Approx(0.0f));
 
-    INFO("this row's default is 0, which reads as 'no stratification' and would "
-         "stop the fans on a dead probe");
+    INFO("an unreadable gap declares the LOW rung, so substitution keeps the "
+         "fans mixing rather than reading as 'no stratification' and stopping "
+         "them - the demand is written either way");
     live.bank.var(live.ref("cli_dTStrat_degC")).invalidate(Q_NO_DATA);
-    d.step(200);
-    CHECK_FALSE(live.bank.var(dem).valid());
+    d.step(500);
+    CHECK(live.bank.var(dem).as_f32() ==
+          doctest::Approx(live.bank.var(live.ref("cli_fanLowDem")).as_f32()));
 }
 
 TEST_CASE_FIXTURE(Rig<Site::HumidityController>, "humidity, rot guard: the ventilation demand rises as the margin falls") {

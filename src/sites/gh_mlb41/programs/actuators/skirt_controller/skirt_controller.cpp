@@ -23,9 +23,10 @@ void SkirtController::run(ProgramContext& c) {
     const float humid = Plc::limit(humid_dem.get(), 0.0f, 1.0f);
 
     // STAGED on the cooling axis, and gated on the air being dry enough for a
-    // wet pad to cool at all - in damp air it only adds water. An unknown
-    // demand contributes this valve's own safe state, which is SHUT.
-    const float cool = (cool_dem.valid() && dp_margin.get() >= dry_min.get())
+    // wet pad to cool at all - in damp air it only adds water. An unreadable
+    // demand declares 0.20, under cli_skirtCoolDem, so the ladder gives nothing
+    // and the valve stays shut.
+    const float cool = (dp_margin.get() >= dry_min.get())
                            ? Plc::ladder(cool_dem.get(), cool_start.get(), 1.0f)
                            : 0.0f;
 
