@@ -194,7 +194,7 @@ TEST_CASE_FIXTURE(StRig, "strat: a level nothing measures makes the gap unmeasur
           doctest::Approx(live.bank.var(live.ref("cli_dTStratLow_degC")).as_f32()));
 }
 
-TEST_CASE_FIXTURE(Rig<Site::DayPhaseController>, "day phase: the banks arm off the published extremes, so one can be forced") {
+TEST_CASE_FIXTURE(StRig, "day phase: the banks arm off the published extremes, so one can be forced") {
     // The extremes are gathered over hours, so the only way to rehearse a bank
     // phase is to force the row that decides it. That works because this law
     // arms off what it published rather than off the member behind it.
@@ -234,21 +234,31 @@ TEST_CASE_FIXTURE(StRig, "target: a bank phase only shifts the target when yeste
     d.step(100);
     CHECK(live.bank.get(target) == doctest::Approx(base));
 
+    // The tracker has to be READY, or day_phase publishes cli_phase_qlt false
+    // and target_temp applies no offset whatever the phase says.
+    live.bank.var(live.ref("sol_ready")).set(true);
+
+    // FORCED, not written: day_phase owns cli_phase and the two arms now, and
+    // rewrites them every scan. An override SHADOWS the live value, so this is
+    // both what survives a scan and what an operator actually does - it is how
+    // a cold-bank morning gets rehearsed in July.
     INFO("COLD_BANK in force but not armed runs at the ordinary target");
-    live.bank.var(phase).set_i((int64_t)Site::PHASE_COLD_BANK);
-    live.bank.var(cold).set(false);
+    live.bank.override_set(live.bank.var(phase),
+                           Vars::from_i64(Vars::T_U8, Site::PHASE_COLD_BANK));
+    live.bank.override_set(live.bank.var(cold), Vars::from_bool(Vars::T_BOOL, false));
     d.step(200);
     CHECK(live.bank.get(target) == doctest::Approx(base));
 
     INFO("armed, it pulls the target down by the cold offset");
-    live.bank.var(cold).set(true);
+    live.bank.override_set(live.bank.var(cold), Vars::from_bool(Vars::T_BOOL, true));
     d.step(300);
     const float ofs = live.bank.var(live.ref("cli_coldBankOfs_degC")).as_f32();
     CHECK(live.bank.get(target) == doctest::Approx(base - ofs));
 
     INFO("and HEAT_BANK uses the HEAT offset, not the cold one");
-    live.bank.var(phase).set_i((int64_t)Site::PHASE_HEAT_BANK);
-    live.bank.var(heat).set(true);
+    live.bank.override_set(live.bank.var(phase),
+                           Vars::from_i64(Vars::T_U8, Site::PHASE_HEAT_BANK));
+    live.bank.override_set(live.bank.var(heat), Vars::from_bool(Vars::T_BOOL, true));
     d.step(400);
     const float hofs = live.bank.var(live.ref("cli_heatBankOfs_degC")).as_f32();
     REQUIRE(hofs != ofs);          // else the case proves nothing
@@ -264,9 +274,11 @@ TEST_CASE_FIXTURE(StRig, "target: an unplaced phase takes the base setpoint, and
     REQUIRE(base == doctest::Approx(20.0f));      // the site's safe cooling target
     live.bank.param_set(live.bank.var(live.ref("cli_targetTau_s")), 0.0f);
 
+    live.bank.var(live.ref("sol_ready")).set(true);
     INFO("armed and in the bank phase, the offset applies");
-    live.bank.var(phase).set_i((int64_t)Site::PHASE_COLD_BANK);
-    live.bank.var(cold).set(true);
+    live.bank.override_set(live.bank.var(phase),
+                           Vars::from_i64(Vars::T_U8, Site::PHASE_COLD_BANK));
+    live.bank.override_set(live.bank.var(cold), Vars::from_bool(Vars::T_BOOL, true));
     d.step(100);
     const float ofs = live.bank.var(live.ref("cli_coldBankOfs_degC")).as_f32();
     REQUIRE(live.bank.get(target) == doctest::Approx(base - ofs));
@@ -275,7 +287,9 @@ TEST_CASE_FIXTURE(StRig, "target: an unplaced phase takes the base setpoint, and
     INFO("the phase goes unplaceable - no wall clock, so no sun - and the shift "
          "goes with it: an offset from a phase nobody placed is a setpoint "
          "nobody asked for");
-    live.bank.var(phase).invalidate(Q_NO_DATA);
+    // The tracker, not the row: cli_phase is always written now, and
+    // cli_phase_qlt is what day_phase says about it.
+    live.bank.var(live.ref("sol_ready")).set(false);
     d.step(200);
     CHECK(live.bank.get(target) == doctest::Approx(base));
 
@@ -290,13 +304,13 @@ TEST_CASE_FIXTURE(StRig, "target: a phase boundary eases the target instead of s
     const float base = live.bank.var(live.ref("cli_coolSet_degC")).as_f32();
     const float ofs  = live.bank.var(live.ref("cli_coldBankOfs_degC")).as_f32();
 
-    live.bank.var(live.ref("cli_phase")).set_i((int64_t)Site::PHASE_DAY);
+    put_phase(live, Site::PHASE_DAY);
     d.step(100);
     INFO("the first scan ADOPTS the target: easing up from a stale filter would "
          "call for heat the house does not need");
     REQUIRE(live.bank.get(target) == doctest::Approx(base));
 
-    live.bank.var(live.ref("cli_phase")).set_i((int64_t)Site::PHASE_COLD_BANK);
+    put_phase(live, Site::PHASE_COLD_BANK);
     live.bank.var(live.ref("cli_coldBankArm")).set(true);
     d.step(1100);                       // a second into the new phase
     const float moved = live.bank.get(target);
@@ -311,7 +325,7 @@ TEST_CASE_FIXTURE(StRig, "target: a phase boundary eases the target instead of s
 TEST_CASE_FIXTURE(StRig, "target: an aggressive offset is clamped to the safe band") {
 
     live.bank.param_set(live.bank.var(live.ref("cli_coldBankOfs_degC")), 15.0f);
-    live.bank.var(live.ref("cli_phase")).set_i((int64_t)Site::PHASE_COLD_BANK);
+    put_phase(live, Site::PHASE_COLD_BANK);
     live.bank.var(live.ref("cli_coldBankArm")).set(true);
     d.step(100);
 
@@ -403,7 +417,7 @@ TEST_CASE("cooling: an unknown demand puts every actuator at its own safe state"
     f.bank.var(f.ref("cli_rotVentDem")).set(0.0f);
     field(f, "cli_dpMargin_degC", 20.0f);
     field(f, "cli_temp_hi", 25.0f);
-    f.bank.var(f.ref("cli_phase")).set_i((int64_t)Site::PHASE_DAY);
+    put_phase(f, Site::PHASE_DAY);
     // The screen traverses once at bring-up whatever it is asked for, and while
     // it does it CUTS the fans - which is right, and would hide what this case
     // is about. Let it finish.

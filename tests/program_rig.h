@@ -48,11 +48,53 @@ inline void no_soak(Live& f) {
     f.bank.param_set(f.bank.var(f.ref("irr_soak_sec")), "0");
 }
 
+/** @brief Put the day where a case needs it, through the SUN.
+ *
+ *  cli_phase is day_phase_controller's output now, so setting it directly is
+ *  overwritten on the next scan. The boundaries are minutes either side of
+ *  sunrise and sunset, and a phase is reached by placing the clock inside its
+ *  window - the same way the plant reaches it.
+ *  @note The two BANK phases also need their arm, which day_phase derives from
+ *  the published extremes. A case wanting one sets cli_prevDayMax_degC or
+ *  cli_prevNightMin_degC past its trigger first. */
+inline void put_phase(Live& f, Site::DayPhase p) {
+    f.bank.var(f.ref("sol_ready")).set(true);
+    int rise = 0, set_ = 0;
+    switch (p) {
+        case Site::PHASE_NIGHT:       rise = -60;  set_ =  60;  break;
+        case Site::PHASE_COLD_BANK:   rise =   0;  set_ =  60;  break;
+        case Site::PHASE_DAWN_BREEZE: rise =  45;  set_ =  60;  break;
+        case Site::PHASE_DAY:         rise = 120;  set_ = -240; break;
+        case Site::PHASE_HEAT_BANK:   rise = 120;  set_ = -60;  break;
+        case Site::PHASE_DUSK_BREEZE: rise = 120;  set_ =   0;  break;
+        default: break;
+    }
+    f.bank.var(f.ref("sol_fromRise_min")).set_i(rise);
+    f.bank.var(f.ref("sol_fromSet_min")).set_i(set_);
+    // A BANK phase also needs its arm, and day_phase derives that from the
+    // extremes it accumulates rather than from the row - so the house has to
+    // have BEEN hot, or cold, the way the plant reaches one. Harmless in a rig
+    // that does not run day_phase: nothing reads cli_temp_in there.
+    if (p == Site::PHASE_COLD_BANK)
+        f.bank.var(f.ref("cli_temp_in")).set(
+            f.bank.var(f.ref("cli_coldBankTrg_degC")).as_f32() + 5.0f);
+    else if (p == Site::PHASE_HEAT_BANK)
+        f.bank.var(f.ref("cli_temp_in")).set(
+            f.bank.var(f.ref("cli_heatBankTrg_degC")).as_f32() - 5.0f);
+
+    // AND the row itself, because both kinds of rig exist: one running
+    // day_phase, which derives cli_phase from the two above and would
+    // overwrite anything set here, and one that does not, where this is the
+    // only thing that puts the plant in a phase at all.
+    f.bank.var(f.ref("cli_phase")).set_i((int64_t)p);
+    f.bank.var(f.ref("cli_phase_qlt")).set(true);
+}
+
 /** @brief Put the plant in the end-of-night watering slot. A cycle may only
  *  START in one of the two the spec allows, so every irrigation case has to
  *  say which one it is in. */
 inline void slot(Live& f) {
-    f.bank.var(f.ref("cli_phase")).set_i((int64_t)Site::PHASE_DAWN_BREEZE);
+    put_phase(f, Site::PHASE_DAWN_BREEZE);
 }
 
 /** @brief Where the roof parks, from the row that declares it. */

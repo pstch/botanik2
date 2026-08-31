@@ -1,0 +1,98 @@
+(* day_phase_controller, as ST. Mirrors
+   src/sites/gh_mlb41/programs/climate/day_phase_controller/. *)
+
+PROGRAM day_phase_controller
+VAR_EXTERNAL CONSTANT
+  cli_temp_in           : REAL;
+  sol_ready             : BOOL;
+  sol_fromRise_min      : INT;
+  sol_fromSet_min       : INT;
+  cli_coldBankTrg_degC  : REAL;
+  cli_heatBankTrg_degC  : REAL;
+  sol_coldBankRise_min  : INT;
+  sol_breezeRise_min    : INT;
+  sol_dayRise_min       : INT;
+  sol_heatBankSet_min   : INT;
+  sol_duskSet_min       : INT;
+  sol_nightSet_min      : INT;
+END_VAR
+VAR_EXTERNAL
+  cli_phase             : USINT;
+  cli_phase_qlt         : BOOL;
+  cli_coldBankArm       : BOOL;
+  cli_heatBankArm       : BOOL;
+  cli_prevDayMax_degC   : REAL;
+  cli_prevNightMin_degC : REAL;
+END_VAR
+VAR
+  phase    : USINT := 0;   (* PHASE_NIGHT *)
+  seeded   : BOOL  := FALSE;
+  day_max  : REAL;
+  night_min : REAL;
+END_VAR
+VAR_TEMP
+  was : USINT;
+END_VAR
+
+  (* Seeding is the block's own: ST has no first-scan flag, and starting the
+     extremes at zero would arm a cold bank on the first beat of every boot. *)
+  IF NOT seeded THEN
+    day_max   := cli_temp_in;
+    night_min := cli_temp_in;
+    seeded    := TRUE;
+  END_IF;
+  IF cli_temp_in > day_max   THEN day_max   := cli_temp_in; END_IF;
+  IF cli_temp_in < night_min THEN night_min := cli_temp_in; END_IF;
+
+  was := phase;
+
+  (* Where the day is, as sun_watch published it. Unknown until the tracker has
+     a location and a wall clock - every boot, for as long as NTP takes - and
+     the phase HOLDS through that rather than announcing a night the plant is
+     not in.
+
+     Down the day IN ORDER, so a boundary an operator has trimmed past the one
+     after it shortens its own phase rather than swallowing the next.
+     0 NIGHT, 1 COLD_BANK, 2 DAWN_BREEZE, 3 DAY, 4 HEAT_BANK, 5 DUSK_BREEZE. *)
+  IF sol_ready THEN
+    IF sol_fromRise_min < sol_coldBankRise_min THEN
+      phase := 0;
+    ELSIF sol_fromRise_min < sol_breezeRise_min THEN
+      IF cli_coldBankArm THEN phase := 1; ELSE phase := 0; END_IF;
+    ELSIF sol_fromRise_min < sol_dayRise_min THEN
+      phase := 2;
+    ELSIF sol_fromSet_min < sol_heatBankSet_min THEN
+      phase := 3;
+    ELSIF sol_fromSet_min < sol_duskSet_min THEN
+      IF cli_heatBankArm THEN phase := 4; ELSE phase := 3; END_IF;
+    ELSIF sol_fromSet_min < sol_nightSet_min THEN
+      phase := 5;
+    ELSE
+      phase := 0;
+    END_IF;
+  END_IF;
+
+  (* The extremes are gathered PER PHASE, not per calendar day: what a cold
+     bank needs is how hot it got before it, and the phase boundary is where
+     that window closes. *)
+  IF phase = 3 AND was <> 3 THEN day_max   := cli_temp_in; END_IF;
+  IF phase = 0 AND was <> 0 THEN night_min := cli_temp_in; END_IF;
+
+  cli_phase     := phase;
+  cli_phase_qlt := sol_ready;
+
+  (* An accumulation, and a probe that has gone stops adding to it: what is
+     published is the window as it stood when the house was last visible. *)
+  cli_prevDayMax_degC   := day_max;
+  cli_prevNightMin_degC := night_min;
+
+  (* Whether the bank phases have anything to do when their turn comes. Both
+     can be armed at once - a clear late-spring day is hot and its night cold,
+     and the two are decided independently.
+
+     Off the ROWS just written, not the locals behind them: forcing one is how
+     a cold-bank morning gets rehearsed in July, and a law arming on its own
+     copy would leave the page saying something it was not doing. *)
+  cli_coldBankArm := cli_prevDayMax_degC   > cli_coldBankTrg_degC;
+  cli_heatBankArm := cli_prevNightMin_degC < cli_heatBankTrg_degC;
+END_PROGRAM

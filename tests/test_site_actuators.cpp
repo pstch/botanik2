@@ -136,7 +136,7 @@ TEST_CASE_FIXTURE(Rig<Site::ScreenController>, "screen: a cold night deploys it,
     Vars::RefIn<bool> screen = live.bank.resolve_in<bool>("cli_screen");
     Vars::RefIn<bool> moving = live.bank.resolve_in<bool>("cli_screenMoving");
 
-    live.bank.var(live.ref("cli_phase")).set_i((int64_t)Site::PHASE_DAY);
+    put_phase(live, Site::PHASE_DAY);
     live.bank.var(live.ref("cli_temp_hi")).publish(from_f32(T_F32, 25.0f), 0);
     live.bank.var(live.ref("cli_coolDem")).set(0.5f);
     d.step(100);
@@ -145,7 +145,7 @@ TEST_CASE_FIXTURE(Rig<Site::ScreenController>, "screen: a cold night deploys it,
     INFO("a cold night deploys it, and it says so while it goes. The COLD is "
          "what asks - a demand under cli_thermalScreenDem - and the night is "
          "only what permits it");
-    live.bank.var(live.ref("cli_phase")).set_i((int64_t)Site::PHASE_NIGHT);
+    put_phase(live, Site::PHASE_NIGHT);
     live.bank.var(live.ref("cli_coolDem"))
           .set(live.bank.var(live.ref("cli_thermalScreenDem")).as_f32() - 0.1f);
     d.step(200);
@@ -288,7 +288,7 @@ TEST_CASE_FIXTURE(Rig<Site::ScreenController>, "screen: the phase gives permissi
 
     // The morning opens it: retracting is what the day half of the cycle is
     // allowed to do, and a warm demand asks for it.
-    live.bank.var(live.ref("cli_phase")).set_i((int64_t)Site::PHASE_DAWN_BREEZE);
+    put_phase(live, Site::PHASE_DAWN_BREEZE);
     live.bank.var(live.ref("cli_temp_hi")).publish(from_f32(T_F32, 18.0f), 0);
     live.bank.var(live.ref("cli_coolDem")).set(0.5f);
     d.step(100);
@@ -296,7 +296,7 @@ TEST_CASE_FIXTURE(Rig<Site::ScreenController>, "screen: the phase gives permissi
 
     INFO("a cold hour at MIDDAY does not close the fabric against the sun, "
          "however negative the demand goes");
-    live.bank.var(live.ref("cli_phase")).set_i((int64_t)Site::PHASE_DAY);
+    put_phase(live, Site::PHASE_DAY);
     live.bank.var(live.ref("cli_temp_hi")).publish(from_f32(T_F32, 8.0f), 100);
     live.bank.var(live.ref("cli_coolDem")).set(deploy - 0.5f);
     d.step(200);
@@ -304,20 +304,20 @@ TEST_CASE_FIXTURE(Rig<Site::ScreenController>, "screen: the phase gives permissi
 
     INFO("the same demand at dusk deploys it: the day's direction is what "
          "decides, and dusk is closing down");
-    live.bank.var(live.ref("cli_phase")).set_i((int64_t)Site::PHASE_DUSK_BREEZE);
+    put_phase(live, Site::PHASE_DUSK_BREEZE);
     d.step(300);
     CHECK(live.bank.get(screen));
 
     INFO("and a mild NIGHT does not open it again - retracting belongs to the "
          "half of the day that opens up, so the heat it holds is kept");
-    live.bank.var(live.ref("cli_phase")).set_i((int64_t)Site::PHASE_NIGHT);
+    put_phase(live, Site::PHASE_NIGHT);
     live.bank.var(live.ref("cli_temp_hi")).publish(from_f32(T_F32, 22.0f), 300);
     live.bank.var(live.ref("cli_coolDem")).set(0.5f);
     d.step(400);
     CHECK(live.bank.get(screen));
 
     INFO("the morning is what retracts it");
-    live.bank.var(live.ref("cli_phase")).set_i((int64_t)Site::PHASE_DAWN_BREEZE);
+    put_phase(live, Site::PHASE_DAWN_BREEZE);
     d.step(500);
     CHECK_FALSE(live.bank.get(screen));
 }
@@ -496,18 +496,18 @@ TEST_CASE_FIXTURE(StRig, "fans: the day's two breezes are a floor under the bras
     // Nothing else asking: no stratification, no cooling, no cycle.
     live.bank.var(live.ref("cli_stratDem")).set(0.0f);
     live.bank.var(live.ref("cli_coolDem")).set(0.0f);
-    live.bank.var(live.ref("cli_phase")).set_i((int64_t)Site::PHASE_DAY);
+    put_phase(live, Site::PHASE_DAY);
     d.step(100);
     CHECK_FALSE(live.bank.get(live.bank.resolve_in<bool>("cli_destrat1_speed1")));
 
     INFO("dusk: a light circulation dries the leaves before the stomata open - "
          "these plants breathe at night, and a wet leaf cannot");
-    live.bank.var(live.ref("cli_phase")).set_i((int64_t)Site::PHASE_DUSK_BREEZE);
+    put_phase(live, Site::PHASE_DUSK_BREEZE);
     d.step(200);
     CHECK(live.bank.get(live.bank.resolve_in<bool>("cli_destrat1_speed1")));
 
     INFO("...and dawn, for the night's condensation");
-    live.bank.var(live.ref("cli_phase")).set_i((int64_t)Site::PHASE_DAWN_BREEZE);
+    put_phase(live, Site::PHASE_DAWN_BREEZE);
     d.step(300);
     CHECK(live.bank.get(live.bank.resolve_in<bool>("cli_destrat1_speed1")));
 
@@ -516,7 +516,7 @@ TEST_CASE_FIXTURE(StRig, "fans: the day's two breezes are a floor under the bras
     d.step(400);
     CHECK(live.bank.get(live.bank.resolve_in<bool>("cli_destrat1_speed3")));
 
-    live.bank.var(live.ref("cli_phase")).set_i((int64_t)Site::PHASE_NIGHT);
+    put_phase(live, Site::PHASE_NIGHT);
     live.bank.var(live.ref("cli_coolDem")).set(0.0f);
     for (uint32_t i = 0; i < 5; i++) d.step(500 + 100u * i);
     CHECK_FALSE(live.bank.get(live.bank.resolve_in<bool>("cli_destrat1_speed1")));

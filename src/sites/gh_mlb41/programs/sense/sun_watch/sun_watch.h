@@ -29,6 +29,7 @@ public:
 
     Vars::RefOut<int16_t> from_rise;
     Vars::RefOut<int16_t> from_set;
+    Vars::RefOut<bool>  ready;
     Vars::RefOut<float>   elevation;
 
     /** @} */
@@ -59,6 +60,7 @@ inline void SunWatch::bind(Vars::Bank& io) {
     from_rise = _bind_output<int16_t>(io, "sol_fromRise_min");
     from_set  = _bind_output<int16_t>(io, "sol_fromSet_min");
     elevation = _bind_output<float>(io, "sol_elev_deg");
+    ready     = _bind_output<bool>(io, "sol_ready");
     // The offsets ARE the sun. A tracker that is not here never starts being
     // here, so this law has nothing to publish for the life of the run.
     if (_sun == nullptr) invalidate();

@@ -19,6 +19,10 @@ void SunWatch::run(ProgramContext& c) {
     // for as long as NTP takes. The offsets ARE the sun, so they hold rather
     // than publishing a day nobody has computed. A tracker that is not there at
     // all was INVALID at bind() and this never runs.
+    // ONE row for the lot: a law downstream cannot ask the bank whether a
+    // solar output is believable, and they are believable together or not at
+    // all - the tracker has a location and a clock, or it has neither.
+    ready.set(_sun->ready(), true);
     if (!_sun->ready()) {
         from_rise.hold();
         from_set.hold();

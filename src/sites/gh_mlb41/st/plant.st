@@ -34,6 +34,7 @@ CONFIGURATION gh_mlb41
     cli_breezeDem         : REAL;
     cli_coldBankArm       : BOOL;
     cli_coldBankOfs_degC  : REAL;
+    cli_coldBankTrg_degC  : REAL;
     cli_coolDem           : REAL;
     cli_coolSet_degC      : REAL;
     cli_dTStratHigh_degC  : REAL;
@@ -61,6 +62,7 @@ CONFIGURATION gh_mlb41
     cli_groundSpeed       : REAL;
     cli_heatBankArm       : BOOL;
     cli_heatBankOfs_degC  : REAL;
+    cli_heatBankTrg_degC  : REAL;
     cli_humidDem          : REAL;
     cli_intakeCoolOk      : BOOL;
     cli_intakeDryOk       : BOOL;
@@ -71,6 +73,8 @@ CONFIGURATION gh_mlb41
     cli_intrSafeSpeed     : REAL;
     cli_phase             : USINT;
     cli_phase_qlt         : BOOL;
+    cli_prevDayMax_degC   : REAL;
+    cli_prevNightMin_degC : REAL;
     cli_rainLockout       : BOOL;
     cli_rainLockout_sec   : UINT;
     cli_rain_mmph         : REAL;
@@ -139,6 +143,7 @@ CONFIGURATION gh_mlb41
     cli_temp_hi3          : REAL;
     cli_temp_hi3_qlt      : BOOL;
     cli_temp_hi_qlt       : BOOL;
+    cli_temp_in           : REAL;
     cli_temp_lo           : REAL;
     cli_temp_lo1          : REAL;
     cli_temp_lo1_qlt      : BOOL;
@@ -159,6 +164,15 @@ CONFIGURATION gh_mlb41
     cli_windowCap         : REAL;
     cli_windowLockout     : BOOL;
     irr_state             : USINT;
+    sol_breezeRise_min    : INT;
+    sol_coldBankRise_min  : INT;
+    sol_dayRise_min       : INT;
+    sol_duskSet_min       : INT;
+    sol_fromRise_min      : INT;
+    sol_fromSet_min       : INT;
+    sol_heatBankSet_min   : INT;
+    sol_nightSet_min      : INT;
+    sol_ready             : BOOL;
     sys_now_ms            : UDINT;
     sys_supply_lockout    : BOOL;
   END_VAR
@@ -173,6 +187,7 @@ CONFIGURATION gh_mlb41
     PROGRAM strat      : strat_sensor;
     PROGRAM climwatch  : climate_watch;
     PROGRAM wxwatch    : weather_watch;
+    PROGRAM dayphase   : day_phase_controller;
     PROGRAM target     : target_temp_controller;
     PROGRAM destrat    : destrat_controller;
     PROGRAM roof       : roof_lockout;

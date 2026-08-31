@@ -83,7 +83,6 @@
 #include "programs/sense/sun_watch/sun_watch.h"
 #include "programs/sense/wx_sensors/wx_sensors.h"
 #include "programs/sense/temp_rh_zone/temp_rh_zone.h"
-#include "programs/climate/day_phase_controller/day_phase_controller.h"
 #include "programs/climate/cooling_controller/cooling_controller.h"
 #include "programs/climate/intake_gates/intake_gates.h"
 #include "programs/climate/humidity_controller/humidity_controller.h"
@@ -110,7 +109,6 @@
     X(SunWatch,             _sun_watch)       \
     X(WxSensors,            _wx_sensors)     \
     X(TempRHZone,           _temp_rh_zone)    \
-    X(DayPhaseController,   _day_phase)       \
     X(CoolingController,    _cooling)         \
     X(IntakeGates,          _intake_gates)   \
     X(HumidityController,   _humidity)        \

@@ -356,7 +356,7 @@ TEST_CASE_FIXTURE(IrrigationRig, "irrigation: `water now` is spent on the cycle 
     live.bank.param_set(live.bank.var(live.ref("irr_input_qtyPerImp")), 1.0f);
 
     // The middle of the afternoon, which is no kind of watering slot.
-    live.bank.var(live.ref("cli_phase")).set_i((int64_t)Site::PHASE_DAY);
+    put_phase(live, Site::PHASE_DAY);
     live.bank.var(live.ref("sol_fromRise_min")).set_i(600);
 
     uint64_t t = 0;
@@ -389,7 +389,7 @@ TEST_CASE_FIXTURE(IrrigationRig, "irrigation: the afternoon is not a watering sl
     // when the stomata open.
     const int16_t rise = (int16_t)(live.bank.var(live.ref("sol_dayRise_min")).as_i64() +
                                    live.bank.var(live.ref("irr_morningWin_min")).as_i64() + 1);
-    live.bank.var(live.ref("cli_phase")).set_i((int64_t)Site::PHASE_DAY);
+    put_phase(live, Site::PHASE_DAY);
     live.bank.var(live.ref("sol_fromRise_min")).set_i(rise);
     d.step(1000);
     CHECK(live.bank.var(live.ref("irr_state")).as_i64() == Site::IRR_IDLE);
@@ -410,7 +410,7 @@ TEST_CASE_FIXTURE(IrrigationRig, "irrigation: the afternoon is not a watering sl
     g.bank.param_set(g.bank.var(g.ref("irr_forceOn_tray1")), true);
     field(g, "cli_temp_ext",
           g.bank.var(g.ref("irr_dawnGate_degC")).as_f32() - 1.0f);
-    g.bank.var(g.ref("cli_phase")).set_i((int64_t)Site::PHASE_DAWN_BREEZE);
+    put_phase(g, Site::PHASE_DAWN_BREEZE);
     d2.step(1000);
     CHECK(g.bank.var(g.ref("irr_state")).as_i64() == Site::IRR_IDLE);
 }

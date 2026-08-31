@@ -41,6 +41,7 @@ namespace Site {
     X(strat,            STRAT_SENSOR,           STRAT,    BOTANIK_SITE_SENSE_MS)   \
     X(climate_watch,    CLIMATE_WATCH,          CLIMWATCH, BOTANIK_SITE_CONTROL_MS)\
     X(weather_watch,    WEATHER_WATCH,          WXWATCH,  BOTANIK_SITE_CONTROL_MS) \
+    X(day_phase,        DAY_PHASE_CONTROLLER,   DAYPHASE, BOTANIK_SITE_CONTROL_MS) \
     X(target_temp,      TARGET_TEMP_CONTROLLER, TARGET,   BOTANIK_SITE_CONTROL_MS) \
     X(destrat,          DESTRAT_CONTROLLER,     DESTRAT,  BOTANIK_SITE_CONTROL_MS) \
     X(roof_lockout,     ROOF_LOCKOUT,           ROOF,     BOTANIK_SITE_CONTROL_MS) \

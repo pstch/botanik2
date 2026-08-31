@@ -476,6 +476,8 @@ const Descriptor rows[] = {
     SV("cli_rh_cs_qlt"           , T_BOOL, 0          , 0, ""    , 653, "crawlspace humidity believable", "the zone's own verdict, written by temp_rh_sensors"),
     SV("cli_rh_ext_qlt"          , T_BOOL, 0          , 0, ""    , 654, "exterior humidity believable", "the zone's own verdict, written by temp_rh_sensors"),
 
+    SV("sol_ready"              , T_BOOL, 0          , 0, ""    , 656, "the solar tracker has a location and a clock", "one row, not one per solar output: they all go together, and every boot passes through this until NTP lands"),
+
     SV("cli_dTStrat_degC_qlt"   , T_BOOL, 0          , 0, ""    , 655, "stratification gap believable", "strat_sensor's verdict: both levels measured"),
 
     SV("cli_rain_mmph_qlt"      , T_BOOL, 0          , 0, ""    , 613, "rain rate believable", "roof_lockout shuts the roof without it: the row declares 0, which reads as fine weather"),
