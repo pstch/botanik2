@@ -18,6 +18,11 @@
 CONFIGURATION gh_mlb41
 
   VAR_GLOBAL
+    DUTY_IN               : REAL;
+    MIN_ON_MS             : UDINT;
+    NOW                   : UDINT;
+    PERIOD_MS             : UDINT;
+    RESET                 : BOOL;
     alarm_rot             : BOOL;
     alarm_sensor_fault    : BOOL;
     alarm_sns_ceiling     : BOOL;
@@ -126,6 +131,12 @@ CONFIGURATION gh_mlb41
     cli_satPress_kPa      : REAL;
     cli_sensorTau_ms      : UINT;
     cli_sinceRain_min     : UINT;
+    cli_skirtCoolDem      : REAL;
+    cli_skirtDryMin_degC  : REAL;
+    cli_skirtDuty         : REAL;
+    cli_skirtMinOn_sec    : UINT;
+    cli_skirtPeriod_sec   : UINT;
+    cli_skirtValve        : BOOL;
     cli_stratDem          : REAL;
     cli_targetMax_degC    : REAL;
     cli_targetMin_degC    : REAL;
@@ -215,6 +226,7 @@ CONFIGURATION gh_mlb41
     PROGRAM roof       : roof_lockout;
     PROGRAM intractors : intractor_controller;
     PROGRAM fans       : fan_controller;
+    PROGRAM skirt      : skirt_controller;
   END_RESOURCE
 
 END_CONFIGURATION

@@ -565,14 +565,17 @@ TEST_CASE_FIXTURE(StRig, "fans: a watering cycle is a floor under them") {
     CHECK(live.bank.get(live.bank.resolve_in<bool>("cli_destrat1_speed1")));
 }
 
-TEST_CASE_FIXTURE(Rig<Site::SkirtController>, "skirt: the humidify arm is proportional, the cooling arm is staged") {
+TEST_CASE_FIXTURE(StRig, "skirt: the humidify arm is proportional, the cooling arm is staged") {
 
     Vars::RefIn<float> duty = live.bank.resolve_in<float>("cli_skirtDuty");
     const uint32_t period = live.bank.var(live.ref("cli_skirtPeriod_sec")).value().as<uint32_t>();
     const uint32_t min_on = live.bank.var(live.ref("cli_skirtMinOn_sec")).value().as<uint32_t>();
 
-    // Dry enough for a wet pad to cool, so the cooling arm is not gated out...
-    live.bank.var(live.ref("cli_dpMargin_degC")).publish(from_f32(T_F32, 20.0f), 0);
+    // Dry enough for a wet pad to cool, so the cooling arm is not gated out.
+    // FORCED: temp_rh_zone owns the margin and humidity owns the lockout, and
+    // both are on this beat.
+    force(live, "cli_dpMargin_degC", 20.0f);
+    force(live, "cli_rotLockout", false);
     interlocks_clear(live);
 
     force(live, "cli_humidDem", 0.5f);
@@ -599,24 +602,25 @@ TEST_CASE_FIXTURE(Rig<Site::SkirtController>, "skirt: the humidify arm is propor
     CHECK(live.bank.get(duty) == doctest::Approx(1.0f));
 }
 
-TEST_CASE_FIXTURE(Rig<Site::SkirtController>, "skirt: damp air gates the cooling arm, and the rot lockout cuts both") {
+TEST_CASE_FIXTURE(StRig, "skirt: damp air gates the cooling arm, and the rot lockout cuts both") {
 
     Vars::RefIn<bool> valve = live.bank.resolve_in<bool>("cli_skirtValve");
     const float dry_min = live.bank.var(live.ref("cli_skirtDryMin_degC")).as_f32();
     interlocks_clear(live);
+    force(live, "cli_rotLockout", false);
 
     INFO("a wet pad in damp air adds water without cooling anything");
-    live.bank.var(live.ref("cli_dpMargin_degC")).publish(from_f32(T_F32, dry_min - 1.0f), 0);
+    force(live, "cli_dpMargin_degC", dry_min - 1.0f);
     force(live, "cli_coolDem", 1.0f);
     d.step(100);
     CHECK_FALSE(live.bank.get(valve));
 
-    live.bank.var(live.ref("cli_dpMargin_degC")).publish(from_f32(T_F32, dry_min + 1.0f), 100);
+    force(live, "cli_dpMargin_degC", dry_min + 1.0f);
     d.step(200);
     CHECK(live.bank.get(valve));
 
     INFO("and the rot lockout cuts it whatever either arm is asking for");
-    live.bank.var(live.ref("cli_rotLockout")).set(true);
+    force(live, "cli_rotLockout", true);
     d.step(300);
     CHECK_FALSE(live.bank.get(valve));
     CHECK(live.bank.get(live.bank.resolve_in<float>("cli_skirtDuty")) == doctest::Approx(0.0f));

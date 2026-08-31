@@ -40,7 +40,8 @@ namespace Botanik { namespace Plc { namespace Runtime {
     X(destrat,         DESTRAT_CONTROLLER,     DESTRAT,    BOTANIK_SITE_CONTROL_MS) \
     X(roof_lockout,    ROOF_LOCKOUT,           ROOF,       BOTANIK_SITE_CONTROL_MS) \
     X(intractors,      INTRACTOR_CONTROLLER,   INTRACTORS, BOTANIK_SITE_CONTROL_MS) \
-    X(fans,            FAN_CONTROLLER,         FANS,       BOTANIK_SITE_CONTROL_MS)
+    X(fans,            FAN_CONTROLLER,         FANS,       BOTANIK_SITE_CONTROL_MS) \
+    X(skirt,           SKIRT_CONTROLLER,       SKIRT,      BOTANIK_SITE_CONTROL_MS)
 
 /* The roster index, so a handler knows which entry it is. */
 enum {

@@ -14,7 +14,7 @@ The end state the user asked for:
 
 > `src/sites/<NAME>/` contains only CSV tables, ST programs, and a root TOML.
 
-**16 of 29 programs are ported. 13 remain.**
+**16 of 28 programs are ported. 12 remain.**
 
 `sun_watch` is not among either: the tracker publishes `sol_*` itself now, so
 the program that copied the instrument onto rows was DELETED rather than
@@ -24,11 +24,23 @@ ported. 29 was never going to be the number that finished.
 
 ## The task list
 
-### 1. Finish the port - 13 programs
+### 1. Finish the port - 12 programs
 
 **Blocks were never the hard part.** A survey of all fifteen (2026-08-31)
-found five things ST has no expression for at all, and an ordering law that
-decides what may move when. Read both before picking the next program.
+found five things ST had no expression for. All five are now dealt with: four
+were built, and the fifth was never real. What is left is ordinary porting -
+a block, a program, and its test migration - plus the sequencing note below.
+
+**The recurring cost is SUBSTITUTION.** `Ref::get()` hands back a row's
+declared value when the row is not believable, and half these laws were built
+on that: an unreadable cooling demand declared 0.20 (under the skirt's
+staging threshold), an unreadable margin declared 2.0 (under its dryness
+floor), an unreadable window demand declared 0.25 (the roof's park position).
+An ST-written row is ALWAYS valid, so every one of those substitutions
+vanishes the moment its producer moves. Each is either a companion the
+consumer must now read, or a safe VALUE the producer must now publish - and
+NEITHER shows up as a compile error. Grep the consumers for the row before
+porting its producer.
 
 | program | blocks needed | what ST cannot say |
 |---|---|---|
@@ -38,7 +50,6 @@ decides what may move when. Read both before picking the next program.
 | `DcWatch` | `Deadband`, `Ewma`, `Ton` | `.valid()`/`.invalidate()` |
 | `ScreenController` | `Actuator` + `ActuatorConfig` | - |
 | `WindowsController` | `Actuator` + `ActuatorConfig` | `.invalidate()` |
-| `SkirtController` | `ValveController` (site) | descriptor read (fail direction) |
 | `IrrValves` | **none** - it only calls `.set()` | - |
 | `IrrigationModulation` | `Ton` | `.invalidate()`, `powf` |
 | `IrrMtrInput` | `Derivative`, `Ton` | - |
@@ -46,7 +57,7 @@ decides what may move when. Read both before picking the next program.
 | `IrrigationSchedule` | none | **`HAL::Clock::wall_ms()`**, `.hold()` |
 | `IrrigationCycle` | `Ton` | `.held()` |
 
-### The five missing mechanisms
+### The five missing mechanisms - all resolved
 
 1. ~~**`.edit()` - a retained parameter.**~~ **SOLVED.** `__SET_EXTERNAL` is
    `Ref::drive()` now: an ordinary row takes `set()`, a `ROLE_PARAM` row takes
@@ -76,10 +87,13 @@ decides what may move when. Read both before picking the next program.
    table (943-946), which is the law already stated for `geo_*`: whatever the
    library reads or writes by name, the library declares. **Their Modbus
    registers moved** with them - 524/525/593/656 are free now.
-5. **A descriptor read.** `ValveController::bind()` learns its fail direction
-   from the coil row's declared default, so "the table stays the one place it
-   is declared". ST cannot read a descriptor. Passing FAIL_OPEN in as an input
-   works and declares it twice, which is what the block was written to avoid.
+5. ~~**A descriptor read.**~~ **NOT A BLOCKER** - it dissolved on inspection.
+   `_fail_open` had exactly ONE caller in the tree: the skirt's rot lockout,
+   whose own comment says what it means is "this valve must never wet
+   condensing air". That is a LAW, not a wiring fact. The law says shut, the
+   row says shut, and neither derives the other. The ST block (`VALVE_PULSE`,
+   in the site's `blocks/`) is the pulse train alone and reads no descriptor.
+   `IrrValves` never used the block at all - it only ever calls `set()`.
 
 `.valid()`/`.invalidate()`/`.hold()`/`.held()` are all expressible, but each
 costs COMPANION ROWS - the AC pair alone wants about sixteen, and a register is

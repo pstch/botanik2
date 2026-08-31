@@ -48,6 +48,8 @@ INTRACTOR_CONTROLLER_data__ PLC__INTRACTORS;
 #define INTRACTORS PLC__INTRACTORS
 FAN_CONTROLLER_data__ PLC__FANS;
 #define FANS PLC__FANS
+SKIRT_CONTROLLER_data__ PLC__SKIRT;
+#define SKIRT PLC__SKIRT
 
 void PLC_init__(void) {
   BOOL retain;
@@ -69,6 +71,7 @@ void PLC_init__(void) {
   ROOF_LOCKOUT_init__(&ROOF,retain);
   INTRACTOR_CONTROLLER_init__(&INTRACTORS,retain);
   FAN_CONTROLLER_init__(&FANS,retain);
+  SKIRT_CONTROLLER_init__(&SKIRT,retain);
 }
 
 void PLC_run__(unsigned long tick) {
@@ -88,5 +91,6 @@ void PLC_run__(unsigned long tick) {
   ROOF_LOCKOUT_body__(&ROOF);
   INTRACTOR_CONTROLLER_body__(&INTRACTORS);
   FAN_CONTROLLER_body__(&FANS);
+  SKIRT_CONTROLLER_body__(&SKIRT);
 }
 

@@ -14,3 +14,4 @@ destrat        ,destrat   ,programs/climate/destrat_controller/destrat_controlle
 roof_lockout   ,roof      ,programs/actuators/roof_lockout/roof_lockout.st,control
 intractors     ,intractors,programs/actuators/intractor_controller/intractor_controller.st,control
 fans           ,fans      ,programs/actuators/fan_controller/fan_controller.st,control
+skirt          ,skirt     ,programs/actuators/skirt_controller/skirt_controller.st,control

@@ -90,7 +90,6 @@
 #include "programs/irrigation/irr_valves/irr_valves.h"
 #include "programs/actuators/screen_controller/screen_controller.h"
 #include "programs/actuators/windows_controller/windows_controller.h"
-#include "programs/actuators/skirt_controller/skirt_controller.h"
 
 /** @name The site's programs, in EXECUTION order
  *  site.h expands this three times: the members, the constructor
@@ -109,8 +108,7 @@
     X(IrrigationCycle,      _irrigation)      \
     X(IrrValves,            _irr_valves)      \
     X(ScreenController,     _screen)          \
-    X(WindowsController,    _windows)         \
-    X(SkirtController,      _skirt)
+    X(WindowsController,    _windows)
 
 /** @} */
 

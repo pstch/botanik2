@@ -26,6 +26,10 @@ static REAL ___EXP(
   BOOL EN, 
   BOOL *__ENO, 
   REAL IN);
+static UDINT ___REAL_TO_UDINT(
+  BOOL EN, 
+  BOOL *__ENO, 
+  REAL IN);
 static REAL ___UDINT_TO_REAL(
   BOOL EN, 
   BOOL *__ENO, 
@@ -80,6 +84,8 @@ static void EWMA_init__(EWMA_data__ *data__, BOOL retain);
 static void EWMA_body__(EWMA_data__ *data__);
 static void PID_init__(PID_data__ *data__, BOOL retain);
 static void PID_body__(PID_data__ *data__);
+static void VALVE_PULSE_init__(VALVE_PULSE_data__ *data__, BOOL retain);
+static void VALVE_PULSE_body__(VALVE_PULSE_data__ *data__);
 static void ZONE_VOTE_init__(ZONE_VOTE_data__ *data__, BOOL retain);
 static void ZONE_VOTE_body__(ZONE_VOTE_data__ *data__);
 static void ZONE_PUBLISH_init__(ZONE_PUBLISH_data__ *data__, BOOL retain);
@@ -92,6 +98,8 @@ static void INTRACTOR_CONTROLLER_init__(INTRACTOR_CONTROLLER_data__ *data__, BOO
 static void INTRACTOR_CONTROLLER_body__(INTRACTOR_CONTROLLER_data__ *data__);
 static void ROOF_LOCKOUT_init__(ROOF_LOCKOUT_data__ *data__, BOOL retain);
 static void ROOF_LOCKOUT_body__(ROOF_LOCKOUT_data__ *data__);
+static void SKIRT_CONTROLLER_init__(SKIRT_CONTROLLER_data__ *data__, BOOL retain);
+static void SKIRT_CONTROLLER_body__(SKIRT_CONTROLLER_data__ *data__);
 static void COOLING_CONTROLLER_init__(COOLING_CONTROLLER_data__ *data__, BOOL retain);
 static void COOLING_CONTROLLER_body__(COOLING_CONTROLLER_data__ *data__);
 static void DAY_PHASE_CONTROLLER_init__(DAY_PHASE_CONTROLLER_data__ *data__, BOOL retain);
@@ -316,6 +324,42 @@ __end:
     *__ENO = ENO;
   }
   return EXP;
+}
+
+
+static UDINT ___REAL_TO_UDINT(
+  BOOL EN, 
+  BOOL *__ENO, 
+  REAL IN)
+{
+  BOOL ENO = __BOOL_LITERAL(TRUE);
+  UDINT REAL_TO_UDINT = 0;
+
+  // Control execution
+  if (!EN) {
+    if (__ENO != NULL) {
+      *__ENO = __BOOL_LITERAL(FALSE);
+    }
+    return REAL_TO_UDINT;
+  }
+  __IL_DEFVAR_T __IL_DEFVAR;
+(void)__IL_DEFVAR;
+  __IL_DEFVAR_T __IL_DEFVAR_BACK;
+(void)__IL_DEFVAR_BACK;
+  #define GetFbVar(var,...) __GET_VAR(data__->var,__VA_ARGS__)
+  #define SetFbVar(var,val,...) __SET_VAR(data__->,var,__VA_ARGS__,val)
+ REAL_TO_UDINT = (UDINT)(IN < 0 ? 0 : IN); 
+  #undef GetFbVar
+  #undef SetFbVar
+;
+
+  goto __end;
+
+__end:
+  if (__ENO != NULL) {
+    *__ENO = ENO;
+  }
+  return REAL_TO_UDINT;
 }
 
 
@@ -990,6 +1034,90 @@ __end:
 
 
 
+static void VALVE_PULSE_init__(VALVE_PULSE_data__ *data__, BOOL retain) {
+  __INIT_VAR(data__->EN,__BOOL_LITERAL(TRUE),retain)
+  __INIT_VAR(data__->ENO,__BOOL_LITERAL(TRUE),retain)
+  __INIT_VAR(data__->DUTY_IN,0,retain)
+  __INIT_VAR(data__->PERIOD_MS,0,retain)
+  __INIT_VAR(data__->MIN_ON_MS,0,retain)
+  __INIT_VAR(data__->RESET,__BOOL_LITERAL(FALSE),retain)
+  __INIT_VAR(data__->NOW,0,retain)
+  __INIT_VAR(data__->Q,__BOOL_LITERAL(FALSE),retain)
+  __INIT_VAR(data__->SERVED,0,retain)
+  __INIT_VAR(data__->PHASE_MS,0,retain)
+  __INIT_VAR(data__->LAST,0,retain)
+  __INIT_VAR(data__->SEEDED,__BOOL_LITERAL(FALSE),retain)
+}
+
+// Code part
+static void VALVE_PULSE_body__(VALVE_PULSE_data__ *data__) {
+  // Control execution
+  if (!__GET_VAR(data__->EN)) {
+    __SET_VAR(data__->,ENO,,__BOOL_LITERAL(FALSE));
+    return;
+  }
+  else {
+    __SET_VAR(data__->,ENO,,__BOOL_LITERAL(TRUE));
+  }
+  // Initialise TEMP variables
+  __SET_VAR(data__->,WANT,,0);
+  __SET_VAR(data__->,PERIOD,,0);
+  __SET_VAR(data__->,ON_MS,,0);
+  __SET_VAR(data__->,SERVE,,0);
+  __SET_VAR(data__->,ELAPSED,,0);
+
+  if (__GET_VAR(data__->SEEDED,)) {
+    __SET_VAR(data__->,ELAPSED,,(__GET_VAR(data__->NOW,) - __GET_VAR(data__->LAST,)));
+  } else {
+    __SET_VAR(data__->,ELAPSED,,__UDINT_LITERAL(0));
+    __SET_VAR(data__->,SEEDED,,__BOOL_LITERAL(TRUE));
+  };
+  __SET_VAR(data__->,LAST,,__GET_VAR(data__->NOW,));
+  if (__GET_VAR(data__->RESET,)) {
+    __SET_VAR(data__->,PHASE_MS,,__UDINT_LITERAL(0));
+  };
+  __SET_VAR(data__->,WANT,,___LIMIT(
+    (BOOL)__BOOL_LITERAL(TRUE),
+    NULL,
+    (REAL)__REAL_LITERAL(0.0),
+    (REAL)__GET_VAR(data__->DUTY_IN,),
+    (REAL)__REAL_LITERAL(1.0)));
+  __SET_VAR(data__->,PERIOD,,__GET_VAR(data__->PERIOD_MS,));
+  if ((__GET_VAR(data__->PERIOD,) == __UDINT_LITERAL(0))) {
+    __SET_VAR(data__->,PERIOD,,__UDINT_LITERAL(1));
+  };
+  __SET_VAR(data__->,ON_MS,,___REAL_TO_UDINT(
+    (BOOL)__BOOL_LITERAL(TRUE),
+    NULL,
+    (REAL)(__GET_VAR(data__->WANT,) * ___UDINT_TO_REAL(
+      (BOOL)__BOOL_LITERAL(TRUE),
+      NULL,
+      (UDINT)__GET_VAR(data__->PERIOD,)))));
+  if ((__GET_VAR(data__->ON_MS,) < __GET_VAR(data__->MIN_ON_MS,))) {
+    __SET_VAR(data__->,SERVE,,__UDINT_LITERAL(0));
+  } else {
+    __SET_VAR(data__->,SERVE,,__GET_VAR(data__->ON_MS,));
+  };
+  __SET_VAR(data__->,PHASE_MS,,((__GET_VAR(data__->PERIOD,) == 0)?0:((__GET_VAR(data__->PHASE_MS,) + __GET_VAR(data__->ELAPSED,)) % __GET_VAR(data__->PERIOD,))));
+  __SET_VAR(data__->,Q,,(__GET_VAR(data__->PHASE_MS,) < __GET_VAR(data__->SERVE,)));
+  __SET_VAR(data__->,SERVED,,(___UDINT_TO_REAL(
+    (BOOL)__BOOL_LITERAL(TRUE),
+    NULL,
+    (UDINT)__GET_VAR(data__->SERVE,)) / ___UDINT_TO_REAL(
+    (BOOL)__BOOL_LITERAL(TRUE),
+    NULL,
+    (UDINT)__GET_VAR(data__->PERIOD,))));
+
+  goto __end;
+
+__end:
+  return;
+} // VALVE_PULSE_body__() 
+
+
+
+
+
 static void ZONE_VOTE_init__(ZONE_VOTE_data__ *data__, BOOL retain) {
   __INIT_VAR(data__->EN,__BOOL_LITERAL(TRUE),retain)
   __INIT_VAR(data__->ENO,__BOOL_LITERAL(TRUE),retain)
@@ -1442,6 +1570,86 @@ static void ROOF_LOCKOUT_body__(ROOF_LOCKOUT_data__ *data__) {
 __end:
   return;
 } // ROOF_LOCKOUT_body__() 
+
+
+
+
+
+static void SKIRT_CONTROLLER_init__(SKIRT_CONTROLLER_data__ *data__, BOOL retain) {
+  __INIT_EXTERNAL(REAL,CLI_COOLDEM,data__->CLI_COOLDEM,retain)
+  __INIT_EXTERNAL(BOOL,CLI_COOLDEM_QLT,data__->CLI_COOLDEM_QLT,retain)
+  __INIT_EXTERNAL(REAL,CLI_HUMIDDEM,data__->CLI_HUMIDDEM,retain)
+  __INIT_EXTERNAL(REAL,CLI_SKIRTCOOLDEM,data__->CLI_SKIRTCOOLDEM,retain)
+  __INIT_EXTERNAL(REAL,CLI_SKIRTDRYMIN_DEGC,data__->CLI_SKIRTDRYMIN_DEGC,retain)
+  __INIT_EXTERNAL(REAL,CLI_DPMARGIN_DEGC,data__->CLI_DPMARGIN_DEGC,retain)
+  __INIT_EXTERNAL(BOOL,CLI_DPMARGIN_DEGC_QLT,data__->CLI_DPMARGIN_DEGC_QLT,retain)
+  __INIT_EXTERNAL(BOOL,CLI_ROTLOCKOUT,data__->CLI_ROTLOCKOUT,retain)
+  __INIT_EXTERNAL(UINT,CLI_SKIRTPERIOD_SEC,data__->CLI_SKIRTPERIOD_SEC,retain)
+  __INIT_EXTERNAL(UINT,CLI_SKIRTMINON_SEC,data__->CLI_SKIRTMINON_SEC,retain)
+  __INIT_EXTERNAL(UDINT,SYS_NOW_MS,data__->SYS_NOW_MS,retain)
+  __INIT_EXTERNAL(BOOL,CLI_SKIRTVALVE,data__->CLI_SKIRTVALVE,retain)
+  __INIT_EXTERNAL(REAL,CLI_SKIRTDUTY,data__->CLI_SKIRTDUTY,retain)
+  VALVE_PULSE_init__(&data__->PULSE,retain);
+}
+
+// Code part
+static void SKIRT_CONTROLLER_body__(SKIRT_CONTROLLER_data__ *data__) {
+  // Initialise TEMP variables
+  __SET_VAR(data__->,HUMID,,0);
+  __SET_VAR(data__->,COOL,,0);
+  __SET_VAR(data__->,WANT,,0);
+  __SET_VAR(data__->,DRY,,__BOOL_LITERAL(FALSE));
+
+  __SET_VAR(data__->,HUMID,,___LIMIT(
+    (BOOL)__BOOL_LITERAL(TRUE),
+    NULL,
+    (REAL)__REAL_LITERAL(0.0),
+    (REAL)__GET_EXTERNAL(data__->CLI_HUMIDDEM,),
+    (REAL)__REAL_LITERAL(1.0)));
+  __SET_VAR(data__->,DRY,,(__GET_EXTERNAL(data__->CLI_DPMARGIN_DEGC_QLT,) && (__GET_EXTERNAL(data__->CLI_DPMARGIN_DEGC,) >= __GET_EXTERNAL(data__->CLI_SKIRTDRYMIN_DEGC,))));
+  if ((__GET_EXTERNAL(data__->CLI_COOLDEM_QLT,) && __GET_VAR(data__->DRY,))) {
+    __SET_VAR(data__->,COOL,,___LADDER(
+      (BOOL)__BOOL_LITERAL(TRUE),
+      NULL,
+      (REAL)__GET_EXTERNAL(data__->CLI_COOLDEM,),
+      (REAL)__GET_EXTERNAL(data__->CLI_SKIRTCOOLDEM,),
+      (REAL)__REAL_LITERAL(1.0)));
+  } else {
+    __SET_VAR(data__->,COOL,,__REAL_LITERAL(0.0));
+  };
+  if ((__GET_VAR(data__->HUMID,) > __GET_VAR(data__->COOL,))) {
+    __SET_VAR(data__->,WANT,,__GET_VAR(data__->HUMID,));
+  } else {
+    __SET_VAR(data__->,WANT,,__GET_VAR(data__->COOL,));
+  };
+  if (__GET_EXTERNAL(data__->CLI_ROTLOCKOUT,)) {
+    __SET_VAR(data__->,WANT,,__REAL_LITERAL(0.0));
+  };
+  __SET_VAR(data__->PULSE.,DUTY_IN,,__GET_VAR(data__->WANT,));
+  __SET_VAR(data__->PULSE.,PERIOD_MS,,(___UINT_TO_UDINT(
+    (BOOL)__BOOL_LITERAL(TRUE),
+    NULL,
+    (UINT)__GET_EXTERNAL(data__->CLI_SKIRTPERIOD_SEC,)) * __UDINT_LITERAL(1000)));
+  __SET_VAR(data__->PULSE.,MIN_ON_MS,,(___UINT_TO_UDINT(
+    (BOOL)__BOOL_LITERAL(TRUE),
+    NULL,
+    (UINT)__GET_EXTERNAL(data__->CLI_SKIRTMINON_SEC,)) * __UDINT_LITERAL(1000)));
+  __SET_VAR(data__->PULSE.,RESET,,__GET_EXTERNAL(data__->CLI_ROTLOCKOUT,));
+  __SET_VAR(data__->PULSE.,NOW,,__GET_EXTERNAL(data__->SYS_NOW_MS,));
+  VALVE_PULSE_body__(&data__->PULSE);
+  if (__GET_EXTERNAL(data__->CLI_ROTLOCKOUT,)) {
+    __SET_EXTERNAL(data__->,CLI_SKIRTVALVE,,__BOOL_LITERAL(FALSE));
+    __SET_EXTERNAL(data__->,CLI_SKIRTDUTY,,__REAL_LITERAL(0.0));
+  } else {
+    __SET_EXTERNAL(data__->,CLI_SKIRTVALVE,,__GET_VAR(data__->PULSE.Q,));
+    __SET_EXTERNAL(data__->,CLI_SKIRTDUTY,,__GET_VAR(data__->PULSE.SERVED,));
+  };
+
+  goto __end;
+
+__end:
+  return;
+} // SKIRT_CONTROLLER_body__() 
 
 
 

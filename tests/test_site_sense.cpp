@@ -407,9 +407,8 @@ TEST_CASE("cooling: an unknown demand puts every actuator at its own safe state"
     Plc::Runtime::Plant            st(Botanik::SetupContext(f.reg), f.bank);
     Site::WindowsController    win(Botanik::SetupContext(f.reg), f.bank);
     Site::ScreenController     scr(Botanik::SetupContext(f.reg), f.bank);
-    Site::SkirtController      sk(Botanik::SetupContext(f.reg), f.bank);
-    Plc::Program* const progs[] = { &win, &scr, &sk };
-    Cycle cyc(progs, 3, &f.bank, f.reg);
+    Plc::Program* const progs[] = { &win, &scr };
+    Cycle cyc(progs, 2, &f.bank, f.reg);
     st.wire();
     struct { Plc::Runtime::Plant* st; Cycle* c;
              void step(uint64_t n) { st->scan(n); c->step(n); } } d{ &st, &cyc };
