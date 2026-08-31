@@ -81,10 +81,6 @@ using namespace Botanik::Vars;
  *  the guard above is what holds that true. */
 const uint16_t LIBRARY_ROWS = 66;
 
-/** @brief The local inputs counted by an interrupt rather than
- *  polled. The channel here is the one its row declares, and the firmware
- *  attaches what it finds here: naming it twice is what has to agree. */
-struct PulseInput { const char* name; uint8_t channel; HAL::Pulse::Edge edge; };
 
 #if BOTANIK_FEATURE_MODBUS_RTU_CLIENT
 

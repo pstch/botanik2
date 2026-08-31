@@ -401,7 +401,7 @@ def generate(site):
     for f in ('A', 'SV', 'SVE', 'G', 'MI', 'MO', 'AI', 'AO', 'DI', 'DO', 'RO'):
         L += emit_rows(f, ROWS[f][1].split(), per[f])
     L += ['};', '']
-    L.append('const PulseInput pulse_inputs[] = {')
+    L.append('const Botanik::PulseInput pulse_inputs[] = {')
     L += ['    { "%s", %s, HAL::Pulse::%s },' % (p['name'], p['channel'], p['edge']) for p in pul]
     L += ['};', '', '#if BOTANIK_FEATURE_MODBUS_RTU_CLIENT', '']
     for m in mdl:
@@ -438,7 +438,7 @@ def generate(site):
           'const uint8_t g_analog_cal_count = %d;' % len(cal), '',
           'extern const Descriptor params[];', 'const uint16_t PARAMS_COUNT = %d;' % n_par, '',
           'extern const Descriptor rows[];',   'const uint16_t ROWS_COUNT = %d;' % n_row, '',
-          'extern const PulseInput pulse_inputs[];',
+          'extern const Botanik::PulseInput pulse_inputs[];',
           'const uint8_t pulse_input_count = %d;' % len(pul), '',
           '#if BOTANIK_FEATURE_MODBUS_RTU_CLIENT']
     G += ['extern const Modbus::DeviceModel %s;' % m['symbol'] for m in mdl]

@@ -76,6 +76,11 @@ namespace Botanik {
      * @note Any table may be null / count 0. Every pointer is borrowed and must
      *       outlive the firmware.
      */
+    /** @brief A local input counted by an interrupt rather than polled. The
+     *  channel here is the one its row declares, and the firmware attaches
+     *  what it finds here: naming it twice is what has to agree. */
+    struct PulseInput { const char* name; uint8_t channel; HAL::Pulse::Edge edge; };
+
     struct SiteDescriptor {
         const char*                   name;                ///< == Config::SITE_NAME
         const Shell::ShellCommand*    commands;            ///< site shell commands
@@ -96,6 +101,10 @@ namespace Botanik {
          *  aggregate and a field added anywhere else moves the rest. */
         const Modbus::DeviceTable*    devices;
 #endif
+        /** @brief The edge-counted terminals. LAST, after the guarded field,
+         *  so a build without the field bus does not move it. */
+        const PulseInput*             pulses;
+        uint8_t                       pulse_count;
     };
 
     /** @brief Generic firmware base: owns the generic components + the loop

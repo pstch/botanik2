@@ -151,6 +151,12 @@ namespace Botanik {
         Vars::register_library_vars(_io);
         register_vars();
         _io.freeze();
+        // The edge-counted terminals, before anything reads one: the channel a
+        // row declares and the channel the firmware attaches cannot part, and
+        // without this the counter never runs at all. Here rather than in the
+        // site, because every site would write the same loop.
+        for (uint8_t i = 0; i < _site.pulse_count; i++)
+            HAL::Pulse::attach(_site.pulses[i].channel, _site.pulses[i].edge);
         // Pairs each `X_qlt` with its field row. After freeze(), because
         // freeze() is what compacts a redeclared row out and settles the
         // indices a pair holds.

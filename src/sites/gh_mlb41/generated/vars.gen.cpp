@@ -570,7 +570,7 @@ const Descriptor rows[] = {
     RO("irr_tray8", 34, 7, true, true, "tray 8 valve", ""),
 };
 
-const PulseInput pulse_inputs[] = {
+const Botanik::PulseInput pulse_inputs[] = {
     { "irr_inPulse", 1, HAL::Pulse::EDGE_RISING },
 };
 

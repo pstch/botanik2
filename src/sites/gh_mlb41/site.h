@@ -60,6 +60,7 @@ const Botanik::SiteDescriptor g_site = {
 #if BOTANIK_FEATURE_MODBUS_RTU_CLIENT
     &g_device_table,                                     // what each unit answers
 #endif
+    pulse_inputs,   pulse_input_count,                   // edge-counted terminals
 };
 
 }  // namespace Site
@@ -122,14 +123,6 @@ protected:
     }
 
     void on_setup() override {
-        // The edge-counted terminals, from the table the generator built out of
-        // the `isr` column: the channel a row declares and the channel the
-        // firmware attaches cannot part. Without this the counter never runs
-        // and the inlet meter reads nothing at all.
-        for (uint8_t i = 0; i < Site::pulse_input_count; i++)
-            Botanik::HAL::Pulse::attach(Site::pulse_inputs[i].channel,
-                                        Site::pulse_inputs[i].edge);
-
         // FIRST, and it is an ordering rule rather than a preference: a
         // lockout the ST publishes has to reach the actuator that reads it on
         // the SAME beat - roof_lockout's cli_windowCap into windows is the
