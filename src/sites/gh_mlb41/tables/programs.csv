@@ -1,0 +1,14 @@
+name           ,instance  ,source,rate
+temp_rh_sensors,sensors   ,programs/sense/temp_rh_sensors/temp_rh_sensors.st,sense
+strat          ,strat     ,programs/sense/strat_sensor/strat_sensor.st,sense
+climate_watch  ,climwatch ,programs/sense/climate_watch/climate_watch.st,control
+weather_watch  ,wxwatch   ,programs/sense/weather_watch/weather_watch.st,control
+day_phase      ,dayphase  ,programs/climate/day_phase_controller/day_phase_controller.st,control
+target_temp    ,target    ,programs/climate/target_temp_controller/target_temp_controller.st,control
+humidity       ,humidity  ,programs/climate/humidity_controller/humidity_controller.st,control
+intake_dry     ,drygate   ,programs/climate/intake_dry_gate/intake_dry_gate.st,control
+intake_gates   ,gates     ,programs/climate/intake_gates/intake_gates.st,control
+destrat        ,destrat   ,programs/climate/destrat_controller/destrat_controller.st,control
+roof_lockout   ,roof      ,programs/actuators/roof_lockout/roof_lockout.st,control
+intractors     ,intractors,programs/actuators/intractor_controller/intractor_controller.st,control
+fans           ,fans      ,programs/actuators/fan_controller/fan_controller.st,control
