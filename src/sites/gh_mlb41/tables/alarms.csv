@@ -1,0 +1,40 @@
+name,code,on_s,off_s,recent_s,hold_s,reg,desc,notes
+alarm_ac_grid,AC_GRID,2,2,0,10,800,grid AC out-of-spec/offline,check mains breaker / utility feed
+alarm_dc_ps1,DC_PS1,2,2,0,0,801,DC PS1 volts too low,
+alarm_gen,GEN_FLT,1,2,0,10,802,generator failed to start,inspect generator + start battery
+alarm_ac_local,AC_LOCAL,2,2,0,0,803,local AC out of spec or offline,
+alarm_dc_ps2,DC_PS2,2,2,0,10,804,DC PS2 volts too low,
+alarm_dc_ups,DC_UPS,1,2,0,10,805,UPS low battery: plant held,the UPS's own contact; restore mains and check the battery
+alarm_generator_battery,GEN_BATT,5,5,0,0,807,gen. start battery low,
+alarm_sensor_fault,SNS_FLT,2,2,0,0,812,sensor fault,
+alarm_too_hot,TOO_HOT,3,3,0,15,813,inside temperature too high,increase ventilation / open windows
+alarm_too_cold,TOO_COLD,3,3,0,15,814,inside temperature too low,
+alarm_too_humid,TOO_HUM,3,3,0,15,815,too humid: the ladder is at full,ventilate more or cut the moisture load; alarm_rot is the band below this one
+alarm_strat,STRAT,5,5,0,0,816,temp. stratification too high,
+alarm_water_leak,WTR_LK,1,2,0,0,817,leak in irrigation circuit,"shut irrigation valve, inspect circuit"
+alarm_water_pressure,WTR_BAR,2,2,0,0,818,water pressure too low,
+alarm_irr_drain,DRAIN_FLT,3,3,0,0,819,a tray would not drain in time,
+alarm_weather_storm,WH_STORM,60,120,0,15,822,current storm conditions,"close roof windows, secure screens"
+alarm_sns_ceiling,SNS_CEIL,5,5,0,0,826,ceiling temp/RH probe quorum lost,the vote runs on the two that are left; replace before a second goes
+alarm_sns_floor,SNS_FLR,5,5,0,0,827,floor temp/RH probe quorum lost,the vote runs on the two that are left; replace before a second goes
+alarm_sns_crawlspace,SNS_CS,5,5,0,0,828,crawlspace temp/RH probe quorum lost,the vote runs on the two that are left; replace before a second goes
+alarm_sns_exterior,SNS_EXT,5,5,0,0,829,exterior temp/RH probe quorum lost,the vote runs on the two that are left; replace before a second goes
+alarm_rot,ROT,5,5,0,0,830,dew-point margin low: rot risk,what the humidity ladder is guarding against
+alarm_wx_station,WX_FLT,5,5,0,0,831,weather station not answering,wind and rain unknown: the windows hold their safe state
+alarm_irr_fill,FILL_FLT,0,5,0,0,832,a tray would not fill in time,"water off, inlet valve stuck, or the meter has stopped counting; irr_activeTray names the tray"
+alarm_irr_fill_tray1,FILL1,0,5,0,0,833,tray 1 would not fill in time,
+alarm_irr_fill_tray2,FILL2,0,5,0,0,834,tray 2 would not fill in time,
+alarm_irr_fill_tray3,FILL3,0,5,0,0,835,tray 3 would not fill in time,
+alarm_irr_fill_tray4,FILL4,0,5,0,0,836,tray 4 would not fill in time,
+alarm_irr_fill_tray5,FILL5,0,5,0,0,837,tray 5 would not fill in time,
+alarm_irr_fill_tray6,FILL6,0,5,0,0,838,tray 6 would not fill in time,
+alarm_irr_fill_tray7,FILL7,0,5,0,0,839,tray 7 would not fill in time,
+alarm_irr_fill_tray8,FILL8,0,5,0,0,840,tray 8 would not fill in time,
+alarm_irr_drain_tray1,DRAIN1,0,5,0,0,841,tray 1 would not drain in time,
+alarm_irr_drain_tray2,DRAIN2,0,5,0,0,842,tray 2 would not drain in time,
+alarm_irr_drain_tray3,DRAIN3,0,5,0,0,843,tray 3 would not drain in time,
+alarm_irr_drain_tray4,DRAIN4,0,5,0,0,844,tray 4 would not drain in time,
+alarm_irr_drain_tray5,DRAIN5,0,5,0,0,845,tray 5 would not drain in time,
+alarm_irr_drain_tray6,DRAIN6,0,5,0,0,846,tray 6 would not drain in time,
+alarm_irr_drain_tray7,DRAIN7,0,5,0,0,847,tray 7 would not drain in time,
+alarm_irr_drain_tray8,DRAIN8,0,5,0,0,848,tray 8 would not drain in time,
