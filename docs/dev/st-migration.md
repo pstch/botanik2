@@ -14,13 +14,13 @@ The end state the user asked for:
 
 > `src/sites/<NAME>/` contains only CSV tables, ST programs, and a root TOML.
 
-**13 of 29 programs are ported. 16 remain.**
+**14 of 29 programs are ported. 15 remain.**
 
 ---
 
 ## The task list
 
-### 1. Finish the port - 16 programs
+### 1. Finish the port - 15 programs
 
 Each needs the blocks in its row ported first. `q=` is how many outputs it
 writes with a computed QUALITY: every one of those needs a `_qlt` companion
@@ -32,7 +32,6 @@ before the program can move, because ST cannot write a quality.
 | `WxSensors` | 0 | `WeatherProbes` (site) |
 | `AcGridWatch` | 0 | `AcSupply` (site) |
 | `AcLocalWatch` | 0 | `AcSupply` (site), `Ton` |
-| `TempRHZone` | 4 | none - **easiest next**, `DEW_POINT` already exists |
 | `SkirtController` | 0 | `ValveController` (site) |
 | `IrrValves` | 0 | `ValveController` (site) |
 | `ScreenController` | 0 | `Actuator` + `ActuatorConfig` |
@@ -48,6 +47,9 @@ before the program can move, because ST cannot write a quality.
 Library blocks still to write as ST (in `src/libbotanik/plc/blocks/*.st`):
 `Ton`, `Pid`, `Deadband`, `Integral`, `Derivative`, `Actuator`.
 Site blocks: `WeatherProbes`, `AcSupply`, `ValveController`.
+
+`Plant` holds `Slot _slot[16]` and asserts `PROGRAM_COUNT` against it at
+bring-up. 14 are in use. The 17th port has to widen it first.
 
 **Do NOT use matiec's own blocks.** See "Licensing" below.
 
@@ -96,7 +98,7 @@ COMMITTED and it is never a build step.
 ### Verify - all four, every time
 
 ```
-make -C build botanik_tests && ./build/tests/botanik_tests   # expect 5 failures, see below
+make -C build botanik_tests && ./build/tests/botanik_tests   # 236/236
 make -C build                                                # sim, expect 0 warnings
 ctest --test-dir build -R pyte                               # 7/7
 make -C build-opta                                           # exit 0
@@ -107,18 +109,25 @@ moves, measure rather than guess: compile a probe with `-DBOTANIK_PIN_SIZES=0`
 (host), and for OPTA a `template <unsigned long N> struct Probe;` instantiated
 on the size, reading the number out of the error message.
 
-### The 5 expected test failures
+### The 5 expected test failures are gone
 
-Deferred by the user. They assert the OLD quality mechanism on rigs that do not
-run the producing program. Fix them by asserting the `_qlt` companion instead.
+They asserted the OLD quality mechanism, and all five were fixed with the
+`temp_rh_zone` port. Four of them keyed on a row that program writes, so its
+move to ST is what forced them. What each needed:
 
-```
-irrigation: a modulation nobody can read still waters, and says it guessed
-cooling: a demand it cannot measure is still made, and marked
-cooling: the floor carries it when the ceiling goes, and both gone is unknown
-cooling: an unknown demand puts every actuator at its own safe state
-humidity, rot guard: an unmeasured margin ventilates rather than assuming dry air
-```
+- three of them clear the `_qlt` COMPANION where they used to invalidate the
+  row. `cli_temp_in` and `cli_dpMargin_degC` are written every scan now.
+- `cooling: the floor carries it` moved to `CoolingRig` and drives the PROBES.
+  Whether one level can carry the house is temp_rh_zone's law, and a rig that
+  does not run it can only force the answer.
+- `cooling: an unknown demand` needed two things that were never about quality:
+  the screen only deploys in the CLOSING half of the day (`_allows`), so the
+  case is set in `PHASE_DUSK_BREEZE`; and a margin of 20 degC is past
+  `cli_humidStart_degC`, which asks the skirt to humidify - a demand of its own
+  in a case about the ones that are missing. The margin is now in the dead zone.
+- `irrigation: a modulation nobody can read` was not a temp_rh_zone case at all.
+  `Live::believe_all()` sets every companion TRUE at construction, so a case
+  rehearsing an unreadable row has to clear the one it means: `irr_mod_qlt`.
 
 ---
 
@@ -191,6 +200,8 @@ This matters beyond names:
   bytes against our `TOF_MS` at 19.
 
 The standard FUNCTIONS we call are ST, with our bodies, in `st/lib/ieclib.txt`.
+Add one when a POU starts needing it: the error is "function invocation ... not
+declared", at compile time. `EXP` went in for `SAT_VAPOUR_PRESSURE`.
 A declaration alone is not enough - matiec special-cases its own standard names
 and generates nothing, but ours are ordinary user functions and it emits a
 body, empty if we do not write one.
@@ -277,6 +288,14 @@ Porting a program is a small ST file and a larger test migration. The rules:
   30 s, so a settled value needs ~2000 beats at 100 ms.
 - **Never assert exactly ON a filter's boundary.** Settling from 8.0 to
   "exactly 2.0" lands on 2.007, and a rung releasing at `<= 2.0` then holds.
+- **`Live::believe_all()` sets every `_qlt` companion TRUE at construction**,
+  because most companions belong to a program the rig is not running. A case
+  rehearsing an unreadable row therefore has to clear the companion it means -
+  invalidating the ROW does nothing to a law that reads the companion. This is
+  what the last of the five deferred failures turned out to be.
+- **A rig's driver order is the firmware's**: companions, then `Plant::scan()`,
+  then the C++ cycle. `CoolingRig` had it the other way round, which was fine
+  while nothing in the ST fed the ladder; `temp_rh_zone` does.
 
 ---
 
