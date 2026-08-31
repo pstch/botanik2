@@ -608,19 +608,19 @@ TEST_CASE_FIXTURE(StRig,
     const float shut = live.bank.var(live.ref("cli_windShutEnd_mps")).as_f32();
     uint64_t t = 0;
 
-    field(live, "cli_rain_mmph", 0.0f);
-    field(live, "cli_wind_mps", shut - 6.0f);      // a gale, and not a storm
-    field(live, "cli_windGust_mps", shut + 4.0f);  // gusting past it, even
+    force(live, "cli_rain_mmph", 0.0f);
+    force(live, "cli_wind_mps", shut - 6.0f);      // a gale, and not a storm
+    force(live, "cli_windGust_mps", shut + 4.0f);  // gusting past it, even
     for (uint32_t i = 0; i < 20; i++) d.step(t += 1000);
     CHECK_FALSE(live.bank.get(storm));
 
     INFO("rain alone is not one either");
-    field(live, "cli_rain_mmph", 8.0f);
+    force(live, "cli_rain_mmph", 8.0f);
     for (uint32_t i = 0; i < 20; i++) d.step(t += 1000);
     CHECK_FALSE(live.bank.get(storm));
 
     INFO("...and the MEAN reaching it is");
-    field(live, "cli_wind_mps", shut + 0.5f);
+    force(live, "cli_wind_mps", shut + 0.5f);
     for (uint32_t i = 0; i < 20; i++) d.step(t += 1000);
     CHECK(live.bank.get(storm));
 }
@@ -656,7 +656,7 @@ TEST_CASE_FIXTURE(Rig<Site::AcGridWatch>,
     CHECK(live.bank.var(flt).as_bool());
 }
 
-TEST_CASE_FIXTURE(Rig<Site::WxSensors>,
+TEST_CASE_FIXTURE(StRig,
                   "wx: the voted rows carry a TCP register the stations' own do not") {
     // Nothing controls on irradiance, but the field rows are SCOPE_MI and so
     // have no TCP register: without the voted row a historian on the plant

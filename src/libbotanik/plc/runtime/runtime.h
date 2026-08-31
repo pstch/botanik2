@@ -33,7 +33,7 @@ namespace Botanik { namespace Plc { namespace Runtime {
 
         Vars::Bank&  _io;
         Vars::VarRef _now_ref;   ///< sys_now_ms
-        Slot                  _slot[16];
+        Slot                  _slot[32];
         uint64_t              _now_ms = 0;
 
     public:

@@ -27,6 +27,7 @@ namespace Botanik { namespace Plc { namespace Runtime {
 
 #define PLANT_PROGRAM_LIST(X) \
     X(temp_rh_sensors, TEMP_RH_SENSORS,        SENSORS,    BOTANIK_SITE_SENSE_MS) \
+    X(wx_sensors,      WX_SENSORS,             WX,         BOTANIK_SITE_SENSE_MS) \
     X(strat,           STRAT_SENSOR,           STRAT,      BOTANIK_SITE_SENSE_MS) \
     X(temp_rh_zone,    TEMP_RH_ZONE,           ZONE,       BOTANIK_SITE_SENSE_MS) \
     X(climate_watch,   CLIMATE_WATCH,          CLIMWATCH,  BOTANIK_SITE_CONTROL_MS) \

@@ -1,5 +1,6 @@
 name           ,instance  ,source,rate
 temp_rh_sensors,sensors   ,programs/sense/temp_rh_sensors/temp_rh_sensors.st,sense
+wx_sensors     ,wx        ,programs/sense/wx_sensors/wx_sensors.st,sense
 strat          ,strat     ,programs/sense/strat_sensor/strat_sensor.st,sense
 temp_rh_zone   ,zone      ,programs/sense/temp_rh_zone/temp_rh_zone.st,sense
 climate_watch  ,climwatch ,programs/sense/climate_watch/climate_watch.st,control

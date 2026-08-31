@@ -48,3 +48,39 @@ END_VAR
     IF ET >= PT THEN Q := FALSE; END_IF;
   END_IF;
 END_FUNCTION_BLOCK
+
+FUNCTION_BLOCK TON_MS
+(* On-delay: true once IN has held true for PT, false the moment it drops.
+   A dwell - "has been wet for 30 s", "has been silent long enough to alarm". *)
+VAR_INPUT
+  IN  : BOOL;
+  PT  : UDINT;   (* ms *)
+  NOW : UDINT;   (* sys_now_ms: the scan clock, not an elapsed time *)
+END_VAR
+VAR_OUTPUT
+  Q  : BOOL;
+  ET : UDINT;
+END_VAR
+VAR
+  last   : UDINT;
+  seeded : BOOL := FALSE;
+END_VAR
+VAR_TEMP
+  elapsed : UDINT;
+END_VAR
+  IF seeded THEN elapsed := NOW - last;
+  ELSE elapsed := 0; seeded := TRUE;
+  END_IF;
+  last := NOW;
+
+  IF NOT IN THEN
+    ET := 0;
+    Q  := FALSE;
+  ELSE
+    (* Saturating, so a scan that arrives after PT cannot wrap the counter. *)
+    IF ET > UDINT#4000000000 - elapsed THEN ET := UDINT#4000000000;
+    ELSE ET := ET + elapsed;
+    END_IF;
+    Q := ET >= PT;
+  END_IF;
+END_FUNCTION_BLOCK

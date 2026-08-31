@@ -20,6 +20,8 @@ extern unsigned long long common_ticktime__;
 static BOOL UNBOUND;
 TEMP_RH_SENSORS_data__ PLC__SENSORS;
 #define SENSORS PLC__SENSORS
+WX_SENSORS_data__ PLC__WX;
+#define WX PLC__WX
 STRAT_SENSOR_data__ PLC__STRAT;
 #define STRAT PLC__STRAT
 TEMP_RH_ZONE_data__ PLC__ZONE;
@@ -57,6 +59,7 @@ void PLC_init__(void) {
   
   UNBOUND = __BOOL_LITERAL(FALSE);
   TEMP_RH_SENSORS_init__(&SENSORS,retain);
+  WX_SENSORS_init__(&WX,retain);
   STRAT_SENSOR_init__(&STRAT,retain);
   TEMP_RH_ZONE_init__(&ZONE,retain);
   CLIMATE_WATCH_init__(&CLIMWATCH,retain);
@@ -77,6 +80,7 @@ void PLC_init__(void) {
 void PLC_run__(unsigned long tick) {
   UNBOUND = !(tick % 1);
   TEMP_RH_SENSORS_body__(&SENSORS);
+  WX_SENSORS_body__(&WX);
   STRAT_SENSOR_body__(&STRAT);
   TEMP_RH_ZONE_body__(&ZONE);
   CLIMATE_WATCH_body__(&CLIMWATCH);

@@ -85,13 +85,15 @@ TEST_CASE_FIXTURE(StRig, "scan: an ST timer measures VIRTUAL time, whatever the 
     // it: a step can only ever land on one side or the other.
     uint64_t t = 0;
     for (uint32_t step : { 100u, 700u }) {
-        live.bank.var(live.ref("cli_rain_mmph_qlt")).publish(from_bool(T_BOOL, true), t);
-        live.bank.var(live.ref("cli_wind_mps_qlt")).publish(from_bool(T_BOOL, true), t);
-        live.bank.var(live.ref("cli_rain_mmph")).publish(from_f32(T_F32, 0.4f), t);
+        // FORCED: wx_sensors owns these three, and with no station answering
+        // it publishes the companions FALSE - which is the roof going blind,
+        // not the shower this case is about.
+        force(live, "cli_rain_mmph", 0.4f);
+        force(live, "cli_wind_mps", 0.0f);
         d.step(t += step);
         REQUIRE(live.bank.get(lock));
 
-        live.bank.var(live.ref("cli_rain_mmph")).publish(from_f32(T_F32, 0.0f), t);
+        force(live, "cli_rain_mmph", 0.0f);
         const uint64_t stopped = t;
         while (live.bank.get(lock) && t - stopped < 2 * hold_ms) d.step(t += step);
 
@@ -201,28 +203,28 @@ TEST_CASE("windows: the wind takes the roof down a ramp before it shuts it") {
     uint64_t t = 0;
 
     INFO("under the ease threshold the wind has no opinion at all");
-    field(f, "cli_wind_mps", ease - 2.0f);
-    field(f, "cli_windGust_mps", ease - 2.0f);
+    force(f, "cli_wind_mps", ease - 2.0f);
+    force(f, "cli_windGust_mps", ease - 2.0f);
     for (uint32_t i = 0; i < 40; i++) d.step(t += 1000);
     CHECK(f.bank.get(cap) == doctest::Approx(1.0f));
     CHECK(f.bank.var(f.ref("cli_window1_pos")).as_f32() > 0.9f);
 
     INFO("at it, the roof may open cli_windShutMax and no more");
-    field(f, "cli_wind_mps", ease);
-    field(f, "cli_windGust_mps", ease);
+    force(f, "cli_wind_mps", ease);
+    force(f, "cli_windGust_mps", ease);
     for (uint32_t i = 0; i < 60; i++) d.step(t += 1000);
     CHECK(f.bank.get(cap) == doctest::Approx(top).epsilon(0.02));
     CHECK(f.bank.var(f.ref("cli_window1_pos")).as_f32() <= doctest::Approx(top).epsilon(0.1));
 
     INFO("half way up the band, half the ceiling");
-    field(f, "cli_wind_mps", (ease + shut) / 2.0f);
-    field(f, "cli_windGust_mps", (ease + shut) / 2.0f);
+    force(f, "cli_wind_mps", (ease + shut) / 2.0f);
+    force(f, "cli_windGust_mps", (ease + shut) / 2.0f);
     for (uint32_t i = 0; i < 60; i++) d.step(t += 1000);
     CHECK(f.bank.get(cap) == doctest::Approx(top / 2.0f).epsilon(0.05));
 
     INFO("and at cli_windShutEnd_mps the roof is shut, not nearly shut");
-    field(f, "cli_wind_mps", shut);
-    field(f, "cli_windGust_mps", shut);
+    force(f, "cli_wind_mps", shut);
+    force(f, "cli_windGust_mps", shut);
     for (uint32_t i = 0; i < 80; i++) d.step(t += 1000);
     CHECK(f.bank.var(f.ref("cli_windLockout")).as_bool());
     CHECK(f.bank.get(cap) == doctest::Approx(0.0f));
@@ -243,7 +245,7 @@ TEST_CASE("windows: rain shuts the roof whatever the wind is doing") {
 
     INFO("a still day, and rain: shut, and it outlives the shower by "
          "cli_rainLockout_sec");
-    field(f, "cli_rain_mmph", 4.0f);
+    force(f, "cli_rain_mmph", 4.0f);
     for (uint32_t i = 0; i < 40; i++) d.step(t += 1000);
     CHECK(f.bank.var(f.ref("cli_rainLockout")).as_bool());
     CHECK(f.bank.get(cap) == doctest::Approx(0.0f));
@@ -365,13 +367,13 @@ TEST_CASE_FIXTURE(RoofRig, "windows: rain shuts them, and the lockout outlives t
     for (uint32_t i = 0; i < 800; i++) d.step(t += 100);
     REQUIRE(live.bank.get(tgt) == doctest::Approx(1.0f));
 
-    live.bank.var(live.ref("cli_rain_mmph")).publish(from_f32(T_F32, 0.4f), t);
+    force(live, "cli_rain_mmph", 0.4f);
     d.step(t += 100);
     CHECK(live.bank.get(rain_lock));
     CHECK(live.bank.get(tgt) == doctest::Approx(0.0f));
 
     INFO("the shower stopping does not re-open them");
-    live.bank.var(live.ref("cli_rain_mmph")).publish(from_f32(T_F32, 0.0f), t);
+    force(live, "cli_rain_mmph", 0.0f);
     d.step(t += 100);
     CHECK(live.bank.get(rain_lock));
 
@@ -389,12 +391,12 @@ TEST_CASE_FIXTURE(RoofRig, "windows: a gust shuts them, and the mean alone does 
     const float shut = live.bank.var(live.ref("cli_windShutEnd_mps")).as_f32();
     force(live, "cli_windowDem", 1.0f);
 
-    live.bank.var(live.ref("cli_wind_mps")).publish(from_f32(T_F32, shut - 1.0f), 0);
+    force(live, "cli_wind_mps", shut - 1.0f);
     d.step(100);
     CHECK_FALSE(live.bank.get(wind_lock));
 
     INFO("the PEAK is what tears a window off its ram, not the average");
-    live.bank.var(live.ref("cli_windGust_mps")).publish(from_f32(T_F32, shut + 1.0f), 100);
+    force(live, "cli_windGust_mps", shut + 1.0f);
     // Two beats: roof_lockout decides on the first and the windows obey on the
     // next, because the two are separate tasks and the registry staggers them.
     d.step(200);
@@ -415,8 +417,10 @@ TEST_CASE_FIXTURE(RoofRig, "windows: an unmeasured sky shuts the roof rather tha
     INFO("the SAME readings, no longer believed: both rows still say calm and "
          "dry, which is the trap - only the companions separate a fine sky "
          "from one nobody is watching");
-    live.bank.var(live.ref("cli_rain_mmph_qlt")).set(false);
-    live.bank.var(live.ref("cli_wind_mps_qlt")).set(false);
+    // FORCED false: wx_sensors owns both companions and republishes them
+    // every scan, so a case rehearsing a blind sky has to shadow them.
+    force(live, "cli_rain_mmph_qlt", false);
+    force(live, "cli_wind_mps_qlt", false);
     d.step(200);
     CHECK(live.bank.get(live.bank.resolve_in<bool>("cli_rainLockout")));
     CHECK(live.bank.get(live.bank.resolve_in<bool>("cli_windLockout")));

@@ -34,6 +34,7 @@ CONFIGURATION gh_mlb41
     alarm_too_hot         : BOOL;
     alarm_too_humid       : BOOL;
     alarm_weather_storm   : BOOL;
+    alarm_wx_station      : BOOL;
     cli_breezeDem         : REAL;
     cli_coldBankArm       : BOOL;
     cli_coldBankOfs_degC  : REAL;
@@ -84,10 +85,19 @@ CONFIGURATION gh_mlb41
     cli_intr1             : REAL;
     cli_intr2             : REAL;
     cli_intrSafeSpeed     : REAL;
+    cli_irrad1_Wpm2       : REAL;
+    cli_irrad1_Wpm2_qlt   : BOOL;
+    cli_irrad2_Wpm2       : REAL;
+    cli_irrad2_Wpm2_qlt   : BOOL;
+    cli_irrad_Wpm2        : REAL;
     cli_phase             : USINT;
     cli_phase_qlt         : BOOL;
     cli_prevDayMax_degC   : REAL;
     cli_prevNightMin_degC : REAL;
+    cli_rain1_mmph        : REAL;
+    cli_rain1_mmph_qlt    : BOOL;
+    cli_rain2_mmph        : REAL;
+    cli_rain2_mmph_qlt    : BOOL;
     cli_rainLockout       : BOOL;
     cli_rainLockout_sec   : UINT;
     cli_rain_mmph         : REAL;
@@ -182,6 +192,14 @@ CONFIGURATION gh_mlb41
     cli_ventHyst_degC     : REAL;
     cli_ventTempMgn_degC  : REAL;
     cli_vpd_kPa           : REAL;
+    cli_wind1_mps         : REAL;
+    cli_wind1_mps_qlt     : BOOL;
+    cli_wind2_mps         : REAL;
+    cli_wind2_mps_qlt     : BOOL;
+    cli_windGust1_mps     : REAL;
+    cli_windGust1_mps_qlt : BOOL;
+    cli_windGust2_mps     : REAL;
+    cli_windGust2_mps_qlt : BOOL;
     cli_windGust_mps      : REAL;
     cli_windLockout       : BOOL;
     cli_windShutBegin_mps : REAL;
@@ -194,6 +212,7 @@ CONFIGURATION gh_mlb41
     cli_windowFullDem     : REAL;
     cli_windowLockout     : BOOL;
     cli_windowStartDem    : REAL;
+    cli_wxTau_ms          : UINT;
     irr_state             : USINT;
     sol_breezeRise_min    : INT;
     sol_coldBankRise_min  : INT;
@@ -212,6 +231,7 @@ CONFIGURATION gh_mlb41
     TASK unbound (INTERVAL := T#100ms, PRIORITY := 1);
 
     PROGRAM sensors    : temp_rh_sensors;
+    PROGRAM wx         : wx_sensors;
     PROGRAM strat      : strat_sensor;
     PROGRAM zone       : temp_rh_zone;
     PROGRAM climwatch  : climate_watch;

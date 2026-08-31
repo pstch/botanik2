@@ -14,7 +14,7 @@ The end state the user asked for:
 
 > `src/sites/<NAME>/` contains only CSV tables, ST programs, and a root TOML.
 
-**16 of 28 programs are ported. 12 remain.**
+**17 of 28 programs are ported. 11 remain.**
 
 `sun_watch` is not among either: the tracker publishes `sol_*` itself now, so
 the program that copied the instrument onto rows was DELETED rather than
@@ -24,7 +24,7 @@ ported. 29 was never going to be the number that finished.
 
 ## The task list
 
-### 1. Finish the port - 12 programs
+### 1. Finish the port - 11 programs
 
 **Blocks were never the hard part.** A survey of all fifteen (2026-08-31)
 found five things ST had no expression for. All five are now dealt with: four
@@ -44,7 +44,6 @@ porting its producer.
 
 | program | blocks needed | what ST cannot say |
 |---|---|---|
-| `WxSensors` | `WeatherProbes` (site) | - |
 | `AcGridWatch` | `AcSupply` (site) | `.valid()`/`.invalidate()` on 4 mirrors |
 | `AcLocalWatch` | `AcSupply` (site), `Ton` | same |
 | `DcWatch` | `Deadband`, `Ewma`, `Ton` | `.valid()`/`.invalidate()` |
@@ -118,9 +117,8 @@ Library blocks still to write as ST (in `src/libbotanik/plc/blocks/*.st`):
 `Ton`, `Pid`, `Deadband`, `Integral`, `Derivative`, `Actuator`.
 Site blocks: `WeatherProbes`, `AcSupply`, `ValveController`.
 
-`Plant` holds `Slot _slot[16]` and asserts `PROGRAM_COUNT` against it at
-bring-up. 14 are in use. The 17th port has to widen it first (32 is the
-obvious number: 29 programs plus room).
+`Plant` holds `Slot _slot[32]` and asserts `PROGRAM_COUNT` against it at
+bring-up. 17 are in use.
 
 **Do NOT use matiec's own blocks.** See "Licensing" below.
 

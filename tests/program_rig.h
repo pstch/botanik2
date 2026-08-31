@@ -157,9 +157,9 @@ inline void interior(Live& f, float hi, float lo) {
 /** @brief A weather station reporting fine weather, so a case that is not
  *  about the interlocks is not shut in by one. */
 inline void fine_weather(Live& f) {
-    field(f, "cli_rain_mmph", 0.0f);
-    field(f, "cli_wind_mps", 1.0f);
-    field(f, "cli_windGust_mps", 2.0f);
+    force(f, "cli_rain_mmph", 0.0f);
+    force(f, "cli_wind_mps", 1.0f);
+    force(f, "cli_windGust_mps", 2.0f);
 }
 
 /** @brief Clear the interlocks that DEFAULT to their forbidding state.
