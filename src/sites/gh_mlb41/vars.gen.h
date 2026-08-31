@@ -2,6 +2,50 @@
 
 // Included from INSIDE namespace Site, so it opens none of its own.
 
+enum DayPhase : uint8_t {
+    PHASE_NIGHT       = 0,   ///< dark; the target is the night setting
+    PHASE_COLD_BANK   = 1,   ///< pre-dawn pre-cool after a hot day
+    PHASE_DAWN_BREEZE = 2,   ///< first air of the morning
+    PHASE_DAY         = 3,   ///< full daylight operation
+    PHASE_HEAT_BANK   = 4,   ///< dusk heat store after a cold night
+    PHASE_DUSK_BREEZE = 5,   ///< last air before the night closes
+};
+
+/** @brief A DayPhase as the word an operator reads and types.
+ *  Null for an unmapped code, which is what refuses it. */
+inline const char* DayPhase_label(uint64_t code) {
+    switch (code) {
+        case 0: return "NIGHT";
+        case 1: return "COLD_BANK";
+        case 2: return "DAWN_BREEZE";
+        case 3: return "DAY";
+        case 4: return "HEAT_BANK";
+        case 5: return "DUSK_BREEZE";
+        default: return nullptr;
+    }
+}
+
+enum IrrState : uint8_t {
+    IRR_IDLE     = 0,   ///< no tray is being served
+    IRR_FILLING  = 1,   ///< inlet open; tray open; outlet shut
+    IRR_DRAINING = 2,   ///< inlet shut; tray open; outlet open
+    IRR_FLUSHING = 3,   ///< inlet and drain open, no tray: the manifold rinsed
+    IRR_SOAKING  = 4,   ///< every valve shut: the tray sits full for irr_soak_sec
+};
+
+/** @brief A IrrState as the word an operator reads and types.
+ *  Null for an unmapped code, which is what refuses it. */
+inline const char* IrrState_label(uint64_t code) {
+    switch (code) {
+        case 0: return "IDLE";
+        case 1: return "FILLING";
+        case 2: return "DRAINING";
+        case 3: return "FLUSHING";
+        case 4: return "SOAKING";
+        default: return nullptr;
+    }
+}
+
 extern const AnalogCal CAL_pwr_genBat_V;
 extern const AnalogCal CAL_pwr_upsBat_V;
 extern const AnalogCal CAL_pwr_dc1_V;

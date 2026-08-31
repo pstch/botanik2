@@ -1,0 +1,12 @@
+enum    ,ctype  ,symbol           ,value,label,desc
+DayPhase,uint8_t,PHASE_NIGHT      ,0    ,NIGHT,dark; the target is the night setting
+DayPhase,uint8_t,PHASE_COLD_BANK  ,1    ,COLD_BANK,pre-dawn pre-cool after a hot day
+DayPhase,uint8_t,PHASE_DAWN_BREEZE,2    ,DAWN_BREEZE,first air of the morning
+DayPhase,uint8_t,PHASE_DAY        ,3    ,DAY,full daylight operation
+DayPhase,uint8_t,PHASE_HEAT_BANK  ,4    ,HEAT_BANK,dusk heat store after a cold night
+DayPhase,uint8_t,PHASE_DUSK_BREEZE,5    ,DUSK_BREEZE,last air before the night closes
+IrrState,uint8_t,IRR_IDLE         ,0    ,IDLE,no tray is being served
+IrrState,uint8_t,IRR_FILLING      ,1    ,FILLING,inlet open; tray open; outlet shut
+IrrState,uint8_t,IRR_DRAINING     ,2    ,DRAINING,inlet shut; tray open; outlet open
+IrrState,uint8_t,IRR_FLUSHING     ,3    ,FLUSHING,"inlet and drain open, no tray: the manifold rinsed"
+IrrState,uint8_t,IRR_SOAKING      ,4    ,SOAKING,every valve shut: the tray sits full for irr_soak_sec

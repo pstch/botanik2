@@ -37,6 +37,7 @@ AUX = {  # stem -> columns, for the tables that are not rows
     'pulse_inputs':   'name channel edge',
     'modbus_models':  'symbol kind model_name regs words',
     'modbus_devices': 'addr model tag',
+    'enums':          'enum ctype symbol value label desc',
 }
 
 
@@ -120,6 +121,18 @@ def export(site):
     export_aux(site)
 
 
+def export_enums(site):
+    s = open(os.path.join(site, 'vars.h')).read()
+    out = []
+    for m in re.finditer(r'enum (\w+) : (\w+) \{(.*?)\n\};', s, re.S):
+        name, ctype = m.group(1), m.group(2)
+        labels = dict(re.findall(r'case (\d+): return "([^"]+)";',
+                                 re.search(r'%s_label.*?\n\}' % name, s, re.S).group(0)))
+        for sym, val, desc in re.findall(r'(\w+)\s*=\s*(\d+),\s*///< ([^\n]*)', m.group(3)):
+            out.append([name, ctype, sym, val, labels.get(val, ''), desc.strip()])
+    return out
+
+
 def export_aux(site):
     s = open(os.path.join(site, 'vars.cpp')).read()
     got = {
@@ -129,6 +142,7 @@ def export_aux(site):
         'modbus_models': [list(t) for t in re.findall(
             r'const Modbus::DeviceModel (MDL_\w+) =\s*Modbus::(\w+)\("([^"]+)",\s*(\d+),?\s*(\d*)\);', s)],
         'modbus_devices': [list(t) for t in re.findall(r'\{\s*(\d+),\s*&(MDL_\w+),\s*"([^"]+)"\s*\}', s)],
+        'enums': export_enums(site),
     }
     for stem, cols in AUX.items():
         write_table(os.path.join(site, 'tables', stem + '.csv'), cols.split(), got[stem])
@@ -215,7 +229,21 @@ def generate(site):
           '}  // namespace Site', '']
     open(os.path.join(site, 'vars.gen.cpp'), 'w').write('\n'.join(L))
 
+    en = t('enums', AUX['enums'])
     G = [H, '// Included from INSIDE namespace Site, so it opens none of its own.', '']
+    for name in dict.fromkeys(e['enum'] for e in en):
+        mem = [e for e in en if e['enum'] == name]
+        w = max(len(e['symbol']) for e in mem)
+        G.append('enum %s : %s {' % (name, mem[0]['ctype']))
+        G += ['    %-*s = %s,%s' % (w, e['symbol'], e['value'],
+                                    '   ///< ' + e['desc'] if e['desc'] else '') for e in mem]
+        G += ['};', '',
+              '/** @brief A %s as the word an operator reads and types.' % name,
+              ' *  Null for an unmapped code, which is what refuses it. */',
+              'inline const char* %s_label(uint64_t code) {' % name,
+              '    switch (code) {']
+        G += ['        case %s: return "%s";' % (e['value'], e['label']) for e in mem]
+        G += ['        default: return nullptr;', '    }', '}', '']
     G += ['extern const AnalogCal %s;' % c['cal'] for c in cal]
     G += ['', 'extern const AnalogCal* const g_analog_cals[];',
           'const uint8_t g_analog_cal_count = %d;' % len(cal), '',
