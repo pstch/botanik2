@@ -25,7 +25,10 @@ nohup.out
 # Generated API docs
 docs/doxygen/
 
-generated/
+# The build's own stamp directory, at the ROOT. Anchored deliberately: an
+# unanchored rule also hid src/sites/*/st/generated/, which is matiec's output
+# and IS committed - the whole point of generating offline.
+/generated/
 
 # Design plans: working notes, not part of the built manual
 design/
