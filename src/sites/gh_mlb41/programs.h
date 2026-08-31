@@ -84,9 +84,6 @@
 #include "programs/sense/wx_sensors/wx_sensors.h"
 #include "programs/sense/temp_rh_zone/temp_rh_zone.h"
 #include "programs/climate/cooling_controller/cooling_controller.h"
-#include "programs/climate/intake_gates/intake_gates.h"
-#include "programs/climate/humidity_controller/humidity_controller.h"
-#include "programs/climate/intake_dry_gate/intake_dry_gate.h"
 #include "programs/irrigation/irrigation_modulation/irrigation_modulation.h"
 #include "programs/irrigation/irr_mtr_input/irr_mtr_input.h"
 #include "programs/irrigation/irr_mtr_output/irr_mtr_output.h"
@@ -110,9 +107,6 @@
     X(WxSensors,            _wx_sensors)     \
     X(TempRHZone,           _temp_rh_zone)    \
     X(CoolingController,    _cooling)         \
-    X(IntakeGates,          _intake_gates)   \
-    X(HumidityController,   _humidity)        \
-    X(IntakeDryGate,        _intake_dry)     \
     X(IrrigationModulation, _irr_modulation)  \
     X(IrrMtrInput,          _irr_mtr_input)   \
     X(IrrMtrOutput,         _irr_mtr_output)  \

@@ -8,6 +8,7 @@
  */
 #include <cstdint>
 #include <cstdarg>
+#include <cmath>
 
 typedef bool     BOOL;
 typedef int8_t   SINT;

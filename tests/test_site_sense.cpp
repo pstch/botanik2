@@ -339,7 +339,7 @@ TEST_CASE_FIXTURE(Rig<Site::CoolingController>, "cooling: a demand it cannot mea
     const VarRef dem = live.ref("cli_coolDem");
     field(live, "cli_targetTemp_degC", 20.0f);
     interior(live, 30.0f, 30.0f);
-    field(live, "cli_temp_cs", 18.0f);
+    force(live, "cli_temp_cs", 18.0f);
     for (uint32_t i = 0; i < 20; i++) d.step(100u * (i + 1));
     const float was = live.bank.var(dem).as_f32();
     REQUIRE(was > 0.0f);
@@ -371,7 +371,7 @@ TEST_CASE_FIXTURE(Rig<Site::CoolingController>, "cooling: the floor carries it w
     interior(live, 30.0f, 30.0f);
     // The intake gate reads it; without it the law is DEGRADED for a reason
     // that has nothing to do with this case.
-    field(live, "cli_temp_cs", 18.0f);
+    force(live, "cli_temp_cs", 18.0f);
     d.step(100);
     REQUIRE(live.bank.var(dem).valid());
     REQUIRE(live.bank.var(dem).as_f32() > 0.0f);          // hot: cooling
@@ -522,7 +522,7 @@ TEST_CASE_FIXTURE(StRig, "destrat: a level nothing measures keeps the fans mixin
           doctest::Approx(live.bank.var(live.ref("cli_fanLowDem")).as_f32()));
 }
 
-TEST_CASE_FIXTURE(Rig<Site::HumidityController>, "humidity, rot guard: the ventilation demand rises as the margin falls") {
+TEST_CASE_FIXTURE(StRig, "humidity, rot guard: the ventilation demand rises as the margin falls") {
 
     Vars::RefIn<float> dem = live.bank.resolve_in<float>("cli_rotVentDem");
     const VarRef margin = live.ref("cli_dpMargin_degC");
@@ -548,7 +548,7 @@ TEST_CASE_FIXTURE(Rig<Site::HumidityController>, "humidity, rot guard: the venti
     CHECK(live.bank.get(dem) == doctest::Approx(1.0f));
 }
 
-TEST_CASE_FIXTURE(Rig<Site::HumidityController>, "humidity, rot guard: the lockout outlives the condition, and boots clear") {
+TEST_CASE_FIXTURE(StRig, "humidity, rot guard: the lockout outlives the condition, and boots clear") {
 
     Vars::RefIn<bool> lock = live.bank.resolve_in<bool>("cli_rotLockout");
     const VarRef rot = live.ref("alarm_rot");
@@ -572,7 +572,7 @@ TEST_CASE_FIXTURE(Rig<Site::HumidityController>, "humidity, rot guard: the locko
     CHECK_FALSE(live.bank.get(lock));
 }
 
-TEST_CASE_FIXTURE(Rig<Site::HumidityController>, "humidity, rot guard: an unmeasured margin ventilates rather than assuming dry air") {
+TEST_CASE_FIXTURE(StRig, "humidity, rot guard: an unmeasured margin ventilates rather than assuming dry air") {
 
     live.bank.var(live.ref("cli_dpMargin_degC")).invalidate(Q_NO_DATA);
     d.step(100);
@@ -665,19 +665,19 @@ TEST_CASE_FIXTURE(CoolingRig, "intake: a gate holds while the two temperatures c
 
     field(live, "cli_targetTemp_degC", 20.0f);
     interior(live, 25.0f, 25.0f);
-    field(live, "cli_temp_cs", 25.0f - margin - 1.0f);
+    force(live, "cli_temp_cs", 25.0f - margin - 1.0f);
     d.step(100);
     REQUIRE(live.bank.get(gate));
 
     INFO("the crawlspace warms to within the margin - the difference the gate "
          "is made of goes to zero as the two spaces converge - and the gate "
          "holds rather than flipping beat to beat");
-    field(live, "cli_temp_cs", 25.0f - margin + hyst * 0.5f);
+    force(live, "cli_temp_cs", 25.0f - margin + hyst * 0.5f);
     for (uint32_t i = 0; i < 20; i++) d.step(200 + 100u * i);
     CHECK(live.bank.get(gate));
 
     INFO("...and it shuts once the difference is a whole band under the margin");
-    field(live, "cli_temp_cs", 25.0f - margin + hyst + 0.1f);
+    force(live, "cli_temp_cs", 25.0f - margin + hyst + 0.1f);
     d.step(3000);
     CHECK_FALSE(live.bank.get(gate));
 }

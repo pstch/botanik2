@@ -18,6 +18,10 @@ static REAL ___MIN(
   BOOL *__ENO, 
   REAL IN1, 
   REAL IN2);
+static REAL ___LN(
+  BOOL EN, 
+  BOOL *__ENO, 
+  REAL IN);
 static REAL ___UDINT_TO_REAL(
   BOOL EN, 
   BOOL *__ENO, 
@@ -34,6 +38,30 @@ static UDINT ___UINT_TO_UDINT(
   BOOL EN, 
   BOOL *__ENO, 
   UINT IN);
+static REAL ___LADDER(
+  BOOL EN, 
+  BOOL *__ENO, 
+  REAL V, 
+  REAL LO, 
+  REAL HI);
+static REAL ___SIGNED_LADDER(
+  BOOL EN, 
+  BOOL *__ENO, 
+  REAL V, 
+  REAL NEG_FULL, 
+  REAL NEG_START, 
+  REAL POS_START, 
+  REAL POS_FULL);
+static REAL ___DEW_POINT(
+  BOOL EN, 
+  BOOL *__ENO, 
+  REAL T_DEGC, 
+  REAL RH);
+static REAL ___DEW_POINT_MARGIN(
+  BOOL EN, 
+  BOOL *__ENO, 
+  REAL T_DEGC, 
+  REAL RH);
 static void BAND_LATCH_init__(BAND_LATCH_data__ *data__, BOOL retain);
 static void BAND_LATCH_body__(BAND_LATCH_data__ *data__);
 static void STAIRCASE3_init__(STAIRCASE3_data__ *data__, BOOL retain);
@@ -58,6 +86,12 @@ static void DAY_PHASE_CONTROLLER_init__(DAY_PHASE_CONTROLLER_data__ *data__, BOO
 static void DAY_PHASE_CONTROLLER_body__(DAY_PHASE_CONTROLLER_data__ *data__);
 static void DESTRAT_CONTROLLER_init__(DESTRAT_CONTROLLER_data__ *data__, BOOL retain);
 static void DESTRAT_CONTROLLER_body__(DESTRAT_CONTROLLER_data__ *data__);
+static void HUMIDITY_CONTROLLER_init__(HUMIDITY_CONTROLLER_data__ *data__, BOOL retain);
+static void HUMIDITY_CONTROLLER_body__(HUMIDITY_CONTROLLER_data__ *data__);
+static void INTAKE_DRY_GATE_init__(INTAKE_DRY_GATE_data__ *data__, BOOL retain);
+static void INTAKE_DRY_GATE_body__(INTAKE_DRY_GATE_data__ *data__);
+static void INTAKE_GATES_init__(INTAKE_GATES_data__ *data__, BOOL retain);
+static void INTAKE_GATES_body__(INTAKE_GATES_data__ *data__);
 static void TARGET_TEMP_CONTROLLER_init__(TARGET_TEMP_CONTROLLER_data__ *data__, BOOL retain);
 static void TARGET_TEMP_CONTROLLER_body__(TARGET_TEMP_CONTROLLER_data__ *data__);
 static void CLIMATE_WATCH_init__(CLIMATE_WATCH_data__ *data__, BOOL retain);
@@ -196,6 +230,42 @@ __end:
     *__ENO = ENO;
   }
   return MIN;
+}
+
+
+static REAL ___LN(
+  BOOL EN, 
+  BOOL *__ENO, 
+  REAL IN)
+{
+  BOOL ENO = __BOOL_LITERAL(TRUE);
+  REAL LN = 0;
+
+  // Control execution
+  if (!EN) {
+    if (__ENO != NULL) {
+      *__ENO = __BOOL_LITERAL(FALSE);
+    }
+    return LN;
+  }
+  __IL_DEFVAR_T __IL_DEFVAR;
+(void)__IL_DEFVAR;
+  __IL_DEFVAR_T __IL_DEFVAR_BACK;
+(void)__IL_DEFVAR_BACK;
+  #define GetFbVar(var,...) __GET_VAR(data__->var,__VA_ARGS__)
+  #define SetFbVar(var,val,...) __SET_VAR(data__->,var,__VA_ARGS__,val)
+ LN = logf(IN); 
+  #undef GetFbVar
+  #undef SetFbVar
+;
+
+  goto __end;
+
+__end:
+  if (__ENO != NULL) {
+    *__ENO = ENO;
+  }
+  return LN;
 }
 
 
@@ -340,6 +410,165 @@ __end:
     *__ENO = ENO;
   }
   return UINT_TO_UDINT;
+}
+
+
+static REAL ___LADDER(
+  BOOL EN, 
+  BOOL *__ENO, 
+  REAL V, 
+  REAL LO, 
+  REAL HI)
+{
+  BOOL ENO = __BOOL_LITERAL(TRUE);
+  REAL LADDER = 0;
+
+  // Control execution
+  if (!EN) {
+    if (__ENO != NULL) {
+      *__ENO = __BOOL_LITERAL(FALSE);
+    }
+    return LADDER;
+  }
+  if ((HI <= LO)) {
+    if ((V >= HI)) {
+      LADDER = __REAL_LITERAL(1.0);
+    } else {
+      LADDER = __REAL_LITERAL(0.0);
+    };
+  } else {
+    LADDER = ___LIMIT(
+      (BOOL)__BOOL_LITERAL(TRUE),
+      NULL,
+      (REAL)__REAL_LITERAL(0.0),
+      (REAL)((V - LO) / (HI - LO)),
+      (REAL)__REAL_LITERAL(1.0));
+  };
+
+  goto __end;
+
+__end:
+  if (__ENO != NULL) {
+    *__ENO = ENO;
+  }
+  return LADDER;
+}
+
+
+static REAL ___SIGNED_LADDER(
+  BOOL EN, 
+  BOOL *__ENO, 
+  REAL V, 
+  REAL NEG_FULL, 
+  REAL NEG_START, 
+  REAL POS_START, 
+  REAL POS_FULL)
+{
+  BOOL ENO = __BOOL_LITERAL(TRUE);
+  REAL SIGNED_LADDER = 0;
+
+  // Control execution
+  if (!EN) {
+    if (__ENO != NULL) {
+      *__ENO = __BOOL_LITERAL(FALSE);
+    }
+    return SIGNED_LADDER;
+  }
+  if ((V >= POS_START)) {
+    SIGNED_LADDER = ___LADDER(
+      (BOOL)__BOOL_LITERAL(TRUE),
+      NULL,
+      (REAL)V,
+      (REAL)POS_START,
+      (REAL)POS_FULL);
+  } else if ((V <= NEG_START)) {
+    SIGNED_LADDER = (__REAL_LITERAL(0.0) - ___LADDER(
+      (BOOL)__BOOL_LITERAL(TRUE),
+      NULL,
+      (REAL)(__REAL_LITERAL(0.0) - V),
+      (REAL)(__REAL_LITERAL(0.0) - NEG_START),
+      (REAL)(__REAL_LITERAL(0.0) - NEG_FULL)));
+  } else {
+    SIGNED_LADDER = __REAL_LITERAL(0.0);
+  };
+
+  goto __end;
+
+__end:
+  if (__ENO != NULL) {
+    *__ENO = ENO;
+  }
+  return SIGNED_LADDER;
+}
+
+
+static REAL ___DEW_POINT(
+  BOOL EN, 
+  BOOL *__ENO, 
+  REAL T_DEGC, 
+  REAL RH)
+{
+  BOOL ENO = __BOOL_LITERAL(TRUE);
+  REAL GAMMA = 0;
+  REAL DEW_POINT = 0;
+
+  // Control execution
+  if (!EN) {
+    if (__ENO != NULL) {
+      *__ENO = __BOOL_LITERAL(FALSE);
+    }
+    return DEW_POINT;
+  }
+  GAMMA = (___LN(
+    (BOOL)__BOOL_LITERAL(TRUE),
+    NULL,
+    (REAL)___LIMIT(
+      (BOOL)__BOOL_LITERAL(TRUE),
+      NULL,
+      (REAL)__REAL_LITERAL(0.05),
+      (REAL)RH,
+      (REAL)__REAL_LITERAL(1.0))) + ((__REAL_LITERAL(17.62) * T_DEGC) / (__REAL_LITERAL(243.12) + T_DEGC)));
+  DEW_POINT = ((__REAL_LITERAL(243.12) * GAMMA) / (__REAL_LITERAL(17.62) - GAMMA));
+
+  goto __end;
+
+__end:
+  if (__ENO != NULL) {
+    *__ENO = ENO;
+  }
+  return DEW_POINT;
+}
+
+
+static REAL ___DEW_POINT_MARGIN(
+  BOOL EN, 
+  BOOL *__ENO, 
+  REAL T_DEGC, 
+  REAL RH)
+{
+  BOOL ENO = __BOOL_LITERAL(TRUE);
+  REAL DEW_POINT_MARGIN = 0;
+
+  // Control execution
+  if (!EN) {
+    if (__ENO != NULL) {
+      *__ENO = __BOOL_LITERAL(FALSE);
+    }
+    return DEW_POINT_MARGIN;
+  }
+  DEW_POINT_MARGIN = (T_DEGC - ___DEW_POINT(
+    (BOOL)__BOOL_LITERAL(TRUE),
+    NULL,
+    (REAL)T_DEGC,
+    (REAL)RH));
+
+  goto __end;
+
+__end:
+  if (__ENO != NULL) {
+    *__ENO = ENO;
+  }
+  return DEW_POINT_MARGIN;
 }
 
 
@@ -1144,6 +1373,172 @@ static void DESTRAT_CONTROLLER_body__(DESTRAT_CONTROLLER_data__ *data__) {
 __end:
   return;
 } // DESTRAT_CONTROLLER_body__() 
+
+
+
+
+
+static void HUMIDITY_CONTROLLER_init__(HUMIDITY_CONTROLLER_data__ *data__, BOOL retain) {
+  __INIT_EXTERNAL(UINT,CLI_ROTRELEASE_SEC,data__->CLI_ROTRELEASE_SEC,retain)
+  __INIT_EXTERNAL(REAL,CLI_DPMARGIN_DEGC,data__->CLI_DPMARGIN_DEGC,retain)
+  __INIT_EXTERNAL(BOOL,CLI_DPMARGIN_DEGC_QLT,data__->CLI_DPMARGIN_DEGC_QLT,retain)
+  __INIT_EXTERNAL(REAL,CLI_DEHUMFULL_DEGC,data__->CLI_DEHUMFULL_DEGC,retain)
+  __INIT_EXTERNAL(REAL,CLI_DEHUMSTART_DEGC,data__->CLI_DEHUMSTART_DEGC,retain)
+  __INIT_EXTERNAL(REAL,CLI_HUMIDSTART_DEGC,data__->CLI_HUMIDSTART_DEGC,retain)
+  __INIT_EXTERNAL(REAL,CLI_HUMIDFULL_DEGC,data__->CLI_HUMIDFULL_DEGC,retain)
+  __INIT_EXTERNAL(REAL,CLI_ROTMARGIN_DEGC,data__->CLI_ROTMARGIN_DEGC,retain)
+  __INIT_EXTERNAL(BOOL,ALARM_ROT,data__->ALARM_ROT,retain)
+  __INIT_EXTERNAL(UDINT,SYS_NOW_MS,data__->SYS_NOW_MS,retain)
+  __INIT_EXTERNAL(REAL,CLI_HUMIDDEM,data__->CLI_HUMIDDEM,retain)
+  __INIT_EXTERNAL(BOOL,CLI_ROTLOCKOUT,data__->CLI_ROTLOCKOUT,retain)
+  __INIT_EXTERNAL(REAL,CLI_ROTVENTDEM,data__->CLI_ROTVENTDEM,retain)
+  TOF_MS_init__(&data__->LOCKOUT_FOR,retain);
+}
+
+// Code part
+static void HUMIDITY_CONTROLLER_body__(HUMIDITY_CONTROLLER_data__ *data__) {
+  // Initialise TEMP variables
+  __SET_VAR(data__->,ROTTING,,__BOOL_LITERAL(FALSE));
+
+  __SET_EXTERNAL(data__->,CLI_HUMIDDEM,,___SIGNED_LADDER(
+    (BOOL)__BOOL_LITERAL(TRUE),
+    NULL,
+    (REAL)__GET_EXTERNAL(data__->CLI_DPMARGIN_DEGC,),
+    (REAL)__GET_EXTERNAL(data__->CLI_DEHUMFULL_DEGC,),
+    (REAL)__GET_EXTERNAL(data__->CLI_DEHUMSTART_DEGC,),
+    (REAL)__GET_EXTERNAL(data__->CLI_HUMIDSTART_DEGC,),
+    (REAL)__GET_EXTERNAL(data__->CLI_HUMIDFULL_DEGC,)));
+  if (__GET_EXTERNAL(data__->CLI_DPMARGIN_DEGC_QLT,)) {
+    __SET_EXTERNAL(data__->,CLI_ROTVENTDEM,,___LADDER(
+      (BOOL)__BOOL_LITERAL(TRUE),
+      NULL,
+      (REAL)(__REAL_LITERAL(0.0) - __GET_EXTERNAL(data__->CLI_DPMARGIN_DEGC,)),
+      (REAL)(__REAL_LITERAL(0.0) - __GET_EXTERNAL(data__->CLI_ROTMARGIN_DEGC,)),
+      (REAL)__REAL_LITERAL(0.0)));
+    __SET_VAR(data__->,ROTTING,,__GET_EXTERNAL(data__->ALARM_ROT,));
+  } else {
+    __SET_EXTERNAL(data__->,CLI_ROTVENTDEM,,__REAL_LITERAL(1.0));
+    __SET_VAR(data__->,ROTTING,,__BOOL_LITERAL(TRUE));
+  };
+  __SET_VAR(data__->LOCKOUT_FOR.,IN,,__GET_VAR(data__->ROTTING,));
+  __SET_VAR(data__->LOCKOUT_FOR.,PT,,(___UINT_TO_UDINT(
+    (BOOL)__BOOL_LITERAL(TRUE),
+    NULL,
+    (UINT)__GET_EXTERNAL(data__->CLI_ROTRELEASE_SEC,)) * __UDINT_LITERAL(1000)));
+  __SET_VAR(data__->LOCKOUT_FOR.,NOW,,__GET_EXTERNAL(data__->SYS_NOW_MS,));
+  TOF_MS_body__(&data__->LOCKOUT_FOR);
+  __SET_EXTERNAL(data__->,CLI_ROTLOCKOUT,,__GET_VAR(data__->LOCKOUT_FOR.Q,));
+
+  goto __end;
+
+__end:
+  return;
+} // HUMIDITY_CONTROLLER_body__() 
+
+
+
+
+
+static void INTAKE_DRY_GATE_init__(INTAKE_DRY_GATE_data__ *data__, BOOL retain) {
+  __INIT_EXTERNAL(REAL,CLI_TEMP_HI,data__->CLI_TEMP_HI,retain)
+  __INIT_EXTERNAL(REAL,CLI_RH_HI,data__->CLI_RH_HI,retain)
+  __INIT_EXTERNAL(REAL,CLI_TEMP_EXT,data__->CLI_TEMP_EXT,retain)
+  __INIT_EXTERNAL(REAL,CLI_RH_EXT,data__->CLI_RH_EXT,retain)
+  __INIT_EXTERNAL(BOOL,CLI_TEMP_HI_QLT,data__->CLI_TEMP_HI_QLT,retain)
+  __INIT_EXTERNAL(BOOL,CLI_RH_HI_QLT,data__->CLI_RH_HI_QLT,retain)
+  __INIT_EXTERNAL(BOOL,CLI_TEMP_EXT_QLT,data__->CLI_TEMP_EXT_QLT,retain)
+  __INIT_EXTERNAL(BOOL,CLI_RH_EXT_QLT,data__->CLI_RH_EXT_QLT,retain)
+  __INIT_EXTERNAL(REAL,CLI_VENTDRYMGN_DEGC,data__->CLI_VENTDRYMGN_DEGC,retain)
+  __INIT_EXTERNAL(REAL,CLI_VENTHYST_DEGC,data__->CLI_VENTHYST_DEGC,retain)
+  __INIT_EXTERNAL(BOOL,CLI_INTAKEDRYOK,data__->CLI_INTAKEDRYOK,retain)
+  BAND_LATCH_init__(&data__->GATE,retain);
+}
+
+// Code part
+static void INTAKE_DRY_GATE_body__(INTAKE_DRY_GATE_data__ *data__) {
+  // Initialise TEMP variables
+  __SET_VAR(data__->,HAVE,,__BOOL_LITERAL(FALSE));
+  __SET_VAR(data__->,DIFF,,0);
+
+  __SET_VAR(data__->,HAVE,,(((__GET_EXTERNAL(data__->CLI_TEMP_HI_QLT,) && __GET_EXTERNAL(data__->CLI_RH_HI_QLT,)) && __GET_EXTERNAL(data__->CLI_TEMP_EXT_QLT,)) && __GET_EXTERNAL(data__->CLI_RH_EXT_QLT,)));
+  if (__GET_VAR(data__->HAVE,)) {
+    __SET_VAR(data__->,DIFF,,(___DEW_POINT(
+      (BOOL)__BOOL_LITERAL(TRUE),
+      NULL,
+      (REAL)__GET_EXTERNAL(data__->CLI_TEMP_HI,),
+      (REAL)__GET_EXTERNAL(data__->CLI_RH_HI,)) - ___DEW_POINT(
+      (BOOL)__BOOL_LITERAL(TRUE),
+      NULL,
+      (REAL)__GET_EXTERNAL(data__->CLI_TEMP_EXT,),
+      (REAL)__GET_EXTERNAL(data__->CLI_RH_EXT,))));
+    __SET_VAR(data__->GATE.,IN,,__GET_VAR(data__->DIFF,));
+    __SET_VAR(data__->GATE.,RISE,,__GET_EXTERNAL(data__->CLI_VENTDRYMGN_DEGC,));
+    __SET_VAR(data__->GATE.,FALL,,(__GET_EXTERNAL(data__->CLI_VENTDRYMGN_DEGC,) - __GET_EXTERNAL(data__->CLI_VENTHYST_DEGC,)));
+    BAND_LATCH_body__(&data__->GATE);
+    __SET_EXTERNAL(data__->,CLI_INTAKEDRYOK,,__GET_VAR(data__->GATE.Q,));
+  } else {
+    __SET_EXTERNAL(data__->,CLI_INTAKEDRYOK,,__BOOL_LITERAL(FALSE));
+  };
+
+  goto __end;
+
+__end:
+  return;
+} // INTAKE_DRY_GATE_body__() 
+
+
+
+
+
+static void INTAKE_GATES_init__(INTAKE_GATES_data__ *data__, BOOL retain) {
+  __INIT_EXTERNAL(REAL,CLI_TEMP_IN,data__->CLI_TEMP_IN,retain)
+  __INIT_EXTERNAL(REAL,CLI_TEMP_CS,data__->CLI_TEMP_CS,retain)
+  __INIT_EXTERNAL(REAL,CLI_COOLDEM,data__->CLI_COOLDEM,retain)
+  __INIT_EXTERNAL(BOOL,CLI_TEMP_IN_QLT,data__->CLI_TEMP_IN_QLT,retain)
+  __INIT_EXTERNAL(BOOL,CLI_TEMP_CS_QLT,data__->CLI_TEMP_CS_QLT,retain)
+  __INIT_EXTERNAL(BOOL,CLI_COOLDEM_QLT,data__->CLI_COOLDEM_QLT,retain)
+  __INIT_EXTERNAL(REAL,CLI_VENTTEMPMGN_DEGC,data__->CLI_VENTTEMPMGN_DEGC,retain)
+  __INIT_EXTERNAL(REAL,CLI_VENTHYST_DEGC,data__->CLI_VENTHYST_DEGC,retain)
+  __INIT_EXTERNAL(REAL,CLI_GROUNDHEATDEM,data__->CLI_GROUNDHEATDEM,retain)
+  __INIT_EXTERNAL(REAL,CLI_GROUNDDEMHYST,data__->CLI_GROUNDDEMHYST,retain)
+  __INIT_EXTERNAL(BOOL,CLI_INTAKECOOLOK,data__->CLI_INTAKECOOLOK,retain)
+  __INIT_EXTERNAL(BOOL,CLI_GROUNDHEATOK,data__->CLI_GROUNDHEATOK,retain)
+  BAND_LATCH_init__(&data__->COOL_GATE,retain);
+  BAND_LATCH_init__(&data__->GROUND_BAND,retain);
+  BAND_LATCH_init__(&data__->GROUND_GATE,retain);
+}
+
+// Code part
+static void INTAKE_GATES_body__(INTAKE_GATES_data__ *data__) {
+  // Initialise TEMP variables
+  __SET_VAR(data__->,ASKING,,__BOOL_LITERAL(FALSE));
+
+  if (((!(__GET_EXTERNAL(data__->CLI_TEMP_IN_QLT,)) || !(__GET_EXTERNAL(data__->CLI_COOLDEM_QLT,))) || !(__GET_EXTERNAL(data__->CLI_TEMP_CS_QLT,)))) {
+    __SET_EXTERNAL(data__->,CLI_INTAKECOOLOK,,__BOOL_LITERAL(FALSE));
+    __SET_EXTERNAL(data__->,CLI_GROUNDHEATOK,,__BOOL_LITERAL(FALSE));
+  } else {
+    __SET_VAR(data__->COOL_GATE.,IN,,(__GET_EXTERNAL(data__->CLI_TEMP_IN,) - __GET_EXTERNAL(data__->CLI_TEMP_CS,)));
+    __SET_VAR(data__->COOL_GATE.,RISE,,__GET_EXTERNAL(data__->CLI_VENTTEMPMGN_DEGC,));
+    __SET_VAR(data__->COOL_GATE.,FALL,,(__GET_EXTERNAL(data__->CLI_VENTTEMPMGN_DEGC,) - __GET_EXTERNAL(data__->CLI_VENTHYST_DEGC,)));
+    BAND_LATCH_body__(&data__->COOL_GATE);
+    __SET_EXTERNAL(data__->,CLI_INTAKECOOLOK,,__GET_VAR(data__->COOL_GATE.Q,));
+    __SET_VAR(data__->GROUND_BAND.,IN,,(__REAL_LITERAL(0.0) - __GET_EXTERNAL(data__->CLI_COOLDEM,)));
+    __SET_VAR(data__->GROUND_BAND.,RISE,,(__REAL_LITERAL(0.0) - __GET_EXTERNAL(data__->CLI_GROUNDHEATDEM,)));
+    __SET_VAR(data__->GROUND_BAND.,FALL,,((__REAL_LITERAL(0.0) - __GET_EXTERNAL(data__->CLI_GROUNDHEATDEM,)) + __GET_EXTERNAL(data__->CLI_GROUNDDEMHYST,)));
+    BAND_LATCH_body__(&data__->GROUND_BAND);
+    __SET_VAR(data__->,ASKING,,__GET_VAR(data__->GROUND_BAND.Q,));
+    __SET_VAR(data__->GROUND_GATE.,IN,,(__GET_EXTERNAL(data__->CLI_TEMP_CS,) - __GET_EXTERNAL(data__->CLI_TEMP_IN,)));
+    __SET_VAR(data__->GROUND_GATE.,RISE,,__GET_EXTERNAL(data__->CLI_VENTTEMPMGN_DEGC,));
+    __SET_VAR(data__->GROUND_GATE.,FALL,,(__GET_EXTERNAL(data__->CLI_VENTTEMPMGN_DEGC,) - __GET_EXTERNAL(data__->CLI_VENTHYST_DEGC,)));
+    BAND_LATCH_body__(&data__->GROUND_GATE);
+    __SET_EXTERNAL(data__->,CLI_GROUNDHEATOK,,(__GET_VAR(data__->ASKING,) && __GET_VAR(data__->GROUND_GATE.Q,)));
+  };
+
+  goto __end;
+
+__end:
+  return;
+} // INTAKE_GATES_body__() 
 
 
 

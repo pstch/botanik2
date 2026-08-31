@@ -43,6 +43,9 @@ namespace Site {
     X(weather_watch,    WEATHER_WATCH,          WXWATCH,  BOTANIK_SITE_CONTROL_MS) \
     X(day_phase,        DAY_PHASE_CONTROLLER,   DAYPHASE, BOTANIK_SITE_CONTROL_MS) \
     X(target_temp,      TARGET_TEMP_CONTROLLER, TARGET,   BOTANIK_SITE_CONTROL_MS) \
+    X(humidity,         HUMIDITY_CONTROLLER,    HUMIDITY, BOTANIK_SITE_CONTROL_MS) \
+    X(intake_dry,       INTAKE_DRY_GATE,        DRYGATE,  BOTANIK_SITE_CONTROL_MS) \
+    X(intake_gates,     INTAKE_GATES,           GATES,    BOTANIK_SITE_CONTROL_MS) \
     X(destrat,          DESTRAT_CONTROLLER,     DESTRAT,  BOTANIK_SITE_CONTROL_MS) \
     X(roof_lockout,     ROOF_LOCKOUT,           ROOF,     BOTANIK_SITE_CONTROL_MS) \
     X(intractors,       INTRACTOR_CONTROLLER,   INTRACTORS, BOTANIK_SITE_CONTROL_MS)\

@@ -431,32 +431,32 @@ TEST_CASE_FIXTURE(StRig, "intractors: the fusion is a maximum of the demands who
 
     INFO("under the staging threshold they are at their FLOOR, not stopped: "
          "the row declares the safe state and some air is always wanted");
-    live.bank.var(live.ref("cli_intakeCoolOk")).set(true);
+    force(live, "cli_intakeCoolOk", true);
     live.bank.var(live.ref("cli_coolDem")).set(start - 0.1f);
     d.step(100);
     CHECK(live.bank.get(intr) == doctest::Approx(0.15f));
 
     INFO("the rot guard alone gets them going: each input is a floor");
-    live.bank.var(live.ref("cli_rotVentDem")).set(1.0f);
+    force(live, "cli_rotVentDem", 1.0f);
     d.step(200);
     CHECK(live.bank.get(intr) == doctest::Approx(1.0f));
 
     INFO("asking to HUMIDIFY is this device's business too: the air it draws "
          "comes in through the wetted skirt, which is the only humidifier the "
          "plant has");
-    live.bank.var(live.ref("cli_rotVentDem")).set(0.0f);
-    live.bank.var(live.ref("cli_humidDem")).set(1.0f);
+    force(live, "cli_rotVentDem", 0.0f);
+    force(live, "cli_humidDem", 1.0f);
     d.step(300);
     CHECK(live.bank.get(intr) == doctest::Approx(1.0f));
-    live.bank.var(live.ref("cli_rotVentDem")).set(1.0f);
+    force(live, "cli_rotVentDem", 1.0f);
 
     INFO("...but asking to DEHUMIDIFY is, once the air outside is drier: the "
          "gate is the humidity law's verdict, not this one's");
-    live.bank.var(live.ref("cli_rotVentDem")).set(0.0f);
-    live.bank.var(live.ref("cli_humidDem")).set(-1.0f);
+    force(live, "cli_rotVentDem", 0.0f);
+    force(live, "cli_humidDem", -1.0f);
     d.step(400);
     CHECK(live.bank.get(intr) == doctest::Approx(0.15f));
-    live.bank.var(live.ref("cli_intakeDryOk")).set(true);
+    force(live, "cli_intakeDryOk", true);
     d.step(500);
     CHECK(live.bank.get(intr) == doctest::Approx(1.0f));
     CHECK(live.bank.get(live.bank.resolve_in<float>("cli_intr2")) == doctest::Approx(1.0f));
@@ -472,17 +472,17 @@ TEST_CASE_FIXTURE(StRig, "intractors: cooling only draws air that is worth drawi
     d.step(100);
     CHECK(live.bank.get(intr) == doctest::Approx(0.15f));
 
-    live.bank.var(live.ref("cli_intakeCoolOk")).set(true);
+    force(live, "cli_intakeCoolOk", true);
     d.step(200);
     CHECK(live.bank.get(intr) == doctest::Approx(1.0f));
 
     INFO("and the NEGATIVE half is a demand of its own: cold inside, warm "
          "ground, and the same fans pull the stored heat up");
-    live.bank.var(live.ref("cli_intakeCoolOk")).set(false);
+    force(live, "cli_intakeCoolOk", false);
     live.bank.var(live.ref("cli_coolDem")).set(-1.0f);
     d.step(300);
     CHECK(live.bank.get(intr) == doctest::Approx(0.15f));
-    live.bank.var(live.ref("cli_groundHeatOk")).set(true);
+    force(live, "cli_groundHeatOk", true);
     d.step(400);
     INFO("one rung, at the spec's low speed: pulling harder on a cold house "
          "cools the ground rather than warming the house");
@@ -575,18 +575,17 @@ TEST_CASE_FIXTURE(Rig<Site::SkirtController>, "skirt: the humidify arm is propor
     live.bank.var(live.ref("cli_dpMargin_degC")).publish(from_f32(T_F32, 20.0f), 0);
     interlocks_clear(live);
 
-    live.bank.var(live.ref("cli_humidDem")).set(0.5f);
+    force(live, "cli_humidDem", 0.5f);
     d.step(100);
     CHECK(live.bank.get(duty) == doctest::Approx(0.5f).epsilon(0.02));
 
     INFO("a demand whose pulse would be under the minimum does not open at all");
-    live.bank.var(live.ref("cli_humidDem")).set(
-        0.5f * (float)min_on / (float)period);
+    force(live, "cli_humidDem", 0.5f * (float)min_on / (float)period);
     d.step(200);
     CHECK(live.bank.get(duty) == doctest::Approx(0.0f));
 
     INFO("asking to DEHUMIDIFY never opens it: that arm belongs to the intractors");
-    live.bank.var(live.ref("cli_humidDem")).set(-1.0f);
+    force(live, "cli_humidDem", -1.0f);
     d.step(300);
     CHECK(live.bank.get(duty) == doctest::Approx(0.0f));
 

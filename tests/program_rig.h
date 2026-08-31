@@ -48,6 +48,31 @@ inline void no_soak(Live& f) {
     f.bank.param_set(f.bank.var(f.ref("irr_soak_sec")), "0");
 }
 
+/** @brief Force a row, and mean it.
+ *
+ *  A row another ST program writes cannot be set: the next scan overwrites it.
+ *  An override SHADOWS the live value, so it survives, and it is what an
+ *  operator does when they want a law to see a number the plant is not
+ *  producing. A case about how a law RESPONDS to an input forces the input;
+ *  a case about how the input is PRODUCED drives the chain instead.
+ *  @{ */
+inline void force(Live& f, const char* row, float v) {
+    f.bank.override_set(f.bank.var(f.ref(row)), from_f32(T_F32, v));
+    // ...and its companion, where it has one. Forcing a reading without
+    // saying it is believable leaves a law reading the number and refusing to
+    // act on it, which is never what a case forcing a reading means.
+    char qlt[48];
+    const int n = snprintf(qlt, sizeof qlt, "%s_qlt", row);
+    if (n <= 0 || (size_t)n >= sizeof qlt) return;
+    const Vars::VarRef q = f.bank.find(qlt, (uint16_t)n);
+    if (q.index != Vars::VAR_NONE)
+        f.bank.override_set(f.bank.var(q), from_bool(T_BOOL, true));
+}
+inline void force(Live& f, const char* row, bool v) {
+    f.bank.override_set(f.bank.var(f.ref(row)), from_bool(T_BOOL, v));
+}
+/** @} */
+
 /** @brief Put the day where a case needs it, through the SUN.
  *
  *  cli_phase is day_phase_controller's output now, so setting it directly is
@@ -228,10 +253,28 @@ struct ZoneRig {
  *  probe and the demand the ladder just published. */
 struct CoolingRig {
     Live                     live;
+    Vars::QualityMirror      mirror{Botanik::SetupContext(live.reg), live.bank};
+    /** The gates are ST now; the ladder is not, yet. */
+    Site::StRuntime          st     {Botanik::SetupContext(live.reg), live.bank};
     Site::CoolingController  cooling{Botanik::SetupContext(live.reg), live.bank};
-    Site::IntakeGates        gates  {Botanik::SetupContext(live.reg), live.bank};
-    Plc::Program* const      progs[2] = { &cooling, &gates };
-    Cycle                    d{progs, 2, &live.bank, live.reg};
+    Plc::Program* const      progs[1] = { &cooling };
+    Cycle                    cycle{progs, 1, &live.bank, live.reg};
+
+    CoolingRig() {
+        st.wire(); mirror.wire();
+        d.st = &st; d.mirror = &mirror; d.cycle = &cycle;
+    }
+
+    /** @brief The ladder first, then the ST that reads its demand - which is
+     *  the order the beat has once cooling_controller follows the gates. */
+    struct Driver {
+        Vars::QualityMirror* mirror = nullptr;
+        Site::StRuntime*     st = nullptr;
+        Cycle*               cycle = nullptr;
+        void step(uint64_t now_ms) {
+            mirror->scan(); cycle->step(now_ms); st->scan(now_ms);
+        }
+    } d;
 };
 
 /** @brief The irrigation chain: the meters feed the schedule, the schedule

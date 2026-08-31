@@ -21,6 +21,7 @@
 CONFIGURATION gh_mlb41
 
   VAR_GLOBAL
+    alarm_rot             : BOOL;
     alarm_sensor_fault    : BOOL;
     alarm_sns_ceiling     : BOOL;
     alarm_sns_crawlspace  : BOOL;
@@ -36,6 +37,7 @@ CONFIGURATION gh_mlb41
     cli_coldBankOfs_degC  : REAL;
     cli_coldBankTrg_degC  : REAL;
     cli_coolDem           : REAL;
+    cli_coolDem_qlt       : BOOL;
     cli_coolSet_degC      : REAL;
     cli_dTStratHigh_degC  : REAL;
     cli_dTStratHyst_degC  : REAL;
@@ -44,6 +46,7 @@ CONFIGURATION gh_mlb41
     cli_dTStrat_degC      : REAL;
     cli_dTStrat_degC_qlt  : BOOL;
     cli_dehumFull_degC    : REAL;
+    cli_dehumStart_degC   : REAL;
     cli_destrat1_speed1   : BOOL;
     cli_destrat1_speed2   : BOOL;
     cli_destrat1_speed3   : BOOL;
@@ -58,12 +61,16 @@ CONFIGURATION gh_mlb41
     cli_fanLowDem         : REAL;
     cli_fanMedDem         : REAL;
     cli_fanSpeed          : USINT;
+    cli_groundDemHyst     : REAL;
+    cli_groundHeatDem     : REAL;
     cli_groundHeatOk      : BOOL;
     cli_groundSpeed       : REAL;
     cli_heatBankArm       : BOOL;
     cli_heatBankOfs_degC  : REAL;
     cli_heatBankTrg_degC  : REAL;
     cli_humidDem          : REAL;
+    cli_humidFull_degC    : REAL;
+    cli_humidStart_degC   : REAL;
     cli_intakeCoolOk      : BOOL;
     cli_intakeDryOk       : BOOL;
     cli_intakeFullDem     : REAL;
@@ -111,6 +118,9 @@ CONFIGURATION gh_mlb41
     cli_rh_lo3            : REAL;
     cli_rh_lo3_qlt        : BOOL;
     cli_rh_lo_qlt         : BOOL;
+    cli_rotLockout        : BOOL;
+    cli_rotMargin_degC    : REAL;
+    cli_rotRelease_sec    : UINT;
     cli_rotVentDem        : REAL;
     cli_sensorTau_ms      : UINT;
     cli_sinceRain_min     : UINT;
@@ -144,6 +154,7 @@ CONFIGURATION gh_mlb41
     cli_temp_hi3_qlt      : BOOL;
     cli_temp_hi_qlt       : BOOL;
     cli_temp_in           : REAL;
+    cli_temp_in_qlt       : BOOL;
     cli_temp_lo           : REAL;
     cli_temp_lo1          : REAL;
     cli_temp_lo1_qlt      : BOOL;
@@ -154,6 +165,9 @@ CONFIGURATION gh_mlb41
     cli_temp_lo_qlt       : BOOL;
     cli_tooCold_degC      : REAL;
     cli_tooHot_degC       : REAL;
+    cli_ventDryMgn_degC   : REAL;
+    cli_ventHyst_degC     : REAL;
+    cli_ventTempMgn_degC  : REAL;
     cli_windGust_mps      : REAL;
     cli_windLockout       : BOOL;
     cli_windShutBegin_mps : REAL;
@@ -189,6 +203,9 @@ CONFIGURATION gh_mlb41
     PROGRAM wxwatch    : weather_watch;
     PROGRAM dayphase   : day_phase_controller;
     PROGRAM target     : target_temp_controller;
+    PROGRAM humidity   : humidity_controller;
+    PROGRAM drygate    : intake_dry_gate;
+    PROGRAM gates      : intake_gates;
     PROGRAM destrat    : destrat_controller;
     PROGRAM roof       : roof_lockout;
     PROGRAM intractors : intractor_controller;
