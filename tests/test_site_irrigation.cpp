@@ -75,6 +75,11 @@ TEST_CASE_FIXTURE(IrrigationRig, "irrigation: a modulation nobody can read still
     live.bank.param_set(live.bank.var(live.ref("irr_liters_tray1")), 5.0f);
     live.bank.param_set(live.bank.var(live.ref("irr_forceOn_tray1")), true);
     live.bank.var(live.ref("irr_mod")).invalidate(Q_NO_DATA);
+    // ...and the COMPANION, which is what the cycle reads. The rig believes
+    // every companion at construction, because most of them belong to a
+    // program it is not running - so a case rehearsing an unreadable one
+    // clears the one it means.
+    live.bank.var(live.ref("irr_mod_qlt")).set(false);
 
     const VarRef due = live.ref("irr_dueTray");
     const VarRef vol = live.ref("irr_volume_L");
