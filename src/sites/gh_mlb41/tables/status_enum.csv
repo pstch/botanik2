@@ -1,32 +1,32 @@
-name,def,label,reg,desc,notes
-cli_phase,PHASE_NIGHT,&DayPhase_label,518,phase of the day in force,NIGHT COLD_BANK DAWN_BREEZE DAY HEAT_BANK DUSK_BREEZE
-irr_state,IRR_IDLE,&IrrState_label,537,what the irrigation cycle is doing,IDLE FILLING DRAINING FLUSHING
-prog_ac_grid_watch,3,&Plc::health_label,570,health of the ac_grid_watch program,3 is INHIBITED: nothing has run yet
-prog_ac_local_watch,3,&Plc::health_label,571,health of the ac_local_watch program,3 is INHIBITED: nothing has run yet
-prog_dc_watch,3,&Plc::health_label,572,health of the dc_watch program,3 is INHIBITED: nothing has run yet
-prog_temp_rh_sensors,3,&Plc::health_label,603,health of the temp_rh_sensors program,3 is INHIBITED: nothing has run yet
-prog_temp_rh_zone,3,&Plc::health_label,573,health of the temp_rh_zone program,3 is INHIBITED: nothing has run yet
-prog_strat,3,&Plc::health_label,574,health of the strat program,3 is INHIBITED: nothing has run yet
-prog_climate_watch,3,&Plc::health_label,575,health of the climate_watch program,3 is INHIBITED: nothing has run yet
-prog_sun_watch,3,&Plc::health_label,594,health of the sun watch program,3 is INHIBITED: nothing has run yet
-prog_day_phase,3,&Plc::health_label,576,health of the day_phase program,3 is INHIBITED: nothing has run yet
-prog_target_temp,3,&Plc::health_label,577,health of the target_temp program,3 is INHIBITED: nothing has run yet
-prog_cooling,3,&Plc::health_label,578,health of the cooling program,3 is INHIBITED: nothing has run yet
-prog_intake_gates,3,&Plc::health_label,607,health of the intake_gates program,3 is INHIBITED: nothing has run yet
-prog_intake_dry,3,&Plc::health_label,608,health of the intake_dry program,3 is INHIBITED: nothing has run yet
-prog_destrat,3,&Plc::health_label,579,health of the destrat program,3 is INHIBITED: nothing has run yet
-prog_humidity,3,&Plc::health_label,580,health of the humidity program,3 is INHIBITED: nothing has run yet
-prog_irr_modulation,3,&Plc::health_label,591,health of the irrigation modulation program,3 is INHIBITED: nothing has run yet
-prog_irr_mtr_input,3,&Plc::health_label,592,health of the inlet meter program,3 is INHIBITED: nothing has run yet
-prog_irr_valves,3,&Plc::health_label,605,health of the irrigation valves program,3 is INHIBITED: nothing has run yet
-prog_irr_mtr_output,3,&Plc::health_label,604,health of the outlet meter program,3 is INHIBITED: nothing has run yet
-prog_irrigation,3,&Plc::health_label,581,health of the irrigation program,3 is INHIBITED: nothing has run yet
-prog_screen,3,&Plc::health_label,582,health of the screen program,3 is INHIBITED: nothing has run yet
-prog_windows,3,&Plc::health_label,583,health of the windows program,3 is INHIBITED: nothing has run yet
-prog_wx_sensors,3,&Plc::health_label,610,health of the wx_sensors program,3 is INHIBITED: nothing has run yet
-prog_weather_watch,3,&Plc::health_label,584,health of the weather_watch program,3 is INHIBITED: nothing has run yet
-prog_intractors,3,&Plc::health_label,585,health of the intractors program,3 is INHIBITED: nothing has run yet
-prog_fans,3,&Plc::health_label,586,health of the fans program,3 is INHIBITED: nothing has run yet
-prog_skirt,3,&Plc::health_label,587,health of the skirt program,3 is INHIBITED: nothing has run yet
-prog_irr_schedule,3,&Plc::health_label,600,health of the irrigation schedule,
-prog_roof_lockout,3,&Plc::health_label,601,health of the roof lockout program,
+name                ,def        ,label             ,reg,desc                              ,notes
+cli_phase           ,PHASE_NIGHT,&DayPhase_label   ,518,phase of the day in force         ,NIGHT COLD_BANK DAWN_BREEZE DAY HEAT_BANK DUSK_BREEZE
+irr_state           ,IRR_IDLE   ,&IrrState_label   ,537,what the irrigation cycle is doing,IDLE FILLING DRAINING FLUSHING
+prog_ac_grid_watch  ,3          ,&Plc::health_label,570,health of the ac_grid_watch program,3 is INHIBITED: nothing has run yet
+prog_ac_local_watch ,3          ,&Plc::health_label,571,health of the ac_local_watch program,3 is INHIBITED: nothing has run yet
+prog_dc_watch       ,3          ,&Plc::health_label,572,health of the dc_watch program    ,3 is INHIBITED: nothing has run yet
+prog_temp_rh_sensors,3          ,&Plc::health_label,603,health of the temp_rh_sensors program,3 is INHIBITED: nothing has run yet
+prog_temp_rh_zone   ,3          ,&Plc::health_label,573,health of the temp_rh_zone program,3 is INHIBITED: nothing has run yet
+prog_strat          ,3          ,&Plc::health_label,574,health of the strat program       ,3 is INHIBITED: nothing has run yet
+prog_climate_watch  ,3          ,&Plc::health_label,575,health of the climate_watch program,3 is INHIBITED: nothing has run yet
+prog_sun_watch      ,3          ,&Plc::health_label,594,health of the sun watch program   ,3 is INHIBITED: nothing has run yet
+prog_day_phase      ,3          ,&Plc::health_label,576,health of the day_phase program   ,3 is INHIBITED: nothing has run yet
+prog_target_temp    ,3          ,&Plc::health_label,577,health of the target_temp program ,3 is INHIBITED: nothing has run yet
+prog_cooling        ,3          ,&Plc::health_label,578,health of the cooling program     ,3 is INHIBITED: nothing has run yet
+prog_intake_gates   ,3          ,&Plc::health_label,607,health of the intake_gates program,3 is INHIBITED: nothing has run yet
+prog_intake_dry     ,3          ,&Plc::health_label,608,health of the intake_dry program  ,3 is INHIBITED: nothing has run yet
+prog_destrat        ,3          ,&Plc::health_label,579,health of the destrat program     ,3 is INHIBITED: nothing has run yet
+prog_humidity       ,3          ,&Plc::health_label,580,health of the humidity program    ,3 is INHIBITED: nothing has run yet
+prog_irr_modulation ,3          ,&Plc::health_label,591,health of the irrigation modulation program,3 is INHIBITED: nothing has run yet
+prog_irr_mtr_input  ,3          ,&Plc::health_label,592,health of the inlet meter program ,3 is INHIBITED: nothing has run yet
+prog_irr_valves     ,3          ,&Plc::health_label,605,health of the irrigation valves program,3 is INHIBITED: nothing has run yet
+prog_irr_mtr_output ,3          ,&Plc::health_label,604,health of the outlet meter program,3 is INHIBITED: nothing has run yet
+prog_irrigation     ,3          ,&Plc::health_label,581,health of the irrigation program  ,3 is INHIBITED: nothing has run yet
+prog_screen         ,3          ,&Plc::health_label,582,health of the screen program      ,3 is INHIBITED: nothing has run yet
+prog_windows        ,3          ,&Plc::health_label,583,health of the windows program     ,3 is INHIBITED: nothing has run yet
+prog_wx_sensors     ,3          ,&Plc::health_label,610,health of the wx_sensors program  ,3 is INHIBITED: nothing has run yet
+prog_weather_watch  ,3          ,&Plc::health_label,584,health of the weather_watch program,3 is INHIBITED: nothing has run yet
+prog_intractors     ,3          ,&Plc::health_label,585,health of the intractors program  ,3 is INHIBITED: nothing has run yet
+prog_fans           ,3          ,&Plc::health_label,586,health of the fans program        ,3 is INHIBITED: nothing has run yet
+prog_skirt          ,3          ,&Plc::health_label,587,health of the skirt program       ,3 is INHIBITED: nothing has run yet
+prog_irr_schedule   ,3          ,&Plc::health_label,600,health of the irrigation schedule ,
+prog_roof_lockout   ,3          ,&Plc::health_label,601,health of the roof lockout program,

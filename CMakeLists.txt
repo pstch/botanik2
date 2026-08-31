@@ -138,11 +138,11 @@ if(BOTANIK_SITE_DIR)
 else()
     set(_site_dir "${CMAKE_CURRENT_SOURCE_DIR}/src/sites/${BOTANIK_SITE}")
 endif()
-# The ST shim, and the matiec output the site's StRuntime compiles. Every
+# The ST runtime headers matiec names bare (accessor.h, iec_std_lib.h), and the site's StRuntime compiles. Every
 # target needs them: st_runtime.cpp is a SITE source, so it builds into the
 # sim, the suite AND the firmware.
 target_include_directories(botanik PUBLIC
-    "${CMAKE_CURRENT_SOURCE_DIR}/st/shim"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/libbotanik/plc/runtime"
     "${_site_dir}/st"
     "${_site_dir}/st/generated")
 

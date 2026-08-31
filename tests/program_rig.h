@@ -192,7 +192,7 @@ struct StRig {
     /** PHASE_INPUT's job, which the beat does before PHASE_CONTROL: a probe
      *  that stopped answering reaches ST as a companion, never as a quality. */
     Vars::QualityMirror mirror{ Botanik::SetupContext(live.reg), live.bank };
-    Site::StRuntime     st{ Botanik::SetupContext(live.reg), live.bank };
+    Plc::Runtime::Plant     st{ Botanik::SetupContext(live.reg), live.bank };
 
     StRig() {
         st.wire();
@@ -221,7 +221,7 @@ struct StRig {
     }
 
     struct Driver {
-        Site::StRuntime*     st = nullptr;
+        Plc::Runtime::Plant*     st = nullptr;
         Vars::QualityMirror* mirror = nullptr;
         void step(uint64_t now_ms) { mirror->scan(); st->scan(now_ms); }
     } d;
@@ -233,7 +233,7 @@ struct StRig {
 struct ZoneRig {
     Live                live;
     /** The voting and filtering half is ST now; the psychrometrics are not. */
-    Site::StRuntime     st  {Botanik::SetupContext(live.reg), live.bank};
+    Plc::Runtime::Plant     st  {Botanik::SetupContext(live.reg), live.bank};
     Site::TempRHZone    zone{Botanik::SetupContext(live.reg), live.bank};
     Plc::Program* const progs[1] = { &zone };
     Cycle               cycle{progs, 1, &live.bank, live.reg};
@@ -241,7 +241,7 @@ struct ZoneRig {
     ZoneRig() { st.wire(); d.st = &st; d.cycle = &cycle; }
 
     struct Driver {
-        Site::StRuntime* st = nullptr;
+        Plc::Runtime::Plant* st = nullptr;
         Cycle*           cycle = nullptr;
         void step(uint64_t now_ms) { st->scan(now_ms); cycle->step(now_ms); }
     } d;
@@ -255,7 +255,7 @@ struct CoolingRig {
     Live                     live;
     Vars::QualityMirror      mirror{Botanik::SetupContext(live.reg), live.bank};
     /** The gates are ST now; the ladder is not, yet. */
-    Site::StRuntime          st     {Botanik::SetupContext(live.reg), live.bank};
+    Plc::Runtime::Plant          st     {Botanik::SetupContext(live.reg), live.bank};
     Site::CoolingController  cooling{Botanik::SetupContext(live.reg), live.bank};
     Plc::Program* const      progs[1] = { &cooling };
     Cycle                    cycle{progs, 1, &live.bank, live.reg};
@@ -269,7 +269,7 @@ struct CoolingRig {
      *  the order the beat has once cooling_controller follows the gates. */
     struct Driver {
         Vars::QualityMirror* mirror = nullptr;
-        Site::StRuntime*     st = nullptr;
+        Plc::Runtime::Plant*     st = nullptr;
         Cycle*               cycle = nullptr;
         void step(uint64_t now_ms) {
             mirror->scan(); cycle->step(now_ms); st->scan(now_ms);
@@ -296,7 +296,7 @@ struct IrrigationRig {
 struct RoofRig {
     Live                    live;
     /** The lockout is ST now, so it is the RESOURCE that runs first. */
-    Site::StRuntime         st{Botanik::SetupContext(live.reg), live.bank};
+    Plc::Runtime::Plant         st{Botanik::SetupContext(live.reg), live.bank};
     Site::WindowsController wc{Botanik::SetupContext(live.reg), live.bank};
     Plc::Program* const     progs[1] = { &wc };
     Cycle                   cycle{progs, 1, &live.bank, live.reg};
@@ -305,7 +305,7 @@ struct RoofRig {
 
     /** @brief ST, then the programs - the order the beat uses. */
     struct Driver {
-        Site::StRuntime* st = nullptr;
+        Plc::Runtime::Plant* st = nullptr;
         Cycle*           cycle = nullptr;
         uint64_t         last = 0;
         void step(uint64_t now_ms) {

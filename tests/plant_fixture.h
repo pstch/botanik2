@@ -70,7 +70,7 @@ struct Plant {
     Vars::QualityMirror        mirror;
     /** @brief The ST plant. LAST, because a ctor list runs in DECLARATION
      *  order and this is initialised after every program beside it. */
-    Site::StRuntime            st;
+    Plc::Runtime::Plant            st;
 
     Plc::Program* all[30];   ///< room for the list below
     Cycle*        cycle = nullptr;

@@ -33,12 +33,12 @@ TEST_CASE("scan: every ST program is its own task, at the roster's period") {
     // body ourselves instead, which is what keeps a program a program: its own
     // period, its own entry in the TASKS table, its own health.
     TestScan::Live live;
-    Site::StRuntime st(Botanik::SetupContext(live.reg), live.bank);
+    Plc::Runtime::Plant st(Botanik::SetupContext(live.reg), live.bank);
     st.wire();
     st.register_tasks();
 
-    for (uint8_t i = 0; i < Site::ST_PROGRAM_COUNT; i++) {
-        const Site::StProgram& p = Site::st_programs[i];
+    for (uint8_t i = 0; i < Plc::Runtime::PROGRAM_COUNT; i++) {
+        const Plc::Runtime::Program& p = Plc::Runtime::programs[i];
         const Tasks::Task* task = nullptr;
         for (uint8_t j = 0; j < live.reg.count(); j++)
             if (strcmp(live.reg.task(j).name, p.name) == 0) task = &live.reg.task(j);
@@ -56,12 +56,12 @@ TEST_CASE("scan: an ST program publishes its own health row") {
     // an operator reads to see that a law is running, and the roster's name is
     // what ties one to the other.
     TestScan::Live live;
-    Site::StRuntime st(Botanik::SetupContext(live.reg), live.bank);
+    Plc::Runtime::Plant st(Botanik::SetupContext(live.reg), live.bank);
     st.wire();
 
     char row[40];
-    for (uint8_t i = 0; i < Site::ST_PROGRAM_COUNT; i++) {
-        snprintf(row, sizeof row, "prog_%s", Site::st_programs[i].name);
+    for (uint8_t i = 0; i < Plc::Runtime::PROGRAM_COUNT; i++) {
+        snprintf(row, sizeof row, "prog_%s", Plc::Runtime::programs[i].name);
         const VarRef r = live.ref(row);
         INFO("row ", row);
         REQUIRE(r.index != Vars::VAR_NONE);
@@ -164,7 +164,7 @@ TEST_CASE_FIXTURE(Rig<Site::ScreenController>, "screen: a cold night deploys it,
  *  program does - the same order the beat uses, and the one the lockout needs:
  *  cli_windowCap has to reach the rams on the beat it was published. */
 struct RoofDrive {
-    Site::StRuntime         st;
+    Plc::Runtime::Plant         st;
     Site::WindowsController win;
     Plc::Program*           progs[1];
     Cycle                   cyc;

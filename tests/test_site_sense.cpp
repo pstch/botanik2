@@ -397,14 +397,14 @@ TEST_CASE("cooling: an unknown demand puts every actuator at its own safe state"
     fine_weather(f);
     interlocks_clear(f);
     // The lockout is ST, so the resource runs ahead of the actuators.
-    Site::StRuntime            st(Botanik::SetupContext(f.reg), f.bank);
+    Plc::Runtime::Plant            st(Botanik::SetupContext(f.reg), f.bank);
     Site::WindowsController    win(Botanik::SetupContext(f.reg), f.bank);
     Site::ScreenController     scr(Botanik::SetupContext(f.reg), f.bank);
     Site::SkirtController      sk(Botanik::SetupContext(f.reg), f.bank);
     Plc::Program* const progs[] = { &win, &scr, &sk };
     Cycle cyc(progs, 3, &f.bank, f.reg);
     st.wire();
-    struct { Site::StRuntime* st; Cycle* c;
+    struct { Plc::Runtime::Plant* st; Cycle* c;
              void step(uint64_t n) { st->scan(n); c->step(n); } } d{ &st, &cyc };
 
     // Everything else says GO: only the cooling ladder's two outputs are

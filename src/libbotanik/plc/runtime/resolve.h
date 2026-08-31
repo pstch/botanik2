@@ -5,13 +5,13 @@
  *  `cli_rain_mmph`. Folding case is the whole of the difference; all 425 site
  *  rows stay unique under it.
  */
-#ifndef BOTANIK_ST_RESOLVE_CI_H
-#define BOTANIK_ST_RESOLVE_CI_H
+#ifndef BOTANIK_PLC_RUNTIME_RESOLVE_H
+#define BOTANIK_PLC_RUNTIME_RESOLVE_H
 
 #include <cstring>
 #include "libbotanik/vars/model.h"
 
-namespace Botanik { namespace St {
+namespace Botanik { namespace Plc { namespace Runtime {
 
     inline bool same_folded(const char* a, const char* b) {
         for (;; a++, b++) {
@@ -35,6 +35,6 @@ namespace Botanik { namespace St {
         return Vars::Ref<T, Vars::Dir::INOUT>();
     }
 
-}}  // namespace Botanik::St
+}}}  // namespace Botanik::Plc::Runtime
 
 #endif

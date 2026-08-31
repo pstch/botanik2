@@ -1,19 +1,19 @@
 /**
- * @file st_runtime.h
+ * @file runtime.h
  * @brief Runs this site's ST programs, one registry task each.
  */
 
-#ifndef BOTANIK_SITE_ST_RUNTIME_H
-#define BOTANIK_SITE_ST_RUNTIME_H
+#ifndef BOTANIK_PLC_RUNTIME_RUNTIME_H
+#define BOTANIK_PLC_RUNTIME_RUNTIME_H
 
 #include "libbotanik/core/component.h"
 #include "libbotanik/tasks/tasks.h"
 #include "libbotanik/vars/model.h"
 #include "libbotanik/plc/program.h"
 
-#include "st_programs.h"
+#include "libbotanik/plc/runtime/program.h"
 
-namespace Site {
+namespace Botanik { namespace Plc { namespace Runtime {
 
     /** @brief One `Tasks::Registry` entry per ST program.
      *
@@ -23,21 +23,21 @@ namespace Site {
      *  period, its own writer slot, its own health row, its own place in the
      *  TASKS table, and its own verdict when a name it wanted does not resolve.
      */
-    class StRuntime final : public Botanik::Component {
+    class Plant final : public Component {
 
-        /** @brief Per program, in `st_programs[]` order. */
+        /** @brief Per program, in `programs[]` order. */
         struct Slot {
-            Botanik::Vars::VarRef  health_row;
-            Botanik::Plc::Health   health = Botanik::Plc::Health::HEALTHY;
+            Vars::VarRef  health_row;
+            Health   health = Health::HEALTHY;
         };
 
-        Botanik::Vars::Bank&  _io;
-        Botanik::Vars::VarRef _now_ref;   ///< sys_now_ms
+        Vars::Bank&  _io;
+        Vars::VarRef _now_ref;   ///< sys_now_ms
         Slot                  _slot[16];
         uint64_t              _now_ms = 0;
 
     public:
-        StRuntime(const Botanik::SetupContext& ctx, Botanik::Vars::Bank& io)
+        Plant(const SetupContext& ctx, Vars::Bank& io)
             : Component(ctx, "st"), _io(io) {}
 
         void register_tasks() override;
@@ -55,13 +55,13 @@ namespace Site {
          *  does not care which program did what. */
         void scan(uint64_t now_ms);
 
-        Botanik::Plc::Health health(uint8_t i) const;
+        Health health(uint8_t i) const;
 
     protected:
         void on_setup(uint64_t now_ms) override;
 
     };
 
-}  // namespace Site
+}}}  // namespace Botanik::Plc::Runtime
 
 #endif

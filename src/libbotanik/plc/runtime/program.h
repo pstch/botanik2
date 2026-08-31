@@ -1,17 +1,17 @@
 /**
- * @file st_programs.h
+ * @file program.h
  * @brief One entry per ST program: what it is called, how often it runs.
  */
 
-#ifndef BOTANIK_SITE_ST_PROGRAMS_H
-#define BOTANIK_SITE_ST_PROGRAMS_H
+#ifndef BOTANIK_PLC_RUNTIME_PROGRAM_H
+#define BOTANIK_PLC_RUNTIME_PROGRAM_H
 
 #include <cstdint>
 
 #include "libbotanik/core/component.h"
 #include "libbotanik/tasks/tasks.h"
 
-namespace Site {
+namespace Botanik { namespace Plc { namespace Runtime {
 
     /** @brief What the runtime needs to treat a generated POU as a program.
      *
@@ -20,7 +20,7 @@ namespace Site {
      *  defined in the only translation unit that can see the generated
      *  statics.
      */
-    struct StProgram {
+    struct Program {
         const char* name;        ///< the `prog_<name>` row, and the task label
         uint32_t    period_ms;   ///< how often, stated here and nowhere else
         void      (*init)();     ///< the generated bind
@@ -31,9 +31,9 @@ namespace Site {
         void      (*task)(Botanik::Component*, const Botanik::Tasks::Tick&);
     };
 
-    extern const StProgram st_programs[];
-    extern const uint8_t   ST_PROGRAM_COUNT;
+    extern const Program programs[];
+    extern const uint8_t PROGRAM_COUNT;
 
-}  // namespace Site
+}}}  // namespace Botanik::Plc::Runtime
 
 #endif

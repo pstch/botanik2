@@ -77,7 +77,7 @@
 #define __INIT_RETAIN(name, retained)
 
 #define __INIT_EXTERNAL(type, global, name, retained) \
-    (name) = ::Botanik::St::resolve_ci< type >(BOTANIK_ST_IO, #global);
+    (name) = ::Botanik::Plc::Runtime::resolve_ci< type >(BOTANIK_ST_IO, #global);
 
 /* A Ref carries its store, so only the RESOLVE needs to be told which bank.
  * Reads and writes go through the reference, exactly as a C++ law writes

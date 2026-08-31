@@ -18,6 +18,7 @@ is committed, the way iec2c's already is.
 import csv, os, re, sys
 
 SITE = 'src/sites/gh_mlb41'
+PAD_MAX = 34   # widest a column is padded to; see write_table()
 
 # One CSV per Descriptor factory: ten factories, ten signatures, ten files.
 # The column names ARE the factory's parameter names, so a row reads the same
@@ -92,6 +93,38 @@ def quote(v, col):
     return v
 
 
+def field(v):
+    """One value as CSV text: quoted only where it has to be."""
+    if any(c in v for c in ',"\n') or (v and v != v.strip()):
+        return '"%s"' % v.replace('"', '""')
+    return v
+
+
+def write_table(path, cols, records):
+    """A CSV a person can read: every column padded to its widest cell.
+
+    The padding is OUTSIDE any quotes, so it is not part of the value, and
+    the reader strips it. A value that genuinely needed surrounding spaces
+    would not survive that - export() refuses one rather than corrupting it.
+    """
+    cells = [[field(v) for v in rec] for rec in records]
+    w = [len(c) for c in cols]
+    for row in cells:
+        for i, c in enumerate(row): w[i] = max(w[i], len(c))
+    # A column is padded to line up, not to the width of its longest cell: one
+    # 300-character note would otherwise push every row off the screen. Past
+    # the cap the column simply is not aligned, which is the lesser harm.
+    w = [min(x, PAD_MAX) for x in w]
+    def line(row):
+        # No trailing spaces on the last column: they are invisible churn in
+        # a diff and mean nothing to a reader.
+        out = [c.ljust(w[i]) for i, c in enumerate(row[:-1])] + [row[-1]]
+        return ','.join(out).rstrip() + '\n'
+    with open(path, 'w') as fh:
+        fh.write(line(cols))
+        for row in cells: fh.write(line(row))
+
+
 def export(site):
     out = os.path.join(site, 'tables')
     os.makedirs(out, exist_ok=True)
@@ -100,16 +133,18 @@ def export(site):
     for fac, args in rows: per[fac].append(args)
     for fac, (stem, cols) in FACTORIES.items():
         cols = cols.split()
-        path = os.path.join(out, stem + '.csv')
-        with open(path, 'w', newline='') as fh:
-            w = csv.writer(fh)
-            w.writerow(cols)
-            for args in per[fac]:
-                # Trailing defaults are omitted in the source; pad so every
-                # row has the full width and the CSV is rectangular.
-                vals = [unquote(a) for a in args] + [''] * (len(cols) - len(args))
-                w.writerow(vals[:len(cols)])
-        print("  %-14s %3d rows" % (stem + '.csv', len(per[fac])))
+        recs = []
+        for args in per[fac]:
+            # Trailing defaults are omitted in the source; pad so every row has
+            # the full width and the table is rectangular.
+            vals = [unquote(a) for a in args] + [''] * (len(cols) - len(args))
+            for v in vals:
+                if v != v.strip():
+                    sys.exit("%s: %r has edge whitespace, which the aligned "
+                             "format cannot carry" % (stem, v))
+            recs.append(vals[:len(cols)])
+        write_table(os.path.join(out, stem + '.csv'), cols, recs)
+        print("  %-16s %3d rows" % (stem + '.csv', len(recs)))
 
 
 def load(site):
@@ -120,8 +155,14 @@ def load(site):
         path = os.path.join(site, 'tables', stem + '.csv')
         if not os.path.exists(path): continue
         with open(path, newline='') as fh:
-            for rec in csv.DictReader(fh):
-                args = [quote(rec[c], c) for c in cols]
+            rd = csv.reader(fh)
+            head = [h.strip() for h in next(rd)]
+            if head != cols:
+                sys.exit("%s: header is %s, expected %s" % (path, head, cols))
+            for raw in rd:
+                if not raw or all(c.strip() == '' for c in raw): continue
+                rec = dict(zip(head, [c.strip() for c in raw]))
+                args = [quote(rec.get(c, ''), c) for c in cols]
                 while args and args[-1] == '': args.pop()
                 out.append((fac, args))
     return out

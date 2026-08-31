@@ -11,10 +11,10 @@
  * then the table. Adding a program is one line here and one in plant.st.
  */
 
-#include "st_programs.h"
-#include "st_runtime.h"
-#include "st_bank.h"
-#include "resolve_ci.h"
+#include "libbotanik/plc/runtime/program.h"
+#include "libbotanik/plc/runtime/runtime.h"
+#include "libbotanik/plc/runtime/bank.h"
+#include "libbotanik/plc/runtime/resolve.h"
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wunused-parameter"
@@ -26,9 +26,9 @@
 
 /* Named by every generated read, write and resolve. Defined here because this
  * is the translation unit the generated code is compiled in. */
-namespace Botanik { namespace St { Vars::Bank* io = 0; } }
+namespace Botanik { namespace Plc { namespace Runtime { Vars::Bank* io = 0; } } }
 
-namespace Site {
+namespace Botanik { namespace Plc { namespace Runtime {
 
 /** @brief The roster. `POU` is the ST program's name upper-cased, `INST` the
  *  instance `plant.st` gives it, and the period is this table's to state -
@@ -36,7 +36,7 @@ namespace Site {
  *
  *  ORDER IS EXECUTION ORDER within the beat, as it was when these were C++
  *  programs: conditioning first, then the laws, then the actuators. */
-#define SITE_ST_PROGRAM_LIST(X)                                                \
+#define PLANT_PROGRAM_LIST(X)                                                \
     X(temp_rh_sensors,  TEMP_RH_SENSORS,        SENSORS,  BOTANIK_SITE_SENSE_MS)   \
     X(strat,            STRAT_SENSOR,           STRAT,    BOTANIK_SITE_SENSE_MS)   \
     X(climate_watch,    CLIMATE_WATCH,          CLIMWATCH, BOTANIK_SITE_CONTROL_MS)\
@@ -54,28 +54,28 @@ namespace Site {
 /* The roster's own index, so a handler knows which entry it is. */
 enum {
 #define X(name, POU, INST, PERIOD) IDX_##INST,
-    SITE_ST_PROGRAM_LIST(X)
+    PLANT_PROGRAM_LIST(X)
 #undef X
 };
 
 #define X(name, POU, INST, PERIOD)                                             \
     static void _init_##INST() { POU##_init__(&INST, 0); }                     \
     static void _run_##INST()  { POU##_body__(&INST); }                        \
-    static void _task_##INST(Botanik::Component* self,                         \
-                             const Botanik::Tasks::Tick& t) {                  \
-        static_cast<StRuntime*>(self)->scan(IDX_##INST, t.now_ms);             \
+    static void _task_##INST(Component* self,                         \
+                             const Tasks::Tick& t) {                  \
+        static_cast<Plant*>(self)->scan(IDX_##INST, t.now_ms);             \
     }
-SITE_ST_PROGRAM_LIST(X)
+PLANT_PROGRAM_LIST(X)
 #undef X
 
-const StProgram st_programs[] = {
+const Program programs[] = {
 #define X(name, POU, INST, PERIOD)                                             \
     { #name, PERIOD, &_init_##INST, &_run_##INST, &_task_##INST },
-    SITE_ST_PROGRAM_LIST(X)
+    PLANT_PROGRAM_LIST(X)
 #undef X
 };
 
-const uint8_t ST_PROGRAM_COUNT =
-    (uint8_t)(sizeof(st_programs) / sizeof(st_programs[0]));
+const uint8_t PROGRAM_COUNT =
+    (uint8_t)(sizeof(programs) / sizeof(programs[0]));
 
-}  // namespace Site
+}}}  // namespace Botanik::Plc::Runtime

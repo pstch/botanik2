@@ -1,3 +1,3 @@
-name,device,fc,reg,def,timeout_ms,invert,desc,notes,poll_ms,pulse
-irr_inPulse,0,2,1,false,0,false,inlet water meter pulse (interrupt-counted),"inlet volume meter, one pulse per irr_input_qtyPerImp litres. Channel 1 = terminal I2 = A1",0,true
-pwr_upsLowBat,0,2,0,true,0,false,UPS low battery contact,closed = the UPS is about to drop; holds every actuator. Fails ASSERTED: an unreadable terminal is not a healthy supply,,
+name         ,device,fc,reg,def  ,timeout_ms,invert,desc                              ,notes                             ,poll_ms,pulse
+irr_inPulse  ,0     ,2 ,1  ,false,0         ,false ,inlet water meter pulse (interrupt-counted),"inlet volume meter, one pulse per irr_input_qtyPerImp litres. Channel 1 = terminal I2 = A1",0      ,true
+pwr_upsLowBat,0     ,2 ,0  ,true ,0         ,false ,UPS low battery contact           ,closed = the UPS is about to drop; holds every actuator. Fails ASSERTED: an unreadable terminal is not a healthy supply,       ,

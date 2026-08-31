@@ -37,7 +37,7 @@
 
 // Every control program, and the one list site.h expands three times below.
 #include "programs.h"
-#include "st/st_runtime.h"
+#include "libbotanik/plc/runtime/runtime.h"
 
 namespace Site {
 
@@ -96,7 +96,7 @@ class GreenhouseMLB41 final : public Botanik::BotanikFirmware {
     /** @brief The generated ST plant. Holds destrat_controller, which is no
      *  longer a Plc::Program - it is ST, and matiec generates its binding,
      *  its law and the resource that dispatches it. */
-    Site::StRuntime _st;
+    Botanik::Plc::Runtime::Plant _st;
 
     /** @} */
 
