@@ -143,8 +143,7 @@ endif()
 # sim, the suite AND the firmware.
 target_include_directories(botanik PUBLIC
     "${CMAKE_CURRENT_SOURCE_DIR}/src/libbotanik/plc/runtime"
-    "${_site_dir}/st"
-    "${_site_dir}/st/generated")
+    "${_site_dir}/generated")
 
 foreach(_f config.h site.h)
     if(NOT EXISTS "${_site_dir}/${_f}")

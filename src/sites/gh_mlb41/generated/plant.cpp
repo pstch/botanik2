@@ -1,5 +1,5 @@
 /**
- * @file st_plant.cpp
+ * @file plant.cpp
  * @brief HAND-WRITTEN - the program roster, in the shape vars.cpp uses.
  *
  * The only translation unit that compiles matiec's resource, because the
@@ -21,7 +21,7 @@
 #pragma GCC diagnostic ignored "-Wunused-function"
 #pragma GCC diagnostic ignored "-Wunused-but-set-variable"
 #pragma GCC diagnostic ignored "-Wshadow"
-#include "generated/plc.c"
+#include "plc.c"
 #pragma GCC diagnostic pop
 
 /* Named by every generated read, write and resolve. Defined here because this

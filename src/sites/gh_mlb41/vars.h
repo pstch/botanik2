@@ -130,7 +130,7 @@ struct PulseInput { const char* name; uint8_t channel; HAL::Pulse::Edge edge; };
 /** @brief Everything the tables generate: the calibration blocks, the two
  *  Descriptor arrays and their counts, the pulse inputs and the field-bus
  *  device map. Edit the CSVs under tables/ and run `scripts/tables.py generate`. */
-#include "vars.gen.h"
+#include "generated/vars.gen.h"
 
 // register_vars() adds NONE of a segment that does not fit, so one row
 // past the limit costs a whole table: an empty field-bus plan and a

@@ -36,7 +36,7 @@ checking one against the other, not a generator producing both.
 | `programs.cpp` | the program roster, hand-written, same shape |
 | `plant.st` | the same programs, declared to matiec; checked against the roster |
 | `programs/<stage>/<name>/<name>.st` | the laws |
-| `st/generated/` | matiec's output, committed |
+| `generated/` | everything generated - the tables' C++, plant.st, the roster and matiec's output - committed |
 
 The three hand-kept counts (`LIBRARY_ROWS`, `PARAMS_COUNT`, `ROWS_COUNT`) stay
 hand-kept, and stay the sharpest edge in the site: each of them silently
