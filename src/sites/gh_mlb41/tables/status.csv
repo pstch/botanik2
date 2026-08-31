@@ -23,9 +23,6 @@ cli_windowDem        ,T_F32 ,0.25,2     ,    ,529,how far the cooling ladder wan
 cli_humidDem         ,T_F32 ,0   ,2     ,    ,521,"humidity demand, -1 dehumidify to +1 humidify",4 bands and a dead zone on cli_dpMargin_degC,
 cli_coldBankArm      ,T_BOOL,0   ,0     ,    ,522,cold banking armed for the coming dawn,yesterday ran hotter than cli_coldBankTrg_degC,
 cli_heatBankArm      ,T_BOOL,0   ,0     ,    ,523,heat banking armed for the coming dusk,last night ran colder than cli_heatBankTrg_degC,
-sol_fromRise_min     ,T_I16 ,0   ,0     ,min ,524,minutes since sunrise; negative before it,what the sol_ phase offsets are measured against,
-sol_fromSet_min      ,T_I16 ,0   ,0     ,min ,525,minutes since sunset; negative before it,invalid until the tracker has a location and a wall clock,
-sol_elev_deg         ,T_F32 ,0   ,1     ,deg ,593,the sun's elevation above the horizon,negative below it; what the day's shape is anticipated from,
 irr_inFlow_Lpm       ,T_F32 ,0   ,1     ,Lpm ,526,"inlet flow, differentiated from the counter","one pulse is irr_input_qtyPerImp litres, so the rate is a window average",
 irr_inTotal_L        ,T_F32 ,0   ,1     ,L   ,527,"inlet water counter, since it was last zeroed","retained: the value IS the history, and a reboot must not zero the meter",true
 irr_outTotal_L       ,T_F32 ,0   ,1     ,L   ,528,"outlet water counter, since it was last zeroed",integrated from irr_outFlow_Lpm; there is no outlet pulse train,true
@@ -111,7 +108,6 @@ cli_rh_hi_qlt        ,T_BOOL,0   ,0     ,    ,651,ceiling humidity believable   
 cli_rh_lo_qlt        ,T_BOOL,0   ,0     ,    ,652,floor humidity believable         ,"the zone's own verdict, written by temp_rh_sensors",
 cli_rh_cs_qlt        ,T_BOOL,0   ,0     ,    ,653,crawlspace humidity believable    ,"the zone's own verdict, written by temp_rh_sensors",
 cli_rh_ext_qlt       ,T_BOOL,0   ,0     ,    ,654,exterior humidity believable      ,"the zone's own verdict, written by temp_rh_sensors",
-sol_ready            ,T_BOOL,0   ,0     ,    ,656,the solar tracker has a location and a clock,"one row, not one per solar output: they all go together, and every boot passes through this until NTP lands",
 cli_dTStrat_degC_qlt ,T_BOOL,0   ,0     ,    ,655,stratification gap believable     ,strat_sensor's verdict: both levels measured,
 cli_rain_mmph_qlt    ,T_BOOL,0   ,0     ,    ,613,rain rate believable              ,"roof_lockout shuts the roof without it: the row declares 0, which reads as fine weather",
 cli_wind_mps_qlt     ,T_BOOL,0   ,0     ,    ,614,wind speed believable             ,"roof_lockout shuts the roof without it: the row declares 0, which reads as calm",

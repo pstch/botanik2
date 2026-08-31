@@ -38,10 +38,10 @@ namespace fixture {
  *  rows, then the actuators that read the demands. A case that registered them
  *  in another order would be testing a plant this one does not build.
  *
- *  Two are deliberately absent. sun_watch needs a fix and a wall clock, and
+ *  Two are deliberately absent. the SUN TRACKER needs a fix and a wall clock, and
  *  day_phase would then follow the hour the suite happens to run at - so the
- *  phase is an INPUT here, stated by the scenario, and the two programs that
- *  would otherwise own it have cases of their own.
+ *  phase is an INPUT here, stated by the scenario, and the program that
+ *  would otherwise own it has cases of its own.
  */
 struct Plant;
 inline void hold_weather(Plant& p);

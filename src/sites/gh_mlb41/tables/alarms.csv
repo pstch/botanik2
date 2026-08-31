@@ -22,7 +22,6 @@ alarm_sns_exterior     ,SNS_EXT  ,5   ,5    ,0       ,0     ,829,exterior T°/RH
 alarm_wx_station       ,WX_FLT   ,5   ,5    ,0       ,0     ,830,weather station not answering     ,check wiring or replace faulty sensor
 alarm_rot              ,ROT      ,5   ,5    ,0       ,0     ,831,dew-point margin low: rot risk    ,check emergency dehumidifying system
 alarm_irr_fill         ,FILL_FLT ,0   ,5    ,0       ,0     ,832,a tray would not fill in time     ,check irrigation circuit / replace faulty meter
-alarm_irr_drain        ,DRAIN_FLT,0   ,5    ,0       ,0     ,832,a tray would not drain in time    ,check irrigation circuit / replace faulty meter
 alarm_irr_fill_tray1   ,FILL1    ,0   ,5    ,0       ,0     ,833,tray 1 would not fill in time     ,check tray 1 and input circuit
 alarm_irr_fill_tray2   ,FILL2    ,0   ,5    ,0       ,0     ,834,tray 2 would not fill in time     ,check tray 2 and input circuit
 alarm_irr_fill_tray3   ,FILL3    ,0   ,5    ,0       ,0     ,835,tray 3 would not fill in time     ,check tray 3 and input circuit

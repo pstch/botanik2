@@ -161,6 +161,12 @@ namespace Botanik {
         // freeze() is what compacts a redeclared row out and settles the
         // indices a pair holds.
         _qmirror.wire();
+#if BOTANIK_FEATURE_SUN_TRACKER
+        // The tracker publishes its own rows, so a site gets the sun by turning
+        // the feature on rather than by writing a program to copy the
+        // instrument onto them. After freeze(), like every other resolve.
+        _sun.wire(_io);
+#endif
         // The bank holds the store: it is what reads and writes variables, and
         // Bank::on_setup() loads the image from it in the setup pass below.
         _io.set_store(&_param_store, &_logger);

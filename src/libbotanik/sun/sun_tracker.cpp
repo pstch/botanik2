@@ -166,18 +166,61 @@ namespace Botanik { namespace Sun {
                     Config::SUN_PERIOD_MS, Tasks::PHASE_SERVICE);
     }
 
-    void SunPositionTracker::on_service(uint64_t now_ms) {
-        if (!_located) return;
-        // wait for a real (NTP) time before the date-dependent solar math
-        if (HAL::Clock::wall_ms() < WALL_CLOCK_VALID_MS) return;
+    void SunPositionTracker::wire(Vars::Bank& io) {
+        _io          = &io;
+        _r_ready     = io.find("sol_ready");
+        _r_from_rise = io.find("sol_fromRise_min");
+        _r_from_set  = io.find("sol_fromSet_min");
+        _r_elev      = io.find("sol_elev_deg");
+    }
 
+    // Clamped to a day either side: the offsets are read against boundaries a
+    // few hours out, and a wall clock that jumped a year must not arrive as a
+    // plausible-looking number of minutes.
+    static int16_t _minutes(int64_t v) {
+        if (v < -1440) return -1440;
+        if (v >  1440) return  1440;
+        return (int16_t)v;
+    }
+
+    void SunPositionTracker::_publish() {
+        if (_io == nullptr) return;
+        // ONE row for the lot: a law downstream cannot ask the bank whether a
+        // solar output is believable, and they go together - the tracker has a
+        // location and a clock, or it has neither.
+        if (_r_ready.index != Vars::VAR_NONE) _io->var(_r_ready).set(_computed);
+        // Nothing computed yet: every boot passes through this for as long as
+        // NTP takes, and the offsets ARE the sun, so they hold rather than
+        // publishing a day nobody has placed.
+        if (!_computed) return;
+
+        // Signed minutes either side of the two events, the form every
+        // boundary in a phase table is declared in. Both belong to the same
+        // solar day, so one is always past and the other future.
+        const int64_t now = (int64_t)HAL::Clock::wall_ms();
+        if (_r_from_rise.index != Vars::VAR_NONE)
+            _io->var(_r_from_rise).set_i(_minutes((now - (int64_t)sunrise_ms()) / 60000));
+        if (_r_from_set.index != Vars::VAR_NONE)
+            _io->var(_r_from_set).set_i(_minutes((now - (int64_t)sunset_ms()) / 60000));
+        // Degrees, because that is what a person reads. The math is in radians.
+        if (_r_elev.index != Vars::VAR_NONE)
+            _io->var(_r_elev).set((float)(_pos.elevation * 57.2957795));
+    }
+
+    void SunPositionTracker::on_service(uint64_t now_ms) {
         // The elevation drifts slowly, so recompute only on cadence (or on the
         // first valid beat / after a geo change, both signalled by !_computed).
-        if (_computed && now_ms < _next_ms) return;
-
-        _pos      = solar_position(now_ms, (double)_geo.lat_deg, (double)_geo.lon_deg);
-        _computed = true;
-        _next_ms  = now_ms + Config::SUN_RECOMPUTE_MS;
+        // A real (NTP) wall clock first: the solar math is date-dependent.
+        if (_located && HAL::Clock::wall_ms() >= WALL_CLOCK_VALID_MS &&
+            (!_computed || now_ms >= _next_ms)) {
+            _pos      = solar_position(now_ms, (double)_geo.lat_deg,
+                                       (double)_geo.lon_deg);
+            _computed = true;
+            _next_ms  = now_ms + Config::SUN_RECOMPUTE_MS;
+        }
+        // ...but publish every tick regardless: the minute offsets are taken
+        // from the wall clock, which moves while the trig does not.
+        _publish();
     }
 
 }}

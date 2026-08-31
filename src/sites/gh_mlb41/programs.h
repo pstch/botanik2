@@ -21,8 +21,9 @@
 //   wx_sensors       cli_wind_mps          -> roof_lockout, weather_watch
 //   wx_sensors       cli_windGust_mps      -> roof_lockout
 //   wx_sensors       cli_rain_mmph         -> roof_lockout, weather_watch
-//   sun_watch        sol_fromRise_min      -> day_phase, irr_schedule
-//   sun_watch        sol_fromSet_min       -> day_phase
+//   (the SUN TRACKER publishes sol_* itself - library rows, no program)
+//   sol_fromRise_min                       -> day_phase, irr_schedule
+//   sol_fromSet_min                        -> day_phase
 //   temp_rh_sensors  cli_temp_hi           -> climate_watch, cooling, humidity, strat, temp_rh_zone
 //   temp_rh_sensors  cli_rh_hi             -> humidity, temp_rh_zone
 //   temp_rh_sensors  cli_temp_lo           -> cooling, strat, temp_rh_zone
@@ -80,7 +81,6 @@
 #include "programs/sense/ac_grid_watch/ac_grid_watch.h"
 #include "programs/sense/ac_local_watch/ac_local_watch.h"
 #include "programs/sense/dc_watch/dc_watch.h"
-#include "programs/sense/sun_watch/sun_watch.h"
 #include "programs/sense/wx_sensors/wx_sensors.h"
 #include "programs/climate/cooling_controller/cooling_controller.h"
 #include "programs/irrigation/irrigation_modulation/irrigation_modulation.h"
@@ -102,7 +102,6 @@
     X(AcGridWatch,          _ac_grid_watch)   \
     X(AcLocalWatch,         _ac_local_watch)  \
     X(DcWatch,              _dc_watch)        \
-    X(SunWatch,             _sun_watch)       \
     X(WxSensors,            _wx_sensors)     \
     X(CoolingController,    _cooling)         \
     X(IrrigationModulation, _irr_modulation)  \

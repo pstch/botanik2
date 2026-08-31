@@ -61,7 +61,7 @@ extern const Descriptor params[];
 const uint16_t PARAMS_COUNT = 179;
 
 extern const Descriptor rows[];
-const uint16_t ROWS_COUNT = 307;
+const uint16_t ROWS_COUNT = 303;
 
 extern const Botanik::PulseInput pulse_inputs[];
 const uint8_t pulse_input_count = 1;

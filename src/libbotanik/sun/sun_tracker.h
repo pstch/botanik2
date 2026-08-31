@@ -14,6 +14,7 @@
 
 #include "libbotanik/core/component.h"
 #include "libbotanik/tasks/tasks.h"
+#include "libbotanik/vars/model.h"
 
 #if BOTANIK_FEATURE_SUN_TRACKER
 
@@ -125,11 +126,26 @@ namespace Botanik { namespace Sun {
          *  and nothing in the beat waits on it. */
         void register_tasks() override;
 
+        /** @brief Resolve the four rows this publishes. After freeze(), like
+         *  every other bring-up resolve; unwired, the tracker still computes
+         *  and simply says nothing. */
+        void wire(Vars::Bank& io);
+
     protected:
         /** @brief Recompute the solar position after a delay has elapsed. */
         void on_service(uint64_t now_ms) override;
 
     private:
+        /** @brief Put the position on its rows. Every service tick, not every
+         *  recompute: the minute offsets move with the WALL CLOCK while the
+         *  trig behind them is an hour's worth of unchanged. */
+        void _publish();
+
+        Vars::Bank*  _io = nullptr;
+        Vars::VarRef _r_ready;
+        Vars::VarRef _r_from_rise;
+        Vars::VarRef _r_from_set;
+        Vars::VarRef _r_elev;
     };
 
     /** @} */
