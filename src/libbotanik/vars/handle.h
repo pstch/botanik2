@@ -171,6 +171,9 @@ namespace Botanik { namespace Vars {
 
         /** @brief This parameter has been edited but not saved. */
         bool param_unsaved() const { return (_v->vflags & VF_PARAM_UNSAVED) != 0; }
+        /** @brief A PROGRAM's write, waiting on the retain cadence rather than
+         *  on an operator. @see Bank::param_owe() */
+        bool param_owed() const { return (_v->vflags & VF_PARAM_OWED) != 0; }
         /** @brief This override is in force but not saved. */
         bool override_unsaved() const { return (_v->vflags & VF_OVR_UNSAVED) != 0; }
 

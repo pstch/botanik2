@@ -404,3 +404,95 @@ TEST_CASE("site: every numeric row's default sits inside its own band") {
 }
 
 }  // namespace site_names
+
+namespace site_params {
+
+using namespace Botanik;
+
+/** @brief A store that counts writes and nothing else. What a wear question
+ *  needs: the interesting number is how many times flash was asked, not what
+ *  landed in it. */
+struct CountingStore final : public Vars::VarStore {
+    uint16_t writes = 0;
+    bool load(const Vars::Descriptor&, Vars::Slot&, char*, uint16_t) override { return false; }
+    bool save(const Vars::Descriptor&, const Vars::Slot&, const char*, uint16_t) override {
+        writes++; return true;
+    }
+    bool load_override(const Vars::Descriptor&, Vars::Slot&) override { return false; }
+    bool save_override(const Vars::Descriptor&, const Vars::Slot&) override { return true; }
+    bool clear_override(const Vars::Descriptor&) override { return true; }
+    bool clear(const Vars::Descriptor&) override { return true; }
+    bool load_retained(const Vars::Descriptor&, Vars::Slot&) override { return false; }
+    bool save_retained(const Vars::Descriptor&, const Vars::Slot&) override { return true; }
+};
+
+TEST_CASE("params: restating a value owes the store nothing") {
+    Vars::Bank bank;
+    TestSite::build(bank);
+    CountingStore store;
+    bank.set_store(&store);
+
+    const Vars::VarRef r = bank.find("irr_soak_sec");
+    REQUIRE(r.index != Vars::VAR_NONE);
+    REQUIRE(bank.param_set(bank.var(r), "5") == Vars::SET_OK);
+    CHECK(bank.var(r).param_unsaved());
+    REQUIRE(bank.save_params() == 1);
+    const uint16_t after_first = store.writes;
+    CHECK(after_first == 1);
+
+    INFO("the same value again is not a write: a Modbus master re-asserting a "
+         "setpoint block every poll would otherwise erase flash every poll");
+    REQUIRE(bank.param_set(bank.var(r), "5") == Vars::SET_OK);
+    CHECK_FALSE(bank.var(r).param_unsaved());
+    CHECK(bank.save_params() == 0);
+    CHECK(store.writes == after_first);
+
+    INFO("...and a value that really moved still is");
+    REQUIRE(bank.param_set(bank.var(r), "6") == Vars::SET_OK);
+    CHECK(bank.var(r).param_unsaved());
+    CHECK(bank.save_params() == 1);
+    CHECK(store.writes == (uint16_t)(after_first + 1));
+}
+
+TEST_CASE("params: a program's write waits on the cadence, an operator's on the operator") {
+    Vars::Bank bank;
+    TestSite::build(bank);
+    CountingStore store;
+    bank.set_store(&store);
+
+    // The program's: a watering date, through the parameter path a law uses.
+    const Vars::VarRef date = bank.find("irr_last_tray1");
+    REQUIRE(date.index != Vars::VAR_NONE);
+    Vars::RefInOut<uint32_t> stamp = bank.resolve_inout<uint32_t>("irr_last_tray1");
+    REQUIRE(stamp.edit(20000u));
+    INFO("OWED, not unsaved: the params page counts what a PERSON typed, and a "
+         "watering date is not that");
+    CHECK(bank.var(date).param_owed());
+    CHECK_FALSE(bank.var(date).param_unsaved());
+    CHECK(bank.owed_count() == 1);
+    CHECK(bank.unsaved_count() == 0);
+
+    INFO("and it did not reach flash on the way past: an erase inside a scan "
+         "is a stall, and repeated it is a dead part");
+    CHECK(store.writes == 0);
+
+    // The operator's: an ordinary setting, typed.
+    const Vars::VarRef setting = bank.find("irr_soak_sec");
+    REQUIRE(setting.index != Vars::VAR_NONE);
+    REQUIRE(bank.param_set(bank.var(setting), "5") == Vars::SET_OK);
+    CHECK(bank.var(setting).param_unsaved());
+
+    INFO("the cadence takes the program's and leaves the operator's: a setting "
+         "that breaks its own console has to stay recoverable by rebooting");
+    CHECK(bank.save_owed_params() == 1);
+    CHECK(store.writes == 1);
+    CHECK_FALSE(bank.var(date).param_owed());
+    CHECK(bank.var(setting).param_unsaved());
+
+    INFO("...and `params save` is the operator saying so, which takes both");
+    CHECK(bank.save_params() == 1);
+    CHECK(store.writes == 2);
+    CHECK_FALSE(bank.var(setting).param_unsaved());
+}
+
+}  // namespace site_params

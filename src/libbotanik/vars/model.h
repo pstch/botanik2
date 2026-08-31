@@ -461,14 +461,30 @@ namespace Botanik { namespace Vars {
          *  @return SET_OK, and untouched, when nothing was outstanding. */
         SetResult param_clear(Var h);
 
-        /** @brief Commit every parameter still marked unsaved.
+        /** @brief Commit every parameter still outstanding, owed either way.
          *  @return how many were written; @p refused, when given, takes the
          *  count the store rejected. */
         uint16_t save_params(uint16_t* refused = nullptr);
 
+        /** @brief Reclassify @p h's outstanding write as a PROGRAM's, owed to
+         *  the retain cadence rather than to the operator. A write that changed
+         *  nothing is left alone, so restating a value costs no erase.
+         *  @see VF_PARAM_OWED */
+        SetResult param_owe(Var h);
+
+        /** @brief Commit the parameters a PROGRAM owes, leaving an operator's
+         *  unsaved edits alone. What the retain cadence calls.
+         *  @return how many were written. */
+        uint16_t save_owed_params(uint16_t* refused = nullptr);
+
         /** @brief Parameters edited but not yet saved - what `params save` with
          *  no name would write, and what a display marks. */
         uint16_t unsaved_count() const;
+
+        /** @brief Parameters a program has written and the cadence has not yet
+         *  committed. Not counted by unsaved_count(): the params page marks
+         *  what a PERSON typed, and a watering date is not that. */
+        uint16_t owed_count() const;
 
         /** @brief Overrides in force but not yet saved. Separate from
          *  unsaved_count(): different facts, different keys. */
@@ -690,8 +706,21 @@ namespace Botanik { namespace Vars {
     inline bool Ref<T, D>::edit(T v) const {
         static_assert(D == Dir::INOUT, "only a VAR_IN_OUT row is edited");
         if (RefIo<T>::edit(*io, r, v) != SET_OK) return false;
-        io->param_save(io->var(r));
+        // OWED, not written through. A law stamps a watering date inside a
+        // scan, and an erase there is both a stall and, repeated, a dead part.
+        // The retain cadence is what carries it to the store.
+        io->param_owe(io->var(r));
         return true;
+    }
+
+    template <typename T, Dir D>
+    inline void Ref<T, D>::drive(T v) const {
+        // ST has ONE write macro, so the ROW is what decides which write it
+        // means: a parameter is state the plant has to keep, anything else is
+        // this scan's answer.
+        if (io->descriptor(r.index).role != ROLE_PARAM) { set(v, true); return; }
+        if (RefIo<T>::edit(*io, r, v) != SET_OK) return;
+        io->param_owe(io->var(r));
     }
 
     template <typename T, Dir D>

@@ -83,8 +83,12 @@
  * Reads and writes go through the reference, exactly as a C++ law writes
  * them - which is the point: the generated body is our own spelling. */
 #define __GET_EXTERNAL(name, ...)   (name).get()
+/* drive(), not set(): a PARAMETER an ST program writes is state the plant has
+ * to keep - a watering date, a spent one-shot force - and set() would leave the
+ * store owing it. There is no second macro to choose with, so the ROW decides.
+ * @see Vars::Ref::drive() */
 #define __SET_EXTERNAL(prefix, name, suffix, new_value) \
-    (prefix name).set((new_value), true)
+    (prefix name).drive((new_value))
 
 /** @} */
 

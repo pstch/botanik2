@@ -371,11 +371,28 @@ void Bank::_find_param_block() {
         const Descriptor* d = h.meta();
         Slot* slot = _editable_slot(d);
         if (slot == nullptr) return SET_INVALID;
+        // A write of the value already in force owes the store NOTHING. A
+        // Modbus master re-asserting its setpoint block every poll and an ST
+        // program restating its whole output every scan are both normal, and
+        // either would be a flash erase per write without this.
+        if (slot->v.u == v.u && slot->qual == Q_GOOD) return SET_OK;
         slot->v     = v;
         slot->qual  = Q_GOOD;
         // Live now, durable when somebody saves. See the header: it is the one
         // rule that makes a setting able to break its own console recoverable.
         slot->vflags = (uint8_t)(slot->vflags | VF_PARAM_UNSAVED);
+        return SET_OK;
+    }
+
+    SetResult Bank::param_owe(Var h) {
+        Slot* slot = _editable_slot(h.meta());
+        if (slot == nullptr) return SET_INVALID;
+        // Only a write that CHANGED something is owed: set_deferred() leaves an
+        // unchanged row unmarked, and re-owing it would be an erase for a value
+        // the store already holds.
+        if ((slot->vflags & VF_PARAM_UNSAVED) == 0) return SET_OK;
+        slot->vflags = (uint8_t)((slot->vflags & ~VF_PARAM_UNSAVED)
+                                 | VF_PARAM_OWED);
         return SET_OK;
     }
 
@@ -432,14 +449,32 @@ void Bank::_find_param_block() {
         const SetResult r = _persist_param(h, *d, *slot);
         // Only a write that landed clears the mark: a refused row stays owed,
         // so the next `params save` tries it again.
-        if (r == SET_OK) slot->vflags = (uint8_t)(slot->vflags & ~VF_PARAM_UNSAVED);
+        if (r == SET_OK)
+            slot->vflags = (uint8_t)(slot->vflags
+                                     & ~(VF_PARAM_UNSAVED | VF_PARAM_OWED));
         return r;
     }
 
     uint16_t Bank::save_params(uint16_t* refused) {
         uint16_t saved = 0, bad = 0;
         for (uint16_t i = 0; i < _count; i++) {
-            if ((_slots[i].vflags & VF_PARAM_UNSAVED) == 0) continue;
+            // BOTH marks: `params save` is an operator asking for everything
+            // outstanding to land, and a law's write is outstanding too.
+            if ((_slots[i].vflags & (VF_PARAM_UNSAVED | VF_PARAM_OWED)) == 0)
+                continue;
+            if (param_save(var(i)) == SET_OK) saved++; else bad++;
+        }
+        if (refused != nullptr) *refused = bad;
+        return saved;
+    }
+
+    uint16_t Bank::save_owed_params(uint16_t* refused) {
+        uint16_t saved = 0, bad = 0;
+        for (uint16_t i = 0; i < _count; i++) {
+            // OWED only. An operator's unsaved edit is theirs to commit: the
+            // cadence committing it would take away the one thing that makes a
+            // setting able to break its own console recoverable by rebooting.
+            if ((_slots[i].vflags & VF_PARAM_OWED) == 0) continue;
             if (param_save(var(i)) == SET_OK) saved++; else bad++;
         }
         if (refused != nullptr) *refused = bad;
@@ -450,6 +485,13 @@ void Bank::_find_param_block() {
         uint16_t n = 0;
         for (uint16_t i = 0; i < _count; i++)
             if ((_slots[i].vflags & VF_PARAM_UNSAVED) != 0) n++;
+        return n;
+    }
+
+    uint16_t Bank::owed_count() const {
+        uint16_t n = 0;
+        for (uint16_t i = 0; i < _count; i++)
+            if ((_slots[i].vflags & VF_PARAM_OWED) != 0) n++;
         return n;
     }
 
@@ -465,11 +507,14 @@ void Bank::_find_param_block() {
             char* dst = this->text(h, &cap);
             if (dst == nullptr) return SET_INVALID;
             if (!validate_str(text_slot(*d).kind, text, cap)) return SET_INVALID;
+            // Unchanged text owes the store nothing either. @see set_deferred()
+            if (slot.qual == Q_GOOD && std::strcmp(dst, text) == 0) return SET_OK;
             copy_bounded(dst, cap, text);
             slot.qual = Q_GOOD;
         } else {
             Scalar parsed;
             if (parse_for(*d, text, /*bounded=*/true, &parsed) != SET_OK) return SET_INVALID;
+            if (slot.v.u == parsed.u && slot.qual == Q_GOOD) return SET_OK;
             slot.v    = parsed;
             slot.qual = Q_GOOD;
         }

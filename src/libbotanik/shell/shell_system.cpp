@@ -48,8 +48,10 @@ namespace Botanik { namespace Shell {
 #if BOTANIK_FEATURE_VARS
         if (Vars::Bank* io = _bank()) {
             // A deliberate stop loses no counting: the retain cadence bounds
-            // what a power cut costs, a planned stop should cost nothing.
+            // what a power cut costs, a planned stop should cost nothing. The
+            // parameters a PROGRAM owes ride with them, for the same reason.
             (void)io->save_retained();
+            (void)io->save_owed_params();
         }
 #endif
         // Wipe the screen (flushed straight to the wire) before leaving: the

@@ -430,6 +430,11 @@ namespace Botanik { namespace Vars {
         if (_last_retain_ms != 0 && (now_ms - _last_retain_ms) < every) return;
         _last_retain_ms = now_ms;
         (void)save_retained();
+        // The parameters a PROGRAM owes ride the same dial: a watering date and
+        // a litre count are the same kind of fact, and neither is worth an
+        // erase per beat. An operator's unsaved edit is NOT swept - that one
+        // stays theirs to confirm.
+        (void)save_owed_params();
     }
 
 

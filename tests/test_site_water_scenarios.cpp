@@ -149,7 +149,7 @@ TEST_CASE("scenario: the two forces an operator has, and what spends them") {
         "rest of the schedule");
     REQUIRE(run_until(p, cycle_draining, 6000) != 0);
     CHECK_FALSE(p.on("irr_forceOn_tray5"));
-    CHECK(p.f.bank.var(p.ref("irr_forceOn_tray5")).param_unsaved());
+    CHECK(p.f.bank.var(p.ref("irr_forceOn_tray5")).param_owed());
 
     SAY("...so the day's second cycle goes back to the schedule, which has "
         "been asking for tray 1 all along");

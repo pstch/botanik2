@@ -125,7 +125,7 @@ TEST_CASE_FIXTURE(IrrigationRig, "irrigation: a force is spent on the watering i
     CHECK_FALSE(live.bank.var(live.ref("irr_forceOn_tray2")).as_bool());
 
     INFO("...and it is owed to flash, like every other schedule edit");
-    CHECK(live.bank.var(live.ref("irr_forceOn_tray2")).param_unsaved());
+    CHECK(live.bank.var(live.ref("irr_forceOn_tray2")).param_owed());
 }
 
 TEST_CASE_FIXTURE(IrrigationRig, "irrigation: a skip is spent too, and sends the tray to the back") {
@@ -145,7 +145,7 @@ TEST_CASE_FIXTURE(IrrigationRig, "irrigation: a skip is spent too, and sends the
          "period rather than arriving again tomorrow with the flag gone");
     CHECK_FALSE(live.bank.var(live.ref("irr_forceOff_tray1")).as_bool());
     CHECK(live.bank.var(live.ref("irr_last_tray1")).as_i64() > 0);
-    CHECK(live.bank.var(live.ref("irr_last_tray1")).param_unsaved());
+    CHECK(live.bank.var(live.ref("irr_last_tray1")).param_owed());
 }
 
 TEST_CASE_FIXTURE(IrrigationRig, "irrigation: the tray sits full for its soak before either end opens") {
@@ -379,7 +379,7 @@ TEST_CASE_FIXTURE(IrrigationRig, "irrigation: `water now` is spent on the cycle 
     d.step(t += 1000);
     REQUIRE(live.bank.var(live.ref("irr_state")).as_i64() == Site::IRR_DRAINING);
     CHECK_FALSE(live.bank.var(live.ref("irr_forceNow")).as_bool());
-    CHECK(live.bank.var(live.ref("irr_forceNow")).param_unsaved());
+    CHECK(live.bank.var(live.ref("irr_forceNow")).param_owed());
 }
 
 TEST_CASE_FIXTURE(IrrigationRig, "irrigation: the afternoon is not a watering slot") {
@@ -514,11 +514,14 @@ TEST_CASE_FIXTURE(IrrigationRig, "irrigation: the cycle fills to its dose, then 
     const uint32_t stamped = (uint32_t)live.bank.var(live.ref("irr_last_tray1")).as_i64();
     CHECK(stamped > 0);
     // The bank under test has no store bound, so the write stays marked and a
-    // later save retries it. That mark is the whole point: drive() would have
-    // written the value and left NOTHING owed to flash, so the schedule would
-    // restart from nothing at the next boot.
+    // later save retries it. That mark is the whole point: a plain set() would
+    // have written the value and left NOTHING owed to flash, so the schedule
+    // would restart from nothing at the next boot.
     INFO("it went through the parameter path, so flash is owed the new value");
-    CHECK(live.bank.var(live.ref("irr_last_tray1")).param_unsaved());
+    CHECK(live.bank.var(live.ref("irr_last_tray1")).param_owed());
+    INFO("...and it is the PROGRAM that owes it: the params page counts what a "
+         "person typed, and a watering date is not that");
+    CHECK_FALSE(live.bank.var(live.ref("irr_last_tray1")).param_unsaved());
 
     const uint32_t window = (uint32_t)live.bank.var(live.ref("irr_drainWindow_sec")).as_i64();
     for (uint32_t i = 0; i <= window + 2; i++) d.step(t += 1000);

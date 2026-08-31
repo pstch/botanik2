@@ -40,18 +40,23 @@ decides what may move when. Read both before picking the next program.
 | `IrrigationModulation` | `Ton` | `.invalidate()`, `powf` |
 | `IrrMtrInput` | `Derivative`, `Ton` | **`HAL::Pulse::sample()`** |
 | `IrrMtrOutput` | `Deadband`, `Ewma`, `Integral` | `.held()`, `.hold()` |
-| `IrrigationSchedule` | none | **`HAL::Clock::wall_ms()`**, **`.edit()`**, `.hold()` |
-| `IrrigationCycle` | `Ton` | **`.edit()`**, `.held()` |
+| `IrrigationSchedule` | none | **`HAL::Clock::wall_ms()`**, `.hold()` |
+| `IrrigationCycle` | `Ton` | `.held()` |
 | `SunWatch` | none | **`_sun->*`**, **`wall_ms()`** |
 
 ### The five missing mechanisms
 
-1. **`.edit()` - a retained parameter.** `irr_last_tray1..8` are
-   `retained=true`, and `Ref::edit()` exists because "`set()` writes the value
-   and leaves flash owing nothing". `__SET_EXTERNAL` is `Ref::set(v, true)`.
-   Porting the schedule or the cycle today makes the plant FORGET every tray's
-   watering date on reboot. Needs an accessor path, or a row flag saying a
-   drive to this row is an edit.
+1. ~~**`.edit()` - a retained parameter.**~~ **SOLVED.** `__SET_EXTERNAL` is
+   `Ref::drive()` now: an ordinary row takes `set()`, a `ROLE_PARAM` row takes
+   an EDIT owed to the retain cadence. Three parts, and each stands alone:
+   `set_deferred()` ignores a write of the value already in force, so
+   restating one every scan costs no erase; `VF_PARAM_OWED` separates a
+   program's durable write from an operator's unsaved edit, so the params page
+   still counts only what a person typed and the cadence never commits a
+   setting nobody confirmed; and `Bank::on_config()` sweeps the owed ones on
+   the `sys_retain_sec` dial beside `save_retained()`, with both exits
+   (`HealthMonitor`, `shell reset`) writing them out. `Ref::edit()` defers the
+   same way, so the C++ laws stopped erasing flash inside a scan too.
 2. **The wall clock.** `HAL::Clock::wall_ms()`, for the UNIX day the schedule
    counts against. Wants a row, the shape `sys_now_ms` already has.
 3. **Pulse counts.** `HAL::Pulse::sample()`. The firmware attaches the

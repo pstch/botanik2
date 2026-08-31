@@ -101,6 +101,12 @@ namespace Botanik { namespace Health {
         if (_stop != Stop::NONE && !_stopped) {
             _stopped = true;
             (void)io->save_retained();
+            // ...and the parameters a PROGRAM owes, which are the same kind of
+            // fact and reach the store the same way: a watering date stamped
+            // since the last cadence would otherwise be lost by the one exit
+            // that is supposed to lose nothing. NOT the operator's unsaved
+            // edits - those stay theirs to confirm.
+            (void)io->save_owed_params();
             if (_logger) _logger->warning(Logs::HEALTH, "%s: retained saved",
                 _stop == Stop::REBOOT ? "reboot" : "halt");
         }

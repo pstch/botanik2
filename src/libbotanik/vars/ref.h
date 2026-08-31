@@ -92,13 +92,20 @@ namespace Botanik { namespace Vars {
          *  Ask valid() and say so; do not reach for this to dodge the cascade. */
         T held() const;
 
-        /** @brief EDIT a parameter row: checked against its band, marked
-         *  unsaved, and written to storage. What a program uses for the state
-         *  it has to keep - a watering date, a spent one-shot force - where
-         *  set() writes the value and leaves flash owing nothing.
+        /** @brief EDIT a parameter row: checked against its band and OWED to
+         *  the retain cadence, which carries it to storage. What a program uses
+         *  for the state it has to keep - a watering date, a spent one-shot
+         *  force - where set() writes the value and leaves flash owing nothing.
          *  @return false if the band refused it. VAR_IN_OUT only: an edit is a
          *  read-modify-write of a row somebody else also writes. */
         bool edit(T v) const;
+
+        /** @brief Write it, whatever kind of row it turns out to be: set() on
+         *  an ordinary row, an EDIT owed to the retain cadence on a parameter.
+         *  For a writer with no way to say which it meant - ST has one
+         *  assignment and no second argument. A value already in force writes
+         *  nothing, so restating one every scan costs no storage. */
+        void drive(T v) const;
         /** @brief Say the value is not knowable AND that there is nothing
          *  behind it: the row falls back to its declared default. For a row
          *  that has never had a value at all. VAR_INPUT does not compile. */

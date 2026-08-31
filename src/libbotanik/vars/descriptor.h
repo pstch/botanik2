@@ -140,6 +140,13 @@ namespace Botanik { namespace Vars {
          *  Latched, so the count is of ROWS with two authors rather than of
          *  per-beat collisions. @see Bank::claim_writer() */
         VF_TWO_WRITERS = 1u << 1,
+        /** @brief A PROGRAM's durable write to a parameter, waiting on the
+         *  retain cadence rather than on an operator. Distinct from
+         *  VF_PARAM_UNSAVED so that the two survive each other: a law stamping
+         *  a watering date must not read as an unsaved SETTING on the params
+         *  page, and the cadence must not commit a setting the operator has
+         *  not confirmed. @see Bank::param_owe() */
+        VF_PARAM_OWED    = 1u << 2,
         /** @brief This parameter's edit is live but not durable. What lets a
          *  display mark the row, and a bare `params save` find every row still
          *  owed a write. Cleared by save(), and by a load that overwrites the
