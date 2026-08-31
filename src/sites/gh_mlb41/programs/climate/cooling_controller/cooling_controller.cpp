@@ -12,11 +12,13 @@ void CoolingController::run(ProgramContext& c) {
 
     const bool measured = inside_qlt.get();
     if (!measured) {
-        // No interior temperature at all, so the ladder runs on the row's
-        // DECLARED one. It still produces a demand and still publishes it -
-        // every actuator wants a number to fall back from - and the quality is
-        // what says the number is not about this greenhouse. The intake gates
-        // read cli_coolDem_qlt to know this law stopped having an opinion.
+        // Nobody is measuring the interior, so the ladder runs on the reading
+        // the house last had: temp_rh_zone is ST and writes the row every
+        // scan, so it holds a number rather than going invalid. It still
+        // produces a demand and still publishes it - every actuator wants a
+        // number to fall back from - and the quality is what says the number
+        // is not about this greenhouse. The intake gates read cli_coolDem_qlt
+        // to know this law stopped having an opinion.
         // The integral is a claim about a plant we stopped seeing, and an error
         // computed against a substituted reading is not an error this house
         // ever had. Reset while it lasts, so nothing winds up on a number

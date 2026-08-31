@@ -22,6 +22,10 @@ static REAL ___LN(
   BOOL EN, 
   BOOL *__ENO, 
   REAL IN);
+static REAL ___EXP(
+  BOOL EN, 
+  BOOL *__ENO, 
+  REAL IN);
 static REAL ___UDINT_TO_REAL(
   BOOL EN, 
   BOOL *__ENO, 
@@ -62,6 +66,10 @@ static REAL ___DEW_POINT_MARGIN(
   BOOL *__ENO, 
   REAL T_DEGC, 
   REAL RH);
+static REAL ___SAT_VAPOUR_PRESSURE(
+  BOOL EN, 
+  BOOL *__ENO, 
+  REAL T_DEGC);
 static void BAND_LATCH_init__(BAND_LATCH_data__ *data__, BOOL retain);
 static void BAND_LATCH_body__(BAND_LATCH_data__ *data__);
 static void STAIRCASE3_init__(STAIRCASE3_data__ *data__, BOOL retain);
@@ -100,6 +108,8 @@ static void STRAT_SENSOR_init__(STRAT_SENSOR_data__ *data__, BOOL retain);
 static void STRAT_SENSOR_body__(STRAT_SENSOR_data__ *data__);
 static void TEMP_RH_SENSORS_init__(TEMP_RH_SENSORS_data__ *data__, BOOL retain);
 static void TEMP_RH_SENSORS_body__(TEMP_RH_SENSORS_data__ *data__);
+static void TEMP_RH_ZONE_init__(TEMP_RH_ZONE_data__ *data__, BOOL retain);
+static void TEMP_RH_ZONE_body__(TEMP_RH_ZONE_data__ *data__);
 static void WEATHER_WATCH_init__(WEATHER_WATCH_data__ *data__, BOOL retain);
 static void WEATHER_WATCH_body__(WEATHER_WATCH_data__ *data__);
 
@@ -266,6 +276,42 @@ __end:
     *__ENO = ENO;
   }
   return LN;
+}
+
+
+static REAL ___EXP(
+  BOOL EN, 
+  BOOL *__ENO, 
+  REAL IN)
+{
+  BOOL ENO = __BOOL_LITERAL(TRUE);
+  REAL EXP = 0;
+
+  // Control execution
+  if (!EN) {
+    if (__ENO != NULL) {
+      *__ENO = __BOOL_LITERAL(FALSE);
+    }
+    return EXP;
+  }
+  __IL_DEFVAR_T __IL_DEFVAR;
+(void)__IL_DEFVAR;
+  __IL_DEFVAR_T __IL_DEFVAR_BACK;
+(void)__IL_DEFVAR_BACK;
+  #define GetFbVar(var,...) __GET_VAR(data__->var,__VA_ARGS__)
+  #define SetFbVar(var,val,...) __SET_VAR(data__->,var,__VA_ARGS__,val)
+ EXP = expf(IN); 
+  #undef GetFbVar
+  #undef SetFbVar
+;
+
+  goto __end;
+
+__end:
+  if (__ENO != NULL) {
+    *__ENO = ENO;
+  }
+  return EXP;
 }
 
 
@@ -569,6 +615,36 @@ __end:
     *__ENO = ENO;
   }
   return DEW_POINT_MARGIN;
+}
+
+
+static REAL ___SAT_VAPOUR_PRESSURE(
+  BOOL EN, 
+  BOOL *__ENO, 
+  REAL T_DEGC)
+{
+  BOOL ENO = __BOOL_LITERAL(TRUE);
+  REAL SAT_VAPOUR_PRESSURE = 0;
+
+  // Control execution
+  if (!EN) {
+    if (__ENO != NULL) {
+      *__ENO = __BOOL_LITERAL(FALSE);
+    }
+    return SAT_VAPOUR_PRESSURE;
+  }
+  SAT_VAPOUR_PRESSURE = (__REAL_LITERAL(0.6108) * ___EXP(
+    (BOOL)__BOOL_LITERAL(TRUE),
+    NULL,
+    (REAL)((__REAL_LITERAL(17.27) * T_DEGC) / (T_DEGC + __REAL_LITERAL(237.3)))));
+
+  goto __end;
+
+__end:
+  if (__ENO != NULL) {
+    *__ENO = ENO;
+  }
+  return SAT_VAPOUR_PRESSURE;
 }
 
 
@@ -1850,6 +1926,118 @@ static void TEMP_RH_SENSORS_body__(TEMP_RH_SENSORS_data__ *data__) {
 __end:
   return;
 } // TEMP_RH_SENSORS_body__() 
+
+
+
+
+
+static void TEMP_RH_ZONE_init__(TEMP_RH_ZONE_data__ *data__, BOOL retain) {
+  __INIT_EXTERNAL(REAL,CLI_TEMP_HI,data__->CLI_TEMP_HI,retain)
+  __INIT_EXTERNAL(REAL,CLI_RH_HI,data__->CLI_RH_HI,retain)
+  __INIT_EXTERNAL(REAL,CLI_TEMP_LO,data__->CLI_TEMP_LO,retain)
+  __INIT_EXTERNAL(REAL,CLI_RH_LO,data__->CLI_RH_LO,retain)
+  __INIT_EXTERNAL(BOOL,CLI_TEMP_HI_QLT,data__->CLI_TEMP_HI_QLT,retain)
+  __INIT_EXTERNAL(BOOL,CLI_TEMP_LO_QLT,data__->CLI_TEMP_LO_QLT,retain)
+  __INIT_EXTERNAL(REAL,CLI_ROTMARGIN_DEGC,data__->CLI_ROTMARGIN_DEGC,retain)
+  __INIT_EXTERNAL(REAL,CLI_TEMP_IN,data__->CLI_TEMP_IN,retain)
+  __INIT_EXTERNAL(BOOL,CLI_TEMP_IN_QLT,data__->CLI_TEMP_IN_QLT,retain)
+  __INIT_EXTERNAL(REAL,CLI_DEWPOINT_DEGC,data__->CLI_DEWPOINT_DEGC,retain)
+  __INIT_EXTERNAL(REAL,CLI_DPMARGIN_DEGC,data__->CLI_DPMARGIN_DEGC,retain)
+  __INIT_EXTERNAL(BOOL,CLI_DPMARGIN_DEGC_QLT,data__->CLI_DPMARGIN_DEGC_QLT,retain)
+  __INIT_EXTERNAL(REAL,CLI_SATPRESS_KPA,data__->CLI_SATPRESS_KPA,retain)
+  __INIT_EXTERNAL(REAL,CLI_VPD_KPA,data__->CLI_VPD_KPA,retain)
+  __INIT_EXTERNAL(BOOL,ALARM_ROT,data__->ALARM_ROT,retain)
+}
+
+// Code part
+static void TEMP_RH_ZONE_body__(TEMP_RH_ZONE_data__ *data__) {
+  // Initialise TEMP variables
+  __SET_VAR(data__->,DP_HI,,0);
+  __SET_VAR(data__->,DP_LO,,0);
+  __SET_VAR(data__->,M_HI,,0);
+  __SET_VAR(data__->,M_LO,,0);
+  __SET_VAR(data__->,VPD_HI,,0);
+  __SET_VAR(data__->,VPD_LO,,0);
+  __SET_VAR(data__->,HI_WORST,,__BOOL_LITERAL(FALSE));
+  __SET_VAR(data__->,T_WORST,,0);
+  __SET_VAR(data__->,SEEN,,__BOOL_LITERAL(FALSE));
+
+  __SET_VAR(data__->,SEEN,,(__GET_EXTERNAL(data__->CLI_TEMP_HI_QLT,) || __GET_EXTERNAL(data__->CLI_TEMP_LO_QLT,)));
+  if ((__GET_EXTERNAL(data__->CLI_TEMP_HI_QLT,) && !(__GET_EXTERNAL(data__->CLI_TEMP_LO_QLT,)))) {
+    __SET_EXTERNAL(data__->,CLI_TEMP_IN,,__GET_EXTERNAL(data__->CLI_TEMP_HI,));
+  } else if ((__GET_EXTERNAL(data__->CLI_TEMP_LO_QLT,) && !(__GET_EXTERNAL(data__->CLI_TEMP_HI_QLT,)))) {
+    __SET_EXTERNAL(data__->,CLI_TEMP_IN,,__GET_EXTERNAL(data__->CLI_TEMP_LO,));
+  } else {
+    __SET_EXTERNAL(data__->,CLI_TEMP_IN,,___MAX(
+      (BOOL)__BOOL_LITERAL(TRUE),
+      NULL,
+      (REAL)__GET_EXTERNAL(data__->CLI_TEMP_HI,),
+      (REAL)__GET_EXTERNAL(data__->CLI_TEMP_LO,)));
+  };
+  __SET_EXTERNAL(data__->,CLI_TEMP_IN_QLT,,__GET_VAR(data__->SEEN,));
+  __SET_VAR(data__->,DP_HI,,___DEW_POINT(
+    (BOOL)__BOOL_LITERAL(TRUE),
+    NULL,
+    (REAL)__GET_EXTERNAL(data__->CLI_TEMP_HI,),
+    (REAL)__GET_EXTERNAL(data__->CLI_RH_HI,)));
+  __SET_VAR(data__->,DP_LO,,___DEW_POINT(
+    (BOOL)__BOOL_LITERAL(TRUE),
+    NULL,
+    (REAL)__GET_EXTERNAL(data__->CLI_TEMP_LO,),
+    (REAL)__GET_EXTERNAL(data__->CLI_RH_LO,)));
+  __SET_VAR(data__->,M_HI,,(__GET_EXTERNAL(data__->CLI_TEMP_HI,) - __GET_VAR(data__->DP_HI,)));
+  __SET_VAR(data__->,M_LO,,(__GET_EXTERNAL(data__->CLI_TEMP_LO,) - __GET_VAR(data__->DP_LO,)));
+  if ((__GET_EXTERNAL(data__->CLI_TEMP_HI_QLT,) == __GET_EXTERNAL(data__->CLI_TEMP_LO_QLT,))) {
+    __SET_VAR(data__->,HI_WORST,,(__GET_VAR(data__->M_HI,) <= __GET_VAR(data__->M_LO,)));
+  } else {
+    __SET_VAR(data__->,HI_WORST,,__GET_EXTERNAL(data__->CLI_TEMP_HI_QLT,));
+  };
+  if (__GET_VAR(data__->HI_WORST,)) {
+    __SET_EXTERNAL(data__->,CLI_DEWPOINT_DEGC,,__GET_VAR(data__->DP_HI,));
+    __SET_EXTERNAL(data__->,CLI_DPMARGIN_DEGC,,__GET_VAR(data__->M_HI,));
+    __SET_VAR(data__->,T_WORST,,__GET_EXTERNAL(data__->CLI_TEMP_HI,));
+  } else {
+    __SET_EXTERNAL(data__->,CLI_DEWPOINT_DEGC,,__GET_VAR(data__->DP_LO,));
+    __SET_EXTERNAL(data__->,CLI_DPMARGIN_DEGC,,__GET_VAR(data__->M_LO,));
+    __SET_VAR(data__->,T_WORST,,__GET_EXTERNAL(data__->CLI_TEMP_LO,));
+  };
+  __SET_EXTERNAL(data__->,CLI_DPMARGIN_DEGC_QLT,,__GET_VAR(data__->SEEN,));
+  __SET_EXTERNAL(data__->,CLI_SATPRESS_KPA,,___SAT_VAPOUR_PRESSURE(
+    (BOOL)__BOOL_LITERAL(TRUE),
+    NULL,
+    (REAL)__GET_VAR(data__->T_WORST,)));
+  __SET_VAR(data__->,VPD_HI,,(___SAT_VAPOUR_PRESSURE(
+    (BOOL)__BOOL_LITERAL(TRUE),
+    NULL,
+    (REAL)__GET_EXTERNAL(data__->CLI_TEMP_HI,)) - ___SAT_VAPOUR_PRESSURE(
+    (BOOL)__BOOL_LITERAL(TRUE),
+    NULL,
+    (REAL)__GET_VAR(data__->DP_HI,))));
+  __SET_VAR(data__->,VPD_LO,,(___SAT_VAPOUR_PRESSURE(
+    (BOOL)__BOOL_LITERAL(TRUE),
+    NULL,
+    (REAL)__GET_EXTERNAL(data__->CLI_TEMP_LO,)) - ___SAT_VAPOUR_PRESSURE(
+    (BOOL)__BOOL_LITERAL(TRUE),
+    NULL,
+    (REAL)__GET_VAR(data__->DP_LO,))));
+  if ((__GET_EXTERNAL(data__->CLI_TEMP_HI_QLT,) == __GET_EXTERNAL(data__->CLI_TEMP_LO_QLT,))) {
+    __SET_EXTERNAL(data__->,CLI_VPD_KPA,,___MIN(
+      (BOOL)__BOOL_LITERAL(TRUE),
+      NULL,
+      (REAL)__GET_VAR(data__->VPD_HI,),
+      (REAL)__GET_VAR(data__->VPD_LO,)));
+  } else if (__GET_EXTERNAL(data__->CLI_TEMP_HI_QLT,)) {
+    __SET_EXTERNAL(data__->,CLI_VPD_KPA,,__GET_VAR(data__->VPD_HI,));
+  } else {
+    __SET_EXTERNAL(data__->,CLI_VPD_KPA,,__GET_VAR(data__->VPD_LO,));
+  };
+  __SET_EXTERNAL(data__->,ALARM_ROT,,(__GET_EXTERNAL(data__->CLI_DPMARGIN_DEGC,) < __GET_EXTERNAL(data__->CLI_ROTMARGIN_DEGC,)));
+
+  goto __end;
+
+__end:
+  return;
+} // TEMP_RH_ZONE_body__() 
 
 
 

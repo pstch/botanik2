@@ -50,6 +50,7 @@ CONFIGURATION gh_mlb41
     cli_destrat2_speed1   : BOOL;
     cli_destrat2_speed2   : BOOL;
     cli_destrat2_speed3   : BOOL;
+    cli_dewPoint_degC     : REAL;
     cli_dpMargin_degC     : REAL;
     cli_dpMargin_degC_qlt : BOOL;
     cli_fanDemHyst        : REAL;
@@ -119,6 +120,7 @@ CONFIGURATION gh_mlb41
     cli_rotMargin_degC    : REAL;
     cli_rotRelease_sec    : UINT;
     cli_rotVentDem        : REAL;
+    cli_satPress_kPa      : REAL;
     cli_sensorTau_ms      : UINT;
     cli_sinceRain_min     : UINT;
     cli_stratDem          : REAL;
@@ -165,6 +167,7 @@ CONFIGURATION gh_mlb41
     cli_ventDryMgn_degC   : REAL;
     cli_ventHyst_degC     : REAL;
     cli_ventTempMgn_degC  : REAL;
+    cli_vpd_kPa           : REAL;
     cli_windGust_mps      : REAL;
     cli_windLockout       : BOOL;
     cli_windShutBegin_mps : REAL;
@@ -193,6 +196,7 @@ CONFIGURATION gh_mlb41
 
     PROGRAM sensors    : temp_rh_sensors;
     PROGRAM strat      : strat_sensor;
+    PROGRAM zone       : temp_rh_zone;
     PROGRAM climwatch  : climate_watch;
     PROGRAM wxwatch    : weather_watch;
     PROGRAM dayphase   : day_phase_controller;

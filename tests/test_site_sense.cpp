@@ -50,7 +50,7 @@ TEST_CASE_FIXTURE(StRig, "zone: an invalid probe is excluded, and one good probe
     CHECK(live.bank.var(live.ref("alarm_sns_ceiling")).as_bool());
 }
 
-TEST_CASE_FIXTURE(ZoneRig, "zone: the instruments report percent, the model works in fractions") {
+TEST_CASE_FIXTURE(StRig, "zone: the instruments report percent, the model works in fractions") {
 
     for (uint8_t i = 1; i <= 3; i++) {
         char t[24], h[24];
@@ -344,51 +344,57 @@ TEST_CASE_FIXTURE(Rig<Site::CoolingController>, "cooling: a demand it cannot mea
     const float was = live.bank.var(dem).as_f32();
     REQUIRE(was > 0.0f);
 
-    live.bank.var(live.ref("cli_temp_hi")).invalidate(Q_NO_DATA);
-    live.bank.var(live.ref("cli_temp_lo")).invalidate(Q_NO_DATA);
-    live.bank.var(live.ref("cli_temp_in")).invalidate(Q_NO_DATA);
+    // The COMPANION: temp_rh_zone is ST, so cli_temp_in is written every scan
+    // and stays valid - what goes is the verdict that anything measured it.
+    force(live, "cli_temp_in_qlt", false);
     d.step(3000);
 
-    INFO("the ladder keeps running, on the interior row's DECLARED value - so "
+    INFO("the ladder keeps running, on the reading the house last had - so "
          "there is still a demand for an actuator to fall back from, and the "
-         "quality is what says it is not about this greenhouse");
+         "quality is what says nobody is measuring it");
     CHECK_FALSE(live.bank.var(dem).valid());
     CHECK(live.bank.var(dem).value().q == Q_UNCERTAIN);
 
-    // 14 degC declared against a 20 degC target is BELOW it, and the ladder is
-    // reverse-acting, so the honest answer on that reading asks for warmth -
-    // the opposite of the 30 degC house it was reading a moment ago.
-    const Vars::Descriptor& d = live.bank.descriptor(live.ref("cli_temp_in").index);
-    REQUIRE(Vars::as_f32(d.type, d.def) < 20.0f);
-    CHECK(live.bank.var(dem).as_f32() < 0.0f);
+    INFO("...and the integral goes with it: effort wound up against a house "
+         "nobody can see is a claim about a past this law no longer has");
+    CHECK(live.bank.var(dem).as_f32() > 0.0f);
     CHECK(live.bank.var(dem).as_f32() != doctest::Approx(was));
 }
 
-TEST_CASE_FIXTURE(Rig<Site::CoolingController>, "cooling: the floor carries it when the ceiling goes, and both gone is unknown") {
+TEST_CASE_FIXTURE(CoolingRig, "cooling: the floor carries it when the ceiling goes, and both gone is unknown") {
 
+    // What the house temperature is MADE of, so it comes through the probes:
+    // temp_rh_zone is on this beat and would put its own answer over a forced
+    // one. The setpoint and the crawlspace belong to other laws on the same
+    // beat, and are forced because this case is not about either.
     const VarRef dem = live.ref("cli_coolDem");
-    field(live, "cli_targetTemp_degC", 20.0f);
-    interior(live, 30.0f, 30.0f);
-    // The intake gate reads it; without it the law is DEGRADED for a reason
-    // that has nothing to do with this case.
+    force(live, "cli_targetTemp_degC", 20.0f);
     force(live, "cli_temp_cs", 18.0f);
-    d.step(100);
+
+    uint64_t t = 0;
+    levels(live, 30.0f, 30.0f, t);
+    d.step(t += 100);
     REQUIRE(live.bank.var(dem).valid());
     REQUIRE(live.bank.var(dem).as_f32() > 0.0f);          // hot: cooling
-    CHECK(prog.health() == Plc::Health::HEALTHY);
+    CHECK(cooling.health() == Plc::Health::HEALTHY);
 
-    INFO("one level gone: temp_rh_zone still has a house temperature to give, "
-         "and this law says it is working on half a picture");
-    live.bank.var(live.ref("cli_temp_hi")).invalidate(Q_NO_DATA);
-    d.step(200);
+    INFO("the ceiling goes: temp_rh_zone still has a house temperature to "
+         "give, it is the floor's, and this law is still on a measured one");
+    for (uint32_t i = 0; i < 5; i++) {
+        levels(live, 30.0f, 30.0f, t, false, true);
+        d.step(t += 100);
+    }
+    CHECK(live.bank.var(live.ref("cli_temp_in_qlt")).as_bool());
     CHECK(live.bank.var(dem).valid());
     CHECK(live.bank.var(dem).as_f32() > 0.0f);
 
-    INFO("with the house's own row gone a PID on the defaulted reading would "
-         "see 0 degC against the target and call for full HEAT");
-    live.bank.var(live.ref("cli_temp_lo")).invalidate(Q_NO_DATA);
-    live.bank.var(live.ref("cli_temp_in")).invalidate(Q_NO_DATA);
-    d.step(300);
+    INFO("the floor goes too, and nothing measures the house: a PID left "
+         "trusting a held reading would still be reporting on a greenhouse");
+    for (uint32_t i = 0; i < 5; i++) {
+        levels(live, 30.0f, 30.0f, t, false, false);
+        d.step(t += 100);
+    }
+    CHECK_FALSE(live.bank.var(live.ref("cli_temp_in_qlt")).as_bool());
     CHECK_FALSE(live.bank.var(dem).valid());
 }
 
@@ -415,9 +421,15 @@ TEST_CASE("cooling: an unknown demand puts every actuator at its own safe state"
     f.bank.var(f.ref("cli_stratDem")).set(0.0f);
     f.bank.var(f.ref("cli_humidDem")).set(0.0f);
     f.bank.var(f.ref("cli_rotVentDem")).set(0.0f);
-    field(f, "cli_dpMargin_degC", 20.0f);
+    // temp_rh_zone owns the margin now, and the humidity law behind these
+    // actuators reads it: forced, and forced into the ladder's DEAD ZONE.
+    // 20 degC is past cli_humidStart_degC, which asks the skirt to humidify -
+    // a demand of its own, and this case is about the ones that are missing.
+    force(f, "cli_dpMargin_degC", 10.0f);
     field(f, "cli_temp_hi", 25.0f);
-    put_phase(f, Site::PHASE_DAY);
+    // The closing half of the day: the screen's safe state is DEPLOYED, and
+    // deploying is only ever permitted while the day is shutting down.
+    put_phase(f, Site::PHASE_DUSK_BREEZE);
     // The screen traverses once at bring-up whatever it is asked for, and while
     // it does it CUTS the fans - which is right, and would hide what this case
     // is about. Let it finish.
@@ -438,11 +450,13 @@ TEST_CASE("cooling: an unknown demand puts every actuator at its own safe state"
     CHECK_FALSE(f.bank.get(f.bank.resolve_in<bool>("cli_skirtValve")));  // shut
     CHECK(f.bank.get(f.bank.resolve_in<bool>("cli_destrat1_speed1")));   // speed 1
 
-    // The five that READ a missing demand, not the lockout: roof_lockout is on
-    // the beat because the windows need its cap, and it has every input it
-    // wants. Its health is its own again, per program, exactly as it was
-    // when this was C++: it bound every name it asked for.
-    CHECK(st.health(2) == Plc::Health::HEALTHY);
+    // The five that READ a missing demand, not the ST behind them: every
+    // program on the resource has every input it wants. Health is its own
+    // again, per program, exactly as it was when these were C++.
+    for (uint8_t i = 0; i < Plc::Runtime::PROGRAM_COUNT; i++) {
+        INFO("ST program ", (unsigned)i);
+        CHECK(st.health(i) == Plc::Health::HEALTHY);
+    }
 }
 
 TEST_CASE_FIXTURE(StRig, "scan: sys_now_ms is the clock, and a block differences it itself") {
@@ -525,25 +539,24 @@ TEST_CASE_FIXTURE(StRig, "destrat: a level nothing measures keeps the fans mixin
 TEST_CASE_FIXTURE(StRig, "humidity, rot guard: the ventilation demand rises as the margin falls") {
 
     Vars::RefIn<float> dem = live.bank.resolve_in<float>("cli_rotVentDem");
-    const VarRef margin = live.ref("cli_dpMargin_degC");
     const float limit = live.bank.var(live.ref("cli_rotMargin_degC")).as_f32();
 
-    live.bank.var(margin).publish(from_f32(T_F32, limit + 2.0f), 0);
+    force(live, "cli_dpMargin_degC", limit + 2.0f);
     d.step(100);
     CHECK(live.bank.get(dem) == doctest::Approx(0.0f));
 
     INFO("at the limit itself the ramp has not started");
-    live.bank.var(margin).publish(from_f32(T_F32, limit), 100);
+    force(live, "cli_dpMargin_degC", limit);
     d.step(200);
     CHECK(live.bank.get(dem) == doctest::Approx(0.0f));
 
     INFO("and it is fully on at the dew point itself, not before");
-    live.bank.var(margin).publish(from_f32(T_F32, 0.5f * limit), 200);
+    force(live, "cli_dpMargin_degC", 0.5f * limit);
     d.step(300);
     const float half = live.bank.get(dem);
     CHECK(half > 0.0f);
     CHECK(half < 1.0f);
-    live.bank.var(margin).publish(from_f32(T_F32, 0.0f), 300);
+    force(live, "cli_dpMargin_degC", 0.0f);
     d.step(400);
     CHECK(live.bank.get(dem) == doctest::Approx(1.0f));
 }
@@ -551,19 +564,21 @@ TEST_CASE_FIXTURE(StRig, "humidity, rot guard: the ventilation demand rises as t
 TEST_CASE_FIXTURE(StRig, "humidity, rot guard: the lockout outlives the condition, and boots clear") {
 
     Vars::RefIn<bool> lock = live.bank.resolve_in<bool>("cli_rotLockout");
-    const VarRef rot = live.ref("alarm_rot");
-    live.bank.var(live.ref("cli_dpMargin_degC")).publish(from_f32(T_F32, 20.0f), 0);
+    // alarm_rot is temp_rh_zone's verdict on the margin now, so the case
+    // reaches the condition through the margin rather than around it.
+    force(live, "cli_dpMargin_degC", 20.0f);
 
     INFO("dry air at boot is not locked out: the guard has nothing against it");
     d.step(100);
     CHECK_FALSE(live.bank.get(lock));
 
-    live.bank.var(rot).set(true);
+    force(live, "cli_dpMargin_degC", 0.0f);
     d.step(200);
+    REQUIRE(live.bank.var(live.ref("alarm_rot")).as_bool());
     CHECK(live.bank.get(lock));
 
     INFO("the condition clearing does not release it");
-    live.bank.var(rot).set(false);
+    force(live, "cli_dpMargin_degC", 20.0f);
     d.step(300);
     CHECK(live.bank.get(lock));
 
@@ -574,7 +589,9 @@ TEST_CASE_FIXTURE(StRig, "humidity, rot guard: the lockout outlives the conditio
 
 TEST_CASE_FIXTURE(StRig, "humidity, rot guard: an unmeasured margin ventilates rather than assuming dry air") {
 
-    live.bank.var(live.ref("cli_dpMargin_degC")).invalidate(Q_NO_DATA);
+    // The COMPANION: temp_rh_zone writes the margin every scan, so the row is
+    // always valid and it is the companion that says nothing measured it.
+    force(live, "cli_dpMargin_degC_qlt", false);
     d.step(100);
     CHECK(live.bank.get(live.bank.resolve_in<float>("cli_rotVentDem")) == doctest::Approx(1.0f));
     CHECK(live.bank.get(live.bank.resolve_in<bool>("cli_rotLockout")));

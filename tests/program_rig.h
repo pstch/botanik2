@@ -98,14 +98,14 @@ inline void put_phase(Live& f, Site::DayPhase p) {
     f.bank.var(f.ref("sol_fromSet_min")).set_i(set_);
     // A BANK phase also needs its arm, and day_phase derives that from the
     // extremes it accumulates rather than from the row - so the house has to
-    // have BEEN hot, or cold, the way the plant reaches one. Harmless in a rig
-    // that does not run day_phase: nothing reads cli_temp_in there.
+    // have BEEN hot, or cold, the way the plant reaches one. FORCED, because
+    // temp_rh_zone owns cli_temp_in and would put the probes back over it.
     if (p == Site::PHASE_COLD_BANK)
-        f.bank.var(f.ref("cli_temp_in")).set(
-            f.bank.var(f.ref("cli_coldBankTrg_degC")).as_f32() + 5.0f);
+        force(f, "cli_temp_in",
+              f.bank.var(f.ref("cli_coldBankTrg_degC")).as_f32() + 5.0f);
     else if (p == Site::PHASE_HEAT_BANK)
-        f.bank.var(f.ref("cli_temp_in")).set(
-            f.bank.var(f.ref("cli_heatBankTrg_degC")).as_f32() - 5.0f);
+        force(f, "cli_temp_in",
+              f.bank.var(f.ref("cli_heatBankTrg_degC")).as_f32() - 5.0f);
 
     // AND the row itself, because both kinds of rig exist: one running
     // day_phase, which derives cli_phase from the two above and would
@@ -146,11 +146,12 @@ inline void field(Live& f, const char* row, float v, uint64_t at = 0) {
  *
  *  The cooling ladder controls on `cli_temp_in` and reports its verdict on
  *  the levels behind it, so a case stating one without the other is
- *  stating half a house. WORST CASE, as temp_rh_zone makes it. */
+ *  stating half a house. WORST CASE, as temp_rh_zone makes it - FORCED,
+ *  because temp_rh_zone is ST and would overwrite a published one. */
 inline void interior(Live& f, float hi, float lo) {
     field(f, "cli_temp_hi", hi);
     field(f, "cli_temp_lo", lo);
-    field(f, "cli_temp_in", hi > lo ? hi : lo);
+    force(f, "cli_temp_in", hi > lo ? hi : lo);
 }
 
 /** @brief A weather station reporting fine weather, so a case that is not
@@ -227,26 +228,6 @@ struct StRig {
     } d;
 };
 
-/** @brief The sensing chain: the probes are voted and filtered, then the
- *  psychrometrics are taken off the two interior levels. Split across two
- *  programs, so a case about what a reading BECOMES needs both. */
-struct ZoneRig {
-    Live                live;
-    /** The voting and filtering half is ST now; the psychrometrics are not. */
-    Plc::Runtime::Plant     st  {Botanik::SetupContext(live.reg), live.bank};
-    Site::TempRHZone    zone{Botanik::SetupContext(live.reg), live.bank};
-    Plc::Program* const progs[1] = { &zone };
-    Cycle               cycle{progs, 1, &live.bank, live.reg};
-
-    ZoneRig() { st.wire(); d.st = &st; d.cycle = &cycle; }
-
-    struct Driver {
-        Plc::Runtime::Plant* st = nullptr;
-        Cycle*           cycle = nullptr;
-        void step(uint64_t now_ms) { st->scan(now_ms); cycle->step(now_ms); }
-    } d;
-};
-
 /** @brief The cooling chain: the ladder makes a demand, the gates decide
  *  whether crawlspace air would help serve it. Two programs because they are
  *  two networks - the ladder reads the interior, the gates read the crawlspace
@@ -254,7 +235,7 @@ struct ZoneRig {
 struct CoolingRig {
     Live                     live;
     Vars::QualityMirror      mirror{Botanik::SetupContext(live.reg), live.bank};
-    /** The gates are ST now; the ladder is not, yet. */
+    /** The gates and the psychrometrics are ST; the ladder is not, yet. */
     Plc::Runtime::Plant          st     {Botanik::SetupContext(live.reg), live.bank};
     Site::CoolingController  cooling{Botanik::SetupContext(live.reg), live.bank};
     Plc::Program* const      progs[1] = { &cooling };
@@ -265,14 +246,16 @@ struct CoolingRig {
         d.st = &st; d.mirror = &mirror; d.cycle = &cycle;
     }
 
-    /** @brief The ladder first, then the ST that reads its demand - which is
-     *  the order the beat has once cooling_controller follows the gates. */
+    /** @brief The firmware's order: companions, the ST plant, then the C++
+     *  programs. temp_rh_zone is what hands the ladder its house temperature,
+     *  so the gates read a demand one beat old - which is what they read on
+     *  the plant too. */
     struct Driver {
         Vars::QualityMirror* mirror = nullptr;
         Plc::Runtime::Plant*     st = nullptr;
         Cycle*               cycle = nullptr;
         void step(uint64_t now_ms) {
-            mirror->scan(); cycle->step(now_ms); st->scan(now_ms);
+            mirror->scan(); st->scan(now_ms); cycle->step(now_ms);
         }
     } d;
 };

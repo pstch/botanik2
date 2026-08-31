@@ -198,7 +198,7 @@ TEST_CASE("scenario: a zone dying leaves the plant safe, not confident") {
 
     SAY("the dew-point margin is still MEASURED, and it is the FLOOR's: a "
          "level holding an old reading does not speak for the house");
-    CHECK(p.valid("cli_dpMargin_degC"));
+    CHECK(p.on("cli_dpMargin_degC_qlt"));
     CHECK(p.num("cli_dpMargin_degC") ==
           doctest::Approx(p.num("cli_temp_lo") - p.num("cli_dewPoint_degC")));
     snapshot(p, "five minutes without a ceiling reading");
@@ -215,7 +215,7 @@ TEST_CASE("scenario: a zone dying leaves the plant safe, not confident") {
         p.probe("cli_rh_lo%u", 3, g_wx().rh);
         p.beat();
     }
-    CHECK_FALSE(p.valid("cli_dpMargin_degC"));
+    CHECK_FALSE(p.on("cli_dpMargin_degC_qlt"));
     CHECK(p.num("cli_dpMargin_degC") > 0.0f);   // held, not a default of zero
 
     SAY("and the rot guard fails toward acting on a margin nobody has, which "

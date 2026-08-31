@@ -22,6 +22,8 @@ TEMP_RH_SENSORS_data__ PLC__SENSORS;
 #define SENSORS PLC__SENSORS
 STRAT_SENSOR_data__ PLC__STRAT;
 #define STRAT PLC__STRAT
+TEMP_RH_ZONE_data__ PLC__ZONE;
+#define ZONE PLC__ZONE
 CLIMATE_WATCH_data__ PLC__CLIMWATCH;
 #define CLIMWATCH PLC__CLIMWATCH
 WEATHER_WATCH_data__ PLC__WXWATCH;
@@ -52,6 +54,7 @@ void PLC_init__(void) {
   UNBOUND = __BOOL_LITERAL(FALSE);
   TEMP_RH_SENSORS_init__(&SENSORS,retain);
   STRAT_SENSOR_init__(&STRAT,retain);
+  TEMP_RH_ZONE_init__(&ZONE,retain);
   CLIMATE_WATCH_init__(&CLIMWATCH,retain);
   WEATHER_WATCH_init__(&WXWATCH,retain);
   DAY_PHASE_CONTROLLER_init__(&DAYPHASE,retain);
@@ -69,6 +72,7 @@ void PLC_run__(unsigned long tick) {
   UNBOUND = !(tick % 1);
   TEMP_RH_SENSORS_body__(&SENSORS);
   STRAT_SENSOR_body__(&STRAT);
+  TEMP_RH_ZONE_body__(&ZONE);
   CLIMATE_WATCH_body__(&CLIMWATCH);
   WEATHER_WATCH_body__(&WXWATCH);
   DAY_PHASE_CONTROLLER_body__(&DAYPHASE);

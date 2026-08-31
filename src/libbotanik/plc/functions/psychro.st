@@ -30,3 +30,12 @@ VAR_INPUT
 END_VAR
   DEW_POINT_MARGIN := T_DEGC - DEW_POINT(T_DEGC := T_DEGC, RH := RH);
 END_FUNCTION
+
+FUNCTION SAT_VAPOUR_PRESSURE : REAL
+(* The most water this air could hold, in kPa. Tetens, whose coefficients are
+   NOT Magnus's above: mixing the two sets shifts the answer. *)
+VAR_INPUT
+  T_DEGC : REAL;
+END_VAR
+  SAT_VAPOUR_PRESSURE := 0.6108 * EXP((17.27 * T_DEGC) / (T_DEGC + 237.3));
+END_FUNCTION
