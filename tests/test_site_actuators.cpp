@@ -8,10 +8,6 @@
 
 #include "program_rig.h"
 
-/* matiec's, from the generated CONFIGURATION. Global, and declared without
-   extern "C" because the generated files compile as C++ here. */
-extern unsigned long long common_ticktime__;
-
 namespace site_programs {
 
 namespace {
@@ -32,28 +28,47 @@ protected:
 
 }  // namespace
 
-TEST_CASE("scan: the ST plant runs at matiec's period, not at one we picked") {
-    // common_ticktime__ is the GCD of the TASK intervals in plant.st, so it
-    // MOVES the day a program joins on a faster task. Nothing on this side
-    // may assume its value: the registration reads it.
+TEST_CASE("scan: every ST program is its own task, at the roster's period") {
+    // The RESOURCE would dispatch them as one fixed sequence. We call each
+    // body ourselves instead, which is what keeps a program a program: its own
+    // period, its own entry in the TASKS table, its own health.
     TestScan::Live live;
     Site::StRuntime st(Botanik::SetupContext(live.reg), live.bank);
     st.wire();
     st.register_tasks();
 
-    const Tasks::Task* plant = nullptr;
-    for (uint8_t i = 0; i < live.reg.count(); i++)
-        if (strcmp(live.reg.task(i).name, "st.plant") == 0) plant = &live.reg.task(i);
-    REQUIRE(plant != nullptr);
+    for (uint8_t i = 0; i < Site::ST_PROGRAM_COUNT; i++) {
+        const Site::StProgram& p = Site::st_programs[i];
+        const Tasks::Task* task = nullptr;
+        for (uint8_t j = 0; j < live.reg.count(); j++)
+            if (strcmp(live.reg.task(j).name, p.name) == 0) task = &live.reg.task(j);
+        INFO("program ", p.name);
+        REQUIRE(task != nullptr);
+        CHECK(task->period_ms == p.period_ms);
+        CHECK(task->phase == Tasks::PHASE_CONTROL);
+        INFO("...and it bound every name it asked for");
+        CHECK(st.health(i) == Plc::Health::HEALTHY);
+    }
+}
 
-    INFO("the plant's period is matiec's number, whatever it currently is");
-    CHECK(plant->period_ms ==
-          (uint32_t)(common_ticktime__ / 1000000ULL));
+TEST_CASE("scan: an ST program publishes its own health row") {
+    // The prog_<name> rows came back with per-program dispatch. They are what
+    // an operator reads to see that a law is running, and the roster's name is
+    // what ties one to the other.
+    TestScan::Live live;
+    Site::StRuntime st(Botanik::SetupContext(live.reg), live.bank);
+    st.wire();
 
-    INFO("and the beat has to be able to release it: a period that is not a "
-         "multiple of TASK_PERIOD_MS drifts rather than runs slow");
-    CHECK(plant->period_ms >= Config::TASK_PERIOD_MS);
-    CHECK(plant->period_ms % Config::TASK_PERIOD_MS == 0);
+    char row[40];
+    for (uint8_t i = 0; i < Site::ST_PROGRAM_COUNT; i++) {
+        snprintf(row, sizeof row, "prog_%s", Site::st_programs[i].name);
+        const VarRef r = live.ref(row);
+        INFO("row ", row);
+        REQUIRE(r.index != Vars::VAR_NONE);
+        INFO("...and it says HEALTHY rather than the INHIBITED it declares");
+        CHECK(live.bank.var(r).value().as<uint32_t>() ==
+              (uint32_t)Plc::Health::HEALTHY);
+    }
 }
 
 TEST_CASE_FIXTURE(StRig, "scan: an ST timer measures VIRTUAL time, whatever the beat size") {

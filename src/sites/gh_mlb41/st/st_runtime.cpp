@@ -1,40 +1,14 @@
 /**
  * @file st_runtime.cpp
  * @brief HAND-WRITTEN - the join between the beat and the generated ST.
- *
- * The only translation unit that compiles matiec's output, because the shim
- * has to name the bank before `accessor.h` is read.
  */
 
 #include "st_runtime.h"
-#include "libbotanik/utils/assert.h"
-#include "libbotanik/config/scheduler.h"
-#include "libbotanik/logs/logger.h"
 
+#include <cstdio>
 #include "st_bank.h"
-#include "resolve_ci.h"
-/* Generated C, and it says so at the top of every file. Silenced HERE rather
- * than in CMake: a per-source flag can land before a target's own options and
- * be undone by them, where a pragma cannot. */
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wunused-parameter"
-#pragma GCC diagnostic ignored "-Wunused-function"
-#pragma GCC diagnostic ignored "-Wunused-but-set-variable"
-#pragma GCC diagnostic ignored "-Wshadow"
-/* plc.c pulls accessor.h, POUS.h and POUS.c itself - matiec compiles one
- * resource per TU and expects exactly that. */
-#include "generated/plc.c"
-#pragma GCC diagnostic pop
-
-namespace Botanik { namespace St { Vars::Bank* io = 0; } }
-
-/* What st_config.cpp defines, from matiec's CONFIGURATION file. Declared
- * without extern "C": the generated files are compiled as C++ here, so the
- * mangling has to match theirs. */
-void config_init__(void);
-void config_run__(unsigned long tick);
-extern unsigned long long common_ticktime__;
-extern unsigned long greatest_tick_count__;
+#include "libbotanik/logs/logger.h"
+#include "libbotanik/utils/assert.h"
 
 namespace Site {
 
@@ -46,63 +20,73 @@ namespace Site {
     }
 
     void StRuntime::wire() {
-        St::io = &_io;
-        _dt_ref = _io.find("sys_now_ms");
+        Botanik::St::io = &_io;
+        _now_ref = _io.find("sys_now_ms");
+        BOTANIK_ASSERT(ST_PROGRAM_COUNT <=
+                       (uint8_t)(sizeof _slot / sizeof _slot[0]));
 
-        // One window for the whole plant: config_init__() reaches every POU's
-        // binding, and ST has no per-program bracket to open a narrower one in.
-        const uint16_t missed = _io.unresolved_count();
-        _io.begin_writer(Vars::WRITER_ST);
-        config_init__();
-        _io.end_writer();
-        _wired = (_io.unresolved_count() == missed);
+        char row[40];
+        for (uint8_t i = 0; i < ST_PROGRAM_COUNT; i++) {
+            const StProgram& p = st_programs[i];
+
+            // Its OWN window, and its own writer id: two programs claiming one
+            // row is caught here exactly as it was when these were C++, which
+            // is the check ST had no way to keep on its own.
+            const uint16_t missed = _io.unresolved_count();
+            _io.begin_writer(i);
+            p.init();
+            _io.end_writer();
+
+            // Counted per program, so a name one of them wanted and did not
+            // get holds back that one and nothing else.
+            const bool wired = (_io.unresolved_count() == missed);
+            _slot[i].health = wired ? Plc::Health::HEALTHY
+                                    : Plc::Health::INVALID;
+
+            const int n = snprintf(row, sizeof row, "prog_%s", p.name);
+            if (n > 0 && (size_t)n < sizeof row) {
+                const Vars::VarRef r = _io.find(row, (uint16_t)n);
+                _slot[i].health_row = r;
+                if (r.index != Vars::VAR_NONE)
+                    _io.var(r).set_i((int64_t)_slot[i].health);
+            }
+            if (!wired && _logger != nullptr)
+                _logger->critical(Logs::BOOT,
+                                  "%s: a name it binds resolves to no row; "
+                                  "it will not run", p.name);
+        }
     }
 
     void StRuntime::register_tasks() {
-        // matiec's number, the GCD of the TASK intervals in plant.st. Nothing
-        // here picks a rate, and nothing here assumes what it will be: adding
-        // one program on a faster task moves it, and this follows.
-        const uint32_t base_ms = (uint32_t)(common_ticktime__ / 1000000ULL);
-
-        // The beat cannot release a task faster than it runs, and a period
-        // that is not a multiple of it DRIFTS: the timer fires on the first
-        // beat at or past each deadline, so a 25 ms task on a 10 ms beat runs
-        // at 30, 20, 30, 20. Refuse rather than run it wrong - the plant then
-        // never drives the field, and the log says which number to fix.
-        if (base_ms < Config::TASK_PERIOD_MS ||
-            base_ms % Config::TASK_PERIOD_MS != 0) {
-            _wired = false;
-            if (_logger != nullptr)
-                _logger->critical(Logs::BOOT,
-                                  "plant period %ums is not a multiple "
-                                  "of the %ums beat; nothing will run",
-                                  (unsigned)base_ms,
-                                  (unsigned)Config::TASK_PERIOD_MS);
-            return;
-        }
-        _tasks->add(*this, &StRuntime::_run_plant, "st.plant",
-                    base_ms, Tasks::PHASE_CONTROL);
+        for (uint8_t i = 0; i < ST_PROGRAM_COUNT; i++)
+            _tasks->add(*this, st_programs[i].task, st_programs[i].name,
+                        st_programs[i].period_ms, Tasks::PHASE_CONTROL);
     }
 
-    void StRuntime::_run_plant(Component* self, const Tasks::Tick& t) {
-        static_cast<StRuntime*>(self)->scan(t.now_ms);
+    void StRuntime::scan(uint8_t i, uint64_t now_ms) {
+        if (i >= ST_PROGRAM_COUNT) return;
+        // A program that could not be wired never runs: its references are
+        // inert sinks, so every value it produced would be a zero nothing
+        // could tell from a reading.
+        if (_slot[i].health != Plc::Health::HEALTHY) return;
+
+        _now_ms = now_ms;
+        // The CLOCK, before any body reads it. Each block differences it
+        // against its own last reading, so one row serves every period.
+        if (_now_ref.index != Vars::VAR_NONE)
+            _io.var(_now_ref).set_i((int64_t)(uint32_t)now_ms);
+
+        _io.begin_writer(i);
+        st_programs[i].run();
+        _io.end_writer();
     }
 
     void StRuntime::scan(uint64_t now_ms) {
-        if (!_wired) return;
-        // The CLOCK, published before any body reads it. Every block
-        // differences it against its own last reading, so one row serves every
-        // rate and nothing here has to know which programs are about to run.
-        if (_dt_ref.index != Vars::VAR_NONE)
-            _io.var(_dt_ref).set_i((int64_t)(uint32_t)now_ms);
-        _io.begin_writer(Vars::WRITER_ST);
-        // The tick DIVIDES: matiec compiled one `tick % N` per task from the
-        // intervals, so this counter is what decides which programs run. It
-        // wraps where matiec says, which is the largest multiple of every
-        // divisor that fits - anywhere else and the pattern would skip.
-        config_run__(_tick);
-        if (++_tick >= greatest_tick_count__) _tick = 0;
-        _io.end_writer();
+        for (uint8_t i = 0; i < ST_PROGRAM_COUNT; i++) scan(i, now_ms);
+    }
+
+    Plc::Health StRuntime::health(uint8_t i) const {
+        return (i < ST_PROGRAM_COUNT) ? _slot[i].health : Plc::Health::INVALID;
     }
 
 }  // namespace Site

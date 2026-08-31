@@ -400,9 +400,9 @@ TEST_CASE("cooling: an unknown demand puts every actuator at its own safe state"
 
     // The five that READ a missing demand, not the lockout: roof_lockout is on
     // the beat because the windows need its cap, and it has every input it
-    // wants. The ST plant has no per-program health, so what stands in is that
-    // it WIRED: every VAR_EXTERNAL in it resolved to a row.
-    CHECK(st.wired());
+    // wants. Its health is its own again, per program, exactly as it was
+    // when this was C++: it bound every name it asked for.
+    CHECK(st.health(2) == Plc::Health::HEALTHY);
 }
 
 TEST_CASE_FIXTURE(StRig, "scan: sys_now_ms is the clock, and a block differences it itself") {

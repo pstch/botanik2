@@ -1,6 +1,6 @@
 /**
  * @file st_runtime.h
- * @brief The component that runs this site's ST, in place of Plc::Program.
+ * @brief Runs this site's ST programs, one registry task each.
  */
 
 #ifndef BOTANIK_SITE_ST_RUNTIME_H
@@ -9,55 +9,57 @@
 #include "libbotanik/core/component.h"
 #include "libbotanik/tasks/tasks.h"
 #include "libbotanik/vars/model.h"
+#include "libbotanik/plc/program.h"
+
+#include "st_programs.h"
 
 namespace Site {
 
-    /** @brief Drives the generated resources, one task per rate group.
+    /** @brief One `Tasks::Registry` entry per ST program.
      *
-     *  matiec generates the binding (`__INIT_EXTERNAL`), the law (`X_body__`)
-     *  and the dispatch (`X_run__`). What is left is calling each resource at
-     *  its group's rate and telling the ST how long the beat was.
+     *  matiec generates the binding, the law and a resource that would
+     *  dispatch them as a fixed sequence. The sequence is what we do NOT use:
+     *  calling each body ourselves is what keeps a program a program - its own
+     *  period, its own writer slot, its own health row, its own place in the
+     *  TASKS table, and its own verdict when a name it wanted does not resolve.
      */
     class StRuntime final : public Botanik::Component {
 
+        /** @brief Per program, in `st_programs[]` order. */
+        struct Slot {
+            Botanik::Vars::VarRef  health_row;
+            Botanik::Plc::Health   health = Botanik::Plc::Health::HEALTHY;
+        };
+
         Botanik::Vars::Bank&  _io;
-        Botanik::Vars::VarRef _dt_ref;    ///< sys_now_ms
-        unsigned long _tick = 0;
-        bool _wired = false;
+        Botanik::Vars::VarRef _now_ref;   ///< sys_now_ms
+        Slot                  _slot[16];
+        uint64_t              _now_ms = 0;
 
     public:
         StRuntime(const Botanik::SetupContext& ctx, Botanik::Vars::Bank& io)
             : Component(ctx, "st"), _io(io) {}
 
-        /** @brief True once the plant wired with no unresolved name. A plant
-         *  that could not be wired must not drive the field. */
-        bool wired() const { return _wired; }
-
-        /** @brief Registers one entry per RESOURCE. Public, because the site
-         *  calls it beside every program's. */
         void register_tasks() override;
 
-        /** @brief Run the SLOW resource once, with the clock at @p now_ms.
-         *  The beat calls this through the registry; a test calls it directly,
-         *  because ST has no program object to hold a rig open on. */
-        void scan(uint64_t now_ms);
-
-        /** @brief Bind the plant. Called by `on_setup()`; public so a test can
-         *  wire without standing a whole firmware up. */
+        /** @brief Bind every program, each in its OWN writer window so a row
+         *  two of them claim is caught, and each counted separately so one
+         *  that missed a name is the only one held back. */
         void wire();
 
+        /** @brief Run program @p i, with the clock at @p now_ms. The beat
+         *  calls this through the registry; a test calls it directly. */
+        void scan(uint8_t i, uint64_t now_ms);
+
+        /** @brief Run every program in roster order. What a test wants when it
+         *  does not care which program did what. */
+        void scan(uint64_t now_ms);
+
+        Botanik::Plc::Health health(uint8_t i) const;
+
     protected:
-        /** @brief The plant's binding: `SLOW_init__()` reaches every POU's at
-         *  once, so it runs in ONE writer window. */
         void on_setup(uint64_t now_ms) override;
 
-    private:
-        /** @brief Publishes the clock into `sys_now_ms`, then runs the plant.
-         *  @note Registered at `common_ticktime__`, and the tick counter is
-         *  what divides it: the TASK intervals in plant.st are the only place
-         *  a rate is declared. */
-        static void _run_plant(Botanik::Component* self,
-                               const Botanik::Tasks::Tick& t);
     };
 
 }  // namespace Site
