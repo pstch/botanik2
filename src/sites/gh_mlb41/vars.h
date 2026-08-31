@@ -105,47 +105,6 @@ inline const char* IrrState_label(uint64_t code) {
 
 /** @} */
 
-/** @name Analog calibration - one block per row.
- *  Two rows sharing a calibration name the same six parameters, which
- *  resolve to the same rows: sharing is in the names, not in an object.
- *  @{ */
-
-extern const AnalogCal CAL_pwr_genBat_V;
-extern const AnalogCal CAL_pwr_upsBat_V;
-extern const AnalogCal CAL_pwr_dc1_V;
-extern const AnalogCal CAL_pwr_dc2_V;
-extern const AnalogCal CAL_irr_out_Lpm;
-extern const AnalogCal CAL_cli_intr1;
-extern const AnalogCal CAL_cli_intr2;
-
-extern const AnalogCal* const g_analog_cals[];
-const uint8_t g_analog_cal_count = 7;
-
-// One block per AI/AO row, so this count answers for both limits:
-// the bank caches six tunable indices per block and a wire value
-// per row. Past either it falls back to a name lookup per read -
-// slow rather than wrong, and silently so at run time.
-static_assert(g_analog_cal_count <= Config::ANALOG_BLOCKS_MAX,
-              "more analog calibration blocks than ANALOG_BLOCKS_MAX");
-static_assert(g_analog_cal_count <= Config::ANALOG_ROWS_MAX,
-              "more AI/AO rows than ANALOG_ROWS_MAX");
-
-/** @} */
-
-/** @brief The editable rows. FIRST, and that is load-bearing: the
- *  ROLE_PARAM run has to stay contiguous with the library's. */
-extern const Descriptor params[];
-const uint16_t PARAMS_COUNT = 0
-    + 179
-    ;
-
-/** @brief Everything else, in file order. Alarms lead, so their table
- *  order IS the order the ALARMS page lists them in. */
-extern const Descriptor rows[];
-const uint16_t ROWS_COUNT = 0
-    + 307
-    ;
-
 // This site turns every optional feature ON, and the row count above says
 // so as a flat number rather than a sum of #ifs. Build it with one off
 // and the table reserves rows the library never registers, which
@@ -172,18 +131,10 @@ const uint16_t ROWS_COUNT = 0
  *  the guard above is what holds that true. */
 const uint16_t LIBRARY_ROWS = 66;
 
-// register_vars() adds NONE of a segment that does not fit, so one row
-// past the limit costs a whole table: an empty field-bus plan and a
-// failing POST, in the field. Caught here instead.
-static_assert(LIBRARY_ROWS + PARAMS_COUNT + ROWS_COUNT <= Config::VAR_MAX,
-              "site table exceeds VAR_MAX - raise BOTANIK_VAR_MAX (about 36 bytes of RAM per row)");
-
 /** @brief The local inputs counted by an interrupt rather than
  *  polled. The channel here is the one its row declares, and the firmware
  *  attaches what it finds here: naming it twice is what has to agree. */
 struct PulseInput { const char* name; uint8_t channel; HAL::Pulse::Edge edge; };
-extern const PulseInput pulse_inputs[];
-const uint8_t pulse_input_count = 1;
 
 #if BOTANIK_FEATURE_MODBUS_RTU_CLIENT
 
@@ -194,46 +145,48 @@ const uint8_t pulse_input_count = 1;
  *  transaction, start address and count must both be even for a float,
  *  and holding registers take one parameter per message (so no
  *  multi-write). */
-extern const Modbus::DeviceModel MDL_SDM630;
 /** @brief Lettel MCT1-140. Max quantity 100, every measurement a register-pair
  *  Float, so the same pair alignment applies. Nothing writes to it. */
-extern const Modbus::DeviceModel MDL_MCT1_140;
 /** @brief Waveshare Modbus RTU Analog Input 8CH (25767), "Development Protocol".
  *  The eight readings are INPUT registers at 3x0000..3x0007, read with
  *  0x04; nothing sits at 4x0000, so reading them with 0x03 draws
  *  exception 02. Quantity is capped at the eight channels, one register
  *  each (no alignment). */
-extern const Modbus::DeviceModel MDL_WS_AI8;
 /** @brief Waveshare Modbus RTU Analog Output 8CH (26211). Speaks 03/06/10 - no
  *  0x04 and no coils. The eight outputs are HOLDING registers at
  *  4x0000..4x0007, read and written, so the multi-write is available. */
-extern const Modbus::DeviceModel MDL_WS_AO8;
 /** @brief Wind, gust, rain rate and irradiance as four IEEE singles, so eight
  *  registers read as one block. PLACEHOLDER until the unit is chosen: its
  *  address, register layout and word order are marked TODO on each of its
  *  rows, and those four are the only ones that move when it is. */
-extern const Modbus::DeviceModel MDL_WEATHER;
 /** @brief Waveshare Modbus RTU Relay (D) (26517), "Development Protocol V2". The
  *  eight relays are coils at 0x0000..0x0007, read with 0x01 and written
  *  with 0x05 or 0x0F, so a block may cover at most those eight. (0x00FF
  *  is the all-relays broadcast and 0x0200/0x0400 the flash timers; none
  *  is a coil a row should name.) */
-extern const Modbus::DeviceModel MDL_WS_RELAY;
 /** @brief An f32 at 0 (temperature) and another at 2 (humidity), so four
  *  registers, pair-aligned and read-only. FC04 is assumed, matching every
  *  other measurement on this bus; if these sensors answer only FC03 it
  *  shows as exception 02 on all twelve at once, and the fix is one
  *  character per row. */
-extern const Modbus::DeviceModel MDL_TEMP_RH;
 
 /** @brief Every unit on the segment, and what the plant calls it:
  *  the tag is data, so a log line can name the cabinet. */
-extern const Modbus::Device g_devices[];
-extern const Modbus::DeviceTable g_device_table;
 
 /** @} */
 
 #endif  // BOTANIK_FEATURE_MODBUS_RTU_CLIENT
+
+/** @brief Everything the tables generate: the calibration blocks, the two
+ *  Descriptor arrays and their counts, the pulse inputs and the field-bus
+ *  device map. Edit the CSVs under tables/ and run `scripts/tables.py generate`. */
+#include "vars.gen.h"
+
+// register_vars() adds NONE of a segment that does not fit, so one row
+// past the limit costs a whole table: an empty field-bus plan and a
+// failing POST, in the field. Caught here instead.
+static_assert(LIBRARY_ROWS + PARAMS_COUNT + ROWS_COUNT <= Config::VAR_MAX,
+              "site table exceeds VAR_MAX - raise BOTANIK_VAR_MAX (about 36 bytes of RAM per row)");
 
 /** @brief Hand the bank this site's rows, PARAMETERS FIRST: the ROLE_PARAM run
  *  has to abut the library's, and this is the one place that has to know it. */

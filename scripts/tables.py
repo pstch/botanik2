@@ -1,29 +1,19 @@
 #!/usr/bin/env python3
-"""The site's tables, as data.
+"""Site tables: CSV <-> C++.
 
-Two directions:
+    tables.py export     vars.cpp -> tables/*.csv   (bootstrap, run once)
+    tables.py check      the two must agree
+    tables.py generate   tables/*.csv -> vars.gen.{h,cpp}
 
-    tables.py export    vars.cpp        -> src/sites/<site>/tables/*.csv
-    tables.py generate  tables/*.csv    -> the C++ glue and plant.st's globals
-
-`export` runs ONCE, to bootstrap. It exists so the migration can be proved
-rather than trusted: export, generate, and require the argument lists to match
-the ones parsed out of the hand-written file. Nothing is deleted before that
-diff is empty.
-
-The generator is NOT a build step. It runs when a table changes and its output
-is committed, the way iec2c's already is.
+Offline. Output is committed, never built.
 """
 
 import csv, os, re, sys
 
 SITE = 'src/sites/gh_mlb41'
-PAD_MAX = 34   # widest a column is padded to; see write_table()
+PAD = 34
 
-# One CSV per Descriptor factory: ten factories, ten signatures, ten files.
-# The column names ARE the factory's parameter names, so a row reads the same
-# either side of the migration.
-FACTORIES = {
+ROWS = {  # factory -> (csv stem, columns == the factory's parameters)
     'P':   ('params',      'name type def lo hi digits unit reg desc notes writable retained'),
     'SV':  ('status',      'name type def digits unit reg desc notes retained'),
     'SVE': ('status_enum', 'name def label reg desc notes'),
@@ -34,164 +24,216 @@ FACTORIES = {
     'AO':  ('analog_out',  'name cal device fc reg regs wire safe digits unit desc notes word_swap'),
     'DI':  ('digital_in',  'name device fc reg def timeout_ms invert desc notes poll_ms pulse'),
     'DO':  ('digital_out', 'name device fc reg safe invert desc notes'),
+    'RO':  ('relay_out',   'name device coil safe invert desc notes'),
+    'PE':  ('params_enum', 'name def label reg desc notes writable retained'),
+    'PS':  ('params_text', 'name def cap kind reg desc notes writable retained'),
+    'G':   ('globals',     'name type def digits unit desc notes retained'),
+}
+TEXT = {'name', 'unit', 'desc', 'notes', 'code', 'tag', 'model_name'}
+
+AUX = {  # stem -> columns, for the tables that are not rows
+    'analog_cal':     'cal raw_min_row raw_min raw_max_row raw_max eng_min_row eng_min '
+                      'eng_max_row eng_max min_row min max_row max',
+    'pulse_inputs':   'name channel edge',
+    'modbus_models':  'symbol kind model_name regs words',
+    'modbus_devices': 'addr model tag',
 }
 
 
 def split_args(s):
-    """Split a factory's argument list on top-level commas.
-
-    Nested parens - SF(0.0f), a cast - and string literals both contain
-    commas that are not separators."""
-    out, depth, cur, in_str, esc = [], 0, '', False, False
+    out, depth, cur, q, esc = [], 0, '', False, False
     for ch in s:
-        if esc:                      cur += ch; esc = False; continue
-        if ch == '\\' and in_str:    cur += ch; esc = True;  continue
-        if ch == '"':                in_str = not in_str; cur += ch; continue
-        if in_str:                   cur += ch; continue
-        if ch in '([':               depth += 1
-        elif ch in ')]':             depth -= 1
-        if ch == ',' and depth == 0: out.append(cur.strip()); cur = ''; continue
+        if esc:                   cur += ch; esc = False; continue
+        if ch == '\\' and q:      cur += ch; esc = True;  continue
+        if ch == '"':             q = not q; cur += ch;   continue
+        if q:                     cur += ch; continue
+        if ch in '([':            depth += 1
+        elif ch in ')]':          depth -= 1
+        if ch == ',' and not depth: out.append(cur.strip()); cur = ''; continue
         cur += ch
     if cur.strip(): out.append(cur.strip())
     return out
 
 
 def parse(path):
-    """Every factory call in @p path, as (factory, [args]) in file order."""
-    src = open(path).read()
-    rows = []
-    for m in re.finditer(r'^\s*(' + '|'.join(FACTORIES) + r')\((.*)$', src, re.M):
-        fac, rest = m.group(1), m.group(2)
-        # A call may wrap; take text up to the closing paren at depth 0.
-        depth, end, in_str, esc = 1, None, False, False
+    src, out = open(path).read(), []
+    for m in re.finditer(r'^\s*(' + '|'.join(ROWS) + r')\((.*)$', src, re.M):
+        rest, depth, q, esc = m.group(2), 1, False, False
         for i, ch in enumerate(rest):
             if esc:                   esc = False; continue
-            if ch == '\\' and in_str: esc = True;  continue
-            if ch == '"':             in_str = not in_str; continue
-            if in_str:                continue
-            if ch == '(':             depth += 1
-            elif ch == ')':
-                depth -= 1
-                if depth == 0: end = i; break
-        if end is None: sys.exit("unterminated %s( at %s" % (fac, m.group(0)[:60]))
-        rows.append((fac, split_args(rest[:end])))
-    return rows
+            if ch == '\\' and q:      esc = True;  continue
+            if ch == '"':             q = not q;   continue
+            if q:                     continue
+            depth += (ch == '(') - (ch == ')')
+            if not depth: break
+        else:
+            sys.exit('unterminated %s(' % m.group(1))
+        out.append((m.group(1), split_args(rest[:i])))
+    return out
 
 
 def unquote(a):
-    """A C++ string literal as its text; anything else unchanged."""
-    if len(a) >= 2 and a[0] == '"' and a[-1] == '"':
-        return a[1:-1].replace('\\"', '"').replace('\\\\', '\\')
-    return a
+    return a[1:-1].replace('\\"', '"') if len(a) > 1 and a[0] == a[-1] == '"' else a
 
 
 def quote(v, col):
-    """Back to a C++ literal. The text columns are strings; the rest are
-    already C++ - an enum, a cast, a pointer, a number."""
-    if col in ('name', 'unit', 'desc', 'notes', 'code'):
-        return '"%s"' % v.replace('\\', '\\\\').replace('"', '\\"')
-    return v
+    return '"%s"' % v.replace('"', '\\"') if col in TEXT else v
 
 
 def field(v):
-    """One value as CSV text: quoted only where it has to be."""
-    if any(c in v for c in ',"\n') or (v and v != v.strip()):
-        return '"%s"' % v.replace('"', '""')
-    return v
+    return '"%s"' % v.replace('"', '""') if any(c in v for c in ',"\n') else v
 
 
-def write_table(path, cols, records):
-    """A CSV a person can read: every column padded to its widest cell.
-
-    The padding is OUTSIDE any quotes, so it is not part of the value, and
-    the reader strips it. A value that genuinely needed surrounding spaces
-    would not survive that - export() refuses one rather than corrupting it.
-    """
-    cells = [[field(v) for v in rec] for rec in records]
-    w = [len(c) for c in cols]
-    for row in cells:
-        for i, c in enumerate(row): w[i] = max(w[i], len(c))
-    # A column is padded to line up, not to the width of its longest cell: one
-    # 300-character note would otherwise push every row off the screen. Past
-    # the cap the column simply is not aligned, which is the lesser harm.
-    w = [min(x, PAD_MAX) for x in w]
-    def line(row):
-        # No trailing spaces on the last column: they are invisible churn in
-        # a diff and mean nothing to a reader.
-        out = [c.ljust(w[i]) for i, c in enumerate(row[:-1])] + [row[-1]]
-        return ','.join(out).rstrip() + '\n'
+def write_table(path, cols, recs):
+    cells = [[field(v) for v in r] for r in recs]
+    w = [min(PAD, max([len(c)] + [len(r[i]) for r in cells])) for i, c in enumerate(cols)]
     with open(path, 'w') as fh:
-        fh.write(line(cols))
-        for row in cells: fh.write(line(row))
+        for r in [cols] + cells:
+            fh.write(','.join(c.ljust(w[i]) for i, c in enumerate(r[:-1]))
+                     .rstrip() + (',' if len(r) > 1 else '') + r[-1] + '\n')
+
+
+def read_table(path, cols):
+    if not os.path.exists(path): return []
+    with open(path, newline='') as fh:
+        rd = csv.reader(fh)
+        head = [h.strip() for h in next(rd)]
+        if head != cols: sys.exit('%s: header %s != %s' % (path, head, cols))
+        return [dict(zip(head, [c.strip() for c in r])) for r in rd
+                if r and any(c.strip() for c in r)]
 
 
 def export(site):
-    out = os.path.join(site, 'tables')
-    os.makedirs(out, exist_ok=True)
-    rows = parse(os.path.join(site, 'vars.cpp'))
-    per = {f: [] for f in FACTORIES}
-    for fac, args in rows: per[fac].append(args)
-    for fac, (stem, cols) in FACTORIES.items():
+    per = {f: [] for f in ROWS}
+    for fac, args in parse(os.path.join(site, 'vars.cpp')): per[fac].append(args)
+    os.makedirs(os.path.join(site, 'tables'), exist_ok=True)
+    for fac, (stem, cols) in ROWS.items():
         cols = cols.split()
         recs = []
-        for args in per[fac]:
-            # Trailing defaults are omitted in the source; pad so every row has
-            # the full width and the table is rectangular.
-            vals = [unquote(a) for a in args] + [''] * (len(cols) - len(args))
-            for v in vals:
-                if v != v.strip():
-                    sys.exit("%s: %r has edge whitespace, which the aligned "
-                             "format cannot carry" % (stem, v))
-            recs.append(vals[:len(cols)])
-        write_table(os.path.join(out, stem + '.csv'), cols, recs)
-        print("  %-16s %3d rows" % (stem + '.csv', len(recs)))
+        for a in per[fac]:
+            v = [unquote(x) for x in a] + [''] * (len(cols) - len(a))
+            for x in v:
+                if x != x.strip(): sys.exit('%s: %r has edge whitespace' % (stem, x))
+            recs.append(v[:len(cols)])
+        write_table(os.path.join(site, 'tables', stem + '.csv'), cols, recs)
+        print('  %-16s %3d' % (stem + '.csv', len(recs)))
+    export_aux(site)
+
+
+def export_aux(site):
+    s = open(os.path.join(site, 'vars.cpp')).read()
+    got = {
+        'analog_cal': [[m.group(1)] + [x for p in re.findall(r'R\("([^"]+)",\s*([^)]+)\)', m.group(2)) for x in p]
+                       for m in re.finditer(r'const AnalogCal (CAL_\w+) = \{(.*?)\n\};', s, re.S)],
+        'pulse_inputs': [list(t) for t in re.findall(r'\{\s*"([^"]+)",\s*(\d+),\s*HAL::Pulse::(\w+)\s*\}', s)],
+        'modbus_models': [list(t) for t in re.findall(
+            r'const Modbus::DeviceModel (MDL_\w+) =\s*Modbus::(\w+)\("([^"]+)",\s*(\d+),?\s*(\d*)\);', s)],
+        'modbus_devices': [list(t) for t in re.findall(r'\{\s*(\d+),\s*&(MDL_\w+),\s*"([^"]+)"\s*\}', s)],
+    }
+    for stem, cols in AUX.items():
+        write_table(os.path.join(site, 'tables', stem + '.csv'), cols.split(), got[stem])
+        print('  %-16s %3d' % (stem + '.csv', len(got[stem])))
 
 
 def load(site):
-    """Every CSV back as (factory, [c++ args]), trailing blanks dropped."""
     out = []
-    for fac, (stem, cols) in FACTORIES.items():
+    for fac, (stem, cols) in ROWS.items():
         cols = cols.split()
-        path = os.path.join(site, 'tables', stem + '.csv')
-        if not os.path.exists(path): continue
-        with open(path, newline='') as fh:
-            rd = csv.reader(fh)
-            head = [h.strip() for h in next(rd)]
-            if head != cols:
-                sys.exit("%s: header is %s, expected %s" % (path, head, cols))
-            for raw in rd:
-                if not raw or all(c.strip() == '' for c in raw): continue
-                rec = dict(zip(head, [c.strip() for c in raw]))
-                args = [quote(rec.get(c, ''), c) for c in cols]
-                while args and args[-1] == '': args.pop()
-                out.append((fac, args))
+        for r in read_table(os.path.join(site, 'tables', stem + '.csv'), cols):
+            a = [quote(r.get(c, ''), c) for c in cols]
+            while a and a[-1] == '': a.pop()
+            out.append((fac, a))
     return out
+
+
+def check(site):
+    was, now = {}, {}
+    for f, a in parse(os.path.join(site, 'vars.cpp')): was.setdefault(f, []).append(a)
+    for f, a in load(site): now.setdefault(f, []).append(a)
+    bad = 0
+    for f in ROWS:
+        a, b = was.get(f, []), now.get(f, [])
+        if len(a) != len(b):
+            print('  %s: %d cpp, %d csv' % (f, len(a), len(b))); bad += 1; continue
+        for i, (x, y) in enumerate(zip(a, b)):
+            if x != y:
+                print('  %s[%d]\n    cpp: %s\n    csv: %s' % (f, i, x, y)); bad += 1
+    print('ROUND TRIP CLEAN' if not bad else 'MISMATCH')
+    return bad
+
+
+H = '// GENERATED by scripts/tables.py from tables/*.csv. Do not edit.\n'
+
+
+def emit_rows(fac, cols, recs):
+    out = []
+    for r in recs:
+        a = [quote(r.get(c, ''), c) for c in cols]
+        while a and a[-1] == '': a.pop()
+        out.append('    %s(%s),' % (fac, ', '.join(a)))
+    return out
+
+
+def generate(site):
+    t = lambda stem, cols: read_table(os.path.join(site, 'tables', stem + '.csv'), cols.split())
+    cal, pul = t('analog_cal', AUX['analog_cal']), t('pulse_inputs', AUX['pulse_inputs'])
+    mdl, dev = t('modbus_models', AUX['modbus_models']), t('modbus_devices', AUX['modbus_devices'])
+    per = {f: t(stem, cols) for f, (stem, cols) in ROWS.items()}
+    n_par = sum(len(per[f]) for f in ('P', 'PE', 'PS'))
+    n_row = sum(len(per[f]) for f in ROWS if f not in ('P', 'PE', 'PS'))
+
+    L = [H, '', '#include "vars.h"', '', 'namespace Site {', '']
+    for c in cal:
+        L.append('const AnalogCal %s = {' % c['cal'])
+        for k in ('raw_min', 'raw_max', 'eng_min', 'eng_max', 'min', 'max'):
+            L.append('    R("%s", %s),' % (c[k + '_row'], c[k]))
+        L += ['};', '']
+    L.append('const AnalogCal* const g_analog_cals[] = {')
+    L += ['    &%s,' % c['cal'] for c in cal] + ['};', '']
+    L.append('const Descriptor params[] = {')
+    for f in ('P', 'PE', 'PS'):
+        L += emit_rows(f, ROWS[f][1].split(), per[f])
+    L += ['};', '']
+    L.append('const Descriptor rows[] = {')
+    for f in ('A', 'SV', 'SVE', 'G', 'MI', 'MO', 'AI', 'AO', 'DI', 'DO', 'RO'):
+        L += emit_rows(f, ROWS[f][1].split(), per[f])
+    L += ['};', '']
+    L.append('const PulseInput pulse_inputs[] = {')
+    L += ['    { "%s", %s, HAL::Pulse::%s },' % (p['name'], p['channel'], p['edge']) for p in pul]
+    L += ['};', '', '#if BOTANIK_FEATURE_MODBUS_RTU_CLIENT', '']
+    for m in mdl:
+        args = '"%s", %s' % (m['model_name'], m['regs']) + (', %s' % m['words'] if m['words'] else '')
+        L += ['const Modbus::DeviceModel %s = Modbus::%s(%s);' % (m['symbol'], m['kind'], args)]
+    L += ['', 'const Modbus::Device g_devices[] = {']
+    L += ['    { %s, &%s, "%s" },' % (d['addr'], d['model'], d['tag']) for d in dev]
+    L += ['};', '', 'const Modbus::DeviceTable g_device_table = {',
+          '    g_devices, (uint8_t)(sizeof(g_devices) / sizeof(g_devices[0]))', '};', '',
+          '#endif', '',
+          '// Filled at bring-up; extern in the header, or every TU including it',
+          '// would carry a definition.',
+          'VarRef home_refs[HOME_FIELDS] = {};', '',
+          '}  // namespace Site', '']
+    open(os.path.join(site, 'vars.gen.cpp'), 'w').write('\n'.join(L))
+
+    G = [H, '// Included from INSIDE namespace Site, so it opens none of its own.', '']
+    G += ['extern const AnalogCal %s;' % c['cal'] for c in cal]
+    G += ['', 'extern const AnalogCal* const g_analog_cals[];',
+          'const uint8_t g_analog_cal_count = %d;' % len(cal), '',
+          'extern const Descriptor params[];', 'const uint16_t PARAMS_COUNT = %d;' % n_par, '',
+          'extern const Descriptor rows[];',   'const uint16_t ROWS_COUNT = %d;' % n_row, '',
+          'extern const PulseInput pulse_inputs[];',
+          'const uint8_t pulse_input_count = %d;' % len(pul), '',
+          '#if BOTANIK_FEATURE_MODBUS_RTU_CLIENT']
+    G += ['extern const Modbus::DeviceModel %s;' % m['symbol'] for m in mdl]
+    G += ['extern const Modbus::Device g_devices[];',
+          'extern const Modbus::DeviceTable g_device_table;', '#endif', '']
+    open(os.path.join(site, 'vars.gen.h'), 'w').write('\n'.join(G))
+    print('  vars.gen.cpp   %d params, %d rows' % (n_par, n_row))
 
 
 if __name__ == '__main__':
     cmd = sys.argv[1] if len(sys.argv) > 1 else ''
-    if cmd == 'export':
-        export(SITE)
-    elif cmd == 'check':
-        # The round trip, which is the whole safety argument: what the CSVs
-        # say must be exactly what the hand-written file says.
-        was = {}
-        for fac, args in parse(os.path.join(SITE, 'vars.cpp')):
-            was.setdefault(fac, []).append(args)
-        now = {}
-        for fac, args in load(SITE):
-            now.setdefault(fac, []).append(args)
-        bad = 0
-        for fac in FACTORIES:
-            a, b = was.get(fac, []), now.get(fac, [])
-            if len(a) != len(b):
-                print("  %s: %d rows in vars.cpp, %d in CSV" % (fac, len(a), len(b))); bad += 1; continue
-            for i, (x, y) in enumerate(zip(a, b)):
-                if x != y:
-                    print("  %s[%d] differs:\n    cpp: %s\n    csv: %s" % (fac, i, x, y))
-                    bad += 1
-                    if bad > 5: sys.exit(1)
-        print("ROUND TRIP CLEAN" if not bad else "MISMATCH")
-        sys.exit(1 if bad else 0)
-    else:
-        sys.exit(__doc__)
+    if   cmd == 'export':   export(SITE)
+    elif cmd == 'check':    sys.exit(1 if check(SITE) else 0)
+    elif cmd == 'generate': generate(SITE)
+    else:                   sys.exit(__doc__)

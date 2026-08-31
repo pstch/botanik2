@@ -1,0 +1,29 @@
+name               ,device,coil,safe ,invert,desc,notes
+cli_window1_opn    ,31    ,0   ,false,false ,window 1 open,
+cli_window1_clo    ,31    ,1   ,false,false ,window 1 close,
+irr_input_ro1      ,31    ,2   ,false,false ,irrigation input valve 1,
+irr_output_ro1     ,31    ,3   ,true ,true  ,irrigation output valve 1,
+irr_tray1          ,31    ,4   ,true ,true  ,tray 1 valve,
+irr_tray2          ,31    ,5   ,true ,true  ,tray 2 valve,
+cli_window2_opn    ,32    ,0   ,false,false ,window 2 open,
+cli_window2_clo    ,32    ,1   ,false,false ,window 2 close,
+irr_input_ro2      ,32    ,2   ,false,false ,irrigation input valve 2,
+irr_output_ro2     ,32    ,3   ,true ,true  ,irrigation output valve 2,
+irr_tray3          ,32    ,4   ,true ,true  ,tray 3 valve,
+irr_tray4          ,32    ,5   ,true ,true  ,tray 4 valve,
+cli_window3_opn    ,33    ,0   ,false,false ,window 3 open,
+cli_window3_clo    ,33    ,1   ,false,false ,window 3 close,
+cli_destrat1_speed1,33    ,2   ,true ,false ,destratification fan 1 speed 1,"SAFE IS RUNNING, not off: still air is itself a rot risk, and low speed costs little. The only actuator here whose safe state is energised"
+cli_destrat1_speed2,33    ,3   ,false,false ,destratification fan 1 speed 2,off at the safe state; speed 1 carries it
+cli_destrat1_speed3,33    ,4   ,false,false ,destratification fan 1 speed 3,off at the safe state; speed 1 carries it
+cli_screen         ,33    ,5   ,true ,true  ,thermal screen,deploys on a de-energised coil (safe+invert) so a dead PLC leaves it out
+irr_tray5          ,33    ,6   ,true ,true  ,tray 5 valve,
+irr_tray6          ,33    ,7   ,true ,true  ,tray 6 valve,
+cli_window4_opn    ,34    ,0   ,false,false ,window 4 open,
+cli_window4_clo    ,34    ,1   ,false,false ,window 4 close,
+cli_destrat2_speed1,34    ,2   ,true ,false ,destratification fan 2 speed 1,"SAFE IS RUNNING, not off: still air is itself a rot risk, and low speed costs little. The only actuator here whose safe state is energised"
+cli_destrat2_speed2,34    ,3   ,false,false ,destratification fan 2 speed 2,off at the safe state; speed 1 carries it
+cli_destrat2_speed3,34    ,4   ,false,false ,destratification fan 2 speed 3,off at the safe state; speed 1 carries it
+cli_skirtValve     ,34    ,5   ,false,false ,wet skirt valve,"pulsed: humidify effort, or cooling"
+irr_tray7          ,34    ,6   ,true ,true  ,tray 7 valve,
+irr_tray8          ,34    ,7   ,true ,true  ,tray 8 valve,

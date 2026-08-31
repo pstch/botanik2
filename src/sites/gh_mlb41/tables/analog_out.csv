@@ -1,3 +1,3 @@
-name     ,cal           ,device,fc,reg,regs,wire ,safe ,digits,unit,desc             ,notes                             ,word_swap
+name     ,cal           ,device,fc,reg,regs,wire ,safe ,digits,unit,desc             ,notes,word_swap
 cli_intr1,&CAL_cli_intr1,16    ,6 ,0  ,1   ,T_U16,0.15f,2     ,    ,intractor 1 speed,"safe is 15%, not stopped: some air is always wanted",
 cli_intr2,&CAL_cli_intr2,16    ,6 ,1  ,1   ,T_U16,0.15f,2     ,    ,intractor 2 speed,"safe is 15%, not stopped: some air is always wanted",

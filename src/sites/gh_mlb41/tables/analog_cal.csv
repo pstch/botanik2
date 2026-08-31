@@ -1,0 +1,8 @@
+cal             ,raw_min_row         ,raw_min,raw_max_row         ,raw_max ,eng_min_row        ,eng_min,eng_max_row        ,eng_max,min_row       ,min  ,max_row,max
+CAL_pwr_genBat_V,pwr_genBat_rawMin_mV,5000.0f,pwr_genBat_rawMax_mV,7500.0f ,pwr_genBat_engMin_V,20.0f  ,pwr_genBat_engMax_V,30.0f  ,pwr_genBat_min,20.0f,pwr_genBat_max,30.0f
+CAL_pwr_upsBat_V,pwr_upsBat_rawMin_mV,4000.0f,pwr_upsBat_rawMax_mV,6000.0f ,pwr_upsBat_engMin_V,20.0f  ,pwr_upsBat_engMax_V,30.0f  ,pwr_upsBat_min,20.0f,pwr_upsBat_max,30.0f
+CAL_pwr_dc1_V   ,pwr_dc1_rawMin_mV   ,4000.0f,pwr_dc1_rawMax_mV   ,6000.0f ,pwr_dc1_engMin_V   ,20.0f  ,pwr_dc1_engMax_V   ,30.0f  ,pwr_dc1_min   ,20.0f,pwr_dc1_max,30.0f
+CAL_pwr_dc2_V   ,pwr_dc2_rawMin_mV   ,4000.0f,pwr_dc2_rawMax_mV   ,6000.0f ,pwr_dc2_engMin_V   ,20.0f  ,pwr_dc2_engMax_V   ,30.0f  ,pwr_dc2_min   ,20.0f,pwr_dc2_max,30.0f
+CAL_irr_out_Lpm ,irr_out_rawMin_uA   ,4000.0f,irr_out_rawMax_uA   ,20000.0f,irr_out_engMin_Lpm ,0.0f   ,irr_out_engMax_Lpm ,50.0f  ,irr_out_min   ,0.0f ,irr_out_max,50.0f
+CAL_cli_intr1   ,cli_intr_rawMin_mV  ,0.0f   ,cli_intr_rawMax_mV  ,10000.0f,cli_intr_engMin    ,0.0f   ,cli_intr_engMax    ,1.0f   ,cli_intr_min  ,0.0f ,cli_intr_max,1.0f
+CAL_cli_intr2   ,cli_intr_rawMin_mV  ,0.0f   ,cli_intr_rawMax_mV  ,10000.0f,cli_intr_engMin    ,0.0f   ,cli_intr_engMax    ,1.0f   ,cli_intr_min  ,0.0f ,cli_intr_max,1.0f
