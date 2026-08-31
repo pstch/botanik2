@@ -108,10 +108,16 @@ TEST_CASE_FIXTURE(StRig, "fans: an unknown gap floors them at their safe state, 
     Vars::RefIn<bool> s1 = live.bank.resolve_in<bool>("cli_destrat1_speed1");
     Vars::RefIn<bool> s3 = live.bank.resolve_in<bool>("cli_destrat1_speed3");
 
-    // The GAP, not the demand: destrat publishes cli_stratDem every scan now,
-    // so an unreadable gap is what reaches the fans. It substitutes the row's
-    // declared 2.0 degC, which is the low rung.
-    live.bank.var(live.ref("cli_dTStrat_degC")).invalidate(Q_NO_DATA);
+    // The PROBES: every row between them and the fans is an ST output now, so
+    // an "unknown gap" is the levels nobody is measuring. strat_sensor then
+    // publishes the low rung and the ladder engages speed 1.
+    for (uint8_t i = 1; i <= 3; i++) {
+        char n[24];
+        snprintf(n, sizeof n, "cli_temp_hi%u", (unsigned)i);
+        live.bank.var(live.ref(n)).invalidate(Q_NO_DATA);
+        snprintf(n, sizeof n, "cli_temp_lo%u", (unsigned)i);
+        live.bank.var(live.ref(n)).invalidate(Q_NO_DATA);
+    }
     live.bank.var(live.ref("cli_coolDem")).set(0.0f);
     d.step(100);
 
@@ -418,7 +424,7 @@ TEST_CASE_FIXTURE(RoofRig, "windows: an unmeasured sky shuts the roof rather tha
     // windows read a lockout row, which is as readable as ever.
 }
 
-TEST_CASE_FIXTURE(Rig<Site::IntractorController>, "intractors: the fusion is a maximum of the demands whose gate is open") {
+TEST_CASE_FIXTURE(StRig, "intractors: the fusion is a maximum of the demands whose gate is open") {
 
     Vars::RefIn<float> intr = live.bank.resolve_in<float>("cli_intr1");
     const float start = live.bank.var(live.ref("cli_intakeStartDem")).as_f32();
@@ -456,7 +462,7 @@ TEST_CASE_FIXTURE(Rig<Site::IntractorController>, "intractors: the fusion is a m
     CHECK(live.bank.get(live.bank.resolve_in<float>("cli_intr2")) == doctest::Approx(1.0f));
 }
 
-TEST_CASE_FIXTURE(Rig<Site::IntractorController>, "intractors: cooling only draws air that is worth drawing") {
+TEST_CASE_FIXTURE(StRig, "intractors: cooling only draws air that is worth drawing") {
 
     Vars::RefIn<float> intr = live.bank.resolve_in<float>("cli_intr1");
 

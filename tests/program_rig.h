@@ -132,13 +132,25 @@ struct StRig {
         mirror.wire();
         d.st = &st;
         d.mirror = &mirror;
-        // The resource is the unit now, not the program: every ST program in
-        // it runs on every scan. destrat publishes cli_stratDem, which is one
-        // of the four floors under the fan ladder, so a case about any OTHER
-        // floor has to put the gap where destrat asks for nothing. A case
-        // about destrat sets the gap itself.
-        live.bank.var(live.ref("cli_dTStrat_degC"))
-            .publish(from_f32(T_F32, -0.1f), 0);
+        // The whole conditioning chain is ST now, so seeding a DERIVED row
+        // achieves nothing: temp_rh_sensors overwrites the levels from the
+        // probes, strat_sensor the gap from the levels, destrat the demand
+        // from the gap. A case seeds the probes, or it seeds nothing.
+        //
+        // Both levels alike, so the gap is zero and destrat asks for nothing:
+        // its demand is one of the four floors under the fan ladder, and a
+        // case about any OTHER floor needs it quiet.
+        for (uint8_t i = 1; i <= 3; i++) {
+            char n[24];
+            snprintf(n, sizeof n, "cli_temp_hi%u", (unsigned)i);
+            live.bank.var(live.ref(n)).publish(from_f32(T_F32, 20.0f), 0);
+            snprintf(n, sizeof n, "cli_temp_lo%u", (unsigned)i);
+            live.bank.var(live.ref(n)).publish(from_f32(T_F32, 20.0f), 0);
+            snprintf(n, sizeof n, "cli_rh_hi%u", (unsigned)i);
+            live.bank.var(live.ref(n)).publish(from_f32(T_F32, 50.0f), 0);
+            snprintf(n, sizeof n, "cli_rh_lo%u", (unsigned)i);
+            live.bank.var(live.ref(n)).publish(from_f32(T_F32, 50.0f), 0);
+        }
     }
 
     struct Driver {

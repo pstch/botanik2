@@ -37,10 +37,15 @@ namespace Site {
  *  ORDER IS EXECUTION ORDER within the beat, as it was when these were C++
  *  programs: conditioning first, then the laws, then the actuators. */
 #define SITE_ST_PROGRAM_LIST(X)                                                \
-    X(temp_rh_sensors,  TEMP_RH_SENSORS,    SENSORS, BOTANIK_SITE_SENSE_MS)    \
-    X(destrat,          DESTRAT_CONTROLLER, DESTRAT, BOTANIK_SITE_CONTROL_MS)  \
-    X(roof_lockout,     ROOF_LOCKOUT,       ROOF,    BOTANIK_SITE_CONTROL_MS)  \
-    X(fans,             FAN_CONTROLLER,     FANS,    BOTANIK_SITE_CONTROL_MS)
+    X(temp_rh_sensors,  TEMP_RH_SENSORS,        SENSORS,  BOTANIK_SITE_SENSE_MS)   \
+    X(strat,            STRAT_SENSOR,           STRAT,    BOTANIK_SITE_SENSE_MS)   \
+    X(climate_watch,    CLIMATE_WATCH,          CLIMWATCH, BOTANIK_SITE_CONTROL_MS)\
+    X(weather_watch,    WEATHER_WATCH,          WXWATCH,  BOTANIK_SITE_CONTROL_MS) \
+    X(target_temp,      TARGET_TEMP_CONTROLLER, TARGET,   BOTANIK_SITE_CONTROL_MS) \
+    X(destrat,          DESTRAT_CONTROLLER,     DESTRAT,  BOTANIK_SITE_CONTROL_MS) \
+    X(roof_lockout,     ROOF_LOCKOUT,           ROOF,     BOTANIK_SITE_CONTROL_MS) \
+    X(intractors,       INTRACTOR_CONTROLLER,   INTRACTORS, BOTANIK_SITE_CONTROL_MS)\
+    X(fans,             FAN_CONTROLLER,         FANS,     BOTANIK_SITE_CONTROL_MS)
 
 /* The roster's own index, so a handler knows which entry it is. */
 enum {

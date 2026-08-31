@@ -83,10 +83,7 @@
 #include "programs/sense/sun_watch/sun_watch.h"
 #include "programs/sense/wx_sensors/wx_sensors.h"
 #include "programs/sense/temp_rh_zone/temp_rh_zone.h"
-#include "programs/sense/strat_sensor/strat_sensor.h"
-#include "programs/sense/climate_watch/climate_watch.h"
 #include "programs/climate/day_phase_controller/day_phase_controller.h"
-#include "programs/climate/target_temp_controller/target_temp_controller.h"
 #include "programs/climate/cooling_controller/cooling_controller.h"
 #include "programs/climate/intake_gates/intake_gates.h"
 #include "programs/climate/humidity_controller/humidity_controller.h"
@@ -99,8 +96,6 @@
 #include "programs/irrigation/irr_valves/irr_valves.h"
 #include "programs/actuators/screen_controller/screen_controller.h"
 #include "programs/actuators/windows_controller/windows_controller.h"
-#include "programs/sense/weather_watch/weather_watch.h"
-#include "programs/actuators/intractor_controller/intractor_controller.h"
 #include "programs/actuators/skirt_controller/skirt_controller.h"
 
 /** @name The site's programs, in EXECUTION order
@@ -115,10 +110,7 @@
     X(SunWatch,             _sun_watch)       \
     X(WxSensors,            _wx_sensors)     \
     X(TempRHZone,           _temp_rh_zone)    \
-    X(StratSensor,          _strat)           \
-    X(ClimateWatch,         _climate_watch)   \
     X(DayPhaseController,   _day_phase)       \
-    X(TargetTempController, _target_temp)     \
     X(CoolingController,    _cooling)         \
     X(IntakeGates,          _intake_gates)   \
     X(HumidityController,   _humidity)        \
@@ -131,8 +123,6 @@
     X(IrrValves,            _irr_valves)      \
     X(ScreenController,     _screen)          \
     X(WindowsController,    _windows)         \
-    X(WeatherWatch,         _weather_watch)   \
-    X(IntractorController,  _intractors)      \
     X(SkirtController,      _skirt)
 
 /** @} */

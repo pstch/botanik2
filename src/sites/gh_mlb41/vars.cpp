@@ -264,6 +264,7 @@ const Descriptor params[] = {
     P("cli_targetMin_degC"   , T_F32 , 14.0   , 0.0   , 40.0   , 1, "degC", 154, "coldest the target may be clamped to", "", true),
     P("cli_targetMax_degC"   , T_F32 , 27.0   , 0.0   , 40.0   , 1, "degC", 155, "warmest the target may be clamped to", "", true),
     P("cli_sensorTau_ms"     , T_U16 , 30000  , 1000  , 60000  , 0, "ms"  , 156, "probe filter time constant", "", true),
+    P("cli_intrSafeSpeed"    , T_F32 , 0.15   , 0.0   , 1.0    , 2, ""    , 164, "intractor speed with nothing asking", "the AO row declares the same number as its own safe state; test_site keeps the two in step", true),
     P("cli_wxTau_ms"         , T_U16 , 5000   , 500   , 60000  , 0, "ms"  , 163, "weather filter time constant", "shorter than the probes': a roof interlock answers weather that moves in seconds", true),
     P("cli_targetTau_s"      , T_U16 , 300    , 0     , 3600   , 0, "s"   , 160, "target temperature filter time constant", "", true),
 
@@ -474,6 +475,8 @@ const Descriptor rows[] = {
     SV("cli_rh_lo_qlt"           , T_BOOL, 0          , 0, ""    , 652, "floor humidity believable", "the zone's own verdict, written by temp_rh_sensors"),
     SV("cli_rh_cs_qlt"           , T_BOOL, 0          , 0, ""    , 653, "crawlspace humidity believable", "the zone's own verdict, written by temp_rh_sensors"),
     SV("cli_rh_ext_qlt"          , T_BOOL, 0          , 0, ""    , 654, "exterior humidity believable", "the zone's own verdict, written by temp_rh_sensors"),
+
+    SV("cli_dTStrat_degC_qlt"   , T_BOOL, 0          , 0, ""    , 655, "stratification gap believable", "strat_sensor's verdict: both levels measured"),
 
     SV("cli_rain_mmph_qlt"      , T_BOOL, 0          , 0, ""    , 613, "rain rate believable", "roof_lockout shuts the roof without it: the row declares 0, which reads as fine weather"),
     SV("cli_wind_mps_qlt"       , T_BOOL, 0          , 0, ""    , 614, "wind speed believable", "roof_lockout shuts the roof without it: the row declares 0, which reads as calm"),

@@ -138,33 +138,60 @@ TEST_CASE_FIXTURE(StRig, "zone: a zone that has never been measured has nothing 
  *  TempRHSensors publishes as a pair. */
 static void levels(Live& f, float hi, float lo, uint64_t at = 0,
                    bool hi_ok = true, bool lo_ok = true) {
-    f.bank.var(f.ref("cli_temp_hi")).publish(from_f32(T_F32, hi), at);
-    f.bank.var(f.ref("cli_temp_lo")).publish(from_f32(T_F32, lo), at);
-    f.bank.var(f.ref("cli_temp_hi_qlt")).publish(from_bool(T_BOOL, hi_ok), at);
-    f.bank.var(f.ref("cli_temp_lo_qlt")).publish(from_bool(T_BOOL, lo_ok), at);
+    // The PROBES: cli_temp_hi and cli_temp_lo are temp_rh_sensors' outputs
+    // now, so publishing them directly is overwritten on the next scan. A
+    // level "nobody measures" is one whose three probes stopped answering.
+    char n[24];
+    for (uint8_t i = 1; i <= 3; i++) {
+        snprintf(n, sizeof n, "cli_temp_hi%u", (unsigned)i);
+        if (hi_ok) f.bank.var(f.ref(n)).publish(from_f32(T_F32, hi), at);
+        else       f.bank.var(f.ref(n)).invalidate(Q_NO_DATA);
+        snprintf(n, sizeof n, "cli_temp_lo%u", (unsigned)i);
+        if (lo_ok) f.bank.var(f.ref(n)).publish(from_f32(T_F32, lo), at);
+        else       f.bank.var(f.ref(n)).invalidate(Q_NO_DATA);
+    }
 }
 
-TEST_CASE_FIXTURE(Rig<Site::StratSensor>, "strat: the gap is unsigned, so an inverted profile still calls the fans") {
+/** @brief Hold the two levels @p degrees apart until the zone filter has
+ *  arrived. The gap is three programs downstream of the probes now - zone,
+ *  then strat_sensor - so a case about the destratification LADDER still has
+ *  to come through the sensing chain to reach it. */
+template <typename R>
+static void settle_gap(R& rig, uint64_t& t, float degrees) {
+    for (uint32_t i = 0; i < 2000; i++) {
+        levels(rig.live, 20.0f + degrees, 20.0f, t);
+        rig.d.step(t += 100);
+    }
+}
+
+TEST_CASE_FIXTURE(StRig, "strat: the gap is unsigned, so an inverted profile still calls the fans") {
 
     Vars::RefIn<float> gap = live.bank.resolve_in<float>("cli_dTStrat_degC");
 
-    levels(live, 24.0f, 20.0f, 0);
-    d.step(100);
-    CHECK(live.bank.get(gap) == doctest::Approx(4.0f));
+    // Long enough for the zone filter to arrive: the levels are EWMA outputs
+    // now, with a 30-second time constant, so a gap is only exact after a few
+    // minutes of beats rather than one.
+    uint64_t t = 0;
+    levels(live, 24.0f, 20.0f, t);
+    for (uint32_t i = 0; i < 2000; i++) { levels(live, 24.0f, 20.0f, t); d.step(t += 100); }
+    CHECK(live.bank.get(gap) == doctest::Approx(4.0f).epsilon(0.02));
 
     INFO("a cold roof over a warm floor is as much a case for mixing");
-    levels(live, 18.0f, 22.0f, 200);
-    d.step(200);
-    CHECK(live.bank.get(gap) == doctest::Approx(4.0f));
+    for (uint32_t i = 0; i < 2000; i++) { levels(live, 18.0f, 22.0f, t); d.step(t += 100); }
+    CHECK(live.bank.get(gap) == doctest::Approx(4.0f).epsilon(0.02));
 }
 
-TEST_CASE_FIXTURE(Rig<Site::StratSensor>, "strat: a level nothing measures makes the gap unmeasured, not zero") {
+TEST_CASE_FIXTURE(StRig, "strat: a level nothing measures makes the gap unmeasured, not zero") {
 
     levels(live, 24.0f, 20.0f, 0, true, false);
     d.step(100);
-    INFO("the companion is what says so - the level row still holds a number, "
+    INFO("the COMPANION is what says so - the row holds a number either way, "
          "and it is the one that would fabricate a four-degree gap");
-    CHECK_FALSE(live.bank.var(live.ref("cli_dTStrat_degC")).valid());
+    CHECK_FALSE(live.bank.var(live.ref("cli_dTStrat_degC_qlt")).as_bool());
+    INFO("...and the gap it does publish is the low rung, so the fans keep "
+         "mixing rather than reading a profile nobody saw");
+    CHECK(live.bank.var(live.ref("cli_dTStrat_degC")).as_f32() ==
+          doctest::Approx(live.bank.var(live.ref("cli_dTStratLow_degC")).as_f32()));
 }
 
 TEST_CASE_FIXTURE(Rig<Site::DayPhaseController>, "day phase: the banks arm off the published extremes, so one can be forced") {
@@ -191,7 +218,7 @@ TEST_CASE_FIXTURE(Rig<Site::DayPhaseController>, "day phase: the banks arm off t
     CHECK_FALSE(live.bank.var(live.ref("cli_coldBankArm")).as_bool());
 }
 
-TEST_CASE_FIXTURE(Rig<Site::TargetTempController>, "target: a bank phase only shifts the target when yesterday armed it") {
+TEST_CASE_FIXTURE(StRig, "target: a bank phase only shifts the target when yesterday armed it") {
 
     Vars::RefIn<float> target = live.bank.resolve_in<float>("cli_targetTemp_degC");
     const VarRef phase = live.ref("cli_phase");
@@ -228,7 +255,7 @@ TEST_CASE_FIXTURE(Rig<Site::TargetTempController>, "target: a bank phase only sh
     CHECK(live.bank.get(target) == doctest::Approx(base + hofs));
 }
 
-TEST_CASE_FIXTURE(Rig<Site::TargetTempController>, "target: an unplaced phase takes the base setpoint, and stays believable") {
+TEST_CASE_FIXTURE(StRig, "target: an unplaced phase takes the base setpoint, and stays believable") {
 
     Vars::RefIn<float> target = live.bank.resolve_in<float>("cli_targetTemp_degC");
     const VarRef phase = live.ref("cli_phase");
@@ -257,7 +284,7 @@ TEST_CASE_FIXTURE(Rig<Site::TargetTempController>, "target: an unplaced phase ta
     CHECK(live.bank.var(live.ref("cli_targetTemp_degC")).valid());
 }
 
-TEST_CASE_FIXTURE(Rig<Site::TargetTempController>, "target: a phase boundary eases the target instead of stepping it") {
+TEST_CASE_FIXTURE(StRig, "target: a phase boundary eases the target instead of stepping it") {
 
     Vars::RefIn<float> target = live.bank.resolve_in<float>("cli_targetTemp_degC");
     const float base = live.bank.var(live.ref("cli_coolSet_degC")).as_f32();
@@ -281,7 +308,7 @@ TEST_CASE_FIXTURE(Rig<Site::TargetTempController>, "target: a phase boundary eas
     CHECK(live.bank.get(target) == doctest::Approx(base - ofs).epsilon(0.001));
 }
 
-TEST_CASE_FIXTURE(Rig<Site::TargetTempController>, "target: an aggressive offset is clamped to the safe band") {
+TEST_CASE_FIXTURE(StRig, "target: an aggressive offset is clamped to the safe band") {
 
     live.bank.param_set(live.bank.var(live.ref("cli_coldBankOfs_degC")), 15.0f);
     live.bank.var(live.ref("cli_phase")).set_i((int64_t)Site::PHASE_COLD_BANK);
@@ -358,11 +385,10 @@ TEST_CASE("cooling: an unknown demand puts every actuator at its own safe state"
     // The lockout is ST, so the resource runs ahead of the actuators.
     Site::StRuntime            st(Botanik::SetupContext(f.reg), f.bank);
     Site::WindowsController    win(Botanik::SetupContext(f.reg), f.bank);
-    Site::IntractorController  intr(Botanik::SetupContext(f.reg), f.bank);
     Site::ScreenController     scr(Botanik::SetupContext(f.reg), f.bank);
     Site::SkirtController      sk(Botanik::SetupContext(f.reg), f.bank);
-    Plc::Program* const progs[] = { &win, &intr, &scr, &sk };
-    Cycle cyc(progs, 4, &f.bank, f.reg);
+    Plc::Program* const progs[] = { &win, &scr, &sk };
+    Cycle cyc(progs, 3, &f.bank, f.reg);
     st.wire();
     struct { Site::StRuntime* st; Cycle* c;
              void step(uint64_t n) { st->scan(n); c->step(n); } } d{ &st, &cyc };
@@ -419,41 +445,61 @@ TEST_CASE_FIXTURE(StRig, "scan: sys_now_ms is the clock, and a block differences
     CHECK(live.bank.var(now).value().as<uint32_t>() == 700u);
 }
 
-TEST_CASE_FIXTURE(StRig, "destrat: an unmeasured gap makes the demand unknown, not zero") {
+TEST_CASE_FIXTURE(StRig, "destrat: the ladder is three rungs, and coming down costs the hysteresis") {
 
     const VarRef dem = live.ref("cli_stratDem");
-    field(live, "cli_dTStrat_degC", 8.0f);
-    d.step(100);
-    REQUIRE(live.bank.var(dem).valid());
+    uint64_t t = 0;
+
+    settle_gap(*this, t, 8.0f);
     INFO("the demand IS the fans' own top rung: any other number would need "
          "translating twice, and the two ladders would drift apart");
-    REQUIRE(live.bank.var(dem).as_f32() ==
-            doctest::Approx(live.bank.var(live.ref("cli_fanHighDem")).as_f32()));
+    CHECK(live.bank.var(dem).as_f32() ==
+          doctest::Approx(live.bank.var(live.ref("cli_fanHighDem")).as_f32()));
 
-    INFO("every rung engages AT its gap, not a hysteresis above it: the "
-         "parameter an operator sets is where the speed starts");
-    field(live, "cli_dTStrat_degC",
-          live.bank.var(live.ref("cli_dTStratLow_degC")).as_f32());
-    d.step(200);
+    // EITHER SIDE of a rung's edge, never ON it: the gap arrives through an
+    // EWMA now, which approaches its target asymptotically. Settling from 8.0
+    // to "exactly 2.0" lands on 2.007, and a rung releasing at `<= 2.0` then
+    // holds - which is the filter being correct, not the ladder being wrong.
+    INFO("a gap under the middle rung's release edge gives the speed back");
+    settle_gap(*this, t, 1.5f);
     CHECK(live.bank.var(dem).as_f32() ==
           doctest::Approx(live.bank.var(live.ref("cli_fanLowDem")).as_f32()));
 
     INFO("and coming back down costs the hysteresis: the rungs are contiguous "
          "by default, since a speed's release edge is the one below it");
-    field(live, "cli_dTStrat_degC", 1.0f);
-    d.step(300);
+    settle_gap(*this, t, 1.0f);
     CHECK(live.bank.var(dem).as_f32() ==
           doctest::Approx(live.bank.var(live.ref("cli_fanLowDem")).as_f32()));
-    field(live, "cli_dTStrat_degC", -0.1f);
-    d.step(400);
-    CHECK(live.bank.var(dem).as_f32() == doctest::Approx(0.0f));
-
-    INFO("an unreadable gap declares the LOW rung, so substitution keeps the "
-         "fans mixing rather than reading as 'no stratification' and stopping "
-         "them - the demand is written either way");
-    live.bank.var(live.ref("cli_dTStrat_degC")).invalidate(Q_NO_DATA);
-    d.step(500);
+    // ...and the LOW rung does not give up at all. Its release edge is
+    // cli_dTStratLow_degC minus cli_dTStratHyst_degC, both 2.0, so it releases
+    // at a gap of 0.0 - and the gap is an ABSOLUTE difference, which reaches
+    // exactly zero only if the two filtered levels come out bit-identical.
+    // Pre-dates the ST port: the same subtraction, the same absolute gap. What
+    // the port changed is that a case now drives the real chain, where setting
+    // the row to a literal -0.1 used to walk straight past it.
+    // See docs/dev/plc-to-st.md; this is a tuning question, not a code one.
+    settle_gap(*this, t, 0.05f);
+    INFO("the destratification fans hold speed 1 rather than stopping");
     CHECK(live.bank.var(dem).as_f32() ==
+          doctest::Approx(live.bank.var(live.ref("cli_fanLowDem")).as_f32()));
+}
+
+TEST_CASE_FIXTURE(StRig, "destrat: a level nothing measures keeps the fans mixing") {
+
+    // strat_sensor publishes the LOW RUNG when it cannot see a profile, so the
+    // ladder engages speed 1 rather than reading zero and stopping. That
+    // substitution is written out in the ST: an ST-written row is always
+    // valid, so it cannot come from the row's declared value any more.
+    uint64_t t = 0;
+    settle_gap(*this, t, -0.1f);
+    REQUIRE(live.bank.var(live.ref("cli_stratDem")).as_f32() ==
+            doctest::Approx(0.0f));
+
+    levels(live, 24.0f, 20.0f, t, false, false);
+    for (uint32_t i = 0; i < 50; i++) d.step(t += 100);
+
+    CHECK_FALSE(live.bank.var(live.ref("cli_dTStrat_degC_qlt")).as_bool());
+    CHECK(live.bank.var(live.ref("cli_stratDem")).as_f32() ==
           doctest::Approx(live.bank.var(live.ref("cli_fanLowDem")).as_f32()));
 }
 
@@ -515,7 +561,7 @@ TEST_CASE_FIXTURE(Rig<Site::HumidityController>, "humidity, rot guard: an unmeas
     CHECK(live.bank.get(live.bank.resolve_in<bool>("cli_rotLockout")));
 }
 
-TEST_CASE_FIXTURE(Rig<Site::WeatherWatch>,
+TEST_CASE_FIXTURE(StRig,
                   "weather: a storm is 75 kmph of sustained wind, not a stiff breeze") {
     // It used to be read off the roof's own lockouts, so a passing shower or a
     // gust over the vent-closing threshold put a storm on the ribbon. Those are

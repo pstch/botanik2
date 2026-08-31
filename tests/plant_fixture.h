@@ -53,11 +53,7 @@ struct Plant {
     Site::AcLocalWatch         ac_local;
     Site::DcWatch              dc;
     Site::TempRHZone           zones;
-    Site::StratSensor          strat;
-    Site::ClimateWatch         climate;
     Site::WxSensors            wx;
-    Site::WeatherWatch         weather;
-    Site::TargetTempController target;
     Site::CoolingController    cooling;
     Site::IntakeGates          intake_gates;
     Site::HumidityController   humidity;
@@ -71,7 +67,6 @@ struct Plant {
     Site::IrrValves            irr_valves;
     Site::ScreenController     screen;
     Site::WindowsController    windows;
-    Site::IntractorController  intractors;
     Site::SkirtController      skirt;
     /** @brief PHASE_INPUT's job: a field row's quality reaches ST as a
      *  companion. Before the plant, as the beat has it. */
@@ -90,21 +85,18 @@ struct Plant {
 
     Plant()
         : ac_grid(ctx(), io()), ac_local(ctx(), io()), dc(ctx(), io()),
-          zones(ctx(), io()), strat(ctx(), io()),
-          climate(ctx(), io()), wx(ctx(), io()), weather(ctx(), io()),
-          target(ctx(), io()), cooling(ctx(), io()),
+          zones(ctx(), io()), wx(ctx(), io()), cooling(ctx(), io()),
           intake_gates(ctx(), io()),
           humidity(ctx(), io()), intake_dry(ctx(), io()), irr_mod(ctx(), io()), irr_in(ctx(), io()), irr_out(ctx(), io()),
           irr_schedule(ctx(), io()), irrigation(ctx(), io()), irr_valves(ctx(), io()), screen(ctx(), io()),
           windows(ctx(), io()),
-          intractors(ctx(), io()), skirt(ctx(), io()),
+          skirt(ctx(), io()),
           mirror(ctx(), io()), st(ctx(), io()) {
         Plc::Program* const list[] = {
-            &ac_grid, &ac_local, &dc, &zones, &strat, &climate,
-            &wx, &weather,
-            &target, &cooling, &intake_gates, &humidity, &intake_dry,
+            &ac_grid, &ac_local, &dc, &zones,
+            &wx, &cooling, &intake_gates, &humidity, &intake_dry,
             &irr_mod, &irr_in, &irr_out, &irr_schedule, &irrigation, &irr_valves,
-            &screen, &windows, &intractors, &skirt
+            &screen, &windows, &skirt
         };
         // Sized from the list, never a literal: a hand-kept count silently
         // drops whichever program is last the day one is added.

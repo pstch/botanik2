@@ -136,14 +136,14 @@ static_assert(g_analog_cal_count <= Config::ANALOG_ROWS_MAX,
  *  ROLE_PARAM run has to stay contiguous with the library's. */
 extern const Descriptor params[];
 const uint16_t PARAMS_COUNT = 0
-    + 178
+    + 179
     ;
 
 /** @brief Everything else, in file order. Alarms lead, so their table
  *  order IS the order the ALARMS page lists them in. */
 extern const Descriptor rows[];
 const uint16_t ROWS_COUNT = 0
-    + 305
+    + 306
     ;
 
 // This site turns every optional feature ON, and the row count above says

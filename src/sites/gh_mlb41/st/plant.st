@@ -21,30 +21,56 @@
 CONFIGURATION gh_mlb41
 
   VAR_GLOBAL
+    alarm_sensor_fault    : BOOL;
     alarm_sns_ceiling     : BOOL;
     alarm_sns_crawlspace  : BOOL;
     alarm_sns_exterior    : BOOL;
     alarm_sns_floor       : BOOL;
+    alarm_strat           : BOOL;
+    alarm_too_cold        : BOOL;
+    alarm_too_hot         : BOOL;
+    alarm_too_humid       : BOOL;
+    alarm_weather_storm   : BOOL;
     cli_breezeDem         : REAL;
+    cli_coldBankArm       : BOOL;
+    cli_coldBankOfs_degC  : REAL;
     cli_coolDem           : REAL;
+    cli_coolSet_degC      : REAL;
     cli_dTStratHigh_degC  : REAL;
     cli_dTStratHyst_degC  : REAL;
     cli_dTStratLow_degC   : REAL;
     cli_dTStratMed_degC   : REAL;
     cli_dTStrat_degC      : REAL;
+    cli_dTStrat_degC_qlt  : BOOL;
+    cli_dehumFull_degC    : REAL;
     cli_destrat1_speed1   : BOOL;
     cli_destrat1_speed2   : BOOL;
     cli_destrat1_speed3   : BOOL;
     cli_destrat2_speed1   : BOOL;
     cli_destrat2_speed2   : BOOL;
     cli_destrat2_speed3   : BOOL;
+    cli_dpMargin_degC     : REAL;
+    cli_dpMargin_degC_qlt : BOOL;
     cli_fanDemHyst        : REAL;
     cli_fanHighDem        : REAL;
     cli_fanIrrDem         : REAL;
     cli_fanLowDem         : REAL;
     cli_fanMedDem         : REAL;
     cli_fanSpeed          : USINT;
+    cli_groundHeatOk      : BOOL;
+    cli_groundSpeed       : REAL;
+    cli_heatBankArm       : BOOL;
+    cli_heatBankOfs_degC  : REAL;
+    cli_humidDem          : REAL;
+    cli_intakeCoolOk      : BOOL;
+    cli_intakeDryOk       : BOOL;
+    cli_intakeFullDem     : REAL;
+    cli_intakeStartDem    : REAL;
+    cli_intr1             : REAL;
+    cli_intr2             : REAL;
+    cli_intrSafeSpeed     : REAL;
     cli_phase             : USINT;
+    cli_phase_qlt         : BOOL;
     cli_rainLockout       : BOOL;
     cli_rainLockout_sec   : UINT;
     cli_rain_mmph         : REAL;
@@ -81,8 +107,14 @@ CONFIGURATION gh_mlb41
     cli_rh_lo3            : REAL;
     cli_rh_lo3_qlt        : BOOL;
     cli_rh_lo_qlt         : BOOL;
+    cli_rotVentDem        : REAL;
     cli_sensorTau_ms      : UINT;
+    cli_sinceRain_min     : UINT;
     cli_stratDem          : REAL;
+    cli_targetMax_degC    : REAL;
+    cli_targetMin_degC    : REAL;
+    cli_targetTau_s       : UINT;
+    cli_targetTemp_degC   : REAL;
     cli_temp_cs           : REAL;
     cli_temp_cs1          : REAL;
     cli_temp_cs1_qlt      : BOOL;
@@ -115,6 +147,8 @@ CONFIGURATION gh_mlb41
     cli_temp_lo3          : REAL;
     cli_temp_lo3_qlt      : BOOL;
     cli_temp_lo_qlt       : BOOL;
+    cli_tooCold_degC      : REAL;
+    cli_tooHot_degC       : REAL;
     cli_windGust_mps      : REAL;
     cli_windLockout       : BOOL;
     cli_windShutBegin_mps : REAL;
@@ -135,10 +169,15 @@ CONFIGURATION gh_mlb41
 
     (* The instance names are what st_plant.cpp's roster refers to. Execution
        ORDER is the roster's, not this list's. *)
-    PROGRAM sensors : temp_rh_sensors;
-    PROGRAM destrat : destrat_controller;
-    PROGRAM roof    : roof_lockout;
-    PROGRAM fans    : fan_controller;
+    PROGRAM sensors    : temp_rh_sensors;
+    PROGRAM strat      : strat_sensor;
+    PROGRAM climwatch  : climate_watch;
+    PROGRAM wxwatch    : weather_watch;
+    PROGRAM target     : target_temp_controller;
+    PROGRAM destrat    : destrat_controller;
+    PROGRAM roof       : roof_lockout;
+    PROGRAM intractors : intractor_controller;
+    PROGRAM fans       : fan_controller;
   END_RESOURCE
 
 END_CONFIGURATION

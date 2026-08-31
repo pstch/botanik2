@@ -34,6 +34,8 @@ typedef int64_t  TIME;
 IEC_CONV(UDINT, REAL)
 IEC_CONV(UINT,  UDINT)
 IEC_CONV(UINT,  REAL)
+IEC_CONV(UDINT, UINT)
+IEC_CONV(UDINT, USINT)
 IEC_CONV(USINT, REAL)
 IEC_CONV(REAL,  USINT)
 IEC_CONV(USINT, UDINT)
@@ -44,6 +46,11 @@ IEC_CONV(INT,   REAL)
 
 /* MAX and MIN are VARIADIC in IEC: matiec passes the argument count ahead of
  * the values, and a REAL promotes to double through the ellipsis. */
+static inline REAL ___ABS__REAL__REAL(BOOL en, BOOL* eno, REAL x) {
+    if (eno) *eno = en;
+    return x < 0.0f ? -x : x;
+}
+
 static inline REAL ___MAX__REAL__REAL(BOOL en, BOOL* eno, UINT n, ...) {
     va_list ap; va_start(ap, n);
     REAL best = (REAL)va_arg(ap, double);
