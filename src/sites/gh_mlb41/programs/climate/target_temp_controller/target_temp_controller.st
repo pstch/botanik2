@@ -1,22 +1,22 @@
-(* target_temp_controller as ST, against st/lib/botanik.st.
-   The phase ladder, the bank offsets, the ease and the clamp. *)
+(* target_temp_controller, as ST. Mirrors
+   src/sites/gh_mlb41/programs/climate/target_temp_controller/. *)
 
-PROGRAM target_temp
-VAR_INPUT
-  phase         : USINT;
-  cool_set      : REAL;
-  cold_arm      : BOOL;
-  heat_arm      : BOOL;
-  cold_bank_ofs : REAL;
-  heat_bank_ofs : REAL;
-  tau_s         : UINT;
-  t_min         : REAL;
-  t_max         : REAL;
-  first_scan    : BOOL;   (* the scan's own flag, handed in *)
-  dt_ms         : UDINT;
+PROGRAM target_temp_controller
+VAR_EXTERNAL CONSTANT
+  cli_targetMin_degC   : REAL;
+  cli_targetMax_degC   : REAL;
+  cli_phase            : USINT;
+  cli_phase_qlt        : BOOL;
+  cli_coldBankArm      : BOOL;
+  cli_heatBankArm      : BOOL;
+  cli_coolSet_degC     : REAL;
+  cli_coldBankOfs_degC : REAL;
+  cli_heatBankOfs_degC : REAL;
+  cli_targetTau_s      : UINT;
+  sys_now_ms           : UDINT;
 END_VAR
-VAR_OUTPUT
-  target : REAL;
+VAR_EXTERNAL
+  cli_targetTemp_degC : REAL;
 END_VAR
 VAR
   smooth : EWMA;
@@ -24,23 +24,33 @@ END_VAR
 VAR_TEMP
   held : REAL;
 END_VAR
-  (* PHASE_COLD_BANK = 4, PHASE_HEAT_BANK = 5 in the site's DayPhase. *)
-  held := cool_set;
-  IF   phase = 4 AND cold_arm THEN held := held - cold_bank_ofs;
-  ELSIF phase = 5 AND heat_arm THEN held := held + heat_bank_ofs;
+  (* The chain STOPS here. Every cooling stage keys off this row, so a target
+     nobody could place must not be published as one nobody can use: the base
+     setpoint is a proper value on its own - it is what the plant runs at for
+     most of the day - and the phase only ever shifts it. An unplaced phase
+     takes the base unshifted. *)
+  held := cli_coolSet_degC;
+
+  (* A bank phase shifts the base only when yesterday justified it: pre-cool
+     before dawn after a hot day, bank heat at dusk after a cold night. In
+     force but not armed, the phase runs at the ordinary target.
+     1 is PHASE_COLD_BANK, 4 is PHASE_HEAT_BANK. *)
+  IF cli_phase_qlt THEN
+    IF cli_phase = 1 AND cli_coldBankArm THEN
+      held := held - cli_coldBankOfs_degC;
+    ELSIF cli_phase = 4 AND cli_heatBankArm THEN
+      held := held + cli_heatBankOfs_degC;
+    END_IF;
   END_IF;
 
-  (* A phase boundary is a STEP and every consumer answers a gap
-     proportionally, so it is eased. Adopted whole on the first scan: easing up
-     from whatever the filter held before an outage would call for heat the
-     house does not need. *)
-  IF first_scan THEN
-    smooth(X := held, TAU_S := 0.0, DT_MS := dt_ms);
-  ELSE
-    smooth(X := held, TAU_S := UINT_TO_REAL(tau_s), DT_MS := dt_ms);
-  END_IF;
+  (* A phase boundary is a STEP, and every consumer of the target answers a gap
+     proportionally: unfiltered, dawn moves the windows, the fans and the screen
+     in one beat. The filter adopts its first reading whole, so an outage does
+     not ease up from whatever it held before. *)
+  smooth(X := held, TAU_S := UINT_TO_REAL(cli_targetTau_s), NOW := sys_now_ms);
 
-  (* The clamp is LAST: a rail an operator has just moved has to bite now, not
-     one time constant later. *)
-  target := LIMIT(t_min, smooth.Y, t_max);
+  (* The clamp is LAST, and what keeps an aggressively-set offset from pushing
+     the greenhouse somewhere dangerous, whatever the phase asked for: a rail an
+     operator has just moved has to bite now, not one time constant later. *)
+  cli_targetTemp_degC := LIMIT(cli_targetMin_degC, smooth.Y, cli_targetMax_degC);
 END_PROGRAM
