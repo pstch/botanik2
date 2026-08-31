@@ -22,34 +22,73 @@ The end state the user asked for:
 
 ### 1. Finish the port - 15 programs
 
-Each needs the blocks in its row ported first. `q=` is how many outputs it
-writes with a computed QUALITY: every one of those needs a `_qlt` companion
-before the program can move, because ST cannot write a quality.
+**Blocks were never the hard part.** A survey of all fifteen (2026-08-31)
+found five things ST has no expression for at all, and an ordering law that
+decides what may move when. Read both before picking the next program.
 
-| program | q | blocks needed |
+| program | blocks needed | what ST cannot say |
 |---|---|---|
-| `SunWatch` | 0 | none - **blocked**: reads the tracker through C++ (`_sun->ready()`, `wall_ms()`). Needs the tracker publishing rows. `sol_ready` already exists |
-| `WxSensors` | 0 | `WeatherProbes` (site) |
-| `AcGridWatch` | 0 | `AcSupply` (site) |
-| `AcLocalWatch` | 0 | `AcSupply` (site), `Ton` |
-| `SkirtController` | 0 | `ValveController` (site) |
-| `IrrValves` | 0 | `ValveController` (site) |
-| `ScreenController` | 0 | `Actuator` + `ActuatorConfig` |
-| `WindowsController` | 0 | `Actuator` + `ActuatorConfig` |
-| `CoolingController` | 2 | `Pid` |
-| `DcWatch` | 0 | `Deadband`, `Ewma`, `Ton` |
-| `IrrMtrInput` | 0 | `Derivative`, `Ton` |
-| `IrrMtrOutput` | 0 | `Deadband`, `Ewma`, `Integral` |
-| `IrrigationModulation` | 1 | `Ton` |
-| `IrrigationSchedule` | 1 | none |
-| `IrrigationCycle` | 1 | `Ton` |
+| `WxSensors` | `WeatherProbes` (site) | - |
+| `AcGridWatch` | `AcSupply` (site) | `.valid()`/`.invalidate()` on 4 mirrors |
+| `AcLocalWatch` | `AcSupply` (site), `Ton` | same |
+| `DcWatch` | `Deadband`, `Ewma`, `Ton` | `.valid()`/`.invalidate()` |
+| `CoolingController` | `Pid` | - |
+| `ScreenController` | `Actuator` + `ActuatorConfig` | - |
+| `WindowsController` | `Actuator` + `ActuatorConfig` | `.invalidate()` |
+| `SkirtController` | `ValveController` (site) | descriptor read (fail direction) |
+| `IrrValves` | **none** - it only calls `.set()` | - |
+| `IrrigationModulation` | `Ton` | `.invalidate()`, `powf` |
+| `IrrMtrInput` | `Derivative`, `Ton` | **`HAL::Pulse::sample()`** |
+| `IrrMtrOutput` | `Deadband`, `Ewma`, `Integral` | `.held()`, `.hold()` |
+| `IrrigationSchedule` | none | **`HAL::Clock::wall_ms()`**, **`.edit()`**, `.hold()` |
+| `IrrigationCycle` | `Ton` | **`.edit()`**, `.held()` |
+| `SunWatch` | none | **`_sun->*`**, **`wall_ms()`** |
+
+### The five missing mechanisms
+
+1. **`.edit()` - a retained parameter.** `irr_last_tray1..8` are
+   `retained=true`, and `Ref::edit()` exists because "`set()` writes the value
+   and leaves flash owing nothing". `__SET_EXTERNAL` is `Ref::set(v, true)`.
+   Porting the schedule or the cycle today makes the plant FORGET every tray's
+   watering date on reboot. Needs an accessor path, or a row flag saying a
+   drive to this row is an edit.
+2. **The wall clock.** `HAL::Clock::wall_ms()`, for the UNIX day the schedule
+   counts against. Wants a row, the shape `sys_now_ms` already has.
+3. **Pulse counts.** `HAL::Pulse::sample()`. The firmware attaches the
+   terminals already; the counts want rows.
+4. **The sun tracker.** `_sun->elevation/ready/sunrise_ms/sunset_ms`. Known
+   since the handoff was written; `sol_ready` was the first row of the answer.
+5. **A descriptor read.** `ValveController::bind()` learns its fail direction
+   from the coil row's declared default, so "the table stays the one place it
+   is declared". ST cannot read a descriptor. Passing FAIL_OPEN in as an input
+   works and declares it twice, which is what the block was written to avoid.
+
+`.valid()`/`.invalidate()`/`.hold()`/`.held()` are all expressible, but each
+costs COMPANION ROWS - the AC pair alone wants about sixteen, and a register is
+a Modbus contract that does not move. Budget them before starting a program.
+
+### The ordering law, learned the hard way
+
+**All ST runs before all C++** (`site.h` registers the resource first), so a
+program ported while its PRODUCER is still C++ reads inputs one beat old.
+That is fine for a wind interlock - 100 ms, and `site.h` says so. It is not
+fine for `IrrValves`, which opens the fill valve on `irr_state`: ported ahead
+of `IrrigationCycle` it lagged the state machine by a beat and broke five
+water scenarios. It was reverted rather than absorbed into the tests.
+
+**So port UPSTREAM first.** The safe order for the unblocked set is
+`WxSensors`, then the `Ac*` pair, `DcWatch`, `CoolingController`, and only
+then `ScreenController`/`WindowsController`/`SkirtController`, which read
+`cli_coolDem`. The whole irrigation chain goes last, and `IrrValves` last of
+all - it is the only consumer at the end of it.
 
 Library blocks still to write as ST (in `src/libbotanik/plc/blocks/*.st`):
 `Ton`, `Pid`, `Deadband`, `Integral`, `Derivative`, `Actuator`.
 Site blocks: `WeatherProbes`, `AcSupply`, `ValveController`.
 
 `Plant` holds `Slot _slot[16]` and asserts `PROGRAM_COUNT` against it at
-bring-up. 14 are in use. The 17th port has to widen it first.
+bring-up. 14 are in use. The 17th port has to widen it first (32 is the
+obvious number: 29 programs plus room).
 
 **Do NOT use matiec's own blocks.** See "Licensing" below.
 
