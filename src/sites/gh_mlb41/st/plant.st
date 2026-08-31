@@ -5,15 +5,18 @@
    nothing else. Every row's unit, band, digits, register, transport, timeout
    and enum renderer stay in vars.cpp, where matiec never sees them.
 
-   ONE RESOURCE, and the TASK intervals are the real ones. matiec computes
-   their GCD as `common_ticktime__` and divides by it, so this file is the
-   single source of truth for what runs how often. StRuntime registers at
-   `common_ticktime__` and calls `config_run__(tick)`; nothing on the C++ side
-   picks a rate.
+   NO PROGRAM IS BOUND TO A TASK, and that is deliberate. StRuntime calls each
+   body itself, at the period the roster in st_plant.cpp states, so that a
+   program keeps its own registry entry: its own health row, its own cost and
+   missed counts, its own writer slot, and its own INVALID when a name it
+   binds resolves to nothing. matiec's own dispatch would run them as one
+   fixed sequence with no hook in it.
 
-   That works because a block reads the CLOCK rather than a delta: it
-   differences sys_now_ms against its own last reading, so it does not matter
-   which task it is on or whether our side knows the task ran. *)
+   The single TASK below is a formality: matiec refuses a RESOURCE with no
+   periodic task at all. Nothing binds to it and nothing reads its interval.
+
+   What this file IS for is telling matiec which rows exist and which programs
+   to instantiate. *)
 
 CONFIGURATION gh_mlb41
 
@@ -127,15 +130,15 @@ CONFIGURATION gh_mlb41
   END_VAR
 
   RESOURCE plc ON OPTA
-    TASK slow (INTERVAL := T#100ms, PRIORITY := 1);
+    (* Required by matiec, used by nothing: no program is bound to it. *)
+    TASK unbound (INTERVAL := T#100ms, PRIORITY := 1);
 
-    (* Execution order within the beat is the order they appear here. *)
-    (* Conditioning first: everything below reads what it publishes. *)
-    PROGRAM sensors WITH slow : temp_rh_sensors;
-
-    PROGRAM destrat WITH slow : destrat_controller;
-    PROGRAM roof    WITH slow : roof_lockout;
-    PROGRAM fans    WITH slow : fan_controller;
+    (* The instance names are what st_plant.cpp's roster refers to. Execution
+       ORDER is the roster's, not this list's. *)
+    PROGRAM sensors : temp_rh_sensors;
+    PROGRAM destrat : destrat_controller;
+    PROGRAM roof    : roof_lockout;
+    PROGRAM fans    : fan_controller;
   END_RESOURCE
 
 END_CONFIGURATION
