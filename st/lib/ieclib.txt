@@ -1,0 +1,68 @@
+(* Our IEC library, in place of matiec's.
+
+   matiec loads `<-I dir>/ieclib.txt` unconditionally, and its own declares 28
+   FUNCTION_BLOCKs - TON, TOF, HYSTERESIS, PID, INTEGRAL and the rest. Those
+   are matiec's DESIGN as much as IEC's: TON's VAR section carries STATE,
+   PREV_IN, CURRENT_TIME and START_TIME, none of which the standard mentions,
+   and their bodies live in an LGPLv3 header. Loading them would put matiec's
+   work in our firmware image and reserve 28 names we cannot then use.
+
+   So this file declares NO function block. Ours are in
+   src/libbotanik/plc/blocks/*.st and the site's blocks/, and they are free to
+   take any name - including a standard one, with our own semantics.
+
+   What IS here is every standard FUNCTION our ST calls, with OUR body. A
+   declaration alone is not enough: matiec special-cases its own standard names
+   and generates nothing for them, but ours are ordinary user functions, so it
+   emits a body - an empty one, returning zero, if we do not write it.
+
+   The four conversions are a verbatim `{ }` block because ST has no way to
+   change a value's type without a conversion function, which is what these
+   are. Inside a generated function the parameters are plain C locals and the
+   result is named after the function, so the block is one assignment.
+
+   Add a function when a POU starts using one - the error is "function
+   invocation ... not declared", at compile time. *)
+
+FUNCTION ABS : REAL
+VAR_INPUT IN : REAL; END_VAR
+  IF IN < 0.0 THEN ABS := 0.0 - IN; ELSE ABS := IN; END_IF;
+END_FUNCTION
+
+FUNCTION LIMIT : REAL
+VAR_INPUT MN : REAL; IN : REAL; MX : REAL; END_VAR
+  IF   IN < MN THEN LIMIT := MN;
+  ELSIF IN > MX THEN LIMIT := MX;
+  ELSE LIMIT := IN;
+  END_IF;
+END_FUNCTION
+
+FUNCTION MAX : REAL
+VAR_INPUT IN1 : REAL; IN2 : REAL; END_VAR
+  IF IN1 > IN2 THEN MAX := IN1; ELSE MAX := IN2; END_IF;
+END_FUNCTION
+
+FUNCTION MIN : REAL
+VAR_INPUT IN1 : REAL; IN2 : REAL; END_VAR
+  IF IN1 < IN2 THEN MIN := IN1; ELSE MIN := IN2; END_IF;
+END_FUNCTION
+
+FUNCTION UDINT_TO_REAL : REAL
+VAR_INPUT IN : UDINT; END_VAR
+  { UDINT_TO_REAL = (REAL)IN; }
+END_FUNCTION
+
+FUNCTION UDINT_TO_UINT : UINT
+VAR_INPUT IN : UDINT; END_VAR
+  { UDINT_TO_UINT = (UINT)IN; }
+END_FUNCTION
+
+FUNCTION UINT_TO_REAL : REAL
+VAR_INPUT IN : UINT; END_VAR
+  { UINT_TO_REAL = (REAL)IN; }
+END_FUNCTION
+
+FUNCTION UINT_TO_UDINT : UDINT
+VAR_INPUT IN : UINT; END_VAR
+  { UINT_TO_UDINT = (UDINT)IN; }
+END_FUNCTION

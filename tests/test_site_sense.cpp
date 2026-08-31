@@ -470,16 +470,21 @@ TEST_CASE_FIXTURE(StRig, "destrat: the ladder is three rungs, and coming down co
     settle_gap(*this, t, 1.0f);
     CHECK(live.bank.var(dem).as_f32() ==
           doctest::Approx(live.bank.var(live.ref("cli_fanLowDem")).as_f32()));
-    // ...and the LOW rung does not give up at all. Its release edge is
-    // cli_dTStratLow_degC minus cli_dTStratHyst_degC, both 2.0, so it releases
-    // at a gap of 0.0 - and the gap is an ABSOLUTE difference, which reaches
-    // exactly zero only if the two filtered levels come out bit-identical.
-    // Pre-dates the ST port: the same subtraction, the same absolute gap. What
-    // the port changed is that a case now drives the real chain, where setting
-    // the row to a literal -0.1 used to walk straight past it.
-    // See docs/dev/plc-to-st.md; this is a tuning question, not a code one.
+    // ...and a well-mixed house STOPS them. The release edge is
+    // cli_dTStratLow_degC minus cli_dTStratHyst_degC, and the hysteresis is
+    // half the rung spacing rather than all of it for exactly this reason: at
+    // 2.0 the edge was a gap of 0.0, which an ABSOLUTE difference never
+    // reaches, and the fans held speed 1 for the life of the run.
     settle_gap(*this, t, 0.05f);
-    INFO("the destratification fans hold speed 1 rather than stopping");
+    INFO("a gap under the low rung's release edge stops them");
+    CHECK(live.bank.var(dem).as_f32() == doctest::Approx(0.0f));
+
+    INFO("...and it takes the whole hysteresis to get there: still running "
+         "just above the edge");
+    settle_gap(*this, t, 8.0f);
+    settle_gap(*this, t,
+               live.bank.var(live.ref("cli_dTStratLow_degC")).as_f32()
+             - live.bank.var(live.ref("cli_dTStratHyst_degC")).as_f32() + 0.2f);
     CHECK(live.bank.var(dem).as_f32() ==
           doctest::Approx(live.bank.var(live.ref("cli_fanLowDem")).as_f32()));
 }

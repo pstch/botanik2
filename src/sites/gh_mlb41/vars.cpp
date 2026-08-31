@@ -112,7 +112,7 @@ const Descriptor params[] = {
     P("cli_dTStratLow_degC"  , T_F32 , 2.0    , 0.0   , 10.0   , 1, "degC", 120, "stratification gap for fan speed 1", "", true),
     P("cli_dTStratMed_degC"  , T_F32 , 4.0    , 0.0   , 10.0   , 1, "degC", 121, "stratification gap for fan speed 2", "", true),
     P("cli_dTStratHigh_degC" , T_F32 , 6.0    , 0.0   , 10.0   , 1, "degC", 122, "stratification gap for fan speed 3", "", true),
-    P("cli_dTStratHyst_degC" , T_F32 , 2.0    , 0.5   , 5.0    , 1, "degC", 123, "gap change needed to switch fan speed", "", true),
+    P("cli_dTStratHyst_degC" , T_F32 , 1.0    , 0.5   , 5.0    , 1, "degC", 123, "gap change needed to switch fan speed", "HALF the rung spacing, not all of it: at 2.0 each rung released exactly where the one below engaged, which is elegant for rungs 2 and 3 and wrong for rung 1 - it has no rung beneath it, so its release edge landed on a gap of 0.0 and an ABSOLUTE difference never gets there. The fans held speed 1 for the life of the run", true),
     P("cli_dehumFull_degC"   , T_F32 , 3.0    , 0.0   , 10.0   , 1, "degC", 124, "dryness margin: dehumidify fully", "< cli_dehumStart_degC", true),
     P("cli_dehumStart_degC"  , T_F32 , 4.5    , 0.0   , 10.0   , 1, "degC", 125, "dryness margin: dehumidify starts", "> cli_dehumFull_degC", true),
     P("cli_humidStart_degC"  , T_F32 , 18.0   , 0.0   , 30.0   , 1, "degC", 126, "dryness margin: humidify starts", "> cli_dehumStart_degC; skirt starts pulsing", true),
