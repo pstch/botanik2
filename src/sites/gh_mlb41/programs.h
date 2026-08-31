@@ -78,8 +78,6 @@
 #include "libbotanik.h"
 
 // Every program, in EXECUTION order.
-#include "programs/sense/ac_grid_watch/ac_grid_watch.h"
-#include "programs/sense/ac_local_watch/ac_local_watch.h"
 #include "programs/sense/dc_watch/dc_watch.h"
 #include "programs/irrigation/irrigation_modulation/irrigation_modulation.h"
 #include "programs/irrigation/irr_mtr_input/irr_mtr_input.h"
@@ -96,8 +94,6 @@
  *  @{ */
 
 #define SITE_PROGRAM_LIST(X)                  \
-    X(AcGridWatch,          _ac_grid_watch)   \
-    X(AcLocalWatch,         _ac_local_watch)  \
     X(DcWatch,              _dc_watch)        \
     X(IrrigationModulation, _irr_modulation)  \
     X(IrrMtrInput,          _irr_mtr_input)   \

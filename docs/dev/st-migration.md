@@ -14,7 +14,7 @@ The end state the user asked for:
 
 > `src/sites/<NAME>/` contains only CSV tables, ST programs, and a root TOML.
 
-**17 of 28 programs are ported. 11 remain.**
+**19 of 28 programs are ported. 9 remain.**
 
 `sun_watch` is not among either: the tracker publishes `sol_*` itself now, so
 the program that copied the instrument onto rows was DELETED rather than
@@ -24,7 +24,7 @@ ported. 29 was never going to be the number that finished.
 
 ## The task list
 
-### 1. Finish the port - 11 programs
+### 1. Finish the port - 9 programs
 
 **Blocks were never the hard part.** A survey of all fifteen (2026-08-31)
 found five things ST had no expression for. All five are now dealt with: four
@@ -44,8 +44,6 @@ porting its producer.
 
 | program | blocks needed | what ST cannot say |
 |---|---|---|
-| `AcGridWatch` | `AcSupply` (site) | `.valid()`/`.invalidate()` on 4 mirrors |
-| `AcLocalWatch` | `AcSupply` (site), `Ton` | same |
 | `DcWatch` | `Deadband`, `Ewma`, `Ton` | `.valid()`/`.invalidate()` |
 | `ScreenController` | `Actuator` + `ActuatorConfig` | - |
 | `WindowsController` | `Actuator` + `ActuatorConfig` | `.invalidate()` |
@@ -97,6 +95,24 @@ porting its producer.
 `.valid()`/`.invalidate()`/`.hold()`/`.held()` are all expressible, but each
 costs COMPANION ROWS - the AC pair alone wants about sixteen, and a register is
 a Modbus contract that does not move. Budget them before starting a program.
+
+### Table capacity moves with the companions, and it moves QUIETLY
+
+The AC pair alone wanted 16 companion rows, and adding them found three caps
+at once. Check all of these before a companion-heavy port:
+
+- `var_max` in `site.toml`. Past it the bank REFUSES rows and every name in
+  them resolves to the inert sink - the POST catches it, and now so does
+  `site: every row the site declares actually fits in the bank`.
+- `LIBRARY_ROWS` in the site's `vars.h` is HAND-KEPT (`vars_table.h` is
+  included by the firmware's wiring TU alone, so the count cannot be taken
+  from it). It read 66 against a real 70, so the `static_assert` guarding
+  `var_max` passed on a total that was already over. Bump it when a library
+  row is added.
+- `modbus_tcp_max_rows`. Past it the map silently drops the tail.
+
+Each of these moves a PINNED footprint (`Vars::Bank`, `TcpSlave`,
+`BotanikFirmware`), so budget a re-measure of `libbotanik_sizes.h` with it.
 
 ### The ordering law, learned the hard way
 

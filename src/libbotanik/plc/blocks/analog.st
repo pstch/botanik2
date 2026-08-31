@@ -65,3 +65,30 @@ END_VAR
   IF rung2.Q THEN Q := 2; END_IF;
   IF rung3.Q THEN Q := 3; END_IF;
 END_FUNCTION_BLOCK
+
+FUNCTION_BLOCK DEADBAND
+(* Report a value only once it has MOVED more than BAND, so a reading that
+   twitches in its last digit does not cost a status write per scan. Cold, the
+   first reading is reported whatever it is rather than suppressed against a
+   held value from before the gap. *)
+VAR_INPUT
+  V    : REAL;
+  BAND : REAL;
+END_VAR
+VAR_OUTPUT
+  Y : REAL;
+END_VAR
+VAR
+  held   : REAL;
+  seeded : BOOL := FALSE;
+END_VAR
+VAR_TEMP
+  diff : REAL;
+END_VAR
+  diff := V - held;
+  IF NOT seeded OR diff > BAND OR diff < (0.0 - BAND) THEN
+    held   := V;
+    seeded := TRUE;
+  END_IF;
+  Y := held;
+END_FUNCTION_BLOCK

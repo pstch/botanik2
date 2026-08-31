@@ -77,9 +77,15 @@ using namespace Botanik::Vars;
 #endif
 
 /** @brief Rows the library registers ahead of this site's, into the same
- *  table. A flat count, because this site turns every optional feature ON, and
- *  the guard above is what holds that true. */
-const uint16_t LIBRARY_ROWS = 66;
+ *  table. A flat count, because this site turns every optional feature ON.
+ *  HAND-KEPT, and it cannot be taken from the library: `vars_table.h` is
+ *  included by the firmware's wiring TU alone, never standalone.
+ *  @note It went stale once - 66 against 70 - when the sun tracker's rows
+ *  moved into the library table. A stale number lets the guard below pass on a
+ *  table that then OVERFLOWS, and the bank drops whatever did not fit in
+ *  silence. `Bank::refused_count()` is what actually catches that, and the
+ *  suite asserts it is zero. */
+const uint16_t LIBRARY_ROWS = 70;
 
 
 #if BOTANIK_FEATURE_MODBUS_RTU_CLIENT

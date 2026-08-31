@@ -23,6 +23,9 @@ CONFIGURATION gh_mlb41
     NOW                   : UDINT;
     PERIOD_MS             : UDINT;
     RESET                 : BOOL;
+    alarm_ac_grid         : BOOL;
+    alarm_ac_local        : BOOL;
+    alarm_gen             : BOOL;
     alarm_rot             : BOOL;
     alarm_sensor_fault    : BOOL;
     alarm_sns_ceiling     : BOOL;
@@ -35,6 +38,14 @@ CONFIGURATION gh_mlb41
     alarm_too_humid       : BOOL;
     alarm_weather_storm   : BOOL;
     alarm_wx_station      : BOOL;
+    ats_A                 : REAL;
+    ats_A_qlt             : BOOL;
+    ats_Hz                : REAL;
+    ats_Hz_qlt            : BOOL;
+    ats_V                 : REAL;
+    ats_V_qlt             : BOOL;
+    ats_W                 : REAL;
+    ats_W_qlt             : BOOL;
     cli_breezeDem         : REAL;
     cli_coldBankArm       : BOOL;
     cli_coldBankOfs_degC  : REAL;
@@ -213,7 +224,24 @@ CONFIGURATION gh_mlb41
     cli_windowLockout     : BOOL;
     cli_windowStartDem    : REAL;
     cli_wxTau_ms          : UINT;
+    grid_Hz               : REAL;
+    grid_Hz_qlt           : BOOL;
+    grid_LN_V             : REAL;
+    grid_LN_V_qlt         : BOOL;
+    grid_total_A          : REAL;
+    grid_total_A_qlt      : BOOL;
+    grid_total_W          : REAL;
+    grid_total_W_qlt      : BOOL;
     irr_state             : USINT;
+    pwr_genStart_sec      : UINT;
+    pwr_gridHi_Hz         : REAL;
+    pwr_gridHi_V          : REAL;
+    pwr_gridLo_Hz         : REAL;
+    pwr_gridLo_V          : REAL;
+    pwr_localHi_Hz        : REAL;
+    pwr_localHi_V         : REAL;
+    pwr_localLo_Hz        : REAL;
+    pwr_localLo_V         : REAL;
     sol_breezeRise_min    : INT;
     sol_coldBankRise_min  : INT;
     sol_dayRise_min       : INT;
@@ -223,6 +251,24 @@ CONFIGURATION gh_mlb41
     sol_heatBankSet_min   : INT;
     sol_nightSet_min      : INT;
     sol_ready             : BOOL;
+    sys_grid_A            : REAL;
+    sys_grid_A_qlt        : BOOL;
+    sys_grid_Hz           : REAL;
+    sys_grid_Hz_qlt       : BOOL;
+    sys_grid_V            : REAL;
+    sys_grid_V_qlt        : BOOL;
+    sys_grid_W            : REAL;
+    sys_grid_W_qlt        : BOOL;
+    sys_grid_ok           : BOOL;
+    sys_local_A           : REAL;
+    sys_local_A_qlt       : BOOL;
+    sys_local_Hz          : REAL;
+    sys_local_Hz_qlt      : BOOL;
+    sys_local_V           : REAL;
+    sys_local_V_qlt       : BOOL;
+    sys_local_W           : REAL;
+    sys_local_W_qlt       : BOOL;
+    sys_local_ok          : BOOL;
     sys_now_ms            : UDINT;
     sys_supply_lockout    : BOOL;
   END_VAR
@@ -230,6 +276,8 @@ CONFIGURATION gh_mlb41
   RESOURCE plc ON OPTA
     TASK unbound (INTERVAL := T#100ms, PRIORITY := 1);
 
+    PROGRAM acgrid     : ac_grid_watch;
+    PROGRAM aclocal    : ac_local_watch;
     PROGRAM sensors    : temp_rh_sensors;
     PROGRAM wx         : wx_sensors;
     PROGRAM strat      : strat_sensor;

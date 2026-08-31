@@ -496,3 +496,28 @@ TEST_CASE("params: a program's write waits on the cadence, an operator's on the 
 }
 
 }  // namespace site_params
+
+namespace site_capacity {
+
+using namespace Botanik;
+
+TEST_CASE("site: every row the site declares actually fits in the bank") {
+    // LIBRARY_ROWS is hand-kept and cannot be taken from the library, so the
+    // static_assert in vars.h guards a number that can itself be wrong. This
+    // is the check that cannot be: the bank counts what it had no room for,
+    // and a dropped row is a name that resolves to the inert sink for the life
+    // of the run. It went 66 against 70 once, and 573 "fitted" in 576 while
+    // the real total was 577.
+    Vars::Bank bank;
+    TestSite::build(bank);
+    CHECK(bank.refused_count() == 0);
+    CHECK(bank.param_stray_count() == 0);
+    INFO("...and the hand-kept LIBRARY_ROWS is not UNDER the truth, which is "
+         "the direction that overflows. It may be over: freeze() compacts a "
+         "redeclared row out, so the live count is the declared total minus "
+         "however many rows this site restates.");
+    CHECK(bank.count() <=
+          (uint16_t)(Site::LIBRARY_ROWS + Site::PARAMS_COUNT + Site::ROWS_COUNT));
+}
+
+}  // namespace site_capacity

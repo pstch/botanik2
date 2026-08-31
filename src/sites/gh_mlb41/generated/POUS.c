@@ -78,6 +78,8 @@ static void BAND_LATCH_init__(BAND_LATCH_data__ *data__, BOOL retain);
 static void BAND_LATCH_body__(BAND_LATCH_data__ *data__);
 static void STAIRCASE3_init__(STAIRCASE3_data__ *data__, BOOL retain);
 static void STAIRCASE3_body__(STAIRCASE3_data__ *data__);
+static void DEADBAND_init__(DEADBAND_data__ *data__, BOOL retain);
+static void DEADBAND_body__(DEADBAND_data__ *data__);
 static void TOF_MS_init__(TOF_MS_data__ *data__, BOOL retain);
 static void TOF_MS_body__(TOF_MS_data__ *data__);
 static void TON_MS_init__(TON_MS_data__ *data__, BOOL retain);
@@ -86,6 +88,10 @@ static void EWMA_init__(EWMA_data__ *data__, BOOL retain);
 static void EWMA_body__(EWMA_data__ *data__);
 static void PID_init__(PID_data__ *data__, BOOL retain);
 static void PID_body__(PID_data__ *data__);
+static void AC_MIRROR_init__(AC_MIRROR_data__ *data__, BOOL retain);
+static void AC_MIRROR_body__(AC_MIRROR_data__ *data__);
+static void AC_SUPPLY_init__(AC_SUPPLY_data__ *data__, BOOL retain);
+static void AC_SUPPLY_body__(AC_SUPPLY_data__ *data__);
 static void VALVE_PULSE_init__(VALVE_PULSE_data__ *data__, BOOL retain);
 static void VALVE_PULSE_body__(VALVE_PULSE_data__ *data__);
 static void WX_WORSE_init__(WX_WORSE_data__ *data__, BOOL retain);
@@ -122,6 +128,10 @@ static void INTAKE_GATES_init__(INTAKE_GATES_data__ *data__, BOOL retain);
 static void INTAKE_GATES_body__(INTAKE_GATES_data__ *data__);
 static void TARGET_TEMP_CONTROLLER_init__(TARGET_TEMP_CONTROLLER_data__ *data__, BOOL retain);
 static void TARGET_TEMP_CONTROLLER_body__(TARGET_TEMP_CONTROLLER_data__ *data__);
+static void AC_GRID_WATCH_init__(AC_GRID_WATCH_data__ *data__, BOOL retain);
+static void AC_GRID_WATCH_body__(AC_GRID_WATCH_data__ *data__);
+static void AC_LOCAL_WATCH_init__(AC_LOCAL_WATCH_data__ *data__, BOOL retain);
+static void AC_LOCAL_WATCH_body__(AC_LOCAL_WATCH_data__ *data__);
 static void CLIMATE_WATCH_init__(CLIMATE_WATCH_data__ *data__, BOOL retain);
 static void CLIMATE_WATCH_body__(CLIMATE_WATCH_data__ *data__);
 static void STRAT_SENSOR_init__(STRAT_SENSOR_data__ *data__, BOOL retain);
@@ -808,6 +818,46 @@ __end:
 
 
 
+static void DEADBAND_init__(DEADBAND_data__ *data__, BOOL retain) {
+  __INIT_VAR(data__->EN,__BOOL_LITERAL(TRUE),retain)
+  __INIT_VAR(data__->ENO,__BOOL_LITERAL(TRUE),retain)
+  __INIT_VAR(data__->V,0,retain)
+  __INIT_VAR(data__->BAND,0,retain)
+  __INIT_VAR(data__->Y,0,retain)
+  __INIT_VAR(data__->HELD,0,retain)
+  __INIT_VAR(data__->SEEDED,__BOOL_LITERAL(FALSE),retain)
+}
+
+// Code part
+static void DEADBAND_body__(DEADBAND_data__ *data__) {
+  // Control execution
+  if (!__GET_VAR(data__->EN)) {
+    __SET_VAR(data__->,ENO,,__BOOL_LITERAL(FALSE));
+    return;
+  }
+  else {
+    __SET_VAR(data__->,ENO,,__BOOL_LITERAL(TRUE));
+  }
+  // Initialise TEMP variables
+  __SET_VAR(data__->,DIFF,,0);
+
+  __SET_VAR(data__->,DIFF,,(__GET_VAR(data__->V,) - __GET_VAR(data__->HELD,)));
+  if (((!(__GET_VAR(data__->SEEDED,)) || (__GET_VAR(data__->DIFF,) > __GET_VAR(data__->BAND,))) || (__GET_VAR(data__->DIFF,) < (__REAL_LITERAL(0.0) - __GET_VAR(data__->BAND,))))) {
+    __SET_VAR(data__->,HELD,,__GET_VAR(data__->V,));
+    __SET_VAR(data__->,SEEDED,,__BOOL_LITERAL(TRUE));
+  };
+  __SET_VAR(data__->,Y,,__GET_VAR(data__->HELD,));
+
+  goto __end;
+
+__end:
+  return;
+} // DEADBAND_body__() 
+
+
+
+
+
 static void TOF_MS_init__(TOF_MS_data__ *data__, BOOL retain) {
   __INIT_VAR(data__->EN,__BOOL_LITERAL(TRUE),retain)
   __INIT_VAR(data__->ENO,__BOOL_LITERAL(TRUE),retain)
@@ -1093,6 +1143,137 @@ static void PID_body__(PID_data__ *data__) {
 __end:
   return;
 } // PID_body__() 
+
+
+
+
+
+static void AC_MIRROR_init__(AC_MIRROR_data__ *data__, BOOL retain) {
+  __INIT_VAR(data__->EN,__BOOL_LITERAL(TRUE),retain)
+  __INIT_VAR(data__->ENO,__BOOL_LITERAL(TRUE),retain)
+  __INIT_VAR(data__->V,0,retain)
+  __INIT_VAR(data__->V_OK,__BOOL_LITERAL(FALSE),retain)
+  __INIT_VAR(data__->BAND,0,retain)
+  __INIT_VAR(data__->Y,0,retain)
+  __INIT_VAR(data__->OK,__BOOL_LITERAL(FALSE),retain)
+  DEADBAND_init__(&data__->DB,retain);
+}
+
+// Code part
+static void AC_MIRROR_body__(AC_MIRROR_data__ *data__) {
+  // Control execution
+  if (!__GET_VAR(data__->EN)) {
+    __SET_VAR(data__->,ENO,,__BOOL_LITERAL(FALSE));
+    return;
+  }
+  else {
+    __SET_VAR(data__->,ENO,,__BOOL_LITERAL(TRUE));
+  }
+  // Initialise TEMP variables
+
+  __SET_VAR(data__->,OK,,__GET_VAR(data__->V_OK,));
+  if (__GET_VAR(data__->V_OK,)) {
+    __SET_VAR(data__->DB.,V,,__GET_VAR(data__->V,));
+    __SET_VAR(data__->DB.,BAND,,__GET_VAR(data__->BAND,));
+    DEADBAND_body__(&data__->DB);
+  };
+  __SET_VAR(data__->,Y,,__GET_VAR(data__->DB.Y,));
+
+  goto __end;
+
+__end:
+  return;
+} // AC_MIRROR_body__() 
+
+
+
+
+
+static void AC_SUPPLY_init__(AC_SUPPLY_data__ *data__, BOOL retain) {
+  __INIT_VAR(data__->EN,__BOOL_LITERAL(TRUE),retain)
+  __INIT_VAR(data__->ENO,__BOOL_LITERAL(TRUE),retain)
+  __INIT_VAR(data__->V,0,retain)
+  __INIT_VAR(data__->V_OK,__BOOL_LITERAL(FALSE),retain)
+  __INIT_VAR(data__->A,0,retain)
+  __INIT_VAR(data__->A_OK,__BOOL_LITERAL(FALSE),retain)
+  __INIT_VAR(data__->W,0,retain)
+  __INIT_VAR(data__->W_OK,__BOOL_LITERAL(FALSE),retain)
+  __INIT_VAR(data__->HZ,0,retain)
+  __INIT_VAR(data__->HZ_OK,__BOOL_LITERAL(FALSE),retain)
+  __INIT_VAR(data__->LO_V,0,retain)
+  __INIT_VAR(data__->HI_V,0,retain)
+  __INIT_VAR(data__->LO_HZ,0,retain)
+  __INIT_VAR(data__->HI_HZ,0,retain)
+  __INIT_VAR(data__->OUT_V,0,retain)
+  __INIT_VAR(data__->OUT_V_OK,__BOOL_LITERAL(FALSE),retain)
+  __INIT_VAR(data__->OUT_A,0,retain)
+  __INIT_VAR(data__->OUT_A_OK,__BOOL_LITERAL(FALSE),retain)
+  __INIT_VAR(data__->OUT_W,0,retain)
+  __INIT_VAR(data__->OUT_W_OK,__BOOL_LITERAL(FALSE),retain)
+  __INIT_VAR(data__->OUT_HZ,0,retain)
+  __INIT_VAR(data__->OUT_HZ_OK,__BOOL_LITERAL(FALSE),retain)
+  __INIT_VAR(data__->OK,__BOOL_LITERAL(FALSE),retain)
+  __INIT_VAR(data__->FAULT,__BOOL_LITERAL(FALSE),retain)
+  __INIT_VAR(data__->ANSWERED,__BOOL_LITERAL(FALSE),retain)
+  AC_MIRROR_init__(&data__->MV,retain);
+  AC_MIRROR_init__(&data__->MA,retain);
+  AC_MIRROR_init__(&data__->MW,retain);
+  AC_MIRROR_init__(&data__->MHZ,retain);
+  __INIT_VAR(data__->SEEN,__BOOL_LITERAL(FALSE),retain)
+}
+
+// Code part
+static void AC_SUPPLY_body__(AC_SUPPLY_data__ *data__) {
+  // Control execution
+  if (!__GET_VAR(data__->EN)) {
+    __SET_VAR(data__->,ENO,,__BOOL_LITERAL(FALSE));
+    return;
+  }
+  else {
+    __SET_VAR(data__->,ENO,,__BOOL_LITERAL(TRUE));
+  }
+  // Initialise TEMP variables
+  __SET_VAR(data__->,MEASURED,,__BOOL_LITERAL(FALSE));
+  __SET_VAR(data__->,IN_SPEC,,__BOOL_LITERAL(FALSE));
+
+  __SET_VAR(data__->,MEASURED,,(__GET_VAR(data__->V_OK,) && __GET_VAR(data__->HZ_OK,)));
+  if (__GET_VAR(data__->MEASURED,)) {
+    __SET_VAR(data__->,SEEN,,__BOOL_LITERAL(TRUE));
+  };
+  __SET_VAR(data__->MV.,V,,__GET_VAR(data__->V,));
+  __SET_VAR(data__->MV.,V_OK,,__GET_VAR(data__->V_OK,));
+  __SET_VAR(data__->MV.,BAND,,__REAL_LITERAL(0.5));
+  AC_MIRROR_body__(&data__->MV);
+  __SET_VAR(data__->MA.,V,,__GET_VAR(data__->A,));
+  __SET_VAR(data__->MA.,V_OK,,__GET_VAR(data__->A_OK,));
+  __SET_VAR(data__->MA.,BAND,,__REAL_LITERAL(0.1));
+  AC_MIRROR_body__(&data__->MA);
+  __SET_VAR(data__->MW.,V,,__GET_VAR(data__->W,));
+  __SET_VAR(data__->MW.,V_OK,,__GET_VAR(data__->W_OK,));
+  __SET_VAR(data__->MW.,BAND,,__REAL_LITERAL(5.0));
+  AC_MIRROR_body__(&data__->MW);
+  __SET_VAR(data__->MHZ.,V,,__GET_VAR(data__->HZ,));
+  __SET_VAR(data__->MHZ.,V_OK,,__GET_VAR(data__->HZ_OK,));
+  __SET_VAR(data__->MHZ.,BAND,,__REAL_LITERAL(0.05));
+  AC_MIRROR_body__(&data__->MHZ);
+  __SET_VAR(data__->,OUT_V,,__GET_VAR(data__->MV.Y,));
+  __SET_VAR(data__->,OUT_V_OK,,__GET_VAR(data__->MV.OK,));
+  __SET_VAR(data__->,OUT_A,,__GET_VAR(data__->MA.Y,));
+  __SET_VAR(data__->,OUT_A_OK,,__GET_VAR(data__->MA.OK,));
+  __SET_VAR(data__->,OUT_W,,__GET_VAR(data__->MW.Y,));
+  __SET_VAR(data__->,OUT_W_OK,,__GET_VAR(data__->MW.OK,));
+  __SET_VAR(data__->,OUT_HZ,,__GET_VAR(data__->MHZ.Y,));
+  __SET_VAR(data__->,OUT_HZ_OK,,__GET_VAR(data__->MHZ.OK,));
+  __SET_VAR(data__->,IN_SPEC,,((((__GET_VAR(data__->V,) >= __GET_VAR(data__->LO_V,)) && (__GET_VAR(data__->V,) <= __GET_VAR(data__->HI_V,))) && (__GET_VAR(data__->HZ,) >= __GET_VAR(data__->LO_HZ,))) && (__GET_VAR(data__->HZ,) <= __GET_VAR(data__->HI_HZ,))));
+  __SET_VAR(data__->,OK,,(__GET_VAR(data__->MEASURED,) && __GET_VAR(data__->IN_SPEC,)));
+  __SET_VAR(data__->,FAULT,,(__GET_VAR(data__->SEEN,) && (!(__GET_VAR(data__->MEASURED,)) || !(__GET_VAR(data__->IN_SPEC,)))));
+  __SET_VAR(data__->,ANSWERED,,((__GET_VAR(data__->MEASURED,) && __GET_VAR(data__->A_OK,)) && __GET_VAR(data__->W_OK,)));
+
+  goto __end;
+
+__end:
+  return;
+} // AC_SUPPLY_body__() 
 
 
 
@@ -2290,6 +2471,147 @@ static void TARGET_TEMP_CONTROLLER_body__(TARGET_TEMP_CONTROLLER_data__ *data__)
 __end:
   return;
 } // TARGET_TEMP_CONTROLLER_body__() 
+
+
+
+
+
+static void AC_GRID_WATCH_init__(AC_GRID_WATCH_data__ *data__, BOOL retain) {
+  __INIT_EXTERNAL(REAL,GRID_LN_V,data__->GRID_LN_V,retain)
+  __INIT_EXTERNAL(BOOL,GRID_LN_V_QLT,data__->GRID_LN_V_QLT,retain)
+  __INIT_EXTERNAL(REAL,GRID_TOTAL_A,data__->GRID_TOTAL_A,retain)
+  __INIT_EXTERNAL(BOOL,GRID_TOTAL_A_QLT,data__->GRID_TOTAL_A_QLT,retain)
+  __INIT_EXTERNAL(REAL,GRID_TOTAL_W,data__->GRID_TOTAL_W,retain)
+  __INIT_EXTERNAL(BOOL,GRID_TOTAL_W_QLT,data__->GRID_TOTAL_W_QLT,retain)
+  __INIT_EXTERNAL(REAL,GRID_HZ,data__->GRID_HZ,retain)
+  __INIT_EXTERNAL(BOOL,GRID_HZ_QLT,data__->GRID_HZ_QLT,retain)
+  __INIT_EXTERNAL(REAL,PWR_GRIDLO_V,data__->PWR_GRIDLO_V,retain)
+  __INIT_EXTERNAL(REAL,PWR_GRIDHI_V,data__->PWR_GRIDHI_V,retain)
+  __INIT_EXTERNAL(REAL,PWR_GRIDLO_HZ,data__->PWR_GRIDLO_HZ,retain)
+  __INIT_EXTERNAL(REAL,PWR_GRIDHI_HZ,data__->PWR_GRIDHI_HZ,retain)
+  __INIT_EXTERNAL(REAL,SYS_GRID_V,data__->SYS_GRID_V,retain)
+  __INIT_EXTERNAL(BOOL,SYS_GRID_V_QLT,data__->SYS_GRID_V_QLT,retain)
+  __INIT_EXTERNAL(REAL,SYS_GRID_A,data__->SYS_GRID_A,retain)
+  __INIT_EXTERNAL(BOOL,SYS_GRID_A_QLT,data__->SYS_GRID_A_QLT,retain)
+  __INIT_EXTERNAL(REAL,SYS_GRID_W,data__->SYS_GRID_W,retain)
+  __INIT_EXTERNAL(BOOL,SYS_GRID_W_QLT,data__->SYS_GRID_W_QLT,retain)
+  __INIT_EXTERNAL(REAL,SYS_GRID_HZ,data__->SYS_GRID_HZ,retain)
+  __INIT_EXTERNAL(BOOL,SYS_GRID_HZ_QLT,data__->SYS_GRID_HZ_QLT,retain)
+  __INIT_EXTERNAL(BOOL,SYS_GRID_OK,data__->SYS_GRID_OK,retain)
+  __INIT_EXTERNAL(BOOL,ALARM_AC_GRID,data__->ALARM_AC_GRID,retain)
+  AC_SUPPLY_init__(&data__->SUPPLY,retain);
+}
+
+// Code part
+static void AC_GRID_WATCH_body__(AC_GRID_WATCH_data__ *data__) {
+  // Initialise TEMP variables
+
+  __SET_VAR(data__->SUPPLY.,V,,__GET_EXTERNAL(data__->GRID_LN_V,));
+  __SET_VAR(data__->SUPPLY.,V_OK,,__GET_EXTERNAL(data__->GRID_LN_V_QLT,));
+  __SET_VAR(data__->SUPPLY.,A,,__GET_EXTERNAL(data__->GRID_TOTAL_A,));
+  __SET_VAR(data__->SUPPLY.,A_OK,,__GET_EXTERNAL(data__->GRID_TOTAL_A_QLT,));
+  __SET_VAR(data__->SUPPLY.,W,,__GET_EXTERNAL(data__->GRID_TOTAL_W,));
+  __SET_VAR(data__->SUPPLY.,W_OK,,__GET_EXTERNAL(data__->GRID_TOTAL_W_QLT,));
+  __SET_VAR(data__->SUPPLY.,HZ,,__GET_EXTERNAL(data__->GRID_HZ,));
+  __SET_VAR(data__->SUPPLY.,HZ_OK,,__GET_EXTERNAL(data__->GRID_HZ_QLT,));
+  __SET_VAR(data__->SUPPLY.,LO_V,,__GET_EXTERNAL(data__->PWR_GRIDLO_V,));
+  __SET_VAR(data__->SUPPLY.,HI_V,,__GET_EXTERNAL(data__->PWR_GRIDHI_V,));
+  __SET_VAR(data__->SUPPLY.,LO_HZ,,__GET_EXTERNAL(data__->PWR_GRIDLO_HZ,));
+  __SET_VAR(data__->SUPPLY.,HI_HZ,,__GET_EXTERNAL(data__->PWR_GRIDHI_HZ,));
+  AC_SUPPLY_body__(&data__->SUPPLY);
+  __SET_EXTERNAL(data__->,SYS_GRID_V,,__GET_VAR(data__->SUPPLY.OUT_V,));
+  __SET_EXTERNAL(data__->,SYS_GRID_V_QLT,,__GET_VAR(data__->SUPPLY.OUT_V_OK,));
+  __SET_EXTERNAL(data__->,SYS_GRID_A,,__GET_VAR(data__->SUPPLY.OUT_A,));
+  __SET_EXTERNAL(data__->,SYS_GRID_A_QLT,,__GET_VAR(data__->SUPPLY.OUT_A_OK,));
+  __SET_EXTERNAL(data__->,SYS_GRID_W,,__GET_VAR(data__->SUPPLY.OUT_W,));
+  __SET_EXTERNAL(data__->,SYS_GRID_W_QLT,,__GET_VAR(data__->SUPPLY.OUT_W_OK,));
+  __SET_EXTERNAL(data__->,SYS_GRID_HZ,,__GET_VAR(data__->SUPPLY.OUT_HZ,));
+  __SET_EXTERNAL(data__->,SYS_GRID_HZ_QLT,,__GET_VAR(data__->SUPPLY.OUT_HZ_OK,));
+  __SET_EXTERNAL(data__->,SYS_GRID_OK,,__GET_VAR(data__->SUPPLY.OK,));
+  __SET_EXTERNAL(data__->,ALARM_AC_GRID,,__GET_VAR(data__->SUPPLY.FAULT,));
+
+  goto __end;
+
+__end:
+  return;
+} // AC_GRID_WATCH_body__() 
+
+
+
+
+
+static void AC_LOCAL_WATCH_init__(AC_LOCAL_WATCH_data__ *data__, BOOL retain) {
+  __INIT_EXTERNAL(REAL,ATS_V,data__->ATS_V,retain)
+  __INIT_EXTERNAL(BOOL,ATS_V_QLT,data__->ATS_V_QLT,retain)
+  __INIT_EXTERNAL(REAL,ATS_A,data__->ATS_A,retain)
+  __INIT_EXTERNAL(BOOL,ATS_A_QLT,data__->ATS_A_QLT,retain)
+  __INIT_EXTERNAL(REAL,ATS_W,data__->ATS_W,retain)
+  __INIT_EXTERNAL(BOOL,ATS_W_QLT,data__->ATS_W_QLT,retain)
+  __INIT_EXTERNAL(REAL,ATS_HZ,data__->ATS_HZ,retain)
+  __INIT_EXTERNAL(BOOL,ATS_HZ_QLT,data__->ATS_HZ_QLT,retain)
+  __INIT_EXTERNAL(REAL,PWR_LOCALLO_V,data__->PWR_LOCALLO_V,retain)
+  __INIT_EXTERNAL(REAL,PWR_LOCALHI_V,data__->PWR_LOCALHI_V,retain)
+  __INIT_EXTERNAL(REAL,PWR_LOCALLO_HZ,data__->PWR_LOCALLO_HZ,retain)
+  __INIT_EXTERNAL(REAL,PWR_LOCALHI_HZ,data__->PWR_LOCALHI_HZ,retain)
+  __INIT_EXTERNAL(BOOL,SYS_GRID_OK,data__->SYS_GRID_OK,retain)
+  __INIT_EXTERNAL(UINT,PWR_GENSTART_SEC,data__->PWR_GENSTART_SEC,retain)
+  __INIT_EXTERNAL(UDINT,SYS_NOW_MS,data__->SYS_NOW_MS,retain)
+  __INIT_EXTERNAL(REAL,SYS_LOCAL_V,data__->SYS_LOCAL_V,retain)
+  __INIT_EXTERNAL(BOOL,SYS_LOCAL_V_QLT,data__->SYS_LOCAL_V_QLT,retain)
+  __INIT_EXTERNAL(REAL,SYS_LOCAL_A,data__->SYS_LOCAL_A,retain)
+  __INIT_EXTERNAL(BOOL,SYS_LOCAL_A_QLT,data__->SYS_LOCAL_A_QLT,retain)
+  __INIT_EXTERNAL(REAL,SYS_LOCAL_W,data__->SYS_LOCAL_W,retain)
+  __INIT_EXTERNAL(BOOL,SYS_LOCAL_W_QLT,data__->SYS_LOCAL_W_QLT,retain)
+  __INIT_EXTERNAL(REAL,SYS_LOCAL_HZ,data__->SYS_LOCAL_HZ,retain)
+  __INIT_EXTERNAL(BOOL,SYS_LOCAL_HZ_QLT,data__->SYS_LOCAL_HZ_QLT,retain)
+  __INIT_EXTERNAL(BOOL,SYS_LOCAL_OK,data__->SYS_LOCAL_OK,retain)
+  __INIT_EXTERNAL(BOOL,ALARM_AC_LOCAL,data__->ALARM_AC_LOCAL,retain)
+  __INIT_EXTERNAL(BOOL,ALARM_GEN,data__->ALARM_GEN,retain)
+  AC_SUPPLY_init__(&data__->SUPPLY,retain);
+  TON_MS_init__(&data__->CRANKING,retain);
+}
+
+// Code part
+static void AC_LOCAL_WATCH_body__(AC_LOCAL_WATCH_data__ *data__) {
+  // Initialise TEMP variables
+
+  __SET_VAR(data__->SUPPLY.,V,,__GET_EXTERNAL(data__->ATS_V,));
+  __SET_VAR(data__->SUPPLY.,V_OK,,__GET_EXTERNAL(data__->ATS_V_QLT,));
+  __SET_VAR(data__->SUPPLY.,A,,__GET_EXTERNAL(data__->ATS_A,));
+  __SET_VAR(data__->SUPPLY.,A_OK,,__GET_EXTERNAL(data__->ATS_A_QLT,));
+  __SET_VAR(data__->SUPPLY.,W,,__GET_EXTERNAL(data__->ATS_W,));
+  __SET_VAR(data__->SUPPLY.,W_OK,,__GET_EXTERNAL(data__->ATS_W_QLT,));
+  __SET_VAR(data__->SUPPLY.,HZ,,__GET_EXTERNAL(data__->ATS_HZ,));
+  __SET_VAR(data__->SUPPLY.,HZ_OK,,__GET_EXTERNAL(data__->ATS_HZ_QLT,));
+  __SET_VAR(data__->SUPPLY.,LO_V,,__GET_EXTERNAL(data__->PWR_LOCALLO_V,));
+  __SET_VAR(data__->SUPPLY.,HI_V,,__GET_EXTERNAL(data__->PWR_LOCALHI_V,));
+  __SET_VAR(data__->SUPPLY.,LO_HZ,,__GET_EXTERNAL(data__->PWR_LOCALLO_HZ,));
+  __SET_VAR(data__->SUPPLY.,HI_HZ,,__GET_EXTERNAL(data__->PWR_LOCALHI_HZ,));
+  AC_SUPPLY_body__(&data__->SUPPLY);
+  __SET_EXTERNAL(data__->,SYS_LOCAL_V,,__GET_VAR(data__->SUPPLY.OUT_V,));
+  __SET_EXTERNAL(data__->,SYS_LOCAL_V_QLT,,__GET_VAR(data__->SUPPLY.OUT_V_OK,));
+  __SET_EXTERNAL(data__->,SYS_LOCAL_A,,__GET_VAR(data__->SUPPLY.OUT_A,));
+  __SET_EXTERNAL(data__->,SYS_LOCAL_A_QLT,,__GET_VAR(data__->SUPPLY.OUT_A_OK,));
+  __SET_EXTERNAL(data__->,SYS_LOCAL_W,,__GET_VAR(data__->SUPPLY.OUT_W,));
+  __SET_EXTERNAL(data__->,SYS_LOCAL_W_QLT,,__GET_VAR(data__->SUPPLY.OUT_W_OK,));
+  __SET_EXTERNAL(data__->,SYS_LOCAL_HZ,,__GET_VAR(data__->SUPPLY.OUT_HZ,));
+  __SET_EXTERNAL(data__->,SYS_LOCAL_HZ_QLT,,__GET_VAR(data__->SUPPLY.OUT_HZ_OK,));
+  __SET_EXTERNAL(data__->,SYS_LOCAL_OK,,__GET_VAR(data__->SUPPLY.OK,));
+  __SET_EXTERNAL(data__->,ALARM_AC_LOCAL,,__GET_VAR(data__->SUPPLY.FAULT,));
+  __SET_VAR(data__->CRANKING.,IN,,(!(__GET_EXTERNAL(data__->SYS_GRID_OK,)) && !(__GET_VAR(data__->SUPPLY.ANSWERED,))));
+  __SET_VAR(data__->CRANKING.,PT,,(___UINT_TO_UDINT(
+    (BOOL)__BOOL_LITERAL(TRUE),
+    NULL,
+    (UINT)__GET_EXTERNAL(data__->PWR_GENSTART_SEC,)) * __UDINT_LITERAL(1000)));
+  __SET_VAR(data__->CRANKING.,NOW,,__GET_EXTERNAL(data__->SYS_NOW_MS,));
+  TON_MS_body__(&data__->CRANKING);
+  __SET_EXTERNAL(data__->,ALARM_GEN,,__GET_VAR(data__->CRANKING.Q,));
+
+  goto __end;
+
+__end:
+  return;
+} // AC_LOCAL_WATCH_body__() 
 
 
 

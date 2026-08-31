@@ -625,11 +625,11 @@ TEST_CASE_FIXTURE(StRig,
     CHECK(live.bank.get(storm));
 }
 
-TEST_CASE_FIXTURE(Rig<Site::AcGridWatch>,
+TEST_CASE_FIXTURE(StRig,
                   "grid: the meter's readings are mirrored, and judged") {
-    // Every one of these comes out of AcSupply::step(), which the program
-    // drives once per beat. A law that never called it published a supply
-    // that was always in spec and never faulted, on any wiring at all.
+    // Every one of these comes out of AC_SUPPLY, which the program drives once
+    // per beat. A law that never called it published a supply that was always
+    // in spec and never faulted, on any wiring at all.
     const VarRef ok  = live.ref("sys_grid_ok");
     const VarRef flt = live.ref("alarm_ac_grid");
     const VarRef v   = live.ref("sys_grid_V");

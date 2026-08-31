@@ -26,6 +26,8 @@ namespace Botanik { namespace Plc { namespace Runtime { Vars::Bank* io = 0; } } 
 namespace Botanik { namespace Plc { namespace Runtime {
 
 #define PLANT_PROGRAM_LIST(X) \
+    X(ac_grid_watch,   AC_GRID_WATCH,          ACGRID,     BOTANIK_SITE_CONTROL_MS) \
+    X(ac_local_watch,  AC_LOCAL_WATCH,         ACLOCAL,    BOTANIK_SITE_CONTROL_MS) \
     X(temp_rh_sensors, TEMP_RH_SENSORS,        SENSORS,    BOTANIK_SITE_SENSE_MS) \
     X(wx_sensors,      WX_SENSORS,             WX,         BOTANIK_SITE_SENSE_MS) \
     X(strat,           STRAT_SENSOR,           STRAT,      BOTANIK_SITE_SENSE_MS) \

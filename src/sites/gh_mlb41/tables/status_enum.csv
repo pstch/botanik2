@@ -8,7 +8,6 @@ prog_temp_rh_sensors,3          ,&Plc::health_label,603,health of the temp_rh_se
 prog_temp_rh_zone   ,3          ,&Plc::health_label,573,health of the temp_rh_zone program,3 is INHIBITED: nothing has run yet
 prog_strat          ,3          ,&Plc::health_label,574,health of the strat program,3 is INHIBITED: nothing has run yet
 prog_climate_watch  ,3          ,&Plc::health_label,575,health of the climate_watch program,3 is INHIBITED: nothing has run yet
-prog_sun_watch      ,3          ,&Plc::health_label,594,health of the sun watch program,3 is INHIBITED: nothing has run yet
 prog_day_phase      ,3          ,&Plc::health_label,576,health of the day_phase program,3 is INHIBITED: nothing has run yet
 prog_target_temp    ,3          ,&Plc::health_label,577,health of the target_temp program,3 is INHIBITED: nothing has run yet
 prog_cooling        ,3          ,&Plc::health_label,578,health of the cooling program,3 is INHIBITED: nothing has run yet
