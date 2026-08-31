@@ -56,8 +56,6 @@ struct Plant {
 
     Site::IrrigationCycle      irrigation;
     Site::IrrValves            irr_valves;
-    Site::ScreenController     screen;
-    Site::WindowsController    windows;
     /** @brief PHASE_INPUT's job: the local terminals' own rows - an edge count
      *  among them - then a field row's quality reaching ST as a companion.
      *  Before the plant, as the beat has it. */
@@ -77,13 +75,11 @@ struct Plant {
 
     Plant()
         : irr_mod(ctx(), io()), irr_in(ctx(), io()), irr_out(ctx(), io()),
-          irr_schedule(ctx(), io()), irrigation(ctx(), io()), irr_valves(ctx(), io()), screen(ctx(), io()),
-          windows(ctx(), io()),
+          irr_schedule(ctx(), io()), irrigation(ctx(), io()), irr_valves(ctx(), io()),
           terminals(ctx(), io()), mirror(ctx(), io()), st(ctx(), io()) {
         terminals.wire(Site::pulse_inputs, Site::pulse_input_count);
         Plc::Program* const list[] = {
-            &irr_mod, &irr_in, &irr_out, &irr_schedule, &irrigation, &irr_valves,
-            &screen, &windows
+            &irr_mod, &irr_in, &irr_out, &irr_schedule, &irrigation, &irr_valves
         };
         // Sized from the list, never a literal: a hand-kept count silently
         // drops whichever program is last the day one is added.

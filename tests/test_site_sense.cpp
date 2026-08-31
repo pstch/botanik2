@@ -403,15 +403,15 @@ TEST_CASE("cooling: an unknown demand puts every actuator at its own safe state"
     Live f;
     fine_weather(f);
     interlocks_clear(f);
-    // The lockout is ST, so the resource runs ahead of the actuators.
-    Plc::Runtime::Plant            st(Botanik::SetupContext(f.reg), f.bank);
-    Site::WindowsController    win(Botanik::SetupContext(f.reg), f.bank);
-    Site::ScreenController     scr(Botanik::SetupContext(f.reg), f.bank);
-    Plc::Program* const progs[] = { &win, &scr };
-    Cycle cyc(progs, 2, &f.bank, f.reg);
+    // Every one of the five actuators is ST now, so the RESOURCE is the whole
+    // beat: the mirror first, because a field row's quality reaches ST as a
+    // companion.
+    Vars::QualityMirror mirror(Botanik::SetupContext(f.reg), f.bank);
+    Plc::Runtime::Plant st(Botanik::SetupContext(f.reg), f.bank);
     st.wire();
-    struct { Plc::Runtime::Plant* st; Cycle* c;
-             void step(uint64_t n) { st->scan(n); c->step(n); } } d{ &st, &cyc };
+    mirror.wire();
+    struct { Vars::QualityMirror* m; Plc::Runtime::Plant* st;
+             void step(uint64_t n) { m->scan(); st->scan(n); } } d{ &mirror, &st };
 
     // Everything else says GO: only the cooling ladder cannot see the house,
     // and its two outputs go together. Reached the way the plant reaches it -

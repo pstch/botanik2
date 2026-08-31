@@ -19,3 +19,5 @@ roof_lockout   ,roof      ,programs/actuators/roof_lockout/roof_lockout.st,contr
 intractors     ,intractors,programs/actuators/intractor_controller/intractor_controller.st,control
 fans           ,fans      ,programs/actuators/fan_controller/fan_controller.st,control
 skirt          ,skirt     ,programs/actuators/skirt_controller/skirt_controller.st,control
+screen         ,screen    ,programs/actuators/screen_controller/screen_controller.st,control
+windows        ,windows   ,programs/actuators/windows_controller/windows_controller.st,control

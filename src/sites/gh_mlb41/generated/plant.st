@@ -154,6 +154,10 @@ CONFIGURATION gh_mlb41
     cli_rotRelease_sec      : UINT;
     cli_rotVentDem          : REAL;
     cli_satPress_kPa        : REAL;
+    cli_screen              : BOOL;
+    cli_screenMoving        : BOOL;
+    cli_screenTmo_sec       : UINT;
+    cli_screenTravel_sec    : UINT;
     cli_sensorTau_ms        : UINT;
     cli_sinceRain_min       : UINT;
     cli_skirtCoolDem        : REAL;
@@ -201,6 +205,7 @@ CONFIGURATION gh_mlb41
     cli_temp_lo3            : REAL;
     cli_temp_lo3_qlt        : BOOL;
     cli_temp_lo_qlt         : BOOL;
+    cli_thermalScreenDem    : REAL;
     cli_tooCold_degC        : REAL;
     cli_tooHot_degC         : REAL;
     cli_ventDryMgn_degC     : REAL;
@@ -222,11 +227,29 @@ CONFIGURATION gh_mlb41
     cli_windShutMax         : REAL;
     cli_wind_mps            : REAL;
     cli_wind_mps_qlt        : BOOL;
+    cli_window1_clo         : BOOL;
+    cli_window1_opn         : BOOL;
+    cli_window1_pos         : REAL;
+    cli_window1_tgt         : REAL;
+    cli_window2_clo         : BOOL;
+    cli_window2_opn         : BOOL;
+    cli_window2_pos         : REAL;
+    cli_window2_tgt         : REAL;
+    cli_window3_clo         : BOOL;
+    cli_window3_opn         : BOOL;
+    cli_window3_pos         : REAL;
+    cli_window3_tgt         : REAL;
+    cli_window4_clo         : BOOL;
+    cli_window4_opn         : BOOL;
+    cli_window4_pos         : REAL;
+    cli_window4_tgt         : REAL;
     cli_windowCap           : REAL;
     cli_windowDem           : REAL;
     cli_windowFullDem       : REAL;
     cli_windowLockout       : BOOL;
     cli_windowStartDem      : REAL;
+    cli_windowTmo_sec       : UINT;
+    cli_windowTravel_sec    : UINT;
     cli_wxTau_ms            : UINT;
     grid_Hz                 : REAL;
     grid_Hz_qlt             : BOOL;
@@ -326,6 +349,8 @@ CONFIGURATION gh_mlb41
     PROGRAM intractors : intractor_controller;
     PROGRAM fans       : fan_controller;
     PROGRAM skirt      : skirt_controller;
+    PROGRAM screen     : screen_controller;
+    PROGRAM windows    : windows_controller;
   END_RESOURCE
 
 END_CONFIGURATION

@@ -285,30 +285,6 @@ struct IrrigationRig {
     } d;
 };
 
-/** @brief The roof: the lockout runs FIRST, so the windows see the interlock
- *  it publishes on the same beat rather than the one before. */
-struct RoofRig {
-    Live                    live;
-    /** The lockout is ST now, so it is the RESOURCE that runs first. */
-    Plc::Runtime::Plant         st{Botanik::SetupContext(live.reg), live.bank};
-    Site::WindowsController wc{Botanik::SetupContext(live.reg), live.bank};
-    Plc::Program* const     progs[1] = { &wc };
-    Cycle                   cycle{progs, 1, &live.bank, live.reg};
-
-    RoofRig() { st.wire(); d.st = &st; d.cycle = &cycle; }
-
-    /** @brief ST, then the programs - the order the beat uses. */
-    struct Driver {
-        Plc::Runtime::Plant* st = nullptr;
-        Cycle*           cycle = nullptr;
-        uint64_t         last = 0;
-        void step(uint64_t now_ms) {
-            st->scan(now_ms);
-            cycle->step(now_ms);
-        }
-    } d;
-};
-
 }  // namespace site_programs
 
 #endif // TESTS_PROGRAM_RIG_H

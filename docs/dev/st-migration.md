@@ -14,7 +14,7 @@ The end state the user asked for:
 
 > `src/sites/<NAME>/` contains only CSV tables, ST programs, and a root TOML.
 
-**20 of 28 programs are ported. 8 remain.**
+**22 of 28 programs are ported. 6 remain - all of them irrigation.**
 
 `sun_watch` is not among either: the tracker publishes `sol_*` itself now, so
 the program that copied the instrument onto rows was DELETED rather than
@@ -24,7 +24,7 @@ ported. 29 was never going to be the number that finished.
 
 ## The task list
 
-### 1. Finish the port - 8 programs
+### 1. Finish the port - 6 programs
 
 **Blocks were never the hard part.** A survey of all fifteen (2026-08-31)
 found five things ST had no expression for. All five are now dealt with: four
@@ -44,8 +44,6 @@ porting its producer.
 
 | program | blocks needed | what ST cannot say |
 |---|---|---|
-| `ScreenController` | `Actuator` + `ActuatorConfig` | - |
-| `WindowsController` | `Actuator` + `ActuatorConfig` | `.invalidate()` |
 | `IrrValves` | **none** - it only calls `.set()` | - |
 | `IrrigationModulation` | `Ton` | `.invalidate()`, `powf` |
 | `IrrMtrInput` | `Derivative`, `Ton` | - |
@@ -95,6 +93,21 @@ porting its producer.
 costs COMPANION ROWS - the AC pair alone wants about sixteen, and a register is
 a Modbus contract that does not move. Budget them before starting a program.
 
+### Unrolling a loop is where a port goes wrong
+
+`windows_controller` picks one ram of four per scan. The C++ is one loop with
+two tests in it:
+
+```
+for i: if (!known(i)) return i;  if (far(i)) return i;
+```
+
+Unrolled as "all four for the first question, then all four for the second" it
+reads almost the same and is NOT the same: an unknown ram 3 then outranks a
+ram 1 that is wide open with the roof being shut, and the roof never closes.
+The suite caught it. When a C++ loop tests two things per item, the ST has to
+keep them in the same arm.
+
 ### Table capacity moves with the companions, and it moves QUIETLY
 
 The AC pair alone wanted 16 companion rows, and adding them found three caps
@@ -128,9 +141,18 @@ then `ScreenController`/`WindowsController`/`SkirtController`, which read
 `cli_coolDem`. The whole irrigation chain goes last, and `IrrValves` last of
 all - it is the only consumer at the end of it.
 
-Library blocks still to write as ST (in `src/libbotanik/plc/blocks/*.st`):
-`Ton`, `Pid`, `Deadband`, `Integral`, `Derivative`, `Actuator`.
-Site blocks: `WeatherProbes`, `AcSupply`, `ValveController`.
+Library blocks still to write as ST: `Integral`, `Derivative` - both for the
+irrigation meters. Everything else is done (`TON_MS`, `PID`, `DEADBAND`,
+`DC_RAIL`, `ACTUATOR`), and every site block is (`WX_*`, `AC_*`,
+`VALVE_PULSE`, `ZONE_*`).
+
+**A block with no method but `step()`.** C++ blocks have `reset()`, `home()`,
+`preset()`, `stop()`; an ST FB has one call. Where a program used one, the
+block takes an INPUT instead: `PID.RESET`, `ACTUATOR.PRESET_KNOWN`, and
+`ACTUATOR.HOLD` - which is "keep your clock, decide nothing", for the four roof
+rams where only ONE is stepped per scan. Not calling the FB at all is wrong:
+it reads `sys_now_ms` itself, so the next call would bank the whole idle gap
+as travel.
 
 `Plant` holds `Slot _slot[32]` and asserts `PROGRAM_COUNT` against it at
 bring-up. 17 are in use.

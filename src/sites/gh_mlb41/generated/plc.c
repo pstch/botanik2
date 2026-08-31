@@ -58,6 +58,10 @@ FAN_CONTROLLER_data__ PLC__FANS;
 #define FANS PLC__FANS
 SKIRT_CONTROLLER_data__ PLC__SKIRT;
 #define SKIRT PLC__SKIRT
+SCREEN_CONTROLLER_data__ PLC__SCREEN;
+#define SCREEN PLC__SCREEN
+WINDOWS_CONTROLLER_data__ PLC__WINDOWS;
+#define WINDOWS PLC__WINDOWS
 
 void PLC_init__(void) {
   BOOL retain;
@@ -84,6 +88,8 @@ void PLC_init__(void) {
   INTRACTOR_CONTROLLER_init__(&INTRACTORS,retain);
   FAN_CONTROLLER_init__(&FANS,retain);
   SKIRT_CONTROLLER_init__(&SKIRT,retain);
+  SCREEN_CONTROLLER_init__(&SCREEN,retain);
+  WINDOWS_CONTROLLER_init__(&WINDOWS,retain);
 }
 
 void PLC_run__(unsigned long tick) {
@@ -108,5 +114,7 @@ void PLC_run__(unsigned long tick) {
   INTRACTOR_CONTROLLER_body__(&INTRACTORS);
   FAN_CONTROLLER_body__(&FANS);
   SKIRT_CONTROLLER_body__(&SKIRT);
+  SCREEN_CONTROLLER_body__(&SCREEN);
+  WINDOWS_CONTROLLER_body__(&WINDOWS);
 }
 

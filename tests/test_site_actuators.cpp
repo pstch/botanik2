@@ -133,7 +133,7 @@ TEST_CASE_FIXTURE(StRig, "fans: an unknown gap floors them at their safe state, 
     CHECK(live.bank.get(s3));
 }
 
-TEST_CASE_FIXTURE(Rig<Site::ScreenController>, "screen: a cold night deploys it, and the traverse is published while it runs") {
+TEST_CASE_FIXTURE(StRig, "screen: a cold night deploys it, and the traverse is published while it runs") {
 
     Vars::RefIn<bool> screen = live.bank.resolve_in<bool>("cli_screen");
     Vars::RefIn<bool> moving = live.bank.resolve_in<bool>("cli_screenMoving");
@@ -162,24 +162,14 @@ TEST_CASE_FIXTURE(Rig<Site::ScreenController>, "screen: a cold night deploys it,
     CHECK_FALSE(live.bank.get(moving));
 }
 
-/** @brief roof_lockout is ST now, so the RESOURCE runs and then the windows
- *  program does - the same order the beat uses, and the one the lockout needs:
- *  cli_windowCap has to reach the rams on the beat it was published. */
+/** @brief The roof is entirely ST now - the lockout and the rams both - so a
+ *  case that used to hold its own drive just steps the RESOURCE. */
 struct RoofDrive {
-    Plc::Runtime::Plant         st;
-    Site::WindowsController win;
-    Plc::Program*           progs[1];
-    Cycle                   cyc;
-
-    explicit RoofDrive(Live& f)
-        : st(Botanik::SetupContext(f.reg), f.bank),
-          win(Botanik::SetupContext(f.reg), f.bank),
-          progs{ &win }, cyc(progs, 1, &f.bank, f.reg) { st.wire(); }
-
-    void step(uint64_t now_ms) {
-        st.scan(now_ms);
-        cyc.step(now_ms);
+    Plc::Runtime::Plant st;
+    explicit RoofDrive(Live& f) : st(Botanik::SetupContext(f.reg), f.bank) {
+        st.wire();
     }
+    void step(uint64_t now_ms) { st.scan(now_ms); }
 };
 
 TEST_CASE("windows: the wind takes the roof down a ramp before it shuts it") {
@@ -283,7 +273,7 @@ TEST_CASE("windows: a forced lockout shuts the roof, with no weather to do it") 
     CHECK(f.bank.var(f.ref("cli_window1_pos")).as_f32() > 0.9f);
 }
 
-TEST_CASE_FIXTURE(Rig<Site::ScreenController>, "screen: the phase gives permission, the demand only asks") {
+TEST_CASE_FIXTURE(StRig, "screen: the phase gives permission, the demand only asks") {
 
     Vars::RefIn<bool> screen = live.bank.resolve_in<bool>("cli_screen");
     const float deploy = live.bank.var(live.ref("cli_thermalScreenDem")).as_f32();
@@ -324,7 +314,7 @@ TEST_CASE_FIXTURE(Rig<Site::ScreenController>, "screen: the phase gives permissi
     CHECK_FALSE(live.bank.get(screen));
 }
 
-TEST_CASE_FIXTURE(RoofRig, "windows: exactly one ram is energised at a time") {
+TEST_CASE_FIXTURE(StRig, "windows: exactly one ram is energised at a time") {
     fine_weather(live);
     interlocks_clear(live);
 
@@ -355,7 +345,7 @@ TEST_CASE_FIXTURE(RoofRig, "windows: exactly one ram is energised at a time") {
     }
 }
 
-TEST_CASE_FIXTURE(RoofRig, "windows: rain shuts them, and the lockout outlives the shower") {
+TEST_CASE_FIXTURE(StRig, "windows: rain shuts them, and the lockout outlives the shower") {
     fine_weather(live);
     interlocks_clear(live);
 
@@ -383,7 +373,7 @@ TEST_CASE_FIXTURE(RoofRig, "windows: rain shuts them, and the lockout outlives t
     CHECK(live.bank.get(tgt) == doctest::Approx(1.0f));
 }
 
-TEST_CASE_FIXTURE(RoofRig, "windows: a gust shuts them, and the mean alone does not") {
+TEST_CASE_FIXTURE(StRig, "windows: a gust shuts them, and the mean alone does not") {
     fine_weather(live);
     interlocks_clear(live);
 
@@ -406,7 +396,7 @@ TEST_CASE_FIXTURE(RoofRig, "windows: a gust shuts them, and the mean alone does 
           doctest::Approx(0.0f));
 }
 
-TEST_CASE_FIXTURE(RoofRig, "windows: an unmeasured sky shuts the roof rather than reading fine") {
+TEST_CASE_FIXTURE(StRig, "windows: an unmeasured sky shuts the roof rather than reading fine") {
 
     fine_weather(live);
     interlocks_clear(live);
