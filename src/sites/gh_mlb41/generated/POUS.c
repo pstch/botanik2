@@ -74,18 +74,20 @@ static REAL ___SAT_VAPOUR_PRESSURE(
   BOOL EN, 
   BOOL *__ENO, 
   REAL T_DEGC);
-static void BAND_LATCH_init__(BAND_LATCH_data__ *data__, BOOL retain);
-static void BAND_LATCH_body__(BAND_LATCH_data__ *data__);
-static void STAIRCASE3_init__(STAIRCASE3_data__ *data__, BOOL retain);
-static void STAIRCASE3_body__(STAIRCASE3_data__ *data__);
-static void DEADBAND_init__(DEADBAND_data__ *data__, BOOL retain);
-static void DEADBAND_body__(DEADBAND_data__ *data__);
 static void TOF_MS_init__(TOF_MS_data__ *data__, BOOL retain);
 static void TOF_MS_body__(TOF_MS_data__ *data__);
 static void TON_MS_init__(TON_MS_data__ *data__, BOOL retain);
 static void TON_MS_body__(TON_MS_data__ *data__);
 static void EWMA_init__(EWMA_data__ *data__, BOOL retain);
 static void EWMA_body__(EWMA_data__ *data__);
+static void BAND_LATCH_init__(BAND_LATCH_data__ *data__, BOOL retain);
+static void BAND_LATCH_body__(BAND_LATCH_data__ *data__);
+static void STAIRCASE3_init__(STAIRCASE3_data__ *data__, BOOL retain);
+static void STAIRCASE3_body__(STAIRCASE3_data__ *data__);
+static void DEADBAND_init__(DEADBAND_data__ *data__, BOOL retain);
+static void DEADBAND_body__(DEADBAND_data__ *data__);
+static void DC_RAIL_init__(DC_RAIL_data__ *data__, BOOL retain);
+static void DC_RAIL_body__(DC_RAIL_data__ *data__);
 static void PID_init__(PID_data__ *data__, BOOL retain);
 static void PID_body__(PID_data__ *data__);
 static void AC_MIRROR_init__(AC_MIRROR_data__ *data__, BOOL retain);
@@ -134,6 +136,8 @@ static void AC_LOCAL_WATCH_init__(AC_LOCAL_WATCH_data__ *data__, BOOL retain);
 static void AC_LOCAL_WATCH_body__(AC_LOCAL_WATCH_data__ *data__);
 static void CLIMATE_WATCH_init__(CLIMATE_WATCH_data__ *data__, BOOL retain);
 static void CLIMATE_WATCH_body__(CLIMATE_WATCH_data__ *data__);
+static void DC_WATCH_init__(DC_WATCH_data__ *data__, BOOL retain);
+static void DC_WATCH_body__(DC_WATCH_data__ *data__);
 static void STRAT_SENSOR_init__(STRAT_SENSOR_data__ *data__, BOOL retain);
 static void STRAT_SENSOR_body__(STRAT_SENSOR_data__ *data__);
 static void TEMP_RH_SENSORS_init__(TEMP_RH_SENSORS_data__ *data__, BOOL retain);
@@ -716,148 +720,6 @@ __end:
 }
 
 
-static void BAND_LATCH_init__(BAND_LATCH_data__ *data__, BOOL retain) {
-  __INIT_VAR(data__->EN,__BOOL_LITERAL(TRUE),retain)
-  __INIT_VAR(data__->ENO,__BOOL_LITERAL(TRUE),retain)
-  __INIT_VAR(data__->IN,0,retain)
-  __INIT_VAR(data__->RISE,0,retain)
-  __INIT_VAR(data__->FALL,0,retain)
-  __INIT_VAR(data__->Q,__BOOL_LITERAL(FALSE),retain)
-}
-
-// Code part
-static void BAND_LATCH_body__(BAND_LATCH_data__ *data__) {
-  // Control execution
-  if (!__GET_VAR(data__->EN)) {
-    __SET_VAR(data__->,ENO,,__BOOL_LITERAL(FALSE));
-    return;
-  }
-  else {
-    __SET_VAR(data__->,ENO,,__BOOL_LITERAL(TRUE));
-  }
-  // Initialise TEMP variables
-
-  if ((__GET_VAR(data__->IN,) >= __GET_VAR(data__->RISE,))) {
-    __SET_VAR(data__->,Q,,__BOOL_LITERAL(TRUE));
-  } else if ((__GET_VAR(data__->IN,) <= __GET_VAR(data__->FALL,))) {
-    __SET_VAR(data__->,Q,,__BOOL_LITERAL(FALSE));
-  };
-
-  goto __end;
-
-__end:
-  return;
-} // BAND_LATCH_body__() 
-
-
-
-
-
-static void STAIRCASE3_init__(STAIRCASE3_data__ *data__, BOOL retain) {
-  __INIT_VAR(data__->EN,__BOOL_LITERAL(TRUE),retain)
-  __INIT_VAR(data__->ENO,__BOOL_LITERAL(TRUE),retain)
-  __INIT_VAR(data__->IN,0,retain)
-  __INIT_VAR(data__->LO,0,retain)
-  __INIT_VAR(data__->MED,0,retain)
-  __INIT_VAR(data__->HI,0,retain)
-  __INIT_VAR(data__->HYST,0,retain)
-  __INIT_VAR(data__->Q,0,retain)
-  BAND_LATCH_init__(&data__->RUNG1,retain);
-  BAND_LATCH_init__(&data__->RUNG2,retain);
-  BAND_LATCH_init__(&data__->RUNG3,retain);
-}
-
-// Code part
-static void STAIRCASE3_body__(STAIRCASE3_data__ *data__) {
-  // Control execution
-  if (!__GET_VAR(data__->EN)) {
-    __SET_VAR(data__->,ENO,,__BOOL_LITERAL(FALSE));
-    return;
-  }
-  else {
-    __SET_VAR(data__->,ENO,,__BOOL_LITERAL(TRUE));
-  }
-  // Initialise TEMP variables
-  __SET_VAR(data__->,H,,0);
-
-  if ((__GET_VAR(data__->HYST,) < __REAL_LITERAL(0.0))) {
-    __SET_VAR(data__->,H,,__REAL_LITERAL(0.0));
-  } else {
-    __SET_VAR(data__->,H,,__GET_VAR(data__->HYST,));
-  };
-  __SET_VAR(data__->RUNG1.,IN,,__GET_VAR(data__->IN,));
-  __SET_VAR(data__->RUNG1.,RISE,,__GET_VAR(data__->LO,));
-  __SET_VAR(data__->RUNG1.,FALL,,(__GET_VAR(data__->LO,) - __GET_VAR(data__->H,)));
-  BAND_LATCH_body__(&data__->RUNG1);
-  __SET_VAR(data__->RUNG2.,IN,,__GET_VAR(data__->IN,));
-  __SET_VAR(data__->RUNG2.,RISE,,__GET_VAR(data__->MED,));
-  __SET_VAR(data__->RUNG2.,FALL,,(__GET_VAR(data__->MED,) - __GET_VAR(data__->H,)));
-  BAND_LATCH_body__(&data__->RUNG2);
-  __SET_VAR(data__->RUNG3.,IN,,__GET_VAR(data__->IN,));
-  __SET_VAR(data__->RUNG3.,RISE,,__GET_VAR(data__->HI,));
-  __SET_VAR(data__->RUNG3.,FALL,,(__GET_VAR(data__->HI,) - __GET_VAR(data__->H,)));
-  BAND_LATCH_body__(&data__->RUNG3);
-  __SET_VAR(data__->,Q,,__USINT_LITERAL(0));
-  if (__GET_VAR(data__->RUNG1.Q,)) {
-    __SET_VAR(data__->,Q,,__USINT_LITERAL(1));
-  };
-  if (__GET_VAR(data__->RUNG2.Q,)) {
-    __SET_VAR(data__->,Q,,__USINT_LITERAL(2));
-  };
-  if (__GET_VAR(data__->RUNG3.Q,)) {
-    __SET_VAR(data__->,Q,,__USINT_LITERAL(3));
-  };
-
-  goto __end;
-
-__end:
-  return;
-} // STAIRCASE3_body__() 
-
-
-
-
-
-static void DEADBAND_init__(DEADBAND_data__ *data__, BOOL retain) {
-  __INIT_VAR(data__->EN,__BOOL_LITERAL(TRUE),retain)
-  __INIT_VAR(data__->ENO,__BOOL_LITERAL(TRUE),retain)
-  __INIT_VAR(data__->V,0,retain)
-  __INIT_VAR(data__->BAND,0,retain)
-  __INIT_VAR(data__->Y,0,retain)
-  __INIT_VAR(data__->HELD,0,retain)
-  __INIT_VAR(data__->SEEDED,__BOOL_LITERAL(FALSE),retain)
-}
-
-// Code part
-static void DEADBAND_body__(DEADBAND_data__ *data__) {
-  // Control execution
-  if (!__GET_VAR(data__->EN)) {
-    __SET_VAR(data__->,ENO,,__BOOL_LITERAL(FALSE));
-    return;
-  }
-  else {
-    __SET_VAR(data__->,ENO,,__BOOL_LITERAL(TRUE));
-  }
-  // Initialise TEMP variables
-  __SET_VAR(data__->,DIFF,,0);
-
-  __SET_VAR(data__->,DIFF,,(__GET_VAR(data__->V,) - __GET_VAR(data__->HELD,)));
-  if (((!(__GET_VAR(data__->SEEDED,)) || (__GET_VAR(data__->DIFF,) > __GET_VAR(data__->BAND,))) || (__GET_VAR(data__->DIFF,) < (__REAL_LITERAL(0.0) - __GET_VAR(data__->BAND,))))) {
-    __SET_VAR(data__->,HELD,,__GET_VAR(data__->V,));
-    __SET_VAR(data__->,SEEDED,,__BOOL_LITERAL(TRUE));
-  };
-  __SET_VAR(data__->,Y,,__GET_VAR(data__->HELD,));
-
-  goto __end;
-
-__end:
-  return;
-} // DEADBAND_body__() 
-
-
-
-
-
 static void TOF_MS_init__(TOF_MS_data__ *data__, BOOL retain) {
   __INIT_VAR(data__->EN,__BOOL_LITERAL(TRUE),retain)
   __INIT_VAR(data__->ENO,__BOOL_LITERAL(TRUE),retain)
@@ -1015,6 +877,208 @@ static void EWMA_body__(EWMA_data__ *data__) {
 __end:
   return;
 } // EWMA_body__() 
+
+
+
+
+
+static void BAND_LATCH_init__(BAND_LATCH_data__ *data__, BOOL retain) {
+  __INIT_VAR(data__->EN,__BOOL_LITERAL(TRUE),retain)
+  __INIT_VAR(data__->ENO,__BOOL_LITERAL(TRUE),retain)
+  __INIT_VAR(data__->IN,0,retain)
+  __INIT_VAR(data__->RISE,0,retain)
+  __INIT_VAR(data__->FALL,0,retain)
+  __INIT_VAR(data__->Q,__BOOL_LITERAL(FALSE),retain)
+}
+
+// Code part
+static void BAND_LATCH_body__(BAND_LATCH_data__ *data__) {
+  // Control execution
+  if (!__GET_VAR(data__->EN)) {
+    __SET_VAR(data__->,ENO,,__BOOL_LITERAL(FALSE));
+    return;
+  }
+  else {
+    __SET_VAR(data__->,ENO,,__BOOL_LITERAL(TRUE));
+  }
+  // Initialise TEMP variables
+
+  if ((__GET_VAR(data__->IN,) >= __GET_VAR(data__->RISE,))) {
+    __SET_VAR(data__->,Q,,__BOOL_LITERAL(TRUE));
+  } else if ((__GET_VAR(data__->IN,) <= __GET_VAR(data__->FALL,))) {
+    __SET_VAR(data__->,Q,,__BOOL_LITERAL(FALSE));
+  };
+
+  goto __end;
+
+__end:
+  return;
+} // BAND_LATCH_body__() 
+
+
+
+
+
+static void STAIRCASE3_init__(STAIRCASE3_data__ *data__, BOOL retain) {
+  __INIT_VAR(data__->EN,__BOOL_LITERAL(TRUE),retain)
+  __INIT_VAR(data__->ENO,__BOOL_LITERAL(TRUE),retain)
+  __INIT_VAR(data__->IN,0,retain)
+  __INIT_VAR(data__->LO,0,retain)
+  __INIT_VAR(data__->MED,0,retain)
+  __INIT_VAR(data__->HI,0,retain)
+  __INIT_VAR(data__->HYST,0,retain)
+  __INIT_VAR(data__->Q,0,retain)
+  BAND_LATCH_init__(&data__->RUNG1,retain);
+  BAND_LATCH_init__(&data__->RUNG2,retain);
+  BAND_LATCH_init__(&data__->RUNG3,retain);
+}
+
+// Code part
+static void STAIRCASE3_body__(STAIRCASE3_data__ *data__) {
+  // Control execution
+  if (!__GET_VAR(data__->EN)) {
+    __SET_VAR(data__->,ENO,,__BOOL_LITERAL(FALSE));
+    return;
+  }
+  else {
+    __SET_VAR(data__->,ENO,,__BOOL_LITERAL(TRUE));
+  }
+  // Initialise TEMP variables
+  __SET_VAR(data__->,H,,0);
+
+  if ((__GET_VAR(data__->HYST,) < __REAL_LITERAL(0.0))) {
+    __SET_VAR(data__->,H,,__REAL_LITERAL(0.0));
+  } else {
+    __SET_VAR(data__->,H,,__GET_VAR(data__->HYST,));
+  };
+  __SET_VAR(data__->RUNG1.,IN,,__GET_VAR(data__->IN,));
+  __SET_VAR(data__->RUNG1.,RISE,,__GET_VAR(data__->LO,));
+  __SET_VAR(data__->RUNG1.,FALL,,(__GET_VAR(data__->LO,) - __GET_VAR(data__->H,)));
+  BAND_LATCH_body__(&data__->RUNG1);
+  __SET_VAR(data__->RUNG2.,IN,,__GET_VAR(data__->IN,));
+  __SET_VAR(data__->RUNG2.,RISE,,__GET_VAR(data__->MED,));
+  __SET_VAR(data__->RUNG2.,FALL,,(__GET_VAR(data__->MED,) - __GET_VAR(data__->H,)));
+  BAND_LATCH_body__(&data__->RUNG2);
+  __SET_VAR(data__->RUNG3.,IN,,__GET_VAR(data__->IN,));
+  __SET_VAR(data__->RUNG3.,RISE,,__GET_VAR(data__->HI,));
+  __SET_VAR(data__->RUNG3.,FALL,,(__GET_VAR(data__->HI,) - __GET_VAR(data__->H,)));
+  BAND_LATCH_body__(&data__->RUNG3);
+  __SET_VAR(data__->,Q,,__USINT_LITERAL(0));
+  if (__GET_VAR(data__->RUNG1.Q,)) {
+    __SET_VAR(data__->,Q,,__USINT_LITERAL(1));
+  };
+  if (__GET_VAR(data__->RUNG2.Q,)) {
+    __SET_VAR(data__->,Q,,__USINT_LITERAL(2));
+  };
+  if (__GET_VAR(data__->RUNG3.Q,)) {
+    __SET_VAR(data__->,Q,,__USINT_LITERAL(3));
+  };
+
+  goto __end;
+
+__end:
+  return;
+} // STAIRCASE3_body__() 
+
+
+
+
+
+static void DEADBAND_init__(DEADBAND_data__ *data__, BOOL retain) {
+  __INIT_VAR(data__->EN,__BOOL_LITERAL(TRUE),retain)
+  __INIT_VAR(data__->ENO,__BOOL_LITERAL(TRUE),retain)
+  __INIT_VAR(data__->V,0,retain)
+  __INIT_VAR(data__->BAND,0,retain)
+  __INIT_VAR(data__->Y,0,retain)
+  __INIT_VAR(data__->HELD,0,retain)
+  __INIT_VAR(data__->SEEDED,__BOOL_LITERAL(FALSE),retain)
+}
+
+// Code part
+static void DEADBAND_body__(DEADBAND_data__ *data__) {
+  // Control execution
+  if (!__GET_VAR(data__->EN)) {
+    __SET_VAR(data__->,ENO,,__BOOL_LITERAL(FALSE));
+    return;
+  }
+  else {
+    __SET_VAR(data__->,ENO,,__BOOL_LITERAL(TRUE));
+  }
+  // Initialise TEMP variables
+  __SET_VAR(data__->,DIFF,,0);
+
+  __SET_VAR(data__->,DIFF,,(__GET_VAR(data__->V,) - __GET_VAR(data__->HELD,)));
+  if (((!(__GET_VAR(data__->SEEDED,)) || (__GET_VAR(data__->DIFF,) > __GET_VAR(data__->BAND,))) || (__GET_VAR(data__->DIFF,) < (__REAL_LITERAL(0.0) - __GET_VAR(data__->BAND,))))) {
+    __SET_VAR(data__->,HELD,,__GET_VAR(data__->V,));
+    __SET_VAR(data__->,SEEDED,,__BOOL_LITERAL(TRUE));
+  };
+  __SET_VAR(data__->,Y,,__GET_VAR(data__->HELD,));
+
+  goto __end;
+
+__end:
+  return;
+} // DEADBAND_body__() 
+
+
+
+
+
+static void DC_RAIL_init__(DC_RAIL_data__ *data__, BOOL retain) {
+  __INIT_VAR(data__->EN,__BOOL_LITERAL(TRUE),retain)
+  __INIT_VAR(data__->ENO,__BOOL_LITERAL(TRUE),retain)
+  __INIT_VAR(data__->V,0,retain)
+  __INIT_VAR(data__->V_OK,__BOOL_LITERAL(FALSE),retain)
+  __INIT_VAR(data__->LO,0,retain)
+  __INIT_VAR(data__->AVG_MS,0,retain)
+  __INIT_VAR(data__->BAND,0,retain)
+  __INIT_VAR(data__->NOW,0,retain)
+  __INIT_VAR(data__->Y,0,retain)
+  __INIT_VAR(data__->OK,__BOOL_LITERAL(FALSE),retain)
+  __INIT_VAR(data__->HEALTHY,__BOOL_LITERAL(FALSE),retain)
+  EWMA_init__(&data__->AVG,retain);
+  DEADBAND_init__(&data__->DB,retain);
+  __INIT_VAR(data__->SEEN,__BOOL_LITERAL(FALSE),retain)
+}
+
+// Code part
+static void DC_RAIL_body__(DC_RAIL_data__ *data__) {
+  // Control execution
+  if (!__GET_VAR(data__->EN)) {
+    __SET_VAR(data__->,ENO,,__BOOL_LITERAL(FALSE));
+    return;
+  }
+  else {
+    __SET_VAR(data__->,ENO,,__BOOL_LITERAL(TRUE));
+  }
+  // Initialise TEMP variables
+
+  __SET_VAR(data__->,OK,,__GET_VAR(data__->V_OK,));
+  if (__GET_VAR(data__->V_OK,)) {
+    __SET_VAR(data__->AVG.,X,,__GET_VAR(data__->V,));
+    __SET_VAR(data__->AVG.,TAU_S,,(___UINT_TO_REAL(
+      (BOOL)__BOOL_LITERAL(TRUE),
+      NULL,
+      (UINT)__GET_VAR(data__->AVG_MS,)) / __REAL_LITERAL(1000.0)));
+    __SET_VAR(data__->AVG.,NOW,,__GET_VAR(data__->NOW,));
+    EWMA_body__(&data__->AVG);
+    __SET_VAR(data__->DB.,V,,__GET_VAR(data__->AVG.Y,));
+    __SET_VAR(data__->DB.,BAND,,__GET_VAR(data__->BAND,));
+    DEADBAND_body__(&data__->DB);
+    __SET_VAR(data__->,SEEN,,__BOOL_LITERAL(TRUE));
+  };
+  __SET_VAR(data__->,Y,,__GET_VAR(data__->DB.Y,));
+  if (__GET_VAR(data__->V_OK,)) {
+    __SET_VAR(data__->,HEALTHY,,(__GET_VAR(data__->AVG.Y,) >= __GET_VAR(data__->LO,)));
+  } else {
+    __SET_VAR(data__->,HEALTHY,,!(__GET_VAR(data__->SEEN,)));
+  };
+
+  goto __end;
+
+__end:
+  return;
+} // DC_RAIL_body__() 
 
 
 
@@ -2659,6 +2723,109 @@ static void CLIMATE_WATCH_body__(CLIMATE_WATCH_data__ *data__) {
 __end:
   return;
 } // CLIMATE_WATCH_body__() 
+
+
+
+
+
+static void DC_WATCH_init__(DC_WATCH_data__ *data__, BOOL retain) {
+  __INIT_EXTERNAL(REAL,PWR_DC1_V,data__->PWR_DC1_V,retain)
+  __INIT_EXTERNAL(BOOL,PWR_DC1_V_QLT,data__->PWR_DC1_V_QLT,retain)
+  __INIT_EXTERNAL(REAL,PWR_DC2_V,data__->PWR_DC2_V,retain)
+  __INIT_EXTERNAL(BOOL,PWR_DC2_V_QLT,data__->PWR_DC2_V_QLT,retain)
+  __INIT_EXTERNAL(REAL,PWR_UPSBAT_V,data__->PWR_UPSBAT_V,retain)
+  __INIT_EXTERNAL(BOOL,PWR_UPSBAT_V_QLT,data__->PWR_UPSBAT_V_QLT,retain)
+  __INIT_EXTERNAL(REAL,PWR_GENBAT_V,data__->PWR_GENBAT_V,retain)
+  __INIT_EXTERNAL(BOOL,PWR_GENBAT_V_QLT,data__->PWR_GENBAT_V_QLT,retain)
+  __INIT_EXTERNAL(REAL,PWR_DC1LO_V,data__->PWR_DC1LO_V,retain)
+  __INIT_EXTERNAL(REAL,PWR_DC2LO_V,data__->PWR_DC2LO_V,retain)
+  __INIT_EXTERNAL(REAL,PWR_UPSBATLO_V,data__->PWR_UPSBATLO_V,retain)
+  __INIT_EXTERNAL(REAL,PWR_GENBATLO_V,data__->PWR_GENBATLO_V,retain)
+  __INIT_EXTERNAL(UINT,PWR_DC1_AVG_MS,data__->PWR_DC1_AVG_MS,retain)
+  __INIT_EXTERNAL(UINT,PWR_DC2_AVG_MS,data__->PWR_DC2_AVG_MS,retain)
+  __INIT_EXTERNAL(UINT,PWR_UPSBAT_AVG_MS,data__->PWR_UPSBAT_AVG_MS,retain)
+  __INIT_EXTERNAL(UINT,PWR_GENBAT_AVG_MS,data__->PWR_GENBAT_AVG_MS,retain)
+  __INIT_EXTERNAL(BOOL,PWR_UPSLOWBAT,data__->PWR_UPSLOWBAT,retain)
+  __INIT_EXTERNAL(UDINT,SYS_NOW_MS,data__->SYS_NOW_MS,retain)
+  __INIT_EXTERNAL(REAL,SYS_DC1_V,data__->SYS_DC1_V,retain)
+  __INIT_EXTERNAL(BOOL,SYS_DC1_V_QLT,data__->SYS_DC1_V_QLT,retain)
+  __INIT_EXTERNAL(REAL,SYS_DC2_V,data__->SYS_DC2_V,retain)
+  __INIT_EXTERNAL(BOOL,SYS_DC2_V_QLT,data__->SYS_DC2_V_QLT,retain)
+  __INIT_EXTERNAL(REAL,SYS_UPSBAT_V,data__->SYS_UPSBAT_V,retain)
+  __INIT_EXTERNAL(BOOL,SYS_UPSBAT_V_QLT,data__->SYS_UPSBAT_V_QLT,retain)
+  __INIT_EXTERNAL(REAL,SYS_GENBAT_V,data__->SYS_GENBAT_V,retain)
+  __INIT_EXTERNAL(BOOL,SYS_GENBAT_V_QLT,data__->SYS_GENBAT_V_QLT,retain)
+  __INIT_EXTERNAL(BOOL,SYS_DC_OK,data__->SYS_DC_OK,retain)
+  __INIT_EXTERNAL(BOOL,SYS_SUPPLY_LOCKOUT,data__->SYS_SUPPLY_LOCKOUT,retain)
+  __INIT_EXTERNAL(BOOL,ALARM_DC_PS1,data__->ALARM_DC_PS1,retain)
+  __INIT_EXTERNAL(BOOL,ALARM_DC_PS2,data__->ALARM_DC_PS2,retain)
+  __INIT_EXTERNAL(BOOL,ALARM_DC_UPS,data__->ALARM_DC_UPS,retain)
+  __INIT_EXTERNAL(BOOL,ALARM_GENERATOR_BATTERY,data__->ALARM_GENERATOR_BATTERY,retain)
+  DC_RAIL_init__(&data__->PS1,retain);
+  DC_RAIL_init__(&data__->PS2,retain);
+  DC_RAIL_init__(&data__->UPS,retain);
+  DC_RAIL_init__(&data__->GEN,retain);
+  TON_MS_init__(&data__->LOW_FOR,retain);
+}
+
+// Code part
+static void DC_WATCH_body__(DC_WATCH_data__ *data__) {
+  // Initialise TEMP variables
+  __SET_VAR(data__->,LOW,,__BOOL_LITERAL(FALSE));
+
+  __SET_VAR(data__->PS1.,V,,__GET_EXTERNAL(data__->PWR_DC1_V,));
+  __SET_VAR(data__->PS1.,V_OK,,__GET_EXTERNAL(data__->PWR_DC1_V_QLT,));
+  __SET_VAR(data__->PS1.,LO,,__GET_EXTERNAL(data__->PWR_DC1LO_V,));
+  __SET_VAR(data__->PS1.,AVG_MS,,__GET_EXTERNAL(data__->PWR_DC1_AVG_MS,));
+  __SET_VAR(data__->PS1.,BAND,,__REAL_LITERAL(0.5));
+  __SET_VAR(data__->PS1.,NOW,,__GET_EXTERNAL(data__->SYS_NOW_MS,));
+  DC_RAIL_body__(&data__->PS1);
+  __SET_VAR(data__->PS2.,V,,__GET_EXTERNAL(data__->PWR_DC2_V,));
+  __SET_VAR(data__->PS2.,V_OK,,__GET_EXTERNAL(data__->PWR_DC2_V_QLT,));
+  __SET_VAR(data__->PS2.,LO,,__GET_EXTERNAL(data__->PWR_DC2LO_V,));
+  __SET_VAR(data__->PS2.,AVG_MS,,__GET_EXTERNAL(data__->PWR_DC2_AVG_MS,));
+  __SET_VAR(data__->PS2.,BAND,,__REAL_LITERAL(0.5));
+  __SET_VAR(data__->PS2.,NOW,,__GET_EXTERNAL(data__->SYS_NOW_MS,));
+  DC_RAIL_body__(&data__->PS2);
+  __SET_VAR(data__->UPS.,V,,__GET_EXTERNAL(data__->PWR_UPSBAT_V,));
+  __SET_VAR(data__->UPS.,V_OK,,__GET_EXTERNAL(data__->PWR_UPSBAT_V_QLT,));
+  __SET_VAR(data__->UPS.,LO,,__GET_EXTERNAL(data__->PWR_UPSBATLO_V,));
+  __SET_VAR(data__->UPS.,AVG_MS,,__GET_EXTERNAL(data__->PWR_UPSBAT_AVG_MS,));
+  __SET_VAR(data__->UPS.,BAND,,__REAL_LITERAL(0.5));
+  __SET_VAR(data__->UPS.,NOW,,__GET_EXTERNAL(data__->SYS_NOW_MS,));
+  DC_RAIL_body__(&data__->UPS);
+  __SET_VAR(data__->GEN.,V,,__GET_EXTERNAL(data__->PWR_GENBAT_V,));
+  __SET_VAR(data__->GEN.,V_OK,,__GET_EXTERNAL(data__->PWR_GENBAT_V_QLT,));
+  __SET_VAR(data__->GEN.,LO,,__GET_EXTERNAL(data__->PWR_GENBATLO_V,));
+  __SET_VAR(data__->GEN.,AVG_MS,,__GET_EXTERNAL(data__->PWR_GENBAT_AVG_MS,));
+  __SET_VAR(data__->GEN.,BAND,,__REAL_LITERAL(0.5));
+  __SET_VAR(data__->GEN.,NOW,,__GET_EXTERNAL(data__->SYS_NOW_MS,));
+  DC_RAIL_body__(&data__->GEN);
+  __SET_EXTERNAL(data__->,SYS_DC1_V,,__GET_VAR(data__->PS1.Y,));
+  __SET_EXTERNAL(data__->,SYS_DC1_V_QLT,,__GET_VAR(data__->PS1.OK,));
+  __SET_EXTERNAL(data__->,SYS_DC2_V,,__GET_VAR(data__->PS2.Y,));
+  __SET_EXTERNAL(data__->,SYS_DC2_V_QLT,,__GET_VAR(data__->PS2.OK,));
+  __SET_EXTERNAL(data__->,SYS_UPSBAT_V,,__GET_VAR(data__->UPS.Y,));
+  __SET_EXTERNAL(data__->,SYS_UPSBAT_V_QLT,,__GET_VAR(data__->UPS.OK,));
+  __SET_EXTERNAL(data__->,SYS_GENBAT_V,,__GET_VAR(data__->GEN.Y,));
+  __SET_EXTERNAL(data__->,SYS_GENBAT_V_QLT,,__GET_VAR(data__->GEN.OK,));
+  __SET_EXTERNAL(data__->,ALARM_DC_PS1,,!(__GET_VAR(data__->PS1.HEALTHY,)));
+  __SET_EXTERNAL(data__->,ALARM_DC_PS2,,!(__GET_VAR(data__->PS2.HEALTHY,)));
+  __SET_EXTERNAL(data__->,ALARM_GENERATOR_BATTERY,,!(__GET_VAR(data__->GEN.HEALTHY,)));
+  __SET_VAR(data__->LOW_FOR.,IN,,__GET_EXTERNAL(data__->PWR_UPSLOWBAT,));
+  __SET_VAR(data__->LOW_FOR.,PT,,__UDINT_LITERAL(2000));
+  __SET_VAR(data__->LOW_FOR.,NOW,,__GET_EXTERNAL(data__->SYS_NOW_MS,));
+  TON_MS_body__(&data__->LOW_FOR);
+  __SET_VAR(data__->,LOW,,__GET_VAR(data__->LOW_FOR.Q,));
+  __SET_EXTERNAL(data__->,ALARM_DC_UPS,,__GET_VAR(data__->LOW,));
+  __SET_EXTERNAL(data__->,SYS_SUPPLY_LOCKOUT,,__GET_VAR(data__->LOW,));
+  __SET_EXTERNAL(data__->,SYS_DC_OK,,((((__GET_VAR(data__->PS1.HEALTHY,) && __GET_VAR(data__->PS2.HEALTHY,)) && __GET_VAR(data__->UPS.HEALTHY,)) && __GET_VAR(data__->GEN.HEALTHY,)) && !(__GET_VAR(data__->LOW,))));
+
+  goto __end;
+
+__end:
+  return;
+} // DC_WATCH_body__() 
 
 
 

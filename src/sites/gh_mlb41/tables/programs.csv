@@ -1,6 +1,7 @@
 name           ,instance  ,source,rate
 ac_grid_watch  ,acgrid    ,programs/sense/ac_grid_watch/ac_grid_watch.st,control
 ac_local_watch ,aclocal   ,programs/sense/ac_local_watch/ac_local_watch.st,control
+dc_watch       ,dcwatch   ,programs/sense/dc_watch/dc_watch.st,control
 temp_rh_sensors,sensors   ,programs/sense/temp_rh_sensors/temp_rh_sensors.st,sense
 wx_sensors     ,wx        ,programs/sense/wx_sensors/wx_sensors.st,sense
 strat          ,strat     ,programs/sense/strat_sensor/strat_sensor.st,sense

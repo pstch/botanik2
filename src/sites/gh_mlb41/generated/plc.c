@@ -22,6 +22,8 @@ AC_GRID_WATCH_data__ PLC__ACGRID;
 #define ACGRID PLC__ACGRID
 AC_LOCAL_WATCH_data__ PLC__ACLOCAL;
 #define ACLOCAL PLC__ACLOCAL
+DC_WATCH_data__ PLC__DCWATCH;
+#define DCWATCH PLC__DCWATCH
 TEMP_RH_SENSORS_data__ PLC__SENSORS;
 #define SENSORS PLC__SENSORS
 WX_SENSORS_data__ PLC__WX;
@@ -64,6 +66,7 @@ void PLC_init__(void) {
   UNBOUND = __BOOL_LITERAL(FALSE);
   AC_GRID_WATCH_init__(&ACGRID,retain);
   AC_LOCAL_WATCH_init__(&ACLOCAL,retain);
+  DC_WATCH_init__(&DCWATCH,retain);
   TEMP_RH_SENSORS_init__(&SENSORS,retain);
   WX_SENSORS_init__(&WX,retain);
   STRAT_SENSOR_init__(&STRAT,retain);
@@ -87,6 +90,7 @@ void PLC_run__(unsigned long tick) {
   UNBOUND = !(tick % 1);
   AC_GRID_WATCH_body__(&ACGRID);
   AC_LOCAL_WATCH_body__(&ACLOCAL);
+  DC_WATCH_body__(&DCWATCH);
   TEMP_RH_SENSORS_body__(&SENSORS);
   WX_SENSORS_body__(&WX);
   STRAT_SENSOR_body__(&STRAT);

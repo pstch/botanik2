@@ -14,7 +14,7 @@ The end state the user asked for:
 
 > `src/sites/<NAME>/` contains only CSV tables, ST programs, and a root TOML.
 
-**19 of 28 programs are ported. 9 remain.**
+**20 of 28 programs are ported. 8 remain.**
 
 `sun_watch` is not among either: the tracker publishes `sol_*` itself now, so
 the program that copied the instrument onto rows was DELETED rather than
@@ -24,7 +24,7 @@ ported. 29 was never going to be the number that finished.
 
 ## The task list
 
-### 1. Finish the port - 9 programs
+### 1. Finish the port - 8 programs
 
 **Blocks were never the hard part.** A survey of all fifteen (2026-08-31)
 found five things ST had no expression for. All five are now dealt with: four
@@ -44,7 +44,6 @@ porting its producer.
 
 | program | blocks needed | what ST cannot say |
 |---|---|---|
-| `DcWatch` | `Deadband`, `Ewma`, `Ton` | `.valid()`/`.invalidate()` |
 | `ScreenController` | `Actuator` + `ActuatorConfig` | - |
 | `WindowsController` | `Actuator` + `ActuatorConfig` | `.invalidate()` |
 | `IrrValves` | **none** - it only calls `.set()` | - |
@@ -137,6 +136,11 @@ Site blocks: `WeatherProbes`, `AcSupply`, `ValveController`.
 bring-up. 17 are in use.
 
 **Do NOT use matiec's own blocks.** See "Licensing" below.
+
+**`LIBST` in `scripts/tables.py` is ORDERED**, and matiec has no forward
+declaration: a block must appear before anything that instances it. `filters`
+sits ahead of `analog` because `DC_RAIL` holds an `EWMA`. The error is
+"invalid specification in variable declaration" on the instance line.
 
 ### 2. Then: the base firmware owns the `Plant`
 

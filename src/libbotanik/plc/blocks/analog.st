@@ -92,3 +92,45 @@ END_VAR
   END_IF;
   Y := held;
 END_FUNCTION_BLOCK
+
+FUNCTION_BLOCK DC_RAIL
+(* One DC rail off a divider: averaged, then deadbanded. The first says what
+   the rail is doing, the second says when that is worth a status write. *)
+VAR_INPUT
+  V      : REAL;
+  V_OK   : BOOL;
+  LO     : REAL;    (* the floor the rail is judged against *)
+  AVG_MS : UINT;
+  BAND   : REAL;
+  NOW    : UDINT;   (* sys_now_ms: the scan clock, not an elapsed time *)
+END_VAR
+VAR_OUTPUT
+  Y       : REAL;
+  OK      : BOOL;   (* this beat MEASURED it *)
+  HEALTHY : BOOL;
+END_VAR
+VAR
+  avg  : EWMA;
+  db   : DEADBAND;
+  seen : BOOL := FALSE;
+END_VAR
+  OK := V_OK;
+  IF V_OK THEN
+    (* Only a MEASURED sample is folded in. The row reads its declared value
+       while the bus is still coming up, and folding THAT seeds the average at
+       zero: the rail then reads under its floor for as long as the filter
+       takes to climb out, which is a supply alarm on every boot. *)
+    avg(X := V, TAU_S := UINT_TO_REAL(AVG_MS) / 1000.0, NOW := NOW);
+    db(V := avg.Y, BAND := BAND);
+    seen := TRUE;
+  END_IF;
+  (* A rail nobody is measuring has no voltage to publish. Its LAST average
+     stays in the filter, so a divider that comes back rejoins where it left. *)
+  Y := db.Y;
+
+  (* A divider that has NEVER answered is the bus still coming up. One that has
+     answered and then stopped is a rail nobody can see, which is a fault. *)
+  IF V_OK THEN HEALTHY := avg.Y >= LO;
+  ELSE         HEALTHY := NOT seen;
+  END_IF;
+END_FUNCTION_BLOCK

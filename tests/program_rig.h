@@ -170,8 +170,12 @@ inline void fine_weather(Live& f) {
  *  and humidity are what clear them, and a rig without those on the beat never
  *  does - so a case about anything else has to say so. */
 inline void interlocks_clear(Live& f) {
-    f.bank.var(f.ref("sys_supply_lockout")).set(false);
-    f.bank.var(f.ref("cli_rotLockout")).set(false);
+    // FORCED, not set: dc_watch and humidity own these two and republish them
+    // every scan. The supply one is the sharper case - pwr_upsLowBat declares
+    // TRUE ("an unreadable terminal is not a healthy supply"), so a rig with
+    // no local terminals reaches a real lockout within its debounce.
+    force(f, "sys_supply_lockout", false);
+    force(f, "cli_rotLockout", false);
 }
 /** @brief A live bank with ONE program on the beat, which is what a law's own
  *  case needs: `prog` is the program, `d` the beat over it.

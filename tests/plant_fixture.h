@@ -49,7 +49,6 @@ inline void hold_weather(Plant& p);
 struct Plant {
     Live f;
 
-    Site::DcWatch              dc;
     Site::IrrigationModulation irr_mod;
     Site::IrrMtrInput          irr_in;
     Site::IrrMtrOutput         irr_out;
@@ -77,14 +76,12 @@ struct Plant {
     void (*hold)(Plant&) = hold_weather;
 
     Plant()
-        : dc(ctx(), io()),
-          irr_mod(ctx(), io()), irr_in(ctx(), io()), irr_out(ctx(), io()),
+        : irr_mod(ctx(), io()), irr_in(ctx(), io()), irr_out(ctx(), io()),
           irr_schedule(ctx(), io()), irrigation(ctx(), io()), irr_valves(ctx(), io()), screen(ctx(), io()),
           windows(ctx(), io()),
           terminals(ctx(), io()), mirror(ctx(), io()), st(ctx(), io()) {
         terminals.wire(Site::pulse_inputs, Site::pulse_input_count);
         Plc::Program* const list[] = {
-            &dc,
             &irr_mod, &irr_in, &irr_out, &irr_schedule, &irrigation, &irr_valves,
             &screen, &windows
         };
