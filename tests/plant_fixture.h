@@ -53,7 +53,6 @@ struct Plant {
     Site::AcLocalWatch         ac_local;
     Site::DcWatch              dc;
     Site::WxSensors            wx;
-    Site::CoolingController    cooling;
     Site::IrrigationModulation irr_mod;
     Site::IrrMtrInput          irr_in;
     Site::IrrMtrOutput         irr_out;
@@ -81,14 +80,14 @@ struct Plant {
 
     Plant()
         : ac_grid(ctx(), io()), ac_local(ctx(), io()), dc(ctx(), io()),
-          wx(ctx(), io()), cooling(ctx(), io()),
+          wx(ctx(), io()),
           irr_mod(ctx(), io()), irr_in(ctx(), io()), irr_out(ctx(), io()),
           irr_schedule(ctx(), io()), irrigation(ctx(), io()), irr_valves(ctx(), io()), screen(ctx(), io()),
           windows(ctx(), io()),
           skirt(ctx(), io()),
           mirror(ctx(), io()), st(ctx(), io()) {
         Plc::Program* const list[] = {
-            &ac_grid, &ac_local, &dc, &wx, &cooling,
+            &ac_grid, &ac_local, &dc, &wx,
             &irr_mod, &irr_in, &irr_out, &irr_schedule, &irrigation, &irr_valves,
             &screen, &windows, &skirt
         };

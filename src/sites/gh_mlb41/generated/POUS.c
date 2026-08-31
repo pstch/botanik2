@@ -78,6 +78,8 @@ static void TOF_MS_init__(TOF_MS_data__ *data__, BOOL retain);
 static void TOF_MS_body__(TOF_MS_data__ *data__);
 static void EWMA_init__(EWMA_data__ *data__, BOOL retain);
 static void EWMA_body__(EWMA_data__ *data__);
+static void PID_init__(PID_data__ *data__, BOOL retain);
+static void PID_body__(PID_data__ *data__);
 static void ZONE_VOTE_init__(ZONE_VOTE_data__ *data__, BOOL retain);
 static void ZONE_VOTE_body__(ZONE_VOTE_data__ *data__);
 static void ZONE_PUBLISH_init__(ZONE_PUBLISH_data__ *data__, BOOL retain);
@@ -90,6 +92,8 @@ static void INTRACTOR_CONTROLLER_init__(INTRACTOR_CONTROLLER_data__ *data__, BOO
 static void INTRACTOR_CONTROLLER_body__(INTRACTOR_CONTROLLER_data__ *data__);
 static void ROOF_LOCKOUT_init__(ROOF_LOCKOUT_data__ *data__, BOOL retain);
 static void ROOF_LOCKOUT_body__(ROOF_LOCKOUT_data__ *data__);
+static void COOLING_CONTROLLER_init__(COOLING_CONTROLLER_data__ *data__, BOOL retain);
+static void COOLING_CONTROLLER_body__(COOLING_CONTROLLER_data__ *data__);
 static void DAY_PHASE_CONTROLLER_init__(DAY_PHASE_CONTROLLER_data__ *data__, BOOL retain);
 static void DAY_PHASE_CONTROLLER_body__(DAY_PHASE_CONTROLLER_data__ *data__);
 static void DESTRAT_CONTROLLER_init__(DESTRAT_CONTROLLER_data__ *data__, BOOL retain);
@@ -858,6 +862,134 @@ __end:
 
 
 
+static void PID_init__(PID_data__ *data__, BOOL retain) {
+  __INIT_VAR(data__->EN,__BOOL_LITERAL(TRUE),retain)
+  __INIT_VAR(data__->ENO,__BOOL_LITERAL(TRUE),retain)
+  __INIT_VAR(data__->SP,0,retain)
+  __INIT_VAR(data__->PV,0,retain)
+  __INIT_VAR(data__->KP,0,retain)
+  __INIT_VAR(data__->KI,0,retain)
+  __INIT_VAR(data__->KD,0,retain)
+  __INIT_VAR(data__->OUT_MIN,0,retain)
+  __INIT_VAR(data__->OUT_MAX,0,retain)
+  __INIT_VAR(data__->D_TAU_S,0,retain)
+  __INIT_VAR(data__->REVERSE,__BOOL_LITERAL(FALSE),retain)
+  __INIT_VAR(data__->RESET,__BOOL_LITERAL(FALSE),retain)
+  __INIT_VAR(data__->NOW,0,retain)
+  __INIT_VAR(data__->Y,0,retain)
+  __INIT_VAR(data__->ERR,0,retain)
+  __INIT_VAR(data__->INTEGRAL,0,retain)
+  __INIT_VAR(data__->SATURATED,__BOOL_LITERAL(FALSE),retain)
+  __INIT_VAR(data__->LAST,0,retain)
+  __INIT_VAR(data__->SEEDED,__BOOL_LITERAL(FALSE),retain)
+  __INIT_VAR(data__->PREV_PV,0,retain)
+  __INIT_VAR(data__->DERIV,0,retain)
+}
+
+// Code part
+static void PID_body__(PID_data__ *data__) {
+  // Control execution
+  if (!__GET_VAR(data__->EN)) {
+    __SET_VAR(data__->,ENO,,__BOOL_LITERAL(FALSE));
+    return;
+  }
+  else {
+    __SET_VAR(data__->,ENO,,__BOOL_LITERAL(TRUE));
+  }
+  // Initialise TEMP variables
+  __SET_VAR(data__->,DT_S,,0);
+  __SET_VAR(data__->,RAW,,0);
+  __SET_VAR(data__->,ALPHA,,0);
+  __SET_VAR(data__->,P_TERM,,0);
+  __SET_VAR(data__->,D_TERM,,0);
+  __SET_VAR(data__->,UNSAT,,0);
+  __SET_VAR(data__->,WINDING,,__BOOL_LITERAL(FALSE));
+  __SET_VAR(data__->,RAW_OUT,,0);
+  __SET_VAR(data__->,LO,,0);
+  __SET_VAR(data__->,HI,,0);
+
+  if (__GET_VAR(data__->RESET,)) {
+    __SET_VAR(data__->,INTEGRAL,,__REAL_LITERAL(0.0));
+    __SET_VAR(data__->,PREV_PV,,__REAL_LITERAL(0.0));
+    __SET_VAR(data__->,DERIV,,__REAL_LITERAL(0.0));
+    __SET_VAR(data__->,SEEDED,,__BOOL_LITERAL(FALSE));
+  };
+  if (__GET_VAR(data__->SEEDED,)) {
+    __SET_VAR(data__->,DT_S,,(___UDINT_TO_REAL(
+      (BOOL)__BOOL_LITERAL(TRUE),
+      NULL,
+      (UDINT)(__GET_VAR(data__->NOW,) - __GET_VAR(data__->LAST,))) / __REAL_LITERAL(1000.0)));
+  } else {
+    __SET_VAR(data__->,DT_S,,__REAL_LITERAL(0.0));
+    __SET_VAR(data__->,PREV_PV,,__GET_VAR(data__->PV,));
+    __SET_VAR(data__->,SEEDED,,__BOOL_LITERAL(TRUE));
+  };
+  __SET_VAR(data__->,LAST,,__GET_VAR(data__->NOW,));
+  if (__GET_VAR(data__->REVERSE,)) {
+    __SET_VAR(data__->,ERR,,(__GET_VAR(data__->PV,) - __GET_VAR(data__->SP,)));
+  } else {
+    __SET_VAR(data__->,ERR,,(__GET_VAR(data__->SP,) - __GET_VAR(data__->PV,)));
+  };
+  if ((__GET_VAR(data__->DT_S,) > __REAL_LITERAL(0.0))) {
+    __SET_VAR(data__->,RAW,,((__GET_VAR(data__->PV,) - __GET_VAR(data__->PREV_PV,)) / __GET_VAR(data__->DT_S,)));
+    if ((__GET_VAR(data__->D_TAU_S,) > __REAL_LITERAL(0.0))) {
+      __SET_VAR(data__->,ALPHA,,(__GET_VAR(data__->DT_S,) / (__GET_VAR(data__->D_TAU_S,) + __GET_VAR(data__->DT_S,))));
+      __SET_VAR(data__->,DERIV,,(__GET_VAR(data__->DERIV,) + (__GET_VAR(data__->ALPHA,) * (__GET_VAR(data__->RAW,) - __GET_VAR(data__->DERIV,)))));
+    } else {
+      __SET_VAR(data__->,DERIV,,__GET_VAR(data__->RAW,));
+    };
+    __SET_VAR(data__->,PREV_PV,,__GET_VAR(data__->PV,));
+  };
+  __SET_VAR(data__->,P_TERM,,(__GET_VAR(data__->KP,) * __GET_VAR(data__->ERR,)));
+  if (__GET_VAR(data__->REVERSE,)) {
+    __SET_VAR(data__->,D_TERM,,(__GET_VAR(data__->KD,) * __GET_VAR(data__->DERIV,)));
+  } else {
+    __SET_VAR(data__->,D_TERM,,(__REAL_LITERAL(0.0) - (__GET_VAR(data__->KD,) * __GET_VAR(data__->DERIV,))));
+  };
+  if ((__GET_VAR(data__->KI,) == __REAL_LITERAL(0.0))) {
+    __SET_VAR(data__->,INTEGRAL,,__REAL_LITERAL(0.0));
+  } else if ((__GET_VAR(data__->DT_S,) > __REAL_LITERAL(0.0))) {
+    __SET_VAR(data__->,UNSAT,,((__GET_VAR(data__->P_TERM,) + __GET_VAR(data__->INTEGRAL,)) + __GET_VAR(data__->D_TERM,)));
+    __SET_VAR(data__->,WINDING,,(((__GET_VAR(data__->UNSAT,) >= __GET_VAR(data__->OUT_MAX,)) && (__GET_VAR(data__->ERR,) > __REAL_LITERAL(0.0))) || ((__GET_VAR(data__->UNSAT,) <= __GET_VAR(data__->OUT_MIN,)) && (__GET_VAR(data__->ERR,) < __REAL_LITERAL(0.0)))));
+    if (!(__GET_VAR(data__->WINDING,))) {
+      __SET_VAR(data__->,INTEGRAL,,(__GET_VAR(data__->INTEGRAL,) + ((__GET_VAR(data__->KI,) * __GET_VAR(data__->ERR,)) * __GET_VAR(data__->DT_S,))));
+      if ((__GET_VAR(data__->OUT_MIN,) < __REAL_LITERAL(0.0))) {
+        __SET_VAR(data__->,LO,,__GET_VAR(data__->OUT_MIN,));
+      } else {
+        __SET_VAR(data__->,LO,,__REAL_LITERAL(0.0));
+      };
+      if ((__GET_VAR(data__->OUT_MAX,) > __REAL_LITERAL(0.0))) {
+        __SET_VAR(data__->,HI,,__GET_VAR(data__->OUT_MAX,));
+      } else {
+        __SET_VAR(data__->,HI,,__REAL_LITERAL(0.0));
+      };
+      __SET_VAR(data__->,INTEGRAL,,___LIMIT(
+        (BOOL)__BOOL_LITERAL(TRUE),
+        NULL,
+        (REAL)__GET_VAR(data__->LO,),
+        (REAL)__GET_VAR(data__->INTEGRAL,),
+        (REAL)__GET_VAR(data__->HI,)));
+    };
+  };
+  __SET_VAR(data__->,RAW_OUT,,((__GET_VAR(data__->P_TERM,) + __GET_VAR(data__->INTEGRAL,)) + __GET_VAR(data__->D_TERM,)));
+  __SET_VAR(data__->,SATURATED,,((__GET_VAR(data__->RAW_OUT,) > __GET_VAR(data__->OUT_MAX,)) || (__GET_VAR(data__->RAW_OUT,) < __GET_VAR(data__->OUT_MIN,))));
+  __SET_VAR(data__->,Y,,___LIMIT(
+    (BOOL)__BOOL_LITERAL(TRUE),
+    NULL,
+    (REAL)__GET_VAR(data__->OUT_MIN,),
+    (REAL)__GET_VAR(data__->RAW_OUT,),
+    (REAL)__GET_VAR(data__->OUT_MAX,)));
+
+  goto __end;
+
+__end:
+  return;
+} // PID_body__() 
+
+
+
+
+
 static void ZONE_VOTE_init__(ZONE_VOTE_data__ *data__, BOOL retain) {
   __INIT_VAR(data__->EN,__BOOL_LITERAL(TRUE),retain)
   __INIT_VAR(data__->ENO,__BOOL_LITERAL(TRUE),retain)
@@ -1310,6 +1442,69 @@ static void ROOF_LOCKOUT_body__(ROOF_LOCKOUT_data__ *data__) {
 __end:
   return;
 } // ROOF_LOCKOUT_body__() 
+
+
+
+
+
+static void COOLING_CONTROLLER_init__(COOLING_CONTROLLER_data__ *data__, BOOL retain) {
+  __INIT_EXTERNAL(REAL,CLI_TEMP_IN,data__->CLI_TEMP_IN,retain)
+  __INIT_EXTERNAL(BOOL,CLI_TEMP_IN_QLT,data__->CLI_TEMP_IN_QLT,retain)
+  __INIT_EXTERNAL(REAL,CLI_TARGETTEMP_DEGC,data__->CLI_TARGETTEMP_DEGC,retain)
+  __INIT_EXTERNAL(REAL,CLI_WINDOWSTARTDEM,data__->CLI_WINDOWSTARTDEM,retain)
+  __INIT_EXTERNAL(REAL,CLI_WINDOWFULLDEM,data__->CLI_WINDOWFULLDEM,retain)
+  __INIT_EXTERNAL(REAL,CLI_COOLKP,data__->CLI_COOLKP,retain)
+  __INIT_EXTERNAL(REAL,CLI_COOLTI_SEC,data__->CLI_COOLTI_SEC,retain)
+  __INIT_EXTERNAL(REAL,CLI_COOLTD_SEC,data__->CLI_COOLTD_SEC,retain)
+  __INIT_EXTERNAL(UDINT,SYS_NOW_MS,data__->SYS_NOW_MS,retain)
+  __INIT_EXTERNAL(REAL,CLI_COOLDEM,data__->CLI_COOLDEM,retain)
+  __INIT_EXTERNAL(BOOL,CLI_COOLDEM_QLT,data__->CLI_COOLDEM_QLT,retain)
+  __INIT_EXTERNAL(REAL,CLI_WINDOWDEM,data__->CLI_WINDOWDEM,retain)
+  PID_init__(&data__->LOOP,retain);
+}
+
+// Code part
+static void COOLING_CONTROLLER_body__(COOLING_CONTROLLER_data__ *data__) {
+  // Initialise TEMP variables
+  __SET_VAR(data__->,MEASURED,,__BOOL_LITERAL(FALSE));
+  __SET_VAR(data__->,KI,,0);
+
+  __SET_VAR(data__->,MEASURED,,__GET_EXTERNAL(data__->CLI_TEMP_IN_QLT,));
+  if ((__GET_EXTERNAL(data__->CLI_COOLTI_SEC,) > __REAL_LITERAL(0.0))) {
+    __SET_VAR(data__->,KI,,(__GET_EXTERNAL(data__->CLI_COOLKP,) / __GET_EXTERNAL(data__->CLI_COOLTI_SEC,)));
+  } else {
+    __SET_VAR(data__->,KI,,__REAL_LITERAL(0.0));
+  };
+  __SET_VAR(data__->LOOP.,SP,,__GET_EXTERNAL(data__->CLI_TARGETTEMP_DEGC,));
+  __SET_VAR(data__->LOOP.,PV,,__GET_EXTERNAL(data__->CLI_TEMP_IN,));
+  __SET_VAR(data__->LOOP.,KP,,__GET_EXTERNAL(data__->CLI_COOLKP,));
+  __SET_VAR(data__->LOOP.,KI,,__GET_VAR(data__->KI,));
+  __SET_VAR(data__->LOOP.,KD,,(__GET_EXTERNAL(data__->CLI_COOLKP,) * __GET_EXTERNAL(data__->CLI_COOLTD_SEC,)));
+  __SET_VAR(data__->LOOP.,OUT_MIN,,__REAL_LITERAL(-1.0));
+  __SET_VAR(data__->LOOP.,OUT_MAX,,__REAL_LITERAL(1.0));
+  __SET_VAR(data__->LOOP.,D_TAU_S,,__REAL_LITERAL(0.0));
+  __SET_VAR(data__->LOOP.,REVERSE,,__BOOL_LITERAL(TRUE));
+  __SET_VAR(data__->LOOP.,RESET,,!(__GET_VAR(data__->MEASURED,)));
+  __SET_VAR(data__->LOOP.,NOW,,__GET_EXTERNAL(data__->SYS_NOW_MS,));
+  PID_body__(&data__->LOOP);
+  __SET_EXTERNAL(data__->,CLI_COOLDEM,,__GET_VAR(data__->LOOP.Y,));
+  __SET_EXTERNAL(data__->,CLI_COOLDEM_QLT,,__GET_VAR(data__->MEASURED,));
+  if (__GET_VAR(data__->MEASURED,)) {
+    __SET_EXTERNAL(data__->,CLI_WINDOWDEM,,___LADDER(
+      (BOOL)__BOOL_LITERAL(TRUE),
+      NULL,
+      (REAL)__GET_VAR(data__->LOOP.Y,),
+      (REAL)__GET_EXTERNAL(data__->CLI_WINDOWSTARTDEM,),
+      (REAL)__GET_EXTERNAL(data__->CLI_WINDOWFULLDEM,)));
+  } else {
+    __SET_EXTERNAL(data__->,CLI_WINDOWDEM,,__REAL_LITERAL(0.25));
+  };
+
+  goto __end;
+
+__end:
+  return;
+} // COOLING_CONTROLLER_body__() 
 
 
 

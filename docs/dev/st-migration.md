@@ -14,13 +14,17 @@ The end state the user asked for:
 
 > `src/sites/<NAME>/` contains only CSV tables, ST programs, and a root TOML.
 
-**14 of 29 programs are ported. 15 remain.**
+**16 of 29 programs are ported. 13 remain.**
+
+`sun_watch` is not among either: the tracker publishes `sol_*` itself now, so
+the program that copied the instrument onto rows was DELETED rather than
+ported. 29 was never going to be the number that finished.
 
 ---
 
 ## The task list
 
-### 1. Finish the port - 15 programs
+### 1. Finish the port - 13 programs
 
 **Blocks were never the hard part.** A survey of all fifteen (2026-08-31)
 found five things ST has no expression for at all, and an ordering law that
@@ -32,7 +36,6 @@ decides what may move when. Read both before picking the next program.
 | `AcGridWatch` | `AcSupply` (site) | `.valid()`/`.invalidate()` on 4 mirrors |
 | `AcLocalWatch` | `AcSupply` (site), `Ton` | same |
 | `DcWatch` | `Deadband`, `Ewma`, `Ton` | `.valid()`/`.invalidate()` |
-| `CoolingController` | `Pid` | - |
 | `ScreenController` | `Actuator` + `ActuatorConfig` | - |
 | `WindowsController` | `Actuator` + `ActuatorConfig` | `.invalidate()` |
 | `SkirtController` | `ValveController` (site) | descriptor read (fail direction) |
@@ -42,7 +45,6 @@ decides what may move when. Read both before picking the next program.
 | `IrrMtrOutput` | `Deadband`, `Ewma`, `Integral` | `.held()`, `.hold()` |
 | `IrrigationSchedule` | none | **`HAL::Clock::wall_ms()`**, `.hold()` |
 | `IrrigationCycle` | `Ton` | `.held()` |
-| `SunWatch` | none | **`_sun->*`**, **`wall_ms()`** |
 
 ### The five missing mechanisms
 
@@ -61,8 +63,13 @@ decides what may move when. Read both before picking the next program.
    counts against. Wants a row, the shape `sys_now_ms` already has.
 3. **Pulse counts.** `HAL::Pulse::sample()`. The firmware attaches the
    terminals already; the counts want rows.
-4. **The sun tracker.** `_sun->elevation/ready/sunrise_ms/sunset_ms`. Known
-   since the handoff was written; `sol_ready` was the first row of the answer.
+4. ~~**The sun tracker.**~~ **SOLVED**, and it removed a program rather than
+   porting one. `SunPositionTracker::wire()` resolves four rows and publishes
+   them every service tick (100 ms, so as fresh as the program was) while the
+   trig stays on its own hour-long cadence. The rows moved to the LIBRARY
+   table (943-946), which is the law already stated for `geo_*`: whatever the
+   library reads or writes by name, the library declares. **Their Modbus
+   registers moved** with them - 524/525/593/656 are free now.
 5. **A descriptor read.** `ValveController::bind()` learns its fail direction
    from the coil row's declared default, so "the table stays the one place it
    is declared". ST cannot read a descriptor. Passing FAIL_OPEN in as an input

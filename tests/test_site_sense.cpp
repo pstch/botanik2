@@ -334,7 +334,7 @@ TEST_CASE_FIXTURE(StRig, "target: an aggressive offset is clamped to the safe ba
     CHECK(live.bank.get(target) == doctest::Approx(live.bank.get(floor_)));
 }
 
-TEST_CASE_FIXTURE(Rig<Site::CoolingController>, "cooling: a demand it cannot measure is still made, and marked") {
+TEST_CASE_FIXTURE(StRig, "cooling: a demand it cannot measure is still made, and marked") {
 
     const VarRef dem = live.ref("cli_coolDem");
     field(live, "cli_targetTemp_degC", 20.0f);
@@ -351,9 +351,9 @@ TEST_CASE_FIXTURE(Rig<Site::CoolingController>, "cooling: a demand it cannot mea
 
     INFO("the ladder keeps running, on the reading the house last had - so "
          "there is still a demand for an actuator to fall back from, and the "
-         "quality is what says nobody is measuring it");
-    CHECK_FALSE(live.bank.var(dem).valid());
-    CHECK(live.bank.var(dem).value().q == Q_UNCERTAIN);
+         "quality is what says nobody is measuring it. The ladder is ST too "
+         "now, so that verdict is on the COMPANION and the row stays valid");
+    CHECK_FALSE(live.bank.var(live.ref("cli_coolDem_qlt")).as_bool());
 
     INFO("...and the integral goes with it: effort wound up against a house "
          "nobody can see is a claim about a past this law no longer has");
@@ -361,12 +361,12 @@ TEST_CASE_FIXTURE(Rig<Site::CoolingController>, "cooling: a demand it cannot mea
     CHECK(live.bank.var(dem).as_f32() != doctest::Approx(was));
 }
 
-TEST_CASE_FIXTURE(CoolingRig, "cooling: the floor carries it when the ceiling goes, and both gone is unknown") {
+TEST_CASE_FIXTURE(StRig, "cooling: the floor carries it when the ceiling goes, and both gone is unknown") {
 
     // What the house temperature is MADE of, so it comes through the probes:
     // temp_rh_zone is on this beat and would put its own answer over a forced
-    // one. The setpoint and the crawlspace belong to other laws on the same
-    // beat, and are forced because this case is not about either.
+    // one. The setpoint belongs to another law on the same beat, and is forced
+    // because this case is not about it.
     const VarRef dem = live.ref("cli_coolDem");
     force(live, "cli_targetTemp_degC", 20.0f);
     force(live, "cli_temp_cs", 18.0f);
@@ -376,7 +376,8 @@ TEST_CASE_FIXTURE(CoolingRig, "cooling: the floor carries it when the ceiling go
     d.step(t += 100);
     REQUIRE(live.bank.var(dem).valid());
     REQUIRE(live.bank.var(dem).as_f32() > 0.0f);          // hot: cooling
-    CHECK(cooling.health() == Plc::Health::HEALTHY);
+    for (uint8_t i = 0; i < Plc::Runtime::PROGRAM_COUNT; i++)
+        CHECK(st.health(i) == Plc::Health::HEALTHY);
 
     INFO("the ceiling goes: temp_rh_zone still has a house temperature to "
          "give, it is the floor's, and this law is still on a measured one");
@@ -395,7 +396,7 @@ TEST_CASE_FIXTURE(CoolingRig, "cooling: the floor carries it when the ceiling go
         d.step(t += 100);
     }
     CHECK_FALSE(live.bank.var(live.ref("cli_temp_in_qlt")).as_bool());
-    CHECK_FALSE(live.bank.var(dem).valid());
+    CHECK_FALSE(live.bank.var(live.ref("cli_coolDem_qlt")).as_bool());
 }
 
 TEST_CASE("cooling: an unknown demand puts every actuator at its own safe state") {
@@ -413,11 +414,12 @@ TEST_CASE("cooling: an unknown demand puts every actuator at its own safe state"
     struct { Plc::Runtime::Plant* st; Cycle* c;
              void step(uint64_t n) { st->scan(n); c->step(n); } } d{ &st, &cyc };
 
-    // Everything else says GO: only the cooling ladder's two outputs are
-    // missing, which is how they go - cooling HOLDS both together when it
-    // cannot see the house.
-    f.bank.var(f.ref("cli_coolDem")).invalidate(Q_NO_DATA);
-    f.bank.var(f.ref("cli_windowDem")).invalidate(Q_NO_DATA);
+    // Everything else says GO: only the cooling ladder cannot see the house,
+    // and its two outputs go together. Reached the way the plant reaches it -
+    // the ladder is ST now, so it publishes every scan and there is no
+    // invalidating its outputs from here. What goes is the INTERIOR, and the
+    // ladder's own answer to that is what this case is about.
+    force(f, "cli_temp_in_qlt", false);
     f.bank.var(f.ref("cli_stratDem")).set(0.0f);
     f.bank.var(f.ref("cli_humidDem")).set(0.0f);
     f.bank.var(f.ref("cli_rotVentDem")).set(0.0f);
@@ -674,7 +676,7 @@ TEST_CASE_FIXTURE(Rig<Site::WxSensors>,
     CHECK(live.bank.var(pub).valid());
 }
 
-TEST_CASE_FIXTURE(CoolingRig, "intake: a gate holds while the two temperatures converge") {
+TEST_CASE_FIXTURE(StRig, "intake: a gate holds while the two temperatures converge") {
 
     Vars::RefIn<bool> gate = live.bank.resolve_in<bool>("cli_intakeCoolOk");
     const float margin = live.bank.var(live.ref("cli_ventTempMgn_degC")).as_f32();

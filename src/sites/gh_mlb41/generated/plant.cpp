@@ -33,6 +33,7 @@ namespace Botanik { namespace Plc { namespace Runtime {
     X(weather_watch,   WEATHER_WATCH,          WXWATCH,    BOTANIK_SITE_CONTROL_MS) \
     X(day_phase,       DAY_PHASE_CONTROLLER,   DAYPHASE,   BOTANIK_SITE_CONTROL_MS) \
     X(target_temp,     TARGET_TEMP_CONTROLLER, TARGET,     BOTANIK_SITE_CONTROL_MS) \
+    X(cooling,         COOLING_CONTROLLER,     COOLING,    BOTANIK_SITE_SENSE_MS) \
     X(humidity,        HUMIDITY_CONTROLLER,    HUMIDITY,   BOTANIK_SITE_CONTROL_MS) \
     X(intake_dry,      INTAKE_DRY_GATE,        DRYGATE,    BOTANIK_SITE_CONTROL_MS) \
     X(intake_gates,    INTAKE_GATES,           GATES,      BOTANIK_SITE_CONTROL_MS) \

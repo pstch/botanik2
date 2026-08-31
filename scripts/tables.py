@@ -183,7 +183,8 @@ LIBST = ['src/libbotanik/plc/functions/math.st',
          'src/libbotanik/plc/functions/psychro.st',
          'src/libbotanik/plc/blocks/analog.st',
          'src/libbotanik/plc/blocks/timers.st',
-         'src/libbotanik/plc/blocks/filters.st']
+         'src/libbotanik/plc/blocks/filters.st',
+         'src/libbotanik/plc/blocks/pid.st']
 
 
 def st_files(site):

@@ -35,7 +35,10 @@ CONFIGURATION gh_mlb41
     cli_coldBankTrg_degC  : REAL;
     cli_coolDem           : REAL;
     cli_coolDem_qlt       : BOOL;
+    cli_coolKp            : REAL;
     cli_coolSet_degC      : REAL;
+    cli_coolTd_sec        : REAL;
+    cli_coolTi_sec        : REAL;
     cli_dTStratHigh_degC  : REAL;
     cli_dTStratHyst_degC  : REAL;
     cli_dTStratLow_degC   : REAL;
@@ -176,7 +179,10 @@ CONFIGURATION gh_mlb41
     cli_wind_mps          : REAL;
     cli_wind_mps_qlt      : BOOL;
     cli_windowCap         : REAL;
+    cli_windowDem         : REAL;
+    cli_windowFullDem     : REAL;
     cli_windowLockout     : BOOL;
+    cli_windowStartDem    : REAL;
     irr_state             : USINT;
     sol_breezeRise_min    : INT;
     sol_coldBankRise_min  : INT;
@@ -201,6 +207,7 @@ CONFIGURATION gh_mlb41
     PROGRAM wxwatch    : weather_watch;
     PROGRAM dayphase   : day_phase_controller;
     PROGRAM target     : target_temp_controller;
+    PROGRAM cooling    : cooling_controller;
     PROGRAM humidity   : humidity_controller;
     PROGRAM drygate    : intake_dry_gate;
     PROGRAM gates      : intake_gates;

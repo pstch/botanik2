@@ -6,6 +6,7 @@ climate_watch  ,climwatch ,programs/sense/climate_watch/climate_watch.st,control
 weather_watch  ,wxwatch   ,programs/sense/weather_watch/weather_watch.st,control
 day_phase      ,dayphase  ,programs/climate/day_phase_controller/day_phase_controller.st,control
 target_temp    ,target    ,programs/climate/target_temp_controller/target_temp_controller.st,control
+cooling        ,cooling   ,programs/climate/cooling_controller/cooling_controller.st,sense
 humidity       ,humidity  ,programs/climate/humidity_controller/humidity_controller.st,control
 intake_dry     ,drygate   ,programs/climate/intake_dry_gate/intake_dry_gate.st,control
 intake_gates   ,gates     ,programs/climate/intake_gates/intake_gates.st,control

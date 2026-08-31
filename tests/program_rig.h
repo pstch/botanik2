@@ -228,38 +228,6 @@ struct StRig {
     } d;
 };
 
-/** @brief The cooling chain: the ladder makes a demand, the gates decide
- *  whether crawlspace air would help serve it. Two programs because they are
- *  two networks - the ladder reads the interior, the gates read the crawlspace
- *  probe and the demand the ladder just published. */
-struct CoolingRig {
-    Live                     live;
-    Vars::QualityMirror      mirror{Botanik::SetupContext(live.reg), live.bank};
-    /** The gates and the psychrometrics are ST; the ladder is not, yet. */
-    Plc::Runtime::Plant          st     {Botanik::SetupContext(live.reg), live.bank};
-    Site::CoolingController  cooling{Botanik::SetupContext(live.reg), live.bank};
-    Plc::Program* const      progs[1] = { &cooling };
-    Cycle                    cycle{progs, 1, &live.bank, live.reg};
-
-    CoolingRig() {
-        st.wire(); mirror.wire();
-        d.st = &st; d.mirror = &mirror; d.cycle = &cycle;
-    }
-
-    /** @brief The firmware's order: companions, the ST plant, then the C++
-     *  programs. temp_rh_zone is what hands the ladder its house temperature,
-     *  so the gates read a demand one beat old - which is what they read on
-     *  the plant too. */
-    struct Driver {
-        Vars::QualityMirror* mirror = nullptr;
-        Plc::Runtime::Plant*     st = nullptr;
-        Cycle*               cycle = nullptr;
-        void step(uint64_t now_ms) {
-            mirror->scan(); st->scan(now_ms); cycle->step(now_ms);
-        }
-    } d;
-};
-
 /** @brief The irrigation chain: the meters feed the schedule, the schedule
  *  arms the cycle. Nothing here works with fewer than all three. */
 struct IrrigationRig {

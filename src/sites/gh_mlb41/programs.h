@@ -82,7 +82,6 @@
 #include "programs/sense/ac_local_watch/ac_local_watch.h"
 #include "programs/sense/dc_watch/dc_watch.h"
 #include "programs/sense/wx_sensors/wx_sensors.h"
-#include "programs/climate/cooling_controller/cooling_controller.h"
 #include "programs/irrigation/irrigation_modulation/irrigation_modulation.h"
 #include "programs/irrigation/irr_mtr_input/irr_mtr_input.h"
 #include "programs/irrigation/irr_mtr_output/irr_mtr_output.h"
@@ -103,7 +102,6 @@
     X(AcLocalWatch,         _ac_local_watch)  \
     X(DcWatch,              _dc_watch)        \
     X(WxSensors,            _wx_sensors)     \
-    X(CoolingController,    _cooling)         \
     X(IrrigationModulation, _irr_modulation)  \
     X(IrrMtrInput,          _irr_mtr_input)   \
     X(IrrMtrOutput,         _irr_mtr_output)  \
