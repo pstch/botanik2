@@ -119,13 +119,25 @@ descriptor plus an empty subclass - generate it, or move the descriptor into
 
 Not vendored, GPLv3, built from source without sudo:
 
+`nucleron/matiec` is GONE (404). The beremiz mirror's default branch is what
+builds, and `git clone` may not resolve where `curl` does:
+
 ```
-apt-get download flex bison libfl-dev   # then dpkg-deb -x each into a prefix
-git clone https://github.com/nucleron/matiec   # or the beremiz mirror
-autoreconf -i && ./configure && make
+cd $SCRATCH
+apt-get download flex bison libfl-dev libbison-dev
+for d in *.deb; do dpkg-deb -x $d prefix; done
+curl -sSL -o m.tgz https://codeload.github.com/beremiz/matiec/tar.gz/refs/heads/default
+tar xzf m.tgz && cd matiec-default
+export PATH=$SCRATCH/prefix/usr/bin:$PATH
+export BISON_PKGDATADIR=$SCRATCH/prefix/usr/share/bison   # or m4sugar.m4 is "not found"
+export CPPFLAGS=-I$SCRATCH/prefix/usr/include
+export LDFLAGS=-L$SCRATCH/prefix/usr/lib/x86_64-linux-gnu
+autoreconf -i && ./configure && make -j4
 ```
 
-Then point the generator at it: `IEC2C=/path/to/iec2c`.
+Then point the generator at it: `IEC2C=/path/to/iec2c`. **Check it before
+trusting it**: `tables.py plant` on an unchanged tree must leave `generated/`
+byte-identical. A different matiec would silently rewrite every POU.
 
 ### Regenerate
 
