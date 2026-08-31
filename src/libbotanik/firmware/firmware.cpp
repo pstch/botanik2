@@ -157,6 +157,8 @@ namespace Botanik {
         // site, because every site would write the same loop.
         for (uint8_t i = 0; i < _site.pulse_count; i++)
             HAL::Pulse::attach(_site.pulses[i].channel, _site.pulses[i].edge);
+        // ...and the same table tells LocalInputs which row each total goes to.
+        _local_in.wire(_site.pulses, _site.pulse_count);
         // Pairs each `X_qlt` with its field row. After freeze(), because
         // freeze() is what compacts a redeclared row out and settles the
         // indices a pair holds.

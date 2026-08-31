@@ -63,8 +63,10 @@ struct Plant {
     Site::ScreenController     screen;
     Site::WindowsController    windows;
     Site::SkirtController      skirt;
-    /** @brief PHASE_INPUT's job: a field row's quality reaches ST as a
-     *  companion. Before the plant, as the beat has it. */
+    /** @brief PHASE_INPUT's job: the local terminals' own rows - an edge count
+     *  among them - then a field row's quality reaching ST as a companion.
+     *  Before the plant, as the beat has it. */
+    Io::LocalInputs            terminals;
     Vars::QualityMirror        mirror;
     /** @brief The ST plant. LAST, because a ctor list runs in DECLARATION
      *  order and this is initialised after every program beside it. */
@@ -85,7 +87,8 @@ struct Plant {
           irr_schedule(ctx(), io()), irrigation(ctx(), io()), irr_valves(ctx(), io()), screen(ctx(), io()),
           windows(ctx(), io()),
           skirt(ctx(), io()),
-          mirror(ctx(), io()), st(ctx(), io()) {
+          terminals(ctx(), io()), mirror(ctx(), io()), st(ctx(), io()) {
+        terminals.wire(Site::pulse_inputs, Site::pulse_input_count);
         Plc::Program* const list[] = {
             &ac_grid, &ac_local, &dc, &wx,
             &irr_mod, &irr_in, &irr_out, &irr_schedule, &irrigation, &irr_valves,
@@ -109,6 +112,7 @@ struct Plant {
      *  case that steps the cycle alone runs neither of the first two. */
     void beat() {
         t += 100;
+        terminals.step(t, Tasks::PHASE_INPUT);
         mirror.scan();
         st.scan(t);
         cycle->step(t);
@@ -415,7 +419,13 @@ inline bool leaking(Plant& p)      { return p.on("alarm_water_leak"); }
 inline uint32_t run_until(Plant& p, bool (*done)(Plant&), uint32_t budget) {
     for (uint32_t i = 1; i <= budget; i++) {
         p.hold(p);
-        p.cycle->step(p.t += 100);
+        p.t += 100;
+        // PHASE_INPUT, then the programs. This drives the CYCLE rather than
+        // beat(), so the ST plant stays off it - these are the C++ irrigation
+        // laws - but a local terminal still has to reach them, and the inlet
+        // meter's edge count is a row now.
+        p.terminals.step(p.t, Tasks::PHASE_INPUT);
+        p.cycle->step(p.t);
         if (done(p)) return i;
     }
     return 0;

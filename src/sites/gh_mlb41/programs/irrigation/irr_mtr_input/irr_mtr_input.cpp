@@ -8,8 +8,10 @@
 namespace Site {
 
 void IrrMtrInput::run(ProgramContext& c) {
-    const uint8_t  ch = Site::pulse_inputs[0].channel;
-    const uint32_t pulses = HAL::Pulse::sample(ch).count;
+    // The ROW, not the counter: LocalInputs publishes the edge total at
+    // PHASE_INPUT, so a law reads it by name like any other terminal - and an
+    // ST one can too, which a HAL call here could never let it do.
+    const uint32_t pulses = pulse_count.get();
     if (c.first_scan) {
         rate.reset();
         _last_pulses = pulses;

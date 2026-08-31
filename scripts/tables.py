@@ -34,7 +34,7 @@ TEXT = {'name', 'unit', 'desc', 'notes', 'code', 'tag', 'model_name'}
 AUX = {  # stem -> columns, for the tables that are not rows
     'analog_cal':     'cal raw_min_row raw_min raw_max_row raw_max eng_min_row eng_min '
                       'eng_max_row eng_max min_row min max_row max',
-    'pulse_inputs':   'name channel edge',
+    'pulse_inputs':   'name channel edge count',
     'modbus_models':  'symbol kind model_name regs words',
     'modbus_devices': 'addr model tag',
     'enums':          'enum ctype symbol value label desc',
@@ -139,7 +139,7 @@ def export_aux(site):
     got = {
         'analog_cal': [[m.group(1)] + [x for p in re.findall(r'R\("([^"]+)",\s*([^)]+)\)', m.group(2)) for x in p]
                        for m in re.finditer(r'const AnalogCal (CAL_\w+) = \{(.*?)\n\};', s, re.S)],
-        'pulse_inputs': [list(t) for t in re.findall(r'\{\s*"([^"]+)",\s*(\d+),\s*HAL::Pulse::(\w+)\s*\}', s)],
+        'pulse_inputs': [list(t) for t in re.findall(r'\{\s*"([^"]+)",\s*(\d+),\s*HAL::Pulse::(\w+),\s*"([^"]*)"\s*\}', s)],
         'modbus_models': [list(t) for t in re.findall(
             r'const Modbus::DeviceModel (MDL_\w+) =\s*Modbus::(\w+)\("([^"]+)",\s*(\d+),?\s*(\d*)\);', s)],
         'modbus_devices': [list(t) for t in re.findall(r'\{\s*(\d+),\s*&(MDL_\w+),\s*"([^"]+)"\s*\}', s)],
@@ -403,7 +403,9 @@ def generate(site):
         L += emit_rows(f, ROWS[f][1].split(), per[f])
     L += ['};', '']
     L.append('const Botanik::PulseInput pulse_inputs[] = {')
-    L += ['    { "%s", %s, HAL::Pulse::%s },' % (p['name'], p['channel'], p['edge']) for p in pul]
+    L += ['    { "%s", %s, HAL::Pulse::%s, %s },'
+          % (p['name'], p['channel'], p['edge'],
+             '"%s"' % p['count'] if p['count'] else 'nullptr') for p in pul]
     L += ['};', '', '#if BOTANIK_FEATURE_MODBUS_RTU_CLIENT', '']
     for m in mdl:
         args = '"%s", %s' % (m['model_name'], m['regs']) + (', %s' % m['words'] if m['words'] else '')

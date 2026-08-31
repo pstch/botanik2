@@ -28,6 +28,7 @@
 #include "libbotanik/core/context.h"
 #include "libbotanik/firmware/stacks.h"
 #include "libbotanik/health/health.h"
+#include "libbotanik/io/pulse_input.h"
 #include "libbotanik/io/local_inputs.h"
 #include "libbotanik/logs/logger.h"
 #include "libbotanik/logs/topics.h"
@@ -76,11 +77,6 @@ namespace Botanik {
      * @note Any table may be null / count 0. Every pointer is borrowed and must
      *       outlive the firmware.
      */
-    /** @brief A local input counted by an interrupt rather than polled. The
-     *  channel here is the one its row declares, and the firmware attaches
-     *  what it finds here: naming it twice is what has to agree. */
-    struct PulseInput { const char* name; uint8_t channel; HAL::Pulse::Edge edge; };
-
     struct SiteDescriptor {
         const char*                   name;                ///< == Config::SITE_NAME
         const Shell::ShellCommand*    commands;            ///< site shell commands

@@ -41,7 +41,7 @@ decides what may move when. Read both before picking the next program.
 | `SkirtController` | `ValveController` (site) | descriptor read (fail direction) |
 | `IrrValves` | **none** - it only calls `.set()` | - |
 | `IrrigationModulation` | `Ton` | `.invalidate()`, `powf` |
-| `IrrMtrInput` | `Derivative`, `Ton` | **`HAL::Pulse::sample()`** |
+| `IrrMtrInput` | `Derivative`, `Ton` | - |
 | `IrrMtrOutput` | `Deadband`, `Ewma`, `Integral` | `.held()`, `.hold()` |
 | `IrrigationSchedule` | none | **`HAL::Clock::wall_ms()`**, `.hold()` |
 | `IrrigationCycle` | `Ton` | `.held()` |
@@ -61,8 +61,14 @@ decides what may move when. Read both before picking the next program.
    same way, so the C++ laws stopped erasing flash inside a scan too.
 2. **The wall clock.** `HAL::Clock::wall_ms()`, for the UNIX day the schedule
    counts against. Wants a row, the shape `sys_now_ms` already has.
-3. **Pulse counts.** `HAL::Pulse::sample()`. The firmware attaches the
-   terminals already; the counts want rows.
+3. ~~**Pulse counts.**~~ **SOLVED.** `LocalInputs` publishes each edge total
+   at PHASE_INPUT into the row the site's pulse table names (`PulseInput`
+   gained a `count` field; `pulse_inputs.csv` a column). A law reads the
+   counter by name like any other terminal, carries the 32-bit wrap with an
+   unsigned difference, and derives "is it ticking" itself. `IrrMtrInput` is
+   already off the HAL call, which is what proves the path.
+   **Every rig now runs PHASE_INPUT**, `Rig<P>` included: a meter reading its
+   count off a row gets zero for the life of a rig that never publishes it.
 4. ~~**The sun tracker.**~~ **SOLVED**, and it removed a program rather than
    porting one. `SunPositionTracker::wire()` resolves four rows and publishes
    them every service tick (100 ms, so as fresh as the program was) while the

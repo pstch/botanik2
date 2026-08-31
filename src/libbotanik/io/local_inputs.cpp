@@ -17,10 +17,10 @@ namespace Botanik { namespace Io {
         for (uint16_t i = 0; i < _io->count(); i++) {
             const Vars::Descriptor& d = _io->descriptor(i);
             if (d.bind.transport != Vars::XP_LOCAL || d.scope != Vars::SCOPE_DI) continue;
-            // An edge-counted terminal is attached ONCE, as a counter, by
-            // whoever owns the meter: the level of a pulse line is not a
-            // reading of anything, and configuring one pin two ways is a
-            // hardware fault waiting to happen.
+            // An edge-counted terminal is attached ONCE, as a counter, by the
+            // firmware: the level of a pulse line is not a reading of
+            // anything, and configuring one pin two ways is a hardware fault
+            // waiting to happen. Its COUNT is published below instead.
             if (d.flags & Vars::F_PULSE) continue;
             if (_count >= HAL::DigitalIn::CHANNELS) break;
 
@@ -31,6 +31,20 @@ namespace Botanik { namespace Io {
             _row[_count]     = i;
             _channel[_count] = ch;
             _count++;
+        }
+
+        // The counters, from the site's own table rather than by walking: the
+        // row a total goes to is not the F_PULSE row, which stays whatever the
+        // terminal is (a contact, a meter line), and only the site knows which
+        // is which.
+        for (uint8_t i = 0; i < _pulses_n; i++) {
+            if (_pulses_in[i].count == nullptr) continue;
+            if (_pulses >= HAL::Pulse::MAX_CHANNELS) break;
+            const Vars::VarRef r = _io->find(_pulses_in[i].count);
+            if (r.index == Vars::VAR_NONE) continue;
+            _pulse_row[_pulses] = r.index;
+            _pulse_ch[_pulses]  = _pulses_in[i].channel;
+            _pulses++;
         }
     }
 
@@ -44,6 +58,12 @@ namespace Botanik { namespace Io {
             if (d.flags & Vars::F_INVERT) on = !on;
             _io->var(_row[i]).publish(Vars::from_bool(d.type, on), now_ms);
         }
+        // The raw edge total, as the counter has it. A meter's law turns it
+        // into litres: how many per pulse is the site's, and the wrap is the
+        // reader's to carry with an unsigned difference.
+        for (uint8_t i = 0; i < _pulses; i++)
+            _io->var(_pulse_row[i]).publish(
+                Vars::Scalar::U(HAL::Pulse::sample(_pulse_ch[i]).count), now_ms);
     }
 
 

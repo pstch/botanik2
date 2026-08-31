@@ -13,6 +13,7 @@
 #include "libbotanik/core/component.h"
 #include "libbotanik/hal/platform.h"
 #if BOTANIK_FEATURE_VARS
+#include "libbotanik/io/pulse_input.h"
 #include "libbotanik/vars/model.h"
 
 namespace Botanik { namespace Io {
@@ -29,8 +30,9 @@ namespace Botanik { namespace Io {
      * The rows are found once, at bring-up, by walking the table for
      * `XP_LOCAL` + `SCOPE_DI`. There is no channel table to keep in step with
      * the variable table, because the variable table IS it. An `F_PULSE` row is
-     * skipped: that terminal is a counter, attached once by whoever owns the
-     * meter.
+     * not polled as a level - the level of a pulse line is a moment of a train
+     * and not a reading of anything - but its COUNT is published, into the row
+     * the site's pulse table names.
      */
     class LocalInputs : public Component {
 
@@ -38,6 +40,8 @@ namespace Botanik { namespace Io {
          *  @{ */
 
         Vars::Bank* _io;   ///< borrowed; the firmware owns it
+        const PulseInput* _pulses_in = nullptr;   ///< the site's, borrowed
+        uint8_t           _pulses_n  = 0;
 
         /** @} */
         /** @name State
@@ -50,14 +54,30 @@ namespace Botanik { namespace Io {
         uint8_t  _channel[HAL::DigitalIn::CHANNELS];
         uint8_t  _count = 0;
 
+        /** @brief The edge counters: the row each total goes to, and the
+         *  channel it is read from. A terminal whose pulse table names no row
+         *  is attached and simply not published. */
+        uint16_t _pulse_row[HAL::Pulse::MAX_CHANNELS];
+        uint8_t  _pulse_ch[HAL::Pulse::MAX_CHANNELS];
+        uint8_t  _pulses = 0;
+
         /** @} */
 
     public:
         LocalInputs(const SetupContext& ctx, Vars::Bank& io)
             : Component(ctx, "local_in"), _io(&io) {}
 
+        /** @brief Take the site's pulse table, so the counters find their
+         *  rows. Before on_setup(); a build that never calls this publishes
+         *  levels only. */
+        void wire(const PulseInput* pulses, uint8_t n) {
+            _pulses_in = pulses; _pulses_n = n;
+        }
+
         /** @brief How many terminals this build actually reads. */
         uint8_t count() const { return _count; }
+        /** @brief How many edge counters it publishes. */
+        uint8_t pulse_count() const { return _pulses; }
 
         /** @brief One entry, PHASE_INPUT: a terminal has to be in the bank
          *  before the programs run on it. */

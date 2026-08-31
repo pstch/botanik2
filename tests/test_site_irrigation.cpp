@@ -14,7 +14,8 @@ namespace {
 
 /** @brief Fill tray 1, then hold @p lpm on the outlet meter for the whole drain
  *  window. @return the litres the meter says came back. */
-float drain_at(Live& live, Cycle& d, Site::IrrMtrOutput& meter,
+template <typename D>
+float drain_at(Live& live, D& d, Site::IrrMtrOutput& meter,
                Site::IrrigationCycle& irr, float lpm, bool meter_live,
                Plc::Health* worst = nullptr) {
     (void)irr;

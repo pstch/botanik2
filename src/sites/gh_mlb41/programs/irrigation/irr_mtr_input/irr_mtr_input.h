@@ -27,6 +27,7 @@ public:
     /** @name VAR_INPUT
      *  @{ */
 
+    Vars::RefIn<uint32_t> pulse_count;
     Vars::RefIn<uint16_t> rate_win;
     Vars::RefIn<float>    qty_per_pulse;
     Vars::RefIn<float>    leak_Lpm;
@@ -98,6 +99,7 @@ inline void IrrMtrInput::bind(Vars::Bank& io) {
     leak          = _bind_output<bool>(io, "alarm_water_leak");
     pressure      = _bind_output<bool>(io, "alarm_water_pressure");
     pulsing       = _bind_output<bool>(io, "irr_inPulse");
+    pulse_count   = _bind_input<uint32_t>(io, "irr_inCount");
 
 }
 

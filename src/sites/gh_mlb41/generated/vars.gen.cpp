@@ -325,6 +325,7 @@ const Descriptor rows[] = {
     SV("cli_coldBankArm", T_BOOL, 0, 0, "", 522, "cold banking armed for the coming dawn", "yesterday ran hotter than cli_coldBankTrg_degC"),
     SV("cli_heatBankArm", T_BOOL, 0, 0, "", 523, "heat banking armed for the coming dusk", "last night ran colder than cli_heatBankTrg_degC"),
     SV("irr_inFlow_Lpm", T_F32, 0, 1, "Lpm", 526, "inlet flow, differentiated from the counter", "one pulse is irr_input_qtyPerImp litres, so the rate is a window average"),
+    SV("irr_inCount", T_U32, 0, 0, "", 657, "inlet meter edge count since boot", "raw pulses, as the interrupt counter has them; the meter law turns them into litres and carries the 32-bit wrap"),
     SV("irr_inTotal_L", T_F32, 0, 1, "L", 527, "inlet water counter, since it was last zeroed", "retained: the value IS the history, and a reboot must not zero the meter", true),
     SV("irr_outTotal_L", T_F32, 0, 1, "L", 528, "outlet water counter, since it was last zeroed", "integrated from irr_outFlow_Lpm; there is no outlet pulse train", true),
     SV("irr_vpdAvg_kPa", T_F32, 0, 3, "kPa", 530, "dryness tracker: VPD averaged over irr_dryEwmaDays", "folded once an HOUR; per scan the increment underflows, per day the result depends on the hour it was taken"),
@@ -567,7 +568,7 @@ const Descriptor rows[] = {
 };
 
 const Botanik::PulseInput pulse_inputs[] = {
-    { "irr_inPulse", 1, HAL::Pulse::EDGE_RISING },
+    { "irr_inPulse", 1, HAL::Pulse::EDGE_RISING, "irr_inCount" },
 };
 
 #if BOTANIK_FEATURE_MODBUS_RTU_CLIENT

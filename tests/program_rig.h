@@ -174,13 +174,33 @@ inline void interlocks_clear(Live& f) {
     f.bank.var(f.ref("cli_rotLockout")).set(false);
 }
 /** @brief A live bank with ONE program on the beat, which is what a law's own
- *  case needs: `prog` is the program, `d` the cycle over it. */
+ *  case needs: `prog` is the program, `d` the beat over it.
+ *
+ *  PHASE_INPUT runs too, because the beat has one: a local terminal reaches a
+ *  law as a ROW, and a meter reading an edge count off one gets zero for the
+ *  life of a rig that never publishes it. */
 template <class P>
 struct Rig {
     Live                live;
+    Io::LocalInputs     terminals{Botanik::SetupContext(live.reg), live.bank};
     P                   prog{Botanik::SetupContext(live.reg), live.bank};
     Plc::Program* const progs[1] = { &prog };
-    Cycle               d{progs, 1, &live.bank, live.reg};
+    Cycle               cycle{progs, 1, &live.bank, live.reg};
+
+    Rig() {
+        terminals.wire(Site::pulse_inputs, Site::pulse_input_count);
+        d.terminals = &terminals;
+        d.cycle     = &cycle;
+    }
+
+    struct Driver {
+        Io::LocalInputs* terminals = nullptr;
+        Cycle*           cycle     = nullptr;
+        void step(uint64_t now_ms) {
+            terminals->step(now_ms, Tasks::PHASE_INPUT);
+            cycle->step(now_ms);
+        }
+    } d;
 };
 
 /** @brief The ST plant on its own.
@@ -232,6 +252,9 @@ struct StRig {
  *  arms the cycle. Nothing here works with fewer than all three. */
 struct IrrigationRig {
     Live                     live;
+    /** The inlet meter reads its edge total off a ROW now, and this is what
+     *  publishes it: a rig without it hands the meter a counter stuck at zero. */
+    Io::LocalInputs          terminals{Botanik::SetupContext(live.reg), live.bank};
     Site::IrrMtrInput        in_meter {Botanik::SetupContext(live.reg), live.bank};
     Site::IrrMtrOutput       out_meter{Botanik::SetupContext(live.reg), live.bank};
     Site::IrrigationSchedule sched    {Botanik::SetupContext(live.reg), live.bank};
@@ -239,7 +262,23 @@ struct IrrigationRig {
     Site::IrrValves          valves   {Botanik::SetupContext(live.reg), live.bank};
     Plc::Program* const      progs[5] = { &in_meter, &out_meter, &sched, &irr,
                                           &valves };
-    Cycle                    d{progs, 5, &live.bank, live.reg};
+    Cycle                    cycle{progs, 5, &live.bank, live.reg};
+
+    IrrigationRig() {
+        terminals.wire(Site::pulse_inputs, Site::pulse_input_count);
+        d.terminals = &terminals;
+        d.cycle     = &cycle;
+    }
+
+    /** @brief PHASE_INPUT then the programs, which is the beat's own order. */
+    struct Driver {
+        Io::LocalInputs* terminals = nullptr;
+        Cycle*           cycle     = nullptr;
+        void step(uint64_t now_ms) {
+            terminals->step(now_ms, Tasks::PHASE_INPUT);
+            cycle->step(now_ms);
+        }
+    } d;
 };
 
 /** @brief The roof: the lockout runs FIRST, so the windows see the interlock
