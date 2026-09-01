@@ -22,9 +22,6 @@ END_VAR
 VAR
   lockout_for : TOF_MS;
 END_VAR
-VAR_TEMP
-  rotting : BOOL;
-END_VAR
 
   (* Four bands and a dead zone, and the signed ladder IS that shape: below
      dehumStart the margin is closing on condensation (negative, dehumidify);
@@ -41,21 +38,21 @@ END_VAR
        nothing at the limit, everything at the dew point itself. The span IS
        the operator's setting - cli_rotMargin_degC sits on its own floor by
        default, so a ramp to that floor would be a step. *)
-    cli_rotVentDem := LADDER(V  := 0.0 - cli_dpMargin_degC,
-                             LO := 0.0 - cli_rotMargin_degC,
+    cli_rotVentDem := LADDER(V  := -cli_dpMargin_degC,
+                             LO := -cli_rotMargin_degC,
                              HI := 0.0);
-    rotting := alarm_rot;
   ELSE
     (* No margin, no verdict on it - and the guard fails toward ACTING:
        ventilating costs energy, not ventilating costs the collection. *)
     cli_rotVentDem := 1.0;
-    rotting := TRUE;
   END_IF;
 
-  (* An OVERRUN, not a dwell: the lockout follows the condition up at once and
-     outlives it, because humidifying into air that has only just dried out is
-     what puts the margin back where it was. Nothing is locked out at boot. *)
-  lockout_for(IN := rotting, PT := UINT_TO_UDINT(cli_rotRelease_sec) * 1000,
+  (* An OVERRUN on the ALARM, not on being blind: humidifying into air that has
+     only just dried out is what puts the margin back where it was. A margin
+     nobody has YET is bring-up, and feeding that into the overrun cost five
+     minutes of locked-out skirt after every restart. Blind is a live interlock
+     instead, letting go the moment the margin is believable. *)
+  lockout_for(IN := alarm_rot, PT := UINT_TO_UDINT(cli_rotRelease_sec) * 1000,
               NOW := sys_now_ms);
-  cli_rotLockout := lockout_for.Q;
+  cli_rotLockout := lockout_for.Q OR NOT cli_dpMargin_degC_qlt;
 END_PROGRAM

@@ -3331,7 +3331,6 @@ static void HUMIDITY_CONTROLLER_init__(HUMIDITY_CONTROLLER_data__ *data__, BOOL 
 // Code part
 static void HUMIDITY_CONTROLLER_body__(HUMIDITY_CONTROLLER_data__ *data__) {
   // Initialise TEMP variables
-  __SET_VAR(data__->,ROTTING,,__BOOL_LITERAL(FALSE));
 
   __SET_EXTERNAL(data__->,CLI_HUMIDDEM,,___SIGNED_LADDER(
     (BOOL)__BOOL_LITERAL(TRUE),
@@ -3345,22 +3344,20 @@ static void HUMIDITY_CONTROLLER_body__(HUMIDITY_CONTROLLER_data__ *data__) {
     __SET_EXTERNAL(data__->,CLI_ROTVENTDEM,,___LADDER(
       (BOOL)__BOOL_LITERAL(TRUE),
       NULL,
-      (REAL)(__REAL_LITERAL(0.0) - __GET_EXTERNAL(data__->CLI_DPMARGIN_DEGC,)),
-      (REAL)(__REAL_LITERAL(0.0) - __GET_EXTERNAL(data__->CLI_ROTMARGIN_DEGC,)),
+      (REAL) -(__GET_EXTERNAL(data__->CLI_DPMARGIN_DEGC,)),
+      (REAL) -(__GET_EXTERNAL(data__->CLI_ROTMARGIN_DEGC,)),
       (REAL)__REAL_LITERAL(0.0)));
-    __SET_VAR(data__->,ROTTING,,__GET_EXTERNAL(data__->ALARM_ROT,));
   } else {
     __SET_EXTERNAL(data__->,CLI_ROTVENTDEM,,__REAL_LITERAL(1.0));
-    __SET_VAR(data__->,ROTTING,,__BOOL_LITERAL(TRUE));
   };
-  __SET_VAR(data__->LOCKOUT_FOR.,IN,,__GET_VAR(data__->ROTTING,));
+  __SET_VAR(data__->LOCKOUT_FOR.,IN,,__GET_EXTERNAL(data__->ALARM_ROT,));
   __SET_VAR(data__->LOCKOUT_FOR.,PT,,(___UINT_TO_UDINT(
     (BOOL)__BOOL_LITERAL(TRUE),
     NULL,
     (UINT)__GET_EXTERNAL(data__->CLI_ROTRELEASE_SEC,)) * __UDINT_LITERAL(1000)));
   __SET_VAR(data__->LOCKOUT_FOR.,NOW,,__GET_EXTERNAL(data__->SYS_NOW_MS,));
   TOF_MS_body__(&data__->LOCKOUT_FOR);
-  __SET_EXTERNAL(data__->,CLI_ROTLOCKOUT,,__GET_VAR(data__->LOCKOUT_FOR.Q,));
+  __SET_EXTERNAL(data__->,CLI_ROTLOCKOUT,,(__GET_VAR(data__->LOCKOUT_FOR.Q,) || !(__GET_EXTERNAL(data__->CLI_DPMARGIN_DEGC_QLT,))));
 
   goto __end;
 

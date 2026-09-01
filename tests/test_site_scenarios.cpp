@@ -223,6 +223,13 @@ TEST_CASE("scenario: a zone dying leaves the plant safe, not confident") {
     CHECK(p.num("cli_rotVentDem") == doctest::Approx(1.0f));
     CHECK(p.on("cli_rotLockout"));
     snapshot(p, "the house with no measured margin at all");
+
+    SAY("and being blind is an INTERLOCK, not an overrun: the floors answer "
+         "again and the lockout lets go with them, where feeding blindness "
+         "into the overrun cost five minutes of shut skirt after every boot");
+    p.weather_for(50);
+    REQUIRE(p.on("cli_dpMargin_degC_qlt"));
+    CHECK_FALSE(p.on("cli_rotLockout"));
 }
 
 TEST_CASE("scenario: a long hot spell does not cost minutes of recovery") {
@@ -356,5 +363,7 @@ TEST_CASE("scenario: an evening moves the plant the other way, in order") {
     CHECK(p.on("cli_destrat1_speed1"));
     snapshot(p, "shut, deployed, and the breeze back on");
 }
+
+
 
 }  // namespace site_scenarios

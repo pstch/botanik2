@@ -7,9 +7,10 @@
  *
  * A site is DATA. Everything this one is - its rows, its enums, its home
  * screen, its field devices, its `SiteDescriptor`, the firmware bound to it -
- * is generated from `tables/*.csv` and `site.toml` by `scripts/tables.py`. Its
- * LAWS are `programs/**\/*.st`, compiled by matiec, and the base owns the
- * resource that runs them. There is no subclass and no hook.
+ * is generated from the CSVs in `tables/` and from `site.toml` by
+ * `scripts/tables.py`. Its LAWS are the ST under `programs/`, compiled by
+ * matiec, and the base owns the resource that runs them. There is no
+ * subclass and no hook.
  *
  * Every site exposes the same surface, so a harness never names the site:
  *   - `Site::firmware()`  the firmware, bound to this site's descriptor
