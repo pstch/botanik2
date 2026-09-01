@@ -408,7 +408,6 @@ CONFIGURATION gh_mlb41
     pwr_upsBat_V_qlt        : BOOL;
     pwr_upsBat_avg_ms       : UINT;
     pwr_upsLowBat           : BOOL;
-    pwr_upsLowBat_qlt       : BOOL;
     sol_breezeRise_min      : INT;
     sol_coldBankRise_min    : INT;
     sol_dayRise_min         : INT;

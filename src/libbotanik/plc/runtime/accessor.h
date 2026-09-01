@@ -82,18 +82,7 @@
 /* A Ref carries its store, so only the RESOLVE needs to be told which bank.
  * Reads and writes go through the reference, exactly as a C++ law writes
  * them - which is the point: the generated body is our own spelling. */
-/* held(), not get(): the row's OWN value, with no declared substitute.
- *
- * A law asks the COMPANION whether to believe a reading; substitution answers
- * the same question a second time and answers it SILENTLY, by handing back a
- * plausible number. That is how a rain gauge that stopped answering reads as
- * fine weather - roof_lockout's own comment says so - and every _qlt gate in
- * the site is the workaround. One mechanism, and it is the explicit one.
- *
- * It also fixes the shape substitution can never serve: a running counter,
- * where a law subtracts two readings of the same absolute and a constant put
- * in place of one makes the difference arithmetic about nothing. */
-#define __GET_EXTERNAL(name, ...)   (name).held()
+#define __GET_EXTERNAL(name, ...)   (name).get()
 /* drive(), not set(): a PARAMETER an ST program writes is state the plant has
  * to keep - a watering date, a spent one-shot force - and set() would leave the
  * store owing it. There is no second macro to choose with, so the ROW decides.

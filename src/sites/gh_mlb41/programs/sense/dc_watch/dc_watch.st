@@ -20,7 +20,6 @@ VAR_EXTERNAL CONSTANT
   pwr_upsBat_avg_ms : UINT;
   pwr_genBat_avg_ms : UINT;
   pwr_upsLowBat     : BOOL;
-  pwr_upsLowBat_qlt : BOOL;
   sys_now_ms        : UDINT;
 END_VAR
 VAR_EXTERNAL
@@ -96,12 +95,7 @@ END_VAR
   (* THE CONTACT, not the divider: the UPS knows what its own battery has left,
      and a voltage on the rail is a guess at it. Debounced, because a dry
      contact bounces and this one holds the whole plant. *)
-  (* Fails ASSERTED: an unreadable terminal is not a healthy supply. Said HERE
-     rather than left to the row's declared value - a terminal that never
-     attached is never published, and a law reading the substitute could not
-     tell that from a contact that is genuinely open. *)
-  low_for(IN := pwr_upsLowBat OR NOT pwr_upsLowBat_qlt,
-          PT := UDINT#2000, NOW := sys_now_ms);
+  low_for(IN := pwr_upsLowBat, PT := UDINT#2000, NOW := sys_now_ms);
   low                := low_for.Q;
   alarm_dc_ups       := low;
   sys_supply_lockout := low;
