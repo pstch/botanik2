@@ -335,6 +335,7 @@ namespace Botanik { namespace Shell {
         /** @brief `programs enable|disable <name>|all`. @p on is which. */
         /** @brief `programs status`: a tally per health, and who is in the ones
          *  worth naming. */
+        void _programs_gate(const char* nm, uint16_t wn, bool on);
         void _programs_status();
         /** @} */
 

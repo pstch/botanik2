@@ -18,7 +18,9 @@
 #include <cstring>
 
 #include "libbotanik/hal/platform.h"
+#include "libbotanik/core/context.h"
 #include "libbotanik/plc/program.h"
+#include "libbotanik/plc/runtime/runtime.h"
 #include "libbotanik/tasks/tasks.h"
 #include "libbotanik/utils/text.h"
 
@@ -30,59 +32,89 @@ namespace Botanik { namespace Shell {
      *  printf says it WOULD have written - so a truncated line stops growing
      *  rather than indexing past the end. */
     void CommandShell::_cmd_programs(const char* args, uint16_t alen) {
-        Tasks::Registry* reg = _registry();
+        Plc::Runtime::Plant* pl = (_sys != nullptr) ? _sys->plant : nullptr;
         char out[128];
-        if (reg == nullptr) { _println("programs: no task table"); return; }
+        if (pl == nullptr) { _println("programs: no plant"); return; }
 
         uint16_t wv; const char* verb = arg_next(args, alen, wv);
         uint16_t wn; const char* nm   = arg_next(args, alen, wn);
 
         if (arg_eq(verb, wv, "list")) {
-            const uint8_t n = reg->program_count();
-            uint8_t shown = 0, bad = 0;
+            const uint8_t n = pl->count();
+            uint8_t shown = 0;
             for (uint8_t i = 0; i < n; i++) {
-                const Plc::Program* p = reg->program(i);
-                if (p == nullptr) continue;
-                if (!Utils::glob_bounded(p->name(), nm, wn)) continue;
-                if (p->is_invalid()) bad++;
-                _emitf(out, sizeof(out), "  %-20s %s", p->name(),
-                       Plc::health_name(p->health()));
+                if (!Utils::glob_bounded(pl->name(i), nm, wn)) continue;
+                _emitf(out, sizeof(out), "  %-22s %-8s %s", pl->name(i),
+                       Plc::health_name(pl->health(i)),
+                       pl->running(i)   ? "running"
+                       : !pl->enabled(i) ? "DISABLED"
+                                         : "held");
                 shown++;
             }
             if (shown == 0) { _println("programs: none"); return; }
-            _emitf(out, sizeof(out), "%u program(s), %u INVALID", shown, bad);
+            _emitf(out, sizeof(out), "%u program(s)", shown);
             return;
         }
 
+        if (arg_eq(verb, wv, "enable"))  { _programs_gate(nm, wn, true);  return; }
+        if (arg_eq(verb, wv, "disable")) { _programs_gate(nm, wn, false); return; }
         if (arg_eq(verb, wv, "status"))  { _programs_status();            return; }
 
         _verb_usage("programs");
     }
 
-    void CommandShell::_programs_status() {
-        Tasks::Registry* reg = _registry();
-        char out[160];
-        if (reg == nullptr) { _println("programs: no task table"); return; }
-
-        const uint8_t n = reg->program_count();
-        uint8_t total = 0, bad = 0;
-        for (uint8_t i = 0; i < n; i++) {
-            const Plc::Program* p = reg->program(i);
-            if (p == nullptr) continue;
-            if (p->is_invalid()) bad++;
-            total++;
+    /** @brief Put the programs @p nm globs in or out of the scan. A disabled
+     *  one drops what it drives to its declared safe state on the next beat,
+     *  which is the whole point of the verb - a coil left energised by a law
+     *  nobody is running is what this exists to prevent. */
+    void CommandShell::_programs_gate(const char* nm, uint16_t wn, bool on) {
+        Plc::Runtime::Plant* pl = (_sys != nullptr) ? _sys->plant : nullptr;
+        char out[128];
+        if (pl == nullptr) { _println("programs: no plant"); return; }
+        if (nm == nullptr || wn == 0) {
+            _println("programs: name it, or `all`");
+            return;
         }
-        if (total == 0) { _println("programs: none"); return; }
-        _emitf(out, sizeof(out), "programs: %u  (%u INVALID)",
-               (unsigned)total, (unsigned)bad);
+        const bool all = arg_eq(nm, wn, "all");
+        uint8_t hit = 0;
+        for (uint8_t i = 0; i < pl->count(); i++) {
+            if (!all && !Utils::glob_bounded(pl->name(i), nm, wn)) continue;
+            pl->set_enabled(i, on);
+            hit++;
+        }
+        if (hit == 0) { _println("programs: no such program"); return; }
+        _emitf(out, sizeof(out), "%u program(s) %s", hit, on ? "enabled" : "DISABLED");
+        // The operator's gate is one of two, and saying so here is cheaper than
+        // an operator wondering why an enabled program is not running.
+        if (on && !pl->control_allowed())
+            _println("  ...but sys_control is off: none of them will run");
+    }
+
+    void CommandShell::_programs_status() {
+        Plc::Runtime::Plant* pl = (_sys != nullptr) ? _sys->plant : nullptr;
+        char out[160];
+        if (pl == nullptr) { _println("programs: no plant"); return; }
+
+        const uint8_t n = pl->count();
+        uint8_t bad = 0, off = 0, run = 0;
+        for (uint8_t i = 0; i < n; i++) {
+            if (pl->health(i) != Plc::Health::HEALTHY) bad++;
+            else if (!pl->enabled(i))                  off++;
+            if (pl->running(i))                        run++;
+        }
+        _emitf(out, sizeof(out), "programs: %u  (%u running, %u DISABLED, %u INVALID)",
+               (unsigned)n, (unsigned)run, (unsigned)off, (unsigned)bad);
+        _emitf(out, sizeof(out), "control: %s",
+               pl->control_allowed() ? "sys_control on" : "sys_control OFF");
 
         // Named, because there is nothing else to say about one: a program
         // that could not be wired never runs, and which one it is is the whole
         // of what an operator needs.
-        for (uint8_t i = 0; i < n && bad != 0; i++) {
-            const Plc::Program* p = reg->program(i);
-            if (p == nullptr || !p->is_invalid()) continue;
-            _emitf(out, sizeof(out), "  INVALID   %s", p->name());
+        for (uint8_t i = 0; i < n; i++) {
+            if (pl->health(i) != Plc::Health::HEALTHY)
+                _emitf(out, sizeof(out), "  INVALID   %s", pl->name(i));
+            else if (!pl->enabled(i))
+                _emitf(out, sizeof(out), "  DISABLED  %s", pl->name(i));
         }
     }
 
@@ -91,8 +123,7 @@ namespace Botanik { namespace Shell {
     void CommandShell::_cmd_programs(const char*, uint16_t) {
         _println("programs: this build has no scan cycle");
     }
-    void CommandShell::_programs_mode(const char*, uint16_t, Plc::Mode) {}
-    void CommandShell::_programs_save(const char*, uint16_t) {}
+    void CommandShell::_programs_gate(const char*, uint16_t, bool) {}
     void CommandShell::_programs_status() {}
 
 #endif

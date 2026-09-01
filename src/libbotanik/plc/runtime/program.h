@@ -32,6 +32,13 @@ namespace Botanik { namespace Plc { namespace Runtime {
          *  does not say which task it belongs to and the roster is the only
          *  place the index is a compile-time constant. */
         void      (*task)(Botanik::Component*, const Botanik::Tasks::Tick&);
+        /** @brief The rows this program is the AUTHOR of: its plain
+         *  `VAR_EXTERNAL` names, generated from the ST itself. The bank cannot
+         *  answer this - an ST row resolves as VAR_IN_OUT and so claims no
+         *  exclusive writer - and these are what a program out of the scan
+         *  drops to their declared safe state. */
+        const char* const* writes;
+        uint8_t            write_count;
     };
 
     extern const Program programs[];

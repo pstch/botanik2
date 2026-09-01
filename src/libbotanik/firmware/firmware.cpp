@@ -119,6 +119,9 @@ namespace Botanik {
         // Wire the status aggregate now every subsystem address is fixed.
         _sys_ctx.scheduler = _scheduler.context();
         _sys_ctx.tasks     = &_tasks;
+#if BOTANIK_FEATURE_PLC
+        _sys_ctx.plant     = &_st;
+#endif
 #if BOTANIK_FEATURE_VARS
         _sys_ctx.vars      = &_io;
 #endif

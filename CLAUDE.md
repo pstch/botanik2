@@ -184,12 +184,14 @@ Subsystems under `src/libbotanik/`. Each row's doc is the reference; the header 
 
 ### Rules that are not in a header
 
-- **Control authority** is three modes (`Vars::ControlMode`) decided by two INDEPENDENT
-  sources - the operator's standing choice and the system's hold - and the STRICTER wins.
-  `CONTROL_DISABLED` *mutes* an output override reversibly; only the SYSTEM's hold ERASES
-  one. It starts held, so nothing before the end of `setup()` can energise an actuator.
-  `Plc::ControlAuthority` DECIDES and `Vars::Bank` ENACTS: the bank is handed a verdict
-  through `set_effective_control()` and never asks who decided it. See `scan.md`.
+- **Control authority** is decided by two INDEPENDENT sources and the STRICTER wins:
+  the OPERATOR's standing choice (`sys_control` for all of them, `programs disable` for
+  one) and the SYSTEM's hold (`Scheduler::RunState`, which is only RUN between
+  `sys_startup_sec` and the shutdown). `Plc::Runtime::Plant::running()` is where the two
+  meet. A program that is not running does not FREEZE what it drives: its rows drop to
+  their declared safe state, which is what `Descriptor::def` means for an output. The
+  roster of rows a program authors is generated from its plain `VAR_EXTERNAL` block,
+  because an ST row resolves as VAR_IN_OUT and so claims no exclusive writer.
 - **The scan cycle has no driver.** A control program registers itself with
   `Tasks::Registry` like everything else, PHASE_CONTROL by construction (`add_program()`).
   A program due late runs ONCE - missed activations are dropped, never caught up - so

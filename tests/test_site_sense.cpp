@@ -124,13 +124,62 @@ TEST_CASE("lifecycle: no law runs outside RUN") {
     CHECK(f.bank.var(out).as_f32() == doctest::Approx(45.0f).epsilon(0.02));
 
     state = Scheduler::RunState::STOP;
-    for (uint8_t i = 1; i <= 3; i++) {
-        char n[24]; snprintf(n, sizeof n, "cli_temp_hi%u", (unsigned)i);
-        f.bank.var(f.ref(n)).publish(from_f32(T_F32, 5.0f), 0);
-    }
     for (; t < 8000; t += 100) st.scan(t);
-    INFO("STOP: the field moved and the law did not follow it");
-    CHECK(f.bank.var(out).as_f32() == doctest::Approx(45.0f).epsilon(0.02));
+    INFO("STOP: what it was driving DROPS to its declared safe state, rather "
+         "than freezing at the last thing a law happened to decide");
+    CHECK(f.bank.var(out).as_f32() == doctest::Approx(before));
+    CHECK_FALSE(f.bank.var(out).valid());
+}
+
+TEST_CASE("control: taking one program out of the scan drops what it drives safe") {
+    Live f;
+    Plc::Runtime::Plant st(Botanik::SetupContext(f.reg), f.bank);
+    st.wire();
+
+    uint8_t skirt = 0xFF;
+    for (uint8_t i = 0; i < st.count(); i++)
+        if (strcmp(st.name(i), "skirt") == 0) skirt = i;
+    REQUIRE(skirt != 0xFF);
+    REQUIRE(st.running(skirt));
+
+    const Vars::VarRef valve = f.ref("cli_skirtValve");
+    f.bank.var(valve).set(true);
+    for (uint64_t t = 0; t < 500; t += 100) st.scan(skirt, t);
+
+    st.set_enabled(skirt, false);
+    CHECK_FALSE(st.running(skirt));
+    st.scan(skirt, 500);
+    INFO("the coil is not FROZEN where the law left it: it reads its declared "
+         "safe state, and says it is not a live reading");
+    CHECK_FALSE(f.bank.var(valve).valid());
+    CHECK_FALSE(f.bank.var(valve).as_bool());
+
+    INFO("...and its neighbours are untouched: the gate is per program");
+    for (uint8_t i = 0; i < st.count(); i++)
+        if (i != skirt) CHECK(st.running(i));
+
+    st.set_enabled(skirt, true);
+    CHECK(st.running(skirt));
+}
+
+TEST_CASE("control: sys_control off stops every law, whatever its own gate says") {
+    Live f;
+    Plc::Runtime::Plant st(Botanik::SetupContext(f.reg), f.bank);
+    st.wire();
+    REQUIRE(st.control_allowed());
+    REQUIRE(st.running(0));
+
+    f.bank.var(f.bank.find("sys_control")).set(false);
+    CHECK_FALSE(st.control_allowed());
+    INFO("the two sources are INDEPENDENT and the stricter wins, so a program "
+         "whose own gate is open still does not run");
+    for (uint8_t i = 0; i < st.count(); i++) {
+        CHECK(st.enabled(i));
+        CHECK_FALSE(st.running(i));
+    }
+
+    f.bank.var(f.bank.find("sys_control")).set(true);
+    CHECK(st.running(0));
 }
 
 TEST_CASE("lifecycle: a plant with no lifecycle at all runs") {

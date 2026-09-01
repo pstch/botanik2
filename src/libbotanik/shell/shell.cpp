@@ -140,7 +140,10 @@ namespace Botanik { namespace Shell {
 #if BOTANIK_FEATURE_PLC
             { "programs",  "...",       "the control programs in the scan",
                            "status               how many, and which cannot run\n"
-                           "list [<pat>]         name, or a glob",  G_TAB, false,
+                           "list [<pat>]         name, or a glob\n"
+                           "enable  <pat|all>    put back in the scan\n"
+                           "disable <pat|all>    take out, and drop what it drives safe",
+                                                                     G_TAB, false,
                                                                &CommandShell::_cmd_programs   },
 #endif
             { "alarms",    "...",       "the alarm table, and acknowledging",

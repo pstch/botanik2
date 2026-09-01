@@ -97,7 +97,7 @@ extern VarRef home_refs[g_home_field_count];
 // Rows the LIBRARY registers ahead of these, from site.toml. One row
 // past VAR_MAX and registration is REFUSED: every name in it resolves
 // to the sink for the life of the run, and only refused_count() sees it.
-const uint16_t LIBRARY_ROWS = 72;
+const uint16_t LIBRARY_ROWS = 73;
 static_assert(LIBRARY_ROWS + ROWS_COUNT <= Config::VAR_MAX,
               "site table exceeds VAR_MAX - raise it in site.toml "
               "(about 36 bytes of RAM per row)");

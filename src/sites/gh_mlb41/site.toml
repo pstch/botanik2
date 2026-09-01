@@ -31,7 +31,7 @@ str_pool_bytes = 512
 # count cannot be taken from it. Understating it lets the VAR_MAX guard pass on
 # a table that then overflows, and the bank drops what did not fit in silence -
 # `Bank::refused_count()` is what actually catches that.
-library_rows = 72
+library_rows = 73
 
 [fieldbus]
 # RS-485. Every device on the segment has to agree.

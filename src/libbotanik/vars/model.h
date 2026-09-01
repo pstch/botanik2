@@ -380,6 +380,7 @@ namespace Botanik { namespace Vars {
         /** @brief The program that claimed @p r, or WRITER_NONE. */
         uint8_t writer_of(VarRef r) const;
 
+
         /** @brief How many ROWS two programs have both written, and the first.
          *  Rows, not collisions: two programs collide every beat, but the count
          *  of doubly-authored rows is fixed by the site's design. */

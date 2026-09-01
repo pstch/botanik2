@@ -27,6 +27,7 @@ namespace Botanik { namespace Plc { namespace Runtime {
         io = &_io;
         _now_ref = _io.find("sys_now_ms");
         _day_ref = _io.find("sys_today");
+        _control_ref = _io.find("sys_control");
         BOTANIK_ASSERT(PROGRAM_COUNT <=
                        (uint8_t)(sizeof _slot / sizeof _slot[0]));
 
@@ -77,11 +78,6 @@ namespace Botanik { namespace Plc { namespace Runtime {
 
     void Plant::scan(uint8_t i, uint64_t now_ms) {
         if (i >= PROGRAM_COUNT) return;
-        // A program that could not be wired never runs: its references are
-        // inert sinks, so every value it produced would be a zero nothing
-        // could tell from a reading.
-        if (_slot[i].health != Health::HEALTHY) return;
-
         _now_ms = now_ms;
         // The CLOCK, before any body reads it. Each block differences it
         // against its own last reading, so one row serves every period.
@@ -105,7 +101,20 @@ namespace Botanik { namespace Plc { namespace Runtime {
         // stateful block seeds on its first call - a filter adopts the reading
         // it starts on, a timer datums its clock - so a held program starts
         // clean rather than climbing out of a fiction.
-        if (_state != nullptr && *_state != Scheduler::RunState::RUN) return;
+        if (!running(i)) {
+            // On the EDGE, not every beat: a walk of the table per stopped
+            // program per beat would cost more than the scan it replaced, and
+            // nothing else writes a row this program exclusively claimed.
+            if (_slot[i].ran) {
+                _slot[i].ran = false;
+                const uint16_t n = _safe_outputs(i);
+                if (_logger != nullptr)
+                    _logger->warning(Logs::HEALTH, "%s: out of the scan, %u row(s) safe",
+                                     programs[i].name, (unsigned)n);
+            }
+            return;
+        }
+        _slot[i].ran = true;
 
         _io.begin_writer(i);
         programs[i].run();
@@ -118,6 +127,56 @@ namespace Botanik { namespace Plc { namespace Runtime {
 
     Health Plant::health(uint8_t i) const {
         return (i < PROGRAM_COUNT) ? _slot[i].health : Health::INVALID;
+    }
+
+    /** @brief Drop everything program @p i drives to its declared safe state.
+     *
+     *  By NAME, off the generated roster: an ST row resolves as VAR_IN_OUT and
+     *  claims no exclusive writer, so the bank cannot be asked whose it is.
+     *  A find() per row is fine here - this runs on the edge of an operator
+     *  action, never in the beat. */
+    uint16_t Plant::_safe_outputs(uint8_t i) {
+        uint16_t n = 0;
+        for (uint8_t k = 0; k < programs[i].write_count; k++) {
+            const Vars::VarRef r = _io.find(programs[i].writes[k]);
+            if (r.index == Vars::VAR_NONE) continue;
+            _io.var(r).safe();
+            n++;
+        }
+        return n;
+    }
+
+    uint8_t Plant::count() const { return PROGRAM_COUNT; }
+
+    const char* Plant::name(uint8_t i) const {
+        return (i < PROGRAM_COUNT) ? programs[i].name : "";
+    }
+
+    bool Plant::enabled(uint8_t i) const {
+        return (i < PROGRAM_COUNT) && _slot[i].enabled;
+    }
+
+    void Plant::set_enabled(uint8_t i, bool on) {
+        if (i < PROGRAM_COUNT) _slot[i].enabled = on;
+    }
+
+    bool Plant::control_allowed() const {
+        return _control_ref.index == Vars::VAR_NONE ||
+               _io.var(_control_ref).as_bool();
+    }
+
+    // The two sources are INDEPENDENT and the stricter wins: the operator's
+    // standing choice (sys_control, then this program's own gate) and the
+    // system's hold (the lifecycle). A program that could not be wired never
+    // runs whatever either of them says - its references are inert sinks, so
+    // every value it produced would be a zero nothing could tell from a
+    // reading.
+    bool Plant::running(uint8_t i) const {
+        if (i >= PROGRAM_COUNT) return false;
+        if (_slot[i].health != Health::HEALTHY) return false;
+        if (!_slot[i].enabled) return false;
+        if (!control_allowed()) return false;
+        return _state == nullptr || *_state == Scheduler::RunState::RUN;
     }
 
 }}}  // namespace Botanik::Plc::Runtime

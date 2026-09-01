@@ -14,6 +14,7 @@
 namespace Botanik { namespace Scheduler { struct SchedulerContext;  } }
 namespace Botanik { namespace Tasks     {  class Registry;          } }
 namespace Botanik { namespace Vars      {  class Bank;              } }
+namespace Botanik { namespace Plc { namespace Runtime { class Plant; } } }
 
 
 namespace Botanik { namespace Network   {  class NetworkHandler;    } }
@@ -57,6 +58,11 @@ namespace Botanik {
          *  attribution the beat's CPU figure lacks, and what `tasks` reports.
          *  Const, because the registry is frozen once the loop starts. */
         Tasks::Registry*               tasks     = nullptr;
+
+        /** @brief The ST plant: the scan roster, and the operator's gate on
+         *  each program. There is no Plc::Program behind an ST program, so
+         *  what lists them asks here rather than walking the registry. */
+        Plc::Runtime::Plant*           plant     = nullptr;
 
         /** @brief The variables - THE object to get, set and override anything
          *  the firmware exposes. Non-const: `set` and `override` write through

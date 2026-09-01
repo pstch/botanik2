@@ -350,9 +350,21 @@ def emit_plant_cpp(site, prog):
           '        static_cast<Plant*>(self)->scan(IDX_##INST, t.now_ms);                 \\',
           '    }',
           'PLANT_PROGRAM_LIST(X)', '#undef X', '',
+          '/* What each program DRIVES: its plain VAR_EXTERNAL rows, the ones it',
+          ' * is the author of. `VAR_EXTERNAL CONSTANT` is a read and is not here.',
+          ' * Taking a program out of the scan drops exactly these to their',
+          ' * declared safe state, so the list has to be the ST\'s own. */']
+    for e in prog:
+        wr = [n for n, _t, ro in var_externals(e['path']) if not ro]
+        L.append('static const char* const _writes_%s[] = {%s};'
+                 % (e['instance'].upper(),
+                    ''.join(' "%s",' % n for n in wr) or ' 0'))
+    L += ['',
           'const Program programs[] = {',
           '#define X(name, POU, INST, PERIOD)                                             \\',
-          '    { #name, PERIOD, &_init_##INST, &_run_##INST, &_task_##INST },',
+          '    { #name, PERIOD, &_init_##INST, &_run_##INST, &_task_##INST,               \\',
+          '      _writes_##INST,                                                          \\',
+          '      (uint8_t)(sizeof _writes_##INST / sizeof _writes_##INST[0]) },',
           '    PLANT_PROGRAM_LIST(X)', '#undef X', '};', '',
           'const uint8_t PROGRAM_COUNT =',
           '    (uint8_t)(sizeof(programs) / sizeof(programs[0]));', '',

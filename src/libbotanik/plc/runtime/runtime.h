@@ -32,7 +32,14 @@ namespace Botanik { namespace Plc { namespace Runtime {
         /** @brief Per program, in `programs[]` order. */
         struct Slot {
             Vars::VarRef  health_row;
-            Health   health = Health::HEALTHY;
+            Health        health  = Health::HEALTHY;
+            /** @brief The OPERATOR's gate, beside the system's. Not retained:
+             *  a program left out of the scan by a maintenance session must
+             *  not come back silently disabled after a power cut. */
+            bool          enabled = true;
+            /** @brief Whether the body ran last beat, so the drop to safe
+             *  happens on the EDGE rather than every beat of an outage. */
+            bool          ran     = false;
         };
 
         Vars::Bank&  _io;
@@ -44,6 +51,8 @@ namespace Botanik { namespace Plc { namespace Runtime {
          *  rig, which then runs: a test that constructs a Plant and nothing
          *  else is asking for the laws, not for the unit's life. */
         const Scheduler::RunState* _state = nullptr;
+        /** @brief sys_control: the operator's standing choice, for all of them. */
+        Vars::VarRef          _control_ref;
 
     public:
         Plant(const SetupContext& ctx, Vars::Bank& io)
@@ -68,6 +77,32 @@ namespace Botanik { namespace Plc { namespace Runtime {
         void scan(uint64_t now_ms);
 
         Health health(uint8_t i) const;
+
+    private:
+        /** @brief Drop what @p i drives to its declared safe state.
+         *  @return how many rows were dropped. */
+        uint16_t _safe_outputs(uint8_t i);
+
+    public:
+
+        /** @name The scan roster, for the console
+         *  There is no Plc::Program behind an ST program, so what wants to
+         *  list them asks HERE rather than walking the registry.
+         *  @{ */
+        uint8_t     count() const;
+        const char* name(uint8_t i) const;
+        /** @brief Whether @p i is in the scan: the operator's gate alone, not
+         *  the system's. @see running() */
+        bool        enabled(uint8_t i) const;
+        /** @brief Put @p i in or out of the scan. Taking it out drops what it
+         *  drives to its safe state on the next beat. */
+        void        set_enabled(uint8_t i, bool on);
+        /** @brief Whether @p i would run right now: the operator's gate, the
+         *  system's hold and its own health, strictest first. */
+        bool        running(uint8_t i) const;
+        /** @brief sys_control, or true where the row is absent. */
+        bool        control_allowed() const;
+        /** @} */
 
     protected:
         void on_setup(uint64_t now_ms) override;
