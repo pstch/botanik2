@@ -50,8 +50,12 @@ END_VAR
   (* Three rungs, each engaging at its own threshold and released a little
      under it, which keeps a demand sitting on an edge from stepping the
      relays. The same block the destratification ladder uses. *)
-  steps(IN := demand, LO := cli_fanLowDem, MED := cli_fanMedDem,
-        HI := cli_fanHighDem, HYST := cli_fanDemHyst);
+  steps.IN   := demand;
+  steps.LO   := cli_fanLowDem;
+  steps.MED  := cli_fanMedDem;
+  steps.HI   := cli_fanHighDem;
+  steps.HYST := cli_fanDemHyst;
+  steps();
 
   cli_destrat1_speed1 := steps.Q = 1;
   cli_destrat2_speed1 := steps.Q = 1;

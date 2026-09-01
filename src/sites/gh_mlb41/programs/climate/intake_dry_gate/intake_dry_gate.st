@@ -35,8 +35,10 @@ END_VAR
           - DEW_POINT(T_DEGC := cli_temp_ext, RH := cli_rh_ext);
     (* Opens AT its margin and closes a band under it, so two converging dew
        points hold the gate where it is instead of flipping it every beat. *)
-    gate(IN := diff, RISE := cli_ventDryMgn_degC,
-         FALL := cli_ventDryMgn_degC - cli_ventHyst_degC);
+    gate.IN   := diff;
+    gate.RISE := cli_ventDryMgn_degC;
+    gate.FALL := cli_ventDryMgn_degC - cli_ventHyst_degC;
+    gate();
     cli_intakeDryOk := gate.Q;
   ELSE
     (* Shut, and said: opening on a guess would mean drawing in air that may be

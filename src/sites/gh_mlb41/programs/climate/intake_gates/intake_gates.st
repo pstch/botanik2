@@ -48,22 +48,25 @@ END_VAR
        difference sitting on the margin - which is what two converging
        temperatures do - holds the gate where it is instead of flipping it
        every beat. *)
-    cool_gate(IN   := cli_temp_in - cli_temp_cs,
-              RISE := cli_ventTempMgn_degC,
-              FALL := cli_ventTempMgn_degC - cli_ventHyst_degC);
+    cool_gate.IN   := cli_temp_in - cli_temp_cs;
+    cool_gate.RISE := cli_ventTempMgn_degC;
+    cool_gate.FALL := cli_ventTempMgn_degC - cli_ventHyst_degC;
+    cool_gate();
     cli_intakeCoolOk := cool_gate.Q;
 
     (* The mirror, and the only place the negative half of the ladder does
        anything: cold enough to be asking for heat, and ground warm enough to
        be worth pulling it out of. Both halves are banded - the demand is a PID
        output and it crosses a rung as slowly as it likes. *)
-    ground_band(IN   := -cli_coolDem,
-                RISE := -cli_groundHeatDem,
-                FALL := -cli_groundHeatDem + cli_groundDemHyst);
+    ground_band.IN   := -cli_coolDem;
+    ground_band.RISE := -cli_groundHeatDem;
+    ground_band.FALL := -cli_groundHeatDem + cli_groundDemHyst;
+    ground_band();
     asking := ground_band.Q;
-    ground_gate(IN   := cli_temp_cs - cli_temp_in,
-                RISE := cli_ventTempMgn_degC,
-                FALL := cli_ventTempMgn_degC - cli_ventHyst_degC);
+    ground_gate.IN   := cli_temp_cs - cli_temp_in;
+    ground_gate.RISE := cli_ventTempMgn_degC;
+    ground_gate.FALL := cli_ventTempMgn_degC - cli_ventHyst_degC;
+    ground_gate();
     cli_groundHeatOk := asking AND ground_gate.Q;
   END_IF;
 END_PROGRAM

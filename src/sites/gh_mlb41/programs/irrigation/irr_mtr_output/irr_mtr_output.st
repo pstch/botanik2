@@ -40,8 +40,13 @@ END_VAR
      the loop is out, and averaging that is the same number over and over. The
      filter KEEPS its state and its CLOCK, so a loop that comes back rejoins
      where it left rather than snapping. @see EWMA.OK_IN *)
-  flow_avg(X := irr_out_Lpm, OK_IN := measured, NOW := sys_now_ms,
-           TAU_S := UINT_TO_REAL(irr_out_avg_ms) / 1000.0, LO := 0.0, HI := 0.0);
+  flow_avg.X     := irr_out_Lpm;
+  flow_avg.OK_IN := measured;
+  flow_avg.NOW   := sys_now_ms;
+  flow_avg.TAU_S := UINT_TO_REAL(irr_out_avg_ms) / 1000.0;
+  flow_avg.LO    := 0.0;
+  flow_avg.HI    := 0.0;
+  flow_avg();
   lpm := flow_avg.Y;
 
   IF measured THEN
@@ -67,11 +72,12 @@ END_VAR
      invented water - and it is invented into the figure the drain verdict and
      the leak alarm are made against. The total STANDS, and says it is not
      current. *)
-  meter(RATE_PER_S := lpm / 60.0,
-        CUTOFF     := irr_flowCutoff_Lpm / 60.0,
-        HOLD       := NOT measured,
-        SEED       := base_L,
-        NOW        := sys_now_ms);
+  meter.RATE_PER_S := lpm / 60.0;
+  meter.CUTOFF     := irr_flowCutoff_Lpm / 60.0;
+  meter.HOLD       := NOT measured;
+  meter.SEED       := base_L;
+  meter.NOW        := sys_now_ms;
+  meter();
   irr_outTotal_L := meter.TOTAL;
   (* The cycle reads both: a totaliser DIFFERENCE cannot take a substituted
      constant at either end, and the drain verdict declines to judge on a

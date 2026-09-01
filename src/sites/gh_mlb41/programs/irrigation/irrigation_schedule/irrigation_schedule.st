@@ -134,30 +134,54 @@ END_VAR
   split_lim := LIMIT(0.0, irr_volFreqSplit, 1.0);
   stretch   := POW(IN1 := irr_mod, IN2 := 1.0 - split_lim);
 
-  t1(DAYS := irr_days_tray1, LAST := irr_last_tray1,
-     FORCE_OFF := irr_forceOff_tray1, DAY := sys_today,
-     STRETCH := stretch);
-  t2(DAYS := irr_days_tray2, LAST := irr_last_tray2,
-     FORCE_OFF := irr_forceOff_tray2, DAY := sys_today,
-     STRETCH := stretch);
-  t3(DAYS := irr_days_tray3, LAST := irr_last_tray3,
-     FORCE_OFF := irr_forceOff_tray3, DAY := sys_today,
-     STRETCH := stretch);
-  t4(DAYS := irr_days_tray4, LAST := irr_last_tray4,
-     FORCE_OFF := irr_forceOff_tray4, DAY := sys_today,
-     STRETCH := stretch);
-  t5(DAYS := irr_days_tray5, LAST := irr_last_tray5,
-     FORCE_OFF := irr_forceOff_tray5, DAY := sys_today,
-     STRETCH := stretch);
-  t6(DAYS := irr_days_tray6, LAST := irr_last_tray6,
-     FORCE_OFF := irr_forceOff_tray6, DAY := sys_today,
-     STRETCH := stretch);
-  t7(DAYS := irr_days_tray7, LAST := irr_last_tray7,
-     FORCE_OFF := irr_forceOff_tray7, DAY := sys_today,
-     STRETCH := stretch);
-  t8(DAYS := irr_days_tray8, LAST := irr_last_tray8,
-     FORCE_OFF := irr_forceOff_tray8, DAY := sys_today,
-     STRETCH := stretch);
+  t1.DAYS      := irr_days_tray1;
+  t1.LAST      := irr_last_tray1;
+  t1.FORCE_OFF := irr_forceOff_tray1;
+  t1.DAY       := sys_today;
+  t1.STRETCH   := stretch;
+  t1();
+  t2.DAYS      := irr_days_tray2;
+  t2.LAST      := irr_last_tray2;
+  t2.FORCE_OFF := irr_forceOff_tray2;
+  t2.DAY       := sys_today;
+  t2.STRETCH   := stretch;
+  t2();
+  t3.DAYS      := irr_days_tray3;
+  t3.LAST      := irr_last_tray3;
+  t3.FORCE_OFF := irr_forceOff_tray3;
+  t3.DAY       := sys_today;
+  t3.STRETCH   := stretch;
+  t3();
+  t4.DAYS      := irr_days_tray4;
+  t4.LAST      := irr_last_tray4;
+  t4.FORCE_OFF := irr_forceOff_tray4;
+  t4.DAY       := sys_today;
+  t4.STRETCH   := stretch;
+  t4();
+  t5.DAYS      := irr_days_tray5;
+  t5.LAST      := irr_last_tray5;
+  t5.FORCE_OFF := irr_forceOff_tray5;
+  t5.DAY       := sys_today;
+  t5.STRETCH   := stretch;
+  t5();
+  t6.DAYS      := irr_days_tray6;
+  t6.LAST      := irr_last_tray6;
+  t6.FORCE_OFF := irr_forceOff_tray6;
+  t6.DAY       := sys_today;
+  t6.STRETCH   := stretch;
+  t6();
+  t7.DAYS      := irr_days_tray7;
+  t7.LAST      := irr_last_tray7;
+  t7.FORCE_OFF := irr_forceOff_tray7;
+  t7.DAY       := sys_today;
+  t7.STRETCH   := stretch;
+  t7();
+  t8.DAYS      := irr_days_tray8;
+  t8.LAST      := irr_last_tray8;
+  t8.FORCE_OFF := irr_forceOff_tray8;
+  t8.DAY       := sys_today;
+  t8.STRETCH   := stretch;
+  t8();
 
   (* A skip is SPENT and the tray stamped as if it had been watered, so it goes
      to the back of the queue. Both are EDITS: the rows are retained parameters

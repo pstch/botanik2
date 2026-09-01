@@ -52,7 +52,9 @@ END_VAR
      nobody has YET is bring-up, and feeding that into the overrun cost five
      minutes of locked-out skirt after every restart. Blind is a live interlock
      instead, letting go the moment the margin is believable. *)
-  lockout_for(IN := alarm_rot, PT := SEC_MS(cli_rotRelease_sec),
-              NOW := sys_now_ms);
+  lockout_for.IN  := alarm_rot;
+  lockout_for.PT  := SEC_MS(cli_rotRelease_sec);
+  lockout_for.NOW := sys_now_ms;
+  lockout_for();
   cli_rotLockout := lockout_for.Q OR NOT cli_dpMargin_degC_qlt;
 END_PROGRAM

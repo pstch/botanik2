@@ -74,17 +74,18 @@ END_VAR
      not driving anything left the fabric out. Presetting says that, where
      UNKNOWN would send it on a full datum stroke to learn what the wiring
      already guarantees. *)
-  fabric(TARGET       := want,
-         OPEN_MS      := stroke,
-         CLOSE_MS     := stroke,
-         SEAT_MS      := 0,
-         MIN_RUN_MS   := 250,
-         REVERSE_MS   := 0,
-         DB           := 0.02,
-         REDATUM      := 3.0,
-         HOLD         := FALSE,
-         PRESET_KNOWN := TRUE,
-         PRESET_POS   := 1.0,
-         NOW          := sys_now_ms);
+  fabric.TARGET       := want;
+  fabric.OPEN_MS      := stroke;
+  fabric.CLOSE_MS     := stroke;
+  fabric.SEAT_MS      := 0;
+  fabric.MIN_RUN_MS   := 250;
+  fabric.REVERSE_MS   := 0;
+  fabric.DB           := 0.02;
+  fabric.REDATUM      := 3.0;
+  fabric.HOLD         := FALSE;
+  fabric.PRESET_KNOWN := TRUE;
+  fabric.PRESET_POS   := 1.0;
+  fabric.NOW          := sys_now_ms;
+  fabric();
   cli_screenMoving := fabric.MOVING;
 END_PROGRAM

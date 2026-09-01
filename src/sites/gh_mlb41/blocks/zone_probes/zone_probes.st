@@ -89,10 +89,20 @@ END_VAR
      every dew-point margin in the plant read zero. *)
   h_raw := h_vote.Y * 0.01;
 
-  t_pub(X := t_vote.Y, OK_IN := t_vote.USED > 0, TAU_S := TAU_S, NOW := NOW,
-        LO := -100.0, HI := 200.0);
-  h_pub(X := h_raw,    OK_IN := h_vote.USED > 0, TAU_S := TAU_S, NOW := NOW,
-        LO := 0.0,    HI := 1.0);
+  t_pub.X     := t_vote.Y;
+  t_pub.OK_IN := t_vote.USED > 0;
+  t_pub.TAU_S := TAU_S;
+  t_pub.NOW   := NOW;
+  t_pub.LO    := -100.0;
+  t_pub.HI    := 200.0;
+  t_pub();
+  h_pub.X     := h_raw;
+  h_pub.OK_IN := h_vote.USED > 0;
+  h_pub.TAU_S := TAU_S;
+  h_pub.NOW   := NOW;
+  h_pub.LO    := 0.0;
+  h_pub.HI    := 1.0;
+  h_pub();
 
   TEMP    := t_pub.Y;
   RH      := h_pub.Y;

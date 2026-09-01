@@ -50,14 +50,34 @@ VAR_TEMP
 END_VAR
   (* 0.5 V is the same publish deadband the AC supplies use: it is about the
      METER's last digit and not about the plant. *)
-  ps1(V := pwr_dc1_V,    V_OK := pwr_dc1_V_qlt,    LO := pwr_dc1Lo_V,
-      AVG_MS := pwr_dc1_avg_ms,    BAND := 0.5, NOW := sys_now_ms);
-  ps2(V := pwr_dc2_V,    V_OK := pwr_dc2_V_qlt,    LO := pwr_dc2Lo_V,
-      AVG_MS := pwr_dc2_avg_ms,    BAND := 0.5, NOW := sys_now_ms);
-  ups(V := pwr_upsBat_V, V_OK := pwr_upsBat_V_qlt, LO := pwr_upsBatLo_V,
-      AVG_MS := pwr_upsBat_avg_ms, BAND := 0.5, NOW := sys_now_ms);
-  gen(V := pwr_genBat_V, V_OK := pwr_genBat_V_qlt, LO := pwr_genBatLo_V,
-      AVG_MS := pwr_genBat_avg_ms, BAND := 0.5, NOW := sys_now_ms);
+  ps1.V      := pwr_dc1_V;
+  ps1.V_OK   := pwr_dc1_V_qlt;
+  ps1.LO     := pwr_dc1Lo_V;
+  ps1.AVG_MS := pwr_dc1_avg_ms;
+  ps1.BAND   := 0.5;
+  ps1.NOW    := sys_now_ms;
+  ps1();
+  ps2.V      := pwr_dc2_V;
+  ps2.V_OK   := pwr_dc2_V_qlt;
+  ps2.LO     := pwr_dc2Lo_V;
+  ps2.AVG_MS := pwr_dc2_avg_ms;
+  ps2.BAND   := 0.5;
+  ps2.NOW    := sys_now_ms;
+  ps2();
+  ups.V      := pwr_upsBat_V;
+  ups.V_OK   := pwr_upsBat_V_qlt;
+  ups.LO     := pwr_upsBatLo_V;
+  ups.AVG_MS := pwr_upsBat_avg_ms;
+  ups.BAND   := 0.5;
+  ups.NOW    := sys_now_ms;
+  ups();
+  gen.V      := pwr_genBat_V;
+  gen.V_OK   := pwr_genBat_V_qlt;
+  gen.LO     := pwr_genBatLo_V;
+  gen.AVG_MS := pwr_genBat_avg_ms;
+  gen.BAND   := 0.5;
+  gen.NOW    := sys_now_ms;
+  gen();
 
   sys_dc1_V        := ps1.Y;
   sys_dc1_V_qlt    := ps1.OK;

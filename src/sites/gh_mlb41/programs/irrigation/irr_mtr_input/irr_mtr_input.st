@@ -55,8 +55,11 @@ END_VAR
   last_cnt    := irr_inCount;
 
   irr_inTotal_L := total;
-  rate(QUANTITY := total, WINDOW_MS := UINT_TO_UDINT(irr_rateWin_ms),
-       PRESET := FALSE, NOW := sys_now_ms);
+  rate.QUANTITY  := total;
+  rate.WINDOW_MS := UINT_TO_UDINT(irr_rateWin_ms);
+  rate.PRESET    := FALSE;
+  rate.NOW       := sys_now_ms;
+  rate();
   flow           := 60.0 * rate.RATE;
   irr_inFlow_Lpm := flow;
 

@@ -36,12 +36,19 @@ VAR
   supply   : AC_SUPPLY;
   cranking : TON_MS;
 END_VAR
-  supply(V     := ats_V,  V_OK  := ats_V_qlt,
-         A     := ats_A,  A_OK  := ats_A_qlt,
-         W     := ats_W,  W_OK  := ats_W_qlt,
-         HZ    := ats_Hz, HZ_OK := ats_Hz_qlt,
-         LO_V  := pwr_localLo_V,  HI_V  := pwr_localHi_V,
-         LO_HZ := pwr_localLo_Hz, HI_HZ := pwr_localHi_Hz);
+  supply.V     := ats_V;
+  supply.V_OK  := ats_V_qlt;
+  supply.A     := ats_A;
+  supply.A_OK  := ats_A_qlt;
+  supply.W     := ats_W;
+  supply.W_OK  := ats_W_qlt;
+  supply.HZ    := ats_Hz;
+  supply.HZ_OK := ats_Hz_qlt;
+  supply.LO_V  := pwr_localLo_V;
+  supply.HI_V  := pwr_localHi_V;
+  supply.LO_HZ := pwr_localLo_Hz;
+  supply.HI_HZ := pwr_localHi_Hz;
+  supply();
 
   sys_local_V      := supply.OUT_V;
   sys_local_V_qlt  := supply.OUT_V_OK;
@@ -57,8 +64,9 @@ END_VAR
   (* The generator only owes an answer once the grid has gone. With the grid
      up, an unhealthy ATS output is a transfer-switch fault - alarm_ac_local
      above - and the set was never asked to start. *)
-  cranking(IN  := NOT sys_grid_ok AND NOT supply.ANSWERED,
-           PT  := SEC_MS(pwr_genStart_sec),
-           NOW := sys_now_ms);
+  cranking.IN  := NOT sys_grid_ok AND NOT supply.ANSWERED;
+  cranking.PT  := SEC_MS(pwr_genStart_sec);
+  cranking.NOW := sys_now_ms;
+  cranking();
   alarm_gen := cranking.Q;
 END_PROGRAM

@@ -198,6 +198,33 @@ because matiec refuses a RESOURCE without a periodic task; nothing reads it.
 
 ## Decisions already taken - do not relitigate
 
+### Calling a block: attributes, unless it fits on one line
+
+A block call that would wrap is written as assignments to its inputs, then a
+bare call:
+
+```
+  pulse.DUTY_IN   := want;
+  pulse.PERIOD_MS := SEC_MS(cli_skirtPeriod_sec);
+  pulse.MIN_ON_MS := SEC_MS(cli_skirtMinOn_sec);
+  pulse.RESET     := cli_rotLockout;
+  pulse.NOW       := sys_now_ms;
+  pulse();
+```
+
+A call that fits on ONE line keeps the argument form, which is shorter and
+reads as one thing:
+
+```
+  quorum(IN := worst < 3, PT := 5000, NOW := NOW);
+```
+
+The two are the same to matiec: `__SET_VAR` is a token paste, so
+`data__->PULSE. DUTY_IN` and `data__-> PULSE.DUTY_IN` are one C statement
+either way. The generated C is byte-identical modulo where that dot sits,
+which is how the change was verified.
+
+
 ### Licensing: none of matiec's own code reaches the firmware
 
 matiec always loads `<-I dir>/ieclib.txt`, and `-I` is ours to point. Ours is

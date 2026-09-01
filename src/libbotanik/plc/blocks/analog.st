@@ -121,8 +121,13 @@ END_VAR
      to climb out, which is a supply alarm on every boot.
      CALLED either way, though: the filter reads the clock. @see EWMA.OK_IN
      No band: this rail's LO is what HEALTHY is judged against, not a clamp. *)
-  avg(X := V, OK_IN := V_OK, TAU_S := UINT_TO_REAL(AVG_MS) / 1000.0,
-      NOW := NOW, LO := 0.0, HI := 0.0);
+  avg.X     := V;
+  avg.OK_IN := V_OK;
+  avg.TAU_S := UINT_TO_REAL(AVG_MS) / 1000.0;
+  avg.NOW   := NOW;
+  avg.LO    := 0.0;
+  avg.HI    := 0.0;
+  avg();
   IF V_OK THEN
     db(V := avg.Y, BAND := BAND);
     seen := TRUE;

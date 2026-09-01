@@ -46,17 +46,18 @@ END_VAR
   (* Reverse-acting: the demand RISES as the reading does, so above the target
      it is positive (cooling) and below it negative - the intractors drawing
      warm floor air, and lower still the thermal screen. *)
-  loop(SP      := cli_targetTemp_degC,
-       PV      := cli_temp_in,
-       KP      := cli_coolKp,
-       KI      := ki,
-       KD      := cli_coolKp * cli_coolTd_sec,
-       OUT_MIN := -1.0,
-       OUT_MAX := 1.0,
-       D_TAU_S := 0.0,
-       REVERSE := TRUE,
-       RESET   := NOT measured,
-       NOW     := sys_now_ms);
+  loop.SP      := cli_targetTemp_degC;
+  loop.PV      := cli_temp_in;
+  loop.KP      := cli_coolKp;
+  loop.KI      := ki;
+  loop.KD      := cli_coolKp * cli_coolTd_sec;
+  loop.OUT_MIN := -1.0;
+  loop.OUT_MAX := 1.0;
+  loop.D_TAU_S := 0.0;
+  loop.REVERSE := TRUE;
+  loop.RESET   := NOT measured;
+  loop.NOW     := sys_now_ms;
+  loop();
 
   cli_coolDem     := loop.Y;
   cli_coolDem_qlt := measured;

@@ -40,8 +40,10 @@ END_VAR
      the last drop. Being BLIND is not a shower - it is a live interlock that
      lets go the moment the station answers, where feeding it the overrun cost
      a quarter of an hour of ventilation after every restart. *)
-  rain_for(IN := cli_rain_mmph > 0.0, PT := SEC_MS(cli_rainLockout_sec),
-           NOW := sys_now_ms);
+  rain_for.IN  := cli_rain_mmph > 0.0;
+  rain_for.PT  := SEC_MS(cli_rainLockout_sec);
+  rain_for.NOW := sys_now_ms;
+  rain_for();
   cli_rainLockout := rain_for.Q OR blind;
 
   (* The GUST, not the average: what tears a window off its ram is the peak. *)

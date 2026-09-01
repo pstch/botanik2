@@ -52,24 +52,56 @@ END_VAR
 
   (* Three of the four take the worse reading, because three of the four are
      read by an interlock. Irradiance is not. *)
-  wind_vote(A := cli_wind1_mps,     A_OK := cli_wind1_mps_qlt,
-            B := cli_wind2_mps,     B_OK := cli_wind2_mps_qlt);
-  gust_vote(A := cli_windGust1_mps, A_OK := cli_windGust1_mps_qlt,
-            B := cli_windGust2_mps, B_OK := cli_windGust2_mps_qlt);
-  rain_vote(A := cli_rain1_mmph,    A_OK := cli_rain1_mmph_qlt,
-            B := cli_rain2_mmph,    B_OK := cli_rain2_mmph_qlt);
-  sun_vote(A := cli_irrad1_Wpm2,   A_OK := cli_irrad1_Wpm2_qlt,
-            B := cli_irrad2_Wpm2,   B_OK := cli_irrad2_Wpm2_qlt);
+  wind_vote.A    := cli_wind1_mps;
+  wind_vote.A_OK := cli_wind1_mps_qlt;
+  wind_vote.B    := cli_wind2_mps;
+  wind_vote.B_OK := cli_wind2_mps_qlt;
+  wind_vote();
+  gust_vote.A    := cli_windGust1_mps;
+  gust_vote.A_OK := cli_windGust1_mps_qlt;
+  gust_vote.B    := cli_windGust2_mps;
+  gust_vote.B_OK := cli_windGust2_mps_qlt;
+  gust_vote();
+  rain_vote.A    := cli_rain1_mmph;
+  rain_vote.A_OK := cli_rain1_mmph_qlt;
+  rain_vote.B    := cli_rain2_mmph;
+  rain_vote.B_OK := cli_rain2_mmph_qlt;
+  rain_vote();
+  sun_vote.A    := cli_irrad1_Wpm2;
+  sun_vote.A_OK := cli_irrad1_Wpm2_qlt;
+  sun_vote.B    := cli_irrad2_Wpm2;
+  sun_vote.B_OK := cli_irrad2_Wpm2_qlt;
+  sun_vote();
 
   (* The rails are the rows' own declared bands. *)
-  wind_pub(X := wind_vote.Y, OK_IN := wind_vote.USED > 0, TAU_S := tau,
-           NOW := sys_now_ms, LO := 0.0, HI := 80.0);
-  gust_pub(X := gust_vote.Y, OK_IN := gust_vote.USED > 0, TAU_S := tau,
-           NOW := sys_now_ms, LO := 0.0, HI := 80.0);
-  rain_pub(X := rain_vote.Y, OK_IN := rain_vote.USED > 0, TAU_S := tau,
-           NOW := sys_now_ms, LO := 0.0, HI := 200.0);
-  sun_pub(X := sun_vote.Y,  OK_IN := sun_vote.USED > 0,  TAU_S := tau,
-           NOW := sys_now_ms, LO := 0.0, HI := 1500.0);
+  wind_pub.X     := wind_vote.Y;
+  wind_pub.OK_IN := wind_vote.USED > 0;
+  wind_pub.TAU_S := tau;
+  wind_pub.NOW   := sys_now_ms;
+  wind_pub.LO    := 0.0;
+  wind_pub.HI    := 80.0;
+  wind_pub();
+  gust_pub.X     := gust_vote.Y;
+  gust_pub.OK_IN := gust_vote.USED > 0;
+  gust_pub.TAU_S := tau;
+  gust_pub.NOW   := sys_now_ms;
+  gust_pub.LO    := 0.0;
+  gust_pub.HI    := 80.0;
+  gust_pub();
+  rain_pub.X     := rain_vote.Y;
+  rain_pub.OK_IN := rain_vote.USED > 0;
+  rain_pub.TAU_S := tau;
+  rain_pub.NOW   := sys_now_ms;
+  rain_pub.LO    := 0.0;
+  rain_pub.HI    := 200.0;
+  rain_pub();
+  sun_pub.X     := sun_vote.Y;
+  sun_pub.OK_IN := sun_vote.USED > 0;
+  sun_pub.TAU_S := tau;
+  sun_pub.NOW   := sys_now_ms;
+  sun_pub.LO    := 0.0;
+  sun_pub.HI    := 1500.0;
+  sun_pub();
 
   cli_wind_mps     := wind_pub.Y;
   cli_windGust_mps := gust_pub.Y;

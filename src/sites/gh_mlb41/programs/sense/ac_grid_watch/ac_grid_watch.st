@@ -34,12 +34,19 @@ END_VAR
   (* The block mirrors the four readings, judges them against the in-spec band,
      and answers both the verdict and the alarm. Whether the meter ANSWERED is
      its own output, and nothing here asks. *)
-  supply(V     := grid_LN_V,    V_OK  := grid_LN_V_qlt,
-         A     := grid_total_A, A_OK  := grid_total_A_qlt,
-         W     := grid_total_W, W_OK  := grid_total_W_qlt,
-         HZ    := grid_Hz,      HZ_OK := grid_Hz_qlt,
-         LO_V  := pwr_gridLo_V,  HI_V  := pwr_gridHi_V,
-         LO_HZ := pwr_gridLo_Hz, HI_HZ := pwr_gridHi_Hz);
+  supply.V     := grid_LN_V;
+  supply.V_OK  := grid_LN_V_qlt;
+  supply.A     := grid_total_A;
+  supply.A_OK  := grid_total_A_qlt;
+  supply.W     := grid_total_W;
+  supply.W_OK  := grid_total_W_qlt;
+  supply.HZ    := grid_Hz;
+  supply.HZ_OK := grid_Hz_qlt;
+  supply.LO_V  := pwr_gridLo_V;
+  supply.HI_V  := pwr_gridHi_V;
+  supply.LO_HZ := pwr_gridLo_Hz;
+  supply.HI_HZ := pwr_gridHi_Hz;
+  supply();
 
   sys_grid_V      := supply.OUT_V;
   sys_grid_V_qlt  := supply.OUT_V_OK;

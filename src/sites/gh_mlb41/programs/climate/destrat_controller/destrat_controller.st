@@ -20,9 +20,12 @@ VAR
      scans because the instance does, and it costs no row. *)
   bands : STAIRCASE3;
 END_VAR
-  bands(IN   := cli_dTStrat_degC,   LO   := cli_dTStratLow_degC,
-        MED  := cli_dTStratMed_degC, HI  := cli_dTStratHigh_degC,
-        HYST := cli_dTStratHyst_degC);
+  bands.IN   := cli_dTStrat_degC;
+  bands.LO   := cli_dTStratLow_degC;
+  bands.MED  := cli_dTStratMed_degC;
+  bands.HI   := cli_dTStratHigh_degC;
+  bands.HYST := cli_dTStratHyst_degC;
+  bands();
 
   (* The demand is the FANS' OWN rung for that speed. Any other number would
      be translated twice, and the two ladders would drift apart the first time

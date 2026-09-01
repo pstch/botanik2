@@ -54,11 +54,12 @@ END_VAR
      and the pulse phase starts again from shut. *)
   IF cli_rotLockout THEN want := 0.0; END_IF;
 
-  pulse(DUTY_IN   := want,
-        PERIOD_MS := SEC_MS(cli_skirtPeriod_sec),
-        MIN_ON_MS := SEC_MS(cli_skirtMinOn_sec),
-        RESET     := cli_rotLockout,
-        NOW       := sys_now_ms);
+  pulse.DUTY_IN   := want;
+  pulse.PERIOD_MS := SEC_MS(cli_skirtPeriod_sec);
+  pulse.MIN_ON_MS := SEC_MS(cli_skirtMinOn_sec);
+  pulse.RESET     := cli_rotLockout;
+  pulse.NOW       := sys_now_ms;
+  pulse();
 
   IF cli_rotLockout THEN
     cli_skirtValve := FALSE;

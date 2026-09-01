@@ -99,57 +99,61 @@ END_VAR
   IF owner = 3 THEN t3 := aim; END_IF;
   IF owner = 4 THEN t4 := aim; END_IF;
 
-  a1(TARGET       := t1,
-     OPEN_MS      := travel,
-     CLOSE_MS     := travel,
-     SEAT_MS      := seat,
-     MIN_RUN_MS   := 250,
-     REVERSE_MS   := 500,
-     DB           := 0.02,
-     REDATUM      := 3.0,
-     HOLD         := owner <> 1,
-     PRESET_KNOWN := FALSE,
-     PRESET_POS   := 0.0,
-     NOW          := sys_now_ms);
+  a1.TARGET       := t1;
+  a1.OPEN_MS      := travel;
+  a1.CLOSE_MS     := travel;
+  a1.SEAT_MS      := seat;
+  a1.MIN_RUN_MS   := 250;
+  a1.REVERSE_MS   := 500;
+  a1.DB           := 0.02;
+  a1.REDATUM      := 3.0;
+  a1.HOLD         := owner <> 1;
+  a1.PRESET_KNOWN := FALSE;
+  a1.PRESET_POS   := 0.0;
+  a1.NOW          := sys_now_ms;
+  a1();
 
-  a2(TARGET       := t2,
-     OPEN_MS      := travel,
-     CLOSE_MS     := travel,
-     SEAT_MS      := seat,
-     MIN_RUN_MS   := 250,
-     REVERSE_MS   := 500,
-     DB           := 0.02,
-     REDATUM      := 3.0,
-     HOLD         := owner <> 2,
-     PRESET_KNOWN := FALSE,
-     PRESET_POS   := 0.0,
-     NOW          := sys_now_ms);
+  a2.TARGET       := t2;
+  a2.OPEN_MS      := travel;
+  a2.CLOSE_MS     := travel;
+  a2.SEAT_MS      := seat;
+  a2.MIN_RUN_MS   := 250;
+  a2.REVERSE_MS   := 500;
+  a2.DB           := 0.02;
+  a2.REDATUM      := 3.0;
+  a2.HOLD         := owner <> 2;
+  a2.PRESET_KNOWN := FALSE;
+  a2.PRESET_POS   := 0.0;
+  a2.NOW          := sys_now_ms;
+  a2();
 
-  a3(TARGET       := t3,
-     OPEN_MS      := travel,
-     CLOSE_MS     := travel,
-     SEAT_MS      := seat,
-     MIN_RUN_MS   := 250,
-     REVERSE_MS   := 500,
-     DB           := 0.02,
-     REDATUM      := 3.0,
-     HOLD         := owner <> 3,
-     PRESET_KNOWN := FALSE,
-     PRESET_POS   := 0.0,
-     NOW          := sys_now_ms);
+  a3.TARGET       := t3;
+  a3.OPEN_MS      := travel;
+  a3.CLOSE_MS     := travel;
+  a3.SEAT_MS      := seat;
+  a3.MIN_RUN_MS   := 250;
+  a3.REVERSE_MS   := 500;
+  a3.DB           := 0.02;
+  a3.REDATUM      := 3.0;
+  a3.HOLD         := owner <> 3;
+  a3.PRESET_KNOWN := FALSE;
+  a3.PRESET_POS   := 0.0;
+  a3.NOW          := sys_now_ms;
+  a3();
 
-  a4(TARGET       := t4,
-     OPEN_MS      := travel,
-     CLOSE_MS     := travel,
-     SEAT_MS      := seat,
-     MIN_RUN_MS   := 250,
-     REVERSE_MS   := 500,
-     DB           := 0.02,
-     REDATUM      := 3.0,
-     HOLD         := owner <> 4,
-     PRESET_KNOWN := FALSE,
-     PRESET_POS   := 0.0,
-     NOW          := sys_now_ms);
+  a4.TARGET       := t4;
+  a4.OPEN_MS      := travel;
+  a4.CLOSE_MS     := travel;
+  a4.SEAT_MS      := seat;
+  a4.MIN_RUN_MS   := 250;
+  a4.REVERSE_MS   := 500;
+  a4.DB           := 0.02;
+  a4.REDATUM      := 3.0;
+  a4.HOLD         := owner <> 4;
+  a4.PRESET_KNOWN := FALSE;
+  a4.PRESET_POS   := 0.0;
+  a4.NOW          := sys_now_ms;
+  a4();
 
   cli_window1_opn := a1.OPEN_CMD;
   cli_window1_clo := a1.CLOSE_CMD;
