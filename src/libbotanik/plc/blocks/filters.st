@@ -15,6 +15,7 @@ FUNCTION_BLOCK EWMA
 VAR_INPUT
   X     : REAL;
   TAU_S : REAL;
+  HOLD  : BOOL;    (* keep the clock, fold nothing: there is no sample *)
   NOW   : UDINT;   (* sys_now_ms: the scan clock, not an elapsed time *)
 END_VAR
 VAR_OUTPUT
@@ -28,7 +29,16 @@ VAR_TEMP
   dt_s  : REAL;
   alpha : REAL;
 END_VAR
-  IF NOT seeded THEN
+  (* HOLD rather than not being CALLED, and the difference is the whole reason
+     it is an input. This block reads the CLOCK, so a caller that skips it
+     while its input is out leaves `last` behind: the first sample after the
+     outage arrives with the whole outage as dt, alpha goes to nearly 1, and
+     the average SNAPS to the new reading instead of rejoining where it left.
+     Five minutes against a 30 s tau is alpha 0.91. EN would do the same thing
+     - matiec's guard returns before every statement, this one included. *)
+  IF HOLD THEN
+    last := NOW;
+  ELSIF NOT seeded THEN
     (* Starts AT its first reading rather than climbing to it from zero. The
        clock is adopted with it, so the first real interval is the second
        scan's and never the time since boot. *)

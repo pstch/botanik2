@@ -146,6 +146,38 @@ irrigation meters. Everything else is done (`TON_MS`, `PID`, `DEADBAND`,
 `DC_RAIL`, `ACTUATOR`), and every site block is (`WX_*`, `AC_*`,
 `VALVE_PULSE`, `ZONE_*`).
 
+### EN/ENO: it exists, it works, and it is a TRAP for a clocked block
+
+matiec gives every FUNCTION and FUNCTION_BLOCK an implicit `EN`/`ENO`. It is
+real, not decorative: `_init__` defaults `EN` to TRUE, and the generated body
+opens with
+
+```c
+if (!__GET_VAR(data__->EN)) { __SET_VAR(data__->,ENO,,FALSE); return; }
+```
+
+ST drives it with `blk(EN := cond, ...)` and reads `blk.ENO`. Verified against
+our own iec2c.
+
+**But the guard returns before EVERY statement, the clock bookkeeping
+included** - and our blocks read `sys_now_ms` and difference it themselves
+(see "The clock, not a delta"). So `EN := FALSE` on `EWMA`, `TOF_MS`, `PID` or
+`ACTUATOR` leaves `last` behind, and the next enabled scan charges the whole
+idle gap to the block. For an EWMA that is `alpha = dt/(TAU+dt)`: five minutes
+against a 30 s tau is 0.91, so the filter SNAPS to the first reading back
+instead of rejoining the average it left.
+
+That bug was REAL and shipped in three blocks - `ZONE_PUBLISH` (which predates
+this migration), `WX_PUBLISH` and `DC_RAIL` - each of which only called its
+filter while the input was believable, and each of whose comments claimed the
+opposite. A returning probe moved the house nine degrees in one beat. Pinned
+now by `zone: a probe that comes back rejoins the average, it does not snap
+to it`.
+
+**So: use `EN` freely on a stateless FUNCTION or a block with no clock. A block
+that reads `NOW` needs an explicit `HOLD` input** - keep the clock, decide
+nothing - which `EWMA` and `ACTUATOR` both have.
+
 **A block with no method but `step()`.** C++ blocks have `reset()`, `home()`,
 `preset()`, `stop()`; an ST FB has one call. Where a program used one, the
 block takes an INPUT instead: `PID.RESET`, `ACTUATOR.PRESET_KNOWN`, and

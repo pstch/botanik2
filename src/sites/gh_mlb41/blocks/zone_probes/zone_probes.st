@@ -78,6 +78,11 @@ VAR
   filt   : EWMA;
   seeded : BOOL := FALSE;
 END_VAR
+  (* CALLED every scan, folding only when a probe answered: the filter reads
+     the clock, and one that is skipped for the length of an outage snaps to
+     the first reading back rather than rejoining the average it left.
+     @see EWMA.HOLD *)
+  filt(X := RAW, TAU_S := TAU_S, HOLD := USED = 0, NOW := NOW);
   IF USED = 0 THEN
     (* Nothing believable left. The row keeps the last average this zone could
        make and says it is not current: a reader gets the temperature the
@@ -87,7 +92,6 @@ END_VAR
     IF NOT seeded THEN Y := LO; END_IF;
   ELSE
     seeded := TRUE;
-    filt(X := RAW, TAU_S := TAU_S, NOW := NOW);
     Y  := LIMIT(LO, filt.Y, HI);
     OK := TRUE;
   END_IF;

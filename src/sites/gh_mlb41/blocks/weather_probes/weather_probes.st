@@ -71,6 +71,10 @@ VAR
   filt   : EWMA;
   seeded : BOOL := FALSE;
 END_VAR
+  (* CALLED every scan, folding only when there is something to fold: the
+     filter reads the clock, and one that is skipped for an outage snaps to the
+     first reading back instead of rejoining. @see EWMA.HOLD *)
+  filt(X := V, TAU_S := TAU_S, HOLD := USED = 0, NOW := NOW);
   IF USED = 0 THEN
     OK := FALSE;
     (* Nothing has ever measured the sky: the row's own declared value is what
@@ -78,7 +82,6 @@ END_VAR
     IF seeded THEN Y := LIMIT(LO, filt.Y, HI); END_IF;
   ELSE
     seeded := TRUE;
-    filt(X := V, TAU_S := TAU_S, NOW := NOW);
     Y  := LIMIT(LO, filt.Y, HI);
     OK := TRUE;
   END_IF;

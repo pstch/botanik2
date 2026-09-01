@@ -848,6 +848,7 @@ static void EWMA_init__(EWMA_data__ *data__, BOOL retain) {
   __INIT_VAR(data__->ENO,__BOOL_LITERAL(TRUE),retain)
   __INIT_VAR(data__->X,0,retain)
   __INIT_VAR(data__->TAU_S,0,retain)
+  __INIT_VAR(data__->HOLD,__BOOL_LITERAL(FALSE),retain)
   __INIT_VAR(data__->NOW,0,retain)
   __INIT_VAR(data__->Y,0,retain)
   __INIT_VAR(data__->LAST,0,retain)
@@ -868,7 +869,9 @@ static void EWMA_body__(EWMA_data__ *data__) {
   __SET_VAR(data__->,DT_S,,0);
   __SET_VAR(data__->,ALPHA,,0);
 
-  if (!(__GET_VAR(data__->SEEDED,))) {
+  if (__GET_VAR(data__->HOLD,)) {
+    __SET_VAR(data__->,LAST,,__GET_VAR(data__->NOW,));
+  } else if (!(__GET_VAR(data__->SEEDED,))) {
     __SET_VAR(data__->,Y,,__GET_VAR(data__->X,));
     __SET_VAR(data__->,LAST,,__GET_VAR(data__->NOW,));
     __SET_VAR(data__->,SEEDED,,__BOOL_LITERAL(TRUE));
@@ -1067,14 +1070,15 @@ static void DC_RAIL_body__(DC_RAIL_data__ *data__) {
   // Initialise TEMP variables
 
   __SET_VAR(data__->,OK,,__GET_VAR(data__->V_OK,));
+  __SET_VAR(data__->AVG.,X,,__GET_VAR(data__->V,));
+  __SET_VAR(data__->AVG.,TAU_S,,(___UINT_TO_REAL(
+    (BOOL)__BOOL_LITERAL(TRUE),
+    NULL,
+    (UINT)__GET_VAR(data__->AVG_MS,)) / __REAL_LITERAL(1000.0)));
+  __SET_VAR(data__->AVG.,HOLD,,!(__GET_VAR(data__->V_OK,)));
+  __SET_VAR(data__->AVG.,NOW,,__GET_VAR(data__->NOW,));
+  EWMA_body__(&data__->AVG);
   if (__GET_VAR(data__->V_OK,)) {
-    __SET_VAR(data__->AVG.,X,,__GET_VAR(data__->V,));
-    __SET_VAR(data__->AVG.,TAU_S,,(___UINT_TO_REAL(
-      (BOOL)__BOOL_LITERAL(TRUE),
-      NULL,
-      (UINT)__GET_VAR(data__->AVG_MS,)) / __REAL_LITERAL(1000.0)));
-    __SET_VAR(data__->AVG.,NOW,,__GET_VAR(data__->NOW,));
-    EWMA_body__(&data__->AVG);
     __SET_VAR(data__->DB.,V,,__GET_VAR(data__->AVG.Y,));
     __SET_VAR(data__->DB.,BAND,,__GET_VAR(data__->BAND,));
     DEADBAND_body__(&data__->DB);
@@ -1873,6 +1877,11 @@ static void WX_PUBLISH_body__(WX_PUBLISH_data__ *data__) {
   }
   // Initialise TEMP variables
 
+  __SET_VAR(data__->FILT.,X,,__GET_VAR(data__->V,));
+  __SET_VAR(data__->FILT.,TAU_S,,__GET_VAR(data__->TAU_S,));
+  __SET_VAR(data__->FILT.,HOLD,,(__GET_VAR(data__->USED,) == __USINT_LITERAL(0)));
+  __SET_VAR(data__->FILT.,NOW,,__GET_VAR(data__->NOW,));
+  EWMA_body__(&data__->FILT);
   if ((__GET_VAR(data__->USED,) == __USINT_LITERAL(0))) {
     __SET_VAR(data__->,OK,,__BOOL_LITERAL(FALSE));
     if (__GET_VAR(data__->SEEDED,)) {
@@ -1885,10 +1894,6 @@ static void WX_PUBLISH_body__(WX_PUBLISH_data__ *data__) {
     };
   } else {
     __SET_VAR(data__->,SEEDED,,__BOOL_LITERAL(TRUE));
-    __SET_VAR(data__->FILT.,X,,__GET_VAR(data__->V,));
-    __SET_VAR(data__->FILT.,TAU_S,,__GET_VAR(data__->TAU_S,));
-    __SET_VAR(data__->FILT.,NOW,,__GET_VAR(data__->NOW,));
-    EWMA_body__(&data__->FILT);
     __SET_VAR(data__->,Y,,___LIMIT(
       (BOOL)__BOOL_LITERAL(TRUE),
       NULL,
@@ -2014,6 +2019,11 @@ static void ZONE_PUBLISH_body__(ZONE_PUBLISH_data__ *data__) {
   }
   // Initialise TEMP variables
 
+  __SET_VAR(data__->FILT.,X,,__GET_VAR(data__->RAW,));
+  __SET_VAR(data__->FILT.,TAU_S,,__GET_VAR(data__->TAU_S,));
+  __SET_VAR(data__->FILT.,HOLD,,(__GET_VAR(data__->USED,) == __USINT_LITERAL(0)));
+  __SET_VAR(data__->FILT.,NOW,,__GET_VAR(data__->NOW,));
+  EWMA_body__(&data__->FILT);
   if ((__GET_VAR(data__->USED,) == __USINT_LITERAL(0))) {
     __SET_VAR(data__->,OK,,__BOOL_LITERAL(FALSE));
     if (!(__GET_VAR(data__->SEEDED,))) {
@@ -2021,10 +2031,6 @@ static void ZONE_PUBLISH_body__(ZONE_PUBLISH_data__ *data__) {
     };
   } else {
     __SET_VAR(data__->,SEEDED,,__BOOL_LITERAL(TRUE));
-    __SET_VAR(data__->FILT.,X,,__GET_VAR(data__->RAW,));
-    __SET_VAR(data__->FILT.,TAU_S,,__GET_VAR(data__->TAU_S,));
-    __SET_VAR(data__->FILT.,NOW,,__GET_VAR(data__->NOW,));
-    EWMA_body__(&data__->FILT);
     __SET_VAR(data__->,Y,,___LIMIT(
       (BOOL)__BOOL_LITERAL(TRUE),
       NULL,

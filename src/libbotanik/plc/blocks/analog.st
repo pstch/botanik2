@@ -115,12 +115,14 @@ VAR
   seen : BOOL := FALSE;
 END_VAR
   OK := V_OK;
+  (* Only a MEASURED sample is folded in. The row reads its declared value
+     while the bus is still coming up, and folding THAT seeds the average at
+     zero: the rail then reads under its floor for as long as the filter takes
+     to climb out, which is a supply alarm on every boot.
+     CALLED either way, though: the filter reads the clock. @see EWMA.HOLD *)
+  avg(X := V, TAU_S := UINT_TO_REAL(AVG_MS) / 1000.0, HOLD := NOT V_OK,
+      NOW := NOW);
   IF V_OK THEN
-    (* Only a MEASURED sample is folded in. The row reads its declared value
-       while the bus is still coming up, and folding THAT seeds the average at
-       zero: the rail then reads under its floor for as long as the filter
-       takes to climb out, which is a supply alarm on every boot. *)
-    avg(X := V, TAU_S := UINT_TO_REAL(AVG_MS) / 1000.0, NOW := NOW);
     db(V := avg.Y, BAND := BAND);
     seen := TRUE;
   END_IF;

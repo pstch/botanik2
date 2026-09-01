@@ -97,6 +97,39 @@ TEST_CASE_FIXTURE(StRig, "zone: temperature survives losing every humidity probe
     (void)h_out;
 }
 
+TEST_CASE_FIXTURE(StRig, "zone: a probe that comes back rejoins the average, it does not snap to it") {
+    // The filter is fed the SCAN CLOCK, not an elapsed time, so a block that is
+    // only called while its input is believable stops updating its `last`. The
+    // first sample after an outage then arrives with the WHOLE outage as dt,
+    // alpha goes to nearly 1, and the average jumps to the new reading in one
+    // beat - which is the opposite of what every one of these blocks says it
+    // does. A dead probe coming back must not move the house four degrees.
+    Vars::RefIn<float> hi = live.bank.resolve_in<float>("cli_temp_hi");
+    const VarRef p[3] = { live.ref("cli_temp_hi1"), live.ref("cli_temp_hi2"),
+                          live.ref("cli_temp_hi3") };
+
+    uint64_t t = 0;
+    for (; t <= 60000; t += 100) {
+        for (uint8_t i = 0; i < 3; i++)
+            live.bank.var(p[i]).publish(from_f32(T_F32, 20.0f), t);
+        d.step(t);
+    }
+    REQUIRE(live.bank.get(hi) == doctest::Approx(20.0f).epsilon(0.02));
+
+    INFO("five minutes with no probe at all");
+    for (uint8_t i = 0; i < 3; i++) live.bank.var(p[i]).invalidate(Q_NO_DATA);
+    for (uint32_t k = 0; k < 3000; k++) { t += 100; d.step(t); }
+    CHECK(live.bank.get(hi) == doctest::Approx(20.0f).epsilon(0.02));
+
+    INFO("...and they come back reading ten degrees higher: ONE beat of that "
+         "is one beat's worth, not the whole outage's");
+    for (uint8_t i = 0; i < 3; i++)
+        live.bank.var(p[i]).publish(from_f32(T_F32, 30.0f), t);
+    t += 100;
+    d.step(t);
+    CHECK(live.bank.get(hi) < 21.0f);
+}
+
 TEST_CASE_FIXTURE(StRig, "zone: with every probe gone the reading is HELD, not defaulted") {
     Vars::RefIn<float> hi = live.bank.resolve_in<float>("cli_temp_hi");
     const VarRef p[3] = { live.ref("cli_temp_hi1"), live.ref("cli_temp_hi2"),
