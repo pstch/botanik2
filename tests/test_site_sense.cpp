@@ -97,6 +97,47 @@ TEST_CASE_FIXTURE(StRig, "zone: temperature survives losing every humidity probe
     (void)h_out;
 }
 
+TEST_CASE_FIXTURE(StRig, "watch: a dead ceiling does not silence the humidity alarm") {
+    // One gate over the temperature AND the margin used to cover all three
+    // alarms, so losing the ceiling took the humidity alarm with it - even
+    // though the floor still gives a margin the model believes.
+    for (uint8_t i = 1; i <= 3; i++) {
+        char n[24];
+        snprintf(n, sizeof n, "cli_temp_hi%u", (unsigned)i);
+        live.bank.var(live.ref(n)).invalidate(Q_NO_DATA);
+        snprintf(n, sizeof n, "cli_temp_lo%u", (unsigned)i);
+        live.bank.var(live.ref(n)).publish(from_f32(T_F32, 18.0f), 0);
+        snprintf(n, sizeof n, "cli_rh_lo%u", (unsigned)i);
+        live.bank.var(live.ref(n)).publish(from_f32(T_F32, 99.0f), 0);
+    }
+    for (uint64_t t = 0; t <= 60000; t += 100) d.step(t);
+
+    REQUIRE_FALSE(live.bank.var(live.ref("cli_temp_hi_qlt")).as_bool());
+    REQUIRE(live.bank.var(live.ref("cli_dpMargin_degC_qlt")).as_bool());
+    INFO("99% at 18 degC is on the dew point: the margin is believable and tiny");
+    CHECK(live.bank.var(live.ref("alarm_too_humid")).as_bool());
+    INFO("...and the temperature alarms, which have no ceiling, stay down");
+    CHECK_FALSE(live.bank.var(live.ref("alarm_too_hot")).as_bool());
+}
+
+TEST_CASE_FIXTURE(StRig, "watch: stratification nobody measured is not a stratification alarm") {
+    // cli_dTStrat_degC substitutes cli_dTStratLow_degC when unmeasured, so the
+    // alarm was held down by the DECLARED values agreeing rather than by a gate.
+    live.bank.var(live.ref("cli_dTStratHigh_degC")).publish(from_f32(T_F32, 0.5f), 0);
+    for (uint8_t i = 1; i <= 3; i++) {
+        char n[24];
+        snprintf(n, sizeof n, "cli_temp_lo%u", (unsigned)i);
+        live.bank.var(live.ref(n)).invalidate(Q_NO_DATA);
+        snprintf(n, sizeof n, "cli_temp_hi%u", (unsigned)i);
+        live.bank.var(live.ref(n)).publish(from_f32(T_F32, 22.0f), 0);
+    }
+    for (uint64_t t = 0; t <= 60000; t += 100) d.step(t);
+
+    REQUIRE_FALSE(live.bank.var(live.ref("cli_dTStrat_degC_qlt")).as_bool());
+    INFO("the gap reads past a 0.5 degC limit, but nothing measured the floor");
+    CHECK_FALSE(live.bank.var(live.ref("alarm_strat")).as_bool());
+}
+
 TEST_CASE_FIXTURE(StRig, "zone: a probe that comes back rejoins the average, it does not snap to it") {
     // The filter is fed the SCAN CLOCK, not an elapsed time, so a block that is
     // only called while its input is believable stops updating its `last`. The
