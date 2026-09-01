@@ -1,5 +1,5 @@
-#ifndef SITE_H
-#define SITE_H
+#ifndef GH_MLB41_SITE_H
+#define GH_MLB41_SITE_H
 
 /**
  * @file site.h
@@ -40,4 +40,4 @@ using namespace Botanik::Vars;
 // included after the variable tables it animates.
 #include "sim.h"
 
-#endif // SITE_H
+#endif // GH_MLB41_SITE_H

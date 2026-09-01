@@ -1,5 +1,5 @@
-#ifndef SITE_SIM_H
-#define SITE_SIM_H
+#ifndef GH_MLB41_SIM_H
+#define GH_MLB41_SIM_H
 
 /**
  * @file sim.h
@@ -585,4 +585,4 @@ inline void simulate(Vars::Bank& io, uint32_t now_ms) {
 
 #endif // TARGET_SIMULATOR
 
-#endif // SITE_SIM_H
+#endif // GH_MLB41_SIM_H

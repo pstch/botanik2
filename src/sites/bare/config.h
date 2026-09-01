@@ -1,5 +1,5 @@
-#ifndef SITES_BARE_CONFIG_H
-#define SITES_BARE_CONFIG_H
+#ifndef BARE_CONFIG_H
+#define BARE_CONFIG_H
 
 /** @file config.h
  *  @brief The bare site: every optional feature off.
@@ -50,4 +50,4 @@
 #  define BOTANIK_STR_POOL_BYTES 16
 #endif
 
-#endif // SITES_BARE_CONFIG_H
+#endif // BARE_CONFIG_H

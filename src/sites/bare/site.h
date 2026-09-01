@@ -1,5 +1,5 @@
-#ifndef SITE_H
-#define SITE_H
+#ifndef BARE_SITE_H
+#define BARE_SITE_H
 
 /**
  * @file site.h
@@ -51,4 +51,4 @@ inline Botanik::BotanikFirmware& firmware() {
 
 
 
-#endif // SITE_H
+#endif // BARE_SITE_H
