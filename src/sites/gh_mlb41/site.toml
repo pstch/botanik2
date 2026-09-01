@@ -26,6 +26,12 @@ quality_mirror_max = 96
 modbus_tcp_max_rows = 512
 # Names, units and descriptions share one pool, sized once for the whole table.
 str_pool_bytes = 512
+# Rows the LIBRARY registers ahead of this site's, into the same table. Hand
+# kept: vars_table.h is included by the firmware's wiring TU alone, so the
+# count cannot be taken from it. Understating it lets the VAR_MAX guard pass on
+# a table that then overflows, and the bank drops what did not fit in silence -
+# `Bank::refused_count()` is what actually catches that.
+library_rows = 70
 
 [fieldbus]
 # RS-485. Every device on the segment has to agree.

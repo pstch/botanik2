@@ -96,6 +96,10 @@ namespace Botanik { namespace HAL {
             return true;
         }
 
+        bool attached(uint8_t ch) {
+            return ch < 8 && g_ch[ch].attached;
+        }
+
         Sample sample(uint8_t ch) {
             if (ch >= 8 || !g_ch[ch].attached) return Sample{ 0, Clock::uptime_ms() };
             // Re-read until stable: an edge landing between the count and the
@@ -171,6 +175,10 @@ namespace Botanik { namespace HAL {
             g_ch[ch].attached = true;
             g_ch[ch].edge     = edge;
             return true;
+        }
+
+        bool attached(uint8_t ch) {
+            return ch < 8 && g_ch[ch].attached;
         }
 
         Sample sample(uint8_t ch) {

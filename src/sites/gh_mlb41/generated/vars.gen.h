@@ -46,6 +46,11 @@ inline const char* IrrState_label(uint64_t code) {
     }
 }
 
+// The build this table was cut for. @see BOTANIK_SITE_ASSERT_FEATURES
+#if !(BOTANIK_SITE_ASSERT_FEATURES)
+#  error "this site assumes every optional feature it declares is enabled"
+#endif
+
 extern const AnalogCal CAL_pwr_genBat_V;
 extern const AnalogCal CAL_pwr_upsBat_V;
 extern const AnalogCal CAL_pwr_dc1_V;
@@ -57,16 +62,11 @@ extern const AnalogCal CAL_cli_intr2;
 extern const AnalogCal* const g_analog_cals[];
 const uint8_t g_analog_cal_count = 7;
 
-extern const Descriptor params[];
-const uint16_t PARAMS_COUNT = 179;
+// ONE table, parameters first. Registering it is one call, and the
+// ROLE_PARAM run stays contiguous because the emit order is the rule.
+extern const Descriptor vars[];
+const uint16_t VARS_COUNT = 515;
 
-extern const Descriptor rows[];
-const uint16_t ROWS_COUNT = 336;
-
-extern const Botanik::PulseInput pulse_inputs[];
-const uint8_t pulse_input_count = 1;
-
-#if BOTANIK_FEATURE_MODBUS_RTU_CLIENT
 extern const Modbus::DeviceModel MDL_SDM630;
 extern const Modbus::DeviceModel MDL_MCT1_140;
 extern const Modbus::DeviceModel MDL_WS_AI8;
@@ -76,4 +76,26 @@ extern const Modbus::DeviceModel MDL_WS_RELAY;
 extern const Modbus::DeviceModel MDL_TEMP_RH;
 extern const Modbus::Device g_devices[];
 extern const Modbus::DeviceTable g_device_table;
-#endif
+
+// The one table no rule derives: a caption is a person's choice, and
+// nothing in a row's name says it belongs on the landing page.
+extern const HomeVar g_home_fields[];
+const uint8_t g_home_field_count = 22;
+// The home screen silently ignores fields past its columns.
+static_assert(g_home_field_count <= Config::HOME_FIELDS_MAX,
+              "too many home fields: the HomePage would drop the tail");
+
+// Where those names resolve to, filled at bring-up. VAR_NONE until
+// then, which reads as the inert sink rather than as row 0.
+extern VarRef home_refs[g_home_field_count];
+
+// Rows the LIBRARY registers ahead of these, from site.toml. One row
+// past VAR_MAX and registration is REFUSED: every name in it resolves
+// to the sink for the life of the run, and only refused_count() sees it.
+const uint16_t LIBRARY_ROWS = 70;
+static_assert(LIBRARY_ROWS + VARS_COUNT <= Config::VAR_MAX,
+              "site table exceeds VAR_MAX - raise it in site.toml "
+              "(about 36 bytes of RAM per row)");
+
+// The whole handoff to the library: this site, as data.
+extern const Botanik::SiteDescriptor g_site;

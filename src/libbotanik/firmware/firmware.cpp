@@ -152,21 +152,13 @@ namespace Botanik {
         // checks the parameter run.
 #if BOTANIK_FEATURE_VARS
         Vars::register_library_vars(_io);
-        // The site's own two runs, parameters first. Declaring a table is
+        // The site's own table, parameters first - which is the ORDER it is
+        // emitted in, not something this has to arrange. Declaring a table is
         // pointing at it now; register_vars() is left for a site whose rows
         // are not one.
-        if (_site.params != nullptr) _io.register_vars(_site.params, _site.param_count);
-        if (_site.rows   != nullptr) _io.register_vars(_site.rows,   _site.row_count);
+        if (_site.vars != nullptr) _io.register_vars(_site.vars, _site.var_count);
         register_vars();
         _io.freeze();
-        // The edge-counted terminals, before anything reads one: the channel a
-        // row declares and the channel the firmware attaches cannot part, and
-        // without this the counter never runs at all. Here rather than in the
-        // site, because every site would write the same loop.
-        for (uint8_t i = 0; i < _site.pulse_count; i++)
-            HAL::Pulse::attach(_site.pulses[i].channel, _site.pulses[i].edge);
-        // ...and the same table tells LocalInputs which row each total goes to.
-        _local_in.wire(_site.pulses, _site.pulse_count);
         // Pairs each `X_qlt` with its field row. After freeze(), because
         // freeze() is what compacts a redeclared row out and settles the
         // indices a pair holds.

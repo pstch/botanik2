@@ -25,7 +25,7 @@ float drain_at(Live& live, D& d, float lpm, bool meter_live,
 
     uint64_t t = 0;
     d.step(t += 1000);
-    HAL::Pulse::inject(Site::pulse_inputs[0].channel, 20);
+    HAL::Pulse::inject(pulse_line(live, "irr_inCount"), 20);
     d.step(t += 1000);
     REQUIRE(live.bank.var(live.ref("irr_state")).as_i64() == Site::IRR_DRAINING);
 
@@ -106,7 +106,6 @@ TEST_CASE_FIXTURE(StRig, "irrigation: a force is spent on the watering it asked 
     no_soak(live);
     slot(live);
     field(live, "cli_temp_ext", 25.0f);
-    HAL::Pulse::attach(Site::pulse_inputs[0].channel, Site::pulse_inputs[0].edge);
     live.bank.param_set(live.bank.var(live.ref("irr_liters_tray2")), 5.0f);
     live.bank.param_set(live.bank.var(live.ref("irr_input_qtyPerImp")), 1.0f);
     REQUIRE(live.bank.param_set(live.bank.var(live.ref("irr_forceOn_tray2")), true) == SET_OK);
@@ -118,7 +117,7 @@ TEST_CASE_FIXTURE(StRig, "irrigation: a force is spent on the watering it asked 
     INFO("the force is cleared as the fill completes: left standing it would "
          "ask for the same tray on every cycle for ever, and no other tray "
          "would ever be reached");
-    HAL::Pulse::inject(Site::pulse_inputs[0].channel, 20);
+    HAL::Pulse::inject(pulse_line(live, "irr_inCount"), 20);
     d.step(t += 1000);
     REQUIRE(live.bank.var(live.ref("irr_state")).as_i64() == Site::IRR_DRAINING);
     CHECK_FALSE(live.bank.var(live.ref("irr_forceOn_tray2")).as_bool());
@@ -151,7 +150,6 @@ TEST_CASE_FIXTURE(StRig, "irrigation: the tray sits full for its soak before eit
     summer(live);
     slot(live);
     field(live, "cli_temp_ext", 25.0f);
-    HAL::Pulse::attach(Site::pulse_inputs[0].channel, Site::pulse_inputs[0].edge);
     live.bank.param_set(live.bank.var(live.ref("irr_forceOn_tray1")), true);
     live.bank.param_set(live.bank.var(live.ref("irr_liters_tray1")), 5.0f);
     live.bank.param_set(live.bank.var(live.ref("irr_input_qtyPerImp")), 1.0f);
@@ -160,7 +158,7 @@ TEST_CASE_FIXTURE(StRig, "irrigation: the tray sits full for its soak before eit
     uint64_t t = 0;
     d.step(t += 1000);
     REQUIRE(live.bank.var(live.ref("irr_state")).as_i64() == Site::IRR_FILLING);
-    HAL::Pulse::inject(Site::pulse_inputs[0].channel, 20);
+    HAL::Pulse::inject(pulse_line(live, "irr_inCount"), 20);
     d.step(t += 1000);
 
     INFO("the dose has arrived, and the tray keeps it: both ends of the "
@@ -197,7 +195,6 @@ TEST_CASE_FIXTURE(StRig, "irrigation: a soak of zero is skipped, not passed thro
     no_soak(live);
     slot(live);
     field(live, "cli_temp_ext", 25.0f);
-    HAL::Pulse::attach(Site::pulse_inputs[0].channel, Site::pulse_inputs[0].edge);
     live.bank.param_set(live.bank.var(live.ref("irr_forceOn_tray1")), true);
     live.bank.param_set(live.bank.var(live.ref("irr_liters_tray1")), 5.0f);
     live.bank.param_set(live.bank.var(live.ref("irr_input_qtyPerImp")), 1.0f);
@@ -205,7 +202,7 @@ TEST_CASE_FIXTURE(StRig, "irrigation: a soak of zero is skipped, not passed thro
     uint64_t t = 0;
     d.step(t += 1000);
     REQUIRE(live.bank.var(live.ref("irr_state")).as_i64() == Site::IRR_FILLING);
-    HAL::Pulse::inject(Site::pulse_inputs[0].channel, 20);
+    HAL::Pulse::inject(pulse_line(live, "irr_inCount"), 20);
     d.step(t += 1000);
     CHECK(live.bank.var(live.ref("irr_state")).as_i64() == Site::IRR_DRAINING);
 }
@@ -252,14 +249,12 @@ TEST_CASE_FIXTURE(StRig,
     // the old state's water in it, and that figure stands for a window more.
     const uint32_t win =
         2u * (uint32_t)live.bank.var(live.ref("irr_rateWin_ms")).as_i64();
-    HAL::Pulse::attach(Site::pulse_inputs[0].channel,
-                       Site::pulse_inputs[0].edge);
     live.bank.param_set(live.bank.var(live.ref("irr_input_qtyPerImp")), 1.0f);
 
     uint64_t t = 0;
     force(live, "irr_state", (int64_t)Site::IRR_FILLING);
     for (uint32_t i = 0; i < 20; i++) {          // a litre a second, so 60 Lpm
-        HAL::Pulse::inject(Site::pulse_inputs[0].channel, 1);
+        HAL::Pulse::inject(pulse_line(live, "irr_inCount"), 1);
         d.step(t += 1000);
     }
     REQUIRE(live.bank.var(live.ref("irr_inFlow_Lpm")).as_f32() > 30.0f);
@@ -273,7 +268,7 @@ TEST_CASE_FIXTURE(StRig,
 
     INFO("...but water still moving a window later IS a leak");
     for (uint32_t i = 0; i < win / 1000u + 4u; i++) {
-        HAL::Pulse::inject(Site::pulse_inputs[0].channel, 1);
+        HAL::Pulse::inject(pulse_line(live, "irr_inCount"), 1);
         d.step(t += 1000);
     }
     CHECK(live.bank.var(leak).as_bool());
@@ -320,7 +315,6 @@ TEST_CASE_FIXTURE(StRig, "irrigation: a plant with no clock still spends the for
     no_soak(live);
     slot(live);
     field(live, "cli_temp_ext", 25.0f);
-    HAL::Pulse::attach(Site::pulse_inputs[0].channel, Site::pulse_inputs[0].edge);
     live.bank.param_set(live.bank.var(live.ref("irr_liters_tray2")), 5.0f);
     live.bank.param_set(live.bank.var(live.ref("irr_input_qtyPerImp")), 1.0f);
     REQUIRE(live.bank.param_set(live.bank.var(live.ref("irr_forceOn_tray2")), true) == SET_OK);
@@ -335,7 +329,7 @@ TEST_CASE_FIXTURE(StRig, "irrigation: a plant with no clock still spends the for
          "is for, and the calendar is the only thing the clock is needed by");
     REQUIRE(live.bank.var(live.ref("irr_activeTray")).as_i64() == 2);
 
-    HAL::Pulse::inject(Site::pulse_inputs[0].channel, 20);
+    HAL::Pulse::inject(pulse_line(live, "irr_inCount"), 20);
     d.step(t += 1000);
     REQUIRE(live.bank.var(live.ref("irr_state")).as_i64() == Site::IRR_DRAINING);
     INFO("the force is spent, and the day's tally counted, though neither has "
@@ -353,7 +347,6 @@ TEST_CASE_FIXTURE(StRig, "irrigation: `water now` is spent on the cycle it start
     summer(live);
     no_soak(live);
     field(live, "cli_temp_ext", 25.0f);
-    HAL::Pulse::attach(Site::pulse_inputs[0].channel, Site::pulse_inputs[0].edge);
     live.bank.param_set(live.bank.var(live.ref("irr_liters_tray1")), 5.0f);
     live.bank.param_set(live.bank.var(live.ref("irr_input_qtyPerImp")), 1.0f);
 
@@ -372,7 +365,7 @@ TEST_CASE_FIXTURE(StRig, "irrigation: `water now` is spent on the cycle it start
 
     INFO("...and is spent as the fill completes, so the plant goes back to its "
          "slots rather than running cycles until somebody clears the flag");
-    HAL::Pulse::inject(Site::pulse_inputs[0].channel, 20);
+    HAL::Pulse::inject(pulse_line(live, "irr_inCount"), 20);
     d.step(t += 1000);
     REQUIRE(live.bank.var(live.ref("irr_state")).as_i64() == Site::IRR_DRAINING);
     CHECK_FALSE(live.bank.var(live.ref("irr_forceNow")).as_bool());
@@ -475,7 +468,6 @@ TEST_CASE_FIXTURE(StRig, "irrigation: the cycle fills to its dose, then drains, 
     no_soak(live);
 
     // Bare, not REQUIREd: a channel another case already attached answers false.
-    HAL::Pulse::attach(Site::pulse_inputs[0].channel, Site::pulse_inputs[0].edge);
 
     // Warm enough that the dawn gate is open, in the end-of-night slot, and
     // tray 1 forced so the cycle starts without the calendar the due-check
@@ -497,7 +489,7 @@ TEST_CASE_FIXTURE(StRig, "irrigation: the cycle fills to its dose, then drains, 
     CHECK_FALSE(live.bank.var(live.ref("irr_tray2")).as_bool());
 
     // The meter delivers the dose. It is modulated, so ask for plenty.
-    HAL::Pulse::inject(Site::pulse_inputs[0].channel, 20);
+    HAL::Pulse::inject(pulse_line(live, "irr_inCount"), 20);
     d.step(t += 1000);
     CHECK(live.bank.var(live.ref("irr_state")).as_i64() == Site::IRR_DRAINING);
     INFO("draining: inlet shut, tray still open, outlet open");
@@ -530,14 +522,13 @@ TEST_CASE_FIXTURE(StRig, "irrigation: the cycle fills to its dose, then drains, 
 TEST_CASE_FIXTURE(StRig, "irrigation: the two meters read as a counter and a rate") {
     // The meters FIRST: the cycle judges a fill against what they publish.
     summer(live);
-    HAL::Pulse::attach(Site::pulse_inputs[0].channel, Site::pulse_inputs[0].edge);
     live.bank.param_set(live.bank.var(live.ref("irr_input_qtyPerImp")), 1.0f);
 
     uint64_t t = 0;
     d.step(t += 1000);
     // 20 pulses a second at a litre each, for ten seconds.
     for (uint32_t i = 0; i < 10; i++) {
-        HAL::Pulse::inject(Site::pulse_inputs[0].channel, 20);
+        HAL::Pulse::inject(pulse_line(live, "irr_inCount"), 20);
         live.bank.var(live.ref("irr_out_Lpm")).publish(from_f32(T_F32, 30.0f), t);
         d.step(t += 1000);
     }
@@ -557,7 +548,6 @@ TEST_CASE_FIXTURE(StRig, "irrigation: what comes back out is judged against what
     summer(live);
     // Bare, not REQUIREd: a channel another case already attached answers
     // false, and this one only needs it counting.
-    HAL::Pulse::attach(Site::pulse_inputs[0].channel, Site::pulse_inputs[0].edge);
 
     // 20 L went in; 5 L/min over the 300 s window is far more than the 30% the
     // margin allows to be missing.
@@ -570,7 +560,6 @@ TEST_CASE_FIXTURE(StRig, "irrigation: what comes back out is judged against what
 TEST_CASE_FIXTURE(StRig, "irrigation: a tray that does not drain names itself") {
     // The meters FIRST: the cycle judges a fill against what they publish.
     summer(live);
-    HAL::Pulse::attach(Site::pulse_inputs[0].channel, Site::pulse_inputs[0].edge);
 
     // A trickle: half a litre back out of twenty.
     const float back = drain_at(live, d, 0.1f, true);
@@ -584,7 +573,6 @@ TEST_CASE_FIXTURE(StRig, "irrigation: a tray that does not drain names itself") 
 TEST_CASE_FIXTURE(StRig, "irrigation: a silent outlet meter gives no verdict, not a clog") {
     // The meters FIRST: the cycle judges a fill against what they publish.
     summer(live);
-    HAL::Pulse::attach(Site::pulse_inputs[0].channel, Site::pulse_inputs[0].edge);
 
     Plc::Health worst = Plc::Health::HEALTHY;
     const float back = drain_at(live, d, 0.0f, false, &worst);
@@ -599,7 +587,6 @@ TEST_CASE_FIXTURE(StRig, "irrigation: a silent outlet meter gives no verdict, no
 TEST_CASE_FIXTURE(StRig, "irrigation: a fill that never arrives raises, and still opens the drain") {
     // The meters FIRST: the cycle judges a fill against what they publish.
     summer(live);
-    HAL::Pulse::attach(Site::pulse_inputs[0].channel, Site::pulse_inputs[0].edge);
 
     slot(live);
     live.bank.param_set(live.bank.var(live.ref("irr_forceOn_tray1")), true);
@@ -626,7 +613,6 @@ TEST_CASE_FIXTURE(StRig, "irrigation: a fill that never arrives is spent, not re
     // not spent the schedule re-picks the same tray on the next slot and
     // refills it until the window closes.
     summer(live);
-    HAL::Pulse::attach(Site::pulse_inputs[0].channel, Site::pulse_inputs[0].edge);
     slot(live);
     live.bank.param_set(live.bank.var(live.ref("irr_forceOn_tray1")), true);
     live.bank.param_set(live.bank.var(live.ref("irr_liters_tray1")), 5.0f);
@@ -653,7 +639,6 @@ TEST_CASE_FIXTURE(StRig, "irrigation: the pulse line says whether the meter is t
     // publish this row - it read as never-written for the life of the run.
     // Its LEVEL is meaningless (a pulse is a moment of a train), so what it
     // carries is whether an edge arrived in the beat.
-    HAL::Pulse::attach(Site::pulse_inputs[0].channel, Site::pulse_inputs[0].edge);
     const Vars::VarRef line = live.ref("irr_inPulse");
 
     uint64_t t = 0;
@@ -662,7 +647,7 @@ TEST_CASE_FIXTURE(StRig, "irrigation: the pulse line says whether the meter is t
     CHECK(live.bank.var(line).valid());
     CHECK(live.bank.var(line).as_bool() == false);
 
-    HAL::Pulse::inject(Site::pulse_inputs[0].channel, 5);
+    HAL::Pulse::inject(pulse_line(live, "irr_inCount"), 5);
     d.step(t += 1000);
     CHECK(live.bank.var(line).as_bool() == true);
 

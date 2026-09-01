@@ -22,23 +22,26 @@ ROWS = {  # factory -> (csv stem, columns == the factory's parameters)
     'MO':  ('modbus_out',  'name type device fc reg regs safe digits unit desc notes word_swap'),
     'AI':  ('analog_in',   'name cal device fc reg regs wire def timeout_ms digits unit desc notes poll_ms word_swap'),
     'AO':  ('analog_out',  'name cal device fc reg regs wire safe digits unit desc notes word_swap'),
-    'DI':  ('digital_in',  'name device fc reg def timeout_ms invert desc notes poll_ms pulse'),
+    'DI':  ('digital_in',  'name device fc reg def timeout_ms invert desc notes poll_ms'),
     'DO':  ('digital_out', 'name device fc reg safe invert desc notes'),
     'RO':  ('relay_out',   'name device coil safe invert desc notes'),
     'PE':  ('params_enum', 'name def label reg desc notes writable retained'),
     'PS':  ('params_text', 'name def cap kind reg desc notes writable retained'),
     'G':   ('globals',     'name type def digits unit desc notes retained'),
+    'PI':  ('pulse_in',    'name channel edge desc notes'),
 }
 TEXT = {'name', 'unit', 'desc', 'notes', 'code', 'tag', 'model_name'}
+# Not quoted, but not a number either: a symbol the emitted C++ names.
+SYMBOL = {'edge': 'HAL::Pulse::'}
 
 AUX = {  # stem -> columns, for the tables that are not rows
     'analog_cal':     'cal raw_min_row raw_min raw_max_row raw_max eng_min_row eng_min '
                       'eng_max_row eng_max min_row min max_row max',
-    'pulse_inputs':   'name channel edge count',
     'modbus_models':  'symbol kind model_name regs words',
     'modbus_devices': 'addr model tag',
     'enums':          'enum ctype symbol value label desc',
     'programs':       'name instance source rate',
+    'home':           'label var',
 }
 
 
@@ -79,7 +82,10 @@ def unquote(a):
 
 
 def quote(v, col):
-    return '"%s"' % v.replace('"', '\\"') if col in TEXT else v
+    if col in TEXT:  return '"%s"' % v.replace('"', '\\"')
+    if col in SYMBOL and v and not v.startswith(SYMBOL[col]):
+        return SYMBOL[col] + v
+    return v
 
 
 def field(v):
@@ -139,7 +145,6 @@ def export_aux(site):
     got = {
         'analog_cal': [[m.group(1)] + [x for p in re.findall(r'R\("([^"]+)",\s*([^)]+)\)', m.group(2)) for x in p]
                        for m in re.finditer(r'const AnalogCal (CAL_\w+) = \{(.*?)\n\};', s, re.S)],
-        'pulse_inputs': [list(t) for t in re.findall(r'\{\s*"([^"]+)",\s*(\d+),\s*HAL::Pulse::(\w+),\s*"([^"]*)"\s*\}', s)],
         'modbus_models': [list(t) for t in re.findall(
             r'const Modbus::DeviceModel (MDL_\w+) =\s*Modbus::(\w+)\("([^"]+)",\s*(\d+),?\s*(\d*)\);', s)],
         'modbus_devices': [list(t) for t in re.findall(r'\{\s*(\d+),\s*&(MDL_\w+),\s*"([^"]+)"\s*\}', s)],
@@ -255,6 +260,15 @@ def config(site):
               '%s#  define BOTANIK_FEATURE_%s 1' % (ind, f),
               '%s#endif' % ind]
         L += ['%s#endif' % ('  ' * i) for i in range(len(need) - 1, -1, -1)]
+    L += ['',
+          '// This site turns every optional feature ON, and its table reserves rows',
+          '// on that basis. Built with one OFF, the table declares rows the library',
+          '// never registers, which misaligns every register after them - so refuse',
+          '// rather than drift. Here rather than in a header the site hand-writes,',
+          '// because the flags have their defaults by the time this is read again.',
+          '#define BOTANIK_SITE_ASSERT_FEATURES \\']
+    L += ['    BOTANIK_FEATURE_%s && \\' % f for f in on]
+    L += ['    1', '']
     L += ['', '#endif', '']
     open(os.path.join(site, 'generated', 'config.gen.h'), 'w').write('\n'.join(L))
     print('  config.gen.h   %d values, %d features' % (len(val), len(on)))
@@ -385,13 +399,19 @@ def emit_rows(fac, cols, recs):
 
 def generate(site):
     t = lambda stem, cols: read_table(os.path.join(site, 'tables', stem + '.csv'), cols.split())
-    cal, pul = t('analog_cal', AUX['analog_cal']), t('pulse_inputs', AUX['pulse_inputs'])
+    cal  = t('analog_cal', AUX['analog_cal'])
+    home = t('home', AUX['home'])
+    tom  = toml(os.path.join(site, 'site.toml'))
     mdl, dev = t('modbus_models', AUX['modbus_models']), t('modbus_devices', AUX['modbus_devices'])
     per = {f: t(stem, cols) for f, (stem, cols) in ROWS.items()}
     n_par = sum(len(per[f]) for f in ('P', 'PE', 'PS'))
     n_row = sum(len(per[f]) for f in ROWS if f not in ('P', 'PE', 'PS'))
 
-    L = [H, '', '#include "../vars.h"', '', 'namespace Site {', '']
+    L = [H, '', '#include "libbotanik.h"', '', 'namespace Site {', '',
+         'using namespace Botanik;', 'using namespace Botanik::Vars;', '',
+         '// Inside the namespace and after the usings: the header names every',
+         '// type unqualified, because it is only ever included here and by site.h.',
+         '#include "vars.gen.h"', '']
     for c in cal:
         L.append('const AnalogCal %s = {' % c['cal'])
         for k in ('raw_min', 'raw_max', 'eng_min', 'eng_max', 'min', 'max'):
@@ -399,19 +419,16 @@ def generate(site):
         L += ['};', '']
     L.append('const AnalogCal* const g_analog_cals[] = {')
     L += ['    &%s,' % c['cal'] for c in cal] + ['};', '']
-    L.append('const Descriptor params[] = {')
+    # ONE table, parameters FIRST: the ROLE_PARAM run has to abut the
+    # library's, and emitting the two runs in order is the whole of that rule.
+    L.append('const Descriptor vars[] = {')
+    L.append('    // parameters, first and contiguous')
     for f in ('P', 'PE', 'PS'):
         L += emit_rows(f, ROWS[f][1].split(), per[f])
-    L += ['};', '']
-    L.append('const Descriptor rows[] = {')
-    for f in ('A', 'SV', 'SVE', 'G', 'MI', 'MO', 'AI', 'AO', 'DI', 'DO', 'RO'):
+    L.append('    // ...and everything else')
+    for f in ('A', 'SV', 'SVE', 'G', 'MI', 'MO', 'AI', 'AO', 'DI', 'PI', 'DO', 'RO'):
         L += emit_rows(f, ROWS[f][1].split(), per[f])
     L += ['};', '']
-    L.append('const Botanik::PulseInput pulse_inputs[] = {')
-    L += ['    { "%s", %s, HAL::Pulse::%s, %s },'
-          % (p['name'], p['channel'], p['edge'],
-             '"%s"' % p['count'] if p['count'] else 'nullptr') for p in pul]
-    L += ['};', '', '#if BOTANIK_FEATURE_MODBUS_RTU_CLIENT', '']
     for m in mdl:
         args = '"%s", %s' % (m['model_name'], m['regs']) + (', %s' % m['words'] if m['words'] else '')
         L += ['const Modbus::DeviceModel %s = Modbus::%s(%s);' % (m['symbol'], m['kind'], args)]
@@ -419,10 +436,29 @@ def generate(site):
     L += ['    { %s, &%s, "%s" },' % (d['addr'], d['model'], d['tag']) for d in dev]
     L += ['};', '', 'const Modbus::DeviceTable g_device_table = {',
           '    g_devices, (uint8_t)(sizeof(g_devices) / sizeof(g_devices[0]))', '};', '',
-          '#endif', '',
+          '// Home-screen readings: label + variable. A caption is a person\'s',
+          '// choice and nothing in a row\'s name says it belongs on the landing',
+          '// page, so it is the one table no rule derives.',
+          'const HomeVar g_home_fields[] = {']
+    L += ['    { "%s", "%s" },' % (h['label'], h['var']) for h in home]
+    L += ['};', '',
           '// Filled at bring-up; extern in the header, or every TU including it',
           '// would carry a definition.',
           'VarRef home_refs[g_home_field_count] = {};', '',
+          '/** @brief The site\'s shell commands: none. A site table is matched',
+          ' *  BEFORE the library built-ins, so a name reused there shadows one. */',
+          'const Botanik::Shell::ShellCommand* const g_commands = nullptr;',
+          'const uint8_t g_command_count = 0;', '',
+          '// Field order matches Botanik::SiteDescriptor; any table may be null.',
+          '// Alarms are not here (a SCOPE_A row) and neither are the status groups',
+          '// (a variable\'s group is its name prefix).',
+          'const Botanik::SiteDescriptor g_site = {',
+          '    Botanik::Config::SITE_NAME,',
+          '    g_commands,    g_command_count,',
+          '    g_home_fields, g_home_field_count, home_refs,',
+          '    &g_device_table,',
+          '    vars,          VARS_COUNT,',
+          '};', '',
           '}  // namespace Site', '']
     open(os.path.join(site, 'generated', 'vars.gen.cpp'), 'w').write('\n'.join(L))
 
@@ -441,17 +477,39 @@ def generate(site):
               '    switch (code) {']
         G += ['        case %s: return "%s";' % (e['value'], e['label']) for e in mem]
         G += ['        default: return nullptr;', '    }', '}', '']
+    G += ['// The build this table was cut for. @see BOTANIK_SITE_ASSERT_FEATURES',
+          '#if !(BOTANIK_SITE_ASSERT_FEATURES)',
+          '#  error "this site assumes every optional feature it declares is enabled"',
+          '#endif', '']
     G += ['extern const AnalogCal %s;' % c['cal'] for c in cal]
     G += ['', 'extern const AnalogCal* const g_analog_cals[];',
           'const uint8_t g_analog_cal_count = %d;' % len(cal), '',
-          'extern const Descriptor params[];', 'const uint16_t PARAMS_COUNT = %d;' % n_par, '',
-          'extern const Descriptor rows[];',   'const uint16_t ROWS_COUNT = %d;' % n_row, '',
-          'extern const Botanik::PulseInput pulse_inputs[];',
-          'const uint8_t pulse_input_count = %d;' % len(pul), '',
-          '#if BOTANIK_FEATURE_MODBUS_RTU_CLIENT']
+          '// ONE table, parameters first. Registering it is one call, and the',
+          '// ROLE_PARAM run stays contiguous because the emit order is the rule.',
+          'extern const Descriptor vars[];', 'const uint16_t VARS_COUNT = %d;' % (n_par + n_row), '',
+          ]
     G += ['extern const Modbus::DeviceModel %s;' % m['symbol'] for m in mdl]
     G += ['extern const Modbus::Device g_devices[];',
-          'extern const Modbus::DeviceTable g_device_table;', '#endif', '']
+          'extern const Modbus::DeviceTable g_device_table;', '',
+          '// The one table no rule derives: a caption is a person\'s choice, and',
+          '// nothing in a row\'s name says it belongs on the landing page.',
+          'extern const HomeVar g_home_fields[];',
+          'const uint8_t g_home_field_count = %d;' % len(home),
+          '// The home screen silently ignores fields past its columns.',
+          'static_assert(g_home_field_count <= Config::HOME_FIELDS_MAX,',
+          '              "too many home fields: the HomePage would drop the tail");', '',
+          '// Where those names resolve to, filled at bring-up. VAR_NONE until',
+          '// then, which reads as the inert sink rather than as row 0.',
+          'extern VarRef home_refs[g_home_field_count];', '',
+          '// Rows the LIBRARY registers ahead of these, from site.toml. One row',
+          '// past VAR_MAX and registration is REFUSED: every name in it resolves',
+          '// to the sink for the life of the run, and only refused_count() sees it.',
+          'const uint16_t LIBRARY_ROWS = %d;' % tom['limits']['library_rows'],
+          'static_assert(LIBRARY_ROWS + VARS_COUNT <= Config::VAR_MAX,',
+          '              "site table exceeds VAR_MAX - raise it in site.toml "',
+          '              "(about 36 bytes of RAM per row)");', '',
+          '// The whole handoff to the library: this site, as data.',
+          'extern const Botanik::SiteDescriptor g_site;', '']
     open(os.path.join(site, 'generated', 'vars.gen.h'), 'w').write('\n'.join(G))
     print('  vars.gen.cpp   %d params, %d rows' % (n_par, n_row))
 

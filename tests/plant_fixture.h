@@ -66,7 +66,6 @@ struct Plant {
 
     Plant()
         : terminals(ctx(), io()), mirror(ctx(), io()), st(ctx(), io()) {
-        terminals.wire(Site::pulse_inputs, Site::pulse_input_count);
         // No C++ programs left: every one of them is ST, and the RESOURCE
         // below runs the lot. The Cycle stays so a case can still step "the
         // programs" without knowing there are none.
@@ -219,7 +218,15 @@ inline void hold_water(Plant& p) {
     const float per_pulse = p.num("irr_input_qtyPerImp");
     g_owed() += (inlet_open ? g_pipe().fill_Lpm : g_pipe().leak_Lpm) / 600.0f;
     while (per_pulse > 0.0f && g_owed() >= per_pulse) {
-        HAL::Pulse::inject(Site::pulse_inputs[0].channel, 1);
+        // The channel and the edge the PI row declares: LocalInputs attaches it
+        // at bring-up, and this makes the first inject safe before that.
+        {
+            const Vars::Descriptor& d =
+                p.f.bank.descriptor(p.ref("irr_inCount").index);
+            const uint8_t ch = (uint8_t)d.bind.reg;
+            (void)HAL::Pulse::attach(ch, (HAL::Pulse::Edge)d.bind.fc);
+            HAL::Pulse::inject(ch, 1);
+        }
         g_owed() -= per_pulse;
     }
 
@@ -250,7 +257,6 @@ inline void settle_meters(Plant& p, uint32_t beats = 100) { p.weather_for(beats)
  *  plant hold both the weather and the water every beat. */
 inline void plumbing(Plant& p, const Plumbing& pipe) {
     // Bare, not REQUIREd: a channel another case already attached answers false.
-    HAL::Pulse::attach(Site::pulse_inputs[0].channel, Site::pulse_inputs[0].edge);
     g_pipe() = pipe;
     g_owed() = 0.0f;
     p.hold = hold_water;

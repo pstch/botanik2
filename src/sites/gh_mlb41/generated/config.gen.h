@@ -124,4 +124,32 @@
 #  define BOTANIK_FEATURE_SUN_TRACKER 1
 #endif
 
+// This site turns every optional feature ON, and its table reserves rows
+// on that basis. Built with one OFF, the table declares rows the library
+// never registers, which misaligns every register after them - so refuse
+// rather than drift. Here rather than in a header the site hand-writes,
+// because the flags have their defaults by the time this is read again.
+#define BOTANIK_SITE_ASSERT_FEATURES \
+    BOTANIK_FEATURE_LOGS_PAGE && \
+    BOTANIK_FEATURE_ALARMS_PAGE && \
+    BOTANIK_FEATURE_PARAMS_PAGE && \
+    BOTANIK_FEATURE_MONITOR_PAGE && \
+    BOTANIK_FEATURE_TASKS_PAGE && \
+    BOTANIK_FEATURE_NOTES_PAGE && \
+    BOTANIK_FEATURE_LOGS_MONITOR && \
+    BOTANIK_FEATURE_NETWORK && \
+    BOTANIK_FEATURE_NTP && \
+    BOTANIK_FEATURE_MQTT && \
+    BOTANIK_FEATURE_LOGS_PUBLISH && \
+    BOTANIK_FEATURE_ALARMS_PUBLISH && \
+    BOTANIK_FEATURE_MODBUS_TCP_SERVER && \
+    BOTANIK_FEATURE_MODBUS_TCP_CLIENT && \
+    BOTANIK_FEATURE_MODBUS_RTU_CLIENT && \
+    BOTANIK_FEATURE_MODBUS_RTU_SERVER && \
+    BOTANIK_FEATURE_PLC_BLK_BASE && \
+    BOTANIK_FEATURE_PLC_BLK_FILTERS && \
+    BOTANIK_FEATURE_SUN_TRACKER && \
+    1
+
+
 #endif

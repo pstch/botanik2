@@ -1,0 +1,2 @@
+name       ,channel,edge       ,desc,notes
+irr_inCount,1      ,EDGE_RISING,inlet meter edge count since boot,"raw pulses, as the interrupt counter has them; the meter law turns them into litres and carries the 32-bit wrap"

@@ -17,11 +17,26 @@ namespace Botanik { namespace Io {
         for (uint16_t i = 0; i < _io->count(); i++) {
             const Vars::Descriptor& d = _io->descriptor(i);
             if (d.bind.transport != Vars::XP_LOCAL || d.scope != Vars::SCOPE_DI) continue;
-            // An edge-counted terminal is attached ONCE, as a counter, by the
-            // firmware: the level of a pulse line is not a reading of
-            // anything, and configuring one pin two ways is a hardware fault
-            // waiting to happen. Its COUNT is published below instead.
-            if (d.flags & Vars::F_PULSE) continue;
+            // An edge-counted terminal is a COUNTER, not a level: the level
+            // of a pulse line is a moment of a train and not a reading of
+            // anything. It is attached once, below, and configuring one pin
+            // two ways is a hardware fault waiting for the first wet week.
+            if (d.flags & Vars::F_PULSE) {
+                if (_pulses >= HAL::Pulse::MAX_CHANNELS) continue;
+                const uint8_t pch = (uint8_t)d.bind.reg;
+                // The EDGE rides in `fc`, which a local row has no other use
+                // for - the same trick `reg` plays for the channel.
+                // attach() answers false for an out-of-range or colliding
+                // channel AND for one already counting, which is the ordinary
+                // case on a second bring-up in one process. Only the first two
+                // are a reason not to publish the row.
+                if (!HAL::Pulse::attach(pch, (HAL::Pulse::Edge)d.bind.fc)
+                    && !HAL::Pulse::attached(pch)) continue;
+                _pulse_row[_pulses] = i;
+                _pulse_ch[_pulses]  = pch;
+                _pulses++;
+                continue;
+            }
             if (_count >= HAL::DigitalIn::CHANNELS) break;
 
             // The row's `reg` IS the terminal: a local row has no register to
@@ -33,19 +48,6 @@ namespace Botanik { namespace Io {
             _count++;
         }
 
-        // The counters, from the site's own table rather than by walking: the
-        // row a total goes to is not the F_PULSE row, which stays whatever the
-        // terminal is (a contact, a meter line), and only the site knows which
-        // is which.
-        for (uint8_t i = 0; i < _pulses_n; i++) {
-            if (_pulses_in[i].count == nullptr) continue;
-            if (_pulses >= HAL::Pulse::MAX_CHANNELS) break;
-            const Vars::VarRef r = _io->find(_pulses_in[i].count);
-            if (r.index == Vars::VAR_NONE) continue;
-            _pulse_row[_pulses] = r.index;
-            _pulse_ch[_pulses]  = _pulses_in[i].channel;
-            _pulses++;
-        }
     }
 
     void LocalInputs::on_input(uint64_t now_ms) {

@@ -10,13 +10,13 @@ The reference Botanik **site**: everything specific to one physical greenhouse.
 | `tables/*.csv` | **declared** | every variable the site has, one file per row factory, plus the enums, the field devices and the program roster |
 | `programs/<stage>/<class>/<class>.st` | **declared** | one control law, as IEC 61131-3 Structured Text |
 | `blocks/<name>/<name>.st` | **declared** | a function block of the site's own, nameable from any of its programs |
-| `generated/vars.gen.{h,cpp}` | generated | the descriptor arrays, the calibration blocks, the enums, the device map |
-| `generated/config.gen.h` | generated | `site.toml` as `#define BOTANIK_*` |
+| `generated/vars.gen.{h,cpp}` | generated | ONE descriptor table, the calibration blocks, the enums, the device map, the home screen, the build guards and the `g_site` `SiteDescriptor` |
+| `generated/config.gen.h` | generated | `site.toml` as `#define BOTANIK_*`, and the assertion that this build turns on what the table was cut for. CMake reads it as the site config: there is no shim over it |
 | `generated/plant.{st,cpp}` | generated | the CONFIGURATION matiec compiles, and the roster `Plc::Runtime::Plant` runs |
 | `generated/POUS.*`, `plc.c`, `gh_mlb41.*` | generated | matiec's own output |
-| `vars.h` | hand-written | the home-screen captions, and two build guards |
-| `site.h` | hand-written | the `g_site` `SiteDescriptor` and the `GreenhouseMLB41` binding |
-| `config.h` | hand-written | a shim over `generated/config.gen.h`; separate because it is read with none of the library in scope |
+| `tables/home.csv` | **declared** | the home-screen captions - the one table no rule derives |
+| `tables/pulse_in.csv` | **declared** | the edge-counted terminals, as ordinary rows |
+| `site.h` | hand-written | includes the generated tables, and binds `GreenhouseMLB41` to them. Overrides nothing |
 | `sim.h` | hand-written | the simulated field: it writes the variable tables the way a Modbus driver will. Its whole body is `#ifdef TARGET_SIMULATOR`, so it drops out of the hardware build |
 
 Regenerate with `scripts/tables.py` - `generate`, `config`, and `plant` (which

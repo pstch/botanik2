@@ -28,7 +28,6 @@
 #include "libbotanik/core/context.h"
 #include "libbotanik/firmware/stacks.h"
 #include "libbotanik/health/health.h"
-#include "libbotanik/io/pulse_input.h"
 #include "libbotanik/io/local_inputs.h"
 #include "libbotanik/logs/logger.h"
 #include "libbotanik/logs/topics.h"
@@ -98,21 +97,16 @@ namespace Botanik {
          *  aggregate and a field added anywhere else moves the rest. */
         const Modbus::DeviceTable*    devices;
 #endif
-        /** @brief The edge-counted terminals. After the guarded field, so a
-         *  build without the field bus does not move them. */
-        const PulseInput*             pulses;
-        uint8_t                       pulse_count;
-        /** @brief The site's variable table, in two runs. The base registers
-         *  them, so a site declares rows by pointing at them rather than by
-         *  overriding a hook.
+        /** @brief The site's whole variable table, in ONE run. The base
+         *  registers it, so a site declares rows by pointing at them rather
+         *  than by overriding a hook.
          *  ONE rule, and Bank::freeze() names the row that breaks it: the
          *  PARAMETERS come first, the library's being already at the front of
-         *  a run that has to stay contiguous. Null on a site that registers
-         *  its own in register_vars(). LAST, for the same reason as the rest. */
-        const Vars::Descriptor*       params;
-        uint16_t                      param_count;
-        const Vars::Descriptor*       rows;
-        uint16_t                      row_count;
+         *  a run that has to stay contiguous - which is a property of the
+         *  table's ORDER, and the generator emits it. Null on a site that
+         *  registers its own in register_vars(). LAST, like the rest. */
+        const Vars::Descriptor*       vars;
+        uint16_t                      var_count;
     };
 
     /** @brief Generic firmware base: owns the generic components + the loop

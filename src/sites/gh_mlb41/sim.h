@@ -502,7 +502,11 @@ inline void pulse_inlet(const Vars::Bank& io, uint32_t now_ms) {
     owed_ms += dt;
     const uint32_t pulses = owed_ms / 1000u;
     owed_ms -= pulses * 1000u;
-    if (pulses > 0) HAL::Pulse::inject(Site::pulse_inputs[0].channel, pulses);
+    // The channel the row declares: a PI row IS the counter, so there is no
+    // pulse table beside the table to read it from.
+    if (pulses > 0)
+        HAL::Pulse::inject((uint8_t)io.descriptor(io.find("irr_inCount").index).bind.reg,
+                           pulses);
 }
 
 /**

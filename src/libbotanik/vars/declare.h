@@ -280,21 +280,41 @@ namespace Botanik { namespace Vars {
                          (uint8_t)(F_BOUNDED | (word_swap ? F_WORD_SWAP : 0)), {} };
     }
 
-    /** @brief A **digital input**: one bit. @p invert folds active-low wiring in
-     *  here, so the control programs above read true = asserted. Device 0 = a
-     *  local input bit.
-     *  @param pulse this LOCAL terminal is edge-counted rather than polled
-     *         (`F_PULSE`); the edge itself is in the site's pulse table. */
+    /** @brief A **digital input**: one bit, POLLED as a level. @p invert folds
+     *  active-low wiring in here, so the control programs above read
+     *  true = asserted. Device 0 = a local input bit.
+     *  @note An edge-counted terminal is PI(), not this: its level is not a
+     *  reading of anything. */
     constexpr Descriptor DI(const char* name, uint8_t device, uint8_t fc, uint16_t reg,
                           bool def, uint32_t timeout_ms, bool invert,
                           const char* desc, const char* notes,
-                          uint16_t poll_ms = 0, bool pulse = false) {
+                          uint16_t poll_ms = 0) {
         return Descriptor{ Scalar::B(def), name, "", desc, notes,
                          Payload(Scalar::B(false), Scalar::B(true)),
                          { xp_of(device), T_BOOL, device, fc, reg, 1, 1.0f, 0.0f },
                          timeout_ms, poll_ms, nullptr,
                          T_BOOL, ROLE_INPUT, SCOPE_DI, 0,
-                         (uint8_t)((invert ? F_INVERT : 0) | (pulse ? F_PULSE : 0)), {} };
+                         (uint8_t)(invert ? F_INVERT : 0), {} };
+    }
+
+    /** @brief A **pulse-counted local terminal**: the running EDGE COUNT, as a
+     *  row. Not a level - the level of a pulse line is a moment of a train and
+     *  not a reading of anything - so the row is the counter, and a meter's law
+     *  differences it and carries the 32-bit wrap.
+     *
+     *  A row rather than a table beside the table: a counter only C++ can read
+     *  is one no ST program can meter with. `Io::LocalInputs` finds these by
+     *  walking for `F_PULSE`, attaches each once and publishes it every beat.
+     *  @param channel the local terminal, 0 = I1. Carried in @c reg, which a
+     *         local row has no other use for.
+     *  @param edge which edge advances the count (HAL::Pulse::Edge). Carried in
+     *         @c fc, likewise. */
+    constexpr Descriptor PI(const char* name, uint8_t channel, uint8_t edge,
+                          const char* desc, const char* notes) {
+        return Descriptor{ Scalar::U(0), name, "", desc, notes, Payload(),
+                         { XP_LOCAL, T_U32, 0, edge, channel, 1, 1.0f, 0.0f },
+                         0, 0, nullptr,
+                         T_U32, ROLE_INPUT, SCOPE_DI, 0, F_PULSE, {} };
     }
 
     /** @brief A **direct output**: written 1:1 to the register. @p safe is where

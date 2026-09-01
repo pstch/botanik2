@@ -489,7 +489,7 @@ TEST_CASE("site: every row the site declares actually fits in the bank") {
          "redeclared row out, so the live count is the declared total minus "
          "however many rows this site restates.");
     CHECK(bank.count() <=
-          (uint16_t)(Site::LIBRARY_ROWS + Site::PARAMS_COUNT + Site::ROWS_COUNT));
+          (uint16_t)(Site::LIBRARY_ROWS + Site::VARS_COUNT));
 }
 
 }  // namespace site_capacity

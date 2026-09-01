@@ -145,15 +145,24 @@ target_include_directories(botanik PUBLIC
     "${CMAKE_CURRENT_SOURCE_DIR}/src/libbotanik/plc/runtime"
     "${_site_dir}/generated")
 
-foreach(_f config.h site.h)
-    if(NOT EXISTS "${_site_dir}/${_f}")
-        message(FATAL_ERROR "Site directory '${_site_dir}' has no ${_f}; "
-            "every site must ship one. Point -DBOTANIK_SITE_DIR=<path> at a site "
-            "directory, or -DBOTANIK_SITE=<name> at one under src/sites/.")
-    endif()
-endforeach()
+if(NOT EXISTS "${_site_dir}/site.h")
+    message(FATAL_ERROR "Site directory '${_site_dir}' has no site.h; "
+        "every site must ship one. Point -DBOTANIK_SITE_DIR=<path> at a site "
+        "directory, or -DBOTANIK_SITE=<name> at one under src/sites/.")
+endif()
+# The config a table-driven site GENERATES, or the one it hand-writes. A site
+# whose site.toml produces config.gen.h needs no shim over it.
+if(EXISTS "${_site_dir}/generated/config.gen.h")
+    set(_site_config "${_site_dir}/generated/config.gen.h")
+elseif(EXISTS "${_site_dir}/config.h")
+    set(_site_config "${_site_dir}/config.h")
+else()
+    message(FATAL_ERROR "Site directory '${_site_dir}' has neither "
+        "generated/config.gen.h nor config.h; one of them carries the "
+        "build-wide BOTANIK_* overrides.")
+endif()
 target_compile_definitions(botanik PUBLIC
-    BOTANIK_SITE_CONFIG=\"${_site_dir}/config.h\"
+    BOTANIK_SITE_CONFIG=\"${_site_config}\"
     BOTANIK_SITE_HEADER=\"${_site_dir}/site.h\")
 message(STATUS "Site: ${_site_dir}")
 

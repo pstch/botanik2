@@ -1,0 +1,23 @@
+label,var
+Interior   ,cli_temp_in
+Exterior   ,cli_temp_ext
+Humidity   ,cli_rh_hi
+Dew margin ,cli_dpMargin_degC
+Target     ,cli_targetTemp_degC
+Phase      ,cli_phase
+Cool dem   ,cli_coolDem
+Strat dem  ,cli_stratDem
+Humid dem  ,cli_humidDem
+Windows    ,cli_windowDem
+Intractor  ,cli_intr1
+Fan speed  ,cli_fanSpeed
+Screen     ,cli_screen
+Skirt      ,cli_skirtDuty
+Irrigation ,irr_state
+Tray       ,irr_activeTray
+Since rain ,cli_sinceRain_min
+Wind       ,cli_wind_mps
+Local V    ,sys_local_V
+Local A    ,sys_local_A
+Grid A     ,grid_total_A
+Lockout    ,sys_supply_lockout

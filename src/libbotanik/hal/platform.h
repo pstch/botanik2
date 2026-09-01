@@ -246,6 +246,12 @@ namespace Botanik { namespace HAL {
          *  @warning Call from setup(). The OPTA core allocates on attach. */
         bool attach(uint8_t ch, Edge edge);
 
+        /** @brief Whether @p ch is already counting. attach() answers false
+         *  for a channel that is out of range, colliding, OR already attached,
+         *  and a caller that has to tell the last case from the first two asks
+         *  this. */
+        bool attached(uint8_t ch);
+
         /** @brief @p ch's count and the instant of the read.
          *  Re-reads until the count is stable, so an edge arriving mid-read
          *  cannot pair a new count with an old timestamp. */
