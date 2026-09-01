@@ -445,6 +445,7 @@ const Descriptor rows[] = {
     SV("pwr_dc2_V_qlt", T_BOOL, 0, 0, "", 683, "DC PS2 divider believable", "mirrored from the divider row by the bank"),
     SV("pwr_upsBat_V_qlt", T_BOOL, 0, 0, "", 684, "UPS battery divider believable", "mirrored from the divider row by the bank"),
     SV("pwr_genBat_V_qlt", T_BOOL, 0, 0, "", 685, "gen battery divider believable", "mirrored from the divider row by the bank"),
+    SV("pwr_upsLowBat_qlt", T_BOOL, 0, 0, "", 692, "UPS low-battery contact readable", "mirrored from the terminal by the bank; the law fails ASSERTED without it"),
     SV("sys_dc1_V_qlt", T_BOOL, 0, 0, "", 686, "DC PS1 mirror current", "the mirror HOLDS its last average; this is what says nobody took it"),
     SV("sys_dc2_V_qlt", T_BOOL, 0, 0, "", 687, "DC PS2 mirror current", "the mirror HOLDS its last average; this is what says nobody took it"),
     SV("sys_upsBat_V_qlt", T_BOOL, 0, 0, "", 688, "UPS battery mirror current", "the mirror HOLDS its last average; this is what says nobody took it"),

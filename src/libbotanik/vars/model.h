@@ -324,11 +324,10 @@ namespace Botanik { namespace Vars {
          *
          *  Var::_under() already substitutes for the qualities with nothing
          *  behind them at all - Q_NO_DATA, Q_SAFE, Q_IMPLAUSIBLE. What this
-         *  ADDS is the two that keep a value: Q_STALE and Q_UNCERTAIN, which
-         *  is what the whole cascade writes. So a law computes on a number
-         *  somebody chose rather than on a reading of unbounded age, while the
-         *  pages, the telemetry and the register map read through Var and an
-         *  operator looking for what a dead probe LAST said still finds it.
+         *  ADDS is Q_STALE, the one that keeps a value. So a C++ reader gets a
+         *  number somebody chose rather than a reading of unbounded age.
+         *  @note NOT what ST reads: a law reads held() and asks the companion,
+         *  so the verdict is explicit rather than substituted underneath it.
          *  @note An override reads as the force: valid() is asked of the value
          *  in effect, so a forced row is believable and never substituted. */
         template <typename T, Dir D>
@@ -701,13 +700,6 @@ namespace Botanik { namespace Vars {
     inline T Ref<T, D>::get() const { return io->get(*this); }
 
     template <typename T, Dir D>
-    inline void Ref<T, D>::set(T v, bool current) const {
-        static_assert(D != Dir::IN, "a VAR_INPUT row cannot be driven");
-        io->drive(*this, v);
-        if (!current) io->var(r).invalidate(Q_UNCERTAIN);
-    }
-
-    template <typename T, Dir D>
     inline bool Ref<T, D>::valid() const { return io->var(r).valid(); }
 
     template <typename T, Dir D>
@@ -729,7 +721,7 @@ namespace Botanik { namespace Vars {
         // ST has ONE write macro, so the ROW is what decides which write it
         // means: a parameter is state the plant has to keep, anything else is
         // this scan's answer.
-        if (io->descriptor(r.index).role != ROLE_PARAM) { set(v, true); return; }
+        if (io->descriptor(r.index).role != ROLE_PARAM) { io->drive(*this, v); return; }
         if (RefIo<T>::edit(*io, r, v) != SET_OK) return;
         io->param_owe(io->var(r));
     }
@@ -738,12 +730,6 @@ namespace Botanik { namespace Vars {
     inline void Ref<T, D>::invalidate() const {
         static_assert(D != Dir::IN, "a VAR_INPUT row cannot be invalidated");
         io->var(r).invalidate(Q_NO_DATA);
-    }
-
-    template <typename T, Dir D>
-    inline void Ref<T, D>::hold() const {
-        static_assert(D != Dir::IN, "a VAR_INPUT row cannot be held");
-        io->var(r).invalidate(Q_UNCERTAIN);
     }
 
 

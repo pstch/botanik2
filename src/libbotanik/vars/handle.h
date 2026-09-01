@@ -221,13 +221,12 @@ namespace Botanik { namespace Vars {
 
         /** @brief What the row reads with no override: the ONE statement of the
          *  fallback rule, shared by raw() and live().
-         *  @note A STALE or UNCERTAIN row KEEPS its value - a sensor that
-         *  answered a minute ago still knows what the plant was doing, and so
-         *  does a law still deriving from one. Q_NO_DATA, Q_SAFE and Q_IMPLAUSIBLE fall
-         *  back, because there is nothing behind them to keep. */
+         *  @note A STALE row KEEPS its value: a sensor that answered a minute
+         *  ago still knows what the plant was doing. Q_NO_DATA, Q_SAFE and
+         *  Q_IMPLAUSIBLE fall back, because there is nothing behind them. */
         Scalar _under() const {
-            return (_v->qual == Q_GOOD || _v->qual == Q_STALE ||
-                    _v->qual == Q_UNCERTAIN) ? _v->v : _d->def;
+            return (_v->qual == Q_GOOD || _v->qual == Q_STALE)
+                       ? _v->v : _d->def;
         }
 
         /** @brief Whether the override reaches this reader: in force and not

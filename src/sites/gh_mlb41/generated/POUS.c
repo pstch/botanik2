@@ -4732,6 +4732,7 @@ static void DC_WATCH_init__(DC_WATCH_data__ *data__, BOOL retain) {
   __INIT_EXTERNAL(UINT,PWR_UPSBAT_AVG_MS,data__->PWR_UPSBAT_AVG_MS,retain)
   __INIT_EXTERNAL(UINT,PWR_GENBAT_AVG_MS,data__->PWR_GENBAT_AVG_MS,retain)
   __INIT_EXTERNAL(BOOL,PWR_UPSLOWBAT,data__->PWR_UPSLOWBAT,retain)
+  __INIT_EXTERNAL(BOOL,PWR_UPSLOWBAT_QLT,data__->PWR_UPSLOWBAT_QLT,retain)
   __INIT_EXTERNAL(UDINT,SYS_NOW_MS,data__->SYS_NOW_MS,retain)
   __INIT_EXTERNAL(REAL,SYS_DC1_V,data__->SYS_DC1_V,retain)
   __INIT_EXTERNAL(BOOL,SYS_DC1_V_QLT,data__->SYS_DC1_V_QLT,retain)
@@ -4798,7 +4799,7 @@ static void DC_WATCH_body__(DC_WATCH_data__ *data__) {
   __SET_EXTERNAL(data__->,ALARM_DC_PS1,,!(__GET_VAR(data__->PS1.HEALTHY,)));
   __SET_EXTERNAL(data__->,ALARM_DC_PS2,,!(__GET_VAR(data__->PS2.HEALTHY,)));
   __SET_EXTERNAL(data__->,ALARM_GENERATOR_BATTERY,,!(__GET_VAR(data__->GEN.HEALTHY,)));
-  __SET_VAR(data__->LOW_FOR.,IN,,__GET_EXTERNAL(data__->PWR_UPSLOWBAT,));
+  __SET_VAR(data__->LOW_FOR.,IN,,(__GET_EXTERNAL(data__->PWR_UPSLOWBAT,) || !(__GET_EXTERNAL(data__->PWR_UPSLOWBAT_QLT,))));
   __SET_VAR(data__->LOW_FOR.,PT,,__UDINT_LITERAL(2000));
   __SET_VAR(data__->LOW_FOR.,NOW,,__GET_EXTERNAL(data__->SYS_NOW_MS,));
   TON_MS_body__(&data__->LOW_FOR);

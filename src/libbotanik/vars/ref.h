@@ -71,14 +71,6 @@ namespace Botanik { namespace Vars {
         /** @brief The value in force. Every direction reads: a POU may read
          *  its own output. */
         T get() const;
-        /** @brief Drive it, saying whether the value is CURRENT. There is no
-         *  one-argument form: the law runs the same either way, and the
-         *  quality is the half a reader cannot recover from the number.
-         *  VAR_INPUT does not compile.
-         *  @note CONST: writing through a reference changes the TABLE, not the
-         *  reference, exactly as writing through a pointer does. */
-        void set(T v, bool current) const;
-
         /** @brief Whether the row carries a believable value. */
         bool valid() const;
 
@@ -111,17 +103,6 @@ namespace Botanik { namespace Vars {
          *  that has never had a value at all. VAR_INPUT does not compile. */
         void invalidate() const;
 
-        /** @brief Say the value is not current while KEEPING it: the law had
-         *  nothing new to derive, so the last answer stands, marked
-         *  not-believable. To keep deriving and mark the RESULT, drive it with
-         *  @c set(v,false) instead.
-         *
-         *  What a law does when its inputs go: a reader that checks quality
-         *  learns the number is not to be acted on, and one that does not gets
-         *  the last real answer rather than a declared default - which reads
-         *  like a measurement of zero and is how a dead probe becomes a
-         *  greenhouse at 0 degC. */
-        void hold() const;
 
         /** @} */
     };
