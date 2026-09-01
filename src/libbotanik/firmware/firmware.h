@@ -263,11 +263,14 @@ namespace Botanik {
             // One 64-bit "now" for every Component stepped this beat.
             uint64_t now_ms = HAL::Clock::uptime_ms();
 
-            // HALTED: the plant has reached its safe state and the operator
-            // asked for the cycle to stop rather than for a reset. Nothing runs
-            // from here - not the console either - and the kick below still
-            // goes out, because the loop IS alive. Recovery is `reset`.
-            if (_health.halted()) {
+            _advance_run_state(now_ms);
+
+            // HALTED: the operator asked for the cycle to stop rather than for
+            // a reset, and the laws have already stopped. Nothing runs from
+            // here - not the console either - and the kick below still goes
+            // out, because the loop IS alive. Recovery is `reset`.
+            if (_health.halted() &&
+                _scheduler.context()->run_state == Scheduler::RunState::HALT) {
                 (void)_scheduler.kick(true);
                 return true;
             }
@@ -278,17 +281,71 @@ namespace Botanik {
             // vouches for it. Empty by default.
             on_loop(now_ms);
 
-            // The verdict is HealthMonitor's, the watchdog is the scheduler's.
-            // A withheld kick chooses to let the hardware reset us, so the field
-            // drops to its safe state FIRST: the reset gives no such guarantee,
-            // and the gap before the reboot is exactly when an actuator must
-            // not be left energised.
-            if (!_scheduler.kick(_health.watchdog_ok())) {
-#if BOTANIK_FEATURE_VARS
-#endif
-            }
+            // The verdict is HealthMonitor's, the watchdog is the scheduler's,
+            // and the LIFECYCLE says when the verdict may be acted on: a
+            // withheld kick lets the hardware reset us, and that must not
+            // happen until the laws have stopped and sys_shutdown_sec has run
+            // out. Withholding it the moment `reboot` was typed is what used to
+            // race the retained rows on their way to flash.
+            const bool ending =
+                _scheduler.context()->run_state == Scheduler::RunState::HALT;
+            (void)_scheduler.kick(ending ? _health.watchdog_ok() : true);
             return true;
         }
+
+        /** @brief Advance the lifecycle. The one place the two holds are
+         *  counted, so the ends of the run are the same mechanism.
+         *
+         *  START and STOP are TIMED; RUN ends the moment a stop is asked for,
+         *  because there is nothing to wait for on that edge. There is no way
+         *  back: a unit on its way out does not return to service. */
+        void _advance_run_state(uint64_t now_ms) {
+            Scheduler::SchedulerContext* sc = _scheduler.context();
+            switch (sc->run_state) {
+            case Scheduler::RunState::START:
+                if (now_ms >= _startup_hold_ms()) {
+                    sc->run_state = Scheduler::RunState::RUN;
+                    _logger.notice(Logs::BOOT, "in service (%lu ms hold)",
+                                   (unsigned long)_startup_hold_ms());
+                }
+                break;
+            case Scheduler::RunState::RUN:
+                if (_health.stop_requested() != Health::HealthMonitor::Stop::NONE) {
+                    sc->run_state = Scheduler::RunState::STOP;
+                    _stop_at_ms   = now_ms;
+                    _logger.warning(Logs::HEALTH, "laws stopped, %lu ms to go",
+                                    (unsigned long)_shutdown_hold_ms());
+                }
+                break;
+            case Scheduler::RunState::STOP:
+                if (now_ms - _stop_at_ms >= _shutdown_hold_ms()) {
+                    sc->run_state = Scheduler::RunState::HALT;
+                    _logger.warning(Logs::HEALTH, "stopped");
+                }
+                break;
+            default: break;             // SETUP is left by setup(); HALT is the end
+            }
+        }
+
+        /** @brief The two holds, from their rows where there is a table and
+         *  from the build's own floor where there is not. */
+        uint32_t _startup_hold_ms() const {
+#if BOTANIK_FEATURE_VARS
+            return _io.startup_hold_ms();
+#else
+            return Config::STARTUP_HOLD_MS;
+#endif
+        }
+        uint32_t _shutdown_hold_ms() const {
+#if BOTANIK_FEATURE_VARS
+            return _io.shutdown_hold_ms();
+#else
+            return Config::SHUTDOWN_HOLD_MS;
+#endif
+        }
+
+        /** @brief Uptime the laws stopped at; the STOP hold runs from here. */
+        uint64_t _stop_at_ms = 0;
 
         /** @brief Run loop() forever (the OPTA entry point; the simulator
          *  drives loop() itself so it can break on a shutdown signal). */

@@ -533,6 +533,10 @@ namespace Botanik { namespace Vars {
          *  silently running from the first beat. */
         uint32_t startup_hold_ms() const;
 
+        /** @brief How long the laws stay stopped before the ending, in ms,
+         *  from `sys_shutdown_sec`. @see startup_hold_ms */
+        uint32_t shutdown_hold_ms() const;
+
 
         /** @} */
 

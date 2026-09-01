@@ -75,12 +75,10 @@ namespace Botanik { namespace Shell {
             _println("reboot: health monitor unavailable (`reset` resets now)");
             return;
         }
-        // Control authority is NOT dropped here. The request starts a PARKING
-        // sequence: every program drives its own actuators to their safe
-        // positions and says when it has arrived, and only then does the field
-        // go safe and the kick stop. Windows move one at a time and take
-        // fifteen seconds each, so dropping authority now would leave three of
-        // them wherever the command caught them.
+        // The request moves the LIFECYCLE, it does not reset anything: the
+        // next beat leaves RUN, which stops the laws, and sys_shutdown_sec
+        // runs before the kick is withheld. That window is what gets the
+        // retained rows and the owed parameters to flash.
         _health->request_reboot();
 
         // LOGGED rather than printed: a unit that reset is worth accounting for
@@ -98,16 +96,16 @@ namespace Botanik { namespace Shell {
             if (sc != nullptr && sc->watchdog_ms != 0)
                 _logger->critical(Logs::HEALTH,
                                   "reboot requested from the console\n"
-                                  "parking the plant, then %lu ms to reset",
+                                  "stopping the laws, then %lu ms to reset",
                                   (unsigned long)sc->watchdog_ms);
             else
                 _logger->critical(Logs::HEALTH,
                                   "reboot requested from the console\n"
-                                  "parking the plant, then the watchdog resets us");
+                                  "stopping the laws, then the watchdog resets us");
         }
     }
 
-    // The other ending: the same parking, and then the unit sits there. Kept
+    // The other ending: the same stop, and then the unit sits there. Kept
     // alive - the watchdog is still kicked, because the loop IS alive - and
     // doing nothing at all, including no console. Recovery is `reset`.
     void CommandShell::_cmd_halt(const char*, uint16_t) {
@@ -119,7 +117,7 @@ namespace Botanik { namespace Shell {
         if (_logger != nullptr)
             _logger->critical(Logs::HEALTH,
                               "halt requested from the console\n"
-                              "parking the plant, then the cycle stops "
+                              "stopping the laws, then the cycle stops "
                               "(console included; `reset` to recover)");
     }
 

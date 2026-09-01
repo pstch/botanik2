@@ -25,6 +25,7 @@
 
 #include "libbotanik/core/context.h"
 #include "libbotanik/network/mqtt.h"
+#include "libbotanik/scheduler/scheduler.h"
 #include "libbotanik/vars/access.h"
 
 namespace Botanik { namespace Tasks { struct Tick; } }
@@ -64,6 +65,8 @@ namespace Botanik { namespace Network {
          *  properties of the rows themselves - see Vars::var_published() and
          *  Vars::var_group(). */
         const Vars::Bank*     _io          = nullptr;
+        /** @brief The lifecycle, borrowed from the scheduler; null publishes. */
+        const Scheduler::RunState* _state = nullptr;
         /** @brief Last publish cycle (uptime ms); 0 = none yet. */
         /** @brief _cursor value meaning "no sweep in progress". */
         static const uint16_t SWEEP_IDLE = 0xFFFF;
@@ -97,6 +100,9 @@ namespace Botanik { namespace Network {
          *  "<prefix>/telemetry/<group>/<name>", where the group is the prefix of
          *  the name - there is no per-site list to register or to forget. */
         void set_variables(const Vars::Bank* io) { _io = io; }
+
+        /** @brief Borrow the lifecycle. Nothing is published outside RUN. */
+        void set_run_state(const Scheduler::RunState* s) { _state = s; }
 
         /** @brief Publish every base + site field once
          *  TelemetryConfig::period_ms has elapsed and the link is

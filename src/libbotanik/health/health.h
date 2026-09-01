@@ -167,7 +167,7 @@ namespace Botanik { namespace Health {
         bool     _watchdog_ok      = true;
         /** latched by request_stop(); never cleared */
         Stop     _stop             = Stop::NONE;
-        /** whether the parking it started has finished */
+        /** whether the retained rows have been written for this ending */
         bool     _stopped          = false;
         bool     _post_ok          = false;
         // BOTANIK_NO_LOAD_ALARMS: hold the CPU_* load alarms cleared for
@@ -288,7 +288,7 @@ namespace Botanik { namespace Health {
         bool                watchdog_ok() const { return _watchdog_ok; }
 
         /** @brief Take the unit out of service. A LATCH, not a request that can
-         *  be reconsidered - there is no un-reboot - and the parking it starts
+         *  be reconsidered - there is no un-reboot - and the stop it starts
          *  runs to completion first.
          *
          *  Deliberately not a HAL::System::reset(): the reset path an
@@ -303,12 +303,15 @@ namespace Botanik { namespace Health {
         /** @brief Whether a reboot is pending - the kick is being withheld. */
         bool reboot_requested() const { return _stop == Stop::REBOOT; }
         Stop stop_requested() const { return _stop; }
-        /** @brief Whether the plant has ARRIVED at its safe state and the unit
-         *  is now acting on the request. Until then the programs are still
-         *  running, because parking is work. */
+        /** @brief Whether the record has been written for this ending. The
+         *  LIFECYCLE decides when the laws stop and when the kick may be
+         *  withheld; this says only that the store is up to date.
+         *  @see Scheduler::RunState */
         bool stopped() const { return _stopped; }
         /** @brief Whether the beat should stop running. A halted unit keeps
-         *  kicking: the watchdog says the loop is alive, and it is. */
+         *  kicking: the watchdog says the loop is alive, and it is. The
+         *  LIFECYCLE gates when this is acted on - loop() waits for HALT, so
+         *  the shutdown hold runs first. */
         bool halted() const { return _stopped && _stop == Stop::HALT; }
         /** @brief Healthy while the watchdog verdict holds and POST passed. */
         bool                healthy() const override { return _watchdog_ok && _post_ok; }
@@ -510,9 +513,9 @@ namespace Botanik { namespace Health {
          *  stepping (see the file header) - unless a reboot was asked for, which
          *  is the one case where letting the watchdog fire IS the intent. */
         void _update_watchdog(uint64_t /*now*/) {
-            // Only once the plant has ARRIVED. Withholding the kick while the
+            // Only once the record is written. Withholding the kick while the
             // windows are still travelling would reset the unit mid-stroke,
-            // which is the one thing the parking exists to avoid.
+            // which is the one thing the shutdown hold exists to avoid.
             _watchdog_ok = !(_stopped && _stop == Stop::REBOOT);
         }
     };

@@ -70,6 +70,16 @@ namespace Botanik { namespace Config {
 #endif
     BOTANIK_CFG(uint32_t, STARTUP_HOLD_MS);
 
+    /** @brief How long the unit sits with its laws stopped before it takes
+     *  its ending, in ms. The mirror of BOTANIK_STARTUP_HOLD_MS: one is the
+     *  field arriving, this is the record leaving. Retained rows and owed
+     *  parameters reach flash at the top of it, and flash is tens of ms per
+     *  row - a reset that races that write is what loses a watering date. */
+#ifndef BOTANIK_SHUTDOWN_HOLD_MS
+#  define BOTANIK_SHUTDOWN_HOLD_MS 5000
+#endif
+    BOTANIK_CFG(uint32_t, SHUTDOWN_HOLD_MS);
+
 #ifndef BOTANIK_HW_WATCHDOG_MS
 #  define BOTANIK_HW_WATCHDOG_MS 10000
 #endif

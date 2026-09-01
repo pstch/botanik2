@@ -26,7 +26,6 @@ namespace Botanik { namespace Plc { namespace Runtime {
     void Plant::wire() {
         io = &_io;
         _now_ref = _io.find("sys_now_ms");
-        _hold_ref = _io.find("sys_startup_sec");
         _day_ref = _io.find("sys_today");
         BOTANIK_ASSERT(PROGRAM_COUNT <=
                        (uint8_t)(sizeof _slot / sizeof _slot[0]));
@@ -97,26 +96,16 @@ namespace Botanik { namespace Plc { namespace Runtime {
                 (wall < 1600000000000ull) ? 0 : (int64_t)(wall / 86400000ull));
         }
 
-        // DEFENCE IN DEPTH. Nothing runs a law on a field that has not
-        // answered: before the hold every row still reads its DECLARED value,
-        // and the harm is not one wrong output but a momentary bring-up
-        // condition getting latched by something that outlives it.
+        // DEFENCE IN DEPTH, at both ends. Before RUN the field has not
+        // answered and every row still reads its DECLARED value; after RUN the
+        // unit is on its way out and a law that keeps deciding is deciding
+        // about a plant nobody is going to act on.
         //
-        // The whole body is held, not each program's inputs, because every
-        // stateful block seeds on its FIRST call - a filter adopts the reading
+        // The whole BODY is held, not each program's inputs, because every
+        // stateful block seeds on its first call - a filter adopts the reading
         // it starts on, a timer datums its clock - so a held program starts
-        // clean rather than from a fiction it has to climb out of.
-        const uint32_t hold_ms =
-            (_hold_ref.index != Vars::VAR_NONE)
-                ? (uint32_t)_io.var(_hold_ref).as_i64() * 1000u
-                : Config::STARTUP_HOLD_MS;
-        if (now_ms < hold_ms) return;
-        if (_held) {
-            _held = false;
-            if (hold_ms != 0 && _logger != nullptr)
-                _logger->notice(Logs::BOOT, "control released (%u ms hold)",
-                                (unsigned)hold_ms);
-        }
+        // clean rather than climbing out of a fiction.
+        if (_state != nullptr && *_state != Scheduler::RunState::RUN) return;
 
         _io.begin_writer(i);
         programs[i].run();

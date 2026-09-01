@@ -233,9 +233,6 @@ struct StRig {
 
     StRig() {
         d.terminals = &terminals;
-        // No startup hold: these cases exercise the LAWS, and their clocks
-        // start at 0. The hold has its own case, which sets it back.
-        live.bank.var(live.bank.find("sys_startup_sec")).set_i(0);
         st.wire();
         mirror.wire();
         d.st = &st;

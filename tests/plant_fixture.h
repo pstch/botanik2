@@ -70,9 +70,6 @@ struct Plant {
         // below runs the lot. The Cycle stays so a case can still step "the
         // programs" without knowing there are none.
         cycle = new Cycle(all, 0, &f.bank, f.reg);
-        // No startup hold: these cases exercise the LAWS, and their clocks
-        // start at 0. The hold has its own case, which sets it back.
-        f.bank.var(f.bank.find("sys_startup_sec")).set_i(0);
         st.wire();
         mirror.wire();
     }

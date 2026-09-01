@@ -32,7 +32,7 @@ namespace Botanik { namespace detail {
 
     // Scheduling and lifecycle
     static_assert(sizeof(Tasks::Registry)          == BOTANIK_SIZE(  6216,   4680), "Tasks::Registry footprint changed");
-    static_assert(sizeof(Scheduler::LoopScheduler) == BOTANIK_SIZE(   352,    328), "LoopScheduler footprint changed");
+    static_assert(sizeof(Scheduler::LoopScheduler) == BOTANIK_SIZE(   360,    336), "LoopScheduler footprint changed");
 
     // Logging and health
     static_assert(sizeof(Logs::Logger)             == BOTANIK_SIZE(   288,    240), "Logs::Logger footprint changed");
@@ -72,7 +72,7 @@ namespace Botanik { namespace detail {
      *  under the same opt-in. It is the firmware singleton's whole `.bss`
      *  footprint, so it can be read against the linker's map for the
      *  image. */
-    static_assert(sizeof(BotanikFirmware)          == BOTANIK_SIZE(204560, 201448), "BotanikFirmware footprint changed");
+    static_assert(sizeof(BotanikFirmware)          == BOTANIK_SIZE(204584, 201464), "BotanikFirmware footprint changed");
 
 #undef BOTANIK_SIZE
 

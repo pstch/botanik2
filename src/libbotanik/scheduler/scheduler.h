@@ -38,9 +38,30 @@ namespace Botanik { namespace Scheduler {
      *  in utils/filters.h: the bucket count is a scheduler tuning knob. */
     typedef Utils::WindowedMax<Config::LOAD_METRIC_BUCKETS> MetricWindow;
 
+    /** @brief Where the unit is in its life, from power-on to its ending.
+     *
+     *  ONE state, so the two ends of the run are the same mechanism rather
+     *  than a startup timer in one place and a shutdown timer in another.
+     *  What reads it gates on RUN and needs to know nothing else.
+     *
+     *  The firmware advances it; the scheduler only holds it, because the
+     *  transitions depend on things the loop driver has no business knowing -
+     *  when setup() returned, two operator parameters, and whether the health
+     *  monitor has been asked to stop. */
+    enum class RunState : uint8_t {
+        SETUP,   ///< inside setup(): components exist, the beat has not begun
+        START,   ///< the beat runs, the laws do not - waiting out sys_startup_sec
+        RUN,     ///< in service
+        STOP,    ///< the laws have stopped - waiting out sys_shutdown_sec
+        HALT     ///< done: waiting for the ending HealthMonitor::Stop names
+    };
+
     /** @brief Stable metrics snapshot consumed by AnsiTerminal.
      *  @note Written by LoopScheduler, read by other components. */
     struct SchedulerContext {
+        /** @brief Where the unit is in its life. @see RunState */
+        RunState run_state = RunState::SETUP;
+
         float    cpu_load_ema       = 0.0f;     ///< EMA of CPU load (duty cycle, fraction of period)
         uint32_t cpu_loop_us_recent = 0;        ///< Windowed peak work duration, us
         uint32_t cpu_loop_us_max    = 0;        ///< All-time peak work duration, us

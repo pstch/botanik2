@@ -399,6 +399,14 @@ namespace Botanik { namespace Vars {
         return sec > 0 ? (uint32_t)sec * 1000u : 0u;
     }
 
+    uint32_t Bank::shutdown_hold_ms() const {
+        const VarRef r = find("sys_shutdown_sec");
+        const int32_t sec = (r.index != VAR_NONE)
+                                ? (int32_t)var(r).as_i64()
+                                : (int32_t)(Config::SHUTDOWN_HOLD_MS / 1000u);
+        return sec > 0 ? (uint32_t)sec * 1000u : 0u;
+    }
+
     uint32_t Bank::_retain_ms() const {
         const VarRef r = find("sys_retain_sec");
         const int32_t sec = (r.index != VAR_NONE)

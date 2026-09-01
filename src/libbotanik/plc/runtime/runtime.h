@@ -8,6 +8,7 @@
 
 #include "libbotanik/core/component.h"
 #include "libbotanik/config/base.h"
+#include "libbotanik/scheduler/scheduler.h"
 #include "libbotanik/tasks/tasks.h"
 #include "libbotanik/vars/model.h"
 #include "libbotanik/plc/program.h"
@@ -39,15 +40,17 @@ namespace Botanik { namespace Plc { namespace Runtime {
         Vars::VarRef _day_ref;   ///< sys_today
         Slot                  _slot[32];
         uint64_t              _now_ms = 0;
-        /** @brief sys_startup_sec: uptime before which no program body runs.
-         *  Read through the ref every beat rather than cached at wire(), so
-         *  neither the parameter load nor a live edit has to happen first. */
-        Vars::VarRef          _hold_ref;
-        bool                  _held    = true;   ///< the hold has not lifted yet
+        /** @brief The lifecycle, borrowed from the scheduler. Null in a bare
+         *  rig, which then runs: a test that constructs a Plant and nothing
+         *  else is asking for the laws, not for the unit's life. */
+        const Scheduler::RunState* _state = nullptr;
 
     public:
         Plant(const SetupContext& ctx, Vars::Bank& io)
             : Component(ctx, "st"), _io(io) {}
+
+        /** @brief Borrow the lifecycle. No program body runs outside RUN. */
+        void set_run_state(const Scheduler::RunState* s) { _state = s; }
 
         void register_tasks() override;
 
