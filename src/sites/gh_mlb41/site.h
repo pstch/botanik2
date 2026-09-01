@@ -62,6 +62,8 @@ const Botanik::SiteDescriptor g_site = {
     &g_device_table,                                     // what each unit answers
 #endif
     pulse_inputs,   pulse_input_count,                   // edge-counted terminals
+    params,         PARAMS_COUNT,                        // ...and the table
+    rows,           ROWS_COUNT,
 };
 
 }  // namespace Site
@@ -71,8 +73,9 @@ const Botanik::SiteDescriptor g_site = {
 /**
  * @brief The gh_mlb41 greenhouse firmware.
  *
- * A thin binding of the generic base to this site's descriptor: it declares no
- * pages, no components and no programs, and overrides only register_vars().
+ * A thin binding of the generic base to this site's descriptor, and NOTHING
+ * else: no pages, no components, no programs, no overrides. Everything this
+ * site is, it is by pointing the descriptor at a generated table.
  * A site needing an extra page or a component of its own overrides
  * register_pages() / on_setup() here; see libbotanik/firmware/firmware.h.
  */
@@ -83,13 +86,6 @@ public:
     GreenhouseMLB41()
         : Botanik::BotanikFirmware(Site::g_site)
     {}
-
-protected:
-    /** @brief Hand the bank this site's rows. The generated register_all()
-     *  holds the parameters-first ordering the ROLE_PARAM run depends on. */
-    void register_vars() override {
-        Site::register_all(io());
-    }
 };
 
 // The simulated field. Body compiles only under TARGET_SIMULATOR, and is

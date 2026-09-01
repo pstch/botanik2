@@ -14,6 +14,12 @@ The end state the user asked for:
 
 > `src/sites/<NAME>/` contains only CSV tables, ST programs, and a root TOML.
 
+**Reached, bar two files.** `gh_mlb41` is 20 CSV tables, a TOML, 28 `.st`
+programs, 5 `.st` blocks and `generated/`. The C++ left is `sim.h` (the
+simulated field, `TARGET_SIMULATOR` only), `site.h` (a descriptor and an empty
+subclass), and two thin shims - `config.h` and `vars.h` - over the generated
+headers.
+
 **ALL 28 are ported.** The site has no C++ control program left, and no
 C++ block: `programs.h` is a comment, `site.h` holds one `Plc::Runtime::Plant`
 and nothing else, and `tables/programs.csv` is the roster.
@@ -50,11 +56,18 @@ Two things had to move with it:
   points it at the program's, `Plant` at the roster slot's, and the page asks
   the entry rather than the kind of thing behind it.
 
-### 3. Then: `SiteDescriptor` carries the row tables
+### 3. ~~`SiteDescriptor` carries the row tables~~ DONE
 
-So `register_vars()` stops being a site hook. After 2 and 3, `site.h` is a
-descriptor plus an empty subclass - generate it, or move the descriptor into
-`generated/` and delete it.
+`params`/`param_count` and `rows`/`row_count` are descriptor fields, appended
+LAST for the reason the rest of them are: every site brace-inits this
+aggregate, so a field added anywhere else moves the others. The base registers
+both runs before calling `register_vars()`, which stays as the escape hatch for
+a site whose table is not one - and which `gh_mlb41` no longer overrides.
+
+**`site.h` is now a descriptor plus an empty subclass**, which is what tasks 2
+and 3 were for. What is left to do is generate it, or move the descriptor into
+`generated/` and delete the file. `sim.h` is the only real C++ the site still
+has, and it is simulator-only.
 
 ---
 

@@ -98,10 +98,21 @@ namespace Botanik {
          *  aggregate and a field added anywhere else moves the rest. */
         const Modbus::DeviceTable*    devices;
 #endif
-        /** @brief The edge-counted terminals. LAST, after the guarded field,
-         *  so a build without the field bus does not move it. */
+        /** @brief The edge-counted terminals. After the guarded field, so a
+         *  build without the field bus does not move them. */
         const PulseInput*             pulses;
         uint8_t                       pulse_count;
+        /** @brief The site's variable table, in two runs. The base registers
+         *  them, so a site declares rows by pointing at them rather than by
+         *  overriding a hook.
+         *  ONE rule, and Bank::freeze() names the row that breaks it: the
+         *  PARAMETERS come first, the library's being already at the front of
+         *  a run that has to stay contiguous. Null on a site that registers
+         *  its own in register_vars(). LAST, for the same reason as the rest. */
+        const Vars::Descriptor*       params;
+        uint16_t                      param_count;
+        const Vars::Descriptor*       rows;
+        uint16_t                      row_count;
     };
 
     /** @brief Generic firmware base: owns the generic components + the loop
@@ -346,10 +357,11 @@ namespace Botanik {
 
 #if BOTANIK_FEATURE_VARS
         /** @brief Hand the bank the site's variable rows, one call per segment,
-         *  at the top of setup(). A site splits its table however it likes, with
-         *  ONE rule: the PARAMETERS come first, the library's being already at
-         *  the front of a run that has to stay contiguous. Bank::freeze() checks
-         *  it and names the row that broke it. */
+         *  at the top of setup(), AFTER the descriptor's own two runs. Most
+         *  sites need nothing here: `SiteDescriptor::params` / `rows` is the
+         *  ordinary way to declare a table. This is for one built some other
+         *  way - and it inherits the same rule, that PARAMETERS come first,
+         *  which by then means "there are none left to add". */
         virtual void register_vars() {}
 #endif
 

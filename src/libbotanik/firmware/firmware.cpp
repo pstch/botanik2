@@ -152,6 +152,11 @@ namespace Botanik {
         // checks the parameter run.
 #if BOTANIK_FEATURE_VARS
         Vars::register_library_vars(_io);
+        // The site's own two runs, parameters first. Declaring a table is
+        // pointing at it now; register_vars() is left for a site whose rows
+        // are not one.
+        if (_site.params != nullptr) _io.register_vars(_site.params, _site.param_count);
+        if (_site.rows   != nullptr) _io.register_vars(_site.rows,   _site.row_count);
         register_vars();
         _io.freeze();
         // The edge-counted terminals, before anything reads one: the channel a
