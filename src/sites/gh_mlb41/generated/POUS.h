@@ -473,7 +473,7 @@ typedef struct {
   ZONE_VOTE_data__ H_VOTE;
   EWMA_data__ T_PUB;
   EWMA_data__ H_PUB;
-  TOF_MS_data__ QUORUM;
+  TON_MS_data__ QUORUM;
   __DECLARE_VAR(USINT,WORST)
   __DECLARE_VAR(REAL,H_RAW)
 

@@ -2466,7 +2466,7 @@ static void ZONE_PROBES_init__(ZONE_PROBES_data__ *data__, BOOL retain) {
   ZONE_VOTE_init__(&data__->H_VOTE,retain);
   EWMA_init__(&data__->T_PUB,retain);
   EWMA_init__(&data__->H_PUB,retain);
-  TOF_MS_init__(&data__->QUORUM,retain);
+  TON_MS_init__(&data__->QUORUM,retain);
 }
 
 // Code part
@@ -2524,7 +2524,7 @@ static void ZONE_PROBES_body__(ZONE_PROBES_data__ *data__) {
   __SET_VAR(data__->QUORUM.,IN,,(__GET_VAR(data__->WORST,) < __USINT_LITERAL(3)));
   __SET_VAR(data__->QUORUM.,PT,,__UDINT_LITERAL(5000));
   __SET_VAR(data__->QUORUM.,NOW,,__GET_VAR(data__->NOW,));
-  TOF_MS_body__(&data__->QUORUM);
+  TON_MS_body__(&data__->QUORUM);
   __SET_VAR(data__->,FAULT,,__GET_VAR(data__->QUORUM.Q,));
 
   goto __end;

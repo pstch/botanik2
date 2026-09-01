@@ -74,7 +74,7 @@ VAR
   h_vote : ZONE_VOTE;
   t_pub  : EWMA;
   h_pub  : EWMA;
-  quorum : TOF_MS;
+  quorum : TON_MS;
 END_VAR
 VAR_TEMP
   worst : USINT;
@@ -112,8 +112,13 @@ END_VAR
 
   (* The alarm follows whichever quantity has lost the most: two probes still
      select correctly, so the plant keeps running and the operator is told to
-     replace one before the second goes. Its own dwell, because one missed
-     scan of RS-485 is the bus being busy rather than a probe that has gone. *)
+     replace one before the second goes.
+
+     A DWELL, so the shortfall has to persist: one missed scan of RS-485 is the
+     bus being busy rather than a probe that has gone, and at BRING-UP no probe
+     has answered yet. This was a TOF - an overrun - which fired on the first
+     beat of every boot and then hung on for five seconds after the probes came
+     back. wx_sensors has always used the dwell for the same job. *)
   IF t_vote.USED < h_vote.USED THEN worst := t_vote.USED;
   ELSE worst := h_vote.USED; END_IF;
   quorum(IN := worst < 3, PT := 5000, NOW := NOW);
