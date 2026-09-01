@@ -103,7 +103,7 @@ byte-identical. A different matiec would silently rewrite every POU.
 IEC2C=... python3 scripts/tables.py plant      # plant.st + plant.cpp, then iec2c
 python3 scripts/tables.py generate             # vars.gen.{h,cpp}
 python3 scripts/tables.py config               # config.gen.h
-python3 scripts/tables.py check                # CSVs vs a hand-written vars.cpp
+python3 scripts/tables.py points               # docs/reference/points.md
 ```
 
 `scripts/tables.py` is ~430 lines and is the only generator. Its output is
@@ -323,10 +323,10 @@ Porting a program is a small ST file and a larger test migration. The rules:
   silently hid every file matiec produces. Anchored to `/generated/`. Worth
   remembering that a "generate offline, commit the output" contract can be
   quietly not holding.
-- The `docs/reference/points.md` counts and several `docs/dev/` files are stale
-  after all of this. Not touched.
-- `st/` at the repo root still holds a `.plant.st.swp` from the user's editor.
-  The live file is `generated/plant.st`.
+- `docs/reference/points.md` is GENERATED now (`scripts/tables.py points`),
+  off the same CSVs and the same ST, so it cannot drift again. Several
+  `docs/dev/` files and `docs/design/control-system.md` are still stale.
+- The 14 committed `.swp` files are gone.
 
 ---
 

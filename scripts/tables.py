@@ -4,6 +4,7 @@
     tables.py export     vars.cpp -> tables/*.csv   (bootstrap, run once)
     tables.py check      the two must agree
     tables.py generate   tables/*.csv -> vars.gen.{h,cpp}
+    tables.py points     tables/*.csv + the ST -> docs/reference/points.md
 
 Offline. Output is committed, never built.
 """
@@ -40,7 +41,7 @@ AUX = {  # stem -> columns, for the tables that are not rows
     'modbus_models':  'symbol kind model_name regs words',
     'modbus_devices': 'addr model tag',
     'enums':          'enum ctype symbol value label desc',
-    'programs':       'name instance source rate',
+    'programs':       'name instance source rate desc',
     'home':           'label var',
 }
 
@@ -534,6 +535,194 @@ def generate(site):
     print('  vars.gen.cpp   %d params, %d rows' % (n_par, n_row))
 
 
+# ---- points.md -------------------------------------------------------------
+
+LIB_TABLE = 'src/libbotanik/vars/vars_table.h'
+
+# BY SCOPE, in the order Vars::VarScope declares them - which is also the order
+# a reader wants: what an operator sets, what alarms, what the plant computes,
+# then the wiring. One factory can only ever land in one scope.
+FAC_SCOPE = {
+    'P': 'P', 'PE': 'P', 'PS': 'P',
+    'A': 'A', 'G': 'G', 'SV': 'SV', 'SVE': 'SV',
+    'MI': 'MI', 'AI': 'AI', 'DI': 'DI', 'PI': 'DI',
+    'MO': 'MO', 'AO': 'AO', 'RO': 'RO',
+}
+SCOPES = [
+    ('A',  'Alarms',          'the boolean an AlarmCondition reads',
+     'name code on_s off_s recent_s hold_s reg desc notes'),
+    ('P',  'Parameters',      'persisted, editable',
+     'name type def accepts unit access reg desc notes'),
+    ('G',  'Computed values', 'HMI only, not published',
+     'name type def digits unit desc notes'),
+    ('SV', 'Status values',   'published: MQTT and the Modbus TCP slave',
+     'name type def digits unit reg desc notes'),
+    ('MI', 'Direct inputs',   'register 1:1 (device 0 = local)',
+     'name type device fc reg regs unit desc notes'),
+    ('AI', 'Analog inputs',   'raw count through scale/offset',
+     'name cal device fc reg regs unit desc notes'),
+    ('DI', 'Digital inputs',  'one bit, polled - or an edge COUNT, which is a PI row',
+     'name type device fc reg desc notes'),
+    ('MO', 'Direct outputs',  'register 1:1',
+     'name type device fc reg safe desc notes'),
+    ('AO', 'Analog outputs',  'engineering value through scale/offset',
+     'name cal device fc reg safe desc notes'),
+    ('RO', 'Relay outputs',   'a coil',
+     'name device coil safe invert desc notes'),
+]
+
+# What a factory's rows ARE, where the CSV carries no `type` column of its own.
+FAC_TYPE = {'A': 'T_BOOL', 'PE': 'T_ENUM', 'PS': 'T_STR', 'SVE': 'T_ENUM',
+            'DI': 'T_BOOL', 'DO': 'T_BOOL', 'RO': 'T_BOOL',
+            'AI': 'T_F32', 'AO': 'T_F32', 'PI': 'T_U32'}
+
+
+def _cell(v):
+    """One table cell: markdown-safe, and '-' rather than an empty column."""
+    v = (v or '').strip().strip('"')
+    return v.replace('|', '\\|').replace('\n', ' ') if v else '-'
+
+
+def _point_row(fac, r, want):
+    lo, hi = r.get('lo', ''), r.get('hi', '')
+    out = []
+    for c in want.split():
+        if   c == 'accepts': out.append('%s .. %s' % (_cell(lo), _cell(hi))
+                                        if lo or hi else '-')
+        elif c == 'access':  out.append('RW' if r.get('writable') == 'true' else 'RO')
+        elif c == 'type':    out.append(_cell(r.get('type') or FAC_TYPE.get(fac, '')))
+        else:                out.append(_cell(r.get(c)))
+    return out
+
+
+# The CSV's keys are terse where a reference table wants words.
+HEADINGS = {'def': 'default', 'desc': 'description', 'cal': 'calibration',
+            'on_s': 'on (s)', 'off_s': 'off (s)', 'recent_s': 'recent (s)',
+            'hold_s': 'hold (s)', 'regs': 'registers'}
+
+
+def _table(rows, want):
+    head = [HEADINGS.get(c, c) for c in want.split()]
+    return (['| ' + ' | '.join(head) + ' |', '|' + '---|' * len(head)]
+            + ['| ' + ' | '.join(r) + ' |' for r in rows])
+
+
+def _lib_rows():
+    """The library's own rows, off the one file that declares them. PARSED, not
+    counted: it is C++, but it is the same factory calls the CSVs become."""
+    out = {}
+    for fac, args in parse(LIB_TABLE):
+        r = dict(zip(ROWS[fac][1].split(), [unquote(a) for a in args]))
+        out.setdefault(fac, []).append(r)
+    return out
+
+
+def _st_interface(path):
+    """What one law reads and writes. `VAR_EXTERNAL CONSTANT` is read-only and
+    plain `VAR_EXTERNAL` is written - that IS the declaration, there is no
+    separate table saying so."""
+    reads, writes = [], []
+    for m in re.finditer(r'VAR_EXTERNAL(\s+CONSTANT)?(.*?)END_VAR',
+                         open(path).read(), re.S):
+        into = reads if m.group(1) else writes
+        for line in m.group(2).split('\n'):
+            mm = re.match(r'\s*([A-Za-z_]\w*)\s*:\s*([A-Z]+)\s*;', line)
+            if mm: into.append(mm.group(1))
+    return reads, writes
+
+
+def _st_brief(path):
+    """The law's own first sentence, which is what it is for."""
+    m = re.match(r'\s*\(\*\s*(.*?)\*\)', open(path).read(), re.S)
+    if not m: return '-'
+    return ' '.join(m.group(1).split('.')[0].split())
+
+
+def points(site):
+    """docs/reference/points.md, from the tables and the ST."""
+    tom  = toml(os.path.join(site, 'site.toml'))
+    name = tom['site']['name']
+    per  = {f: read_table(os.path.join(site, 'tables', ROWS[f][0] + '.csv'),
+                          ROWS[f][1].split()) for f in ROWS}
+    lib  = _lib_rows()
+
+    def of(src, sc):
+        return [(f, r) for f in ROWS if FAC_SCOPE.get(f) == sc
+                for r in src.get(f, [])]
+
+    n_site = sum(len(v) for v in per.values())
+    n_lib  = sum(len(v) for v in lib.values())
+    L = ['# %s: variables and programs' % name, '',
+         'GENERATED by `scripts/tables.py points`. Do not edit.', '',
+         'Every row the firmware exposes, what it is for, and where an integrator',
+         'finds it. The site half comes from `tables/*.csv`, the library half from',
+         '`%s`, and the programs from the ST itself.' % LIB_TABLE, '',
+         'One section per SCOPE, in the order `Vars::VarScope` declares them.', '',
+         '%d rows: %d declared by the site, %d by the library.'
+         % (n_site + n_lib, n_site, n_lib), '',
+         '| scope | what it is | site | library |', '|---|---|---|---|']
+    for sc, title, blurb, _ in SCOPES:
+        L.append('| %s | %s | %d | %d |'
+                 % (title, blurb, len(of(per, sc)), len(of(lib, sc))))
+    L.append('')
+
+    for sc, title, blurb, want in SCOPES:
+        rows, libr = of(per, sc), of(lib, sc)
+        if not rows and not libr: continue
+        L += ['## %s' % title, '', '`SCOPE_%s`: %s.' % (sc, blurb), '']
+        if rows:
+            L += ['### %s (%d)' % (name, len(rows)), '']
+            L += _table([_point_row(f, r, want) for f, r in rows], want) + ['']
+        if libr:
+            L += ['### Library (%d)' % len(libr), '']
+            L += _table([_point_row(f, r, want) for f, r in libr], want) + ['']
+
+    cal = read_table(os.path.join(site, 'tables', 'analog_cal.csv'),
+                     AUX['analog_cal'].split())
+    if cal:
+        L += ['## Analog scaling', '',
+              'A raw reading maps to engineering units through four parameters.',
+              '`scale` and `offset` are DERIVED rather than stored, so a',
+              'recalibration lands the moment the parameter commits.', '']
+        L += _table([[_cell(c[k]) for k in ('cal', 'raw_min_row', 'raw_min',
+                                            'raw_max_row', 'raw_max',
+                                            'eng_min_row', 'eng_min',
+                                            'eng_max_row', 'eng_max')] for c in cal],
+                    'block raw_min_row raw_min raw_max_row raw_max '
+                    'eng_min_row eng_min eng_max_row eng_max') + ['']
+
+    prog = read_table(os.path.join(site, 'tables', 'programs.csv'),
+                      AUX['programs'].split())
+    L += ['## Programs', '',
+          '%d laws, all of them IEC 61131-3 Structured Text compiled by matiec.'
+          % len(prog),
+          'The roster is `tables/programs.csv` and it decides the order they run',
+          'in; `BotanikFirmware` owns the resource that dispatches them, one task',
+          'each. A law reads and writes rows BY NAME, and nothing is passed',
+          'between them.', '',
+          '| # | program | rate | reads | writes | what it does |',
+          '|---|---|---|---|---|---|']
+    iface = {}
+    for i, e in enumerate(prog, 1):
+        path = os.path.join(site, e['source'])
+        iface[e['name']] = _st_interface(path)
+        L.append('| %d | %s | %s | %d | %d | %s |'
+                 % (i, e['name'], e['rate'], len(iface[e['name']][0]),
+                    len(iface[e['name']][1]), _cell(e['desc'])))
+    L.append('')
+    for e in prog:
+        reads, writes = iface[e['name']]
+        L += ['### %s' % e['name'], '',
+              '`%s`, every `BOTANIK_SITE_%s_MS`.'
+              % (e['source'], e['rate'].upper()), '',
+              '| direction | rows |', '|---|---|',
+              '| reads | %s |' % (', '.join('`%s`' % r for r in reads) or '-'),
+              '| writes | %s |' % (', '.join('`%s`' % w for w in writes) or '-'), '']
+
+    open('docs/reference/points.md', 'w').write('\n'.join(L))
+    print('  points.md      %d rows, %d programs' % (n_site + n_lib, len(prog)))
+
+
 if __name__ == '__main__':
     cmd = sys.argv[1] if len(sys.argv) > 1 else ''
     if   cmd == 'export':   export(SITE)
@@ -541,4 +730,5 @@ if __name__ == '__main__':
     elif cmd == 'generate': generate(SITE)
     elif cmd == 'plant':    sys.exit(plant(SITE))
     elif cmd == 'config':   config(SITE)
+    elif cmd == 'points':   points(SITE)
     else:                   sys.exit(__doc__)
