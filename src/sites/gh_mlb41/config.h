@@ -2,11 +2,13 @@
  * @file config.h
  * @brief The site's build-time configuration.
  *
- * Values, limits and feature flags come from `site.toml` by way of
- * `scripts/tables.py config`. What is left here is the one thing a table
- * cannot carry: the assertion that this site assumes every optional feature,
- * which is what stops a half-configured build reserving rows the library never
- * registers and misaligning every register after them.
+ * Every value, limit and feature flag comes from `site.toml` by way of
+ * `scripts/tables.py config`, so this file is the SHIM the build needs and
+ * nothing else: CMake includes it PUBLIC, before any library default, which is
+ * what makes a site's override win.
+ *
+ * It cannot hold the assertion that the site assumes every optional feature -
+ * that is read before the flags have defaults to test. It lives in vars.h.
  */
 
 #ifndef BOTANIK_SITE_CONFIG_H

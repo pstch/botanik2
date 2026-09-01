@@ -646,6 +646,6 @@ const Modbus::DeviceTable g_device_table = {
 
 // Filled at bring-up; extern in the header, or every TU including it
 // would carry a definition.
-VarRef home_refs[HOME_FIELDS] = {};
+VarRef home_refs[g_home_field_count] = {};
 
 }  // namespace Site

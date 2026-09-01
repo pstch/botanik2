@@ -6,46 +6,137 @@ The reference Botanik **site**: everything specific to one physical greenhouse.
 
 | Path | Origin | Holds |
 |---|---|---|
-| `tables/*.csv` | **declared** | every variable the site has, one file per row factory |
-| `programs/<stage>/<class>/<class>.toml` | declared | one control program: what it connects to, what it holds, what it declares |
-| `programs/order.toml` | declared | the order the programs run in |
-| `generated/vars.gen.{h,cpp}` | **generated** | the descriptor arrays, the calibration blocks, the enums, the RAM value store |
-| `generated/programs.gen.h` | generated | every program's header, the map of what they pass to each other, and `SITE_PROGRAM_LIST` |
-| `programs/<stage>/<class>/<class>.gen.h` | generated | one program's whole declaration part |
-| `programs/<stage>/<class>/<class>.cpp` | hand-written | one control program's body: the law itself |
-| `blocks/*.{h,cpp}` | hand-written | function blocks of the site's own, nameable from a program's table |
-| `vars.h` | hand-written | what the device map MEANS, and the home-screen captions |
-| `site.h` | hand-written | the shell commands, the `g_site` `SiteDescriptor`, and the `GreenhouseMLB41` binding |
-| `config.h` | hand-written | build-wide config overrides (`#define BOTANIK_*`); separate because it is read with none of the library in scope |
+| `site.toml` | **declared** | identity, tuning limits, feature flags |
+| `tables/*.csv` | **declared** | every variable the site has, one file per row factory, plus the enums, the field devices and the program roster |
+| `programs/<stage>/<class>/<class>.st` | **declared** | one control law, as IEC 61131-3 Structured Text |
+| `blocks/<name>/<name>.st` | **declared** | a function block of the site's own, nameable from any of its programs |
+| `generated/vars.gen.{h,cpp}` | generated | the descriptor arrays, the calibration blocks, the enums, the device map |
+| `generated/config.gen.h` | generated | `site.toml` as `#define BOTANIK_*` |
+| `generated/plant.{st,cpp}` | generated | the CONFIGURATION matiec compiles, and the roster `Plc::Runtime::Plant` runs |
+| `generated/POUS.*`, `plc.c`, `gh_mlb41.*` | generated | matiec's own output |
+| `vars.h` | hand-written | the home-screen captions, and two build guards |
+| `site.h` | hand-written | the `g_site` `SiteDescriptor` and the `GreenhouseMLB41` binding |
+| `config.h` | hand-written | a shim over `generated/config.gen.h`; separate because it is read with none of the library in scope |
 | `sim.h` | hand-written | the simulated field: it writes the variable tables the way a Modbus driver will. Its whole body is `#ifdef TARGET_SIMULATOR`, so it drops out of the hardware build |
 
-A program is one directory: the table that declares it, the header generated
-from that table, and the `.cpp` you write. `docs/generated/gh_mlb41_report.pdf`
-lists all 23 of them with what each is connected to, holds and remembers.
+Regenerate with `scripts/tables.py` - `generate`, `config`, and `plant` (which
+needs `IEC2C=` pointing at a built matiec). The output is COMMITTED and is
+never a build step.
 
-`GreenhouseMLB41` derives `BotanikFirmware` and just
-passes `g_site` to the base constructor - it declares no pages and overrides no hooks.
-The base owns every page (home/shell/logs/alarms/config/monitor) and wires the
-descriptor's tables generically, so the site is data, not code. A site needing custom
-per-beat logic or an extra page (e.g. re-adding a STATUS page by subclassing
-`Pages::StatusPage`) would override a base phase hook / `register_pages()`. See
-`src/libbotanik/firmware/firmware.h` for the full extension model and a worked example.
+## The control laws
+
+All 28 are **Structured Text**, compiled to C by matiec and run against the
+same `Vars::Bank` the rest of the firmware reads. `tables/programs.csv` is the
+roster - name, instance, source, rate - and it decides the order they run in.
+`BotanikFirmware` owns the `Plc::Runtime::Plant` that dispatches them, one
+`Tasks::Registry` entry each, so a law keeps its own period, its own
+`prog_<name>` health row and its own writer slot.
+
+A program reads and writes rows by NAME, through `VAR_EXTERNAL`. Nothing is
+passed between them: `docs/dev/st-migration.md` has the migration's own
+lessons, and `docs/dev/scan.md` the scan model.
+
+`GreenhouseMLB41` derives `BotanikFirmware` and passes `g_site` to the base
+constructor. It declares no pages, no components and no programs, and overrides
+nothing. A site needing an extra page or a component of its own would override
+`register_pages()` / `on_setup()`; see `src/libbotanik/firmware/firmware.h`.
+
+## The field bus
+
+```
+ * Bus: RS485, ModbusRTU master, 38400 baud, none/8/1, on COM2.
+ * (BOTANIK_MODBUS_BAUD is pinned to match, in this site's config.h.)
+ * 20 field devices, 102 mapped signals, 13 free channels. (The published map
+ * lists 70, and omits MTR-2 object 2, active power, which the device answers.)
+ *
+ *   SRR/TAC/MTR-1  Eastron SDM630    addr 5   37 readings
+ *   SRR/TAC/MTR-2  Lettel MCT1-140   addr 6    6 readings
+ *   SRR/TDC/AI-1   Waveshare 25767   addr 11   5 readings (+3 free)
+ *   SRR/TDC/AO-1   Waveshare 26211   addr 16   2 drives   (+6 free)
+ *   SRR/TDC/RO-1   Waveshare 26517   addr 31   6 coils (+2 free)
+ *   SRR/TDC/RO-2   Waveshare 26517   addr 32   6 coils (+2 free)
+ *   SRR/TDC/RO-3   Waveshare 26517   addr 33   8 coils
+ *   SRR/TDC/RO-4   Waveshare 26517   addr 34   8 coils
+ *   SRR/CLI/TH-1..3   temp/RH           addr 41-43  exterior
+ *   SRR/CLI/TH-4..6   temp/RH           addr 44-46  crawlspace
+ *   SRR/CLI/TH-7..9   temp/RH           addr 47-49  low level
+ *   SRR/CLI/TH-10..12 temp/RH           addr 50-52  high level
+ *
+ * Everything is XP_MODBUS today: the site has no XP_LOCAL variables yet.
+ *
+ * @warning Binding::reg is the Modbus REGISTER ADDRESS the master puts on the
+ * wire: the coil number on the relay boards, and the protocol START ADDRESS on
+ * the meters (30001 -> 0, 30003 -> 2, ...). NEVER the device profile's object
+ * index - nothing translates one into the other, and a row carrying the index
+ * decodes half of the row before it. Nor the register column of the device map,
+ * which is the Opta's own Modbus *slave* address and belongs in the slave map.
+ * Each row's notes record the object index, so a reading can still be traced
+ * back to the published map.
+ *
+ * @note The meters answer FC04 (input registers). The SDM630 manual requires it;
+ * the MCT1-140 accepts 03 or 04 and is given 04 to match.
+ *
+ * @note Both meters publish IEEE-754 singles, high word at the lower address, in
+ * direct engineering units, so these rows are 1:1 and carry no calibration. The
+ * MCT1-140's "unite et precision" column (0.1V, 0.01A, 10W) is RESOLUTION, not a
+```
+
+`Binding::reg` is the Modbus REGISTER ADDRESS the master puts on the wire: the
+coil number on the relay boards, and the protocol START ADDRESS on the meters
+(30001 -> 0, 30003 -> 2, ...). NEVER the device profile's object index -
+nothing translates one into the other, and a row carrying the index decodes
+half of the row before it. Each row's `notes` records the object index, so a
+reading can still be traced back to the published map.
+
+What each unit will answer, which is what `tables/modbus_models.csv` states as
+a request ceiling and an alignment:
+
+- **Eastron SDM630-Modbus V2** (manual V1.6B). 40 values (80 registers) per
+  transaction; a float's start address and count must both be even; holding
+  registers take one parameter per message, so no multi-write.
+- **Lettel MCT1-140.** Max quantity 100, every measurement a register-pair
+  float, so the same pair alignment applies. Nothing writes to it.
+- **Waveshare Analog Input 8CH (25767).** The eight readings are INPUT
+  registers at 3x0000..3x0007, read with 0x04; nothing sits at 4x0000, so
+  reading them with 0x03 draws exception 02. One register each, no alignment.
+- **Waveshare Analog Output 8CH (26211).** Speaks 03/06/10 - no 0x04 and no
+  coils. The eight outputs are HOLDING registers at 4x0000..4x0007, read and
+  written, so the multi-write is available.
+- **Waveshare Relay (D) (26517)** ("Development Protocol V2"). The eight relays
+  are coils at 0x0000..0x0007, read with 0x01 and written with 0x05 or 0x0F, so
+  a block may cover at most those eight. 0x00FF is the all-relays broadcast and
+  0x0200/0x0400 the flash timers; none is a coil a row should name.
+- **The temp/RH sensors.** An f32 at 0 (temperature) and another at 2
+  (humidity): four registers, pair-aligned and read-only. FC04 is assumed,
+  matching every other measurement on this bus; if they answer only FC03 it
+  shows as exception 02 on all twelve at once, and the fix is one character
+  per row.
+- **The weather station** is a PLACEHOLDER until the unit is chosen. Wind,
+  gust, rain rate and irradiance as four IEEE singles, so eight registers read
+  as one block; its address, register layout and word order are marked TODO on
+  each of its four rows, and those are the only ones that move when it is.
+
+Both meters publish IEEE-754 singles, high word at the lower address, in direct
+engineering units, so those rows are 1:1 and carry no calibration. The
+MCT1-140's "unite et precision" column (0.1V, 0.01A, 10W) is RESOLUTION, not a
+scale factor - except on the Long energy counters, where it is a multiplier
+(10 Wh per count).
 
 ## Data model
 
-Everything the site exposes is a **variable**, declared in `vars.h` and addressed by
-index. There is no payload struct: nothing carries a byte offset, so re-ordering a
+Everything the site exposes is a **variable**, declared in `tables/*.csv` and
+addressed by index. There is no payload struct: nothing carries a byte offset, so re-ordering a
 table cannot silently re-point a status row, an alarm or a home field at its
 neighbour.
 
 \startuml "gh_mlb41 variables: what the site declares"
-class "vars.h" as IO {
+class "tables/*.csv" as IO {
   analog in (43) : SDM630 three-phase meter (37) + MCT1-140 transfer switch (6)
   analog out (0) : AO-1 module wired but unmapped
   digital in (0) : AI-1 module wired but unmapped
   digital out (28) : relay coils on four 26517 expansions
   internal analog : values the control programs compute
-  internal digital : the 23 alarm conditions + program state flags
+  internal digital : the alarm conditions + program state flags
 }
 \enduml
 
@@ -54,7 +145,7 @@ precision and - the load-bearing one - a **default**, which does three jobs: an
 input's substitute when a read is invalid, an output's safe state on a fault, and
 a parameter's factory value.
 
-The home-screen readings live in `vars.h`. Grouping for the MONITOR page and
+The home-screen readings live in `vars.h` - a caption is a person's choice. Grouping for the MONITOR page and
 telemetry is derived: a variable's group is the prefix of its name, and whether
 it is published is its scope. Naming a variable files it.
 

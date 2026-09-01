@@ -19,7 +19,6 @@
 #include <string>
 #include <cstddef>
 #include "site_bank.h"
-#include "sites/gh_mlb41/programs.h"
 
 // site_names
 

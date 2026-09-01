@@ -3,46 +3,15 @@
 
 /**
  * @file vars.h
- * @brief The site's variables: the device map they were derived from, the
- *        table's counts and enums, and the home screen.
+ * @brief The site's variables: the counts and enums the generated table
+ *        carries, the home screen, and the two things a table cannot say.
  *
- * Bus: RS485, ModbusRTU master, 38400 baud, none/8/1, on COM2.
- * (BOTANIK_MODBUS_BAUD is pinned to match, in this site's config.h.)
- * 20 field devices, 102 mapped signals, 13 free channels. (The published map
- * lists 70, and omits MTR-2 object 2, active power, which the device answers.)
+ * The rows themselves are `tables/*.csv` by way of `scripts/tables.py
+ * generate`. What is here is the HOME SCREEN - a caption is a person's choice,
+ * and nothing in a row's name says it belongs on the landing page - and the
+ * two guards below, which are about the BUILD rather than about any row.
  *
- *   SRR/TAC/MTR-1  Eastron SDM630    addr 5   37 readings
- *   SRR/TAC/MTR-2  Lettel MCT1-140   addr 6    6 readings
- *   SRR/TDC/AI-1   Waveshare 25767   addr 11   5 readings (+3 free)
- *   SRR/TDC/AO-1   Waveshare 26211   addr 16   2 drives   (+6 free)
- *   SRR/TDC/RO-1   Waveshare 26517   addr 31   6 coils (+2 free)
- *   SRR/TDC/RO-2   Waveshare 26517   addr 32   6 coils (+2 free)
- *   SRR/TDC/RO-3   Waveshare 26517   addr 33   8 coils
- *   SRR/TDC/RO-4   Waveshare 26517   addr 34   8 coils
- *   SRR/CLI/TH-1..3   temp/RH           addr 41-43  exterior
- *   SRR/CLI/TH-4..6   temp/RH           addr 44-46  crawlspace
- *   SRR/CLI/TH-7..9   temp/RH           addr 47-49  low level
- *   SRR/CLI/TH-10..12 temp/RH           addr 50-52  high level
- *
- * Everything is XP_MODBUS today: the site has no XP_LOCAL variables yet.
- *
- * @warning Binding::reg is the Modbus REGISTER ADDRESS the master puts on the
- * wire: the coil number on the relay boards, and the protocol START ADDRESS on
- * the meters (30001 -> 0, 30003 -> 2, ...). NEVER the device profile's object
- * index - nothing translates one into the other, and a row carrying the index
- * decodes half of the row before it. Nor the register column of the device map,
- * which is the Opta's own Modbus *slave* address and belongs in the slave map.
- * Each row's notes record the object index, so a reading can still be traced
- * back to the published map.
- *
- * @note The meters answer FC04 (input registers). The SDM630 manual requires it;
- * the MCT1-140 accepts 03 or 04 and is given 04 to match.
- *
- * @note Both meters publish IEEE-754 singles, high word at the lower address, in
- * direct engineering units, so these rows are 1:1 and carry no calibration. The
- * MCT1-140's "unite et precision" column (0.1V, 0.01A, 10W) is RESOLUTION, not a
- * scale factor - except on the Long energy counters, where it is a multiplier
- * (10 Wh per count).
+ * What is on the field bus, and what each unit will answer: README.md.
  */
 
 #include <cstdint>
@@ -88,46 +57,6 @@ using namespace Botanik::Vars;
 const uint16_t LIBRARY_ROWS = 70;
 
 
-#if BOTANIK_FEATURE_MODBUS_RTU_CLIENT
-
-/** @name Field devices - what each unit on the segment answers
- *  @{ */
-
-/** @brief Eastron SDM630-Modbus V2. Manual V1.6B: 40 values (80 registers) per
- *  transaction, start address and count must both be even for a float,
- *  and holding registers take one parameter per message (so no
- *  multi-write). */
-/** @brief Lettel MCT1-140. Max quantity 100, every measurement a register-pair
- *  Float, so the same pair alignment applies. Nothing writes to it. */
-/** @brief Waveshare Modbus RTU Analog Input 8CH (25767), "Development Protocol".
- *  The eight readings are INPUT registers at 3x0000..3x0007, read with
- *  0x04; nothing sits at 4x0000, so reading them with 0x03 draws
- *  exception 02. Quantity is capped at the eight channels, one register
- *  each (no alignment). */
-/** @brief Waveshare Modbus RTU Analog Output 8CH (26211). Speaks 03/06/10 - no
- *  0x04 and no coils. The eight outputs are HOLDING registers at
- *  4x0000..4x0007, read and written, so the multi-write is available. */
-/** @brief Wind, gust, rain rate and irradiance as four IEEE singles, so eight
- *  registers read as one block. PLACEHOLDER until the unit is chosen: its
- *  address, register layout and word order are marked TODO on each of its
- *  rows, and those four are the only ones that move when it is. */
-/** @brief Waveshare Modbus RTU Relay (D) (26517), "Development Protocol V2". The
- *  eight relays are coils at 0x0000..0x0007, read with 0x01 and written
- *  with 0x05 or 0x0F, so a block may cover at most those eight. (0x00FF
- *  is the all-relays broadcast and 0x0200/0x0400 the flash timers; none
- *  is a coil a row should name.) */
-/** @brief An f32 at 0 (temperature) and another at 2 (humidity), so four
- *  registers, pair-aligned and read-only. FC04 is assumed, matching every
- *  other measurement on this bus; if these sensors answer only FC03 it
- *  shows as exception 02 on all twelve at once, and the fix is one
- *  character per row. */
-
-/** @brief Every unit on the segment, and what the plant calls it:
- *  the tag is data, so a log line can name the cabinet. */
-
-/** @} */
-
-#endif  // BOTANIK_FEATURE_MODBUS_RTU_CLIENT
 
 /** @brief Everything the tables generate: the calibration blocks, the two
  *  Descriptor arrays and their counts, the pulse inputs and the field-bus
@@ -139,13 +68,6 @@ const uint16_t LIBRARY_ROWS = 70;
 // failing POST, in the field. Caught here instead.
 static_assert(LIBRARY_ROWS + PARAMS_COUNT + ROWS_COUNT <= Config::VAR_MAX,
               "site table exceeds VAR_MAX - raise BOTANIK_VAR_MAX (about 36 bytes of RAM per row)");
-
-/** @brief Hand the bank this site's rows, PARAMETERS FIRST: the ROLE_PARAM run
- *  has to abut the library's, and this is the one place that has to know it. */
-inline void register_all(Vars::Bank& io) {
-    io.register_vars(params, PARAMS_COUNT);
-    io.register_vars(rows,   ROWS_COUNT);
-}
 
 /** @name Home screen - the one table no rule derives
  *
@@ -186,14 +108,11 @@ const HomeVar g_home_fields[] = {
 };
 const uint8_t g_home_field_count =
     (uint8_t)(sizeof(g_home_fields) / sizeof(g_home_fields[0]));
-/** @brief The same count as a constant expression, to size the resolved-ref
- *  array in the store above. */
-static const uint16_t HOME_FIELDS = sizeof(g_home_fields) / sizeof(g_home_fields[0]);
 
 /** @} */
 
 // The home screen silently ignores fields past its columns, so pin the count.
-static_assert(sizeof(g_home_fields) / sizeof(g_home_fields[0]) <= Config::HOME_FIELDS_MAX,
+static_assert(g_home_field_count <= Config::HOME_FIELDS_MAX,
               "too many home fields: the HomePage would silently drop the tail");
 
 /** @brief Where the home fields' names resolve to, filled at bring-up
@@ -204,7 +123,7 @@ static_assert(sizeof(g_home_fields) / sizeof(g_home_fields[0]) <= Config::HOME_F
  *  The last array this site owns. The value store, the string pool and the name
  *  index sat beside it until the bank started owning its own storage - sized
  *  once by Config::VAR_MAX, rather than by every site counting its own rows. */
-extern VarRef home_refs[HOME_FIELDS];
+extern VarRef home_refs[g_home_field_count];
 
 }  // namespace Site
 

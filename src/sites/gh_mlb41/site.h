@@ -3,17 +3,13 @@
 
 /**
  * @file site.h
- * @brief HAND-WRITTEN - the gh_mlb41 site: its shell commands, the descriptor
- *        bundling every table, the firmware binding, and the uniform handle
- *        every target harness builds against.
+ * @brief The gh_mlb41 site: its shell commands, the descriptor bundling every
+ *        table, and the firmware binding.
  *
- * Not generated: the generator never overwrites this file. A site is data, and
- * the data lives in the tables it pulls in:
- *
- *   vars.h    GENERATED     every variable in one table, the analog calibration
- *                           blocks, the field devices, the home-screen readings
- *   programs/ hand-written  the control laws, one .st each
- *   sim.h     hand-written  the simulated field
+ * A site is DATA, and this is the file that says so: a descriptor pointing at
+ * generated tables, and a subclass that overrides nothing. The laws are
+ * `programs/**\/*.st`, the rows are `tables/*.csv`, and the base owns the ST
+ * resource that runs them.
  *
  * `config.h` stays its own file: CMake includes it before the library defaults.
  *
