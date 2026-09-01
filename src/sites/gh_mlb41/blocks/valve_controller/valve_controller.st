@@ -17,8 +17,8 @@ VAR_INPUT
   DUTY_IN   : REAL;
   PERIOD_MS : UDINT;
   MIN_ON_MS : UDINT;
-  RESET     : BOOL;   (* drop the phase, so the next period starts from shut *)
-  NOW       : UDINT;  (* sys_now_ms: the scan clock, not an elapsed time *)
+  RESET     : BOOL;    (* drop the phase, so the next period starts from shut *)
+  NOW       : UDINT;   (* sys_now_ms: the scan clock, not an elapsed time *)
 END_VAR
 VAR_OUTPUT
   Q      : BOOL;

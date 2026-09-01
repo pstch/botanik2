@@ -27,32 +27,32 @@ VAR_EXTERNAL CONSTANT
   irr_liters_tray8    : UINT;
 END_VAR
 VAR_EXTERNAL
-  irr_volume_L        : REAL;
-  irr_state           : USINT;
-  irr_activeTray      : USINT;
-  irr_delivered_L     : REAL;
-  irr_drained_L       : REAL;
-  irr_today           : UDINT;
-  irr_servedToday     : USINT;
-  irr_forceNow        : BOOL;
-  alarm_irr_fill      : BOOL;
-  alarm_irr_drain     : BOOL;
-  irr_last_tray1      : UDINT;
-  irr_last_tray2      : UDINT;
-  irr_last_tray3      : UDINT;
-  irr_last_tray4      : UDINT;
-  irr_last_tray5      : UDINT;
-  irr_last_tray6      : UDINT;
-  irr_last_tray7      : UDINT;
-  irr_last_tray8      : UDINT;
-  irr_forceOn_tray1   : BOOL;
-  irr_forceOn_tray2   : BOOL;
-  irr_forceOn_tray3   : BOOL;
-  irr_forceOn_tray4   : BOOL;
-  irr_forceOn_tray5   : BOOL;
-  irr_forceOn_tray6   : BOOL;
-  irr_forceOn_tray7   : BOOL;
-  irr_forceOn_tray8   : BOOL;
+  irr_volume_L          : REAL;
+  irr_state             : USINT;
+  irr_activeTray        : USINT;
+  irr_delivered_L       : REAL;
+  irr_drained_L         : REAL;
+  irr_today             : UDINT;
+  irr_servedToday       : USINT;
+  irr_forceNow          : BOOL;
+  alarm_irr_fill        : BOOL;
+  alarm_irr_drain       : BOOL;
+  irr_last_tray1        : UDINT;
+  irr_last_tray2        : UDINT;
+  irr_last_tray3        : UDINT;
+  irr_last_tray4        : UDINT;
+  irr_last_tray5        : UDINT;
+  irr_last_tray6        : UDINT;
+  irr_last_tray7        : UDINT;
+  irr_last_tray8        : UDINT;
+  irr_forceOn_tray1     : BOOL;
+  irr_forceOn_tray2     : BOOL;
+  irr_forceOn_tray3     : BOOL;
+  irr_forceOn_tray4     : BOOL;
+  irr_forceOn_tray5     : BOOL;
+  irr_forceOn_tray6     : BOOL;
+  irr_forceOn_tray7     : BOOL;
+  irr_forceOn_tray8     : BOOL;
   alarm_irr_fill_tray1  : BOOL;
   alarm_irr_fill_tray2  : BOOL;
   alarm_irr_fill_tray3  : BOOL;
@@ -80,20 +80,20 @@ VAR
   dose_L   : REAL;    (* what actually went in: the drain is judged on it *)
 END_VAR
 VAR_TEMP
-  split_lim : REAL;
-  dose      : REAL;
-  litres    : REAL;
-  got       : REAL;
-  pt        : UDINT;
-  expired   : BOOL;
-  moved     : BOOL;
-  served    : BOOL;   (* the fill was judged: spend the forces and stamp *)
-  blame     : BOOL;
-  frac      : REAL;
-  min_frac  : REAL;
-  clog      : BOOL;
-  judged    : BOOL;   (* the drain was judged *)
-  done      : USINT;
+  split_lim    : REAL;
+  dose         : REAL;
+  litres       : REAL;
+  delivered_L  : REAL;
+  dwell_ms     : UDINT;
+  expired      : BOOL;
+  moved        : BOOL;
+  served       : BOOL;   (* the fill was judged: spend the forces and stamp *)
+  blame        : BOOL;
+  frac         : REAL;
+  min_frac     : REAL;
+  clog         : BOOL;
+  judged       : BOOL;   (* the drain was judged *)
+  served_today : USINT;
 END_VAR
   moved  := FALSE;
   served := FALSE;
@@ -103,13 +103,13 @@ END_VAR
 
   (* The dwell for whichever state is in force, TICKED before the machine reads
      it and zeroed again below if the state moves. *)
-  IF    mode = 1 THEN pt := SEC_MS(irr_maxFill_sec);
-  ELSIF mode = 4 THEN pt := SEC_MS(irr_soak_sec);
-  ELSIF mode = 2 THEN pt := SEC_MS(irr_drainWindow_sec);
-  ELSIF mode = 3 THEN pt := SEC_MS(irr_flush_sec);
-  ELSE pt := UDINT#0;
+  IF    mode = 1 THEN dwell_ms := SEC_MS(irr_maxFill_sec);
+  ELSIF mode = 4 THEN dwell_ms := SEC_MS(irr_soak_sec);
+  ELSIF mode = 2 THEN dwell_ms := SEC_MS(irr_drainWindow_sec);
+  ELSIF mode = 3 THEN dwell_ms := SEC_MS(irr_flush_sec);
+  ELSE dwell_ms := UDINT#0;
   END_IF;
-  dwell(IN := mode <> 0, PT := pt, NOW := sys_now_ms);
+  dwell(IN := mode <> 0, PT := dwell_ms, NOW := sys_now_ms);
   expired := dwell.Q;
 
   (* The dose is the tray's summer figure scaled by the modulation. One nobody
@@ -154,12 +154,12 @@ END_VAR
     irr_delivered_L := irr_inTotal_L - fill_at;
     (* ...and read BACK, so the fill ends on the row an operator can watch and
        force rather than on a local difference. *)
-    got := irr_delivered_L;
-    IF got >= dose AND dose > 0.0 THEN
+    delivered_L := irr_delivered_L;
+    IF delivered_L >= dose AND dose > 0.0 THEN
       alarm_irr_fill := FALSE;
       blame  := FALSE;
       served := TRUE;
-      dose_L := got;
+      dose_L := delivered_L;
       (* A soak of zero is SKIPPED, not passed through for one activation: a
          state the field bus sees flicker is a state somebody has to explain. *)
       IF irr_soak_sec > 0 THEN mode := 4; ELSE mode := 2; END_IF;
@@ -176,7 +176,7 @@ END_VAR
       alarm_irr_fill := TRUE;
       blame  := TRUE;
       served := TRUE;
-      dose_L := got;
+      dose_L := delivered_L;
       mode   := 2;
       moved  := TRUE;
     END_IF;
@@ -281,8 +281,8 @@ END_VAR
       forced       := FALSE;
     END_IF;
     (* The day's allowance, counted by the schedule and spent here. *)
-    done := irr_servedToday;
-    IF done < 255 THEN irr_servedToday := done + 1; END_IF;
+    served_today := irr_servedToday;
+    IF served_today < 255 THEN irr_servedToday := served_today + 1; END_IF;
   END_IF;
 
   (* The drain ends the cycle, and only after its verdict has named the tray. *)
@@ -301,7 +301,7 @@ END_VAR
       irr_drained_L := 0.0;
     END_IF;
     (* ...and the dwell starts again with the state it belongs to. *)
-    dwell(IN := FALSE, PT := pt, NOW := sys_now_ms);
+    dwell(IN := FALSE, PT := dwell_ms, NOW := sys_now_ms);
   END_IF;
 
   irr_state      := mode;

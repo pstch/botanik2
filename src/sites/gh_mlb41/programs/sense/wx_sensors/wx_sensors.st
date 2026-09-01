@@ -23,13 +23,13 @@ VAR_EXTERNAL CONSTANT
   sys_now_ms            : UDINT;
 END_VAR
 VAR_EXTERNAL
-  cli_wind_mps          : REAL;
-  cli_windGust_mps      : REAL;
-  cli_rain_mmph         : REAL;
-  cli_irrad_Wpm2        : REAL;
-  cli_wind_mps_qlt      : BOOL;
-  cli_rain_mmph_qlt     : BOOL;
-  alarm_wx_station      : BOOL;
+  cli_wind_mps      : REAL;
+  cli_windGust_mps  : REAL;
+  cli_rain_mmph     : REAL;
+  cli_irrad_Wpm2    : REAL;
+  cli_wind_mps_qlt  : BOOL;
+  cli_rain_mmph_qlt : BOOL;
+  alarm_wx_station  : BOOL;
 END_VAR
 VAR
   wind_vote  : WX_WORSE;

@@ -3,16 +3,16 @@
 
 PROGRAM fan_controller
 VAR_EXTERNAL CONSTANT
-  cli_stratDem     : REAL;
-  cli_coolDem      : REAL;
-  cli_fanIrrDem    : REAL;
-  irr_state     : USINT;
-  cli_phase        : USINT;
-  cli_breezeDem    : REAL;
-  cli_fanLowDem    : REAL;
-  cli_fanMedDem    : REAL;
-  cli_fanHighDem   : REAL;
-  cli_fanDemHyst   : REAL;
+  cli_stratDem   : REAL;
+  cli_coolDem    : REAL;
+  cli_fanIrrDem  : REAL;
+  irr_state      : USINT;
+  cli_phase      : USINT;
+  cli_breezeDem  : REAL;
+  cli_fanLowDem  : REAL;
+  cli_fanMedDem  : REAL;
+  cli_fanHighDem : REAL;
+  cli_fanDemHyst : REAL;
 END_VAR
 VAR_EXTERNAL
   cli_destrat1_speed1 : BOOL;
@@ -21,7 +21,7 @@ VAR_EXTERNAL
   cli_destrat2_speed1 : BOOL;
   cli_destrat2_speed2 : BOOL;
   cli_destrat2_speed3 : BOOL;
-  cli_fanSpeed         : USINT;
+  cli_fanSpeed        : USINT;
 END_VAR
 VAR
   steps : STAIRCASE3;

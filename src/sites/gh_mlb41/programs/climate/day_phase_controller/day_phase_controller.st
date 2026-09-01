@@ -3,18 +3,18 @@
 
 PROGRAM day_phase_controller
 VAR_EXTERNAL CONSTANT
-  cli_temp_in           : REAL;
-  sol_ready             : BOOL;
-  sol_fromRise_min      : INT;
-  sol_fromSet_min       : INT;
-  cli_coldBankTrg_degC  : REAL;
-  cli_heatBankTrg_degC  : REAL;
-  sol_coldBankRise_min  : INT;
-  sol_breezeRise_min    : INT;
-  sol_dayRise_min       : INT;
-  sol_heatBankSet_min   : INT;
-  sol_duskSet_min       : INT;
-  sol_nightSet_min      : INT;
+  cli_temp_in          : REAL;
+  sol_ready            : BOOL;
+  sol_fromRise_min     : INT;
+  sol_fromSet_min      : INT;
+  cli_coldBankTrg_degC : REAL;
+  cli_heatBankTrg_degC : REAL;
+  sol_coldBankRise_min : INT;
+  sol_breezeRise_min   : INT;
+  sol_dayRise_min      : INT;
+  sol_heatBankSet_min  : INT;
+  sol_duskSet_min      : INT;
+  sol_nightSet_min     : INT;
 END_VAR
 VAR_EXTERNAL
   cli_phase             : USINT;
@@ -27,11 +27,11 @@ END_VAR
 VAR
   phase    : USINT := 0;   (* PHASE_NIGHT *)
   seeded   : BOOL  := FALSE;
-  day_max  : REAL;
+  day_max   : REAL;
   night_min : REAL;
 END_VAR
 VAR_TEMP
-  was : USINT;
+  prev_phase : USINT;
 END_VAR
 
   (* Seeding is the block's own: ST has no first-scan flag, and starting the
@@ -44,7 +44,7 @@ END_VAR
   IF cli_temp_in > day_max   THEN day_max   := cli_temp_in; END_IF;
   IF cli_temp_in < night_min THEN night_min := cli_temp_in; END_IF;
 
-  was := phase;
+  prev_phase := phase;
 
   (* Where the day is, as sun_watch published it. Unknown until the tracker has
      a location and a wall clock - every boot, for as long as NTP takes - and
@@ -75,8 +75,8 @@ END_VAR
   (* The extremes are gathered PER PHASE, not per calendar day: what a cold
      bank needs is how hot it got before it, and the phase boundary is where
      that window closes. *)
-  IF phase = 3 AND was <> 3 THEN day_max   := cli_temp_in; END_IF;
-  IF phase = 0 AND was <> 0 THEN night_min := cli_temp_in; END_IF;
+  IF phase = 3 AND prev_phase <> 3 THEN day_max   := cli_temp_in; END_IF;
+  IF phase = 0 AND prev_phase <> 0 THEN night_min := cli_temp_in; END_IF;
 
   cli_phase     := phase;
   cli_phase_qlt := sol_ready;

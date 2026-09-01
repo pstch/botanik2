@@ -21,11 +21,11 @@ VAR_INPUT
 END_VAR
 VAR_OUTPUT
   Y  : REAL;
-  OK : BOOL;       (* this beat MEASURED it *)
+  OK : BOOL;   (* this beat MEASURED it *)
 END_VAR
 VAR
-  avg    : REAL;
-  last   : UDINT;
+  avg  : REAL;
+  last : UDINT;
   seeded : BOOL := FALSE;
 END_VAR
 VAR_TEMP

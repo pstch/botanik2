@@ -3,10 +3,10 @@
 
 PROGRAM strat_sensor
 VAR_EXTERNAL CONSTANT
-  cli_temp_hi      : REAL;
-  cli_temp_lo      : REAL;
-  cli_temp_hi_qlt  : BOOL;
-  cli_temp_lo_qlt  : BOOL;
+  cli_temp_hi     : REAL;
+  cli_temp_lo     : REAL;
+  cli_temp_hi_qlt : BOOL;
+  cli_temp_lo_qlt : BOOL;
 END_VAR
 VAR_EXTERNAL
   cli_dTStrat_degC     : REAL;

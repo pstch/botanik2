@@ -20,9 +20,9 @@ VAR_OUTPUT
   SKIP     : BOOL;    (* it was due, and held back by hand *)
 END_VAR
 VAR_TEMP
-  summer    : REAL;
-  due_after : UDINT;
-  elapsed   : UDINT;
+  summer_days : REAL;
+  due_after   : UDINT;
+  elapsed     : UDINT;
 END_VAR
   DUE      := FALSE;
   SKIP     := FALSE;
@@ -33,10 +33,10 @@ END_VAR
      until the clock has been set. A force is the way past that, and it is the
      program's to honour. *)
   IF DAY > 0 AND DAYS > 0 THEN
-    summer := UINT_TO_REAL(DAYS);
+    summer_days := UINT_TO_REAL(DAYS);
     (* Damper air stretches the interval; drier air shortens it back toward the
        summer figure. *)
-    IF STRETCH > 0.0 THEN INTERVAL := summer / STRETCH; ELSE INTERVAL := summer; END_IF;
+    IF STRETCH > 0.0 THEN INTERVAL := summer_days / STRETCH; ELSE INTERVAL := summer_days; END_IF;
     (* One day is the floor: a cycle is a day's work. *)
     IF INTERVAL < 1.0 THEN due_after := 1;
     ELSE due_after := REAL_TO_UDINT(INTERVAL + 0.5);

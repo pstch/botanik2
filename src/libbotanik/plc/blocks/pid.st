@@ -23,14 +23,14 @@ VAR_INPUT
   SP      : REAL;
   PV      : REAL;
   KP      : REAL;
-  KI      : REAL;   (* per (error x second); 0 is NO integral action *)
+  KI      : REAL;    (* per (error x second); 0 is NO integral action *)
   KD      : REAL;
   OUT_MIN : REAL;
   OUT_MAX : REAL;
-  D_TAU_S : REAL;   (* derivative lowpass; 0 is unfiltered *)
-  REVERSE : BOOL;   (* output rises as the reading does *)
+  D_TAU_S : REAL;    (* derivative lowpass; 0 is unfiltered *)
+  REVERSE : BOOL;    (* output rises as the reading does *)
   RESET   : BOOL;
-  NOW     : UDINT;  (* sys_now_ms: the scan clock, not an elapsed time *)
+  NOW     : UDINT;   (* sys_now_ms: the scan clock, not an elapsed time *)
 END_VAR
 VAR_OUTPUT
   Y         : REAL;
@@ -46,15 +46,15 @@ VAR
 END_VAR
 VAR_TEMP
   dt_s      : REAL;
-  raw     : REAL;
-  alpha   : REAL;
-  p_term  : REAL;
-  d_term  : REAL;
-  unsat   : REAL;
-  winding : BOOL;
-  raw_out : REAL;
-  lo      : REAL;
-  hi      : REAL;
+  d_raw     : REAL;
+  alpha     : REAL;
+  p_term    : REAL;
+  d_term    : REAL;
+  trial     : REAL;
+  winding   : BOOL;
+  unclamped : REAL;
+  i_lo      : REAL;
+  i_hi      : REAL;
 END_VAR
   IF RESET THEN
     INTEGRAL := 0.0;
@@ -77,12 +77,12 @@ END_VAR
   IF REVERSE THEN ERR := PV - SP; ELSE ERR := SP - PV; END_IF;
 
   IF dt_s > 0.0 THEN
-    raw := (PV - prev_pv) / dt_s;
+    d_raw := (PV - prev_pv) / dt_s;
     IF D_TAU_S > 0.0 THEN
       alpha := dt_s / (D_TAU_S + dt_s);
-      deriv := deriv + alpha * (raw - deriv);
+      deriv := deriv + alpha * (d_raw - deriv);
     ELSE
-      deriv := raw;
+      deriv := d_raw;
     END_IF;
     prev_pv := PV;
   END_IF;
@@ -100,22 +100,22 @@ END_VAR
   ELSIF dt_s > 0.0 THEN
     (* Conditional integration: only when it does not push further into a limit
        the output is already against. *)
-    unsat := p_term + INTEGRAL + d_term;
-    winding := (unsat >= OUT_MAX AND ERR > 0.0)
-            OR (unsat <= OUT_MIN AND ERR < 0.0);
+    trial := p_term + INTEGRAL + d_term;
+    winding := (trial >= OUT_MAX AND ERR > 0.0)
+            OR (trial <= OUT_MIN AND ERR < 0.0);
     IF NOT winding THEN
       INTEGRAL := INTEGRAL + KI * ERR * dt_s;
       (* Clamped so the integral can SPAN the output, NOT to the output's own
          limits: with a non-zero floor, LIMIT(20, i, 100) would clamp a fresh
          integral of 0.01 UP to 20 and the winding test would pin it there for
          good. Zero has to stay reachable from either side. *)
-      IF OUT_MIN < 0.0 THEN lo := OUT_MIN; ELSE lo := 0.0; END_IF;
-      IF OUT_MAX > 0.0 THEN hi := OUT_MAX; ELSE hi := 0.0; END_IF;
-      INTEGRAL := LIMIT(lo, INTEGRAL, hi);
+      IF OUT_MIN < 0.0 THEN i_lo := OUT_MIN; ELSE i_lo := 0.0; END_IF;
+      IF OUT_MAX > 0.0 THEN i_hi := OUT_MAX; ELSE i_hi := 0.0; END_IF;
+      INTEGRAL := LIMIT(i_lo, INTEGRAL, i_hi);
     END_IF;
   END_IF;
 
-  raw_out   := p_term + INTEGRAL + d_term;
-  SATURATED := (raw_out > OUT_MAX) OR (raw_out < OUT_MIN);
-  Y         := LIMIT(OUT_MIN, raw_out, OUT_MAX);
+  unclamped   := p_term + INTEGRAL + d_term;
+  SATURATED := (unclamped > OUT_MAX) OR (unclamped < OUT_MIN);
+  Y         := LIMIT(OUT_MIN, unclamped, OUT_MAX);
 END_FUNCTION_BLOCK

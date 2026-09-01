@@ -26,7 +26,7 @@ VAR
      ran rather than from what a caller believed. That is what makes it
      rate-independent: the same block works on any task, and a scan it missed
      costs it nothing. Unsigned subtraction carries the wrap. *)
-  last   : UDINT;
+  last : UDINT;
   seeded : BOOL := FALSE;
 END_VAR
 VAR_TEMP
@@ -62,7 +62,7 @@ VAR_OUTPUT
   ET : UDINT;
 END_VAR
 VAR
-  last   : UDINT;
+  last : UDINT;
   seeded : BOOL := FALSE;
 END_VAR
 VAR_TEMP

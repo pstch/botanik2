@@ -29,10 +29,10 @@ VAR_EXTERNAL
   cli_window4_pos : REAL;
 END_VAR
 VAR
-  a1 : ACTUATOR;
-  a2 : ACTUATOR;
-  a3 : ACTUATOR;
-  a4 : ACTUATOR;
+  ram1 : ACTUATOR;
+  ram2 : ACTUATOR;
+  ram3 : ACTUATOR;
+  ram4 : ACTUATOR;
 END_VAR
 VAR_TEMP
   ceiling : REAL;
@@ -41,10 +41,10 @@ VAR_TEMP
   tmo     : UDINT;
   seat    : UDINT;
   owner   : USINT;
-  t1      : REAL;
-  t2      : REAL;
-  t3      : REAL;
-  t4      : REAL;
+  tgt1    : REAL;
+  tgt2    : REAL;
+  tgt3    : REAL;
+  tgt4    : REAL;
 END_VAR
   (* Stage 1, decided upstream: the ROWS, never a verdict of this law's own.
      Rain and wind shut the roof whatever else is true, including the safe
@@ -77,92 +77,92 @@ END_VAR
      before any of them the second lets an unknown ram 3 outrank a ram 1 that
      is wide open with the roof being shut. The rest are HELD - they keep their
      clocks and decide nothing, which is what "not stepped" meant in C++. *)
-  IF   a1.MOVING THEN owner := 1;
-  ELSIF a2.MOVING THEN owner := 2;
-  ELSIF a3.MOVING THEN owner := 3;
-  ELSIF a4.MOVING THEN owner := 4;
-  ELSIF NOT a1.KNOWN OR ABS(aim - a1.POS) > 0.02 THEN owner := 1;
-  ELSIF NOT a2.KNOWN OR ABS(aim - a2.POS) > 0.02 THEN owner := 2;
-  ELSIF NOT a3.KNOWN OR ABS(aim - a3.POS) > 0.02 THEN owner := 3;
-  ELSIF NOT a4.KNOWN OR ABS(aim - a4.POS) > 0.02 THEN owner := 4;
+  IF   ram1.MOVING THEN owner := 1;
+  ELSIF ram2.MOVING THEN owner := 2;
+  ELSIF ram3.MOVING THEN owner := 3;
+  ELSIF ram4.MOVING THEN owner := 4;
+  ELSIF NOT ram1.KNOWN OR ABS(aim - ram1.POS) > 0.02 THEN owner := 1;
+  ELSIF NOT ram2.KNOWN OR ABS(aim - ram2.POS) > 0.02 THEN owner := 2;
+  ELSIF NOT ram3.KNOWN OR ABS(aim - ram3.POS) > 0.02 THEN owner := 3;
+  ELSIF NOT ram4.KNOWN OR ABS(aim - ram4.POS) > 0.02 THEN owner := 4;
   ELSE owner := 0;
   END_IF;
 
   (* A held ram is handed its own position, so nothing it is given can ask it
      to move even if the HOLD were ever dropped by mistake. *)
-  t1 := a1.POS;
-  t2 := a2.POS;
-  t3 := a3.POS;
-  t4 := a4.POS;
-  IF owner = 1 THEN t1 := aim; END_IF;
-  IF owner = 2 THEN t2 := aim; END_IF;
-  IF owner = 3 THEN t3 := aim; END_IF;
-  IF owner = 4 THEN t4 := aim; END_IF;
+  tgt1 := ram1.POS;
+  tgt2 := ram2.POS;
+  tgt3 := ram3.POS;
+  tgt4 := ram4.POS;
+  IF owner = 1 THEN tgt1 := aim; END_IF;
+  IF owner = 2 THEN tgt2 := aim; END_IF;
+  IF owner = 3 THEN tgt3 := aim; END_IF;
+  IF owner = 4 THEN tgt4 := aim; END_IF;
 
-  a1.TARGET       := t1;
-  a1.OPEN_MS      := travel;
-  a1.CLOSE_MS     := travel;
-  a1.SEAT_MS      := seat;
-  a1.MIN_RUN_MS   := 250;
-  a1.REVERSE_MS   := 500;
-  a1.DB           := 0.02;
-  a1.REDATUM      := 3.0;
-  a1.HOLD         := owner <> 1;
-  a1.PRESET_KNOWN := FALSE;
-  a1.PRESET_POS   := 0.0;
-  a1.NOW          := sys_now_ms;
-  a1();
+  ram1.TARGET       := tgt1;
+  ram1.OPEN_MS      := travel;
+  ram1.CLOSE_MS     := travel;
+  ram1.SEAT_MS      := seat;
+  ram1.MIN_RUN_MS   := 250;
+  ram1.REVERSE_MS   := 500;
+  ram1.DB           := 0.02;
+  ram1.REDATUM      := 3.0;
+  ram1.HOLD         := owner <> 1;
+  ram1.PRESET_KNOWN := FALSE;
+  ram1.PRESET_POS   := 0.0;
+  ram1.NOW          := sys_now_ms;
+  ram1();
 
-  a2.TARGET       := t2;
-  a2.OPEN_MS      := travel;
-  a2.CLOSE_MS     := travel;
-  a2.SEAT_MS      := seat;
-  a2.MIN_RUN_MS   := 250;
-  a2.REVERSE_MS   := 500;
-  a2.DB           := 0.02;
-  a2.REDATUM      := 3.0;
-  a2.HOLD         := owner <> 2;
-  a2.PRESET_KNOWN := FALSE;
-  a2.PRESET_POS   := 0.0;
-  a2.NOW          := sys_now_ms;
-  a2();
+  ram2.TARGET       := tgt2;
+  ram2.OPEN_MS      := travel;
+  ram2.CLOSE_MS     := travel;
+  ram2.SEAT_MS      := seat;
+  ram2.MIN_RUN_MS   := 250;
+  ram2.REVERSE_MS   := 500;
+  ram2.DB           := 0.02;
+  ram2.REDATUM      := 3.0;
+  ram2.HOLD         := owner <> 2;
+  ram2.PRESET_KNOWN := FALSE;
+  ram2.PRESET_POS   := 0.0;
+  ram2.NOW          := sys_now_ms;
+  ram2();
 
-  a3.TARGET       := t3;
-  a3.OPEN_MS      := travel;
-  a3.CLOSE_MS     := travel;
-  a3.SEAT_MS      := seat;
-  a3.MIN_RUN_MS   := 250;
-  a3.REVERSE_MS   := 500;
-  a3.DB           := 0.02;
-  a3.REDATUM      := 3.0;
-  a3.HOLD         := owner <> 3;
-  a3.PRESET_KNOWN := FALSE;
-  a3.PRESET_POS   := 0.0;
-  a3.NOW          := sys_now_ms;
-  a3();
+  ram3.TARGET       := tgt3;
+  ram3.OPEN_MS      := travel;
+  ram3.CLOSE_MS     := travel;
+  ram3.SEAT_MS      := seat;
+  ram3.MIN_RUN_MS   := 250;
+  ram3.REVERSE_MS   := 500;
+  ram3.DB           := 0.02;
+  ram3.REDATUM      := 3.0;
+  ram3.HOLD         := owner <> 3;
+  ram3.PRESET_KNOWN := FALSE;
+  ram3.PRESET_POS   := 0.0;
+  ram3.NOW          := sys_now_ms;
+  ram3();
 
-  a4.TARGET       := t4;
-  a4.OPEN_MS      := travel;
-  a4.CLOSE_MS     := travel;
-  a4.SEAT_MS      := seat;
-  a4.MIN_RUN_MS   := 250;
-  a4.REVERSE_MS   := 500;
-  a4.DB           := 0.02;
-  a4.REDATUM      := 3.0;
-  a4.HOLD         := owner <> 4;
-  a4.PRESET_KNOWN := FALSE;
-  a4.PRESET_POS   := 0.0;
-  a4.NOW          := sys_now_ms;
-  a4();
+  ram4.TARGET       := tgt4;
+  ram4.OPEN_MS      := travel;
+  ram4.CLOSE_MS     := travel;
+  ram4.SEAT_MS      := seat;
+  ram4.MIN_RUN_MS   := 250;
+  ram4.REVERSE_MS   := 500;
+  ram4.DB           := 0.02;
+  ram4.REDATUM      := 3.0;
+  ram4.HOLD         := owner <> 4;
+  ram4.PRESET_KNOWN := FALSE;
+  ram4.PRESET_POS   := 0.0;
+  ram4.NOW          := sys_now_ms;
+  ram4();
 
-  cli_window1_opn := a1.OPEN_CMD;
-  cli_window1_clo := a1.CLOSE_CMD;
-  cli_window2_opn := a2.OPEN_CMD;
-  cli_window2_clo := a2.CLOSE_CMD;
-  cli_window3_opn := a3.OPEN_CMD;
-  cli_window3_clo := a3.CLOSE_CMD;
-  cli_window4_opn := a4.OPEN_CMD;
-  cli_window4_clo := a4.CLOSE_CMD;
+  cli_window1_opn := ram1.OPEN_CMD;
+  cli_window1_clo := ram1.CLOSE_CMD;
+  cli_window2_opn := ram2.OPEN_CMD;
+  cli_window2_clo := ram2.CLOSE_CMD;
+  cli_window3_opn := ram3.OPEN_CMD;
+  cli_window3_clo := ram3.CLOSE_CMD;
+  cli_window4_opn := ram4.OPEN_CMD;
+  cli_window4_clo := ram4.CLOSE_CMD;
 
   (* One target for all four - they are one roof - against each ram's own
      position estimate, which is what says how far behind the sequence is. A
@@ -171,8 +171,8 @@ END_VAR
   cli_window2_tgt := aim;
   cli_window3_tgt := aim;
   cli_window4_tgt := aim;
-  IF a1.KNOWN THEN cli_window1_pos := a1.POS; END_IF;
-  IF a2.KNOWN THEN cli_window2_pos := a2.POS; END_IF;
-  IF a3.KNOWN THEN cli_window3_pos := a3.POS; END_IF;
-  IF a4.KNOWN THEN cli_window4_pos := a4.POS; END_IF;
+  IF ram1.KNOWN THEN cli_window1_pos := ram1.POS; END_IF;
+  IF ram2.KNOWN THEN cli_window2_pos := ram2.POS; END_IF;
+  IF ram3.KNOWN THEN cli_window3_pos := ram3.POS; END_IF;
+  IF ram4.KNOWN THEN cli_window4_pos := ram4.POS; END_IF;
 END_PROGRAM

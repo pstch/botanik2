@@ -63,10 +63,10 @@ VAR_OUTPUT
   ANSWERED  : BOOL;   (* every quantity in, not just the two judged on *)
 END_VAR
 VAR
-  mv   : AC_MIRROR;
-  ma   : AC_MIRROR;
-  mw   : AC_MIRROR;
-  mhz  : AC_MIRROR;
+  mv  : AC_MIRROR;
+  ma  : AC_MIRROR;
+  mw  : AC_MIRROR;
+  mhz : AC_MIRROR;
   seen : BOOL := FALSE;
 END_VAR
 VAR_TEMP

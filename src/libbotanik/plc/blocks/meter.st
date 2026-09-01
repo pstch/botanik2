@@ -23,7 +23,7 @@ VAR_OUTPUT
   RATE  : REAL;   (* the rate actually counted, after the cutoff *)
 END_VAR
 VAR
-  last   : UDINT;
+  last : UDINT;
   seeded : BOOL := FALSE;
 END_VAR
 VAR_TEMP
@@ -64,9 +64,9 @@ VAR_OUTPUT
   RATE : REAL;   (* per second; the last COMPLETED window, held between them *)
 END_VAR
 VAR
-  prev    : REAL;
-  window  : UDINT;   (* time accumulated into this window *)
-  last    : UDINT;
+  prev   : REAL;
+  window : UDINT;   (* time accumulated into this window *)
+  last   : UDINT;
   seeded  : BOOL := FALSE;
 END_VAR
 VAR_TEMP

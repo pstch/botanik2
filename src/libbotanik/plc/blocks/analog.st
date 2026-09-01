@@ -19,7 +19,7 @@
    diagnostic - "Internal compiler error in file ../util/symtable.cc". *)
 FUNCTION_BLOCK BAND_LATCH
 VAR_INPUT
-  IN  : REAL;
+  IN   : REAL;
   RISE : REAL;   (* engages at or above *)
   FALL : REAL;   (* releases AT or below, as Plc::Hysteresis does *)
 END_VAR
@@ -79,7 +79,7 @@ VAR_OUTPUT
   Y : REAL;
 END_VAR
 VAR
-  held   : REAL;
+  held : REAL;
   seeded : BOOL := FALSE;
 END_VAR
 VAR_TEMP
@@ -110,8 +110,8 @@ VAR_OUTPUT
   HEALTHY : BOOL;
 END_VAR
 VAR
-  avg  : EWMA;
-  db   : DEADBAND;
+  avg : EWMA;
+  db  : DEADBAND;
   seen : BOOL := FALSE;
 END_VAR
   OK := V_OK;

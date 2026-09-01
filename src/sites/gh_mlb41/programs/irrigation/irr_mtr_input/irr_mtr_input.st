@@ -12,11 +12,11 @@ VAR_EXTERNAL CONSTANT
   sys_now_ms          : UDINT;
 END_VAR
 VAR_EXTERNAL
-  irr_inTotal_L       : REAL;
-  irr_inFlow_Lpm      : REAL;
-  irr_inPulse         : BOOL;
-  alarm_water_leak    : BOOL;
-  alarm_water_pressure: BOOL;
+  irr_inTotal_L        : REAL;
+  irr_inFlow_Lpm       : REAL;
+  irr_inPulse          : BOOL;
+  alarm_water_leak     : BOOL;
+  alarm_water_pressure : BOOL;
 END_VAR
 VAR
   rate     : DERIVATIVE;

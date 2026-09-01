@@ -3,24 +3,24 @@
 
 PROGRAM dc_watch
 VAR_EXTERNAL CONSTANT
-  pwr_dc1_V           : REAL;
-  pwr_dc1_V_qlt       : BOOL;
-  pwr_dc2_V           : REAL;
-  pwr_dc2_V_qlt       : BOOL;
-  pwr_upsBat_V        : REAL;
-  pwr_upsBat_V_qlt    : BOOL;
-  pwr_genBat_V        : REAL;
-  pwr_genBat_V_qlt    : BOOL;
-  pwr_dc1Lo_V         : REAL;
-  pwr_dc2Lo_V         : REAL;
-  pwr_upsBatLo_V      : REAL;
-  pwr_genBatLo_V      : REAL;
-  pwr_dc1_avg_ms      : UINT;
-  pwr_dc2_avg_ms      : UINT;
-  pwr_upsBat_avg_ms   : UINT;
-  pwr_genBat_avg_ms   : UINT;
-  pwr_upsLowBat       : BOOL;
-  sys_now_ms          : UDINT;
+  pwr_dc1_V         : REAL;
+  pwr_dc1_V_qlt     : BOOL;
+  pwr_dc2_V         : REAL;
+  pwr_dc2_V_qlt     : BOOL;
+  pwr_upsBat_V      : REAL;
+  pwr_upsBat_V_qlt  : BOOL;
+  pwr_genBat_V      : REAL;
+  pwr_genBat_V_qlt  : BOOL;
+  pwr_dc1Lo_V       : REAL;
+  pwr_dc2Lo_V       : REAL;
+  pwr_upsBatLo_V    : REAL;
+  pwr_genBatLo_V    : REAL;
+  pwr_dc1_avg_ms    : UINT;
+  pwr_dc2_avg_ms    : UINT;
+  pwr_upsBat_avg_ms : UINT;
+  pwr_genBat_avg_ms : UINT;
+  pwr_upsLowBat     : BOOL;
+  sys_now_ms        : UDINT;
 END_VAR
 VAR_EXTERNAL
   sys_dc1_V               : REAL;

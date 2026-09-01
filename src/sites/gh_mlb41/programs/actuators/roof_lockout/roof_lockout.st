@@ -23,7 +23,7 @@ VAR_EXTERNAL
   cli_windShutMax       : REAL;
   cli_rainLockout_sec   : UINT;
   sys_supply_lockout    : BOOL;
-  sys_now_ms : UDINT;
+  sys_now_ms            : UDINT;
   cli_rainLockout       : BOOL;
   cli_windLockout       : BOOL;
   cli_windowLockout     : BOOL;
@@ -34,7 +34,7 @@ VAR
 END_VAR
 VAR_TEMP
   blind   : BOOL;
-  w       : REAL;
+  peak    : REAL;
   ceiling : REAL;
 END_VAR
   blind := NOT cli_rain_mmph_qlt OR NOT cli_wind_mps_qlt;
@@ -50,16 +50,16 @@ END_VAR
   cli_rainLockout := rain_for.Q OR blind;
 
   (* The GUST, not the average: what tears a window off its ram is the peak. *)
-  w := MAX(cli_windGust_mps, cli_wind_mps);
-  cli_windLockout := blind OR (w >= cli_windShutEnd_mps);
+  peak := MAX(cli_windGust_mps, cli_wind_mps);
+  cli_windLockout := blind OR (peak >= cli_windShutEnd_mps);
 
   cli_windowLockout := cli_rainLockout OR cli_windLockout OR sys_supply_lockout;
 
   (* How far the roof may open, which is not a yes or a no: from cli_windShutBegin_mps the
      ceiling comes down a straight line to nothing at cli_windShutEnd_mps. *)
   ceiling := 1.0;
-  IF w >= cli_windShutBegin_mps AND cli_windShutEnd_mps > cli_windShutBegin_mps THEN
-    ceiling := cli_windShutMax * (1.0 - (w - cli_windShutBegin_mps) / (cli_windShutEnd_mps - cli_windShutBegin_mps));
+  IF peak >= cli_windShutBegin_mps AND cli_windShutEnd_mps > cli_windShutBegin_mps THEN
+    ceiling := cli_windShutMax * (1.0 - (peak - cli_windShutBegin_mps) / (cli_windShutEnd_mps - cli_windShutBegin_mps));
   END_IF;
   IF cli_windowLockout THEN cli_windowCap := 0.0;
   ELSE cli_windowCap := LIMIT(0.0, ceiling, 1.0);

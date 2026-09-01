@@ -1444,15 +1444,15 @@ static void PID_body__(PID_data__ *data__) {
   }
   // Initialise TEMP variables
   __SET_VAR(data__->,DT_S,,0);
-  __SET_VAR(data__->,RAW,,0);
+  __SET_VAR(data__->,D_RAW,,0);
   __SET_VAR(data__->,ALPHA,,0);
   __SET_VAR(data__->,P_TERM,,0);
   __SET_VAR(data__->,D_TERM,,0);
-  __SET_VAR(data__->,UNSAT,,0);
+  __SET_VAR(data__->,TRIAL,,0);
   __SET_VAR(data__->,WINDING,,__BOOL_LITERAL(FALSE));
-  __SET_VAR(data__->,RAW_OUT,,0);
-  __SET_VAR(data__->,LO,,0);
-  __SET_VAR(data__->,HI,,0);
+  __SET_VAR(data__->,UNCLAMPED,,0);
+  __SET_VAR(data__->,I_LO,,0);
+  __SET_VAR(data__->,I_HI,,0);
 
   if (__GET_VAR(data__->RESET,)) {
     __SET_VAR(data__->,INTEGRAL,,__REAL_LITERAL(0.0));
@@ -1477,12 +1477,12 @@ static void PID_body__(PID_data__ *data__) {
     __SET_VAR(data__->,ERR,,(__GET_VAR(data__->SP,) - __GET_VAR(data__->PV,)));
   };
   if ((__GET_VAR(data__->DT_S,) > __REAL_LITERAL(0.0))) {
-    __SET_VAR(data__->,RAW,,((__GET_VAR(data__->PV,) - __GET_VAR(data__->PREV_PV,)) / __GET_VAR(data__->DT_S,)));
+    __SET_VAR(data__->,D_RAW,,((__GET_VAR(data__->PV,) - __GET_VAR(data__->PREV_PV,)) / __GET_VAR(data__->DT_S,)));
     if ((__GET_VAR(data__->D_TAU_S,) > __REAL_LITERAL(0.0))) {
       __SET_VAR(data__->,ALPHA,,(__GET_VAR(data__->DT_S,) / (__GET_VAR(data__->D_TAU_S,) + __GET_VAR(data__->DT_S,))));
-      __SET_VAR(data__->,DERIV,,(__GET_VAR(data__->DERIV,) + (__GET_VAR(data__->ALPHA,) * (__GET_VAR(data__->RAW,) - __GET_VAR(data__->DERIV,)))));
+      __SET_VAR(data__->,DERIV,,(__GET_VAR(data__->DERIV,) + (__GET_VAR(data__->ALPHA,) * (__GET_VAR(data__->D_RAW,) - __GET_VAR(data__->DERIV,)))));
     } else {
-      __SET_VAR(data__->,DERIV,,__GET_VAR(data__->RAW,));
+      __SET_VAR(data__->,DERIV,,__GET_VAR(data__->D_RAW,));
     };
     __SET_VAR(data__->,PREV_PV,,__GET_VAR(data__->PV,));
   };
@@ -1495,35 +1495,35 @@ static void PID_body__(PID_data__ *data__) {
   if ((__GET_VAR(data__->KI,) == __REAL_LITERAL(0.0))) {
     __SET_VAR(data__->,INTEGRAL,,__REAL_LITERAL(0.0));
   } else if ((__GET_VAR(data__->DT_S,) > __REAL_LITERAL(0.0))) {
-    __SET_VAR(data__->,UNSAT,,((__GET_VAR(data__->P_TERM,) + __GET_VAR(data__->INTEGRAL,)) + __GET_VAR(data__->D_TERM,)));
-    __SET_VAR(data__->,WINDING,,(((__GET_VAR(data__->UNSAT,) >= __GET_VAR(data__->OUT_MAX,)) && (__GET_VAR(data__->ERR,) > __REAL_LITERAL(0.0))) || ((__GET_VAR(data__->UNSAT,) <= __GET_VAR(data__->OUT_MIN,)) && (__GET_VAR(data__->ERR,) < __REAL_LITERAL(0.0)))));
+    __SET_VAR(data__->,TRIAL,,((__GET_VAR(data__->P_TERM,) + __GET_VAR(data__->INTEGRAL,)) + __GET_VAR(data__->D_TERM,)));
+    __SET_VAR(data__->,WINDING,,(((__GET_VAR(data__->TRIAL,) >= __GET_VAR(data__->OUT_MAX,)) && (__GET_VAR(data__->ERR,) > __REAL_LITERAL(0.0))) || ((__GET_VAR(data__->TRIAL,) <= __GET_VAR(data__->OUT_MIN,)) && (__GET_VAR(data__->ERR,) < __REAL_LITERAL(0.0)))));
     if (!(__GET_VAR(data__->WINDING,))) {
       __SET_VAR(data__->,INTEGRAL,,(__GET_VAR(data__->INTEGRAL,) + ((__GET_VAR(data__->KI,) * __GET_VAR(data__->ERR,)) * __GET_VAR(data__->DT_S,))));
       if ((__GET_VAR(data__->OUT_MIN,) < __REAL_LITERAL(0.0))) {
-        __SET_VAR(data__->,LO,,__GET_VAR(data__->OUT_MIN,));
+        __SET_VAR(data__->,I_LO,,__GET_VAR(data__->OUT_MIN,));
       } else {
-        __SET_VAR(data__->,LO,,__REAL_LITERAL(0.0));
+        __SET_VAR(data__->,I_LO,,__REAL_LITERAL(0.0));
       };
       if ((__GET_VAR(data__->OUT_MAX,) > __REAL_LITERAL(0.0))) {
-        __SET_VAR(data__->,HI,,__GET_VAR(data__->OUT_MAX,));
+        __SET_VAR(data__->,I_HI,,__GET_VAR(data__->OUT_MAX,));
       } else {
-        __SET_VAR(data__->,HI,,__REAL_LITERAL(0.0));
+        __SET_VAR(data__->,I_HI,,__REAL_LITERAL(0.0));
       };
       __SET_VAR(data__->,INTEGRAL,,___LIMIT(
         (BOOL)__BOOL_LITERAL(TRUE),
         NULL,
-        (REAL)__GET_VAR(data__->LO,),
+        (REAL)__GET_VAR(data__->I_LO,),
         (REAL)__GET_VAR(data__->INTEGRAL,),
-        (REAL)__GET_VAR(data__->HI,)));
+        (REAL)__GET_VAR(data__->I_HI,)));
     };
   };
-  __SET_VAR(data__->,RAW_OUT,,((__GET_VAR(data__->P_TERM,) + __GET_VAR(data__->INTEGRAL,)) + __GET_VAR(data__->D_TERM,)));
-  __SET_VAR(data__->,SATURATED,,((__GET_VAR(data__->RAW_OUT,) > __GET_VAR(data__->OUT_MAX,)) || (__GET_VAR(data__->RAW_OUT,) < __GET_VAR(data__->OUT_MIN,))));
+  __SET_VAR(data__->,UNCLAMPED,,((__GET_VAR(data__->P_TERM,) + __GET_VAR(data__->INTEGRAL,)) + __GET_VAR(data__->D_TERM,)));
+  __SET_VAR(data__->,SATURATED,,((__GET_VAR(data__->UNCLAMPED,) > __GET_VAR(data__->OUT_MAX,)) || (__GET_VAR(data__->UNCLAMPED,) < __GET_VAR(data__->OUT_MIN,))));
   __SET_VAR(data__->,Y,,___LIMIT(
     (BOOL)__BOOL_LITERAL(TRUE),
     NULL,
     (REAL)__GET_VAR(data__->OUT_MIN,),
-    (REAL)__GET_VAR(data__->RAW_OUT,),
+    (REAL)__GET_VAR(data__->UNCLAMPED,),
     (REAL)__GET_VAR(data__->OUT_MAX,)));
 
   goto __end;
@@ -1632,14 +1632,14 @@ static void ACTUATOR_body__(ACTUATOR_data__ *data__) {
   __SET_VAR(data__->,TGT,,0);
   __SET_VAR(data__->,RAN,,0);
   __SET_VAR(data__->,SPAN,,0);
-  __SET_VAR(data__->,D,,0);
-  __SET_VAR(data__->,W,,0);
+  __SET_VAR(data__->,DELTA,,0);
+  __SET_VAR(data__->,WANT,,0);
   __SET_VAR(data__->,PARTIAL,,__BOOL_LITERAL(FALSE));
   __SET_VAR(data__->,IS_DATUM,,__BOOL_LITERAL(FALSE));
   __SET_VAR(data__->,TO_END,,__BOOL_LITERAL(FALSE));
   __SET_VAR(data__->,DISTANCE,,0);
-  __SET_VAR(data__->,RUN,,0);
-  __SET_VAR(data__->,GO,,__BOOL_LITERAL(FALSE));
+  __SET_VAR(data__->,STROKE_MS,,0);
+  __SET_VAR(data__->,COMMIT,,__BOOL_LITERAL(FALSE));
 
   if (__GET_VAR(data__->SEEDED,)) {
     __SET_VAR(data__->,ELAPSED,,(__GET_VAR(data__->NOW,) - __GET_VAR(data__->LAST,)));
@@ -1688,7 +1688,7 @@ static void ACTUATOR_body__(ACTUATOR_data__ *data__) {
         __SET_VAR(data__->,SPAN,,__GET_VAR(data__->CLOSE_MS,));
       };
       if ((__GET_VAR(data__->SPAN,) > __UDINT_LITERAL(0))) {
-        __SET_VAR(data__->,D,,(___UDINT_TO_REAL(
+        __SET_VAR(data__->,DELTA,,(___UDINT_TO_REAL(
           (BOOL)__BOOL_LITERAL(TRUE),
           NULL,
           (UDINT)__GET_VAR(data__->RAN,)) / ___UDINT_TO_REAL(
@@ -1696,22 +1696,22 @@ static void ACTUATOR_body__(ACTUATOR_data__ *data__) {
           NULL,
           (UDINT)__GET_VAR(data__->SPAN,))));
       } else {
-        __SET_VAR(data__->,D,,__REAL_LITERAL(1.0));
+        __SET_VAR(data__->,DELTA,,__REAL_LITERAL(1.0));
       };
-      __SET_VAR(data__->,MOVED,,(__GET_VAR(data__->MOVED,) + __GET_VAR(data__->D,)));
+      __SET_VAR(data__->,MOVED,,(__GET_VAR(data__->MOVED,) + __GET_VAR(data__->DELTA,)));
       if ((__GET_VAR(data__->DIR,) == __USINT_LITERAL(1))) {
         __SET_VAR(data__->,P,,___LIMIT(
           (BOOL)__BOOL_LITERAL(TRUE),
           NULL,
           (REAL)__REAL_LITERAL(0.0),
-          (REAL)(__GET_VAR(data__->P,) + __GET_VAR(data__->D,)),
+          (REAL)(__GET_VAR(data__->P,) + __GET_VAR(data__->DELTA,)),
           (REAL)__REAL_LITERAL(1.0)));
       } else {
         __SET_VAR(data__->,P,,___LIMIT(
           (BOOL)__BOOL_LITERAL(TRUE),
           NULL,
           (REAL)__REAL_LITERAL(0.0),
-          (REAL)(__GET_VAR(data__->P,) - __GET_VAR(data__->D,)),
+          (REAL)(__GET_VAR(data__->P,) - __GET_VAR(data__->DELTA,)),
           (REAL)__REAL_LITERAL(1.0)));
       };
       __SET_VAR(data__->,RUN_MS,,(__GET_VAR(data__->RUN_MS,) - __GET_VAR(data__->RAN,)));
@@ -1734,14 +1734,14 @@ static void ACTUATOR_body__(ACTUATOR_data__ *data__) {
           __SET_VAR(data__->,MODE,,__USINT_LITERAL(4));
         };
       } else if (!(__GET_VAR(data__->DATUM,))) {
-        __SET_VAR(data__->,W,,___ACT_WANT(
+        __SET_VAR(data__->,WANT,,___ACT_WANT(
           (BOOL)__BOOL_LITERAL(TRUE),
           NULL,
           (USINT)__GET_VAR(data__->MODE,),
           (REAL)__GET_VAR(data__->P,),
           (REAL)__GET_VAR(data__->TGT,),
           (REAL)__GET_VAR(data__->DB,)));
-        if (((__GET_VAR(data__->W,) != __USINT_LITERAL(0)) && (__GET_VAR(data__->W,) != __GET_VAR(data__->DIR,)))) {
+        if (((__GET_VAR(data__->WANT,) != __USINT_LITERAL(0)) && (__GET_VAR(data__->WANT,) != __GET_VAR(data__->DIR,)))) {
           __SET_VAR(data__->,RUN_MS,,__UDINT_LITERAL(0));
           __SET_VAR(data__->,SEATING,,__BOOL_LITERAL(FALSE));
           __SET_VAR(data__->,DIR,,__USINT_LITERAL(0));
@@ -1761,33 +1761,33 @@ static void ACTUATOR_body__(ACTUATOR_data__ *data__) {
       };
     };
     if (((__GET_VAR(data__->RUN_MS,) == __UDINT_LITERAL(0)) && (__GET_VAR(data__->WAIT_MS,) == __UDINT_LITERAL(0)))) {
-      __SET_VAR(data__->,W,,___ACT_WANT(
+      __SET_VAR(data__->,WANT,,___ACT_WANT(
         (BOOL)__BOOL_LITERAL(TRUE),
         NULL,
         (USINT)__GET_VAR(data__->MODE,),
         (REAL)__GET_VAR(data__->P,),
         (REAL)__GET_VAR(data__->TGT,),
         (REAL)__GET_VAR(data__->DB,)));
-      if ((__GET_VAR(data__->W,) != __USINT_LITERAL(0))) {
+      if ((__GET_VAR(data__->WANT,) != __USINT_LITERAL(0))) {
         __SET_VAR(data__->,PARTIAL,,((__GET_VAR(data__->TGT,) > __GET_VAR(data__->DB,)) && (__GET_VAR(data__->TGT,) < (__REAL_LITERAL(1.0) - __GET_VAR(data__->DB,)))));
         if ((((((__GET_VAR(data__->PENDING,) < __REAL_LITERAL(0.0)) && (__GET_VAR(data__->REDATUM,) > __REAL_LITERAL(0.0))) && (__GET_VAR(data__->MOVED,) >= __GET_VAR(data__->REDATUM,))) && (__GET_VAR(data__->MODE,) != __USINT_LITERAL(0))) && __GET_VAR(data__->PARTIAL,))) {
           __SET_VAR(data__->,PENDING,,__GET_VAR(data__->TGT,));
           __SET_VAR(data__->,TGT,,__REAL_LITERAL(0.0));
-          __SET_VAR(data__->,W,,___ACT_WANT(
+          __SET_VAR(data__->,WANT,,___ACT_WANT(
             (BOOL)__BOOL_LITERAL(TRUE),
             NULL,
             (USINT)__GET_VAR(data__->MODE,),
             (REAL)__GET_VAR(data__->P,),
             (REAL)__GET_VAR(data__->TGT,),
             (REAL)__GET_VAR(data__->DB,)));
-          if ((__GET_VAR(data__->W,) == __USINT_LITERAL(0))) {
+          if ((__GET_VAR(data__->WANT,) == __USINT_LITERAL(0))) {
             __SET_VAR(data__->,PENDING,,__REAL_LITERAL(-1.0));
           };
         };
-        if ((__GET_VAR(data__->W,) != __USINT_LITERAL(0))) {
+        if ((__GET_VAR(data__->WANT,) != __USINT_LITERAL(0))) {
           __SET_VAR(data__->,IS_DATUM,,(__GET_VAR(data__->MODE,) == __USINT_LITERAL(0)));
           __SET_VAR(data__->,TO_END,,((__GET_VAR(data__->IS_DATUM,) || (__GET_VAR(data__->TGT,) <= __GET_VAR(data__->DB,))) || (__GET_VAR(data__->TGT,) >= (__REAL_LITERAL(1.0) - __GET_VAR(data__->DB,)))));
-          if ((__GET_VAR(data__->W,) == __USINT_LITERAL(1))) {
+          if ((__GET_VAR(data__->WANT,) == __USINT_LITERAL(1))) {
             __SET_VAR(data__->,SPAN,,__GET_VAR(data__->OPEN_MS,));
           } else {
             __SET_VAR(data__->,SPAN,,__GET_VAR(data__->CLOSE_MS,));
@@ -1801,28 +1801,28 @@ static void ACTUATOR_body__(ACTUATOR_data__ *data__) {
             (BOOL)__BOOL_LITERAL(TRUE),
             NULL,
             (REAL)__GET_VAR(data__->DISTANCE,)));
-          __SET_VAR(data__->,RUN,,___REAL_TO_UDINT(
+          __SET_VAR(data__->,STROKE_MS,,___REAL_TO_UDINT(
             (BOOL)__BOOL_LITERAL(TRUE),
             NULL,
             (REAL)(__GET_VAR(data__->DISTANCE,) * ___UDINT_TO_REAL(
               (BOOL)__BOOL_LITERAL(TRUE),
               NULL,
               (UDINT)__GET_VAR(data__->SPAN,)))));
-          __SET_VAR(data__->,GO,,__BOOL_LITERAL(TRUE));
+          __SET_VAR(data__->,COMMIT,,__BOOL_LITERAL(TRUE));
           if (__GET_VAR(data__->TO_END,)) {
-            __SET_VAR(data__->,RUN,,(__GET_VAR(data__->RUN,) + __GET_VAR(data__->SEAT_MS,)));
-          } else if ((__GET_VAR(data__->RUN,) < __GET_VAR(data__->MIN_RUN_MS,))) {
-            __SET_VAR(data__->,GO,,__BOOL_LITERAL(FALSE));
+            __SET_VAR(data__->,STROKE_MS,,(__GET_VAR(data__->STROKE_MS,) + __GET_VAR(data__->SEAT_MS,)));
+          } else if ((__GET_VAR(data__->STROKE_MS,) < __GET_VAR(data__->MIN_RUN_MS,))) {
+            __SET_VAR(data__->,COMMIT,,__BOOL_LITERAL(FALSE));
           };
-          if (__GET_VAR(data__->GO,)) {
-            if ((__GET_VAR(data__->RUN,) == __UDINT_LITERAL(0))) {
-              __SET_VAR(data__->,RUN,,__UDINT_LITERAL(1));
+          if (__GET_VAR(data__->COMMIT,)) {
+            if ((__GET_VAR(data__->STROKE_MS,) == __UDINT_LITERAL(0))) {
+              __SET_VAR(data__->,STROKE_MS,,__UDINT_LITERAL(1));
             };
-            __SET_VAR(data__->,DIR,,__GET_VAR(data__->W,));
-            __SET_VAR(data__->,RUN_MS,,__GET_VAR(data__->RUN,));
+            __SET_VAR(data__->,DIR,,__GET_VAR(data__->WANT,));
+            __SET_VAR(data__->,RUN_MS,,__GET_VAR(data__->STROKE_MS,));
             __SET_VAR(data__->,SEATING,,__GET_VAR(data__->TO_END,));
             __SET_VAR(data__->,DATUM,,__GET_VAR(data__->IS_DATUM,));
-            if ((__GET_VAR(data__->W,) == __USINT_LITERAL(1))) {
+            if ((__GET_VAR(data__->WANT,) == __USINT_LITERAL(1))) {
               __SET_VAR(data__->,MODE,,__USINT_LITERAL(3));
             } else {
               __SET_VAR(data__->,MODE,,__USINT_LITERAL(1));
@@ -2127,7 +2127,7 @@ static void TRAY_DUE_body__(TRAY_DUE_data__ *data__) {
     __SET_VAR(data__->,ENO,,__BOOL_LITERAL(TRUE));
   }
   // Initialise TEMP variables
-  __SET_VAR(data__->,SUMMER,,0);
+  __SET_VAR(data__->,SUMMER_DAYS,,0);
   __SET_VAR(data__->,DUE_AFTER,,0);
   __SET_VAR(data__->,ELAPSED,,0);
 
@@ -2136,14 +2136,14 @@ static void TRAY_DUE_body__(TRAY_DUE_data__ *data__) {
   __SET_VAR(data__->,OVERDUE,,__UDINT_LITERAL(0));
   __SET_VAR(data__->,INTERVAL,,__REAL_LITERAL(0.0));
   if (((__GET_VAR(data__->DAY,) > __UDINT_LITERAL(0)) && (__GET_VAR(data__->DAYS,) > __UINT_LITERAL(0)))) {
-    __SET_VAR(data__->,SUMMER,,___UINT_TO_REAL(
+    __SET_VAR(data__->,SUMMER_DAYS,,___UINT_TO_REAL(
       (BOOL)__BOOL_LITERAL(TRUE),
       NULL,
       (UINT)__GET_VAR(data__->DAYS,)));
     if ((__GET_VAR(data__->STRETCH,) > __REAL_LITERAL(0.0))) {
-      __SET_VAR(data__->,INTERVAL,,(__GET_VAR(data__->SUMMER,) / __GET_VAR(data__->STRETCH,)));
+      __SET_VAR(data__->,INTERVAL,,(__GET_VAR(data__->SUMMER_DAYS,) / __GET_VAR(data__->STRETCH,)));
     } else {
-      __SET_VAR(data__->,INTERVAL,,__GET_VAR(data__->SUMMER,));
+      __SET_VAR(data__->,INTERVAL,,__GET_VAR(data__->SUMMER_DAYS,));
     };
     if ((__GET_VAR(data__->INTERVAL,) < __REAL_LITERAL(1.0))) {
       __SET_VAR(data__->,DUE_AFTER,,__UDINT_LITERAL(1));
@@ -2717,7 +2717,7 @@ static void ROOF_LOCKOUT_init__(ROOF_LOCKOUT_data__ *data__, BOOL retain) {
 static void ROOF_LOCKOUT_body__(ROOF_LOCKOUT_data__ *data__) {
   // Initialise TEMP variables
   __SET_VAR(data__->,BLIND,,__BOOL_LITERAL(FALSE));
-  __SET_VAR(data__->,W,,0);
+  __SET_VAR(data__->,PEAK,,0);
   __SET_VAR(data__->,CEILING,,0);
 
   __SET_VAR(data__->,BLIND,,(!(__GET_EXTERNAL(data__->CLI_RAIN_MMPH_QLT,)) || !(__GET_EXTERNAL(data__->CLI_WIND_MPS_QLT,))));
@@ -2729,16 +2729,16 @@ static void ROOF_LOCKOUT_body__(ROOF_LOCKOUT_data__ *data__) {
   __SET_VAR(data__->,RAIN_FOR.NOW,,__GET_EXTERNAL(data__->SYS_NOW_MS,));
   TOF_MS_body__(&data__->RAIN_FOR);
   __SET_EXTERNAL(data__->,CLI_RAINLOCKOUT,,(__GET_VAR(data__->RAIN_FOR.Q,) || __GET_VAR(data__->BLIND,)));
-  __SET_VAR(data__->,W,,___MAX(
+  __SET_VAR(data__->,PEAK,,___MAX(
     (BOOL)__BOOL_LITERAL(TRUE),
     NULL,
     (REAL)__GET_EXTERNAL(data__->CLI_WINDGUST_MPS,),
     (REAL)__GET_EXTERNAL(data__->CLI_WIND_MPS,)));
-  __SET_EXTERNAL(data__->,CLI_WINDLOCKOUT,,(__GET_VAR(data__->BLIND,) || (__GET_VAR(data__->W,) >= __GET_EXTERNAL(data__->CLI_WINDSHUTEND_MPS,))));
+  __SET_EXTERNAL(data__->,CLI_WINDLOCKOUT,,(__GET_VAR(data__->BLIND,) || (__GET_VAR(data__->PEAK,) >= __GET_EXTERNAL(data__->CLI_WINDSHUTEND_MPS,))));
   __SET_EXTERNAL(data__->,CLI_WINDOWLOCKOUT,,((__GET_EXTERNAL(data__->CLI_RAINLOCKOUT,) || __GET_EXTERNAL(data__->CLI_WINDLOCKOUT,)) || __GET_EXTERNAL(data__->SYS_SUPPLY_LOCKOUT,)));
   __SET_VAR(data__->,CEILING,,__REAL_LITERAL(1.0));
-  if (((__GET_VAR(data__->W,) >= __GET_EXTERNAL(data__->CLI_WINDSHUTBEGIN_MPS,)) && (__GET_EXTERNAL(data__->CLI_WINDSHUTEND_MPS,) > __GET_EXTERNAL(data__->CLI_WINDSHUTBEGIN_MPS,)))) {
-    __SET_VAR(data__->,CEILING,,(__GET_EXTERNAL(data__->CLI_WINDSHUTMAX,) * (__REAL_LITERAL(1.0) - ((__GET_VAR(data__->W,) - __GET_EXTERNAL(data__->CLI_WINDSHUTBEGIN_MPS,)) / (__GET_EXTERNAL(data__->CLI_WINDSHUTEND_MPS,) - __GET_EXTERNAL(data__->CLI_WINDSHUTBEGIN_MPS,))))));
+  if (((__GET_VAR(data__->PEAK,) >= __GET_EXTERNAL(data__->CLI_WINDSHUTBEGIN_MPS,)) && (__GET_EXTERNAL(data__->CLI_WINDSHUTEND_MPS,) > __GET_EXTERNAL(data__->CLI_WINDSHUTBEGIN_MPS,)))) {
+    __SET_VAR(data__->,CEILING,,(__GET_EXTERNAL(data__->CLI_WINDSHUTMAX,) * (__REAL_LITERAL(1.0) - ((__GET_VAR(data__->PEAK,) - __GET_EXTERNAL(data__->CLI_WINDSHUTBEGIN_MPS,)) / (__GET_EXTERNAL(data__->CLI_WINDSHUTEND_MPS,) - __GET_EXTERNAL(data__->CLI_WINDSHUTBEGIN_MPS,))))));
   };
   if (__GET_EXTERNAL(data__->CLI_WINDOWLOCKOUT,)) {
     __SET_EXTERNAL(data__->,CLI_WINDOWCAP,,__REAL_LITERAL(0.0));
@@ -2939,10 +2939,10 @@ static void WINDOWS_CONTROLLER_init__(WINDOWS_CONTROLLER_data__ *data__, BOOL re
   __INIT_EXTERNAL(REAL,CLI_WINDOW2_POS,data__->CLI_WINDOW2_POS,retain)
   __INIT_EXTERNAL(REAL,CLI_WINDOW3_POS,data__->CLI_WINDOW3_POS,retain)
   __INIT_EXTERNAL(REAL,CLI_WINDOW4_POS,data__->CLI_WINDOW4_POS,retain)
-  ACTUATOR_init__(&data__->A1,retain);
-  ACTUATOR_init__(&data__->A2,retain);
-  ACTUATOR_init__(&data__->A3,retain);
-  ACTUATOR_init__(&data__->A4,retain);
+  ACTUATOR_init__(&data__->RAM1,retain);
+  ACTUATOR_init__(&data__->RAM2,retain);
+  ACTUATOR_init__(&data__->RAM3,retain);
+  ACTUATOR_init__(&data__->RAM4,retain);
 }
 
 // Code part
@@ -2954,10 +2954,10 @@ static void WINDOWS_CONTROLLER_body__(WINDOWS_CONTROLLER_data__ *data__) {
   __SET_VAR(data__->,TMO,,0);
   __SET_VAR(data__->,SEAT,,0);
   __SET_VAR(data__->,OWNER,,0);
-  __SET_VAR(data__->,T1,,0);
-  __SET_VAR(data__->,T2,,0);
-  __SET_VAR(data__->,T3,,0);
-  __SET_VAR(data__->,T4,,0);
+  __SET_VAR(data__->,TGT1,,0);
+  __SET_VAR(data__->,TGT2,,0);
+  __SET_VAR(data__->,TGT3,,0);
+  __SET_VAR(data__->,TGT4,,0);
 
   __SET_VAR(data__->,CEILING,,___LIMIT(
     (BOOL)__BOOL_LITERAL(TRUE),
@@ -2991,128 +2991,128 @@ static void WINDOWS_CONTROLLER_body__(WINDOWS_CONTROLLER_data__ *data__) {
   } else {
     __SET_VAR(data__->,SEAT,,__UDINT_LITERAL(2000));
   };
-  if (__GET_VAR(data__->A1.MOVING,)) {
+  if (__GET_VAR(data__->RAM1.MOVING,)) {
     __SET_VAR(data__->,OWNER,,__USINT_LITERAL(1));
-  } else if (__GET_VAR(data__->A2.MOVING,)) {
+  } else if (__GET_VAR(data__->RAM2.MOVING,)) {
     __SET_VAR(data__->,OWNER,,__USINT_LITERAL(2));
-  } else if (__GET_VAR(data__->A3.MOVING,)) {
+  } else if (__GET_VAR(data__->RAM3.MOVING,)) {
     __SET_VAR(data__->,OWNER,,__USINT_LITERAL(3));
-  } else if (__GET_VAR(data__->A4.MOVING,)) {
+  } else if (__GET_VAR(data__->RAM4.MOVING,)) {
     __SET_VAR(data__->,OWNER,,__USINT_LITERAL(4));
-  } else if ((!(__GET_VAR(data__->A1.KNOWN,)) || (___ABS(
+  } else if ((!(__GET_VAR(data__->RAM1.KNOWN,)) || (___ABS(
     (BOOL)__BOOL_LITERAL(TRUE),
     NULL,
-    (REAL)(__GET_VAR(data__->AIM,) - __GET_VAR(data__->A1.POS,))) > __REAL_LITERAL(0.02)))) {
+    (REAL)(__GET_VAR(data__->AIM,) - __GET_VAR(data__->RAM1.POS,))) > __REAL_LITERAL(0.02)))) {
     __SET_VAR(data__->,OWNER,,__USINT_LITERAL(1));
-  } else if ((!(__GET_VAR(data__->A2.KNOWN,)) || (___ABS(
+  } else if ((!(__GET_VAR(data__->RAM2.KNOWN,)) || (___ABS(
     (BOOL)__BOOL_LITERAL(TRUE),
     NULL,
-    (REAL)(__GET_VAR(data__->AIM,) - __GET_VAR(data__->A2.POS,))) > __REAL_LITERAL(0.02)))) {
+    (REAL)(__GET_VAR(data__->AIM,) - __GET_VAR(data__->RAM2.POS,))) > __REAL_LITERAL(0.02)))) {
     __SET_VAR(data__->,OWNER,,__USINT_LITERAL(2));
-  } else if ((!(__GET_VAR(data__->A3.KNOWN,)) || (___ABS(
+  } else if ((!(__GET_VAR(data__->RAM3.KNOWN,)) || (___ABS(
     (BOOL)__BOOL_LITERAL(TRUE),
     NULL,
-    (REAL)(__GET_VAR(data__->AIM,) - __GET_VAR(data__->A3.POS,))) > __REAL_LITERAL(0.02)))) {
+    (REAL)(__GET_VAR(data__->AIM,) - __GET_VAR(data__->RAM3.POS,))) > __REAL_LITERAL(0.02)))) {
     __SET_VAR(data__->,OWNER,,__USINT_LITERAL(3));
-  } else if ((!(__GET_VAR(data__->A4.KNOWN,)) || (___ABS(
+  } else if ((!(__GET_VAR(data__->RAM4.KNOWN,)) || (___ABS(
     (BOOL)__BOOL_LITERAL(TRUE),
     NULL,
-    (REAL)(__GET_VAR(data__->AIM,) - __GET_VAR(data__->A4.POS,))) > __REAL_LITERAL(0.02)))) {
+    (REAL)(__GET_VAR(data__->AIM,) - __GET_VAR(data__->RAM4.POS,))) > __REAL_LITERAL(0.02)))) {
     __SET_VAR(data__->,OWNER,,__USINT_LITERAL(4));
   } else {
     __SET_VAR(data__->,OWNER,,__USINT_LITERAL(0));
   };
-  __SET_VAR(data__->,T1,,__GET_VAR(data__->A1.POS,));
-  __SET_VAR(data__->,T2,,__GET_VAR(data__->A2.POS,));
-  __SET_VAR(data__->,T3,,__GET_VAR(data__->A3.POS,));
-  __SET_VAR(data__->,T4,,__GET_VAR(data__->A4.POS,));
+  __SET_VAR(data__->,TGT1,,__GET_VAR(data__->RAM1.POS,));
+  __SET_VAR(data__->,TGT2,,__GET_VAR(data__->RAM2.POS,));
+  __SET_VAR(data__->,TGT3,,__GET_VAR(data__->RAM3.POS,));
+  __SET_VAR(data__->,TGT4,,__GET_VAR(data__->RAM4.POS,));
   if ((__GET_VAR(data__->OWNER,) == __USINT_LITERAL(1))) {
-    __SET_VAR(data__->,T1,,__GET_VAR(data__->AIM,));
+    __SET_VAR(data__->,TGT1,,__GET_VAR(data__->AIM,));
   };
   if ((__GET_VAR(data__->OWNER,) == __USINT_LITERAL(2))) {
-    __SET_VAR(data__->,T2,,__GET_VAR(data__->AIM,));
+    __SET_VAR(data__->,TGT2,,__GET_VAR(data__->AIM,));
   };
   if ((__GET_VAR(data__->OWNER,) == __USINT_LITERAL(3))) {
-    __SET_VAR(data__->,T3,,__GET_VAR(data__->AIM,));
+    __SET_VAR(data__->,TGT3,,__GET_VAR(data__->AIM,));
   };
   if ((__GET_VAR(data__->OWNER,) == __USINT_LITERAL(4))) {
-    __SET_VAR(data__->,T4,,__GET_VAR(data__->AIM,));
+    __SET_VAR(data__->,TGT4,,__GET_VAR(data__->AIM,));
   };
-  __SET_VAR(data__->,A1.TARGET,,__GET_VAR(data__->T1,));
-  __SET_VAR(data__->,A1.OPEN_MS,,__GET_VAR(data__->TRAVEL,));
-  __SET_VAR(data__->,A1.CLOSE_MS,,__GET_VAR(data__->TRAVEL,));
-  __SET_VAR(data__->,A1.SEAT_MS,,__GET_VAR(data__->SEAT,));
-  __SET_VAR(data__->,A1.MIN_RUN_MS,,__UDINT_LITERAL(250));
-  __SET_VAR(data__->,A1.REVERSE_MS,,__UDINT_LITERAL(500));
-  __SET_VAR(data__->,A1.DB,,__REAL_LITERAL(0.02));
-  __SET_VAR(data__->,A1.REDATUM,,__REAL_LITERAL(3.0));
-  __SET_VAR(data__->,A1.HOLD,,(__GET_VAR(data__->OWNER,) != __USINT_LITERAL(1)));
-  __SET_VAR(data__->,A1.PRESET_KNOWN,,__BOOL_LITERAL(FALSE));
-  __SET_VAR(data__->,A1.PRESET_POS,,__REAL_LITERAL(0.0));
-  __SET_VAR(data__->,A1.NOW,,__GET_EXTERNAL(data__->SYS_NOW_MS,));
-  ACTUATOR_body__(&data__->A1);
-  __SET_VAR(data__->,A2.TARGET,,__GET_VAR(data__->T2,));
-  __SET_VAR(data__->,A2.OPEN_MS,,__GET_VAR(data__->TRAVEL,));
-  __SET_VAR(data__->,A2.CLOSE_MS,,__GET_VAR(data__->TRAVEL,));
-  __SET_VAR(data__->,A2.SEAT_MS,,__GET_VAR(data__->SEAT,));
-  __SET_VAR(data__->,A2.MIN_RUN_MS,,__UDINT_LITERAL(250));
-  __SET_VAR(data__->,A2.REVERSE_MS,,__UDINT_LITERAL(500));
-  __SET_VAR(data__->,A2.DB,,__REAL_LITERAL(0.02));
-  __SET_VAR(data__->,A2.REDATUM,,__REAL_LITERAL(3.0));
-  __SET_VAR(data__->,A2.HOLD,,(__GET_VAR(data__->OWNER,) != __USINT_LITERAL(2)));
-  __SET_VAR(data__->,A2.PRESET_KNOWN,,__BOOL_LITERAL(FALSE));
-  __SET_VAR(data__->,A2.PRESET_POS,,__REAL_LITERAL(0.0));
-  __SET_VAR(data__->,A2.NOW,,__GET_EXTERNAL(data__->SYS_NOW_MS,));
-  ACTUATOR_body__(&data__->A2);
-  __SET_VAR(data__->,A3.TARGET,,__GET_VAR(data__->T3,));
-  __SET_VAR(data__->,A3.OPEN_MS,,__GET_VAR(data__->TRAVEL,));
-  __SET_VAR(data__->,A3.CLOSE_MS,,__GET_VAR(data__->TRAVEL,));
-  __SET_VAR(data__->,A3.SEAT_MS,,__GET_VAR(data__->SEAT,));
-  __SET_VAR(data__->,A3.MIN_RUN_MS,,__UDINT_LITERAL(250));
-  __SET_VAR(data__->,A3.REVERSE_MS,,__UDINT_LITERAL(500));
-  __SET_VAR(data__->,A3.DB,,__REAL_LITERAL(0.02));
-  __SET_VAR(data__->,A3.REDATUM,,__REAL_LITERAL(3.0));
-  __SET_VAR(data__->,A3.HOLD,,(__GET_VAR(data__->OWNER,) != __USINT_LITERAL(3)));
-  __SET_VAR(data__->,A3.PRESET_KNOWN,,__BOOL_LITERAL(FALSE));
-  __SET_VAR(data__->,A3.PRESET_POS,,__REAL_LITERAL(0.0));
-  __SET_VAR(data__->,A3.NOW,,__GET_EXTERNAL(data__->SYS_NOW_MS,));
-  ACTUATOR_body__(&data__->A3);
-  __SET_VAR(data__->,A4.TARGET,,__GET_VAR(data__->T4,));
-  __SET_VAR(data__->,A4.OPEN_MS,,__GET_VAR(data__->TRAVEL,));
-  __SET_VAR(data__->,A4.CLOSE_MS,,__GET_VAR(data__->TRAVEL,));
-  __SET_VAR(data__->,A4.SEAT_MS,,__GET_VAR(data__->SEAT,));
-  __SET_VAR(data__->,A4.MIN_RUN_MS,,__UDINT_LITERAL(250));
-  __SET_VAR(data__->,A4.REVERSE_MS,,__UDINT_LITERAL(500));
-  __SET_VAR(data__->,A4.DB,,__REAL_LITERAL(0.02));
-  __SET_VAR(data__->,A4.REDATUM,,__REAL_LITERAL(3.0));
-  __SET_VAR(data__->,A4.HOLD,,(__GET_VAR(data__->OWNER,) != __USINT_LITERAL(4)));
-  __SET_VAR(data__->,A4.PRESET_KNOWN,,__BOOL_LITERAL(FALSE));
-  __SET_VAR(data__->,A4.PRESET_POS,,__REAL_LITERAL(0.0));
-  __SET_VAR(data__->,A4.NOW,,__GET_EXTERNAL(data__->SYS_NOW_MS,));
-  ACTUATOR_body__(&data__->A4);
-  __SET_EXTERNAL(data__->,CLI_WINDOW1_OPN,,__GET_VAR(data__->A1.OPEN_CMD,));
-  __SET_EXTERNAL(data__->,CLI_WINDOW1_CLO,,__GET_VAR(data__->A1.CLOSE_CMD,));
-  __SET_EXTERNAL(data__->,CLI_WINDOW2_OPN,,__GET_VAR(data__->A2.OPEN_CMD,));
-  __SET_EXTERNAL(data__->,CLI_WINDOW2_CLO,,__GET_VAR(data__->A2.CLOSE_CMD,));
-  __SET_EXTERNAL(data__->,CLI_WINDOW3_OPN,,__GET_VAR(data__->A3.OPEN_CMD,));
-  __SET_EXTERNAL(data__->,CLI_WINDOW3_CLO,,__GET_VAR(data__->A3.CLOSE_CMD,));
-  __SET_EXTERNAL(data__->,CLI_WINDOW4_OPN,,__GET_VAR(data__->A4.OPEN_CMD,));
-  __SET_EXTERNAL(data__->,CLI_WINDOW4_CLO,,__GET_VAR(data__->A4.CLOSE_CMD,));
+  __SET_VAR(data__->,RAM1.TARGET,,__GET_VAR(data__->TGT1,));
+  __SET_VAR(data__->,RAM1.OPEN_MS,,__GET_VAR(data__->TRAVEL,));
+  __SET_VAR(data__->,RAM1.CLOSE_MS,,__GET_VAR(data__->TRAVEL,));
+  __SET_VAR(data__->,RAM1.SEAT_MS,,__GET_VAR(data__->SEAT,));
+  __SET_VAR(data__->,RAM1.MIN_RUN_MS,,__UDINT_LITERAL(250));
+  __SET_VAR(data__->,RAM1.REVERSE_MS,,__UDINT_LITERAL(500));
+  __SET_VAR(data__->,RAM1.DB,,__REAL_LITERAL(0.02));
+  __SET_VAR(data__->,RAM1.REDATUM,,__REAL_LITERAL(3.0));
+  __SET_VAR(data__->,RAM1.HOLD,,(__GET_VAR(data__->OWNER,) != __USINT_LITERAL(1)));
+  __SET_VAR(data__->,RAM1.PRESET_KNOWN,,__BOOL_LITERAL(FALSE));
+  __SET_VAR(data__->,RAM1.PRESET_POS,,__REAL_LITERAL(0.0));
+  __SET_VAR(data__->,RAM1.NOW,,__GET_EXTERNAL(data__->SYS_NOW_MS,));
+  ACTUATOR_body__(&data__->RAM1);
+  __SET_VAR(data__->,RAM2.TARGET,,__GET_VAR(data__->TGT2,));
+  __SET_VAR(data__->,RAM2.OPEN_MS,,__GET_VAR(data__->TRAVEL,));
+  __SET_VAR(data__->,RAM2.CLOSE_MS,,__GET_VAR(data__->TRAVEL,));
+  __SET_VAR(data__->,RAM2.SEAT_MS,,__GET_VAR(data__->SEAT,));
+  __SET_VAR(data__->,RAM2.MIN_RUN_MS,,__UDINT_LITERAL(250));
+  __SET_VAR(data__->,RAM2.REVERSE_MS,,__UDINT_LITERAL(500));
+  __SET_VAR(data__->,RAM2.DB,,__REAL_LITERAL(0.02));
+  __SET_VAR(data__->,RAM2.REDATUM,,__REAL_LITERAL(3.0));
+  __SET_VAR(data__->,RAM2.HOLD,,(__GET_VAR(data__->OWNER,) != __USINT_LITERAL(2)));
+  __SET_VAR(data__->,RAM2.PRESET_KNOWN,,__BOOL_LITERAL(FALSE));
+  __SET_VAR(data__->,RAM2.PRESET_POS,,__REAL_LITERAL(0.0));
+  __SET_VAR(data__->,RAM2.NOW,,__GET_EXTERNAL(data__->SYS_NOW_MS,));
+  ACTUATOR_body__(&data__->RAM2);
+  __SET_VAR(data__->,RAM3.TARGET,,__GET_VAR(data__->TGT3,));
+  __SET_VAR(data__->,RAM3.OPEN_MS,,__GET_VAR(data__->TRAVEL,));
+  __SET_VAR(data__->,RAM3.CLOSE_MS,,__GET_VAR(data__->TRAVEL,));
+  __SET_VAR(data__->,RAM3.SEAT_MS,,__GET_VAR(data__->SEAT,));
+  __SET_VAR(data__->,RAM3.MIN_RUN_MS,,__UDINT_LITERAL(250));
+  __SET_VAR(data__->,RAM3.REVERSE_MS,,__UDINT_LITERAL(500));
+  __SET_VAR(data__->,RAM3.DB,,__REAL_LITERAL(0.02));
+  __SET_VAR(data__->,RAM3.REDATUM,,__REAL_LITERAL(3.0));
+  __SET_VAR(data__->,RAM3.HOLD,,(__GET_VAR(data__->OWNER,) != __USINT_LITERAL(3)));
+  __SET_VAR(data__->,RAM3.PRESET_KNOWN,,__BOOL_LITERAL(FALSE));
+  __SET_VAR(data__->,RAM3.PRESET_POS,,__REAL_LITERAL(0.0));
+  __SET_VAR(data__->,RAM3.NOW,,__GET_EXTERNAL(data__->SYS_NOW_MS,));
+  ACTUATOR_body__(&data__->RAM3);
+  __SET_VAR(data__->,RAM4.TARGET,,__GET_VAR(data__->TGT4,));
+  __SET_VAR(data__->,RAM4.OPEN_MS,,__GET_VAR(data__->TRAVEL,));
+  __SET_VAR(data__->,RAM4.CLOSE_MS,,__GET_VAR(data__->TRAVEL,));
+  __SET_VAR(data__->,RAM4.SEAT_MS,,__GET_VAR(data__->SEAT,));
+  __SET_VAR(data__->,RAM4.MIN_RUN_MS,,__UDINT_LITERAL(250));
+  __SET_VAR(data__->,RAM4.REVERSE_MS,,__UDINT_LITERAL(500));
+  __SET_VAR(data__->,RAM4.DB,,__REAL_LITERAL(0.02));
+  __SET_VAR(data__->,RAM4.REDATUM,,__REAL_LITERAL(3.0));
+  __SET_VAR(data__->,RAM4.HOLD,,(__GET_VAR(data__->OWNER,) != __USINT_LITERAL(4)));
+  __SET_VAR(data__->,RAM4.PRESET_KNOWN,,__BOOL_LITERAL(FALSE));
+  __SET_VAR(data__->,RAM4.PRESET_POS,,__REAL_LITERAL(0.0));
+  __SET_VAR(data__->,RAM4.NOW,,__GET_EXTERNAL(data__->SYS_NOW_MS,));
+  ACTUATOR_body__(&data__->RAM4);
+  __SET_EXTERNAL(data__->,CLI_WINDOW1_OPN,,__GET_VAR(data__->RAM1.OPEN_CMD,));
+  __SET_EXTERNAL(data__->,CLI_WINDOW1_CLO,,__GET_VAR(data__->RAM1.CLOSE_CMD,));
+  __SET_EXTERNAL(data__->,CLI_WINDOW2_OPN,,__GET_VAR(data__->RAM2.OPEN_CMD,));
+  __SET_EXTERNAL(data__->,CLI_WINDOW2_CLO,,__GET_VAR(data__->RAM2.CLOSE_CMD,));
+  __SET_EXTERNAL(data__->,CLI_WINDOW3_OPN,,__GET_VAR(data__->RAM3.OPEN_CMD,));
+  __SET_EXTERNAL(data__->,CLI_WINDOW3_CLO,,__GET_VAR(data__->RAM3.CLOSE_CMD,));
+  __SET_EXTERNAL(data__->,CLI_WINDOW4_OPN,,__GET_VAR(data__->RAM4.OPEN_CMD,));
+  __SET_EXTERNAL(data__->,CLI_WINDOW4_CLO,,__GET_VAR(data__->RAM4.CLOSE_CMD,));
   __SET_EXTERNAL(data__->,CLI_WINDOW1_TGT,,__GET_VAR(data__->AIM,));
   __SET_EXTERNAL(data__->,CLI_WINDOW2_TGT,,__GET_VAR(data__->AIM,));
   __SET_EXTERNAL(data__->,CLI_WINDOW3_TGT,,__GET_VAR(data__->AIM,));
   __SET_EXTERNAL(data__->,CLI_WINDOW4_TGT,,__GET_VAR(data__->AIM,));
-  if (__GET_VAR(data__->A1.KNOWN,)) {
-    __SET_EXTERNAL(data__->,CLI_WINDOW1_POS,,__GET_VAR(data__->A1.POS,));
+  if (__GET_VAR(data__->RAM1.KNOWN,)) {
+    __SET_EXTERNAL(data__->,CLI_WINDOW1_POS,,__GET_VAR(data__->RAM1.POS,));
   };
-  if (__GET_VAR(data__->A2.KNOWN,)) {
-    __SET_EXTERNAL(data__->,CLI_WINDOW2_POS,,__GET_VAR(data__->A2.POS,));
+  if (__GET_VAR(data__->RAM2.KNOWN,)) {
+    __SET_EXTERNAL(data__->,CLI_WINDOW2_POS,,__GET_VAR(data__->RAM2.POS,));
   };
-  if (__GET_VAR(data__->A3.KNOWN,)) {
-    __SET_EXTERNAL(data__->,CLI_WINDOW3_POS,,__GET_VAR(data__->A3.POS,));
+  if (__GET_VAR(data__->RAM3.KNOWN,)) {
+    __SET_EXTERNAL(data__->,CLI_WINDOW3_POS,,__GET_VAR(data__->RAM3.POS,));
   };
-  if (__GET_VAR(data__->A4.KNOWN,)) {
-    __SET_EXTERNAL(data__->,CLI_WINDOW4_POS,,__GET_VAR(data__->A4.POS,));
+  if (__GET_VAR(data__->RAM4.KNOWN,)) {
+    __SET_EXTERNAL(data__->,CLI_WINDOW4_POS,,__GET_VAR(data__->RAM4.POS,));
   };
 
   goto __end;
@@ -3216,7 +3216,7 @@ static void DAY_PHASE_CONTROLLER_init__(DAY_PHASE_CONTROLLER_data__ *data__, BOO
 // Code part
 static void DAY_PHASE_CONTROLLER_body__(DAY_PHASE_CONTROLLER_data__ *data__) {
   // Initialise TEMP variables
-  __SET_VAR(data__->,WAS,,0);
+  __SET_VAR(data__->,PREV_PHASE,,0);
 
   if (!(__GET_VAR(data__->SEEDED,))) {
     __SET_VAR(data__->,DAY_MAX,,__GET_EXTERNAL(data__->CLI_TEMP_IN,));
@@ -3229,7 +3229,7 @@ static void DAY_PHASE_CONTROLLER_body__(DAY_PHASE_CONTROLLER_data__ *data__) {
   if ((__GET_EXTERNAL(data__->CLI_TEMP_IN,) < __GET_VAR(data__->NIGHT_MIN,))) {
     __SET_VAR(data__->,NIGHT_MIN,,__GET_EXTERNAL(data__->CLI_TEMP_IN,));
   };
-  __SET_VAR(data__->,WAS,,__GET_VAR(data__->PHASE,));
+  __SET_VAR(data__->,PREV_PHASE,,__GET_VAR(data__->PHASE,));
   if (__GET_EXTERNAL(data__->SOL_READY,)) {
     if ((__GET_EXTERNAL(data__->SOL_FROMRISE_MIN,) < __GET_EXTERNAL(data__->SOL_COLDBANKRISE_MIN,))) {
       __SET_VAR(data__->,PHASE,,__USINT_LITERAL(0));
@@ -3255,10 +3255,10 @@ static void DAY_PHASE_CONTROLLER_body__(DAY_PHASE_CONTROLLER_data__ *data__) {
       __SET_VAR(data__->,PHASE,,__USINT_LITERAL(0));
     };
   };
-  if (((__GET_VAR(data__->PHASE,) == __USINT_LITERAL(3)) && (__GET_VAR(data__->WAS,) != __USINT_LITERAL(3)))) {
+  if (((__GET_VAR(data__->PHASE,) == __USINT_LITERAL(3)) && (__GET_VAR(data__->PREV_PHASE,) != __USINT_LITERAL(3)))) {
     __SET_VAR(data__->,DAY_MAX,,__GET_EXTERNAL(data__->CLI_TEMP_IN,));
   };
-  if (((__GET_VAR(data__->PHASE,) == __USINT_LITERAL(0)) && (__GET_VAR(data__->WAS,) != __USINT_LITERAL(0)))) {
+  if (((__GET_VAR(data__->PHASE,) == __USINT_LITERAL(0)) && (__GET_VAR(data__->PREV_PHASE,) != __USINT_LITERAL(0)))) {
     __SET_VAR(data__->,NIGHT_MIN,,__GET_EXTERNAL(data__->CLI_TEMP_IN,));
   };
   __SET_EXTERNAL(data__->,CLI_PHASE,,__GET_VAR(data__->PHASE,));
@@ -3403,12 +3403,12 @@ static void INTAKE_DRY_GATE_init__(INTAKE_DRY_GATE_data__ *data__, BOOL retain) 
 // Code part
 static void INTAKE_DRY_GATE_body__(INTAKE_DRY_GATE_data__ *data__) {
   // Initialise TEMP variables
-  __SET_VAR(data__->,HAVE,,__BOOL_LITERAL(FALSE));
-  __SET_VAR(data__->,DIFF,,0);
+  __SET_VAR(data__->,MEASURED,,__BOOL_LITERAL(FALSE));
+  __SET_VAR(data__->,DP_DIFF,,0);
 
-  __SET_VAR(data__->,HAVE,,(((__GET_EXTERNAL(data__->CLI_TEMP_HI_QLT,) && __GET_EXTERNAL(data__->CLI_RH_HI_QLT,)) && __GET_EXTERNAL(data__->CLI_TEMP_EXT_QLT,)) && __GET_EXTERNAL(data__->CLI_RH_EXT_QLT,)));
-  if (__GET_VAR(data__->HAVE,)) {
-    __SET_VAR(data__->,DIFF,,(___DEW_POINT(
+  __SET_VAR(data__->,MEASURED,,(((__GET_EXTERNAL(data__->CLI_TEMP_HI_QLT,) && __GET_EXTERNAL(data__->CLI_RH_HI_QLT,)) && __GET_EXTERNAL(data__->CLI_TEMP_EXT_QLT,)) && __GET_EXTERNAL(data__->CLI_RH_EXT_QLT,)));
+  if (__GET_VAR(data__->MEASURED,)) {
+    __SET_VAR(data__->,DP_DIFF,,(___DEW_POINT(
       (BOOL)__BOOL_LITERAL(TRUE),
       NULL,
       (REAL)__GET_EXTERNAL(data__->CLI_TEMP_HI,),
@@ -3417,7 +3417,7 @@ static void INTAKE_DRY_GATE_body__(INTAKE_DRY_GATE_data__ *data__) {
       NULL,
       (REAL)__GET_EXTERNAL(data__->CLI_TEMP_EXT,),
       (REAL)__GET_EXTERNAL(data__->CLI_RH_EXT,))));
-    __SET_VAR(data__->,GATE.IN,,__GET_VAR(data__->DIFF,));
+    __SET_VAR(data__->,GATE.IN,,__GET_VAR(data__->DP_DIFF,));
     __SET_VAR(data__->,GATE.RISE,,__GET_EXTERNAL(data__->CLI_VENTDRYMGN_DEGC,));
     __SET_VAR(data__->,GATE.FALL,,(__GET_EXTERNAL(data__->CLI_VENTDRYMGN_DEGC,) - __GET_EXTERNAL(data__->CLI_VENTHYST_DEGC,)));
     BAND_LATCH_body__(&data__->GATE);
@@ -3831,8 +3831,8 @@ static void IRRIGATION_CYCLE_body__(IRRIGATION_CYCLE_data__ *data__) {
   __SET_VAR(data__->,SPLIT_LIM,,0);
   __SET_VAR(data__->,DOSE,,0);
   __SET_VAR(data__->,LITRES,,0);
-  __SET_VAR(data__->,GOT,,0);
-  __SET_VAR(data__->,PT,,0);
+  __SET_VAR(data__->,DELIVERED_L,,0);
+  __SET_VAR(data__->,DWELL_MS,,0);
   __SET_VAR(data__->,EXPIRED,,__BOOL_LITERAL(FALSE));
   __SET_VAR(data__->,MOVED,,__BOOL_LITERAL(FALSE));
   __SET_VAR(data__->,SERVED,,__BOOL_LITERAL(FALSE));
@@ -3841,7 +3841,7 @@ static void IRRIGATION_CYCLE_body__(IRRIGATION_CYCLE_data__ *data__) {
   __SET_VAR(data__->,MIN_FRAC,,0);
   __SET_VAR(data__->,CLOG,,__BOOL_LITERAL(FALSE));
   __SET_VAR(data__->,JUDGED,,__BOOL_LITERAL(FALSE));
-  __SET_VAR(data__->,DONE,,0);
+  __SET_VAR(data__->,SERVED_TODAY,,0);
 
   __SET_VAR(data__->,MOVED,,__BOOL_LITERAL(FALSE));
   __SET_VAR(data__->,SERVED,,__BOOL_LITERAL(FALSE));
@@ -3849,30 +3849,30 @@ static void IRRIGATION_CYCLE_body__(IRRIGATION_CYCLE_data__ *data__) {
   __SET_VAR(data__->,BLAME,,__BOOL_LITERAL(FALSE));
   __SET_VAR(data__->,CLOG,,__BOOL_LITERAL(FALSE));
   if ((__GET_VAR(data__->MODE,) == __USINT_LITERAL(1))) {
-    __SET_VAR(data__->,PT,,___SEC_MS(
+    __SET_VAR(data__->,DWELL_MS,,___SEC_MS(
       (BOOL)__BOOL_LITERAL(TRUE),
       NULL,
       (UINT)__GET_EXTERNAL(data__->IRR_MAXFILL_SEC,)));
   } else if ((__GET_VAR(data__->MODE,) == __USINT_LITERAL(4))) {
-    __SET_VAR(data__->,PT,,___SEC_MS(
+    __SET_VAR(data__->,DWELL_MS,,___SEC_MS(
       (BOOL)__BOOL_LITERAL(TRUE),
       NULL,
       (UINT)__GET_EXTERNAL(data__->IRR_SOAK_SEC,)));
   } else if ((__GET_VAR(data__->MODE,) == __USINT_LITERAL(2))) {
-    __SET_VAR(data__->,PT,,___SEC_MS(
+    __SET_VAR(data__->,DWELL_MS,,___SEC_MS(
       (BOOL)__BOOL_LITERAL(TRUE),
       NULL,
       (UINT)__GET_EXTERNAL(data__->IRR_DRAINWINDOW_SEC,)));
   } else if ((__GET_VAR(data__->MODE,) == __USINT_LITERAL(3))) {
-    __SET_VAR(data__->,PT,,___SEC_MS(
+    __SET_VAR(data__->,DWELL_MS,,___SEC_MS(
       (BOOL)__BOOL_LITERAL(TRUE),
       NULL,
       (UINT)__GET_EXTERNAL(data__->IRR_FLUSH_SEC,)));
   } else {
-    __SET_VAR(data__->,PT,,__UDINT_LITERAL(0));
+    __SET_VAR(data__->,DWELL_MS,,__UDINT_LITERAL(0));
   };
   __SET_VAR(data__->DWELL.,IN,,(__GET_VAR(data__->MODE,) != __USINT_LITERAL(0)));
-  __SET_VAR(data__->DWELL.,PT,,__GET_VAR(data__->PT,));
+  __SET_VAR(data__->DWELL.,PT,,__GET_VAR(data__->DWELL_MS,));
   __SET_VAR(data__->DWELL.,NOW,,__GET_EXTERNAL(data__->SYS_NOW_MS,));
   TON_MS_body__(&data__->DWELL);
   __SET_VAR(data__->,EXPIRED,,__GET_VAR(data__->DWELL.Q,));
@@ -3945,12 +3945,12 @@ static void IRRIGATION_CYCLE_body__(IRRIGATION_CYCLE_data__ *data__) {
     };
   } else if ((__GET_VAR(data__->MODE,) == __USINT_LITERAL(1))) {
     __SET_EXTERNAL(data__->,IRR_DELIVERED_L,,(__GET_EXTERNAL(data__->IRR_INTOTAL_L,) - __GET_VAR(data__->FILL_AT,)));
-    __SET_VAR(data__->,GOT,,__GET_EXTERNAL(data__->IRR_DELIVERED_L,));
-    if (((__GET_VAR(data__->GOT,) >= __GET_VAR(data__->DOSE,)) && (__GET_VAR(data__->DOSE,) > __REAL_LITERAL(0.0)))) {
+    __SET_VAR(data__->,DELIVERED_L,,__GET_EXTERNAL(data__->IRR_DELIVERED_L,));
+    if (((__GET_VAR(data__->DELIVERED_L,) >= __GET_VAR(data__->DOSE,)) && (__GET_VAR(data__->DOSE,) > __REAL_LITERAL(0.0)))) {
       __SET_EXTERNAL(data__->,ALARM_IRR_FILL,,__BOOL_LITERAL(FALSE));
       __SET_VAR(data__->,BLAME,,__BOOL_LITERAL(FALSE));
       __SET_VAR(data__->,SERVED,,__BOOL_LITERAL(TRUE));
-      __SET_VAR(data__->,DOSE_L,,__GET_VAR(data__->GOT,));
+      __SET_VAR(data__->,DOSE_L,,__GET_VAR(data__->DELIVERED_L,));
       if ((__GET_EXTERNAL(data__->IRR_SOAK_SEC,) > __UINT_LITERAL(0))) {
         __SET_VAR(data__->,MODE,,__USINT_LITERAL(4));
       } else {
@@ -3961,7 +3961,7 @@ static void IRRIGATION_CYCLE_body__(IRRIGATION_CYCLE_data__ *data__) {
       __SET_EXTERNAL(data__->,ALARM_IRR_FILL,,__BOOL_LITERAL(TRUE));
       __SET_VAR(data__->,BLAME,,__BOOL_LITERAL(TRUE));
       __SET_VAR(data__->,SERVED,,__BOOL_LITERAL(TRUE));
-      __SET_VAR(data__->,DOSE_L,,__GET_VAR(data__->GOT,));
+      __SET_VAR(data__->,DOSE_L,,__GET_VAR(data__->DELIVERED_L,));
       __SET_VAR(data__->,MODE,,__USINT_LITERAL(2));
       __SET_VAR(data__->,MOVED,,__BOOL_LITERAL(TRUE));
     };
@@ -4088,9 +4088,9 @@ static void IRRIGATION_CYCLE_body__(IRRIGATION_CYCLE_data__ *data__) {
       __SET_EXTERNAL(data__->,IRR_FORCENOW,,__BOOL_LITERAL(FALSE));
       __SET_VAR(data__->,FORCED,,__BOOL_LITERAL(FALSE));
     };
-    __SET_VAR(data__->,DONE,,__GET_EXTERNAL(data__->IRR_SERVEDTODAY,));
-    if ((__GET_VAR(data__->DONE,) < __USINT_LITERAL(255))) {
-      __SET_EXTERNAL(data__->,IRR_SERVEDTODAY,,(__GET_VAR(data__->DONE,) + __USINT_LITERAL(1)));
+    __SET_VAR(data__->,SERVED_TODAY,,__GET_EXTERNAL(data__->IRR_SERVEDTODAY,));
+    if ((__GET_VAR(data__->SERVED_TODAY,) < __USINT_LITERAL(255))) {
+      __SET_EXTERNAL(data__->,IRR_SERVEDTODAY,,(__GET_VAR(data__->SERVED_TODAY,) + __USINT_LITERAL(1)));
     };
   };
   if (__GET_VAR(data__->JUDGED,)) {
@@ -4107,7 +4107,7 @@ static void IRRIGATION_CYCLE_body__(IRRIGATION_CYCLE_data__ *data__) {
       __SET_EXTERNAL(data__->,IRR_DRAINED_L,,__REAL_LITERAL(0.0));
     };
     __SET_VAR(data__->DWELL.,IN,,__BOOL_LITERAL(FALSE));
-    __SET_VAR(data__->DWELL.,PT,,__GET_VAR(data__->PT,));
+    __SET_VAR(data__->DWELL.,PT,,__GET_VAR(data__->DWELL_MS,));
     __SET_VAR(data__->DWELL.,NOW,,__GET_EXTERNAL(data__->SYS_NOW_MS,));
     TON_MS_body__(&data__->DWELL);
   };
@@ -4269,14 +4269,14 @@ static void IRRIGATION_SCHEDULE_init__(IRRIGATION_SCHEDULE_data__ *data__, BOOL 
   __INIT_EXTERNAL(BOOL,IRR_FORCEOFF_TRAY6,data__->IRR_FORCEOFF_TRAY6,retain)
   __INIT_EXTERNAL(BOOL,IRR_FORCEOFF_TRAY7,data__->IRR_FORCEOFF_TRAY7,retain)
   __INIT_EXTERNAL(BOOL,IRR_FORCEOFF_TRAY8,data__->IRR_FORCEOFF_TRAY8,retain)
-  TRAY_DUE_init__(&data__->T1,retain);
-  TRAY_DUE_init__(&data__->T2,retain);
-  TRAY_DUE_init__(&data__->T3,retain);
-  TRAY_DUE_init__(&data__->T4,retain);
-  TRAY_DUE_init__(&data__->T5,retain);
-  TRAY_DUE_init__(&data__->T6,retain);
-  TRAY_DUE_init__(&data__->T7,retain);
-  TRAY_DUE_init__(&data__->T8,retain);
+  TRAY_DUE_init__(&data__->TRAY1,retain);
+  TRAY_DUE_init__(&data__->TRAY2,retain);
+  TRAY_DUE_init__(&data__->TRAY3,retain);
+  TRAY_DUE_init__(&data__->TRAY4,retain);
+  TRAY_DUE_init__(&data__->TRAY5,retain);
+  TRAY_DUE_init__(&data__->TRAY6,retain);
+  TRAY_DUE_init__(&data__->TRAY7,retain);
+  TRAY_DUE_init__(&data__->TRAY8,retain);
   __INIT_VAR(data__->SERVED_DAY,0,retain)
 }
 
@@ -4349,83 +4349,83 @@ static void IRRIGATION_SCHEDULE_body__(IRRIGATION_SCHEDULE_data__ *data__) {
     NULL,
     (REAL)__GET_EXTERNAL(data__->IRR_MOD,),
     (REAL)(__REAL_LITERAL(1.0) - __GET_VAR(data__->SPLIT_LIM,))));
-  __SET_VAR(data__->,T1.DAYS,,__GET_EXTERNAL(data__->IRR_DAYS_TRAY1,));
-  __SET_VAR(data__->,T1.LAST,,__GET_EXTERNAL(data__->IRR_LAST_TRAY1,));
-  __SET_VAR(data__->,T1.FORCE_OFF,,__GET_EXTERNAL(data__->IRR_FORCEOFF_TRAY1,));
-  __SET_VAR(data__->,T1.DAY,,__GET_EXTERNAL(data__->SYS_TODAY,));
-  __SET_VAR(data__->,T1.STRETCH,,__GET_VAR(data__->STRETCH,));
-  TRAY_DUE_body__(&data__->T1);
-  __SET_VAR(data__->,T2.DAYS,,__GET_EXTERNAL(data__->IRR_DAYS_TRAY2,));
-  __SET_VAR(data__->,T2.LAST,,__GET_EXTERNAL(data__->IRR_LAST_TRAY2,));
-  __SET_VAR(data__->,T2.FORCE_OFF,,__GET_EXTERNAL(data__->IRR_FORCEOFF_TRAY2,));
-  __SET_VAR(data__->,T2.DAY,,__GET_EXTERNAL(data__->SYS_TODAY,));
-  __SET_VAR(data__->,T2.STRETCH,,__GET_VAR(data__->STRETCH,));
-  TRAY_DUE_body__(&data__->T2);
-  __SET_VAR(data__->,T3.DAYS,,__GET_EXTERNAL(data__->IRR_DAYS_TRAY3,));
-  __SET_VAR(data__->,T3.LAST,,__GET_EXTERNAL(data__->IRR_LAST_TRAY3,));
-  __SET_VAR(data__->,T3.FORCE_OFF,,__GET_EXTERNAL(data__->IRR_FORCEOFF_TRAY3,));
-  __SET_VAR(data__->,T3.DAY,,__GET_EXTERNAL(data__->SYS_TODAY,));
-  __SET_VAR(data__->,T3.STRETCH,,__GET_VAR(data__->STRETCH,));
-  TRAY_DUE_body__(&data__->T3);
-  __SET_VAR(data__->,T4.DAYS,,__GET_EXTERNAL(data__->IRR_DAYS_TRAY4,));
-  __SET_VAR(data__->,T4.LAST,,__GET_EXTERNAL(data__->IRR_LAST_TRAY4,));
-  __SET_VAR(data__->,T4.FORCE_OFF,,__GET_EXTERNAL(data__->IRR_FORCEOFF_TRAY4,));
-  __SET_VAR(data__->,T4.DAY,,__GET_EXTERNAL(data__->SYS_TODAY,));
-  __SET_VAR(data__->,T4.STRETCH,,__GET_VAR(data__->STRETCH,));
-  TRAY_DUE_body__(&data__->T4);
-  __SET_VAR(data__->,T5.DAYS,,__GET_EXTERNAL(data__->IRR_DAYS_TRAY5,));
-  __SET_VAR(data__->,T5.LAST,,__GET_EXTERNAL(data__->IRR_LAST_TRAY5,));
-  __SET_VAR(data__->,T5.FORCE_OFF,,__GET_EXTERNAL(data__->IRR_FORCEOFF_TRAY5,));
-  __SET_VAR(data__->,T5.DAY,,__GET_EXTERNAL(data__->SYS_TODAY,));
-  __SET_VAR(data__->,T5.STRETCH,,__GET_VAR(data__->STRETCH,));
-  TRAY_DUE_body__(&data__->T5);
-  __SET_VAR(data__->,T6.DAYS,,__GET_EXTERNAL(data__->IRR_DAYS_TRAY6,));
-  __SET_VAR(data__->,T6.LAST,,__GET_EXTERNAL(data__->IRR_LAST_TRAY6,));
-  __SET_VAR(data__->,T6.FORCE_OFF,,__GET_EXTERNAL(data__->IRR_FORCEOFF_TRAY6,));
-  __SET_VAR(data__->,T6.DAY,,__GET_EXTERNAL(data__->SYS_TODAY,));
-  __SET_VAR(data__->,T6.STRETCH,,__GET_VAR(data__->STRETCH,));
-  TRAY_DUE_body__(&data__->T6);
-  __SET_VAR(data__->,T7.DAYS,,__GET_EXTERNAL(data__->IRR_DAYS_TRAY7,));
-  __SET_VAR(data__->,T7.LAST,,__GET_EXTERNAL(data__->IRR_LAST_TRAY7,));
-  __SET_VAR(data__->,T7.FORCE_OFF,,__GET_EXTERNAL(data__->IRR_FORCEOFF_TRAY7,));
-  __SET_VAR(data__->,T7.DAY,,__GET_EXTERNAL(data__->SYS_TODAY,));
-  __SET_VAR(data__->,T7.STRETCH,,__GET_VAR(data__->STRETCH,));
-  TRAY_DUE_body__(&data__->T7);
-  __SET_VAR(data__->,T8.DAYS,,__GET_EXTERNAL(data__->IRR_DAYS_TRAY8,));
-  __SET_VAR(data__->,T8.LAST,,__GET_EXTERNAL(data__->IRR_LAST_TRAY8,));
-  __SET_VAR(data__->,T8.FORCE_OFF,,__GET_EXTERNAL(data__->IRR_FORCEOFF_TRAY8,));
-  __SET_VAR(data__->,T8.DAY,,__GET_EXTERNAL(data__->SYS_TODAY,));
-  __SET_VAR(data__->,T8.STRETCH,,__GET_VAR(data__->STRETCH,));
-  TRAY_DUE_body__(&data__->T8);
-  if (__GET_VAR(data__->T1.SKIP,)) {
+  __SET_VAR(data__->,TRAY1.DAYS,,__GET_EXTERNAL(data__->IRR_DAYS_TRAY1,));
+  __SET_VAR(data__->,TRAY1.LAST,,__GET_EXTERNAL(data__->IRR_LAST_TRAY1,));
+  __SET_VAR(data__->,TRAY1.FORCE_OFF,,__GET_EXTERNAL(data__->IRR_FORCEOFF_TRAY1,));
+  __SET_VAR(data__->,TRAY1.DAY,,__GET_EXTERNAL(data__->SYS_TODAY,));
+  __SET_VAR(data__->,TRAY1.STRETCH,,__GET_VAR(data__->STRETCH,));
+  TRAY_DUE_body__(&data__->TRAY1);
+  __SET_VAR(data__->,TRAY2.DAYS,,__GET_EXTERNAL(data__->IRR_DAYS_TRAY2,));
+  __SET_VAR(data__->,TRAY2.LAST,,__GET_EXTERNAL(data__->IRR_LAST_TRAY2,));
+  __SET_VAR(data__->,TRAY2.FORCE_OFF,,__GET_EXTERNAL(data__->IRR_FORCEOFF_TRAY2,));
+  __SET_VAR(data__->,TRAY2.DAY,,__GET_EXTERNAL(data__->SYS_TODAY,));
+  __SET_VAR(data__->,TRAY2.STRETCH,,__GET_VAR(data__->STRETCH,));
+  TRAY_DUE_body__(&data__->TRAY2);
+  __SET_VAR(data__->,TRAY3.DAYS,,__GET_EXTERNAL(data__->IRR_DAYS_TRAY3,));
+  __SET_VAR(data__->,TRAY3.LAST,,__GET_EXTERNAL(data__->IRR_LAST_TRAY3,));
+  __SET_VAR(data__->,TRAY3.FORCE_OFF,,__GET_EXTERNAL(data__->IRR_FORCEOFF_TRAY3,));
+  __SET_VAR(data__->,TRAY3.DAY,,__GET_EXTERNAL(data__->SYS_TODAY,));
+  __SET_VAR(data__->,TRAY3.STRETCH,,__GET_VAR(data__->STRETCH,));
+  TRAY_DUE_body__(&data__->TRAY3);
+  __SET_VAR(data__->,TRAY4.DAYS,,__GET_EXTERNAL(data__->IRR_DAYS_TRAY4,));
+  __SET_VAR(data__->,TRAY4.LAST,,__GET_EXTERNAL(data__->IRR_LAST_TRAY4,));
+  __SET_VAR(data__->,TRAY4.FORCE_OFF,,__GET_EXTERNAL(data__->IRR_FORCEOFF_TRAY4,));
+  __SET_VAR(data__->,TRAY4.DAY,,__GET_EXTERNAL(data__->SYS_TODAY,));
+  __SET_VAR(data__->,TRAY4.STRETCH,,__GET_VAR(data__->STRETCH,));
+  TRAY_DUE_body__(&data__->TRAY4);
+  __SET_VAR(data__->,TRAY5.DAYS,,__GET_EXTERNAL(data__->IRR_DAYS_TRAY5,));
+  __SET_VAR(data__->,TRAY5.LAST,,__GET_EXTERNAL(data__->IRR_LAST_TRAY5,));
+  __SET_VAR(data__->,TRAY5.FORCE_OFF,,__GET_EXTERNAL(data__->IRR_FORCEOFF_TRAY5,));
+  __SET_VAR(data__->,TRAY5.DAY,,__GET_EXTERNAL(data__->SYS_TODAY,));
+  __SET_VAR(data__->,TRAY5.STRETCH,,__GET_VAR(data__->STRETCH,));
+  TRAY_DUE_body__(&data__->TRAY5);
+  __SET_VAR(data__->,TRAY6.DAYS,,__GET_EXTERNAL(data__->IRR_DAYS_TRAY6,));
+  __SET_VAR(data__->,TRAY6.LAST,,__GET_EXTERNAL(data__->IRR_LAST_TRAY6,));
+  __SET_VAR(data__->,TRAY6.FORCE_OFF,,__GET_EXTERNAL(data__->IRR_FORCEOFF_TRAY6,));
+  __SET_VAR(data__->,TRAY6.DAY,,__GET_EXTERNAL(data__->SYS_TODAY,));
+  __SET_VAR(data__->,TRAY6.STRETCH,,__GET_VAR(data__->STRETCH,));
+  TRAY_DUE_body__(&data__->TRAY6);
+  __SET_VAR(data__->,TRAY7.DAYS,,__GET_EXTERNAL(data__->IRR_DAYS_TRAY7,));
+  __SET_VAR(data__->,TRAY7.LAST,,__GET_EXTERNAL(data__->IRR_LAST_TRAY7,));
+  __SET_VAR(data__->,TRAY7.FORCE_OFF,,__GET_EXTERNAL(data__->IRR_FORCEOFF_TRAY7,));
+  __SET_VAR(data__->,TRAY7.DAY,,__GET_EXTERNAL(data__->SYS_TODAY,));
+  __SET_VAR(data__->,TRAY7.STRETCH,,__GET_VAR(data__->STRETCH,));
+  TRAY_DUE_body__(&data__->TRAY7);
+  __SET_VAR(data__->,TRAY8.DAYS,,__GET_EXTERNAL(data__->IRR_DAYS_TRAY8,));
+  __SET_VAR(data__->,TRAY8.LAST,,__GET_EXTERNAL(data__->IRR_LAST_TRAY8,));
+  __SET_VAR(data__->,TRAY8.FORCE_OFF,,__GET_EXTERNAL(data__->IRR_FORCEOFF_TRAY8,));
+  __SET_VAR(data__->,TRAY8.DAY,,__GET_EXTERNAL(data__->SYS_TODAY,));
+  __SET_VAR(data__->,TRAY8.STRETCH,,__GET_VAR(data__->STRETCH,));
+  TRAY_DUE_body__(&data__->TRAY8);
+  if (__GET_VAR(data__->TRAY1.SKIP,)) {
     __SET_EXTERNAL(data__->,IRR_FORCEOFF_TRAY1,,__BOOL_LITERAL(FALSE));
     __SET_EXTERNAL(data__->,IRR_LAST_TRAY1,,__GET_EXTERNAL(data__->SYS_TODAY,));
   };
-  if (__GET_VAR(data__->T2.SKIP,)) {
+  if (__GET_VAR(data__->TRAY2.SKIP,)) {
     __SET_EXTERNAL(data__->,IRR_FORCEOFF_TRAY2,,__BOOL_LITERAL(FALSE));
     __SET_EXTERNAL(data__->,IRR_LAST_TRAY2,,__GET_EXTERNAL(data__->SYS_TODAY,));
   };
-  if (__GET_VAR(data__->T3.SKIP,)) {
+  if (__GET_VAR(data__->TRAY3.SKIP,)) {
     __SET_EXTERNAL(data__->,IRR_FORCEOFF_TRAY3,,__BOOL_LITERAL(FALSE));
     __SET_EXTERNAL(data__->,IRR_LAST_TRAY3,,__GET_EXTERNAL(data__->SYS_TODAY,));
   };
-  if (__GET_VAR(data__->T4.SKIP,)) {
+  if (__GET_VAR(data__->TRAY4.SKIP,)) {
     __SET_EXTERNAL(data__->,IRR_FORCEOFF_TRAY4,,__BOOL_LITERAL(FALSE));
     __SET_EXTERNAL(data__->,IRR_LAST_TRAY4,,__GET_EXTERNAL(data__->SYS_TODAY,));
   };
-  if (__GET_VAR(data__->T5.SKIP,)) {
+  if (__GET_VAR(data__->TRAY5.SKIP,)) {
     __SET_EXTERNAL(data__->,IRR_FORCEOFF_TRAY5,,__BOOL_LITERAL(FALSE));
     __SET_EXTERNAL(data__->,IRR_LAST_TRAY5,,__GET_EXTERNAL(data__->SYS_TODAY,));
   };
-  if (__GET_VAR(data__->T6.SKIP,)) {
+  if (__GET_VAR(data__->TRAY6.SKIP,)) {
     __SET_EXTERNAL(data__->,IRR_FORCEOFF_TRAY6,,__BOOL_LITERAL(FALSE));
     __SET_EXTERNAL(data__->,IRR_LAST_TRAY6,,__GET_EXTERNAL(data__->SYS_TODAY,));
   };
-  if (__GET_VAR(data__->T7.SKIP,)) {
+  if (__GET_VAR(data__->TRAY7.SKIP,)) {
     __SET_EXTERNAL(data__->,IRR_FORCEOFF_TRAY7,,__BOOL_LITERAL(FALSE));
     __SET_EXTERNAL(data__->,IRR_LAST_TRAY7,,__GET_EXTERNAL(data__->SYS_TODAY,));
   };
-  if (__GET_VAR(data__->T8.SKIP,)) {
+  if (__GET_VAR(data__->TRAY8.SKIP,)) {
     __SET_EXTERNAL(data__->,IRR_FORCEOFF_TRAY8,,__BOOL_LITERAL(FALSE));
     __SET_EXTERNAL(data__->,IRR_LAST_TRAY8,,__GET_EXTERNAL(data__->SYS_TODAY,));
   };
@@ -4464,45 +4464,45 @@ static void IRRIGATION_SCHEDULE_body__(IRRIGATION_SCHEDULE_data__ *data__) {
       __SET_VAR(data__->,PICKED,,__BOOL_LITERAL(TRUE));
     };
     if (!(__GET_VAR(data__->PICKED,))) {
-      if ((__GET_VAR(data__->T1.DUE,) && ((__GET_VAR(data__->BEST,) == __USINT_LITERAL(0)) || (__GET_VAR(data__->T1.OVERDUE,) > __GET_VAR(data__->WORST,))))) {
+      if ((__GET_VAR(data__->TRAY1.DUE,) && ((__GET_VAR(data__->BEST,) == __USINT_LITERAL(0)) || (__GET_VAR(data__->TRAY1.OVERDUE,) > __GET_VAR(data__->WORST,))))) {
         __SET_VAR(data__->,BEST,,__USINT_LITERAL(1));
-        __SET_VAR(data__->,WORST,,__GET_VAR(data__->T1.OVERDUE,));
-        __SET_EXTERNAL(data__->,IRR_PERIOD_DAYS,,__GET_VAR(data__->T1.INTERVAL,));
+        __SET_VAR(data__->,WORST,,__GET_VAR(data__->TRAY1.OVERDUE,));
+        __SET_EXTERNAL(data__->,IRR_PERIOD_DAYS,,__GET_VAR(data__->TRAY1.INTERVAL,));
       };
-      if ((__GET_VAR(data__->T2.DUE,) && ((__GET_VAR(data__->BEST,) == __USINT_LITERAL(0)) || (__GET_VAR(data__->T2.OVERDUE,) > __GET_VAR(data__->WORST,))))) {
+      if ((__GET_VAR(data__->TRAY2.DUE,) && ((__GET_VAR(data__->BEST,) == __USINT_LITERAL(0)) || (__GET_VAR(data__->TRAY2.OVERDUE,) > __GET_VAR(data__->WORST,))))) {
         __SET_VAR(data__->,BEST,,__USINT_LITERAL(2));
-        __SET_VAR(data__->,WORST,,__GET_VAR(data__->T2.OVERDUE,));
-        __SET_EXTERNAL(data__->,IRR_PERIOD_DAYS,,__GET_VAR(data__->T2.INTERVAL,));
+        __SET_VAR(data__->,WORST,,__GET_VAR(data__->TRAY2.OVERDUE,));
+        __SET_EXTERNAL(data__->,IRR_PERIOD_DAYS,,__GET_VAR(data__->TRAY2.INTERVAL,));
       };
-      if ((__GET_VAR(data__->T3.DUE,) && ((__GET_VAR(data__->BEST,) == __USINT_LITERAL(0)) || (__GET_VAR(data__->T3.OVERDUE,) > __GET_VAR(data__->WORST,))))) {
+      if ((__GET_VAR(data__->TRAY3.DUE,) && ((__GET_VAR(data__->BEST,) == __USINT_LITERAL(0)) || (__GET_VAR(data__->TRAY3.OVERDUE,) > __GET_VAR(data__->WORST,))))) {
         __SET_VAR(data__->,BEST,,__USINT_LITERAL(3));
-        __SET_VAR(data__->,WORST,,__GET_VAR(data__->T3.OVERDUE,));
-        __SET_EXTERNAL(data__->,IRR_PERIOD_DAYS,,__GET_VAR(data__->T3.INTERVAL,));
+        __SET_VAR(data__->,WORST,,__GET_VAR(data__->TRAY3.OVERDUE,));
+        __SET_EXTERNAL(data__->,IRR_PERIOD_DAYS,,__GET_VAR(data__->TRAY3.INTERVAL,));
       };
-      if ((__GET_VAR(data__->T4.DUE,) && ((__GET_VAR(data__->BEST,) == __USINT_LITERAL(0)) || (__GET_VAR(data__->T4.OVERDUE,) > __GET_VAR(data__->WORST,))))) {
+      if ((__GET_VAR(data__->TRAY4.DUE,) && ((__GET_VAR(data__->BEST,) == __USINT_LITERAL(0)) || (__GET_VAR(data__->TRAY4.OVERDUE,) > __GET_VAR(data__->WORST,))))) {
         __SET_VAR(data__->,BEST,,__USINT_LITERAL(4));
-        __SET_VAR(data__->,WORST,,__GET_VAR(data__->T4.OVERDUE,));
-        __SET_EXTERNAL(data__->,IRR_PERIOD_DAYS,,__GET_VAR(data__->T4.INTERVAL,));
+        __SET_VAR(data__->,WORST,,__GET_VAR(data__->TRAY4.OVERDUE,));
+        __SET_EXTERNAL(data__->,IRR_PERIOD_DAYS,,__GET_VAR(data__->TRAY4.INTERVAL,));
       };
-      if ((__GET_VAR(data__->T5.DUE,) && ((__GET_VAR(data__->BEST,) == __USINT_LITERAL(0)) || (__GET_VAR(data__->T5.OVERDUE,) > __GET_VAR(data__->WORST,))))) {
+      if ((__GET_VAR(data__->TRAY5.DUE,) && ((__GET_VAR(data__->BEST,) == __USINT_LITERAL(0)) || (__GET_VAR(data__->TRAY5.OVERDUE,) > __GET_VAR(data__->WORST,))))) {
         __SET_VAR(data__->,BEST,,__USINT_LITERAL(5));
-        __SET_VAR(data__->,WORST,,__GET_VAR(data__->T5.OVERDUE,));
-        __SET_EXTERNAL(data__->,IRR_PERIOD_DAYS,,__GET_VAR(data__->T5.INTERVAL,));
+        __SET_VAR(data__->,WORST,,__GET_VAR(data__->TRAY5.OVERDUE,));
+        __SET_EXTERNAL(data__->,IRR_PERIOD_DAYS,,__GET_VAR(data__->TRAY5.INTERVAL,));
       };
-      if ((__GET_VAR(data__->T6.DUE,) && ((__GET_VAR(data__->BEST,) == __USINT_LITERAL(0)) || (__GET_VAR(data__->T6.OVERDUE,) > __GET_VAR(data__->WORST,))))) {
+      if ((__GET_VAR(data__->TRAY6.DUE,) && ((__GET_VAR(data__->BEST,) == __USINT_LITERAL(0)) || (__GET_VAR(data__->TRAY6.OVERDUE,) > __GET_VAR(data__->WORST,))))) {
         __SET_VAR(data__->,BEST,,__USINT_LITERAL(6));
-        __SET_VAR(data__->,WORST,,__GET_VAR(data__->T6.OVERDUE,));
-        __SET_EXTERNAL(data__->,IRR_PERIOD_DAYS,,__GET_VAR(data__->T6.INTERVAL,));
+        __SET_VAR(data__->,WORST,,__GET_VAR(data__->TRAY6.OVERDUE,));
+        __SET_EXTERNAL(data__->,IRR_PERIOD_DAYS,,__GET_VAR(data__->TRAY6.INTERVAL,));
       };
-      if ((__GET_VAR(data__->T7.DUE,) && ((__GET_VAR(data__->BEST,) == __USINT_LITERAL(0)) || (__GET_VAR(data__->T7.OVERDUE,) > __GET_VAR(data__->WORST,))))) {
+      if ((__GET_VAR(data__->TRAY7.DUE,) && ((__GET_VAR(data__->BEST,) == __USINT_LITERAL(0)) || (__GET_VAR(data__->TRAY7.OVERDUE,) > __GET_VAR(data__->WORST,))))) {
         __SET_VAR(data__->,BEST,,__USINT_LITERAL(7));
-        __SET_VAR(data__->,WORST,,__GET_VAR(data__->T7.OVERDUE,));
-        __SET_EXTERNAL(data__->,IRR_PERIOD_DAYS,,__GET_VAR(data__->T7.INTERVAL,));
+        __SET_VAR(data__->,WORST,,__GET_VAR(data__->TRAY7.OVERDUE,));
+        __SET_EXTERNAL(data__->,IRR_PERIOD_DAYS,,__GET_VAR(data__->TRAY7.INTERVAL,));
       };
-      if ((__GET_VAR(data__->T8.DUE,) && ((__GET_VAR(data__->BEST,) == __USINT_LITERAL(0)) || (__GET_VAR(data__->T8.OVERDUE,) > __GET_VAR(data__->WORST,))))) {
+      if ((__GET_VAR(data__->TRAY8.DUE,) && ((__GET_VAR(data__->BEST,) == __USINT_LITERAL(0)) || (__GET_VAR(data__->TRAY8.OVERDUE,) > __GET_VAR(data__->WORST,))))) {
         __SET_VAR(data__->,BEST,,__USINT_LITERAL(8));
-        __SET_VAR(data__->,WORST,,__GET_VAR(data__->T8.OVERDUE,));
-        __SET_EXTERNAL(data__->,IRR_PERIOD_DAYS,,__GET_VAR(data__->T8.INTERVAL,));
+        __SET_VAR(data__->,WORST,,__GET_VAR(data__->TRAY8.OVERDUE,));
+        __SET_EXTERNAL(data__->,IRR_PERIOD_DAYS,,__GET_VAR(data__->TRAY8.INTERVAL,));
       };
     };
     __SET_EXTERNAL(data__->,IRR_DUETRAY,,__GET_VAR(data__->BEST,));
@@ -5043,15 +5043,15 @@ static void TEMP_RH_ZONE_body__(TEMP_RH_ZONE_data__ *data__) {
   // Initialise TEMP variables
   __SET_VAR(data__->,DP_HI,,0);
   __SET_VAR(data__->,DP_LO,,0);
-  __SET_VAR(data__->,M_HI,,0);
-  __SET_VAR(data__->,M_LO,,0);
+  __SET_VAR(data__->,MARGIN_HI,,0);
+  __SET_VAR(data__->,MARGIN_LO,,0);
   __SET_VAR(data__->,VPD_HI,,0);
   __SET_VAR(data__->,VPD_LO,,0);
   __SET_VAR(data__->,HI_WORST,,__BOOL_LITERAL(FALSE));
-  __SET_VAR(data__->,T_WORST,,0);
-  __SET_VAR(data__->,SEEN,,__BOOL_LITERAL(FALSE));
+  __SET_VAR(data__->,WORST_TEMP,,0);
+  __SET_VAR(data__->,MEASURED,,__BOOL_LITERAL(FALSE));
 
-  __SET_VAR(data__->,SEEN,,(__GET_EXTERNAL(data__->CLI_TEMP_HI_QLT,) || __GET_EXTERNAL(data__->CLI_TEMP_LO_QLT,)));
+  __SET_VAR(data__->,MEASURED,,(__GET_EXTERNAL(data__->CLI_TEMP_HI_QLT,) || __GET_EXTERNAL(data__->CLI_TEMP_LO_QLT,)));
   if ((__GET_EXTERNAL(data__->CLI_TEMP_HI_QLT,) && !(__GET_EXTERNAL(data__->CLI_TEMP_LO_QLT,)))) {
     __SET_EXTERNAL(data__->,CLI_TEMP_IN,,__GET_EXTERNAL(data__->CLI_TEMP_HI,));
   } else if ((__GET_EXTERNAL(data__->CLI_TEMP_LO_QLT,) && !(__GET_EXTERNAL(data__->CLI_TEMP_HI_QLT,)))) {
@@ -5063,7 +5063,7 @@ static void TEMP_RH_ZONE_body__(TEMP_RH_ZONE_data__ *data__) {
       (REAL)__GET_EXTERNAL(data__->CLI_TEMP_HI,),
       (REAL)__GET_EXTERNAL(data__->CLI_TEMP_LO,)));
   };
-  __SET_EXTERNAL(data__->,CLI_TEMP_IN_QLT,,__GET_VAR(data__->SEEN,));
+  __SET_EXTERNAL(data__->,CLI_TEMP_IN_QLT,,__GET_VAR(data__->MEASURED,));
   __SET_VAR(data__->,DP_HI,,___DEW_POINT(
     (BOOL)__BOOL_LITERAL(TRUE),
     NULL,
@@ -5074,27 +5074,27 @@ static void TEMP_RH_ZONE_body__(TEMP_RH_ZONE_data__ *data__) {
     NULL,
     (REAL)__GET_EXTERNAL(data__->CLI_TEMP_LO,),
     (REAL)__GET_EXTERNAL(data__->CLI_RH_LO,)));
-  __SET_VAR(data__->,M_HI,,(__GET_EXTERNAL(data__->CLI_TEMP_HI,) - __GET_VAR(data__->DP_HI,)));
-  __SET_VAR(data__->,M_LO,,(__GET_EXTERNAL(data__->CLI_TEMP_LO,) - __GET_VAR(data__->DP_LO,)));
+  __SET_VAR(data__->,MARGIN_HI,,(__GET_EXTERNAL(data__->CLI_TEMP_HI,) - __GET_VAR(data__->DP_HI,)));
+  __SET_VAR(data__->,MARGIN_LO,,(__GET_EXTERNAL(data__->CLI_TEMP_LO,) - __GET_VAR(data__->DP_LO,)));
   if ((__GET_EXTERNAL(data__->CLI_TEMP_HI_QLT,) == __GET_EXTERNAL(data__->CLI_TEMP_LO_QLT,))) {
-    __SET_VAR(data__->,HI_WORST,,(__GET_VAR(data__->M_HI,) <= __GET_VAR(data__->M_LO,)));
+    __SET_VAR(data__->,HI_WORST,,(__GET_VAR(data__->MARGIN_HI,) <= __GET_VAR(data__->MARGIN_LO,)));
   } else {
     __SET_VAR(data__->,HI_WORST,,__GET_EXTERNAL(data__->CLI_TEMP_HI_QLT,));
   };
   if (__GET_VAR(data__->HI_WORST,)) {
     __SET_EXTERNAL(data__->,CLI_DEWPOINT_DEGC,,__GET_VAR(data__->DP_HI,));
-    __SET_EXTERNAL(data__->,CLI_DPMARGIN_DEGC,,__GET_VAR(data__->M_HI,));
-    __SET_VAR(data__->,T_WORST,,__GET_EXTERNAL(data__->CLI_TEMP_HI,));
+    __SET_EXTERNAL(data__->,CLI_DPMARGIN_DEGC,,__GET_VAR(data__->MARGIN_HI,));
+    __SET_VAR(data__->,WORST_TEMP,,__GET_EXTERNAL(data__->CLI_TEMP_HI,));
   } else {
     __SET_EXTERNAL(data__->,CLI_DEWPOINT_DEGC,,__GET_VAR(data__->DP_LO,));
-    __SET_EXTERNAL(data__->,CLI_DPMARGIN_DEGC,,__GET_VAR(data__->M_LO,));
-    __SET_VAR(data__->,T_WORST,,__GET_EXTERNAL(data__->CLI_TEMP_LO,));
+    __SET_EXTERNAL(data__->,CLI_DPMARGIN_DEGC,,__GET_VAR(data__->MARGIN_LO,));
+    __SET_VAR(data__->,WORST_TEMP,,__GET_EXTERNAL(data__->CLI_TEMP_LO,));
   };
-  __SET_EXTERNAL(data__->,CLI_DPMARGIN_DEGC_QLT,,__GET_VAR(data__->SEEN,));
+  __SET_EXTERNAL(data__->,CLI_DPMARGIN_DEGC_QLT,,__GET_VAR(data__->MEASURED,));
   __SET_EXTERNAL(data__->,CLI_SATPRESS_KPA,,___SAT_VAPOUR_PRESSURE(
     (BOOL)__BOOL_LITERAL(TRUE),
     NULL,
-    (REAL)__GET_VAR(data__->T_WORST,)));
+    (REAL)__GET_VAR(data__->WORST_TEMP,)));
   __SET_VAR(data__->,VPD_HI,,(___SAT_VAPOUR_PRESSURE(
     (BOOL)__BOOL_LITERAL(TRUE),
     NULL,

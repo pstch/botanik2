@@ -48,7 +48,7 @@ VAR_INPUT
   SEAT_MS      : UDINT;   (* extra run at an end, to re-datum *)
   MIN_RUN_MS   : UDINT;
   REVERSE_MS   : UDINT;
-  DB           : REAL;   (* NOT `DEADBAND`: that is a block, and IEC folds case *)
+  DB           : REAL;    (* NOT `DEADBAND`: that is a block, and IEC folds case *)
   REDATUM      : REAL;    (* full strokes between datums; 0 disables *)
   HOLD         : BOOL;    (* keep the clock, decide nothing: this ram does
                              not have the bus this scan. Not the same as a
@@ -59,39 +59,39 @@ VAR_INPUT
 END_VAR
 VAR_OUTPUT
   OPEN_CMD  : BOOL;
-  CLOSE_CMD : BOOL;   (* never true at the same time as OPEN_CMD *)
-  POS       : REAL;   (* only meaningful once KNOWN *)
+  CLOSE_CMD : BOOL;    (* never true at the same time as OPEN_CMD *)
+  POS       : REAL;    (* only meaningful once KNOWN *)
   KNOWN     : BOOL;
   MOVING    : BOOL;
-  STATE     : USINT;  (* 0 UNKNOWN 1 CLOSING 2 CLOSED 3 OPENING 4 OPEN *)
-  DRIFT     : REAL;   (* travel since the last datum, in full strokes *)
+  STATE     : USINT;   (* 0 UNKNOWN 1 CLOSING 2 CLOSED 3 OPENING 4 OPEN *)
+  DRIFT     : REAL;    (* travel since the last datum, in full strokes *)
 END_VAR
 VAR
   p       : REAL;
   run_ms  : UDINT;
   wait_ms : UDINT;
   mode    : USINT;
-  dir     : USINT;    (* 0 none, 1 open, 2 close *)
-  seating : BOOL;     (* this stroke ends at a seat, so snap there *)
-  datum   : BOOL;     (* ...and it is the one establishing position *)
-  moved  : REAL;
+  dir     : USINT;   (* 0 none, 1 open, 2 close *)
+  seating : BOOL;    (* this stroke ends at a seat, so snap there *)
+  datum   : BOOL;    (* ...and it is the one establishing position *)
+  moved   : REAL;
   pending : REAL := -1.0;   (* where to go once the detour finishes, or -1 *)
   last    : UDINT;
   seeded  : BOOL := FALSE;
 END_VAR
 VAR_TEMP
-  elapsed  : UDINT;
-  tgt      : REAL;
-  ran      : UDINT;
-  span     : UDINT;
-  d        : REAL;
-  w        : USINT;
-  partial  : BOOL;
-  is_datum : BOOL;
-  to_end   : BOOL;
-  distance : REAL;
-  run      : UDINT;
-  go       : BOOL;
+  elapsed   : UDINT;
+  tgt       : REAL;
+  ran       : UDINT;
+  span      : UDINT;
+  delta     : REAL;
+  want      : USINT;
+  partial   : BOOL;
+  is_datum  : BOOL;
+  to_end    : BOOL;
+  distance  : REAL;
+  stroke_ms : UDINT;
+  commit    : BOOL;
 END_VAR
   IF seeded THEN
     elapsed := NOW - last;
@@ -133,14 +133,14 @@ END_VAR
       IF dir = 1 THEN span := OPEN_MS; ELSE span := CLOSE_MS; END_IF;
       (* A zero travel time is a misconfiguration, not a divide: treat the
          actuator as instant rather than producing an infinity. *)
-      IF span > 0 THEN d := UDINT_TO_REAL(ran) / UDINT_TO_REAL(span);
-      ELSE d := 1.0;
+      IF span > 0 THEN delta := UDINT_TO_REAL(ran) / UDINT_TO_REAL(span);
+      ELSE delta := 1.0;
       END_IF;
       (* Every stroke adds to the uncertainty, whichever way it went; only
          reaching a stop takes it back. *)
-      moved := moved + d;
-      IF dir = 1 THEN p := LIMIT(0.0, p + d, 1.0);
-      ELSE            p := LIMIT(0.0, p - d, 1.0);
+      moved := moved + delta;
+      IF dir = 1 THEN p := LIMIT(0.0, p + delta, 1.0);
+      ELSE            p := LIMIT(0.0, p - delta, 1.0);
       END_IF;
       run_ms := run_ms - ran;
 
@@ -164,8 +164,8 @@ END_VAR
            COMMITTED - a seating run must be allowed to overrun the estimate,
            which is the whole point of it - so only the opposite direction
            interrupts, never "we are close enough now". *)
-        w := ACT_WANT(MODE := mode, P := p, TGT := tgt, DB := DB);
-        IF w <> 0 AND w <> dir THEN
+        want := ACT_WANT(MODE := mode, P := p, TGT := tgt, DB := DB);
+        IF want <> 0 AND want <> dir THEN
           run_ms  := 0;
           seating := FALSE;
           dir     := 0;
@@ -178,11 +178,11 @@ END_VAR
     END_IF;
 
     IF run_ms = 0 AND wait_ms = 0 THEN
-      w := ACT_WANT(MODE := mode, P := p, TGT := tgt, DB := DB);
+      want := ACT_WANT(MODE := mode, P := p, TGT := tgt, DB := DB);
       (* Nothing is wanted, so nothing happens - INCLUDING a re-datum. Letting
          one fire on a steady target would send the actuator to the seat and back
          while nobody asked it to move at all. *)
-      IF w <> 0 THEN
+      IF want <> 0 THEN
         (* Only for a move that ENDS PARTWAY. One to either end runs onto the
            stop and re-datums by itself, so a detour would be a wasted stroke. *)
         partial := tgt > DB AND tgt < 1.0 - DB;
@@ -192,31 +192,31 @@ END_VAR
           tgt     := 0.0;
           (* Recomputed: deciding the direction from the caller's target and then
              redirecting the stroke would drive the wrong way. *)
-          w := ACT_WANT(MODE := mode, P := p, TGT := tgt, DB := DB);
-          IF w = 0 THEN pending := -1.0; END_IF;
+          want := ACT_WANT(MODE := mode, P := p, TGT := tgt, DB := DB);
+          IF want = 0 THEN pending := -1.0; END_IF;
         END_IF;
 
-        IF w <> 0 THEN
+        IF want <> 0 THEN
           is_datum := mode = 0;
           to_end   := is_datum OR tgt <= DB OR tgt >= 1.0 - DB;
-          IF w = 1 THEN span := OPEN_MS; ELSE span := CLOSE_MS; END_IF;
+          IF want = 1 THEN span := OPEN_MS; ELSE span := CLOSE_MS; END_IF;
           (* A datum stroke assumes the worst case, a full travel away. *)
           IF is_datum THEN distance := 1.0; ELSE distance := tgt - p; END_IF;
           distance := ABS(distance);
-          run := REAL_TO_UDINT(distance * UDINT_TO_REAL(span));
-          go  := TRUE;
+          stroke_ms := REAL_TO_UDINT(distance * UDINT_TO_REAL(span));
+          commit  := TRUE;
           IF to_end THEN
-            run := run + SEAT_MS;      (* overrun onto the stop, re-datuming *)
-          ELSIF run < MIN_RUN_MS THEN
-            go := FALSE;               (* not worth a twitch *)
+            stroke_ms := stroke_ms + SEAT_MS;      (* overrun onto the stop, re-datuming *)
+          ELSIF stroke_ms < MIN_RUN_MS THEN
+            commit := FALSE;               (* not worth a twitch *)
           END_IF;
-          IF go THEN
-            IF run = 0 THEN run := 1; END_IF;   (* always make progress *)
-            dir     := w;
-            run_ms  := run;
+          IF commit THEN
+            IF stroke_ms = 0 THEN stroke_ms := 1; END_IF;   (* always make progress *)
+            dir     := want;
+            run_ms  := stroke_ms;
             seating := to_end;
             datum   := is_datum;
-            IF w = 1 THEN mode := 3; ELSE mode := 1; END_IF;
+            IF want = 1 THEN mode := 3; ELSE mode := 1; END_IF;
           END_IF;
         END_IF;
       END_IF;

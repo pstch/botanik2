@@ -58,14 +58,14 @@ VAR_EXTERNAL
   irr_forceOff_tray8 : BOOL;
 END_VAR
 VAR
-  t1 : TRAY_DUE;
-  t2 : TRAY_DUE;
-  t3 : TRAY_DUE;
-  t4 : TRAY_DUE;
-  t5 : TRAY_DUE;
-  t6 : TRAY_DUE;
-  t7 : TRAY_DUE;
-  t8 : TRAY_DUE;
+  tray1      : TRAY_DUE;
+  tray2      : TRAY_DUE;
+  tray3      : TRAY_DUE;
+  tray4      : TRAY_DUE;
+  tray5      : TRAY_DUE;
+  tray6      : TRAY_DUE;
+  tray7      : TRAY_DUE;
+  tray8      : TRAY_DUE;
   served_day : UDINT;
 END_VAR
 VAR_TEMP
@@ -134,73 +134,73 @@ END_VAR
   split_lim := LIMIT(0.0, irr_volFreqSplit, 1.0);
   stretch   := POW(IN1 := irr_mod, IN2 := 1.0 - split_lim);
 
-  t1.DAYS      := irr_days_tray1;
-  t1.LAST      := irr_last_tray1;
-  t1.FORCE_OFF := irr_forceOff_tray1;
-  t1.DAY       := sys_today;
-  t1.STRETCH   := stretch;
-  t1();
-  t2.DAYS      := irr_days_tray2;
-  t2.LAST      := irr_last_tray2;
-  t2.FORCE_OFF := irr_forceOff_tray2;
-  t2.DAY       := sys_today;
-  t2.STRETCH   := stretch;
-  t2();
-  t3.DAYS      := irr_days_tray3;
-  t3.LAST      := irr_last_tray3;
-  t3.FORCE_OFF := irr_forceOff_tray3;
-  t3.DAY       := sys_today;
-  t3.STRETCH   := stretch;
-  t3();
-  t4.DAYS      := irr_days_tray4;
-  t4.LAST      := irr_last_tray4;
-  t4.FORCE_OFF := irr_forceOff_tray4;
-  t4.DAY       := sys_today;
-  t4.STRETCH   := stretch;
-  t4();
-  t5.DAYS      := irr_days_tray5;
-  t5.LAST      := irr_last_tray5;
-  t5.FORCE_OFF := irr_forceOff_tray5;
-  t5.DAY       := sys_today;
-  t5.STRETCH   := stretch;
-  t5();
-  t6.DAYS      := irr_days_tray6;
-  t6.LAST      := irr_last_tray6;
-  t6.FORCE_OFF := irr_forceOff_tray6;
-  t6.DAY       := sys_today;
-  t6.STRETCH   := stretch;
-  t6();
-  t7.DAYS      := irr_days_tray7;
-  t7.LAST      := irr_last_tray7;
-  t7.FORCE_OFF := irr_forceOff_tray7;
-  t7.DAY       := sys_today;
-  t7.STRETCH   := stretch;
-  t7();
-  t8.DAYS      := irr_days_tray8;
-  t8.LAST      := irr_last_tray8;
-  t8.FORCE_OFF := irr_forceOff_tray8;
-  t8.DAY       := sys_today;
-  t8.STRETCH   := stretch;
-  t8();
+  tray1.DAYS      := irr_days_tray1;
+  tray1.LAST      := irr_last_tray1;
+  tray1.FORCE_OFF := irr_forceOff_tray1;
+  tray1.DAY       := sys_today;
+  tray1.STRETCH   := stretch;
+  tray1();
+  tray2.DAYS      := irr_days_tray2;
+  tray2.LAST      := irr_last_tray2;
+  tray2.FORCE_OFF := irr_forceOff_tray2;
+  tray2.DAY       := sys_today;
+  tray2.STRETCH   := stretch;
+  tray2();
+  tray3.DAYS      := irr_days_tray3;
+  tray3.LAST      := irr_last_tray3;
+  tray3.FORCE_OFF := irr_forceOff_tray3;
+  tray3.DAY       := sys_today;
+  tray3.STRETCH   := stretch;
+  tray3();
+  tray4.DAYS      := irr_days_tray4;
+  tray4.LAST      := irr_last_tray4;
+  tray4.FORCE_OFF := irr_forceOff_tray4;
+  tray4.DAY       := sys_today;
+  tray4.STRETCH   := stretch;
+  tray4();
+  tray5.DAYS      := irr_days_tray5;
+  tray5.LAST      := irr_last_tray5;
+  tray5.FORCE_OFF := irr_forceOff_tray5;
+  tray5.DAY       := sys_today;
+  tray5.STRETCH   := stretch;
+  tray5();
+  tray6.DAYS      := irr_days_tray6;
+  tray6.LAST      := irr_last_tray6;
+  tray6.FORCE_OFF := irr_forceOff_tray6;
+  tray6.DAY       := sys_today;
+  tray6.STRETCH   := stretch;
+  tray6();
+  tray7.DAYS      := irr_days_tray7;
+  tray7.LAST      := irr_last_tray7;
+  tray7.FORCE_OFF := irr_forceOff_tray7;
+  tray7.DAY       := sys_today;
+  tray7.STRETCH   := stretch;
+  tray7();
+  tray8.DAYS      := irr_days_tray8;
+  tray8.LAST      := irr_last_tray8;
+  tray8.FORCE_OFF := irr_forceOff_tray8;
+  tray8.DAY       := sys_today;
+  tray8.STRETCH   := stretch;
+  tray8();
 
   (* A skip is SPENT and the tray stamped as if it had been watered, so it goes
      to the back of the queue. Both are EDITS: the rows are retained parameters
      and a plain drive would leave the store owing them. *)
-  IF t1.SKIP THEN irr_forceOff_tray1 := FALSE;
+  IF tray1.SKIP THEN irr_forceOff_tray1 := FALSE;
                   irr_last_tray1 := sys_today; END_IF;
-  IF t2.SKIP THEN irr_forceOff_tray2 := FALSE;
+  IF tray2.SKIP THEN irr_forceOff_tray2 := FALSE;
                   irr_last_tray2 := sys_today; END_IF;
-  IF t3.SKIP THEN irr_forceOff_tray3 := FALSE;
+  IF tray3.SKIP THEN irr_forceOff_tray3 := FALSE;
                   irr_last_tray3 := sys_today; END_IF;
-  IF t4.SKIP THEN irr_forceOff_tray4 := FALSE;
+  IF tray4.SKIP THEN irr_forceOff_tray4 := FALSE;
                   irr_last_tray4 := sys_today; END_IF;
-  IF t5.SKIP THEN irr_forceOff_tray5 := FALSE;
+  IF tray5.SKIP THEN irr_forceOff_tray5 := FALSE;
                   irr_last_tray5 := sys_today; END_IF;
-  IF t6.SKIP THEN irr_forceOff_tray6 := FALSE;
+  IF tray6.SKIP THEN irr_forceOff_tray6 := FALSE;
                   irr_last_tray6 := sys_today; END_IF;
-  IF t7.SKIP THEN irr_forceOff_tray7 := FALSE;
+  IF tray7.SKIP THEN irr_forceOff_tray7 := FALSE;
                   irr_last_tray7 := sys_today; END_IF;
-  IF t8.SKIP THEN irr_forceOff_tray8 := FALSE;
+  IF tray8.SKIP THEN irr_forceOff_tray8 := FALSE;
                   irr_last_tray8 := sys_today; END_IF;
 
   (* WHEN, before which tray: the climate decides the slot and the schedule
@@ -233,29 +233,29 @@ END_VAR
        the summer figure is on the PARAMS page and this is what the weather
        made of it. *)
     IF NOT picked THEN
-      IF t1.DUE AND (best = 0 OR t1.OVERDUE > worst) THEN
-        best := 1; worst := t1.OVERDUE; irr_period_days := t1.INTERVAL;
+      IF tray1.DUE AND (best = 0 OR tray1.OVERDUE > worst) THEN
+        best := 1; worst := tray1.OVERDUE; irr_period_days := tray1.INTERVAL;
       END_IF;
-      IF t2.DUE AND (best = 0 OR t2.OVERDUE > worst) THEN
-        best := 2; worst := t2.OVERDUE; irr_period_days := t2.INTERVAL;
+      IF tray2.DUE AND (best = 0 OR tray2.OVERDUE > worst) THEN
+        best := 2; worst := tray2.OVERDUE; irr_period_days := tray2.INTERVAL;
       END_IF;
-      IF t3.DUE AND (best = 0 OR t3.OVERDUE > worst) THEN
-        best := 3; worst := t3.OVERDUE; irr_period_days := t3.INTERVAL;
+      IF tray3.DUE AND (best = 0 OR tray3.OVERDUE > worst) THEN
+        best := 3; worst := tray3.OVERDUE; irr_period_days := tray3.INTERVAL;
       END_IF;
-      IF t4.DUE AND (best = 0 OR t4.OVERDUE > worst) THEN
-        best := 4; worst := t4.OVERDUE; irr_period_days := t4.INTERVAL;
+      IF tray4.DUE AND (best = 0 OR tray4.OVERDUE > worst) THEN
+        best := 4; worst := tray4.OVERDUE; irr_period_days := tray4.INTERVAL;
       END_IF;
-      IF t5.DUE AND (best = 0 OR t5.OVERDUE > worst) THEN
-        best := 5; worst := t5.OVERDUE; irr_period_days := t5.INTERVAL;
+      IF tray5.DUE AND (best = 0 OR tray5.OVERDUE > worst) THEN
+        best := 5; worst := tray5.OVERDUE; irr_period_days := tray5.INTERVAL;
       END_IF;
-      IF t6.DUE AND (best = 0 OR t6.OVERDUE > worst) THEN
-        best := 6; worst := t6.OVERDUE; irr_period_days := t6.INTERVAL;
+      IF tray6.DUE AND (best = 0 OR tray6.OVERDUE > worst) THEN
+        best := 6; worst := tray6.OVERDUE; irr_period_days := tray6.INTERVAL;
       END_IF;
-      IF t7.DUE AND (best = 0 OR t7.OVERDUE > worst) THEN
-        best := 7; worst := t7.OVERDUE; irr_period_days := t7.INTERVAL;
+      IF tray7.DUE AND (best = 0 OR tray7.OVERDUE > worst) THEN
+        best := 7; worst := tray7.OVERDUE; irr_period_days := tray7.INTERVAL;
       END_IF;
-      IF t8.DUE AND (best = 0 OR t8.OVERDUE > worst) THEN
-        best := 8; worst := t8.OVERDUE; irr_period_days := t8.INTERVAL;
+      IF tray8.DUE AND (best = 0 OR tray8.OVERDUE > worst) THEN
+        best := 8; worst := tray8.OVERDUE; irr_period_days := tray8.INTERVAL;
       END_IF;
     END_IF;
     (* GOOD, even on a guessed modulation. This row's declared value is 0 - "no

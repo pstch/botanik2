@@ -3,21 +3,21 @@
 
 PROGRAM ac_local_watch
 VAR_EXTERNAL CONSTANT
-  ats_V             : REAL;
-  ats_V_qlt         : BOOL;
-  ats_A             : REAL;
-  ats_A_qlt         : BOOL;
-  ats_W             : REAL;
-  ats_W_qlt         : BOOL;
-  ats_Hz            : REAL;
-  ats_Hz_qlt        : BOOL;
-  pwr_localLo_V     : REAL;
-  pwr_localHi_V     : REAL;
-  pwr_localLo_Hz    : REAL;
-  pwr_localHi_Hz    : REAL;
-  sys_grid_ok       : BOOL;
-  pwr_genStart_sec  : UINT;
-  sys_now_ms        : UDINT;
+  ats_V            : REAL;
+  ats_V_qlt        : BOOL;
+  ats_A            : REAL;
+  ats_A_qlt        : BOOL;
+  ats_W            : REAL;
+  ats_W_qlt        : BOOL;
+  ats_Hz           : REAL;
+  ats_Hz_qlt       : BOOL;
+  pwr_localLo_V    : REAL;
+  pwr_localHi_V    : REAL;
+  pwr_localLo_Hz   : REAL;
+  pwr_localHi_Hz   : REAL;
+  sys_grid_ok      : BOOL;
+  pwr_genStart_sec : UINT;
+  sys_now_ms       : UDINT;
 END_VAR
 VAR_EXTERNAL
   sys_local_V      : REAL;
