@@ -32,7 +32,7 @@ END_VAR
   ELSE
     err := TGT - P;
     IF   err >  DB       THEN ACT_WANT := 1;
-    ELSIF err < (0.0 - DB) THEN ACT_WANT := 2;
+    ELSIF err < -DB THEN ACT_WANT := 2;
     ELSE ACT_WANT := 0;
     END_IF;
   END_IF;
@@ -201,7 +201,7 @@ END_VAR
           IF w = 1 THEN span := OPEN_MS; ELSE span := CLOSE_MS; END_IF;
           (* A datum stroke assumes the worst case, a full travel away. *)
           IF is_datum THEN distance := 1.0; ELSE distance := tgt - p; END_IF;
-          IF distance < 0.0 THEN distance := 0.0 - distance; END_IF;
+          distance := ABS(distance);
           run := REAL_TO_UDINT(distance * UDINT_TO_REAL(span));
           go  := TRUE;
           IF to_end THEN

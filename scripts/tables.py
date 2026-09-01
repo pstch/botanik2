@@ -213,6 +213,7 @@ IEC2C = os.environ.get('IEC2C', 'iec2c')
 # an EWMA.
 LIBST = ['src/libbotanik/plc/functions/math.st',
          'src/libbotanik/plc/functions/psychro.st',
+         'src/libbotanik/plc/functions/time.st',
          'src/libbotanik/plc/blocks/timers.st',
          'src/libbotanik/plc/blocks/filters.st',
          'src/libbotanik/plc/blocks/analog.st',

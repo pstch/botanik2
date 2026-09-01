@@ -42,7 +42,7 @@ END_VAR
     r := RATE_PER_S;
     (* A meter idling on noise must not total a plausible volume with the pump
        off, so anything inside the cutoff counts as nothing at all. *)
-    IF CUTOFF > 0.0 AND r < CUTOFF AND r > (0.0 - CUTOFF) THEN r := 0.0; END_IF;
+    IF CUTOFF > 0.0 AND ABS(r) < CUTOFF THEN r := 0.0; END_IF;
     RATE  := r;
     TOTAL := TOTAL + r * (UDINT_TO_REAL(elapsed) / 1000.0);
   END_IF;

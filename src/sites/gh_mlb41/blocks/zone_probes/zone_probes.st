@@ -58,46 +58,6 @@ END_VAR
 END_FUNCTION_BLOCK
 
 
-FUNCTION_BLOCK ZONE_PUBLISH
-(* Filter, clamp and say whether anything measured it. The filter KEEPS its
-   state while the zone is out, so a probe coming back rejoins the average it
-   left rather than climbing out of a hole. *)
-VAR_INPUT
-  RAW   : REAL;
-  USED  : USINT;
-  TAU_S : REAL;
-  NOW   : UDINT;
-  LO    : REAL;
-  HI    : REAL;
-END_VAR
-VAR_OUTPUT
-  Y  : REAL;
-  OK : BOOL;    (* this beat MEASURED it *)
-END_VAR
-VAR
-  filt   : EWMA;
-  seeded : BOOL := FALSE;
-END_VAR
-  (* CALLED every scan, folding only when a probe answered: the filter reads
-     the clock, and one that is skipped for the length of an outage snaps to
-     the first reading back rather than rejoining the average it left.
-     @see EWMA.HOLD *)
-  filt(X := RAW, TAU_S := TAU_S, HOLD := USED = 0, NOW := NOW);
-  IF USED = 0 THEN
-    (* Nothing believable left. The row keeps the last average this zone could
-       make and says it is not current: a reader gets the temperature the
-       greenhouse last had rather than 0 degC, which reads like a measurement
-       of a freezing house. *)
-    OK := FALSE;
-    IF NOT seeded THEN Y := LO; END_IF;
-  ELSE
-    seeded := TRUE;
-    Y  := LIMIT(LO, filt.Y, HI);
-    OK := TRUE;
-  END_IF;
-END_FUNCTION_BLOCK
-
-
 FUNCTION_BLOCK ZONE_PROBES
 (* One zone: three temperature probes, three humidity probes, each quantity
    carrying its OWN quorum. Coupling them would let one dead humidity probe
@@ -122,8 +82,8 @@ END_VAR
 VAR
   t_vote : ZONE_VOTE;
   h_vote : ZONE_VOTE;
-  t_pub  : ZONE_PUBLISH;
-  h_pub  : ZONE_PUBLISH;
+  t_pub  : VALIDATED_EWMA;
+  h_pub  : VALIDATED_EWMA;
   quorum : TOF_MS;
 END_VAR
 VAR_TEMP
@@ -140,9 +100,9 @@ END_VAR
      every dew-point margin in the plant read zero. *)
   h_raw := h_vote.Y * 0.01;
 
-  t_pub(RAW := t_vote.Y, USED := t_vote.USED, TAU_S := TAU_S, NOW := NOW,
+  t_pub(X := t_vote.Y, OK_IN := t_vote.USED > 0, TAU_S := TAU_S, NOW := NOW,
         LO := -100.0, HI := 200.0);
-  h_pub(RAW := h_raw,    USED := h_vote.USED, TAU_S := TAU_S, NOW := NOW,
+  h_pub(X := h_raw,    OK_IN := h_vote.USED > 0, TAU_S := TAU_S, NOW := NOW,
         LO := 0.0,    HI := 1.0);
 
   TEMP    := t_pub.Y;

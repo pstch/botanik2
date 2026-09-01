@@ -91,12 +91,18 @@ static REAL ___SAT_VAPOUR_PRESSURE(
   BOOL EN, 
   BOOL *__ENO, 
   REAL T_DEGC);
+static UDINT ___SEC_MS(
+  BOOL EN, 
+  BOOL *__ENO, 
+  UINT S);
 static void TOF_MS_init__(TOF_MS_data__ *data__, BOOL retain);
 static void TOF_MS_body__(TOF_MS_data__ *data__);
 static void TON_MS_init__(TON_MS_data__ *data__, BOOL retain);
 static void TON_MS_body__(TON_MS_data__ *data__);
 static void EWMA_init__(EWMA_data__ *data__, BOOL retain);
 static void EWMA_body__(EWMA_data__ *data__);
+static void VALIDATED_EWMA_init__(VALIDATED_EWMA_data__ *data__, BOOL retain);
+static void VALIDATED_EWMA_body__(VALIDATED_EWMA_data__ *data__);
 static void BAND_LATCH_init__(BAND_LATCH_data__ *data__, BOOL retain);
 static void BAND_LATCH_body__(BAND_LATCH_data__ *data__);
 static void STAIRCASE3_init__(STAIRCASE3_data__ *data__, BOOL retain);
@@ -132,12 +138,8 @@ static void WX_WORSE_init__(WX_WORSE_data__ *data__, BOOL retain);
 static void WX_WORSE_body__(WX_WORSE_data__ *data__);
 static void WX_MEAN_init__(WX_MEAN_data__ *data__, BOOL retain);
 static void WX_MEAN_body__(WX_MEAN_data__ *data__);
-static void WX_PUBLISH_init__(WX_PUBLISH_data__ *data__, BOOL retain);
-static void WX_PUBLISH_body__(WX_PUBLISH_data__ *data__);
 static void ZONE_VOTE_init__(ZONE_VOTE_data__ *data__, BOOL retain);
 static void ZONE_VOTE_body__(ZONE_VOTE_data__ *data__);
-static void ZONE_PUBLISH_init__(ZONE_PUBLISH_data__ *data__, BOOL retain);
-static void ZONE_PUBLISH_body__(ZONE_PUBLISH_data__ *data__);
 static void ZONE_PROBES_init__(ZONE_PROBES_data__ *data__, BOOL retain);
 static void ZONE_PROBES_body__(ZONE_PROBES_data__ *data__);
 static void FAN_CONTROLLER_init__(FAN_CONTROLLER_data__ *data__, BOOL retain);
@@ -213,7 +215,7 @@ static REAL ___ABS(
     return ABS;
   }
   if ((IN < __REAL_LITERAL(0.0))) {
-    ABS = (__REAL_LITERAL(0.0) - IN);
+    ABS =  -(IN);
   } else {
     ABS = IN;
   };
@@ -793,12 +795,12 @@ static REAL ___SIGNED_LADDER(
       (REAL)POS_START,
       (REAL)POS_FULL);
   } else if ((V <= NEG_START)) {
-    SIGNED_LADDER = (__REAL_LITERAL(0.0) - ___LADDER(
+    SIGNED_LADDER =  -(___LADDER(
       (BOOL)__BOOL_LITERAL(TRUE),
       NULL,
-      (REAL)(__REAL_LITERAL(0.0) - V),
-      (REAL)(__REAL_LITERAL(0.0) - NEG_START),
-      (REAL)(__REAL_LITERAL(0.0) - NEG_FULL)));
+      (REAL) -(V),
+      (REAL) -(NEG_START),
+      (REAL) -(NEG_FULL)));
   } else {
     SIGNED_LADDER = __REAL_LITERAL(0.0);
   };
@@ -910,6 +912,36 @@ __end:
     *__ENO = ENO;
   }
   return SAT_VAPOUR_PRESSURE;
+}
+
+
+static UDINT ___SEC_MS(
+  BOOL EN, 
+  BOOL *__ENO, 
+  UINT S)
+{
+  BOOL ENO = __BOOL_LITERAL(TRUE);
+  UDINT SEC_MS = 0;
+
+  // Control execution
+  if (!EN) {
+    if (__ENO != NULL) {
+      *__ENO = __BOOL_LITERAL(FALSE);
+    }
+    return SEC_MS;
+  }
+  SEC_MS = (___UINT_TO_UDINT(
+    (BOOL)__BOOL_LITERAL(TRUE),
+    NULL,
+    (UINT)S) * __UDINT_LITERAL(1000));
+
+  goto __end;
+
+__end:
+  if (__ENO != NULL) {
+    *__ENO = ENO;
+  }
+  return SEC_MS;
 }
 
 
@@ -1078,6 +1110,61 @@ __end:
 
 
 
+static void VALIDATED_EWMA_init__(VALIDATED_EWMA_data__ *data__, BOOL retain) {
+  __INIT_VAR(data__->EN,__BOOL_LITERAL(TRUE),retain)
+  __INIT_VAR(data__->ENO,__BOOL_LITERAL(TRUE),retain)
+  __INIT_VAR(data__->X,0,retain)
+  __INIT_VAR(data__->OK_IN,__BOOL_LITERAL(FALSE),retain)
+  __INIT_VAR(data__->TAU_S,0,retain)
+  __INIT_VAR(data__->NOW,0,retain)
+  __INIT_VAR(data__->LO,0,retain)
+  __INIT_VAR(data__->HI,0,retain)
+  __INIT_VAR(data__->Y,0,retain)
+  __INIT_VAR(data__->OK,__BOOL_LITERAL(FALSE),retain)
+  EWMA_init__(&data__->FILT,retain);
+  __INIT_VAR(data__->SEEDED,__BOOL_LITERAL(FALSE),retain)
+}
+
+// Code part
+static void VALIDATED_EWMA_body__(VALIDATED_EWMA_data__ *data__) {
+  // Control execution
+  if (!__GET_VAR(data__->EN)) {
+    __SET_VAR(data__->,ENO,,__BOOL_LITERAL(FALSE));
+    return;
+  }
+  else {
+    __SET_VAR(data__->,ENO,,__BOOL_LITERAL(TRUE));
+  }
+  // Initialise TEMP variables
+
+  __SET_VAR(data__->FILT.,X,,__GET_VAR(data__->X,));
+  __SET_VAR(data__->FILT.,TAU_S,,__GET_VAR(data__->TAU_S,));
+  __SET_VAR(data__->FILT.,HOLD,,!(__GET_VAR(data__->OK_IN,)));
+  __SET_VAR(data__->FILT.,NOW,,__GET_VAR(data__->NOW,));
+  EWMA_body__(&data__->FILT);
+  __SET_VAR(data__->,OK,,__GET_VAR(data__->OK_IN,));
+  if (__GET_VAR(data__->OK_IN,)) {
+    __SET_VAR(data__->,SEEDED,,__BOOL_LITERAL(TRUE));
+    __SET_VAR(data__->,Y,,___LIMIT(
+      (BOOL)__BOOL_LITERAL(TRUE),
+      NULL,
+      (REAL)__GET_VAR(data__->LO,),
+      (REAL)__GET_VAR(data__->FILT.Y,),
+      (REAL)__GET_VAR(data__->HI,)));
+  } else if (!(__GET_VAR(data__->SEEDED,))) {
+    __SET_VAR(data__->,Y,,__GET_VAR(data__->LO,));
+  };
+
+  goto __end;
+
+__end:
+  return;
+} // VALIDATED_EWMA_body__() 
+
+
+
+
+
 static void BAND_LATCH_init__(BAND_LATCH_data__ *data__, BOOL retain) {
   __INIT_VAR(data__->EN,__BOOL_LITERAL(TRUE),retain)
   __INIT_VAR(data__->ENO,__BOOL_LITERAL(TRUE),retain)
@@ -1204,7 +1291,10 @@ static void DEADBAND_body__(DEADBAND_data__ *data__) {
   __SET_VAR(data__->,DIFF,,0);
 
   __SET_VAR(data__->,DIFF,,(__GET_VAR(data__->V,) - __GET_VAR(data__->HELD,)));
-  if (((!(__GET_VAR(data__->SEEDED,)) || (__GET_VAR(data__->DIFF,) > __GET_VAR(data__->BAND,))) || (__GET_VAR(data__->DIFF,) < (__REAL_LITERAL(0.0) - __GET_VAR(data__->BAND,))))) {
+  if ((!(__GET_VAR(data__->SEEDED,)) || (___ABS(
+    (BOOL)__BOOL_LITERAL(TRUE),
+    NULL,
+    (REAL)__GET_VAR(data__->DIFF,)) > __GET_VAR(data__->BAND,)))) {
     __SET_VAR(data__->,HELD,,__GET_VAR(data__->V,));
     __SET_VAR(data__->,SEEDED,,__BOOL_LITERAL(TRUE));
   };
@@ -1363,7 +1453,7 @@ static void PID_body__(PID_data__ *data__) {
   if (__GET_VAR(data__->REVERSE,)) {
     __SET_VAR(data__->,D_TERM,,(__GET_VAR(data__->KD,) * __GET_VAR(data__->DERIV,)));
   } else {
-    __SET_VAR(data__->,D_TERM,,(__REAL_LITERAL(0.0) - (__GET_VAR(data__->KD,) * __GET_VAR(data__->DERIV,))));
+    __SET_VAR(data__->,D_TERM,, -((__GET_VAR(data__->KD,) * __GET_VAR(data__->DERIV,))));
   };
   if ((__GET_VAR(data__->KI,) == __REAL_LITERAL(0.0))) {
     __SET_VAR(data__->,INTEGRAL,,__REAL_LITERAL(0.0));
@@ -1438,7 +1528,7 @@ static USINT ___ACT_WANT(
     ERR = (TGT - P);
     if ((ERR > DB)) {
       ACT_WANT = __USINT_LITERAL(1);
-    } else if ((ERR < (__REAL_LITERAL(0.0) - DB))) {
+    } else if ((ERR <  -(DB))) {
       ACT_WANT = __USINT_LITERAL(2);
     } else {
       ACT_WANT = __USINT_LITERAL(0);
@@ -1670,9 +1760,10 @@ static void ACTUATOR_body__(ACTUATOR_data__ *data__) {
           } else {
             __SET_VAR(data__->,DISTANCE,,(__GET_VAR(data__->TGT,) - __GET_VAR(data__->P,)));
           };
-          if ((__GET_VAR(data__->DISTANCE,) < __REAL_LITERAL(0.0))) {
-            __SET_VAR(data__->,DISTANCE,,(__REAL_LITERAL(0.0) - __GET_VAR(data__->DISTANCE,)));
-          };
+          __SET_VAR(data__->,DISTANCE,,___ABS(
+            (BOOL)__BOOL_LITERAL(TRUE),
+            NULL,
+            (REAL)__GET_VAR(data__->DISTANCE,)));
           __SET_VAR(data__->,RUN,,___REAL_TO_UDINT(
             (BOOL)__BOOL_LITERAL(TRUE),
             NULL,
@@ -1760,7 +1851,10 @@ static void INTEGRAL_body__(INTEGRAL_data__ *data__) {
   __SET_VAR(data__->,LAST,,__GET_VAR(data__->NOW,));
   if (!(__GET_VAR(data__->HOLD,))) {
     __SET_VAR(data__->,R,,__GET_VAR(data__->RATE_PER_S,));
-    if ((((__GET_VAR(data__->CUTOFF,) > __REAL_LITERAL(0.0)) && (__GET_VAR(data__->R,) < __GET_VAR(data__->CUTOFF,))) && (__GET_VAR(data__->R,) > (__REAL_LITERAL(0.0) - __GET_VAR(data__->CUTOFF,))))) {
+    if (((__GET_VAR(data__->CUTOFF,) > __REAL_LITERAL(0.0)) && (___ABS(
+      (BOOL)__BOOL_LITERAL(TRUE),
+      NULL,
+      (REAL)__GET_VAR(data__->R,)) < __GET_VAR(data__->CUTOFF,)))) {
       __SET_VAR(data__->,R,,__REAL_LITERAL(0.0));
     };
     __SET_VAR(data__->,RATE,,__GET_VAR(data__->R,));
@@ -2224,69 +2318,6 @@ __end:
 
 
 
-static void WX_PUBLISH_init__(WX_PUBLISH_data__ *data__, BOOL retain) {
-  __INIT_VAR(data__->EN,__BOOL_LITERAL(TRUE),retain)
-  __INIT_VAR(data__->ENO,__BOOL_LITERAL(TRUE),retain)
-  __INIT_VAR(data__->V,0,retain)
-  __INIT_VAR(data__->USED,0,retain)
-  __INIT_VAR(data__->TAU_S,0,retain)
-  __INIT_VAR(data__->NOW,0,retain)
-  __INIT_VAR(data__->LO,0,retain)
-  __INIT_VAR(data__->HI,0,retain)
-  __INIT_VAR(data__->Y,0,retain)
-  __INIT_VAR(data__->OK,__BOOL_LITERAL(FALSE),retain)
-  EWMA_init__(&data__->FILT,retain);
-  __INIT_VAR(data__->SEEDED,__BOOL_LITERAL(FALSE),retain)
-}
-
-// Code part
-static void WX_PUBLISH_body__(WX_PUBLISH_data__ *data__) {
-  // Control execution
-  if (!__GET_VAR(data__->EN)) {
-    __SET_VAR(data__->,ENO,,__BOOL_LITERAL(FALSE));
-    return;
-  }
-  else {
-    __SET_VAR(data__->,ENO,,__BOOL_LITERAL(TRUE));
-  }
-  // Initialise TEMP variables
-
-  __SET_VAR(data__->FILT.,X,,__GET_VAR(data__->V,));
-  __SET_VAR(data__->FILT.,TAU_S,,__GET_VAR(data__->TAU_S,));
-  __SET_VAR(data__->FILT.,HOLD,,(__GET_VAR(data__->USED,) == __USINT_LITERAL(0)));
-  __SET_VAR(data__->FILT.,NOW,,__GET_VAR(data__->NOW,));
-  EWMA_body__(&data__->FILT);
-  if ((__GET_VAR(data__->USED,) == __USINT_LITERAL(0))) {
-    __SET_VAR(data__->,OK,,__BOOL_LITERAL(FALSE));
-    if (__GET_VAR(data__->SEEDED,)) {
-      __SET_VAR(data__->,Y,,___LIMIT(
-        (BOOL)__BOOL_LITERAL(TRUE),
-        NULL,
-        (REAL)__GET_VAR(data__->LO,),
-        (REAL)__GET_VAR(data__->FILT.Y,),
-        (REAL)__GET_VAR(data__->HI,)));
-    };
-  } else {
-    __SET_VAR(data__->,SEEDED,,__BOOL_LITERAL(TRUE));
-    __SET_VAR(data__->,Y,,___LIMIT(
-      (BOOL)__BOOL_LITERAL(TRUE),
-      NULL,
-      (REAL)__GET_VAR(data__->LO,),
-      (REAL)__GET_VAR(data__->FILT.Y,),
-      (REAL)__GET_VAR(data__->HI,)));
-    __SET_VAR(data__->,OK,,__BOOL_LITERAL(TRUE));
-  };
-
-  goto __end;
-
-__end:
-  return;
-} // WX_PUBLISH_body__() 
-
-
-
-
-
 static void ZONE_VOTE_init__(ZONE_VOTE_data__ *data__, BOOL retain) {
   __INIT_VAR(data__->EN,__BOOL_LITERAL(TRUE),retain)
   __INIT_VAR(data__->ENO,__BOOL_LITERAL(TRUE),retain)
@@ -2366,64 +2397,6 @@ __end:
 
 
 
-static void ZONE_PUBLISH_init__(ZONE_PUBLISH_data__ *data__, BOOL retain) {
-  __INIT_VAR(data__->EN,__BOOL_LITERAL(TRUE),retain)
-  __INIT_VAR(data__->ENO,__BOOL_LITERAL(TRUE),retain)
-  __INIT_VAR(data__->RAW,0,retain)
-  __INIT_VAR(data__->USED,0,retain)
-  __INIT_VAR(data__->TAU_S,0,retain)
-  __INIT_VAR(data__->NOW,0,retain)
-  __INIT_VAR(data__->LO,0,retain)
-  __INIT_VAR(data__->HI,0,retain)
-  __INIT_VAR(data__->Y,0,retain)
-  __INIT_VAR(data__->OK,__BOOL_LITERAL(FALSE),retain)
-  EWMA_init__(&data__->FILT,retain);
-  __INIT_VAR(data__->SEEDED,__BOOL_LITERAL(FALSE),retain)
-}
-
-// Code part
-static void ZONE_PUBLISH_body__(ZONE_PUBLISH_data__ *data__) {
-  // Control execution
-  if (!__GET_VAR(data__->EN)) {
-    __SET_VAR(data__->,ENO,,__BOOL_LITERAL(FALSE));
-    return;
-  }
-  else {
-    __SET_VAR(data__->,ENO,,__BOOL_LITERAL(TRUE));
-  }
-  // Initialise TEMP variables
-
-  __SET_VAR(data__->FILT.,X,,__GET_VAR(data__->RAW,));
-  __SET_VAR(data__->FILT.,TAU_S,,__GET_VAR(data__->TAU_S,));
-  __SET_VAR(data__->FILT.,HOLD,,(__GET_VAR(data__->USED,) == __USINT_LITERAL(0)));
-  __SET_VAR(data__->FILT.,NOW,,__GET_VAR(data__->NOW,));
-  EWMA_body__(&data__->FILT);
-  if ((__GET_VAR(data__->USED,) == __USINT_LITERAL(0))) {
-    __SET_VAR(data__->,OK,,__BOOL_LITERAL(FALSE));
-    if (!(__GET_VAR(data__->SEEDED,))) {
-      __SET_VAR(data__->,Y,,__GET_VAR(data__->LO,));
-    };
-  } else {
-    __SET_VAR(data__->,SEEDED,,__BOOL_LITERAL(TRUE));
-    __SET_VAR(data__->,Y,,___LIMIT(
-      (BOOL)__BOOL_LITERAL(TRUE),
-      NULL,
-      (REAL)__GET_VAR(data__->LO,),
-      (REAL)__GET_VAR(data__->FILT.Y,),
-      (REAL)__GET_VAR(data__->HI,)));
-    __SET_VAR(data__->,OK,,__BOOL_LITERAL(TRUE));
-  };
-
-  goto __end;
-
-__end:
-  return;
-} // ZONE_PUBLISH_body__() 
-
-
-
-
-
 static void ZONE_PROBES_init__(ZONE_PROBES_data__ *data__, BOOL retain) {
   __INIT_VAR(data__->EN,__BOOL_LITERAL(TRUE),retain)
   __INIT_VAR(data__->ENO,__BOOL_LITERAL(TRUE),retain)
@@ -2448,8 +2421,8 @@ static void ZONE_PROBES_init__(ZONE_PROBES_data__ *data__, BOOL retain) {
   __INIT_VAR(data__->FAULT,__BOOL_LITERAL(FALSE),retain)
   ZONE_VOTE_init__(&data__->T_VOTE,retain);
   ZONE_VOTE_init__(&data__->H_VOTE,retain);
-  ZONE_PUBLISH_init__(&data__->T_PUB,retain);
-  ZONE_PUBLISH_init__(&data__->H_PUB,retain);
+  VALIDATED_EWMA_init__(&data__->T_PUB,retain);
+  VALIDATED_EWMA_init__(&data__->H_PUB,retain);
   TOF_MS_init__(&data__->QUORUM,retain);
 }
 
@@ -2482,20 +2455,20 @@ static void ZONE_PROBES_body__(ZONE_PROBES_data__ *data__) {
   __SET_VAR(data__->H_VOTE.,C_OK,,__GET_VAR(data__->H3_OK,));
   ZONE_VOTE_body__(&data__->H_VOTE);
   __SET_VAR(data__->,H_RAW,,(__GET_VAR(data__->H_VOTE.Y,) * __REAL_LITERAL(0.01)));
-  __SET_VAR(data__->T_PUB.,RAW,,__GET_VAR(data__->T_VOTE.Y,));
-  __SET_VAR(data__->T_PUB.,USED,,__GET_VAR(data__->T_VOTE.USED,));
+  __SET_VAR(data__->T_PUB.,X,,__GET_VAR(data__->T_VOTE.Y,));
+  __SET_VAR(data__->T_PUB.,OK_IN,,(__GET_VAR(data__->T_VOTE.USED,) > __USINT_LITERAL(0)));
   __SET_VAR(data__->T_PUB.,TAU_S,,__GET_VAR(data__->TAU_S,));
   __SET_VAR(data__->T_PUB.,NOW,,__GET_VAR(data__->NOW,));
   __SET_VAR(data__->T_PUB.,LO,,__REAL_LITERAL(-100.0));
   __SET_VAR(data__->T_PUB.,HI,,__REAL_LITERAL(200.0));
-  ZONE_PUBLISH_body__(&data__->T_PUB);
-  __SET_VAR(data__->H_PUB.,RAW,,__GET_VAR(data__->H_RAW,));
-  __SET_VAR(data__->H_PUB.,USED,,__GET_VAR(data__->H_VOTE.USED,));
+  VALIDATED_EWMA_body__(&data__->T_PUB);
+  __SET_VAR(data__->H_PUB.,X,,__GET_VAR(data__->H_RAW,));
+  __SET_VAR(data__->H_PUB.,OK_IN,,(__GET_VAR(data__->H_VOTE.USED,) > __USINT_LITERAL(0)));
   __SET_VAR(data__->H_PUB.,TAU_S,,__GET_VAR(data__->TAU_S,));
   __SET_VAR(data__->H_PUB.,NOW,,__GET_VAR(data__->NOW,));
   __SET_VAR(data__->H_PUB.,LO,,__REAL_LITERAL(0.0));
   __SET_VAR(data__->H_PUB.,HI,,__REAL_LITERAL(1.0));
-  ZONE_PUBLISH_body__(&data__->H_PUB);
+  VALIDATED_EWMA_body__(&data__->H_PUB);
   __SET_VAR(data__->,TEMP,,__GET_VAR(data__->T_PUB.Y,));
   __SET_VAR(data__->,RH,,__GET_VAR(data__->H_PUB.Y,));
   __SET_VAR(data__->,TEMP_OK,,__GET_VAR(data__->T_PUB.OK,));
@@ -2706,18 +2679,18 @@ static void ROOF_LOCKOUT_body__(ROOF_LOCKOUT_data__ *data__) {
 
   __SET_VAR(data__->,BLIND,,(!(__GET_EXTERNAL(data__->CLI_RAIN_MMPH_QLT,)) || !(__GET_EXTERNAL(data__->CLI_WIND_MPS_QLT,))));
   __SET_VAR(data__->RAIN_FOR.,IN,,(__GET_EXTERNAL(data__->CLI_RAIN_MMPH,) > __REAL_LITERAL(0.0)));
-  __SET_VAR(data__->RAIN_FOR.,PT,,(___UINT_TO_UDINT(
+  __SET_VAR(data__->RAIN_FOR.,PT,,___SEC_MS(
     (BOOL)__BOOL_LITERAL(TRUE),
     NULL,
-    (UINT)__GET_EXTERNAL(data__->CLI_RAINLOCKOUT_SEC,)) * __UDINT_LITERAL(1000)));
+    (UINT)__GET_EXTERNAL(data__->CLI_RAINLOCKOUT_SEC,)));
   __SET_VAR(data__->RAIN_FOR.,NOW,,__GET_EXTERNAL(data__->SYS_NOW_MS,));
   TOF_MS_body__(&data__->RAIN_FOR);
   __SET_EXTERNAL(data__->,CLI_RAINLOCKOUT,,(__GET_VAR(data__->RAIN_FOR.Q,) || __GET_VAR(data__->BLIND,)));
-  if ((__GET_EXTERNAL(data__->CLI_WINDGUST_MPS,) > __GET_EXTERNAL(data__->CLI_WIND_MPS,))) {
-    __SET_VAR(data__->,W,,__GET_EXTERNAL(data__->CLI_WINDGUST_MPS,));
-  } else {
-    __SET_VAR(data__->,W,,__GET_EXTERNAL(data__->CLI_WIND_MPS,));
-  };
+  __SET_VAR(data__->,W,,___MAX(
+    (BOOL)__BOOL_LITERAL(TRUE),
+    NULL,
+    (REAL)__GET_EXTERNAL(data__->CLI_WINDGUST_MPS,),
+    (REAL)__GET_EXTERNAL(data__->CLI_WIND_MPS,)));
   __SET_EXTERNAL(data__->,CLI_WINDLOCKOUT,,(__GET_VAR(data__->BLIND,) || (__GET_VAR(data__->W,) >= __GET_EXTERNAL(data__->CLI_WINDSHUTEND_MPS,))));
   __SET_EXTERNAL(data__->,CLI_WINDOWLOCKOUT,,((__GET_EXTERNAL(data__->CLI_RAINLOCKOUT,) || __GET_EXTERNAL(data__->CLI_WINDLOCKOUT,)) || __GET_EXTERNAL(data__->SYS_SUPPLY_LOCKOUT,)));
   __SET_VAR(data__->,CEILING,,__REAL_LITERAL(1.0));
@@ -2777,14 +2750,14 @@ static void SCREEN_CONTROLLER_body__(SCREEN_CONTROLLER_data__ *data__) {
   if (__GET_VAR(data__->ALLOWS,)) {
     __SET_EXTERNAL(data__->,CLI_SCREEN,,__GET_VAR(data__->COLD,));
   };
-  __SET_VAR(data__->,TRAVEL,,(___UINT_TO_UDINT(
+  __SET_VAR(data__->,TRAVEL,,___SEC_MS(
     (BOOL)__BOOL_LITERAL(TRUE),
     NULL,
-    (UINT)__GET_EXTERNAL(data__->CLI_SCREENTRAVEL_SEC,)) * __UDINT_LITERAL(1000)));
-  __SET_VAR(data__->,TMO,,(___UINT_TO_UDINT(
+    (UINT)__GET_EXTERNAL(data__->CLI_SCREENTRAVEL_SEC,)));
+  __SET_VAR(data__->,TMO,,___SEC_MS(
     (BOOL)__BOOL_LITERAL(TRUE),
     NULL,
-    (UINT)__GET_EXTERNAL(data__->CLI_SCREENTMO_SEC,)) * __UDINT_LITERAL(1000)));
+    (UINT)__GET_EXTERNAL(data__->CLI_SCREENTMO_SEC,)));
   if ((__GET_VAR(data__->TRAVEL,) < __GET_VAR(data__->TMO,))) {
     __SET_VAR(data__->,STROKE,,__GET_VAR(data__->TRAVEL,));
   } else {
@@ -2862,23 +2835,23 @@ static void SKIRT_CONTROLLER_body__(SKIRT_CONTROLLER_data__ *data__) {
   } else {
     __SET_VAR(data__->,COOL,,__REAL_LITERAL(0.0));
   };
-  if ((__GET_VAR(data__->HUMID,) > __GET_VAR(data__->COOL,))) {
-    __SET_VAR(data__->,WANT,,__GET_VAR(data__->HUMID,));
-  } else {
-    __SET_VAR(data__->,WANT,,__GET_VAR(data__->COOL,));
-  };
+  __SET_VAR(data__->,WANT,,___MAX(
+    (BOOL)__BOOL_LITERAL(TRUE),
+    NULL,
+    (REAL)__GET_VAR(data__->HUMID,),
+    (REAL)__GET_VAR(data__->COOL,)));
   if (__GET_EXTERNAL(data__->CLI_ROTLOCKOUT,)) {
     __SET_VAR(data__->,WANT,,__REAL_LITERAL(0.0));
   };
   __SET_VAR(data__->PULSE.,DUTY_IN,,__GET_VAR(data__->WANT,));
-  __SET_VAR(data__->PULSE.,PERIOD_MS,,(___UINT_TO_UDINT(
+  __SET_VAR(data__->PULSE.,PERIOD_MS,,___SEC_MS(
     (BOOL)__BOOL_LITERAL(TRUE),
     NULL,
-    (UINT)__GET_EXTERNAL(data__->CLI_SKIRTPERIOD_SEC,)) * __UDINT_LITERAL(1000)));
-  __SET_VAR(data__->PULSE.,MIN_ON_MS,,(___UINT_TO_UDINT(
+    (UINT)__GET_EXTERNAL(data__->CLI_SKIRTPERIOD_SEC,)));
+  __SET_VAR(data__->PULSE.,MIN_ON_MS,,___SEC_MS(
     (BOOL)__BOOL_LITERAL(TRUE),
     NULL,
-    (UINT)__GET_EXTERNAL(data__->CLI_SKIRTMINON_SEC,)) * __UDINT_LITERAL(1000)));
+    (UINT)__GET_EXTERNAL(data__->CLI_SKIRTMINON_SEC,)));
   __SET_VAR(data__->PULSE.,RESET,,__GET_EXTERNAL(data__->CLI_ROTLOCKOUT,));
   __SET_VAR(data__->PULSE.,NOW,,__GET_EXTERNAL(data__->SYS_NOW_MS,));
   VALVE_PULSE_body__(&data__->PULSE);
@@ -2962,14 +2935,14 @@ static void WINDOWS_CONTROLLER_body__(WINDOWS_CONTROLLER_data__ *data__) {
   if ((__GET_VAR(data__->AIM,) > __GET_VAR(data__->CEILING,))) {
     __SET_VAR(data__->,AIM,,__GET_VAR(data__->CEILING,));
   };
-  __SET_VAR(data__->,TRAVEL,,(___UINT_TO_UDINT(
+  __SET_VAR(data__->,TRAVEL,,___SEC_MS(
     (BOOL)__BOOL_LITERAL(TRUE),
     NULL,
-    (UINT)__GET_EXTERNAL(data__->CLI_WINDOWTRAVEL_SEC,)) * __UDINT_LITERAL(1000)));
-  __SET_VAR(data__->,TMO,,(___UINT_TO_UDINT(
+    (UINT)__GET_EXTERNAL(data__->CLI_WINDOWTRAVEL_SEC,)));
+  __SET_VAR(data__->,TMO,,___SEC_MS(
     (BOOL)__BOOL_LITERAL(TRUE),
     NULL,
-    (UINT)__GET_EXTERNAL(data__->CLI_WINDOWTMO_SEC,)) * __UDINT_LITERAL(1000)));
+    (UINT)__GET_EXTERNAL(data__->CLI_WINDOWTMO_SEC,)));
   if ((__GET_VAR(data__->TMO,) > __GET_VAR(data__->TRAVEL,))) {
     __SET_VAR(data__->,SEAT,,(__GET_VAR(data__->TMO,) - __GET_VAR(data__->TRAVEL,)));
   } else {
@@ -3351,10 +3324,10 @@ static void HUMIDITY_CONTROLLER_body__(HUMIDITY_CONTROLLER_data__ *data__) {
     __SET_EXTERNAL(data__->,CLI_ROTVENTDEM,,__REAL_LITERAL(1.0));
   };
   __SET_VAR(data__->LOCKOUT_FOR.,IN,,__GET_EXTERNAL(data__->ALARM_ROT,));
-  __SET_VAR(data__->LOCKOUT_FOR.,PT,,(___UINT_TO_UDINT(
+  __SET_VAR(data__->LOCKOUT_FOR.,PT,,___SEC_MS(
     (BOOL)__BOOL_LITERAL(TRUE),
     NULL,
-    (UINT)__GET_EXTERNAL(data__->CLI_ROTRELEASE_SEC,)) * __UDINT_LITERAL(1000)));
+    (UINT)__GET_EXTERNAL(data__->CLI_ROTRELEASE_SEC,)));
   __SET_VAR(data__->LOCKOUT_FOR.,NOW,,__GET_EXTERNAL(data__->SYS_NOW_MS,));
   TOF_MS_body__(&data__->LOCKOUT_FOR);
   __SET_EXTERNAL(data__->,CLI_ROTLOCKOUT,,(__GET_VAR(data__->LOCKOUT_FOR.Q,) || !(__GET_EXTERNAL(data__->CLI_DPMARGIN_DEGC_QLT,))));
@@ -3452,9 +3425,9 @@ static void INTAKE_GATES_body__(INTAKE_GATES_data__ *data__) {
     __SET_VAR(data__->COOL_GATE.,FALL,,(__GET_EXTERNAL(data__->CLI_VENTTEMPMGN_DEGC,) - __GET_EXTERNAL(data__->CLI_VENTHYST_DEGC,)));
     BAND_LATCH_body__(&data__->COOL_GATE);
     __SET_EXTERNAL(data__->,CLI_INTAKECOOLOK,,__GET_VAR(data__->COOL_GATE.Q,));
-    __SET_VAR(data__->GROUND_BAND.,IN,,(__REAL_LITERAL(0.0) - __GET_EXTERNAL(data__->CLI_COOLDEM,)));
-    __SET_VAR(data__->GROUND_BAND.,RISE,,(__REAL_LITERAL(0.0) - __GET_EXTERNAL(data__->CLI_GROUNDHEATDEM,)));
-    __SET_VAR(data__->GROUND_BAND.,FALL,,((__REAL_LITERAL(0.0) - __GET_EXTERNAL(data__->CLI_GROUNDHEATDEM,)) + __GET_EXTERNAL(data__->CLI_GROUNDDEMHYST,)));
+    __SET_VAR(data__->GROUND_BAND.,IN,, -(__GET_EXTERNAL(data__->CLI_COOLDEM,)));
+    __SET_VAR(data__->GROUND_BAND.,RISE,, -(__GET_EXTERNAL(data__->CLI_GROUNDHEATDEM,)));
+    __SET_VAR(data__->GROUND_BAND.,FALL,,( -(__GET_EXTERNAL(data__->CLI_GROUNDHEATDEM,)) + __GET_EXTERNAL(data__->CLI_GROUNDDEMHYST,)));
     BAND_LATCH_body__(&data__->GROUND_BAND);
     __SET_VAR(data__->,ASKING,,__GET_VAR(data__->GROUND_BAND.Q,));
     __SET_VAR(data__->GROUND_GATE.,IN,,(__GET_EXTERNAL(data__->CLI_TEMP_CS,) - __GET_EXTERNAL(data__->CLI_TEMP_IN,)));
@@ -3828,25 +3801,25 @@ static void IRRIGATION_CYCLE_body__(IRRIGATION_CYCLE_data__ *data__) {
   __SET_VAR(data__->,BLAME,,__BOOL_LITERAL(FALSE));
   __SET_VAR(data__->,CLOG,,__BOOL_LITERAL(FALSE));
   if ((__GET_VAR(data__->MODE,) == __USINT_LITERAL(1))) {
-    __SET_VAR(data__->,PT,,(___UINT_TO_UDINT(
+    __SET_VAR(data__->,PT,,___SEC_MS(
       (BOOL)__BOOL_LITERAL(TRUE),
       NULL,
-      (UINT)__GET_EXTERNAL(data__->IRR_MAXFILL_SEC,)) * __UDINT_LITERAL(1000)));
+      (UINT)__GET_EXTERNAL(data__->IRR_MAXFILL_SEC,)));
   } else if ((__GET_VAR(data__->MODE,) == __USINT_LITERAL(4))) {
-    __SET_VAR(data__->,PT,,(___UINT_TO_UDINT(
+    __SET_VAR(data__->,PT,,___SEC_MS(
       (BOOL)__BOOL_LITERAL(TRUE),
       NULL,
-      (UINT)__GET_EXTERNAL(data__->IRR_SOAK_SEC,)) * __UDINT_LITERAL(1000)));
+      (UINT)__GET_EXTERNAL(data__->IRR_SOAK_SEC,)));
   } else if ((__GET_VAR(data__->MODE,) == __USINT_LITERAL(2))) {
-    __SET_VAR(data__->,PT,,(___UINT_TO_UDINT(
+    __SET_VAR(data__->,PT,,___SEC_MS(
       (BOOL)__BOOL_LITERAL(TRUE),
       NULL,
-      (UINT)__GET_EXTERNAL(data__->IRR_DRAINWINDOW_SEC,)) * __UDINT_LITERAL(1000)));
+      (UINT)__GET_EXTERNAL(data__->IRR_DRAINWINDOW_SEC,)));
   } else if ((__GET_VAR(data__->MODE,) == __USINT_LITERAL(3))) {
-    __SET_VAR(data__->,PT,,(___UINT_TO_UDINT(
+    __SET_VAR(data__->,PT,,___SEC_MS(
       (BOOL)__BOOL_LITERAL(TRUE),
       NULL,
-      (UINT)__GET_EXTERNAL(data__->IRR_FLUSH_SEC,)) * __UDINT_LITERAL(1000)));
+      (UINT)__GET_EXTERNAL(data__->IRR_FLUSH_SEC,)));
   } else {
     __SET_VAR(data__->,PT,,__UDINT_LITERAL(0));
   };
@@ -4620,10 +4593,10 @@ static void AC_LOCAL_WATCH_body__(AC_LOCAL_WATCH_data__ *data__) {
   __SET_EXTERNAL(data__->,SYS_LOCAL_OK,,__GET_VAR(data__->SUPPLY.OK,));
   __SET_EXTERNAL(data__->,ALARM_AC_LOCAL,,__GET_VAR(data__->SUPPLY.FAULT,));
   __SET_VAR(data__->CRANKING.,IN,,(!(__GET_EXTERNAL(data__->SYS_GRID_OK,)) && !(__GET_VAR(data__->SUPPLY.ANSWERED,))));
-  __SET_VAR(data__->CRANKING.,PT,,(___UINT_TO_UDINT(
+  __SET_VAR(data__->CRANKING.,PT,,___SEC_MS(
     (BOOL)__BOOL_LITERAL(TRUE),
     NULL,
-    (UINT)__GET_EXTERNAL(data__->PWR_GENSTART_SEC,)) * __UDINT_LITERAL(1000)));
+    (UINT)__GET_EXTERNAL(data__->PWR_GENSTART_SEC,)));
   __SET_VAR(data__->CRANKING.,NOW,,__GET_EXTERNAL(data__->SYS_NOW_MS,));
   TON_MS_body__(&data__->CRANKING);
   __SET_EXTERNAL(data__->,ALARM_GEN,,__GET_VAR(data__->CRANKING.Q,));
@@ -5196,10 +5169,10 @@ static void WX_SENSORS_init__(WX_SENSORS_data__ *data__, BOOL retain) {
   WX_WORSE_init__(&data__->GUST_VOTE,retain);
   WX_WORSE_init__(&data__->RAIN_VOTE,retain);
   WX_MEAN_init__(&data__->SUN_VOTE,retain);
-  WX_PUBLISH_init__(&data__->WIND_PUB,retain);
-  WX_PUBLISH_init__(&data__->GUST_PUB,retain);
-  WX_PUBLISH_init__(&data__->RAIN_PUB,retain);
-  WX_PUBLISH_init__(&data__->SUN_PUB,retain);
+  VALIDATED_EWMA_init__(&data__->WIND_PUB,retain);
+  VALIDATED_EWMA_init__(&data__->GUST_PUB,retain);
+  VALIDATED_EWMA_init__(&data__->RAIN_PUB,retain);
+  VALIDATED_EWMA_init__(&data__->SUN_PUB,retain);
   TON_MS_init__(&data__->QUORUM_FOR,retain);
 }
 
@@ -5233,34 +5206,34 @@ static void WX_SENSORS_body__(WX_SENSORS_data__ *data__) {
   __SET_VAR(data__->SUN_VOTE.,B,,__GET_EXTERNAL(data__->CLI_IRRAD2_WPM2,));
   __SET_VAR(data__->SUN_VOTE.,B_OK,,__GET_EXTERNAL(data__->CLI_IRRAD2_WPM2_QLT,));
   WX_MEAN_body__(&data__->SUN_VOTE);
-  __SET_VAR(data__->WIND_PUB.,V,,__GET_VAR(data__->WIND_VOTE.Y,));
-  __SET_VAR(data__->WIND_PUB.,USED,,__GET_VAR(data__->WIND_VOTE.USED,));
+  __SET_VAR(data__->WIND_PUB.,X,,__GET_VAR(data__->WIND_VOTE.Y,));
+  __SET_VAR(data__->WIND_PUB.,OK_IN,,(__GET_VAR(data__->WIND_VOTE.USED,) > __USINT_LITERAL(0)));
   __SET_VAR(data__->WIND_PUB.,TAU_S,,__GET_VAR(data__->TAU,));
   __SET_VAR(data__->WIND_PUB.,NOW,,__GET_EXTERNAL(data__->SYS_NOW_MS,));
   __SET_VAR(data__->WIND_PUB.,LO,,__REAL_LITERAL(0.0));
   __SET_VAR(data__->WIND_PUB.,HI,,__REAL_LITERAL(80.0));
-  WX_PUBLISH_body__(&data__->WIND_PUB);
-  __SET_VAR(data__->GUST_PUB.,V,,__GET_VAR(data__->GUST_VOTE.Y,));
-  __SET_VAR(data__->GUST_PUB.,USED,,__GET_VAR(data__->GUST_VOTE.USED,));
+  VALIDATED_EWMA_body__(&data__->WIND_PUB);
+  __SET_VAR(data__->GUST_PUB.,X,,__GET_VAR(data__->GUST_VOTE.Y,));
+  __SET_VAR(data__->GUST_PUB.,OK_IN,,(__GET_VAR(data__->GUST_VOTE.USED,) > __USINT_LITERAL(0)));
   __SET_VAR(data__->GUST_PUB.,TAU_S,,__GET_VAR(data__->TAU,));
   __SET_VAR(data__->GUST_PUB.,NOW,,__GET_EXTERNAL(data__->SYS_NOW_MS,));
   __SET_VAR(data__->GUST_PUB.,LO,,__REAL_LITERAL(0.0));
   __SET_VAR(data__->GUST_PUB.,HI,,__REAL_LITERAL(80.0));
-  WX_PUBLISH_body__(&data__->GUST_PUB);
-  __SET_VAR(data__->RAIN_PUB.,V,,__GET_VAR(data__->RAIN_VOTE.Y,));
-  __SET_VAR(data__->RAIN_PUB.,USED,,__GET_VAR(data__->RAIN_VOTE.USED,));
+  VALIDATED_EWMA_body__(&data__->GUST_PUB);
+  __SET_VAR(data__->RAIN_PUB.,X,,__GET_VAR(data__->RAIN_VOTE.Y,));
+  __SET_VAR(data__->RAIN_PUB.,OK_IN,,(__GET_VAR(data__->RAIN_VOTE.USED,) > __USINT_LITERAL(0)));
   __SET_VAR(data__->RAIN_PUB.,TAU_S,,__GET_VAR(data__->TAU,));
   __SET_VAR(data__->RAIN_PUB.,NOW,,__GET_EXTERNAL(data__->SYS_NOW_MS,));
   __SET_VAR(data__->RAIN_PUB.,LO,,__REAL_LITERAL(0.0));
   __SET_VAR(data__->RAIN_PUB.,HI,,__REAL_LITERAL(200.0));
-  WX_PUBLISH_body__(&data__->RAIN_PUB);
-  __SET_VAR(data__->SUN_PUB.,V,,__GET_VAR(data__->SUN_VOTE.Y,));
-  __SET_VAR(data__->SUN_PUB.,USED,,__GET_VAR(data__->SUN_VOTE.USED,));
+  VALIDATED_EWMA_body__(&data__->RAIN_PUB);
+  __SET_VAR(data__->SUN_PUB.,X,,__GET_VAR(data__->SUN_VOTE.Y,));
+  __SET_VAR(data__->SUN_PUB.,OK_IN,,(__GET_VAR(data__->SUN_VOTE.USED,) > __USINT_LITERAL(0)));
   __SET_VAR(data__->SUN_PUB.,TAU_S,,__GET_VAR(data__->TAU,));
   __SET_VAR(data__->SUN_PUB.,NOW,,__GET_EXTERNAL(data__->SYS_NOW_MS,));
   __SET_VAR(data__->SUN_PUB.,LO,,__REAL_LITERAL(0.0));
   __SET_VAR(data__->SUN_PUB.,HI,,__REAL_LITERAL(1500.0));
-  WX_PUBLISH_body__(&data__->SUN_PUB);
+  VALIDATED_EWMA_body__(&data__->SUN_PUB);
   __SET_EXTERNAL(data__->,CLI_WIND_MPS,,__GET_VAR(data__->WIND_PUB.Y,));
   __SET_EXTERNAL(data__->,CLI_WINDGUST_MPS,,__GET_VAR(data__->GUST_PUB.Y,));
   __SET_EXTERNAL(data__->,CLI_RAIN_MMPH,,__GET_VAR(data__->RAIN_PUB.Y,));

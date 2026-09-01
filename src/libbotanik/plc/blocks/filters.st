@@ -55,3 +55,40 @@ END_VAR
     Y := Y + alpha * (X - Y);
   END_IF;
 END_FUNCTION_BLOCK
+
+
+FUNCTION_BLOCK VALIDATED_EWMA
+(* A vote, filtered, clamped to the row's band, and told whether this beat
+   measured it. What every redundant-probe chain does with its vote, so the
+   rule for a chain that goes out is written once. *)
+VAR_INPUT
+  X     : REAL;
+  OK_IN : BOOL;    (* something believable fed X this beat *)
+  TAU_S : REAL;
+  NOW   : UDINT;
+  LO    : REAL;
+  HI    : REAL;
+END_VAR
+VAR_OUTPUT
+  Y  : REAL;
+  OK : BOOL;       (* this beat MEASURED it *)
+END_VAR
+VAR
+  filt   : EWMA;
+  seeded : BOOL := FALSE;
+END_VAR
+  (* CALLED every scan, folding only when something answered: a filter skipped
+     for the length of an outage snaps to the first reading back rather than
+     rejoining the average it left. @see EWMA.HOLD *)
+  filt(X := X, TAU_S := TAU_S, HOLD := NOT OK_IN, NOW := NOW);
+  OK := OK_IN;
+  IF OK_IN THEN
+    seeded := TRUE;
+    Y := LIMIT(LO, filt.Y, HI);
+  ELSIF NOT seeded THEN
+    (* Nothing has EVER measured this. The band's floor rather than a default
+       zero, which on a temperature reads like a measurement of a freezing
+       house. Once seeded, Y keeps the last average and OK says it is stale. *)
+    Y := LO;
+  END_IF;
+END_FUNCTION_BLOCK

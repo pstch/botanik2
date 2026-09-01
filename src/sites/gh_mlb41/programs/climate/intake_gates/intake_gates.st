@@ -57,9 +57,9 @@ END_VAR
        anything: cold enough to be asking for heat, and ground warm enough to
        be worth pulling it out of. Both halves are banded - the demand is a PID
        output and it crosses a rung as slowly as it likes. *)
-    ground_band(IN   := 0.0 - cli_coolDem,
-                RISE := 0.0 - cli_groundHeatDem,
-                FALL := 0.0 - cli_groundHeatDem + cli_groundDemHyst);
+    ground_band(IN   := -cli_coolDem,
+                RISE := -cli_groundHeatDem,
+                FALL := -cli_groundHeatDem + cli_groundDemHyst);
     asking := ground_band.Q;
     ground_gate(IN   := cli_temp_cs - cli_temp_in,
                 RISE := cli_ventTempMgn_degC,

@@ -51,12 +51,14 @@ END_VAR
      can force rather than off a copy of it here. *)
   IF allows THEN cli_screen := cold; END_IF;
 
-  travel := UINT_TO_UDINT(cli_screenTravel_sec) * 1000;
-  tmo    := UINT_TO_UDINT(cli_screenTmo_sec) * 1000;
+  travel := SEC_MS(cli_screenTravel_sec);
+  tmo    := SEC_MS(cli_screenTmo_sec);
   (* Capped at the actuator's own SAFE time, which is the datasheet's number
      where the travel is the operator's: this traverse is what the fans are cut
      for and what a parking supervisor waits on, so a mis-set travel must not
      hold both for as long as it says. *)
+  (* MIN is REAL in st/lib/ieclib.txt and ST has no overloading, so these
+     millisecond spans compare by hand. *)
   IF travel < tmo THEN stroke := travel; ELSE stroke := tmo; END_IF;
 
   IF cli_screen THEN want := 1.0; ELSE want := 0.0; END_IF;

@@ -86,7 +86,7 @@ VAR_TEMP
   diff : REAL;
 END_VAR
   diff := V - held;
-  IF NOT seeded OR diff > BAND OR diff < (0.0 - BAND) THEN
+  IF NOT seeded OR ABS(diff) > BAND THEN
     held   := V;
     seeded := TRUE;
   END_IF;

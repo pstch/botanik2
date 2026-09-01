@@ -103,10 +103,10 @@ END_VAR
 
   (* The dwell for whichever state is in force, TICKED before the machine reads
      it and zeroed again below if the state moves. *)
-  IF   mode = 1 THEN pt := UINT_TO_UDINT(irr_maxFill_sec) * 1000;
-  ELSIF mode = 4 THEN pt := UINT_TO_UDINT(irr_soak_sec) * 1000;
-  ELSIF mode = 2 THEN pt := UINT_TO_UDINT(irr_drainWindow_sec) * 1000;
-  ELSIF mode = 3 THEN pt := UINT_TO_UDINT(irr_flush_sec) * 1000;
+  IF    mode = 1 THEN pt := SEC_MS(irr_maxFill_sec);
+  ELSIF mode = 4 THEN pt := SEC_MS(irr_soak_sec);
+  ELSIF mode = 2 THEN pt := SEC_MS(irr_drainWindow_sec);
+  ELSIF mode = 3 THEN pt := SEC_MS(irr_flush_sec);
   ELSE pt := UDINT#0;
   END_IF;
   dwell(IN := mode <> 0, PT := pt, NOW := sys_now_ms);
@@ -117,7 +117,8 @@ END_VAR
      on it, and irr_volume_L's companion is what says it was a guess. *)
   split_lim := LIMIT(0.0, irr_volFreqSplit, 1.0);
   litres    := 0.0;
-  IF tray = 1 THEN litres := UINT_TO_REAL(irr_liters_tray1);
+
+  IF    tray = 1 THEN litres := UINT_TO_REAL(irr_liters_tray1);
   ELSIF tray = 2 THEN litres := UINT_TO_REAL(irr_liters_tray2);
   ELSIF tray = 3 THEN litres := UINT_TO_REAL(irr_liters_tray3);
   ELSIF tray = 4 THEN litres := UINT_TO_REAL(irr_liters_tray4);
@@ -126,14 +127,16 @@ END_VAR
   ELSIF tray = 7 THEN litres := UINT_TO_REAL(irr_liters_tray7);
   ELSIF tray = 8 THEN litres := UINT_TO_REAL(irr_liters_tray8);
   END_IF;
-  IF tray > 0 THEN dose := litres * POW(IN1 := irr_mod, IN2 := split_lim);
-  ELSE dose := 0.0;
+
+  IF tray > 0 THEN 
+    dose := litres * POW(IN1 := irr_mod, IN2 := split_lim);
+  ELSE 
+    dose := 0.0;
   END_IF;
+
   irr_volume_L := dose;
 
   IF mode = 0 THEN
-    (* BOTH of them, and every idle scan: they are read back as well as
-       written, so an unwritten one is an invalid input. *)
     irr_delivered_L := 0.0;
     irr_drained_L   := 0.0;
     (* WHICH tray, and whether now: irr_schedule has decided both. A
@@ -217,6 +220,7 @@ END_VAR
   IF served AND tray = 6 THEN alarm_irr_fill_tray6 := blame; END_IF;
   IF served AND tray = 7 THEN alarm_irr_fill_tray7 := blame; END_IF;
   IF served AND tray = 8 THEN alarm_irr_fill_tray8 := blame; END_IF;
+
   IF judged AND tray = 1 THEN alarm_irr_drain_tray1 := clog; END_IF;
   IF judged AND tray = 2 THEN alarm_irr_drain_tray2 := clog; END_IF;
   IF judged AND tray = 3 THEN alarm_irr_drain_tray3 := clog; END_IF;

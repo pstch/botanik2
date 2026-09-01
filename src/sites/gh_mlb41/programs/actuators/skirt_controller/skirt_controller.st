@@ -47,7 +47,7 @@ END_VAR
     cool := 0.0;
   END_IF;
 
-  IF humid > cool THEN want := humid; ELSE want := cool; END_IF;
+  want := MAX(humid, cool);
 
   (* Wetting air that is already condensing is the one thing this valve must
      never do, so the lockout is resolved before any demand reaches the coil -
@@ -55,8 +55,8 @@ END_VAR
   IF cli_rotLockout THEN want := 0.0; END_IF;
 
   pulse(DUTY_IN   := want,
-        PERIOD_MS := UINT_TO_UDINT(cli_skirtPeriod_sec) * 1000,
-        MIN_ON_MS := UINT_TO_UDINT(cli_skirtMinOn_sec) * 1000,
+        PERIOD_MS := SEC_MS(cli_skirtPeriod_sec),
+        MIN_ON_MS := SEC_MS(cli_skirtMinOn_sec),
         RESET     := cli_rotLockout,
         NOW       := sys_now_ms);
 

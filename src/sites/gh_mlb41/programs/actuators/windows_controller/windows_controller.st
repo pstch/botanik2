@@ -62,8 +62,8 @@ END_VAR
      less, whatever the ladder asked for. *)
   IF aim > ceiling THEN aim := ceiling; END_IF;
 
-  travel := UINT_TO_UDINT(cli_windowTravel_sec) * 1000;
-  tmo    := UINT_TO_UDINT(cli_windowTmo_sec) * 1000;
+  travel := SEC_MS(cli_windowTravel_sec);
+  tmo    := SEC_MS(cli_windowTmo_sec);
   (* The safe time is the travel plus the allowance for reaching the stop, so
      the difference IS the seating run rather than a second figure to keep in
      step with the first. *)

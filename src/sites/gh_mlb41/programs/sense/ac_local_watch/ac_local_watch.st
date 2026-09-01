@@ -58,7 +58,7 @@ END_VAR
      up, an unhealthy ATS output is a transfer-switch fault - alarm_ac_local
      above - and the set was never asked to start. *)
   cranking(IN  := NOT sys_grid_ok AND NOT supply.ANSWERED,
-           PT  := UINT_TO_UDINT(pwr_genStart_sec) * 1000,
+           PT  := SEC_MS(pwr_genStart_sec),
            NOW := sys_now_ms);
   alarm_gen := cranking.Q;
 END_PROGRAM

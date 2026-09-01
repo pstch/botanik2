@@ -89,7 +89,7 @@ END_VAR
   (* Derivative on the measurement opposes the reading's movement, so it enters
      with the sign the action gives it. *)
   p_term := KP * ERR;
-  IF REVERSE THEN d_term := KD * deriv; ELSE d_term := 0.0 - (KD * deriv); END_IF;
+  IF REVERSE THEN d_term := KD * deriv; ELSE d_term := -(KD * deriv); END_IF;
 
   IF KI = 0.0 THEN
     (* No integral ACTION means no integral TERM, not a frozen one: KI is

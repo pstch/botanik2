@@ -36,10 +36,10 @@ VAR
   gust_vote  : WX_WORSE;
   rain_vote  : WX_WORSE;
   sun_vote   : WX_MEAN;
-  wind_pub   : WX_PUBLISH;
-  gust_pub   : WX_PUBLISH;
-  rain_pub   : WX_PUBLISH;
-  sun_pub    : WX_PUBLISH;
+  wind_pub   : VALIDATED_EWMA;
+  gust_pub   : VALIDATED_EWMA;
+  rain_pub   : VALIDATED_EWMA;
+  sun_pub    : VALIDATED_EWMA;
   quorum_for : TON_MS;
 END_VAR
 VAR_TEMP
@@ -62,13 +62,13 @@ END_VAR
             B := cli_irrad2_Wpm2,   B_OK := cli_irrad2_Wpm2_qlt);
 
   (* The rails are the rows' own declared bands. *)
-  wind_pub(V := wind_vote.Y, USED := wind_vote.USED, TAU_S := tau,
+  wind_pub(X := wind_vote.Y, OK_IN := wind_vote.USED > 0, TAU_S := tau,
            NOW := sys_now_ms, LO := 0.0, HI := 80.0);
-  gust_pub(V := gust_vote.Y, USED := gust_vote.USED, TAU_S := tau,
+  gust_pub(X := gust_vote.Y, OK_IN := gust_vote.USED > 0, TAU_S := tau,
            NOW := sys_now_ms, LO := 0.0, HI := 80.0);
-  rain_pub(V := rain_vote.Y, USED := rain_vote.USED, TAU_S := tau,
+  rain_pub(X := rain_vote.Y, OK_IN := rain_vote.USED > 0, TAU_S := tau,
            NOW := sys_now_ms, LO := 0.0, HI := 200.0);
-  sun_pub(V := sun_vote.Y,  USED := sun_vote.USED,  TAU_S := tau,
+  sun_pub(X := sun_vote.Y,  OK_IN := sun_vote.USED > 0,  TAU_S := tau,
            NOW := sys_now_ms, LO := 0.0, HI := 1500.0);
 
   cli_wind_mps     := wind_pub.Y;

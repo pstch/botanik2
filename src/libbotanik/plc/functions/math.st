@@ -33,8 +33,7 @@ END_VAR
   IF V >= POS_START THEN
     SIGNED_LADDER := LADDER(V := V, LO := POS_START, HI := POS_FULL);
   ELSIF V <= NEG_START THEN
-    SIGNED_LADDER := 0.0 - LADDER(V := 0.0 - V, LO := 0.0 - NEG_START,
-                                  HI := 0.0 - NEG_FULL);
+    SIGNED_LADDER := -LADDER(V := -V, LO := -NEG_START, HI := -NEG_FULL);
   ELSE
     SIGNED_LADDER := 0.0;
   END_IF;

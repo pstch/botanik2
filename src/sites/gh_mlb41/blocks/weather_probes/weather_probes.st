@@ -1,4 +1,4 @@
-(* The ST source for WeatherProbes, beside the C++ it replaces.
+(* The two-station vote, for the rows wx_sensors publishes.
 
    TWO stations is a weaker vote than the three a zone gets: a disagreement can
    be seen but not resolved, because there is no third reading to say which
@@ -45,44 +45,4 @@ END_VAR
   IF A_OK THEN Y := A;     USED := 1; END_IF;
   IF B_OK THEN Y := Y + B; USED := USED + 1; END_IF;
   IF USED = 2 THEN Y := Y * 0.5; END_IF;
-END_FUNCTION_BLOCK
-
-
-FUNCTION_BLOCK WX_PUBLISH
-(* Filter a vote and clamp it to the row's own declared band, so a filter fed a
-   spike cannot publish past what the instrument can report.
-
-   With nothing measured the row keeps the last average the weather could make
-   and OK says it is not current. The filter keeps its state and seeding is not
-   re-armed, so a station coming back rejoins the average it left. *)
-VAR_INPUT
-  V     : REAL;
-  USED  : USINT;
-  TAU_S : REAL;
-  NOW   : UDINT;
-  LO    : REAL;
-  HI    : REAL;
-END_VAR
-VAR_OUTPUT
-  Y  : REAL;
-  OK : BOOL;    (* this beat MEASURED it *)
-END_VAR
-VAR
-  filt   : EWMA;
-  seeded : BOOL := FALSE;
-END_VAR
-  (* CALLED every scan, folding only when there is something to fold: the
-     filter reads the clock, and one that is skipped for an outage snaps to the
-     first reading back instead of rejoining. @see EWMA.HOLD *)
-  filt(X := V, TAU_S := TAU_S, HOLD := USED = 0, NOW := NOW);
-  IF USED = 0 THEN
-    OK := FALSE;
-    (* Nothing has ever measured the sky: the row's own declared value is what
-       it keeps, and this leaves it alone. *)
-    IF seeded THEN Y := LIMIT(LO, filt.Y, HI); END_IF;
-  ELSE
-    seeded := TRUE;
-    Y  := LIMIT(LO, filt.Y, HI);
-    OK := TRUE;
-  END_IF;
 END_FUNCTION_BLOCK
