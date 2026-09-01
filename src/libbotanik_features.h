@@ -48,8 +48,6 @@
     X(LOGS_MONITOR)       \
     X(VARS)               \
     X(PLC)                \
-    X(PLC_BLK_BASE)       \
-    X(PLC_BLK_FILTERS)    \
     X(MODBUS_TCP_SERVER)  \
     X(MODBUS_TCP_CLIENT)  \
     X(MODBUS_RTU_CLIENT)  \
@@ -188,19 +186,6 @@
 #  define BOTANIK_FEATURE_PLC 1
 #endif
 
-/** @brief The base function blocks: timers, logic, analog, meter, pid,
- *  actuator. Header-only `plc/functions/` is never gated - it costs nothing
- *  unless included. */
-#ifndef BOTANIK_FEATURE_PLC_BLK_BASE
-#  define BOTANIK_FEATURE_PLC_BLK_BASE 0
-#endif
-
-/** @brief The filter blocks: Ewma, MedianOf3, MovingAverage. Distinct from
- *  `utils/filters.h`, the scheduler's metric filter, which is unconditional. */
-#ifndef BOTANIK_FEATURE_PLC_BLK_FILTERS
-#  define BOTANIK_FEATURE_PLC_BLK_FILTERS 0
-#endif
-
 // --- Field bus -----------------------------------------------------------
 
 /** @brief Modbus TCP slave, exposing parameters and status values. */
@@ -298,9 +283,6 @@
 #endif
 #if BOTANIK_FEATURE_PLC && !BOTANIK_FEATURE_VARS
 #  error "BOTANIK_FEATURE_PLC requires BOTANIK_FEATURE_VARS"
-#endif
-#if (BOTANIK_FEATURE_PLC_BLK_BASE || BOTANIK_FEATURE_PLC_BLK_FILTERS) && !BOTANIK_FEATURE_PLC
-#  error "BOTANIK_FEATURE_PLC_BLK_* requires BOTANIK_FEATURE_PLC"
 #endif
 #if BOTANIK_FEATURE_HOME_PAGE && !BOTANIK_FEATURE_VARS
 #  error "BOTANIK_FEATURE_HOME_PAGE requires BOTANIK_FEATURE_VARS"

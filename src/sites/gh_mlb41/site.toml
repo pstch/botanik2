@@ -64,6 +64,4 @@ MODBUS_TCP_SERVER = true
 MODBUS_TCP_CLIENT = true
 MODBUS_RTU_CLIENT = true
 MODBUS_RTU_SERVER = true
-PLC_BLK_BASE      = true
-PLC_BLK_FILTERS   = true
 SUN_TRACKER       = true

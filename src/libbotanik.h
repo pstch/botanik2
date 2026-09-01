@@ -31,8 +31,6 @@
 #include "libbotanik/pages/shell.h"
 #include "libbotanik/pages/status.h"
 #include "libbotanik/pages/tasks_page.h"
-#include "libbotanik/plc/blocks/blocks.h"
-#include "libbotanik/plc/functions/functions.h"
 #include "libbotanik/scheduler/scheduler.h"
 #include "libbotanik/tasks/task_timer.h"
 #include "libbotanik/shell/shell.h"
