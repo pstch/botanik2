@@ -78,25 +78,12 @@ const Botanik::SiteDescriptor g_site = {
 class GreenhouseMLB41 final : public Botanik::BotanikFirmware {
 
     /** @name Control programs
-     *
-     *  One list, from programs.h, expanded here for the members,
-     *  below for the constructor init, and again for the registration. Being
-     *  members, there is exactly one of each by construction - which a
-     *  header-declared static could not promise (a namespace-scope `static` is
-     *  internal linkage, so every including TU would get its own).
-     *
-     *  The order is the table's, and it is EXECUTION order: registering is what
-     *  puts a program in the beat, so a law reading a value computed this beat
-     *  finds it already written. @see docs/dev/scan.md
      *  @{ */
 
-#define X(cls, mem) Site::cls mem;
-    SITE_PROGRAM_LIST(X)
-#undef X
-
-    /** @brief The generated ST plant. Holds destrat_controller, which is no
-     *  longer a Plc::Program - it is ST, and matiec generates its binding,
-     *  its law and the resource that dispatches it. */
+    /** @brief The generated ST plant: every one of this site's programs. The
+     *  roster is `tables/programs.csv`, matiec generates each binding and each
+     *  law, and `generated/plant.cpp` turns them into one entry per program in
+     *  the task table. */
     Botanik::Plc::Runtime::Plant _st;
 
     /** @} */
@@ -106,12 +93,7 @@ public:
     GreenhouseMLB41()
         : Botanik::BotanikFirmware(Site::g_site)
           // The base is fully constructed before any derived member, so
-          // setup_context() and io() are already alive here: a program is
-          // handed the table it registers in and the field it drives at
-          // construction, rather than through a later attach().
-#define X(cls, mem) , mem(setup_context(), io())
-          SITE_PROGRAM_LIST(X)
-#undef X
+          // setup_context() and io() are already alive here.
           , _st(setup_context(), io())
     {}
 
@@ -123,16 +105,10 @@ protected:
     }
 
     void on_setup() override {
-        // FIRST, and it is an ordering rule rather than a preference: a
-        // lockout the ST publishes has to reach the actuator that reads it on
-        // the SAME beat - roof_lockout's cli_windowCap into windows is the
-        // case. Its own inputs are then one beat old, which on a rain or wind
-        // interlock is 100 ms and does not matter. When the last program
-        // leaves plc/ the RESOURCE decides the whole order and this goes away.
+        // The RESOURCE is the whole order now. Every program is ST and
+        // `programs.csv` states the sequence, so there is no C++ list to
+        // register after it and no beat-order rule left to keep.
         _st.register_tasks();
-#define X(cls, mem) mem.register_tasks();
-        SITE_PROGRAM_LIST(X)
-#undef X
     }
 };
 

@@ -24,3 +24,6 @@ windows        ,windows   ,programs/actuators/windows_controller/windows_control
 irr_modulation ,irrmod    ,programs/irrigation/irrigation_modulation/irrigation_modulation.st,control
 irr_mtr_input  ,irrin     ,programs/irrigation/irr_mtr_input/irr_mtr_input.st,control
 irr_mtr_output ,irrout    ,programs/irrigation/irr_mtr_output/irr_mtr_output.st,control
+irr_schedule   ,irrsched  ,programs/irrigation/irrigation_schedule/irrigation_schedule.st,control
+irrigation     ,irrcycle  ,programs/irrigation/irrigation_cycle/irrigation_cycle.st,control
+irr_valves     ,irrvalves ,programs/irrigation/irr_valves/irr_valves.st,control

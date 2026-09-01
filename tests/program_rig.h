@@ -71,6 +71,11 @@ inline void force(Live& f, const char* row, float v) {
 inline void force(Live& f, const char* row, bool v) {
     f.bank.override_set(f.bank.var(f.ref(row)), from_bool(T_BOOL, v));
 }
+/** @brief ...and a whole-number row: a state code, a tray number. */
+inline void force(Live& f, const char* row, int64_t v) {
+    const Vars::Var h = f.bank.var(f.ref(row));
+    f.bank.override_set(h, from_i64(h.meta()->type, v));
+}
 /** @} */
 
 /** @brief Put the day where a case needs it, through the SUN.
@@ -264,49 +269,6 @@ struct StRig {
             terminals->step(now_ms, Tasks::PHASE_INPUT);
             mirror->scan();
             st->scan(now_ms);
-        }
-    } d;
-};
-
-/** @brief The irrigation chain: the meters feed the schedule, the schedule
- *  arms the cycle. Nothing here works with fewer than all of it. */
-struct IrrigationRig {
-    Live                     live;
-    /** The inlet meter reads its edge total off a ROW now, and this is what
-     *  publishes it: a rig without it hands the meter a counter stuck at zero. */
-    Io::LocalInputs          terminals{Botanik::SetupContext(live.reg), live.bank};
-    Vars::QualityMirror      mirror   {Botanik::SetupContext(live.reg), live.bank};
-    /** Both meters and the modulation are ST now; the schedule, the cycle and
-     *  the valves are not, yet. */
-    Plc::Runtime::Plant      st       {Botanik::SetupContext(live.reg), live.bank};
-    Site::IrrigationSchedule sched    {Botanik::SetupContext(live.reg), live.bank};
-    Site::IrrigationCycle    irr      {Botanik::SetupContext(live.reg), live.bank};
-    Site::IrrValves          valves   {Botanik::SetupContext(live.reg), live.bank};
-    Plc::Program* const      progs[3] = { &sched, &irr, &valves };
-    Cycle                    cycle{progs, 3, &live.bank, live.reg};
-
-    IrrigationRig() {
-        terminals.wire(Site::pulse_inputs, Site::pulse_input_count);
-        st.wire();
-        mirror.wire();
-        d.terminals = &terminals;
-        d.mirror    = &mirror;
-        d.st        = &st;
-        d.cycle     = &cycle;
-    }
-
-    /** @brief The beat's own order: the terminals and the companions, then the
-     *  ST plant, then the C++ programs still left. */
-    struct Driver {
-        Io::LocalInputs*     terminals = nullptr;
-        Vars::QualityMirror* mirror    = nullptr;
-        Plc::Runtime::Plant* st        = nullptr;
-        Cycle*               cycle     = nullptr;
-        void step(uint64_t now_ms) {
-            terminals->step(now_ms, Tasks::PHASE_INPUT);
-            mirror->scan();
-            st->scan(now_ms);
-            cycle->step(now_ms);
         }
     } d;
 };

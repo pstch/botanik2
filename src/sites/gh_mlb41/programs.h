@@ -73,25 +73,12 @@
 //
 // [actuators]
 
-#include <cstdint>
-
-#include "libbotanik.h"
-
-// Every program, in EXECUTION order.
-#include "programs/irrigation/irrigation_schedule/irrigation_schedule.h"
-#include "programs/irrigation/irrigation_cycle/irrigation_cycle.h"
-#include "programs/irrigation/irr_valves/irr_valves.h"
-
-/** @name The site's programs, in EXECUTION order
- *  site.h expands this three times: the members, the constructor
- *  init, the registration.
- *  @{ */
-
-#define SITE_PROGRAM_LIST(X)                  \
-    X(IrrigationSchedule,   _irr_schedule)    \
-    X(IrrigationCycle,      _irrigation)      \
-    X(IrrValves,            _irr_valves)
-
-/** @} */
+// EVERY program is ST now: the site declares them in tables/programs.csv and
+// matiec generates the roster into generated/plant.cpp. There is no C++
+// program list left, and nothing includes a program header.
+//
+// What remains here is the NETWORK above - which row a law produces and which
+// laws read it - because that is the one thing neither the CSV nor the ST
+// says: a VAR_EXTERNAL names a row, not the program on the other end of it.
 
 #endif  // SITE_PROGRAMS_H

@@ -24,7 +24,9 @@
 // `core/`. `Plc::Program` is named only to keep add_program() honest about what
 // it registers.
 namespace Botanik { class Component; }
-namespace Botanik { namespace Plc { class Program; } }
+// Health is forward-declared with its underlying type, which C++11 allows for
+// a scoped enum: a task keeps a POINTER to one and never a value.
+namespace Botanik { namespace Plc { class Program; enum class Health : uint8_t; } }
 
 namespace Botanik { namespace Tasks {
 
@@ -103,6 +105,13 @@ namespace Botanik { namespace Tasks {
          *  construction, gated by control authority. The same object as
          *  @c owner, typed, because the registry IS the program list. */
         Plc::Program* program = nullptr;
+        /** @brief Where this entry's verdict lives, or null for a task that has
+         *  none. A POINTER rather than the Program, because an ST program is
+         *  not a `Plc::Program` at all - the resource holds its health - and a
+         *  page asking "how is this task" should not have to know which kind it
+         *  is. add_program() points it at the program's own; Plc::Runtime::Plant
+         *  points it at the roster slot's. */
+        const Plc::Health* health = nullptr;
         /** @brief Whether the next activation is a first scan (Tick::first).
          *  True at registration - nothing has run yet - and raised again on a
          *  program when control authority returns. */
@@ -239,6 +248,9 @@ namespace Botanik { namespace Tasks {
         /** @brief How many programs are registered. */
         uint8_t       program_count() const;
         const Task& task(uint8_t i) const { return _tasks[i < _count ? i : 0]; }
+        /** @brief The entry just added, so a caller can finish filling it in.
+         *  Only meaningful straight after a successful add(). */
+        Task&       last() { return _tasks[_count > 0 ? _count - 1 : 0]; }
         uint8_t     overflow() const { return _overflow; }
 
         /** @} */

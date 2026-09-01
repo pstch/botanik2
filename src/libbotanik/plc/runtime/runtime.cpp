@@ -59,9 +59,16 @@ namespace Botanik { namespace Plc { namespace Runtime {
     }
 
     void Plant::register_tasks() {
-        for (uint8_t i = 0; i < PROGRAM_COUNT; i++)
-            _tasks->add(*this, programs[i].task, programs[i].name,
-                        programs[i].period_ms, Tasks::PHASE_CONTROL);
+        for (uint8_t i = 0; i < PROGRAM_COUNT; i++) {
+            if (!_tasks->add(*this, programs[i].task, programs[i].name,
+                             programs[i].period_ms, Tasks::PHASE_CONTROL))
+                continue;
+            // The verdict this entry reports. An ST program is not a
+            // Plc::Program, so the task keeps a POINTER to where its health
+            // lives rather than the object: the TASKS page asks the entry, not
+            // the kind of thing behind it.
+            _tasks->last().health = &_slot[i].health;
+        }
     }
 
     void Plant::scan(uint8_t i, uint64_t now_ms) {

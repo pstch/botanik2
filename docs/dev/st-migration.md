@@ -14,7 +14,9 @@ The end state the user asked for:
 
 > `src/sites/<NAME>/` contains only CSV tables, ST programs, and a root TOML.
 
-**25 of 28 programs are ported. 3 remain: the schedule, the cycle, the valves.**
+**ALL 28 are ported.** The site has no C++ control program left, and no
+C++ block: `programs.h` is a comment, `site.h` holds one `Plc::Runtime::Plant`
+and nothing else, and `tables/programs.csv` is the roster.
 
 `sun_watch` is not among either: the tracker publishes `sol_*` itself now, so
 the program that copied the instrument onto rows was DELETED rather than
@@ -24,176 +26,9 @@ ported. 29 was never going to be the number that finished.
 
 ## The task list
 
-### 1. Finish the port - 3 programs
+### 1. ~~Finish the port~~ DONE
 
-**Blocks were never the hard part.** A survey of all fifteen (2026-08-31)
-found five things ST had no expression for. All five are now dealt with: four
-were built, and the fifth was never real. What is left is ordinary porting -
-a block, a program, and its test migration - plus the sequencing note below.
-
-**The recurring cost is SUBSTITUTION.** `Ref::get()` hands back a row's
-declared value when the row is not believable, and half these laws were built
-on that: an unreadable cooling demand declared 0.20 (under the skirt's
-staging threshold), an unreadable margin declared 2.0 (under its dryness
-floor), an unreadable window demand declared 0.25 (the roof's park position).
-An ST-written row is ALWAYS valid, so every one of those substitutions
-vanishes the moment its producer moves. Each is either a companion the
-consumer must now read, or a safe VALUE the producer must now publish - and
-NEITHER shows up as a compile error. Grep the consumers for the row before
-porting its producer.
-
-| program | blocks needed | what ST cannot say |
-|---|---|---|
-| `IrrValves` | **none** - it only calls `.set()` | - |
-| `IrrigationSchedule` | none | **`HAL::Clock::wall_ms()`**, `.hold()` |
-| `IrrigationCycle` | `Ton` | `.held()` |
-
-### The five missing mechanisms - all resolved
-
-1. ~~**`.edit()` - a retained parameter.**~~ **SOLVED.** `__SET_EXTERNAL` is
-   `Ref::drive()` now: an ordinary row takes `set()`, a `ROLE_PARAM` row takes
-   an EDIT owed to the retain cadence. Three parts, and each stands alone:
-   `set_deferred()` ignores a write of the value already in force, so
-   restating one every scan costs no erase; `VF_PARAM_OWED` separates a
-   program's durable write from an operator's unsaved edit, so the params page
-   still counts only what a person typed and the cadence never commits a
-   setting nobody confirmed; and `Bank::on_config()` sweeps the owed ones on
-   the `sys_retain_sec` dial beside `save_retained()`, with both exits
-   (`HealthMonitor`, `shell reset`) writing them out. `Ref::edit()` defers the
-   same way, so the C++ laws stopped erasing flash inside a scan too.
-2. ~~**The wall clock.**~~ **SOLVED.** `sys_today` is a library row (907),
-   published by `Plant::scan()` beside `sys_now_ms`: days since 1 Jan 1970,
-   and 0 for "the RTC has never been set", which is the answer a schedule
-   refuses to run against.
-3. ~~**Pulse counts.**~~ **SOLVED.** `LocalInputs` publishes each edge total
-   at PHASE_INPUT into the row the site's pulse table names (`PulseInput`
-   gained a `count` field; `pulse_inputs.csv` a column). A law reads the
-   counter by name like any other terminal, carries the 32-bit wrap with an
-   unsigned difference, and derives "is it ticking" itself. `IrrMtrInput` is
-   already off the HAL call, which is what proves the path.
-   **Every rig now runs PHASE_INPUT**, `Rig<P>` included: a meter reading its
-   count off a row gets zero for the life of a rig that never publishes it.
-4. ~~**The sun tracker.**~~ **SOLVED**, and it removed a program rather than
-   porting one. `SunPositionTracker::wire()` resolves four rows and publishes
-   them every service tick (100 ms, so as fresh as the program was) while the
-   trig stays on its own hour-long cadence. The rows moved to the LIBRARY
-   table (943-946), which is the law already stated for `geo_*`: whatever the
-   library reads or writes by name, the library declares. **Their Modbus
-   registers moved** with them - 524/525/593/656 are free now.
-5. ~~**A descriptor read.**~~ **NOT A BLOCKER** - it dissolved on inspection.
-   `_fail_open` had exactly ONE caller in the tree: the skirt's rot lockout,
-   whose own comment says what it means is "this valve must never wet
-   condensing air". That is a LAW, not a wiring fact. The law says shut, the
-   row says shut, and neither derives the other. The ST block (`VALVE_PULSE`,
-   in the site's `blocks/`) is the pulse train alone and reads no descriptor.
-   `IrrValves` never used the block at all - it only ever calls `set()`.
-
-`.valid()`/`.invalidate()`/`.hold()`/`.held()` are all expressible, but each
-costs COMPANION ROWS - the AC pair alone wants about sixteen, and a register is
-a Modbus contract that does not move. Budget them before starting a program.
-
-### Unrolling a loop is where a port goes wrong
-
-`windows_controller` picks one ram of four per scan. The C++ is one loop with
-two tests in it:
-
-```
-for i: if (!known(i)) return i;  if (far(i)) return i;
-```
-
-Unrolled as "all four for the first question, then all four for the second" it
-reads almost the same and is NOT the same: an unknown ram 3 then outranks a
-ram 1 that is wide open with the roof being shut, and the roof never closes.
-The suite caught it. When a C++ loop tests two things per item, the ST has to
-keep them in the same arm.
-
-### Table capacity moves with the companions, and it moves QUIETLY
-
-The AC pair alone wanted 16 companion rows, and adding them found three caps
-at once. Check all of these before a companion-heavy port:
-
-- `var_max` in `site.toml`. Past it the bank REFUSES rows and every name in
-  them resolves to the inert sink - the POST catches it, and now so does
-  `site: every row the site declares actually fits in the bank`.
-- `LIBRARY_ROWS` in the site's `vars.h` is HAND-KEPT (`vars_table.h` is
-  included by the firmware's wiring TU alone, so the count cannot be taken
-  from it). It read 66 against a real 70, so the `static_assert` guarding
-  `var_max` passed on a total that was already over. Bump it when a library
-  row is added.
-- `modbus_tcp_max_rows`. Past it the map silently drops the tail.
-
-Each of these moves a PINNED footprint (`Vars::Bank`, `TcpSlave`,
-`BotanikFirmware`), so budget a re-measure of `libbotanik_sizes.h` with it.
-
-### The ordering law, learned the hard way
-
-**All ST runs before all C++** (`site.h` registers the resource first), so a
-program ported while its PRODUCER is still C++ reads inputs one beat old.
-That is fine for a wind interlock - 100 ms, and `site.h` says so. It is not
-fine for `IrrValves`, which opens the fill valve on `irr_state`: ported ahead
-of `IrrigationCycle` it lagged the state machine by a beat and broke five
-water scenarios. It was reverted rather than absorbed into the tests.
-
-**So port UPSTREAM first.** The safe order for the unblocked set is
-`WxSensors`, then the `Ac*` pair, `DcWatch`, `CoolingController`, and only
-then `ScreenController`/`WindowsController`/`SkirtController`, which read
-`cli_coolDem`. The whole irrigation chain goes last, and `IrrValves` last of
-all - it is the only consumer at the end of it.
-
-Every block is written. `INTEGRAL` and `DERIVATIVE` are in
-`plc/blocks/meter.st`; the rest (`TON_MS`, `PID`, `DEADBAND`,
-`DC_RAIL`, `ACTUATOR`), and every site block is (`WX_*`, `AC_*`,
-`VALVE_PULSE`, `ZONE_*`).
-
-### EN/ENO: it exists, it works, and it is a TRAP for a clocked block
-
-matiec gives every FUNCTION and FUNCTION_BLOCK an implicit `EN`/`ENO`. It is
-real, not decorative: `_init__` defaults `EN` to TRUE, and the generated body
-opens with
-
-```c
-if (!__GET_VAR(data__->EN)) { __SET_VAR(data__->,ENO,,FALSE); return; }
-```
-
-ST drives it with `blk(EN := cond, ...)` and reads `blk.ENO`. Verified against
-our own iec2c.
-
-**But the guard returns before EVERY statement, the clock bookkeeping
-included** - and our blocks read `sys_now_ms` and difference it themselves
-(see "The clock, not a delta"). So `EN := FALSE` on `EWMA`, `TOF_MS`, `PID` or
-`ACTUATOR` leaves `last` behind, and the next enabled scan charges the whole
-idle gap to the block. For an EWMA that is `alpha = dt/(TAU+dt)`: five minutes
-against a 30 s tau is 0.91, so the filter SNAPS to the first reading back
-instead of rejoining the average it left.
-
-That bug was REAL and shipped in three blocks - `ZONE_PUBLISH` (which predates
-this migration), `WX_PUBLISH` and `DC_RAIL` - each of which only called its
-filter while the input was believable, and each of whose comments claimed the
-opposite. A returning probe moved the house nine degrees in one beat. Pinned
-now by `zone: a probe that comes back rejoins the average, it does not snap
-to it`.
-
-**So: use `EN` freely on a stateless FUNCTION or a block with no clock. A block
-that reads `NOW` needs an explicit `HOLD` input** - keep the clock, decide
-nothing - which `EWMA` and `ACTUATOR` both have.
-
-**A block with no method but `step()`.** C++ blocks have `reset()`, `home()`,
-`preset()`, `stop()`; an ST FB has one call. Where a program used one, the
-block takes an INPUT instead: `PID.RESET`, `ACTUATOR.PRESET_KNOWN`, and
-`ACTUATOR.HOLD` - which is "keep your clock, decide nothing", for the four roof
-rams where only ONE is stepped per scan. Not calling the FB at all is wrong:
-it reads `sys_now_ms` itself, so the next call would bank the whole idle gap
-as travel.
-
-`Plant` holds `Slot _slot[32]` and asserts `PROGRAM_COUNT` against it at
-bring-up. 17 are in use.
-
-**Do NOT use matiec's own blocks.** See "Licensing" below.
-
-**`LIBST` in `scripts/tables.py` is ORDERED**, and matiec has no forward
-declaration: a block must appear before anything that instances it. `filters`
-sits ahead of `analog` because `DC_RAIL` holds an `EWMA`. The error is
-"invalid specification in variable declaration" on the instance line.
+Kept below for the lessons, which apply to any site that follows.
 
 ### 2. Then: the base firmware owns the `Plant`
 

@@ -104,7 +104,7 @@ namespace Botanik { namespace Pages {
     const char* TasksPage::_health_str(const Tasks::Task& t) {
         // Blank, not "-": a task that is not a program has no verdict to give,
         // which is a different thing from one whose verdict is unknown.
-        return (t.program != nullptr) ? Plc::health_name(t.program->health()) : "";
+        return (t.health != nullptr) ? Plc::health_name(*t.health) : "";
     }
 
     void TasksPage::_draw_row(uint16_t idx, uint16_t row, bool selected) {

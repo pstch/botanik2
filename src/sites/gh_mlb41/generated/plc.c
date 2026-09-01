@@ -68,6 +68,12 @@ IRR_MTR_INPUT_data__ PLC__IRRIN;
 #define IRRIN PLC__IRRIN
 IRR_MTR_OUTPUT_data__ PLC__IRROUT;
 #define IRROUT PLC__IRROUT
+IRRIGATION_SCHEDULE_data__ PLC__IRRSCHED;
+#define IRRSCHED PLC__IRRSCHED
+IRRIGATION_CYCLE_data__ PLC__IRRCYCLE;
+#define IRRCYCLE PLC__IRRCYCLE
+IRR_VALVES_data__ PLC__IRRVALVES;
+#define IRRVALVES PLC__IRRVALVES
 
 void PLC_init__(void) {
   BOOL retain;
@@ -99,6 +105,9 @@ void PLC_init__(void) {
   IRRIGATION_MODULATION_init__(&IRRMOD,retain);
   IRR_MTR_INPUT_init__(&IRRIN,retain);
   IRR_MTR_OUTPUT_init__(&IRROUT,retain);
+  IRRIGATION_SCHEDULE_init__(&IRRSCHED,retain);
+  IRRIGATION_CYCLE_init__(&IRRCYCLE,retain);
+  IRR_VALVES_init__(&IRRVALVES,retain);
 }
 
 void PLC_run__(unsigned long tick) {
@@ -128,5 +137,8 @@ void PLC_run__(unsigned long tick) {
   IRRIGATION_MODULATION_body__(&IRRMOD);
   IRR_MTR_INPUT_body__(&IRRIN);
   IRR_MTR_OUTPUT_body__(&IRROUT);
+  IRRIGATION_SCHEDULE_body__(&IRRSCHED);
+  IRRIGATION_CYCLE_body__(&IRRCYCLE);
+  IRR_VALVES_body__(&IRRVALVES);
 }
 

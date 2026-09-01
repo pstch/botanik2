@@ -49,20 +49,15 @@ inline void hold_weather(Plant& p);
 struct Plant {
     Live f;
 
-    Site::IrrigationSchedule   irr_schedule;
-
-    Site::IrrigationCycle      irrigation;
-    Site::IrrValves            irr_valves;
     /** @brief PHASE_INPUT's job: the local terminals' own rows - an edge count
      *  among them - then a field row's quality reaching ST as a companion.
      *  Before the plant, as the beat has it. */
     Io::LocalInputs            terminals;
     Vars::QualityMirror        mirror;
-    /** @brief The ST plant. LAST, because a ctor list runs in DECLARATION
-     *  order and this is initialised after every program beside it. */
+    /** @brief The ST plant: every one of the site's programs. */
     Plc::Runtime::Plant            st;
 
-    Plc::Program* all[30];   ///< room for the list below
+    Plc::Program* all[1];    ///< nothing left to hold: every program is ST
     Cycle*        cycle = nullptr;
     uint64_t      t = 0;
     /** @brief What this plant's environment is, held every beat. The weather
@@ -71,17 +66,12 @@ struct Plant {
     void (*hold)(Plant&) = hold_weather;
 
     Plant()
-        :           irr_schedule(ctx(), io()), irrigation(ctx(), io()), irr_valves(ctx(), io()),
-          terminals(ctx(), io()), mirror(ctx(), io()), st(ctx(), io()) {
+        : terminals(ctx(), io()), mirror(ctx(), io()), st(ctx(), io()) {
         terminals.wire(Site::pulse_inputs, Site::pulse_input_count);
-        Plc::Program* const list[] = {
-            &irr_schedule, &irrigation, &irr_valves
-        };
-        // Sized from the list, never a literal: a hand-kept count silently
-        // drops whichever program is last the day one is added.
-        const uint8_t n = (uint8_t)(sizeof(list) / sizeof(list[0]));
-        for (uint8_t i = 0; i < n; i++) all[i] = list[i];
-        cycle = new Cycle(all, n, &f.bank, f.reg);
+        // No C++ programs left: every one of them is ST, and the RESOURCE
+        // below runs the lot. The Cycle stays so a case can still step "the
+        // programs" without knowing there are none.
+        cycle = new Cycle(all, 0, &f.bank, f.reg);
         st.wire();
         mirror.wire();
     }

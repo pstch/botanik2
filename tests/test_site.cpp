@@ -46,41 +46,13 @@ namespace {
 /**
  * @brief Every control program the site runs, constructed together.
  *
- * Driven by SITE_PROGRAM_LIST, the same X-macro site.h expands three times, so
- * this cannot fall behind the firmware the way a hand-kept list did: it was
- * missing four programs, and the two cases below walked past them.
+ * Every program is ST now, so the resource IS the list: `Plant::wire()` binds
+ * each one and records its health, and `programs.csv` is what cannot fall
+ * behind - the same table matiec and plant.cpp are generated from.
  *
  * @note The tracker is never registered here, so it stays unlocated and
  * day_phase holds its phase - the boot path, and the one worth walking.
  */
-struct AllPrograms {
-    /** @brief Declared FIRST because it is initialised first: it exists only so
-     *  every macro-emitted ctor-init entry below can lead with a comma. */
-    Vars::Bank& _first;
-
-#define X(cls, mem) Site::cls mem;
-    SITE_PROGRAM_LIST(X)
-#undef X
-
-#define X(cls, mem) + 1
-    static const uint8_t COUNT = 0 SITE_PROGRAM_LIST(X);
-#undef X
-    Botanik::Plc::Program* all[COUNT];
-
-    AllPrograms(const Botanik::SetupContext& ctx, Vars::Bank& io)
-        : _first(io)
-#define X(cls, mem) , mem(ctx, io)
-          SITE_PROGRAM_LIST(X)
-#undef X
-    {
-        uint8_t n = 0;
-#define X(cls, mem) all[n++] = &mem;
-        SITE_PROGRAM_LIST(X)
-#undef X
-    }
-
-};
-
 }  // namespace
 
 TEST_CASE("site: nothing the site touches fails to resolve") {
@@ -103,18 +75,12 @@ TEST_CASE("site: nothing the site touches fails to resolve") {
 #ifdef TARGET_SIMULATOR
     Site::simulate(f.bank, 1000);
 #endif
-    // The site's programs are members of its firmware class now, so there is no
-    // table to walk: AllPrograms is the list instead, and the check it buys is
-    // that no program names a row the tables do not declare.
+    // Every program is ST, so the RESOURCE is what binds them: wire() resolves
+    // each one's VAR_EXTERNALs and records whether it got them all.
     Botanik::Tasks::Registry prog_reg;
-    Botanik::SetupContext prog_ctx(prog_reg);
-    // The firmware hands this over; a program built without one is INVALID for
-    // a reason that has nothing to do with the names this case is checking.
-    Botanik::Sun::SunPositionTracker tracker(prog_ctx);
-    prog_ctx.sun = &tracker;
-    AllPrograms progs(prog_ctx, f.bank);
-    for (Plc::Program* p : progs.all)
-        p->step(1000);      // setup() binds the names, then one activation
+    Plc::Runtime::Plant st(Botanik::SetupContext(prog_reg), f.bank);
+    st.wire();
+    st.scan(1000);          // one activation of every law
 
     INFO("a non-zero count means a table or a control program names a variable "
          "that is not in vars.h; the bank logs which one");
@@ -122,8 +88,10 @@ TEST_CASE("site: nothing the site touches fails to resolve") {
 
     INFO("and every one of them bound: a program that missed a name is INVALID "
          "at bring-up, which is what says so on hardware where no test runs");
-    for (Plc::Program* p : progs.all)
-        CHECK(p->health() != Plc::Health::INVALID);
+    for (uint8_t i = 0; i < Plc::Runtime::PROGRAM_COUNT; i++) {
+        INFO("program ", Plc::Runtime::programs[i].name);
+        CHECK(st.health(i) != Plc::Health::INVALID);
+    }
 
     // Bank::set() is the operator's path alone; catches a write at a stale index - zero is a real row.
     for (uint16_t k = 0; k < f.bank.param_count(); k++) {
@@ -146,8 +114,9 @@ TEST_CASE("site: every control program binds every name it reaches for") {
     TestSite::build(bank);
     const uint16_t before = bank.unresolved_count();
 
-    AllPrograms progs(Botanik::SetupContext(reg), bank);
-    for (Botanik::Plc::Program* p : progs.all) p->register_tasks();
+    Plc::Runtime::Plant st(Botanik::SetupContext(reg), bank);
+    st.wire();
+    st.register_tasks();
     reg.setup(0);
 
     INFO("a name that is absent, or a row bound at the wrong type, counts here");
@@ -286,17 +255,21 @@ TEST_CASE("site: every program publishes its health, off its own name") {
     Vars::Bank bank;
     Botanik::Tasks::Registry reg;
     TestSite::build(bank);
-    AllPrograms progs(Botanik::SetupContext(reg), bank);
-    for (Botanik::Plc::Program* p : progs.all) p->register_tasks();
+    Plc::Runtime::Plant st(Botanik::SetupContext(reg), bank);
+    st.wire();
+    st.register_tasks();
     reg.setup(0);
 
-    for (Botanik::Plc::Program* p : progs.all) {
+    for (uint8_t i = 0; i < Plc::Runtime::PROGRAM_COUNT; i++) {
+        const char* name = Plc::Runtime::programs[i].name;
         char row[40];
-        snprintf(row, sizeof row, "prog_%s", p->name());
-        INFO("'" << p->name() << "' should drive '" << row << "'");
+        snprintf(row, sizeof row, "prog_%s", name);
+        INFO("'" << name << "' should drive '" << row << "'");
         const Vars::VarRef declared = bank.find(row, (uint16_t)strlen(row));
         REQUIRE(declared.index != Vars::VAR_NONE);   // the site declares one
-        CHECK(p->health_row().r.index == declared.index);
+        INFO("...and it reads its health rather than the INHIBITED it declares");
+        CHECK(bank.var(declared).value().as<uint32_t>()
+              == (uint32_t)Plc::Health::HEALTHY);
     }
 }
 #endif

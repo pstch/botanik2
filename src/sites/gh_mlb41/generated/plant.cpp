@@ -50,7 +50,10 @@ namespace Botanik { namespace Plc { namespace Runtime {
     X(windows,         WINDOWS_CONTROLLER,     WINDOWS,    BOTANIK_SITE_CONTROL_MS) \
     X(irr_modulation,  IRRIGATION_MODULATION,  IRRMOD,     BOTANIK_SITE_CONTROL_MS) \
     X(irr_mtr_input,   IRR_MTR_INPUT,          IRRIN,      BOTANIK_SITE_CONTROL_MS) \
-    X(irr_mtr_output,  IRR_MTR_OUTPUT,         IRROUT,     BOTANIK_SITE_CONTROL_MS)
+    X(irr_mtr_output,  IRR_MTR_OUTPUT,         IRROUT,     BOTANIK_SITE_CONTROL_MS) \
+    X(irr_schedule,    IRRIGATION_SCHEDULE,    IRRSCHED,   BOTANIK_SITE_CONTROL_MS) \
+    X(irrigation,      IRRIGATION_CYCLE,       IRRCYCLE,   BOTANIK_SITE_CONTROL_MS) \
+    X(irr_valves,      IRR_VALVES,             IRRVALVES,  BOTANIK_SITE_CONTROL_MS)
 
 /* The roster index, so a handler knows which entry it is. */
 enum {

@@ -124,6 +124,9 @@ namespace Botanik { namespace Plc {
          *  @{ */
 
         Health health() const { return _health; }
+        /** @brief Where the verdict lives, for a task table that keeps a
+         *  pointer rather than a program. @see Tasks::Task::health */
+        const Health* health_ptr() const { return &_health; }
 
         /** @brief Whether setup found this program unwireable. It is never
          *  activated, so a reader asking why nothing is happening asks here. */

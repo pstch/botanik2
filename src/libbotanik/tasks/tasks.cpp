@@ -129,6 +129,7 @@ namespace Botanik { namespace Tasks {
         const uint8_t slot = _prog_count;
         if (!add(program, handler, name, period_ms, PHASE_CONTROL)) return false;
         _tasks[_count - 1].program = &program;
+        _tasks[_count - 1].health  = program.health_ptr();
         _prog[_prog_count++] = (uint8_t)(_count - 1);
         program.set_slot(slot);
         return true;

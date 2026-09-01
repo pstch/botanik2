@@ -15,9 +15,8 @@ namespace {
 /** @brief Fill tray 1, then hold @p lpm on the outlet meter for the whole drain
  *  window. @return the litres the meter says came back. */
 template <typename D>
-float drain_at(Live& live, D& d, Site::IrrigationCycle& irr,
-               float lpm, bool meter_live, Plc::Health* worst = nullptr) {
-    (void)irr;
+float drain_at(Live& live, D& d, float lpm, bool meter_live,
+               Plc::Health* worst = nullptr) {
     no_soak(live);
     slot(live);
     live.bank.param_set(live.bank.var(live.ref("irr_forceOn_tray1")), true);
@@ -48,7 +47,7 @@ float drain_at(Live& live, D& d, Site::IrrigationCycle& irr,
 
 }  // namespace
 
-TEST_CASE_FIXTURE(IrrigationRig, "irrigation: every row it reads back is written before it is read") {
+TEST_CASE_FIXTURE(StRig, "irrigation: every row it reads back is written before it is read") {
     // The four inout rows are published and then JUDGED on, so each is a
     // watched INPUT too: one the law has not written yet is invalid, and the
     // program reports DEGRADED for it. drained was only written on entering the
@@ -65,7 +64,7 @@ TEST_CASE_FIXTURE(IrrigationRig, "irrigation: every row it reads back is written
     }
 }
 
-TEST_CASE_FIXTURE(IrrigationRig, "irrigation: a modulation nobody can read still waters, and says it guessed") {
+TEST_CASE_FIXTURE(StRig, "irrigation: a modulation nobody can read still waters, and says it guessed") {
     // The two halves of this used to disagree: the CYCLE was told to run on
     // the declared modulation, while the SCHEDULE still refused to name a tray
     // without a measured one - so nothing started and the tray stayed dry.
@@ -74,11 +73,11 @@ TEST_CASE_FIXTURE(IrrigationRig, "irrigation: a modulation nobody can read still
     live.bank.param_set(live.bank.var(live.ref("irr_liters_tray1")), 5.0f);
     live.bank.param_set(live.bank.var(live.ref("irr_forceOn_tray1")), true);
     live.bank.var(live.ref("irr_mod")).invalidate(Q_NO_DATA);
-    // ...and the COMPANION, which is what the cycle reads. The rig believes
-    // every companion at construction, because most of them belong to a
-    // program it is not running - so a case rehearsing an unreadable one
-    // clears the one it means.
-    live.bank.var(live.ref("irr_mod_qlt")).set(false);
+    // ...and the reason it cannot be read, which is where the chain actually
+    // breaks: irr_modulation folds only a MEASURED vpd, and temp_rh_zone
+    // publishes both the VPD and its one companion. Forced, because both
+    // programs are on this beat and would put their own answer back.
+    force(live, "cli_dpMargin_degC_qlt", false);
 
     const VarRef due = live.ref("irr_dueTray");
     const VarRef vol = live.ref("irr_volume_L");
@@ -91,9 +90,10 @@ TEST_CASE_FIXTURE(IrrigationRig, "irrigation: a modulation nobody can read still
          "outcome");
     CHECK(live.bank.var(vol).as_f32() > 0.0f);
 
-    INFO("...and the dose says it was guessed at, which is all a reader needs "
-         "to know it should not be trended");
-    CHECK_FALSE(live.bank.var(vol).valid());
+    INFO("...and the modulation says it was guessed at, which is all a reader "
+         "needs to know the dose should not be trended. The COMPANION says it: "
+         "irr_volume_L is ST-written and so always valid.");
+    CHECK_FALSE(live.bank.var(live.ref("irr_mod_qlt")).as_bool());
 
     INFO("...while the TRAY NUMBER stays good: its declared value is 0, so a "
          "doubtful one would read as no tray owed and the cycle would refuse");
@@ -101,7 +101,7 @@ TEST_CASE_FIXTURE(IrrigationRig, "irrigation: a modulation nobody can read still
     CHECK(live.bank.var(due).as_i64() != 0);
 }
 
-TEST_CASE_FIXTURE(IrrigationRig, "irrigation: a force is spent on the watering it asked for") {
+TEST_CASE_FIXTURE(StRig, "irrigation: a force is spent on the watering it asked for") {
     summer(live);
     no_soak(live);
     slot(live);
@@ -127,7 +127,7 @@ TEST_CASE_FIXTURE(IrrigationRig, "irrigation: a force is spent on the watering i
     CHECK(live.bank.var(live.ref("irr_forceOn_tray2")).param_owed());
 }
 
-TEST_CASE_FIXTURE(IrrigationRig, "irrigation: a skip is spent too, and sends the tray to the back") {
+TEST_CASE_FIXTURE(StRig, "irrigation: a skip is spent too, and sends the tray to the back") {
     summer(live);
     slot(live);
     field(live, "cli_temp_ext", 25.0f);
@@ -147,7 +147,7 @@ TEST_CASE_FIXTURE(IrrigationRig, "irrigation: a skip is spent too, and sends the
     CHECK(live.bank.var(live.ref("irr_last_tray1")).param_owed());
 }
 
-TEST_CASE_FIXTURE(IrrigationRig, "irrigation: the tray sits full for its soak before either end opens") {
+TEST_CASE_FIXTURE(StRig, "irrigation: the tray sits full for its soak before either end opens") {
     summer(live);
     slot(live);
     field(live, "cli_temp_ext", 25.0f);
@@ -190,7 +190,7 @@ TEST_CASE_FIXTURE(IrrigationRig, "irrigation: the tray sits full for its soak be
     CHECK(live.bank.var(live.ref("irr_tray1")).as_bool());
 }
 
-TEST_CASE_FIXTURE(IrrigationRig, "irrigation: a soak of zero is skipped, not passed through") {
+TEST_CASE_FIXTURE(StRig, "irrigation: a soak of zero is skipped, not passed through") {
     // The field bus carries irr_state, so a state that appears for one
     // activation is a state somebody has to explain.
     summer(live);
@@ -257,7 +257,7 @@ TEST_CASE_FIXTURE(StRig,
     live.bank.param_set(live.bank.var(live.ref("irr_input_qtyPerImp")), 1.0f);
 
     uint64_t t = 0;
-    live.bank.var(st).set_i((int64_t)Site::IRR_FILLING);
+    force(live, "irr_state", (int64_t)Site::IRR_FILLING);
     for (uint32_t i = 0; i < 20; i++) {          // a litre a second, so 60 Lpm
         HAL::Pulse::inject(Site::pulse_inputs[0].channel, 1);
         d.step(t += 1000);
@@ -265,7 +265,7 @@ TEST_CASE_FIXTURE(StRig,
     REQUIRE(live.bank.var(live.ref("irr_inFlow_Lpm")).as_f32() > 30.0f);
 
     INFO("the cycle goes idle with the window still full of the fill's water");
-    live.bank.var(st).set_i((int64_t)Site::IRR_IDLE);
+    force(live, "irr_state", (int64_t)Site::IRR_IDLE);
     for (uint32_t i = 0; i <= win / 1000u + 2u; i++) {
         d.step(t += 1000);
         CHECK_FALSE(live.bank.var(leak).as_bool());
@@ -280,10 +280,10 @@ TEST_CASE_FIXTURE(StRig,
 
     INFO("and the mirror image: a fill opening on an idle window is not a "
          "pressure fault");
-    live.bank.var(st).set_i((int64_t)Site::IRR_IDLE);
+    force(live, "irr_state", (int64_t)Site::IRR_IDLE);
     for (uint32_t i = 0; i < win / 1000u + 4u; i++) d.step(t += 1000);
     REQUIRE_FALSE(live.bank.var(pres).as_bool());
-    live.bank.var(st).set_i((int64_t)Site::IRR_FILLING);
+    force(live, "irr_state", (int64_t)Site::IRR_FILLING);
     for (uint32_t i = 0; i + 1u < win / 1000u; i++) {   // up TO the window
         d.step(t += 1000);
         CHECK_FALSE(live.bank.var(pres).as_bool());
@@ -301,18 +301,16 @@ TEST_CASE("irrigation: the day the schedule runs on is today's date") {
     // second time - a date around 2083, gaining a day every twelve hours. Every
     // tray's interval was therefore half what its parameter said.
     Live f;
-    Site::IrrigationSchedule sched(Botanik::SetupContext(f.reg), f.bank);
-    Site::IrrigationCycle irr(Botanik::SetupContext(f.reg), f.bank);
-    Plc::Program* const progs[] = { &sched, &irr };
-    Cycle d(progs, 2, &f.bank, f.reg);
+    Plc::Runtime::Plant st(Botanik::SetupContext(f.reg), f.bank);
+    st.wire();
     summer(f);
-    d.step(1000);
+    st.scan(1000);
 
     const uint32_t want = Utils::cal_time_ms(HAL::Clock::uptime_ms()).unixDays;
     CHECK((uint32_t)f.bank.var(f.ref("irr_today")).as_i64() == want);
 }
 
-TEST_CASE_FIXTURE(IrrigationRig, "irrigation: a plant with no clock still spends the force it was given") {
+TEST_CASE_FIXTURE(StRig, "irrigation: a plant with no clock still spends the force it was given") {
     // The path a stored force takes on hardware that has just booted: the RTC
     // has never been set, NTP has not answered, and there is no date to stamp
     // the watering against. The force must be spent ANYWAY - unspent it asks
@@ -348,7 +346,7 @@ TEST_CASE_FIXTURE(IrrigationRig, "irrigation: a plant with no clock still spends
     CHECK(live.bank.var(live.ref("irr_last_tray2")).as_i64() == 0);
 }
 
-TEST_CASE_FIXTURE(IrrigationRig, "irrigation: `water now` is spent on the cycle it started") {
+TEST_CASE_FIXTURE(StRig, "irrigation: `water now` is spent on the cycle it started") {
     // The other force, and the dangerous one: it overrides both the slot and
     // the day's allowance, so a flag nothing clears runs cycle after cycle at
     // any hour until an operator notices the water bill.
@@ -381,7 +379,7 @@ TEST_CASE_FIXTURE(IrrigationRig, "irrigation: `water now` is spent on the cycle 
     CHECK(live.bank.var(live.ref("irr_forceNow")).param_owed());
 }
 
-TEST_CASE_FIXTURE(IrrigationRig, "irrigation: the afternoon is not a watering slot") {
+TEST_CASE_FIXTURE(StRig, "irrigation: the afternoon is not a watering slot") {
     // The meters FIRST: the cycle judges a fill against what they publish.
     summer(live);
 
@@ -406,14 +404,11 @@ TEST_CASE_FIXTURE(IrrigationRig, "irrigation: the afternoon is not a watering sl
     INFO("and a cold end of night waits for that window rather than watering "
          "cold roots");
     Live g;
-    // The meters are ST, so the second plant is the RESOURCE plus the cycle.
-    Plc::Runtime::Plant   st2(Botanik::SetupContext(g.reg), g.bank);
-    Site::IrrigationCycle irr2(Botanik::SetupContext(g.reg), g.bank);
-    Plc::Program* const progs2[] = { &irr2 };
-    Cycle cyc2(progs2, 1, &g.bank, g.reg);
+    // Every irrigation law is ST, so the second plant is just the RESOURCE.
+    Plc::Runtime::Plant st2(Botanik::SetupContext(g.reg), g.bank);
     st2.wire();
-    struct { Plc::Runtime::Plant* st; Cycle* c;
-             void step(uint64_t n) { st->scan(n); c->step(n); } } d2{ &st2, &cyc2 };
+    struct { Plc::Runtime::Plant* st;
+             void step(uint64_t n) { st->scan(n); } } d2{ &st2 };
     summer(g);
     g.bank.param_set(g.bank.var(g.ref("irr_forceOn_tray1")), true);
     put_phase(g, Site::PHASE_DAWN_BREEZE);
@@ -424,7 +419,7 @@ TEST_CASE_FIXTURE(IrrigationRig, "irrigation: the afternoon is not a watering sl
     CHECK(g.bank.var(g.ref("irr_state")).as_i64() == Site::IRR_IDLE);
 }
 
-TEST_CASE_FIXTURE(IrrigationRig, "irrigation: a fill fault names the tray, not just the cycle") {
+TEST_CASE_FIXTURE(StRig, "irrigation: a fill fault names the tray, not just the cycle") {
     // The meters FIRST: the cycle judges a fill against what they publish.
     summer(live);
 
@@ -474,7 +469,7 @@ TEST_CASE("irrigation: total water tracks the modulation whatever the split") {
     }
 }
 
-TEST_CASE_FIXTURE(IrrigationRig, "irrigation: the cycle fills to its dose, then drains, then idles") {
+TEST_CASE_FIXTURE(StRig, "irrigation: the cycle fills to its dose, then drains, then idles") {
     // The meters FIRST: the cycle judges a fill against what they publish.
     summer(live);
     no_soak(live);
@@ -532,7 +527,7 @@ TEST_CASE_FIXTURE(IrrigationRig, "irrigation: the cycle fills to its dose, then 
     CHECK(live.bank.var(live.ref("irr_last_tray1")).as_i64() == stamped);
 }
 
-TEST_CASE_FIXTURE(IrrigationRig, "irrigation: the two meters read as a counter and a rate") {
+TEST_CASE_FIXTURE(StRig, "irrigation: the two meters read as a counter and a rate") {
     // The meters FIRST: the cycle judges a fill against what they publish.
     summer(live);
     HAL::Pulse::attach(Site::pulse_inputs[0].channel, Site::pulse_inputs[0].edge);
@@ -557,7 +552,7 @@ TEST_CASE_FIXTURE(IrrigationRig, "irrigation: the two meters read as a counter a
     CHECK(out < 6.0f);
 }
 
-TEST_CASE_FIXTURE(IrrigationRig, "irrigation: what comes back out is judged against what went in") {
+TEST_CASE_FIXTURE(StRig, "irrigation: what comes back out is judged against what went in") {
     // The meters FIRST: the cycle judges a fill against what they publish.
     summer(live);
     // Bare, not REQUIREd: a channel another case already attached answers
@@ -566,19 +561,19 @@ TEST_CASE_FIXTURE(IrrigationRig, "irrigation: what comes back out is judged agai
 
     // 20 L went in; 5 L/min over the 300 s window is far more than the 30% the
     // margin allows to be missing.
-    const float back = drain_at(live, d, irr, 5.0f, true);
+    const float back = drain_at(live, d, 5.0f, true);
     CHECK(back > 20.0f);
     CHECK_FALSE(live.bank.var(live.ref("alarm_irr_drain")).as_bool());
     CHECK_FALSE(live.bank.var(live.ref("alarm_irr_drain_tray1")).as_bool());
 }
 
-TEST_CASE_FIXTURE(IrrigationRig, "irrigation: a tray that does not drain names itself") {
+TEST_CASE_FIXTURE(StRig, "irrigation: a tray that does not drain names itself") {
     // The meters FIRST: the cycle judges a fill against what they publish.
     summer(live);
     HAL::Pulse::attach(Site::pulse_inputs[0].channel, Site::pulse_inputs[0].edge);
 
     // A trickle: half a litre back out of twenty.
-    const float back = drain_at(live, d, irr, 0.1f, true);
+    const float back = drain_at(live, d, 0.1f, true);
     CHECK(back < 1.0f);
     CHECK(live.bank.var(live.ref("alarm_irr_drain")).as_bool());
     CHECK(live.bank.var(live.ref("alarm_irr_drain_tray1")).as_bool());
@@ -586,13 +581,13 @@ TEST_CASE_FIXTURE(IrrigationRig, "irrigation: a tray that does not drain names i
     CHECK_FALSE(live.bank.var(live.ref("alarm_irr_drain_tray2")).as_bool());
 }
 
-TEST_CASE_FIXTURE(IrrigationRig, "irrigation: a silent outlet meter gives no verdict, not a clog") {
+TEST_CASE_FIXTURE(StRig, "irrigation: a silent outlet meter gives no verdict, not a clog") {
     // The meters FIRST: the cycle judges a fill against what they publish.
     summer(live);
     HAL::Pulse::attach(Site::pulse_inputs[0].channel, Site::pulse_inputs[0].edge);
 
     Plc::Health worst = Plc::Health::HEALTHY;
-    const float back = drain_at(live, d, irr, 0.0f, false, &worst);
+    const float back = drain_at(live, d, 0.0f, false, &worst);
     CHECK(back == 0.0f);
     INFO("nothing was measured, so nothing is blamed - the meter has an alarm "
          "of its own");
@@ -601,7 +596,7 @@ TEST_CASE_FIXTURE(IrrigationRig, "irrigation: a silent outlet meter gives no ver
     INFO("but it does not pass in silence");
 }
 
-TEST_CASE_FIXTURE(IrrigationRig, "irrigation: a fill that never arrives raises, and still opens the drain") {
+TEST_CASE_FIXTURE(StRig, "irrigation: a fill that never arrives raises, and still opens the drain") {
     // The meters FIRST: the cycle judges a fill against what they publish.
     summer(live);
     HAL::Pulse::attach(Site::pulse_inputs[0].channel, Site::pulse_inputs[0].edge);
@@ -626,7 +621,7 @@ TEST_CASE_FIXTURE(IrrigationRig, "irrigation: a fill that never arrives raises, 
     CHECK_FALSE(live.bank.var(live.ref("irr_input_ro1")).as_bool());
 }
 
-TEST_CASE_FIXTURE(IrrigationRig, "irrigation: a fill that never arrives is spent, not retried") {
+TEST_CASE_FIXTURE(StRig, "irrigation: a fill that never arrives is spent, not retried") {
     // The flood: with a stuck meter the fill times out, and if the attempt is
     // not spent the schedule re-picks the same tray on the next slot and
     // refills it until the window closes.

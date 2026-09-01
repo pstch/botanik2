@@ -512,6 +512,10 @@ TEST_CASE_FIXTURE(StRig, "fans: the day's two breezes are a floor under the bras
 
     put_phase(live, Site::PHASE_NIGHT);
     force(live, "cli_coolDem", 0.0f);
+    // The whole plant is on this beat now, irrigation included, and a cycle
+    // that started in the dawn slot is one of the four floors under the fan
+    // ladder. This case is about the BREEZE floor, so the others are quiet.
+    force(live, "irr_state", (int64_t)Site::IRR_IDLE);
     for (uint32_t i = 0; i < 5; i++) d.step(500 + 100u * i);
     CHECK_FALSE(live.bank.get(live.bank.resolve_in<bool>("cli_destrat1_speed1")));
 }
