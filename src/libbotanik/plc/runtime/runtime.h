@@ -7,11 +7,14 @@
 #define BOTANIK_PLC_RUNTIME_RUNTIME_H
 
 #include "libbotanik/core/component.h"
+#include "libbotanik/config/base.h"
 #include "libbotanik/tasks/tasks.h"
 #include "libbotanik/vars/model.h"
 #include "libbotanik/plc/program.h"
 
 #include "libbotanik/plc/runtime/program.h"
+
+#if BOTANIK_FEATURE_PLC
 
 namespace Botanik { namespace Plc { namespace Runtime {
 
@@ -64,5 +67,7 @@ namespace Botanik { namespace Plc { namespace Runtime {
     };
 
 }}}  // namespace Botanik::Plc::Runtime
+
+#endif // BOTANIK_FEATURE_PLC
 
 #endif

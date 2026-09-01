@@ -41,6 +41,7 @@
 #include "libbotanik/plc/program.h"
 #include "libbotanik/scheduler/scheduler.h"
 #include "libbotanik/sun/sun_tracker.h"
+#include "libbotanik/plc/runtime/runtime.h"
 #include "libbotanik/shell/shell.h"
 #include "libbotanik/tasks/tasks.h"
 #include "libbotanik/utils/assert.h"
@@ -152,6 +153,16 @@ namespace Botanik {
          *  site: it is library code, one build has at most one, and every
          *  program that wants the sun reads it through SetupContext. */
         Sun::SunPositionTracker        _sun;
+#endif
+#if BOTANIK_FEATURE_PLC
+        /** @brief The site's control programs. ALL of them: they are ST, and
+         *  `Plc::Runtime::programs[]` is a link-time symbol the site's
+         *  generated `plant.cpp` defines - so the base owns the component and
+         *  finds the roster by NAME rather than being handed one.
+         *  @note That is also what makes the beat order automatic: this
+         *  registers in _register_tasks(), which runs before a site's
+         *  on_setup(), so nothing a site adds can get in front of the laws. */
+        Plc::Runtime::Plant            _st;
 #endif
         Health::HealthMonitor          _health;
         SystemContext                  _sys_ctx;     ///< Filled in the ctor body

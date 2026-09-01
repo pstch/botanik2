@@ -7,9 +7,12 @@
 #define BOTANIK_PLC_RUNTIME_PROGRAM_H
 
 #include <cstdint>
+#include "libbotanik/config/base.h"
 
 #include "libbotanik/core/component.h"
 #include "libbotanik/tasks/tasks.h"
+
+#if BOTANIK_FEATURE_PLC
 
 namespace Botanik { namespace Plc { namespace Runtime {
 
@@ -35,5 +38,7 @@ namespace Botanik { namespace Plc { namespace Runtime {
     extern const uint8_t PROGRAM_COUNT;
 
 }}}  // namespace Botanik::Plc::Runtime
+
+#endif // BOTANIK_FEATURE_PLC
 
 #endif

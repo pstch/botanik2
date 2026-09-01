@@ -12,7 +12,7 @@
  *
  *   vars.h    GENERATED     every variable in one table, the analog calibration
  *                           blocks, the field devices, the home-screen readings
- *   programs/ hand-written  the control programs, one directory each
+ *   programs/ hand-written  the control laws, one .st each
  *   sim.h     hand-written  the simulated field
  *
  * `config.h` stays its own file: CMake includes it before the library defaults.
@@ -35,9 +35,10 @@
 // IN-TREE reference site instead of the one being built.
 #include "vars.h"
 
-// Every control program, and the one list site.h expands three times below.
+// The program NETWORK: which row a law produces and which laws read it. Not
+// code - the base owns the ST resource, and `tables/programs.csv` is the
+// roster - but the one thing neither the CSV nor the ST says.
 #include "programs.h"
-#include "libbotanik/plc/runtime/runtime.h"
 
 namespace Site {
 
@@ -71,30 +72,16 @@ const Botanik::SiteDescriptor g_site = {
  * @brief The gh_mlb41 greenhouse firmware.
  *
  * A thin binding of the generic base to this site's descriptor: it declares no
- * pages, and overrides only register_vars() and on_setup(). A site needing an
- * extra page or its own component overrides register_pages() / on_setup() here;
- * see libbotanik/firmware/firmware.h for the extension model.
+ * pages, no components and no programs, and overrides only register_vars().
+ * A site needing an extra page or a component of its own overrides
+ * register_pages() / on_setup() here; see libbotanik/firmware/firmware.h.
  */
 class GreenhouseMLB41 final : public Botanik::BotanikFirmware {
-
-    /** @name Control programs
-     *  @{ */
-
-    /** @brief The generated ST plant: every one of this site's programs. The
-     *  roster is `tables/programs.csv`, matiec generates each binding and each
-     *  law, and `generated/plant.cpp` turns them into one entry per program in
-     *  the task table. */
-    Botanik::Plc::Runtime::Plant _st;
-
-    /** @} */
 
 public:
     /** @brief Hand the base this site's descriptor. */
     GreenhouseMLB41()
         : Botanik::BotanikFirmware(Site::g_site)
-          // The base is fully constructed before any derived member, so
-          // setup_context() and io() are already alive here.
-          , _st(setup_context(), io())
     {}
 
 protected:
@@ -102,13 +89,6 @@ protected:
      *  holds the parameters-first ordering the ROLE_PARAM run depends on. */
     void register_vars() override {
         Site::register_all(io());
-    }
-
-    void on_setup() override {
-        // The RESOURCE is the whole order now. Every program is ST and
-        // `programs.csv` states the sequence, so there is no C++ list to
-        // register after it and no beat-order rule left to keep.
-        _st.register_tasks();
     }
 };
 

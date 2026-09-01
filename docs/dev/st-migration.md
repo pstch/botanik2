@@ -30,13 +30,25 @@ ported. 29 was never going to be the number that finished.
 
 Kept below for the lessons, which apply to any site that follows.
 
-### 2. Then: the base firmware owns the `Plant`
+### 2. ~~The base firmware owns the `Plant`~~ DONE
 
-`Plc::Runtime::programs[]` and `PROGRAM_COUNT` are already `extern` symbols
-that the site's generated `plant.cpp` defines, so `BotanikFirmware` can own the
-component and reference them by link. That also makes the "ST registers before
-the C++ programs" ordering automatic instead of a comment in `site.h`, because
-`_register_tasks()` runs before the site's `on_setup()`.
+`BotanikFirmware` owns `_st`, constructs it, `wire()`s it after freeze and
+registers it in `_register_tasks()` - which runs before a site's `on_setup()`,
+so the ordering is now structural rather than a comment. `site.h` overrides
+`register_vars()` and nothing else.
+
+Two things had to move with it:
+
+- **`plc/runtime/` had NO feature guard.** It linked in a bare build only
+  because nothing pulled `runtime.o` out of the archive. The moment the base
+  referenced `Plant`, every build pulled it and `sites/bare` failed on the
+  `programs[]` a site with no ST cannot define. All three files are under
+  `#if BOTANIK_FEATURE_PLC` now, and `check-bare` is what proves it.
+- **The TASKS page keyed on `Task::program`**, which is null for an ST law -
+  so the HEALTH column went blank and the "site's programs first" sort became
+  a no-op. `Tasks::Task` keeps a `const Plc::Health*` now: `add_program()`
+  points it at the program's, `Plant` at the roster slot's, and the page asks
+  the entry rather than the kind of thing behind it.
 
 ### 3. Then: `SiteDescriptor` carries the row tables
 

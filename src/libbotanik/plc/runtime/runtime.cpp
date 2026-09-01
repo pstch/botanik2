@@ -4,12 +4,15 @@
  */
 
 #include "libbotanik/plc/runtime/runtime.h"
+#include "libbotanik/config/base.h"
 
 #include <cstdio>
 #include "libbotanik/plc/runtime/bank.h"
 #include "libbotanik/logs/logger.h"
 #include "libbotanik/utils/assert.h"
 #include "libbotanik/hal/platform.h"
+
+#if BOTANIK_FEATURE_PLC
 
 namespace Botanik { namespace Plc { namespace Runtime {
 
@@ -106,3 +109,5 @@ namespace Botanik { namespace Plc { namespace Runtime {
     }
 
 }}}  // namespace Botanik::Plc::Runtime
+
+#endif // BOTANIK_FEATURE_PLC

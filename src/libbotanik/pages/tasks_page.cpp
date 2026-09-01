@@ -70,8 +70,10 @@ namespace Botanik { namespace Pages {
         // The site's programs first: they are what the plant does, and the
         // library's beat is the same on every unit. Then by name within each
         // block, which is how one row is found by eye.
-        const bool pa = _reg.task(a).program != nullptr;
-        const bool pb = _reg.task(b).program != nullptr;
+        // Asked by HEALTH, not by `program`: an ST law is not a Plc::Program,
+        // and keying on that put every one of them in with the library's.
+        const bool pa = _reg.task(a).health != nullptr;
+        const bool pb = _reg.task(b).health != nullptr;
         if (pa != pb) return pa;
         return std::strcmp(_name_of(a), _name_of(b)) < 0;
     }

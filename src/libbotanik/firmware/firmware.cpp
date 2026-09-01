@@ -32,6 +32,9 @@ namespace Botanik {
 #if BOTANIK_FEATURE_SUN_TRACKER
           _sun(_setup),
 #endif
+#if BOTANIK_FEATURE_PLC
+          _st(_setup, _io),
+#endif
 #if BOTANIK_FEATURE_VARS
           _health(_setup, _scheduler.context(), &_io)
 #else
@@ -163,6 +166,13 @@ namespace Botanik {
         // freeze() is what compacts a redeclared row out and settles the
         // indices a pair holds.
         _qmirror.wire();
+#endif
+#if BOTANIK_FEATURE_PLC
+        // Binds every ST program: one resolve per VAR_EXTERNAL, each in its own
+        // writer window so a row two of them claim is caught.
+        _st.wire();
+#endif
+#if BOTANIK_FEATURE_VARS
 #if BOTANIK_FEATURE_SUN_TRACKER
         // The tracker publishes its own rows, so a site gets the sun by turning
         // the feature on rather than by writing a program to copy the
@@ -387,10 +397,14 @@ namespace Botanik {
         _binder.register_tasks();
 #endif
 
-
-
-
-
+        // --- CONTROL: the site's laws ---
+#if BOTANIK_FEATURE_PLC
+        // Every one of them, in the order tables/programs.csv states. It used
+        // to be the site's on_setup() that did this, with a comment about
+        // registering the resource before the C++ programs; there are none
+        // left, so the RESOURCE is the whole order and nothing has to say so.
+        _st.register_tasks();
+#endif
 
 
         // --- SERVICE: supervision and the background state machines ---
