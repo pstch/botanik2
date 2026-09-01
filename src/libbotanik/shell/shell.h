@@ -416,10 +416,6 @@ namespace Botanik { namespace Shell {
         /** @brief Where a value physically comes from, into @p buf. */
         static const char* _binding_phrase(const Vars::Binding& b,
                                            char* buf, size_t cap);
-        /** @brief The two program rows: who drives @p r, and who watches it.
-         *  Both read off the running registry. Emits nothing when the build has
-         *  no scan, or the site no programs. */
-        void _program_fields(const Vars::Bank& io, Vars::Var h, Vars::VarRef r);
         /** @} */
 
         /** @name Context and output

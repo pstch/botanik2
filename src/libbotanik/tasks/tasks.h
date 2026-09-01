@@ -11,6 +11,7 @@
  *       answers "is it due". No priority: see docs/dev/tasks.md.
  */
 
+#include "libbotanik/plc/health.h"
 #include <cstdint>
 
 #include "libbotanik/config/scheduler.h"
@@ -194,13 +195,6 @@ namespace Botanik { namespace Tasks {
         bool add_setup(Component& owner, void (*handler)(Component*, const Tick&),
                        const char* name);
 
-        /** @brief Register a control program. No phase: it runs in PHASE_CONTROL
-         *  or not at all, gated by control authority.
-         *  @note Takes a Plc::Program, not a Component, so a non-program cannot
-         *  be registered as one and quietly acquire the gate. */
-        bool add_program(Plc::Program& program,
-                         void (*handler)(Component*, const Tick&),
-                         const char* name, uint32_t period_ms);
 
         /** @} */
 
@@ -241,10 +235,6 @@ namespace Botanik { namespace Tasks {
 
         uint8_t     count() const { return _count; }
 
-        /** @brief The @p i'th registered PROGRAM, or null past the last. The
-         *  registry is where they live, so lateness and writer-naming walk this
-         *  rather than a site-side table. */
-        Plc::Program* program(uint8_t i) const;
         /** @brief How many programs are registered. */
         uint8_t       program_count() const;
         const Task& task(uint8_t i) const { return _tasks[i < _count ? i : 0]; }

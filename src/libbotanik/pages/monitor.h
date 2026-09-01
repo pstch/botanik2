@@ -144,15 +144,8 @@ namespace Botanik { namespace Pages {
         mutable uint16_t    _total_gen = 0;
         /** @brief Not const: ^O / ^R / ^S write overrides through it. */
         Vars::Bank*           _io;
-        /** @brief How to turn a row's writer index into a program name, and the
-         *  thing that knows. Null when the build has no scan. A function
-         *  pointer rather than a `Scan::Driver*`, so the page depends on
-         *  "something can name a writer" and not on the scan cycle or its
-         *  feature flag. */
-        const char* (*_writer_name)(const void*, uint8_t) = nullptr;
-        const void*           _writer_ctx = nullptr;
         /** @brief How to turn a Modbus unit id into the plant's own tag for it.
-         *  Same shape and same reason as _writer_name: the page depends on
+         *  A function pointer rather than an RtuClient*, so the page depends on
          *  "something can name a device", not on the field bus. */
         const char* (*_device_name)(const void*, uint8_t) = nullptr;
         const void*           _device_ctx = nullptr;
@@ -187,15 +180,6 @@ namespace Botanik { namespace Pages {
                     Vars::Bank* io)
             : ScrollTablePage(console), _io(io),
               _editor(&console, _editor_bufs.storage()) {}
-
-        /** @brief Teach the page to name the program that computes a row. Wired
-         *  by the firmware, the only thing holding both the page and the scan
-         *  driver. Without it a computed row just reads "computed". */
-        void set_writer_names(const char* (*fn)(const void*, uint8_t),
-                              const void* ctx) {
-            _writer_name = fn;
-            _writer_ctx  = ctx;
-        }
 
         /** @brief Teach the page the plant's name for a Modbus unit. Without it
          *  the Mapping row just says "dev 34". */

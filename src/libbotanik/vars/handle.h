@@ -38,22 +38,10 @@ namespace Botanik { namespace Vars {
         bool     ovr_on;     ///< an override is in force
         bool     ovr_valid;  ///< what valid() reports while overridden
         uint8_t  vflags;     ///< ValueFlags
-        /** @brief Which control program last claimed this row (registry index),
-         *  WRITER_NONE until one does. Catches TWO programs driving one output,
-         *  which otherwise shows only as an actuator chattering at beat rate. */
-        uint8_t  writer;
         /** @brief Index into the bank's wire array for an AI/AO row, WIRE_NONE
          *  otherwise. Carved out of the spare byte, so the slot stays 32. */
         uint8_t  wire_off;
     };
-
-    /** @brief No program has claimed this row. Not 0, which is a real program
-     *  index - the same trap VAR_NONE exists to avoid. */
-    static const uint8_t WRITER_NONE = 0xFFu;
-    /** @brief The generated ST plant, as ONE writer. Programs take slots
-     *  counting up from 0, so this sits at the far end and cannot collide.
-     *  ST has no per-program bracket to open a narrower window in. */
-    static const uint8_t WRITER_ST   = 0xFEu;
 
     /** @brief This row has no wire value of its own: its value IS what the wire
      *  carries, or it has no binding at all. */
@@ -178,11 +166,6 @@ namespace Botanik { namespace Vars {
         bool override_unsaved() const { return (_v->vflags & VF_OVR_UNSAVED) != 0; }
 
         /** @} */
-
-        /** @brief Whether this row is read-modify-written by more than one
-         *  program BY DECLARATION (VAR_IN_OUT), so it records no single writer.
-         *  @see Bank::claim_writer() */
-        bool shared() const { return (_v->vflags & VF_SHARED) != 0; }
 
         const Descriptor* meta() const { return _d; }
         const char*     name() const { return _d->name; }

@@ -35,13 +35,11 @@ namespace Botanik { namespace Plc { namespace Runtime {
         for (uint8_t i = 0; i < PROGRAM_COUNT; i++) {
             const Program& p = programs[i];
 
-            // Its OWN window, and its own writer id: two programs claiming one
-            // row is caught here exactly as it was when these were C++, which
-            // is the check ST had no way to keep on its own.
+            // One AUTHOR per row is checked at generate time now, where it is
+            // static and total: the bank's writer claim could not do it, since
+            // an ST row resolves VAR_IN_OUT and records no owner.
             const uint16_t missed = _io.unresolved_count();
-            _io.begin_writer(i);
             p.init();
-            _io.end_writer();
 
             // Counted per program, so a name one of them wanted and did not
             // get holds back that one and nothing else.
@@ -116,9 +114,7 @@ namespace Botanik { namespace Plc { namespace Runtime {
         }
         _slot[i].ran = true;
 
-        _io.begin_writer(i);
         programs[i].run();
-        _io.end_writer();
     }
 
     void Plant::scan(uint64_t now_ms) {

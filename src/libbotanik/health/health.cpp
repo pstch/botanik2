@@ -3,10 +3,10 @@
  * @brief HealthMonitor's registration: its own task, then the alarm model's.
  */
 
+#include "libbotanik/plc/health.h"
 #include "libbotanik/health/health.h"
 
 
-#include "libbotanik/plc/program.h"
 #include "libbotanik/tasks/tasks.h"
 
 #if BOTANIK_FEATURE_NETWORK
@@ -123,16 +123,21 @@ namespace Botanik { namespace Health {
         if (_tasks == nullptr) return;
         // SCAN_LATE is a platform alarm like the six bound above: written every
         // beat, and the row's own dwell decides whether it annunciates.
-        const Plc::Program* worst = nullptr;
-        const uint32_t late = Plc::worst_lateness(*_tasks, &worst);
-        io->var(_scan_late).set(late > Config::SCAN_LATE_MS);
-        // Edge-triggered and named once: two programs driving one output is a
-        // design defect, true on every beat from here.
-        (void)Plc::report_writer_conflicts(*io, *_tasks, _logger, _conflicts_said);
-        // Every program's own verdict onto its row, and the changes into the
-        // log. Here rather than in each program's activation, because a program
-        // that is NOT being activated is exactly when a reader wants the row.
-        Plc::publish_health(*io, *_tasks, _logger);
+        // MISSED ACTIVATIONS, not milliseconds late. The registry counts what
+        // TaskTimer dropped, which is what "a control program is missing its
+        // period" means; the millisecond figure came off Plc::Program, and
+        // there have been none of those since the ST migration - so this alarm
+        // was reading a constant zero.
+        uint32_t missed = 0;
+        for (uint8_t i = 0; i < _tasks->count(); i++) {
+            const Tasks::Task& t = _tasks->task(i);
+            if (t.phase == Tasks::PHASE_CONTROL) missed += t.cost.missed;
+        }
+        io->var(_scan_late).set(missed != _missed_said);
+        _missed_said = missed;
+        // The per-program verdict is published by Plc::Runtime::Plant::wire(),
+        // which is the only place it is decided: a program either binds every
+        // name at bring-up or never runs.
 #endif
     }
 #endif // BOTANIK_FEATURE_VARS

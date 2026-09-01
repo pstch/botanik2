@@ -88,7 +88,9 @@ namespace Botanik { namespace Health {
 #endif
         /** @brief Conflicts already reported, so a defect true on every beat is
          *  named once. @see Vars::Bank::claim_writer */
-        uint16_t _conflicts_said = 0;
+        /** @brief Missed control activations at the last check; the alarm is
+         *  the DELTA, so a scan that catches up clears it. */
+        uint32_t _missed_said = 0;
         /** @brief The row carrying "a program is missing its period". */
         Vars::VarRef _scan_late = { Vars::VAR_NONE };
 

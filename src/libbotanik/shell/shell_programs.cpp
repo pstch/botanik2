@@ -7,6 +7,7 @@
  * and the stricter wins - so `programs enable` on a unit whose control is
  * inhibited changes nothing visible, which is what `control` is for reporting.
  */
+#include "libbotanik/plc/health.h"
 #include "libbotanik/shell/shell.h"
 #include "libbotanik_features.h"
 
@@ -19,7 +20,6 @@
 
 #include "libbotanik/hal/platform.h"
 #include "libbotanik/core/context.h"
-#include "libbotanik/plc/program.h"
 #include "libbotanik/plc/runtime/runtime.h"
 #include "libbotanik/tasks/tasks.h"
 #include "libbotanik/utils/text.h"

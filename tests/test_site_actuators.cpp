@@ -10,24 +10,6 @@
 
 namespace site_programs {
 
-namespace {
-
-/** @brief A program that names a row no table declares. */
-class MisnamedProgram final : public Plc::Program {
-public:
-    Vars::RefIn<float> missing;
-    MisnamedProgram(const SetupContext& ctx, Vars::Bank& io)
-        : Plc::Program(ctx, "misnamed", Tasks::EVERY_BEAT, io) {}
-
-protected:
-    void bind(Vars::Bank& io) override {
-        missing = io.resolve_in<float>("no_such_row_anywhere");
-    }
-    void run(ProgramContext& c) override { (void)c; }
-};
-
-}  // namespace
-
 TEST_CASE("scan: every ST program is its own task, at the roster's period") {
     // The RESOURCE would dispatch them as one fixed sequence. We call each
     // body ourselves instead, which is what keeps a program a program: its own
@@ -624,22 +606,21 @@ TEST_CASE_FIXTURE(StRig, "skirt: damp air gates the cooling arm, and the rot loc
     CHECK(live.bank.get(live.bank.resolve_in<float>("cli_skirtDuty")) == doctest::Approx(0.0f));
 }
 
-TEST_CASE("program: a name that resolves to nothing FAULTS the program that asked") {
+TEST_CASE("program: a name that resolves to nothing is what FAULTS a program") {
+    // The signal Plc::Runtime::Plant::wire() reads: it brackets each program's
+    // bind with this count and marks the slot INVALID when it moved, so a law
+    // whose refs are inert sinks never runs. Asserted on the count itself,
+    // because the site's own programs all resolve - test_site.cpp fails the
+    // gate if one does not - so there is no faulted program to observe.
     Live live;
-    MisnamedProgram p{Botanik::SetupContext(live.reg), live.bank};
-    Plc::Program* const progs[1] = { &p };
-    Cycle d{progs, 1, &live.bank, live.reg};
+    const uint16_t before = live.bank.unresolved_count();
+    (void)live.bank.resolve_in<float>("no_such_row_anywhere");
+    CHECK(live.bank.unresolved_count() == before + 1);
 
-    INFO("the sink reads 0 for ever, so a law bound to one would run on zeros "
-         "and say nothing at all - the program says it instead");
-    d.step(100);
-    CHECK(live.bank.unresolved_count() == 1);
-    CHECK(p.health() == Plc::Health::INVALID);
-
-    INFO("and it stays said: the ref never stops being the sink, so a later "
-         "activation cannot read as healthy");
-    d.step(200);
-    CHECK(p.health() == Plc::Health::INVALID);
+    INFO("and the sink reads 0 for ever, which is the reason it is a fault: a "
+         "law bound to one would run on zeros and say nothing at all");
+    Vars::RefIn<float> sink = live.bank.resolve_in<float>("no_such_row_either");
+    CHECK(live.bank.get(sink) == doctest::Approx(0.0f));
 }
 
 }  // namespace site_programs

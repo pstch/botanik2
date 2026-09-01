@@ -143,7 +143,6 @@ namespace Botanik { namespace Vars {
             // rewrite is what puts it there.
             _slots[i].vflags   = 0;
             // Explicit, not left to zero fill: zero is program 0, not "none".
-            _slots[i].writer   = WRITER_NONE;
 
             uint16_t cap = 0;
             char* txt = text(Var(&d, &_slots[i]), &cap);
@@ -241,39 +240,7 @@ namespace Botanik { namespace Vars {
         return !in_range(d.type, v, b.min, b.max);
     }
 
-    bool Bank::claim_writer(VarRef r, uint8_t who) {
-        if (r.index >= _count || who == WRITER_NONE) return true;
-        // A row declared VAR_IN_OUT is read-modify-written by several programs
-        // on purpose, so it records no owner at all: naming one would make the
-        // MONITOR page report whichever program happened to write last as THE
-        // writer of a row that has no single one.
-        if ((_slots[r.index].vflags & VF_SHARED) != 0) return true;
-        uint8_t& held = _slots[r.index].writer;
-        if (held == who) return true;               // the usual case, every beat
-        if (held == WRITER_NONE) { held = who; return true; }
 
-        // A second author. Counted, not logged: this runs in the control phase,
-        // from a class with no logger. The driver reads the count on the edge
-        // and names the row.
-        //
-        // Counted ONCE PER ROW, not per collision: both programs keep writing
-        // every beat, so a per-collision count would rise forever.
-        uint8_t& vf = _slots[r.index].vflags;
-        if ((vf & VF_TWO_WRITERS) == 0) {
-            vf = (uint8_t)(vf | VF_TWO_WRITERS);
-            _conflicts++;
-            if (_conflict_row.index == VAR_NONE) _conflict_row = r;
-        }
-        // The newest writer becomes the holder, so the row reports whoever
-        // actually wrote it last.
-        held = who;
-        return false;
-    }
-
-    uint8_t Bank::writer_of(VarRef r) const {
-        return (r.index < _count) ? _slots[r.index].writer
-                                           : WRITER_NONE;
-    }
 
     // Writing
 

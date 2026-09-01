@@ -6,12 +6,12 @@
 #ifndef BOTANIK_PLC_RUNTIME_RUNTIME_H
 #define BOTANIK_PLC_RUNTIME_RUNTIME_H
 
+#include "libbotanik/plc/health.h"
 #include "libbotanik/core/component.h"
 #include "libbotanik/config/base.h"
 #include "libbotanik/scheduler/scheduler.h"
 #include "libbotanik/tasks/tasks.h"
 #include "libbotanik/vars/model.h"
-#include "libbotanik/plc/program.h"
 
 #include "libbotanik/plc/runtime/program.h"
 

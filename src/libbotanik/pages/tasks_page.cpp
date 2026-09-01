@@ -2,6 +2,7 @@
  * @file tasks_page.cpp
  * @brief TasksPage implementation - the scheduler task-cost table.
  */
+#include "libbotanik/plc/health.h"
 #include "libbotanik/pages/tasks_page.h"
 #include "libbotanik_features.h"
 
@@ -11,7 +12,6 @@
 #include <cstring>
 
 #include "libbotanik/hal/platform.h"
-#include "libbotanik/plc/program.h"
 
 namespace Botanik { namespace Pages {
 

@@ -18,7 +18,6 @@
 #include "libbotanik/vars/params.h"
 
 #if BOTANIK_FEATURE_PLC
-#include "libbotanik/plc/program.h"
 #include "libbotanik/tasks/tasks.h"
 #endif
 
@@ -180,70 +179,8 @@ namespace Botanik { namespace Shell {
         // ...and which of the control programs it passes through, which the
         // binding does not answer: a computed row has no wire and still has an
         // author.
-        _program_fields(*io, h, r);
         if (d->desc  && d->desc[0])  _field("Description", d->desc,  nullptr);
         if (d->notes && d->notes[0]) _field("Notes",       d->notes, nullptr);
-    }
-
-    // Who drives this row and who watches it, both read off the running scan:
-    // the bank stamps a driven row with the program that claimed it, and every
-    // program carries the rows its bind() declared as inputs.
-    //
-    // Both understate rather than mislead: a PARAMETER is in no program's
-    // watched set, and a row nothing in the scan writes reads "-" whoever else
-    // fills it.
-    void CommandShell::_program_fields(const Vars::Bank& io, Vars::Var h,
-                                       Vars::VarRef r) {
-#if BOTANIK_FEATURE_PLC
-        const Tasks::Registry* reg = _registry();
-        if (reg == nullptr) return;
-        const uint8_t progs = reg->program_count();
-        // Nothing to answer with, and "-" twice would read as a finding.
-        if (progs == 0) return;
-
-        if (h.shared()) {
-            _field("Written by", "several", "declared VAR_IN_OUT: no single one");
-        } else {
-            const uint8_t w = io.writer_of(r);
-            const Plc::Program* by = (w == Vars::WRITER_NONE) ? nullptr
-                                                             : reg->program(w);
-            _field("Written by", (by != nullptr) ? by->name() : "-",
-                   (by != nullptr) ? nullptr : "no control program drives it");
-        }
-
-        // The readers, named while they fit and counted when they do not: a
-        // line that wraps breaks the column for every row under it.
-        char cell[80], det[24];
-        const char* detail = nullptr;
-        size_t n = 0;
-        uint8_t found = 0, shown = 0;
-        cell[0] = '\0';
-        for (uint8_t i = 0; i < progs; i++) {
-            const Plc::Program* p = reg->program(i);
-            if (p == nullptr) continue;
-            bool reads = false;
-            for (uint8_t k = 0; k < p->input_count(); k++)
-                if (p->inputs()[k].index == r.index) { reads = true; break; }
-            if (!reads) continue;
-            found++;
-            const size_t len = strlen(p->name());
-            if (n + len + (n != 0 ? 2 : 0) >= sizeof(cell)) continue;
-            if (n != 0) { cell[n++] = ','; cell[n++] = ' '; }
-            memcpy(cell + n, p->name(), len);
-            n += len;
-            cell[n] = '\0';
-            shown++;
-        }
-        if (found != shown) {
-            snprintf(det, sizeof(det), "%u in all", (unsigned)found);
-            detail = det;
-        } else if (found == 0) {
-            detail = "no control program reads it";
-        }
-        _field("Read by", (found != 0) ? cell : "-", detail);
-#else
-        (void)io; (void)h; (void)r;
-#endif
     }
 
     // The leader is built rather than written into each label, so the column

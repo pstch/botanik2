@@ -18,7 +18,7 @@
 #include "libbotanik.h"
 #include "libbotanik_site.h"
 #include BOTANIK_SITE_HEADER
-#include "scan_fixture.h"
+#include "live_fixture.h"
 #include "scenario_trace.h"
 
 namespace site_scenarios {
@@ -26,7 +26,6 @@ namespace site_scenarios {
 using namespace Botanik;
 using namespace Botanik::Vars;
 
-using TestScan::Cycle;
 using TestScan::Live;
 
 namespace fixture {
@@ -56,8 +55,6 @@ struct Plant {
     /** @brief The ST plant: every one of the site's programs. */
     Plc::Runtime::Plant            st;
 
-    Plc::Program* all[1];    ///< nothing left to hold: every program is ST
-    Cycle*        cycle = nullptr;
     uint64_t      t = 0;
     /** @brief What this plant's environment is, held every beat. The weather
      *  alone by default; a case about water sets the one that drives the
@@ -66,14 +63,9 @@ struct Plant {
 
     Plant()
         : terminals(ctx(), io()), mirror(ctx(), io()), st(ctx(), io()) {
-        // No C++ programs left: every one of them is ST, and the RESOURCE
-        // below runs the lot. The Cycle stays so a case can still step "the
-        // programs" without knowing there are none.
-        cycle = new Cycle(all, 0, &f.bank, f.reg);
         st.wire();
         mirror.wire();
     }
-    ~Plant() { delete cycle; }
 
     SetupContext ctx() { return Botanik::SetupContext(f.reg); }
     Vars::Bank&  io()  { return f.bank; }
@@ -86,7 +78,6 @@ struct Plant {
         terminals.step(t, Tasks::PHASE_INPUT);
         mirror.scan();
         st.scan(t);
-        cycle->step(t);
     }
 
     /** @brief Beats, at the site's own period. */

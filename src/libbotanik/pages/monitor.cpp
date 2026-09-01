@@ -313,14 +313,6 @@ namespace Botanik { namespace Pages {
                 // field does not reflow as the reading gets older.
                 n += (size_t)snprintf(qual + n, sizeof(qual) - n, ", %s",
                                       Utils::format_age(age, sizeof(age), secs));
-            } else if (role != Vars::ROLE_INPUT && role != Vars::ROLE_PARAM &&
-                       _writer_name != nullptr && n < sizeof(qual)) {
-                // Outputs, computed rows and status values alike: name the
-                // program that wrote it. No name means no program drives the
-                // row, which answers "why is this sitting at its default".
-                const char* who = _writer_name(_writer_ctx, _io->writer_of(ref));
-                n += (size_t)snprintf(qual + n, sizeof(qual) - n, ", by %s",
-                                      who != nullptr ? who : "no program");
             }
         }
         _panel_field((uint16_t)(br + 5), "Quality", have ? qual : nullptr);

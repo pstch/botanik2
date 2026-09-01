@@ -2,7 +2,7 @@
  * @file program_rig.h
  * @brief The fixtures the site's program tests are written against.
  *
- * One live bank, one registry, and a Cycle over whichever programs a case
+ * One live bank, one registry, and the ST plant over the site's own programs.
  * needs. Shared because the three program test files drive the same site.
  */
 
@@ -18,15 +18,14 @@
 #include "libbotanik.h"
 #include "libbotanik_site.h"
 #include BOTANIK_SITE_HEADER
+#include "live_fixture.h"
 
-#include "scan_fixture.h"
 
 namespace site_programs {
 
 using namespace Botanik;
 using namespace Botanik::Vars;
 
-using TestScan::Cycle;
 using TestScan::Live;
 
 // INLINE, not an anonymous namespace: the three program test files each use a
@@ -194,29 +193,6 @@ inline void interlocks_clear(Live& f) {
  *  PHASE_INPUT runs too, because the beat has one: a local terminal reaches a
  *  law as a ROW, and a meter reading an edge count off one gets zero for the
  *  life of a rig that never publishes it. */
-template <class P>
-struct Rig {
-    Live                live;
-    Io::LocalInputs     terminals{Botanik::SetupContext(live.reg), live.bank};
-    P                   prog{Botanik::SetupContext(live.reg), live.bank};
-    Plc::Program* const progs[1] = { &prog };
-    Cycle               cycle{progs, 1, &live.bank, live.reg};
-
-    Rig() {
-        d.terminals = &terminals;
-        d.cycle     = &cycle;
-    }
-
-    struct Driver {
-        Io::LocalInputs* terminals = nullptr;
-        Cycle*           cycle     = nullptr;
-        void step(uint64_t now_ms) {
-            terminals->step(now_ms, Tasks::PHASE_INPUT);
-            cycle->step(now_ms);
-        }
-    } d;
-};
-
 /** @brief The ST plant on its own.
  *
  *  There is no program object to hold a rig open on - destrat_controller is

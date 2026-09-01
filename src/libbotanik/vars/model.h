@@ -93,7 +93,6 @@ namespace Botanik { namespace Vars {
          *  forget. @see _resolve_shadows() */
         uint16_t      _row[Config::VAR_MAX];
         uint64_t      _last_retain_ms = 0;   ///< last retained write; 0 = none
-        uint8_t       _writer_now = WRITER_NONE;  ///< whose activation is open
 
         /** @brief One AnalogCal block and the rows its six tunables name.
          *  Cached as INDICES, not values: the index is fixed once the table is
@@ -130,10 +129,6 @@ namespace Botanik { namespace Vars {
          *  something names a row that is not in vars.h. Mutable, being
          *  diagnostics behind a const find(). */
         mutable uint16_t _unresolved = 0;
-        /** @brief Rows written by more than one program, and the first such row.
-         *  @see claim_writer() */
-        uint16_t _conflicts   = 0;
-        VarRef   _conflict_row = { VAR_NONE };
         /** @brief Whether the name index holds a usable sorted mapping. False
          *  until freeze(), and find() then walks the rows.
          *  @see _build_index() */
@@ -288,20 +283,8 @@ namespace Botanik { namespace Vars {
          *  Who among the control programs drives a row, recorded by drive()
          *  from whoever the dispatcher's window names. @{ */
 
-        /** @brief Record @p who as the writer of @p r; false when it already
-         *  belonged to another. First claim wins, and the write still goes
-         *  through: refusing it would leave the plant where the loser left it. */
-        bool claim_writer(VarRef r, uint8_t who);
         /** @} */
 
-        /** @name Writer window
-         *  Whose writes count as theirs. The DISPATCHER opens the window around
-         *  one activation and closes it after, so a program cannot name itself.
-         *  @note Ambient state, safe only because the beat is synchronous and
-         *  single-threaded. @see @ref dev_vars_writers
-         *  @{ */
-        void begin_writer(uint8_t who) { _writer_now = who; }
-        void end_writer()              { _writer_now = WRITER_NONE; }
         /** @} */
 
         /** @name Driving
@@ -309,8 +292,8 @@ namespace Botanik { namespace Vars {
          *  names, then write. Distinct from param_set(), which edits a
          *  parameter against its band.
          *  @{ */
-        void drive(VarRef r, bool v)      { claim_writer(r, _writer_now); var(r).set(v); }
-        void drive(VarRef r, float v)     { claim_writer(r, _writer_now); var(r).set(v); }
+        void drive(VarRef r, bool v)      { var(r).set(v); }
+        void drive(VarRef r, float v)     { var(r).set(v); }
         /** @} */
 
         /** @name Typed access
@@ -340,12 +323,11 @@ namespace Botanik { namespace Vars {
 
         /** @brief Drive @p h. @p V is CHECKED against @p T, not converted, so a
          *  mismatch names itself instead of reporting a deduction conflict.
-         *  @note A VAR_IN_OUT row skips the exclusive claim. @see claim_writer() */
+         */
         template <typename T, Dir D, typename V>
         void drive(Ref<T, D> h, V v) {
             static_assert(D != Dir::IN, "a VAR_INPUT row cannot be driven");
             static_assert(SameType<T, V>::value, "value type must be the row's own type");
-            claim_writer(h.r, _writer_now);
             RefIo<T>::write(*this, h.r, (T)v);
         }
 
@@ -363,7 +345,6 @@ namespace Botanik { namespace Vars {
         }
         template <typename T> RefOut<T> resolve_out(const char* name) {
             const VarRef r = _resolve_typed<T>(name);
-            claim_writer(r, _writer_now);
             return RefOut<T>(r, this);
         }
         /** @brief The same, and MARKS the row shared: a VAR_IN_OUT row is
@@ -371,24 +352,13 @@ namespace Botanik { namespace Vars {
          *  records no single owner and the conflict scan leaves it alone. */
         template <typename T> RefInOut<T> resolve_inout(const char* name) {
             const VarRef r = _resolve_typed<T>(name);
-            if (r.index < _count) _slots[r.index].vflags |= VF_SHARED;
             return RefInOut<T>(r, this);
         }
 
         /** @} */
 
-        /** @brief The program that claimed @p r, or WRITER_NONE. */
-        uint8_t writer_of(VarRef r) const;
 
 
-        /** @brief How many ROWS two programs have both written, and the first.
-         *  Rows, not collisions: two programs collide every beat, but the count
-         *  of doubly-authored rows is fixed by the site's design. */
-        /** @name Write conflicts
-         *  What the POST reports: a row two programs both drive is a wiring
-         *  defect, not a race. @{ */
-        uint16_t writer_conflicts() const { return _conflicts; }
-        VarRef   first_conflict() const   { return _conflict_row; }
         /** @} */
 
         /** @brief Whether the name index is in use. False before freeze(), and

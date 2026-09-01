@@ -125,10 +125,6 @@ namespace Botanik { namespace Vars {
         /** @brief This output's demand has moved and has not reached the field.
          *  Cleared by the driver once a transaction has carried it. */
         VF_FIELD_DIRTY = 1u << 0,
-        /** @brief This row has had more than one control program write it.
-         *  Latched, so the count is of ROWS with two authors rather than of
-         *  per-beat collisions. @see Bank::claim_writer() */
-        VF_TWO_WRITERS = 1u << 1,
         /** @brief A PROGRAM's durable write to a parameter, waiting on the
          *  retain cadence rather than on an operator. Distinct from
          *  VF_PARAM_UNSAVED so that the two survive each other: a law stamping
@@ -145,12 +141,6 @@ namespace Botanik { namespace Vars {
          *  not survive a reboot until `overrides save`.
          *  @see Bank::override_set() @see Bank::save_override() */
         VF_OVR_UNSAVED   = 1u << 4,
-        /** @brief This row is written by more than one control program BY
-         *  DECLARATION (IEC 61131-3 VAR_IN_OUT), so a second author is the
-         *  design rather than a defect. Set at bind time by
-         *  Bank::resolve_inout(); read by claim_writer(), which then records no
-         *  exclusive owner for the row. */
-        VF_SHARED        = 1u << 5
     };
 
     /** @brief What the firmware may drive, strictest first. The order is

@@ -10,9 +10,7 @@
 
 #include "libbotanik/hal/platform.h"
 #include "libbotanik/hal/storage.h"
-// The complete Program, and ONLY so add_program() can convert one to the
-// Component& it registers as. Nothing here calls a Program method.
-#include "libbotanik/plc/program.h"
+#include "libbotanik/core/component.h"
 #include "libbotanik/utils/assert.h"
 #include "libbotanik/utils/text.h"
 
@@ -119,31 +117,13 @@ namespace Botanik { namespace Tasks {
         return add(owner, handler, name, EVERY_BEAT, PHASE_COUNT);
     }
 
-    bool Registry::add_program(Plc::Program& program,
-                               void (*handler)(Component*, const Tick&),
-                               const char* name, uint32_t period_ms) {
-        // The slot BEFORE the entry exists, so it is the index this program
-        // will have in program(): the registry is the list, so a program's
-        // position in it IS the writer id every row it drives is stamped with.
-        // Nothing else can assign it now that no site table survives.
-        const uint8_t slot = _prog_count;
-        if (!add(program, handler, name, period_ms, PHASE_CONTROL)) return false;
-        _tasks[_count - 1].program = &program;
-        _tasks[_count - 1].health  = program.health_ptr();
-        _prog[_prog_count++] = (uint8_t)(_count - 1);
-        program.set_slot(slot);
-        return true;
-    }
-
     void Registry::run_phase(Phase phase, uint64_t now_ms) {
         for (uint8_t i = 0; i < _count; i++) {
             Task& t = _tasks[i];
             if (t.phase != phase) continue;
-            // A program setup could not wire never runs: its refs are inert
-            // sinks, so every value it produced would be a zero nothing could
-            // tell from a reading.
-            if (t.program != nullptr && t.program->is_invalid()) continue;
-
+            // A program setup could not wire never runs. Plc::Runtime::Plant
+            // keeps that verdict now and returns early on it, so the entry
+            // itself no longer carries one.
             uint32_t dt = 0; uint16_t missed = 0;
             if (!t.timer.due(now_ms, t.period_ms, dt, missed)) continue;
             t.timer.ran(now_ms);
@@ -161,30 +141,6 @@ namespace Botanik { namespace Tasks {
             t.first_activation = false;
             t.cost.record((uint32_t)(HAL::Clock::uptime_us() - t0), missed);
         }
-    }
-
-    Task* Registry::_program_task(uint8_t i) {
-        return (i < _prog_count) ? &_tasks[_prog[i]] : nullptr;
-    }
-    const Task* Registry::_program_task(uint8_t i) const {
-        return (i < _prog_count) ? &_tasks[_prog[i]] : nullptr;
-    }
-
-    Plc::Program* Registry::program(uint8_t i) const {
-        const Task* t = _program_task(i);
-        return (t == nullptr) ? nullptr : t->program;
-    }
-
-    uint8_t Registry::program_count() const { return _prog_count; }
-
-
-    int16_t Registry::find_program(const char* name, uint16_t len) const {
-        if (name == nullptr) return -1;
-        for (uint8_t i = 0; i < _prog_count; i++) {
-            const char* nm = _tasks[_prog[i]].name;
-            if (Utils::equals_bounded(nm, name, len)) return (int16_t)i;
-        }
-        return -1;
     }
 
 }}  // namespace Botanik::Tasks
