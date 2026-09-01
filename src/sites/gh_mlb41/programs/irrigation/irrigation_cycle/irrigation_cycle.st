@@ -3,6 +3,7 @@
 
 PROGRAM irrigation_cycle
 VAR_EXTERNAL CONSTANT
+  irr_today             : UDINT;
   irr_dueTray         : USINT;
   irr_mod             : REAL;
   irr_mod_qlt         : BOOL;
@@ -32,7 +33,6 @@ VAR_EXTERNAL
   irr_activeTray        : USINT;
   irr_delivered_L       : REAL;
   irr_drained_L         : REAL;
-  irr_today             : UDINT;
   irr_servedToday       : USINT;
   irr_forceNow          : BOOL;
   alarm_irr_fill        : BOOL;

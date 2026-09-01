@@ -7,7 +7,7 @@
 PROGRAM destrat_controller
 (* VAR_EXTERNAL, so __INIT_EXTERNAL is the generated bind() and the body
    reads and writes the bank with no copy in or out. *)
-VAR_EXTERNAL
+VAR_EXTERNAL CONSTANT
   cli_dTStrat_degC     : REAL;
   cli_dTStratLow_degC  : REAL;
   cli_dTStratMed_degC  : REAL;
@@ -16,6 +16,8 @@ VAR_EXTERNAL
   cli_fanLowDem        : REAL;
   cli_fanMedDem        : REAL;
   cli_fanHighDem       : REAL;
+END_VAR
+VAR_EXTERNAL
   cli_stratDem         : REAL;
 END_VAR
 VAR

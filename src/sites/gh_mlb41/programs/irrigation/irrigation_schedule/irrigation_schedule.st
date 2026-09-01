@@ -3,6 +3,15 @@
 
 PROGRAM irrigation_schedule
 VAR_EXTERNAL CONSTANT
+  irr_forceNow       : BOOL;
+  irr_forceOn_tray1  : BOOL;
+  irr_forceOn_tray2  : BOOL;
+  irr_forceOn_tray3  : BOOL;
+  irr_forceOn_tray4  : BOOL;
+  irr_forceOn_tray5  : BOOL;
+  irr_forceOn_tray6  : BOOL;
+  irr_forceOn_tray7  : BOOL;
+  irr_forceOn_tray8  : BOOL;
   irr_mod            : REAL;
   irr_volFreqSplit   : REAL;
   irr_traysPerDay    : UINT;
@@ -31,7 +40,6 @@ VAR_EXTERNAL
   irr_period_days    : REAL;
   irr_today          : UDINT;
   irr_servedToday    : USINT;
-  irr_forceNow       : BOOL;
   irr_last_tray1     : UDINT;
   irr_last_tray2     : UDINT;
   irr_last_tray3     : UDINT;
@@ -40,14 +48,6 @@ VAR_EXTERNAL
   irr_last_tray6     : UDINT;
   irr_last_tray7     : UDINT;
   irr_last_tray8     : UDINT;
-  irr_forceOn_tray1  : BOOL;
-  irr_forceOn_tray2  : BOOL;
-  irr_forceOn_tray3  : BOOL;
-  irr_forceOn_tray4  : BOOL;
-  irr_forceOn_tray5  : BOOL;
-  irr_forceOn_tray6  : BOOL;
-  irr_forceOn_tray7  : BOOL;
-  irr_forceOn_tray8  : BOOL;
   irr_forceOff_tray1 : BOOL;
   irr_forceOff_tray2 : BOOL;
   irr_forceOff_tray3 : BOOL;

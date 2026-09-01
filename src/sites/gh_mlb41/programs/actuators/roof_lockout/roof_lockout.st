@@ -12,7 +12,7 @@ PROGRAM roof_lockout
    reads and writes the bank directly and __INIT_EXTERNAL is the whole of
    bind(). The formal-parameter connection list does the opposite and does
    not compile against matiec's own runtime. See docs/dev/matiec-configuration.md *)
-VAR_EXTERNAL
+VAR_EXTERNAL CONSTANT
   cli_rain_mmph         : REAL;
   cli_rain_mmph_qlt     : BOOL;
   cli_wind_mps          : REAL;
@@ -24,6 +24,8 @@ VAR_EXTERNAL
   cli_rainLockout_sec   : UINT;
   sys_supply_lockout    : BOOL;
   sys_now_ms            : UDINT;
+END_VAR
+VAR_EXTERNAL
   cli_rainLockout       : BOOL;
   cli_windLockout       : BOOL;
   cli_windowLockout     : BOOL;

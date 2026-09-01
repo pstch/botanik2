@@ -18,16 +18,6 @@
 CONFIGURATION gh_mlb41
 
   VAR_GLOBAL
-    DAY                     : UDINT;
-    DAYS                    : UINT;
-    DUTY_IN                 : REAL;
-    FORCE_OFF               : BOOL;
-    LAST                    : UDINT;
-    MIN_ON_MS               : UDINT;
-    NOW                     : UDINT;
-    PERIOD_MS               : UDINT;
-    RESET                   : BOOL;
-    STRETCH                 : REAL;
     alarm_ac_grid           : BOOL;
     alarm_ac_local          : BOOL;
     alarm_dc_ps1            : BOOL;

@@ -354,8 +354,36 @@ def emit_plant_cpp(site, prog):
           ' * is the author of. `VAR_EXTERNAL CONSTANT` is a read and is not here.',
           ' * Taking a program out of the scan drops exactly these to their',
           ' * declared safe state, so the list has to be the ST\'s own. */']
+    # Checked HERE because nothing downstream can: an ST row resolves
+    # VAR_IN_OUT, so the bank's writer claim records no owner and has caught
+    # nothing since the migration.
+    #
+    # A row declared writable and never assigned is a MIS-DECLARATION and fails
+    # the build - it belongs in VAR_EXTERNAL CONSTANT, and leaving it here puts
+    # a row the program only reads on its safe-state roster. Two programs that
+    # both ASSIGN one row is different: read-modify-written shared state is the
+    # design (the irrigation force flags), so it is reported, not refused.
+    ghosts, author, shared = [], {}, []
     for e in prog:
-        wr = [n for n, _t, ro in var_externals(e['path']) if not ro]
+        asg = assigned_rows(e['path'])
+        for n, _t, ro in var_externals(e['path']):
+            if ro: continue
+            if n not in asg: ghosts.append((e['name'], n)); continue
+            if n in author: shared.append((n, author[n], e['name']))
+            else: author[n] = e['name']
+    if ghosts:
+        for who, n in ghosts:
+            print('  %s: declares %s writable and never assigns it' % (who, n),
+                  file=sys.stderr)
+        sys.exit('%d row(s) declared writable but never written; '
+                 'move them to VAR_EXTERNAL CONSTANT' % len(ghosts))
+    if shared:
+        print('  %d row(s) with two authors (read-modify-write): %s'
+              % (len(shared), ', '.join(n for n, _a, _b in shared)))
+
+    for e in prog:
+        asg = assigned_rows(e['path'])
+        wr = [n for n, _t, ro in var_externals(e['path']) if not ro and n in asg]
         L.append('static const char* const _writes_%s[] = {%s};'
                  % (e['instance'].upper(),
                     ''.join(' "%s",' % n for n in wr) or ' 0'))
@@ -377,12 +405,27 @@ def var_externals(path):
     CONSTANT` is read-only and plain `VAR_EXTERNAL` is written - that IS the
     site's in/out declaration, there is no table saying so."""
     out = []
-    for m in re.finditer(r'VAR_EXTERNAL(\s+CONSTANT)?(.*?)END_VAR',
-                         open(path).read(), re.S):
+    # Comments FIRST: roof_lockout opens with a block explaining why it uses
+    # VAR_EXTERNAL, and matching that swallowed the real CONSTANT block behind
+    # it - every row in it came back writable. Anchored to a line start too,
+    # for the same reason.
+    src = re.sub(r'\(\*.*?\*\)', ' ', open(path).read(), flags=re.S)
+    for m in re.finditer(r'^VAR_EXTERNAL(\s+CONSTANT)?$(.*?)^END_VAR',
+                         src, re.S | re.M):
         for line in m.group(2).split('\n'):
             mm = re.match(r'\s*([A-Za-z_]\w*)\s*:\s*([A-Z]+)\s*;', line)
             if mm: out.append((mm.group(1), mm.group(2), bool(m.group(1))))
     return out
+
+
+def assigned_rows(path):
+    """Every name the BODY assigns. What a program declares writable and never
+    writes is a mis-declaration, not an output - and the safe-state roster has
+    to be what it actually drives, or taking a program out of the scan drops
+    rows it only ever read."""
+    src = re.sub(r'\(\*.*?\*\)', ' ', open(path).read(), flags=re.S)
+    body = src[src.rindex('END_VAR') + 7:]
+    return set(re.findall(r'(?<![\w.])(\w+)\s*:=', body))
 
 
 def pou_of(path):
