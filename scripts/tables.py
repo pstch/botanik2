@@ -381,6 +381,43 @@ def emit_plant_cpp(site, prog, writes):
         print('  %d row(s) with two authors (read-modify-write): %s'
               % (len(shared), ', '.join(n for n, _a, _b in shared)))
 
+    # ...and the other direction: a row nothing writes. An OUTPUT or an ALARM
+    # with no author is a law somebody meant to write and did not, and it reads
+    # its declared value for the life of the plant with nothing to say so.
+    #
+    # Status values have two writers that are not programs and never will be:
+    # a field row's `_qlt` companion is Vars::QualityMirror's, and `prog_<name>`
+    # is Plc::Runtime::Plant's own verdict. Both are named here rather than
+    # exempted by a flag, so a THIRD one has to come and say so.
+    def _col0(stem):
+        f = os.path.join(site, 'tables', stem + '.csv')
+        if not os.path.exists(f): return []
+        return [l.split(',')[0].strip() for l in open(f).read().splitlines()[1:]
+                if l.split(',')[0].strip()]
+
+    field = set()
+    for t in ('analog_in', 'digital_in', 'modbus_in', 'pulse_in',
+              'analog_out', 'digital_out', 'relay_out', 'modbus_out'):
+        field |= set(_col0(t))
+    every = set()
+    for pou in writes.values(): every |= {w.upper() for w in pou}
+
+    unwritten = []
+    for stem, kind in (('digital_out', 'output'), ('analog_out', 'output'),
+                       ('relay_out', 'output'), ('modbus_out', 'output'),
+                       ('alarms', 'alarm'),
+                       ('status', 'status'), ('status_enum', 'status')):
+        for n in _col0(stem):
+            if n.upper() in every: continue
+            if kind == 'status':
+                if n.startswith('prog_'): continue                  # Plant
+                if n.endswith('_qlt') and n[:-4] in field: continue  # QualityMirror
+            unwritten.append((kind, n))
+    if unwritten:
+        for kind, n in unwritten:
+            print('  %s %s: no program writes it' % (kind, n), file=sys.stderr)
+        sys.exit('%d row(s) nothing writes' % len(unwritten))
+
     for e in prog:
         wr = set(writes.get(e['pou'], ()))
         wr = [n for n, _t, ro in var_externals(e['path']) if not ro and n.upper() in wr]
