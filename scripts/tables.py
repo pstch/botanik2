@@ -309,7 +309,7 @@ def config(site):
     print('  config.gen.h   %d values, %d features' % (len(val), len(on)))
 
 
-def emit_plant_cpp(site, prog):
+def emit_plant_cpp(site, prog, writes):
     w = max(len(e['pou']) for e in prog)
     wi = max(len(e['instance'].upper()) for e in prog)
     wn = max(len(e['name']) for e in prog)
@@ -358,22 +358,22 @@ def emit_plant_cpp(site, prog):
     # VAR_IN_OUT, so the bank's writer claim records no owner and has caught
     # nothing since the migration.
     #
-    # A row declared writable and never assigned is a MIS-DECLARATION and fails
+    # A row DECLARED writable and never written is a mis-declaration and fails
     # the build - it belongs in VAR_EXTERNAL CONSTANT, and leaving it here puts
     # a row the program only reads on its safe-state roster. Two programs that
-    # both ASSIGN one row is different: read-modify-written shared state is the
+    # both WRITE one row is different: read-modify-written shared state is the
     # design (the irrigation force flags), so it is reported, not refused.
     ghosts, author, shared = [], {}, []
     for e in prog:
-        asg = assigned_rows(e['path'])
+        wr = set(writes.get(e['pou'], ()))
         for n, _t, ro in var_externals(e['path']):
             if ro: continue
-            if n not in asg: ghosts.append((e['name'], n)); continue
+            if n.upper() not in wr: ghosts.append((e['name'], n)); continue
             if n in author: shared.append((n, author[n], e['name']))
             else: author[n] = e['name']
     if ghosts:
         for who, n in ghosts:
-            print('  %s: declares %s writable and never assigns it' % (who, n),
+            print('  %s: declares %s writable and never writes it' % (who, n),
                   file=sys.stderr)
         sys.exit('%d row(s) declared writable but never written; '
                  'move them to VAR_EXTERNAL CONSTANT' % len(ghosts))
@@ -382,8 +382,8 @@ def emit_plant_cpp(site, prog):
               % (len(shared), ', '.join(n for n, _a, _b in shared)))
 
     for e in prog:
-        asg = assigned_rows(e['path'])
-        wr = [n for n, _t, ro in var_externals(e['path']) if not ro and n in asg]
+        wr = set(writes.get(e['pou'], ()))
+        wr = [n for n, _t, ro in var_externals(e['path']) if not ro and n.upper() in wr]
         L.append('static const char* const _writes_%s[] = {%s};'
                  % (e['instance'].upper(),
                     ''.join(' "%s",' % n for n in wr) or ' 0'))
@@ -418,23 +418,23 @@ def var_externals(path):
     return out
 
 
-def assigned_rows(path):
-    """Every name the BODY assigns. What a program declares writable and never
-    writes is a mis-declaration, not an output - and the safe-state roster has
-    to be what it actually drives, or taking a program out of the scan drops
-    rows it only ever read."""
-    src = re.sub(r'\(\*.*?\*\)', ' ', open(path).read(), flags=re.S)
-    body = src[src.rindex('END_VAR') + 7:]
-    # Parenthesised groups out first, so a call's NAMED ARGUMENTS cannot read
-    # as assignments: a single-line `blk(PT := x)` has the same shape as one.
-    # No site row shares a name with a block input today, which is luck rather
-    # than a rule. Balanced, because an argument can itself be a call.
-    out, depth = [], 0
-    for ch in body:
-        if ch == '(': depth += 1
-        elif ch == ')': depth -= 1
-        elif depth == 0: out.append(ch)
-    return set(re.findall(r'(?<![\w.])(\w+)\s*:=', ''.join(out)))
+def writes_by_pou(site):
+    """What each PROGRAM writes, off matiec's own generated C.
+
+    A write is `__SET_EXTERNAL` and a read is `__GET_EXTERNAL` - our macros,
+    emitted from matiec's parse. So this is the COMPILER's answer, not a second
+    reading of the ST: no comments to skip, and a call's named arguments cannot
+    look like an assignment. Only PROGRAM bodies write externals; a function
+    block has no VAR_EXTERNAL to write.
+
+    Names come back matiec-folded (upper); the caller maps them home.
+    """
+    src = open(os.path.join(site, 'generated', 'POUS.c')).read()
+    out = {}
+    for m in re.finditer(r'^static void (\w+)_body__\(.*?^\}', src, re.M | re.S):
+        w = re.findall(r'__SET_EXTERNAL\(\w+->,\s*(\w+)\s*,', m.group(0))
+        if w: out[m.group(1)] = w
+    return out
 
 
 def pou_of(path):
@@ -482,8 +482,8 @@ def plant(site):
     L += ['  END_RESOURCE', '', 'END_CONFIGURATION', '']
     pl = os.path.join(site, 'generated', 'plant.st')
     open(pl, 'w').write('\n'.join(L))
-    emit_plant_cpp(site, prog)
-
+    # matiec FIRST: plant.cpp's write rosters are read out of the POUS.c it
+    # emits, so the compiler's own answer is what they are built from.
     with tempfile.NamedTemporaryFile('w', suffix='.st', delete=False) as fh:
         for f in LIBST + st_files(site) + [pl]: fh.write(open(f).read() + '\n')
         tmp = fh.name
@@ -492,8 +492,11 @@ def plant(site):
     os.unlink(tmp)
     err = [l for l in (r.stdout + r.stderr).splitlines() if 'error' in l.lower()]
     for l in err[:6]: print('  ' + l)
+    if err: return 1
+
+    emit_plant_cpp(site, prog, writes_by_pou(site))
     print('  plant.st       %d globals, %d POUs' % (len(rows), len(st_files(site))))
-    return 1 if err else 0
+    return 0
 
 
 def emit_rows(fac, cols, recs):
