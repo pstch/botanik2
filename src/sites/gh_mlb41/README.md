@@ -16,7 +16,7 @@ The reference Botanik **site**: everything specific to one physical greenhouse.
 | `generated/POUS.*`, `plc.c`, `gh_mlb41.*` | generated | matiec's own output |
 | `tables/home.csv` | **declared** | the home-screen captions - the one table no rule derives |
 | `tables/pulse_in.csv` | **declared** | the edge-counted terminals, as ordinary rows |
-| `site.h` | hand-written | includes the generated tables, and binds `GreenhouseMLB41` to them. Overrides nothing |
+| `site.h` | hand-written | includes the generated tables and `sim.h`. No class, no hook, no override |
 | `sim.h` | hand-written | the simulated field: it writes the variable tables the way a Modbus driver will. Its whole body is `#ifdef TARGET_SIMULATOR`, so it drops out of the hardware build |
 
 Regenerate with `scripts/tables.py` - `generate`, `config`, and `plant` (which
@@ -36,10 +36,13 @@ A program reads and writes rows by NAME, through `VAR_EXTERNAL`. Nothing is
 passed between them: `docs/dev/st-migration.md` has the migration's own
 lessons, and `docs/dev/scan.md` the scan model.
 
-`GreenhouseMLB41` derives `BotanikFirmware` and passes `g_site` to the base
-constructor. It declares no pages, no components and no programs, and overrides
-nothing. A site needing an extra page or a component of its own would override
-`register_pages()` / `on_setup()`; see `src/libbotanik/firmware/firmware.h`.
+There is no site subclass. `Site::firmware()` is a generated accessor over a
+function-local static `BotanikFirmware`, bound to `g_site` - function-local
+because on the OPTA the object must be constructed after the Arduino core's
+`init()` has brought up the UARTs, and a file-scope one would run before it.
+A site needing an extra page or a component of its own still derives
+`BotanikFirmware` and overrides `register_pages()` / `on_setup()`; see
+`src/libbotanik/firmware/firmware.h` for that extension model.
 
 ## The field bus
 

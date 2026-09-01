@@ -584,7 +584,6 @@ elseif(BOTANIK_TARGET STREQUAL "OPTA")
         "CM4_BINARY_START=0x60000000;CM4_BINARY_END=0x60040000;CM4_RAM_END=0x60080000")
 
     add_executable(botanik_opta
-        "src/botanik_fw/firmware.cpp"
         "src/botanik_fw/main.cpp"
         "src/botanik_fw/mbed_hooks.cpp"
         ${MBED_CORE_SOURCES}

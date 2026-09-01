@@ -10,8 +10,8 @@
  * with every optional feature compiled out, so the seam that makes them optional
  * is exercised by something rather than asserted by a comment.
  *
- * Same surface as any other site, so a harness never names it: `BotanikSite` and
- * `Site::simulate()`.
+ * Same surface as any other site, so a harness never names it:
+ * `Site::firmware()` and `Site::simulate()`.
  */
 
 #include <cstdint>
@@ -38,15 +38,17 @@ inline void simulate(Botanik::Vars::Bank& io, uint32_t now_ms) {
 }
 #endif
 
+/** @brief The firmware, bound to this site. A FUNCTION-LOCAL static: on the
+ *  OPTA it must be constructed after the Arduino core's init() has brought up
+ *  the UARTs, and a file-scope object would run before it. No subclass - this
+ *  site adds nothing to the base, which is the point of it. */
+inline Botanik::BotanikFirmware& firmware() {
+    static Botanik::BotanikFirmware fw(g_site);
+    return fw;
+}
+
 }  // namespace Site
 
-/** @brief A site that adds nothing to the base. */
-class BareSite final : public Botanik::BotanikFirmware {
-public:
-    BareSite() : Botanik::BotanikFirmware(Site::g_site) {}
-};
 
-/** @brief The firmware type the harness instantiates for this site. */
-using BotanikSite = BareSite;
 
 #endif // SITE_H

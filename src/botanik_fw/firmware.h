@@ -12,14 +12,14 @@
 
 // Site selected at configure time (-DBOTANIK_SITE).
 #include "libbotanik_site.h"
-#include BOTANIK_SITE_HEADER    // BotanikSite
+#include BOTANIK_SITE_HEADER    // Site::firmware()
 
 namespace Botanik { namespace Firmware {
 
-/** @brief The OPTA firmware singleton. A function-local static, first
- *  constructed on the first call - deferred until after the Arduino core's
- *  init() has validated the UARTs. */
-::BotanikSite& instance();
+/** @brief The OPTA firmware, bound to the selected site. The site owns the
+ *  function-local static behind it, so construction is deferred until after
+ *  the Arduino core's init() has validated the UARTs. */
+inline BotanikFirmware& instance() { return Site::firmware(); }
 
 }}  // namespace Botanik::Firmware
 

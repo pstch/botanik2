@@ -21,7 +21,7 @@ namespace TestSite {
      *  test cannot stand up a table no firmware ever builds. */
     inline void build(Botanik::Vars::Bank& bank) {
         Botanik::Vars::register_library_vars(bank);
-        bank.register_vars(Site::g_site.vars, Site::g_site.var_count);
+        bank.register_vars(Site::g_site.rows, Site::g_site.row_count);
         bank.freeze();
     }
 

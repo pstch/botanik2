@@ -15,7 +15,7 @@
 
 // Site selected at configure time (-DBOTANIK_SITE).
 #include "libbotanik_site.h"
-#include BOTANIK_SITE_HEADER            // BotanikSite + Site::simulate
+#include BOTANIK_SITE_HEADER            // Site::firmware() + Site::simulate
 
 #if BOTANIK_FEATURE_NETWORK
 #include "botanik_sim/fieldbus.h"
@@ -81,7 +81,9 @@ int main(int argc, char** argv) {
     // disconnecting mid-emit would otherwise do routinely.
     std::signal(SIGPIPE, SIG_IGN);                // NOLINT(bugprone-signal-handler)
 
-    BotanikSite greenhouse;
+    // The site owns the object: a function-local static, so its lifetime rule
+    // is stated once rather than in every harness.
+    Botanik::BotanikFirmware& greenhouse = Site::firmware();
     greenhouse.set_hw_watchdog_ms(Config::HW_WATCHDOG_MS);
 
     greenhouse.setup();

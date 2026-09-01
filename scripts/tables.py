@@ -421,7 +421,7 @@ def generate(site):
     L += ['    &%s,' % c['cal'] for c in cal] + ['};', '']
     # ONE table, parameters FIRST: the ROLE_PARAM run has to abut the
     # library's, and emitting the two runs in order is the whole of that rule.
-    L.append('const Descriptor vars[] = {')
+    L.append('const Descriptor rows[] = {')
     L.append('    // parameters, first and contiguous')
     for f in ('P', 'PE', 'PS'):
         L += emit_rows(f, ROWS[f][1].split(), per[f])
@@ -457,7 +457,7 @@ def generate(site):
           '    g_commands,    g_command_count,',
           '    g_home_fields, g_home_field_count, home_refs,',
           '    &g_device_table,',
-          '    vars,          VARS_COUNT,',
+          '    rows,          ROWS_COUNT,',
           '};', '',
           '}  // namespace Site', '']
     open(os.path.join(site, 'generated', 'vars.gen.cpp'), 'w').write('\n'.join(L))
@@ -486,7 +486,7 @@ def generate(site):
           'const uint8_t g_analog_cal_count = %d;' % len(cal), '',
           '// ONE table, parameters first. Registering it is one call, and the',
           '// ROLE_PARAM run stays contiguous because the emit order is the rule.',
-          'extern const Descriptor vars[];', 'const uint16_t VARS_COUNT = %d;' % (n_par + n_row), '',
+          'extern const Descriptor rows[];', 'const uint16_t ROWS_COUNT = %d;' % (n_par + n_row), '',
           ]
     G += ['extern const Modbus::DeviceModel %s;' % m['symbol'] for m in mdl]
     G += ['extern const Modbus::Device g_devices[];',
@@ -505,11 +505,22 @@ def generate(site):
           '// past VAR_MAX and registration is REFUSED: every name in it resolves',
           '// to the sink for the life of the run, and only refused_count() sees it.',
           'const uint16_t LIBRARY_ROWS = %d;' % tom['limits']['library_rows'],
-          'static_assert(LIBRARY_ROWS + VARS_COUNT <= Config::VAR_MAX,',
+          'static_assert(LIBRARY_ROWS + ROWS_COUNT <= Config::VAR_MAX,',
           '              "site table exceeds VAR_MAX - raise it in site.toml "',
           '              "(about 36 bytes of RAM per row)");', '',
           '// The whole handoff to the library: this site, as data.',
-          'extern const Botanik::SiteDescriptor g_site;', '']
+          'extern const Botanik::SiteDescriptor g_site;', '',
+          '/** @brief The firmware, bound to this site. A FUNCTION-LOCAL static,',
+          ' *  so it is constructed on first use and not during static init: on',
+          ' *  the OPTA that has to be after the Arduino core\'s init() has brought',
+          ' *  up the UARTs, and a file-scope object would run before it.',
+          ' *  @note There is no subclass. A site that needs an extra page or a',
+          ' *  component of its own derives BotanikFirmware and overrides a hook;',
+          ' *  one that is only data, like this one, just names the descriptor. */',
+          'inline Botanik::BotanikFirmware& firmware() {',
+          '    static Botanik::BotanikFirmware fw(g_site);',
+          '    return fw;',
+          '}', '']
     open(os.path.join(site, 'generated', 'vars.gen.h'), 'w').write('\n'.join(G))
     print('  vars.gen.cpp   %d params, %d rows' % (n_par, n_row))
 

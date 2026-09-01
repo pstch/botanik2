@@ -97,7 +97,8 @@ namespace Botanik {
          *  aggregate and a field added anywhere else moves the rest. */
         const Modbus::DeviceTable*    devices;
 #endif
-        /** @brief The site's whole variable table, in ONE run. The base
+        /** @brief The site's whole variable table, in ONE run - every kind of
+         *  row in it, parameters and edge counters included. The base
          *  registers it, so a site declares rows by pointing at them rather
          *  than by overriding a hook.
          *  ONE rule, and Bank::freeze() names the row that breaks it: the
@@ -105,8 +106,8 @@ namespace Botanik {
          *  a run that has to stay contiguous - which is a property of the
          *  table's ORDER, and the generator emits it. Null on a site that
          *  registers its own in register_vars(). LAST, like the rest. */
-        const Vars::Descriptor*       vars;
-        uint16_t                      var_count;
+        const Vars::Descriptor*       rows;
+        uint16_t                      row_count;
     };
 
     /** @brief Generic firmware base: owns the generic components + the loop

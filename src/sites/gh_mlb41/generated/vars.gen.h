@@ -64,8 +64,8 @@ const uint8_t g_analog_cal_count = 7;
 
 // ONE table, parameters first. Registering it is one call, and the
 // ROLE_PARAM run stays contiguous because the emit order is the rule.
-extern const Descriptor vars[];
-const uint16_t VARS_COUNT = 515;
+extern const Descriptor rows[];
+const uint16_t ROWS_COUNT = 515;
 
 extern const Modbus::DeviceModel MDL_SDM630;
 extern const Modbus::DeviceModel MDL_MCT1_140;
@@ -93,9 +93,21 @@ extern VarRef home_refs[g_home_field_count];
 // past VAR_MAX and registration is REFUSED: every name in it resolves
 // to the sink for the life of the run, and only refused_count() sees it.
 const uint16_t LIBRARY_ROWS = 70;
-static_assert(LIBRARY_ROWS + VARS_COUNT <= Config::VAR_MAX,
+static_assert(LIBRARY_ROWS + ROWS_COUNT <= Config::VAR_MAX,
               "site table exceeds VAR_MAX - raise it in site.toml "
               "(about 36 bytes of RAM per row)");
 
 // The whole handoff to the library: this site, as data.
 extern const Botanik::SiteDescriptor g_site;
+
+/** @brief The firmware, bound to this site. A FUNCTION-LOCAL static,
+ *  so it is constructed on first use and not during static init: on
+ *  the OPTA that has to be after the Arduino core's init() has brought
+ *  up the UARTs, and a file-scope object would run before it.
+ *  @note There is no subclass. A site that needs an extra page or a
+ *  component of its own derives BotanikFirmware and overrides a hook;
+ *  one that is only data, like this one, just names the descriptor. */
+inline Botanik::BotanikFirmware& firmware() {
+    static Botanik::BotanikFirmware fw(g_site);
+    return fw;
+}

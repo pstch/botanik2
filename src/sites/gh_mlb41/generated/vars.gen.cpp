@@ -85,7 +85,7 @@ const AnalogCal* const g_analog_cals[] = {
     &CAL_cli_intr2,
 };
 
-const Descriptor vars[] = {
+const Descriptor rows[] = {
     // parameters, first and contiguous
     P("cli_coldBankOfs_degC", T_F32, 6.0, 0.0, 15.0, 1, "degC", 100, "how much cooler before a hot day", "", true),
     P("cli_heatBankOfs_degC", T_F32, 7.0, 0.0, 15.0, 1, "degC", 101, "how much warmer before a cold night", "", true),
@@ -687,7 +687,7 @@ const Botanik::SiteDescriptor g_site = {
     g_commands,    g_command_count,
     g_home_fields, g_home_field_count, home_refs,
     &g_device_table,
-    vars,          VARS_COUNT,
+    rows,          ROWS_COUNT,
 };
 
 }  // namespace Site

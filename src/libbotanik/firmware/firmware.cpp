@@ -156,7 +156,7 @@ namespace Botanik {
         // emitted in, not something this has to arrange. Declaring a table is
         // pointing at it now; register_vars() is left for a site whose rows
         // are not one.
-        if (_site.vars != nullptr) _io.register_vars(_site.vars, _site.var_count);
+        if (_site.rows != nullptr) _io.register_vars(_site.rows, _site.row_count);
         register_vars();
         _io.freeze();
         // Pairs each `X_qlt` with its field row. After freeze(), because
