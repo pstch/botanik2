@@ -257,8 +257,8 @@ namespace Botanik { namespace Vars {
         /** @brief What a DRIVER hands over for an analog row: the count off the
          *  wire. The model applies the calibration, judges the plausibility
          *  band, keeps the count for wire() and stores the engineering value
-         *  for live(). A row with no calibration is 1:1, and this is then the
-         *  same as publish_live(). */
+         *  for live(). A row with no calibration is 1:1, and the engineering
+         *  value is then the count. */
         void publish_wire(VarRef r, Scalar raw, uint64_t now_ms);
 
         /** @brief The count on the wire, before any scaling. Not PRESENT for a row

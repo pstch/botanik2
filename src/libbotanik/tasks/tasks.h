@@ -22,8 +22,7 @@
 // Forward-declared, never included. `Component` is the TYPE OF THE ERASED
 // SELF-POINTER, which is what makes an (owner, handler) pair checkable at the
 // registration site; the registry never dereferences it, so `tasks/` stays below
-// `core/`. `Plc::Program` is named only to keep add_program() honest about what
-// it registers.
+// `core/`.
 namespace Botanik { class Component; }
 // Health is forward-declared with its underlying type, which C++11 allows for
 // a scoped enum: a task keeps a POINTER to one and never a value.
@@ -102,25 +101,15 @@ namespace Botanik { namespace Tasks {
          *  that casts @c owner back to its own type. @{ */
         Component* owner   = nullptr;
         void     (*handler)(Component* owner, const Tick& tick) = nullptr;
-        /** @brief Non-null iff this entry is a control PROGRAM: PHASE_CONTROL by
-         *  construction, gated by control authority. The same object as
-         *  @c owner, typed, because the registry IS the program list. */
-        Plc::Program* program = nullptr;
-        /** @brief Where this entry's verdict lives, or null for a task that has
-         *  none. A POINTER rather than the Program, because an ST program is
-         *  not a `Plc::Program` at all - the resource holds its health - and a
-         *  page asking "how is this task" should not have to know which kind it
-         *  is. add_program() points it at the program's own; Plc::Runtime::Plant
-         *  points it at the roster slot's. */
+        /** @brief Where this entry's verdict lives, or null for a task that
+         *  has none. A POINTER, because an ST program's health belongs to the
+         *  roster slot rather than to anything the registry holds, and a page
+         *  asking "how is this task" should not have to know that.
+         *  Plc::Runtime::Plant points it at the slot's. */
         const Plc::Health* health = nullptr;
         /** @brief Whether the next activation is a first scan (Tick::first).
-         *  True at registration - nothing has run yet - and raised again on a
-         *  program when control authority returns. */
+         *  True at registration: nothing has run yet. */
         bool       first_activation = true;
-        /** @brief The operator's standing choice differs from the stored copy.
-         *  Setting and saving are two steps, as they are for a parameter.
-         *  @note The choice ITSELF lives on the Program - see
-         *  Plc::Program::disable_requested(). One question, one answer. */
         /** @} */
         /** @brief How often it runs, in ms. Stated by whoever registers it:
          *  a rate is a property of the work, not of a class the work was
@@ -156,17 +145,6 @@ namespace Botanik { namespace Tasks {
          *  offset rule cannot drift between them. Null when the table is full
          *  (counted in overflow()). */
         Task* _claim(const char* name, uint32_t period_ms, Phase phase);
-
-        /** @brief Table index of each PROGRAM entry, in registration order.
-         *  Filled by add_program(), which is where the dense program index is
-         *  assigned - so program(), the enable flags and the writer id all read
-         *  one numbering rather than each re-deriving it. */
-        uint8_t  _prog[Config::MAX_TASKS];
-        uint8_t  _prog_count = 0;
-
-        /** @brief The @p i'th program's entry, or null past the last. */
-        Task*       _program_task(uint8_t i);
-        const Task* _program_task(uint8_t i) const;
 
         /** @} */
 
@@ -223,12 +201,6 @@ namespace Botanik { namespace Tasks {
 
         /** @name Program lookup
          *  @{ */
-
-        /** @brief Program index of @p name (the name it registered under), or
-         *  -1. @p len 0 means NUL-terminated. */
-        int16_t find_program(const char* name, uint16_t len = 0) const;
-
-        /** @} */
 
         /** @name Readback (the TASKS page, the stats command)
          *  @{ */
