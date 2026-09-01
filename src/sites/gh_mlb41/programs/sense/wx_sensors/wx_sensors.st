@@ -36,10 +36,10 @@ VAR
   gust_vote  : WX_WORSE;
   rain_vote  : WX_WORSE;
   sun_vote   : WX_MEAN;
-  wind_pub   : VALIDATED_EWMA;
-  gust_pub   : VALIDATED_EWMA;
-  rain_pub   : VALIDATED_EWMA;
-  sun_pub    : VALIDATED_EWMA;
+  wind_pub   : EWMA;
+  gust_pub   : EWMA;
+  rain_pub   : EWMA;
+  sun_pub    : EWMA;
   quorum_for : TON_MS;
 END_VAR
 VAR_TEMP

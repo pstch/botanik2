@@ -77,6 +77,17 @@ static REAL ___SIGNED_LADDER(
   REAL NEG_START, 
   REAL POS_START, 
   REAL POS_FULL);
+static REAL ___MEDIAN3(
+  BOOL EN, 
+  BOOL *__ENO, 
+  REAL A, 
+  REAL B, 
+  REAL C);
+static REAL ___AVG2(
+  BOOL EN, 
+  BOOL *__ENO, 
+  REAL A, 
+  REAL B);
 static REAL ___DEW_POINT(
   BOOL EN, 
   BOOL *__ENO, 
@@ -101,8 +112,6 @@ static void TON_MS_init__(TON_MS_data__ *data__, BOOL retain);
 static void TON_MS_body__(TON_MS_data__ *data__);
 static void EWMA_init__(EWMA_data__ *data__, BOOL retain);
 static void EWMA_body__(EWMA_data__ *data__);
-static void VALIDATED_EWMA_init__(VALIDATED_EWMA_data__ *data__, BOOL retain);
-static void VALIDATED_EWMA_body__(VALIDATED_EWMA_data__ *data__);
 static void BAND_LATCH_init__(BAND_LATCH_data__ *data__, BOOL retain);
 static void BAND_LATCH_body__(BAND_LATCH_data__ *data__);
 static void STAIRCASE3_init__(STAIRCASE3_data__ *data__, BOOL retain);
@@ -815,6 +824,69 @@ __end:
 }
 
 
+static REAL ___MEDIAN3(
+  BOOL EN, 
+  BOOL *__ENO, 
+  REAL A, 
+  REAL B, 
+  REAL C)
+{
+  BOOL ENO = __BOOL_LITERAL(TRUE);
+  REAL MEDIAN3 = 0;
+
+  // Control execution
+  if (!EN) {
+    if (__ENO != NULL) {
+      *__ENO = __BOOL_LITERAL(FALSE);
+    }
+    return MEDIAN3;
+  }
+  if ((((A <= B) && (B <= C)) || ((C <= B) && (B <= A)))) {
+    MEDIAN3 = B;
+  } else if ((((B <= A) && (A <= C)) || ((C <= A) && (A <= B)))) {
+    MEDIAN3 = A;
+  } else {
+    MEDIAN3 = C;
+  };
+
+  goto __end;
+
+__end:
+  if (__ENO != NULL) {
+    *__ENO = ENO;
+  }
+  return MEDIAN3;
+}
+
+
+static REAL ___AVG2(
+  BOOL EN, 
+  BOOL *__ENO, 
+  REAL A, 
+  REAL B)
+{
+  BOOL ENO = __BOOL_LITERAL(TRUE);
+  REAL AVG2 = 0;
+
+  // Control execution
+  if (!EN) {
+    if (__ENO != NULL) {
+      *__ENO = __BOOL_LITERAL(FALSE);
+    }
+    return AVG2;
+  }
+  AVG2 = (__REAL_LITERAL(0.5) * (A + B));
+
+  goto __end;
+
+__end:
+  if (__ENO != NULL) {
+    *__ENO = ENO;
+  }
+  return AVG2;
+}
+
+
 static REAL ___DEW_POINT(
   BOOL EN, 
   BOOL *__ENO, 
@@ -1059,10 +1131,14 @@ static void EWMA_init__(EWMA_data__ *data__, BOOL retain) {
   __INIT_VAR(data__->EN,__BOOL_LITERAL(TRUE),retain)
   __INIT_VAR(data__->ENO,__BOOL_LITERAL(TRUE),retain)
   __INIT_VAR(data__->X,0,retain)
+  __INIT_VAR(data__->OK_IN,__BOOL_LITERAL(FALSE),retain)
   __INIT_VAR(data__->TAU_S,0,retain)
-  __INIT_VAR(data__->HOLD,__BOOL_LITERAL(FALSE),retain)
   __INIT_VAR(data__->NOW,0,retain)
+  __INIT_VAR(data__->LO,0,retain)
+  __INIT_VAR(data__->HI,0,retain)
   __INIT_VAR(data__->Y,0,retain)
+  __INIT_VAR(data__->OK,__BOOL_LITERAL(FALSE),retain)
+  __INIT_VAR(data__->AVG,0,retain)
   __INIT_VAR(data__->LAST,0,retain)
   __INIT_VAR(data__->SEEDED,__BOOL_LITERAL(FALSE),retain)
 }
@@ -1081,23 +1157,37 @@ static void EWMA_body__(EWMA_data__ *data__) {
   __SET_VAR(data__->,DT_S,,0);
   __SET_VAR(data__->,ALPHA,,0);
 
-  if (__GET_VAR(data__->HOLD,)) {
+  __SET_VAR(data__->,OK,,__GET_VAR(data__->OK_IN,));
+  if (!(__GET_VAR(data__->OK_IN,))) {
     __SET_VAR(data__->,LAST,,__GET_VAR(data__->NOW,));
-  } else if (!(__GET_VAR(data__->SEEDED,))) {
-    __SET_VAR(data__->,Y,,__GET_VAR(data__->X,));
-    __SET_VAR(data__->,LAST,,__GET_VAR(data__->NOW,));
+    if (!(__GET_VAR(data__->SEEDED,))) {
+      __SET_VAR(data__->,Y,,__GET_VAR(data__->LO,));
+    };
+    goto __end;
+  };
+  if (!(__GET_VAR(data__->SEEDED,))) {
+    __SET_VAR(data__->,AVG,,__GET_VAR(data__->X,));
     __SET_VAR(data__->,SEEDED,,__BOOL_LITERAL(TRUE));
   } else if ((__GET_VAR(data__->TAU_S,) <= __REAL_LITERAL(0.0))) {
-    __SET_VAR(data__->,Y,,__GET_VAR(data__->X,));
-    __SET_VAR(data__->,LAST,,__GET_VAR(data__->NOW,));
+    __SET_VAR(data__->,AVG,,__GET_VAR(data__->X,));
   } else {
     __SET_VAR(data__->,DT_S,,(___UDINT_TO_REAL(
       (BOOL)__BOOL_LITERAL(TRUE),
       NULL,
       (UDINT)(__GET_VAR(data__->NOW,) - __GET_VAR(data__->LAST,))) / __REAL_LITERAL(1000.0)));
-    __SET_VAR(data__->,LAST,,__GET_VAR(data__->NOW,));
     __SET_VAR(data__->,ALPHA,,(__GET_VAR(data__->DT_S,) / (__GET_VAR(data__->TAU_S,) + __GET_VAR(data__->DT_S,))));
-    __SET_VAR(data__->,Y,,(__GET_VAR(data__->Y,) + (__GET_VAR(data__->ALPHA,) * (__GET_VAR(data__->X,) - __GET_VAR(data__->Y,)))));
+    __SET_VAR(data__->,AVG,,(__GET_VAR(data__->AVG,) + (__GET_VAR(data__->ALPHA,) * (__GET_VAR(data__->X,) - __GET_VAR(data__->AVG,)))));
+  };
+  __SET_VAR(data__->,LAST,,__GET_VAR(data__->NOW,));
+  if ((__GET_VAR(data__->HI,) > __GET_VAR(data__->LO,))) {
+    __SET_VAR(data__->,Y,,___LIMIT(
+      (BOOL)__BOOL_LITERAL(TRUE),
+      NULL,
+      (REAL)__GET_VAR(data__->LO,),
+      (REAL)__GET_VAR(data__->AVG,),
+      (REAL)__GET_VAR(data__->HI,)));
+  } else {
+    __SET_VAR(data__->,Y,,__GET_VAR(data__->AVG,));
   };
 
   goto __end;
@@ -1105,61 +1195,6 @@ static void EWMA_body__(EWMA_data__ *data__) {
 __end:
   return;
 } // EWMA_body__() 
-
-
-
-
-
-static void VALIDATED_EWMA_init__(VALIDATED_EWMA_data__ *data__, BOOL retain) {
-  __INIT_VAR(data__->EN,__BOOL_LITERAL(TRUE),retain)
-  __INIT_VAR(data__->ENO,__BOOL_LITERAL(TRUE),retain)
-  __INIT_VAR(data__->X,0,retain)
-  __INIT_VAR(data__->OK_IN,__BOOL_LITERAL(FALSE),retain)
-  __INIT_VAR(data__->TAU_S,0,retain)
-  __INIT_VAR(data__->NOW,0,retain)
-  __INIT_VAR(data__->LO,0,retain)
-  __INIT_VAR(data__->HI,0,retain)
-  __INIT_VAR(data__->Y,0,retain)
-  __INIT_VAR(data__->OK,__BOOL_LITERAL(FALSE),retain)
-  EWMA_init__(&data__->FILT,retain);
-  __INIT_VAR(data__->SEEDED,__BOOL_LITERAL(FALSE),retain)
-}
-
-// Code part
-static void VALIDATED_EWMA_body__(VALIDATED_EWMA_data__ *data__) {
-  // Control execution
-  if (!__GET_VAR(data__->EN)) {
-    __SET_VAR(data__->,ENO,,__BOOL_LITERAL(FALSE));
-    return;
-  }
-  else {
-    __SET_VAR(data__->,ENO,,__BOOL_LITERAL(TRUE));
-  }
-  // Initialise TEMP variables
-
-  __SET_VAR(data__->FILT.,X,,__GET_VAR(data__->X,));
-  __SET_VAR(data__->FILT.,TAU_S,,__GET_VAR(data__->TAU_S,));
-  __SET_VAR(data__->FILT.,HOLD,,!(__GET_VAR(data__->OK_IN,)));
-  __SET_VAR(data__->FILT.,NOW,,__GET_VAR(data__->NOW,));
-  EWMA_body__(&data__->FILT);
-  __SET_VAR(data__->,OK,,__GET_VAR(data__->OK_IN,));
-  if (__GET_VAR(data__->OK_IN,)) {
-    __SET_VAR(data__->,SEEDED,,__BOOL_LITERAL(TRUE));
-    __SET_VAR(data__->,Y,,___LIMIT(
-      (BOOL)__BOOL_LITERAL(TRUE),
-      NULL,
-      (REAL)__GET_VAR(data__->LO,),
-      (REAL)__GET_VAR(data__->FILT.Y,),
-      (REAL)__GET_VAR(data__->HI,)));
-  } else if (!(__GET_VAR(data__->SEEDED,))) {
-    __SET_VAR(data__->,Y,,__GET_VAR(data__->LO,));
-  };
-
-  goto __end;
-
-__end:
-  return;
-} // VALIDATED_EWMA_body__() 
 
 
 
@@ -1341,12 +1376,14 @@ static void DC_RAIL_body__(DC_RAIL_data__ *data__) {
 
   __SET_VAR(data__->,OK,,__GET_VAR(data__->V_OK,));
   __SET_VAR(data__->AVG.,X,,__GET_VAR(data__->V,));
+  __SET_VAR(data__->AVG.,OK_IN,,__GET_VAR(data__->V_OK,));
   __SET_VAR(data__->AVG.,TAU_S,,(___UINT_TO_REAL(
     (BOOL)__BOOL_LITERAL(TRUE),
     NULL,
     (UINT)__GET_VAR(data__->AVG_MS,)) / __REAL_LITERAL(1000.0)));
-  __SET_VAR(data__->AVG.,HOLD,,!(__GET_VAR(data__->V_OK,)));
   __SET_VAR(data__->AVG.,NOW,,__GET_VAR(data__->NOW,));
+  __SET_VAR(data__->AVG.,LO,,__REAL_LITERAL(0.0));
+  __SET_VAR(data__->AVG.,HI,,__REAL_LITERAL(0.0));
   EWMA_body__(&data__->AVG);
   if (__GET_VAR(data__->V_OK,)) {
     __SET_VAR(data__->DB.,V,,__GET_VAR(data__->AVG.Y,));
@@ -2296,16 +2333,19 @@ static void WX_MEAN_body__(WX_MEAN_data__ *data__) {
 
   __SET_VAR(data__->,USED,,__USINT_LITERAL(0));
   __SET_VAR(data__->,Y,,__REAL_LITERAL(0.0));
-  if (__GET_VAR(data__->A_OK,)) {
+  if ((__GET_VAR(data__->A_OK,) && __GET_VAR(data__->B_OK,))) {
+    __SET_VAR(data__->,Y,,___AVG2(
+      (BOOL)__BOOL_LITERAL(TRUE),
+      NULL,
+      (REAL)__GET_VAR(data__->A,),
+      (REAL)__GET_VAR(data__->B,)));
+    __SET_VAR(data__->,USED,,__USINT_LITERAL(2));
+  } else if (__GET_VAR(data__->A_OK,)) {
     __SET_VAR(data__->,Y,,__GET_VAR(data__->A,));
     __SET_VAR(data__->,USED,,__USINT_LITERAL(1));
-  };
-  if (__GET_VAR(data__->B_OK,)) {
-    __SET_VAR(data__->,Y,,(__GET_VAR(data__->Y,) + __GET_VAR(data__->B,)));
-    __SET_VAR(data__->,USED,,(__GET_VAR(data__->USED,) + __USINT_LITERAL(1)));
-  };
-  if ((__GET_VAR(data__->USED,) == __USINT_LITERAL(2))) {
-    __SET_VAR(data__->,Y,,(__GET_VAR(data__->Y,) * __REAL_LITERAL(0.5)));
+  } else if (__GET_VAR(data__->B_OK,)) {
+    __SET_VAR(data__->,Y,,__GET_VAR(data__->B,));
+    __SET_VAR(data__->,USED,,__USINT_LITERAL(1));
   };
 
   goto __end;
@@ -2372,15 +2412,18 @@ static void ZONE_VOTE_body__(ZONE_VOTE_data__ *data__) {
   };
   __SET_VAR(data__->,USED,,__GET_VAR(data__->N,));
   if ((__GET_VAR(data__->N,) == __USINT_LITERAL(3))) {
-    if ((((__GET_VAR(data__->V1,) <= __GET_VAR(data__->V2,)) && (__GET_VAR(data__->V2,) <= __GET_VAR(data__->V3,))) || ((__GET_VAR(data__->V3,) <= __GET_VAR(data__->V2,)) && (__GET_VAR(data__->V2,) <= __GET_VAR(data__->V1,))))) {
-      __SET_VAR(data__->,Y,,__GET_VAR(data__->V2,));
-    } else if ((((__GET_VAR(data__->V2,) <= __GET_VAR(data__->V1,)) && (__GET_VAR(data__->V1,) <= __GET_VAR(data__->V3,))) || ((__GET_VAR(data__->V3,) <= __GET_VAR(data__->V1,)) && (__GET_VAR(data__->V1,) <= __GET_VAR(data__->V2,))))) {
-      __SET_VAR(data__->,Y,,__GET_VAR(data__->V1,));
-    } else {
-      __SET_VAR(data__->,Y,,__GET_VAR(data__->V3,));
-    };
+    __SET_VAR(data__->,Y,,___MEDIAN3(
+      (BOOL)__BOOL_LITERAL(TRUE),
+      NULL,
+      (REAL)__GET_VAR(data__->V1,),
+      (REAL)__GET_VAR(data__->V2,),
+      (REAL)__GET_VAR(data__->V3,)));
   } else if ((__GET_VAR(data__->N,) == __USINT_LITERAL(2))) {
-    __SET_VAR(data__->,Y,,(__REAL_LITERAL(0.5) * (__GET_VAR(data__->V1,) + __GET_VAR(data__->V2,))));
+    __SET_VAR(data__->,Y,,___AVG2(
+      (BOOL)__BOOL_LITERAL(TRUE),
+      NULL,
+      (REAL)__GET_VAR(data__->V1,),
+      (REAL)__GET_VAR(data__->V2,)));
   } else if ((__GET_VAR(data__->N,) == __USINT_LITERAL(1))) {
     __SET_VAR(data__->,Y,,__GET_VAR(data__->V1,));
   } else {
@@ -2421,8 +2464,8 @@ static void ZONE_PROBES_init__(ZONE_PROBES_data__ *data__, BOOL retain) {
   __INIT_VAR(data__->FAULT,__BOOL_LITERAL(FALSE),retain)
   ZONE_VOTE_init__(&data__->T_VOTE,retain);
   ZONE_VOTE_init__(&data__->H_VOTE,retain);
-  VALIDATED_EWMA_init__(&data__->T_PUB,retain);
-  VALIDATED_EWMA_init__(&data__->H_PUB,retain);
+  EWMA_init__(&data__->T_PUB,retain);
+  EWMA_init__(&data__->H_PUB,retain);
   TOF_MS_init__(&data__->QUORUM,retain);
 }
 
@@ -2461,14 +2504,14 @@ static void ZONE_PROBES_body__(ZONE_PROBES_data__ *data__) {
   __SET_VAR(data__->T_PUB.,NOW,,__GET_VAR(data__->NOW,));
   __SET_VAR(data__->T_PUB.,LO,,__REAL_LITERAL(-100.0));
   __SET_VAR(data__->T_PUB.,HI,,__REAL_LITERAL(200.0));
-  VALIDATED_EWMA_body__(&data__->T_PUB);
+  EWMA_body__(&data__->T_PUB);
   __SET_VAR(data__->H_PUB.,X,,__GET_VAR(data__->H_RAW,));
   __SET_VAR(data__->H_PUB.,OK_IN,,(__GET_VAR(data__->H_VOTE.USED,) > __USINT_LITERAL(0)));
   __SET_VAR(data__->H_PUB.,TAU_S,,__GET_VAR(data__->TAU_S,));
   __SET_VAR(data__->H_PUB.,NOW,,__GET_VAR(data__->NOW,));
   __SET_VAR(data__->H_PUB.,LO,,__REAL_LITERAL(0.0));
   __SET_VAR(data__->H_PUB.,HI,,__REAL_LITERAL(1.0));
-  VALIDATED_EWMA_body__(&data__->H_PUB);
+  EWMA_body__(&data__->H_PUB);
   __SET_VAR(data__->,TEMP,,__GET_VAR(data__->T_PUB.Y,));
   __SET_VAR(data__->,RH,,__GET_VAR(data__->H_PUB.Y,));
   __SET_VAR(data__->,TEMP_OK,,__GET_VAR(data__->T_PUB.OK,));
@@ -3477,11 +3520,14 @@ static void TARGET_TEMP_CONTROLLER_body__(TARGET_TEMP_CONTROLLER_data__ *data__)
     };
   };
   __SET_VAR(data__->SMOOTH.,X,,__GET_VAR(data__->HELD,));
+  __SET_VAR(data__->SMOOTH.,OK_IN,,__BOOL_LITERAL(TRUE));
   __SET_VAR(data__->SMOOTH.,TAU_S,,___UINT_TO_REAL(
     (BOOL)__BOOL_LITERAL(TRUE),
     NULL,
     (UINT)__GET_EXTERNAL(data__->CLI_TARGETTAU_S,)));
   __SET_VAR(data__->SMOOTH.,NOW,,__GET_EXTERNAL(data__->SYS_NOW_MS,));
+  __SET_VAR(data__->SMOOTH.,LO,,__REAL_LITERAL(0.0));
+  __SET_VAR(data__->SMOOTH.,HI,,__REAL_LITERAL(0.0));
   EWMA_body__(&data__->SMOOTH);
   __SET_EXTERNAL(data__->,CLI_TARGETTEMP_DEGC,,___LIMIT(
     (BOOL)__BOOL_LITERAL(TRUE),
@@ -3611,12 +3657,14 @@ static void IRR_MTR_OUTPUT_body__(IRR_MTR_OUTPUT_data__ *data__) {
     __SET_VAR(data__->,SEEDED,,__BOOL_LITERAL(TRUE));
   };
   __SET_VAR(data__->FLOW_AVG.,X,,__GET_EXTERNAL(data__->IRR_OUT_LPM,));
+  __SET_VAR(data__->FLOW_AVG.,OK_IN,,__GET_VAR(data__->MEASURED,));
   __SET_VAR(data__->FLOW_AVG.,TAU_S,,(___UINT_TO_REAL(
     (BOOL)__BOOL_LITERAL(TRUE),
     NULL,
     (UINT)__GET_EXTERNAL(data__->IRR_OUT_AVG_MS,)) / __REAL_LITERAL(1000.0)));
-  __SET_VAR(data__->FLOW_AVG.,HOLD,,!(__GET_VAR(data__->MEASURED,)));
   __SET_VAR(data__->FLOW_AVG.,NOW,,__GET_EXTERNAL(data__->SYS_NOW_MS,));
+  __SET_VAR(data__->FLOW_AVG.,LO,,__REAL_LITERAL(0.0));
+  __SET_VAR(data__->FLOW_AVG.,HI,,__REAL_LITERAL(0.0));
   EWMA_body__(&data__->FLOW_AVG);
   __SET_VAR(data__->,LPM,,__GET_VAR(data__->FLOW_AVG.Y,));
   if (__GET_VAR(data__->MEASURED,)) {
@@ -5169,10 +5217,10 @@ static void WX_SENSORS_init__(WX_SENSORS_data__ *data__, BOOL retain) {
   WX_WORSE_init__(&data__->GUST_VOTE,retain);
   WX_WORSE_init__(&data__->RAIN_VOTE,retain);
   WX_MEAN_init__(&data__->SUN_VOTE,retain);
-  VALIDATED_EWMA_init__(&data__->WIND_PUB,retain);
-  VALIDATED_EWMA_init__(&data__->GUST_PUB,retain);
-  VALIDATED_EWMA_init__(&data__->RAIN_PUB,retain);
-  VALIDATED_EWMA_init__(&data__->SUN_PUB,retain);
+  EWMA_init__(&data__->WIND_PUB,retain);
+  EWMA_init__(&data__->GUST_PUB,retain);
+  EWMA_init__(&data__->RAIN_PUB,retain);
+  EWMA_init__(&data__->SUN_PUB,retain);
   TON_MS_init__(&data__->QUORUM_FOR,retain);
 }
 
@@ -5212,28 +5260,28 @@ static void WX_SENSORS_body__(WX_SENSORS_data__ *data__) {
   __SET_VAR(data__->WIND_PUB.,NOW,,__GET_EXTERNAL(data__->SYS_NOW_MS,));
   __SET_VAR(data__->WIND_PUB.,LO,,__REAL_LITERAL(0.0));
   __SET_VAR(data__->WIND_PUB.,HI,,__REAL_LITERAL(80.0));
-  VALIDATED_EWMA_body__(&data__->WIND_PUB);
+  EWMA_body__(&data__->WIND_PUB);
   __SET_VAR(data__->GUST_PUB.,X,,__GET_VAR(data__->GUST_VOTE.Y,));
   __SET_VAR(data__->GUST_PUB.,OK_IN,,(__GET_VAR(data__->GUST_VOTE.USED,) > __USINT_LITERAL(0)));
   __SET_VAR(data__->GUST_PUB.,TAU_S,,__GET_VAR(data__->TAU,));
   __SET_VAR(data__->GUST_PUB.,NOW,,__GET_EXTERNAL(data__->SYS_NOW_MS,));
   __SET_VAR(data__->GUST_PUB.,LO,,__REAL_LITERAL(0.0));
   __SET_VAR(data__->GUST_PUB.,HI,,__REAL_LITERAL(80.0));
-  VALIDATED_EWMA_body__(&data__->GUST_PUB);
+  EWMA_body__(&data__->GUST_PUB);
   __SET_VAR(data__->RAIN_PUB.,X,,__GET_VAR(data__->RAIN_VOTE.Y,));
   __SET_VAR(data__->RAIN_PUB.,OK_IN,,(__GET_VAR(data__->RAIN_VOTE.USED,) > __USINT_LITERAL(0)));
   __SET_VAR(data__->RAIN_PUB.,TAU_S,,__GET_VAR(data__->TAU,));
   __SET_VAR(data__->RAIN_PUB.,NOW,,__GET_EXTERNAL(data__->SYS_NOW_MS,));
   __SET_VAR(data__->RAIN_PUB.,LO,,__REAL_LITERAL(0.0));
   __SET_VAR(data__->RAIN_PUB.,HI,,__REAL_LITERAL(200.0));
-  VALIDATED_EWMA_body__(&data__->RAIN_PUB);
+  EWMA_body__(&data__->RAIN_PUB);
   __SET_VAR(data__->SUN_PUB.,X,,__GET_VAR(data__->SUN_VOTE.Y,));
   __SET_VAR(data__->SUN_PUB.,OK_IN,,(__GET_VAR(data__->SUN_VOTE.USED,) > __USINT_LITERAL(0)));
   __SET_VAR(data__->SUN_PUB.,TAU_S,,__GET_VAR(data__->TAU,));
   __SET_VAR(data__->SUN_PUB.,NOW,,__GET_EXTERNAL(data__->SYS_NOW_MS,));
   __SET_VAR(data__->SUN_PUB.,LO,,__REAL_LITERAL(0.0));
   __SET_VAR(data__->SUN_PUB.,HI,,__REAL_LITERAL(1500.0));
-  VALIDATED_EWMA_body__(&data__->SUN_PUB);
+  EWMA_body__(&data__->SUN_PUB);
   __SET_EXTERNAL(data__->,CLI_WIND_MPS,,__GET_VAR(data__->WIND_PUB.Y,));
   __SET_EXTERNAL(data__->,CLI_WINDGUST_MPS,,__GET_VAR(data__->GUST_PUB.Y,));
   __SET_EXTERNAL(data__->,CLI_RAIN_MMPH,,__GET_VAR(data__->RAIN_PUB.Y,));

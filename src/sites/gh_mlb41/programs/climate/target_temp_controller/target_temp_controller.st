@@ -47,7 +47,8 @@ END_VAR
      proportionally: unfiltered, dawn moves the windows, the fans and the screen
      in one beat. The filter adopts its first reading whole, so an outage does
      not ease up from whatever it held before. *)
-  smooth(X := held, TAU_S := UINT_TO_REAL(cli_targetTau_s), NOW := sys_now_ms);
+  smooth(X := held, OK_IN := TRUE, TAU_S := UINT_TO_REAL(cli_targetTau_s),
+         NOW := sys_now_ms, LO := 0.0, HI := 0.0);
 
   (* The clamp is LAST, and what keeps an aggressively-set offset from pushing
      the greenhouse somewhere dangerous, whatever the phase asked for: a rail an

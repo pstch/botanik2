@@ -1,4 +1,5 @@
-(* The demand ladders, as ST. Mirrors src/libbotanik/plc/functions/math.h.
+(* The stateless math the laws share: the demand ladders, and the two small
+   votes a redundant chain reduces its readings with.
 
    Written once so three subsystems cannot disagree about what "half demand"
    means. Stateless, so FUNCTIONs rather than blocks. *)
@@ -37,4 +38,28 @@ END_VAR
   ELSE
     SIGNED_LADDER := 0.0;
   END_IF;
+END_FUNCTION
+
+
+FUNCTION MEDIAN3 : REAL
+(* The middle of three readings, so one stuck high or stuck low can never be
+   the one retained. Both extremes are discarded, not averaged in. *)
+VAR_INPUT
+  A : REAL;
+  B : REAL;
+  C : REAL;
+END_VAR
+  IF   (A <= B AND B <= C) OR (C <= B AND B <= A) THEN MEDIAN3 := B;
+  ELSIF (B <= A AND A <= C) OR (C <= A AND A <= B) THEN MEDIAN3 := A;
+  ELSE MEDIAN3 := C;
+  END_IF;
+END_FUNCTION
+
+FUNCTION AVG2 : REAL
+(* The mean of two readings: what is left when there is no middle to keep. *)
+VAR_INPUT
+  A : REAL;
+  B : REAL;
+END_VAR
+  AVG2 := 0.5 * (A + B);
 END_FUNCTION

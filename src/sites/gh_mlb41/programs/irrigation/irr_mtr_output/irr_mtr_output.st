@@ -39,9 +39,9 @@ END_VAR
   (* Only a MEASURED sample is folded in: the row keeps its last reading while
      the loop is out, and averaging that is the same number over and over. The
      filter KEEPS its state and its CLOCK, so a loop that comes back rejoins
-     where it left rather than snapping. @see EWMA.HOLD *)
-  flow_avg(X := irr_out_Lpm, TAU_S := UINT_TO_REAL(irr_out_avg_ms) / 1000.0,
-           HOLD := NOT measured, NOW := sys_now_ms);
+     where it left rather than snapping. @see EWMA.OK_IN *)
+  flow_avg(X := irr_out_Lpm, OK_IN := measured, NOW := sys_now_ms,
+           TAU_S := UINT_TO_REAL(irr_out_avg_ms) / 1000.0, LO := 0.0, HI := 0.0);
   lpm := flow_avg.Y;
 
   IF measured THEN

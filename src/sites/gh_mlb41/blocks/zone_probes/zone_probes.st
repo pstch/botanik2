@@ -38,22 +38,11 @@ END_VAR
   END_IF;
 
   USED := n;
-  IF n = 3 THEN
-    (* THE MEDIAN, per the spec: keep the middle reading and discard both
-       extremes, so a probe stuck high or stuck low can never be the one
-       retained. *)
-    IF   (v1 <= v2 AND v2 <= v3) OR (v3 <= v2 AND v2 <= v1) THEN Y := v2;
-    ELSIF (v2 <= v1 AND v1 <= v3) OR (v3 <= v1 AND v1 <= v2) THEN Y := v1;
-    ELSE Y := v3;
-    END_IF;
-  ELSIF n = 2 THEN
-    (* No middle to keep, and their mean is the only answer there is. *)
-    Y := 0.5 * (v1 + v2);
-  ELSIF n = 1 THEN
-    (* Believed: a reading from one probe still beats none. *)
-    Y := v1;
-  ELSE
-    Y := 0.0;
+  IF   n = 3 THEN Y := MEDIAN3(A := v1, B := v2, C := v3);
+  ELSIF n = 2 THEN Y := AVG2(A := v1, B := v2);
+  (* Believed: a reading from one probe still beats none. *)
+  ELSIF n = 1 THEN Y := v1;
+  ELSE Y := 0.0;
   END_IF;
 END_FUNCTION_BLOCK
 
@@ -82,8 +71,8 @@ END_VAR
 VAR
   t_vote : ZONE_VOTE;
   h_vote : ZONE_VOTE;
-  t_pub  : VALIDATED_EWMA;
-  h_pub  : VALIDATED_EWMA;
+  t_pub  : EWMA;
+  h_pub  : EWMA;
   quorum : TOF_MS;
 END_VAR
 VAR_TEMP

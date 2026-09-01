@@ -119,9 +119,10 @@ END_VAR
      while the bus is still coming up, and folding THAT seeds the average at
      zero: the rail then reads under its floor for as long as the filter takes
      to climb out, which is a supply alarm on every boot.
-     CALLED either way, though: the filter reads the clock. @see EWMA.HOLD *)
-  avg(X := V, TAU_S := UINT_TO_REAL(AVG_MS) / 1000.0, HOLD := NOT V_OK,
-      NOW := NOW);
+     CALLED either way, though: the filter reads the clock. @see EWMA.OK_IN
+     No band: this rail's LO is what HEALTHY is judged against, not a clamp. *)
+  avg(X := V, OK_IN := V_OK, TAU_S := UINT_TO_REAL(AVG_MS) / 1000.0,
+      NOW := NOW, LO := 0.0, HI := 0.0);
   IF V_OK THEN
     db(V := avg.Y, BAND := BAND);
     seen := TRUE;

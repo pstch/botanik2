@@ -42,7 +42,8 @@ VAR_OUTPUT
 END_VAR
   USED := 0;
   Y    := 0.0;
-  IF A_OK THEN Y := A;     USED := 1; END_IF;
-  IF B_OK THEN Y := Y + B; USED := USED + 1; END_IF;
-  IF USED = 2 THEN Y := Y * 0.5; END_IF;
+  IF A_OK AND B_OK THEN Y := AVG2(A := A, B := B); USED := 2;
+  ELSIF A_OK       THEN Y := A;                    USED := 1;
+  ELSIF B_OK       THEN Y := B;                    USED := 1;
+  END_IF;
 END_FUNCTION_BLOCK

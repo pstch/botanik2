@@ -49,26 +49,6 @@ typedef struct {
   __DECLARE_VAR(BOOL,EN)
   __DECLARE_VAR(BOOL,ENO)
   __DECLARE_VAR(REAL,X)
-  __DECLARE_VAR(REAL,TAU_S)
-  __DECLARE_VAR(BOOL,HOLD)
-  __DECLARE_VAR(UDINT,NOW)
-  __DECLARE_VAR(REAL,Y)
-
-  // FB private variables - TEMP, private and located variables
-  __DECLARE_VAR(UDINT,LAST)
-  __DECLARE_VAR(BOOL,SEEDED)
-  __DECLARE_VAR(REAL,DT_S)
-  __DECLARE_VAR(REAL,ALPHA)
-
-} EWMA_data__;
-
-// FUNCTION_BLOCK VALIDATED_EWMA
-// Data part
-typedef struct {
-  // FB Interface - IN, OUT, IN_OUT variables
-  __DECLARE_VAR(BOOL,EN)
-  __DECLARE_VAR(BOOL,ENO)
-  __DECLARE_VAR(REAL,X)
   __DECLARE_VAR(BOOL,OK_IN)
   __DECLARE_VAR(REAL,TAU_S)
   __DECLARE_VAR(UDINT,NOW)
@@ -78,10 +58,13 @@ typedef struct {
   __DECLARE_VAR(BOOL,OK)
 
   // FB private variables - TEMP, private and located variables
-  EWMA_data__ FILT;
+  __DECLARE_VAR(REAL,AVG)
+  __DECLARE_VAR(UDINT,LAST)
   __DECLARE_VAR(BOOL,SEEDED)
+  __DECLARE_VAR(REAL,DT_S)
+  __DECLARE_VAR(REAL,ALPHA)
 
-} VALIDATED_EWMA_data__;
+} EWMA_data__;
 
 // FUNCTION_BLOCK BAND_LATCH
 // Data part
@@ -488,8 +471,8 @@ typedef struct {
   // FB private variables - TEMP, private and located variables
   ZONE_VOTE_data__ T_VOTE;
   ZONE_VOTE_data__ H_VOTE;
-  VALIDATED_EWMA_data__ T_PUB;
-  VALIDATED_EWMA_data__ H_PUB;
+  EWMA_data__ T_PUB;
+  EWMA_data__ H_PUB;
   TOF_MS_data__ QUORUM;
   __DECLARE_VAR(USINT,WORST)
   __DECLARE_VAR(REAL,H_RAW)
@@ -1467,10 +1450,10 @@ typedef struct {
   WX_WORSE_data__ GUST_VOTE;
   WX_WORSE_data__ RAIN_VOTE;
   WX_MEAN_data__ SUN_VOTE;
-  VALIDATED_EWMA_data__ WIND_PUB;
-  VALIDATED_EWMA_data__ GUST_PUB;
-  VALIDATED_EWMA_data__ RAIN_PUB;
-  VALIDATED_EWMA_data__ SUN_PUB;
+  EWMA_data__ WIND_PUB;
+  EWMA_data__ GUST_PUB;
+  EWMA_data__ RAIN_PUB;
+  EWMA_data__ SUN_PUB;
   TON_MS_data__ QUORUM_FOR;
   __DECLARE_VAR(REAL,TAU)
   __DECLARE_VAR(USINT,WORST)
