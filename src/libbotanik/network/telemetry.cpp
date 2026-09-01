@@ -79,6 +79,13 @@ namespace Botanik { namespace Network {
     void MqttSender::on_service(uint64_t now_ms) {
         const uint32_t period = _cfg.period_ms;
         if (period == 0) return;                       // telemetry disabled
+
+        // The startup hold covers the FIRST sweep too. Metrics published
+        // before the field has answered are every row's declared value dressed
+        // as a reading, and a broker keeps them: with retain on, that fiction
+        // is what a subscriber connecting later is handed as the plant's
+        // state. Held, not published-and-corrected. @see sys_startup_sec
+        if (_io != nullptr && now_ms < _io->startup_hold_ms()) return;
         if (_mqtt == nullptr || !_mqtt->connected()) {
             _cursor = SWEEP_IDLE;                      // a sweep cannot outlive the link
             return;

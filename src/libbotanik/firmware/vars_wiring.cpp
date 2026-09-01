@@ -47,6 +47,7 @@
 #include "libbotanik/config/alarms.h"
 #include "libbotanik/config/logging.h"
 #include "libbotanik/config/modbus.h"
+#include "libbotanik/config/scheduler.h"
 #include "libbotanik/config/serial.h"
 #include "libbotanik/config/sun.h"
 #include "libbotanik/config/terminal.h"

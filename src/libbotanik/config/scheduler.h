@@ -54,6 +54,22 @@ namespace Botanik { namespace Config {
     BOTANIK_CFG(uint32_t, SCAN_LATE_MS);
 
     /** @brief Hardware watchdog timeout. Clamped to what the IWDG can express. */
+    /** @brief How long after boot the control programs are held, in ms.
+     *
+     *  DEFENCE IN DEPTH. A program that runs before the field has answered
+     *  reads every row's DECLARED value, and the damage is not the wrong
+     *  output for one beat - it is that a momentary bring-up condition gets
+     *  latched by something that outlives it. That has cost two bugs: a rot
+     *  lockout held for five minutes, and a zone quorum alarm on every boot.
+     *
+     *  The operator's knob is `sys_startup_sec`; this is the floor a build
+     *  with no variable table falls back to. Five seconds is about one RS-485
+     *  sweep of a full site. */
+#ifndef BOTANIK_STARTUP_HOLD_MS
+#  define BOTANIK_STARTUP_HOLD_MS 5000
+#endif
+    BOTANIK_CFG(uint32_t, STARTUP_HOLD_MS);
+
 #ifndef BOTANIK_HW_WATCHDOG_MS
 #  define BOTANIK_HW_WATCHDOG_MS 10000
 #endif

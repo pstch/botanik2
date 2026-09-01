@@ -527,6 +527,12 @@ namespace Botanik { namespace Vars {
         /** @brief Release every override in one go. @return how many were on. */
         uint16_t override_clear_all();
 
+        /** @brief How long after boot control is held, in ms, from
+         *  `sys_startup_sec`. Falls back to Config::STARTUP_HOLD_MS where the
+         *  row is absent, so a table without it still holds rather than
+         *  silently running from the first beat. */
+        uint32_t startup_hold_ms() const;
+
 
         /** @} */
 

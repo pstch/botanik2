@@ -39,6 +39,11 @@ namespace Botanik { namespace Plc { namespace Runtime {
         Vars::VarRef _day_ref;   ///< sys_today
         Slot                  _slot[32];
         uint64_t              _now_ms = 0;
+        /** @brief sys_startup_sec: uptime before which no program body runs.
+         *  Read through the ref every beat rather than cached at wire(), so
+         *  neither the parameter load nor a live edit has to happen first. */
+        Vars::VarRef          _hold_ref;
+        bool                  _held    = true;   ///< the hold has not lifted yet
 
     public:
         Plant(const SetupContext& ctx, Vars::Bank& io)

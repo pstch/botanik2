@@ -97,6 +97,50 @@ TEST_CASE_FIXTURE(StRig, "zone: temperature survives losing every humidity probe
     (void)h_out;
 }
 
+TEST_CASE("startup: no law runs on a field that has not answered") {
+    // Defence in depth, and the reason it exists: a program running before the
+    // field answers reads every row's DECLARED value, and a momentary bring-up
+    // condition then gets latched by something that outlives it.
+    Live f;
+    Plc::Runtime::Plant st(Botanik::SetupContext(f.reg), f.bank);
+    st.wire();
+    const Vars::VarRef hold = f.bank.find("sys_startup_sec");
+    REQUIRE(hold.index != Vars::VAR_NONE);
+    CHECK(f.bank.var(hold).as_i64() == 5);        // the shipped default
+
+    f.bank.var(hold).set_i(2);                    // 2000 ms
+    f.bank.var(f.ref("cli_temp_hi1")).publish(from_f32(T_F32, 45.0f), 0);
+    f.bank.var(f.ref("cli_temp_hi2")).publish(from_f32(T_F32, 45.0f), 0);
+    f.bank.var(f.ref("cli_temp_hi3")).publish(from_f32(T_F32, 45.0f), 0);
+
+    // The ROW temp_rh_sensors would write, and its value before it has.
+    const Vars::VarRef out = f.ref("cli_temp_hi");
+    const float before = f.bank.var(out).as_f32();
+
+    for (uint64_t t = 0; t < 2000; t += 100) st.scan(t);
+    INFO("held: temp_rh_sensors has not run, so the zone has published nothing");
+    CHECK(f.bank.var(out).as_f32() == doctest::Approx(before));
+
+    for (uint64_t t = 2000; t <= 4000; t += 100) st.scan(t);
+    INFO("...and past the hold it runs, seeding on the reading it starts from");
+    CHECK(f.bank.var(out).as_f32() == doctest::Approx(45.0f).epsilon(0.02));
+    CHECK(f.bank.var(f.ref("cli_temp_hi_qlt")).as_bool());
+}
+
+TEST_CASE("startup: a zero hold runs from the first beat") {
+    Live f;
+    Plc::Runtime::Plant st(Botanik::SetupContext(f.reg), f.bank);
+    st.wire();
+    f.bank.var(f.bank.find("sys_startup_sec")).set_i(0);
+    for (uint8_t i = 1; i <= 3; i++) {
+        char n[24]; snprintf(n, sizeof n, "cli_temp_hi%u", (unsigned)i);
+        f.bank.var(f.ref(n)).publish(from_f32(T_F32, 21.0f), 0);
+    }
+    st.scan(0);
+    st.scan(100);
+    CHECK(f.bank.var(f.ref("cli_temp_hi")).as_f32() == doctest::Approx(21.0f).epsilon(0.02));
+}
+
 TEST_CASE_FIXTURE(StRig, "watch: a dead ceiling does not silence the humidity alarm") {
     // One gate over the temperature AND the margin used to cover all three
     // alarms, so losing the ceiling took the humidity alarm with it - even

@@ -136,6 +136,7 @@ const Descriptor library_vars[] = {
     P("sys_cpu_load_pct", T_U8 , 50             , 1, 100  , 0, "%"  , 970, "CPU_LOAD alarm threshold", "percent of the task period", true),
     P("sys_jitter_pct"  , T_U8 , 50             , 1, 100  , 0, "%"  , 971, "CPU_JITT alarm threshold", "percent of the task period", true),
     P("sys_stack_pct"   , T_U8 , 75             , 1, 100  , 0, "%"  , 972, "STACK alarm threshold", "percent of the stack in use", true),
+    P("sys_startup_sec" , T_U16, BOTANIK_STARTUP_HOLD_MS / 1000, 0, 600, 0, "sec", 973, "control held after boot, seconds", "nothing runs a law on a field that has not answered yet; 0 runs from the first beat", true),
     P("sys_retain_sec"  , T_U32, 300            , 0, 86400, 0, "sec", 974, "how often retained values reach flash", "0 leaves only `save` and the way down; wear vs loss", true),
 #if BOTANIK_FEATURE_MODBUS_RTU_CLIENT
     P("rtu_timeout_ms"    , T_U32, 300  , 20  , 5000  , 0, "ms", 980, "how long a slave has to answer", "the bus default; a device model may declare its own", true),

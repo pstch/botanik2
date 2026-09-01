@@ -299,6 +299,7 @@ TEST_CASE("irrigation: the day the schedule runs on is today's date") {
     Plc::Runtime::Plant st(Botanik::SetupContext(f.reg), f.bank);
     st.wire();
     summer(f);
+    f.bank.var(f.bank.find("sys_startup_sec")).set_i(0);   // one beat is the point
     st.scan(1000);
 
     const uint32_t want = Utils::cal_time_ms(HAL::Clock::uptime_ms()).unixDays;

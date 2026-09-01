@@ -15,6 +15,7 @@
 
                             // Bank / Var / Descriptor
 
+#include "libbotanik/config/scheduler.h"
 #include "libbotanik/tasks/tasks.h"
 
 
@@ -388,6 +389,14 @@ namespace Botanik { namespace Vars {
         if (r != 0 && _logger != nullptr)
             _logger->notice(Logs::BOOT, "%u retained value(s) restored",
                             (unsigned)r);
+    }
+
+    uint32_t Bank::startup_hold_ms() const {
+        const VarRef r = find("sys_startup_sec");
+        const int32_t sec = (r.index != VAR_NONE)
+                                ? (int32_t)var(r).as_i64()
+                                : (int32_t)(Config::STARTUP_HOLD_MS / 1000u);
+        return sec > 0 ? (uint32_t)sec * 1000u : 0u;
     }
 
     uint32_t Bank::_retain_ms() const {
