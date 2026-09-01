@@ -20,6 +20,7 @@ One section per SCOPE, in the order `Vars::VarScope` declares them.
 | Analog inputs | raw count through scale/offset | 5 | 0 |
 | Digital inputs | one bit, polled - or an edge COUNT, which is a PI row | 2 | 0 |
 | Direct outputs | register 1:1 | 0 | 0 |
+| Digital outputs | one bit | 0 | 0 |
 | Analog outputs | engineering value through scale/offset | 2 | 0 |
 | Relay outputs | a coil | 28 | 0 |
 

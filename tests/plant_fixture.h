@@ -218,15 +218,7 @@ inline void hold_water(Plant& p) {
     const float per_pulse = p.num("irr_input_qtyPerImp");
     g_owed() += (inlet_open ? g_pipe().fill_Lpm : g_pipe().leak_Lpm) / 600.0f;
     while (per_pulse > 0.0f && g_owed() >= per_pulse) {
-        // The channel and the edge the PI row declares: LocalInputs attaches it
-        // at bring-up, and this makes the first inject safe before that.
-        {
-            const Vars::Descriptor& d =
-                p.f.bank.descriptor(p.ref("irr_inCount").index);
-            const uint8_t ch = (uint8_t)d.bind.reg;
-            (void)HAL::Pulse::attach(ch, (HAL::Pulse::Edge)d.bind.fc);
-            HAL::Pulse::inject(ch, 1);
-        }
+        HAL::Pulse::inject(TestScan::pulse_line(p.f, "irr_inCount"), 1);
         g_owed() -= per_pulse;
     }
 

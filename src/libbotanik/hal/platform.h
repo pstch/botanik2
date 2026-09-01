@@ -241,16 +241,13 @@ namespace Botanik { namespace HAL {
         };
 
         /** @brief Count edges on local channel @p ch (0 = I1, 7 = I8).
-         *  @return false if the channel is out of range, already attached, or
-         *  would collide with one that is: I1 and I4 share a line.
+         *  IDEMPOTENT: a channel already counting @p edge is already in the
+         *  state asked for, and answers true.
+         *  @return false if the channel is out of range, would collide with one
+         *  that is attached (I1 and I4 share a line), or is already counting a
+         *  DIFFERENT edge.
          *  @warning Call from setup(). The OPTA core allocates on attach. */
         bool attach(uint8_t ch, Edge edge);
-
-        /** @brief Whether @p ch is already counting. attach() answers false
-         *  for a channel that is out of range, colliding, OR already attached,
-         *  and a caller that has to tell the last case from the first two asks
-         *  this. */
-        bool attached(uint8_t ch);
 
         /** @brief @p ch's count and the instant of the read.
          *  Re-reads until the count is stable, so an edge arriving mid-read

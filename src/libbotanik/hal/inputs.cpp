@@ -52,6 +52,7 @@ namespace Botanik { namespace HAL {
             volatile uint32_t overruns = 0;
             volatile uint32_t last_us  = 0;   ///< for the resolution guard
             bool              attached = false;
+            Edge              edge     = EDGE_RISING;
         };
 
         static Channel g_ch[MAX_CHANNELS + 1];   // indexed by OPTA channel 0..7
@@ -86,18 +87,22 @@ namespace Botanik { namespace HAL {
         };
 
         bool attach(uint8_t ch, Edge edge) {
-            if (ch >= 8 || g_ch[ch].attached || collides(ch)) return false;
+            // IDEMPOTENT: a channel already counting the SAME edge is already
+            // in the state asked for, so this SUCCEEDED. Bring-up runs twice in
+            // one process every time a test builds a second firmware, and a
+            // caller cannot tell "already yours" from "out of range" through a
+            // bool. Asking for a DIFFERENT edge on a live channel is a real
+            // conflict and still fails.
+            if (ch < 8 && g_ch[ch].attached) return g_ch[ch].edge == edge;
+            if (ch >= 8 || collides(ch)) return false;
             const PinStatus mode = (edge == EDGE_FALLING) ? FALLING
                                  : (edge == EDGE_BOTH)    ? CHANGE : RISING;
             // attachInterrupt() sets the pull itself, per edge, and allocates an
             // mbed::InterruptIn. Both are why this belongs in setup().
             attachInterrupt(digitalPinToInterrupt(pin_of(ch)), ISRS[ch], mode);
             g_ch[ch].attached = true;
+            g_ch[ch].edge     = edge;
             return true;
-        }
-
-        bool attached(uint8_t ch) {
-            return ch < 8 && g_ch[ch].attached;
         }
 
         Sample sample(uint8_t ch) {
@@ -171,14 +176,17 @@ namespace Botanik { namespace HAL {
             // The I1/I4 rule is enforced HERE too, though nothing on a host
             // shares a line: a site that only ever runs in the simulator would
             // otherwise discover it on the bench.
-            if (ch >= 8 || g_ch[ch].attached || collides(ch)) return false;
+            // IDEMPOTENT: a channel already counting the SAME edge is already
+            // in the state asked for, so this SUCCEEDED. Bring-up runs twice in
+            // one process every time a test builds a second firmware, and a
+            // caller cannot tell "already yours" from "out of range" through a
+            // bool. Asking for a DIFFERENT edge on a live channel is a real
+            // conflict and still fails.
+            if (ch < 8 && g_ch[ch].attached) return g_ch[ch].edge == edge;
+            if (ch >= 8 || collides(ch)) return false;
             g_ch[ch].attached = true;
             g_ch[ch].edge     = edge;
             return true;
-        }
-
-        bool attached(uint8_t ch) {
-            return ch < 8 && g_ch[ch].attached;
         }
 
         Sample sample(uint8_t ch) {

@@ -92,6 +92,20 @@ struct Live {
     Botanik::Vars::VarRef ref(const char* name) { return bank.find(name); }
 };
 
+/** @brief The terminal a PI row declares, ATTACHED. The channel and the edge
+ *  live in the row, so nothing keeps a second table of them.
+ *
+ *  `Io::LocalInputs` attaches it at bring-up; a case injecting before it has
+ *  ever stepped needs it done first, and attach() is idempotent, so asking
+ *  twice for the same edge costs nothing. Here rather than in one rig's
+ *  header, because both of them and the simulated field want it. */
+inline uint8_t pulse_line(Live& f, const char* row) {
+    const Botanik::Vars::Descriptor& d = f.bank.descriptor(f.ref(row).index);
+    (void)Botanik::HAL::Pulse::attach(Botanik::Io::pulse_channel(d),
+                                      Botanik::Io::pulse_edge(d));
+    return Botanik::Io::pulse_channel(d);
+}
+
 }  // namespace TestScan
 
 #endif  // TESTS_SCAN_FIXTURE_H

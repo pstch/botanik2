@@ -23,15 +23,8 @@ namespace Botanik { namespace Io {
             // two ways is a hardware fault waiting for the first wet week.
             if (d.flags & Vars::F_PULSE) {
                 if (_pulses >= HAL::Pulse::MAX_CHANNELS) continue;
-                const uint8_t pch = (uint8_t)d.bind.reg;
-                // The EDGE rides in `fc`, which a local row has no other use
-                // for - the same trick `reg` plays for the channel.
-                // attach() answers false for an out-of-range or colliding
-                // channel AND for one already counting, which is the ordinary
-                // case on a second bring-up in one process. Only the first two
-                // are a reason not to publish the row.
-                if (!HAL::Pulse::attach(pch, (HAL::Pulse::Edge)d.bind.fc)
-                    && !HAL::Pulse::attached(pch)) continue;
+                const uint8_t pch = Io::pulse_channel(d);
+                if (!HAL::Pulse::attach(pch, Io::pulse_edge(d))) continue;
                 _pulse_row[_pulses] = i;
                 _pulse_ch[_pulses]  = pch;
                 _pulses++;

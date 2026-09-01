@@ -133,17 +133,6 @@ inline void slot(Live& f) {
           f.bank.var(f.ref("irr_dawnGate_degC")).as_f32() + 5.0f);
 }
 
-/** @brief The terminal a PI row declares, attached. The channel and the edge
- *  live in the ROW now, so nothing keeps a second table of them. LocalInputs
- *  attaches it at bring-up; a case injecting before it has ever stepped needs
- *  it done first, and attach() on a live channel simply answers false. */
-inline uint8_t pulse_line(Live& f, const char* row) {
-    const Vars::Descriptor& d = f.bank.descriptor(f.ref(row).index);
-    const uint8_t ch = (uint8_t)d.bind.reg;
-    (void)HAL::Pulse::attach(ch, (HAL::Pulse::Edge)d.bind.fc);
-    return ch;
-}
-
 /** @brief Where the roof parks, from the row that declares it. */
 inline float safe_open(Live& f) {
     const Vars::Descriptor& d = f.bank.descriptor(f.ref("cli_window1_tgt").index);

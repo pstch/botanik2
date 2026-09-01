@@ -148,7 +148,7 @@ precision and - the load-bearing one - a **default**, which does three jobs: an
 input's substitute when a read is invalid, an output's safe state on a fault, and
 a parameter's factory value.
 
-The home-screen readings live in `vars.h` - a caption is a person's choice. Grouping for the MONITOR page and
+The home-screen readings live in `tables/home.csv` - a caption is a person's choice. Grouping for the MONITOR page and
 telemetry is derived: a variable's group is the prefix of its name, and whether
 it is published is its scope. Naming a variable files it.
 
@@ -162,29 +162,23 @@ table, kept contiguous so the parameter pages can address them with a dense
 
 ## Integrating into an Arduino sketch
 
-The site cross-compiles as an Arduino library. The firmware is one object,
-`GreenhouseMLB41`. Allocate it as a **function-local static** (no heap) so it is
-constructed only after the Arduino core's `init()` has brought up the UARTs.
-A minimal sketch:
+The site cross-compiles as an Arduino library. `Site::firmware()` is generated
+and hands back the one firmware object, a **function-local static** so it is
+constructed on first use rather than during static init - on the OPTA that has
+to be after the Arduino core's `init()` has brought up the UARTs, and a
+file-scope object would run before it. A minimal sketch:
 
 ```cpp
 #include <Arduino.h>
-#include "sites/gh_mlb41/site.h"   // BotanikSite = GreenhouseMLB41
-
-// Constructed on first call - after the core's init(), so the UARTs are valid -
-// and kept in static storage for the whole run. The default constructor uses the
-// config-default console baud; pass (cols, rows) to override the 80x24 geometry.
-static BotanikSite& firmware() {
-    static BotanikSite fw;
-    return fw;
-}
+#include "sites/gh_mlb41/site.h"   // Site::firmware()
 
 void setup() {
-    firmware().setup();   // boot wiring: UARTs, sinks, pages, banner, POST, watchdog
+    // boot wiring: UARTs, sinks, pages, banner, POST, watchdog
+    Site::firmware().setup();
 }
 
 void loop() {
-    firmware().loop();    // one gated main-loop iteration
+    Site::firmware().loop();   // one gated main-loop iteration
 }
 ```
 

@@ -308,7 +308,9 @@ namespace Botanik { namespace Vars {
      *  @param channel the local terminal, 0 = I1. Carried in @c reg, which a
      *         local row has no other use for.
      *  @param edge which edge advances the count (HAL::Pulse::Edge). Carried in
-     *         @c fc, likewise. */
+     *         @c fc, likewise.
+     *  @note Read back with `Io::pulse_channel()` / `Io::pulse_edge()`, which
+     *  are the only other place this encoding is spelled out. */
     constexpr Descriptor PI(const char* name, uint8_t channel, uint8_t edge,
                           const char* desc, const char* notes) {
         return Descriptor{ Scalar::U(0), name, "", desc, notes, Payload(),

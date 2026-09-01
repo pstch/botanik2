@@ -17,6 +17,23 @@
 
 namespace Botanik { namespace Io {
 
+    /** @name Reading a PI row's terminal
+     *
+     *  `Vars::PI()` encodes an edge-counted terminal into the two Binding
+     *  fields a LOCAL row has no other use for: the channel in @c reg, which
+     *  every local row already does, and the edge in @c fc. These read it
+     *  back, so the encoding is stated in one place and everything that wants
+     *  the channel ASKS rather than knowing.
+     *  @{ */
+    inline uint8_t pulse_channel(const Vars::Descriptor& d) {
+        return (uint8_t)d.bind.reg;
+    }
+    inline HAL::Pulse::Edge pulse_edge(const Vars::Descriptor& d) {
+        return (HAL::Pulse::Edge)d.bind.fc;
+    }
+    /** @} */
+
+
     /**
      * @brief Publishes every XP_LOCAL digital row from the PLC's own terminals.
      *

@@ -152,6 +152,12 @@ if(NOT EXISTS "${_site_dir}/site.h")
 endif()
 # The config a table-driven site GENERATES, or the one it hand-writes. A site
 # whose site.toml produces config.gen.h needs no shim over it.
+if(EXISTS "${_site_dir}/generated/config.gen.h" AND EXISTS "${_site_dir}/config.h")
+    message(FATAL_ERROR "Site directory '${_site_dir}' has BOTH "
+        "generated/config.gen.h and config.h. One site, one config: the "
+        "generated one would win and edits to the hand-written one would go "
+        "nowhere. Delete whichever is not the source of truth.")
+endif()
 if(EXISTS "${_site_dir}/generated/config.gen.h")
     set(_site_config "${_site_dir}/generated/config.gen.h")
 elseif(EXISTS "${_site_dir}/config.h")
