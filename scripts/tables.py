@@ -425,7 +425,16 @@ def assigned_rows(path):
     rows it only ever read."""
     src = re.sub(r'\(\*.*?\*\)', ' ', open(path).read(), flags=re.S)
     body = src[src.rindex('END_VAR') + 7:]
-    return set(re.findall(r'(?<![\w.])(\w+)\s*:=', body))
+    # Parenthesised groups out first, so a call's NAMED ARGUMENTS cannot read
+    # as assignments: a single-line `blk(PT := x)` has the same shape as one.
+    # No site row shares a name with a block input today, which is luck rather
+    # than a rule. Balanced, because an argument can itself be a call.
+    out, depth = [], 0
+    for ch in body:
+        if ch == '(': depth += 1
+        elif ch == ')': depth -= 1
+        elif depth == 0: out.append(ch)
+    return set(re.findall(r'(?<![\w.])(\w+)\s*:=', ''.join(out)))
 
 
 def pou_of(path):
