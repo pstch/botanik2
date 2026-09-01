@@ -35,11 +35,6 @@
 // IN-TREE reference site instead of the one being built.
 #include "vars.h"
 
-// The program NETWORK: which row a law produces and which laws read it. Not
-// code - the base owns the ST resource, and `tables/programs.csv` is the
-// roster - but the one thing neither the CSV nor the ST says.
-#include "programs.h"
-
 namespace Site {
 
 /** @brief The site's shell commands (Botanik::Shell::ShellCommand): none here.
