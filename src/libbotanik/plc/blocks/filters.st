@@ -1,11 +1,12 @@
-(* The one filter every measured row is published through.
- *
- * Ours, not the standard's: matiec's lib/*.txt are GPL and its C runtime is
- * LGPL, so nothing here derives from either.
- *
- * The variable DESCRIPTORS stay in C++. ST names a variable; what a name
- * means - its unit, band, register, transport and timeout - is the table's,
- * and matiec never sees it. *)
+(* The one filter every measured row is published through
+   ------------------------------------------------------------------------ *)
+
+(* Ours, not the standard's: matiec's lib/*.txt are GPL and its C runtime is
+   LGPL, so nothing here derives from either.
+
+   The variable DESCRIPTORS stay in C++. ST names a variable; what a name
+   means - its unit, band, register, transport and timeout - is the table's,
+   and matiec never sees it. *)
 
 FUNCTION_BLOCK EWMA
 (* An exponentially-weighted moving average of X, clamped to the row's band,

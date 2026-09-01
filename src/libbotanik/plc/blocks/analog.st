@@ -1,15 +1,15 @@
-(* The ST source for Staircase3, beside the C++ it replaces.
- *
- * Ours, not the standard's: matiec's lib/*.txt are GPL and its C runtime is
- * LGPL, so nothing here derives from either. The interface follows IEC's
- * shape where there is one, but the block takes DT_MS - the scan's elapsed
- * milliseconds - rather than reading a clock, because the scan already
- * threads dt everywhere and a block that reads a clock cannot be tested at
- * a hundred times real speed.
- *
- * The variable DESCRIPTORS stay in C++. ST names a variable; what a name
- * means - its unit, band, register, transport and timeout - is the table's,
- * and matiec never sees it. *)
+(* Analog conditioning: a latch, a three-step ladder, a deadband, a DC rail
+   ------------------------------------------------------------------------ *)
+
+(* Ours, not the standard's: matiec's lib/*.txt are GPL and its C runtime is
+   LGPL, so nothing here derives from either. The interface follows IEC's
+   shape where there is one, but the block takes NOW - the scan clock - and
+   differences it itself, so it is rate-independent and survives being moved
+   between tasks.
+
+   The variable DESCRIPTORS stay in C++. ST names a variable; what a name
+   means - its unit, band, register, transport and timeout - is the table's,
+   and matiec never sees it. *)
 
 (* BAND_LATCH: latches ON at its rising edge and OFF below the falling one,
    holding between the two. Mirrors Plc::Hysteresis.

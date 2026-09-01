@@ -1,7 +1,7 @@
-(* The stateless math the laws share: the demand ladders, and the two small
-   votes a redundant chain reduces its readings with.
+(* The demand ladders, and the votes a redundant chain reduces with
+   ------------------------------------------------------------------------ *)
 
-   Written once so three subsystems cannot disagree about what "half demand"
+(* Written once so three subsystems cannot disagree about what "half demand"
    means. Stateless, so FUNCTIONs rather than blocks. *)
 
 FUNCTION LADDER : REAL

@@ -1,5 +1,5 @@
-(* irrigation_cycle, as ST. Mirrors
-   src/sites/gh_mlb41/programs/irrigation/irrigation_cycle/. *)
+(* irrigation_cycle program
+   ------------------------------------------------------------------------ *)
 
 PROGRAM irrigation_cycle
 VAR_EXTERNAL CONSTANT

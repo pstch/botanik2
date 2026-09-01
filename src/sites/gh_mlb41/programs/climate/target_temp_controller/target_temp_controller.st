@@ -1,5 +1,5 @@
-(* target_temp_controller, as ST. Mirrors
-   src/sites/gh_mlb41/programs/climate/target_temp_controller/. *)
+(* target_temp_controller program
+   ------------------------------------------------------------------------ *)
 
 PROGRAM target_temp_controller
 VAR_EXTERNAL CONSTANT

@@ -1,5 +1,5 @@
-(* humidity_controller, as ST. Mirrors
-   src/sites/gh_mlb41/programs/climate/humidity_controller/. *)
+(* humidity_controller program
+   ------------------------------------------------------------------------ *)
 
 PROGRAM humidity_controller
 VAR_EXTERNAL CONSTANT

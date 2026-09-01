@@ -1,4 +1,7 @@
-(* temp_rh_sensors, as ST. Four zones, each with its own quorum. *)
+(* temp_rh_sensors program
+   ------------------------------------------------------------------------ *)
+
+(* Four zones, each with its own quorum. *)
 
 PROGRAM temp_rh_sensors
 VAR_EXTERNAL CONSTANT

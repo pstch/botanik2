@@ -1,5 +1,5 @@
-(* climate_watch, as ST. Mirrors
-   src/sites/gh_mlb41/programs/sense/climate_watch/. *)
+(* climate_watch program
+   ------------------------------------------------------------------------ *)
 
 PROGRAM climate_watch
 VAR_EXTERNAL CONSTANT

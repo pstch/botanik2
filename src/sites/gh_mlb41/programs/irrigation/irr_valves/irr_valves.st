@@ -1,5 +1,5 @@
-(* irr_valves, as ST. Mirrors
-   src/sites/gh_mlb41/programs/irrigation/irr_valves/. *)
+(* irr_valves program
+   ------------------------------------------------------------------------ *)
 
 PROGRAM irr_valves
 VAR_EXTERNAL CONSTANT

@@ -1,6 +1,7 @@
-(* The ST source for AcSupply, beside the C++ it replaces.
+(* AC_SUPPLY function block
+   ------------------------------------------------------------------------ *)
 
-   The mirror exists because a field-read row carries no Modbus register of its
+(* The mirror exists because a field-read row carries no Modbus register of its
    own - only parameters, status values and alarms are mapped - so an external
    master cannot see the meter without one. *)
 

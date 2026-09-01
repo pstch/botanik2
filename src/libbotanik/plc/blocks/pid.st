@@ -1,10 +1,11 @@
-(* The ST source for Pid, beside the C++ it replaces.
+(* The PID loop
+   ------------------------------------------------------------------------ *)
 
- * Ours, not the standard's: matiec's lib/*.txt are GPL and its C runtime is
- * LGPL, so nothing here derives from either. The block takes NOW - the scan
- * clock - rather than an elapsed time, because a block that reads a clock
- * cannot be tested at a hundred times real speed, and one handed dt cannot be
- * moved between tasks. *)
+(* Ours, not the standard's: matiec's lib/*.txt are GPL and its C runtime is
+   LGPL, so nothing here derives from either. The block takes NOW - the scan
+   clock - rather than an elapsed time, because a block that reads a clock
+   cannot be tested at a hundred times real speed, and one handed dt cannot be
+   moved between tasks. *)
 
 FUNCTION_BLOCK PID
 (* Holds a reading at a setpoint. Direct-acting by default: the output rises as

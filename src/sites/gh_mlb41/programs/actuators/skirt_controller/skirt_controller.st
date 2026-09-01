@@ -1,5 +1,5 @@
-(* skirt_controller, as ST. Mirrors
-   src/sites/gh_mlb41/programs/actuators/skirt_controller/. *)
+(* skirt_controller program
+   ------------------------------------------------------------------------ *)
 
 PROGRAM skirt_controller
 VAR_EXTERNAL CONSTANT

@@ -1,5 +1,5 @@
-(* irrigation_modulation, as ST. Mirrors
-   src/sites/gh_mlb41/programs/irrigation/irrigation_modulation/. *)
+(* irrigation_modulation program
+   ------------------------------------------------------------------------ *)
 
 PROGRAM irrigation_modulation
 VAR_EXTERNAL CONSTANT

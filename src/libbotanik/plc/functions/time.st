@@ -1,6 +1,7 @@
-(* Time arithmetic, as ST. Mirrors src/libbotanik/plc/functions/time.h.
+(* Seconds as milliseconds, the one place the factor is written
+   ------------------------------------------------------------------------ *)
 
-   A parameter an operator sets is in SECONDS; every timer input is in
+(* A parameter an operator sets is in SECONDS; every timer input is in
    milliseconds. This is that seam, named once, so no law spells the factor
    out and none of them can spell it differently. *)
 

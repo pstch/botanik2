@@ -1,5 +1,5 @@
-(* wx_sensors, as ST. Mirrors
-   src/sites/gh_mlb41/programs/sense/wx_sensors/. *)
+(* wx_sensors program
+   ------------------------------------------------------------------------ *)
 
 PROGRAM wx_sensors
 VAR_EXTERNAL CONSTANT

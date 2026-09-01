@@ -1,6 +1,7 @@
-(* Psychrometrics, as ST. Mirrors src/libbotanik/plc/functions/psychro.h.
+(* Psychrometrics: dew points, and the margin to them
+   ------------------------------------------------------------------------ *)
 
-   DEW POINTS, not humidities: air at 90% and 5 degC is drier than air at 60%
+(* DEW POINTS, not humidities: air at 90% and 5 degC is drier than air at 60%
    and 25, and swapping one for the other is what ventilating does. *)
 
 FUNCTION DEW_POINT : REAL

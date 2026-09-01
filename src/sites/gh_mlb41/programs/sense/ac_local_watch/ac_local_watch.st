@@ -1,5 +1,5 @@
-(* ac_local_watch, as ST. Mirrors
-   src/sites/gh_mlb41/programs/sense/ac_local_watch/. *)
+(* ac_local_watch program
+   ------------------------------------------------------------------------ *)
 
 PROGRAM ac_local_watch
 VAR_EXTERNAL CONSTANT

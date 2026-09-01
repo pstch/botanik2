@@ -1,6 +1,7 @@
-(* The two-station vote, for the rows wx_sensors publishes.
+(* The two-station weather vote: the worse reading, or the mean
+   ------------------------------------------------------------------------ *)
 
-   TWO stations is a weaker vote than the three a zone gets: a disagreement can
+(* TWO stations is a weaker vote than the three a zone gets: a disagreement can
    be seen but not resolved, because there is no third reading to say which
    station is lying. So there is no outlier rule here - the interlock
    quantities take the WORSE of the two, which is the only choice that cannot

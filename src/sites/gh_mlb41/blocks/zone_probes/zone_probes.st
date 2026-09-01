@@ -1,6 +1,7 @@
-(* ZONE_PROBES, as ST. Mirrors src/sites/gh_mlb41/blocks/zone_probes/.
+(* One climate zone: three probes voted, filtered and published
+   ------------------------------------------------------------------------ *)
 
-   The quality of each probe arrives as a plain BOOL, mirrored from the row by
+(* The quality of each probe arrives as a plain BOOL, mirrored from the row by
    Vars::QualityMirror. That is the whole reason this block can be ST at all:
    a C++ block asks the bank whether a reading is believable, and ST has no
    way to ask anything. *)

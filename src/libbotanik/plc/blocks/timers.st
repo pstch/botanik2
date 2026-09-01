@@ -1,15 +1,15 @@
-(* The ST source for Tof, beside the C++ it replaces.
- *
- * Ours, not the standard's: matiec's lib/*.txt are GPL and its C runtime is
- * LGPL, so nothing here derives from either. The interface follows IEC's
- * shape where there is one, but the block takes DT_MS - the scan's elapsed
- * milliseconds - rather than reading a clock, because the scan already
- * threads elapsed everywhere and a block that reads a clock cannot be tested at
- * a hundred times real speed.
- *
- * The variable DESCRIPTORS stay in C++. ST names a variable; what a name
- * means - its unit, band, register, transport and timeout - is the table's,
- * and matiec never sees it. *)
+(* The two dwell timers: off-delay and on-delay, in milliseconds
+   ------------------------------------------------------------------------ *)
+
+(* Ours, not the standard's: matiec's lib/*.txt are GPL and its C runtime is
+   LGPL, so nothing here derives from either. The interface follows IEC's
+   shape where there is one, but the block takes NOW - the scan clock - and
+   differences it itself, so it is rate-independent and survives being moved
+   between tasks.
+
+   The variable DESCRIPTORS stay in C++. ST names a variable; what a name
+   means - its unit, band, register, transport and timeout - is the table's,
+   and matiec never sees it. *)
 
 FUNCTION_BLOCK TOF_MS
 VAR_INPUT

@@ -1,5 +1,5 @@
-(* temp_rh_zone, as ST. Mirrors
-   src/sites/gh_mlb41/programs/sense/temp_rh_zone/. *)
+(* temp_rh_zone program
+   ------------------------------------------------------------------------ *)
 
 PROGRAM temp_rh_zone
 VAR_EXTERNAL CONSTANT

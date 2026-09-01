@@ -1,5 +1,5 @@
-(* intake_dry_gate, as ST. Mirrors
-   src/sites/gh_mlb41/programs/climate/intake_dry_gate/. *)
+(* intake_dry_gate program
+   ------------------------------------------------------------------------ *)
 
 PROGRAM intake_dry_gate
 VAR_EXTERNAL CONSTANT

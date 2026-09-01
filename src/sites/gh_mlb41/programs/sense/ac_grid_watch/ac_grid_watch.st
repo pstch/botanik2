@@ -1,5 +1,5 @@
-(* ac_grid_watch, as ST. Mirrors
-   src/sites/gh_mlb41/programs/sense/ac_grid_watch/. *)
+(* ac_grid_watch program
+   ------------------------------------------------------------------------ *)
 
 PROGRAM ac_grid_watch
 VAR_EXTERNAL CONSTANT

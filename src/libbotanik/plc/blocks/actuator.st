@@ -1,6 +1,7 @@
-(* The ST source for Actuator, beside the C++ it replaces.
+(* Open/close coil pairs, driven to a fractional target by timing
+   ------------------------------------------------------------------------ *)
 
-   Drives an open/close coil pair to a fractional target by TIMING the strokes.
+(* Drives an open/close coil pair to a fractional target by TIMING the strokes.
    No position feedback: the position is an ESTIMATE, a stroke to either end
    runs SEAT_MS extra to re-datum, and it is UNKNOWN until one has.
 

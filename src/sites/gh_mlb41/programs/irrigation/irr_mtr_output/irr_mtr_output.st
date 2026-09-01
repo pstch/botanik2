@@ -1,5 +1,5 @@
-(* irr_mtr_output, as ST. Mirrors
-   src/sites/gh_mlb41/programs/irrigation/irr_mtr_output/. *)
+(* irr_mtr_output program
+   ------------------------------------------------------------------------ *)
 
 PROGRAM irr_mtr_output
 VAR_EXTERNAL CONSTANT

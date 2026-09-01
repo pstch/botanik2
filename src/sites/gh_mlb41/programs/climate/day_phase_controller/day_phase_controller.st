@@ -1,5 +1,5 @@
-(* day_phase_controller, as ST. Mirrors
-   src/sites/gh_mlb41/programs/climate/day_phase_controller/. *)
+(* day_phase_controller program
+   ------------------------------------------------------------------------ *)
 
 PROGRAM day_phase_controller
 VAR_EXTERNAL CONSTANT

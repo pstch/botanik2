@@ -1,5 +1,5 @@
-(* weather_watch, as ST. Mirrors
-   src/sites/gh_mlb41/programs/sense/weather_watch/. *)
+(* weather_watch program
+   ------------------------------------------------------------------------ *)
 
 PROGRAM weather_watch
 VAR_EXTERNAL CONSTANT

@@ -1,5 +1,8 @@
-(* destrat_controller, as ST. STAIRCASE3 comes from
-   src/libbotanik/plc/blocks/analog.st - the library block, not a copy. *)
+(* destrat_controller program
+   ------------------------------------------------------------------------ *)
+
+(* STAIRCASE3 comes from src/libbotanik/plc/blocks/analog.st - the library
+   block, not a copy. *)
 
 PROGRAM destrat_controller
 (* VAR_EXTERNAL, so __INIT_EXTERNAL is the generated bind() and the body

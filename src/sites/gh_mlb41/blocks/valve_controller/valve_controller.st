@@ -1,6 +1,7 @@
-(* The ST source for ValveController, beside the C++ it replaces.
+(* The pulse-width valve driver, with a minimum on-time
+   ------------------------------------------------------------------------ *)
 
-   The FAIL DIRECTION is not here. The C++ block read it off the coil row's
+(* The FAIL DIRECTION is not here. The C++ block read it off the coil row's
    declared default so the table stayed the one place it was stated - but the
    only caller that ever used it was the skirt's rot lockout, and what that
    branch means is "this valve must never wet condensing air", which is a LAW

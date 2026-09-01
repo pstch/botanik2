@@ -1,5 +1,5 @@
-(* windows_controller, as ST. Mirrors
-   src/sites/gh_mlb41/programs/actuators/windows_controller/. *)
+(* windows_controller program
+   ------------------------------------------------------------------------ *)
 
 PROGRAM windows_controller
 VAR_EXTERNAL CONSTANT

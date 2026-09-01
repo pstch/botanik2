@@ -1,5 +1,5 @@
-(* dc_watch, as ST. Mirrors
-   src/sites/gh_mlb41/programs/sense/dc_watch/. *)
+(* dc_watch program
+   ------------------------------------------------------------------------ *)
 
 PROGRAM dc_watch
 VAR_EXTERNAL CONSTANT

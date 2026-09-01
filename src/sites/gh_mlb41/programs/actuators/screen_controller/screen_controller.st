@@ -1,5 +1,5 @@
-(* screen_controller, as ST. Mirrors
-   src/sites/gh_mlb41/programs/actuators/screen_controller/. *)
+(* screen_controller program
+   ------------------------------------------------------------------------ *)
 
 PROGRAM screen_controller
 VAR_EXTERNAL CONSTANT

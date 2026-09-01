@@ -1,5 +1,5 @@
-(* fan_controller, as ST. Mirrors
-   src/sites/gh_mlb41/programs/actuators/fan_controller/. *)
+(* fan_controller program
+   ------------------------------------------------------------------------ *)
 
 PROGRAM fan_controller
 VAR_EXTERNAL CONSTANT

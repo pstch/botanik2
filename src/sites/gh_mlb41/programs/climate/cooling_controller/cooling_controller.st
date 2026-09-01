@@ -1,5 +1,5 @@
-(* cooling_controller, as ST. Mirrors
-   src/sites/gh_mlb41/programs/climate/cooling_controller/. *)
+(* cooling_controller program
+   ------------------------------------------------------------------------ *)
 
 PROGRAM cooling_controller
 VAR_EXTERNAL CONSTANT

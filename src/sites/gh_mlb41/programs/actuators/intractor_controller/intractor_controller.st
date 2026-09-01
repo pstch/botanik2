@@ -1,5 +1,5 @@
-(* intractor_controller, as ST. Mirrors
-   src/sites/gh_mlb41/programs/actuators/intractor_controller/. *)
+(* intractor_controller program
+   ------------------------------------------------------------------------ *)
 
 PROGRAM intractor_controller
 VAR_EXTERNAL CONSTANT

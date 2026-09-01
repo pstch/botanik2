@@ -1,5 +1,5 @@
-(* strat_sensor, as ST. Mirrors
-   src/sites/gh_mlb41/programs/sense/strat_sensor/. *)
+(* strat_sensor program
+   ------------------------------------------------------------------------ *)
 
 PROGRAM strat_sensor
 VAR_EXTERNAL CONSTANT

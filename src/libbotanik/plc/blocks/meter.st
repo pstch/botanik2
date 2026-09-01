@@ -1,6 +1,7 @@
-(* The ST source for Integral and Derivative, beside the C++ they replace.
+(* Integrating a rate, and differentiating a quantity
+   ------------------------------------------------------------------------ *)
 
-   Both take NOW - the scan clock - and difference it themselves, so they are
+(* Both take NOW - the scan clock - and difference it themselves, so they are
    rate-independent and survive being moved between tasks. HOLD is "keep the
    clock, count nothing": see EWMA for why a clocked block needs one rather
    than being skipped or disabled with EN. *)

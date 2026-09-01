@@ -1,7 +1,10 @@
-(* roof_lockout as ST. The one law that cannot be written without quality:
-   cli_rain_mmph and cli_wind_mps declare 0, which reads as fine weather, so a
-   station that has stopped answering would OPEN the roof. The two _qlt
-   companions are what shut it. *)
+(* roof_lockout program
+   ------------------------------------------------------------------------ *)
+
+(* The one law that cannot be written without quality: cli_rain_mmph and
+   cli_wind_mps declare 0, which reads as fine weather, so a station that has
+   stopped answering would OPEN the roof. The two _qlt companions are what
+   shut it. *)
 
 PROGRAM roof_lockout
 (* VAR_EXTERNAL, not VAR_INPUT: a program binds rows by NAME, which is what
