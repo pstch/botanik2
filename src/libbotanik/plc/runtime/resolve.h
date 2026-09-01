@@ -24,15 +24,15 @@ namespace Botanik { namespace Plc { namespace Runtime {
 
     /** @brief The row @p name, whatever case it is spelled in.
      *
-     *  A miss returns the inert sink, exactly as `Bank::resolve_*` does, so a
-     *  POU naming a row no site declares fails the same way one written in
-     *  C++ does. */
+     *  A miss returns the inert sink, exactly as `Bank::resolve` does, so a
+     *  POU naming a row no site declares resolves to something that reads 0
+     *  for ever - which is what marks its program INVALID at bring-up. */
     template <typename T>
-    Vars::Ref<T, Vars::Dir::INOUT> resolve_ci(Vars::Bank& bank, const char* name) {
+    Vars::Ref<T> resolve_ci(Vars::Bank& bank, const char* name) {
         for (uint16_t i = 0; i < bank.count(); i++)
             if (same_folded(bank.descriptor(i).name, name))
-                return bank.resolve_inout<T>(bank.descriptor(i).name);
-        return Vars::Ref<T, Vars::Dir::INOUT>();
+                return bank.resolve<T>(bank.descriptor(i).name);
+        return Vars::Ref<T>();
     }
 
 }}}  // namespace Botanik::Plc::Runtime

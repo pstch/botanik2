@@ -32,26 +32,19 @@ namespace Botanik { namespace Vars {
 
     /** @} */
 
-    /** @brief Which IEC 61131-3 declaration section a program reads this row
-     *  through. Read-only, produced, or shared.
-     *  @note A PROGRAM POU may connect a formal parameter to a global or name
-     *  the global directly; both spellings land on the same three modes, so
-     *  VAR_EXTERNAL CONSTANT is IN and VAR_EXTERNAL is OUT. */
-    enum class Dir : uint8_t {
-        IN,      ///< VAR_INPUT / VAR_EXTERNAL CONSTANT: the program may not write it
-        OUT,     ///< VAR_OUTPUT / VAR_EXTERNAL: this program is the row's one producer
-        INOUT    ///< VAR_IN_OUT: read-modify-write, and shared by declaration
-    };
-
-    /** @brief A typed row reference: @p T is the row's value type, @p D its
-     *  declaration section.
+    /** @brief A typed row reference: @p T is the row's value type.
      *
      *  The index still resolves at bind time. Bank::freeze() may compact a
      *  redeclared row out, so a reference fixed at compile time would be wrong
-     *  by construction; what is compile-time here is the TYPE and the
-     *  DIRECTION. Default-constructs to VAR_NONE, which reads the inert sink.
-     *  @see Bank::resolve_in() */
-    template <typename T, Dir D>
+     *  by construction; what is compile-time here is the TYPE.
+     *
+     *  It carried a DIRECTION too - IN, OUT, INOUT, off the IEC declaration
+     *  section - which guarded a write to a read-only row at compile time.
+     *  Every ST row resolves VAR_IN_OUT, so the guard could not fire: the
+     *  section a program declares a row in is checked at generate time now,
+     *  against what matiec says the body writes. Default-constructs to
+     *  VAR_NONE, which reads the inert sink. @see Bank::resolve() */
+    template <typename T>
     struct Ref {
         VarRef r;
         /** @brief The table this row lives in, remembered at bind time so a
@@ -107,9 +100,6 @@ namespace Botanik { namespace Vars {
         /** @} */
     };
 
-    template <typename T> using RefIn    = Ref<T, Dir::IN>;
-    template <typename T> using RefOut   = Ref<T, Dir::OUT>;
-    template <typename T> using RefInOut = Ref<T, Dir::INOUT>;
 
     /** @brief Whether two types are the same, so a mismatched drive() names the
      *  problem instead of reporting a deduction conflict. Hand-rolled: three

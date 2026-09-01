@@ -314,8 +314,8 @@ namespace Botanik { namespace Vars {
          *  finds it.
          *  @note An override reads as the force: valid() is asked of the value
          *  in effect, so a forced row is believable and never substituted. */
-        template <typename T, Dir D>
-        T get(Ref<T, D> h) const {
+        template <typename T>
+        T get(Ref<T> h) const {
             const Var v = var(h.r);
             return v.valid() ? RefIo<T>::read(*this, h.r)
                              : RefIo<T>::of(v.declared());
@@ -324,9 +324,8 @@ namespace Botanik { namespace Vars {
         /** @brief Drive @p h. @p V is CHECKED against @p T, not converted, so a
          *  mismatch names itself instead of reporting a deduction conflict.
          */
-        template <typename T, Dir D, typename V>
-        void drive(Ref<T, D> h, V v) {
-            static_assert(D != Dir::IN, "a VAR_INPUT row cannot be driven");
+        template <typename T, typename V>
+        void drive(Ref<T> h, V v) {
             static_assert(SameType<T, V>::value, "value type must be the row's own type");
             RefIo<T>::write(*this, h.r, (T)v);
         }
@@ -335,24 +334,13 @@ namespace Botanik { namespace Vars {
 
         /** @name Binding
          *  One call per variable a program declares. A name matching no row, or
-         *  a row of another type, lands on the sink and counts as unresolved.
-         *  Declaring an OUTPUT also CLAIMS it for the open writer window.
+         *  a row of another type, lands on the sink and counts as unresolved -
+         *  which is what marks the program INVALID at bring-up.
          *  @see @ref dev_vars_writers
          *  @{ */
 
-        template <typename T> RefIn<T> resolve_in(const char* name) {
-            return RefIn<T>(_resolve_typed<T>(name), this);
-        }
-        template <typename T> RefOut<T> resolve_out(const char* name) {
-            const VarRef r = _resolve_typed<T>(name);
-            return RefOut<T>(r, this);
-        }
-        /** @brief The same, and MARKS the row shared: a VAR_IN_OUT row is
-         *  read-modify-written by more than one writer BY DECLARATION, so it
-         *  records no single owner and the conflict scan leaves it alone. */
-        template <typename T> RefInOut<T> resolve_inout(const char* name) {
-            const VarRef r = _resolve_typed<T>(name);
-            return RefInOut<T>(r, this);
+        template <typename T> Ref<T> resolve(const char* name) {
+            return Ref<T>(_resolve_typed<T>(name), this);
         }
 
         /** @} */
@@ -667,18 +655,17 @@ namespace Botanik { namespace Vars {
     // Ref's bodies, out of line because a reference is declared before the
     // table it reads. Grouped at their declarations, in ref.h.
 
-    template <typename T, Dir D>
-    inline T Ref<T, D>::get() const { return io->get(*this); }
+    template <typename T>
+    inline T Ref<T>::get() const { return io->get(*this); }
 
-    template <typename T, Dir D>
-    inline bool Ref<T, D>::valid() const { return io->var(r).valid(); }
+    template <typename T>
+    inline bool Ref<T>::valid() const { return io->var(r).valid(); }
 
-    template <typename T, Dir D>
-    inline T Ref<T, D>::held() const { return RefIo<T>::read(*io, r); }
+    template <typename T>
+    inline T Ref<T>::held() const { return RefIo<T>::read(*io, r); }
 
-    template <typename T, Dir D>
-    inline bool Ref<T, D>::edit(T v) const {
-        static_assert(D == Dir::INOUT, "only a VAR_IN_OUT row is edited");
+    template <typename T>
+    inline bool Ref<T>::edit(T v) const {
         if (RefIo<T>::edit(*io, r, v) != SET_OK) return false;
         // OWED, not written through. A law stamps a watering date inside a
         // scan, and an erase there is both a stall and, repeated, a dead part.
@@ -687,8 +674,8 @@ namespace Botanik { namespace Vars {
         return true;
     }
 
-    template <typename T, Dir D>
-    inline void Ref<T, D>::drive(T v) const {
+    template <typename T>
+    inline void Ref<T>::drive(T v) const {
         // ST has ONE write macro, so the ROW is what decides which write it
         // means: a parameter is state the plant has to keep, anything else is
         // this scan's answer.
@@ -697,9 +684,8 @@ namespace Botanik { namespace Vars {
         io->param_owe(io->var(r));
     }
 
-    template <typename T, Dir D>
-    inline void Ref<T, D>::invalidate() const {
-        static_assert(D != Dir::IN, "a VAR_INPUT row cannot be invalidated");
+    template <typename T>
+    inline void Ref<T>::invalidate() const {
         io->var(r).invalidate(Q_NO_DATA);
     }
 

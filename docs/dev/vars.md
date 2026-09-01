@@ -141,15 +141,15 @@ from the context; nothing gets its own pointer.
 | `override_set(...)` | force **any** variable: range-checked against the type only, marked unsaved |
 | `save(...)` / `save_override(...)` | write one row's value / force to the store, clearing its mark |
 | `save_params()` / `save_overrides()` | the same for every row still marked |
-| `control_mode()` / `control_enabled()` | what authority is in force |
-| `set_effective_control()` | ENACT a verdict: mute, unmute, or drop to safe. `Plc::ControlAuthority`'s to call, nobody else's |
+| `safe(ref)` | drop one row to its declared safe state (on `Var`), which is how a program leaving the scan lets go of what it drove |
 | `override_clear_all()` | release the lot |
 
-The bank ENACTS control authority; it does not decide it. Who may drive the
-field is `Plc::ControlAuthority` - the operator's standing choice and the
-system's hold, stricter wins - which pushes the verdict down through
-`set_effective_control()`. The bank never asks who decided, the same way
-`Tasks::Registry` keeps its own plain gate flag.
+The bank does not decide control authority and no longer enacts it either.
+Who may drive the field is `Plc::Runtime::Plant::running()` - the operator's
+standing choice (`sys_control`, and `programs disable` per program) against
+the system's hold (`Scheduler::RunState`), stricter wins. A program that is
+not running drops what it drove to its declared safe state, one row at a
+time, through `Var::safe()`.
 
 The two writes are deliberately different. `set()` refuses anything that is not a
 parameter with `SET_INVALID` - writing a sensor or an output would simply be
@@ -163,7 +163,7 @@ Three shapes, and which one a new method takes is not a matter of taste.
 | Shape | For | Examples |
 |---|---|---|
 | `<noun>_<verb>` | a FAMILY of operations on one concept, so the family sorts together and reads the way the shell says it | `override_set` / `override_clear` / `override_clear_all`, matching `overrides set` / `overrides clear` |
-| `set_<property>` | a single property with no family behind it. Turning these around would give `health_hold_set`, which is why they are not the shape above | `set_store`, `set_control_mode`, `set_health_hold` |
+| `set_<property>` | a single property with no family behind it. Turning these around would give `run_state_set`, which is why they are not the shape above | `set_store`, `set_run_state`, `set_variables` |
 | `<thing>_count()` | a tally, always, and never `num_` or `n_` | `param_count`, `unsaved_count`, `refused_count`, `unresolved_count`, `param_stray_count` |
 
 `set()` alone means EDIT A PARAMETER. Anything that writes a row by another
@@ -203,41 +203,30 @@ longer row name sorts after the key, because the key ends there.
 
 ### Control authority
 
-Three modes, and two INDEPENDENT sources that decide which is in force. The
-**operator** picks a standing mode at the console; the **system** raises a hold
-for bring-up, a health fault or a pending reset. `control_mode()` is the
-STRICTER of the two, so a recovered firmware never talks over the operator and
-an operator's choice survives a fault coming and going.
+Two INDEPENDENT sources decide whether a law may drive the field, and the
+STRICTER wins. The **operator** picks a standing choice - `sys_control` for all
+of them, `programs disable <pat|all>` for one - and the **system** holds control
+outside `Scheduler::RunState::RUN`, which is bring-up (`sys_startup_sec`) and
+the way out (`sys_shutdown_sec`). `Plc::Runtime::Plant::running()` is where the
+two meet, so a recovered firmware never talks over the operator and an
+operator's choice survives a hold coming and going.
 
-| Mode | Outputs | An output's override |
-|---|---|---|
-| `CONTROL_ENABLED` | driven by the programs | drives |
-| `CONTROL_INHIBITED` | dropped to `def`, scan stopped | still drives |
-| `CONTROL_DISABLED` | dropped to `def`, scan stopped | muted |
+A program that is not running does not FREEZE what it drove. Its rows drop to
+`Q_SAFE`, so every reader substitutes the row's declared value - which is what
+`Descriptor::def` means for an output, and what `vars info` calls "safe state,
+driven when control is withdrawn". A coil left energised by a law nobody is
+running is the thing this exists to prevent.
 
-The middle mode is how an operator takes the plant by hand: the programs stop
-deciding, and an override is then the only thing that *can* move an actuator.
-The strictest stops even that.
+Which rows those are cannot be asked of the bank: an ST row resolves
+VAR_IN_OUT, so no exclusive writer is recorded. The roster is generated per
+program from what matiec says its body writes (`__SET_EXTERNAL`), and the same
+pass fails the build on a row two programs write, or none.
 
-**Muted is not erased.** `CONTROL_DISABLED` sets `VF_OVR_MUTED` on the row, which
-`Var::raw()` and `valid()` read, so the field sees the safe state while the
-forced value waits; leaving the mode restores it with nothing to re-enter.
-Crossing that edge in either direction marks the row `VF_FIELD_DIRTY`, because
-both directions change what the field is owed.
-
-The one destructive path is the SYSTEM's hold (`Plc::ControlAuthority::set_health_hold(true)`), which
-**erases** every output override, stored copy included. The two differ because
-the operator is present and a fault is not: an actuator held energised by hand
-through a fault, or resurrected by the next boot, is what the safe state exists
-to prevent.
-
-Outputs only, in every mode. Muting a forced sensor would erase the diagnosis it
-was forced to get, and sweeping a parameter would revert the network settings on
-a scan overrun.
-
-`override_set()` therefore never refuses an output on control grounds. It is live
-immediately rather than staged, and unless it is saved there is no session it can
-outlive.
+Overrides are untouched by any of this. An override is the operator present at
+the console, and muting one would take the plant out of their hands at exactly
+the moment they reached for it; `override clear` is how a force comes off.
+`override_set()` is live immediately rather than staged, and unless it is saved
+there is no session it can outlive.
 
 ## Parameters
 

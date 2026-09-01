@@ -62,7 +62,7 @@
  *  @{ */
 
 #define __DECLARE_EXTERNAL(type, name) \
-    ::Botanik::Vars::Ref< type, ::Botanik::Vars::Dir::INOUT > name;
+    ::Botanik::Vars::Ref< type > name;
 
 /* The row already exists in the site's table, so a VAR_GLOBAL declares
  * nothing. It only has to name itself for __INIT_EXTERNAL to find. */

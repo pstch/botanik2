@@ -435,7 +435,7 @@ TEST_CASE("params: a program's write waits on the cadence, an operator's on the 
     // The program's: a watering date, through the parameter path a law uses.
     const Vars::VarRef date = bank.find("irr_last_tray1");
     REQUIRE(date.index != Vars::VAR_NONE);
-    Vars::RefInOut<uint32_t> stamp = bank.resolve_inout<uint32_t>("irr_last_tray1");
+    Vars::Ref<uint32_t> stamp = bank.resolve<uint32_t>("irr_last_tray1");
     REQUIRE(stamp.edit(20000u));
     INFO("OWED, not unsaved: the params page counts what a PERSON typed, and a "
          "watering date is not that");

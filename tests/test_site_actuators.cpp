@@ -59,7 +59,7 @@ TEST_CASE_FIXTURE(StRig, "scan: an ST timer measures VIRTUAL time, whatever the 
     // simulator accelerates by advancing the virtual clock faster in real
     // time, never by changing the step, so this is also what makes a
     // greenhouse day in a minute give the same answers as a greenhouse day.
-    Vars::RefIn<bool> lock = live.bank.resolve_in<bool>("cli_rainLockout");
+    Vars::Ref<bool> lock = live.bank.resolve<bool>("cli_rainLockout");
     const uint32_t hold_ms =
         1000u * live.bank.var(live.ref("cli_rainLockout_sec")).value().as<uint32_t>();
 
@@ -89,8 +89,8 @@ TEST_CASE_FIXTURE(StRig, "scan: an ST timer measures VIRTUAL time, whatever the 
 TEST_CASE_FIXTURE(StRig, "fans: an unknown gap floors them at their safe state, not at rest") {
     interlocks_clear(live);
 
-    Vars::RefIn<bool> s1 = live.bank.resolve_in<bool>("cli_destrat1_speed1");
-    Vars::RefIn<bool> s3 = live.bank.resolve_in<bool>("cli_destrat1_speed3");
+    Vars::Ref<bool> s1 = live.bank.resolve<bool>("cli_destrat1_speed1");
+    Vars::Ref<bool> s3 = live.bank.resolve<bool>("cli_destrat1_speed3");
 
     // The PROBES: every row between them and the fans is an ST output now, so
     // an "unknown gap" is the levels nobody is measuring. strat_sensor then
@@ -117,8 +117,8 @@ TEST_CASE_FIXTURE(StRig, "fans: an unknown gap floors them at their safe state, 
 
 TEST_CASE_FIXTURE(StRig, "screen: a cold night deploys it, and the traverse is published while it runs") {
 
-    Vars::RefIn<bool> screen = live.bank.resolve_in<bool>("cli_screen");
-    Vars::RefIn<bool> moving = live.bank.resolve_in<bool>("cli_screenMoving");
+    Vars::Ref<bool> screen = live.bank.resolve<bool>("cli_screen");
+    Vars::Ref<bool> moving = live.bank.resolve<bool>("cli_screenMoving");
 
     put_phase(live, Site::PHASE_DAY);
     live.bank.var(live.ref("cli_temp_hi")).publish(from_f32(T_F32, 25.0f), 0);
@@ -170,7 +170,7 @@ TEST_CASE("windows: the wind takes the roof down a ramp before it shuts it") {
     const float top  = f.bank.var(f.ref("cli_windShutMax")).as_f32();
     REQUIRE(shut > ease);
 
-    Vars::RefIn<float> cap = f.bank.resolve_in<float>("cli_windowCap");
+    Vars::Ref<float> cap = f.bank.resolve<float>("cli_windowCap");
     force(f, "cli_windowDem", 1.0f);
     uint64_t t = 0;
 
@@ -209,7 +209,7 @@ TEST_CASE("windows: rain shuts the roof whatever the wind is doing") {
     interlocks_clear(f);
     RoofDrive d(f);
 
-    Vars::RefIn<float> cap = f.bank.resolve_in<float>("cli_windowCap");
+    Vars::Ref<float> cap = f.bank.resolve<float>("cli_windowCap");
     force(f, "cli_windowDem", 1.0f);
     uint64_t t = 0;
     for (uint32_t i = 0; i < 40; i++) d.step(t += 1000);
@@ -257,7 +257,7 @@ TEST_CASE("windows: a forced lockout shuts the roof, with no weather to do it") 
 
 TEST_CASE_FIXTURE(StRig, "screen: the phase gives permission, the demand only asks") {
 
-    Vars::RefIn<bool> screen = live.bank.resolve_in<bool>("cli_screen");
+    Vars::Ref<bool> screen = live.bank.resolve<bool>("cli_screen");
     const float deploy = live.bank.var(live.ref("cli_thermalScreenDem")).as_f32();
 
     // The morning opens it: retracting is what the day half of the cycle is
@@ -331,8 +331,8 @@ TEST_CASE_FIXTURE(StRig, "windows: rain shuts them, and the lockout outlives the
     fine_weather(live);
     interlocks_clear(live);
 
-    Vars::RefIn<float> tgt = live.bank.resolve_in<float>("cli_window1_tgt");
-    Vars::RefIn<bool>  rain_lock = live.bank.resolve_in<bool>("cli_rainLockout");
+    Vars::Ref<float> tgt = live.bank.resolve<float>("cli_window1_tgt");
+    Vars::Ref<bool>  rain_lock = live.bank.resolve<bool>("cli_rainLockout");
     force(live, "cli_windowDem", 1.0f);
 
     uint64_t t = 0;
@@ -359,7 +359,7 @@ TEST_CASE_FIXTURE(StRig, "windows: a gust shuts them, and the mean alone does no
     fine_weather(live);
     interlocks_clear(live);
 
-    Vars::RefIn<bool> wind_lock = live.bank.resolve_in<bool>("cli_windLockout");
+    Vars::Ref<bool> wind_lock = live.bank.resolve<bool>("cli_windLockout");
     const float shut = live.bank.var(live.ref("cli_windShutEnd_mps")).as_f32();
     force(live, "cli_windowDem", 1.0f);
 
@@ -374,7 +374,7 @@ TEST_CASE_FIXTURE(StRig, "windows: a gust shuts them, and the mean alone does no
     d.step(200);
     d.step(300);
     CHECK(live.bank.get(wind_lock));
-    CHECK(live.bank.get(live.bank.resolve_in<float>("cli_window1_tgt")) ==
+    CHECK(live.bank.get(live.bank.resolve<float>("cli_window1_tgt")) ==
           doctest::Approx(0.0f));
 }
 
@@ -384,7 +384,7 @@ TEST_CASE_FIXTURE(StRig, "windows: an unmeasured sky shuts the roof rather than 
     interlocks_clear(live);
     force(live, "cli_windowDem", 1.0f);
     d.step(100);
-    REQUIRE_FALSE(live.bank.get(live.bank.resolve_in<bool>("cli_windowLockout")));
+    REQUIRE_FALSE(live.bank.get(live.bank.resolve<bool>("cli_windowLockout")));
 
     INFO("the SAME readings, no longer believed: both rows still say calm and "
          "dry, which is the trap - only the companions separate a fine sky "
@@ -394,15 +394,15 @@ TEST_CASE_FIXTURE(StRig, "windows: an unmeasured sky shuts the roof rather than 
     force(live, "cli_rain_mmph_qlt", false);
     force(live, "cli_wind_mps_qlt", false);
     d.step(200);
-    CHECK(live.bank.get(live.bank.resolve_in<bool>("cli_rainLockout")));
-    CHECK(live.bank.get(live.bank.resolve_in<bool>("cli_windLockout")));
+    CHECK(live.bank.get(live.bank.resolve<bool>("cli_rainLockout")));
+    CHECK(live.bank.get(live.bank.resolve<bool>("cli_windLockout")));
     // The program that LOOKS at the sky is the one that cannot see it. The
     // windows read a lockout row, which is as readable as ever.
 }
 
 TEST_CASE_FIXTURE(StRig, "intractors: the fusion is a maximum of the demands whose gate is open") {
 
-    Vars::RefIn<float> intr = live.bank.resolve_in<float>("cli_intr1");
+    Vars::Ref<float> intr = live.bank.resolve<float>("cli_intr1");
     const float start = live.bank.var(live.ref("cli_intakeStartDem")).as_f32();
 
     INFO("under the staging threshold they are at their FLOOR, not stopped: "
@@ -435,12 +435,12 @@ TEST_CASE_FIXTURE(StRig, "intractors: the fusion is a maximum of the demands who
     force(live, "cli_intakeDryOk", true);
     d.step(500);
     CHECK(live.bank.get(intr) == doctest::Approx(1.0f));
-    CHECK(live.bank.get(live.bank.resolve_in<float>("cli_intr2")) == doctest::Approx(1.0f));
+    CHECK(live.bank.get(live.bank.resolve<float>("cli_intr2")) == doctest::Approx(1.0f));
 }
 
 TEST_CASE_FIXTURE(StRig, "intractors: cooling only draws air that is worth drawing") {
 
-    Vars::RefIn<float> intr = live.bank.resolve_in<float>("cli_intr1");
+    Vars::Ref<float> intr = live.bank.resolve<float>("cli_intr1");
 
     INFO("a full cooling demand with the intake no cooler than the house does "
          "nothing: the fans would only bring the outside in");
@@ -474,23 +474,23 @@ TEST_CASE_FIXTURE(StRig, "fans: the day's two breezes are a floor under the bras
     force(live, "cli_coolDem", 0.0f);
     put_phase(live, Site::PHASE_DAY);
     d.step(100);
-    CHECK_FALSE(live.bank.get(live.bank.resolve_in<bool>("cli_destrat1_speed1")));
+    CHECK_FALSE(live.bank.get(live.bank.resolve<bool>("cli_destrat1_speed1")));
 
     INFO("dusk: a light circulation dries the leaves before the stomata open - "
          "these plants breathe at night, and a wet leaf cannot");
     put_phase(live, Site::PHASE_DUSK_BREEZE);
     d.step(200);
-    CHECK(live.bank.get(live.bank.resolve_in<bool>("cli_destrat1_speed1")));
+    CHECK(live.bank.get(live.bank.resolve<bool>("cli_destrat1_speed1")));
 
     INFO("...and dawn, for the night's condensation");
     put_phase(live, Site::PHASE_DAWN_BREEZE);
     d.step(300);
-    CHECK(live.bank.get(live.bank.resolve_in<bool>("cli_destrat1_speed1")));
+    CHECK(live.bank.get(live.bank.resolve<bool>("cli_destrat1_speed1")));
 
     INFO("a FLOOR, not a target: cooling still takes them higher");
     force(live, "cli_coolDem", 1.0f);
     d.step(400);
-    CHECK(live.bank.get(live.bank.resolve_in<bool>("cli_destrat1_speed3")));
+    CHECK(live.bank.get(live.bank.resolve<bool>("cli_destrat1_speed3")));
 
     put_phase(live, Site::PHASE_NIGHT);
     force(live, "cli_coolDem", 0.0f);
@@ -499,15 +499,15 @@ TEST_CASE_FIXTURE(StRig, "fans: the day's two breezes are a floor under the bras
     // ladder. This case is about the BREEZE floor, so the others are quiet.
     force(live, "irr_state", (int64_t)Site::IRR_IDLE);
     for (uint32_t i = 0; i < 5; i++) d.step(500 + 100u * i);
-    CHECK_FALSE(live.bank.get(live.bank.resolve_in<bool>("cli_destrat1_speed1")));
+    CHECK_FALSE(live.bank.get(live.bank.resolve<bool>("cli_destrat1_speed1")));
 }
 
 TEST_CASE_FIXTURE(StRig, "fans: one speed relay at a time, and a band change costs hysteresis") {
     interlocks_clear(live);
 
-    Vars::RefIn<bool> s1 = live.bank.resolve_in<bool>("cli_destrat1_speed1");
-    Vars::RefIn<bool> s2 = live.bank.resolve_in<bool>("cli_destrat1_speed2");
-    Vars::RefIn<bool> s3 = live.bank.resolve_in<bool>("cli_destrat1_speed3");
+    Vars::Ref<bool> s1 = live.bank.resolve<bool>("cli_destrat1_speed1");
+    Vars::Ref<bool> s2 = live.bank.resolve<bool>("cli_destrat1_speed2");
+    Vars::Ref<bool> s3 = live.bank.resolve<bool>("cli_destrat1_speed3");
     const float med = live.bank.var(live.ref("cli_fanMedDem")).as_f32();
 
     // Driven through the COOLING floor: cli_stratDem is destrat's output now
@@ -538,16 +538,16 @@ TEST_CASE_FIXTURE(StRig, "fans: a watering cycle is a floor under them") {
     live.bank.var(live.ref("cli_stratDem")).set(0.0f);
     force(live, "cli_coolDem", 0.0f);
     d.step(100);
-    CHECK_FALSE(live.bank.get(live.bank.resolve_in<bool>("cli_destrat1_speed1")));
+    CHECK_FALSE(live.bank.get(live.bank.resolve<bool>("cli_destrat1_speed1")));
 
     live.bank.var(live.ref("irr_state")).set_i((int64_t)Site::IRR_FILLING);
     d.step(200);
-    CHECK(live.bank.get(live.bank.resolve_in<bool>("cli_destrat1_speed1")));
+    CHECK(live.bank.get(live.bank.resolve<bool>("cli_destrat1_speed1")));
 }
 
 TEST_CASE_FIXTURE(StRig, "skirt: the humidify arm is proportional, the cooling arm is staged") {
 
-    Vars::RefIn<float> duty = live.bank.resolve_in<float>("cli_skirtDuty");
+    Vars::Ref<float> duty = live.bank.resolve<float>("cli_skirtDuty");
     const uint32_t period = live.bank.var(live.ref("cli_skirtPeriod_sec")).value().as<uint32_t>();
     const uint32_t min_on = live.bank.var(live.ref("cli_skirtMinOn_sec")).value().as<uint32_t>();
 
@@ -584,7 +584,7 @@ TEST_CASE_FIXTURE(StRig, "skirt: the humidify arm is proportional, the cooling a
 
 TEST_CASE_FIXTURE(StRig, "skirt: damp air gates the cooling arm, and the rot lockout cuts both") {
 
-    Vars::RefIn<bool> valve = live.bank.resolve_in<bool>("cli_skirtValve");
+    Vars::Ref<bool> valve = live.bank.resolve<bool>("cli_skirtValve");
     const float dry_min = live.bank.var(live.ref("cli_skirtDryMin_degC")).as_f32();
     interlocks_clear(live);
     force(live, "cli_rotLockout", false);
@@ -603,7 +603,7 @@ TEST_CASE_FIXTURE(StRig, "skirt: damp air gates the cooling arm, and the rot loc
     force(live, "cli_rotLockout", true);
     d.step(300);
     CHECK_FALSE(live.bank.get(valve));
-    CHECK(live.bank.get(live.bank.resolve_in<float>("cli_skirtDuty")) == doctest::Approx(0.0f));
+    CHECK(live.bank.get(live.bank.resolve<float>("cli_skirtDuty")) == doctest::Approx(0.0f));
 }
 
 TEST_CASE("program: a name that resolves to nothing is what FAULTS a program") {
@@ -614,12 +614,12 @@ TEST_CASE("program: a name that resolves to nothing is what FAULTS a program") {
     // gate if one does not - so there is no faulted program to observe.
     Live live;
     const uint16_t before = live.bank.unresolved_count();
-    (void)live.bank.resolve_in<float>("no_such_row_anywhere");
+    (void)live.bank.resolve<float>("no_such_row_anywhere");
     CHECK(live.bank.unresolved_count() == before + 1);
 
     INFO("and the sink reads 0 for ever, which is the reason it is a fault: a "
          "law bound to one would run on zeros and say nothing at all");
-    Vars::RefIn<float> sink = live.bank.resolve_in<float>("no_such_row_either");
+    Vars::Ref<float> sink = live.bank.resolve<float>("no_such_row_either");
     CHECK(live.bank.get(sink) == doctest::Approx(0.0f));
 }
 

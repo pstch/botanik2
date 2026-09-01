@@ -11,7 +11,7 @@
 namespace site_programs {
 
 TEST_CASE_FIXTURE(StRig, "zone: the selector keeps the middle reading and discards the extremes") {
-    Vars::RefIn<float> hi = live.bank.resolve_in<float>("cli_temp_hi");
+    Vars::Ref<float> hi = live.bank.resolve<float>("cli_temp_hi");
     const VarRef p[3] = { live.ref("cli_temp_hi1"), live.ref("cli_temp_hi2"),
                           live.ref("cli_temp_hi3") };
 
@@ -31,7 +31,7 @@ TEST_CASE_FIXTURE(StRig, "zone: the selector keeps the middle reading and discar
 }
 
 TEST_CASE_FIXTURE(StRig, "zone: an invalid probe is excluded, and one good probe still reads") {
-    Vars::RefIn<float> hi = live.bank.resolve_in<float>("cli_temp_hi");
+    Vars::Ref<float> hi = live.bank.resolve<float>("cli_temp_hi");
     const VarRef p[3] = { live.ref("cli_temp_hi1"), live.ref("cli_temp_hi2"),
                           live.ref("cli_temp_hi3") };
 
@@ -63,22 +63,22 @@ TEST_CASE_FIXTURE(StRig, "zone: the instruments report percent, the model works 
 
     INFO("68% in, 0.68 out - published as a percent it clamped at 1.00 and "
          "every dew-point margin in the plant read zero");
-    CHECK(live.bank.get(live.bank.resolve_in<float>("cli_rh_hi")) ==
+    CHECK(live.bank.get(live.bank.resolve<float>("cli_rh_hi")) ==
           doctest::Approx(0.68f).epsilon(0.02));
 
     INFO("and the psychrometrics that follow are sane: 22 C at 68% dews at "
          "about 16 C");
-    CHECK(live.bank.get(live.bank.resolve_in<float>("cli_dewPoint_degC")) ==
+    CHECK(live.bank.get(live.bank.resolve<float>("cli_dewPoint_degC")) ==
           doctest::Approx(15.8f).epsilon(0.05));
-    CHECK(live.bank.get(live.bank.resolve_in<float>("cli_dpMargin_degC")) ==
+    CHECK(live.bank.get(live.bank.resolve<float>("cli_dpMargin_degC")) ==
           doctest::Approx(6.2f).epsilon(0.1));
 }
 
 TEST_CASE_FIXTURE(StRig, "zone: temperature survives losing every humidity probe") {
     // The two quantities carry their own quorum. Coupling them would let one
     // dead RH probe invalidate a temperature three good probes agree on.
-    Vars::RefIn<float> t_out = live.bank.resolve_in<float>("cli_temp_hi");
-    Vars::RefIn<float> h_out = live.bank.resolve_in<float>("cli_rh_hi");
+    Vars::Ref<float> t_out = live.bank.resolve<float>("cli_temp_hi");
+    Vars::Ref<float> h_out = live.bank.resolve<float>("cli_rh_hi");
 
 
     const char* temps[3] = { "cli_temp_hi1", "cli_temp_hi2", "cli_temp_hi3" };
@@ -245,7 +245,7 @@ TEST_CASE_FIXTURE(StRig, "zone: a probe that comes back rejoins the average, it 
     // alpha goes to nearly 1, and the average jumps to the new reading in one
     // beat - which is the opposite of what every one of these blocks says it
     // does. A dead probe coming back must not move the house four degrees.
-    Vars::RefIn<float> hi = live.bank.resolve_in<float>("cli_temp_hi");
+    Vars::Ref<float> hi = live.bank.resolve<float>("cli_temp_hi");
     const VarRef p[3] = { live.ref("cli_temp_hi1"), live.ref("cli_temp_hi2"),
                           live.ref("cli_temp_hi3") };
 
@@ -272,7 +272,7 @@ TEST_CASE_FIXTURE(StRig, "zone: a probe that comes back rejoins the average, it 
 }
 
 TEST_CASE_FIXTURE(StRig, "zone: with every probe gone the reading is HELD, not defaulted") {
-    Vars::RefIn<float> hi = live.bank.resolve_in<float>("cli_temp_hi");
+    Vars::Ref<float> hi = live.bank.resolve<float>("cli_temp_hi");
     const VarRef p[3] = { live.ref("cli_temp_hi1"), live.ref("cli_temp_hi2"),
                           live.ref("cli_temp_hi3") };
 
@@ -299,7 +299,7 @@ TEST_CASE_FIXTURE(StRig, "zone: with every probe gone the reading is HELD, not d
 }
 
 TEST_CASE_FIXTURE(StRig, "zone: a zone that has never been measured has nothing to hold") {
-    Vars::RefIn<float> cs = live.bank.resolve_in<float>("cli_temp_cs");
+    Vars::Ref<float> cs = live.bank.resolve<float>("cli_temp_cs");
 
     for (uint64_t t = 0; t <= 2000; t += 100) d.step(t);
 
@@ -340,7 +340,7 @@ static void settle_gap(R& rig, uint64_t& t, float degrees) {
 
 TEST_CASE_FIXTURE(StRig, "strat: the gap is unsigned, so an inverted profile still calls the fans") {
 
-    Vars::RefIn<float> gap = live.bank.resolve_in<float>("cli_dTStrat_degC");
+    Vars::Ref<float> gap = live.bank.resolve<float>("cli_dTStrat_degC");
 
     // Long enough for the zone filter to arrive: the levels are EWMA outputs
     // now, with a 30-second time constant, so a gap is only exact after a few
@@ -394,7 +394,7 @@ TEST_CASE_FIXTURE(StRig, "day phase: the banks arm off the published extremes, s
 
 TEST_CASE_FIXTURE(StRig, "target: a bank phase only shifts the target when yesterday armed it") {
 
-    Vars::RefIn<float> target = live.bank.resolve_in<float>("cli_targetTemp_degC");
+    Vars::Ref<float> target = live.bank.resolve<float>("cli_targetTemp_degC");
     const VarRef phase = live.ref("cli_phase");
     const VarRef cold  = live.ref("cli_coldBankArm");
     const VarRef heat  = live.ref("cli_heatBankArm");
@@ -441,7 +441,7 @@ TEST_CASE_FIXTURE(StRig, "target: a bank phase only shifts the target when yeste
 
 TEST_CASE_FIXTURE(StRig, "target: an unplaced phase takes the base setpoint, and stays believable") {
 
-    Vars::RefIn<float> target = live.bank.resolve_in<float>("cli_targetTemp_degC");
+    Vars::Ref<float> target = live.bank.resolve<float>("cli_targetTemp_degC");
     const VarRef phase = live.ref("cli_phase");
     const VarRef cold  = live.ref("cli_coldBankArm");
     const float base = live.bank.var(live.ref("cli_coolSet_degC")).as_f32();
@@ -474,7 +474,7 @@ TEST_CASE_FIXTURE(StRig, "target: an unplaced phase takes the base setpoint, and
 
 TEST_CASE_FIXTURE(StRig, "target: a phase boundary eases the target instead of stepping it") {
 
-    Vars::RefIn<float> target = live.bank.resolve_in<float>("cli_targetTemp_degC");
+    Vars::Ref<float> target = live.bank.resolve<float>("cli_targetTemp_degC");
     const float base = live.bank.var(live.ref("cli_coolSet_degC")).as_f32();
     const float ofs  = live.bank.var(live.ref("cli_coldBankOfs_degC")).as_f32();
 
@@ -503,8 +503,8 @@ TEST_CASE_FIXTURE(StRig, "target: an aggressive offset is clamped to the safe ba
     live.bank.var(live.ref("cli_coldBankArm")).set(true);
     d.step(100);
 
-    Vars::RefIn<float> target = live.bank.resolve_in<float>("cli_targetTemp_degC");
-    Vars::RefIn<float> floor_ = live.bank.resolve_in<float>("cli_targetMin_degC");
+    Vars::Ref<float> target = live.bank.resolve<float>("cli_targetTemp_degC");
+    Vars::Ref<float> floor_ = live.bank.resolve<float>("cli_targetMin_degC");
     CHECK(live.bank.get(target) == doctest::Approx(live.bank.get(floor_)));
 }
 
@@ -617,13 +617,13 @@ TEST_CASE("cooling: an unknown demand puts every actuator at its own safe state"
 
     INFO("each one substitutes ITS OWN safe state for the input it cannot read, "
          "and not one of the five is simply OFF");
-    CHECK(f.bank.get(f.bank.resolve_in<float>("cli_window1_tgt")) ==
+    CHECK(f.bank.get(f.bank.resolve<float>("cli_window1_tgt")) ==
           doctest::Approx(safe_open(f)));                         // part open
-    CHECK(f.bank.get(f.bank.resolve_in<float>("cli_intr1")) ==
+    CHECK(f.bank.get(f.bank.resolve<float>("cli_intr1")) ==
           doctest::Approx(0.15f));                                // some air
-    CHECK(f.bank.get(f.bank.resolve_in<bool>("cli_screen")));     // deployed
-    CHECK_FALSE(f.bank.get(f.bank.resolve_in<bool>("cli_skirtValve")));  // shut
-    CHECK(f.bank.get(f.bank.resolve_in<bool>("cli_destrat1_speed1")));   // speed 1
+    CHECK(f.bank.get(f.bank.resolve<bool>("cli_screen")));     // deployed
+    CHECK_FALSE(f.bank.get(f.bank.resolve<bool>("cli_skirtValve")));  // shut
+    CHECK(f.bank.get(f.bank.resolve<bool>("cli_destrat1_speed1")));   // speed 1
 
     // The five that READ a missing demand, not the ST behind them: every
     // program on the resource has every input it wants. Health is its own
@@ -713,7 +713,7 @@ TEST_CASE_FIXTURE(StRig, "destrat: a level nothing measures keeps the fans mixin
 
 TEST_CASE_FIXTURE(StRig, "humidity, rot guard: the ventilation demand rises as the margin falls") {
 
-    Vars::RefIn<float> dem = live.bank.resolve_in<float>("cli_rotVentDem");
+    Vars::Ref<float> dem = live.bank.resolve<float>("cli_rotVentDem");
     const float limit = live.bank.var(live.ref("cli_rotMargin_degC")).as_f32();
 
     force(live, "cli_dpMargin_degC", limit + 2.0f);
@@ -738,7 +738,7 @@ TEST_CASE_FIXTURE(StRig, "humidity, rot guard: the ventilation demand rises as t
 
 TEST_CASE_FIXTURE(StRig, "humidity, rot guard: the lockout outlives the condition, and boots clear") {
 
-    Vars::RefIn<bool> lock = live.bank.resolve_in<bool>("cli_rotLockout");
+    Vars::Ref<bool> lock = live.bank.resolve<bool>("cli_rotLockout");
     // alarm_rot is temp_rh_zone's verdict on the margin now, so the case
     // reaches the condition through the margin rather than around it.
     force(live, "cli_dpMargin_degC", 20.0f);
@@ -768,8 +768,8 @@ TEST_CASE_FIXTURE(StRig, "humidity, rot guard: an unmeasured margin ventilates r
     // always valid and it is the companion that says nothing measured it.
     force(live, "cli_dpMargin_degC_qlt", false);
     d.step(100);
-    CHECK(live.bank.get(live.bank.resolve_in<float>("cli_rotVentDem")) == doctest::Approx(1.0f));
-    CHECK(live.bank.get(live.bank.resolve_in<bool>("cli_rotLockout")));
+    CHECK(live.bank.get(live.bank.resolve<float>("cli_rotVentDem")) == doctest::Approx(1.0f));
+    CHECK(live.bank.get(live.bank.resolve<bool>("cli_rotLockout")));
 }
 
 TEST_CASE_FIXTURE(StRig,
@@ -778,7 +778,7 @@ TEST_CASE_FIXTURE(StRig,
     // gust over the vent-closing threshold put a storm on the ribbon. Those are
     // reasons to shut the roof, which is a much lower bar than the weather
     // being severe.
-    Vars::RefIn<bool> storm = live.bank.resolve_in<bool>("alarm_weather_storm");
+    Vars::Ref<bool> storm = live.bank.resolve<bool>("alarm_weather_storm");
     const float shut = live.bank.var(live.ref("cli_windShutEnd_mps")).as_f32();
     uint64_t t = 0;
 
@@ -851,7 +851,7 @@ TEST_CASE_FIXTURE(StRig,
 
 TEST_CASE_FIXTURE(StRig, "intake: a gate holds while the two temperatures converge") {
 
-    Vars::RefIn<bool> gate = live.bank.resolve_in<bool>("cli_intakeCoolOk");
+    Vars::Ref<bool> gate = live.bank.resolve<bool>("cli_intakeCoolOk");
     const float margin = live.bank.var(live.ref("cli_ventTempMgn_degC")).as_f32();
     const float hyst   = live.bank.var(live.ref("cli_ventHyst_degC")).as_f32();
 

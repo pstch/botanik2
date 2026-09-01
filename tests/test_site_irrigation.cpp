@@ -213,7 +213,7 @@ TEST_CASE_FIXTURE(StRig, "irrigation: the drain meter comes back to zero, not to
     // reported. That is a drain meter saying water is moving with every valve
     // shut, which is the one thing a leak detector must not be told.
 
-    Vars::RefIn<float> shown = live.bank.resolve_in<float>("irr_outFlow_Lpm");
+    Vars::Ref<float> shown = live.bank.resolve<float>("irr_outFlow_Lpm");
     uint64_t t = 0;
     for (uint32_t i = 0; i < 20; i++) {
         field(live, "irr_out_Lpm", 30.0f, t);
