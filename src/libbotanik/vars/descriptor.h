@@ -72,12 +72,10 @@ namespace Botanik { namespace Vars {
         Q_SAFE,          ///< an output dropped to its declared safe state
         Q_REFUSED,       ///< the device answered, and declined: it has no such register
         /** @brief An operator forced this row to read bad, to exercise whatever
-         *  watches for it. A choice, not a diagnosis. */
-        Q_FORCED_BAD,
-        /** @brief No such LAYER: the override of an unforced row, the wire of a
-         *  row with no bus binding. Appended, never 0 - that slot is
-         *  Q_NO_DATA's, so a zeroed Slot reads as "nothing wrote this". */
-        Q_NONE
+         *  watches for it. A choice, not a diagnosis. The one value here that
+         *  is never STORED: it belongs to the override layer, not to the row,
+         *  and Var::override() constructs it. */
+        Q_FORCED_BAD
     };
 
     /** @brief @p q as a phrase for an operator: "valid", or invalid and why. */
@@ -90,7 +88,6 @@ namespace Botanik { namespace Vars {
             case Q_SAFE:        return "invalid: dropped to its safe state";
             case Q_REFUSED:     return "invalid: the device refused the read";
             case Q_FORCED_BAD:  return "invalid: forced";
-            case Q_NONE:        return "not present";
             default:            return "invalid";
         }
     }
@@ -328,8 +325,10 @@ namespace Botanik { namespace Vars {
      *  is any good. Every read accessor returns this, so a value and its
      *  quality are fetched in one expression and cannot drift apart.
      *
-     *  `q == Q_NONE` means the layer does not exist. That rides the quality
-     *  check a caller must make anyway, rather than adding a second one.
+     *  Whether the LAYER exists at all is @c present, not a quality: the
+     *  override of an unforced row and the wire of a row with no binding are
+     *  not conditions a row can be in, and putting them in the same vocabulary
+     *  meant Q_NONE had to explain why it could not be 0.
      *
      *  @c v is always the best number available for @c q: a bad reading already
      *  carries the descriptor's `def`, so it never has to be inspected first. */
@@ -342,8 +341,13 @@ namespace Botanik { namespace Vars {
          *  the bit pattern of a float. */
         VarType           t;
         Quality           q;
+        /** @brief Whether this LAYER exists. False for the override of a row
+         *  nothing forces, and for the wire of a row with no bus binding.
+         *  No default: C++11 would make Value a non-aggregate and every brace
+         *  construction below would stop compiling. */
+        bool              present_;
 
-        bool present() const { return q != Q_NONE; }
+        bool present() const { return present_; }
         bool good()    const { return q == Q_GOOD; }
 
         VarType type() const { return t; }

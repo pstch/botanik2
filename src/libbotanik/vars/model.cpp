@@ -42,21 +42,21 @@ namespace Botanik { namespace Vars {
 
 
     Value Bank::wire(VarRef r) const {
-        if (r.index >= _count) return Value{ Scalar(), &_sink_d, T_U8, Q_NONE };
+        if (r.index >= _count) return Value{ Scalar(), &_sink_d, T_U8, Q_NO_DATA, false };
         const Descriptor& d = descriptor(r.index);
         Slot& s = _slots[r.index];
         // No binding, no wire: a parameter or a computed row has none.
-        if (d.bind.transport == XP_NONE) return Value{ Scalar(), &d, d.type, Q_NONE };
+        if (d.bind.transport == XP_NONE) return Value{ Scalar(), &d, d.type, Q_NO_DATA, false };
         // 1:1, so the wire IS the value - nothing is stored twice.
-        if (s.wire_off == WIRE_NONE) return Value{ s.v, &d, d.type, s.qual };
+        if (s.wire_off == WIRE_NONE) return Value{ s.v, &d, d.type, s.qual, true };
         // An OUTPUT is scaled on the way out, and nothing ever publishes a
         // count inward for it: its wire value is what WOULD be sent.
         if (d.role == ROLE_OUTPUT) {
             const AnalogValues a = analog_values(this, analog_cal(d));
             return Value{ from_f32(d.bind.wire, a.to_raw(var(r).as_f32())),
-                          &d, d.bind.wire, s.qual };
+                          &d, d.bind.wire, s.qual, true };
         }
-        return Value{ _wire[s.wire_off], &d, d.bind.wire, s.qual };
+        return Value{ _wire[s.wire_off], &d, d.bind.wire, s.qual, true };
     }
 
     void Bank::publish_wire(VarRef r, Scalar raw, uint64_t now_ms) {

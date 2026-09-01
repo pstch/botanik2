@@ -69,7 +69,7 @@ namespace Botanik { namespace Vars {
          *  reads its declared default. @{ */
 
         /** @brief What the row would read with nothing forced. */
-        Value live() const { return Value{ _under(), _d, _d->type, _v->qual }; }
+        Value live() const { return Value{ _under(), _d, _d->type, _v->qual, true }; }
 
         /** @brief The row's DECLARED value, as a Value ready to convert.
          *
@@ -77,14 +77,14 @@ namespace Botanik { namespace Vars {
          *  believable: a number somebody chose and reviewed, rather than a
          *  reading of unbounded age. Q_GOOD because the substitution is not in
          *  doubt - whether the ROW is, is what valid() answers. */
-        Value declared() const { return Value{ _d->def, _d, _d->type, Q_GOOD }; }
+        Value declared() const { return Value{ _d->def, _d, _d->type, Q_GOOD, true }; }
 
-        /** @brief The force, or Q_NONE when there is none. Recorded, not
+        /** @brief The force, or an absent layer when there is none. Recorded, not
          *  necessarily driving: CONTROL_WITHHELD MUTES an override without
          *  erasing it, and a muted one is still there and still worth showing. */
         Value override() const {
-            if (!_v->ovr_on) return Value{ _d->def, _d, _d->type, Q_NONE };
-            return Value{ _v->ovr, _d, _d->type, _v->ovr_valid ? Q_GOOD : Q_FORCED_BAD };
+            if (!_v->ovr_on) return Value{ _d->def, _d, _d->type, Q_NO_DATA, false };
+            return Value{ _v->ovr, _d, _d->type, _v->ovr_valid ? Q_GOOD : Q_FORCED_BAD, true };
         }
 
         /** @brief The value in force: the override when one is DRIVING, else

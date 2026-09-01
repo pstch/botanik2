@@ -261,7 +261,7 @@ namespace Botanik { namespace Vars {
          *  same as publish_live(). */
         void publish_wire(VarRef r, Scalar raw, uint64_t now_ms);
 
-        /** @brief The count on the wire, before any scaling. Q_NONE for a row
+        /** @brief The count on the wire, before any scaling. Not PRESENT for a row
          *  with no binding at all - a parameter has no wire. For a 1:1 row the
          *  wire IS the value. For an analog INPUT it is what arrived; for an
          *  analog OUTPUT, what would be sent - nothing publishes a count
