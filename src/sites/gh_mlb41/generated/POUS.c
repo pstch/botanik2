@@ -26,6 +26,11 @@ static REAL ___EXP(
   BOOL EN, 
   BOOL *__ENO, 
   REAL IN);
+static REAL ___POW(
+  BOOL EN, 
+  BOOL *__ENO, 
+  REAL IN1, 
+  REAL IN2);
 static UDINT ___REAL_TO_UDINT(
   BOOL EN, 
   BOOL *__ENO, 
@@ -99,6 +104,10 @@ static USINT ___ACT_WANT(
   REAL DB);
 static void ACTUATOR_init__(ACTUATOR_data__ *data__, BOOL retain);
 static void ACTUATOR_body__(ACTUATOR_data__ *data__);
+static void INTEGRAL_init__(INTEGRAL_data__ *data__, BOOL retain);
+static void INTEGRAL_body__(INTEGRAL_data__ *data__);
+static void DERIVATIVE_init__(DERIVATIVE_data__ *data__, BOOL retain);
+static void DERIVATIVE_body__(DERIVATIVE_data__ *data__);
 static void AC_MIRROR_init__(AC_MIRROR_data__ *data__, BOOL retain);
 static void AC_MIRROR_body__(AC_MIRROR_data__ *data__);
 static void AC_SUPPLY_init__(AC_SUPPLY_data__ *data__, BOOL retain);
@@ -143,6 +152,12 @@ static void INTAKE_GATES_init__(INTAKE_GATES_data__ *data__, BOOL retain);
 static void INTAKE_GATES_body__(INTAKE_GATES_data__ *data__);
 static void TARGET_TEMP_CONTROLLER_init__(TARGET_TEMP_CONTROLLER_data__ *data__, BOOL retain);
 static void TARGET_TEMP_CONTROLLER_body__(TARGET_TEMP_CONTROLLER_data__ *data__);
+static void IRR_MTR_INPUT_init__(IRR_MTR_INPUT_data__ *data__, BOOL retain);
+static void IRR_MTR_INPUT_body__(IRR_MTR_INPUT_data__ *data__);
+static void IRR_MTR_OUTPUT_init__(IRR_MTR_OUTPUT_data__ *data__, BOOL retain);
+static void IRR_MTR_OUTPUT_body__(IRR_MTR_OUTPUT_data__ *data__);
+static void IRRIGATION_MODULATION_init__(IRRIGATION_MODULATION_data__ *data__, BOOL retain);
+static void IRRIGATION_MODULATION_body__(IRRIGATION_MODULATION_data__ *data__);
 static void AC_GRID_WATCH_init__(AC_GRID_WATCH_data__ *data__, BOOL retain);
 static void AC_GRID_WATCH_body__(AC_GRID_WATCH_data__ *data__);
 static void AC_LOCAL_WATCH_init__(AC_LOCAL_WATCH_data__ *data__, BOOL retain);
@@ -361,6 +376,43 @@ __end:
     *__ENO = ENO;
   }
   return EXP;
+}
+
+
+static REAL ___POW(
+  BOOL EN, 
+  BOOL *__ENO, 
+  REAL IN1, 
+  REAL IN2)
+{
+  BOOL ENO = __BOOL_LITERAL(TRUE);
+  REAL POW = 0;
+
+  // Control execution
+  if (!EN) {
+    if (__ENO != NULL) {
+      *__ENO = __BOOL_LITERAL(FALSE);
+    }
+    return POW;
+  }
+  __IL_DEFVAR_T __IL_DEFVAR;
+(void)__IL_DEFVAR;
+  __IL_DEFVAR_T __IL_DEFVAR_BACK;
+(void)__IL_DEFVAR_BACK;
+  #define GetFbVar(var,...) __GET_VAR(data__->var,__VA_ARGS__)
+  #define SetFbVar(var,val,...) __SET_VAR(data__->,var,__VA_ARGS__,val)
+ POW = powf(IN1, IN2); 
+  #undef GetFbVar
+  #undef SetFbVar
+;
+
+  goto __end;
+
+__end:
+  if (__ENO != NULL) {
+    *__ENO = ENO;
+  }
+  return POW;
 }
 
 
@@ -1537,6 +1589,124 @@ static void ACTUATOR_body__(ACTUATOR_data__ *data__) {
 __end:
   return;
 } // ACTUATOR_body__() 
+
+
+
+
+
+static void INTEGRAL_init__(INTEGRAL_data__ *data__, BOOL retain) {
+  __INIT_VAR(data__->EN,__BOOL_LITERAL(TRUE),retain)
+  __INIT_VAR(data__->ENO,__BOOL_LITERAL(TRUE),retain)
+  __INIT_VAR(data__->RATE_PER_S,0,retain)
+  __INIT_VAR(data__->CUTOFF,0,retain)
+  __INIT_VAR(data__->HOLD,__BOOL_LITERAL(FALSE),retain)
+  __INIT_VAR(data__->SEED,0,retain)
+  __INIT_VAR(data__->NOW,0,retain)
+  __INIT_VAR(data__->TOTAL,0,retain)
+  __INIT_VAR(data__->RATE,0,retain)
+  __INIT_VAR(data__->LAST,0,retain)
+  __INIT_VAR(data__->SEEDED,__BOOL_LITERAL(FALSE),retain)
+}
+
+// Code part
+static void INTEGRAL_body__(INTEGRAL_data__ *data__) {
+  // Control execution
+  if (!__GET_VAR(data__->EN)) {
+    __SET_VAR(data__->,ENO,,__BOOL_LITERAL(FALSE));
+    return;
+  }
+  else {
+    __SET_VAR(data__->,ENO,,__BOOL_LITERAL(TRUE));
+  }
+  // Initialise TEMP variables
+  __SET_VAR(data__->,ELAPSED,,0);
+  __SET_VAR(data__->,R,,0);
+
+  if (__GET_VAR(data__->SEEDED,)) {
+    __SET_VAR(data__->,ELAPSED,,(__GET_VAR(data__->NOW,) - __GET_VAR(data__->LAST,)));
+  } else {
+    __SET_VAR(data__->,ELAPSED,,__UDINT_LITERAL(0));
+    __SET_VAR(data__->,SEEDED,,__BOOL_LITERAL(TRUE));
+    __SET_VAR(data__->,TOTAL,,__GET_VAR(data__->SEED,));
+  };
+  __SET_VAR(data__->,LAST,,__GET_VAR(data__->NOW,));
+  if (!(__GET_VAR(data__->HOLD,))) {
+    __SET_VAR(data__->,R,,__GET_VAR(data__->RATE_PER_S,));
+    if ((((__GET_VAR(data__->CUTOFF,) > __REAL_LITERAL(0.0)) && (__GET_VAR(data__->R,) < __GET_VAR(data__->CUTOFF,))) && (__GET_VAR(data__->R,) > (__REAL_LITERAL(0.0) - __GET_VAR(data__->CUTOFF,))))) {
+      __SET_VAR(data__->,R,,__REAL_LITERAL(0.0));
+    };
+    __SET_VAR(data__->,RATE,,__GET_VAR(data__->R,));
+    __SET_VAR(data__->,TOTAL,,(__GET_VAR(data__->TOTAL,) + (__GET_VAR(data__->R,) * (___UDINT_TO_REAL(
+      (BOOL)__BOOL_LITERAL(TRUE),
+      NULL,
+      (UDINT)__GET_VAR(data__->ELAPSED,)) / __REAL_LITERAL(1000.0)))));
+  };
+
+  goto __end;
+
+__end:
+  return;
+} // INTEGRAL_body__() 
+
+
+
+
+
+static void DERIVATIVE_init__(DERIVATIVE_data__ *data__, BOOL retain) {
+  __INIT_VAR(data__->EN,__BOOL_LITERAL(TRUE),retain)
+  __INIT_VAR(data__->ENO,__BOOL_LITERAL(TRUE),retain)
+  __INIT_VAR(data__->QUANTITY,0,retain)
+  __INIT_VAR(data__->WINDOW_MS,0,retain)
+  __INIT_VAR(data__->PRESET,__BOOL_LITERAL(FALSE),retain)
+  __INIT_VAR(data__->NOW,0,retain)
+  __INIT_VAR(data__->RATE,0,retain)
+  __INIT_VAR(data__->PREV,0,retain)
+  __INIT_VAR(data__->WINDOW,0,retain)
+  __INIT_VAR(data__->LAST,0,retain)
+  __INIT_VAR(data__->SEEDED,__BOOL_LITERAL(FALSE),retain)
+}
+
+// Code part
+static void DERIVATIVE_body__(DERIVATIVE_data__ *data__) {
+  // Control execution
+  if (!__GET_VAR(data__->EN)) {
+    __SET_VAR(data__->,ENO,,__BOOL_LITERAL(FALSE));
+    return;
+  }
+  else {
+    __SET_VAR(data__->,ENO,,__BOOL_LITERAL(TRUE));
+  }
+  // Initialise TEMP variables
+  __SET_VAR(data__->,ELAPSED,,0);
+
+  if (__GET_VAR(data__->SEEDED,)) {
+    __SET_VAR(data__->,ELAPSED,,(__GET_VAR(data__->NOW,) - __GET_VAR(data__->LAST,)));
+  } else {
+    __SET_VAR(data__->,ELAPSED,,__UDINT_LITERAL(0));
+  };
+  __SET_VAR(data__->,LAST,,__GET_VAR(data__->NOW,));
+  if ((__GET_VAR(data__->PRESET,) || !(__GET_VAR(data__->SEEDED,)))) {
+    __SET_VAR(data__->,PREV,,__GET_VAR(data__->QUANTITY,));
+    __SET_VAR(data__->,WINDOW,,__UDINT_LITERAL(0));
+    __SET_VAR(data__->,SEEDED,,__BOOL_LITERAL(TRUE));
+    __SET_VAR(data__->,RATE,,__REAL_LITERAL(0.0));
+  } else {
+    __SET_VAR(data__->,WINDOW,,(__GET_VAR(data__->WINDOW,) + __GET_VAR(data__->ELAPSED,)));
+    if (((__GET_VAR(data__->WINDOW,) > __UDINT_LITERAL(0)) && (__GET_VAR(data__->WINDOW,) >= __GET_VAR(data__->WINDOW_MS,)))) {
+      __SET_VAR(data__->,RATE,,((__GET_VAR(data__->QUANTITY,) - __GET_VAR(data__->PREV,)) / (___UDINT_TO_REAL(
+        (BOOL)__BOOL_LITERAL(TRUE),
+        NULL,
+        (UDINT)__GET_VAR(data__->WINDOW,)) / __REAL_LITERAL(1000.0))));
+      __SET_VAR(data__->,PREV,,__GET_VAR(data__->QUANTITY,));
+      __SET_VAR(data__->,WINDOW,,__UDINT_LITERAL(0));
+    };
+  };
+
+  goto __end;
+
+__end:
+  return;
+} // DERIVATIVE_body__() 
 
 
 
@@ -3151,6 +3321,248 @@ static void TARGET_TEMP_CONTROLLER_body__(TARGET_TEMP_CONTROLLER_data__ *data__)
 __end:
   return;
 } // TARGET_TEMP_CONTROLLER_body__() 
+
+
+
+
+
+static void IRR_MTR_INPUT_init__(IRR_MTR_INPUT_data__ *data__, BOOL retain) {
+  __INIT_EXTERNAL(UDINT,IRR_INCOUNT,data__->IRR_INCOUNT,retain)
+  __INIT_EXTERNAL(REAL,IRR_INPUT_QTYPERIMP,data__->IRR_INPUT_QTYPERIMP,retain)
+  __INIT_EXTERNAL(UINT,IRR_RATEWIN_MS,data__->IRR_RATEWIN_MS,retain)
+  __INIT_EXTERNAL(REAL,IRR_LEAK_LPM,data__->IRR_LEAK_LPM,retain)
+  __INIT_EXTERNAL(REAL,IRR_MINFILL_LPM,data__->IRR_MINFILL_LPM,retain)
+  __INIT_EXTERNAL(USINT,IRR_STATE,data__->IRR_STATE,retain)
+  __INIT_EXTERNAL(UDINT,SYS_NOW_MS,data__->SYS_NOW_MS,retain)
+  __INIT_EXTERNAL(REAL,IRR_INTOTAL_L,data__->IRR_INTOTAL_L,retain)
+  __INIT_EXTERNAL(REAL,IRR_INFLOW_LPM,data__->IRR_INFLOW_LPM,retain)
+  __INIT_EXTERNAL(BOOL,IRR_INPULSE,data__->IRR_INPULSE,retain)
+  __INIT_EXTERNAL(BOOL,ALARM_WATER_LEAK,data__->ALARM_WATER_LEAK,retain)
+  __INIT_EXTERNAL(BOOL,ALARM_WATER_PRESSURE,data__->ALARM_WATER_PRESSURE,retain)
+  DERIVATIVE_init__(&data__->RATE,retain);
+  TON_MS_init__(&data__->IDLE_FOR,retain);
+  TON_MS_init__(&data__->FILL_FOR,retain);
+  __INIT_VAR(data__->SEEDED,__BOOL_LITERAL(FALSE),retain)
+  __INIT_VAR(data__->BASE_L,0,retain)
+  __INIT_VAR(data__->BASE_CNT,0,retain)
+  __INIT_VAR(data__->LAST_CNT,0,retain)
+}
+
+// Code part
+static void IRR_MTR_INPUT_body__(IRR_MTR_INPUT_data__ *data__) {
+  // Initialise TEMP variables
+  __SET_VAR(data__->,TOTAL,,0);
+  __SET_VAR(data__->,FLOW,,0);
+  __SET_VAR(data__->,WIN,,0);
+  __SET_VAR(data__->,IDLE,,__BOOL_LITERAL(FALSE));
+  __SET_VAR(data__->,FILL,,__BOOL_LITERAL(FALSE));
+
+  if (!(__GET_VAR(data__->SEEDED,))) {
+    __SET_VAR(data__->,BASE_L,,__GET_EXTERNAL(data__->IRR_INTOTAL_L,));
+    __SET_VAR(data__->,BASE_CNT,,__GET_EXTERNAL(data__->IRR_INCOUNT,));
+    __SET_VAR(data__->,LAST_CNT,,__GET_EXTERNAL(data__->IRR_INCOUNT,));
+    __SET_VAR(data__->,SEEDED,,__BOOL_LITERAL(TRUE));
+  };
+  __SET_VAR(data__->,TOTAL,,(__GET_VAR(data__->BASE_L,) + (___UDINT_TO_REAL(
+    (BOOL)__BOOL_LITERAL(TRUE),
+    NULL,
+    (UDINT)(__GET_EXTERNAL(data__->IRR_INCOUNT,) - __GET_VAR(data__->BASE_CNT,))) * __GET_EXTERNAL(data__->IRR_INPUT_QTYPERIMP,))));
+  __SET_EXTERNAL(data__->,IRR_INPULSE,,(__GET_EXTERNAL(data__->IRR_INCOUNT,) != __GET_VAR(data__->LAST_CNT,)));
+  __SET_VAR(data__->,LAST_CNT,,__GET_EXTERNAL(data__->IRR_INCOUNT,));
+  __SET_EXTERNAL(data__->,IRR_INTOTAL_L,,__GET_VAR(data__->TOTAL,));
+  __SET_VAR(data__->RATE.,QUANTITY,,__GET_VAR(data__->TOTAL,));
+  __SET_VAR(data__->RATE.,WINDOW_MS,,___UINT_TO_UDINT(
+    (BOOL)__BOOL_LITERAL(TRUE),
+    NULL,
+    (UINT)__GET_EXTERNAL(data__->IRR_RATEWIN_MS,)));
+  __SET_VAR(data__->RATE.,PRESET,,__BOOL_LITERAL(FALSE));
+  __SET_VAR(data__->RATE.,NOW,,__GET_EXTERNAL(data__->SYS_NOW_MS,));
+  DERIVATIVE_body__(&data__->RATE);
+  __SET_VAR(data__->,FLOW,,(__REAL_LITERAL(60.0) * __GET_VAR(data__->RATE.RATE,)));
+  __SET_EXTERNAL(data__->,IRR_INFLOW_LPM,,__GET_VAR(data__->FLOW,));
+  __SET_VAR(data__->,WIN,,(__UDINT_LITERAL(2) * ___UINT_TO_UDINT(
+    (BOOL)__BOOL_LITERAL(TRUE),
+    NULL,
+    (UINT)__GET_EXTERNAL(data__->IRR_RATEWIN_MS,))));
+  __SET_VAR(data__->IDLE_FOR.,IN,,(__GET_EXTERNAL(data__->IRR_STATE,) == __USINT_LITERAL(0)));
+  __SET_VAR(data__->IDLE_FOR.,PT,,__GET_VAR(data__->WIN,));
+  __SET_VAR(data__->IDLE_FOR.,NOW,,__GET_EXTERNAL(data__->SYS_NOW_MS,));
+  TON_MS_body__(&data__->IDLE_FOR);
+  __SET_VAR(data__->FILL_FOR.,IN,,(__GET_EXTERNAL(data__->IRR_STATE,) == __USINT_LITERAL(1)));
+  __SET_VAR(data__->FILL_FOR.,PT,,__GET_VAR(data__->WIN,));
+  __SET_VAR(data__->FILL_FOR.,NOW,,__GET_EXTERNAL(data__->SYS_NOW_MS,));
+  TON_MS_body__(&data__->FILL_FOR);
+  __SET_VAR(data__->,IDLE,,__GET_VAR(data__->IDLE_FOR.Q,));
+  __SET_VAR(data__->,FILL,,__GET_VAR(data__->FILL_FOR.Q,));
+  __SET_EXTERNAL(data__->,ALARM_WATER_LEAK,,(__GET_VAR(data__->IDLE,) && (__GET_VAR(data__->FLOW,) > __GET_EXTERNAL(data__->IRR_LEAK_LPM,))));
+  __SET_EXTERNAL(data__->,ALARM_WATER_PRESSURE,,(__GET_VAR(data__->FILL,) && (__GET_VAR(data__->FLOW,) < __GET_EXTERNAL(data__->IRR_MINFILL_LPM,))));
+
+  goto __end;
+
+__end:
+  return;
+} // IRR_MTR_INPUT_body__() 
+
+
+
+
+
+static void IRR_MTR_OUTPUT_init__(IRR_MTR_OUTPUT_data__ *data__, BOOL retain) {
+  __INIT_EXTERNAL(REAL,IRR_OUT_LPM,data__->IRR_OUT_LPM,retain)
+  __INIT_EXTERNAL(BOOL,IRR_OUT_LPM_QLT,data__->IRR_OUT_LPM_QLT,retain)
+  __INIT_EXTERNAL(UINT,IRR_OUT_AVG_MS,data__->IRR_OUT_AVG_MS,retain)
+  __INIT_EXTERNAL(REAL,IRR_FLOWBAND_LPM,data__->IRR_FLOWBAND_LPM,retain)
+  __INIT_EXTERNAL(REAL,IRR_FLOWCUTOFF_LPM,data__->IRR_FLOWCUTOFF_LPM,retain)
+  __INIT_EXTERNAL(UDINT,SYS_NOW_MS,data__->SYS_NOW_MS,retain)
+  __INIT_EXTERNAL(REAL,IRR_OUTFLOW_LPM,data__->IRR_OUTFLOW_LPM,retain)
+  __INIT_EXTERNAL(BOOL,IRR_OUTFLOW_LPM_QLT,data__->IRR_OUTFLOW_LPM_QLT,retain)
+  __INIT_EXTERNAL(REAL,IRR_OUTTOTAL_L,data__->IRR_OUTTOTAL_L,retain)
+  __INIT_EXTERNAL(BOOL,IRR_OUTTOTAL_L_QLT,data__->IRR_OUTTOTAL_L_QLT,retain)
+  EWMA_init__(&data__->FLOW_AVG,retain);
+  DEADBAND_init__(&data__->FLOW_BAND,retain);
+  INTEGRAL_init__(&data__->METER,retain);
+  __INIT_VAR(data__->SEEDED,__BOOL_LITERAL(FALSE),retain)
+  __INIT_VAR(data__->BASE_L,0,retain)
+}
+
+// Code part
+static void IRR_MTR_OUTPUT_body__(IRR_MTR_OUTPUT_data__ *data__) {
+  // Initialise TEMP variables
+  __SET_VAR(data__->,MEASURED,,__BOOL_LITERAL(FALSE));
+  __SET_VAR(data__->,LPM,,0);
+
+  __SET_VAR(data__->,MEASURED,,__GET_EXTERNAL(data__->IRR_OUT_LPM_QLT,));
+  if (!(__GET_VAR(data__->SEEDED,))) {
+    __SET_VAR(data__->,BASE_L,,__GET_EXTERNAL(data__->IRR_OUTTOTAL_L,));
+    __SET_VAR(data__->,SEEDED,,__BOOL_LITERAL(TRUE));
+  };
+  __SET_VAR(data__->FLOW_AVG.,X,,__GET_EXTERNAL(data__->IRR_OUT_LPM,));
+  __SET_VAR(data__->FLOW_AVG.,TAU_S,,(___UINT_TO_REAL(
+    (BOOL)__BOOL_LITERAL(TRUE),
+    NULL,
+    (UINT)__GET_EXTERNAL(data__->IRR_OUT_AVG_MS,)) / __REAL_LITERAL(1000.0)));
+  __SET_VAR(data__->FLOW_AVG.,HOLD,,!(__GET_VAR(data__->MEASURED,)));
+  __SET_VAR(data__->FLOW_AVG.,NOW,,__GET_EXTERNAL(data__->SYS_NOW_MS,));
+  EWMA_body__(&data__->FLOW_AVG);
+  __SET_VAR(data__->,LPM,,__GET_VAR(data__->FLOW_AVG.Y,));
+  if (__GET_VAR(data__->MEASURED,)) {
+    if ((__GET_VAR(data__->LPM,) < __GET_EXTERNAL(data__->IRR_FLOWBAND_LPM,))) {
+      __SET_EXTERNAL(data__->,IRR_OUTFLOW_LPM,,__REAL_LITERAL(0.0));
+    } else {
+      __SET_VAR(data__->FLOW_BAND.,V,,__GET_VAR(data__->LPM,));
+      __SET_VAR(data__->FLOW_BAND.,BAND,,__GET_EXTERNAL(data__->IRR_FLOWBAND_LPM,));
+      DEADBAND_body__(&data__->FLOW_BAND);
+      __SET_EXTERNAL(data__->,IRR_OUTFLOW_LPM,,__GET_VAR(data__->FLOW_BAND.Y,));
+    };
+  };
+  __SET_EXTERNAL(data__->,IRR_OUTFLOW_LPM_QLT,,__GET_VAR(data__->MEASURED,));
+  __SET_VAR(data__->METER.,RATE_PER_S,,(__GET_VAR(data__->LPM,) / __REAL_LITERAL(60.0)));
+  __SET_VAR(data__->METER.,CUTOFF,,(__GET_EXTERNAL(data__->IRR_FLOWCUTOFF_LPM,) / __REAL_LITERAL(60.0)));
+  __SET_VAR(data__->METER.,HOLD,,!(__GET_VAR(data__->MEASURED,)));
+  __SET_VAR(data__->METER.,SEED,,__GET_VAR(data__->BASE_L,));
+  __SET_VAR(data__->METER.,NOW,,__GET_EXTERNAL(data__->SYS_NOW_MS,));
+  INTEGRAL_body__(&data__->METER);
+  __SET_EXTERNAL(data__->,IRR_OUTTOTAL_L,,__GET_VAR(data__->METER.TOTAL,));
+  __SET_EXTERNAL(data__->,IRR_OUTTOTAL_L_QLT,,__GET_VAR(data__->MEASURED,));
+
+  goto __end;
+
+__end:
+  return;
+} // IRR_MTR_OUTPUT_body__() 
+
+
+
+
+
+static void IRRIGATION_MODULATION_init__(IRRIGATION_MODULATION_data__ *data__, BOOL retain) {
+  __INIT_EXTERNAL(REAL,CLI_VPD_KPA,data__->CLI_VPD_KPA,retain)
+  __INIT_EXTERNAL(BOOL,CLI_DPMARGIN_DEGC_QLT,data__->CLI_DPMARGIN_DEGC_QLT,retain)
+  __INIT_EXTERNAL(UINT,IRR_DRYEWMADAYS,data__->IRR_DRYEWMADAYS,retain)
+  __INIT_EXTERNAL(REAL,IRR_DRYLO_KPA,data__->IRR_DRYLO_KPA,retain)
+  __INIT_EXTERNAL(REAL,IRR_DRYHI_KPA,data__->IRR_DRYHI_KPA,retain)
+  __INIT_EXTERNAL(REAL,IRR_MODMIN,data__->IRR_MODMIN,retain)
+  __INIT_EXTERNAL(REAL,IRR_MODGAMMA,data__->IRR_MODGAMMA,retain)
+  __INIT_EXTERNAL(UDINT,SYS_NOW_MS,data__->SYS_NOW_MS,retain)
+  __INIT_EXTERNAL(REAL,IRR_VPDAVG_KPA,data__->IRR_VPDAVG_KPA,retain)
+  __INIT_EXTERNAL(REAL,IRR_MOD,data__->IRR_MOD,retain)
+  __INIT_EXTERNAL(BOOL,IRR_MOD_QLT,data__->IRR_MOD_QLT,retain)
+  __INIT_VAR(data__->AVG,0,retain)
+  __INIT_VAR(data__->FOLDED_AT,0,retain)
+  __INIT_VAR(data__->STARTED,__BOOL_LITERAL(FALSE),retain)
+  __INIT_VAR(data__->SEEDED,__BOOL_LITERAL(FALSE),retain)
+}
+
+// Code part
+static void IRRIGATION_MODULATION_body__(IRRIGATION_MODULATION_data__ *data__) {
+  // Initialise TEMP variables
+  __SET_VAR(data__->,MEASURED,,__BOOL_LITERAL(FALSE));
+  __SET_VAR(data__->,DUE,,__BOOL_LITERAL(FALSE));
+  __SET_VAR(data__->,ALPHA,,0);
+  __SET_VAR(data__->,DEMAND,,0);
+  __SET_VAR(data__->,MIN_MOD,,0);
+  __SET_VAR(data__->,GAMMA,,0);
+
+  __SET_VAR(data__->,MEASURED,,__GET_EXTERNAL(data__->CLI_DPMARGIN_DEGC_QLT,));
+  if (!(__GET_VAR(data__->STARTED,))) {
+    __SET_VAR(data__->,FOLDED_AT,,__GET_EXTERNAL(data__->SYS_NOW_MS,));
+    __SET_VAR(data__->,STARTED,,__BOOL_LITERAL(TRUE));
+  };
+  __SET_VAR(data__->,DUE,,(((__GET_EXTERNAL(data__->SYS_NOW_MS,) - __GET_VAR(data__->FOLDED_AT,)) >= __UDINT_LITERAL(3600000)) || !(__GET_VAR(data__->SEEDED,))));
+  if ((__GET_VAR(data__->DUE,) && __GET_VAR(data__->MEASURED,))) {
+    if ((__GET_EXTERNAL(data__->IRR_DRYEWMADAYS,) == __UINT_LITERAL(0))) {
+      __SET_VAR(data__->,ALPHA,,__REAL_LITERAL(1.0));
+    } else {
+      __SET_VAR(data__->,ALPHA,,(__REAL_LITERAL(1.0) / (__REAL_LITERAL(24.0) * ___UINT_TO_REAL(
+        (BOOL)__BOOL_LITERAL(TRUE),
+        NULL,
+        (UINT)__GET_EXTERNAL(data__->IRR_DRYEWMADAYS,)))));
+    };
+    if (__GET_VAR(data__->SEEDED,)) {
+      __SET_VAR(data__->,AVG,,(__GET_VAR(data__->AVG,) + (__GET_VAR(data__->ALPHA,) * (__GET_EXTERNAL(data__->CLI_VPD_KPA,) - __GET_VAR(data__->AVG,)))));
+    } else {
+      __SET_VAR(data__->,AVG,,__GET_EXTERNAL(data__->CLI_VPD_KPA,));
+      __SET_VAR(data__->,SEEDED,,__BOOL_LITERAL(TRUE));
+    };
+    __SET_VAR(data__->,FOLDED_AT,,__GET_EXTERNAL(data__->SYS_NOW_MS,));
+  };
+  if (__GET_VAR(data__->SEEDED,)) {
+    __SET_EXTERNAL(data__->,IRR_VPDAVG_KPA,,__GET_VAR(data__->AVG,));
+    __SET_VAR(data__->,DEMAND,,___LADDER(
+      (BOOL)__BOOL_LITERAL(TRUE),
+      NULL,
+      (REAL)__GET_VAR(data__->AVG,),
+      (REAL)__GET_EXTERNAL(data__->IRR_DRYLO_KPA,),
+      (REAL)__GET_EXTERNAL(data__->IRR_DRYHI_KPA,)));
+    __SET_VAR(data__->,MIN_MOD,,___LIMIT(
+      (BOOL)__BOOL_LITERAL(TRUE),
+      NULL,
+      (REAL)__REAL_LITERAL(0.0),
+      (REAL)__GET_EXTERNAL(data__->IRR_MODMIN,),
+      (REAL)__REAL_LITERAL(1.0)));
+    __SET_VAR(data__->,GAMMA,,___MAX(
+      (BOOL)__BOOL_LITERAL(TRUE),
+      NULL,
+      (REAL)__REAL_LITERAL(1.0),
+      (REAL)__GET_EXTERNAL(data__->IRR_MODGAMMA,)));
+    __SET_EXTERNAL(data__->,IRR_MOD,,___LIMIT(
+      (BOOL)__BOOL_LITERAL(TRUE),
+      NULL,
+      (REAL)__GET_VAR(data__->MIN_MOD,),
+      (REAL)(__GET_VAR(data__->MIN_MOD,) + ((__REAL_LITERAL(1.0) - __GET_VAR(data__->MIN_MOD,)) * ___POW(
+        (BOOL)__BOOL_LITERAL(TRUE),
+        NULL,
+        (REAL)__GET_VAR(data__->DEMAND,),
+        (REAL)__GET_VAR(data__->GAMMA,)))),
+      (REAL)__REAL_LITERAL(1.0)));
+  };
+  __SET_EXTERNAL(data__->,IRR_MOD_QLT,,(__GET_VAR(data__->SEEDED,) && __GET_VAR(data__->MEASURED,)));
+
+  goto __end;
+
+__end:
+  return;
+} // IRRIGATION_MODULATION_body__() 
 
 
 

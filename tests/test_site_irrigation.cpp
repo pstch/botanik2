@@ -15,12 +15,10 @@ namespace {
 /** @brief Fill tray 1, then hold @p lpm on the outlet meter for the whole drain
  *  window. @return the litres the meter says came back. */
 template <typename D>
-float drain_at(Live& live, D& d, Site::IrrMtrOutput& meter,
-               Site::IrrigationCycle& irr, float lpm, bool meter_live,
-               Plc::Health* worst = nullptr) {
+float drain_at(Live& live, D& d, Site::IrrigationCycle& irr,
+               float lpm, bool meter_live, Plc::Health* worst = nullptr) {
     (void)irr;
     no_soak(live);
-    live.bank.var(live.ref("cli_temp_ext")).publish(from_f32(T_F32, 20.0f), 0);
     slot(live);
     live.bank.param_set(live.bank.var(live.ref("irr_forceOn_tray1")), true);
     live.bank.param_set(live.bank.var(live.ref("irr_liters_tray1")), 5.0f);
@@ -39,11 +37,11 @@ float drain_at(Live& live, D& d, Site::IrrMtrOutput& meter,
         if (meter_live)
             live.bank.var(live.ref("irr_out_Lpm")).publish(from_f32(T_F32, lpm), t);
         d.step(t += 1000);
-        // Health is per ACTIVATION, so it has to be read inside the window: by
-        // the time the loop ends the cycle is flushing and healthy again. The
-        // OUTLET METER is what reports a silent instrument now - the cycle
-        // only declines to judge on one.
-        if (worst != nullptr && meter.health() > *worst) *worst = meter.health();
+        // The outlet meter is ST now, so a silent instrument is a COMPANION
+        // rather than a health: the meter binds every name it asks for either
+        // way, and irr_outFlow_Lpm_qlt is what the cycle reads.
+        if (worst != nullptr && !live.bank.var(live.ref("irr_outFlow_Lpm_qlt")).as_bool())
+            *worst = Plc::Health::INVALID;
     }
     return live.bank.var(live.ref("irr_drained_L")).as_f32();
 }
@@ -212,7 +210,7 @@ TEST_CASE_FIXTURE(IrrigationRig, "irrigation: a soak of zero is skipped, not pas
     CHECK(live.bank.var(live.ref("irr_state")).as_i64() == Site::IRR_DRAINING);
 }
 
-TEST_CASE_FIXTURE(Rig<Site::IrrMtrOutput>, "irrigation: the drain meter comes back to zero, not to a tenth of one") {
+TEST_CASE_FIXTURE(StRig, "irrigation: the drain meter comes back to zero, not to a tenth of one") {
     // A deadband only writes when the value moves MORE than its band, so a
     // flow decaying toward zero leaves the row parked on the last figure it
     // reported. That is a drain meter saying water is moving with every valve
@@ -240,7 +238,7 @@ TEST_CASE_FIXTURE(Rig<Site::IrrMtrOutput>, "irrigation: the drain meter comes ba
     CHECK(live.bank.get(shown) > 0.0f);
 }
 
-TEST_CASE_FIXTURE(Rig<Site::IrrMtrInput>,
+TEST_CASE_FIXTURE(StRig,
                   "irrigation: a state change raises no supply fault the rate window has yet to catch up with") {
     // The inlet rate is the LAST COMPLETED window and stands until the next one
     // closes, so for irr_rateWin_ms after a state change it is still reporting
@@ -408,15 +406,20 @@ TEST_CASE_FIXTURE(IrrigationRig, "irrigation: the afternoon is not a watering sl
     INFO("and a cold end of night waits for that window rather than watering "
          "cold roots");
     Live g;
-    Site::IrrMtrInput     meters2(Botanik::SetupContext(g.reg), g.bank);
+    // The meters are ST, so the second plant is the RESOURCE plus the cycle.
+    Plc::Runtime::Plant   st2(Botanik::SetupContext(g.reg), g.bank);
     Site::IrrigationCycle irr2(Botanik::SetupContext(g.reg), g.bank);
-    Plc::Program* const progs2[] = { &meters2, &irr2 };
-    Cycle d2(progs2, 2, &g.bank, g.reg);
+    Plc::Program* const progs2[] = { &irr2 };
+    Cycle cyc2(progs2, 1, &g.bank, g.reg);
+    st2.wire();
+    struct { Plc::Runtime::Plant* st; Cycle* c;
+             void step(uint64_t n) { st->scan(n); c->step(n); } } d2{ &st2, &cyc2 };
     summer(g);
     g.bank.param_set(g.bank.var(g.ref("irr_forceOn_tray1")), true);
-    field(g, "cli_temp_ext",
-          g.bank.var(g.ref("irr_dawnGate_degC")).as_f32() - 1.0f);
     put_phase(g, Site::PHASE_DAWN_BREEZE);
+    // Below the gate, and FORCED under it: slot() puts every other case above.
+    force(g, "cli_temp_ext",
+          g.bank.var(g.ref("irr_dawnGate_degC")).as_f32() - 1.0f);
     d2.step(1000);
     CHECK(g.bank.var(g.ref("irr_state")).as_i64() == Site::IRR_IDLE);
 }
@@ -482,7 +485,6 @@ TEST_CASE_FIXTURE(IrrigationRig, "irrigation: the cycle fills to its dose, then 
     // Warm enough that the dawn gate is open, in the end-of-night slot, and
     // tray 1 forced so the cycle starts without the calendar the due-check
     // still wants.
-    live.bank.var(live.ref("cli_temp_ext")).publish(from_f32(T_F32, 20.0f), 0);
     live.bank.var(live.ref("cli_vpd_kPa")).publish(from_f32(T_F32, 1.5f), 0);
     slot(live);
     live.bank.param_set(live.bank.var(live.ref("irr_forceOn_tray1")), true);
@@ -564,7 +566,7 @@ TEST_CASE_FIXTURE(IrrigationRig, "irrigation: what comes back out is judged agai
 
     // 20 L went in; 5 L/min over the 300 s window is far more than the 30% the
     // margin allows to be missing.
-    const float back = drain_at(live, d, out_meter, irr, 5.0f, true);
+    const float back = drain_at(live, d, irr, 5.0f, true);
     CHECK(back > 20.0f);
     CHECK_FALSE(live.bank.var(live.ref("alarm_irr_drain")).as_bool());
     CHECK_FALSE(live.bank.var(live.ref("alarm_irr_drain_tray1")).as_bool());
@@ -576,7 +578,7 @@ TEST_CASE_FIXTURE(IrrigationRig, "irrigation: a tray that does not drain names i
     HAL::Pulse::attach(Site::pulse_inputs[0].channel, Site::pulse_inputs[0].edge);
 
     // A trickle: half a litre back out of twenty.
-    const float back = drain_at(live, d, out_meter, irr, 0.1f, true);
+    const float back = drain_at(live, d, irr, 0.1f, true);
     CHECK(back < 1.0f);
     CHECK(live.bank.var(live.ref("alarm_irr_drain")).as_bool());
     CHECK(live.bank.var(live.ref("alarm_irr_drain_tray1")).as_bool());
@@ -590,7 +592,7 @@ TEST_CASE_FIXTURE(IrrigationRig, "irrigation: a silent outlet meter gives no ver
     HAL::Pulse::attach(Site::pulse_inputs[0].channel, Site::pulse_inputs[0].edge);
 
     Plc::Health worst = Plc::Health::HEALTHY;
-    const float back = drain_at(live, d, out_meter, irr, 0.0f, false, &worst);
+    const float back = drain_at(live, d, irr, 0.0f, false, &worst);
     CHECK(back == 0.0f);
     INFO("nothing was measured, so nothing is blamed - the meter has an alarm "
          "of its own");
@@ -604,7 +606,6 @@ TEST_CASE_FIXTURE(IrrigationRig, "irrigation: a fill that never arrives raises, 
     summer(live);
     HAL::Pulse::attach(Site::pulse_inputs[0].channel, Site::pulse_inputs[0].edge);
 
-    live.bank.var(live.ref("cli_temp_ext")).publish(from_f32(T_F32, 20.0f), 0);
     slot(live);
     live.bank.param_set(live.bank.var(live.ref("irr_forceOn_tray1")), true);
     live.bank.param_set(live.bank.var(live.ref("irr_liters_tray1")), 5.0f);
@@ -631,7 +632,6 @@ TEST_CASE_FIXTURE(IrrigationRig, "irrigation: a fill that never arrives is spent
     // refills it until the window closes.
     summer(live);
     HAL::Pulse::attach(Site::pulse_inputs[0].channel, Site::pulse_inputs[0].edge);
-    live.bank.var(live.ref("cli_temp_ext")).publish(from_f32(T_F32, 20.0f), 0);
     slot(live);
     live.bank.param_set(live.bank.var(live.ref("irr_forceOn_tray1")), true);
     live.bank.param_set(live.bank.var(live.ref("irr_liters_tray1")), 5.0f);
@@ -653,7 +653,7 @@ TEST_CASE_FIXTURE(IrrigationRig, "irrigation: a fill that never arrives is spent
     CHECK(live.bank.var(live.ref("irr_last_tray1")).as_i64() > 0);
 }
 
-TEST_CASE_FIXTURE(Rig<Site::IrrMtrInput>, "irrigation: the pulse line says whether the meter is ticking") {
+TEST_CASE_FIXTURE(StRig, "irrigation: the pulse line says whether the meter is ticking") {
     // LocalInputs skips an F_PULSE terminal deliberately, so nothing else can
     // publish this row - it read as never-written for the life of the run.
     // Its LEVEL is meaningless (a pulse is a moment of a train), so what it

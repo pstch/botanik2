@@ -40,6 +40,8 @@ CONFIGURATION gh_mlb41
     alarm_too_cold          : BOOL;
     alarm_too_hot           : BOOL;
     alarm_too_humid         : BOOL;
+    alarm_water_leak        : BOOL;
+    alarm_water_pressure    : BOOL;
     alarm_weather_storm     : BOOL;
     alarm_wx_station        : BOOL;
     ats_A                   : REAL;
@@ -259,7 +261,32 @@ CONFIGURATION gh_mlb41
     grid_total_A_qlt        : BOOL;
     grid_total_W            : REAL;
     grid_total_W_qlt        : BOOL;
+    irr_dryEwmaDays         : UINT;
+    irr_dryHi_kPa           : REAL;
+    irr_dryLo_kPa           : REAL;
+    irr_flowBand_Lpm        : REAL;
+    irr_flowCutoff_Lpm      : REAL;
+    irr_inCount             : UDINT;
+    irr_inFlow_Lpm          : REAL;
+    irr_inPulse             : BOOL;
+    irr_inTotal_L           : REAL;
+    irr_input_qtyPerImp     : REAL;
+    irr_leak_Lpm            : REAL;
+    irr_minFill_Lpm         : REAL;
+    irr_mod                 : REAL;
+    irr_modGamma            : REAL;
+    irr_modMin              : REAL;
+    irr_mod_qlt             : BOOL;
+    irr_outFlow_Lpm         : REAL;
+    irr_outFlow_Lpm_qlt     : BOOL;
+    irr_outTotal_L          : REAL;
+    irr_outTotal_L_qlt      : BOOL;
+    irr_out_Lpm             : REAL;
+    irr_out_Lpm_qlt         : BOOL;
+    irr_out_avg_ms          : UINT;
+    irr_rateWin_ms          : UINT;
     irr_state               : USINT;
+    irr_vpdAvg_kPa          : REAL;
     pwr_dc1Lo_V             : REAL;
     pwr_dc1_V               : REAL;
     pwr_dc1_V_qlt           : BOOL;
@@ -351,6 +378,9 @@ CONFIGURATION gh_mlb41
     PROGRAM skirt      : skirt_controller;
     PROGRAM screen     : screen_controller;
     PROGRAM windows    : windows_controller;
+    PROGRAM irrmod     : irrigation_modulation;
+    PROGRAM irrin      : irr_mtr_input;
+    PROGRAM irrout     : irr_mtr_output;
   END_RESOURCE
 
 END_CONFIGURATION

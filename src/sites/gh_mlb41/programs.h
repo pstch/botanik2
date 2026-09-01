@@ -78,9 +78,6 @@
 #include "libbotanik.h"
 
 // Every program, in EXECUTION order.
-#include "programs/irrigation/irrigation_modulation/irrigation_modulation.h"
-#include "programs/irrigation/irr_mtr_input/irr_mtr_input.h"
-#include "programs/irrigation/irr_mtr_output/irr_mtr_output.h"
 #include "programs/irrigation/irrigation_schedule/irrigation_schedule.h"
 #include "programs/irrigation/irrigation_cycle/irrigation_cycle.h"
 #include "programs/irrigation/irr_valves/irr_valves.h"
@@ -91,9 +88,6 @@
  *  @{ */
 
 #define SITE_PROGRAM_LIST(X)                  \
-    X(IrrigationModulation, _irr_modulation)  \
-    X(IrrMtrInput,          _irr_mtr_input)   \
-    X(IrrMtrOutput,         _irr_mtr_output)  \
     X(IrrigationSchedule,   _irr_schedule)    \
     X(IrrigationCycle,      _irrigation)      \
     X(IrrValves,            _irr_valves)

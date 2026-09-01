@@ -443,6 +443,7 @@ const Descriptor rows[] = {
     SV("sys_dc2_V_qlt", T_BOOL, 0, 0, "", 687, "DC PS2 mirror current", "the mirror HOLDS its last average; this is what says nobody took it"),
     SV("sys_upsBat_V_qlt", T_BOOL, 0, 0, "", 688, "UPS battery mirror current", "the mirror HOLDS its last average; this is what says nobody took it"),
     SV("sys_genBat_V_qlt", T_BOOL, 0, 0, "", 689, "gen battery mirror current", "the mirror HOLDS its last average; this is what says nobody took it"),
+    SV("irr_out_Lpm_qlt", T_BOOL, 0, 0, "", 690, "drain loop believable", "mirrored from the 4-20 mA row by the bank; a loop that has stopped answering must not be integrated into a total"),
     SV("cli_rain_mmph_qlt", T_BOOL, 0, 0, "", 613, "rain rate believable", "roof_lockout shuts the roof without it: the row declares 0, which reads as fine weather"),
     SV("cli_wind_mps_qlt", T_BOOL, 0, 0, "", 614, "wind speed believable", "roof_lockout shuts the roof without it: the row declares 0, which reads as calm"),
     SV("cli_temp_in_qlt", T_BOOL, 0, 0, "", 615, "interior temperature believable", "cooling_controller resets the PID integral, which is an act rather than a value"),

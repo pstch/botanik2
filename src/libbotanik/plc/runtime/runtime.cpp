@@ -9,6 +9,7 @@
 #include "libbotanik/plc/runtime/bank.h"
 #include "libbotanik/logs/logger.h"
 #include "libbotanik/utils/assert.h"
+#include "libbotanik/hal/platform.h"
 
 namespace Botanik { namespace Plc { namespace Runtime {
 
@@ -21,6 +22,7 @@ namespace Botanik { namespace Plc { namespace Runtime {
     void Plant::wire() {
         io = &_io;
         _now_ref = _io.find("sys_now_ms");
+        _day_ref = _io.find("sys_today");
         BOTANIK_ASSERT(PROGRAM_COUNT <=
                        (uint8_t)(sizeof _slot / sizeof _slot[0]));
 
@@ -74,6 +76,14 @@ namespace Botanik { namespace Plc { namespace Runtime {
         // against its own last reading, so one row serves every period.
         if (_now_ref.index != Vars::VAR_NONE)
             _io.var(_now_ref).set_i((int64_t)(uint32_t)now_ms);
+        // ...and the DATE beside it. Below the floor the RTC has never been
+        // set, so there is no date and 0 is what says so - a schedule counts
+        // in these and refuses to run against zero.
+        if (_day_ref.index != Vars::VAR_NONE) {
+            const uint64_t wall = HAL::Clock::wall_ms();
+            _io.var(_day_ref).set_i(
+                (wall < 1600000000000ull) ? 0 : (int64_t)(wall / 86400000ull));
+        }
 
         _io.begin_writer(i);
         programs[i].run();

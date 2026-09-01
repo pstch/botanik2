@@ -49,9 +49,6 @@ inline void hold_weather(Plant& p);
 struct Plant {
     Live f;
 
-    Site::IrrigationModulation irr_mod;
-    Site::IrrMtrInput          irr_in;
-    Site::IrrMtrOutput         irr_out;
     Site::IrrigationSchedule   irr_schedule;
 
     Site::IrrigationCycle      irrigation;
@@ -74,12 +71,11 @@ struct Plant {
     void (*hold)(Plant&) = hold_weather;
 
     Plant()
-        : irr_mod(ctx(), io()), irr_in(ctx(), io()), irr_out(ctx(), io()),
-          irr_schedule(ctx(), io()), irrigation(ctx(), io()), irr_valves(ctx(), io()),
+        :           irr_schedule(ctx(), io()), irrigation(ctx(), io()), irr_valves(ctx(), io()),
           terminals(ctx(), io()), mirror(ctx(), io()), st(ctx(), io()) {
         terminals.wire(Site::pulse_inputs, Site::pulse_input_count);
         Plc::Program* const list[] = {
-            &irr_mod, &irr_in, &irr_out, &irr_schedule, &irrigation, &irr_valves
+            &irr_schedule, &irrigation, &irr_valves
         };
         // Sized from the list, never a literal: a hand-kept count silently
         // drops whichever program is last the day one is added.
@@ -406,13 +402,10 @@ inline bool leaking(Plant& p)      { return p.on("alarm_water_leak"); }
 inline uint32_t run_until(Plant& p, bool (*done)(Plant&), uint32_t budget) {
     for (uint32_t i = 1; i <= budget; i++) {
         p.hold(p);
-        p.t += 100;
-        // PHASE_INPUT, then the programs. This drives the CYCLE rather than
-        // beat(), so the ST plant stays off it - these are the C++ irrigation
-        // laws - but a local terminal still has to reach them, and the inlet
-        // meter's edge count is a row now.
-        p.terminals.step(p.t, Tasks::PHASE_INPUT);
-        p.cycle->step(p.t);
+        // The WHOLE beat. It used to drive the cycle alone, back when the
+        // irrigation laws were all C++; the meters and the modulation are on
+        // the resource now, so a run that skips it meters nothing.
+        p.beat();
         if (done(p)) return i;
     }
     return 0;

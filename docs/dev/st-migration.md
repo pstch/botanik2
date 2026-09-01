@@ -14,7 +14,7 @@ The end state the user asked for:
 
 > `src/sites/<NAME>/` contains only CSV tables, ST programs, and a root TOML.
 
-**22 of 28 programs are ported. 6 remain - all of them irrigation.**
+**25 of 28 programs are ported. 3 remain: the schedule, the cycle, the valves.**
 
 `sun_watch` is not among either: the tracker publishes `sol_*` itself now, so
 the program that copied the instrument onto rows was DELETED rather than
@@ -24,7 +24,7 @@ ported. 29 was never going to be the number that finished.
 
 ## The task list
 
-### 1. Finish the port - 6 programs
+### 1. Finish the port - 3 programs
 
 **Blocks were never the hard part.** A survey of all fifteen (2026-08-31)
 found five things ST had no expression for. All five are now dealt with: four
@@ -45,9 +45,6 @@ porting its producer.
 | program | blocks needed | what ST cannot say |
 |---|---|---|
 | `IrrValves` | **none** - it only calls `.set()` | - |
-| `IrrigationModulation` | `Ton` | `.invalidate()`, `powf` |
-| `IrrMtrInput` | `Derivative`, `Ton` | - |
-| `IrrMtrOutput` | `Deadband`, `Ewma`, `Integral` | `.held()`, `.hold()` |
 | `IrrigationSchedule` | none | **`HAL::Clock::wall_ms()`**, `.hold()` |
 | `IrrigationCycle` | `Ton` | `.held()` |
 
@@ -64,8 +61,10 @@ porting its producer.
    the `sys_retain_sec` dial beside `save_retained()`, with both exits
    (`HealthMonitor`, `shell reset`) writing them out. `Ref::edit()` defers the
    same way, so the C++ laws stopped erasing flash inside a scan too.
-2. **The wall clock.** `HAL::Clock::wall_ms()`, for the UNIX day the schedule
-   counts against. Wants a row, the shape `sys_now_ms` already has.
+2. ~~**The wall clock.**~~ **SOLVED.** `sys_today` is a library row (907),
+   published by `Plant::scan()` beside `sys_now_ms`: days since 1 Jan 1970,
+   and 0 for "the RTC has never been set", which is the answer a schedule
+   refuses to run against.
 3. ~~**Pulse counts.**~~ **SOLVED.** `LocalInputs` publishes each edge total
    at PHASE_INPUT into the row the site's pulse table names (`PulseInput`
    gained a `count` field; `pulse_inputs.csv` a column). A law reads the
@@ -141,8 +140,8 @@ then `ScreenController`/`WindowsController`/`SkirtController`, which read
 `cli_coolDem`. The whole irrigation chain goes last, and `IrrValves` last of
 all - it is the only consumer at the end of it.
 
-Library blocks still to write as ST: `Integral`, `Derivative` - both for the
-irrigation meters. Everything else is done (`TON_MS`, `PID`, `DEADBAND`,
+Every block is written. `INTEGRAL` and `DERIVATIVE` are in
+`plc/blocks/meter.st`; the rest (`TON_MS`, `PID`, `DEADBAND`,
 `DC_RAIL`, `ACTUATOR`), and every site block is (`WX_*`, `AC_*`,
 `VALVE_PULSE`, `ZONE_*`).
 

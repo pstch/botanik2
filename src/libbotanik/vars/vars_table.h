@@ -55,6 +55,13 @@ const Descriptor library_vars[] = {
      * guard, where a build with programs and no field bus lost the clock and
      * every ST timer resolved to the inert sink. */
     SV("sys_now_ms"         , T_U32, 0, 0, "ms", 906, "the scan clock, milliseconds since boot", "ST blocks difference it themselves; wraps at ~49 days and unsigned subtraction carries it"),
+    /* The DATE, for a law that counts in days rather than in milliseconds.
+     * Straight off the wall clock and NOT through cal_time_ms(), which takes
+     * an UPTIME instant and projects it onto the wall: handing it a wall time
+     * adds the boot epoch twice, and the date came out around 2083 and gained
+     * a day every twelve hours. 0 is "the RTC has never been set", which is
+     * a real answer and the one a schedule refuses to run against. */
+    SV("sys_today"          , T_U32, 0, 0, "days", 907, "days since 1 Jan 1970, 0 before the clock is set", "the wall clock as a DATE; a schedule counts in these and cannot run on 0"),
 #endif
 #if BOTANIK_FEATURE_SUN_TRACKER
     /* The tracker's own outputs. It publishes them itself, so a site gets the

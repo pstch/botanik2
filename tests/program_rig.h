@@ -120,6 +120,13 @@ inline void put_phase(Live& f, Site::DayPhase p) {
  *  say which one it is in. */
 inline void slot(Live& f) {
     put_phase(f, Site::PHASE_DAWN_BREEZE);
+    // ...and past the DAWN GATE, which is the other half of the slot: watering
+    // cold roots is what it exists to prevent. temp_rh_sensors owns
+    // cli_temp_ext and publishes the row's band FLOOR for a zone nothing has
+    // ever measured, so a rig that seeds no exterior probe is always too cold
+    // to water. A case about the gate itself forces it back down.
+    force(f, "cli_temp_ext",
+          f.bank.var(f.ref("irr_dawnGate_degC")).as_f32() + 5.0f);
 }
 
 /** @brief Where the roof parks, from the row that declares it. */
@@ -214,12 +221,16 @@ struct Rig {
  *  name every other rig uses so a case reads the same. */
 struct StRig {
     Live                live;
-    /** PHASE_INPUT's job, which the beat does before PHASE_CONTROL: a probe
-     *  that stopped answering reaches ST as a companion, never as a quality. */
+    /** PHASE_INPUT's job, which the beat does before PHASE_CONTROL: the local
+     *  terminals' own rows - an edge count among them - and a probe that
+     *  stopped answering reaching ST as a companion, never as a quality. */
+    Io::LocalInputs     terminals{ Botanik::SetupContext(live.reg), live.bank };
     Vars::QualityMirror mirror{ Botanik::SetupContext(live.reg), live.bank };
     Plc::Runtime::Plant     st{ Botanik::SetupContext(live.reg), live.bank };
 
     StRig() {
+        terminals.wire(Site::pulse_inputs, Site::pulse_input_count);
+        d.terminals = &terminals;
         st.wire();
         mirror.wire();
         d.st = &st;
@@ -246,40 +257,55 @@ struct StRig {
     }
 
     struct Driver {
+        Io::LocalInputs* terminals = nullptr;
         Plc::Runtime::Plant*     st = nullptr;
         Vars::QualityMirror* mirror = nullptr;
-        void step(uint64_t now_ms) { mirror->scan(); st->scan(now_ms); }
+        void step(uint64_t now_ms) {
+            terminals->step(now_ms, Tasks::PHASE_INPUT);
+            mirror->scan();
+            st->scan(now_ms);
+        }
     } d;
 };
 
 /** @brief The irrigation chain: the meters feed the schedule, the schedule
- *  arms the cycle. Nothing here works with fewer than all three. */
+ *  arms the cycle. Nothing here works with fewer than all of it. */
 struct IrrigationRig {
     Live                     live;
     /** The inlet meter reads its edge total off a ROW now, and this is what
      *  publishes it: a rig without it hands the meter a counter stuck at zero. */
     Io::LocalInputs          terminals{Botanik::SetupContext(live.reg), live.bank};
-    Site::IrrMtrInput        in_meter {Botanik::SetupContext(live.reg), live.bank};
-    Site::IrrMtrOutput       out_meter{Botanik::SetupContext(live.reg), live.bank};
+    Vars::QualityMirror      mirror   {Botanik::SetupContext(live.reg), live.bank};
+    /** Both meters and the modulation are ST now; the schedule, the cycle and
+     *  the valves are not, yet. */
+    Plc::Runtime::Plant      st       {Botanik::SetupContext(live.reg), live.bank};
     Site::IrrigationSchedule sched    {Botanik::SetupContext(live.reg), live.bank};
     Site::IrrigationCycle    irr      {Botanik::SetupContext(live.reg), live.bank};
     Site::IrrValves          valves   {Botanik::SetupContext(live.reg), live.bank};
-    Plc::Program* const      progs[5] = { &in_meter, &out_meter, &sched, &irr,
-                                          &valves };
-    Cycle                    cycle{progs, 5, &live.bank, live.reg};
+    Plc::Program* const      progs[3] = { &sched, &irr, &valves };
+    Cycle                    cycle{progs, 3, &live.bank, live.reg};
 
     IrrigationRig() {
         terminals.wire(Site::pulse_inputs, Site::pulse_input_count);
+        st.wire();
+        mirror.wire();
         d.terminals = &terminals;
+        d.mirror    = &mirror;
+        d.st        = &st;
         d.cycle     = &cycle;
     }
 
-    /** @brief PHASE_INPUT then the programs, which is the beat's own order. */
+    /** @brief The beat's own order: the terminals and the companions, then the
+     *  ST plant, then the C++ programs still left. */
     struct Driver {
-        Io::LocalInputs* terminals = nullptr;
-        Cycle*           cycle     = nullptr;
+        Io::LocalInputs*     terminals = nullptr;
+        Vars::QualityMirror* mirror    = nullptr;
+        Plc::Runtime::Plant* st        = nullptr;
+        Cycle*               cycle     = nullptr;
         void step(uint64_t now_ms) {
             terminals->step(now_ms, Tasks::PHASE_INPUT);
+            mirror->scan();
+            st->scan(now_ms);
             cycle->step(now_ms);
         }
     } d;

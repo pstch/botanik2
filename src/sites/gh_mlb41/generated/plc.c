@@ -62,6 +62,12 @@ SCREEN_CONTROLLER_data__ PLC__SCREEN;
 #define SCREEN PLC__SCREEN
 WINDOWS_CONTROLLER_data__ PLC__WINDOWS;
 #define WINDOWS PLC__WINDOWS
+IRRIGATION_MODULATION_data__ PLC__IRRMOD;
+#define IRRMOD PLC__IRRMOD
+IRR_MTR_INPUT_data__ PLC__IRRIN;
+#define IRRIN PLC__IRRIN
+IRR_MTR_OUTPUT_data__ PLC__IRROUT;
+#define IRROUT PLC__IRROUT
 
 void PLC_init__(void) {
   BOOL retain;
@@ -90,6 +96,9 @@ void PLC_init__(void) {
   SKIRT_CONTROLLER_init__(&SKIRT,retain);
   SCREEN_CONTROLLER_init__(&SCREEN,retain);
   WINDOWS_CONTROLLER_init__(&WINDOWS,retain);
+  IRRIGATION_MODULATION_init__(&IRRMOD,retain);
+  IRR_MTR_INPUT_init__(&IRRIN,retain);
+  IRR_MTR_OUTPUT_init__(&IRROUT,retain);
 }
 
 void PLC_run__(unsigned long tick) {
@@ -116,5 +125,8 @@ void PLC_run__(unsigned long tick) {
   SKIRT_CONTROLLER_body__(&SKIRT);
   SCREEN_CONTROLLER_body__(&SCREEN);
   WINDOWS_CONTROLLER_body__(&WINDOWS);
+  IRRIGATION_MODULATION_body__(&IRRMOD);
+  IRR_MTR_INPUT_body__(&IRRIN);
+  IRR_MTR_OUTPUT_body__(&IRROUT);
 }
 

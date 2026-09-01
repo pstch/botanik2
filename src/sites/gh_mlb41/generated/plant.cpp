@@ -47,7 +47,10 @@ namespace Botanik { namespace Plc { namespace Runtime {
     X(fans,            FAN_CONTROLLER,         FANS,       BOTANIK_SITE_CONTROL_MS) \
     X(skirt,           SKIRT_CONTROLLER,       SKIRT,      BOTANIK_SITE_CONTROL_MS) \
     X(screen,          SCREEN_CONTROLLER,      SCREEN,     BOTANIK_SITE_CONTROL_MS) \
-    X(windows,         WINDOWS_CONTROLLER,     WINDOWS,    BOTANIK_SITE_CONTROL_MS)
+    X(windows,         WINDOWS_CONTROLLER,     WINDOWS,    BOTANIK_SITE_CONTROL_MS) \
+    X(irr_modulation,  IRRIGATION_MODULATION,  IRRMOD,     BOTANIK_SITE_CONTROL_MS) \
+    X(irr_mtr_input,   IRR_MTR_INPUT,          IRRIN,      BOTANIK_SITE_CONTROL_MS) \
+    X(irr_mtr_output,  IRR_MTR_OUTPUT,         IRROUT,     BOTANIK_SITE_CONTROL_MS)
 
 /* The roster index, so a handler knows which entry it is. */
 enum {

@@ -188,7 +188,8 @@ LIBST = ['src/libbotanik/plc/functions/math.st',
          'src/libbotanik/plc/blocks/filters.st',
          'src/libbotanik/plc/blocks/analog.st',
          'src/libbotanik/plc/blocks/pid.st',
-         'src/libbotanik/plc/blocks/actuator.st']
+         'src/libbotanik/plc/blocks/actuator.st',
+         'src/libbotanik/plc/blocks/meter.st']
 
 
 def st_files(site):
