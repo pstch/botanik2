@@ -42,6 +42,28 @@ def pytest_addoption(parser):
                      help="regenerate golden screens instead of asserting against them")
 
 
+def _harden(screen):
+    """Neutralise pyte's IRM off-by-one on the emulator we assert against.
+
+    insert_characters() stores a cell at column index == `columns`, invisible in
+    `display` but popped back into view by a later DCH. IRM-insert then DCH is
+    what the editor emits on every keystroke, so the emulator invents glyphs on
+    exactly the path these tests exist to watch. Trimming after each insert is
+    cheaper than trimming after every feed, and it is where the cell is made.
+    """
+    inner = screen.insert_characters
+    cols = screen.columns
+
+    def insert_characters(count=None):
+        inner(count)
+        line = screen.buffer[screen.cursor.y]
+        for x in list(line):
+            if x >= cols:
+                del line[x]
+
+    screen.insert_characters = insert_characters
+
+
 class Term:
     """A running botanik_sim plus a pyte screen fed from its PTY."""
 
@@ -86,6 +108,7 @@ class Term:
         cols, rows = screen if screen is not None else (COLS, ROWS)
         self.screen = pyte.Screen(cols, rows)
         self.stream = pyte.Stream(self.screen)
+        _harden(self.screen)
 
         # Markers latched as they go by, so wait_for() can answer for a line that
         # has already scrolled out of the 7-row log tail. Registered here to cover
@@ -107,9 +130,25 @@ class Term:
         except OSError:
             return
         if data:
-            self.stream.feed(data.decode("latin-1"))
+            self._feed(data.decode("latin-1"))
             self._view = None                 # the screen moved: drop the cache
             self._latch()
+
+    def _feed(self, text):
+        """Feed the emulator, with its sparse buffer materialised first.
+
+        pyte's delete_lines()/insert_lines() move only rows PRESENT in the
+        sparse buffer (`if y + count in self.buffer`), so a DL over a row that
+        was never written leaves the source row's content in place and a later
+        IL can put it back on screen - content a real VT destroyed. Touching
+        every row first makes them all present, which is what reading
+        `screen.display` between feeds happens to do; a test that runs several
+        beats before looking otherwise gets a screen no terminal would show.
+        """
+        buf = self.screen.buffer
+        for y in range(self.screen.lines):
+            buf[y]                            # defaultdict: materialises the row
+        self.stream.feed(text)
 
     def _latch(self):
         """Record any watched marker currently on screen."""
@@ -164,7 +203,7 @@ class Term:
             self._raw += data
             if ACK in self._raw:
                 head, _, tail = self._raw.partition(ACK)
-                self.stream.feed(head.decode("latin-1"))
+                self._feed(head.decode("latin-1"))
                 self._raw = tail
                 self._view = None
                 self._latch()
