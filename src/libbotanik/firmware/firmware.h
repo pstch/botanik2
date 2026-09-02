@@ -252,9 +252,8 @@ namespace Botanik {
          *  tasks registered to it whose group has come due. The PHASE order is
          *  load-bearing and stays written out as code; a task's RATE is its own
          *  property, so retuning one can never reorder the cycle.
-         *  @note Non-virtual, and inline because the scheduler's tick() paints
-         *  the stack below its caller's frame - this is the frame the high-water
-         *  mark is taken against.
+         *  @note Non-virtual, and inline: this is the whole of the main loop's
+         *  body, and tick() folds into it.
          *  @return whether a beat actually ran. A harness interleaving its own
          *  work must key off this: tick() busy-waits the tail of every period. */
         bool loop() {

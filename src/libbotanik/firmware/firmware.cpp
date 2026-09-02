@@ -3,9 +3,8 @@
  * @file firmware.cpp
  * @brief BotanikFirmware: construction, bring-up, and the task table.
  *
- * Everything cold. The header keeps only the class, the accessors and loop() -
- * the hot path, and the frame the scheduler's stack painting is measured
- * against.
+ * Everything cold. The header keeps only the class, the accessors and loop(),
+ * which is the hot path.
  */
 #include "libbotanik/firmware/firmware.h"
 
@@ -168,8 +167,8 @@ namespace Botanik {
         _qmirror.wire();
 #endif
 #if BOTANIK_FEATURE_PLC
-        // Binds every ST program: one resolve per VAR_EXTERNAL, each in its own
-        // writer window so a row two of them claim is caught.
+        // Binds every ST program: one resolve per VAR_EXTERNAL, counted per
+        // program so a name one of them missed holds back that one alone.
         _st.wire();
         _st.set_run_state(&_scheduler.context()->run_state);
 #endif
@@ -352,90 +351,75 @@ namespace Botanik {
 
     // The task table
 
-    // The firmware's own eight rows: two bits of housekeeping and the six site
-    // hooks. Each names its phase and rate here, beside the others, so the beat
-    // still reads top to bottom in _register_tasks() below.
+    // The task table
+    //
+    // A component registers EVERY phase it acts in with one call, so a few
+    // appear under the section where their first entry lands and say where
+    // else they go. Within a phase, registration order is dispatch order;
+    // across phases it is the phase that decides, so nothing here can reorder
+    // the beat.
     void BotanikFirmware::_register_tasks() {
         using namespace Tasks;
+
         // --- INPUT: fresh bytes and fresh field, before anything reads ---
-        // Both field-bus components span the beat, and each registers every
-        // phase it acts in at once: the RTU master takes the field in at INPUT
-        // and issues at OUTPUT, the TCP slave decodes at INPUT, persists at
-        // SERVICE and answers at PRESENT. First, so their INPUT halves commit
-        // ahead of the bank's expiry sweep below.
 #if BOTANIK_FEATURE_VARS
         // The controller's own terminals, before the bus: both fill rows the
         // programs read this beat, and this one cannot fail or block.
         _local_in.register_tasks();
 #endif
 #if BOTANIK_FEATURE_MODBUS_RTU_CLIENT
+        // Spans the beat: takes the field in here, issues at OUTPUT.
         _modbus_rtu.register_tasks();
 #endif
 #if BOTANIK_FEATURE_MODBUS_TCP_SERVER
+        // Spans three: decodes here, persists at SERVICE, answers at PRESENT.
         _modbus_tcp.register_tasks();
 #endif
-        // The bank's own two sweeps: age a row out, and reject one that is
-        // fresh and still nonsense. Both before anything reads, so one beat is
-        // coherent.
-#if BOTANIK_FEATURE_SUN_TRACKER
-        // A slow SERVICE recompute of its own, not something a control phase
-        // does: the programs that read it just read rows.
-        _sun.register_tasks();
-#endif
 #if BOTANIK_FEATURE_VARS
+        // The bank's own two sweeps, after the drivers have committed: age a
+        // row out, and reject one that is fresh and still nonsense. Both before
+        // anything reads, so one beat is coherent.
         _io.register_tasks();
-        // AFTER the bank's expiry sweep: a row that just aged out is invalid
-        // only once that has run, and a companion copied before it would be a
-        // beat stale on exactly the transition that matters.
+        // AFTER the expiry sweep: a row that just aged out is invalid only once
+        // that has run, and a companion copied before it would be a beat stale
+        // on exactly the transition that matters.
         _qmirror.register_tasks();
 
         // --- CONFIG: a commit reaches its component ---
         _binder.register_tasks();
 #endif
 
-        // --- CONTROL: the site's laws ---
-#if BOTANIK_FEATURE_PLC
-        // Every one of them, in the order tables/programs.csv states. It used
-        // to be the site's on_setup() that did this, with a comment about
-        // registering the resource before the C++ programs; there are none
-        // left, so the RESOURCE is the whole order and nothing has to say so.
-        _st.register_tasks();
-#endif
-
-
         // --- SERVICE: supervision and the background state machines ---
-        // Health before the logger drains, so an alarm START/END lands this
-        // beat, and before CONTROL, so a fault inhibits this beat's programs.
-        _health.register_tasks();   // health, then the alarm model
-
+#if BOTANIK_FEATURE_SUN_TRACKER
+        // A slow recompute of its own, not something a control phase does: the
+        // programs that read it just read rows.
+        _sun.register_tasks();
+#endif
+        // Health, then the alarm model. The PHASE is what puts both ahead of
+        // the laws, so a fault inhibits this beat's control rather than the
+        // next one; registering here only orders them against each other.
+        _health.register_tasks();
 #if BOTANIK_FEATURE_NETWORK
         _net.register_tasks();   // network, ntp, mqtt, telemetry
 #endif
 
+        // --- CONTROL: the site's laws ---
+#if BOTANIK_FEATURE_PLC
+        // Every one of them, in the order tables/programs.csv states.
+        _st.register_tasks();
+#endif
 
-
-        // --- CONTROL: the control programs ---
-        // The site's own control law, under the same gate the registry applies
-        // to the programs. The gate is per DISPATCH POINT, not per write (see
-        // on_control()), so the programs and this are the whole list: a third
-        // place that drives the field must gate itself here.
-
-
-        // --- OUTPUT: hand what the programs drove to the field ---
-
+        // --- OUTPUT: what the programs drove goes to the field ---
+        // The RTU master's other half, registered with its INPUT one above.
 
         // --- PRESENT: report what just happened ---
-        // First in the phase, so anything it logs is drained by the logger below
-        // in the SAME beat rather than waiting for the next one.
-
 #if BOTANIK_FEATURE_LOGGING
         // No task for the logger: its buckets refill from elapsed time at the
         // moment they are read (Logger::_emit).
 #endif
 #if BOTANIK_FEATURE_CONSOLE
-        // Three tasks, and the port's two are not among them: console_rx at the
-        // top of the beat, then the draw and the flush here. After the logger,
-        // so a line logged this beat is in the pages before they are drawn.
+        // Three tasks: console_rx at the top of the beat, then the draw and the
+        // flush here.
         _console.terminal().register_tasks();
 #endif
 #if BOTANIK_FEATURE_LOGS_MONITOR
