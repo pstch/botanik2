@@ -23,6 +23,10 @@
 #include "libbotanik/modbus/tcp/pdu.h"
 #include "libbotanik/vars/model.h"
 
+// Forward-declared, not included: the slave keeps a borrowed pointer and only
+// asks it one question, so it must not acquire the whole of network/.
+namespace Botanik { namespace Network { class NetworkHandler; } }
+
 #if BOTANIK_FEATURE_MODBUS_TCP_SERVER
 
 // Only ever held and dereferenced through a pointer here; alarms/alarms.h
@@ -132,6 +136,11 @@ namespace Botanik { namespace Modbus {
         bool          _bind_failed = false;
         uint64_t      _retry_ms = 0;
         SlaveContext _ctx;
+        /** @brief The link, borrowed and possibly null. @see set_network */
+        const Network::NetworkHandler* _net = nullptr;
+        /** @brief Whether the link was up on the previous beat, so the fall is
+         *  an edge rather than a repeated close. */
+        bool         _link_up  = true;
         HAL::Network::TcpSocket _listener = -1;
         Conn     _conn[Config::MODBUS_TCP_MAX_CONN];
         uint16_t _port     = 0;            ///< the port currently bound
@@ -154,6 +163,16 @@ namespace Botanik { namespace Modbus {
         /** @brief Adopt @p cfg: rebind if the port moved, close if disabled. */
         void set_config(const TcpSlaveConfig& cfg);
 
+        /** @brief Watch the link, so the listener is given back and retaken
+         *  across a teardown. Borrowed; null leaves the slave assuming the link
+         *  is always up, which is what a test rig wants.
+         *
+         *  Without it nothing here ever re-opened a listener that had once
+         *  bound: _retry_listener() fires only when a bind FAILED. A commit of
+         *  the `net_` group runs link_configure(), whose first act on the OPTA
+         *  is disconnect(). @see on_input */
+        void set_network(const Network::NetworkHandler* net) { _net = net; }
+
         /** @name Readback
          *  @{ */
 
@@ -168,7 +187,7 @@ namespace Botanik { namespace Modbus {
          *  Component's default is an unconditional yes, under which a slave that
          *  never bound its port would report well for the life of the firmware,
          *  a failure indistinguishable from outside from a network problem. */
-        bool healthy() const override { return !_enabled || _listener >= 0; }
+        bool healthy() const override;
         /** @brief Whether writes are accepted at all right now (`mb_write_enable`). */
         bool writable() const  { return _writable; }
 

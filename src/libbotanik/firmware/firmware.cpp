@@ -247,6 +247,11 @@ namespace Botanik {
 #if BOTANIK_FEATURE_NETWORK
         // The monitor raises the row; each component knows its own state.
         _health.set_network(&_net.network());
+#if BOTANIK_FEATURE_MODBUS_TCP_SERVER
+        // ...and the slave gives its port back across a link teardown rather
+        // than reporting a bound socket on a link that is gone.
+        _modbus_tcp.set_network(&_net.network());
+#endif
 #endif
 #if BOTANIK_FEATURE_NTP
         _health.set_ntp(&_net.ntp());

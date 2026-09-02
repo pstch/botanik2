@@ -13,6 +13,7 @@
 
 #include "libbotanik/alarms/alarms.h"
 #include "libbotanik/logs/logger.h"
+#include "libbotanik/network/network.h"
 #include "libbotanik/vars/params.h"
 
 #if BOTANIK_FEATURE_MODBUS_TCP_SERVER
@@ -25,6 +26,15 @@ namespace Botanik { namespace Modbus {
     TcpSlave::TcpSlave(const SetupContext& ctx, Bank* io,
                          Alarms::AlarmController* alarms)
         : Component(ctx, "ModbusTCP"), _io(io), _alarms(alarms), _map(io) {}
+
+    bool TcpSlave::healthy() const {
+        if (!_enabled) return true;
+        // A link that is down is the NETWORK's to report, not this one's:
+        // answering unhealthy here would raise a second alarm for one cause.
+        // Not listening while the link is UP is ours.
+        if (_net != nullptr && !_net->is_up()) return true;
+        return _listener >= 0;
+    }
 
     SlaveContext TcpSlave::context() const {
         SlaveContext c = _ctx;
@@ -97,6 +107,20 @@ namespace Botanik { namespace Modbus {
     // The input half of the beat
 
     void TcpSlave::on_input(uint64_t now_ms) {
+        // The link, before anything else. A teardown - a `net_` commit runs
+        // link_configure(), whose first act on the OPTA is disconnect() - may
+        // take the listening socket with it, and _retry_listener() only ever
+        // fires on a bind that FAILED. So the fall is watched here: give the
+        // port back, and let the retry take it again when the link returns.
+        const bool up = (_net == nullptr) || _net->is_up();
+        if (_link_up && !up) {
+            _close_listener();
+            _bind_failed = true;         // arms _retry_listener() for the rise
+            _retry_ms    = now_ms;
+        }
+        _link_up = up;
+        if (!up) return;                 // nothing to serve on, and nothing to poll
+
         _retry_listener(now_ms);
 
         // Disabled, or a bind that has not come good yet: either way there is no
