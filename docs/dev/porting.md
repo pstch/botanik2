@@ -35,7 +35,7 @@ The interface is grouped into nested namespaces by concern.
 | `Clock` | `current_ms`, `uptime_ms`, `wall_ms`, `sleep_ms` | a monotonic millisecond clock is the only hard requirement; wall clock may be a stub |
 | `Memory` | `dsb`, `dmb`, `ordered_read`, `ordered_copy`, `ordered_move` | real barriers on a target with concurrent publishers; a plain fenced `memcpy`/store where there is one core and no cache. See @ref dev_concurrency |
 | `Memory` (cache) | `cache_clean`, `cache_invalidate` | D-cache maintenance by range. Cheap no-ops where there is no D-cache - the simulator implements both as empty |
-| `Stack` | `base`, `depth`, `high` | feeds the scheduler's stack-usage metric; `high` may return 0 if unavailable |
+| `Stack` | `high_water` | feeds the scheduler's stack-usage metric. ONE call answering `{used, depth}` together: the two used to come from different stacks on the OPTA. `used` 0 means not measurable |
 | `Watchdog` | `start`, `kick`, `stop` | the hardware watchdog the health monitor gates |
 | `Serial` | `Raw`, `Port`, `get` | the console and monitor ports |
 | `Storage` | `set`, `get`, `remove` | key-value persistence. Mbed KVStore on OPTA, one file per key on the simulator |

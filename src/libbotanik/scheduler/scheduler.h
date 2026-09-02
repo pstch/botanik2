@@ -14,21 +14,6 @@
 #include "libbotanik/tasks/tasks.h"
 #include "libbotanik/utils/filters.h"
 
-// ASAN puts locals on a fake stack, which stack-usage measurement cannot see.
-// BOTANIK_NO_ASAN annotates the paint/scan code so it works against the real
-// stack.
-#if defined(__has_feature)
-#  if __has_feature(address_sanitizer)
-#    define BOTANIK_NO_ASAN __attribute__((no_sanitize("address")))
-#  endif
-#elif defined(__SANITIZE_ADDRESS__)
-#  define BOTANIK_NO_ASAN __attribute__((no_sanitize("address")))
-#endif
-#ifndef BOTANIK_NO_ASAN
-#  define BOTANIK_NO_ASAN
-#endif
-
-
 // forward declare the Logger pointer type
 namespace Botanik { namespace Logs { class Logger; } }
 
@@ -174,22 +159,13 @@ namespace Botanik { namespace Scheduler {
         /** @} */
 
         /** @name Stack-usage metrics
-         *  @brief The high-water mark is itself a max (the RTOS thread watermark
-         *  on OPTA, a per-slice painted high-water on the sim), so only the
-         *  all-time peak is tracked: no EMA or window on top of a max.
+         *  @brief HAL::Stack::high_water() already answers with a max, so only
+         *  the all-time peak is tracked here: no EMA or window on top of one.
          *  @{ */
 
-        /** @brief total thread stack allocation, bytes */
-        uint32_t          _stack_depth = 0;
-        /** @brief one past the stack top; scans downward */
-        uintptr_t         _stack_base  = 0;
-        uint32_t          _stack_bytes_max = 0;    ///< all-time peak used, bytes
-        uint32_t          _stack_slice_tick  = 0;  ///< ticks into the current slice
-        bool              _repaint_pending   = true;   ///< repaint on the next tick
-        /** @brief Bounds of the region _paint_below() last painted (sim only),
-         *  read back by _measure_stack_usage(). Null until the first paint. */
-        uint8_t*          _paint_top         = nullptr;
-        uint8_t*          _paint_bot         = nullptr;
+        uint32_t          _stack_depth      = 0;   ///< total thread stack, bytes
+        uint32_t          _stack_bytes_max  = 0;   ///< all-time peak used, bytes
+        uint32_t          _stack_slice_tick = 0;   ///< ticks into the current slice
 
         /** @} */
 
@@ -228,13 +204,12 @@ namespace Botanik { namespace Scheduler {
          *        the previous beat's work window and accumulates slept time; a
          *        release republishes "now", records jitter and duty cycle, and
          *        paints the free stack.
-         * @warning always_inline + BOTANIK_NO_ASAN: it must fold into the
-         *          caller's frame so the closing stack paint captures the LOOP
-         *          body's SP, not a separate tick() frame's. Hence the body here
-         *          and the cold helpers out of line.
+         * @warning always_inline: this runs on every pass of the main loop,
+         *          the busy-wait included, so it folds into the caller and the
+         *          cold helpers stay out of line.
          * @return true exactly ONCE per period when it is time to execute.
          */
-        BOTANIK_NO_ASAN inline __attribute__((always_inline)) bool tick() {
+        inline __attribute__((always_inline)) bool tick() {
             if (!_announced) { _announced = true; _announce(); }   // once, out of line
             // Derive ms from the same us reading so the jitter math can't
             // underflow against the grid (a separate uptime_ms() read could
@@ -270,15 +245,6 @@ namespace Botanik { namespace Scheduler {
             // open the work window for the beat about to run
             _work_start_us = now_us;
             _measuring     = true;
-            // Repaint the free stack for the high-water scan, at slice
-            // boundaries only. Sim only: on hardware repainting would clobber
-            // the RTOS thread watermark (see _measure_stack_usage).
-            if (_repaint_pending) {
-                _repaint_pending = false;
-#ifdef TARGET_SIMULATOR
-                _paint_below();
-#endif
-            }
             return true;
         }
 
@@ -353,23 +319,12 @@ namespace Botanik { namespace Scheduler {
          *  window is measured in real time instead, so the rate stays
          *  meaningful under the simulator's manual clock. */
         void _record_tps(uint64_t now_ms);
-        /** @brief Close the work window: record work duration and, at slice
-         *  boundaries, scan the stack high-water mark; publish both into the
-         *  context. */
-        BOTANIK_NO_ASAN void _sample_work(uint64_t now_us);
-
-        /** @brief Determine the stack high-water (RTOS watermark on OPTA, a
-         *  top-down sentinel-run scan of the painted region on the sim) and
-         *  update the metrics. */
-        BOTANIK_NO_ASAN void _measure_stack_usage();
-#ifdef TARGET_SIMULATOR
-        /** @brief Paint the free stack below this frame with the sentinel
-         *  (simulator only - hardware reads the RTOS watermark, so this does not
-         *  exist there). MUST stay a real, out-of-line frame: it paints below its
-         *  own `&marker`, so if it inlined into the caller the paint would clobber
-         *  the caller's live locals (see _paint_below). */
-        BOTANIK_NO_ASAN __attribute__((noinline)) void _paint_below();
-#endif
+        /** @brief Close the work window: record the work duration and, at slice
+         *  boundaries, ask the HAL for the stack high-water. Publish both. */
+        void _sample_work(uint64_t now_us);
+        /** @brief Fold one HAL::Stack::high_water() reading into the all-time
+         *  peak and publish the usage fraction and the worst-case headroom. */
+        void _measure_stack_usage();
 
         /** @} */
     };

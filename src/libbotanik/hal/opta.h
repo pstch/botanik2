@@ -33,21 +33,6 @@ namespace Botanik { namespace HAL {
 
     /** @} */
 
-    /** @brief Stack region introspection. */
-    namespace Stack {
-
-    uintptr_t base();
-
-    uint32_t depth();
-
-    /** @brief High-water stack usage (bytes) of the current RTOS thread, from
-     *  RTX's own watermark (RTX paints each thread's stack at creation, so no
-     *  manual painting on hardware). Returns 0 if the watermark is unavailable
-     *  (RTX tracking disabled). */
-    uint32_t high();
-
-    }  // namespace Stack
-
     /** @brief Timing and clocks. */
     namespace Clock {
 

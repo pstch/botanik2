@@ -28,10 +28,6 @@
 #undef Serial
 #endif
 
-/// Linker symbol for the top of the MSP/ISR stack (the ~1KB exception stack,
-/// NOT the RTOS thread stack the firmware runs on).
-extern "C" char _estack;
-
 namespace Botanik { namespace HAL {
 
     const char* hardware_description() {
@@ -40,23 +36,19 @@ namespace Botanik { namespace HAL {
 
     namespace Stack {
 
-    uintptr_t base() {
-        return reinterpret_cast<uintptr_t>(&_estack);
-    }
-
-    uint32_t depth() {
-        // Size of the CURRENT RTOS thread's stack: setup()/loop() run in the
-        // Arduino Mbed main thread, NOT on the ~1KB MSP stack _estack bounds,
-        // so ask the RTOS.
-        return static_cast<uint32_t>(osThreadGetStackSize(osThreadGetId()));
-    }
-
-    uint32_t high() {
-        osThreadId_t id = osThreadGetId();
-        uint32_t size  = static_cast<uint32_t>(osThreadGetStackSize(id));
-        // space: min free ever
-        uint32_t space = static_cast<uint32_t>(osThreadGetStackSpace(id));
-        return (space > 0 && space <= size) ? (size - space) : 0;
+    Use high_water() {
+        // The RTOS thread, not the MSP stack _estack bounds: setup()/loop() run
+        // in the Arduino Mbed main thread. RTX paints each thread's stack at
+        // creation, so the watermark is already there to read and there is
+        // nothing to paint here.
+        const osThreadId_t id = osThreadGetId();
+        const uint32_t size  = static_cast<uint32_t>(osThreadGetStackSize(id));
+        const uint32_t space = static_cast<uint32_t>(osThreadGetStackSpace(id));
+        Use u;
+        u.depth = size;
+        // space is min free EVER; 0 means RTX tracking is off, not a full stack.
+        u.used  = (space > 0 && space <= size) ? (size - space) : 0;
+        return u;
     }
 
     }  // namespace Stack
@@ -371,6 +363,7 @@ namespace Botanik { namespace HAL {
 
 #include <atomic>
 #include <chrono>
+#include <cstddef>
 #include <csignal>
 #include <cstdint>
 #include <cstdlib>
@@ -475,38 +468,87 @@ namespace Botanik { namespace HAL {
 
     namespace Stack {
 
+    namespace {
 
-    uintptr_t base() {
-        pthread_t self = pthread_self();
+    /** @brief Sentinel byte. Arbitrary: the scan broadcasts it to a word and
+     *  hunts a RUN of them, so any non-degenerate value works. */
+    const uint8_t  PAINT_BYTE = 0xCD;
+    /** @brief How far below the frame to paint and scan, on top of the clamp
+     *  against the real stack bottom. A host-stack property. */
+    const uint32_t SCAN_LIMIT = 65536;
+    /** @brief Intact words that mean "untouched from here down". Four makes a
+     *  coincidental match in live data (~1/2^32 per word) unreachable. */
+    const int      RUN = 4;
+
+    /** @brief What the last paint covered, read back by the next scan. */
+    uint8_t* g_top = nullptr;
+    uint8_t* g_bot = nullptr;
+
+    /** @brief The calling thread's stack region: one past the top, and its
+     *  size. Both from the same pthread_attr, so they cannot disagree. */
+    void region(uintptr_t* base, uint32_t* depth) {
+        *base = 0; *depth = 0;
         pthread_attr_t attr;
-        if (pthread_getattr_np(self, &attr) == 0) {
-            void* addr; size_t size;
-            pthread_attr_getstack(&attr, &addr, &size);
-            pthread_attr_destroy(&attr);
-            return reinterpret_cast<uintptr_t>(addr) + size;
-        }
-        return 0;
+        if (pthread_getattr_np(pthread_self(), &attr) != 0) return;
+        void* addr; size_t size;
+        pthread_attr_getstack(&attr, &addr, &size);
+        pthread_attr_destroy(&attr);
+        *base  = reinterpret_cast<uintptr_t>(addr) + size;
+        *depth = (size > UINT32_MAX) ? UINT32_MAX : (uint32_t)size;
     }
 
-    /** @brief Total allocated stack size for the calling thread (not the used
-     *  amount). */
-    uint32_t depth() {
-        pthread_t self = pthread_self();
-        pthread_attr_t attr;
-        if (pthread_getattr_np(self, &attr) == 0) {
-            void* addr; size_t size;
-            pthread_attr_getstack(&attr, &addr, &size);
-            pthread_attr_destroy(&attr);
-            (void)addr;
-            return (size > UINT32_MAX) ? UINT32_MAX : static_cast<uint32_t>(size);
-        }
-        return 0;
-    }
+    }  // namespace
 
-    /** @brief 0: the host has no RTOS thread watermark, so the scheduler
-     *  measures the high-water itself by painting + scanning the stack (see
-     *  _measure_stack_usage). */
-    uint32_t high() { return 0; }
+    // ASAN puts locals on a fake stack, which the scan cannot see; the
+    // annotation is what makes this work against the real one. noinline is
+    // load-bearing too: it paints below its own &marker, so folded into the
+    // caller the paint would clobber the caller's live locals.
+    BOTANIK_NO_ASAN __attribute__((noinline)) Use high_water() {
+        Use u; u.used = 0; u.depth = 0;
+        uintptr_t base = 0;
+        region(&base, &u.depth);
+        if (base == 0 || u.depth == 0) return u;
+
+        // SCAN what the previous call painted, top-down, for the first
+        // RUN-long stretch of intact sentinel: the start of untouched stack.
+        if (g_top != nullptr) {
+            const uint32_t PAT = (uint32_t)0x01010101u * PAINT_BYTE;
+            const uint32_t* top = reinterpret_cast<const uint32_t*>(
+                reinterpret_cast<uintptr_t>(g_top) & ~(uintptr_t)3u);
+            const uint32_t* bot = reinterpret_cast<const uint32_t*>(
+                (reinterpret_cast<uintptr_t>(g_bot) + 3u) & ~(uintptr_t)3u);
+            const uint32_t* hw = bot;      // default: all of it was used
+            int run = 0;
+            for (const uint32_t* p = top; p > bot; ) {
+                --p;
+                if (*p == PAT) { if (++run >= RUN) { hw = p + RUN; break; } }
+                else           { run = 0; }
+            }
+            u.used = (uint32_t)(base - reinterpret_cast<uintptr_t>(hw));
+        }
+
+        // ...then REPAINT below this frame, for the next call to read. The
+        // margin clears our own spilled locals plus memset's frame - a known
+        // leaf, and the only thing below us. memset captures its bounds once,
+        // so it is correct even at -O0 where an inline loop would re-read
+        // bounds it has just clobbered.
+        volatile uint8_t marker = 0;
+        const ptrdiff_t MARGIN = 512;
+        // Through uintptr_t deliberately: this walks the stack, it does not
+        // index `marker`, which is what -Warray-bounds is there to catch
+        // everywhere else.
+        uint8_t* top = reinterpret_cast<uint8_t*>(
+            reinterpret_cast<uintptr_t>(const_cast<uint8_t*>(&marker))
+                - (uintptr_t)MARGIN);
+        uint8_t* floor_ = reinterpret_cast<uint8_t*>(base - u.depth);
+        if (top <= floor_) return u;
+        uint8_t* bot = top - SCAN_LIMIT;
+        if (bot < floor_) bot = floor_;
+        memset(bot, PAINT_BYTE, (size_t)(top - bot));
+        g_top = top;
+        g_bot = bot;
+        return u;
+    }
 
     }  // namespace Stack
 

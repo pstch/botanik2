@@ -19,6 +19,21 @@
 
 #include <cstdint>
 
+// ASAN puts locals on a fake stack, which stack-usage measurement cannot see.
+// BOTANIK_NO_ASAN annotates the paint/scan so it works against the real one.
+// Here rather than beside its only user: it is a fact about the toolchain, and
+// the HAL is what measures the stack.
+#if defined(__has_feature)
+#  if __has_feature(address_sanitizer)
+#    define BOTANIK_NO_ASAN __attribute__((no_sanitize("address")))
+#  endif
+#elif defined(__SANITIZE_ADDRESS__)
+#  define BOTANIK_NO_ASAN __attribute__((no_sanitize("address")))
+#endif
+#ifndef BOTANIK_NO_ASAN
+#  define BOTANIK_NO_ASAN
+#endif
+
 // The one place TARGET_OPTA is allowed to pick a backend: both headers define
 // the same HAL::Clock/Memory/Stack/Debug/System/Watchdog surface declared below.
 #ifdef TARGET_OPTA
@@ -33,21 +48,30 @@ namespace Botanik { namespace HAL {
      *  static string. */
     const char* hardware_description();
 
-    /** @brief Stack region introspection (drives the scheduler high-water
-     *  metric). */
+    /** @brief Stack introspection: one question, one answer.
+     *
+     *  The region itself is deliberately not exposed. Its base and its depth
+     *  came from two DIFFERENT stacks on the OPTA - the MSP exception stack and
+     *  the RTOS thread the firmware runs on - and a caller doing its own
+     *  arithmetic over the pair had no way to know. */
     namespace Stack {
 
-        /** @brief High address (base) of the current thread's stack region. */
-        uintptr_t base();
+        /** @brief One measurement of the current thread's stack. Read
+         *  TOGETHER; a fraction is only meaningful over one region. */
+        struct Use {
+            uint32_t used;    ///< high-water bytes ever used; 0 = not measurable
+            uint32_t depth;   ///< total allocated bytes; 0 = unknown
+        };
 
-        /** @brief Usable size (depth) of the current thread's stack region,
-         *  bytes. */
-        uint32_t depth();
-
-        /** @brief High-water stack usage (bytes), or 0 if the platform can't
-         *  provide it and the caller must measure it (sim paints/scans; OPTA
-         *  reads the RTOS watermark). */
-        uint32_t high();
+        /** @brief Measure the CURRENT thread's stack.
+         *
+         *  OPTA reads the RTOS watermark, which is ALL-TIME and cannot fall.
+         *  The host has none, so it scans a sentinel painted by the PREVIOUS
+         *  call and repaints below this frame - which makes the call itself the
+         *  sampling cadence, and lets the host figure fall again.
+         *  @warning Not free on the host: it scans and repaints up to 64 KB.
+         *  Call it on a slice boundary, never every beat. */
+        Use high_water();
 
     }  // namespace Stack
 
