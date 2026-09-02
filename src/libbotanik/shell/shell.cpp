@@ -450,10 +450,12 @@ namespace Botanik { namespace Shell {
                                      % Config::SHELL_HISTORY_SIZE);
             text = _history[slot]; len = _hist_len[slot];
         }
-        // Replace the editor line with the recalled text.
-        _editor.move_to_line_end();
-        _editor.backspace(_editor.buffer_len());
-        _editor.insert_characters(text, len);
+        // ONE operation. Spelled as move-to-end + backspace + insert this was
+        // three edits, two of which change the row count, inside a window the
+        // page compensates for exactly one of - so a recall onto fewer rows
+        // painted the text off the bottom of the band while the buffer held it,
+        // and Enter ran a command that had never been on screen.
+        _editor.replace_all(text, len);
     }
 
     void CommandShell::history_prev() {

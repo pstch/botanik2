@@ -272,6 +272,22 @@ namespace Botanik { namespace Terminal {
         inline uint16_t cols() const { return _cols; }
         inline uint16_t rows_total() const { return _rows; }
 
+        /** @brief Copy FRONT row @p row's glyphs into @p out, attributes
+         *  stripped; @return how many were written.
+         *
+         *  Read-only introspection, for a test asserting that an incremental
+         *  paint left the screen a full repaint would have. A renderer WRITES
+         *  the grid and never reads it back - one that consulted this would be
+         *  deciding what to draw from what it drew last time, which is the
+         *  state the FRONT/BACK split exists to keep out of renderers. */
+        uint16_t front_row(uint16_t row, char* out, uint16_t cap) const {
+            if (out == nullptr || row >= _rows) return 0;
+            const uint16_t n = (cap < _cols) ? cap : _cols;
+            for (uint16_t c = 0; c < n; c++)
+                out[c] = (char)(_front[_idx(row, c)] & CELL_CH);
+            return n;
+        }
+
         /** @}
          *  @name Text output & character attributes
          *  @{ */

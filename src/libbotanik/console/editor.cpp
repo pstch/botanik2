@@ -335,6 +335,67 @@ namespace Botanik { namespace Terminal {
         return fitted;
     }
 
+    void TextEditor::replace_all(const char* text, uint16_t len) {
+        if (text == nullptr) len = 0;
+        if (len > load_capacity()) len = load_capacity();
+
+        // Blank the band the OLD text occupies, while _origin still points at
+        // it. Everything after this is one layout and one paint.
+        _terminal->clear_rows(_origin, _view_bottom_hw());
+        const uint16_t was_origin = _origin;
+
+        // memmove, not memcpy: a caller may hand back a slice of this buffer.
+        if (len > 0) memmove(_buf, text, len);
+        _len = len;
+        _buf[_len] = '\0';
+        _pos       = _len;          // a recalled line is ready to be extended
+        _view_top  = 0;
+        _goal_valid = false;
+        _mark_set   = false;        // the offsets it anchors are being replaced
+        _painted_from = _painted_to = 0;
+        _painted_active = false;
+
+        if (_rebuild_layout()) {
+            // Past what the row cap can lay out: drop the tail rather than keep
+            // text the operator can neither see nor reach.
+            const RowView& last = _layout.rows[_layout.count - 1];
+            _len = (uint16_t)(last.buf_start + last.buf_len);
+            _buf[_len] = '\0';
+            _pos = _len;
+            _rebuild_layout();
+        }
+        _dirty = true;
+
+        // ONE origin move, and the same asymmetry the rest of the editor has:
+        // growing scrolls the band itself, shrinking under suppression leaves
+        // it to the caller and so must draw where the text still is.
+        uint16_t base = _origin;
+        if (_anchor != Anchor::TOP) {
+            const uint16_t scr = _console->rows();
+            const uint16_t want = (scr >= _layout.count)
+                                ? (uint16_t)(scr - _layout.count) : 0;
+            if (want < _origin) { _grow_editor(); base = _origin; }
+            else if (want > _origin) {
+                _shrink_editor(want);
+                base = _suppress_sync_redraw ? was_origin : _origin;
+            }
+        }
+        _place_rows();
+
+        const uint16_t last_row = _visible_end();
+        for (uint16_t i = _view_top; i < last_row; i++) {
+            _terminal->move_to({(uint16_t)(base + (i - _view_top)), _indent});
+            _write_prompt(i);
+            _write_row_content(i);
+        }
+        _record_painted();
+        _screen_used = _rows_used();
+
+        CursorPos at = _map_cursor_pos(_pos);
+        at.row = (uint16_t)(base + (at.row - _origin));
+        _place_cursor(at);
+    }
+
     // grow/shrink helpers
 
     void TextEditor::_place_rows() {

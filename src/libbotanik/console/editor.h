@@ -378,6 +378,20 @@ namespace Botanik { namespace Terminal {
          *  the row cap can lay out - in which case the tail was dropped. */
         bool commit_loaded(uint16_t len);
 
+        /** @brief Replace the whole line with @p len bytes of @p text, cursor
+         *  at the end, in ONE operation.
+         *
+         *  For a caller that has a replacement line in hand - a shell history
+         *  recall - where the obvious spelling is move-to-end, backspace the
+         *  lot, insert the new text. That is THREE edits, two of which change
+         *  the row count, and a caller inside suppress_redraw() gets to
+         *  compensate for exactly one. The recalled text then landed a row off
+         *  the screen while the buffer held it, so Enter ran a command that had
+         *  never been displayed.
+         *  @note Unlike commit_loaded(), this is an EDIT: it marks the buffer
+         *  dirty and leaves the cursor at the end rather than the start. */
+        void replace_all(const char* text, uint16_t len);
+
 
         /** @brief Whether the buffer has changed since the last load() /
          *  clear_dirty(). */
