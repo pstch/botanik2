@@ -118,8 +118,12 @@ namespace Botanik { namespace Utils {
         uint64_t scale = 1;
         for (uint8_t i = 0; i < decimals; i++) scale *= 10;
         // llround()'s rule, without llround(): value is non-negative by here,
-        // so half away from zero is a truncated + 0.5.
-        uint64_t scaled = (uint64_t)(value * (double)scale + 0.5);
+        // so half away from zero is half up. Compare the remainder rather than
+        // adding 0.5 first - for the double just under .5 that addition rounds
+        // to 1.0 and carries a digit that is not there.
+        const double  wanted = value * (double)scale;
+        uint64_t      scaled = (uint64_t)wanted;
+        if (wanted - (double)scaled >= 0.5) scaled++;
         uint64_t ipart  = scaled / scale;
         uint64_t fpart  = scaled % scale;
 

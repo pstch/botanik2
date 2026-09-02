@@ -609,10 +609,22 @@ elseif(BOTANIK_TARGET STREQUAL "OPTA")
         ${MBED_CORE_SOURCES}
         ${BOTANIK_SITE_SOURCES})
     add_dependencies(botanik_opta botanik_ldscript)
+
+    # nosys.specs supplies the syscall stubs (-lnosys): a bare-metal image has
+    # no _write/_sbrk/_kill of its own, and newlib will not link without them.
+    #
+    # nano.specs, when on, rewrites -lc/-lstdc++/-lsupc++ to their _nano
+    # variants. See docs/dev/footprint.md for what that costs and buys.
+    option(BOTANIK_OPTA_NANO "Link newlib-nano on the OPTA image" OFF)
+    set(_specs "--specs=nosys.specs")
+    if(BOTANIK_OPTA_NANO)
+        set(_specs "${_specs} --specs=nano.specs")
+    endif()
+
     set_target_properties(botanik_opta PROPERTIES
         SUFFIX ".elf"
         CXX_STANDARD 14 CXX_STANDARD_REQUIRED ON
-        LINK_FLAGS "-Wl,--gc-sections -Wl,--as-needed @${MBED_VARIANT}/ldflags.txt -T${_ldscript} -Wl,-Map,${CMAKE_BINARY_DIR}/botanik_opta.map --specs=nosys.specs")
+        LINK_FLAGS "-Wl,--gc-sections -Wl,--as-needed @${MBED_VARIANT}/ldflags.txt -T${_ldscript} -Wl,-Map,${CMAKE_BINARY_DIR}/botanik_opta.map ${_specs}")
     # Via target_link_libraries so the libraries land AFTER our objects.
     # --whole-archive keeps libmbed's vector table and RTOS entry, which nothing
     # references by symbol; --gc-sections then prunes what is unused.

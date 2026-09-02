@@ -17,6 +17,8 @@ it, which is the same layering @ref dev_metrics_coupling states. Read
 - @subpage dev_concurrency - one cooperative loop, the async boundaries, and why
   there is no `std::atomic`.
 - @subpage dev_build - the two build targets, the build options, and the gate.
+- @subpage dev_footprint - what the OPTA image is made of, and the two levers
+  that move it.
 
 ## The beat {#dev_beat}
 
