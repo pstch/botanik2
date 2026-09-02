@@ -209,7 +209,10 @@ namespace Botanik { namespace HAL { namespace Network {
     TcpSocket tcp_accept(TcpSocket listener) {
         if (!tcp_valid(listener)) return -1;
         int i = tcp_slot();
-        if (i < 0) return -1;              // no room: leave it pending, retry next beat
+        // Distinct from -1: the peer's handshake has completed and nothing will
+        // read it. Silence here is what let an oversubscribed budget look like
+        // an idle port. @see TCP_NO_SLOT
+        if (i < 0) return TCP_NO_SLOT;
         nsapi_error_t e = NSAPI_ERROR_OK;
         TCPSocket* peer = sock(listener)->accept(&e);
         if (peer == 0) return -1;
@@ -530,6 +533,10 @@ namespace Botanik { namespace HAL { namespace Network {
         return fd;
     }
     TcpSocket tcp_accept(TcpSocket listener) {
+        // Never TCP_NO_SLOT: a host fd needs no table, so the budget the OPTA
+        // runs out of does not exist here. That asymmetry is exactly why an
+        // oversubscribed NET_MAX_TCP could ship - nothing on this side of the
+        // HAL can reach it.
         if (listener < 0) return -1;
         int fd = ::accept(listener, 0, 0);
         if (fd < 0) return -1;                   // nothing pending, or a dead listener

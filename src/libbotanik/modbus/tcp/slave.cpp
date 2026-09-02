@@ -115,6 +115,19 @@ namespace Botanik { namespace Modbus {
     void TcpSlave::_accept(uint64_t now_ms) {
         for (uint8_t n = 0; n < Config::MODBUS_TCP_ACCEPT_PER_STEP; n++) {
             const Net::TcpSocket s = Net::tcp_accept(_listener);
+            if (s == Net::TCP_NO_SLOT) {
+                // The handshake completed and the HAL had no socket for it, so
+                // there is nothing to hang up with - the master waits on a
+                // connection that looks established. Counted and named: this is
+                // a build whose NET_MAX_TCP is too small, and it is otherwise
+                // indistinguishable from a port nobody is calling.
+                _ctx.rejects++;
+                if (_logger != nullptr)
+                    _logger->error(Logs::NETWORK,
+                                   "modbus: no socket for a connection\n"
+                                   "NET_MAX_TCP is too small");
+                return;
+            }
             if (s < 0) return;                      // nothing pending
 
             Conn* free_slot = nullptr;

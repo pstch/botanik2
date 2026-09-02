@@ -10,6 +10,9 @@ set(CMAKE_SYSTEM_PROCESSOR arm)
 
 set(CMAKE_C_COMPILER   arm-none-eabi-gcc)
 set(CMAKE_CXX_COMPILER arm-none-eabi-g++)
+# CMake finds objcopy on its own; size it does not, and the footprint check
+# reads the linked image with it.
+find_program(CMAKE_SIZE arm-none-eabi-size)
 
 # Probe the compiler with a static-library try-compile: there is no startup or
 # linker script at this point, so linking a test executable would fail.

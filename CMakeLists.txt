@@ -60,14 +60,15 @@ set(BOTANIK_SANITIZE "OFF" CACHE STRING "Sanitizers for the SIMULATOR build")
 # CM4_BINARY_START (in QSPI), which reads as ~1.4 GB.
 #
 # Set above current usage with room to grow - a nuisance failure teaches people
-# to raise the number without looking. The RAM one is the load-bearing half.
+# to raise the number without looking. The RAM one is the load-bearing half:
+# what static RAM takes comes out of the heap lwIP and Mbed draw on at runtime.
 #
-# Measured 2026-09-02: flash 451 KB (59% of its ceiling), static RAM 256 KB
-# (80%), heap 254 KB. The flash ceiling is loose; the RAM one is not, and 20%
-# is the real headroom. LogsPage (43 KB) and ShellPage (36 KB) are 40% of the
-# firmware singleton between them, so scrollback is the lever if it gets tight.
-# libbotanik_sizes.h answers WHICH type moved; this answers whether the image
-# did, which is what caught 83 KB going into the singleton unnoticed.
+# Checked after the link by cmake/footprint.cmake, which reads the sizes back
+# off the ELF and writes build/footprint.json. libbotanik_sizes.h answers WHICH
+# type moved; this answers whether the IMAGE did.
+#
+# See docs/dev/footprint.md for where the image goes, and for the two levers
+# that move it.
 set(BOTANIK_FLASH_MAX_BYTES 786432 CACHE STRING
     "OPTA flash ceiling in bytes (768 KB of the 1.75 MB app region); 0 disables")
 set(BOTANIK_STATIC_RAM_MAX_BYTES 327680 CACHE STRING
@@ -647,6 +648,16 @@ elseif(BOTANIK_TARGET STREQUAL "OPTA")
         COMMAND ${CMAKE_OBJCOPY} -O binary
                 "$<TARGET_FILE:botanik_opta>" "${CMAKE_BINARY_DIR}/botanik_opta.bin"
         COMMAND ${CMAKE_COMMAND} -E echo "-- flashable image: ${CMAKE_BINARY_DIR}/botanik_opta.bin"
+        # The budgets, read back off the ELF. They were declared and nothing
+        # consumed them, so the ceiling the comment above promises had never
+        # once been checked - and the footprint.json beside it was months stale.
+        COMMAND ${CMAKE_COMMAND}
+                "-DELF=$<TARGET_FILE:botanik_opta>"
+                "-DSIZE_TOOL=${CMAKE_SIZE}"
+                "-DFLASH_MAX=${BOTANIK_FLASH_MAX_BYTES}"
+                "-DRAM_MAX=${BOTANIK_STATIC_RAM_MAX_BYTES}"
+                "-DOUT=${CMAKE_BINARY_DIR}/footprint.json"
+                -P "${CMAKE_SOURCE_DIR}/cmake/footprint.cmake"
         VERBATIM)
 
     # ------------------------------------------------------------------

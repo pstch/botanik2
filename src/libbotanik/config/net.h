@@ -21,16 +21,23 @@ namespace Botanik { namespace Config {
 #endif
     BOTANIK_CFG(size_t, HOST_STR_LEN);
 
-    /** @brief Sockets HAL::Network keeps, per kind. These are the hard ceiling
-     *  on how many network clients a site may run at once: NTP takes one UDP,
-     *  MQTT one TCP, so the defaults leave nothing spare - a second publisher or
-     *  a syslog client needs this raised, and gets a refused socket otherwise. */
+    /** @brief Sockets HAL::Network keeps, per kind - a hard ceiling on the
+     *  OPTA, where they are a fixed table of Mbed socket objects.
+     *
+     *  The TCP budget is the one that has to be counted rather than guessed,
+     *  because the SERVER is the largest consumer and is easy to forget: the
+     *  Modbus slave holds a listener for the life of the boot AND one slot per
+     *  accepted connection, then MQTT takes one and the TCP master one. The
+     *  count is asserted at the composition root, which is the only place that
+     *  knows which of those a build actually has (@ref firmware/firmware.h).
+     *  @note Running out is not loud: an accepted connection that finds no slot
+     *  is indistinguishable from no connection pending. */
 #ifndef BOTANIK_NET_MAX_UDP
 #  define BOTANIK_NET_MAX_UDP 2
 #endif
     BOTANIK_CFG(int, NET_MAX_UDP);
 #ifndef BOTANIK_NET_MAX_TCP
-#  define BOTANIK_NET_MAX_TCP 2
+#  define BOTANIK_NET_MAX_TCP 5
 #endif
     BOTANIK_CFG(int, NET_MAX_TCP);
 

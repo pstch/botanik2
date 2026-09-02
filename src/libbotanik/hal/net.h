@@ -127,11 +127,18 @@ namespace Botanik { namespace HAL { namespace Network {
      *  < 0 if the port could not be bound. Counts against the same socket budget
      *  as tcp_open(). */
     TcpSocket tcp_listen(uint16_t port);
-    /** @brief Take the next pending connection on @p listener, or < 0 when there
-     *  is none.
+    /** @brief tcp_accept(): a connection WAS pending and the socket table had
+     *  no room for it. Distinct from every other negative answer, because the
+     *  peer is sitting on a completed handshake nobody will ever read - which
+     *  a server must report rather than mistake for a quiet bus. */
+    static const TcpSocket TCP_NO_SLOT = -2;
+
+    /** @brief Take the next pending connection on @p listener, or < 0 when
+     *  there is none.
      *
      *  "Nothing pending" and "error" are the same answer on purpose: a server
-     *  polls this every beat and does nothing either way. The returned socket is
+     *  polls this every beat and does nothing either way. TCP_NO_SLOT is the
+     *  exception and must be handled, @see TCP_NO_SLOT. The returned socket is
      *  an ordinary one, closed with tcp_close(). */
     TcpSocket tcp_accept(TcpSocket listener);
     /** @brief The address at the far end of @p s into @p out; false if it has

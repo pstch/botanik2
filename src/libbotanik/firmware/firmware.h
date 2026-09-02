@@ -504,6 +504,33 @@ namespace Botanik {
 
     };
 
+#if BOTANIK_FEATURE_NETWORK
+    /** @brief The TCP socket budget against what this build actually asks of
+     *  it. HERE because the composition root is the one place that knows which
+     *  optional subsystems exist; config/net.h can only state the ceiling.
+     *
+     *  Running out is silent by nature - HAL::Network answers a slotless accept
+     *  exactly as it answers "nothing pending" - so the count is checked where
+     *  it can still fail a build. */
+    namespace detail {
+        constexpr int TCP_SOCKETS_WANTED =
+#if BOTANIK_FEATURE_MODBUS_TCP_SERVER
+            1 + (int)Config::MODBUS_TCP_MAX_CONN +   // listener + its clients
+#endif
+#if BOTANIK_FEATURE_MODBUS_TCP_CLIENT
+            1 +                                      // the TCP master
+#endif
+#if BOTANIK_FEATURE_MQTT
+            1 +                                      // the broker connection
+#endif
+            0;
+        static_assert(Config::NET_MAX_TCP >= TCP_SOCKETS_WANTED,
+                      "NET_MAX_TCP is below what this build's TCP users need: "
+                      "the Modbus slave's listener and its connections, the TCP "
+                      "master, and MQTT. Raise BOTANIK_NET_MAX_TCP.");
+    }
+#endif
+
 }  // namespace Botanik
 
 #endif // LIBBOTANIK_FIRMWARE_FIRMWARE_H
