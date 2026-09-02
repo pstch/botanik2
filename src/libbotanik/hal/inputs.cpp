@@ -14,32 +14,80 @@
 
 namespace Botanik { namespace HAL {
 
+    /** @brief HAL::Pin -> the board's own number. The ONE place the two
+     *  vocabularies meet, and the reason a site's tables can name a terminal
+     *  without Arduino.h reaching them. -1 for a label this board does not
+     *  have, which every caller treats as "not mine". */
+    static int board_pin(uint16_t pin) {
+        switch (pin) {
+            case Pin::IN1: case Pin::IN2: case Pin::IN3: case Pin::IN4:
+            case Pin::IN5: case Pin::IN6: case Pin::IN7: case Pin::IN8:
+                return A0 + (int)pin;
+            case Pin::BUTTON:   return BTN_USER;
+            case Pin::RELAY_1: return RELAY1;
+            case Pin::RELAY_2: return RELAY2;
+            case Pin::RELAY_3: return RELAY3;
+            case Pin::RELAY_4: return RELAY4;
+            case Pin::LED_1:   return LED_D0;
+            case Pin::LED_2:   return LED_D1;
+            case Pin::LED_3:   return LED_D2;
+            case Pin::LED_4:   return LED_D3;
+            case Pin::LED_BLUE: return LED_USER;
+            default:            return -1;
+        }
+    }
+
     namespace DigitalIn {
 
-        /** @brief The Arduino pin behind a local channel: I1..I8 are A0..A7.
-         *  Kept per namespace rather than shared, so neither has to reach
-         *  across the other's #if. */
-        static int pin_of(uint8_t ch) { return A0 + (int)ch; }
+        static bool g_attached[Pin::COUNT] = {};
 
-        static bool g_attached[CHANNELS] = {};
-
-        bool attach(uint8_t ch) {
-            if (ch >= CHANNELS) return false;
+        bool attach(uint16_t pin) {
+            const int p = owns(pin) ? board_pin(pin) : -1;
+            if (p < 0) return false;
             // INPUT, not INPUT_PULLUP: the OPTA terminals carry their own
-            // conditioning, and a pull here fights it.
-            pinMode(pin_of(ch), INPUT);
-            g_attached[ch] = true;
+            // conditioning, and a pull here fights it. The BUTTON is the
+            // exception - it is a bare contact to ground, so it needs the pull
+            // the terminals must not have.
+            pinMode(p, pin == Pin::BUTTON ? INPUT_PULLUP : INPUT);
+            g_attached[pin] = true;
             return true;
         }
 
-        bool read(uint8_t ch) {
-            if (ch >= CHANNELS || !g_attached[ch]) return false;
-            return digitalRead(pin_of(ch)) == HIGH;
+        bool read(uint16_t pin) {
+            if (!owns(pin) || !g_attached[pin]) return false;
+            return digitalRead(board_pin(pin)) == HIGH;
         }
 
-        void inject(uint8_t, bool) {}   // the field drives the wire here
+        void inject(uint16_t, bool) {}   // the field drives the wire here
 
     }  // namespace DigitalIn
+
+    namespace DigitalOut {
+
+        static bool g_attached[Pin::COUNT] = {};
+        static bool g_level[Pin::COUNT]    = {};
+
+        bool attach(uint16_t pin) {
+            const int p = owns(pin) ? board_pin(pin) : -1;
+            if (p < 0) return false;
+            pinMode(p, OUTPUT);
+            digitalWrite(p, LOW);          // a coil comes up de-energised
+            g_attached[pin] = true;
+            g_level[pin]    = false;
+            return true;
+        }
+
+        void write(uint16_t pin, bool on) {
+            if (!owns(pin) || !g_attached[pin]) return;
+            digitalWrite(board_pin(pin), on ? HIGH : LOW);
+            g_level[pin] = on;
+        }
+
+        bool read(uint16_t pin) {
+            return owns(pin) && g_attached[pin] && g_level[pin];
+        }
+
+    }  // namespace DigitalOut
 
     namespace Pulse {
 
@@ -134,26 +182,52 @@ namespace Botanik { namespace HAL {
     namespace DigitalIn {
 
         /** @brief No wire, so a terminal reads what Site::simulate() drives
-         *  into it. Attaching still matters: an unattached channel reads false
-         *  on both backends, which is what an unwired terminal does. */
-        static bool g_attached[CHANNELS] = {};
-        static bool g_level[CHANNELS]    = {};
+         *  into it. Attaching still matters: an unattached pin reads false on
+         *  both backends, which is what an unwired terminal does. */
+        static bool g_attached[Pin::COUNT] = {};
+        static bool g_level[Pin::COUNT]    = {};
 
-        bool attach(uint8_t ch) {
-            if (ch >= CHANNELS) return false;
-            g_attached[ch] = true;
+        bool attach(uint16_t pin) {
+            if (!owns(pin)) return false;
+            g_attached[pin] = true;
             return true;
         }
 
-        bool read(uint8_t ch) {
-            return (ch < CHANNELS && g_attached[ch]) ? g_level[ch] : false;
+        bool read(uint16_t pin) {
+            return (owns(pin) && g_attached[pin]) ? g_level[pin] : false;
         }
 
-        void inject(uint8_t ch, bool level) {
-            if (ch < CHANNELS) g_level[ch] = level;
+        void inject(uint16_t pin, bool level) {
+            if (owns(pin)) g_level[pin] = level;
         }
 
     }  // namespace DigitalIn
+
+    namespace DigitalOut {
+
+        /** @brief Nothing to energise, so the level is the whole of it - and
+         *  reading it back is how a screen test asserts that a law drove a
+         *  relay. Same shape as the OPTA's, which keeps its own shadow for the
+         *  same reason: a coil is not readable. */
+        static bool g_attached[Pin::COUNT] = {};
+        static bool g_level[Pin::COUNT]    = {};
+
+        bool attach(uint16_t pin) {
+            if (!owns(pin)) return false;
+            g_attached[pin] = true;
+            g_level[pin]    = false;
+            return true;
+        }
+
+        void write(uint16_t pin, bool on) {
+            if (owns(pin) && g_attached[pin]) g_level[pin] = on;
+        }
+
+        bool read(uint16_t pin) {
+            return owns(pin) && g_attached[pin] && g_level[pin];
+        }
+
+    }  // namespace DigitalOut
 
     namespace Pulse {
 

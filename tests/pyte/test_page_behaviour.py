@@ -164,10 +164,10 @@ def test_the_task_table_is_complete(spawn):
 
     # Every task a full build registers, the site's control programs included.
     # Move it deliberately when the set changes; an unexplained DROP is the bug
-    # this exists to catch. Last moved when sun_watch was deleted: the tracker
-    # publishes sol_* itself now, so the program that copied the instrument
-    # onto those rows had nothing left to do.
-    assert term.wait_for("Registered ....... : 50"), \
+    # this exists to catch. Last moved when Io::LocalOutputs was added: the
+    # controller's own relays and LEDs had no driver at all, so a DO or RO row
+    # on device 0 was declarable and never written.
+    assert term.wait_for("Registered ....... : 51"), \
         "the task table changed size - a registration was added or silently lost"
     assert term.wait_for("0 refused"), "a registration was refused: MAX_TASKS"
 

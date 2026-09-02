@@ -63,11 +63,15 @@ namespace Botanik { namespace Io {
         /** @name State
          *  @{ */
 
-        /** @brief The rows to publish, and the terminal each reads. Bounded by
-         *  the terminal count: two rows on one channel would both attach and
-         *  both publish, which the site test refuses. */
-        uint16_t _row[HAL::DigitalIn::CHANNELS];
-        uint8_t  _channel[HAL::DigitalIn::CHANNELS];
+        /** @brief The most level-read rows there can be: the eight terminals
+         *  and the button. */
+        static const uint8_t LEVEL_MAX = HAL::DigitalIn::CHANNELS + 1;
+
+        /** @brief The rows to publish, and the PIN each reads. Bounded by the
+         *  terminal count: two rows on one pin would both attach and both
+         *  publish, which the site test refuses. */
+        uint16_t _row[LEVEL_MAX];
+        uint16_t _pin[LEVEL_MAX];
         uint8_t  _count = 0;
 
         /** @brief The edge counters: the row each total goes TO, which is the

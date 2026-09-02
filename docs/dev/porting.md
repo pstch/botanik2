@@ -41,7 +41,9 @@ The interface is grouped into nested namespaces by concern.
 | `Serial` | `Raw`, `Port`, `get` | the console and monitor ports |
 | `Storage` | `set`, `get`, `remove` | key-value persistence. Mbed KVStore on OPTA, one file per key on the simulator |
 | `Network` | link, DNS, UDP, TCP (`hal/net.{h,cpp}`) | only needed under `FEATURE_NETWORK` |
-| `DigitalIn` | `attach`, `read`, `inject` | the controller's OWN input terminals, 8 of them, read as levels. `inject` is the simulator's way in and a no-op on hardware, where the field drives the wire |
+| `Pin` | the label set | the terminals a site's tables name: `IN1`..`IN8`, `BUTTON`, `RELAY_1`..`RELAY_4`, `LED_1`..`LED_4`, `LED_BLUE`. ONE flat space, and the backend maps each to whatever the board calls it. The values are OURS - `Arduino.h` reaches exactly one TU because it `#define`s `Serial`, so a table compiled for both targets cannot say the core's `RELAY1` and mean it. Four labels are spelled apart from the core's macros for that reason (`BUTTON`, `RELAY_n`, `LED_n`, `LED_BLUE`) |
+| `DigitalOut` | `attach`, `write`, `read`, `owns` | the on-board relays and status LEDs, which are one thing to the firmware: a pin it drives. `read` answers from a shadow on both backends, since a coil is not readable |
+| `DigitalIn` | `attach`, `read`, `inject`, `owns` | the controller's OWN input terminals, 8 of them, read as levels. `inject` is the simulator's way in and a no-op on hardware, where the field drives the wire |
 | `Pulse` | `attach`, `sample`, `overruns`, `inject` | the same terminals COUNTED instead: a meter's pulse line, where the level of the wire is not a reading of anything. `attach` is idempotent for the same edge, because bring-up runs twice in one process every time a test builds a second firmware. `sample` returns the count and the instant TOGETHER, re-read until stable, or an edge landing between them pairs a new count with an old clock |
 | `Env` | `u32`, `u8`, `str` | environment overrides; may return the default everywhere |
 | `Debug` | `breakpoint`, `under_debugger` | `under_debugger` gates `breakpoint`, so a bare trap never faults a debugger-less unit |

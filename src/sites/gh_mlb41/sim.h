@@ -420,7 +420,7 @@ inline void publish_meters(Vars::Bank& io, const Sky& s, uint32_t now_ms) {
     // The UPS low-battery contact, through the TERMINAL: the local input scan
     // is what publishes it on hardware, and driving the row here would step
     // over the thing under test.
-    HAL::DigitalIn::inject(0, ups_low);
+    HAL::DigitalIn::inject(HAL::Pin::IN1, ups_low);
 }
 
 /** @brief The calibrated channels on TDC/AI-1: the four dividers and the flow

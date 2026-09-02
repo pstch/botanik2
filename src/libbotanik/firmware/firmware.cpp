@@ -50,6 +50,7 @@ namespace Botanik {
 #endif
 #if BOTANIK_FEATURE_VARS
           , _local_in(_setup, _io)
+          , _local_out(_setup, _io)
 #endif
 #if BOTANIK_FEATURE_MODBUS_RTU_CLIENT
           , _modbus_rtu(_setup, &_io, site.devices)
@@ -366,6 +367,7 @@ namespace Botanik {
         // The controller's own terminals, before the bus: both fill rows the
         // programs read this beat, and this one cannot fail or block.
         _local_in.register_tasks();
+        _local_out.register_tasks();
 #endif
 #if BOTANIK_FEATURE_MODBUS_RTU_CLIENT
         // Spans the beat: takes the field in here, issues at OUTPUT.

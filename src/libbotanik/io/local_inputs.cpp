@@ -34,13 +34,14 @@ namespace Botanik { namespace Io {
                         continue;
                     }
                 }
-            } else if (_count < HAL::DigitalIn::CHANNELS) {
+            } else if (_count < LEVEL_MAX) {
                 // The row's `reg` IS the terminal: a local row has no register
-                // to address, so the column carries the channel instead.
-                const uint8_t ch = (uint8_t)d.bind.reg;
+                // to address, so the column carries the HAL::Pin label the
+                // site's table named.
+                const uint16_t ch = d.bind.reg;
                 if (HAL::DigitalIn::attach(ch)) {
-                    _row[_count]     = i;
-                    _channel[_count] = ch;
+                    _row[_count] = i;
+                    _pin[_count] = ch;
                     _count++;
                     continue;
                 }
@@ -60,7 +61,7 @@ namespace Botanik { namespace Io {
         if (_io == nullptr) return;
         for (uint8_t i = 0; i < _count; i++) {
             const Vars::Descriptor& d = _io->descriptor(_row[i]);
-            bool on = HAL::DigitalIn::read(_channel[i]);
+            bool on = HAL::DigitalIn::read(_pin[i]);
             // The one place active-low wiring is folded in for a local
             // terminal, exactly as the field bus does it for a remote one.
             if (d.flags & Vars::F_INVERT) on = !on;

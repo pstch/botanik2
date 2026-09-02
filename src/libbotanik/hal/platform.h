@@ -233,32 +233,110 @@ namespace Botanik { namespace HAL {
 
     }  // namespace Watchdog
 
+    /** @brief The controller's own terminals, by NAME.
+     *
+     *  A site's tables name a local pin with one of these labels rather than a
+     *  number, and the generator emits the constant. The VALUES are ours, not
+     *  the board's: `Arduino.h` reaches exactly one translation unit
+     *  (`hal/inputs.cpp`, under TARGET_OPTA) because it `#define`s `Serial`,
+     *  which collides with HAL::Serial - so a table compiled for both targets
+     *  cannot say `RELAY1` and mean the core's. The BACKEND maps these to
+     *  whatever the board calls them.
+     *
+     *  One flat space across inputs and outputs, so a label identifies a
+     *  terminal whatever a row does with it. IN1..IN8 keep the values the
+     *  input channels already had, so a table that names them by number still
+     *  means what it meant.
+     *  @{ */
+    namespace Pin {
+        enum : uint16_t {
+            IN1 = 0, IN2, IN3, IN4, IN5, IN6, IN7, IN8,
+            /** @brief The front-panel button. An INPUT like the terminals, and
+             *  read as one, but not on the same pin range - which is why the
+             *  label exists rather than a ninth channel.
+             *  @note Spelled BUTTON, not BTN_USER: the OPTA core defines that
+             *  as a MACRO, and `Pin::BUTTON` would expand to `Pin::(94u)`.
+             *  The four relays and the blue LED are renamed for the same
+             *  reason, and this is the whole of the constraint on a label. */
+            BUTTON = 8,
+
+            /** @brief The four on-board relay outputs. */
+            RELAY_1 = 16, RELAY_2, RELAY_3, RELAY_4,
+            /** @brief The four status LEDs beside them. Named for the position
+             *  they occupy, not for the relay they sit under: nothing wires
+             *  them together, and a site is free to use one for anything. */
+            LED_1 = 20, LED_2, LED_3, LED_4,
+            /** @brief The blue one, on its own. */
+            LED_BLUE = 24,
+
+            /** @brief Past the last: what an out-of-range check compares to. */
+            COUNT = 25
+        };
+    }
+    /** @} */
+
     /** @brief The controller's own digital input terminals, read as LEVELS.
      *  Pulse below counts edges on the same eight; a contact that sits open or
      *  closed is this one. */
     namespace DigitalIn {
 
-        /** @brief The local input terminals: I1 is 0, I8 is 7. */
+        /** @brief The input terminals, Pin::IN1 .. Pin::IN8. What Pulse counts
+         *  edges on, and what bounds a CHANNEL as opposed to a pin. */
         static const uint8_t CHANNELS = 8;
 
-        /** @brief Make @p ch an input.
-         *  @return false if the channel is out of range.
+        /** @brief Whether @p pin is one this namespace reads: a terminal, or
+         *  the front-panel button. */
+        constexpr bool owns(uint16_t pin) {
+            return pin < CHANNELS || pin == Pin::BUTTON;
+        }
+
+        /** @brief Make @p pin an input.
+         *  @return false if it is not one of ours.
          *  @warning Call from setup(): the OPTA path configures the pin. */
-        bool attach(uint8_t ch);
+        bool attach(uint16_t pin);
 
-        /** @brief The level on @p ch now. False for a channel never attached,
-         *  which is also what an open terminal reads. */
-        bool read(uint8_t ch);
+        /** @brief The level on @p pin now. False for one never attached, which
+         *  is also what an open terminal reads. */
+        bool read(uint16_t pin);
 
-        /** @brief Drive @p ch by hand. Simulator only, and a no-op on the
+        /** @brief Drive @p pin by hand. Simulator only, and a no-op on the
          *  OPTA: a real terminal is driven by the wire. */
-        void inject(uint8_t ch, bool level);
+        void inject(uint16_t pin, bool level);
 
     }  // namespace DigitalIn
 
-    /** @brief Process environment. Host-only in practice: the OPTA backend has
-     *  no environment and always yields the fallback. Lives here rather than in
-     *  utils/ because reading it is a platform call. */
+    /** @brief The controller's own digital OUTPUTS: the on-board relays and the
+     *  status LEDs, which are the same kind of thing to the firmware - a pin it
+     *  drives high or low. What a site declares as a DO or an RO row on device
+     *  0, and what Io::LocalOutputs carries at PHASE_OUTPUT. */
+    namespace DigitalOut {
+
+        /** @brief Whether @p pin is one this namespace drives. */
+        constexpr bool owns(uint16_t pin) {
+            return (pin >= Pin::RELAY_1 && pin <= Pin::RELAY_4)
+                || (pin >= Pin::LED_1   && pin <= Pin::LED_4)
+                || pin == Pin::LED_BLUE;
+        }
+
+        /** @brief Make @p pin an output, driven to its safe state.
+         *  @return false if it is not one of ours.
+         *  @warning Call from setup(): the OPTA path configures the pin. */
+        bool attach(uint16_t pin);
+
+        /** @brief Drive @p pin. A pin never attached is not driven - the same
+         *  rule the inputs keep, so a mis-declared row does nothing rather than
+         *  something. */
+        void write(uint16_t pin, bool on);
+
+        /** @brief What was last written. The SIMULATOR's way of asserting on an
+         *  output; on the OPTA it answers from the same shadow, since a coil is
+         *  not readable. */
+        bool read(uint16_t pin);
+
+    }  // namespace DigitalOut
+
+    /** @brief Edge counting on the input terminals: a meter's pulse line,
+     *  where the LEVEL of the wire is not a reading of anything. */
     namespace Pulse {
 
         /** @brief Which edge of the input advances the count. LOW and HIGH are

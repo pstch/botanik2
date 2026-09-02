@@ -33,7 +33,14 @@ ROWS = {  # factory -> (csv stem, columns == the factory's parameters)
 }
 TEXT = {'name', 'unit', 'desc', 'notes', 'code', 'tag', 'model_name'}
 # Not quoted, but not a number either: a symbol the emitted C++ names.
-SYMBOL = {'edge': 'HAL::Pulse::'}
+#
+# `reg`, `coil` and `channel` carry a NUMBER on the field bus (a register, a
+# coil) and a PIN LABEL locally, where there is no register to address. Both
+# spellings are allowed in one column and told apart by shape: a number is a
+# number, anything else is a HAL::Pin. So a local row says RELAY_1 and a bus
+# row says 12, and neither has to know about the other.
+SYMBOL = {'edge': 'HAL::Pulse::', 'reg': 'HAL::Pin::',
+          'coil': 'HAL::Pin::', 'channel': 'HAL::Pin::'}
 
 AUX = {  # stem -> columns, for the tables that are not rows
     'analog_cal':     'cal raw_min_row raw_min raw_max_row raw_max eng_min_row eng_min '
@@ -82,9 +89,14 @@ def unquote(a):
     return a[1:-1].replace('\\"', '"') if len(a) > 1 and a[0] == a[-1] == '"' else a
 
 
+def _numeric(v):
+    try: int(v, 0); return True
+    except ValueError: return False
+
+
 def quote(v, col):
     if col in TEXT:  return '"%s"' % v.replace('"', '\\"')
-    if col in SYMBOL and v and not v.startswith(SYMBOL[col]):
+    if col in SYMBOL and v and not _numeric(v) and not v.startswith(SYMBOL[col]):
         return SYMBOL[col] + v
     return v
 

@@ -19,6 +19,7 @@
 #include "libbotanik/core/context.h"
 #include "libbotanik/hal/platform.h"
 #include "libbotanik/io/local_inputs.h"
+#include "libbotanik/io/local_outputs.h"
 #include "libbotanik/logs/entry.h"
 #include "libbotanik/logs/logger.h"
 #include "libbotanik/logs/writer.h"

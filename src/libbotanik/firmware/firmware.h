@@ -30,6 +30,7 @@
 #include "libbotanik/firmware/stacks.h"
 #include "libbotanik/health/health.h"
 #include "libbotanik/io/local_inputs.h"
+#include "libbotanik/io/local_outputs.h"
 #include "libbotanik/logs/logger.h"
 #include "libbotanik/logs/topics.h"
 #if BOTANIK_FEATURE_MODBUS_RTU_CLIENT
@@ -182,6 +183,7 @@ namespace Botanik {
         /** @brief The controller's own input terminals. Not gated on a field-bus
          *  flag: local wiring is there whether or not the site has a bus. */
         Io::LocalInputs                _local_in;
+        Io::LocalOutputs               _local_out;
 #endif
 #if BOTANIK_FEATURE_MODBUS_RTU_CLIENT
         /** @brief The field-bus master. Stepped from two phases like the slave

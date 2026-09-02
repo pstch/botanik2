@@ -509,4 +509,41 @@ TEST_CASE("site: every row the site declares actually fits in the bank") {
           (uint16_t)(Site::LIBRARY_ROWS + Site::ROWS_COUNT));
 }
 
+
+TEST_CASE("local io: a DO or RO row on device 0 reaches a pin") {
+    // There was no path at all until Io::LocalOutputs: the HAL had DigitalIn
+    // and Pulse and nothing for outputs, and LocalInputs is inputs-only. So a
+    // local relay row was declarable, generated, checked - and never written.
+    REQUIRE(HAL::DigitalOut::attach(HAL::Pin::RELAY_1));
+    CHECK_FALSE(HAL::DigitalOut::read(HAL::Pin::RELAY_1));
+
+    HAL::DigitalOut::write(HAL::Pin::RELAY_1, true);
+    CHECK(HAL::DigitalOut::read(HAL::Pin::RELAY_1));
+
+    INFO("a pin that is not an output is refused rather than driven");
+    CHECK_FALSE(HAL::DigitalOut::attach(HAL::Pin::IN1));
+    CHECK_FALSE(HAL::DigitalOut::attach(HAL::Pin::BUTTON));
+    INFO("...and an input pin is not one of DigitalIn's either way round");
+    CHECK_FALSE(HAL::DigitalIn::attach(HAL::Pin::RELAY_1));
+
+    INFO("the button IS an input, though it is not one of the eight terminals");
+    CHECK(HAL::DigitalIn::attach(HAL::Pin::BUTTON));
+    HAL::DigitalIn::inject(HAL::Pin::BUTTON, true);
+    CHECK(HAL::DigitalIn::read(HAL::Pin::BUTTON));
+}
+
+TEST_CASE("local io: every pin label is claimable by exactly one direction") {
+    // The labels are one flat space, so a typo lands on a real pin of the
+    // wrong kind rather than out of range. owns() is what keeps that a
+    // refusal instead of a silent mis-drive.
+    for (uint16_t p = 0; p < HAL::Pin::COUNT; p++) {
+        const bool both = HAL::DigitalIn::owns(p) && HAL::DigitalOut::owns(p);
+        INFO("pin ", p);
+        CHECK_FALSE(both);
+    }
+    CHECK(HAL::DigitalIn::owns(HAL::Pin::IN8));
+    CHECK(HAL::DigitalOut::owns(HAL::Pin::LED_4));
+    CHECK(HAL::DigitalOut::owns(HAL::Pin::LED_BLUE));
+}
+
 }  // namespace site_capacity
