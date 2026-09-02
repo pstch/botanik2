@@ -20,6 +20,7 @@ add_executable(botanik_tests
     test_modbus.cpp
     test_plc.cpp
     test_site.cpp
+    test_sun.cpp
     test_vars.cpp
     test_site_sense.cpp
     test_site_actuators.cpp
