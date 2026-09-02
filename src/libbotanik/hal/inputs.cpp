@@ -8,6 +8,8 @@
 
 #include "libbotanik/hal/platform.h"
 
+#include <cstdio>   // the simulator traces an output change to stderr
+
 #ifdef TARGET_OPTA
 
 #include "Arduino.h"
@@ -88,6 +90,34 @@ namespace Botanik { namespace HAL {
         }
 
     }  // namespace DigitalOut
+
+
+    namespace AnalogIn {
+
+        static bool g_attached[DigitalIn::CHANNELS] = {};
+        static bool g_res_set = false;
+
+        bool attach(uint16_t pin) {
+            const int p = owns(pin) ? board_pin(pin) : -1;
+            if (p < 0) return false;
+            // Resolution is a property of the CONVERTER, not of a pin, so it is
+            // set once however many terminals a site reads.
+            if (!g_res_set) { analogReadResolution(BITS); g_res_set = true; }
+            pinMode(p, INPUT);
+            g_attached[pin] = true;
+            return true;
+        }
+
+        uint16_t read(uint16_t pin) {
+            if (!owns(pin) || !g_attached[pin]) return 0;
+            const int v = analogRead(board_pin(pin));
+            if (v < 0) return 0;
+            return (uint16_t)((v > (int)FULL_SCALE) ? FULL_SCALE : v);
+        }
+
+        void inject(uint16_t, uint16_t) {}   // the field drives the wire here
+
+    }  // namespace AnalogIn
 
     namespace Pulse {
 
@@ -219,8 +249,32 @@ namespace Botanik { namespace HAL {
             return true;
         }
 
+        /** @brief The label the trace names a pin by, so a line reads as the
+         *  site's table wrote it rather than as an index. */
+        static const char* label(uint16_t pin) {
+            switch (pin) {
+                case Pin::RELAY_1: return "RELAY_1";
+                case Pin::RELAY_2: return "RELAY_2";
+                case Pin::RELAY_3: return "RELAY_3";
+                case Pin::RELAY_4: return "RELAY_4";
+                case Pin::LED_1:   return "LED_1";
+                case Pin::LED_2:   return "LED_2";
+                case Pin::LED_3:   return "LED_3";
+                case Pin::LED_4:   return "LED_4";
+                case Pin::LED_BLUE:return "LED_BLUE";
+                default:           return "?";
+            }
+        }
+
         void write(uint16_t pin, bool on) {
-            if (owns(pin) && g_attached[pin]) g_level[pin] = on;
+            if (!owns(pin) || !g_attached[pin]) return;
+            // ON CHANGE, to stderr, the way the mock network and the field-bus
+            // self-check report: there is no lamp to look at and no coil to
+            // hear, so a local output is otherwise invisible in a sim run. The
+            // console is on stdout, so this never lands in a screen capture.
+            if (g_level[pin] != on)
+                fprintf(stderr, "[local-out] %s %s\n", label(pin), on ? "ON" : "off");
+            g_level[pin] = on;
         }
 
         bool read(uint16_t pin) {
@@ -228,6 +282,31 @@ namespace Botanik { namespace HAL {
         }
 
     }  // namespace DigitalOut
+
+    namespace AnalogIn {
+
+        /** @brief No wire, so a terminal reads what Site::simulate() drives in.
+         *  Counts, not volts: the calibration is the ROW's, and a site that
+         *  animates its own field has to go through the same scaling its
+         *  hardware will. */
+        static bool     g_attached[DigitalIn::CHANNELS] = {};
+        static uint16_t g_count[DigitalIn::CHANNELS]    = {};
+
+        bool attach(uint16_t pin) {
+            if (!owns(pin)) return false;
+            g_attached[pin] = true;
+            return true;
+        }
+
+        uint16_t read(uint16_t pin) {
+            return (owns(pin) && g_attached[pin]) ? g_count[pin] : 0;
+        }
+
+        void inject(uint16_t pin, uint16_t count) {
+            if (owns(pin)) g_count[pin] = (count > FULL_SCALE) ? FULL_SCALE : count;
+        }
+
+    }  // namespace AnalogIn
 
     namespace Pulse {
 

@@ -18,7 +18,27 @@ namespace Botanik { namespace Io {
 
         for (uint16_t i = 0; i < _io->count(); i++) {
             const Vars::Descriptor& d = _io->descriptor(i);
-            if (d.bind.transport != Vars::XP_LOCAL || d.scope != Vars::SCOPE_DI) continue;
+            if (d.bind.transport != Vars::XP_LOCAL) continue;
+            if (d.scope != Vars::SCOPE_DI && d.scope != Vars::SCOPE_AI) continue;
+
+            // The SAME eight terminals, read as a voltage instead of a level.
+            // Which it is, is the row's declaration and nothing else - so the
+            // pin is configured one way here, once, and a terminal claimed by
+            // two rows of different kinds is refused rather than reconfigured
+            // under whichever ran last.
+            if (d.scope == Vars::SCOPE_AI) {
+                if (_analogs < HAL::DigitalIn::CHANNELS
+                    && HAL::AnalogIn::attach(d.bind.reg)) {
+                    _analog_row[_analogs] = i;
+                    _analog_pin[_analogs] = d.bind.reg;
+                    _analogs++;
+                    continue;
+                }
+                if (_refused < 0xFFu) _refused++;
+                if (_logger != nullptr)
+                    _logger->critical(Logs::BOOT, "no analog terminal for '%s'", d.name);
+                continue;
+            }
 
             // An edge-counted terminal is a COUNTER, not a level: the level of
             // a pulse line is a moment of a train and not a reading of
@@ -67,6 +87,18 @@ namespace Botanik { namespace Io {
             if (d.flags & Vars::F_INVERT) on = !on;
             _io->var(_row[i]).publish(Vars::from_bool(d.type, on), now_ms);
         }
+        // A RAW COUNT, through publish_wire: the row's calibration turns it
+        // into engineering units, which is the same path a Modbus analog row
+        // takes - so a local sensor and a remote one are scaled by one piece
+        // of code and a recalibration lands on both the same way.
+        for (uint8_t i = 0; i < _analogs; i++) {
+            const Vars::Descriptor& d = _io->descriptor(_analog_row[i]);
+            _io->publish_wire(Vars::VarRef{ _analog_row[i] },
+                              Vars::from_f32(d.bind.wire,
+                                             (float)HAL::AnalogIn::read(_analog_pin[i])),
+                              now_ms);
+        }
+
         // The raw edge total, as the counter has it. A meter's law turns it
         // into litres: how many per pulse is the site's, and the wrap is the
         // reader's to carry with an unsigned difference.

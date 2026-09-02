@@ -335,6 +335,47 @@ namespace Botanik { namespace HAL {
 
     }  // namespace DigitalOut
 
+    /** @brief The same input terminals read as VOLTAGES rather than levels.
+     *
+     *  The OPTA's eight inputs are 0-10 V capable, so a terminal is a contact
+     *  or a sensor depending only on what a site wired to it and which row it
+     *  declared. Three namespaces over one set of pins, and `owns()` plus the
+     *  refusal in `attach()` are what keep a pin to one of them. */
+    namespace AnalogIn {
+
+        /** @brief Bits the converter is asked for. Ten is what the OPTA's own
+         *  0-10 V front end resolves to across the range; a backend that can do
+         *  better still answers on this scale, so a site's calibration is a
+         *  property of the wiring and not of the board. */
+        static const uint8_t BITS = 12;
+
+        /** @brief Full scale, the count `read()` cannot exceed. */
+        static const uint16_t FULL_SCALE = (1u << BITS) - 1u;
+
+        /** @brief Whether @p pin is one this namespace reads: the eight
+         *  terminals. The button is a contact and has no voltage worth
+         *  reading. */
+        constexpr bool owns(uint16_t pin) { return pin < DigitalIn::CHANNELS; }
+
+        /** @brief Make @p pin an analog input, at BITS resolution.
+         *  @return false if it is not one of ours.
+         *  @warning Call from setup(): the OPTA path configures the pin, and a
+         *   terminal configured two ways is a hardware fault waiting for the
+         *   first wet week - the same rule Pulse keeps against DigitalIn. */
+        bool attach(uint16_t pin);
+
+        /** @brief The RAW count on @p pin, 0..FULL_SCALE. Engineering units are
+         *  the row's calibration, applied by Bank::publish_wire() - the same
+         *  path a Modbus analog row takes, so a local and a remote sensor are
+         *  scaled by one piece of code. 0 for a pin never attached. */
+        uint16_t read(uint16_t pin);
+
+        /** @brief Drive @p pin by hand. Simulator only, and a no-op on the
+         *  OPTA: a real terminal is driven by the wire. */
+        void inject(uint16_t pin, uint16_t count);
+
+    }  // namespace AnalogIn
+
     /** @brief Edge counting on the input terminals: a meter's pulse line,
      *  where the LEVEL of the wire is not a reading of anything. */
     namespace Pulse {

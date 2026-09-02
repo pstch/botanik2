@@ -74,6 +74,12 @@ namespace Botanik { namespace Io {
         uint16_t _pin[LEVEL_MAX];
         uint8_t  _count = 0;
 
+        /** @brief The terminals read as VOLTAGES, and the row each goes to.
+         *  Bounded by the terminal count, being the same eight pins. */
+        uint16_t _analog_row[HAL::DigitalIn::CHANNELS];
+        uint16_t _analog_pin[HAL::DigitalIn::CHANNELS];
+        uint8_t  _analogs = 0;
+
         /** @brief The edge counters: the row each total goes TO, which is the
          *  same row that declared the channel, and the channel itself. */
         uint16_t _pulse_row[HAL::Pulse::MAX_CHANNELS];

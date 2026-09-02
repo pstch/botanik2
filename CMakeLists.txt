@@ -576,13 +576,15 @@ elseif(BOTANIK_TARGET STREQUAL "OPTA")
         VERBATIM)
     add_custom_target(botanik_ldscript DEPENDS "${_ldscript}")
 
-    # The Arduino wiring API, which libmbed.a does NOT carry: HAL::Pulse and
-    # LocalInputs call pinMode/digitalRead/micros/attachInterrupt, and the core
-    # ships those as sources. Named one by one rather than globbed - the core's
-    # own main.cpp would collide with botanik_fw/main.cpp.
+    # The Arduino wiring API, which libmbed.a does NOT carry: the HAL's
+    # DigitalIn / DigitalOut / AnalogIn / Pulse call pinMode, digitalRead,
+    # digitalWrite, analogRead, micros and attachInterrupt, and the core ships
+    # those as sources. Named one by one rather than globbed - the core's own
+    # main.cpp would collide with botanik_fw/main.cpp.
     set(MBED_CORE_SOURCES
         "${MBED_ROOT}/cores/arduino/wiring.cpp"          # micros / millis
         "${MBED_ROOT}/cores/arduino/wiring_digital.cpp"  # pinMode / digitalRead
+        "${MBED_ROOT}/cores/arduino/wiring_analog.cpp"   # analogRead / ...Resolution
         "${MBED_ROOT}/cores/arduino/Interrupts.cpp"      # attachInterrupt
         "${MBED_ROOT}/cores/arduino/pinToIndex.cpp"      # the pin -> index map
         "${MBED_VARIANT}/variant.cpp")                   # PINCOUNT_fn + g_APinDescription

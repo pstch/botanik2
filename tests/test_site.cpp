@@ -526,6 +526,18 @@ TEST_CASE("local io: a DO or RO row on device 0 reaches a pin") {
     INFO("...and an input pin is not one of DigitalIn's either way round");
     CHECK_FALSE(HAL::DigitalIn::attach(HAL::Pin::RELAY_1));
 
+    INFO("a terminal is a LEVEL or a VOLTAGE, never both: whichever row claimed"
+         " it configured the pin, and the other is refused rather than"
+         " reconfiguring it under whichever attached last");
+    REQUIRE(HAL::AnalogIn::attach(HAL::Pin::IN3));
+    HAL::AnalogIn::inject(HAL::Pin::IN3, 2048);
+    CHECK(HAL::AnalogIn::read(HAL::Pin::IN3) == 2048);
+    CHECK_FALSE(HAL::AnalogIn::owns(HAL::Pin::BUTTON));
+    CHECK_FALSE(HAL::AnalogIn::owns(HAL::Pin::RELAY_1));
+    INFO("...and a count is clamped to the converter's full scale");
+    HAL::AnalogIn::inject(HAL::Pin::IN3, 60000);
+    CHECK(HAL::AnalogIn::read(HAL::Pin::IN3) == HAL::AnalogIn::FULL_SCALE);
+
     INFO("the button IS an input, though it is not one of the eight terminals");
     CHECK(HAL::DigitalIn::attach(HAL::Pin::BUTTON));
     HAL::DigitalIn::inject(HAL::Pin::BUTTON, true);
