@@ -44,7 +44,8 @@ namespace Botanik { namespace Io {
      * does.
      *
      * The rows are found once, at bring-up, by walking the table for
-     * `XP_LOCAL` + `SCOPE_DI`. There is no channel table to keep in step with
+     * `XP_LOCAL` + `SCOPE_DI` - local being a Modbus device address of 0, which
+     * is what `Vars::xp_of()` reads it from. There is no channel table to keep in step with
      * the variable table, because the variable table IS it. An `F_PULSE` row is
      * not polled as a level - the level of a pulse line is a moment of a train
      * and not a reading of anything. It IS the counter: attached once here,
@@ -75,6 +76,12 @@ namespace Botanik { namespace Io {
         uint8_t  _pulse_ch[HAL::Pulse::MAX_CHANNELS];
         uint8_t  _pulses = 0;
 
+        /** @brief Local rows that got no terminal. Both classes come off the
+         *  same eight pins, so a table can ask for more than exist; such a row
+         *  reads its declared value for ever and looks like an open contact.
+         *  Counted rather than dropped, and the site test asserts it is 0. */
+        uint8_t  _refused = 0;
+
         /** @} */
 
     public:
@@ -85,6 +92,9 @@ namespace Botanik { namespace Io {
         uint8_t count() const { return _count; }
         /** @brief How many edge counters it publishes. */
         uint8_t pulse_count() const { return _pulses; }
+        /** @brief Local rows that asked for a terminal and did not get one.
+         *  Zero on a correctly wired site. @see _refused */
+        uint8_t refused() const { return _refused; }
 
         /** @brief One entry, PHASE_INPUT: a terminal has to be in the bank
          *  before the programs run on it. */

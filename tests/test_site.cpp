@@ -126,6 +126,23 @@ TEST_CASE("site: every control program binds every name it reaches for") {
     CHECK(reg.overflow() == 0);
 }
 
+TEST_CASE("site: every local row gets a terminal") {
+    // Level inputs and pulse counters come off the SAME eight pins, so a table
+    // can declare more than exist. Such a row reads its declared value for the
+    // life of the run, which on a contact is indistinguishable from open.
+    Botanik::Tasks::Registry reg;
+    Vars::Bank bank;
+    TestSite::build(bank);
+
+    Io::LocalInputs local(Botanik::SetupContext(reg), bank);
+    local.register_tasks();
+    reg.setup(0);
+
+    CHECK(local.refused() == 0);
+    CHECK(local.count() <= Botanik::HAL::DigitalIn::CHANNELS);
+    CHECK(local.pulse_count() <= Botanik::HAL::Pulse::MAX_CHANNELS);
+}
+
 #endif
 
 TEST_CASE("site: the parameters are one contiguous block") {

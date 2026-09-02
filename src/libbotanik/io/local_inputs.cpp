@@ -7,6 +7,8 @@
 #if BOTANIK_FEATURE_VARS
 
 #include "libbotanik/tasks/tasks.h"
+#include "libbotanik/logs/logger.h"
+#include "libbotanik/logs/topics.h"
 
 namespace Botanik { namespace Io {
 
@@ -17,30 +19,41 @@ namespace Botanik { namespace Io {
         for (uint16_t i = 0; i < _io->count(); i++) {
             const Vars::Descriptor& d = _io->descriptor(i);
             if (d.bind.transport != Vars::XP_LOCAL || d.scope != Vars::SCOPE_DI) continue;
-            // An edge-counted terminal is a COUNTER, not a level: the level
-            // of a pulse line is a moment of a train and not a reading of
-            // anything. It is attached once, below, and configuring one pin
-            // two ways is a hardware fault waiting for the first wet week.
+
+            // An edge-counted terminal is a COUNTER, not a level: the level of
+            // a pulse line is a moment of a train and not a reading of
+            // anything. It is attached once, here, and configuring one pin two
+            // ways is a hardware fault waiting for the first wet week.
             if (d.flags & Vars::F_PULSE) {
-                if (_pulses >= HAL::Pulse::MAX_CHANNELS) continue;
-                const uint8_t pch = Io::pulse_channel(d);
-                if (!HAL::Pulse::attach(pch, Io::pulse_edge(d))) continue;
-                _pulse_row[_pulses] = i;
-                _pulse_ch[_pulses]  = pch;
-                _pulses++;
-                continue;
+                if (_pulses < HAL::Pulse::MAX_CHANNELS) {
+                    const uint8_t pch = Io::pulse_channel(d);
+                    if (HAL::Pulse::attach(pch, Io::pulse_edge(d))) {
+                        _pulse_row[_pulses] = i;
+                        _pulse_ch[_pulses]  = pch;
+                        _pulses++;
+                        continue;
+                    }
+                }
+            } else if (_count < HAL::DigitalIn::CHANNELS) {
+                // The row's `reg` IS the terminal: a local row has no register
+                // to address, so the column carries the channel instead.
+                const uint8_t ch = (uint8_t)d.bind.reg;
+                if (HAL::DigitalIn::attach(ch)) {
+                    _row[_count]     = i;
+                    _channel[_count] = ch;
+                    _count++;
+                    continue;
+                }
             }
-            if (_count >= HAL::DigitalIn::CHANNELS) break;
 
-            // The row's `reg` IS the terminal: a local row has no register to
-            // address, so the column carries the channel instead.
-            const uint8_t ch = (uint8_t)d.bind.reg;
-            if (!HAL::DigitalIn::attach(ch)) continue;
-            _row[_count]     = i;
-            _channel[_count] = ch;
-            _count++;
+            // Declared a terminal and did not get one: the two classes share
+            // the same eight pins, so running out of one is a real answer -
+            // but the row then reads its declared value for the life of the
+            // run, which is indistinguishable from an open contact.
+            if (_refused < 0xFFu) _refused++;
+            if (_logger != nullptr)
+                _logger->critical(Logs::BOOT, "no terminal for '%s'", d.name);
         }
-
     }
 
     void LocalInputs::on_input(uint64_t now_ms) {
