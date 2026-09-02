@@ -61,10 +61,13 @@ set(BOTANIK_SANITIZE "OFF" CACHE STRING "Sanitizers for the SIMULATOR build")
 #
 # Set above current usage with room to grow - a nuisance failure teaches people
 # to raise the number without looking. The RAM one is the load-bearing half.
-# Measured 2026-08-20: flash 444 KB, static RAM 256 KB, heap 255 KB. The
-# ceilings sit ~70% above flash and ~25% above RAM - loose enough not to trip on
-# a feature, tight enough to catch the kind of drift that put 83 KB into the
-# firmware singleton between August and now with nothing to notice it.
+#
+# Measured 2026-09-02: flash 451 KB (59% of its ceiling), static RAM 256 KB
+# (80%), heap 254 KB. The flash ceiling is loose; the RAM one is not, and 20%
+# is the real headroom. LogsPage (43 KB) and ShellPage (36 KB) are 40% of the
+# firmware singleton between them, so scrollback is the lever if it gets tight.
+# libbotanik_sizes.h answers WHICH type moved; this answers whether the image
+# did, which is what caught 83 KB going into the singleton unnoticed.
 set(BOTANIK_FLASH_MAX_BYTES 786432 CACHE STRING
     "OPTA flash ceiling in bytes (768 KB of the 1.75 MB app region); 0 disables")
 set(BOTANIK_STATIC_RAM_MAX_BYTES 327680 CACHE STRING
