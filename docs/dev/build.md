@@ -50,9 +50,11 @@ prunes.
 |---|---|---|
 | `BOTANIK_TARGET` | `SIMULATOR` | `SIMULATOR` or `OPTA` |
 | `BOTANIK_SITE` / `BOTANIK_SITE_DIR` | `gh_mlb41` | which site to build (see @ref int_site) |
-| `CMAKE_BUILD_TYPE` | `DEBUG` | `DEBUG` is `-O0 -g3`; `RELEASE` is `-O3` + LTO, `NDEBUG`, stripped |
+| `CMAKE_BUILD_TYPE` | `DEBUG` | `DEBUG` is `-O0 -g3`; `RELEASE` is `-O3` + LTO, `NDEBUG`, stripped. The OPTA image takes its level from `BOTANIK_OPTA_OPT` instead, on every build type |
 | `BOTANIK_SANITIZE` | `OFF` | `address` / `undefined` / `address+undefined` to instrument a whole tree. Off by default because it more than doubles compile CPU; `make check-full` is where it runs |
 | `BOTANIK_WERROR` | `ON` | warnings are errors on the library's own sources (PRIVATE, so the sketch and the suite keep `-Wall -Wextra` without it). `OFF` for a WIP tree |
+| `BOTANIK_OPTA_OPT` | `-Os` | optimization level for the OPTA image. `-Os` is smallest by a wide margin; see @ref dev_footprint |
+| `BOTANIK_OPTA_NANO` | `OFF` | link newlib-nano on the OPTA image: ~32 KB smaller, not yet run on hardware. See @ref dev_footprint |
 | `BOTANIK_FEATURE_<X>` | see @ref int_config | `ON`/`OFF` per subsystem |
 
 `scheduler.cpp` is compiled with `-Wdouble-promotion` to keep the per-beat metric

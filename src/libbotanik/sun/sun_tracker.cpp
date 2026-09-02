@@ -46,24 +46,40 @@ namespace Botanik { namespace Sun {
 
     // Helpers
 
+    // The trigonometry is single precision. Every argument below is an angle of
+    // a few radians and every result is a sine or an angle read out in degrees,
+    // where the float kernels' ~1e-7 sits six orders under what this model is
+    // worth. It also keeps the double kernels' Payne-Hanek argument reduction
+    // out of the image, which exists for arguments around 1e300.
+    //
+    // The JULIAN DATES stay double, and must: at 2.46e6 a float ulp is six
+    // hours, and the hour angle is the difference of two of them.
+    static double _sin(float r)  { return (double)sinf(r); }
+    static double _cos(float r)  { return (double)cosf(r); }
+    static double _asin(float x) { return (double)asinf(x); }
+    static double _acos(float x) { return (double)acosf(x); }
+
+    // Degrees into [0, 360). The arguments here are a few thousand degrees, so
+    // the truncating cast is exact and fmod() is not needed for it.
+    static double _wrap360(double deg) {
+        deg -= 360.0 * (double)(long)(deg / 360.0);
+        return (deg < 0.0) ? deg + 360.0 : deg;
+    }
+
     // Sun's ecliptic longitude (degrees) for a count of days @p t since J2000,
     // also returning the solar mean anomaly @p M_deg (its sines feed the
     // transit correction). Both are normalised to [0, 360).
     static double _ecliptic_longitude(double t, double& M_deg) {
-        double M = std::fmod(357.5291 + 0.98560028 * t, 360.0);
-        if (M < 0.0) M += 360.0;
-        double Mr = M * DEG2RAD;
+        double M  = _wrap360(357.5291 + 0.98560028 * t);
+        float  Mr = (float)(M * DEG2RAD);
 
         // equation of the centre (first three harmonics)
-        double C = 1.9148 * std::sin(Mr) + 0.0200 * std::sin(2.0 * Mr)
-                 + 0.0003 * std::sin(3.0 * Mr);
+        double C = 1.9148 * _sin(Mr) + 0.0200 * _sin(2.0f * Mr)
+                 + 0.0003 * _sin(3.0f * Mr);
 
         // + 282.9372 = 180 (sun vs earth) + 102.9372 (perihelion argument)
-        double lambda = std::fmod(M + C + 282.9372, 360.0);
-        if (lambda < 0.0) lambda += 360.0;
-
         M_deg = M;
-        return lambda;
+        return _wrap360(M + C + 282.9372);
     }
 
     // Daylight hours for a latitude/declination geometry: the sun is up while
@@ -77,7 +93,7 @@ namespace Botanik { namespace Sun {
         double cos_H0 = -(sin_lat * sin_decl) / denom;
         if (cos_H0 <= -1.0) return 24.0;  // sun never sets
         if (cos_H0 >=  1.0) return  0.0;  // sun never rises
-        return 24.0 * std::acos(cos_H0) / SOLAR_PI;
+        return 24.0 * _acos((float)cos_H0) / SOLAR_PI;
     }
 
     // Solar position
@@ -88,7 +104,10 @@ namespace Botanik { namespace Sun {
         // Integer day count since J2000 whose solar noon is nearest "now" (so
         // the hour angle below lands near [-180, 180] deg). lon east +, so an
         // eastern location's noon falls earlier in UTC.
-        long n = (long)std::llround(jd_now - JD_J2000 + lon_deg / 360.0);
+        // Round half away from zero, which is llround()'s rule; the value is a
+        // day count, so it is nowhere near overflowing a long.
+        const double days = jd_now - JD_J2000 + lon_deg / 360.0;
+        long n = (long)(days >= 0.0 ? days + 0.5 : days - 0.5);
 
         // Mean solar time at this longitude, and the sun's ecliptic longitude /
         // mean anomaly for that day.
@@ -101,19 +120,19 @@ namespace Botanik { namespace Sun {
         // Solar transit (Julian date of local solar noon), equation of time
         // folded in.
         double jtransit = JD_J2000 + jstar
-                        + 0.0053 * std::sin(Mr) - 0.0069 * std::sin(2.0 * lambda_r);
+                        + 0.0053 * _sin((float)Mr) - 0.0069 * _sin(2.0f * (float)lambda_r);
 
         // Declination from the ecliptic longitude.
-        double sin_decl = std::sin(lambda_r) * std::sin(OBLIQUITY_DEG * DEG2RAD);
-        double cos_decl = std::sqrt(1.0 - sin_decl * sin_decl);
+        double sin_decl = _sin((float)lambda_r) * _sin((float)(OBLIQUITY_DEG * DEG2RAD));
+        double cos_decl = (double)sqrtf((float)(1.0 - sin_decl * sin_decl));
 
         // Hour angle: Earth turns 360 deg per solar day, zero at transit. cos is
         // periodic, so there is no need to wrap it into range.
         double H_r = (jd_now - jtransit) * 360.0 * DEG2RAD;
 
         double lat_r   = lat_deg * DEG2RAD;
-        double sin_lat = std::sin(lat_r);
-        double cos_lat = std::cos(lat_r);
+        double sin_lat = _sin((float)lat_r);
+        double cos_lat = _cos((float)lat_r);
 
         SolarPosition p;
         // The transit as a wall-clock instant, which is what a caller wanting
@@ -121,13 +140,14 @@ namespace Botanik { namespace Sun {
         // directly and never converts.
         p.transit_ms = (uint64_t)((jtransit - JD_UNIX) * MS_PER_DAY);
         // Current altitude (elevation) above the horizon.
-        double sin_alt = sin_lat * sin_decl + cos_lat * cos_decl * std::cos(H_r);
-        p.elevation = std::asin(sin_alt);
+        double sin_alt = sin_lat * sin_decl + cos_lat * cos_decl * _cos((float)H_r);
+        p.elevation = _asin((float)sin_alt);
         // Peak altitude at solar noon, where the hour angle is 0 (cos(H) = 1);
         // reduces to the classic 90 - |lat - decl|. Reported as a magnitude, so
         // deep polar night still gives the elevation ratio a positive reference.
         double sin_alt_peak = sin_lat * sin_decl + cos_lat * cos_decl;
-        p.peak_elevation = std::fabs(std::asin(sin_alt_peak));
+        double alt_peak     = _asin((float)sin_alt_peak);
+        p.peak_elevation    = (alt_peak < 0.0) ? -alt_peak : alt_peak;
         // Before transit the sun is still climbing toward noon; after, falling.
         p.rising = jd_now < jtransit;
 
@@ -137,8 +157,8 @@ namespace Botanik { namespace Sun {
         // declination reaches the obliquity toward this hemisphere (same sign as
         // the latitude). At the equator this is a flat 12 h either way.
         double sign_lat     = (sin_lat >= 0.0) ? 1.0 : -1.0;
-        double sin_decl_max = std::sin(OBLIQUITY_DEG * DEG2RAD) * sign_lat;
-        double cos_decl_max = std::cos(OBLIQUITY_DEG * DEG2RAD);
+        double sin_decl_max = _sin((float)(OBLIQUITY_DEG * DEG2RAD)) * sign_lat;
+        double cos_decl_max = _cos((float)(OBLIQUITY_DEG * DEG2RAD));
         p.max_day_length_h  = _day_length_hours(sin_lat, cos_lat, sin_decl_max, cos_decl_max);
         return p;
     }

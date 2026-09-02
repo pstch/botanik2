@@ -530,8 +530,14 @@ elseif(BOTANIK_TARGET STREQUAL "OPTA")
     # ar/ranlib archive it correctly. CMake's IPO support is unusable here:
     # check_ipo_supported links a test executable, which no bare-metal build
     # without a startup or linker script can do, so it always reports false.
+    # BOTANIK_OPTA_OPT is the optimization level for the whole firmware. It is a
+    # cache variable because the -Os/-O3 choice is measured, not assumed: with
+    # LTO and --gc-sections the two are within a percent of each other and which
+    # one wins moves with the code. See docs/dev/footprint.md.
+    set(BOTANIK_OPTA_OPT "-Os" CACHE STRING "Optimization level for the OPTA image")
+
     target_compile_options(botanik PUBLIC
-        -Os -g0 -flto -ffat-lto-objects -ffunction-sections -fdata-sections)
+        ${BOTANIK_OPTA_OPT} -g0 -flto -ffat-lto-objects -ffunction-sections -fdata-sections)
 
     # Compile the objects without trying to link a final binary.
     set_target_properties(botanik PROPERTIES LINKER_LANGUAGE CXX)
@@ -605,10 +611,22 @@ elseif(BOTANIK_TARGET STREQUAL "OPTA")
         ${MBED_CORE_SOURCES}
         ${BOTANIK_SITE_SOURCES})
     add_dependencies(botanik_opta botanik_ldscript)
+
+    # nosys.specs supplies the syscall stubs (-lnosys): a bare-metal image has
+    # no _write/_sbrk/_kill of its own, and newlib will not link without them.
+    #
+    # nano.specs, when on, rewrites -lc/-lstdc++/-lsupc++ to their _nano
+    # variants. See docs/dev/footprint.md for what that costs and buys.
+    option(BOTANIK_OPTA_NANO "Link newlib-nano on the OPTA image" OFF)
+    set(_specs "--specs=nosys.specs")
+    if(BOTANIK_OPTA_NANO)
+        set(_specs "${_specs} --specs=nano.specs")
+    endif()
+
     set_target_properties(botanik_opta PROPERTIES
         SUFFIX ".elf"
         CXX_STANDARD 14 CXX_STANDARD_REQUIRED ON
-        LINK_FLAGS "-Wl,--gc-sections -Wl,--as-needed @${MBED_VARIANT}/ldflags.txt -T${_ldscript} -Wl,-Map,${CMAKE_BINARY_DIR}/botanik_opta.map --specs=nosys.specs")
+        LINK_FLAGS "-Wl,--gc-sections -Wl,--as-needed @${MBED_VARIANT}/ldflags.txt -T${_ldscript} -Wl,-Map,${CMAKE_BINARY_DIR}/botanik_opta.map ${_specs}")
     # Via target_link_libraries so the libraries land AFTER our objects.
     # --whole-archive keeps libmbed's vector table and RTOS entry, which nothing
     # references by symbol; --gc-sections then prunes what is unused.

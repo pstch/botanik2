@@ -15,6 +15,76 @@
 
 namespace Botanik { namespace Utils {
 
+    // Numeric parsing
+
+    namespace {
+
+        const char* _skip_spaces(const char* p) {
+            while (*p == ' ' || *p == '\t') p++;
+            return p;
+        }
+
+        // Decimal digits of [s, s+len) into *out, refusing a result above
+        // `limit`. The overflow test is the usual v > (limit - d)/10, which is
+        // exact for every limit >= 9 - the only ones any caller passes.
+        NumParse _scan_digits(const char* s, uint16_t len, uint64_t limit, uint64_t* out) {
+            if (len == 0) return NUM_MALFORMED;
+            uint64_t v = 0;
+            for (uint16_t i = 0; i < len; i++) {
+                if (s[i] < '0' || s[i] > '9') return NUM_MALFORMED;
+                const uint64_t d = (uint64_t)(s[i] - '0');
+                if (v > (limit - d) / 10u) return NUM_RANGE;
+                v = v * 10u + d;
+            }
+            *out = v;
+            return NUM_OK;
+        }
+
+        // Length of the digit run at `p`, true when only spaces follow it.
+        bool _digit_run(const char* p, uint16_t* len) {
+            const char* e = p;
+            while (*e >= '0' && *e <= '9') e++;
+            *len = (uint16_t)(e - p);
+            return *_skip_spaces(e) == 0;
+        }
+
+    }  // namespace
+
+    bool parse_uint(const char* s, uint16_t len, uint32_t* out) {
+        uint64_t v = 0;
+        if (_scan_digits(s, len, 0xFFFFFFFFu, &v) != NUM_OK) return false;
+        *out = (uint32_t)v;
+        return true;
+    }
+
+    NumParse parse_u64(const char* s, uint64_t* out) {
+        if (s == nullptr || out == nullptr) return NUM_MALFORMED;
+        const char* p = _skip_spaces(s);
+        if (*p == '-') return NUM_RANGE;
+        if (*p == '+') p++;
+        uint16_t len = 0;
+        if (!_digit_run(p, &len)) return NUM_MALFORMED;
+        return _scan_digits(p, len, UINT64_MAX, out);
+    }
+
+    NumParse parse_i64(const char* s, int64_t* out) {
+        if (s == nullptr || out == nullptr) return NUM_MALFORMED;
+        const char* p = _skip_spaces(s);
+        const bool neg = (*p == '-');
+        if (neg || *p == '+') p++;
+        uint16_t len = 0;
+        if (!_digit_run(p, &len)) return NUM_MALFORMED;
+
+        // INT64_MIN's magnitude is not an int64, so scan it unsigned and negate
+        // on the unsigned value.
+        const uint64_t limit = neg ? 9223372036854775808ull : (uint64_t)INT64_MAX;
+        uint64_t mag = 0;
+        const NumParse r = _scan_digits(p, len, limit, &mag);
+        if (r != NUM_OK) return r;
+        *out = neg ? (int64_t)(~mag + 1u) : (int64_t)mag;
+        return NUM_OK;
+    }
+
     // Number formatting
 
     // Emit the `r` chars of `rev` (held low-to-high) into `out` un-reversed,
@@ -47,7 +117,13 @@ namespace Botanik { namespace Utils {
         // Separate into integer and fractional parts
         uint64_t scale = 1;
         for (uint8_t i = 0; i < decimals; i++) scale *= 10;
-        uint64_t scaled = (uint64_t)llround(value * (double)scale);
+        // llround()'s rule, without llround(): value is non-negative by here,
+        // so half away from zero is half up. Compare the remainder rather than
+        // adding 0.5 first - for the double just under .5 that addition rounds
+        // to 1.0 and carries a digit that is not there.
+        const double  wanted = value * (double)scale;
+        uint64_t      scaled = (uint64_t)wanted;
+        if (wanted - (double)scaled >= 0.5) scaled++;
         uint64_t ipart  = scaled / scale;
         uint64_t fpart  = scaled % scale;
 

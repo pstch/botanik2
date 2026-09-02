@@ -142,11 +142,8 @@ namespace Botanik { namespace Vars {
         }
 
         char* end = nullptr;
-        // strto* SATURATE on overflow rather than failing, so a literal too big
-        // arrives as a plausible maximum; in_range catches that for the narrow
-        // types, errno for the widest.
-        errno = 0;
         if (type_real(t)) {
+            errno = 0;
             const double d = strtod(text, &end);
             if (end == text || !only_spaces_left(end)) return PARSE_MALFORMED;
             if (errno == ERANGE) return PARSE_RANGE;
@@ -162,25 +159,23 @@ namespace Botanik { namespace Vars {
             return PARSE_OK;
         }
         if (type_signed(t)) {
-            const long long v = strtoll(text, &end, 10);
-            if (end == text || !only_spaces_left(end)) return PARSE_MALFORMED;
-            if (errno == ERANGE) return PARSE_RANGE;
-            Scalar s = Scalar::I((int64_t)v);
+            int64_t v = 0;
+            const Utils::NumParse r = Utils::parse_i64(text, &v);
+            if (r != Utils::NUM_OK) {
+                return r == Utils::NUM_RANGE ? PARSE_RANGE : PARSE_MALFORMED;
+            }
+            Scalar s = Scalar::I(v);
             if (!in_range(t, s, type_min(t), type_max(t))) return PARSE_RANGE;
             *out = s;
             return PARSE_OK;
         }
-        // Unsigned, bool and enum. strtoull wraps a negative rather than
-        // failing, so reject the sign before it can become a huge positive.
-        {
-            const char* p = text;
-            while (*p == ' ' || *p == '\t') p++;
-            if (*p == '-') return PARSE_RANGE;
+        // Unsigned, bool and enum.
+        uint64_t v = 0;
+        const Utils::NumParse r = Utils::parse_u64(text, &v);
+        if (r != Utils::NUM_OK) {
+            return r == Utils::NUM_RANGE ? PARSE_RANGE : PARSE_MALFORMED;
         }
-        const unsigned long long v = strtoull(text, &end, 10);
-        if (end == text || !only_spaces_left(end)) return PARSE_MALFORMED;
-        if (errno == ERANGE) return PARSE_RANGE;
-        Scalar s = Scalar::U((uint64_t)v);
+        Scalar s = Scalar::U(v);
         if (!in_range(t, s, type_min(t), type_max(t))) return PARSE_RANGE;
         // A labelled enum's codes are not an interval, so the type range above
         // admits every gap between them. Membership is the real bound: a code
