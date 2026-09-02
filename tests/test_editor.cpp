@@ -157,4 +157,49 @@ TEST_CASE("editor: replace_all with an empty line converges") {
     check_converged(f, "replace_all with nothing");
 }
 
+TEST_CASE("editor: splitting a wrapped NOTES line converges") {
+    // NOTES gives all three prompts the same width, so a row whose prompt CLASS
+    // flips (wrap-over -> operator-started) changes no length. A gutter rewrite
+    // gated on the length alone can never fire there.
+    EditorFixture f(24, 80, /*notes_prompts=*/true);
+    const std::string text(100, 'A');
+    f.editor.insert_characters(text.data(), (uint16_t)text.size());
+    REQUIRE(f.editor.occupied_rows() == 2);
+    for (int i = 0; i < 22; i++) f.editor.move_left();
+    f.editor.insert_characters("\n", 1);
+    check_converged(f, "ENTER at a wrap boundary");
+}
+
+TEST_CASE("editor: joining two NOTES lines converges") {
+    EditorFixture f(24, 80, /*notes_prompts=*/true);
+    f.editor.insert_characters("first\nsecond", 12);
+    REQUIRE(f.editor.occupied_rows() == 2);
+    f.editor.move_to_start();
+    f.editor.move_down();
+    f.editor.backspace(1);              // remove the newline: one row again
+    REQUIRE(f.editor.occupied_rows() == 1);
+    check_converged(f, "backspace over a newline");
+}
+
+
+TEST_CASE("editor: a NOTES reflow then a word kill leaves no stray glyph") {
+    // The sequence that left a character at the right margin which no later
+    // edit cleared - FRONT and BACK agreed, so the diff had nothing to emit and
+    // the row stayed wrong until a full repaint.
+    EditorFixture f(24, 80, /*notes_prompts=*/true);
+    const std::string alpha = std::string("abcdefghijklmnopqrstuvwxyz")
+                            + "abcdefghijklmnopqrstuvwxyz";
+    f.editor.insert_characters(alpha.data(), (uint16_t)alpha.size());
+    f.editor.page_up();
+    f.editor.insert_characters("the quick brown fox ", 20);
+    f.editor.insert_characters("0123456789", 10);
+    f.editor.page_up();
+    f.editor.page_down();
+    f.editor.insert_characters("\n", 1);
+    f.editor.move_up();
+    f.editor.move_to_line_end();
+    (void)f.editor.kill_word_back();
+    check_converged(f, "reflow then kill_word_back");
+}
+
 }  // namespace editor_invariant
