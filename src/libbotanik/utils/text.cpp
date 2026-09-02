@@ -117,7 +117,9 @@ namespace Botanik { namespace Utils {
         // Separate into integer and fractional parts
         uint64_t scale = 1;
         for (uint8_t i = 0; i < decimals; i++) scale *= 10;
-        uint64_t scaled = (uint64_t)llround(value * (double)scale);
+        // llround()'s rule, without llround(): value is non-negative by here,
+        // so half away from zero is a truncated + 0.5.
+        uint64_t scaled = (uint64_t)(value * (double)scale + 0.5);
         uint64_t ipart  = scaled / scale;
         uint64_t fpart  = scaled % scale;
 
