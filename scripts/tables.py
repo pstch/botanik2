@@ -411,6 +411,36 @@ def emit_plant_cpp(site, prog, writes):
         print('  %d row(s) with two authors (read-modify-write): %s'
               % (len(shared), ', '.join(n for n, _a, _b in shared)))
 
+    # A LOCAL row (device 0) must be a kind the controller's own terminals can
+    # actually be. The OPTA has eight inputs, four relays, four LEDs and a
+    # button - and NO analog output: the variant's `#define DAC (A6)` is
+    # inherited boilerplate, and A6 is terminal I7, so a DAC there would fight
+    # the input conditioning on a pin a site may already be reading. Analog out
+    # comes from an expansion module, which is a Modbus address.
+    #
+    # Without this an AO row on device 0 declares, generates and passes every
+    # other check, and is then driven by nothing - the failure a local DO had
+    # until Io::LocalOutputs, and the one worth refusing outright.
+    LOCAL_KINDS = {'digital_in': 'DI', 'analog_in': 'AI', 'pulse_in': 'PI',
+                   'digital_out': 'DO', 'relay_out': 'RO'}
+    stranded = []
+    for stem in ('analog_out', 'modbus_in', 'modbus_out'):
+        f = os.path.join(site, 'tables', stem + '.csv')
+        if not os.path.exists(f): continue
+        rows = [l for l in open(f).read().splitlines() if l.strip()]
+        head = [h.strip() for h in rows[0].split(',')]
+        if 'device' not in head: continue
+        di = head.index('device')
+        for r in rows[1:]:
+            c = [x.strip() for x in r.split(',')]
+            if c[di] == '0': stranded.append((stem, c[0]))
+    if stranded:
+        for stem, n in stranded:
+            print('  %s %s: device 0 means LOCAL, and there is no local %s'
+                  % (stem, n, stem.replace('_', ' ')), file=sys.stderr)
+        sys.exit('%d row(s) on device 0 that nothing local can drive; '
+                 'give them a field-bus address' % len(stranded))
+
     # ...and the other direction: a row nothing writes. An OUTPUT or an ALARM
     # with no author is a law somebody meant to write and did not, and it reads
     # its declared value for the life of the plant with nothing to say so.

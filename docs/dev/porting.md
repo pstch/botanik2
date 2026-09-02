@@ -51,6 +51,15 @@ The interface is grouped into nested namespaces by concern.
 | `System` | `reset`, `shutdown` | |
 | *(top level)* | `hardware_description` | one line, shown by `version` |
 
+@note **There is no `AnalogOut`.** The OPTA has eight inputs, four relays,
+four LEDs and a button, and no analog output terminal: the variant's
+`#define DAC (A6)` is inherited boilerplate, and `A6` is terminal `I7` - so a
+DAC there would drive a pin behind the input conditioning, one a site may
+already be reading. Analog out comes from an expansion module, which is a
+field-bus address rather than a local pin, and `scripts/tables.py plant`
+refuses an `AO` row on device 0 for that reason. A board that really has one
+adds the namespace and the labels together.
+
 @note **`attach()` is where a local pin is CONFIGURED**, and it is the only
 place: `pinMode`, the pull, the converter's resolution. Call it from setup(),
 once per pin, and treat a refusal as a wiring fault rather than retrying - the
