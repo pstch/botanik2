@@ -74,6 +74,10 @@ namespace Botanik { namespace Pages {
          *  the marker only when the view moves (not every tick). */
         uint16_t _indicator_offset = 0;
 
+        /** @brief The width the stored lines were wrapped at; 0 while empty.
+         *  @see reflow() */
+        uint16_t _wrap_cols = 0;
+
         /** @} */
 
         /** @name Paint (owner set by the page)
@@ -115,6 +119,21 @@ namespace Botanik { namespace Pages {
             _pending  = 0;          // nothing left to paint to the live tail
             _view_offset = 0;       // back to the live bottom
             _indicator_offset = 0;  // marker gone with the cleared screen
+            _wrap_cols = 0;
+        }
+
+        /** @brief Drop the history if it was wrapped at a different width.
+         *
+         *  The wrap is baked into what is STORED - one entry per display row -
+         *  so a narrower screen does not re-wrap a retained line, it clips it:
+         *  the tail past the new width is dropped on replay, with no marker,
+         *  and an address or a byte count that ran past column 80 is gone. An
+         *  empty log says that plainly; half a line does not.
+         *  @note Cheap and idempotent: the common call changes nothing. */
+        void reflow(uint16_t cols) {
+            if (cols == 0 || cols == _wrap_cols) return;
+            if (_wrap_cols != 0) clear();
+            _wrap_cols = cols;
         }
 
         /** @} */
@@ -157,6 +176,7 @@ namespace Botanik { namespace Pages {
          *  background page. */
         bool tick_redraw_gate(AnsiTerminal& terminal, bool active) {
             if (!active) return false;
+            reflow(terminal.cols());   // before anything is replayed off it
             drain_redraw(terminal);
             return redraw_pending();
         }
@@ -236,6 +256,7 @@ namespace Botanik { namespace Pages {
          *  rows pending for the paced tail drain. @return rows stored. */
         uint16_t ingest(const char* buf, size_t len, uint16_t cols,
                         const char* prefix, uint16_t plen, bool active) {
+            reflow(cols);
             uint16_t n = this->store_wrapped(buf, len, cols, prefix, plen);
             if (active) note_pending(n);
             return n;

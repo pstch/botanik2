@@ -146,7 +146,10 @@ namespace Botanik { namespace Terminal {
          *  and put the frame back on the screen it just blanked. What the
          *  `console_` group commits to, driven from PHASE_CONFIG.
          *  @note Everything reads rows()/cols() at render, so this repaint IS
-         *  the reflow - no page caches geometry.
+         *  the reflow - with one exception, which is why Scrollback has a
+         *  reflow() of its own: a log line is STORED already wrapped, one entry
+         *  per display row, so a narrower screen would clip every retained line
+         *  rather than re-wrap it. That history is dropped instead.
          *  @return true when something moved; a no-op call emits nothing. */
         bool reconfigure(Ansi::TerminalType type, uint16_t cols, uint16_t rows);
 
