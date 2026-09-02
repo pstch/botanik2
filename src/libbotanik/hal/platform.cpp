@@ -678,7 +678,12 @@ namespace Botanik { namespace HAL {
     void Raw::begin(uint32_t baud) {
         _baud = baud;
         // 8N1: 10 bit-times per byte
-        _slot_us = baud ? 10000000ULL / baud : 0;
+        // From the frame format, not a hardcoded ten: Modbus RTU spends ELEVEN
+        // bits per character (8E1, or 8N1 with a second stop bit), which
+        // plan.h's duty arithmetic and the OPTA's own Rs485Raw::format() both
+        // already say. _bits_per_char was computed for exactly this and had no
+        // reader, so the simulated bus ran 9% fast against its own planner.
+        _slot_us = baud ? (1000000ULL * _bits_per_char) / baud : 0;
         _max_bank_us = _slot_us * FIFO_BYTES;
         _next_write_us = _now_as<std::chrono::microseconds>();
     }

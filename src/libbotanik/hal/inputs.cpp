@@ -187,13 +187,25 @@ namespace Botanik { namespace HAL {
             if (ch >= CHANNELS || !g_ch[ch].attached) return Sample{ 0, Clock::uptime_ms() };
             // Re-read until stable: an edge landing between the count and the
             // clock would pair a new count with an old instant.
-            for (;;) {
+            //
+            // BOUNDED. Convergence depends on the ISR not firing between two
+            // reads, which is the wire's edge rate - a peer's input, and so not
+            // something a loop inside the beat may be bounded by. MIN_GAP_US
+            // caps the ISR at 4 kHz against a clock read, so three attempts is
+            // already generous; past that, take the clock FIRST and pair it
+            // with whatever the count then is. That errs in one direction only
+            // (an instant no later than the count), which is the small,
+            // one-directional error this whole dance exists to bound.
+            for (int i = 0; i < 3; i++) {
                 const uint32_t a = g_ch[ch].edges;
                 Memory::dmb();
                 const uint64_t t = Clock::uptime_ms();
                 Memory::dmb();
                 if (g_ch[ch].edges == a) return Sample{ a, t };
             }
+            const uint64_t t = Clock::uptime_ms();
+            Memory::dmb();
+            return Sample{ g_ch[ch].edges, t };
         }
 
         uint32_t overruns(uint8_t ch) {

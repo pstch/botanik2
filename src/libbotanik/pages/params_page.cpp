@@ -28,6 +28,7 @@ namespace Botanik { namespace Pages {
     // and committing them together is the normal shape of a tuning session, and
     // a per-row save would make "did I save that one?" a question.
     void ParamsPage::_save_all() {
+        if (_params == nullptr) return;
         uint16_t refused = 0;
         (void)_params->save_params(&refused);
         _save_failed = (refused != 0);
@@ -226,7 +227,10 @@ namespace Botanik { namespace Pages {
         // what an operator cannot infer stays - that edits are live but not yet
         // durable, and that a save was refused.
         char hint[64];
-        const uint16_t pending = _params->unsaved_count();
+        // Every other _params use in this class is guarded; these two were not,
+        // and this one is reached from tick() on EVERY refresh - so the page
+        // documented a null backend and faulted on the first frame of it.
+        const uint16_t pending = (_params != nullptr) ? _params->unsaved_count() : 0;
         if (_save_failed)
             snprintf(hint, sizeof(hint), " NOT SAVED - storage refused it");
         else if (pending != 0)

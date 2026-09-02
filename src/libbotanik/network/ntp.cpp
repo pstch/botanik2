@@ -169,7 +169,13 @@ namespace Botanik { namespace Network {
             }
             return 0;
         }
-        if (r < (int)sizeof(pkt)) { HAL::Network::udp_close(_udp); _udp = -1; return -1; }
+        // Short: not an SNTP reply, so not ours - the same answer as a wrong
+        // source below, and for the same reason. Failing the query here sent
+        // the client to its secondary and then into a 60 s backoff on someone
+        // else's stray datagram, which is exactly what the comment three lines
+        // down says must not happen. A genuine socket error is r < 0, which
+        // udp_recvfrom() reports separately and which still fails.
+        if (r < (int)sizeof(pkt)) return 0;
 
         // Only the server we asked, and only an answer shaped like one. The
         // socket is an unbound ephemeral UDP port, so without this ANY host that
