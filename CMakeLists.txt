@@ -530,8 +530,14 @@ elseif(BOTANIK_TARGET STREQUAL "OPTA")
     # ar/ranlib archive it correctly. CMake's IPO support is unusable here:
     # check_ipo_supported links a test executable, which no bare-metal build
     # without a startup or linker script can do, so it always reports false.
+    # BOTANIK_OPTA_OPT is the optimization level for the whole firmware. It is a
+    # cache variable because the -Os/-O3 choice is measured, not assumed: with
+    # LTO and --gc-sections the two are within a percent of each other and which
+    # one wins moves with the code. See docs/dev/footprint.md.
+    set(BOTANIK_OPTA_OPT "-Os" CACHE STRING "Optimization level for the OPTA image")
+
     target_compile_options(botanik PUBLIC
-        -Os -g0 -flto -ffat-lto-objects -ffunction-sections -fdata-sections)
+        ${BOTANIK_OPTA_OPT} -g0 -flto -ffat-lto-objects -ffunction-sections -fdata-sections)
 
     # Compile the objects without trying to link a final binary.
     set_target_properties(botanik PROPERTIES LINKER_LANGUAGE CXX)
