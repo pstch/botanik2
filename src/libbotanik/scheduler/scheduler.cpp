@@ -92,6 +92,7 @@ namespace Botanik { namespace Scheduler {
 
     void LoopScheduler::_skip_beats(uint64_t now) {
         _missed_this_beat = 0;
+        if (_period_ms == 0) return;   // divides below; the ctor's contract is >= 2
         if (now >= _next_tick_ms + _period_ms) {
             uint64_t delay = now - _next_tick_ms;
             uint64_t missed_beats = delay / _period_ms;

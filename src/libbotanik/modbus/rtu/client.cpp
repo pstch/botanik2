@@ -21,14 +21,15 @@ namespace Botanik { namespace Modbus {
 const uint16_t RtuClient::NO_BLOCK;
 const uint8_t  RtuClient::NO_PEER;
 
-uint32_t RtuClient::_tune(Vars::VarRef r, uint32_t dflt) const {
+uint32_t RtuClient::_tune(Vars::VarRef r, uint32_t dflt, uint32_t lo) const {
     if (_io == nullptr || r.index == Vars::VAR_NONE) return dflt;
     const Vars::Var h = _io->var(r);
     if (!h.valid()) return dflt;
     const int64_t v = h.as_i64();
-    // A band keeps these non-negative on the way in; this guards the way a
-    // corrupt store or a forced override could still reach here.
-    return (v >= 0) ? (uint32_t)v : dflt;
+    // The BAND is not the guard here: override_set() is type-checked only, so
+    // a forced row arrives unbanded and reads valid. @see _tune's @param lo
+    if (v < (int64_t)lo || v > (int64_t)0xFFFFFFFFll) return dflt;
+    return (uint32_t)v;
 }
 
 void RtuClient::on_setup(uint64_t now_ms) {
@@ -213,8 +214,8 @@ RtuClient::Slot RtuClient::_slot_of(const Block& b) const {
         // acceptably slip by: poll any later and the row flaps between valid and
         // stale, which is the relationship the ladder is derived from.
         s.due      = b.due_ms;
-        s.deadline = (b.period_ms != 0) ? b.period_ms : 1u;
-        return s;
+        s.deadline = b.period_ms;
+        return _floor(s);
     }
 
     // A write has no period. It falls due a minimum interval after the last one
@@ -235,6 +236,14 @@ RtuClient::Slot RtuClient::_slot_of(const Block& b) const {
     // an unchanged one is only the keepalive a slave-side failsafe watches for,
     // so its own interval is the deadline.
     s.deadline = dirty ? Config::MODBUS_WRITE_DEADLINE_MS : _rewrite_ms();
+    return _floor(s);
+}
+
+RtuClient::Slot RtuClient::_floor(Slot s) {
+    // _pick() divides by the deadline. The floor sits HERE, beside the only
+    // division, rather than being trusted from three sources away - a block
+    // with no period, a Config constant, and a tuning row an override reaches.
+    if (s.deadline == 0) s.deadline = 1;
     return s;
 }
 
