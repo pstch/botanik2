@@ -27,8 +27,8 @@ make -C build
 ```
 
 The repo ships a `.envrc` exporting `MAKEFLAGS=-j4` and `CTEST_PARALLEL_LEVEL`, so
-`make` builds in parallel and a bare `ctest` runs cases concurrently (~6 s against ~14 s)
-once [direnv](https://direnv.net) loads it. Without direnv, export `MAKEFLAGS` yourself or
+`make` builds in parallel and a bare `ctest` runs cases concurrently once
+[direnv](https://direnv.net) loads it. Without direnv, export `MAKEFLAGS` yourself or
 pass `-j` per build. `ccache` is used automatically when installed, so a clean rebuild
 after `rm -rf build` replays cached objects in seconds.
 
@@ -80,9 +80,14 @@ ctest --test-dir build -R pyte --output-on-failure  # just the pyte suite
 
 **`make check`** fails on the first problem: the library compiles `-Werror`, so building
 the suite at all fails on a warning in a library source; then the doctest + pyte suites
-via `ctest -LE unit`. The gate excludes the per-case entries because the aggregate entry
-covers the same cases in one process (~0.6 s against ~14 s, all of it process startup),
-and one process is also what catches a case corrupting state for the ones after it.
+via `ctest -LE unit`. The gate excludes the per-case entries because ONE PROCESS is what
+catches a case corrupting state for the ones after it - which the per-case entries, each
+in a fresh process, cannot see by construction.
+
+That is the whole argument now. It used to be a speed one as well, back when the cases
+were fast and the ~14 s of the per-case run was all process startup; the site scenarios
+walk simulated hours, so the single process is the slower of the two and the gate pays
+for the isolation it wants.
 
 On a doctest failure the gate (`tests/gate.cmake`) re-runs the per-case entries itself, so
 each failing case is named - paid only when something is broken. **If that re-run comes
@@ -164,12 +169,12 @@ Subsystems under `src/libbotanik/`. Each row's doc is the reference; the header 
 | Directory | What it is | Detail |
 |---|---|---|
 | `hal/` | `platform.h` is the unified interface, in nested namespaces by concern: `Clock`, `Memory`, `Stack`, `Debug`, `System`, `Watchdog`, `Serial`, `Env`, `Storage`, `Network`. `simulator.h` / `opta.h` are the backends; each carries only what must be INLINE, everything cold living in `platform.cpp` | `porting.md` |
-| `scheduler/` | `LoopScheduler`, the fixed-period loop driver: releases one tick per period, handles overruns, self-instruments per beat (CPU duty, jitter, work duration, stack high-water) into a `SchedulerContext` | `scheduler.md` |
+| `scheduler/` | `LoopScheduler`, the fixed-period loop driver: releases one tick per period, handles overruns, self-instruments per beat (CPU duty, jitter, work duration, stack high-water) into a `SchedulerContext`, which also carries the unit's `RunState` | `scheduler.md` |
 | `tasks/` | The task table and `TaskTimer`. `LoopScheduler` decides WHEN the beat happens, `Tasks::Registry` decides WHAT runs in it. Sits BELOW `core/` | `tasks.md` |
 | `core/` | The BOTTOM of the stack: `Component` (one hook per phase, `register_tasks()`) and `SystemContext` (a borrowed-pointer aggregate, constructor-injected into its consumers, NOT reachable through the console) | `architecture.md` |
 | `firmware/` | `BotanikFirmware`, the Template-Method base owning every generic component and the non-overridable per-tick order. Sites customize only through the protected hooks | `architecture.md` |
 | `vars/` | Gated by `BOTANIK_FEATURE_VARS`. The one model everything the firmware exposes goes through, along three independent fields: `VarType`, `Transport`, `VarRole`, plus `VarScope` for what a table filters on. `Bank` is the one object that gets, sets and overrides | `vars.md` |
-| `plc/` | The POU vocabulary, split as IEC 61131-3 splits it: `functions/` has no state, `blocks/` has state. A function is a single expression in a header; a block needs a `.cpp` | `scan.md` |
+| `plc/` | The POU vocabulary, in ST: `functions/*.st` has no state, `blocks/*.st` has state, and `runtime/` is the join between the beat and matiec's generated C. If it has to remember something it is a block | `scan.md` |
 | `io/` | `LocalInputs`, the controller's own input terminals: every `XP_LOCAL` DI row found by walking the table at bring-up, published at `PHASE_INPUT` with `F_INVERT` folded in. The field-bus mirror image, so a program reads a terminal by name | `io.md` |
 | `modbus/` | Four corners in one tree: `rtu/` is the RS-485 field bus, `tcp/` the plant network, each with both ends. `wire.h` and `response.h` are what they share | `modbus.md` |
 | `console/` | Two layers: `AnsiTerminal` is the VT device owning a screen back-buffer, `Console` the multiplexed page display. `TextEditor` is the byte-efficient editing state machine | `screen.md`, `editor.md`, `input.md` |
@@ -190,15 +195,25 @@ Subsystems under `src/libbotanik/`. Each row's doc is the reference; the header 
   `sys_startup_sec` and the shutdown). `Plc::Runtime::Plant::running()` is where the two
   meet. A program that is not running does not FREEZE what it drives: its rows drop to
   their declared safe state, which is what `Descriptor::def` means for an output. The
-  roster of rows a program authors is generated from its plain `VAR_EXTERNAL` block,
-  because an ST row resolves as VAR_IN_OUT and so claims no exclusive writer.
-- **The scan cycle has no driver.** A control program registers itself with
-  `Tasks::Registry` like everything else, PHASE_CONTROL by construction (`add_program()`).
-  A program due late runs ONCE - missed activations are dropped, never caught up - so
-  `dt_ms` is always the ACTUAL elapsed time. `first_scan` is where a program drops what
-  the outage made stale. See `scan.md`.
-- **Library rows.** The library declares rows of its own into the site's one contiguous
-  table through `BOTANIK_LIBRARY_VARS`, placed FIRST in `g_vars[]`. Two ordering rules,
+  roster of rows a program authors is generated from what matiec says its body WRITES
+  (`__SET_EXTERNAL` in `POUS.c`), because an ST row resolves VAR_IN_OUT and so claims no
+  exclusive writer - the bank cannot be asked whose a row is.
+- **The unit has a lifecycle**, one `Scheduler::RunState` in the `SchedulerContext`:
+  SETUP inside `setup()`, START while `sys_startup_sec` runs out, RUN in service, STOP
+  while `sys_shutdown_sec` runs out, HALT waiting for the ending `HealthMonitor::Stop`
+  names. The FIRMWARE advances it; the scheduler only holds it. Nothing runs a law
+  outside RUN, and the first MQTT sweep waits for it too - metrics published before the
+  field answers are declared values dressed as readings, and the broker RETAINS them.
+- **The scan cycle has no driver.** `Plc::Runtime::Plant` registers one
+  `Tasks::Registry` task per ST program, PHASE_CONTROL, at the rate
+  `tables/programs.csv` gave it. A program due late runs ONCE - missed activations are
+  dropped, never caught up. There is no `dt_ms` and no `first_scan`: a program takes no
+  argument, so a block that needs elapsed time reads `sys_now_ms` and differences it
+  itself, and one that needs "have I run before" seeds on its first call. See `scan.md`.
+- **Library rows.** The library declares rows of its own in `vars/vars.cpp` and hands
+  them over with `register_library_vars()`; a site hands over its own the same way, and
+  `Bank` runs ONE index space across the segments in registration order, so nothing
+  outside it knows there is more than one array. The library's go first. Two ordering rules,
   both from the contiguous `ROLE_PARAM` run: the block goes first, and its parameters go
   last within it. Registers 900-999 are the library's. **Whatever the library reads by
   name, the library declares.** A site tunes one by REDECLARING it: `Bank::freeze()`
@@ -225,7 +240,7 @@ Subsystems under `src/libbotanik/`. Each row's doc is the reference; the header 
 
 ### Optional features (`BOTANIK_FEATURE_*`)
 
-Optional subsystems are gated at compile time by the 25 `BOTANIK_FEATURE_*` flags in `src/libbotanik_features.h`, which mirrors the `BOTANIK_*` config-override pattern: each defaults from an `#ifndef`-guarded macro, a site can `#define` it in `sites/<name>/config.h`, and the build can set `-DBOTANIK_FEATURE_<X>=ON/OFF` (forwarded PUBLIC on the `botanik` library, same ABI discipline as `BOTANIK_SITE_CONFIG`).
+Optional subsystems are gated at compile time by the 23 `BOTANIK_FEATURE_*` flags in `src/libbotanik_features.h`, which mirrors the `BOTANIK_*` config-override pattern: each defaults from an `#ifndef`-guarded macro, a site can `#define` it in `sites/<name>/config.h`, and the build can set `-DBOTANIK_FEATURE_<X>=ON/OFF` (forwarded PUBLIC on the `botanik` library, same ABI discipline as `BOTANIK_SITE_CONFIG`).
 
 **One roster, two hand-edits.** `BOTANIK_FEATURE_LIST` (an X-macro in the header) is the single source of truth for which flags exist: the `features` shell command expands it, and CMake forwards `-D`s by matching the `BOTANIK_FEATURE_` prefix over its cache rather than from a list. Both used to be hand-maintained copies, and the CMake one *silently ignored* the `-D` of any flag missing from it - which is exactly what happened when NOTES was added. Adding a flag is now an `X()` entry plus an `#ifndef` default, and a row in `docs/integration/config.md`.
 
