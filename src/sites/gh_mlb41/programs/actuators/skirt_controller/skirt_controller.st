@@ -35,11 +35,8 @@ END_VAR
   (* STAGED on the cooling axis, and gated on the air being dry enough for a
      wet pad to cool at all - in damp air it only adds water.
 
-     BOTH companions, because both of these used to arrive as substitutions:
-     an unreadable demand declared 0.20, under cli_skirtCoolDem, and an
-     unreadable margin declared 2.0, under cli_skirtDryMin_degC. Each left the
-     valve shut. Their producers are ST now and always publish, so what said
-     "nobody measured this" has to be asked for. *)
+     BOTH readings have to be measured ones: wetting the pad on a demand or a
+     margin nobody took is how water goes in where it was never wanted. *)
   dry := cli_dpMargin_degC_qlt AND cli_dpMargin_degC >= cli_skirtDryMin_degC;
   IF cli_coolDem_qlt AND dry THEN
     cool := LADDER(V := cli_coolDem, LO := cli_skirtCoolDem, HI := 1.0);

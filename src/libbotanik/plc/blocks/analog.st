@@ -1,27 +1,13 @@
 (* Analog conditioning: a latch, a three-step ladder, a deadband, a DC rail
    ------------------------------------------------------------------------ *)
 
-(* Ours, not the standard's: matiec's lib/*.txt are GPL and its C runtime is
-   LGPL, so nothing here derives from either. The interface follows IEC's
-   shape where there is one, but the block takes NOW - the scan clock - and
-   differences it itself, so it is rate-independent and survives being moved
-   between tasks.
-
-   The variable DESCRIPTORS stay in C++. ST names a variable; what a name
-   means - its unit, band, register, transport and timeout - is the table's,
-   and matiec never sees it. *)
-
-(* BAND_LATCH: latches ON at its rising edge and OFF below the falling one,
-   holding between the two. Mirrors Plc::Hysteresis.
-
-   NOT named HYSTERESIS, and not for taste: matiec ships a standard FB of that
-   name, and redefining it is an internal compiler error rather than a
-   diagnostic - "Internal compiler error in file ../util/symtable.cc". *)
+(* Latches ON at its rising edge and OFF below the falling one, holding
+   between the two: a reading sitting on a threshold decides once. *)
 FUNCTION_BLOCK BAND_LATCH
 VAR_INPUT
   IN   : REAL;
   RISE : REAL;   (* engages at or above *)
-  FALL : REAL;   (* releases AT or below, as Plc::Hysteresis does *)
+  FALL : REAL;   (* releases at or below *)
 END_VAR
 VAR_OUTPUT
   Q : BOOL;
@@ -31,9 +17,9 @@ END_VAR
   END_IF;
 END_FUNCTION_BLOCK
 
-(* Three rungs, each holding its OWN release band. Evaluated all three rather
-   than only the one above the reading: a rung that stopped being asked keeps
-   whichever side of itself the reading was last on. Mirrors Plc::Staircase3. *)
+(* Three rungs, each holding its OWN release band. All three are evaluated: a
+   rung that stopped being asked keeps whichever side of itself the reading
+   was last on. *)
 FUNCTION_BLOCK STAIRCASE3
 VAR_INPUT
   IN   : REAL;
@@ -115,12 +101,11 @@ VAR
   seen : BOOL := FALSE;
 END_VAR
   OK := V_OK;
-  (* Only a MEASURED sample is folded in. The row reads its declared value
-     while the bus is still coming up, and folding THAT seeds the average at
-     zero: the rail then reads under its floor for as long as the filter takes
-     to climb out, which is a supply alarm on every boot.
-     CALLED either way, though: the filter reads the clock. @see EWMA.OK_IN
-     No band: this rail's LO is what HEALTHY is judged against, not a clamp. *)
+  (* Only a MEASURED sample is folded in: the row reads its declared value
+     while the bus is coming up, and folding that seeds the average at zero,
+     so the rail reads under its floor until the filter climbs out - a supply
+     alarm on every boot. CALLED either way, since the filter reads the clock.
+     The band is left open: LO is what HEALTHY is judged against, not a clamp. *)
   avg.X     := V;
   avg.OK_IN := V_OK;
   avg.TAU_S := UINT_TO_REAL(AVG_MS) / 1000.0;

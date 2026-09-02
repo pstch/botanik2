@@ -238,11 +238,7 @@ END_VAR
 
      The stamp is AFTER THE FILL, not after the drain: the tray has had its
      water by then, and a fault or a restart during the long drain must not
-     water it twice. A forced cycle stamps too - it IS a watering.
-
-     These are EDITS: the rows are retained parameters, and a plain drive would
-     leave the store owing them. Ref::drive() routes a parameter through the
-     retain cadence, so a stamp costs no erase inside the scan. *)
+     water it twice. A forced cycle stamps too - it IS a watering. *)
   IF served THEN
     IF tray = 1 THEN
       irr_forceOn_tray1 := FALSE;

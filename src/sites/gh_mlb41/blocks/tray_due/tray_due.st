@@ -1,9 +1,8 @@
 (* One tray's place in the irrigation schedule
    ------------------------------------------------------------------------ *)
 
-(* A FUNCTION_BLOCK because ST has no array over VAR_EXTERNAL rows - a row is
-   named, not indexed - so the interval arithmetic is written once and
-   instanced eight times rather than unrolled eight ways. *)
+(* One instance per tray: the interval arithmetic is the same for all eight,
+   and only the tray's own settings and history differ. *)
 
 FUNCTION_BLOCK TRAY_DUE
 VAR_INPUT

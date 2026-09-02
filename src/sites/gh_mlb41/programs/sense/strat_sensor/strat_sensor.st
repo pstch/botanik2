@@ -20,11 +20,9 @@ END_VAR
      much a case for the fans as the usual way round. The sign would only
      matter to a law that wanted to move heat in one direction, and none does.
 
-     A gap computed from a level nothing is measuring is a number about a
-     place, so an unmeasured profile publishes the LOW RUNG instead: that keeps
-     the fans mixing without claiming a profile nobody saw. The substitution
-     a C++ producer used to get from the row's declared value has to be written
-     out here, because an ST-written row is always valid. *)
+     A gap computed from a level nothing is measuring is a number about
+     nowhere, so an unmeasured profile publishes the LOW RUNG instead: that
+     keeps the fans mixing without claiming a profile nobody saw. *)
   IF cli_temp_hi_qlt AND cli_temp_lo_qlt THEN
     cli_dTStrat_degC := ABS(cli_temp_hi - cli_temp_lo);
   ELSE

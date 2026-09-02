@@ -4,8 +4,8 @@
 PROGRAM irrigation_modulation
 VAR_EXTERNAL CONSTANT
   cli_vpd_kPa           : REAL;
-  (* cli_vpd and cli_dpMargin_degC are published on ONE verdict by
-     temp_rh_zone, so the margin's companion is the VPD's too. *)
+  (* The VPD and the margin are one verdict: temp_rh_zone measures both or
+     neither. *)
   cli_dpMargin_degC_qlt : BOOL;
   irr_dryEwmaDays       : UINT;
   irr_dryLo_kPa         : REAL;
@@ -68,8 +68,7 @@ END_VAR
     folded_at := sys_now_ms;
   END_IF;
 
-  (* Nothing has ever been folded, so there is no average - and the row is left
-     at its DECLARED value rather than published as an average of zero, which
+  (* Nothing folded yet, so there is no average to publish: an average of zero
      is the VPD of saturated air and would read as a wet week. *)
   IF seeded THEN
     irr_vpdAvg_kPa := avg;

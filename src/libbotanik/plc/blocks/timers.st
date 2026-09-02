@@ -1,16 +1,8 @@
 (* The two dwell timers: off-delay and on-delay, in milliseconds
    ------------------------------------------------------------------------ *)
 
-(* Ours, not the standard's: matiec's lib/*.txt are GPL and its C runtime is
-   LGPL, so nothing here derives from either. The interface follows IEC's
-   shape where there is one, but the block takes NOW - the scan clock - and
-   differences it itself, so it is rate-independent and survives being moved
-   between tasks.
-
-   The variable DESCRIPTORS stay in C++. ST names a variable; what a name
-   means - its unit, band, register, transport and timeout - is the table's,
-   and matiec never sees it. *)
-
+(* Off-delay: true while IN is, and for PT after it drops. An overrun - "keep
+   the roof shut for a quarter of an hour after the last drop". *)
 FUNCTION_BLOCK TOF_MS
 VAR_INPUT
   IN  : BOOL;
@@ -22,10 +14,8 @@ VAR_OUTPUT
   ET : UDINT;
 END_VAR
 VAR
-  (* The block keeps its OWN last reading, so it measures from when IT last
-     ran rather than from what a caller believed. That is what makes it
-     rate-independent: the same block works on any task, and a scan it missed
-     costs it nothing. Unsigned subtraction carries the wrap. *)
+  (* Measured from when this timer last ran, so a scan it missed costs it
+     nothing. *)
   last : UDINT;
   seeded : BOOL := FALSE;
 END_VAR

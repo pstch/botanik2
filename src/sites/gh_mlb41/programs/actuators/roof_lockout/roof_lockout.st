@@ -7,11 +7,6 @@
    shut it. *)
 
 PROGRAM roof_lockout
-(* VAR_EXTERNAL, not VAR_INPUT: a program binds rows by NAME, which is what
-   VAR_EXTERNAL means, and matiec then emits no copy in or out - the body
-   reads and writes the bank directly and __INIT_EXTERNAL is the whole of
-   bind(). The formal-parameter connection list does the opposite and does
-   not compile against matiec's own runtime. See docs/dev/matiec-configuration.md *)
 VAR_EXTERNAL CONSTANT
   cli_rain_mmph         : REAL;
   cli_rain_mmph_qlt     : BOOL;

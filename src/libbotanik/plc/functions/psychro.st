@@ -13,7 +13,7 @@ VAR_INPUT
   RH     : REAL;
 END_VAR
 VAR
-  gamma : REAL;   (* a FUNCTION's locals are VAR; VAR_TEMP is for POUs with state *)
+  gamma : REAL;
 END_VAR
   (* The floor keeps the logarithm defined: bone-dry air is not a reason to
      return minus infinity to a control law. *)

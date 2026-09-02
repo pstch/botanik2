@@ -1,12 +1,7 @@
 (* destrat_controller program
    ------------------------------------------------------------------------ *)
 
-(* STAIRCASE3 comes from src/libbotanik/plc/blocks/analog.st - the library
-   block, not a copy. *)
-
 PROGRAM destrat_controller
-(* VAR_EXTERNAL, so __INIT_EXTERNAL is the generated bind() and the body
-   reads and writes the bank with no copy in or out. *)
 VAR_EXTERNAL CONSTANT
   cli_dTStrat_degC     : REAL;
   cli_dTStratLow_degC  : REAL;
@@ -21,8 +16,6 @@ VAR_EXTERNAL
   cli_stratDem         : REAL;
 END_VAR
 VAR
-  (* A plain member, like Plc::Staircase3 is today. Its rung survives between
-     scans because the instance does, and it costs no row. *)
   bands : STAIRCASE3;
 END_VAR
   bands.IN   := cli_dTStrat_degC;
