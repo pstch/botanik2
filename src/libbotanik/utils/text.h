@@ -99,6 +99,16 @@ namespace Botanik { namespace Utils {
      *  @note The magnitude is scanned unsigned, so INT64_MIN parses. */
     NumParse parse_i64(const char* s, int64_t* out);
 
+    /** @brief Parse NUL-terminated @p s as a decimal real into @p out: an
+     *  optional sign, digits around at most one point, an optional `e` exponent.
+     *
+     *  Correctly rounded ONCE NARROWED TO FLOAT, which is what every caller
+     *  does; not to double, which is the whole cost of `strtod`. `nan`, `inf`
+     *  and hex floats are NUM_MALFORMED here, having no digits to scan.
+     *  @note An exponent that overflows the double lands as an infinity and
+     *  NUM_OK; the caller's own range check is what rejects it. */
+    NumParse parse_f64(const char* s, double* out);
+
     /** @}
      *  @name Number formatting
      *  @{ */

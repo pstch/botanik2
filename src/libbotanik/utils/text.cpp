@@ -48,6 +48,16 @@ namespace Botanik { namespace Utils {
             return *_skip_spaces(e) == 0;
         }
 
+        // 10^22 is the largest power of ten a double holds exactly, so scaling
+        // in steps no wider than this keeps every single multiply exact. One
+        // clamped step past it is not a rounding error, it is a wrong decade.
+        const int    POW10_MAX = 22;
+        const double POW10[POW10_MAX + 1] = {
+            1e0,  1e1,  1e2,  1e3,  1e4,  1e5,  1e6,  1e7,
+            1e8,  1e9,  1e10, 1e11, 1e12, 1e13, 1e14, 1e15,
+            1e16, 1e17, 1e18, 1e19, 1e20, 1e21, 1e22
+        };
+
     }  // namespace
 
     bool parse_uint(const char* s, uint16_t len, uint32_t* out) {
@@ -82,6 +92,67 @@ namespace Botanik { namespace Utils {
         const NumParse r = _scan_digits(p, len, limit, &mag);
         if (r != NUM_OK) return r;
         *out = neg ? (int64_t)(~mag + 1u) : (int64_t)mag;
+        return NUM_OK;
+    }
+
+    NumParse parse_f64(const char* s, double* out) {
+        if (s == nullptr || out == nullptr) return NUM_MALFORMED;
+        const char* p   = _skip_spaces(s);
+        const bool  neg = (*p == '-');
+        if (neg || *p == '+') p++;
+
+        // The digits as one integer, with the point's position folded into the
+        // exponent. Past the 19th digit the mantissa is full: an integer digit
+        // then moves the exponent instead, and a fractional one is dropped,
+        // being far below what a float can hold anyway.
+        uint64_t mant  = 0;
+        int      exp   = 0;
+        bool     digit = false;
+        bool     dot   = false;
+        for (;; p++) {
+            if (*p == '.') {
+                if (dot) return NUM_MALFORMED;
+                dot = true;
+                continue;
+            }
+            if (*p < '0' || *p > '9') break;
+            digit = true;
+            if (mant <= (UINT64_MAX - 9u) / 10u) {
+                mant = mant * 10u + (uint64_t)(*p - '0');
+                if (dot) exp--;
+            } else if (!dot) {
+                exp++;
+            }
+        }
+        if (!digit) return NUM_MALFORMED;
+
+        if (*p == 'e' || *p == 'E') {
+            const char* q    = p + 1;
+            const bool  eneg = (*q == '-');
+            if (eneg || *q == '+') q++;
+            uint16_t elen = 0;
+            const char* e = q;
+            while (*e >= '0' && *e <= '9') { e++; elen++; }
+            if (elen == 0) return NUM_MALFORMED;      // "1e" is not a number
+            uint64_t ev = 0;
+            if (_scan_digits(q, elen, 9999u, &ev) != NUM_OK) return NUM_RANGE;
+            exp += eneg ? -(int)ev : (int)ev;
+            p = e;
+        }
+        if (*_skip_spaces(p) != 0) return NUM_MALFORMED;
+
+        double v = (double)mant;
+        for (int e = exp; e > 0; ) {
+            const int k = (e < POW10_MAX) ? e : POW10_MAX;
+            v *= POW10[k];
+            e -= k;
+        }
+        for (int e = exp; e < 0; ) {
+            const int k = (-e < POW10_MAX) ? -e : POW10_MAX;
+            v /= POW10[k];
+            e += k;
+        }
+        *out = neg ? -v : v;
         return NUM_OK;
     }
 

@@ -8,8 +8,6 @@
 
 #if BOTANIK_FEATURE_VARS
 
-#include <cerrno>
-#include <cstdlib>
 #include <cstring>
 
 #include "libbotanik/utils/text.h"
@@ -141,18 +139,15 @@ namespace Botanik { namespace Vars {
             if (parse_enum_label(str, text, out) == PARSE_OK) return PARSE_OK;
         }
 
-        char* end = nullptr;
         if (type_real(t)) {
-            errno = 0;
-            const double d = strtod(text, &end);
-            if (end == text || !only_spaces_left(end)) return PARSE_MALFORMED;
-            if (errno == ERANGE) return PARSE_RANGE;
-            // ERANGE is not the whole story for a real: strtod accepts "nan"
-            // and "inf", and 1e300 is a good DOUBLE that becomes +inf on the
-            // narrowing cast below, neither setting errno. Unchecked, `override
-            // <row> nan` persists a NaN that reject_implausible() skips (the row
-            // is overridden) and every downstream compare reads false against.
-            if (!(d == d)) return PARSE_MALFORMED;          // NaN: not a number
+            double d = 0.0;
+            const Utils::NumParse r = Utils::parse_f64(text, &d);
+            if (r != Utils::NUM_OK) {
+                return r == Utils::NUM_RANGE ? PARSE_RANGE : PARSE_MALFORMED;
+            }
+            // A good DOUBLE is not yet a good float: 1e300 becomes +inf on the
+            // narrowing cast, and an overridden infinity reads false against
+            // every downstream compare, the way a NaN used to.
             if (d > 3.4028234663852886e+38 ||
                 d < -3.4028234663852886e+38) return PARSE_RANGE;
             *out = Scalar::F((float)d);
