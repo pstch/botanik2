@@ -8,12 +8,12 @@ finds it. The site half comes from `tables/*.csv`, the library half from
 
 One section per SCOPE, in the order `Vars::VarScope` declares them.
 
-586 rows: 515 declared by the site, 71 by the library.
+589 rows: 515 declared by the site, 74 by the library.
 
 | scope | what it is | site | library |
 |---|---|---|---|
 | Alarms | the boolean an AlarmCondition reads | 39 | 13 |
-| Parameters | persisted, editable | 179 | 49 |
+| Parameters | persisted, editable | 179 | 52 |
 | Computed values | HMI only, not published | 0 | 0 |
 | Status values | published: MQTT and the Modbus TCP slave | 185 | 9 |
 | Direct inputs | register 1:1 (device 0 = local) | 75 | 0 |
@@ -278,7 +278,7 @@ One section per SCOPE, in the order `Vars::VarScope` declares them.
 | irr_flowCutoff_Lpm | T_F32 | 0.2 | 0.0 .. 5.0 | Lpm | RW | 158 | below this the outlet counts no litres | - |
 | irr_rateWin_ms | T_U16 | 5000 | 500 .. 60000 | ms | RW | 159 | window the inlet rate is differenced over | - |
 
-### Library (49)
+### Library (52)
 
 | name | type | default | accepts | unit | access | reg | description | notes |
 |---|---|---|---|---|---|---|---|---|
@@ -311,6 +311,9 @@ One section per SCOPE, in the order `Vars::VarScope` declares them.
 | sys_cpu_load_pct | T_U8 | 50 | 1 .. 100 | % | RW | 970 | CPU_LOAD alarm threshold | percent of the task period |
 | sys_jitter_pct | T_U8 | 50 | 1 .. 100 | % | RW | 971 | CPU_JITT alarm threshold | percent of the task period |
 | sys_stack_pct | T_U8 | 75 | 1 .. 100 | % | RW | 972 | STACK alarm threshold | percent of the stack in use |
+| sys_startup_sec | T_U16 | BOTANIK_STARTUP_HOLD_MS / 1000 | 0 .. 600 | sec | RW | 973 | control held after boot, seconds | nothing runs a law on a field that has not answered yet; 0 runs from the first beat |
+| sys_control | T_BOOL | 1 | 0 .. 1 | - | RW | 976 | let the control programs drive | off stops every law and drops what they were driving to its declared safe state; per-program is `programs disable` |
+| sys_shutdown_sec | T_U16 | BOTANIK_SHUTDOWN_HOLD_MS / 1000 | 0 .. 600 | sec | RW | 975 | laws stopped before the ending, seconds | the mirror of sys_startup_sec: time for the record to reach flash before a reset |
 | sys_retain_sec | T_U32 | 300 | 0 .. 86400 | sec | RW | 974 | how often retained values reach flash | 0 leaves only `save` and the way down; wear vs loss |
 | rtu_timeout_ms | T_U32 | 300 | 20 .. 5000 | ms | RW | 980 | how long a slave has to answer | the bus default; a device model may declare its own |
 | rtu_retries | T_U8 | 1 | 0 .. 5 | - | RW | 981 | immediate retries before a device is backed off | each costs a full timeout on a device that is really gone |
@@ -730,7 +733,7 @@ between them.
 | 5 | wx_sensors | sense | 18 | 7 | The two weather stations, voted down to one reading per quantity: the worse of them, because two cannot say which is lying. |
 | 6 | strat | sense | 5 | 2 | The stratification gap: how much warmer the ceiling is than the floor, unsigned. |
 | 7 | temp_rh_zone | sense | 7 | 8 | The psychrometrics every other law is set in, off the two interior levels: one temperature for the house, and the worst case per quantity. |
-| 8 | climate_watch | control | 13 | 5 | The interior conditions, watched: the alarms that are a READING crossing a line rather than a law failing to hold one. |
+| 8 | climate_watch | control | 14 | 5 | The interior conditions, watched: the alarms that are a READING crossing a line rather than a law failing to hold one. |
 | 9 | weather_watch | control | 6 | 2 | The weather station, watched: whether it is answering, and whether what it says is a storm. |
 | 10 | day_phase | control | 12 | 6 | The day's phase, and the temperature target it puts in force. |
 | 11 | target_temp | control | 11 | 1 | The temperature the greenhouse is being held to: the base setting, shifted by whichever bank phase is both IN FORCE and ARMED. |
@@ -738,8 +741,8 @@ between them.
 | 13 | humidity | control | 10 | 3 | The humidity ladder: four bands and a dead zone on the dew-point margin, published as one signed demand - and the rot guard under it. |
 | 14 | intake_dry | control | 10 | 1 | The intake dry gate: whether the air outside is drier than the air in. |
 | 15 | intake_gates | control | 10 | 2 | The two intake gates: whether crawlspace air is worth drawing, for cooling and for ground heat. |
-| 16 | destrat | control | 0 | 9 | The destratification ladder: three bands with hysteresis on the ceiling-to- floor gap, published as a demand. |
-| 17 | roof_lockout | control | 0 | 15 | What forbids the roof being open at all, whatever the ladder asks. |
+| 16 | destrat | control | 8 | 1 | The destratification ladder: three bands with hysteresis on the ceiling-to- floor gap, published as a demand. |
+| 17 | roof_lockout | control | 11 | 4 | What forbids the roof being open at all, whatever the ladder asks. |
 | 18 | intractors | control | 10 | 2 | The two intractors: variable-speed fans drawing air from under the floor, driven by whichever of three demands wants the most. |
 | 19 | fans | control | 10 | 7 | The two destratification fans: three relayed speeds, driven by whichever of three demands wants the most. |
 | 20 | skirt | control | 11 | 2 | The wet skirt: one valve pulsed against two demands. |
@@ -748,8 +751,8 @@ between them.
 | 23 | irr_modulation | control | 8 | 3 | The irrigation ladder: how thirsty the air has been, as one factor. |
 | 24 | irr_mtr_input | control | 7 | 5 | The inlet meter, and the two supply faults it alone can see. |
 | 25 | irr_mtr_output | control | 6 | 4 | The outlet meter: what came back off the trays. |
-| 26 | irr_schedule | control | 21 | 30 | Which tray is owed water, and whether the climate will allow a cycle to start. |
-| 27 | irrigation | control | 22 | 42 | Irrigation: one tray at a time, filled to a dose, steeped, and drained. |
+| 26 | irr_schedule | control | 30 | 21 | Which tray is owed water, and whether the climate will allow a cycle to start. |
+| 27 | irrigation | control | 23 | 41 | Irrigation: one tray at a time, filled to a dose, steeped, and drained. |
 | 28 | irr_valves | control | 2 | 12 | The irrigation manifold: which valves each state of the cycle opens. |
 
 ### ac_grid_watch
@@ -821,7 +824,7 @@ between them.
 
 | direction | rows |
 |---|---|
-| reads | `cli_temp_hi`, `cli_dpMargin_degC`, `cli_temp_hi_qlt`, `cli_dpMargin_degC_qlt`, `cli_dTStrat_degC`, `cli_tooHot_degC`, `cli_tooCold_degC`, `cli_dehumFull_degC`, `cli_dTStratHigh_degC`, `alarm_sns_ceiling`, `alarm_sns_floor`, `alarm_sns_crawlspace`, `alarm_sns_exterior` |
+| reads | `cli_temp_hi`, `cli_dpMargin_degC`, `cli_temp_hi_qlt`, `cli_dpMargin_degC_qlt`, `cli_dTStrat_degC`, `cli_dTStrat_degC_qlt`, `cli_tooHot_degC`, `cli_tooCold_degC`, `cli_dehumFull_degC`, `cli_dTStratHigh_degC`, `alarm_sns_ceiling`, `alarm_sns_floor`, `alarm_sns_crawlspace`, `alarm_sns_exterior` |
 | writes | `alarm_too_hot`, `alarm_too_cold`, `alarm_too_humid`, `alarm_strat`, `alarm_sensor_fault` |
 
 ### weather_watch
@@ -893,8 +896,8 @@ between them.
 
 | direction | rows |
 |---|---|
-| reads | - |
-| writes | `cli_dTStrat_degC`, `cli_dTStratLow_degC`, `cli_dTStratMed_degC`, `cli_dTStratHigh_degC`, `cli_dTStratHyst_degC`, `cli_fanLowDem`, `cli_fanMedDem`, `cli_fanHighDem`, `cli_stratDem` |
+| reads | `cli_dTStrat_degC`, `cli_dTStratLow_degC`, `cli_dTStratMed_degC`, `cli_dTStratHigh_degC`, `cli_dTStratHyst_degC`, `cli_fanLowDem`, `cli_fanMedDem`, `cli_fanHighDem` |
+| writes | `cli_stratDem` |
 
 ### roof_lockout
 
@@ -902,8 +905,8 @@ between them.
 
 | direction | rows |
 |---|---|
-| reads | - |
-| writes | `cli_rain_mmph`, `cli_rain_mmph_qlt`, `cli_wind_mps`, `cli_wind_mps_qlt`, `cli_windGust_mps`, `cli_windShutBegin_mps`, `cli_windShutEnd_mps`, `cli_windShutMax`, `cli_rainLockout_sec`, `sys_supply_lockout`, `sys_now_ms`, `cli_rainLockout`, `cli_windLockout`, `cli_windowLockout`, `cli_windowCap` |
+| reads | `cli_rain_mmph`, `cli_rain_mmph_qlt`, `cli_wind_mps`, `cli_wind_mps_qlt`, `cli_windGust_mps`, `cli_windShutBegin_mps`, `cli_windShutEnd_mps`, `cli_windShutMax`, `cli_rainLockout_sec`, `sys_supply_lockout`, `sys_now_ms` |
+| writes | `cli_rainLockout`, `cli_windLockout`, `cli_windowLockout`, `cli_windowCap` |
 
 ### intractors
 
@@ -983,8 +986,8 @@ between them.
 
 | direction | rows |
 |---|---|
-| reads | `irr_mod`, `irr_volFreqSplit`, `irr_traysPerDay`, `cli_temp_ext`, `cli_temp_ext_qlt`, `irr_dawnGate_degC`, `cli_phase`, `cli_phase_qlt`, `sol_ready`, `sol_fromRise_min`, `sol_dayRise_min`, `irr_morningWin_min`, `sys_today`, `irr_days_tray1`, `irr_days_tray2`, `irr_days_tray3`, `irr_days_tray4`, `irr_days_tray5`, `irr_days_tray6`, `irr_days_tray7`, `irr_days_tray8` |
-| writes | `irr_dueTray`, `irr_slotOpen`, `irr_period_days`, `irr_today`, `irr_servedToday`, `irr_forceNow`, `irr_last_tray1`, `irr_last_tray2`, `irr_last_tray3`, `irr_last_tray4`, `irr_last_tray5`, `irr_last_tray6`, `irr_last_tray7`, `irr_last_tray8`, `irr_forceOn_tray1`, `irr_forceOn_tray2`, `irr_forceOn_tray3`, `irr_forceOn_tray4`, `irr_forceOn_tray5`, `irr_forceOn_tray6`, `irr_forceOn_tray7`, `irr_forceOn_tray8`, `irr_forceOff_tray1`, `irr_forceOff_tray2`, `irr_forceOff_tray3`, `irr_forceOff_tray4`, `irr_forceOff_tray5`, `irr_forceOff_tray6`, `irr_forceOff_tray7`, `irr_forceOff_tray8` |
+| reads | `irr_forceNow`, `irr_forceOn_tray1`, `irr_forceOn_tray2`, `irr_forceOn_tray3`, `irr_forceOn_tray4`, `irr_forceOn_tray5`, `irr_forceOn_tray6`, `irr_forceOn_tray7`, `irr_forceOn_tray8`, `irr_mod`, `irr_volFreqSplit`, `irr_traysPerDay`, `cli_temp_ext`, `cli_temp_ext_qlt`, `irr_dawnGate_degC`, `cli_phase`, `cli_phase_qlt`, `sol_ready`, `sol_fromRise_min`, `sol_dayRise_min`, `irr_morningWin_min`, `sys_today`, `irr_days_tray1`, `irr_days_tray2`, `irr_days_tray3`, `irr_days_tray4`, `irr_days_tray5`, `irr_days_tray6`, `irr_days_tray7`, `irr_days_tray8` |
+| writes | `irr_dueTray`, `irr_slotOpen`, `irr_period_days`, `irr_today`, `irr_servedToday`, `irr_last_tray1`, `irr_last_tray2`, `irr_last_tray3`, `irr_last_tray4`, `irr_last_tray5`, `irr_last_tray6`, `irr_last_tray7`, `irr_last_tray8`, `irr_forceOff_tray1`, `irr_forceOff_tray2`, `irr_forceOff_tray3`, `irr_forceOff_tray4`, `irr_forceOff_tray5`, `irr_forceOff_tray6`, `irr_forceOff_tray7`, `irr_forceOff_tray8` |
 
 ### irrigation
 
@@ -992,8 +995,8 @@ between them.
 
 | direction | rows |
 |---|---|
-| reads | `irr_dueTray`, `irr_mod`, `irr_mod_qlt`, `irr_inTotal_L`, `irr_outTotal_L`, `irr_outFlow_Lpm_qlt`, `irr_volFreqSplit`, `irr_maxFill_sec`, `irr_soak_sec`, `irr_drainWindow_sec`, `irr_flush_sec`, `irr_expDrainFrac`, `irr_drainMargin`, `sys_now_ms`, `irr_liters_tray1`, `irr_liters_tray2`, `irr_liters_tray3`, `irr_liters_tray4`, `irr_liters_tray5`, `irr_liters_tray6`, `irr_liters_tray7`, `irr_liters_tray8` |
-| writes | `irr_volume_L`, `irr_state`, `irr_activeTray`, `irr_delivered_L`, `irr_drained_L`, `irr_today`, `irr_servedToday`, `irr_forceNow`, `alarm_irr_fill`, `alarm_irr_drain`, `irr_last_tray1`, `irr_last_tray2`, `irr_last_tray3`, `irr_last_tray4`, `irr_last_tray5`, `irr_last_tray6`, `irr_last_tray7`, `irr_last_tray8`, `irr_forceOn_tray1`, `irr_forceOn_tray2`, `irr_forceOn_tray3`, `irr_forceOn_tray4`, `irr_forceOn_tray5`, `irr_forceOn_tray6`, `irr_forceOn_tray7`, `irr_forceOn_tray8`, `alarm_irr_fill_tray1`, `alarm_irr_fill_tray2`, `alarm_irr_fill_tray3`, `alarm_irr_fill_tray4`, `alarm_irr_fill_tray5`, `alarm_irr_fill_tray6`, `alarm_irr_fill_tray7`, `alarm_irr_fill_tray8`, `alarm_irr_drain_tray1`, `alarm_irr_drain_tray2`, `alarm_irr_drain_tray3`, `alarm_irr_drain_tray4`, `alarm_irr_drain_tray5`, `alarm_irr_drain_tray6`, `alarm_irr_drain_tray7`, `alarm_irr_drain_tray8` |
+| reads | `irr_today`, `irr_dueTray`, `irr_mod`, `irr_mod_qlt`, `irr_inTotal_L`, `irr_outTotal_L`, `irr_outFlow_Lpm_qlt`, `irr_volFreqSplit`, `irr_maxFill_sec`, `irr_soak_sec`, `irr_drainWindow_sec`, `irr_flush_sec`, `irr_expDrainFrac`, `irr_drainMargin`, `sys_now_ms`, `irr_liters_tray1`, `irr_liters_tray2`, `irr_liters_tray3`, `irr_liters_tray4`, `irr_liters_tray5`, `irr_liters_tray6`, `irr_liters_tray7`, `irr_liters_tray8` |
+| writes | `irr_volume_L`, `irr_state`, `irr_activeTray`, `irr_delivered_L`, `irr_drained_L`, `irr_servedToday`, `irr_forceNow`, `alarm_irr_fill`, `alarm_irr_drain`, `irr_last_tray1`, `irr_last_tray2`, `irr_last_tray3`, `irr_last_tray4`, `irr_last_tray5`, `irr_last_tray6`, `irr_last_tray7`, `irr_last_tray8`, `irr_forceOn_tray1`, `irr_forceOn_tray2`, `irr_forceOn_tray3`, `irr_forceOn_tray4`, `irr_forceOn_tray5`, `irr_forceOn_tray6`, `irr_forceOn_tray7`, `irr_forceOn_tray8`, `alarm_irr_fill_tray1`, `alarm_irr_fill_tray2`, `alarm_irr_fill_tray3`, `alarm_irr_fill_tray4`, `alarm_irr_fill_tray5`, `alarm_irr_fill_tray6`, `alarm_irr_fill_tray7`, `alarm_irr_fill_tray8`, `alarm_irr_drain_tray1`, `alarm_irr_drain_tray2`, `alarm_irr_drain_tray3`, `alarm_irr_drain_tray4`, `alarm_irr_drain_tray5`, `alarm_irr_drain_tray6`, `alarm_irr_drain_tray7`, `alarm_irr_drain_tray8` |
 
 ### irr_valves
 
