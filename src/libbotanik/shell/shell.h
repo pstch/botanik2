@@ -333,9 +333,9 @@ namespace Botanik { namespace Shell {
          *  and how to make it durable. */
         void _override_reply(Vars::Var h, const char* verb);
         /** @brief `programs enable|disable <name>|all`. @p on is which. */
+        void _programs_gate(const char* nm, uint16_t wn, bool on);
         /** @brief `programs status`: a tally per health, and who is in the ones
          *  worth naming. */
-        void _programs_gate(const char* nm, uint16_t wn, bool on);
         void _programs_status();
         /** @} */
 
@@ -376,10 +376,10 @@ namespace Botanik { namespace Shell {
          *  whole table over a 4800-baud console is an index of the TASKS page
          *  rather than an answer. A bare `tasks` still reports the beat's
          *  totals, which is the question a listing cannot answer. */
-        /** @brief `tasks stats`: the beat's totals, in `stats`' shape. */
-        void _tasks_stats(const Tasks::Registry& reg);
         void _tasks_list(const Tasks::Registry& reg, const char* prefix,
                          uint16_t plen);
+        /** @brief `tasks stats`: the beat's totals, in `stats`' shape. */
+        void _tasks_stats(const Tasks::Registry& reg);
 
         /** @brief Shared tail of reset / exit: drop the field to its safe state
          *  and wipe the screen, since the loop will not run again. */

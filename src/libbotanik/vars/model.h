@@ -94,16 +94,16 @@ namespace Botanik { namespace Vars {
         uint16_t      _row[Config::VAR_MAX];
         uint64_t      _last_retain_ms = 0;   ///< last retained write; 0 = none
 
-        /** @brief One AnalogCal block and the rows its six tunables name.
-         *  Cached as INDICES, not values: the index is fixed once the table is
-         *  frozen, while the value must stay live so a recalibration lands the
-         *  moment the parameter commits. Nothing to invalidate. */
         /** @brief The count on the wire for each AI/AO row, indexed by the
          *  slot's wire_off. Only those rows need one: every other row's wire
          *  value IS its value. */
         Scalar        _wire[Config::ANALOG_ROWS_MAX];
         uint8_t       _wire_count = 0;
 
+        /** @brief One AnalogCal block and the rows its six tunables name.
+         *  Cached as INDICES, not values: the index is fixed once the table is
+         *  frozen, while the value must stay live so a recalibration lands the
+         *  moment the parameter commits. Nothing to invalidate. */
         struct CalRefs { const AnalogCal* block; VarRef ref[6]; };
         CalRefs       _cal[Config::ANALOG_BLOCKS_MAX];
         uint8_t       _cal_count = 0;
@@ -244,8 +244,6 @@ namespace Botanik { namespace Vars {
         /** @brief Parameter @p k, 0-based over the ROLE_PARAM block. */
         Var      param_at(uint16_t k) const { return var((uint16_t)(_param_first + k)); }
         uint16_t param_count() const     { return _param_count; }
-        /** @brief Table index of the first ROLE_PARAM row (0 when there are
-         *  none). */
 
         /** @brief Where @p h's text lives in the pool, or null. The ONLY route to
          *  a row's text: the declared capacity is in flash and says nothing about
@@ -259,8 +257,6 @@ namespace Botanik { namespace Vars {
          *  miss is a typo rather than a defect: it does NOT count. */
         VarRef find(const char* name, uint16_t len) const;
 
-        /** @brief Name lookups that found nothing. Zero on a correctly wired
-         *  site; the test suite asserts it. */
         /** @brief What a DRIVER hands over for an analog row: the count off the
          *  wire. The model applies the calibration, judges the plausibility
          *  band, keeps the count for wire() and stores the engineering value
@@ -284,20 +280,13 @@ namespace Botanik { namespace Vars {
             return nullptr;
         }
 
+        /** @brief Name lookups that found nothing. Zero on a correctly wired
+         *  site; the test suite asserts it. */
         uint16_t unresolved_count() const { return _unresolved; }
 
-        /** @name Write attribution
-         *  Who among the control programs drives a row, recorded by drive()
-         *  from whoever the dispatcher's window names. @{ */
-
-        /** @} */
-
-        /** @} */
-
         /** @name Driving
-         *  What a control PROGRAM calls: claim the row for whoever the window
-         *  names, then write. Distinct from param_set(), which edits a
-         *  parameter against its band.
+         *  What a control PROGRAM writes through. Distinct from param_set(),
+         *  which edits a parameter against its band.
          *  @{ */
         void drive(VarRef r, bool v)      { var(r).set(v); }
         void drive(VarRef r, float v)     { var(r).set(v); }
@@ -351,13 +340,6 @@ namespace Botanik { namespace Vars {
         }
 
         /** @} */
-
-
-
-        /** @} */
-
-        /** @brief Whether the name index is in use. False before freeze(), and
-         *  every find() is then a full scan. */
 
         /** @brief Rows that found no pool left. Must be zero: such a row reads
          *  empty and refuses every write. */

@@ -70,7 +70,6 @@ namespace Botanik { namespace Network {
             MQTT_READY,       ///< connected; keepalive + publishes
             MQTT_ERROR,       ///< failed; backing off before a retry
         };
-        /** @brief Config source (may be null in tests). */
         /** @brief The broker in force, and whether a fresh one is waiting for
          *  the next SERVICE beat (set_config() has no clock). */
         MqttConfig    _cfg;

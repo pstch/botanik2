@@ -71,7 +71,6 @@ namespace Botanik { namespace Network {
             TIME_SYNCED,     ///< RTC disciplined; idle until the next poll
             TIME_ERROR,      ///< failed; backing off before a retry
         };
-        /** @brief Config source (may be null in tests). */
         /** @brief The servers and cadence in force, and whether a fresh set is
          *  waiting for the next SERVICE beat (set_config() has no clock). */
         NtpConfig     _cfg;

@@ -235,9 +235,6 @@ namespace Botanik { namespace Terminal {
         /** @name Lifecycle
          *  @{ */
 
-        /** @brief @p type is which terminal is on the wire; it selects the
-         *  setup handshake setup_terminal() emits and is what any
-         *  terminal-specific behaviour branches on. */
         /** @brief The wire, and nothing else. Geometry, rate and make are
          *  CONFIGURATION: they come from the bank through reconfigure() and
          *  set_baud() at PHASE_CONFIG, which is after the table is frozen and

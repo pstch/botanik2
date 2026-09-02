@@ -67,9 +67,9 @@ namespace Botanik { namespace Network {
         const Vars::Bank*     _io          = nullptr;
         /** @brief The lifecycle, borrowed from the scheduler; null publishes. */
         const Scheduler::RunState* _state = nullptr;
-        /** @brief Last publish cycle (uptime ms); 0 = none yet. */
         /** @brief _cursor value meaning "no sweep in progress". */
         static const uint16_t SWEEP_IDLE = 0xFFFF;
+        /** @brief Last publish cycle (uptime ms); 0 = none yet. */
         uint64_t              _last_ms     = 0;
         /** @brief Where the current sweep has reached in the variable table.
          *  SWEEP_IDLE when none is in progress - a sentinel rather than a
@@ -85,11 +85,11 @@ namespace Botanik { namespace Network {
         /** @} */
 
     public:
-        /** @brief @p mqtt is the transport, @p sys the live status read by the
-         *  base fields, @p prefix the topic root segment before the field. */
         /** @brief Adopt @p cfg; the next sweep runs at it. */
         void set_config(const TelemetryConfig& cfg);
 
+        /** @brief @p mqtt is the transport, @p sys the live status read by the
+         *  base fields, @p prefix the topic root segment before the field. */
         MqttSender(const SetupContext& ctx, MqttClient* mqtt,
                    const SystemContext* sys, const char* prefix)
             : Component(ctx, "telemetry"),
@@ -109,11 +109,6 @@ namespace Botanik { namespace Network {
          *  connected. No-op when telemetry is disabled (period 0) or the period
          *  has not elapsed. */
         void on_service(uint64_t now_ms) override;
-
-        /** @brief The mqtt_ commit serial these rows belong to. */
-
-        /** @brief Take the cadence and the retain flag on that commit. */
-
 
     private:
         /** @brief Publish the library base fields under "system". */

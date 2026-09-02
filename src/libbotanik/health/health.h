@@ -86,8 +86,6 @@ namespace Botanik { namespace Health {
 #if BOTANIK_FEATURE_VARS
         void _latch_control(uint64_t now_ms);
 #endif
-        /** @brief Conflicts already reported, so a defect true on every beat is
-         *  named once. @see Vars::Bank::claim_writer */
         /** @brief Missed control activations at the last check; the alarm is
          *  the DELTA, so a scan that catches up clears it. */
         uint32_t _missed_said = 0;

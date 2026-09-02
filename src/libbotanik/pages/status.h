@@ -244,9 +244,6 @@ namespace Botanik { namespace Pages {
          *  no-op. */
         virtual void draw_payload_dynamic() {}
 
-        /** @brief Typed site data for derived rendering (may be
-         *  null). */
-
         /** @} */
 
     public:

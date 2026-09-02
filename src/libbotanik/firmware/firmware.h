@@ -146,12 +146,12 @@ namespace Botanik {
 #if BOTANIK_FEATURE_VARS
         Vars::Bank                       _io;          ///< the site's variables
         Vars::KvParamStore             _param_store; ///< one storage key per parameter
-        /** @brief The one bridge from the table to a component's own config
-         *  struct. Bindings are added in the ctor body, once every component
-         *  exists. @see vars/bindings.h */
         /** @brief Publishes a field row's quality into its `_qlt` companion,
          *  for laws that cannot ask the bank. @see Vars::QualityMirror */
         Vars::QualityMirror            _qmirror;
+        /** @brief The one bridge from the table to a component's own config
+         *  struct. Bindings are added in the ctor body, once every component
+         *  exists. @see vars/bindings.h */
         Vars::ConfigBinder             _binder;
 #endif
 #if BOTANIK_FEATURE_SUN_TRACKER

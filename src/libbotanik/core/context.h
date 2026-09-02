@@ -28,13 +28,6 @@ namespace Botanik { namespace Modbus    {  class RtuClient;         } }
 
 namespace Botanik {
 
-    /** @brief Aggregate of subsystem context structs and pointers to the
-     *  optional network components; used by reporting commands and metric pages.
-     *  Every member may be null when its subsystem is absent at runtime.
-     * @note Every pointer is declared whatever the build: a forward-declared
- *  pointer costs nothing, and gating the FIELD would only move the `#if` to
- *  each of its consumers, which already have one. An absent subsystem simply
- *  leaves its pointer null. */
     /** @brief What a control program is handed each activation.
      *
      *  Built fresh per run, unlike the two wiring contexts around it: @c dt_ms
@@ -50,6 +43,12 @@ namespace Botanik {
         Vars::Bank& bank;
     };
 
+    /** @brief Aggregate of the subsystem context structs and of the optional
+     *  components, read by the reporting commands and the metric pages. Every
+     *  member may be null when its subsystem is absent at runtime.
+     *  @note Every pointer is declared whatever the build: a forward-declared
+     *  pointer costs nothing, and gating the FIELD would only move the `#if` to
+     *  each of its consumers, which already have one. */
     struct SystemContext {
 
         Scheduler::SchedulerContext*   scheduler = nullptr; ///< Performance snapshots

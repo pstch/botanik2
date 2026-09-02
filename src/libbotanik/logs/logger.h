@@ -43,8 +43,8 @@ namespace Botanik { namespace Logs {
     /** @class Logger
      *  @brief Rate-limited logging front-end: applies the dual token-bucket
      *         limiter, then fans surviving entries out to the registered
-     *         writers. */
-    /** @note NOT a Component, deliberately. It would have to be constructed
+     *         writers.
+     *  @note NOT a Component, deliberately. It would have to be constructed
      *  with the table it registers in, and it passes ITSELF as its own logger -
      *  a self-reference nothing else in the tree needs. It also sits below
      *  everything: `vars/` reports a refused write through one. So the firmware

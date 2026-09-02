@@ -53,7 +53,6 @@ namespace Botanik { namespace Config {
 #endif
     BOTANIK_CFG(uint32_t, SCAN_LATE_MS);
 
-    /** @brief Hardware watchdog timeout. Clamped to what the IWDG can express. */
     /** @brief How long after boot the control programs are held, in ms.
      *
      *  DEFENCE IN DEPTH. A program that runs before the field has answered

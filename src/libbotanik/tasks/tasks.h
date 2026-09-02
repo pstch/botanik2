@@ -136,11 +136,6 @@ namespace Botanik { namespace Tasks {
          *  noticed by its absence. */
         uint8_t  _overflow = 0;
 
-        /** @brief Whether the program entries may run. Starts false: control
-         *  authority starts withheld, so nothing can drive the field on the way
-         *  through bring-up. A plain bool, deliberately - `tasks/` must not
-         *  acquire Vars to ask who decided it. */
-
         /** @brief Claim a slot and fill the part both add() forms share, so the
          *  offset rule cannot drift between them. Null when the table is full
          *  (counted in overflow()). */
@@ -190,25 +185,16 @@ namespace Botanik { namespace Tasks {
         void setup(uint64_t now_ms);
 
         /** @brief Run every task in @p phase that has come due, in
-         *  registration order, timing each into its TaskCost. A PROGRAM entry
-         *  additionally needs control authority. */
+         *  registration order, timing each into its TaskCost. Whether a control
+         *  program may run is Plc::Runtime::Plant's, not the registry's. */
         void run_phase(Phase phase, uint64_t now_ms);
 
-
-        /** @brief Whether program entries are currently allowed to run. */
-
         /** @} */
-
-        /** @name Program lookup
-         *  @{ */
 
         /** @name Readback (the TASKS page, the stats command)
          *  @{ */
 
         uint8_t     count() const { return _count; }
-
-        /** @brief How many programs are registered. */
-        uint8_t       program_count() const;
         const Task& task(uint8_t i) const { return _tasks[i < _count ? i : 0]; }
         /** @brief The entry just added, so a caller can finish filling it in.
          *  Only meaningful straight after a successful add(). */
@@ -216,8 +202,6 @@ namespace Botanik { namespace Tasks {
         uint8_t     overflow() const { return _overflow; }
 
         /** @} */
-
-    private:
     };
 
 }}  // namespace Botanik::Tasks

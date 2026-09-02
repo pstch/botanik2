@@ -171,6 +171,8 @@ namespace Botanik { namespace Modbus {
         uint8_t  refusals;
     };
 
+    /** @} */
+
     /**
      * @brief Turns the variable table into blocks, once, at bring-up.
      *
@@ -183,8 +185,6 @@ namespace Botanik { namespace Modbus {
      * reports rows_dropped() and rows_unscanned() at bring-up; both are zero on
      * a sane table, and neither is allowed to be silent.
      */
-    /** @} */
-
     class Planner {
 
         /** @name State

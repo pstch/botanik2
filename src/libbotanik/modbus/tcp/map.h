@@ -44,9 +44,6 @@ namespace Botanik { namespace Modbus {
 
         Vars::Bank* _io;
         uint16_t _rows[Config::MODBUS_TCP_MAX_ROWS];  ///< bank indices, ascending by register
-        /** @brief What the slave above grants. Held here because every write
-         *  path in this class has to consult it, and passing it down four call
-         *  sites would be the same value four times. */
         /** @brief Whether a master may write @p d at all. */
         static bool _writable(const Vars::Descriptor& d);
         uint16_t _count;

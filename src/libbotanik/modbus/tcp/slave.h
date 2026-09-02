@@ -122,10 +122,10 @@ namespace Botanik { namespace Modbus {
          *  PHASE_PRESENT, per connection, per beat, at a remote peer's
          *  choosing. */
         int16_t       _ack_cond[Config::MODBUS_TCP_MAX_ROWS];
-        /** @brief Whether the `mb` config says the slave should be up at all. */
         /** @brief The `mb` group in force. Only `enabled`/`port` move the
          *  socket; `writable` is read per request. */
         TcpSlaveConfig _cfg;
+        /** @brief Whether the `mb` config says the slave should be up at all. */
         bool          _enabled = false;
         /** @brief The port could not be bound. Kept so the failure is retried
          *  and reported once rather than every attempt. */
