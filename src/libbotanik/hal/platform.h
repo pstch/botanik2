@@ -105,6 +105,21 @@ namespace Botanik { namespace HAL {
          *  RTC. */
         void set_wall_ms(uint64_t unix_ms);
 
+        /** @brief A free-running high-resolution tick, for measuring INTERVALS.
+         *
+         *  Wraps. Subtract two readings as unsigned and the wrap takes care of
+         *  itself for any interval shorter than the wrap period - ~9 s on the
+         *  OPTA at 480 MHz, ~71 min on the host.
+         *  @warning Not a clock: no epoch, no relation to uptime, and not
+         *  comparable across a reset. For "how long did that take", never for
+         *  "what time is it" - which is uptime_ms() and wall_ms(). */
+        uint32_t hrt_ticks();
+
+        /** @brief A hrt_ticks() DELTA as microseconds.
+         *  @param ticks a difference of two hrt_ticks() readings, never one of
+         *  them. */
+        uint32_t hrt_us(uint32_t ticks);
+
         /** @brief Yield the CPU for at least @p ms. Ms granularity: 0 is a
          *  no-op/yield, so sub-ms waits fall through to a busy loop at the call
          *  site. */

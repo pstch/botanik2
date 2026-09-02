@@ -119,6 +119,20 @@ by it; sharp the moment the beat moves.
 loop reads it every beat. Harmless against a hardware watchdog measured in
 seconds, but it should be a decision rather than a surprise.
 
+## What the per-task figures are measured with
+
+`TaskCost` brackets every activation with `HAL::Clock::hrt_ticks()`, not the
+beat's own clock. On the OPTA that clock is `mbed::LowPowerClock`, running at
+32.768 kHz: it resolves about 30 us, so every task cheaper than that would have
+timed as 0 and `us_mean` would have averaged 0 and 31. The HRT is the Cortex-M7
+cycle counter (DWT CYCCNT) there and the host's microsecond clock here, which is
+why the readings on the TASKS page mean the same thing on both.
+
+It is a free-running 32-bit counter with no epoch, so only DIFFERENCES are
+meaningful. It wraps in about 9 s at 480 MHz, which bounds what may be timed
+with it - far above any task, and the reason the beat still keeps its own
+`uptime_ms` for everything that is a time rather than a duration.
+
 ## Phase offsets: rates cut the mean, offsets cut the peak
 
 A period alone buys less than it looks. Every component first runs on the first

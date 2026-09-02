@@ -128,7 +128,9 @@ namespace Botanik { namespace Tasks {
             if (!t.timer.due(now_ms, t.period_ms, dt, missed)) continue;
             t.timer.ran(now_ms);
 
-            const uint64_t t0 = HAL::Clock::uptime_us();
+            // The HRT, not uptime_us(): on the OPTA that reads a 32.768 kHz
+            // low-power clock, so every task under ~30 us would time as 0.
+            const uint32_t t0 = HAL::Clock::hrt_ticks();
             Tick tick;
             tick.now_ms = now_ms; tick.dt_ms = dt; tick.missed = missed;
             tick.first  = t.first_activation;
@@ -139,7 +141,7 @@ namespace Botanik { namespace Tasks {
             // Cleared after the run: the flag describes the activation that just
             // happened, so a handler reads it for its own run and no other.
             t.first_activation = false;
-            t.cost.record((uint32_t)(HAL::Clock::uptime_us() - t0), missed);
+            t.cost.record(HAL::Clock::hrt_us(HAL::Clock::hrt_ticks() - t0), missed);
         }
     }
 

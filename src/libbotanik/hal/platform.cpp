@@ -94,6 +94,43 @@ namespace Botanik { namespace HAL {
         rtos::ThisThread::sleep_for(std::chrono::milliseconds(ms));
     }
 
+    namespace {
+
+    /** @brief DWT cycles per microsecond: 0 before the first probe, HRT_NONE
+     *  when the counter is not there and the low-power clock stands in. */
+    const uint32_t HRT_NONE = 0xFFFFFFFFu;
+    uint32_t g_hrt_per_us = 0;
+
+    void hrt_probe() {
+        CoreDebug->DEMCR |= CoreDebug_DEMCR_TRCENA_Msk;
+        // DWT_LAR. Some ARMv7-M parts lock the unit; written by ADDRESS because
+        // CMSIS declares the register for some cores and not others, and a
+        // write where it is reserved is harmless.
+        *(volatile uint32_t*)0xE0001FB0u = 0xC5ACCE55u;
+        DWT->CYCCNT = 0;
+        DWT->CTRL  |= DWT_CTRL_CYCCNTENA_Msk;
+        // The enable bit not sticking is how a part with no cycle counter
+        // answers. Fall back rather than report zeros for ever.
+        if ((DWT->CTRL & DWT_CTRL_CYCCNTENA_Msk) == 0) { g_hrt_per_us = HRT_NONE; return; }
+        const uint32_t per = SystemCoreClock / 1000000u;
+        g_hrt_per_us = (per != 0) ? per : 1u;
+    }
+
+    }  // namespace
+
+    uint32_t hrt_ticks() {
+        // Lazily, not from a constructor: this pokes the debug unit, and the
+        // first caller is the beat rather than static init.
+        if (g_hrt_per_us == 0) hrt_probe();
+        if (g_hrt_per_us == HRT_NONE) return (uint32_t)uptime_us();
+        return DWT->CYCCNT;
+    }
+
+    uint32_t hrt_us(uint32_t ticks) {
+        return (g_hrt_per_us == 0 || g_hrt_per_us == HRT_NONE)
+                   ? ticks : (ticks / g_hrt_per_us);
+    }
+
     }  // namespace Clock
 
     namespace Debug {
@@ -587,6 +624,15 @@ namespace Botanik { namespace HAL {
         // uint64 product: ms*1000 overflows uint32 for ms > ~71 min.
         usleep((useconds_t)((uint64_t)ms * 1000u));
     }
+
+    // The host's uptime clock already resolves microseconds, so the tick IS a
+    // microsecond and there is nothing to convert. Deliberately the same
+    // reading as uptime_us(): under the manual clock an interval measured in
+    // real time and one measured in simulated time are different questions,
+    // and every other metric answers the second.
+    uint32_t hrt_ticks() { return (uint32_t)_now_as<std::chrono::microseconds>(); }
+
+    uint32_t hrt_us(uint32_t ticks) { return ticks; }
 
 
     }  // namespace Clock

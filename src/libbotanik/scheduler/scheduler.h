@@ -152,7 +152,10 @@ namespace Botanik { namespace Scheduler {
 
         /** @brief True between a release and the next-tick sample. */
         bool              _measuring     = false;
-        uint64_t          _work_start_us = 0;        ///< work-window open time, us
+        /** @brief HRT reading when the work window opened. Ticks, not us: the
+         *  OPTA's uptime clock resolves ~30 us and a beat's work is measured in
+         *  hundreds. @see HAL::Clock::hrt_ticks */
+        uint32_t          _work_start_tk = 0;
         uint32_t          _cpu_loop_us_max = 0;      ///< all-time peak, us
         MetricWindow _cpu_loop_us_window;     ///< windowed peak, us
 
@@ -217,7 +220,7 @@ namespace Botanik { namespace Scheduler {
             // wrapping the unsigned subtraction).
             uint64_t now_us = HAL::Clock::uptime_us();
             uint64_t now_ms = now_us / 1000;
-            if (_measuring) { _measuring = false; _sample_work(now_us); }
+            if (_measuring) { _measuring = false; _sample_work(); }
             int64_t remaining_ms = (int64_t)_next_tick_ms - (int64_t)now_ms;
             if (remaining_ms > 0) {
                 // Sleep to the grid minus 1 ms (the last ~1 ms is busy-waited =
@@ -243,7 +246,7 @@ namespace Botanik { namespace Scheduler {
             ++_context.tick_count;
             _record_tps(now_ms);
             // open the work window for the beat about to run
-            _work_start_us = now_us;
+            _work_start_tk = HAL::Clock::hrt_ticks();
             _measuring     = true;
             return true;
         }
@@ -321,7 +324,7 @@ namespace Botanik { namespace Scheduler {
         void _record_tps(uint64_t now_ms);
         /** @brief Close the work window: record the work duration and, at slice
          *  boundaries, ask the HAL for the stack high-water. Publish both. */
-        void _sample_work(uint64_t now_us);
+        void _sample_work();
         /** @brief Fold one HAL::Stack::high_water() reading into the all-time
          *  peak and publish the usage fraction and the worst-case headroom. */
         void _measure_stack_usage();

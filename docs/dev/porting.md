@@ -33,6 +33,7 @@ The interface is grouped into nested namespaces by concern.
 | Namespace | Functions | Notes |
 |---|---|---|
 | `Clock` | `current_ms`, `uptime_ms`, `wall_ms`, `sleep_ms` | a monotonic millisecond clock is the only hard requirement; wall clock may be a stub |
+| `Clock` | `hrt_ticks`, `hrt_us` | the INSTRUMENTATION clock, separate because the beat's clock need not resolve microseconds and every per-task figure is one. A free-running counter that wraps, plus its conversion; may fall back to `uptime_us` |
 | `Memory` | `dsb`, `dmb`, `ordered_read`, `ordered_copy`, `ordered_move` | real barriers on a target with concurrent publishers; a plain fenced `memcpy`/store where there is one core and no cache. See @ref dev_concurrency |
 | `Memory` (cache) | `cache_clean`, `cache_invalidate` | D-cache maintenance by range. Cheap no-ops where there is no D-cache - the simulator implements both as empty |
 | `Stack` | `high_water` | feeds the scheduler's stack-usage metric. ONE call answering `{used, depth}` together: the two used to come from different stacks on the OPTA. `used` 0 means not measurable |

@@ -149,9 +149,10 @@ namespace Botanik { namespace Scheduler {
         }
     }
 
-    void LoopScheduler::_sample_work(uint64_t now_us) {
-        uint32_t busy = (now_us >= _work_start_us)
-                      ? static_cast<uint32_t>(now_us - _work_start_us) : 0;
+    void LoopScheduler::_sample_work() {
+        // Unsigned all the way, so the HRT's wrap needs no special case.
+        const uint32_t busy =
+            HAL::Clock::hrt_us(HAL::Clock::hrt_ticks() - _work_start_tk);
         if (busy > _cpu_loop_us_max) _cpu_loop_us_max = busy;
         // age by elapsed beats
         _cpu_loop_us_window.push(busy, 1 + _missed_this_beat);
