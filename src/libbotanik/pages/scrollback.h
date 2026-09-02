@@ -122,9 +122,14 @@ namespace Botanik { namespace Pages {
         /** @name Redraw
          *  @{ */
 
-        /** @brief Stage a bottom-aligned incremental redraw within rows
-         *         1..log_rows */
-        void begin_redraw(uint16_t log_rows) {
+        /** @brief Stage a bottom-aligned incremental redraw of the band
+         *  [@p first_row, @p first_row + @p log_rows).
+         *
+         *  The band is stated rather than assumed to start at row 1: HOME's
+         *  sits under a field grid, and staging it from row 1 painted the
+         *  replay over readings that the page then never redrew, because the
+         *  labels are only written on focus. */
+        void begin_redraw(uint16_t first_row, uint16_t log_rows) {
             // The content area is cleared before focus()/redraw(); we only
             // stage the rows.
             _redraw_i    = UINT16_MAX; // cancel any pending drain
@@ -138,7 +143,10 @@ namespace Botanik { namespace Pages {
             if (cnt == 0 || log_rows == 0) return;
 
             _redraw_count     = (cnt < log_rows) ? cnt : log_rows;
-            _redraw_first_row = (uint16_t)(log_rows - _redraw_count + 1);
+            // Bottom-aligned INSIDE the band: fewer lines than rows leaves the
+            // gap at the top, where the older ones would have been.
+            _redraw_first_row =
+                (uint16_t)(first_row + (log_rows - _redraw_count));
             _redraw_i         = 0;
         }
 

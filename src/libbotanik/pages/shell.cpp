@@ -125,7 +125,7 @@ namespace Botanik { namespace Pages {
         uint16_t occ_after = _editor.occupied_rows();
         if (occ_after != occ_before && _scrollback.redraw_pending()) {
             // Staged replay now has stale geometry; re-arm it on the new area.
-            _scrollback.begin_redraw(_log_rows());
+            _scrollback.begin_redraw(1, _log_rows());
         } else if (occ_after < occ_before) {
             _reveal_log_rows(occ_before - occ_after);
         }
@@ -236,7 +236,7 @@ namespace Botanik { namespace Pages {
         }
         // Stage the log area for incremental replay (drained in tick()), then
         // draw the editor at the bottom.
-        _scrollback.begin_redraw(_log_rows());
+        _scrollback.begin_redraw(1, _log_rows());
         _editor.redraw();
         // The editor owns a live cursor; switch_to() hides it before focus()
         // and every other page leaves it hidden.

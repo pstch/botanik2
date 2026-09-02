@@ -92,3 +92,60 @@ TEST_CASE("input: a new sequence does not inherit the last one's parameters") {
 }
 
 }  // namespace console_input
+
+namespace home_geometry {
+
+using namespace Botanik;
+
+#if BOTANIK_FEATURE_HOME_PAGE
+
+/** @brief Reaches the band geometry the way a site's own home page would -
+ *  by deriving. Nothing is added to the public surface for a test. */
+struct ProbeHome : Pages::HomePage {
+    explicit ProbeHome(Terminal::Console& c) : Pages::HomePage(c) {}
+    using Pages::HomePage::log_band_top;
+    using Pages::HomePage::PAYLOAD_ROW;
+};
+
+TEST_CASE("home: the log band never takes a row the readings are on") {
+    // A short screen has to shorten the log band, and eventually lose it -
+    // never overlap the field grid. The field labels are written only on
+    // focus(), so a band drawn over them is not repainted: the readings simply
+    // go, and the page keeps refreshing the values of rows nobody can see.
+    botanik_test::PipeSerial wire;
+    uint64_t now = 0;
+    Terminal::Console console(Botanik::SetupContext(), wire.serial, &now);
+    ProbeHome home(console);
+
+    for (uint16_t rows = Config::SCREEN_MIN_ROWS; rows <= 40; rows++) {
+        console.reconfigure(Terminal::ConsoleConfig().type, 80, rows);
+        const uint16_t top = home.log_band_top();
+        INFO("console_rows = " << rows << ", band top = " << top);
+        if (top == 0) continue;                 // no band at all: allowed
+
+        INFO("the divider sits on top-1 and must clear the field grid");
+        CHECK(top >= ProbeHome::PAYLOAD_ROW + 1);
+        INFO("and the band must leave at least one row for a log line");
+        CHECK(top < console.rows());
+    }
+}
+
+TEST_CASE("home: the log band shrinks with the screen rather than moving up") {
+    botanik_test::PipeSerial wire;
+    uint64_t now = 0;
+    Terminal::Console console(Botanik::SetupContext(), wire.serial, &now);
+    ProbeHome home(console);
+
+    uint16_t prev = 0;
+    for (uint16_t rows = 40; rows >= Config::SCREEN_MIN_ROWS; rows--) {
+        console.reconfigure(Terminal::ConsoleConfig().type, 80, rows);
+        const uint16_t top = home.log_band_top();
+        const uint16_t band = (top == 0) ? 0 : (uint16_t)(console.rows() - top);
+        INFO("console_rows = " << rows << ", band rows = " << band);
+        if (prev != 0) CHECK(band <= prev);      // monotonic: never grows
+        prev = band;
+    }
+}
+#endif
+
+}  // namespace home_geometry

@@ -80,7 +80,7 @@ namespace Botanik { namespace Pages {
         // tail has drained.
         _terminal.move_to({1, 0});
         // rows 1..rows-1
-        _scrollback.begin_redraw((uint16_t)(_console.rows() - 1));
+        _scrollback.begin_redraw(1, (uint16_t)(_console.rows() - 1));
     }
 
     void LogsPage::tick(bool active) {

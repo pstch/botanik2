@@ -15,10 +15,17 @@
 namespace Botanik { namespace Pages {
 
     uint16_t HomePage::log_band_top() const {
-        uint16_t rows = _console.rows();
-        uint16_t top  = (rows > Config::HOME_SCROLLBACK_LINES)
-                   ? (uint16_t)(rows - Config::HOME_SCROLLBACK_LINES) : 1;
-        if (top < PAYLOAD_ROW) top = (rows > PAYLOAD_ROW) ? PAYLOAD_ROW : rows;
+        const uint16_t rows = _console.rows();
+        // The band is bounded below by the field grid AND by the " LOGS "
+        // divider that labels it, which takes the row above the band. Clamping
+        // to PAYLOAD_ROW alone put the divider on the last row of readings and
+        // the band over the two below it - and since the labels are written
+        // only on focus(), they never came back.
+        const uint16_t first = (uint16_t)(PAYLOAD_ROW + 1);
+        if (rows <= first) return 0;      // no room for a divider and a line
+        uint16_t top = (rows > Config::HOME_SCROLLBACK_LINES)
+                     ? (uint16_t)(rows - Config::HOME_SCROLLBACK_LINES) : first;
+        if (top < first) top = first;     // a short screen gets a shorter band
         return top;
     }
 
@@ -136,8 +143,8 @@ namespace Botanik { namespace Pages {
         }
         // Divider above the bottom log band (band rows are painted from the
         // scrollback, see focus()/tick()).
-        uint16_t band_top = log_band_top();
-        if (band_top >= 2) draw_log_header((uint16_t)(band_top - 1));
+        const uint16_t band_top = log_band_top();
+        if (band_top != 0) draw_log_header((uint16_t)(band_top - 1));
     }
 
     void HomePage::draw_dynamic() {
@@ -169,9 +176,13 @@ namespace Botanik { namespace Pages {
     void HomePage::focus() {
         MetricPage::focus();                 // logo, readings, divider
         _log_active = true;
-        // Stage the bottom band (drained by tick()); spanning the content area
-        // bottom-aligns the lines against the last row.
-        _scrollback.begin_redraw((uint16_t)(_console.rows() - 1));
+        // Stage the SAME band tick() drains into. Spanning the whole content
+        // area instead bottom-aligned the replay against the last row and so
+        // started it above the divider whenever the ring was full.
+        const uint16_t band_top = log_band_top();
+        if (band_top != 0)
+            _scrollback.begin_redraw(band_top,
+                                     (uint16_t)(_console.rows() - band_top));
     }
 
     void HomePage::tick(bool active) {
@@ -183,8 +194,8 @@ namespace Botanik { namespace Pages {
         if (_scrollback.tick_redraw_gate(_terminal, active)) return;
         // Bank queued entries, then paint them paced into the bottom band.
         drain();
-        if (active) {
-            uint16_t band_top = log_band_top();
+        const uint16_t band_top = log_band_top();
+        if (active && band_top != 0) {
             _scrollback.drain_tail(_terminal, band_top,
                                    (uint16_t)(_console.rows() - band_top));
         }
