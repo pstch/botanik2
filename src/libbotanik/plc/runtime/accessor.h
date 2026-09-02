@@ -13,6 +13,10 @@
 #include "libbotanik/vars/model.h"
 #include "iec_std_lib.h"
 
+// Every name below is matiec's, not ours: its generated C calls these exact
+// macros, so the leading underscores are an ABI rather than a style. That is
+// why .clang-tidy turns bugprone-reserved-identifier off for the whole tree.
+
 /** @name POU-internal variables - plain members, never rows
  *
  *  VAR, VAR_TEMP and a FUNCTION_BLOCK's VAR_INPUT/VAR_OUTPUT are internal to

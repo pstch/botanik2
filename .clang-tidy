@@ -1,6 +1,11 @@
 ---
 # Only bugprone checks for now; see TODO.md for the plan to expand.
-Checks: '-*,bugprone-*,-bugprone-branch-clone,-bugprone-easily-swappable*'
+# bugprone-reserved-identifier is off because this tree COMPILES A CODE
+# GENERATOR'S OUTPUT: matiec's runtime header, its generated POUS.c and the
+# accessor macros that join them all name themselves __LIKE_THIS, which is its
+# ABI rather than a style. There is no version of those files that both builds
+# and satisfies the check, and the generated ones must never be hand-edited.
+Checks: '-*,bugprone-*,-bugprone-branch-clone,-bugprone-easily-swappable*,-bugprone-reserved-identifier'
 
 # Restrict diagnostics to our own source tree - ignore Arduino/MbedOS headers.
 # Anchored on the repo's own src/ so vendored trees (e.g. .../rpclib/src/) don't match.

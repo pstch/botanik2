@@ -26,7 +26,7 @@
 namespace Botanik { class Component; }
 // Health is forward-declared with its underlying type, which C++11 allows for
 // a scoped enum: a task keeps a POINTER to one and never a value.
-namespace Botanik { namespace Plc { class Program; enum class Health : uint8_t; } }
+namespace Botanik { namespace Plc { enum class Health : uint8_t; } }
 
 namespace Botanik { namespace Tasks {
 

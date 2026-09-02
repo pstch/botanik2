@@ -280,6 +280,11 @@ if(BOTANIK_TARGET STREQUAL "SIMULATOR")
     # to re-lint the whole tree.
     set(_tidy_sources ${LIB_SOURCES} ${BOTANIK_SITE_SOURCES}
                       "${CMAKE_CURRENT_SOURCE_DIR}/src/botanik_sim/main.cpp")
+    # ...minus what a generator wrote. Those are never hand-edited, so a finding
+    # in one can only be answered in the generator - and matiec's output is
+    # shaped the way matiec shapes it: a .c included as a header, an X-macro
+    # whose arguments are type names. Linting it reports the tool, not the code.
+    list(FILTER _tidy_sources EXCLUDE REGEX "/generated/")
     find_program(CLANG_TIDY NAMES clang-tidy)
     if(CLANG_TIDY AND CMAKE_GENERATOR MATCHES "Make")
         set(_tidy_stamp_dir "${CMAKE_BINARY_DIR}/clang-tidy")
