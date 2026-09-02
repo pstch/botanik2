@@ -221,8 +221,7 @@ namespace Botanik { namespace HAL {
     public:
         Rs485Raw() : _port(PB_10, PB_11), _re(PB_13, 0) {
             _port.set_blocking(false);   // the main loop must never stall on IO
-            format(19200, 8, PARITY_NONE, 1);
-            _driver_enable();
+            format(19200, 8, PARITY_NONE, 1);   // ...which arms DE
         }
 
         /** @brief Baud only, keeping the current frame format. */
@@ -244,6 +243,13 @@ namespace Botanik { namespace HAL {
                                   ((parity == PARITY_NONE) ? 0u : 1u) + stop_bits;
             _char_us = baud ? (uint32_t)((1000000ULL * bits) / baud) : 0;
             _tx_done_us = Clock::uptime_us();
+            // Re-armed after every reformat, not only in the constructor.
+            // set_baud/set_format go through HAL_UART_Init, and whether CR3.DEM
+            // and the CR1 guard times survive that is a property of the Mbed
+            // and ST HAL versions in the tree rather than of this code. Losing
+            // DE means the transceiver never drives and the bus goes silent, so
+            // it is not a thing to be right about by reading.
+            _driver_enable();
         }
 
         int read() override {
@@ -288,6 +294,7 @@ namespace Botanik { namespace HAL {
     private:
         /** @brief Put PB_14 into its USART3_DE alternate function and switch the
          *  peripheral's Driver Enable mode on. Mbed configures TX and RX only.
+         *  IDEMPOTENT, and called after every format() for that reason.
          *  @note The guard-time fields live in CR1, write-protected while the
          *  USART is enabled - hence the disable / modify / restore dance. */
         void _driver_enable() {
