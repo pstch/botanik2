@@ -240,22 +240,23 @@ namespace Botanik { namespace Modbus {
         void on_output(uint64_t now_ms) override;
 
     private:
-        /** @brief One `rtu_` row's live value, or @p dflt when the row is absent
-         *  (a site without the library splice), reads invalid, or falls outside
-         *  [@p lo, UINT32_MAX].
+        /** @brief One `rtu_` row's live value, or @p dflt when the row is
+         *  absent (a site without the library splice) or reads invalid.
+         *
+         *  The value is NOT clamped to the row's band. An override is
+         *  type-checked and unbanded on purpose - a maintenance operator may
+         *  need a setting the band refuses - so what is out of range reaches
+         *  here, and each caller says what it means rather than pretending it
+         *  was something else. Zero is the one that recurs: it means STOP, and
+         *  @see _slot_of is where that is honoured.
          *
          *  The Config constant is the fallback as well as the row's factory
          *  value, so a build with no rows behaves exactly as it did before they
-         *  existed.
-         *  @param lo the smallest value that is a SETTING rather than a change
-         *  of behaviour: 1 for an interval, since a zero one divides in
-         *  _pick(); 0 for a count, where none is a real answer. Every `rtu_`
-         *  band already says the same, but an override is type-checked and NOT
-         *  banded, so the band is not the guard it looks like. */
-        uint32_t _tune(Vars::VarRef r, uint32_t dflt, uint32_t lo = 1) const;
+         *  existed. */
+        uint32_t _tune(Vars::VarRef r, uint32_t dflt) const;
 
         uint32_t _timeout_ms()     const { return _tune(_p_timeout,     Config::MODBUS_TIMEOUT_MS); }
-        uint8_t  _retries()        const { return (uint8_t)_tune(_p_retries, Config::MODBUS_RETRIES, 0); }
+        uint8_t  _retries()        const { return (uint8_t)_tune(_p_retries, Config::MODBUS_RETRIES); }
         uint32_t _backoff_ms()     const { return _tune(_p_backoff,     Config::MODBUS_BACKOFF_MS); }
         uint32_t _backoff_max_ms() const { return _tune(_p_backoff_max, Config::MODBUS_BACKOFF_MAX_MS); }
         uint32_t _write_min_ms()   const { return _tune(_p_write_min,   Config::MODBUS_WRITE_MIN_MS); }
@@ -270,10 +271,11 @@ namespace Botanik { namespace Modbus {
             uint64_t due;        ///< not offered the bus before this
             uint32_t deadline;   ///< the lateness it is allowed, as the normaliser
         };
-        /** @brief Put a floor under the deadline, which is what _pick()
-         *  divides by. Static: it depends on nothing but the pair. */
-        static Slot _floor(Slot s);
-
+        /** @brief A due time that never arrives, for a block whose interval an
+         *  operator has set to 0 - which means stop, not "as often as
+         *  possible". It also keeps _pick()'s divide unreachable for such a
+         *  block, since nothing past the due check runs. */
+        static const uint64_t NEVER = 0xFFFFFFFFFFFFFFFFull;
         /** @brief @p b's due time and deadline.
          *
          *  The ONE place reads and writes differ. A read's pair comes from its

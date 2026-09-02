@@ -241,15 +241,20 @@ namespace Botanik { namespace Network {
                 if (scratch[j] == 0xD0) { _last_pong_ms = now_ms; break; }
         }
 
-        const uint32_t ka_s = _cfg.ka_sec;
-        const uint64_t ka_ms = (uint64_t)ka_s * 1000ull;
+        // 0 is what MQTT 3.1.1 calls "no keep-alive", and it is what the
+        // CONNECT already told the broker - so honour it on BOTH halves and do
+        // nothing here. The band starts at 10, but an override is deliberately
+        // unbanded: a maintenance session may want the pings off, and "off"
+        // must not mean a PINGREQ every beat.
+        const uint64_t ka_ms = (uint64_t)_cfg.ka_sec * 1000ull;
+        if (ka_ms == 0) return;
 
         // A wedged broker, or a path that black-holes, leaves the socket open
         // and answering nothing; without this the client reports connected for
         // ever while everything it publishes vanishes. This is what makes
         // mqtt_ka_sec the dead-broker detection. Half a keep-alive of slack, so
         // a miss is noticed inside one and a half.
-        if (ka_ms != 0 && _last_pong_ms != 0 &&
+        if (_last_pong_ms != 0 &&
             now_ms - _last_pong_ms > ka_ms + ka_ms / 2ull) {
             _fail(now_ms);
             return;

@@ -21,14 +21,15 @@ namespace Botanik { namespace Modbus {
 const uint16_t RtuClient::NO_BLOCK;
 const uint8_t  RtuClient::NO_PEER;
 
-uint32_t RtuClient::_tune(Vars::VarRef r, uint32_t dflt, uint32_t lo) const {
+uint32_t RtuClient::_tune(Vars::VarRef r, uint32_t dflt) const {
     if (_io == nullptr || r.index == Vars::VAR_NONE) return dflt;
     const Vars::Var h = _io->var(r);
     if (!h.valid()) return dflt;
     const int64_t v = h.as_i64();
-    // The BAND is not the guard here: override_set() is type-checked only, so
-    // a forced row arrives unbanded and reads valid. @see _tune's @param lo
-    if (v < (int64_t)lo || v > (int64_t)0xFFFFFFFFll) return dflt;
+    // Out of BAND is fine and deliberate - an override is unbanded so that a
+    // maintenance session can ask for what the band refuses. Out of TYPE is
+    // not: the value has to fit what every caller here reads it as.
+    if (v < 0 || v > (int64_t)0xFFFFFFFFll) return dflt;
     return (uint32_t)v;
 }
 
@@ -153,8 +154,14 @@ void RtuClient::_missed(const Block& b, uint64_t now_ms) {
     const uint8_t steps = (uint8_t)(p->misses - _retries() - 1);
     const uint32_t cap = _backoff_max_ms();
     uint32_t wait = _backoff_ms();
-    for (uint8_t i = 0; i < steps && wait < cap; ++i)
+    // Capped BEFORE the doubling, not after: an unbanded override can put the
+    // cap high enough that `wait *= 2` wraps, and a wrapped value is still
+    // below it - so the loop kept doubling and the probe landed back at now,
+    // which is the whole failure the spacing exists to prevent.
+    for (uint8_t i = 0; i < steps; ++i) {
+        if (wait > cap / 2u) { wait = cap; break; }
         wait *= 2;
+    }
     if (wait > cap) wait = cap;
     p->probe_ms = now_ms + wait;
 
@@ -214,8 +221,11 @@ RtuClient::Slot RtuClient::_slot_of(const Block& b) const {
         // acceptably slip by: poll any later and the row flaps between valid and
         // stale, which is the relationship the ladder is derived from.
         s.due      = b.due_ms;
-        s.deadline = b.period_ms;
-        return _floor(s);
+        // The planner's, never an operator's, and it does not emit 0 - but it
+        // is the divisor in _pick(), so the guarantee is stated where it is
+        // relied on rather than two files away.
+        s.deadline = (b.period_ms != 0) ? b.period_ms : 1u;
+        return s;
     }
 
     // A write has no period. It falls due a minimum interval after the last one
@@ -228,22 +238,23 @@ RtuClient::Slot RtuClient::_slot_of(const Block& b) const {
     // board that kept its power across a reset held its pre-crash coils for
     // rtu_rewrite_ms, which the band allows up to ten minutes. seed() has always
     // said this sentinel means overdue.
+    const uint32_t interval = dirty ? _write_min_ms() : _rewrite_ms();
+    // An interval of 0 is the operator saying STOP. Reachable, because an
+    // override is unbanded on purpose, and the honest answer is to stop: a
+    // block with nothing new to say simply never asks for the bus again. A
+    // DIRTY block is unaffected - a demand that moved is not a cadence, and
+    // rtu_write_min_ms 0 means "as soon as it moves".
+    if (!dirty && interval == 0) { s.due = NEVER; s.deadline = 1u; return s; }
+
     const uint64_t floor_ms =
-        (b.last_ms == 0) ? 0
-                         : b.last_ms + (dirty ? _write_min_ms() : _rewrite_ms());
+        (b.last_ms == 0) ? 0 : b.last_ms + interval;
     s.due      = (b.due_ms > floor_ms) ? b.due_ms : floor_ms;
     // A demand that has moved is owed to the field inside MODBUS_WRITE_DEADLINE_MS;
     // an unchanged one is only the keepalive a slave-side failsafe watches for,
     // so its own interval is the deadline.
-    s.deadline = dirty ? Config::MODBUS_WRITE_DEADLINE_MS : _rewrite_ms();
-    return _floor(s);
-}
-
-RtuClient::Slot RtuClient::_floor(Slot s) {
-    // _pick() divides by the deadline. The floor sits HERE, beside the only
-    // division, rather than being trusted from three sources away - a block
-    // with no period, a Config constant, and a tuning row an override reaches.
-    if (s.deadline == 0) s.deadline = 1;
+    // Non-zero on both arms: the constant is, and the interval arm was checked
+    // above. That is what keeps _pick()'s divide safe with no floor to impose.
+    s.deadline = dirty ? Config::MODBUS_WRITE_DEADLINE_MS : interval;
     return s;
 }
 

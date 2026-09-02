@@ -124,9 +124,13 @@ namespace Botanik { namespace Network {
             }
 
             case TIME_SYNCED: {
-                // ntp_poll_sec IS the setting; its band starts at 10, so there
-                // is no zero to substitute a second default for.
-                uint32_t poll_s = _cfg.poll_sec;
+                // 0 is "stop polling", and it is reachable: the band starts at
+                // 10, but an override is deliberately unbanded so a maintenance
+                // session can take the client off a server. One sync then, and
+                // no more - not a query every beat, which is what substituting
+                // a default here would have to pretend was asked for.
+                const uint32_t poll_s = _cfg.poll_sec;
+                if (poll_s == 0) break;
                 if (now_ms - _since_ms > (uint64_t)poll_s * 1000ull) {
                     _server_idx = 0;
                     _state = TIME_RESOLVE; _since_ms = now_ms;
