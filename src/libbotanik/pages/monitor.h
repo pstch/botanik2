@@ -95,8 +95,13 @@ namespace Botanik { namespace Pages {
         uint8_t _mode_count() const override { return MODE_COUNT; }
         const char* _mode_label(uint8_t i) const override;
         /** @brief A new view keeps a different set of rows, so the caches the
-         *  old one filled say nothing. */
-        void _on_mode_changed() override { _invalidate_rows(); _dirty = true; }
+         *  old one filled say nothing - and neither does the pinned selection.
+         *  @see _on_filter_changed for why the pin is dropped HERE. */
+        void _on_mode_changed() override {
+            _invalidate_rows();
+            _sel_ok = false;
+            _dirty  = true;
+        }
         /** @brief True while the view selects on LIVE state, which moves with no
          *  keypress behind it: its row set has to be re-counted every refresh. */
         bool _mode_is_live() const { return _mode != MODE_ALL; }
@@ -222,6 +227,15 @@ namespace Botanik { namespace Pages {
         void _on_filter_changed() override {
             _dirty = true;
             _invalidate_rows();    // the row -> index mapping just moved
+            // ...and so did what the pin means. _selected_ref() holds its
+            // answer while the cursor INDEX has not moved, and a filter forces
+            // the cursor to row 0 - which is where it already is when the
+            // operator starts typing one. The pin then survived a completely
+            // renumbered row set until the next draw re-took it, and ^V / ^R /
+            // ^S acted on the pre-filter variable. Dropped here rather than in
+            // _invalidate_rows(), which tick() also calls on every refresh of a
+            // live view, where keeping the pin is the point.
+            _sel_ok = false;
         }
 
         /** @brief Drop the row caches: the (row -> index) memo and the total.
