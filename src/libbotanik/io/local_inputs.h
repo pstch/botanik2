@@ -105,10 +105,6 @@ namespace Botanik { namespace Io {
         void on_setup(uint64_t now_ms) override;
         void on_input(uint64_t now_ms) override;
 
-    private:
-        /** @brief Registration handler. A static MEMBER, so it reaches the
-         *  protected hook. */
-        static void _input_task(Component* c, const Tasks::Tick& t);
     };
 
 }}  // namespace Botanik::Io

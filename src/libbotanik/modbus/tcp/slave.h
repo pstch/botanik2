@@ -180,12 +180,6 @@ namespace Botanik { namespace Modbus {
          *  entry each, so each is separately attributable. */
         void register_tasks() override;
 
-    private:
-        /** @name Registration handlers
-         *  Static MEMBERS: the hooks they call are protected. @{ */
-        static void _input_task(Component* c, const Tasks::Tick& t);
-        /** @} */
-
     protected:
         void     on_setup(uint64_t now_ms) override;
         /** @brief Accept, receive, decode and apply writes (PHASE_INPUT), so a

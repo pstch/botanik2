@@ -229,12 +229,6 @@ namespace Botanik { namespace Modbus {
          *  each half keeps its own cost on the TASKS page. */
         void register_tasks() override;
 
-    private:
-        /** @name Registration handlers
-         *  Static MEMBERS: the hooks they call are protected. @{ */
-        static void _input_task(Component* c, const Tasks::Tick& t);
-        /** @} */
-
     protected:
         /** @brief Bring the port up and plan the bus. */
         void on_setup(uint64_t now_ms) override;
