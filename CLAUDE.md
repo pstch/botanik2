@@ -293,37 +293,35 @@ and `loop()` are non-virtual; a site customizes through `register_vars()`,
 `register_pages()` (tab order, page 0 = boot page), `register_commands()`,
 `register_telemetry()` and `on_setup()`, where its control programs and any
 components of its own register. There is no per-phase hook on the firmware: work
-at a point in the beat is a `Component` or a `Plc::Program`. The site is chosen at configure time
+at a point in the beat is a `Component` or an ST program. The site is chosen at configure time
 with `-DBOTANIK_SITE=<name>`.
 
-A site's rows are declared in C++, in `vars.cpp`: one `constexpr` factory
-call per row, `P(...)` for a parameter and `A(...)` for an alarm, with `vars.h`
-carrying the counts, the enums and the device map they were read off. The library declares its own
-rows the same way in `src/libbotanik/vars/vars_table.h` (included by
-`firmware/vars_wiring.cpp`, never standalone), and registers them ahead of the
-site's into the same table. The site states how many as `LIBRARY_ROWS`.
+A site is DATA plus ST. Its rows, its enums, its home screen, its field devices
+and its `SiteDescriptor` are generated from `tables/*.csv` and `site.toml` by
+`scripts/tables.py`; its LAWS are the ST under `programs/`, compiled by matiec.
+The library declares its own rows in `src/libbotanik/vars/vars_table.h`
+(included by `firmware/vars_wiring.cpp`, never standalone) and registers them
+ahead of the site's into the same table. The site states how many as
+`library_rows` in `site.toml`.
 
-A site's control programs are one directory each,
-`programs/<stage>/<class>/<class>.{h,cpp}`: the header declares the class - its
-rows as `Vars::RefIn`/`RefOut` members, the blocks it holds, and the `bind()`
-that resolves every name - and the `.cpp` is the law. A program with a block to
-wire to a row it was handed ends `bind()` in its own `on_bind()`.
-`programs.h` lists them in execution order, as the X-macro `site.h` expands
-three times.
+A control program is ONE file, `programs/<stage>/<name>/<name>.st`, plus a row
+in `tables/programs.csv` giving its instance, source and rate. No header, no
+class, no registration: it names the rows it uses in `VAR_EXTERNAL CONSTANT`
+(read) and `VAR_EXTERNAL` (written), and the body is the law. The site's own
+function blocks are one file each, `blocks/<name>/<name>.st`.
 
-Its RS-485 field devices are declared in `vars.cpp` beside the rows, under the
-`MODBUS_RTU_CLIENT` guard.
+Its RS-485 field devices are `tables/modbus_devices.csv` and
+`tables/modbus_models.csv`.
 
-The site's own function blocks are one directory each under `blocks/`,
-`blocks/<name>/<name>.{h,cpp}`, and a program names one in its header.
-
-**These files were generated once, from CSV and TOML, by a tool that has since
-been retired.** They are ordinary source now: edit them directly. What the
-generator used to check, the suite checks - see `tests/test_site.cpp`, which
-walks the built bank for register uniqueness and blocks, parameter contiguity,
-pool bytes, alarm codes and bands. What it cannot check is caught at bring-up
-instead: a program that resolves a name no row declares is FAULTED for the life
-of the run.
+**The generated files are committed and never built.** Run
+`scripts/tables.py generate|config|plant <site>` after editing a table or an ST
+file, and commit what comes out. `plant` is the one that runs matiec, and it
+checks what nothing downstream can: a row declared writable that the body never
+writes, and an output, alarm or status row no program writes at all - both fail
+the build, read off matiec's own `__SET_EXTERNAL` calls. The suite checks the
+rest (`tests/test_site.cpp`: register uniqueness, parameter contiguity, pool
+bytes, alarm codes, bands). What neither can check is caught at bring-up: a
+program naming a row no table declares is INVALID for the life of the run.
 
 ### Rules
 

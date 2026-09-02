@@ -6,339 +6,162 @@ write. There is no driver stepping them - **a program registers itself with the
 task registry** like everything else in the beat, so it gets its own rate, its
 own row on the TASKS page and its own cost sample.
 
-A program is one class, deriving `Plc::Program`: its header declares what it
-connects to and what it holds, its `.cpp` carries the body.
+A program is one **Structured Text** file, compiled by matiec into the firmware
+image. It has no C++ side at all: no class, no header, no registration. Its
+interface is the rows it names, and its law is the body.
 
-```cpp
-class Program {
-public:
-    Program(const SetupContext& ctx, const char* name, Tasks::GroupId group,
-            Vars::Bank& io);              // a RATE GROUP, not a period
-
-    virtual void bind(Vars::Bank& io) {}     // bring-up: names -> refs, once
-    virtual void run(ProgramContext& c) = 0; // one activation
-    virtual void observe(ProgramContext& c) {}   // report, in EVERY state
-};
+```
+PROGRAM <name>
+VAR_EXTERNAL CONSTANT   (* rows it READS *)   END_VAR
+VAR_EXTERNAL            (* rows it WRITES *)  END_VAR
+VAR                     (* state, kept between scans *)     END_VAR
+VAR_TEMP                (* scratch, this activation only *) END_VAR
+  ...the law...
+END_PROGRAM
 ```
 
-`run()` is the control law. `observe()` is what the program SAYS - status values
-and alarm conditions - and it runs in every state, including while the plant is
-parked, which is exactly when someone is looking. A watch program has an empty
-`run()` and does all its work there.
+There is no second hook for reporting. A status value or an alarm derived from
+what the law just decided is written by the same body, after the decision -
+there used to be two, and with a program either running or not running they were
+called back to back every beat, which is one body with a convention about where
+to put things.
 
-While control is withdrawn a program is **not called**, and nothing outside it
-reads what it remembers, so there is nothing to do on the way down. On the way
-back up `c.first_scan` is raised, and that is where a program drops what has gone
-stale - see *When programs run* below.
+A program that is not running is not called, and what it drove drops to its
+declared safe state, so there is nothing for it to do on the way down. On the
+way back up it starts from its first activation, and every block it holds seeds
+on that call - which is what a first-scan flag used to be for.
 
 ## Declaring one
 
-A program is one directory and two files: the header is its whole declaration -
-its rows, the blocks it holds, and the `bind()` that resolves every name - and
-the `.cpp` is the law.
+A program is one ST file, `programs/<stage>/<name>/<name>.st`, and one row in
+`tables/programs.csv` naming it, its instance, its source and its rate. Nothing
+else: there is no class, no header, and no registration to write.
 
 ```
-programs/sense/strat_sensor/
-    strat_sensor.h      the interface: rows, blocks, bind()
-    strat_sensor.cpp    the bodies
+(* strat_sensor program
+   ------------------------------------------------------------------------ *)
+
+PROGRAM strat_sensor
+VAR_EXTERNAL CONSTANT
+  cli_temp_hi     : REAL;
+  cli_temp_hi_qlt : BOOL;
+  cli_temp_lo     : REAL;
+  cli_temp_lo_qlt : BOOL;
+END_VAR
+VAR_EXTERNAL
+  cli_dTStrat_degC     : REAL;
+  cli_dTStrat_degC_qlt : BOOL;
+END_VAR
+VAR
+  smooth : EWMA;          (* state, carried between scans *)
+END_VAR
+VAR_TEMP
+  measured : BOOL;        (* this activation only *)
+END_VAR
+  measured := cli_temp_hi_qlt AND cli_temp_lo_qlt;
+  IF measured THEN
+    cli_dTStrat_degC := ABS(cli_temp_hi - cli_temp_lo);
+  ELSE
+    cli_dTStrat_degC := cli_dTStratLow_degC;
+  END_IF;
+  cli_dTStrat_degC_qlt := measured;
+END_PROGRAM
 ```
 
-```cpp
-class StratSensor final : public Plc::Program {
-public:
-    /** @name VAR_INPUT
-     *  @{ */
-    Vars::RefIn<float> ceiling;
-    Vars::RefIn<float> floor;
-    /** @} */
+**Which block a row goes in is the declaration of intent, and it is checked.**
+`VAR_EXTERNAL CONSTANT` is read; plain `VAR_EXTERNAL` is written, and says this
+program is the row's author. `scripts/tables.py plant` reads what matiec says
+each body actually writes and fails the build on a row declared writable that
+the body never writes, or an output, alarm or status row that no program writes
+at all. Two programs writing one row is reported rather than refused - shared
+read-modify-write state is the design.
 
-    /** @name VAR_OUTPUT
-     *  @{ */
-    Vars::RefOut<float> strat;
-    /** @} */
+Rows are bound by NAME, case-folded, once at bring-up. A name matching no row
+lands on the inert sink, which reads 0 for ever - so the program is INVALID and
+never runs, said once as `LOG_CRITICAL` with its name. @see @ref dev_scan
 
-    StratSensor(const SetupContext& ctx, Vars::Bank& io)
-        : Program(ctx, "strat", Tasks::GROUP_FAST, io) {}
-        //                     ^ the instance name, and the rate class
-
-protected:
-    void bind(Vars::Bank& io) override;
-    void run(ProgramContext& c) override;
-};
-
-inline void StratSensor::bind(Vars::Bank& io) {
-    ceiling = _bind_input<float>(io, "cli_temp_hi");
-    floor   = _bind_input<float>(io, "cli_temp_lo");
-    strat   = _bind_output<float>(io, "cli_dTStrat_degC");
-
-    set_health_row(_bind_output<uint8_t>(io, "prog_strat"));
-}
-```
-
-`bind()` resolves through the base's three wrappers rather than through the bank
-directly, and each checks what the declaration promised: that the name exists,
-that the row's type is one the reference can carry, and - for an output - that
-no other program has already claimed it. A failure is logged with the name that
-caused it and the program is INVALID for the life of the run, so it never
-activates. Nothing there is about a row's VALIDITY: that is the law's business,
-in `run()` or `observe()`.
-
-All the `.cpp` holds is the law, and it reads the rows as its own members:
-`strat.set(Plc::abs_of(Plc::sub(ceiling.get(), floor.get())), measured)`.
-
-**A name without a leading underscore is part of the interface**; the law's own
-half - the state the table cannot describe, and its helpers - takes the
-underscore that says so. Neither may collide with `Plc::Program`'s own
-(`health`, `group`, `run`, ... and `_health`, `_slot`, ...).
-
-The direction is the TYPE, and each promises something the compiler then holds
-you to:
-
-| Member | IEC 61131-3 | Rule |
-|---|---|---|
-| `RefIn<T>` | `VAR_INPUT` / `VAR_EXTERNAL CONSTANT` | read-only: `set()` on it does not compile |
-| `RefOut<T>` | `VAR_OUTPUT` / `VAR_EXTERNAL` | this program is the row's ONE producer, claimed at bind time |
-| `Ref<T>` | `VAR_IN_OUT` | read-modify-write, SHARED by declaration |
-
-A member may be an ARRAY of references, resolved in a loop over numbered rows:
-`RefIn<float> days[8]`, filled from `irr_days_tray1` .. `irr_days_tray8`. The
-count is the array's own, so a row quietly added or removed is a row nothing
-resolves - which is a bind failure, not an array that changed size.
-
-A `resolve_*<T>` whose `T` disagrees with the row's own declared type resolves
-to the inert sink, exactly as a missing name does: the row is bound by name AND
-type.
-
-@note **Declaring an output claims it**, inside the program's own writer window,
-so two programs producing one row is a BRING-UP failure rather than something
-noticed on whichever beat both first wrote - which for a row only a fault path
-drives could be months in.
+There is no way to declare an ARRAY of rows: a row is named, not indexed. Eight
+trays means eight names, or a FUNCTION_BLOCK instanced eight times with the
+arithmetic written once - which is what `TRAY_DUE` is.
 
 ## Registering one
 
-Nowhere, by hand. Programs are members of the site's firmware class, and the
-member, its constructor init and its `register_tasks()` call are one list
-expanded three times:
-
-```cpp
-#define X(cls, mem) Site::cls mem;
-    SITE_PROGRAM_LIST(X)          // programs.h, in EXECUTION order
-#undef X
-```
-
-**Registration order is execution order** within `PHASE_CONTROL`, so a law that
-computes a setpoint and a law that acts on it complete in one beat when written
-that way round. The order is `SITE_PROGRAM_LIST`'s, in `programs.h`, and that is
-the one place to change it: the macro is what keeps the three lists from
-drifting about where a program runs.
+Nowhere, by hand. The row in `tables/programs.csv` is the whole of it:
+`scripts/tables.py plant` generates the roster, the trampolines and the registry
+entry, and `Plc::Runtime::Plant` registers one task per program at PHASE_CONTROL
+with the rate the table gave it.
 
 ## What a program gets
 
-```cpp
-struct ProgramContext {
-    uint64_t    now_ms;     // beat timestamp; identical for every program this beat
-    uint32_t    dt_ms;      // ACTUAL ms since THIS program last ran
-    uint16_t    missed;     // activations dropped since the last run; normally 0
-    bool        first_scan; // first activation since control returned
-    Vars::Bank& bank;       // the variables to read and drive
-};
-```
+No argument, and no context struct. A PROGRAM POU takes nothing, so everything a
+law needs is a row it names:
 
-Two guarantees the scaffolding provides, and that programs rely on:
+| | |
+|---|---|
+| `sys_now_ms` | the scan clock, ms since boot. Blocks difference it themselves |
+| `sys_today` | days since 1 Jan 1970; **0 before the clock is set**, which a schedule refuses to run against |
+| a `_qlt` companion | whether the row beside it is believable |
+
+**There is no `dt_ms` and no `first_scan`.** A block that needs elapsed time
+takes `NOW` and keeps its own last reading, which is what makes it
+rate-independent - the same block works on any task, and a scan it missed costs
+it nothing. A block that needs "have I run before" keeps its own `seeded`, and
+seeds on its first call.
+
+Two guarantees the scaffolding still provides:
 
 **Coherency.** Inputs refresh once per beat, before any program runs, so every
-program in a beat sees the same instant. There are no per-program snapshots:
-programs run sequentially in one thread and never span a beat.
+program in a beat sees the same instant. Programs run sequentially in one
+thread and never span a beat.
 
-**Lateness.** A program that comes due late runs **once** - missed activations are
-dropped, not caught up, because a catch-up burst arrives exactly when the system is
-already behind. `missed` carries the dropped count for logic that cares.
-
-@warning `dt_ms` is therefore the **actual** elapsed time since that program last
-ran, never the nominal period. A timer or integrator handed the nominal period after
-a stall silently loses the time it was late by. Always pass `c.dt_ms`.
+**Lateness.** A program that comes due late runs **once** - missed activations
+are dropped, not caught up, because a catch-up burst arrives exactly when the
+system is already behind. Since a block differences `sys_now_ms` itself, the
+elapsed time it sees is the ACTUAL one either way.
 
 ## Writing one
 
-A worked one, in full. The header declares what it has:
+Everything above the body is declaration; the body is the law, top to bottom,
+once per activation. What a program may reach for:
 
-```cpp
-class SupplyWatch final : public Plc::Program {
-public:
-    Vars::RefIn<float> ln;
-    Vars::RefOut<bool> locked;
+- the **library POUs** in `plc/functions/*.st` and `plc/blocks/*.st` - the
+  ladders, the timers, `EWMA`, `PID`, `ACTUATOR`, the meters
+- the **site's own blocks**, `blocks/<name>/<name>.st`, for a shape only this
+  greenhouse has
+- `st/lib/ieclib.txt` for the standard functions - `LIMIT`, `MIN`, `MAX`, `ABS`,
+  `POW`, and the conversions. **These are ours, not matiec's**, and REAL-only:
+  ST has no overloading, so a UDINT comparison is written out by hand
 
-private:
-    Plc::Ton _bad_for;   ///< debounce
-    Plc::Sr  _lockout;
-
-public:
-    SupplyWatch(const SetupContext& ctx, Vars::Bank& io)
-        : Plc::Program(ctx, "supply_watch", Tasks::GROUP_SLOW, io) {}
-
-protected:
-    void bind(Vars::Bank& io) override {
-        ln     = _bind_input<float>(io, "grid_LN_V");
-        locked = _bind_output<bool>(io, "sys_supply_lockout");
-    }
-    void run(ProgramContext& c) override { (void)c; }
-    void observe(ProgramContext& c) override;
-};
-```
-
-and the `.cpp` is the law and nothing else:
-
-```cpp
-void SupplyWatch::observe(ProgramContext& c) {
-    if (c.first_scan) { _bad_for.reset(); _lockout.reset(); }
-
-    const bool unhealthy = !Plc::in_range(ln.get(), 200.0f, 260.0f);
-
-    // reset-dominant: recovery wins, so the lockout cannot stick
-    locked.set(_lockout(_bad_for(unhealthy, 5000, c.dt_ms), !unhealthy), true);
-}
-```
-
-It commands nothing, so all of it is in `observe()` and `run()` is empty: the
-verdict has to keep being made while the plant is parked, and the actuator
-controllers read it as an interlock rather than this program driving their coils.
-
-The rate is one of the four groups (@ref dev_tasks), not a number of its own: a
-program is scheduled like everything else in the beat, so retuning a rate class
-retunes every program on it. Pick the group whose period the process time constant
-can live with.
-
-Note what it does **not** do: no clock reads, no direct I/O, no knowledge of Modbus.
-It reads variables, applies blocks, and drives variables. Three idioms worth copying:
-
-- **Let the default do the work.** A meter that has stopped answering reads as its
-  declared `def` (0 V here), which is outside the healthy band - so the program
-  handles a dead sensor correctly without ever testing `valid()`.
-- **Reset a block on `first_scan`.** A timer or a latch is a claim about the
-  recent past, and not being called means the program stopped watching. Resuming
-  a dwell that was counting an outage nobody saw is worse than starting again.
-- **Say what you cannot see.** A reading whose row is invalid is not a small
-  error; report `degraded()` and let each actuator substitute its OWN safe
-  state. Nothing does it for you: name the inputs the law really rests on, not
-  every row it touches.
-- **Publish the decision, not just the effect.** `sys_supply_lockout` exists so the
-  console, shell and telemetry can see *why* the windows are held. A coil reading 0
-  does not distinguish "not commanded" from "locked out".
+**Outputs are always written**, every beat, whatever the inputs did. Skipping
+the write leaves a stale number that still reads as current, which is worse than
+a fresh one computed from doubtful inputs. ST cannot write a quality, so doubt
+goes in a COMPANION the law writes beside the value.
 
 ## The POU library
 
-A program is written out of two kinds of piece, and `plc/` keeps them apart the
-way IEC 61131-3 does:
+Two kinds of piece, kept apart the way IEC 61131-3 does:
 
 | POU | Here | Has |
 |---|---|---|
-| FUNCTION | `plc/functions/` | nothing. Same inputs, same output, always |
-| FUNCTION_BLOCK | `plc/blocks/` | instance state, carried between scans |
+| FUNCTION | `plc/functions/*.st` | nothing. Same inputs, same output, always |
+| FUNCTION_BLOCK | `plc/blocks/*.st`, and the site's `blocks/` | instance state, carried between scans |
 | PROGRAM | the site's `programs/` | blocks, and the field |
 
-The line between the first two is mechanical rather than a judgement call: **a
-function is a single expression in a header, and a block needs a `.cpp`.** If it
-has to remember something it is a block; if it does not, it is a function, and it
-is `constexpr` so the compiler folds it into the caller.
+The line is mechanical rather than a judgement call: **if it has to remember
+something it is a block.** `MEDIAN3` and `AVG2` are functions; `EWMA` and
+`TOF_MS` are blocks because they carry a clock.
 
-There is no fourth entry for the *cycle* - which program is due, how late, and
-running it. That is `Tasks::Registry`, the same table the whole beat is dispatched
-from, and it is not part of the vocabulary programs are written in.
-
-### PLC functions
-
-`plc/functions/`, header-only.
-
-| Header | Functions |
-|---|---|
-| `math.h` | `limit` `in_range` `deadzone` `scale` `lerp` `sel` |
-| `time.h` | `seconds` `accumulate` `countdown` |
-
-`limit(v, lo, hi)` is IEC's LIMIT with `std::clamp`'s argument order.
-`in_range(ln, 200, 260)` is the plausibility test a program otherwise writes as a
-pair of comparisons whose bounds have to be read twice to be trusted.
-`deadzone(v, band)` is zero inside the band and *continuous* outside it - it
-reports the excursion, so acting on it is not a step; it is the stateless cousin
-of the `Deadband` block, which suppresses reports of small moves rather than
-ignoring a small error. `scale()` reads as the low end when handed a degenerate
-input span, because a misconfigured span must give a dull answer rather than an
-infinity that propagates into an output.
-
-`accumulate` / `countdown` take a reference to the caller's counter (IEC's
-VAR_IN_OUT), which is why they are functions despite writing something: the state
-belongs to the block that owns it, not to them.
-
-### PLC function blocks
-
-`plc/blocks/`, one header per family and `blocks.h` pulling in the lot (which
-`libbotanik.h` already does). Ordinary RAM classes, held as members of the program
-that uses them.
-
-| Header | Blocks |
-|---|---|
-| `timers.h` | `Ton` `Tof` `Tp` |
-| `logic.h` | `RTrig` `FTrig` `Sr` `Rs` |
-| `analog.h` | `Hysteresis` `Hysteresis3` `Ramp` `Deadband` |
-| `filters.h` | `Ewma` `MedianOf3` `MovingAverage<N>` |
-| `meter.h` | `Integral` `Derivative` |
-| `pid.h` | `Pid` (+ `PidTuning`) |
-| `actuator.h` | `Actuator` (+ `ActuatorConfig`) |
-
-Each block's own header is its reference: the call signature, the edge cases and
-the reasoning behind them are Doxygen comments on the class, so they cannot drift
-from the code. Three habits carry most of the correctness:
-
-- **Seeding.** A filter or a rate limiter adopts its first sample rather than
-  creeping up from zero - an `Ewma` warming up from 0 would report a frost that
-  is not there. `preset()` re-seeds one for a mode change.
-- **`dt_ms`, always.** No block reads a clock, so a program that ran late stays
-  correct and every block is testable without one.
-- **Latches state their dominance.** `Sr` is set-dominant and `Rs` is
-  reset-dominant; picking the wrong one is the classic interlock bug.
+A block that reads the clock takes `NOW` and a `HOLD` input, and **must be
+called every scan** - one skipped for the length of an outage snaps to the first
+reading back instead of rejoining where it left. @see @ref blk_hold
 
 ## When programs run
 
-The scan is stepped once per beat, **only while control authority is enabled**. When
-control is withdrawn the scan is inhibited entirely and outputs sit at their safe
-state - see @ref user_control for the operator's view and @ref dev_architecture for
-where in the loop this sits.
+Between the input refresh and the output write, at the rate the table gave them,
+and **only while `Plc::Runtime::Plant::running()`** - which is the operator's
+standing choice and the system's hold, stricter wins. @see @ref dev_scan
 
-That gate is the coarse one, and it is the only thing that stops an activation.
-A `safe_request()` or an operator switching one program off is finer: the program
-is **still activated**, and both hooks still run. `run()` reads
-`inhibit_requested()` and drives to its fail position instead of to a demand,
-calling `parking()` while it is still travelling there; `observe()` carries on
-reporting, because a plant going into its safe state is exactly when someone is
-watching a status row.
-
-Only the RETURN edge reaches the programs, and it does two things:
-
-- **The timer is reseeded**, so the first activation back reports its nominal
-  period rather than the whole outage. A `Ton` holding 5 s handed an hour of `dt`
-  fires the instant control returns, which is the one thing a withdrawal exists
-  to prevent. (It also means a program does *not* run on the beat authority came
-  back - it waits its full period.)
-- **`c.first_scan` is raised on that activation.** `dt` alone cannot express "the
-  process moved while you were not looking": a vent creeps shut, a tank drains, a
-  room cools, so anything the program remembered about the field is stale. Drop
-  it under the flag:
-
-```cpp
-void observe(ProgramContext& c) override {
-    if (c.first_scan) { _bad_for.reset(); _lockout.reset(); }
-    ...
-}
-```
-
-  Deliberately opt-in rather than "clear everything": a dwell timer is stale, but
-  a totalizer holding the litres delivered today is a *record*, and zeroing it
-  would be data loss.
-
-Nothing happens on the withdrawal edge, because nothing needs to. Clearing at the
-return is not merely equivalent, it is better placed: the program is looking at a
-freshly refreshed image, where a hook on the edge would see the one beat the edge
-happened on and never the image its own next `run()` gets.
-
-Bring-up needs no special case either. A task's first activation ever is a first
-scan too - a program knows no more about the plant at bring-up than after an
-outage.
+A program that is not running is not activated at all, and what it drove drops
+to its declared safe state rather than freezing where the law left it. There is
+no finer state: no parking, no inhibited-but-still-reporting. A law that must
+not move an actuator under some condition tests that condition itself.

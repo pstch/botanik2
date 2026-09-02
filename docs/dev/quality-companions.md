@@ -1,4 +1,4 @@
-# Which quality reads earn a `_qlt` companion
+# Which quality reads earn a `_qlt` companion {#dev_quality_companions}
 
 Decided 2026-08-30. 40-odd `.valid()` reads across 21 programs, judged one at
 a time against one test:

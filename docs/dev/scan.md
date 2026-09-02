@@ -39,9 +39,8 @@ group has come due (@ref dev_scheduler). The sandwich is **read, execute, write*
 and it holds on every beat regardless of which programs happen to be due: whatever
 is due runs between this beat's input phase and this beat's output phase.
 
-The dashed box is the control-authority gate - the program entries and
-`site_control`, but not the ungated site hooks; *Where the gate lives* below is
-the whole rule.
+The dashed box is the control-authority gate. It is `Plant::scan()` alone now -
+*Where the gate lives* below is the whole rule.
 Note also that `sys_mbtcp_wr` sits in SERVICE although it is registered beside
 its TCP siblings much further down the function: a task declares its phase, so
 where its line falls in `_register_tasks()` says nothing about when it runs.
@@ -74,17 +73,15 @@ re-renders in place. Every diagram under `images/` works this way; see
   band is in the calibration's parameters) - a dead 4-20 mA loop reads full
   scale, and no timeout catches that.
 - **A program always writes its outputs**, every beat, whatever its inputs did.
-  It runs the same law on whatever those inputs hold and says so on the way out:
-  `Ref::set(v, current)` drives the value and drops the quality when `current`
-  is false (`set(v, false)` is `hold(v)`). There is NO one-argument form, so a
-  write that has not thought about quality does not compile. Skipping the write leaves a stale
-  number reading `Q_GOOD`; substituting zero reads as a measurement, which is
-  how a dead probe becomes a greenhouse at 0 degC. Two things sit outside this.
-  An ACTUATOR goes to its declared safe state instead - a coil command is a
-  decision, not an estimate, and there is no invalid position for a relay. An
-  ALARM boolean cannot carry quality at all: `Vars::BankAlarms::raw()` reads the
-  bool and never the qual, so the only policy it can express is that an
-  unmeasured condition raises nothing.
+  It runs the same law on whatever those inputs hold. Skipping the write leaves
+  a stale number that still reads as current, which is worse than a fresh one
+  computed from doubtful inputs.
+  ST has no way to write a quality, so a derived row that carries doubt carries
+  it in a COMPANION the law writes beside the value - `cli_dpMargin_degC` and
+  `cli_dpMargin_degC_qlt`. @see @ref dev_quality_companions.
+  An ALARM boolean cannot carry quality at all, so the only policy it can
+  express is that an unmeasured condition raises nothing - which is why every
+  alarm is gated on the companion of the row it reads.
 
 Rows carry independent ages, and nothing pretends otherwise: each has its own
 `stamp_ms` and `valid`. Snapshotting the image into a per-cycle shadow would
@@ -93,277 +90,151 @@ which they already are, without making them *contemporaneous*.
 
 ## How a program declares its variables
 
-A program declares one typed member per row, in its own header, and resolves
-them all in `bind()`:
+A program names the rows it uses in its own `VAR_EXTERNAL` blocks, and the
+section it puts a row in IS the declaration of intent:
 
-```cpp
-void SupplyWatch::bind(Vars::Bank& io) {
-    ln     = _bind_input<float>(io, "grid_LN_V");
-    locked = _bind_output<bool>(io, "sys_supply_lockout");
-}
+```
+PROGRAM dc_watch
+VAR_EXTERNAL CONSTANT      (* read: the program may not write these *)
+  pwr_dc1_V     : REAL;
+  pwr_dc1_V_qlt : BOOL;
+END_VAR
+VAR_EXTERNAL               (* written: this program is the row's author *)
+  sys_dc_ok     : BOOL;
+END_VAR
 ```
 
-```cpp
-Vars::RefIn<float>  ln;      // VAR_INPUT:  get() only
-Vars::RefOut<bool>  locked;  // VAR_OUTPUT: this program is the one producer
-```
+There is no per-row `bind()` to write. `__INIT_EXTERNAL` resolves each name once
+at bring-up, case-folded, and a name matching no row lands on the inert sink.
 
-The reference carries two facts the compiler then holds it to: the row's C++
-type, and which IEC 61131-3 declaration section the program reads it through. A
-`T` disagreeing with the row's declared type resolves to nothing, exactly as a
-missing name does, and a row carrying text is refused outright - its value lives in the bank's pool,
-where no typed reference reaches it.
+The reference carries the row's C++ type, and a `T` disagreeing with the row's
+declared type resolves to nothing exactly as a missing name does. It used to
+carry a DIRECTION too, so a write to a `VAR_EXTERNAL CONSTANT` row failed to
+compile - but every ST row resolves `VAR_IN_OUT`, so that guard could never
+fire. The section is checked at **generate time** instead, which is stronger:
+`scripts/tables.py plant` reads what matiec says each body writes
+(`__SET_EXTERNAL`) and fails the build on
 
-A `Plc::Program` is a PROGRAM POU and takes no arguments, so its relationship to
-the table is the configuration layer, not parameter passing. The standard splits
-that three ways and so does `Vars::Dir`:
+- a row declared in `VAR_EXTERNAL` that the body never writes (it belongs in
+  `VAR_EXTERNAL CONSTANT`, and leaving it there puts a row the program only
+  reads on its safe-state roster), and
+- an output, alarm or status row that **no** program writes at all.
 
-| `Dir` | 61131-3 | Meaning |
-|---|---|---|
-| `IN` | `VAR_INPUT`, `VAR_EXTERNAL CONSTANT` | the program may not write it; `drive()` does not compile |
-| `OUT` | `VAR_OUTPUT`, `VAR_EXTERNAL` | this program is the row's one producer |
-| `INOUT` | `VAR_IN_OUT` | read-modify-write, shared with other programs by declaration |
+Two programs writing one row is reported rather than refused: read-modify-write
+shared state is the design, and the irrigation force flags and watering dates
+are exactly that.
 
-Two things follow from the direction being a type rather than a convention.
+## Program health
 
-**A VAR_INPUT cannot be driven, and the error says so.** `drive()` static-asserts
-on `Dir::IN`. The value is checked against the row's type rather than converted,
-for the same reason `Scalar(int)` is deleted: `drive(a_u16_row, 3)` naming the
-mismatch beats a deduction conflict naming nothing.
-
-**Declaring an output claims it, at bind time.** A program's `bind()` runs
-inside its own writer window, so `_bind_output()` claims the row there and then.
-Two programs producing one row is therefore a *bring-up* failure: the second one
-is refused and INVALID, naming the first. `report_writer_conflicts()` still
-covers what declaration cannot - a program that reaches a row it never declared
-- rather than something noticed on whichever beat both first happened to write,
-which for a row only a fault path drives could be months in. `drive()` still claims on every
-write, cheaply (first claim wins, so it short-circuits), which covers a program
-that reaches a row without declaring it.
-
-**A shared row records no owner.** `_bind_inout()` marks the slot `VF_SHARED`,
-and `claim_writer()` then returns without recording anyone. That is what
-distinguishes a declared read-modify-write from the defect
-`report_writer_conflicts()` exists to catch - two programs fighting over one
-coil, which otherwise shows up only as an actuator chattering at beat rate.
-Naming an owner for a shared row would report whichever program happened to
-write last as *the* writer of a row that has none.
-
-Binding is still by name at run time: `Bank::freeze()` may compact a redeclared
-row out, so a reference fixed at compile time would be wrong by construction. A
-name that resolves to nothing - or to a row of another type, which is as much a
-wiring defect - lands on the inert sink and counts as unresolved, which
-`tests/test_site.cpp` fails the gate on.
-
-## Program health, and going safe
-
-Every program answers for itself with a `Plc::Health`:
+A program answers for itself with a `Plc::Health`, and there are two answers:
 
 | | | |
 |---|---|---|
-| `HEALTHY` | 0 | normal operation, every output valid |
-| `DEGRADED` | 1 | an input is invalid; the outputs are still driven |
+| `HEALTHY` | 0 | wired, and running |
 | `INVALID` | 2 | could not be wired at bring-up; never runs |
-| `INHIBITED` | 3 | control stopped and actuators parked; still reporting |
-| `PARKING` | 4 | control stopped, actuators still travelling |
 
 The codes are published as a `T_ENUM` row, so the vocabulary may gain labels and
-must never renumber them.
+must never renumber them - `INVALID` keeps the code it has always had.
 
-`HEALTHY` and `DEGRADED` are a severity pair and are ordered, so a reader takes
-the worse of two and one comparison answers "is anything going wrong". The rest
-are decided rather than compared.
-
-**Health is re-derived every activation**, so a condition that clears is not
-sticky. A program that never calls `degraded()` is one whose `run()` cannot fail,
-and it reads healthy rather than unknown. `INVALID` is the one exception, below.
+Anything finer belongs to the ROWS. A reading that is not believable says so in
+its own quality, and every consumer already reads that; a program-level
+"degraded" would be a second, coarser place to say the same thing.
 
 ### INVALID is decided in setup, and only there
 
-A program is `INVALID` when it could not be **wired**: `bind()` named a row no
-table declares, or a dependency it was handed is null. Nothing about that gets
-better, so it is set once during setup and no activation revisits it.
+A program is `INVALID` when it could not be **wired**: it named a row no table
+declares. Nothing about that gets better, so `Plant::wire()` decides it once and
+no activation revisits it. It brackets each program's `init()` with
+`Bank::unresolved_count()` and marks the slot when the count moved.
 
-Such a program is **never activated at all** - not `run()`, not `observe()`. Its
-refs are inert sinks that read 0 for ever, so every value it published would be
-a zero indistinguishable from a reading, and every alarm it derived would be a
-quiet false negative. Better to run nothing and say why.
+Such a program is **never activated**. Its refs are inert sinks that read 0 for
+ever, so every value it published would be a zero indistinguishable from a
+reading, and every alarm it derived would be a quiet false negative. Better to
+run nothing and say why - which it does, `LOG_CRITICAL`, naming the program.
 
-Two ways in. A binding the base can see is wrong is caught without the
-program asking: `_bind_input()`, `_bind_output()` and `_bind_inout()` refuse a
-name no table declares, a row the reference cannot carry, and an output another
-program has already claimed - logging which, and faulting. A null dependency the
-program has to declare itself, with `invalidate()`, from `bind()`.
+## Control authority
 
-It counts as parked for the reboot handshake. A program that will never run can
-neither travel nor arrive, and waiting on one would hold the plant out of its
-reboot for ever.
+Two INDEPENDENT sources decide whether a law may drive the field, and the
+STRICTER wins:
 
-An input that stops being believable is **not** this. That is `DEGRADED`, and
-it is what a law says when it is short of something it wanted - in `run()` or
-`observe()`, where the law is the only thing that knows which of its inputs it
-can do without. Nothing says it on the law's behalf.
-
-### INHIBITED is reached, not commanded
-
-Parking is *work*. A valve has travel; a window has travel. So a request does not
-assign the state:
-
-1. `Registry::request_safe(true)` (or `request_disable()` on one program) raises
-   the ask.
-2. The program **keeps being activated** - one that is not run cannot close a
-   valve. `run()` is called as always; what changes is the TARGET, which the law
-   reads off `inhibit_requested()` and drives to instead of to a demand.
-3. A law still travelling says so by calling `parking()` during that activation,
-   and reads `PARKING`. One that does not is `INHIBITED`: a program with no
-   actuators of its own is parked the moment it is asked, which needs no code.
-   The travel must terminate.
-4. `Registry::all_safe()` becomes true when every program has arrived.
-
-`observe()` runs throughout both, so nothing stops being reported. That is the
-whole point of naming the states for what STOPS: a plant going into its safe
-state is exactly when someone is watching, and a status row that froze at the
-moment of the request would be stale AND look live.
-
-Only then does a supervisor act, and what it does next is the difference between
-the two commands: a **reboot** drops control, forces every output to its declared
-default and stops kicking the watchdog; a **halt** does the same but keeps kicking
-it and stops the `LoopScheduler` running the cycle instead.
-
-Dropping control the instant the operator asked would leave a half-travelled
-actuator wherever the request happened to catch it, which is the failure this
-protocol exists to prevent.
-
-Two causes reach the pair - a plant-wide safe request, and the operator
-switching one program off - and they park the same actuators the same way, so
-the STATE is one value. Which one asked is `safe_requested()` /
-`disable_requested()`. Where an actuator has to go is a property of the actuator
-and not of the reason: a tray valve fails open, an inlet valve fails shut,
-whichever asked. A program the operator had already switched off is therefore
-ALREADY where a reboot needs it.
-
-### Where the work goes
-
-| hook | when | for |
+| Source | What it is | Where |
 |---|---|---|
-| `run()` | every activation, inhibited or not | the control law, and driving to the fail position |
-| `observe()` | every activation, in every state | status values, alarm conditions |
+| the OPERATOR's standing choice | `sys_control` for all of them, `programs disable <pat\|all>` for one | a retained parameter; the per-program gate is not retained, so a maintenance session cannot leave one silently out after a power cut |
+| the SYSTEM's hold | anything but `Scheduler::RunState::RUN` - `sys_startup_sec` at bring-up, `sys_shutdown_sec` on the way out | @ref dev_health |
 
-Neither runs on a `INVALID` program.
+`Plc::Runtime::Plant::running()` is where they meet, and a program that could
+not be wired fails it whatever either says.
 
-An actuator moved from `observe()` would move while the program is inhibited,
-which is the one thing that state promises does not happen.
+**A program that is not running does not FREEZE what it drove.** Its rows drop
+to `Q_SAFE`, so every reader substitutes the row's declared value - which is
+what `Descriptor::def` means for an output. A coil left energised by a law
+nobody is running is the thing this exists to prevent.
 
-### What gets said about it
+Which rows those are cannot be asked of the bank: an ST row resolves
+`VAR_IN_OUT` and records no exclusive writer. The roster is generated per
+program from what matiec says its body writes, and the drop happens on the EDGE
+out of running - so the shutdown path gets it for free, since leaving `RUN` for
+`STOP` is that edge.
 
-`Plc::publish_health()` writes each program's verdict to the row it declared and
-logs the CHANGES, walked by the supervisor rather than by each program - one that
-is not being activated is exactly when a reader wants the row, and it cannot
-write its own then.
-
-| entering | level |
-|---|---|
-| `INVALID` | critical |
-| `DEGRADED` | warning |
-| `HEALTHY`, `INHIBITED`, `PARKING` | notice |
-
-Notice and not debug, because `LOG_MIN_LEVEL` is `LOG_INFO` on the OPTA: below it
-the only record that a plant went to its safe state is one the hardware never
-keeps. The whole set of them lands on one deliberate operator command.
-
-`HEALTH_QUIET_MS` suppresses the log for the first seconds so bring-up does not
-announce the first verdict of every program. `INVALID` is exempt: setup is the
-only place it is reached, so obeying the window would mean an unwireable program
-was never reported at all.
-
-`programs status` is the on-demand view - a tally per state, with the members of
-`INVALID`, `DEGRADED` and `PARKING` named. `HEALTHY` and `INHIBITED` are counted
-and not listed: with control withheld or before the first scan every program is
-inhibited, and a screen of names says less than the number does.
-
-## Control authority, and its two edges
-
-`Vars::Bank::control_enabled()` gates the control phase and nothing else. The
-phases around it must **not** be gated with it: withholding control writes safe
-states into the image, and something still has to carry them outward.
-
-**Only the return edge does anything**, and it is one call:
-`Tasks::Registry::set_programs_enabled()`, made from the `control_latch` task in
-SERVICE - before CONTROL, so a withdrawal takes effect on the beat it is decided
-rather than the next one.
-
-| Edge | What happens | Why |
-|---|---|---|
-| withdrawn | the gate shuts, and nothing else | a program that is not called cannot act on what it remembers, and nothing outside it reads that |
-| returned | the gate opens, every program's **timer is reseeded**, and `Tick::first` is raised on each | a `Ton` holding 5 s handed an hour of `dt` fires the instant control returns - the one thing a withdrawal exists to prevent. The flag is the other half: it says the process moved without us, which `dt` alone cannot express |
-
-There is no `reset()` and no `resume()` on a program: `Context::first_scan` is
-the whole signal, and the program drops whatever it judges stale under it. That
-is not merely equivalent to a hook on the withdrawal edge - it is better placed.
-The reseed means the program does **not** run on the beat authority returned, so
-an edge hook would look at an image its own next `run()` never sees.
-
-Clearing under the flag is opt-in per program and deliberately not "clear
-everything": a dwell timer is stale, but a totalizer holding the litres delivered
-today is a record.
-
-`Context::first_scan` is IEC 61131-3's first-scan flag. A law that ramps, latches
-or compares against "last time" has no last time on the first scan, and reading
-one gives it whatever a member was initialised with. It is true at bring-up and
-true again after a withdrawal, because those are the same situation: the process
-moved without us, so the previous activation describes a plant that no longer
-exists.
-
-Bring-up therefore needs no special case at all - which is the argument for the
-flag over a pair of hooks. Control starts withheld and is granted before the
-first beat, so bring-up takes the return edge; and a task's first activation ever
-raises `first` anyway, so the two arrive at the same place by two routes.
+**The whole body is held, not each program's inputs.** Every stateful block
+seeds on its FIRST call - a filter adopts the reading it starts on, a timer
+datums its clock - so a held program starts clean rather than climbing out of a
+fiction it was seeded with.
 
 ## Where the gate lives
 
-Per **dispatch point**, not per write. `Vars::Var::set()` is not gated: the
-handle is two pointers passed by value, made on the fly and passed everywhere,
-and it has no route to the latch - giving it one would cost eight bytes on the
-hot path to re-answer a question the caller already knew.
+At the one dispatch point every program goes through: `Plant::scan(i, now_ms)`.
+`Vars::Var::set()` is not gated - the handle is two pointers passed by value,
+made on the fly and passed everywhere, and giving it a route to the verdict
+would cost bytes on the hot path to re-answer a question the caller already
+knew.
 
-So the gate sits wherever a writer is *dispatched*, and there are exactly two:
+The clock and the date are published even while held, so `sys_now_ms` stays
+truthful; only the laws wait.
 
-| Dispatch point | Hook | Gated |
-|---|---|---|
-| `Tasks::Registry::run_phase` on a program entry | each `Plc::Program::run` | yes |
-| the `site_control` task | `BotanikFirmware::on_control` | yes |
-| the other five `site_*` tasks | `on_input` / `on_config` / `on_service` / `on_output` / `on_present` | **no** - by design |
-
-The ungated five are for work that is still correct while the plant is stopped:
-bookkeeping, derived values, telemetry. Anything that DRIVES the field belongs
-in `on_control()`, or it keeps driving through a health fault. It runs in its own
-phase, so `on_output()` and `on_present()` see the same beat's decisions.
-
-That list is exhaustive by construction: a third thing that drives the field has
-no gate unless it comes here and adds one. Which is the point - it is a short
-list that has to be read, rather than a rule spread over every write.
-
-See @ref user_control for the operator's view, and @ref dev_architecture for where
-in the loop this sits.
+Everything else in the beat runs regardless, and that is deliberate: the other
+phases are bookkeeping, derived values and telemetry, all still correct while
+the plant is stopped. Withholding control writes safe states into the image, and
+something still has to carry them outward.
 
 ## What a block promises
 
-### The contract {#blk_contract}
+### It seeds on its first call {#blk_contract}
 
-Every FUNCTION_BLOCK provides `reset()`: back to a cold block, as if it had
-just been constructed. A program calls it on the blocks it chooses on a first
-control-authority withdrawal, and a program's reset is the sum of its blocks',
-so a block without one is state that survives an outage it should not have.
-That is why this is enforced rather than documented.
+A FUNCTION_BLOCK keeps its state in its own `VAR` section, and there is no
+`reset()` to call. There used to be: a C++ block had one, and a program called
+it on the blocks it chose when control authority came back. The ST blocks
+replaced it with something the caller cannot forget - **every stateful block
+seeds on its first activation**. A filter adopts the reading it starts on
+rather than climbing to it from zero; a timer datums its clock rather than
+measuring from an instant that predates the outage.
 
-`preset()` is deliberately NOT part of the contract. It means "declare the
-state without a reading", and its argument is whatever the block holds - a
-bool, a float, a double, a position - so a uniform signature would have to lie
-about at least one. Blocks that can be preset say so individually.
+That is why the control gate holds the whole program BODY rather than its
+inputs: a held program is one that has not had its first call yet, so when it
+gets one it starts clean.
 
-### Why the interface is checked, not dispatched {#blk_novirtual}
+### HOLD, not "do not call it" {#blk_hold}
 
-`reset()` is not virtual and `Block` has no vtable: nothing ever holds a
-`Block*`, since blocks are value members of a `Plc::Program` named directly by
-the control law. So the base carries the family membership and
-BOTANIK_PLC_BLOCK() carries the interface, as three static_asserts per block.
+A block that reads the clock takes `NOW` - `sys_now_ms` - and differences it
+itself, which is what makes it rate-independent and lets the same block work on
+any task. The consequence is that a caller must not skip it:
+
+```
+  filt(X := raw, TAU_S := tau, HOLD := NOT measured, NOW := sys_now_ms);
+```
+
+A caller that stopped calling `filt` while its input was out would leave `last`
+behind, and the first sample after the outage would arrive with the whole outage
+as `dt` - alpha goes to nearly 1 and the average SNAPS to the new reading
+instead of rejoining where it left. Five minutes against a 30 s tau is alpha
+0.91. So the block is called every scan and told there is nothing to fold.
+
+IEC's implicit `EN` would do the same damage for the same reason: matiec's guard
+returns before every statement, the clock update included.
+
+### Calling one {#blk_call}
+
+A call that would wrap is written as assignments to the block's inputs, then a
+bare call; one that fits on a line keeps the argument form. The two are the
+same to matiec - `__SET_VAR` is a token paste - so this is legibility, not
+semantics. @see `docs/dev/st-migration.md`
