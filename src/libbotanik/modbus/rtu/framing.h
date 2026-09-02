@@ -103,10 +103,12 @@ namespace Botanik { namespace Modbus {
 
         /** @brief Offer @p n bytes. @return how many were taken.
          *
-         *  Stops at the end of the frame rather than swallowing the rest, so a
-         *  caller that read a whole ring in one go keeps the surplus. Anything
-         *  not taken is counted as stray, which is how a bus with a second master
-         *  on it makes itself visible. */
+         *  Stops at the end of the frame rather than swallowing the rest, and
+         *  counts the surplus as stray - which is how a bus with a second
+         *  master on it makes itself visible.
+         *  @note The one caller DISCARDS what it did not take. Half duplex
+         *  means the surplus is normally zero, and a byte that arrived after a
+         *  complete frame belongs to nobody's transaction. */
         uint16_t feed(const uint8_t* b, uint16_t n);
 
         /** @brief Where the transaction stands, and the place the deadline is

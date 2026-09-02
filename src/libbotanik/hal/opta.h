@@ -238,10 +238,11 @@ namespace Botanik { namespace HAL {
 
     /** @brief Discard whatever is sitting in the receive path.
      *
-     *  Called once a request has drained and before its answer is expected: on a
-     *  bus whose receiver never stops listening, that is when our own echo is
-     *  sitting there. Keeps a write echo from being taken for the response to
-     *  it, which for FC05 and FC06 would be byte-identical and silently wrong. */
+     *  Called immediately BEFORE a frame goes out, never between the frame
+     *  leaving and its answer arriving: on a bus whose receiver never stops
+     *  listening, our own echo lands first and is counted off rather than
+     *  flushed. What this clears is a late answer to the LAST transaction,
+     *  which would otherwise be read as the head of the next one. */
     uint16_t fieldbus_flush_input();
 
     /** @} */

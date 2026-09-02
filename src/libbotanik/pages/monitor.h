@@ -11,8 +11,8 @@
  *   row 1            blank top margin
  *   row 2            header  (| SCOPE | VARIABLE | VALUE | UNIT | OVERRIDE |)
  *   row 3            top rule (corners cap to '^' when rows are hidden above)
- *   rows 4..N-3      one row per status variable (window into the full set)
- *   row N-8          bottom rule (corners cap to 'v' when hidden below)
+ *   rows 4..N-10      one row per status variable (window into the full set)
+ *   row N-9          bottom rule (corners cap to 'v' when hidden below)
  *   rows N-7..N-3    detail panel: Description / Notes / Mapping / Quality
  *   row N-2          legend: view badge + position + [filter] + hint
  *   row N-1          the override field, or what the last override key did

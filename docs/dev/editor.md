@@ -206,7 +206,10 @@ nothing back - the editor never has to know whether the page wanted a cursor at 
 **The mark is transient**: `insert_characters()` and `remove_characters()` drop it, as do
 `_reset_state()` and `commit_loaded()`. A mark that survived edits would need shifting by
 every insert and clamping by every delete, and a region that has drifted off its text cuts
-the wrong bytes silently. `tests/test_editor_bytes.cpp` pins both halves of the cost claim.
+the wrong bytes silently. `tests/test_editor.cpp` pins the invariant the reconciliation rests on - an
+incremental edit must leave the screen where a full repaint would - which is
+what the byte saving is spent against. The byte counts themselves are measured,
+not pinned.
 
 ### Capacity
 

@@ -80,7 +80,7 @@ Page <|-- NotesPage
 Page <|-- MetricPage
 Page <|-- ScrollTablePage
 MetricPage <|-- HomePage
-MetricPage <|-- "StatusPage<T>"
+MetricPage <|-- StatusPage
 ScrollTablePage <|-- AlarmsPage
 ScrollTablePage <|-- ParamsPage
 ScrollTablePage <|-- MonitorPage
@@ -100,7 +100,7 @@ One row per page, in the order they derive:
 | @ref Botanik::Pages::NotesPage | Page | the operator's note, behind `BOTANIK_FEATURE_NOTES_PAGE`. Same editor as the shell but top-anchored with a scrolling viewport (@ref dev_editor); persisted under its own `HAL::Storage` key |
 | @ref Botanik::Pages::MetricPage | Page | base for read-only metric displays |
 | @ref Botanik::Pages::HomePage | MetricPage | the landing page (also a `LogWriter`) |
-| @ref Botanik::Pages::StatusPage "StatusPage<T>" | MetricPage | a two-column health grid templated on a site struct. Shipped but **not** in the default tab order |
+| @ref Botanik::Pages::StatusPage "StatusPage" | MetricPage | a two-column health grid a site subclasses for its own payload. Shipped but **not** in the default tab order |
 | @ref Botanik::Pages::ScrollTablePage | Page | base for the scrollable tables |
 | @ref Botanik::Pages::AlarmsPage | ScrollTablePage | the alarm conditions |
 | @ref Botanik::Pages::ParamsPage | ScrollTablePage | the parameter block, and the only page that writes it |
@@ -170,7 +170,8 @@ does, so a burst never stalls the loop:
 - **Live tail.** While the page is active, a new line is banked and `drain_tail()`
   paints pending rows per beat, scrolling the band up (one IL/DL) and writing new rows
   at the bottom. A *background* page skips this, banking lines and repainting on its
-  next `focus()`.
+  next `focus()` - except SHELL, which **drops** a background entry unless it is
+  `LOG_CRITICAL`: its band is a transcript of a conversation, not a log.
 - **Focus / page-switch replay.** On `focus()`, Ctrl+L, or returning to the live
   bottom, it stages a bottom-aligned redraw and drains it into the grid; the paced
   diff then spreads the bytes across as many ticks as the link needs.

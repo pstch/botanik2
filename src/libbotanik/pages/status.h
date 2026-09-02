@@ -4,10 +4,11 @@
 
 /**
  * @file status.h
- * @brief StatusPage - full-screen runtime status display (template base).
+ * @brief StatusPage - full-screen runtime status display.
  *
- * Templated on whatever site data struct the derived page wants typed access to
- * through data(); pass Empty for none. The base renders system health as a
+ * A site subclasses it and overrides the two payload hooks; there is no type
+ * parameter and no data() - a derived page holds whatever it needs itself. The
+ * base renders system health as a
  * two-column grid (rows 3..6): left CPU load / jitter / stack, right wall clock
  * / uptime / task period / console TX. Values are right-aligned so label and
  * value read as separate sub-columns. Rows 7..8 (network / NTP / MQTT) render

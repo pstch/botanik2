@@ -74,9 +74,10 @@ namespace Botanik { namespace Pages {
         /** @} */
 
         /** @name Views
-         *  The base's view-mode machinery (scroll_table.h): SPACE / RIGHT step
-         *  forward, LEFT steps back. Independent of the row filter, which
-         *  narrows whichever view is showing.
+         *  The base's view-mode machinery (scroll_table.h): RIGHT steps
+         *  forward, LEFT back. SPACE is not one of them - it reaches the row
+         *  filter, like any other printable byte. Independent of that filter,
+         *  which narrows whichever view is showing.
          *  @{ */
         static constexpr uint8_t MODE_RECENT   = 0;  // last event, within window
         static constexpr uint8_t MODE_ALL      = 1;  // every defined alarm

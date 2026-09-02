@@ -428,6 +428,9 @@ namespace Botanik { namespace HAL {
 
     }  // namespace Pulse
 
+    /** @brief Process environment. Host-only in practice: the OPTA backend has
+     *  no environment and always yields the fallback. Lives here rather than in
+     *  utils/ because reading it is a platform call. */
     namespace Env {
 
         /** @brief Environment variable @p name as a uint32.

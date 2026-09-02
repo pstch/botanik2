@@ -295,7 +295,10 @@ namespace Botanik { namespace Terminal {
         /** @brief Stamp characters at the draw cursor into the FRONT grid; @p
          *  insert shifts the row's existing cells right first. Grid-only -
          *  present()'s shift detection decides what it costs on the wire.
-         *  @return @p len; a grid stamp never drops. */
+         *  @return how many were stamped. NOT always @p len: nothing is
+         *  written past the last row, a wrap that runs out of rows stops
+         *  there, and with auto-wrap off the run is parked at the right edge
+         *  and the rest dropped. */
         uint16_t write_chars(const char *buf, uint16_t len, bool insert = false);
 
         void set_inverted(bool enable);

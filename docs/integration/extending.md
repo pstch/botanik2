@@ -71,7 +71,7 @@ Call the base first to keep the built-ins, or don't to replace the set entirely.
 Reordering is just changing the call order. `add_page()` past the eighth is refused,
 so a site adding its own generally overrides the whole method rather than appending.
 
-`Pages::StatusPage<T>` is a ready-made two-column health grid, shipped but **not**
+`Pages::StatusPage` is a ready-made two-column health grid, shipped but **not**
 registered by default. Re-add it by subclassing it and appending it here. To write a
 page from scratch, implement `Pages::Page` - see @ref dev_pages for the interface and
 the render contract.

@@ -55,8 +55,11 @@ emitting escape sequences (used by `AnsiTerminal`).
 
 One decoded event is an @ref Botanik::Terminal::InputEvent. Its `type` selects which
 half of the payload is live: `CONTENT` uses the `batch_data`/`batch_len` run, `COMMAND`
-uses the `command` key (plus its `count`). The CSI fields (`params`/`param_count`/
-`prefix`/`value`) carry a partially-parsed escape sequence.
+uses the `command` key (plus its `count`).
+
+A half-parsed escape sequence is deliberately **not** here: the CSI accumulator
+belongs to the parser, which is what lets a sequence split across two polls be
+decoded as one key. An event is only ever a finished answer.
 
 \startuml "InputEvent: one decoded key or text run; `type` selects the live half"
 class InputEvent {
@@ -65,10 +68,6 @@ class InputEvent {
   count : uint16 - repeat for coalesced keys (default 1)
   batch_data : const char* - printable run (CONTENT)
   batch_len : uint16 - run length
-  params : uint16[8] - CSI numeric params
-  param_count : uint8 - CSI params seen
-  prefix : char - CSI private prefix (e.g. '?')
-  value : uint8 - final decoded byte
 }
 \enduml
 

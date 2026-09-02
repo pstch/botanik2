@@ -169,11 +169,15 @@ namespace Botanik { namespace Pages {
             _redraw_i         = 0;
         }
 
-        /** @brief Shared head of a log page's tick(): when @p active, drain any
-         *  staged focus replay and report whether it is still going. The page
-         *  must return early on true, so the live-tail drain (a DL scroll)
-         *  cannot shift rows the replay already drew. No-op (false) on a
-         *  background page. */
+        /** @brief Shared head of a log page's tick(): when @p active, drop a
+         *  history wrapped at another width and drain any staged focus replay.
+         *  No-op (false) on a background page.
+         *  @return whether a replay is still going, which a page returns early
+         *  on so the live tail's DL scroll cannot shift rows it already drew.
+         *  @note drain_redraw() is one-shot, so today this is always false on
+         *  the way out. The early return in each page is the contract, not
+         *  dead weight: a paced replay would need it and nothing else would
+         *  change. */
         bool tick_redraw_gate(AnsiTerminal& terminal, bool active) {
             if (!active) return false;
             reflow(terminal.cols());   // before anything is replayed off it

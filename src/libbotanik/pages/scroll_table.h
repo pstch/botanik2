@@ -149,7 +149,7 @@ namespace Botanik { namespace Pages {
          *  @warning Does NOT blank the band first. Clearing would queue a band
          *  scroll, which present() emits before the diff and outside its pacing:
          *  320 bytes in the first frame against 106. Pinned by
-         *  test_alarms_render.cpp. */
+         *  test_alarms.cpp. */
         void _cycle_mode(int dir);
 
         /** @} */

@@ -252,7 +252,9 @@ namespace Botanik { namespace Terminal {
         set_auto_wrap(false);
         _hw_cursor_visible = true; _want_cursor_visible = false;
         if (Ansi::set_cursor_visible(_serial, false)) _hw_cursor_visible = false;
-        Ansi::set_insert_mode(_serial, false);   // defensive: we never set SM4
+        // _shift_row() DOES set SM4, per insert-shift; this is what guarantees
+        // a fresh screen starts in replace mode whatever the last frame left.
+        Ansi::set_insert_mode(_serial, false);
         _screen_ready = true;
         // The screen is now physically blank: both grids blank, draw cursor home,
         // and the diff walks the repaint that follows from the top.

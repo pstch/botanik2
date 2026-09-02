@@ -194,9 +194,7 @@ namespace Botanik { namespace Pages {
             return Utils::format_int(buf, cap, (long long)v);
         }
 
-        /** @brief The group's period as text. Four compile-time constants, so
-         *  they are rendered once into a small cache rather than through an
-         *  snprintf per row per refresh. */
+        /** @brief The group's period as text, into a per-row buffer. */
         static const char* _period_str(uint32_t period_ms);
 
         /** @brief @p t's health as a word, or "" when it is not a program. */

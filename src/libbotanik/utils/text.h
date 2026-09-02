@@ -104,7 +104,7 @@ namespace Botanik { namespace Utils {
      *  @{ */
 
     /** @brief Format @p value as a fixed-point decimal into @p buf, mirroring
-     *  printf's `%0<width>.<decimals>f`, and return @p buf for inline use.
+     *  printf's `%.<decimals>f`, and return @p buf for inline use.
      *
      *  Our Mbed newlib-nano @c snprintf stubs out @c %f, so format with this
      *  first and feed the result through @c %s.
