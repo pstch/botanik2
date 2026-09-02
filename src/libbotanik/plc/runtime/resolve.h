@@ -24,15 +24,17 @@ namespace Botanik { namespace Plc { namespace Runtime {
 
     /** @brief The row @p name, whatever case it is spelled in.
      *
-     *  A miss returns the inert sink, exactly as `Bank::resolve` does, so a
-     *  POU naming a row no site declares resolves to something that reads 0
-     *  for ever - which is what marks its program INVALID at bring-up. */
+     *  A miss goes through `Bank::resolve` too, and that is load-bearing: it is
+     *  what COUNTS the miss, which is the only thing Plant::wire() can see, and
+     *  what leaves the reference holding a bank so the sink is reachable at
+     *  all. Returning a default Ref here instead left the program HEALTHY and
+     *  its bank pointer null. */
     template <typename T>
     Vars::Ref<T> resolve_ci(Vars::Bank& bank, const char* name) {
         for (uint16_t i = 0; i < bank.count(); i++)
             if (same_folded(bank.descriptor(i).name, name))
                 return bank.resolve<T>(bank.descriptor(i).name);
-        return Vars::Ref<T>();
+        return bank.resolve<T>(name);
     }
 
 }}}  // namespace Botanik::Plc::Runtime

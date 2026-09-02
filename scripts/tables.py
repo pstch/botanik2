@@ -222,6 +222,24 @@ LIBST = ['src/libbotanik/plc/functions/math.st',
          'src/libbotanik/plc/blocks/meter.st']
 
 
+def declared_rows(site):
+    """Every row name the site and the library declare, folded to lower case.
+
+    What an ST `VAR_EXTERNAL` resolves against at bring-up. Folded because the
+    runtime folds: IEC identifiers are case-insensitive and matiec upper-cases
+    every one of them."""
+    out = set()
+    for stem, _cols in ROWS.values():
+        f = os.path.join(site, 'tables', stem + '.csv')
+        if not os.path.exists(f): continue
+        for ln in open(f).read().splitlines()[1:]:
+            n = ln.split(',')[0].strip()
+            if n: out.add(n.lower())
+    for _fac, args in parse(LIB_TABLE):
+        out.add(unquote(args[0]).lower())
+    return out
+
+
 def st_files(site):
     out = []
     for base in (os.path.join(site, 'blocks'), os.path.join(site, 'programs')):
@@ -487,11 +505,21 @@ def plant(site):
     for e in prog:
         e['path'] = os.path.join(site, e['source'])
         e['pou'] = pou_of(e['path'])
-    rows = {}
+    rows, whence = {}, {}
     for p in st_files(site):
         for n, t, _ in var_externals(p):
             if rows.get(n, t) != t: sys.exit('type clash on %s' % n)
             rows[n] = t
+            whence.setdefault(n, os.path.basename(p))
+    # A name no table declares is a program that cannot be wired. Checked HERE
+    # because nothing downstream can: these go to matiec as VAR_GLOBAL, so it
+    # declares whatever it is given, and the runtime only binds by name at
+    # bring-up - where the cost of a miss is a program that never runs.
+    absent = sorted(n for n in rows if n.lower() not in declared_rows(site))
+    if absent:
+        for n in absent:
+            print('  %s: no table declares it (%s)' % (n, whence[n]), file=sys.stderr)
+        sys.exit('%d ST name(s) declare no row' % len(absent))
     w = max(len(n) for n in rows)
     en = read_table(os.path.join(site, 'tables', 'enums.csv'), AUX['enums'].split())
     wi = max(len(e['instance']) for e in prog)

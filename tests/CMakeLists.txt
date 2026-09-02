@@ -18,6 +18,7 @@ add_executable(botanik_tests
     test_console.cpp
     test_health.cpp
     test_modbus.cpp
+    test_plc.cpp
     test_site.cpp
     test_vars.cpp
     test_site_sense.cpp
