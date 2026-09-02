@@ -209,3 +209,60 @@ TEST_CASE("vars: a reference with no bank reads nothing and drives nothing") {
     u.drive(7u);
     f.invalidate();
 }
+
+namespace {
+
+Vars::ParseResult parsed(Vars::VarType t, const char* text, Vars::Scalar* out) {
+    return Vars::parse_scalar(t, text, out, nullptr);
+}
+
+}  // namespace
+
+TEST_CASE("vars: parsing an integer separates junk from out of range") {
+    Vars::Scalar s;
+
+    INFO("a value the type cannot hold is RANGE, so the shell can say which");
+    CHECK(parsed(Vars::T_U8, "255", &s) == Vars::PARSE_OK);
+    CHECK(s.u == 255u);
+    CHECK(parsed(Vars::T_U8, "256", &s) == Vars::PARSE_RANGE);
+    CHECK(parsed(Vars::T_I8, "-128", &s) == Vars::PARSE_OK);
+    CHECK(s.i == -128);
+    CHECK(parsed(Vars::T_I8, "-129", &s) == Vars::PARSE_RANGE);
+
+    INFO("trailing junk is never a quiet prefix");
+    CHECK(parsed(Vars::T_U32, "12abc", &s) == Vars::PARSE_MALFORMED);
+    CHECK(parsed(Vars::T_U32, "", &s)      == Vars::PARSE_MALFORMED);
+    CHECK(parsed(Vars::T_U32, "  ", &s)    == Vars::PARSE_MALFORMED);
+    CHECK(parsed(Vars::T_U32, "+", &s)     == Vars::PARSE_MALFORMED);
+    CHECK(parsed(Vars::T_U32, "0x10", &s)  == Vars::PARSE_MALFORMED);
+
+    INFO("spaces and a leading + are tolerated on both ends");
+    CHECK(parsed(Vars::T_U32, "  42  ", &s) == Vars::PARSE_OK);
+    CHECK(s.u == 42u);
+    CHECK(parsed(Vars::T_U32, "+42", &s) == Vars::PARSE_OK);
+    CHECK(s.u == 42u);
+}
+
+TEST_CASE("vars: a 64-bit literal at the rail parses, one past it does not") {
+    Vars::Scalar s;
+
+    CHECK(parsed(Vars::T_U64, "18446744073709551615", &s) == Vars::PARSE_OK);
+    CHECK(s.u == UINT64_MAX);
+    CHECK(parsed(Vars::T_U64, "18446744073709551616", &s) == Vars::PARSE_RANGE);
+
+    INFO("INT64_MIN has no positive counterpart, so it is scanned unsigned");
+    CHECK(parsed(Vars::T_I64, "-9223372036854775808", &s) == Vars::PARSE_OK);
+    CHECK(s.i == INT64_MIN);
+    CHECK(parsed(Vars::T_I64, "-9223372036854775809", &s) == Vars::PARSE_RANGE);
+    CHECK(parsed(Vars::T_I64, "9223372036854775807", &s) == Vars::PARSE_OK);
+    CHECK(s.i == INT64_MAX);
+    CHECK(parsed(Vars::T_I64, "9223372036854775808", &s) == Vars::PARSE_RANGE);
+}
+
+TEST_CASE("vars: a negative into an unsigned row is out of range, not a wrap") {
+    // strtoull wrapped it into a huge positive, which reads as a real setpoint.
+    Vars::Scalar s;
+    CHECK(parsed(Vars::T_U32, "-1", &s)  == Vars::PARSE_RANGE);
+    CHECK(parsed(Vars::T_U64, "-1", &s)  == Vars::PARSE_RANGE);
+    CHECK(parsed(Vars::T_BOOL, "-1", &s) == Vars::PARSE_RANGE);
+}

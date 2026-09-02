@@ -77,21 +77,27 @@ namespace Botanik { namespace Utils {
      *  @name Numeric parsing
      *  @{ */
 
+    /** @brief How a parse of a whole numeric field ended. */
+    enum NumParse : uint8_t {
+        NUM_OK,
+        NUM_MALFORMED,   ///< empty, a non-digit, or trailing junk
+        NUM_RANGE        ///< well formed, but outside the target's range
+    };
+
     /** @brief Parse [@p s, @p s+len) as a decimal uint32 into @p out. Returns
      *  false on an empty string, a non-digit, or overflow. */
-    inline bool parse_uint(const char* s, uint16_t len, uint32_t* out) {
-        // FIXME: make more readable. the hidden constant is annoying
-        if (len == 0) return false;
-        uint32_t v = 0;
-        for (uint16_t i = 0; i < len; i++) {
-            if (s[i] < '0' || s[i] > '9') return false;
-            uint32_t d = (uint32_t)(s[i] - '0');
-            if (v > (0xFFFFFFFFu - d) / 10u) return false;   // overflow
-            v = v * 10u + d;
-        }
-        *out = v;
-        return true;
-    }
+    bool parse_uint(const char* s, uint16_t len, uint32_t* out);
+
+    /** @brief Parse NUL-terminated @p s as a decimal uint64 into @p out,
+     *  tolerating spaces and tabs on both ends.
+     *  @note A leading `-` is NUM_RANGE: a negative is well formed input this
+     *  type cannot hold, and must never arrive as a huge positive. */
+    NumParse parse_u64(const char* s, uint64_t* out);
+
+    /** @brief Parse NUL-terminated @p s as a decimal int64 into @p out,
+     *  tolerating spaces and tabs on both ends.
+     *  @note The magnitude is scanned unsigned, so INT64_MIN parses. */
+    NumParse parse_i64(const char* s, int64_t* out);
 
     /** @}
      *  @name Number formatting
