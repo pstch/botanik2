@@ -6,8 +6,6 @@
    out and none of them can spell it differently. *)
 
 FUNCTION SEC_MS : UDINT
-(* Seconds as milliseconds. UINT because that is what a `_sec` parameter row
-   is; the widest it holds is 65535 s, which does not overflow a UDINT. *)
 VAR_INPUT
   S : UINT;
 END_VAR

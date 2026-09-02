@@ -30,12 +30,8 @@ END_VAR
   alarm_sensor_fault := alarm_sns_ceiling OR alarm_sns_floor
                      OR alarm_sns_crawlspace OR alarm_sns_exterior;
 
-  (* Each alarm is gated on the quality of the row IT reads, and no other.
-     One gate used to cover all three, over the temperature AND the margin.
-     For the two temperature alarms that was the same test written longer -
-     the margin's companion is itself hi OR lo - but for the humidity one it
-     was not: a dead CEILING silenced it even where the floor still gave a
-     believable margin. *)
+  (* Each alarm is gated on the quality of the row IT reads, and no other: a
+     dead ceiling probe must not silence an alarm the floor can still see. *)
   IF cli_temp_hi_qlt THEN
     alarm_too_hot  := cli_temp_hi > cli_tooHot_degC;
     alarm_too_cold := cli_temp_hi < cli_tooCold_degC;
@@ -57,9 +53,8 @@ END_VAR
   END_IF;
 
   (* Past the band the fans are already flat out on: the gap is not something
-     destratification is going to close on its own. Gated like the rest - an
-     unmeasured gap held whatever strat_sensor substituted, and the alarm could
-     not tell that from a real one. *)
+     destratification is going to close on its own. Gated like the rest, so a
+     gap nobody measured cannot raise it. *)
   IF cli_dTStrat_degC_qlt THEN
     alarm_strat := cli_dTStrat_degC > cli_dTStratHigh_degC;
   ELSE

@@ -1,10 +1,8 @@
 (* Integrating a rate, and differentiating a quantity
    ------------------------------------------------------------------------ *)
 
-(* Both take NOW - the scan clock - and difference it themselves, so they are
-   rate-independent and survive being moved between tasks. HOLD is "keep the
-   clock, count nothing": see EWMA for why a clocked block needs one rather
-   than being skipped or disabled with EN. *)
+(* HOLD is "keep the clock, count nothing": see EWMA for why a clocked block
+   needs one rather than being skipped. *)
 
 FUNCTION_BLOCK INTEGRAL
 (* Count RATE for as long as it has been in force. Needs the REAL elapsed: a

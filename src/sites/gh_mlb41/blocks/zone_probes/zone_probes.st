@@ -1,11 +1,6 @@
 (* One climate zone: three probes voted, filtered and published
    ------------------------------------------------------------------------ *)
 
-(* The quality of each probe arrives as a plain BOOL, mirrored from the row by
-   Vars::QualityMirror. That is the whole reason this block can be ST at all:
-   a C++ block asks the bank whether a reading is believable, and ST has no
-   way to ask anything. *)
-
 FUNCTION_BLOCK ZONE_VOTE
 (* The median of up to three readings, EXCLUDING the ones nothing measured.
    An unbelievable probe reads its declared default, which is outside the band
@@ -83,11 +78,10 @@ END_VAR
   t_vote(A := T1, A_OK := T1_OK, B := T2, B_OK := T2_OK, C := T3, C_OK := T3_OK);
   h_vote(A := H1, A_OK := H1_OK, B := H2, B_OK := H2_OK, C := H3, C_OK := H3_OK);
 
-  (* The instruments report humidity in PERCENT and everything above this line
-     works in fractions - the spec's convention for a percentage is a real
-     number between 0 and 1. Converted HERE, once, at the boundary between the
-     instrument and the model: published as a percent it clamped at 1.00 and
-     every dew-point margin in the plant read zero. *)
+  (* The instruments report humidity in PERCENT and every law works in
+     fractions. Converted once, here, where the instrument meets the model:
+     a percent published as a fraction clamps at 1.00, and every dew-point
+     margin in the plant then reads zero. *)
   h_raw := h_vote.Y * 0.01;
 
   t_pub.X     := t_vote.Y;
@@ -114,11 +108,9 @@ END_VAR
      select correctly, so the plant keeps running and the operator is told to
      replace one before the second goes.
 
-     A DWELL, so the shortfall has to persist: one missed scan of RS-485 is the
-     bus being busy rather than a probe that has gone, and at BRING-UP no probe
-     has answered yet. This was a TOF - an overrun - which fired on the first
-     beat of every boot and then hung on for five seconds after the probes came
-     back. wx_sensors has always used the dwell for the same job. *)
+     A DWELL, so the shortfall has to persist: one missed scan of the field bus
+     is the bus being busy rather than a probe that has gone, and at bring-up
+     no probe has answered yet. *)
   IF t_vote.USED < h_vote.USED THEN worst := t_vote.USED;
   ELSE worst := h_vote.USED; END_IF;
   quorum(IN := worst < 3, PT := 5000, NOW := NOW);

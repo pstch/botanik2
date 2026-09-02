@@ -183,9 +183,8 @@ END_VAR
   tray8.STRETCH   := stretch;
   tray8();
 
-  (* A skip is SPENT and the tray stamped as if it had been watered, so it goes
-     to the back of the queue. Both are EDITS: the rows are retained parameters
-     and a plain drive would leave the store owing them. *)
+  (* A skip is SPENT and the tray stamped as if it had been watered, so it
+     goes to the back of the queue. *)
   IF tray1.SKIP THEN irr_forceOff_tray1 := FALSE;
                   irr_last_tray1 := sys_today; END_IF;
   IF tray2.SKIP THEN irr_forceOff_tray2 := FALSE;
@@ -258,9 +257,8 @@ END_VAR
         best := 8; worst := tray8.OVERDUE; irr_period_days := tray8.INTERVAL;
       END_IF;
     END_IF;
-    (* GOOD, even on a guessed modulation. This row's declared value is 0 - "no
-       tray owed" - so marking it doubtful would hand the cycle a refusal
-       rather than a doubt, and the tray it just picked would go unwatered. *)
+    (* Named as a good pick even on a guessed modulation: a tray the cycle is
+       told to doubt reads as no tray owed, and would go unwatered. *)
     irr_dueTray := best;
   END_IF;
 END_PROGRAM

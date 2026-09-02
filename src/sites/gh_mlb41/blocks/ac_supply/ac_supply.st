@@ -1,18 +1,14 @@
 (* AC_SUPPLY function block
    ------------------------------------------------------------------------ *)
 
-(* The mirror exists because a field-read row carries no Modbus register of its
-   own - only parameters, status values and alarms are mapped - so an external
-   master cannot see the meter without one. *)
-
 FUNCTION_BLOCK AC_MIRROR
-(* One quantity, deadbanded onto its status row. The band is about the METER's
-   last digit and not about the plant, so it is stated here rather than as a
-   parameter: a supply an operator has to re-tune to keep quiet is a defect.
+(* One quantity, deadbanded onto the status row a supervisor reads. The band is
+   about the METER's last digit and not about the plant, so it is stated here
+   rather than as a parameter: a supply an operator has to re-tune to keep
+   quiet is a defect.
 
-   With nothing measured the row HOLDS its last reading and OK says so. It used
-   to fall back to the row's declared 0, which is what a meter reads when the
-   supply is DEAD rather than when nobody asked it. *)
+   With nothing measured the row HOLDS its last reading and OK says so. A zero
+   is what a meter reads when the supply is DEAD, not when nobody asked it. *)
 VAR_INPUT
   V    : REAL;
   V_OK : BOOL;
@@ -23,7 +19,6 @@ VAR_OUTPUT
   OK : BOOL;
 END_VAR
 VAR
-  (* NOT `band`: IEC folds case, so the instance would be the VAR_INPUT. *)
   db : DEADBAND;
 END_VAR
   OK := V_OK;
@@ -97,8 +92,5 @@ END_VAR
      Once it has answered, silence is exactly the fault worth raising. *)
   FAULT := seen AND (NOT measured OR NOT in_spec);
 
-  (* Each mirror is its own network of one input, and one that is out is a
-     network this block is not producing. So the verdict and the block being
-     WHOLE are two questions, and this is the second. *)
   ANSWERED := measured AND A_OK AND W_OK;
 END_FUNCTION_BLOCK

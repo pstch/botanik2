@@ -1,19 +1,12 @@
 (* The PID loop
    ------------------------------------------------------------------------ *)
 
-(* Ours, not the standard's: matiec's lib/*.txt are GPL and its C runtime is
-   LGPL, so nothing here derives from either. The block takes NOW - the scan
-   clock - rather than an elapsed time, because a block that reads a clock
-   cannot be tested at a hundred times real speed, and one handed dt cannot be
-   moved between tasks. *)
-
 FUNCTION_BLOCK PID
 (* Holds a reading at a setpoint. Direct-acting by default: the output rises as
    the reading FALLS (heating, filling). Three departures from the textbook sum,
-   all affecting tuning: derivative on the MEASUREMENT rather than the error, so
-   a typed setpoint does not slam the output; conditional integration, so there
-   is no back-calculation gain to tune; and the integral clamped to the output
-   SPAN rather than to its limits.
+   all affecting tuning: derivative on the MEASUREMENT, so a typed setpoint does
+   not slam the output; conditional integration, so there is no back-calculation
+   gain to tune; and the integral clamped to the output SPAN, not its limits.
 
    RESET clears the history in place - the loop still runs this scan, on a cold
    integral. That is what a law does when it stops being able to see the plant:

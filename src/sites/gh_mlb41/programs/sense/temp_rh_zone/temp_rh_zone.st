@@ -51,8 +51,7 @@ END_VAR
   END_IF;
   cli_temp_in_qlt := measured;
 
-  (* One dew point per level: the margin and the VPD are both derived from it,
-     and computing it three times over cost three logarithms a beat. *)
+  (* One dew point per level: the margin and the VPD both come off it. *)
   dp_hi := DEW_POINT(T_DEGC := cli_temp_hi, RH := cli_rh_hi);
   dp_lo := DEW_POINT(T_DEGC := cli_temp_lo, RH := cli_rh_lo);
   margin_hi  := cli_temp_hi - dp_hi;

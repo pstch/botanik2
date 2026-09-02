@@ -34,8 +34,8 @@ VAR_TEMP
   prev_phase : USINT;
 END_VAR
 
-  (* Seeding is the block's own: ST has no first-scan flag, and starting the
-     extremes at zero would arm a cold bank on the first beat of every boot. *)
+  (* The extremes start at the house as it is: from zero, the first beat of
+     every boot would arm a cold bank. *)
   IF NOT seeded THEN
     day_max   := cli_temp_in;
     night_min := cli_temp_in;

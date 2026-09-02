@@ -9,9 +9,9 @@
 
 FUNCTION_BLOCK WX_WORSE
 (* The WORSE reading - the higher - over the stations that are believable.
-   An unbelievable station is EXCLUDED rather than voted on: it reads its
-   declared value, a declared calm is the lower of the two and would win every
-   time, and that is the one way a dead station could open a roof. *)
+   A station nobody can read is EXCLUDED rather than voted on: it reads calm,
+   calm is the lower of the two and would win every time, and that is the one
+   way a dead station could open a roof. *)
 VAR_INPUT
   A : REAL;  A_OK : BOOL;
   B : REAL;  B_OK : BOOL;

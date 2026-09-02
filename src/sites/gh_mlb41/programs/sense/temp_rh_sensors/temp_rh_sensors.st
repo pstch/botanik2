@@ -165,11 +165,10 @@ END_VAR
   cli_rh_ext        := exterior.RH;
   alarm_sns_exterior := exterior.FAULT;
 
-  (* Every zone says whether it MEASURED, per quantity. A derived row cannot
-     carry its own quality any more - ST has no way to write one - so the
-     companion is where the doubt lives, and a law reads it instead of asking
-     the bank. The two quorums are separate: one dead humidity probe must not
-     invalidate a temperature three good probes agree on. *)
+  (* Every zone says whether it MEASURED, per quantity, and that is where a
+     law downstream reads the doubt. The two quorums are separate: one dead
+     humidity probe must not invalidate a temperature three good probes agree
+     on. *)
   cli_temp_hi_qlt  := ceiling.TEMP_OK;
   cli_temp_lo_qlt  := floor.TEMP_OK;
   cli_temp_cs_qlt  := crawlspace.TEMP_OK;

@@ -37,9 +37,8 @@ END_VAR
   END_IF;
 
   (* Only a MEASURED sample is folded in: the row keeps its last reading while
-     the loop is out, and averaging that is the same number over and over. The
-     filter KEEPS its state and its CLOCK, so a loop that comes back rejoins
-     where it left rather than snapping. @see EWMA.OK_IN *)
+     the loop is out, and averaging that is the same number over and over. A
+     loop that comes back rejoins the average where it left. *)
   flow_avg.X     := irr_out_Lpm;
   flow_avg.OK_IN := measured;
   flow_avg.NOW   := sys_now_ms;
@@ -79,8 +78,7 @@ END_VAR
   meter.NOW        := sys_now_ms;
   meter();
   irr_outTotal_L := meter.TOTAL;
-  (* The cycle reads both: a totaliser DIFFERENCE cannot take a substituted
-     constant at either end, and the drain verdict declines to judge on a
-     silent meter rather than reading the declared 0 Lpm as a clog. *)
+  (* The cycle reads both, so the drain verdict declines to judge on a silent
+     meter rather than reading no flow at all as a clog. *)
   irr_outTotal_L_qlt := measured;
 END_PROGRAM

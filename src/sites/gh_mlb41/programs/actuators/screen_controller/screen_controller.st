@@ -57,8 +57,6 @@ END_VAR
      where the travel is the operator's: this traverse is what the fans are cut
      for and what a parking supervisor waits on, so a mis-set travel must not
      hold both for as long as it says. *)
-  (* MIN is REAL in st/lib/ieclib.txt and ST has no overloading, so these
-     millisecond spans compare by hand. *)
   IF travel < tmo THEN stroke := travel; ELSE stroke := tmo; END_IF;
 
   IF cli_screen THEN want := 1.0; ELSE want := 0.0; END_IF;

@@ -75,8 +75,8 @@ END_VAR
      something to do - not knowing where it is, or being away from the target.
      The two tests belong to the same pass: asking all four the first question
      before any of them the second lets an unknown ram 3 outrank a ram 1 that
-     is wide open with the roof being shut. The rest are HELD - they keep their
-     clocks and decide nothing, which is what "not stepped" meant in C++. *)
+     is wide open with the roof being shut. The rest are HELD: they keep their
+     clocks and decide nothing. *)
   IF   ram1.MOVING THEN owner := 1;
   ELSIF ram2.MOVING THEN owner := 2;
   ELSIF ram3.MOVING THEN owner := 3;

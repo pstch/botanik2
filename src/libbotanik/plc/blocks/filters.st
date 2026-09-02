@@ -1,13 +1,6 @@
 (* The one filter every measured row is published through
    ------------------------------------------------------------------------ *)
 
-(* Ours, not the standard's: matiec's lib/*.txt are GPL and its C runtime is
-   LGPL, so nothing here derives from either.
-
-   The variable DESCRIPTORS stay in C++. ST names a variable; what a name
-   means - its unit, band, register, transport and timeout - is the table's,
-   and matiec never sees it. *)
-
 FUNCTION_BLOCK EWMA
 (* An exponentially-weighted moving average of X, clamped to the row's band,
    and the verdict on whether this beat had anything to average. *)
@@ -32,13 +25,10 @@ VAR_TEMP
   dt_s  : REAL;
   alpha : REAL;
 END_VAR
-  (* OK_IN rather than not being CALLED, and the difference is the whole reason
-     it is an input. This block reads the CLOCK, so a caller that skips it
-     while its input is out leaves `last` behind: the first sample after the
-     outage arrives with the whole outage as dt, alpha goes to nearly 1, and
-     the average SNAPS to the new reading instead of rejoining where it left.
-     Five minutes against a 30 s tau is alpha 0.91. EN would do the same thing
-     - matiec's guard returns before every statement, this one included. *)
+  (* Call it every scan and say so with OK_IN, rather than skipping it while
+     the reading is out: skipped, the first sample after the outage arrives
+     with the whole outage as its interval and the average SNAPS to it instead
+     of rejoining where it left. Five minutes against a 30 s tau is alpha 0.91. *)
   OK := OK_IN;
   IF NOT OK_IN THEN
     last := NOW;

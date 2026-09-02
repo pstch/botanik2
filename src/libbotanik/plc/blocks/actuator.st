@@ -5,18 +5,13 @@
    No position feedback: the position is an ESTIMATE, a stroke to either end
    runs SEAT_MS extra to re-datum, and it is UNKNOWN until one has.
 
-   Three invariants the body enforces: the coils are never both energised, a
-   reversal always passes through REVERSE_MS with both dropped (a contactor
-   that makes before the other breaks shorts the motor), and a move under
-   MIN_RUN_MS is not made at all.
-
-   Names: the internals are lower case and the outputs upper, but IEC FOLDS
-   CASE - so the estimate is `p` and not `pos`, and the state is `mode` and not
-   `state`. Either would be the output it feeds. *)
+   Three invariants: the coils are never both energised, a reversal always
+   passes through REVERSE_MS with both dropped (a contactor that makes before
+   the other breaks shorts the motor), and a move under MIN_RUN_MS is not made
+   at all. *)
 
 FUNCTION ACT_WANT : USINT
-(* The direction TGT asks for: 0 none, 1 open, 2 close. Stateless, so it is a
-   FUNCTION - the body needs it twice, once mid-stroke and once when arming. *)
+(* The direction TGT asks for: 0 none, 1 open, 2 close. *)
 VAR_INPUT
   MODE : USINT;
   P    : REAL;
@@ -48,11 +43,11 @@ VAR_INPUT
   SEAT_MS      : UDINT;   (* extra run at an end, to re-datum *)
   MIN_RUN_MS   : UDINT;
   REVERSE_MS   : UDINT;
-  DB           : REAL;    (* NOT `DEADBAND`: that is a block, and IEC folds case *)
+  DB           : REAL;    (* how far off target is close enough *)
   REDATUM      : REAL;    (* full strokes between datums; 0 disables *)
-  HOLD         : BOOL;    (* keep the clock, decide nothing: this ram does
-                             not have the bus this scan. Not the same as a
-                             target of "stay": an UNKNOWN one would datum. *)
+  HOLD         : BOOL;    (* this one does not have the bus this scan: keep
+                             the clock, decide nothing. A target of "stay"
+                             would still send an unknown one to datum. *)
   PRESET_KNOWN : BOOL;    (* the first scan finds it at PRESET_POS *)
   PRESET_POS   : REAL;
   NOW          : UDINT;   (* sys_now_ms: the scan clock, not an elapsed time *)
@@ -98,10 +93,9 @@ END_VAR
   ELSE
     elapsed := 0;
     seeded  := TRUE;
-    (* Declaring the position known, skipping the datum stroke: only where
-       something else actually establishes it. The screen's coil is HELD rather
-       than driven and deploys de-energised, so a controller that was not
-       driving anything left the fabric out. *)
+    (* Position known without a datum stroke, only where the wiring
+       establishes it: the screen deploys on the de-energised coil, so a
+       controller that was not driving anything left the fabric out. *)
     IF PRESET_KNOWN THEN
       p := LIMIT(0.0, PRESET_POS, 1.0);
       IF p <= 0.0 THEN mode := 2; ELSE mode := 4; END_IF;
@@ -113,10 +107,9 @@ END_VAR
 
     tgt := LIMIT(0.0, TARGET, 1.0);
 
-    (* A re-datum detour owns the target for the WHOLE scan, not just where the
-       stroke is chosen. The mid-stroke interrupt below compares the target
-       against the direction being driven, and the caller's target is by
-       definition the other way - it would abort the detour on the next scan. *)
+    (* A re-datum detour owns the target for the WHOLE scan: the mid-stroke
+       interrupt below sees the caller's target pointing the other way, and
+       would abort the detour on the next scan. *)
     IF pending >= 0.0 THEN
       IF mode = 2 THEN
         tgt     := pending;
@@ -131,8 +124,7 @@ END_VAR
          travel; the rest belongs to the next decision. *)
       IF elapsed < run_ms THEN ran := elapsed; ELSE ran := run_ms; END_IF;
       IF dir = 1 THEN span := OPEN_MS; ELSE span := CLOSE_MS; END_IF;
-      (* A zero travel time is a misconfiguration, not a divide: treat the
-         actuator as instant rather than producing an infinity. *)
+      (* A zero travel time is a misconfiguration: treat it as instant. *)
       IF span > 0 THEN delta := UDINT_TO_REAL(ran) / UDINT_TO_REAL(span);
       ELSE delta := 1.0;
       END_IF;

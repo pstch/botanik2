@@ -31,9 +31,6 @@ END_VAR
 VAR
   supply : AC_SUPPLY;
 END_VAR
-  (* The block mirrors the four readings, judges them against the in-spec band,
-     and answers both the verdict and the alarm. Whether the meter ANSWERED is
-     its own output, and nothing here asks. *)
   supply.V     := grid_LN_V;
   supply.V_OK  := grid_LN_V_qlt;
   supply.A     := grid_total_A;

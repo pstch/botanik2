@@ -1,18 +1,10 @@
 (* The pulse-width valve driver, with a minimum on-time
    ------------------------------------------------------------------------ *)
 
-(* The FAIL DIRECTION is not here. The C++ block read it off the coil row's
-   declared default so the table stayed the one place it was stated - but the
-   only caller that ever used it was the skirt's rot lockout, and what that
-   branch means is "this valve must never wet condensing air", which is a LAW
-   and not a wiring fact. The law says shut; the row says shut; they agree
-   without either one deriving the other. *)
-
 FUNCTION_BLOCK VALVE_PULSE
-(* A fractional demand as an ON-TIME within a repeating period. Outputs the
-   coil state rather than driving it: what a valve is FOR is the program's, and
-   a block that wrote the row would need a VAR_EXTERNAL of its own for every
-   valve a site has. *)
+(* A fractional demand as an ON-TIME within a repeating period. It reports the
+   coil state; what a valve is FOR, and where it must shut, belongs to the law
+   driving it. *)
 VAR_INPUT
   DUTY_IN   : REAL;
   PERIOD_MS : UDINT;
@@ -52,8 +44,6 @@ END_VAR
      rounding it up instead would deliver water nobody asked for. *)
   IF on_ms < MIN_ON_MS THEN serve := 0; ELSE serve := on_ms; END_IF;
 
-  (* MOD, not a loop: a scan arriving after several periods is a scheduling
-     fact, not a reason to iterate. *)
   phase_ms := (phase_ms + elapsed) MOD period;
 
   Q      := phase_ms < serve;

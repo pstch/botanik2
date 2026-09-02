@@ -108,16 +108,16 @@ END_VAR
   cli_rain_mmph    := rain_pub.Y;
   cli_irrad_Wpm2   := sun_pub.Y;
 
-  (* The roof interlock reads both of these, and both rows declare 0, which
-     reads as fine weather. So the companions are what let it tell a calm dry
-     sky from one nobody is watching. *)
+  (* Calm and dry is what a station reads when it has stopped answering, so
+     the roof interlock is told which of the two it is looking at. *)
   cli_wind_mps_qlt  := wind_pub.OK;
   cli_rain_mmph_qlt := rain_pub.OK;
 
   (* The WORST-served quantity decides, so a station answering three of its
      four registers is still a station short. One is enough to keep the plant
      running and is worth sending somebody out for. The dwell is because one
-     missed scan of RS-485 is the bus being busy, not a station that has gone. *)
+     missed scan of the field bus is the bus being busy, not a station that
+     has gone. *)
   worst := wind_vote.USED;
   IF gust_vote.USED < worst THEN worst := gust_vote.USED; END_IF;
   IF rain_vote.USED < worst THEN worst := rain_vote.USED; END_IF;

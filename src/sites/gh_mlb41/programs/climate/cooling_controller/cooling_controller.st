@@ -25,13 +25,10 @@ VAR_TEMP
   measured : BOOL;
   ki       : REAL;
 END_VAR
-  (* The house's own row, which is the hotter of the two levels: the spec's
-     worst case for cooling, derived once where the probes are voted rather
-     than again here. Without a measured one the ladder runs on the reading the
-     house last had - temp_rh_zone writes the row every scan, so it holds a
-     number - and cli_coolDem_qlt is what says the number is not about this
-     greenhouse. The intake gates read that to know this law stopped having an
-     opinion. *)
+  (* The house's own temperature, the hotter of the two levels: the worst case
+     for cooling, voted once where the probes are. Without a measured one the
+     ladder runs on the reading the house last had, and cli_coolDem_qlt is what
+     tells the intake gates this law stopped having an opinion. *)
   measured := cli_temp_in_qlt;
 
   (* The parameters are in the TIME form an operator tunes in; PID takes gains.
@@ -66,12 +63,9 @@ END_VAR
      the windows apply the interlocks to it, and an operator can see what was
      asked for beside where each ram actually is.
 
-     Without a measured house it is the row's DECLARED opening, written out.
-     windows_controller has no companion to read here - it takes the number and
-     runs its normal path on it - so it used to get that position from the
-     bank SUBSTITUTING for an invalid row. An ST-written row is always valid,
-     so the substitution is gone and the safe value has to be published. It is
-     a real position and the one the roof parks at. *)
+     Without a measured house the roof PARKS, and the park position is
+     published as an opening like any other: windows_controller takes this
+     number whatever the house is doing. *)
   IF measured THEN
     cli_windowDem := LADDER(V := loop.Y, LO := cli_windowStartDem,
                             HI := cli_windowFullDem);
