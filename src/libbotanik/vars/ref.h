@@ -50,8 +50,9 @@ namespace Botanik { namespace Vars {
         /** @brief The table this row lives in, remembered at bind time so a
          *  program reads and writes its interface the way ST does - `x.get()`,
          *  `y.set(v)` - rather than routing every access through the bank.
-         *  Borrowed and never null after resolve; null on a default-constructed
-         *  reference, which reads the sink. */
+         *  Borrowed, and NULL until the reference is bound - which every
+         *  accessor checks, so an unbound one reads what an unwritten row
+         *  reads and drives nothing. */
         Bank* io;
 
         Ref() : io(nullptr) { r.index = VAR_NONE; }

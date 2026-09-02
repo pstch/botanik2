@@ -1,11 +1,13 @@
 /**
  * @file test_vars.cpp
- * @brief The variable model on its own: no bank, no site, no scan cycle.
+ * @brief The variable model: the conversions on their own, then what a
+ *        reference that resolved to nothing does.
  */
 
 #include "doctest.h"
 
 #include "libbotanik.h"
+#include "site_bank.h"
 
 using namespace Botanik;
 
@@ -171,4 +173,39 @@ TEST_CASE("vars: a calibration with no span reads as implausible, not as a numbe
     CHECK(a.to_eng(4000.0f) == doctest::Approx(20.0f));
     CHECK(a.to_eng(6000.0f) == doctest::Approx(30.0f));
     CHECK(a.to_eng(5000.0f) == doctest::Approx(25.0f));
+}
+
+TEST_CASE("vars: an index that is not a row reads the sink descriptor") {
+    Vars::Bank bank;
+    TestSite::build(bank);
+    REQUIRE(bank.count() > 0);
+
+    INFO("VAR_NONE is what an unresolved reference carries, and 0xFFFF into "
+         "the redeclaration map is 128 KB past the end of it");
+    CHECK(std::string(bank.descriptor(Vars::VAR_NONE).name) == "<none>");
+    CHECK(std::string(bank.descriptor(bank.count()).name) == "<none>");
+    CHECK(std::string(bank.descriptor(0).name) != "<none>");
+}
+
+TEST_CASE("vars: a reference with no bank reads nothing and drives nothing") {
+    // What every generated POU holds between construction and bind(), and what
+    // a binding that failed used to leave behind.
+    Vars::Ref<float>    f;
+    Vars::Ref<bool>     b;
+    Vars::Ref<uint16_t> u;
+
+    CHECK(f.io == nullptr);
+    CHECK(f.r.index == Vars::VAR_NONE);
+
+    CHECK(f.get() == doctest::Approx(0.0f));
+    CHECK(b.get() == false);
+    CHECK(u.get() == 0u);
+    CHECK(f.held() == doctest::Approx(0.0f));
+    CHECK_FALSE(f.valid());
+    CHECK_FALSE(f.edit(1.0f));
+
+    f.drive(1.0f);
+    b.drive(true);
+    u.drive(7u);
+    f.invalidate();
 }

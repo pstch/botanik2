@@ -219,9 +219,16 @@ namespace Botanik { namespace Vars {
         char*            pool() const   { return _pool; }
         uint16_t         count() const  { return _count; }
 
-        /** @brief The descriptor for LOGICAL row @p i, already bounds-checked.
-         *  One hop through the redeclaration map, then the segment walk. */
-        const Descriptor& descriptor(uint16_t i) const { return _desc_phys(_row[i]); }
+        /** @brief The descriptor for LOGICAL row @p i, or the SINK's for an
+         *  index that is not one - VAR_NONE included, which is what an
+         *  unresolved reference carries and what a shadowed row is tombstoned
+         *  with mid-freeze. One hop through the redeclaration map, then the
+         *  segment walk. */
+        const Descriptor& descriptor(uint16_t i) const {
+            if (i >= _count) return _sink_d;
+            const uint16_t p = _row[i];
+            return (p == VAR_NONE) ? _sink_d : _desc_phys(p);
+        }
 
         /** @brief Resolve an index. Never fails; a bad one lands on the sink. */
         Var var(uint16_t i) const {
@@ -655,17 +662,25 @@ namespace Botanik { namespace Vars {
     // Ref's bodies, out of line because a reference is declared before the
     // table it reads. Grouped at their declarations, in ref.h.
 
-    template <typename T>
-    inline T Ref<T>::get() const { return io->get(*this); }
+    // Every one of these checks `io`. A generated POU holds its whole interface
+    // as members from construction and binds them at setup, so an unbound
+    // reference is a real state - and the one that is a DEFECT (a name no table
+    // declares) must not be a null dereference inside a control program.
 
     template <typename T>
-    inline bool Ref<T>::valid() const { return io->var(r).valid(); }
+    inline T Ref<T>::get() const { return (io != nullptr) ? io->get(*this) : T(); }
 
     template <typename T>
-    inline T Ref<T>::held() const { return RefIo<T>::read(*io, r); }
+    inline bool Ref<T>::valid() const { return io != nullptr && io->var(r).valid(); }
+
+    template <typename T>
+    inline T Ref<T>::held() const {
+        return (io != nullptr) ? RefIo<T>::read(*io, r) : T();
+    }
 
     template <typename T>
     inline bool Ref<T>::edit(T v) const {
+        if (io == nullptr) return false;
         if (RefIo<T>::edit(*io, r, v) != SET_OK) return false;
         // OWED, not written through. A law stamps a watering date inside a
         // scan, and an erase there is both a stall and, repeated, a dead part.
@@ -676,6 +691,7 @@ namespace Botanik { namespace Vars {
 
     template <typename T>
     inline void Ref<T>::drive(T v) const {
+        if (io == nullptr) return;
         // ST has ONE write macro, so the ROW is what decides which write it
         // means: a parameter is state the plant has to keep, anything else is
         // this scan's answer.
@@ -686,7 +702,7 @@ namespace Botanik { namespace Vars {
 
     template <typename T>
     inline void Ref<T>::invalidate() const {
-        io->var(r).invalidate(Q_NO_DATA);
+        if (io != nullptr) io->var(r).invalidate(Q_NO_DATA);
     }
 
 
