@@ -66,6 +66,14 @@ beat and does nothing either way. An accepted socket is an ordinary one, closed
 with `tcp_close()`; on OPTA it is Mbed's own allocation, so the slot table keeps
 the pointer and `tcp_close()` deletes it.
 
+That `new`/`delete` pair is **the only heap traffic in the firmware**, and it is
+forced by the Mbed API rather than chosen. It recurs for the life of the unit: a
+SCADA poller that reconnects on its own schedule allocates and frees a
+`TCPSocket` every time. The allocation is one fixed size and it is freed before
+the next is taken, which is the shape a first-fit allocator handles without
+fragmenting - but it is the one place a multi-year uptime could and everything
+else in the tree is a fixed array, so it is worth knowing where to look.
+
 The hermetic simulator backend needs two rules to make a server testable without
 giving up the guarantee that nothing leaves the host:
 

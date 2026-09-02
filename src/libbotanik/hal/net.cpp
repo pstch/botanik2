@@ -212,7 +212,13 @@ namespace Botanik { namespace HAL { namespace Network {
         if (i < 0) return -1;              // no room: leave it pending, retry next beat
         nsapi_error_t e = NSAPI_ERROR_OK;
         TCPSocket* peer = sock(listener)->accept(&e);
-        if (peer == 0 || e != NSAPI_ERROR_OK) return -1;
+        if (peer == 0) return -1;
+        // accept() is documented to answer null on failure, so a non-null peer
+        // WITH an error should not happen. It is still the only path here that
+        // owns an allocation before it decides, and a leak on a socket the
+        // firmware accepts for the life of the unit is not a thing to leave to
+        // a vendor's documentation.
+        if (e != NSAPI_ERROR_OK) { peer->close(); delete peer; return -1; }
         peer->set_blocking(false);
         g_tcp_ptr[i] = peer; g_tcp_used[i] = true;
         return i;
