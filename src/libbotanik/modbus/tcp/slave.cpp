@@ -234,8 +234,10 @@ namespace Botanik { namespace Modbus {
                             (unsigned)committed, (unsigned)r.addr);
         }
         const uint16_t echo = (r.fc == FC_WRITE_COIL) ? r.value : r.count;
-        c.tx_len  = (uint16_t)encode_echo(c.tx, sizeof(c.tx), r.mbap, r.fc,
-                                          r.addr, echo);
+        const size_t len = encode_echo(c.tx, sizeof(c.tx), r.mbap, r.fc,
+                                       r.addr, echo);
+        if (len == 0) { _refuse(c, r, EX_SLAVE_FAILURE); return; }   // @see _answer_read
+        c.tx_len  = (uint16_t)len;
         c.tx_sent = 0;
         c.pending = PEND_BYTES;
     }
@@ -371,7 +373,12 @@ namespace Botanik { namespace Modbus {
         }
 
         if (ex != EX_NONE) { _refuse(c, r, ex); return; }
-        c.tx_len  = (uint16_t)encode_read(c.tx, sizeof(c.tx), r.mbap, r.fc, payload, n);
+        const size_t len = encode_read(c.tx, sizeof(c.tx), r.mbap, r.fc, payload, n);
+        // Unreachable: decode() held the count to the protocol ceiling and
+        // c.tx is a whole ADU. Staging a zero-length answer would leave the
+        // master waiting out its own timeout with nothing said, so say it.
+        if (len == 0) { _refuse(c, r, EX_SLAVE_FAILURE); return; }
+        c.tx_len  = (uint16_t)len;
         c.tx_sent = 0;
         c.pending = PEND_BYTES;
     }
