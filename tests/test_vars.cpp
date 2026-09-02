@@ -7,7 +7,13 @@
 #include "doctest.h"
 
 #include "libbotanik.h"
+#include "libbotanik/utils/text.h"
 #include "site_bank.h"
+
+// The differential parse test below reads the HOST's strtod as its reference.
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
 
 using namespace Botanik;
 
@@ -265,4 +271,98 @@ TEST_CASE("vars: a negative into an unsigned row is out of range, not a wrap") {
     CHECK(parsed(Vars::T_U32, "-1", &s)  == Vars::PARSE_RANGE);
     CHECK(parsed(Vars::T_U64, "-1", &s)  == Vars::PARSE_RANGE);
     CHECK(parsed(Vars::T_BOOL, "-1", &s) == Vars::PARSE_RANGE);
+}
+
+TEST_CASE("vars: parsing a real accepts the shapes an operator types") {
+    Vars::Scalar s;
+
+    CHECK(parsed(Vars::T_F32, "21.5", &s) == Vars::PARSE_OK);
+    CHECK(s.f == 21.5f);
+    CHECK(parsed(Vars::T_F32, "-0.2", &s) == Vars::PARSE_OK);
+    CHECK(s.f == -0.2f);
+    CHECK(parsed(Vars::T_F32, "24000", &s) == Vars::PARSE_OK);
+    CHECK(s.f == 24000.0f);
+
+    INFO("a bare point on either side, and an exponent");
+    CHECK(parsed(Vars::T_F32, ".5", &s) == Vars::PARSE_OK);
+    CHECK(s.f == 0.5f);
+    CHECK(parsed(Vars::T_F32, "5.", &s) == Vars::PARSE_OK);
+    CHECK(s.f == 5.0f);
+    CHECK(parsed(Vars::T_F32, "1.5e2", &s) == Vars::PARSE_OK);
+    CHECK(s.f == 150.0f);
+    CHECK(parsed(Vars::T_F32, "15e-1", &s) == Vars::PARSE_OK);
+    CHECK(s.f == 1.5f);
+    CHECK(parsed(Vars::T_F32, "  +2.5  ", &s) == Vars::PARSE_OK);
+    CHECK(s.f == 2.5f);
+}
+
+TEST_CASE("vars: a real that is not a number is refused, not coerced") {
+    Vars::Scalar s;
+
+    INFO("strtod took these; the row then held a NaN nothing compares true to");
+    CHECK(parsed(Vars::T_F32, "nan", &s)  == Vars::PARSE_MALFORMED);
+    CHECK(parsed(Vars::T_F32, "inf", &s)  == Vars::PARSE_MALFORMED);
+    CHECK(parsed(Vars::T_F32, "-inf", &s) == Vars::PARSE_MALFORMED);
+    CHECK(parsed(Vars::T_F32, "0x1p3", &s) == Vars::PARSE_MALFORMED);
+
+    INFO("and the ordinary junk");
+    CHECK(parsed(Vars::T_F32, "1.2.3", &s) == Vars::PARSE_MALFORMED);
+    CHECK(parsed(Vars::T_F32, "1e", &s)    == Vars::PARSE_MALFORMED);
+    CHECK(parsed(Vars::T_F32, ".", &s)     == Vars::PARSE_MALFORMED);
+    CHECK(parsed(Vars::T_F32, "1.5abc", &s) == Vars::PARSE_MALFORMED);
+
+    INFO("a good double is still not a good float");
+    CHECK(parsed(Vars::T_F32, "1e300", &s)  == Vars::PARSE_RANGE);
+    CHECK(parsed(Vars::T_F32, "-1e300", &s) == Vars::PARSE_RANGE);
+    CHECK(parsed(Vars::T_F32, "1e99999", &s) == Vars::PARSE_RANGE);
+
+    INFO("...but one that merely underflows the float is a legitimate zero");
+    CHECK(parsed(Vars::T_F32, "1e-300", &s) == Vars::PARSE_OK);
+    CHECK(s.f == 0.0f);
+}
+
+TEST_CASE("vars: parse_f64 is correctly rounded once narrowed to a float") {
+    // The differential test the replacement of strtod rests on. The HOST's
+    // strtod is correctly rounded to double, so narrowing both to float and
+    // comparing the bits is the whole claim: parse_f64 need not be exact to a
+    // double, only to the float every caller stores.
+    //
+    // Deterministic LCG rather than <random>, so a failure reproduces.
+    uint64_t seed = 0x9E3779B97F4A7C15ull;
+    auto next = [&seed]() {
+        seed = seed * 6364136223846793005ull + 1442695040888963407ull;
+        return (uint32_t)(seed >> 32);
+    };
+
+    char text[64];
+    size_t checked = 0, bad = 0;
+
+    // The shapes a person types into a setpoint, and the ones format_float emits.
+    for (int i = 0; i < 60000; i++) {
+        const double v = ((double)next() / 4294967296.0) * 48000.0 - 24000.0;
+        std::snprintf(text, sizeof text, "%.*f", (int)(next() % 5u), v);
+        double got = 0.0;
+        REQUIRE(Utils::parse_f64(text, &got) == Utils::NUM_OK);
+        if ((float)got != (float)std::strtod(text, nullptr)) { bad++; if (bad < 4) MESSAGE(text); }
+        checked++;
+    }
+
+    // Adversarial: full float32 precision, and the exponent extremes where the
+    // power-of-ten scaling has to step rather than clamp.
+    for (int i = 0; i < 60000; i++) {
+        const uint32_t bits = next();
+        float f;
+        std::memcpy(&f, &bits, 4);
+        if (f != f || f == 0.0f) continue;
+        const double a = (double)f < 0 ? -(double)f : (double)f;
+        if (a > 3.0e38 || a < 1e-44) continue;
+        std::snprintf(text, sizeof text, "%.9g", (double)f);
+        double got = 0.0;
+        REQUIRE(Utils::parse_f64(text, &got) == Utils::NUM_OK);
+        if ((float)got != (float)std::strtod(text, nullptr)) { bad++; if (bad < 4) MESSAGE(text); }
+        checked++;
+    }
+
+    CHECK(bad == 0);
+    CHECK(checked > 90000);
 }
