@@ -41,10 +41,19 @@ The interface is grouped into nested namespaces by concern.
 | `Serial` | `Raw`, `Port`, `get` | the console and monitor ports |
 | `Storage` | `set`, `get`, `remove` | key-value persistence. Mbed KVStore on OPTA, one file per key on the simulator |
 | `Network` | link, DNS, UDP, TCP (`hal/net.{h,cpp}`) | only needed under `FEATURE_NETWORK` |
-| `Env` | `u32`, `u8` | environment overrides; may return the default everywhere |
+| `DigitalIn` | `attach`, `read`, `inject` | the controller's OWN input terminals, 8 of them, read as levels. `inject` is the simulator's way in and a no-op on hardware, where the field drives the wire |
+| `Pulse` | `attach`, `sample`, `overruns`, `inject` | the same terminals COUNTED instead: a meter's pulse line, where the level of the wire is not a reading of anything. `attach` is idempotent for the same edge, because bring-up runs twice in one process every time a test builds a second firmware. `sample` returns the count and the instant TOGETHER, re-read until stable, or an edge landing between them pairs a new count with an old clock |
+| `Env` | `u32`, `u8`, `str` | environment overrides; may return the default everywhere |
 | `Debug` | `breakpoint`, `under_debugger` | `under_debugger` gates `breakpoint`, so a bare trap never faults a debugger-less unit |
 | `System` | `reset`, `shutdown` | |
 | *(top level)* | `hardware_description` | one line, shown by `version` |
+
+@note **`Pulse::attach()` may refuse a channel your hardware could serve.** On the
+OPTA, terminals I1 and I4 share an EXTI line and at most one of the pair may carry
+an interrupt. The SIMULATOR enforces the same rule although nothing on a host shares
+a line - otherwise a site that only ever runs in the simulator would discover it on
+the bench. A port to different hardware keeps the refusal shape (`false` from
+`attach`) even where its own collisions are elsewhere, or none.
 
 ## Validating a port
 

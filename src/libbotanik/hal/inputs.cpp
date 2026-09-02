@@ -55,7 +55,7 @@ namespace Botanik { namespace HAL {
             Edge              edge     = EDGE_RISING;
         };
 
-        static Channel g_ch[MAX_CHANNELS + 1];   // indexed by OPTA channel 0..7
+        static Channel g_ch[CHANNELS];
 
         /** @brief Terminal I1 is A0 and I4 is A3; the two share an EXTI line on
          *  this part, so at most one of the pair may carry an interrupt. */
@@ -82,7 +82,7 @@ namespace Botanik { namespace HAL {
 
         /** @brief One ISR per channel, because attachInterrupt() takes a bare
          *  function pointer with no argument to carry the channel in. */
-        static void (*const ISRS[8])() = {
+        static void (*const ISRS[CHANNELS])() = {
             &isr<0>, &isr<1>, &isr<2>, &isr<3>, &isr<4>, &isr<5>, &isr<6>, &isr<7>
         };
 
@@ -93,8 +93,8 @@ namespace Botanik { namespace HAL {
             // caller cannot tell "already yours" from "out of range" through a
             // bool. Asking for a DIFFERENT edge on a live channel is a real
             // conflict and still fails.
-            if (ch < 8 && g_ch[ch].attached) return g_ch[ch].edge == edge;
-            if (ch >= 8 || collides(ch)) return false;
+            if (ch < CHANNELS && g_ch[ch].attached) return g_ch[ch].edge == edge;
+            if (ch >= CHANNELS || collides(ch)) return false;
             const PinStatus mode = (edge == EDGE_FALLING) ? FALLING
                                  : (edge == EDGE_BOTH)    ? CHANGE : RISING;
             // attachInterrupt() sets the pull itself, per edge, and allocates an
@@ -106,7 +106,7 @@ namespace Botanik { namespace HAL {
         }
 
         Sample sample(uint8_t ch) {
-            if (ch >= 8 || !g_ch[ch].attached) return Sample{ 0, Clock::uptime_ms() };
+            if (ch >= CHANNELS || !g_ch[ch].attached) return Sample{ 0, Clock::uptime_ms() };
             // Re-read until stable: an edge landing between the count and the
             // clock would pair a new count with an old instant.
             for (;;) {
@@ -119,7 +119,7 @@ namespace Botanik { namespace HAL {
         }
 
         uint32_t overruns(uint8_t ch) {
-            return (ch < 8) ? g_ch[ch].overruns : 0u;
+            return (ch < CHANNELS) ? g_ch[ch].overruns : 0u;
         }
 
         void inject(uint8_t, uint32_t) {}   // the field pulses the wire here
@@ -166,7 +166,7 @@ namespace Botanik { namespace HAL {
             Edge     edge     = EDGE_RISING;
         };
 
-        static Channel g_ch[8];
+        static Channel g_ch[CHANNELS];
 
         static bool collides(uint8_t ch) {
             return (ch == 0 && g_ch[3].attached) || (ch == 3 && g_ch[0].attached);
@@ -182,8 +182,8 @@ namespace Botanik { namespace HAL {
             // caller cannot tell "already yours" from "out of range" through a
             // bool. Asking for a DIFFERENT edge on a live channel is a real
             // conflict and still fails.
-            if (ch < 8 && g_ch[ch].attached) return g_ch[ch].edge == edge;
-            if (ch >= 8 || collides(ch)) return false;
+            if (ch < CHANNELS && g_ch[ch].attached) return g_ch[ch].edge == edge;
+            if (ch >= CHANNELS || collides(ch)) return false;
             g_ch[ch].attached = true;
             g_ch[ch].edge     = edge;
             return true;
@@ -191,13 +191,13 @@ namespace Botanik { namespace HAL {
 
         Sample sample(uint8_t ch) {
             const uint64_t t = Clock::uptime_ms();
-            return Sample{ (ch < 8 && g_ch[ch].attached) ? g_ch[ch].edges : 0u, t };
+            return Sample{ (ch < CHANNELS && g_ch[ch].attached) ? g_ch[ch].edges : 0u, t };
         }
 
         uint32_t overruns(uint8_t) { return 0; }
 
         void inject(uint8_t ch, uint32_t edges) {
-            if (ch < 8 && g_ch[ch].attached) g_ch[ch].edges += edges;
+            if (ch < CHANNELS && g_ch[ch].attached) g_ch[ch].edges += edges;
         }
 
     }  // namespace Pulse

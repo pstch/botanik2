@@ -266,10 +266,15 @@ namespace Botanik { namespace HAL {
          *  every mode that is not CHANGE or FALLING onto RISING anyway. */
         enum Edge : uint8_t { EDGE_RISING, EDGE_FALLING, EDGE_BOTH };
 
-        /** @brief The most local channels that may count at once. Eight inputs
-         *  exist, but I1 and I4 share an interrupt line and cannot both carry
-         *  one, so seven is the real ceiling. */
-        static const uint8_t MAX_CHANNELS = 7;
+        /** @brief How many local channels there are to count on: the same
+         *  terminals DigitalIn reads as levels. What BOUNDS an index. */
+        static const uint8_t CHANNELS = DigitalIn::CHANNELS;
+
+        /** @brief The most that may count AT ONCE. I1 and I4 share an interrupt
+         *  line and cannot both carry one, so seven of the eight is the real
+         *  ceiling. A CAPACITY, never an index bound - sizing an array with it
+         *  worked only because the two happen to differ by one. */
+        static const uint8_t MAX_CHANNELS = CHANNELS - 1;
 
         /** @brief A count and the instant it was taken, read together.
          *  Separately, a rate would be computed from two moments that never
