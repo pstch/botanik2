@@ -171,16 +171,9 @@ namespace Botanik { namespace Modbus {
         const char* status_str() const;
 
         /** @brief Which block would go out if a transaction started now, or
-         *  NO_BLOCK.
-         *
-         *  Public for a diagnostic and for tests that pin the priority rules
-         *  without a wire. Not const: it also samples control authority, which
-         *  is where the safe-state urgency is raised, and that has to happen on
-         *  the beat control is withdrawn. */
-        uint16_t next_block(uint64_t now_ms) {
-            _track_control(now_ms);
-            return _pick(now_ms);
-        }
+         *  NO_BLOCK. Public for a diagnostic and for tests that pin the
+         *  ranking rules without a wire. */
+        uint16_t next_block(uint64_t now_ms) const { return _pick(now_ms); }
 
 
         const Planner& plan() const { return _plan; }
@@ -297,9 +290,6 @@ namespace Botanik { namespace Modbus {
         /** @brief Which block goes out next, or NO_BLOCK. One urgency per block
          *  in one pass, highest wins; see the note in the .cpp. */
         uint16_t _pick(uint64_t now_ms) const;
-        /** @brief Watch control authority, and raise the safe-state urgency on
-         *  the beat it is withdrawn. */
-        void     _track_control(uint64_t now_ms);
         /** @brief Build the request for @p block into _frame. @return false if it
          *  could not be built, which is a planning defect rather than a wire
          *  event. */

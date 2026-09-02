@@ -137,9 +137,13 @@ creeps up. In permille, 900 ms late on a 1 s rung and 8 s late on a 10 s rung
 score the same. There is no tier ladder, and the per-block starvation floor is
 not a jump between tiers but simply the point where urgency passes 1000.
 
-The one absolute pre-empt sits AHEAD of the scale rather than on it: a dirty
-write while a safe state is owed. A scale has no top, so a late enough block
-could otherwise climb into any rank reserved above it.
+Nothing sits above the scale. A safe state ranks on it like any other moved
+demand: `Plc::Runtime::Plant` drops what a stopped program drives to its
+declared value, which marks those rows dirty, and the block carrying them then
+falls due a `rtu_write_min_ms` after the last write with
+`MODBUS_WRITE_DEADLINE_MS` as its normaliser. There used to be one pre-empt
+above the scale for exactly this case; it is gone, and the scale is the whole
+policy.
 
 ### A silent device must not take the bus down
 

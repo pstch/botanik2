@@ -1,7 +1,8 @@
 /**
  * @file test_modbus.cpp
- * @brief The transport-independent half: the wire vocabulary, the CRC, and the
- *        answer check both transports share.
+ * @brief The transport-independent half - the wire vocabulary, the CRC, and
+ *        the answer check both transports share - then the RTU client's own
+ *        ranking, which needs a bank.
  */
 
 #include "doctest.h"
@@ -9,6 +10,9 @@
 #include "libbotanik.h"
 #include "libbotanik/modbus/rtu/codec.h"
 #include "libbotanik/modbus/response.h"
+#include "libbotanik/modbus/rtu/client.h"
+
+#include "site_bank.h"
 
 namespace modbus_wire {
 
@@ -179,5 +183,30 @@ TEST_CASE("modbus: a multi-write's byte count must agree with its quantity") {
     CHECK(check_write_count(FC_WRITE_REGISTERS, 252, 126) == EX_ILLEGAL_VALUE);
     CHECK(check_write_count(FC_WRITE_COILS, 251, 2001) == EX_ILLEGAL_VALUE);
 }
+
+#if BOTANIK_FEATURE_MODBUS_RTU_CLIENT
+TEST_CASE("modbus: a tuning row forced to zero cannot divide the ranking") {
+    Botanik::Tasks::Registry reg;
+    Vars::Bank bank;
+    TestSite::build(bank);
+
+    RtuClient rtu(Botanik::SetupContext(reg), &bank, Site::g_site.devices);
+    rtu.register_tasks();
+    reg.setup(0);
+    REQUIRE(rtu.plan().block_count() > 0);
+
+    // What the shell does. An override is type-checked and NOT banded, so it
+    // reaches _tune() past a band that starts at 1000.
+    const Vars::VarRef r = bank.find("rtu_rewrite_ms");
+    REQUIRE(r.index != Vars::VAR_NONE);
+    REQUIRE(bank.override_set(bank.var(r), "0") == Vars::SET_OK);
+
+    // _pick() divides by the deadline this feeds. It used to be SIGFPE here.
+    for (uint64_t t = 0; t <= 30000; t += 100) {
+        const uint16_t pick = rtu.next_block(t);
+        CHECK((pick == RtuClient::NO_BLOCK || pick < rtu.plan().block_count()));
+    }
+}
+#endif
 
 }  // namespace modbus_wire

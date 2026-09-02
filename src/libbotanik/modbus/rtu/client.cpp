@@ -260,10 +260,6 @@ uint16_t RtuClient::_pick(uint64_t now_ms) const {
     // rung is 80 (fast still wins), but a 10 s block 5 s late is 500 and beats a
     // 1 s block 400 ms late.
 
-    // The one absolute pre-empt, ahead of the scale rather than on it: a scale
-    // has no top, so a sufficiently late block could otherwise climb into it.
-    // Withholding control marked every output dirty precisely so a transaction
-    // carries the safe state out, and it does not wait for the write interval.
     // At most ONE device that is not answering may be offered the bus, and only
     // when the gate is open. Computed once: a property of the beat, not of the
     // block. A probe is otherwise enormously late against its own period and
@@ -378,10 +374,6 @@ bool RtuClient::_send() {
 
 void RtuClient::on_output(uint64_t now_ms) {
     if (_io == nullptr || _port == nullptr) return;
-
-    // Every beat, not only when idle. The control-authority edge is what raises
-    // the safe-state urgency, and a withdrawal during a transaction would
-    // otherwise be seen only once the transaction ended.
 
     // The gap expires INTO this beat rather than costing one of its own: it is
     // inter-frame silence, and once it has elapsed there is nothing left to wait

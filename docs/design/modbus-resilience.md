@@ -206,7 +206,11 @@ becomes *due*, so a chattering demand still cannot monopolise the bus.
   it.
 - The `is_read(b.fc)` branch in `_pick()`.
 
-### 2.2 What stays absolute
+### 2.2 What stays absolute [DROPPED]
+
+Not in the tree: `_track_control()` and `_urgent` went with the writer
+machinery, and nothing replaced them. A safe state ranks on the ordinary
+scale - see `docs/dev/modbus.md`.
 
 Per D2, one pre-empt above the scale and nothing else: a dirty write while
 `_urgent` is set. Implemented as a pre-pass returning the first such block, so
