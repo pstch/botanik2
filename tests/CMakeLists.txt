@@ -141,6 +141,27 @@ if(TARGET clang-tidy)
 endif()
 # The bare profile is part of the sweep: cheap next to an instrumented rebuild,
 # and it is the only thing that compiles a feature's OFF path.
+# ...and the CROSS build, because a link error is invisible to every host
+# target. Arduino.h DECLARES the whole wiring API and libmbed.a defines none of
+# it, so a HAL that reaches for a call the build does not compile fails at LINK
+# time, on the OPTA alone - `make check` stays green throughout. Compile-only
+# and only in the sweep: it needs arm-none-eabi and the Mbed core, so it is
+# skipped where neither is installed rather than failing the sweep for it.
+find_program(_arm_gxx arm-none-eabi-g++)
+if(_arm_gxx)
+    add_custom_target(check-opta
+        COMMAND ${CMAKE_COMMAND} -G ${CMAKE_GENERATOR} -S ${CMAKE_SOURCE_DIR}
+                -B ${CMAKE_SOURCE_DIR}/build-opta -DBOTANIK_TARGET=OPTA
+        COMMAND ${CMAKE_COMMAND} --build ${CMAKE_SOURCE_DIR}/build-opta
+                --parallel ${_nproc}
+        USES_TERMINAL
+        COMMENT "Sweep: the OPTA cross build, which is where a link error lives"
+        VERBATIM)
+    add_dependencies(check-full check-opta)
+else()
+    message(STATUS "check-full: no arm-none-eabi-g++, skipping the OPTA cross build")
+endif()
+
 add_dependencies(check-full check-bare)
 
 # pyte screen-assertion tests (Python) - host-only, joined to the same CTest

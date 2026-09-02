@@ -587,10 +587,18 @@ elseif(BOTANIK_TARGET STREQUAL "OPTA")
     # digitalWrite, analogRead, micros and attachInterrupt, and the core ships
     # those as sources. Named one by one rather than globbed - the core's own
     # main.cpp would collide with botanik_fw/main.cpp.
-    set(MBED_CORE_SOURCES
-        "${MBED_ROOT}/cores/arduino/wiring.cpp"          # micros / millis
-        "${MBED_ROOT}/cores/arduino/wiring_digital.cpp"  # pinMode / digitalRead
-        "${MBED_ROOT}/cores/arduino/wiring_analog.cpp"   # analogRead / ...Resolution
+    # wiring*.cpp as a GLOB, not one by one: Arduino.h DECLARES the whole API
+    # and libmbed.a defines none of it, so naming the files meant every new HAL
+    # call was a link error waiting to happen - and a link error on the cross
+    # build alone, which the host gate cannot see. `analogRead` was the second
+    # time. The glob covers wiring, wiring_analog, wiring_digital, wiring_pulse
+    # and wiring_shift, which IS the wiring API.
+    #
+    # The rest stay named. main.cpp would collide with botanik_fw/main.cpp, and
+    # Serial.cpp brings the core's own `Serial` - a macro over a USB CDC object,
+    # which is the whole reason Arduino.h reaches one translation unit.
+    file(GLOB MBED_CORE_SOURCES "${MBED_ROOT}/cores/arduino/wiring*.cpp")
+    list(APPEND MBED_CORE_SOURCES
         "${MBED_ROOT}/cores/arduino/Interrupts.cpp"      # attachInterrupt
         "${MBED_ROOT}/cores/arduino/pinToIndex.cpp"      # the pin -> index map
         "${MBED_VARIANT}/variant.cpp")                   # PINCOUNT_fn + g_APinDescription

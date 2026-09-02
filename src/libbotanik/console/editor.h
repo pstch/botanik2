@@ -668,7 +668,7 @@ namespace Botanik { namespace Terminal {
          *  the row physically shows now. */
         void _splice_row(uint16_t post_idx, uint16_t col, int32_t amount,
                          uint16_t shown_len, uint16_t shown_prompt_l,
-                         const RowView& want);
+                         RowPrompt shown_class, const RowView& want);
 
         /** @brief Signed count of content chars the edit splices onto its own
          *  row: the span clipped to that row's content (0 for a closing `\n`),

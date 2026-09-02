@@ -68,7 +68,7 @@ Host-only, SIMULATOR build. Two suites, both wired into CTest:
 
 ```bash
 make -C build check                  # the pre-push gate
-make -C build check-full             # the periodic sweep: clang-tidy, bare profile, then the gate under ASan+UBSan
+make -C build check-full             # the periodic sweep: clang-tidy, bare profile, the OPTA cross build, then the gate under ASan+UBSan
 make -C build check-bare             # just the bare profile: every optional feature off
 make -C build botanik_tests          # just build the doctest binary
 ./build/tests/botanik_tests          # run it directly (doctest CLI)
@@ -98,6 +98,11 @@ back all-green the fault is INTERFERENCE between cases, not a flake**: reproduce
 pays for an instrumented rebuild, then the whole `check` gate again in `build/asan/`. It
 drives that tree's own `check` target, so the two cannot drift. Both halves are
 instrumented, screen tests included.
+
+It also builds the OPTA (`check-opta`), which is the only thing that can catch a LINK
+error: `Arduino.h` declares the whole wiring API and `libmbed.a` defines none of it, so a
+HAL reaching for a call the build does not compile fails at link time on the cross build
+alone, with `make check` green throughout. Skipped where `arm-none-eabi-g++` is absent.
 
 **`make check-bare`** compiles `sites/bare` - every optional feature off - into
 `build-bare/`, and a middle profile (console + shell + logs + alarms, no

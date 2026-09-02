@@ -484,7 +484,7 @@ namespace Botanik { namespace Terminal {
 
     void TextEditor::_splice_row(uint16_t post_idx, uint16_t col, int32_t amount,
                                  uint16_t shown_len, uint16_t shown_prompt_l,
-                                  const RowView& want) {
+                                 RowPrompt shown_class, const RowView& want) {
         if (!_visible(post_idx)) return;
         uint16_t hw     = _hw_row(post_idx);
         uint16_t prompt = _prompt_len(_row_prompt(post_idx));
@@ -496,13 +496,22 @@ namespace Botanik { namespace Terminal {
         // region (an edit drops the mark; _sync_region() repaints behind us).
         _terminal->set_inverted(false);
 
-        // Prompt-class flip (PS2<->PS3): rewrite the gutter. A longer prompt's
-        // push drops trailing content off the right edge, so shrink shown_len
-        // accordingly before the length-align below.
-        if (shown_prompt_l != prompt) {
-            RowPrompt p = _row_prompt(post_idx);
+        // Prompt-class flip (PS2<->PS3): rewrite the gutter. On the CLASS, not
+        // on the length: docs/dev/editor.md requires the three prompts to be
+        // the same WIDTH, and NOTES obeys it - so there the length can never
+        // differ and a gutter gated on it never repaints at all, leaving a line
+        // the operator started reading as wrap-over from the one above.
+        // A longer prompt's push drops trailing content off the right edge, so
+        // shrink shown_len accordingly before the length-align below.
+        const RowPrompt p = _row_prompt(post_idx);
+        if (shown_prompt_l != prompt || shown_class != p) {
             _terminal->move_to({hw, _indent});
-            if (prompt <= shown_prompt_l) {
+            if (prompt == shown_prompt_l) {
+                // Same width, different class: overwrite in place. No push and
+                // no delete, and the back-buffer diff drops it outright when
+                // the glyphs happen to match.
+                _terminal->write_chars(_prompt_buf(p), prompt);
+            } else if (prompt < shown_prompt_l) {
                 _terminal->write_chars(_prompt_buf(p), prompt);
                 _terminal->delete_chars((uint16_t)(shown_prompt_l - prompt));
             } else {
@@ -722,7 +731,8 @@ namespace Botanik { namespace Terminal {
             bool has_pre = !(i >= span.absorbed_pre && i < span.absorbed_post)
                            && _was_visible(pre_idx);
             const RowView& shown  = _pre.rows[pre_idx];
-            uint16_t shown_prompt = _prompt_len(_row_prompt_in(_pre, pre_idx));
+            const RowPrompt shown_class = _row_prompt_in(_pre, pre_idx);
+            uint16_t shown_prompt = _prompt_len(shown_class);
 
             // How far the present pre row's content slid, and whether the
             // displaced slice still overlaps the wanted one (only meaningful
@@ -734,15 +744,17 @@ namespace Botanik { namespace Terminal {
 
             if (has_pre && i == span.edit_row)
                 // Edit row: splice the inserted/removed run at the cursor.
-                _splice_row(i, edit_col, edit_amount, shown.buf_len, shown_prompt, want);
+                _splice_row(i, edit_col, edit_amount, shown.buf_len, shown_prompt,
+                            shown_class, want);
             else if (has_pre && sl == 0 && wl == 0)
                 // Both rows empty: nothing to write but a possible prompt flip.
-                _splice_row(i, want_prompt, 0, 0, shown_prompt, want);
+                _splice_row(i, want_prompt, 0, 0, shown_prompt, shown_class, want);
             else if (has_pre && (ws < ss + sl) && (ss < ws + wl))
                 // Overlap: cheap left splice by the displacement, cascading the
                 // pushed-off char into the next row (the next iteration
                 // prepends).
-                _splice_row(i, want_prompt, ss - ws, shown.buf_len, shown_prompt, want);
+                _splice_row(i, want_prompt, ss - ws, shown.buf_len, shown_prompt,
+                            shown_class, want);
             else
                 // Fresh blank (no pre image) or content reflowed to unrelated
                 // columns: a full repaint is byte-optimal either way.
