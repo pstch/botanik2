@@ -58,7 +58,7 @@ namespace Botanik { namespace HAL {
 
         /** @brief One measurement of the current thread's stack. Read
          *  TOGETHER; a fraction is only meaningful over one region. */
-        struct Use {
+        struct StackUsage {
             uint32_t used;    ///< high-water bytes ever used; 0 = not measurable
             uint32_t depth;   ///< total allocated bytes; 0 = unknown
         };
@@ -71,7 +71,7 @@ namespace Botanik { namespace HAL {
          *  sampling cadence, and lets the host figure fall again.
          *  @warning Not free on the host: it scans and repaints up to 64 KB.
          *  Call it on a slice boundary, never every beat. */
-        Use high_water();
+        StackUsage high_water();
 
     }  // namespace Stack
 

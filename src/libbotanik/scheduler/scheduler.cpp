@@ -171,7 +171,7 @@ namespace Botanik { namespace Scheduler {
         // this platform. The reading is already a max (an all-time RTOS
         // watermark on OPTA, the last slice's high-water on the host), so the
         // only filter is the all-time peak below.
-        const HAL::Stack::Use u = HAL::Stack::high_water();
+        const HAL::Stack::StackUsage u = HAL::Stack::high_water();
         if (u.depth != 0) _stack_depth = u.depth;
         if (u.used == 0 || _stack_depth == 0) return;   // nothing measurable yet
 

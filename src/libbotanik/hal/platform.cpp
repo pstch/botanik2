@@ -36,7 +36,7 @@ namespace Botanik { namespace HAL {
 
     namespace Stack {
 
-    Use high_water() {
+    StackUsage high_water() {
         // The RTOS thread, not the MSP stack _estack bounds: setup()/loop() run
         // in the Arduino Mbed main thread. RTX paints each thread's stack at
         // creation, so the watermark is already there to read and there is
@@ -44,7 +44,7 @@ namespace Botanik { namespace HAL {
         const osThreadId_t id = osThreadGetId();
         const uint32_t size  = static_cast<uint32_t>(osThreadGetStackSize(id));
         const uint32_t space = static_cast<uint32_t>(osThreadGetStackSpace(id));
-        Use u;
+        StackUsage u;
         u.depth = size;
         // space is min free EVER; 0 means RTX tracking is off, not a full stack.
         u.used  = (space > 0 && space <= size) ? (size - space) : 0;
@@ -547,8 +547,8 @@ namespace Botanik { namespace HAL {
     // annotation is what makes this work against the real one. noinline is
     // load-bearing too: it paints below its own &marker, so folded into the
     // caller the paint would clobber the caller's live locals.
-    BOTANIK_NO_ASAN __attribute__((noinline)) Use high_water() {
-        Use u; u.used = 0; u.depth = 0;
+    BOTANIK_NO_ASAN __attribute__((noinline)) StackUsage high_water() {
+        StackUsage u; u.used = 0; u.depth = 0;
         uintptr_t base = 0;
         region(&base, &u.depth);
         if (base == 0 || u.depth == 0) return u;
