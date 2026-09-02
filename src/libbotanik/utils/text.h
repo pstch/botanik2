@@ -122,7 +122,6 @@ namespace Botanik { namespace Utils {
      *  @param value     Rounded half away from zero to @p decimals places
      *                   (diverges from %f only on exact .5 ties).
      *  @param decimals  Digits after the point (0 omits it). Capped at 9.
-     *  @param width     Min field width, zero-padded after the sign (0 = none).
      *  @note Non-finite inputs render "nan" / "inf" / "-inf"; NUL-terminated
      *  when cap > 0. */
     const char* format_float(char* buf, size_t cap, double value,
