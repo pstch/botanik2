@@ -4,9 +4,8 @@
 
 /**
  * @file scrollback.h
- * @brief Scrollback - a LineBuffer with an incremental redraw, used
- *        by the logs, shell and home pages (via the ShellScrollback /
- *        LogsScrollback / HomeScrollback typedefs below).
+ * @brief Scrollback - a LineBuffer with an incremental redraw, used by the
+ *        logs, shell and home pages through the typedefs below.
  */
 
 #include <algorithm>
@@ -21,14 +20,11 @@
 
 namespace Botanik { namespace Pages {
 
-    /**
-     * @brief Circular scrollback buffer with an incremental redraw.
+    /** @brief Circular scrollback buffer with an incremental redraw.
      *
-     * A deferred redraw over a @ref LineBuffer of @p L lines; everything draws
-     * immediate-mode and is pared by the terminal's diff. The window is
-     * bottom-aligned within rows 1..log_rows. Name it through
-     * @ref ShellScrollback / @ref LogsScrollback / @ref HomeScrollback.
-     */
+     *  A deferred redraw over a @ref LineBuffer of @p L lines, all of it
+     *  immediate-mode and pared by the terminal's diff. The window is
+     *  bottom-aligned within rows 1..log_rows. */
     template<uint16_t L>
     class Scrollback : public LineBuffer<L, Config::SCROLLBACK_LINE_LEN> {
     private:
@@ -139,11 +135,8 @@ namespace Botanik { namespace Pages {
 
         /** @brief Stage a bottom-aligned incremental redraw of the band
          *  [@p first_row, @p first_row + @p log_rows).
-         *
-         *  The band is stated rather than assumed to start at row 1: HOME's
-         *  sits under a field grid, and staging it from row 1 painted the
-         *  replay over readings that the page then never redrew, because the
-         *  labels are only written on focus. */
+         *  @note The band is stated, not assumed to start at row 1: HOME's
+         *  sits under a field grid the page only writes on focus. */
         void begin_redraw(uint16_t first_row, uint16_t log_rows) {
             // The content area is cleared before focus()/redraw(); we only
             // stage the rows.
@@ -168,10 +161,8 @@ namespace Botanik { namespace Pages {
         /** @brief Shared head of a log page's tick(): when @p active, drop a
          *  history wrapped at another width and drain any staged focus replay.
          *  No-op (false) on a background page.
-         *  @return whether a replay is still going, which a page returns early
-         *  on so the live tail's DL scroll cannot shift rows it already drew.
-         *  @note Always false today, drain_redraw() being one-shot; the early
-         *  return is the contract a paced replay would need. */
+         *  @return whether a replay is still going, so the live tail's DL
+         *  scroll cannot shift rows it already drew. Always false today. */
         bool tick_redraw_gate(AnsiTerminal& terminal, bool active) {
             if (!active) return false;
             reflow(terminal.cols());   // before anything is replayed off it

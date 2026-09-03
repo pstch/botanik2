@@ -220,12 +220,10 @@ namespace Botanik { namespace Pages {
 
         /** @}
          *  @name Row filter
-         *
-         *  A live pattern the table narrows itself to: typing appends,
-         *  BACKSPACE pops, ESC clears. `*` and `?` are wildcards; without one
-         *  the pattern is a substring. A page opts in by calling
-         *  _filter_text() / _filter_command() and _filter_match().
-         *  @{ */
+         *  A live pattern the table narrows to: typing appends, BACKSPACE
+         *  pops, ESC clears. `*` and `?` are wildcards; without one the
+         *  pattern is a substring. A page opts in through _filter_text() /
+         *  _filter_command() and _filter_match(). @{ */
 
         /** @brief The filter text, NUL-terminated; empty matches every row. */
         char    _filter[Config::TABLE_FILTER_LEN + 1] = {0};
@@ -343,11 +341,8 @@ namespace Botanik { namespace Pages {
 
         /** @brief _columns(), fitted to the display: the flexible column takes
          *  whatever the fixed ones leave, and a row still too wide is shaved
-         *  widest-cell-first until it fits.
-         *
-         *  The table therefore spans between equal margins, ending where
-         *  _draw_separator() does, at whatever width the terminal was last
-         *  reconfigured to - the one place any of that is decided. */
+         *  widest-cell-first until it fits. The one place the table's width is
+         *  decided, so it ends where _draw_separator() does. */
         uint8_t _fit_columns(Col* out) const;
 
         /** @brief Whether a cell carries a pad column after its contents, so a

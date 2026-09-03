@@ -365,13 +365,10 @@ namespace Botanik { namespace Pages {
 
         /** @name Payload hooks - one per cadence the base has.
          *
-         *  All three, deliberately: a subclass with a per-second reading that
-         *  had to override draw_hot() itself would have to remember to chain to
-         *  StatusPage::draw_hot(), which is the trap the hook design exists to
-         *  avoid.
-         *  @warning The hot and cold sets must be DISJOINT - a field drawn from
-         *  both paints twice a cycle and its highlight flickers.
-         *  @{ */
+         *  All three, so a subclass never has to override draw_hot() and
+         *  remember to chain to it.
+         *  @warning The hot and cold sets must be DISJOINT: a field drawn from
+         *  both paints twice a cycle and flickers. @{ */
 
         /** @brief Site labels and headers, drawn once on focus. Base: nothing. */
         virtual void draw_payload_static() {}
