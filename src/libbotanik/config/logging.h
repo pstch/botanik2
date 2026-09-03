@@ -25,9 +25,11 @@ namespace Botanik { namespace Config {
     // ever be MORE restrictive - an entry the logger dropped never reaches a
     // sink to be admitted - and LOG_CRITICAL clears every floor.
 
-    /** @brief Maximum length of a single log message, before formatting. */
+    /** @brief Maximum length of a single log message, before formatting.
+     *  Sized against the widest call site (107 bytes). Every %s feed is an
+     *  identifier, never free-form text, so that bound is a static property. */
 #ifndef BOTANIK_LOG_MESSAGE_LEN
-#  define BOTANIK_LOG_MESSAGE_LEN 256
+#  define BOTANIK_LOG_MESSAGE_LEN 128
 #endif
     BOTANIK_CFG(size_t, LOG_MESSAGE_LEN);
 
@@ -37,7 +39,7 @@ namespace Botanik { namespace Config {
      *  newline a serial writer appends, or a full-length message loses its tail
      *  on the way out. The static_assert below holds the two together. */
 #ifndef BOTANIK_LOG_FORMATTED_LEN
-#  define BOTANIK_LOG_FORMATTED_LEN 320
+#  define BOTANIK_LOG_FORMATTED_LEN 192
 #endif
     BOTANIK_CFG(size_t, LOG_FORMATTED_LEN);
 
@@ -52,16 +54,14 @@ namespace Botanik { namespace Config {
 
     /** @brief Per-writer in-flight message queue depth.
      *
-     *  The dominant RAM line in a logging build: one writer costs roughly
-     *  LOG_QUEUE_SIZE * (LOG_MESSAGE_LEN + 16) + LOG_FORMATTED_LEN, and the full
-     *  page set registers five. Lowering it is the first thing to try on a tight
-     *  build, but keep it above the biggest STORM a run has: the boot roll-call
-     *  is a line per task, and a bus going down annunciates a row at a time.
-     *  A writer drains a few entries per beat, so the queue is what carries the
-     *  peak between two of them - at 64 the sink was dropping a dozen entries
-     *  every boot. Half again buys that headroom and stays inside the 32 KB a
-     *  writer is budgeted (tests/test_site.cpp): each slot carries a whole
-     *  LOG_MESSAGE_LEN, so this line is 26 KB per writer and there are five. */
+     *  The dominant RAM line in a logging build: one writer costs
+     *  LOG_QUEUE_SIZE * (LOG_MESSAGE_LEN + 16) + LOG_FORMATTED_LEN, about 14 KB
+     *  each, and four are registered (HOME, SHELL, LOGS, MONITOR). Lowering it
+     *  is the first thing to try on a tight build, but keep it above the biggest
+     *  STORM a run has: the boot roll-call is a line per task, and a bus going
+     *  down annunciates a row at a time. A writer drains a few entries per beat,
+     *  so the queue is what carries the peak between two of them: at 64 the sink
+     *  was dropping a dozen entries every boot. */
 #ifndef BOTANIK_LOG_QUEUE_SIZE
 #  define BOTANIK_LOG_QUEUE_SIZE 96
 #endif

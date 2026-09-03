@@ -55,10 +55,10 @@ namespace Botanik { namespace detail {
     static_assert(sizeof(Terminal::TextEditor)     == BOTANIK_SIZE(   152,    124), "TextEditor footprint changed");
 #endif
 #if BOTANIK_FEATURE_SHELL_PAGE
-    static_assert(sizeof(Pages::ShellPage)         == BOTANIK_SIZE( 37504,  37392), "ShellPage footprint changed");
+    static_assert(sizeof(Pages::ShellPage)         == BOTANIK_SIZE( 25088,  24976), "ShellPage footprint changed");
 #endif
 #if BOTANIK_FEATURE_LOGS_PAGE
-    static_assert(sizeof(Pages::LogsPage)          == BOTANIK_SIZE( 43056,  43016), "LogsPage footprint changed");
+    static_assert(sizeof(Pages::LogsPage)          == BOTANIK_SIZE( 30640,  30600), "LogsPage footprint changed");
 #endif
 
 #if BOTANIK_FEATURE_MODBUS_RTU_CLIENT
@@ -72,7 +72,7 @@ namespace Botanik { namespace detail {
      *  under the same opt-in. It is the firmware singleton's whole `.bss`
      *  footprint, so it can be read against the linker's map for the
      *  image. */
-    static_assert(sizeof(BotanikFirmware)          == BOTANIK_SIZE(203192, 200568), "BotanikFirmware footprint changed");
+    static_assert(sizeof(BotanikFirmware)          == BOTANIK_SIZE(153528, 150904), "BotanikFirmware footprint changed");
 
 #undef BOTANIK_SIZE
 

@@ -145,9 +145,8 @@ namespace Botanik { namespace Shell {
         _health->request_stop(Health::HealthMonitor::Stop::HALT);
         if (_logger != nullptr)
             _logger->critical(Logs::HEALTH,
-                              "halt requested from the console\n"
-                              "stopping the laws, then the cycle stops "
-                              "(console included; `reset` to recover)");
+                              "halt requested; laws stop, then the cycle "
+                              "(console too). `reset` recovers");
     }
 
     void CommandShell::_cmd_exit(const char* args, uint16_t alen) {

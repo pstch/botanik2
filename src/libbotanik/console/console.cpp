@@ -98,15 +98,11 @@ namespace Botanik { namespace Terminal {
         _rows_cfg = _term.rows_total();
 
         if (!moved || !announce || _logger == nullptr) return;
-        // Applied, not saved - like every other edit. That is the whole recovery
-        // story for a console nobody can read any more: it never reached flash,
-        // so a power cycle brings the last saved settings back. Said out loud,
-        // because this is the one change that can take the screen with it.
-        _logger->notice(Logs::BOOT,
-            "console now %lu baud, %ux%u, terminal type %u\n"
-            "`params save` to keep it; a power cycle undoes it",
-            (unsigned long)_baud, (unsigned)_cols, (unsigned)_rows_cfg,
-            (unsigned)_type);
+        // Applied, not saved: a console nobody can read any more comes back on a
+        // power cycle. Announced because this change can take the screen with it.
+        _logger->notice(Logs::BOOT, "console now %lu baud, %ux%u",
+                        (unsigned long)_baud, (unsigned)_cols,
+                        (unsigned)_rows_cfg);
     }
 
     void Console::_take_input() {
