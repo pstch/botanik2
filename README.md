@@ -137,6 +137,18 @@ The suite covers the `format_float`/`format_age` text helpers, the time
 utilities (rollover projection + calendar conversion), and a `sizeof` test that
 documents the in-memory footprint of the big UI/PLC structures.
 
+## Licence
+
+Botanik is free software under the **GNU General Public License, version 3** -
+see [LICENSE](LICENSE).
+
+`vendor/matiec` is a separate work under the same licence, carrying its own
+`COPYING` and an `UPSTREAM` note recording the commit it was taken from. It is a
+BUILD TOOL: the repository runs the binary and commits its output, and nothing of
+matiec's is linked or compiled into the firmware. The one place that could have
+happened is its IEC library, which is why `src/libbotanik/plc/functions/ieclib.txt`
+replaces it and why `vendor/matiec` carries no `lib/` at all.
+
 ## Documentation & useful links
 
 - [CONTRIBUTING.md](CONTRIBUTING.md) - code style, naming, and the non-blocking design rules.
