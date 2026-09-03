@@ -24,6 +24,7 @@ add_executable(botanik_tests
     test_modbus_tcp.cpp
     test_modbus_plan.cpp
     test_modbus_map.cpp
+    test_modbus_image.cpp
     test_hal_net.cpp
     test_ntp.cpp
     test_pages.cpp
