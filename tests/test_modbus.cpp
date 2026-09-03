@@ -10,7 +10,7 @@
 #include "libbotanik.h"
 #include "libbotanik/modbus/rtu/codec.h"
 #include "libbotanik/modbus/response.h"
-#include "libbotanik/modbus/rtu/client.h"
+#include "libbotanik/modbus/rtu/master.h"
 
 #include "site_bank.h"
 
@@ -97,7 +97,7 @@ TEST_CASE("modbus: a coil write puts 0xFF00 on the wire, not 1") {
 }
 
 TEST_CASE("modbus: a write's payload sits where the settle path looks for it") {
-    // RtuClient::_settle() hands clear_dirty() a pointer into the request still
+    // RtuMaster::_settle() hands clear_dirty() a pointer into the request still
     // in flight, so where the payload starts is part of that contract: 4 for the
     // single writes, which have no byte count, and 7 for the multiples.
     uint8_t adu[32] = {};
@@ -190,7 +190,7 @@ TEST_CASE("modbus: a tuning row forced to zero cannot divide the ranking") {
     Vars::Bank bank;
     TestSite::build(bank);
 
-    RtuClient rtu(Botanik::SetupContext(reg), &bank, Site::g_site.devices);
+    RtuMaster rtu(Botanik::SetupContext(reg), &bank, Site::g_site.devices);
     rtu.register_tasks();
     reg.setup(0);
     REQUIRE(rtu.plan().block_count() > 0);
@@ -204,7 +204,7 @@ TEST_CASE("modbus: a tuning row forced to zero cannot divide the ranking") {
     // _pick() divides by the deadline this feeds. It used to be SIGFPE here.
     for (uint64_t t = 0; t <= 30000; t += 100) {
         const uint16_t pick = rtu.next_block(t);
-        CHECK((pick == RtuClient::NO_BLOCK || pick < rtu.plan().block_count()));
+        CHECK((pick == RtuMaster::NO_BLOCK || pick < rtu.plan().block_count()));
     }
 }
 #endif

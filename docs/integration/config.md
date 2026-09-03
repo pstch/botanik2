@@ -76,7 +76,7 @@ middle profile (console + shell + logs + alarms, no variable model) into
 `build-bare-ui/`. Both are compile-only and
 build `botanik_sim` rather than the suite, because the tests are written against
 a site that HAS a table. `check-full` depends on it. When it was added, three
-OFF paths had already rotted: `modbus/rtu/client.cpp` and `modbus/tcp/slave.cpp`
+OFF paths had already rotted: `modbus/rtu/master.cpp` and `modbus/tcp/slave.cpp`
 closed their guard before the end of the file, and `register_vars()` was gated on
 `CONSOLE` rather than `VARS`.
 

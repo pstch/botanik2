@@ -231,7 +231,7 @@ Arithmetic note: the numerator is `uint64_t` milliseconds and the result is
 clamped into `uint32_t` before comparison. `deadline_ms` is guarded against zero
 where it is derived, in `_slot_of()`, not at every comparison.
 
-**As built.** The derivation lives in `RtuClient::_slot_of()`, which returns the
+**As built.** The derivation lives in `RtuMaster::_slot_of()`, which returns the
 `(due, deadline)` pair for a block and is the one place the two kinds differ;
 `_pick()` compares the same number for every block and no longer mentions
 `is_read()`. One subtlety the plan did not: a block exactly at its due time has
@@ -387,11 +387,11 @@ not with the device set.
 
 ## Phase 6 - documentation [DONE]
 
-Rewrite `modbus/rtu/client.h`'s `cl_dead` section, which describes the backoff as
+Rewrite `modbus/rtu/master.h`'s `cl_dead` section, which describes the backoff as
 the whole answer, and replace `_pick()`'s tier table with the one clock and the
 two maintenance rules. Correct figure 3 of the review per fact 3 above. Update
 `docs/integration/config.md` with the new values, and note beside
-`RtuClient::healthy()` that having no consumer is deliberate.
+`RtuMaster::healthy()` that having no consumer is deliberate.
 
 **As built.** `cl_dead` is rewritten and a `cl_rank` section added for the one
 clock. `config.md` turned out to have no field-bus section at all - the Modbus
@@ -437,7 +437,7 @@ master, or a reset that beats the safe-state write to the wire.
 is what stops read pressure starving it. Confirming it is actually configured on
 the reference site's RO-4 boards is a commissioning task, not a firmware one.
 
-**It does not withdraw control on a field fault.** `RtuClient::healthy()` still
+**It does not withdraw control on a field fault.** `RtuMaster::healthy()` still
 has no consumer, deliberately: a failed humidity sensor should raise an alarm,
 not shut a greenhouse down.
 

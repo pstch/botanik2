@@ -19,7 +19,7 @@
 #include "libbotanik/config/net.h"
 #include "libbotanik/config/scheduler.h"
 #include "libbotanik/hal/platform.h"
-#include "libbotanik/modbus/rtu/client.h"
+#include "libbotanik/modbus/rtu/master.h"
 #include "libbotanik/modbus/tcp/slave.h"
 #include "libbotanik/network/mqtt.h"
 #include "libbotanik/network/network.h"
@@ -469,7 +469,7 @@ namespace Botanik { namespace Shell {
     /** @brief The roll-call: one line per unit, the plant's tag first (an
      *  operator knows the box by its designation, not its unit id), then the
      *  address, the model, and whether it is answering. No counters. */
-    void CommandShell::_modbus_devices(const Modbus::RtuClient& rtu) {
+    void CommandShell::_modbus_devices(const Modbus::RtuMaster& rtu) {
         char val[96];
         _println("RTU devices (the field bus)");
         if (rtu.peer_count() == 0) { _println("  none planned"); return; }
@@ -511,7 +511,7 @@ namespace Botanik { namespace Shell {
         if (!want_devices && !arg_eq(sub, wn, "stats")) { _verb_usage("modbus"); return; }
 
 #if BOTANIK_FEATURE_MODBUS_RTU_CLIENT
-        const Modbus::RtuClient* rtu = _sys->modbus_rtu;
+        const Modbus::RtuMaster* rtu = _sys->modbus_rtu;
         if (want_devices) {
             if (rtu == nullptr) _println("RTU master (the field bus) .. not wired");
             else                _modbus_devices(*rtu);

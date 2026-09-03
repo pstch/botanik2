@@ -24,7 +24,7 @@ namespace Botanik { namespace Network   {  class NtpClient;         } }
 namespace Botanik { namespace Network   {  class MqttClient;        } }
 
 namespace Botanik { namespace Modbus    {  class TcpSlave;          } }
-namespace Botanik { namespace Modbus    {  class RtuClient;         } }
+namespace Botanik { namespace Modbus    {  class RtuMaster;         } }
 
 namespace Botanik {
 
@@ -83,7 +83,7 @@ namespace Botanik {
 
         /** @brief The field-bus master. Its plan, its peers and its counters are
          *  the only view anyone has of what the RS-485 segment is doing. */
-        const Modbus::RtuClient*       modbus_rtu = nullptr;
+        const Modbus::RtuMaster*       modbus_rtu = nullptr;
 
     };
 

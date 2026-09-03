@@ -65,7 +65,7 @@ namespace Botanik { namespace detail {
 #endif
 
 #if BOTANIK_FEATURE_MODBUS_RTU_CLIENT
-    static_assert(sizeof(Modbus::RtuClient)        == BOTANIK_SIZE(  2856,   2816), "RtuClient footprint changed");
+    static_assert(sizeof(Modbus::RtuMaster)        == BOTANIK_SIZE(  2856,   2816), "RtuMaster footprint changed");
 #endif
 #if BOTANIK_FEATURE_MODBUS_TCP_SERVER
     static_assert(sizeof(Modbus::TcpSlave)         == BOTANIK_SIZE(  3784,   3736), "TcpSlave footprint changed");

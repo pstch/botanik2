@@ -296,7 +296,7 @@ namespace Botanik { namespace Shell {
         #if BOTANIK_FEATURE_MODBUS_RTU_CLIENT
         /** @brief `modbus devices`: one line per unit - tag, address, model and
          *  whether it is answering. No counters. */
-        void _modbus_devices(const Modbus::RtuClient& rtu);
+        void _modbus_devices(const Modbus::RtuMaster& rtu);
         #endif
         void _cmd_net(const char* args, uint16_t alen);
         void _cmd_ntpsync(const char* args, uint16_t alen);

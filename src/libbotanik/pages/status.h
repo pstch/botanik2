@@ -37,7 +37,7 @@
 #include "libbotanik/utils/text.h"
 
 #if BOTANIK_FEATURE_MODBUS_RTU_CLIENT
-#include "libbotanik/modbus/rtu/client.h"
+#include "libbotanik/modbus/rtu/master.h"
 #endif
 #if BOTANIK_FEATURE_MODBUS_TCP_SERVER
 #include "libbotanik/modbus/tcp/slave.h"

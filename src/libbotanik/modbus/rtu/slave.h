@@ -5,7 +5,7 @@
  * @file modbus/rtu/slave.h
  * @brief RtuSlave: one field device, answering on a shared RS-485 wire.
  *
- * The mirror image of @ref modbus/rtu/client.h. Written for the simulator's
+ * The mirror image of @ref modbus/rtu/master.h. Written for the simulator's
  * field devices, but ordinary firmware: a unit that has to APPEAR as a device to
  * somebody else's master uses the same object.
  * @note The rationale behind this file is @ref sl_framing.

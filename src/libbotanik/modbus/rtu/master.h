@@ -1,8 +1,8 @@
-#ifndef MODBUS_RTU_CLIENT_H
-#define MODBUS_RTU_CLIENT_H
+#ifndef MODBUS_RTU_MASTER_H
+#define MODBUS_RTU_MASTER_H
 
 /**
- * @file modbus/rtu/client.h
+ * @file modbus/rtu/master.h
  * @brief The RTU master: one transaction in flight, driven from the beat.
  * @note Stepped in two phases, and the block it picks next is ranked on
  *       lateness in permille rather than on a tier. Both, and how a silent
@@ -39,7 +39,7 @@ namespace Botanik { namespace Modbus {
      * A state, an entry stamp, one non-blocking action per beat: nothing may
      * block, so every timeout is a comparison against the stamp, not a sleep.
      */
-    class RtuClient : public Component {
+    class RtuMaster : public Component {
 
         /** @name State
          *  @{ */
@@ -159,7 +159,7 @@ namespace Botanik { namespace Modbus {
 
         /** @param devices what each unit on the segment will answer; null plans
          *  every unit as generic_model(). Borrowed and flash-resident. */
-        RtuClient(const SetupContext& ctx, Vars::Bank* io,
+        RtuMaster(const SetupContext& ctx, Vars::Bank* io,
                   const DeviceTable* devices = nullptr)
             : Component(ctx, "ModbusRTU"), _io(io), _devices(devices) {}
 
@@ -322,4 +322,4 @@ namespace Botanik { namespace Modbus {
 }}  // namespace Botanik::Modbus
 
 #endif // BOTANIK_FEATURE_MODBUS_RTU_CLIENT
-#endif // MODBUS_RTU_CLIENT_H
+#endif // MODBUS_RTU_MASTER_H

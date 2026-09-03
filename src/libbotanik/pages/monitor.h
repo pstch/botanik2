@@ -143,7 +143,7 @@ namespace Botanik { namespace Pages {
         /** @brief Not const: ^O / ^R / ^S write overrides through it. */
         Vars::Bank*           _io;
         /** @brief How to turn a Modbus unit id into the plant's own tag for it.
-         *  A function pointer rather than an RtuClient*, so the page depends on
+         *  A function pointer rather than an RtuMaster*, so the page depends on
          *  "something can name a device", not on the field bus. */
         const char* (*_device_name)(const void*, uint8_t) = nullptr;
         const void*           _device_ctx = nullptr;

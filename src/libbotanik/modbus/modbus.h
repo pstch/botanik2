@@ -14,7 +14,7 @@
  *
  *  | class       | flag                   | what it is        |
  *  |-------------|------------------------|-------------------|
- *  | `RtuClient` | `MODBUS_RTU_CLIENT`    | bus MASTER, polling the field |
+ *  | `RtuMaster` | `MODBUS_RTU_CLIENT`    | bus MASTER, polling the field |
  *  | `RtuSlave`  | `MODBUS_RTU_SERVER`    | a device model, answering |
  *  | `TcpSlave`  | `MODBUS_TCP_SERVER`    | the SCADA-facing server |
  *  | `TcpMaster` | `MODBUS_TCP_CLIENT`    | this unit polling another |
@@ -35,7 +35,7 @@
 
 #include "libbotanik/modbus/response.h"
 
-#include "libbotanik/modbus/rtu/client.h"
+#include "libbotanik/modbus/rtu/master.h"
 #include "libbotanik/modbus/rtu/codec.h"
 #include "libbotanik/modbus/rtu/device.h"
 #include "libbotanik/modbus/rtu/framing.h"

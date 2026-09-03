@@ -34,7 +34,7 @@
 #include "libbotanik/logs/logger.h"
 #include "libbotanik/logs/topics.h"
 #if BOTANIK_FEATURE_MODBUS_RTU_CLIENT
-#include "libbotanik/modbus/rtu/client.h"
+#include "libbotanik/modbus/rtu/master.h"
 #endif
 #if BOTANIK_FEATURE_MODBUS_TCP_SERVER
 #include "libbotanik/modbus/tcp/slave.h"
@@ -188,7 +188,7 @@ namespace Botanik {
         /** @brief The field-bus master. Stepped from two phases like the slave
          *  below, and for the mirror-image reason: it takes the field in before
          *  the programs run, and hands their demands out after. */
-        Modbus::RtuClient              _modbus_rtu;
+        Modbus::RtuMaster              _modbus_rtu;
 #endif
 #if BOTANIK_FEATURE_MODBUS_TCP_SERVER
         /** @brief The Modbus TCP slave. NOT part of NetworkStack, which is
@@ -405,7 +405,7 @@ namespace Botanik {
         Network::MqttSender&            telemetry()       { return _net.telemetry(); }
 #endif
 #if BOTANIK_FEATURE_MODBUS_RTU_CLIENT
-        Modbus::RtuClient&              modbus_rtu()      { return _modbus_rtu; }
+        Modbus::RtuMaster&              modbus_rtu()      { return _modbus_rtu; }
 #endif
 #if BOTANIK_FEATURE_MODBUS_TCP_SERVER
         Modbus::TcpSlave&               modbus_tcp()      { return _modbus_tcp; }

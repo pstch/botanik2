@@ -13,7 +13,7 @@ Each transport has a master and a slave, and this firmware ships all four.
 
 | class       | flag                | what it is                    |
 |-------------|---------------------|-------------------------------|
-| `RtuClient` | `MODBUS_RTU_CLIENT` | bus MASTER, polling the field |
+| `RtuMaster` | `MODBUS_RTU_CLIENT` | bus MASTER, polling the field |
 | `RtuSlave`  | `MODBUS_RTU_SERVER` | a device model, answering     |
 | `TcpSlave`  | `MODBUS_TCP_SERVER` | the SCADA-facing server       |
 | `TcpMaster` | `MODBUS_TCP_CLIENT` | this unit polling another     |

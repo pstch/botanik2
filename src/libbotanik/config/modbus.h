@@ -153,7 +153,7 @@ namespace Botanik { namespace Config {
     /** @brief How many bytes the field-bus UART's transmit ring holds. NOT a
      *  tunable: it mirrors the platform's own buffer so the client can prove at
      *  build time that a full frame fits in one go. Lower it and the
-     *  static_assert in modbus/rtu/client.cpp names what stops fitting. */
+     *  static_assert in modbus/rtu/master.cpp names what stops fitting. */
 #ifndef BOTANIK_MODBUS_TX_RING_BYTES
 #  define BOTANIK_MODBUS_TX_RING_BYTES 256
 #endif

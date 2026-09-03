@@ -1,10 +1,10 @@
 /**
- * @file modbus/rtu/client.cpp
+ * @file modbus/rtu/master.cpp
  * @brief @see client.h
  */
 
 #include "libbotanik/tasks/tasks.h"
-#include "libbotanik/modbus/rtu/client.h"
+#include "libbotanik/modbus/rtu/master.h"
 
 #if BOTANIK_FEATURE_MODBUS_RTU_CLIENT
 
@@ -18,10 +18,10 @@ namespace Botanik { namespace Modbus {
 // C++11 needs an out-of-class definition for a static const member that is
 // ODR-used - bound to a reference, which any comparison in a test macro does.
 // Without it the header's initialiser is a compile-time value and nothing else.
-const uint16_t RtuClient::NO_BLOCK;
-const uint8_t  RtuClient::NO_PEER;
+const uint16_t RtuMaster::NO_BLOCK;
+const uint8_t  RtuMaster::NO_PEER;
 
-uint32_t RtuClient::_tune(Vars::VarRef r, uint32_t dflt) const {
+uint32_t RtuMaster::_tune(Vars::VarRef r, uint32_t dflt) const {
     if (_io == nullptr || r.index == Vars::VAR_NONE) return dflt;
     const Vars::Var h = _io->var(r);
     if (!h.valid()) return dflt;
@@ -33,7 +33,7 @@ uint32_t RtuClient::_tune(Vars::VarRef r, uint32_t dflt) const {
     return (uint32_t)v;
 }
 
-void RtuClient::on_setup(uint64_t now_ms) {
+void RtuMaster::on_setup(uint64_t now_ms) {
     HAL::Serial::fieldbus_begin(Config::MODBUS_BAUD, 8, HAL::Serial::PARITY_NONE, 1);
     _port = HAL::Serial::get(HAL::Serial::FIELDBUS);
     // Once, before the first transaction: whatever a half-configured line or
@@ -90,12 +90,12 @@ void RtuClient::on_setup(uint64_t now_ms) {
                           (unsigned)_plan.rows_unscanned());
 }
 
-bool RtuClient::_due(const Block& b, uint64_t now_ms) const {
+bool RtuMaster::_due(const Block& b, uint64_t now_ms) const {
     // An array index now, not a search: the planner gave every block its peer.
     return now_ms >= _peer[b.peer].probe_ms;
 }
 
-uint8_t RtuClient::_next_suspect(uint64_t now_ms) const {
+uint8_t RtuMaster::_next_suspect(uint64_t now_ms) const {
     const uint8_t n = _plan.device_count();
     if (n == 0 || now_ms < _probe_gate_ms) return NO_PEER;   // the gate is shut
     for (uint8_t k = 0; k < n; ++k) {
@@ -107,7 +107,7 @@ uint8_t RtuClient::_next_suspect(uint64_t now_ms) const {
     return NO_PEER;
 }
 
-void RtuClient::_answered(const Block& b) {
+void RtuMaster::_answered(const Block& b) {
     Peer* p = &_peer[b.peer];
     if (p->misses == 0) return;
 
@@ -133,7 +133,7 @@ void RtuClient::_answered(const Block& b) {
     _publish_health();
 }
 
-void RtuClient::reassert_outputs(uint8_t peer) {
+void RtuMaster::reassert_outputs(uint8_t peer) {
     if (_io == nullptr) return;
     for (uint16_t i = 0; i < _plan.block_count(); ++i) {
         const Block& w = _plan.block(i);
@@ -142,7 +142,7 @@ void RtuClient::reassert_outputs(uint8_t peer) {
     }
 }
 
-void RtuClient::_missed(const Block& b, uint64_t now_ms) {
+void RtuMaster::_missed(const Block& b, uint64_t now_ms) {
     Peer* p = &_peer[b.peer];
     if (p->misses < 255) p->misses++;
     // The retries are free-running: until they are spent the device keeps its
@@ -178,7 +178,7 @@ void RtuClient::_missed(const Block& b, uint64_t now_ms) {
     _publish_health();
 }
 
-void RtuClient::_publish_health() {
+void RtuMaster::_publish_health() {
     _dead = 0;
     for (uint8_t i = 0; i < _plan.device_count(); ++i)
         if (_peer[i].misses > _retries()) _dead++;
@@ -209,12 +209,12 @@ void RtuClient::_publish_health() {
     _io->var(_stray_ref).set_i((int64_t)(stray > 65535u ? 65535u : stray));
 }
 
-void RtuClient::_enter(State s, uint64_t now_ms) {
+void RtuMaster::_enter(State s, uint64_t now_ms) {
     _state    = s;
     _since_ms = now_ms;
 }
 
-RtuClient::Slot RtuClient::_slot_of(const Block& b) const {
+RtuMaster::Slot RtuMaster::_slot_of(const Block& b) const {
     Slot s;
     if (is_read(b.fc)) {
         // A poll falls due on its period, and the period is also what it may
@@ -258,7 +258,7 @@ RtuClient::Slot RtuClient::_slot_of(const Block& b) const {
     return s;
 }
 
-uint16_t RtuClient::_pick(uint64_t now_ms) const {
+uint16_t RtuMaster::_pick(uint64_t now_ms) const {
     // ONE clock for every block: how far it is through the lateness it is
     // allowed, in permille. Highest wins, ties to the lowest index. Reads and
     // writes differ in how their due time and deadline are DERIVED (_slot_of),
@@ -301,7 +301,7 @@ uint16_t RtuClient::_pick(uint64_t now_ms) const {
 }
 
 
-bool RtuClient::_build(uint16_t block, uint64_t now_ms) {
+bool RtuMaster::_build(uint16_t block, uint64_t now_ms) {
     (void)now_ms;
     const Block& b = _plan.block(block);
     _expect.unit = b.device;
@@ -360,7 +360,7 @@ static_assert(9u + 2u * Config::MODBUS_MAX_REGS_PER_BLOCK
               "a full FC16 must fit the transmit ring in one go: raise "
               "BOTANIK_MODBUS_TX_RING_BYTES or lower MODBUS_MAX_REGS_PER_BLOCK");
 
-bool RtuClient::_send() {
+bool RtuMaster::_send() {
     if (_port == nullptr) return false;
     // In one pass, deliberately. The USART drops DE when its shift register
     // empties, so a frame handed over in pieces would be cut in half on the
@@ -383,7 +383,7 @@ bool RtuClient::_send() {
     return true;
 }
 
-void RtuClient::on_output(uint64_t now_ms) {
+void RtuMaster::on_output(uint64_t now_ms) {
     if (_io == nullptr || _port == nullptr) return;
 
     // The gap expires INTO this beat rather than costing one of its own: it is
@@ -451,7 +451,7 @@ void RtuClient::on_output(uint64_t now_ms) {
     _enter(MB_RX, now_ms);
 }
 
-void RtuClient::on_input(uint64_t now_ms) {
+void RtuMaster::on_input(uint64_t now_ms) {
     if (_port == nullptr || _state != MB_RX) return;
 
     // Drain what the UART has, bounded: a wedged port must not turn into an
@@ -537,7 +537,7 @@ void RtuClient::on_input(uint64_t now_ms) {
     _enter(MB_GAP, now_ms);
 }
 
-void RtuClient::_settle(uint64_t now_ms) {
+void RtuMaster::_settle(uint64_t now_ms) {
     if (_active == NO_BLOCK) return;
     Block& b = _plan.block(_active);
 
@@ -622,7 +622,7 @@ void RtuClient::_settle(uint64_t now_ms) {
 // field fault, and nothing should. A failed humidity sensor raises an alarm; it
 // does not shut a greenhouse down. This is reported (the shell, the status bar,
 // alarm_fieldbus), not acted on.
-bool RtuClient::healthy() const {
+bool RtuMaster::healthy() const {
     // Nothing planned is not a fault: a site with no field bus is a legitimate
     // build, and saying otherwise would raise an alarm nobody can clear.
     if (_plan.block_count() == 0) return true;
@@ -632,7 +632,7 @@ bool RtuClient::healthy() const {
     return _txns > 0 && _dead == 0;
 }
 
-const char* RtuClient::status_str() const {
+const char* RtuMaster::status_str() const {
     if (_plan.block_count() == 0) return "idle";
     if (_txns == 0)               return "silent";
     switch (_state) {
@@ -648,7 +648,7 @@ namespace Botanik { namespace Modbus {
 
 
 
-    void RtuClient::register_tasks() {
+    void RtuMaster::register_tasks() {
         // The field bus commits its readings ahead of the bank's expiry sweep,
         // which must judge the freshest image and not the one from before this
         // beat's answers.
