@@ -112,10 +112,10 @@ END_VAR
 
   (* Calm and dry is what a station reads when it has stopped answering, so
      the roof interlock is told which of the two it is looking at. *)
-  cli_wind_mps_qlt     := QUAL(wind_pub.OK);
-  cli_rain_mmph_qlt    := QUAL(rain_pub.OK);
-  cli_windGust_mps_qlt := QUAL(gust_pub.OK);
-  cli_irrad_Wpm2_qlt   := QUAL(sun_pub.OK);
+  cli_wind_mps_qlt     := QUAL(wind_pub.OK, wind_pub.SEEDED);
+  cli_rain_mmph_qlt    := QUAL(rain_pub.OK, rain_pub.SEEDED);
+  cli_windGust_mps_qlt := QUAL(gust_pub.OK, gust_pub.SEEDED);
+  cli_irrad_Wpm2_qlt   := QUAL(sun_pub.OK, sun_pub.SEEDED);
 
   (* The WORST-served quantity decides, so a station answering three of its
      four registers is still a station short. One is enough to keep the plant

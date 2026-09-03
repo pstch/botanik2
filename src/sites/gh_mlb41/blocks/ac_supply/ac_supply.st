@@ -17,13 +17,18 @@ END_VAR
 VAR_OUTPUT
   Y  : REAL;
   OK : BOOL;
+  (* Whether the held reading is a reading at all. Before the first one Y is
+     the block's own zero, which is what a DEAD supply reads. @see QUAL *)
+  SEEDED : BOOL;
 END_VAR
 VAR
-  db : DEADBAND;
+  db   : DEADBAND;
+  seen : BOOL := FALSE;
 END_VAR
   OK := V_OK;
-  IF V_OK THEN db(V := V, BAND := BAND); END_IF;
-  Y := db.Y;
+  IF V_OK THEN db(V := V, BAND := BAND); seen := TRUE; END_IF;
+  Y      := db.Y;
+  SEEDED := seen;
 END_FUNCTION_BLOCK
 
 
@@ -53,6 +58,12 @@ VAR_OUTPUT
   OUT_W_OK  : BOOL;
   OUT_HZ    : REAL;
   OUT_HZ_OK : BOOL;
+  (* ...and whether each held reading is one. Per quantity, because a meter
+     answers them separately. @see QUAL *)
+  OUT_V_SEEDED  : BOOL;
+  OUT_A_SEEDED  : BOOL;
+  OUT_W_SEEDED  : BOOL;
+  OUT_HZ_SEEDED : BOOL;
   OK        : BOOL;
   FAULT     : BOOL;
   ANSWERED  : BOOL;   (* every quantity in, not just the two judged on *)
@@ -79,10 +90,10 @@ END_VAR
   mw (V := W,  V_OK := W_OK,  BAND := 5.0);
   mhz(V := HZ, V_OK := HZ_OK, BAND := 0.05);
 
-  OUT_V  := mv.Y;   OUT_V_OK  := mv.OK;
-  OUT_A  := ma.Y;   OUT_A_OK  := ma.OK;
-  OUT_W  := mw.Y;   OUT_W_OK  := mw.OK;
-  OUT_HZ := mhz.Y;  OUT_HZ_OK := mhz.OK;
+  OUT_V  := mv.Y;   OUT_V_OK  := mv.OK;   OUT_V_SEEDED  := mv.SEEDED;
+  OUT_A  := ma.Y;   OUT_A_OK  := ma.OK;   OUT_A_SEEDED  := ma.SEEDED;
+  OUT_W  := mw.Y;   OUT_W_OK  := mw.OK;   OUT_W_SEEDED  := mw.SEEDED;
+  OUT_HZ := mhz.Y;  OUT_HZ_OK := mhz.OK;  OUT_HZ_SEEDED := mhz.SEEDED;
 
   in_spec := V >= LO_V AND V <= HI_V AND HZ >= LO_HZ AND HZ <= HI_HZ;
   OK      := measured AND in_spec;

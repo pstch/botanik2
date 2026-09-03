@@ -52,15 +52,15 @@ END_VAR
   supply();
 
   sys_local_V      := supply.OUT_V;
-  sys_local_V_qlt  := QUAL(supply.OUT_V_OK);
+  sys_local_V_qlt  := QUAL(supply.OUT_V_OK, supply.OUT_V_SEEDED);
   sys_local_A      := supply.OUT_A;
-  sys_local_A_qlt  := QUAL(supply.OUT_A_OK);
+  sys_local_A_qlt  := QUAL(supply.OUT_A_OK, supply.OUT_A_SEEDED);
   sys_local_W      := supply.OUT_W;
-  sys_local_W_qlt  := QUAL(supply.OUT_W_OK);
+  sys_local_W_qlt  := QUAL(supply.OUT_W_OK, supply.OUT_W_SEEDED);
   sys_local_Hz     := supply.OUT_HZ;
-  sys_local_Hz_qlt := QUAL(supply.OUT_HZ_OK);
+  sys_local_Hz_qlt := QUAL(supply.OUT_HZ_OK, supply.OUT_HZ_SEEDED);
   sys_local_ok     := supply.OK;
-  sys_local_ok_qlt := QUAL(supply.ANSWERED);
+  sys_local_ok_qlt := QUAL(supply.ANSWERED, FALSE);
   alarm_ac_local   := supply.FAULT;
 
   (* The generator only owes an answer once the grid has gone. With the grid

@@ -142,6 +142,7 @@ typedef struct {
   __DECLARE_VAR(UDINT,NOW)
   __DECLARE_VAR(REAL,Y)
   __DECLARE_VAR(BOOL,OK)
+  __DECLARE_VAR(BOOL,SEEDED)
   __DECLARE_VAR(BOOL,HEALTHY)
 
   // FB private variables - TEMP, private and located variables
@@ -298,9 +299,11 @@ typedef struct {
   __DECLARE_VAR(REAL,BAND)
   __DECLARE_VAR(REAL,Y)
   __DECLARE_VAR(BOOL,OK)
+  __DECLARE_VAR(BOOL,SEEDED)
 
   // FB private variables - TEMP, private and located variables
   DEADBAND_data__ DB;
+  __DECLARE_VAR(BOOL,SEEN)
 
 } AC_MIRROR_data__;
 
@@ -330,6 +333,10 @@ typedef struct {
   __DECLARE_VAR(BOOL,OUT_W_OK)
   __DECLARE_VAR(REAL,OUT_HZ)
   __DECLARE_VAR(BOOL,OUT_HZ_OK)
+  __DECLARE_VAR(BOOL,OUT_V_SEEDED)
+  __DECLARE_VAR(BOOL,OUT_A_SEEDED)
+  __DECLARE_VAR(BOOL,OUT_W_SEEDED)
+  __DECLARE_VAR(BOOL,OUT_HZ_SEEDED)
   __DECLARE_VAR(BOOL,OK)
   __DECLARE_VAR(BOOL,FAULT)
   __DECLARE_VAR(BOOL,ANSWERED)

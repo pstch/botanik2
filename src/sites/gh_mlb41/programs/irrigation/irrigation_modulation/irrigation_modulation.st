@@ -88,6 +88,6 @@ END_VAR
   (* A modulation nobody can read is no dose, and irr_schedule reads it that
      way: before the first fold there is nothing to modulate BY, and the row
      stays at the declared figure that covers the ordinary case. *)
-  irr_mod_qlt        := QUAL(seeded AND measured);
-  irr_vpdAvg_kPa_qlt := QUAL(seeded AND measured);
+  irr_mod_qlt        := QUAL(measured, seeded);
+  irr_vpdAvg_kPa_qlt := QUAL(measured, seeded);
 END_PROGRAM

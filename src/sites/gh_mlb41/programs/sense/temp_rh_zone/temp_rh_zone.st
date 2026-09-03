@@ -101,10 +101,14 @@ END_VAR
     cli_dpMargin_degC := margin_lo;
     worst_temp           := cli_temp_lo;
   END_IF;
-  cli_dpMargin_degC_qlt := QUAL(measured);
-  cli_dewPoint_degC_qlt := QUAL(measured);
+  (* All four of these come off the same held levels, in the same arms, as
+     cli_temp_in - so they are worth exactly what it is. Propagated rather than
+     recomputed: one statement of the verdict, and it cannot drift from the row
+     the ladder actually controls on. *)
+  cli_dpMargin_degC_qlt := cli_temp_in_qlt;
+  cli_dewPoint_degC_qlt := cli_temp_in_qlt;
   cli_satPress_kPa      := SAT_VAPOUR_PRESSURE(T_DEGC := worst_temp);
-  cli_satPress_kPa_qlt  := QUAL(measured);
+  cli_satPress_kPa_qlt  := cli_temp_in_qlt;
 
   (* The worst case is per QUANTITY, not one level chosen for all of them: the
      spec keeps the smallest margin for rot and the LOWEST VPD for irrigation,
@@ -122,7 +126,7 @@ END_VAR
   ELSE
     cli_vpd_kPa := vpd_lo;
   END_IF;
-  cli_vpd_kPa_qlt := QUAL(measured);
+  cli_vpd_kPa_qlt := cli_temp_in_qlt;
 
   alarm_rot := cli_dpMargin_degC < cli_rotMargin_degC;
 END_PROGRAM

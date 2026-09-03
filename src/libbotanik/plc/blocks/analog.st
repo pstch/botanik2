@@ -93,6 +93,9 @@ END_VAR
 VAR_OUTPUT
   Y       : REAL;
   OK      : BOOL;   (* this beat MEASURED it *)
+  (* ...and one HAS been measured, so Y is a held average rather than a
+     divider that has never answered. @see QUAL *)
+  SEEDED  : BOOL;
   HEALTHY : BOOL;
 END_VAR
 VAR
@@ -119,7 +122,8 @@ END_VAR
   END_IF;
   (* A rail nobody is measuring has no voltage to publish. Its LAST average
      stays in the filter, so a divider that comes back rejoins where it left. *)
-  Y := db.Y;
+  Y      := db.Y;
+  SEEDED := seen;
 
   (* A divider that has NEVER answered is the bus still coming up. One that has
      answered and then stopped is a rail nobody can see, which is a fault. *)

@@ -83,13 +83,13 @@ END_VAR
   gen();
 
   sys_dc1_V        := ps1.Y;
-  sys_dc1_V_qlt    := QUAL(ps1.OK);
+  sys_dc1_V_qlt    := QUAL(ps1.OK, ps1.SEEDED);
   sys_dc2_V        := ps2.Y;
-  sys_dc2_V_qlt    := QUAL(ps2.OK);
+  sys_dc2_V_qlt    := QUAL(ps2.OK, ps2.SEEDED);
   sys_upsBat_V     := ups.Y;
-  sys_upsBat_V_qlt := QUAL(ups.OK);
+  sys_upsBat_V_qlt := QUAL(ups.OK, ups.SEEDED);
   sys_genBat_V     := gen.Y;
-  sys_genBat_V_qlt := QUAL(gen.OK);
+  sys_genBat_V_qlt := QUAL(gen.OK, gen.SEEDED);
 
   alarm_dc_ps1            := NOT ps1.HEALTHY;
   alarm_dc_ps2            := NOT ps2.HEALTHY;
@@ -113,5 +113,6 @@ END_VAR
   (* A summary of four rails is worth what the four are: one unread rail makes
      the whole verdict a guess. *)
   sys_dc_ok_qlt := QUAL(ps1.OK AND ps2.OK AND ups.OK AND gen.OK
-                        AND GOOD(pwr_upsLowBat_qlt));
+                        AND GOOD(pwr_upsLowBat_qlt),
+                        ps1.SEEDED AND ps2.SEEDED AND ups.SEEDED AND gen.SEEDED);
 END_PROGRAM

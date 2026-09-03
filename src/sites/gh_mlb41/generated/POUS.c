@@ -72,15 +72,11 @@ static QUALITY ___WORST_OF(
   BOOL *__ENO, 
   QUALITY A, 
   QUALITY B);
-static QUALITY ___QUAL_HELD(
+static QUALITY ___QUAL(
   BOOL EN, 
   BOOL *__ENO, 
   BOOL OK, 
   BOOL SEEDED);
-static QUALITY ___QUAL(
-  BOOL EN, 
-  BOOL *__ENO, 
-  BOOL OK);
 static REAL ___LADDER(
   BOOL EN, 
   BOOL *__ENO, 
@@ -812,44 +808,11 @@ __end:
 }
 
 
-static QUALITY ___QUAL_HELD(
+static QUALITY ___QUAL(
   BOOL EN, 
   BOOL *__ENO, 
   BOOL OK, 
   BOOL SEEDED)
-{
-  BOOL ENO = __BOOL_LITERAL(TRUE);
-  QUALITY QUAL_HELD = QUALITY__Q_NO_DATA;
-
-  // Control execution
-  if (!EN) {
-    if (__ENO != NULL) {
-      *__ENO = __BOOL_LITERAL(FALSE);
-    }
-    return QUAL_HELD;
-  }
-  if (OK) {
-    QUAL_HELD = QUALITY__Q_VALID;
-  } else if (SEEDED) {
-    QUAL_HELD = QUALITY__Q_SUBSTITUTED;
-  } else {
-    QUAL_HELD = QUALITY__Q_NO_DATA;
-  };
-
-  goto __end;
-
-__end:
-  if (__ENO != NULL) {
-    *__ENO = ENO;
-  }
-  return QUAL_HELD;
-}
-
-
-static QUALITY ___QUAL(
-  BOOL EN, 
-  BOOL *__ENO, 
-  BOOL OK)
 {
   BOOL ENO = __BOOL_LITERAL(TRUE);
   QUALITY QUAL = QUALITY__Q_NO_DATA;
@@ -863,6 +826,8 @@ static QUALITY ___QUAL(
   }
   if (OK) {
     QUAL = QUALITY__Q_VALID;
+  } else if (SEEDED) {
+    QUAL = QUALITY__Q_SUBSTITUTED;
   } else {
     QUAL = QUALITY__Q_NO_DATA;
   };
@@ -1500,6 +1465,7 @@ static void DC_RAIL_init__(DC_RAIL_data__ *data__, BOOL retain) {
   __INIT_VAR(data__->NOW,0,retain)
   __INIT_VAR(data__->Y,0,retain)
   __INIT_VAR(data__->OK,__BOOL_LITERAL(FALSE),retain)
+  __INIT_VAR(data__->SEEDED,__BOOL_LITERAL(FALSE),retain)
   __INIT_VAR(data__->HEALTHY,__BOOL_LITERAL(FALSE),retain)
   EWMA_init__(&data__->AVG,retain);
   DEADBAND_init__(&data__->DB,retain);
@@ -1536,6 +1502,7 @@ static void DC_RAIL_body__(DC_RAIL_data__ *data__) {
     __SET_VAR(data__->,SEEN,,__BOOL_LITERAL(TRUE));
   };
   __SET_VAR(data__->,Y,,__GET_VAR(data__->DB.Y,));
+  __SET_VAR(data__->,SEEDED,,__GET_VAR(data__->SEEN,));
   if (__GET_VAR(data__->V_OK,)) {
     __SET_VAR(data__->,HEALTHY,,(__GET_VAR(data__->AVG.Y,) >= __GET_VAR(data__->LO,)));
   } else {
@@ -2123,7 +2090,9 @@ static void AC_MIRROR_init__(AC_MIRROR_data__ *data__, BOOL retain) {
   __INIT_VAR(data__->BAND,0,retain)
   __INIT_VAR(data__->Y,0,retain)
   __INIT_VAR(data__->OK,__BOOL_LITERAL(FALSE),retain)
+  __INIT_VAR(data__->SEEDED,__BOOL_LITERAL(FALSE),retain)
   DEADBAND_init__(&data__->DB,retain);
+  __INIT_VAR(data__->SEEN,__BOOL_LITERAL(FALSE),retain)
 }
 
 // Code part
@@ -2143,8 +2112,10 @@ static void AC_MIRROR_body__(AC_MIRROR_data__ *data__) {
     __SET_VAR(data__->DB.,V,,__GET_VAR(data__->V,));
     __SET_VAR(data__->DB.,BAND,,__GET_VAR(data__->BAND,));
     DEADBAND_body__(&data__->DB);
+    __SET_VAR(data__->,SEEN,,__BOOL_LITERAL(TRUE));
   };
   __SET_VAR(data__->,Y,,__GET_VAR(data__->DB.Y,));
+  __SET_VAR(data__->,SEEDED,,__GET_VAR(data__->SEEN,));
 
   goto __end;
 
@@ -2179,6 +2150,10 @@ static void AC_SUPPLY_init__(AC_SUPPLY_data__ *data__, BOOL retain) {
   __INIT_VAR(data__->OUT_W_OK,__BOOL_LITERAL(FALSE),retain)
   __INIT_VAR(data__->OUT_HZ,0,retain)
   __INIT_VAR(data__->OUT_HZ_OK,__BOOL_LITERAL(FALSE),retain)
+  __INIT_VAR(data__->OUT_V_SEEDED,__BOOL_LITERAL(FALSE),retain)
+  __INIT_VAR(data__->OUT_A_SEEDED,__BOOL_LITERAL(FALSE),retain)
+  __INIT_VAR(data__->OUT_W_SEEDED,__BOOL_LITERAL(FALSE),retain)
+  __INIT_VAR(data__->OUT_HZ_SEEDED,__BOOL_LITERAL(FALSE),retain)
   __INIT_VAR(data__->OK,__BOOL_LITERAL(FALSE),retain)
   __INIT_VAR(data__->FAULT,__BOOL_LITERAL(FALSE),retain)
   __INIT_VAR(data__->ANSWERED,__BOOL_LITERAL(FALSE),retain)
@@ -2225,12 +2200,16 @@ static void AC_SUPPLY_body__(AC_SUPPLY_data__ *data__) {
   AC_MIRROR_body__(&data__->MHZ);
   __SET_VAR(data__->,OUT_V,,__GET_VAR(data__->MV.Y,));
   __SET_VAR(data__->,OUT_V_OK,,__GET_VAR(data__->MV.OK,));
+  __SET_VAR(data__->,OUT_V_SEEDED,,__GET_VAR(data__->MV.SEEDED,));
   __SET_VAR(data__->,OUT_A,,__GET_VAR(data__->MA.Y,));
   __SET_VAR(data__->,OUT_A_OK,,__GET_VAR(data__->MA.OK,));
+  __SET_VAR(data__->,OUT_A_SEEDED,,__GET_VAR(data__->MA.SEEDED,));
   __SET_VAR(data__->,OUT_W,,__GET_VAR(data__->MW.Y,));
   __SET_VAR(data__->,OUT_W_OK,,__GET_VAR(data__->MW.OK,));
+  __SET_VAR(data__->,OUT_W_SEEDED,,__GET_VAR(data__->MW.SEEDED,));
   __SET_VAR(data__->,OUT_HZ,,__GET_VAR(data__->MHZ.Y,));
   __SET_VAR(data__->,OUT_HZ_OK,,__GET_VAR(data__->MHZ.OK,));
+  __SET_VAR(data__->,OUT_HZ_SEEDED,,__GET_VAR(data__->MHZ.SEEDED,));
   __SET_VAR(data__->,IN_SPEC,,((((__GET_VAR(data__->V,) >= __GET_VAR(data__->LO_V,)) && (__GET_VAR(data__->V,) <= __GET_VAR(data__->HI_V,))) && (__GET_VAR(data__->HZ,) >= __GET_VAR(data__->LO_HZ,))) && (__GET_VAR(data__->HZ,) <= __GET_VAR(data__->HI_HZ,))));
   __SET_VAR(data__->,OK,,(__GET_VAR(data__->MEASURED,) && __GET_VAR(data__->IN_SPEC,)));
   __SET_VAR(data__->,FAULT,,(__GET_VAR(data__->SEEN,) && (!(__GET_VAR(data__->MEASURED,)) || !(__GET_VAR(data__->IN_SPEC,)))));
@@ -3488,7 +3467,8 @@ static void DAY_PHASE_CONTROLLER_body__(DAY_PHASE_CONTROLLER_data__ *data__) {
   __SET_EXTERNAL(data__->,CLI_PHASE_QLT,,___QUAL(
     (BOOL)__BOOL_LITERAL(TRUE),
     NULL,
-    (BOOL)__GET_EXTERNAL(data__->SOL_READY,)));
+    (BOOL)__GET_EXTERNAL(data__->SOL_READY,),
+    (BOOL)__BOOL_LITERAL(FALSE)));
   __SET_EXTERNAL(data__->,CLI_PREVDAYMAX_DEGC,,__GET_VAR(data__->DAY_MAX,));
   __SET_EXTERNAL(data__->,CLI_PREVNIGHTMIN_DEGC,,__GET_VAR(data__->NIGHT_MIN,));
   __SET_EXTERNAL(data__->,CLI_PREVDAYMAX_DEGC_QLT,,__GET_EXTERNAL(data__->CLI_TEMP_IN_QLT,));
@@ -4498,11 +4478,13 @@ static void IRRIGATION_MODULATION_body__(IRRIGATION_MODULATION_data__ *data__) {
   __SET_EXTERNAL(data__->,IRR_MOD_QLT,,___QUAL(
     (BOOL)__BOOL_LITERAL(TRUE),
     NULL,
-    (BOOL)(__GET_VAR(data__->SEEDED,) && __GET_VAR(data__->MEASURED,))));
+    (BOOL)__GET_VAR(data__->MEASURED,),
+    (BOOL)__GET_VAR(data__->SEEDED,)));
   __SET_EXTERNAL(data__->,IRR_VPDAVG_KPA_QLT,,___QUAL(
     (BOOL)__BOOL_LITERAL(TRUE),
     NULL,
-    (BOOL)(__GET_VAR(data__->SEEDED,) && __GET_VAR(data__->MEASURED,))));
+    (BOOL)__GET_VAR(data__->MEASURED,),
+    (BOOL)__GET_VAR(data__->SEEDED,)));
 
   goto __end;
 
@@ -4883,27 +4865,32 @@ static void AC_GRID_WATCH_body__(AC_GRID_WATCH_data__ *data__) {
   __SET_EXTERNAL(data__->,SYS_GRID_V_QLT,,___QUAL(
     (BOOL)__BOOL_LITERAL(TRUE),
     NULL,
-    (BOOL)__GET_VAR(data__->SUPPLY.OUT_V_OK,)));
+    (BOOL)__GET_VAR(data__->SUPPLY.OUT_V_OK,),
+    (BOOL)__GET_VAR(data__->SUPPLY.OUT_V_SEEDED,)));
   __SET_EXTERNAL(data__->,SYS_GRID_A,,__GET_VAR(data__->SUPPLY.OUT_A,));
   __SET_EXTERNAL(data__->,SYS_GRID_A_QLT,,___QUAL(
     (BOOL)__BOOL_LITERAL(TRUE),
     NULL,
-    (BOOL)__GET_VAR(data__->SUPPLY.OUT_A_OK,)));
+    (BOOL)__GET_VAR(data__->SUPPLY.OUT_A_OK,),
+    (BOOL)__GET_VAR(data__->SUPPLY.OUT_A_SEEDED,)));
   __SET_EXTERNAL(data__->,SYS_GRID_W,,__GET_VAR(data__->SUPPLY.OUT_W,));
   __SET_EXTERNAL(data__->,SYS_GRID_W_QLT,,___QUAL(
     (BOOL)__BOOL_LITERAL(TRUE),
     NULL,
-    (BOOL)__GET_VAR(data__->SUPPLY.OUT_W_OK,)));
+    (BOOL)__GET_VAR(data__->SUPPLY.OUT_W_OK,),
+    (BOOL)__GET_VAR(data__->SUPPLY.OUT_W_SEEDED,)));
   __SET_EXTERNAL(data__->,SYS_GRID_HZ,,__GET_VAR(data__->SUPPLY.OUT_HZ,));
   __SET_EXTERNAL(data__->,SYS_GRID_HZ_QLT,,___QUAL(
     (BOOL)__BOOL_LITERAL(TRUE),
     NULL,
-    (BOOL)__GET_VAR(data__->SUPPLY.OUT_HZ_OK,)));
+    (BOOL)__GET_VAR(data__->SUPPLY.OUT_HZ_OK,),
+    (BOOL)__GET_VAR(data__->SUPPLY.OUT_HZ_SEEDED,)));
   __SET_EXTERNAL(data__->,SYS_GRID_OK,,__GET_VAR(data__->SUPPLY.OK,));
   __SET_EXTERNAL(data__->,SYS_GRID_OK_QLT,,___QUAL(
     (BOOL)__BOOL_LITERAL(TRUE),
     NULL,
-    (BOOL)__GET_VAR(data__->SUPPLY.ANSWERED,)));
+    (BOOL)__GET_VAR(data__->SUPPLY.ANSWERED,),
+    (BOOL)__BOOL_LITERAL(FALSE)));
   __SET_EXTERNAL(data__->,ALARM_AC_GRID,,__GET_VAR(data__->SUPPLY.FAULT,));
 
   goto __end;
@@ -4981,27 +4968,32 @@ static void AC_LOCAL_WATCH_body__(AC_LOCAL_WATCH_data__ *data__) {
   __SET_EXTERNAL(data__->,SYS_LOCAL_V_QLT,,___QUAL(
     (BOOL)__BOOL_LITERAL(TRUE),
     NULL,
-    (BOOL)__GET_VAR(data__->SUPPLY.OUT_V_OK,)));
+    (BOOL)__GET_VAR(data__->SUPPLY.OUT_V_OK,),
+    (BOOL)__GET_VAR(data__->SUPPLY.OUT_V_SEEDED,)));
   __SET_EXTERNAL(data__->,SYS_LOCAL_A,,__GET_VAR(data__->SUPPLY.OUT_A,));
   __SET_EXTERNAL(data__->,SYS_LOCAL_A_QLT,,___QUAL(
     (BOOL)__BOOL_LITERAL(TRUE),
     NULL,
-    (BOOL)__GET_VAR(data__->SUPPLY.OUT_A_OK,)));
+    (BOOL)__GET_VAR(data__->SUPPLY.OUT_A_OK,),
+    (BOOL)__GET_VAR(data__->SUPPLY.OUT_A_SEEDED,)));
   __SET_EXTERNAL(data__->,SYS_LOCAL_W,,__GET_VAR(data__->SUPPLY.OUT_W,));
   __SET_EXTERNAL(data__->,SYS_LOCAL_W_QLT,,___QUAL(
     (BOOL)__BOOL_LITERAL(TRUE),
     NULL,
-    (BOOL)__GET_VAR(data__->SUPPLY.OUT_W_OK,)));
+    (BOOL)__GET_VAR(data__->SUPPLY.OUT_W_OK,),
+    (BOOL)__GET_VAR(data__->SUPPLY.OUT_W_SEEDED,)));
   __SET_EXTERNAL(data__->,SYS_LOCAL_HZ,,__GET_VAR(data__->SUPPLY.OUT_HZ,));
   __SET_EXTERNAL(data__->,SYS_LOCAL_HZ_QLT,,___QUAL(
     (BOOL)__BOOL_LITERAL(TRUE),
     NULL,
-    (BOOL)__GET_VAR(data__->SUPPLY.OUT_HZ_OK,)));
+    (BOOL)__GET_VAR(data__->SUPPLY.OUT_HZ_OK,),
+    (BOOL)__GET_VAR(data__->SUPPLY.OUT_HZ_SEEDED,)));
   __SET_EXTERNAL(data__->,SYS_LOCAL_OK,,__GET_VAR(data__->SUPPLY.OK,));
   __SET_EXTERNAL(data__->,SYS_LOCAL_OK_QLT,,___QUAL(
     (BOOL)__BOOL_LITERAL(TRUE),
     NULL,
-    (BOOL)__GET_VAR(data__->SUPPLY.ANSWERED,)));
+    (BOOL)__GET_VAR(data__->SUPPLY.ANSWERED,),
+    (BOOL)__BOOL_LITERAL(FALSE)));
   __SET_EXTERNAL(data__->,ALARM_AC_LOCAL,,__GET_VAR(data__->SUPPLY.FAULT,));
   __SET_VAR(data__->,CRANKING.IN,,(!(__GET_EXTERNAL(data__->SYS_GRID_OK,)) && !(__GET_VAR(data__->SUPPLY.ANSWERED,))));
   __SET_VAR(data__->,CRANKING.PT,,___SEC_MS(
@@ -5178,22 +5170,26 @@ static void DC_WATCH_body__(DC_WATCH_data__ *data__) {
   __SET_EXTERNAL(data__->,SYS_DC1_V_QLT,,___QUAL(
     (BOOL)__BOOL_LITERAL(TRUE),
     NULL,
-    (BOOL)__GET_VAR(data__->PS1.OK,)));
+    (BOOL)__GET_VAR(data__->PS1.OK,),
+    (BOOL)__GET_VAR(data__->PS1.SEEDED,)));
   __SET_EXTERNAL(data__->,SYS_DC2_V,,__GET_VAR(data__->PS2.Y,));
   __SET_EXTERNAL(data__->,SYS_DC2_V_QLT,,___QUAL(
     (BOOL)__BOOL_LITERAL(TRUE),
     NULL,
-    (BOOL)__GET_VAR(data__->PS2.OK,)));
+    (BOOL)__GET_VAR(data__->PS2.OK,),
+    (BOOL)__GET_VAR(data__->PS2.SEEDED,)));
   __SET_EXTERNAL(data__->,SYS_UPSBAT_V,,__GET_VAR(data__->UPS.Y,));
   __SET_EXTERNAL(data__->,SYS_UPSBAT_V_QLT,,___QUAL(
     (BOOL)__BOOL_LITERAL(TRUE),
     NULL,
-    (BOOL)__GET_VAR(data__->UPS.OK,)));
+    (BOOL)__GET_VAR(data__->UPS.OK,),
+    (BOOL)__GET_VAR(data__->UPS.SEEDED,)));
   __SET_EXTERNAL(data__->,SYS_GENBAT_V,,__GET_VAR(data__->GEN.Y,));
   __SET_EXTERNAL(data__->,SYS_GENBAT_V_QLT,,___QUAL(
     (BOOL)__BOOL_LITERAL(TRUE),
     NULL,
-    (BOOL)__GET_VAR(data__->GEN.OK,)));
+    (BOOL)__GET_VAR(data__->GEN.OK,),
+    (BOOL)__GET_VAR(data__->GEN.SEEDED,)));
   __SET_EXTERNAL(data__->,ALARM_DC_PS1,,!(__GET_VAR(data__->PS1.HEALTHY,)));
   __SET_EXTERNAL(data__->,ALARM_DC_PS2,,!(__GET_VAR(data__->PS2.HEALTHY,)));
   __SET_EXTERNAL(data__->,ALARM_GENERATOR_BATTERY,,!(__GET_VAR(data__->GEN.HEALTHY,)));
@@ -5212,7 +5208,8 @@ static void DC_WATCH_body__(DC_WATCH_data__ *data__) {
     (BOOL)((((__GET_VAR(data__->PS1.OK,) && __GET_VAR(data__->PS2.OK,)) && __GET_VAR(data__->UPS.OK,)) && __GET_VAR(data__->GEN.OK,)) && ___GOOD(
       (BOOL)__BOOL_LITERAL(TRUE),
       NULL,
-      (QUALITY)__GET_EXTERNAL(data__->PWR_UPSLOWBAT_QLT,)))));
+      (QUALITY)__GET_EXTERNAL(data__->PWR_UPSLOWBAT_QLT,))),
+    (BOOL)(((__GET_VAR(data__->PS1.SEEDED,) && __GET_VAR(data__->PS2.SEEDED,)) && __GET_VAR(data__->UPS.SEEDED,)) && __GET_VAR(data__->GEN.SEEDED,))));
 
   goto __end;
 
@@ -5498,42 +5495,42 @@ static void TEMP_RH_SENSORS_body__(TEMP_RH_SENSORS_data__ *data__) {
   __SET_EXTERNAL(data__->,CLI_TEMP_EXT,,__GET_VAR(data__->EXTERIOR.TEMP,));
   __SET_EXTERNAL(data__->,CLI_RH_EXT,,__GET_VAR(data__->EXTERIOR.RH,));
   __SET_EXTERNAL(data__->,ALARM_SNS_EXTERIOR,,__GET_VAR(data__->EXTERIOR.FAULT,));
-  __SET_EXTERNAL(data__->,CLI_TEMP_HI_QLT,,___QUAL_HELD(
+  __SET_EXTERNAL(data__->,CLI_TEMP_HI_QLT,,___QUAL(
     (BOOL)__BOOL_LITERAL(TRUE),
     NULL,
     (BOOL)__GET_VAR(data__->CEILING.TEMP_OK,),
     (BOOL)__GET_VAR(data__->CEILING.TEMP_SEEDED,)));
-  __SET_EXTERNAL(data__->,CLI_TEMP_LO_QLT,,___QUAL_HELD(
+  __SET_EXTERNAL(data__->,CLI_TEMP_LO_QLT,,___QUAL(
     (BOOL)__BOOL_LITERAL(TRUE),
     NULL,
     (BOOL)__GET_VAR(data__->FLOOR.TEMP_OK,),
     (BOOL)__GET_VAR(data__->FLOOR.TEMP_SEEDED,)));
-  __SET_EXTERNAL(data__->,CLI_TEMP_CS_QLT,,___QUAL_HELD(
+  __SET_EXTERNAL(data__->,CLI_TEMP_CS_QLT,,___QUAL(
     (BOOL)__BOOL_LITERAL(TRUE),
     NULL,
     (BOOL)__GET_VAR(data__->CRAWLSPACE.TEMP_OK,),
     (BOOL)__GET_VAR(data__->CRAWLSPACE.TEMP_SEEDED,)));
-  __SET_EXTERNAL(data__->,CLI_TEMP_EXT_QLT,,___QUAL_HELD(
+  __SET_EXTERNAL(data__->,CLI_TEMP_EXT_QLT,,___QUAL(
     (BOOL)__BOOL_LITERAL(TRUE),
     NULL,
     (BOOL)__GET_VAR(data__->EXTERIOR.TEMP_OK,),
     (BOOL)__GET_VAR(data__->EXTERIOR.TEMP_SEEDED,)));
-  __SET_EXTERNAL(data__->,CLI_RH_HI_QLT,,___QUAL_HELD(
+  __SET_EXTERNAL(data__->,CLI_RH_HI_QLT,,___QUAL(
     (BOOL)__BOOL_LITERAL(TRUE),
     NULL,
     (BOOL)__GET_VAR(data__->CEILING.RH_OK,),
     (BOOL)__GET_VAR(data__->CEILING.RH_SEEDED,)));
-  __SET_EXTERNAL(data__->,CLI_RH_LO_QLT,,___QUAL_HELD(
+  __SET_EXTERNAL(data__->,CLI_RH_LO_QLT,,___QUAL(
     (BOOL)__BOOL_LITERAL(TRUE),
     NULL,
     (BOOL)__GET_VAR(data__->FLOOR.RH_OK,),
     (BOOL)__GET_VAR(data__->FLOOR.RH_SEEDED,)));
-  __SET_EXTERNAL(data__->,CLI_RH_CS_QLT,,___QUAL_HELD(
+  __SET_EXTERNAL(data__->,CLI_RH_CS_QLT,,___QUAL(
     (BOOL)__BOOL_LITERAL(TRUE),
     NULL,
     (BOOL)__GET_VAR(data__->CRAWLSPACE.RH_OK,),
     (BOOL)__GET_VAR(data__->CRAWLSPACE.RH_SEEDED,)));
-  __SET_EXTERNAL(data__->,CLI_RH_EXT_QLT,,___QUAL_HELD(
+  __SET_EXTERNAL(data__->,CLI_RH_EXT_QLT,,___QUAL(
     (BOOL)__BOOL_LITERAL(TRUE),
     NULL,
     (BOOL)__GET_VAR(data__->EXTERIOR.RH_OK,),
@@ -5676,22 +5673,13 @@ static void TEMP_RH_ZONE_body__(TEMP_RH_ZONE_data__ *data__) {
     __SET_EXTERNAL(data__->,CLI_DPMARGIN_DEGC,,__GET_VAR(data__->MARGIN_LO,));
     __SET_VAR(data__->,WORST_TEMP,,__GET_EXTERNAL(data__->CLI_TEMP_LO,));
   };
-  __SET_EXTERNAL(data__->,CLI_DPMARGIN_DEGC_QLT,,___QUAL(
-    (BOOL)__BOOL_LITERAL(TRUE),
-    NULL,
-    (BOOL)__GET_VAR(data__->MEASURED,)));
-  __SET_EXTERNAL(data__->,CLI_DEWPOINT_DEGC_QLT,,___QUAL(
-    (BOOL)__BOOL_LITERAL(TRUE),
-    NULL,
-    (BOOL)__GET_VAR(data__->MEASURED,)));
+  __SET_EXTERNAL(data__->,CLI_DPMARGIN_DEGC_QLT,,__GET_EXTERNAL(data__->CLI_TEMP_IN_QLT,));
+  __SET_EXTERNAL(data__->,CLI_DEWPOINT_DEGC_QLT,,__GET_EXTERNAL(data__->CLI_TEMP_IN_QLT,));
   __SET_EXTERNAL(data__->,CLI_SATPRESS_KPA,,___SAT_VAPOUR_PRESSURE(
     (BOOL)__BOOL_LITERAL(TRUE),
     NULL,
     (REAL)__GET_VAR(data__->WORST_TEMP,)));
-  __SET_EXTERNAL(data__->,CLI_SATPRESS_KPA_QLT,,___QUAL(
-    (BOOL)__BOOL_LITERAL(TRUE),
-    NULL,
-    (BOOL)__GET_VAR(data__->MEASURED,)));
+  __SET_EXTERNAL(data__->,CLI_SATPRESS_KPA_QLT,,__GET_EXTERNAL(data__->CLI_TEMP_IN_QLT,));
   __SET_VAR(data__->,VPD_HI,,(___SAT_VAPOUR_PRESSURE(
     (BOOL)__BOOL_LITERAL(TRUE),
     NULL,
@@ -5726,10 +5714,7 @@ static void TEMP_RH_ZONE_body__(TEMP_RH_ZONE_data__ *data__) {
   } else {
     __SET_EXTERNAL(data__->,CLI_VPD_KPA,,__GET_VAR(data__->VPD_LO,));
   };
-  __SET_EXTERNAL(data__->,CLI_VPD_KPA_QLT,,___QUAL(
-    (BOOL)__BOOL_LITERAL(TRUE),
-    NULL,
-    (BOOL)__GET_VAR(data__->MEASURED,)));
+  __SET_EXTERNAL(data__->,CLI_VPD_KPA_QLT,,__GET_EXTERNAL(data__->CLI_TEMP_IN_QLT,));
   __SET_EXTERNAL(data__->,ALARM_ROT,,(__GET_EXTERNAL(data__->CLI_DPMARGIN_DEGC,) < __GET_EXTERNAL(data__->CLI_ROTMARGIN_DEGC,)));
 
   goto __end;
@@ -5937,19 +5922,23 @@ static void WX_SENSORS_body__(WX_SENSORS_data__ *data__) {
   __SET_EXTERNAL(data__->,CLI_WIND_MPS_QLT,,___QUAL(
     (BOOL)__BOOL_LITERAL(TRUE),
     NULL,
-    (BOOL)__GET_VAR(data__->WIND_PUB.OK,)));
+    (BOOL)__GET_VAR(data__->WIND_PUB.OK,),
+    (BOOL)__GET_VAR(data__->WIND_PUB.SEEDED,)));
   __SET_EXTERNAL(data__->,CLI_RAIN_MMPH_QLT,,___QUAL(
     (BOOL)__BOOL_LITERAL(TRUE),
     NULL,
-    (BOOL)__GET_VAR(data__->RAIN_PUB.OK,)));
+    (BOOL)__GET_VAR(data__->RAIN_PUB.OK,),
+    (BOOL)__GET_VAR(data__->RAIN_PUB.SEEDED,)));
   __SET_EXTERNAL(data__->,CLI_WINDGUST_MPS_QLT,,___QUAL(
     (BOOL)__BOOL_LITERAL(TRUE),
     NULL,
-    (BOOL)__GET_VAR(data__->GUST_PUB.OK,)));
+    (BOOL)__GET_VAR(data__->GUST_PUB.OK,),
+    (BOOL)__GET_VAR(data__->GUST_PUB.SEEDED,)));
   __SET_EXTERNAL(data__->,CLI_IRRAD_WPM2_QLT,,___QUAL(
     (BOOL)__BOOL_LITERAL(TRUE),
     NULL,
-    (BOOL)__GET_VAR(data__->SUN_PUB.OK,)));
+    (BOOL)__GET_VAR(data__->SUN_PUB.OK,),
+    (BOOL)__GET_VAR(data__->SUN_PUB.SEEDED,)));
   __SET_VAR(data__->,WORST,,__GET_VAR(data__->WIND_VOTE.USED,));
   if ((__GET_VAR(data__->GUST_VOTE.USED,) < __GET_VAR(data__->WORST,))) {
     __SET_VAR(data__->,WORST,,__GET_VAR(data__->GUST_VOTE.USED,));

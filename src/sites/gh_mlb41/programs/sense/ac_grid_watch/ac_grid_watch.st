@@ -47,14 +47,14 @@ END_VAR
   supply();
 
   sys_grid_V      := supply.OUT_V;
-  sys_grid_V_qlt  := QUAL(supply.OUT_V_OK);
+  sys_grid_V_qlt  := QUAL(supply.OUT_V_OK, supply.OUT_V_SEEDED);
   sys_grid_A      := supply.OUT_A;
-  sys_grid_A_qlt  := QUAL(supply.OUT_A_OK);
+  sys_grid_A_qlt  := QUAL(supply.OUT_A_OK, supply.OUT_A_SEEDED);
   sys_grid_W      := supply.OUT_W;
-  sys_grid_W_qlt  := QUAL(supply.OUT_W_OK);
+  sys_grid_W_qlt  := QUAL(supply.OUT_W_OK, supply.OUT_W_SEEDED);
   sys_grid_Hz     := supply.OUT_HZ;
-  sys_grid_Hz_qlt := QUAL(supply.OUT_HZ_OK);
+  sys_grid_Hz_qlt := QUAL(supply.OUT_HZ_OK, supply.OUT_HZ_SEEDED);
   sys_grid_ok     := supply.OK;
-  sys_grid_ok_qlt := QUAL(supply.ANSWERED);
+  sys_grid_ok_qlt := QUAL(supply.ANSWERED, FALSE);
   alarm_ac_grid   := supply.FAULT;
 END_PROGRAM

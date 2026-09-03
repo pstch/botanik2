@@ -88,7 +88,7 @@ END_VAR
      because an unplaced phase HOLDS rather than reading as nothing. A law gates
      on this where NIGHT would make it act wrongly, and not where NIGHT simply
      makes it do nothing. *)
-  cli_phase_qlt := QUAL(sol_ready);
+  cli_phase_qlt := QUAL(sol_ready, FALSE);
 
   (* An accumulation, and a probe that has gone stops adding to it: what is
      published is the window as it stood when the house was last visible. *)

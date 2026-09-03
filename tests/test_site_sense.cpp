@@ -222,6 +222,52 @@ TEST_CASE("control: a parking program travels to its safe state before it is dro
     CHECK_FALSE(f.bank.var(f.ref("cli_window1_clo")).as_bool());
 }
 
+TEST_CASE_FIXTURE(StRig, "quality: a block that HOLDS says so, rather than 'no data'") {
+    // Every conditioning block keeps its last average when the reading stops -
+    // that is what the filter is for - and each used to publish Q_NO_DATA for
+    // it, so Ref::get() handed a law the declared value and threw the held
+    // reading away. QUAL() asks SEEDED at every site now.
+    const VarRef dc  = live.ref("sys_dc1_V");
+    const VarRef wind = live.ref("cli_wind_mps");
+
+    INFO("nothing has ever answered: there is no held value to stand behind");
+    for (uint32_t i = 0; i < 20; i++) d.step(100u * (i + 1));
+    CHECK(live.bank.var(dc).quality()   == Q_NO_DATA);
+    CHECK(live.bank.var(wind).quality() == Q_NO_DATA);
+
+    uint64_t t = 2000;
+    for (uint32_t i = 0; i < 200; i++) {
+        live.bank.var(live.ref("pwr_dc1_V")).publish(from_f32(T_F32, 24.0f), t);
+        live.bank.var(live.ref("cli_wind1_mps")).publish(from_f32(T_F32, 6.0f), t);
+        live.bank.var(live.ref("cli_wind2_mps")).publish(from_f32(T_F32, 6.0f), t);
+        d.step(t += 100);
+    }
+    REQUIRE(live.bank.var(dc).valid());
+    REQUIRE(live.bank.var(wind).valid());
+    const float held_dc   = live.bank.var(dc).as_f32();
+    const float held_wind = live.bank.var(wind).as_f32();
+    REQUIRE(held_dc > 20.0f);
+    REQUIRE(held_wind > 4.0f);
+
+    INFO("...and now they stop. The rows are not believed, but they are still "
+         "holding a reading, and a law reading one gets THAT and not the "
+         "declared value");
+    live.bank.var(live.ref("pwr_dc1_V")).set_quality(Q_NO_DATA);
+    live.bank.var(live.ref("cli_wind1_mps")).set_quality(Q_NO_DATA);
+    live.bank.var(live.ref("cli_wind2_mps")).set_quality(Q_NO_DATA);
+    for (uint32_t i = 0; i < 40; i++) d.step(t += 100);
+
+    CHECK_FALSE(live.bank.var(dc).valid());
+    CHECK(live.bank.var(dc).quality() == Q_SUBSTITUTED);
+    CHECK(live.bank.get(live.bank.resolve<float>("sys_dc1_V"))
+          == doctest::Approx(held_dc).epsilon(0.05));
+
+    CHECK_FALSE(live.bank.var(wind).valid());
+    CHECK(live.bank.var(wind).quality() == Q_SUBSTITUTED);
+    CHECK(live.bank.get(live.bank.resolve<float>("cli_wind_mps"))
+          == doctest::Approx(held_wind).epsilon(0.05));
+}
+
 TEST_CASE("control: a program that never parks is dropped anyway, and says so") {
     Live f;
     Plc::Runtime::Plant st(Botanik::SetupContext(f.reg), f.bank);

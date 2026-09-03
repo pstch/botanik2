@@ -31,25 +31,22 @@ END_VAR
   IF A <> Q_VALID THEN WORST_OF := A; ELSE WORST_OF := B; END_IF;
 END_FUNCTION
 
-FUNCTION QUAL_HELD : QUALITY
-(* A conditioning block's verdict on a row it publishes every beat: measured
-   now, HOLDING an average it measured once, or a zone it has never seen. The
-   middle one is the whole reason Q_SUBSTITUTED exists - a held reading is
-   evidence a law downstream should still compute on. *)
+FUNCTION QUAL : QUALITY
+(* The quality of a row a law publishes with no input verdict to inherit:
+   measured this beat, HOLDING something it measured once, or nothing it has
+   ever seen.
+
+   SEEDED is asked separately and always, because the middle case is the one
+   that gets skipped: a block whose output holds its last reading and reports
+   only OK publishes Q_NO_DATA for a row that has real evidence in it, and
+   Ref::get() then hands every reader the declared value instead. Pass FALSE
+   where the law genuinely holds nothing - a verdict recomputed each scan -
+   and let that be a claim somebody made rather than a default. *)
 VAR_INPUT
   OK     : BOOL;
   SEEDED : BOOL;
 END_VAR
-  IF OK THEN QUAL_HELD := Q_VALID;
-  ELSIF SEEDED THEN QUAL_HELD := Q_SUBSTITUTED;
-  ELSE QUAL_HELD := Q_NO_DATA; END_IF;
-END_FUNCTION
-
-FUNCTION QUAL : QUALITY
-(* The quality of a law that has no input to inherit from: it either produced
-   the value or it did not. *)
-VAR_INPUT
-  OK : BOOL;
-END_VAR
-  IF OK THEN QUAL := Q_VALID; ELSE QUAL := Q_NO_DATA; END_IF;
+  IF OK THEN QUAL := Q_VALID;
+  ELSIF SEEDED THEN QUAL := Q_SUBSTITUTED;
+  ELSE QUAL := Q_NO_DATA; END_IF;
 END_FUNCTION

@@ -56,10 +56,24 @@ cli_dTStrat_degC_qlt := WORST_OF(cli_temp_hi_qlt, cli_temp_lo_qlt);
 cli_phase_qlt        := QUAL(sol_ready);
 ```
 
-`WORST_OF` is the one worth reaching for: it carries the REASON downstream, so
-a law three rows away learns that a probe went stale rather than only that the
-number is not to be trusted. `QUAL` is for a law with no input verdict to
-inherit - a block output, a clock that has not been set.
+Three helpers, and the shape of each is the point.
+
+`GOOD(q)` is the only reader. It asks MEASURED, deliberately not "is there a
+number worth using" - that is `quality_holds()`, and `Ref::get()` is the only
+thing that needs it.
+
+`WORST_OF(a, b)` carries the REASON downstream, so a law three rows away learns
+that a probe went stale rather than only that the number is not to be trusted.
+Two inputs; ONE input is plain assignment (`cli_coolDem_qlt := cli_temp_in_qlt`)
+and wants no helper.
+
+`QUAL(OK, SEEDED)` is what a law writes with no verdict to inherit, and it takes
+SEEDED always - a one-argument form let eighteen sites skip the question and
+publish `Q_NO_DATA` for a row their own filter was still holding. Pass FALSE
+where the law genuinely holds nothing, and let that be a claim rather than a
+default. Every block that holds says so: `EWMA.SEEDED`, `DC_RAIL.SEEDED`,
+`AC_MIRROR.SEEDED`, `ZONE_PROBES.TEMP_SEEDED` / `.RH_SEEDED`,
+`AC_SUPPLY.OUT_*_SEEDED`.
 
 ## Where the substitution happens
 
@@ -68,8 +82,8 @@ inherit - a block output, a clock that has not been set.
 
 `Q_SUBSTITUTED` is the code for a number a LAW stood behind that nothing
 measured: `temp_rh_zone` with every interior probe gone publishes the hottest of
-the held levels and the outside, and `temp_rh_sensors` publishes a zone's held
-average through `QUAL_HELD(OK, SEEDED)`. Readers compute on it, because the
+the held levels and the outside, and every conditioning block publishes its
+held average through `QUAL(OK, SEEDED)`. Readers compute on it, because the
 declared 14 degC would stop the roof venting on the day it matters most, and a
 fallback may only ever ask for MORE venting. `valid()` still says no, so the
 cooling loop still resets its integral and the intake gates still shut - "is
