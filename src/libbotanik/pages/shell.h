@@ -20,17 +20,10 @@
 namespace Botanik { namespace Pages {
 
     /**
-     * @brief Interactive shell page with interleaved log output.
-     *
-     * Layout (N = terminal rows):
-     *   Row 0       - inverted header
-     *   Rows 1..N-2 - log area (live tail, scrolls on each incoming entry)
-     *   Row  N-1    - InputEditor (PS1 + optional continuation row)
-     *
-     * As a LogWriter, only entries received while active are queued (push()
-     * drops background ones - the full log lives in LogsPage). As a
-     * ShellWriter, it gives CommandShell an output channel. All lines are
-     * stored in a circular buffer for replay on redraw / page-switch.
+     * @brief Interactive shell page with interleaved log output: a header, a
+     *        live log tail, and the editor on the bottom row. @see dev_pages
+     * @note As a LogWriter it queues only what arrives while ACTIVE, the full
+     *       log being LogsPage's; as a ShellWriter it is CommandShell's output.
      */
     class ShellPage : public Page, public Logs::BufferedLogWriter, public Shell::ShellWriter {
     private:

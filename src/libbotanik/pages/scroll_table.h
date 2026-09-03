@@ -122,10 +122,8 @@ namespace Botanik { namespace Pages {
         /** @}
          *  @name View modes
          *
-         *  An ordered set of named views, one active at a time. RIGHT steps
-         *  forward, LEFT back. Not a typed key: every printable byte a table
-         *  page reads is the row filter's.
-         *  @{ */
+         *  An ordered set of named views, one active. RIGHT steps forward,
+         *  LEFT back - not a typed key, which is the filter's. @{ */
 
         /** @brief Active view. Always < _mode_count() (or 0 when there are none). */
         uint8_t _mode = 0;
@@ -155,15 +153,10 @@ namespace Botanik { namespace Pages {
         /** @} */
 
         /** @name Legend layout
-         *  Fixed columns, so the fields sit in the same place on every table and
-         *  redraw. The three view fields are CENTRED in equal slots, so a
-         *  neighbour's name changing length does not move the badge. ML_SLOT_W is
-         *  11: the widest field any table produces is "[unmasked]" at 10. An
-         *  overrunning field pushes the ones after it right rather than clipping,
-         *  which is why the filter sits BEFORE the detail: a long filter eats a
-         *  standing hint rather than the text being typed. The columns are set
-         *  so the fullest legend any table draws - the alarms one, filtered -
-         *  ends on column 80.
+         *  Fixed columns; the three view fields are CENTRED in equal slots of
+         *  ML_SLOT_W = 11, one past the widest field any table produces
+         *  ("[unmasked]", 10). An overrunning field pushes the ones after it
+         *  right rather than clipping. @see dev_pages
          *  @{ */
         static constexpr uint16_t ML_SLOT_W = 11;   // each view field's slot
         static constexpr uint16_t ML_PREV   = 1;    // previous view
@@ -207,14 +200,11 @@ namespace Botanik { namespace Pages {
             return at;
         }
 
-        /** @brief Draw the table's legend line: its views (only when it has
-         *  more than one), how much of the set is on screen, the live filter,
-         *  and @p detail - null for the standing hint, which an unfiltered
-         *  table shows in its place.
-         *  @note Painted in ONE pass with the reverse-video fields split out;
-         *  normal-then-inverted would flicker. A badge is the only immediate
-         *  acknowledgement of the keypress, the rows arriving over the
-         *  following ticks. */
+        /** @brief Draw the table's legend line: its views (when it has more
+         *  than one), how much of the set is on screen, the live filter, and
+         *  @p detail - null for the standing hint.
+         *  @note ONE pass with the reverse-video fields split out;
+         *  normal-then-inverted would flicker. */
         void _draw_legend(uint16_t row, const char* detail);
 
         /** @brief Declare @p row as this table's legend row: PRIO_CHROME, so
@@ -231,12 +221,10 @@ namespace Botanik { namespace Pages {
         /** @}
          *  @name Row filter
          *
-         *  A live pattern the table narrows itself to. Typing appends to it,
-         *  BACKSPACE pops a character and ESC clears it - no field to open and
-         *  none to leave, so a search costs exactly the characters it is worth.
-         *  `*` and `?` are wildcards; without one the pattern is a substring.
-         *  A page opts in by calling _filter_text() / _filter_command() from its
-         *  handlers and _filter_match() from its row predicate.
+         *  A live pattern the table narrows itself to: typing appends,
+         *  BACKSPACE pops, ESC clears. `*` and `?` are wildcards; without one
+         *  the pattern is a substring. A page opts in by calling
+         *  _filter_text() / _filter_command() and _filter_match().
          *  @{ */
 
         /** @brief The filter text, NUL-terminated; empty matches every row. */
@@ -272,10 +260,8 @@ namespace Botanik { namespace Pages {
         /** @}
          *  @name Inline field
          *
-         *  The editing keys a one-row field on a table page takes, in one place:
-         *  PARAMS edits a parameter's value, MONITOR an override. ENTER and ESC
-         *  are NOT here - what they commit to is the page's business.
-         *  @{ */
+         *  The editing keys a one-row field takes. ENTER and ESC are NOT here:
+         *  what they commit to is the page's. @{ */
 
         /** @brief What a key does to the field's text. */
         enum EditKey : uint8_t {
@@ -328,10 +314,8 @@ namespace Botanik { namespace Pages {
          *  @name Column model
          *
          *  A subclass declares its columns once (heading + content width); the
-         *  base FITS them to the display, builds the row, the header and the
-         *  rule from the result, and derives the screen column each cell's
-         *  contents start at, so the three cannot drift.
-         *  @{ */
+         *  base fits them to the display and derives the row, the header, the
+         *  rule and each cell's start column from that. @{ */
 
         /** @brief One table column: its heading and its CONTENT width (the
          *  cell's border and padding are the base's business). */

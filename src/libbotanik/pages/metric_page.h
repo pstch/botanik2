@@ -75,14 +75,9 @@ namespace Botanik { namespace Pages {
 
         /** @brief Whether the next values drawn are the first since the screen
          *  was cleared. Nothing is highlighted on such a frame: there is no
-         *  previous value for them to have changed from, and the whole page
-         *  would light up.
-         *
-         *  One flag, not a mask per cell: every cell is painted on the repaint
-         *  frame (draw_static, draw_hot and draw_dynamic all run in it), so
-         *  per-cell freshness never expressed anything a single frame flag does
-         *  not. It replaced a 1 KB private copy of what the FRONT grid already
-         *  holds - @see _cell. */
+         *  previous value to have changed from.
+         *  @note One flag rather than a mask per cell, every cell being painted
+         *  on the repaint frame. @see _cell */
         bool          _fresh = true;
 
         /** @} */
@@ -109,18 +104,15 @@ namespace Botanik { namespace Pages {
          *  so it never disturbs a second column on the same row. Not cached. */
         void _label_at(uint16_t row, uint16_t col, const char* s);
 
-        /** @brief Render @p s as a fixed @p width-column value cell at (@p row,
-         *  @p col), with watch(1) -d change highlighting.
+        /** @brief Render @p s as a fixed @p width-column value cell at
+         *  (@p row, @p col), with watch(1) -d change highlighting.
          *
-         *  Space-padded, so it never touches an adjacent column, and diffed
-         *  against WHAT IS ALREADY ON THE GRID at those cells - which is what
-         *  this page drew there last time, nothing else painting the content
-         *  area between refreshes. Highlighting is per subfield: a digit run
-         *  lights when any of its digits moved, and clears once it settles.
-         *  A repaint onto a cleared screen is never lit (@see _fresh).
-         *  @note The field is painted whether or not anything changed; the
-         *  terminal's own diff drops the cells whose glyph and attribute both
-         *  held. This never decides WHETHER to draw, only how to attribute. */
+         *  Space-padded, and diffed against what is already ON THE GRID there,
+         *  which is what this page drew last time. Per subfield: a digit run
+         *  lights when any of its digits moved and clears once it settles.
+         *  Never lit on a repaint onto a cleared screen (@see _fresh).
+         *  @note Painted whether or not anything changed - this decides how to
+         *  attribute a change, never whether to draw. @see dev_screen */
         void _cell(uint16_t row, uint16_t col, const char* s,
                    uint16_t width, bool highlight = true) {
             if (row >= _console.rows() || width == 0) return;

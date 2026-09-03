@@ -24,11 +24,10 @@ namespace Botanik { namespace Pages {
     /**
      * @brief Circular scrollback buffer with an incremental redraw.
      *
-     * Layers a deferred redraw over a @ref LineBuffer of @p L lines: rows,
-     * DL/IL scrolls and replays all draw immediate-mode and are pared by the
-     * terminal's diff (@ref dev_screen). The window is bottom-aligned within
-     * rows 1..log_rows (caller-supplied). Name it through @ref ShellScrollback
-     * / @ref LogsScrollback / @ref HomeScrollback.
+     * A deferred redraw over a @ref LineBuffer of @p L lines; everything draws
+     * immediate-mode and is pared by the terminal's diff. The window is
+     * bottom-aligned within rows 1..log_rows. Name it through
+     * @ref ShellScrollback / @ref LogsScrollback / @ref HomeScrollback.
      */
     template<uint16_t L>
     class Scrollback : public LineBuffer<L, Config::SCROLLBACK_LINE_LEN> {
@@ -123,13 +122,10 @@ namespace Botanik { namespace Pages {
         }
 
         /** @brief Drop the history if it was wrapped at a different width.
-         *
-         *  The wrap is baked into what is STORED - one entry per display row -
-         *  so a narrower screen does not re-wrap a retained line, it clips it:
-         *  the tail past the new width is dropped on replay, with no marker,
-         *  and an address or a byte count that ran past column 80 is gone. An
-         *  empty log says that plainly; half a line does not.
-         *  @note Cheap and idempotent: the common call changes nothing. */
+         *  The wrap is baked into what is stored, one entry per display row, so
+         *  a narrower screen would clip every retained line rather than re-wrap
+         *  it. @see dev_screen
+         *  @note Idempotent: the common call changes nothing. */
         void reflow(uint16_t cols) {
             if (cols == 0 || cols == _wrap_cols) return;
             if (_wrap_cols != 0) clear();
@@ -174,10 +170,8 @@ namespace Botanik { namespace Pages {
          *  No-op (false) on a background page.
          *  @return whether a replay is still going, which a page returns early
          *  on so the live tail's DL scroll cannot shift rows it already drew.
-         *  @note drain_redraw() is one-shot, so today this is always false on
-         *  the way out. The early return in each page is the contract, not
-         *  dead weight: a paced replay would need it and nothing else would
-         *  change. */
+         *  @note Always false today, drain_redraw() being one-shot; the early
+         *  return is the contract a paced replay would need. */
         bool tick_redraw_gate(AnsiTerminal& terminal, bool active) {
             if (!active) return false;
             reflow(terminal.cols());   // before anything is replayed off it
@@ -358,14 +352,11 @@ namespace Botanik { namespace Pages {
         }
 
         /** @brief Keep the "scrolled up" marker in sync with the view, called
-         *  each tick by the page. While scrolled back it overlays a compact
-         *  reverse-video tag at the window's top-right (how many newer lines
-         *  lie below); at the live bottom, nothing. Diffed against the last
-         *  drawn offset, so it emits only on a change.
-         *
-         *  Must sit on the TOP window row: a scroll-down carries it off the top
-         *  rather than stranding a ghost, and the bottom-return replay repaints
-         *  over it. */
+         *  each tick. While scrolled back, a reverse-video count of the newer
+         *  lines below, at the window's top-right; nothing at the live bottom.
+         *  Emits only on a change.
+         *  @note The TOP window row, so a scroll-down carries it off rather
+         *  than stranding a ghost. */
         void refresh_scroll_indicator(AnsiTerminal& terminal,
                                       uint16_t first_row, uint16_t log_rows) {
             if (_view_offset == _indicator_offset) return;   // unchanged

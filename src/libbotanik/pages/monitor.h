@@ -110,14 +110,10 @@ namespace Botanik { namespace Pages {
         /** @name State
          *  @{ */
         /** @brief Sequential-scan memo for _ref_at(), and the cached row total.
-         *
-         *  _ref_at() and _total() both walk the table applying _visible() (a
-         *  substring search per row), and _ref_at() runs once per DRAWN row: a
-         *  12-row window over a 259-row table is ~3100 searches a refresh. Rows
-         *  are drawn top to bottom, so remembering the last (row -> index) pair
-         *  turns the walk into a resume. Invalidated by whatever moves the
-         *  mapping: the filter, the view, and - in a live view - every refresh,
-         *  since the readings a view selects on move with no keypress. */
+         *  Rows are drawn top to bottom, so the last (row -> index) pair turns
+         *  the walk into a resume.
+         *  @note Invalidated by whatever moves the mapping: the filter, the
+         *  view, and every refresh in a live view. */
         mutable uint16_t    _memo_row  = 0;
         mutable uint16_t    _memo_idx  = 0;
         mutable bool        _memo_ok   = false;

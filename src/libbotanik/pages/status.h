@@ -178,21 +178,11 @@ namespace Botanik { namespace Pages {
             draw_payload_dynamic();
         }
 
-        /** @brief What the task table costs, aggregated over the whole of it.
-         *
-         *  The registry is frozen once the loop starts, so the walk is stable
-         *  and the 5 s cadence makes it free. Two different questions:
-         *
-         *   - the SUM of the per-task means is the cost of a beat in which
-         *     every task happened to come due - an upper bound on a beat, not
-         *     a typical one.
-         *   - the DUTY is that cost spread over each task's own rate, which is
-         *     the figure that predicts headroom.
-         *
-         *  Both are only meaningful because TaskCost is timed off the
-         *  high-resolution counter: on the low-power clock the OPTA resolves
-         *  ~30 us, most tasks read 0, and an aggregate of them is noise that
-         *  looks fine on the host. @see HAL::Clock::hrt_ticks */
+        /** @brief What the task table costs, two ways: the SUM of the per-task
+         *  means is an upper bound on a beat (every task due at once), the DUTY
+         *  is that spread over each task's own rate, which predicts headroom.
+         *  @note Both need TaskCost timed off the high-resolution counter: on
+         *  the low-power clock most tasks read 0. @see HAL::Clock::hrt_ticks */
         void _draw_tasks(const Band& b) {
             if (_sys == nullptr || _sys->tasks == nullptr) return;
             const Tasks::Registry& reg = *_sys->tasks;
