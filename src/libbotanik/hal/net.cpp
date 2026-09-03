@@ -373,7 +373,11 @@ namespace Botanik { namespace HAL { namespace Network {
                       "NET_MAX_DNS below DNS_CACHE_SIZE: NameResolver can leave "
                       "every row PENDING, and the surplus lookups would fail here");
         const uint32_t DNS_STEP_MS = 25;   // emulated lookup latency
-        struct DnsSlot { DnsHandle id; uint64_t ready_ms; bool fail; };   // id 0 = free
+        /** @brief id 0 marks a FREE slot, and 0 is also the invalid handle
+         *  (@see net.h), so every lookup here has to reject it before the walk:
+         *  dns_poll(0) otherwise matched the first free slot, whose ready_ms is
+         *  0, and answered DNS_OK with the loopback address. */
+        struct DnsSlot { DnsHandle id; uint64_t ready_ms; bool fail; };
         DnsSlot   g_dns[MAX_DNS] = {};
         DnsHandle g_dns_next = 1;
         // Refused by the emulated resolver: a *.invalid name (RFC 6761) or
@@ -406,6 +410,7 @@ namespace Botanik { namespace HAL { namespace Network {
         return s->id;
     }
     DnsResult dns_poll(DnsHandle h, Ip4* out) {
+        if (h == 0) return DNS_FAILED;
         for (int i = 0; i < MAX_DNS; ++i) {
             if (g_dns[i].id != h) continue;
             if (Clock::uptime_ms() < g_dns[i].ready_ms) return DNS_PENDING;
@@ -420,6 +425,7 @@ namespace Botanik { namespace HAL { namespace Network {
         return DNS_FAILED;
     }
     void dns_cancel(DnsHandle h) {
+        if (h == 0) return;
         for (int i = 0; i < MAX_DNS; ++i) if (g_dns[i].id == h) { g_dns[i].id = 0; return; }
     }
 
