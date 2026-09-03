@@ -47,6 +47,7 @@ ALARMS_PAGE       = true
 PARAMS_PAGE       = true
 MONITOR_PAGE      = true
 TASKS_PAGE        = true
+SYSTEM_PAGE       = true
 NOTES_PAGE        = true
 LOGS_MONITOR      = true
 NETWORK           = true

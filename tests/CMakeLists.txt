@@ -114,6 +114,7 @@ add_custom_target(check-bare
             -DBOTANIK_FEATURE_CONSOLE=ON -DBOTANIK_FEATURE_LOGGING=ON
             -DBOTANIK_FEATURE_SHELL_PAGE=ON -DBOTANIK_FEATURE_LOGS_PAGE=ON
             -DBOTANIK_FEATURE_TASKS_PAGE=ON
+            -DBOTANIK_FEATURE_SYSTEM_PAGE=ON
     COMMAND ${CMAKE_COMMAND} --build ${CMAKE_SOURCE_DIR}/build-bare-ui
             --target botanik_sim --parallel ${_nproc}
     USES_TERMINAL

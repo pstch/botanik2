@@ -42,39 +42,72 @@ Override the hook only to pass a different `ctx`:
 
 ```cpp
 void register_commands() override {
-    _console.shell().set_commands(g_commands, g_command_count, &my_context);
+    shell().set_commands(g_commands, g_command_count, &my_context);
 }
 ```
 
 ## Adding a page
 
 `register_pages()` is the tab order: the `add_page()` call order **is** the order,
-and page 0 is the page shown at boot. Up to 8 pages - which the default set now
-fills, so appending one means dropping one, or not calling the base at all.
+and page 0 is the page shown at boot. The ceiling is `CONSOLE_PAGES_MAX` (10), and
+the full default profile registers nine, so there is room for one more before a site
+has to drop one.
 
 ```cpp
 class GreenhouseXXX final : public Botanik::BotanikFirmware {
-    MyStatusPage _status{*this};
+    MyPage _mine;
 
 public:
-    GreenhouseXXX() : Botanik::BotanikFirmware(Site::g_site) {}
+    GreenhouseXXX() : Botanik::BotanikFirmware(Site::g_site),
+                      _mine(terminal()) {}
 
 protected:
     void register_pages() override {
         BotanikFirmware::register_pages();      // keep the built-in set
-        terminal().add_page(&_status);          // append your own
+        terminal().add_page(&_mine);            // append your own
     }
 };
 ```
 
 Call the base first to keep the built-ins, or don't to replace the set entirely.
-Reordering is just changing the call order. `add_page()` past the eighth is refused,
-so a site adding its own generally overrides the whole method rather than appending.
+Reordering is just changing the call order; `add_page()` past the ceiling is refused.
 
-`Pages::StatusPage` is a ready-made two-column health grid, shipped but **not**
-registered by default. Re-add it by subclassing it and appending it here. To write a
-page from scratch, implement `Pages::Page` - see @ref dev_pages for the interface and
-the render contract.
+### A site's own SYSTEM page
+
+`Pages::StatusPage` is the SYSTEM page, and the base registers it. It is also the
+intended base for a site health screen: subclass it, fill the `draw_payload_*` hooks
+(one per cadence - static, dynamic, hot), and register **that** in place of the base
+one rather than appending a second copy.
+
+```cpp
+class MySystemPage final : public Botanik::Pages::StatusPage {
+public:
+    MySystemPage(Botanik::Terminal::Console& c,
+                 const Botanik::SystemContext* sys)
+        : StatusPage(c, sys) {}
+
+protected:
+    void draw_payload_static()  override { _label_at(payload_row(), 2, "Boiler"); }
+    void draw_payload_dynamic() override { /* the cold cells */ }
+};
+```
+
+The `SystemContext*` comes from `system_context()`; nothing else hands it out. Its
+first payload row is `StatusPage::PAYLOAD_ROW`, which is derived from what is
+compiled in - the network and bus rows are feature-gated, so do not hardcode it.
+
+Put it in the SYSTEM slot by overriding `system_page()` rather than
+`register_pages()`. The base then registers yours and never its own, so the site
+gets the slot instead of a second copy of the page:
+
+```cpp
+MySystemPage _system{terminal(), &system_context()};
+
+Botanik::Pages::StatusPage& system_page() override { return _system; }
+```
+
+To write a page from scratch, implement `Pages::Page` - see @ref dev_pages for the
+interface and the render contract.
 
 ## Post-wiring
 

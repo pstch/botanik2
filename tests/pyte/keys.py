@@ -13,7 +13,8 @@ SHIFT_ENTER = ESC + b"\n"
 
 # Page switch: Alt+digit, routed as switch_to(n-1). ALT_1 -> HOME, ALT_2 ->
 # SHELL, ALT_3 -> LOGS, ALT_4 -> ALARMS, ALT_5 -> PARAMS, ALT_6 -> MONITOR,
-# ALT_7 -> TASKS, ALT_8 -> NOTES. All named, even the ones no test reaches yet.
+# ALT_7 -> TASKS, ALT_8 -> SYSTEM, ALT_9 -> NOTES. All named, even the ones no
+# test reaches yet.
 ALT_1 = ESC + b"1"
 ALT_2 = ESC + b"2"
 ALT_3 = ESC + b"3"
@@ -22,6 +23,7 @@ ALT_5 = ESC + b"5"
 ALT_6 = ESC + b"6"
 ALT_7 = ESC + b"7"
 ALT_8 = ESC + b"8"
+ALT_9 = ESC + b"9"
 
 # Alt+letter: word motion, and Alt+W to copy a table's selected cell into the
 # kill ring (scroll_table.cpp).

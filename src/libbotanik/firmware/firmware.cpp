@@ -80,6 +80,12 @@ namespace Botanik {
 #if BOTANIK_FEATURE_TASKS_PAGE
           , _tasks_page(_console.terminal(), _tasks)
 #endif
+#if BOTANIK_FEATURE_SYSTEM_PAGE
+          // _sys_ctx is filled in this constructor's BODY, below; the page only
+          // reads through the pointer at draw time, so taking its address here
+          // is fine.
+          , _system_page(_console.terminal(), &_sys_ctx)
+#endif
 #endif
     {
         // The tracker, to whatever is built with this context after us. A site
@@ -473,6 +479,9 @@ namespace Botanik {
 #endif
 #if BOTANIK_FEATURE_TASKS_PAGE
         _console.terminal().add_page(&_tasks_page);
+#endif
+#if BOTANIK_FEATURE_SYSTEM_PAGE
+        _console.terminal().add_page(&system_page());
 #endif
 #if BOTANIK_FEATURE_NOTES_PAGE
         _console.terminal().add_page(&_console.notes());

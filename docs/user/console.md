@@ -108,7 +108,7 @@ These are consumed by the console before the page sees them.
 |----------------------------|------------------------------|
 | `TAB`, `Ctrl+PageDown`     | next page (wraps)            |
 | `Shift+TAB`, `Ctrl+PageUp` | previous page (wraps)        |
-| `Alt+1` … `Alt+8`          | jump straight to that page   |
+| `Alt+1` … `Alt+9`          | jump straight to that page   |
 | `HOME`                     | jump to  page 1              |
 | `Alt+W`  (in a table)      | copy the cell's value        |
 | `Ctrl+L`                   | clear and repaint everything |
@@ -165,7 +165,8 @@ tab strip is the map: the active page shows as `N:NAME`, the rest as bare digits
 | 5 | PARAMS | reading and editing parameters |
 | 6 | MONITOR | every published variable, and forcing one |
 | 7 | TASKS | what the loop is spending its time on |
-| 8 | NOTES | free-text notes kept on the unit |
+| 8 | SYSTEM | the unit's own health: run state, watchdog, beat timing, buses |
+| 9 | NOTES | free-text notes kept on the unit |
 
 The four table pages (ALARMS, PARAMS, MONITOR, TASKS) are driven the same way:
 `UP`/`DOWN` move the selection, the panel below the table details the selected row,
@@ -603,7 +604,7 @@ A text (`str`) row cannot be forced, and `^O` says so rather than opening a fiel
 ### Tasks page
 
 ```
- 1 2 3 4 5 6 7:TASKS 8              00:00:32                  cpu:100% stk:  2%
+ 1 2 3 4 5 6 7:TASKS 8 9            00:00:32                  cpu:100% stk:  2%
 
   | TASK                 | GROUP | HEALTH    | PHASE   | MEAN us  | MISSED   |
   +----------------------+-------+-----------+---------+----------+----------+
@@ -650,7 +651,7 @@ What each library-provided task does, and what its phase and rate mean, is
 ### Notes page
 
 ```
- 1 2 3 4 5 6 7 8:NOTES              00:00:36                  cpu:100% stk:  2%
+ 1 2 3 4 5 6 7 8 9:NOTES            00:00:36                  cpu:100% stk:  2%
 > Relay K3 replaced 2026-04-11, spare in the cabinet.
 > Zone 2 sensor reads 0.4 C high - trim pending.
 > _

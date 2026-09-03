@@ -68,6 +68,9 @@
 #if BOTANIK_FEATURE_TASKS_PAGE
 #include "libbotanik/pages/tasks_page.h"
 #endif
+#if BOTANIK_FEATURE_SYSTEM_PAGE
+#include "libbotanik/pages/status.h"
+#endif
 
 namespace Botanik {
 
@@ -214,6 +217,9 @@ namespace Botanik {
 #endif
 #if BOTANIK_FEATURE_TASKS_PAGE
         Pages::TasksPage               _tasks_page;
+#endif
+#if BOTANIK_FEATURE_SYSTEM_PAGE
+        Pages::StatusPage              _system_page;  ///< see system_page()
 #endif
 #endif
 
@@ -399,6 +405,11 @@ namespace Botanik {
 #if BOTANIK_FEATURE_CONSOLE
         Terminal::Console&              terminal()        { return _console.terminal(); }
 #endif
+#if BOTANIK_FEATURE_SHELL_PAGE
+        /** @brief The SHELL page, which owns the command interpreter. What a
+         *  site's register_commands() override calls set_commands() on. */
+        Pages::ShellPage&               shell()           { return _console.shell(); }
+#endif
 
         /** @} */
 
@@ -418,13 +429,29 @@ namespace Botanik {
         virtual void register_vars() {}
 #endif
 
+#if BOTANIK_FEATURE_SYSTEM_PAGE
+        /** @brief The page register_pages() puts in the SYSTEM slot. Override
+         *  to return a `Pages::StatusPage` subclass of your own, constructed
+         *  with system_context(); the base's own is then never registered, so
+         *  the site gets the slot rather than a second copy of the page.
+         *  Called during setup(), long after every member exists. */
+        virtual Pages::StatusPage& system_page() { return _system_page; }
+#endif
+
+        /** @brief The component aggregate, for a site page that reads it.
+         *  `Pages::StatusPage` takes one and nothing else hands it out.
+         *  Valid from the base constructor's body onward, which runs before
+         *  any derived member is constructed. */
+        const SystemContext& system_context() const { return _sys_ctx; }
+
 #if BOTANIK_FEATURE_CONSOLE
         /** @brief Register the pages in tab order (page 0 = boot page); the
          *  add_page() call order IS the tab order. Default: the full set -
-         *  home / shell / logs / alarms / config / monitor / tasks, and notes
-         *  last when BOTANIK_FEATURE_NOTES_PAGE is on. A site override can
-         *  reorder them or splice in its own (e.g. re-add a STATUS page by
-         *  subclassing Pages::StatusPage and add_page()-ing it here). */
+         *  home / shell / logs / alarms / config / monitor / tasks / system,
+         *  and notes last when BOTANIK_FEATURE_NOTES_PAGE is on. A site
+         *  override can reorder them or splice in its own - a SYSTEM page with
+         *  site rows on it is a Pages::StatusPage subclass, constructed with
+         *  system_context() and add_page()-ed here in place of the base one. */
         virtual void register_pages();
 
 #if BOTANIK_FEATURE_SHELL_PAGE

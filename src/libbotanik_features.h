@@ -42,6 +42,7 @@
     X(PARAMS_PAGE)        \
     X(MONITOR_PAGE)       \
     X(TASKS_PAGE)         \
+    X(SYSTEM_PAGE)        \
     X(NOTES_PAGE)         \
     X(LOGS_PUBLISH)       \
     X(ALARMS_PUBLISH)     \
@@ -137,6 +138,13 @@
 /** @brief TASKS: the scheduler's task table and its per-task cost. */
 #ifndef BOTANIK_FEATURE_TASKS_PAGE
 #  define BOTANIK_FEATURE_TASKS_PAGE 0
+#endif
+
+/** @brief SYSTEM: the unit's own health - run state, watchdog, beat timing,
+ *  what the task table costs, and the state of each bus. `Pages::StatusPage`,
+ *  which a site may subclass to append rows of its own. */
+#ifndef BOTANIK_FEATURE_SYSTEM_PAGE
+#  define BOTANIK_FEATURE_SYSTEM_PAGE 0
 #endif
 
 /** @brief NOTES: a full-screen editor over the operator's note, persisted to
@@ -248,6 +256,9 @@
 #endif
 #if BOTANIK_FEATURE_TASKS_PAGE && !BOTANIK_FEATURE_CONSOLE
 #  error "BOTANIK_FEATURE_TASKS_PAGE requires BOTANIK_FEATURE_CONSOLE"
+#endif
+#if BOTANIK_FEATURE_SYSTEM_PAGE && !BOTANIK_FEATURE_CONSOLE
+#  error "BOTANIK_FEATURE_SYSTEM_PAGE requires BOTANIK_FEATURE_CONSOLE"
 #endif
 #if BOTANIK_FEATURE_NOTES_PAGE && !BOTANIK_FEATURE_CONSOLE
 #  error "BOTANIK_FEATURE_NOTES_PAGE requires BOTANIK_FEATURE_CONSOLE"

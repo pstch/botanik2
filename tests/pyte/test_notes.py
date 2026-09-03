@@ -11,7 +11,7 @@ from helpers import boot, goto
 def notes(spawn, **kwargs):
     """Boot and switch to the NOTES page."""
     term = boot(spawn, **kwargs)
-    return goto(term, keys.ALT_8, marker="^O save")
+    return goto(term, keys.ALT_9, marker="^O save")
 
 
 def _type_lines(term, lines):

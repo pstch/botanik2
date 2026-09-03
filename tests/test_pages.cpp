@@ -73,4 +73,65 @@ TEST_CASE("pages: LOGS converges at every supported geometry") {
 }
 #endif
 
+
+#if BOTANIK_FEATURE_SYSTEM_PAGE
+TEST_CASE("pages: SYSTEM converges at every supported geometry") {
+    Scheduler::SchedulerContext sched;
+    sched.run_state       = Scheduler::RunState::RUN;
+    sched.watchdog_ms     = 10000;
+    sched.ticks_per_second = 100;
+    Tasks::Registry reg;
+    SystemContext sys;
+    sys.scheduler = &sched;
+    sys.tasks     = &reg;
+
+    for (const Geometry& g : GEOMETRIES) {
+        INFO(g.name);
+        botanik_test::PageFixture f(g.rows, g.cols);
+        Pages::StatusPage page(f.console, &sys);
+
+        page.focus();
+        f.paint(page);
+        f.converged(page, "SYSTEM after focus");
+    }
+}
+
+TEST_CASE("pages: SYSTEM renders with no SystemContext at all") {
+    // The base documents a null aggregate and used to dereference it. A rig
+    // that has no SystemContext should get a blank band, not a fault.
+    botanik_test::PageFixture f;
+    Pages::StatusPage page(f.console, nullptr);
+
+    page.focus();
+    f.paint(page);
+    f.converged(page, "SYSTEM with a null context");
+
+    INFO("the labels are still there - only the values are missing");
+    bool saw_label = false;
+    for (const std::string& row : f.content())
+        if (row.find("Run state") != std::string::npos) saw_label = true;
+    CHECK(saw_label);
+}
+
+TEST_CASE("pages: SYSTEM says what the task table costs") {
+    Scheduler::SchedulerContext sched;
+    Tasks::Registry reg;
+    SystemContext sys;
+    sys.scheduler = &sched;
+    sys.tasks     = &reg;
+
+    botanik_test::PageFixture f;
+    Pages::StatusPage page(f.console, &sys);
+    page.focus();
+    f.paint(page);
+
+    // An empty registry is still a number, and the row must render it rather
+    // than being skipped.
+    bool saw_tasks = false;
+    for (const std::string& row : f.content())
+        if (row.find("Tasks") != std::string::npos) saw_tasks = true;
+    CHECK(saw_tasks);
+}
+#endif
+
 }  // namespace page_convergence

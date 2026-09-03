@@ -8,7 +8,8 @@ from normalize import drop_log_lines, strip_noise
 # marker every page is guaranteed to have.
 TABS = {keys.ALT_1: "1:HOME", keys.ALT_2: "2:SHELL", keys.ALT_3: "3:LOGS",
         keys.ALT_4: "4:ALARMS", keys.ALT_5: "5:PARAMS", keys.ALT_6: "6:MONITOR",
-        keys.ALT_7: "7:TASKS", keys.ALT_8: "8:NOTES"}
+        keys.ALT_7: "7:TASKS", keys.ALT_8: "8:SYSTEM",
+        keys.ALT_9: "9:NOTES"}
 
 _boot_failed = None            # first boot failure in this file, if any
 
@@ -67,7 +68,7 @@ def shell(spawn, quiet_logs=False, **kwargs):
 
 # The SHELL page's chrome once normalize.py has masked the volatile cells. Both
 # rows are identical in every reconcile scenario.
-SHELL_BAR = " 1 2:SHELL 3 4 5 6 7 8              <TIME>                  cpu:<C> stk:<S>"
+SHELL_BAR = " 1 2:SHELL 3 4 5 6 7 8 9            <TIME>                  cpu:<C> stk:<S>"
 ALARM_BAR = " ALARMS :<BAR>"
 
 

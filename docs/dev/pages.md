@@ -100,7 +100,7 @@ One row per page, in the order they derive:
 | @ref Botanik::Pages::NotesPage | Page | the operator's note, behind `BOTANIK_FEATURE_NOTES_PAGE`. Same editor as the shell but top-anchored with a scrolling viewport (@ref dev_editor); persisted under its own `HAL::Storage` key |
 | @ref Botanik::Pages::MetricPage | Page | base for read-only metric displays |
 | @ref Botanik::Pages::HomePage | MetricPage | the landing page (also a `LogWriter`) |
-| @ref Botanik::Pages::StatusPage "StatusPage" | MetricPage | a two-column health grid a site subclasses for its own payload. Shipped but **not** in the default tab order |
+| @ref Botanik::Pages::StatusPage "StatusPage" | MetricPage | the SYSTEM page, behind `BOTANIK_FEATURE_SYSTEM_PAGE`: a two-column health grid over `SystemContext` - run state, watchdog, beat timing, what the task table costs, and each bus. A site appends rows by subclassing it (three `draw_payload_*` hooks, one per cadence) and registering that in place of the base one |
 | @ref Botanik::Pages::ScrollTablePage | Page | base for the scrollable tables |
 | @ref Botanik::Pages::AlarmsPage | ScrollTablePage | the alarm conditions |
 | @ref Botanik::Pages::ParamsPage | ScrollTablePage | the parameter block, and the only page that writes it |

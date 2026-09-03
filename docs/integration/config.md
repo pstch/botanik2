@@ -56,6 +56,7 @@ the build log. Guard every feature flag a site pins.
 | `PARAMS_PAGE` | off | `CONSOLE`, `VARS` | the PARAMS page |
 | `MONITOR_PAGE` | off | `CONSOLE`, `VARS` | the MONITOR page. **Not** `LOGS_MONITOR`, which is a serial log sink |
 | `TASKS_PAGE` | off | `CONSOLE` | the TASKS page |
+| `SYSTEM_PAGE` | off | `CONSOLE` | the SYSTEM page: `Pages::StatusPage`, the unit's own health. A site wanting rows of its own subclasses it and registers that instead of the base one, reading `BotanikFirmware::system_context()` |
 | `NOTES_PAGE` | off | `CONSOLE` | the NOTES page, with its own config concern (`config/notes.h`). Costs `NOTES_LEN` bytes plus 2 x `NOTES_MAX_ROWS` row slots of RAM |
 | `LOGS_PUBLISH` | off | `LOGGING`, `MQTT` | `MqttLogWriter` - log entries to the broker |
 | `ALARMS_PUBLISH` | off | `LOGGING`, `MQTT` | `MqttAlarmNotifier` - alarm transitions to the broker |
