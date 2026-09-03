@@ -40,7 +40,9 @@ VAR_INPUT
   TARGET       : REAL;    (* 0 closed .. 1 open; clamped *)
   OPEN_MS      : UDINT;
   CLOSE_MS     : UDINT;
-  SEAT_MS      : UDINT;   (* extra run at an end, to re-datum *)
+  SEAT_MS      : UDINT;   (* extra run at an end, to re-datum. Safe because
+                             the drive has a limit switch: it cuts the
+                             motor, so the over-run costs nothing *)
   MIN_RUN_MS   : UDINT;
   REVERSE_MS   : UDINT;
   DB           : REAL;    (* how far off target is close enough *)
@@ -59,7 +61,9 @@ VAR_OUTPUT
   KNOWN     : BOOL;
   MOVING    : BOOL;
   STATE     : USINT;   (* 0 UNKNOWN 1 CLOSING 2 CLOSED 3 OPENING 4 OPEN *)
-  DRIFT     : REAL;    (* travel since the last datum, in full strokes *)
+  DRIFT     : REAL;    (* travel since the last datum, in full strokes. No
+                          drive reports a fault, so this is the only wear
+                          signal there is - it is published for a person *)
 END_VAR
 VAR
   p       : REAL;

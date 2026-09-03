@@ -79,6 +79,10 @@ END_VAR
   IF phase = 0 AND prev_phase <> 0 THEN night_min := cli_temp_in; END_IF;
 
   cli_phase     := phase;
+  (* WHERE the phase came from, not whether it is a legal one - it always is,
+     because an unplaced phase HOLDS rather than reading as nothing. A law gates
+     on this where NIGHT would make it act wrongly, and not where NIGHT simply
+     makes it do nothing. *)
   cli_phase_qlt := sol_ready;
 
   (* An accumulation, and a probe that has gone stops adding to it: what is

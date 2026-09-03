@@ -202,7 +202,7 @@ Subsystems under `src/libbotanik/`. Each row's doc is the reference; the header 
 | `pages/` | Full-screen views behind a common `Page` interface, all base-owned and site-independent | `pages.md` |
 | `shell/` | `CommandShell`: commands are **noun then verb**, a noun parsing its own verb. Depends on the terminal device, not on `Console` or `pages/` | `pages.md` |
 | `logs/` | `Logger` with a dual-bucket token-bucket rate limiter before its `LogWriter`s. `LOG_CRITICAL` is undroppable | `logging.md` |
-| `alarms/` | `AlarmController` reads an `AlarmSourceTable`, never a bank. With `VARS` on that is `Vars::BankAlarms` over the site's `SCOPE_A` rows, each carrying both its boolean and its dwell policy; without it, `StaticAlarmTable` over a flash array. Not feature-gated: every build has alarms | `health.md` |
+| `alarms/` | `AlarmController` reads an `AlarmSourceTable`, never a bank. With `VARS` on that is `Vars::BankAlarms` over the site's `SCOPE_A` rows, each carrying both its boolean and its dwell policy; without it, `StaticAlarmTable` over a flash array. Not feature-gated: every build has alarms | `health.md`, `blind-spots.md` |
 | `health/` | `HealthMonitor` owns the `AlarmController`, raises the platform-health alarms from scheduler metrics, runs the POST, and produces the watchdog verdict | `health.md` |
 | `network/` | `NetworkHandler` / `NameResolver` / `NtpClient` / `MqttClient`, all non-blocking. The sim backend is hermetic - it emulates DNS/NTP/MQTT in-process | `network.md` |
 | `sun/` | `SunPositionTracker` over the NOAA solar-position math. `BotanikFirmware` owns the instance, registers it and binds its `geo_` parameters; a program reads it through `SetupContext::sun` | - |
@@ -253,6 +253,11 @@ Subsystems under `src/libbotanik/`. Each row's doc is the reference; the header 
   row holds NOW. Constrain BOTH ends against each other; the pair stays reachable as long
   as it starts valid, which `tables.py` refuses to generate without. Anything READING a
   band goes through `var_band()` - `num_band()` reads one of these as "no band".
+- **Some things the plant cannot see are DECISIONS**, not gaps: an actuator
+  reports no fault because no fault contact is wired, and `cli_phase_qlt` says
+  where a phase came from rather than whether it is legal. `docs/dev/blind-spots.md`
+  is the list, and the place to add to when the answer to "why is there no check
+  for X" is "we chose not to". A review with no such list re-raises every one.
 - **Naming files a variable.** `var_group()` is the prefix of a name up to the first `_`;
   `var_published()` is true iff a row is neither a parameter nor an alarm. There is no
   group table to add a variable to and none to forget.
