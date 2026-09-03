@@ -134,8 +134,11 @@ namespace Botanik { namespace Logs {
         /** @name Entry queue
          *  @{ */
 
-        /** ring of pending entries */
-        Logs::LogEntry _queue[Config::LOG_QUEUE_SIZE];
+        /** @brief Ring of pending entries, BORROWED: the sink declares the
+         *  slots and must outlive the writer. Depth is per sink because a page
+         *  can only ever show what its scrollback holds. */
+        Logs::LogEntry* const _queue;
+        const uint8_t         _depth;
         uint8_t _readIndex = 0;
         uint8_t _writeIndex = 0;
 
@@ -163,11 +166,15 @@ namespace Botanik { namespace Logs {
         /** @name Lifecycle
          *  @{ */
 
-        /** @brief @p name is the sink's name in a loss report (@see
-         *  LogWriter::sink_name). */
-        explicit BufferedLogWriter(const char* name = nullptr,
-                                   const char* level_param = nullptr)
-            : LogWriter(name, level_param) {}
+        /** @brief @p queue is the sink's own ring of @p depth entries, held
+         *  by reference. @p name is the sink's name in a loss report (@see
+         *  LogWriter::sink_name).
+         *  @param depth must clear LOG_QUEUE_CRITICAL_RESERVE + 2, or the
+         *  reserve leaves no ordinary slot at all. */
+        BufferedLogWriter(Logs::LogEntry* queue, uint8_t depth,
+                          const char* name = nullptr,
+                          const char* level_param = nullptr)
+            : LogWriter(name, level_param), _queue(queue), _depth(depth) {}
 
         /** @} */
 
@@ -200,8 +207,13 @@ namespace Botanik { namespace Logs {
 
         /** @brief Drain bytes from the currently outgoing message. */
         bool _drain_message();
-        /** @brief Occupied queue slots (0..LOG_QUEUE_SIZE-1). */
+        /** @brief Occupied queue slots (0.._depth-1). */
         uint8_t _used() const;
+        /** @brief The slot after @p i, wrapped. Not a modulo: _depth is a
+         *  runtime value and the M7 would divide. */
+        uint8_t _next(uint8_t i) const {
+            return (uint8_t)((i + 1 == _depth) ? 0 : i + 1);
+        }
 
         /** @} */
     };
@@ -230,6 +242,8 @@ namespace Botanik { namespace Logs {
         /** @name State
          *  @{ */
 
+        /** @brief This sink's ring, lent to the BufferedLogWriter base. */
+        Logs::LogEntry  _slots[Config::LOG_QUEUE_SIZE];
         BufferedSerial* _serial;   ///< bound output port
         /** @brief Drop every entry when the port is an interactive terminal, so
          *  log lines cannot garble a console UI sharing the same tty. Decided

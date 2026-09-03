@@ -22,7 +22,8 @@ namespace Botanik { namespace Pages {
     // Lifecycle
 
     LogsPage::LogsPage(Terminal::Console& console) :
-        Logs::BufferedLogWriter(nullptr, "logs_log_level"),
+        Logs::BufferedLogWriter(_slots, (uint8_t)Config::LOG_QUEUE_LOGS,
+                                nullptr, "logs_log_level"),
         _console(console), _terminal(console.terminal())
     {
         // This page IS the record, so it takes whatever the logger forwarded -

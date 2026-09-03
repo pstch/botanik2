@@ -220,10 +220,6 @@ namespace Botanik {
 #if BOTANIK_FEATURE_LOGS_PAGE
         _logger.add_writer(&_console.logs());
 #endif
-        // The home page sinks the log stream into its bottom log-tail band.
-#if BOTANIK_FEATURE_HOME_PAGE
-        _logger.add_writer(&_home_page);
-#endif
         _logger.watch_tx(&_console.serial());
 #endif
 

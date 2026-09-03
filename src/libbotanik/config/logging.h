@@ -19,8 +19,8 @@ namespace Botanik { namespace Config {
 
 
     // What each sink shows is a PARAMETER, not a macro:
-    // home_log_level, shell_log_level, logs_log_level,
-    // monitor_log_level, mqtt_level. Each sink seeds its own floor where it is
+    // shell_log_level, logs_log_level, monitor_log_level, mqtt_level.
+    // Each sink seeds its own floor where it is
     // built, and the bank raises it from the row it names. A sink floor can only
     // ever be MORE restrictive - an entry the logger dropped never reaches a
     // sink to be admitted - and LOG_CRITICAL clears every floor.
@@ -52,23 +52,40 @@ namespace Botanik { namespace Config {
 #endif
     BOTANIK_CFG(uint8_t, LOG_WRITERS_MAX);
 
-    /** @brief Per-writer in-flight message queue depth.
+    /** @brief Queue depth of a serial sink, and the default a sink takes when
+     *  it states none.
      *
-     *  The dominant RAM line in a logging build: one writer costs
-     *  LOG_QUEUE_SIZE * (LOG_MESSAGE_LEN + 16) + LOG_FORMATTED_LEN, about 14 KB
-     *  each, and four are registered (HOME, SHELL, LOGS, MONITOR). Lowering it
-     *  is the first thing to try on a tight build, but keep it above the biggest
-     *  STORM a run has: the boot roll-call is a line per task, and a bus going
-     *  down annunciates a row at a time. A writer drains a few entries per beat,
-     *  so the queue is what carries the peak between two of them: at 64 the sink
-     *  was dropping a dozen entries every boot. */
+     *  The dominant RAM line in a logging build: a writer costs
+     *  depth * (LOG_MESSAGE_LEN + 16) + LOG_FORMATTED_LEN. Keep it above the
+     *  biggest STORM a run has: the boot roll-call is a line per task, and a bus
+     *  going down annunciates a row at a time. A writer drains a few entries per
+     *  beat, so the queue is what carries the peak between two of them: at 64
+     *  this sink was dropping a dozen entries every boot. */
 #ifndef BOTANIK_LOG_QUEUE_SIZE
 #  define BOTANIK_LOG_QUEUE_SIZE 96
 #endif
     BOTANIK_CFG(size_t, LOG_QUEUE_SIZE);
 
-    // BufferedLogWriter indexes the ring with uint8_t.
-    static_assert(LOG_QUEUE_SIZE <= 255, "LOG_QUEUE_SIZE exceeds the writer's uint8_t ring index");
+    /** @brief Queue depth of the LOGS page sink. A page cannot show more than
+     *  its scrollback holds, so depth past LOGS_SCROLLBACK_LINES buys burst
+     *  absorption between two drains and nothing else. */
+#ifndef BOTANIK_LOG_QUEUE_LOGS
+#  define BOTANIK_LOG_QUEUE_LOGS 64
+#endif
+    BOTANIK_CFG(size_t, LOG_QUEUE_LOGS);
+
+    /** @brief Queue depth of the SHELL page sink. Above its scrollback, which
+     *  is half this: command output shares the drain with the log tail. */
+#ifndef BOTANIK_LOG_QUEUE_SHELL
+#  define BOTANIK_LOG_QUEUE_SHELL 48
+#endif
+    BOTANIK_CFG(size_t, LOG_QUEUE_SHELL);
+
+    // BufferedLogWriter indexes the ring with uint8_t, and the critical reserve
+    // has to leave ordinary entries somewhere to sit.
+    static_assert(LOG_QUEUE_SIZE  <= 255 && LOG_QUEUE_LOGS <= 255 &&
+                  LOG_QUEUE_SHELL <= 255,
+                  "a log queue depth exceeds the writer's uint8_t ring index");
 
     /** @brief Log writer queue slots reserved for CRITICAL entries: the depth a
      *  storm may not eat into, so the one line that had to survive it does. */
@@ -76,6 +93,13 @@ namespace Botanik { namespace Config {
 #  define BOTANIK_LOG_QUEUE_CRITICAL_RESERVE 8
 #endif
     BOTANIK_CFG(size_t, LOG_QUEUE_CRITICAL_RESERVE);
+
+    // The reserve is subtracted from every depth, so the shallowest queue still
+    // has to leave an ordinary entry somewhere to sit.
+    static_assert(LOG_QUEUE_SHELL > LOG_QUEUE_CRITICAL_RESERVE + 1 &&
+                  LOG_QUEUE_LOGS  > LOG_QUEUE_CRITICAL_RESERVE + 1 &&
+                  LOG_QUEUE_SIZE  > LOG_QUEUE_CRITICAL_RESERVE + 1,
+                  "a log queue is too shallow for LOG_QUEUE_CRITICAL_RESERVE");
 
     /** @brief Maximum burst size (number of logs allowed in a quick succession).
      *  Sized to absorb the BOOT burst, which is the biggest one a run ever

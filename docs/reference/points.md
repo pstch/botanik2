@@ -8,12 +8,12 @@ finds it. The site half comes from `tables/*.csv`, the library half from
 
 One section per SCOPE, in the order `Vars::VarScope` declares them.
 
-589 rows: 515 declared by the site, 74 by the library.
+588 rows: 515 declared by the site, 73 by the library.
 
 | scope | what it is | site | library |
 |---|---|---|---|
 | Alarms | the boolean an AlarmCondition reads | 39 | 13 |
-| Parameters | persisted, editable | 179 | 52 |
+| Parameters | persisted, editable | 179 | 51 |
 | Computed values | HMI only, not published | 0 | 0 |
 | Status values | published: MQTT and the Modbus TCP slave | 185 | 9 |
 | Direct inputs | register 1:1 (device 0 = local) | 75 | 0 |
@@ -278,7 +278,7 @@ One section per SCOPE, in the order `Vars::VarScope` declares them.
 | irr_flowCutoff_Lpm | T_F32 | 0.2 | 0.0 .. 5.0 | Lpm | RW | 158 | below this the outlet counts no litres | - |
 | irr_rateWin_ms | T_U16 | 5000 | 500 .. 60000 | ms | RW | 159 | window the inlet rate is differenced over | - |
 
-### Library (52)
+### Library (51)
 
 | name | type | default | accepts | unit | access | reg | description | notes |
 |---|---|---|---|---|---|---|---|---|
@@ -323,7 +323,6 @@ One section per SCOPE, in the order `Vars::VarScope` declares them.
 | rtu_rewrite_ms | T_U32 | 5000 | 1000 .. 600000 | ms | RW | 985 | how often an output block is written anyway | MATCH the slave's own failsafe timer; it is watching for this |
 | monitor_log_level | T_ENUM | Logs::LOG_DEBUG | - | - | RW | 905 | lowest level the monitor port carries | open by default: this port exists to be the full record |
 | mqtt_level | T_ENUM | Logs::LOG_DEBUG | - | - | RW | 937 | lowest level published to the broker | every entry costs a publish, so this is the floor to raise first |
-| home_log_level | T_ENUM | Logs::LOG_INFO | - | - | RW | 964 | lowest level HOME's log tail shows | a landing screen: only what is worth looking up for |
 | shell_log_level | T_ENUM | Logs::LOG_NOTICE | - | - | RW | 965 | lowest level the SHELL page interleaves | `logs off` silences it entirely without moving this |
 | logs_log_level | T_ENUM | Logs::LOG_DEBUG | - | - | RW | 966 | lowest level the LOGS page keeps | this page is the record; raising it loses the record |
 | net_ip | T_STR | 192.168.1.10 | - | - | RW | 912 | static IP address | - |

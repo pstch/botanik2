@@ -38,6 +38,8 @@ namespace Botanik { namespace Pages {
         Console&      _console;
         /** @brief The VT device it paints through (cached _console.terminal()). */
         AnsiTerminal& _terminal;
+        /** @brief This sink's ring, lent to the BufferedLogWriter base. */
+        Logs::LogEntry _slots[Config::LOG_QUEUE_LOGS];
         /** @brief Circular log line buffer + throttled redraw for page-switch
          *         replay. */
         LogsScrollback _scrollback;

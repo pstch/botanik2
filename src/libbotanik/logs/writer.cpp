@@ -24,20 +24,20 @@ namespace Botanik { namespace Logs {
         // Sink-local floor, before the queue and before the drop counters: an
         // entry this sink was never meant to show is not a loss to report.
         if (entry->level < _min_level) return;
-        uint8_t nextIndex = (_writeIndex + 1) % Config::LOG_QUEUE_SIZE;
+        uint8_t nextIndex = _next(_writeIndex);
         bool    crit      = entry->level >= Logs::LOG_CRITICAL;
         if (nextIndex == _readIndex) {   // completely full
             // drop non-critical messages
             if (!crit) { _dropped += 1; return; }
             // otherwise, drop oldest message
-            _readIndex = (_readIndex + 1) % Config::LOG_QUEUE_SIZE;
+            _readIndex = _next(_readIndex);
             _dropped += 1;
         } else if (!crit) {
             // Reserve the last K usable slots for criticals, so a critical
             // (e.g. the sink-loss report itself) always seats WITHOUT evicting
             // - which stops that report from manufacturing the very drop it
             // then reports.
-            if (_used() >= (uint8_t)(Config::LOG_QUEUE_SIZE - 1
+            if (_used() >= (uint8_t)(_depth - 1
                                      - Config::LOG_QUEUE_CRITICAL_RESERVE)) {
                 _dropped += 1; return;
             }
@@ -51,7 +51,7 @@ namespace Botanik { namespace Logs {
         if (_length > 0 && !_drain_message()) return;
         while (_readIndex != _writeIndex) {
             const Logs::LogEntry* entry = &_queue[_readIndex];
-            _readIndex = (_readIndex + 1) % Config::LOG_QUEUE_SIZE;
+            _readIndex = _next(_readIndex);
             _length = format(entry, _message, Config::LOG_FORMATTED_LEN);
             if (_length == 0) { _failed++; continue; }   // unformattable
             if (!_drain_message()) return;               // yield, still partial
@@ -67,10 +67,11 @@ namespace Botanik { namespace Logs {
         _length = 0; _sent = 0; return true;
     }
 
-    // Occupied slots between the read and write cursors (0..LOG_QUEUE_SIZE-1).
+    // Occupied slots between the read and write cursors (0.._depth-1).
     uint8_t BufferedLogWriter::_used() const {
-        return (uint8_t)((_writeIndex - _readIndex + Config::LOG_QUEUE_SIZE)
-                         % Config::LOG_QUEUE_SIZE);
+        return (uint8_t)((_writeIndex >= _readIndex)
+                         ? (_writeIndex - _readIndex)
+                         : (_depth - _readIndex + _writeIndex));
     }
 
     // Lifecycle
@@ -78,7 +79,8 @@ namespace Botanik { namespace Logs {
     SerialLogWriter::SerialLogWriter(const SetupContext& ctx, BufferedSerial& serial,
                                      bool drop_if_tty, const char* name,
                                      const char* sink, const char* level_param) :
-        BufferedLogWriter(sink != nullptr ? sink : name, level_param),
+        BufferedLogWriter(_slots, (uint8_t)Config::LOG_QUEUE_SIZE,
+                          sink != nullptr ? sink : name, level_param),
         Component(ctx, name),
         _serial(&serial), _suppressed(drop_if_tty && serial.is_output_tty()) {}
 

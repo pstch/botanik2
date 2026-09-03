@@ -224,15 +224,7 @@ namespace Botanik { namespace Config {
 #endif
     BOTANIK_CFG(uint16_t, LOGS_SCROLLBACK_LINES);
 
-    /** @brief Log lines the Home page keeps in its bottom log tail.
-     *  @note Small on purpose: a live "last few entries" widget,
-     *        not a full scrollback like the Logs page. */
-#ifndef BOTANIK_HOME_SCROLLBACK_LINES
-#  define BOTANIK_HOME_SCROLLBACK_LINES 6
-#endif
-    BOTANIK_CFG(uint16_t, HOME_SCROLLBACK_LINES);
-
-    /** @brief Maximum length of a single retained scrollback line (bytes).
+        /** @brief Maximum length of a single retained scrollback line (bytes).
      *  @note Shared by Shell, Logs and Home, so the cost is this times the three
      *        line counts above. What a page STORES, not what the logger
      *        formats. */

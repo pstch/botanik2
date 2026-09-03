@@ -5,8 +5,8 @@
 /**
  * @file scrollback.h
  * @brief Scrollback - a LineBuffer with an incremental redraw, used
- *        by the logs, shell and home pages (via the ShellScrollback /
- *        LogsScrollback / HomeScrollback typedefs below).
+ *        by the logs and shell pages (via the ShellScrollback /
+ *        LogsScrollback typedefs below).
  */
 
 #include <algorithm>
@@ -28,7 +28,7 @@ namespace Botanik { namespace Pages {
      * DL/IL scrolls and replays all draw immediate-mode and are pared by the
      * terminal's diff (@ref dev_screen). The window is bottom-aligned within
      * rows 1..log_rows (caller-supplied). Name it through @ref ShellScrollback
-     * / @ref LogsScrollback / @ref HomeScrollback.
+     * / @ref LogsScrollback.
      */
     template<uint16_t L>
     class Scrollback : public LineBuffer<L, Config::SCROLLBACK_LINE_LEN> {
@@ -416,8 +416,6 @@ namespace Botanik { namespace Pages {
     using ShellScrollback = Scrollback<Config::SHELL_SCROLLBACK_LINES>;
     /** @brief Logs page scrollback (live log tail replay). */
     using LogsScrollback  = Scrollback<Config::LOGS_SCROLLBACK_LINES>;
-    /** @brief Home page scrollback - the small bottom-band log tail. */
-    using HomeScrollback  = Scrollback<Config::HOME_SCROLLBACK_LINES>;
 
 }}
 

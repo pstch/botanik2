@@ -46,6 +46,8 @@ namespace Botanik { namespace Pages {
         Console&           _console;
         /** @brief The VT device it paints through (cached _console.terminal()). */
         AnsiTerminal&      _terminal;
+        /** @brief This sink's ring, lent to the BufferedLogWriter base. */
+        Logs::LogEntry     _slots[Config::LOG_QUEUE_SHELL];
         /** @brief Buffers the line editor works over. Declared before it: the
          *  editor borrows them in its constructor. */
         Terminal::EditorBuffers<Config::SHELL_INPUT_LEN,

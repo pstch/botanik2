@@ -21,7 +21,8 @@ namespace Botanik { namespace Pages {
     // Lifecycle
 
     ShellPage::ShellPage(Terminal::Console& console, const SystemContext* sys) :
-        Logs::BufferedLogWriter(nullptr, "shell_log_level"),
+        Logs::BufferedLogWriter(_slots, (uint8_t)Config::LOG_QUEUE_SHELL,
+                                nullptr, "shell_log_level"),
         _console(console),
         _terminal(console.terminal()),
         _editor(&console, _editor_bufs.storage()),
