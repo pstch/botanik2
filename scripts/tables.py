@@ -56,7 +56,7 @@ AUX = {  # stem -> columns, for the tables that are not rows
     'modbus_models':  'symbol kind model_name regs words',
     'modbus_devices': 'addr model tag',
     'enums':          'enum ctype symbol value label desc',
-    'programs':       'name instance source rate desc quality',
+    'programs':       'name instance source rate desc quality park',
     'home':           'label var',
 }
 
@@ -152,6 +152,25 @@ def _opted_in(e, col):
     return e[col].strip().lower() in ('1', 'yes', 'true')
 
 
+def park_rows(site):
+    """The `prog_<name>_park` / `_parked` pair per PARKING program.
+
+    A program that opts in is not simply dropped when it leaves the scan: it is
+    told to park, keeps scanning while it travels, and says when it is done.
+    `_park` is Plant's to write and the program's to read; `_parked` is the
+    program's answer. Both are generated, so a site adds parking by saying so
+    in programs.csv and writing the law."""
+    fp = os.path.join(site, 'tables', 'programs.csv')
+    if not os.path.exists(fp): return []
+    out = []
+    for e in read_table(fp, AUX['programs'].split()):
+        if not _opted_in(e, 'park'): continue
+        out.append(('prog_%s_park' % e['name'],
+                    '%s is parking to its safe state' % e['name']))
+        out.append(('prog_%s_parked' % e['name'],
+                    '%s has reached its parked state' % e['name']))
+    return out
+
 
 def declared_rows(site):
     """Every row name the site and the library declare, folded to lower case.
@@ -169,6 +188,8 @@ def declared_rows(site):
     for r in lib_rows():
         out.add(r['name'].lower())
     for n, _b, _d in quality_rows(site):
+        out.add(n.lower())
+    for n, _d in park_rows(site):
         out.add(n.lower())
     return out
 
@@ -412,18 +433,36 @@ def emit_plant_cpp(site, prog, writes):
             print('  %s: writes %s and owes %s_qlt' % (nm, n, n), file=sys.stderr)
         sys.exit('%d quality row(s) an opted-in program does not write' % len(owed))
 
+    # ...and the same for PARKING: a program told to park that never answers
+    # holds the whole shutdown open until plc_parkTimeout_sec runs out.
+    unparked = [e['name'] for e in prog if _opted_in(e, 'park')
+                and ('PROG_%s_PARKED' % e['name']).upper()
+                    not in {n.upper() for n in writes.get(e['pou'], ())}]
+    if unparked:
+        for n in unparked:
+            print('  %s: parks and owes prog_%s_parked' % (n, n), file=sys.stderr)
+        sys.exit('%d parking program(s) that never say so' % len(unparked))
+
     for e in prog:
         wr = set(writes.get(e['pou'], ()))
         wr = [n for n, _t, ro in var_externals(e['path']) if not ro and n.upper() in wr]
         L.append('static const char* const _writes_%s[] = {%s};'
                  % (e['instance'].upper(),
                     ''.join(' "%s",' % n for n in wr) or ' 0'))
+    L.append('')
+    L.append('// The parking pair, or null for a program that is simply dropped.')
+    for e in prog:
+        pk = ('"prog_%s_park"' % e['name'], '"prog_%s_parked"' % e['name']) \
+             if _opted_in(e, 'park') else ('0', '0')
+        L.append('static const char* const _park_%s   = %s;' % (e['instance'].upper(), pk[0]))
+        L.append('static const char* const _parked_%s = %s;' % (e['instance'].upper(), pk[1]))
     L += ['',
           'const Program programs[] = {',
           '#define X(name, POU, INST, PERIOD)                                             \\',
           '    { #name, PERIOD, &_init_##INST, &_run_##INST, &_task_##INST,               \\',
           '      _writes_##INST,                                                          \\',
-          '      (uint8_t)(sizeof _writes_##INST / sizeof _writes_##INST[0]) },',
+          '      (uint8_t)(sizeof _writes_##INST / sizeof _writes_##INST[0]),             \\',
+          '      _park_##INST, _parked_##INST },',
           '    PLANT_PROGRAM_LIST(X)', '#undef X', '};', '',
           'const uint8_t PROGRAM_COUNT =',
           '    (uint8_t)(sizeof(programs) / sizeof(programs[0]));', '',
@@ -646,8 +685,11 @@ def generate(site):
     per = {f: t(stem, cols) for f, (stem, cols) in ROWS.items()}
     qlt  = quality_rows(site)
     qlt_base = int(tom['registers']['quality_base'])
+    park = park_rows(site)
+    park_base = int(tom['registers']['park_base'])
     n_par = sum(len(per[f]) for f in ('P', 'PE', 'PS'))
-    n_row = sum(len(per[f]) for f in ROWS if f not in ('P', 'PE', 'PS')) + len(qlt)
+    n_row = (sum(len(per[f]) for f in ROWS if f not in ('P', 'PE', 'PS'))
+             + len(qlt) + len(park))
 
     L = [H, '', '#include "libbotanik.h"', '', 'namespace Site {', '',
          'using namespace Botanik;', 'using namespace Botanik::Vars;', '',
@@ -677,6 +719,9 @@ def generate(site):
     L.append('    // ...and one quality per reading, generated (see quality_rows)')
     L += ['    Q("%s", %d, "%s"),' % (n, reg, desc)
           for reg, (n, _b, desc) in enumerate(qlt, qlt_base)]
+    L.append('    // ...and the parking pair per parking program (see park_rows)')
+    L += ['    SV("%s", T_BOOL, 0, 0, "", %d, "%s", ""),' % (n, reg, desc)
+          for reg, (n, desc) in enumerate(park, park_base)]
     L += ['};', '']
     for m in mdl:
         args = '"%s", %s' % (m['model_name'], m['regs']) + (', %s' % m['words'] if m['words'] else '')

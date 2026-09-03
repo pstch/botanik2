@@ -40,6 +40,16 @@ namespace Botanik { namespace Plc { namespace Runtime {
             /** @brief Whether the body ran last beat, so the drop to safe
              *  happens on the EDGE rather than every beat of an outage. */
             bool          ran     = false;
+            /** @brief This program is TRAVELLING to its parked state: out of
+             *  the scan, but still being called, because it asked for the
+             *  chance to put its actuators somewhere chosen first. */
+            bool          parking = false;
+            /** @brief When that stops being allowed to take longer. */
+            uint64_t      park_until_ms = 0;
+            /** @brief The parking pair, resolved once; VAR_NONE for a program
+             *  that does not park. */
+            Vars::VarRef  park_row;
+            Vars::VarRef  parked_row;
         };
 
         Vars::Bank&  _io;
@@ -53,6 +63,8 @@ namespace Botanik { namespace Plc { namespace Runtime {
         const Scheduler::RunState* _state = nullptr;
         /** @brief sys_control: the operator's standing choice, for all of them. */
         Vars::VarRef          _control_ref;
+        /** @brief plc_parkTimeout_sec: the cap on any one park. */
+        Vars::VarRef          _park_timeout_ref;
 
     public:
         Plant(const SetupContext& ctx, Vars::Bank& io)
@@ -78,7 +90,25 @@ namespace Botanik { namespace Plc { namespace Runtime {
 
         Health health(uint8_t i) const;
 
+        /** @brief Is any program still TRAVELLING to its parked state?
+         *
+         *  What holds the lifecycle in STOP: a roof that has been told to shut
+         *  is worth a few seconds of the way out. Bounded by
+         *  plc_parkTimeout_sec per program, so a ram that has seized cannot
+         *  hold the unit up. False the moment the last one answers. */
+        bool parking() const;
+
     private:
+        /** @brief Begin, end, and give up on @p i's park. Split out because
+         *  the three of them are the whole state machine and scan() should
+         *  read as the beat, not as it. */
+        bool _park_begin(uint8_t i, uint64_t now_ms);
+        void _park_end(uint8_t i, bool answered);
+        /** @brief _safe_outputs() plus the line that says it happened. */
+        void _drop_safe(uint8_t i);
+        /** @brief plc_parkTimeout_sec in ms, or the built-in floor where there
+         *  is no table - a bare rig runs the laws, not the lifecycle. */
+        uint32_t _park_timeout_ms() const;
         /** @brief Drop what @p i drives to its declared safe state.
          *  @return how many rows were dropped. */
         uint16_t _safe_outputs(uint8_t i);

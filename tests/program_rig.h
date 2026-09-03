@@ -135,9 +135,13 @@ inline void slot(Live& f) {
           f.bank.var(f.ref("irr_dawnGate_degC")).as_f32() + 5.0f);
 }
 
-/** @brief Where the roof parks, from the row that declares it. */
+/** @brief Where the roof parks with a house nobody can measure, from the row
+ *  that declares it - cli_windowDem, which is what cooling_controller
+ *  publishes there. NOT cli_windowN_tgt, whose declared value is where the
+ *  roof sits with nothing driving at all: shut. The two used to be the same
+ *  number and reading the wrong one looked right. */
 inline float safe_open(Live& f) {
-    const Vars::Descriptor& d = f.bank.descriptor(f.ref("cli_window1_tgt").index);
+    const Vars::Descriptor& d = f.bank.descriptor(f.ref("cli_windowDem").index);
     return Vars::as_f32(d.type, d.def);
 }
 

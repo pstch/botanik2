@@ -183,13 +183,23 @@ namespace {
     /** @brief Does this row publish a Modbus TCP register? Delegates to
      *  vars/access.h. */
     bool mapped(const Vars::Descriptor& d) { return Vars::var_mapped(d); }
+    /** @brief Does @p name end in @p suffix? */
+    bool ends_with(const char* name, const char* suffix) {
+        const size_t n = strlen(name), k = strlen(suffix);
+        return n > k && strcmp(name + n - k, suffix) == 0;
+    }
+
     /** @brief Whether @p d's register sits in its block: site rows below 900,
-     *  library's above; alarms 800-899 (library's at the top). The generated
-     *  `_qlt` companions have a block of their own from 1000, so adding a
-     *  reading cannot renumber a hand-assigned one. See @ref dev_modbus. */
+     *  library's above; alarms 800-899 (library's at the top). The GENERATED
+     *  rows have blocks of their own above all of it - qualities from 1000, the
+     *  parking pairs from 1200 - so adding a reading or a parking program
+     *  cannot renumber a hand-assigned register. See @ref dev_modbus. */
     bool in_block(const Vars::Descriptor& d) {
         const uint16_t r = d.bind.reg;
-        if (d.scope == Vars::SCOPE_Q) return r >= 1000;
+        if (d.scope == Vars::SCOPE_Q) return r >= 1000 && r < 1200;
+        if (strncmp(d.name, "prog_", 5) == 0 &&
+            (ends_with(d.name, "_park") || ends_with(d.name, "_parked")))
+            return r >= 1200;
         return (d.scope == Vars::SCOPE_A) ? ((r >= 800 && r <= 899) ||
                                              (r >= 986 && r <= 999))
                                           : ((r >= 1 && r <= 799) ||

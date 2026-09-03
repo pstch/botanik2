@@ -166,6 +166,92 @@ TEST_CASE("control: taking one program out of the scan drops what it drives safe
     CHECK(st.running(skirt));
 }
 
+TEST_CASE("control: a parking program travels to its safe state before it is dropped") {
+    Live f;
+    Plc::Runtime::Plant st(Botanik::SetupContext(f.reg), f.bank);
+    st.wire();
+
+    uint8_t windows = 0xFF;
+    for (uint8_t i = 0; i < st.count(); i++)
+        if (strcmp(st.name(i), "windows") == 0) windows = i;
+    REQUIRE(windows != 0xFF);
+
+    const Vars::VarRef park   = f.ref("prog_windows_park");
+    const Vars::VarRef parked = f.ref("prog_windows_parked");
+    const Vars::VarRef opn    = f.ref("cli_window1_opn");
+    REQUIRE(park.index != Vars::VAR_NONE);
+
+    // Open, so the park has somewhere to travel FROM. The rams datum by
+    // running to a stop, so this takes a while whatever it is asked for.
+    force(f, "cli_windowDem", 1.0f);
+    force(f, "cli_windowCap", 1.0f);
+    force(f, "cli_windowLockout", false);
+    uint64_t t = 0;
+    for (uint32_t i = 0; i < 900; i++) st.scan(windows, t += 100);
+    REQUIRE(f.bank.get(f.bank.resolve<float>("cli_window1_pos")) > 0.9f);
+
+    st.set_enabled(windows, false);
+    st.scan(windows, t += 100);
+    INFO("out of the scan, but told to park rather than simply dropped - and "
+         "the plant says so, which is what holds the lifecycle in STOP");
+    CHECK(f.bank.var(park).as_bool());
+    CHECK(st.parking());
+    CHECK_FALSE(f.bank.var(parked).as_bool());
+
+    INFO("...and the body is still being called: something has to drive the "
+         "rams shut, and a program nobody scans drives nothing");
+    bool moved = false;
+    for (uint32_t i = 0; i < 40 && !moved; i++) {
+        st.scan(windows, t += 100);
+        if (f.bank.var(f.ref("cli_window1_clo")).as_bool()) moved = true;
+    }
+    CHECK(moved);
+
+    for (uint32_t i = 0; i < 900 && st.parking(); i++) st.scan(windows, t += 100);
+    INFO("the roof reaches SHUT - which is the point: the declared value of "
+         "cli_window1_tgt is a part-open park for a house nobody can see, and "
+         "arriving there without travelling would leave the roof wherever the "
+         "last scan had it");
+    CHECK_FALSE(st.parking());
+    CHECK(f.bank.var(f.ref("cli_window1_pos")).as_f32() < 0.05f);
+    INFO("...and only then do the rows go to their declared values, with the "
+         "coils off and the park released");
+    CHECK_FALSE(f.bank.var(park).as_bool());
+    CHECK_FALSE(f.bank.var(parked).as_bool());
+    CHECK_FALSE(f.bank.var(opn).as_bool());
+    CHECK_FALSE(f.bank.var(f.ref("cli_window1_clo")).as_bool());
+}
+
+TEST_CASE("control: a program that never parks is dropped anyway, and says so") {
+    Live f;
+    Plc::Runtime::Plant st(Botanik::SetupContext(f.reg), f.bank);
+    st.wire();
+
+    uint8_t windows = 0xFF;
+    for (uint8_t i = 0; i < st.count(); i++)
+        if (strcmp(st.name(i), "windows") == 0) windows = i;
+    REQUIRE(windows != 0xFF);
+
+    // A ram that cannot travel: the timeout is the only way out, and it must
+    // exist or a seized actuator holds the whole shutdown open.
+    REQUIRE(f.bank.param_set_i(f.bank.var(f.ref("plc_parkTimeout_sec")), 2)
+            == SET_OK);
+    force(f, "cli_windowTravel_sec", (int64_t)600);
+
+    uint64_t t = 0;
+    st.scan(windows, t += 100);
+    st.set_enabled(windows, false);
+    st.scan(windows, t += 100);
+    REQUIRE(st.parking());
+
+    for (uint32_t i = 0; i < 40 && st.parking(); i++) st.scan(windows, t += 100);
+    INFO("past plc_parkTimeout_sec the park is given up and the rows go safe "
+         "regardless: the way out is not allowed to depend on an actuator");
+    CHECK_FALSE(st.parking());
+    CHECK_FALSE(f.bank.var(f.ref("prog_windows_park")).as_bool());
+    CHECK_FALSE(f.bank.var(f.ref("cli_window1_opn")).as_bool());
+}
+
 TEST_CASE("control: sys_control off stops every law, whatever its own gate says") {
     Live f;
     Plc::Runtime::Plant st(Botanik::SetupContext(f.reg), f.bank);

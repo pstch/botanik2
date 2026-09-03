@@ -234,6 +234,16 @@ Subsystems under `src/libbotanik/`. Each row's doc is the reference; the header 
   `Tunable`s; `scale`/`offset` are never stored but derived, so a recalibration lands the
   moment the parameter commits. Anything DISPLAYING a band goes through `var_band()`, not
   `num_band()`. See `vars.md`.
+- **Parking.** A program may opt in with `park` in `programs.csv` and get
+  `prog_<name>_park` (Plant writes, the law reads) and `prog_<name>_parked` (the
+  law writes). Such a program is NOT dropped when it leaves the scan: `park` goes
+  true, its body keeps being called while it travels, and its rows go to their
+  declared values only once it answers - so a roof shuts before the unit halts
+  rather than reading 0.25 while sitting open. `Plant::parking()` holds the
+  lifecycle in STOP; `plc_parkTimeout_sec` caps it, because the way out may not
+  depend on an actuator. `tables.py plant` refuses an opt-in that never writes its
+  `_parked` row. Not for an actuator whose safe state is where it already is - the
+  thermal screen. See `scan.md`.
 - **Quality is a ROW.** `x_qlt` carries `x`'s `Vars::Quality` and is the only
   place a quality is stored: `Bank::freeze()` pairs the two by name, `Var::valid()`
   reads that row, a driver's `publish()` writes it, and ST reads and writes it like

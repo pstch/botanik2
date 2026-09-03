@@ -28,12 +28,20 @@ namespace Botanik { namespace Plc { namespace Runtime {
         _now_ref = _io.find("sys_now_ms");
         _day_ref = _io.find("sys_today");
         _control_ref = _io.find("sys_control");
+        _park_timeout_ref = _io.find("plc_parkTimeout_sec");
         BOTANIK_ASSERT(PROGRAM_COUNT <=
                        (uint8_t)(sizeof _slot / sizeof _slot[0]));
 
         char row[40];
         for (uint8_t i = 0; i < PROGRAM_COUNT; i++) {
             const Program& p = programs[i];
+            // The parking pair, where the program declared one. Generated
+            // names, so a miss here is a table that was regenerated without
+            // its rows - loud rather than a program that never parks.
+            _slot[i].park_row   = (p.park   != nullptr) ? _io.find(p.park)
+                                                        : Vars::VarRef{ Vars::VAR_NONE };
+            _slot[i].parked_row = (p.parked != nullptr) ? _io.find(p.parked)
+                                                        : Vars::VarRef{ Vars::VAR_NONE };
 
             // One AUTHOR per row is checked at generate time now, where it is
             // static and total: the bank's writer claim could not do it, since
@@ -105,16 +113,70 @@ namespace Botanik { namespace Plc { namespace Runtime {
             // nothing else writes a row this program exclusively claimed.
             if (_slot[i].ran) {
                 _slot[i].ran = false;
-                const uint16_t n = _safe_outputs(i);
-                if (_logger != nullptr)
-                    _logger->warning(Logs::HEALTH, "%s: out of the scan, %u row(s) safe",
-                                     programs[i].name, (unsigned)n);
+                if (!_park_begin(i, now_ms)) { _drop_safe(i); return; }
+            } else if (!_slot[i].parking) {
+                return;                     // already safe, and staying there
             }
+            // TRAVELLING. The body keeps being called, reading `park` and
+            // driving its own actuators, until it answers or runs out of time.
+            if (_io.var(_slot[i].parked_row).as_bool()) { _park_end(i, true);  return; }
+            if (now_ms >= _slot[i].park_until_ms)       { _park_end(i, false); return; }
+            programs[i].run();
             return;
+        }
+        // Back in service: a park that was in flight is abandoned where it got
+        // to, which is where the law is about to take over from anyway.
+        if (_slot[i].parking) {
+            _slot[i].parking = false;
+            _io.var(_slot[i].park_row).set(false);
         }
         _slot[i].ran = true;
 
         programs[i].run();
+    }
+
+    bool Plant::_park_begin(uint8_t i, uint64_t now_ms) {
+        if (_slot[i].park_row.index == Vars::VAR_NONE) return false;
+        _slot[i].parking       = true;
+        _slot[i].park_until_ms = now_ms + _park_timeout_ms();
+        _io.var(_slot[i].park_row).set(true);
+        _io.var(_slot[i].parked_row).set(false);
+        if (_logger != nullptr)
+            _logger->notice(Logs::HEALTH, "%s: parking", programs[i].name);
+        return true;
+    }
+
+    void Plant::_park_end(uint8_t i, bool answered) {
+        _slot[i].parking = false;
+        _io.var(_slot[i].park_row).set(false);
+        // The declared values go on TOP of wherever the park left things: the
+        // park is what put the actuator somewhere chosen, and `def` is what the
+        // rows read once nothing is deciding. For a row the law parked, the two
+        // agree - which is the point of declaring the safe state honestly.
+        _drop_safe(i);
+        if (_logger == nullptr) return;
+        if (answered) _logger->notice(Logs::HEALTH, "%s: parked", programs[i].name);
+        else _logger->warning(Logs::HEALTH, "%s: did not park in %lu s",
+                              programs[i].name,
+                              (unsigned long)(_park_timeout_ms() / 1000u));
+    }
+
+    void Plant::_drop_safe(uint8_t i) {
+        const uint16_t n = _safe_outputs(i);
+        if (_logger != nullptr)
+            _logger->warning(Logs::HEALTH, "%s: out of the scan, %u row(s) safe",
+                             programs[i].name, (unsigned)n);
+    }
+
+    uint32_t Plant::_park_timeout_ms() const {
+        if (_park_timeout_ref.index == Vars::VAR_NONE) return 60000u;
+        return (uint32_t)_io.var(_park_timeout_ref).as<uint16_t>() * 1000u;
+    }
+
+    bool Plant::parking() const {
+        for (uint8_t i = 0; i < PROGRAM_COUNT; i++)
+            if (_slot[i].parking) return true;
+        return false;
     }
 
     void Plant::scan(uint64_t now_ms) {

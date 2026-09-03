@@ -1,29 +1,29 @@
-name           ,instance  ,source                                                            ,rate   ,desc,quality
-ac_grid_watch  ,acgrid    ,programs/sense/ac_grid_watch/ac_grid_watch.st                     ,control,"The utility feed, watched.",yes
-ac_local_watch ,aclocal   ,programs/sense/ac_local_watch/ac_local_watch.st                   ,control,"The generator-backed side of the transfer switch, watched.",yes
-dc_watch       ,dcwatch   ,programs/sense/dc_watch/dc_watch.st                               ,control,"The DC rails and the two batteries, watched - and the plant-wide lockout they raise.",yes
-temp_rh_sensors,sensors   ,programs/sense/temp_rh_sensors/temp_rh_sensors.st                 ,sense  ,"The four measurement locations, each voted down to one reading and filtered: what the greenhouse IS, before any law is set in it.",yes
-wx_sensors     ,wx        ,programs/sense/wx_sensors/wx_sensors.st                           ,sense  ,"The two weather stations, voted down to one reading per quantity: the worse of them, because two cannot say which is lying.",yes
-strat          ,strat     ,programs/sense/strat_sensor/strat_sensor.st                       ,sense  ,"The stratification gap: how much warmer the ceiling is than the floor, unsigned.",yes
-temp_rh_zone   ,zone      ,programs/sense/temp_rh_zone/temp_rh_zone.st                       ,sense  ,"The psychrometrics every other law is set in, off the two interior levels: one temperature for the house, and the worst case per quantity.",yes
-climate_watch  ,climwatch ,programs/sense/climate_watch/climate_watch.st                     ,control,"The interior conditions, watched: the alarms that are a READING crossing a line rather than a law failing to hold one.",
-weather_watch  ,wxwatch   ,programs/sense/weather_watch/weather_watch.st                     ,control,"The weather station, watched: whether it is answering, and whether what it says is a storm.",
-day_phase      ,dayphase  ,programs/climate/day_phase_controller/day_phase_controller.st     ,control,"The day's phase, and the temperature target it puts in force.",yes
-target_temp    ,target    ,programs/climate/target_temp_controller/target_temp_controller.st ,control,"The temperature the greenhouse is being held to: the base setting, shifted by whichever bank phase is both IN FORCE and ARMED.",
-cooling        ,cooling   ,programs/climate/cooling_controller/cooling_controller.st         ,sense  ,"The cooling ladder: a PID on the interior temperature against the phase's target, published as one signed demand.",yes
-humidity       ,humidity  ,programs/climate/humidity_controller/humidity_controller.st       ,control,"The humidity ladder: four bands and a dead zone on the dew-point margin, published as one signed demand - and the rot guard under it.",
-intake_dry     ,drygate   ,programs/climate/intake_dry_gate/intake_dry_gate.st               ,control,The intake dry gate: whether the air outside is drier than the air in.,
-intake_gates   ,gates     ,programs/climate/intake_gates/intake_gates.st                     ,control,"The two intake gates: whether crawlspace air is worth drawing, for cooling and for ground heat.",
-destrat        ,destrat   ,programs/climate/destrat_controller/destrat_controller.st         ,control,"The destratification ladder: three bands with hysteresis on the ceiling-to- floor gap, published as a demand.",
-roof_lockout   ,roof      ,programs/actuators/roof_lockout/roof_lockout.st                   ,control,"What forbids the roof being open at all, whatever the ladder asks.",
-intractors     ,intractors,programs/actuators/intractor_controller/intractor_controller.st   ,control,"The two intractors: variable-speed fans drawing air from under the floor, driven by whichever of three demands wants the most.",
-fans           ,fans      ,programs/actuators/fan_controller/fan_controller.st               ,control,"The two destratification fans: three relayed speeds, driven by whichever of three demands wants the most.",
-skirt          ,skirt     ,programs/actuators/skirt_controller/skirt_controller.st           ,control,The wet skirt: one valve pulsed against two demands.,
-screen         ,screen    ,programs/actuators/screen_controller/screen_controller.st         ,control,"The thermal screen: one coil, deployed when the greenhouse is losing heat rather than gaining it.",
-windows        ,windows   ,programs/actuators/windows_controller/windows_controller.st       ,control,"The four roof windows: one target from the cooling ladder, and ONE MOVING AT A TIME.",
-irr_modulation ,irrmod    ,programs/irrigation/irrigation_modulation/irrigation_modulation.st,control,"The irrigation ladder: how thirsty the air has been, as one factor.",yes
-irr_mtr_input  ,irrin     ,programs/irrigation/irr_mtr_input/irr_mtr_input.st                ,control,"The inlet meter, and the two supply faults it alone can see.",
-irr_mtr_output ,irrout    ,programs/irrigation/irr_mtr_output/irr_mtr_output.st              ,control,The outlet meter: what came back off the trays.,yes
-irr_schedule   ,irrsched  ,programs/irrigation/irrigation_schedule/irrigation_schedule.st    ,control,"Which tray is owed water, and whether the climate will allow a cycle to start.",
-irrigation     ,irrcycle  ,programs/irrigation/irrigation_cycle/irrigation_cycle.st          ,control,"Irrigation: one tray at a time, filled to a dose, steeped, and drained.",
-irr_valves     ,irrvalves ,programs/irrigation/irr_valves/irr_valves.st                      ,control,The irrigation manifold: which valves each state of the cycle opens.,
+name           ,instance  ,source                                                            ,rate   ,desc,quality,park
+ac_grid_watch  ,acgrid    ,programs/sense/ac_grid_watch/ac_grid_watch.st                     ,control,"The utility feed, watched.",yes,
+ac_local_watch ,aclocal   ,programs/sense/ac_local_watch/ac_local_watch.st                   ,control,"The generator-backed side of the transfer switch, watched.",yes,
+dc_watch       ,dcwatch   ,programs/sense/dc_watch/dc_watch.st                               ,control,"The DC rails and the two batteries, watched - and the plant-wide lockout they raise.",yes,
+temp_rh_sensors,sensors   ,programs/sense/temp_rh_sensors/temp_rh_sensors.st                 ,sense  ,"The four measurement locations, each voted down to one reading and filtered: what the greenhouse IS, before any law is set in it.",yes,
+wx_sensors     ,wx        ,programs/sense/wx_sensors/wx_sensors.st                           ,sense  ,"The two weather stations, voted down to one reading per quantity: the worse of them, because two cannot say which is lying.",yes,
+strat          ,strat     ,programs/sense/strat_sensor/strat_sensor.st                       ,sense  ,"The stratification gap: how much warmer the ceiling is than the floor, unsigned.",yes,
+temp_rh_zone   ,zone      ,programs/sense/temp_rh_zone/temp_rh_zone.st                       ,sense  ,"The psychrometrics every other law is set in, off the two interior levels: one temperature for the house, and the worst case per quantity.",yes,
+climate_watch  ,climwatch ,programs/sense/climate_watch/climate_watch.st                     ,control,"The interior conditions, watched: the alarms that are a READING crossing a line rather than a law failing to hold one.",,
+weather_watch  ,wxwatch   ,programs/sense/weather_watch/weather_watch.st                     ,control,"The weather station, watched: whether it is answering, and whether what it says is a storm.",,
+day_phase      ,dayphase  ,programs/climate/day_phase_controller/day_phase_controller.st     ,control,"The day's phase, and the temperature target it puts in force.",yes,
+target_temp    ,target    ,programs/climate/target_temp_controller/target_temp_controller.st ,control,"The temperature the greenhouse is being held to: the base setting, shifted by whichever bank phase is both IN FORCE and ARMED.",,
+cooling        ,cooling   ,programs/climate/cooling_controller/cooling_controller.st         ,sense  ,"The cooling ladder: a PID on the interior temperature against the phase's target, published as one signed demand.",yes,
+humidity       ,humidity  ,programs/climate/humidity_controller/humidity_controller.st       ,control,"The humidity ladder: four bands and a dead zone on the dew-point margin, published as one signed demand - and the rot guard under it.",,
+intake_dry     ,drygate   ,programs/climate/intake_dry_gate/intake_dry_gate.st               ,control,The intake dry gate: whether the air outside is drier than the air in.,,
+intake_gates   ,gates     ,programs/climate/intake_gates/intake_gates.st                     ,control,"The two intake gates: whether crawlspace air is worth drawing, for cooling and for ground heat.",,
+destrat        ,destrat   ,programs/climate/destrat_controller/destrat_controller.st         ,control,"The destratification ladder: three bands with hysteresis on the ceiling-to- floor gap, published as a demand.",,
+roof_lockout   ,roof      ,programs/actuators/roof_lockout/roof_lockout.st                   ,control,"What forbids the roof being open at all, whatever the ladder asks.",,
+intractors     ,intractors,programs/actuators/intractor_controller/intractor_controller.st   ,control,"The two intractors: variable-speed fans drawing air from under the floor, driven by whichever of three demands wants the most.",,
+fans           ,fans      ,programs/actuators/fan_controller/fan_controller.st               ,control,"The two destratification fans: three relayed speeds, driven by whichever of three demands wants the most.",,
+skirt          ,skirt     ,programs/actuators/skirt_controller/skirt_controller.st           ,control,The wet skirt: one valve pulsed against two demands.,,
+screen         ,screen    ,programs/actuators/screen_controller/screen_controller.st         ,control,"The thermal screen: one coil, deployed when the greenhouse is losing heat rather than gaining it.",,
+windows        ,windows   ,programs/actuators/windows_controller/windows_controller.st       ,control,"The four roof windows: one target from the cooling ladder, and ONE MOVING AT A TIME.",,yes
+irr_modulation ,irrmod    ,programs/irrigation/irrigation_modulation/irrigation_modulation.st,control,"The irrigation ladder: how thirsty the air has been, as one factor.",yes,
+irr_mtr_input  ,irrin     ,programs/irrigation/irr_mtr_input/irr_mtr_input.st                ,control,"The inlet meter, and the two supply faults it alone can see.",,
+irr_mtr_output ,irrout    ,programs/irrigation/irr_mtr_output/irr_mtr_output.st              ,control,The outlet meter: what came back off the trays.,yes,
+irr_schedule   ,irrsched  ,programs/irrigation/irrigation_schedule/irrigation_schedule.st    ,control,"Which tray is owed water, and whether the climate will allow a cycle to start.",,
+irrigation     ,irrcycle  ,programs/irrigation/irrigation_cycle/irrigation_cycle.st          ,control,"Irrigation: one tray at a time, filled to a dose, steeped, and drained.",,
+irr_valves     ,irrvalves ,programs/irrigation/irr_valves/irr_valves.st                      ,control,The irrigation manifold: which valves each state of the cycle opens.,,yes

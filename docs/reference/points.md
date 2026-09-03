@@ -8,12 +8,12 @@ finds it. The site half comes from `tables/*.csv`, the library half from
 
 One section per SCOPE, in the order `Vars::VarScope` declares them.
 
-514 rows: 440 declared by the site, 74 by the library.
+516 rows: 441 declared by the site, 75 by the library.
 
 | scope | what it is | site | library |
 |---|---|---|---|
 | Alarms | the boolean an AlarmCondition reads | 39 | 13 |
-| Parameters | persisted, editable | 179 | 52 |
+| Parameters | persisted, editable | 180 | 53 |
 | Computed values | HMI only, not published | 0 | 0 |
 | Status values | published: MQTT and the Modbus TCP slave | 110 | 9 |
 | Direct inputs | register 1:1 (device 0 = local) | 75 | 0 |
@@ -94,7 +94,7 @@ One section per SCOPE, in the order `Vars::VarScope` declares them.
 
 `SCOPE_P`: persisted, editable.
 
-### gh_mlb41 (179)
+### gh_mlb41 (180)
 
 | name | type | default | accepts | unit | access | reg | description | notes |
 |---|---|---|---|---|---|---|---|---|
@@ -207,6 +207,7 @@ One section per SCOPE, in the order `Vars::VarScope` declares them.
 | irr_morningWin_min | T_U16 | 180 | 30 .. 480 | min | RW | 314 | how long into the day the morning slot runs | the tray has to dry before night; watering at four in the afternoon does not |
 | irr_maxFill_sec | T_U16 | 300 | 100 .. 1800 | sec | RW | 299 | alarm if a tray takes longer to fill | - |
 | irr_soak_sec | T_U16 | 300 | 0 .. 3600 | sec | RW | 315 | how long a filled tray sits before draining | 0 skips the soak and opens the drain at the end of the fill |
+| irr_parkDrain_sec | T_U16 | 60 | 0 .. 600 | sec | RW | 316 | time the drain is held open when parking | a tray left full is a tray nobody is watching; 0 shuts every coil at once |
 | irr_drainWindow_sec | T_U16 | 300 | 100 .. 1800 | sec | RW | 300 | time allowed for a tray to drain | - |
 | irr_expDrainFrac | T_F32 | 0.6 | 0.0 .. 1.0 | - | RW | 301 | fraction expected to drain back | - |
 | irr_drainMargin | T_F32 | 0.3 | 0.0 .. 1.0 | - | RW | 302 | clog if drained is this far under | against irr_expDrainFrac, so 0.6 expected and 0.3 here clogs under 0.3 |
@@ -278,7 +279,7 @@ One section per SCOPE, in the order `Vars::VarScope` declares them.
 | irr_flowCutoff_Lpm | T_F32 | 0.2 | 0.0 .. 5.0 | Lpm | RW | 158 | below this the outlet counts no litres | - |
 | irr_rateWin_ms | T_U16 | 5000 | 500 .. 60000 | ms | RW | 159 | window the inlet rate is differenced over | - |
 
-### Library (52)
+### Library (53)
 
 | name | type | default | accepts | unit | access | reg | description | notes |
 |---|---|---|---|---|---|---|---|---|
@@ -315,6 +316,7 @@ One section per SCOPE, in the order `Vars::VarScope` declares them.
 | sys_control | T_BOOL | 1 | 0 .. 1 | - | RW | 976 | let the control programs drive | off stops every law and drops what they were driving to its declared safe state; per-program is `programs disable` |
 | sys_shutdown_sec | T_U16 | BOTANIK_SHUTDOWN_HOLD_MS / 1000.0 | 0 .. 600 | sec | RW | 975 | laws stopped before the ending, seconds | the mirror of sys_startup_sec: time for the record to reach flash before a reset |
 | sys_retain_sec | T_U32 | 300 | 0 .. 86400 | sec | RW | 974 | how often retained values reach flash | 0 leaves only `save` and the way down; wear vs loss |
+| plc_parkTimeout_sec | T_U16 | 300 | 0 .. 900 | sec | RW | 947 | how long a program may take to park, seconds | the cap on the STOP hold: a ram that has not finished travelling is dropped safe and the log names it |
 | rtu_timeout_ms | T_U32 | 300 | 20 .. 5000 | ms | RW | 980 | how long a slave has to answer | the bus default; a device model may declare its own |
 | rtu_retries | T_U8 | 1 | 0 .. 5 | - | RW | 981 | immediate retries before a device is backed off | each costs a full timeout on a device that is really gone |
 | rtu_backoff_ms | T_U32 | 1000 | 100 .. 60000 | ms | RW | 982 | first backoff after a device fails its retries | doubles per further failure, up to rtu_backoff_max_ms |
@@ -381,13 +383,13 @@ One section per SCOPE, in the order `Vars::VarScope` declares them.
 | irr_delivered_L | T_F32 | 0 | 1 | L | 536 | delivered into the tray being filled | counted off irr_inPulse, one pulse per irr_input_qtyPerImp |
 | irr_drained_L | T_F32 | 0 | 1 | L | 538 | drained back out of the tray being served | integrated off irr_out_Lpm over the drain window |
 | irr_outFlow_Lpm | T_F32 | 0 | 1 | Lpm | 539 | outlet flow, averaged over irr_out_avg_ms | what the drain verdict integrates |
-| cli_window1_tgt | T_F32 | 0.25 | 2 | - | 540 | window 1 commanded position, 0 to 1 | what the arbitration asked for |
+| cli_window1_tgt | T_F32 | 0.00 | 2 | - | 540 | window 1 commanded position, 0 to 1 | what the arbitration asked for; 0 with nothing driving, which is where the roof parks on the way out |
 | cli_window1_pos | T_F32 | 0 | 2 | - | 541 | window 1 position, 0 to 1 | estimated from travel time; only a seating stroke proves 0 |
-| cli_window2_tgt | T_F32 | 0.25 | 2 | - | 542 | window 2 commanded position, 0 to 1 | what the arbitration asked for |
+| cli_window2_tgt | T_F32 | 0.00 | 2 | - | 542 | window 2 commanded position, 0 to 1 | what the arbitration asked for; 0 with nothing driving, which is where the roof parks on the way out |
 | cli_window2_pos | T_F32 | 0 | 2 | - | 543 | window 2 position, 0 to 1 | estimated from travel time; only a seating stroke proves 0 |
-| cli_window3_tgt | T_F32 | 0.25 | 2 | - | 544 | window 3 commanded position, 0 to 1 | what the arbitration asked for |
+| cli_window3_tgt | T_F32 | 0.00 | 2 | - | 544 | window 3 commanded position, 0 to 1 | what the arbitration asked for; 0 with nothing driving, which is where the roof parks on the way out |
 | cli_window3_pos | T_F32 | 0 | 2 | - | 545 | window 3 position, 0 to 1 | estimated from travel time; only a seating stroke proves 0 |
-| cli_window4_tgt | T_F32 | 0.25 | 2 | - | 546 | window 4 commanded position, 0 to 1 | what the arbitration asked for |
+| cli_window4_tgt | T_F32 | 0.00 | 2 | - | 546 | window 4 commanded position, 0 to 1 | what the arbitration asked for; 0 with nothing driving, which is where the roof parks on the way out |
 | cli_window4_pos | T_F32 | 0 | 2 | - | 547 | window 4 position, 0 to 1 | estimated from travel time; only a seating stroke proves 0 |
 | cli_rainLockout | T_BOOL | 0 | 0 | - | 548 | rain holds the windows shut | and for cli_rainLockout_sec after it stops |
 | cli_windLockout | T_BOOL | 0 | 0 | - | 549 | wind holds the windows shut | gusting over cli_windShutEnd_mps |
@@ -672,13 +674,13 @@ between them.
 | 19 | fans | control | 10 | 7 | The two destratification fans: three relayed speeds, driven by whichever of three demands wants the most. |
 | 20 | skirt | control | 11 | 2 | The wet skirt: one valve pulsed against two demands. |
 | 21 | screen | control | 7 | 2 | The thermal screen: one coil, deployed when the greenhouse is losing heat rather than gaining it. |
-| 22 | windows | control | 6 | 16 | The four roof windows: one target from the cooling ladder, and ONE MOVING AT A TIME. |
+| 22 | windows | control | 7 | 17 | The four roof windows: one target from the cooling ladder, and ONE MOVING AT A TIME. |
 | 23 | irr_modulation | control | 8 | 4 | The irrigation ladder: how thirsty the air has been, as one factor. |
 | 24 | irr_mtr_input | control | 7 | 5 | The inlet meter, and the two supply faults it alone can see. |
 | 25 | irr_mtr_output | control | 6 | 4 | The outlet meter: what came back off the trays. |
 | 26 | irr_schedule | control | 30 | 21 | Which tray is owed water, and whether the climate will allow a cycle to start. |
 | 27 | irrigation | control | 23 | 41 | Irrigation: one tray at a time, filled to a dose, steeped, and drained. |
-| 28 | irr_valves | control | 2 | 12 | The irrigation manifold: which valves each state of the cycle opens. |
+| 28 | irr_valves | control | 5 | 13 | The irrigation manifold: which valves each state of the cycle opens. |
 
 ### ac_grid_watch
 
@@ -875,8 +877,8 @@ between them.
 
 | direction | rows |
 |---|---|
-| reads | `cli_windowDem`, `cli_windowLockout`, `cli_windowCap`, `cli_windowTravel_sec`, `cli_windowTmo_sec`, `sys_now_ms` |
-| writes | `cli_window1_opn`, `cli_window2_opn`, `cli_window3_opn`, `cli_window4_opn`, `cli_window1_clo`, `cli_window2_clo`, `cli_window3_clo`, `cli_window4_clo`, `cli_window1_tgt`, `cli_window2_tgt`, `cli_window3_tgt`, `cli_window4_tgt`, `cli_window1_pos`, `cli_window2_pos`, `cli_window3_pos`, `cli_window4_pos` |
+| reads | `cli_windowDem`, `cli_windowLockout`, `cli_windowCap`, `cli_windowTravel_sec`, `cli_windowTmo_sec`, `prog_windows_park`, `sys_now_ms` |
+| writes | `prog_windows_parked`, `cli_window1_opn`, `cli_window2_opn`, `cli_window3_opn`, `cli_window4_opn`, `cli_window1_clo`, `cli_window2_clo`, `cli_window3_clo`, `cli_window4_clo`, `cli_window1_tgt`, `cli_window2_tgt`, `cli_window3_tgt`, `cli_window4_tgt`, `cli_window1_pos`, `cli_window2_pos`, `cli_window3_pos`, `cli_window4_pos` |
 
 ### irr_modulation
 
@@ -929,5 +931,5 @@ between them.
 
 | direction | rows |
 |---|---|
-| reads | `irr_state`, `irr_activeTray` |
-| writes | `irr_input_ro1`, `irr_input_ro2`, `irr_output_ro1`, `irr_output_ro2`, `irr_tray1`, `irr_tray2`, `irr_tray3`, `irr_tray4`, `irr_tray5`, `irr_tray6`, `irr_tray7`, `irr_tray8` |
+| reads | `irr_state`, `irr_activeTray`, `irr_parkDrain_sec`, `prog_irr_valves_park`, `sys_now_ms` |
+| writes | `prog_irr_valves_parked`, `irr_input_ro1`, `irr_input_ro2`, `irr_output_ro1`, `irr_output_ro2`, `irr_tray1`, `irr_tray2`, `irr_tray3`, `irr_tray4`, `irr_tray5`, `irr_tray6`, `irr_tray7`, `irr_tray8` |

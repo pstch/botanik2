@@ -299,9 +299,12 @@ namespace Botanik {
         /** @brief Advance the lifecycle. The one place the two holds are
          *  counted, so the ends of the run are the same mechanism.
          *
-         *  START and STOP are TIMED; RUN ends the moment a stop is asked for,
-         *  because there is nothing to wait for on that edge. There is no way
-         *  back: a unit on its way out does not return to service. */
+         *  START is TIMED; RUN ends the moment a stop is asked for, because
+         *  there is nothing to wait for on that edge. STOP is timed AND waits
+         *  for anything still PARKING - a roof that has been told to shut is
+         *  worth a few seconds of the way out - which Plant caps per program at
+         *  plc_parkTimeout_sec, so a seized ram cannot hold the unit open. There
+         *  is no way back: a unit on its way out does not return to service. */
         void _advance_run_state(uint64_t now_ms) {
             Scheduler::SchedulerContext* sc = _scheduler.context();
             switch (sc->run_state) {
@@ -321,7 +324,7 @@ namespace Botanik {
                 }
                 break;
             case Scheduler::RunState::STOP:
-                if (now_ms - _stop_at_ms >= _shutdown_hold_ms()) {
+                if (now_ms - _stop_at_ms >= _shutdown_hold_ms() && !_parking()) {
                     sc->run_state = Scheduler::RunState::HALT;
                     _logger.warning(Logs::HEALTH, "stopped");
                 }
@@ -344,6 +347,16 @@ namespace Botanik {
             return _io.shutdown_hold_ms();
 #else
             return Config::SHUTDOWN_HOLD_MS;
+#endif
+        }
+
+        /** @brief Is a control program still travelling to its parked state?
+         *  False where there is no plant to ask. */
+        bool _parking() const {
+#if BOTANIK_FEATURE_PLC
+            return _st.parking();
+#else
+            return false;
 #endif
         }
 

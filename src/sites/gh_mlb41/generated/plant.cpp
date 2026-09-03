@@ -96,19 +96,78 @@ static const char* const _writes_INTRACTORS[] = { "cli_intr1", "cli_intr2",};
 static const char* const _writes_FANS[] = { "cli_destrat1_speed1", "cli_destrat1_speed2", "cli_destrat1_speed3", "cli_destrat2_speed1", "cli_destrat2_speed2", "cli_destrat2_speed3", "cli_fanSpeed",};
 static const char* const _writes_SKIRT[] = { "cli_skirtValve", "cli_skirtDuty",};
 static const char* const _writes_SCREEN[] = { "cli_screen", "cli_screenMoving",};
-static const char* const _writes_WINDOWS[] = { "cli_window1_opn", "cli_window2_opn", "cli_window3_opn", "cli_window4_opn", "cli_window1_clo", "cli_window2_clo", "cli_window3_clo", "cli_window4_clo", "cli_window1_tgt", "cli_window2_tgt", "cli_window3_tgt", "cli_window4_tgt", "cli_window1_pos", "cli_window2_pos", "cli_window3_pos", "cli_window4_pos",};
+static const char* const _writes_WINDOWS[] = { "prog_windows_parked", "cli_window1_opn", "cli_window2_opn", "cli_window3_opn", "cli_window4_opn", "cli_window1_clo", "cli_window2_clo", "cli_window3_clo", "cli_window4_clo", "cli_window1_tgt", "cli_window2_tgt", "cli_window3_tgt", "cli_window4_tgt", "cli_window1_pos", "cli_window2_pos", "cli_window3_pos", "cli_window4_pos",};
 static const char* const _writes_IRRMOD[] = { "irr_vpdAvg_kPa", "irr_vpdAvg_kPa_qlt", "irr_mod", "irr_mod_qlt",};
 static const char* const _writes_IRRIN[] = { "irr_inTotal_L", "irr_inFlow_Lpm", "irr_inPulse", "alarm_water_leak", "alarm_water_pressure",};
 static const char* const _writes_IRROUT[] = { "irr_outFlow_Lpm", "irr_outFlow_Lpm_qlt", "irr_outTotal_L", "irr_outTotal_L_qlt",};
 static const char* const _writes_IRRSCHED[] = { "irr_dueTray", "irr_slotOpen", "irr_period_days", "irr_today", "irr_servedToday", "irr_last_tray1", "irr_last_tray2", "irr_last_tray3", "irr_last_tray4", "irr_last_tray5", "irr_last_tray6", "irr_last_tray7", "irr_last_tray8", "irr_forceOff_tray1", "irr_forceOff_tray2", "irr_forceOff_tray3", "irr_forceOff_tray4", "irr_forceOff_tray5", "irr_forceOff_tray6", "irr_forceOff_tray7", "irr_forceOff_tray8",};
 static const char* const _writes_IRRCYCLE[] = { "irr_volume_L", "irr_state", "irr_activeTray", "irr_delivered_L", "irr_drained_L", "irr_servedToday", "irr_forceNow", "alarm_irr_fill", "alarm_irr_drain", "irr_last_tray1", "irr_last_tray2", "irr_last_tray3", "irr_last_tray4", "irr_last_tray5", "irr_last_tray6", "irr_last_tray7", "irr_last_tray8", "irr_forceOn_tray1", "irr_forceOn_tray2", "irr_forceOn_tray3", "irr_forceOn_tray4", "irr_forceOn_tray5", "irr_forceOn_tray6", "irr_forceOn_tray7", "irr_forceOn_tray8", "alarm_irr_fill_tray1", "alarm_irr_fill_tray2", "alarm_irr_fill_tray3", "alarm_irr_fill_tray4", "alarm_irr_fill_tray5", "alarm_irr_fill_tray6", "alarm_irr_fill_tray7", "alarm_irr_fill_tray8", "alarm_irr_drain_tray1", "alarm_irr_drain_tray2", "alarm_irr_drain_tray3", "alarm_irr_drain_tray4", "alarm_irr_drain_tray5", "alarm_irr_drain_tray6", "alarm_irr_drain_tray7", "alarm_irr_drain_tray8",};
-static const char* const _writes_IRRVALVES[] = { "irr_input_ro1", "irr_input_ro2", "irr_output_ro1", "irr_output_ro2", "irr_tray1", "irr_tray2", "irr_tray3", "irr_tray4", "irr_tray5", "irr_tray6", "irr_tray7", "irr_tray8",};
+static const char* const _writes_IRRVALVES[] = { "prog_irr_valves_parked", "irr_input_ro1", "irr_input_ro2", "irr_output_ro1", "irr_output_ro2", "irr_tray1", "irr_tray2", "irr_tray3", "irr_tray4", "irr_tray5", "irr_tray6", "irr_tray7", "irr_tray8",};
+
+// The parking pair, or null for a program that is simply dropped.
+static const char* const _park_ACGRID   = 0;
+static const char* const _parked_ACGRID = 0;
+static const char* const _park_ACLOCAL   = 0;
+static const char* const _parked_ACLOCAL = 0;
+static const char* const _park_DCWATCH   = 0;
+static const char* const _parked_DCWATCH = 0;
+static const char* const _park_SENSORS   = 0;
+static const char* const _parked_SENSORS = 0;
+static const char* const _park_WX   = 0;
+static const char* const _parked_WX = 0;
+static const char* const _park_STRAT   = 0;
+static const char* const _parked_STRAT = 0;
+static const char* const _park_ZONE   = 0;
+static const char* const _parked_ZONE = 0;
+static const char* const _park_CLIMWATCH   = 0;
+static const char* const _parked_CLIMWATCH = 0;
+static const char* const _park_WXWATCH   = 0;
+static const char* const _parked_WXWATCH = 0;
+static const char* const _park_DAYPHASE   = 0;
+static const char* const _parked_DAYPHASE = 0;
+static const char* const _park_TARGET   = 0;
+static const char* const _parked_TARGET = 0;
+static const char* const _park_COOLING   = 0;
+static const char* const _parked_COOLING = 0;
+static const char* const _park_HUMIDITY   = 0;
+static const char* const _parked_HUMIDITY = 0;
+static const char* const _park_DRYGATE   = 0;
+static const char* const _parked_DRYGATE = 0;
+static const char* const _park_GATES   = 0;
+static const char* const _parked_GATES = 0;
+static const char* const _park_DESTRAT   = 0;
+static const char* const _parked_DESTRAT = 0;
+static const char* const _park_ROOF   = 0;
+static const char* const _parked_ROOF = 0;
+static const char* const _park_INTRACTORS   = 0;
+static const char* const _parked_INTRACTORS = 0;
+static const char* const _park_FANS   = 0;
+static const char* const _parked_FANS = 0;
+static const char* const _park_SKIRT   = 0;
+static const char* const _parked_SKIRT = 0;
+static const char* const _park_SCREEN   = 0;
+static const char* const _parked_SCREEN = 0;
+static const char* const _park_WINDOWS   = "prog_windows_park";
+static const char* const _parked_WINDOWS = "prog_windows_parked";
+static const char* const _park_IRRMOD   = 0;
+static const char* const _parked_IRRMOD = 0;
+static const char* const _park_IRRIN   = 0;
+static const char* const _parked_IRRIN = 0;
+static const char* const _park_IRROUT   = 0;
+static const char* const _parked_IRROUT = 0;
+static const char* const _park_IRRSCHED   = 0;
+static const char* const _parked_IRRSCHED = 0;
+static const char* const _park_IRRCYCLE   = 0;
+static const char* const _parked_IRRCYCLE = 0;
+static const char* const _park_IRRVALVES   = "prog_irr_valves_park";
+static const char* const _parked_IRRVALVES = "prog_irr_valves_parked";
 
 const Program programs[] = {
 #define X(name, POU, INST, PERIOD)                                             \
     { #name, PERIOD, &_init_##INST, &_run_##INST, &_task_##INST,               \
       _writes_##INST,                                                          \
-      (uint8_t)(sizeof _writes_##INST / sizeof _writes_##INST[0]) },
+      (uint8_t)(sizeof _writes_##INST / sizeof _writes_##INST[0]),             \
+      _park_##INST, _parked_##INST },
     PLANT_PROGRAM_LIST(X)
 #undef X
 };

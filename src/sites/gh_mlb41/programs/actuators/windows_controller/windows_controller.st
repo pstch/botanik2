@@ -8,9 +8,11 @@ VAR_EXTERNAL CONSTANT
   cli_windowCap        : REAL;
   cli_windowTravel_sec : UINT;
   cli_windowTmo_sec    : UINT;
+  prog_windows_park    : BOOL;
   sys_now_ms           : UDINT;
 END_VAR
 VAR_EXTERNAL
+  prog_windows_parked : BOOL;
   cli_window1_opn : BOOL;
   cli_window2_opn : BOOL;
   cli_window3_opn : BOOL;
@@ -50,7 +52,13 @@ END_VAR
      Rain and wind shut the roof whatever else is true, including the safe
      state below. *)
   ceiling := LIMIT(0.0, cli_windowCap, 1.0);
-  IF cli_windowLockout THEN
+  IF prog_windows_park THEN
+    (* PARKING, and it outranks everything: the roof SHUTS on the way out. A
+       ram left half open is a roof nobody is watching with the weather still
+       to come, and the declared position of every window row is 0 - so the
+       park and the safe state agree and the rams are what close the gap. *)
+    aim := 0.0;
+  ELSIF cli_windowLockout THEN
     aim := 0.0;
   ELSE
     (* The cascade STOPS here. cooling_controller publishes the roof's own park
@@ -175,4 +183,10 @@ END_VAR
   IF ram2.KNOWN THEN cli_window2_pos := ram2.POS; END_IF;
   IF ram3.KNOWN THEN cli_window3_pos := ram3.POS; END_IF;
   IF ram4.KNOWN THEN cli_window4_pos := ram4.POS; END_IF;
+
+  (* PARKED is `owner = 0`, and that is not a shortcut: the selection above
+     hands the bus to any ram that is moving, does not know where it is, or is
+     away from the target - so nobody owning it means all four know where they
+     are and are all at `aim`, which while parking is shut. *)
+  prog_windows_parked := prog_windows_park AND owner = 0;
 END_PROGRAM

@@ -39,6 +39,16 @@ namespace Botanik { namespace Plc { namespace Runtime {
          *  drops to their declared safe state. */
         const char* const* writes;
         uint8_t            write_count;
+        /** @brief The parking pair, or null when this program does not park.
+         *
+         *  A program that PARKS is not dropped the moment it leaves the scan:
+         *  `park` is set, its body keeps being called while it travels, and it
+         *  answers on `parked`. What that buys is an actuator at a position
+         *  somebody chose rather than wherever the last scan left it - a roof
+         *  shut, a valve closed - before the rows go to their declared values.
+         *  @see Plant::scan() */
+        const char* park;
+        const char* parked;
     };
 
     extern const Program programs[];

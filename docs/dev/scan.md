@@ -171,6 +171,42 @@ output - and the write marks them owed to the field, so the coil actually moves.
 A `_qlt` companion in the same roster drops to `Q_NO_DATA` with them. A coil left
 energised by a law nobody is running is the thing this exists to prevent.
 
+### Parking {#dev_scan_parking}
+
+A declared value is where a row READS. For an actuator that has to travel, it is
+not where the actuator IS: a roof half open when its law stops is a roof left
+half open, whatever `cli_window1_tgt` says afterwards.
+
+So a program may **park**. It says so with `quality`'s neighbour `park` in
+`tables/programs.csv`, and gets two generated rows:
+
+| row | who writes it |
+|---|---|
+| `prog_<name>_park` | `Plant`, when the program leaves the scan |
+| `prog_<name>_parked` | the program, when it has arrived |
+
+A parking program is not dropped on the edge out. `park` goes true, its body
+**keeps being called** - it needs scans to drive the travel - and the rows go to
+their declared values only once it answers on `parked`. `Plant::parking()` is
+true throughout, and the firmware's STOP waits on it, so a reboot shuts the roof
+before the unit halts rather than five seconds into the travel.
+
+Bounded at both ends. `plc_parkTimeout_sec` caps any one park: past it the
+program is dropped exactly as a non-parking one would be and the log names it,
+because the way out is not allowed to depend on an actuator. And a park in
+flight when the program comes back into service is abandoned where it got to,
+which is where the law is about to take over from anyway.
+
+`tables.py plant` refuses a program that opts in and never writes its own
+`_parked` row: one that never answers holds the shutdown open for the whole
+timeout, every time.
+
+**Not every actuator wants one.** The thermal screen's safe state is wherever it
+was - a deployed screen left deployed is not a hazard, and travelling it on the
+way out would be a movement nobody asked for. Parking is for the ones where a
+position is a risk: the roof against the weather, the irrigation valves against
+a tray left full.
+
 Which rows those are cannot be asked of the bank: an ST row resolves
 `VAR_IN_OUT` and records no exclusive writer. The roster is generated per
 program from what matiec says its body writes, and the drop happens on the EDGE

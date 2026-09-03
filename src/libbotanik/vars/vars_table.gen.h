@@ -146,6 +146,9 @@ const Descriptor library_vars[] = {
     P("sys_control", T_BOOL, 1, 0, 1, 0, "", 976, "let the control programs drive", "off stops every law and drops what they were driving to its declared safe state; per-program is `programs disable`", true),
     P("sys_shutdown_sec", T_U16, BOTANIK_SHUTDOWN_HOLD_MS / 1000.0, 0, 600, 0, "sec", 975, "laws stopped before the ending, seconds", "the mirror of sys_startup_sec: time for the record to reach flash before a reset", true),
     P("sys_retain_sec", T_U32, 300, 0, 86400, 0, "sec", 974, "how often retained values reach flash", "0 leaves only `save` and the way down; wear vs loss", true),
+#if BOTANIK_FEATURE_PLC
+    P("plc_parkTimeout_sec", T_U16, 300, 0, 900, 0, "sec", 947, "how long a program may take to park, seconds", "the cap on the STOP hold: a ram that has not finished travelling is dropped safe and the log names it", true),
+#endif
 #if BOTANIK_FEATURE_MODBUS_RTU_CLIENT
     P("rtu_timeout_ms", T_U32, 300, 20, 5000, 0, "ms", 980, "how long a slave has to answer", "the bus default; a device model may declare its own", true),
     P("rtu_retries", T_U8, 1, 0, 5, 0, "", 981, "immediate retries before a device is backed off", "each costs a full timeout on a device that is really gone", true),

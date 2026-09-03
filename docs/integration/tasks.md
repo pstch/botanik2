@@ -102,6 +102,7 @@ law needs is a row it names:
 | `sys_now_ms` | the scan clock, ms since boot. Blocks difference it themselves |
 | `sys_today` | days since 1 Jan 1970; **0 before the clock is set**, which a schedule refuses to run against |
 | a `_qlt` companion | the row beside it is believable, or why not. `GOOD(q)` to branch on one, `WORST_OF(a, b)` to inherit two, `QUAL(ok)` to make one from a boolean |
+| `prog_<name>_park` | this program has left the scan and should travel to its safe state. Only for a program that opted in with `park`; it answers on `prog_<name>_parked` |
 
 **There is no `dt_ms` and no `first_scan`.** A block that needs elapsed time
 takes `NOW` and keeps its own last reading, which is what makes it

@@ -83,6 +83,7 @@ P,,,sys_startup_sec,,,,,,973,"control held after boot, seconds",nothing runs a l
 P,,,sys_control,,,,,,976,let the control programs drive,off stops every law and drops what they were driving to its declared safe state; per-program is `programs disable`,T_BOOL,1,0,1,0,,true,,,,
 P,,,sys_shutdown_sec,,,,,,975,"laws stopped before the ending, seconds",the mirror of sys_startup_sec: time for the record to reach flash before a reset,T_U16,BOTANIK_SHUTDOWN_HOLD_MS / 1000.0,0,600,0,sec,true,,,,
 P,,,sys_retain_sec,,,,,,974,how often retained values reach flash,0 leaves only `save` and the way down; wear vs loss,T_U32,300,0,86400,0,sec,true,,,,
+P,PLC,,plc_parkTimeout_sec,,,,,,947,"how long a program may take to park, seconds","the cap on the STOP hold: a ram that has not finished travelling is dropped safe and the log names it",T_U16,300,0,900,0,sec,true,,,,
 P,MODBUS_RTU_CLIENT,,rtu_timeout_ms,,,,,,980,how long a slave has to answer,the bus default; a device model may declare its own,T_U32,300,20,5000,0,ms,true,,,,
 P,MODBUS_RTU_CLIENT,,rtu_retries,,,,,,981,immediate retries before a device is backed off,each costs a full timeout on a device that is really gone,T_U8,1,0,5,0,,true,,,,
 P,MODBUS_RTU_CLIENT,,rtu_backoff_ms,,,,,,982,first backoff after a device fails its retries,"doubles per further failure, up to rtu_backoff_max_ms",T_U32,1000,100,60000,0,ms,true,,,,

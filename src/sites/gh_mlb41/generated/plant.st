@@ -363,6 +363,7 @@ CONFIGURATION gh_mlb41
     irr_out_avg_ms            : UINT;
     irr_output_ro1            : BOOL;
     irr_output_ro2            : BOOL;
+    irr_parkDrain_sec         : UINT;
     irr_period_days           : REAL;
     irr_rateWin_ms            : UINT;
     irr_servedToday           : USINT;
@@ -383,6 +384,10 @@ CONFIGURATION gh_mlb41
     irr_volume_L              : REAL;
     irr_vpdAvg_kPa            : REAL;
     irr_vpdAvg_kPa_qlt        : QUALITY;
+    prog_irr_valves_park      : BOOL;
+    prog_irr_valves_parked    : BOOL;
+    prog_windows_park         : BOOL;
+    prog_windows_parked       : BOOL;
     pwr_dc1Lo_V               : REAL;
     pwr_dc1_V                 : REAL;
     pwr_dc1_V_qlt             : QUALITY;

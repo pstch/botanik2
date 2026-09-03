@@ -30,6 +30,9 @@ str_pool_bytes = 512
 # hand-assigned register, so adding a reading cannot renumber one. They are
 # handed out in emission order: appending an input appends a register.
 quality_base = 1000
+# ...and where the generated `prog_<name>_park` / `_parked` pair starts. Its own
+# block for the same reason.
+park_base = 1200
 
 [fieldbus]
 # RS-485. Every device on the segment has to agree.
