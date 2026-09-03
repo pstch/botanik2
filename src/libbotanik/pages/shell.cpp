@@ -229,11 +229,17 @@ namespace Botanik { namespace Pages {
         _setup_editor();
         // Pull origin up so a multi-row prompt redraws without a scroll that
         // would push the status bar (row 0) off screen.
-        uint16_t occ = _editor.occupied_rows();
+        const uint16_t occ  = _editor.occupied_rows();
+        const uint16_t rows = (uint16_t)_console.rows();
         if (occ > 1) {
-            uint16_t rows   = (uint16_t)_console.rows();
-            uint16_t origin = (uint16_t)(rows - occ);
-            _editor.set_origin(origin > 0 ? origin : 1);
+            // Clamped, not subtracted: a prompt taller than the screen makes
+            // rows - occ underflow to about 65000, and the origin guard below
+            // reads that as a fine large number and pins the editor off screen.
+            // Unreachable at the shipped sizes (SHELL_INPUT_LEN 512 lays out in
+            // 7 rows at 80 columns, against a 20-row floor) and one #define
+            // away: BOTANIK_SHELL_INPUT_LEN 2048 is 29.
+            const uint16_t origin = (rows > occ) ? (uint16_t)(rows - occ) : 1u;
+            _editor.set_origin(origin);
         }
         // Stage the log area for incremental replay (drained in tick()), then
         // draw the editor at the bottom.
