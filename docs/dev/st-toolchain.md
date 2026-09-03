@@ -47,13 +47,15 @@ matiec is VENDORED at `vendor/matiec`, pinned to one upstream commit. See
 pinned because its output is COMMITTED: nothing else would notice two developers
 regenerating `POUS.c` with different compilers.
 
-    make -C build matiec       # build it: build/matiec/iec2c
-    make -C build st-update    # regenerate the site's ST output, in place
-    make -C build check-st     # ...or regenerate into a copy and diff
+    make -C build matiec            # build it: build/matiec/iec2c
+    python3 scripts/tables.py plant # regenerate, in place
+    make -C build check-generated   # ...or regenerate into a copy and diff
 
-`check-st` is part of `check-full`, and the only thing that catches a generated
-file hand-edited, a library `.st` changed without a regeneration, or a matiec
-that is not the pinned one.
+`check-generated` is part of `check-full` and covers every committed artefact,
+not just matiec's: it re-runs `library`, `generate`, `config`, `plant` and
+`points` into a scratch copy and diffs. It is what catches a generated file
+hand-edited, a table changed without a regeneration - and, because it is made
+against the PINNED compiler, a matiec that is not the pinned one.
 
 Building it needs **flex, bison, autoconf and automake** - upstream ships
 `configure.ac` and no `configure`, so `autoreconf` runs first. flex and bison

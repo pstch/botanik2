@@ -157,12 +157,15 @@ endif()
 # firmware without their row. This regenerates into a scratch copy of the
 # generator's INPUTS and diffs, so it never touches the working tree.
 #
-# $IEC2C first, the override tables.py itself honours: matiec is packaged
-# nowhere, so a developer's copy is wherever they built it. Skipped where
-# neither it nor python3 is present, rather than failing the sweep for a tool a
-# contributor has no reason to install.
+# The PINNED matiec first (vendor/matiec, built by `make matiec`), because a
+# check made against whatever is on PATH would call whichever developer
+# regenerated second wrong. $IEC2C next, the override tables.py itself honours;
+# then PATH. Skipped where neither it nor python3 is present, rather than
+# failing the sweep for a tool a contributor has no reason to install.
 find_program(_python3 python3)
-if(DEFINED ENV{IEC2C} AND EXISTS "$ENV{IEC2C}")
+if(BOTANIK_PINNED_IEC2C)
+    set(_iec2c "${BOTANIK_PINNED_IEC2C}")
+elseif(DEFINED ENV{IEC2C} AND EXISTS "$ENV{IEC2C}")
     set(_iec2c "$ENV{IEC2C}")
 else()
     find_program(_iec2c iec2c)
@@ -176,7 +179,6 @@ if(_python3 AND _iec2c)
         # into this build directory and drag every object file with it.
         COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_SOURCE_DIR}/scripts ${_gen}/scripts
         COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_SOURCE_DIR}/src     ${_gen}/src
-        COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_SOURCE_DIR}/st      ${_gen}/st
         COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_SOURCE_DIR}/docs    ${_gen}/docs
         COMMAND ${CMAKE_COMMAND} -E chdir ${_gen}
                 ${_python3} scripts/tables.py library
@@ -205,6 +207,11 @@ if(_python3 AND _iec2c)
         USES_TERMINAL
         COMMENT "Sweep: the committed generated sources still match the tables"
         VERBATIM)
+    # Build the pinned compiler first where there is one, so the diff is against
+    # it rather than against whatever the developer happens to have.
+    if(TARGET matiec)
+        add_dependencies(check-generated matiec)
+    endif()
     add_dependencies(check-full check-generated)
 else()
     message(STATUS "check-full: no python3 or iec2c, skipping the generated-source check")

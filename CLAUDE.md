@@ -77,8 +77,6 @@ make -C build botanik_tests          # just build the doctest binary
 ctest --test-dir build --output-on-failure          # all CTest entries
 ctest --test-dir build -R pyte --output-on-failure  # just the pyte suite
 make -C build matiec                 # build the pinned matiec (needs flex/bison/autotools)
-make -C build st-update              # regenerate the site's ST output, in place
-make -C build check-st               # ...or regenerate into a copy and diff
 ```
 
 **`make check`** fails on the first problem: the library compiles `-Werror`, so building
