@@ -18,6 +18,7 @@
 #include "libbotanik.h"
 
 #include "page_fixture.h"
+#include "site_bank.h"
 
 namespace page_convergence {
 
@@ -35,7 +36,7 @@ static const Geometry GEOMETRIES[] = {
 #if BOTANIK_FEATURE_TASKS_PAGE
 TEST_CASE("pages: TASKS converges at every supported geometry") {
     for (const Geometry& g : GEOMETRIES) {
-        INFO(g.name);
+        INFO("geometry " << std::string(g.name));
         botanik_test::PageFixture f(g.rows, g.cols);
         Tasks::Registry reg;
         Pages::TasksPage page(f.console, reg);
@@ -62,13 +63,40 @@ TEST_CASE("pages: TASKS converges after the selection moves") {
 #if BOTANIK_FEATURE_LOGS_PAGE
 TEST_CASE("pages: LOGS converges at every supported geometry") {
     for (const Geometry& g : GEOMETRIES) {
-        INFO(g.name);
+        INFO("geometry " << std::string(g.name));
         botanik_test::PageFixture f(g.rows, g.cols);
         Pages::LogsPage page(f.console);
+
+        // Enough entries to fill the tallest screen and scroll it, and one
+        // longer than the narrowest, so the wrap runs too. An empty page
+        // converges trivially, which is what this case did before.
+        Logs::Logger logger;
+        REQUIRE(logger.add_writer(&page));
+        for (int i = 0; i < 40; i++)
+            logger.info(Logs::STATUS, "entry %d, and a tail long enough to wrap "
+                                      "at the narrowest console the operator "
+                                      "can ask for", i);
+        logger.refill();
 
         page.focus();
         f.paint(page);
         f.converged(page, "LOGS after focus");
+
+        // Not convergence while scrolled: begin_redraw() resets _view_offset,
+        // so Ctrl+L on a scrolled log deliberately jumps to the newest and a
+        // repaint is a DIFFERENT screen by design (pages/scrollback.h). What
+        // is worth asserting is that the scroll moved the view at all, and
+        // that coming back to the bottom converges again.
+        const std::vector<std::string> at_bottom = f.content();
+        page.handle_command(Terminal::InputEvent::Command::UP, 1);
+        f.paint(page);
+        CHECK(f.content() != at_bottom);
+
+        // DOWN, not ENTER: ENTER clears the screen and re-replays, which is a
+        // different act. One UP, one DOWN, back where we started.
+        page.handle_command(Terminal::InputEvent::Command::DOWN, 1);
+        f.paint(page);
+        f.converged(page, "LOGS back at the bottom");
     }
 }
 #endif
@@ -86,7 +114,7 @@ TEST_CASE("pages: SYSTEM converges at every supported geometry") {
     sys.tasks     = &reg;
 
     for (const Geometry& g : GEOMETRIES) {
-        INFO(g.name);
+        INFO("geometry " << std::string(g.name));
         botanik_test::PageFixture f(g.rows, g.cols);
         Pages::StatusPage page(f.console, &sys);
 
@@ -131,6 +159,103 @@ TEST_CASE("pages: SYSTEM says what the task table costs") {
     for (const std::string& row : f.content())
         if (row.find("Tasks") != std::string::npos) saw_tasks = true;
     CHECK(saw_tasks);
+}
+#endif
+
+
+#if BOTANIK_FEATURE_HOME_PAGE
+TEST_CASE("pages: HOME converges at every supported geometry") {
+    // The site's own home fields, not a stub: HOME lays out around what it is
+    // given, and an empty field list exercises none of the placement that the
+    // log band shares a screen with.
+    for (const Geometry& g : GEOMETRIES) {
+        INFO("geometry " << std::string(g.name));
+        botanik_test::PageFixture f(g.rows, g.cols);
+        Vars::Bank bank;
+        TestSite::build(bank);
+        Pages::HomePage page(f.console, Site::g_site.home_fields,
+                             Site::g_site.home_field_count, &bank,
+                             Site::g_site.home_refs);
+
+        page.focus();
+        f.paint(page);
+        f.converged(page, "HOME after focus");
+    }
+}
+#endif
+
+#if BOTANIK_FEATURE_PARAMS_PAGE
+TEST_CASE("pages: PARAMS converges at every supported geometry") {
+    for (const Geometry& g : GEOMETRIES) {
+        INFO("geometry " << std::string(g.name));
+        botanik_test::PageFixture f(g.rows, g.cols);
+        Vars::Bank bank;
+        TestSite::build(bank);
+        Pages::ParamsPage page(f.console, &bank);
+
+        page.focus();
+        f.paint(page);
+        f.converged(page, "PARAMS after focus");
+
+        // A table page reflows around the selection, which is the state a
+        // static screen never reaches.
+        page.handle_command(Terminal::InputEvent::Command::DOWN, 1);
+        f.paint(page);
+        f.converged(page, "PARAMS after DOWN");
+    }
+}
+#endif
+
+#if BOTANIK_FEATURE_MONITOR_PAGE
+TEST_CASE("pages: MONITOR converges at every supported geometry") {
+    for (const Geometry& g : GEOMETRIES) {
+        INFO("geometry " << std::string(g.name));
+        botanik_test::PageFixture f(g.rows, g.cols);
+        Vars::Bank bank;
+        TestSite::build(bank);
+        Pages::MonitorPage page(f.console, &bank);
+
+        page.focus();
+        f.paint(page);
+        f.converged(page, "MONITOR after focus");
+
+        page.handle_command(Terminal::InputEvent::Command::DOWN, 1);
+        f.paint(page);
+        f.converged(page, "MONITOR after DOWN");
+    }
+}
+#endif
+
+#if BOTANIK_FEATURE_ALARMS_PAGE
+TEST_CASE("pages: ALARMS converges at every supported geometry") {
+    for (const Geometry& g : GEOMETRIES) {
+        INFO("geometry " << std::string(g.name));
+        botanik_test::PageFixture f(g.rows, g.cols);
+        Vars::Bank bank;
+        TestSite::build(bank);
+        Vars::BankAlarms sources;
+        sources.bind(&bank);
+        Alarms::AlarmController model(SetupContext(), &sources);
+        Pages::AlarmsPage page(f.console, &model);
+
+        page.focus();
+        f.paint(page);
+        f.converged(page, "ALARMS after focus");
+    }
+}
+#endif
+
+#if BOTANIK_FEATURE_NOTES_PAGE
+TEST_CASE("pages: NOTES converges at every supported geometry") {
+    for (const Geometry& g : GEOMETRIES) {
+        INFO("geometry " << std::string(g.name));
+        botanik_test::PageFixture f(g.rows, g.cols);
+        Pages::NotesPage page(f.console);
+
+        page.focus();
+        f.paint(page);
+        f.converged(page, "NOTES after focus");
+    }
 }
 #endif
 

@@ -108,7 +108,7 @@ namespace botanik_test {
                          const char* what) {
             REQUIRE(incremental.size() == full.size());
             for (size_t r = 0; r < full.size(); r++) {
-                INFO(what << ": row " << r
+                INFO(std::string(what) << ": row " << r
                      << "\n  incremental: '" << incremental[r] << "'"
                      << "\n  full redraw: '" << full[r] << "'");
                 CHECK(incremental[r] == full[r]);
@@ -118,13 +118,21 @@ namespace botanik_test {
         /** @brief Assert @p page's incremental screen equals the one it would
          *  draw from scratch.
          *
-         *  @warning Not valid mid-edit. MonitorPage::focus() and
-         *  ParamsPage::focus() clear their `_editing` flag, so a page asked to
-         *  repaint while an inline edit is open legitimately comes back
-         *  different. Leave the edit first, or assert convergence around it.
+         *  @warning Only where a repaint is meant to reproduce the screen.
+         *  Two documented cases where it is not: MonitorPage::focus() and
+         *  ParamsPage::focus() clear `_editing`, and Scrollback::begin_redraw()
+         *  resets `_view_offset`. So a page repainted mid-edit, or scrolled
+         *  back, legitimately comes back different. Leave the edit or return to
+         *  the bottom first, and assert convergence around it.
          */
         void converged(Botanik::Pages::Page& page, const char* what) {
             const std::vector<std::string> incremental = content();
+            // A page that drew nothing converges trivially, so the comparison
+            // below would pass on a page that had stopped painting entirely.
+            size_t drawn = 0;
+            for (const std::string& row : incremental) if (!row.empty()) drawn++;
+            INFO(std::string(what) << ": the page painted nothing at all");
+            CHECK(drawn > 0);
             console.terminal().establish_screen();
             page.redraw();
             (void)paint(page);
