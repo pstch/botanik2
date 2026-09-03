@@ -224,14 +224,17 @@ namespace Botanik { namespace Config {
 #endif
     BOTANIK_CFG(uint16_t, LOGS_SCROLLBACK_LINES);
 
-        /** @brief Maximum length of a single retained scrollback line (bytes).
-     *  @note Shared by Shell, Logs and Home, so the cost is this times the three
-     *        line counts above. What a page STORES, not what the logger
-     *        formats. */
+    /** @brief Maximum length of a single retained scrollback line (bytes).
+     *  Shared by Shell and Logs, so the cost is this times the two line counts
+     *  above. A stored line is ONE display row, already wrapped, so a terminal
+     *  width is the whole of it. */
 #ifndef BOTANIK_SCROLLBACK_LINE_LEN
-#  define BOTANIK_SCROLLBACK_LINE_LEN 256
+#  define BOTANIK_SCROLLBACK_LINE_LEN BOTANIK_TERMINAL_MAX_COLS
 #endif
     BOTANIK_CFG(uint16_t, SCROLLBACK_LINE_LEN);
+
+    static_assert(SCROLLBACK_LINE_LEN >= TERMINAL_MAX_COLS,
+                  "a scrollback line cannot hold a full-width display row");
 
     /** @} */
 
