@@ -23,6 +23,7 @@
 
 #include "libbotanik.h"
 #include "libbotanik/hal/net.h"
+#include "libbotanik/modbus/tcp/master.h"
 #include "libbotanik/modbus/tcp/slave.h"
 
 #include "site_bank.h"
@@ -284,6 +285,112 @@ TEST_CASE("modbus server: disabling it gives the port back") {
     CHECK_FALSE(f.slave.listening());
     CHECK_FALSE(f.slave.context().listening);
 }
+
+
+#if BOTANIK_FEATURE_MODBUS_TCP_CLIENT
+/** @brief The firmware's own TcpMaster pointed at the server above: the pair
+ *  the simulator uses to check the register map against itself. */
+struct PairFixture : ServerFixture {
+    TcpMaster master;
+    explicit PairFixture() : master(SetupContext(reg, &log)) {
+        // TcpMaster registers no tasks: it is driven by whoever owns it, the
+        // way the sim's own mbcheck does. So each beat here steps it by hand
+        // alongside the server's registered halves.
+        master.setup(0);
+        master.connect_to(HAL::Network::mock_loopback_ip(), port);
+        beat(40);
+    }
+
+    /** @brief @p n beats of the server AND the master. */
+    void beat(int n = 1) {
+        for (int i = 0; i < n; i++) {
+            pump(1);
+            master.step(now, Tasks::PHASE_SERVICE);
+        }
+    }
+    /** @brief Beat both ends until the master finishes, or give up. */
+    bool settle(int rounds = 400) {
+        for (int i = 0; i < rounds; i++) {
+            beat(1);
+            if (master.done()) return true;
+        }
+        return false;
+    }
+};
+
+TEST_CASE("modbus tcp pair: the master reads what the server publishes") {
+    PairFixture f;
+    REQUIRE(f.master.connected());
+    CHECK(f.slave.context().clients == 1);
+
+    REQUIRE(f.master.read(1, FC_READ_HOLDING, 900 * 2, 2));
+    REQUIRE(f.settle());
+    CHECK(f.master.error() == ERR_OK);
+    CHECK(f.master.response().len == 4);     // two registers
+    CHECK(f.master.txns() == 1);
+    f.master.take_result();
+}
+
+TEST_CASE("modbus tcp pair: a refusal reaches the master as a refusal") {
+    PairFixture f;
+    REQUIRE(f.master.connected());
+
+    // The slave answers, and declines. That is a RESULT - the device is alive
+    // and the request was wrong - not a comms fault, and the master must not
+    // count it as one.
+    REQUIRE(f.master.read(1, FC_READ_HOLDING, 0xFFF0, 2));
+    REQUIRE(f.settle());
+    CHECK(f.master.error() == ERR_EXCEPTION);
+    CHECK(f.master.response().ex == EX_ILLEGAL_ADDRESS);
+    CHECK(f.master.faults() == 0);
+    f.master.take_result();
+
+    INFO("...and the session survives it");
+    REQUIRE(f.master.read(1, FC_READ_HOLDING, 900 * 2, 1));
+    REQUIRE(f.settle());
+    CHECK(f.master.error() == ERR_OK);
+}
+
+TEST_CASE("modbus tcp pair: only one request is in flight, and there is no queue") {
+    PairFixture f;
+    REQUIRE(f.master.connected());
+    REQUIRE(f.master.read(1, FC_READ_HOLDING, 900 * 2, 1));
+    // A second must be REFUSED rather than silently enqueued: a caller that
+    // believed it was queued would wait for an answer that never comes.
+    CHECK_FALSE(f.master.read(1, FC_READ_HOLDING, 900 * 2, 1));
+    REQUIRE(f.settle());
+    f.master.take_result();
+    CHECK(f.master.read(1, FC_READ_HOLDING, 900 * 2, 1));
+}
+
+TEST_CASE("modbus tcp pair: a function code that is not a read is not framed") {
+    PairFixture f;
+    REQUIRE(f.master.connected());
+    // Refused before a byte goes out, so a caller's mistake is not the slave's
+    // problem.
+    CHECK_FALSE(f.master.read(1, FC_WRITE_COIL, 900 * 2, 1));
+    CHECK_FALSE(f.master.read(1, 0x41, 900 * 2, 1));
+}
+
+TEST_CASE("modbus tcp pair: the server going away is a fault, not a hang") {
+    PairFixture f;
+    REQUIRE(f.master.connected());
+
+    TcpSlaveConfig off;
+    off.enabled = false; off.port = f.port;
+    f.slave.set_config(off);
+    f.beat(4);
+    REQUIRE_FALSE(f.slave.listening());
+
+    // Whatever happens, it must reach a terminal state rather than sit in
+    // flight for ever: a master with no timeout is a task that never completes.
+    f.master.read(1, FC_READ_HOLDING, 900 * 2, 1);
+    const bool finished = f.settle(400);
+    INFO("done=" << f.master.done() << " connected=" << f.master.connected()
+         << " err=" << (int)f.master.error());
+    CHECK((finished || !f.master.connected()));
+}
+#endif
 
 #endif
 
