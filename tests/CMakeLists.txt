@@ -125,6 +125,20 @@ add_custom_target(check-bare
             -DBOTANIK_FEATURE_SYSTEM_PAGE=ON
     COMMAND ${CMAKE_COMMAND} --build ${CMAKE_SOURCE_DIR}/build-bare-ui
             --target botanik_sim --parallel ${_nproc}
+    # A third profile: the NETWORK stack with no variable model. It is not a
+    # combination anyone ships, but it is the one that catches a `#if VARS`
+    # forgotten around something the network reaches - which is what happened
+    # to the config binds, and neither of the two profiles above could see it
+    # because neither compiles network/.
+    COMMAND ${CMAKE_COMMAND} -G ${CMAKE_GENERATOR} -S ${CMAKE_SOURCE_DIR}
+            -B ${CMAKE_SOURCE_DIR}/build-bare-net -DBOTANIK_TARGET=SIMULATOR
+            -DBOTANIK_SITE=bare
+            -DBOTANIK_FEATURE_NETWORK=ON -DBOTANIK_FEATURE_NTP=ON
+            -DBOTANIK_FEATURE_MQTT=ON
+            -DBOTANIK_FEATURE_VARS=OFF -DBOTANIK_FEATURE_PLC=OFF
+            -DBOTANIK_FEATURE_HOME_PAGE=OFF
+    COMMAND ${CMAKE_COMMAND} --build ${CMAKE_SOURCE_DIR}/build-bare-net
+            --target botanik_sim --parallel ${_nproc}
     USES_TERMINAL
     COMMENT "Sweep: libbotanik with every optional feature off (build-bare/)"
     VERBATIM

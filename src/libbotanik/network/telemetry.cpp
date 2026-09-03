@@ -109,6 +109,13 @@ namespace Botanik { namespace Network {
     }
 
     void MqttSender::_publish_scalars() {
+#if !BOTANIK_FEATURE_VARS
+        // No table, so nothing to sweep. Guarded rather than gated away: the
+        // sender still publishes the library status and the lifecycle, and
+        // LOGS_PUBLISH / ALARMS_PUBLISH need MQTT without needing a table -
+        // so MQTT does not require VARS, and this is the only part that does.
+        _cursor = SWEEP_IDLE;
+#else
         if (_io == nullptr) { _cursor = SWEEP_IDLE; return; }
         char payload[Config::MQTT_PAYLOAD_LEN];
         // Straight down the variable table: what gets published is a property of
@@ -134,6 +141,7 @@ namespace Botanik { namespace Network {
             sent++;
         }
         _cursor = SWEEP_IDLE;       // table exhausted: the sweep is done
+#endif
     }
 
     void MqttSender::_emit(const char* group, const char* name, const char* payload) {

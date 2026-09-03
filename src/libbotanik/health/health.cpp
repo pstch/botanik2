@@ -84,32 +84,40 @@ namespace Botanik { namespace Health {
 #endif
 
 
-#if BOTANIK_FEATURE_VARS
     void HealthMonitor::_latch_task(Component* c, const Tasks::Tick& t) {
         static_cast<HealthMonitor*>(c)->_latch_control(t.now_ms);
     }
 
-    // Control authority is the Bank's latch, so there is none to carry without
-    // one. A build with no variable model has a watchdog verdict and alarms,
-    // and nothing to withdraw authority FROM.
+    // Two halves with different dependencies. The ENDING is the lifecycle's and
+    // runs in every build: `halt` and `reboot` are answers the unit owes whether
+    // or not it has a table. Control authority is the Bank's latch, so there is
+    // none to carry without one, and the rest below needs the bank.
     void HealthMonitor::_latch_control(uint64_t now_ms) {
-        Vars::Bank* io = _io;
-        if (io == nullptr) return;
-        // Taking the unit out of service, if that has been asked for. The
-        // retained rows are written and the ending takes effect; there is no
-        // handshake to wait on, because a program has no state to reach.
+        // Taking the unit out of service, if that has been asked for. There is
+        // no handshake to wait on, because a program has no state to reach.
         if (_stop != Stop::NONE && !_stopped) {
             _stopped = true;
-            (void)io->save_retained();
-            // ...and the parameters a PROGRAM owes, which are the same kind of
-            // fact and reach the store the same way: a watering date stamped
-            // since the last cadence would otherwise be lost by the one exit
-            // that is supposed to lose nothing. NOT the operator's unsaved
-            // edits - those stay theirs to confirm.
-            (void)io->save_owed_params();
-            if (_logger) _logger->warning(Logs::HEALTH, "%s: retained saved",
-                _stop == Stop::REBOOT ? "reboot" : "halt");
+#if BOTANIK_FEATURE_VARS
+            if (Vars::Bank* store = _io) {
+                (void)store->save_retained();
+                // ...and the parameters a PROGRAM owes, which are the same kind
+                // of fact and reach the store the same way: a watering date
+                // stamped since the last cadence would otherwise be lost by the
+                // one exit that is supposed to lose nothing. NOT the operator's
+                // unsaved edits - those stay theirs to confirm.
+                (void)store->save_owed_params();
+                if (_logger) _logger->warning(Logs::HEALTH, "%s: retained saved",
+                    _stop == Stop::REBOOT ? "reboot" : "halt");
+            }
+#endif
         }
+
+#if !BOTANIK_FEATURE_VARS
+        (void)now_ms;
+    }
+#else
+        Vars::Bank* io = _io;
+        if (io == nullptr) return;
 
 #if BOTANIK_FEATURE_LOGGING
         // Before the PLC block below, and outside it: whether a reading is
@@ -183,12 +191,12 @@ namespace Botanik { namespace Health {
     void HealthMonitor::register_tasks() {
         _tasks->add(*this, "sys_health", Config::HEALTH_PERIOD_MS,
               Tasks::PHASE_SERVICE);
-#if BOTANIK_FEATURE_VARS
         // Every beat, and BEFORE the programs: a fault must inhibit this beat's
-        // control, not the next one.
+        // control, not the next one. Registered whatever the build, because the
+        // same task latches the ENDING - gated on VARS, `halt` and `reboot`
+        // were accepted, latched, and never happened.
         _tasks->add(*this, &HealthMonitor::_latch_task, "sys_control_latch",
                     Tasks::EVERY_BEAT, Tasks::PHASE_SERVICE);
-#endif
         // Then the model, which this used to step inside its own task: same
         // order, but with a rate and a TASKS row of its own.
         _model.register_tasks();

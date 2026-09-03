@@ -107,7 +107,6 @@ namespace Botanik {
 #if BOTANIK_FEATURE_LOGS_MONITOR
         Vars::bind_monitor(_binder, _monitor);
 #endif
-#endif  // BOTANIK_FEATURE_VARS
 #if BOTANIK_FEATURE_NETWORK
         Vars::bind_network(_binder, _net.network());
 #endif
@@ -121,6 +120,11 @@ namespace Botanik {
 #if BOTANIK_FEATURE_MODBUS_TCP_SERVER
         Vars::bind_modbus_tcp(_binder, _modbus_tcp);
 #endif
+        // EVERY bind is inside this guard: the binder is the table's, so with
+        // no table there is nothing to bind and each component keeps the
+        // defaults it was constructed with. The network binds used to sit
+        // outside it, and NETWORK=ON with VARS=OFF did not compile.
+#endif  // BOTANIK_FEATURE_VARS
 
         // Wire the status aggregate now every subsystem address is fixed.
         _sys_ctx.scheduler = _scheduler.context();
@@ -503,7 +507,11 @@ namespace Botanik {
 
 #if BOTANIK_FEATURE_MQTT
     void BotanikFirmware::register_telemetry() {
+#if BOTANIK_FEATURE_VARS
+        // What there is to publish IS the table, so with no table the sender
+        // carries the lifecycle and nothing else. MQTT does not require VARS.
         telemetry().set_variables(&_io);
+#endif
         telemetry().set_run_state(&_scheduler.context()->run_state);
     }
 #endif

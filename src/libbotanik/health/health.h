@@ -71,21 +71,19 @@ namespace Botanik { namespace Health {
         };
 
     private:
-#if BOTANIK_FEATURE_VARS
         static void _latch_task(Component* c, const Tasks::Tick& t);
-#endif
 
-        /** @brief Carry this beat's verdict to control authority, and the
-         *  authority to the programs.
+        /** @brief Latch a requested ending, then carry this beat's verdict to
+         *  control authority and the authority to the programs.
          *
          *  Here rather than in the composition root because everything it needs
          *  is already here: the verdict is this class's, the hold is on the
          *  Bank it already writes alarms into, and the gate is on the registry
          *  every Component is built with. It also raises SCAN_LATE, which is a
-         *  platform alarm like the six others this binds. */
-#if BOTANIK_FEATURE_VARS
+         *  platform alarm like the six others this binds.
+         *  @note The ending is latched in every build; everything after it
+         *  needs the bank. */
         void _latch_control(uint64_t now_ms);
-#endif
         /** @brief Missed control activations at the last check; the alarm is
          *  the DELTA, so a scan that catches up clears it. */
         uint32_t _missed_said = 0;

@@ -180,6 +180,57 @@ TEST_CASE("health: an overrun pulses CPU_XRUN, and the row's own hold_s latches 
     CHECK_FALSE(m.condition((uint8_t)xr).active);
 }
 
+TEST_CASE("health: an ending latches with no bank to save into") {
+    // The ending is the LIFECYCLE's, not the table's. Latching it inside the
+    // bank-dependent half meant `halt` and `reboot` were accepted, latched in
+    // _stop, and never happened: _stopped stayed false, so halted() was false
+    // for ever and the watchdog was never withheld. Driven with a null bank,
+    // which is the reachable shape of that (and the whole shape of it in a
+    // build with no variable model).
+    Fixture f;
+    Botanik::Tasks::Registry reg;
+    Health::HealthMonitor h(Botanik::SetupContext(reg, &f.log), &f.sched, nullptr);
+    h.register_tasks();
+    reg.setup(0);
+
+    uint64_t t = 0;
+    SUBCASE("halt stops the cycle and keeps kicking") {
+        h.request_stop(Health::HealthMonitor::Stop::HALT);
+        CHECK_FALSE(h.stopped());                   // not until the beat
+        for (int i = 0; i < 4; i++) reg.run_phase(Botanik::Tasks::PHASE_SERVICE, t += 100);
+        CHECK(h.stopped());
+        CHECK(h.halted());
+        INFO("HALT keeps kicking: the loop is alive, doing nothing");
+        CHECK(h.watchdog_ok());
+    }
+    SUBCASE("reboot withholds the kick") {
+        h.request_stop(Health::HealthMonitor::Stop::REBOOT);
+        for (int i = 0; i < 4; i++) reg.run_phase(Botanik::Tasks::PHASE_SERVICE, t += 100);
+        CHECK(h.stopped());
+        CHECK_FALSE(h.halted());
+        INFO("the withheld kick IS the reboot");
+        CHECK_FALSE(h.watchdog_ok());
+    }
+}
+
+TEST_CASE("health: the first ending asked for is the one that happens") {
+    Fixture f;
+    Botanik::Tasks::Registry reg;
+    Health::HealthMonitor h(Botanik::SetupContext(reg, &f.log), &f.sched, &f.bank);
+    h.register_tasks();
+    reg.setup(0);
+
+    // request_stop latches: a halt that arrives after a reboot was asked for
+    // must not turn it into a halt, or the unit sits there instead of coming
+    // back.
+    h.request_reboot();
+    h.request_stop(Health::HealthMonitor::Stop::HALT);
+    uint64_t t = 0;
+    for (int i = 0; i < 4; i++) reg.run_phase(Botanik::Tasks::PHASE_SERVICE, t += 100);
+    CHECK(h.reboot_requested());
+    CHECK_FALSE(h.halted());
+}
+
 TEST_CASE("health: POST fails when the alarm table declares more than the model drives") {
     // BOTANIK_ASSERT compiles to nothing without DEBUG (every OPTA build); POST must catch this too.
     Fixture f;
