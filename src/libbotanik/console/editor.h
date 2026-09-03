@@ -280,13 +280,9 @@ namespace Botanik { namespace Terminal {
 
         /** @} */
 
-        /**
-         * @name Kill and yank
-         *
-         * Over the console-wide kill ring. A kill takes only what the ring
-         * holds; each returns false when there was nothing to do.
-         * @{
-         */
+        /** @name Kill and yank
+         *  Over the console-wide kill ring. A kill takes only what the ring
+         *  holds; each returns false when there was nothing to do. @{ */
 
         /** @brief Cut from the cursor to the end of the logical line (Ctrl-K).
          *  On the newline itself, cuts it, closing the line up onto the one
@@ -302,13 +298,9 @@ namespace Botanik { namespace Terminal {
 
         /** @} */
 
-        /**
-         * @name Mark and region
-         *
-         * Ctrl-Space drops a mark; the region is the span to the cursor. The
-         * mark is TRANSIENT: any edit drops it. @see dev_editor
-         * @{
-         */
+        /** @name Mark and region
+         *  Ctrl-Space drops a mark; the region is the span to the cursor. The
+         *  mark is TRANSIENT: any edit drops it. @see dev_editor @{ */
 
         /** @brief Anchor the region at the cursor. */
         void set_mark();

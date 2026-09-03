@@ -68,12 +68,9 @@ namespace Botanik { namespace Pages {
         /** @} */
 
         /** @name Home-field three-column layout
-         *  COLS columns of COL_MAX rows each, starting at COL_TOP (one blank row
-         *  below the logo, clear of the identity block). Column 1 gives its top
-         *  UPTIME_CELLS cells to the uptime readout and a spacer, so it holds
-         *  COL_MAX - UPTIME_CELLS fields. Labels left-justified, values in a fixed
-         *  field so columns stay put. Per-column geometry lives in _field_place().
-         *  @{ */
+         *  COLS columns of COL_MAX rows each from COL_TOP. Column 1 gives its
+         *  top UPTIME_CELLS cells to the uptime readout, so it holds
+         *  COL_MAX - UPTIME_CELLS fields. @see _field_place @{ */
         static constexpr uint8_t  COLS = 3, COL_MAX = 8, UPTIME_CELLS = 2;
         /** @brief Site fields the three columns hold. Mirrored as
          *  Config::HOME_FIELDS_MAX so a generated home-field table can

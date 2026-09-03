@@ -78,13 +78,9 @@ namespace Botanik { namespace Pages {
         // [filter] badge sits on (unit is a table column).
         static constexpr uint16_t PANEL_H    = 7;
         /** @brief Column order; the selection cursor inverts C_NAME's cell.
-         *
-         *  REGISTER rather than DEFAULT: a register is an EXTERNAL contract (a
-         *  Modbus master's map is written against it), so it wants scanning
-         *  down a column, while a default is a per-row fact the panel below
-         *  answers. It sits last, outboard of UNIT, since the unit belongs
-         *  against the value it qualifies and the register says nothing about
-         *  the reading. */
+         *  REGISTER rather than DEFAULT: a register is an external contract a
+         *  master's map is written against, so it wants scanning down a
+         *  column. Last, outboard of UNIT. */
         enum { C_NAME = 0, C_TYPE, C_VALUE, C_UNIT, C_REGISTER };
         /** @} */
 
@@ -180,14 +176,10 @@ namespace Botanik { namespace Pages {
          *  never covers it. */
         uint16_t _legend_row() const { return (uint16_t)(_panel_top() + PANEL_H - 1); }
         /** @brief Columns the panel's second and third fields start at
-         *  (Minimum | Maximum | Default).
-         *
-         *  Each sits one value-field past the one before, not spread across the
-         *  row: a 12-wide label plus " : " puts a value at +15, and a bound is
-         *  at most ~12 wide, so the next field starts +12 from there. Even
-         *  spacing over 80 columns leaves ~19 blank between a bound and the
-         *  next label, which reads as three unrelated fields rather than one
-         *  band. The slack goes to Default, the only non-numeric value. */
+         *  (Minimum | Maximum | Default). Each sits one value-field past the
+         *  one before rather than spread across the row: a 12-wide label plus
+         *  " : " puts a value at +15, a bound is at most ~12 wide, so the next
+         *  starts +12 from there. The slack goes to Default. */
         static constexpr uint16_t PANEL_COL2 = 28;
         static constexpr uint16_t PANEL_COL3 = 55;
 

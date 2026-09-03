@@ -105,14 +105,10 @@ namespace Botanik { namespace Pages {
         void _label_at(uint16_t row, uint16_t col, const char* s);
 
         /** @brief Render @p s as a fixed @p width-column value cell at
-         *  (@p row, @p col), with watch(1) -d change highlighting.
-         *
-         *  Space-padded, and diffed against what is already ON THE GRID there,
-         *  which is what this page drew last time. Per subfield: a digit run
-         *  lights when any of its digits moved and clears once it settles.
-         *  Never lit on a repaint onto a cleared screen (@see _fresh).
-         *  @note Painted whether or not anything changed - this decides how to
-         *  attribute a change, never whether to draw. @see dev_screen */
+         *  (@p row, @p col), space-padded, with watch(1) -d highlighting:
+         *  diffed against what is already ON THE GRID there, per digit run,
+         *  and never lit on a repaint (@see _fresh).
+         *  @note Decides how to attribute a change, never whether to draw. */
         void _cell(uint16_t row, uint16_t col, const char* s,
                    uint16_t width, bool highlight = true) {
             if (row >= _console.rows() || width == 0) return;

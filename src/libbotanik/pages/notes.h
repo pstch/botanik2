@@ -33,19 +33,10 @@ namespace Botanik { namespace Pages {
                   "STORE_MAX_BYTES too small for a hex-encoded NOTES_LEN plus the parameters");
 #endif
 
-    /**
-     * @brief Free-text notes the operator keeps on the panel.
-     *
-     * A `TextEditor` in Anchor::TOP over the content area, minus the bottom row
-     * which holds a status line. The editor owns the wrapping and the
-     * reconcile, so a mid-paragraph edit reflows the rows below with one IL/DL
-     * instead of a screen repaint (@ref dev_editor) - the reason this is the
-     * shell's editor and not a second one.
-     *
-     * Persistence is deliberate, not continuous: Ctrl+O writes, and leaving the
-     * page flushes anything unsaved. A note is kilobytes, so each write is a
-     * real flash erase; per keystroke it would be an overrun per keystroke.
-     */
+    /** @brief Free-text notes the operator keeps on the panel: a `TextEditor`
+     *  in Anchor::TOP over the content area, less the bottom status row.
+     *  @note Persistence is deliberate - Ctrl+O writes, leaving the page
+     *  flushes - because a note is kilobytes and a write is a flash erase. */
     class NotesPage : public Page {
     private:
         /** @name Row gutter

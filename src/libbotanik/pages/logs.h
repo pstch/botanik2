@@ -18,13 +18,10 @@
 
 namespace Botanik { namespace Pages {
 
-    /**
-     * @brief Full-screen log viewer page.
+    /** @brief Full-screen log viewer: rows 1..rows-1 are a live tail.
      *
-     * A LogWriter: rows 1..rows-1 scroll as a live log tail. Incoming entries
-     * are queued by BufferedLogWriter and drained on tick(); history is
-     * replayed from a circular scrollback on (re)focus.
-     */
+     *  A LogWriter. Entries are queued by BufferedLogWriter and drained on
+     *  tick(); history is replayed from a scrollback on (re)focus. */
     class LogsPage : public Page, public Logs::BufferedLogWriter {
     private:
         using AnsiTerminal = Terminal::AnsiTerminal;
