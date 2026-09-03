@@ -312,22 +312,22 @@ namespace Botanik {
             case Scheduler::RunState::START:
                 if (now_ms >= _startup_hold_ms()) {
                     sc->run_state = Scheduler::RunState::RUN;
-                    _logger.notice(Logs::BOOT, "in service (%lu ms hold)",
-                                   (unsigned long)_startup_hold_ms());
+                    _logger.notice(Logs::BOOT,
+                                   "control tasks enabled, system operational");
                 }
                 break;
             case Scheduler::RunState::RUN:
                 if (_health.stop_requested() != Health::HealthMonitor::Stop::NONE) {
                     sc->run_state = Scheduler::RunState::STOP;
                     _stop_at_ms   = now_ms;
-                    _logger.warning(Logs::HEALTH, "laws stopped, %lu ms to go",
-                                    (unsigned long)_shutdown_hold_ms());
+                    _logger.warning(Logs::HEALTH, "entered safe mode, stopping...");
                 }
                 break;
             case Scheduler::RunState::STOP:
                 if (now_ms - _stop_at_ms >= _shutdown_hold_ms()) {
                     sc->run_state = Scheduler::RunState::HALT;
-                    _logger.warning(Logs::HEALTH, "stopped");
+                    _logger.warning(Logs::HEALTH,
+                                    "control tasks disabled, system will halt soon");
                 }
                 break;
             default: break;             // SETUP is left by setup(); HALT is the end

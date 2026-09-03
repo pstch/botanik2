@@ -32,6 +32,7 @@
 
 namespace Botanik { namespace Tasks { struct Tick; } }
 namespace Botanik { namespace Network { class NetworkHandler; class NtpClient; } }
+namespace Botanik { namespace Plc { namespace Runtime { class Plant; } } }
 // Forward-declared, not included: health/ raises and releases the system hold,
 // and needs no more of plc/ than the type of the pointer it is handed.
 
@@ -56,6 +57,12 @@ namespace Botanik { namespace Health {
          *  network simply never sets them. */
         void set_network(const Network::NetworkHandler* net) { _net = net; }
         void set_ntp(const Network::NtpClient* ntp) { _ntp = ntp; }
+
+        /** @brief The scan roster, borrowed. Read only for its running set:
+         *  a program leaving or joining the scan churns the quality of every
+         *  row it drives, and that is settling rather than news.
+         *  @see _quality_sweep */
+        void set_plant(const Plc::Runtime::Plant* plant) { _plant = plant; }
     public:
         /** @brief How the unit is being taken out of service.
          *
@@ -116,10 +123,11 @@ namespace Botanik { namespace Health {
          *  conditions. @see set_network */
         void _subsystem_alarms(Vars::Bank* io);
 
-        /** @brief Whether a change is still bring-up settling rather than news.
+        /** @brief Whether a change is still settling rather than news: the
+         *  bring-up window, or the one armed by a change of the scan roster.
          *  @see Config::HEALTH_QUIET_MS */
-        static bool _quiet(uint64_t now_ms) {
-            return now_ms < Config::HEALTH_QUIET_MS;
+        bool _quiet(uint64_t now_ms) const {
+            return now_ms < Config::HEALTH_QUIET_MS || now_ms < _hush_until_ms;
         }
 
         /** @brief One bounded pass of the validity sweep.
@@ -141,7 +149,15 @@ namespace Botanik { namespace Health {
          *  bits say nothing and a change is not a change - otherwise bring-up
          *  logs the whole table. */
         bool     _quality_seeded = false;
+        /** @brief Uptime ms the armed hush runs to (0 = none). Declared ahead
+         *  of the words beside it: 8-aligned, so the pair costs no padding. */
+        uint64_t _hush_until_ms = 0;
+        /** @brief The running set at the last check; a change arms the hush. */
+        uint32_t _scan_mask     = 0;
 #endif
+
+        /** @brief The scan roster, borrowed and optional. @see set_plant */
+        const Plc::Runtime::Plant* _plant = nullptr;
 
         /** @name State
          *  @{ */

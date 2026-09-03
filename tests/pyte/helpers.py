@@ -68,7 +68,7 @@ def shell(spawn, quiet_logs=False, **kwargs):
 
 # The SHELL page's chrome once normalize.py has masked the volatile cells. Both
 # rows are identical in every reconcile scenario.
-SHELL_BAR = " 1 2:SHELL 3 4 5 6 7 8 9            <TIME>                  cpu:<C> stk:<S>"
+SHELL_BAR = " 1 2:SHELL 3 4 5 6 7 8 9            <TIME>        run:<R> cpu:<C> stk:<S>"
 ALARM_BAR = " ALARMS :<BAR>"
 
 

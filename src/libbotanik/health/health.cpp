@@ -9,6 +9,9 @@
 
 #include "libbotanik/tasks/tasks.h"
 
+#if BOTANIK_FEATURE_PLC
+#include "libbotanik/plc/runtime/runtime.h"
+#endif
 #if BOTANIK_FEATURE_NETWORK
 #include "libbotanik/network/network.h"
 #endif
@@ -150,6 +153,21 @@ namespace Botanik { namespace Health {
         static const uint16_t PER_BEAT = 48;
         const Vars::Bank* io = _io;
         if (io == nullptr) return;
+
+#if BOTANIK_FEATURE_PLC
+        // A program joining or leaving the scan churns the quality of every row
+        // it drives: they drop to their safe state on the way out and are
+        // re-authored on the way back. That is settling, like bring-up, so it
+        // is adopted the same way - the bitmap below still tracks it, so the
+        // NEXT change is announced.
+        if (_plant != nullptr) {
+            const uint32_t mask = _plant->running_mask();
+            if (mask != _scan_mask) {
+                _scan_mask     = mask;
+                _hush_until_ms = now_ms + Config::HEALTH_QUIET_MS;
+            }
+        }
+#endif
 
         for (uint16_t n = 0; n < PER_BEAT && io->count() > 0; n++) {
             if (_quality_at >= io->count()) {

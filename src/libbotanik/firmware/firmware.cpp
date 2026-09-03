@@ -178,6 +178,8 @@ namespace Botanik {
         // program so a name one of them missed holds back that one alone.
         _st.wire();
         _st.set_run_state(&_scheduler.context()->run_state);
+        // So the quality log can tell a roster change from an instrument dying.
+        _health.set_plant(&_st);
 #endif
 #if BOTANIK_FEATURE_VARS
 #if BOTANIK_FEATURE_SUN_TRACKER
@@ -309,6 +311,7 @@ namespace Botanik {
         // SETUP is over. The beat runs from here; the laws wait out
         // sys_startup_sec in START, which loop() counts.
         _scheduler.context()->run_state = Scheduler::RunState::START;
+        _logger.debug(Logs::BOOT, "setup done, outputs are safe, starting...");
 
         // One line per UART so neither overflows 80 cols and each gates with its
         // feature (console/monitor dropped when their UART is absent).
