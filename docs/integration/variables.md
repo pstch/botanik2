@@ -73,7 +73,7 @@ whole vocabulary: it renders a code as a word, parses a word back (`params set
 sys_log_level warning`), and a code it cannot name is REFUSED - by `set`, by the
 typed overload, and by `override`, which skips a band but not this. A set of
 codes is not an interval, so a `min`/`max` would admit every gap between them.
-A site declares its vocabularies in `vars_table.h`, the enum beside its
+A site declares its vocabularies in its own tables, the enum beside its
 converter; the library's own (`Logs::level_label`,
 `Plc::health_label`) stay in their subsystems and a row names them there.
 The codes are what reach the store and an external master, so a vocabulary may

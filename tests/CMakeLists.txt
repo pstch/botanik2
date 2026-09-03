@@ -169,6 +169,8 @@ if(_python3 AND _iec2c)
         COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_SOURCE_DIR}/src     ${_gen}/src
         COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_SOURCE_DIR}/st      ${_gen}/st
         COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_SOURCE_DIR}/docs    ${_gen}/docs
+        COMMAND ${CMAKE_COMMAND} -E chdir ${_gen}
+                ${_python3} scripts/tables.py library
         COMMAND ${CMAKE_COMMAND} -E env IEC2C=${_iec2c} ${CMAKE_COMMAND} -E chdir ${_gen}
                 ${_python3} scripts/tables.py generate ${BOTANIK_SITE}
         COMMAND ${CMAKE_COMMAND} -E env IEC2C=${_iec2c} ${CMAKE_COMMAND} -E chdir ${_gen}
@@ -187,6 +189,9 @@ if(_python3 AND _iec2c)
                 ${CMAKE_SOURCE_DIR}/${_site}/plant.cpp    ${_gen}/${_site}/plant.cpp
         COMMAND ${CMAKE_COMMAND} -E compare_files
                 ${CMAKE_SOURCE_DIR}/${_site}/POUS.c       ${_gen}/${_site}/POUS.c
+        COMMAND ${CMAKE_COMMAND} -E compare_files
+                ${CMAKE_SOURCE_DIR}/src/libbotanik/vars/vars_table.gen.h
+                ${_gen}/src/libbotanik/vars/vars_table.gen.h
         COMMAND ${CMAKE_COMMAND} -E rm -rf ${_gen}
         USES_TERMINAL
         COMMENT "Sweep: the committed generated sources still match the tables"

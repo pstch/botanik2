@@ -4,6 +4,7 @@
     tables.py generate   tables/*.csv       -> vars.gen.{h,cpp}
     tables.py config     site.toml          -> config.gen.h
     tables.py plant      programs.csv + ST  -> plant.st, plant.cpp, and matiec
+    tables.py library    vars/tables/library.csv -> vars_table.gen.h
     tables.py points     the lot            -> docs/reference/points.md
 
 Offline: the output is COMMITTED and never built. `make check-generated` is
@@ -33,6 +34,11 @@ ROWS = {  # factory -> (csv stem, columns == the factory's parameters)
     'PI':  ('pulse_in',    'name channel edge desc notes'),
 }
 TEXT = {'name', 'unit', 'desc', 'notes', 'code', 'tag', 'model_name'}
+# Columns whose type depends on the FACTORY: a text parameter's default is a
+# string where every other factory's is a number. Latent until the library's
+# net_ip moved into a table - the site's params_text.csv is empty, so no PS row
+# had ever been through here.
+TEXT_BY_FAC = {'PS': {'def'}}
 # Not quoted, but not a number either: a symbol the emitted C++ names.
 #
 # `reg`, `coil` and `channel` carry a NUMBER on the field bus (a register, a
@@ -54,49 +60,14 @@ AUX = {  # stem -> columns, for the tables that are not rows
 }
 
 
-def split_args(s):
-    out, depth, cur, q, esc = [], 0, '', False, False
-    for ch in s:
-        if esc:                   cur += ch; esc = False; continue
-        if ch == '\\' and q:      cur += ch; esc = True;  continue
-        if ch == '"':             q = not q; cur += ch;   continue
-        if q:                     cur += ch; continue
-        if ch in '([':            depth += 1
-        elif ch in ')]':          depth -= 1
-        if ch == ',' and not depth: out.append(cur.strip()); cur = ''; continue
-        cur += ch
-    if cur.strip(): out.append(cur.strip())
-    return out
-
-
-def parse(path):
-    src, out = open(path).read(), []
-    for m in re.finditer(r'^\s*(' + '|'.join(ROWS) + r')\((.*)$', src, re.M):
-        rest, depth, q, esc = m.group(2), 1, False, False
-        for i, ch in enumerate(rest):
-            if esc:                   esc = False; continue
-            if ch == '\\' and q:      esc = True;  continue
-            if ch == '"':             q = not q;   continue
-            if q:                     continue
-            depth += (ch == '(') - (ch == ')')
-            if not depth: break
-        else:
-            sys.exit('unterminated %s(' % m.group(1))
-        out.append((m.group(1), split_args(rest[:i])))
-    return out
-
-
-def unquote(a):
-    return a[1:-1].replace('\\"', '"') if len(a) > 1 and a[0] == a[-1] == '"' else a
-
-
 def _numeric(v):
     try: int(v, 0); return True
     except ValueError: return False
 
 
-def quote(v, col):
-    if col in TEXT:  return '"%s"' % v.replace('"', '\\"')
+def quote(v, col, fac=None):
+    if col in TEXT or col in TEXT_BY_FAC.get(fac, ()):
+        return '"%s"' % v.replace('"', '\\"')
     if col in SYMBOL and v and not _numeric(v) and not v.startswith(SYMBOL[col]):
         return SYMBOL[col] + v
     return v
@@ -141,8 +112,8 @@ def declared_rows(site):
         for ln in open(f).read().splitlines()[1:]:
             n = ln.split(',')[0].strip()
             if n: out.add(n.lower())
-    for _fac, args in parse(LIB_TABLE):
-        out.add(unquote(args[0]).lower())
+    for r in lib_rows():
+        out.add(r['name'].lower())
     return out
 
 
@@ -391,6 +362,94 @@ def emit_plant_cpp(site, prog, writes):
     open(os.path.join(site, 'generated', 'plant.cpp'), 'w').write('\n'.join(L))
 
 
+LIB_CSV   = 'src/libbotanik/vars/tables/library.csv'
+LIB_GEN   = 'src/libbotanik/vars/vars_table.gen.h'
+LIB_SPEC  = {
+    'A':  'name code on_s off_s recent_s hold_s reg desc notes',
+    'P':  'name type def lo hi digits unit reg desc notes writable retained',
+    'PE': 'name def label reg desc notes writable retained',
+    'PS': 'name def cap kind reg desc notes writable retained',
+    'SV': 'name type def digits unit reg desc notes retained',
+}
+
+
+def lib_rows():
+    """The library's own rows, from its table. ORDER IS THE FILE'S: the rows
+    interleave kinds, and the ROLE_PARAM run has to stay contiguous, so one
+    table with a `fac` column rather than one per kind."""
+    with open(LIB_CSV, newline='') as fh:
+        return list(csv.DictReader(fh))
+
+
+def _library_rows_for(tom):
+    """How many library rows THIS site compiles: the table's, less the ones its
+    feature flags switch off. A guard is AND-ed flags, and a flag the site does
+    not name takes libbotanik_features.h's own default - which is off for every
+    optional one, so an absent flag means the row is absent."""
+    on = {k for k, v in tom.get('features', {}).items() if v}
+    # The always-on core, from libbotanik_features.h's defaults.
+    on |= {'CONSOLE', 'LOGGING', 'VARS', 'PLC', 'HOME_PAGE', 'SHELL_PAGE'}
+    n = 0
+    for r in lib_rows():
+        want = [g for g in r['guard'].split() if g]
+        if all(g in on for g in want): n += 1
+    return n
+
+
+def library():
+    """vars_table.gen.h, from library.csv.
+
+    The rows the LIBRARY declares into the site's one index space, registered
+    ahead of the site's. Guards are emitted around runs: `guard` holds the
+    AND-ed feature flags a row needs, so consecutive rows sharing a prefix
+    share the `#if` - which is what keeps this file diffable against the
+    hand-written one it replaced."""
+    recs = lib_rows()
+    L = ['/**',
+         ' * @file vars_table.gen.h',
+         ' * @brief GENERATED by scripts/tables.py from vars/tables/library.csv.',
+         ' *',
+         " * The library's OWN rows: how many there are, and what they are",
+         ' * numbered. Registered ahead of the site\'s, into the same table.',
+         ' *',
+         ' * A site OVERRIDES one by redeclaring the name: Bank::freeze() keeps the',
+         ' * LAST declaration and compacts the earlier row out, so the whole row',
+         ' * becomes the site\'s. Keep `reg` as the library assigned it.',
+         ' */', '',
+         '#ifndef LIBBOTANIK_VARS_TABLE_GEN_H',
+         '#define LIBBOTANIK_VARS_TABLE_GEN_H', '',
+         '// Included by firmware/vars_wiring.cpp, AFTER the feature-gated includes',
+         '// its row defaults read. Not a standalone header.', '',
+         'namespace Botanik { namespace Vars {', '',
+         "/** @brief The library's own rows. Its PARAMETERS come last, so a site's",
+         ' *  parameter segment abuts them. @see lib_order */',
+         'const Descriptor library_vars[] = {']
+    open_guards = []
+    for r in recs:
+        want = [g for g in r['guard'].split() if g]
+        # close what this row does not want, innermost first
+        while open_guards and open_guards != want[:len(open_guards)]:
+            open_guards.pop(); L.append('#endif')
+        for g in want[len(open_guards):]:
+            open_guards.append(g); L.append('#if BOTANIK_FEATURE_%s' % g)
+        if r['lead']:
+            for ln in r['lead'].split('\n'):
+                L.append(('    ' + ln) if ln.startswith(('/*', '*')) else ln)
+        cols = LIB_SPEC[r['fac']].split()
+        a = [quote(r.get(c, ''), c, r['fac']) for c in cols]
+        while a and a[-1] == '': a.pop()
+        L.append('    %s(%s),' % (r['fac'], ', '.join(a)))
+    while open_guards: open_guards.pop(); L.append('#endif')
+    L += ['};', '',
+          '/** @brief How many, for the site that states LIBRARY_ROWS. */',
+          'const uint16_t LIBRARY_VARS_COUNT =',
+          '    (uint16_t)(sizeof library_vars / sizeof library_vars[0]);', '',
+          '}}  // namespace Botanik::Vars', '',
+          '#endif', '']
+    open(LIB_GEN, 'w').write('\n'.join(L))
+    print('  vars_table.gen.h  %d rows' % len(recs))
+
+
 def var_externals(path):
     """Every row one ST file names, as (name, type, read_only). `VAR_EXTERNAL
     CONSTANT` is read-only and plain `VAR_EXTERNAL` is written - that IS the
@@ -503,7 +562,7 @@ def plant(site):
 def emit_rows(fac, cols, recs):
     out = []
     for r in recs:
-        a = [quote(r.get(c, ''), c) for c in cols]
+        a = [quote(r.get(c, ''), c, fac) for c in cols]
         while a and a[-1] == '': a.pop()
         out.append('    %s(%s),' % (fac, ', '.join(a)))
     return out
@@ -620,7 +679,13 @@ def generate(site):
           '// Rows the LIBRARY registers ahead of these, from site.toml. One row',
           '// past VAR_MAX and registration is REFUSED: every name in it resolves',
           '// to the sink for the life of the run, and only refused_count() sees it.',
-          'const uint16_t LIBRARY_ROWS = %d;' % tom['limits']['library_rows'],
+          # DERIVED, not stated. It was hand-kept because vars_table.h was a
+          # header the firmware's wiring TU alone included, so the count could
+          # not be taken from it. It is a TABLE now, and the count is what the
+          # table says once this site's feature flags have decided which
+          # guarded rows survive. Understating it let the VAR_MAX guard pass on
+          # a table that then overflowed, dropping rows in silence.
+          'const uint16_t LIBRARY_ROWS = %d;' % _library_rows_for(tom),
           'static_assert(LIBRARY_ROWS + ROWS_COUNT <= Config::VAR_MAX,',
           '              "site table exceeds VAR_MAX - raise it in site.toml "',
           '              "(about 36 bytes of RAM per row)");', '',
@@ -644,7 +709,6 @@ def generate(site):
 
 # ---- points.md -------------------------------------------------------------
 
-LIB_TABLE  = 'src/libbotanik/vars/vars_table.h'
 DECLARE_H  = 'src/libbotanik/vars/declare.h'
 
 # BY SCOPE, in the order Vars::VarScope declares them - which is also the order
@@ -740,13 +804,12 @@ def _table(rows, want):
             + ['| ' + ' | '.join(r) + ' |' for r in rows])
 
 
-def _lib_rows():
-    """The library's own rows, off the one file that declares them. PARSED, not
-    counted: it is C++, but it is the same factory calls the CSVs become."""
+def _lib_by_fac():
+    """The library's rows grouped by factory, which is the shape points() wants.
+    Off the same table the header is generated from - it used to PARSE the C++,
+    which was the last hand-written C++ this script read."""
     out = {}
-    for fac, args in parse(LIB_TABLE):
-        r = dict(zip(ROWS[fac][1].split(), [unquote(a) for a in args]))
-        out.setdefault(fac, []).append(r)
+    for r in lib_rows(): out.setdefault(r['fac'], []).append(r)
     return out
 
 
@@ -762,7 +825,7 @@ def points(site):
     name = tom['site']['name']
     per  = {f: read_table(os.path.join(site, 'tables', ROWS[f][0] + '.csv'),
                           ROWS[f][1].split()) for f in ROWS}
-    lib  = _lib_rows()
+    lib  = _lib_by_fac()
 
     def of(src, sc):
         return [(f, r) for f in ROWS if FAC_SCOPE.get(f) == sc
@@ -776,7 +839,7 @@ def points(site):
          'GENERATED by `scripts/tables.py points`. Do not edit.', '',
          'Every row the firmware exposes, what it is for, and where an integrator',
          'finds it. The site half comes from `tables/*.csv`, the library half from',
-         '`%s`, and the programs from the ST itself.' % LIB_TABLE, '',
+         '`%s`, and the programs from the ST itself.' % LIB_CSV, '',
          'One section per SCOPE, in the order `Vars::VarScope` declares them.', '',
          '%d rows: %d declared by the site, %d by the library.'
          % (n_site + n_lib, n_site, n_lib), '',
@@ -848,5 +911,6 @@ if __name__ == '__main__':
     if   cmd == 'generate': generate(SITE)
     elif cmd == 'plant':    sys.exit(plant(SITE))
     elif cmd == 'config':   config(SITE)
+    elif cmd == 'library':  library()
     elif cmd == 'points':   points(SITE)
     else:                   sys.exit(__doc__)

@@ -392,6 +392,29 @@ TEST_CASE("site: every numeric row's default sits inside its own band") {
     }
 }
 
+TEST_CASE("library: a site row REDECLARES a library one, and the site's wins") {
+    // The library declares geo_lat_deg (SUN_TRACKER needs a location) and the
+    // site redeclares it with this greenhouse's own. Bank::freeze() keeps the
+    // LAST declaration and compacts the earlier row out, so the whole row is
+    // the site's - the band and the description included, not just the value.
+    SiteBank f;
+    const Vars::VarRef r = f.bank.find("geo_lat_deg");
+    REQUIRE(r.index != Vars::VAR_NONE);
+
+    INFO("one row, not two: the earlier declaration is compacted away");
+    uint16_t seen = 0;
+    for (uint16_t i = 0; i < f.bank.count(); i++)
+        if (strcmp(f.bank.descriptor(i).name, "geo_lat_deg") == 0) seen++;
+    CHECK(seen == 1);
+
+    INFO("and it is the SITE's row: the library declares no band and no unit");
+    const Vars::Descriptor& d = f.bank.descriptor(r.index);
+    CHECK(f.bank.var(r).as_f32() == doctest::Approx(47.96f));
+    CHECK(strcmp(d.unit, "deg") == 0);
+    INFO("...keeping the register the library assigned it");
+    CHECK(d.bind.reg == 941);
+}
+
 }  // namespace site_names
 
 namespace site_params {
@@ -557,5 +580,6 @@ TEST_CASE("local io: every pin label is claimable by exactly one direction") {
     CHECK(HAL::DigitalOut::owns(HAL::Pin::LED_4));
     CHECK(HAL::DigitalOut::owns(HAL::Pin::LED_BLUE));
 }
+
 
 }  // namespace site_capacity

@@ -324,10 +324,17 @@ with `-DBOTANIK_SITE=<name>`.
 A site is DATA plus ST. Its rows, its enums, its home screen, its field devices
 and its `SiteDescriptor` are generated from `tables/*.csv` and `site.toml` by
 `scripts/tables.py`; its LAWS are the ST under `programs/`, compiled by matiec.
-The library declares its own rows in `src/libbotanik/vars/vars_table.h`
-(included by `firmware/vars_wiring.cpp`, never standalone) and registers them
+The library declares its own rows the SAME way, in
+`src/libbotanik/vars/tables/library.csv` - one table rather than one per kind,
+because the rows interleave and the `ROLE_PARAM` run has to stay contiguous, and
+with a `guard` column for the feature flags a row needs. It generates
+`vars_table.gen.h`, which `firmware/vars_wiring.cpp` includes and registers
 ahead of the site's into the same table. The site states how many as
 `library_rows` in `site.toml`.
+
+A site OVERRIDES a library row by redeclaring the name: `Bank::freeze()` keeps
+the LAST declaration and compacts the earlier row out, so the whole row becomes
+the site's - `geo_lat_deg` is the worked example.
 
 A control program is ONE file, `programs/<stage>/<name>/<name>.st`, plus a row
 in `tables/programs.csv` giving its instance, source and rate. No header, no
