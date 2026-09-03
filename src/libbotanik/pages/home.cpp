@@ -14,6 +14,21 @@
 
 namespace Botanik { namespace Pages {
 
+    uint16_t HomePage::log_band_top() const {
+        const uint16_t rows = _console.rows();
+        // The band is bounded below by the field grid AND by the " LOGS "
+        // divider that labels it, which takes the row above the band. Clamping
+        // to PAYLOAD_ROW alone put the divider on the last row of readings and
+        // the band over the two below it - and since the labels are written
+        // only on focus(), they never came back.
+        const uint16_t first = (uint16_t)(PAYLOAD_ROW + 1);
+        if (rows <= first) return 0;      // no room for a divider and a line
+        uint16_t top = (rows > Config::HOME_SCROLLBACK_LINES)
+                     ? (uint16_t)(rows - Config::HOME_SCROLLBACK_LINES) : first;
+        if (top < first) top = first;     // a short screen gets a shorter band
+        return top;
+    }
+
     void HomePage::draw_logo() {
         static const char* const LOGO[] = {
             "  _           _              _ _   ",
@@ -80,6 +95,42 @@ namespace Botanik { namespace Pages {
             _label_at((uint16_t)(3 + i), left, lines[i]);
     }
 
+    void HomePage::draw_log_header(uint16_t row) {
+        if (row >= _console.rows()) return;
+        uint16_t cols = _terminal.cols();
+
+        // Spaces to paint the reverse-video background in one write.
+        char spaces[96];
+        uint16_t fill = (cols > (uint16_t)sizeof(spaces))
+                            ? (uint16_t)sizeof(spaces) : cols;
+        memset(spaces, ' ', fill);
+
+        static const char TAB[] = " LOGS ";
+        // inverted pad before the tab
+        const uint16_t    lead   = 3;
+        const uint16_t    tablen = (uint16_t)(sizeof(TAB) - 1);
+
+        _terminal.move_to({row, 0});
+        // Reverse-video pad, normal-video tab, then reverse fill to EOL.
+        _terminal.set_inverted(true);
+        _terminal.write_chars(spaces, lead);
+        _terminal.set_inverted(false);
+        _terminal.write_chars(TAB, tablen);
+        _terminal.set_inverted(true);
+        uint16_t used = (uint16_t)(lead + tablen);
+        uint16_t rest = (cols > used) ? (uint16_t)(cols - used) : 0;
+        // sanity bound
+        if (rest > Config::TERMINAL_MAX_COLS) rest = Config::TERMINAL_MAX_COLS;
+        // Chunk so a terminal wider than the local buffer still fills to
+        // EOL.
+        while (rest) {
+            uint16_t n = (rest > fill) ? fill : rest;
+            _terminal.write_chars(spaces, n);
+            rest -= n;
+        }
+        _terminal.set_inverted(false);
+    }
+
     void HomePage::draw_static() {
         draw_logo();
         draw_id_block();
@@ -90,6 +141,10 @@ namespace Botanik { namespace Pages {
             if (!_field_place(i, row, lbl, val, w)) break;
             _label_at(row, lbl, _fields[i].label);
         }
+        // Divider above the bottom log band (band rows are painted from the
+        // scrollback, see focus()/tick()).
+        const uint16_t band_top = log_band_top();
+        if (band_top != 0) draw_log_header((uint16_t)(band_top - 1));
     }
 
     void HomePage::draw_dynamic() {
@@ -118,6 +173,42 @@ namespace Botanik { namespace Pages {
         _cell(UPTIME_ROW, UPTIME_VAL, buf, UPTIME_W, false);
     }
 
+    void HomePage::focus() {
+        MetricPage::focus();                 // logo, readings, divider
+        _log_active = true;
+        // Stage the SAME band tick() drains into. Spanning the whole content
+        // area instead bottom-aligned the replay against the last row and so
+        // started it above the divider whenever the ring was full.
+        const uint16_t band_top = log_band_top();
+        if (band_top != 0)
+            _scrollback.begin_redraw(band_top,
+                                     (uint16_t)(_console.rows() - band_top));
+    }
+
+    void HomePage::tick(bool active) {
+        // logo/readings (paced) refresh
+        MetricPage::tick(active);
+        _log_active = active;
+        // Staged focus replay first, and bail until it finishes: the live
+        // band's DL scroll must not shift rows the replay already drew.
+        if (_scrollback.tick_redraw_gate(_terminal, active)) return;
+        // Bank queued entries, then paint them paced into the bottom band.
+        drain();
+        const uint16_t band_top = log_band_top();
+        if (active && band_top != 0) {
+            _scrollback.drain_tail(_terminal, band_top,
+                                   (uint16_t)(_console.rows() - band_top));
+        }
+    }
+
+    size_t HomePage::write(const char* buf, size_t len) {
+        // Store-only: bank the entry, mark pending when active for the paced
+        // drain_tail. Never blocks or drops, so report it all consumed.
+        _scrollback.ingest(buf, len, (uint16_t)_terminal.cols(),
+            Logs::LOG_CONT_PREFIX,
+            (uint16_t)strlen(Logs::LOG_CONT_PREFIX), _log_active);
+        return len;
+    }
 }}
 
 #endif // BOTANIK_FEATURE_HOME_PAGE

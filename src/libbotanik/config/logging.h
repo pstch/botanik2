@@ -19,8 +19,8 @@ namespace Botanik { namespace Config {
 
 
     // What each sink shows is a PARAMETER, not a macro:
-    // shell_log_level, logs_log_level, monitor_log_level, mqtt_level.
-    // Each sink seeds its own floor where it is
+    // home_log_level, shell_log_level, logs_log_level,
+    // monitor_log_level, mqtt_level. Each sink seeds its own floor where it is
     // built, and the bank raises it from the row it names. A sink floor can only
     // ever be MORE restrictive - an entry the logger dropped never reaches a
     // sink to be admitted - and LOG_CRITICAL clears every floor.
@@ -81,10 +81,19 @@ namespace Botanik { namespace Config {
 #endif
     BOTANIK_CFG(size_t, LOG_QUEUE_SHELL);
 
+    /** @brief Queue depth of the HOME page sink. The smallest of them: HOME
+     *  shows HOME_SCROLLBACK_LINES rows and keeps no history behind them, and
+     *  its write() never yields, so drain() empties this every tick. What is
+     *  left is one beat's arrivals plus the critical reserve. */
+#ifndef BOTANIK_LOG_QUEUE_HOME
+#  define BOTANIK_LOG_QUEUE_HOME 16
+#endif
+    BOTANIK_CFG(size_t, LOG_QUEUE_HOME);
+
     // BufferedLogWriter indexes the ring with uint8_t, and the critical reserve
     // has to leave ordinary entries somewhere to sit.
     static_assert(LOG_QUEUE_SIZE  <= 255 && LOG_QUEUE_LOGS <= 255 &&
-                  LOG_QUEUE_SHELL <= 255,
+                  LOG_QUEUE_SHELL <= 255 && LOG_QUEUE_HOME <= 255,
                   "a log queue depth exceeds the writer's uint8_t ring index");
 
     /** @brief Log writer queue slots reserved for CRITICAL entries: the depth a
@@ -96,7 +105,8 @@ namespace Botanik { namespace Config {
 
     // The reserve is subtracted from every depth, so the shallowest queue still
     // has to leave an ordinary entry somewhere to sit.
-    static_assert(LOG_QUEUE_SHELL > LOG_QUEUE_CRITICAL_RESERVE + 1 &&
+    static_assert(LOG_QUEUE_HOME  > LOG_QUEUE_CRITICAL_RESERVE + 1 &&
+                  LOG_QUEUE_SHELL > LOG_QUEUE_CRITICAL_RESERVE + 1 &&
                   LOG_QUEUE_LOGS  > LOG_QUEUE_CRITICAL_RESERVE + 1 &&
                   LOG_QUEUE_SIZE  > LOG_QUEUE_CRITICAL_RESERVE + 1,
                   "a log queue is too shallow for LOG_QUEUE_CRITICAL_RESERVE");

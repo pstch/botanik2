@@ -129,6 +129,9 @@ const Descriptor library_vars[] = {
     P("console_type", T_U8, 1, 0, 3, 0, "", 961, "which terminal is on the console", "0=VT100 1=VT102 2=Minitel 1B 3=Minitel 2", true),
     P("console_cols", T_U16, 80, 80, 132, 0, "col", 962, "console width, in columns", "the screen buffer bounds the maximum; a site needing another restates the row", true),
     P("console_rows", T_U16, 24, 20, 32, 0, "row", 963, "console height, in rows", "the screen buffer bounds the maximum; a site needing another restates the row", true),
+#if BOTANIK_FEATURE_HOME_PAGE
+    PE("home_log_level", Logs::LOG_INFO, &Logs::level_label, 964, "lowest level HOME's log tail shows", "a landing screen: only what is worth looking up for", true),
+#endif
 #if BOTANIK_FEATURE_SHELL_PAGE
     PE("shell_log_level", Logs::LOG_NOTICE, &Logs::level_label, 965, "lowest level the SHELL page interleaves", "`logs off` silences it entirely without moving this", true),
 #endif

@@ -14,11 +14,11 @@
   Target     <HF>           Screen     <HF>           Grid A     <HF>
   Phase      NIGHT          Skirt      <HF>           Lockout    <HF>
 
+    LOGS
 
-
-
-
-
-
-
+<TS> [+] BOOT: 2 retained value(s) restored
+<TS> [-] NETWORK: network bring-up (static)
+<TS> [+] NETWORK: network up: 127.0.0.1
+<TS> [+] TIME: NTP synced
+<TS> [+] NETWORK: MQTT connected
  ALARMS :<BAR>

@@ -73,6 +73,7 @@ P,CONSOLE,,console_baud,,,,,,900,console UART rate,"reconnect at the new rate; u
 P,CONSOLE,,console_type,,,,,,961,which terminal is on the console,0=VT100 1=VT102 2=Minitel 1B 3=Minitel 2,T_U8,1,0,3,0,,true,,,,
 P,CONSOLE,,console_cols,,,,,,962,"console width, in columns",the screen buffer bounds the maximum; a site needing another restates the row,T_U16,80,80,132,0,col,true,,,,
 P,CONSOLE,,console_rows,,,,,,963,"console height, in rows",the screen buffer bounds the maximum; a site needing another restates the row,T_U16,24,20,32,0,row,true,,,,
+PE,CONSOLE HOME_PAGE,,home_log_level,,,,,,964,lowest level HOME's log tail shows,a landing screen: only what is worth looking up for,,Logs::LOG_INFO,,,,,true,,&Logs::level_label,,
 PE,CONSOLE SHELL_PAGE,,shell_log_level,,,,,,965,lowest level the SHELL page interleaves,`logs off` silences it entirely without moving this,,Logs::LOG_NOTICE,,,,,true,,&Logs::level_label,,
 PE,CONSOLE LOGS_PAGE,,logs_log_level,,,,,,966,lowest level the LOGS page keeps,this page is the record; raising it loses the record,,Logs::LOG_DEBUG,,,,,true,,&Logs::level_label,,
 P,,,sys_cpu_load_pct,,,,,,970,CPU_LOAD alarm threshold,percent of the task period,T_U8,50,1,100,0,%,true,,,,

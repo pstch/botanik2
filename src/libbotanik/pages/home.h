@@ -24,7 +24,10 @@
 #include "libbotanik/config/vars.h"
 
 #include "libbotanik/hal/platform.h"
+#include "libbotanik/logs/format.h"
+#include "libbotanik/logs/writer.h"
 #include "libbotanik/pages/metric_page.h"
+#include "libbotanik/pages/scrollback.h"
 #include "libbotanik/vars/access.h"
 
 // Build-stamped git short hash (generated header); "unknown" when absent
@@ -39,10 +42,19 @@
 namespace Botanik { namespace Pages {
 
     /** @brief Landing page (see file header). */
-    class HomePage : public MetricPage {
+    class HomePage : public MetricPage, public Logs::BufferedLogWriter {
     protected:
         /** @name State
          *  @{ */
+
+        /** @brief This sink's ring, lent to the BufferedLogWriter base. */
+        Logs::LogEntry _slots[Config::LOG_QUEUE_HOME];
+        /** @brief Bottom log tail: most recent lines, bottom-aligned on the
+         *         screen. No history behind them: the store is exactly the
+         *         rows the band shows. */
+        HomeScrollback _scrollback;
+        /** @brief Mirrors tick(active); gates band repaints in write(). */
+        bool _log_active = false;
 
         /** @brief Site home-field table (label + status variable) + the payload
          *  they read. Up to COLS * COL_MAX shown; extras ignored. */
@@ -86,6 +98,11 @@ namespace Botanik { namespace Pages {
         /** @brief First content row below the fixed layout (uptime + columns). */
         static constexpr uint16_t PAYLOAD_ROW = COL_TOP + COL_MAX;
 
+        /** @brief First screen row of the bottom log band. Clamped so it never
+         *  starts above the fixed content (logo + summary); on a too-short
+         *  screen the band collapses to empty (band_top == rows). */
+        uint16_t log_band_top() const;
+
         /** @name Draw hooks - override to customize the page.
          *  @{ */
 
@@ -97,6 +114,11 @@ namespace Botanik { namespace Pages {
          *  align the colons. Static (compile-time values). Drawn after the
          *  logo, whose clear-to-eol would wipe it. */
         virtual void draw_id_block();
+
+        /** @brief Draw the divider above the bottom log band: a reverse-video
+         *  bar with a normal-video " LOGS " tab near the left. Static (drawn
+         *  once). */
+        void draw_log_header(uint16_t row);
 
         /** @brief Place site home-field @p i: its label row + column, value
          *  column + width, and diff-cache slot. Fills column-major (the first
@@ -142,13 +164,43 @@ namespace Botanik { namespace Pages {
                  uint8_t count = 0, const Vars::Bank* io = nullptr,
                  const Vars::VarRef* refs = nullptr)
             : MetricPage(console),
+              Logs::BufferedLogWriter(_slots, (uint8_t)Config::LOG_QUEUE_HOME,
+                                      nullptr, "home_log_level"),
               _fields(fields), _refs(refs), _field_count(count), _io(io) {
             // cold-field redraw cadence is MetricPage's default (PAGE_COLD_MS)
             // uptime ticks every second
             _hot_ms     = Config::PAGE_HOT_MS;
+            // The band is a glance, not a record: NOTICE and up, so boot
+            // chatter cannot push the one line worth seeing off the bottom.
+            // The full stream is the LOGS page.
+            set_min_level(Logs::LOG_NOTICE);
         }
 
         const char* name() const override { return "HOME"; }
+
+        /** @name Focus & update (also drive the log band)
+         *  @{ */
+
+        void focus() override;
+
+        void deactivate() override {
+            MetricPage::deactivate();
+            _log_active = false;
+        }
+
+        void tick(bool active) override;
+
+        /** @} */
+
+    private:
+        /** @name BufferedLogWriter interface
+         *  @{ */
+
+        /** @brief The page's own name, so a loss report says which sink. */
+        const char* sink_name() const override { return name(); }
+        size_t write(const char* buf, size_t len) override;
+
+        /** @} */
     };
 
 }}
