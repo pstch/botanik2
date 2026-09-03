@@ -235,3 +235,20 @@ The line editor is the deliberate exception: it keeps a real reconcile pass
 rows *and* changes its row count in the same edit - the case above. Its per-row
 splicing is byte-neutral against the diff, but the layout diff it does to place
 the IL/DL is not something the back-buffer can infer.
+
+## Reading FRONT back
+
+A renderer WRITES the grid. Reading it back to decide *what* to draw is what the
+FRONT/BACK split exists to keep out of renderers, and that rule stands.
+
+`front_cells()` answers a different question - *what is already there* - for two callers,
+neither of which changes what it paints because of the answer:
+
+- `MetricPage::_cell()`, to decide **how** to attribute a change. It paints the same
+  field either way and reads back only to know which digits moved, which is precisely
+  "what did I draw here last time". It used to keep a private 1 KB duplicate of this
+  grid to ask.
+- a test asserting that an incremental paint left the screen where a full repaint would
+  have.
+
+A renderer consulting it to **skip** a paint would be the thing the rule forbids.

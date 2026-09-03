@@ -79,11 +79,9 @@ namespace Botanik { namespace Terminal {
 
     /**
      * @class TextEditor
-     * @brief Multi-row line editor. An edit reconciles the screen by diffing
-     *        `_pre` against `_layout`: one IL/DL for the row-count change, then
-     *        a forward per-row splice walk from the edit row.
-     * @note Layout is capped at the owner's row array, reachable only through
-     *       hard `\n` breaks; an insert that would cross it is refused.
+     * @brief Multi-row line editor. An edit diffs `_pre` against `_layout`:
+     *        one IL/DL for the row-count change, then a per-row splice walk.
+     * @note An insert that would cross the owner's row cap is refused.
      */
     class TextEditor {
 
@@ -213,9 +211,8 @@ namespace Botanik { namespace Terminal {
         CursorPos end_pos() const { return _map_cursor_pos(_len); }
 
         /** @brief Home the terminal cursor at the edit point and declare it the
-         *  visible cursor's home. A page drawing around the editor calls this
-         *  when done, so present() parks there rather than where the last bar
-         *  painted. */
+         *  visible cursor's home. A page drawing around the editor calls it
+         *  last. */
         void place_cursor() { _place_cursor(_map_cursor_pos(_pos)); }
 
         /** @brief Number of screen rows occupied by the editor right now */
@@ -286,10 +283,8 @@ namespace Botanik { namespace Terminal {
         /**
          * @name Kill and yank
          *
-         * Over the console-wide kill ring, so what is cut here yanks wherever
-         * the operator goes next. A kill takes only what the ring can hold and
-         * leaves the rest in the buffer. Each returns false when there was
-         * nothing to do.
+         * Over the console-wide kill ring. A kill takes only what the ring
+         * holds; each returns false when there was nothing to do.
          * @{
          */
 
@@ -310,10 +305,8 @@ namespace Botanik { namespace Terminal {
         /**
          * @name Mark and region
          *
-         * Ctrl-Space drops a mark; the region is the span to the cursor, drawn
-         * reverse-video, and Ctrl-W / Alt-W act on it instead of on a word. The
-         * mark is TRANSIENT - any edit drops it - so it never needs shifting or
-         * clamping. See @ref dev_editor.
+         * Ctrl-Space drops a mark; the region is the span to the cursor. The
+         * mark is TRANSIENT: any edit drops it. @see dev_editor
          * @{
          */
 
@@ -328,9 +321,7 @@ namespace Botanik { namespace Terminal {
         void toggle_mark();
 
         /** @brief What Ctrl-W does: the region when there is one, the word
-         *  before the cursor when there is not - which is what makes the mark
-         *  optional rather than a mode. Here rather than in each page's key
-         *  switch, so the three cannot drift. */
+         *  before the cursor when there is not. */
         bool kill_region_or_word();
 
         /** @brief Whether an anchor is live. */
@@ -379,15 +370,7 @@ namespace Botanik { namespace Terminal {
         bool commit_loaded(uint16_t len);
 
         /** @brief Replace the whole line with @p len bytes of @p text, cursor
-         *  at the end, in ONE operation.
-         *
-         *  For a caller that has a replacement line in hand - a shell history
-         *  recall - where the obvious spelling is move-to-end, backspace the
-         *  lot, insert the new text. That is THREE edits, two of which change
-         *  the row count, and a caller inside suppress_redraw() gets to
-         *  compensate for exactly one. The recalled text then landed a row off
-         *  the screen while the buffer held it, so Enter ran a command that had
-         *  never been displayed.
+         *  at the end, in ONE edit. What a shell history recall wants.
          *  @note Unlike commit_loaded(), this is an EDIT: it marks the buffer
          *  dirty and leaves the cursor at the end rather than the start. */
         void replace_all(const char* text, uint16_t len);
@@ -488,9 +471,7 @@ namespace Botanik { namespace Terminal {
         /**
          * @name Viewport
          *
-         * The window of layout rows on screen. A bottom-anchored editor is the
-         * degenerate case, so these subsume a bare `_origin + i` and a clip
-         * against `_console->rows()`.
+         * The window of layout rows on screen. @see dev_editor
          * @{
          */
 
@@ -531,11 +512,10 @@ namespace Botanik { namespace Terminal {
         /** @brief Screen rows the text occupies right now. */
         uint16_t _rows_used() const { return (uint16_t)(_visible_end() - _view_top); }
 
-        /** @brief Blank the rows the text has just shrunk past, and record what it
-         *  occupies now. One DL for the lot rather than a row of blanks each: a
-         *  region kill takes as many rows as it likes for the same escape.
-         *  @note Bottom-anchored the band slides instead (_shrink_editor), which
-         *  puts those rows below the screen, so the clamp leaves nothing to do. */
+        /** @brief Blank the rows the text has just shrunk past, and record what
+         *  it occupies now. One DL for the lot.
+         *  @note Bottom-anchored the band slides instead (_shrink_editor), so
+         *  the clamp has nothing to do. */
         void _trim_screen();
 
         /** @brief Whether layout row @p i of the PRE-edit layout was on screen,
@@ -587,9 +567,8 @@ namespace Botanik { namespace Terminal {
         void _write_row_content(uint16_t i);
 
         /** @brief Bring the highlight on screen into line with the region.
-         *  Re-stamps the visible rows, and returns without touching a cell when
-         *  what is painted is already right - which is every call with no mark,
-         *  so the no-region byte cost is unchanged by construction. */
+         *  Returns without touching a cell when what is painted is already
+         *  right, which is every call with no mark. */
         void _sync_region();
 
         /** @brief Declare the visible rows as painted with the region as it
@@ -607,10 +586,9 @@ namespace Botanik { namespace Terminal {
         void _place_rows();
 
 
-        /** @brief Home the cursor at @p p and tell the terminal that is where the
-         *  visible cursor belongs. The two go together: a later renderer in the
-         *  same tick (the status or alarm bar) moves the draw cursor away, so
-         *  present() needs the declared position, not the last one used. */
+        /** @brief Home the cursor at @p p and tell the terminal that is where
+         *  the visible cursor belongs. Both, because a later renderer in the
+         *  same tick moves the draw cursor away. */
         void _place_cursor(const CursorPos& p) {
             _terminal->move_to(p);
             _terminal->set_cursor_pos(p);

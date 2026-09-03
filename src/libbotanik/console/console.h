@@ -39,10 +39,8 @@ namespace Botanik { namespace Terminal {
         /** @name Device
          *  @{ */
 
-        /** @brief The console UART, borrowed. This console is what pumps it:
-         *  the bytes in are the first half of taking input and the bytes out
-         *  the last half of putting a frame on the wire, so both belong to this
-         *  component's own tasks rather than to two of the port's. */
+        /** @brief The console UART, borrowed. This console pumps it, in its
+         *  own tasks rather than the port's. */
         BufferedSerial&     _serial;
         /** @brief The VT device this console paints through. */
         AnsiTerminal        _term;
@@ -67,10 +65,8 @@ namespace Botanik { namespace Terminal {
         /** @}
          *  @name Its own configuration
          *
-         *  What has been APPLIED, read back from the device rather than from
-         *  what was asked for: the terminal clamps to its own buffer. Whoever
-         *  owns this console pushes a ConsoleConfig; the console never looks the
-         *  settings up.
+         *  What has been APPLIED, read back from the device: the terminal
+         *  clamps to its own buffer. Pushed in, never looked up.
          *  @{ */
 
         uint32_t            _baud;
@@ -112,10 +108,9 @@ namespace Botanik { namespace Terminal {
                 const Scheduler::SchedulerContext* sched = nullptr,
                 const Alarms::AlarmController* alarms = nullptr);
 
-        /** @brief Three points in the beat: the bytes in and the input they
-         *  carry (INPUT), the frame drawn (PRESENT), and the frame plus the ring
-         *  pushed out (PRESENT, every beat - see the flush note in
-         *  console.cpp). */
+        /** @brief Three points in the beat: bytes in and the input they carry
+         *  (INPUT), the frame drawn, and the frame plus the ring pushed out
+         *  (both PRESENT). */
         void register_tasks() override;
 
         /** @brief The VT device: renderers (pages, editor, bars) paint through
@@ -146,11 +141,8 @@ namespace Botanik { namespace Terminal {
          *  and put the frame back on the screen it just blanked. What the
          *  `console_` group commits to, driven from PHASE_CONFIG.
          *  @note Everything reads rows()/cols() at render, so this repaint IS
-         *  the reflow - with one exception, which is why Scrollback has a
-         *  reflow() of its own: a log line is STORED already wrapped, one entry
-         *  per display row, so a narrower screen would clip every retained line
-         *  rather than re-wrap it. That history is dropped instead.
-         *  @return true when something moved; a no-op call emits nothing. */
+         *  the reflow. Scrollback is the exception and has a reflow() of its
+         *  own. @return true when something moved. */
         bool reconfigure(Ansi::TerminalType type, uint16_t cols, uint16_t rows);
 
         /** @}
@@ -158,9 +150,8 @@ namespace Botanik { namespace Terminal {
          *  @{ */
 
         /** @brief Rows available to pages: physical height minus the reserved
-         *  bottom alarm bar (if any). Row 0 is the status bar and this count
-         *  includes it, so the page content area is rows 1 .. rows()-1. Pages and
-         *  the editor size their layout and scroll bands off this. */
+         *  bottom alarm bar. Row 0 is the status bar and is INCLUDED, so a
+         *  page's content area is rows 1 .. rows()-1. */
         uint16_t rows() const {
             return (uint16_t)(_term.rows_total() - _reserved_bottom);
         }
@@ -247,8 +238,7 @@ namespace Botanik { namespace Terminal {
 
         /** @brief Redraw the whole frame onto a screen the device has just
          *  blanked: chrome, then the active page's focus(). Shared by the
-         *  first-step establish and reconfigure(), which owe the identical
-         *  repaint for the identical reason. */
+         *  first-step establish and reconfigure(). */
         void _repaint_frame();
 
         /** @brief Last screen row a page may scroll/draw content into (0-indexed):

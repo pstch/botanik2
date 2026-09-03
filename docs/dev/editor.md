@@ -219,3 +219,14 @@ larger. A `static_assert` per instantiation guarantees the buffer fits by soft-w
 minimum width, so the row cap is only reachable through hard `\n` breaks - and an insert
 that would cross it is **refused**, because rows past the cap are text nobody can see or
 reach.
+
+### Why a whole-line replace is one operation
+
+`replace_line()` exists because the obvious spelling of a history recall is three edits:
+move to the end, backspace the lot, insert the new text. Two of those change the row
+count, and a caller inside `suppress_redraw()` gets to compensate for exactly one. The
+recalled text then landed a row off the screen while the buffer held it, so Enter ran a
+command that had never been displayed.
+
+One edit, one reconcile, one row-count change. `commit_loaded()` is the non-edit form for
+text arriving from storage: it clears the dirty flag and leaves the cursor at the start.

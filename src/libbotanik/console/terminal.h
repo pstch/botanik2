@@ -23,11 +23,8 @@ namespace Botanik { namespace Terminal {
 
     /** @brief The one physical terminal a Console drives.
      *
-     *  These initializers ARE the factory defaults: what a build with no
-     *  variable model runs at, and what the `console_` rows declare as their
-     *  own. One number, in one place - there is no config macro behind them.
-     *  @note Beside AnsiTerminal rather than Console: every field is a property
-     *        of the DEVICE. Console only forwards them.
+     *  These initializers ARE the factory defaults, and the `console_` rows
+     *  declare the same numbers. There is no config macro behind them.
      */
     struct ConsoleConfig {
         uint32_t           baud = 4800;
@@ -81,10 +78,9 @@ namespace Botanik { namespace Terminal {
 
         /** @}
          *  @name Screen back-buffer
-         *  Two grids indexed [row*_cols + col]. A cell is a 7-bit glyph with
+         *  Two grids indexed [row*_cols + col]; a cell is a 7-bit glyph with
          *  CELL_INV in the high bit. _front is what renderers drew, _back what
-         *  present() put on the wire. Sized for the largest supported terminal.
-         *  @{ */
+         *  present() sent. @{ */
         static constexpr uint16_t GRID_COLS  = Config::TERMINAL_MAX_COLS;
         static constexpr uint16_t GRID_ROWS  = Config::TERMINAL_MAX_ROWS;
         static constexpr uint16_t GRID_CELLS = GRID_COLS * GRID_ROWS;
@@ -194,12 +190,11 @@ namespace Botanik { namespace Terminal {
         /** @brief Estimated worst-case bytes to emit run [@p a, @p b) of @p row
          *  (leading move + SGR toggles + glyphs), for the budget gate. */
         uint16_t _run_cost(uint16_t row, uint16_t a, uint16_t b) const;
-        /** @brief Reconcile @p row as a horizontal shift (SM4/RM4 insert or DCH)
-         *  when its cells merely slid sideways, which the per-cell diff would
-         *  otherwise rewrite in full. @return bytes emitted, 0 if not applicable
-         *  or not cheaper than a rewrite. Sets @p defer when only the tick's
-         *  budget (or the ring) stood in the shift's way: the row is then owed
-         *  the next tick rather than the full rewrite it would fall through to. */
+        /** @brief Reconcile @p row as a horizontal shift (SM4/RM4 insert or
+         *  DCH) when its cells merely slid sideways. @return bytes emitted, 0
+         *  if not applicable or not cheaper than a rewrite.
+         *  @note @p defer set means only the budget stood in the shift's way,
+         *  so the row is owed the next tick rather than a full rewrite. */
         uint16_t _shift_row(uint16_t row, uint16_t budget, bool& defer);
         /** @brief Smallest changed span worth expressing as a shift, and the
          *  widest slide still plausibly a slide rather than new content. */
@@ -248,13 +243,11 @@ namespace Botanik { namespace Terminal {
         /** @brief Which terminal is on the wire. */
         Ansi::TerminalType terminal_type() const { return _type; }
 
-        /** @brief Re-declare what is on the console wire: its make and its size,
-         *  the device half of the `term_` group. A resize is a re-clamp plus a
-         *  repaint - nothing to reallocate, no layout cached. @p cols / @p rows
-         *  are clamped exactly as the constructor clamps them.
-         *  @note Blanks the screen and re-emits the setup handshake when the type
-         *  moved, but does NOT repaint: the caller owns the frame.
-         *  @return true when something moved, i.e. the caller owes a repaint. */
+        /** @brief Re-declare what is on the console wire: its make and its
+         *  size. @p cols / @p rows are clamped as the constructor clamps them.
+         *  @note Blanks the screen and re-emits the setup handshake when the
+         *  type moved, but does NOT repaint: the caller owns the frame.
+         *  @return true when something moved, so the caller owes a repaint. */
         bool reconfigure(Ansi::TerminalType type, uint16_t cols, uint16_t rows);
 
         /** @}
@@ -274,22 +267,8 @@ namespace Botanik { namespace Terminal {
 
         /** @brief Copy @p len glyphs of FRONT from (@p row, @p col) into
          *  @p out, attributes stripped; @return how many were written.
-         *
-         *  A renderer WRITES the grid; reading it back to decide WHAT to draw
-         *  is what the FRONT/BACK split exists to keep out of renderers, and
-         *  that rule stands. This answers a different question - "what is
-         *  already there" - for the two callers that need it and neither of
-         *  which changes what it paints because of the answer:
-         *
-         *   - MetricPage::_cell(), to decide HOW to attribute a change: it
-         *     paints the same field either way and reads back only to know
-         *     which digits moved, which is precisely "what did I draw here
-         *     last time". It kept a private 1 KB duplicate of this grid to ask.
-         *   - a test asserting that an incremental paint left the screen where
-         *     a full repaint would have.
-         *
-         *  A renderer that consulted this to SKIP a paint would be the thing
-         *  the rule forbids. */
+         *  @note For deciding HOW to attribute a change, never WHETHER to
+         *  paint one. @see dev_screen */
         uint16_t front_cells(uint16_t row, uint16_t col, char* out,
                              uint16_t len) const {
             if (out == nullptr || row >= _rows || col >= _cols) return 0;
