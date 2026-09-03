@@ -237,6 +237,12 @@ namespace Botanik { namespace Vars {
     }
 
     NumBand var_band(const Bank* io, const Descriptor& d) {
+        // The row's OWN type, not Scalar::F: a parameter may be an integer, and
+        // a band read back as a float would compare against the wrong arm.
+        const NumRefBand* b = num_ref_band(d);
+        if (b != nullptr)
+            return NumBand{num(d.type, (double)tunable(io, b->min)),
+                           num(d.type, (double)tunable(io, b->max))};
         const AnalogCal* c = analog_cal(d);
         if (c == nullptr) return num_band(d);
         const AnalogValues v = analog_values(io, c);
@@ -279,21 +285,20 @@ namespace Botanik { namespace Vars {
         dst[n] = 0;
     }
 
-/** @brief Parse @p text as @p d's type into @p out, optionally holding
-     *  it to the declared band. Shared by set() and override_set(), which
-     *  differ only in whether the band applies. */
-    SetResult parse_for(const Descriptor& d, const char* text, bool bounded,
-                        Scalar* out) {
-        const NumBand band = num_band(d);
+/** @brief Parse @p text as @p d's type into @p out, holding it to @p band.
+     *  Shared by set() and override_set(), which differ only in whether a band
+     *  applies. */
+    SetResult parse_for(const Descriptor& d, const char* text,
+                        const NumBand* band, Scalar* out) {
         // d.str goes in so a labelled enum answers to its own words, and so
         // a code it cannot name is refused. That refusal is NOT the band and
-        // so is not gated on `bounded`: an override may push a reading past
+        // so applies even unbounded: an override may push a reading past
         // what is plausible, but there is no such thing as an enum value
         // outside its labels - it would render as a bare number and mean
         // nothing to anything reading it.
         if (parse_scalar(d.type, text, out, d.str) != PARSE_OK) return SET_INVALID;
-        if (bounded && (d.flags & F_BOUNDED) != 0 &&
-            !in_range(d.type, *out, band.min, band.max)) return SET_INVALID;
+        if (band != nullptr && (d.flags & F_BOUNDED) != 0 &&
+            !in_range(d.type, *out, band->min, band->max)) return SET_INVALID;
         return SET_OK;
     }
 
@@ -334,7 +339,10 @@ void Bank::_find_param_block() {
         // the check has to be here too or a typed write is the way around it.
         if (d->type == T_ENUM && d->str != nullptr && d->str(v.u) == nullptr)
             return SET_INVALID;
-        const NumBand band = num_band(*d);
+        // var_band(), so a band whose ends are other rows is judged against what
+        // they hold NOW. A pair with a required relationship is only wrong as a
+        // pair, which a fixed band cannot see.
+        const NumBand band = var_band(this, *d);
         if ((d->flags & F_BOUNDED) != 0 && !in_range(d->type, v, band.min, band.max))
             return SET_INVALID;
         return SET_OK;
@@ -352,7 +360,8 @@ void Bank::_find_param_block() {
                                                                : SET_INVALID;
         }
         Scalar parsed;
-        return (parse_for(*d, text, /*bounded=*/true, &parsed) == SET_OK)
+        const NumBand band = var_band(this, *d);
+        return (parse_for(*d, text, &band, &parsed) == SET_OK)
                    ? SET_OK : SET_INVALID;
     }
 
@@ -508,7 +517,8 @@ void Bank::_find_param_block() {
             copy_bounded(dst, cap, text);
         } else {
             Scalar parsed;
-            if (parse_for(*d, text, /*bounded=*/true, &parsed) != SET_OK) return SET_INVALID;
+            const NumBand band = var_band(this, *d);
+            if (parse_for(*d, text, &band, &parsed) != SET_OK) return SET_INVALID;
             if (slot.v.u == parsed.u) return SET_OK;
             slot.v = parsed;
         }

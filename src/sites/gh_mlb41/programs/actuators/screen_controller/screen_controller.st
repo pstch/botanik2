@@ -9,11 +9,15 @@ VAR_EXTERNAL CONSTANT
   cli_phase            : USINT;
   cli_screenTravel_sec : UINT;
   cli_screenTmo_sec    : UINT;
+  cli_screenMinRun_ms  : UINT;
+  cli_screenDeadband   : REAL;
+  cli_screenRedatum    : REAL;
   sys_now_ms           : UDINT;
 END_VAR
 VAR_EXTERNAL
   cli_screen       : BOOL;
   cli_screenMoving : BOOL;
+  cli_screen_drift : REAL;
 END_VAR
 VAR
   fabric : ACTUATOR;
@@ -76,14 +80,17 @@ END_VAR
   fabric.OPEN_MS      := stroke;
   fabric.CLOSE_MS     := stroke;
   fabric.SEAT_MS      := 0;
-  fabric.MIN_RUN_MS   := 250;
+  fabric.MIN_RUN_MS   := UINT_TO_UDINT(cli_screenMinRun_ms);
   fabric.REVERSE_MS   := 0;
-  fabric.DB           := 0.02;
-  fabric.REDATUM      := 3.0;
+  fabric.DB           := cli_screenDeadband;
+  fabric.REDATUM      := cli_screenRedatum;
   fabric.HOLD         := FALSE;
   fabric.PRESET_KNOWN := TRUE;
   fabric.PRESET_POS   := 1.0;
   fabric.NOW          := sys_now_ms;
   fabric();
   cli_screenMoving := fabric.MOVING;
+  (* Travel since the fabric last reached a stop: the drive reports no fault,
+     so a drift that keeps climbing is the only sign of one. *)
+  cli_screen_drift := fabric.DRIFT;
 END_PROGRAM

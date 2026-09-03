@@ -15,7 +15,7 @@ Screen     ,cli_screen
 Skirt      ,cli_skirtDuty
 Irrigation ,irr_state
 Tray       ,irr_activeTray
-Since rain ,cli_sinceRain_min
+Since rain ,cli_sinceRain_h
 Wind       ,cli_wind_mps
 Local V    ,sys_local_V
 Local A    ,sys_local_A

@@ -91,13 +91,23 @@ END_VAR
 
   forced := irr_forceNow;
 
-  (* WHICH slot. END OF NIGHT, and only when the plants are not cold: watering
-     cold roots is what the gate exists to prevent, and the morning slot is
-     where that watering goes instead. Never the afternoon - a tray filled then
-     is still wet at dusk.
+  (* WHICH slot. Both arms need a PLACED phase: with the tracker out, the phase
+     and the minutes since sunrise both hold where they were, so a morning
+     window that was open when it stopped stays open all day and into the
+     night. *)
+  IF NOT GOOD(cli_phase_qlt) THEN
+    open_slot := FALSE;
+
+  (* END OF NIGHT, and only when the plants are not cold: watering cold roots
+     is what the gate exists to prevent, and the morning slot is where that
+     watering goes instead. Never the afternoon - a tray filled then is still
+     wet at dusk.
      1 COLD_BANK, 2 DAWN_BREEZE, 3 DAY. *)
-  IF cli_phase = 1 OR cli_phase = 2 THEN
-    open_slot := cli_temp_ext >= irr_dawnGate_degC;
+  ELSIF cli_phase = 1 OR cli_phase = 2 THEN
+    (* An outside temperature nobody measured cannot clear the tray for cold
+       roots. Dawn is the OPTIONAL slot, so the tray simply waits for the
+       morning one rather than being watered on a held reading. *)
+    open_slot := GOOD(cli_temp_ext_qlt) AND cli_temp_ext >= irr_dawnGate_degC;
   ELSE
     (* START OF THE DAY, for a window an operator sets: the tray has to drain
        and dry before the stomata open at dusk. *)

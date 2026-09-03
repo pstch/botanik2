@@ -130,7 +130,8 @@ once per activation. What a program may reach for:
   ladders, the timers, `EWMA`, `PID`, `ACTUATOR`, the meters
 - the **site's own blocks**, `blocks/<name>/<name>.st`, for a shape only this
   greenhouse has
-- `st/lib/ieclib.txt` for the standard functions - `LIMIT`, `MIN`, `MAX`, `ABS`,
+- `src/libbotanik/plc/functions/ieclib.txt` for the standard functions -
+  `LIMIT`, `MIN`, `MAX`, `ABS`,
   `POW`, and the conversions. **These are ours, not matiec's**, and REAL-only:
   ST has no overloading, so a UDINT comparison is written out by hand
 

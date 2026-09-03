@@ -19,11 +19,14 @@ namespace Botanik { namespace Vars {
     /** @brief Copy @p src into @p dst, always NUL-terminating. */
     void copy_bounded(char* dst, uint16_t cap, const char* src);
 
-    /** @brief Parse @p text as @p d's type into @p out, optionally holding it
-     *  to the declared band. Shared by param_set() and override_set(), which
-     *  differ only in whether the band applies. */
-    SetResult parse_for(const Descriptor& d, const char* text, bool bounded,
-                        Scalar* out);
+    /** @brief Parse @p text as @p d's type into @p out, holding it to @p band.
+     *
+     *  Shared by param_set() and override_set(), which differ only in whether a
+     *  band applies: null is unbounded. The band is the CALLER's because a row
+     *  whose ends are other rows has none until the bank resolves it.
+     *  @param band the band to hold to, or null for none */
+    SetResult parse_for(const Descriptor& d, const char* text,
+                        const NumBand* band, Scalar* out);
 
 }}  // namespace Botanik::Vars
 

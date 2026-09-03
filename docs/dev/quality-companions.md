@@ -63,8 +63,18 @@ inherit - a block output, a clock that has not been set.
 
 ## Where the substitution happens
 
-`Ref::get()` reads the row's DECLARED value when the companion is not
-`Q_VALID`. Once, there, for the laws. `Var::value()` does NOT substitute: the
+`Ref::get()` reads the row's DECLARED value unless the companion `quality_holds()`
+- `Q_VALID`, or `Q_SUBSTITUTED`. Once, there, for the laws.
+
+`Q_SUBSTITUTED` is the code for a number a LAW stood behind that nothing
+measured: `temp_rh_zone` with every interior probe gone publishes the hottest of
+the held levels and the outside, and `temp_rh_sensors` publishes a zone's held
+average through `QUAL_HELD(OK, SEEDED)`. Readers compute on it, because the
+declared 14 degC would stop the roof venting on the day it matters most, and a
+fallback may only ever ask for MORE venting. `valid()` still says no, so the
+cooling loop still resets its integral and the intake gates still shut - "is
+there a number worth using" and "can the plant be seen" are different questions
+and this is the code that separates them. `Var::value()` does NOT substitute: the
 monitor page and the telemetry show the number that was implausible with the
 quality beside it, which is what an operator chasing a dead probe needs, and
 `Ref::held()` is the same read for a law that must have the raw one - a

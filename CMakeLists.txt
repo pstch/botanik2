@@ -314,6 +314,19 @@ if(BOTANIK_TARGET STREQUAL "SIMULATOR")
         message(STATUS "clang-tidy not found (or non-Make generator) - skipping the target")
     endif()
 
+    # Both subdirectories below want a job count, so it is derived here rather
+    # than in whichever of them happens to be added first.
+    include(ProcessorCount)
+    ProcessorCount(_nproc)
+    if(_nproc EQUAL 0)
+        set(_nproc 4)
+    endif()
+
+    # The ST toolchain: the pinned matiec, and the check that closes the loop on
+    # its committed output. A host tool, none of it in ALL, and absent entirely
+    # where flex/bison are. Before tests/ so its `if(TARGET check-st)` sees it.
+    include(cmake/matiec.cmake)
+
     # Tests are host-only, so SIMULATOR-only. enable_testing() registers the
     # CTest machinery; the suites and `make check` are defined in tests/.
     enable_testing()

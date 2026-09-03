@@ -329,8 +329,8 @@ namespace Botanik { namespace Vars {
         template <typename T>
         T get(Ref<T> h) const {
             const Var v = var(h.r);
-            return v.valid() ? RefIo<T>::read(*this, h.r)
-                             : RefIo<T>::of(v.declared());
+            return quality_holds(v.quality()) ? RefIo<T>::read(*this, h.r)
+                                              : RefIo<T>::of(v.declared());
         }
 
         /** @brief Drive @p h. @p V is CHECKED against @p T, not converted, so a

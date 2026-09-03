@@ -76,6 +76,7 @@ make -C build botanik_tests          # just build the doctest binary
 ./build/tests/botanik_tests -tc=<name>              # one test case
 ctest --test-dir build --output-on-failure          # all CTest entries
 ctest --test-dir build -R pyte --output-on-failure  # just the pyte suite
+make -C build matiec                 # build the pinned matiec (needs flex/bison/autotools)
 ```
 
 **`make check`** fails on the first problem: the library compiles `-Werror`, so building
@@ -108,6 +109,14 @@ And it builds the OPTA (`check-opta`), which is the only thing that can catch a 
 error: `Arduino.h` declares the whole wiring API and `libmbed.a` defines none of it, so a
 HAL reaching for a call the build does not compile fails at link time on the cross build
 alone, with `make check` green throughout. Skipped where `arm-none-eabi-g++` is absent.
+
+The compiler that check is made against is PINNED: `vendor/matiec`, one upstream
+commit, built by `make -C build matiec` into `build/matiec/iec2c`. Nothing pinned
+it before, so two developers regenerating produced different `POUS.c` and the
+diff above would have called whichever ran second wrong. `scripts/tables.py`
+finds the pinned binary by itself; `IEC2C=` points it elsewhere. Building it
+needs flex, bison and the autotools, and without them the `matiec` target is not
+declared and the check falls back to whatever is on PATH.
 
 **`make check-bare`** compiles `sites/bare` - every optional feature off - into
 `build-bare/`, and a middle profile (console + shell + logs + alarms, no
@@ -184,14 +193,14 @@ Subsystems under `src/libbotanik/`. Each row's doc is the reference; the header 
 | `core/` | The BOTTOM of the stack: `Component` (one hook per phase, `register_tasks()`) and `SystemContext` (a borrowed-pointer aggregate, constructor-injected into its consumers, NOT reachable through the console) | `architecture.md` |
 | `firmware/` | `BotanikFirmware`, the Template-Method base owning every generic component and the non-overridable per-tick order. Sites customize only through the protected hooks | `architecture.md` |
 | `vars/` | Gated by `BOTANIK_FEATURE_VARS`. The one model everything the firmware exposes goes through, along three independent fields: `VarType`, `Transport`, `VarRole`, plus `VarScope` for what a table filters on. `Bank` is the one object that gets, sets and overrides | `vars.md` |
-| `plc/` | The POU vocabulary, in ST: `functions/*.st` has no state, `blocks/*.st` has state, and `runtime/` is the join between the beat and matiec's generated C. If it has to remember something it is a block | `scan.md` |
+| `plc/` | The POU vocabulary, in ST: `functions/*.st` has no state, `blocks/*.st` has state, and `runtime/` is the join between the beat and matiec's generated C. If it has to remember something it is a block. `functions/ieclib.txt` is what `iec2c -I` points at - OUR standard functions, so matiec's own GPL library is never loaded | `scan.md`, `st-toolchain.md` |
 | `io/` | `LocalInputs`, the controller's own input terminals: every `XP_LOCAL` DI row found by walking the table at bring-up, published at `PHASE_INPUT` with `F_INVERT` folded in. The field-bus mirror image, so a program reads a terminal by name | `io.md` |
 | `modbus/` | Four corners in one tree: `rtu/` is the RS-485 field bus, `tcp/` the plant network, each with both ends. `wire.h` and `response.h` are what they share | `modbus.md` |
 | `console/` | Two layers: `AnsiTerminal` is the VT device owning a screen back-buffer, `Console` the multiplexed page display. `TextEditor` is the byte-efficient editing state machine | `screen.md`, `editor.md`, `input.md` |
 | `pages/` | Full-screen views behind a common `Page` interface, all base-owned and site-independent | `pages.md` |
 | `shell/` | `CommandShell`: commands are **noun then verb**, a noun parsing its own verb. Depends on the terminal device, not on `Console` or `pages/` | `pages.md` |
 | `logs/` | `Logger` with a dual-bucket token-bucket rate limiter before its `LogWriter`s. `LOG_CRITICAL` is undroppable | `logging.md` |
-| `alarms/` | `AlarmController` reads an `AlarmSourceTable`, never a bank. With `VARS` on that is `Vars::BankAlarms` over the site's `SCOPE_A` rows, each carrying both its boolean and its dwell policy; without it, `StaticAlarmTable` over a flash array. Not feature-gated: every build has alarms | `health.md` |
+| `alarms/` | `AlarmController` reads an `AlarmSourceTable`, never a bank. With `VARS` on that is `Vars::BankAlarms` over the site's `SCOPE_A` rows, each carrying both its boolean and its dwell policy; without it, `StaticAlarmTable` over a flash array. Not feature-gated: every build has alarms | `health.md`, `blind-spots.md` |
 | `health/` | `HealthMonitor` owns the `AlarmController`, raises the platform-health alarms from scheduler metrics, runs the POST, and produces the watchdog verdict | `health.md` |
 | `network/` | `NetworkHandler` / `NameResolver` / `NtpClient` / `MqttClient`, all non-blocking. The sim backend is hermetic - it emulates DNS/NTP/MQTT in-process | `network.md` |
 | `sun/` | `SunPositionTracker` over the NOAA solar-position math. `BotanikFirmware` owns the instance, registers it and binds its `geo_` parameters; a program reads it through `SetupContext::sun` | - |
@@ -234,6 +243,19 @@ Subsystems under `src/libbotanik/`. Each row's doc is the reference; the header 
   `Tunable`s; `scale`/`offset` are never stored but derived, so a recalibration lands the
   moment the parameter commits. Anything DISPLAYING a band goes through `var_band()`, not
   `num_band()`. See `vars.md`.
+- **A band may name another row.** A pair with a required relationship - a target's floor
+  and ceiling, a ramp's start and end - is only wrong AS A PAIR, and a fixed band cannot
+  see that: each value alone is legal. A row in `tables/param_band.csv` gets a
+  `NumRefBand` of two `Tunable`s and is emitted as `PR()` rather than `P()`, and
+  `param_check()` judges an edit against `var_band()`, so the limit is whatever the other
+  row holds NOW. Constrain BOTH ends against each other; the pair stays reachable as long
+  as it starts valid, which `tables.py` refuses to generate without. Anything READING a
+  band goes through `var_band()` - `num_band()` reads one of these as "no band".
+- **Some things the plant cannot see are DECISIONS**, not gaps: an actuator
+  reports no fault because no fault contact is wired, and `cli_phase_qlt` says
+  where a phase came from rather than whether it is legal. `docs/dev/blind-spots.md`
+  is the list, and the place to add to when the answer to "why is there no check
+  for X" is "we chose not to". A review with no such list re-raises every one.
 - **Parking.** A program may opt in with `park` in `programs.csv` and get
   `prog_<name>_park` (Plant writes, the law reads) and `prog_<name>_parked` (the
   law writes). Such a program is NOT dropped when it leaves the scan: `park` goes
@@ -252,8 +274,10 @@ Subsystems under `src/libbotanik/`. Each row's doc is the reference; the header 
   input, one per row a program that opted in (`quality` in `programs.csv`) writes,
   never an alarm - and opting in obliges the law to write every one of them, which
   `tables.py plant` checks off matiec's write list. `Ref::get()` substitutes the
-  declared value for a law; `Var::value()` does not, so a page shows the reading
-  that was implausible. See `quality-companions.md`.
+  declared value for a law unless `quality_holds()` - `Q_VALID`, or
+  `Q_SUBSTITUTED`, which is a law's own fallback that readers should compute on
+  though nothing measured it; `Var::value()` never substitutes, so a page shows
+  the reading that was implausible. See `quality-companions.md`.
 - **Naming files a variable.** `var_group()` is the prefix of a name up to the first `_`;
   `var_published()` is true iff a row is neither a parameter, an alarm, nor a quality.
   There is no group table to add a variable to and none to forget.

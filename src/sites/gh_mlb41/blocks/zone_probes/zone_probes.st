@@ -62,6 +62,10 @@ VAR_OUTPUT
   RH      : REAL;
   TEMP_OK : BOOL;   (* the zone MEASURED its temperature this beat *)
   RH_OK   : BOOL;   (* ...and its humidity, which is a SEPARATE quorum *)
+  (* ...and whether either has EVER been measured. With _OK false that is a
+     held average against a zone nothing has ever seen. *)
+  TEMP_SEEDED : BOOL;
+  RH_SEEDED   : BOOL;
   FAULT   : BOOL;   (* fewer than three probes, dwelt *)
 END_VAR
 VAR
@@ -103,6 +107,8 @@ END_VAR
   RH      := h_pub.Y;
   TEMP_OK := t_pub.OK;
   RH_OK   := h_pub.OK;
+  TEMP_SEEDED := t_pub.SEEDED;
+  RH_SEEDED   := h_pub.SEEDED;
 
   (* The alarm follows whichever quantity has lost the most: two probes still
      select correctly, so the plant keeps running and the operator is told to

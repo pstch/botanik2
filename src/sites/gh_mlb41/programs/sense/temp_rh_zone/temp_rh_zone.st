@@ -9,6 +9,8 @@ VAR_EXTERNAL CONSTANT
   cli_rh_lo          : REAL;
   cli_temp_hi_qlt    : QUALITY;
   cli_temp_lo_qlt    : QUALITY;
+  cli_temp_ext       : REAL;
+  cli_temp_ext_qlt   : QUALITY;
   cli_rotMargin_degC : REAL;
 END_VAR
 VAR_EXTERNAL
@@ -23,6 +25,7 @@ VAR_EXTERNAL
   cli_vpd_kPa           : REAL;
   cli_vpd_kPa_qlt       : QUALITY;
   alarm_rot             : BOOL;
+  alarm_zone_blind      : BOOL;
 END_VAR
 VAR_TEMP
   dp_hi      : REAL;
@@ -42,17 +45,37 @@ END_VAR
      of the two and not their mean. The spec keeps the worst case between
      levels, and for heat that is the top of the house.
 
-     Both levels gone: the rows are holding their last readings, so the hotter
-     of them is still the best answer there is - held, like they are, and the
-     companion is what says so. *)
+     Both levels gone: the rows hold their last readings, and OUTSIDE joins
+     them as a third piece of evidence - the hottest of the three. Not the
+     exterior INSTEAD: a greenhouse under sun is hotter than the air outside,
+     which is what a greenhouse is for, so substituting would hand the cooling
+     ladder a cooler number than the house last knew and OPEN THE ROOF LESS on
+     the day it matters most. A maximum can only ever ask for more venting.
+     The quality stays unbelievable throughout: this is evidence, not a
+     reading. *)
   IF GOOD(cli_temp_hi_qlt) AND NOT GOOD(cli_temp_lo_qlt) THEN
     cli_temp_in := cli_temp_hi;
   ELSIF GOOD(cli_temp_lo_qlt) AND NOT GOOD(cli_temp_hi_qlt) THEN
     cli_temp_in := cli_temp_lo;
+  ELSIF measured THEN
+    cli_temp_in := MAX(cli_temp_hi, cli_temp_lo);
+  ELSIF GOOD(cli_temp_ext_qlt) THEN
+    cli_temp_in := MAX(MAX(cli_temp_hi, cli_temp_lo), cli_temp_ext);
   ELSE
     cli_temp_in := MAX(cli_temp_hi, cli_temp_lo);
   END_IF;
-  cli_temp_in_qlt := QUAL(measured);
+  (* Q_SUBSTITUTED, not simply bad: the blind arms above still publish a number
+     somebody can act on, and Ref::get() passes that through where it would
+     substitute the declared 14 degC. A law asking whether the house can be SEEN
+     still gets no - GOOD() is measured, and that is what cooling resets its
+     integral on and what shuts the intake gates. *)
+  IF measured THEN cli_temp_in_qlt := Q_VALID;
+  ELSE cli_temp_in_qlt := Q_SUBSTITUTED; END_IF;
+
+  (* NOT the same event as a probe short of quorum, which is what alarm_sns_*
+     already says. This one means the house cannot be seen at all, and every
+     cooling law is running on a reading from before it went. *)
+  alarm_zone_blind := NOT measured;
 
   (* One dew point per level: the margin and the VPD both come off it. *)
   dp_hi := DEW_POINT(T_DEGC := cli_temp_hi, RH := cli_rh_hi);

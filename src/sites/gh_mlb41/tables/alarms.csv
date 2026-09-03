@@ -16,6 +16,7 @@ alarm_water_pressure   ,WTR_BAR  ,2   ,2    ,0       ,0     ,818,water pressure 
 alarm_irr_drain        ,DRAIN_FLT,3   ,3    ,0       ,0     ,819,a tray would not drain in time    ,inspect irrigation circuit / look for clogging
 alarm_weather_storm    ,WH_STORM ,60  ,120  ,0       ,15    ,822,current storm conditions          ,check that the windows are properly closed
 alarm_sns_ceiling      ,SNS_CEIL ,5   ,5    ,0       ,0     ,826,ceiling T°/RH probe quorum lost   ,check wiring or replace faulty sensor
+alarm_zone_blind       ,ZONE_BLND,5   ,5    ,0       ,0     ,849,no interior temperature at all    ,every cooling law is running on a held reading
 alarm_sns_floor        ,SNS_FLR  ,5   ,5    ,0       ,0     ,827,floor T°/RH probe quorum lost     ,check wiring or replace faulty sensor
 alarm_sns_crawlspace   ,SNS_CS   ,5   ,5    ,0       ,0     ,828,crawlspace T°/RH probe quorum lost,check wiring or replace faulty sensor
 alarm_sns_exterior     ,SNS_EXT  ,5   ,5    ,0       ,0     ,829,exterior T°/RH probe quorum lost  ,check wiring or replace faulty sensor

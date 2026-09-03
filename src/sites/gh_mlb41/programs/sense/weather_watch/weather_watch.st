@@ -12,16 +12,21 @@ VAR_EXTERNAL CONSTANT
 END_VAR
 VAR_EXTERNAL
   alarm_weather_storm : BOOL;
-  cli_sinceRain_min   : UINT;
+  cli_sinceRain_h     : REAL;
 END_VAR
 VAR
   seen   : BOOL := FALSE;   (* the station has answered at least once *)
   dry_ms : UDINT;
   last   : UDINT;
   primed : BOOL := FALSE;
+  (* SECONDS, with the sub-second part kept aside. In milliseconds this wraps
+     after 49 days, and a 50-day drought would read as a fresh shower; in
+     seconds it is 136 years. *)
+  dry_s   : UDINT;
+  rem_ms  : UDINT;
 END_VAR
 VAR_TEMP
-  mins : UDINT;
+  hours : REAL;
 END_VAR
   IF GOOD(cli_wind_mps_qlt) AND GOOD(cli_rain_mmph_qlt) THEN seen := TRUE; END_IF;
 
@@ -39,8 +44,15 @@ END_VAR
      true and what the roof cares about. *)
   IF primed THEN
     IF GOOD(cli_rain_mmph_qlt) THEN
-      IF cli_rain_mmph > 0.0 THEN dry_ms := 0;
-      ELSE dry_ms := dry_ms + (sys_now_ms - last);
+      IF cli_rain_mmph > 0.0 THEN
+        dry_s  := 0;
+        rem_ms := 0;
+      ELSE
+        rem_ms := rem_ms + (sys_now_ms - last);
+        IF rem_ms >= 1000 THEN
+          dry_s  := dry_s + rem_ms / 1000;
+          rem_ms := rem_ms MOD 1000;
+        END_IF;
       END_IF;
     END_IF;
   ELSE
@@ -48,7 +60,8 @@ END_VAR
   END_IF;
   last := sys_now_ms;
 
-  mins := dry_ms / 60000;
-  IF mins > 65535 THEN mins := 65535; END_IF;
-  cli_sinceRain_min := UDINT_TO_UINT(mins);
+  (* HOURS, which reads at both ends: 0.25 is a quarter of an hour ago and
+     1200 is fifty days. *)
+  hours := UDINT_TO_REAL(dry_s) / 3600.0;
+  cli_sinceRain_h := hours;
 END_PROGRAM

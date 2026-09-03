@@ -169,12 +169,12 @@ END_VAR
      law downstream reads the doubt. The two quorums are separate: one dead
      humidity probe must not invalidate a temperature three good probes agree
      on. *)
-  cli_temp_hi_qlt  := QUAL(ceiling.TEMP_OK);
-  cli_temp_lo_qlt  := QUAL(floor.TEMP_OK);
-  cli_temp_cs_qlt  := QUAL(crawlspace.TEMP_OK);
-  cli_temp_ext_qlt := QUAL(exterior.TEMP_OK);
-  cli_rh_hi_qlt    := QUAL(ceiling.RH_OK);
-  cli_rh_lo_qlt    := QUAL(floor.RH_OK);
-  cli_rh_cs_qlt    := QUAL(crawlspace.RH_OK);
-  cli_rh_ext_qlt   := QUAL(exterior.RH_OK);
+  cli_temp_hi_qlt  := QUAL_HELD(ceiling.TEMP_OK,    ceiling.TEMP_SEEDED);
+  cli_temp_lo_qlt  := QUAL_HELD(floor.TEMP_OK,      floor.TEMP_SEEDED);
+  cli_temp_cs_qlt  := QUAL_HELD(crawlspace.TEMP_OK, crawlspace.TEMP_SEEDED);
+  cli_temp_ext_qlt := QUAL_HELD(exterior.TEMP_OK,   exterior.TEMP_SEEDED);
+  cli_rh_hi_qlt    := QUAL_HELD(ceiling.RH_OK,      ceiling.RH_SEEDED);
+  cli_rh_lo_qlt    := QUAL_HELD(floor.RH_OK,        floor.RH_SEEDED);
+  cli_rh_cs_qlt    := QUAL_HELD(crawlspace.RH_OK,   crawlspace.RH_SEEDED);
+  cli_rh_ext_qlt   := QUAL_HELD(exterior.RH_OK,     exterior.RH_SEEDED);
 END_PROGRAM

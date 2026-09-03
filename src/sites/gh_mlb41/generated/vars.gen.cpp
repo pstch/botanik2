@@ -75,6 +75,36 @@ const AnalogCal CAL_cli_intr2 = {
     R("cli_intr_max", 1.0f),
 };
 
+const NumRefBand BAND_cli_targetMin_degC = {
+    K(0.0),
+    R("cli_targetMax_degC", 40.0),
+};
+
+const NumRefBand BAND_cli_targetMax_degC = {
+    R("cli_targetMin_degC", 0.0),
+    K(40.0),
+};
+
+const NumRefBand BAND_cli_intakeStartDem = {
+    K(0.0),
+    R("cli_intakeFullDem", 1.0),
+};
+
+const NumRefBand BAND_cli_intakeFullDem = {
+    R("cli_intakeStartDem", 0.0),
+    K(1.0),
+};
+
+const NumRefBand BAND_cli_windowStartDem = {
+    K(0.0),
+    R("cli_windowFullDem", 1.0),
+};
+
+const NumRefBand BAND_cli_windowFullDem = {
+    R("cli_windowStartDem", 0.0),
+    K(1.0),
+};
+
 const AnalogCal* const g_analog_cals[] = {
     &CAL_pwr_genBat_V,
     &CAL_pwr_upsBat_V,
@@ -92,7 +122,7 @@ const Descriptor rows[] = {
     P("cli_heatBankTrg_degC", T_F32, 10.0, 6.0, 18.0, 1, "degC", 102, "yesterday's low below this: bank heat", "", true),
     P("cli_coldBankTrg_degC", T_F32, 24.0, 12.0, 40.0, 1, "degC", 103, "yesterday's high above this: bank cold", "", true),
     P("cli_coolSet_degC", T_F32, 20.0, 10.0, 30.0, 1, "degC", 104, "base cooling target temperature", "every cooling stage keys off this", true),
-    P("cli_coolKp", T_F32, 0.08, 0.0, 1.0, 2, "", 105, "cooling PID proportional gain", "leave as set", true),
+    P("cli_coolKp", T_F32, 0.08, 0.01, 1.0, 2, "", 105, "cooling PID proportional gain", "never 0: that stops all cooling", true),
     P("cli_coolTi_sec", T_F32, 200.0, 0.0, 3600.0, 0, "sec", 106, "cooling PID integral time", "leave as set", true),
     P("cli_coolTd_sec", T_F32, 0.0, 0.0, 10.0, 0, "sec", 107, "cooling PID derivative time", "leave at zero", true),
     P("cli_ventTempMgn_degC", T_F32, 1.0, 0.0, 15.0, 1, "degC", 108, "intake air must be this much cooler", "", true),
@@ -101,15 +131,15 @@ const Descriptor rows[] = {
     P("cli_thermalScreenDem", T_F32, -0.2, -1.0, 0.0, 2, "", 110, "cooling effort that deploys the screen", "negative demand = heating", true),
     P("cli_groundHeatDem", T_F32, -0.1, -1.0, 0.0, 2, "", 111, "cooling effort that draws ground air", "negative demand = heating", true),
     P("cli_groundSpeed", T_F32, 0.3, 0.0, 1.0, 2, "", 128, "intractor speed while pulling ground heat", "the spec's low speed: the ladder's negative half has one rung, not a ramp", true),
-    P("cli_windowStartDem", T_F32, 0.1, 0.0, 1.0, 2, "", 112, "cooling effort that opens windows", "", true),
-    P("cli_intakeStartDem", T_F32, 0.3, 0.0, 1.0, 2, "", 113, "cooling effort that starts intake fans", "", true),
-    P("cli_windowFullDem", T_F32, 0.5, 0.0, 1.0, 2, "", 114, "cooling effort at fully open windows", "", true),
+    PR("cli_windowStartDem", T_F32, 0.1, &BAND_cli_windowStartDem, 2, "", 112, "cooling effort that opens windows", "", true),
+    PR("cli_intakeStartDem", T_F32, 0.3, &BAND_cli_intakeStartDem, 2, "", 113, "cooling effort that starts intake fans", "", true),
+    PR("cli_windowFullDem", T_F32, 0.5, &BAND_cli_windowFullDem, 2, "", 114, "cooling effort at fully open windows", "", true),
     P("cli_skirtCoolDem", T_F32, 0.7, 0.0, 1.0, 2, "", 115, "cooling effort that starts the skirt", "", true),
     P("cli_fanLowDem", T_F32, 0.2, 0.0, 1.0, 2, "", 116, "cooling effort for fan speed 1", "", true),
     P("cli_fanMedDem", T_F32, 0.4, 0.0, 1.0, 2, "", 117, "cooling effort for fan speed 2", "> cli_fanLowDem", true),
     P("cli_fanHighDem", T_F32, 0.8, 0.0, 1.0, 2, "", 118, "cooling effort for fan speed 3", "> cli_fanMedDem", true),
     P("cli_breezeDem", T_F32, 0.2, 0.0, 1.0, 2, "", 149, "brassage floor during the two breezes", "a light breeze at dawn and dusk: enough to dry the leaves, not to dry the plant", true),
-    P("cli_intakeFullDem", T_F32, 0.9, 0.0, 1.0, 2, "", 119, "cooling effort at full intake speed", "", true),
+    PR("cli_intakeFullDem", T_F32, 0.9, &BAND_cli_intakeFullDem, 2, "", 119, "cooling effort at full intake speed", "", true),
     P("cli_dTStratLow_degC", T_F32, 2.0, 0.0, 10.0, 1, "degC", 120, "stratification gap for fan speed 1", "", true),
     P("cli_dTStratMed_degC", T_F32, 4.0, 0.0, 10.0, 1, "degC", 121, "stratification gap for fan speed 2", "", true),
     P("cli_dTStratHigh_degC", T_F32, 6.0, 0.0, 10.0, 1, "degC", 122, "stratification gap for fan speed 3", "", true),
@@ -135,6 +165,14 @@ const Descriptor rows[] = {
     P("cli_windowTmo_sec", T_U16, 20, 1, 90, 0, "sec", 142, "safe time to fully open/close a window", "per actuator datasheet", true),
     P("cli_screenTravel_sec", T_U16, 60, 1, 300, 0, "sec", 143, "time to deploy/remove the screen", "per actuator datasheet", true),
     P("cli_screenTmo_sec", T_U16, 80, 1, 400, 0, "sec", 144, "safe time to deploy/remove the screen", "per actuator datasheet", true),
+    P("cli_windowPark", T_F32, 0.25, 0.0, 1.0, 2, "", 441, "roof opening when the house is unseen", "its safe state: venting but no more", true),
+    P("cli_windowReverse_ms", T_U16, 500, 0, 5000, 0, "ms", 442, "window ram reversal dead time", "per contactor datasheet", true),
+    P("cli_windowMinRun_ms", T_U16, 250, 0, 5000, 0, "ms", 443, "shortest window ram move worth making", "under it the ram only twitches", true),
+    P("cli_windowDeadband", T_F32, 0.02, 0.0, 0.5, 2, "", 444, "how near a window counts as there", "", true),
+    P("cli_windowRedatum", T_F32, 3.0, 0.0, 50.0, 1, "", 445, "window travel between re-datums", "0 disables; in full strokes", true),
+    P("cli_screenMinRun_ms", T_U16, 250, 0, 5000, 0, "ms", 446, "shortest screen move worth making", "", true),
+    P("cli_screenDeadband", T_F32, 0.02, 0.0, 0.5, 2, "", 447, "how near the screen counts as there", "", true),
+    P("cli_screenRedatum", T_F32, 3.0, 0.0, 50.0, 1, "", 448, "screen travel between re-datums", "0 disables; in full strokes", true),
     P("cli_rainLockout_sec", T_U16, 300, 0, 3600, 0, "sec", 145, "keep windows shut this long after rain", "", true),
     P("cli_skirtPeriod_sec", T_U16, 60, 10, 600, 0, "sec", 146, "skirt valve modulation period", "humidify effort sets the on-time in it", true),
     P("cli_skirtMinOn_sec", T_U16, 10, 1, 600, 0, "sec", 147, "shortest skirt valve pulse", "<= cli_skirtPeriod_sec; under it, stay off", true),
@@ -258,8 +296,8 @@ const Descriptor rows[] = {
     P("cli_fanDemHyst", T_F32, 0.05, 0.0, 0.5, 2, "", 151, "demand change needed to switch fan speed", "", true),
     P("cli_fanIrrDem", T_F32, 0.34, 0.0, 1.0, 2, "", 152, "fan demand while a tray is being watered", "", true),
     P("cli_rotRelease_sec", T_U16, 300, 0, 3600, 0, "s", 153, "rot lockout overrun past the condition", "", true),
-    P("cli_targetMin_degC", T_F32, 14.0, 0.0, 40.0, 1, "degC", 154, "coldest the target may be clamped to", "", true),
-    P("cli_targetMax_degC", T_F32, 27.0, 0.0, 40.0, 1, "degC", 155, "warmest the target may be clamped to", "", true),
+    PR("cli_targetMin_degC", T_F32, 14.0, &BAND_cli_targetMin_degC, 1, "degC", 154, "coldest the target may be clamped to", "", true),
+    PR("cli_targetMax_degC", T_F32, 27.0, &BAND_cli_targetMax_degC, 1, "degC", 155, "warmest the target may be clamped to", "", true),
     P("cli_sensorTau_ms", T_U16, 30000, 1000, 60000, 0, "ms", 156, "probe filter time constant", "", true),
     P("cli_intrSafeSpeed", T_F32, 0.15, 0.0, 1.0, 2, "", 164, "intractor speed with nothing asking", "the AO row declares the same number as its own safe state; test_site keeps the two in step", true),
     P("cli_wxTau_ms", T_U16, 5000, 500, 60000, 0, "ms", 163, "weather filter time constant", "shorter than the probes': a roof interlock answers weather that moves in seconds", true),
@@ -285,6 +323,7 @@ const Descriptor rows[] = {
     A("alarm_irr_drain", "DRAIN_FLT", 3, 3, 0, 0, 819, "a tray would not drain in time", "inspect irrigation circuit / look for clogging"),
     A("alarm_weather_storm", "WH_STORM", 60, 120, 0, 15, 822, "current storm conditions", "check that the windows are properly closed"),
     A("alarm_sns_ceiling", "SNS_CEIL", 5, 5, 0, 0, 826, "ceiling T°/RH probe quorum lost", "check wiring or replace faulty sensor"),
+    A("alarm_zone_blind", "ZONE_BLND", 5, 5, 0, 0, 849, "no interior temperature at all", "every cooling law is running on a held reading"),
     A("alarm_sns_floor", "SNS_FLR", 5, 5, 0, 0, 827, "floor T°/RH probe quorum lost", "check wiring or replace faulty sensor"),
     A("alarm_sns_crawlspace", "SNS_CS", 5, 5, 0, 0, 828, "crawlspace T°/RH probe quorum lost", "check wiring or replace faulty sensor"),
     A("alarm_sns_exterior", "SNS_EXT", 5, 5, 0, 0, 829, "exterior T°/RH probe quorum lost", "check wiring or replace faulty sensor"),
@@ -361,8 +400,13 @@ const Descriptor rows[] = {
     SV("cli_windGust_mps", T_F32, 0, 1, "mps", 612, "peak gust, voted", "the worse of the stations, like the mean beside it"),
     SV("cli_rain_mmph", T_F32, 0, 1, "mmph", 609, "rainfall rate, voted", "the WETTER of the stations: a shower one gauge misses still shuts the roof"),
     SV("cli_irrad_Wpm2", T_F32, 0, 1, "Wpm2", 606, "solar irradiance, voted", "the MEAN: nothing controls on it, so the worst case has no meaning here"),
-    SV("cli_sinceRain_min", T_U16, 0, 0, "min", 595, "minutes since the gauge last read wet", "held until the first shower of this run: a reboot does not know when it last rained"),
+    SV("cli_sinceRain_h", T_F32, 0, 2, "h", 595, "hours since the gauge last read wet", "held until the first shower of this run: a reboot does not know when it last rained"),
     SV("cli_screenMoving", T_BOOL, 0, 0, "", 550, "thermal screen travelling", "cuts the destratification fans while it moves"),
+    SV("cli_window1_drift", T_F32, 0, 1, "", 692, "window 1 travel since its last datum", "the only wear signal there is: no ram reports a fault"),
+    SV("cli_window2_drift", T_F32, 0, 1, "", 693, "window 2 travel since its last datum", "the only wear signal there is: no ram reports a fault"),
+    SV("cli_window3_drift", T_F32, 0, 1, "", 694, "window 3 travel since its last datum", "the only wear signal there is: no ram reports a fault"),
+    SV("cli_window4_drift", T_F32, 0, 1, "", 695, "window 4 travel since its last datum", "the only wear signal there is: no ram reports a fault"),
+    SV("cli_screen_drift", T_F32, 0, 1, "", 696, "screen travel since its last datum", "the only wear signal there is: no drive reports a fault"),
     SV("cli_rotLockout", T_BOOL, 1, 0, "", 551, "rot risk: nothing may humidify", "cuts the skirt valve whatever the humidity demand"),
     SV("cli_rotVentDem", T_F32, 0.30, 2, "", 552, "anti-rot ventilation demand, 0 to 1", "one of the three the intractors take the max of"),
     SV("cli_skirtDuty", T_F32, 0, 2, "", 553, "skirt valve on-time, 0 to 1", "of cli_skirtPeriod_sec; under cli_skirtMinOn_sec it stays off"),
@@ -721,7 +765,7 @@ const HomeVar g_home_fields[] = {
     { "Skirt", "cli_skirtDuty" },
     { "Irrigation", "irr_state" },
     { "Tray", "irr_activeTray" },
-    { "Since rain", "cli_sinceRain_min" },
+    { "Since rain", "cli_sinceRain_h" },
     { "Wind", "cli_wind_mps" },
     { "Local V", "sys_local_V" },
     { "Local A", "sys_local_A" },

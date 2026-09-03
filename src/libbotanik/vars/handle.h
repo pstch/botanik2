@@ -122,7 +122,7 @@ namespace Botanik { namespace Vars {
         Quality  quality() const {
             if (_q == nullptr) return Q_VALID;
             const Scalar s = _q->ovr_on ? _q->ovr : _q->v;
-            return (s.u > (uint64_t)Q_REFUSED) ? Q_NO_DATA : (Quality)s.u;
+            return (s.u > (uint64_t)Q_SUBSTITUTED) ? Q_NO_DATA : (Quality)s.u;
         }
 
         /** @brief Where this row's text sits in the pool (T_STR only; 0

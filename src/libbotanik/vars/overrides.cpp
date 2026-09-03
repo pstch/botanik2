@@ -34,7 +34,7 @@ namespace Botanik { namespace Vars {
         // actuator.
         Scalar parsed;
         // Band deliberately NOT applied - see the header note.
-        if (parse_for(*d, text, /*bounded=*/false, &parsed) != SET_OK) return SET_INVALID;
+        if (parse_for(*d, text, /*band=*/nullptr, &parsed) != SET_OK) return SET_INVALID;
         override_set(h, parsed);
         return SET_OK;
     }

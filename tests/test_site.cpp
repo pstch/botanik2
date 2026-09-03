@@ -413,10 +413,17 @@ TEST_CASE("site: every numeric row's default sits inside its own band") {
     SiteBank f;
     for (uint16_t i = 0; i < f.bank.count(); i++) {
         const Vars::Descriptor& d = *f.bank.var(i).meta();
-        // Through the checked accessor: an analog row keeps its band in the
-        // PARAMETER table and a text row keeps a pool slot there, so reading
-        // the union directly hands you another arm's bytes as numbers.
-        const Vars::NumBand band = Vars::num_band(d);
+        // An ANALOG row's default is a SENTINEL and belongs outside its band:
+        // 0 V is what a rail reads when nothing has measured it, which is
+        // exactly what DC_RAIL must recognise and refuse to average. Nobody
+        // types it back in either - an AI row is not editable. So the rule
+        // below is about rows an operator can restore, and this is not one.
+        if (Vars::analog_cal(d) != nullptr) continue;
+        // var_band(), not num_band(): a row whose ends are other rows has no
+        // band until the bank resolves it, and num_band() would read those
+        // rows as "no band declared" and skip them. Reading the union directly
+        // would be worse still - a text row's pool slot as numbers.
+        const Vars::NumBand band = Vars::var_band(&f.bank, d);
         const float lo = Vars::as_f32(d.type, band.min);
         const float hi = Vars::as_f32(d.type, band.max);
         if (lo == 0.0f && hi == 0.0f) continue;      // no band declared
@@ -450,6 +457,52 @@ TEST_CASE("library: a site row REDECLARES a library one, and the site's wins") {
     CHECK(strcmp(d.unit, "deg") == 0);
     INFO("...keeping the register the library assigned it");
     CHECK(d.bind.reg == 941);
+}
+
+TEST_CASE("site: a pair that must stay ordered cannot be edited out of order") {
+    // Each of these is legal on its own and only the PAIR is wrong, which a
+    // fixed band cannot see: a target floor above its own ceiling holds the
+    // house at the floor, and a ramp starting past where it ends inverts.
+    SiteBank f;
+    // Every figure here sits INSIDE the pair's own fixed rail, so a refusal can
+    // only be the cross-reference. Against the rail, `too_high` would be
+    // refused whether the rows knew about each other or not.
+    struct Pair {
+        const char* lo; const char* hi;
+        float below, above;       // a settled pair, with room either side
+        float too_high, too_low;  // past the OTHER row, but well inside the rail
+    };
+    static const Pair pairs[] = {
+        { "cli_targetMin_degC", "cli_targetMax_degC",  // rail 0 .. 40
+          10.0f, 30.0f, 35.0f, 5.0f },
+        { "cli_intakeStartDem", "cli_intakeFullDem",   // rail 0 .. 1
+          0.20f, 0.60f, 0.80f, 0.10f },
+        { "cli_windowStartDem", "cli_windowFullDem",   // rail 0 .. 1
+          0.20f, 0.60f, 0.80f, 0.10f },
+    };
+    for (const Pair& p : pairs) {
+        Vars::Var lo = f.bank.var(f.bank.find(p.lo));
+        Vars::Var hi = f.bank.var(f.bank.find(p.hi));
+        REQUIRE(lo.meta() != nullptr);
+        REQUIRE(hi.meta() != nullptr);
+        INFO(doctest::String(p.lo) << " against " << doctest::String(p.hi));
+
+        REQUIRE(f.bank.param_set(lo, p.below) == Vars::SET_OK);
+        REQUIRE(f.bank.param_set(hi, p.above) == Vars::SET_OK);
+
+        INFO("the floor may not be raised past the ceiling");
+        CHECK(f.bank.param_set(lo, p.too_high) == Vars::SET_INVALID);
+        INFO("...nor the ceiling dropped under the floor");
+        CHECK(f.bank.param_set(hi, p.too_low) == Vars::SET_INVALID);
+
+        // Both refused values are legal once the OTHER row has made room, which
+        // is what keeps the constraint from locking an operator out: widen by
+        // moving the ceiling first, narrow by moving the floor first.
+        REQUIRE(f.bank.param_set(hi, p.too_high) == Vars::SET_OK);
+        CHECK(f.bank.param_set(lo, p.too_high) == Vars::SET_OK);
+        REQUIRE(f.bank.param_set(lo, p.too_low) == Vars::SET_OK);
+        CHECK(f.bank.param_set(hi, p.too_low) == Vars::SET_OK);
+    }
 }
 
 }  // namespace site_names

@@ -80,8 +80,25 @@ namespace Botanik { namespace Vars {
         Q_VALID,         ///< a real value from whoever owns the row
         Q_STALE,         ///< it was live and stopped: no good read within its timeout
         Q_IMPLAUSIBLE,   ///< answering with nonsense: outside its band, or non-finite
-        Q_REFUSED        ///< the device answered, and declined: it has no such register
+        Q_REFUSED,       ///< the device answered, and declined: it has no such register
+        /** @brief A law's own fallback: nothing measured it, but the number is
+         *  one the law stands behind and readers should compute on. The
+         *  interior temperature with every probe gone, held levels and the
+         *  outside taken as evidence - substituting the declared 14 degC there
+         *  would stop the roof venting on the day it matters most. */
+        Q_SUBSTITUTED
     };
+
+    /** @brief Does @p q have a NUMBER behind it a law should compute on?
+     *
+     *  The one rule Ref::get() branches on. Q_VALID because something measured
+     *  it, Q_SUBSTITUTED because something stood behind it; every other code
+     *  reads the row's declared value instead. Distinct from valid(), which
+     *  stays "measured" - a law gating on whether the plant can be SEEN wants
+     *  that one. */
+    inline bool quality_holds(Quality q) {
+        return q == Q_VALID || q == Q_SUBSTITUTED;
+    }
 
     /** @brief @p q as a phrase for an operator: "valid", or invalid and why. */
     inline const char* quality_str(Quality q) {
@@ -91,6 +108,7 @@ namespace Botanik { namespace Vars {
             case Q_STALE:       return "invalid: past its timeout";
             case Q_IMPLAUSIBLE: return "invalid: outside its band";
             case Q_REFUSED:     return "invalid: the device refused the read";
+            case Q_SUBSTITUTED: return "unmeasured: a fallback the law stands behind";
             default:            return "invalid";
         }
     }
@@ -105,6 +123,7 @@ namespace Botanik { namespace Vars {
             case Q_STALE:       return "STALE";
             case Q_IMPLAUSIBLE: return "IMPLAUSIBLE";
             case Q_REFUSED:     return "REFUSED";
+            case Q_SUBSTITUTED: return "SUBSTITUTED";
         }
         return nullptr;
     }
@@ -138,7 +157,11 @@ namespace Botanik { namespace Vars {
          *  a counter: the level of a meter's pulse line is not a reading of
          *  anything, and configuring one pin two ways is a hardware fault
          *  waiting for the first wet week. */
-        F_PULSE = 1u << 5
+        F_PULSE = 1u << 5,
+
+        /** @brief The band's ends are in a NumRefBand, not in the payload's
+         *  own scalars: this row's limits are other rows. */
+        F_BAND_REF = 1u << 6
     };
 
     /** @brief Per-slot state bits, as opposed to the row's declared behaviour.
@@ -240,9 +263,18 @@ namespace Botanik { namespace Vars {
         Tunable min, max;           ///< plausibility band, engineering units
     };
 
+    /** @brief An edit band whose ends may be OTHER ROWS, so a pair with a
+     *  required relationship cannot be edited into an impossible one: a target
+     *  floor above its own ceiling, a ramp starting past where it ends. Both
+     *  ends carry a fallback, so a mistyped name degrades to a fixed band. */
+    struct NumRefBand {
+        Tunable min, max;
+    };
+
     /** @brief Which arm of Payload a row is using. The one place the question is
      *  answered; nothing open-codes it. */
-    enum PayloadArm : uint8_t { PAY_NUM, PAY_TEXT, PAY_ALARM, PAY_ANALOG };
+    enum PayloadArm : uint8_t { PAY_NUM, PAY_TEXT, PAY_ALARM, PAY_ANALOG,
+                                PAY_NUM_REF };
 
     /** @brief The half of a row that depends on its kind. No two arms coexist,
      *  so one slot serves all four; payload_arm() is the discriminant. Constexpr
@@ -258,6 +290,8 @@ namespace Botanik { namespace Vars {
         /** @brief Borrowed, and shareable: several rows may name one block. A
          *  pointer because six Tunables are 48 bytes and this union is 16. */
         const AnalogCal* cal;
+        /// Borrowed the same way, and for the same reason.
+        const NumRefBand* ref;
         /// An unset band: what a row with no meaningful bounds carries.
         constexpr Payload() : num{Scalar(), Scalar()} {}
         constexpr Payload(Scalar lo, Scalar hi) : num{lo, hi} {}
@@ -266,6 +300,7 @@ namespace Botanik { namespace Vars {
                           int32_t recent_s, int16_t hold_s)
             : alarm{code, on_s, off_s, recent_s, hold_s} {}
         constexpr Payload(const AnalogCal* c) : cal(c) {}
+        constexpr Payload(const NumRefBand* b) : ref(b) {}
     };
 
     /** @brief Every variable, whatever its kind.
@@ -311,7 +346,8 @@ namespace Botanik { namespace Vars {
         return (d.scope == SCOPE_A)  ? PAY_ALARM
              : (d.scope == SCOPE_AI ||
                 d.scope == SCOPE_AO) ? PAY_ANALOG
-             : (d.type == T_STR)     ? PAY_TEXT : PAY_NUM;
+             : (d.type == T_STR)     ? PAY_TEXT
+             : (d.flags & F_BAND_REF) != 0 ? PAY_NUM_REF : PAY_NUM;
     }
 
     /** @brief @p d's numeric band; unset unless the row actually has one. */
@@ -327,6 +363,11 @@ namespace Botanik { namespace Vars {
      *  Resolving its live numbers needs the bank - Vars::analog_values(). */
     constexpr const AnalogCal* analog_cal(const Descriptor& d) {
         return (payload_arm(d) == PAY_ANALOG) ? d.pay.cal : nullptr;
+    }
+    /** @brief @p d's referenced band; null unless it declared one. Resolving it
+     *  needs the bank - Vars::var_band(). */
+    constexpr const NumRefBand* num_ref_band(const Descriptor& d) {
+        return (payload_arm(d) == PAY_NUM_REF) ? d.pay.ref : nullptr;
     }
     /** @brief @p d's alarm policy; a null code for anything but SCOPE_A. */
     constexpr AlarmSpec alarm_spec(const Descriptor& d) {

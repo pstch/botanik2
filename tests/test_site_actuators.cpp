@@ -400,6 +400,32 @@ TEST_CASE_FIXTURE(StRig, "windows: an unmeasured sky shuts the roof rather than 
     // windows read a lockout row, which is as readable as ever.
 }
 
+TEST_CASE_FIXTURE(StRig, "intractors: a start and a full set alike is full speed, not a divide") {
+    // Both are an operator's, and the ramp between them used to be written out
+    // by hand: set them to the same number and the divide produced a NaN that
+    // went straight onto both fan speed rows, past the safe-state floor.
+    Vars::Ref<float> intr = live.bank.resolve<float>("cli_intr1");
+    Vars::Var start = live.bank.var(live.ref("cli_intakeStartDem"));
+    Vars::Var full  = live.bank.var(live.ref("cli_intakeFullDem"));
+
+    // Legal: the band holds start AT or under full, and equal is at.
+    REQUIRE(live.bank.param_set(full, 0.5f) == Vars::SET_OK);
+    REQUIRE(live.bank.param_set(start, 0.5f) == Vars::SET_OK);
+
+    force(live, "cli_intakeCoolOk", true);
+    force(live, "cli_coolDem", 0.7f);
+    d.step(100);
+    const float v = live.bank.get(intr);
+    INFO("a degenerate ramp reads " << v);
+    CHECK(v == v);                            // not NaN
+    CHECK(v == doctest::Approx(1.0f));        // and fails toward ACTING
+
+    INFO("under the pair it is back at the safe floor, still a number");
+    force(live, "cli_coolDem", 0.2f);
+    d.step(200);
+    CHECK(live.bank.get(intr) == doctest::Approx(0.15f));
+}
+
 TEST_CASE_FIXTURE(StRig, "intractors: the fusion is a maximum of the demands whose gate is open") {
 
     Vars::Ref<float> intr = live.bank.resolve<float>("cli_intr1");

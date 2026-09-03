@@ -1,0 +1,49 @@
+matiec, the IEC 61131-3 compiler that turns this project's ST into C.
+
+    upstream  https://github.com/beremiz/matiec
+    branch    default
+    commit    7680ed8e7ffc1a76fa9f9620d6c6e7a3e75c088d
+    vendored  2026-09-03
+
+WHY A COPY, AND WHY PINNED
+matiec's output is COMMITTED under src/sites/<site>/generated/, and nothing
+pinned the compiler that produced it: two developers with different matiec
+builds would produce different POUS.c and neither would notice. The pin is what
+makes `make -C build check-st` - regenerate, then diff - a meaningful check.
+
+A copy rather than a submodule because this project is developed in git
+worktrees, and `git worktree add` does not populate submodules.
+
+WHAT WAS REMOVED, AND WHY
+Four directories present upstream are not here. None is a build input, and
+dropping them is the whole of the deviation from that commit:
+
+    lib/      matiec's own IEC library, GPLv3, and the one that MATTERS.
+              We never load it: `iec2c -I st/lib` points at st/lib/ieclib.txt,
+              which is ours, and which exists precisely so that none of
+              matiec's function blocks reach the firmware image. Keeping a
+              copy here would only invite someone to point -I at it.
+    tests/    matiec's own test corpus.
+    AnnexF/   the standard's example programs.
+    debian/   packaging.
+
+One file was also deleted: matiec's own `.gitignore`, which ignores `config/*`
+and `stage1_2/*.cc`. Upstream tracks those anyway - an ignore rule does not
+touch a tracked file - but here they are added fresh, so the rule would have
+silently dropped twelve autotools scripts and four generated-then-committed
+sources, and the vendored tree would not have built on a clone.
+
+`make dist` was tried first and is not usable: the tarball omits header files
+the build needs, so it does not compile.
+
+LICENCE
+GPLv3 - see COPYING. It is a TOOL: this repository runs the binary and commits
+its output. Nothing of matiec's is linked into, or compiled into, the firmware.
+The one place that could have happened is its IEC library, which is why st/lib
+replaces it and why lib/ is absent above.
+
+BUILDING
+`make -C build matiec`, which needs flex, bison, autoconf and automake. Upstream
+ships configure.ac and no configure, so autoreconf runs first. Where any of
+those is missing the CMake targets are not declared at all and the ordinary
+build is unaffected.

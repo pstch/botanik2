@@ -27,7 +27,7 @@ typedef uint32_t DWORD;
 typedef uint64_t LWORD;
 typedef int64_t  TIME;
 
-/* The standard FUNCTIONS are not here any more: they are ST, in st/lib/
+/* The standard FUNCTIONS are not here any more: they are ST, in
  * ieclib.txt, so matiec compiles them like anything else we write. What is
  * left in this file is the TYPES matiec's generated C names. */
 

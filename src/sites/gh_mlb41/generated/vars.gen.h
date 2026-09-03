@@ -70,7 +70,7 @@ const uint8_t g_analog_cal_count = 7;
 // ONE table, parameters first. Registering it is one call, and the
 // ROLE_PARAM run stays contiguous because the emit order is the rule.
 extern const Descriptor rows[];
-const uint16_t ROWS_COUNT = 572;
+const uint16_t ROWS_COUNT = 586;
 
 extern const Modbus::DeviceModel MDL_SDM630;
 extern const Modbus::DeviceModel MDL_MCT1_140;

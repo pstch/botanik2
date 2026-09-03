@@ -372,6 +372,56 @@ TEST_CASE_FIXTURE(StRig, "irrigation: `water now` is spent on the cycle it start
     CHECK(live.bank.var(live.ref("irr_forceNow")).param_owed());
 }
 
+TEST_CASE_FIXTURE(StRig, "irrigation: the two ways the slot can be told a lie") {
+    summer(live);
+    live.bank.param_set(live.bank.var(live.ref("irr_forceOn_tray1")), true);
+    live.bank.param_set(live.bank.var(live.ref("irr_liters_tray1")), 5.0f);
+    const VarRef slot = live.ref("irr_slotOpen");
+
+    // The PROBES, not the derived row: temp_rh_sensors votes cli_temp_ext from
+    // them every scan and would overwrite anything published straight onto it.
+    INFO("a warm end of night waters, which is what the dawn slot is FOR");
+    for (uint8_t i = 1; i <= 3; i++) {
+        char n[24];
+        snprintf(n, sizeof n, "cli_temp_ext%u", (unsigned)i);
+        live.bank.var(live.ref(n)).publish(from_f32(T_F32, 25.0f), 0);
+    }
+    put_phase(live, Site::PHASE_DAWN_BREEZE);
+    for (uint32_t i = 0; i < 40; i++) d.step(100 + i * 100);
+    CHECK(live.bank.var(slot).as_bool());
+
+    INFO("...but an outside temperature nobody MEASURED cannot clear it: the "
+         "row holds the last warm reading, and cold roots are what the gate "
+         "exists to prevent");
+    for (uint8_t i = 1; i <= 3; i++) {
+        char n[24];
+        snprintf(n, sizeof n, "cli_temp_ext%u", (unsigned)i);
+        live.bank.var(live.ref(n)).set_quality(Q_NO_DATA);
+    }
+    for (uint32_t i = 0; i < 40; i++) d.step(5000 + i * 100);
+    CHECK_FALSE(live.bank.var(slot).as_bool());
+
+    INFO("the morning window is open on a placed phase");
+    Live g;
+    Io::LocalInputs gt{ Botanik::SetupContext(g.reg), g.bank };
+    Plc::Runtime::Plant gs{ Botanik::SetupContext(g.reg), g.bank };
+    gs.wire();
+    StRig::Driver gd;
+    gd.terminals = &gt; gd.st = &gs;
+    g.bank.param_set(g.bank.var(g.ref("irr_forceOn_tray1")), true);
+    g.bank.var(g.ref("irr_mod")).set(1.0f);
+    put_phase(g, Site::PHASE_DAY);
+    gd.step(1000);
+    CHECK(g.bank.var(g.ref("irr_slotOpen")).as_bool());
+
+    INFO("...and a tracker that stops answering closes it: the phase and the "
+         "minutes since sunrise both FREEZE, so a morning caught open would "
+         "stay open all day and into the night");
+    g.bank.var(g.ref("sol_ready")).set(false);
+    gd.step(2000);
+    CHECK_FALSE(g.bank.var(g.ref("irr_slotOpen")).as_bool());
+}
+
 TEST_CASE_FIXTURE(StRig, "irrigation: the afternoon is not a watering slot") {
     // The meters FIRST: the cycle judges a fill against what they publish.
     summer(live);

@@ -7,7 +7,8 @@
    order is the contract. *)
 
 TYPE
-  QUALITY : (Q_NO_DATA, Q_VALID, Q_STALE, Q_IMPLAUSIBLE, Q_REFUSED);
+  QUALITY : (Q_NO_DATA, Q_VALID, Q_STALE, Q_IMPLAUSIBLE, Q_REFUSED,
+             Q_SUBSTITUTED);
 END_TYPE
 
 FUNCTION GOOD : BOOL
@@ -28,6 +29,20 @@ VAR_INPUT
   B : QUALITY;
 END_VAR
   IF A <> Q_VALID THEN WORST_OF := A; ELSE WORST_OF := B; END_IF;
+END_FUNCTION
+
+FUNCTION QUAL_HELD : QUALITY
+(* A conditioning block's verdict on a row it publishes every beat: measured
+   now, HOLDING an average it measured once, or a zone it has never seen. The
+   middle one is the whole reason Q_SUBSTITUTED exists - a held reading is
+   evidence a law downstream should still compute on. *)
+VAR_INPUT
+  OK     : BOOL;
+  SEEDED : BOOL;
+END_VAR
+  IF OK THEN QUAL_HELD := Q_VALID;
+  ELSIF SEEDED THEN QUAL_HELD := Q_SUBSTITUTED;
+  ELSE QUAL_HELD := Q_NO_DATA; END_IF;
 END_FUNCTION
 
 FUNCTION QUAL : QUALITY

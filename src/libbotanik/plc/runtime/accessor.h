@@ -59,7 +59,8 @@ typedef ::Botanik::Vars::Quality QUALITY;
     static const QUALITY QUALITY__Q_VALID       = ::Botanik::Vars::Q_VALID;    \
     static const QUALITY QUALITY__Q_STALE       = ::Botanik::Vars::Q_STALE;    \
     static const QUALITY QUALITY__Q_IMPLAUSIBLE = ::Botanik::Vars::Q_IMPLAUSIBLE; \
-    static const QUALITY QUALITY__Q_REFUSED     = ::Botanik::Vars::Q_REFUSED;
+    static const QUALITY QUALITY__Q_REFUSED     = ::Botanik::Vars::Q_REFUSED;    \
+    static const QUALITY QUALITY__Q_SUBSTITUTED = ::Botanik::Vars::Q_SUBSTITUTED;
 /** @} */
 
 #define __BOOL_LITERAL(v)   ((BOOL)(v))
