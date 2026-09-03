@@ -109,8 +109,8 @@ An entry too long for one line is written with an explicit break, and the second
 line is indented under a `>`:
 
 ```
-[@] HEALTH: control disabled
-                        > outputs at their safe state, scan inhibited
+[!] HEALTH: irrigation: out of the scan, 9 row(s) safe
+                        > every row it writes is at its declared safe state
 ```
 
 On the monitor port and in MQTT payloads the break is folded to ` | ` instead,

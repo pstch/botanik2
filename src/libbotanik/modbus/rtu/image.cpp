@@ -51,7 +51,7 @@ namespace {
     /** @brief One digital row's demand, as it goes on the wire.
      *
      *  raw(), not the live value: an override on an actuator has to reach the
-     *  wire, or `control disable` leaves nothing able to move one. */
+     *  wire, or stopping the programs leaves nothing able to move one. */
     bool row_bit(const Vars::Descriptor& d, Vars::Var h) {
         const bool on = h.as_bool();
         return (d.flags & Vars::F_INVERT) ? !on : on;

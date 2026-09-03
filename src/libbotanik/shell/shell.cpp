@@ -94,9 +94,6 @@ namespace Botanik { namespace Shell {
                            "error <text>\n"
                            "critical <text>",                     G_SYS, false,
                                                                &CommandShell::_cmd_log        },
-#if BOTANIK_FEATURE_VARS
-
-#endif
 #if BOTANIK_FEATURE_NTP
             { "ntpsync",   nullptr,     "force an NTP resync now",
                            nullptr,                               G_SYS, false,

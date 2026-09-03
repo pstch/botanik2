@@ -52,11 +52,20 @@ namespace Botanik { namespace Shell {
         return false;
     }
 
-    void CommandShell::_cmd_breakpoint(const char*, uint16_t) { HAL::Debug::breakpoint(); }
+    void CommandShell::_cmd_breakpoint(const char*, uint16_t) {
+        // A bare BKPT with nothing attached HardFaults the M7, so on a running
+        // greenhouse this was the most destructive command on the console and
+        // the only one that did not say so. hal/platform.h says to gate it.
+        if (!HAL::Debug::under_debugger()) {
+            _println("breakpoint: no debugger attached (it would fault the unit)");
+            return;
+        }
+        HAL::Debug::breakpoint();
+    }
 
-    // Drop the field to its safe state before a deliberate restart: neither
-    // reset() nor shutdown() promises anything about the outputs, and the gap
-    // across a reboot is exactly when an actuator must not be left energised.
+    // Get what is worth keeping to flash before a deliberate restart. It does
+    // NOT drop the field: the safe state is the lifecycle's, raised when a
+    // program leaves the scan, and `reset`/`exit` do not go through it.
     void CommandShell::_leave_running() {
 #if BOTANIK_FEATURE_VARS
         if (Vars::Bank* io = _bank()) {
@@ -173,10 +182,6 @@ namespace Botanik { namespace Shell {
         else if (arg_eq(lvl, wl, "critical")) _logger->critical(Logs::USER, "%s", text);
         else { _verb_usage("log"); return; }
     }
-
-#if BOTANIK_FEATURE_VARS
-
-#endif // BOTANIK_FEATURE_VARS
 
 #if BOTANIK_FEATURE_NTP
     void CommandShell::_cmd_ntpsync(const char*, uint16_t) {

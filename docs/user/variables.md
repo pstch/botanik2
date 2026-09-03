@@ -149,8 +149,9 @@ Releasing one forgets the stored copy too, so nothing comes back at the next boo
 the unit boots. Each restored override is announced as a critical naming the row.
 Run `overrides list` before you walk away.
 
-With the programs stopped (`control inhibit`) an override is the only thing that can
-move an actuator, which is how you drive a valve by hand. See @ref user_control.
+With the programs stopped (`sys_control` off, or `programs disable`) an override is
+the only thing that can move an actuator, which is how you drive a valve by hand.
+See @ref user_control.
 
 ## Parameters
 

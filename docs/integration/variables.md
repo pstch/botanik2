@@ -279,7 +279,7 @@ Overrides are applied inside `Var::raw()` / `valid()` - the single point every r
 goes through - so a forced value reaches control logic, console, telemetry and alarms
 alike. See @ref dev_vars for how that is implemented, and @ref user_variables for
 what it means operationally (including why a restored override on an **output** is
-announced as a critical, and why `control disable` deliberately leaves overrides
+announced as a critical, and why stopping the programs deliberately leaves overrides
 alone).
 
 ## What checks the table

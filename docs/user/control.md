@@ -1,142 +1,108 @@
 # Control authority and the safe state {#user_control}
 
-Whether the firmware may drive the field at all is **control authority**, and it
-has three modes. Everything that touches the outputs goes through it.
+Whether the firmware may drive the field at all is **control authority**. Everything
+that touches the outputs goes through it, and it has two states: the control programs
+drive, or they do not.
 
-| Mode | The programs | The outputs | An override on an output |
-|---|---|---|---|
-| `enable` | run | driven normally | drives |
-| `inhibit` | stopped | at their safe state | **still drives** |
-| `disable` | stopped | at their safe state | **ignored** |
+Two **independent** sources decide, and the **stricter** one wins:
 
-Two **independent** sources decide which mode is in force, and the **stricter**
-one wins:
+| Source | Set by | Scope |
+|---|---|---|
+| operator | the `sys_control` parameter, or `programs disable` | all programs, or one |
+| system | the firmware's own lifecycle: bring-up, shutdown, a health fault | all programs |
 
-| Source | Set by |
-|---|---|
-| operator | you, with `control enable` / `inhibit` / `disable` |
-| system | the firmware: bring-up not finished, a health fault, a pending reset |
+That is why it is not a single setting. An operator who turned `sys_control` off
+stays off across a health fault that comes and goes, and the console cannot talk over
+the firmware's own judgement that it must not drive.
 
-That is why it is not a single setting. An operator who typed `control disable`
-stays disabled across a health fault that comes and goes, and equally the console
-cannot talk over the firmware's own judgement that it must not drive. `control`
-reports both, so an `enable` that changes nothing reads as a health fault rather
-than a broken command.
+## What stopping a program does
 
-## What withholding control does
+A program taken out of the scan does **not** freeze what it was driving. Every row it
+writes drops to its **declared safe state** - for the reference site, every relay coil
+de-energised - and the firmware logs one line per program saying how many rows moved:
 
-Two things, at once, in both withheld modes:
+```
+[!] HEALTH: irrigation: out of the scan, 9 row(s) safe
+```
 
-1. every output goes to its **declared safe state** - for the reference site, every
-   relay coil de-energised;
-2. the scan is **inhibited** - the control programs stop running, so nothing
-   re-drives the outputs on the next beat.
+That happens on the **edge**, once, whichever source stopped it. The rows then read
+back as invalid with the reason `dropped to its safe state`, so a stopped program is
+visible on the MONITOR page rather than looking like live zeroes.
 
-Control starts **disabled** at power-on and is enabled as the last step of start-up,
-so nothing part-way through bringing the firmware up can energise an actuator on the
-way past.
+Nothing runs a law outside `RUN`, so the same drop happens on the way down at
+shutdown, and control starts withheld at power-on: nothing part-way through bringing
+the firmware up can energise an actuator on the way past.
 
 ## Taking control by hand
 
+`sys_control` is an ordinary parameter, so it is read and set like any other:
+
 ```
-botanik> control                 # report
-control: enabled
-botanik> control inhibit
-control: INHIBITED - outputs at their safe state, scan stopped; `overrides set` still drives them by hand
-botanik> control disable
-control: DISABLED - outputs at their safe state, scan stopped, output overrides ignored (kept, not cleared)
-botanik> control enable
-control: enabled
+botanik> params get sys_control
+sys_control = 1
+botanik> params set sys_control 0
+botanik> programs status
 ```
 
-Use `control inhibit` before working on the plant: it stops the firmware deciding
-anything while leaving the outputs reachable by hand. `control disable` is the
-stricter one - nothing at all drives an output, not even you.
+One program at a time instead of all of them:
 
-**A disabled override is muted, not deleted.** Going back to `inhibit` or `enable`
-restores whatever you had forced, with nothing to re-enter. The one thing that
-does erase output overrides is the *system* withholding control - a health fault
-or a pending reset - because then nobody is necessarily watching, and an actuator
-held energised by hand through a fault (or resurrected at the next boot) is
-exactly what the safe state exists to prevent.
+```
+botanik> programs disable irrigation     # out of the scan, its rows go safe
+botanik> programs disable *              # or a glob
+botanik> programs status                 # how many, and which cannot run
+botanik> programs enable irrigation
+```
 
 ### Driving an actuator by hand
 
-Inhibiting control does **not** take the outputs away from you - it takes them away
-from the control programs. `overrides set` still reaches them, and with the scan stopped
-there is nothing left to fight it, so the two commands together are how you command a
-valve or a fan by hand:
+Stopping the programs does not take the outputs away from you, it takes them away
+from the control programs. `overrides set` still reaches them, and with the scan
+stopped there is nothing left to fight it:
 
 ```
-botanik> control inhibit
+botanik> params set sys_control 0
 botanik> overrides set irr_tray1 1     # open tray 1's valve
 botanik> overrides set irr_tray1 0     # close it
 botanik> overrides clear               # hand everything back
-botanik> control enable
+botanik> params set sys_control 1
 ```
 
-That is the whole reason `inhibit` leaves overrides alone. Wiping them would leave
-nothing at all able to move an actuator, which is the opposite of what someone
-standing at the machine with a wrench needs. Reach for `disable` when you want the
-opposite guarantee: that nothing moves, including you.
+There is deliberately no stricter rung that mutes overrides while leaving them set.
+It would differ in nothing else, and an override that stops driving without saying so
+is worse than one that keeps driving visibly. `overrides clear` is how a force comes
+off.
 
 @warning Nothing supervises a hand-driven output. The interlocks live in the control
 programs, and those are exactly what you just stopped. Release the overrides before
-`control enable`, or the programs come back to find their outputs already held.
+turning `sys_control` back on, or the programs come back to find their outputs already
+held.
 
-A **saved** override survives a reboot, and an output's is no exception - a restored
+A **saved** override survives a reboot, and an output's is no exception: a restored
 one is driving the actuator from the moment the firmware comes up. An override you
-never saved dies with the session, which is the safer default; either way the
-firmware announces each restored one as a **critical** naming the row, and
-`overrides clear all` before you leave is the habit worth having. See
-@ref user_variables.
+never saved dies with the session, which is the safer default. Either way the firmware
+announces each restored one as a **critical** naming the row, and `overrides clear all`
+before you leave is the habit worth having. See @ref user_variables.
 
-`control enable` releases the **operator's** hold and nothing else, then reports what
-is left. So a `control enable` that changes nothing reads as a health fault rather
-than as a broken command:
+## Restarting, and what the outputs do
 
-```
-botanik> control enable
-control: DISABLED by the system (bring-up, health, or a pending reset)
-```
+The four lifecycle verbs all take `confirm` (@ref user_console). They differ in
+whether the plant is parked on the way out:
 
-## When the firmware withdraws it
+| | Goes through the lifecycle | The outputs |
+|---|---|---|
+| `halt confirm` | yes | every program leaves the scan, its rows go safe |
+| `reboot confirm` | yes | same, then the watchdog resets the unit |
+| `reset confirm` | **no** | reset immediately; the firmware drops nothing |
+| `exit confirm` | **no** | same (on hardware `exit` is a reset) |
 
-Control is withdrawn automatically on a health fault, logged as a critical on the
-`HEALTH` topic:
+`reboot` and `halt` move the unit out of `RUN` first, so `sys_shutdown_sec` runs, the
+retained rows and owed parameters reach flash, and every program's rows are dropped
+before anything stops. `reboot` then simply stops kicking the watchdog and lets it
+reset the unit, which is the same path an unattended unit takes when it wedges.
 
-```
-[@] HEALTH: control disabled
-                        > outputs at their safe state, scan inhibited
-```
-
-Recovery logs a warning and hands control back:
-
-```
-[!] HEALTH: health recovered
-                        > control enabled, scan resuming
-```
-
-(or `control still disabled by the operator` on the second line, if you also
-hold it down by hand.)
-
-This is edge-triggered on the fault, not re-decided every beat, and it moves only the
-**health** inhibit. A recovery therefore hands control back only if you had not also
-disabled it by hand: a fault that comes and goes while you are working on the plant
-leaves your hold exactly where you put it.
-
-The firmware's own withdrawal is the stricter of the two, and it is the one case that
-**does release** an override holding an output. It runs when the firmware can no
-longer reason about what it is driving, or is about to stop running altogether, and
-nobody is necessarily watching - an actuator held energised by hand through that is
-the one outcome the safe state exists to prevent. So a health fault will take a
-hand-driven valve off you, and keep it off across a reboot; the operator's own
-`control disable` only mutes it.
-
-`reset`, `reboot` and `exit` all drop the outputs to their safe state before
-leaving, because the restart itself gives no guarantee about what the outputs do on
-the way through. `reboot` then simply stops kicking the watchdog and lets it reset
-the unit - the same path an unattended unit takes when it wedges.
+`reset` and `exit` save the retained rows and go. Nothing is parked, so what the
+outputs do is whatever the reset itself does to them. Prefer `reboot` on a plant that
+is actually driving something.
 
 ## Reading a boot
 

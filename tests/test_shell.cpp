@@ -127,6 +127,18 @@ TEST_CASE("shell: the help table states the requirement it enforces") {
     }
 }
 
+TEST_CASE("shell: breakpoint refuses when nothing is attached to trap into") {
+    // Guarded on the real predicate, not skipped: under gdb the command is
+    // meant to fire, and asserting the refusal there would SIGTRAP the suite.
+    if (HAL::Debug::under_debugger()) return;
+
+    ShellFixture f;
+    const std::string said = f.run("breakpoint");
+    CHECK(said.find("no debugger") != std::string::npos);
+    INFO("the refusal has to say why, or it reads as a broken command");
+    CHECK(said.find("fault") != std::string::npos);
+}
+
 TEST_CASE("shell: an unguarded command still runs on its own") {
     ShellFixture f;
     // The guard must not have leaked into the rest of the table.
