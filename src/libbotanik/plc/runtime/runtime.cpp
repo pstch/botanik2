@@ -223,6 +223,13 @@ namespace Botanik { namespace Plc { namespace Runtime {
                _io.var(_control_ref).as_bool();
     }
 
+    uint32_t Plant::running_mask() const {
+        uint32_t m = 0;
+        for (uint8_t i = 0; i < PROGRAM_COUNT; i++)
+            if (running(i)) m |= (uint32_t)1u << i;
+        return m;
+    }
+
     // The two sources are INDEPENDENT and the stricter wins: the operator's
     // standing choice (sys_control, then this program's own gate) and the
     // system's hold (the lifecycle). A program that could not be wired never

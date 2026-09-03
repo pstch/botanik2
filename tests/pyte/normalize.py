@@ -13,6 +13,7 @@ _SUBS = [
     (re.compile(r"\d{2}/\d{2}/\d{2} \d{2}:\d{2}:\d{2}\.\d{3}"), "<TS>"),   # log stamp
     (re.compile(r"\d{3,}d \d{2}:\d{2}:\d{2}"), "<UPTIME>"),                # DDDd HH:MM:SS
     (re.compile(r"\b\d{2}:\d{2}:\d{2}\b"), "<TIME>"),                      # status bar clock
+    (re.compile(r"run:\s*\w+"), "run:<R>"),
     (re.compile(r"cpu:\s*\d+%"), "cpu:<C>"),
     (re.compile(r"stk:\s*\d+%"), "stk:<S>"),
 
@@ -29,6 +30,7 @@ _SUBS = [
     # Only fires when CAPTURING a golden - the asserts clip the log band away.
     (re.compile(r"(NTP synced) \(\d+\.\d+\.\d+\.\d+:\d+\)"), r"\g<1>"),
     (re.compile(r"(MQTT connected) \(\d+\.\d+\.\d+\.\d+:\d+\)"), r"\g<1>"),
+    (re.compile(r"(MB master connected) \(\d+\.\d+\.\d+\.\d+:\d+\)"), r"\g<1>"),
 
     # The alarm bar's code list is the live unmasked set, which the fast
     # greenhouse cycles: mask it whole, so a test asserts the bar's presence and

@@ -5,7 +5,8 @@
 /**
  * @file status_bar.h
  * @brief StatusBar - the terminal-owned row-0 chrome: page tabs, a centred
- *        HH:MM:SS clock, and a right-aligned "cpu:nnn% stk:nnn%" field.
+ *        HH:MM:SS clock, and a right-aligned "run:STATE cpu:nnn% stk:nnn%"
+ *        field.
  * @note Fields repaint whole on their own cadence; the terminal's diff pares
  *       that to the changed cells, so the bar keeps no diff cache.
  */
@@ -36,8 +37,8 @@ namespace Botanik { namespace Terminal {
         /** @brief Last refresh of the row (clock and metrics share the gate). */
         uint64_t            _last_ms = 0;
 
-        /** @brief Visible width (+NUL) of "cpu:nnn% stk:nnn% ". */
-        static constexpr uint16_t METRICS_LEN = 19;
+        /** @brief Visible width (+NUL) of "run:STATE cpu:nnn% stk:nnn% ". */
+        static constexpr uint16_t METRICS_LEN = 29;
         /** @brief HH:MM:SS field width (no NUL). */
         static constexpr uint16_t CLOCK_LEN = 8;
         /** @brief Column just past the last-drawn tab strip. The active tab is

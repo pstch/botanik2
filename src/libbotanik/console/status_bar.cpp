@@ -23,12 +23,13 @@
 
 namespace Botanik { namespace Terminal {
 
-    // Value-cell columns in "cpu:nnn% stk:nnn% " - drawn normal-video against
-    // the reverse-video bar. One place tied to the build_metrics() format so
-    // the layout and the highlight can't drift apart.
+    // Value-cell columns in "run:STATE cpu:nnn% stk:nnn% " - drawn normal-video
+    // against the reverse-video bar. One place tied to the build_metrics()
+    // format so the layout and the highlight can't drift apart.
     static bool metric_value_col(int c) {
-        return (c >= 4  && c <= 7)     // cpu value + '%'
-            || (c >= 13 && c <= 16);   // stk value + '%'
+        return (c >= 4  && c <= 8)     // lifecycle word
+            || (c >= 14 && c <= 17)    // cpu value + '%'
+            || (c >= 23 && c <= 26);   // stk value + '%'
     }
 
     StatusBar::StatusBar(Console& console, const Scheduler::SchedulerContext* sched)
@@ -168,13 +169,15 @@ namespace Botanik { namespace Terminal {
         // The scheduler context may be absent (a site can wire a terminal
         // without one); show 0% rather than dereferencing null.
         unsigned cpu = 0, stk = 0;
+        const char* run = "-";
         if (_sched != nullptr) {
             cpu = (unsigned)lroundf(_sched->cpu_load_ema * 100.0f);
             stk = (unsigned)lroundf(_sched->stack_usage * 100.0f);
+            run = Scheduler::run_state_name(_sched->run_state);
         }
         if (cpu > 999) cpu = 999;
         if (stk > 999) stk = 999;
-        return snprintf(buf, cap, "cpu:%3u%% stk:%3u%% ", cpu, stk);
+        return snprintf(buf, cap, "run:%5s cpu:%3u%% stk:%3u%% ", run, cpu, stk);
     }
 
 }}

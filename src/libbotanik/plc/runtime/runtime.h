@@ -132,6 +132,10 @@ namespace Botanik { namespace Plc { namespace Runtime {
         bool        running(uint8_t i) const;
         /** @brief sys_control, or true where the row is absent. */
         bool        control_allowed() const;
+        /** @brief One bit per program, set where running(). A supervisor
+         *  watching for a change of the scan roster compares this against its
+         *  own last reading; PROGRAM_COUNT is asserted <= 32 in wire(). */
+        uint32_t    running_mask() const;
         /** @} */
 
     protected:

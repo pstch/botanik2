@@ -81,21 +81,22 @@ the variable names, parameters and readings in them are that site's.
 ## The screen
 
 ```
-┌────────────────────────────────────────────────────────┐
-│ 1 2:SHELL 3 4 5 6 7 8  12:04:31      cpu: 12% stk: 31% │  row 0   status bar
-├────────────────────────────────────────────────────────┤
-│                                                        │
-│                    page content                        │  rows 1..N-2
-│                                                        │
-├────────────────────────────────────────────────────────┤
-│ ALARMS : TOO_HOT WTR_LK                                │  row N-1  alarm bar
-└────────────────────────────────────────────────────────┘
+┌────────────────────────────────────────────────────────────────┐
+│ 1 2:SHELL 3 4 5 6 7 8  12:04:31    run:  RUN cpu: 12% stk: 31% │  row 0   status bar
+├────────────────────────────────────────────────────────────────┤
+│                                                                │
+│                    page content                                │  rows 1..N-2
+│                                                                │
+├────────────────────────────────────────────────────────────────┤
+│ ALARMS : TOO_HOT WTR_LK                                        │  row N-1  alarm bar
+└────────────────────────────────────────────────────────────────┘
 ```
 
 The **status bar** is always present on row `0` and contains 3 sections :
 - **Tabs** (`X:NAME` : active tab)
 - **Clock** (`HH:MM:SS` : wall-clock time)
-- **Metrics** (`cpu:XXX%` : duty cycle, `stk:XXX%` : stack usage)
+- **Metrics** (`run:STATE` : lifecycle, `cpu:XXX%` : duty cycle, `stk:XXX%` :
+  stack usage)
 
 The **alarm bar** lists the active and unacknowledged alarm codes. See
 @ref user_alarms.
@@ -191,7 +192,7 @@ showing.
 ### Home page
 
 ```
- 1:HOME 2 3 4 5 6 7 8               00:00:07                  cpu:100% stk:  2%
+ 1:HOME 2 3 4 5 6 7 8               00:00:07        run:  RUN cpu:100% stk:  2%
     _           _              _ _
    | |__   ___ | |_ __ _ _ __ (_) | __
    | '_ \ / _ \| __/ _` | '_ \| | |/ /        Site name ...... : gh_mlb41
@@ -226,7 +227,7 @@ now" at a glance, from across the room.
 ### Shell page
 
 ```
- 1 2:SHELL 3 4 5 6 7 8              00:00:11                  cpu:100% stk:  2%
+ 1 2:SHELL 3 4 5 6 7 8              00:00:11        run:  RUN cpu:100% stk:  2%
 botanik> stats
 Uptime ...................... : 11s
 CPU ......................... : 12%      (peak 41%)
@@ -419,7 +420,7 @@ is what `help` prints; this manual can only describe the library's own.
 ### Logs page
 
 ```
- 1 2 3:LOGS 4 5 6 7 8               00:00:15                  cpu:100% stk:  2%
+ 1 2 3:LOGS 4 5 6 7 8               00:00:15        run:  RUN cpu:100% stk:  2%
 26/01/01 00:00:00.000 [~] BOOT: Params initialized
 26/01/01 00:00:00.000 [~] BOOT: NetworkHandler initialized
 26/01/01 00:00:00.000 [~] BOOT: Scan initialized
@@ -445,7 +446,7 @@ What a line means - the timestamp, the level badge, the topic - is in
 ### Alarms page
 
 ```
- 1 2 3 4:ALARMS 5 6 7 8             00:00:19                  cpu:100% stk:  2%
+ 1 2 3 4:ALARMS 5 6 7 8             00:00:19        run:  RUN cpu:100% stk:  2%
 
   | CODE     | VARIABLE                    | ON | ACK | OVR | LAST EVENT     |
   +----------+-----------------------------+----+-----+-----+----------------+
@@ -508,7 +509,7 @@ See @ref user_alarms for more information.
 ### Parameters page
 
 ```
- 1 2 3 4 5:PARAMS 6 7 8             00:00:23                  cpu:100% stk:  2%
+ 1 2 3 4 5:PARAMS 6 7 8             00:00:23        run:  RUN cpu:100% stk:  2%
 
   | PARAMETER                | TYPE | VALUE                 | UNIT  | REGISTER |
   +--------------------------+------+-----------------------+-------+----------+
@@ -549,7 +550,7 @@ row, blank where the row is not published.
 ### Monitor page
 
 ```
- 1 2 3 4 5 6:MONITOR 7 8            00:00:28                  cpu:100% stk:  2%
+ 1 2 3 4 5 6:MONITOR 7 8            00:00:28        run:  RUN cpu:100% stk:  2%
 
   | SCOPE    | VARIABLE                 | VALUE         | UNIT   | OVERRIDE  |
   +----------+--------------------------+---------------+--------+-----------+
@@ -610,7 +611,7 @@ A text (`str`) row cannot be forced, and `^O` says so rather than opening a fiel
 ### Tasks page
 
 ```
- 1 2 3 4 5 6 7:TASKS 8 9            00:00:32                  cpu:100% stk:  2%
+ 1 2 3 4 5 6 7:TASKS 8 9            00:00:32        run:  RUN cpu:100% stk:  2%
 
   | TASK                 | GROUP | HEALTH    | PHASE   | MEAN us  | MISSED   |
   +----------------------+-------+-----------+---------+----------+----------+
@@ -657,7 +658,7 @@ What each library-provided task does, and what its phase and rate mean, is
 ### Notes page
 
 ```
- 1 2 3 4 5 6 7 8 9:NOTES            00:00:36                  cpu:100% stk:  2%
+ 1 2 3 4 5 6 7 8 9:NOTES            00:00:36        run:  RUN cpu:100% stk:  2%
 > Relay K3 replaced 2026-04-11, spare in the cabinet.
 > Zone 2 sensor reads 0.4 C high - trim pending.
 > _
