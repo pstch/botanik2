@@ -17,7 +17,7 @@
 
 #include "libbotanik.h"
 
-#include "term_fixture.h"
+#include "page_fixture.h"
 
 namespace editor_invariant {
 
@@ -25,21 +25,14 @@ using namespace Botanik;
 
 /** @brief A console with one editor on it and nothing else, so a full repaint
  *  of the editor is a full repaint of everything on screen. */
-struct EditorFixture {
-    botanik_test::PipeSerial     wire;
-    uint64_t                     now = 0;
-    Terminal::Console            console;
+struct EditorFixture : botanik_test::PageFixture {
     Terminal::EditorBuffers<2048, 16> store;
-    Terminal::TextEditor         editor;
+    Terminal::TextEditor              editor;
 
     explicit EditorFixture(uint16_t rows = 24, uint16_t cols = 80,
                            bool notes_prompts = false)
-        : console(Botanik::SetupContext(), wire.serial, &now),
+        : PageFixture(rows, cols),
           editor(&console, store.storage()) {
-        console.reconfigure(Terminal::ConsoleConfig().type, cols, rows);
-        // High enough that the cooperative TX floor never throttles a paint,
-        // so what the grid holds is never merely "not sent yet".
-        console.terminal().set_baud(4000000u);
         if (notes_prompts) {
             // NOTES: the three prompts are the same WIDTH, which is what
             // docs/dev/editor.md requires and what makes a class flip
@@ -56,25 +49,9 @@ struct EditorFixture {
         drain();
     }
 
-    void drain() { (void)wire.capture(); }
-
-    /** @brief Every row of the FRONT grid, right-trimmed. */
-    std::vector<std::string> screen() {
-        std::vector<std::string> out;
-        char row[160];
-        for (uint16_t r = 0; r < console.terminal().rows_total(); r++) {
-            const uint16_t n = console.terminal().front_row(r, row, sizeof row);
-            std::string s(row, n);
-            while (!s.empty() && s.back() == ' ') s.pop_back();
-            out.push_back(s);
-        }
-        return out;
-    }
-
-    /** @brief What the screen WOULD hold if it were painted from the model,
-     *  with the editor's own state left exactly as it was.
-     *
-     *  Ctrl+L on the real console; here the same two calls it makes. */
+    /** @brief What the screen WOULD hold painted from the model, with the
+     *  editor's own state left exactly as it was. Ctrl+L on the real console;
+     *  here the same two calls it makes. */
     std::vector<std::string> repainted() {
         console.terminal().establish_screen();
         editor.redraw();
@@ -82,18 +59,11 @@ struct EditorFixture {
     }
 };
 
-/** @brief Assert the incremental screen equals the repainted one, naming the
- *  first row that differs. */
+/** @brief The editor's convergence check. Not PageFixture::converged(): a
+ *  TextEditor is not a Page and repaints through redraw() of its own. */
 void check_converged(EditorFixture& f, const char* what) {
     const std::vector<std::string> incremental = f.screen();
-    const std::vector<std::string> full        = f.repainted();
-    REQUIRE(incremental.size() == full.size());
-    for (size_t r = 0; r < full.size(); r++) {
-        INFO(what << ": row " << r
-             << "\n  incremental: '" << incremental[r] << "'"
-             << "\n  full redraw: '" << full[r] << "'");
-        CHECK(incremental[r] == full[r]);
-    }
+    botanik_test::PageFixture::same(incremental, f.repainted(), what);
 }
 
 TEST_CASE("editor: typing leaves the screen a full repaint would") {
