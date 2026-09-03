@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
-"""Site tables: CSV <-> C++.
+"""The site, from its tables.
 
-    tables.py export     vars.cpp -> tables/*.csv   (bootstrap, run once)
-    tables.py check      points()'s factory maps vs declare.h
-    tables.py generate   tables/*.csv -> vars.gen.{h,cpp}
-    tables.py points     tables/*.csv + the ST -> docs/reference/points.md
+    tables.py generate   tables/*.csv       -> vars.gen.{h,cpp}
+    tables.py config     site.toml          -> config.gen.h
+    tables.py plant      programs.csv + ST  -> plant.st, plant.cpp, and matiec
+    tables.py points     the lot            -> docs/reference/points.md
 
-Offline. Output is committed, never built.
+Offline: the output is COMMITTED and never built. `make check-generated` is
+what holds the two together - it regenerates into a scratch copy and diffs.
 """
 
 import csv, os, re, sys
@@ -101,19 +102,6 @@ def quote(v, col):
     return v
 
 
-def field(v):
-    return '"%s"' % v.replace('"', '""') if any(c in v for c in ',"\n') else v
-
-
-def write_table(path, cols, recs):
-    cells = [[field(v) for v in r] for r in recs]
-    w = [min(PAD, max([len(c)] + [len(r[i]) for r in cells])) for i, c in enumerate(cols)]
-    with open(path, 'w') as fh:
-        for r in [cols] + cells:
-            fh.write(','.join(c.ljust(w[i]) for i, c in enumerate(r[:-1]))
-                     .rstrip() + (',' if len(r) > 1 else '') + r[-1] + '\n')
-
-
 def read_table(path, cols):
     if not os.path.exists(path): return []
     with open(path, newline='') as fh:
@@ -122,100 +110,6 @@ def read_table(path, cols):
         if head != cols: sys.exit('%s: header %s != %s' % (path, head, cols))
         return [dict(zip(head, [c.strip() for c in r])) for r in rd
                 if r and any(c.strip() for c in r)]
-
-
-def export(site):
-    per = {f: [] for f in ROWS}
-    for fac, args in parse(os.path.join(site, 'vars.cpp')): per[fac].append(args)
-    os.makedirs(os.path.join(site, 'tables'), exist_ok=True)
-    for fac, (stem, cols) in ROWS.items():
-        cols = cols.split()
-        recs = []
-        for a in per[fac]:
-            v = [unquote(x) for x in a] + [''] * (len(cols) - len(a))
-            for x in v:
-                if x != x.strip(): sys.exit('%s: %r has edge whitespace' % (stem, x))
-            recs.append(v[:len(cols)])
-        write_table(os.path.join(site, 'tables', stem + '.csv'), cols, recs)
-        print('  %-16s %3d' % (stem + '.csv', len(recs)))
-    export_aux(site)
-
-
-def export_enums(site):
-    s = open(os.path.join(site, 'vars.h')).read()
-    out = []
-    for m in re.finditer(r'enum (\w+) : (\w+) \{(.*?)\n\};', s, re.S):
-        name, ctype = m.group(1), m.group(2)
-        labels = dict(re.findall(r'case (\d+): return "([^"]+)";',
-                                 re.search(r'%s_label.*?\n\}' % name, s, re.S).group(0)))
-        for sym, val, desc in re.findall(r'(\w+)\s*=\s*(\d+),\s*///< ([^\n]*)', m.group(3)):
-            out.append([name, ctype, sym, val, labels.get(val, ''), desc.strip()])
-    return out
-
-
-def export_aux(site):
-    s = open(os.path.join(site, 'vars.cpp')).read()
-    got = {
-        'analog_cal': [[m.group(1)] + [x for p in re.findall(r'R\("([^"]+)",\s*([^)]+)\)', m.group(2)) for x in p]
-                       for m in re.finditer(r'const AnalogCal (CAL_\w+) = \{(.*?)\n\};', s, re.S)],
-        'modbus_models': [list(t) for t in re.findall(
-            r'const Modbus::DeviceModel (MDL_\w+) =\s*Modbus::(\w+)\("([^"]+)",\s*(\d+),?\s*(\d*)\);', s)],
-        'modbus_devices': [list(t) for t in re.findall(r'\{\s*(\d+),\s*&(MDL_\w+),\s*"([^"]+)"\s*\}', s)],
-        'enums': export_enums(site),
-    }
-    for stem, cols in AUX.items():
-        write_table(os.path.join(site, 'tables', stem + '.csv'), cols.split(), got[stem])
-        print('  %-16s %3d' % (stem + '.csv', len(got[stem])))
-
-
-def load(site):
-    out = []
-    for fac, (stem, cols) in ROWS.items():
-        cols = cols.split()
-        for r in read_table(os.path.join(site, 'tables', stem + '.csv'), cols):
-            a = [quote(r.get(c, ''), c) for c in cols]
-            while a and a[-1] == '': a.pop()
-            out.append((fac, a))
-    return out
-
-
-def check(site):
-    """The two hand-kept maps in points() against what declare.h actually says.
-
-    `FAC_SCOPE` and `FAC_TYPE` are a second copy of a fact the C++ factories
-    already own - each one hard-codes its own SCOPE_* and T_* - and nothing
-    makes them agree. This tree has been bitten by exactly that before, which
-    is why BOTANIK_FEATURE_LIST exists: a second hand-kept roster silently
-    dropped a flag. Adding a factory, or moving one to another scope, fails
-    here rather than quietly mis-filing rows in the point list.
-    """
-    src = open(DECLARE_H).read()
-    bad = 0
-    for fac in ROWS:
-        # One factory's body only: the next `constexpr Descriptor` ends it, or
-        # a greedy match reads the SCOPE of whichever factory comes after.
-        body = re.search(r'constexpr Descriptor %s\((.*?)(?=constexpr Descriptor|\Z)'
-                         % fac, src, re.S)
-        if body is None:
-            print('  %-3s: no factory in %s' % (fac, DECLARE_H)); bad += 1; continue
-        # A factory that takes a VarType builds rows of whatever the table says,
-        # so it pins a ROLE and a SCOPE but not a type.
-        m = re.search(r'\b(T_[A-Z0-9]+|type), ROLE_[A-Z]+, SCOPE_([A-Z]+)',
-                      body.group(1))
-        if m is None:
-            print('  %-3s: no SCOPE in its Descriptor{}' % fac); bad += 1; continue
-        typ, scope = m.group(1), m.group(2)
-        if FAC_SCOPE.get(fac) != scope:
-            print('  %-3s: declare.h says SCOPE_%s, points() says %s'
-                  % (fac, scope, FAC_SCOPE.get(fac))); bad += 1
-        # Only a factory that PINS its type is checked: P/SV/MI/MO/G take one.
-        want = FAC_TYPE.get(fac)
-        if want is not None and typ != 'type' and want != typ:
-            print('  %-3s: declare.h builds %s, points() says %s'
-                  % (fac, typ, want)); bad += 1
-    print('FACTORIES AGREE' if not bad else 'MISMATCH')
-    return bad
-
 
 
 H = '// GENERATED by scripts/tables.py from tables/*.csv. Do not edit.\n'
@@ -756,12 +650,39 @@ DECLARE_H  = 'src/libbotanik/vars/declare.h'
 # BY SCOPE, in the order Vars::VarScope declares them - which is also the order
 # a reader wants: what an operator sets, what alarms, what the plant computes,
 # then the wiring. One factory can only ever land in one scope.
-FAC_SCOPE = {
-    'P': 'P', 'PE': 'P', 'PS': 'P',
-    'A': 'A', 'G': 'G', 'SV': 'SV', 'SVE': 'SV',
-    'MI': 'MI', 'AI': 'AI', 'DI': 'DI', 'PI': 'DI',
-    'MO': 'MO', 'AO': 'AO', 'DO': 'DO', 'RO': 'RO',
-}
+def _factory_kinds():
+    """What each factory BUILDS - its scope, and its type where it pins one -
+    read off declare.h, which is where the C++ hard-codes both.
+
+    DERIVED, not restated. These were two hand-kept maps with a `check` command
+    to hold them against this same file: 61 lines defending a copy that a parse
+    removes the need for. This tree has been bitten by a second hand-kept
+    roster before, which is why BOTANIK_FEATURE_LIST exists.
+
+    A factory taking a VarType builds rows of whatever the table says, so it
+    pins a SCOPE but not a type; those are absent from `typ`. A factory that
+    does not parse is FATAL - quietly mis-filing rows in the point list is the
+    failure the old guard existed to catch, and it must not become silent by
+    deleting the guard."""
+    src = open(DECLARE_H).read()
+    scope, typ, missing = {}, {}, []
+    for fac in ROWS:
+        # One factory's body only: the next `constexpr Descriptor` ends it, or a
+        # greedy match reads the SCOPE of whichever factory comes after.
+        body = re.search(r'constexpr Descriptor %s\((.*?)(?=constexpr Descriptor|\Z)'
+                         % fac, src, re.S)
+        m = body and re.search(r'\b(T_[A-Z0-9]+|type), ROLE_[A-Z]+, SCOPE_([A-Z]+)',
+                               body.group(1))
+        if not m: missing.append(fac); continue
+        scope[fac] = m.group(2)
+        if m.group(1) != 'type': typ[fac] = m.group(1)
+    if missing:
+        sys.exit('%s: no Descriptor{} found for %s - a factory moved, or its '
+                 'shape changed' % (DECLARE_H, ', '.join(sorted(missing))))
+    return scope, typ
+
+
+FAC_SCOPE, FAC_TYPE = _factory_kinds()
 SCOPES = [
     ('A',  'Alarms',          'the boolean an AlarmCondition reads',
      'name code on_s off_s recent_s hold_s reg desc notes'),
@@ -787,10 +708,6 @@ SCOPES = [
      'name device coil safe invert desc notes'),
 ]
 
-# What a factory's rows ARE, where the CSV carries no `type` column of its own.
-FAC_TYPE = {'A': 'T_BOOL', 'PE': 'T_ENUM', 'PS': 'T_STR', 'SVE': 'T_ENUM',
-            'DI': 'T_BOOL', 'DO': 'T_BOOL', 'RO': 'T_BOOL',
-            'AI': 'T_F32', 'AO': 'T_F32', 'PI': 'T_U32'}
 
 
 def _cell(v):
@@ -928,9 +845,7 @@ def points(site):
 
 if __name__ == '__main__':
     cmd = sys.argv[1] if len(sys.argv) > 1 else ''
-    if   cmd == 'export':   export(SITE)
-    elif cmd == 'check':    sys.exit(1 if check(SITE) else 0)
-    elif cmd == 'generate': generate(SITE)
+    if   cmd == 'generate': generate(SITE)
     elif cmd == 'plant':    sys.exit(plant(SITE))
     elif cmd == 'config':   config(SITE)
     elif cmd == 'points':   points(SITE)

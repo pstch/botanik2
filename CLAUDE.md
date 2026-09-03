@@ -68,7 +68,7 @@ Host-only, SIMULATOR build. Two suites, both wired into CTest:
 
 ```bash
 make -C build check                  # the pre-push gate
-make -C build check-full             # the periodic sweep: clang-tidy, bare profile, the OPTA cross build, then the gate under ASan+UBSan
+make -C build check-full             # the sweep: clang-tidy, bare profile, generated-source drift, the OPTA cross build, then the gate under ASan+UBSan
 make -C build check-bare             # just the bare profile: every optional feature off
 make -C build botanik_tests          # just build the doctest binary
 ./build/tests/botanik_tests          # run it directly (doctest CLI)
@@ -99,7 +99,12 @@ pays for an instrumented rebuild, then the whole `check` gate again in `build/as
 drives that tree's own `check` target, so the two cannot drift. Both halves are
 instrumented, screen tests included.
 
-It also builds the OPTA (`check-opta`), which is the only thing that can catch a LINK
+It also runs `check-generated`, which regenerates into a scratch copy of the generator's
+inputs and diffs against what is committed. The generated sources are committed and never
+built, so nothing else holds them to the tables: edit a CSV, forget to regenerate, and
+`make check` is green on a firmware without your row.
+
+And it builds the OPTA (`check-opta`), which is the only thing that can catch a LINK
 error: `Arduino.h` declares the whole wiring API and `libmbed.a` defines none of it, so a
 HAL reaching for a call the build does not compile fails at link time on the cross build
 alone, with `make check` green throughout. Skipped where `arm-none-eabi-g++` is absent.
@@ -334,8 +339,9 @@ Its RS-485 field devices are `tables/modbus_devices.csv` and
 `tables/modbus_models.csv`.
 
 **The generated files are committed and never built.** Run
-`scripts/tables.py generate|config|plant <site>` after editing a table or an ST
-file, and commit what comes out. `plant` is the one that runs matiec, and it
+`scripts/tables.py generate|config|plant|points <site>` after editing a table or an ST
+file, and commit what comes out - `make check-generated` is what catches you if you
+forget. `plant` is the one that runs matiec, and it
 checks what nothing downstream can: a row declared writable that the body never
 writes, and an output, alarm or status row no program writes at all - both fail
 the build, read off matiec's own `__SET_EXTERNAL` calls. The suite checks the
