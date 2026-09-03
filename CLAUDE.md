@@ -76,6 +76,9 @@ make -C build botanik_tests          # just build the doctest binary
 ./build/tests/botanik_tests -tc=<name>              # one test case
 ctest --test-dir build --output-on-failure          # all CTest entries
 ctest --test-dir build -R pyte --output-on-failure  # just the pyte suite
+make -C build matiec                 # build the pinned matiec (needs flex/bison/autotools)
+make -C build st-update              # regenerate the site's ST output, in place
+make -C build check-st               # ...or regenerate into a copy and diff
 ```
 
 **`make check`** fails on the first problem: the library compiles `-Werror`, so building
@@ -108,6 +111,14 @@ And it builds the OPTA (`check-opta`), which is the only thing that can catch a 
 error: `Arduino.h` declares the whole wiring API and `libmbed.a` defines none of it, so a
 HAL reaching for a call the build does not compile fails at link time on the cross build
 alone, with `make check` green throughout. Skipped where `arm-none-eabi-g++` is absent.
+
+The compiler that check is made against is PINNED: `vendor/matiec`, one upstream
+commit, built by `make -C build matiec` into `build/matiec/iec2c`. Nothing pinned
+it before, so two developers regenerating produced different `POUS.c` and the
+diff above would have called whichever ran second wrong. `scripts/tables.py`
+finds the pinned binary by itself; `IEC2C=` points it elsewhere. Building it
+needs flex, bison and the autotools, and without them the `matiec` target is not
+declared and the check falls back to whatever is on PATH.
 
 **`make check-bare`** compiles `sites/bare` - every optional feature off - into
 `build-bare/`, and a middle profile (console + shell + logs + alarms, no

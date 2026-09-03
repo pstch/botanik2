@@ -26,15 +26,38 @@ about a tenth of what a row here carries.
 so redefining that handful of macros points the generated C at
 `Vars::Bank` instead of at a `{value, flags}` struct.
 
-## Building it
+## The compiler
 
-matiec is not vendored. Build it once (flex and bison come from `apt-get
-download` + `dpkg-deb -x`, no sudo needed), then concatenate the blocks a POU
-uses ahead of it - matiec has no include - and compile:
+matiec is VENDORED, at `vendor/matiec`, pinned to one upstream commit - see
+`vendor/matiec/UPSTREAM` for which, what was removed from it, and why. It is
+pinned because its output is COMMITTED: nothing else would notice two
+developers regenerating `POUS.c` with different compilers.
+
+    make -C build matiec       # build it: build/matiec/iec2c
+    make -C build st-update    # regenerate the site's ST output, in place
+    make -C build check-st     # ...or regenerate into a copy and diff
+
+`check-st` is part of `check-full`. It is the only thing that can catch a
+generated file hand-edited, a library `.st` changed without a regeneration, or a
+matiec that is not the pinned one.
+
+Building it needs **flex, bison, autoconf and automake** - upstream ships
+`configure.ac` and no `configure`, so `autoreconf` runs first. flex and bison
+come from `apt-get download` + `dpkg-deb -x`, no sudo needed. Where any of the
+four is missing, the three targets above are not declared at all and the
+ordinary build is unaffected.
+
+`scripts/tables.py plant` finds `build/matiec/iec2c` by itself; `IEC2C=` points
+it elsewhere.
+
+## One POU on its own
+
+matiec has no include, so a harness concatenates the blocks a POU uses ahead of
+it and compiles that:
 
     cat src/libbotanik/plc/blocks/timers.st \
         src/sites/gh_mlb41/programs/actuators/roof_lockout/roof_lockout.st > /tmp/rl.st
-    iec2c -I <matiec>/lib -T out_roof /tmp/rl.st
+    build/matiec/iec2c -I st/lib -T out_roof /tmp/rl.st
 
     g++ -std=c++11 -DTARGET_SIMULATOR -DDEBUG -D_GNU_SOURCE \
         -DBOTANIK_SITE_CONFIG='"<abs>/src/sites/gh_mlb41/config.h"' \
