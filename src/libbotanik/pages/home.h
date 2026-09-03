@@ -90,7 +90,6 @@ namespace Botanik { namespace Pages {
          *  @{ */
         static constexpr uint16_t UPTIME_ROW = COL_TOP, UPTIME_VAL = 13,
                                   UPTIME_W = COL_W;
-        static constexpr uint16_t UPTIME_SLOT = FIELD_CAP;
         /** @} */
 
         /** @brief First content row below the fixed layout (uptime + columns). */
@@ -121,10 +120,9 @@ namespace Botanik { namespace Pages {
         /** @brief Place site home-field @p i: its label row + column, value
          *  column + width, and diff-cache slot. Fills column-major (the first
          *  column's fields, then the second, then the third). @return false past
-         *  FIELD_CAP. Slots are the field index itself, leaving UPTIME_SLOT
-         *  upward free. */
+         *  FIELD_CAP. */
         bool _field_place(uint8_t i, uint16_t& row, uint16_t& lbl, uint16_t& val,
-                          uint16_t& w, uint16_t& slot) const {
+                          uint16_t& w) const {
             // Per-column geometry (a static constexpr member would be odr-used
             // here and need an out-of-class definition). Column 1 starts below
             // the uptime readout and its spacer, so it is that much shorter.
@@ -134,7 +132,6 @@ namespace Botanik { namespace Pages {
                                                 COL_TOP, COL_TOP };
             static const uint8_t  MAX[COLS] = { COL_MAX - UPTIME_CELLS,
                                                 COL_MAX, COL_MAX };
-            slot = i;
             for (uint8_t c = 0; c < COLS; c++) {
                 if (i < MAX[c]) {
                     row = (uint16_t)(TOP[c] + i);

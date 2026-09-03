@@ -27,17 +27,14 @@ namespace Botanik { namespace Terminal { namespace Field {
     }
 
     /** @brief Per-column change mask (bit i set = column i differs) of @p cf vs
-     *  @p prev over [0, @p width). On a @p fresh field (first paint after a
-     *  clear, no valid @p prev) only non-space cells count, so a blank screen
-     *  emits glyphs without spurious space writes. @p width <= 32 (the mask is
-     *  one uint32). */
-    inline uint32_t changed(const char* cf, const char* prev, uint16_t width,
-                            bool fresh) {
+     *  @p prev over [0, @p width). @p width <= 32 (the mask is one uint32).
+     *  @note Whether there IS a meaningful previous value is the caller's to
+     *  know: a field drawn onto a freshly cleared screen differs from blank in
+     *  every glyph, and highlighting that would light the whole page. */
+    inline uint32_t changed(const char* cf, const char* prev, uint16_t width) {
         uint32_t chg = 0;
-        for (uint16_t i = 0; i < width; ++i) {
-            bool diff = fresh ? (cf[i] != ' ') : (cf[i] != prev[i]);
-            if (diff) chg |= (1u << i);
-        }
+        for (uint16_t i = 0; i < width; ++i)
+            if (cf[i] != prev[i]) chg |= (1u << i);
         return chg;
     }
 

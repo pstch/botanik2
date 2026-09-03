@@ -8,7 +8,7 @@
  *
  * Shares the terminal binding, focus/periodic-refresh lifecycle, and drawing
  * helpers. Fields are drawn immediate-mode and pared by the terminal's diff
- * (@ref dev_screen); the per-slot value cache exists only for the change
+ * (@ref dev_screen); the FRONT grid is read back only for the change
  * highlight, which needs to know WHAT changed, not which cells moved.
  *
  * A changed digit run is drawn reverse-video and cleared once it settles -
@@ -67,34 +67,32 @@ namespace Botanik { namespace Pages {
         bool          _cold_due          = false;
 
         /** @brief Diff-cache slots and per-slot value width. Single-column
-         *  pages key a slot by row; column layouts (_cell()) pass an explicit
-         *  slot so two cells share a row. CACHE_COLS is 32 so a per-column mask
-         *  fits a uint32. */
-        static constexpr uint16_t CACHE_SLOTS = 32;
-        static constexpr uint16_t CACHE_COLS  = 32;
-        static_assert(CACHE_COLS  <= 32,
-                      "CACHE_COLS must fit a uint32 per-column mask");
-        static_assert(CACHE_SLOTS <= 32,
-                      "CACHE_SLOTS must fit a uint32 per-slot mask");
-        /** @brief Last value drawn per slot: what a refresh diffs against to
-         *  drive the watch(1)-style change highlight (see the file header). */
-        char          _vcache[CACHE_SLOTS][CACHE_COLS];
-        /** @brief Slots awaiting a first paint after a clear (bit i = slot i):
-         *  drawn unhighlighted (nothing has "changed" yet). */
-        uint32_t      _vfresh = ~0u;
+         *  @{ */
+
+        /** @brief Widest value cell. The bound is the per-column highlight
+         *  mask, which is one uint32. */
+        static constexpr uint16_t FIELD_MAX = 32;
+
+        /** @brief Whether the next values drawn are the first since the screen
+         *  was cleared. Nothing is highlighted on such a frame: there is no
+         *  previous value for them to have changed from, and the whole page
+         *  would light up.
+         *
+         *  One flag, not a mask per cell: every cell is painted on the repaint
+         *  frame (draw_static, draw_hot and draw_dynamic all run in it), so
+         *  per-cell freshness never expressed anything a single frame flag does
+         *  not. It replaced a 1 KB private copy of what the FRONT grid already
+         *  holds - @see _cell. */
+        bool          _fresh = true;
 
         /** @} */
 
         /** @name Drawing helpers
          *  @{ */
 
-        /** @brief Forget every cached value so the next pass repaints in full
-         *  (on focus, screen just cleared). Marking all slots fresh keeps the
-         *  repaint unhighlighted. */
-        void _invalidate() {
-            memset(_vcache, 0, sizeof(_vcache));
-            _vfresh = ~0u;
-        }
+        /** @brief Declare the next pass a repaint onto a cleared screen, so it
+         *  draws unhighlighted. Cleared once that pass has run. */
+        void _invalidate() { _fresh = true; }
 
         /** @brief Draw a label at column 2. Its own glyphs only, no
          *  clear-to-EOL: a label is always drawn onto a freshly-cleared screen
@@ -112,34 +110,34 @@ namespace Botanik { namespace Pages {
         void _label_at(uint16_t row, uint16_t col, const char* s);
 
         /** @brief Render @p s as a fixed @p width-column value cell at (@p row,
-         *  @p col), cached under @p slot, with watch(1) -d change highlighting.
-         *  Space-padded (so it never touches an adjacent column) and diffed
-         *  against the previous draw. Highlighting is per subfield: each digit
-         *  run lights when any of its digits changed, cleared once it settles
-         *  (first paint after a clear is never lit). */
-        void _cell(uint16_t slot, uint16_t row, uint16_t col, const char* s,
+         *  @p col), with watch(1) -d change highlighting.
+         *
+         *  Space-padded, so it never touches an adjacent column, and diffed
+         *  against WHAT IS ALREADY ON THE GRID at those cells - which is what
+         *  this page drew there last time, nothing else painting the content
+         *  area between refreshes. Highlighting is per subfield: a digit run
+         *  lights when any of its digits moved, and clears once it settles.
+         *  A repaint onto a cleared screen is never lit (@see _fresh).
+         *  @note The field is painted whether or not anything changed; the
+         *  terminal's own diff drops the cells whose glyph and attribute both
+         *  held. This never decides WHETHER to draw, only how to attribute. */
+        void _cell(uint16_t row, uint16_t col, const char* s,
                    uint16_t width, bool highlight = true) {
             if (row >= _console.rows() || width == 0) return;
-            // A slot past the cache renders uncached (no highlight): assert so a
-            // site catches the overflow at bring-up. Hard cell limit is
-            // CACHE_COLS-1 (31); a wider cell is silently clamped.
-            BOTANIK_ASSERT(slot < CACHE_SLOTS);
-            if (width > CACHE_COLS - 1) width = CACHE_COLS - 1;
+            if (width > FIELD_MAX) width = FIELD_MAX;
 
-            const bool     cached = (slot < CACHE_SLOTS);
-            const uint32_t bit    = cached ? (1u << slot) : 0u;
-
-            // Render into the fixed-width, space-padded field.
-            char cf[CACHE_COLS];
+            char cf[FIELD_MAX + 1];
             Terminal::Field::render(cf, s, width);
 
-            const bool  fresh = !cached || (_vfresh & bit) != 0;
-            const char* prev  = cached ? _vcache[slot] : "";
+            uint32_t newhi = 0;
+            if (!_fresh && highlight) {
+                char prev[FIELD_MAX + 1];
+                const uint16_t got = _terminal.front_cells(row, col, prev, width);
+                for (uint16_t i = got; i < width; i++) prev[i] = ' ';
 
-            // Per-column change mask -> whole-subfield highlight: a digit run
-            // lights if any of its digits moved.
-            uint32_t chg = Terminal::Field::changed(cf, prev, width, fresh), newhi = 0;
-            if (!fresh && highlight) {
+                // Per-column change mask -> whole-subfield highlight: a digit
+                // run lights if any of its digits moved.
+                const uint32_t chg = Terminal::Field::changed(cf, prev, width);
                 for (uint16_t i = 0; i < width; ) {
                     if (cf[i] < '0' || cf[i] > '9') { ++i; continue; }
                     uint16_t a = i;
@@ -150,15 +148,7 @@ namespace Botanik { namespace Pages {
                 }
             }
 
-            // Paint the whole field with the highlight mask; the terminal diff
-            // drops the cells whose glyph and attribute both held.
             _terminal.paint_field_runs(row, col, cf, width, newhi);
-
-            if (cached) {
-                memcpy(_vcache[slot], cf, width);
-                _vcache[slot][width] = '\0';
-                _vfresh &= ~bit;
-            }
         }
 
 

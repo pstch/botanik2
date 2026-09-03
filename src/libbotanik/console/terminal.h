@@ -272,20 +272,37 @@ namespace Botanik { namespace Terminal {
         inline uint16_t cols() const { return _cols; }
         inline uint16_t rows_total() const { return _rows; }
 
-        /** @brief Copy FRONT row @p row's glyphs into @p out, attributes
-         *  stripped; @return how many were written.
+        /** @brief Copy @p len glyphs of FRONT from (@p row, @p col) into
+         *  @p out, attributes stripped; @return how many were written.
          *
-         *  Read-only introspection, for a test asserting that an incremental
-         *  paint left the screen a full repaint would have. A renderer WRITES
-         *  the grid and never reads it back - one that consulted this would be
-         *  deciding what to draw from what it drew last time, which is the
-         *  state the FRONT/BACK split exists to keep out of renderers. */
-        uint16_t front_row(uint16_t row, char* out, uint16_t cap) const {
-            if (out == nullptr || row >= _rows) return 0;
-            const uint16_t n = (cap < _cols) ? cap : _cols;
-            for (uint16_t c = 0; c < n; c++)
-                out[c] = (char)(_front[_idx(row, c)] & CELL_CH);
+         *  A renderer WRITES the grid; reading it back to decide WHAT to draw
+         *  is what the FRONT/BACK split exists to keep out of renderers, and
+         *  that rule stands. This answers a different question - "what is
+         *  already there" - for the two callers that need it and neither of
+         *  which changes what it paints because of the answer:
+         *
+         *   - MetricPage::_cell(), to decide HOW to attribute a change: it
+         *     paints the same field either way and reads back only to know
+         *     which digits moved, which is precisely "what did I draw here
+         *     last time". It kept a private 1 KB duplicate of this grid to ask.
+         *   - a test asserting that an incremental paint left the screen where
+         *     a full repaint would have.
+         *
+         *  A renderer that consulted this to SKIP a paint would be the thing
+         *  the rule forbids. */
+        uint16_t front_cells(uint16_t row, uint16_t col, char* out,
+                             uint16_t len) const {
+            if (out == nullptr || row >= _rows || col >= _cols) return 0;
+            const uint16_t avail = (uint16_t)(_cols - col);
+            const uint16_t n     = (len < avail) ? len : avail;
+            for (uint16_t i = 0; i < n; i++)
+                out[i] = (char)(_front[_idx(row, (uint16_t)(col + i))] & CELL_CH);
             return n;
+        }
+
+        /** @brief The whole of FRONT row @p row. @see front_cells */
+        uint16_t front_row(uint16_t row, char* out, uint16_t cap) const {
+            return front_cells(row, 0, out, cap);
         }
 
         /** @}

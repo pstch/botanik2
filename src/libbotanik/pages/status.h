@@ -75,18 +75,6 @@ namespace Botanik { namespace Pages {
         // right: labels 42.., values 54..76
         static constexpr uint16_t R_LBL = 42, R_VAL = 54, R_W = 23;
 
-        /** @brief Diff-cache slots for the base cells, disjoint from the
-         *  payload slots a derived page uses. Slots 6, 7, 9, 31 carry the
-         *  network band (below); 1, 2, 3 stay free. */
-        static constexpr uint16_t SLOT_CPU = 4, SLOT_JITTER = 5,
-                                  SLOT_STACK = 8;
-        static constexpr uint16_t SLOT_WALL = 27, SLOT_UPTIME = 28, SLOT_TASK = 29,
-                                  SLOT_CONSOLE = 30;
-        /** @brief Network-band slots (rows 7..8): link status / IP / NTP /
-         *  MQTT. */
-        static constexpr uint16_t SLOT_NET = 6, SLOT_NETIP = 9, SLOT_NTP = 7,
-                                  SLOT_MQTT = 31;
-
         /** @brief Right-justify @p s into a @p width-wide field. Returns
          *  @p buf. */
         static const char* rjust(char* buf, size_t cap, uint16_t width, const char* s) {
@@ -133,14 +121,14 @@ namespace Botanik { namespace Pages {
                 snprintf(val, sizeof(val), "%5s%% (%s free)",
                          Utils::format_float(fa, sizeof(fa), ctx.scheduler->stack_usage * 100.0f, 1),
                          Utils::format_size(fs, sizeof(fs), ctx.scheduler->stack_bytes_free));
-                _cell(SLOT_STACK, 5, L_VAL, rjust(fld, sizeof(fld), L_W, val), L_W);
+                _cell(5, L_VAL, rjust(fld, sizeof(fld), L_W, val), L_W);
                 // Task period: nominal loop period + real tick rate (RTPS =
                 // ticks per real second).
                 // Count width-padded so " RTPS)" never shifts.
                 snprintf(val, sizeof(val), "%lums (%3lu RTPS)",
                          (unsigned long)Config::TASK_PERIOD_MS,
                          (unsigned long)ctx.scheduler->ticks_per_second);
-                _cell(SLOT_TASK, 5, R_VAL, rjust(fld, sizeof(fld), R_W, val), R_W);
+                _cell(5, R_VAL, rjust(fld, sizeof(fld), R_W, val), R_W);
             }
 
 #if BOTANIK_FEATURE_NETWORK
@@ -149,7 +137,7 @@ namespace Botanik { namespace Pages {
             // mqtt under their own flags, so with NETWORK on and MQTT off the
             // member does not exist to null-check. The rows stay either way and
             // read "off", so the grid does not reflow between builds.
-            _cell(SLOT_NET, 7, L_VAL,
+            _cell(7, L_VAL,
                   rjust(fld, sizeof(fld), L_W,
                         ctx.network ? ctx.network->status_str() : "off"), L_W);
             HAL::Network::Ip4 ip;
@@ -157,7 +145,7 @@ namespace Botanik { namespace Pages {
                 HAL::Network::ip4_to_str(ip, val, sizeof(val));
             else
                 snprintf(val, sizeof(val), "no link");
-            _cell(SLOT_NETIP, 8, L_VAL, rjust(fld, sizeof(fld), L_W, val), L_W);
+            _cell(8, L_VAL, rjust(fld, sizeof(fld), L_W, val), L_W);
 
 #if BOTANIK_FEATURE_NTP
             if (ctx.ntp && ctx.ntp->synced()) {
@@ -171,7 +159,7 @@ namespace Botanik { namespace Pages {
 #else
             snprintf(val, sizeof(val), "off");
 #endif
-            _cell(SLOT_NTP, 7, R_VAL, rjust(fld, sizeof(fld), R_W, val), R_W);
+            _cell(7, R_VAL, rjust(fld, sizeof(fld), R_W, val), R_W);
             // State plus the age of the last broker contact (connect or
             // keepalive) - "ready (3s)" while live, growing once it drops.
 #if BOTANIK_FEATURE_MQTT
@@ -193,7 +181,7 @@ namespace Botanik { namespace Pages {
 #else
             snprintf(val, sizeof(val), "off");
 #endif
-            _cell(SLOT_MQTT, 8, R_VAL, rjust(fld, sizeof(fld), R_W, val), R_W);
+            _cell(8, R_VAL, rjust(fld, sizeof(fld), R_W, val), R_W);
 #endif
 
             draw_payload_dynamic();
@@ -212,20 +200,20 @@ namespace Botanik { namespace Pages {
             Utils::CalendarTime wc = Utils::cal_time_ms(HAL::Clock::uptime_ms());
             snprintf(val, sizeof(val), "%02u/%02u/%02u %02u:%02u:%02u",
                      wc.year % 100, wc.month, wc.day, wc.hour, wc.minute, wc.second);
-            _cell(SLOT_WALL, 3, R_VAL, rjust(fld, sizeof(fld), R_W, val), R_W, false);
+            _cell(3, R_VAL, rjust(fld, sizeof(fld), R_W, val), R_W, false);
             fmt_uptime(val, sizeof(val), HAL::Clock::uptime_ms());
-            _cell(SLOT_UPTIME, 4, R_VAL, rjust(fld, sizeof(fld), R_W, val), R_W, false);
+            _cell(4, R_VAL, rjust(fld, sizeof(fld), R_W, val), R_W, false);
 
             // CPU load + jitter (left): EMA leads, peak ms in parens.
             if (ctx.scheduler) {
                 snprintf(val, sizeof(val), "%5s%% (peak %5sms)",
                          Utils::format_float(fa, sizeof(fa), ctx.scheduler->cpu_load_ema * 100.0f, 1),
                          Utils::format_float(fb, sizeof(fb), ctx.scheduler->cpu_loop_us_max / 1000.0, 2));
-                _cell(SLOT_CPU, 3, L_VAL, rjust(fld, sizeof(fld), L_W, val), L_W, false);
+                _cell(3, L_VAL, rjust(fld, sizeof(fld), L_W, val), L_W, false);
                 snprintf(val, sizeof(val), "%5s%% (peak %5sms)",
                          Utils::format_float(fa, sizeof(fa), ctx.scheduler->cpu_jitter_ema * 100.0f, 1),
                          Utils::format_float(fb, sizeof(fb), ctx.scheduler->cpu_jitter_us_max / 1000.0, 2));
-                _cell(SLOT_JITTER, 4, L_VAL, rjust(fld, sizeof(fld), L_W, val), L_W, false);
+                _cell(4, L_VAL, rjust(fld, sizeof(fld), L_W, val), L_W, false);
             }
 
             // Console TX (right): ring depth / capacity + cumulative drops.
@@ -236,7 +224,7 @@ namespace Botanik { namespace Pages {
             if (drops > 9999) drops = 9999;
             snprintf(val, sizeof(val), "%4u/%u (drops: %4lu)",
                      _terminal.tx_used(), AnsiTerminal::tx_capacity(), (unsigned long)drops);
-            _cell(SLOT_CONSOLE, 6, R_VAL, rjust(fld, sizeof(fld), R_W, val), R_W);
+            _cell(6, R_VAL, rjust(fld, sizeof(fld), R_W, val), R_W);
         }
 
         /** @brief Site-specific labels/headers (drawn once). Base: no-op. */

@@ -110,10 +110,15 @@ One row per page, in the order they derive:
 Three of those entries carry a decision worth knowing:
 
 **`MetricPage` repaints its fields whole** and lets the back-buffer diff drop
-whatever did not move, so a refresh never saturates the low-baud link. Its one
-value cache exists only to spot *which* values changed for the `watch -d`-style
-highlight - a question about the data, which the diff cannot answer (it knows
-which cells differ, not why).
+whatever did not move, so a refresh never saturates the low-baud link. To light
+the `watch -d`-style highlight it has to know *which* values changed - a
+question about the data, which the diff cannot answer - so it compares the field
+it is about to draw against the glyphs already on the FRONT grid at those cells,
+which is what it drew there last time. It kept a private 1 KB copy of exactly
+that until the grid was asked directly. Reading FRONT back is otherwise
+forbidden to a renderer (@ref dev_screen); the exception is narrow and the
+reason is in `AnsiTerminal::front_cells()`: this never decides WHETHER to paint,
+only how to attribute.
 
 **`ScrollTablePage` owns the scroll offset, the selection cursor, the shared
 navigation keys, the row filter, the legend line and the `^`/`v` hidden-row

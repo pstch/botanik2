@@ -137,8 +137,8 @@ namespace Botanik { namespace Pages {
         _label(UPTIME_ROW, "Uptime");
         // Site home-field labels (three columns).
         for (uint8_t i = 0; i < _field_count; i++) {
-            uint16_t row, lbl, val, w, slot;
-            if (!_field_place(i, row, lbl, val, w, slot)) break;
+            uint16_t row, lbl, val, w;
+            if (!_field_place(i, row, lbl, val, w)) break;
             _label_at(row, lbl, _fields[i].label);
         }
         // Divider above the bottom log band (band rows are painted from the
@@ -154,15 +154,15 @@ namespace Botanik { namespace Pages {
         // show the first variable.
         if (_io == nullptr || _refs == nullptr) return;
         for (uint8_t i = 0; i < _field_count; i++) {
-            uint16_t row, lbl, val, w, slot;
-            if (!_field_place(i, row, lbl, val, w, slot)) break;
+            uint16_t row, lbl, val, w;
+            if (!_field_place(i, row, lbl, val, w)) break;
             Vars::Var h = _io->var(_refs[i]);
             char vb[32], buf[40];
             const char* s = Vars::var_format(*_io, h, vb, sizeof(vb));
             const char* u = h.meta()->unit;
             if (u && u[0]) snprintf(buf, sizeof(buf), "%s %s", s, u);
             else           snprintf(buf, sizeof(buf), "%s", s);
-            _cell(slot, row, val, buf, w);
+            _cell(row, val, buf, w);
         }
     }
 
@@ -170,7 +170,7 @@ namespace Botanik { namespace Pages {
         char buf[40];
         fmt_uptime(buf, sizeof(buf), HAL::Clock::uptime_ms());
         // bounded (see draw_dynamic)
-        _cell(UPTIME_SLOT, UPTIME_ROW, UPTIME_VAL, buf, UPTIME_W, false);
+        _cell(UPTIME_ROW, UPTIME_VAL, buf, UPTIME_W, false);
     }
 
     void HomePage::focus() {

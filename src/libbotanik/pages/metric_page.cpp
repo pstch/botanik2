@@ -62,6 +62,9 @@ namespace Botanik { namespace Pages {
             _refresh_last_ms = now;
             _cold_due        = false;
             _repaint_all     = false;
+            // The repaint has run: from here a value differing from the grid
+            // is a value that MOVED, and lights.
+            _fresh           = false;
             return;
         }
 
