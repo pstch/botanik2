@@ -41,15 +41,20 @@ struct Collector : Shell::ShellWriter {
 
 struct ShellFixture {
     botanik_test::PipeSerial          wire;
-    Terminal::AnsiTerminal            terminal;
+    uint64_t                          now = 0;
+    // A real Console: TextEditor's constructor takes console->terminal(), so a
+    // null one is a dereference before the body runs. The shell never draws
+    // through it here - what it says comes back through the Collector.
+    Terminal::Console                 console;
     Terminal::EditorBuffers<2048, 16> store;
     Terminal::TextEditor              editor;
     Collector                         out;
     Shell::CommandShell               shell;
 
     ShellFixture()
-        : terminal(wire.serial), editor(nullptr, store.storage()),
-          shell(terminal, editor, out) {}
+        : console(SetupContext(), wire.serial, &now),
+          editor(&console, store.storage()),
+          shell(console.terminal(), editor, out) {}
 
     /** @brief Run one command line and hand back everything it printed. */
     const std::string& run(const char* line) {
@@ -79,8 +84,7 @@ TEST_CASE("shell: a bare lifecycle verb refuses and says what it would cost") {
         INFO("...and say what to type");
         CHECK(said.find("confirm") != std::string::npos);
 
-        // On one row at the narrowest console the operator can ask for, or the
-        // instruction is the half that wraps - which is what it did first time.
+        // One row at 80 columns, or the instruction is the half that wraps.
         INFO("the refusal must fit an 80-column row: '" << said << "'");
         CHECK(said.size() <= 79);
     }
@@ -104,10 +108,9 @@ TEST_CASE("shell: a lifecycle verb refuses anything that is not exactly confirm"
 TEST_CASE("shell: halt confirm reaches the health monitor") {
     ShellFixture f;
 
-    // No health monitor wired: the guard has to pass FIRST, so what comes back
-    // is the handler's own unavailability line rather than the refusal. That is
-    // the only way to prove the confirmation was accepted without resetting the
-    // process running this test.
+    // No health monitor wired, so a guard that PASSED lands on the handler's
+    // own unavailability line. The only way to prove acceptance without
+    // resetting the process running this test.
     const std::string said = f.run("halt confirm");
     CHECK(said.find("confirm") == std::string::npos);
     CHECK(said.find("unavailable") != std::string::npos);
@@ -115,9 +118,8 @@ TEST_CASE("shell: halt confirm reaches the health monitor") {
 
 TEST_CASE("shell: the help table states the requirement it enforces") {
     ShellFixture f;
-    // _verb_usage and `help` both read the Builtin row, so a guard added to a
-    // handler without touching the table would leave `help` telling an operator
-    // to type a command that now refuses.
+    // `help` reads the Builtin row, so a guard added to a handler alone would
+    // leave help telling an operator to type a command that now refuses.
     const std::string said = f.run("help system");
     for (const char* verb : { "halt", "reset", "reboot", "exit" }) {
         INFO(verb);

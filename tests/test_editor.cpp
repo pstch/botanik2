@@ -23,6 +23,11 @@ namespace editor_invariant {
 
 using namespace Botanik;
 
+#define SET_PS(n, lit) do { \
+    static const char s[] = lit; \
+    editor.set_ps##n(s, (uint16_t)(sizeof(s) - 1)); \
+} while (0)
+
 /** @brief A console with one editor on it and nothing else, so a full repaint
  *  of the editor is a full repaint of everything on screen. */
 struct EditorFixture : botanik_test::PageFixture {
@@ -33,17 +38,17 @@ struct EditorFixture : botanik_test::PageFixture {
                            bool notes_prompts = false)
         : PageFixture(rows, cols),
           editor(&console, store.storage()) {
+        // sizeof - 1 rather than a written-out length, the way the two real
+        // callers do it: a prompt and a length that disagree is a memcpy off
+        // the end of a literal, and it reads as correct.
         if (notes_prompts) {
             // NOTES: the three prompts are the same WIDTH, which is what
             // docs/dev/editor.md requires and what makes a class flip
-            // invisible to a length comparison.
-            editor.set_ps1("> ", 2);
-            editor.set_ps2("  ", 2);
-            editor.set_ps3("> ", 2);
+            // invisible to a length comparison. @see NotesPage::PROMPT_LINE
+            SET_PS(1, "> "); SET_PS(2, "  "); SET_PS(3, "> ");
         } else {
-            editor.set_ps1("botanik> ", 9);
-            editor.set_ps2("  ", 2);
-            editor.set_ps3("> ", 5);
+            // @see ShellPage::_setup_editor
+            SET_PS(1, "botanik> "); SET_PS(2, "> "); SET_PS(3, "...> ");
         }
         editor.reset();
         drain();
