@@ -8,6 +8,10 @@ VAR_EXTERNAL CONSTANT
   cli_windowCap        : REAL;
   cli_windowTravel_sec : UINT;
   cli_windowTmo_sec    : UINT;
+  cli_windowMinRun_ms  : UINT;
+  cli_windowReverse_ms : UINT;
+  cli_windowDeadband   : REAL;
+  cli_windowRedatum    : REAL;
   sys_now_ms           : UDINT;
 END_VAR
 VAR_EXTERNAL
@@ -27,6 +31,10 @@ VAR_EXTERNAL
   cli_window2_pos : REAL;
   cli_window3_pos : REAL;
   cli_window4_pos : REAL;
+  cli_window1_drift : REAL;
+  cli_window2_drift : REAL;
+  cli_window3_drift : REAL;
+  cli_window4_drift : REAL;
 END_VAR
 VAR
   ram1 : ACTUATOR;
@@ -103,10 +111,10 @@ END_VAR
   ram1.OPEN_MS      := travel;
   ram1.CLOSE_MS     := travel;
   ram1.SEAT_MS      := seat;
-  ram1.MIN_RUN_MS   := 250;
-  ram1.REVERSE_MS   := 500;
-  ram1.DB           := 0.02;
-  ram1.REDATUM      := 3.0;
+  ram1.MIN_RUN_MS   := UINT_TO_UDINT(cli_windowMinRun_ms);
+  ram1.REVERSE_MS   := UINT_TO_UDINT(cli_windowReverse_ms);
+  ram1.DB           := cli_windowDeadband;
+  ram1.REDATUM      := cli_windowRedatum;
   ram1.HOLD         := owner <> 1;
   ram1.PRESET_KNOWN := FALSE;
   ram1.PRESET_POS   := 0.0;
@@ -117,10 +125,10 @@ END_VAR
   ram2.OPEN_MS      := travel;
   ram2.CLOSE_MS     := travel;
   ram2.SEAT_MS      := seat;
-  ram2.MIN_RUN_MS   := 250;
-  ram2.REVERSE_MS   := 500;
-  ram2.DB           := 0.02;
-  ram2.REDATUM      := 3.0;
+  ram2.MIN_RUN_MS   := UINT_TO_UDINT(cli_windowMinRun_ms);
+  ram2.REVERSE_MS   := UINT_TO_UDINT(cli_windowReverse_ms);
+  ram2.DB           := cli_windowDeadband;
+  ram2.REDATUM      := cli_windowRedatum;
   ram2.HOLD         := owner <> 2;
   ram2.PRESET_KNOWN := FALSE;
   ram2.PRESET_POS   := 0.0;
@@ -131,10 +139,10 @@ END_VAR
   ram3.OPEN_MS      := travel;
   ram3.CLOSE_MS     := travel;
   ram3.SEAT_MS      := seat;
-  ram3.MIN_RUN_MS   := 250;
-  ram3.REVERSE_MS   := 500;
-  ram3.DB           := 0.02;
-  ram3.REDATUM      := 3.0;
+  ram3.MIN_RUN_MS   := UINT_TO_UDINT(cli_windowMinRun_ms);
+  ram3.REVERSE_MS   := UINT_TO_UDINT(cli_windowReverse_ms);
+  ram3.DB           := cli_windowDeadband;
+  ram3.REDATUM      := cli_windowRedatum;
   ram3.HOLD         := owner <> 3;
   ram3.PRESET_KNOWN := FALSE;
   ram3.PRESET_POS   := 0.0;
@@ -145,10 +153,10 @@ END_VAR
   ram4.OPEN_MS      := travel;
   ram4.CLOSE_MS     := travel;
   ram4.SEAT_MS      := seat;
-  ram4.MIN_RUN_MS   := 250;
-  ram4.REVERSE_MS   := 500;
-  ram4.DB           := 0.02;
-  ram4.REDATUM      := 3.0;
+  ram4.MIN_RUN_MS   := UINT_TO_UDINT(cli_windowMinRun_ms);
+  ram4.REVERSE_MS   := UINT_TO_UDINT(cli_windowReverse_ms);
+  ram4.DB           := cli_windowDeadband;
+  ram4.REDATUM      := cli_windowRedatum;
   ram4.HOLD         := owner <> 4;
   ram4.PRESET_KNOWN := FALSE;
   ram4.PRESET_POS   := 0.0;
@@ -171,6 +179,13 @@ END_VAR
   cli_window2_tgt := aim;
   cli_window3_tgt := aim;
   cli_window4_tgt := aim;
+  (* Travel since each ram last reached a stop. No ram reports a fault - they
+     have limit switches and no contact back - so a drift that climbs while its
+     three siblings reset is the only sign of a linkage going. *)
+  cli_window1_drift := ram1.DRIFT;
+  cli_window2_drift := ram2.DRIFT;
+  cli_window3_drift := ram3.DRIFT;
+  cli_window4_drift := ram4.DRIFT;
   IF ram1.KNOWN THEN cli_window1_pos := ram1.POS; END_IF;
   IF ram2.KNOWN THEN cli_window2_pos := ram2.POS; END_IF;
   IF ram3.KNOWN THEN cli_window3_pos := ram3.POS; END_IF;

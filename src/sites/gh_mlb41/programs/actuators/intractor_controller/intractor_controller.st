@@ -45,12 +45,15 @@ END_VAR
 
   (* The FLOOR, and it is a SPEED rather than a demand: some air is always
      wanted, and the row is where this actuator's safe state is declared. A
-     demand below the start threshold simply does not reach it. *)
+     demand below the start threshold simply does not reach it.
+
+     Through LADDER, like every other ramp: a start and a full an operator has
+     set to the same number is a mis-set pair, and the ladder reads that as
+     fully on rather than dividing by the gap between them. *)
   speed := MAX(cli_intrSafeSpeed,
-               LIMIT(0.0,
-                     (demand - cli_intakeStartDem)
-                       / (cli_intakeFullDem - cli_intakeStartDem),
-                     1.0));
+               LADDER(V  := demand,
+                      LO := cli_intakeStartDem,
+                      HI := cli_intakeFullDem));
 
   (* Ground heat is ONE RUNG, not a ramp: the spec's negative half asks for low
      speed at -0.1 and says nothing about wanting more of it the colder it

@@ -8,14 +8,14 @@ finds it. The site half comes from `tables/*.csv`, the library half from
 
 One section per SCOPE, in the order `Vars::VarScope` declares them.
 
-589 rows: 515 declared by the site, 74 by the library.
+603 rows: 529 declared by the site, 74 by the library.
 
 | scope | what it is | site | library |
 |---|---|---|---|
-| Alarms | the boolean an AlarmCondition reads | 39 | 13 |
-| Parameters | persisted, editable | 179 | 52 |
+| Alarms | the boolean an AlarmCondition reads | 40 | 13 |
+| Parameters | persisted, editable | 187 | 52 |
 | Computed values | HMI only, not published | 0 | 0 |
-| Status values | published: MQTT and the Modbus TCP slave | 185 | 9 |
+| Status values | published: MQTT and the Modbus TCP slave | 190 | 9 |
 | Direct inputs | register 1:1 (device 0 = local) | 75 | 0 |
 | Analog inputs | raw count through scale/offset | 5 | 0 |
 | Digital inputs | one bit, polled - or an edge COUNT, which is a PI row | 2 | 0 |
@@ -28,7 +28,7 @@ One section per SCOPE, in the order `Vars::VarScope` declares them.
 
 `SCOPE_A`: the boolean an AlarmCondition reads.
 
-### gh_mlb41 (39)
+### gh_mlb41 (40)
 
 | name | code | on (s) | off (s) | recent (s) | hold (s) | reg | description | notes |
 |---|---|---|---|---|---|---|---|---|
@@ -49,6 +49,7 @@ One section per SCOPE, in the order `Vars::VarScope` declares them.
 | alarm_irr_drain | DRAIN_FLT | 3 | 3 | 0 | 0 | 819 | a tray would not drain in time | inspect irrigation circuit / look for clogging |
 | alarm_weather_storm | WH_STORM | 60 | 120 | 0 | 15 | 822 | current storm conditions | check that the windows are properly closed |
 | alarm_sns_ceiling | SNS_CEIL | 5 | 5 | 0 | 0 | 826 | ceiling T°/RH probe quorum lost | check wiring or replace faulty sensor |
+| alarm_zone_blind | ZONE_BLND | 5 | 5 | 0 | 0 | 849 | no interior temperature at all | every cooling law is running on a held reading |
 | alarm_sns_floor | SNS_FLR | 5 | 5 | 0 | 0 | 827 | floor T°/RH probe quorum lost | check wiring or replace faulty sensor |
 | alarm_sns_crawlspace | SNS_CS | 5 | 5 | 0 | 0 | 828 | crawlspace T°/RH probe quorum lost | check wiring or replace faulty sensor |
 | alarm_sns_exterior | SNS_EXT | 5 | 5 | 0 | 0 | 829 | exterior T°/RH probe quorum lost | check wiring or replace faulty sensor |
@@ -94,7 +95,7 @@ One section per SCOPE, in the order `Vars::VarScope` declares them.
 
 `SCOPE_P`: persisted, editable.
 
-### gh_mlb41 (179)
+### gh_mlb41 (187)
 
 | name | type | default | accepts | unit | access | reg | description | notes |
 |---|---|---|---|---|---|---|---|---|
@@ -103,7 +104,7 @@ One section per SCOPE, in the order `Vars::VarScope` declares them.
 | cli_heatBankTrg_degC | T_F32 | 10.0 | 6.0 .. 18.0 | degC | RW | 102 | yesterday's low below this: bank heat | - |
 | cli_coldBankTrg_degC | T_F32 | 24.0 | 12.0 .. 40.0 | degC | RW | 103 | yesterday's high above this: bank cold | - |
 | cli_coolSet_degC | T_F32 | 20.0 | 10.0 .. 30.0 | degC | RW | 104 | base cooling target temperature | every cooling stage keys off this |
-| cli_coolKp | T_F32 | 0.08 | 0.0 .. 1.0 | - | RW | 105 | cooling PID proportional gain | leave as set |
+| cli_coolKp | T_F32 | 0.08 | 0.01 .. 1.0 | - | RW | 105 | cooling PID proportional gain | never 0: that stops all cooling |
 | cli_coolTi_sec | T_F32 | 200.0 | 0.0 .. 3600.0 | sec | RW | 106 | cooling PID integral time | leave as set |
 | cli_coolTd_sec | T_F32 | 0.0 | 0.0 .. 10.0 | sec | RW | 107 | cooling PID derivative time | leave at zero |
 | cli_ventTempMgn_degC | T_F32 | 1.0 | 0.0 .. 15.0 | degC | RW | 108 | intake air must be this much cooler | - |
@@ -146,6 +147,14 @@ One section per SCOPE, in the order `Vars::VarScope` declares them.
 | cli_windowTmo_sec | T_U16 | 20 | 1 .. 90 | sec | RW | 142 | safe time to fully open/close a window | per actuator datasheet |
 | cli_screenTravel_sec | T_U16 | 60 | 1 .. 300 | sec | RW | 143 | time to deploy/remove the screen | per actuator datasheet |
 | cli_screenTmo_sec | T_U16 | 80 | 1 .. 400 | sec | RW | 144 | safe time to deploy/remove the screen | per actuator datasheet |
+| cli_windowPark | T_F32 | 0.25 | 0.0 .. 1.0 | - | RW | 441 | roof opening when the house is unseen | its safe state: venting but no more |
+| cli_windowReverse_ms | T_U16 | 500 | 0 .. 5000 | ms | RW | 442 | window ram reversal dead time | per contactor datasheet |
+| cli_windowMinRun_ms | T_U16 | 250 | 0 .. 5000 | ms | RW | 443 | shortest window ram move worth making | under it the ram only twitches |
+| cli_windowDeadband | T_F32 | 0.02 | 0.0 .. 0.5 | - | RW | 444 | how near a window counts as there | - |
+| cli_windowRedatum | T_F32 | 3.0 | 0.0 .. 50.0 | - | RW | 445 | window travel between re-datums | 0 disables; in full strokes |
+| cli_screenMinRun_ms | T_U16 | 250 | 0 .. 5000 | ms | RW | 446 | shortest screen move worth making | - |
+| cli_screenDeadband | T_F32 | 0.02 | 0.0 .. 0.5 | - | RW | 447 | how near the screen counts as there | - |
+| cli_screenRedatum | T_F32 | 3.0 | 0.0 .. 50.0 | - | RW | 448 | screen travel between re-datums | 0 disables; in full strokes |
 | cli_rainLockout_sec | T_U16 | 300 | 0 .. 3600 | sec | RW | 145 | keep windows shut this long after rain | - |
 | cli_skirtPeriod_sec | T_U16 | 60 | 10 .. 600 | sec | RW | 146 | skirt valve modulation period | humidify effort sets the on-time in it |
 | cli_skirtMinOn_sec | T_U16 | 10 | 1 .. 600 | sec | RW | 147 | shortest skirt valve pulse | <= cli_skirtPeriod_sec; under it, stay off |
@@ -339,7 +348,7 @@ One section per SCOPE, in the order `Vars::VarScope` declares them.
 
 `SCOPE_SV`: published: MQTT and the Modbus TCP slave.
 
-### gh_mlb41 (185)
+### gh_mlb41 (190)
 
 | name | type | default | digits | unit | reg | description | notes |
 |---|---|---|---|---|---|---|---|
@@ -397,8 +406,13 @@ One section per SCOPE, in the order `Vars::VarScope` declares them.
 | cli_windGust_mps | T_F32 | 0 | 1 | mps | 612 | peak gust, voted | the worse of the stations, like the mean beside it |
 | cli_rain_mmph | T_F32 | 0 | 1 | mmph | 609 | rainfall rate, voted | the WETTER of the stations: a shower one gauge misses still shuts the roof |
 | cli_irrad_Wpm2 | T_F32 | 0 | 1 | Wpm2 | 606 | solar irradiance, voted | the MEAN: nothing controls on it, so the worst case has no meaning here |
-| cli_sinceRain_min | T_U16 | 0 | 0 | min | 595 | minutes since the gauge last read wet | held until the first shower of this run: a reboot does not know when it last rained |
+| cli_sinceRain_h | T_F32 | 0 | 2 | h | 595 | hours since the gauge last read wet | held until the first shower of this run: a reboot does not know when it last rained |
 | cli_screenMoving | T_BOOL | 0 | 0 | - | 550 | thermal screen travelling | cuts the destratification fans while it moves |
+| cli_window1_drift | T_F32 | 0 | 1 | - | 692 | window 1 travel since its last datum | the only wear signal there is: no ram reports a fault |
+| cli_window2_drift | T_F32 | 0 | 1 | - | 693 | window 2 travel since its last datum | the only wear signal there is: no ram reports a fault |
+| cli_window3_drift | T_F32 | 0 | 1 | - | 694 | window 3 travel since its last datum | the only wear signal there is: no ram reports a fault |
+| cli_window4_drift | T_F32 | 0 | 1 | - | 695 | window 4 travel since its last datum | the only wear signal there is: no ram reports a fault |
+| cli_screen_drift | T_F32 | 0 | 1 | - | 696 | screen travel since its last datum | the only wear signal there is: no drive reports a fault |
 | cli_rotLockout | T_BOOL | 1 | 0 | - | 551 | rot risk: nothing may humidify | cuts the skirt valve whatever the humidity demand |
 | cli_rotVentDem | T_F32 | 0.30 | 2 | - | 552 | anti-rot ventilation demand, 0 to 1 | one of the three the intractors take the max of |
 | cli_skirtDuty | T_F32 | 0 | 2 | - | 553 | skirt valve on-time, 0 to 1 | of cli_skirtPeriod_sec; under cli_skirtMinOn_sec it stays off |
@@ -732,12 +746,12 @@ between them.
 | 4 | temp_rh_sensors | sense | 50 | 20 | The four measurement locations, each voted down to one reading and filtered: what the greenhouse IS, before any law is set in it. |
 | 5 | wx_sensors | sense | 18 | 7 | The two weather stations, voted down to one reading per quantity: the worse of them, because two cannot say which is lying. |
 | 6 | strat | sense | 5 | 2 | The stratification gap: how much warmer the ceiling is than the floor, unsigned. |
-| 7 | temp_rh_zone | sense | 7 | 8 | The psychrometrics every other law is set in, off the two interior levels: one temperature for the house, and the worst case per quantity. |
+| 7 | temp_rh_zone | sense | 9 | 9 | The psychrometrics every other law is set in, off the two interior levels: one temperature for the house, and the worst case per quantity. |
 | 8 | climate_watch | control | 14 | 5 | The interior conditions, watched: the alarms that are a READING crossing a line rather than a law failing to hold one. |
 | 9 | weather_watch | control | 6 | 2 | The weather station, watched: whether it is answering, and whether what it says is a storm. |
 | 10 | day_phase | control | 12 | 6 | The day's phase, and the temperature target it puts in force. |
 | 11 | target_temp | control | 11 | 1 | The temperature the greenhouse is being held to: the base setting, shifted by whichever bank phase is both IN FORCE and ARMED. |
-| 12 | cooling | sense | 9 | 3 | The cooling ladder: a PID on the interior temperature against the phase's target, published as one signed demand. |
+| 12 | cooling | sense | 10 | 3 | The cooling ladder: a PID on the interior temperature against the phase's target, published as one signed demand. |
 | 13 | humidity | control | 10 | 3 | The humidity ladder: four bands and a dead zone on the dew-point margin, published as one signed demand - and the rot guard under it. |
 | 14 | intake_dry | control | 10 | 1 | The intake dry gate: whether the air outside is drier than the air in. |
 | 15 | intake_gates | control | 10 | 2 | The two intake gates: whether crawlspace air is worth drawing, for cooling and for ground heat. |
@@ -746,8 +760,8 @@ between them.
 | 18 | intractors | control | 10 | 2 | The two intractors: variable-speed fans drawing air from under the floor, driven by whichever of three demands wants the most. |
 | 19 | fans | control | 10 | 7 | The two destratification fans: three relayed speeds, driven by whichever of three demands wants the most. |
 | 20 | skirt | control | 11 | 2 | The wet skirt: one valve pulsed against two demands. |
-| 21 | screen | control | 7 | 2 | The thermal screen: one coil, deployed when the greenhouse is losing heat rather than gaining it. |
-| 22 | windows | control | 6 | 16 | The four roof windows: one target from the cooling ladder, and ONE MOVING AT A TIME. |
+| 21 | screen | control | 10 | 3 | The thermal screen: one coil, deployed when the greenhouse is losing heat rather than gaining it. |
+| 22 | windows | control | 10 | 20 | The four roof windows: one target from the cooling ladder, and ONE MOVING AT A TIME. |
 | 23 | irr_modulation | control | 8 | 3 | The irrigation ladder: how thirsty the air has been, as one factor. |
 | 24 | irr_mtr_input | control | 7 | 5 | The inlet meter, and the two supply faults it alone can see. |
 | 25 | irr_mtr_output | control | 6 | 4 | The outlet meter: what came back off the trays. |
@@ -815,8 +829,8 @@ between them.
 
 | direction | rows |
 |---|---|
-| reads | `cli_temp_hi`, `cli_rh_hi`, `cli_temp_lo`, `cli_rh_lo`, `cli_temp_hi_qlt`, `cli_temp_lo_qlt`, `cli_rotMargin_degC` |
-| writes | `cli_temp_in`, `cli_temp_in_qlt`, `cli_dewPoint_degC`, `cli_dpMargin_degC`, `cli_dpMargin_degC_qlt`, `cli_satPress_kPa`, `cli_vpd_kPa`, `alarm_rot` |
+| reads | `cli_temp_hi`, `cli_rh_hi`, `cli_temp_lo`, `cli_rh_lo`, `cli_temp_hi_qlt`, `cli_temp_lo_qlt`, `cli_temp_ext`, `cli_temp_ext_qlt`, `cli_rotMargin_degC` |
+| writes | `cli_temp_in`, `cli_temp_in_qlt`, `cli_dewPoint_degC`, `cli_dpMargin_degC`, `cli_dpMargin_degC_qlt`, `cli_satPress_kPa`, `cli_vpd_kPa`, `alarm_rot`, `alarm_zone_blind` |
 
 ### climate_watch
 
@@ -834,7 +848,7 @@ between them.
 | direction | rows |
 |---|---|
 | reads | `cli_wind_mps`, `cli_rain_mmph`, `cli_wind_mps_qlt`, `cli_rain_mmph_qlt`, `cli_windShutEnd_mps`, `sys_now_ms` |
-| writes | `alarm_weather_storm`, `cli_sinceRain_min` |
+| writes | `alarm_weather_storm`, `cli_sinceRain_h` |
 
 ### day_phase
 
@@ -860,7 +874,7 @@ between them.
 
 | direction | rows |
 |---|---|
-| reads | `cli_temp_in`, `cli_temp_in_qlt`, `cli_targetTemp_degC`, `cli_windowStartDem`, `cli_windowFullDem`, `cli_coolKp`, `cli_coolTi_sec`, `cli_coolTd_sec`, `sys_now_ms` |
+| reads | `cli_temp_in`, `cli_temp_in_qlt`, `cli_targetTemp_degC`, `cli_windowStartDem`, `cli_windowFullDem`, `cli_windowPark`, `cli_coolKp`, `cli_coolTi_sec`, `cli_coolTd_sec`, `sys_now_ms` |
 | writes | `cli_coolDem`, `cli_coolDem_qlt`, `cli_windowDem` |
 
 ### humidity
@@ -941,8 +955,8 @@ between them.
 
 | direction | rows |
 |---|---|
-| reads | `cli_coolDem`, `cli_coolDem_qlt`, `cli_thermalScreenDem`, `cli_phase`, `cli_screenTravel_sec`, `cli_screenTmo_sec`, `sys_now_ms` |
-| writes | `cli_screen`, `cli_screenMoving` |
+| reads | `cli_coolDem`, `cli_coolDem_qlt`, `cli_thermalScreenDem`, `cli_phase`, `cli_screenTravel_sec`, `cli_screenTmo_sec`, `cli_screenMinRun_ms`, `cli_screenDeadband`, `cli_screenRedatum`, `sys_now_ms` |
+| writes | `cli_screen`, `cli_screenMoving`, `cli_screen_drift` |
 
 ### windows
 
@@ -950,8 +964,8 @@ between them.
 
 | direction | rows |
 |---|---|
-| reads | `cli_windowDem`, `cli_windowLockout`, `cli_windowCap`, `cli_windowTravel_sec`, `cli_windowTmo_sec`, `sys_now_ms` |
-| writes | `cli_window1_opn`, `cli_window2_opn`, `cli_window3_opn`, `cli_window4_opn`, `cli_window1_clo`, `cli_window2_clo`, `cli_window3_clo`, `cli_window4_clo`, `cli_window1_tgt`, `cli_window2_tgt`, `cli_window3_tgt`, `cli_window4_tgt`, `cli_window1_pos`, `cli_window2_pos`, `cli_window3_pos`, `cli_window4_pos` |
+| reads | `cli_windowDem`, `cli_windowLockout`, `cli_windowCap`, `cli_windowTravel_sec`, `cli_windowTmo_sec`, `cli_windowMinRun_ms`, `cli_windowReverse_ms`, `cli_windowDeadband`, `cli_windowRedatum`, `sys_now_ms` |
+| writes | `cli_window1_opn`, `cli_window2_opn`, `cli_window3_opn`, `cli_window4_opn`, `cli_window1_clo`, `cli_window2_clo`, `cli_window3_clo`, `cli_window4_clo`, `cli_window1_tgt`, `cli_window2_tgt`, `cli_window3_tgt`, `cli_window4_tgt`, `cli_window1_pos`, `cli_window2_pos`, `cli_window3_pos`, `cli_window4_pos`, `cli_window1_drift`, `cli_window2_drift`, `cli_window3_drift`, `cli_window4_drift` |
 
 ### irr_modulation
 

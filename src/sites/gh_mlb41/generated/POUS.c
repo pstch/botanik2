@@ -2668,12 +2668,12 @@ static void INTRACTOR_CONTROLLER_body__(INTRACTOR_CONTROLLER_data__ *data__) {
     (BOOL)__BOOL_LITERAL(TRUE),
     NULL,
     (REAL)__GET_EXTERNAL(data__->CLI_INTRSAFESPEED,),
-    (REAL)___LIMIT(
+    (REAL)___LADDER(
       (BOOL)__BOOL_LITERAL(TRUE),
       NULL,
-      (REAL)__REAL_LITERAL(0.0),
-      (REAL)((__GET_VAR(data__->DEMAND,) - __GET_EXTERNAL(data__->CLI_INTAKESTARTDEM,)) / (__GET_EXTERNAL(data__->CLI_INTAKEFULLDEM,) - __GET_EXTERNAL(data__->CLI_INTAKESTARTDEM,))),
-      (REAL)__REAL_LITERAL(1.0))));
+      (REAL)__GET_VAR(data__->DEMAND,),
+      (REAL)__GET_EXTERNAL(data__->CLI_INTAKESTARTDEM,),
+      (REAL)__GET_EXTERNAL(data__->CLI_INTAKEFULLDEM,))));
   if (__GET_EXTERNAL(data__->CLI_GROUNDHEATOK,)) {
     __SET_VAR(data__->,SPEED,,___MAX(
       (BOOL)__BOOL_LITERAL(TRUE),
@@ -2768,9 +2768,13 @@ static void SCREEN_CONTROLLER_init__(SCREEN_CONTROLLER_data__ *data__, BOOL reta
   __INIT_EXTERNAL(USINT,CLI_PHASE,data__->CLI_PHASE,retain)
   __INIT_EXTERNAL(UINT,CLI_SCREENTRAVEL_SEC,data__->CLI_SCREENTRAVEL_SEC,retain)
   __INIT_EXTERNAL(UINT,CLI_SCREENTMO_SEC,data__->CLI_SCREENTMO_SEC,retain)
+  __INIT_EXTERNAL(UINT,CLI_SCREENMINRUN_MS,data__->CLI_SCREENMINRUN_MS,retain)
+  __INIT_EXTERNAL(REAL,CLI_SCREENDEADBAND,data__->CLI_SCREENDEADBAND,retain)
+  __INIT_EXTERNAL(REAL,CLI_SCREENREDATUM,data__->CLI_SCREENREDATUM,retain)
   __INIT_EXTERNAL(UDINT,SYS_NOW_MS,data__->SYS_NOW_MS,retain)
   __INIT_EXTERNAL(BOOL,CLI_SCREEN,data__->CLI_SCREEN,retain)
   __INIT_EXTERNAL(BOOL,CLI_SCREENMOVING,data__->CLI_SCREENMOVING,retain)
+  __INIT_EXTERNAL(REAL,CLI_SCREEN_DRIFT,data__->CLI_SCREEN_DRIFT,retain)
   ACTUATOR_init__(&data__->FABRIC,retain);
 }
 
@@ -2815,16 +2819,20 @@ static void SCREEN_CONTROLLER_body__(SCREEN_CONTROLLER_data__ *data__) {
   __SET_VAR(data__->,FABRIC.OPEN_MS,,__GET_VAR(data__->STROKE,));
   __SET_VAR(data__->,FABRIC.CLOSE_MS,,__GET_VAR(data__->STROKE,));
   __SET_VAR(data__->,FABRIC.SEAT_MS,,__UDINT_LITERAL(0));
-  __SET_VAR(data__->,FABRIC.MIN_RUN_MS,,__UDINT_LITERAL(250));
+  __SET_VAR(data__->,FABRIC.MIN_RUN_MS,,___UINT_TO_UDINT(
+    (BOOL)__BOOL_LITERAL(TRUE),
+    NULL,
+    (UINT)__GET_EXTERNAL(data__->CLI_SCREENMINRUN_MS,)));
   __SET_VAR(data__->,FABRIC.REVERSE_MS,,__UDINT_LITERAL(0));
-  __SET_VAR(data__->,FABRIC.DB,,__REAL_LITERAL(0.02));
-  __SET_VAR(data__->,FABRIC.REDATUM,,__REAL_LITERAL(3.0));
+  __SET_VAR(data__->,FABRIC.DB,,__GET_EXTERNAL(data__->CLI_SCREENDEADBAND,));
+  __SET_VAR(data__->,FABRIC.REDATUM,,__GET_EXTERNAL(data__->CLI_SCREENREDATUM,));
   __SET_VAR(data__->,FABRIC.HOLD,,__BOOL_LITERAL(FALSE));
   __SET_VAR(data__->,FABRIC.PRESET_KNOWN,,__BOOL_LITERAL(TRUE));
   __SET_VAR(data__->,FABRIC.PRESET_POS,,__REAL_LITERAL(1.0));
   __SET_VAR(data__->,FABRIC.NOW,,__GET_EXTERNAL(data__->SYS_NOW_MS,));
   ACTUATOR_body__(&data__->FABRIC);
   __SET_EXTERNAL(data__->,CLI_SCREENMOVING,,__GET_VAR(data__->FABRIC.MOVING,));
+  __SET_EXTERNAL(data__->,CLI_SCREEN_DRIFT,,__GET_VAR(data__->FABRIC.DRIFT,));
 
   goto __end;
 
@@ -2922,6 +2930,10 @@ static void WINDOWS_CONTROLLER_init__(WINDOWS_CONTROLLER_data__ *data__, BOOL re
   __INIT_EXTERNAL(REAL,CLI_WINDOWCAP,data__->CLI_WINDOWCAP,retain)
   __INIT_EXTERNAL(UINT,CLI_WINDOWTRAVEL_SEC,data__->CLI_WINDOWTRAVEL_SEC,retain)
   __INIT_EXTERNAL(UINT,CLI_WINDOWTMO_SEC,data__->CLI_WINDOWTMO_SEC,retain)
+  __INIT_EXTERNAL(UINT,CLI_WINDOWMINRUN_MS,data__->CLI_WINDOWMINRUN_MS,retain)
+  __INIT_EXTERNAL(UINT,CLI_WINDOWREVERSE_MS,data__->CLI_WINDOWREVERSE_MS,retain)
+  __INIT_EXTERNAL(REAL,CLI_WINDOWDEADBAND,data__->CLI_WINDOWDEADBAND,retain)
+  __INIT_EXTERNAL(REAL,CLI_WINDOWREDATUM,data__->CLI_WINDOWREDATUM,retain)
   __INIT_EXTERNAL(UDINT,SYS_NOW_MS,data__->SYS_NOW_MS,retain)
   __INIT_EXTERNAL(BOOL,CLI_WINDOW1_OPN,data__->CLI_WINDOW1_OPN,retain)
   __INIT_EXTERNAL(BOOL,CLI_WINDOW2_OPN,data__->CLI_WINDOW2_OPN,retain)
@@ -2939,6 +2951,10 @@ static void WINDOWS_CONTROLLER_init__(WINDOWS_CONTROLLER_data__ *data__, BOOL re
   __INIT_EXTERNAL(REAL,CLI_WINDOW2_POS,data__->CLI_WINDOW2_POS,retain)
   __INIT_EXTERNAL(REAL,CLI_WINDOW3_POS,data__->CLI_WINDOW3_POS,retain)
   __INIT_EXTERNAL(REAL,CLI_WINDOW4_POS,data__->CLI_WINDOW4_POS,retain)
+  __INIT_EXTERNAL(REAL,CLI_WINDOW1_DRIFT,data__->CLI_WINDOW1_DRIFT,retain)
+  __INIT_EXTERNAL(REAL,CLI_WINDOW2_DRIFT,data__->CLI_WINDOW2_DRIFT,retain)
+  __INIT_EXTERNAL(REAL,CLI_WINDOW3_DRIFT,data__->CLI_WINDOW3_DRIFT,retain)
+  __INIT_EXTERNAL(REAL,CLI_WINDOW4_DRIFT,data__->CLI_WINDOW4_DRIFT,retain)
   ACTUATOR_init__(&data__->RAM1,retain);
   ACTUATOR_init__(&data__->RAM2,retain);
   ACTUATOR_init__(&data__->RAM3,retain);
@@ -3042,10 +3058,16 @@ static void WINDOWS_CONTROLLER_body__(WINDOWS_CONTROLLER_data__ *data__) {
   __SET_VAR(data__->,RAM1.OPEN_MS,,__GET_VAR(data__->TRAVEL,));
   __SET_VAR(data__->,RAM1.CLOSE_MS,,__GET_VAR(data__->TRAVEL,));
   __SET_VAR(data__->,RAM1.SEAT_MS,,__GET_VAR(data__->SEAT,));
-  __SET_VAR(data__->,RAM1.MIN_RUN_MS,,__UDINT_LITERAL(250));
-  __SET_VAR(data__->,RAM1.REVERSE_MS,,__UDINT_LITERAL(500));
-  __SET_VAR(data__->,RAM1.DB,,__REAL_LITERAL(0.02));
-  __SET_VAR(data__->,RAM1.REDATUM,,__REAL_LITERAL(3.0));
+  __SET_VAR(data__->,RAM1.MIN_RUN_MS,,___UINT_TO_UDINT(
+    (BOOL)__BOOL_LITERAL(TRUE),
+    NULL,
+    (UINT)__GET_EXTERNAL(data__->CLI_WINDOWMINRUN_MS,)));
+  __SET_VAR(data__->,RAM1.REVERSE_MS,,___UINT_TO_UDINT(
+    (BOOL)__BOOL_LITERAL(TRUE),
+    NULL,
+    (UINT)__GET_EXTERNAL(data__->CLI_WINDOWREVERSE_MS,)));
+  __SET_VAR(data__->,RAM1.DB,,__GET_EXTERNAL(data__->CLI_WINDOWDEADBAND,));
+  __SET_VAR(data__->,RAM1.REDATUM,,__GET_EXTERNAL(data__->CLI_WINDOWREDATUM,));
   __SET_VAR(data__->,RAM1.HOLD,,(__GET_VAR(data__->OWNER,) != __USINT_LITERAL(1)));
   __SET_VAR(data__->,RAM1.PRESET_KNOWN,,__BOOL_LITERAL(FALSE));
   __SET_VAR(data__->,RAM1.PRESET_POS,,__REAL_LITERAL(0.0));
@@ -3055,10 +3077,16 @@ static void WINDOWS_CONTROLLER_body__(WINDOWS_CONTROLLER_data__ *data__) {
   __SET_VAR(data__->,RAM2.OPEN_MS,,__GET_VAR(data__->TRAVEL,));
   __SET_VAR(data__->,RAM2.CLOSE_MS,,__GET_VAR(data__->TRAVEL,));
   __SET_VAR(data__->,RAM2.SEAT_MS,,__GET_VAR(data__->SEAT,));
-  __SET_VAR(data__->,RAM2.MIN_RUN_MS,,__UDINT_LITERAL(250));
-  __SET_VAR(data__->,RAM2.REVERSE_MS,,__UDINT_LITERAL(500));
-  __SET_VAR(data__->,RAM2.DB,,__REAL_LITERAL(0.02));
-  __SET_VAR(data__->,RAM2.REDATUM,,__REAL_LITERAL(3.0));
+  __SET_VAR(data__->,RAM2.MIN_RUN_MS,,___UINT_TO_UDINT(
+    (BOOL)__BOOL_LITERAL(TRUE),
+    NULL,
+    (UINT)__GET_EXTERNAL(data__->CLI_WINDOWMINRUN_MS,)));
+  __SET_VAR(data__->,RAM2.REVERSE_MS,,___UINT_TO_UDINT(
+    (BOOL)__BOOL_LITERAL(TRUE),
+    NULL,
+    (UINT)__GET_EXTERNAL(data__->CLI_WINDOWREVERSE_MS,)));
+  __SET_VAR(data__->,RAM2.DB,,__GET_EXTERNAL(data__->CLI_WINDOWDEADBAND,));
+  __SET_VAR(data__->,RAM2.REDATUM,,__GET_EXTERNAL(data__->CLI_WINDOWREDATUM,));
   __SET_VAR(data__->,RAM2.HOLD,,(__GET_VAR(data__->OWNER,) != __USINT_LITERAL(2)));
   __SET_VAR(data__->,RAM2.PRESET_KNOWN,,__BOOL_LITERAL(FALSE));
   __SET_VAR(data__->,RAM2.PRESET_POS,,__REAL_LITERAL(0.0));
@@ -3068,10 +3096,16 @@ static void WINDOWS_CONTROLLER_body__(WINDOWS_CONTROLLER_data__ *data__) {
   __SET_VAR(data__->,RAM3.OPEN_MS,,__GET_VAR(data__->TRAVEL,));
   __SET_VAR(data__->,RAM3.CLOSE_MS,,__GET_VAR(data__->TRAVEL,));
   __SET_VAR(data__->,RAM3.SEAT_MS,,__GET_VAR(data__->SEAT,));
-  __SET_VAR(data__->,RAM3.MIN_RUN_MS,,__UDINT_LITERAL(250));
-  __SET_VAR(data__->,RAM3.REVERSE_MS,,__UDINT_LITERAL(500));
-  __SET_VAR(data__->,RAM3.DB,,__REAL_LITERAL(0.02));
-  __SET_VAR(data__->,RAM3.REDATUM,,__REAL_LITERAL(3.0));
+  __SET_VAR(data__->,RAM3.MIN_RUN_MS,,___UINT_TO_UDINT(
+    (BOOL)__BOOL_LITERAL(TRUE),
+    NULL,
+    (UINT)__GET_EXTERNAL(data__->CLI_WINDOWMINRUN_MS,)));
+  __SET_VAR(data__->,RAM3.REVERSE_MS,,___UINT_TO_UDINT(
+    (BOOL)__BOOL_LITERAL(TRUE),
+    NULL,
+    (UINT)__GET_EXTERNAL(data__->CLI_WINDOWREVERSE_MS,)));
+  __SET_VAR(data__->,RAM3.DB,,__GET_EXTERNAL(data__->CLI_WINDOWDEADBAND,));
+  __SET_VAR(data__->,RAM3.REDATUM,,__GET_EXTERNAL(data__->CLI_WINDOWREDATUM,));
   __SET_VAR(data__->,RAM3.HOLD,,(__GET_VAR(data__->OWNER,) != __USINT_LITERAL(3)));
   __SET_VAR(data__->,RAM3.PRESET_KNOWN,,__BOOL_LITERAL(FALSE));
   __SET_VAR(data__->,RAM3.PRESET_POS,,__REAL_LITERAL(0.0));
@@ -3081,10 +3115,16 @@ static void WINDOWS_CONTROLLER_body__(WINDOWS_CONTROLLER_data__ *data__) {
   __SET_VAR(data__->,RAM4.OPEN_MS,,__GET_VAR(data__->TRAVEL,));
   __SET_VAR(data__->,RAM4.CLOSE_MS,,__GET_VAR(data__->TRAVEL,));
   __SET_VAR(data__->,RAM4.SEAT_MS,,__GET_VAR(data__->SEAT,));
-  __SET_VAR(data__->,RAM4.MIN_RUN_MS,,__UDINT_LITERAL(250));
-  __SET_VAR(data__->,RAM4.REVERSE_MS,,__UDINT_LITERAL(500));
-  __SET_VAR(data__->,RAM4.DB,,__REAL_LITERAL(0.02));
-  __SET_VAR(data__->,RAM4.REDATUM,,__REAL_LITERAL(3.0));
+  __SET_VAR(data__->,RAM4.MIN_RUN_MS,,___UINT_TO_UDINT(
+    (BOOL)__BOOL_LITERAL(TRUE),
+    NULL,
+    (UINT)__GET_EXTERNAL(data__->CLI_WINDOWMINRUN_MS,)));
+  __SET_VAR(data__->,RAM4.REVERSE_MS,,___UINT_TO_UDINT(
+    (BOOL)__BOOL_LITERAL(TRUE),
+    NULL,
+    (UINT)__GET_EXTERNAL(data__->CLI_WINDOWREVERSE_MS,)));
+  __SET_VAR(data__->,RAM4.DB,,__GET_EXTERNAL(data__->CLI_WINDOWDEADBAND,));
+  __SET_VAR(data__->,RAM4.REDATUM,,__GET_EXTERNAL(data__->CLI_WINDOWREDATUM,));
   __SET_VAR(data__->,RAM4.HOLD,,(__GET_VAR(data__->OWNER,) != __USINT_LITERAL(4)));
   __SET_VAR(data__->,RAM4.PRESET_KNOWN,,__BOOL_LITERAL(FALSE));
   __SET_VAR(data__->,RAM4.PRESET_POS,,__REAL_LITERAL(0.0));
@@ -3102,6 +3142,10 @@ static void WINDOWS_CONTROLLER_body__(WINDOWS_CONTROLLER_data__ *data__) {
   __SET_EXTERNAL(data__->,CLI_WINDOW2_TGT,,__GET_VAR(data__->AIM,));
   __SET_EXTERNAL(data__->,CLI_WINDOW3_TGT,,__GET_VAR(data__->AIM,));
   __SET_EXTERNAL(data__->,CLI_WINDOW4_TGT,,__GET_VAR(data__->AIM,));
+  __SET_EXTERNAL(data__->,CLI_WINDOW1_DRIFT,,__GET_VAR(data__->RAM1.DRIFT,));
+  __SET_EXTERNAL(data__->,CLI_WINDOW2_DRIFT,,__GET_VAR(data__->RAM2.DRIFT,));
+  __SET_EXTERNAL(data__->,CLI_WINDOW3_DRIFT,,__GET_VAR(data__->RAM3.DRIFT,));
+  __SET_EXTERNAL(data__->,CLI_WINDOW4_DRIFT,,__GET_VAR(data__->RAM4.DRIFT,));
   if (__GET_VAR(data__->RAM1.KNOWN,)) {
     __SET_EXTERNAL(data__->,CLI_WINDOW1_POS,,__GET_VAR(data__->RAM1.POS,));
   };
@@ -3131,6 +3175,7 @@ static void COOLING_CONTROLLER_init__(COOLING_CONTROLLER_data__ *data__, BOOL re
   __INIT_EXTERNAL(REAL,CLI_TARGETTEMP_DEGC,data__->CLI_TARGETTEMP_DEGC,retain)
   __INIT_EXTERNAL(REAL,CLI_WINDOWSTARTDEM,data__->CLI_WINDOWSTARTDEM,retain)
   __INIT_EXTERNAL(REAL,CLI_WINDOWFULLDEM,data__->CLI_WINDOWFULLDEM,retain)
+  __INIT_EXTERNAL(REAL,CLI_WINDOWPARK,data__->CLI_WINDOWPARK,retain)
   __INIT_EXTERNAL(REAL,CLI_COOLKP,data__->CLI_COOLKP,retain)
   __INIT_EXTERNAL(REAL,CLI_COOLTI_SEC,data__->CLI_COOLTI_SEC,retain)
   __INIT_EXTERNAL(REAL,CLI_COOLTD_SEC,data__->CLI_COOLTD_SEC,retain)
@@ -3175,7 +3220,7 @@ static void COOLING_CONTROLLER_body__(COOLING_CONTROLLER_data__ *data__) {
       (REAL)__GET_EXTERNAL(data__->CLI_WINDOWSTARTDEM,),
       (REAL)__GET_EXTERNAL(data__->CLI_WINDOWFULLDEM,)));
   } else {
-    __SET_EXTERNAL(data__->,CLI_WINDOWDEM,,__REAL_LITERAL(0.25));
+    __SET_EXTERNAL(data__->,CLI_WINDOWDEM,,__GET_EXTERNAL(data__->CLI_WINDOWPARK,));
   };
 
   goto __end;
@@ -4298,8 +4343,10 @@ static void IRRIGATION_SCHEDULE_body__(IRRIGATION_SCHEDULE_data__ *data__) {
     __SET_EXTERNAL(data__->,IRR_SERVEDTODAY,,__USINT_LITERAL(0));
   };
   __SET_VAR(data__->,FORCED,,__GET_EXTERNAL(data__->IRR_FORCENOW,));
-  if (((__GET_EXTERNAL(data__->CLI_PHASE,) == __USINT_LITERAL(1)) || (__GET_EXTERNAL(data__->CLI_PHASE,) == __USINT_LITERAL(2)))) {
-    __SET_VAR(data__->,OPEN_SLOT,,(__GET_EXTERNAL(data__->CLI_TEMP_EXT,) >= __GET_EXTERNAL(data__->IRR_DAWNGATE_DEGC,)));
+  if (!(__GET_EXTERNAL(data__->CLI_PHASE_QLT,))) {
+    __SET_VAR(data__->,OPEN_SLOT,,__BOOL_LITERAL(FALSE));
+  } else if (((__GET_EXTERNAL(data__->CLI_PHASE,) == __USINT_LITERAL(1)) || (__GET_EXTERNAL(data__->CLI_PHASE,) == __USINT_LITERAL(2)))) {
+    __SET_VAR(data__->,OPEN_SLOT,,(__GET_EXTERNAL(data__->CLI_TEMP_EXT_QLT,) && (__GET_EXTERNAL(data__->CLI_TEMP_EXT,) >= __GET_EXTERNAL(data__->IRR_DAWNGATE_DEGC,))));
   } else {
     __SET_VAR(data__->,OPEN_SLOT,,((__GET_EXTERNAL(data__->CLI_PHASE,) == __USINT_LITERAL(3)) && (__GET_EXTERNAL(data__->SOL_FROMRISE_MIN,) <= (__GET_EXTERNAL(data__->SOL_DAYRISE_MIN,) + ___UINT_TO_INT(
       (BOOL)__BOOL_LITERAL(TRUE),
@@ -5035,6 +5082,8 @@ static void TEMP_RH_ZONE_init__(TEMP_RH_ZONE_data__ *data__, BOOL retain) {
   __INIT_EXTERNAL(REAL,CLI_RH_LO,data__->CLI_RH_LO,retain)
   __INIT_EXTERNAL(BOOL,CLI_TEMP_HI_QLT,data__->CLI_TEMP_HI_QLT,retain)
   __INIT_EXTERNAL(BOOL,CLI_TEMP_LO_QLT,data__->CLI_TEMP_LO_QLT,retain)
+  __INIT_EXTERNAL(REAL,CLI_TEMP_EXT,data__->CLI_TEMP_EXT,retain)
+  __INIT_EXTERNAL(BOOL,CLI_TEMP_EXT_QLT,data__->CLI_TEMP_EXT_QLT,retain)
   __INIT_EXTERNAL(REAL,CLI_ROTMARGIN_DEGC,data__->CLI_ROTMARGIN_DEGC,retain)
   __INIT_EXTERNAL(REAL,CLI_TEMP_IN,data__->CLI_TEMP_IN,retain)
   __INIT_EXTERNAL(BOOL,CLI_TEMP_IN_QLT,data__->CLI_TEMP_IN_QLT,retain)
@@ -5044,6 +5093,7 @@ static void TEMP_RH_ZONE_init__(TEMP_RH_ZONE_data__ *data__, BOOL retain) {
   __INIT_EXTERNAL(REAL,CLI_SATPRESS_KPA,data__->CLI_SATPRESS_KPA,retain)
   __INIT_EXTERNAL(REAL,CLI_VPD_KPA,data__->CLI_VPD_KPA,retain)
   __INIT_EXTERNAL(BOOL,ALARM_ROT,data__->ALARM_ROT,retain)
+  __INIT_EXTERNAL(BOOL,ALARM_ZONE_BLIND,data__->ALARM_ZONE_BLIND,retain)
 }
 
 // Code part
@@ -5064,6 +5114,22 @@ static void TEMP_RH_ZONE_body__(TEMP_RH_ZONE_data__ *data__) {
     __SET_EXTERNAL(data__->,CLI_TEMP_IN,,__GET_EXTERNAL(data__->CLI_TEMP_HI,));
   } else if ((__GET_EXTERNAL(data__->CLI_TEMP_LO_QLT,) && !(__GET_EXTERNAL(data__->CLI_TEMP_HI_QLT,)))) {
     __SET_EXTERNAL(data__->,CLI_TEMP_IN,,__GET_EXTERNAL(data__->CLI_TEMP_LO,));
+  } else if (__GET_VAR(data__->MEASURED,)) {
+    __SET_EXTERNAL(data__->,CLI_TEMP_IN,,___MAX(
+      (BOOL)__BOOL_LITERAL(TRUE),
+      NULL,
+      (REAL)__GET_EXTERNAL(data__->CLI_TEMP_HI,),
+      (REAL)__GET_EXTERNAL(data__->CLI_TEMP_LO,)));
+  } else if (__GET_EXTERNAL(data__->CLI_TEMP_EXT_QLT,)) {
+    __SET_EXTERNAL(data__->,CLI_TEMP_IN,,___MAX(
+      (BOOL)__BOOL_LITERAL(TRUE),
+      NULL,
+      (REAL)___MAX(
+        (BOOL)__BOOL_LITERAL(TRUE),
+        NULL,
+        (REAL)__GET_EXTERNAL(data__->CLI_TEMP_HI,),
+        (REAL)__GET_EXTERNAL(data__->CLI_TEMP_LO,)),
+      (REAL)__GET_EXTERNAL(data__->CLI_TEMP_EXT,)));
   } else {
     __SET_EXTERNAL(data__->,CLI_TEMP_IN,,___MAX(
       (BOOL)__BOOL_LITERAL(TRUE),
@@ -5072,6 +5138,7 @@ static void TEMP_RH_ZONE_body__(TEMP_RH_ZONE_data__ *data__) {
       (REAL)__GET_EXTERNAL(data__->CLI_TEMP_LO,)));
   };
   __SET_EXTERNAL(data__->,CLI_TEMP_IN_QLT,,__GET_VAR(data__->MEASURED,));
+  __SET_EXTERNAL(data__->,ALARM_ZONE_BLIND,,!(__GET_VAR(data__->MEASURED,)));
   __SET_VAR(data__->,DP_HI,,___DEW_POINT(
     (BOOL)__BOOL_LITERAL(TRUE),
     NULL,
@@ -5148,17 +5215,19 @@ static void WEATHER_WATCH_init__(WEATHER_WATCH_data__ *data__, BOOL retain) {
   __INIT_EXTERNAL(REAL,CLI_WINDSHUTEND_MPS,data__->CLI_WINDSHUTEND_MPS,retain)
   __INIT_EXTERNAL(UDINT,SYS_NOW_MS,data__->SYS_NOW_MS,retain)
   __INIT_EXTERNAL(BOOL,ALARM_WEATHER_STORM,data__->ALARM_WEATHER_STORM,retain)
-  __INIT_EXTERNAL(UINT,CLI_SINCERAIN_MIN,data__->CLI_SINCERAIN_MIN,retain)
+  __INIT_EXTERNAL(REAL,CLI_SINCERAIN_H,data__->CLI_SINCERAIN_H,retain)
   __INIT_VAR(data__->SEEN,__BOOL_LITERAL(FALSE),retain)
   __INIT_VAR(data__->DRY_MS,0,retain)
   __INIT_VAR(data__->LAST,0,retain)
   __INIT_VAR(data__->PRIMED,__BOOL_LITERAL(FALSE),retain)
+  __INIT_VAR(data__->DRY_S,0,retain)
+  __INIT_VAR(data__->REM_MS,0,retain)
 }
 
 // Code part
 static void WEATHER_WATCH_body__(WEATHER_WATCH_data__ *data__) {
   // Initialise TEMP variables
-  __SET_VAR(data__->,MINS,,0);
+  __SET_VAR(data__->,HOURS,,0);
 
   if ((__GET_EXTERNAL(data__->CLI_WIND_MPS_QLT,) && __GET_EXTERNAL(data__->CLI_RAIN_MMPH_QLT,))) {
     __SET_VAR(data__->,SEEN,,__BOOL_LITERAL(TRUE));
@@ -5167,23 +5236,25 @@ static void WEATHER_WATCH_body__(WEATHER_WATCH_data__ *data__) {
   if (__GET_VAR(data__->PRIMED,)) {
     if (__GET_EXTERNAL(data__->CLI_RAIN_MMPH_QLT,)) {
       if ((__GET_EXTERNAL(data__->CLI_RAIN_MMPH,) > __REAL_LITERAL(0.0))) {
-        __SET_VAR(data__->,DRY_MS,,__UDINT_LITERAL(0));
+        __SET_VAR(data__->,DRY_S,,__UDINT_LITERAL(0));
+        __SET_VAR(data__->,REM_MS,,__UDINT_LITERAL(0));
       } else {
-        __SET_VAR(data__->,DRY_MS,,(__GET_VAR(data__->DRY_MS,) + (__GET_EXTERNAL(data__->SYS_NOW_MS,) - __GET_VAR(data__->LAST,))));
+        __SET_VAR(data__->,REM_MS,,(__GET_VAR(data__->REM_MS,) + (__GET_EXTERNAL(data__->SYS_NOW_MS,) - __GET_VAR(data__->LAST,))));
+        if ((__GET_VAR(data__->REM_MS,) >= __UDINT_LITERAL(1000))) {
+          __SET_VAR(data__->,DRY_S,,(__GET_VAR(data__->DRY_S,) + (__GET_VAR(data__->REM_MS,) / __UDINT_LITERAL(1000))));
+          __SET_VAR(data__->,REM_MS,,((__UDINT_LITERAL(1000) == 0)?0:(__GET_VAR(data__->REM_MS,) % __UDINT_LITERAL(1000))));
+        };
       };
     };
   } else {
     __SET_VAR(data__->,PRIMED,,__BOOL_LITERAL(TRUE));
   };
   __SET_VAR(data__->,LAST,,__GET_EXTERNAL(data__->SYS_NOW_MS,));
-  __SET_VAR(data__->,MINS,,(__GET_VAR(data__->DRY_MS,) / __UDINT_LITERAL(60000)));
-  if ((__GET_VAR(data__->MINS,) > __UDINT_LITERAL(65535))) {
-    __SET_VAR(data__->,MINS,,__UDINT_LITERAL(65535));
-  };
-  __SET_EXTERNAL(data__->,CLI_SINCERAIN_MIN,,___UDINT_TO_UINT(
+  __SET_VAR(data__->,HOURS,,(___UDINT_TO_REAL(
     (BOOL)__BOOL_LITERAL(TRUE),
     NULL,
-    (UDINT)__GET_VAR(data__->MINS,)));
+    (UDINT)__GET_VAR(data__->DRY_S,)) / __REAL_LITERAL(3600.0)));
+  __SET_EXTERNAL(data__->,CLI_SINCERAIN_H,,__GET_VAR(data__->HOURS,));
 
   goto __end;
 

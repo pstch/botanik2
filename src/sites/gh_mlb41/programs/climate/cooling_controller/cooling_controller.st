@@ -8,6 +8,7 @@ VAR_EXTERNAL CONSTANT
   cli_targetTemp_degC : REAL;
   cli_windowStartDem  : REAL;
   cli_windowFullDem   : REAL;
+  cli_windowPark      : REAL;
   cli_coolKp          : REAL;
   cli_coolTi_sec      : REAL;
   cli_coolTd_sec      : REAL;
@@ -70,6 +71,6 @@ END_VAR
     cli_windowDem := LADDER(V := loop.Y, LO := cli_windowStartDem,
                             HI := cli_windowFullDem);
   ELSE
-    cli_windowDem := 0.25;
+    cli_windowDem := cli_windowPark;
   END_IF;
 END_PROGRAM

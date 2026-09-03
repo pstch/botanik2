@@ -44,7 +44,7 @@ def test_a_bare_prefix_still_means_prefix(spawn):
     term.send(b"vars list cli_window1_" + keys.ENTER)
     term.settle()
     rows = _listing(term)
-    assert rows[-1] == "4 variable(s)", rows
+    assert rows[-1] == "5 variable(s)", rows
     assert all(r.startswith("cli_window1_") for r in rows[:-1]), rows
 
 

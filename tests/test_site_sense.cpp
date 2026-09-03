@@ -874,4 +874,70 @@ TEST_CASE_FIXTURE(StRig, "intake: a gate holds while the two temperatures conver
     CHECK_FALSE(live.bank.get(gate));
 }
 
+TEST_CASE_FIXTURE(StRig, "zone: a house nobody can see says so, and keeps venting") {
+    Vars::Ref<float> in  = live.bank.resolve<float>("cli_temp_in");
+    const VarRef blind   = live.ref("alarm_zone_blind");
+    const VarRef in_qlt  = live.ref("cli_temp_in_qlt");
+    uint64_t t = 0;
+
+    // Warm inside, cooler outside: the ordinary way round for a greenhouse.
+    for (uint8_t i = 1; i <= 3; i++) {
+        char n[24];
+        snprintf(n, sizeof n, "cli_temp_hi%u", (unsigned)i);
+        live.bank.var(live.ref(n)).publish(from_f32(T_F32, 30.0f), t);
+        snprintf(n, sizeof n, "cli_temp_ext%u", (unsigned)i);
+        live.bank.var(live.ref(n)).publish(from_f32(T_F32, 22.0f), t);
+    }
+    for (uint32_t i = 0; i < 200; i++) d.step(t += 100);
+    REQUIRE(live.bank.var(in_qlt).as_bool());
+    CHECK_FALSE(live.bank.var(blind).as_bool());
+
+    INFO("every interior probe gone: the alarm is up and the row is not believed");
+    for (uint8_t i = 1; i <= 3; i++) {
+        char n[24];
+        snprintf(n, sizeof n, "cli_temp_hi%u", (unsigned)i);
+        live.bank.var(live.ref(n)).invalidate(Q_NO_DATA);
+        snprintf(n, sizeof n, "cli_temp_lo%u", (unsigned)i);
+        live.bank.var(live.ref(n)).invalidate(Q_NO_DATA);
+    }
+    for (uint32_t i = 0; i < 200; i++) d.step(t += 100);
+    CHECK(live.bank.var(blind).as_bool());
+    CHECK_FALSE(live.bank.var(in_qlt).as_bool());
+
+    INFO("...and the house still reads what it last WAS, not what is outside");
+    CHECK(live.bank.get(in) == doctest::Approx(30.0f).epsilon(0.05));
+
+    INFO("outside climbing past it takes the row with it: a fallback may only "
+         "ever ask for MORE venting, never less");
+    for (uint8_t i = 1; i <= 3; i++) {
+        char n[24];
+        snprintf(n, sizeof n, "cli_temp_ext%u", (unsigned)i);
+        live.bank.var(live.ref(n)).publish(from_f32(T_F32, 40.0f), t);
+    }
+    for (uint32_t i = 0; i < 900; i++) d.step(t += 100);
+    CHECK(live.bank.get(in) > 35.0f);
+    CHECK_FALSE(live.bank.var(in_qlt).as_bool());
+}
+
+TEST_CASE_FIXTURE(StRig, "weather: a fifty-day dry spell reads as fifty days") {
+    // In milliseconds the count wrapped at 49.7 days and the row came back as
+    // "it just rained", which is the one thing it must never say wrongly.
+    Vars::Ref<float> since = live.bank.resolve<float>("cli_sinceRain_h");
+    uint64_t t = 0;
+    force(live, "cli_rain_mmph", 0.0f);
+    force(live, "cli_wind_mps", 1.0f);
+
+    // An hour a step, for sixty days.
+    for (uint32_t i = 0; i < 24 * 60; i++) d.step(t += 3600000ull);
+    const float h = live.bank.get(since);
+    INFO("after sixty days it reads " << h << " h");
+    CHECK(h > 1400.0f);
+    CHECK(h < 1500.0f);
+
+    INFO("and a shower puts it back to nothing");
+    force(live, "cli_rain_mmph", 4.0f);
+    for (uint32_t i = 0; i < 4; i++) d.step(t += 3600000ull);
+    CHECK(live.bank.get(since) == doctest::Approx(0.0f));
+}
+
 }  // namespace site_programs

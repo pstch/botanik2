@@ -9,6 +9,8 @@ VAR_EXTERNAL CONSTANT
   cli_rh_lo          : REAL;
   cli_temp_hi_qlt    : BOOL;
   cli_temp_lo_qlt    : BOOL;
+  cli_temp_ext       : REAL;
+  cli_temp_ext_qlt   : BOOL;
   cli_rotMargin_degC : REAL;
 END_VAR
 VAR_EXTERNAL
@@ -20,6 +22,7 @@ VAR_EXTERNAL
   cli_satPress_kPa      : REAL;
   cli_vpd_kPa           : REAL;
   alarm_rot             : BOOL;
+  alarm_zone_blind      : BOOL;
 END_VAR
 VAR_TEMP
   dp_hi      : REAL;
@@ -39,17 +42,30 @@ END_VAR
      of the two and not their mean. The spec keeps the worst case between
      levels, and for heat that is the top of the house.
 
-     Both levels gone: the rows are holding their last readings, so the hotter
-     of them is still the best answer there is - held, like they are, and the
-     companion is what says so. *)
+     Both levels gone: the rows hold their last readings, and OUTSIDE joins
+     them as a third piece of evidence - the hottest of the three. Not the
+     exterior INSTEAD: a greenhouse under sun is hotter than the air outside,
+     which is what a greenhouse is for, so substituting would hand the cooling
+     ladder a cooler number than the house last knew and OPEN THE ROOF LESS on
+     the day it matters most. A maximum can only ever ask for more venting.
+     The companion stays false throughout: this is evidence, not a reading. *)
   IF cli_temp_hi_qlt AND NOT cli_temp_lo_qlt THEN
     cli_temp_in := cli_temp_hi;
   ELSIF cli_temp_lo_qlt AND NOT cli_temp_hi_qlt THEN
     cli_temp_in := cli_temp_lo;
+  ELSIF measured THEN
+    cli_temp_in := MAX(cli_temp_hi, cli_temp_lo);
+  ELSIF cli_temp_ext_qlt THEN
+    cli_temp_in := MAX(MAX(cli_temp_hi, cli_temp_lo), cli_temp_ext);
   ELSE
     cli_temp_in := MAX(cli_temp_hi, cli_temp_lo);
   END_IF;
   cli_temp_in_qlt := measured;
+
+  (* NOT the same event as a probe short of quorum, which is what alarm_sns_*
+     already says. This one means the house cannot be seen at all, and every
+     cooling law is running on a reading from before it went. *)
+  alarm_zone_blind := NOT measured;
 
   (* One dew point per level: the margin and the VPD both come off it. *)
   dp_hi := DEW_POINT(T_DEGC := cli_temp_hi, RH := cli_rh_hi);
