@@ -149,6 +149,25 @@ namespace Botanik { namespace Vars {
                                    | retain_bits(retained)), {} };
     }
 
+    /** @brief P(), with the band in a NumRefBand so an end may be another row.
+     *
+     *  For a pair with a required relationship - a floor and a ceiling, a ramp's
+     *  start and end - where each value alone is legal and only the pair is
+     *  wrong. Constrain BOTH ends against each other: the pair stays reachable
+     *  as long as it starts valid, which the generator checks. */
+    constexpr Descriptor PR(const char* name, VarType type, double def,
+                          const NumRefBand* band,
+                          uint8_t digits, const char* unit, uint16_t reg,
+                          const char* desc, const char* notes,
+                          bool writable = true, bool retained = false) {
+        return Descriptor{ num(type, def), name, unit, desc, notes,
+                         Payload(band),
+                         { XP_NONE, type, 0, 0, reg, 1, 1.0f, 0.0f }, 0, 0, nullptr,
+                         type, ROLE_PARAM, SCOPE_P, digits,
+                         (uint8_t)(F_BOUNDED | F_BAND_REF | access_bits(writable)
+                                   | retain_bits(retained)), {} };
+    }
+
     /** @brief An enumerated **parameter**: a small code the operator reads and
      *  writes as a WORD.
      *

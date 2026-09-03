@@ -52,6 +52,11 @@ SYMBOL = {'edge': 'HAL::Pulse::', 'reg': 'HAL::Pin::',
 AUX = {  # stem -> columns, for the tables that are not rows
     'analog_cal':     'cal raw_min_row raw_min raw_max_row raw_max eng_min_row eng_min '
                       'eng_max_row eng_max min_row min max_row max',
+    # A parameter whose band end is ANOTHER parameter, so a pair with a required
+    # relationship cannot be edited into an impossible one. Same shape as
+    # analog_cal: a `_row` name plus the fallback used when it does not resolve.
+    # An empty `_row` pins that end to its number.
+    'param_band':     'param lo_row lo hi_row hi',
     'modbus_models':  'symbol kind model_name regs words',
     'modbus_devices': 'addr model tag',
     'enums':          'enum ctype symbol value label desc',
@@ -559,24 +564,75 @@ def plant(site):
     return 0
 
 
-def emit_rows(fac, cols, recs):
+def band_sym(param):
+    return 'BAND_' + param
+
+
+def emit_rows(fac, cols, recs, band=None):
+    """Emit one factory call per record.
+
+    `band` maps a parameter name to its NumRefBand symbol; those rows go out as
+    PR() with the block in place of the lo/hi pair.
+    """
     out = []
     for r in recs:
-        a = [quote(r.get(c, ''), c, fac) for c in cols]
+        fac_r, cols_r = fac, cols
+        if band and r.get('name') in band:
+            fac_r = 'PR'
+            cols_r = [c for c in cols if c not in ('lo', 'hi')]
+            r = dict(r, band='&' + band[r['name']])
+            cols_r.insert(cols_r.index('def') + 1, 'band')
+        a = [quote(r.get(c, ''), c, fac_r) for c in cols_r]
         while a and a[-1] == '': a.pop()
-        out.append('    %s(%s),' % (fac, ', '.join(a)))
+        out.append('    %s(%s),' % (fac_r, ', '.join(a)))
     return out
+
+
+def check_param_bands(bands, params):
+    """A referenced end must exist, share the row's type, and leave the row's
+    own default inside the band. The last is what keeps a pair reachable: an
+    operator can always move one end and then the other, but only if the pair
+    was valid to begin with."""
+    by_name = {p['name']: p for p in params}
+    bad = 0
+    for b in bands:
+        p = by_name.get(b['param'])
+        if p is None:
+            print('param_band: %s names no parameter' % b['param']); bad += 1; continue
+        ends = []
+        for side in ('lo', 'hi'):
+            row = b[side + '_row']
+            if not row:
+                ends.append(float(b[side])); continue
+            q = by_name.get(row)
+            if q is None:
+                print('param_band: %s %s names no parameter %s'
+                      % (b['param'], side, row)); bad += 1; ends.append(None); continue
+            if q['type'] != p['type']:
+                print('param_band: %s %s is %s, %s is %s'
+                      % (b['param'], side, p['type'], row, q['type'])); bad += 1
+            ends.append(float(q['def']))
+        lo, hi = ends
+        if lo is None or hi is None: continue
+        if not (lo <= float(p['def']) <= hi):
+            print('param_band: %s defaults to %s, outside [%g, %g]'
+                  % (b['param'], p['def'], lo, hi)); bad += 1
+    return bad
 
 
 def generate(site):
     t = lambda stem, cols: read_table(os.path.join(site, 'tables', stem + '.csv'), cols.split())
     cal  = t('analog_cal', AUX['analog_cal'])
+    band = t('param_band', AUX['param_band'])
     home = t('home', AUX['home'])
     tom  = toml(os.path.join(site, 'site.toml'))
     mdl, dev = t('modbus_models', AUX['modbus_models']), t('modbus_devices', AUX['modbus_devices'])
     per = {f: t(stem, cols) for f, (stem, cols) in ROWS.items()}
     n_par = sum(len(per[f]) for f in ('P', 'PE', 'PS'))
     n_row = sum(len(per[f]) for f in ROWS if f not in ('P', 'PE', 'PS'))
+
+    if check_param_bands(band, per['P']):
+        sys.exit('param_band: refusing to generate')
 
     L = [H, '', '#include "libbotanik.h"', '', 'namespace Site {', '',
          'using namespace Botanik;', 'using namespace Botanik::Vars;', '',
@@ -588,14 +644,22 @@ def generate(site):
         for k in ('raw_min', 'raw_max', 'eng_min', 'eng_max', 'min', 'max'):
             L.append('    R("%s", %s),' % (c[k + '_row'], c[k]))
         L += ['};', '']
+    # An end with no `_row` is K(): fixed, and not the operator's to change.
+    for b in band:
+        L.append('const NumRefBand %s = {' % band_sym(b['param']))
+        for k in ('lo', 'hi'):
+            L.append('    %s,' % (('R("%s", %s)' % (b[k + '_row'], b[k]))
+                                  if b[k + '_row'] else 'K(%s)' % b[k]))
+        L += ['};', '']
     L.append('const AnalogCal* const g_analog_cals[] = {')
     L += ['    &%s,' % c['cal'] for c in cal] + ['};', '']
     # ONE table, parameters FIRST: the ROLE_PARAM run has to abut the
     # library's, and emitting the two runs in order is the whole of that rule.
     L.append('const Descriptor rows[] = {')
     L.append('    // parameters, first and contiguous')
+    bands = {b['param']: band_sym(b['param']) for b in band}
     for f in ('P', 'PE', 'PS'):
-        L += emit_rows(f, ROWS[f][1].split(), per[f])
+        L += emit_rows(f, ROWS[f][1].split(), per[f], bands if f == 'P' else None)
     L.append('    // ...and everything else')
     for f in ('A', 'SV', 'SVE', 'G', 'MI', 'MO', 'AI', 'AO', 'DI', 'PI', 'DO', 'RO'):
         L += emit_rows(f, ROWS[f][1].split(), per[f])

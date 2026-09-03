@@ -234,6 +234,14 @@ Subsystems under `src/libbotanik/`. Each row's doc is the reference; the header 
   `Tunable`s; `scale`/`offset` are never stored but derived, so a recalibration lands the
   moment the parameter commits. Anything DISPLAYING a band goes through `var_band()`, not
   `num_band()`. See `vars.md`.
+- **A band may name another row.** A pair with a required relationship - a target's floor
+  and ceiling, a ramp's start and end - is only wrong AS A PAIR, and a fixed band cannot
+  see that: each value alone is legal. A row in `tables/param_band.csv` gets a
+  `NumRefBand` of two `Tunable`s and is emitted as `PR()` rather than `P()`, and
+  `param_check()` judges an edit against `var_band()`, so the limit is whatever the other
+  row holds NOW. Constrain BOTH ends against each other; the pair stays reachable as long
+  as it starts valid, which `tables.py` refuses to generate without. Anything READING a
+  band goes through `var_band()` - `num_band()` reads one of these as "no band".
 - **Naming files a variable.** `var_group()` is the prefix of a name up to the first `_`;
   `var_published()` is true iff a row is neither a parameter nor an alarm. There is no
   group table to add a variable to and none to forget.

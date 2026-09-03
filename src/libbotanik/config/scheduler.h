@@ -34,16 +34,6 @@ namespace Botanik { namespace Config {
 #endif
     BOTANIK_CFG(uint8_t, MAX_TASKS);
 
-    /** @brief How many of a program's input rows are remembered, for the
-     *  "which programs read this row" query alone. A program binding more than
-     *  this still binds them all; only the answer to that query is a prefix,
-     *  and input_overflow() says so. 2 bytes each, per program.
-     *  @note gh_mlb41's widest program binds 24. */
-#ifndef BOTANIK_PROGRAM_MAX_INPUTS
-#  define BOTANIK_PROGRAM_MAX_INPUTS 24
-#endif
-    BOTANIK_CFG(uint8_t, PROGRAM_MAX_INPUTS);
-
     /** @brief How far past its own period a control program may run before
      *  SCAN_LATE is raised, in ms. Measured against the PROGRAM's period, so one
      *  number serves every rate. Two beats' worth: one late activation is the

@@ -75,6 +75,36 @@ const AnalogCal CAL_cli_intr2 = {
     R("cli_intr_max", 1.0f),
 };
 
+const NumRefBand BAND_cli_targetMin_degC = {
+    K(0.0),
+    R("cli_targetMax_degC", 40.0),
+};
+
+const NumRefBand BAND_cli_targetMax_degC = {
+    R("cli_targetMin_degC", 0.0),
+    K(40.0),
+};
+
+const NumRefBand BAND_cli_intakeStartDem = {
+    K(0.0),
+    R("cli_intakeFullDem", 1.0),
+};
+
+const NumRefBand BAND_cli_intakeFullDem = {
+    R("cli_intakeStartDem", 0.0),
+    K(1.0),
+};
+
+const NumRefBand BAND_cli_windowStartDem = {
+    K(0.0),
+    R("cli_windowFullDem", 1.0),
+};
+
+const NumRefBand BAND_cli_windowFullDem = {
+    R("cli_windowStartDem", 0.0),
+    K(1.0),
+};
+
 const AnalogCal* const g_analog_cals[] = {
     &CAL_pwr_genBat_V,
     &CAL_pwr_upsBat_V,
@@ -92,7 +122,7 @@ const Descriptor rows[] = {
     P("cli_heatBankTrg_degC", T_F32, 10.0, 6.0, 18.0, 1, "degC", 102, "yesterday's low below this: bank heat", "", true),
     P("cli_coldBankTrg_degC", T_F32, 24.0, 12.0, 40.0, 1, "degC", 103, "yesterday's high above this: bank cold", "", true),
     P("cli_coolSet_degC", T_F32, 20.0, 10.0, 30.0, 1, "degC", 104, "base cooling target temperature", "every cooling stage keys off this", true),
-    P("cli_coolKp", T_F32, 0.08, 0.0, 1.0, 2, "", 105, "cooling PID proportional gain", "leave as set", true),
+    P("cli_coolKp", T_F32, 0.08, 0.01, 1.0, 2, "", 105, "cooling PID proportional gain", "never 0: that stops all cooling", true),
     P("cli_coolTi_sec", T_F32, 200.0, 0.0, 3600.0, 0, "sec", 106, "cooling PID integral time", "leave as set", true),
     P("cli_coolTd_sec", T_F32, 0.0, 0.0, 10.0, 0, "sec", 107, "cooling PID derivative time", "leave at zero", true),
     P("cli_ventTempMgn_degC", T_F32, 1.0, 0.0, 15.0, 1, "degC", 108, "intake air must be this much cooler", "", true),
@@ -101,15 +131,15 @@ const Descriptor rows[] = {
     P("cli_thermalScreenDem", T_F32, -0.2, -1.0, 0.0, 2, "", 110, "cooling effort that deploys the screen", "negative demand = heating", true),
     P("cli_groundHeatDem", T_F32, -0.1, -1.0, 0.0, 2, "", 111, "cooling effort that draws ground air", "negative demand = heating", true),
     P("cli_groundSpeed", T_F32, 0.3, 0.0, 1.0, 2, "", 128, "intractor speed while pulling ground heat", "the spec's low speed: the ladder's negative half has one rung, not a ramp", true),
-    P("cli_windowStartDem", T_F32, 0.1, 0.0, 1.0, 2, "", 112, "cooling effort that opens windows", "", true),
-    P("cli_intakeStartDem", T_F32, 0.3, 0.0, 1.0, 2, "", 113, "cooling effort that starts intake fans", "", true),
-    P("cli_windowFullDem", T_F32, 0.5, 0.0, 1.0, 2, "", 114, "cooling effort at fully open windows", "", true),
+    PR("cli_windowStartDem", T_F32, 0.1, &BAND_cli_windowStartDem, 2, "", 112, "cooling effort that opens windows", "", true),
+    PR("cli_intakeStartDem", T_F32, 0.3, &BAND_cli_intakeStartDem, 2, "", 113, "cooling effort that starts intake fans", "", true),
+    PR("cli_windowFullDem", T_F32, 0.5, &BAND_cli_windowFullDem, 2, "", 114, "cooling effort at fully open windows", "", true),
     P("cli_skirtCoolDem", T_F32, 0.7, 0.0, 1.0, 2, "", 115, "cooling effort that starts the skirt", "", true),
     P("cli_fanLowDem", T_F32, 0.2, 0.0, 1.0, 2, "", 116, "cooling effort for fan speed 1", "", true),
     P("cli_fanMedDem", T_F32, 0.4, 0.0, 1.0, 2, "", 117, "cooling effort for fan speed 2", "> cli_fanLowDem", true),
     P("cli_fanHighDem", T_F32, 0.8, 0.0, 1.0, 2, "", 118, "cooling effort for fan speed 3", "> cli_fanMedDem", true),
     P("cli_breezeDem", T_F32, 0.2, 0.0, 1.0, 2, "", 149, "brassage floor during the two breezes", "a light breeze at dawn and dusk: enough to dry the leaves, not to dry the plant", true),
-    P("cli_intakeFullDem", T_F32, 0.9, 0.0, 1.0, 2, "", 119, "cooling effort at full intake speed", "", true),
+    PR("cli_intakeFullDem", T_F32, 0.9, &BAND_cli_intakeFullDem, 2, "", 119, "cooling effort at full intake speed", "", true),
     P("cli_dTStratLow_degC", T_F32, 2.0, 0.0, 10.0, 1, "degC", 120, "stratification gap for fan speed 1", "", true),
     P("cli_dTStratMed_degC", T_F32, 4.0, 0.0, 10.0, 1, "degC", 121, "stratification gap for fan speed 2", "", true),
     P("cli_dTStratHigh_degC", T_F32, 6.0, 0.0, 10.0, 1, "degC", 122, "stratification gap for fan speed 3", "", true),
@@ -257,8 +287,8 @@ const Descriptor rows[] = {
     P("cli_fanDemHyst", T_F32, 0.05, 0.0, 0.5, 2, "", 151, "demand change needed to switch fan speed", "", true),
     P("cli_fanIrrDem", T_F32, 0.34, 0.0, 1.0, 2, "", 152, "fan demand while a tray is being watered", "", true),
     P("cli_rotRelease_sec", T_U16, 300, 0, 3600, 0, "s", 153, "rot lockout overrun past the condition", "", true),
-    P("cli_targetMin_degC", T_F32, 14.0, 0.0, 40.0, 1, "degC", 154, "coldest the target may be clamped to", "", true),
-    P("cli_targetMax_degC", T_F32, 27.0, 0.0, 40.0, 1, "degC", 155, "warmest the target may be clamped to", "", true),
+    PR("cli_targetMin_degC", T_F32, 14.0, &BAND_cli_targetMin_degC, 1, "degC", 154, "coldest the target may be clamped to", "", true),
+    PR("cli_targetMax_degC", T_F32, 27.0, &BAND_cli_targetMax_degC, 1, "degC", 155, "warmest the target may be clamped to", "", true),
     P("cli_sensorTau_ms", T_U16, 30000, 1000, 60000, 0, "ms", 156, "probe filter time constant", "", true),
     P("cli_intrSafeSpeed", T_F32, 0.15, 0.0, 1.0, 2, "", 164, "intractor speed with nothing asking", "the AO row declares the same number as its own safe state; test_site keeps the two in step", true),
     P("cli_wxTau_ms", T_U16, 5000, 500, 60000, 0, "ms", 163, "weather filter time constant", "shorter than the probes': a roof interlock answers weather that moves in seconds", true),

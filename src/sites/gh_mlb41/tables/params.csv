@@ -4,7 +4,7 @@ cli_heatBankOfs_degC ,T_F32 ,7.0    ,0.0   ,15.0   ,1     ,degC,101,how much war
 cli_heatBankTrg_degC ,T_F32 ,10.0   ,6.0   ,18.0   ,1     ,degC,102,yesterday's low below this: bank heat,                                  ,true,
 cli_coldBankTrg_degC ,T_F32 ,24.0   ,12.0  ,40.0   ,1     ,degC,103,yesterday's high above this: bank cold,                                  ,true,
 cli_coolSet_degC     ,T_F32 ,20.0   ,10.0  ,30.0   ,1     ,degC,104,base cooling target temperature   ,every cooling stage keys off this ,true,
-cli_coolKp           ,T_F32 ,0.08   ,0.0   ,1.0    ,2     ,    ,105,cooling PID proportional gain     ,leave as set                      ,true,
+cli_coolKp           ,T_F32 ,0.08   ,0.01  ,1.0    ,2     ,    ,105,cooling PID proportional gain     ,never 0: that stops all cooling   ,true,
 cli_coolTi_sec       ,T_F32 ,200.0  ,0.0   ,3600.0 ,0     ,sec ,106,cooling PID integral time         ,leave as set                      ,true,
 cli_coolTd_sec       ,T_F32 ,0.0    ,0.0   ,10.0   ,0     ,sec ,107,cooling PID derivative time       ,leave at zero                     ,true,
 cli_ventTempMgn_degC ,T_F32 ,1.0    ,0.0   ,15.0   ,1     ,degC,108,intake air must be this much cooler,                                  ,true,
