@@ -35,19 +35,32 @@ namespace Botanik { namespace Network {
         char     srv2[BOTANIK_HOST_STR_LEN] = {0};
     };
 
+    /** @brief Seconds between 1900-01-01 and 1970-01-01. */
+    const uint32_t NTP_UNIX_DELTA = 2208988800u;
+    /** @brief Seconds between 1970-01-01 and the era-1 epoch, 2036-02-07
+     *  06:28:16 UTC, where the 32-bit field wraps. 2^32 - NTP_UNIX_DELTA. */
+    const uint32_t NTP_ERA1_UNIX  = 2085978496u;
+
     /** @brief Convert an SNTP reply's transmit timestamp (bytes 40..47,
      *  big-endian: 32-bit seconds since 1900 + 32-bit fraction) to UNIX
-     *  milliseconds. Returns 0 if the timestamp is unset or pre-1970. */
+     *  milliseconds. Returns 0 for the all-zero "unsynchronised" timestamp.
+     *
+     *  The seconds field wraps on 2036-02-07, so its top bit selects the era
+     *  (RFC 4330 s3): set means 1968-2036 counted from 1900, clear means
+     *  2036-2104 counted from the wrap. Reading it as one era makes every reply
+     *  after 2036 look pre-1970, and the clock would simply stop disciplining. */
     inline uint64_t ntp_to_unix_ms(const uint8_t* pkt) {
         uint32_t secs = ((uint32_t)pkt[40] << 24) | ((uint32_t)pkt[41] << 16) |
                         ((uint32_t)pkt[42] << 8)  |  (uint32_t)pkt[43];
         uint32_t frac = ((uint32_t)pkt[44] << 24) | ((uint32_t)pkt[45] << 16) |
                         ((uint32_t)pkt[46] << 8)  |  (uint32_t)pkt[47];
-        // seconds between 1900 and 1970
-        const uint32_t NTP_UNIX_DELTA = 2208988800u;
-        if (secs < NTP_UNIX_DELTA) return 0;   // 0 / pre-1970 -> invalid
-        uint64_t unix_s = (uint64_t)secs - NTP_UNIX_DELTA;
-        uint32_t ms = (uint32_t)(((uint64_t)frac * 1000u) >> 32);
+        // All zero is the protocol's "unknown or unsynchronised", and the only
+        // value that stays invalid: in era 1, second 0 is a real instant.
+        if (secs == 0 && frac == 0) return 0;
+        const uint64_t unix_s = (secs & 0x80000000u)
+                                    ? (uint64_t)secs - NTP_UNIX_DELTA
+                                    : (uint64_t)secs + NTP_ERA1_UNIX;
+        const uint32_t ms = (uint32_t)(((uint64_t)frac * 1000u) >> 32);
         return unix_s * 1000ull + ms;
     }
 
