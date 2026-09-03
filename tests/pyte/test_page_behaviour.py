@@ -21,8 +21,27 @@ def test_home_after_reset(spawn, assert_screen):
     """
     term = boot(spawn)
     goto(term, keys.ALT_2)                       # SHELL
-    term.send(b"reset" + keys.ENTER)
+    term.send(b"reset confirm" + keys.ENTER)
     assert_screen(term, "page_home", rows=HOME_WIDGET)
+
+
+def test_a_bare_lifecycle_verb_refuses(spawn):
+    """The guard on the real firmware, where the health monitor IS wired.
+
+    The unit test has none, so it can only prove the guard passes; only here can
+    a bare `halt` be shown not to stop the plant. Deliberately the verb that
+    would take this console with it.
+    """
+    term = shell(spawn, quiet_logs=True)
+    term.send(b"halt" + keys.ENTER)
+    assert term.wait_screen("halt confirm"), \
+        "halt did not say what to type\n%s" % term.snapshot()
+
+    # The console is still here, which is the actual assertion: `halt` stops the
+    # cycle, so a screen that answers at all is a plant that was not parked.
+    term.send(b"version" + keys.ENTER)
+    assert term.wait_screen("site gh_mlb41"), \
+        "the shell stopped answering after a bare halt\n%s" % term.snapshot()
 
 
 def test_monitor_forces_a_row_and_releases_it(spawn):

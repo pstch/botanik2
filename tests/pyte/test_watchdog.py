@@ -36,7 +36,7 @@ def test_a_unit_that_stops_kicking_is_reset(spawn):
     # the retained rows reach flash, and only then is the kick withheld. So
     # the beats here cover that hold as well as the watchdog window; the
     # servicing thread notices from OUTSIDE the loop it is watching.
-    term.send(b"reboot" + keys.ENTER)
+    term.send(b"reboot confirm" + keys.ENTER)
     term.run(10100)                   # STOP_PARK_MS + HW_WATCHDOG_MS, in beats
 
     assert term.until(lambda: (_uptime(term) or 99999) < before), \

@@ -222,6 +222,16 @@ namespace Botanik { namespace Shell {
          *  matches, so the caller can say so and print the help page. */
         bool _help_group(const char* key, uint16_t klen);
 
+        /** @brief Whether @p args is the literal `confirm`, saying what to type
+         *  and what it costs when it is not. The four lifecycle verbs are the
+         *  only callers: each stops or restarts the unit and none can be taken
+         *  back. Stateless on purpose - a pending flag would have to survive
+         *  Ctrl-C, a page switch and a dropped link.
+         *  @param what the consequence, not the syntax: it is the half of the
+         *  refusal an operator has not already worked out. */
+        bool _confirmed(const char* args, uint16_t alen,
+                        const char* verb, const char* what);
+
         /** @brief A blank separator line. */
         void _blank();
         /** @brief A section rule: "-- Title ------...", out to the screen. */

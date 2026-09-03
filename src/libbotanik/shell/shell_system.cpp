@@ -39,6 +39,19 @@ namespace Botanik { namespace Shell {
         else _verb_usage("logs");
     }
 
+    bool CommandShell::_confirmed(const char* args, uint16_t alen,
+                                  const char* verb, const char* what) {
+        uint16_t wlen; const char* w = arg_next(args, alen, wlen);
+        if (w != nullptr && arg_eq(w, wlen, "confirm") &&
+            arg_next(args, alen, wlen) == nullptr)
+            return true;
+        // One row at 80 columns, or the instruction is what wraps.
+        char line[Config::LOG_FORMATTED_LEN];
+        snprintf(line, sizeof(line), "%s: %s. type `%s confirm`", verb, what, verb);
+        _println(line);
+        return false;
+    }
+
     void CommandShell::_cmd_breakpoint(const char*, uint16_t) { HAL::Debug::breakpoint(); }
 
     // Drop the field to its safe state before a deliberate restart: neither
@@ -59,7 +72,8 @@ namespace Botanik { namespace Shell {
         _terminal.clear_screen_now();
     }
 
-    void CommandShell::_cmd_reset(const char*, uint16_t) {
+    void CommandShell::_cmd_reset(const char* args, uint16_t alen) {
+        if (!_confirmed(args, alen, "reset", "resets the unit now, mid-beat")) return;
         _leave_running();
         HAL::System::reset();      // reboots; does not return
     }
@@ -70,7 +84,9 @@ namespace Botanik { namespace Shell {
     // wedges - the one worth being able to try on purpose. Control authority
     // goes FIRST either way: the gap before the reset is exactly when an
     // actuator must not be left energised.
-    void CommandShell::_cmd_reboot(const char*, uint16_t) {
+    void CommandShell::_cmd_reboot(const char* args, uint16_t alen) {
+        if (!_confirmed(args, alen, "reboot",
+                        "stops the laws, then the watchdog resets us")) return;
         if (_health == nullptr) {
             _println("reboot: health monitor unavailable (`reset` resets now)");
             return;
@@ -108,7 +124,11 @@ namespace Botanik { namespace Shell {
     // The other ending: the same stop, and then the unit sits there. Kept
     // alive - the watchdog is still kicked, because the loop IS alive - and
     // doing nothing at all, including no console. Recovery is `reset`.
-    void CommandShell::_cmd_halt(const char*, uint16_t) {
+    void CommandShell::_cmd_halt(const char* args, uint16_t alen) {
+        // The console goes with it, so the refusal is the last chance to say
+        // that recovery is a physical reset.
+        if (!_confirmed(args, alen, "halt",
+                        "stops the cycle and this console. `reset` recovers")) return;
         if (_health == nullptr) {
             _println("halt: health monitor unavailable");
             return;
@@ -121,7 +141,11 @@ namespace Botanik { namespace Shell {
                               "(console included; `reset` to recover)");
     }
 
-    void CommandShell::_cmd_exit(const char*, uint16_t) {
+    void CommandShell::_cmd_exit(const char* args, uint16_t alen) {
+        // On the OPTA shutdown() IS reset(), so this is the fourth way to
+        // restart the unit and guarding the other three without it would leave
+        // the shortest one open.
+        if (!_confirmed(args, alen, "exit", "resets the unit on hardware")) return;
         _leave_running();
         HAL::System::shutdown();   // sim: exit(0); OPTA: reboots
     }

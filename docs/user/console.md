@@ -319,27 +319,33 @@ commands with their own code.
 |------------------------------------------------|---------------------------------------|
 | `logs on\|off\|status`                          | show/hide logs on the shell page      |
 | `log <level> <text>`                           | write an entry of your own to the log  |
-| `control status`                               | the mode in force, and who is holding it |
-| `control enable`                               | programs drive; an override reaches the field |
-| `control inhibit`                              | programs stopped; an override still drives |
-| `control disable`                              | programs stopped; an override is muted too |
-| `control safe`                                 | drive every program to its fail position |
-| `control release`                              | lift a safe request                   |
 | `ntpsync`                                      | request an immediate NTP sync         |
 | `breakpoint`                                   | trap into an attached debugger        |
-| `reboot`                                       | drop control, then let the watchdog reset the unit |
-| `reset`                                        | reset the unit now                    |
-| `exit`                                         | quit (simulator) / reboot (hardware)  |
+| `reboot confirm`                               | drop control, then let the watchdog reset the unit |
+| `reset confirm`                                | reset the unit now                    |
+| `halt confirm`                                 | park the plant, then stop the cycle   |
+| `exit confirm`                                 | quit (simulator) / reboot (hardware)  |
 
-Both drop control first, so the outputs are at their safe state and the retained
-values are written before the unit goes down. They differ in what happens next:
+**The four take `confirm` and do nothing without it.** Each one stops or restarts
+the unit and none can be taken back; `halt` takes this console with it. Typing the
+bare verb prints what it would cost and stops there.
+
+All four drop control first, so the outputs are at their safe state and the
+retained values are written before the unit goes down. They differ in what
+happens next:
 
   - `reset` resets immediately, so nothing more is logged or painted
   - `reboot` leaves the loop running and withholds the watchdog kick, so the log
     and the screen keep up until the watchdog fires - the same path an unattended
     unit takes when it wedges
+  - `halt` stops the cycle and stays stopped, console included. Only `reset`
+    recovers, and on hardware that means the button
+  - `exit` quits the simulator; on hardware it is a reset like any other
 
-Neither writes an unsaved parameter or override on your behalf (@ref user_params).
+None writes an unsaved parameter or override on your behalf (@ref user_params).
+
+Control authority is not here: it is the `sys_control` parameter plus
+`programs disable` (@ref user_params).
 
 ##### System status
 
